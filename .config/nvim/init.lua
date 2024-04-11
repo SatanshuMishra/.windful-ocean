@@ -3,8 +3,6 @@
 --  NOTE: Must happen before plugins are required (otherwise wrong leader will be used)
 --
 
--- Test Comment
-
 -- After loading your colorscheme:
 vim.api.nvim_set_hl(0, "NormalNC", { link = "Normal" })
 
