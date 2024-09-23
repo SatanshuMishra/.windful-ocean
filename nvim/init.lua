@@ -13,12 +13,20 @@ vim.api.nvim_set_hl(0, "NormalNC", { ctermbg = 238 })
 
 -- GUI: A darker shade of your colorscheme's background
 if vim.g.loaded_neovim_guifile == 1 then
-    vim.api.nvim_set_hl(0, "NormalNC", { guibg = "#282828" })
+    vim.api.nvim_set_hl(0, "NormalNC", { guibg = "none" })
 end
 
 -- GUI: SET LINE NUMBER BACKGROUND TO TRANSPARENT
-vim.cmd("hi LineNr guifg=#ffffff guibg=NONE")
-vim.cmd.hi("LineNr guibg=NONE guifg=#FFFFFF")
+
+vim.api.nvim_create_autocmd("VimEnter", {
+    callback = function ()
+        vim.api.nvim_set_hl(0, "LineNr", {bg = "none", fg = "#ffffff"})
+        vim.api.nvim_set_hl(0, "LineNrAbove", { bg = "none", fg = "#ffffff"})
+        vim.api.nvim_set_hl(0, "CursorLineNr", {bg = "none", fg = "#ffffff"})
+    end
+})
+-- vim.cmd("hi LineNr guifg=#ffffff guibg=NONE")
+-- vim.cmd.hi("LineNr guibg=NONE guifg=#FFFFFF")
 
 -- INFORMATION:
 
