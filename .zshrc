@@ -51,7 +51,7 @@ function ccd() {
 }
 
 function gcr() {
-	cd ~/Documents/GitSpace/
+	cd ~/Documents/DevLab/
 	
 	if [ -z "$1" ]; then
 		echo "Useage: git clone <repository_url>"
@@ -76,7 +76,7 @@ function gcr() {
 
 function dev() {
     local optional_param="$1"
-    local base_directory="$HOME/Documents/GitSpace"
+    local base_directory="$HOME/Documents/DevLab"
 
     if [ -n "$optional_param" ]; then
         cd "$base_directory/$optional_param" || return 1
@@ -91,15 +91,15 @@ function dev() {
 }
 
 function ezsh() {
-	nvim ~/.zshrc
+	nvim ./.zshrc
 }
 
 function evim() {
-	nvim  ~/.config/nvim/init.lua
+	nvim  ./.config/nvim/init.lua
 }
 
 function term() {
-	nvim ~/.wezterm.lua
+	nvim ./.wezterm.lua
 }
 
 function helpme() {
