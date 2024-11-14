@@ -81,25 +81,27 @@ function dev() {
     if [ -n "$optional_param" ]; then
         cd "$base_directory/$optional_param" || return 1
 #	echo -e "Changed directory to: $base_directory/$optional_param"
+		clear
 		echo -e "Moved into the $optional_param 👀"
     else
         cd "$base_directory" || return 1
 #        echo "Changed directory to: $base_directory"
+		clear
 		echo "Now Entering the Development Zone"
 #		echo -e "Changed directory to: $base_directory/$optional_param"
     fi
 }
 
 function ezsh() {
-	nvim ./.zshrc
+	nvim $HOME/Documents/DevLab/.windful-ocean/.zshrc
 }
 
 function evim() {
-	nvim  ./.config/nvim/init.lua
+	nvim  $HOME/Documents/DevLab/.windful-ocean/.config/nvim/init.lua
 }
 
 function term() {
-	nvim ./.wezterm.lua
+	nvim $HOME/Documents/DevLab/.windful-ocean/.wezterm.lua
 }
 
 function helpme() {
