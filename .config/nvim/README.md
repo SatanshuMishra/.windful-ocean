@@ -1,201 +1,526 @@
-# VoxelMC's Neovim Configuration
+# Satanshu's Neovim Configuration
 
-This file contains my personal Neovim configuration. Feel free to use it!
+A comprehensive, modular Neovim configuration optimized for full-stack development with support for 15+ programming languages, advanced Git integration, AI assistance, and powerful development tools.
 
-## kickstart.nvim
+## Table of Contents
 
-This configuration file began as it is present in `kickstart.nvim`. This was then adapted to produce my personal Neovim experience!
+- [Features](#features)
+- [File Structure](#file-structure)
+- [Installation](#installation)
+- [Plugin Inventory](#plugin-inventory)
+- [Keybinding Reference](#keybinding-reference)
+- [Language Servers](#language-servers)
+- [Commands Reference](#commands-reference)
+- [Customization Guide](#customization-guide)
+- [Troubleshooting](#troubleshooting)
 
-https://github.com/kdheepak/kickstart.nvim/assets/1813121/f3ff9a2b-c31f-44df-a4fa-8a0d7b17cf7b
+## Features
 
-### Introduction
+### Core Development Features
+- **Multi-Language LSP Support**: TypeScript, Rust, PHP, Python, C/C++, HTML/CSS, SQL, Bash, and more
+- **Advanced Git Integration**: LazyGit interface, Gitsigns for inline git status
+- **AI Code Assistance**: GitHub Copilot integration for intelligent code completion
+- **Powerful Search**: Telescope fuzzy finder for files, content, and symbols
+- **Debug Support**: Debug Adapter Protocol (DAP) with PHP Xdebug integration
+- **Code Quality**: Automatic formatting, linting, and syntax highlighting
 
-A starting point for Neovim that is:
+### Productivity Enhancements
+- **File Navigation**: Oil file manager, Harpoon quick access, tmux integration
+- **Discord Rich Presence**: Shows current project and tmux session context
+- **Code Screenshots**: Silicon for creating beautiful code screenshots
+- **Todo Management**: Track TODO, FIXME, and other comment annotations
+- **Visual Enhancements**: Custom themes, status line, color highlighting
 
-* Small
-* Single-file (with examples of moving to multi-file)
-* Documented
-* Modular
+### Development Environment
+- **Tmux Integration**: Seamless navigation between vim and tmux panes
+- **Terminal Integration**: WezTerm tab title updates, terminal enhancements
+- **Performance Optimized**: Lazy-loaded plugins for fast startup times
+- **Modular Architecture**: Easy to customize and extend
 
-This repo is meant to be used by **YOU** to begin your Neovim journey; remove the things you don't use and add what you miss.
-
-Kickstart.nvim targets *only* the latest ['stable'](https://github.com/neovim/neovim/releases/tag/stable) and latest ['nightly'](https://github.com/neovim/neovim/releases/tag/nightly) of Neovim. If you are experiencing issues, please make sure you have the latest versions.
-
-Distribution Alternatives:
-- [LazyVim](https://www.lazyvim.org/): A delightful distribution maintained by @folke (the author of lazy.nvim, the package manager used here)
-
-### Installation
-
-> **NOTE** 
-> [Backup](#FAQ) your previous configuration (if any exists)
-
-Requirements:
-* Make sure to review the readmes of the plugins if you are experiencing errors. In particular:
-  * [ripgrep](https://github.com/BurntSushi/ripgrep#installation) is required for multiple [telescope](https://github.com/nvim-telescope/telescope.nvim#suggested-dependencies) pickers.
-* See [Windows Installation](#Windows-Installation) if you have trouble with `telescope-fzf-native`
-
-Neovim's configurations are located under the following paths, depending on your OS:
-
-| OS | PATH |
-| :- | :--- |
-| Linux | `$XDG_CONFIG_HOME/nvim`, `~/.config/nvim` |
-| MacOS | `$XDG_CONFIG_HOME/nvim`, `~/.config/nvim` |
-| Windows (cmd)| `%userprofile%\AppData\Local\nvim\` |
-| Windows (powershell)| `$env:USERPROFILE\AppData\Local\nvim\` |
-
-Clone kickstart.nvim:
-
-```sh
-# on Linux and Mac
-git clone https://github.com/nvim-lua/kickstart.nvim.git "${XDG_CONFIG_HOME:-$HOME/.config}"/nvim
-```
-
+## File Structure
 
 ```
-# on Windows (cmd)
-git clone https://github.com/nvim-lua/kickstart.nvim.git %userprofile%\AppData\Local\nvim\ 
+.config/nvim/
+├── init.lua                 # Main entry point - loads all modules
+├── README.md               # This comprehensive guide
+├── init.lua.backup         # Backup of original configuration
+├── lazy-lock.json          # Plugin version lockfile
+├── ftdetect/              # File type detection
+│   └── astro.lua          # Astro framework support
+├── lua/
+│   ├── core/              # Core Neovim functionality
+│   │   ├── options.lua    # Editor settings and vim options
+│   │   ├── keymaps.lua    # Global keymaps and leader setup
+│   │   ├── autocmds.lua   # Event handlers and autocommands
+│   │   └── utils.lua      # Utility functions and Discord presence
+│   ├── plugins/           # Plugin specifications and configurations
+│   │   ├── init.lua       # Lazy.nvim setup and plugin loader
+│   │   ├── lsp/          # Language Server Protocol
+│   │   │   ├── init.lua   # LSP setup and capabilities
+│   │   │   ├── servers.lua # Individual server configurations
+│   │   │   └── keymaps.lua # LSP-specific keybindings
+│   │   ├── telescope.lua  # Fuzzy finder configuration
+│   │   ├── completion.lua # Code completion and snippets
+│   │   ├── treesitter.lua # Syntax highlighting
+│   │   ├── debug.lua      # Debug adapters and configuration
+│   │   ├── git.lua        # Git integration tools
+│   │   ├── navigation.lua # File management tools
+│   │   ├── ui.lua         # Visual enhancements and themes
+│   │   ├── editor.lua     # Editing enhancements
+│   │   ├── tools.lua      # Development tools
+│   │   └── utilities.lua  # Utility plugins
+│   └── themes/
+│       └── init.lua       # Theme configuration
+└── doc/                   # Documentation files
+    ├── kickstart.txt      # Kickstart documentation
+    └── tags               # Help tags
 ```
 
-```
-# on Windows (powershell)
-git clone https://github.com/nvim-lua/kickstart.nvim.git $env:USERPROFILE\AppData\Local\nvim\ 
-```
+## Installation
 
+### Prerequisites
 
-### Post Installation
+- **Neovim 0.9+**: Latest stable version recommended
+- **Git**: For plugin management and version control
+- **Node.js**: Required for many language servers
+- **Python 3**: For Python language server and formatters
+- **Ripgrep (rg)**: For fast text searching
+- **Make**: For building telescope-fzf-native
+- **A Nerd Font**: For proper icon display
 
-Start Neovim
+### Installation Steps
 
-```sh
-nvim
-```
+1. **Backup existing configuration**:
+   ```bash
+   mv ~/.config/nvim ~/.config/nvim.backup
+   ```
 
-The `Lazy` plugin manager will start automatically on the first run and install the configured plugins - as can be seen in the introduction video. After the installation is complete you can press `q` to close the `Lazy` UI and **you are ready to go**! Next time you run nvim `Lazy` will no longer show up.
+2. **Clone this configuration**:
+   ```bash
+   git clone <your-repo-url> ~/.config/nvim
+   ```
 
-If you would prefer to hide this step and run the plugin sync from the command line, you can use:
+3. **Start Neovim**:
+   ```bash
+   nvim
+   ```
 
-```sh
-nvim --headless "+Lazy! sync" +qa
-```
+4. **Wait for plugin installation**: Lazy.nvim will automatically install all plugins on first launch.
 
-### Recommended Steps
+5. **Install language servers**: Open Mason with `:Mason` and install desired language servers.
 
-[Fork](https://docs.github.com/en/get-started/quickstart/fork-a-repo) this repo (so that you have your own copy that you can modify) and then installing you can install to your machine using the methods above.
+### Environment Variables
 
-> **NOTE**  
-> Your fork's url will be something like this: `https://github.com/<your_github_username>/kickstart.nvim.git`
+- `NVIM_HIDDEN_PROJECT_PATH`: Path to project with redacted Discord presence
 
-### Configuration And Extension
+## Plugin Inventory
 
-* Inside of your copy, feel free to modify any file you like! It's your copy!
-* Feel free to change any of the default options in `init.lua` to better suit your needs.
-* For adding plugins, there are 3 primary options:
-  * Add new configuration in `lua/custom/plugins/*` files, which will be auto sourced using `lazy.nvim` (uncomment the line importing the `custom/plugins` directory in the `init.lua` file to enable this)
-  * Modify `init.lua` with additional plugins.
-  * Include the `lua/kickstart/plugins/*` files in your configuration.
+### Language Server Protocol
 
-You can also merge updates/changes from the repo back into your fork, to keep up-to-date with any changes for the default configuration.
+| Plugin | Purpose | Key Features |
+|--------|---------|--------------|
+| nvim-lspconfig | LSP client configuration | 15+ language servers, auto-completion |
+| mason.nvim | LSP server manager | Easy installation and management |
+| fidget.nvim | LSP progress indicator | Visual feedback for LSP operations |
+| neodev.nvim | Neovim Lua development | Enhanced Lua LSP for Neovim config |
+| schemastore.nvim | JSON schema validation | Auto-completion for JSON files |
 
-#### Example: Adding an autopairs plugin
+### Code Completion & Snippets
 
-In the file: `lua/custom/plugins/autopairs.lua`, add:
+| Plugin | Purpose | Key Features |
+|--------|---------|--------------|
+| nvim-cmp | Completion engine | Intelligent code completion |
+| LuaSnip | Snippet engine | Powerful snippet expansion |
+| nvim-autopairs | Auto-close brackets | Smart bracket and quote pairing |
+| friendly-snippets | Snippet collection | Pre-built snippets for many languages |
+| copilot.vim | AI assistance | GitHub Copilot integration |
+
+### Navigation & Search
+
+| Plugin | Purpose | Key Features |
+|--------|---------|--------------|
+| telescope.nvim | Fuzzy finder | File search, live grep, symbols |
+| oil.nvim | File manager | Edit directories like buffers |
+| harpoon | Quick file access | Mark and navigate to files quickly |
+| flash.nvim | Motion enhancement | Improved f/t and search motions |
+
+### Git Integration
+
+| Plugin | Purpose | Key Features |
+|--------|---------|--------------|
+| gitsigns.nvim | Git decorations | Inline git status, hunk navigation |
+| lazygit.nvim | Git interface | Full-featured git TUI |
+
+### Visual Enhancements
+
+| Plugin | Purpose | Key Features |
+|--------|---------|--------------|
+| lualine.nvim | Status line | Informative and customizable status bar |
+| nvim-web-devicons | File icons | Beautiful file type icons |
+| nvim-highlight-colors | Color preview | Highlight color codes in files |
+| indent-blankline.nvim | Indentation guides | Visual indentation lines |
+| catppuccin/nvim | Color theme | Modern, eye-friendly colorscheme |
+| oxocarbon.nvim | Color theme | IBM's carbon design system theme |
+
+### Development Tools
+
+| Plugin | Purpose | Key Features |
+|--------|---------|--------------|
+| nvim-dap | Debug adapter | Debug support for multiple languages |
+| conform.nvim | Code formatting | Multi-language code formatter |
+| nvim-lint | Code linting | Real-time code analysis |
+| nvim-treesitter | Syntax highlighting | Advanced syntax highlighting |
+| presence.nvim | Discord integration | Rich presence with tmux awareness |
+| nvim-silicon | Code screenshots | Beautiful code screenshots |
+
+### Utilities
+
+| Plugin | Purpose | Key Features |
+|--------|---------|--------------|
+| which-key.nvim | Keybinding help | Interactive keybinding guide |
+| todo-comments.nvim | TODO management | Highlight and navigate TODO comments |
+| trouble.nvim | Diagnostics viewer | Better diagnostic and quickfix lists |
+| lspsaga.nvim | LSP enhancements | Enhanced LSP UI and actions |
+| Comment.nvim | Comment toggling | Easy line and block commenting |
+
+## Keybinding Reference
+
+### Leader Key
+| Key | Description |
+|-----|-------------|
+| `<Space>` | Main leader key |
+
+### Core Navigation
+| Key | Mode | Action |
+|-----|------|--------|
+| `<C-h/j/k/l>` | Normal | Tmux/window navigation |
+| `<C-d>` | Normal | Half-page down (centered) |
+| `<C-u>` | Normal | Half-page up (centered) |
+| `j/k` | Normal | Move by visual lines when wrapped |
+| `J` | Normal | Join lines without moving cursor |
+
+### File Management
+| Key | Mode | Action |
+|-----|------|--------|
+| `<leader>sf` | Normal | Search files |
+| `<leader>sg` | Normal | Live grep search |
+| `<leader>sw` | Normal | Search word under cursor |
+| `<leader>gf` | Normal | Search git files |
+| `<leader>?` | Normal | Recently opened files |
+| `<leader><space>` | Normal | Find buffers |
+| `<leader>/` | Normal | Fuzzy search in current buffer |
+| `-` | Normal | Open parent directory (Oil) |
+| `<leader>fs` | Normal | Open netrw file system |
+
+### Harpoon Quick Access
+| Key | Mode | Action |
+|-----|------|--------|
+| `<leader>fa` | Normal | Add file to harpoon |
+| `<C-e>` | Normal | Toggle harpoon menu |
+| `<C-1>` to `<C-4>` | Normal | Navigate to harpoon file 1-4 |
+| `<leader>p1` to `<leader>p4` | Normal | Open harpoon file 1-4 |
+
+### Git Operations
+| Key | Mode | Action |
+|-----|------|--------|
+| `<leader>gg` | Normal | Open LazyGit |
+| `]c` | Normal | Next git hunk |
+| `[c` | Normal | Previous git hunk |
+| `<leader>hp` | Normal | Preview git hunk |
+| `<leader>hs` | Normal | Stage git hunk |
+| `<leader>hr` | Normal | Reset git hunk |
+| `<leader>hb` | Normal | Blame line |
+| `<leader>hd` | Normal | Diff this |
+
+### LSP Operations
+| Key | Mode | Action |
+|-----|------|--------|
+| `gd` | Normal | Go to definition |
+| `gr` | Normal | Go to references |
+| `gI` | Normal | Go to implementation |
+| `K` | Normal | Hover documentation |
+| `<C-k>` | Normal | Signature help |
+| `<leader>rn` | Normal | Rename symbol |
+| `<leader>ca` | Normal | Code actions |
+| `<leader>D` | Normal | Type definition |
+| `gl` | Normal | Show line diagnostics |
+| `gp` | Normal | Peek definition |
+
+### Debug Operations
+| Key | Mode | Action |
+|-----|------|--------|
+| `<leader>xb` | Normal | Toggle breakpoint |
+| `<leader>xc` | Normal | Continue/start debugging |
+| `<leader>xt` | Normal | Terminate debugging |
+| `<leader>xo` | Normal | Step over |
+| `<leader>xi` | Normal | Step into |
+| `<leader>xO` | Normal | Step out |
+| `<leader>xu` | Normal | Toggle DAP UI |
+
+### Editing Enhancements
+| Key | Mode | Action |
+|-----|------|--------|
+| `<leader>d` | Normal/Visual | Delete without copying |
+| `<leader>v` | Normal | Paste from system clipboard |
+| `K` | Visual | Move selection up |
+| `J` | Visual | Move selection down |
+| `s` | Normal/Visual | Flash jump |
+| `gcc` | Normal | Toggle line comment |
+| `gbc` | Normal | Toggle block comment |
+
+### Completion and Snippets
+| Key | Mode | Action |
+|-----|------|--------|
+| `<Tab>` | Insert | Accept completion |
+| `<C-n>` | Insert | Next completion item |
+| `<C-p>` | Insert | Previous completion item |
+| `<C-G>` | Insert | Accept Copilot suggestion |
+
+### Utilities
+| Key | Mode | Action |
+|-----|------|--------|
+| `<leader>cf` | Normal | Format buffer |
+| `<leader>cs` | Visual | Screenshot code |
+| `<leader>lt` | Normal | TODO Trouble |
+| `<leader>lp` | Normal | Toggle diagnostics |
+| `]t` | Normal | Next TODO comment |
+| `[t` | Normal | Previous TODO comment |
+
+### Diagnostic Navigation
+| Key | Mode | Action |
+|-----|------|--------|
+| `[d` | Normal | Previous diagnostic |
+| `]d` | Normal | Next diagnostic |
+| `<leader>e` | Normal | Open diagnostic float |
+| `<leader>q` | Normal | Open diagnostics list |
+
+## Language Servers
+
+### Supported Languages
+
+| Language | Server | Features | Auto-install |
+|----------|--------|----------|--------------|
+| **TypeScript/JavaScript** | ts_ls | Inlay hints, auto-import, JSX | ✓ |
+| **Rust** | rust-analyzer | Clippy integration, cargo support | ✓ |
+| **PHP** | intelephense | Laravel stubs, comprehensive PHP support | ✓ |
+| **Python** | pylsp | Multiple formatters, rope completion | ✓ |
+| **Lua** | lua_ls | Neovim API support, workspace detection | ✓ |
+| **HTML** | html | Emmet support, tag completion | ✓ |
+| **CSS** | cssls | Property completion, validation | ✓ |
+| **Tailwind CSS** | tailwindcss | Class completion, color preview | ✓ |
+| **JSON** | jsonls | Schema validation, auto-completion | ✓ |
+| **YAML** | yamlls | Schema support, validation | ✓ |
+| **SQL** | sqlls | Multi-database support, query validation | ✓ |
+| **Bash** | bashls | Script validation, completion | ✓ |
+| **C/C++** | clangd | Advanced features, compile commands | ✓ |
+| **Docker** | dockerls | Dockerfile support, best practices | ✓ |
+| **Markdown** | marksman | Link validation, TOC generation | ✓ |
+| **Astro** | astro | Component support, framework integration | ✓ |
+
+### Server Configuration
+
+Each language server is configured with optimal settings:
+
+- **TypeScript**: Inlay hints enabled, import organization
+- **Rust**: Clippy on save, all cargo features enabled
+- **PHP**: Laravel and common framework stubs included
+- **Python**: 120 character line limit, multiple linter support
+- **SQL**: MySQL, PostgreSQL, and SQLite support
+
+## Commands Reference
+
+### LSP Commands
+| Command | Description |
+|---------|-------------|
+| `:LspInfo` | Show attached language servers |
+| `:LspRestart` | Restart language server |
+| `:Mason` | Open LSP server manager |
+| `:MasonUpdate` | Update installed servers |
+
+### Plugin Management
+| Command | Description |
+|---------|-------------|
+| `:Lazy` | Open plugin manager |
+| `:Lazy update` | Update all plugins |
+| `:Lazy clean` | Remove unused plugins |
+| `:Lazy profile` | Profile startup time |
+
+### Git Integration
+| Command | Description |
+|---------|-------------|
+| `:LazyGit` | Open LazyGit interface |
+| `:Gitsigns toggle_signs` | Toggle git signs |
+| `:Gitsigns blame_line` | Show git blame |
+
+### File Navigation
+| Command | Description |
+|---------|-------------|
+| `:Telescope` | Open Telescope picker |
+| `:Oil` | Open Oil file manager |
+| `:TodoTrouble` | Show TODO comments |
+| `:Trouble diagnostics` | Show diagnostics list |
+
+### Debug Adapters
+| Command | Description |
+|---------|-------------|
+| `:DapContinue` | Start/continue debugging |
+| `:DapToggleBreakpoint` | Toggle breakpoint |
+| `:DapTerminate` | Terminate debug session |
+
+### Code Quality
+| Command | Description |
+|---------|-------------|
+| `:ConformInfo` | Show formatter information |
+| `:EslintFixAll` | Fix all ESLint issues |
+| `:TSUpdate` | Update Treesitter parsers |
+
+### Theme Management
+| Command | Description |
+|---------|-------------|
+| `:colorscheme <name>` | Change color scheme |
+| `:Telescope colorscheme` | Browse available themes |
+
+## Customization Guide
+
+### Adding New Language Servers
+
+1. **Open Mason**: `:Mason`
+2. **Install server**: Find and install your language server
+3. **Add configuration**: Edit `lua/plugins/lsp/servers.lua`:
 
 ```lua
--- File: lua/custom/plugins/autopairs.lua
+-- EXAMPLE: Adding Go language server
+lspconfig.gopls.setup({
+    capabilities = capabilities,
+    on_attach = on_attach,
+    settings = {
+        gopls = {
+            analyses = {
+                unusedparams = true,
+            },
+            staticcheck = true,
+        },
+    },
+})
+```
 
-return {
-  "windwp/nvim-autopairs",
-  -- Optional dependency
-  dependencies = { 'hrsh7th/nvim-cmp' },
-  config = function()
-    require("nvim-autopairs").setup {}
-    -- If you want to automatically add `(` after selecting a function or method
-    local cmp_autopairs = require('nvim-autopairs.completion.cmp')
-    local cmp = require('cmp')
-    cmp.event:on(
-      'confirm_done',
-      cmp_autopairs.on_confirm_done()
-    )
-  end,
+### Adding New Plugins
+
+1. **Choose appropriate file**: Add to relevant plugin file in `lua/plugins/`
+2. **Add plugin specification**:
+
+```lua
+{
+    'author/plugin-name',
+    event = "BufReadPost",  -- Lazy load trigger
+    config = function()
+        require('plugin-name').setup({
+            -- Configuration options
+        })
+    end,
 }
 ```
 
+### Customizing Keybindings
 
-This will automatically install [windwp/nvim-autopairs](https://github.com/windwp/nvim-autopairs) and enable it on startup. For more information, see documentation for [lazy.nvim](https://github.com/folke/lazy.nvim).
-
-#### Example: Adding a file tree plugin
-
-In the file: `lua/custom/plugins/filetree.lua`, add:
+Edit `lua/core/keymaps.lua` for global keymaps or specific plugin files for plugin-related keymaps:
 
 ```lua
--- Unless you are still migrating, remove the deprecated commands from v1.x
-vim.cmd([[ let g:neo_tree_remove_legacy_commands = 1 ]])
-
-return {
-  "nvim-neo-tree/neo-tree.nvim",
-  version = "*",
-  dependencies = {
-    "nvim-lua/plenary.nvim",
-    "nvim-tree/nvim-web-devicons", -- not strictly required, but recommended
-    "MunifTanjim/nui.nvim",
-  },
-  config = function ()
-    require('neo-tree').setup {}
-  end,
-}
+set_keymap('n', '<leader>custom', function()
+    -- Your custom action
+end, { desc = 'CUSTOM ACTION' })
 ```
 
-This will install the tree plugin and add the command `:Neotree` for you. You can explore the documentation at [neo-tree.nvim](https://github.com/nvim-neo-tree/neo-tree.nvim) for more information.
+### Theme Customization
 
-### Contribution
+Edit `lua/themes/init.lua` to:
+- Change default colorscheme
+- Customize theme settings
+- Add new theme integrations
 
-Pull-requests are welcome. The goal of this repo is not to create a Neovim configuration framework, but to offer a starting template that shows, by example, available features in Neovim. Some things that will not be included:
+### Formatter Configuration
 
-* Custom language server configuration (null-ls templates)
-* Theming beyond a default colorscheme necessary for LSP highlight groups
-
-Each PR, especially those which increase the line count, should have a description as to why the PR is necessary.
-
-### FAQ
-
-* What should I do if I already have a pre-existing neovim configuration?
-  * You should back it up, then delete all files associated with it.
-  * This includes your existing init.lua and the neovim files in `~/.local` which can be deleted with `rm -rf ~/.local/share/nvim/`
-  * You may also want to look at the [migration guide for lazy.nvim](https://github.com/folke/lazy.nvim#-migration-guide)
-* Can I keep my existing configuration in parallel to kickstart?
-  * Yes! You can use [NVIM_APPNAME](https://neovim.io/doc/user/starting.html#%24NVIM_APPNAME)`=nvim-NAME` to maintain multiple configurations. For example you can install the kickstart configuration in `~/.config/nvim-kickstart` and create a script `~/bin/nvim-kickstart`:
-    ```
-    #!/bin/sh
-    exec env NVIM_APPNAME=nvim-kickstart nvim "$@"
-    ```
-    When you run Neovim with `nvim-kickstart` it will use the alternative config directory and the matching local directory: `~/.local/share/nvim-kickstart`. You can apply this approach to any Neovim distribution that you would like to try out.
-* What if I want to "uninstall" this configuration:
-  * See [lazy.nvim uninstall](https://github.com/folke/lazy.nvim#-uninstalling) information
-* Are there any cool videos about this plugin?
-  * Current iteration of kickstart (coming soon)
-  * Here is one about the previous iteration of kickstart: [video introduction to Kickstart.nvim](https://youtu.be/stqUbv-5u2s). Note the install via init.lua no longer works as specified. Please follow the install instructions in this file instead as they're up to date.
-* Why is the kickstart `init.lua` a single file? Wouldn't it make sense to split it into multiple files?
-  * The main purpose of kickstart is to serve as a teaching tool and a reference
-    configuration that someone can easily `git clone` as a basis for their own.
-    As you progress in learning Neovim and Lua, you might consider splitting `init.lua`
-    into smaller parts. A fork of kickstart that does this while maintaining the exact
-    same functionality is available here:
-    * [kickstart-modular.nvim](https://github.com/dam9000/kickstart-modular.nvim)
-  * Discussions on this topic can be found here:
-    * [Restructure the configuration](https://github.com/nvim-lua/kickstart.nvim/issues/218)
-    * [Reorganize init.lua into a multi-file setup](https://github.com/nvim-lua/kickstart.nvim/pull/473)
-
-### Windows Installation
-
-Installation may require installing build tools, and updating the run command for `telescope-fzf-native`
-
-See `telescope-fzf-native` documentation for [more details](https://github.com/nvim-telescope/telescope-fzf-native.nvim#installation)
-
-This requires:
-
-- Install CMake, and the Microsoft C++ Build Tools on Windows
+Edit the `formatters_by_ft` table in `lua/plugins/init.lua`:
 
 ```lua
-{'nvim-telescope/telescope-fzf-native.nvim', build = 'cmake -S. -Bbuild -DCMAKE_BUILD_TYPE=Release && cmake --build build --config Release && cmake --install build --prefix build' }
+formatters_by_ft = {
+    python = { "black", "isort" },  -- Multiple formatters
+    rust = { "rustfmt" },
+    -- Add your language
+},
 ```
 
+## Troubleshooting
+
+### Common Issues
+
+#### Plugin Installation Fails
+```bash
+# Clear plugin cache and reinstall
+rm -rf ~/.local/share/nvim/lazy
+nvim  # Plugins will reinstall automatically
+```
+
+#### LSP Server Not Working
+1. Check server status: `:LspInfo`
+2. Restart server: `:LspRestart`
+3. Check Mason installation: `:Mason`
+4. View logs: `:lua vim.lsp.set_log_level("debug")`
+
+#### Slow Startup
+1. Profile startup: `:Lazy profile`
+2. Check for heavy plugins loading early
+3. Ensure proper lazy loading configuration
+
+#### Formatting Not Working
+1. Check formatter installation: `:ConformInfo`
+2. Verify file type detection: `:set filetype?`
+3. Check format on save setting
+
+#### Git Signs Not Showing
+1. Ensure you're in a git repository
+2. Check gitsigns status: `:Gitsigns toggle_signs`
+3. Verify git is in PATH
+
+### Performance Optimization
+
+#### Reduce Startup Time
+- Use `event` triggers for plugin loading
+- Avoid `require()` calls in plugin specs
+- Use `cmd` for command-only plugins
+
+#### Memory Usage
+- Disable unused language servers
+- Use `cond = false` to disable plugins temporarily
+- Clear old undo files periodically
+
+### Getting Help
+
+#### Documentation
+- Neovim help: `:help`
+- Plugin help: `:help plugin-name`
+- LSP help: `:help lsp`
+
+#### Debugging
+- Enable verbose mode: `nvim -V9nvim.log`
+- Check health: `:checkhealth`
+- View messages: `:messages`
+
+#### Community Resources
+- Neovim GitHub: Issues and discussions
+- r/neovim: Community support
+- Plugin documentation: Each plugin's README
+
+---
+
+## Credits
+
+This configuration is built on the Neovim ecosystem and incorporates ideas from the community. Special thanks to:
+
+- The Neovim core team
+- All plugin authors and maintainers
+- The vibrant Neovim community
+
+**Last Updated**: January 27, 2025  
+**Author**: Satanshu Mishra  
+**Version**: 2.0 (Modular Architecture)
