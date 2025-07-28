@@ -1,2 +1,16 @@
 #  NOTE: IGNORE DS_STORE FROM ANY DIRECTORY IN THE ENTIRE REPOSITORY
 **/.DS_Store
+
+# Development tools and temporary files
+.claude/
+.claude-*
+CLAUDE.md
+**/CLAUDE.md
+claude.json
+.claude.json
+*claude-session*
+*claude_session*
+*.tmp
+*.log
+*session*
+.local/
