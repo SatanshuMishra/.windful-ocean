@@ -1,0 +1,246 @@
+# ============================================================================
+#                          GIT GLOBAL CONFIGURATION
+# ============================================================================
+# Modern Git configuration with delta integration and useful aliases
+
+[user]
+    # IMPORTANT: Update these with your actual details
+    name = Satanshu Mishra
+    email = your-email@example.com
+    # Uncomment and set if using GPG signing
+    # signingkey = YOUR_GPG_KEY_ID
+
+[core]
+    editor = nvim
+    autocrlf = input
+    safecrlf = warn
+    excludesfile = ~/.gitignore_global
+    attributesfile = ~/.gitattributes_global
+    # Use delta for better diffs
+    pager = delta
+
+[init]
+    defaultBranch = main
+
+[push]
+    default = simple
+    autoSetupRemote = true
+    followTags = true
+
+[pull]
+    rebase = true
+    ff = only
+
+[fetch]
+    prune = true
+    pruneTags = true
+
+[rebase]
+    autoStash = true
+    autoSquash = true
+
+[merge]
+    tool = nvim
+    conflictstyle = diff3
+    ff = false
+
+[mergetool "nvim"]
+    cmd = nvim -f -c \"Gdiff\" \"$MERGED\"
+
+[diff]
+    algorithm = histogram
+    compactionHeuristic = true
+    colorMoved = default
+    tool = delta
+
+[status]
+    showUntrackedFiles = all
+    submoduleSummary = true
+
+[log]
+    date = relative
+    decorate = short
+
+[branch]
+    autoSetupMerge = always
+    autoSetupRebase = always
+
+[rerere]
+    enabled = true
+
+[help]
+    autocorrect = 20
+
+[transfer]
+    fsckobjects = true
+
+[receive]
+    fsckObjects = true
+
+[fetch]
+    fsckobjects = true
+
+# ============================================================================
+#                              DELTA CONFIGURATION
+# ============================================================================
+
+[delta]
+    # Features
+    features = decorations line-numbers navigate
+    
+    # Appearance
+    side-by-side = true
+    line-numbers = true
+    syntax-theme = Catppuccin-mocha
+    
+    # Navigation
+    navigate = true
+    hyperlinks = true
+    
+    # File handling
+    file-style = bold yellow ul
+    file-decoration-style = none
+    hunk-header-decoration-style = cyan box ul
+    
+    # Line numbers
+    line-numbers-left-style = cyan
+    line-numbers-right-style = cyan
+    line-numbers-minus-style = 124
+    line-numbers-plus-style = 28
+
+[delta "decorations"]
+    commit-decoration-style = bold yellow box ul
+    file-style = bold yellow ul
+    file-decoration-style = none
+
+[delta "line-numbers"]
+    line-numbers = true
+    line-numbers-left-format = "{nm:>4}┊"
+    line-numbers-right-format = "{np:>4}│"
+    line-numbers-left-style = red
+    line-numbers-right-style = green
+
+[delta "navigate"]
+    navigate = true
+    file-modified-label = modified:
+
+# ============================================================================
+#                                ALIASES
+# ============================================================================
+
+[alias]
+    # STATUS AND INFO
+    st = status
+    s = status --short --branch
+    
+    # STAGING
+    a = add
+    aa = add --all
+    ap = add --patch
+    
+    # COMMITTING
+    c = commit
+    cm = commit --message
+    ca = commit --amend
+    can = commit --amend --no-edit
+    
+    # BRANCHING
+    b = branch
+    ba = branch --all
+    bd = branch --delete
+    bD = branch --delete --force
+    co = checkout
+    cob = checkout -b
+    com = checkout main
+    cod = checkout develop
+    
+    # REMOTE OPERATIONS
+    f = fetch
+    fa = fetch --all
+    p = push
+    pf = push --force-with-lease
+    pu = push --set-upstream origin HEAD
+    pl = pull
+    
+    # MERGING AND REBASING
+    m = merge
+    mff = merge --ff-only
+    mnf = merge --no-ff
+    rb = rebase
+    rbi = rebase --interactive
+    rbc = rebase --continue
+    rba = rebase --abort
+    
+    # LOGGING AND HISTORY
+    l = log --oneline --graph --decorate
+    ll = log --oneline --graph --decorate --all
+    lg = log --graph --pretty=format:'%Cred%h%Creset -%C(yellow)%d%Creset %s %Cgreen(%cr) %C(bold blue)<%an>%Creset' --abbrev-commit
+    lga = log --graph --pretty=format:'%Cred%h%Creset -%C(yellow)%d%Creset %s %Cgreen(%cr) %C(bold blue)<%an>%Creset' --abbrev-commit --all
+    
+    # DIFFING
+    d = diff
+    ds = diff --staged
+    dc = diff --cached
+    dl = diff HEAD~1 HEAD
+    
+    # STASHING
+    st-save = stash save
+    st-pop = stash pop
+    st-list = stash list
+    st-show = stash show
+    st-drop = stash drop
+    
+    # UTILITIES
+    unstage = reset HEAD --
+    uncommit = reset --soft HEAD~1
+    recommit = commit --amend --no-edit
+    discard = checkout --
+    clean-branches = "!git branch --merged | grep -v '\\*\\|main\\|master\\|develop' | xargs -n 1 git branch -d"
+    
+    # WORKFLOWS
+    wip = commit -am "WIP: work in progress"
+    undo-wip = reset HEAD~1
+    publish = push --set-upstream origin HEAD
+    unpublish = push origin --delete HEAD
+    
+    # QUICK OPERATIONS
+    save = "!git add -A && git commit -m 'SAVEPOINT'"
+    undo = reset HEAD~1 --mixed
+    
+    # INFORMATION
+    contributors = shortlog --summary --numbered --email
+    branches-by-date = for-each-ref --sort=-committerdate refs/heads/ --format='%(committerdate:short) %(refname:short)'
+    
+    # SEARCH
+    grep-all = "!git rev-list --all | xargs git grep"
+    find-file = "!git ls-files | grep -i"
+    
+    # MAINTENANCE
+    cleanup = "!git branch --merged | grep -v '\\*\\|main\\|master\\|develop' | xargs -n 1 git branch -d && git remote prune origin"
+    
+    # SHORTCUTS FOR COMMON WORKFLOWS
+    sync = "!git fetch origin && git rebase origin/main"
+    ready = "!git add -A && git commit -m 'Ready for review' && git push"
+
+# ============================================================================
+#                              URL SHORTCUTS
+# ============================================================================
+
+[url "https://github.com/"]
+    insteadOf = gh:
+
+[url "https://gitlab.com/"]
+    insteadOf = gl:
+
+[url "https://bitbucket.org/"]
+    insteadOf = bb:
+
+# ============================================================================
+#                              SIGNING (Optional)
+# ============================================================================
+
+# Uncomment these lines if you want to sign commits with GPG
+# [commit]
+#     gpgsign = true
+# [tag]
+#     gpgsign = true

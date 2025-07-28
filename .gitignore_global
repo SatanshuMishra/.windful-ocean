@@ -1,0 +1,317 @@
+# ============================================================================
+#                         GLOBAL GIT IGNORE PATTERNS
+# ============================================================================
+# This file contains patterns that should be ignored across all repositories
+# Apply with: git config --global core.excludesfile ~/.gitignore_global
+
+# ============================================================================
+#                              SYSTEM FILES
+# ============================================================================
+
+# macOS
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+.AppleDouble
+.LSOverride
+Icon
+
+# Windows
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+*.cab
+*.msi
+*.msm
+*.msp
+*.lnk
+
+# Linux
+*~
+.fuse_hidden*
+.directory
+.Trash-*
+.nfs*
+
+# ============================================================================
+#                              EDITOR FILES
+# ============================================================================
+
+# Vim/Neovim
+*.swp
+*.swo
+*~
+.vimrc.local
+.nvimrc.local
+Session.vim
+.netrwhist
+
+# Emacs
+*~
+\#*\#
+/.emacs.desktop
+/.emacs.desktop.lock
+*.elc
+auto-save-list
+tramp
+.\#*
+
+# VSCode
+.vscode/
+*.code-workspace
+.history/
+
+# JetBrains IDEs
+.idea/
+*.iml
+*.iws
+*.ipr
+out/
+
+# Sublime Text
+*.sublime-project
+*.sublime-workspace
+
+# ============================================================================
+#                              DEVELOPMENT FILES
+# ============================================================================
+
+# Logs
+*.log
+logs/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+lerna-debug.log*
+
+# Runtime data
+pids
+*.pid
+*.seed
+*.pid.lock
+
+# Coverage directory used by tools like istanbul
+coverage/
+*.lcov
+.nyc_output
+
+# Dependency directories
+node_modules/
+jspm_packages/
+bower_components/
+
+# Package managers
+.npm
+.yarn-integrity
+yarn.lock
+package-lock.json
+.pnpm-debug.log*
+
+# Build outputs
+dist/
+build/
+out/
+target/
+*.o
+*.so
+*.dylib
+*.dll
+
+# ============================================================================
+#                              LANGUAGE SPECIFIC
+# ============================================================================
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+.env
+.venv
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Java
+*.class
+*.jar
+*.war
+*.ear
+*.zip
+*.tar.gz
+*.rar
+hs_err_pid*
+
+# PHP
+/vendor/
+composer.phar
+composer.lock
+.env.local
+.env.*.local
+
+# Ruby
+*.gem
+*.rbc
+/.config
+/coverage/
+/InstalledFiles
+/pkg/
+/spec/reports/
+/spec/examples.txt
+/test/tmp/
+/test/version_tmp/
+/tmp/
+.bundle/
+Gemfile.lock
+
+# Go
+# Output of the go coverage tool
+*.out
+vendor/
+
+# Rust
+target/
+Cargo.lock
+**/*.rs.bk
+
+# C/C++
+*.o
+*.a
+*.so
+*.dylib
+*.exe
+*.out
+*.app
+
+# ============================================================================
+#                              DATABASES
+# ============================================================================
+
+*.sqlite
+*.sqlite3
+*.db
+
+# ============================================================================
+#                              SECURITY & SECRETS
+# ============================================================================
+
+# Environment variables and secrets
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+*.pem
+*.key
+*.crt
+*.p12
+*.pfx
+
+# SSH
+id_rsa
+id_dsa
+id_ecdsa
+id_ed25519
+
+# GPG
+secring.*
+
+# ============================================================================
+#                              DOCKER & CONTAINERS
+# ============================================================================
+
+# Docker
+Dockerfile.local
+docker-compose.override.yml
+.dockerignore
+
+# ============================================================================
+#                              CLOUD & DEPLOYMENT
+# ============================================================================
+
+# Terraform
+*.tfstate
+*.tfstate.*
+.terraform/
+.terraform.lock.hcl
+
+# AWS
+.aws/
+
+# Google Cloud
+.gcloud/
+
+# ============================================================================
+#                              TEMPORARY FILES
+# ============================================================================
+
+# Temporary files
+*.tmp
+*.temp
+*.bak
+*.backup
+*.orig
+*.rej
+
+# Archives
+*.7z
+*.dmg
+*.gz
+*.iso
+*.jar
+*.rar
+*.tar
+*.zip
+
+# ============================================================================
+#                              PROJECT SPECIFIC
+# ============================================================================
+
+# Documentation builds
+docs/_build/
+site/
+
+# Cache directories
+.cache/
+.parcel-cache/
+.next/
+.nuxt/
+.vuepress/dist
+
+# Testing
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+.cache
+nosetests.xml
+coverage.xml
+*.cover
+.hypothesis/
