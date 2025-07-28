@@ -1,0 +1,43 @@
+# ============================================================================
+#                         RIPGREP CONFIGURATION
+# ============================================================================
+# Global configuration for ripgrep (rg) search tool
+# This file is automatically loaded when using rg
+
+# SEARCH BEHAVIOR
+--smart-case          # Use smart case matching (case-insensitive unless pattern has uppercase)
+--follow              # Follow symbolic links
+--hidden              # Search hidden files and directories
+
+# OUTPUT FORMATTING
+--line-number         # Show line numbers
+--column              # Show column numbers
+--heading             # Group matches by file name
+--color=auto          # Use colors when outputting to terminal
+
+# PERFORMANCE
+--max-columns=150     # Don't print lines longer than this
+--max-depth=20        # Don't recurse deeper than this
+
+# FILE TYPE HANDLING
+--type-add=web:*.{html,css,js,ts,tsx,jsx,vue,astro}
+--type-add=config:*.{json,yaml,yml,toml,ini,conf,config}
+--type-add=docs:*.{md,txt,rst,org}
+
+# IGNORE PATTERNS
+--glob=!.git/
+--glob=!node_modules/
+--glob=!vendor/
+--glob=!dist/
+--glob=!build/
+--glob=!.next/
+--glob=!.nuxt/
+--glob=!coverage/
+--glob=!*.min.js
+--glob=!*.min.css
+--glob=!package-lock.json
+--glob=!yarn.lock
+--glob=!composer.lock
+--glob=!Cargo.lock
+--glob=!.DS_Store
+--glob=!*.log

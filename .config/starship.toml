@@ -1,0 +1,186 @@
+# ============================================================================
+#                        STARSHIP PROMPT CONFIGURATION
+# ============================================================================
+# Cross-platform, fast, and customizable prompt for any shell
+# 
+# To enable Starship instead of Powerlevel10k:
+# 1. Uncomment "eval $(starship init zsh)" in .zshrc
+# 2. Comment out the Powerlevel10k lines in .zshrc
+# 3. Restart your shell
+
+# Inserts a blank line between shell prompts
+add_newline = true
+
+# Change command timeout from 500 to 1000 ms
+command_timeout = 1000
+
+# Change the default prompt format
+format = """
+[╭─ ](238)$env_var$all[╰─ ](238)$character"""
+
+# Change the default prompt characters
+[character]
+success_symbol = "[](238)"
+error_symbol = "[](red)"
+
+# Shows an icon that should be included by zshrc script based on the distribution or os
+[env_var.STARSHIP_DISTRO]
+format = '[$env_value](bold white)'  # removed space between distro and rest for pwsh
+variable = "STARSHIP_DISTRO"
+disabled = false
+
+# Shows the username
+[username]
+style_user = "white bold"
+style_root = "black bold"
+format = "[$user]($style) "
+disabled = false
+show_always = true
+
+[directory]
+truncation_length = 3
+truncation_symbol = "…/"
+home_symbol = " ~"
+read_only_style = "197"
+read_only = "  "
+format = "at [$path]($style)[$read_only]($read_only_style) "
+
+[git_branch]
+symbol = " "
+format = "on [$symbol$branch]($style) "
+truncation_length = 4
+truncation_symbol = "…/"
+style = "bold green"
+
+[git_status]
+format = '[\($all_status$ahead_behind\)]($style) '
+style = "bold green"
+conflicted = "🏳"
+up_to_date = " "
+untracked = " "
+ahead = "⇡${count}"
+diverged = "⇕⇡${ahead_count}⇣${behind_count}"
+behind = "⇣${count}"
+stashed = " "
+modified = " "
+staged = '[++\($count\)](green)'
+renamed = "襁 "
+deleted = " "
+
+[terraform]
+format = "via [ terraform $version]($style) 壟 [$workspace]($style) "
+
+[vagrant]
+format = "via [ vagrant $version]($style) "
+
+[docker_context]
+format = "via [ $context](bold blue) "
+
+[helm]
+format = "via [ $version](bold purple) "
+
+[python]
+symbol = " "
+python_binary = "python3"
+
+[nodejs]
+format = "via [⬢ $version](bold green) "
+disabled = false
+
+[ruby]
+format = "via [ $version]($style) "
+
+[kubernetes]
+format = 'on [ $context\($namespace\)](bold purple) '
+disabled = false
+[kubernetes.context_aliases]
+"dev.local.cluster.k8s" = "dev"
+".*/openshift-cluster/.*" = "openshift"
+"gke_.*_(?P<var_cluster>[\\w-]+)" = "gke-$var_cluster"
+
+[kubernetes.user_aliases]
+"dev.local.cluster.k8s" = "dev"
+"root/.*" = "root"
+
+[memory_usage]
+format = "$symbol[${ram}( | ${swap})]($style) "
+threshold = 70
+style = "bold dimmed white"
+disabled = false
+
+[time]
+disabled = false
+format = '🕙 [\[ $time \]]($style) '
+time_format = "%T"
+utc_time_offset = "local"
+
+[battery]
+full_symbol = " "
+charging_symbol = " "
+discharging_symbol = " "
+unknown_symbol = " "
+empty_symbol = " "
+
+[[battery.display]]
+threshold = 15
+style = "bold red"
+
+[[battery.display]]
+threshold = 50
+style = "bold yellow"
+
+[[battery.display]]
+threshold = 80
+style = "bold green"
+
+# Languages
+[rust]
+format = "via [ $version](red bold)"
+
+[go]
+format = "via [ $version](bold cyan) "
+
+[java]
+symbol = " "
+
+[php]
+format = "via [ $version](147 bold) "
+
+[package]
+format = "is [ $version](208 bold) "
+
+# Cloud
+[aws]
+format = 'on [ $profile](bold blue) region:[$region](bold blue) '
+style = "bold blue"
+symbol = "🅰 "
+[aws.region_aliases]
+ap-southeast-2 = "au"
+us-east-1 = "va"
+us-west-2 = "or"
+
+[gcloud]
+format = 'on [ $account@$domain(\($project\))](bold blue) '
+
+# Other
+[cmd_duration]
+format = "took [$duration]($style)"
+min_time = 4
+show_milliseconds = false
+disabled = false
+style = "bold italic red"
+
+[jobs]
+symbol = " "
+style = "bold red"
+number_threshold = 1
+format = "[$symbol$number]($style) "
+
+[line_break]
+disabled = false
+
+[status]
+format = '[\[$symbol$status\]]($style) '
+symbol = "🔴"
+style = "bold red"
+disabled = false
