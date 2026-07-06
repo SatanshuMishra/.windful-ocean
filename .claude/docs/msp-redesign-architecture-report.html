@@ -1,0 +1,1348 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>MSP-Driven Parallel Development — Complete Re-Design</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap">
+<style>
+:root{
+  --bg:#e8edf4;
+  --bg2:#dde5ef;
+  --surface:#ffffff;
+  --surface2:#f5f8fc;
+  --surface3:#eef3f9;
+  --ink:#0f1b2d;
+  --ink2:#2c3b53;
+  --muted:#56657d;
+  --border:rgba(15,27,45,0.12);
+  --border2:rgba(15,27,45,0.22);
+  --grid:rgba(37,99,235,0.06);
+  --accent:#2563eb;
+  --accent-ink:#1d4ed8;
+  --accent-soft:rgba(37,99,235,0.10);
+  --locked:#64748b;
+  --recommended:#059669;
+  --open:#d97706;
+  --gap:#be123c;
+  --gate:#0891b2;
+  --shadow:0 1px 2px rgba(15,27,45,0.05),0 10px 28px rgba(15,27,45,0.07);
+  --shadow-sm:0 1px 2px rgba(15,27,45,0.06);
+  --radius:14px;
+  --radius-sm:9px;
+  --mono:'IBM Plex Mono', ui-monospace, 'SF Mono', Menlo, monospace;
+  --sans:'IBM Plex Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+}
+@media (prefers-color-scheme: dark){
+  :root{
+    --bg:#080e1a;
+    --bg2:#0b1322;
+    --surface:#101b2e;
+    --surface2:#0d1726;
+    --surface3:#152237;
+    --ink:#e7eef8;
+    --ink2:#c4d0e2;
+    --muted:#90a2bd;
+    --border:rgba(148,163,184,0.16);
+    --border2:rgba(148,163,184,0.30);
+    --grid:rgba(96,165,250,0.07);
+    --accent:#60a5fa;
+    --accent-ink:#93c5fd;
+    --accent-soft:rgba(96,165,250,0.12);
+    --locked:#94a3b8;
+    --recommended:#34d399;
+    --open:#fbbf24;
+    --gap:#fb7185;
+    --gate:#22d3ee;
+    --shadow:0 1px 2px rgba(0,0,0,0.45),0 12px 34px rgba(0,0,0,0.40);
+    --shadow-sm:0 1px 2px rgba(0,0,0,0.4);
+  }
+}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{
+  margin:0;
+  font-family:var(--sans);
+  color:var(--ink);
+  background-color:var(--bg);
+  background-image:
+    linear-gradient(var(--grid) 1px, transparent 1px),
+    linear-gradient(90deg, var(--grid) 1px, transparent 1px);
+  background-size:34px 34px;
+  line-height:1.62;
+  font-size:16px;
+  -webkit-font-smoothing:antialiased;
+  text-rendering:optimizeLegibility;
+}
+img,table,pre{max-width:100%}
+a{color:var(--accent-ink);text-decoration:none;border-bottom:1px solid color-mix(in srgb, var(--accent-ink) 35%, transparent)}
+a:hover{border-bottom-color:var(--accent-ink)}
+h1,h2,h3,h4{line-height:1.2;color:var(--ink);margin:0 0 .4em}
+p{margin:0 0 1em;overflow-wrap:break-word}
+.statusbar{
+  position:sticky;top:0;z-index:60;
+  background:linear-gradient(90deg, color-mix(in srgb, var(--accent) 16%, var(--surface)), var(--surface));
+  border-bottom:1px solid var(--border2);
+  padding:10px clamp(14px,3vw,32px);
+  font-family:var(--mono);
+  font-size:12.5px;
+  letter-spacing:.01em;
+  color:var(--ink);
+  display:flex;gap:10px;align-items:baseline;flex-wrap:wrap;
+  box-shadow:var(--shadow-sm);
+}
+.statusbar .tag{
+  display:inline-block;background:var(--accent);color:#fff;
+  border-radius:6px;padding:2px 8px;font-weight:600;font-size:11px;
+  letter-spacing:.06em;white-space:nowrap;flex:0 0 auto;
+}
+@media (prefers-color-scheme: dark){ .statusbar .tag{color:#08111f} }
+.statusbar .msg{min-width:0;overflow-wrap:break-word}
+.layout{
+  display:grid;
+  grid-template-columns:262px minmax(0,1fr);
+  gap:0;
+  max-width:1320px;
+  margin:0 auto;
+}
+.toc{
+  position:sticky;top:42px;align-self:start;
+  height:calc(100vh - 42px);
+  overflow-y:auto;
+  padding:22px 16px 60px 18px;
+  border-right:1px solid var(--border);
+  min-width:0;
+}
+.toc .toc-title{
+  font-family:var(--mono);font-size:11px;letter-spacing:.16em;
+  text-transform:uppercase;color:var(--muted);margin:4px 0 14px 6px;
+}
+.toc ol{list-style:none;margin:0;padding:0}
+.toc li{margin:1px 0}
+.toc a{
+  display:block;border:0;border-radius:7px;
+  padding:5px 9px;color:var(--ink2);font-size:13px;
+  overflow-wrap:break-word;
+}
+.toc a .n{font-family:var(--mono);font-size:11px;color:var(--muted);margin-right:8px}
+.toc a:hover{background:var(--surface3)}
+.toc a.active{background:var(--accent-soft);color:var(--accent-ink);font-weight:600}
+.toc a.active .n{color:var(--accent-ink)}
+.content{
+  min-width:0;
+  padding:30px clamp(16px,3.4vw,48px) 90px;
+}
+section{margin:0 0 30px;scroll-margin-top:60px}
+.kicker{
+  display:inline-flex;align-items:center;gap:9px;
+  font-family:var(--mono);font-size:11.5px;letter-spacing:.16em;text-transform:uppercase;
+  color:var(--muted);margin-bottom:10px;
+}
+.kicker .dot{width:9px;height:9px;border-radius:50%;background:var(--accent);box-shadow:0 0 0 4px var(--accent-soft);flex:0 0 auto}
+h2.sec{font-size:clamp(21px,2.6vw,28px);font-weight:700;letter-spacing:-.01em;margin-bottom:.5em}
+h3.sub{font-size:17px;font-weight:600;margin:26px 0 10px;color:var(--ink)}
+h4.subsub{font-size:14px;font-weight:600;font-family:var(--mono);letter-spacing:.02em;color:var(--ink2);margin:18px 0 8px}
+.lead{font-size:17px;color:var(--ink2)}
+.card{
+  background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);
+  padding:18px 20px;box-shadow:var(--shadow-sm);
+}
+.panel{
+  background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);
+  padding:20px 22px;box-shadow:var(--shadow);
+}
+.grid{display:grid;gap:14px}
+.grid.cols-2{grid-template-columns:repeat(auto-fit,minmax(280px,1fr))}
+.grid.cols-3{grid-template-columns:repeat(auto-fit,minmax(230px,1fr))}
+.grid>*{min-width:0}
+.muted{color:var(--muted)}
+.small{font-size:13.5px}
+.mono{font-family:var(--mono)}
+ul,ol{padding-left:1.25em;margin:0 0 1em}
+li{margin:.28em 0;overflow-wrap:break-word}
+
+.hero{
+  background:
+    radial-gradient(120% 140% at 100% 0%, var(--accent-soft), transparent 55%),
+    var(--surface);
+  border:1px solid var(--border);border-radius:18px;
+  padding:clamp(22px,4vw,40px);box-shadow:var(--shadow);margin:6px 0 30px;
+}
+.hero h1{font-size:clamp(26px,4.2vw,42px);font-weight:700;letter-spacing:-.02em;margin-bottom:.3em}
+.hero .eyebrow{font-family:var(--mono);font-size:12px;letter-spacing:.18em;text-transform:uppercase;color:var(--accent-ink);margin-bottom:14px}
+.hero .lead{max-width:70ch}
+
+.table-wrap{overflow-x:auto;border:1px solid var(--border);border-radius:var(--radius);box-shadow:var(--shadow-sm);margin:0 0 4px}
+table{border-collapse:collapse;width:100%;font-size:13.5px;background:var(--surface)}
+caption{caption-side:top;text-align:left;font-size:12.5px;color:var(--muted);font-family:var(--mono);padding:10px 14px 0}
+th,td{text-align:left;padding:10px 13px;border-bottom:1px solid var(--border);vertical-align:top;overflow-wrap:break-word}
+thead th{
+  background:var(--surface3);font-family:var(--mono);font-size:11.5px;letter-spacing:.04em;
+  text-transform:uppercase;color:var(--ink2);position:sticky;top:0;font-weight:600;white-space:nowrap;
+}
+tbody tr:last-child td{border-bottom:0}
+tbody tr:hover td{background:var(--surface2)}
+td .mono,th .mono{font-size:12.5px}
+.nowrap{white-space:nowrap}
+
+.callout{
+  border:1px solid var(--border);border-left-width:5px;border-radius:var(--radius);
+  background:var(--surface);padding:15px 18px;margin:14px 0;box-shadow:var(--shadow-sm);
+}
+.callout .chip{
+  display:inline-block;font-family:var(--mono);font-size:10.5px;font-weight:600;letter-spacing:.10em;
+  text-transform:uppercase;color:#fff;border-radius:6px;padding:3px 9px;margin-bottom:8px;
+}
+@media (prefers-color-scheme: dark){ .callout .chip{color:#0a1320} }
+.callout p:last-child{margin-bottom:0}
+.callout.locked{border-left-color:var(--locked)} .callout.locked .chip{background:var(--locked)}
+.callout.recommended{border-left-color:var(--recommended)} .callout.recommended .chip{background:var(--recommended)}
+.callout.open{border-left-color:var(--open)} .callout.open .chip{background:var(--open)}
+.callout.gap{border-left-color:var(--gap)} .callout.gap .chip{background:var(--gap)}
+.callout.gate{border-left-color:var(--gate)} .callout.gate .chip{background:var(--gate)}
+.callout.info{border-left-color:var(--accent)} .callout.info .chip{background:var(--accent)}
+
+.legend{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:12px}
+.legend .item{display:flex;gap:11px;align-items:flex-start;min-width:0;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-sm);padding:12px 14px}
+.legend .swatch{width:14px;height:14px;border-radius:4px;flex:0 0 auto;margin-top:4px}
+.legend .lab{font-family:var(--mono);font-size:11.5px;font-weight:600;letter-spacing:.06em;text-transform:uppercase}
+.legend .desc{font-size:12.5px;color:var(--muted)}
+
+.bluf{display:grid;grid-template-columns:repeat(auto-fit,minmax(290px,1fr));gap:14px}
+.bluf .item{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:16px 18px;box-shadow:var(--shadow-sm);position:relative;min-width:0}
+.bluf .num{font-family:var(--mono);font-size:12px;font-weight:600;color:var(--accent-ink);background:var(--accent-soft);border-radius:6px;padding:2px 8px;display:inline-block;margin-bottom:8px}
+.bluf .item h4{font-size:14.5px;margin-bottom:6px}
+.bluf .item p{font-size:13.5px;color:var(--ink2);margin-bottom:0}
+
+.deflist{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:12px}
+.deflist .term{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-sm);padding:13px 16px;min-width:0}
+.deflist .term dt{font-family:var(--mono);font-weight:600;font-size:13.5px;color:var(--accent-ink);margin-bottom:3px}
+.deflist .term dd{margin:0;font-size:13.5px;color:var(--ink2)}
+
+pre.code{
+  font-family:var(--mono);font-size:12.5px;line-height:1.6;
+  background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-sm);
+  padding:13px 15px;margin:8px 0;white-space:pre-wrap;overflow-wrap:break-word;overflow-x:auto;color:var(--ink2);
+}
+pre.code .cmt{color:var(--muted)}
+.codelabel{font-family:var(--mono);font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin:14px 0 2px}
+.flow-inline{
+  font-family:var(--mono);font-size:13px;background:var(--surface2);border:1px solid var(--border);
+  border-radius:var(--radius-sm);padding:13px 15px;color:var(--ink2);white-space:pre-wrap;overflow-wrap:break-word;
+}
+
+.stepper{counter-reset:step;list-style:none;padding:0;margin:0}
+.stepper>li{
+  position:relative;padding:0 0 16px 44px;margin:0;border-left:2px solid var(--border);margin-left:14px;
+}
+.stepper>li:last-child{border-left-color:transparent}
+.stepper>li::before{
+  counter-increment:step;content:counter(step);
+  position:absolute;left:-15px;top:-2px;width:28px;height:28px;border-radius:50%;
+  background:var(--accent);color:#fff;font-family:var(--mono);font-size:12.5px;font-weight:600;
+  display:flex;align-items:center;justify-content:center;
+}
+@media (prefers-color-scheme: dark){ .stepper>li::before{color:#0a1320} }
+.stepper>li .st-title{font-weight:600;font-size:14.5px;margin-bottom:2px}
+.stepper>li .st-body{font-size:13.5px;color:var(--ink2)}
+
+.diagram{background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius);padding:20px;box-shadow:var(--shadow-sm);overflow-x:auto}
+.diagram .dtitle{font-family:var(--mono);font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);margin-bottom:14px}
+
+.layers{display:flex;flex-direction:column;gap:0}
+.layer-row{display:flex;align-items:stretch;gap:0;min-width:0}
+.layer-box{
+  flex:1;min-width:0;border:1px solid var(--border2);border-radius:10px;background:var(--surface);
+  padding:13px 15px;margin:7px 0;box-shadow:var(--shadow-sm);
+}
+.layer-box .lname{font-family:var(--mono);font-weight:600;font-size:13px;color:var(--ink);margin-bottom:7px;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.layer-box .lbadge{font-family:var(--mono);font-size:10px;letter-spacing:.05em;background:var(--accent-soft);color:var(--accent-ink);border-radius:5px;padding:2px 7px}
+.layer-box .lmeta{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:8px;font-size:12px}
+.layer-box .lmeta .k{font-family:var(--mono);font-size:10px;letter-spacing:.04em;text-transform:uppercase;color:var(--muted);display:block}
+.layer-box .lmeta .v{color:var(--ink2)}
+.indent-1{margin-left:14px}
+.indent-2{margin-left:28px}
+.indent-3{margin-left:42px}
+.l0{border-left:5px solid var(--locked)}
+.l1{border-left:5px solid var(--accent)}
+.l2{border-left:5px solid var(--recommended)}
+.l3{border-left:5px solid var(--gate)}
+.merge-boundary{
+  display:flex;align-items:center;gap:10px;margin:4px 0 4px 28px;font-size:12.5px;
+  font-family:var(--mono);color:var(--ink2);
+}
+.merge-boundary .arrow{color:var(--accent-ink);font-weight:700}
+.merge-boundary .invariant{background:var(--gap);color:#fff;border-radius:5px;padding:2px 8px;font-size:10.5px;letter-spacing:.04em}
+@media (prefers-color-scheme: dark){ .merge-boundary .invariant{color:#0a1320} }
+.merge-boundary .safe{background:var(--locked);color:#fff;border-radius:5px;padding:2px 8px;font-size:10.5px;letter-spacing:.04em}
+@media (prefers-color-scheme: dark){ .merge-boundary .safe{color:#0a1320} }
+
+.tree{display:flex;flex-direction:column;align-items:flex-start;gap:0}
+.tree .node{
+  border:1px solid var(--border2);background:var(--surface);border-radius:10px;
+  padding:11px 15px;box-shadow:var(--shadow-sm);min-width:0;max-width:100%;
+}
+.tree .node .depth{font-family:var(--mono);font-size:10.5px;color:#fff;background:var(--accent);border-radius:5px;padding:1px 7px;margin-right:9px}
+@media (prefers-color-scheme: dark){ .tree .node .depth{color:#0a1320} }
+.tree .node .role{font-weight:600;font-size:14px}
+.tree .node .tnote{font-size:12px;color:var(--muted);margin-top:3px}
+.tree .connector{width:2px;height:22px;background:var(--border2);margin-left:34px}
+
+.clusters{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:16px}
+.cluster{border:1px dashed var(--border2);border-radius:12px;padding:14px;background:var(--surface2);min-width:0}
+.cluster .ctitle{font-family:var(--mono);font-size:12px;font-weight:600;color:var(--ink);margin-bottom:4px}
+.cluster .cmode{font-size:11px;color:var(--muted);margin-bottom:11px;font-family:var(--mono)}
+.msp{border:1px solid var(--border2);background:var(--surface);border-radius:9px;padding:9px 12px;box-shadow:var(--shadow-sm);font-size:13px;font-weight:600}
+.msp .lvl{font-family:var(--mono);font-size:10px;color:var(--accent-ink);background:var(--accent-soft);border-radius:5px;padding:1px 6px;margin-left:6px;font-weight:600}
+.seq-arrow{display:flex;justify-content:center;color:var(--accent-ink);font-family:var(--mono);font-size:14px;padding:5px 0;font-weight:700}
+.parallel-note{font-family:var(--mono);font-size:12px;color:var(--recommended);margin-top:12px;text-align:center}
+
+.mqflow{display:flex;flex-direction:column;gap:0}
+.mqflow .step{display:flex;gap:12px;align-items:flex-start;min-width:0}
+.mqflow .step .marker{display:flex;flex-direction:column;align-items:center;flex:0 0 auto}
+.mqflow .step .dot{width:13px;height:13px;border-radius:50%;background:var(--accent);margin-top:6px}
+.mqflow .step .line{width:2px;flex:1;background:var(--border2);min-height:14px}
+.mqflow .step:last-child .line{display:none}
+.mqflow .step .body{padding-bottom:14px;min-width:0}
+.mqflow .step .s-name{font-family:var(--mono);font-size:13px;font-weight:600}
+.mqflow .step .s-desc{font-size:12.5px;color:var(--ink2)}
+.mqflow .step.gatekeeper .dot{background:var(--gap)}
+
+.twocol{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:14px}
+.twocol .col{border:1px solid var(--border);border-radius:var(--radius);padding:16px 18px;background:var(--surface);min-width:0}
+.twocol .col.good{border-top:3px solid var(--recommended)}
+.twocol .col.gate{border-top:3px solid var(--gate)}
+.twocol .col h4{font-size:13px;font-family:var(--mono);letter-spacing:.03em}
+
+.sev{font-family:var(--mono);font-size:11px;font-weight:600;border-radius:5px;padding:2px 8px;display:inline-block;letter-spacing:.04em;color:#fff}
+@media (prefers-color-scheme: dark){ .sev{color:#0a1320} }
+.sev.high{background:var(--gap)}
+.sev.med{background:var(--open)}
+.sev.low{background:var(--locked)}
+
+.verdict{font-family:var(--mono);font-size:11px;font-weight:600;border-radius:5px;padding:2px 8px;display:inline-block;letter-spacing:.03em;white-space:nowrap}
+.verdict.reuse{background:color-mix(in srgb,var(--recommended) 18%,transparent);color:var(--recommended);border:1px solid color-mix(in srgb,var(--recommended) 40%,transparent)}
+.verdict.extend{background:color-mix(in srgb,var(--open) 18%,transparent);color:var(--open);border:1px solid color-mix(in srgb,var(--open) 40%,transparent)}
+.verdict.build{background:color-mix(in srgb,var(--accent) 18%,transparent);color:var(--accent-ink);border:1px solid color-mix(in srgb,var(--accent) 40%,transparent)}
+
+.fork{border:1px solid var(--border);border-left-width:5px;border-left-color:var(--open);border-radius:var(--radius);background:var(--surface);padding:18px 20px;margin:16px 0;box-shadow:var(--shadow-sm)}
+.fork .fhead{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:8px}
+.fork .fnum{font-family:var(--mono);font-size:12px;font-weight:600;background:var(--open);color:#fff;border-radius:6px;padding:2px 9px}
+@media (prefers-color-scheme: dark){ .fork .fnum{color:#0a1320} }
+.fork h3{font-size:16px;margin:0}
+.opt{border:1px solid var(--border);border-radius:var(--radius-sm);padding:11px 14px;margin:8px 0;background:var(--surface2);min-width:0}
+.opt .ol{font-family:var(--mono);font-weight:600;font-size:12.5px;margin-right:6px}
+.opt.pick{border-color:var(--recommended);border-width:2px;background:color-mix(in srgb,var(--recommended) 8%,var(--surface))}
+.opt .reco{font-family:var(--mono);font-size:10px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:#fff;background:var(--recommended);border-radius:5px;padding:2px 8px;margin-left:8px}
+@media (prefers-color-scheme: dark){ .opt .reco{color:#0a1320} }
+
+.src-group{margin:0 0 14px}
+.src-group h4{font-family:var(--mono);font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:var(--accent-ink);margin-bottom:8px}
+.src-list{display:flex;flex-wrap:wrap;gap:8px}
+.src-list a{font-size:12.5px;background:var(--surface);border:1px solid var(--border);border-radius:7px;padding:5px 10px;overflow-wrap:anywhere;box-shadow:var(--shadow-sm)}
+
+.footer{margin-top:40px;padding-top:18px;border-top:1px solid var(--border);font-size:12.5px;color:var(--muted);font-family:var(--mono)}
+
+.js .reveal{opacity:0;transform:translateY(10px)}
+.js .reveal.in{opacity:1;transform:none;transition:opacity .5s ease,transform .5s ease}
+@media (prefers-reduced-motion: reduce){ html{scroll-behavior:auto} .js .reveal{opacity:1;transform:none;transition:none} }
+
+@media (max-width:880px){
+  .layout{grid-template-columns:1fr}
+  .toc{
+    position:sticky;top:42px;height:auto;max-height:none;
+    border-right:0;border-bottom:1px solid var(--border);
+    padding:10px 12px;background:var(--bg);
+    overflow-x:auto;white-space:nowrap;z-index:50;
+  }
+  .toc .toc-title{display:none}
+  .toc ol{display:flex;gap:6px;white-space:nowrap}
+  .toc li{margin:0}
+  .toc a{white-space:nowrap;padding:5px 10px}
+  .toc a .n{margin-right:5px}
+  .content{padding:20px 15px 70px}
+}
+</style>
+</head>
+<body>
+<script>document.documentElement.classList.add('js');</script>
+
+<header class="statusbar" role="banner">
+  <span class="tag">FINAL RE-DESIGN</span>
+  <span class="msg">&mdash; research+design complete, NOTHING applied to ~/.claude. Awaiting user decisions on Forks 1-5. Supersedes msp-architecture-report.html.</span>
+</header>
+
+<div class="layout">
+  <aside class="toc" aria-label="Table of contents">
+    <div class="toc-title">Contents</div>
+    <ol>
+      <li><a href="#s0"><span class="n">00</span>How to read / status</a></li>
+      <li><a href="#s1"><span class="n">01</span>BLUF / TL;DR</a></li>
+      <li><a href="#s2"><span class="n">02</span>Glossary</a></li>
+      <li><a href="#s3"><span class="n">03</span>The four-layer model</a></li>
+      <li><a href="#s4"><span class="n">04</span>How MSPs are determined</a></li>
+      <li><a href="#s5"><span class="n">05</span>What actually runs this</a></li>
+      <li><a href="#s6"><span class="n">06</span>The agent topology</a></li>
+      <li><a href="#s7"><span class="n">07</span>The MSP merge protocol</a></li>
+      <li><a href="#s8"><span class="n">08</span>Graphify deep dive</a></li>
+      <li><a href="#s9"><span class="n">09</span>Non-git fallback</a></li>
+      <li><a href="#s10"><span class="n">10</span>Build-vs-reuse ledger</a></li>
+      <li><a href="#s11"><span class="n">11</span>Key design forks</a></li>
+      <li><a href="#s12"><span class="n">12</span>Risk matrix</a></li>
+      <li><a href="#s13"><span class="n">13</span>Two honest caveats</a></li>
+      <li><a href="#s14"><span class="n">14</span>What's next</a></li>
+      <li><a href="#s15"><span class="n">15</span>Sources</a></li>
+    </ol>
+  </aside>
+
+  <main class="content">
+
+    <div class="hero reveal">
+      <div class="eyebrow">MSP-driven parallel development &middot; teaching report</div>
+      <h1>Determining and Running Minimum Shippable Products, end to end</h1>
+      <p class="lead">A complete re-design of how a written spec becomes parallel, independently-mergeable slices of work that never break the shared branch. Written for a smart reader with minimal domain knowledge: every term is defined in plain words on first use, and everything comparative is a table, diagram, or callout rather than a wall of prose.</p>
+    </div>
+
+    <section id="s0" class="reveal">
+      <div class="kicker"><span class="dot"></span>Section 00 &middot; How to read this</div>
+      <h2 class="sec">How to read this / status</h2>
+      <div class="panel">
+        <p>This report answers two questions the prior architecture left open &mdash; <strong>(1)</strong> <em>how</em> are MSPs technically determined from a spec, and <strong>(2)</strong> <em>what</em> actually runs the new flow &mdash; and then specifies the complete re-designed system end to end. It is grounded in a reality-check of the existing engine and the Graphify tool, plus cited external best-practice research.</p>
+        <div class="callout locked" style="margin-bottom:0">
+          <span class="chip">Status</span>
+          <p><strong>Design only. No config changed.</strong> Five design forks await the user's decision (<a href="#s11">Section 11</a>). Nothing in this document has been applied to <span class="mono">~/.claude</span>.</p>
+        </div>
+      </div>
+
+      <h3 class="sub">Legend &mdash; the five callout types</h3>
+      <p class="small muted">These chips appear throughout. Each marks the <em>kind</em> of statement so you always know whether something is settled, recommended, awaiting you, an honest limit, or a place that needs a human's judgment.</p>
+      <div class="legend" aria-label="Callout legend">
+        <div class="item"><span class="swatch" style="background:var(--locked)"></span><div><div class="lab" style="color:var(--locked)">Locked</div><div class="desc">Already decided; not up for debate here.</div></div></div>
+        <div class="item"><span class="swatch" style="background:var(--recommended)"></span><div><div class="lab" style="color:var(--recommended)">Recommended</div><div class="desc">The architect's pick among options.</div></div></div>
+        <div class="item"><span class="swatch" style="background:var(--open)"></span><div><div class="lab" style="color:var(--open)">Open</div><div class="desc">Needs a user decision (the five forks).</div></div></div>
+        <div class="item"><span class="swatch" style="background:var(--gap)"></span><div><div class="lab" style="color:var(--gap)">Gap</div><div class="desc">An honest, irreducible limitation.</div></div></div>
+        <div class="item"><span class="swatch" style="background:var(--gate)"></span><div><div class="lab" style="color:var(--gate)">Human-gate</div><div class="desc">Requires human judgment to proceed.</div></div></div>
+      </div>
+    </section>
+
+    <section id="s1" class="reveal">
+      <div class="kicker"><span class="dot"></span>Section 01 &middot; Answer first</div>
+      <h2 class="sec">BLUF / TL;DR</h2>
+      <p class="lead">Six messages carry the whole design. Everything after this section is detail and evidence.</p>
+      <div class="bluf">
+        <div class="item">
+          <span class="num">01</span>
+          <h4>MSPs come from a 7-step algorithm, not vibes</h4>
+          <p>Spec &rarr; capability backbone &rarr; candidate vertical slices &rarr; INVEST + non-breaking gate &rarr; dependency DAG from 5 signals &rarr; topological sort &rarr; clusters. The same pure topological-sort the current engine already ships (<span class="mono">planWaves</span>) does the layering &mdash; run twice (once over MSPs, once over tasks). The hard part &mdash; deciding hidden dependencies the spec never states &mdash; MUST stay human-gated.</p>
+        </div>
+        <div class="item">
+          <span class="num">02</span>
+          <h4>What runs it: small additions wrapping the old chain</h4>
+          <p>THREE new skills + ONE new agent + TWO new engine modules, wrapping (not discarding) today's brainstorming &rarr; writing-plans &rarr; annotation &rarr; execute chain. The old chain becomes the INNER loop, now run once PER MSP instead of once per feature.</p>
+        </div>
+        <div class="item">
+          <span class="num">03</span>
+          <h4>The orchestrator-of-orchestrators is native</h4>
+          <p>Claude Code subagents can spawn subagents (depth-5 cap, since v2.1.172). <span class="mono">main(0) &rarr; per-MSP orchestrator(1) &rarr; task agents(2)</span> sits at depth 2 with 3 levels of headroom. Native <span class="mono">isolation: worktree</span> handles per-feature/per-cluster worktrees.</p>
+        </div>
+        <div class="item">
+          <span class="num">04</span>
+          <h4>The merge flow IS a merge queue</h4>
+          <p>"Branch X never breaks" is TRUE for structural breakage IF merges are serialized + tested against the current tip + the CI gate cannot be bypassed. It does NOT prevent semantic conflicts (two MSPs each green alone, broken together) &mdash; only interaction-surface tests can, and that residual is an honest, irreducible gap.</p>
+        </div>
+        <div class="item">
+          <span class="num">05</span>
+          <h4>Graphify computes the regression surface, with 3 gaps</h4>
+          <p><span class="mono">graphify affected "X" --depth N</span> (verified on live data) gives the blast radius, but has 3 load-bearing gaps needing supplements: label ambiguity (pair with Serena), no parallel-surface command (build a small wrapper), no test-coverage map (use coverage data or an import heuristic).</p>
+        </div>
+        <div class="item">
+          <span class="num">06</span>
+          <h4>Confidence: HIGH on capabilities and theory</h4>
+          <p>HIGH on capabilities (verified against live tooling + official docs) and on the merge-queue and decomposition theory (primary sources). The two places the vision depends on something outside pure automation: the human cluster-plan gate, and interaction-surface test coverage.</p>
+        </div>
+      </div>
+    </section>
+
+    <section id="s2" class="reveal">
+      <div class="kicker"><span class="dot"></span>Section 02 &middot; Plain-words anchor</div>
+      <h2 class="sec">Glossary</h2>
+      <p class="lead">Read this once and the rest reads easily. Each term is defined the way a patient senior engineer would explain it at a whiteboard.</p>
+      <dl class="deflist">
+        <div class="term"><dt>Feature</dt><dd>One whole thing the user asked to build. One brainstorming session &rarr; one SPEC document.</dd></div>
+        <div class="term"><dt>SPEC</dt><dd>The written design output of brainstorming; the input to the new pipeline.</dd></div>
+        <div class="term"><dt>MSP (Minimum Shippable Product)</dt><dd>A vertical slice of a feature that can merge to the shared branch on its own WITHOUT breaking the running app, and delivers observable value (or safely-latent code). Equivalent to "thin vertical slice" / "independently releasable story" in industry literature.</dd></div>
+        <div class="term"><dt>Vertical slice</dt><dd>A narrow strip of work that goes through ALL the layers it needs (UI &rarr; API &rarr; DB) for one behavior &mdash; like a slice of layer cake &mdash; instead of building one whole layer at a time (a "horizontal slice"). Vertical slices are independently shippable; horizontal ones are not.</dd></div>
+        <div class="term"><dt>Walking skeleton</dt><dd>The very first, thinnest vertical slice that proves the whole architecture connects end to end (Alistair Cockburn). The first MSP of any project.</dd></div>
+        <div class="term"><dt>Cluster</dt><dd>A group of MSPs that MUST run in a set order because they depend on each other. Independent MSPs go in SEPARATE clusters so the clusters can run in parallel.</dd></div>
+        <div class="term"><dt>Task</dt><dd>One bite-sized implementation step inside a single MSP's plan.</dd></div>
+        <div class="term"><dt>Branch X</dt><dd>The shared integration branch every finished MSP lands on. The invariant the whole design protects: Branch X is always green (passing tests).</dd></div>
+        <div class="term"><dt>Worktree (git)</dt><dd>A second (or third) working copy of the same repository, each on its own branch, fully separate on disk but sharing one git history. Lets parallel work happen without file collisions.</dd></div>
+        <div class="term"><dt>Graphify</dt><dd>A local code-knowledge-graph CLI. Given a changed symbol, it returns everything that depends on it (its "blast radius"). Used to choose which tests to re-run after a change.</dd></div>
+        <div class="term"><dt>Node / Edge / Community</dt><dd>A node is one symbol (function, file, constant); an edge is a relationship ("A calls B", "A imports B"); a community is a cluster of related nodes Graphify groups together.</dd></div>
+        <div class="term"><dt>Dependent</dt><dd>Code that USES (calls/imports/references) another piece of code.</dd></div>
+        <div class="term"><dt>Regression surface</dt><dd>The set of code (and the tests covering it) that COULD break because of a change. After pulling in others' changes, this set can grow.</dd></div>
+        <div class="term"><dt>Parallel surfaces</dt><dd>Code that references the SAME symbol as your change without calling your code &mdash; siblings that move together (e.g., two callers of the same constant).</dd></div>
+        <div class="term"><dt>Merge queue</dt><dd>A system that serializes merges so each change is tested against the CURRENT tip of the target branch before it lands, keeping the branch always-green (Bors / GitHub merge queue / GitLab merge trains).</dd></div>
+        <div class="term"><dt>Semantic conflict</dt><dd>Two changes that git merges with NO textual conflict, but whose combined BEHAVIOR is wrong. Git is a text differ; it knows nothing about meaning.</dd></div>
+        <div class="term"><dt>Test Impact Analysis (TIA)</dt><dd>Mapping "which code changed" &rarr; "which tests could fail" and running only that subset.</dd></div>
+        <div class="term"><dt>Expand-and-Contract (parallel change)</dt><dd>A 3-phase way to change a shared thing safely &mdash; add the new alongside the old (Expand), migrate callers one at a time (Migrate), remove the old only when nothing references it (Contract).</dd></div>
+        <div class="term"><dt>Subagent</dt><dd>A worker Claude spawns via the Agent tool, with its own fresh context window; returns only a summary to its parent.</dd></div>
+        <div class="term"><dt>Orchestrator</dt><dd>An agent whose job is coordination (split work, dispatch workers, collect results), not doing the work itself.</dd></div>
+      </dl>
+    </section>
+
+    <section id="s3" class="reveal">
+      <div class="kicker"><span class="dot"></span>Section 03 &middot; The big picture</div>
+      <h2 class="sec">The four-layer model</h2>
+      <p class="lead">The re-design organizes work into FOUR layers, each with its own unit of parallelism and its own isolation. There are TWO merge boundaries, and only the second touches the shared invariant.</p>
+
+      <div class="diagram" aria-label="Four-layer model diagram">
+        <div class="dtitle">Stacked layers &middot; outermost (L0) to innermost (L3)</div>
+        <div class="layers">
+          <div class="layer-box l0">
+            <div class="lname">L0 &middot; Feature <span class="lbadge">grouping, not a merge unit</span></div>
+            <div class="lmeta">
+              <div><span class="k">Parallelism</span><span class="v">Features run concurrently</span></div>
+              <div><span class="k">Isolation</span><span class="v">One worktree per Feature off Branch X (feat/&lt;slug&gt;)</span></div>
+              <div><span class="k">Merges into</span><span class="v">&mdash;</span></div>
+            </div>
+          </div>
+          <div class="layer-box l1 indent-1">
+            <div class="lname">L1 &middot; Cluster <span class="lbadge">independent clusters run in parallel</span></div>
+            <div class="lmeta">
+              <div><span class="k">Parallelism</span><span class="v">Independent clusters in parallel</span></div>
+              <div><span class="k">Isolation</span><span class="v">One worktree per cluster off the Feature branch</span></div>
+              <div><span class="k">Merges into</span><span class="v">&mdash;</span></div>
+            </div>
+          </div>
+          <div class="layer-box l2 indent-2">
+            <div class="lname">L2 &middot; MSP <span class="lbadge">the always-green unit</span></div>
+            <div class="lmeta">
+              <div><span class="k">Parallelism</span><span class="v">Cross-cluster MSPs parallel; same-cluster sequential</span></div>
+              <div><span class="k">Isolation</span><span class="v">The cluster worktree (sequential MSPs reuse it)</span></div>
+              <div><span class="k">Merges into</span><span class="v">Branch X (via the merge queue)</span></div>
+            </div>
+          </div>
+          <div class="layer-box l3 indent-3">
+            <div class="lname">L3 &middot; Task <span class="lbadge">existing engine</span></div>
+            <div class="lmeta">
+              <div><span class="k">Parallelism</span><span class="v">Task waves inside one MSP</span></div>
+              <div><span class="k">Isolation</span><span class="v">scope-fence default; per-task worktrees for wide waves</span></div>
+              <div><span class="k">Merges into</span><span class="v">The MSP's working state</span></div>
+            </div>
+          </div>
+        </div>
+        <div style="margin-top:14px">
+          <div class="merge-boundary"><span class="arrow">Task &rarr; MSP</span><span class="safe">structural-only, today's engine</span> per-wave merge</div>
+          <div class="merge-boundary"><span class="arrow">MSP &rarr; Branch X</span><span class="invariant">touches the always-green invariant</span> NEW serialized merge protocol</div>
+        </div>
+      </div>
+
+      <h3 class="sub">The four layers, in full</h3>
+      <div class="table-wrap">
+        <table>
+          <caption>Layer &middot; unit of parallelism &middot; runner &middot; isolation &middot; merge target</caption>
+          <thead><tr><th>Layer</th><th>Unit of parallelism</th><th>What runs it</th><th>Isolation</th><th>Merges into</th></tr></thead>
+          <tbody>
+            <tr><td class="nowrap"><strong>L0 Feature</strong></td><td>Features run concurrently</td><td>Main thread (conductor) spawns one Feature orchestrator per Feature</td><td>One worktree per Feature off Branch X (<span class="mono">feat/&lt;slug&gt;</span>)</td><td>&mdash; (grouping, not a merge unit)</td></tr>
+            <tr><td class="nowrap"><strong>L1 Cluster</strong></td><td>Independent clusters run in parallel</td><td>Feature orchestrator schedules clusters</td><td>One worktree per cluster off the Feature branch</td><td>&mdash;</td></tr>
+            <tr><td class="nowrap"><strong>L2 MSP</strong></td><td>MSPs in different clusters parallel; same-cluster MSPs sequential</td><td>One MSP orchestrator per MSP</td><td>The cluster worktree (sequential MSPs reuse it)</td><td><strong>Branch X</strong> (via the merge queue)</td></tr>
+            <tr><td class="nowrap"><strong>L3 Task</strong></td><td>Task waves inside one MSP</td><td>Task sub-agents under the MSP orchestrator (the existing engine)</td><td>scope-fence default; per-task worktrees for wide waves</td><td>The MSP's working state</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="callout info">
+        <span class="chip">Two merge boundaries</span>
+        <p><strong>Task &rarr; MSP</strong> (handled by today's engine, per-wave merge) and <strong>MSP &rarr; Branch X</strong> (the NEW serialized merge protocol). Only <strong>MSP &rarr; Branch X</strong> touches the always-green invariant.</p>
+      </div>
+
+      <h3 class="sub">End-to-end lifecycle</h3>
+      <ol class="stepper">
+        <li><div class="st-title">Brainstorm</div><div class="st-body">Main thread + brainstorming skill &rarr; SPEC.</div></li>
+        <li><div class="st-title">Decompose &rarr; MSPs + clusters</div><div class="st-body">NEW feature-decomposition skill (Opus) &rarr; <span class="mono">clusters.json</span> + human-readable plan.</div></li>
+        <li><div class="st-title">HUMAN GATE: approve the cluster plan</div><div class="st-body">No implementation before this.</div></li>
+        <li><div class="st-title">Open Feature worktree</div><div class="st-body">Feature orchestrator.</div></li>
+        <li><div class="st-title">Schedule clusters</div><div class="st-body">Launch independent clusters concurrently.</div></li>
+        <li><div class="st-title">Per-MSP plan</div><div class="st-body">MSP orchestrator + NEW msp-planning wrapper &rarr; brainstorming-if-needed &rarr; writing-plans &rarr; annotation &rarr; <span class="mono">msp.plan.md</span> + <span class="mono">msp.graph.json</span>.</div></li>
+        <li><div class="st-title">Within-MSP task waves</div><div class="st-body">Existing engine via parallel-subagent-development &rarr; integrated, green MSP tree.</div></li>
+        <li><div class="st-title">Per-MSP review / test / security</div><div class="st-body">Engine's risk-scaled review + boundary validation + final review &rarr; MSP marked ready.</div></li>
+        <li><div class="st-title">MSP merge protocol</div><div class="st-body">NEW, serialized by a lock &rarr; MSP merged into Branch X (green).</div></li>
+        <li><div class="st-title">Feature completion</div><div class="st-body">Feature orchestrator &rarr; summary up; worktrees cleaned; finishing-a-development-branch.</div></li>
+      </ol>
+
+      <div class="callout gate">
+        <span class="chip">Human-gate</span>
+        <p>Step 3 is the single mandatory human checkpoint of the whole pipeline. The cluster plan is approved by a human who knows the codebase before any implementation begins. See also <a href="#s4">4.7</a> and <a href="#s13">Section 13</a>.</p>
+      </div>
+
+      <div class="codelabel">One-line control flow</div>
+      <div class="flow-inline">brainstorm -&gt; decompose (+human gate) -&gt; [per cluster, parallel: [per MSP, sequential: plan -&gt; task-waves -&gt; review -&gt; merge-to-X]] -&gt; feature done.</div>
+    </section>
+
+    <section id="s4" class="reveal">
+      <div class="kicker"><span class="dot"></span>Section 04 &middot; Concern 1 answered</div>
+      <h2 class="sec">How MSPs are technically determined</h2>
+      <p class="lead">An MSP is determined by a concrete, repeatable algorithm &mdash; not vibes. Here is every step.</p>
+
+      <h3 class="sub">4.1 &middot; What makes a slice an MSP (the gate)</h3>
+      <div class="table-wrap">
+        <table>
+          <caption>The MSP admission gate</caption>
+          <thead><tr><th>Criterion</th><th>Question</th><th>Pass condition</th><th>If it fails</th></tr></thead>
+          <tbody>
+            <tr><td class="nowrap"><strong>Vertical</strong></td><td>Does the slice touch all layers it needs (UI/API/DB)?</td><td>Yes &mdash; no "API-only" slices</td><td>It is horizontal; merge with its partner slice or reframe as latent code</td></tr>
+            <tr><td class="nowrap"><strong>Independent (I)</strong></td><td>Can it be built+merged without another MSP first?</td><td>Yes, OR the dependency is explicit/recorded</td><td>Record a dependency edge in the DAG</td></tr>
+            <tr><td class="nowrap"><strong>Valuable (V)</strong></td><td>Observable behavior OR safely-latent code a user will use?</td><td>Yes</td><td>Merge with the MSP it supports; maybe it's a task, not an MSP</td></tr>
+            <tr><td class="nowrap"><strong>Estimable (E)</strong></td><td>Can effort be estimated now?</td><td>Yes</td><td>Add a Spike (investigation) MSP first</td></tr>
+            <tr><td class="nowrap"><strong>Small (S)</strong></td><td>Roughly 1-3 days of work <span class="muted">[range varies by team, unverified]</span></td><td>Yes</td><td>Split further</td></tr>
+            <tr><td class="nowrap"><strong>Testable (T)</strong></td><td>Clear acceptance criteria?</td><td>Yes</td><td>Write acceptance criteria first</td></tr>
+            <tr><td class="nowrap"><strong>Non-breaking (NB)</strong></td><td>If it merges alone, does the app break or show a half-built experience?</td><td>No breakage OR a non-breaking technique is tagged</td><td>Tag the required technique (4.3)</td></tr>
+            <tr><td class="nowrap"><strong>Independently deployable</strong></td><td>Needs a synchronized multi-service deploy to not break?</td><td>No sync needed</td><td>High-risk; reconsider the slice boundary</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p class="small muted">Sources: <a href="https://en.wikipedia.org/wiki/INVEST_(mnemonic)" target="_blank" rel="noopener">INVEST (Bill Wake)</a> &middot; <a href="https://www.visual-paradigm.com/scrum/user-story-splitting-vertical-slice-vs-horizontal-scale/" target="_blank" rel="noopener">vertical slicing</a> &middot; <a href="https://martinfowler.com/bliki/KeystoneInterface.html" target="_blank" rel="noopener">keystone</a></p>
+
+      <h3 class="sub">4.2 &middot; The 7-step algorithm</h3>
+      <div class="table-wrap">
+        <table>
+          <caption>Spec in, clusters out &mdash; step, action, owner, reuse</caption>
+          <thead><tr><th>Step</th><th>Action</th><th>Who</th><th>Tool / reuse</th></tr></thead>
+          <tbody>
+            <tr><td class="nowrap"><strong>1</strong></td><td>Extract the capability backbone &mdash; every "user can &lt;verb&gt; &lt;object&gt;" behavior, in narrative order</td><td>LLM (Opus)</td><td>&mdash;</td></tr>
+            <tr><td class="nowrap"><strong>2</strong></td><td>Decompose each capability into candidate MSPs</td><td>LLM</td><td>SPIDR / Hamburger / story-mapping heuristics (4.5)</td></tr>
+            <tr><td class="nowrap"><strong>3</strong></td><td>INVEST + Non-breaking gate on each candidate</td><td>LLM (mechanical)</td><td>failures emit a dependency edge or trigger a further split</td></tr>
+            <tr><td class="nowrap"><strong>4</strong></td><td>Build the MSP dependency DAG from 5 signals</td><td>LLM proposes; Graphify + Serena ground the code-import/schema signals against the live repo</td><td>HUMAN GATE on hidden-coupling adjudication</td></tr>
+            <tr><td class="nowrap"><strong>5</strong></td><td>Topological sort + level assignment</td><td>ENGINE</td><td><span class="mono">planWaves</span> call #1 (MSP granularity)</td></tr>
+            <tr><td class="nowrap"><strong>6</strong></td><td>Form clusters = connected components of the DAG</td><td>jq/graph pass</td><td>independent components &rarr; parallel clusters</td></tr>
+            <tr><td class="nowrap"><strong>7</strong></td><td>Human gates</td><td>User</td><td>approve clusters, technique per MSP, value, cycles</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <h3 class="sub">4.3 &middot; The 5 dependency signals</h3>
+      <p class="small muted">How "X must precede Y" is decided.</p>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Signal</th><th>Definition</th><th>Example</th></tr></thead>
+          <tbody>
+            <tr><td class="nowrap"><strong>Code import</strong></td><td>Y calls a function/endpoint X introduces</td><td>Y calls <span class="mono">POST /auth/token</span>; X defines it</td></tr>
+            <tr><td class="nowrap"><strong>Schema dependency</strong></td><td>Y reads a column/table X's expand phase creates</td><td>Y reads <span class="mono">pub_state</span>; X adds it</td></tr>
+            <tr><td class="nowrap"><strong>Flag/keystone dependency</strong></td><td>Y's flag/keystone UI assumes X's backend is live</td><td>Y shows "new checkout" button; X builds the API</td></tr>
+            <tr><td class="nowrap"><strong>Test dependency</strong></td><td>Y's integration test asserts behavior X must establish</td><td>Y tests "after login, dashboard shows"; X implements login</td></tr>
+            <tr><td class="nowrap"><strong>INVEST-Independence failure</strong></td><td>Step 3 flagged I as failed, Y &rarr; X</td><td>already recorded</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <h3 class="sub">4.4 &middot; Non-breaking technique decision guide</h3>
+      <p class="small muted">So an incomplete MSP can ship without breaking the app.</p>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Situation</th><th>Technique</th><th>Mechanism</th><th>Cost</th><th>Avoid when</th></tr></thead>
+          <tbody>
+            <tr><td>UI is the last piece, backend ready</td><td class="nowrap"><strong>Keystone Interface</strong></td><td>hold back the UI element until backend complete</td><td>lowest</td><td>UI can't be isolated to one element</td></tr>
+            <tr><td>Feature partial, touches existing paths</td><td class="nowrap"><strong>Feature Flag</strong></td><td>wrap new path in a boolean toggle, OFF in prod</td><td>low-med</td><td>flag would live &gt; ~3 months (becomes debt)</td></tr>
+            <tr><td>Incompatible DB schema change</td><td class="nowrap"><strong>Expand-and-Contract</strong></td><td>add new alongside old; dual-write; switch; remove old</td><td>high</td><td>a zero-downtime stop-the-world migration is acceptable</td></tr>
+            <tr><td>Replace internals, keep external API</td><td class="nowrap"><strong>Branch-by-Abstraction</strong></td><td>interface in front of old code; build new behind it; switch</td><td>medium</td><td>no clear abstraction point exists</td></tr>
+            <tr><td>Replace a whole legacy system incrementally</td><td class="nowrap"><strong>Strangler Fig</strong></td><td>route new requests to new system, old to legacy, grow new</td><td>high</td><td>you can't intercept at the boundary</td></tr>
+            <tr><td>New backend needs real-traffic test pre-exposure</td><td class="nowrap"><strong>Dark Launching</strong></td><td>run new code on real traffic, hide output</td><td>medium</td><td>feature depends on user choices (use canary)</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p class="small muted">Sources: <a href="https://launchdarkly.com/blog/what-are-feature-flags/" target="_blank" rel="noopener">Feature flags</a> &middot; <a href="https://martinfowler.com/bliki/KeystoneInterface.html" target="_blank" rel="noopener">Keystone</a> &middot; <a href="https://blog.thepete.net/blog/2023/12/05/expand/contract-making-a-breaking-change-without-a-big-bang/" target="_blank" rel="noopener">Expand-Contract</a> &middot; <a href="https://martinfowler.com/bliki/ParallelChange.html" target="_blank" rel="noopener">Parallel Change</a> &middot; <a href="https://trunkbaseddevelopment.com/branch-by-abstraction/" target="_blank" rel="noopener">Branch-by-Abstraction</a> &middot; <a href="https://www.thoughtworks.com/insights/articles/embracing-strangler-fig-pattern-legacy-modernization-part-three" target="_blank" rel="noopener">Strangler Fig</a> &middot; <a href="https://martinfowler.com/bliki/DarkLaunching.html" target="_blank" rel="noopener">Dark Launching</a></p>
+
+      <h3 class="sub">4.5 &middot; Story-splitting heuristics applied in Step 2</h3>
+      <div class="table-wrap">
+        <table>
+          <caption>SPIDR &mdash; five ways to split a story</caption>
+          <thead><tr><th>Letter (SPIDR)</th><th>Split by</th><th>Example</th></tr></thead>
+          <tbody>
+            <tr><td class="nowrap"><strong>S Spike</strong></td><td>knowledge gap</td><td>unknown payment API &rarr; spike MSP first</td></tr>
+            <tr><td class="nowrap"><strong>P Path</strong></td><td>alternate user journeys</td><td>pay-by-card before pay-by-ApplePay</td></tr>
+            <tr><td class="nowrap"><strong>I Interface</strong></td><td>UI variants/devices</td><td>Chrome before Safari</td></tr>
+            <tr><td class="nowrap"><strong>D Data</strong></td><td>data subset/type</td><td>domestic shipping before international</td></tr>
+            <tr><td class="nowrap"><strong>R Rules</strong></td><td>business-rule relaxation</td><td>always-free shipping before tiered</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="grid cols-2" style="margin-top:6px">
+        <div class="card"><h4 class="subsub">Hamburger method</h4><p class="small">Bottom-up: list sub-tasks, write quality tiers per sub-task, pick the thinnest tier from each to form MSP-1.</p></div>
+        <div class="card"><h4 class="subsub">Story mapping</h4><p class="small">Lay activities across the top, tasks below, draw a line under the minimum releasable set = walking skeleton.</p></div>
+      </div>
+      <p class="small muted">Sources: <a href="https://www.mountaingoatsoftware.com/blog/five-simple-but-powerful-ways-to-split-user-stories" target="_blank" rel="noopener">SPIDR</a> &middot; <a href="https://gojko.net/2012/01/23/splitting-user-stories-the-hamburger-method/" target="_blank" rel="noopener">Hamburger</a> &middot; <a href="https://jpattonassociates.com/the-new-backlog/" target="_blank" rel="noopener">Story mapping</a> &middot; <a href="https://www.humanizingwork.com/the-humanizing-work-guide-to-splitting-user-stories/" target="_blank" rel="noopener">nine patterns</a></p>
+
+      <h3 class="sub">4.6 &middot; Worked example &mdash; the user's own MSP-1/MSP-4 case</h3>
+      <p class="small">4 MSPs. Only edge: MSP-1 &rarr; MSP-4 (MSP-4 depends on MSP-1). MSP-2 and MSP-3 are independent.</p>
+      <div class="diagram" aria-label="Cluster scheduling diagram">
+        <div class="dtitle">Three clusters &middot; A, B, C run in parallel</div>
+        <div class="clusters">
+          <div class="cluster">
+            <div class="ctitle">Cluster A</div>
+            <div class="cmode">sequential: 1 then 4</div>
+            <div class="msp">MSP-1 <span class="lvl">level 0</span></div>
+            <div class="seq-arrow">&darr; depends on</div>
+            <div class="msp">MSP-4 <span class="lvl">level 1</span></div>
+          </div>
+          <div class="cluster">
+            <div class="ctitle">Cluster B</div>
+            <div class="cmode">single MSP</div>
+            <div class="msp">MSP-2 <span class="lvl">level 0</span></div>
+          </div>
+          <div class="cluster">
+            <div class="ctitle">Cluster C</div>
+            <div class="cmode">single MSP</div>
+            <div class="msp">MSP-3 <span class="lvl">level 0</span></div>
+          </div>
+        </div>
+        <div class="parallel-note">A &nbsp;||&nbsp; B &nbsp;||&nbsp; C &mdash; the three clusters run concurrently</div>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <caption>Topological levels and cluster assignment</caption>
+          <thead><tr><th>MSP</th><th>Depends on</th><th>Topo level</th><th>Cluster</th></tr></thead>
+          <tbody>
+            <tr><td class="nowrap"><strong>MSP-1</strong></td><td>&mdash;</td><td>0</td><td>A</td></tr>
+            <tr><td class="nowrap"><strong>MSP-2</strong></td><td>&mdash;</td><td>0</td><td>B</td></tr>
+            <tr><td class="nowrap"><strong>MSP-3</strong></td><td>&mdash;</td><td>0</td><td>C</td></tr>
+            <tr><td class="nowrap"><strong>MSP-4</strong></td><td>MSP-1</td><td>1</td><td>A</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="callout recommended">
+        <span class="chip">The correctness claim, stated precisely</span>
+        <p>IF the dependency graph is COMPLETE and each MSP's non-breaking technique is correctly applied, THEN individually-correct MSPs compose into a correct feature once merged. The "if" is exactly why Step 4 and the technique-tagging are human-gated.</p>
+      </div>
+
+      <h3 class="sub">4.7 &middot; Automation boundary</h3>
+      <div class="twocol">
+        <div class="col good">
+          <h4>LLM does reliably</h4>
+          <ul class="small" style="margin-bottom:0">
+            <li>Capability extraction</li>
+            <li>Candidate-MSP generation</li>
+            <li>Mechanical INVEST</li>
+            <li>Topo-sort + clustering</li>
+            <li>Suggesting dependency edges that appear explicitly in the spec text</li>
+          </ul>
+        </div>
+        <div class="col gate">
+          <h4>Must stay human-gated</h4>
+          <p class="small" style="margin-bottom:0">Five places automation provably fails &mdash; detailed below.</p>
+        </div>
+      </div>
+      <div class="table-wrap" style="margin-top:12px">
+        <table>
+          <thead><tr><th>Gate</th><th>Why automation fails</th><th>Human verifies</th></tr></thead>
+          <tbody>
+            <tr><td class="nowrap"><strong>Hidden coupling</strong></td><td>LLM sees the spec, not the live codebase's shared tables/queues/auth</td><td>review the DAG; add unstated edges</td></tr>
+            <tr><td class="nowrap"><strong>Non-breaking technique selection</strong></td><td>depends on deploy model/migration tooling/API consumers &mdash; not in the spec</td><td>pick the technique per MSP</td></tr>
+            <tr><td class="nowrap"><strong>Value validation (V)</strong></td><td>"valuable" is a product judgment</td><td>approve the MSP list</td></tr>
+            <tr><td class="nowrap"><strong>Cycle resolution</strong></td><td>circular deps = design problem needing architectural judgment</td><td>merge, extract a foundation MSP, or restructure</td></tr>
+            <tr><td class="nowrap"><strong>Cross-cutting concerns</strong></td><td>auth/observability/rate-limiting span MSPs, rarely per-feature in specs</td><td>security/architecture review of the plan</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="callout gate">
+        <span class="chip">Human-gate &middot; why it is non-negotiable</span>
+        <p>The best published automated decomposition tops <strong>~88% success</strong> (EFFGEN). The ~12% failure mode &mdash; a missed hidden coupling &mdash; silently breaks Branch X, which is why the single human cluster-plan gate is non-negotiable.</p>
+        <p class="small muted" style="margin-bottom:0">Sources: <a href="https://arxiv.org/html/2411.09022v2" target="_blank" rel="noopener">DART-LLM (LLMs can build task DAGs)</a> &middot; <a href="https://arxiv.org/html/2509.18970v1" target="_blank" rel="noopener">agent hallucination survey</a> &middot; <a href="https://arxiv.org/pdf/2406.00936" target="_blank" rel="noopener">EFFGEN</a></p>
+      </div>
+    </section>
+
+    <section id="s5" class="reveal">
+      <div class="kicker"><span class="dot"></span>Section 05 &middot; Concern 2 answered</div>
+      <h2 class="sec">What actually runs this</h2>
+      <p class="lead">Today there is NO skill that takes a spec, finds MSPs, and plans each. Here is exactly what we add, and how it reuses what already exists.</p>
+
+      <h3 class="sub">5.1 &middot; The new pieces</h3>
+      <div class="grid cols-3">
+        <div class="card">
+          <h4 class="subsub" style="color:var(--accent-ink)">New skill</h4>
+          <p><strong>feature-decomposition</strong></p>
+          <p class="small">Trigger = after brainstorming approves a SPEC, on "decompose / break into MSPs". Input: SPEC path. Output: <span class="mono">&lt;feature&gt;.clusters.json</span> + markdown cluster plan. Runs the 7-step algorithm, calls <span class="mono">planWaves</span> at MSP granularity, computes clusters, STOPS at the human gate. NEW front segment between brainstorming and planning.</p>
+        </div>
+        <div class="card">
+          <h4 class="subsub" style="color:var(--accent-ink)">New skill</h4>
+          <p><strong>msp-planning</strong> (thin wrapper)</p>
+          <p class="small">Invoked by an MSP orchestrator for ONE MSP. Decides if that MSP needs its own scoped brainstorming; invokes writing-plans on ONLY that MSP's slice; runs parallel-plan-annotation &rarr; <span class="mono">msp.graph.json</span>. This is the precise sense in which the OLD chain becomes the INNER loop &mdash; run per MSP, not per feature.</p>
+        </div>
+        <div class="card">
+          <h4 class="subsub" style="color:var(--accent-ink)">New skill</h4>
+          <p><strong>feature-orchestration</strong></p>
+          <p class="small">After the cluster plan is approved, opens the Feature worktree, launches cluster worktrees, dispatches one msp-orchestrator per MSP respecting cluster order, collects summaries, drives the merge queue.</p>
+        </div>
+        <div class="card">
+          <h4 class="subsub" style="color:var(--recommended)">New agent</h4>
+          <p><strong>msp-orchestrator</strong> (depth 1 or 2)</p>
+          <p class="small">Tools include Agent (MUST &mdash; to spawn task agents), Read, Bash, Serena, graphify, the skills. <span class="mono">isolation: worktree</span> on the cluster branch. Per MSP: msp-planning &rarr; parallel-subagent-development (existing engine, scoped to this MSP) &rarr; relays review/test/security &rarr; returns a concise summary + "ready to merge". RESTRICT spawnable types via <span class="mono">disallowedTools</span>, NEVER a parenthesized type-allowlist (ignored at subagent level &mdash; confirmed in Claude Code docs).</p>
+        </div>
+        <div class="card">
+          <h4 class="subsub" style="color:var(--gate)">New engine/lib</h4>
+          <p><strong>msp-merge-protocol.mjs</strong> (+ a merge lock)</p>
+          <p class="small">The serialized merge queue + regression-surface builder (Section 7).</p>
+        </div>
+        <div class="card">
+          <h4 class="subsub" style="color:var(--gate)">New engine/lib</h4>
+          <p><strong>graphify-regression.mjs</strong></p>
+          <p class="small">The gap supplements (community wrapper + Serena bridge + coverage map), phased.</p>
+        </div>
+      </div>
+
+      <h3 class="sub">5.2 &middot; How it maps onto the OLD chain</h3>
+      <p class="small muted">Nothing is thrown away.</p>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Old (per Feature)</th><th>New</th></tr></thead>
+          <tbody>
+            <tr><td>brainstorming &rarr; SPEC</td><td>unchanged (still per Feature)</td></tr>
+            <tr><td>writing-plans &rarr; one plan</td><td>now PER MSP, inside msp-planning</td></tr>
+            <tr><td>parallel-plan-annotation &rarr; one graph</td><td>unchanged, now PER MSP</td></tr>
+            <tr><td>parallel-subagent-development &rarr; execute</td><td>unchanged, now the per-MSP task executor</td></tr>
+            <tr><td>(none)</td><td>NEW: feature-decomposition (front), feature-orchestration (wraps), msp-merge-protocol (back)</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="callout locked">
+        <span class="chip">5.3 &middot; Skill vs Agent vs Engine</span>
+        <p><strong>SKILLS</strong> = procedural recipes the orchestrators follow (feature-decomposition, msp-planning, feature-orchestration).</p>
+        <p><strong>AGENTS</strong> = dispatched workers (msp-orchestrator + existing implementer/reviewer/security/fixer).</p>
+        <p style="margin-bottom:0"><strong>ENGINE</strong> = deterministic JS an LLM must NOT re-derive (planWaves, route-planner, generate-run-script, parallel-plan-execution.js, the new msp-merge-protocol + graphify-regression).</p>
+      </div>
+    </section>
+
+    <section id="s6" class="reveal">
+      <div class="kicker"><span class="dot"></span>Section 06 &middot; Concrete topology</div>
+      <h2 class="sec">The agent topology</h2>
+
+      <div class="callout info">
+        <span class="chip">6.1 &middot; The enabling capability &middot; HIGH confidence</span>
+        <p>Claude Code subagents CAN spawn subagents as of <strong>v2.1.172</strong>; hard cap <strong>depth 5</strong> (a depth-5 agent loses the Agent tool and can't spawn further). So <span class="mono">main(0) &rarr; per-MSP orchestrator(1) &rarr; task agents(2)</span> is depth 2, natively supported, with 3 levels of headroom. This is the SUBAGENT mechanism, NOT "Agent Teams" (teams do NOT nest).</p>
+        <p class="small muted" style="margin-bottom:0">Sources: <a href="https://code.claude.com/docs/en/sub-agents" target="_blank" rel="noopener">subagents</a> &middot; <a href="https://code.claude.com/docs/en/agent-sdk/subagents" target="_blank" rel="noopener">SDK subagents</a> &middot; <a href="https://code.claude.com/docs/en/agent-teams" target="_blank" rel="noopener">teams-don't-nest</a></p>
+      </div>
+
+      <h3 class="sub">6.2 &middot; Depth map</h3>
+      <div class="diagram" aria-label="Agent depth tree">
+        <div class="dtitle">Single-feature (common) tree &middot; depth 2 of a 5-deep ceiling</div>
+        <div class="tree">
+          <div class="node"><span class="depth">depth 0</span><span class="role">main = Feature orchestrator</span><div class="tnote">route, human gates</div></div>
+          <div class="connector"></div>
+          <div class="node"><span class="depth">depth 1</span><span class="role">MSP orchestrator</span><div class="tnote">plan + execute + review one MSP</div></div>
+          <div class="connector"></div>
+          <div class="node"><span class="depth">depth 2</span><span class="role">task agents</span><div class="tnote">implement / review / fix / security</div></div>
+          <div class="connector"></div>
+          <div class="node" style="border-style:dashed;opacity:.75"><span class="depth" style="background:var(--locked)">3 &mdash; 5</span><span class="role">headroom</span><div class="tnote">unused; depth-5 agent loses the Agent tool (cannot spawn further)</div></div>
+        </div>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <caption>Both common (single-feature) and rare (multi-feature) depths</caption>
+          <thead><tr><th>Single-feature (common)</th><th>Multi-feature (rare)</th><th>Role</th><th>Tools</th><th>Isolation</th><th>Model</th></tr></thead>
+          <tbody>
+            <tr><td class="nowrap">0 main = Feature orchestrator</td><td class="nowrap">0 main = conductor</td><td>route, human gates</td><td>&mdash;</td><td>main tree</td><td>session</td></tr>
+            <tr><td>&mdash;</td><td class="nowrap">1 Feature orchestrator</td><td>schedule clusters</td><td>Agent, Bash, graphify</td><td><span class="mono">feat/&lt;slug&gt;</span> worktree</td><td>Sonnet</td></tr>
+            <tr><td class="nowrap">1 MSP orchestrator</td><td class="nowrap">2 MSP orchestrator</td><td>plan+execute+review one MSP</td><td>Agent, Read, Bash, Serena, graphify</td><td>cluster worktree</td><td>Sonnet</td></tr>
+            <tr><td class="nowrap">2 task agents</td><td class="nowrap">3 task agents</td><td>implement/review/fix/security</td><td>per type</td><td>scope-fence or per-task worktree</td><td>implementer=session, reviewer/fixer=Sonnet, mechanical=Haiku</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="callout locked">
+        <span class="chip">6.3 &middot; Level-collapse rule</span>
+        <p>When only ONE feature is active (the default), the main thread IS the Feature orchestrator &mdash; the natively-supported <span class="mono">main(0) &rarr; MSP(1) &rarr; task(2)</span> shape. Only spawn a separate Feature-orchestrator layer when &ge;2 features run concurrently. The depth-5 cap is never approached.</p>
+      </div>
+      <div class="callout info">
+        <span class="chip">6.4 &middot; Summary flow up</span>
+        <p>Each layer returns a BOUNDED structured summary, never raw transcripts. Task agents return the existing one-line <span class="mono">STATUS: DONE</span> &mdash; &le;50 words. MSP orchestrator returns <span class="mono">{mspId, status, mergedSha|blockReason, filesTouched, reviewVerdicts}</span>. Feature orchestrator returns <span class="mono">{feature, mspsMerged, mspsBlocked, branchXSha}</span>.</p>
+      </div>
+
+      <h3 class="sub">6.5 &middot; Bounding the 15x cost</h3>
+      <p class="small muted">Multi-agent &asymp; 15x single-chat tokens, and each nesting level multiplies (<a href="https://www.anthropic.com/engineering/multi-agent-research-system" target="_blank" rel="noopener">Anthropic's own research system</a>).</p>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Lever</th><th>Effect</th></tr></thead>
+          <tbody>
+            <tr><td class="nowrap"><strong>Collapse the Feature level when N=1</strong></td><td>removes a whole multiplier in the common case</td></tr>
+            <tr><td class="nowrap"><strong>Concise structured summaries only up the chain</strong></td><td>no transcript bloat</td></tr>
+            <tr><td class="nowrap"><strong>Model tiering per level</strong></td><td>Opus only for decomposition + high-risk security/final review; Sonnet for orchestration + reviewers/fixers; Haiku for mechanical edits; implementers inherit session</td></tr>
+            <tr><td class="nowrap"><strong>Route, don't re-plan</strong></td><td>orchestrators dispatch; never read full task bodies into their own context</td></tr>
+            <tr><td class="nowrap"><strong>Cap concurrent MSP orchestrators (&le;3)</strong></td><td>bounds the simultaneous multiplier + worktree disk/port pressure</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <section id="s7" class="reveal">
+      <div class="kicker"><span class="dot"></span>Section 07 &middot; Step by atomic step</div>
+      <h2 class="sec">The MSP merge protocol</h2>
+      <p class="lead">This is a merge queue &mdash; a serialized gate where each change is tested against the CURRENT tip before it lands.</p>
+
+      <div class="callout locked">
+        <span class="chip">7.1 &middot; Why both ingredients are mandatory</span>
+        <p>Pull-before-merge (test against current tip) AND a non-bypassable gate. Neither alone suffices. Pull-without-gate = one "force merge" breaks everyone. Gate-without-pull = green against a 3-day-old tip is meaningless.</p>
+        <p class="small muted" style="margin-bottom:0">GitHub merge queue "ensure[s] the pull request's changes pass all required status checks when applied to the latest version of the target branch" (<a href="https://docs.github.com/en/repositories/configuring-branches-and-merges-in-your-repository/configuring-pull-request-merges/managing-a-merge-queue" target="_blank" rel="noopener">GitHub docs</a>); the underlying principle is the "not rocket science rule" (<a href="https://graphite.com/blog/bors-google-tap-merge-queue" target="_blank" rel="noopener">Bors / Graydon Hoare</a>).</p>
+      </div>
+
+      <h3 class="sub">7.2 &middot; The merge-queue landscape</h3>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>System</th><th>Mechanism</th><th>Safety vs throughput</th></tr></thead>
+          <tbody>
+            <tr><td class="nowrap"><strong>Bors / not-rocket-science</strong></td><td>pure serialization, test each PR on current tip</td><td>max safety, low throughput (~32/day at 15-min CI)</td></tr>
+            <tr><td class="nowrap"><strong>GitHub merge queue</strong></td><td>merge-group branches tested on latest tip; required checks tied to merge_group event (non-bypassable)</td><td>balanced; serial or grouped</td></tr>
+            <tr><td class="nowrap"><strong>GitLab merge trains</strong></td><td>parallel pipelines, each assumes prior cars land</td><td>faster; a failure restarts downstream cars</td></tr>
+            <tr><td class="nowrap"><strong>Graphite</strong></td><td>stack-aware; serialized OR batched w/ binary-search bisect</td><td>tunable</td></tr>
+            <tr><td class="nowrap"><strong>Aviator</strong></td><td>serial/batched/optimistic/optimistic-batched spectrum; can skip re-validation for independent paths via build graph</td><td>tunable</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p class="small muted">Sources: <a href="https://docs.gitlab.com/ci/pipelines/merge_trains/" target="_blank" rel="noopener">GitLab trains</a> &middot; <a href="https://graphite.com/blog/merge-queue-batching" target="_blank" rel="noopener">Graphite batching</a> &middot; <a href="https://www.aviator.co/blog/merge-strategies-at-scale/" target="_blank" rel="noopener">Aviator</a> &middot; <a href="https://earthly.dev/blog/merge-queues/" target="_blank" rel="noopener">Earthly merge queues</a></p>
+
+      <div class="callout locked">
+        <span class="chip">7.3 &middot; Precondition</span>
+        <p>The MSP worktree is already green at L3 (tasks integrated, per-MSP boundary validation passed, review + security passed). Only THEN does it enter the queue.</p>
+      </div>
+
+      <h3 class="sub">7.4 &middot; The protocol, step by atomic step</h3>
+      <div class="table-wrap">
+        <table>
+          <caption>Includes the Graphify-gap supplement column</caption>
+          <thead><tr><th>#</th><th>Step</th><th>Command sketch</th><th>Graphify-gap supplement</th></tr></thead>
+          <tbody>
+            <tr><td class="nowrap"><strong>0</strong></td><td>Acquire the merge lock</td><td>atomic file/ref lock on Branch X</td><td>serializes every MSP across all worktrees + features &rarr; no race</td></tr>
+            <tr><td class="nowrap"><strong>1</strong></td><td>Pull latest Branch X into the MSP worktree</td><td><span class="mono">git fetch &amp;&amp; git merge origin/X</span></td><td>&mdash;</td></tr>
+            <tr><td class="nowrap"><strong>2a</strong></td><td>Did X move? compare merge-base to recorded mergeBaseAtBranch</td><td>if no: still run the MSP's own green suite once against tip, then step 3</td><td>&mdash;</td></tr>
+            <tr><td class="nowrap"><strong>2b</strong></td><td>Build the regression surface (only if X moved): diff the pull</td><td><span class="mono">git diff &lt;old-base&gt;..&lt;new-X&gt;</span> &rarr; changed symbols</td><td>&mdash;</td></tr>
+            <tr><td class="nowrap"><strong>2c</strong></td><td>Exact callers of changed symbols</td><td><span class="mono">graphify affected "&lt;label&gt;" --depth N</span> (blast radius)</td><td><strong>GAP 1</strong> (label ambiguity, 39% non-unique): UNION with Serena <span class="mono">find_referencing_symbols</span> (file+symbol). Graphify=breadth, Serena=precision. Never trust <span class="mono">affected "main()"</span> alone.</td></tr>
+            <tr><td class="nowrap"><strong>2d</strong></td><td>Parallel surfaces (siblings that move together)</td><td>enumerate the community of each changed node</td><td><strong>GAP 2</strong> (no community command): graphify-regression jq wrapper groups graph.json by community</td></tr>
+            <tr><td class="nowrap"><strong>2e</strong></td><td>Changed symbols &rarr; tests</td><td>&mdash;</td><td><strong>GAP 3</strong> (no coverage edge): external coverage map (lcov/Istanbul); fall back to import-graph heuristic. This is TIA &mdash; <a href="https://martinfowler.com/articles/rise-test-impact-analysis.html" target="_blank" rel="noopener">Fowler on TIA</a></td></tr>
+            <tr><td class="nowrap"><strong>2f</strong></td><td>Expanded test set</td><td>MSP's own tests &cup; overall smoke &cup; newly-impacted-surface tests &cup; interaction-surface tests</td><td>&mdash;</td></tr>
+            <tr><td class="nowrap"><strong>2g</strong></td><td>Run the expanded set in the worktree</td><td>red &rarr; release lock, send MSP back to its orchestrator to fix, DO NOT merge</td><td>&mdash;</td></tr>
+            <tr><td class="nowrap"><strong>3</strong></td><td>Non-bypassable gate</td><td>the merge command is emitted ONLY after 2g is green &mdash; no override flag exists</td><td>mechanical, not policy</td></tr>
+            <tr><td class="nowrap"><strong>4</strong></td><td>Merge MSP branch &rarr; Branch X</td><td><span class="mono">git merge --no-ff</span> ; push X</td><td>&mdash;</td></tr>
+            <tr><td class="nowrap"><strong>5</strong></td><td>Release the lock</td><td>&mdash;</td><td>next queued MSP proceeds</td></tr>
+            <tr><td class="nowrap"><strong>6</strong></td><td>Refresh + sync</td><td>backgrounded graphify update on X (post-commit hook); fast-forward the Feature branch to X so sibling MSPs branch from the new tip</td><td>&mdash;</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="diagram" aria-label="Merge protocol flow">
+        <div class="dtitle">The protocol as a flow</div>
+        <div class="mqflow">
+          <div class="step"><div class="marker"><div class="dot"></div><div class="line"></div></div><div class="body"><div class="s-name">Acquire lock</div><div class="s-desc">atomic, serializes all MSPs</div></div></div>
+          <div class="step"><div class="marker"><div class="dot"></div><div class="line"></div></div><div class="body"><div class="s-name">Pull latest Branch X</div><div class="s-desc">test against the current tip, not a stale one</div></div></div>
+          <div class="step"><div class="marker"><div class="dot"></div><div class="line"></div></div><div class="body"><div class="s-name">Build regression surface</div><div class="s-desc">diff &rarr; changed symbols &rarr; callers (graphify &cup; Serena) &rarr; parallel surfaces &rarr; tests</div></div></div>
+          <div class="step"><div class="marker"><div class="dot"></div><div class="line"></div></div><div class="body"><div class="s-name">Run the expanded set</div><div class="s-desc">red &rarr; release lock, send back to fix, do not merge</div></div></div>
+          <div class="step gatekeeper"><div class="marker"><div class="dot"></div><div class="line"></div></div><div class="body"><div class="s-name">Non-bypassable gate</div><div class="s-desc">merge emitted only on green; no override flag exists</div></div></div>
+          <div class="step"><div class="marker"><div class="dot"></div><div class="line"></div></div><div class="body"><div class="s-name">Merge &rarr; Branch X</div><div class="s-desc">git merge --no-ff; push X</div></div></div>
+          <div class="step"><div class="marker"><div class="dot"></div><div class="line"></div></div><div class="body"><div class="s-name">Release lock</div><div class="s-desc">next queued MSP proceeds</div></div></div>
+          <div class="step"><div class="marker"><div class="dot"></div></div><div class="body"><div class="s-name">Refresh + sync</div><div class="s-desc">backgrounded graphify update; fast-forward Feature branch to X</div></div></div>
+        </div>
+      </div>
+
+      <h3 class="sub">7.5 &middot; The semantic-conflict gap</h3>
+      <div class="callout gap">
+        <span class="chip">Gap &middot; honest limitation</span>
+        <p>"Individually green" is necessary but NOT sufficient. Two MSPs each green alone can break combined while git merges cleanly. The structure can FORCE the relevant interaction-surface tests to run; it cannot guarantee they were written. This is Risk R1.</p>
+      </div>
+      <p class="small muted">Worked example &mdash; a multi-currency change that silently overcharges. Read the code top to bottom.</p>
+      <div class="codelabel">Branch X at T0</div>
+      <pre class="code">remove_money(account_id, amount) {
+  deduct(account_id, amount)
+}</pre>
+      <div class="codelabel">MSP-Alpha adds multi-currency &mdash; updates all KNOWN call sites, tests pass, merges. X now at T1.</div>
+      <pre class="code">remove_money(account_id, amount, currency='USD') {
+  deduct(account_id, convert(amount, currency))
+}</pre>
+      <div class="codelabel">MSP-Beta (developed from T0) adds a new payment flow calling the OLD 2-arg form. Tests pass against T0.</div>
+      <pre class="code">remove_money(account_id, amount)</pre>
+      <div class="card" style="margin-top:10px">
+        <p class="small" style="margin-bottom:6px"><strong>Beta pulls X (T1).</strong> Git merge: CLEAN (no textual overlap). The new signature accepts <span class="mono">currency</span> with default <span class="mono">'USD'</span>; Beta's call uses the default.</p>
+        <p class="small" style="margin-bottom:0"><strong>Production:</strong> Beta's flow charges EVERY customer in USD regardless of their currency &mdash; yuan charged at ~7x. Branch X is broken; tests didn't catch it.</p>
+      </div>
+      <p class="small" style="margin-top:10px">Why no merge queue catches this: a merge queue tests structure, not meaning. ONLY a test that exercises the interaction surface catches it. Step 2's whole purpose is to FORCE interaction-surface tests into the expanded set by graph-traversing to new callers. Residual risk remains wherever no such test exists &mdash; an honest, irreducible gap (Risk R1).</p>
+      <p class="small muted">Sources: <a href="https://martinfowler.com/bliki/SemanticConflict.html" target="_blank" rel="noopener">Semantic Conflict</a> &middot; <a href="https://dev.to/lecrepont01/what-is-a-merge-conflict-understanding-the-difference-between-semantic-and-code-conflicts-5d0" target="_blank" rel="noopener">currency example</a></p>
+
+      <h3 class="sub">7.6 &middot; Semantic-conflict taxonomy</h3>
+      <div class="table-wrap">
+        <table>
+          <caption>What each layer catches</caption>
+          <thead><tr><th>Type</th><th>git detects?</th><th>CI catches?</th><th>How to catch</th></tr></thead>
+          <tbody>
+            <tr><td>Textual conflict</td><td>yes (merge fails)</td><td>n/a</td><td>manual resolution</td></tr>
+            <tr><td>Missing import after rename</td><td>no</td><td>yes (compile/runtime)</td><td>compiler/basic test</td></tr>
+            <tr><td>Silent behavior change (currency default)</td><td>no</td><td>only if a test covers the interaction</td><td>interaction/behavioral test</td></tr>
+            <tr><td>Deleted function still called</td><td>no</td><td>yes</td><td>any test exercising the caller</td></tr>
+            <tr><td>Logic interaction (both valid, combined wrong)</td><td>no</td><td>only if a test asserts the combined post-condition</td><td>targeted interaction test</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <h3 class="sub">7.7 &middot; Worked pineapples walkthrough</h3>
+      <p class="small">Setup: <span class="mono">PINEAPPLE_PRICE=1.99</span> in <span class="mono">prices.js</span>, used by <span class="mono">checkout.js:42</span> and <span class="mono">receipt.js:17</span> (both tested, green). You change it to <span class="mono">2.49</span>. You pull X; a concurrently-merged MSP added <span class="mono">inventory.js:88</span> (<span class="mono">if stock &lt; PINEAPPLE_PRICE reorder</span>) with <span class="mono">inventory.test.js</span>.</p>
+      <div class="table-wrap">
+        <table>
+          <caption>The regression-surface method end to end</caption>
+          <thead><tr><th>Step</th><th>Action</th><th>Result</th></tr></thead>
+          <tbody>
+            <tr><td class="nowrap"><strong>1</strong></td><td>diff the pull</td><td><span class="mono">inventory.js</span> added</td></tr>
+            <tr><td class="nowrap"><strong>2</strong></td><td>parse new code for symbol refs</td><td><span class="mono">inventory.js</span> references <span class="mono">PINEAPPLE_PRICE</span></td></tr>
+            <tr><td class="nowrap"><strong>3</strong></td><td>graphify: what references <span class="mono">PINEAPPLE_PRICE</span>?</td><td>before pull {checkout, receipt}; after pull {checkout, receipt, inventory}</td></tr>
+            <tr><td class="nowrap"><strong>4</strong></td><td>expand the test set</td><td>add <span class="mono">inventory.test.js</span></td></tr>
+            <tr><td class="nowrap"><strong>5</strong></td><td>run expanded set</td><td>checkout.test + receipt.test + inventory.test</td></tr>
+            <tr><td class="nowrap"><strong>6</strong></td><td>if <span class="mono">inventory.test.js</span> doesn't exist</td><td>graph reveals an untested call site &rarr; flag/write a test before merge</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="callout gap">
+        <span class="chip">Parallel-surface nuance</span>
+        <p>A <span class="mono">pricing_api_test.js</span> that asserts <span class="mono">response.body.pineapple_price === 1.99</span> does NOT import the constant &mdash; a pure call-graph misses it. Catch via (a) a coverage map for <span class="mono">prices.js</span>, or (b) a literal search for the old value <span class="mono">"1.99"</span> across tests.</p>
+        <p class="small muted" style="margin-bottom:0">Sources: <a href="https://learn.microsoft.com/en-us/azure/devops/pipelines/test/test-impact-analysis?view=azure-devops" target="_blank" rel="noopener">TIA (Microsoft)</a> &middot; <a href="https://www.minware.com/guide/best-practices/test-impact-analysis" target="_blank" rel="noopener">TIA guide</a></p>
+      </div>
+
+      <h3 class="sub">7.8 &middot; Expand-Contract for shared-value changes</h3>
+      <p class="small">The safe way to change a thing many MSPs touch.</p>
+      <div class="codelabel">Expand &mdash; add the new alongside the old; all old callers still work</div>
+      <pre class="code">getPineapplePrice(qty)   // new, added alongside
+PINEAPPLE_PRICE          // old, untouched</pre>
+      <div class="table-wrap">
+        <table>
+          <caption>Three phases of parallel change</caption>
+          <thead><tr><th>Phase</th><th>MSP count</th><th>Risk if skipped</th><th>Graph check</th></tr></thead>
+          <tbody>
+            <tr><td class="nowrap"><strong>Expand</strong></td><td>1</td><td>none (pure addition)</td><td>optional</td></tr>
+            <tr><td class="nowrap"><strong>Migrate</strong></td><td>N (parallelizable)</td><td>breakage if a worktree still calls old and contract ships</td><td>verify old-caller count decreasing</td></tr>
+            <tr><td class="nowrap"><strong>Contract</strong></td><td>1</td><td>catastrophic if migrate incomplete</td><td>REQUIRED: zero references before merge</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p class="small">Why safe across concurrent worktrees: the old interface stays live through all of Migrate; an un-migrated worktree pulling X still finds the old form; the Contract MSP can't merge until graphify shows zero references. <span class="mono">graphify affected</span> + Serena are the contract-phase gate.</p>
+      <p class="small muted">Source: <a href="https://martinfowler.com/bliki/ParallelChange.html" target="_blank" rel="noopener">Parallel Change</a></p>
+    </section>
+
+    <section id="s8" class="reveal">
+      <div class="kicker"><span class="dot"></span>Section 08 &middot; The regression engine</div>
+      <h2 class="sec">Graphify deep dive</h2>
+
+      <h3 class="sub">8.1 &middot; What it can do</h3>
+      <p class="small muted">Capabilities matrix &mdash; VERIFIED on live data (19,295 nodes / 20,045 edges in <span class="mono">~/.claude</span>).</p>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Need</th><th>Command</th><th>Returns</th><th>Verified</th></tr></thead>
+          <tbody>
+            <tr><td>Direct dependents of a changed node</td><td><span class="mono">affected "X"</span></td><td>flat list: label [relation] file:line</td><td>yes</td></tr>
+            <tr><td>Indirect dependents N hops</td><td><span class="mono">affected "X" --depth N</span></td><td>multi-hop reverse BFS</td><td>yes (depth 3 tested)</td></tr>
+            <tr><td>Filter by relation</td><td><span class="mono">affected "X" --relation R</span></td><td>filtered list</td><td>yes</td></tr>
+            <tr><td>Path between two nodes</td><td><span class="mono">path "A" "B"</span></td><td>hop list with edge direction</td><td>yes</td></tr>
+            <tr><td>Node neighborhood</td><td><span class="mono">explain "X"</span></td><td>degree + connections</td><td>yes</td></tr>
+            <tr><td>Keyword BFS</td><td><span class="mono">query "term"</span></td><td>nodes+edges within budget</td><td>yes (fuzzy)</td></tr>
+            <tr><td>Parallel surfaces / siblings</td><td>NONE</td><td>must script over graph.json</td><td><span class="sev high">GAP</span></td></tr>
+            <tr><td>Tests for a changed node</td><td>NONE</td><td>not supported</td><td><span class="sev high">GAP</span></td></tr>
+            <tr><td>Exact caller (no ambiguity)</td><td>NONE (use Serena)</td><td>label-ambiguity poisons common names</td><td><span class="sev high">GAP</span></td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p class="small">Granularity: symbol-level (function + line) &mdash; good enough for selective test runs.</p>
+
+      <h3 class="sub">8.2 &middot; The three load-bearing gaps + supplements</h3>
+      <div class="callout gap">
+        <span class="chip">Gap 1 &middot; Label ambiguity (highest severity)</span>
+        <p><span class="mono">affected/path/explain</span> match by label string, not unique ID. 39% of labels are non-unique (<span class="mono">main()</span>=41 nodes, <span class="mono">SKILL.md</span>=288). <span class="mono">affected "main()"</span> unions 41 reverse traversals = useless for common names.</p>
+        <p style="margin-bottom:0"><strong>Supplement:</strong> Serena <span class="mono">find_referencing_symbols</span> by file+symbol for exact callers. Graphify finds the neighborhood; Serena pins the precise callers.</p>
+      </div>
+      <div class="callout gap">
+        <span class="chip">Gap 2 &middot; No community / parallel-surface command</span>
+        <p style="margin-bottom:0">Community is a per-node integer but no command enumerates it. <strong>Supplement:</strong> a small jq/python wrapper over graph.json grouping by community.</p>
+      </div>
+      <div class="callout gap">
+        <span class="chip">Gap 3 &middot; No test-coverage map</span>
+        <p style="margin-bottom:0">Graphify knows <span class="mono">build.js</span> calls <span class="mono">ensureDir()</span> but not that <span class="mono">utils.test.js</span> exercises it. <strong>Supplement:</strong> an external coverage map (lcov/Istanbul) or an import-graph heuristic.</p>
+      </div>
+      <div class="callout locked">
+        <span class="chip">Also note</span>
+        <p style="margin-bottom:0">Semantic/INFERRED edges are DISABLED (AST-only; all <span class="mono">semantic_hash</span> empty); shell-script call graphs are shallow.</p>
+      </div>
+
+      <h3 class="sub">8.3 &middot; Per-commit regeneration wiring</h3>
+      <p class="small muted">So "many small atomic commits" keeps the graph fresh.</p>
+      <div class="grid cols-2">
+        <div class="card"><h4 class="subsub">Feasible + incremental</h4><p class="small">A manifest tracks per-file mtime + ast_hash; only changed files re-extract. Measured: ~0.3-1s for a few files, ~6.8s full rebuild; "no topology change" leaves graph.json untouched.</p></div>
+        <div class="card"><h4 class="subsub">Git projects</h4><p class="small">Install graphify's native post-commit + post-checkout hooks (<span class="mono">graphify hook install</span>), WRAPPED to run backgrounded (nohup) and DEBOUNCED (skip if an update launched &lt; ~3s ago) so rapid commit bursts don't thrash. Post-commit becomes the primary freshness driver during active work.</p></div>
+        <div class="card"><h4 class="subsub">Reconcile with existing hooks</h4><p class="small">SessionStart provision = cold-start build-if-absent; Stop refresh = backstop. The <span class="mono">find -newer</span> guard + debounce dedupe naturally (if post-commit already updated, Stop finds nothing newer &rarr; no-op).</p></div>
+        <div class="card"><h4 class="subsub">Per-worktree graphs</h4><p class="small">Each worktree reflects its own state; the merge protocol runs graphify on the MSP worktree AFTER the pull, so the blast radius reflects post-pull reality.</p></div>
+      </div>
+
+      <div class="callout info">
+        <span class="chip">8.4 &middot; Freshness-lag safety rail</span>
+        <p>The graph reflects the LAST update; shell call graphs are shallow; semantic edges disabled. So for files edited since the last update (the just-pulled diff and the in-flight wave), verify exact caller facts with Serena/LSP, NOT the possibly-stale map. This is diff-local &mdash; re-verify only the recent diff, not the whole graph. This rail is exactly why merge step 2c UNIONS graphify (breadth, maybe stale) with Serena (precise, live).</p>
+        <p class="small muted" style="margin-bottom:0">Wiring file refs: <span class="mono">hooks/graphify-provision.sh</span>, <span class="mono">hooks/graphify-refresh.sh</span>, <span class="mono">graphify-out/graph.json</span> (+ <span class="mono">manifest.json</span>), <span class="mono">settings.json</span> hook config.</p>
+      </div>
+    </section>
+
+    <section id="s9" class="reveal">
+      <div class="kicker"><span class="dot"></span>Section 09 &middot; The ~/.claude case</div>
+      <h2 class="sec">Non-git fallback</h2>
+      <p class="lead">The user asked: does this work on a non-git project like <span class="mono">~/.claude</span>? Mostly yes &mdash; minus the git-reliant parts. Here is exactly what survives and what is lost.</p>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Capability</th><th>Git mode</th><th>Non-git substitute</th><th>Verdict</th></tr></thead>
+          <tbody>
+            <tr><td>MSP/cluster decomposition</td><td>full</td><td>full (pure, no git)</td><td><span class="verdict reuse">WORKS</span></td></tr>
+            <tr><td>Per-MSP planning</td><td>full</td><td>full</td><td><span class="verdict reuse">WORKS</span></td></tr>
+            <tr><td>Task-level parallelism</td><td>worktree/scope-fence</td><td>light lane: parallel agents + file-ownership fence (snapshot mtimes/hashes of declared scope, diff after)</td><td><span class="verdict extend">WORKS (reduced)</span></td></tr>
+            <tr><td>MSP isolation across clusters</td><td>parallel worktrees</td><td>serialize MSPs; copy-dir snapshots (cp -r to scratchpad) for rollback</td><td><span class="verdict build">LOST (parallelism)</span></td></tr>
+            <tr><td>MSP "merge"</td><td>merge --no-ff to X</td><td>apply edits in dependency order in the single tree; run suite after each MSP; revert via snapshot if red</td><td><span class="verdict extend">degraded</span></td></tr>
+            <tr><td>Merge-queue race protection</td><td>lock + pull-before-merge</td><td>not needed &mdash; single tree, serial</td><td><span class="verdict reuse">N/A</span></td></tr>
+            <tr><td>Regression surface</td><td>graphify + Serena</td><td>same (both are non-git)</td><td><span class="verdict reuse">WORKS</span></td></tr>
+            <tr><td>Graph freshness</td><td>post-commit hook</td><td>Stop-hook only (non-git provision refreshes every session)</td><td><span class="verdict extend">degraded &rarr; lean harder on Serena/LSP</span></td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="callout recommended">
+        <span class="chip">Is MSP discipline worth it without git?</span>
+        <p><strong>YES</strong> for the decomposition + impact-analysis value (smaller safe increments, graph-driven regression, clearer review) &mdash; most of the benefit. <strong>NO</strong> for merge-queue race protection, which is moot without concurrency.</p>
+        <p style="margin-bottom:0"><strong>Operative mode for <span class="mono">~/.claude</span>:</strong> decompose &rarr; plan per MSP &rarr; light-lane task waves with file-ownership fencing &rarr; regression surface &rarr; SEQUENTIAL apply with snapshot rollback.</p>
+      </div>
+    </section>
+
+    <section id="s10" class="reveal">
+      <div class="kicker"><span class="dot"></span>Section 10 &middot; Reuse vs build</div>
+      <h2 class="sec">Build-vs-reuse ledger</h2>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Asset</th><th>Verdict</th><th>Rationale</th></tr></thead>
+          <tbody>
+            <tr><td class="nowrap"><span class="mono">wave-planner.mjs</span> (planWaves)</td><td><span class="verdict reuse">REUSE AS-IS</span></td><td>pure topo+overlap; call twice (MSP graph + task graph)</td></tr>
+            <tr><td class="nowrap"><span class="mono">route-planner.mjs</span></td><td><span class="verdict reuse">REUSE AS-IS</span></td><td>still routes each per-MSP task batch; cluster scheduling sits above it</td></tr>
+            <tr><td class="nowrap"><span class="mono">generate-run-script.mjs</span></td><td><span class="verdict extend">EXTEND (minor)</span></td><td>reused per MSP; <span class="mono">--base-branch</span> now points at the cluster/MSP branch</td></tr>
+            <tr><td class="nowrap"><span class="mono">parallel-plan-execution.js</span> engine</td><td><span class="verdict reuse">REUSE AS-IS</span></td><td>the per-MSP task engine; its one-level workflow-nesting limit is irrelevant because the MSP orchestrator is a SUBAGENT, not a nested workflow</td></tr>
+            <tr><td class="nowrap">parallel-plan-annotation skill</td><td><span class="verdict reuse">REUSE AS-IS</span></td><td>invoked per MSP; its contract-pair rule is the interaction-surface seed the merge protocol needs</td></tr>
+            <tr><td class="nowrap">parallel-subagent-development skill</td><td><span class="verdict extend">EXTEND</span></td><td>becomes the per-MSP task executor; "feature branch not main" precondition generalized to "MSP/cluster branch"</td></tr>
+            <tr><td class="nowrap">graphify hooks</td><td><span class="verdict extend">EXTEND</span></td><td>add the debounced backgrounded post-commit hook; keep both existing hooks as backstops</td></tr>
+            <tr><td class="nowrap">feature-decomposition skill</td><td><span class="verdict build">BUILD</span></td><td>the MSP/cluster front segment</td></tr>
+            <tr><td class="nowrap">msp-planning skill</td><td><span class="verdict build">BUILD</span></td><td>re-scopes brainstorming-&gt;writing-plans-&gt;annotation to one MSP</td></tr>
+            <tr><td class="nowrap">feature-orchestration skill</td><td><span class="verdict build">BUILD</span></td><td>the feature/cluster scheduler</td></tr>
+            <tr><td class="nowrap">msp-orchestrator agent</td><td><span class="verdict build">BUILD</span></td><td>the depth-1/2 per-MSP worker</td></tr>
+            <tr><td class="nowrap">msp-merge-protocol lib + merge lock</td><td><span class="verdict build">BUILD</span></td><td>serialized merge queue + regression-surface builder</td></tr>
+            <tr><td class="nowrap">graphify-regression wrapper</td><td><span class="verdict build">BUILD (phased)</span></td><td>closes the 3 graphify gaps</td></tr>
+            <tr><td class="nowrap">finishing-a-development-branch</td><td><span class="verdict reuse">REUSE AS-IS</span></td><td>feature/worktree cleanup</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="callout locked">
+        <span class="chip">Nothing retired</span>
+        <p style="margin-bottom:0">The old chain is wrapped, not removed.</p>
+      </div>
+    </section>
+
+    <section id="s11" class="reveal">
+      <div class="kicker"><span class="dot"></span>Section 11 &middot; The user's decisions</div>
+      <h2 class="sec">Key design forks</h2>
+      <p class="lead">Each fork below is OPEN &mdash; it needs your decision. The architect's pick is marked RECOMMENDED.</p>
+
+      <div class="fork">
+        <div class="fhead"><span class="fnum">Fork 1</span><h3>Orchestration mechanism</h3></div>
+        <div class="opt"><span class="ol">A.</span> All live nested subagents (no Workflow engine) &mdash; max parallelism, but re-derives the engine's deterministic merge/review logic in prose (fragile).</div>
+        <div class="opt"><span class="ol">B.</span> Workflow engine everywhere &mdash; battle-tested + ceiling-immune, but its one-level nesting can't express multi-MSP parallelism.</div>
+        <div class="opt pick"><span class="ol">C.</span> HYBRID<span class="reco">Recommended</span><div style="margin-top:6px">Nested subagents for Feature/cluster/MSP orchestration; the Workflow engine for the within-MSP task waves. Each tool in its proven range.</div></div>
+      </div>
+
+      <div class="fork">
+        <div class="fhead"><span class="fnum">Fork 2</span><h3>Worktree granularity &amp; MSP merge target</h3></div>
+        <div class="opt"><span class="ol">A.</span> Worktree per MSP, MSP&rarr;X directly &mdash; perfect isolation, many worktrees (disk/ports/node_modules xN).</div>
+        <div class="opt"><span class="ol">B.</span> One Feature worktree, MSPs scope-fenced inside &mdash; cheap, but kills cross-cluster parallelism + intra-tree collision risk.</div>
+        <div class="opt pick"><span class="ol">C.</span> Worktree per CLUSTER, MSP&rarr;X directly<span class="reco">Recommended</span><div style="margin-top:6px">Worktree count = number of independent clusters (the real parallelism unit); sequential MSPs in a cluster reuse one worktree (no intra-cluster race); each MSP still merges to X individually. Merge target = MSP&rarr;Branch X directly, Feature branch fast-forwarded to X after each landing.</div></div>
+      </div>
+
+      <div class="fork">
+        <div class="fhead"><span class="fnum">Fork 3</span><h3>Decomposition authority</h3></div>
+        <div class="opt"><span class="ol">A.</span> Auto-decompose unattended &mdash; fast, but 12% failure silently breaks X (unacceptable).</div>
+        <div class="opt"><span class="ol">B.</span> Fully human-authored MSP plan &mdash; safe, wastes the LLM's reliable 80%.</div>
+        <div class="opt pick"><span class="ol">C.</span> LLM-proposes / human-approves<span class="reco">Recommended</span><div style="margin-top:6px">LLM does the reliable 80%; the mandatory cluster-plan gate covers hidden coupling, technique, value, cycles.</div></div>
+      </div>
+
+      <div class="fork">
+        <div class="fhead"><span class="fnum">Fork 4</span><h3>Merge-queue concurrency</h3></div>
+        <div class="opt pick"><span class="ol">A.</span> Strictly serialized<span class="reco">Recommended for v1</span><div style="margin-top:6px">One MSP at a time under a global lock; deterministic; trivial to reason about; MSP volume per feature is low so throughput is a non-issue.</div></div>
+        <div class="opt"><span class="ol">B.</span> Optimistic (parallel speculative merges, retry) &mdash; higher throughput, adds speculation+rollback machinery not needed yet.</div>
+        <div class="opt"><span class="ol">C.</span> Batched trains &mdash; amortizes CI, but red-batch bisecting is complex.</div>
+      </div>
+
+      <div class="fork">
+        <div class="fhead"><span class="fnum">Fork 5</span><h3>How much graphify-gap tooling to build now</h3></div>
+        <div class="opt"><span class="ol">A.</span> Build all three supplements now &mdash; most complete, but the lcov coverage-map pipeline is the heaviest lift and delays everything.</div>
+        <div class="opt pick"><span class="ol">B.</span> Serena exact-caller bridge now; defer the rest<span class="reco">Recommended</span><div style="margin-top:6px">Closes the highest-severity gap (label-ambiguity) immediately; approximate parallel surfaces via <span class="mono">affected --depth</span>; import-graph heuristic for coverage until a real lcov map is justified.</div></div>
+        <div class="opt"><span class="ol">C.</span> Build none, use raw <span class="mono">affected</span> &mdash; unsafe (<span class="mono">affected "main()"</span> unions 41 traversals).</div>
+      </div>
+    </section>
+
+    <section id="s12" class="reveal">
+      <div class="kicker"><span class="dot"></span>Section 12 &middot; What could go wrong</div>
+      <h2 class="sec">Risk matrix</h2>
+      <div class="table-wrap">
+        <table>
+          <caption>Twelve risks, severity color-coded</caption>
+          <thead><tr><th>#</th><th>Risk</th><th>Severity</th><th>Likelihood</th><th>Mitigation</th></tr></thead>
+          <tbody>
+            <tr><td class="nowrap"><strong>R1</strong></td><td>Semantic conflict &mdash; two MSPs green alone, broken combined; git merges clean</td><td><span class="sev high">High</span></td><td>Medium</td><td>force interaction-surface tests into the merge-step expanded set; mandate expand-contract for shared contracts; accept honest residual where no test exists</td></tr>
+            <tr><td class="nowrap"><strong>R2</strong></td><td>15x cost compounding across nesting levels</td><td><span class="sev high">High</span></td><td>High</td><td>level-collapse when N=1; concise summaries; model tiering; cap concurrent MSP orchestrators &le;3</td></tr>
+            <tr><td class="nowrap"><strong>R3</strong></td><td>Label-ambiguity poisoning the blast radius</td><td><span class="sev high">High</span></td><td>High</td><td>union graphify affected with Serena find_referencing_symbols; never trust raw affected on common labels</td></tr>
+            <tr><td class="nowrap"><strong>R4</strong></td><td>Base-branch (X) drift under a long MSP</td><td><span class="sev med">Medium</span></td><td>High</td><td>pull-before-merge + re-run expanded set vs current tip; FF Feature branch after each landing</td></tr>
+            <tr><td class="nowrap"><strong>R5</strong></td><td>Over-decomposition &mdash; too many tiny MSPs, overhead &gt; value</td><td><span class="sev med">Medium</span></td><td>Medium</td><td>INVEST value gate; human cluster-plan gate prunes; right-size at writing-plans granularity</td></tr>
+            <tr><td class="nowrap"><strong>R6</strong></td><td>Human-gate bottleneck &mdash; approval stalls the pipeline</td><td><span class="sev med">Medium</span></td><td>Medium</td><td>ONE gate (cluster plan), not per-MSP; batch decisions into one review; allow a pre-approved technique default</td></tr>
+            <tr><td class="nowrap"><strong>R7</strong></td><td>Non-git degradation loses parallelism + rollback</td><td><span class="sev med">Medium</span></td><td>Certain (in ~/.claude)</td><td>documented serial fallback w/ copy-dir snapshots + file-ownership fence; keep decomposition + regression value</td></tr>
+            <tr><td class="nowrap"><strong>R8</strong></td><td>Graphify freshness lag drives wrong regression selection</td><td><span class="sev med">Medium</span></td><td>Medium</td><td>backgrounded debounced post-commit hook; diff-local Serena/LSP verification rail</td></tr>
+            <tr><td class="nowrap"><strong>R9</strong></td><td>Worktree resource non-isolation (node_modules/ports/build caches collide)</td><td><span class="sev med">Medium</span></td><td>Medium</td><td>per-cluster (not per-MSP) worktrees; symlink node_modules; cap concurrency; per-worktree ports</td></tr>
+            <tr><td class="nowrap"><strong>R10</strong></td><td>Merge-lock starvation/deadlock</td><td><span class="sev med">Medium</span></td><td>Low</td><td>single global lock, short critical section, timeout + requeue; serialized design avoids deadlock</td></tr>
+            <tr><td class="nowrap"><strong>R11</strong></td><td>Coverage-map blind spots (TIA misses tests not in the map)</td><td><span class="sev med">Medium</span></td><td>Medium</td><td>import-graph heuristic fallback; always include the overall smoke suite as a floor</td></tr>
+            <tr><td class="nowrap"><strong>R12</strong></td><td>Depth-cap / fan-out exhaustion (depth 5 loses Agent tool)</td><td><span class="sev low">Low</span></td><td>Low</td><td>worst case depth 3; level-collapse keeps common case at depth 2; never nest a 4th orchestration layer</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <section id="s13" class="reveal">
+      <div class="kicker"><span class="dot"></span>Section 13 &middot; Plain truth</div>
+      <h2 class="sec">Two honest caveats</h2>
+      <p class="lead">The architecture cannot STRUCTURALLY eliminate two things; both must be stated plainly.</p>
+      <div class="callout gap">
+        <span class="chip">Caveat 1 &middot; The semantic-conflict gap (R1)</span>
+        <p style="margin-bottom:0">Structure can only FORCE the relevant interaction-surface tests to exist and run; it cannot guarantee they were written. "Branch X never breaks" is precisely: "Branch X will not break in any way the test suite covers, given serialized + tested-against-tip + non-bypassable merges."</p>
+      </div>
+      <div class="callout gate">
+        <span class="chip">Caveat 2 &middot; The human cluster-plan gate (R6)</span>
+        <p style="margin-bottom:0">Hidden coupling the spec doesn't state needs a human who knows the codebase. This is the one mandatory human checkpoint.</p>
+      </div>
+    </section>
+
+    <section id="s14" class="reveal">
+      <div class="kicker"><span class="dot"></span>Section 14 &middot; Forward</div>
+      <h2 class="sec">What's next</h2>
+      <div class="panel">
+        <ul style="margin-bottom:0">
+          <li>This is research + design. Nothing applied to <span class="mono">~/.claude</span>.</li>
+          <li><strong>Decision needed:</strong> the user answers Forks 1-5 (<a href="#s11">Section 11</a>) and confirms the build set.</li>
+          <li><strong>Then:</strong> turn the approved architecture into an implementation plan (writing-plans), annotate, and build the new skills/agent/engine modules in dependency order &mdash; itself a natural first dog-fooding of the MSP flow.</li>
+        </ul>
+      </div>
+    </section>
+
+    <section id="s15" class="reveal">
+      <div class="kicker"><span class="dot"></span>Section 15 &middot; Verifiable references</div>
+      <h2 class="sec">Sources</h2>
+      <div class="panel">
+        <div class="src-group">
+          <h4>Decomposition</h4>
+          <div class="src-list">
+            <a href="https://en.wikipedia.org/wiki/INVEST_(mnemonic)" target="_blank" rel="noopener">INVEST</a>
+            <a href="https://www.mountaingoatsoftware.com/blog/five-simple-but-powerful-ways-to-split-user-stories" target="_blank" rel="noopener">SPIDR</a>
+            <a href="https://gojko.net/2012/01/23/splitting-user-stories-the-hamburger-method/" target="_blank" rel="noopener">Hamburger</a>
+            <a href="https://jpattonassociates.com/the-new-backlog/" target="_blank" rel="noopener">Story mapping</a>
+            <a href="https://www.humanizingwork.com/the-humanizing-work-guide-to-splitting-user-stories/" target="_blank" rel="noopener">Nine patterns</a>
+            <a href="https://wiki.c2.com/?WalkingSkeleton=" target="_blank" rel="noopener">Walking skeleton</a>
+            <a href="https://www.visual-paradigm.com/scrum/user-story-splitting-vertical-slice-vs-horizontal-scale/" target="_blank" rel="noopener">Vertical slicing</a>
+          </div>
+        </div>
+        <div class="src-group">
+          <h4>Non-breaking</h4>
+          <div class="src-list">
+            <a href="https://martinfowler.com/bliki/KeystoneInterface.html" target="_blank" rel="noopener">Keystone</a>
+            <a href="https://launchdarkly.com/blog/what-are-feature-flags/" target="_blank" rel="noopener">Feature flags</a>
+            <a href="https://blog.thepete.net/blog/2023/12/05/expand/contract-making-a-breaking-change-without-a-big-bang/" target="_blank" rel="noopener">Expand-Contract</a>
+            <a href="https://martinfowler.com/bliki/ParallelChange.html" target="_blank" rel="noopener">Parallel Change</a>
+            <a href="https://trunkbaseddevelopment.com/branch-by-abstraction/" target="_blank" rel="noopener">Branch-by-Abstraction</a>
+            <a href="https://www.thoughtworks.com/insights/articles/embracing-strangler-fig-pattern-legacy-modernization-part-three" target="_blank" rel="noopener">Strangler Fig</a>
+            <a href="https://martinfowler.com/bliki/DarkLaunching.html" target="_blank" rel="noopener">Dark Launching</a>
+          </div>
+        </div>
+        <div class="src-group">
+          <h4>Merge queues + conflicts</h4>
+          <div class="src-list">
+            <a href="https://docs.github.com/en/repositories/configuring-branches-and-merges-in-your-repository/configuring-pull-request-merges/managing-a-merge-queue" target="_blank" rel="noopener">GitHub merge queue</a>
+            <a href="https://docs.gitlab.com/ci/pipelines/merge_trains/" target="_blank" rel="noopener">GitLab trains</a>
+            <a href="https://graphite.com/blog/bors-google-tap-merge-queue" target="_blank" rel="noopener">Bors/TAP</a>
+            <a href="https://graphite.com/blog/merge-queue-batching" target="_blank" rel="noopener">Graphite batching</a>
+            <a href="https://www.aviator.co/blog/merge-strategies-at-scale/" target="_blank" rel="noopener">Aviator</a>
+            <a href="https://earthly.dev/blog/merge-queues/" target="_blank" rel="noopener">Earthly</a>
+            <a href="https://martinfowler.com/bliki/SemanticConflict.html" target="_blank" rel="noopener">Semantic Conflict</a>
+            <a href="https://dev.to/lecrepont01/what-is-a-merge-conflict-understanding-the-difference-between-semantic-and-code-conflicts-5d0" target="_blank" rel="noopener">Currency example</a>
+          </div>
+        </div>
+        <div class="src-group">
+          <h4>Test Impact Analysis</h4>
+          <div class="src-list">
+            <a href="https://martinfowler.com/articles/rise-test-impact-analysis.html" target="_blank" rel="noopener">Fowler</a>
+            <a href="https://learn.microsoft.com/en-us/azure/devops/pipelines/test/test-impact-analysis?view=azure-devops" target="_blank" rel="noopener">Microsoft</a>
+            <a href="https://www.minware.com/guide/best-practices/test-impact-analysis" target="_blank" rel="noopener">Minware</a>
+          </div>
+        </div>
+        <div class="src-group">
+          <h4>Orchestration</h4>
+          <div class="src-list">
+            <a href="https://code.claude.com/docs/en/sub-agents" target="_blank" rel="noopener">Subagents</a>
+            <a href="https://code.claude.com/docs/en/agent-sdk/subagents" target="_blank" rel="noopener">SDK subagents</a>
+            <a href="https://code.claude.com/docs/en/agent-teams" target="_blank" rel="noopener">Agent teams</a>
+            <a href="https://code.claude.com/docs/en/worktrees" target="_blank" rel="noopener">Worktrees</a>
+            <a href="https://www.anthropic.com/engineering/multi-agent-research-system" target="_blank" rel="noopener">Anthropic multi-agent research system</a>
+            <a href="https://git-scm.com/docs/git-worktree" target="_blank" rel="noopener">git worktree</a>
+          </div>
+        </div>
+        <div class="src-group" style="margin-bottom:0">
+          <h4>LLM decomposition</h4>
+          <div class="src-list">
+            <a href="https://arxiv.org/html/2411.09022v2" target="_blank" rel="noopener">DART-LLM</a>
+            <a href="https://arxiv.org/html/2509.18970v1" target="_blank" rel="noopener">Hallucination survey</a>
+            <a href="https://arxiv.org/pdf/2406.00936" target="_blank" rel="noopener">EFFGEN</a>
+          </div>
+        </div>
+      </div>
+      <div class="footer">MSP-driven parallel development &middot; complete re-design &middot; design only, nothing applied to ~/.claude</div>
+    </section>
+
+  </main>
+</div>
+
+<script>
+(function(){
+  var reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  var reveals = Array.prototype.slice.call(document.querySelectorAll('.reveal'));
+  if(reduce || !('IntersectionObserver' in window)){
+    reveals.forEach(function(el){ el.classList.add('in'); });
+  } else {
+    var io = new IntersectionObserver(function(entries){
+      entries.forEach(function(e){
+        if(e.isIntersecting){ e.target.classList.add('in'); io.unobserve(e.target); }
+      });
+    }, { rootMargin: '0px 0px -8% 0px', threshold: 0.04 });
+    reveals.forEach(function(el){ io.observe(el); });
+  }
+
+  var links = Array.prototype.slice.call(document.querySelectorAll('.toc a'));
+  var map = {};
+  links.forEach(function(a){
+    var id = a.getAttribute('href').slice(1);
+    var sec = document.getElementById(id);
+    if(sec){ map[id] = a; }
+  });
+  var sections = Object.keys(map).map(function(id){ return document.getElementById(id); });
+  if('IntersectionObserver' in window){
+    var current = null;
+    var spy = new IntersectionObserver(function(entries){
+      entries.forEach(function(e){
+        if(e.isIntersecting){
+          if(current){ current.classList.remove('active'); }
+          var a = map[e.target.id];
+          if(a){ a.classList.add('active'); current = a; }
+        }
+      });
+    }, { rootMargin: '-45% 0px -50% 0px', threshold: 0 });
+    sections.forEach(function(s){ spy.observe(s); });
+  }
+})();
+</script>
+</body>
+</html>

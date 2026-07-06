@@ -112,6 +112,7 @@ BACKUP_DIR="$HOME/.dotfiles-backup-$(date +%Y%m%d_%H%M%S)"
 
 # Dry run first to check for conflicts
 echo "🔍 Checking for conflicts..."
+mkdir -p "$HOME/.claude" "$HOME/.claude/hooks" "$HOME/.claude/rules"
 if stow -nv . -t ~ 2>&1 | grep -q "WARNING\|ERROR"; then
     echo "⚠️  Conflicts detected. Creating backup..."
     mkdir -p "$BACKUP_DIR"

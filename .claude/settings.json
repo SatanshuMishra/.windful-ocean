@@ -1,0 +1,327 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-settings.json",
+  "env": {
+    "IMPECCABLE_CONTEXT_DIR": ".claude/design"
+  },
+  "includeCoAuthoredBy": false,
+  "permissions": {
+    "allow": [
+      "Bash(git status:*)",
+      "Bash(git diff:*)",
+      "Bash(git log:*)",
+      "Bash(git rev-parse:*)",
+      "Bash(git branch:*)",
+      "Bash(git worktree:*)",
+      "Bash(git merge --no-ff:*)",
+      "Bash(git merge --abort:*)",
+      "Bash(git checkout:*)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(ln -sfn:*)",
+      "Bash(node:*)",
+      "Bash(npx tsc:*)",
+      "Bash(jq:*)",
+      "Bash(mkdir:*)",
+      "Bash(mktemp:*)",
+      "Bash(graphify query:*)",
+      "Bash(graphify path:*)",
+      "Bash(graphify explain:*)",
+      "Bash(graphify affected:*)",
+      "Bash(graphify update:*)"
+    ],
+    "deny": [
+      "Bash(supabase db push:*)",
+      "Bash(supabase db pull:*)",
+      "Bash(supabase db reset:*)",
+      "Bash(supabase migration up:*)",
+      "Bash(supabase functions deploy:*)",
+      "Bash(supabase link:*)",
+      "Bash(git push --force:*)",
+      "Bash(git push -f:*)",
+      "Bash(git reset --hard:*)",
+      "Read(./**/*.pem)",
+      "Read(./**/*.key)",
+      "Bash(curl:*)",
+      "Bash(wget:*)",
+      "Bash(nc:*)",
+      "Bash(http:*)",
+      "Bash(xh:*)",
+      "Read(./**/.env)",
+      "Read(./**/.env.*)",
+      "Read(~/.ssh/**)",
+      "Read(~/.aws/**)",
+      "Read(~/.gnupg/**)",
+      "Read(~/.config/gh/**)",
+      "Read(~/.netrc)",
+      "Read(~/.kube/config)",
+      "Read(~/.docker/config.json)",
+      "Read(~/.npmrc)",
+      "Read(~/.cargo/credentials*)",
+      "Read(~/.pypirc)",
+      "Read(~/Library/Keychains/**)"
+    ]
+  },
+  "model": "claude-opus-4-8[1m]",
+  "hooks": {
+    "Stop": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "$HOME/.claude/hooks/notify-complete.sh",
+            "async": true
+          },
+          {
+            "type": "command",
+            "command": "$HOME/.claude/hooks/graphify-refresh.sh",
+            "timeout": 10
+          }
+        ]
+      }
+    ],
+    "Notification": [
+      {
+        "matcher": "permission_prompt|idle_prompt",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "$HOME/.claude/hooks/notify-input.sh",
+            "async": true
+          }
+        ]
+      }
+    ],
+    "SessionStart": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "$HOME/.claude/hooks/dep-audit.sh",
+            "timeout": 15
+          },
+          {
+            "type": "command",
+            "command": "$HOME/.claude/hooks/superpowers-drift-check.sh",
+            "timeout": 10
+          },
+          {
+            "type": "command",
+            "command": "$HOME/.claude/hooks/graphify-provision.sh",
+            "timeout": 15
+          },
+          {
+            "type": "command",
+            "command": "$HOME/.claude/hooks/ledger-staleness-scan.sh",
+            "timeout": 10
+          },
+          {
+            "type": "command",
+            "command": "$HOME/.claude/hooks/ledger-compact-checkpoint.sh",
+            "timeout": 10
+          },
+          {
+            "type": "command",
+            "command": "$HOME/.claude/hooks/superpowers-cmd-hook-heal.sh",
+            "timeout": 10
+          },
+          {
+            "type": "command",
+            "command": "$HOME/.claude/hooks/plugin-update-check.sh",
+            "timeout": 10
+          },
+          { "type": "command", "command": "python3 $HOME/.claude/hooks/agent-ledger/roster-index-gen.py", "timeout": 10 }
+        ]
+      }
+    ],
+    "UserPromptSubmit": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "$HOME/.claude/hooks/ledger-resume-roster.sh",
+            "timeout": 10
+          }
+        ]
+      }
+    ],
+    "PreCompact": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "$HOME/.claude/hooks/ledger-precompact-checkpoint.sh",
+            "timeout": 10
+          }
+        ]
+      }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "$HOME/.claude/hooks/block-env-edits.sh"
+          },
+          {
+            "type": "command",
+            "command": "$HOME/.claude/hooks/secret-scanner.sh",
+            "timeout": 5
+          },
+          {
+            "type": "command",
+            "command": "$HOME/.claude/hooks/protect-claude-config.sh",
+            "timeout": 5
+          }
+        ]
+      },
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "$HOME/.claude/hooks/block-destructive-bash.sh",
+            "timeout": 5
+          },
+          {
+            "type": "command",
+            "command": "$HOME/.claude/hooks/pre-commit-scoped-verify.sh",
+            "timeout": 60
+          }
+        ]
+      },
+      {
+        "matcher": "Workflow|Skill",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "$HOME/.claude/hooks/block-deep-research.sh",
+            "timeout": 5
+          }
+        ]
+      },
+      {
+        "matcher": "Workflow",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node $HOME/.claude/hooks/block-inline-engine.mjs",
+            "timeout": 5
+          }
+        ]
+      },
+      {
+        "matcher": "Agent",
+        "hooks": [
+          { "type": "command", "command": "python3 $HOME/.claude/hooks/agent-ledger/agent-fallback-capture.py", "timeout": 10 }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "$HOME/.claude/hooks/lint-on-edit.sh",
+            "async": true
+          },
+          {
+            "type": "command",
+            "command": "$HOME/.claude/hooks/ui-ux-audit-on-edit.sh",
+            "timeout": 5
+          }
+        ]
+      },
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "$HOME/.claude/hooks/context-wrapup-nudge.sh",
+            "timeout": 10
+          }
+        ]
+      }
+    ],
+    "PermissionDenied": [
+      {
+        "matcher": "",
+        "hooks": [
+          { "type": "command", "command": "python3 $HOME/.claude/hooks/agent-ledger/agent-permission-capture.py", "timeout": 10 }
+        ]
+      }
+    ],
+    "SubagentStop": [
+      {
+        "matcher": "",
+        "hooks": [
+          { "type": "command", "command": "node $HOME/.claude/hooks/agent-ledger/agent-run-analyzer.mjs", "async": true }
+        ]
+      }
+    ]
+  },
+  "statusLine": {
+    "type": "command",
+    "command": "npx -y ccstatusline@2.2.22",
+    "padding": 0
+  },
+  "enabledPlugins": {
+    "typescript-lsp@claude-plugins-official": true,
+    "rust-analyzer-lsp@claude-plugins-official": true,
+    "superpowers@claude-plugins-official": true,
+    "code-simplifier@claude-plugins-official": true,
+    "context7@claude-plugins-official": true,
+    "code-review@claude-plugins-official": true,
+    "security-guidance@claude-plugins-official": true,
+    "commit-commands@claude-plugins-official": true,
+    "claude-code-setup@claude-plugins-official": true,
+    "serena@claude-plugins-official": true,
+    "vscode-langservers@claude-code-lsps": true,
+    "visual-explainer@visual-explainer-marketplace": true,
+    "receipts@receipts": true,
+    "warp@claude-code-warp": true
+  },
+  "extraKnownMarketplaces": {
+    "claude-code-lsps": {
+      "source": {
+        "source": "github",
+        "repo": "Piebald-AI/claude-code-lsps"
+      }
+    },
+    "visual-explainer-marketplace": {
+      "source": {
+        "source": "github",
+        "repo": "nicobailon/visual-explainer"
+      }
+    },
+    "receipts": {
+      "source": {
+        "source": "github",
+        "repo": "shaheershoaib/receipts"
+      }
+    },
+    "claude-code-warp": {
+      "source": {
+        "source": "github",
+        "repo": "warpdotdev/claude-code-warp"
+      }
+    }
+  },
+  "alwaysThinkingEnabled": true,
+  "effortLevel": "xhigh",
+  "tui": "default",
+  "autoMemoryEnabled": true,
+  "skipWorkflowUsageWarning": true,
+  "theme": "auto",
+  "agentPushNotifEnabled": true,
+  "skipAutoPermissionPrompt": true,
+  "voiceEnabled": true,
+  "feedbackSurveyState": {
+    "lastShownTime": 1754070465024
+  }
+}

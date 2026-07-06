@@ -1,0 +1,1502 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Session-Continuity Redesign v2 — Architecture Report</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --font-body: 'IBM Plex Sans', system-ui, sans-serif;
+    --font-mono: 'IBM Plex Mono', 'SF Mono', Consolas, monospace;
+
+    --bg: #0b1626;
+    --surface: #10203a;
+    --surface2: #16294a;
+    --surface-elevated: #1c3560;
+    --border: rgba(120, 165, 225, 0.18);
+    --border-strong: rgba(120, 165, 225, 0.34);
+    --text: #e7eefb;
+    --text-dim: #93a7c9;
+
+    --blue: #5b9bd5;
+    --blue-dim: rgba(91, 155, 213, 0.12);
+    --amber: #e8a33d;
+    --amber-dim: rgba(232, 163, 61, 0.12);
+    --danger: #e5736b;
+    --danger-dim: rgba(229, 115, 107, 0.12);
+    --ok: #6cc08b;
+    --ok-dim: rgba(108, 192, 139, 0.12);
+
+    --accent: var(--amber);
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background-color: var(--bg);
+    background-image:
+      linear-gradient(rgba(120, 165, 225, 0.045) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(120, 165, 225, 0.045) 1px, transparent 1px);
+    background-size: 32px 32px;
+    color: var(--text);
+    font-family: var(--font-body);
+    line-height: 1.6;
+    padding: 24px 40px 80px;
+    min-height: 100vh;
+  }
+
+  @keyframes fadeUp {
+    from { opacity: 0; transform: translateY(10px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+  .animate { animation: fadeUp 0.4s ease-out both; }
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after {
+      animation-duration: 0.01ms !important;
+      animation-delay: 0ms !important;
+      transition-duration: 0.01ms !important;
+    }
+  }
+
+  .wrap {
+    max-width: 1400px;
+    margin: 0 auto;
+    display: grid;
+    grid-template-columns: 200px 1fr;
+    gap: 0 44px;
+  }
+  .main { min-width: 0; }
+
+  .toc {
+    position: sticky;
+    top: 24px;
+    align-self: start;
+    padding: 14px 0;
+    grid-row: 1 / -1;
+    max-height: calc(100dvh - 48px);
+    overflow-y: auto;
+  }
+  .toc::-webkit-scrollbar { width: 3px; }
+  .toc::-webkit-scrollbar-thumb { background: var(--surface-elevated); border-radius: 2px; }
+
+  .toc-title {
+    font-family: var(--font-mono);
+    font-size: 9px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 2px;
+    color: var(--text-dim);
+    padding: 0 0 10px;
+    margin-bottom: 8px;
+    border-bottom: 1px solid var(--border);
+  }
+  .toc a {
+    display: block;
+    font-size: 11px;
+    color: var(--text-dim);
+    text-decoration: none;
+    padding: 5px 8px;
+    border-radius: 5px;
+    border-left: 2px solid transparent;
+    transition: all 0.15s;
+    line-height: 1.4;
+    margin-bottom: 1px;
+  }
+  .toc a:hover { color: var(--text); background: var(--surface2); }
+  .toc a.active { color: var(--text); border-left-color: var(--accent); background: var(--surface); }
+
+  .hero {
+    border: 1px solid var(--border);
+    border-left: 3px solid var(--amber);
+    background: linear-gradient(135deg, var(--surface) 0%, var(--bg) 100%);
+    border-radius: 12px;
+    padding: 28px 30px;
+    margin-bottom: 14px;
+  }
+  h1 {
+    font-size: 34px;
+    font-weight: 700;
+    letter-spacing: -0.8px;
+    line-height: 1.12;
+    text-wrap: balance;
+  }
+  .subtitle {
+    color: var(--text-dim);
+    font-family: var(--font-mono);
+    font-size: 12px;
+    margin-top: 10px;
+  }
+  .statusbar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 16px;
+  }
+  .pill {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    letter-spacing: 0.4px;
+    padding: 4px 10px;
+    border-radius: 20px;
+    border: 1px solid var(--border-strong);
+    color: var(--text-dim);
+    background: var(--surface2);
+  }
+  .pill.amber { color: var(--amber); border-color: var(--amber); background: var(--amber-dim); }
+  .pill.blue { color: var(--blue); border-color: var(--blue); background: var(--blue-dim); }
+
+  .sec-head {
+    font-size: 21px;
+    font-weight: 600;
+    letter-spacing: -0.3px;
+    margin: 46px 0 6px;
+    padding-bottom: 8px;
+    border-bottom: 1px solid var(--border);
+    scroll-margin-top: 20px;
+  }
+  .sec-head .num {
+    font-family: var(--font-mono);
+    font-size: 13px;
+    color: var(--amber);
+    margin-right: 10px;
+    font-weight: 500;
+  }
+  .sec-sub {
+    color: var(--text-dim);
+    font-size: 12px;
+    font-family: var(--font-mono);
+    margin-bottom: 18px;
+  }
+  h3 {
+    font-size: 15px;
+    font-weight: 600;
+    margin: 26px 0 10px;
+    color: var(--text);
+  }
+  h3 .tag {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    font-weight: 500;
+    color: var(--text-dim);
+    margin-left: 8px;
+  }
+  p { margin-bottom: 12px; font-size: 14px; }
+  p.lead { font-size: 15px; }
+  ul, ol { margin: 0 0 12px 22px; font-size: 14px; }
+  li { margin-bottom: 6px; }
+  strong { color: #fff; font-weight: 600; }
+  em { color: var(--amber); font-style: normal; }
+
+  code {
+    font-family: var(--font-mono);
+    font-size: 12px;
+    background: var(--blue-dim);
+    color: var(--blue);
+    padding: 1px 5px;
+    border-radius: 3px;
+    overflow-wrap: break-word;
+  }
+
+  .bluf {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-left: 3px solid var(--blue);
+    border-radius: 0 10px 10px 0;
+    padding: 18px 22px;
+    margin: 8px 0 20px;
+  }
+  .bluf .bluf-label {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    color: var(--blue);
+    display: block;
+    margin-bottom: 8px;
+  }
+  .bluf p:last-child { margin-bottom: 0; }
+
+  .callout {
+    border: 1px solid var(--border);
+    border-left: 3px solid var(--amber);
+    border-radius: 0 10px 10px 0;
+    padding: 16px 20px;
+    font-size: 13.5px;
+    line-height: 1.6;
+    background: var(--surface);
+    margin: 18px 0;
+  }
+  .callout.decide { border-left-color: var(--amber); background: linear-gradient(135deg, var(--amber-dim), var(--surface)); }
+  .callout.warn { border-left-color: var(--danger); }
+  .callout.info { border-left-color: var(--blue); }
+  .callout .co-label {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+    display: block;
+    margin-bottom: 8px;
+    font-weight: 600;
+  }
+  .callout.decide .co-label { color: var(--amber); }
+  .callout.warn .co-label { color: var(--danger); }
+  .callout.info .co-label { color: var(--blue); }
+  .callout p:last-child { margin-bottom: 0; }
+
+  .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  .grid3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; }
+  @media (max-width: 900px) { .grid2, .grid3 { grid-template-columns: 1fr; } }
+
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 16px 18px;
+    min-width: 0;
+  }
+  .card h4 {
+    font-size: 13px;
+    font-weight: 600;
+    margin-bottom: 8px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .card .idx {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    color: var(--amber);
+    background: var(--amber-dim);
+    border-radius: 5px;
+    width: 22px;
+    height: 22px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+  }
+  .card p { font-size: 13px; margin-bottom: 0; color: var(--text-dim); }
+  .card strong { color: var(--text); }
+
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13px;
+    margin: 8px 0 18px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    overflow: hidden;
+  }
+  .table-scroll { overflow-x: auto; border-radius: 8px; }
+  th {
+    text-align: left;
+    font-family: var(--font-mono);
+    font-size: 10px;
+    letter-spacing: 0.8px;
+    text-transform: uppercase;
+    color: var(--text-dim);
+    padding: 11px 13px;
+    background: var(--surface2);
+    border-bottom: 1px solid var(--border-strong);
+    white-space: nowrap;
+  }
+  td {
+    padding: 11px 13px;
+    border-bottom: 1px solid var(--border);
+    vertical-align: top;
+    color: var(--text);
+    overflow-wrap: break-word;
+  }
+  tr:last-child td { border-bottom: none; }
+  td code { font-size: 11px; }
+  .yes { color: var(--ok); font-weight: 600; }
+  .no { color: var(--danger); font-weight: 600; }
+  .partial { color: var(--amber); font-weight: 600; }
+
+  .badge {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    padding: 2px 7px;
+    border-radius: 4px;
+    white-space: nowrap;
+    display: inline-block;
+  }
+  .badge.crit { color: var(--danger); background: var(--danger-dim); }
+  .badge.warn2 { color: var(--amber); background: var(--amber-dim); }
+  .badge.ok2 { color: var(--ok); background: var(--ok-dim); }
+  .badge.neu { color: var(--blue); background: var(--blue-dim); }
+
+  pre {
+    background: #0a1424;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 16px 18px;
+    overflow-x: auto;
+    margin: 8px 0 16px;
+    line-height: 1.55;
+  }
+  pre code {
+    background: none;
+    color: var(--text);
+    padding: 0;
+    font-size: 12px;
+    white-space: pre;
+  }
+  .code-cap {
+    font-family: var(--font-mono);
+    font-size: 10.5px;
+    color: var(--text-dim);
+    margin: 14px 0 4px;
+    letter-spacing: 0.3px;
+  }
+  .tree { color: var(--text-dim); }
+  .tree .k { color: var(--blue); }
+  .cm { color: var(--text-dim); font-style: italic; }
+  .j-key { color: var(--blue); }
+  .j-str { color: var(--ok); }
+  .j-null { color: var(--amber); }
+  .j-num { color: var(--amber); }
+
+  .mermaid-wrap {
+    position: relative;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 28px 20px;
+    overflow: hidden;
+    margin-bottom: 8px;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    min-height: 340px;
+    cursor: grab;
+  }
+  .mermaid-wrap.is-panning { cursor: grabbing; user-select: none; }
+  .zoom-controls {
+    position: absolute;
+    top: 8px; right: 8px;
+    display: flex; gap: 2px; z-index: 10;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 2px;
+  }
+  .zoom-controls button {
+    width: 28px; height: 28px;
+    border: none; background: transparent;
+    color: var(--text-dim);
+    font-family: var(--font-mono);
+    font-size: 14px; cursor: pointer;
+    border-radius: 4px;
+    display: flex; align-items: center; justify-content: center;
+    transition: background 0.15s, color 0.15s;
+  }
+  .zoom-controls button:hover { background: var(--border); color: var(--text); }
+  .diagram-shell { position: relative; margin: 8px 0 6px; }
+  .diagram-shell__hint {
+    font-family: var(--font-mono);
+    font-size: 10.5px;
+    color: var(--text-dim);
+    margin-bottom: 8px;
+    opacity: 0.75;
+  }
+  .mermaid-viewport {
+    position: relative;
+    overflow: hidden;
+    width: 100%; height: 100%;
+    min-height: 300px;
+  }
+  .mermaid-canvas { position: absolute; top: 0; left: 0; }
+  .zoom-label {
+    font-family: var(--font-mono);
+    font-size: 10px; color: var(--text-dim);
+    padding: 0 6px; white-space: nowrap;
+    display: flex; align-items: center;
+  }
+  .mermaid .nodeLabel, .mermaid .edgeLabel { font-family: var(--font-body) !important; }
+  .mermaid .nodeLabel { font-size: 14px !important; }
+  .mermaid .edgeLabel { font-family: var(--font-mono) !important; font-size: 12px !important; }
+
+  .legend { display: flex; gap: 18px; flex-wrap: wrap; margin: 6px 0 18px; }
+  .legend-item { display: flex; align-items: center; gap: 6px; font-family: var(--font-mono); font-size: 11px; color: var(--text-dim); }
+  .legend-swatch { width: 12px; height: 12px; border-radius: 3px; flex-shrink: 0; }
+
+  .diagcap { font-size: 12.5px; color: var(--text-dim); margin: 2px 0 18px; font-style: italic; }
+
+  a.src { color: var(--blue); text-decoration: none; border-bottom: 1px dotted var(--border-strong); }
+  a.src:hover { color: var(--amber); }
+
+  @media (max-width: 1000px) {
+    body { padding: 0 16px 60px; }
+    .wrap { grid-template-columns: 1fr; }
+    .toc {
+      position: sticky; top: 0; z-index: 200;
+      max-height: none; display: flex; gap: 4px;
+      align-items: center; overflow-x: auto;
+      background: var(--bg); border-bottom: 1px solid var(--border);
+      padding: 10px 16px; margin: 0 -16px 12px;
+      grid-row: auto;
+    }
+    .toc::-webkit-scrollbar { display: none; }
+    .toc-title { display: none; }
+    .toc a { white-space: nowrap; flex-shrink: 0; border-left: none; border-bottom: 2px solid transparent; border-radius: 4px 4px 0 0; }
+    .toc a.active { border-left: none; border-bottom-color: var(--accent); }
+    .sec-head { scroll-margin-top: 52px; }
+    h1 { font-size: 25px; }
+    .grid2, .grid3 { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <nav class="toc" id="toc">
+    <div class="toc-title">Contents</div>
+    <a href="#s1">1. BLUF &amp; 3 Problems</a>
+    <a href="#s2">2. Goals &amp; the Reframe</a>
+    <a href="#s3">3. Recursive Data Model</a>
+    <a href="#s4">4. Storage Architecture</a>
+    <a href="#s5">5. Enforcement Planes</a>
+    <a href="#s6">6. Lifecycle &amp; Drift</a>
+    <a href="#s7">7. Files, Formats, Links</a>
+    <a href="#s8">8. Memory &amp; Packaging</a>
+    <a href="#s9">9. Open Questions</a>
+    <a href="#s10">10. Provenance &amp; Glossary</a>
+  </nav>
+
+  <div class="main">
+
+    <div class="hero animate">
+      <h1>Session-Continuity Redesign — Architecture Report</h1>
+      <div class="subtitle">v2, complete &middot; rendered from DESIGN-STATE.md &middot; dated 2026-06-30</div>
+      <div class="statusbar">
+        <span class="pill amber">Status: ARCHITECTURE COMPLETE</span>
+        <span class="pill">Awaiting explicit user approval before any spec</span>
+        <span class="pill blue">Supersedes v1 draft</span>
+        <span class="pill">Target: a portable, installable Claude Code PLUGIN</span>
+      </div>
+    </div>
+
+    <p class="diagcap animate">This report is the visual rendering of the authoritative design document. Everything marked as a decision-to-confirm, an open question, or a tradeoff is presented AS such below, not as settled fact. v2 incorporates seven follow-up concerns from the user and three new research probes (F: MCP/plugin mechanics; G: durable git-metadata storage; H: generic work-unit modeling).</p>
+
+    <div id="s1" class="sec-head"><span class="num">01</span>Why this exists</div>
+    <div class="sec-sub">BLUF plus the three original problems</div>
+
+    <div class="bluf">
+      <span class="bluf-label">Bottom line up front</span>
+      <p>The current session-continuity "Continuity Ledger" is being rebuilt from the ground up into a componentized, published <strong>plugin</strong> installable into ANY Claude Code config, not something hard-wired to the author's personal setup. It fixes three original problems: it is single-user only, its robustness lives in fragile prose, and its "tree-branch" architecture never actually linked anything.</p>
+      <p>The v2 design converges on: one <strong>recursive Thread</strong> data model; a bundled <strong>MCP server</strong> as the sole, schema-enforcing writer; a tool-owned <strong>orphan branch</strong> (a decision to ratify) as the durable store; and a drift pipeline reframed from "police bad git states" to "reconcile the ledger with reality."</p>
+    </div>
+
+    <div class="grid3">
+      <div class="card animate">
+        <h4><span class="idx">1</span>Single-user only</h4>
+        <p>The ledger is committed for git projects but has ZERO merge / conflict / drift logic. A teammate's pull can clobber work; resume then trusts a stale ledger. ("Are we rebuilding Git?")</p>
+      </div>
+      <div class="card animate">
+        <h4><span class="idx">2</span>Robustness via prose</h4>
+        <p>All formats and rules (thread YAML, the state machine, caps, write-once, filename schemes) live in SKILL PROSE parsed by awk hooks. Rename a field and a silent empty match breaks the scan. About <strong>8 unenforced drift points</strong>. The redesign wants a schema / tooling GUARANTEE.</p>
+      </div>
+      <div class="card animate">
+        <h4><span class="idx">3</span>Architecture broken</h4>
+        <p>The old "tree-branch" language never linked threads; open and closed threads shared one directory; there was no real Project &harr; thread &harr; decision relationship. The redesign wants a real, scalable hierarchy.</p>
+      </div>
+    </div>
+
+    <div id="s2" class="sec-head"><span class="num">02</span>Goals and non-goals</div>
+    <div class="sec-sub">Concern 1 &mdash; the durability reframe (this changes everything downstream)</div>
+
+    <p class="lead">The core promise is often mis-stated as "the ledger survives branch deletion." The precise, corrected goal is narrower and it reshapes the rest of the design.</p>
+
+    <div class="grid2">
+      <div class="card animate" style="border-left:3px solid var(--ok);">
+        <h4 style="color:var(--ok)">GOAL &mdash; survive the NORMAL lifecycle of a branch</h4>
+        <p>A feature branch is routinely PRUNED after its work completes (post-merge cleanup, periodic housekeeping). The ledger's recorded context must still be present afterward, so that related future work &mdash; a new session, or a teammate who no longer has the original branch &mdash; can recover the earlier decisions, session history, and pointers.</p>
+      </div>
+      <div class="card animate" style="border-left:3px solid var(--danger);">
+        <h4 style="color:var(--danger)">NON-GOAL &mdash; policing bad practices</h4>
+        <p>Defending the ledger against deleting a branch MID-FEATURE, force-pushing over history, or deliberately erasing the record is explicitly OUT OF SCOPE. That is an adversarial / bad-practice scenario, not the design target. No alarm machinery is built for it, and it does not drive storage or lifecycle decisions.</p>
+      </div>
+    </div>
+
+    <div class="callout info">
+      <span class="co-label">Why the reframe matters architecturally (validated by Probe G)</span>
+      <p>Once "survive deliberate deletion" is off the table, the durability bar drops to "outlive normal branch cleanup." No storage backend defends against a direct <code>git push --delete</code> of its own ref, so tamper-resistance was never achievable anyway. The decision therefore reduces to three practical axes &mdash; <strong>zero-config propagation, host portability, and UI cleanliness</strong> &mdash; not "how hard is it to destroy."</p>
+    </div>
+
+    <div class="callout">
+      <span class="co-label">Consequence for the drift pipeline (Section 6)</span>
+      <p>Its FRAMING shifts from "detect and warn about dangerous git states" to "<strong>reconcile the ledger with reality and recover context gracefully</strong> after normal events (merge, squash, prune, rebase)." Same signals, calmer purpose.</p>
+    </div>
+
+    <div id="s3" class="sec-head"><span class="num">03</span>The unified recursive data model</div>
+    <div class="sec-sub">Concerns 5 and 6 &mdash; collapse Tree / Thread / Leaf into ONE recursive Thread (Probe H)</div>
+
+    <h3>The flaw in v1</h3>
+    <p>v1 declared a fixed three-level hierarchy Tree(project) &rarr; Thread(line of work) &rarr; Leaf(shippable unit), and said a Leaf "maps to an MSP when the mitosis skill is present." Two defects:</p>
+    <ul>
+      <li><strong>Over-coupling (concern 5).</strong> "MSP" / "mitosis" is ONE workflow tool in the author's personal config. The plugin must never behave specially because a particular tool is installed &mdash; it must work identically for any config.</li>
+      <li><strong>Over-ceremony for small work (concern 6).</strong> Tree &rarr; Thread &rarr; Leaf is right for a large multi-part effort but absurd for a single fix over two sessions.</li>
+    </ul>
+
+    <h3>The fix &mdash; one recursive entity <span class="tag">Probe H</span></h3>
+    <p>Collapse Tree / Thread / Leaf into ONE recursive entity. The system already calls a line of work a <strong>Thread</strong>; keep that word and make it recursive. There is no separate "Leaf" or "Tree" schema. Convergent evidence: Linear, GitHub sub-issues, git-bug, Fossil, and MADR all model a unit of work with ONE entity shape reused at every depth plus a nullable self-referential parent. Jira &mdash; the one system with a fixed type-per-level hierarchy &mdash; is the documented cautionary tale (teams "outgrow" the fixed levels and must migrate).</p>
+
+    <div class="grid2">
+      <div class="card animate"><h4><span class="idx">A</span>One shape at every depth</h4><p>A Thread is a Thread whether it stands alone or contains children.</p></div>
+      <div class="card animate"><h4><span class="idx">B</span>"Has children" is a QUERY</h4><p>Never a stored flag. A Thread is an "epic" iff some other Thread has <code>parent_id</code> pointing at it. This removes the two-data-model problem entirely.</p></div>
+      <div class="card animate"><h4><span class="idx">C</span>Lazy promotion</h4><p>Start flat. A standalone fix is ONE Thread with <code>parent_id = null</code> and no children. Promote to a parent only when a second related unit actually appears &mdash; never pre-declare hierarchy.</p></div>
+      <div class="card animate"><h4><span class="idx">D</span>Adjacency list</h4><p>A <code>parent_id</code> pointer, not a materialized path or nested set &mdash; correct for a shallow, dozens-of-nodes, append-heavy scale.</p></div>
+    </div>
+
+    <h3>Decoupling from any workflow tool <span class="tag">concern 5</span></h3>
+    <p>The core auto-detects and models work from UNIVERSAL signals only. Anything workflow-specific enriches the model through ONE generic, optional extension point &mdash; the <code>external_refs</code> bag &mdash; that the core never inspects.</p>
+
+    <div class="table-scroll">
+    <table>
+      <thead><tr><th>Signal</th><th>Universality</th><th>Role</th></tr></thead>
+      <tbody>
+        <tr><td>A session starting with no active Thread</td><td>Universal (plugin-runtime fact)</td><td>Core may prompt to create / resume a Thread</td></tr>
+        <tr><td>A new git branch distinct from any tracked binding</td><td>Near-universal (any git project)</td><td>Core may auto-suggest a Thread + binding</td></tr>
+        <tr><td>First commit on a branch</td><td>Near-universal</td><td>Enrich a binding (never gate creation on it)</td></tr>
+        <tr><td>An explicit user "start work on X"</td><td>Universal, authoritative</td><td>Authoritative Thread creation</td></tr>
+        <tr><td>An MSP / mitosis cluster, a Jira epic, a Linear issue</td><td><span class="partial">TOOL-SPECIFIC</span></td><td>Never gates core behavior</td></tr>
+      </tbody>
+    </table>
+    </div>
+
+    <div class="callout info">
+      <span class="co-label">The generic extension point</span>
+      <p>Tool-specific concepts attach only via a generic <code>external_refs</code> bag on the Thread: a list of <code>{ system, id, url }</code>. The core stores it opaquely and never reads it. mitosis becomes ONE possible implementer of a capability-detected interface &mdash; indistinguishable in the core's eyes from a Jira integration, a Linear integration, or nothing at all. This mirrors LSP capability negotiation, the dependency-inversion principle, and the config's own <code>/verify-&lt;project&gt;</code> convention ("call it if it exists, else fall back"). If a project declares a well-known "unit provider," the plugin may call it to suggest a label / status, a <code>parent_id</code>, or populate <code>external_refs</code>. Absent &rarr; silent no-op.</p>
+    </div>
+
+    <h3>Entities &mdash; the relationship map</h3>
+    <div class="diagram-shell animate">
+      <p class="diagram-shell__hint">Ctrl / Cmd + wheel to zoom. Drag to pan. Double-click to fit. Expand icon opens full size.</p>
+      <div class="mermaid-wrap">
+        <div class="zoom-controls">
+          <button type="button" data-action="zoom-in" title="Zoom in">+</button>
+          <button type="button" data-action="zoom-out" title="Zoom out">&minus;</button>
+          <button type="button" data-action="zoom-fit" title="Smart fit">&#8634;</button>
+          <button type="button" data-action="zoom-one" title="1:1 zoom">1:1</button>
+          <button type="button" data-action="zoom-expand" title="Open full size">&#x26F6;</button>
+          <span class="zoom-label">Loading...</span>
+        </div>
+        <div class="mermaid-viewport"><div class="mermaid mermaid-canvas"></div></div>
+      </div>
+      <script type="text/plain" class="diagram-source">
+erDiagram
+  PROJECT ||--o{ THREAD : "contains (0-or-1 Project per scope)"
+  THREAD ||--o{ THREAD : "parent_id self-reference"
+  THREAD ||--o{ BRANCHBINDING : "has many over its life"
+  THREAD ||--o{ DECISION : "cross-refs by ULID"
+  THREAD }o--o| THREAD : "predecessor_id lineage"
+  PROJECT {
+    string project_key "durable, NOT recursive"
+    prose PROJECT_md "cold layer, cap 80 lines"
+  }
+  THREAD {
+    ulid id PK "stable, never changes"
+    string slug "display only, never a key"
+    string title
+    enum status "active paused blocked done abandoned"
+    ulid parent_id FK "nullable = top-level"
+    ulid predecessor_id FK "nullable lineage"
+    array completion_criteria "non-empty before done"
+    string vcs_ref "nullable git branch"
+    array external_refs "system id url bag"
+    object spine "progressive summary"
+    int schema_version
+  }
+  BRANCHBINDING {
+    ulid id PK
+    ulid thread_id FK "stable"
+    string repo
+    string branch "name only"
+    enum status "active merged orphaned abandoned"
+    string closed_reason "merged deleted abandoned superseded"
+    sha first_commit
+    bool trailer_present
+  }
+  DECISION {
+    string filename PK "MADR NNNN-slug"
+    enum status "immutable after accepted"
+    ulid thread_id FK
+    string superseded_by
+  }
+      </script>
+    </div>
+    <p class="diagcap">Dual-ID everywhere: stable ULID + human slug; every cross-reference uses the ULID, NEVER the slug or path. Children carry <code>parent_id</code>; parents hold NO child list (write-contention / drift) &mdash; reverse lookups come from a DERIVED index (Section 7).</p>
+
+    <h3>Worked examples &mdash; same model, both sizes</h3>
+    <div class="grid2">
+      <div>
+        <p class="code-cap">SMALL &mdash; one bug fix over 2 sessions (zero children ever)</p>
+        <div class="diagram-shell animate">
+          <div class="mermaid-wrap" style="min-height:280px">
+            <div class="zoom-controls">
+              <button type="button" data-action="zoom-in">+</button>
+              <button type="button" data-action="zoom-out">&minus;</button>
+              <button type="button" data-action="zoom-fit">&#8634;</button>
+              <button type="button" data-action="zoom-one">1:1</button>
+              <button type="button" data-action="zoom-expand">&#x26F6;</button>
+              <span class="zoom-label">Loading...</span>
+            </div>
+            <div class="mermaid-viewport"><div class="mermaid mermaid-canvas"></div></div>
+          </div>
+          <script type="text/plain" class="diagram-source">
+flowchart TD
+  s1["Session 1<br/>create Thread u1"]:::neu --> u1
+  u1["Thread u1<br/>fix sign-up bug<br/>parent_id: null<br/>vcs_ref: fix/signup-bug"]:::solo
+  u1 --> paused["status: paused<br/>(session end)"]:::neu
+  paused --> s2["Session 2<br/>resume SAME u1"]:::neu
+  s2 --> done["status: done<br/>(DoD criteria pass)"]:::ok
+  classDef solo fill:#16324f,stroke:#5b9bd5,color:#e7eefb;
+  classDef neu fill:#12233d,stroke:#93a7c9,color:#cdd8ea;
+  classDef ok fill:#153726,stroke:#6cc08b,color:#d3eadd;
+          </script>
+        </div>
+        <p class="diagcap">One identity, open to close. The lightweight case with no ceremony.</p>
+      </div>
+      <div>
+        <p class="code-cap">LARGE &mdash; a 6-part database-migration epic</p>
+        <div class="diagram-shell animate">
+          <div class="mermaid-wrap" style="min-height:280px">
+            <div class="zoom-controls">
+              <button type="button" data-action="zoom-in">+</button>
+              <button type="button" data-action="zoom-out">&minus;</button>
+              <button type="button" data-action="zoom-fit">&#8634;</button>
+              <button type="button" data-action="zoom-one">1:1</button>
+              <button type="button" data-action="zoom-expand">&#x26F6;</button>
+              <span class="zoom-label">Loading...</span>
+            </div>
+            <div class="mermaid-viewport"><div class="mermaid mermaid-canvas"></div></div>
+          </div>
+          <script type="text/plain" class="diagram-source">
+flowchart TD
+  epic["uEpic<br/>database migration<br/>parent_id: null<br/>holds NO child list"]:::amber
+  epic --> u1["u1 parent_id: uEpic"]:::solo
+  epic --> u2["u2 parent_id: uEpic"]:::solo
+  epic --> u3["u3 parent_id: uEpic"]:::solo
+  epic --> u4["u4 parent_id: uEpic"]:::solo
+  epic --> u5["u5 parent_id: uEpic"]:::solo
+  epic --> u6["u6 parent_id: uEpic"]:::solo
+  classDef amber fill:#3a2d15,stroke:#e8a33d,color:#f4e6c8;
+  classDef solo fill:#16324f,stroke:#5b9bd5,color:#e7eefb;
+          </script>
+        </div>
+        <p class="diagcap">Each child is byte-for-byte the same shape as the standalone bug-fix Thread. uEpic is untouched; it simply "has children," discovered by querying <code>parent_id = uEpic</code>. When all 6 reach <code>done</code>, uEpic may auto-roll to <code>done</code> (Linear precedent) or be closed manually.</p>
+      </div>
+    </div>
+
+    <div id="s4" class="sec-head"><span class="num">04</span>Storage architecture</div>
+    <div class="sec-sub">Concern 3 &mdash; where the pointers and prose actually live</div>
+
+    <p>The ledger stores POINTERS and PROSE, never code: Thread / BranchBinding JSON, MADR decisions, append-only session logs, a derived index, and PROJECT.md. For a multi-user git project this state must (a) be shared across clones, (b) outlive normal branch pruning, (c) require no manual sync step per teammate, and (d) work on whatever git host the team uses.</p>
+
+    <h3>The core tension <span class="tag">Probe G</span></h3>
+    <div class="table-scroll">
+    <table>
+      <thead><tr><th>Property needed</th><th>Real branch <code>refs/heads/*</code></th><th>Custom ref <code>refs/ledger/*</code></th></tr></thead>
+      <tbody>
+        <tr><td>Auto-syncs with zero config (default fetch refspec transfers it)</td><td class="yes">Yes</td><td class="no">No</td></tr>
+        <tr><td>Stays OUT of the branch list / GitHub UI</td><td class="no">No</td><td class="yes">Yes</td></tr>
+        <tr><td>Guaranteed pushable / fetchable on EVERY git host</td><td class="yes">Yes</td><td class="partial">Host-dependent (git-bug friction precedent)</td></tr>
+        <tr><td>Idiomatic among git-native tools (6-tool survey)</td><td class="no">Zero tools use a plain orphan branch</td><td class="yes">The community idiom</td></tr>
+      </tbody>
+    </table>
+    </div>
+    <p class="diagcap">These two properties are mutually exclusive for the same ref. No ref type gives both for free. Probe A independently flagged that a plugin creating a branch in a user's repo is "unusual &mdash; must be visible, opt-in, documented, and cleaned up," not a silent side effect.</p>
+
+    <h3>Two facts that keep the orphan branch viable</h3>
+    <div class="grid2">
+      <div class="card animate"><h4><span class="idx">1</span>Host portability (Pillar 1: robustness)</h4><p>A branch is guaranteed pushable / fetchable on EVERY git host. A custom ref namespace depends on the host accepting non-standard ref pushes &mdash; widely supported (GitHub, GitLab) but NOT universally guaranteed. This is the strongest argument for the branch.</p></div>
+      <div class="card animate"><h4><span class="idx">2</span>The MCP server neutralizes the sync burden</h4><p>Probe G rejected the custom ref only because "someone must remember to run the sync step." Here the sync is run by the MCP server automatically every session (SessionStart reconcile + Stop handoff both fetch / push the ledger ref). No human remembers anything, so the custom ref's one disadvantage does not apply to us.</p></div>
+    </div>
+
+    <div class="callout decide">
+      <span class="co-label">Decision to ratify &mdash; the single biggest open decision for the user</span>
+      <p><strong>Default: a single, tool-owned ORPHAN BRANCH, treated as owned infrastructure</strong> &mdash; the exact posture GitButler takes with its <code>gitbutler/workspace</code> branch ("an internal branch the tool owns; don't touch it"). Named distinctively so it sorts away from feature branches (e.g. <code>_ledger</code> or <code>ledger/state</code>; configurable). The MCP server is its sole writer and accesses it via <code>git worktree add</code>. Because it is orphan, pruning / squashing / deleting any feature branch is a NON-EVENT for it.</p>
+      <p style="margin-top:10px"><strong>Documented opt-in alternative: a custom ref namespace <code>refs/ledger/*</code></strong> for teams that prefer a clean branch list AND are on a host known to accept custom refs. The MCP server auto-installs the fetch refspec (guarded against clobbering an existing <code>remote.origin.fetch</code>) and owns push / pull, so it stays zero-touch. The storage backend sits behind the MCP tools, so switching is a config choice, not a data-model change.</p>
+      <p style="margin-top:10px">This hardens (does not reverse) v1's orphan-branch decision, drops the now-moot "GC-proof / deletion-immune" claims, and names it as infrastructure per Probe A / G etiquette. The one honest cost of the default remains <strong>cosmetic</strong>: the infra branch appears in <code>git branch -a</code> and the host's branch dropdown &mdash; a trade taken deliberately (robustness + zero-config over branch-list tidiness).</p>
+    </div>
+
+    <h3>Non-git projects <span class="tag">concern 7</span></h3>
+    <p>Git-ref storage is impossible without git. For a non-git project (e.g. <code>~/.claude</code> itself), the ledger falls back to a LOCAL, per-project store at <code>${CLAUDE_PLUGIN_DATA}/&lt;project-key&gt;/ledger/</code>, where <code>CLAUDE_PLUGIN_DATA</code> persists across plugin updates and <code>&lt;project-key&gt;</code> derives from the absolute <code>CLAUDE_PROJECT_DIR</code> path (always set). Consequences: single-user and machine-local (acceptable &mdash; a non-git project has no shared remote anyway). BranchBinding and the git drift pipeline are simply INACTIVE; Threads carry <code>vcs_ref = null</code> and the model degrades gracefully. The SAME data model, SAME MCP tools, SAME skills &mdash; only the storage driver differs, selected by "is <code>CLAUDE_PROJECT_DIR</code> a git work tree?" This formalizes how the current system already treats <code>~/.claude</code>.</p>
+
+    <h3>How the ledger is accessed alongside a feature branch &mdash; the worktree mechanism</h3>
+    <div class="diagram-shell animate">
+      <p class="diagram-shell__hint">Ctrl / Cmd + wheel to zoom. Drag to pan. Double-click to fit.</p>
+      <div class="mermaid-wrap">
+        <div class="zoom-controls">
+          <button type="button" data-action="zoom-in">+</button>
+          <button type="button" data-action="zoom-out">&minus;</button>
+          <button type="button" data-action="zoom-fit">&#8634;</button>
+          <button type="button" data-action="zoom-one">1:1</button>
+          <button type="button" data-action="zoom-expand">&#x26F6;</button>
+          <span class="zoom-label">Loading...</span>
+        </div>
+        <div class="mermaid-viewport"><div class="mermaid mermaid-canvas"></div></div>
+      </div>
+      <script type="text/plain" class="diagram-source">
+flowchart TD
+  dev["Developer<br/>stays on feature branch"]:::neu
+  feat["Feature working tree<br/>HEAD: fix/signup-bug<br/>carries NO ledger files"]:::blue
+  odb[("Shared object database<br/>one repo, many working trees")]:::amber
+  mcp["MCP server<br/>the SOLE ledger writer"]:::amber
+  ledgerwt["Ledger side worktree<br/>HEAD: _ledger branch<br/>materialized in a side dir"]:::blue
+  dev --> feat
+  feat --- odb
+  ledgerwt --- odb
+  mcp -->|"git worktree add dir _ledger"| ledgerwt
+  mcp -->|"read / write / commit"| ledgerwt
+  mcp -->|"fetch / auto-merge / push"| ledgerwt
+  classDef neu fill:#12233d,stroke:#93a7c9,color:#cdd8ea;
+  classDef blue fill:#16324f,stroke:#5b9bd5,color:#e7eefb;
+  classDef amber fill:#3a2d15,stroke:#e8a33d,color:#f4e6c8;
+      </script>
+    </div>
+    <p class="diagcap">The feature branch carries NO ledger files, so deleting / switching feature branches never touches the ledger, and ledger data is never accidentally committed into feature history. Placement leans OUTSIDE the repo (under <code>${CLAUDE_PLUGIN_DATA}</code>, no <code>.gitignore</code> needed); if in-repo it must be excluded via <code>.git/info/exclude</code> &mdash; to be pinned at spec time. The bridge from "I am on branch X" to "this is Thread T" is the <code>Thread-Id:</code> commit trailer plus the derived <code>branch &rarr; binding &rarr; thread</code> index, never a working-tree file.</p>
+
+    <div class="callout">
+      <span class="co-label">Concurrency</span>
+      <p>The MCP server serializes writes per machine. Cross-machine it does fetch &rarr; auto-merge &rarr; push with CAS (compare-and-swap) retry on a non-fast-forward race. All shared files are per-session / per-thread / per-binding and therefore DISJOINT, so concurrent pushes auto-merge with no content conflicts. A <code>merge=union</code> driver on append-only text files is a belt-and-suspenders option.</p>
+    </div>
+
+    <div id="s5" class="sec-head"><span class="num">05</span>Enforcement planes</div>
+    <div class="sec-sub">Concern 4 &mdash; what MCP is, and whether we are building one</div>
+
+    <p>The robustness guarantee (original problem 2) comes from moving the ledger's rules OUT of skill prose and INTO tooling. Two planes do this: an MCP server (data plane) and hooks (control / lifecycle plane).</p>
+
+    <div class="callout info">
+      <span class="co-label">Are we creating an MCP? &mdash; Yes</span>
+      <p>MCP (Model Context Protocol) is an open standard for exposing tools to an AI agent. In Claude Code an MCP server is NOT a website &mdash; it is a LOCAL SUBPROCESS the plugin ships. We author and bundle <strong>one small stdio program</strong> (Node, Python, or a compiled binary) that Claude Code launches as a child process and talks to over stdin / stdout using JSON-RPC, declared in a <code>.mcp.json</code> at the plugin root. Its tools reach the model as native tools named <code>mcp__ledger__&lt;tool&gt;</code>, with arguments and results as schema-validated JSON. One instance starts when the session begins and lives the whole session; the first call prompts for approval, then auto-approves.</p>
+      <p style="margin-top:10px">It is the <strong>SOLE reader / writer</strong> of the ledger. Because every mutation goes through a typed, schema-validated, FSM-aware tool, <strong>malformed ledger state becomes structurally impossible</strong> &mdash; the model never hand-writes files at all. It calls <code>transition_thread(id, "done")</code> and the server enforces the DoD gate, caps, write-once, and atomic write.</p>
+    </div>
+
+    <div class="callout warn">
+      <span class="co-label">Honest tradeoff (Pillar 1 vs portability)</span>
+      <p>The MCP server is a <strong>RUNTIME DEPENDENCY</strong> &mdash; the machine needs the chosen runtime (Node or Python) or we ship a compiled binary per platform. A pure-hooks-plus-CLI design would avoid the daemon but reintroduce stringly-typed, permission-prompted, parse-prone interactions and lose the schema guarantee. We choose the MCP server because the guarantee is the whole point of the redesign; the runtime cost is documented and mitigated by shipping a binary or requiring Node (already common).</p>
+    </div>
+
+    <h3>MCP typed tools &mdash; the ledger's entire write surface</h3>
+    <div class="grid3">
+      <div class="card"><h4>open_thread</h4><p>Create a Thread with schema + FSM validation.</p></div>
+      <div class="card"><h4>bind_branch</h4><p>Attach a BranchBinding (append-only).</p></div>
+      <div class="card"><h4>append_session_event</h4><p>Add a hot-layer session log entry.</p></div>
+      <div class="card"><h4>record_decision</h4><p>Write a MADR decision (write-once).</p></div>
+      <div class="card"><h4>transition_thread</h4><p>FSM-validated state change + DoD gate.</p></div>
+      <div class="card"><h4>reconcile</h4><p>Run the drift pipeline.</p></div>
+      <div class="card"><h4>archive_thread</h4><p>Terminal, append-only record.</p></div>
+      <div class="card"><h4>create_successor / reopen</h4><p>Lineage via <code>predecessor_id</code>.</p></div>
+      <div class="card"><h4>rebuild_index</h4><p>Regenerate the DERIVED index.</p></div>
+      <div class="card"><h4>get_resume_brief</h4><p>Compose the Resumption Brief.</p></div>
+    </div>
+    <p class="diagcap">Each enforces schema + the 5-state FSM + caps + write-once + atomic commit. Ledger state is reached via the worktree on the ledger branch (git) or the local dir (non-git); <code>${CLAUDE_PLUGIN_DATA}</code> holds only caches.</p>
+
+    <h3>The <code>Thread-Id:</code> commit trailer + auto-installed hook <span class="tag">Probe G &mdash; Gerrit precedent</span></h3>
+    <p>To bridge a branch to its Thread durably, the first commit of every feature branch carries a <code>Thread-Id: &lt;ulid&gt;</code> trailer. This is directly modeled on Gerrit's <code>Change-Id</code>: a stable identity in the commit-message footer that survives amend / rebase / cherry-pick, discoverable via <code>git log --grep="Thread-Id:"</code>, and thus recoverable even after the branch is deleted. A <code>commit-msg</code> hook inserts the trailer if absent, does nothing if present (idempotent &rarr; amend-safe), and is opt-out via git config.</p>
+
+    <div class="callout warn">
+      <span class="co-label">The distribution lesson &mdash; and its clobber caveat</span>
+      <p>The critical real-world lesson from Gerrit is DISTRIBUTION: Gerrit still makes users manually <code>curl</code> + <code>chmod</code> the hook into every clone, and "missing Change-Id" rejections are the common result. A distributable plugin must <strong>AUTO-INSTALL</strong> the hook via <code>core.hooksPath</code> (Git 2.9+) pointing at a plugin-managed hooks dir, NOT by hand-copying into <code>.git/hooks/</code>. <strong>Caveat:</strong> if the user already sets <code>core.hooksPath</code> (Husky, pre-commit), the plugin must CHAIN / APPEND rather than clobber. The trailer is a convenience for re-attach, not a correctness gate &mdash; its absence degrades to slug / manual re-attach (Section 6.4), it does not corrupt state.</p>
+    </div>
+
+    <h3>Hooks &mdash; verified capabilities <span class="tag">Probe A</span></h3>
+    <div class="table-scroll">
+    <table>
+      <thead><tr><th>Hook</th><th>Can block?</th><th>Role in the ledger</th></tr></thead>
+      <tbody>
+        <tr><td>SessionStart</td><td class="no">No (inject only)</td><td>Inject resumable-Thread roster; run <code>reconcile</code>; inject drift report</td></tr>
+        <tr><td>UserPromptSubmit</td><td class="yes">Yes</td><td>Detect resume intent; inject the roster on demand</td></tr>
+        <tr><td>PreToolUse</td><td class="yes">Yes (deny + rewrite input)</td><td>DENY raw writes to ledger paths &rarr; force everything through MCP; auto-approve ledger MCP tools</td></tr>
+        <tr><td>PostToolUse</td><td class="no">No</td><td>Context-percentage nudge; capture current SHA</td></tr>
+        <tr><td>Stop</td><td class="yes">Yes (exit 2)</td><td>Block session end until a handoff is written / dirty-state gate</td></tr>
+        <tr><td>PreCompact</td><td class="no">No</td><td>Write a checkpoint sentinel before compaction</td></tr>
+        <tr><td>WorktreeCreate / WorktreeRemove</td><td class="partial">Create: yes</td><td>Optional mitosis-style adapter hook points (must remain optional)</td></tr>
+      </tbody>
+    </table>
+    </div>
+    <p class="diagcap">SessionStart CANNOT block, so the resume gate is enforced via context injection + the Stop hook, not by blocking startup. Plugin-bundled AGENTS cannot declare their own hooks / mcpServers; enforcement is declared at plugin level. Skills stay thin: <code>session-handoff</code> (write) and <code>resume-project</code> (read) CALL MCP tools, never hand-write ledger files &mdash; this is what closes the ~8 prose-drift points.</p>
+
+    <div id="s6" class="sec-head"><span class="num">06</span>Lifecycle and drift</div>
+    <div class="sec-sub">Reframed per Section 2 &mdash; reconcile, not police</div>
+
+    <h3>Five-state FSM &mdash; now server-enforced</h3>
+    <div class="diagram-shell animate">
+      <p class="diagram-shell__hint">Ctrl / Cmd + wheel to zoom. Drag to pan. Double-click to fit.</p>
+      <div class="mermaid-wrap">
+        <div class="zoom-controls">
+          <button type="button" data-action="zoom-in">+</button>
+          <button type="button" data-action="zoom-out">&minus;</button>
+          <button type="button" data-action="zoom-fit">&#8634;</button>
+          <button type="button" data-action="zoom-one">1:1</button>
+          <button type="button" data-action="zoom-expand">&#x26F6;</button>
+          <span class="zoom-label">Loading...</span>
+        </div>
+        <div class="mermaid-viewport"><div class="mermaid mermaid-canvas"></div></div>
+      </div>
+      <script type="text/plain" class="diagram-source">
+stateDiagram-v2
+  [*] --> active: created with non-empty completion_criteria
+  active --> paused: session end
+  active --> blocked: blocked_by set
+  active --> done: DoD gate passes (all criteria + closure)
+  active --> abandoned: reason set
+  paused --> active: via Resumption Brief
+  blocked --> active: via Resumption Brief
+  paused --> done
+  paused --> abandoned
+  blocked --> abandoned
+  done --> [*]
+  abandoned --> [*]
+  note right of done
+    done and abandoned are TERMINAL and immutable.
+    Extending later creates a NEW Thread with
+    predecessor_id, never mutates the old one.
+  end note
+      </script>
+    </div>
+    <p class="diagcap"><code>active</code> means "being worked THIS session." Allowed transitions and the DoD gate (<code>done</code> requires a non-empty, all-checked <code>completion_criteria</code> plus a closure statement) are validated by <code>transition_thread</code> &mdash; the server refuses an illegal transition rather than a hook parsing prose.</p>
+
+    <h3>BranchBinding lifecycle &mdash; branch gone, work continues</h3>
+    <div class="table-scroll">
+    <table>
+      <thead><tr><th>Case</th><th>Binding</th><th>Thread</th><th>Note</th></tr></thead>
+      <tbody>
+        <tr><td><strong>Merged</strong></td><td>&rarr; <span class="badge ok2">merged</span></td><td>&rarr; <span class="badge ok2">done</span> (iff DoD met)</td><td>The normal, primary path</td></tr>
+        <tr><td><strong>Pruned-after-merge</strong> (concern 1's target)</td><td>already <span class="badge ok2">merged</span></td><td>context lives on the ledger branch</td><td>Branch deleted in cleanup AFTER merge; a later related effort finds it via <code>predecessor_id</code> or <code>external_refs</code>. <em>The case the whole system exists to serve.</em></td></tr>
+        <tr><td><strong>Orphaned</strong> (deleted while incomplete)</td><td>&rarr; <span class="badge crit">orphaned</span></td><td>&rarr; <span class="badge warn2">paused</span> (NOT terminal)</td><td>The bad-practice case (Section 2 non-goal) &mdash; handled gracefully but never optimized for</td></tr>
+        <tr><td><strong>Continued</strong> (new branch, same work)</td><td>NEW binding</td><td>SAME Thread; <code>predecessor_id</code> unchanged</td><td>In-progress work moves branches</td></tr>
+        <tr><td><strong>Extended</strong> (terminal Thread evolves)</td><td>NEW binding on new Thread</td><td>NEW Thread; <code>predecessor_id</code> = old</td><td>Old Thread untouched (terminal = immutable)</td></tr>
+      </tbody>
+    </table>
+    </div>
+
+    <h3>Drift pipeline on resume &mdash; eight signals, reconcile not accuse</h3>
+    <div class="diagram-shell animate">
+      <p class="diagram-shell__hint">Ctrl / Cmd + wheel to zoom. Drag to pan. Double-click to fit.</p>
+      <div class="mermaid-wrap">
+        <div class="zoom-controls">
+          <button type="button" data-action="zoom-in">+</button>
+          <button type="button" data-action="zoom-out">&minus;</button>
+          <button type="button" data-action="zoom-fit">&#8634;</button>
+          <button type="button" data-action="zoom-one">1:1</button>
+          <button type="button" data-action="zoom-expand">&#x26F6;</button>
+          <span class="zoom-label">Loading...</span>
+        </div>
+        <div class="mermaid-viewport"><div class="mermaid mermaid-canvas"></div></div>
+      </div>
+      <script type="text/plain" class="diagram-source">
+flowchart TD
+  R["reconcile computes 8 git signals"]:::amber
+  R --> S1["head SHA missing"]:::neu
+  R --> S2["head not-ancestor of remote branch"]:::neu
+  R --> S3["divergence count"]:::neu
+  R --> S4["force-push in reflog"]:::neu
+  R --> S5["key file deleted"]:::neu
+  R --> S6["key file modified"]:::neu
+  R --> S7["squash-merged (patch-id match)"]:::neu
+  R --> S8["branch deleted / merged"]:::neu
+  S1 --> C{"classify"}:::amber
+  S2 --> C
+  S3 --> C
+  S4 --> C
+  S5 --> C
+  S6 --> C
+  S7 --> C
+  S8 --> C
+  C -->|CRITICAL| D1["reopen<br/>Thread to paused"]:::warn
+  C -->|WARNING| D2["re-verify<br/>reset ledger to HEAD"]:::blue
+  C -->|COMPLETE-candidate| D3["archive-as-superseded<br/>append-only terminal record"]:::ok
+  classDef amber fill:#3a2d15,stroke:#e8a33d,color:#f4e6c8;
+  classDef neu fill:#12233d,stroke:#93a7c9,color:#cdd8ea;
+  classDef warn fill:#3a1f1c,stroke:#e5736b,color:#f3d6d2;
+  classDef blue fill:#16324f,stroke:#5b9bd5,color:#e7eefb;
+  classDef ok fill:#153726,stroke:#6cc08b,color:#d3eadd;
+      </script>
+    </div>
+    <p class="diagcap">Under the reframe, the report is presented as reconciliation and recovery, not as an accusation.</p>
+
+    <h3>Re-attach flow on a new branch</h3>
+    <div class="grid3">
+      <div class="card"><h4><span class="idx">1</span>Trailer lookup (primary)</h4><p><code>Thread-Id:</code> in nearby / first commits &rarr; Thread.</p></div>
+      <div class="card"><h4><span class="idx">2</span>Slug match (fallback)</h4><p>Branch-name slug &rarr; derived index.</p></div>
+      <div class="card"><h4><span class="idx">3</span>Manual prompt (last resort)</h4><p>Ask the user which Thread this is.</p></div>
+    </div>
+    <p class="diagcap">Then: <code>paused</code> / <code>blocked</code> &rarr; new binding + set <code>active</code> + present the Resumption Brief; <code>done</code> / <code>abandoned</code> &rarr; offer a successor Thread (<code>predecessor_id</code>).</p>
+
+    <div id="s7" class="sec-head"><span class="num">07</span>File structures, summary formats, and link examples</div>
+    <div class="sec-sub">Concern 2 &mdash; the concrete artifact set v1 lacked (the most important new section)</div>
+
+    <h3>On-store layout <span class="tag">identical shape for git-ref store and non-git local store</span></h3>
+    <pre><code class="tree">&lt;ledger root&gt;/
+  <span class="k">PROJECT.md</span>                              <span class="cm"># cold layer, cap ~80 lines (prose index)</span>
+  <span class="k">threads/</span>&lt;thread-ulid&gt;.json              <span class="cm"># one recursive Thread per file (parent_id nullable)</span>
+  <span class="k">bindings/</span>&lt;binding-ulid&gt;.json            <span class="cm"># BranchBinding junction (git projects only)</span>
+  <span class="k">decisions/</span>NNNN-slug.md                 <span class="cm"># MADR record; immutable; superseded-by</span>
+  <span class="k">sessions/</span>&lt;thread-ulid&gt;/&lt;ts&gt;--&lt;actor&gt;.md <span class="cm"># hot layer: append-only session logs</span>
+  <span class="k">index/</span>                                  <span class="cm"># DERIVED, rebuilt on startup - never hand-edited</span>
+    by-slug.json                          <span class="cm">#   slug        -&gt; thread-ulid</span>
+    by-branch.json                        <span class="cm">#   repo+branch -&gt; [binding-ulid]</span>
+    children.json                         <span class="cm">#   parent-ulid -&gt; [child-ulid]</span>
+    resumable.json                        <span class="cm">#   the roster SessionStart injects</span></code></pre>
+    <p class="diagcap">For a git project, <code>&lt;ledger root&gt;</code> is the worktree checkout of the ledger branch. For a non-git project it is <code>${CLAUDE_PLUGIN_DATA}/&lt;project-key&gt;/ledger/</code>.</p>
+
+    <h3>Thread record &mdash; standalone vs epic child (the ONLY difference is <code>parent_id</code>)</h3>
+    <div class="grid2">
+      <div>
+        <p class="code-cap">7.2 &mdash; standalone bug fix (parent_id: null)</p>
+<pre><code>{
+  <span class="j-key">"schema_version"</span>: <span class="j-num">1</span>,
+  <span class="j-key">"id"</span>: <span class="j-str">"01J9Z3K7Q8...THREAD"</span>,
+  <span class="j-key">"slug"</span>: <span class="j-str">"fix-signup-bug"</span>,
+  <span class="j-key">"title"</span>: <span class="j-str">"Fix sign-up 500 on duplicate email"</span>,
+  <span class="j-key">"status"</span>: <span class="j-str">"paused"</span>,
+  <span class="j-key">"parent_id"</span>: <span class="j-null">null</span>,
+  <span class="j-key">"predecessor_id"</span>: <span class="j-null">null</span>,
+  <span class="j-key">"completion_criteria"</span>: [
+    { <span class="j-key">"text"</span>: <span class="j-str">"dup-email path returns 409, not 500"</span>, <span class="j-key">"done"</span>: <span class="j-num">true</span> },
+    { <span class="j-key">"text"</span>: <span class="j-str">"regression test asserts the 409"</span>, <span class="j-key">"done"</span>: <span class="j-num">false</span> }
+  ],
+  <span class="j-key">"vcs_ref"</span>: <span class="j-str">"fix/signup-bug"</span>,
+  <span class="j-key">"external_refs"</span>: [],
+  <span class="j-key">"spine"</span>: { <span class="j-str">"..."</span>: <span class="j-str">"see 7.6"</span> }
+}</code></pre>
+      </div>
+      <div>
+        <p class="code-cap">7.3 &mdash; child of the migration epic (parent_id set)</p>
+<pre><code>{
+  <span class="j-key">"schema_version"</span>: <span class="j-num">1</span>,
+  <span class="j-key">"id"</span>: <span class="j-str">"01J9ZAA10...CHILD3"</span>,
+  <span class="j-key">"slug"</span>: <span class="j-str">"migrate-orders-table"</span>,
+  <span class="j-key">"title"</span>: <span class="j-str">"Migrate orders table to partitioned schema"</span>,
+  <span class="j-key">"status"</span>: <span class="j-str">"active"</span>,
+  <span class="j-key">"parent_id"</span>: <span class="j-str">"01J9ZA0EPIC...ROOT"</span>,
+  <span class="j-key">"predecessor_id"</span>: <span class="j-null">null</span>,
+  <span class="j-key">"completion_criteria"</span>: [
+    { <span class="j-key">"text"</span>: <span class="j-str">"orders migration + rollback authored"</span>, <span class="j-key">"done"</span>: <span class="j-num">false</span> }
+  ],
+  <span class="j-key">"vcs_ref"</span>: <span class="j-str">"feat/migrate-orders"</span>,
+  <span class="j-key">"external_refs"</span>: [
+    { <span class="j-key">"system"</span>: <span class="j-str">"mitosis"</span>, <span class="j-key">"id"</span>: <span class="j-str">"MSP-3"</span>, <span class="j-key">"url"</span>: <span class="j-str">""</span> }
+  ]
+}</code></pre>
+      </div>
+    </div>
+    <p class="diagcap">The epic root (<code>01J9ZA0EPIC...ROOT</code>) is itself a Thread with <code>parent_id: null</code>; it holds NO child list. Its children are found by reading <code>index/children.json</code> or querying <code>parent_id</code>. The <code>external_refs</code> entry (<code>mitosis / MSP-3</code>) is opaque to the core.</p>
+
+    <h3>BranchBinding record <span class="tag">7.4</span></h3>
+<pre><code>{
+  <span class="j-key">"id"</span>: <span class="j-str">"01J9ZBIND...01"</span>,
+  <span class="j-key">"thread_id"</span>: <span class="j-str">"01J9Z3K7Q8...THREAD"</span>,
+  <span class="j-key">"repo"</span>: <span class="j-str">"git@github.com:acme/app.git"</span>,
+  <span class="j-key">"branch"</span>: <span class="j-str">"fix/signup-bug"</span>,
+  <span class="j-key">"status"</span>: <span class="j-str">"merged"</span>,
+  <span class="j-key">"created_at"</span>: <span class="j-str">"2026-06-28T14:02:00Z"</span>,
+  <span class="j-key">"closed_at"</span>: <span class="j-str">"2026-06-29T09:10:00Z"</span>,
+  <span class="j-key">"closed_reason"</span>: <span class="j-str">"merged"</span>,
+  <span class="j-key">"first_commit"</span>: <span class="j-str">"9f3a1c2"</span>,
+  <span class="j-key">"trailer_present"</span>: <span class="j-num">true</span>
+}</code></pre>
+
+    <div class="grid2">
+      <div>
+        <h3>Decision record <span class="tag">MADR, 7.5</span></h3>
+<pre><code># NNNN - Adopt orphan branch as the default ledger store
+Status: accepted
+Date: 2026-06-30
+Thread-Id: 01J9Z3K7Q8...THREAD   <span class="cm">&lt;- links by stable ULID, never slug</span>
+
+## Context and Problem
+...
+## Considered Options
+- Orphan branch (chosen)
+- refs/ledger/* custom namespace
+- git notes
+## Decision Outcome
+Chosen: orphan branch, because ...
+## More Information
+Supersedes: (none)   Superseded-by: (none)</code></pre>
+      </div>
+      <div>
+        <h3>The progressive-summary "spine" <span class="tag">warm layer, 7.6</span></h3>
+<pre><code><span class="j-key">"spine"</span>: {
+  <span class="j-key">"status"</span>: <span class="j-str">"paused"</span>,
+  <span class="j-key">"active_goal"</span>: <span class="j-str">"Return 409 on duplicate-email sign-up"</span>,
+  <span class="j-key">"next_step"</span>: <span class="j-str">"Write the failing regression test, then implement the guard"</span>,
+  <span class="j-key">"open_risks"</span>: [<span class="j-str">"Existing callers may depend on the 500 body shape"</span>],
+  <span class="j-key">"key_decisions"</span>: [<span class="j-str">"0007-signup-error-contract"</span>],
+  <span class="j-key">"out_of_scope"</span>: [<span class="j-str">"Rate-limiting the sign-up endpoint"</span>]
+}</code></pre>
+        <p class="diagcap">Fixed fields, merged forward each session so the resume budget stays small whether a Thread spans 2 sessions or 20. <code>key_decisions</code> holds decision FILENAMES (which embed the stable NNNN), resolved on demand &mdash; decisions are never compressed into the spine.</p>
+      </div>
+    </div>
+
+    <div class="grid2">
+      <div>
+        <h3>Session log entry <span class="tag">hot layer, append-only, 7.7</span></h3>
+<pre><code># Session 2026-06-29-01 - fix-signup-bug
+Where it started: resumed paused Thread to add
+  the regression test.
+What shipped: reproduced the 500; wrote failing
+  test asserting 409.
+Tried and failed: -
+Decisions locked: 0007-signup-error-contract
+Verification: npm test -- signup.spec
+  (1 failing as expected, RED).
+Pick up here: implement the duplicate-email guard
+  to turn the test GREEN.
+Drift observed: none (head SHA matches pointer).</code></pre>
+      </div>
+      <div>
+        <h3>The Resumption Brief <span class="tag">get_resume_brief composes; resume-project renders, 7.8</span></h3>
+<pre><code>RESUMPTION BRIEF - fix-signup-bug
+  state: paused -&gt; active (awaiting confirm)
+Thread-Id:    01J9Z3K7Q8...THREAD
+Priority:     high
+Done so far:  Reproduced the dup-email 500;
+              wrote a failing test asserting 409.
+Left off at:  Test is RED; guard not implemented.
+Next step(s): Implement the guard; run signup.spec
+              to GREEN.
+Open/risks:   Callers may depend on old 500 body
+              shape (see 0007).
+Drift:        none - recorded head SHA matches tip.
+Children:     (none - standalone Thread)
+- Awaiting your instruction. Will not proceed
+  until directed.</code></pre>
+        <p class="diagcap">For an epic, <code>Children:</code> lists each child Thread with its status (rolled up from <code>index/children.json</code>).</p>
+      </div>
+    </div>
+
+    <h3>How links work end-to-end &mdash; every cross-ref is a stable ULID, never a slug</h3>
+    <div class="diagram-shell animate">
+      <p class="diagram-shell__hint">Ctrl / Cmd + wheel to zoom. Drag to pan. Double-click to fit.</p>
+      <div class="mermaid-wrap">
+        <div class="zoom-controls">
+          <button type="button" data-action="zoom-in">+</button>
+          <button type="button" data-action="zoom-out">&minus;</button>
+          <button type="button" data-action="zoom-fit">&#8634;</button>
+          <button type="button" data-action="zoom-one">1:1</button>
+          <button type="button" data-action="zoom-expand">&#x26F6;</button>
+          <span class="zoom-label">Loading...</span>
+        </div>
+        <div class="mermaid-viewport"><div class="mermaid mermaid-canvas"></div></div>
+      </div>
+      <script type="text/plain" class="diagram-source">
+flowchart TD
+  branch["Feature branch"]:::neu
+  binding["BranchBinding"]:::blue
+  thread["Thread (ULID)"]:::amber
+  parent["Parent Thread"]:::blue
+  pred["Predecessor Thread<br/>(immutable)"]:::blue
+  child["Child Thread"]:::blue
+  decision["Decision (MADR)"]:::ok
+  idx["index/children.json<br/>DERIVED"]:::neu
+  branch -->|"Thread-Id trailer in commit history"| thread
+  branch -->|"index/by-branch.json: repo+branch"| binding
+  binding -->|"thread_id"| thread
+  thread -->|"parent_id"| parent
+  thread -->|"predecessor_id"| pred
+  child -->|"parent_id"| thread
+  idx -.->|"inverts parent_id (no stored child list)"| thread
+  thread -->|"spine.key_decisions filename"| decision
+  decision -->|"Thread-Id front matter"| thread
+  classDef neu fill:#12233d,stroke:#93a7c9,color:#cdd8ea;
+  classDef blue fill:#16324f,stroke:#5b9bd5,color:#e7eefb;
+  classDef amber fill:#3a2d15,stroke:#e8a33d,color:#f4e6c8;
+  classDef ok fill:#153726,stroke:#6cc08b,color:#d3eadd;
+      </script>
+    </div>
+    <p class="diagcap">Branch &rarr; Thread has TWO paths, both surviving branch deletion: the trailer lives in commit history, the binding lives on the ledger branch. Thread &harr; decisions is bidirectional, both by stable ID. <strong>Invariant:</strong> a slug or path is NEVER a link target, so renames never break links (the rename trap Probes H and B both warn against).</p>
+
+    <div id="s8" class="sec-head"><span class="num">08</span>Memory tiers, packaging, and non-git handling</div>
+    <div class="sec-sub">Sections 8, 9, and 10</div>
+
+    <h3>Memory tiers <span class="tag">Probe B, prior art</span></h3>
+    <div class="grid3">
+      <div class="card" style="border-left:3px solid var(--danger)"><h4>Hot</h4><p>Per-session append-only log (<code>sessions/&lt;thread&gt;/*.md</code>). Full detail, including rejected-option rationale.</p></div>
+      <div class="card" style="border-left:3px solid var(--amber)"><h4>Warm</h4><p>The Thread <code>spine</code> (~80 lines equivalent). Merged forward each session.</p></div>
+      <div class="card" style="border-left:3px solid var(--blue)"><h4>Cold</h4><p><code>PROJECT.md</code> (~80 lines). Low-churn index.</p></div>
+    </div>
+    <p class="diagcap">Compact at ~70% context, not at the hard limit. Always preserve reasoning traces (WHY an option was rejected), never just conclusions.</p>
+
+    <h3>Plugin packaging <span class="tag">Probe A</span></h3>
+    <pre><code class="tree">&lt;plugin&gt;/
+  <span class="k">.claude-plugin/plugin.json</span>     <span class="cm"># metadata + userConfig declarations</span>
+  <span class="k">.mcp.json</span>                      <span class="cm"># the bundled stdio ledger server</span>
+  <span class="k">bin/</span>ledger-server.(js|py|bin)  <span class="cm"># the sole ledger reader/writer</span>
+  <span class="k">hooks/</span>hooks.json               <span class="cm"># SessionStart / Stop / PreToolUse / PreCompact / etc.</span>
+  <span class="k">hooks/</span>commit-msg               <span class="cm"># Thread-Id trailer inserter (via core.hooksPath)</span>
+  <span class="k">skills/</span>session-handoff/...      <span class="cm"># thin; calls MCP tools</span>
+  <span class="k">skills/</span>resume-project/...       <span class="cm"># thin; calls MCP tools</span></code></pre>
+    <div class="table-scroll">
+    <table>
+      <thead><tr><th>Variable</th><th>Meaning</th></tr></thead>
+      <tbody>
+        <tr><td><code>${CLAUDE_PLUGIN_ROOT}</code></td><td>Ephemeral install dir &mdash; never write state there.</td></tr>
+        <tr><td><code>${CLAUDE_PLUGIN_DATA}</code></td><td>Persistent (survives updates) &mdash; caches + the non-git ledger store.</td></tr>
+        <tr><td><code>${CLAUDE_PROJECT_DIR}</code></td><td>Project root (git or not).</td></tr>
+        <tr><td><code>userConfig</code></td><td>Per-user, per-installation; prompted at enable; exposed as <code>${user_config.KEY}</code>: <code>ledger_backend</code> (<code>orphan-branch</code> | <code>custom-ref</code>), <code>ledger_branch</code> name, opt-outs. NOT per-project &mdash; per-project variance would come from project settings.</td></tr>
+      </tbody>
+    </table>
+    </div>
+    <p class="diagcap">Marketplace-distributable; <code>--scope user|project|local</code>.</p>
+
+    <h3>Non-git projects &mdash; consolidated <span class="tag">concern 7</span></h3>
+    <div class="table-scroll">
+    <table>
+      <thead><tr><th>Aspect</th><th>Git project</th><th>Non-git project (e.g. <code>~/.claude</code>)</th></tr></thead>
+      <tbody>
+        <tr><td>Storage driver</td><td>git-ref storage driver</td><td>local <code>${CLAUDE_PLUGIN_DATA}/&lt;project-key&gt;/ledger/</code></td></tr>
+        <tr><td>Sharing</td><td class="yes">Shared, multi-user</td><td>Single-user, machine-local</td></tr>
+        <tr><td><code>vcs_ref</code></td><td>git branch name</td><td class="partial">null</td></tr>
+        <tr><td>BranchBinding</td><td class="yes">Active</td><td class="no">Inactive</td></tr>
+        <tr><td>Drift pipeline</td><td class="yes">Active</td><td class="no">Inactive</td></tr>
+        <tr><td>Data model / MCP tools / skills</td><td colspan="2" style="text-align:center">IDENTICAL &mdash; only the storage driver differs, selected automatically</td></tr>
+      </tbody>
+    </table>
+    </div>
+
+    <div id="s9" class="sec-head"><span class="num">09</span>Open questions, risks, decisions to confirm</div>
+    <div class="sec-sub">Section 11 &mdash; nothing here is settled</div>
+
+    <div class="callout decide">
+      <span class="co-label">Primary decision to confirm</span>
+      <p><strong>Orphan branch (robust default) vs. <code>refs/ledger/*</code> custom namespace (idiomatic / clean, host-dependent).</strong> Recommendation: orphan-branch default + custom-ref opt-in (Section 4.4). If the team is known to be entirely on GitHub / GitLab and values branch-list cleanliness over universal-host guarantees, flip the default to custom-ref.</p>
+    </div>
+
+    <div class="table-scroll">
+    <table>
+      <thead><tr><th>Item</th><th>Type</th><th>What is open / what would change the decision</th></tr></thead>
+      <tbody>
+        <tr><td>Orphan branch vs custom ref</td><td><span class="badge crit">PRIMARY DECISION</span></td><td>The single biggest decision. Orphan-branch default + custom-ref opt-in. Flip to custom-ref if the team is entirely on GitHub / GitLab and values a clean branch list over universal-host guarantees.</td></tr>
+        <tr><td><code>core.hooksPath</code> clobber risk</td><td><span class="badge warn2">RISK</span></td><td>Must detect and CHAIN an existing hooks path (Husky / pre-commit) rather than overwrite. Verify <code>core.hooksPath</code> semantics before locking the install mechanism (Probe G flagged as not re-verified).</td></tr>
+        <tr><td>Custom-ref host support</td><td><span class="badge warn2">RISK</span></td><td>If the custom-ref opt-in is offered, verify the target host accepts <code>refs/ledger/*</code> pushes; some hosts restrict non-standard refs (git-bug friction precedent).</td></tr>
+        <tr><td>MCP runtime dependency</td><td><span class="badge neu">TRADEOFF</span></td><td>Node / Python required, or ship per-platform binaries. Portability cost accepted for the schema guarantee (Section 5.1).</td></tr>
+        <tr><td>Worktree placement</td><td><span class="badge warn2">TO PIN</span></td><td>In-repo (<code>.git/info/exclude</code>) vs. outside-repo (<code>${CLAUDE_PLUGIN_DATA}</code>). Lean outside-repo. Pin at spec time.</td></tr>
+        <tr><td>CAS-retry push</td><td><span class="badge warn2">RISK</span></td><td>The concurrency path (fetch &rarr; merge &rarr; push, retry on non-ff) needs a careful, tested implementation.</td></tr>
+        <tr><td>Scale</td><td><span class="badge neu">NOTE</span></td><td>Adjacency-list "has children" scan is fine at dozens of Threads; a cached child-index (already in <code>index/</code>) covers larger scale. Materialized path only if re-parenting ever becomes frequent (it will not).</td></tr>
+      </tbody>
+    </table>
+    </div>
+
+    <div id="s10" class="sec-head"><span class="num">10</span>Research provenance and glossary</div>
+    <div class="sec-sub">Sections 12 and 13</div>
+
+    <p>Five original probes (v1): <strong>A</strong> CC plugin / MCP / hooks mechanics; <strong>B</strong> handoff / ADR / memory prior art; <strong>C</strong> git drift detection; <strong>D</strong> storage durability; <strong>E</strong> durable work-item identity. Three v2 follow-up probes:</p>
+    <div class="grid3">
+      <div class="card"><h4>Probe F &mdash; MCP / plugin mechanics</h4><p>Verified against current CC docs: stdio server model, <code>.mcp.json</code>, <code>mcp__server__tool</code> naming, per-session lifecycle, first-call approval; hook capability table; plugin agents cannot self-declare hooks / mcp; non-git behavior; userConfig is per-installation.</p></div>
+      <div class="card"><h4>Probe G &mdash; durable git-metadata storage</h4><p>Six-tool survey (git-spice, git-town, Graphite, git-bug, jj, GitButler); none use orphan branches; custom-ref namespace is the idiom; default fetch refspec transfers only <code>refs/heads/*</code>; Gerrit <code>Change-Id</code> + <code>commit-msg</code> hook precedent and its install-friction lesson.</p></div>
+      <div class="card"><h4>Probe H &mdash; generic work-unit modeling</h4><p>One recursive entity + nullable <code>parent_id</code>; "has children" is a query; lazy promotion; adjacency list for shallow trees; capability-negotiation / dependency-inversion via a generic <code>external_refs</code> bag; Jira's fixed hierarchy as the anti-pattern.</p></div>
+    </div>
+
+    <h3>Key source URLs <span class="tag">from Probes G and H</span></h3>
+    <div class="table-scroll">
+    <table>
+      <thead><tr><th>Topic</th><th>Source</th></tr></thead>
+      <tbody>
+        <tr><td>LangGraph persistence (the "store" analogue)</td><td><a class="src" href="https://docs.langchain.com">docs.langchain.com</a></td></tr>
+        <tr><td>git-bug data model</td><td><a class="src" href="https://github.com/git-bug/git-bug">github.com/git-bug/git-bug</a></td></tr>
+        <tr><td>Fossil tickets</td><td><a class="src" href="https://fossil-scm.org">fossil-scm.org</a></td></tr>
+        <tr><td>Linear conceptual model + parent / sub-issues</td><td><a class="src" href="https://linear.app/docs">linear.app/docs</a></td></tr>
+        <tr><td>GitHub sub-issues</td><td><a class="src" href="https://docs.github.com">docs.github.com</a></td></tr>
+        <tr><td>MADR</td><td><a class="src" href="https://adr.github.io/madr">adr.github.io/madr</a></td></tr>
+        <tr><td>LSP capability negotiation</td><td><a class="src" href="https://microsoft.github.io/language-server-protocol">microsoft.github.io/language-server-protocol</a></td></tr>
+        <tr><td>git fetch / refspec + githooks + git-notes</td><td><a class="src" href="https://git-scm.com">git-scm.com</a></td></tr>
+        <tr><td>Gerrit Change-Id + commit-msg hook</td><td><a class="src" href="https://gerrit-review.googlesource.com">gerrit-review.googlesource.com</a></td></tr>
+        <tr><td>git-spice internals</td><td><a class="src" href="https://abhinav.github.io/git-spice">abhinav.github.io/git-spice</a></td></tr>
+        <tr><td>git-town config</td><td><a class="src" href="https://www.git-town.com">git-town.com</a></td></tr>
+        <tr><td>jj git-compatibility</td><td><a class="src" href="https://docs.jj-vcs.dev">docs.jj-vcs.dev</a></td></tr>
+        <tr><td>GitButler integration branch</td><td><a class="src" href="https://docs.gitbutler.com">docs.gitbutler.com</a></td></tr>
+      </tbody>
+    </table>
+    </div>
+
+    <h3>Glossary <span class="tag">Section 13 &mdash; plain-word definitions</span></h3>
+    <div class="table-scroll">
+    <table>
+      <thead><tr><th>Term</th><th>Plain-word meaning</th></tr></thead>
+      <tbody>
+        <tr><td>Ref / branch / orphan branch / custom ref namespace / refspec / trailer</td><td>See the Probe G glossary; the load-bearing one: the DEFAULT clone refspec transfers only <code>refs/heads/*</code>, which is why a real branch auto-syncs and a custom ref does not.</td></tr>
+        <tr><td>Adjacency list</td><td>Each node stores its own <code>parent_id</code>; children found by querying it. The chosen tree representation.</td></tr>
+        <tr><td>Lazy promotion</td><td>A unit starts flat and only becomes a parent when a second related unit appears; never pre-declared.</td></tr>
+        <tr><td>Capability negotiation / dependency inversion</td><td>The core defines a generic interface and never depends on any specific integration; optional tools (mitosis, Jira) implement it or are simply absent.</td></tr>
+        <tr><td>CAS retry</td><td>Compare-and-swap: push, and if the remote moved, re-fetch / merge and retry.</td></tr>
+        <tr><td>MCP server</td><td>The bundled local stdio subprocess exposing the ledger's typed tools; the sole writer.</td></tr>
+        <tr><td>Spine</td><td>The fixed-field progressive summary carried on each Thread (the warm memory tier).</td></tr>
+      </tbody>
+    </table>
+    </div>
+
+    <p class="diagcap" style="margin-top:34px">Rendered from DESIGN-STATE.md (v2, complete), dated 2026-06-30. Status: ARCHITECTURE COMPLETE &mdash; awaiting explicit user approval before any spec. This report presents decisions-to-confirm, open questions, and tradeoffs as unsettled, per the source document.</p>
+
+  </div>
+</div>
+
+<script type="module">
+  import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs';
+  import elkLayouts from 'https://cdn.jsdelivr.net/npm/@mermaid-js/layout-elk/dist/mermaid-layout-elk.esm.min.mjs';
+
+  const config = {
+    fitPadding: 28, minHeight: 300, maxHeightPx: 960, maxHeightVh: 0.84,
+    maxInitialZoom: 1.8, minZoom: 0.08, maxZoom: 6.5, zoomStep: 0.14, readabilityFloor: 0.58
+  };
+  const clamp = (n, lo, hi) => Math.max(lo, Math.min(hi, n));
+  let activeDrag = null;
+  addEventListener('mousemove', (e) => activeDrag?.onMove(e));
+  addEventListener('mouseup', () => { activeDrag?.onEnd(); activeDrag = null; });
+
+  const PAGE_BG = '#0b1626';
+
+  mermaid.registerLayoutLoaders(elkLayouts);
+  mermaid.initialize({
+    startOnLoad: false,
+    theme: 'base',
+    look: 'classic',
+    layout: 'elk',
+    themeVariables: {
+      fontFamily: "'IBM Plex Sans', system-ui, sans-serif",
+      fontSize: '14px',
+      background: '#10203a',
+      primaryColor: '#16324f',
+      primaryBorderColor: '#5b9bd5',
+      primaryTextColor: '#e7eefb',
+      secondaryColor: '#3a2d15',
+      secondaryBorderColor: '#e8a33d',
+      secondaryTextColor: '#f4e6c8',
+      tertiaryColor: '#12233d',
+      tertiaryBorderColor: '#93a7c9',
+      tertiaryTextColor: '#cdd8ea',
+      lineColor: '#93a7c9',
+      textColor: '#e7eefb',
+      noteBkgColor: '#3a2d15',
+      noteTextColor: '#f4e6c8',
+      noteBorderColor: '#e8a33d',
+      mainBkg: '#16324f',
+      clusterBkg: '#0e1c33',
+      clusterBorder: '#5b9bd5'
+    }
+  });
+
+  function initDiagram(shell) {
+    const wrap = shell.querySelector('.mermaid-wrap');
+    const viewport = shell.querySelector('.mermaid-viewport');
+    const canvas = shell.querySelector('.mermaid-canvas');
+    const source = shell.querySelector('.diagram-source');
+    const label = shell.querySelector('.zoom-label');
+    if (!wrap || !viewport || !canvas || !source || !label) return;
+
+    let zoom = 1, fitMode = 'contain', panX = 0, panY = 0, svgW = 0, svgH = 0;
+    let sx = 0, sy = 0, spx = 0, spy = 0, touchDist = 0, touchCx = 0, touchCy = 0;
+
+    function constrainPan() {
+      const vpW = viewport.clientWidth, vpH = viewport.clientHeight;
+      const rW = svgW * zoom, rH = svgH * zoom, pad = config.fitPadding;
+      panX = (rW + pad * 2 <= vpW) ? (vpW - rW) / 2 : clamp(panX, vpW - rW - pad, pad);
+      panY = (rH + pad * 2 <= vpH) ? (vpH - rH) / 2 : clamp(panY, vpH - rH - pad, pad);
+    }
+    function applyTransform() {
+      const svg = canvas.querySelector('svg');
+      if (!svg || !svgW) return;
+      constrainPan();
+      svg.style.width = (svgW * zoom) + 'px';
+      svg.style.height = (svgH * zoom) + 'px';
+      canvas.style.transform = `translate(${panX}px, ${panY}px)`;
+      label.textContent = Math.round(zoom * 100) + '% — ' + fitMode;
+    }
+    function canPan() {
+      const rW = svgW * zoom, rH = svgH * zoom;
+      return rW + config.fitPadding * 2 > viewport.clientWidth
+          || rH + config.fitPadding * 2 > viewport.clientHeight;
+    }
+    function computeSmartFit() {
+      const vpW = viewport.clientWidth, vpH = viewport.clientHeight;
+      const aW = Math.max(80, vpW - config.fitPadding * 2);
+      const aH = Math.max(80, vpH - config.fitPadding * 2);
+      const contain = Math.min(aW / svgW, aH / svgH);
+      let z = contain, mode = 'contain';
+      if (contain < config.readabilityFloor) {
+        const chartR = svgH / svgW, vpR = vpH / Math.max(vpW, 1);
+        if (chartR >= vpR) { z = aW / svgW; mode = 'width-priority'; }
+        else { z = aH / svgH; mode = 'height-priority'; }
+      }
+      return { zoom: clamp(z, config.minZoom, config.maxInitialZoom), mode };
+    }
+    function fitDiagram() {
+      if (!svgW) return;
+      const fit = computeSmartFit();
+      zoom = fit.zoom; fitMode = fit.mode;
+      panX = (viewport.clientWidth - svgW * zoom) / 2;
+      panY = (viewport.clientHeight - svgH * zoom) / 2;
+      applyTransform();
+    }
+    function setOneToOne() {
+      zoom = clamp(1, config.minZoom, config.maxZoom); fitMode = '1:1';
+      panX = (viewport.clientWidth - svgW * zoom) / 2;
+      panY = (viewport.clientHeight - svgH * zoom) / 2;
+      applyTransform();
+    }
+    function zoomAround(factor, cx, cy) {
+      const next = clamp(zoom * factor, config.minZoom, config.maxZoom);
+      const ratio = next / zoom;
+      panX = cx - ratio * (cx - panX);
+      panY = cy - ratio * (cy - panY);
+      zoom = next; fitMode = 'custom'; applyTransform();
+    }
+    function readSvgNaturalSize(svg) {
+      let w = 0, h = 0;
+      if (svg.viewBox?.baseVal?.width > 0) { w = svg.viewBox.baseVal.width; h = svg.viewBox.baseVal.height; }
+      if (!w) { w = parseFloat(svg.getAttribute('width')) || 0; h = parseFloat(svg.getAttribute('height')) || 0; }
+      if (!w) { const b = svg.getBBox(); w = b.width; h = b.height; }
+      if (!w) { const r = svg.getBoundingClientRect(); w = r.width || 1000; h = r.height || 700; }
+      if (!svg.getAttribute('viewBox')) svg.setAttribute('viewBox', `0 0 ${w} ${h}`);
+      return { w, h };
+    }
+    function setAdaptiveHeight() {
+      if (!svgW) return;
+      const usableW = Math.max(280, wrap.getBoundingClientRect().width - 2);
+      const idealH = (svgH / svgW) * usableW + config.fitPadding * 2;
+      const maxVp = Math.floor(innerHeight * config.maxHeightVh);
+      const hardMax = Math.min(config.maxHeightPx, Math.max(config.minHeight + 40, maxVp));
+      wrap.style.height = Math.round(clamp(idealH, config.minHeight, hardMax)) + 'px';
+    }
+    function openInNewTab() {
+      const svg = canvas.querySelector('svg');
+      if (!svg) return;
+      const clone = svg.cloneNode(true);
+      clone.style.width = ''; clone.style.height = '';
+      const html = `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8">
+      <meta name="viewport" content="width=device-width, initial-scale=1.0"><title>Diagram</title><style>
+      body{margin:0;min-height:100vh;display:flex;align-items:center;justify-content:center;
+      background:${PAGE_BG};padding:40px;box-sizing:border-box}
+      svg{max-width:100%;max-height:90vh;height:auto}</style></head><body>${clone.outerHTML}</body></html>`;
+      open(URL.createObjectURL(new Blob([html], { type: 'text/html' })), '_blank');
+    }
+    async function render() {
+      try {
+        const code = source.textContent.trim();
+        if (!code) { label.textContent = 'Error: Empty source'; return; }
+        const id = 'diagram-' + Date.now() + '-' + Math.random().toString(36).slice(2, 8);
+        const { svg } = await mermaid.render(id, code);
+        const parsed = new DOMParser().parseFromString(svg, 'text/html');
+        const parsedSvg = parsed.body.querySelector('svg');
+        if (!parsedSvg) { label.textContent = 'Error: No SVG'; return; }
+        canvas.replaceChildren(document.adoptNode(parsedSvg));
+        const svgNode = canvas.querySelector('svg');
+        if (!svgNode) { label.textContent = 'Error: No SVG'; return; }
+        const size = readSvgNaturalSize(svgNode);
+        svgW = size.w; svgH = size.h;
+        svgNode.removeAttribute('width'); svgNode.removeAttribute('height');
+        svgNode.style.maxWidth = 'none'; svgNode.style.display = 'block';
+        setAdaptiveHeight(); fitDiagram();
+      } catch (err) {
+        console.error('Mermaid render failed:', err);
+        label.textContent = 'Error: ' + (err.message || 'Render failed');
+      }
+    }
+    const actions = {
+      'zoom-in': () => zoomAround(1 + config.zoomStep, viewport.clientWidth / 2, viewport.clientHeight / 2),
+      'zoom-out': () => zoomAround(1 / (1 + config.zoomStep), viewport.clientWidth / 2, viewport.clientHeight / 2),
+      'zoom-fit': fitDiagram, 'zoom-one': setOneToOne, 'zoom-expand': openInNewTab
+    };
+    Object.entries(actions).forEach(([action, handler]) => {
+      wrap.querySelector(`[data-action="${action}"]`)?.addEventListener('click', handler);
+    });
+    viewport.addEventListener('dblclick', fitDiagram);
+    viewport.addEventListener('wheel', (e) => {
+      if (e.ctrlKey || e.metaKey) {
+        e.preventDefault();
+        const rect = viewport.getBoundingClientRect();
+        const factor = e.deltaY < 0 ? 1 + config.zoomStep : 1 / (1 + config.zoomStep);
+        zoomAround(factor, e.clientX - rect.left, e.clientY - rect.top);
+        return;
+      }
+      if (canPan()) { e.preventDefault(); panX -= e.deltaX; panY -= e.deltaY; applyTransform(); }
+    }, { passive: false });
+    viewport.addEventListener('mousedown', (e) => {
+      if (e.target.closest('.zoom-controls') || !canPan()) return;
+      wrap.classList.add('is-panning');
+      sx = e.clientX; sy = e.clientY; spx = panX; spy = panY;
+      e.preventDefault();
+      activeDrag = {
+        onMove: (ev) => { panX = spx + (ev.clientX - sx); panY = spy + (ev.clientY - sy); applyTransform(); },
+        onEnd: () => { wrap.classList.remove('is-panning'); }
+      };
+    });
+    viewport.addEventListener('touchstart', (e) => {
+      if (e.touches.length === 1) { sx = e.touches[0].clientX; sy = e.touches[0].clientY; spx = panX; spy = panY; }
+      else if (e.touches.length === 2) {
+        const dx = e.touches[0].clientX - e.touches[1].clientX;
+        const dy = e.touches[0].clientY - e.touches[1].clientY;
+        touchDist = Math.sqrt(dx * dx + dy * dy);
+        const r = viewport.getBoundingClientRect();
+        touchCx = (e.touches[0].clientX + e.touches[1].clientX) / 2 - r.left;
+        touchCy = (e.touches[0].clientY + e.touches[1].clientY) / 2 - r.top;
+      }
+    }, { passive: true });
+    viewport.addEventListener('touchmove', (e) => {
+      if (e.touches.length === 1 && canPan()) {
+        if (touchDist > 0) { sx = e.touches[0].clientX; sy = e.touches[0].clientY; spx = panX; spy = panY; touchDist = 0; }
+        e.preventDefault();
+        panX = spx + (e.touches[0].clientX - sx);
+        panY = spy + (e.touches[0].clientY - sy);
+        applyTransform();
+      } else if (e.touches.length === 2 && touchDist > 0) {
+        e.preventDefault();
+        const dx = e.touches[0].clientX - e.touches[1].clientX;
+        const dy = e.touches[0].clientY - e.touches[1].clientY;
+        const d = Math.sqrt(dx * dx + dy * dy);
+        zoomAround(d / touchDist, touchCx, touchCy);
+        touchDist = d;
+      }
+    }, { passive: false });
+    new ResizeObserver(() => { if (svgW) { setAdaptiveHeight(); fitDiagram(); } }).observe(wrap);
+    render();
+  }
+  document.querySelectorAll('.diagram-shell').forEach(initDiagram);
+</script>
+
+<script>
+(function() {
+  const toc = document.getElementById('toc');
+  const links = toc.querySelectorAll('a');
+  const sections = [];
+  links.forEach(link => {
+    const id = link.getAttribute('href').slice(1);
+    const el = document.getElementById(id);
+    if (el) sections.push({ id, el, link });
+  });
+  const observer = new IntersectionObserver(entries => {
+    entries.forEach(entry => {
+      if (entry.isIntersecting) {
+        links.forEach(l => l.classList.remove('active'));
+        const match = sections.find(s => s.el === entry.target);
+        if (match) {
+          match.link.classList.add('active');
+          if (window.innerWidth <= 1000) {
+            match.link.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
+          }
+        }
+      }
+    });
+  }, { rootMargin: '-10% 0px -80% 0px' });
+  sections.forEach(s => observer.observe(s.el));
+  links.forEach(link => {
+    link.addEventListener('click', e => {
+      e.preventDefault();
+      const id = link.getAttribute('href').slice(1);
+      const el = document.getElementById(id);
+      if (el) { el.scrollIntoView({ behavior: 'smooth', block: 'start' }); history.replaceState(null, '', '#' + id); }
+    });
+  });
+})();
+</script>
+
+</body>
+</html>

@@ -1,0 +1,1616 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>MSP-Driven Parallel Development &mdash; Complete Architecture</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --font-body: 'IBM Plex Sans', system-ui, sans-serif;
+    --font-mono: 'IBM Plex Mono', 'SF Mono', Consolas, monospace;
+
+    --bg: #e8eef5;
+    --surface: #ffffff;
+    --surface2: #f1f5fa;
+    --surface-elevated: #ffffff;
+    --grid: rgba(30, 64, 110, 0.055);
+    --border: rgba(15, 40, 70, 0.12);
+    --border-bright: rgba(15, 40, 70, 0.22);
+    --text: #0e2438;
+    --text-dim: #51647c;
+
+    --blue: #1d4ed8;
+    --blue-dim: rgba(29, 78, 216, 0.09);
+    --teal: #0e7490;
+    --teal-dim: rgba(14, 116, 144, 0.10);
+    --amber: #b45309;
+    --amber-dim: rgba(180, 83, 9, 0.11);
+    --green: #15803d;
+    --green-dim: rgba(21, 128, 61, 0.11);
+    --red: #b91c1c;
+    --red-dim: rgba(185, 28, 28, 0.10);
+    --slate: #475569;
+    --slate-dim: rgba(71, 85, 105, 0.10);
+  }
+
+  :root[data-theme="dark"] {
+    --bg: #081320;
+    --surface: #0e1f33;
+    --surface2: #122639;
+    --surface-elevated: #122a42;
+    --grid: rgba(120, 165, 220, 0.06);
+    --border: rgba(125, 165, 215, 0.14);
+    --border-bright: rgba(125, 165, 215, 0.26);
+    --text: #d7e5f6;
+    --text-dim: #88a1bd;
+
+    --blue: #60a5fa;
+    --blue-dim: rgba(96, 165, 250, 0.14);
+    --teal: #38bdf8;
+    --teal-dim: rgba(56, 189, 248, 0.14);
+    --amber: #fbbf24;
+    --amber-dim: rgba(251, 191, 36, 0.15);
+    --green: #4ade80;
+    --green-dim: rgba(74, 222, 128, 0.14);
+    --red: #f87171;
+    --red-dim: rgba(248, 113, 113, 0.15);
+    --slate: #94a3b8;
+    --slate-dim: rgba(148, 163, 184, 0.14);
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #081320;
+      --surface: #0e1f33;
+      --surface2: #122639;
+      --surface-elevated: #122a42;
+      --grid: rgba(120, 165, 220, 0.06);
+      --border: rgba(125, 165, 215, 0.14);
+      --border-bright: rgba(125, 165, 215, 0.26);
+      --text: #d7e5f6;
+      --text-dim: #88a1bd;
+
+      --blue: #60a5fa;
+      --blue-dim: rgba(96, 165, 250, 0.14);
+      --teal: #38bdf8;
+      --teal-dim: rgba(56, 189, 248, 0.14);
+      --amber: #fbbf24;
+      --amber-dim: rgba(251, 191, 36, 0.15);
+      --green: #4ade80;
+      --green-dim: rgba(74, 222, 128, 0.14);
+      --red: #f87171;
+      --red-dim: rgba(248, 113, 113, 0.15);
+      --slate: #94a3b8;
+      --slate-dim: rgba(148, 163, 184, 0.14);
+    }
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+
+  body {
+    background-color: var(--bg);
+    background-image:
+      linear-gradient(var(--grid) 1px, transparent 1px),
+      linear-gradient(90deg, var(--grid) 1px, transparent 1px);
+    background-size: 30px 30px;
+    color: var(--text);
+    font-family: var(--font-body);
+    line-height: 1.6;
+    padding: 36px 40px 90px;
+    overflow-wrap: break-word;
+  }
+
+  @keyframes fadeUp { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+  @keyframes fadeScale { from { opacity: 0; transform: scale(0.94); } to { opacity: 1; transform: scale(1); } }
+  .animate { animation: fadeUp 0.4s ease-out both; animation-delay: calc(var(--i, 0) * 0.05s); }
+
+  @media (prefers-reduced-motion: reduce) {
+    html { scroll-behavior: auto; }
+    *, *::before, *::after {
+      animation-duration: 0.01ms !important;
+      animation-delay: 0ms !important;
+      transition-duration: 0.01ms !important;
+    }
+  }
+
+  .wrap {
+    max-width: 1440px;
+    margin: 0 auto;
+    display: grid;
+    grid-template-columns: 210px 1fr;
+    gap: 0 44px;
+  }
+  .main { min-width: 0; }
+  .main > * { min-width: 0; }
+
+  .toc {
+    position: sticky;
+    top: 20px;
+    align-self: start;
+    grid-row: 1 / -1;
+    padding: 16px 0;
+    max-height: calc(100dvh - 40px);
+    overflow-y: auto;
+  }
+  .toc::-webkit-scrollbar { width: 3px; }
+  .toc::-webkit-scrollbar-thumb { background: var(--border-bright); border-radius: 2px; }
+  .toc-title {
+    font-family: var(--font-mono);
+    font-size: 9px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 2.4px;
+    color: var(--text-dim);
+    padding: 0 10px 10px;
+    margin-bottom: 8px;
+    border-bottom: 1px solid var(--border);
+  }
+  .toc a {
+    display: block;
+    font-family: var(--font-mono);
+    font-size: 11px;
+    color: var(--text-dim);
+    text-decoration: none;
+    padding: 6px 10px;
+    border-radius: 5px;
+    border-left: 2px solid transparent;
+    transition: all 0.15s;
+    line-height: 1.4;
+    margin-bottom: 1px;
+  }
+  .toc a:hover { color: var(--text); background: var(--surface2); }
+  .toc a.active { color: var(--text); border-left-color: var(--blue); background: var(--blue-dim); }
+  .toc a .tnum { color: var(--blue); font-weight: 600; }
+
+  .theme-toggle {
+    position: fixed;
+    bottom: 22px;
+    right: 22px;
+    z-index: 400;
+    font-family: var(--font-mono);
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.5px;
+    color: var(--text);
+    background: var(--surface-elevated);
+    border: 1px solid var(--border-bright);
+    border-radius: 9px;
+    padding: 9px 14px;
+    cursor: pointer;
+    box-shadow: 0 6px 22px rgba(0, 0, 0, 0.18);
+    transition: background 0.15s ease, transform 0.15s ease;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .theme-toggle:hover { background: var(--surface2); transform: translateY(-1px); }
+  .theme-toggle::before { content: ''; width: 9px; height: 9px; border-radius: 50%; background: var(--blue); }
+
+  .masthead { margin-bottom: 18px; }
+  .masthead__kicker {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    font-weight: 500;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    color: var(--teal);
+    margin-bottom: 10px;
+    display: flex;
+    align-items: center;
+    gap: 9px;
+  }
+  .masthead__kicker::before { content: ''; width: 9px; height: 9px; border: 1.5px solid var(--teal); border-radius: 2px; display: inline-block; }
+  h1 {
+    font-size: clamp(28px, 4vw, 44px);
+    font-weight: 700;
+    letter-spacing: -1px;
+    line-height: 1.05;
+    text-wrap: balance;
+    margin-bottom: 12px;
+  }
+  .masthead__sub { font-size: 15px; color: var(--text-dim); max-width: 820px; }
+  .masthead__path {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    color: var(--text-dim);
+    margin-top: 12px;
+    padding: 5px 10px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    display: inline-block;
+  }
+
+  /* ===== Status banner ===== */
+  .status-banner {
+    position: relative;
+    background:
+      repeating-linear-gradient(135deg, var(--amber-dim), var(--amber-dim) 13px, transparent 13px, transparent 26px),
+      color-mix(in srgb, var(--surface) 82%, var(--amber) 18%);
+    border: 2px dashed var(--amber);
+    border-radius: 14px;
+    padding: 20px 24px;
+    margin: 6px 0 16px;
+    box-shadow: 0 4px 22px rgba(0, 0, 0, 0.08);
+  }
+  .status-banner__flag {
+    display: inline-flex;
+    align-items: center;
+    gap: 9px;
+    font-family: var(--font-mono);
+    font-size: 13px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 1.6px;
+    color: var(--amber);
+    background: var(--surface);
+    border: 1.5px solid var(--amber);
+    border-radius: 8px;
+    padding: 8px 14px;
+    margin-bottom: 12px;
+  }
+  .status-banner__flag::before { content: ''; width: 10px; height: 10px; background: var(--amber); border-radius: 50%; }
+  .status-banner p { font-size: 14.5px; line-height: 1.6; color: var(--text); }
+  .status-banner p strong { font-weight: 700; }
+  .status-banner code { background: var(--surface); color: var(--amber); }
+
+  .supersede-note {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    background: var(--slate-dim);
+    border: 1px solid var(--border);
+    border-left: 3px solid var(--slate);
+    border-radius: 0 10px 10px 0;
+    padding: 12px 18px;
+    margin-bottom: 16px;
+    font-size: 13px;
+    line-height: 1.6;
+    color: var(--text-dim);
+  }
+  .supersede-note strong { color: var(--text); font-weight: 600; }
+  .supersede-note a { color: var(--slate); text-decoration: none; font-family: var(--font-mono); font-size: 12px; word-break: break-all; }
+  .supersede-note a:hover { text-decoration: underline; }
+  .supersede-note__icon { font-family: var(--font-mono); font-size: 10px; font-weight: 700; color: var(--slate); border: 1.5px solid var(--slate); border-radius: 6px; padding: 3px 7px; flex-shrink: 0; letter-spacing: 0.5px; }
+
+  /* ===== Legend (LOCKED / RECOMMENDED / OPEN) ===== */
+  .legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px 14px;
+    align-items: stretch;
+    margin-bottom: 28px;
+  }
+  .legend__item {
+    flex: 1 1 240px;
+    min-width: 0;
+    display: flex;
+    align-items: center;
+    gap: 11px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 11px 15px;
+  }
+  .legend__item.is-locked { border-left: 3px solid var(--green); }
+  .legend__item.is-rec { border-left: 3px solid var(--blue); }
+  .legend__item.is-open { border-left: 3px solid var(--amber); }
+  .legend__desc { font-size: 12.5px; color: var(--text-dim); line-height: 1.45; }
+  .legend__desc b { color: var(--text); font-weight: 600; }
+
+  /* ===== Status tag (reused inline to colour-key levers / decisions) ===== */
+  .stag {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    font-family: var(--font-mono);
+    font-size: 9.5px;
+    font-weight: 600;
+    padding: 3px 8px;
+    border-radius: 5px;
+    white-space: nowrap;
+    letter-spacing: 0.6px;
+    text-transform: uppercase;
+    vertical-align: middle;
+  }
+  .stag::before { content: ''; width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+  .stag--locked { background: var(--green-dim); color: var(--green); }
+  .stag--rec { background: var(--blue-dim); color: var(--blue); }
+  .stag--open { background: var(--amber-dim); color: var(--amber); }
+
+  .sec-head {
+    font-size: 23px;
+    font-weight: 600;
+    letter-spacing: -0.4px;
+    margin: 56px 0 18px;
+    padding-bottom: 12px;
+    border-bottom: 1px solid var(--border-bright);
+    display: flex;
+    align-items: baseline;
+    gap: 12px;
+    flex-wrap: wrap;
+    scroll-margin-top: 20px;
+  }
+  .sec-head__num {
+    font-family: var(--font-mono);
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--blue);
+    background: var(--blue-dim);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 3px 9px;
+    letter-spacing: 1px;
+  }
+  .sec-head__sub {
+    font-family: var(--font-mono);
+    font-size: 12px;
+    font-weight: 400;
+    color: var(--text-dim);
+    text-transform: lowercase;
+    letter-spacing: 0.5px;
+  }
+  .sec--locked .sec-head__num { color: var(--green); background: var(--green-dim); }
+  .sec--rec .sec-head__num { color: var(--blue); background: var(--blue-dim); }
+  .sec--open .sec-head__num { color: var(--amber); background: var(--amber-dim); }
+
+  .lead { font-size: 16px; line-height: 1.7; color: var(--text); max-width: 840px; margin-bottom: 20px; }
+  .lead strong { font-weight: 600; }
+  p.body { font-size: 14.5px; color: var(--text-dim); max-width: 860px; margin-bottom: 16px; }
+  p.body strong { color: var(--text); font-weight: 600; }
+  p.body a, .lead a { color: var(--blue); text-decoration: none; word-break: break-word; }
+  p.body a:hover, .lead a:hover { text-decoration: underline; }
+
+  code {
+    font-family: var(--font-mono);
+    font-size: 0.86em;
+    background: var(--blue-dim);
+    color: var(--blue);
+    padding: 1px 5px;
+    border-radius: 3px;
+    overflow-wrap: anywhere;
+  }
+
+  .kicker-label {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 1.6px;
+    color: var(--teal);
+    margin: 28px 0 12px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .kicker-label::before { content: ''; width: 7px; height: 7px; background: var(--teal); border-radius: 50%; flex-shrink: 0; }
+
+  /* ===== Tables ===== */
+  .table-wrap { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; overflow: hidden; margin-bottom: 18px; }
+  .table-scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+  .data-table { width: 100%; border-collapse: collapse; font-size: 13px; line-height: 1.5; }
+  .data-table thead { position: sticky; top: 0; z-index: 2; }
+  .data-table th {
+    background: var(--surface2);
+    font-family: var(--font-mono);
+    font-size: 10px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    color: var(--text-dim);
+    text-align: left;
+    padding: 12px 15px;
+    border-bottom: 2px solid var(--border-bright);
+    white-space: nowrap;
+  }
+  .data-table td { padding: 12px 15px; border-bottom: 1px solid var(--border); vertical-align: top; }
+  .data-table tbody tr:last-child td { border-bottom: none; }
+  .data-table .wide { min-width: 190px; }
+  .data-table .nm { font-family: var(--font-mono); font-size: 12px; font-weight: 500; color: var(--text); }
+  .data-table tbody tr { transition: background 0.15s ease; }
+  .data-table tbody tr:hover { background: var(--surface2); }
+  .data-table code { font-size: 11px; }
+  .data-table small { display: block; color: var(--text-dim); font-size: 11px; margin-top: 3px; line-height: 1.45; }
+  .data-table .center { text-align: center; }
+  .data-table .loc { font-family: var(--font-mono); font-size: 11px; color: var(--teal); }
+
+  .yes { color: var(--green); font-weight: 600; }
+  .no { color: var(--red); font-weight: 600; }
+
+  .badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    font-family: var(--font-mono);
+    font-size: 9.5px;
+    font-weight: 600;
+    padding: 3px 8px;
+    border-radius: 5px;
+    white-space: nowrap;
+    letter-spacing: 0.4px;
+    text-transform: uppercase;
+    vertical-align: middle;
+  }
+  .badge::before { content: ''; width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+  .badge--new { background: var(--blue-dim); color: var(--blue); }
+  .badge--extend { background: var(--amber-dim); color: var(--amber); }
+  .badge--reuse { background: var(--green-dim); color: var(--green); }
+  .badge--onechg { background: var(--teal-dim); color: var(--teal); }
+  .badge--absent { background: var(--red-dim); color: var(--red); }
+  .badge--partial { background: var(--amber-dim); color: var(--amber); }
+  .badge--high { background: var(--green-dim); color: var(--green); }
+  .badge--med { background: var(--amber-dim); color: var(--amber); }
+  .badge--low { background: var(--slate-dim); color: var(--slate); }
+  .badge--red { background: var(--red-dim); color: var(--red); }
+
+  /* ===== Callouts ===== */
+  .callout {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-left: 3px solid var(--amber);
+    border-radius: 0 11px 11px 0;
+    padding: 15px 20px;
+    font-size: 13.5px;
+    line-height: 1.65;
+    color: var(--text-dim);
+    margin: 22px 0 12px;
+  }
+  .callout strong { color: var(--text); font-weight: 600; }
+  .callout p { margin-bottom: 8px; }
+  .callout p:last-child { margin-bottom: 0; }
+  .callout ul { margin: 4px 0 8px; padding-left: 20px; }
+  .callout li { margin-bottom: 5px; }
+  .callout a { color: var(--blue); text-decoration: none; word-break: break-word; }
+  .callout a:hover { text-decoration: underline; }
+  .callout__tag {
+    font-family: var(--font-mono);
+    font-size: 9.5px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 1.6px;
+    color: var(--amber);
+    display: block;
+    margin-bottom: 6px;
+  }
+  .callout code { background: var(--amber-dim); color: var(--amber); }
+  .callout--insight { border-left-color: var(--blue); }
+  .callout--insight .callout__tag { color: var(--blue); }
+  .callout--insight code { background: var(--blue-dim); color: var(--blue); }
+  .callout--insight a { color: var(--blue); }
+  .callout--counter { border-left-color: var(--red); }
+  .callout--counter .callout__tag { color: var(--red); }
+  .callout--counter code { background: var(--red-dim); color: var(--red); }
+  .callout--honesty { border-left-color: var(--teal); }
+  .callout--honesty .callout__tag { color: var(--teal); }
+  .callout--honesty code { background: var(--teal-dim); color: var(--teal); }
+  .callout--locked { border-left-color: var(--green); background: var(--green-dim); }
+  .callout--locked .callout__tag { color: var(--green); }
+  .callout--locked code { background: var(--surface); color: var(--green); }
+  .callout--gap { border-left-color: var(--slate); background: var(--slate-dim); }
+  .callout--gap .callout__tag { color: var(--slate); }
+
+  .pull {
+    border-left: 3px solid var(--teal);
+    background: color-mix(in srgb, var(--surface) 90%, var(--teal) 10%);
+    border-radius: 0 12px 12px 0;
+    padding: 20px 24px;
+    margin: 22px 0;
+    font-size: 16px;
+    line-height: 1.5;
+    color: var(--text);
+    font-weight: 500;
+  }
+  .pull cite { display: block; margin-top: 10px; font-size: 12px; font-style: normal; font-family: var(--font-mono); color: var(--text-dim); }
+
+  /* ===== BLUF hero stack ===== */
+  .bluf-stack { display: grid; gap: 14px; margin-bottom: 8px; }
+  .hero-card {
+    background: color-mix(in srgb, var(--surface) 88%, var(--blue) 12%);
+    border: 1px solid var(--border-bright);
+    border-radius: 14px;
+    padding: 22px 24px;
+    box-shadow: 0 6px 26px rgba(0, 0, 0, 0.08);
+  }
+  .hero-card--green { background: color-mix(in srgb, var(--surface) 88%, var(--green) 12%); }
+  .hero-card--amber { background: color-mix(in srgb, var(--surface) 88%, var(--amber) 12%); }
+  .hero-card__label {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 1.6px;
+    color: var(--blue);
+    margin-bottom: 13px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+  .hero-card__label::before { content: ''; width: 8px; height: 8px; background: var(--blue); border-radius: 2px; }
+  .hero-card--green .hero-card__label { color: var(--green); }
+  .hero-card--green .hero-card__label::before { background: var(--green); }
+  .hero-card--amber .hero-card__label { color: var(--amber); }
+  .hero-card--amber .hero-card__label::before { background: var(--amber); }
+  .hero-card p { font-size: 14.5px; line-height: 1.65; color: var(--text); margin-bottom: 10px; }
+  .hero-card p:last-child { margin-bottom: 0; }
+  .hero-card p strong { font-weight: 600; }
+  .hero-card code { background: var(--surface); color: var(--blue); }
+  .hero-card--green code { color: var(--green); }
+  .hero-card--amber code { color: var(--amber); }
+
+  .lvl-list { list-style: none; padding: 0; margin: 6px 0 0; display: grid; gap: 11px; }
+  .lvl-list li { position: relative; padding-left: 26px; font-size: 14px; line-height: 1.6; color: var(--text); }
+  .lvl-list li::before {
+    content: counter(lvl);
+    counter-increment: lvl;
+    position: absolute; left: 0; top: 1px;
+    font-family: var(--font-mono); font-size: 10px; font-weight: 700;
+    color: var(--blue); background: var(--blue-dim);
+    width: 18px; height: 18px; border-radius: 5px;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .lvl-list { counter-reset: lvl; }
+  .lvl-list li strong { font-weight: 600; }
+
+  /* ===== Diagram (pipeline) ===== */
+  .zone-legend { display: flex; flex-wrap: wrap; gap: 9px 12px; margin-bottom: 12px; }
+  .zone-chip {
+    display: inline-flex; align-items: center; gap: 8px;
+    font-family: var(--font-mono); font-size: 10.5px; font-weight: 600;
+    letter-spacing: 0.4px; color: var(--text-dim);
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 8px; padding: 7px 12px;
+  }
+  .zone-chip__dot { width: 11px; height: 11px; border-radius: 3px; flex-shrink: 0; }
+  .zone-chip__dot.offline { background: rgba(21,128,61,0.25); border: 1.5px solid #2f9e54; }
+  .zone-chip__dot.network { background: rgba(180,83,9,0.22); border: 1.5px solid #c2820a; }
+  .zone-chip__dot.stop { background: rgba(210,75,75,0.22); border: 1.5px solid #d24b4b; border-radius: 50%; }
+
+  .diagram-shell { position: relative; }
+  .diagram-shell__hint { font-family: var(--font-mono); font-size: 11px; color: var(--text-dim); margin-bottom: 8px; opacity: 0.78; }
+  .mermaid-wrap {
+    position: relative;
+    background: var(--surface);
+    border: 2px solid var(--blue);
+    border-radius: 12px;
+    padding: 26px 18px;
+    overflow: hidden;
+    margin-bottom: 14px;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    min-height: 420px;
+    cursor: grab;
+    box-shadow: 0 10px 34px rgba(0, 0, 0, 0.10);
+  }
+  .mermaid-wrap.is-panning { cursor: grabbing; user-select: none; }
+  .zoom-controls {
+    position: absolute;
+    top: 8px; right: 8px;
+    display: flex;
+    gap: 2px;
+    z-index: 10;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 2px;
+  }
+  .zoom-controls button {
+    width: 28px; height: 28px;
+    border: none;
+    background: transparent;
+    color: var(--text-dim);
+    font-family: var(--font-mono);
+    font-size: 14px;
+    cursor: pointer;
+    border-radius: 4px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: background 0.15s ease, color 0.15s ease;
+  }
+  .zoom-controls button:hover { background: var(--border); color: var(--text); }
+  .mermaid-viewport { position: relative; overflow: hidden; width: 100%; height: 100%; min-height: 360px; }
+  .mermaid-canvas { position: absolute; top: 0; left: 0; }
+  .zoom-label { font-family: var(--font-mono); font-size: 10px; color: var(--text-dim); padding: 0 6px; white-space: nowrap; }
+  .mermaid .nodeLabel { font-family: var(--font-body) !important; font-size: 15px !important; color: var(--text) !important; }
+  .mermaid .edgeLabel { font-family: var(--font-mono) !important; font-size: 12px !important; color: var(--text-dim) !important; background-color: var(--surface) !important; }
+  .mermaid .edgeLabel rect { fill: var(--surface) !important; }
+  .mermaid .cluster rect { rx: 12px; ry: 12px; }
+  .mermaid .cluster-label .nodeLabel { font-family: var(--font-mono) !important; font-size: 12px !important; font-weight: 600 !important; }
+  .mermaid .node rect, .mermaid .node circle, .mermaid .node polygon { stroke-width: 1.5px !important; }
+  .mermaid .edge-pattern-solid { stroke-width: 1.5px !important; }
+
+  /* ===== Levers ===== */
+  .lever {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-left: 3px solid var(--blue);
+    border-radius: 0 11px 11px 0;
+    padding: 16px 20px;
+    margin-bottom: 12px;
+    min-width: 0;
+  }
+  .lever--reuse { border-left-color: var(--green); }
+  .lever--new { border-left-color: var(--blue); }
+  .lever__head { display: flex; align-items: baseline; gap: 11px; flex-wrap: wrap; margin-bottom: 8px; }
+  .lever__num {
+    font-family: var(--font-mono);
+    font-size: 12px;
+    font-weight: 700;
+    color: var(--blue);
+    background: var(--blue-dim);
+    border-radius: 5px;
+    padding: 2px 8px;
+  }
+  .lever--reuse .lever__num { color: var(--green); background: var(--green-dim); }
+  .lever__title { font-size: 14.5px; font-weight: 600; color: var(--text); }
+  .lever__tag {
+    font-family: var(--font-mono);
+    font-size: 9.5px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.7px;
+    color: var(--text-dim);
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 5px;
+    padding: 2px 8px;
+  }
+  .lever p { font-size: 13px; line-height: 1.6; color: var(--text-dim); margin-bottom: 6px; }
+  .lever p:last-child { margin-bottom: 0; }
+  .lever p strong { color: var(--text); font-weight: 600; }
+  .lever a { color: var(--blue); text-decoration: none; word-break: break-word; }
+  .lever a:hover { text-decoration: underline; }
+
+  /* ===== Q/A pressure-test ===== */
+  .qa { display: grid; gap: 10px; margin: 14px 0 6px; counter-reset: qa; }
+  .qa-item {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-left: 3px solid var(--teal);
+    border-radius: 0 11px 11px 0;
+    padding: 14px 18px 14px 46px;
+    position: relative;
+  }
+  .qa-item::before {
+    counter-increment: qa;
+    content: counter(qa);
+    position: absolute; left: 14px; top: 14px;
+    font-family: var(--font-mono); font-size: 11px; font-weight: 700;
+    color: var(--teal); background: var(--teal-dim);
+    width: 22px; height: 22px; border-radius: 6px;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .qa-item h4 { font-size: 13px; font-weight: 600; color: var(--text); margin-bottom: 5px; }
+  .qa-item p { font-size: 12.5px; color: var(--text-dim); line-height: 1.6; }
+  .qa-item code { font-size: 11px; }
+
+  /* ===== Open-decisions checklist ===== */
+  .checklist { display: grid; gap: 11px; margin-bottom: 8px; }
+  .check-item {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    gap: 14px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-left: 3px solid var(--amber);
+    border-radius: 0 11px 11px 0;
+    padding: 14px 18px;
+    min-width: 0;
+  }
+  .check-item__id {
+    font-family: var(--font-mono);
+    font-size: 12px;
+    font-weight: 700;
+    color: var(--amber);
+    background: var(--amber-dim);
+    border-radius: 7px;
+    padding: 5px 10px;
+    height: fit-content;
+    white-space: nowrap;
+  }
+  .check-item__body { min-width: 0; }
+  .check-item__q { font-size: 13.5px; color: var(--text); line-height: 1.55; margin-bottom: 8px; }
+  .check-item__q strong { font-weight: 600; }
+  .check-item__q code { font-size: 11.5px; }
+  .check-item__rec {
+    display: inline-flex; align-items: flex-start; gap: 8px;
+    font-size: 12.5px; color: var(--text-dim); line-height: 1.5;
+  }
+  .check-item__rec .rec-pill {
+    font-family: var(--font-mono); font-size: 9px; font-weight: 700;
+    text-transform: uppercase; letter-spacing: 0.8px;
+    color: var(--green); background: var(--green-dim);
+    border-radius: 5px; padding: 3px 7px; flex-shrink: 0; margin-top: 1px;
+  }
+  .check-item__rec b { color: var(--text); font-weight: 600; }
+
+  /* ===== Constraints recap ===== */
+  .recap {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 18px 22px;
+    margin-bottom: 16px;
+  }
+  .recap ul { list-style: none; padding: 0; margin: 0; display: grid; gap: 11px; }
+  .recap li { position: relative; padding-left: 22px; font-size: 13.5px; line-height: 1.6; color: var(--text-dim); }
+  .recap li::before { content: ''; position: absolute; left: 2px; top: 8px; width: 8px; height: 8px; border-radius: 2px; background: var(--teal); }
+  .recap li strong { color: var(--text); font-weight: 600; }
+  .recap code { background: var(--teal-dim); color: var(--teal); }
+
+  /* ===== Sources ===== */
+  .sources {
+    font-family: var(--font-mono);
+    font-size: 11.5px;
+    color: var(--text-dim);
+    line-height: 1.85;
+    margin: 6px 0 8px;
+    padding: 14px 18px;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 9px;
+  }
+  .sources p { margin-bottom: 10px; }
+  .sources p:last-child { margin-bottom: 0; }
+  .sources b { color: var(--text); font-weight: 600; text-transform: uppercase; letter-spacing: 1px; font-size: 9.5px; }
+  .sources a { color: var(--blue); text-decoration: none; word-break: break-all; }
+  .sources a:hover { text-decoration: underline; }
+
+  .footer-note {
+    margin-top: 36px;
+    padding: 16px 20px;
+    border: 1px dashed var(--border-bright);
+    border-radius: 11px;
+    font-size: 12.5px;
+    color: var(--text-dim);
+    line-height: 1.6;
+    background: var(--surface2);
+  }
+  .footer-note strong { color: var(--text); font-weight: 600; }
+
+  @media (max-width: 1000px) {
+    body { padding: 0 18px 70px; }
+    .wrap { grid-template-columns: 1fr; gap: 0; }
+    .toc {
+      position: sticky;
+      top: 0;
+      z-index: 200;
+      grid-row: auto;
+      max-height: none;
+      display: flex;
+      gap: 4px;
+      align-items: center;
+      overflow-x: auto;
+      -webkit-overflow-scrolling: touch;
+      background: var(--bg);
+      border-bottom: 1px solid var(--border-bright);
+      padding: 10px 18px;
+      margin: 0 -18px 14px;
+    }
+    .toc::-webkit-scrollbar { display: none; }
+    .toc-title { display: none; }
+    .toc a {
+      white-space: nowrap;
+      flex-shrink: 0;
+      border-left: none;
+      border-bottom: 2px solid transparent;
+      border-radius: 4px 4px 0 0;
+      padding: 6px 10px;
+      font-size: 10px;
+    }
+    .toc a.active { border-left: none; border-bottom-color: var(--blue); background: var(--surface); }
+    .main { padding-top: 18px; }
+    .masthead { margin-top: 6px; }
+  }
+  @media (max-width: 680px) {
+    h1 { font-size: 25px; }
+    .data-table th, .data-table td { padding: 10px 12px; }
+    .mermaid-wrap { padding: 16px 8px; min-height: 360px; }
+    .theme-toggle { bottom: 14px; right: 14px; padding: 8px 11px; }
+    .check-item { grid-template-columns: 1fr; gap: 8px; }
+  }
+</style>
+</head>
+<body>
+
+<button type="button" class="theme-toggle" id="theme-toggle" aria-label="Toggle colour theme">Dark mode</button>
+
+<div class="wrap">
+
+  <nav class="toc" id="toc">
+    <div class="toc-title">Sections</div>
+    <a href="#s0"><span class="tnum">00</span> BLUF</a>
+    <a href="#s1"><span class="tnum">01</span> The MSP model</a>
+    <a href="#s2"><span class="tnum">02</span> Current state</a>
+    <a href="#s3"><span class="tnum">03</span> Locked decisions</a>
+    <a href="#s4"><span class="tnum">04</span> Target architecture</a>
+    <a href="#s5"><span class="tnum">05</span> The one fork</a>
+    <a href="#s6"><span class="tnum">06</span> Lever composition</a>
+    <a href="#s7"><span class="tnum">07</span> Build order</a>
+    <a href="#s8"><span class="tnum">08</span> Risk matrix</a>
+    <a href="#s9"><span class="tnum">09</span> Open decisions</a>
+    <a href="#s10"><span class="tnum">10</span> Guardrails recap</a>
+    <a href="#s11"><span class="tnum">RF</span> Sources</a>
+  </nav>
+
+  <div class="main">
+
+    <header class="masthead animate" style="--i:0">
+      <div class="masthead__kicker">Workflow Architecture &middot; MSP-driven parallel development &middot; complete design</div>
+      <h1>MSP-Driven Parallel Development &mdash; Complete Architecture</h1>
+      <p class="masthead__sub">The single document to review before any implementation plan. It defines the target: move the global <code>~/.claude</code> parallel-development workflow to an MSP-driven model &mdash; one PR per Minimum Shippable Product, parallel-safe at every level, adaptive per-project branching, clean per-MSP published history.</p>
+      <div class="masthead__path">~/.claude/docs/msp-architecture-report.html</div>
+    </header>
+
+    <div class="status-banner animate" style="--i:1">
+      <div class="status-banner__flag">Design for review &mdash; not yet implemented</div>
+      <p><strong>No <code>~/.claude</code> config has been changed.</strong> This is the target architecture; implementation follows only after approval.</p>
+    </div>
+
+    <div class="supersede-note animate" style="--i:2">
+      <span class="supersede-note__icon">SUPERSEDES</span>
+      <div>This report supersedes the follow-up report <a href="msp-followup-squash-branching-report.html">msp-followup-squash-branching-report.html</a>, which reflected the <strong>pre-modification</strong> recommendation (it still listed the platform default branch as a fallback). The branch contract below now resolves <strong>declare-or-pass-or-ASK, never default</strong>.</div>
+    </div>
+
+    <div class="legend animate" style="--i:3">
+      <div class="legend__item is-locked"><span class="stag stag--locked">Locked</span><span class="legend__desc"><b>Decided this session</b> &mdash; do not relitigate.</span></div>
+      <div class="legend__item is-rec"><span class="stag stag--rec">Recommended</span><span class="legend__desc"><b>The design&rsquo;s recommendation</b> &mdash; pending your approval.</span></div>
+      <div class="legend__item is-open"><span class="stag stag--open">Open</span><span class="legend__desc"><b>A decision you must make</b> &mdash; the Q-A..Q-G list.</span></div>
+    </div>
+
+    <!-- ============ SECTION 0 : BLUF ============ -->
+    <h2 id="s0" class="sec-head sec--rec animate"><span class="sec-head__num">00</span> Bottom line up front <span class="sec-head__sub">the design in four frames</span></h2>
+
+    <div class="bluf-stack">
+      <div class="hero-card animate">
+        <div class="hero-card__label">0.1 &middot; The target, one sentence</div>
+        <p>Move the global <code>~/.claude</code> parallel-development workflow to an <strong>MSP-driven model</strong> &mdash; the unit of work is a <strong>Minimum Shippable Product</strong> (one coherent, independently-shippable change); <strong>one PR per MSP</strong>; parallel-safe at every level (git worktrees + solo); <strong>adaptive per-project branching</strong>; clean per-MSP published history.</p>
+      </div>
+
+      <div class="hero-card hero-card--green animate">
+        <div class="hero-card__label">0.2 &middot; The core architectural insight &mdash; a strict two-level model</div>
+        <p><strong>Level 1 &mdash; INTERNAL</strong> (offline, engine, mechanism unchanged): ephemeral task branches merge <code>--no-ff</code> onto the MSP feature branch. Per-task attribution is preserved here.</p>
+        <p><strong>Level 2 &mdash; PUBLISHED</strong> (network, NEW publisher): the MSP feature branch lands on the <strong>declared integration branch</strong> as ONE squash commit, via a serialized merge-queue + Conventional-Commits title lint.</p>
+        <p>The engine <strong>never touches the published integration branch</strong>. All network/destructive mutations live in one new, auditable publisher component. Today&rsquo;s engine already merges task branches <code>--no-ff</code> onto <code>baseBranch</code> (which IS the MSP feature branch) &mdash; so Level 1 already exists; the work is Level 2 + a mid-run validation fix.</p>
+      </div>
+
+      <div class="hero-card hero-card--green animate">
+        <div class="hero-card__label">0.3 &middot; Two locked decisions <span class="stag stag--locked">Locked</span></div>
+        <ul class="lvl-list">
+          <li><strong>L5 &mdash; per-MSP squash</strong> at the published boundary.</li>
+          <li><strong>L4 &mdash; branch contract</strong> &ldquo;declare-or-pass-or-ASK, NEVER default&rdquo; for BOTH source and base.</li>
+        </ul>
+      </div>
+
+      <div class="hero-card hero-card--amber animate">
+        <div class="hero-card__label">0.4 &middot; The single genuine fork <span class="stag stag--open">Open</span></div>
+        <p>What is one engine RUN relative to an MSP? <strong>Recommendation: Option C</strong> &mdash; 1:1 (run = one MSP) as the default, but build the publisher/queue <strong>MSP-keyed</strong> so 1:N is a later annotation change, not a re-architecture.</p>
+      </div>
+    </div>
+
+    <!-- ============ SECTION 1 : THE MSP MODEL ============ -->
+    <h2 id="s1" class="sec-head animate"><span class="sec-head__num">01</span> The MSP model <span class="sec-head__sub">what we are building, and why two levels</span></h2>
+
+    <p class="lead"><strong>MSP</strong> (plain words): the <strong>smallest change that is independently shippable</strong> &mdash; it builds, passes CI, and delivers value on its own. It is the unit that becomes one PR.</p>
+
+    <div class="callout callout--insight">
+      <span class="callout__tag">Task vs MSP</span>
+      <p>A <strong>task</strong> (a single annotated work item in a plan) is SMALLER than an MSP. An <strong>MSP</strong> is one-or-more tasks that together ship. The agreed shape, from the locked direction decision (<code>2026-06-26-msp-driven-direction</code>): one PR per MSP; parallel-safe at every level incl. worktrees + solo; adaptive per-project branching; per-MSP squash history.</p>
+    </div>
+
+    <div class="callout callout--honesty">
+      <span class="callout__tag">1.3 &middot; Why the offline / network split is load-bearing</span>
+      <p>Keeping the engine <strong>deterministic + offline</strong> means it stays testable (no network, no force-push surface). Confining every allow-listed mutation to ONE publisher component preserves an <strong>audit trail</strong> &mdash; the same &ldquo;human operates the live surface, agent operates static artifacts&rdquo; posture as the no-direct-DB rule. The engine produces a validated branch; the publisher (and ultimately the human) lands it.</p>
+    </div>
+
+    <!-- ============ SECTION 2 : CURRENT STATE ============ -->
+    <h2 id="s2" class="sec-head animate"><span class="sec-head__num">02</span> Current state <span class="sec-head__sub">what exists today, code-verified</span></h2>
+
+    <p class="body">The <strong>engine reality check</strong> grounds the whole report. Source: codebase-analyst, verified this session against current files.</p>
+
+    <div class="table-wrap table-wrap--center"><div class="table-scroll">
+      <table class="data-table">
+        <thead><tr><th>Concern</th><th class="wide">What the code does today</th><th>Location (current)</th></tr></thead>
+        <tbody>
+          <tr><td class="nm">Phases</td><td>Waves &rarr; Integrate &rarr; Boundary &rarr; Final review</td><td class="loc">parallel-plan-execution.js meta :4-9</td></tr>
+          <tr><td class="nm">Wave loop</td><td><code>for (w=0; w&lt;waves.length &amp;&amp; !halted; w++)</code>; parallel task dispatch within a wave</td><td class="loc">:175-227 (dispatch :178)</td></tr>
+          <tr><td class="nm">Internal merge</td><td>Worktree mode: one merge agent iterates ok branches and runs <code>git merge --no-ff &lt;branch&gt;</code>; aborts on first conflict</td><td class="loc">:207-214 (<code>--no-ff</code> at :210)</td></tr>
+          <tr><td class="nm">Merge TARGET</td><td><code>baseBranch</code> &mdash; the user&rsquo;s checked-out FEATURE branch (skill forbids main/master)</td><td class="loc">:15; guard parallel-subagent-development/SKILL.md:15</td></tr>
+          <tr><td class="nm">Validation</td><td>Full suite runs ONLY after ALL waves complete; up to twice (initial :233, re-validate :243). NEVER between waves.</td><td class="loc">:233, :243</td></tr>
+          <tr><td class="nm">PR / push / squash</td><td><span class="no">NONE</span> anywhere in the engine. Only git mutations: task-branch commits, <code>--no-ff</code> merges, worktree cleanup.</td><td class="loc">(absent)</td></tr>
+          <tr><td class="nm">Base-branch input</td><td><code>--base-branch</code> is a REQUIRED generator flag (throws if missing); but the skill passes the CURRENT checkout implicitly, no declare/ASK step</td><td class="loc">generate-run-script.mjs:67-68,:105; SKILL.md:78</td></tr>
+        </tbody>
+      </table>
+    </div></div>
+
+    <div class="callout callout--insight">
+      <span class="callout__tag">Key insight</span>
+      <p>The engine is <strong>~85% of the MSP target at the INTERNAL level</strong> &mdash; but it merges directly onto <code>baseBranch</code> and conflates the internal merge with the published boundary. The MSP model&rsquo;s job is to <strong>SPLIT those two boundaries, not rebuild the engine</strong>.</p>
+    </div>
+
+    <div class="kicker-label">Per-lever &ldquo;exists today&rdquo; status</div>
+    <div class="table-wrap"><div class="table-scroll">
+      <table class="data-table">
+        <thead><tr><th>Lever</th><th>Status today</th><th class="wide">Note</th></tr></thead>
+        <tbody>
+          <tr><td class="nm">L1 &middot; MSP unit</td><td><span class="badge badge--absent">Absent</span></td><td>no grouping field in the annotation schema</td></tr>
+          <tr><td class="nm">L2 &middot; validation</td><td><span class="badge badge--absent">Absent</span></td><td>boundary-only; never between waves</td></tr>
+          <tr><td class="nm">L3 &middot; draft-PR + allow-list</td><td><span class="badge badge--absent">Absent</span></td><td>no push/PR surface anywhere in the engine</td></tr>
+          <tr><td class="nm">L4 &middot; branch contract</td><td><span class="badge badge--partial">Partial</span></td><td>required flag, but implicit current-checkout, no ASK</td></tr>
+          <tr><td class="nm">L5 &middot; per-MSP squash</td><td><span class="badge badge--absent">Absent</span></td><td><code>--no-ff</code> only</td></tr>
+          <tr><td class="nm">L6 &middot; MSP dep-graph gate</td><td><span class="badge badge--partial">Partial</span></td><td>dep-graph merge ORDER via wave-planner exists; SEMANTIC-conflict safety absent (only git structural detection)</td></tr>
+        </tbody>
+      </table>
+    </div></div>
+
+    <!-- ============ SECTION 3 : LOCKED DECISIONS ============ -->
+    <h2 id="s3" class="sec-head sec--locked animate"><span class="sec-head__num">03</span> The two locked decisions <span class="sec-head__sub">decided this session</span> <span class="stag stag--locked">Locked</span></h2>
+
+    <div class="lever lever--reuse">
+      <div class="lever__head">
+        <span class="lever__num">L5</span>
+        <span class="lever__title">Per-MSP squash</span>
+        <span class="stag stag--locked">Locked</span>
+      </div>
+      <p><strong>WHAT:</strong> the published integration branch gets ONE squashed commit per MSP; atomic commits remain on the MSP feature branch.</p>
+      <p><strong>WHY:</strong> clean integration history, one-command whole-MSP revert, reliable bisect at MSP granularity, release-tool fit (release-please recommends squash). <a href="https://github.com/googleapis/release-please">github.com/googleapis/release-please</a> &middot; <a href="https://docs.github.com/en/repositories/configuring-branches-and-merges-in-your-repository/configuring-pull-request-merges/about-merge-methods-on-github">GitHub: about merge methods</a></p>
+      <p><strong>COST (stated honestly):</strong> loses sub-PR <code>git bisect</code> granularity in published history &mdash; bounded; feature branch retained for archaeology; mitigated by keeping MSPs small.</p>
+      <p><strong>WHERE IT APPLIES:</strong> ONLY at the MSP&rarr;integration published boundary (<code>gh pr merge --squash --subject "&lt;CC&gt;"</code>). The engine&rsquo;s intra-run <code>--no-ff</code> merges are UNCHANGED. Two different boundaries; no conflict.</p>
+      <p><strong>REQUIRES:</strong> if Conventional-Commits / semantic-release is used, the squash message (PR title/subject) MUST be CC-formatted &rarr; a new PreToolUse title-lint hook. <a href="https://www.conventionalcommits.org/en/v1.0.0/">conventionalcommits.org</a> &middot; <a href="https://github.com/semantic-release/semantic-release/issues/1581">semantic-release #1581</a></p>
+    </div>
+
+    <div class="lever lever--reuse">
+      <div class="lever__head">
+        <span class="lever__num">L4</span>
+        <span class="lever__title">Branch contract &mdash; &ldquo;declare-or-pass-or-ASK, NEVER default&rdquo;</span>
+        <span class="stag stag--locked">Locked, with the user&rsquo;s modification</span>
+      </div>
+      <p><strong>THE RULE:</strong> for BOTH the source/head AND the base/target of any PR/merge, resolve in this order: <strong>(1) EXPLICIT pass</strong> (caller states it) &rarr; <strong>(2) DECLARED machine-readable config</strong> &rarr; <strong>(3) STOP AND ASK</strong>.</p>
+      <p><strong>NEVER</strong> derive the base from the platform default branch. NEVER assume the source. Defaulting a PR onto master / the platform default is the CRITICAL failure this forbids.</p>
+      <p><strong>WHY robust (industry-grounded):</strong> heuristic name detection is NOT industry standard &mdash; GitHub REST makes <code>base</code> REQUIRED; <code>gh pr create --base</code> is explicit; semantic-release&rsquo;s hardcoded name list proved fragile at master&rarr;main. <a href="https://docs.github.com/en/rest/pulls/pulls">GitHub REST: pulls</a> &middot; <a href="https://cli.github.com/manual/gh_pr_create">gh pr create</a> &middot; <a href="https://github.com/semantic-release/semantic-release/issues/1581">semantic-release #1581</a></p>
+      <p><strong>HONESTY GUARD (ties to code-is-truth):</strong> a declared <code>integrationBase</code> is validated against LIVE git (the named branch must exist); if the declaration is stale/missing, FAIL CLOSED to ASK. The config is authority only AFTER git confirms the branch exists &mdash; &ldquo;verify recalled specifics against code.&rdquo;</p>
+    </div>
+
+    <!-- ============ SECTION 4 : TARGET ARCHITECTURE ============ -->
+    <h2 id="s4" class="sec-head sec--rec animate"><span class="sec-head__num">04</span> Target architecture <span class="sec-head__sub">the recommended design</span> <span class="stag stag--rec">Recommended</span></h2>
+
+    <p class="lead">4.1 &middot; The two-level model. The <strong>OFFLINE engine zone</strong> produces a validated MSP branch and stops; the <strong>NETWORK publisher zone</strong> &mdash; the only place with allow-listed mutations &mdash; lands it. The engine never touches the integration branch.</p>
+
+    <div class="zone-legend">
+      <span class="zone-chip"><span class="zone-chip__dot offline"></span> OFFLINE engine zone &mdash; deterministic, no network</span>
+      <span class="zone-chip"><span class="zone-chip__dot network"></span> NETWORK publisher zone &mdash; guarded, allow-listed</span>
+      <span class="zone-chip"><span class="zone-chip__dot stop"></span> Engine STOPS &mdash; never touches integration</span>
+    </div>
+
+    <div class="diagram-shell">
+      <p class="diagram-shell__hint">Ctrl/Cmd + wheel to zoom. Drag to pan when zoomed. Double-click to fit. &#x26F6; opens full size.</p>
+      <div class="mermaid-wrap" data-initial-zoom="1.05">
+        <div class="zoom-controls">
+          <button type="button" data-action="zoom-in" title="Zoom in">+</button>
+          <button type="button" data-action="zoom-out" title="Zoom out">&minus;</button>
+          <button type="button" data-action="zoom-fit" title="Smart fit">&#8634;</button>
+          <button type="button" data-action="zoom-one" title="1:1 zoom">1:1</button>
+          <button type="button" data-action="zoom-expand" title="Open full size">&#x26F6;</button>
+          <span class="zoom-label">Loading...</span>
+        </div>
+        <div class="mermaid-viewport"><div class="mermaid mermaid-canvas"></div></div>
+      </div>
+      <script type="text/plain" class="diagram-source">
+flowchart TD
+  p1["PLAN<br/>annotate mspId + task DAG + MSP DAG<br/>(plan-time, offline)"]
+
+  subgraph ENGINE["OFFLINE ENGINE ZONE  ·  run-time, deterministic, no network"]
+    direction TB
+    e1["ISOLATED EXECUTION  ·  one MSP"]
+    e2["wave 1: tasks in worktrees<br/>scoped checks then review"]
+    e3["merge --no-ff onto MSP branch"]
+    e4{"VALIDATE<br/>L2a inter-wave  ·  NEW"}
+    halt["HALT  ·  fix the broken wave<br/>caught HERE, not after all waves"]
+    e5["wave 2..n rebased on validated MSP tip"]
+    e6["boundary full validation<br/>(exists today, :233)"]
+    e7["engine output: MSP branch X validated"]
+  end
+
+  stop["ENGINE STOPS HERE<br/>never touches the integration branch"]
+
+  subgraph PUBLISH["NETWORK PUBLISHER ZONE  ·  publish-time, guarded, allow-listed"]
+    direction TB
+    pub1["source = MSP branch  ·  explicit pass  ·  L4"]
+    pub2{"base = msp.config integrationBase<br/>declared?  ·  L4"}
+    ask["STOP and ASK  ·  L4 contract"]
+    pub3["push origin MSP branch<br/>allow-listed · never force · private  ·  L3"]
+    pub4["gh pr create --draft --base integrationBase --title CC<br/>draft-default + CC title lint  ·  L3 L5"]
+    pub5["CI on draft then human reviews then gh pr ready<br/>un-draft = human consent gate  ·  L3"]
+    q1["ENTER MERGE QUEUE  ·  serialized  ·  L6 order"]
+    q2["acquire lock then update MSP branch to integration tip then re-validate  ·  L2b"]
+    q3{"green?"}
+    q4["gh pr merge --squash --subject CC  ·  L5<br/>release lock then next MSP"]
+  end
+
+  p1 --> e1 --> e2 --> e3 --> e4
+  e4 -->|"broken"| halt
+  e4 -->|"green"| e5 --> e6 --> e7 --> stop
+  stop --> pub1 --> pub2
+  pub2 -->|"not declared"| ask
+  pub2 -->|"declared"| pub3 --> pub4 --> pub5 --> q1 --> q2 --> q3
+  q3 -->|"yes"| q4
+  q3 -->|"no"| ask
+
+  style ENGINE fill:#15803d14,stroke:#2f9e54,stroke-width:2px
+  style PUBLISH fill:#b4530914,stroke:#c2820a,stroke-width:2px
+  classDef stopNode fill:#fdeaea,stroke:#d24b4b,color:#7a1414,stroke-width:2.5px;
+  classDef askNode fill:#fdeaea,stroke:#d24b4b,color:#7a1414,stroke-width:2px;
+  class stop stopNode;
+  class ask askNode;
+      </script>
+    </div>
+
+    <div class="kicker-label">4.2 &middot; Component inventory</div>
+    <div class="table-wrap"><div class="table-scroll">
+      <table class="data-table">
+        <thead><tr><th class="wide">Component</th><th>Status</th><th class="wide">Responsibility</th><th>Boundary</th></tr></thead>
+        <tbody>
+          <tr><td class="nm">parallel-plan-annotation (skill)</td><td><span class="badge badge--extend">Exists, extend</span></td><td>add <code>mspId</code> per task + MSP-level <code>dependsOn</code> (L1, L6 input)</td><td class="loc">plan-time</td></tr>
+          <tr><td class="nm">wave-planner.mjs</td><td><span class="badge badge--reuse">Exists, reuse</span></td><td>task-level DAG within an MSP (unchanged); its topo-sort REUSED for the MSP-level graph</td><td class="loc">plan-time, offline</td></tr>
+          <tr><td class="nm">parallel-plan-execution.js (engine)</td><td><span class="badge badge--onechg">Exists, one change</span></td><td>internal execution + <code>--no-ff</code> wave merges onto MSP branch + INTER-WAVE validation (L2a, new)</td><td class="loc">run-time, OFFLINE</td></tr>
+          <tr><td class="nm">generate-run-script.mjs</td><td><span class="badge badge--extend">Exists, extend</span></td><td>add <code>--integration-base</code> (declared target) alongside existing <code>--base-branch</code> (MSP source)</td><td class="loc">generation</td></tr>
+          <tr><td class="nm">merge-queue.mjs</td><td><span class="badge badge--new">New</span></td><td>serialize MSP&rarr;integration landings; validate-on-validated-base; L6 ordering; file lock</td><td class="loc">publish-time, guarded</td></tr>
+          <tr><td class="nm">msp-publish (skill)</td><td><span class="badge badge--new">New</span></td><td>push MSP branch &rarr; <code>gh pr create --draft</code> &rarr; (human un-draft) &rarr; queued squash-merge</td><td class="loc">publish-time</td></tr>
+          <tr><td class="nm">cc-pr-title-lint.sh (hook)</td><td><span class="badge badge--new">New</span></td><td>PreToolUse(Bash) on <code>gh pr create</code> / <code>gh pr merge --squash</code>: block non-CC title/subject (L5)</td><td class="loc">guardrail</td></tr>
+          <tr><td class="nm">.claude/msp.config.json (per project)</td><td><span class="badge badge--new">New</span></td><td>declared roles: <code>integrationBase</code>, <code>mspBranchPrefix</code>, <code>squash</code> &mdash; adaptive-per-project surface (L4)</td><td class="loc">declared config</td></tr>
+          <tr><td class="nm">settings.json permissions</td><td><span class="badge badge--extend">Extend</span></td><td>allow-list narrow <code>git push origin</code> + <code>gh pr {create,view,checks,ready,merge --squash}</code> (L3)</td><td class="loc">guardrail</td></tr>
+        </tbody>
+      </table>
+    </div></div>
+
+    <div class="callout callout--honesty">
+      <span class="callout__tag">4.3 &middot; The core design principle</span>
+      <p>The offline-engine / network-publisher split keeps the engine deterministic + testable and <strong>confines all allow-listed mutations to one auditable place</strong>.</p>
+    </div>
+
+    <!-- ============ SECTION 5 : THE ONE FORK ============ -->
+    <h2 id="s5" class="sec-head sec--open animate"><span class="sec-head__num">05</span> The one genuine fork <span class="sec-head__sub">run-to-MSP granularity</span> <span class="stag stag--open">Open</span></h2>
+
+    <p class="body">Levers <strong>L2b</strong> (queue) and <strong>L6</strong> (semantic-conflict surface <code>n(n-1)/2</code>) only have meaning ACROSS multiple MSPs. So the architecture must support several MSPs on a shared integration branch &mdash; but whether they come from ONE run or MANY runs is the fork.</p>
+
+    <div class="table-wrap"><div class="table-scroll">
+      <table class="data-table">
+        <thead><tr><th class="wide">Option</th><th>Fit w/ current engine</th><th>Complexity</th><th>Risk</th><th class="wide">Trade-off</th></tr></thead>
+        <tbody>
+          <tr><td class="nm">A &mdash; Run = MSP (1:1)</td><td><span class="yes">Very high</span> (<code>baseBranch</code> already IS the MSP branch)</td><td><span class="badge badge--high">Low</span></td><td><span class="badge badge--high">Low</span></td><td>queue often length-1 for solo; multi-MSP throughput comes from multiple worktrees</td></tr>
+          <tr><td class="nm">B &mdash; Run = many MSPs (1:N)</td><td><span class="no">Low</span> (rewrites merge step + wave loop)</td><td><span class="badge badge--red">High</span></td><td><span class="badge badge--red">High</span></td><td>most faithful to &ldquo;small PRs from one plan&rdquo;; large engine rewrite; L1 becomes heavy partitioning</td></tr>
+          <tr><td class="nm">C &mdash; Hybrid: 1:1 now, MSP-keyed publisher from day one</td><td><span class="yes">High</span></td><td><span class="badge badge--med">Low-Med</span></td><td><span class="badge badge--high">Low</span></td><td>slight extra upfront (key everything by <code>mspId</code>); avoids a future engine rewrite</td></tr>
+        </tbody>
+      </table>
+    </div></div>
+
+    <div class="callout callout--insight">
+      <span class="callout__tag">Recommendation <span class="stag stag--rec">Recommended</span></span>
+      <p><strong>Option C.</strong> Default behavior == A (simplest, least churn, immediately shippable), but the publisher + L6 graph are <strong>MSP-keyed</strong> so 1:N later is an annotation change, not a re-architecture. Reject B now (biggest, riskiest change before foundations prove out); reject pure A (would tempt a 1:1-only queue needing rework when worktree concurrency arrives).</p>
+    </div>
+
+    <!-- ============ SECTION 6 : LEVER COMPOSITION ============ -->
+    <h2 id="s6" class="sec-head sec--rec animate"><span class="sec-head__num">06</span> How the six levers compose <span class="sec-head__sub">new vs reused + integration point</span> <span class="stag stag--rec">Recommended</span></h2>
+
+    <div class="lever lever--new">
+      <div class="lever__head"><span class="lever__num">L1</span><span class="lever__title">MSP unit</span><span class="lever__tag">New annotation field</span></div>
+      <p><code>mspId</code> grouping + MSP-level <code>dependsOn</code> in parallel-plan-annotation (schema today at <code>SKILL.md:14-23</code> has no grouping). Under Option C default (1:1), the whole run is one MSP = trivial single tag. <strong>Prerequisite for L2b / L3 / L6.</strong></p>
+    </div>
+
+    <div class="lever lever--new">
+      <div class="lever__head"><span class="lever__num">L2a</span><span class="lever__title">Inter-wave validation</span><span class="lever__tag">New engine block</span></div>
+      <p>Insert a validation call INSIDE the wave loop after each merge (~<code>:215</code>), reusing the boundary-validation agent pattern (<code>:233</code>). Fixes &ldquo;a broken task poisons the shared branch mid-run.&rdquo; <strong>Independent of the MSP model &mdash; valuable TODAY.</strong></p>
+    </div>
+
+    <div class="lever lever--new">
+      <div class="lever__head"><span class="lever__num">L2b</span><span class="lever__title">Merge-queue</span><span class="lever__tag">New component</span></div>
+      <p>In <code>merge-queue.mjs</code>; each MSP is updated to the integration tip and re-validated before its squash lands &mdash; exactly GitHub merge-queue semantics (&ldquo;grouped into a merge_group with the latest base_branch as well as changes from PRs ahead of it&rdquo;). <a href="https://docs.github.com/en/repositories/configuring-branches-and-merges-in-your-repository/configuring-pull-request-merges/managing-a-merge-queue">GitHub: managing a merge queue</a>. Serialization turns the quadratic pairwise-conflict problem into <strong>n sequential validations</strong>.</p>
+    </div>
+
+    <div class="lever lever--new">
+      <div class="lever__head"><span class="lever__num">L3</span><span class="lever__title">Draft-PR + allow-list</span><span class="lever__tag">New skill + settings</span></div>
+      <p>Four guardrails compose as independent layers &mdash; <strong>private branch</strong> (push only the MSP source), <strong>squash</strong> (<code>--squash</code>), <strong>CI-gate</strong> (<code>gh pr checks</code> before merge; branch protection is a human post-step), <strong>draft-default</strong> (<code>--draft</code> + <code>gh pr ready</code> as the human consent gate). <code>gh pr merge --squash --subject</code> sets the squash subject explicitly. <a href="https://cli.github.com/manual/gh_pr_merge">gh pr merge</a></p>
+    </div>
+
+    <div class="lever lever--reuse">
+      <div class="lever__head"><span class="lever__num">L4</span><span class="lever__title">Contract</span><span class="lever__tag">Threaded end-to-end</span></div>
+      <p>source = MSP branch (explicit pass from the run); base = <code>msp.config integrationBase</code> (declared) OR <code>--integration-base</code> flag (explicit, higher precedence) OR STOP &amp; ASK. <strong>Never platform default.</strong></p>
+    </div>
+
+    <div class="lever lever--new">
+      <div class="lever__head"><span class="lever__num">L5</span><span class="lever__title">Per-MSP squash</span><span class="lever__tag">Publish-step property</span></div>
+      <p>Realized at <code>gh pr merge --squash --subject "&lt;CC&gt;"</code> + the cc-pr-title-lint hook. <strong>Not a separate phase.</strong></p>
+    </div>
+
+    <div class="lever lever--reuse">
+      <div class="lever__head"><span class="lever__num">L6</span><span class="lever__title">MSP dependency-graph gate</span><span class="lever__tag">Reuse</span></div>
+      <p>Reuses wave-planner&rsquo;s topo-sort (<code>planWaves :30-58</code>) applied to a new node set (MSPs, not tasks) &rarr; produces queue ORDER. L2b&rsquo;s validate-on-validated-base is the safety net for UNDECLARED edges (semantic conflicts). <strong>L6 reduces probability; L2b catches the miss. Defense in depth.</strong></p>
+    </div>
+
+    <div class="kicker-label">6.1 &middot; Pressure-test answers &mdash; resolving the dangerous-looking interactions</div>
+    <div class="qa">
+      <div class="qa-item">
+        <h4>Squash vs intra-run <code>--no-ff</code></h4>
+        <p>Squash applies ONLY at the published boundary; engine <code>--no-ff</code> merges are mechanically unchanged (they target the MSP branch, already true). Engine delta for squash = NOTHING; the real engine delta is L2a, which is orthogonal.</p>
+      </div>
+      <div class="qa-item">
+        <h4>Merge-queue vs validate-once</h4>
+        <p>Two mechanisms at two levels. L2a validates BETWEEN WAVES within a run (engine); L2b validates BETWEEN MSPs against the integration tip (publisher queue). Throughput cost of serialization mitigated by: re-validate only when the integration tip moved; parallel-validate L6-independent MSPs; length-1 fast path for solo single-MSP work.</p>
+      </div>
+      <div class="qa-item">
+        <h4>Declared config vs code-is-truth</h4>
+        <p>A machine-read JSON consumed deterministically is FUNCTIONAL INPUT (like runArtifacts / settings.json), not prose that drifts. Honesty guard: validate the declared branch against live git; fail closed to ASK.</p>
+      </div>
+      <div class="qa-item">
+        <h4>L6 vs existing <code>dependsOn</code></h4>
+        <p>REUSE of the same format/algorithm on a new node set. Task <code>dependsOn</code> orders tasks within an MSP + guards textual (<code>fileScope</code>) overlap; MSP <code>dependsOn</code> orders MSPs in the queue. Rule: a task dependency crossing MSPs implies an MSP dependency. Semantic conflicts (disjoint files, interacting behavior) are caught by L2b&rsquo;s validation against the cumulative integration tip before the squash lands.</p>
+      </div>
+      <div class="qa-item">
+        <h4>Draft-PR guardrails + allow-list</h4>
+        <p>Draft-default gives CI time + a human un-draft gate; CI-gate blocks premature merge; squash collapses to one commit. Independent, non-conflicting layers.</p>
+      </div>
+    </div>
+
+    <!-- ============ SECTION 7 : BUILD ORDER ============ -->
+    <h2 id="s7" class="sec-head sec--rec animate"><span class="sec-head__num">07</span> Sequenced build order <span class="sec-head__sub">L2a ships first as a standalone correctness win</span> <span class="stag stag--rec">Recommended</span></h2>
+
+    <div class="table-wrap"><div class="table-scroll">
+      <table class="data-table">
+        <thead><tr><th class="center">Order</th><th>Lever</th><th class="wide">Why here</th><th>Depends on</th><th>Independently shippable?</th></tr></thead>
+        <tbody>
+          <tr><td class="center nm">0</td><td class="nm">L2a inter-wave validation</td><td>pure correctness fix to today&rsquo;s engine; the &ldquo;broken task poisons shared branch&rdquo; bug exists NOW, independent of MSP</td><td>none</td><td><span class="yes">Yes &mdash; ship first</span></td></tr>
+          <tr><td class="center nm">1</td><td class="nm">L4 branch contract</td><td>lowest-risk foundation: declaration + validation, fails closed to ASK, zero destructive ops; precondition for any safe auto-PR/merge</td><td>none</td><td><span class="yes">Yes</span></td></tr>
+          <tr><td class="center nm">2</td><td class="nm">L1 MSP unit</td><td>can&rsquo;t have one-PR-per-MSP / a queue / an MSP graph until the MSP grouping exists; trivial under 1:1</td><td>L4</td><td><span class="yes">Yes (annotation only)</span></td></tr>
+          <tr><td class="center nm">3</td><td class="nm">L3 draft-PR + allow-list + L5 CC-lint</td><td>introduces push/<code>gh</code> allow-list + four guardrails + CC-title hook; needs unambiguous source+base + a defined MSP</td><td>L4, L1</td><td><span class="yes">Yes</span></td></tr>
+          <tr><td class="center nm">4</td><td class="nm">L2b merge queue</td><td>serialization tying validate-before-merge to serialized landing; needs PRs to serialize</td><td>L1, L4, L3</td><td><span class="yes">Yes</span></td></tr>
+          <tr><td class="center nm">5</td><td class="nm">L6 MSP dependency-graph gate</td><td>the ORDER input to the queue; reuses wave-planner topo-sort</td><td>L1, L2b</td><td><span class="yes">Yes</span></td></tr>
+        </tbody>
+      </table>
+    </div></div>
+
+    <div class="callout callout--insight">
+      <span class="callout__tag">Confirmed hypotheses</span>
+      <p><strong>L4</strong> (branch contract) IS the lowest-risk foundation (declarative, fails closed, every executing lever depends on a non-defaulting base). <strong>L1</strong> (MSP unit) IS a prerequisite for L2b (the queue has nothing to serialize without a defined MSP). <strong>L2a</strong> escapes the dependency chain &rarr; ship first.</p>
+    </div>
+
+    <!-- ============ SECTION 8 : RISK MATRIX ============ -->
+    <h2 id="s8" class="sec-head animate"><span class="sec-head__num">08</span> Interaction / risk matrix <span class="sec-head__sub">the dangerous pairings, mitigated</span></h2>
+
+    <div class="table-wrap table-wrap--center"><div class="table-scroll">
+      <table class="data-table">
+        <thead><tr><th class="center">#</th><th>Dangerous pairing</th><th class="wide">Failure mode</th><th class="wide">Mitigation</th></tr></thead>
+        <tbody>
+          <tr><td class="center nm">1</td><td>Squash (L5) &times; intra-run <code>--no-ff</code></td><td>naive squash of wave merges loses attribution / mid-run squash</td><td>squash ONLY at MSP&rarr;integration; engine stays <code>--no-ff</code>; engine never checks out integration</td></tr>
+          <tr><td class="center nm">2</td><td>Merge queue (L2b) &times; throughput</td><td>serial full-suite revalidation per MSP &rarr; latency = N &times; suite time</td><td>revalidate only when integration tip moved; parallel-validate L6-independent MSPs; length-1 fast path</td></tr>
+          <tr><td class="center nm">3</td><td>L4 declared base &times; code-is-truth</td><td>stale declaration (renamed/deleted branch) silently misroutes a merge</td><td>validate declaration vs live git; fail closed to ASK; declaration authoritative only after git confirms existence</td></tr>
+          <tr><td class="center nm">4</td><td>Auto draft-PR (L3) &times; &ldquo;push only when user asks&rdquo;</td><td>auto-push/PR violates the global commit/push-on-request rule</td><td>publish = a SEPARATE explicit step, or gate push behind per-run consent (mirror heavy-lane launch-consent); draft + private branch keep it reversible &mdash; <span class="stag stag--open">Open Q-B</span></td></tr>
+          <tr><td class="center nm">5</td><td>L6 declared deps &times; undeclared semantic conflict</td><td>under-declared MSP edges &rarr; wrong order / concurrent coupled MSPs</td><td>L2b validate-on-validated-base catches the miss before squash; lift annotation contract-pair rule to MSP level</td></tr>
+          <tr><td class="center nm">6</td><td>scope-fence isolation &times; MSP publish</td><td>scope-fence = single-wave, clean tree, uncommitted, NO branch &rarr; incompatible with PR/branch publish</td><td>publish pipeline REQUIRES worktree mode; scope-fence stays an internal no-publish fast path</td></tr>
+          <tr><td class="center nm">7</td><td>merge-queue lock &times; git worktrees</td><td>concurrent worktree sessions race on the integration branch</td><td>file-based serialization lock (<code>.claude/merge-queue.lock</code>) &mdash; the core reason the queue exists for &ldquo;worktrees + solo&rdquo;</td></tr>
+          <tr><td class="center nm">8</td><td>PR-title CC lint &times; GitHub squash default</td><td>GitHub&rsquo;s default squash message != PR title (may be commit list)</td><td>always pass <code>gh pr merge --squash --subject "&lt;CC&gt;"</code> explicitly; lint that subject; never rely on default</td></tr>
+        </tbody>
+      </table>
+    </div></div>
+
+    <!-- ============ SECTION 9 : OPEN DECISIONS ============ -->
+    <h2 id="s9" class="sec-head sec--open animate"><span class="sec-head__num">09</span> Open decisions <span class="sec-head__sub">your call &mdash; each with a recommended answer</span> <span class="stag stag--open">Open</span></h2>
+
+    <div class="checklist">
+      <div class="check-item">
+        <span class="check-item__id">Q-A</span>
+        <div class="check-item__body">
+          <div class="check-item__q"><strong>The fork:</strong> confirm Option C (1:1 default, MSP-keyed publisher)?</div>
+          <div class="check-item__rec"><span class="rec-pill">Recommended</span><span><b>Yes.</b></span></div>
+        </div>
+      </div>
+      <div class="check-item">
+        <span class="check-item__id">Q-B</span>
+        <div class="check-item__body">
+          <div class="check-item__q">Does &ldquo;execute the plan / ship the MSP&rdquo; imply consent to auto-push a draft PR, or is PUBLISH a separate explicit command?</div>
+          <div class="check-item__rec"><span class="rec-pill">Recommended</span><span><b>Separate explicit publish step</b> &mdash; safest, matches &ldquo;push only when user asks.&rdquo;</span></div>
+        </div>
+      </div>
+      <div class="check-item">
+        <span class="check-item__id">Q-C</span>
+        <div class="check-item__body">
+          <div class="check-item__q">Declared integration base location &mdash; per-project <code>.claude/msp.config.json</code>, per-invocation <code>--integration-base</code> flag, or BOTH with flag-over-file-over-ASK precedence?</div>
+          <div class="check-item__rec"><span class="rec-pill">Recommended</span><span><b>Both, that precedence.</b></span></div>
+        </div>
+      </div>
+      <div class="check-item">
+        <span class="check-item__id">Q-D</span>
+        <div class="check-item__body">
+          <div class="check-item__q">Is an EXPLICITLY DECLARED main/master as integration target allowed? (L4 forbids DEFAULTING to it; a trunk-based repo may legitimately DECLARE it.)</div>
+          <div class="check-item__rec"><span class="rec-pill">Recommended</span><span><b>Yes</b> &mdash; declaration != defaulting.</span></div>
+        </div>
+      </div>
+      <div class="check-item">
+        <span class="check-item__id">Q-E</span>
+        <div class="check-item__body">
+          <div class="check-item__q">CI-gate role &mdash; config CHECKS <code>gh pr checks</code> and never bypasses; branch-protection setup is a human post-step (same human-operates-live-surface posture as no-direct-DB)?</div>
+          <div class="check-item__rec"><span class="rec-pill">Recommended</span><span><b>Yes.</b></span></div>
+        </div>
+      </div>
+      <div class="check-item">
+        <span class="check-item__id">Q-F</span>
+        <div class="check-item__body">
+          <div class="check-item__q">Merge-queue revalidation policy when the integration tip moves &mdash; full suite vs scoped-on-affected? (throughput-vs-safety knob)</div>
+          <div class="check-item__rec"><span class="rec-pill">Recommended</span><span><b>Scoped-on-affected with full-suite fallback.</b></span></div>
+        </div>
+      </div>
+      <div class="check-item">
+        <span class="check-item__id">Q-G</span>
+        <div class="check-item__body">
+          <div class="check-item__q">Per-project declared roles = <code>{ integrationBase, mspBranchPrefix, squash }</code>, one small JSON per project (consistent with &ldquo;many small files&rdquo;)?</div>
+          <div class="check-item__rec"><span class="rec-pill">Recommended</span><span><b>Yes.</b></span></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ============ SECTION 10 : GUARDRAILS RECAP ============ -->
+    <h2 id="s10" class="sec-head animate"><span class="sec-head__num">10</span> Constraints &amp; guardrails recap <span class="sec-head__sub">the non-negotiables</span></h2>
+
+    <div class="recap">
+      <ul>
+        <li><code>~/.claude</code> is NOT a git repo: every change is a static config artifact (rules/skills/engine JS/hooks/settings), applied via files; <code>protect-claude-config.sh</code> returns &ldquo;ask&rdquo; on rules/skills/settings writes &mdash; <strong>human approves</strong>.</li>
+        <li>This workflow <strong>GOVERNS how Claude Code behaves in the user&rsquo;s OTHER projects</strong>; it is authored here, run there.</li>
+        <li>No auto-DB / cloud-admin; the human operates live surfaces (branch protection, merges to protected branches).</li>
+        <li>The four auto-PR guardrails are <strong>mandatory</strong> (private branch, squash-on-merge, CI gate, draft-default) &mdash; auto-PR is net-negative without all four.</li>
+        <li>No code comments, no emojis, no AI attribution in any authored artifact.</li>
+      </ul>
+    </div>
+
+    <!-- ============ SECTION 11 : SOURCES ============ -->
+    <h2 id="s11" class="sec-head animate"><span class="sec-head__num">RF</span> Sources <span class="sec-head__sub">verifiable, grouped</span></h2>
+
+    <div class="sources">
+      <p><b>GitHub</b><br>
+        merge-queue &mdash; <a href="https://docs.github.com/en/repositories/configuring-branches-and-merges-in-your-repository/configuring-pull-request-merges/managing-a-merge-queue">docs.github.com/&hellip;/managing-a-merge-queue</a><br>
+        merge-methods &mdash; <a href="https://docs.github.com/en/repositories/configuring-branches-and-merges-in-your-repository/configuring-pull-request-merges/about-merge-methods-on-github">docs.github.com/&hellip;/about-merge-methods-on-github</a><br>
+        pulls REST (base required) &mdash; <a href="https://docs.github.com/en/rest/pulls/pulls">docs.github.com/en/rest/pulls/pulls</a><br>
+        gh pr create &mdash; <a href="https://cli.github.com/manual/gh_pr_create">cli.github.com/manual/gh_pr_create</a><br>
+        gh pr merge &mdash; <a href="https://cli.github.com/manual/gh_pr_merge">cli.github.com/manual/gh_pr_merge</a></p>
+      <p><b>GitLab</b><br>
+        squash-and-merge &mdash; <a href="https://docs.gitlab.com/user/project/merge_requests/squash_and_merge/">docs.gitlab.com/&hellip;/squash_and_merge</a></p>
+      <p><b>Release tooling</b><br>
+        release-please &mdash; <a href="https://github.com/googleapis/release-please">github.com/googleapis/release-please</a><br>
+        semantic-release config &mdash; <a href="https://semantic-release.gitbook.io/semantic-release/usage/configuration">semantic-release.gitbook.io/&hellip;/configuration</a><br>
+        issue #1581 &mdash; <a href="https://github.com/semantic-release/semantic-release/issues/1581">github.com/semantic-release/semantic-release/issues/1581</a></p>
+      <p><b>Conventions</b><br>
+        Conventional Commits &mdash; <a href="https://www.conventionalcommits.org/en/v1.0.0/">conventionalcommits.org/en/v1.0.0</a><br>
+        git-flow config &mdash; <a href="https://github.com/petervanderdoes/gitflow-avh/wiki/Reference:-git-flow-config">github.com/petervanderdoes/gitflow-avh/&hellip;/git-flow-config</a></p>
+      <p><b>Prior reports (foundational research this architecture builds on)</b><br>
+        <a href="msp-driven-approach-report.html">msp-driven-approach-report.html</a> &middot; <a href="msp-followup-squash-branching-report.html">msp-followup-squash-branching-report.html</a></p>
+    </div>
+
+    <div class="footer-note">
+      <strong>Status:</strong> design for review &mdash; not yet implemented. No <code>~/.claude</code> config has been changed by this document. Two decisions are <span class="stag stag--locked">Locked</span> (L4, L5); the rest of the design is <span class="stag stag--rec">Recommended</span> pending approval; seven decisions remain <span class="stag stag--open">Open</span> (Q-A..Q-G). Implementation follows only after sign-off.
+    </div>
+
+  </div>
+</div>
+
+<script type="module">
+  import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs';
+
+  const config = {
+    fitPadding: 26,
+    minHeight: 380,
+    maxHeightPx: 1100,
+    maxHeightVh: 0.88,
+    maxInitialZoom: 1.7,
+    minZoom: 0.08,
+    maxZoom: 6.5,
+    zoomStep: 0.14,
+    readabilityFloor: 0.6
+  };
+
+  const clamp = (n, lo, hi) => Math.max(lo, Math.min(hi, n));
+  let activeDrag = null;
+  addEventListener('mousemove', (e) => activeDrag?.onMove(e));
+  addEventListener('mouseup', () => { activeDrag?.onEnd(); activeDrag = null; });
+
+  function effDark() {
+    const t = document.documentElement.dataset.theme;
+    if (t === 'dark') return true;
+    if (t === 'light') return false;
+    return matchMedia('(prefers-color-scheme: dark)').matches;
+  }
+
+  function initMermaid() {
+    const isDark = effDark();
+    mermaid.initialize({
+      startOnLoad: false,
+      theme: 'base',
+      look: 'classic',
+      flowchart: { padding: 14, nodeSpacing: 44, rankSpacing: 50, useMaxWidth: false },
+      themeVariables: {
+        fontFamily: "'IBM Plex Sans', system-ui, sans-serif",
+        fontSize: '15px',
+        primaryColor: isDark ? '#12304f' : '#dbe7fb',
+        primaryBorderColor: isDark ? '#60a5fa' : '#1d4ed8',
+        primaryTextColor: isDark ? '#d7e5f6' : '#0e2438',
+        secondaryColor: isDark ? '#0d3344' : '#d9f0f6',
+        secondaryBorderColor: isDark ? '#38bdf8' : '#0e7490',
+        secondaryTextColor: isDark ? '#d7e5f6' : '#0e2438',
+        tertiaryColor: isDark ? '#33260f' : '#fbeccd',
+        tertiaryBorderColor: isDark ? '#fbbf24' : '#b45309',
+        tertiaryTextColor: isDark ? '#d7e5f6' : '#0e2438',
+        lineColor: isDark ? '#7da0c2' : '#5a6f8a',
+        clusterBkg: isDark ? '#0c1c2e' : '#eef3fa',
+        clusterBorder: isDark ? '#34507a' : '#bdcde4',
+        titleColor: isDark ? '#88a1bd' : '#51647c',
+        noteBkgColor: isDark ? '#12304f' : '#fefce8',
+        noteTextColor: isDark ? '#d7e5f6' : '#0e2438',
+        noteBorderColor: isDark ? '#fbbf24' : '#b45309'
+      }
+    });
+  }
+
+  const renderers = [];
+
+  function initDiagram(shell) {
+    const wrap = shell.querySelector('.mermaid-wrap');
+    const viewport = shell.querySelector('.mermaid-viewport');
+    const canvas = shell.querySelector('.mermaid-canvas');
+    const source = shell.querySelector('.diagram-source');
+    const label = shell.querySelector('.zoom-label');
+    if (!wrap || !viewport || !canvas || !source || !label) {
+      console.error('initDiagram: missing required elements in', shell);
+      return;
+    }
+
+    const initialZoom = parseFloat(wrap.dataset.initialZoom) || 0;
+    let userInteracted = false;
+    let zoom = 1, fitMode = 'contain', panX = 0, panY = 0, svgW = 0, svgH = 0;
+    let sx = 0, sy = 0, spx = 0, spy = 0, touchDist = 0, touchCx = 0, touchCy = 0;
+
+    function constrainPan() {
+      const vpW = viewport.clientWidth, vpH = viewport.clientHeight;
+      const rW = svgW * zoom, rH = svgH * zoom, pad = config.fitPadding;
+      panX = (rW + pad * 2 <= vpW) ? (vpW - rW) / 2 : clamp(panX, vpW - rW - pad, pad);
+      panY = (rH + pad * 2 <= vpH) ? (vpH - rH) / 2 : clamp(panY, vpH - rH - pad, pad);
+    }
+    function applyTransform() {
+      const svg = canvas.querySelector('svg');
+      if (!svg || !svgW) return;
+      constrainPan();
+      svg.style.width = (svgW * zoom) + 'px';
+      svg.style.height = (svgH * zoom) + 'px';
+      canvas.style.transform = `translate(${panX}px, ${panY}px)`;
+      label.textContent = Math.round(zoom * 100) + '% — ' + fitMode;
+    }
+    function canPan() {
+      const rW = svgW * zoom, rH = svgH * zoom;
+      return rW + config.fitPadding * 2 > viewport.clientWidth || rH + config.fitPadding * 2 > viewport.clientHeight;
+    }
+    function computeSmartFit() {
+      const vpW = viewport.clientWidth, vpH = viewport.clientHeight;
+      const aW = Math.max(80, vpW - config.fitPadding * 2);
+      const aH = Math.max(80, vpH - config.fitPadding * 2);
+      const contain = Math.min(aW / svgW, aH / svgH);
+      let z = contain, mode = 'contain';
+      if (contain < config.readabilityFloor) {
+        const chartR = svgH / svgW, vpR = vpH / Math.max(vpW, 1);
+        if (chartR >= vpR) { z = aW / svgW; mode = 'width-fit'; }
+        else { z = aH / svgH; mode = 'height-fit'; }
+      }
+      return { zoom: clamp(z, config.minZoom, config.maxInitialZoom), mode };
+    }
+    function fitDiagram() {
+      if (!svgW) return;
+      const fit = computeSmartFit();
+      zoom = fit.zoom; fitMode = fit.mode;
+      panX = (viewport.clientWidth - svgW * zoom) / 2;
+      panY = (viewport.clientHeight - svgH * zoom) / 2;
+      applyTransform();
+    }
+    function applyInitialZoom() {
+      zoom = clamp(initialZoom, config.minZoom, config.maxZoom);
+      fitMode = 'initial';
+      panX = (viewport.clientWidth - svgW * zoom) / 2;
+      panY = config.fitPadding;
+      applyTransform();
+    }
+    function relayout() {
+      if (!svgW) return;
+      setAdaptiveHeight();
+      if (initialZoom && !userInteracted) applyInitialZoom();
+      else fitDiagram();
+    }
+    function setOneToOne() {
+      userInteracted = true;
+      zoom = clamp(1, config.minZoom, config.maxZoom);
+      fitMode = '1:1';
+      panX = (viewport.clientWidth - svgW * zoom) / 2;
+      panY = (viewport.clientHeight - svgH * zoom) / 2;
+      applyTransform();
+    }
+    function zoomAround(factor, cx, cy) {
+      userInteracted = true;
+      const next = clamp(zoom * factor, config.minZoom, config.maxZoom);
+      const ratio = next / zoom;
+      panX = cx - ratio * (cx - panX);
+      panY = cy - ratio * (cy - panY);
+      zoom = next; fitMode = 'custom';
+      applyTransform();
+    }
+    function readSvgNaturalSize(svg) {
+      let w = 0, h = 0;
+      if (svg.viewBox?.baseVal?.width > 0) { w = svg.viewBox.baseVal.width; h = svg.viewBox.baseVal.height; }
+      if (!w) { w = parseFloat(svg.getAttribute('width')) || 0; h = parseFloat(svg.getAttribute('height')) || 0; }
+      if (!w) { const b = svg.getBBox(); w = b.width; h = b.height; }
+      if (!w) { const r = svg.getBoundingClientRect(); w = r.width || 1000; h = r.height || 700; }
+      if (!svg.getAttribute('viewBox')) svg.setAttribute('viewBox', `0 0 ${w} ${h}`);
+      return { w, h };
+    }
+    function setAdaptiveHeight() {
+      if (!svgW) return;
+      const usableW = Math.max(280, wrap.getBoundingClientRect().width - 2);
+      const idealH = (svgH / svgW) * usableW + config.fitPadding * 2;
+      const maxVp = Math.floor(innerHeight * config.maxHeightVh);
+      const hardMax = Math.min(config.maxHeightPx, Math.max(config.minHeight + 40, maxVp));
+      wrap.style.height = Math.round(clamp(idealH, config.minHeight, hardMax)) + 'px';
+    }
+    function openInNewTab() {
+      const svg = canvas.querySelector('svg');
+      if (!svg) return;
+      const clone = svg.cloneNode(true);
+      clone.style.width = ''; clone.style.height = '';
+      const bg = effDark() ? '#081320' : '#e8eef5';
+      const html = `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8">
+      <meta name="viewport" content="width=device-width, initial-scale=1.0"><title>Two-level pipeline</title><style>
+      body{margin:0;min-height:100vh;display:flex;align-items:center;justify-content:center;background:${bg};padding:40px;box-sizing:border-box}
+      svg{max-width:100%;max-height:92vh;height:auto}</style></head><body>${clone.outerHTML}</body></html>`;
+      open(URL.createObjectURL(new Blob([html], { type: 'text/html' })), '_blank');
+    }
+    async function render() {
+      try {
+        const code = source.textContent.trim();
+        if (!code) { label.textContent = 'Error: Empty source'; return; }
+        const id = 'diagram-' + Date.now() + '-' + Math.random().toString(36).slice(2, 8);
+        const { svg } = await mermaid.render(id, code);
+        canvas.innerHTML = svg;
+        const svgNode = canvas.querySelector('svg');
+        if (!svgNode) { label.textContent = 'Error: No SVG'; return; }
+        const size = readSvgNaturalSize(svgNode);
+        svgW = size.w; svgH = size.h;
+        svgNode.removeAttribute('width'); svgNode.removeAttribute('height');
+        svgNode.style.maxWidth = 'none'; svgNode.style.display = 'block';
+        relayout();
+      } catch (err) {
+        console.error('Mermaid render failed:', err);
+        label.textContent = 'Error: ' + (err.message || 'Render failed');
+      }
+    }
+
+    const actions = {
+      'zoom-in': () => zoomAround(1 + config.zoomStep, viewport.clientWidth / 2, viewport.clientHeight / 2),
+      'zoom-out': () => zoomAround(1 / (1 + config.zoomStep), viewport.clientWidth / 2, viewport.clientHeight / 2),
+      'zoom-fit': () => { userInteracted = true; fitDiagram(); },
+      'zoom-one': setOneToOne,
+      'zoom-expand': openInNewTab
+    };
+    Object.entries(actions).forEach(([action, handler]) => {
+      wrap.querySelector(`[data-action="${action}"]`)?.addEventListener('click', handler);
+    });
+
+    viewport.addEventListener('dblclick', () => { userInteracted = true; fitDiagram(); });
+    viewport.addEventListener('wheel', (e) => {
+      if (e.ctrlKey || e.metaKey) {
+        e.preventDefault();
+        const rect = viewport.getBoundingClientRect();
+        const factor = e.deltaY < 0 ? 1 + config.zoomStep : 1 / (1 + config.zoomStep);
+        zoomAround(factor, e.clientX - rect.left, e.clientY - rect.top);
+        return;
+      }
+      if (canPan()) { e.preventDefault(); userInteracted = true; panX -= e.deltaX; panY -= e.deltaY; applyTransform(); }
+    }, { passive: false });
+
+    viewport.addEventListener('mousedown', (e) => {
+      if (e.target.closest('.zoom-controls') || !canPan()) return;
+      wrap.classList.add('is-panning');
+      userInteracted = true;
+      sx = e.clientX; sy = e.clientY; spx = panX; spy = panY;
+      e.preventDefault();
+      activeDrag = {
+        onMove: (ev) => { panX = spx + (ev.clientX - sx); panY = spy + (ev.clientY - sy); applyTransform(); },
+        onEnd: () => { wrap.classList.remove('is-panning'); }
+      };
+    });
+
+    viewport.addEventListener('touchstart', (e) => {
+      if (e.touches.length === 1) { sx = e.touches[0].clientX; sy = e.touches[0].clientY; spx = panX; spy = panY; }
+      else if (e.touches.length === 2) {
+        const dx = e.touches[0].clientX - e.touches[1].clientX;
+        const dy = e.touches[0].clientY - e.touches[1].clientY;
+        touchDist = Math.sqrt(dx * dx + dy * dy);
+        const r = viewport.getBoundingClientRect();
+        touchCx = (e.touches[0].clientX + e.touches[1].clientX) / 2 - r.left;
+        touchCy = (e.touches[0].clientY + e.touches[1].clientY) / 2 - r.top;
+      }
+    }, { passive: true });
+
+    viewport.addEventListener('touchmove', (e) => {
+      if (e.touches.length === 1 && canPan()) {
+        if (touchDist > 0) { sx = e.touches[0].clientX; sy = e.touches[0].clientY; spx = panX; spy = panY; touchDist = 0; }
+        e.preventDefault(); userInteracted = true;
+        panX = spx + (e.touches[0].clientX - sx); panY = spy + (e.touches[0].clientY - sy); applyTransform();
+      } else if (e.touches.length === 2 && touchDist > 0) {
+        e.preventDefault();
+        const dx = e.touches[0].clientX - e.touches[1].clientX;
+        const dy = e.touches[0].clientY - e.touches[1].clientY;
+        const d = Math.sqrt(dx * dx + dy * dy);
+        zoomAround(d / touchDist, touchCx, touchCy);
+        touchDist = d;
+      }
+    }, { passive: false });
+
+    new ResizeObserver(() => { if (svgW) relayout(); }).observe(wrap);
+    renderers.push(() => { userInteracted = false; render(); });
+    render();
+  }
+
+  initMermaid();
+  document.querySelectorAll('.diagram-shell').forEach(initDiagram);
+
+  const root = document.documentElement;
+  const btn = document.getElementById('theme-toggle');
+  function syncBtn() { if (btn) btn.textContent = (effDark() ? 'Light' : 'Dark') + ' mode'; }
+  syncBtn();
+  btn?.addEventListener('click', () => {
+    root.dataset.theme = effDark() ? 'light' : 'dark';
+    syncBtn();
+    initMermaid();
+    renderers.forEach((r) => r());
+  });
+  matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => {
+    if (!root.dataset.theme) { syncBtn(); initMermaid(); renderers.forEach((r) => r()); }
+  });
+</script>
+
+<script>
+(function () {
+  const toc = document.getElementById('toc');
+  if (!toc) return;
+  const links = toc.querySelectorAll('a');
+  const sections = [];
+  links.forEach(link => {
+    const id = link.getAttribute('href').slice(1);
+    const el = document.getElementById(id);
+    if (el) sections.push({ id, el, link });
+  });
+  const observer = new IntersectionObserver(entries => {
+    entries.forEach(entry => {
+      if (entry.isIntersecting) {
+        links.forEach(l => l.classList.remove('active'));
+        const match = sections.find(s => s.el === entry.target);
+        if (match) {
+          match.link.classList.add('active');
+          if (window.innerWidth <= 1000) {
+            match.link.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
+          }
+        }
+      }
+    });
+  }, { rootMargin: '-8% 0px -82% 0px' });
+  sections.forEach(s => observer.observe(s.el));
+  links.forEach(link => {
+    link.addEventListener('click', e => {
+      e.preventDefault();
+      const id = link.getAttribute('href').slice(1);
+      const el = document.getElementById(id);
+      if (el) { el.scrollIntoView({ behavior: 'smooth', block: 'start' }); history.replaceState(null, '', '#' + id); }
+    });
+  });
+})();
+</script>
+
+</body>
+</html>

@@ -1,0 +1,1853 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>MSP / Continuous-Shipping Workflow Report</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --font-body: 'IBM Plex Sans', system-ui, sans-serif;
+    --font-mono: 'IBM Plex Mono', 'SF Mono', Consolas, monospace;
+
+    --bg: #e8eef5;
+    --surface: #ffffff;
+    --surface2: #f1f5fa;
+    --surface-elevated: #ffffff;
+    --grid: rgba(30, 64, 110, 0.055);
+    --border: rgba(15, 40, 70, 0.12);
+    --border-bright: rgba(15, 40, 70, 0.22);
+    --text: #0e2438;
+    --text-dim: #51647c;
+
+    --blue: #1d4ed8;
+    --blue-dim: rgba(29, 78, 216, 0.09);
+    --teal: #0e7490;
+    --teal-dim: rgba(14, 116, 144, 0.10);
+    --amber: #b45309;
+    --amber-dim: rgba(180, 83, 9, 0.11);
+    --green: #15803d;
+    --green-dim: rgba(21, 128, 61, 0.11);
+    --red: #b91c1c;
+    --red-dim: rgba(185, 28, 28, 0.10);
+    --slate: #475569;
+    --slate-dim: rgba(71, 85, 105, 0.10);
+  }
+
+  :root[data-theme="dark"] {
+    --bg: #081320;
+    --surface: #0e1f33;
+    --surface2: #122639;
+    --surface-elevated: #122a42;
+    --grid: rgba(120, 165, 220, 0.06);
+    --border: rgba(125, 165, 215, 0.14);
+    --border-bright: rgba(125, 165, 215, 0.26);
+    --text: #d7e5f6;
+    --text-dim: #88a1bd;
+
+    --blue: #60a5fa;
+    --blue-dim: rgba(96, 165, 250, 0.14);
+    --teal: #38bdf8;
+    --teal-dim: rgba(56, 189, 248, 0.14);
+    --amber: #fbbf24;
+    --amber-dim: rgba(251, 191, 36, 0.15);
+    --green: #4ade80;
+    --green-dim: rgba(74, 222, 128, 0.14);
+    --red: #f87171;
+    --red-dim: rgba(248, 113, 113, 0.15);
+    --slate: #94a3b8;
+    --slate-dim: rgba(148, 163, 184, 0.14);
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #081320;
+      --surface: #0e1f33;
+      --surface2: #122639;
+      --surface-elevated: #122a42;
+      --grid: rgba(120, 165, 220, 0.06);
+      --border: rgba(125, 165, 215, 0.14);
+      --border-bright: rgba(125, 165, 215, 0.26);
+      --text: #d7e5f6;
+      --text-dim: #88a1bd;
+
+      --blue: #60a5fa;
+      --blue-dim: rgba(96, 165, 250, 0.14);
+      --teal: #38bdf8;
+      --teal-dim: rgba(56, 189, 248, 0.14);
+      --amber: #fbbf24;
+      --amber-dim: rgba(251, 191, 36, 0.15);
+      --green: #4ade80;
+      --green-dim: rgba(74, 222, 128, 0.14);
+      --red: #f87171;
+      --red-dim: rgba(248, 113, 113, 0.15);
+      --slate: #94a3b8;
+      --slate-dim: rgba(148, 163, 184, 0.14);
+    }
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  html { scroll-behavior: smooth; }
+
+  body {
+    background-color: var(--bg);
+    background-image:
+      linear-gradient(var(--grid) 1px, transparent 1px),
+      linear-gradient(90deg, var(--grid) 1px, transparent 1px);
+    background-size: 30px 30px;
+    color: var(--text);
+    font-family: var(--font-body);
+    line-height: 1.6;
+    padding: 36px 40px 90px;
+    overflow-wrap: break-word;
+  }
+
+  @keyframes fadeUp { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+  @keyframes fadeScale { from { opacity: 0; transform: scale(0.94); } to { opacity: 1; transform: scale(1); } }
+  .animate { animation: fadeUp 0.4s ease-out both; animation-delay: calc(var(--i, 0) * 0.05s); }
+
+  @media (prefers-reduced-motion: reduce) {
+    html { scroll-behavior: auto; }
+    *, *::before, *::after {
+      animation-duration: 0.01ms !important;
+      animation-delay: 0ms !important;
+      transition-duration: 0.01ms !important;
+    }
+  }
+
+  .wrap {
+    max-width: 1440px;
+    margin: 0 auto;
+    display: grid;
+    grid-template-columns: 200px 1fr;
+    gap: 0 44px;
+  }
+  .main { min-width: 0; }
+  .main > * { min-width: 0; }
+
+  .toc {
+    position: sticky;
+    top: 20px;
+    align-self: start;
+    grid-row: 1 / -1;
+    padding: 16px 0;
+    max-height: calc(100dvh - 40px);
+    overflow-y: auto;
+  }
+  .toc::-webkit-scrollbar { width: 3px; }
+  .toc::-webkit-scrollbar-thumb { background: var(--border-bright); border-radius: 2px; }
+  .toc-title {
+    font-family: var(--font-mono);
+    font-size: 9px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 2.4px;
+    color: var(--text-dim);
+    padding: 0 10px 10px;
+    margin-bottom: 8px;
+    border-bottom: 1px solid var(--border);
+  }
+  .toc a {
+    display: block;
+    font-family: var(--font-mono);
+    font-size: 11px;
+    color: var(--text-dim);
+    text-decoration: none;
+    padding: 6px 10px;
+    border-radius: 5px;
+    border-left: 2px solid transparent;
+    transition: all 0.15s;
+    line-height: 1.4;
+    margin-bottom: 1px;
+  }
+  .toc a:hover { color: var(--text); background: var(--surface2); }
+  .toc a.active { color: var(--text); border-left-color: var(--blue); background: var(--blue-dim); }
+  .toc a .tnum { color: var(--blue); font-weight: 600; }
+
+  .theme-toggle {
+    position: fixed;
+    bottom: 22px;
+    right: 22px;
+    z-index: 400;
+    font-family: var(--font-mono);
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.5px;
+    color: var(--text);
+    background: var(--surface-elevated);
+    border: 1px solid var(--border-bright);
+    border-radius: 9px;
+    padding: 9px 14px;
+    cursor: pointer;
+    box-shadow: 0 6px 22px rgba(0, 0, 0, 0.18);
+    transition: background 0.15s ease, transform 0.15s ease;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .theme-toggle:hover { background: var(--surface2); transform: translateY(-1px); }
+  .theme-toggle::before { content: ''; width: 9px; height: 9px; border-radius: 50%; background: var(--blue); }
+
+  .masthead { margin-bottom: 26px; }
+  .masthead__kicker {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    font-weight: 500;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    color: var(--teal);
+    margin-bottom: 10px;
+    display: flex;
+    align-items: center;
+    gap: 9px;
+  }
+  .masthead__kicker::before { content: ''; width: 9px; height: 9px; border: 1.5px solid var(--teal); border-radius: 2px; display: inline-block; }
+  h1 {
+    font-size: clamp(28px, 4vw, 44px);
+    font-weight: 700;
+    letter-spacing: -1px;
+    line-height: 1.05;
+    text-wrap: balance;
+    margin-bottom: 12px;
+  }
+  .masthead__sub { font-size: 15px; color: var(--text-dim); max-width: 800px; }
+  .masthead__path {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    color: var(--text-dim);
+    margin-top: 12px;
+    padding: 5px 10px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    display: inline-block;
+  }
+
+  .sec-head {
+    font-size: 23px;
+    font-weight: 600;
+    letter-spacing: -0.4px;
+    margin: 56px 0 18px;
+    padding-bottom: 12px;
+    border-bottom: 1px solid var(--border-bright);
+    display: flex;
+    align-items: baseline;
+    gap: 12px;
+    flex-wrap: wrap;
+    scroll-margin-top: 20px;
+  }
+  .sec-head__num {
+    font-family: var(--font-mono);
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--blue);
+    background: var(--blue-dim);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 3px 9px;
+    letter-spacing: 1px;
+  }
+  .sec-head__sub {
+    font-family: var(--font-mono);
+    font-size: 12px;
+    font-weight: 400;
+    color: var(--text-dim);
+    text-transform: lowercase;
+    letter-spacing: 0.5px;
+  }
+  .sec7 .sec-head__num { color: var(--teal); background: var(--teal-dim); }
+  .sec8 .sec-head__num { color: var(--amber); background: var(--amber-dim); }
+
+  .lead { font-size: 16px; line-height: 1.7; color: var(--text); max-width: 840px; margin-bottom: 20px; }
+  .lead strong { font-weight: 600; }
+  p.body { font-size: 14.5px; color: var(--text-dim); max-width: 840px; margin-bottom: 16px; }
+  p.body strong { color: var(--text); font-weight: 600; }
+
+  .term { border-bottom: 1px dotted var(--blue); color: inherit; cursor: help; position: relative; font-weight: 500; }
+  .term::after {
+    content: attr(data-tip);
+    position: absolute;
+    bottom: calc(100% + 9px);
+    left: 0;
+    width: max-content;
+    max-width: 270px;
+    background: var(--surface-elevated);
+    color: var(--text);
+    border: 1px solid var(--border-bright);
+    border-radius: 9px;
+    padding: 9px 12px;
+    font-family: var(--font-body);
+    font-size: 12px;
+    font-weight: 400;
+    line-height: 1.5;
+    letter-spacing: 0;
+    text-transform: none;
+    white-space: normal;
+    box-shadow: 0 8px 28px rgba(0, 0, 0, 0.22);
+    z-index: 60;
+    pointer-events: none;
+    display: none;
+  }
+  @keyframes tipIn { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: translateY(0); } }
+  .term:hover::after, .term:focus::after, .term:focus-visible::after { display: block; animation: tipIn 0.14s ease-out both; }
+  .term:focus-visible { outline: 2px solid var(--blue); outline-offset: 2px; border-radius: 2px; }
+
+  code {
+    font-family: var(--font-mono);
+    font-size: 0.86em;
+    background: var(--blue-dim);
+    color: var(--blue);
+    padding: 1px 5px;
+    border-radius: 3px;
+    overflow-wrap: anywhere;
+  }
+
+  .kicker-label {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 1.6px;
+    color: var(--teal);
+    margin: 28px 0 12px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .kicker-label::before { content: ''; width: 7px; height: 7px; background: var(--teal); border-radius: 50%; flex-shrink: 0; }
+
+  .kpi-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(184px, 1fr)); gap: 14px; margin-bottom: 22px; }
+  .kpi-card {
+    background: var(--surface-elevated);
+    border: 1px solid var(--border);
+    border-radius: 11px;
+    padding: 17px 18px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+    animation: fadeScale 0.4s ease-out both;
+    animation-delay: calc(var(--i, 0) * 0.05s);
+  }
+  .kpi-card__value {
+    font-family: var(--font-mono);
+    font-size: 26px;
+    font-weight: 600;
+    line-height: 1.05;
+    letter-spacing: -0.5px;
+    font-variant-numeric: tabular-nums;
+    color: var(--blue);
+  }
+  .kpi-card__value .vs { font-size: 14px; color: var(--text-dim); font-weight: 500; }
+  .kpi-card__value.teal { color: var(--teal); }
+  .kpi-card__value.green { color: var(--green); }
+  .kpi-card__value.amber { color: var(--amber); }
+  .kpi-card__value.red { color: var(--red); }
+  .kpi-card__value.small { font-size: 17px; letter-spacing: 0; }
+  .kpi-card__label {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 1.2px;
+    color: var(--text-dim);
+    margin-top: 7px;
+  }
+  .kpi-card__note { font-size: 11px; color: var(--text-dim); margin-top: 5px; line-height: 1.45; }
+
+  .table-wrap { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; overflow: hidden; margin-bottom: 18px; }
+  .table-scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+  .data-table { width: 100%; border-collapse: collapse; font-size: 13px; line-height: 1.5; }
+  .data-table thead { position: sticky; top: 0; z-index: 2; }
+  .data-table th {
+    background: var(--surface2);
+    font-family: var(--font-mono);
+    font-size: 10px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    color: var(--text-dim);
+    text-align: left;
+    padding: 12px 15px;
+    border-bottom: 2px solid var(--border-bright);
+    white-space: nowrap;
+  }
+  .data-table td { padding: 12px 15px; border-bottom: 1px solid var(--border); vertical-align: top; }
+  .data-table tbody tr:last-child td { border-bottom: none; }
+  .data-table .wide { min-width: 200px; }
+  .data-table .nm { font-family: var(--font-mono); font-size: 12px; font-weight: 500; color: var(--text); }
+  .data-table tbody tr { transition: background 0.15s ease; }
+  .data-table tbody tr:hover { background: var(--surface2); }
+  .data-table code { font-size: 11px; }
+  .data-table small { display: block; color: var(--text-dim); font-size: 11px; margin-top: 3px; line-height: 1.45; }
+  .data-table .center { text-align: center; }
+
+  .yes { color: var(--green); font-weight: 600; }
+  .no { color: var(--red); font-weight: 600; }
+  .for-col { color: var(--green); }
+  .against-col { color: var(--red); }
+
+  .badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    font-family: var(--font-mono);
+    font-size: 9.5px;
+    font-weight: 600;
+    padding: 3px 8px;
+    border-radius: 5px;
+    white-space: nowrap;
+    letter-spacing: 0.4px;
+    text-transform: uppercase;
+    vertical-align: middle;
+  }
+  .badge::before { content: ''; width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+  .badge--high { background: var(--green-dim); color: var(--green); }
+  .badge--med { background: var(--amber-dim); color: var(--amber); }
+  .badge--medhigh { background: var(--teal-dim); color: var(--teal); }
+  .badge--low { background: var(--slate-dim); color: var(--slate); }
+  .conf-tag { font-family: var(--font-mono); font-size: 10px; color: var(--text-dim); }
+
+  .callout {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-left: 3px solid var(--amber);
+    border-radius: 0 11px 11px 0;
+    padding: 15px 20px;
+    font-size: 13.5px;
+    line-height: 1.65;
+    color: var(--text-dim);
+    margin: 22px 0 12px;
+  }
+  .callout strong { color: var(--text); font-weight: 600; }
+  .callout p { margin-bottom: 8px; }
+  .callout p:last-child { margin-bottom: 0; }
+  .callout__tag {
+    font-family: var(--font-mono);
+    font-size: 9.5px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 1.6px;
+    color: var(--amber);
+    display: block;
+    margin-bottom: 6px;
+  }
+  .callout code { background: var(--amber-dim); color: var(--amber); }
+  .callout--insight { border-left-color: var(--blue); }
+  .callout--insight .callout__tag { color: var(--blue); }
+  .callout--insight code { background: var(--blue-dim); color: var(--blue); }
+  .callout--counter { border-left-color: var(--red); }
+  .callout--counter .callout__tag { color: var(--red); }
+  .callout--counter code { background: var(--red-dim); color: var(--red); }
+  .callout--tradeoff { border-left-color: var(--amber); }
+  .callout--honesty { border-left-color: var(--teal); }
+  .callout--honesty .callout__tag { color: var(--teal); }
+  .callout--honesty code { background: var(--teal-dim); color: var(--teal); }
+
+  .pull {
+    border-left: 3px solid var(--teal);
+    background: color-mix(in srgb, var(--surface) 90%, var(--teal) 10%);
+    border-radius: 0 12px 12px 0;
+    padding: 20px 24px;
+    margin: 22px 0;
+    font-size: 17px;
+    line-height: 1.5;
+    color: var(--text);
+    font-weight: 500;
+  }
+  .pull cite { display: block; margin-top: 10px; font-size: 12px; font-style: normal; font-family: var(--font-mono); color: var(--text-dim); }
+
+  .hero-card {
+    background: color-mix(in srgb, var(--surface) 88%, var(--blue) 12%);
+    border: 1px solid var(--border-bright);
+    border-radius: 14px;
+    padding: 24px 26px;
+    margin-bottom: 22px;
+    box-shadow: 0 6px 26px rgba(0, 0, 0, 0.08);
+  }
+  .hero-card__label {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 1.6px;
+    color: var(--blue);
+    margin-bottom: 14px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .hero-card__label::before { content: ''; width: 8px; height: 8px; background: var(--blue); border-radius: 2px; }
+  .hero-card p { font-size: 15px; line-height: 1.65; color: var(--text); }
+  .hero-card p strong { font-weight: 600; }
+
+  .mental-model {
+    background: var(--surface);
+    border: 1px solid var(--border-bright);
+    border-radius: 13px;
+    padding: 24px 22px;
+    margin-bottom: 22px;
+  }
+  .mm-track {
+    display: grid;
+    grid-template-columns: minmax(150px, 1fr) minmax(0, 2.1fr) minmax(150px, 1fr);
+    gap: 14px;
+    align-items: stretch;
+  }
+  .mm-event { text-align: center; padding: 16px 14px; border-radius: 11px; min-width: 0; }
+  .mm-event--merge { background: var(--blue-dim); border: 1px solid var(--blue); }
+  .mm-event--release { background: var(--green-dim); border: 1px solid var(--green); }
+  .mm-event__big { font-family: var(--font-mono); font-size: 18px; font-weight: 600; letter-spacing: 0.5px; }
+  .mm-event--merge .mm-event__big { color: var(--blue); }
+  .mm-event--release .mm-event__big { color: var(--green); }
+  .mm-event__sub { font-size: 12px; color: var(--text-dim); margin-top: 7px; line-height: 1.45; }
+  .mm-gap {
+    background: var(--amber-dim);
+    border: 1px dashed var(--amber);
+    border-radius: 11px;
+    padding: 16px 16px;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    min-width: 0;
+  }
+  .mm-gap__label {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 1.2px;
+    color: var(--amber);
+    text-align: center;
+    margin-bottom: 11px;
+  }
+  .mm-gap__chips { display: flex; flex-wrap: wrap; gap: 6px; justify-content: center; }
+  .mm-gap__chips span {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    background: var(--surface);
+    border: 1px solid var(--amber);
+    color: var(--amber);
+    padding: 4px 9px;
+    border-radius: 6px;
+  }
+  .mm-caption { font-size: 12.5px; color: var(--text-dim); margin-top: 16px; text-align: center; line-height: 1.55; }
+  @media (max-width: 760px) { .mm-track { grid-template-columns: 1fr; } }
+
+  .card-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(258px, 1fr)); gap: 14px; margin-bottom: 16px; }
+  .ve-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 11px;
+    padding: 17px 18px;
+    border-top: 3px solid var(--teal);
+    min-width: 0;
+  }
+  .ve-card h4 { font-family: var(--font-mono); font-size: 12.5px; font-weight: 600; letter-spacing: 0.2px; color: var(--text); margin-bottom: 7px; }
+  .ve-card p { font-size: 12.5px; color: var(--text-dim); line-height: 1.55; }
+  .ve-card p + p { margin-top: 8px; }
+  .ve-card .meta { font-family: var(--font-mono); font-size: 10.5px; color: var(--text-dim); margin-top: 9px; display: block; }
+  .ve-card .meta b { color: var(--text); font-weight: 600; }
+  .ve-card.b1 { border-top-color: var(--blue); }
+  .ve-card.b2 { border-top-color: var(--teal); }
+  .ve-card.b3 { border-top-color: var(--amber); }
+  .ve-card.b4 { border-top-color: var(--green); }
+  .ve-card.b5 { border-top-color: var(--red); }
+
+  .codeblock {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 11px;
+    overflow: hidden;
+    margin: 14px 0 18px;
+  }
+  .codeblock__head {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 1.2px;
+    color: var(--text-dim);
+    padding: 10px 16px;
+    background: var(--surface2);
+    border-bottom: 1px solid var(--border);
+  }
+  .codeblock pre {
+    margin: 0;
+    padding: 16px 18px;
+    overflow-x: auto;
+    font-family: var(--font-mono);
+    font-size: 12.5px;
+    line-height: 1.6;
+    color: var(--text);
+    -webkit-overflow-scrolling: touch;
+  }
+  .codeblock pre .c-main { color: var(--blue); font-weight: 600; }
+  .codeblock pre .c-br { color: var(--teal); }
+  .codeblock pre .c-note { color: var(--text-dim); }
+
+  .split2 { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-bottom: 16px; }
+  @media (max-width: 720px) { .split2 { grid-template-columns: 1fr; } }
+  .panel {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 18px 20px;
+    min-width: 0;
+  }
+  .panel--strong { border-top: 3px solid var(--green); }
+  .panel--gaps { border-top: 3px solid var(--red); }
+  .panel__title {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 1.2px;
+    margin-bottom: 12px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .panel--strong .panel__title { color: var(--green); }
+  .panel--gaps .panel__title { color: var(--red); }
+  .panel ul { list-style: none; padding: 0; margin: 0; display: grid; gap: 9px; }
+  .panel li { position: relative; padding-left: 20px; font-size: 13px; line-height: 1.5; color: var(--text-dim); }
+  .panel li::before { content: ''; position: absolute; left: 2px; top: 7px; width: 8px; height: 8px; border-radius: 2px; }
+  .panel--strong li::before { background: var(--green); }
+  .panel--gaps li::before { background: var(--red); }
+  .panel li strong { color: var(--text); font-weight: 600; }
+
+  .banner-proposed {
+    background: repeating-linear-gradient(135deg, var(--amber-dim), var(--amber-dim) 14px, transparent 14px, transparent 28px), var(--surface);
+    border: 2px dashed var(--amber);
+    border-radius: 14px;
+    padding: 22px 24px;
+    margin: 8px 0 24px;
+    box-shadow: 0 4px 22px rgba(0, 0, 0, 0.07);
+  }
+  .banner-proposed__flag {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    font-family: var(--font-mono);
+    font-size: 12px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 1.4px;
+    color: var(--amber);
+    background: var(--surface);
+    border: 1.5px solid var(--amber);
+    border-radius: 8px;
+    padding: 7px 13px;
+    margin-bottom: 13px;
+  }
+  .banner-proposed__flag::before { content: ''; width: 9px; height: 9px; background: var(--amber); border-radius: 50%; }
+  .banner-proposed p { font-size: 14px; line-height: 1.6; color: var(--text); }
+  .banner-proposed p strong { font-weight: 600; }
+
+  .lever {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-left: 3px solid var(--blue);
+    border-radius: 0 11px 11px 0;
+    padding: 16px 20px;
+    margin-bottom: 12px;
+    min-width: 0;
+  }
+  .lever__head { display: flex; align-items: baseline; gap: 11px; flex-wrap: wrap; margin-bottom: 8px; }
+  .lever__num {
+    font-family: var(--font-mono);
+    font-size: 12px;
+    font-weight: 700;
+    color: var(--blue);
+    background: var(--blue-dim);
+    border-radius: 5px;
+    padding: 2px 8px;
+  }
+  .lever__title { font-size: 14.5px; font-weight: 600; color: var(--text); }
+  .lever__closes {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.8px;
+    color: var(--green);
+    background: var(--green-dim);
+    border-radius: 5px;
+    padding: 2px 8px;
+  }
+  .lever p { font-size: 13px; line-height: 1.6; color: var(--text-dim); margin-bottom: 6px; }
+  .lever p:last-child { margin-bottom: 0; }
+  .lever .tradeoff { color: var(--amber); }
+  .lever .tradeoff b { color: var(--text); font-weight: 600; }
+
+  .sources {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    color: var(--text-dim);
+    line-height: 1.7;
+    margin: 6px 0 8px;
+    padding: 12px 16px;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 9px;
+  }
+  .sources b { color: var(--text); font-weight: 600; text-transform: uppercase; letter-spacing: 1px; font-size: 9.5px; }
+  .sources a { color: var(--blue); text-decoration: none; word-break: break-all; }
+  .sources a:hover { text-decoration: underline; }
+
+  .ref-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 8px 22px; margin-bottom: 18px; }
+  .ref-grid a {
+    display: block;
+    font-family: var(--font-mono);
+    font-size: 12px;
+    color: var(--blue);
+    text-decoration: none;
+    padding: 7px 11px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: var(--surface);
+    word-break: break-all;
+    transition: background 0.15s ease;
+  }
+  .ref-grid a:hover { background: var(--surface2); text-decoration: underline; }
+  .ref-grid a .ref-note { display: block; color: var(--text-dim); font-size: 10.5px; margin-top: 2px; word-break: normal; }
+
+  .footer-note {
+    margin-top: 36px;
+    padding: 16px 20px;
+    border: 1px dashed var(--border-bright);
+    border-radius: 11px;
+    font-size: 12.5px;
+    color: var(--text-dim);
+    line-height: 1.6;
+    background: var(--surface2);
+  }
+  .footer-note strong { color: var(--text); font-weight: 600; }
+
+  .mermaid-wrap {
+    position: relative;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 28px 20px;
+    overflow: hidden;
+    margin-bottom: 16px;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    min-height: 360px;
+    cursor: grab;
+  }
+  .mermaid-wrap.is-panning { cursor: grabbing; user-select: none; }
+  .mermaid-wrap--compact { min-height: 300px; padding: 22px 16px; }
+  .zoom-controls {
+    position: absolute;
+    top: 8px; right: 8px;
+    display: flex;
+    gap: 2px;
+    z-index: 10;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 2px;
+  }
+  .zoom-controls button {
+    width: 28px; height: 28px;
+    border: none;
+    background: transparent;
+    color: var(--text-dim);
+    font-family: var(--font-mono);
+    font-size: 14px;
+    cursor: pointer;
+    border-radius: 4px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: background 0.15s ease, color 0.15s ease;
+  }
+  .zoom-controls button:hover { background: var(--border); color: var(--text); }
+  .diagram-shell { position: relative; }
+  .diagram-shell__hint { font-family: var(--font-mono); font-size: 11px; color: var(--text-dim); margin-bottom: 8px; opacity: 0.75; }
+  .mermaid-viewport { position: relative; overflow: hidden; width: 100%; height: 100%; min-height: 300px; }
+  .mermaid-canvas { position: absolute; top: 0; left: 0; }
+  .zoom-label { font-family: var(--font-mono); font-size: 10px; color: var(--text-dim); padding: 0 6px; white-space: nowrap; }
+  .mermaid .nodeLabel { font-family: var(--font-body) !important; font-size: 16px !important; color: var(--text) !important; }
+  .mermaid .edgeLabel { font-family: var(--font-mono) !important; font-size: 12px !important; color: var(--text-dim) !important; background-color: var(--surface) !important; }
+  .mermaid .edgeLabel rect { fill: var(--surface) !important; }
+  .mermaid .cluster rect { rx: 10px; ry: 10px; }
+  .mermaid .node rect, .mermaid .node circle, .mermaid .node polygon { stroke-width: 1.5px !important; }
+  .mermaid .edge-pattern-solid { stroke-width: 1.5px !important; }
+
+  @media (max-width: 1000px) {
+    body { padding: 0 18px 70px; }
+    .wrap { grid-template-columns: 1fr; gap: 0; }
+    .toc {
+      position: sticky;
+      top: 0;
+      z-index: 200;
+      grid-row: auto;
+      max-height: none;
+      display: flex;
+      gap: 4px;
+      align-items: center;
+      overflow-x: auto;
+      -webkit-overflow-scrolling: touch;
+      background: var(--bg);
+      border-bottom: 1px solid var(--border-bright);
+      padding: 10px 18px;
+      margin: 0 -18px 14px;
+    }
+    .toc::-webkit-scrollbar { display: none; }
+    .toc-title { display: none; }
+    .toc a {
+      white-space: nowrap;
+      flex-shrink: 0;
+      border-left: none;
+      border-bottom: 2px solid transparent;
+      border-radius: 4px 4px 0 0;
+      padding: 6px 10px;
+      font-size: 10px;
+    }
+    .toc a.active { border-left: none; border-bottom-color: var(--blue); background: var(--surface); }
+    .main { padding-top: 18px; }
+    .masthead { margin-top: 6px; }
+  }
+  @media (max-width: 680px) {
+    h1 { font-size: 25px; }
+    .data-table th, .data-table td { padding: 10px 12px; }
+    .mermaid-wrap { padding: 18px 10px; }
+    .theme-toggle { bottom: 14px; right: 14px; padding: 8px 11px; }
+  }
+</style>
+</head>
+<body>
+
+<button type="button" class="theme-toggle" id="theme-toggle" aria-label="Toggle colour theme">Dark mode</button>
+
+<div class="wrap">
+
+  <nav class="toc" id="toc">
+    <div class="toc-title">Sections</div>
+    <a href="#s0"><span class="tnum">00</span> BLUF</a>
+    <a href="#s1"><span class="tnum">01</span> What is an MSP</a>
+    <a href="#s2"><span class="tnum">02</span> Branching &amp; CI</a>
+    <a href="#s3"><span class="tnum">03</span> Parallel-safe shipping</a>
+    <a href="#s4"><span class="tnum">04</span> Commits &amp; PRs</a>
+    <a href="#s5"><span class="tnum">05</span> Auto-commit / Auto-PR</a>
+    <a href="#s6"><span class="tnum">06</span> Your config today</a>
+    <a href="#s7"><span class="tnum">07</span> The gap</a>
+    <a href="#s8"><span class="tnum">08</span> Proposed directions</a>
+    <a href="#srefs"><span class="tnum">RF</span> References</a>
+  </nav>
+
+  <div class="main">
+
+    <header class="masthead animate" style="--i:0">
+      <div class="masthead__kicker">Workflow Research &middot; MSP / continuous shipping</div>
+      <h1>Shipping in Minimum Shippable Products</h1>
+      <p class="masthead__sub">Industry standards for small-batch delivery, how your current <code>~/.claude</code> config governs the dev workflow, where the two diverge, and the levers that would close the gap. Read-only research deliverable &mdash; no configuration was changed.</p>
+      <div class="masthead__path">~/.claude/docs/msp-workflow-report.html</div>
+    </header>
+
+    <!-- ============ SECTION 0 : BLUF ============ -->
+    <h2 id="s0" class="sec-head animate" style="--i:1"><span class="sec-head__num">00</span> Bottom line up front <span class="sec-head__sub">the one idea + the diagnosis</span></h2>
+
+    <div class="hero-card animate" style="--i:2">
+      <div class="hero-card__label">The single most important idea</div>
+      <p><strong>&ldquo;Merged into the shared branch&rdquo; and &ldquo;visible to users&rdquo; are two separate events.</strong> Every parallel-safe technique exploits that gap: code lives on the shared branch, the build stays green, teammates are never blocked &mdash; but users see nothing until a final small commit flips it on. The discipline holding it together is tiny, reversible commits to one mainline, verified by automated tests before each merge. <span class="badge badge--high">High</span> <span class="conf-tag">triangulated across martinfowler.com, DORA, trunkbaseddevelopment.com</span></p>
+    </div>
+
+    <div class="mental-model animate" style="--i:3">
+      <div class="mm-track">
+        <div class="mm-event mm-event--merge">
+          <div class="mm-event__big">MERGED</div>
+          <div class="mm-event__sub">code on the shared branch &middot; build stays green &middot; teammates unblocked</div>
+        </div>
+        <div class="mm-gap">
+          <div class="mm-gap__label">The gap &mdash; incomplete work lives here, safely</div>
+          <div class="mm-gap__chips">
+            <span>Feature Flags</span><span>Keystone Interface</span><span>Dark Launching</span><span>Branch by Abstraction</span><span>Expand / Contract</span>
+          </div>
+        </div>
+        <div class="mm-event mm-event--release">
+          <div class="mm-event__big">RELEASED</div>
+          <div class="mm-event__sub">visible / active for users &middot; the final small commit turns it on</div>
+        </div>
+      </div>
+      <p class="mm-caption">The five techniques in the middle column all do one job: keep unfinished work mergeable and non-breaking, so &ldquo;deploy&rdquo; can happen continuously while &ldquo;release&rdquo; waits for the right moment.</p>
+    </div>
+
+    <div class="callout callout--insight">
+      <span class="callout__tag">Headline diagnosis of your current config</span>
+      <p>Your config already nails the <strong>shape</strong> of a good unit of work (atomic commits, ~200&ndash;400 LOC, &ldquo;commit often / perfect later&rdquo;, squash-on-merge). The gaps are about <strong>timing, reach, and model</strong>: (1) commits are rule-locked to &ldquo;only when the user asks&rdquo;; (2) work stays local &mdash; <code>git push</code> is not auto-allowed and nothing pushes between waves; (3) plan execution validates only once at the very end, so mid-plan states are not provably shippable; and (4) the branching rule models only &ldquo;feature branch off default&rdquo; &mdash; it has zero coverage of trunk-direct work, a shared <code>development</code> integration branch, feature flags, or expand-contract.</p>
+      <p><strong>Net: excellent for one developer building one branch; thin for continuous, parallel-safe, multi-developer shipping.</strong></p>
+    </div>
+
+    <div class="kicker-label">Three-number teaser &mdash; DORA elite vs low performers</div>
+    <div class="kpi-row">
+      <div class="kpi-card" style="--i:0"><div class="kpi-card__value green">5% <span class="vs">vs</span> <span style="color:var(--red)">64%</span></div><div class="kpi-card__label">Change failure rate</div><div class="kpi-card__note">elite vs low</div></div>
+      <div class="kpi-card" style="--i:1"><div class="kpi-card__value teal">&lt;1 day <span class="vs">vs</span> 1wk&ndash;1mo</div><div class="kpi-card__label">Lead time for changes</div><div class="kpi-card__note">elite vs low</div></div>
+      <div class="kpi-card" style="--i:2"><div class="kpi-card__value">&lt;1 hr <span class="vs">vs</span> 1&ndash;6mo</div><div class="kpi-card__label">Time to restore service</div><div class="kpi-card__note">elite vs low</div></div>
+    </div>
+    <p class="body"><span class="badge badge--medhigh">Med-High</span> octopus.com summarizing the 2024 DORA report.</p>
+
+    <!-- ============ SECTION 1 : WHAT IS AN MSP ============ -->
+    <h2 id="s1" class="sec-head"><span class="sec-head__num">01</span> What is an &ldquo;MSP&rdquo;? <span class="sec-head__sub">the unit of work</span></h2>
+
+    <p class="lead">An <strong>MSP (Minimum Shippable Product)</strong>, as you frame it, is the smallest change that can be independently built, tested, and deployed to production on its own. Empirically that means completable in <strong>hours to a couple of days</strong>, merged to a shared mainline at least once every 24 hours. <span class="badge badge--high">High</span></p>
+
+    <div class="callout callout--honesty">
+      <span class="callout__tag">Terminology honesty</span>
+      <p>&ldquo;MSP&rdquo; is <strong>your</strong> term &mdash; it is not in the DORA / Fowler / Humble canon. It maps cleanly onto DORA&rsquo;s <strong>&ldquo;small batch&rdquo;</strong> plus the <strong>&ldquo;thin vertical slice&rdquo;</strong>. Read the rest of this report as synthesizing across vocabularies, not quoting a single named standard. <span class="badge badge--high">High</span></p>
+    </div>
+
+    <div class="kicker-label">Terminology map &mdash; MSP vs related concepts</div>
+    <div class="table-wrap"><div class="table-scroll">
+      <table class="data-table">
+        <thead><tr><th>Term</th><th>Origin</th><th>Core emphasis</th><th>Size / cadence</th><th>Purpose</th><th class="wide">How it differs from MSP</th></tr></thead>
+        <tbody>
+          <tr><td class="nm">Minimum Shippable Product (MSP)</td><td>Your term; aligns with DORA &ldquo;small batch&rdquo;</td><td>Smallest independently deployable production change</td><td>Hours to a couple of days</td><td>Delivery rhythm; keep CI / TBD discipline</td><td class="wide">This <em>is</em> the MSP definition.</td></tr>
+          <tr><td class="nm">MVP (Minimum Viable Product)</td><td>Eric Ries, <em>Lean Startup</em> (2011)</td><td>Smallest thing to test a market hypothesis</td><td>Weeks&ndash;months; may be non-code</td><td>Customer learning / validation</td><td class="wide">MVP validates a market and may not meet the production quality bar. An MSP must.</td></tr>
+          <tr><td class="nm">Vertical Slice</td><td>Agile story-slicing</td><td>A change spanning all layers (UI &rarr; logic &rarr; data) end-to-end</td><td>Any size (&ldquo;thin&rdquo; = small)</td><td>User-visible value each iteration</td><td class="wide">Describes shape, not cadence. An MSP is ideally a thin vertical slice.</td></tr>
+          <tr><td class="nm">Walking Skeleton</td><td>Alistair Cockburn (<em>Crystal Clear</em>)</td><td>Tiny end-to-end implementation proving architecture + pipeline</td><td>One-time, project start</td><td>Prove build / test / deploy pipeline first</td><td class="wide">A one-time artifact; an MSP is the recurring delivery unit.</td></tr>
+        </tbody>
+      </table>
+    </div></div>
+
+    <div class="callout callout--insight">
+      <span class="callout__tag">How they nest</span>
+      <p><strong>Walking Skeleton</strong> (prove the pipeline) &rarr; a series of <strong>MSPs</strong> (thin vertical slices, 1&ndash;2 days each) &rarr; early MSPs collectively form the <strong>MVP</strong> if you are building a new product.</p>
+    </div>
+
+    <div class="kicker-label">Why small wins &mdash; DORA four key metrics</div>
+    <div class="table-wrap"><div class="table-scroll">
+      <table class="data-table">
+        <thead><tr><th>Metric</th><th>Elite</th><th>Low</th><th>Gap</th></tr></thead>
+        <tbody>
+          <tr><td class="nm">Deploy frequency</td><td class="yes">On-demand (multiple/day)</td><td class="no">Weekly&ndash;monthly</td><td>30&ndash;200&times;</td></tr>
+          <tr><td class="nm">Lead time for changes</td><td class="yes">&lt; 1 day</td><td class="no">1 week&ndash;1 month</td><td>7&ndash;30&times;</td></tr>
+          <tr><td class="nm">Change failure rate</td><td class="yes">5%</td><td class="no">64%</td><td>~12&times;</td></tr>
+          <tr><td class="nm">Mean time to restore</td><td class="yes">&lt; 1 hour</td><td class="no">1&ndash;6 months</td><td>700&ndash;4000&times;</td></tr>
+        </tbody>
+      </table>
+    </div></div>
+    <p class="body"><span class="badge badge--medhigh">Med-High</span> octopus.com citing the 2024 DORA report; consistent with prior reports.</p>
+
+    <div class="pull">
+      &ldquo;If there&rsquo;s twice as much code to integrate, it&rsquo;s more likely to be four times as long to carry out the integration.&rdquo;
+      <cite>Martin Fowler &middot; martinfowler.com/articles/continuousIntegration.html &middot; <span class="badge badge--high">High</span></cite>
+    </div>
+    <p class="body">Large batches are not linearly worse, they are <strong>disproportionately</strong> worse. This is the math behind &ldquo;merge hell&rdquo;.</p>
+
+    <div class="kicker-label">Small vs large batch &mdash; the trade-off</div>
+    <div class="table-wrap"><div class="table-scroll">
+      <table class="data-table">
+        <thead><tr><th>Dimension</th><th>Small batch (MSP / TBD / CI)</th><th>Large batch (long-lived branches)</th></tr></thead>
+        <tbody>
+          <tr><td class="nm">Integration cost per change</td><td class="for-col">Low; conflicts surface in hours</td><td class="against-col">Superlinear (&ldquo;4&times; for 2&times;&rdquo;)</td></tr>
+          <tr><td class="nm">Feedback speed</td><td class="for-col">Bugs found within hours</td><td class="against-col">Bugs found weeks later</td></tr>
+          <tr><td class="nm">Deployment risk</td><td class="for-col">Low; easy rollback</td><td class="against-col">High; hard to isolate cause</td></tr>
+          <tr><td class="nm">Change failure rate</td><td class="for-col">~5% (elite)</td><td class="against-col">~64% (low)</td></tr>
+          <tr><td class="nm">Mean time to restore</td><td class="for-col">&lt; 1 hour</td><td class="against-col">up to 6 months</td></tr>
+          <tr><td class="nm">Refactoring health</td><td class="for-col">Enabled</td><td class="against-col">Suppressed (conflicts deter it)</td></tr>
+          <tr><td class="nm">Teammate parallelism</td><td class="for-col">High</td><td class="against-col">Low; big branches block shared modules</td></tr>
+          <tr><td class="nm">Build infra demand</td><td class="against-col">High (CI must be fast)</td><td class="for-col">Low</td></tr>
+          <tr><td class="nm">Suitable codebase</td><td>Modular, loosely coupled</td><td>Tightly coupled legacy ok-ish</td></tr>
+        </tbody>
+      </table>
+    </div></div>
+
+    <div class="callout callout--counter">
+      <span class="callout__tag">Counter-case &mdash; when large batches / long-lived branches are defensible</span>
+      <p>Open-source projects (async external contributors &mdash; Fowler endorses feature branches here), regulated environments (FDA / finance audit cycles), hardware / firmware release cadence, multi-version maintenance, tightly-coupled legacy monoliths without clean seams (Ben Morris&rsquo; critique: TBD &ldquo;redistributes complexity downstream&rdquo; to flags), and slow CI pipelines. Nuance: TBD proponents treat these as <strong>preconditions to fix</strong>, not excuses.</p>
+      <p><span class="badge badge--high">High</span> that small batches win in typical enterprise SaaS. <span class="badge badge--med">Medium</span> that the DORA magnitudes generalize to regulated / embedded / OSS &mdash; DORA sampling skews web-scale SaaS and is observational, not a controlled trial.</p>
+    </div>
+
+    <!-- ============ SECTION 2 : BRANCHING & CI ============ -->
+    <h2 id="s2" class="sec-head"><span class="sec-head__num">02</span> Branching &amp; continuous integration <span class="sec-head__sub">where work merges</span></h2>
+
+    <p class="lead">Plain definitions. <strong>Trunk / mainline</strong> = the one shared branch (<code>main</code> / <code>master</code>). <strong>Integration</strong> = merging your work with everyone else&rsquo;s. <strong>Continuous Integration (CI)</strong> = every developer merges to mainline at least daily <em>and</em> an automated build + test runs immediately. CI is a human-frequency discipline, not just &ldquo;having a build server&rdquo;. <span class="badge badge--high">High</span> Fowler 2024</p>
+
+    <p class="body"><strong>Trunk-Based Development (TBD):</strong> all devs collaborate on one trunk, either committing directly (small experienced teams) or via short-lived branches lasting no more than ~2 days. DORA defines TBD as: merge to trunk at least daily, branches last hours, &le;3 active branches, no code freezes. Scale proof: Google runs 35,000 devs on a single monorepo trunk. <span class="badge badge--high">High</span> trunkbaseddevelopment.com + dora.dev</p>
+
+    <div class="kicker-label">Four branching models compared</div>
+    <div class="table-wrap"><div class="table-scroll">
+      <table class="data-table">
+        <thead><tr><th>Model</th><th>Key branches</th><th>Feature branch lifetime</th><th>Direct commits to trunk?</th><th>Release cadence fit</th></tr></thead>
+        <tbody>
+          <tr><td class="nm">Trunk-Based Development</td><td><code>main</code> only (+ optional short branches)</td><td>Hours&ndash;1 day</td><td class="center"><span class="yes">Yes</span> (small teams) / short branch + CI (larger)</td><td>Continuous deploy, many/day</td></tr>
+          <tr><td class="nm">GitHub Flow</td><td><code>main</code> + feature branches</td><td>Days (1 PR = 1 feature)</td><td class="center"><span class="no">No</span>; all via PR</td><td>Continuous delivery, daily&ndash;weekly</td></tr>
+          <tr><td class="nm">GitLab Flow</td><td><code>main</code> + env branches (staging / production) + feature</td><td>Days</td><td class="center"><span class="no">No</span>; all via PR</td><td>CD with environment promotion</td></tr>
+          <tr><td class="nm">Git Flow</td><td><code>main</code>, <code>develop</code>, <code>feature/*</code>, <code>release/*</code>, <code>hotfix/*</code></td><td>Weeks (feature); months (release)</td><td class="center"><span class="no">No</span>; hotfix only</td><td>Scheduled, versioned releases</td></tr>
+        </tbody>
+      </table>
+    </div></div>
+
+    <div class="kicker-label">Your topology, mapped &mdash; <code>master &rarr; development &rarr; feature</code></div>
+    <div class="diagram-shell">
+      <p class="diagram-shell__hint">Ctrl/Cmd + wheel to zoom. Drag to pan when zoomed. Double-click to fit. &#x26F6; opens full size.</p>
+      <div class="mermaid-wrap mermaid-wrap--compact" data-initial-zoom="1.4">
+        <div class="zoom-controls">
+          <button type="button" data-action="zoom-in" title="Zoom in">+</button>
+          <button type="button" data-action="zoom-out" title="Zoom out">&minus;</button>
+          <button type="button" data-action="zoom-fit" title="Smart fit">&#8634;</button>
+          <button type="button" data-action="zoom-one" title="1:1 zoom">1:1</button>
+          <button type="button" data-action="zoom-expand" title="Open full size">&#x26F6;</button>
+          <span class="zoom-label">Loading...</span>
+        </div>
+        <div class="mermaid-viewport"><div class="mermaid mermaid-canvas"></div></div>
+      </div>
+      <script type="text/plain" class="diagram-source">
+flowchart TD
+  feat["feature/* — unit of work<br/>short-lived, hours to 1 day"] -->|"PR + CI review"| dev["development — integration<br/>always green, CI on every push"]
+  triv["trivial change<br/>docs / config / one-liner"] -->|"direct commit + CI"| dev
+  dev -->|"deliberate release merge"| master["master — production<br/>protected"]
+  master -->|"emergency only"| hot["hotfix — rare, careful"]
+  hot -->|"merge back"| dev
+      </script>
+    </div>
+
+    <div class="callout callout--insight">
+      <span class="callout__tag">Map onto your topology &mdash; answers pain (d)</span>
+      <p>Your <code>master &rarr; development &rarr; feature</code> maps closely to a <strong>GitLab-Flow / three-branch variant</strong>: <code>master</code> (production), <code>development</code> (integration), <code>feature/*</code> (unit of work). Direct commits to <code>development</code> are safe <strong>only if</strong>: (1) CI runs on every push to <code>development</code>; (2) <code>master</code> is protected and only receives deliberate release merges from <code>development</code>; (3) the commit is genuinely small and non-breaking (docs, config, a one-liner). Anything touching business logic / APIs / shared state should still get a short-lived feature branch + PR back into <code>development</code>, regardless of size &mdash; so review happens before integration and <code>development</code> stays green.</p>
+      <p><strong>Recommendation:</strong> three-branch variant + CI gates on <code>development</code> + GitHub-Flow discipline (every substantive change via PR, branch deleted on merge) to stop feature branches aging into merge hazards. <span class="badge badge--high">High</span> DORA + GitHub Flow + GitLab Flow docs</p>
+    </div>
+
+    <div class="callout callout--counter">
+      <span class="callout__tag">Objectivity &mdash; TBD&rsquo;s weakness</span>
+      <p>DORA explicitly notes TBD <strong>fails</strong> without strong automated tests and a synchronous code-review culture. Long-lived feature branches also suppress refactoring (Fowler, <em>FeatureBranch</em>): devs avoid refactoring shared code to dodge merge conflicts, so the codebase rots. <span class="badge badge--high">High</span></p>
+    </div>
+
+    <div class="sources"><b>Sources</b><br>
+      <a href="https://martinfowler.com/articles/continuousIntegration.html">martinfowler.com/articles/continuousIntegration.html</a> &middot;
+      <a href="https://trunkbaseddevelopment.com">trunkbaseddevelopment.com</a> &middot;
+      <a href="https://trunkbaseddevelopment.com/short-lived-feature-branches/">trunkbaseddevelopment.com/short-lived-feature-branches/</a> &middot;
+      <a href="https://dora.dev/capabilities/trunk-based-development/">dora.dev/capabilities/trunk-based-development/</a> &middot;
+      <a href="https://docs.github.com/en/get-started/using-github/github-flow">docs.github.com/.../github-flow</a> &middot;
+      <a href="https://about.gitlab.com/topics/version-control/what-is-gitlab-flow/">about.gitlab.com/.../what-is-gitlab-flow</a> &middot;
+      <a href="https://www.atlassian.com/git/tutorials/comparing-workflows/gitflow-workflow">atlassian.com/.../gitflow-workflow</a> &middot;
+      <a href="https://martinfowler.com/bliki/FeatureBranch.html">martinfowler.com/bliki/FeatureBranch.html</a>
+    </div>
+
+    <!-- ============ SECTION 3 : PARALLEL-SAFE SHIPPING ============ -->
+    <h2 id="s3" class="sec-head"><span class="sec-head__num">03</span> Shipping without breaking others <span class="sec-head__sub">parallel-safe techniques</span></h2>
+
+    <p class="lead">These techniques decouple <strong>&ldquo;merged / deployed&rdquo;</strong> from <strong>&ldquo;released / active&rdquo;</strong> so incomplete work lives safely on the shared branch. This directly answers pain (c): how plan output can stay individually mergeable without breaking parallel developers.</p>
+
+    <p class="body">Plain definitions. <strong>Toggle / flag</strong> = runtime on/off switch. <strong>Consumer</strong> = any code / service / user calling an API or reading a column. <strong>Abstraction layer</strong> = a thin wrapper hiding the real implementation. <strong>Green build</strong> = all mainline tests pass. <strong>Toggle debt</strong> = accumulated stale flags. <strong>Idempotent migration</strong> = safe to run more than once.</p>
+
+    <div class="card-grid">
+      <div class="ve-card b1">
+        <h4>1 &middot; Feature Flags</h4>
+        <p>An if/else switch read at runtime; both code paths live on mainline; flip it on when ready, no redeploy. The cheapest way to merge unfinished work.</p>
+        <span class="meta"><b>Cost:</b> toggle debt (Knight Capital, 2012), test-matrix growth (2^N states), cleanup discipline. <span class="badge badge--high">High</span></span>
+      </div>
+      <div class="ve-card b2">
+        <h4>2 &middot; Keystone Interface</h4>
+        <p>Build all backend across releases; add the single user-facing UI entry point in one final small commit. Until then the feature is invisible &mdash; no flag needed.</p>
+        <span class="meta"><b>Prefer over a release toggle</b> when there&rsquo;s one clean UI chokepoint. Needs backend testable without the UI. <span class="badge badge--high">High</span></span>
+      </div>
+      <div class="ve-card b3">
+        <h4>3 &middot; Dark Launching</h4>
+        <p>Call new backend logic from real production traffic but discard the result; tests performance and correctness at production scale with zero user-visible change.</p>
+        <span class="meta"><b>Best for</b> mandatory system processes (e.g. every checkout). Differs from canary (canary shows the feature to N% of real users). <span class="badge badge--high">High</span></span>
+      </div>
+      <div class="ve-card b4">
+        <h4>4 &middot; Branch by Abstraction</h4>
+        <p>Insert a thin wrapper between callers and the old module, route through it, build the new module behind it, migrate callers gradually, then delete old + wrapper. Whole replacement in small mainline commits, always green.</p>
+        <span class="meta"><b>Use for</b> big structural replacements (ORM, payment lib). Cost: temporary dual implementation. <span class="badge badge--high">High</span></span>
+      </div>
+      <div class="ve-card b5">
+        <h4>5 &middot; Parallel Change / Expand-Contract</h4>
+        <p>Change an interface or schema in 3 phases: <b>Expand</b> (add new alongside old) &rarr; <b>Migrate</b> (move callers one at a time) &rarr; <b>Contract</b> (remove old). Each phase a separate reversible migration.</p>
+        <span class="meta"><b>Aligns with your no-direct-DB rule:</b> each phase is a SQL file the human applies; additive-first keeps the DB compatible with both old and new code. Cost: discipline to finish Contract. <span class="badge badge--high">High</span></span>
+      </div>
+    </div>
+
+    <div class="kicker-label">Feature toggle types &mdash; Hodgson taxonomy</div>
+    <div class="table-wrap"><div class="table-scroll">
+      <table class="data-table">
+        <thead><tr><th>Type</th><th>Lifetime</th><th>Controlled by</th><th>Purpose</th></tr></thead>
+        <tbody>
+          <tr><td class="nm">Release toggle</td><td>Days&ndash;weeks</td><td>Engineering</td><td>Let unfinished work merge safely; off in prod</td></tr>
+          <tr><td class="nm">Experiment toggle</td><td>Days&ndash;weeks</td><td>Product / data</td><td>A/B test by cohort</td></tr>
+          <tr><td class="nm">Ops toggle</td><td>Days&ndash;years</td><td>On-call / SRE</td><td>Kill switch / degrade under load</td></tr>
+          <tr><td class="nm">Permission toggle</td><td>Months&ndash;years</td><td>Product</td><td>Gate to premium / beta / org</td></tr>
+        </tbody>
+      </table>
+    </div></div>
+    <p class="body">Toggles are overkill when a Keystone suffices. Cleanup discipline = expiry dates, build-fail-on-stale, or a hard cap. <span class="badge badge--high">High</span> Hodgson / martinfowler.com</p>
+
+    <div class="kicker-label">Decision table &mdash; which technique, when</div>
+    <div class="table-wrap"><div class="table-scroll">
+      <table class="data-table">
+        <thead><tr><th>Technique</th><th>Use when</th><th>Avoid when</th><th>Primary cost</th></tr></thead>
+        <tbody>
+          <tr><td class="nm">Keystone Interface</td><td>One UI entry point; backend testable without UI</td><td>Change scattered across many surfaces</td><td>Architecture must allow sub-UI testing</td></tr>
+          <tr><td class="nm">Release Toggle</td><td>No single keystone; need activation timing decoupled from deploy</td><td>Feature tinier than the flag</td><td>Toggle debt; test matrix; cleanup</td></tr>
+          <tr><td class="nm">Ops Toggle</td><td>Need a kill switch (rate limit, circuit breaker)</td><td>Only needed during dev</td><td>Long-term carry cost</td></tr>
+          <tr><td class="nm">Dark Launching</td><td>Validate backend at prod scale, zero users; mandatory path</td><td>Feature is user-choice driven (use canary)</td><td>Call-and-discard infra; monitor shadow traffic</td></tr>
+          <tr><td class="nm">Canary Release</td><td>User-visible; want feedback from N% first</td><td>Pure backend (dark-launch safer)</td><td>Routing infra; two paths monitored</td></tr>
+          <tr><td class="nm">Branch by Abstraction</td><td>Replacing large module / lib; too big for a few commits</td><td>Small localized change</td><td>Temporary dual implementation</td></tr>
+          <tr><td class="nm">Parallel Change / Expand-Contract</td><td>Interface / API / schema change with multiple consumers</td><td>Single-consumer atomic change</td><td>Discipline to finish Contract</td></tr>
+        </tbody>
+      </table>
+    </div></div>
+
+    <div class="callout callout--insight">
+      <span class="callout__tag">How they compose &mdash; worked example</span>
+      <p>Replacing a recommendation engine: <strong>Branch by Abstraction</strong> for the swap; a <strong>Keystone</strong> holds the UI until last; <strong>Dark Launching</strong> exercises it on every checkout; <strong>Parallel Change</strong> for the schema; an <strong>Ops Toggle</strong> as a permanent kill switch; the release toggle removed within ~2 weeks. The techniques layer &mdash; you rarely use just one.</p>
+    </div>
+
+    <div class="sources"><b>Sources</b><br>
+      <a href="https://martinfowler.com/articles/feature-toggles.html">martinfowler.com/articles/feature-toggles.html</a> &middot;
+      <a href="https://martinfowler.com/bliki/KeystoneInterface.html">martinfowler.com/bliki/KeystoneInterface.html</a> &middot;
+      <a href="https://martinfowler.com/bliki/DarkLaunching.html">martinfowler.com/bliki/DarkLaunching.html</a> &middot;
+      <a href="https://martinfowler.com/bliki/BranchByAbstraction.html">martinfowler.com/bliki/BranchByAbstraction.html</a> &middot;
+      <a href="https://martinfowler.com/bliki/ParallelChange.html">martinfowler.com/bliki/ParallelChange.html</a> &middot;
+      <a href="https://dora.dev/capabilities/working-in-small-batches/">dora.dev</a>
+    </div>
+
+    <!-- ============ SECTION 4 : COMMITS & PRs ============ -->
+    <h2 id="s4" class="sec-head"><span class="sec-head__num">04</span> Commits &amp; pull requests <span class="sec-head__sub">the mechanics</span></h2>
+
+    <p class="lead">Plain definitions. <strong>Commit</strong> = a referenceable snapshot. <strong>Atomic commit</strong> = exactly one logical change, with the codebase building and tests passing at every commit. <strong>Conventional Commits</strong> = a machine-readable intent tag <code>type(scope): description</code> with types feat / fix / refactor / docs / test / chore / ci / perf and <code>BREAKING CHANGE</code> / <code>!</code>. <strong>PR</strong> = a request to merge a branch with a review UI. <strong>Draft PR</strong> = opened early, not ready to merge.</p>
+
+    <div class="kicker-label">Why atomic + conventional</div>
+    <div class="table-wrap"><div class="table-scroll">
+      <table class="data-table">
+        <thead><tr><th>Property</th><th>Benefit</th></tr></thead>
+        <tbody>
+          <tr><td class="nm">Atomic history</td><td><code>git bisect</code> can isolate the exact bug-introducing commit</td></tr>
+          <tr><td class="nm">Atomic history</td><td><code>git revert</code> undoes one change cleanly, no collateral</td></tr>
+          <tr><td class="nm">Conventional types</td><td>Auto changelog + semantic version bumps</td></tr>
+          <tr><td class="nm">Conventional types</td><td>CI can skip deploys on docs-only commits</td></tr>
+          <tr><td class="nm">Atomic + conventional</td><td>Reviewers see <em>why</em>, not just <em>what</em></td></tr>
+        </tbody>
+      </table>
+    </div></div>
+
+    <div class="callout">
+      <span class="callout__tag">In plain words</span>
+      <p><code>git bisect</code> binary-searches through history to find the commit that introduced a bug &mdash; about 10 steps for ~675 commits &mdash; but only works if commits are atomic. <code>git revert</code> makes a new commit that cleanly reverses an old one, <em>if</em> that old commit was atomic.</p>
+    </div>
+
+    <div class="callout callout--insight">
+      <span class="callout__tag">Key insight &mdash; the squash-on-merge reconciliation</span>
+      <p>You <strong>want both</strong>: frequent small saves (don&rsquo;t lose work, checkpoint progress) <em>and</em> a clean atomic published history. Squash-on-merge gives both &mdash; commit freely with WIP messages on the branch, then squash into one atomic Conventional-Commit message when merging to <code>development</code> / <code>main</code>. The local branch keeps full incremental history; the shared branch gets one clean entry. <span class="badge badge--high">High</span> conventionalcommits.org</p>
+    </div>
+
+    <div class="kicker-label">Small-PR evidence &mdash; two independent primary sources</div>
+    <div class="split2">
+      <div class="panel">
+        <div class="panel__title" style="color:var(--blue)">SmartBear / Cisco study</div>
+        <p class="body" style="margin:0">2,500 reviews, 3.2M LOC, 10 months: defect detection peaks at <strong>200&ndash;400 LOC/review</strong>; drops above ~400. Keep pace &lt;300&ndash;500 LOC/hr and sessions &lt;60&ndash;90 min.</p>
+      </div>
+      <div class="panel">
+        <div class="panel__title" style="color:var(--teal)">Google eng-practices</div>
+        <p class="body" style="margin:0">~100 lines reasonable, ~1000 too large; the explicit rule is <strong>&ldquo;err on the side of too small.&rdquo;</strong></p>
+      </div>
+    </div>
+
+    <div class="kicker-label">PR size &rarr; review quality</div>
+    <div class="table-wrap"><div class="table-scroll">
+      <table class="data-table">
+        <thead><tr><th>PR size</th><th>Review speed</th><th>Defect detection</th><th>Merge time</th><th>Revert safety</th></tr></thead>
+        <tbody>
+          <tr><td class="nm">&lt; 200 LOC</td><td class="yes">Fast</td><td class="yes">High</td><td>Hours</td><td class="yes">Safe</td></tr>
+          <tr><td class="nm">200&ndash;400 LOC</td><td>Moderate</td><td class="yes">Optimal</td><td>Hours&ndash;1 day</td><td class="yes">Safe</td></tr>
+          <tr><td class="nm">400&ndash;1000 LOC</td><td class="no">Slow</td><td>Declining</td><td>Days</td><td>Riskier</td></tr>
+          <tr><td class="nm">&gt; 1000 LOC</td><td class="no">Very slow</td><td class="no">Low</td><td>Days&ndash;weeks</td><td class="no">Dangerous</td></tr>
+        </tbody>
+      </table>
+    </div></div>
+
+    <div class="callout callout--honesty">
+      <span class="callout__tag">Honesty note</span>
+      <p>The 200&ndash;400 LOC finding (Cisco, 2009) has not been independently replicated at scale on modern polyglot codebases &mdash; treat it as directionally correct, not precise. <span class="badge badge--high">High</span> that small PRs review better; <span class="badge badge--med">Medium</span> on the exact threshold.</p>
+    </div>
+
+    <p class="body"><strong>Draft PRs:</strong> open early (day one of a branch) to start CI and discussion before deep implementation; convert to &ldquo;ready&rdquo; when green + complete. Google recommends starting the next change immediately after sending the first for review &mdash; treat review wait as non-blocking. That is stacking. <span class="badge badge--high">High</span> GitHub docs + Google eng-practices</p>
+
+    <div class="kicker-label">Stacked PRs / stacked diffs &mdash; answers pain (c) for big features</div>
+    <p class="body">Split a big feature into a chain of small dependent PRs, each based on the previous, each independently reviewable and mergeable.</p>
+    <div class="codeblock">
+      <div class="codeblock__head">Stacked PR chain</div>
+      <pre><span class="c-main">main</span>
+ &#9492; <span class="c-br">feature/step-1</span>   (PR #1: data model, 150 LOC)
+    &#9492; <span class="c-br">feature/step-2</span>   (PR #2: API, 200 LOC)
+       &#9492; <span class="c-br">feature/step-3</span>   (PR #3: UI, 180 LOC)</pre>
+    </div>
+    <p class="body">Open PR #1, immediately start PR #2 on top &mdash; review is not a blocking gate. <strong>History:</strong> Phabricator (Meta, open-sourced 2011) &rarr; Graphite (SaaS, auto-rebases the stack) &rarr; GitHub native stacked PRs (private preview, April 2026, <code>gh stack</code>). <strong>Caveats:</strong> needs &lt;200 LOC discipline; without tooling, manual rebasing of children is error-prone; needs TBD maturity. <span class="badge badge--high">High</span> Graphite docs; Meta via Pragmatic Engineer; GitHub via The Register</p>
+
+    <div class="sources"><b>Sources</b><br>
+      <a href="https://www.conventionalcommits.org/en/v1.0.0/">conventionalcommits.org/en/v1.0.0/</a> &middot;
+      <a href="https://git-scm.com/docs/git-bisect">git-scm.com/docs/git-bisect</a> &middot;
+      <a href="https://static0.smartbear.co/">static0.smartbear.co/.../code-review-cisco-case-study.pdf</a> &middot;
+      <a href="https://google.github.io/eng-practices/review/developer/small-cls.html">google.github.io/eng-practices/.../small-cls.html</a> &middot;
+      <a href="https://docs.github.com/en/get-started/using-github/github-flow">docs.github.com/.../github-flow</a> &middot;
+      <a href="https://graphite.com/blog/stacked-prs">graphite.com/blog/stacked-prs</a> &middot;
+      <a href="https://newsletter.pragmaticengineer.com/p/stacked-diffs-and-tooling-at-meta">newsletter.pragmaticengineer.com/p/stacked-diffs-and-tooling-at-meta</a> &middot;
+      <a href="https://www.theregister.com/2026/04/14/github_stacked_prs/">theregister.com/2026/04/14/github_stacked_prs/</a>
+    </div>
+
+    <!-- ============ SECTION 5 : AUTOMATION ============ -->
+    <h2 id="s5" class="sec-head"><span class="sec-head__num">05</span> Automation: auto-commit &amp; auto-PR <span class="sec-head__sub">the balanced view</span></h2>
+
+    <p class="lead">This directly answers pains (a) and (b) &mdash; objectively, including the risks, because you asked for these to happen automatically.</p>
+
+    <p class="body">Plain definitions. <strong>Auto-commit</strong> = a script / agent runs <code>git commit</code> on a trigger without a human deciding. <strong>Auto-PR</strong> = a script / agent opens a PR via API automatically. <strong>Pre-commit hook</strong> = a script that runs on <code>git commit</code> and can abort it. <strong>CI gate</strong> = checks that must pass before merge, enforced by the platform. <strong>Squash-on-merge</strong> = collapse a PR&rsquo;s commits into one on merge.</p>
+
+    <div class="kicker-label">For / against &mdash; auto-commit</div>
+    <div class="table-wrap"><div class="table-scroll">
+      <table class="data-table">
+        <thead><tr><th>Dimension</th><th class="for-col">FOR</th><th class="against-col">AGAINST</th></tr></thead>
+        <tbody>
+          <tr><td class="nm">Progress tracking</td><td>Every state captured; nothing lost on crash</td><td>WIP commits pollute shared history</td></tr>
+          <tr><td class="nm">History quality</td><td>Squash-on-merge keeps WIP local</td><td>Squash needs discipline; un-squashed = noisy forever</td></tr>
+          <tr><td class="nm">CI load</td><td>Early regression catch</td><td>Agents can spawn hundreds of commits + thousands of CI runs/afternoon</td></tr>
+          <tr><td class="nm">Broken-state risk</td><td>Low on a private branch</td><td>High on a shared branch; a mid-refactor commit breaks everyone</td></tr>
+          <tr><td class="nm">Review ergonomics</td><td>Clear per-line blame</td><td>Reviewers wade through noisy WIP diffs</td></tr>
+          <tr><td class="nm">Agent / AI workflows</td><td>Checkpoints agent work</td><td>Real frustration: agents committing to main, 2000-line no-explanation PRs</td></tr>
+        </tbody>
+      </table>
+    </div></div>
+
+    <div class="kicker-label">For / against &mdash; auto-PR</div>
+    <div class="table-wrap"><div class="table-scroll">
+      <table class="data-table">
+        <thead><tr><th>Dimension</th><th class="for-col">FOR</th><th class="against-col">AGAINST</th></tr></thead>
+        <tbody>
+          <tr><td class="nm">Velocity</td><td>Forces immediate review handoff</td><td>Premature PRs: incomplete description, no tests, wrong scope</td></tr>
+          <tr><td class="nm">CI coverage</td><td>PR CI runs immediately</td><td>CI costs money / time; noise</td></tr>
+          <tr><td class="nm">Collaboration</td><td>Work visible via Draft PR</td><td>Reviewers can&rsquo;t tell &ldquo;ready&rdquo; vs &ldquo;auto-opened&rdquo; without Draft / WIP conventions</td></tr>
+          <tr><td class="nm">Merge-queue pressure</td><td>Forces continuous small merges</td><td>10 piled-up auto-PRs block each other</td></tr>
+        </tbody>
+      </table>
+    </div></div>
+
+    <div class="callout callout--insight">
+      <span class="callout__tag">Key insight &mdash; the four guardrails that make automation safe</span>
+      <p><strong>1. Branch isolation</strong> &mdash; auto-commits go to a private feature branch (e.g. <code>agent/&lt;ticket&gt;-&lt;desc&gt;</code>), never <code>main</code> / <code>development</code>.</p>
+      <p><strong>2. Squash-on-merge enforced at repo level</strong> &mdash; WIP becomes one clean atomic commit on merge.</p>
+      <p><strong>3. CI gate on the PR (branch protection)</strong> &mdash; broken states can&rsquo;t propagate even if merged by accident.</p>
+      <p><strong>4. Draft PR by default</strong> &mdash; triggers CI, stays out of reviewers&rsquo; queue; a human converts it to &ldquo;ready&rdquo;.</p>
+    </div>
+
+    <div class="callout callout--tradeoff">
+      <span class="callout__tag">Trade-off &mdash; the pre-commit hook caveat</span>
+      <p>Hooks &gt;3&ndash;5s get bypassed with <code>--no-verify</code>; many run against the working dir, not the staged index. Practitioner rule: <strong>fast</strong> checks (lint the diff, &lt;3s) in pre-commit; <strong>slow</strong> checks (full suite, build) in CI on the PR. <span class="badge badge--high">High</span> for the risks; <span class="badge badge--med">Medium</span> for the safe-automation pattern &mdash; assembled from practitioner sources, no single canonical spec.</p>
+    </div>
+
+    <div class="callout callout--counter">
+      <span class="callout__tag">Real-world caution</span>
+      <p>GitHub&rsquo;s 2026 merge-queue incident reverted commits across 658 repos &mdash; automation at scale is not free. <span class="badge badge--med">Medium</span> The Register reporting.</p>
+    </div>
+
+    <div class="sources"><b>Sources</b><br>
+      <a href="https://particle41.com/insights/gitops-when-ai-agents-make-commits/">particle41.com/insights/gitops-when-ai-agents-make-commits/</a> &middot;
+      <a href="https://www.buildmvpfast.com/blog/git-workflow-ai-assisted-development-agent-commits-2026">buildmvpfast.com/blog/git-workflow-ai-assisted-development-agent-commits-2026</a> &middot;
+      <a href="https://jyn.dev/pre-commit-hooks-are-fundamentally-broken/">jyn.dev/pre-commit-hooks-are-fundamentally-broken/</a> &middot;
+      <a href="https://news.ycombinator.com/item?id=46398906">news.ycombinator.com/item?id=46398906</a>
+    </div>
+
+    <!-- ============ SECTION 6 : CONFIG TODAY ============ -->
+    <h2 id="s6" class="sec-head"><span class="sec-head__num">06</span> How your config works today <span class="sec-head__sub">the map</span></h2>
+
+    <p class="lead"><code>~/.claude</code> is <strong>not</strong> itself a git repo &mdash; these rules / hooks / skills / plugins govern how Claude works in <em>other</em> projects. Here is the layered map, with file:line references.</p>
+
+    <div class="kicker-label">Git workflow rules</div>
+    <div class="card-grid">
+      <div class="ve-card b1">
+        <h4>git-workflow.md (hub)</h4>
+        <p>&ldquo;Commits and pushes happen only when the user asks&rdquo; (line 9). A 4-step flow plan &rarr; TDD &rarr; code review &rarr; commit/push, with step 4 &ldquo;Only when the user asks&rdquo; (line 16).</p>
+      </div>
+      <div class="ve-card b2">
+        <h4>git/commits.md (spoke)</h4>
+        <p>Atomic, one logical change, refactor separate from behavior (line 15); &ldquo;commit often, perfect later&rdquo;, WIP fine, squash-on-merge (line 16); ~200&ndash;400 LOC target with SmartBear / Google / DORA citation (line 17); override lock &ldquo;does NOT change&hellip; only when the user asks&rdquo; (line 18); Conventional Commits (line 11).</p>
+      </div>
+      <div class="ve-card b3">
+        <h4>git/branching.md (spoke)</h4>
+        <p>Never commit to default branch (line 3); one branch per line of work, feat/fix (line 4); squash-on-merge default (line 5); destructive ops need confirmation (line 6). <strong>No mention</strong> of trunk-based, a development branch, feature flags, expand-contract, or branch-by-abstraction anywhere.</p>
+      </div>
+      <div class="ve-card b4">
+        <h4>git/pull-requests.md (spoke)</h4>
+        <p>&ldquo;Open PRs only when the user asks&rdquo; (line 10); the rest is <em>how</em>, not <em>when</em>.</p>
+      </div>
+    </div>
+
+    <div class="kicker-label">Testing / verification gating</div>
+    <div class="card-grid">
+      <div class="ve-card b2">
+        <h4>testing.md</h4>
+        <p>The Test Admission Gate (lines 10&ndash;14) is a filter on test <em>creation</em>, not a pre-commit gate; default verification is diff-scoped via <code>/verify-&lt;project&gt;</code> (lines 41&ndash;42); the full suite runs only at integration boundaries / pre-push.</p>
+      </div>
+      <div class="ve-card b3">
+        <h4>pre-commit-scoped-verify.sh</h4>
+        <p>PreToolUse(Bash), settings.json line 181. The <strong>only</strong> automated commit gate: detects <code>git commit</code>, Node/TS projects only, runs <code>tsc --noEmit</code> + eslint on staged files, BLOCKING (exit 2) on failure. No test runner auto-runs pre-commit.</p>
+      </div>
+      <div class="ve-card b4">
+        <h4>lint-on-edit.sh</h4>
+        <p>PostToolUse, settings.json line 199. <code>eslint --fix</code> after edits, advisory only.</p>
+      </div>
+    </div>
+
+    <div class="kicker-label">Plan execution engine &mdash; three layers</div>
+    <div class="card-grid">
+      <div class="ve-card b1">
+        <h4>writing-plans skill</h4>
+        <p>Every plan task embeds a <code>git commit</code> step (per-task commits <em>are</em> designed in); then offers Subagent-Driven (recommended) or Inline execution.</p>
+      </div>
+      <div class="ve-card b1">
+        <h4>subagent-driven-development skill</h4>
+        <p>One implementer per task, sequential (parallel implementers explicitly forbidden as a Red Flag); each implementer implements &rarr; tests &rarr; commits &rarr; self-reviews; then spec + quality reviewers per task; a final reviewer after all tasks. &ldquo;Parallel&rdquo; here = parallel <em>reviewers</em>, not implementers. Continuous execution, no check-in between tasks.</p>
+      </div>
+      <div class="ve-card b3">
+        <h4>parallel-plan-execution.js (true parallel engine)</h4>
+        <p>A Workflow, not an inline skill. wave-planner topologically sorts tasks by <code>dependsOn</code> + <code>fileScope</code> overlap into waves (overlapping scopes can&rsquo;t share a wave). Two isolation modes: <b>worktree</b> (each task its own worktree + branch; an integration agent merges task branches into <code>baseBranch</code> with <code>--no-ff</code> after each wave; worktrees removed) and <b>scope-fence</b> (single wave, agents work uncommitted in the main tree; a fence agent verifies only declared scopes touched; changes stay uncommitted by design).</p>
+        <p>Phases: Waves &rarr; Integrate &rarr; Boundary &rarr; Final Review. Boundary validation (<code>fullValidationCmd</code>) runs <strong>once after all waves</strong> (line 233). Final review by code-reviewer. <strong>No automatic push; no <code>gh pr create</code>.</strong></p>
+      </div>
+      <div class="ve-card b2">
+        <h4>route-planner.mjs</h4>
+        <p>Picks the lane workflow / light / inline from task count, wave count, context saturation, etc. No git ops itself.</p>
+      </div>
+      <div class="ve-card b2">
+        <h4>using-git-worktrees skill</h4>
+        <p>Worktrees at <code>.worktrees/&lt;branch&gt;</code> off a <code>baseBranch</code> (assumed a feature branch, not <code>main</code> directly).</p>
+      </div>
+      <div class="ve-card b4">
+        <h4>finishing-a-development-branch skill</h4>
+        <p>A 4-option menu: (1) merge locally, (2) push + <code>gh pr create</code>, (3) keep, (4) discard. Option 2 is the <strong>only</strong> path to a PR and requires a human keystroke.</p>
+      </div>
+    </div>
+
+    <div class="kicker-label">Hooks touching git / commits / files</div>
+    <div class="table-wrap"><div class="table-scroll">
+      <table class="data-table">
+        <thead><tr><th>Hook</th><th>Event</th><th>Effect</th></tr></thead>
+        <tbody>
+          <tr><td class="nm">block-destructive-bash.sh</td><td>PreToolUse(Bash)</td><td>&ldquo;ask&rdquo; for <code>rm -rf</code>, force push, <code>reset --hard</code>, <code>clean -f</code>, filter-branch, <code>branch -D</code>, shell writes to <code>.claude/</code></td></tr>
+          <tr><td class="nm">pre-commit-scoped-verify.sh</td><td>PreToolUse(Bash)</td><td>BLOCKING tsc + eslint on staged TS/JS before <code>git commit</code> (Node/TS only)</td></tr>
+          <tr><td class="nm">protect-claude-config.sh</td><td>PreToolUse(Edit/Write)</td><td>&ldquo;ask&rdquo; before editing settings*, CLAUDE.md, keybindings, <code>hooks/*</code>, <code>rules/*</code></td></tr>
+          <tr><td class="nm">block-env-edits.sh</td><td>PreToolUse(Edit/Write)</td><td>blocks editing <code>.env</code> / <code>.env.*</code> (exit 1 &mdash; note: CC hard-block code is exit 2; known nit)</td></tr>
+          <tr><td class="nm">secret-scanner.sh</td><td>PreToolUse(Edit/Write)</td><td>blocks writing recognized secret patterns (exit 2)</td></tr>
+          <tr><td class="nm">lint-on-edit.sh</td><td>PostToolUse(Edit/Write)</td><td><code>eslint --fix</code>, advisory</td></tr>
+          <tr><td class="nm">graphify-refresh.sh</td><td>Stop</td><td>refresh knowledge graph (read-only on git)</td></tr>
+          <tr><td class="nm">ledger-*.sh</td><td>SessionStart / UserPromptSubmit / PreCompact</td><td>ledger checkpointing (no git mutations)</td></tr>
+        </tbody>
+      </table>
+    </div></div>
+    <div class="callout callout--insight">
+      <span class="callout__tag">Key point</span>
+      <p><strong>No hook ever triggers <code>git commit</code> / push / <code>checkout -b</code> / <code>gh pr create</code>.</strong> Hooks are defensive gates, not proactive drivers.</p>
+    </div>
+
+    <div class="kicker-label">Git plugins / skills</div>
+    <div class="card-grid">
+      <div class="ve-card b1">
+        <h4>commit-commands plugin</h4>
+        <p><code>/commit</code> (stages all + one commit, no push/PR), <code>/commit-push-pr</code> (commit + push + PR in one call; <code>gh pr create</code> allowed but <code>git push</code> not in the global allow list, so it prompts), <code>/clean_gone</code> (removes [gone] branches via <code>branch -D</code>, triggers the destructive-bash &ldquo;ask&rdquo;).</p>
+      </div>
+      <div class="ve-card b2">
+        <h4>code-review plugin</h4>
+        <p><code>/code-review</code> reviews an <em>existing</em> GitHub PR (needs a PR to exist); creates no commits.</p>
+      </div>
+      <div class="ve-card b4">
+        <h4>session-handoff / resume-project / continuity-ledger</h4>
+        <p>Manage <code>.claude/ledger/</code> thread state; no git ops.</p>
+      </div>
+    </div>
+
+    <div class="kicker-label">settings.json permissions</div>
+    <div class="table-wrap"><div class="table-scroll">
+      <table class="data-table">
+        <thead><tr><th class="wide">Operation</th><th>Permission</th></tr></thead>
+        <tbody>
+          <tr><td class="wide">git status / diff / log / branch / worktree, merge --no-ff / --abort, checkout, add</td><td><span class="yes">Auto-allow</span></td></tr>
+          <tr><td class="wide"><code>git commit</code></td><td><span class="yes">Auto-allow</span> (line 19)</td></tr>
+          <tr><td class="wide"><code>git push</code> (no --force)</td><td><span class="badge badge--med">Prompts</span> not in allow list</td></tr>
+          <tr><td class="wide"><code>gh pr create</code> / <code>gh pr *</code></td><td><span class="badge badge--med">Prompts</span> not in allow list</td></tr>
+          <tr><td class="wide"><code>git push --force</code> / -f, <code>git reset --hard</code></td><td><span class="no">Hard deny</span></td></tr>
+        </tbody>
+      </table>
+    </div></div>
+    <div class="callout callout--counter">
+      <span class="callout__tag">Critical reading</span>
+      <p><code>git commit</code> is <strong>auto-allowed</strong> &mdash; the only barrier to automatic commits is the <strong>rule text</strong>, not a permission. Push and PR are gated by <strong>both</strong> rule text and a missing allow-list entry.</p>
+    </div>
+
+    <!-- ============ SECTION 7 : THE GAP (CENTERPIECE) ============ -->
+    <h2 id="s7" class="sec-head sec7"><span class="sec-head__num">07</span> The gap <span class="sec-head__sub">current config vs the MSP model</span></h2>
+
+    <p class="lead">This is the centerpiece: each of your four stated pains, mapped to its root cause, what is already aligned, and what is missing.</p>
+
+    <div class="table-wrap"><div class="table-scroll">
+      <table class="data-table">
+        <thead><tr><th>#</th><th class="wide">User pain</th><th class="wide">Root cause (file:line)</th><th>Nature</th><th class="wide">Already MSP-aligned</th><th class="wide">What&rsquo;s missing</th></tr></thead>
+        <tbody>
+          <tr>
+            <td class="nm" style="color:var(--teal)">a</td>
+            <td class="wide">Commits not made in small incremental steps automatically</td>
+            <td class="wide"><code>git-workflow.md:9</code> + <code>git/commits.md:18</code> (both lock commits to &ldquo;only when the user asks&rdquo;)</td>
+            <td>Hard rule (two files)</td>
+            <td class="wide">Commit <em>shape</em> is fully MSP (atomic, 200&ndash;400 LOC, commit-often, squash-on-merge, <code>commits.md:15-17</code>); plan tasks embed a <code>git commit</code> step; <code>git commit</code> auto-allowed (<code>settings:19</code>)</td>
+            <td class="wide">A mode that lets commits happen on plan-task completion without a separate user instruction for ad-hoc (non-plan) work; the timing lock is the blocker</td>
+          </tr>
+          <tr>
+            <td class="nm" style="color:var(--teal)">b</td>
+            <td class="wide">PRs not opened automatically</td>
+            <td class="wide"><code>git/pull-requests.md:10</code> + <code>git-workflow.md:16</code></td>
+            <td>Hard rule</td>
+            <td class="wide">finishing-a-development-branch offers PR as option 2 (one keystroke); <code>/commit-push-pr</code> bundles it</td>
+            <td class="wide">A policy to auto-open a (draft) PR at the end of a completed plan; push + PR also need allow-list entries, not just rule changes</td>
+          </tr>
+          <tr>
+            <td class="nm" style="color:var(--teal)">c</td>
+            <td class="wide">Plan execution yields changes not individually committable / pushable / mergeable without breaking others</td>
+            <td class="wide">Absence: boundary validation runs once after all waves (<code>parallel-plan-execution.js:233</code>); scope-fence leaves work uncommitted (lines 186&ndash;203); no per-wave push</td>
+            <td>Absence of guidance</td>
+            <td class="wide">worktree mode <em>does</em> give per-wave mergeable commits into <code>baseBranch</code> (<code>--no-ff</code>); the pre-commit hook blocks broken commits; fileScope fencing exists</td>
+            <td class="wide">Per-wave <code>fullValidationCmd</code> run; push of <code>baseBranch</code> after each wave; a rule that each task be green before the next; a scope-fence end-of-run commit step; no feature-flag / keystone / expand-contract guidance to keep incomplete work non-breaking</td>
+          </tr>
+          <tr>
+            <td class="nm" style="color:var(--teal)">d</td>
+            <td class="wide">Flow assumes master &rarr; development &rarr; feature; no trunk-direct or shared-development-branch model</td>
+            <td class="wide"><code>git/branching.md:3</code> (&ldquo;never commit straight to the default branch&rdquo;) phrased as a binary default-vs-feature</td>
+            <td>Absence of guidance (rule not wrong, just incomplete)</td>
+            <td class="wide">parallel-plan-execution accepts an arbitrary <code>baseBranch</code> (could be &ldquo;development&rdquo;); worktrees can branch from any base</td>
+            <td class="wide">A model for short-lived branches off a shared development branch; trunk-based direct small commits behind flags; how to treat a non-default shared branch; routine <code>git push origin development</code> (currently prompts)</td>
+          </tr>
+        </tbody>
+      </table>
+    </div></div>
+
+    <div class="kicker-label">Summary split</div>
+    <div class="split2">
+      <div class="panel panel--strong">
+        <div class="panel__title">Strong / already MSP-aligned</div>
+        <ul>
+          <li><strong>Commit shape policy</strong> (atomic, 200&ndash;400 LOC, squash-on-merge)</li>
+          <li><strong>Per-task commits</strong> in plans</li>
+          <li><strong>Per-task implementer commits</strong></li>
+          <li><strong>Worktree per-wave merge</strong> to baseBranch (<code>--no-ff</code>)</li>
+          <li><strong>Pre-commit typecheck + lint gate</strong></li>
+          <li><strong><code>git commit</code> auto-allowed</strong></li>
+          <li><strong>Force-push permanently denied</strong></li>
+        </ul>
+      </div>
+      <div class="panel panel--gaps">
+        <div class="panel__title">Gaps</div>
+        <ul>
+          <li><strong>Auto-commit on task completion</strong> (rule lock)</li>
+          <li><strong>Auto draft-PR at plan end</strong> (rule lock + missing allow)</li>
+          <li><strong>Per-wave push + per-wave validation</strong></li>
+          <li><strong>Trunk-direct / shared-development-branch model</strong></li>
+          <li><strong>Zero coverage</strong> of feature flags / keystone / branch-by-abstraction / expand-contract</li>
+          <li><strong><code>git push</code> not auto-allowed</strong> (friction for push-early-push-often)</li>
+        </ul>
+      </div>
+    </div>
+
+    <!-- ============ SECTION 8 : PROPOSED DIRECTIONS ============ -->
+    <h2 id="s8" class="sec-head sec8"><span class="sec-head__num">08</span> Proposed directions <span class="sec-head__sub">options for your decision</span></h2>
+
+    <div class="banner-proposed">
+      <span class="banner-proposed__flag">Not yet implemented &middot; Awaiting your approval</span>
+      <p>These are options derived from the research, presented for your decision. <strong>Nothing here has been applied.</strong> Per the research standard, the report is delivered before any change. Treat this section as a menu, not completed work.</p>
+    </div>
+
+    <div class="lever">
+      <div class="lever__head"><span class="lever__num">1</span><span class="lever__title">Unlock commit TIMING (not just shape)</span><span class="lever__closes">closes (a)</span></div>
+      <p>Allow automatic atomic commits on a private branch during plan execution / on task completion, keeping squash-on-merge.</p>
+      <p class="tradeoff"><b>Trade-off:</b> WIP noise &mdash; mitigated by squash + branch isolation.</p>
+    </div>
+    <div class="lever">
+      <div class="lever__head"><span class="lever__num">2</span><span class="lever__title">Auto-open DRAFT PRs at plan completion</span><span class="lever__closes">closes (b)</span></div>
+      <p>And optionally per stacked step.</p>
+      <p class="tradeoff"><b>Trade-off:</b> premature-PR noise &mdash; mitigated by Draft-by-default + convert-when-green; requires adding <code>git push</code> + <code>gh pr create</code> to the allow list.</p>
+    </div>
+    <div class="lever">
+      <div class="lever__head"><span class="lever__num">3</span><span class="lever__title">Per-wave validation + per-wave push in the parallel engine</span><span class="lever__closes">closes (c)</span></div>
+      <p>Run <code>fullValidationCmd</code> per wave and push <code>baseBranch</code> after each green wave.</p>
+      <p class="tradeoff"><b>Trade-off:</b> more CI runs.</p>
+    </div>
+    <div class="lever">
+      <div class="lever__head"><span class="lever__num">4</span><span class="lever__title">Add a branching-model rule</span><span class="lever__closes">closes (d)</span></div>
+      <p>Cover: short-lived branches off a shared <code>development</code>; safe direct commits to <code>development</code> (trivial + CI-gated); trunk-direct behind flags; treat <code>development</code> as a protected-but-committable shared branch.</p>
+      <p class="tradeoff"><b>Trade-off:</b> more nuance for the agent to apply correctly.</p>
+    </div>
+    <div class="lever">
+      <div class="lever__head"><span class="lever__num">5</span><span class="lever__title">Add a parallel-safe-shipping rule / skill</span><span class="lever__closes">closes the biggest hole</span></div>
+      <p>Teach feature flags, keystone, dark launching, branch-by-abstraction, expand-contract &mdash; with the four guardrails and cleanup discipline.</p>
+      <p class="tradeoff"><b>Trade-off:</b> flag / schema debt if cleanup isn&rsquo;t enforced.</p>
+    </div>
+    <div class="lever">
+      <div class="lever__head"><span class="lever__num">6</span><span class="lever__title">Adopt stacked PRs as the default</span><span class="lever__closes">for features &gt; 1 PR</span></div>
+      <p>For any feature spanning more than one PR.</p>
+      <p class="tradeoff"><b>Trade-off:</b> needs tooling (Graphite or GitHub native, currently preview) + &lt;200 LOC discipline.</p>
+    </div>
+
+    <div class="callout callout--insight" style="margin-top:18px">
+      <p style="color:var(--text);font-size:14.5px"><strong>Tell me which of these to pursue and I&rsquo;ll plan it; until then nothing changes.</strong></p>
+    </div>
+
+    <!-- ============ REFERENCES ============ -->
+    <h2 id="srefs" class="sec-head"><span class="sec-head__num">RF</span> References <span class="sec-head__sub">global source index</span></h2>
+
+    <div class="ref-grid">
+      <a href="https://martinfowler.com/articles/continuousIntegration.html">martinfowler.com/articles/continuousIntegration.html</a>
+      <a href="https://martinfowler.com/articles/feature-toggles.html">martinfowler.com/articles/feature-toggles.html</a>
+      <a href="https://martinfowler.com/bliki/BranchByAbstraction.html">martinfowler.com/bliki/BranchByAbstraction.html</a>
+      <a href="https://martinfowler.com/bliki/ParallelChange.html">martinfowler.com/bliki/ParallelChange.html</a>
+      <a href="https://martinfowler.com/bliki/KeystoneInterface.html">martinfowler.com/bliki/KeystoneInterface.html</a>
+      <a href="https://martinfowler.com/bliki/DarkLaunching.html">martinfowler.com/bliki/DarkLaunching.html</a>
+      <a href="https://martinfowler.com/bliki/FeatureBranch.html">martinfowler.com/bliki/FeatureBranch.html</a>
+      <a href="https://trunkbaseddevelopment.com">trunkbaseddevelopment.com<span class="ref-note">+ /short-lived-feature-branches/</span></a>
+      <a href="https://dora.dev/capabilities/trunk-based-development/">dora.dev/capabilities/trunk-based-development/</a>
+      <a href="https://dora.dev/capabilities/working-in-small-batches/">dora.dev/capabilities/working-in-small-batches/</a>
+      <a href="https://dora.dev/research/2024/dora-report/">dora.dev/research/2024/dora-report/</a>
+      <a href="https://continuousdelivery.com">continuousdelivery.com</a>
+      <a href="https://itrevolution.com/product/accelerate/">itrevolution.com/product/accelerate/<span class="ref-note">Accelerate &mdash; Forsgren / Humble / Kim, IT Revolution 2018</span></a>
+      <a href="https://octopus.com/devops/metrics/dora-metrics/">octopus.com/devops/metrics/dora-metrics/</a>
+      <a href="https://ben-morris.com/why-trunk-based-development-isnt-for-everybody/">ben-morris.com/why-trunk-based-development-isnt-for-everybody/</a>
+      <a href="https://www.conventionalcommits.org/en/v1.0.0/">conventionalcommits.org/en/v1.0.0/</a>
+      <a href="https://git-scm.com/docs/git-bisect">git-scm.com/docs/git-bisect</a>
+      <a href="https://static0.smartbear.co/">static0.smartbear.co/.../code-review-cisco-case-study.pdf</a>
+      <a href="https://google.github.io/eng-practices/review/developer/small-cls.html">google.github.io/eng-practices/review/developer/small-cls.html</a>
+      <a href="https://docs.github.com/en/get-started/using-github/github-flow">docs.github.com/en/get-started/using-github/github-flow</a>
+      <a href="https://about.gitlab.com/topics/version-control/what-is-gitlab-flow/">about.gitlab.com/topics/version-control/what-is-gitlab-flow/</a>
+      <a href="https://www.atlassian.com/git/tutorials/comparing-workflows/gitflow-workflow">atlassian.com/git/tutorials/comparing-workflows/gitflow-workflow</a>
+      <a href="https://graphite.com/blog/stacked-prs">graphite.com/blog/stacked-prs</a>
+      <a href="https://newsletter.pragmaticengineer.com/p/stacked-diffs-and-tooling-at-meta">newsletter.pragmaticengineer.com/p/stacked-diffs-and-tooling-at-meta</a>
+      <a href="https://www.theregister.com/2026/04/14/github_stacked_prs/">theregister.com/2026/04/14/github_stacked_prs/</a>
+      <a href="https://particle41.com/insights/gitops-when-ai-agents-make-commits/">particle41.com/insights/gitops-when-ai-agents-make-commits/</a>
+      <a href="https://jyn.dev/pre-commit-hooks-are-fundamentally-broken/">jyn.dev/pre-commit-hooks-are-fundamentally-broken/</a>
+      <a href="https://www.researchgate.net/publication/335627332">researchgate.net/publication/335627332<span class="ref-note">merge conflicts empirical study</span></a>
+    </div>
+
+    <div class="footer-note">
+      <strong>Read-only research deliverable.</strong> No configuration was changed. Regenerate the source research before acting. Confidence tags reflect source quality at the time of writing: <span class="badge badge--high">High</span> triangulated / primary, <span class="badge badge--medhigh">Med-High</span> strong secondary, <span class="badge badge--med">Medium</span> directional / single-source.
+    </div>
+
+  </div>
+</div>
+
+<script type="module">
+  import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs';
+
+  const config = {
+    fitPadding: 26,
+    minHeight: 320,
+    maxHeightPx: 1000,
+    maxHeightVh: 0.86,
+    maxInitialZoom: 1.7,
+    minZoom: 0.08,
+    maxZoom: 6.5,
+    zoomStep: 0.14,
+    readabilityFloor: 0.6
+  };
+
+  const clamp = (n, lo, hi) => Math.max(lo, Math.min(hi, n));
+  let activeDrag = null;
+  addEventListener('mousemove', (e) => activeDrag?.onMove(e));
+  addEventListener('mouseup', () => { activeDrag?.onEnd(); activeDrag = null; });
+
+  function effDark() {
+    const t = document.documentElement.dataset.theme;
+    if (t === 'dark') return true;
+    if (t === 'light') return false;
+    return matchMedia('(prefers-color-scheme: dark)').matches;
+  }
+
+  function initMermaid() {
+    const isDark = effDark();
+    mermaid.initialize({
+      startOnLoad: false,
+      theme: 'base',
+      look: 'classic',
+      flowchart: { padding: 14, nodeSpacing: 46, rankSpacing: 56, useMaxWidth: false },
+      themeVariables: {
+        fontFamily: "'IBM Plex Sans', system-ui, sans-serif",
+        fontSize: '16px',
+        primaryColor: isDark ? '#12304f' : '#dbe7fb',
+        primaryBorderColor: isDark ? '#60a5fa' : '#1d4ed8',
+        primaryTextColor: isDark ? '#d7e5f6' : '#0e2438',
+        secondaryColor: isDark ? '#0d3344' : '#d9f0f6',
+        secondaryBorderColor: isDark ? '#38bdf8' : '#0e7490',
+        secondaryTextColor: isDark ? '#d7e5f6' : '#0e2438',
+        tertiaryColor: isDark ? '#33260f' : '#fbeccd',
+        tertiaryBorderColor: isDark ? '#fbbf24' : '#b45309',
+        tertiaryTextColor: isDark ? '#d7e5f6' : '#0e2438',
+        lineColor: isDark ? '#7da0c2' : '#5a6f8a',
+        clusterBkg: isDark ? '#0c1c2e' : '#eef3fa',
+        clusterBorder: isDark ? '#34507a' : '#bdcde4',
+        titleColor: isDark ? '#88a1bd' : '#51647c',
+        noteBkgColor: isDark ? '#12304f' : '#fefce8',
+        noteTextColor: isDark ? '#d7e5f6' : '#0e2438',
+        noteBorderColor: isDark ? '#fbbf24' : '#b45309'
+      }
+    });
+  }
+
+  const renderers = [];
+
+  function initDiagram(shell) {
+    const wrap = shell.querySelector('.mermaid-wrap');
+    const viewport = shell.querySelector('.mermaid-viewport');
+    const canvas = shell.querySelector('.mermaid-canvas');
+    const source = shell.querySelector('.diagram-source');
+    const label = shell.querySelector('.zoom-label');
+    if (!wrap || !viewport || !canvas || !source || !label) {
+      console.error('initDiagram: missing required elements in', shell);
+      return;
+    }
+
+    const initialZoom = parseFloat(wrap.dataset.initialZoom) || 0;
+    let userInteracted = false;
+    let zoom = 1, fitMode = 'contain', panX = 0, panY = 0, svgW = 0, svgH = 0;
+    let sx = 0, sy = 0, spx = 0, spy = 0, touchDist = 0, touchCx = 0, touchCy = 0;
+
+    function constrainPan() {
+      const vpW = viewport.clientWidth, vpH = viewport.clientHeight;
+      const rW = svgW * zoom, rH = svgH * zoom, pad = config.fitPadding;
+      panX = (rW + pad * 2 <= vpW) ? (vpW - rW) / 2 : clamp(panX, vpW - rW - pad, pad);
+      panY = (rH + pad * 2 <= vpH) ? (vpH - rH) / 2 : clamp(panY, vpH - rH - pad, pad);
+    }
+    function applyTransform() {
+      const svg = canvas.querySelector('svg');
+      if (!svg || !svgW) return;
+      constrainPan();
+      svg.style.width = (svgW * zoom) + 'px';
+      svg.style.height = (svgH * zoom) + 'px';
+      canvas.style.transform = `translate(${panX}px, ${panY}px)`;
+      label.textContent = Math.round(zoom * 100) + '% — ' + fitMode;
+    }
+    function canPan() {
+      const rW = svgW * zoom, rH = svgH * zoom;
+      return rW + config.fitPadding * 2 > viewport.clientWidth || rH + config.fitPadding * 2 > viewport.clientHeight;
+    }
+    function computeSmartFit() {
+      const vpW = viewport.clientWidth, vpH = viewport.clientHeight;
+      const aW = Math.max(80, vpW - config.fitPadding * 2);
+      const aH = Math.max(80, vpH - config.fitPadding * 2);
+      const contain = Math.min(aW / svgW, aH / svgH);
+      let z = contain, mode = 'contain';
+      if (contain < config.readabilityFloor) {
+        const chartR = svgH / svgW, vpR = vpH / Math.max(vpW, 1);
+        if (chartR >= vpR) { z = aW / svgW; mode = 'width-fit'; }
+        else { z = aH / svgH; mode = 'height-fit'; }
+      }
+      return { zoom: clamp(z, config.minZoom, config.maxInitialZoom), mode };
+    }
+    function fitDiagram() {
+      if (!svgW) return;
+      const fit = computeSmartFit();
+      zoom = fit.zoom; fitMode = fit.mode;
+      panX = (viewport.clientWidth - svgW * zoom) / 2;
+      panY = (viewport.clientHeight - svgH * zoom) / 2;
+      applyTransform();
+    }
+    function applyInitialZoom() {
+      zoom = clamp(initialZoom, config.minZoom, config.maxZoom);
+      fitMode = 'initial';
+      panX = (viewport.clientWidth - svgW * zoom) / 2;
+      panY = config.fitPadding;
+      applyTransform();
+    }
+    function relayout() {
+      if (!svgW) return;
+      setAdaptiveHeight();
+      if (initialZoom && !userInteracted) applyInitialZoom();
+      else fitDiagram();
+    }
+    function setOneToOne() {
+      userInteracted = true;
+      zoom = clamp(1, config.minZoom, config.maxZoom);
+      fitMode = '1:1';
+      panX = (viewport.clientWidth - svgW * zoom) / 2;
+      panY = (viewport.clientHeight - svgH * zoom) / 2;
+      applyTransform();
+    }
+    function zoomAround(factor, cx, cy) {
+      userInteracted = true;
+      const next = clamp(zoom * factor, config.minZoom, config.maxZoom);
+      const ratio = next / zoom;
+      panX = cx - ratio * (cx - panX);
+      panY = cy - ratio * (cy - panY);
+      zoom = next; fitMode = 'custom';
+      applyTransform();
+    }
+    function readSvgNaturalSize(svg) {
+      let w = 0, h = 0;
+      if (svg.viewBox?.baseVal?.width > 0) { w = svg.viewBox.baseVal.width; h = svg.viewBox.baseVal.height; }
+      if (!w) { w = parseFloat(svg.getAttribute('width')) || 0; h = parseFloat(svg.getAttribute('height')) || 0; }
+      if (!w) { const b = svg.getBBox(); w = b.width; h = b.height; }
+      if (!w) { const r = svg.getBoundingClientRect(); w = r.width || 1000; h = r.height || 700; }
+      if (!svg.getAttribute('viewBox')) svg.setAttribute('viewBox', `0 0 ${w} ${h}`);
+      return { w, h };
+    }
+    function setAdaptiveHeight() {
+      if (!svgW) return;
+      const usableW = Math.max(280, wrap.getBoundingClientRect().width - 2);
+      const idealH = (svgH / svgW) * usableW + config.fitPadding * 2;
+      const maxVp = Math.floor(innerHeight * config.maxHeightVh);
+      const hardMax = Math.min(config.maxHeightPx, Math.max(config.minHeight + 40, maxVp));
+      wrap.style.height = Math.round(clamp(idealH, config.minHeight, hardMax)) + 'px';
+    }
+    function openInNewTab() {
+      const svg = canvas.querySelector('svg');
+      if (!svg) return;
+      const clone = svg.cloneNode(true);
+      clone.style.width = ''; clone.style.height = '';
+      const bg = effDark() ? '#081320' : '#e8eef5';
+      const html = `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8">
+      <meta name="viewport" content="width=device-width, initial-scale=1.0"><title>Branching topology</title><style>
+      body{margin:0;min-height:100vh;display:flex;align-items:center;justify-content:center;background:${bg};padding:40px;box-sizing:border-box}
+      svg{max-width:100%;max-height:92vh;height:auto}</style></head><body>${clone.outerHTML}</body></html>`;
+      open(URL.createObjectURL(new Blob([html], { type: 'text/html' })), '_blank');
+    }
+    async function render() {
+      try {
+        const code = source.textContent.trim();
+        if (!code) { label.textContent = 'Error: Empty source'; return; }
+        const id = 'diagram-' + Date.now() + '-' + Math.random().toString(36).slice(2, 8);
+        const { svg } = await mermaid.render(id, code);
+        canvas.innerHTML = svg;
+        const svgNode = canvas.querySelector('svg');
+        if (!svgNode) { label.textContent = 'Error: No SVG'; return; }
+        const size = readSvgNaturalSize(svgNode);
+        svgW = size.w; svgH = size.h;
+        svgNode.removeAttribute('width'); svgNode.removeAttribute('height');
+        svgNode.style.maxWidth = 'none'; svgNode.style.display = 'block';
+        relayout();
+      } catch (err) {
+        console.error('Mermaid render failed:', err);
+        label.textContent = 'Error: ' + (err.message || 'Render failed');
+      }
+    }
+
+    const actions = {
+      'zoom-in': () => zoomAround(1 + config.zoomStep, viewport.clientWidth / 2, viewport.clientHeight / 2),
+      'zoom-out': () => zoomAround(1 / (1 + config.zoomStep), viewport.clientWidth / 2, viewport.clientHeight / 2),
+      'zoom-fit': () => { userInteracted = true; fitDiagram(); },
+      'zoom-one': setOneToOne,
+      'zoom-expand': openInNewTab
+    };
+    Object.entries(actions).forEach(([action, handler]) => {
+      wrap.querySelector(`[data-action="${action}"]`)?.addEventListener('click', handler);
+    });
+
+    viewport.addEventListener('dblclick', () => { userInteracted = true; fitDiagram(); });
+    viewport.addEventListener('wheel', (e) => {
+      if (e.ctrlKey || e.metaKey) {
+        e.preventDefault();
+        const rect = viewport.getBoundingClientRect();
+        const factor = e.deltaY < 0 ? 1 + config.zoomStep : 1 / (1 + config.zoomStep);
+        zoomAround(factor, e.clientX - rect.left, e.clientY - rect.top);
+        return;
+      }
+      if (canPan()) { e.preventDefault(); userInteracted = true; panX -= e.deltaX; panY -= e.deltaY; applyTransform(); }
+    }, { passive: false });
+
+    viewport.addEventListener('mousedown', (e) => {
+      if (e.target.closest('.zoom-controls') || !canPan()) return;
+      wrap.classList.add('is-panning');
+      userInteracted = true;
+      sx = e.clientX; sy = e.clientY; spx = panX; spy = panY;
+      e.preventDefault();
+      activeDrag = {
+        onMove: (ev) => { panX = spx + (ev.clientX - sx); panY = spy + (ev.clientY - sy); applyTransform(); },
+        onEnd: () => { wrap.classList.remove('is-panning'); }
+      };
+    });
+
+    viewport.addEventListener('touchstart', (e) => {
+      if (e.touches.length === 1) { sx = e.touches[0].clientX; sy = e.touches[0].clientY; spx = panX; spy = panY; }
+      else if (e.touches.length === 2) {
+        const dx = e.touches[0].clientX - e.touches[1].clientX;
+        const dy = e.touches[0].clientY - e.touches[1].clientY;
+        touchDist = Math.sqrt(dx * dx + dy * dy);
+        const r = viewport.getBoundingClientRect();
+        touchCx = (e.touches[0].clientX + e.touches[1].clientX) / 2 - r.left;
+        touchCy = (e.touches[0].clientY + e.touches[1].clientY) / 2 - r.top;
+      }
+    }, { passive: true });
+
+    viewport.addEventListener('touchmove', (e) => {
+      if (e.touches.length === 1 && canPan()) {
+        if (touchDist > 0) { sx = e.touches[0].clientX; sy = e.touches[0].clientY; spx = panX; spy = panY; touchDist = 0; }
+        e.preventDefault(); userInteracted = true;
+        panX = spx + (e.touches[0].clientX - sx); panY = spy + (e.touches[0].clientY - sy); applyTransform();
+      } else if (e.touches.length === 2 && touchDist > 0) {
+        e.preventDefault();
+        const dx = e.touches[0].clientX - e.touches[1].clientX;
+        const dy = e.touches[0].clientY - e.touches[1].clientY;
+        const d = Math.sqrt(dx * dx + dy * dy);
+        zoomAround(d / touchDist, touchCx, touchCy);
+        touchDist = d;
+      }
+    }, { passive: false });
+
+    new ResizeObserver(() => { if (svgW) relayout(); }).observe(wrap);
+    renderers.push(() => { userInteracted = false; render(); });
+    render();
+  }
+
+  initMermaid();
+  document.querySelectorAll('.diagram-shell').forEach(initDiagram);
+
+  const root = document.documentElement;
+  const btn = document.getElementById('theme-toggle');
+  function syncBtn() { if (btn) btn.textContent = (effDark() ? 'Light' : 'Dark') + ' mode'; }
+  syncBtn();
+  btn?.addEventListener('click', () => {
+    root.dataset.theme = effDark() ? 'light' : 'dark';
+    syncBtn();
+    initMermaid();
+    renderers.forEach((r) => r());
+  });
+  matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => {
+    if (!root.dataset.theme) { syncBtn(); initMermaid(); renderers.forEach((r) => r()); }
+  });
+</script>
+
+<script>
+(function () {
+  const toc = document.getElementById('toc');
+  if (!toc) return;
+  const links = toc.querySelectorAll('a');
+  const sections = [];
+  links.forEach(link => {
+    const id = link.getAttribute('href').slice(1);
+    const el = document.getElementById(id);
+    if (el) sections.push({ id, el, link });
+  });
+  const observer = new IntersectionObserver(entries => {
+    entries.forEach(entry => {
+      if (entry.isIntersecting) {
+        links.forEach(l => l.classList.remove('active'));
+        const match = sections.find(s => s.el === entry.target);
+        if (match) {
+          match.link.classList.add('active');
+          if (window.innerWidth <= 1000) {
+            match.link.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
+          }
+        }
+      }
+    });
+  }, { rootMargin: '-8% 0px -82% 0px' });
+  sections.forEach(s => observer.observe(s.el));
+  links.forEach(link => {
+    link.addEventListener('click', e => {
+      e.preventDefault();
+      const id = link.getAttribute('href').slice(1);
+      const el = document.getElementById(id);
+      if (el) { el.scrollIntoView({ behavior: 'smooth', block: 'start' }); history.replaceState(null, '', '#' + id); }
+    });
+  });
+})();
+</script>
+
+</body>
+</html>

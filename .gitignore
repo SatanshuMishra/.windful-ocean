@@ -2,10 +2,11 @@
 **/.DS_Store
 
 # Development tools and temporary files
-.claude/
 .claude-*
 CLAUDE.md
 **/CLAUDE.md
+!/.claude/CLAUDE.md
+/.claude/settings.local.json
 claude.json
 .claude.json
 *claude-session*
