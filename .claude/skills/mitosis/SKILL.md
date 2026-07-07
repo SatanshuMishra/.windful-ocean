@@ -42,4 +42,4 @@ Do nothing else until it returns.
 
 ## Relay the report
 
-When the workflow returns, relay its result to the user: the shipped MSPs (id + PR url), and if `halted`, the failing stage/MSP and reason. Do not re-run or "continue" the loop in main.
+When the workflow returns, relay its result to the user: the shipped MSPs (id + PR url) from `shipped`, and if `overallStatus !== 'all-shipped'`, the failing stage/MSP and reason (from the top-level `stage`/`mspId`/`detail` and the `crashed`/`halted` arrays). Do not re-run or "continue" the loop in main.

@@ -56,6 +56,80 @@ function aggregateMspFileScope(tasksMap) {
   return [...union].sort();
 }
 
+function shippedOutcome(mspId, extra = {}) {
+  return { kind: 'shipped', mspId, prUrl: extra.prUrl, receiptsPass: extra.receiptsPass, d6Pass: extra.d6Pass };
+}
+
+function haltedOutcome(mspId, stage, reason) {
+  return { kind: 'halted', mspId, stage, reason };
+}
+
+function crashedOutcome(mspId, stage, error) {
+  return { kind: 'crashed', mspId, stage, error };
+}
+
+function quarantinedOutcome(mspId, stage, error, retries) {
+  return { kind: 'quarantined', mspId, stage, error, retries };
+}
+
+function computeOverallStatus({ shipped, crashed, quarantined, total }) {
+  if (total > 0 && shipped.length === total && crashed.length === 0 && quarantined.length === 0) {
+    return 'all-shipped';
+  }
+  if (shipped.length === 0) return 'failed';
+  return 'partial';
+}
+
+function partitionOutcomes(outcomes, total = outcomes.length) {
+  const shipped = [];
+  const halted = [];
+  const crashed = [];
+  const quarantined = [];
+  for (const o of outcomes) {
+    if (o.kind === 'shipped') shipped.push(o);
+    else if (o.kind === 'halted') halted.push(o);
+    else if (o.kind === 'crashed') crashed.push(o);
+    else if (o.kind === 'quarantined') quarantined.push(o);
+    else throw new Error(`partitionOutcomes: unknown outcome kind: ${o && o.kind}`);
+  }
+  const overallStatus = computeOverallStatus({ shipped, crashed, quarantined, total });
+  return { shipped, halted, crashed, quarantined, overallStatus };
+}
+
+function assembleRunReport({ clusters, chainResults, shipped, mspCount }) {
+  const shippedIds = new Set(shipped.map((s) => s.mspId));
+  const outcomes = shipped.map((s) => shippedOutcome(s.mspId, s));
+  clusters.forEach((clusterIds, i) => {
+    const r = chainResults[i];
+    if (r === null || r === undefined) {
+      const blamed = clusterIds.find((id) => !shippedIds.has(id)) || clusterIds[0];
+      outcomes.push(crashedOutcome(blamed, 'cluster', `cluster chain returned ${r} (thunk crashed or was killed); cluster ids: ${clusterIds.join(', ')}`));
+      return;
+    }
+    if (r.halted) {
+      const blamed = r.mspId || clusterIds.find((id) => !shippedIds.has(id)) || clusterIds[0];
+      const reason = r.detail || (r.haltReason && (r.haltReason.detail || JSON.stringify(r.haltReason))) || 'halted';
+      outcomes.push(haltedOutcome(blamed, r.stage || 'unknown', reason));
+    }
+  });
+  const partition = partitionOutcomes(outcomes, mspCount);
+  const report = { ...partition, mspCount };
+  if (partition.overallStatus !== 'all-shipped') {
+    const firstProblem = partition.crashed[0] || partition.halted[0] || partition.quarantined[0];
+    if (firstProblem) {
+      report.stage = firstProblem.stage;
+      report.mspId = firstProblem.mspId;
+      report.detail = firstProblem.error || firstProblem.reason;
+    }
+  }
+  return report;
+}
+
+function fatalReport(stage, detail, mspCount, opts = {}) {
+  const crashed = opts.crashed ? [crashedOutcome(null, stage, detail)] : [];
+  return { shipped: [], halted: [], crashed, quarantined: [], overallStatus: 'failed', stage, detail, mspCount };
+}
+
 function indexMsps(msps) {
   if (!Array.isArray(msps)) throw new Error('msps must be an array');
   const byId = new Map();
@@ -566,7 +640,7 @@ let input;
 try {
   input = (typeof args === 'string') ? JSON.parse(args) : (args || {});
 } catch (err) {
-  return { halted: true, stage: 'input', detail: `args is not valid JSON: ${err.message}`, shipped: [], mspCount: 0 };
+  return fatalReport('input', `args is not valid JSON: ${err.message}`, 0);
 }
 const spec = input.spec;
 const repoRoot = input.repoRoot;
@@ -591,25 +665,33 @@ const missingFields = Object.entries(requiredFields)
   .filter(([, value]) => typeof value !== 'string' || value.trim() === '')
   .map(([name]) => name);
 if (missingFields.length > 0) {
-  return { halted: true, stage: 'input', detail: `missing or empty required fields: ${missingFields.join(', ')}`, shipped: [], mspCount: 0 };
+  return fatalReport('input', `missing or empty required fields: ${missingFields.join(', ')}`, 0);
 }
 if (!Number.isInteger(fixLoopMax) || fixLoopMax < 0) {
-  return { halted: true, stage: 'input', detail: 'fixLoopMax must be a non-negative integer', shipped: [], mspCount: 0 };
+  return fatalReport('input', 'fixLoopMax must be a non-negative integer', 0);
 }
 
 log(`mitosis: spec=${spec} repo=${repoRoot} base=${baseBranch} source=${sourcePrefix}`);
 
 phase('Decompose');
-const decomposition = await agent(
-  `You are the decomposition stage of a mitosis run. You have NO Skill tool; follow these instructions directly.\n\n` +
-  `Read the approved spec/batch document at: ${spec}\n` +
-  `Target repository root: ${repoRoot}\n\n` +
-  `Decompose the spec into clusters of MSPs (minimum shippable products). An MSP is the smallest unit that is independently shippable behind its own PR and leaves the shared branch green. Use the D1 code-intelligence stack to ground the decomposition: native caller/callee facts (Serena find_referencing_symbols / find_symbol) for dependency edges, the Graphify map (run \`graphify query\` / \`graphify explain\` via Bash, token-free) for orientation, and targeted Read/Grep for the seams the oracle cannot see (dynamic dispatch, DI, FFI, SQL, codegen).\n\n` +
-  `Order the MSPs BOTTOM-UP: an MSP must appear AFTER every MSP it depends on. Express every cross-MSP dependency in dependsOn using the MSP ids you assign. Assign each MSP a stable kebab-case id unique within this run.\n\n` +
-  `For each MSP, declare its fileScope: the coarse, best-effort set of repository paths and globs (e.g. "src/auth/**", "lib/config.ts") naming the surface that MSP writes or owns. Ground fileScope in the SAME D1 code-intelligence stack you used above (the Graphify map for orientation, Serena / native LSP for the symbols each MSP touches, targeted Read/Grep for the seams the oracle cannot see). Coarse and slightly over-broad is correct: fileScope overlap is what clusters MSPs that must not run in parallel, so err toward naming a path when unsure.\n\n` +
-  `Return ONLY the structured object: { msps: [ { id, title, rationale, dependsOn, fileScope } ] }, ordered bottom-up.`,
-  { agentType: 'codebase-analyst', schema: DECOMPOSE_SCHEMA, label: 'decompose', phase: 'Decompose', model: models.decomposer || 'opus' }
-);
+let decomposition;
+try {
+  decomposition = await agent(
+    `You are the decomposition stage of a mitosis run. You have NO Skill tool; follow these instructions directly.\n\n` +
+    `Read the approved spec/batch document at: ${spec}\n` +
+    `Target repository root: ${repoRoot}\n\n` +
+    `Decompose the spec into clusters of MSPs (minimum shippable products). An MSP is the smallest unit that is independently shippable behind its own PR and leaves the shared branch green. Use the D1 code-intelligence stack to ground the decomposition: native caller/callee facts (Serena find_referencing_symbols / find_symbol) for dependency edges, the Graphify map (run \`graphify query\` / \`graphify explain\` via Bash, token-free) for orientation, and targeted Read/Grep for the seams the oracle cannot see (dynamic dispatch, DI, FFI, SQL, codegen).\n\n` +
+    `Order the MSPs BOTTOM-UP: an MSP must appear AFTER every MSP it depends on. Express every cross-MSP dependency in dependsOn using the MSP ids you assign. Assign each MSP a stable kebab-case id unique within this run.\n\n` +
+    `For each MSP, declare its fileScope: the coarse, best-effort set of repository paths and globs (e.g. "src/auth/**", "lib/config.ts") naming the surface that MSP writes or owns. Ground fileScope in the SAME D1 code-intelligence stack you used above (the Graphify map for orientation, Serena / native LSP for the symbols each MSP touches, targeted Read/Grep for the seams the oracle cannot see). Coarse and slightly over-broad is correct: fileScope overlap is what clusters MSPs that must not run in parallel, so err toward naming a path when unsure.\n\n` +
+    `Return ONLY the structured object: { msps: [ { id, title, rationale, dependsOn, fileScope } ] }, ordered bottom-up.`,
+    { agentType: 'codebase-analyst', schema: DECOMPOSE_SCHEMA, label: 'decompose', phase: 'Decompose', model: models.decomposer || 'opus' }
+  );
+} catch (err) {
+  return fatalReport('decompose', `decompose agent threw before fan-out: ${err.message}`, 0, { crashed: true });
+}
+if (!decomposition || !Array.isArray(decomposition.msps)) {
+  return fatalReport('decompose', 'decompose agent returned null or no msps (transient drop or blocked before fan-out)', 0, { crashed: true });
+}
 
 const msps = decomposition.msps;
 log(`mitosis: ${msps.length} MSP(s) -> ${msps.map((m) => m.id).join(', ')}`);
@@ -617,18 +699,18 @@ log(`mitosis: ${msps.length} MSP(s) -> ${msps.map((m) => m.id).join(', ')}`);
 const mspIds = msps.map((m) => m.id);
 const duplicateIds = mspIds.filter((id, idx) => mspIds.indexOf(id) !== idx);
 if (duplicateIds.length > 0) {
-  return { halted: true, stage: 'decompose', detail: `duplicate MSP ids: ${[...new Set(duplicateIds)].join(', ')}`, shipped: [], mspCount: msps.length };
+  return fatalReport('decompose', `duplicate MSP ids: ${[...new Set(duplicateIds)].join(', ')}`, msps.length);
 }
 const invalidIds = mspIds.filter((id) => !/^[a-z0-9][a-z0-9-]*$/.test(id));
 if (invalidIds.length > 0) {
-  return { halted: true, stage: 'decompose', detail: `invalid MSP id(s) (must match ^[a-z0-9][a-z0-9-]*$): ${invalidIds.join(', ')}`, shipped: [], mspCount: msps.length };
+  return fatalReport('decompose', `invalid MSP id(s) (must match ^[a-z0-9][a-z0-9-]*$): ${invalidIds.join(', ')}`, msps.length);
 }
 const knownIds = new Set(mspIds);
 const unknownDepErrors = msps.flatMap((m) =>
   m.dependsOn.filter((dep) => !knownIds.has(dep)).map((dep) => `${m.id} depends on unknown id ${dep}`)
 );
 if (unknownDepErrors.length > 0) {
-  return { halted: true, stage: 'decompose', detail: `dependsOn references unknown id(s): ${unknownDepErrors.join('; ')}`, shipped: [], mspCount: msps.length };
+  return fatalReport('decompose', `dependsOn references unknown id(s): ${unknownDepErrors.join('; ')}`, msps.length);
 }
 
 let clusters;
@@ -638,26 +720,34 @@ try {
     [],
   ));
 } catch (err) {
-  return { halted: true, stage: 'cluster', detail: err.message, shipped: [], mspCount: msps.length };
+  return fatalReport('cluster', err.message, msps.length);
 }
 log(`mitosis: ${clusters.length} cluster(s) -> ${clusters.map((c) => c.join('>')).join(' | ')}`);
 
 phase('Prepare');
-const prep = await agent(
-  `You are the prepare stage of a mitosis run. You have NO Skill tool.\n\n` +
-  `Target repo: ${repoRoot}\n` +
-  `Ensure the receipts CI enforcer is installed IDEMPOTENTLY (skip any file that already exists with equivalent content). Copy from these templates:\n` +
-  `  - /Users/satanshumishra/.claude/skills/mitosis/templates/receipts.yml      -> ${repoRoot}/.github/workflows/receipts.yml\n` +
-  `  - /Users/satanshumishra/.claude/skills/mitosis/templates/receipts.config.json -> ${repoRoot}/receipts.config.json\n` +
-  `  - /Users/satanshumishra/.claude/skills/mitosis/templates/d6-check.md       -> implement as ${repoRoot}/scripts/d6-check.cjs per that spec\n\n` +
-  `Fill receipts.config.json from this build/verify config (use sensible repo-detected defaults for any missing field, e.g. read package.json scripts): ${JSON.stringify({ ...buildConfig, verify })}\n\n` +
-  `If the repo is not a git repo or has no remote when receipts CI requires one, set ready=false with a clear detail. Otherwise: ensure you are on ${baseBranch} (\`git -C ${repoRoot} checkout ${baseBranch}\`), commit the installed files there, and publish them with \`git -C ${repoRoot} push origin ${baseBranch}\` so integration branches cut from origin/${baseBranch} inherit the receipts workflow and PRs targeting ${baseBranch} fire CI. Keep this idempotent (skip the commit/push if nothing changed).\n\n` +
-  `Return ONLY: { ready: <bool>, detail: "<what you did or why not ready>", installed: ["<paths>"] }.`,
-  { agentType: 'implementer', schema: PREP_SCHEMA, label: 'prepare', phase: 'Prepare' }
-);
+let prep;
+try {
+  prep = await agent(
+    `You are the prepare stage of a mitosis run. You have NO Skill tool.\n\n` +
+    `Target repo: ${repoRoot}\n` +
+    `Ensure the receipts CI enforcer is installed IDEMPOTENTLY (skip any file that already exists with equivalent content). Copy from these templates:\n` +
+    `  - /Users/satanshumishra/.claude/skills/mitosis/templates/receipts.yml      -> ${repoRoot}/.github/workflows/receipts.yml\n` +
+    `  - /Users/satanshumishra/.claude/skills/mitosis/templates/receipts.config.json -> ${repoRoot}/receipts.config.json\n` +
+    `  - /Users/satanshumishra/.claude/skills/mitosis/templates/d6-check.md       -> implement as ${repoRoot}/scripts/d6-check.cjs per that spec\n\n` +
+    `Fill receipts.config.json from this build/verify config (use sensible repo-detected defaults for any missing field, e.g. read package.json scripts): ${JSON.stringify({ ...buildConfig, verify })}\n\n` +
+    `If the repo is not a git repo or has no remote when receipts CI requires one, set ready=false with a clear detail. Otherwise: ensure you are on ${baseBranch} (\`git -C ${repoRoot} checkout ${baseBranch}\`), commit the installed files there, and publish them with \`git -C ${repoRoot} push origin ${baseBranch}\` so integration branches cut from origin/${baseBranch} inherit the receipts workflow and PRs targeting ${baseBranch} fire CI. Keep this idempotent (skip the commit/push if nothing changed).\n\n` +
+    `Return ONLY: { ready: <bool>, detail: "<what you did or why not ready>", installed: ["<paths>"] }.`,
+    { agentType: 'implementer', schema: PREP_SCHEMA, label: 'prepare', phase: 'Prepare' }
+  );
+} catch (err) {
+  return fatalReport('prepare', `prepare agent threw before fan-out: ${err.message}`, msps.length, { crashed: true });
+}
+if (!prep) {
+  return fatalReport('prepare', 'prepare agent returned null (transient drop or blocked before fan-out)', msps.length, { crashed: true });
+}
 log(`mitosis: prepare ready=${prep.ready} (${prep.detail})`);
 if (!prep.ready) {
-  return { halted: true, stage: 'prepare', detail: prep.detail, shipped: [], mspCount: msps.length };
+  return fatalReport('prepare', prep.detail, msps.length);
 }
 
 const shipped = [];
@@ -813,6 +903,7 @@ async function runClusterChain(clusterIds) {
         `4. Open ONE pull request (or reuse the already-open one) with head ${integrationBranch} onto base ${baseBranch}, stacked bottom-up on already-merged MSPs (${earlierInChain}).\n` +
         `5. Wait for CI to finish on the FRESH head+base with \`gh run watch --exit-status\`: the receipts red->green enforcer + G9 full-suite + the D6 cluster-boundary step. Because the PR base is origin/${baseBranch} (now including every sibling that already merged) and the head is the rebased tip, the D6 step computes NEW base..head dependents over the COMBINED post-rebase state — not this cluster's changes in isolation.\n` +
         `6. If CI is GREEN, squash-merge the PR at the published boundary (one squash per MSP) and set merged=true. If CI is RED on the fresh base, do NOT merge: set merged=false and put the failing job/step and first failing assertion in detail.\n\n` +
+        `7. ONLY after the squash-merge succeeds (merged=true), durably record this ship so a crash or disconnect cannot lose it: in ${repoRoot}, ensure \`.mitosis/\` is gitignored (append \`.mitosis/\` to ${repoRoot}/.gitignore if absent), then append this MSP's ship record to ${repoRoot}/.mitosis/run.json as newline-delimited JSON — one object per line: \`{"mspId":"${msp.id}","prUrl":"<the pr url>","mergedAt":"<iso8601>"}\`. Create the file if absent. If a line with this mspId already exists (a replay), do NOT append a duplicate. This file is machine run-state, never committed.\n\n` +
         `Return ONLY: { merged: <bool>, prUrl: "<url>", receiptsPass: <bool>, d6Pass: <bool>, detail: "<summary>" }.`,
         { agentType: 'implementer', schema: SHIP_SCHEMA, label: `ship:${msp.id}`, phase: 'Ship' }
       );
@@ -838,8 +929,4 @@ async function runClusterChain(clusterIds) {
 }
 
 const chainResults = await parallel(clusters.map((cluster) => () => runClusterChain(cluster)));
-const firstHalt = chainResults.find((r) => r && r.halted);
-if (firstHalt) {
-  return { ...firstHalt, shipped, mspCount: msps.length };
-}
-return { halted: false, shipped, mspCount: msps.length };
+return assembleRunReport({ clusters, chainResults, shipped, mspCount: msps.length });

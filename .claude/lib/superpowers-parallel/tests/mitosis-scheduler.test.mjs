@@ -20,7 +20,7 @@ function invokeMitosis(input, agent) {
   const parallelCalls = [];
   const trackedParallel = async (thunks) => {
     parallelCalls.push(thunks.length);
-    return Promise.all(thunks.map((fn) => fn()));
+    return Promise.all(thunks.map((fn) => Promise.resolve().then(fn).then((v) => v, () => null)));
   };
   const resultPromise = runMitosis(
     typeof input === 'string' ? input : JSON.stringify(input),
@@ -191,7 +191,7 @@ test('S3 fully-serial MSP chain is accepted and driven fully green in dependency
   const { resultPromise } = invokeMitosis(buildInput(), agent);
   const result = await resultPromise;
 
-  assert.equal(result.halted, false);
+  assert.equal(result.overallStatus, 'all-shipped');
   assert.equal(result.mspCount, msps.length);
   assert.deepEqual(result.shipped.map((s) => s.mspId), ['m0', 'm1', 'm2']);
 });
@@ -202,7 +202,7 @@ test('S4 fully-parallel independent MSPs are accepted and driven fully green', a
   const { resultPromise, parallelCalls } = invokeMitosis(buildInput(), agent);
   const result = await resultPromise;
 
-  assert.equal(result.halted, false);
+  assert.equal(result.overallStatus, 'all-shipped');
   assert.equal(result.mspCount, msps.length);
   assert.deepEqual(result.shipped.map((s) => s.mspId).sort(), ['alpha', 'bravo', 'charlie']);
   assert.equal(parallelCalls[0], msps.length);
@@ -214,7 +214,7 @@ test('S6 maximally over-serialized fileScope-overlap MSPs are accepted and drive
   const { resultPromise } = invokeMitosis(buildInput(), agent);
   const result = await resultPromise;
 
-  assert.equal(result.halted, false);
+  assert.equal(result.overallStatus, 'all-shipped');
   assert.equal(result.mspCount, msps.length);
   assert.deepEqual(result.shipped.map((s) => s.mspId), ['m0', 'm1', 'm2']);
 });
@@ -225,7 +225,7 @@ test('an acyclic-but-misordered decomposition (a dependent listed before its dep
   const { resultPromise } = invokeMitosis(buildInput(), agent);
   const result = await resultPromise;
 
-  assert.equal(result.halted, false);
+  assert.equal(result.overallStatus, 'all-shipped');
   assert.equal(result.mspCount, 2);
   assert.deepEqual(result.shipped.map((s) => s.mspId), ['a', 'b']);
 });
@@ -236,7 +236,7 @@ test('Layer 1: independent clusters are dispatched through a single parallel() c
   const { resultPromise, logLines, parallelCalls } = invokeMitosis(buildInput(), agent);
   const result = await resultPromise;
 
-  assert.equal(result.halted, false);
+  assert.equal(result.overallStatus, 'all-shipped');
   assert.equal(parallelCalls[0], msps.length);
 
   const tags = logLines
@@ -265,7 +265,7 @@ test('merge serialization: shipped[] order follows real merge-queue attachment o
   gateA.resolve();
   const result = await resultPromise;
 
-  assert.equal(result.halted, false);
+  assert.equal(result.overallStatus, 'all-shipped');
   assert.deepEqual(result.shipped.map((s) => s.mspId), ['b', 'a']);
   assert.equal(maxActive(), 1);
 });
@@ -294,12 +294,12 @@ test('firstHalt selects the alphabetically-first cluster by chainResults array i
   gateA.resolve();
   const result = await resultPromise;
 
-  assert.equal(result.halted, true);
+  assert.equal(result.overallStatus, 'failed');
   assert.equal(result.stage, 'ship');
   assert.equal(result.mspId, 'a');
   assert.equal(result.detail, 'a failed second');
-  assert.equal(result.receiptsPass, false);
-  assert.deepEqual(result.shipped, []);
+  assert.equal(result.halted.find((o) => o.mspId === 'a').stage, 'ship');
+  assert.deepEqual(result.shipped.map((s) => s.mspId), []);
 });
 
 test('N1: a Ship-stage failure on a dependent MSP halts with stage ship and preserves the entries shipped before it', async () => {
@@ -314,10 +314,10 @@ test('N1: a Ship-stage failure on a dependent MSP halts with stage ship and pres
   const { resultPromise } = invokeMitosis(buildInput(), agent);
   const result = await resultPromise;
 
-  assert.equal(result.halted, true);
+  assert.equal(result.overallStatus, 'partial');
   assert.equal(result.stage, 'ship');
   assert.equal(result.mspId, 'm1');
-  assert.equal(result.receiptsPass, false);
+  assert.equal(result.halted.find((o) => o.mspId === 'm1').stage, 'ship');
   assert.deepEqual(result.shipped.map((s) => s.mspId), ['m0']);
   assert.equal(result.mspCount, msps.length);
 });
@@ -328,7 +328,7 @@ test('a decomposition whose dependsOn references an id not among the declared MS
   const { resultPromise } = invokeMitosis(buildInput(), agent);
   const result = await resultPromise;
 
-  assert.equal(result.halted, true);
+  assert.equal(result.overallStatus, 'failed');
   assert.equal(result.stage, 'decompose');
   assert.match(result.detail, /references unknown id/);
   assert.match(result.detail, /depends on unknown id ghost/);
@@ -345,7 +345,7 @@ test('N2: a genuine dependsOn cycle passes the decompose unknown-id pre-check (a
   const { resultPromise } = invokeMitosis(buildInput(), agent);
   const result = await resultPromise;
 
-  assert.equal(result.halted, true);
+  assert.equal(result.overallStatus, 'failed');
   assert.equal(result.stage, 'cluster');
   assert.match(result.detail, /dependency cycle detected among:/);
   assert.deepEqual(result.shipped, []);
@@ -358,9 +358,93 @@ test('malformed args JSON halts at the input stage without invoking any agent', 
   const { resultPromise } = invokeMitosis('{not valid json', agent);
   const result = await resultPromise;
 
-  assert.equal(result.halted, true);
+  assert.equal(result.overallStatus, 'failed');
   assert.equal(result.stage, 'input');
   assert.deepEqual(result.shipped, []);
   assert.equal(result.mspCount, 0);
   assert.equal(agentCalls, 0);
+});
+
+function crashingAgent(msps, crashMspId, stage = 'plan') {
+  const base = createFakeAgent({ msps });
+  return async (prompt, opts = {}) => {
+    if ((opts.label || '') === `${stage}:${crashMspId}`) {
+      throw new Error(`injected ${stage} crash for ${crashMspId}`);
+    }
+    return base(prompt, opts);
+  };
+}
+
+test('F2b regression: a cluster chain that dies (null from parallel) is reported as crashed, not silent success', async () => {
+  const msps = twoIndependentMsps();
+  const agent = crashingAgent(msps, 'b', 'plan');
+  const { resultPromise } = invokeMitosis(buildInput(), agent);
+  const result = await resultPromise;
+
+  assert.equal(result.overallStatus, 'partial');
+  assert.deepEqual(result.shipped.map((s) => s.mspId), ['a']);
+  assert.deepEqual(result.crashed.map((c) => c.mspId), ['b']);
+  assert.equal(result.crashed[0].stage, 'cluster');
+  assert.equal(result.mspCount, 2);
+});
+
+test('F2a: a Decompose transient drop (agent returns null) is a crashed fatal report, not an unhandled rejection', async () => {
+  const agent = async (prompt, opts = {}) => {
+    if ((opts.label || '') === 'decompose') return null;
+    throw new Error(`unexpected agent call after decompose crash: ${opts.label}`);
+  };
+  const { resultPromise } = invokeMitosis(buildInput(), agent);
+  const result = await resultPromise;
+
+  assert.equal(result.overallStatus, 'failed');
+  assert.equal(result.stage, 'decompose');
+  assert.deepEqual(result.crashed.map((o) => o.stage), ['decompose']);
+  assert.deepEqual(result.shipped, []);
+});
+
+test('F2a: a Decompose throw is caught and reported as a crashed fatal report', async () => {
+  const agent = async (prompt, opts = {}) => {
+    if ((opts.label || '') === 'decompose') throw new Error('boom in decompose');
+    throw new Error(`unexpected agent call: ${opts.label}`);
+  };
+  const { resultPromise } = invokeMitosis(buildInput(), agent);
+  const result = await resultPromise;
+
+  assert.equal(result.overallStatus, 'failed');
+  assert.equal(result.stage, 'decompose');
+  assert.match(result.detail, /boom in decompose/);
+});
+
+test('F2a: a Prepare crash (agent returns null) is a crashed fatal report naming the prepare stage', async () => {
+  const msps = independentMsps();
+  const base = createFakeAgent({ msps });
+  const agent = async (prompt, opts = {}) => {
+    if ((opts.label || '') === 'prepare') return null;
+    return base(prompt, opts);
+  };
+  const { resultPromise } = invokeMitosis(buildInput(), agent);
+  const result = await resultPromise;
+
+  assert.equal(result.overallStatus, 'failed');
+  assert.equal(result.stage, 'prepare');
+  assert.deepEqual(result.crashed.map((o) => o.stage), ['prepare']);
+  assert.deepEqual(result.shipped, []);
+});
+
+test('F3 minimal: the ship prompt instructs a durable append to .mitosis/run.json after merge', async () => {
+  const msps = [mspSpec('solo', { fileScope: ['scope/solo/**'] })];
+  const captured = [];
+  const base = createFakeAgent({ msps });
+  const agent = async (prompt, opts = {}) => {
+    if ((opts.label || '').startsWith('ship:')) captured.push(prompt);
+    return base(prompt, opts);
+  };
+  const { resultPromise } = invokeMitosis(buildInput(), agent);
+  const result = await resultPromise;
+
+  assert.equal(result.overallStatus, 'all-shipped');
+  assert.equal(captured.length, 1);
+  assert.match(captured[0], /\.mitosis\/run\.json/);
+  assert.match(captured[0], /run\.json/);
+  assert.match(captured[0], /ONLY after the squash-merge succeeds/);
 });
