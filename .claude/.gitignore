@@ -38,6 +38,9 @@ settings.local.json
 /agent-ledger/
 __pycache__/
 *.pyc
+ledger/
+notes/
+docs/superpowers/
 !skills/session-handoff/
 !docs/session-continuity-redesign/
 !skills/impeccable/scripts/live-browser-session.js

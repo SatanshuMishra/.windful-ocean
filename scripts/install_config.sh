@@ -104,34 +104,65 @@ if ! command -v stow &> /dev/null; then
     fi
 fi
 
-# Change to the repo directory
-cd "$REPO_DIR"
+STOW_DIR="$(dirname "$REPO_DIR")"
+PKG_NAME="$(basename "$REPO_DIR")"
 
-# Create backup directory with timestamp
+resolve_path() {
+    if command -v realpath >/dev/null 2>&1; then
+        realpath "$1" 2>/dev/null || true
+    elif command -v python3 >/dev/null 2>&1; then
+        python3 -c 'import os, sys; print(os.path.realpath(sys.argv[1]))' "$1" 2>/dev/null || true
+    else
+        readlink -f "$1" 2>/dev/null || true
+    fi
+}
+
+REPO_CANON="$(resolve_path "$REPO_DIR")"
+GITCONFIG_IGNORE='(^|/)\.gitconfig$'
 BACKUP_DIR="$HOME/.dotfiles-backup-$(date +%Y%m%d_%H%M%S)"
 
-# Dry run first to check for conflicts
-echo "🔍 Checking for conflicts..."
-mkdir -p "$HOME/.claude" "$HOME/.claude/hooks" "$HOME/.claude/rules"
-if stow -nv . -t ~ 2>&1 | grep -q "WARNING\|ERROR"; then
-    echo "⚠️  Conflicts detected. Creating backup..."
-    mkdir -p "$BACKUP_DIR"
-    
-    # Backup conflicting files
-    stow -nv . -t ~ 2>&1 | grep "existing target is" | awk '{print $NF}' | while read -r file; do
-        if [[ -e "$HOME/$file" ]]; then
-            echo "  📋 Backing up: $file"
-            mkdir -p "$BACKUP_DIR/$(dirname "$file")" 2>/dev/null || true
-            mv "$HOME/$file" "$BACKUP_DIR/$file"
-        fi
-    done
-    
-    echo "📦 Backup created at: $BACKUP_DIR"
+echo "Checking for conflicts..."
+DRY_OUTPUT="$(stow -nv --ignore="$GITCONFIG_IGNORE" -d "$STOW_DIR" -t "$HOME" "$PKG_NAME" 2>&1 || true)"
+
+if printf '%s\n' "$DRY_OUTPUT" | grep -Eq 'WARNING|ERROR|existing target|cannot stow'; then
+    echo "Conflicts detected. Reconciling existing links..."
+    printf '%s\n' "$DRY_OUTPUT" \
+        | sed -n -E \
+            -e 's/.*existing target is [^:]*: (.+)$/\1/p' \
+            -e 's/.*cannot stow .* over existing target (.+) since .*/\1/p' \
+        | while read -r target; do
+            [ -n "$target" ] || continue
+            resolved="$(resolve_path "$HOME/$target")"
+            case "$resolved" in
+                "$REPO_CANON"/*)
+                    if [ -L "$HOME/$target" ]; then
+                        echo "  Already installed, restowing: $target"
+                        rm -f "$HOME/$target"
+                    fi
+                    ;;
+                *)
+                    if [ -e "$HOME/$target" ] || [ -L "$HOME/$target" ]; then
+                        echo "  Backing up: $target"
+                        mkdir -p "$BACKUP_DIR/$(dirname "$target")" 2>/dev/null || true
+                        mv "$HOME/$target" "$BACKUP_DIR/$target"
+                    fi
+                    ;;
+            esac
+        done
+
+    if [ -d "$BACKUP_DIR" ]; then
+        echo "Backup created at: $BACKUP_DIR"
+    fi
 fi
 
-# Install the dotfiles
-echo "📦 Installing dotfiles..."
-stow . -t ~
+mkdir -p "$HOME/.claude"
+for claude_subdir in "$REPO_DIR"/.claude/*/; do
+    [ -d "$claude_subdir" ] || continue
+    mkdir -p "$HOME/.claude/$(basename "$claude_subdir")"
+done
+
+echo "Installing dotfiles..."
+stow -R --ignore="$GITCONFIG_IGNORE" -d "$STOW_DIR" -t "$HOME" "$PKG_NAME"
 
 # OS-specific post-installation steps
 case "$OS_NAME" in

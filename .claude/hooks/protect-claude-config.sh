@@ -5,24 +5,57 @@ case "$input" in
   *) exit 0 ;;
 esac
 
-file_path="$(printf '%s' "$input" | python3 -c 'import sys, json
+printf '%s' "$input" | python3 -c '
+import sys, json, os
+
 try:
     d = json.load(sys.stdin)
 except Exception:
     sys.exit(0)
-sys.stdout.write((d.get("tool_input") or {}).get("file_path", "") or "")' 2>/dev/null || true)"
-[ -z "$file_path" ] && exit 0
 
-case "$file_path" in
-  "$HOME/.claude/settings.json" | \
-  "$HOME/.claude/settings.local.json" | \
-  "$HOME/.claude/CLAUDE.md" | \
-  "$HOME/.claude/keybindings.json" | \
-  "$HOME/.claude/hooks/"* | \
-  "$HOME/.claude/rules/"*) : ;;
-  *) exit 0 ;;
-esac
+fp = ((d.get("tool_input") or {}).get("file_path", "") or "")
+if not fp:
+    sys.exit(0)
 
-esc="$(FP="$file_path" python3 -c 'import os, json, sys; sys.stdout.write(json.dumps("Modifying Claude Code guardrail file: " + os.environ["FP"] + " - confirm this change is intended."))' 2>/dev/null || printf '%s' '"Modifying a Claude Code guardrail file - confirm this change is intended."')"
-printf '{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"ask","permissionDecisionReason":%s}}\n' "$esc"
+home = os.path.expanduser("~")
+home_base = os.path.join(home, ".claude")
+bases = [home_base]
+for probe in ("CLAUDE.md", "settings.json", "keybindings.json"):
+    p = os.path.join(home_base, probe)
+    try:
+        rp = os.path.realpath(p)
+    except Exception:
+        continue
+    if rp != p and os.path.basename(rp) == probe:
+        rb = os.path.dirname(rp)
+        if rb not in bases:
+            bases.append(rb)
+        break
+
+exact = ("settings.json", "settings.local.json", "CLAUDE.md", "keybindings.json")
+prefixes = ("hooks", "rules")
+
+candidates = {fp}
+try:
+    candidates.add(os.path.realpath(fp))
+except Exception:
+    pass
+
+def protected(path):
+    for base in bases:
+        for name in exact:
+            if path == os.path.join(base, name):
+                return True
+        for name in prefixes:
+            root = os.path.join(base, name)
+            if path == root or path.startswith(root + os.sep):
+                return True
+    return False
+
+if any(protected(c) for c in candidates):
+    reason = "Modifying Claude Code guardrail file: " + fp + " - confirm this change is intended."
+    out = {"hookSpecificOutput": {"hookEventName": "PreToolUse", "permissionDecision": "ask", "permissionDecisionReason": reason}}
+    sys.stdout.write(json.dumps(out) + "\n")
+sys.exit(0)
+'
 exit 0
