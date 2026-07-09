@@ -45,11 +45,14 @@ export async function runEngine(engineArgs, ctx) {
   const launchCommit = engineArgs.launchCommit || null;
   const runArtifacts = engineArgs.runArtifacts;
   const models = engineArgs.models || {};
+  const retry = engineArgs.retry || { maxAttempts: 1, state: { used: 0, max: 0 } };
+  const fingerprintBase = engineArgs.fingerprintBase || baseBranch;
 
   const reviewerModel = models.reviewer || 'sonnet';
   const fixerModel = models.fixer || 'sonnet';
   const implementerModel = null;
   const integrationWt = `${worktreeRoot}/${branchPrefix}/integration`;
+  const baseGateWt = `${worktreeRoot}/${branchPrefix}/gate-base`;
 
   function branchOf(id) { return `${branchPrefix}/task-${id}`; }
   function worktreeOf(id) { return engineWorktreePath(worktreeRoot, branchPrefix, id); }
@@ -67,7 +70,7 @@ export async function runEngine(engineArgs, ctx) {
     }
     return `${prompts.implementer}\n\n--- THIS TASK ---\n` +
       `Set up an isolated workspace, then implement.\n` +
-      `1. Create a dedicated worktree (retry once if git reports a lock):\n` +
+      `1. Create a dedicated worktree (observe-then-converge; idempotent under replay). FIRST check whether it already exists: \`git -C ${repoRoot} worktree list --porcelain\` and \`git -C ${repoRoot} rev-parse --verify --quiet ${branch}\`. If a worktree at ${wt} is already checked out on ${branch}, REUSE it (skip the add). If ${branch} exists but no worktree is attached, attach without -b: \`git -C ${repoRoot} worktree add ${wt} ${branch}\`. Otherwise create it fresh (retry once if git reports a lock):\n` +
       `   \`git -C ${repoRoot} worktree add -b ${branch} ${wt} ${baseBranch}\`\n` +
       `2. \`cd ${wt}\` and do ALL work there. Follow TDD as the instructions above require.\n` +
       `3. Bootstrap dependencies before any check (idempotent): \`ln -sfn ${repoRoot}/node_modules node_modules\`\n` +
@@ -147,7 +150,13 @@ export async function runEngine(engineArgs, ctx) {
     const reviewMode = task.risk === 'high' ? 'three-lens' : 'merged';
     const resolvedAgentType = EXEC_AGENT_TYPES.has(task.agentType) ? task.agentType : 'implementer';
     const taskModel = resolvedAgentType === 'test-engineer' ? (models.tester || null) : implementerModel;
-    const status = await agent(implementerPrompt(task, branch, wt), withModel({ label: `impl:${taskId}`, phase: 'Waves', schema: STATUS_SCHEMA, agentType: resolvedAgentType }, taskModel));
+    const status = await ctx.dispatchWithRetry(
+      (attemptNo, preamble) => agent(preamble + implementerPrompt(task, branch, wt), withModel({ label: `impl:${taskId}`, phase: 'Waves', schema: STATUS_SCHEMA, agentType: resolvedAgentType }, taskModel)),
+      { isPermanent: (r) => r.status === 'BLOCKED' || r.status === 'NEEDS_CONTEXT', maxAttempts: retry.maxAttempts, state: retry.state, resetRef: baseBranch, worktree: wt },
+    );
+    if (status && status.__quarantined) {
+      return { taskId, branch, wt, reviewMode, ok: false, reason: 'quarantined', quarantined: { stage: 'execute', retries: status.attempts, error: `implementer exhausted ${status.attempts} attempt(s) (transient drops)` } };
+    }
     if (!status || status.status === 'BLOCKED' || status.status === 'NEEDS_CONTEXT')
       return { taskId, branch, wt, reviewMode, ok: false, reason: status ? status.status : 'null-status' };
     if (task.risk === 'high') {
@@ -214,7 +223,7 @@ export async function runEngine(engineArgs, ctx) {
       const merge = await agent(
         `Integrate this wave into \`${baseBranch}\` inside this MSP's dedicated integration worktree at ${integrationWt} (NEVER the main tree; do not enter any task worktree).\n` +
         `1. Ensure the integration worktree exists (idempotent): \`git -C ${repoRoot} worktree add ${integrationWt} ${baseBranch}\`. If it already exists, instead run \`cd ${integrationWt} && git checkout ${baseBranch}\`.\n` +
-        `2. For each branch in order ${JSON.stringify(okBranches)}: \`git -C ${integrationWt} merge --no-ff <branch>\`.\n` +
+        `2. For each branch in order ${JSON.stringify(okBranches)}: observe-then-converge - FIRST check whether it is already merged (idempotent under replay): \`git -C ${integrationWt} merge-base --is-ancestor <branch> HEAD\`. If exit 0, that branch's commits are already contained - SKIP it. Otherwise \`git -C ${integrationWt} merge --no-ff <branch>\`.\n` +
         `   If ANY merge reports a conflict: run \`git -C ${integrationWt} merge --abort\`, set conflict=true, record the conflicting files + branch in conflictDetail, and STOP (do not merge the rest).\n` +
         `3. If all merged cleanly, remove the spent task worktrees: for each path in ${JSON.stringify(okWorktrees)} run \`git -C ${repoRoot} worktree remove --force <path>\`.\n` +
         `Return { merged: [branches merged], conflict, conflictDetail }.`,
@@ -235,21 +244,33 @@ export async function runEngine(engineArgs, ctx) {
 
   if (!result.halted) {
     const validationDir = isolation === 'scope-fence' ? repoRoot : integrationWt;
+    const gateBase = isolation === 'scope-fence' ? launchCommit : fingerprintBase;
     const where = isolation === 'scope-fence'
       ? `In the main repo working tree at ${repoRoot} (changes are uncommitted by design)`
       : `On \`${baseBranch}\` inside this MSP's integration worktree at ${integrationWt}`;
+    const gatePrompt = (rerun) =>
+      `${where}, ${rerun ? 're-run' : 'run'} the DIFF-SCOPED gate ONCE: block only NEW lint/type errors this MSP introduced, never pre-existing ones. Lint + types only; the full test suite is gated separately at ship (G9).\n` +
+      `1. Materialize the BASE (pre-MSP) tree in a throwaway worktree (observe-then-converge): if a stale one exists remove it first \`git -C ${repoRoot} worktree remove --force ${baseGateWt}\` (ignore any "not a working tree" error), then \`git -C ${repoRoot} worktree add --detach ${baseGateWt} ${gateBase}\`. Bootstrap deps there WITHOUT writing into the shared store: if the base lockfile is byte-identical to HEAD's, reuse the shared modules READ-ONLY via \`ln -sfn ${repoRoot}/node_modules ${baseGateWt}/node_modules\`; if the base lockfile diverges, first \`rm -rf ${baseGateWt}/node_modules\` to drop any such symlink or stale directory, then install into a base-DEDICATED real \`${baseGateWt}/node_modules\` - NEVER run install through the shared symlink (it writes through into ${repoRoot}/node_modules and corrupts the concurrent HEAD run and sibling clusters).\n` +
+      `2. Collect the error list on BOTH sides using the repo's OWN toolchain, as machine-readable output:\n` +
+      `   - BASE: \`cd ${baseGateWt} && npx eslint . -f json\` and \`cd ${baseGateWt} && npx tsc --noEmit --pretty false\`\n` +
+      `   - HEAD: \`cd ${validationDir} && npx eslint . -f json\` and \`cd ${validationDir} && npx tsc --noEmit --pretty false\`\n` +
+      `   - FAIL CLOSED: report pass=false with the reason if EITHER side cannot be collected cleanly - a worktree or install failure, a tool that crashes, output that cannot be parsed into the expected diagnostic list (the governing test is whether the output parses into a diagnostic list; a parse FAILURE is e.g. eslint output that is not the JSON array \`eslint -f json\` produces, or tsc text containing a line that is neither blank nor of the \`file(line,col): error TSxxxx\` form - but an empty eslint array or empty tsc output is a VALID clean result, an empty diagnostic list, NOT a parse failure), a missing eslint or tsc config, a tsc run that did not reach terminal completion, a run that scanned ZERO files, or a base-vs-HEAD mismatch in the resolved lint/type SCOPE - the include / exclude / ignore globs that decide WHICH files are checked - but NOT a mismatch that is merely the individual source files an MSP legitimately added, removed, or renamed. NEVER treat an errored, crashed, hollow, or partial collection as an empty or complete error set; a spurious error superset on either side must NOT be read as "no new errors".\n` +
+      `3. Reduce every error to a STRUCTURAL IDENTITY tuple { file (repo-relative), ruleId or TS error code, normalized message } where the normalized message has ALL line:col numbers, code frames, and absolute paths stripped. NEVER key the identity on line:col - a pure line shift must NOT count as a new error.\n` +
+      `4. COUNT occurrences of each identity on BOTH sides (a multiset, not a set). An identity BLOCKS iff its HEAD count EXCEEDS its BASE count - block the surplus (HEAD count minus BASE count) occurrences; equal or lower counts (pre-existing or fixed) do NOT block. Because the identity ignores line:col this stays tolerant of pure line shifts while still catching a 2ND instance of an error class already present at base. ALSO scan the HEAD-vs-base SOURCE diff for ADDED inline suppression directives (\`eslint-disable\` / \`eslint-disable-next-line\` / \`@ts-ignore\` / \`@ts-expect-error\`) and apply the SAME count-aware rule - if a directive's HEAD count exceeds its BASE count, the surplus BLOCKS; a suppression is not a fix. ALSO diff the lint/type CONFIGURATION surface, comparing the fully-RESOLVED effective config on both sides (not only the named config files, so a loosening pulled in through an \`extends\`-ed or shared eslint/tsconfig preset - including a version bump of that shared preset package - is still caught): treat any HEAD-vs-base change to an eslint config (\`.eslintrc*\` / \`eslint.config.*\` / \`package.json\` eslintConfig), a TypeScript config (\`tsconfig*.json\`), an extended/shared preset, or an ignore surface (\`.eslintignore\` / \`ignorePatterns\` / tsconfig \`exclude\`/\`include\` / \`overrides\`) that REDUCES strictness or narrows what is checked (a rule turned off or downgraded, \`strict\` or \`noImplicitAny\` weakened, \`skipLibCheck\` added, a path newly ignored or excluded) as a BLOCKING change - loosening the checker is itself a way to hide a new error; a strictness-INCREASING or check-widening change does NOT block.\n` +
+      `5. Tear down the throwaway base worktree: \`git -C ${repoRoot} worktree remove --force ${baseGateWt}\`.\n` +
+      `Report pass=true iff the blocking set is empty; list the blocking identities (or a short summary) in output.`;
     let boundary = await agent(
-      `${where}, run the FULL validation ONCE and report pass plus the tail of output:\n\`cd ${validationDir} && ${fullValidationCmd}\``,
+      gatePrompt(false),
       { label: 'boundary', phase: 'Boundary', schema: BOUNDARY_SCHEMA });
     if (boundary && !boundary.pass) {
       const fixWhere = isolation === 'scope-fence'
         ? `in the main repo working tree at ${repoRoot}; stay within the union of the declared task scopes and leave changes uncommitted`
         : `on \`${baseBranch}\` inside the integration worktree at ${integrationWt} so it passes, then commit`;
       await agent(
-        `The boundary validation failed. Fix the integrated code ${fixWhere}. Failing output:\n${boundary.output}`,
+        `The diff-scoped gate found NEW lint/type errors this MSP introduced. Fix the integrated code ${fixWhere} by CORRECTING the root cause - do NOT pass the gate by suppression: add no new \`eslint-disable\` / \`@ts-ignore\` / \`@ts-expect-error\`, and do not loosen eslint or tsconfig rules or newly ignore or exclude files; new suppression directives and strictness-reducing config changes are themselves blocked by the gate. Failing output:\n${boundary.output}`,
         withModel({ label: 'boundary-fix', phase: 'Boundary' }, fixerModel));
       boundary = await agent(
-        `${where}, re-run the full validation ONCE and report: \`cd ${validationDir} && ${fullValidationCmd}\``,
+        gatePrompt(true),
         { label: 'boundary-recheck', phase: 'Boundary', schema: BOUNDARY_SCHEMA });
     }
     result.boundary = boundary;

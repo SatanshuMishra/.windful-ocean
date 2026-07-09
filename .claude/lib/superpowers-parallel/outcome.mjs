@@ -10,8 +10,10 @@ export function crashedOutcome(mspId, stage, error) {
   return { kind: 'crashed', mspId, stage, error };
 }
 
-export function quarantinedOutcome(mspId, stage, error, retries) {
-  return { kind: 'quarantined', mspId, stage, error, retries };
+export function quarantinedOutcome(mspId, stage, error, retries, redrive) {
+  const outcome = { kind: 'quarantined', mspId, stage, error, retries };
+  if (redrive) outcome.redrive = redrive;
+  return outcome;
 }
 
 export function computeOverallStatus({ shipped, crashed, quarantined, total }) {
@@ -46,6 +48,16 @@ export function assembleRunReport({ clusters, chainResults, shipped, mspCount })
     if (r === null || r === undefined) {
       const blamed = clusterIds.find((id) => !shippedIds.has(id)) || clusterIds[0];
       outcomes.push(crashedOutcome(blamed, 'cluster', `cluster chain returned ${r} (thunk crashed or was killed); cluster ids: ${clusterIds.join(', ')}`));
+      return;
+    }
+    if (r.halted && r.quarantined) {
+      const blamed = r.mspId || clusterIds.find((id) => !shippedIds.has(id)) || clusterIds[0];
+      outcomes.push(quarantinedOutcome(blamed, r.stage || 'unknown', r.error || r.detail || 'quarantined', r.retries, r.redrive));
+      return;
+    }
+    if (r.halted && r.crashed) {
+      const blamed = r.mspId || clusterIds.find((id) => !shippedIds.has(id)) || clusterIds[0];
+      outcomes.push(crashedOutcome(blamed, r.stage || 'unknown', r.error || r.detail || 'crashed'));
       return;
     }
     if (r.halted) {

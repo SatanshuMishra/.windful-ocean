@@ -1,6 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { runEngine } from '../run-engine.mjs';
+import { dispatchWithRetry } from '../retry.mjs';
 
 function baseArgs(overrides = {}) {
   return {
@@ -41,6 +42,7 @@ function ctxWith(agent) {
     parallel: async (thunks) => Promise.all(thunks.map((fn) => fn())),
     log: () => {},
     phase: () => {},
+    dispatchWithRetry,
   };
 }
 
@@ -193,4 +195,38 @@ test('a two-wave serial task chain (t0 then t1) completes without halting', asyn
   assert.equal(result.haltReason, null);
   assert.equal(result.waves.length, 2);
   assert.deepEqual(result.waves.map((w) => w.wave), [0, 1]);
+});
+
+test('P4 §8.2 worktree-add is observe-then-converge: the implementer prompt checks for an existing worktree/branch before creating one', async () => {
+  const calls = [];
+  const result = await runEngine(baseArgs(), ctxWith(scriptedAgent(calls)));
+  assert.equal(result.halted, false);
+  const impl = calls.find((c) => c.opts && c.opts.label === 'impl:t1');
+  assert.ok(impl, 'implementer prompt captured');
+  assert.match(impl.prompt, /worktree list --porcelain/);
+  assert.match(impl.prompt, /rev-parse --verify --quiet/);
+  assert.match(impl.prompt, /worktree add -b/);
+});
+
+test('P4 §8.2 wave-merge is observe-then-converge: the integrate prompt skips branches already contained (merge-base --is-ancestor)', async () => {
+  const calls = [];
+  const result = await runEngine(baseArgs(), ctxWith(scriptedAgent(calls)));
+  assert.equal(result.halted, false);
+  const merge = calls.find((c) => c.opts && c.opts.label === 'integrate:wave-0');
+  assert.ok(merge, 'integrate prompt captured');
+  assert.match(merge.prompt, /merge-base --is-ancestor <branch> HEAD/);
+  assert.match(merge.prompt, /merge --no-ff/);
+});
+
+test('P4 §8.4 native fingerprint gate: the boundary prompt structural-diffs HEAD lint/type errors against the base and no longer runs the whole-tree validation command', async () => {
+  const calls = [];
+  const result = await runEngine(baseArgs({ fingerprintBase: 'origin/main' }), ctxWith(scriptedAgent(calls)));
+  assert.equal(result.halted, false);
+  const boundary = calls.find((c) => c.opts && c.opts.label === 'boundary');
+  assert.ok(boundary, 'boundary prompt captured');
+  assert.match(boundary.prompt, /eslint \. -f json/);
+  assert.match(boundary.prompt, /tsc --noEmit --pretty false/);
+  assert.match(boundary.prompt, /STRUCTURAL IDENTITY/);
+  assert.match(boundary.prompt, /HEAD count EXCEEDS its BASE count/);
+  assert.doesNotMatch(boundary.prompt, /npm run ci/);
 });

@@ -124,3 +124,35 @@ test('fatalReport with crashed:true records a crashed outcome (Decompose/Prepare
   assert.deepEqual(r.crashed.map((o) => o.stage), ['decompose']);
   assert.equal(r.stage, 'decompose');
 });
+
+test('quarantinedOutcome carries an optional redrive hint only when provided', () => {
+  assert.deepEqual(quarantinedOutcome('m3', 'execute', 'boom', 3),
+    { kind: 'quarantined', mspId: 'm3', stage: 'execute', error: 'boom', retries: 3 });
+  assert.deepEqual(quarantinedOutcome('m3', 'execute', 'boom', 3, { branch: 'x-integration', ref: 'main', stage: 'execute' }),
+    { kind: 'quarantined', mspId: 'm3', stage: 'execute', error: 'boom', retries: 3, redrive: { branch: 'x-integration', ref: 'main', stage: 'execute' } });
+});
+
+test('assembleRunReport maps a quarantined chain result to a quarantined outcome and blocks all-shipped', () => {
+  const report = assembleRunReport({
+    clusters: [['a'], ['b']],
+    chainResults: [{ halted: false }, { halted: true, quarantined: true, stage: 'execute', mspId: 'b', error: 'exhausted', retries: 3, redrive: { branch: 'b-integration', ref: 'main', stage: 'execute' } }],
+    shipped: [{ mspId: 'a', prUrl: 'ua' }],
+    mspCount: 2,
+  });
+  assert.equal(report.overallStatus, 'partial');
+  assert.deepEqual(report.quarantined.map((o) => o.mspId), ['b']);
+  assert.equal(report.quarantined[0].stage, 'execute');
+  assert.equal(report.quarantined[0].redrive.branch, 'b-integration');
+});
+
+test('assembleRunReport maps a crashed chain result (guarded stage) to a crashed outcome with accurate stage', () => {
+  const report = assembleRunReport({
+    clusters: [['a'], ['b']],
+    chainResults: [{ halted: false }, { halted: true, crashed: true, stage: 'branch', mspId: 'b', error: 'branch agent returned null' }],
+    shipped: [{ mspId: 'a', prUrl: 'ua' }],
+    mspCount: 2,
+  });
+  assert.equal(report.overallStatus, 'partial');
+  assert.deepEqual(report.crashed.map((o) => o.mspId), ['b']);
+  assert.equal(report.crashed[0].stage, 'branch');
+});
