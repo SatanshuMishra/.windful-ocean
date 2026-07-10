@@ -7,7 +7,6 @@ import {
   parseRunManifest,
   buildInitialManifest,
   applyShipTransition,
-  reconcileManifest,
 } from '../recovery.mjs';
 
 test('computeLogicalRunId: deterministic for identical inputs', () => {
@@ -121,17 +120,21 @@ test('applyShipTransition: appends a full defensive shipped entry carrying the p
   assert.deepEqual(before, snapshot);
 });
 
-test('reconcileManifest: overrides a manifest that lies about shipped status', () => {
-  const lying = buildInitialManifest({
+test('buildInitialManifest: persists the observed specContentHash as a top-level field, including null when the observed hash is null', () => {
+  const hash = 'a'.repeat(64);
+  const withHash = buildInitialManifest({
     logicalRunId: 'x', harnessRunId: null, spec: '/s', repoRoot: '/r',
-    baseBranch: 'main', sourcePrefix: 'mitosis', clusters: [['a', 'b']],
-    msps: [{ id: 'a', dependsOn: [], fileScope: [] }, { id: 'b', dependsOn: [], fileScope: [] }],
+    baseBranch: 'main', sourcePrefix: 'mitosis', clusters: [['a']],
+    msps: [{ id: 'a', title: 'A', rationale: 'r', dependsOn: [], fileScope: [] }],
+    specContentHash: hash,
   });
-  lying.msps.find((m) => m.id === 'b').status = 'shipped';
-  const shippedMap = new Map([['a', { prUrl: 'http://pr/a', mergedAt: '2026-07-08T00:00:00Z' }]]);
-  const fixed = reconcileManifest(lying, shippedMap);
-  assert.equal(fixed.msps.find((m) => m.id === 'a').status, 'shipped');
-  assert.equal(fixed.msps.find((m) => m.id === 'a').prUrl, 'http://pr/a');
-  assert.equal(fixed.msps.find((m) => m.id === 'b').status, 'planned');
-  assert.equal(lying.msps.find((m) => m.id === 'b').status, 'shipped');
+  assert.equal(withHash.specContentHash, hash);
+  const withNull = buildInitialManifest({
+    logicalRunId: 'x', harnessRunId: null, spec: '/s', repoRoot: '/r',
+    baseBranch: 'main', sourcePrefix: 'mitosis', clusters: [['a']],
+    msps: [{ id: 'a', title: 'A', rationale: 'r', dependsOn: [], fileScope: [] }],
+    specContentHash: null,
+  });
+  assert.ok('specContentHash' in withNull, 'the top-level field is present even when null');
+  assert.equal(withNull.specContentHash, null);
 });

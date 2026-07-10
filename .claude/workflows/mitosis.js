@@ -389,7 +389,7 @@ function parseRunManifest(raw) {
   return parsed;
 }
 
-function buildInitialManifest({ logicalRunId, harnessRunId, spec, repoRoot, baseBranch, sourcePrefix, clusters, msps }) {
+function buildInitialManifest({ logicalRunId, harnessRunId, spec, repoRoot, baseBranch, sourcePrefix, clusters, msps, specContentHash }) {
   return {
     logicalRunId,
     harnessRunId: harnessRunId ?? null,
@@ -397,6 +397,7 @@ function buildInitialManifest({ logicalRunId, harnessRunId, spec, repoRoot, base
     repoRoot,
     baseBranch,
     sourcePrefix,
+    specContentHash: specContentHash ?? null,
     phase: 'Decompose',
     clusters,
     msps: msps.map((msp) => ({
@@ -434,20 +435,6 @@ function applyShipTransition(manifest, { mspId, prUrl, mergedAt, title, rational
           fileScope: [],
         },
       ];
-  return { ...manifest, msps };
-}
-
-function reconcileManifest(manifest, shippedMap) {
-  const msps = manifest.msps.map((msp) => {
-    if (shippedMap.has(msp.id)) {
-      const entry = shippedMap.get(msp.id);
-      return { ...msp, status: 'shipped', prUrl: entry.prUrl, mergedAt: entry.mergedAt };
-    }
-    if (msp.status === 'shipped') {
-      return { ...msp, status: 'planned' };
-    }
-    return msp;
-  });
   return { ...manifest, msps };
 }
 
@@ -909,11 +896,12 @@ const DECOMPOSE_SCHEMA = {
 
 const RECONCILE_SCHEMA = {
   type: 'object',
-  required: ['manifestFound', 'manifestRaw', 'mergedPRs'],
+  required: ['manifestFound', 'manifestRaw', 'mergedPRs', 'specContentHash'],
   additionalProperties: false,
   properties: {
     manifestFound: { type: 'boolean' },
     manifestRaw: { type: ['string', 'null'] },
+    specContentHash: { type: ['string', 'null'] },
     mergedPRs: {
       type: 'array',
       items: {
@@ -1004,7 +992,17 @@ const SHIP_SCHEMA = {
   },
 };
 
-function evaluateManifestReuse(priorManifest) {
+function evaluateManifestReuse(priorManifest, observedSpecHash) {
+  const hashShape = /^[a-f0-9]{64}$/;
+  if (
+    typeof priorManifest.specContentHash !== 'string' ||
+    !hashShape.test(priorManifest.specContentHash) ||
+    typeof observedSpecHash !== 'string' ||
+    !hashShape.test(observedSpecHash) ||
+    priorManifest.specContentHash !== observedSpecHash
+  ) {
+    return { reusable: false, reason: 'spec content changed or unverifiable since the manifest was written' };
+  }
   const msps = priorManifest.msps;
   if (!Array.isArray(msps) || msps.length === 0) {
     return { reusable: false, reason: 'manifest msps is not a non-empty array' };
@@ -1113,8 +1111,9 @@ try {
       `This stage is STRICTLY READ-ONLY: it inspects durable state to detect a relaunch and the already-merged set. It makes NO commits, opens NO PRs, and mutates NO files whatsoever.\n\n` +
       `1. Inspect the run manifest if present: \`cat ${repoRoot}/.mitosis/run.json\`. If the file exists, return its exact raw contents as manifestRaw (a string) and set manifestFound=true; if it is absent, set manifestFound=false and manifestRaw=null. Do NOT parse, repair, or alter it — return the bytes verbatim, the engine parses it.\n` +
       `2. List the pull requests already merged into the base so the engine can skip re-shipping them: \`gh pr list --state merged --base ${baseBranch} --json headRefName,url,mergedAt\`. Return that array verbatim as mergedPRs (an empty array if none).\n` +
-      `3. For diagnostics only you MAY run \`git log origin/${baseBranch}\` to observe recent base history; it does not affect the returned object.\n\n` +
-      `Return ONLY the structured object: { manifestFound, manifestRaw, mergedPRs: [ { headRefName, url, mergedAt } ] }.`,
+      `3. For diagnostics only you MAY run \`git log origin/${baseBranch}\` to observe recent base history; it does not affect the returned object.\n` +
+      `4. Compute a content fingerprint of the spec so the engine can detect an in-place spec edit since the manifest was recorded: run \`shasum -a 256 ${spec}\` and return ONLY the leading 64-character hex field as specContentHash (a string). If the spec file cannot be read, return specContentHash=null.\n\n` +
+      `Return ONLY the structured object: { manifestFound, manifestRaw, mergedPRs: [ { headRefName, url, mergedAt } ], specContentHash }.`,
       { agentType: 'implementer', schema: RECONCILE_SCHEMA, label: 'reconcile', phase: 'Reconcile', model: models.reconciler || models.shipper || 'sonnet' }
     ),
     { isPermanent: (r) => !Array.isArray(r.mergedPRs), maxAttempts: Number.isInteger(retryConfig.maxAttempts) ? retryConfig.maxAttempts : 3, state: { used: 0, max: Number.isInteger(retryConfig.maxAttempts) ? retryConfig.maxAttempts : 3 } },
@@ -1132,8 +1131,9 @@ const priorManifest = recon && recon.manifestFound ? parseRunManifest(recon.mani
 const reconciledMap = reconcileShippedSet(recon ? recon.mergedPRs : [], sourcePrefix);
 const reconciledShipped = new Set(reconciledMap.keys());
 const reconciledShippedMeta = reconciledMap;
+const observedSpecHash = (recon && typeof recon.specContentHash === 'string') ? recon.specContentHash : null;
 const isRelaunch = priorManifest && priorManifest.logicalRunId === logicalRunId;
-const reuse = isRelaunch ? evaluateManifestReuse(priorManifest) : { reusable: false };
+const reuse = isRelaunch ? evaluateManifestReuse(priorManifest, observedSpecHash) : { reusable: false };
 const reusable = reuse.reusable;
 
 let msps, clusters;
@@ -1207,7 +1207,7 @@ if (!reusable) {
 }
 
 if (!reusable) {
-  const initialManifest = buildInitialManifest({ logicalRunId, harnessRunId: input.harnessRunId, spec, repoRoot, baseBranch, sourcePrefix, clusters, msps });
+  const initialManifest = buildInitialManifest({ logicalRunId, harnessRunId: input.harnessRunId, spec, repoRoot, baseBranch, sourcePrefix, clusters, msps, specContentHash: observedSpecHash });
   const initialManifestJson = JSON.stringify(initialManifest, null, 2);
   try {
     await agent(

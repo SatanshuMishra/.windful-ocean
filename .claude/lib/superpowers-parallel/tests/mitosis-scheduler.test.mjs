@@ -5,6 +5,7 @@ import { computeLogicalRunId, buildInitialManifest, applyShipTransition, parseRu
 
 const MITOSIS_PATH = '/Users/satanshumishra/.claude/workflows/mitosis.js';
 const SOURCE_PREFIX = 'mitosis-test';
+const SPEC_CONTENT_HASH = 'a'.repeat(64);
 
 const mitosisBody = readFileSync(MITOSIS_PATH, 'utf8').replace(/^export const meta/m, 'const meta');
 const AsyncFunction = Object.getPrototypeOf(async function () {}).constructor;
@@ -514,9 +515,9 @@ test('T4b relaunch story: a reusable manifest bearing prior ship-transitions is 
     { id: 'a', title: 'a', rationale: 'r', status: 'shipped', integrationBranch: `${SOURCE_PREFIX}/a-integration`, prUrl: 'https://example.test/pr/a', mergedAt: '2026-07-08T00:00:00Z', dependsOn: [], fileScope: ['scope/a/**'] },
     { id: 'b', title: 'b', rationale: 'r', status: 'planned', integrationBranch: `${SOURCE_PREFIX}/b-integration`, prUrl: null, mergedAt: null, dependsOn: [], fileScope: ['scope/b/**'] },
   ];
-  const manifestRaw = JSON.stringify({ logicalRunId, clusters: [['a'], ['b']], msps: reusedMsps }, null, 2);
+  const manifestRaw = JSON.stringify({ logicalRunId, specContentHash: SPEC_CONTENT_HASH, clusters: [['a'], ['b']], msps: reusedMsps }, null, 2);
   assert.ok(parseRunManifest(manifestRaw), 'the accumulated single-object manifest is read back as a valid hint');
-  const reconcileResult = { manifestFound: true, manifestRaw, mergedPRs: [mergedPr('a', 'https://example.test/pr/a')] };
+  const reconcileResult = { manifestFound: true, manifestRaw, mergedPRs: [mergedPr('a', 'https://example.test/pr/a')], specContentHash: SPEC_CONTENT_HASH };
   const labels = [];
   const base = createFakeAgent({ reconcileResult });
   const agent = async (prompt, opts = {}) => { labels.push(opts.label || ''); return base(prompt, opts); };
@@ -542,10 +543,11 @@ test('RT-1 round-trip: a manifest produced by the REAL buildInitialManifest (no 
   const manifest = buildInitialManifest({
     logicalRunId, harnessRunId: null, spec: input.spec, repoRoot: input.repoRoot,
     baseBranch: input.baseBranch, sourcePrefix: SOURCE_PREFIX, clusters: [['a'], ['b']], msps: decomposeMsps,
+    specContentHash: SPEC_CONTENT_HASH,
   });
   const manifestRaw = JSON.stringify(manifest, null, 2);
   assert.ok(parseRunManifest(manifestRaw), 'the engine-written manifest parses back as a valid single-object hint');
-  const reconcileResult = { manifestFound: true, manifestRaw, mergedPRs: [] };
+  const reconcileResult = { manifestFound: true, manifestRaw, mergedPRs: [], specContentHash: SPEC_CONTENT_HASH };
   const labels = [];
   const base = createFakeAgent({ msps: decomposeMsps, reconcileResult });
   const agent = async (prompt, opts = {}) => { labels.push(opts.label || ''); return base(prompt, opts); };
@@ -567,6 +569,7 @@ test('RT-2 round-trip: a manifest carried through the REAL applyShipTransition d
   const built = buildInitialManifest({
     logicalRunId, harnessRunId: null, spec: input.spec, repoRoot: input.repoRoot,
     baseBranch: input.baseBranch, sourcePrefix: SOURCE_PREFIX, clusters: [['a'], ['b']], msps: decomposeMsps,
+    specContentHash: SPEC_CONTENT_HASH,
   });
   const shipped = applyShipTransition(built, {
     mspId: 'c', prUrl: 'https://example.test/pr/c', mergedAt: '2026-07-08T00:00:00Z',
@@ -577,7 +580,7 @@ test('RT-2 round-trip: a manifest carried through the REAL applyShipTransition d
   assert.equal(appended.rationale, 'C rationale', 'the defensive-append entry carries the rationale it was passed');
   const manifestRaw = JSON.stringify(shipped, null, 2);
   assert.ok(parseRunManifest(manifestRaw), 'the ship-transitioned manifest parses back as a valid single-object hint');
-  const reconcileResult = { manifestFound: true, manifestRaw, mergedPRs: [] };
+  const reconcileResult = { manifestFound: true, manifestRaw, mergedPRs: [], specContentHash: SPEC_CONTENT_HASH };
   const labels = [];
   const base = createFakeAgent({ msps: decomposeMsps, reconcileResult });
   const agent = async (prompt, opts = {}) => { labels.push(opts.label || ''); return base(prompt, opts); };
@@ -1038,8 +1041,8 @@ test('T3 Decompose-reuse: a manifest whose logicalRunId matches the run reuses i
     { id: 'a', title: 'a', rationale: 'r', dependsOn: [], fileScope: ['scope/a/**'] },
     { id: 'b', title: 'b', rationale: 'r', dependsOn: [], fileScope: ['scope/b/**'] },
   ];
-  const manifestRaw = JSON.stringify({ logicalRunId, clusters: [['a'], ['b']], msps: reusedMsps });
-  const reconcileResult = { manifestFound: true, manifestRaw, mergedPRs: [] };
+  const manifestRaw = JSON.stringify({ logicalRunId, specContentHash: SPEC_CONTENT_HASH, clusters: [['a'], ['b']], msps: reusedMsps });
+  const reconcileResult = { manifestFound: true, manifestRaw, mergedPRs: [], specContentHash: SPEC_CONTENT_HASH };
   let decomposeCalls = 0;
   const base = createFakeAgent({ reconcileResult });
   const agent = async (prompt, opts = {}) => {
@@ -1053,6 +1056,70 @@ test('T3 Decompose-reuse: a manifest whose logicalRunId matches the run reuses i
   assert.equal(result.overallStatus, 'all-shipped');
   assert.deepEqual(result.shipped.map((s) => s.mspId).sort(), ['a', 'b']);
   assert.equal(result.mspCount, 2);
+});
+
+test('LOW-N1 reuse gate: a manifest specContentHash equal to the freshly observed spec hash is reused (positive control, guards against a vacuously refusing gate)', async () => {
+  const input = buildInput();
+  const logicalRunId = computeLogicalRunId(input.spec, input.baseBranch);
+  const observed = 'a'.repeat(64);
+  const reusedMsps = [
+    { id: 'a', title: 'a', rationale: 'r', dependsOn: [], fileScope: ['scope/a/**'] },
+    { id: 'b', title: 'b', rationale: 'r', dependsOn: [], fileScope: ['scope/b/**'] },
+  ];
+  const manifestRaw = JSON.stringify({ logicalRunId, specContentHash: observed, clusters: [['a'], ['b']], msps: reusedMsps });
+  const reconcileResult = { manifestFound: true, manifestRaw, mergedPRs: [], specContentHash: observed };
+  let decomposeCalls = 0;
+  const base = createFakeAgent({ reconcileResult });
+  const agent = async (prompt, opts = {}) => {
+    if ((opts.label || '') === 'decompose') decomposeCalls += 1;
+    return base(prompt, opts);
+  };
+  const { resultPromise } = invokeMitosis(input, agent);
+  const result = await resultPromise;
+
+  assert.equal(decomposeCalls, 0, 'a matching spec content hash reuses the decomposition, no fresh Decompose');
+  assert.equal(result.overallStatus, 'all-shipped');
+  assert.deepEqual(result.shipped.map((s) => s.mspId).sort(), ['a', 'b']);
+});
+
+test('LOW-N1 reuse gate: reuse is refused and the run re-decomposes when the manifest hash is absent, mismatched, or malformed, or the observed hash is malformed, and the refusal reason leaks neither hash value', async () => {
+  const input = buildInput();
+  const logicalRunId = computeLogicalRunId(input.spec, input.baseBranch);
+  const hashA = 'a'.repeat(64);
+  const hashB = 'b'.repeat(64);
+  const manifestMsps = [
+    { id: 'a', title: 'a', rationale: 'r', dependsOn: [], fileScope: ['scope/a/**'] },
+    { id: 'b', title: 'b', rationale: 'r', dependsOn: [], fileScope: ['scope/b/**'] },
+  ];
+  const cases = [
+    { name: 'absent manifest hash', manifestHash: undefined, observed: hashA },
+    { name: 'mismatched hashes', manifestHash: hashA, observed: hashB },
+    { name: 'malformed manifest hash', manifestHash: 'not-a-sha256', observed: hashA },
+    { name: 'malformed observed hash', manifestHash: hashA, observed: 'not-a-sha256' },
+  ];
+  for (const c of cases) {
+    const manifestObj = { logicalRunId, clusters: [['a'], ['b']], msps: manifestMsps };
+    if (c.manifestHash !== undefined) manifestObj.specContentHash = c.manifestHash;
+    const manifestRaw = JSON.stringify(manifestObj);
+    const reconcileResult = { manifestFound: true, manifestRaw, mergedPRs: [], specContentHash: c.observed };
+    let decomposeCalls = 0;
+    const base = createFakeAgent({ msps: independentMsps(), reconcileResult });
+    const agent = async (prompt, opts = {}) => {
+      if ((opts.label || '') === 'decompose') decomposeCalls += 1;
+      return base(prompt, opts);
+    };
+    const { resultPromise, logLines } = invokeMitosis(input, agent);
+    const result = await resultPromise;
+
+    assert.equal(decomposeCalls, 1, `${c.name}: reuse is refused and a fresh Decompose runs`);
+    assert.notEqual(result.overallStatus, 'failed', `${c.name}: the gate degrades, never halts`);
+    const refusal = logLines.find((l) => l.includes('not reusable'));
+    assert.ok(refusal, `${c.name}: the refusal is narrated`);
+    assert.ok(
+      !refusal.includes(hashA) && !refusal.includes(hashB) && !refusal.includes('not-a-sha256'),
+      `${c.name}: the refusal reason leaks no hash value`,
+    );
+  }
 });
 
 test('T3 stale manifest: a manifest whose logicalRunId does not match falls back to a fresh Decompose', async () => {
@@ -1102,8 +1169,8 @@ test('T3 manifest integrity: a relaunch manifest whose corrupt clusters omit an 
     { id: 'a', title: 'a', rationale: 'r', dependsOn: [], fileScope: ['scope/a/**'] },
     { id: 'b', title: 'b', rationale: 'r', dependsOn: [], fileScope: ['scope/b/**'] },
   ];
-  const corruptRaw = JSON.stringify({ logicalRunId, clusters: [['a']], msps: manifestMsps });
-  const reconcileResult = { manifestFound: true, manifestRaw: corruptRaw, mergedPRs: [] };
+  const corruptRaw = JSON.stringify({ logicalRunId, specContentHash: SPEC_CONTENT_HASH, clusters: [['a']], msps: manifestMsps });
+  const reconcileResult = { manifestFound: true, manifestRaw: corruptRaw, mergedPRs: [], specContentHash: SPEC_CONTENT_HASH };
   let decomposeCalls = 0;
   const base = createFakeAgent({ reconcileResult });
   const agent = async (prompt, opts = {}) => {
@@ -1126,8 +1193,8 @@ test('T3 manifest integrity: a relaunch manifest whose corrupt clusters name an 
     { id: 'a', title: 'a', rationale: 'r', dependsOn: [], fileScope: ['scope/a/**'] },
     { id: 'b', title: 'b', rationale: 'r', dependsOn: [], fileScope: ['scope/b/**'] },
   ];
-  const corruptRaw = JSON.stringify({ logicalRunId, clusters: [['a'], ['ghost']], msps: manifestMsps });
-  const reconcileResult = { manifestFound: true, manifestRaw: corruptRaw, mergedPRs: [] };
+  const corruptRaw = JSON.stringify({ logicalRunId, specContentHash: SPEC_CONTENT_HASH, clusters: [['a'], ['ghost']], msps: manifestMsps });
+  const reconcileResult = { manifestFound: true, manifestRaw: corruptRaw, mergedPRs: [], specContentHash: SPEC_CONTENT_HASH };
   let decomposeCalls = 0;
   const base = createFakeAgent({ reconcileResult });
   const agent = async (prompt, opts = {}) => {
@@ -1150,6 +1217,7 @@ test('T3 manifest reuse HIGH-repro: a relaunch manifest with a non-array depends
 
   const stringDepRaw = JSON.stringify({
     logicalRunId,
+    specContentHash: SPEC_CONTENT_HASH,
     clusters: [['a'], ['b']],
     msps: [
       { id: 'a', title: 'a', rationale: 'r', dependsOn: 'nope', fileScope: ['scope/a/**'] },
@@ -1157,7 +1225,7 @@ test('T3 manifest reuse HIGH-repro: a relaunch manifest with a non-array depends
     ],
   });
   let stringDecomposeCalls = 0;
-  const stringBase = createFakeAgent({ msps, reconcileResult: { manifestFound: true, manifestRaw: stringDepRaw, mergedPRs: [] } });
+  const stringBase = createFakeAgent({ msps, reconcileResult: { manifestFound: true, manifestRaw: stringDepRaw, mergedPRs: [], specContentHash: SPEC_CONTENT_HASH } });
   const stringAgent = async (prompt, opts = {}) => {
     if ((opts.label || '') === 'decompose') stringDecomposeCalls += 1;
     return stringBase(prompt, opts);
@@ -1169,6 +1237,7 @@ test('T3 manifest reuse HIGH-repro: a relaunch manifest with a non-array depends
 
   const objectDepRaw = JSON.stringify({
     logicalRunId,
+    specContentHash: SPEC_CONTENT_HASH,
     clusters: [['a'], ['b']],
     msps: [
       { id: 'a', title: 'a', rationale: 'r', dependsOn: {}, fileScope: ['scope/a/**'] },
@@ -1176,7 +1245,7 @@ test('T3 manifest reuse HIGH-repro: a relaunch manifest with a non-array depends
     ],
   });
   let objectDecomposeCalls = 0;
-  const objectBase = createFakeAgent({ msps, reconcileResult: { manifestFound: true, manifestRaw: objectDepRaw, mergedPRs: [] } });
+  const objectBase = createFakeAgent({ msps, reconcileResult: { manifestFound: true, manifestRaw: objectDepRaw, mergedPRs: [], specContentHash: SPEC_CONTENT_HASH } });
   const objectAgent = async (prompt, opts = {}) => {
     if ((opts.label || '') === 'decompose') objectDecomposeCalls += 1;
     return objectBase(prompt, opts);
@@ -1207,9 +1276,9 @@ test('T3 manifest reuse: bad-charset, duplicate, and unknown-dependsOn ids each 
   ];
 
   for (const c of cases) {
-    const corruptRaw = JSON.stringify({ logicalRunId, clusters: c.clusters, msps: c.manifestMsps });
+    const corruptRaw = JSON.stringify({ logicalRunId, specContentHash: SPEC_CONTENT_HASH, clusters: c.clusters, msps: c.manifestMsps });
     let decomposeCalls = 0;
-    const base = createFakeAgent({ msps, reconcileResult: { manifestFound: true, manifestRaw: corruptRaw, mergedPRs: [] } });
+    const base = createFakeAgent({ msps, reconcileResult: { manifestFound: true, manifestRaw: corruptRaw, mergedPRs: [], specContentHash: SPEC_CONTENT_HASH } });
     const agent = async (prompt, opts = {}) => {
       if ((opts.label || '') === 'decompose') decomposeCalls += 1;
       return base(prompt, opts);
@@ -1228,6 +1297,7 @@ test('T3 manifest reuse: a cyclic dependsOn degrades to a fresh Decompose (the t
   const msps = independentMsps();
   const cyclicRaw = JSON.stringify({
     logicalRunId,
+    specContentHash: SPEC_CONTENT_HASH,
     clusters: [['a', 'b']],
     msps: [
       { id: 'a', title: 'a', rationale: 'r', dependsOn: ['b'], fileScope: ['scope/a/**'] },
@@ -1235,7 +1305,7 @@ test('T3 manifest reuse: a cyclic dependsOn degrades to a fresh Decompose (the t
     ],
   });
   let decomposeCalls = 0;
-  const base = createFakeAgent({ msps, reconcileResult: { manifestFound: true, manifestRaw: cyclicRaw, mergedPRs: [] } });
+  const base = createFakeAgent({ msps, reconcileResult: { manifestFound: true, manifestRaw: cyclicRaw, mergedPRs: [], specContentHash: SPEC_CONTENT_HASH } });
   const agent = async (prompt, opts = {}) => {
     if ((opts.label || '') === 'decompose') decomposeCalls += 1;
     return base(prompt, opts);
@@ -1272,9 +1342,9 @@ test('T3 manifest reuse: non-string title/rationale and non-array-of-strings fil
   ];
 
   for (const c of cases) {
-    const corruptRaw = JSON.stringify({ logicalRunId, clusters: [['a'], ['b']], msps: c.manifestMsps });
+    const corruptRaw = JSON.stringify({ logicalRunId, specContentHash: SPEC_CONTENT_HASH, clusters: [['a'], ['b']], msps: c.manifestMsps });
     let decomposeCalls = 0;
-    const base = createFakeAgent({ msps, reconcileResult: { manifestFound: true, manifestRaw: corruptRaw, mergedPRs: [] } });
+    const base = createFakeAgent({ msps, reconcileResult: { manifestFound: true, manifestRaw: corruptRaw, mergedPRs: [], specContentHash: SPEC_CONTENT_HASH } });
     const agent = async (prompt, opts = {}) => {
       if ((opts.label || '') === 'decompose') decomposeCalls += 1;
       return base(prompt, opts);
@@ -1435,8 +1505,8 @@ test('T4a checkpoint: the reuse path writes no initial-manifest checkpoint (the 
     { id: 'a', title: 'a', rationale: 'r', dependsOn: [], fileScope: ['scope/a/**'] },
     { id: 'b', title: 'b', rationale: 'r', dependsOn: [], fileScope: ['scope/b/**'] },
   ];
-  const manifestRaw = JSON.stringify({ logicalRunId, clusters: [['a'], ['b']], msps: reusedMsps });
-  const reconcileResult = { manifestFound: true, manifestRaw, mergedPRs: [] };
+  const manifestRaw = JSON.stringify({ logicalRunId, specContentHash: SPEC_CONTENT_HASH, clusters: [['a'], ['b']], msps: reusedMsps });
+  const reconcileResult = { manifestFound: true, manifestRaw, mergedPRs: [], specContentHash: SPEC_CONTENT_HASH };
   let checkpointCalls = 0;
   const base = createFakeAgent({ reconcileResult });
   const agent = async (prompt, opts = {}) => {
@@ -1488,13 +1558,14 @@ test('T4a checkpoint Case-C: a relaunch whose manifest matches the logicalRunId 
   const logicalRunId = computeLogicalRunId(input.spec, input.baseBranch);
   const corruptRaw = JSON.stringify({
     logicalRunId,
+    specContentHash: SPEC_CONTENT_HASH,
     clusters: [['a'], ['b']],
     msps: [
       { id: 'a', title: 'a', rationale: 'r', dependsOn: ['b'], fileScope: ['scope/a/**'] },
       { id: 'b', title: 'b', rationale: 'r', dependsOn: ['a'], fileScope: ['scope/b/**'] },
     ],
   });
-  const reconcileResult = { manifestFound: true, manifestRaw: corruptRaw, mergedPRs: [] };
+  const reconcileResult = { manifestFound: true, manifestRaw: corruptRaw, mergedPRs: [], specContentHash: SPEC_CONTENT_HASH };
   const msps = twoIndependentMsps();
   let decomposeCalls = 0;
   let checkpointCalls = 0;

@@ -45,7 +45,7 @@ export function parseRunManifest(raw) {
   return parsed;
 }
 
-export function buildInitialManifest({ logicalRunId, harnessRunId, spec, repoRoot, baseBranch, sourcePrefix, clusters, msps }) {
+export function buildInitialManifest({ logicalRunId, harnessRunId, spec, repoRoot, baseBranch, sourcePrefix, clusters, msps, specContentHash }) {
   return {
     logicalRunId,
     harnessRunId: harnessRunId ?? null,
@@ -53,6 +53,7 @@ export function buildInitialManifest({ logicalRunId, harnessRunId, spec, repoRoo
     repoRoot,
     baseBranch,
     sourcePrefix,
+    specContentHash: specContentHash ?? null,
     phase: 'Decompose',
     clusters,
     msps: msps.map((msp) => ({
@@ -90,19 +91,5 @@ export function applyShipTransition(manifest, { mspId, prUrl, mergedAt, title, r
           fileScope: [],
         },
       ];
-  return { ...manifest, msps };
-}
-
-export function reconcileManifest(manifest, shippedMap) {
-  const msps = manifest.msps.map((msp) => {
-    if (shippedMap.has(msp.id)) {
-      const entry = shippedMap.get(msp.id);
-      return { ...msp, status: 'shipped', prUrl: entry.prUrl, mergedAt: entry.mergedAt };
-    }
-    if (msp.status === 'shipped') {
-      return { ...msp, status: 'planned' };
-    }
-    return msp;
-  });
   return { ...manifest, msps };
 }
