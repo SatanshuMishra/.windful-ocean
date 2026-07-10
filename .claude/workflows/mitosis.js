@@ -19,6 +19,8 @@ const LIB_DIR = '/Users/satanshumishra/.claude/lib/superpowers-parallel';
 
 const MAX_LOGGED_TOKEN_LEN = 128;
 const MAX_MANIFEST_MSPS = 256;
+const MAX_MSP_DEPENDS_ON = 64;
+const MAX_MANIFEST_FILE_SCOPE = 1024;
 
 function clean(v) {
   return JSON.stringify(v).replace(/[\p{Cc}\p{Zl}\p{Zp}]/gu, ' ');
@@ -1022,12 +1024,13 @@ function evaluateManifestReuse(priorManifest, observedSpecHash) {
   }
   const ids = [];
   const normalized = [];
+  let totalFileScope = 0;
   for (const m of msps) {
     if (m === null || typeof m !== 'object' || Array.isArray(m)) {
       return { reusable: false, reason: 'manifest msp entry is not an object' };
     }
     if (typeof m.id !== 'string' || !/^[a-z0-9][a-z0-9-]*$/.test(m.id)) {
-      return { reusable: false, reason: `manifest msp id ${JSON.stringify(m.id)} is not a valid kebab-case id` };
+      return { reusable: false, reason: `manifest msp id ${clean(String(m.id).slice(0, MAX_LOGGED_TOKEN_LEN))} is not a valid kebab-case id` };
     }
     if (ids.includes(m.id)) {
       return { reusable: false, reason: `manifest msp id ${m.id} is duplicated` };
@@ -1038,8 +1041,15 @@ function evaluateManifestReuse(priorManifest, observedSpecHash) {
     if (!Array.isArray(m.dependsOn) || !m.dependsOn.every((d) => typeof d === 'string')) {
       return { reusable: false, reason: `manifest msp ${m.id} dependsOn is not an array of strings` };
     }
+    if (m.dependsOn.length > MAX_MSP_DEPENDS_ON) {
+      return { reusable: false, reason: `manifest msp ${m.id} dependsOn entry count exceeds the supported maximum` };
+    }
     if (!Array.isArray(m.fileScope) || !m.fileScope.every((f) => typeof f === 'string')) {
       return { reusable: false, reason: `manifest msp ${m.id} fileScope is not an array of strings` };
+    }
+    totalFileScope += m.fileScope.length;
+    if (totalFileScope > MAX_MANIFEST_FILE_SCOPE) {
+      return { reusable: false, reason: 'manifest aggregate fileScope entry count exceeds the supported maximum' };
     }
     ids.push(m.id);
     normalized.push({

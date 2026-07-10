@@ -1660,3 +1660,82 @@ test('F3 DoS bound: a manifest whose msps count exceeds the supported maximum re
   assert.match(refusal, /count exceeds the supported maximum/, 'the refusal is the count-bound short-circuit taken before any per-entry work');
   assert.doesNotMatch(refusal, /derive valid clusters/, 'the O(V^2) trial deriveClusters is never invoked over the oversized array');
 });
+
+const FILESCOPE_BLOAT_MSPS = 18;
+const FILESCOPE_BLOAT_PER_MSP = 60;
+
+test('F4 DoS bound: an otherwise-reusable, within-count manifest whose AGGREGATE fileScope entry count exceeds the supported maximum refuses reuse and re-decomposes (the O((sum fileScope)^2) trial derive is bounded)', async () => {
+  const input = buildInput();
+  const logicalRunId = computeLogicalRunId(input.spec, input.baseBranch);
+  const bloated = [];
+  for (let i = 0; i < FILESCOPE_BLOAT_MSPS; i += 1) {
+    const fileScope = [];
+    for (let j = 0; j < FILESCOPE_BLOAT_PER_MSP; j += 1) fileScope.push(`scope/m${i}/f${j}/**`);
+    bloated.push({ id: `m${i}`, title: `t${i}`, rationale: 'r', dependsOn: [], fileScope });
+  }
+  const manifestRaw = JSON.stringify({ logicalRunId, specContentHash: SPEC_CONTENT_HASH, clusters: [['m0']], msps: bloated });
+  const reconcileResult = { manifestFound: true, manifestRaw, mergedPRs: [], specContentHash: SPEC_CONTENT_HASH };
+  let decomposeCalls = 0;
+  const base = createFakeAgent({ msps: independentMsps(), reconcileResult });
+  const agent = async (prompt, opts = {}) => {
+    if ((opts.label || '') === 'decompose') decomposeCalls += 1;
+    return base(prompt, opts);
+  };
+  const { resultPromise } = invokeMitosis(input, agent);
+  const result = await resultPromise;
+
+  assert.equal(decomposeCalls, 1, 'an aggregate-fileScope-bloated manifest refuses reuse and drives a fresh Decompose');
+  assert.equal(result.overallStatus, 'all-shipped', 'the gate degrades, never halts — the run still ships');
+  assert.deepEqual(result.shipped.map((s) => s.mspId).sort(), ['alpha', 'bravo', 'charlie']);
+});
+
+const DEPENDS_ON_BLOAT = 65;
+
+test('F4 DoS bound: an otherwise-reusable manifest whose msp dependsOn entry count exceeds the supported maximum refuses reuse and re-decomposes', async () => {
+  const input = buildInput();
+  const logicalRunId = computeLogicalRunId(input.spec, input.baseBranch);
+  const heavyDeps = [];
+  for (let i = 0; i < DEPENDS_ON_BLOAT; i += 1) heavyDeps.push('b');
+  const manifestMsps = [
+    { id: 'a', title: 'a', rationale: 'r', dependsOn: heavyDeps, fileScope: ['scope/a/**'] },
+    { id: 'b', title: 'b', rationale: 'r', dependsOn: [], fileScope: ['scope/b/**'] },
+  ];
+  const manifestRaw = JSON.stringify({ logicalRunId, specContentHash: SPEC_CONTENT_HASH, clusters: [['a', 'b']], msps: manifestMsps });
+  const reconcileResult = { manifestFound: true, manifestRaw, mergedPRs: [], specContentHash: SPEC_CONTENT_HASH };
+  let decomposeCalls = 0;
+  const base = createFakeAgent({ msps: independentMsps(), reconcileResult });
+  const agent = async (prompt, opts = {}) => {
+    if ((opts.label || '') === 'decompose') decomposeCalls += 1;
+    return base(prompt, opts);
+  };
+  const { resultPromise } = invokeMitosis(input, agent);
+  const result = await resultPromise;
+
+  assert.equal(decomposeCalls, 1, 'a dependsOn-bloated msp refuses reuse and drives a fresh Decompose');
+  assert.equal(result.overallStatus, 'all-shipped', 'the gate degrades, never halts — the run still ships');
+  assert.deepEqual(result.shipped.map((s) => s.mspId).sort(), ['alpha', 'bravo', 'charlie']);
+});
+
+test('F6 log-forge: a manifest msp id failing the kebab regex and carrying a newline and U+2028/U+2029 cannot forge a run-log line via the not-reusable reason', async () => {
+  const input = buildInput();
+  const logicalRunId = computeLogicalRunId(input.spec, input.baseBranch);
+  const NL = String.fromCharCode(10);
+  const LS = String.fromCodePoint(0x2028);
+  const PS = String.fromCodePoint(0x2029);
+  const evilId = `Bad${NL}mitosis: FORGED all-clear${LS}${PS}id`;
+  const manifestMsps = [
+    { id: evilId, title: 'm0', rationale: 'r', dependsOn: [], fileScope: ['scope/m0/**'] },
+  ];
+  const manifestRaw = JSON.stringify({ logicalRunId, specContentHash: SPEC_CONTENT_HASH, clusters: [[evilId]], msps: manifestMsps });
+  const reconcileResult = { manifestFound: true, manifestRaw, mergedPRs: [], specContentHash: SPEC_CONTENT_HASH };
+  const base = createFakeAgent({ msps: independentMsps(), reconcileResult });
+  const { resultPromise, logLines } = invokeMitosis(input, base);
+  const result = await resultPromise;
+
+  const refusal = logLines.find((l) => l.includes('not reusable'));
+  assert.ok(refusal, 'the invalid-id refusal is narrated');
+  assert.doesNotMatch(refusal, /\n/, 'a raw newline in the id cannot inject a raw newline into the reason');
+  assert.equal(refusal.includes(LS), false, 'a raw U+2028 line separator in the id is neutralised in the reason');
+  assert.equal(refusal.includes(PS), false, 'a raw U+2029 paragraph separator in the id is neutralised in the reason');
+  assert.equal(result.overallStatus, 'all-shipped', 'the run degrades to a fresh Decompose and completes');
+});
