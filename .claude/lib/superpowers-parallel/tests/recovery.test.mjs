@@ -120,6 +120,29 @@ test('applyShipTransition: appends a full defensive shipped entry carrying the p
   assert.deepEqual(before, snapshot);
 });
 
+test('buildInitialManifest: truncates an over-long title and rationale at the write layer, preserving null/undefined and shorter values verbatim', () => {
+  const longTitle = 'T'.repeat(500);
+  const longRationale = 'R'.repeat(5000);
+  const manifest = buildInitialManifest({
+    logicalRunId: 'x', harnessRunId: null, spec: '/s', repoRoot: '/r',
+    baseBranch: 'main', sourcePrefix: 'mitosis', clusters: [['a'], ['b'], ['c']],
+    msps: [
+      { id: 'a', title: longTitle, rationale: longRationale, dependsOn: [], fileScope: [] },
+      { id: 'b', title: 'short title', rationale: 'short rationale', dependsOn: [], fileScope: [] },
+      { id: 'c', dependsOn: [], fileScope: [] },
+    ],
+    specContentHash: null,
+  });
+  assert.equal(manifest.msps[0].title.length, 200);
+  assert.equal(manifest.msps[0].title, longTitle.slice(0, 200));
+  assert.equal(manifest.msps[0].rationale.length, 1000);
+  assert.equal(manifest.msps[0].rationale, longRationale.slice(0, 1000));
+  assert.equal(manifest.msps[1].title, 'short title');
+  assert.equal(manifest.msps[1].rationale, 'short rationale');
+  assert.equal(manifest.msps[2].title, undefined);
+  assert.equal(manifest.msps[2].rationale, undefined);
+});
+
 test('buildInitialManifest: persists the observed specContentHash as a top-level field, including null when the observed hash is null', () => {
   const hash = 'a'.repeat(64);
   const withHash = buildInitialManifest({

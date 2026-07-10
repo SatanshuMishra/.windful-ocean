@@ -1,3 +1,6 @@
+const MAX_TITLE_LEN = 200;
+const MAX_RATIONALE_LEN = 1000;
+
 export function computeLogicalRunId(spec, baseBranch) {
   const input = `${spec}\n${baseBranch}`;
   let h = 0x811c9dc5;
@@ -58,8 +61,8 @@ export function buildInitialManifest({ logicalRunId, harnessRunId, spec, repoRoo
     clusters,
     msps: msps.map((msp) => ({
       id: msp.id,
-      title: msp.title,
-      rationale: msp.rationale,
+      title: typeof msp.title === 'string' ? msp.title.slice(0, MAX_TITLE_LEN) : msp.title,
+      rationale: typeof msp.rationale === 'string' ? msp.rationale.slice(0, MAX_RATIONALE_LEN) : msp.rationale,
       status: 'planned',
       integrationBranch: `${sourcePrefix}/${msp.id}-integration`,
       prUrl: null,

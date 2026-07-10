@@ -17,6 +17,13 @@ const ENGINE_PATH = '/Users/satanshumishra/.claude/workflows/parallel-plan-execu
 const GRAPH_SKILL = '/Users/satanshumishra/.claude/skills/plan-to-task-graph/SKILL.md';
 const LIB_DIR = '/Users/satanshumishra/.claude/lib/superpowers-parallel';
 
+const MAX_LOGGED_TOKEN_LEN = 128;
+const MAX_MANIFEST_MSPS = 256;
+
+function clean(v) {
+  return JSON.stringify(v).replace(/[\p{Cc}\p{Zl}\p{Zp}]/gu, ' ');
+}
+
 function normalize(p) {
   return p.replace(/^\.\//, '').replace(/\/+$/, '');
 }
@@ -342,6 +349,9 @@ function checkMinIntegers(existing, intended, conflicts) {
   }
 }
 
+const MAX_TITLE_LEN = 200;
+const MAX_RATIONALE_LEN = 1000;
+
 function computeLogicalRunId(spec, baseBranch) {
   const input = `${spec}\n${baseBranch}`;
   let h = 0x811c9dc5;
@@ -402,8 +412,8 @@ function buildInitialManifest({ logicalRunId, harnessRunId, spec, repoRoot, base
     clusters,
     msps: msps.map((msp) => ({
       id: msp.id,
-      title: msp.title,
-      rationale: msp.rationale,
+      title: typeof msp.title === 'string' ? msp.title.slice(0, MAX_TITLE_LEN) : msp.title,
+      rationale: typeof msp.rationale === 'string' ? msp.rationale.slice(0, MAX_RATIONALE_LEN) : msp.rationale,
       status: 'planned',
       integrationBranch: `${sourcePrefix}/${msp.id}-integration`,
       prUrl: null,
@@ -1007,6 +1017,9 @@ function evaluateManifestReuse(priorManifest, observedSpecHash) {
   if (!Array.isArray(msps) || msps.length === 0) {
     return { reusable: false, reason: 'manifest msps is not a non-empty array' };
   }
+  if (msps.length > MAX_MANIFEST_MSPS) {
+    return { reusable: false, reason: 'manifest msp count exceeds the supported maximum' };
+  }
   const ids = [];
   const normalized = [];
   for (const m of msps) {
@@ -1031,8 +1044,8 @@ function evaluateManifestReuse(priorManifest, observedSpecHash) {
     ids.push(m.id);
     normalized.push({
       id: m.id,
-      title: m.title,
-      rationale: m.rationale,
+      title: m.title.slice(0, MAX_TITLE_LEN),
+      rationale: m.rationale.slice(0, MAX_RATIONALE_LEN),
       dependsOn: m.dependsOn.slice(),
       fileScope: m.fileScope.slice(),
     });
@@ -1041,7 +1054,7 @@ function evaluateManifestReuse(priorManifest, observedSpecHash) {
   for (const m of normalized) {
     for (const dep of m.dependsOn) {
       if (!knownIds.has(dep)) {
-        return { reusable: false, reason: `manifest msp ${m.id} dependsOn references unknown id ${dep}` };
+        return { reusable: false, reason: `manifest msp ${m.id} dependsOn references unknown id ${clean(String(dep).slice(0, MAX_LOGGED_TOKEN_LEN))}` };
       }
     }
   }
@@ -1210,7 +1223,7 @@ if (!reusable) {
   const initialManifest = buildInitialManifest({ logicalRunId, harnessRunId: input.harnessRunId, spec, repoRoot, baseBranch, sourcePrefix, clusters, msps, specContentHash: observedSpecHash });
   const initialManifestJson = JSON.stringify(initialManifest, null, 2);
   try {
-    await agent(
+    const checkpointRes = await agent(
       `You are the initial-checkpoint stage of a mitosis run. You have NO Skill tool; follow these instructions directly.\n\n` +
       `Durably record the initial run manifest so a later relaunch can reconcile against it. Operate in ${repoRoot}:\n` +
       `1. Create the directory ${repoRoot}/.mitosis/ if it does not already exist.\n` +
@@ -1220,6 +1233,10 @@ if (!reusable) {
       `Do NOT commit, push, or run any other git mutation. Return ONLY: { written: <bool>, detail: "<what you did>" }.`,
       { agentType: 'implementer', label: 'checkpoint-init', phase: 'Reconcile' }
     );
+    if (checkpointRes == null || checkpointRes.written === false) {
+      const detail = checkpointRes && typeof checkpointRes.detail === 'string' ? ` (${clean(checkpointRes.detail)})` : '';
+      log(`mitosis: initial checkpoint write did not persist (written=${checkpointRes == null ? 'null' : 'false'})${detail}; continuing — the manifest is a hint, not the skip authority, so recovery will reconcile shipped state from gh/git on the next relaunch`);
+    }
   } catch (err) {
     log(`mitosis: initial checkpoint write failed (${err.message}); continuing — the manifest is a hint, not the skip authority, so recovery will reconcile shipped state from gh/git on the next relaunch`);
   }
@@ -1249,7 +1266,6 @@ if (!prep) {
 }
 const weakenGuard = refuseToWeaken(prep.existingConfig || {}, prep.intendedConfig || {});
 if (weakenGuard.weakens) {
-  const clean = (v) => JSON.stringify(v).replace(/[\p{Cc}\p{Zl}\p{Zp}]/gu, ' ');
   return fatalReport('prepare', `refuse to weaken existing stricter gate(s): ${weakenGuard.conflicts.map((c) => `${clean(c.path)}: ${clean(c.existing)} -> ${clean(c.intended)}`).join('; ')}`, msps.length);
 }
 log(`mitosis: prepare ready=${prep.ready} (${prep.detail})`);

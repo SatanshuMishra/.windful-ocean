@@ -1584,3 +1584,79 @@ test('T4a checkpoint Case-C: a relaunch whose manifest matches the logicalRunId 
   assert.equal(decomposeCalls, 1, 'a non-reusable relaunch manifest forces a fresh Decompose');
   assert.equal(checkpointCalls, 1, 'the fresh Decompose rewrites the initial checkpoint; gated on !reusable, this fires — gated on !isRelaunch it would not');
 });
+
+test('F1 log-forge: an unknown dependsOn id carrying a newline cannot forge a run-log line via the not-reusable reason', async () => {
+  const input = buildInput();
+  const logicalRunId = computeLogicalRunId(input.spec, input.baseBranch);
+  const NL = String.fromCharCode(10);
+  const evilDep = `ghost${NL}mitosis: FORGED all-clear`;
+  const manifestMsps = [
+    { id: 'm0', title: 'm0', rationale: 'r', dependsOn: [evilDep], fileScope: ['scope/m0/**'] },
+  ];
+  const manifestRaw = JSON.stringify({ logicalRunId, specContentHash: SPEC_CONTENT_HASH, clusters: [['m0']], msps: manifestMsps });
+  const reconcileResult = { manifestFound: true, manifestRaw, mergedPRs: [], specContentHash: SPEC_CONTENT_HASH };
+  const base = createFakeAgent({ msps: independentMsps(), reconcileResult });
+  const { resultPromise, logLines } = invokeMitosis(input, base);
+  const result = await resultPromise;
+
+  const refusal = logLines.find((l) => l.includes('not reusable'));
+  assert.ok(refusal, 'the unknown-dep refusal is narrated');
+  assert.doesNotMatch(refusal, /\n/, 'a raw newline in the dep cannot inject a raw newline into the reason');
+  assert.equal(refusal.includes(evilDep), false, 'the raw unsanitized dep is never emitted verbatim');
+  assert.equal(result.overallStatus, 'all-shipped', 'the run degrades to a fresh Decompose and completes');
+});
+
+test('F2 checkpoint symmetric degrade: a checkpoint agent that RESOLVES {written:false} or null (never throwing) still audits the lost hint and the run ships', async () => {
+  for (const resolved of [{ written: false, detail: 'nothing written' }, null]) {
+    const input = buildInput();
+    const msps = twoIndependentMsps();
+    const base = createFakeAgent({ msps });
+    const agent = async (prompt, opts = {}) => {
+      if ((opts.label || '') === 'checkpoint-init') return resolved;
+      return base(prompt, opts);
+    };
+    const { resultPromise, logLines } = invokeMitosis(input, agent);
+    const result = await resultPromise;
+
+    const which = resolved === null ? 'null' : '{written:false}';
+    assert.equal(result.overallStatus, 'all-shipped', `a resolved ${which} checkpoint is a lost hint — the run still ships`);
+    assert.deepEqual(result.shipped.map((s) => s.mspId).sort(), ['a', 'b']);
+    const degradeLog = logLines.find((l) => /checkpoint/i.test(l) && /reconcile/i.test(l));
+    assert.ok(degradeLog, `a resolved ${which} checkpoint audits the lost durable hint`);
+  }
+});
+
+const OVERSIZED_MANIFEST_COUNT = 300;
+
+test('F3 DoS bound: a manifest whose msps count exceeds the supported maximum refuses reuse and re-decomposes WITHOUT invoking the O(V^2) trial deriveClusters', async () => {
+  const input = buildInput();
+  const logicalRunId = computeLogicalRunId(input.spec, input.baseBranch);
+  const N = OVERSIZED_MANIFEST_COUNT;
+  const oversized = [];
+  for (let i = 0; i < N; i += 1) {
+    oversized.push({
+      id: `m${i}`,
+      title: `t${i}`,
+      rationale: 'r',
+      dependsOn: [`m${(i + 1) % N}`],
+      fileScope: [`scope/m${i}/**`],
+    });
+  }
+  const manifestRaw = JSON.stringify({ logicalRunId, specContentHash: SPEC_CONTENT_HASH, clusters: [['m0']], msps: oversized });
+  const reconcileResult = { manifestFound: true, manifestRaw, mergedPRs: [], specContentHash: SPEC_CONTENT_HASH };
+  let decomposeCalls = 0;
+  const base = createFakeAgent({ msps: independentMsps(), reconcileResult });
+  const agent = async (prompt, opts = {}) => {
+    if ((opts.label || '') === 'decompose') decomposeCalls += 1;
+    return base(prompt, opts);
+  };
+  const { resultPromise, logLines } = invokeMitosis(input, agent);
+  const result = await resultPromise;
+
+  assert.equal(decomposeCalls, 1, 'an oversized manifest degrades to a fresh Decompose');
+  assert.equal(result.overallStatus, 'all-shipped');
+  const refusal = logLines.find((l) => l.includes('not reusable'));
+  assert.ok(refusal, 'the oversized refusal is narrated');
+  assert.match(refusal, /count exceeds the supported maximum/, 'the refusal is the count-bound short-circuit taken before any per-entry work');
+  assert.doesNotMatch(refusal, /derive valid clusters/, 'the O(V^2) trial deriveClusters is never invoked over the oversized array');
+});
