@@ -1,4 +1,5 @@
 import { isValidFingerprint } from './remediation.mjs';
+import { checkpointRef } from './checkpoint.mjs';
 
 const LEGAL_STAGES = Object.freeze(['plan', 'harden', 'branch', 'execute', 'ship']);
 
@@ -103,13 +104,20 @@ export function selectResumeUnits(manifest, shippedSet) {
 
 export function selectResumeBuilt(manifest, shippedSet) {
   if (!manifest || typeof manifest !== 'object' || !Array.isArray(manifest.msps)) return [];
+  const runId = typeof manifest.logicalRunId === 'string' ? manifest.logicalRunId : null;
   const resume = [];
   for (const msp of manifest.msps) {
     if (msp.status !== 'built') continue;
     if (isShippedUnit(shippedSet, msp.id)) continue;
+    let ref = null;
+    try {
+      ref = checkpointRef(runId, msp.id);
+    } catch (err) {
+      ref = null;
+    }
     const resumePoint = {
       branch: typeof msp.integrationBranch === 'string' ? msp.integrationBranch : null,
-      ref: typeof msp.checkpointRef === 'string' ? msp.checkpointRef : null,
+      ref,
       stage: 'ship',
     };
     resume.push({ unitId: msp.id, stage: 'ship', resumePoint });

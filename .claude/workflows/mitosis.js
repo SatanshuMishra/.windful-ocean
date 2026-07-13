@@ -1619,13 +1619,20 @@ function selectResumeUnits(manifest, shippedSet) {
 
 function selectResumeBuilt(manifest, shippedSet) {
   if (!manifest || typeof manifest !== 'object' || !Array.isArray(manifest.msps)) return [];
+  const runId = typeof manifest.logicalRunId === 'string' ? manifest.logicalRunId : null;
   const resume = [];
   for (const msp of manifest.msps) {
     if (msp.status !== 'built') continue;
     if (isShippedUnit(shippedSet, msp.id)) continue;
+    let ref = null;
+    try {
+      ref = checkpointRef(runId, msp.id);
+    } catch (err) {
+      ref = null;
+    }
     const resumePoint = {
       branch: typeof msp.integrationBranch === 'string' ? msp.integrationBranch : null,
-      ref: typeof msp.checkpointRef === 'string' ? msp.checkpointRef : null,
+      ref,
       stage: 'ship',
     };
     resume.push({ unitId: msp.id, stage: 'ship', resumePoint });
@@ -2367,7 +2374,7 @@ const isRelaunch = reconciledManifest && reconciledManifest.logicalRunId === log
 const reuse = isRelaunch ? evaluateManifestReuse(reconciledManifest, observedSpecHash) : { reusable: false };
 const reusable = reuse.reusable;
 const resumeMap = new Map();
-if (isRelaunch) {
+if (reusable) {
   const plannedIds = reconciledManifest.msps.map((m) => m.id);
   const parkedIds = reconciledManifest.msps.filter((m) => m.status === 'parked').map((m) => m.id);
   const remaining = computeRemaining({ planned: plannedIds, merged: [...reconciledShipped], built: builtUnits, parked: parkedIds });
@@ -2680,16 +2687,17 @@ async function runUnit(unit) {
 
     if (isBuiltResume) {
       const builtRef = resume.resumePoint && typeof resume.resumePoint.ref === 'string' ? resume.resumePoint.ref : null;
-      if (builtRef === null) {
-        return parkUnit(msp, 'ship', NeedsHuman({ kind: 'approve-decision', what: `built-resume for ${msp.id} carries no durable checkpoint ref to restore from`, remediation: null, resumePoint: { branch: integrationBranch, ref: baseBranch, stage: 'ship' } }), integrationBranch, compensationStack);
+      if (builtRef === null || parseCheckpointRef(builtRef, logicalRunId) !== msp.id) {
+        return parkUnit(msp, 'ship', NeedsHuman({ kind: 'approve-decision', what: `built-resume for ${msp.id} carries no valid durable checkpoint ref to restore from`, remediation: null, resumePoint: { branch: integrationBranch, ref: baseBranch, stage: 'ship' } }), integrationBranch, compensationStack);
       }
       log(`mitosis[${msp.id}]: built-resume — skipping Plan/Harden/Branch/Execute; restoring ${integrationBranch} from durable checkpoint ${clean(builtRef)} and shipping straight`);
       const restoreOutcome = await supervisedDispatch(
         (attemptNo, preamble) => agent(
           `You are the built-restore stage for MSP "${msp.id}" of a mitosis run. You have NO Skill tool.\n\n` +
           `A prior run already BUILT and durably checkpointed this MSP's boundary-validated, integrated work at the mitosis checkpoint ref ${JSON.stringify(builtRef)}; this relaunch resumes it STRAIGHT at ship WITHOUT re-planning, re-hardening, re-branching, or re-executing. Restore the local integration branch ${JSON.stringify(integrationBranch)} to that durable tip so ship can publish it. Operate against the main repo at ${repoRoot}; do NOT check out the branch and do NOT enter any worktree.\n\n` +
+          `SECURITY: pass every ref as an INERT argv element to execFile-style invocations; NEVER build a command by shell-interpolating a ref into a string.\n\n` +
           `Restore observe-then-converge (idempotent under replay):\n` +
-          `1. Fetch the durable checkpoint tip into FETCH_HEAD: \`git -C ${repoRoot} fetch origin ${builtRef}\`.\n` +
+          `1. Fetch the durable checkpoint tip into FETCH_HEAD: \`git -C ${repoRoot} fetch origin ${JSON.stringify(builtRef)}\` (the checkpoint ref ${JSON.stringify(builtRef)} is a single inert argv token).\n` +
           `2. Point the local integration branch at that fetched tip: \`git -C ${repoRoot} branch -f ${integrationBranch} FETCH_HEAD\` (this ref is local and never-pushed here, so a destructive branch move is safe forward compensation; re-running sets the same tip).\n\n` +
           `If both succeed set restored=true. If there is no remote or the checkpoint ref is missing so the tip cannot be fetched, set restored=false and explain in detail.\n\n` +
           `Return ONLY: { restored: <bool>, detail: "<what happened>" }.`,

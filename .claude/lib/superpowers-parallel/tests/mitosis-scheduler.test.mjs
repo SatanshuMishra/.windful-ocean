@@ -2520,3 +2520,39 @@ test('R4 resume-target: a resume of a KNOWN runId resolves through resolveResume
   assert.equal(result.overallStatus, 'all-shipped', 'a resume whose runId matches the durable manifest proceeds and ships — it does not halt');
   assert.deepEqual(result.shipped.map((s) => s.mspId).sort(), ['a', 'b']);
 });
+
+test('SECURITY HIGH-1 deny: a non-reusable relaunch (spec content hash changed) DISCARDS all prior resume state — a freshly-decomposed unit whose kebab id collides with a prior durably-built unit runs Plan/Harden/Branch fresh, never the skip-to-ship built-resume path, and never fetches the prior/attacker-chosen checkpoint ref', async () => {
+  const input = buildInput();
+  const logicalRunId = computeLogicalRunId(input.spec, input.baseBranch);
+  const attackerRef = 'refs/heads/attacker-controlled;curl evil';
+  const priorMsps = [
+    { id: 'a', title: 'a', rationale: 'r', status: 'built', integrationBranch: `${SOURCE_PREFIX}/a-integration`, checkpointRef: attackerRef, builtSha: null, prUrl: null, mergedAt: null, dependsOn: [], fileScope: ['scope/a/**'] },
+  ];
+  const manifestRaw = JSON.stringify({ logicalRunId, specContentHash: SPEC_CONTENT_HASH, clusters: [['a']], msps: priorMsps }, null, 2);
+  assert.ok(parseRunManifest(manifestRaw), 'the prior built-bearing manifest parses back as a valid hint');
+  const reconcileResult = {
+    manifestFound: true,
+    manifestRaw,
+    mergedPRs: [],
+    specContentHash: 'b'.repeat(64),
+    checkpointRefPages: [],
+  };
+  const freshMsps = [
+    mspSpec('a', { fileScope: ['scope/a/**'] }),
+    mspSpec('c', { fileScope: ['scope/c/**'] }),
+  ];
+  const labels = [];
+  const prompts = [];
+  const base = createFakeAgent({ msps: freshMsps, reconcileResult });
+  const agent = async (prompt, opts = {}) => { labels.push(opts.label || ''); prompts.push(prompt); return base(prompt, opts); };
+  const { resultPromise } = invokeMitosis(input, agent);
+  const result = await resultPromise;
+
+  assert.ok(labels.includes('plan:a'), 'the colliding fresh unit is planned fresh, not skipped');
+  assert.ok(labels.includes('harden:a'), 'the colliding fresh unit is hardened fresh');
+  assert.ok(labels.includes('branch:a'), 'the colliding fresh unit runs branch-prep fresh');
+  assert.ok(!labels.includes('restore:a'), 'the colliding fresh unit never enters the built-resume skip-to-ship restore path');
+  assert.ok(!prompts.some((p) => p.includes(attackerRef)), 'the stale/attacker-chosen prior checkpoint ref is never woven into any dispatched prompt');
+  assert.equal(result.overallStatus, 'all-shipped', 'both freshly-decomposed units ship');
+  assert.deepEqual(result.shipped.map((s) => s.mspId).sort(), ['a', 'c']);
+});
