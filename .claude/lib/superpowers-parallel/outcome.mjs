@@ -81,5 +81,5 @@ export function assembleRunReport({ clusters, chainResults, shipped, mspCount })
 
 export function fatalReport(stage, detail, mspCount, opts = {}) {
   const crashed = opts.crashed ? [crashedOutcome(null, stage, detail)] : [];
-  return { shipped: [], halted: [], crashed, quarantined: [], overallStatus: 'failed', stage, detail, mspCount };
+  return { shipped: [], halted: [], awaitingApproval: [], crashed, quarantined: [], overallStatus: 'failed', stage, detail, mspCount };
 }

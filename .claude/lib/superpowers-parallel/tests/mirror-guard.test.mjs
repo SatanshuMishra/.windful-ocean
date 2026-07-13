@@ -16,7 +16,7 @@ function normalize(src) {
 
 const mitosis = normalize(readFileSync(MITOSIS_PATH, 'utf8'));
 
-for (const twin of ['outcome.mjs', 'run-engine.mjs', 'retry.mjs', 'prepare-guard.mjs', 'recovery.mjs', 'derive-clusters.mjs']) {
+for (const twin of ['outcome.mjs', 'run-engine.mjs', 'retry.mjs', 'prepare-guard.mjs', 'recovery.mjs', 'derive-clusters.mjs', 'boundary.mjs', 'supervisor.mjs', 'remediation.mjs', 'leases.mjs', 'parking.mjs', 'saga.mjs', 'merge-policy.mjs', 'prepare-plan.mjs']) {
   test(`${twin} is byte-identical (minus export/import) to its inline copy in mitosis.js`, () => {
     const body = normalize(readFileSync(`${LIB}${twin}`, 'utf8'));
     assert.ok(

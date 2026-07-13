@@ -10,12 +10,14 @@ export const meta = {
     { title: 'Branch' },
     { title: 'Execute' },
     { title: 'Ship' },
+    { title: 'Remediate' },
   ],
 };
 
 const ENGINE_PATH = '/Users/satanshumishra/.claude/workflows/parallel-plan-execution.js';
 const GRAPH_SKILL = '/Users/satanshumishra/.claude/skills/plan-to-task-graph/SKILL.md';
 const LIB_DIR = '/Users/satanshumishra/.claude/lib/superpowers-parallel';
+const TEMPLATES_DIR = '/Users/satanshumishra/.claude/skills/mitosis/templates';
 
 const MAX_LOGGED_TOKEN_LEN = 128;
 const MAX_MANIFEST_MSPS = 256;
@@ -149,7 +151,7 @@ function assembleRunReport({ clusters, chainResults, shipped, mspCount }) {
 
 function fatalReport(stage, detail, mspCount, opts = {}) {
   const crashed = opts.crashed ? [crashedOutcome(null, stage, detail)] : [];
-  return { shipped: [], halted: [], crashed, quarantined: [], overallStatus: 'failed', stage, detail, mspCount };
+  return { shipped: [], halted: [], awaitingApproval: [], crashed, quarantined: [], overallStatus: 'failed', stage, detail, mspCount };
 }
 
 function classifyOutcome(result, isPermanent) {
@@ -163,6 +165,12 @@ function withinRetryBudget({ attempt, maxAttempts, state }) {
 }
 
 function resetPreamble(worktree, ref) {
+  if (typeof worktree !== 'string' || !/^\/[A-Za-z0-9._\/-]+$/.test(worktree)) {
+    throw new Error(`retry: refusing unsafe worktree path in reset preamble: ${JSON.stringify(worktree)}`);
+  }
+  if (typeof ref !== 'string' || !/^[A-Za-z0-9][A-Za-z0-9._\/-]*$/.test(ref)) {
+    throw new Error(`retry: refusing unsafe ref in reset preamble: ${JSON.stringify(ref)}`);
+  }
   return `git -C ${worktree} reset --hard ${ref}\ngit -C ${worktree} clean -fdx\n`;
 }
 
@@ -743,7 +751,7 @@ async function runEngine(engineArgs, ctx) {
     const taskModel = resolvedAgentType === 'test-engineer' ? (models.tester || null) : implementerModel;
     const status = await ctx.dispatchWithRetry(
       (attemptNo, preamble) => agent(preamble + implementerPrompt(task, branch, wt), withModel({ label: `impl:${taskId}`, phase: 'Waves', schema: STATUS_SCHEMA, agentType: resolvedAgentType }, taskModel)),
-      { isPermanent: (r) => r.status === 'BLOCKED' || r.status === 'NEEDS_CONTEXT', maxAttempts: retry.maxAttempts, state: retry.state, resetRef: baseBranch, worktree: wt },
+      { isPermanent: (r) => r.status === 'BLOCKED' || r.status === 'NEEDS_CONTEXT', maxAttempts: retry.maxAttempts, state: retry.state, resetRef: baseBranch, worktree: wt, unitId: taskId, task: task.fullText, ...(typeof ctx.makeRemediation === 'function' ? ctx.makeRemediation({ unitId: taskId, stage: 'execute', task: task.fullText, schema: STATUS_SCHEMA, agentType: resolvedAgentType, phase: 'Waves' }) : {}) },
     );
     if (status && status.__quarantined) {
       return { taskId, branch, wt, reviewMode, ok: false, reason: 'quarantined', quarantined: { stage: 'execute', retries: status.attempts, error: `implementer exhausted ${status.attempts} attempt(s) (transient drops)` } };
@@ -967,16 +975,28 @@ const HARDEN_SCHEMA = {
   },
 };
 
-const PREP_SCHEMA = {
+const PROBE_SCHEMA = {
   type: 'object',
-  required: ['ready', 'detail'],
+  required: ['receiptsConfigFound', 'receiptsYmlFound', 'd6CheckFound'],
   additionalProperties: false,
   properties: {
-    ready: { type: 'boolean' },
+    receiptsConfigFound: { type: 'boolean' },
+    receiptsConfigRaw: { type: ['string', 'null'] },
+    receiptsYmlFound: { type: 'boolean' },
+    d6CheckFound: { type: 'boolean' },
+    templateConfigRaw: { type: ['string', 'null'] },
+    templateYmlRaw: { type: ['string', 'null'] },
+  },
+};
+
+const PREPARE_WRITE_SCHEMA = {
+  type: 'object',
+  required: ['written', 'detail'],
+  additionalProperties: false,
+  properties: {
+    written: { type: 'array', items: { type: 'string' } },
+    skipped: { type: 'array', items: { type: 'string' } },
     detail: { type: 'string' },
-    installed: { type: 'array', items: { type: 'string' } },
-    existingConfig: { type: ['object', 'null'] },
-    intendedConfig: { type: ['object', 'null'] },
   },
 };
 
@@ -996,11 +1016,25 @@ const SHIP_SCHEMA = {
   additionalProperties: false,
   properties: {
     merged: { type: 'boolean' },
+    awaitingApproval: { type: 'boolean' },
     prUrl: { type: 'string' },
     receiptsPass: { type: 'boolean' },
     d6Pass: { type: 'boolean' },
     manifestWritten: { type: 'boolean' },
     detail: { type: 'string' },
+  },
+};
+
+const DIAGNOSE_SCHEMA = {
+  type: 'object',
+  required: ['verdict'],
+  additionalProperties: false,
+  properties: {
+    verdict: { enum: ['remediable', 'needs-human'] },
+    mechanism: { type: 'string' },
+    correctedTask: { type: 'string' },
+    diagnosis: { type: 'string' },
+    request: { type: 'object' },
   },
 };
 
@@ -1052,13 +1086,27 @@ function evaluateManifestReuse(priorManifest, observedSpecHash) {
       return { reusable: false, reason: 'manifest aggregate fileScope entry count exceeds the supported maximum' };
     }
     ids.push(m.id);
-    normalized.push({
+    const entry = {
       id: m.id,
       title: m.title.slice(0, MAX_TITLE_LEN),
       rationale: m.rationale.slice(0, MAX_RATIONALE_LEN),
       dependsOn: m.dependsOn.slice(),
       fileScope: m.fileScope.slice(),
-    });
+    };
+    if (typeof m.status === 'string') {
+      entry.status = m.status;
+    }
+    if (m.resumePoint !== null && typeof m.resumePoint === 'object' && !Array.isArray(m.resumePoint)) {
+      entry.resumePoint = {
+        branch: typeof m.resumePoint.branch === 'string' ? m.resumePoint.branch : null,
+        ref: typeof m.resumePoint.ref === 'string' ? m.resumePoint.ref : null,
+        stage: typeof m.resumePoint.stage === 'string' ? m.resumePoint.stage : null,
+      };
+    }
+    if (Array.isArray(m.triedSet)) {
+      entry.triedSet = m.triedSet.filter((t) => typeof t === 'string');
+    }
+    normalized.push(entry);
   }
   const knownIds = new Set(ids);
   for (const m of normalized) {
@@ -1080,6 +1128,768 @@ function evaluateManifestReuse(priorManifest, observedSpecHash) {
   return { reusable: true, msps: normalized, clusters };
 }
 
+class EngineFault extends Error {
+  constructor(fault) {
+    super((fault && fault.diagnosis) || 'engine fault');
+    this.name = 'EngineFault';
+    this.isEngineFault = true;
+    this.fault = fault;
+  }
+}
+
+function Done(value) {
+  return Object.freeze({ tag: 'Done', value });
+}
+
+function Transient(evidence) {
+  return Object.freeze({ tag: 'Transient', evidence });
+}
+
+function ApproachFixable(cause) {
+  return Object.freeze({ tag: 'ApproachFixable', cause });
+}
+
+function NeedsHuman(request, triedSet) {
+  const iterable = triedSet != null && typeof triedSet[Symbol.iterator] === 'function';
+  if (!iterable) return Object.freeze({ tag: 'NeedsHuman', request });
+  return Object.freeze({ tag: 'NeedsHuman', request, triedSet: Object.freeze([...triedSet]) });
+}
+
+function AwaitingApproval(value) {
+  return Object.freeze({ tag: 'AwaitingApproval', value });
+}
+
+function Unknown(raw) {
+  return Object.freeze({ tag: 'Unknown', raw });
+}
+
+function assertNever(value, context) {
+  let rendered;
+  try {
+    rendered = JSON.stringify(value);
+  } catch (_e) {
+    rendered = String(value);
+  }
+  throw new Error(`assertNever: unreachable boundary path${context ? ' (' + context + ')' : ''}: ${rendered}`);
+}
+
+function attemptNoOf(ctx) {
+  return ctx && Number.isInteger(ctx.attemptNo) ? ctx.attemptNo : 0;
+}
+
+function faultToOutcome(fault, grounding, ctx, transientSignal) {
+  if (!fault || typeof fault !== 'object') return Unknown({ raw: grounding });
+  if (fault.kind === 'transient') {
+    return Transient({ signal: transientSignal, detail: fault.diagnosis || fault.detail || null, attemptNo: attemptNoOf(ctx) });
+  }
+  if (fault.kind === 'approach-fixable') {
+    return ApproachFixable({ mechanism: fault.mechanism || null, diagnosis: fault.diagnosis || null, evidence: grounding });
+  }
+  if (fault.kind === 'needs-human') {
+    const request = fault.request || {};
+    return NeedsHuman({ kind: request.kind || null, what: request.what || null, remediation: fault.remediation || request.remediation || null, resumePoint: fault.resumePoint || request.resumePoint || null });
+  }
+  return Unknown({ raw: grounding });
+}
+
+function classify(raw, ctx) {
+  if (raw && raw.raw === 'structured') {
+    const value = raw.value;
+    const fault = value && typeof value === 'object' ? value.fault : undefined;
+    if (fault === undefined || fault === null) return Done(value);
+    return faultToOutcome(fault, value, ctx, 'rate-limit');
+  }
+  if (raw && raw.raw === 'null') {
+    return Unknown({ raw: null });
+  }
+  if (raw && raw.raw === 'throw') {
+    const error = raw.error;
+    if (error && error.isEngineFault === true && error.fault) {
+      return faultToOutcome(error.fault, error, ctx, 'throw-io');
+    }
+    return Unknown({ raw: error });
+  }
+  return assertNever(raw, 'classify:raw-tag');
+}
+
+async function runStage(dispatchThunk, ctx) {
+  let raw;
+  try {
+    const value = await dispatchThunk();
+    raw = value === null || value === undefined ? { raw: 'null' } : { raw: 'structured', value };
+  } catch (error) {
+    raw = { raw: 'throw', error };
+  }
+  return classify(raw, ctx);
+}
+
+const SUPERVISOR_VERBS = Object.freeze({ RESUME: 'resume', RETRY: 'retry', STOP: 'stop', ESCALATE: 'escalate' });
+
+const REMEDIATION_BUDGET = 4;
+
+const TIER0_TRANSIENT_BUDGET = 1;
+
+const UNKNOWN_PROBE_BUDGET = 1;
+
+const STATUS_FOR_VERB = Object.freeze({ resume: 'dispatched', retry: 'remediating', stop: 'done', escalate: 'parked' });
+
+function makeSupervisorState({ unitId, stage, budgetRemaining, triedSet }) {
+  const seed = triedSet instanceof Set ? [...triedSet] : (Array.isArray(triedSet) ? [...triedSet] : []);
+  return { unitId, stage, budget: { remaining: budgetRemaining, cost: 'dispatch-count' }, triedSet: new Set(seed), ledger: [], status: 'ready' };
+}
+
+function hasTried(state, mechanism) {
+  return state.triedSet.has(mechanism);
+}
+
+function withTried(state, mechanism) {
+  const triedSet = new Set(state.triedSet);
+  triedSet.add(mechanism);
+  return { ...state, triedSet };
+}
+
+function decrementBudget(state, cost = 1) {
+  return { ...state, budget: { ...state.budget, remaining: state.budget.remaining - cost } };
+}
+
+function appendCycle(state, record) {
+  return { ...state, ledger: [...state.ledger, record] };
+}
+
+function withStatus(state, status) {
+  return { ...state, status };
+}
+
+function cycleRecord({ attemptNo, mechanism, diagnosis, outcomeKind, budgetAfter }) {
+  return Object.freeze({ attemptNo, mechanism: mechanism ?? null, diagnosis: diagnosis ?? null, outcomeKind, budgetAfter });
+}
+
+function dispositionVerb(outcome) {
+  switch (outcome.tag) {
+    case 'Done': return SUPERVISOR_VERBS.STOP;
+    case 'Transient': return SUPERVISOR_VERBS.RESUME;
+    case 'ApproachFixable': return SUPERVISOR_VERBS.RETRY;
+    case 'NeedsHuman': return SUPERVISOR_VERBS.ESCALATE;
+    case 'Unknown': return SUPERVISOR_VERBS.RESUME;
+    default: return assertNever(outcome, 'supervisor:disposition');
+  }
+}
+
+function superviseOutcome(outcome, state) {
+  const verb = dispositionVerb(outcome);
+  const mechanism = outcome.tag === 'ApproachFixable' ? (outcome.cause && outcome.cause.mechanism) || null : null;
+  const diagnosis = outcome.tag === 'ApproachFixable' ? (outcome.cause && outcome.cause.diagnosis) || null : null;
+  const record = cycleRecord({ attemptNo: state.ledger.length + 1, mechanism, diagnosis, outcomeKind: outcome.tag, budgetAfter: state.budget.remaining });
+  return { verb, state: withStatus(appendCycle(state, record), STATUS_FOR_VERB[verb]) };
+}
+
+function isValidFingerprint(token) {
+  return typeof token === 'string' && /^[a-z0-9._-]+:[a-z0-9._-]+$/i.test(token);
+}
+
+function fingerprintOf(outcome) {
+  if (!outcome || typeof outcome !== 'object') return null;
+  if (outcome.tag === 'ApproachFixable') return (outcome.cause && outcome.cause.mechanism) || null;
+  if (outcome.tag === 'Transient') return 'transient:' + ((outcome.evidence && outcome.evidence.signal) || 'unknown');
+  if (outcome.tag === 'Unknown') return 'unknown:' + (outcome.raw && outcome.raw.raw === null ? 'null' : String((outcome.raw && outcome.raw.raw) ?? 'raw'));
+  return outcome.tag;
+}
+
+async function obtainUntriedProposal(diagnose, input, state) {
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    const proposal = await diagnose(input);
+    if (proposal && proposal.verdict === 'needs-human') {
+      return { kind: 'needs-human', request: proposal.request || null };
+    }
+    const mechanism = proposal && proposal.mechanism;
+    if (isValidFingerprint(mechanism) && !hasTried(state, mechanism)) {
+      return { kind: 'proposal', mechanism, correctedTask: proposal.correctedTask, diagnosis: proposal.diagnosis };
+    }
+  }
+  return { kind: 'exhausted', reason: 'no-untried-mechanism' };
+}
+
+async function runRemediationLoop({ trigger, task, stage }, deps, state0) {
+  let state = state0;
+  let evidence = trigger;
+  let prevFingerprint = fingerprintOf(trigger);
+  while (true) {
+    if (state.budget.remaining <= 0) {
+      return { tag: 'Exhausted', reason: 'budget', state: withStatus(state, 'parked') };
+    }
+    const proposal = await obtainUntriedProposal(deps.diagnose, { evidence, triedSet: [...state.triedSet], task, stage }, state);
+    if (proposal.kind === 'needs-human') {
+      return { tag: 'NeedsHuman', request: proposal.request, state: withStatus(state, 'parked') };
+    }
+    if (proposal.kind === 'exhausted') {
+      return { tag: 'Exhausted', reason: proposal.reason, state: withStatus(state, 'parked') };
+    }
+    if (typeof deps.compensate === 'function') {
+      await deps.compensate({ unitId: state.unitId, stage, mechanism: proposal.mechanism });
+    }
+    state = withTried(state, proposal.mechanism);
+    state = decrementBudget(state, 1);
+    const result = await deps.redispatch({ correctedTask: proposal.correctedTask, mechanism: proposal.mechanism, task, stage });
+    const newFingerprint = fingerprintOf(result);
+    const terminalResult = result.tag === 'Done' || result.tag === 'NeedsHuman';
+    if (!terminalResult && newFingerprint !== null && newFingerprint === prevFingerprint) {
+      state = decrementBudget(state, 1);
+    }
+    const supervised = superviseOutcome(result, state);
+    state = supervised.state;
+    switch (supervised.verb) {
+      case SUPERVISOR_VERBS.STOP:
+        return { tag: 'Done', value: result.value, state };
+      case SUPERVISOR_VERBS.ESCALATE:
+        return { tag: 'NeedsHuman', request: result.request, state };
+      case SUPERVISOR_VERBS.RETRY:
+      case SUPERVISOR_VERBS.RESUME:
+        evidence = result;
+        prevFingerprint = newFingerprint;
+        break;
+      default:
+        return assertNever(result, 'remediation:evaluate');
+    }
+  }
+}
+
+function makeUnit(spec) {
+  if (!spec || typeof spec !== 'object') throw new Error('unit spec must be an object');
+  if (!spec.id || typeof spec.id !== 'string') throw new Error('unit spec missing string id');
+  const prereqs = spec.prereqs === undefined ? [] : spec.prereqs;
+  if (!Array.isArray(prereqs)) throw new Error(`unit ${spec.id} prereqs must be an array`);
+  const fileScope = spec.fileScope === undefined ? [] : spec.fileScope;
+  if (!Array.isArray(fileScope)) throw new Error(`unit ${spec.id} fileScope must be an array`);
+  return Object.freeze({
+    id: spec.id,
+    state: spec.state || 'planned',
+    prereqs: Object.freeze([...prereqs]),
+    fileScope: Object.freeze([...fileScope]),
+    leaseHeld: false,
+  });
+}
+
+function buildUnitTable(specs) {
+  if (!Array.isArray(specs)) throw new Error('unit table must be an array');
+  const units = specs.map(makeUnit);
+  const ids = new Set();
+  for (const u of units) {
+    if (ids.has(u.id)) throw new Error(`duplicate unit id: ${u.id}`);
+    ids.add(u.id);
+  }
+  for (const u of units)
+    for (const p of u.prereqs)
+      if (!ids.has(p)) throw new Error(`unit ${u.id} prereq references unknown unit: ${p}`);
+  return Object.freeze(units);
+}
+
+function indexUnits(units) {
+  const byId = new Map();
+  for (const u of units) byId.set(u.id, u);
+  return byId;
+}
+
+function overlapHolder(leases, fileScope, excludeId) {
+  for (const [path, holder] of leases) {
+    if (holder === excludeId) continue;
+    if (scopesOverlap([path], fileScope)) return holder;
+  }
+  return null;
+}
+
+function isDispatchable(unit, unitsById, leases) {
+  if (unit.state === 'done' || unit.state === 'parked' || unit.state === 'dispatched') return false;
+  for (const pid of unit.prereqs) {
+    const prereq = unitsById.get(pid);
+    if (!prereq || prereq.state !== 'done') return false;
+  }
+  return overlapHolder(leases, unit.fileScope, unit.id) === null;
+}
+
+function acquire(leases, unit) {
+  const next = new Map(leases);
+  for (const path of unit.fileScope) next.set(path, unit.id);
+  return next;
+}
+
+function dispositionOf(outcome) {
+  return outcome && outcome.tag === 'Done' ? 'done' : 'parked';
+}
+
+function planTick(units) {
+  const byId = indexUnits(units);
+  let leases = new Map();
+  const dispatch = [];
+  for (const unit of units) {
+    if (isDispatchable(unit, byId, leases)) {
+      dispatch.push(unit.id);
+      leases = acquire(leases, unit);
+    }
+  }
+  return { dispatch, leases };
+}
+
+function markDispatched(units, dispatchIds) {
+  const set = new Set(dispatchIds);
+  return Object.freeze(units.map((u) => (set.has(u.id) ? Object.freeze({ ...u, state: 'dispatched', leaseHeld: true }) : u)));
+}
+
+function applyOutcomes(units, outcomes) {
+  return Object.freeze(units.map((u) => (outcomes.has(u.id) ? Object.freeze({ ...u, state: dispositionOf(outcomes.get(u.id)), leaseHeld: false }) : u)));
+}
+
+async function joinTick(units, runUnit) {
+  const settled = await Promise.allSettled(units.map((u) => runUnit(u)));
+  return settled.map((r) => (r.status === 'fulfilled' ? r.value : null));
+}
+
+async function runSchedule(specs, runUnit) {
+  let units = buildUnitTable(specs);
+  const ticks = [];
+  const maxTicks = units.length + 1;
+  for (let tick = 0; tick < maxTicks; tick++) {
+    const { dispatch } = planTick(units);
+    if (dispatch.length === 0) break;
+    ticks.push(dispatch);
+    units = markDispatched(units, dispatch);
+    const byId = indexUnits(units);
+    const dispatchUnits = dispatch.map((id) => byId.get(id));
+    const results = await joinTick(dispatchUnits, runUnit);
+    const outcomes = new Map(dispatch.map((id, i) => [id, results[i]]));
+    units = applyOutcomes(units, outcomes);
+  }
+  return { units, ticks };
+}
+
+const LEGAL_STAGES = Object.freeze(['plan', 'harden', 'branch', 'execute', 'ship']);
+
+function sanitizeStage(stage) {
+  return typeof stage === 'string' && LEGAL_STAGES.includes(stage) ? stage : null;
+}
+
+function ParkRecord({ unitId, stage, diagnosis, request, remediation, resumePoint, triedSet, dependents }) {
+  const req = request && typeof request === 'object' ? request : {};
+  const rp = resumePoint && typeof resumePoint === 'object' ? resumePoint : {};
+  return Object.freeze({
+    unitId,
+    stage: stage ?? null,
+    diagnosis: diagnosis ?? null,
+    request: Object.freeze({
+      kind: req.kind ?? null,
+      what: req.what ?? null,
+      detail: req.detail ?? null,
+    }),
+    remediation: remediation ?? null,
+    resumePoint: Object.freeze({
+      branch: rp.branch ?? null,
+      ref: rp.ref ?? null,
+      stage: sanitizeStage(rp.stage) ?? sanitizeStage(stage),
+    }),
+    triedSet: Object.freeze(Array.isArray(triedSet) ? [...triedSet] : []),
+    dependents: Object.freeze(Array.isArray(dependents) ? [...dependents] : []),
+  });
+}
+
+function transitiveDependents(msps, unitId) {
+  if (!Array.isArray(msps)) return [];
+  const blocked = new Set([unitId]);
+  let changed = true;
+  while (changed) {
+    changed = false;
+    for (const msp of msps) {
+      if (blocked.has(msp.id)) continue;
+      const prereqs = Array.isArray(msp.dependsOn) ? msp.dependsOn : [];
+      if (prereqs.some((p) => blocked.has(p))) {
+        blocked.add(msp.id);
+        changed = true;
+      }
+    }
+  }
+  return msps.map((msp) => msp.id).filter((id) => id !== unitId && blocked.has(id));
+}
+
+function park(manifest, { unitId, stage, diagnosis, request, remediation, resumePoint, triedSet }) {
+  if (!manifest || typeof manifest !== 'object' || !Array.isArray(manifest.msps)) {
+    throw new Error('park: manifest must be an object with an msps array');
+  }
+  if (typeof unitId !== 'string' || unitId.length === 0) {
+    throw new Error('park: unitId must be a non-empty string');
+  }
+  if (!manifest.msps.some((msp) => msp.id === unitId)) {
+    throw new Error(`park: unit not found in manifest: ${unitId}`);
+  }
+  const dependents = transitiveDependents(manifest.msps, unitId);
+  const record = ParkRecord({ unitId, stage, diagnosis, request, remediation, resumePoint, triedSet, dependents });
+  const parkedIds = new Set([unitId, ...dependents]);
+  const msps = manifest.msps.map((msp) => {
+    if (!parkedIds.has(msp.id)) return msp;
+    if (msp.id === unitId) {
+      return { ...msp, status: 'parked', triedSet: [...record.triedSet], resumePoint: { ...record.resumePoint } };
+    }
+    return {
+      ...msp,
+      status: 'parked',
+      triedSet: Array.isArray(msp.triedSet) ? [...msp.triedSet] : [],
+      resumePoint: msp.resumePoint && typeof msp.resumePoint === 'object'
+        ? { ...msp.resumePoint }
+        : { branch: null, ref: null, stage: null },
+    };
+  });
+  const priorParked = Array.isArray(manifest.parked) ? manifest.parked : [];
+  return { ...manifest, msps, parked: [...priorParked, record] };
+}
+
+function isShippedUnit(shippedSet, id) {
+  if (!shippedSet) return false;
+  if (typeof shippedSet.has === 'function') return shippedSet.has(id);
+  if (Array.isArray(shippedSet)) return shippedSet.includes(id);
+  if (typeof shippedSet === 'object') return Object.prototype.hasOwnProperty.call(shippedSet, id);
+  return false;
+}
+
+function selectResumeUnits(manifest, shippedSet) {
+  if (!manifest || typeof manifest !== 'object' || !Array.isArray(manifest.msps)) return [];
+  const resume = [];
+  for (const msp of manifest.msps) {
+    if (msp.status !== 'parked') continue;
+    if (isShippedUnit(shippedSet, msp.id)) continue;
+    const triedSet = (Array.isArray(msp.triedSet) ? msp.triedSet : []).filter((t) => isValidFingerprint(t));
+    const resumePoint = msp.resumePoint && typeof msp.resumePoint === 'object'
+      ? { branch: msp.resumePoint.branch ?? null, ref: msp.resumePoint.ref ?? null, stage: sanitizeStage(msp.resumePoint.stage) }
+      : { branch: null, ref: null, stage: null };
+    resume.push({ unitId: msp.id, stage: resumePoint.stage, resumePoint, triedSet });
+  }
+  return resume;
+}
+
+const COMPENSATION_POLICY = Object.freeze({
+  'worktree-add': Object.freeze({ state: 'local', destructive: true, forwardOnly: false, pointOfNoReturn: false }),
+  'local-branch': Object.freeze({ state: 'local', destructive: true, forwardOnly: false, pointOfNoReturn: false }),
+  'push-integration': Object.freeze({ state: 'shared', destructive: false, forwardOnly: true, pointOfNoReturn: false }),
+  'pr-open': Object.freeze({ state: 'shared', destructive: false, forwardOnly: false, pointOfNoReturn: false }),
+  'squash-merge': Object.freeze({ state: 'shared', destructive: false, forwardOnly: true, pointOfNoReturn: true }),
+});
+
+const COMPENSATION_KINDS = Object.freeze(Object.keys(COMPENSATION_POLICY));
+
+const COMPENSATION_REQUIRED_FIELDS = Object.freeze({
+  'worktree-add': Object.freeze(['worktree']),
+  'local-branch': Object.freeze(['ref']),
+  'push-integration': Object.freeze(['ref']),
+  'pr-open': Object.freeze(['pr']),
+  'squash-merge': Object.freeze(['mergeCommit']),
+});
+
+const EFFECT_FIELD_PATTERNS = Object.freeze({
+  worktree: /^\/[A-Za-z0-9._\/-]+$/,
+  ref: /^[A-Za-z0-9][A-Za-z0-9._\/-]*$/,
+  pr: /^[0-9]+$/,
+  mergeCommit: /^[0-9a-f]{7,40}$/,
+});
+
+function validateEffect(effect) {
+  if (!effect || typeof effect !== 'object' || Array.isArray(effect)) {
+    throw new Error(`saga: effect descriptor must be an object, received ${effect === null ? 'null' : typeof effect}`);
+  }
+  const required = COMPENSATION_REQUIRED_FIELDS[effect.kind];
+  if (!required) {
+    throw new Error(`saga: unknown compensation effect kind: ${JSON.stringify(effect.kind)}`);
+  }
+  for (const field of required) {
+    const value = effect[field];
+    if (value === undefined || value === null || value === '') {
+      throw new Error(`saga: effect ${effect.kind} requires field "${field}"`);
+    }
+    const pattern = EFFECT_FIELD_PATTERNS[field];
+    if ((typeof value !== 'string' && typeof value !== 'number') || !pattern.test(String(value))) {
+      throw new Error(`saga: effect ${effect.kind} field "${field}" has an unsafe value: ${JSON.stringify(value)}`);
+    }
+  }
+  return effect;
+}
+
+function undoCommandFor(effect) {
+  validateEffect(effect);
+  if (effect.kind === 'worktree-add') return `git worktree remove --force ${effect.worktree}`;
+  if (effect.kind === 'local-branch') return `git branch -D ${effect.ref}`;
+  if (effect.kind === 'push-integration') return `git push origin --delete ${effect.ref}`;
+  if (effect.kind === 'pr-open') return `gh pr close ${effect.pr}`;
+  if (effect.kind === 'squash-merge') return `git revert --no-edit ${effect.mergeCommit}`;
+  throw new Error(`saga: no undo command for effect kind: ${JSON.stringify(effect.kind)}`);
+}
+
+function permittedForceFor(effect) {
+  if (effect && effect.kind === 'push-integration') {
+    return `git push --force-with-lease origin ${effect.ref}`;
+  }
+  return null;
+}
+
+function Compensation(effect, undo, state, policy) {
+  return Object.freeze({
+    effect,
+    undo,
+    state,
+    forwardOnly: !!(policy && policy.forwardOnly),
+    pointOfNoReturn: !!(policy && policy.pointOfNoReturn),
+    destructive: !!(policy && policy.destructive),
+    permittedForce: (policy && policy.permittedForce) || null,
+  });
+}
+
+function compensationFor(effect) {
+  validateEffect(effect);
+  const policy = COMPENSATION_POLICY[effect.kind];
+  return Compensation(effect, undoCommandFor(effect), policy.state, {
+    forwardOnly: policy.forwardOnly,
+    pointOfNoReturn: policy.pointOfNoReturn,
+    destructive: policy.destructive,
+    permittedForce: permittedForceFor(effect),
+  });
+}
+
+function emptyCompensationStack() {
+  return Object.freeze([]);
+}
+
+function registerEffect(stack, effect) {
+  if (!Array.isArray(stack)) {
+    throw new Error(`saga: compensation stack must be an array, received ${typeof stack}`);
+  }
+  return Object.freeze([...stack, compensationFor(effect)]);
+}
+
+function perAttemptCompensation(worktree, ref) {
+  if (!worktree || !ref) {
+    throw new Error('saga: perAttemptCompensation requires a worktree and a pre-attempt ref');
+  }
+  if (!/^\/[A-Za-z0-9._\/-]+$/.test(worktree)) {
+    throw new Error(`saga: perAttemptCompensation refuses unsafe worktree path: ${JSON.stringify(worktree)}`);
+  }
+  if (!/^[A-Za-z0-9][A-Za-z0-9._\/-]*$/.test(ref)) {
+    throw new Error(`saga: perAttemptCompensation refuses unsafe ref: ${JSON.stringify(ref)}`);
+  }
+  return Object.freeze({
+    scope: 'per-attempt',
+    state: 'local',
+    knownCleanRef: ref,
+    commands: Object.freeze([
+      `git -C ${worktree} reset --hard ${ref}`,
+      `git -C ${worktree} clean -fdx`,
+    ]),
+  });
+}
+
+function perUnitCompensation(stack) {
+  if (!Array.isArray(stack)) {
+    throw new Error(`saga: compensation stack must be an array, received ${typeof stack}`);
+  }
+  const ordered = [];
+  for (let i = stack.length - 1; i >= 0; i -= 1) {
+    ordered.push(stack[i]);
+  }
+  return Object.freeze(ordered);
+}
+
+function undoCommandList(stack) {
+  const commands = [];
+  for (const comp of perUnitCompensation(stack)) {
+    if (comp.undo !== null && comp.undo !== undefined) commands.push(comp.undo);
+    if (comp.pointOfNoReturn) break;
+  }
+  return Object.freeze(commands);
+}
+
+function computeParkedStatus({ shipped, parked, halted, crashed, awaitingApproval, total }) {
+  const awaitingList = awaitingApproval || [];
+  const blockedPendingApprovalCount = parked.filter(isBlockedPendingApproval).length;
+  const genuineParkedCount = parked.length - blockedPendingApprovalCount;
+  return computeMergePolicyStatus({
+    shippedCount: shipped.length,
+    awaitingApprovalCount: awaitingList.length,
+    blockedPendingApprovalCount,
+    genuineParkedCount,
+    haltedCount: halted.length,
+    crashedCount: crashed.length,
+    total,
+  });
+}
+
+function parkedReportEntry(record) {
+  return { kind: 'parked', mspId: record.unitId, stage: record.stage, diagnosis: record.diagnosis, request: record.request, remediation: record.remediation, resumePoint: record.resumePoint, triedSet: record.triedSet, dependents: record.dependents };
+}
+
+function assembleReport({ shipped, parked, halted, crashed, awaitingApproval, mspCount }) {
+  const shippedOut = shipped.map((s) => shippedOutcome(s.mspId, s));
+  const parkedOut = parked.map((p) => parkedReportEntry(p));
+  const awaitingApprovalOut = (awaitingApproval || []).map((a) => awaitingApprovalOutcome(a.mspId, a));
+  const overallStatus = computeParkedStatus({ shipped: shippedOut, parked: parkedOut, halted, crashed, awaitingApproval: awaitingApprovalOut, total: mspCount });
+  const report = { shipped: shippedOut, parked: parkedOut, awaitingApproval: awaitingApprovalOut, halted, crashed, overallStatus, mspCount };
+  if (overallStatus !== 'all-shipped' && overallStatus !== 'awaiting-approval') {
+    const firstProblem = crashed[0] || parkedOut[0] || halted[0];
+    if (firstProblem) {
+      report.stage = firstProblem.stage;
+      report.mspId = firstProblem.mspId;
+      report.detail = firstProblem.diagnosis || firstProblem.error || firstProblem.reason || (firstProblem.request && firstProblem.request.what) || null;
+    }
+  }
+  return report;
+}
+
+function fatalReportShipped(stage, detail, mspCount, shippedSoFar, opts = {}) {
+  const shippedOut = (shippedSoFar || []).map((s) => shippedOutcome(s.mspId, s));
+  const crashed = opts.crashed ? [crashedOutcome(null, stage, detail)] : [];
+  return { shipped: shippedOut, parked: [], awaitingApproval: [], halted: [], crashed, overallStatus: shippedOut.length === 0 ? 'failed' : 'partial', stage, detail, mspCount };
+}
+
+const MAX_GATE_CONFIG_DEPTH = 32;
+
+function gateConfigDepth(value, depth = 0) {
+  if (depth > MAX_GATE_CONFIG_DEPTH) return depth;
+  if (value === null || typeof value !== 'object') return depth;
+  let max = depth;
+  for (const key of Object.keys(value)) {
+    const d = gateConfigDepth(value[key], depth + 1);
+    if (d > max) max = d;
+    if (max > MAX_GATE_CONFIG_DEPTH) return max;
+  }
+  return max;
+}
+
+function refuseToWeakenBounded(existing, intended) {
+  if (gateConfigDepth(existing) > MAX_GATE_CONFIG_DEPTH || gateConfigDepth(intended) > MAX_GATE_CONFIG_DEPTH) {
+    return { blocked: true, detail: `receipts config nesting exceeds the safe bound (${MAX_GATE_CONFIG_DEPTH}); a human must review the gate config before it is trusted` };
+  }
+  try {
+    return { blocked: false, guard: refuseToWeaken(existing, intended) };
+  } catch (err) {
+    return { blocked: true, detail: `gate-weakening check failed on untrusted config: ${err.message}` };
+  }
+}
+
+function normalizeFingerprint(token, stage) {
+  if (typeof token !== 'string' || token.trim().length === 0) return null;
+  if (isValidFingerprint(token)) return token;
+  const cleaned = token.trim().toLowerCase().replace(/[^a-z0-9._-]+/g, '-').replace(/^[-]+|[-]+$/g, '');
+  return cleaned.length > 0 ? `${stage}:${cleaned}` : null;
+}
+
+function normalizeDiagnosis(raw, stage) {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
+    return { verdict: 'needs-human', request: { kind: 'approve-decision', what: `${stage}: diagnostician returned no usable proposal`, remediation: null, resumePoint: null } };
+  }
+  if (raw.verdict === 'needs-human') {
+    return { verdict: 'needs-human', request: raw.request || null };
+  }
+  const mechanism = normalizeFingerprint(raw.mechanism, stage);
+  if (!mechanism) {
+    return { verdict: 'needs-human', request: { kind: 'approve-decision', what: `${stage}: diagnostician proposed no valid mechanism fingerprint`, remediation: null, resumePoint: null } };
+  }
+  return { verdict: 'remediable', mechanism, correctedTask: raw.correctedTask ?? null, diagnosis: raw.diagnosis ?? null };
+}
+
+function diagnosticianPrompt({ unitId, stage, task, evidence, triedSet }) {
+  const cause = evidence && typeof evidence === 'object' && evidence.cause ? { mechanism: evidence.cause.mechanism, diagnosis: evidence.cause.diagnosis } : evidence;
+  const tried = Array.isArray(triedSet) && triedSet.length > 0 ? triedSet.join(', ') : '(none)';
+  return `You are the in-run diagnostician for MSP "${unitId}" at the ${stage} stage of a mitosis run. You have NO Skill tool; follow these instructions directly.\n\n` +
+    `A prior attempt at this stage failed with an approach-fixable fault. Failure evidence: ${clean(cause)}\n` +
+    `Mechanisms already tried and excluded (do NOT repeat any of these): ${tried}\n` +
+    `Original objective for this stage: ${task}\n\n` +
+    `Diagnose the root cause and propose ONE untried, concrete corrective mechanism as a "<category>:<mechanism>" fingerprint (lowercase, e.g. "worktree:reset-clean"), plus a correctedTask describing exactly what to do differently. If no mechanical correction is possible and a human must decide, return verdict "needs-human" with a request describing what you need.\n\n` +
+    `Return ONLY: { verdict: "remediable" | "needs-human", mechanism?: "<category>:<mechanism>", correctedTask?: "<what to do differently>", diagnosis?: "<root cause>", request?: { kind, what } }.`;
+}
+
+function redispatchPrompt({ unitId, stage, task, correctedTask, mechanism, attempt }) {
+  return `You are re-attempting the ${stage} stage for MSP "${unitId}" of a mitosis run after an in-run diagnosis (correction attempt ${attempt}). You have NO Skill tool; follow these instructions directly.\n\n` +
+    `The prior attempt failed. Apply this corrected approach BEFORE producing the result: ${correctedTask || mechanism}\n` +
+    `Diagnosed mechanism fingerprint: ${mechanism}\n` +
+    `Original objective for this stage: ${task}\n\n` +
+    `Perform the ${stage} stage's work exactly as its normal instructions require, incorporating the correction, and return ONLY that stage's normal structured result.`;
+}
+
+function makeRemediation({ unitId, stage, task, schema, agentType, phase: phaseName }) {
+  const diagnose = async (input) => {
+    let raw;
+    try {
+      raw = await agent(
+        diagnosticianPrompt({ unitId, stage, task, evidence: input.evidence, triedSet: input.triedSet }),
+        { agentType: 'diagnostician', schema: DIAGNOSE_SCHEMA, label: `diagnose:${unitId}:${stage}`, phase: 'Remediate' },
+      );
+    } catch (err) {
+      return { verdict: 'needs-human', request: { kind: 'approve-decision', what: `${stage}: diagnostician dispatch failed (${err.message})`, remediation: null, resumePoint: null } };
+    }
+    return normalizeDiagnosis(raw, stage);
+  };
+  let redispatchNo = 0;
+  const redispatch = ({ correctedTask, mechanism }) => {
+    redispatchNo += 1;
+    return runStage(
+      () => agent(
+        redispatchPrompt({ unitId, stage, task, correctedTask, mechanism, attempt: redispatchNo }),
+        { agentType, schema, label: `redispatch:${unitId}:${stage}`, phase: phaseName },
+      ),
+      { attemptNo: redispatchNo },
+    );
+  };
+  return { diagnose, redispatch };
+}
+
+function makeCompensate(worktree, ref) {
+  return async () => (worktree && ref ? perAttemptCompensation(worktree, ref) : null);
+}
+
+async function supervisedDispatch(dispatchThunk, ctx) {
+  const stage = ctx.stage;
+  const preambleFor = () => (ctx.resetRef && ctx.worktree ? resetPreamble(ctx.worktree, ctx.resetRef) : '');
+  let attemptNo = 0;
+  let outcome = await runStage(() => dispatchThunk(attemptNo, ''), { attemptNo });
+  attemptNo += 1;
+  let tier0 = 0;
+  while (outcome.tag === 'Transient' && tier0 < TIER0_TRANSIENT_BUDGET) {
+    tier0 += 1;
+    outcome = await runStage(() => dispatchThunk(attemptNo, preambleFor()), { attemptNo });
+    attemptNo += 1;
+  }
+  if (outcome.tag === 'Done' || outcome.tag === 'NeedsHuman') return outcome;
+  if (outcome.tag === 'Unknown') {
+    const probe = await runStage(() => dispatchThunk(attemptNo, preambleFor()), { attemptNo });
+    attemptNo += 1;
+    if (probe.tag === 'Done' || probe.tag === 'NeedsHuman') return probe;
+    outcome = probe;
+  }
+  if (typeof ctx.diagnose === 'function' && typeof ctx.redispatch === 'function' && outcome.tag === 'ApproachFixable') {
+    phase('Remediate');
+    const supervisor = makeSupervisorState({ unitId: ctx.unitId, stage, budgetRemaining: ctx.budget ?? REMEDIATION_BUDGET, triedSet: ctx.triedSet });
+    const result = await runRemediationLoop(
+      { trigger: outcome, task: ctx.task, stage },
+      { diagnose: ctx.diagnose, redispatch: ctx.redispatch, compensate: ctx.compensate },
+      supervisor,
+    );
+    if (result.tag === 'Done') return Done(result.value);
+    if (result.tag === 'NeedsHuman') return NeedsHuman(result.request || { kind: 'approve-decision', what: `${stage} needs human`, remediation: null, resumePoint: null }, result.state && result.state.triedSet);
+    return NeedsHuman({ kind: 'approve-decision', what: `${stage} exhausted the remediation budget (${result.reason})`, remediation: null, resumePoint: null }, result.state && result.state.triedSet);
+  }
+  if (outcome.tag === 'ApproachFixable') {
+    return NeedsHuman({ kind: 'approve-decision', what: `${stage}: ${(outcome.cause && outcome.cause.diagnosis) || 'approach-fixable, no in-run diagnostician wired'}`, remediation: null, resumePoint: null });
+  }
+  const unresolvedRaw = outcome.tag === 'Unknown' && outcome.raw ? outcome.raw.raw : null;
+  const unresolvedMsg = unresolvedRaw && typeof unresolvedRaw.message === 'string'
+    ? unresolvedRaw.message
+    : (typeof unresolvedRaw === 'string' && unresolvedRaw.trim() !== '' ? unresolvedRaw : null);
+  const unresolvedSuffix = unresolvedMsg ? `: ${unresolvedMsg}` : '';
+  return NeedsHuman({ kind: 'grant', what: `${stage} returned an unresolved ${outcome.tag}${unresolvedSuffix}`, remediation: null, resumePoint: null });
+}
+
+async function supervisedEngineDispatch(dispatchThunk, opts) {
+  const outcome = await supervisedDispatch(
+    (attemptNo, preamble) => dispatchThunk(attemptNo, preamble),
+    { unitId: (opts && opts.unitId) || 'wave-task', stage: 'execute', resetRef: opts && opts.resetRef, worktree: opts && opts.worktree, task: opts && opts.task, diagnose: opts && opts.diagnose, redispatch: opts && opts.redispatch, budget: opts && opts.budget, triedSet: opts && opts.triedSet, compensate: opts && opts.compensate },
+  );
+  if (outcome.tag === 'Done') return outcome.value;
+  const what = outcome.tag === 'NeedsHuman' && outcome.request ? outcome.request.what : outcome.tag;
+  return { __quarantined: true, attempts: 1, lastResult: outcome, park: { what } };
+}
+
 let input;
 try {
   input = (typeof args === 'string') ? JSON.parse(args) : (args || {});
@@ -1096,6 +1906,153 @@ const models = input.models || {};
 const fixLoopMax = input.fixLoopMax ?? 2;
 const worktreeRoot = input.worktreeRoot;
 const retryConfig = (input.retry && typeof input.retry === 'object' && !Array.isArray(input.retry)) ? input.retry : {};
+const MERGE_POLICY_AUTONOMOUS = 'autonomous';
+const MERGE_POLICY_HUMAN_GATED = 'human-gated';
+
+const MERGE_POLICIES = Object.freeze({
+  AUTONOMOUS: MERGE_POLICY_AUTONOMOUS,
+  HUMAN_GATED: MERGE_POLICY_HUMAN_GATED,
+});
+
+const AWAITING_UPSTREAM_KIND = 'blocked-pending-approval';
+
+const BLOCKED_PENDING_APPROVAL_DIAGNOSIS = 'approve + merge the prerequisite PR, then relaunch mitosis to continue';
+
+function normalizeMergePolicy(value) {
+  return value === MERGE_POLICY_AUTONOMOUS ? MERGE_POLICY_AUTONOMOUS : MERGE_POLICY_HUMAN_GATED;
+}
+
+function awaitingApprovalOutcome(mspId, extra = {}) {
+  return { kind: 'awaiting-approval', mspId, prUrl: extra.prUrl, receiptsPass: extra.receiptsPass, d6Pass: extra.d6Pass };
+}
+
+function isBlockedPendingApproval(entry) {
+  return Boolean(entry) && entry.stage === 'blocked' && Boolean(entry.request) && entry.request.kind === AWAITING_UPSTREAM_KIND;
+}
+
+function computeMergePolicyStatus({
+  shippedCount,
+  awaitingApprovalCount = 0,
+  blockedPendingApprovalCount = 0,
+  genuineParkedCount = 0,
+  haltedCount = 0,
+  crashedCount = 0,
+  total,
+}) {
+  const hasFault = genuineParkedCount > 0 || haltedCount > 0 || crashedCount > 0;
+  const awaitingTotal = awaitingApprovalCount + blockedPendingApprovalCount;
+  if (!hasFault && total > 0 && shippedCount === total && awaitingTotal === 0) {
+    return 'all-shipped';
+  }
+  if (!hasFault && awaitingTotal > 0) {
+    return 'awaiting-approval';
+  }
+  if (shippedCount === 0) return 'failed';
+  return 'partial';
+}
+
+const MAX_PREPARE_MERGE_DEPTH = 32;
+
+const FORBIDDEN_MERGE_KEYS = new Set(['__proto__', 'constructor', 'prototype']);
+
+function isPlainObject(value) {
+  return value !== null && typeof value === 'object' && !Array.isArray(value);
+}
+
+function deepMerge(base, over, depth = 0) {
+  if (depth >= MAX_PREPARE_MERGE_DEPTH) return over;
+  if (!isPlainObject(over)) return over;
+  if (!isPlainObject(base)) return over;
+  const result = {};
+  for (const key of Object.keys(base)) {
+    if (FORBIDDEN_MERGE_KEYS.has(key)) continue;
+    result[key] = base[key];
+  }
+  for (const key of Object.keys(over)) {
+    if (FORBIDDEN_MERGE_KEYS.has(key)) continue;
+    const overValue = over[key];
+    const baseValue = result[key];
+    result[key] = isPlainObject(overValue) && isPlainObject(baseValue)
+      ? deepMerge(baseValue, overValue, depth + 1)
+      : overValue;
+  }
+  return result;
+}
+
+function deepFreeze(value, depth = 0) {
+  if (depth >= MAX_PREPARE_MERGE_DEPTH) return value;
+  if (value === null || typeof value !== 'object') return value;
+  for (const key of Object.keys(value)) {
+    deepFreeze(value[key], depth + 1);
+  }
+  return Object.freeze(value);
+}
+
+function parseJsonBytes(raw) {
+  if (typeof raw !== 'string' || raw.trim() === '') return { ok: false, value: null };
+  try {
+    return { ok: true, value: JSON.parse(raw) };
+  } catch {
+    return { ok: false, value: null };
+  }
+}
+
+function assertProbeShape(probe) {
+  if (probe === null || typeof probe !== 'object' || Array.isArray(probe)) {
+    throw new Error('probe result is not an object');
+  }
+  if (typeof probe.receiptsConfigFound !== 'boolean'
+    || typeof probe.receiptsYmlFound !== 'boolean'
+    || typeof probe.d6CheckFound !== 'boolean') {
+    throw new Error('probe result is missing required presence flags (receiptsConfigFound, receiptsYmlFound, d6CheckFound)');
+  }
+}
+
+function decideConfig(probe, buildConfig, verify) {
+  const rawConfig = typeof probe.receiptsConfigRaw === 'string' ? probe.receiptsConfigRaw : null;
+  const configPresent = probe.receiptsConfigFound === true || (rawConfig !== null && rawConfig.trim() !== '');
+  if (configPresent) {
+    return { adoptConfig: true, writeConfig: false, bootstrapConfig: null };
+  }
+  const template = parseJsonBytes(probe.templateConfigRaw);
+  if (!template.ok || !isPlainObject(template.value)) {
+    throw new Error('template receipts.config.json could not be read to bootstrap an absent config');
+  }
+  const overlay = {
+    build: isPlainObject(buildConfig) ? buildConfig : {},
+    verify: isPlainObject(verify) ? verify : {},
+  };
+  const bootstrapConfig = deepFreeze(deepMerge(template.value, overlay));
+  return { adoptConfig: false, writeConfig: true, bootstrapConfig };
+}
+
+function decideYml(probe) {
+  const writeYml = probe.receiptsYmlFound !== true;
+  if (!writeYml) return { writeYml: false, ymlBytes: null };
+  if (typeof probe.templateYmlRaw !== 'string' || probe.templateYmlRaw.length === 0) {
+    throw new Error('template receipts.yml could not be read to bootstrap an absent workflow');
+  }
+  return { writeYml: true, ymlBytes: probe.templateYmlRaw };
+}
+
+function decidePrepareActions({ probe, buildConfig, verify }) {
+  assertProbeShape(probe);
+  const config = decideConfig(probe, buildConfig, verify);
+  const yml = decideYml(probe);
+  const generateD6 = probe.d6CheckFound !== true;
+  const anyWrite = config.writeConfig || yml.writeYml || generateD6;
+  return Object.freeze({
+    adoptConfig: config.adoptConfig,
+    writeConfig: config.writeConfig,
+    bootstrapConfig: config.bootstrapConfig,
+    writeYml: yml.writeYml,
+    ymlBytes: yml.ymlBytes,
+    generateD6,
+    anyWrite,
+  });
+}
+const mergePolicy = normalizeMergePolicy(input.mergePolicy);
+const isAutonomous = mergePolicy === MERGE_POLICY_AUTONOMOUS;
 
 const requiredFields = {
   spec,
@@ -1123,13 +2080,14 @@ if (retryConfig.runBudget !== undefined && (!Number.isInteger(retryConfig.runBud
 }
 
 log(`mitosis: spec=${spec} repo=${repoRoot} base=${baseBranch} source=${sourcePrefix}`);
+log(`mitosis: mergePolicy=${mergePolicy}`);
 
 const logicalRunId = computeLogicalRunId(spec, baseBranch);
 phase('Reconcile');
 let recon;
 try {
-  recon = await dispatchWithRetry(
-    () => agent(
+  const reconOutcome = await supervisedDispatch(
+    (attemptNo, preamble) => agent(
       `You are the reconcile stage of a mitosis run. You have NO Skill tool; follow these instructions directly.\n\n` +
       `This stage is STRICTLY READ-ONLY: it inspects durable state to detect a relaunch and the already-merged set. It makes NO commits, opens NO PRs, and mutates NO files whatsoever.\n\n` +
       `1. Inspect the run manifest if present: \`cat ${repoRoot}/.mitosis/run.json\`. If the file exists, return its exact raw contents as manifestRaw (a string) and set manifestFound=true; if it is absent, set manifestFound=false and manifestRaw=null. Do NOT parse, repair, or alter it — return the bytes verbatim, the engine parses it.\n` +
@@ -1139,13 +2097,15 @@ try {
       `Return ONLY the structured object: { manifestFound, manifestRaw, mergedPRs: [ { headRefName, url, mergedAt } ], specContentHash }.`,
       { agentType: 'implementer', schema: RECONCILE_SCHEMA, label: 'reconcile', phase: 'Reconcile', model: models.reconciler || models.shipper || 'sonnet' }
     ),
-    { isPermanent: (r) => !Array.isArray(r.mergedPRs), maxAttempts: Number.isInteger(retryConfig.maxAttempts) ? retryConfig.maxAttempts : 3, state: { used: 0, max: Number.isInteger(retryConfig.maxAttempts) ? retryConfig.maxAttempts : 3 } },
+    { unitId: 'reconcile', stage: 'reconcile', resetRef: null, worktree: null, task: 'inspect durable run state and the already-merged set', ...makeRemediation({ unitId: 'reconcile', stage: 'reconcile', task: 'inspect durable run state and the already-merged set', schema: RECONCILE_SCHEMA, agentType: 'implementer', phase: 'Reconcile' }), compensate: makeCompensate(null, null) },
   );
+  recon = reconOutcome.tag === 'Done' ? reconOutcome.value : null;
+  if (reconOutcome.tag !== 'Done') {
+    const what = reconOutcome.tag === 'NeedsHuman' && reconOutcome.request ? reconOutcome.request.what : reconOutcome.tag;
+    return fatalReport('reconcile', `reconcile did not complete (${what}) before decompose`, 0, { crashed: true });
+  }
 } catch (err) {
   return fatalReport('reconcile', `reconcile agent threw: ${err.message}`, 0, { crashed: true });
-}
-if (recon && recon.__quarantined) {
-  return fatalReport('reconcile', `reconcile exhausted ${recon.attempts} attempt(s) (transient drops before decompose)`, 0, { crashed: true });
 }
 if (!recon || !Array.isArray(recon.mergedPRs)) {
   return fatalReport('reconcile', 'reconcile agent returned null or no mergedPRs (transient drop or blocked before decompose)', 0, { crashed: true });
@@ -1158,6 +2118,10 @@ const observedSpecHash = (recon && typeof recon.specContentHash === 'string') ? 
 const isRelaunch = priorManifest && priorManifest.logicalRunId === logicalRunId;
 const reuse = isRelaunch ? evaluateManifestReuse(priorManifest, observedSpecHash) : { reusable: false };
 const reusable = reuse.reusable;
+const resumeMap = new Map();
+if (isRelaunch) {
+  for (const r of selectResumeUnits(priorManifest, reconciledShipped)) resumeMap.set(r.unitId, r);
+}
 
 let msps, clusters;
 if (reusable) {
@@ -1171,8 +2135,8 @@ if (reusable) {
   phase('Decompose');
   let decomposition;
   try {
-    decomposition = await dispatchWithRetry(
-      () => agent(
+    const decompositionOutcome = await supervisedDispatch(
+      (attemptNo, preamble) => agent(
         `You are the decomposition stage of a mitosis run. You have NO Skill tool; follow these instructions directly.\n\n` +
         `Read the approved spec/batch document at: ${spec}\n` +
         `Target repository root: ${repoRoot}\n\n` +
@@ -1182,13 +2146,15 @@ if (reusable) {
         `Return ONLY the structured object: { msps: [ { id, title, rationale, dependsOn, fileScope } ] }, ordered bottom-up.`,
         { agentType: 'codebase-analyst', schema: DECOMPOSE_SCHEMA, label: 'decompose', phase: 'Decompose', model: models.decomposer || 'opus' }
       ),
-      { isPermanent: (r) => !Array.isArray(r.msps), maxAttempts: Number.isInteger(retryConfig.maxAttempts) ? retryConfig.maxAttempts : 3, state: { used: 0, max: Number.isInteger(retryConfig.maxAttempts) ? retryConfig.maxAttempts : 3 } },
+      { unitId: 'decompose', stage: 'decompose', resetRef: null, worktree: null, task: 'decompose the approved spec into clusters of MSPs', ...makeRemediation({ unitId: 'decompose', stage: 'decompose', task: 'decompose the approved spec into clusters of MSPs', schema: DECOMPOSE_SCHEMA, agentType: 'codebase-analyst', phase: 'Decompose' }), compensate: makeCompensate(null, null) },
     );
+    decomposition = decompositionOutcome.tag === 'Done' ? decompositionOutcome.value : null;
+    if (decompositionOutcome.tag !== 'Done') {
+      const what = decompositionOutcome.tag === 'NeedsHuman' && decompositionOutcome.request ? decompositionOutcome.request.what : decompositionOutcome.tag;
+      return fatalReport('decompose', `decompose did not complete (${what}) before fan-out`, 0, { crashed: true });
+    }
   } catch (err) {
     return fatalReport('decompose', `decompose agent threw before fan-out: ${err.message}`, 0, { crashed: true });
-  }
-  if (decomposition && decomposition.__quarantined) {
-    return fatalReport('decompose', `decompose exhausted ${decomposition.attempts} attempt(s) (transient drops before fan-out)`, 0, { crashed: true });
   }
   if (!decomposition || !Array.isArray(decomposition.msps)) {
     return fatalReport('decompose', 'decompose agent returned null or no msps (transient drop or blocked before fan-out)', 0, { crashed: true });
@@ -1230,7 +2196,7 @@ if (!reusable) {
 }
 
 if (!reusable) {
-  const initialManifest = buildInitialManifest({ logicalRunId, harnessRunId: input.harnessRunId, spec, repoRoot, baseBranch, sourcePrefix, clusters, msps, specContentHash: observedSpecHash });
+  const initialManifest = { ...buildInitialManifest({ logicalRunId, harnessRunId: input.harnessRunId, spec, repoRoot, baseBranch, sourcePrefix, clusters, msps, specContentHash: observedSpecHash }), parked: [] };
   const initialManifestJson = JSON.stringify(initialManifest, null, 2);
   try {
     const checkpointRes = await agent(
@@ -1253,76 +2219,203 @@ if (!reusable) {
 }
 
 phase('Prepare');
-let prep;
+let probe;
 try {
-  prep = await agent(
-    `You are the prepare stage of a mitosis run. You have NO Skill tool.\n\n` +
-    `Target repo: ${repoRoot}\n` +
-    `Ensure the receipts CI enforcer is installed IDEMPOTENTLY (skip any file that already exists with equivalent content). Copy from these templates:\n` +
-    `  - /Users/satanshumishra/.claude/skills/mitosis/templates/receipts.yml      -> ${repoRoot}/.github/workflows/receipts.yml\n` +
-    `  - /Users/satanshumishra/.claude/skills/mitosis/templates/receipts.config.json -> ${repoRoot}/receipts.config.json\n` +
-    `  - /Users/satanshumishra/.claude/skills/mitosis/templates/d6-check.md       -> implement as ${repoRoot}/scripts/d6-check.cjs per that spec\n\n` +
-    `OBSERVE-THEN-CONVERGE + REFUSE-TO-WEAKEN (fail-closed security control, OWASP CICD-SEC-04): BEFORE writing receipts.config.json, READ any existing ${repoRoot}/receipts.config.json and parse it to an object (existingConfig; null if absent). Compute the config you intend to write (intendedConfig) by filling this build/verify config over sensible repo-detected defaults (e.g. read package.json scripts): ${JSON.stringify({ ...buildConfig, verify })}. If an existing config is present, ADOPT it: write ONLY if absent, and NEVER relax an existing stricter gate (e.g. do not turn an existing require_fresh_base:"error" into "warn", or a mode:"error" into "warn"). If your intended config would weaken any existing stricter setting, set ready=false with a detail naming the conflicting path; do NOT clobber it. The engine independently re-checks this and will refuse a weakening even if you return ready=true.\n\n` +
-    `Fill receipts.config.json from that intendedConfig.\n\n` +
-    `If the repo is not a git repo or has no remote when receipts CI requires one, set ready=false with a clear detail. Otherwise: ensure you are on ${baseBranch} (\`git -C ${repoRoot} checkout ${baseBranch}\`), then commit the installed files there ONLY IF something actually changed — observe-then-converge: run \`git -C ${repoRoot} status --porcelain\` first; if it reports no changes, SKIP both the commit and the push (never create an empty commit, never push an unchanged ref). If there ARE changes, commit them and publish with \`git -C ${repoRoot} push origin ${baseBranch}\` so integration branches cut from origin/${baseBranch} inherit the receipts workflow and PRs targeting ${baseBranch} fire CI.\n\n` +
-    `Return ONLY: { ready: <bool>, detail: "<what you did or why not ready>", installed: ["<paths>"], existingConfig: <the parsed existing config object or null>, intendedConfig: <the config object you intend to write> }.`,
-    { agentType: 'implementer', schema: PREP_SCHEMA, label: 'prepare', phase: 'Prepare' }
+  probe = await agent(
+    `You are the prepare probe stage of a mitosis run. You have NO Skill tool.\n\n` +
+    `This stage is STRICTLY READ-ONLY: it inspects durable config state so the engine can decide adopt-vs-bootstrap in-process. It makes NO commits, opens NO PRs, repairs nothing, and mutates NO files whatsoever. Return bytes verbatim; the engine parses and decides.\n\n` +
+    `Target repo: ${repoRoot}\n\n` +
+    `1. Config presence: if ${repoRoot}/receipts.config.json exists, return its EXACT raw contents as receiptsConfigRaw (a string) and set receiptsConfigFound=true; if it is absent, set receiptsConfigFound=false and receiptsConfigRaw=null. Do NOT parse, repair, reformat, or alter it.\n` +
+    `2. Workflow presence: set receiptsYmlFound=true if ${repoRoot}/.github/workflows/receipts.yml exists, else false.\n` +
+    `3. D6 presence: set d6CheckFound=true if ${repoRoot}/scripts/d6-check.cjs exists, else false.\n` +
+    `4. Template bytes for deterministic bootstrap: return templateConfigRaw = the EXACT raw contents of ${TEMPLATES_DIR}/receipts.config.json (a string), and templateYmlRaw = the EXACT raw contents of ${TEMPLATES_DIR}/receipts.yml (a string). Return the bytes verbatim; do NOT parse or alter them.\n\n` +
+    `Return ONLY: { receiptsConfigFound, receiptsConfigRaw, receiptsYmlFound, d6CheckFound, templateConfigRaw, templateYmlRaw }.`,
+    { agentType: 'implementer', schema: PROBE_SCHEMA, label: 'prepare-probe', phase: 'Prepare' }
   );
 } catch (err) {
-  return fatalReport('prepare', `prepare agent threw before fan-out: ${err.message}`, msps.length, { crashed: true });
+  return fatalReport('prepare', `prepare probe agent threw before fan-out: ${err.message}`, msps.length, { crashed: true });
 }
-if (!prep) {
-  return fatalReport('prepare', 'prepare agent returned null (transient drop or blocked before fan-out)', msps.length, { crashed: true });
+if (!probe) {
+  return fatalReport('prepare', 'prepare probe agent returned null (transient drop or blocked before fan-out)', msps.length, { crashed: true });
 }
-const weakenGuard = refuseToWeaken(prep.existingConfig || {}, prep.intendedConfig || {});
-if (weakenGuard.weakens) {
-  return fatalReport('prepare', `refuse to weaken existing stricter gate(s): ${weakenGuard.conflicts.map((c) => `${clean(c.path)}: ${clean(c.existing)} -> ${clean(c.intended)}`).join('; ')}`, msps.length);
+let plan;
+try {
+  plan = decidePrepareActions({ probe, buildConfig, verify });
+} catch (err) {
+  return fatalReport('prepare', `could not read ground-truth config state to decide adopt-vs-bootstrap: ${err.message}`, msps.length);
 }
-log(`mitosis: prepare ready=${prep.ready} (${prep.detail})`);
-if (!prep.ready) {
-  return fatalReport('prepare', prep.detail, msps.length);
+if (plan.writeConfig) {
+  const weakenCheck = refuseToWeakenBounded({}, plan.bootstrapConfig || {});
+  if (weakenCheck.blocked) {
+    return fatalReport('prepare', `refuse to weaken (halted as value, needs human): ${weakenCheck.detail}`, msps.length);
+  }
+  if (weakenCheck.guard.weakens) {
+    return fatalReport('prepare', `refuse to weaken existing stricter gate(s): ${weakenCheck.guard.conflicts.map((c) => `${clean(c.path)}: ${clean(c.existing)} -> ${clean(c.intended)}`).join('; ')}`, msps.length);
+  }
+}
+if (!plan.anyWrite) {
+  log(`mitosis: prepare adopted existing receipts config/workflow/d6 verbatim; nothing to install`);
+} else {
+  const configPath = `${repoRoot}/receipts.config.json`;
+  const ymlPath = `${repoRoot}/.github/workflows/receipts.yml`;
+  const d6Path = `${repoRoot}/scripts/d6-check.cjs`;
+  const requested = [];
+  const writeSections = [];
+  if (plan.writeConfig) {
+    requested.push({ full: configPath, suffix: 'receipts.config.json' });
+    writeSections.push(
+      `${configPath} — it is a single, complete, pretty-printed JSON object; create it with EXACTLY these bytes, verbatim, as the entire file body:\n\n${JSON.stringify(plan.bootstrapConfig, null, 2)}\n`,
+    );
+  }
+  if (plan.writeYml) {
+    requested.push({ full: ymlPath, suffix: '.github/workflows/receipts.yml' });
+    writeSections.push(
+      `${ymlPath} — create ${repoRoot}/.github/workflows/ if needed, then create the file with EXACTLY these bytes, verbatim, as the entire file body:\n\n${plan.ymlBytes}\n`,
+    );
+  }
+  if (plan.generateD6) {
+    requested.push({ full: d6Path, suffix: 'scripts/d6-check.cjs' });
+    writeSections.push(
+      `${d6Path} — create ${repoRoot}/scripts/ if needed, then implement this file per the spec at ${TEMPLATES_DIR}/d6-check.md. Generate it once from that spec.\n`,
+    );
+  }
+  let writeRes;
+  try {
+    writeRes = await agent(
+      `You are the prepare install stage of a mitosis run. You have NO Skill tool.\n\n` +
+      `Target repo: ${repoRoot}. This stage is CREATE-ONLY. Install ONLY the files listed below, each EXACTLY as given. Any receipts file NOT listed here MUST be left untouched — do NOT create, regenerate, reformat, or infer any other file.\n\n` +
+      `For EACH file below, FIRST check whether the path already exists (e.g. \`test -e <path>\`). If it ALREADY EXISTS, do NOT overwrite or modify it — leave it exactly as-is and record its path in the \`skipped\` array. Only create a file whose path is genuinely ABSENT. Never overwrite an existing file under any circumstances.\n\n` +
+      writeSections.map((section, i) => `${i + 1}. ${section}`).join('\n') + `\n` +
+      `After creating the genuinely-absent files, ensure you are on ${baseBranch} (\`git -C ${repoRoot} checkout ${baseBranch}\`), then commit + publish observe-then-converge: run \`git -C ${repoRoot} status --porcelain\` first; if it reports no changes, SKIP both the commit and the push (never create an empty commit, never push an unchanged ref). If there ARE changes, commit them and publish with \`git -C ${repoRoot} push origin ${baseBranch}\` so integration branches cut from origin/${baseBranch} inherit the receipts workflow and PRs targeting ${baseBranch} fire CI.\n\n` +
+      `A path belongs in \`written\` ONLY if you created it AND it is now committed on ${baseBranch} AND pushed to origin/${baseBranch}. If the repo is not a git repo, or has no remote, or the push fails, do NOT list that path in either array — explain in \`detail\`. Use the exact absolute paths shown above.\n\n` +
+      `Return ONLY: { written: ["<paths created AND pushed>"], skipped: ["<paths that already existed>"], detail: "<what you did or why not>" }.`,
+      { agentType: 'implementer', schema: PREPARE_WRITE_SCHEMA, label: 'prepare-write', phase: 'Prepare' }
+    );
+  } catch (err) {
+    return fatalReport('prepare', `prepare install agent threw before fan-out: ${err.message}`, msps.length, { crashed: true });
+  }
+  if (!writeRes) {
+    return fatalReport('prepare', 'prepare install agent returned null (transient drop or blocked before fan-out)', msps.length, { crashed: true });
+  }
+  const writtenList = Array.isArray(writeRes.written) ? writeRes.written.filter((p) => typeof p === 'string') : [];
+  const skippedList = Array.isArray(writeRes.skipped) ? writeRes.skipped.filter((p) => typeof p === 'string') : [];
+  const covered = [...writtenList, ...skippedList];
+  const missing = requested.filter((r) => !covered.some((c) => c === r.full || c.endsWith(r.suffix)));
+  if (missing.length > 0) {
+    return fatalReport('prepare', `receipts scaffolding could not be durably installed: ${missing.map((m) => clean(m.full)).join(', ')} (${clean(writeRes.detail)})`, msps.length);
+  }
+  log(`mitosis: prepare bootstrapped absent receipts file(s): written=[${writtenList.map((p) => clean(p)).join(', ')}] skipped=[${skippedList.map((p) => clean(p)).join(', ')}] (${clean(writeRes.detail)})`);
 }
 
 const shipped = [];
+const parked = [];
+const awaitingApproval = [];
+const blockedByPark = new Set();
+const blockedByApproval = new Set();
 let mergeQueue = Promise.resolve();
 const mspById = new Map(msps.map((m) => [m.id, m]));
 
-async function runClusterChain(clusterIds) {
-  for (let chainIdx = 0; chainIdx < clusterIds.length; chainIdx++) {
-    const msp = mspById.get(clusterIds[chainIdx]);
+async function parkUnit(msp, stage, outcome, integrationBranch, compensationStack) {
+  const request = outcome.tag === 'NeedsHuman' && outcome.request ? outcome.request : { kind: 'approve-decision', what: `${msp.id} could not proceed at ${stage}`, remediation: null, resumePoint: null };
+  const diagnosis = outcome.tag === 'ApproachFixable' && outcome.cause ? outcome.cause.diagnosis : (request.what || `${outcome.tag} at ${stage}`);
+  const resumePoint = (request && request.resumePoint) || { branch: integrationBranch, ref: baseBranch, stage };
+  const deps = transitiveDependents(msps, msp.id);
+  const undoPlan = Array.isArray(compensationStack) && compensationStack.length > 0 ? undoCommandList(compensationStack) : [];
+  const remediation = undoPlan.length > 0 ? { undo: [...undoPlan] } : (request.remediation || null);
+  const triedSet = Array.isArray(outcome.triedSet) ? outcome.triedSet : [];
+  const record = ParkRecord({ unitId: msp.id, stage, diagnosis, request, remediation, resumePoint, triedSet, dependents: deps });
+  parked.push(record);
+  for (const d of deps) blockedByPark.add(d);
+  log(`mitosis[${msp.id}]: PARKED at ${stage} — ${clean(diagnosis)} (kind=${clean(request.kind)}); ${deps.length} dependent(s) blocked`);
+  const link = (mergeQueue = mergeQueue.then(() => persistParkCheckpoint(record)).catch((err) => {
+    log(`mitosis[${msp.id}]: durable park checkpoint failed (${clean(err.message)}); continuing — the manifest is a hint, not the skip authority, so recovery will reconcile shipped state from gh/git on the next relaunch`);
+    return null;
+  }));
+  await link;
+  return outcome;
+}
+
+async function persistParkCheckpoint(record) {
+  try {
+    const readRes = await agent(
+      `You are the park-checkpoint read stage of a mitosis run. You have NO Skill tool.\n\n` +
+      `This stage is STRICTLY READ-ONLY: it inspects durable state so the engine can update it in-process. It makes NO commits and mutates NO files whatsoever.\n\n` +
+      `1. Inspect the run manifest if present: \`cat ${repoRoot}/.mitosis/run.json\`. If the file exists, return its exact raw contents as manifestRaw (a string) and set manifestFound=true; if it is absent, set manifestFound=false and manifestRaw=null. Do NOT parse, repair, or alter it — return the bytes verbatim, the engine parses it.\n\n` +
+      `Return ONLY: { manifestFound, manifestRaw }.`,
+      { agentType: 'implementer', label: `park-read:${record.unitId}`, phase: 'Remediate' }
+    );
+    const priorRaw = readRes && readRes.manifestFound && typeof readRes.manifestRaw === 'string' ? readRes.manifestRaw : null;
+    const parsed = priorRaw ? parseRunManifest(priorRaw) : null;
+    const currentManifest = parsed || { ...buildInitialManifest({ logicalRunId, harnessRunId: input.harnessRunId, spec, repoRoot, baseBranch, sourcePrefix, clusters, msps, specContentHash: observedSpecHash }), parked: [] };
+    const updatedManifest = park(currentManifest, { unitId: record.unitId, stage: record.stage, diagnosis: record.diagnosis, request: record.request, remediation: record.remediation, resumePoint: record.resumePoint, triedSet: record.triedSet });
+    const updatedManifestJson = JSON.stringify(updatedManifest, null, 2);
+    const writeRes = await agent(
+      `You are the park-checkpoint stage of a mitosis run. You have NO Skill tool; follow these instructions directly.\n\n` +
+      `Durably record the parked run manifest so a later relaunch can reconcile against it and resume the parked unit. Operate in ${repoRoot}:\n` +
+      `1. Create the directory ${repoRoot}/.mitosis/ if it does not already exist.\n` +
+      `2. Ensure .mitosis/ is gitignored: if ${repoRoot}/.gitignore does not already ignore it, append a line \`.mitosis/\` to ${repoRoot}/.gitignore. This file is machine run-state and is never committed.\n` +
+      `3. Write the following to ${repoRoot}/.mitosis/run.json, overwriting any existing contents. It is a single, complete, pretty-printed JSON object; write it EXACTLY as given, verbatim, as the entire file body:\n\n` +
+      `${updatedManifestJson}\n\n` +
+      `Do NOT commit, push, or run any other git mutation. Return ONLY: { written: <bool>, detail: "<what you did>" }.`,
+      { agentType: 'implementer', label: `park-checkpoint:${record.unitId}`, phase: 'Remediate' }
+    );
+    if (writeRes == null || writeRes.written === false) {
+      const detail = writeRes && typeof writeRes.detail === 'string' ? ` (${clean(writeRes.detail)})` : '';
+      log(`mitosis[${record.unitId}]: durable park checkpoint write did not persist (written=${writeRes == null ? 'null' : 'false'})${detail}; continuing — the manifest is a hint, not the skip authority, so recovery will reconcile shipped state from gh/git on the next relaunch`);
+    }
+  } catch (err) {
+    log(`mitosis[${record.unitId}]: durable park checkpoint failed (${clean(err.message)}); continuing — the manifest is a hint, not the skip authority, so recovery will reconcile shipped state from gh/git on the next relaunch`);
+  }
+}
+
+async function runUnit(unit) {
+    const msp = mspById.get(unit.id);
     const branchPrefix = `${sourcePrefix}/${msp.id}`;
     const integrationBranch = `${branchPrefix}-integration`;
-    const earlierInChain = clusterIds.slice(0, chainIdx).join(', ') || '(none)';
+    const dependsList = (msp.dependsOn || []).join(', ') || '(none)';
+    let compensationStack = emptyCompensationStack();
 
     if (reconciledShipped.has(msp.id)) {
       const meta = reconciledShippedMeta.get(msp.id) || {};
       const prUrl = meta.prUrl ?? null;
       shipped.push({ mspId: msp.id, prUrl, receiptsPass: null, d6Pass: null });
       log(`mitosis: skipping ${msp.id} — reconciled as already merged (pr ${prUrl})`);
-      continue;
+      return Done({ mspId: msp.id, prUrl });
     }
 
-    phase('Plan');
-    const planned = await dispatchWithRetry(
-      () => agent(
-        `You are the planning stage for MSP "${msp.id}" (${msp.title}) of a mitosis run. You have NO Skill tool.\n\n` +
-        `Locate the superpowers writing-plans skill WITHOUT hardcoding its version: run \`node ${LIB_DIR}/resolve-superpowers.mjs\` if it prints a skillsDir, otherwise glob \`/Users/satanshumishra/.claude/plugins/cache/claude-plugins-official/superpowers/*/skills/writing-plans/SKILL.md\`. Read that SKILL.md and follow it exactly.\n\n` +
-        `Scope: produce an implementation plan for ONLY this MSP: ${msp.rationale}\n` +
-        `Target repo: ${repoRoot}. Earlier MSPs in this cluster's chain (already planned/merged) you may depend on: ${earlierInChain}.\n\n` +
-        `Write the plan to: ${repoRoot}/.mitosis/${msp.id}.plan.md (create the .mitosis directory if absent).\n\n` +
-        `Return ONLY: { planPath: "<absolute path to the plan you wrote>", summary: "<one sentence>" }.`,
-        { agentType: 'implementer', schema: PLAN_SCHEMA, label: `plan:${msp.id}`, phase: 'Plan' }
-      ),
-      { isPermanent: () => false, maxAttempts: retryMaxAttempts, state: retryState },
-    );
-    if (planned && planned.__quarantined) {
-      return { halted: true, quarantined: true, stage: 'plan', mspId: msp.id, error: `plan exhausted ${planned.attempts} attempt(s)`, retries: planned.attempts, redrive: { branch: integrationBranch, ref: baseBranch, stage: 'plan' } };
+    const resume = resumeMap.get(msp.id) || null;
+    const RESUME_STAGE_ORDER = ['plan', 'harden', 'branch', 'execute', 'ship'];
+    const resumeStartIdx = resume ? RESUME_STAGE_ORDER.indexOf(resume.stage) : 0;
+    const skipPlan = resumeStartIdx > 0;
+    const planTriedSeed = resume && resume.stage === 'plan' ? resume.triedSet : undefined;
+    const hardenTriedSeed = resume && resume.stage === 'harden' ? resume.triedSet : undefined;
+
+    let planned;
+    if (skipPlan) {
+      planned = { planPath: `${repoRoot}/.mitosis/${msp.id}.plan.md`, summary: 'resumed from a prior parked run' };
+      log(`mitosis[${msp.id}]: resuming at ${clean(resume.stage)} (skipping Plan) — plan artifact assumed present at ${planned.planPath}`);
+    } else {
+      phase('Plan');
+      const planOutcome = await supervisedDispatch(
+        (attemptNo, preamble) => agent(
+          `You are the planning stage for MSP "${msp.id}" (${msp.title}) of a mitosis run. You have NO Skill tool.\n\n` +
+          `Locate the superpowers writing-plans skill WITHOUT hardcoding its version: run \`node ${LIB_DIR}/resolve-superpowers.mjs\` if it prints a skillsDir, otherwise glob \`/Users/satanshumishra/.claude/plugins/cache/claude-plugins-official/superpowers/*/skills/writing-plans/SKILL.md\`. Read that SKILL.md and follow it exactly.\n\n` +
+          `Scope: produce an implementation plan for ONLY this MSP: ${msp.rationale}\n` +
+          `Target repo: ${repoRoot}. Earlier MSPs in this cluster's chain (already planned/merged) you may depend on: ${dependsList}.\n\n` +
+          `Write the plan to: ${repoRoot}/.mitosis/${msp.id}.plan.md (create the .mitosis directory if absent).\n\n` +
+          `Return ONLY: { planPath: "<absolute path to the plan you wrote>", summary: "<one sentence>" }.`,
+          { agentType: 'implementer', schema: PLAN_SCHEMA, label: `plan:${msp.id}`, phase: 'Plan' }
+        ),
+        { unitId: msp.id, stage: 'plan', resetRef: baseBranch, worktree: null, task: msp.rationale, triedSet: planTriedSeed, ...makeRemediation({ unitId: msp.id, stage: 'plan', task: msp.rationale, schema: PLAN_SCHEMA, agentType: 'implementer', phase: 'Plan' }), compensate: makeCompensate(null, baseBranch) },
+      );
+      if (planOutcome.tag !== 'Done') return parkUnit(msp, 'plan', planOutcome, integrationBranch, compensationStack);
+      planned = planOutcome.value;
     }
     log(`mitosis[${msp.id}]: planned -> ${planned.planPath}`);
 
     phase('Harden');
-    const hardened = await dispatchWithRetry(
-      () => agent(
+    const hardenOutcome = await supervisedDispatch(
+      (attemptNo, preamble) => agent(
         `You are the harden+route stage for MSP "${msp.id}" of a mitosis run. You have NO Skill tool.\n\n` +
         `Read and follow: ${GRAPH_SKILL}\n` +
         `Input plan: ${planned.planPath}\n\n` +
@@ -1340,11 +2433,10 @@ async function runClusterChain(clusterIds) {
         `Return ONLY: { engineArgs: <the 14-key object>, route: { rule, lane, isolation, N, notes } }.`,
         { agentType: 'implementer', schema: HARDEN_SCHEMA, label: `harden:${msp.id}`, phase: 'Harden' }
       ),
-      { isPermanent: () => false, maxAttempts: retryMaxAttempts, state: retryState },
+      { unitId: msp.id, stage: 'harden', resetRef: baseBranch, worktree: null, task: `harden and route ${msp.id}`, triedSet: hardenTriedSeed, ...makeRemediation({ unitId: msp.id, stage: 'harden', task: `harden and route ${msp.id}`, schema: HARDEN_SCHEMA, agentType: 'implementer', phase: 'Harden' }), compensate: makeCompensate(null, baseBranch) },
     );
-    if (hardened && hardened.__quarantined) {
-      return { halted: true, quarantined: true, stage: 'harden', mspId: msp.id, error: `harden exhausted ${hardened.attempts} attempt(s)`, retries: hardened.attempts, redrive: { branch: integrationBranch, ref: baseBranch, stage: 'harden' } };
-    }
+    if (hardenOutcome.tag !== 'Done') return parkUnit(msp, 'harden', hardenOutcome, integrationBranch, compensationStack);
+    const hardened = hardenOutcome.value;
     log(`mitosis[${msp.id}]: hardened lane=${hardened.route.lane} isolation=worktree(forced) N~${hardened.route.N}`);
 
     if (
@@ -1352,12 +2444,7 @@ async function runClusterChain(clusterIds) {
       hardened.engineArgs.isolation !== 'worktree' ||
       hardened.engineArgs.branchPrefix !== branchPrefix
     ) {
-      return {
-        halted: true,
-        stage: 'harden',
-        mspId: msp.id,
-        detail: `engineArgs invariant violated: baseBranch=${hardened.engineArgs.baseBranch} isolation=${hardened.engineArgs.isolation} branchPrefix=${hardened.engineArgs.branchPrefix}`,
-      };
+      return parkUnit(msp, 'harden', NeedsHuman({ kind: 'approve-decision', what: `engineArgs invariant violated: baseBranch=${hardened.engineArgs.baseBranch} isolation=${hardened.engineArgs.isolation} branchPrefix=${hardened.engineArgs.branchPrefix}`, remediation: null, resumePoint: null }), integrationBranch);
     }
 
     if (
@@ -1365,21 +2452,11 @@ async function runClusterChain(clusterIds) {
       hardened.engineArgs.tasks === null ||
       Array.isArray(hardened.engineArgs.tasks)
     ) {
-      return {
-        halted: true,
-        stage: 'harden',
-        mspId: msp.id,
-        detail: `engineArgs.tasks must be a non-null, non-array object; got ${Array.isArray(hardened.engineArgs.tasks) ? 'array' : typeof hardened.engineArgs.tasks}`,
-      };
+      return parkUnit(msp, 'harden', NeedsHuman({ kind: 'approve-decision', what: `engineArgs.tasks must be a non-null, non-array object; got ${Array.isArray(hardened.engineArgs.tasks) ? 'array' : typeof hardened.engineArgs.tasks}`, remediation: null, resumePoint: null }), integrationBranch);
     }
 
     if (!Array.isArray(hardened.engineArgs.waves)) {
-      return {
-        halted: true,
-        stage: 'harden',
-        mspId: msp.id,
-        detail: `engineArgs.waves must be an array; got ${typeof hardened.engineArgs.waves}`,
-      };
+      return parkUnit(msp, 'harden', NeedsHuman({ kind: 'approve-decision', what: `engineArgs.waves must be an array; got ${typeof hardened.engineArgs.waves}`, remediation: null, resumePoint: null }), integrationBranch);
     }
 
     const waveTaskIds = (hardened.engineArgs.waves || []).flat();
@@ -1391,12 +2468,7 @@ async function runClusterChain(clusterIds) {
       waveTaskIds.some((id) => !taskKeySet.has(id)) ||
       taskKeys.some((id) => !waveIdSet.has(id));
     if (tasksWavesMismatch) {
-      return {
-        halted: true,
-        stage: 'harden',
-        mspId: msp.id,
-        detail: `engineArgs.tasks keys (${taskKeys.join(', ')}) do not match the task ids referenced in engineArgs.waves (${waveTaskIds.join(', ')})`,
-      };
+      return parkUnit(msp, 'harden', NeedsHuman({ kind: 'approve-decision', what: `engineArgs.tasks keys (${taskKeys.join(', ')}) do not match the task ids referenced in engineArgs.waves (${waveTaskIds.join(', ')})`, remediation: null, resumePoint: null }), integrationBranch);
     }
 
     if (
@@ -1405,102 +2477,142 @@ async function runClusterChain(clusterIds) {
       Array.isArray(hardened.engineArgs.prompts) ||
       !Object.values(hardened.engineArgs.prompts).every((v) => typeof v === 'string')
     ) {
-      return {
-        halted: true,
-        stage: 'harden',
-        mspId: msp.id,
-        detail: 'engineArgs.prompts must be a non-null, non-array object whose values are all strings',
-      };
+      return parkUnit(msp, 'harden', NeedsHuman({ kind: 'approve-decision', what: 'engineArgs.prompts must be a non-null, non-array object whose values are all strings', remediation: null, resumePoint: null }), integrationBranch);
     }
 
     const aggregatedScope = aggregateMspFileScope(hardened.engineArgs.tasks);
     log(`mitosis[${msp.id}]: aggregated write-set = ${aggregatedScope.length} path(s)`);
 
     phase('Branch');
-    const branched = await agent(
-      `You are the branch-prep stage for MSP "${msp.id}" of a mitosis run. You have NO Skill tool.\n\n` +
-      `Create/move this MSP's integration REF FRESH onto the latest pushed base so it stacks bottom-up on already-merged MSPs, WITHOUT moving the main-repo HEAD (sibling clusters share this repo's working tree; the engine's per-instance integration worktree is what checks the ref out). Operate against the main repo at ${repoRoot}; do NOT check out the branch and do NOT enter any worktree.\n` +
-      `1. \`git -C ${repoRoot} fetch origin ${baseBranch}\`\n` +
-      `2. Observe-then-converge the integration ref (idempotent under replay): check whether ${integrationBranch} already points at origin/${baseBranch} - \`git -C ${repoRoot} rev-parse --verify --quiet ${integrationBranch}\` compared to \`git -C ${repoRoot} rev-parse origin/${baseBranch}\`. If they already match, the ref is already positioned - SKIP the update. Otherwise move it FRESH onto the pushed base: \`git -C ${repoRoot} branch -f ${integrationBranch} origin/${baseBranch}\` (this ref is local and never-pushed here, so a destructive branch move is safe forward compensation).\n\n` +
-      `If both succeed, set ready=true. If the fetch or branch update fails (no remote, missing base), set ready=false and explain in detail.\n\n` +
-      `Return ONLY: { ready: <bool>, detail: "<what happened>" }.`,
-      { agentType: 'implementer', schema: BRANCH_SCHEMA, label: `branch:${msp.id}`, phase: 'Branch' }
+    const branchOutcome = await supervisedDispatch(
+      (attemptNo, preamble) => agent(
+        `You are the branch-prep stage for MSP "${msp.id}" of a mitosis run. You have NO Skill tool.\n\n` +
+        `Create/move this MSP's integration REF FRESH onto the latest pushed base so it stacks bottom-up on already-merged MSPs, WITHOUT moving the main-repo HEAD (sibling clusters share this repo's working tree; the engine's per-instance integration worktree is what checks the ref out). Operate against the main repo at ${repoRoot}; do NOT check out the branch and do NOT enter any worktree.\n` +
+        `1. \`git -C ${repoRoot} fetch origin ${baseBranch}\`\n` +
+        `2. Observe-then-converge the integration ref (idempotent under replay): check whether ${integrationBranch} already points at origin/${baseBranch} - \`git -C ${repoRoot} rev-parse --verify --quiet ${integrationBranch}\` compared to \`git -C ${repoRoot} rev-parse origin/${baseBranch}\`. If they already match, the ref is already positioned - SKIP the update. Otherwise move it FRESH onto the pushed base: \`git -C ${repoRoot} branch -f ${integrationBranch} origin/${baseBranch}\` (this ref is local and never-pushed here, so a destructive branch move is safe forward compensation).\n\n` +
+        `If both succeed, set ready=true. If the fetch or branch update fails (no remote, missing base), set ready=false and explain in detail.\n\n` +
+        `Return ONLY: { ready: <bool>, detail: "<what happened>" }.`,
+        { agentType: 'implementer', schema: BRANCH_SCHEMA, label: `branch:${msp.id}`, phase: 'Branch' }
+      ),
+      { unitId: msp.id, stage: 'branch', resetRef: baseBranch, worktree: null, task: `branch-prep ${msp.id} onto ${baseBranch}`, ...makeRemediation({ unitId: msp.id, stage: 'branch', task: `branch-prep ${msp.id} onto ${baseBranch}`, schema: BRANCH_SCHEMA, agentType: 'implementer', phase: 'Branch' }), compensate: makeCompensate(null, baseBranch) },
     );
-    if (!branched) {
-      return { halted: true, crashed: true, stage: 'branch', mspId: msp.id, error: 'branch agent returned null (transient drop or blocked, guarded-not-retried)' };
-    }
+    if (branchOutcome.tag !== 'Done') return parkUnit(msp, 'branch', branchOutcome, integrationBranch, compensationStack);
+    const branched = branchOutcome.value;
     log(`mitosis[${msp.id}]: branch ready=${branched.ready} (${branched.detail})`);
     if (!branched.ready) {
-      return { halted: true, stage: 'branch', mspId: msp.id, detail: branched.detail };
+      return parkUnit(msp, 'branch', NeedsHuman({ kind: 'approve-decision', what: branched.detail, remediation: null, resumePoint: null }), integrationBranch, compensationStack);
     }
+    compensationStack = registerEffect(compensationStack, { kind: 'local-branch', ref: integrationBranch });
 
     phase('Execute');
     const engineResult = await runEngine(
       { ...hardened.engineArgs, retry: { maxAttempts: retryMaxAttempts, state: retryState }, fingerprintBase: `origin/${baseBranch}` },
-      { agent, parallel, log, phase, dispatchWithRetry },
+      { agent, parallel, log, phase, dispatchWithRetry: supervisedEngineDispatch, makeRemediation },
     );
     if (engineResult.halted) {
       log(`mitosis[${msp.id}]: engine HALTED at ${engineResult.haltReason && engineResult.haltReason.stage}`);
       const failed = (engineResult.haltReason && engineResult.haltReason.failed) || [];
       const q = failed.find((f) => f && f.quarantined);
       if (q) {
-        return { halted: true, quarantined: true, stage: 'execute', mspId: msp.id, error: q.quarantined.error, retries: q.quarantined.retries, redrive: { branch: integrationBranch, ref: baseBranch, stage: 'execute' } };
+        return parkUnit(msp, 'execute', NeedsHuman({ kind: 'approve-decision', what: q.quarantined.error, remediation: null, resumePoint: { branch: integrationBranch, ref: baseBranch, stage: 'execute' } }), integrationBranch, compensationStack);
       }
-      return { halted: true, stage: 'execute', mspId: msp.id, haltReason: engineResult.haltReason };
+      return parkUnit(msp, 'execute', NeedsHuman({ kind: 'approve-decision', what: `engine halted: ${JSON.stringify(engineResult.haltReason).slice(0, 400)}`, remediation: null, resumePoint: { branch: integrationBranch, ref: baseBranch, stage: 'execute' } }), integrationBranch, compensationStack);
     }
     log(`mitosis[${msp.id}]: engine OK boundary=${engineResult.boundary && engineResult.boundary.pass}`);
 
-    async function shipOneMsp(msp, clusterIds, i) {
+    async function shipOneMsp() {
       phase('Ship');
+      const revalidateClause = isAutonomous ? 'before merging' : 'before opening the PR';
+      const idempotencyScope = isAutonomous ? 'no duplicate branch, push, PR, or merge' : 'no duplicate branch, push, or PR';
+      const shipStep7 = isAutonomous
+        ? `7. If CI is GREEN, squash-merge the PR at the published boundary (one squash per MSP) and set merged=true. If CI is RED on the fresh base, do NOT merge: set merged=false and put the failing job/step and first failing assertion in detail.\n\n`
+        : `7. This run is HUMAN-GATED: do NOT merge the PR yourself and perform no merge of any kind. Leave the PR open for a human to review and merge. If CI is GREEN, STOP with the PR left open and return { merged: false, awaitingApproval: true, prUrl: "<the pr url>", receiptsPass: true, d6Pass: true, detail: "CI green; PR <url> open and awaiting human approval to merge" }. If CI is RED on the fresh base, return { merged: false, awaitingApproval: false, prUrl: "<the pr url>", receiptsPass: <bool>, d6Pass: <bool>, detail: "<failing job/step and first failing assertion>" }.\n\n`;
+      const shipReturnLine = isAutonomous
+        ? `Return ONLY: { merged: <bool>, prUrl: "<url>", receiptsPass: <bool>, d6Pass: <bool>, manifestWritten: <bool>, detail: "<summary>" }.`
+        : `Return ONLY: { merged: false, awaitingApproval: <bool>, prUrl: "<url>", receiptsPass: <bool>, d6Pass: <bool>, detail: "<summary>" }.`;
       const ship = await agent(
         `You are the ship stage for MSP "${msp.id}" of a mitosis run. You have NO Skill tool.\n\n` +
-        `Repo: ${repoRoot}. The engine has already integrated this MSP's work onto the LOCAL branch ${JSON.stringify(integrationBranch)} (boundary-validated, merged, never pushed). Sibling clusters merge into ${JSON.stringify(baseBranch)} concurrently, so you MUST revalidate on the FRESH combined base before merging.\n` +
+        `Repo: ${repoRoot}. The engine has already integrated this MSP's work onto the LOCAL branch ${JSON.stringify(integrationBranch)} (boundary-validated, merged, never pushed). Sibling clusters merge into ${JSON.stringify(baseBranch)} concurrently, so you MUST revalidate on the FRESH combined base ${revalidateClause}.\n` +
         `Branch contract is PRE-RESOLVED: head = ${JSON.stringify(integrationBranch)}, base/target = ${JSON.stringify(baseBranch)}. Do NOT derive a base from the platform default; use exactly this base.\n\n` +
-        `Every git side effect below is OBSERVE-THEN-CONVERGE: check the durable oracle (PR state / remote ref) BEFORE acting so a whole-agent replay after a crash is idempotent (no duplicate branch, push, PR, or merge). Compensation is forward-only on shared refs: never rewrite history on a pushed ref; the only permitted force is the documented \`--force-with-lease\` retry after your OWN in-attempt rebase.\n\n` +
+        `Every git side effect below is OBSERVE-THEN-CONVERGE: check the durable oracle (PR state / remote ref) BEFORE acting so a whole-agent replay after a crash is idempotent (${idempotencyScope}). Compensation is forward-only on shared refs: never rewrite history on a pushed ref; the only permitted force is the documented \`--force-with-lease\` retry after your OWN in-attempt rebase.\n\n` +
         `1. DONE-ORACLE FIRST (idempotent replay guard): before anything else, ask whether this MSP's PR is already merged: \`gh pr view ${integrationBranch} --json state,mergedAt,url\`. If it reports state MERGED (mergedAt is non-null), this MSP already shipped on a prior attempt; do NOT rebase, push, open, or merge anything (re-running would produce a garbled second PR). Immediately return { merged: true, prUrl: "<the url it reported>", receiptsPass: true, d6Pass: true, detail: "already merged (done-oracle skip)" } and STOP.\n` +
         `2. Refresh the base: \`git -C ${repoRoot} fetch origin ${baseBranch}\`.\n` +
         `3. Detect whether a sibling cluster advanced the base since this integration ref was cut: run \`git -C ${repoRoot} merge-base --is-ancestor origin/${baseBranch} ${integrationBranch}\`. Exit 0 = the base tip is already contained (no rebase needed); exit 1 = the base advanced, a sibling landed, rebase required.\n` +
         `4. Fresh-base (receipts G8): if the base advanced, run \`git -C ${repoRoot} rebase origin/${baseBranch} ${integrationBranch}\`. If the rebase reports conflicts, run \`git -C ${repoRoot} rebase --abort\` and STOP with merged=false and detail naming the conflicting paths (a cross-cluster file collision the coarse clustering missed - a human must resolve); on conflict do NOT publish anything. If the rebase replayed cleanly (or no rebase was needed), PUBLISH observe-then-converge: check whether the remote already has this exact head with \`git -C ${repoRoot} ls-remote --heads origin ${integrationBranch}\` and compare it to \`git -C ${repoRoot} rev-parse ${integrationBranch}\`. If origin/${integrationBranch} already equals the local head, the push already happened on a prior attempt - SKIP the push. Otherwise publish: \`git -C ${repoRoot} push -u origin ${integrationBranch}\` (this branch was never pushed before ship, so a first-time publish fast-forwards). ONLY if that push is REJECTED as non-fast-forward (a retry where this branch was already published and has since been rebased) retry once with \`git -C ${repoRoot} push --force-with-lease -u origin ${integrationBranch}\` - this is the sole permitted force, scoped to your own rebase.\n` +
-        `5. Open ONE pull request observe-then-converge: FIRST check for an existing open PR - \`gh pr list --head ${integrationBranch} --base ${baseBranch} --state open --json url,number\`. If one exists, REUSE it (do NOT open a second). Only if none exists, open a new PR with head ${integrationBranch} onto base ${baseBranch}, stacked bottom-up on already-merged MSPs (${earlierInChain}).\n` +
+        `5. Open ONE pull request observe-then-converge: FIRST check for an existing open PR - \`gh pr list --head ${integrationBranch} --base ${baseBranch} --state open --json url,number\`. If one exists, REUSE it (do NOT open a second). Only if none exists, open a new PR with head ${integrationBranch} onto base ${baseBranch}, stacked bottom-up on already-merged MSPs (${dependsList}).\n` +
         `6. Wait for CI to finish on the FRESH head+base with \`gh run watch --exit-status\`: the receipts red->green enforcer + G9 full-suite + the D6 cluster-boundary step. Because the PR base is origin/${baseBranch} (now including every sibling that already merged) and the head is the rebased tip, the D6 step computes NEW base..head dependents over the COMBINED post-rebase state - not this cluster's changes in isolation.\n` +
-        `7. If CI is GREEN, squash-merge the PR at the published boundary (one squash per MSP) and set merged=true. If CI is RED on the fresh base, do NOT merge: set merged=false and put the failing job/step and first failing assertion in detail.\n\n` +
+        shipStep7 +
+        (isAutonomous ? (
         `8. ONLY after the squash-merge succeeds (merged=true), durably record this ship into the SINGLE-object run manifest so a crash or disconnect cannot lose it and so it never corrupts the manifest the engine checkpointed. Operate in ${repoRoot}:\n` +
         `   a. Ensure \`.mitosis/\` is gitignored: if ${repoRoot}/.gitignore does not already ignore it, append a line \`.mitosis/\` to ${repoRoot}/.gitignore. Never weaken or remove an existing ignore rule.\n` +
         `   b. Read ${repoRoot}/.mitosis/run.json and parse it as a SINGLE JSON object. If the file is absent, empty, or does not parse as one JSON object (for example it holds a legacy sequence of separate JSON records rather than one object), reconstruct the minimal object \`{ "logicalRunId": "${logicalRunId}", "msps": [] }\` and use that as the current manifest - do NOT abort.\n` +
         `   c. In that manifest's \`msps\` array, find the entry whose \`id\` equals "${msp.id}". If it exists, set ONLY that entry's \`status\` to "shipped", its \`prUrl\` to the merged PR url, and its \`mergedAt\` to the ISO-8601 timestamp gh reported, leaving every other field of that entry and every other entry unchanged. If no such entry exists, append exactly this entry: \`{ "id": "${msp.id}", "title": ${JSON.stringify(msp.title)}, "rationale": ${JSON.stringify(msp.rationale)}, "status": "shipped", "integrationBranch": ${JSON.stringify(integrationBranch)}, "prUrl": "<the pr url>", "mergedAt": "<iso8601>", "dependsOn": [], "fileScope": [] }\`. Preserve every other top-level field of the manifest verbatim.\n` +
         `   d. Write the whole updated manifest back to ${repoRoot}/.mitosis/run.json, OVERWRITING the file so its ENTIRE body is ONE single pretty-printed JSON object (not a sequence of separate records). Re-running this step sets the same terminal shipped state for this MSP (idempotent), so a replay overwrites in place with no duplicate entry and no divergent record.\n` +
-        `   This durable write is a best-effort HINT, not the source of truth - the engine reconciles shipped state from gh/git on the next relaunch. If step 8 fails to read, parse, or write the file AFTER the merge already succeeded, do NOT throw and do NOT set merged=false: the merge stands. Instead return merged=true with manifestWritten=false and note the failure in detail. On a successful write return manifestWritten=true. This file is machine run-state, never committed.\n\n` +
-        `Return ONLY: { merged: <bool>, prUrl: "<url>", receiptsPass: <bool>, d6Pass: <bool>, manifestWritten: <bool>, detail: "<summary>" }.`,
+        `   This durable write is a best-effort HINT, not the source of truth - the engine reconciles shipped state from gh/git on the next relaunch. If step 8 fails to read, parse, or write the file AFTER the merge already succeeded, do NOT throw and do NOT set merged=false: the merge stands. Instead return merged=true with manifestWritten=false and note the failure in detail. On a successful write return manifestWritten=true. This file is machine run-state, never committed.\n\n`
+        ) : '') +
+        shipReturnLine,
         { agentType: 'implementer', schema: SHIP_SCHEMA, label: `ship:${msp.id}`, phase: 'Ship' }
       );
       if (!ship) {
         log(`mitosis[${msp.id}]: ship agent returned null (blocked by permission classifier or died before returning)`);
         return { halted: true, crashed: true, stage: 'ship', mspId: msp.id, error: 'ship agent returned null (blocked by permission classifier or died before returning)' };
       }
-      if (!ship.merged) {
+      if (!isAutonomous && ship.merged !== true && ship.awaitingApproval === true) {
+        log(`mitosis[${msp.id}]: PR open, awaiting human approval -> ${ship.prUrl}`);
+        return { halted: false, awaiting: true, mspId: msp.id, prUrl: ship.prUrl, receiptsPass: ship.receiptsPass, d6Pass: ship.d6Pass };
+      }
+      if (ship.merged !== true) {
         log(`mitosis[${msp.id}]: ship BLOCKED (${ship.detail})`);
-        return { halted: true, stage: 'ship', mspId: msp.id, detail: ship.detail, receiptsPass: ship.receiptsPass, d6Pass: ship.d6Pass, shipped, mspCount: msps.length };
+        return { halted: true, stage: 'ship', mspId: msp.id, detail: ship.detail, receiptsPass: ship.receiptsPass, d6Pass: ship.d6Pass };
       }
       log(`mitosis[${msp.id}]: shipped -> ${ship.prUrl}`);
-      shipped.push({ mspId: msp.id, prUrl: ship.prUrl, receiptsPass: ship.receiptsPass, d6Pass: ship.d6Pass, clusterIds, aggregatedScope });
+      shipped.push({ mspId: msp.id, prUrl: ship.prUrl, receiptsPass: ship.receiptsPass, d6Pass: ship.d6Pass, dependsOn: msp.dependsOn || [], aggregatedScope });
       if (ship.manifestWritten === false) {
         log(`mitosis[${msp.id}]: shipped, but the durable manifest write failed (manifestWritten=false) - the merge stands; recovery will reconcile shipped state from gh/git on the next relaunch`);
       }
       return { halted: false, mspId: msp.id, prUrl: ship.prUrl };
     }
 
-    const i = chainIdx;
-    const link = (mergeQueue = mergeQueue.then(() => shipOneMsp(msp, clusterIds, i)).catch((err) => ({ halted: true, crashed: true, stage: 'ship', mspId: msp.id, error: `ship threw: ${err.message}` })));
+    const link = (mergeQueue = mergeQueue.then(() => shipOneMsp()).catch((err) => ({ halted: true, crashed: true, stage: 'ship', mspId: msp.id, error: `ship threw: ${err.message}` })));
     const ship = await link;
-    if (ship.halted) return ship;
-  }
-  return { halted: false };
+    if (ship.halted) {
+      return parkUnit(msp, 'ship', NeedsHuman({ kind: 'approve-decision', what: ship.detail || ship.error || 'ship halted', remediation: null, resumePoint: { branch: integrationBranch, ref: baseBranch, stage: 'ship' } }), integrationBranch, compensationStack);
+    }
+    if (ship.awaiting) {
+      awaitingApproval.push({ mspId: msp.id, prUrl: ship.prUrl, receiptsPass: ship.receiptsPass, d6Pass: ship.d6Pass, dependsOn: msp.dependsOn || [] });
+      for (const d of transitiveDependents(msps, msp.id)) blockedByApproval.add(d);
+      return AwaitingApproval({ mspId: msp.id, prUrl: ship.prUrl });
+    }
+    return Done({ mspId: msp.id, prUrl: ship.prUrl });
 }
 
-let chainResults;
+let scheduleResult;
 try {
-  chainResults = await parallel(clusters.map((cluster) => () => runClusterChain(cluster)));
+  scheduleResult = await runSchedule(
+    msps.map((m) => ({ id: m.id, prereqs: m.dependsOn || [], fileScope: m.fileScope || [] })),
+    (unit) => runUnit(unit),
+  );
 } catch (err) {
-  return fatalReport('cluster', `cluster fan-out await rejected: ${err.message}`, msps.length, { crashed: true });
+  return fatalReportShipped('schedule', `scheduler fan-out rejected: ${err.message}`, msps.length, shipped, { crashed: true });
 }
-return assembleRunReport({ clusters, chainResults, shipped, mspCount: msps.length });
+
+const shippedIds = new Set(shipped.map((s) => s.mspId));
+const directParkedIds = new Set(parked.map((p) => p.unitId));
+const awaitingApprovalIds = new Set(awaitingApproval.map((a) => a.mspId));
+const halted = [];
+for (const u of scheduleResult.units) {
+  if (u.state === 'done' || shippedIds.has(u.id)) continue;
+  if (directParkedIds.has(u.id)) continue;
+  if (awaitingApprovalIds.has(u.id)) continue;
+  if (blockedByApproval.has(u.id) && !blockedByPark.has(u.id)) {
+    parked.push(ParkRecord({ unitId: u.id, stage: 'blocked', diagnosis: BLOCKED_PENDING_APPROVAL_DIAGNOSIS, request: { kind: AWAITING_UPSTREAM_KIND, what: `${BLOCKED_PENDING_APPROVAL_DIAGNOSIS} (${u.id} depends on an MSP awaiting approval)` }, remediation: null, resumePoint: { branch: `${sourcePrefix}/${u.id}-integration`, ref: baseBranch, stage: 'plan' }, triedSet: [], dependents: [] }));
+    continue;
+  }
+  if (blockedByPark.has(u.id)) {
+    parked.push(ParkRecord({ unitId: u.id, stage: 'blocked', diagnosis: 'blocked by a parked prerequisite', request: { kind: 'approve-decision', what: `resolve the parked prerequisite before ${u.id} can run` }, remediation: null, resumePoint: { branch: `${sourcePrefix}/${u.id}-integration`, ref: baseBranch, stage: 'plan' }, triedSet: [], dependents: [] }));
+    continue;
+  }
+  halted.push(haltedOutcome(u.id, 'schedule', `unit ${u.id} did not reach a terminal shipped or parked state (state=${u.state})`));
+}
+
+return assembleReport({ shipped, parked, halted, crashed: [], awaitingApproval, mspCount: msps.length });
