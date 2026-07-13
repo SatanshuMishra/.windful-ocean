@@ -1075,7 +1075,6 @@ const SHIP_SCHEMA = {
     prUrl: { type: 'string' },
     receiptsPass: { type: 'boolean' },
     d6Pass: { type: 'boolean' },
-    manifestWritten: { type: 'boolean' },
     detail: { type: 'string' },
   },
 };
@@ -2604,6 +2603,39 @@ async function persistBuiltCheckpoint({ unitId, checkpointRef: builtRef, sha }) 
   }
 }
 
+async function persistShipCheckpoint({ unitId, prUrl, mergedAt, title, rationale }) {
+  try {
+    const readRes = await agent(
+      `You are the ship-checkpoint read stage of a mitosis run. You have NO Skill tool.\n\n` +
+      `This stage is STRICTLY READ-ONLY: it inspects durable state so the engine can update it in-process. It makes NO commits and mutates NO files whatsoever.\n\n` +
+      `1. Inspect the run manifest if present: \`cat ${repoRoot}/.mitosis/run.json\`. If the file exists, return its exact raw contents as manifestRaw (a string) and set manifestFound=true; if it is absent, set manifestFound=false and manifestRaw=null. Do NOT parse, repair, or alter it — return the bytes verbatim, the engine parses it.\n\n` +
+      `Return ONLY: { manifestFound, manifestRaw }.`,
+      { agentType: 'implementer', label: `ship-read:${unitId}`, phase: 'Ship' }
+    );
+    const priorRaw = readRes && readRes.manifestFound && typeof readRes.manifestRaw === 'string' ? readRes.manifestRaw : null;
+    const parsed = priorRaw ? parseRunManifest(priorRaw) : null;
+    const currentManifest = parsed || { ...buildInitialManifest({ logicalRunId, harnessRunId: input.harnessRunId, spec, repoRoot, baseBranch, sourcePrefix, clusters, msps, specContentHash: observedSpecHash }), parked: [] };
+    const updatedManifest = applyShipTransition(currentManifest, { mspId: unitId, prUrl, mergedAt, title, rationale });
+    const updatedManifestJson = JSON.stringify(updatedManifest, null, 2);
+    const writeRes = await agent(
+      `You are the ship-checkpoint stage of a mitosis run. You have NO Skill tool; follow these instructions directly.\n\n` +
+      `Durably record the shipped run manifest so a later relaunch can reconcile shipped work against it. Operate in ${repoRoot}:\n` +
+      `1. Create the directory ${repoRoot}/.mitosis/ if it does not already exist.\n` +
+      `2. Ensure .mitosis/ is gitignored: if ${repoRoot}/.gitignore does not already ignore it, append a line \`.mitosis/\` to ${repoRoot}/.gitignore. This file is machine run-state and is never committed.\n` +
+      `3. Write the following to ${repoRoot}/.mitosis/run.json, overwriting any existing contents. It is a single, complete, pretty-printed JSON object; write it EXACTLY as given, verbatim, as the entire file body:\n\n` +
+      `${updatedManifestJson}\n\n` +
+      `Do NOT commit, push, or run any other git mutation. Return ONLY: { written: <bool>, detail: "<what you did>" }.`,
+      { agentType: 'implementer', label: `ship-checkpoint:${unitId}`, phase: 'Ship' }
+    );
+    if (writeRes == null || writeRes.written === false) {
+      const detail = writeRes && typeof writeRes.detail === 'string' ? ` (${clean(writeRes.detail)})` : '';
+      log(`mitosis[${unitId}]: durable ship checkpoint write did not persist (written=${writeRes == null ? 'null' : 'false'})${detail}; continuing — the manifest is a hint, not the skip authority, so recovery will reconcile shipped state from gh/git on the next relaunch`);
+    }
+  } catch (err) {
+    log(`mitosis[${unitId}]: durable ship checkpoint failed (${clean(err.message)}); continuing — the manifest is a hint, not the skip authority, so recovery will reconcile shipped state from gh/git on the next relaunch`);
+  }
+}
+
 async function runUnit(unit) {
     const msp = mspById.get(unit.id);
     const branchPrefix = `${sourcePrefix}/${msp.id}`;
@@ -2828,18 +2860,19 @@ async function runUnit(unit) {
         `You are the ship-handoff read-back stage for MSP "${msp.id}" of a mitosis run. You have NO Skill tool.\n\n` +
         `This stage is STRICTLY READ-ONLY: it independently RE-READS the durable oracle to confirm the merge the ship stage CLAIMED. Do NOT rebase, push, open, merge, or mutate any ref, file, or PR — only read.\n` +
         `SECURITY: pass every ref as an INERT argv element to execFile-style invocations; NEVER build a command by shell-interpolating a ref into a string.\n\n` +
-        `1. Read the PR state with argv \`gh pr view ${integrationBranch} --json state,mergedAt,url\` (head ${JSON.stringify(integrationBranch)} is a single inert argv token). Report merged=true ONLY if state is MERGED and mergedAt is non-null.\n` +
+        `1. Read the PR state with argv \`gh pr view ${integrationBranch} --json state,mergedAt,url\` (head ${JSON.stringify(integrationBranch)} is a single inert argv token). Report merged=true ONLY if state is MERGED and mergedAt is non-null, and report that mergedAt timestamp verbatim.\n` +
         `2. Read the base...head containment with argv \`gh api repos/{owner}/{repo}/compare/${baseBranch}...${integrationBranch}\` (base ${JSON.stringify(baseBranch)} and head ${JSON.stringify(integrationBranch)} each a separate inert argv token). Report ahead_by (integer) and status (string) exactly as the API returns them; a genuinely merged head is CONTAINED in the base (ahead_by 0).\n` +
-        `If either read cannot be completed (no remote, http error, unparseable body), set readError to a short description and leave merged and compare null.\n\n` +
-        `Return ONLY: { merged: <bool|null>, compare: { ahead_by: <int>, status: "<string>" } | null, readError: "<string>" | null }.`,
+        `If either read cannot be completed (no remote, http error, unparseable body), set readError to a short description and leave merged, compare and mergedAt null.\n\n` +
+        `Return ONLY: { merged: <bool|null>, compare: { ahead_by: <int>, status: "<string>" } | null, mergedAt: "<iso8601>" | null, readError: "<string>" | null }.`,
         { agentType: 'implementer', label: `ship-verify:${msp.id}`, phase: 'Ship' }
       );
       if (rb == null || typeof rb !== 'object') {
-        return { merged: null, compare: null, readError: 'ship-verify read-back returned no parseable result' };
+        return { merged: null, compare: null, mergedAt: null, readError: 'ship-verify read-back returned no parseable result' };
       }
       return {
         merged: rb.merged === undefined ? null : rb.merged,
         compare: rb.compare === undefined ? null : rb.compare,
+        mergedAt: rb.mergedAt === undefined ? null : rb.mergedAt,
         readError: rb.readError === undefined ? null : rb.readError,
       };
     }
@@ -2852,7 +2885,7 @@ async function runUnit(unit) {
         ? `7. If CI is GREEN, squash-merge the PR at the published boundary (one squash per MSP) and set merged=true. If CI is RED on the fresh base, do NOT merge: set merged=false and put the failing job/step and first failing assertion in detail.\n\n`
         : `7. This run is HUMAN-GATED: do NOT merge the PR yourself and perform no merge of any kind. Leave the PR open for a human to review and merge. If CI is GREEN, STOP with the PR left open and return { merged: false, awaitingApproval: true, prUrl: "<the pr url>", receiptsPass: true, d6Pass: true, detail: "CI green; PR <url> open and awaiting human approval to merge" }. If CI is RED on the fresh base, return { merged: false, awaitingApproval: false, prUrl: "<the pr url>", receiptsPass: <bool>, d6Pass: <bool>, detail: "<failing job/step and first failing assertion>" }.\n\n`;
       const shipReturnLine = isAutonomous
-        ? `Return ONLY: { merged: <bool>, prUrl: "<url>", receiptsPass: <bool>, d6Pass: <bool>, manifestWritten: <bool>, detail: "<summary>" }.`
+        ? `Return ONLY: { merged: <bool>, prUrl: "<url>", receiptsPass: <bool>, d6Pass: <bool>, detail: "<summary>" }.`
         : `Return ONLY: { merged: false, awaitingApproval: <bool>, prUrl: "<url>", receiptsPass: <bool>, d6Pass: <bool>, detail: "<summary>" }.`;
       const ship = await agent(
         `You are the ship stage for MSP "${msp.id}" of a mitosis run. You have NO Skill tool.\n\n` +
@@ -2866,14 +2899,6 @@ async function runUnit(unit) {
         `5. Open ONE pull request observe-then-converge: FIRST check for an existing open PR - \`gh pr list --head ${integrationBranch} --base ${baseBranch} --state open --json url,number\`. If one exists, REUSE it (do NOT open a second). Only if none exists, open a new PR with head ${integrationBranch} onto base ${baseBranch}, stacked bottom-up on already-merged MSPs (${dependsList}).\n` +
         `6. Wait for CI to finish on the FRESH head+base with \`gh run watch --exit-status\`: the receipts red->green enforcer + G9 full-suite + the D6 cluster-boundary step. Because the PR base is origin/${baseBranch} (now including every sibling that already merged) and the head is the rebased tip, the D6 step computes NEW base..head dependents over the COMBINED post-rebase state - not this cluster's changes in isolation.\n` +
         shipStep7 +
-        (isAutonomous ? (
-        `8. ONLY after the squash-merge succeeds (merged=true), durably record this ship into the SINGLE-object run manifest so a crash or disconnect cannot lose it and so it never corrupts the manifest the engine checkpointed. Operate in ${repoRoot}:\n` +
-        `   a. Ensure \`.mitosis/\` is gitignored: if ${repoRoot}/.gitignore does not already ignore it, append a line \`.mitosis/\` to ${repoRoot}/.gitignore. Never weaken or remove an existing ignore rule.\n` +
-        `   b. Read ${repoRoot}/.mitosis/run.json and parse it as a SINGLE JSON object. If the file is absent, empty, or does not parse as one JSON object (for example it holds a legacy sequence of separate JSON records rather than one object), reconstruct the minimal object \`{ "logicalRunId": "${logicalRunId}", "msps": [] }\` and use that as the current manifest - do NOT abort.\n` +
-        `   c. In that manifest's \`msps\` array, find the entry whose \`id\` equals "${msp.id}". If it exists, set ONLY that entry's \`status\` to "shipped", its \`prUrl\` to the merged PR url, and its \`mergedAt\` to the ISO-8601 timestamp gh reported, leaving every other field of that entry and every other entry unchanged. If no such entry exists, append exactly this entry: \`{ "id": "${msp.id}", "title": ${JSON.stringify(msp.title)}, "rationale": ${JSON.stringify(msp.rationale)}, "status": "shipped", "integrationBranch": ${JSON.stringify(integrationBranch)}, "prUrl": "<the pr url>", "mergedAt": "<iso8601>", "dependsOn": [], "fileScope": [] }\`. Preserve every other top-level field of the manifest verbatim.\n` +
-        `   d. Write the whole updated manifest back to ${repoRoot}/.mitosis/run.json, OVERWRITING the file so its ENTIRE body is ONE single pretty-printed JSON object (not a sequence of separate records). Re-running this step sets the same terminal shipped state for this MSP (idempotent), so a replay overwrites in place with no duplicate entry and no divergent record.\n` +
-        `   This durable write is a best-effort HINT, not the source of truth - the engine reconciles shipped state from gh/git on the next relaunch. If step 8 fails to read, parse, or write the file AFTER the merge already succeeded, do NOT throw and do NOT set merged=false: the merge stands. Instead return merged=true with manifestWritten=false and note the failure in detail. On a successful write return manifestWritten=true. This file is machine run-state, never committed.\n\n`
-        ) : '') +
         shipReturnLine,
         { agentType: 'implementer', schema: SHIP_SCHEMA, label: `ship:${msp.id}`, phase: 'Ship' }
       );
@@ -2898,9 +2923,7 @@ async function runUnit(unit) {
       }
       log(`mitosis[${msp.id}]: shipped -> ${ship.prUrl} (handoff verified by independent read-back)`);
       shipped.push({ mspId: msp.id, prUrl: ship.prUrl, receiptsPass: ship.receiptsPass, d6Pass: ship.d6Pass, dependsOn: msp.dependsOn || [], aggregatedScope });
-      if (ship.manifestWritten === false) {
-        log(`mitosis[${msp.id}]: shipped, but the durable manifest write failed (manifestWritten=false) - the merge stands; recovery will reconcile shipped state from gh/git on the next relaunch`);
-      }
+      await persistShipCheckpoint({ unitId: msp.id, prUrl: ship.prUrl, mergedAt: readback.mergedAt, title: msp.title, rationale: msp.rationale });
       return { halted: false, mspId: msp.id, prUrl: ship.prUrl };
     }
 
