@@ -91,6 +91,8 @@ function createFakeAgent({ msps, sourcePrefix = SOURCE_PREFIX, planGate, shipRes
         return reconcileResult || { manifestFound: false, manifestRaw: null, mergedPRs: [] };
       case 'checkpoint-init':
         return { written: true, detail: '' };
+      case 'checkpoint-push':
+        return { pushed: true, ref: '', detail: '' };
       case 'decompose':
         return { msps };
       case 'prepare-probe':
@@ -2099,6 +2101,59 @@ test('RESILIENCE-C: a park after local branch/worktree effects have been created
   const remediationText = JSON.stringify(result.parked[0].remediation);
   assert.match(remediationText, /solo-integration/);
   assert.match(remediationText, /git branch -D|git worktree remove/);
+});
+
+test('R2 durable checkpoint: a built unit publishes its integration tip to refs/mitosis/<runId>/<unitId> before it ships', async () => {
+  const input = buildInput();
+  const runId = computeLogicalRunId(input.spec, input.baseBranch);
+  const msps = [mspSpec('solo', { fileScope: ['scope/solo/**'] })];
+  const dispatch = [];
+  const base = createFakeAgent({ msps });
+  const agent = async (prompt, opts = {}) => {
+    const label = opts.label || '';
+    if (label.startsWith('checkpoint-push:') || label.startsWith('ship:')) dispatch.push({ label, prompt });
+    return base(prompt, opts);
+  };
+  const { resultPromise } = invokeMitosis(input, agent);
+  const result = await resultPromise;
+
+  assert.equal(result.overallStatus, 'all-shipped');
+  const pushes = dispatch.filter((d) => d.label.startsWith('checkpoint-push:'));
+  assert.equal(pushes.length, 1, 'a built unit must attempt exactly one durable checkpoint push');
+  assert.equal(pushes[0].label, 'checkpoint-push:solo');
+  assert.match(pushes[0].prompt, new RegExp(`refs/mitosis/${runId}/solo`), 'the checkpoint push targets the namespaced per-unit ref, never a default/unnamespaced ref');
+  assert.match(pushes[0].prompt, /--force-with-lease/, 'the checkpoint push is forward-only: the sole permitted force is --force-with-lease');
+  const pushIdx = dispatch.findIndex((d) => d.label.startsWith('checkpoint-push:'));
+  const shipIdx = dispatch.findIndex((d) => d.label.startsWith('ship:'));
+  assert.ok(pushIdx >= 0 && shipIdx >= 0 && pushIdx < shipIdx, 'the durable checkpoint push must precede the ship stage (intent-before-effect, ahead of any built journal write)');
+});
+
+test('R2 forward-only: a park after the durable checkpoint push has fired never schedules a delete of the checkpoint ref', async () => {
+  const input = buildInput();
+  const runId = computeLogicalRunId(input.spec, input.baseBranch);
+  const msps = [mspSpec('solo', { fileScope: ['scope/solo/**'] })];
+  const pushes = [];
+  const base = createFakeAgent({
+    msps,
+    shipResult: (mspId) => mspId === 'solo'
+      ? { merged: false, prUrl: '', receiptsPass: false, d6Pass: false, detail: 'ci red on fresh base' }
+      : null,
+  });
+  const agent = async (prompt, opts = {}) => {
+    if ((opts.label || '').startsWith('checkpoint-push:')) pushes.push(opts.label);
+    return base(prompt, opts);
+  };
+  const { resultPromise } = invokeMitosis(input, agent);
+  const result = await resultPromise;
+
+  assert.deepEqual(pushes, ['checkpoint-push:solo'], 'the durable checkpoint push fires before the ship stage even on a run that then parks at ship');
+  assert.equal(result.parked.length, 1);
+  assert.equal(result.parked[0].mspId, 'solo');
+  assert.equal(result.parked[0].stage, 'ship');
+  const remediationText = JSON.stringify(result.parked[0].remediation || {});
+  assert.match(remediationText, /git branch -D .*solo-integration/, 'the pre-checkpoint local-branch effect still surfaces its undo');
+  assert.doesNotMatch(remediationText, new RegExp(`refs/mitosis/${runId}/solo`), 'the forward-only checkpoint ref is never scheduled for deletion by backward compensation');
+  assert.doesNotMatch(remediationText, /push origin --delete/, 'no backward undo deletes any pushed ref (checkpoint-push is forward-only)');
 });
 
 test('SECURITY deny-case: a NeedsHuman-supplied resumePoint.stage outside the known stage vocabulary must not be surfaced raw on the public ParkRecord', async () => {
