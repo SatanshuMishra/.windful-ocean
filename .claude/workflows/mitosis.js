@@ -2800,16 +2800,15 @@ async function runUnit(unit) {
       phase('Plan review');
       let planReviewApproved = false;
       for (let reviewIter = 1; reviewIter <= MAX_PLAN_REVIEW_ITERATIONS && !planReviewApproved; reviewIter += 1) {
-        let review = null;
-        try {
-          review = await agent(
+        const reviewOutcome = await supervisedDispatch(
+          (attemptNo, preamble) => agent(
             planReviewPrompt({ unitId: msp.id, title: msp.title, planPath: planned.planPath, rationale: msp.rationale, dependsList, iteration: reviewIter }),
             { agentType: 'solution-architect', schema: PLAN_REVIEW_SCHEMA, label: `plan-review:${msp.id}`, phase: 'Plan review' },
-          );
-        } catch (err) {
-          log(`mitosis[${msp.id}]: plan review iteration ${reviewIter} dispatch failed (${clean(err.message)}) — treating as non-approval`);
-          review = null;
-        }
+          ),
+          { unitId: msp.id, stage: 'plan-review', resetRef: baseBranch, worktree: null, task: `adversarial review of the plan for ${msp.id}` },
+        );
+        if (reviewOutcome.tag !== 'Done') return parkUnit(msp, 'plan-review', reviewOutcome, integrationBranch, compensationStack);
+        const review = reviewOutcome.value;
         if (review && review.verdict === 'approve') {
           planReviewApproved = true;
           log(`mitosis[${msp.id}]: plan review converged (approve) after ${reviewIter} iteration(s)`);

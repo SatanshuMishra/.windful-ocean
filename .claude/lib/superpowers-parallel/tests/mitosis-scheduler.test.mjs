@@ -2775,3 +2775,29 @@ test('PLAN-ARTIFACT guard: a relaunch resuming past Plan whose local plan artifa
   assert.match(result.parked[0].request.what, /local-only/);
   assert.deepEqual(result.parked[0].resumePoint, { branch: `${SOURCE_PREFIX}/solo-integration`, ref: input.baseBranch, stage: 'parallelize' });
 });
+
+test('PLAN-REVIEW infra fail-closed: an unreachable reviewer parks the unit at plan-review (kind grant) without burning review iterations or reaching Parallelize', async () => {
+  const msps = [mspSpec('solo', { fileScope: ['scope/solo/**'] })];
+  const base = createFakeAgent({ msps });
+  const labels = [];
+  const agent = async (prompt, opts = {}) => {
+    const label = opts.label || '';
+    labels.push(label);
+    if (label.startsWith('plan-review:')) throw new Error('reviewer harness unreachable');
+    return base(prompt, opts);
+  };
+  const { resultPromise } = invokeMitosis(buildInput(), agent);
+  const result = await resultPromise;
+
+  assert.equal(result.overallStatus, 'failed');
+  const park = result.parked.find((p) => p.mspId === 'solo');
+  assert.ok(park, 'the unit is parked, not silently dropped');
+  assert.equal(park.stage, 'plan-review');
+  assert.equal(park.request.kind, 'grant');
+  assert.match(park.diagnosis, /unresolved Unknown/);
+  assert.equal(park.resumePoint.stage, 'plan-review');
+  assert.equal(labels.filter((l) => l === 'plan-review:solo').length, 2, 'initial dispatch plus exactly one Unknown probe, no iteration burn');
+  assert.equal(labels.filter((l) => l === 'replan:solo').length, 0, 'an infra failure parks fail-closed without replanning');
+  assert.ok(!labels.some((l) => l.startsWith('parallelize:')), 'an unreviewed plan never reaches Parallelize');
+  assert.ok(!labels.some((l) => l.startsWith('ship:')), 'an unreviewed plan never reaches ship');
+});
