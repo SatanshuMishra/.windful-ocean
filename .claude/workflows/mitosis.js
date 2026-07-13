@@ -2585,6 +2585,39 @@ async function persistParkCheckpoint(record) {
   }
 }
 
+async function persistBuiltCheckpoint({ unitId, checkpointRef: builtRef, sha }) {
+  try {
+    const readRes = await agent(
+      `You are the built-checkpoint read stage of a mitosis run. You have NO Skill tool.\n\n` +
+      `This stage is STRICTLY READ-ONLY: it inspects durable state so the engine can update it in-process. It makes NO commits and mutates NO files whatsoever.\n\n` +
+      `1. Inspect the run manifest if present: \`cat ${repoRoot}/.mitosis/run.json\`. If the file exists, return its exact raw contents as manifestRaw (a string) and set manifestFound=true; if it is absent, set manifestFound=false and manifestRaw=null. Do NOT parse, repair, or alter it — return the bytes verbatim, the engine parses it.\n\n` +
+      `Return ONLY: { manifestFound, manifestRaw }.`,
+      { agentType: 'implementer', label: `built-read:${unitId}`, phase: 'Execute' }
+    );
+    const priorRaw = readRes && readRes.manifestFound && typeof readRes.manifestRaw === 'string' ? readRes.manifestRaw : null;
+    const parsed = priorRaw ? parseRunManifest(priorRaw) : null;
+    const currentManifest = parsed || { ...buildInitialManifest({ logicalRunId, harnessRunId: input.harnessRunId, spec, repoRoot, baseBranch, sourcePrefix, clusters, msps, specContentHash: observedSpecHash }), parked: [] };
+    const updatedManifest = applyBuiltTransition(currentManifest, { unitId, checkpointRef: builtRef, sha });
+    const updatedManifestJson = JSON.stringify(updatedManifest, null, 2);
+    const writeRes = await agent(
+      `You are the built-checkpoint stage of a mitosis run. You have NO Skill tool; follow these instructions directly.\n\n` +
+      `Durably record the built run manifest so a later relaunch can reconcile built-but-unshipped work against it and resume the unit at ship. Operate in ${repoRoot}:\n` +
+      `1. Create the directory ${repoRoot}/.mitosis/ if it does not already exist.\n` +
+      `2. Ensure .mitosis/ is gitignored: if ${repoRoot}/.gitignore does not already ignore it, append a line \`.mitosis/\` to ${repoRoot}/.gitignore. This file is machine run-state and is never committed.\n` +
+      `3. Write the following to ${repoRoot}/.mitosis/run.json, overwriting any existing contents. It is a single, complete, pretty-printed JSON object; write it EXACTLY as given, verbatim, as the entire file body:\n\n` +
+      `${updatedManifestJson}\n\n` +
+      `Do NOT commit, push, or run any other git mutation. Return ONLY: { written: <bool>, detail: "<what you did>" }.`,
+      { agentType: 'implementer', label: `built-checkpoint:${unitId}`, phase: 'Execute' }
+    );
+    if (writeRes == null || writeRes.written === false) {
+      const detail = writeRes && typeof writeRes.detail === 'string' ? ` (${clean(writeRes.detail)})` : '';
+      log(`mitosis[${unitId}]: durable built checkpoint write did not persist (written=${writeRes == null ? 'null' : 'false'})${detail}; continuing — the manifest is a hint, not the skip authority, so recovery will reconcile built state from git on the next relaunch`);
+    }
+  } catch (err) {
+    log(`mitosis[${unitId}]: durable built checkpoint failed (${clean(err.message)}); continuing — the manifest is a hint, not the skip authority, so recovery will reconcile built state from git on the next relaunch`);
+  }
+}
+
 async function runUnit(unit) {
     const msp = mspById.get(unit.id);
     const branchPrefix = `${sourcePrefix}/${msp.id}`;
@@ -2765,6 +2798,12 @@ async function runUnit(unit) {
     } catch (err) {
       log(`mitosis[${msp.id}]: durable checkpoint push failed (${clean(err.message)}); continuing — the checkpoint ref is a reconcile hint, not the skip authority, so recovery reconciles built state from git on the next relaunch`);
     }
+
+    const builtLink = (mergeQueue = mergeQueue.then(() => persistBuiltCheckpoint({ unitId: msp.id, checkpointRef: durableCheckpointRef, sha: null })).catch((err) => {
+      log(`mitosis[${msp.id}]: durable built checkpoint failed (${clean(err.message)}); continuing — the manifest is a hint, not the skip authority, so recovery will reconcile built state from git on the next relaunch`);
+      return null;
+    }));
+    await builtLink;
 
     async function shipOneMsp() {
       phase('Ship');

@@ -93,6 +93,10 @@ function createFakeAgent({ msps, sourcePrefix = SOURCE_PREFIX, planGate, shipRes
         return { written: true, detail: '' };
       case 'checkpoint-push':
         return { pushed: true, ref: '', detail: '' };
+      case 'built-read':
+        return { manifestFound: false, manifestRaw: null };
+      case 'built-checkpoint':
+        return { written: true, detail: '' };
       case 'decompose':
         return { msps };
       case 'prepare-probe':
@@ -1997,10 +2001,10 @@ test('EXECUTE-STAGE RESILIENCE: an ApproachFixable fault during Execute dispatch
   assert.equal(result.overallStatus, 'all-shipped');
 });
 
-function makeDurableFakeAgent({ msps, hardenFailUnitId, repoRoot }) {
+function makeDurableFakeAgent({ msps, hardenFailUnitId, shipResult, repoRoot }) {
   const fileMap = new Map();
   const runJsonPath = `${repoRoot}/.mitosis/run.json`;
-  const base = createFakeAgent({ msps });
+  const base = createFakeAgent({ msps, shipResult });
   const literalOf = (prompt) => {
     const start = prompt.indexOf('{');
     if (start === -1) return null;
@@ -2032,12 +2036,12 @@ function makeDurableFakeAgent({ msps, hardenFailUnitId, repoRoot }) {
       const raw = fileMap.get(runJsonPath);
       return { manifestFound: raw !== undefined, manifestRaw: raw ?? null, mergedPRs: [], specContentHash: SPEC_CONTENT_HASH };
     }
-    if (prefix === 'checkpoint-init' || prefix === 'park-checkpoint') {
+    if (prefix === 'checkpoint-init' || prefix === 'park-checkpoint' || prefix === 'built-checkpoint') {
       const literal = literalOf(prompt);
       if (literal !== null) fileMap.set(runJsonPath, literal);
       return { written: literal !== null, detail: '' };
     }
-    if (prefix === 'park-read') {
+    if (prefix === 'park-read' || prefix === 'built-read') {
       const raw = fileMap.get(runJsonPath);
       return { manifestFound: raw !== undefined, manifestRaw: raw ?? null };
     }
@@ -2154,6 +2158,46 @@ test('R2 forward-only: a park after the durable checkpoint push has fired never 
   assert.match(remediationText, /git branch -D .*solo-integration/, 'the pre-checkpoint local-branch effect still surfaces its undo');
   assert.doesNotMatch(remediationText, new RegExp(`refs/mitosis/${runId}/solo`), 'the forward-only checkpoint ref is never scheduled for deletion by backward compensation');
   assert.doesNotMatch(remediationText, /push origin --delete/, 'no backward undo deletes any pushed ref (checkpoint-push is forward-only)');
+});
+
+test('R3 SPEC-R3(d): a human-gated run durably journals status:built for the unit awaiting approval, written after the checkpoint push and before ship', async () => {
+  const input = buildInput({ mergePolicy: undefined });
+  const runId = computeLogicalRunId(input.spec, input.baseBranch);
+  const msps = [
+    mspSpec('a', { fileScope: ['scope/a/**'] }),
+    mspSpec('b', { dependsOn: ['a'], fileScope: ['scope/b/**'] }),
+  ];
+  const shipResult = (mspId) => (mspId === 'a'
+    ? { merged: false, awaitingApproval: true, prUrl: 'https://example.test/pr/a', receiptsPass: true, d6Pass: true, detail: 'CI green; PR open and awaiting human approval to merge' }
+    : null);
+  const { agent: durableAgent, fileMap, runJsonPath } = makeDurableFakeAgent({ msps, shipResult, repoRoot: input.repoRoot });
+  const order = [];
+  const agent = async (prompt, opts = {}) => {
+    const label = opts.label || '';
+    if (label.startsWith('checkpoint-push:') || label.startsWith('built-checkpoint:') || label.startsWith('ship:')) order.push(label);
+    return durableAgent(prompt, opts);
+  };
+
+  const { resultPromise } = invokeMitosis(input, agent);
+  const result = await resultPromise;
+
+  assert.equal(result.overallStatus, 'awaiting-approval');
+  assert.deepEqual(result.awaitingApproval.map((a) => a.mspId), ['a']);
+  assert.ok(!result.shipped.some((s) => s.mspId === 'a'), 'the human-gated unit never merged');
+
+  assert.ok(fileMap.has(runJsonPath), 'a human-gated run must durably write run.json');
+  const persisted = JSON.parse(fileMap.get(runJsonPath));
+  const aEntry = persisted.msps.find((m) => m.id === 'a');
+  assert.ok(aEntry, 'the durable manifest still carries the awaiting unit');
+  assert.equal(aEntry.status, 'built', 'a human-gated unit that reached green is durably recorded status:built even though it never merged');
+  assert.equal(aEntry.checkpointRef, `refs/mitosis/${runId}/a`, 'the built journal records the durable checkpoint ref for the unit');
+
+  const builtIdx = order.indexOf('built-checkpoint:a');
+  const pushIdx = order.indexOf('checkpoint-push:a');
+  const shipIdx = order.indexOf('ship:a');
+  assert.ok(builtIdx >= 0, 'the live path fires a built-journal write for the human-gated unit');
+  assert.ok(pushIdx >= 0 && pushIdx < builtIdx, 'the built journal is written after the R2 checkpoint push');
+  assert.ok(shipIdx >= 0 && builtIdx < shipIdx, 'the built journal is written before the ship stage');
 });
 
 test('SECURITY deny-case: a NeedsHuman-supplied resumePoint.stage outside the known stage vocabulary must not be surfaced raw on the public ParkRecord', async () => {
