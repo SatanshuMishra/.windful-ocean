@@ -8,7 +8,10 @@ export const meta = {
     { title: 'Plan' },
     { title: 'Parallelize' },
     { title: 'Branch' },
-    { title: 'Execute' },
+    { title: 'Waves' },
+    { title: 'Integrate' },
+    { title: 'Boundary' },
+    { title: 'Final review' },
     { title: 'Ship' },
     { title: 'Remediate' },
   ],
@@ -831,6 +834,7 @@ async function runEngine(engineArgs, ctx) {
   for (let w = 0; w < waves.length && !result.halted; w++) {
     const waveIds = waves[w];
     log(`Wave ${w + 1}/${waves.length}: ${waveIds.length} task(s) [${waveIds.join(', ')}] [${isolation}]`);
+    phase('Waves');
     const outcomes = await parallel(waveIds.map((id) => () => runTask(id)));
     const failed = outcomes.filter((o) => !o || !o.ok);
     if (failed.length > 0) {
@@ -839,6 +843,7 @@ async function runEngine(engineArgs, ctx) {
       result.haltReason = { stage: 'task', failed };
       break;
     }
+    phase('Integrate');
     if (isolation === 'scope-fence') {
       const fence = await agent(
         `From the main repo at ${repoRoot}, run \`git status --porcelain=v1 -uall\` and return EVERY path it reports as a JSON array of repo-relative paths. For rename lines include both the old and the new path. Do not mutate anything.`,
@@ -899,6 +904,7 @@ async function runEngine(engineArgs, ctx) {
       `4. COUNT occurrences of each identity on BOTH sides (a multiset, not a set). An identity BLOCKS iff its HEAD count EXCEEDS its BASE count - block the surplus (HEAD count minus BASE count) occurrences; equal or lower counts (pre-existing or fixed) do NOT block. Because the identity ignores line:col this stays tolerant of pure line shifts while still catching a 2ND instance of an error class already present at base. ALSO scan the HEAD-vs-base SOURCE diff for ADDED inline suppression directives (\`eslint-disable\` / \`eslint-disable-next-line\` / \`@ts-ignore\` / \`@ts-expect-error\`) and apply the SAME count-aware rule - if a directive's HEAD count exceeds its BASE count, the surplus BLOCKS; a suppression is not a fix. ALSO diff the lint/type CONFIGURATION surface, comparing the fully-RESOLVED effective config on both sides (not only the named config files, so a loosening pulled in through an \`extends\`-ed or shared eslint/tsconfig preset - including a version bump of that shared preset package - is still caught): treat any HEAD-vs-base change to an eslint config (\`.eslintrc*\` / \`eslint.config.*\` / \`package.json\` eslintConfig), a TypeScript config (\`tsconfig*.json\`), an extended/shared preset, or an ignore surface (\`.eslintignore\` / \`ignorePatterns\` / tsconfig \`exclude\`/\`include\` / \`overrides\`) that REDUCES strictness or narrows what is checked (a rule turned off or downgraded, \`strict\` or \`noImplicitAny\` weakened, \`skipLibCheck\` added, a path newly ignored or excluded) as a BLOCKING change - loosening the checker is itself a way to hide a new error; a strictness-INCREASING or check-widening change does NOT block.\n` +
       `5. Tear down the throwaway base worktree: \`git -C ${repoRoot} worktree remove --force ${baseGateWt}\`.\n` +
       `Report pass=true iff the blocking set is empty; list the blocking identities (or a short summary) in output.`;
+    phase('Boundary');
     let boundary = await agent(
       gatePrompt(false),
       { label: 'boundary', phase: 'Boundary', schema: BOUNDARY_SCHEMA });
@@ -918,6 +924,7 @@ async function runEngine(engineArgs, ctx) {
       const reviewScope = isolation === 'scope-fence'
         ? `You are in the main repo at ${repoRoot}; the whole implementation is the uncommitted change set: \`git diff ${launchCommit}\` plus untracked files listed by \`git status --porcelain\`.`
         : `You are on \`${baseBranch}\` inside this MSP's integration worktree at ${integrationWt} with all wave work merged.`;
+      phase('Final review');
       result.finalReview = await agent(
         `${prompts.finalReviewer}\n\n--- REVIEW THE WHOLE IMPLEMENTATION ---\n` +
         `Read-only. ${reviewScope} Review the complete set of changes for this effort and summarize strengths, issues, and an overall assessment.`,
@@ -2579,7 +2586,7 @@ async function persistBuiltCheckpoint({ unitId, checkpointRef: builtRef, sha }) 
       `This stage is STRICTLY READ-ONLY: it inspects durable state so the engine can update it in-process. It makes NO commits and mutates NO files whatsoever.\n\n` +
       `1. Inspect the run manifest if present: \`cat ${repoRoot}/.mitosis/run.json\`. If the file exists, return its exact raw contents as manifestRaw (a string) and set manifestFound=true; if it is absent, set manifestFound=false and manifestRaw=null. Do NOT parse, repair, or alter it — return the bytes verbatim, the engine parses it.\n\n` +
       `Return ONLY: { manifestFound, manifestRaw }.`,
-      { agentType: 'implementer', label: `built-read:${unitId}`, phase: 'Execute' }
+      { agentType: 'implementer', label: `built-read:${unitId}`, phase: 'Ship' }
     );
     const priorRaw = readRes && readRes.manifestFound && typeof readRes.manifestRaw === 'string' ? readRes.manifestRaw : null;
     const parsed = priorRaw ? parseRunManifest(priorRaw) : null;
@@ -2594,7 +2601,7 @@ async function persistBuiltCheckpoint({ unitId, checkpointRef: builtRef, sha }) 
       `3. Write the following to ${repoRoot}/.mitosis/run.json, overwriting any existing contents. It is a single, complete, pretty-printed JSON object; write it EXACTLY as given, verbatim, as the entire file body:\n\n` +
       `${updatedManifestJson}\n\n` +
       `Do NOT commit, push, or run any other git mutation. Return ONLY: { written: <bool>, detail: "<what you did>" }.`,
-      { agentType: 'implementer', label: `built-checkpoint:${unitId}`, phase: 'Execute' }
+      { agentType: 'implementer', label: `built-checkpoint:${unitId}`, phase: 'Ship' }
     );
     if (writeRes == null || writeRes.written === false) {
       const detail = writeRes && typeof writeRes.detail === 'string' ? ` (${clean(writeRes.detail)})` : '';
@@ -2806,7 +2813,6 @@ async function runUnit(unit) {
     }
     compensationStack = registerEffect(compensationStack, { kind: 'local-branch', ref: integrationBranch });
 
-    phase('Execute');
     const engineResult = await runEngine(
       { ...parallelized.engineArgs, retry: { maxAttempts: retryMaxAttempts, state: retryState }, fingerprintBase: `origin/${baseBranch}` },
       { agent, parallel, log, phase, dispatchWithRetry: supervisedEngineDispatch, makeRemediation },
@@ -2839,7 +2845,7 @@ async function runUnit(unit) {
         `3. Otherwise publish the tip to the checkpoint ref: \`git -C ${repoRoot} push origin ${integrationBranch}:${durableCheckpointRef}\`. ONLY if that push is REJECTED as non-fast-forward retry once with \`git -C ${repoRoot} push --force-with-lease origin ${integrationBranch}:${durableCheckpointRef}\` — this is the sole permitted force, scoped to advancing this MSP's own checkpoint.\n\n` +
         `If the push succeeds (or the ref already matched) set pushed=true. If there is no remote or the push fails, set pushed=false and explain in detail.\n\n` +
         `Return ONLY: { pushed: <bool>, ref: ${JSON.stringify(durableCheckpointRef)}, detail: "<what happened>" }.`,
-        { agentType: 'implementer', label: `checkpoint-push:${msp.id}`, phase: 'Execute' }
+        { agentType: 'implementer', label: `checkpoint-push:${msp.id}`, phase: 'Ship' }
       );
       if (checkpointPush == null || checkpointPush.pushed === false) {
         const detail = checkpointPush && typeof checkpointPush.detail === 'string' ? ` (${clean(checkpointPush.detail)})` : '';

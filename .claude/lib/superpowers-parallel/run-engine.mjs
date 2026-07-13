@@ -191,6 +191,7 @@ export async function runEngine(engineArgs, ctx) {
   for (let w = 0; w < waves.length && !result.halted; w++) {
     const waveIds = waves[w];
     log(`Wave ${w + 1}/${waves.length}: ${waveIds.length} task(s) [${waveIds.join(', ')}] [${isolation}]`);
+    phase('Waves');
     const outcomes = await parallel(waveIds.map((id) => () => runTask(id)));
     const failed = outcomes.filter((o) => !o || !o.ok);
     if (failed.length > 0) {
@@ -199,6 +200,7 @@ export async function runEngine(engineArgs, ctx) {
       result.haltReason = { stage: 'task', failed };
       break;
     }
+    phase('Integrate');
     if (isolation === 'scope-fence') {
       const fence = await agent(
         `From the main repo at ${repoRoot}, run \`git status --porcelain=v1 -uall\` and return EVERY path it reports as a JSON array of repo-relative paths. For rename lines include both the old and the new path. Do not mutate anything.`,
@@ -259,6 +261,7 @@ export async function runEngine(engineArgs, ctx) {
       `4. COUNT occurrences of each identity on BOTH sides (a multiset, not a set). An identity BLOCKS iff its HEAD count EXCEEDS its BASE count - block the surplus (HEAD count minus BASE count) occurrences; equal or lower counts (pre-existing or fixed) do NOT block. Because the identity ignores line:col this stays tolerant of pure line shifts while still catching a 2ND instance of an error class already present at base. ALSO scan the HEAD-vs-base SOURCE diff for ADDED inline suppression directives (\`eslint-disable\` / \`eslint-disable-next-line\` / \`@ts-ignore\` / \`@ts-expect-error\`) and apply the SAME count-aware rule - if a directive's HEAD count exceeds its BASE count, the surplus BLOCKS; a suppression is not a fix. ALSO diff the lint/type CONFIGURATION surface, comparing the fully-RESOLVED effective config on both sides (not only the named config files, so a loosening pulled in through an \`extends\`-ed or shared eslint/tsconfig preset - including a version bump of that shared preset package - is still caught): treat any HEAD-vs-base change to an eslint config (\`.eslintrc*\` / \`eslint.config.*\` / \`package.json\` eslintConfig), a TypeScript config (\`tsconfig*.json\`), an extended/shared preset, or an ignore surface (\`.eslintignore\` / \`ignorePatterns\` / tsconfig \`exclude\`/\`include\` / \`overrides\`) that REDUCES strictness or narrows what is checked (a rule turned off or downgraded, \`strict\` or \`noImplicitAny\` weakened, \`skipLibCheck\` added, a path newly ignored or excluded) as a BLOCKING change - loosening the checker is itself a way to hide a new error; a strictness-INCREASING or check-widening change does NOT block.\n` +
       `5. Tear down the throwaway base worktree: \`git -C ${repoRoot} worktree remove --force ${baseGateWt}\`.\n` +
       `Report pass=true iff the blocking set is empty; list the blocking identities (or a short summary) in output.`;
+    phase('Boundary');
     let boundary = await agent(
       gatePrompt(false),
       { label: 'boundary', phase: 'Boundary', schema: BOUNDARY_SCHEMA });
@@ -278,6 +281,7 @@ export async function runEngine(engineArgs, ctx) {
       const reviewScope = isolation === 'scope-fence'
         ? `You are in the main repo at ${repoRoot}; the whole implementation is the uncommitted change set: \`git diff ${launchCommit}\` plus untracked files listed by \`git status --porcelain\`.`
         : `You are on \`${baseBranch}\` inside this MSP's integration worktree at ${integrationWt} with all wave work merged.`;
+      phase('Final review');
       result.finalReview = await agent(
         `${prompts.finalReviewer}\n\n--- REVIEW THE WHOLE IMPLEMENTATION ---\n` +
         `Read-only. ${reviewScope} Review the complete set of changes for this effort and summarize strengths, issues, and an overall assessment.`,
