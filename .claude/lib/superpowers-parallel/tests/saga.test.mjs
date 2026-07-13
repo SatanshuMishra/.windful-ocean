@@ -28,11 +28,28 @@ test('Compensation builds an immutable tagged decision carrying effect, undo, st
   assert.ok(Object.isFrozen(comp));
 });
 
-test('COMPENSATION_KINDS enumerates exactly the five policy-table effects', () => {
+test('COMPENSATION_KINDS enumerates exactly the policy-table effects', () => {
   assert.deepEqual(
     [...COMPENSATION_KINDS].sort(),
-    ['local-branch', 'pr-open', 'push-integration', 'squash-merge', 'worktree-add'],
+    ['checkpoint-push', 'local-branch', 'pr-open', 'push-integration', 'squash-merge', 'worktree-add'],
   );
+});
+
+test('R2 policy: checkpoint-push is a shared, forward-only, non-destructive durable artifact never torn down', () => {
+  const p = COMPENSATION_POLICY['checkpoint-push'];
+  assert.equal(p.state, 'shared');
+  assert.equal(p.forwardOnly, true);
+  assert.equal(p.destructive, false);
+  assert.equal(p.pointOfNoReturn, false);
+});
+
+test('R2: a checkpoint-push effect emits NO undo command and is skipped by undoCommandList (durable checkpoint is never deleted)', () => {
+  const comp = compensationFor({ kind: 'checkpoint-push', ref: 'refs/mitosis/a1b2c3d4/auth-core' });
+  assert.equal(comp.forwardOnly, true);
+  assert.equal(comp.undo, null);
+  assert.equal(comp.permittedForce, 'git push --force-with-lease origin refs/mitosis/a1b2c3d4/auth-core');
+  const stack = registerEffect(emptyCompensationStack(), { kind: 'checkpoint-push', ref: 'refs/mitosis/a1b2c3d4/auth-core' });
+  assert.deepEqual(undoCommandList(stack), []);
 });
 
 test('policy table: worktree add is local and destructive-OK', () => {

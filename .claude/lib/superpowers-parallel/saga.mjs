@@ -2,6 +2,7 @@ export const COMPENSATION_POLICY = Object.freeze({
   'worktree-add': Object.freeze({ state: 'local', destructive: true, forwardOnly: false, pointOfNoReturn: false }),
   'local-branch': Object.freeze({ state: 'local', destructive: true, forwardOnly: false, pointOfNoReturn: false }),
   'push-integration': Object.freeze({ state: 'shared', destructive: false, forwardOnly: true, pointOfNoReturn: false }),
+  'checkpoint-push': Object.freeze({ state: 'shared', destructive: false, forwardOnly: true, pointOfNoReturn: false }),
   'pr-open': Object.freeze({ state: 'shared', destructive: false, forwardOnly: false, pointOfNoReturn: false }),
   'squash-merge': Object.freeze({ state: 'shared', destructive: false, forwardOnly: true, pointOfNoReturn: true }),
 });
@@ -12,6 +13,7 @@ const COMPENSATION_REQUIRED_FIELDS = Object.freeze({
   'worktree-add': Object.freeze(['worktree']),
   'local-branch': Object.freeze(['ref']),
   'push-integration': Object.freeze(['ref']),
+  'checkpoint-push': Object.freeze(['ref']),
   'pr-open': Object.freeze(['pr']),
   'squash-merge': Object.freeze(['mergeCommit']),
 });
@@ -49,13 +51,14 @@ export function undoCommandFor(effect) {
   if (effect.kind === 'worktree-add') return `git worktree remove --force ${effect.worktree}`;
   if (effect.kind === 'local-branch') return `git branch -D ${effect.ref}`;
   if (effect.kind === 'push-integration') return `git push origin --delete ${effect.ref}`;
+  if (effect.kind === 'checkpoint-push') return null;
   if (effect.kind === 'pr-open') return `gh pr close ${effect.pr}`;
   if (effect.kind === 'squash-merge') return `git revert --no-edit ${effect.mergeCommit}`;
   throw new Error(`saga: no undo command for effect kind: ${JSON.stringify(effect.kind)}`);
 }
 
 export function permittedForceFor(effect) {
-  if (effect && effect.kind === 'push-integration') {
+  if (effect && (effect.kind === 'push-integration' || effect.kind === 'checkpoint-push')) {
     return `git push --force-with-lease origin ${effect.ref}`;
   }
   return null;
