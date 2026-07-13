@@ -2804,7 +2804,7 @@ async function runUnit(unit) {
         log(`mitosis[${msp.id}]: plan revised after review iteration ${reviewIter} -> ${planned.planPath}`);
       }
       if (!planReviewApproved) {
-        return parkUnit(msp, 'plan-review', NeedsHuman({ kind: 'approve-decision', what: `plan review did not converge for ${msp.id} after ${MAX_PLAN_REVIEW_ITERATIONS} iterations; a human must review and approve the plan before it proceeds to Parallelize`, remediation: null, resumePoint: { branch: integrationBranch, ref: baseBranch, stage: 'plan-review' } }), integrationBranch, compensationStack);
+        return parkUnit(msp, 'plan-review', NeedsHuman({ kind: 'approve-decision', what: `plan review did not converge for ${msp.id} after ${MAX_PLAN_REVIEW_ITERATIONS} iterations; edit the plan at ${planned.planPath} to address the adversarial review findings, then relaunch to re-review before it proceeds to Parallelize`, remediation: null, resumePoint: { branch: integrationBranch, ref: baseBranch, stage: 'plan-review' } }), integrationBranch, compensationStack);
       }
     }
 
