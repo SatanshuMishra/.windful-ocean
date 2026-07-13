@@ -1012,6 +1012,7 @@ const PLAN_REVIEW_SCHEMA = {
       items: {
         type: 'object',
         required: ['axis', 'severity', 'detail'],
+        additionalProperties: false,
         properties: {
           axis: { type: 'string', enum: ['necessity', 'regression-risk', 'over-scope', 'parallel-safety'] },
           severity: { type: 'string' },
