@@ -96,3 +96,31 @@ export function applyShipTransition(manifest, { mspId, prUrl, mergedAt, title, r
       ];
   return { ...manifest, msps };
 }
+
+export function applyBuiltTransition(manifest, { unitId, checkpointRef, sha }) {
+  const exists = manifest.msps.some((msp) => msp.id === unitId);
+  const updated = manifest.msps.map((msp) => {
+    if (msp.id !== unitId) return msp;
+    if (msp.status === 'shipped') return msp;
+    return { ...msp, status: 'built', checkpointRef, builtSha: sha };
+  });
+  const msps = exists
+    ? updated
+    : [
+        ...updated,
+        {
+          id: unitId,
+          title: null,
+          rationale: null,
+          status: 'built',
+          integrationBranch: `${manifest.sourcePrefix}/${unitId}-integration`,
+          prUrl: null,
+          mergedAt: null,
+          checkpointRef,
+          builtSha: sha,
+          dependsOn: [],
+          fileScope: [],
+        },
+      ];
+  return { ...manifest, msps };
+}

@@ -7,6 +7,7 @@ import {
   parseRunManifest,
   buildInitialManifest,
   applyShipTransition,
+  applyBuiltTransition,
 } from '../recovery.mjs';
 
 test('computeLogicalRunId: deterministic for identical inputs', () => {
@@ -118,6 +119,68 @@ test('applyShipTransition: appends a full defensive shipped entry carrying the p
   assert.deepEqual(after.msps[0], snapshot.msps[0]);
   assert.deepEqual(after.msps[1], snapshot.msps[1]);
   assert.deepEqual(before, snapshot);
+});
+
+function builtBase() {
+  return buildInitialManifest({
+    logicalRunId: 'x', harnessRunId: null, spec: '/s', repoRoot: '/r',
+    baseBranch: 'main', sourcePrefix: 'mitosis', clusters: [['a', 'b']],
+    msps: [{ id: 'a', title: 'A', rationale: 'ra', dependsOn: [], fileScope: [] }, { id: 'b', title: 'B', rationale: 'rb', dependsOn: [], fileScope: [] }],
+  });
+}
+
+test('applyBuiltTransition: marks the unit built with checkpointRef/builtSha, returns a new object, leaves siblings and the input untouched', () => {
+  const before = builtBase();
+  const snapshot = structuredClone(before);
+  const after = applyBuiltTransition(before, { unitId: 'a', checkpointRef: 'refs/mitosis/x/a', sha: 'abc1234' });
+  assert.notEqual(after, before);
+  const a = after.msps.find((m) => m.id === 'a');
+  assert.equal(a.status, 'built');
+  assert.equal(a.checkpointRef, 'refs/mitosis/x/a');
+  assert.equal(a.builtSha, 'abc1234');
+  assert.deepEqual(after.msps.find((m) => m.id === 'b'), snapshot.msps.find((m) => m.id === 'b'));
+  assert.deepEqual(before, snapshot);
+});
+
+test('applyBuiltTransition: idempotent — applying twice equals applying once', () => {
+  const before = builtBase();
+  const once = applyBuiltTransition(before, { unitId: 'a', checkpointRef: 'refs/mitosis/x/a', sha: 'abc1234' });
+  const twice = applyBuiltTransition(once, { unitId: 'a', checkpointRef: 'refs/mitosis/x/a', sha: 'abc1234' });
+  assert.deepEqual(twice, once);
+});
+
+test('applyBuiltTransition: terminal-status guard — a shipped unit is NEVER downgraded to built', () => {
+  const before = builtBase();
+  const shipped = applyShipTransition(before, { mspId: 'a', prUrl: 'http://pr/a', mergedAt: '2026-07-08T00:00:00Z' });
+  const after = applyBuiltTransition(shipped, { unitId: 'a', checkpointRef: 'refs/mitosis/x/a', sha: 'abc1234' });
+  assert.equal(after.msps.find((m) => m.id === 'a').status, 'shipped');
+});
+
+test('applyBuiltTransition: parked/planned units are promoted to built', () => {
+  const before = builtBase();
+  const after = applyBuiltTransition(before, { unitId: 'a', checkpointRef: 'refs/mitosis/x/a', sha: 'abc1234' });
+  assert.equal(after.msps.find((m) => m.id === 'a').status, 'built');
+});
+
+test('applyBuiltTransition: appends a defensive built entry with the derived integration branch when the id is absent', () => {
+  const before = builtBase();
+  const after = applyBuiltTransition(before, { unitId: 'c', checkpointRef: 'refs/mitosis/x/c', sha: 'def5678' });
+  assert.equal(after.msps.length, before.msps.length + 1);
+  const c = after.msps.find((m) => m.id === 'c');
+  assert.equal(c.status, 'built');
+  assert.equal(c.integrationBranch, 'mitosis/c-integration');
+  assert.equal(c.checkpointRef, 'refs/mitosis/x/c');
+  assert.equal(c.builtSha, 'def5678');
+});
+
+test('parseRunManifest: a built-containing manifest round-trips (status is an opaque passthrough)', () => {
+  const raw = JSON.stringify({
+    logicalRunId: 'deadbeef', clusters: [['a']],
+    msps: [{ id: 'a', status: 'built', checkpointRef: 'refs/mitosis/deadbeef/a', builtSha: 'abc1234' }],
+  });
+  const m = parseRunManifest(raw);
+  assert.ok(m);
+  assert.equal(m.msps[0].status, 'built');
 });
 
 test('buildInitialManifest: truncates an over-long title and rationale at the write layer, preserving null/undefined and shorter values verbatim', () => {

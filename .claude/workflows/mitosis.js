@@ -458,6 +458,34 @@ function applyShipTransition(manifest, { mspId, prUrl, mergedAt, title, rational
   return { ...manifest, msps };
 }
 
+function applyBuiltTransition(manifest, { unitId, checkpointRef, sha }) {
+  const exists = manifest.msps.some((msp) => msp.id === unitId);
+  const updated = manifest.msps.map((msp) => {
+    if (msp.id !== unitId) return msp;
+    if (msp.status === 'shipped') return msp;
+    return { ...msp, status: 'built', checkpointRef, builtSha: sha };
+  });
+  const msps = exists
+    ? updated
+    : [
+        ...updated,
+        {
+          id: unitId,
+          title: null,
+          rationale: null,
+          status: 'built',
+          integrationBranch: `${manifest.sourcePrefix}/${unitId}-integration`,
+          prUrl: null,
+          mergedAt: null,
+          checkpointRef,
+          builtSha: sha,
+          dependsOn: [],
+          fileScope: [],
+        },
+      ];
+  return { ...manifest, msps };
+}
+
 function indexMsps(msps) {
   if (!Array.isArray(msps)) throw new Error('msps must be an array');
   const byId = new Map();
