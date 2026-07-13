@@ -5,6 +5,7 @@ import {
   transitiveDependents,
   park,
   selectResumeUnits,
+  selectResumeBuilt,
 } from '../parking.mjs';
 
 function manifestWith(msps) {
@@ -193,4 +194,27 @@ test('selectResumeUnits: accepts a Map, a Set, or an array as the reconciled shi
 
 test('selectResumeUnits: a manifest with no parked units yields an empty resume set', () => {
   assert.deepEqual(selectResumeUnits(manifestWith([{ id: 'a', status: 'shipped' }]), new Map()), []);
+});
+
+function builtManifest(msps) {
+  return { logicalRunId: 'deadbeef', sourcePrefix: 'mitosis', baseBranch: 'main', clusters: [msps.map((m) => m.id)], msps };
+}
+
+test('selectResumeBuilt: built units yield a ship-stage resume descriptor carrying the checkpoint ref, and parked units are ignored', () => {
+  const manifest = builtManifest([
+    { id: 'a', status: 'built', integrationBranch: 'mitosis/a-integration', checkpointRef: 'refs/mitosis/deadbeef/a' },
+    { id: 'b', status: 'parked' },
+    { id: 'c', status: 'planned' },
+  ]);
+  const resume = selectResumeBuilt(manifest, new Map());
+  assert.deepEqual(resume, [{
+    unitId: 'a',
+    stage: 'ship',
+    resumePoint: { branch: 'mitosis/a-integration', ref: 'refs/mitosis/deadbeef/a', stage: 'ship' },
+  }]);
+});
+
+test('selectResumeBuilt: an already-shipped built unit is excluded from the resume set', () => {
+  const manifest = builtManifest([{ id: 'a', status: 'built', integrationBranch: 'mitosis/a-integration', checkpointRef: 'refs/mitosis/deadbeef/a' }]);
+  assert.deepEqual(selectResumeBuilt(manifest, new Set(['a'])), []);
 });

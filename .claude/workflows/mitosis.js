@@ -458,6 +458,19 @@ function applyShipTransition(manifest, { mspId, prUrl, mergedAt, title, rational
   return { ...manifest, msps };
 }
 
+function resolveResumeTarget(manifest, runId) {
+  if (!manifest || typeof manifest !== 'object' || Array.isArray(manifest)) {
+    return { found: false, reason: 'no such run' };
+  }
+  if (typeof runId !== 'string' || runId.length === 0) {
+    return { found: false, reason: 'no such run' };
+  }
+  if (manifest.logicalRunId === runId || manifest.harnessRunId === runId) {
+    return { found: true, manifest };
+  }
+  return { found: false, reason: 'no such run' };
+}
+
 function applyBuiltTransition(manifest, { unitId, checkpointRef, sha }) {
   const exists = manifest.msps.some((msp) => msp.id === unitId);
   const updated = manifest.msps.map((msp) => {
@@ -1590,6 +1603,22 @@ function selectResumeUnits(manifest, shippedSet) {
   return resume;
 }
 
+function selectResumeBuilt(manifest, shippedSet) {
+  if (!manifest || typeof manifest !== 'object' || !Array.isArray(manifest.msps)) return [];
+  const resume = [];
+  for (const msp of manifest.msps) {
+    if (msp.status !== 'built') continue;
+    if (isShippedUnit(shippedSet, msp.id)) continue;
+    const resumePoint = {
+      branch: typeof msp.integrationBranch === 'string' ? msp.integrationBranch : null,
+      ref: typeof msp.checkpointRef === 'string' ? msp.checkpointRef : null,
+      stage: 'ship',
+    };
+    resume.push({ unitId: msp.id, stage: 'ship', resumePoint });
+  }
+  return resume;
+}
+
 const COMPENSATION_POLICY = Object.freeze({
   'worktree-add': Object.freeze({ state: 'local', destructive: true, forwardOnly: false, pointOfNoReturn: false }),
   'local-branch': Object.freeze({ state: 'local', destructive: true, forwardOnly: false, pointOfNoReturn: false }),
@@ -1774,6 +1803,61 @@ function parseCheckpointRef(ref, runId) {
   const unitId = ref.slice(prefix.length);
   if (!UNIT_ID_PATTERN.test(unitId)) return null;
   return unitId;
+}
+
+function uniqStrings(list) {
+  if (!Array.isArray(list)) return [];
+  const seen = new Set();
+  const out = [];
+  for (const item of list) {
+    if (typeof item !== 'string' || item.length === 0 || seen.has(item)) continue;
+    seen.add(item);
+    out.push(item);
+  }
+  return out;
+}
+
+function computeRemaining({ planned, merged, built, parked } = {}) {
+  const plannedIds = uniqStrings(planned);
+  const mergedSet = new Set(uniqStrings(merged));
+  const builtSet = new Set(uniqStrings(built));
+  const parkedSet = new Set(uniqStrings(parked));
+  const skipMerged = [];
+  const resumeBuilt = [];
+  const resumeParked = [];
+  const remaining = [];
+  for (const id of plannedIds) {
+    if (mergedSet.has(id)) { skipMerged.push(id); continue; }
+    if (builtSet.has(id)) { resumeBuilt.push(id); continue; }
+    if (parkedSet.has(id)) { resumeParked.push(id); continue; }
+    remaining.push(id);
+  }
+  return { remaining, skipMerged, resumeBuilt, resumeParked };
+}
+
+function reconcileBuiltSet(lsRemoteRefs, runId) {
+  const out = [];
+  const seen = new Set();
+  if (!Array.isArray(lsRemoteRefs)) return out;
+  for (const entry of lsRemoteRefs) {
+    if (typeof entry !== 'string') continue;
+    const refStr = entry.trim().split(/\s+/).pop();
+    const unitId = parseCheckpointRef(refStr, runId);
+    if (unitId === null || seen.has(unitId)) continue;
+    seen.add(unitId);
+    out.push(unitId);
+  }
+  return out;
+}
+
+function mergePaginated(pages) {
+  if (!Array.isArray(pages)) return [];
+  const out = [];
+  for (const page of pages) {
+    if (!Array.isArray(page)) continue;
+    for (const item of page) out.push(item);
+  }
+  return out;
 }
 
 function computeParkedStatus({ shipped, parked, halted, crashed, awaitingApproval, total }) {

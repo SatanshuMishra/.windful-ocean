@@ -97,6 +97,19 @@ export function applyShipTransition(manifest, { mspId, prUrl, mergedAt, title, r
   return { ...manifest, msps };
 }
 
+export function resolveResumeTarget(manifest, runId) {
+  if (!manifest || typeof manifest !== 'object' || Array.isArray(manifest)) {
+    return { found: false, reason: 'no such run' };
+  }
+  if (typeof runId !== 'string' || runId.length === 0) {
+    return { found: false, reason: 'no such run' };
+  }
+  if (manifest.logicalRunId === runId || manifest.harnessRunId === runId) {
+    return { found: true, manifest };
+  }
+  return { found: false, reason: 'no such run' };
+}
+
 export function applyBuiltTransition(manifest, { unitId, checkpointRef, sha }) {
   const exists = manifest.msps.some((msp) => msp.id === unitId);
   const updated = manifest.msps.map((msp) => {

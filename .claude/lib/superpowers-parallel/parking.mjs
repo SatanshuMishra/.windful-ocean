@@ -100,3 +100,19 @@ export function selectResumeUnits(manifest, shippedSet) {
   }
   return resume;
 }
+
+export function selectResumeBuilt(manifest, shippedSet) {
+  if (!manifest || typeof manifest !== 'object' || !Array.isArray(manifest.msps)) return [];
+  const resume = [];
+  for (const msp of manifest.msps) {
+    if (msp.status !== 'built') continue;
+    if (isShippedUnit(shippedSet, msp.id)) continue;
+    const resumePoint = {
+      branch: typeof msp.integrationBranch === 'string' ? msp.integrationBranch : null,
+      ref: typeof msp.checkpointRef === 'string' ? msp.checkpointRef : null,
+      stage: 'ship',
+    };
+    resume.push({ unitId: msp.id, stage: 'ship', resumePoint });
+  }
+  return resume;
+}

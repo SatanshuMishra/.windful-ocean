@@ -8,6 +8,7 @@ import {
   buildInitialManifest,
   applyShipTransition,
   applyBuiltTransition,
+  resolveResumeTarget,
 } from '../recovery.mjs';
 
 test('computeLogicalRunId: deterministic for identical inputs', () => {
@@ -171,6 +172,15 @@ test('applyBuiltTransition: appends a defensive built entry with the derived int
   assert.equal(c.integrationBranch, 'mitosis/c-integration');
   assert.equal(c.checkpointRef, 'refs/mitosis/x/c');
   assert.equal(c.builtSha, 'def5678');
+});
+
+test('resolveResumeTarget: a known runId (logical or harness) resolves the manifest; an unknown runId returns the halt sentinel, never a silent fresh start', () => {
+  const manifest = { logicalRunId: 'deadbeef', harnessRunId: 'run-42', clusters: [['a']], msps: [{ id: 'a' }] };
+  assert.deepEqual(resolveResumeTarget(manifest, 'deadbeef'), { found: true, manifest });
+  assert.deepEqual(resolveResumeTarget(manifest, 'run-42'), { found: true, manifest });
+  assert.deepEqual(resolveResumeTarget(manifest, 'nope'), { found: false, reason: 'no such run' });
+  assert.deepEqual(resolveResumeTarget(null, 'deadbeef'), { found: false, reason: 'no such run' });
+  assert.deepEqual(resolveResumeTarget(manifest, ''), { found: false, reason: 'no such run' });
 });
 
 test('parseRunManifest: a built-containing manifest round-trips (status is an opaque passthrough)', () => {
