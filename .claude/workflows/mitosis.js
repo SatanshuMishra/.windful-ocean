@@ -2872,6 +2872,27 @@ async function runUnit(unit) {
     }));
     await builtLink;
 
+    async function readBackHandoff() {
+      const rb = await agent(
+        `You are the ship-handoff read-back stage for MSP "${msp.id}" of a mitosis run. You have NO Skill tool.\n\n` +
+        `This stage is STRICTLY READ-ONLY: it independently RE-READS the durable oracle to confirm the merge the ship stage CLAIMED. Do NOT rebase, push, open, merge, or mutate any ref, file, or PR — only read.\n` +
+        `SECURITY: pass every ref as an INERT argv element to execFile-style invocations; NEVER build a command by shell-interpolating a ref into a string.\n\n` +
+        `1. Read the PR state with argv \`gh pr view ${integrationBranch} --json state,mergedAt,url\` (head ${JSON.stringify(integrationBranch)} is a single inert argv token). Report merged=true ONLY if state is MERGED and mergedAt is non-null.\n` +
+        `2. Read the base...head containment with argv \`gh api repos/{owner}/{repo}/compare/${baseBranch}...${integrationBranch}\` (base ${JSON.stringify(baseBranch)} and head ${JSON.stringify(integrationBranch)} each a separate inert argv token). Report ahead_by (integer) and status (string) exactly as the API returns them; a genuinely merged head is CONTAINED in the base (ahead_by 0).\n` +
+        `If either read cannot be completed (no remote, http error, unparseable body), set readError to a short description and leave merged and compare null.\n\n` +
+        `Return ONLY: { merged: <bool|null>, compare: { ahead_by: <int>, status: "<string>" } | null, readError: "<string>" | null }.`,
+        { agentType: 'implementer', label: `ship-verify:${msp.id}`, phase: 'Ship' }
+      );
+      if (rb == null || typeof rb !== 'object') {
+        return { merged: null, compare: null, readError: 'ship-verify read-back returned no parseable result' };
+      }
+      return {
+        merged: rb.merged === undefined ? null : rb.merged,
+        compare: rb.compare === undefined ? null : rb.compare,
+        readError: rb.readError === undefined ? null : rb.readError,
+      };
+    }
+
     async function shipOneMsp() {
       phase('Ship');
       const revalidateClause = isAutonomous ? 'before merging' : 'before opening the PR';
@@ -2917,7 +2938,14 @@ async function runUnit(unit) {
         log(`mitosis[${msp.id}]: ship BLOCKED (${ship.detail})`);
         return { halted: true, stage: 'ship', mspId: msp.id, detail: ship.detail, receiptsPass: ship.receiptsPass, d6Pass: ship.d6Pass };
       }
-      log(`mitosis[${msp.id}]: shipped -> ${ship.prUrl}`);
+      const readback = await readBackHandoff();
+      const verdict = classifyHandoff(readback);
+      if (verdict !== HANDOFF_VERDICTS.VERIFIED) {
+        const contradiction = `ship claimed ${msp.id} merged onto ${baseBranch}, but an independent read-back could not confirm it (verdict=${verdict}, merged=${clean(readback.merged)}, compareStatus=${clean(readback.compare && readback.compare.status)}, readError=${clean(readback.readError)})`;
+        log(`mitosis[${msp.id}]: ship handoff ${verdict.toUpperCase()} — ${contradiction}`);
+        return { halted: true, stage: 'ship', mspId: msp.id, unknownHandoff: verdict === HANDOFF_VERDICTS.UNKNOWN, detail: contradiction, receiptsPass: ship.receiptsPass, d6Pass: ship.d6Pass };
+      }
+      log(`mitosis[${msp.id}]: shipped -> ${ship.prUrl} (handoff verified by independent read-back)`);
       shipped.push({ mspId: msp.id, prUrl: ship.prUrl, receiptsPass: ship.receiptsPass, d6Pass: ship.d6Pass, dependsOn: msp.dependsOn || [], aggregatedScope });
       if (ship.manifestWritten === false) {
         log(`mitosis[${msp.id}]: shipped, but the durable manifest write failed (manifestWritten=false) - the merge stands; recovery will reconcile shipped state from gh/git on the next relaunch`);
@@ -2929,7 +2957,8 @@ async function runUnit(unit) {
       const link = (mergeQueue = mergeQueue.then(() => shipOneMsp()).catch((err) => ({ halted: true, crashed: true, stage: 'ship', mspId: msp.id, error: `ship threw: ${err.message}` })));
       const ship = await link;
       if (ship.halted) {
-        return parkUnit(msp, 'ship', NeedsHuman({ kind: 'approve-decision', what: ship.detail || ship.error || 'ship halted', remediation: null, resumePoint: { branch: integrationBranch, ref: baseBranch, stage: 'ship' } }), integrationBranch, compensationStack);
+        const kind = ship.unknownHandoff ? 'unknown-handoff' : 'approve-decision';
+        return parkUnit(msp, 'ship', NeedsHuman({ kind, what: ship.detail || ship.error || 'ship halted', remediation: null, resumePoint: { branch: integrationBranch, ref: baseBranch, stage: 'ship' } }), integrationBranch, compensationStack);
       }
       if (ship.awaiting) {
         awaitingApproval.push({ mspId: msp.id, prUrl: ship.prUrl, receiptsPass: ship.receiptsPass, d6Pass: ship.d6Pass, dependsOn: msp.dependsOn || [] });

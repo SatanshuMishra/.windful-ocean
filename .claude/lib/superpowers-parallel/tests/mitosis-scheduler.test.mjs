@@ -122,6 +122,8 @@ function createFakeAgent({ msps, sourcePrefix = SOURCE_PREFIX, planGate, shipRes
         if (override) return override;
         return { merged: true, prUrl: `https://example.test/pr/${mspId}`, receiptsPass: true, d6Pass: true, detail: '' };
       }
+      case 'ship-verify':
+        return { merged: true, compare: { ahead_by: 0, status: 'identical' }, readError: null };
       case 'impl':
         return { status: 'DONE', summary: '' };
       case 'review':
@@ -1011,6 +1013,82 @@ test('MINOR-2: a ship agent that returns null is parked (Tier 2, aligned with br
   assert.equal(result.parked[0].stage, 'ship');
   assert.deepEqual(result.crashed, []);
   assert.deepEqual(result.halted, []);
+});
+
+test('R1 verify-handoff: the main thread independently reads back the CLAIMED merge (gh pr view state,mergedAt + base...head compare) via inert argv before recording shipped', async () => {
+  const msps = [mspSpec('solo', { fileScope: ['scope/solo/**'] })];
+  const captured = [];
+  const base = createFakeAgent({ msps });
+  const agent = async (prompt, opts = {}) => {
+    if ((opts.label || '').startsWith('ship-verify:')) captured.push(prompt);
+    return base(prompt, opts);
+  };
+  const { resultPromise } = invokeMitosis(buildInput(), agent);
+  const result = await resultPromise;
+
+  assert.equal(result.overallStatus, 'all-shipped');
+  assert.equal(captured.length, 1, 'a claimed merge triggers exactly one independent read-back');
+  assert.match(captured[0], /gh pr view/);
+  assert.match(captured[0], /state,mergedAt/);
+  assert.match(captured[0], /compare/);
+  assert.match(captured[0], /inert argv/i);
+  assert.match(captured[0], /never .*shell/i);
+});
+
+test('R1 verify-handoff: a ship that CLAIMS merged but whose independent read-back is AMBIGUOUS is parked kind unknown-handoff and never recorded shipped (no blind accept, never retry-merge)', async () => {
+  const msps = [mspSpec('solo', { fileScope: ['scope/solo/**'] })];
+  let shipCalls = 0;
+  const base = createFakeAgent({ msps });
+  const agent = async (prompt, opts = {}) => {
+    const label = opts.label || '';
+    if (label.startsWith('ship:')) shipCalls += 1;
+    if (label.startsWith('ship-verify:')) return { merged: true, compare: null, readError: null };
+    return base(prompt, opts);
+  };
+  const { resultPromise } = invokeMitosis(buildInput(), agent);
+  const result = await resultPromise;
+
+  assert.equal(result.overallStatus, 'failed');
+  assert.ok(!result.shipped.some((s) => s.mspId === 'solo'), 'an unverifiable handoff is never recorded shipped');
+  const parked = result.parked.find((p) => p.mspId === 'solo');
+  assert.ok(parked, 'the ambiguous-handoff unit is parked, not silently dropped');
+  assert.equal(parked.stage, 'ship');
+  assert.equal(parked.request.kind, 'unknown-handoff');
+  assert.equal(shipCalls, 1, 'an unknown handoff never re-runs the ship stage (never retry-merge)');
+});
+
+test('R1 verify-handoff: a ship that CLAIMS merged but whose independent read-back CONTRADICTS the claim (head still introduces commits) is parked and never recorded shipped', async () => {
+  const msps = [mspSpec('solo', { fileScope: ['scope/solo/**'] })];
+  const base = createFakeAgent({ msps });
+  const agent = async (prompt, opts = {}) => {
+    if ((opts.label || '').startsWith('ship-verify:')) return { merged: false, compare: { ahead_by: 3, status: 'ahead' }, readError: null };
+    return base(prompt, opts);
+  };
+  const { resultPromise } = invokeMitosis(buildInput(), agent);
+  const result = await resultPromise;
+
+  assert.equal(result.overallStatus, 'failed');
+  assert.ok(!result.shipped.some((s) => s.mspId === 'solo'), 'a contradicted handoff is never recorded shipped');
+  const parked = result.parked.find((p) => p.mspId === 'solo');
+  assert.ok(parked, 'the contradicted-handoff unit is parked');
+  assert.equal(parked.stage, 'ship');
+});
+
+test('R1 verify-handoff: a read-back that ERRORS (read tier unavailable) is treated as unknown -> parked unknown-handoff, never a blind accept', async () => {
+  const msps = [mspSpec('solo', { fileScope: ['scope/solo/**'] })];
+  const base = createFakeAgent({ msps });
+  const agent = async (prompt, opts = {}) => {
+    if ((opts.label || '').startsWith('ship-verify:')) return { merged: undefined, compare: undefined, readError: 'gh api compare returned http 502' };
+    return base(prompt, opts);
+  };
+  const { resultPromise } = invokeMitosis(buildInput(), agent);
+  const result = await resultPromise;
+
+  assert.ok(!result.shipped.some((s) => s.mspId === 'solo'));
+  const parked = result.parked.find((p) => p.mspId === 'solo');
+  assert.ok(parked);
+  assert.equal(parked.stage, 'ship');
+  assert.equal(parked.request.kind, 'unknown-handoff');
 });
 
 test('P4 §8.2 branch-force is observe-then-converge: the branch prompt skips the ref move when it already matches the pushed base', async () => {
