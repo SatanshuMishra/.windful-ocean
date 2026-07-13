@@ -6,6 +6,7 @@ export const meta = {
     { title: 'Decompose' },
     { title: 'Prepare' },
     { title: 'Plan' },
+    { title: 'Plan review' },
     { title: 'Parallelize' },
     { title: 'Branch' },
     { title: 'Waves' },
@@ -1000,6 +1001,30 @@ const PLAN_SCHEMA = {
   },
 };
 
+const PLAN_REVIEW_SCHEMA = {
+  type: 'object',
+  required: ['verdict', 'findings', 'pillarsAlignment'],
+  additionalProperties: false,
+  properties: {
+    verdict: { type: 'string', enum: ['approve', 'needs-changes'] },
+    findings: {
+      type: 'array',
+      items: {
+        type: 'object',
+        required: ['axis', 'severity', 'detail'],
+        properties: {
+          axis: { type: 'string', enum: ['necessity', 'regression-risk', 'over-scope', 'parallel-safety'] },
+          severity: { type: 'string' },
+          detail: { type: 'string' },
+        },
+      },
+    },
+    pillarsAlignment: { type: 'string' },
+  },
+};
+
+const MAX_PLAN_REVIEW_ITERATIONS = 3;
+
 const PARALLELIZE_SCHEMA = {
   type: 'object',
   required: ['engineArgs', 'route'],
@@ -1522,7 +1547,7 @@ async function runSchedule(specs, runUnit) {
   return { units, ticks };
 }
 
-const LEGAL_STAGES = Object.freeze(['plan', 'parallelize', 'branch', 'execute', 'ship']);
+const LEGAL_STAGES = Object.freeze(['plan', 'plan-review', 'parallelize', 'branch', 'execute', 'ship']);
 
 function sanitizeStage(stage) {
   return typeof stage === 'string' && LEGAL_STAGES.includes(stage) ? stage : null;
@@ -1992,6 +2017,29 @@ function redispatchPrompt({ unitId, stage, task, correctedTask, mechanism, attem
     `Diagnosed mechanism fingerprint: ${mechanism}\n` +
     `Original objective for this stage: ${task}\n\n` +
     `Perform the ${stage} stage's work exactly as its normal instructions require, incorporating the correction, and return ONLY that stage's normal structured result.`;
+}
+
+function planReviewPrompt({ unitId, title, planPath, rationale, dependsList, iteration }) {
+  return `You are an OBJECTIVE, fresh-no-prior-context adversarial reviewer of the implementation plan for MSP "${unitId}" (${title}) of a mitosis run. You did NOT write this plan; you have NO Skill tool. This is review iteration ${iteration}.\n\n` +
+    `Read the plan at: ${planPath}. Scope of this MSP: ${rationale}. Earlier MSPs already planned/merged that it may depend on: ${dependsList}.\n\n` +
+    `Stress-test the plan on FOUR axes against the Three Pillars (Quality > Optimization > Speed, in that strict order):\n` +
+    `1. necessity — every step earns its place; no gold-plating, no speculative abstraction, no work the MSP does not require.\n` +
+    `2. regression-risk — the plan will not break existing behavior; use native LSP call hierarchy (find_referencing_symbols / find_implementations) and targeted reads to check blast radius.\n` +
+    `3. over-scope — the plan stays within this MSP's declared scope and file set; it does not expand into unrelated subsystems.\n` +
+    `4. parallel-safety — the plan's task decomposition is genuinely independent where it claims to be; no hidden shared-state collisions.\n\n` +
+    `Default to "needs-changes" when you are GENUINELY uncertain that the plan aligns with the pillars, but do NOT manufacture findings on a sound, minimal plan — approving a correct minimal plan is the right answer. For each real problem emit one finding { axis, severity, detail }.\n\n` +
+    `Return ONLY: { verdict: "approve" | "needs-changes", findings: [{ axis: "necessity" | "regression-risk" | "over-scope" | "parallel-safety", severity: "<low|medium|high>", detail: "<what is wrong and why>" }], pillarsAlignment: "<one sentence on how the plan sits against Quality>Optimization>Speed>" }.`;
+}
+
+function replanPrompt({ unitId, title, planPath, rationale, dependsList, findings }) {
+  const rendered = Array.isArray(findings) && findings.length > 0
+    ? findings.map((f, i) => `${i + 1}. [${clean(f.axis)} / ${clean(f.severity)}] ${clean(f.detail)}`).join('\n')
+    : '(no structured findings supplied; the review was a non-approval — re-examine the plan against necessity, regression-risk, over-scope and parallel-safety yourself)';
+  return `You are revising the implementation plan for MSP "${unitId}" (${title}) of a mitosis run after an adversarial review returned needs-changes. You have NO Skill tool.\n\n` +
+    `Current plan: ${planPath}. Scope of this MSP: ${rationale}. Earlier MSPs already planned/merged it may depend on: ${dependsList}.\n\n` +
+    `Review findings to remediate:\n${rendered}\n\n` +
+    `Address EACH finding minimally. Do NOT over-correct and do NOT expand scope: fix exactly what the finding names and nothing more, keeping the plan the smallest correct plan that satisfies the pillars (Quality > Optimization > Speed). Overwrite the SAME plan file idempotently at ${planPath} (create the .mitosis directory if absent).\n\n` +
+    `Return ONLY: { planPath: "<absolute path to the revised plan you wrote>", summary: "<one sentence on what you changed>" }.`;
 }
 
 function makeRemediation({ unitId, stage, task, schema, agentType, phase: phaseName }) {
@@ -2661,7 +2709,7 @@ async function runUnit(unit) {
     }
 
     const resume = resumeMap.get(msp.id) || null;
-    const RESUME_STAGE_ORDER = ['plan', 'parallelize', 'branch', 'execute', 'ship'];
+    const RESUME_STAGE_ORDER = ['plan', 'plan-review', 'parallelize', 'branch', 'execute', 'ship'];
     const resumeStartIdx = resume ? RESUME_STAGE_ORDER.indexOf(resume.stage) : 0;
     const skipPlan = resumeStartIdx > 0;
     const planTriedSeed = resume && resume.stage === 'plan' ? resume.triedSet : undefined;
@@ -2721,6 +2769,44 @@ async function runUnit(unit) {
       planned = planOutcome.value;
     }
     log(`mitosis[${msp.id}]: planned -> ${planned.planPath}`);
+
+    const skipPlanReview = resumeStartIdx > 1;
+    if (!skipPlanReview) {
+      phase('Plan review');
+      let planReviewApproved = false;
+      for (let reviewIter = 1; reviewIter <= MAX_PLAN_REVIEW_ITERATIONS && !planReviewApproved; reviewIter += 1) {
+        let review = null;
+        try {
+          review = await agent(
+            planReviewPrompt({ unitId: msp.id, title: msp.title, planPath: planned.planPath, rationale: msp.rationale, dependsList, iteration: reviewIter }),
+            { agentType: 'solution-architect', schema: PLAN_REVIEW_SCHEMA, label: `plan-review:${msp.id}`, phase: 'Plan review' },
+          );
+        } catch (err) {
+          log(`mitosis[${msp.id}]: plan review iteration ${reviewIter} dispatch failed (${clean(err.message)}) — treating as non-approval`);
+          review = null;
+        }
+        if (review && review.verdict === 'approve') {
+          planReviewApproved = true;
+          log(`mitosis[${msp.id}]: plan review converged (approve) after ${reviewIter} iteration(s)`);
+          break;
+        }
+        if (reviewIter === MAX_PLAN_REVIEW_ITERATIONS) break;
+        const findings = review && Array.isArray(review.findings) ? review.findings : [];
+        const replanOutcome = await supervisedDispatch(
+          (attemptNo, preamble) => agent(
+            replanPrompt({ unitId: msp.id, title: msp.title, planPath: planned.planPath, rationale: msp.rationale, dependsList, findings }),
+            { agentType: 'implementer', schema: PLAN_SCHEMA, label: `replan:${msp.id}`, phase: 'Plan review' }
+          ),
+          { unitId: msp.id, stage: 'plan-review', resetRef: baseBranch, worktree: null, task: `revise the plan for ${msp.id} to satisfy adversarial review`, ...makeRemediation({ unitId: msp.id, stage: 'plan-review', task: `revise the plan for ${msp.id} to satisfy adversarial review`, schema: PLAN_SCHEMA, agentType: 'implementer', phase: 'Plan review' }), compensate: makeCompensate(null, baseBranch) },
+        );
+        if (replanOutcome.tag !== 'Done') return parkUnit(msp, 'plan-review', replanOutcome, integrationBranch, compensationStack);
+        planned = replanOutcome.value;
+        log(`mitosis[${msp.id}]: plan revised after review iteration ${reviewIter} -> ${planned.planPath}`);
+      }
+      if (!planReviewApproved) {
+        return parkUnit(msp, 'plan-review', NeedsHuman({ kind: 'approve-decision', what: `plan review did not converge for ${msp.id} after ${MAX_PLAN_REVIEW_ITERATIONS} iterations; a human must review and approve the plan before it proceeds to Parallelize`, remediation: null, resumePoint: { branch: integrationBranch, ref: baseBranch, stage: 'plan-review' } }), integrationBranch, compensationStack);
+      }
+    }
 
     phase('Parallelize');
     const parallelizeOutcome = await supervisedDispatch(

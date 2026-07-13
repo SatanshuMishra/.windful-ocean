@@ -82,11 +82,21 @@ function mspSpec(id, overrides = {}) {
   return { id, title: id, rationale: `rationale for ${id}`, dependsOn: [], fileScope: [], ...overrides };
 }
 
-function createFakeAgent({ msps, sourcePrefix = SOURCE_PREFIX, planGate, shipResult, reconcileResult } = {}) {
+function createFakeAgent({ msps, sourcePrefix = SOURCE_PREFIX, planGate, shipResult, reconcileResult, planReview, replanResult } = {}) {
   return async function fakeAgent(prompt, opts = {}) {
     const label = opts.label || '';
     const prefix = label.split(':')[0];
     switch (prefix) {
+      case 'plan-review': {
+        const mspId = label.slice('plan-review:'.length);
+        const verdict = planReview ? planReview(mspId) : null;
+        return verdict || { verdict: 'approve', findings: [], pillarsAlignment: 'minimal plan aligns with Quality>Optimization>Speed' };
+      }
+      case 'replan': {
+        const mspId = label.slice('replan:'.length);
+        const override = replanResult ? replanResult(mspId) : null;
+        return override || { planPath: `/tmp/mitosis-scheduler-test/${mspId}.plan.md`, summary: 'revised' };
+      }
       case 'reconcile':
         return reconcileResult || { manifestFound: false, manifestRaw: null, mergedPRs: [] };
       case 'checkpoint-init':
@@ -2017,7 +2027,7 @@ test('FLAGSHIP obligation-4.3.3(a): run-away is structurally impossible — ever
   assert.equal(result.parked.find((p) => p.mspId === 'p').stage, 'plan');
   assert.equal(result.parked.find((p) => p.mspId === 'h').stage, 'parallelize');
   assert.equal(result.parked.find((p) => p.mspId === 'x').stage, 'execute');
-  assert.equal(totalCalls, 17, 'each of the three simultaneously-failing units is bounded by its own per-unit dispatch budget (no shared global budget one pathological unit could exhaust), so the total dispatch count across the whole run is exactly the sum of each unit\'s bounded cost — including the one bounded durable park-checkpoint dispatch each park incurs — never unbounded');
+  assert.equal(totalCalls, 19, 'each of the three simultaneously-failing units is bounded by its own per-unit dispatch budget (no shared global budget one pathological unit could exhaust), so the total dispatch count across the whole run is exactly the sum of each unit\'s bounded cost — including the one bounded durable park-checkpoint dispatch each park incurs, and the single bounded approve plan-review dispatch each of the two units that clear Plan (h, x) incurs before failing downstream (p parks at plan, before review) — never unbounded');
 });
 
 test('RESILIENCE-A: an ApproachFixable plan outcome dispatches an in-run diagnostician and redispatch, and a successful correction ships the unit instead of parking it', async () => {
@@ -2306,7 +2316,7 @@ test('SECURITY deny-case: a NeedsHuman-supplied resumePoint.stage outside the kn
   const { resultPromise } = invokeMitosis(buildInput(), agent);
   const result = await resultPromise;
 
-  const ALLOWED_STAGES = new Set(['plan', 'parallelize', 'branch', 'execute', 'ship']);
+  const ALLOWED_STAGES = new Set(['plan', 'plan-review', 'parallelize', 'branch', 'execute', 'ship']);
   assert.equal(result.parked.length, 1);
   const stage = result.parked[0].resumePoint.stage;
   assert.ok(
@@ -2583,4 +2593,98 @@ test('SECURITY HIGH-2 deny: a fresh Decompose returning an injection / non-kebab
   assert.ok(!labels.some((l) => l.startsWith('branch:')), 'no unit reaches branch-prep');
   assert.ok(!labels.some((l) => l.startsWith('ship:')), 'no unit reaches ship');
   assert.ok(!prompts.some((p) => p.includes(injectionId)), 'the injection id is never woven into a branch/execute/ship prompt');
+});
+
+test('PLAN-REVIEW convergence: a first-pass needs-changes drives one adversarial re-plan then a fresh reviewer approves, and the unit proceeds through Parallelize to ship', async () => {
+  const msps = [mspSpec('solo', { fileScope: ['scope/solo/**'] })];
+  let reviewCalls = 0;
+  const base = createFakeAgent({
+    msps,
+    planReview: () => {
+      reviewCalls += 1;
+      return reviewCalls === 1
+        ? { verdict: 'needs-changes', findings: [{ axis: 'over-scope', severity: 'high', detail: 'the plan touches an unrelated subsystem' }], pillarsAlignment: 'over-scoped against Quality>Optimization>Speed' }
+        : { verdict: 'approve', findings: [], pillarsAlignment: 'minimal plan now aligns' };
+    },
+  });
+  const labels = [];
+  const agent = async (prompt, opts = {}) => { labels.push(opts.label || ''); return base(prompt, opts); };
+  const { resultPromise, phaseLines } = invokeMitosis(buildInput(), agent);
+  const result = await resultPromise;
+
+  assert.equal(result.overallStatus, 'all-shipped', 'the plan converges on approve and the unit ships');
+  assert.deepEqual(result.shipped.map((s) => s.mspId), ['solo']);
+  assert.equal(reviewCalls, 2, 'a distinct fresh-context reviewer runs each iteration: needs-changes then approve');
+  assert.equal(labels.filter((l) => l === 'plan-review:solo').length, 2, 'exactly two adversarial review dispatches');
+  assert.equal(labels.filter((l) => l === 'replan:solo').length, 1, 'exactly one auto-remediation re-plan between the two reviews');
+  assert.ok(labels.indexOf('replan:solo') > labels.indexOf('plan-review:solo'), 'the re-plan follows the first needs-changes review');
+  assert.ok(labels.includes('parallelize:solo'), 'a converged plan proceeds to Parallelize');
+  assert.ok(phaseLines.includes('Plan review'), 'the Plan review phase is surfaced');
+  assert.ok(phaseLines.includes('Parallelize'), 'the run advances past Plan review into Parallelize');
+});
+
+test('PLAN-REVIEW fail-closed: a persistently unsatisfied reviewer parks the unit at plan-review after MAX iterations rather than shipping an unapproved plan', async () => {
+  const msps = [mspSpec('solo', { fileScope: ['scope/solo/**'] })];
+  let reviewCalls = 0;
+  const base = createFakeAgent({
+    msps,
+    planReview: () => {
+      reviewCalls += 1;
+      return { verdict: 'needs-changes', findings: [{ axis: 'regression-risk', severity: 'high', detail: 'still breaks an existing caller' }], pillarsAlignment: 'unresolved regression risk' };
+    },
+  });
+  const labels = [];
+  const agent = async (prompt, opts = {}) => { labels.push(opts.label || ''); return base(prompt, opts); };
+  const { resultPromise } = invokeMitosis(buildInput(), agent);
+  const result = await resultPromise;
+
+  assert.equal(result.overallStatus, 'failed', 'a plan that never converges never ships — the run fails closed');
+  assert.equal(reviewCalls, 3, 'the bounded loop runs exactly MAX_PLAN_REVIEW_ITERATIONS reviews before parking');
+  assert.equal(labels.filter((l) => l === 'replan:solo').length, 2, 'a re-plan fires between reviews but not after the final unsatisfied review');
+  const park = result.parked.find((p) => p.mspId === 'solo');
+  assert.ok(park, 'the unit is parked, not silently dropped');
+  assert.equal(park.stage, 'plan-review', 'the park is recorded at the plan-review stage');
+  assert.equal(park.request.kind, 'approve-decision', 'fail-closed park requests a human approve-decision');
+  assert.match(park.diagnosis, /did not converge/, 'the diagnosis names the non-convergence');
+  assert.equal(park.resumePoint.stage, 'plan-review', 'the resume point re-enters at plan-review');
+  assert.ok(!labels.some((l) => l.startsWith('parallelize:')), 'an unapproved plan never reaches Parallelize');
+  assert.ok(!labels.some((l) => l.startsWith('ship:')), 'an unapproved plan never reaches ship');
+});
+
+test('PLAN-REVIEW resume: a relaunch of a unit parked at plan-review skips Plan and re-runs the adversarial review loop from scratch', async () => {
+  const input = buildInput();
+  const logicalRunId = computeLogicalRunId(input.spec, input.baseBranch);
+  const msps = [mspSpec('solo', { fileScope: ['scope/solo/**'] })];
+  const initialManifest = buildInitialManifest({
+    logicalRunId,
+    harnessRunId: null,
+    spec: input.spec,
+    repoRoot: input.repoRoot,
+    baseBranch: input.baseBranch,
+    sourcePrefix: SOURCE_PREFIX,
+    clusters: [['solo']],
+    msps,
+    specContentHash: SPEC_CONTENT_HASH,
+  });
+  const parkedManifest = park(initialManifest, {
+    unitId: 'solo',
+    stage: 'plan-review',
+    diagnosis: 'plan review did not converge on a prior run',
+    request: { kind: 'approve-decision', what: 'a human must approve the plan' },
+    remediation: null,
+    resumePoint: { branch: `${SOURCE_PREFIX}/solo-integration`, ref: input.baseBranch, stage: 'plan-review' },
+    triedSet: [],
+  });
+  const manifestRaw = JSON.stringify(parkedManifest);
+  const reconcileResult = { manifestFound: true, manifestRaw, mergedPRs: [], specContentHash: SPEC_CONTENT_HASH };
+  const base = createFakeAgent({ msps, reconcileResult });
+  const labels = [];
+  const agent = async (prompt, opts = {}) => { labels.push(opts.label || ''); return base(prompt, opts); };
+  const { resultPromise } = invokeMitosis(input, agent);
+  const result = await resultPromise;
+
+  assert.ok(!labels.includes('plan:solo'), 'a resume at plan-review skips the Plan stage');
+  assert.ok(labels.includes('plan-review:solo'), 'the adversarial review loop re-runs on resume from plan-review');
+  assert.equal(result.overallStatus, 'all-shipped', 'the resumed review approves and the unit proceeds to ship');
+  assert.deepEqual(result.shipped.map((s) => s.mspId), ['solo']);
 });
