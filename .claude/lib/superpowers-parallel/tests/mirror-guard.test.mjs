@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 
 const LIB = new URL('..', import.meta.url).pathname;
-const MITOSIS_PATH = '/Users/satanshumishra/.claude/workflows/mitosis.js';
+const MITOSIS_PATH = process.env.MITOSIS_PATH || new URL('../../../workflows/mitosis.js', import.meta.url).pathname;
 
 function normalize(src) {
   return src

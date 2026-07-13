@@ -4,7 +4,7 @@ import { readFileSync } from 'node:fs';
 import { computeLogicalRunId, buildInitialManifest, applyShipTransition, parseRunManifest } from '../recovery.mjs';
 import { park } from '../parking.mjs';
 
-const MITOSIS_PATH = '/Users/satanshumishra/.claude/workflows/mitosis.js';
+const MITOSIS_PATH = process.env.MITOSIS_PATH || new URL('../../../workflows/mitosis.js', import.meta.url).pathname;
 const SOURCE_PREFIX = 'mitosis-test';
 const SPEC_CONTENT_HASH = 'a'.repeat(64);
 
