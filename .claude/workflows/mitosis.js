@@ -2362,7 +2362,6 @@ if (reusable) {
     return fatalReport('decompose', 'decompose agent returned null or no msps (transient drop or blocked before fan-out)', 0, { crashed: true });
   }
   msps = decomposition.msps;
-  log(`mitosis: ${msps.length} MSP(s) -> ${msps.map((m) => m.id).join(', ')}`);
 }
 
 const retryMaxAttempts = Number.isInteger(retryConfig.maxAttempts) ? retryConfig.maxAttempts : 3;
@@ -2376,6 +2375,9 @@ if (duplicateIds.length > 0) {
 const invalidIds = mspIds.filter((id) => !/^[a-z0-9][a-z0-9-]*$/.test(id));
 if (invalidIds.length > 0) {
   return fatalReport('decompose', `invalid MSP id(s) (must match ^[a-z0-9][a-z0-9-]*$): ${invalidIds.join(', ')}`, msps.length);
+}
+if (!reusable) {
+  log(`mitosis: ${msps.length} MSP(s) -> ${mspIds.join(', ')}`);
 }
 const knownIds = new Set(mspIds);
 const unknownDepErrors = msps.flatMap((m) =>

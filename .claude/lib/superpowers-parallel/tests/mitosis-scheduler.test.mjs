@@ -1896,6 +1896,27 @@ test('F6 log-forge: a manifest msp id failing the kebab regex and carrying a new
   assert.equal(result.overallStatus, 'all-shipped', 'the run degrades to a fresh Decompose and completes');
 });
 
+test('F7 log-forge: a fresh Decompose returning an MSP id carrying a newline and U+2028/U+2029 cannot forge a run-log line before the fail-closed kebab validation', async () => {
+  const NL = String.fromCharCode(10);
+  const LS = String.fromCodePoint(0x2028);
+  const PS = String.fromCodePoint(0x2029);
+  const evilId = `bad${NL}mitosis: FORGED all-clear${LS}${PS}id`;
+  const decomposeMsps = [
+    { id: evilId, title: 't', rationale: 'r', dependsOn: [], fileScope: ['scope/a/**'] },
+    mspSpec('b', { fileScope: ['scope/b/**'] }),
+  ];
+  const base = createFakeAgent({ msps: decomposeMsps });
+  const { resultPromise, logLines } = invokeMitosis(buildInput(), base);
+  const result = await resultPromise;
+
+  assert.equal(result.overallStatus, 'failed', 'a fresh decompose returning a non-kebab id fails the run closed');
+  assert.equal(result.stage, 'decompose', 'the fail-closed halt is attributed to the decompose stage');
+  assert.ok(!logLines.some((l) => l.includes('FORGED')), 'no run-log line carries the forged all-clear payload from the raw id');
+  assert.ok(!logLines.some((l) => l.includes(LS)), 'no run-log line carries a raw U+2028 line separator from the id');
+  assert.ok(!logLines.some((l) => l.includes(PS)), 'no run-log line carries a raw U+2029 paragraph separator from the id');
+  assert.ok(!logLines.some((l) => /MSP\(s\) ->/.test(l) && l.includes(NL)), 'the MSP-count log never emits the raw id ahead of validation');
+});
+
 test('FLAGSHIP obligation-3.5/3.6: a null return no longer causes unbounded identical retry — it is classified Unknown and bounded to the initial dispatch plus exactly one probe before the unit parks', async () => {
   const msps = [mspSpec('solo', { fileScope: ['scope/solo/**'] })];
   let planCalls = 0;
