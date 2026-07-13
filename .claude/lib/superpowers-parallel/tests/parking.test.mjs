@@ -29,15 +29,15 @@ function manifestWith(msps) {
 test('ParkRecord: normalizes request/resumePoint defaults and freezes the record', () => {
   const rec = ParkRecord({
     unitId: 'auth',
-    stage: 'harden',
+    stage: 'parallelize',
     diagnosis: 'sandbox denies package install',
     request: { kind: 'install', what: 'libpq-dev' },
     remediation: 'install libpq-dev then resume',
   });
   assert.equal(rec.unitId, 'auth');
-  assert.equal(rec.stage, 'harden');
+  assert.equal(rec.stage, 'parallelize');
   assert.deepEqual(rec.request, { kind: 'install', what: 'libpq-dev', detail: null });
-  assert.deepEqual(rec.resumePoint, { branch: null, ref: null, stage: 'harden' });
+  assert.deepEqual(rec.resumePoint, { branch: null, ref: null, stage: 'parallelize' });
   assert.deepEqual(rec.triedSet, []);
   assert.deepEqual(rec.dependents, []);
   assert.ok(Object.isFrozen(rec));
@@ -143,7 +143,7 @@ test('park: records triedSet and resumePoint on the blocked unit; dependents car
 
 test('park: appends to an existing parked ledger without dropping prior records', () => {
   const first = park(manifestWith([{ id: 'a' }, { id: 'b' }]), { unitId: 'a', stage: 'plan' });
-  const second = park(first, { unitId: 'b', stage: 'harden' });
+  const second = park(first, { unitId: 'b', stage: 'parallelize' });
   assert.equal(second.parked.length, 2);
   assert.deepEqual(second.parked.map((r) => r.unitId), ['a', 'b']);
 });
@@ -161,16 +161,16 @@ test('selectResumeUnits: returns exactly the parked units at their recorded stag
     { id: 'unrelated' },
   ]), {
     unitId: 'core',
-    stage: 'harden',
+    stage: 'parallelize',
     triedSet: ['acquisition:raw-http'],
-    resumePoint: { branch: 'mitosis/core-integration', ref: 'sha1', stage: 'harden' },
+    resumePoint: { branch: 'mitosis/core-integration', ref: 'sha1', stage: 'parallelize' },
   });
   const resume = selectResumeUnits(parked, new Map());
   assert.deepEqual(resume.map((u) => u.unitId), ['core', 'auth']);
   const core = resume.find((u) => u.unitId === 'core');
-  assert.equal(core.stage, 'harden');
+  assert.equal(core.stage, 'parallelize');
   assert.deepEqual(core.triedSet, ['acquisition:raw-http']);
-  assert.deepEqual(core.resumePoint, { branch: 'mitosis/core-integration', ref: 'sha1', stage: 'harden' });
+  assert.deepEqual(core.resumePoint, { branch: 'mitosis/core-integration', ref: 'sha1', stage: 'parallelize' });
   assert.ok(!resume.some((u) => u.triedSet.includes('acquisition:raw-http') === false && u.unitId === 'core'));
 });
 

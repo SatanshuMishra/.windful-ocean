@@ -1,7 +1,7 @@
 import { isValidFingerprint } from './remediation.mjs';
 import { checkpointRef } from './checkpoint.mjs';
 
-const LEGAL_STAGES = Object.freeze(['plan', 'harden', 'branch', 'execute', 'ship']);
+const LEGAL_STAGES = Object.freeze(['plan', 'parallelize', 'branch', 'execute', 'ship']);
 
 function sanitizeStage(stage) {
   return typeof stage === 'string' && LEGAL_STAGES.includes(stage) ? stage : null;

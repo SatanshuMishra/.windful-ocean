@@ -1,12 +1,12 @@
 export const meta = {
   name: 'mitosis',
-  description: 'Orchestrate an approved spec/batch into clusters of MSPs: decompose, then per MSP plan + harden + execute via the parallel engine + ship, serializing merges so every shared branch stays green.',
+  description: 'Orchestrate an approved spec/batch into clusters of MSPs: decompose, then per MSP plan + parallelize + execute via the parallel engine + ship, serializing merges so every shared branch stays green.',
   phases: [
     { title: 'Reconcile' },
     { title: 'Decompose' },
     { title: 'Prepare' },
     { title: 'Plan' },
-    { title: 'Harden' },
+    { title: 'Parallelize' },
     { title: 'Branch' },
     { title: 'Execute' },
     { title: 'Ship' },
@@ -993,7 +993,7 @@ const PLAN_SCHEMA = {
   },
 };
 
-const HARDEN_SCHEMA = {
+const PARALLELIZE_SCHEMA = {
   type: 'object',
   required: ['engineArgs', 'route'],
   additionalProperties: false,
@@ -1515,7 +1515,7 @@ async function runSchedule(specs, runUnit) {
   return { units, ticks };
 }
 
-const LEGAL_STAGES = Object.freeze(['plan', 'harden', 'branch', 'execute', 'ship']);
+const LEGAL_STAGES = Object.freeze(['plan', 'parallelize', 'branch', 'execute', 'ship']);
 
 function sanitizeStage(stage) {
   return typeof stage === 'string' && LEGAL_STAGES.includes(stage) ? stage : null;
@@ -2654,11 +2654,11 @@ async function runUnit(unit) {
     }
 
     const resume = resumeMap.get(msp.id) || null;
-    const RESUME_STAGE_ORDER = ['plan', 'harden', 'branch', 'execute', 'ship'];
+    const RESUME_STAGE_ORDER = ['plan', 'parallelize', 'branch', 'execute', 'ship'];
     const resumeStartIdx = resume ? RESUME_STAGE_ORDER.indexOf(resume.stage) : 0;
     const skipPlan = resumeStartIdx > 0;
     const planTriedSeed = resume && resume.stage === 'plan' ? resume.triedSet : undefined;
-    const hardenTriedSeed = resume && resume.stage === 'harden' ? resume.triedSet : undefined;
+    const parallelizeTriedSeed = resume && resume.stage === 'parallelize' ? resume.triedSet : undefined;
     const isBuiltResume = Boolean(resume) && resume.built === true && resume.stage === 'ship';
     let aggregatedScope = Array.isArray(msp.fileScope) ? msp.fileScope : [];
 
@@ -2667,11 +2667,11 @@ async function runUnit(unit) {
       if (builtRef === null || parseCheckpointRef(builtRef, logicalRunId) !== msp.id) {
         return parkUnit(msp, 'ship', NeedsHuman({ kind: 'approve-decision', what: `built-resume for ${msp.id} carries no valid durable checkpoint ref to restore from`, remediation: null, resumePoint: { branch: integrationBranch, ref: baseBranch, stage: 'ship' } }), integrationBranch, compensationStack);
       }
-      log(`mitosis[${msp.id}]: built-resume — skipping Plan/Harden/Branch/Execute; restoring ${integrationBranch} from durable checkpoint ${clean(builtRef)} and shipping straight`);
+      log(`mitosis[${msp.id}]: built-resume — skipping Plan/Parallelize/Branch/Execute; restoring ${integrationBranch} from durable checkpoint ${clean(builtRef)} and shipping straight`);
       const restoreOutcome = await supervisedDispatch(
         (attemptNo, preamble) => agent(
           `You are the built-restore stage for MSP "${msp.id}" of a mitosis run. You have NO Skill tool.\n\n` +
-          `A prior run already BUILT and durably checkpointed this MSP's boundary-validated, integrated work at the mitosis checkpoint ref ${JSON.stringify(builtRef)}; this relaunch resumes it STRAIGHT at ship WITHOUT re-planning, re-hardening, re-branching, or re-executing. Restore the local integration branch ${JSON.stringify(integrationBranch)} to that durable tip so ship can publish it. Operate against the main repo at ${repoRoot}; do NOT check out the branch and do NOT enter any worktree.\n\n` +
+          `A prior run already BUILT and durably checkpointed this MSP's boundary-validated, integrated work at the mitosis checkpoint ref ${JSON.stringify(builtRef)}; this relaunch resumes it STRAIGHT at ship WITHOUT re-planning, re-parallelizing, re-branching, or re-executing. Restore the local integration branch ${JSON.stringify(integrationBranch)} to that durable tip so ship can publish it. Operate against the main repo at ${repoRoot}; do NOT check out the branch and do NOT enter any worktree.\n\n` +
           `SECURITY: pass every ref as an INERT argv element to execFile-style invocations; NEVER build a command by shell-interpolating a ref into a string.\n\n` +
           `Restore observe-then-converge (idempotent under replay):\n` +
           `1. Fetch the durable checkpoint tip into FETCH_HEAD: \`git -C ${repoRoot} fetch origin ${JSON.stringify(builtRef)}\` (the checkpoint ref ${JSON.stringify(builtRef)} is a single inert argv token).\n` +
@@ -2715,13 +2715,13 @@ async function runUnit(unit) {
     }
     log(`mitosis[${msp.id}]: planned -> ${planned.planPath}`);
 
-    phase('Harden');
-    const hardenOutcome = await supervisedDispatch(
+    phase('Parallelize');
+    const parallelizeOutcome = await supervisedDispatch(
       (attemptNo, preamble) => agent(
-        `You are the harden+route stage for MSP "${msp.id}" of a mitosis run. You have NO Skill tool.\n\n` +
+        `You are the parallelize+route stage for MSP "${msp.id}" of a mitosis run. You have NO Skill tool.\n\n` +
         `Read and follow: ${GRAPH_SKILL}\n` +
         `Input plan: ${planned.planPath}\n\n` +
-        `1. Follow plan-to-task-graph to author the intent layer and run semantic discovery (native LSP call hierarchy + Graphify), writing the discovered-edges JSON, then run the deterministic hardener exactly:\n` +
+        `1. Follow plan-to-task-graph to author the intent layer and run semantic discovery (native LSP call hierarchy + Graphify), writing the discovered-edges JSON, then run the deterministic parallelizer exactly:\n` +
         `   node ${LIB_DIR}/derive-edges.mjs ${planned.planPath.replace(/\.md$/, '.graph.json')} ${planned.planPath.replace(/\.md$/, '.discovered-edges.json')} --out ${planned.planPath.replace(/\.md$/, '.graph.json')} --audit ${planned.planPath.replace(/\.md$/, '.edges-audit.json')}\n` +
         `   If it exits non-zero (dependency cycle), STOP and return an engineArgs/route that you could not build is NOT acceptable — instead fix the plan's dependsOn and re-run; a cycle is a hard error.\n\n` +
         `2. Compute waves and route via Node (one-off script using the repo's installed modules):\n` +
@@ -2733,36 +2733,36 @@ async function runUnit(unit) {
         `   First build the id-keyed tasks map (the engine indexes tasks by id, NOT by array position): tasks = Object.fromEntries(graph.tasks.map((t) => [t.id, { id: t.id, title: t.title, fullText: t.fullText, fileScope: t.fileScope, risk: t.risk, agentType: t.agentType || 'implementer', validation: t.validation }])). Do NOT pass the raw graph.tasks array as tasks.\n` +
         `   import { buildEngineArgs } from '${LIB_DIR}/engine-args.mjs' and call buildEngineArgs({ tasks, waves, branchPrefix: ${JSON.stringify(branchPrefix)}, baseBranch: ${JSON.stringify(integrationBranch)}, worktreeRoot: ${JSON.stringify(worktreeRoot)}, repoRoot: ${JSON.stringify(repoRoot)}, scopedCheckCmd: ${JSON.stringify(verify.scopedCheckCmd || '')}, fullValidationCmd: ${JSON.stringify(verify.fullValidationCmd || '')}, prompts, fixLoopMax: ${fixLoopMax}, isolation: 'worktree', launchCommit: null, runArtifacts, models: ${JSON.stringify(models)} }). It throws if any required key is missing.\n\n` +
         `Return ONLY: { engineArgs: <the 14-key object>, route: { rule, lane, isolation, N, notes } }.`,
-        { agentType: 'implementer', schema: HARDEN_SCHEMA, label: `harden:${msp.id}`, phase: 'Harden' }
+        { agentType: 'implementer', schema: PARALLELIZE_SCHEMA, label: `parallelize:${msp.id}`, phase: 'Parallelize' }
       ),
-      { unitId: msp.id, stage: 'harden', resetRef: baseBranch, worktree: null, task: `harden and route ${msp.id}`, triedSet: hardenTriedSeed, ...makeRemediation({ unitId: msp.id, stage: 'harden', task: `harden and route ${msp.id}`, schema: HARDEN_SCHEMA, agentType: 'implementer', phase: 'Harden' }), compensate: makeCompensate(null, baseBranch) },
+      { unitId: msp.id, stage: 'parallelize', resetRef: baseBranch, worktree: null, task: `parallelize and route ${msp.id}`, triedSet: parallelizeTriedSeed, ...makeRemediation({ unitId: msp.id, stage: 'parallelize', task: `parallelize and route ${msp.id}`, schema: PARALLELIZE_SCHEMA, agentType: 'implementer', phase: 'Parallelize' }), compensate: makeCompensate(null, baseBranch) },
     );
-    if (hardenOutcome.tag !== 'Done') return parkUnit(msp, 'harden', hardenOutcome, integrationBranch, compensationStack);
-    const hardened = hardenOutcome.value;
-    log(`mitosis[${msp.id}]: hardened lane=${hardened.route.lane} isolation=worktree(forced) N~${hardened.route.N}`);
+    if (parallelizeOutcome.tag !== 'Done') return parkUnit(msp, 'parallelize', parallelizeOutcome, integrationBranch, compensationStack);
+    const parallelized = parallelizeOutcome.value;
+    log(`mitosis[${msp.id}]: parallelized lane=${parallelized.route.lane} isolation=worktree(forced) N~${parallelized.route.N}`);
 
     if (
-      hardened.engineArgs.baseBranch !== integrationBranch ||
-      hardened.engineArgs.isolation !== 'worktree' ||
-      hardened.engineArgs.branchPrefix !== branchPrefix
+      parallelized.engineArgs.baseBranch !== integrationBranch ||
+      parallelized.engineArgs.isolation !== 'worktree' ||
+      parallelized.engineArgs.branchPrefix !== branchPrefix
     ) {
-      return parkUnit(msp, 'harden', NeedsHuman({ kind: 'approve-decision', what: `engineArgs invariant violated: baseBranch=${hardened.engineArgs.baseBranch} isolation=${hardened.engineArgs.isolation} branchPrefix=${hardened.engineArgs.branchPrefix}`, remediation: null, resumePoint: null }), integrationBranch);
+      return parkUnit(msp, 'parallelize', NeedsHuman({ kind: 'approve-decision', what: `engineArgs invariant violated: baseBranch=${parallelized.engineArgs.baseBranch} isolation=${parallelized.engineArgs.isolation} branchPrefix=${parallelized.engineArgs.branchPrefix}`, remediation: null, resumePoint: null }), integrationBranch);
     }
 
     if (
-      typeof hardened.engineArgs.tasks !== 'object' ||
-      hardened.engineArgs.tasks === null ||
-      Array.isArray(hardened.engineArgs.tasks)
+      typeof parallelized.engineArgs.tasks !== 'object' ||
+      parallelized.engineArgs.tasks === null ||
+      Array.isArray(parallelized.engineArgs.tasks)
     ) {
-      return parkUnit(msp, 'harden', NeedsHuman({ kind: 'approve-decision', what: `engineArgs.tasks must be a non-null, non-array object; got ${Array.isArray(hardened.engineArgs.tasks) ? 'array' : typeof hardened.engineArgs.tasks}`, remediation: null, resumePoint: null }), integrationBranch);
+      return parkUnit(msp, 'parallelize', NeedsHuman({ kind: 'approve-decision', what: `engineArgs.tasks must be a non-null, non-array object; got ${Array.isArray(parallelized.engineArgs.tasks) ? 'array' : typeof parallelized.engineArgs.tasks}`, remediation: null, resumePoint: null }), integrationBranch);
     }
 
-    if (!Array.isArray(hardened.engineArgs.waves)) {
-      return parkUnit(msp, 'harden', NeedsHuman({ kind: 'approve-decision', what: `engineArgs.waves must be an array; got ${typeof hardened.engineArgs.waves}`, remediation: null, resumePoint: null }), integrationBranch);
+    if (!Array.isArray(parallelized.engineArgs.waves)) {
+      return parkUnit(msp, 'parallelize', NeedsHuman({ kind: 'approve-decision', what: `engineArgs.waves must be an array; got ${typeof parallelized.engineArgs.waves}`, remediation: null, resumePoint: null }), integrationBranch);
     }
 
-    const waveTaskIds = (hardened.engineArgs.waves || []).flat();
-    const taskKeys = Object.keys(hardened.engineArgs.tasks);
+    const waveTaskIds = (parallelized.engineArgs.waves || []).flat();
+    const taskKeys = Object.keys(parallelized.engineArgs.tasks);
     const taskKeySet = new Set(taskKeys);
     const waveIdSet = new Set(waveTaskIds);
     const tasksWavesMismatch =
@@ -2770,19 +2770,19 @@ async function runUnit(unit) {
       waveTaskIds.some((id) => !taskKeySet.has(id)) ||
       taskKeys.some((id) => !waveIdSet.has(id));
     if (tasksWavesMismatch) {
-      return parkUnit(msp, 'harden', NeedsHuman({ kind: 'approve-decision', what: `engineArgs.tasks keys (${taskKeys.join(', ')}) do not match the task ids referenced in engineArgs.waves (${waveTaskIds.join(', ')})`, remediation: null, resumePoint: null }), integrationBranch);
+      return parkUnit(msp, 'parallelize', NeedsHuman({ kind: 'approve-decision', what: `engineArgs.tasks keys (${taskKeys.join(', ')}) do not match the task ids referenced in engineArgs.waves (${waveTaskIds.join(', ')})`, remediation: null, resumePoint: null }), integrationBranch);
     }
 
     if (
-      typeof hardened.engineArgs.prompts !== 'object' ||
-      hardened.engineArgs.prompts === null ||
-      Array.isArray(hardened.engineArgs.prompts) ||
-      !Object.values(hardened.engineArgs.prompts).every((v) => typeof v === 'string')
+      typeof parallelized.engineArgs.prompts !== 'object' ||
+      parallelized.engineArgs.prompts === null ||
+      Array.isArray(parallelized.engineArgs.prompts) ||
+      !Object.values(parallelized.engineArgs.prompts).every((v) => typeof v === 'string')
     ) {
-      return parkUnit(msp, 'harden', NeedsHuman({ kind: 'approve-decision', what: 'engineArgs.prompts must be a non-null, non-array object whose values are all strings', remediation: null, resumePoint: null }), integrationBranch);
+      return parkUnit(msp, 'parallelize', NeedsHuman({ kind: 'approve-decision', what: 'engineArgs.prompts must be a non-null, non-array object whose values are all strings', remediation: null, resumePoint: null }), integrationBranch);
     }
 
-    aggregatedScope = aggregateMspFileScope(hardened.engineArgs.tasks);
+    aggregatedScope = aggregateMspFileScope(parallelized.engineArgs.tasks);
     log(`mitosis[${msp.id}]: aggregated write-set = ${aggregatedScope.length} path(s)`);
 
     phase('Branch');
@@ -2808,7 +2808,7 @@ async function runUnit(unit) {
 
     phase('Execute');
     const engineResult = await runEngine(
-      { ...hardened.engineArgs, retry: { maxAttempts: retryMaxAttempts, state: retryState }, fingerprintBase: `origin/${baseBranch}` },
+      { ...parallelized.engineArgs, retry: { maxAttempts: retryMaxAttempts, state: retryState }, fingerprintBase: `origin/${baseBranch}` },
       { agent, parallel, log, phase, dispatchWithRetry: supervisedEngineDispatch, makeRemediation },
     );
     if (engineResult.halted) {

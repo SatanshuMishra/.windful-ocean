@@ -112,8 +112,8 @@ function createFakeAgent({ msps, sourcePrefix = SOURCE_PREFIX, planGate, shipRes
         if (planGate) await planGate(mspId);
         return { planPath: `/tmp/mitosis-scheduler-test/${mspId}.plan.md`, summary: '' };
       }
-      case 'harden': {
-        const mspId = label.slice('harden:'.length);
+      case 'parallelize': {
+        const mspId = label.slice('parallelize:'.length);
         return { engineArgs: buildEngineArgs({ sourcePrefix, mspId }), route: { lane: 'solo', N: 1 } };
       }
       case 'branch':
@@ -1585,7 +1585,7 @@ test('T4a skip: a reconciled already-merged MSP is skipped in-chain (never plann
 
   assert.ok(!labels.includes('plan:a'), 'the reconciled MSP is never planned');
   assert.ok(!labels.includes('ship:a'), 'the reconciled MSP is never shipped');
-  assert.ok(!labels.includes('harden:a'), 'the reconciled MSP is never hardened');
+  assert.ok(!labels.includes('parallelize:a'), 'the reconciled MSP is never parallelized');
   assert.ok(!labels.includes('branch:a'), 'the reconciled MSP never runs branch-prep');
   assert.ok(labels.includes('plan:b'), 'the dependent sibling is planned');
   assert.ok(labels.includes('ship:b'), 'the dependent sibling is shipped');
@@ -1623,7 +1623,7 @@ test('T4a skip: a skipped MSP enters no retry-budgeted dispatch, and a sibling w
   const { resultPromise } = invokeMitosis(input, agent);
   const result = await resultPromise;
 
-  for (const stage of ['plan:a', 'harden:a', 'branch:a', 'ship:a']) {
+  for (const stage of ['plan:a', 'parallelize:a', 'branch:a', 'ship:a']) {
     assert.equal(labelCounts.get(stage) || 0, 0, `a skipped MSP enters no ${stage} dispatch`);
   }
   assert.equal(labelCounts.get('plan:b'), 2, 'the sibling retries its plan once and ships, so a retry unit remained available to it');
@@ -1950,7 +1950,7 @@ test('FLAGSHIP obligation-4: a raw throw from the Branch stage is caught and pro
   assert.deepEqual(result.shipped.map((s) => s.mspId), ['a'], 'the sibling MSP that already shipped is preserved in the report despite the sibling throw');
   assert.deepEqual(result.crashed, []);
   assert.deepEqual(result.halted, [], 'a Branch-stage throw is caught and parked like every other stage failure, never left as a bare schedule-level halt with no record');
-  assert.equal(result.parked.length, 1, 'the Branch-stage throw must produce a proper ParkRecord, consistent with how plan/harden/execute/ship failures are parked');
+  assert.equal(result.parked.length, 1, 'the Branch-stage throw must produce a proper ParkRecord, consistent with how plan/parallelize/execute/ship failures are parked');
   assert.equal(result.parked[0].mspId, 'b');
   assert.equal(result.parked[0].stage, 'branch');
   assert.match(result.parked[0].diagnosis, /injected branch throw for b/);
@@ -2004,7 +2004,7 @@ test('FLAGSHIP obligation-4.3.3(a): run-away is structurally impossible — ever
     const label = opts.label || '';
     totalCalls += 1;
     if (label === 'plan:p') return null;
-    if (label === 'harden:h') return null;
+    if (label === 'parallelize:h') return null;
     if (label.startsWith('impl:') && prompt.includes(`${SOURCE_PREFIX}/x`)) return null;
     return base(prompt, opts);
   };
@@ -2015,7 +2015,7 @@ test('FLAGSHIP obligation-4.3.3(a): run-away is structurally impossible — ever
   assert.deepEqual(result.shipped, []);
   assert.deepEqual(result.parked.map((p) => p.mspId).sort(), ['h', 'p', 'x']);
   assert.equal(result.parked.find((p) => p.mspId === 'p').stage, 'plan');
-  assert.equal(result.parked.find((p) => p.mspId === 'h').stage, 'harden');
+  assert.equal(result.parked.find((p) => p.mspId === 'h').stage, 'parallelize');
   assert.equal(result.parked.find((p) => p.mspId === 'x').stage, 'execute');
   assert.equal(totalCalls, 17, 'each of the three simultaneously-failing units is bounded by its own per-unit dispatch budget (no shared global budget one pathological unit could exhaust), so the total dispatch count across the whole run is exactly the sum of each unit\'s bounded cost — including the one bounded durable park-checkpoint dispatch each park incurs — never unbounded');
 });
@@ -2088,7 +2088,7 @@ test('EXECUTE-STAGE RESILIENCE: an ApproachFixable fault during Execute dispatch
   assert.equal(result.overallStatus, 'all-shipped');
 });
 
-function makeDurableFakeAgent({ msps, hardenFailUnitId, shipResult, repoRoot }) {
+function makeDurableFakeAgent({ msps, parallelizeFailUnitId, shipResult, repoRoot }) {
   const fileMap = new Map();
   const runJsonPath = `${repoRoot}/.mitosis/run.json`;
   const base = createFakeAgent({ msps, shipResult });
@@ -2115,7 +2115,7 @@ function makeDurableFakeAgent({ msps, hardenFailUnitId, shipResult, repoRoot }) 
     }
     return null;
   };
-  let hardenAttempts = 0;
+  let parallelizeAttempts = 0;
   const agent = async (prompt, opts = {}) => {
     const label = opts.label || '';
     const prefix = label.split(':')[0];
@@ -2132,10 +2132,10 @@ function makeDurableFakeAgent({ msps, hardenFailUnitId, shipResult, repoRoot }) 
       const raw = fileMap.get(runJsonPath);
       return { manifestFound: raw !== undefined, manifestRaw: raw ?? null };
     }
-    if (hardenFailUnitId && label === `harden:${hardenFailUnitId}`) {
-      hardenAttempts += 1;
-      if (hardenAttempts === 1) {
-        return { fault: { kind: 'needs-human', request: { kind: 'approve-decision', what: 'harden failed (injected, first attempt only)' } } };
+    if (parallelizeFailUnitId && label === `parallelize:${parallelizeFailUnitId}`) {
+      parallelizeAttempts += 1;
+      if (parallelizeAttempts === 1) {
+        return { fault: { kind: 'needs-human', request: { kind: 'approve-decision', what: 'parallelize failed (injected, first attempt only)' } } };
       }
     }
     return base(prompt, opts);
@@ -2146,7 +2146,7 @@ function makeDurableFakeAgent({ msps, hardenFailUnitId, shipResult, repoRoot }) 
 test('PARK-PERSIST round-trip: a park durably writes run.json via an agent-mediated checkpoint, and a relaunch resumes from the manifest the ENGINE itself produced', async () => {
   const input = buildInput();
   const msps = [mspSpec('solo', { fileScope: ['scope/solo/**'] })];
-  const { agent: durableAgent, fileMap, runJsonPath } = makeDurableFakeAgent({ msps, hardenFailUnitId: 'solo', repoRoot: input.repoRoot });
+  const { agent: durableAgent, fileMap, runJsonPath } = makeDurableFakeAgent({ msps, parallelizeFailUnitId: 'solo', repoRoot: input.repoRoot });
   const labels = [];
   const agent = async (prompt, opts = {}) => {
     labels.push(opts.label || '');
@@ -2157,21 +2157,21 @@ test('PARK-PERSIST round-trip: a park durably writes run.json via an agent-media
   const firstResult = await firstPromise;
   assert.equal(firstResult.parked.length, 1);
   assert.equal(firstResult.parked[0].mspId, 'solo');
-  assert.equal(firstResult.parked[0].stage, 'harden');
+  assert.equal(firstResult.parked[0].stage, 'parallelize');
 
   assert.ok(fileMap.has(runJsonPath), 'a park must durably write run.json via an agent-mediated dispatch');
   const persisted = JSON.parse(fileMap.get(runJsonPath));
   const soloEntry = persisted.msps.find((m) => m.id === 'solo');
   assert.ok(soloEntry, 'the engine-produced run.json must still carry a msps entry for the parked unit');
   assert.equal(soloEntry.status, 'parked', 'the ENGINE-produced run.json must record status:parked for the parked unit');
-  assert.equal(soloEntry.resumePoint && soloEntry.resumePoint.stage, 'harden', 'the ENGINE-produced run.json must record resumePoint.stage');
+  assert.equal(soloEntry.resumePoint && soloEntry.resumePoint.stage, 'parallelize', 'the ENGINE-produced run.json must record resumePoint.stage');
 
   const firstRunLabelCount = labels.length;
   const { resultPromise: secondPromise } = invokeMitosis(input, agent);
   const secondResult = await secondPromise;
 
-  assert.ok(!labels.slice(firstRunLabelCount).includes('plan:solo'), 'a relaunch resuming at harden must not re-run the Plan stage');
-  assert.equal(secondResult.overallStatus, 'all-shipped', 'relaunch reads the engine-produced manifest and resumes the parked unit at harden, then ships');
+  assert.ok(!labels.slice(firstRunLabelCount).includes('plan:solo'), 'a relaunch resuming at parallelize must not re-run the Plan stage');
+  assert.equal(secondResult.overallStatus, 'all-shipped', 'relaunch reads the engine-produced manifest and resumes the parked unit at parallelize, then ships');
 });
 
 test('RESILIENCE-C: a park after local branch/worktree effects have been created surfaces a saga-computed compensation (undo) plan on the ParkRecord', async () => {
@@ -2290,7 +2290,7 @@ test('R3 SPEC-R3(d): a human-gated run durably journals status:built for the uni
 test('SECURITY deny-case: a NeedsHuman-supplied resumePoint.stage outside the known stage vocabulary must not be surfaced raw on the public ParkRecord', async () => {
   const msps = [mspSpec('solo', { fileScope: ['scope/solo/**'] })];
   const base = createFakeAgent({ msps });
-  const injectedStage = 'harden\ninjected-log-line: ADMIN GRANTED';
+  const injectedStage = 'parallelize\ninjected-log-line: ADMIN GRANTED';
   const agent = async (prompt, opts = {}) => {
     const label = opts.label || '';
     if (label === 'plan:solo') {
@@ -2306,7 +2306,7 @@ test('SECURITY deny-case: a NeedsHuman-supplied resumePoint.stage outside the kn
   const { resultPromise } = invokeMitosis(buildInput(), agent);
   const result = await resultPromise;
 
-  const ALLOWED_STAGES = new Set(['plan', 'harden', 'branch', 'execute', 'ship']);
+  const ALLOWED_STAGES = new Set(['plan', 'parallelize', 'branch', 'execute', 'ship']);
   assert.equal(result.parked.length, 1);
   const stage = result.parked[0].resumePoint.stage;
   assert.ok(
@@ -2451,7 +2451,7 @@ function checkpointLsRemoteLine(runId, id) {
   return `0123456789abcdef0123456789abcdef01234567\trefs/mitosis/${runId}/${id}`;
 }
 
-test('R4(d) built-resume: a relaunch whose durable checkpoint ls-remote shows a built-but-unmerged unit dispatches NO plan, NO harden, NO branch-prep and NO execute for it — it restores from the checkpoint and ships straight — while a fresh sibling plans, hardens, executes and ships normally', async () => {
+test('R4(d) built-resume: a relaunch whose durable checkpoint ls-remote shows a built-but-unmerged unit dispatches NO plan, NO parallelize, NO branch-prep and NO execute for it — it restores from the checkpoint and ships straight — while a fresh sibling plans, parallelizes, executes and ships normally', async () => {
   const input = buildInput();
   const logicalRunId = computeLogicalRunId(input.spec, input.baseBranch);
   const builtRef = `refs/mitosis/${logicalRunId}/a`;
@@ -2475,7 +2475,7 @@ test('R4(d) built-resume: a relaunch whose durable checkpoint ls-remote shows a 
   const result = await resultPromise;
 
   assert.ok(!labels.includes('plan:a'), 'a durably-built unit is NOT re-planned on relaunch');
-  assert.ok(!labels.includes('harden:a'), 'a durably-built unit is NOT re-hardened on relaunch');
+  assert.ok(!labels.includes('parallelize:a'), 'a durably-built unit is NOT re-parallelized on relaunch');
   assert.ok(!labels.includes('branch:a'), 'a durably-built unit does NOT re-run branch-prep on relaunch');
   assert.ok(!labels.includes('checkpoint-push:a'), 'a durably-built unit does NOT re-execute (no fresh durable-checkpoint push) on relaunch');
   assert.ok(!labels.includes('built-checkpoint:a'), 'a durably-built unit writes no fresh built checkpoint on relaunch');
@@ -2483,7 +2483,7 @@ test('R4(d) built-resume: a relaunch whose durable checkpoint ls-remote shows a 
   assert.ok(labels.includes('ship:a'), 'a durably-built unit is shipped straight from the durable checkpoint');
 
   assert.ok(labels.includes('plan:b'), 'the fresh sibling is planned');
-  assert.ok(labels.includes('harden:b'), 'the fresh sibling is hardened');
+  assert.ok(labels.includes('parallelize:b'), 'the fresh sibling is parallelized');
   assert.ok(labels.includes('branch:b'), 'the fresh sibling runs branch-prep');
   assert.ok(labels.includes('ship:b'), 'the fresh sibling ships');
 
@@ -2528,7 +2528,7 @@ test('R4 resume-target: a resume of a KNOWN runId resolves through resolveResume
   assert.deepEqual(result.shipped.map((s) => s.mspId).sort(), ['a', 'b']);
 });
 
-test('SECURITY HIGH-1 deny: a non-reusable relaunch (spec content hash changed) DISCARDS all prior resume state — a freshly-decomposed unit whose kebab id collides with a prior durably-built unit runs Plan/Harden/Branch fresh, never the skip-to-ship built-resume path, and never fetches the prior/attacker-chosen checkpoint ref', async () => {
+test('SECURITY HIGH-1 deny: a non-reusable relaunch (spec content hash changed) DISCARDS all prior resume state — a freshly-decomposed unit whose kebab id collides with a prior durably-built unit runs Plan/Parallelize/Branch fresh, never the skip-to-ship built-resume path, and never fetches the prior/attacker-chosen checkpoint ref', async () => {
   const input = buildInput();
   const logicalRunId = computeLogicalRunId(input.spec, input.baseBranch);
   const attackerRef = 'refs/heads/attacker-controlled;curl evil';
@@ -2556,7 +2556,7 @@ test('SECURITY HIGH-1 deny: a non-reusable relaunch (spec content hash changed) 
   const result = await resultPromise;
 
   assert.ok(labels.includes('plan:a'), 'the colliding fresh unit is planned fresh, not skipped');
-  assert.ok(labels.includes('harden:a'), 'the colliding fresh unit is hardened fresh');
+  assert.ok(labels.includes('parallelize:a'), 'the colliding fresh unit is parallelized fresh');
   assert.ok(labels.includes('branch:a'), 'the colliding fresh unit runs branch-prep fresh');
   assert.ok(!labels.includes('restore:a'), 'the colliding fresh unit never enters the built-resume skip-to-ship restore path');
   assert.ok(!prompts.some((p) => p.includes(attackerRef)), 'the stale/attacker-chosen prior checkpoint ref is never woven into any dispatched prompt');
