@@ -172,20 +172,42 @@ test('PROOF 2 — abandon/park unwinds the per-unit compensation stack LIFO (rev
   assert.deepEqual(undos.map((c) => c.effect.kind), ['pr-open', 'push-integration', 'local-branch', 'worktree-add']);
   assert.deepEqual(undoCommandList(stack), [
     'gh pr close 123',
-    'git push origin --delete mitosis/int/u1',
     'git branch -D mitosis/int/u1',
     'git worktree remove --force /wt/a',
   ]);
   assert.ok(Object.isFrozen(undos));
 });
 
-test('PROOF 2c — undoCommandList stops at the first point of no return: a stack ending in squash-merge yields ONLY the forward-only revert, never the destructive pre-merge teardown (no auto-revert past the point of no return)', () => {
+test('R6a — undoCommandList skips forward-only effects so a park never deletes a durable pushed integration/checkpoint ref', () => {
+  let stack = emptyCompensationStack();
+  stack = registerEffect(stack, { kind: 'worktree-add', worktree: '/wt/a' });
+  stack = registerEffect(stack, { kind: 'local-branch', ref: 'mitosis/int/u1' });
+  stack = registerEffect(stack, { kind: 'push-integration', ref: 'mitosis/int/u1' });
+  stack = registerEffect(stack, { kind: 'pr-open', pr: '123' });
+  const undos = undoCommandList(stack);
+  assert.ok(!undos.some((cmd) => /push .*--delete/.test(cmd)), 'a forward-only pushed ref must never be torn down by a delete');
+  assert.deepEqual(undos, [
+    'gh pr close 123',
+    'git branch -D mitosis/int/u1',
+    'git worktree remove --force /wt/a',
+  ]);
+});
+
+test('R6a — undoCommandList still honors pointOfNoReturn as the stop boundary while skipping forward-only effects', () => {
+  let stack = emptyCompensationStack();
+  stack = registerEffect(stack, { kind: 'local-branch', ref: 'mitosis/int/u1' });
+  stack = registerEffect(stack, { kind: 'squash-merge', mergeCommit: 'abc1234' });
+  stack = registerEffect(stack, { kind: 'pr-open', pr: '123' });
+  assert.deepEqual(undoCommandList(stack), ['gh pr close 123']);
+});
+
+test('PROOF 2c — undoCommandList stops at the first point of no return and skips the forward-only merge: a stack ending in squash-merge yields NO destructive pre-merge teardown (no auto-revert past the point of no return)', () => {
   let stack = emptyCompensationStack();
   stack = registerEffect(stack, { kind: 'worktree-add', worktree: '/wt/a' });
   stack = registerEffect(stack, { kind: 'local-branch', ref: 'mitosis/int/u1' });
   stack = registerEffect(stack, { kind: 'push-integration', ref: 'mitosis/int/u1' });
   stack = registerEffect(stack, { kind: 'squash-merge', mergeCommit: 'abc1234' });
-  assert.deepEqual(undoCommandList(stack), ['git revert --no-edit abc1234']);
+  assert.deepEqual(undoCommandList(stack), []);
 });
 
 test('PROOF 2b — perUnitCompensation does not mutate the input stack and rejects a non-array', () => {

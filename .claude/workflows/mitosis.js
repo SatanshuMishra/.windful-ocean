@@ -1694,7 +1694,7 @@ function perUnitCompensation(stack) {
 function undoCommandList(stack) {
   const commands = [];
   for (const comp of perUnitCompensation(stack)) {
-    if (comp.undo !== null && comp.undo !== undefined) commands.push(comp.undo);
+    if (!comp.forwardOnly && comp.undo !== null && comp.undo !== undefined) commands.push(comp.undo);
     if (comp.pointOfNoReturn) break;
   }
   return Object.freeze(commands);
