@@ -2688,3 +2688,42 @@ test('PLAN-REVIEW resume: a relaunch of a unit parked at plan-review skips Plan 
   assert.equal(result.overallStatus, 'all-shipped', 'the resumed review approves and the unit proceeds to ship');
   assert.deepEqual(result.shipped.map((s) => s.mspId), ['solo']);
 });
+
+test('PLAN-REVIEW skip-forward: a relaunch of a unit parked past plan-review (at parallelize) skips Plan AND does NOT re-dispatch the plan-review reviewer, proceeding straight to Parallelize', async () => {
+  const input = buildInput();
+  const logicalRunId = computeLogicalRunId(input.spec, input.baseBranch);
+  const msps = [mspSpec('solo', { fileScope: ['scope/solo/**'] })];
+  const initialManifest = buildInitialManifest({
+    logicalRunId,
+    harnessRunId: null,
+    spec: input.spec,
+    repoRoot: input.repoRoot,
+    baseBranch: input.baseBranch,
+    sourcePrefix: SOURCE_PREFIX,
+    clusters: [['solo']],
+    msps,
+    specContentHash: SPEC_CONTENT_HASH,
+  });
+  const parkedManifest = park(initialManifest, {
+    unitId: 'solo',
+    stage: 'parallelize',
+    diagnosis: 'parallelize did not converge on a prior run',
+    request: { kind: 'approve-decision', what: 'a human must decide' },
+    remediation: null,
+    resumePoint: { branch: `${SOURCE_PREFIX}/solo-integration`, ref: input.baseBranch, stage: 'parallelize' },
+    triedSet: [],
+  });
+  const manifestRaw = JSON.stringify(parkedManifest);
+  const reconcileResult = { manifestFound: true, manifestRaw, mergedPRs: [], specContentHash: SPEC_CONTENT_HASH };
+  const base = createFakeAgent({ msps, reconcileResult });
+  const labels = [];
+  const agent = async (prompt, opts = {}) => { labels.push(opts.label || ''); return base(prompt, opts); };
+  const { resultPromise } = invokeMitosis(input, agent);
+  const result = await resultPromise;
+
+  assert.ok(!labels.includes('plan:solo'), 'a resume past plan-review skips the Plan stage');
+  assert.ok(!labels.includes('plan-review:solo'), 'a resume at parallelize must NOT re-dispatch the plan-review reviewer — plan-review is skipped forward');
+  assert.ok(labels.includes('parallelize:solo'), 'the resumed unit re-enters at Parallelize');
+  assert.equal(result.overallStatus, 'all-shipped', 'the resumed unit proceeds past the skipped plan-review to ship');
+  assert.deepEqual(result.shipped.map((s) => s.mspId), ['solo']);
+});

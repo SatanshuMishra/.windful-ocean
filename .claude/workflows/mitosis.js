@@ -2709,9 +2709,9 @@ async function runUnit(unit) {
     }
 
     const resume = resumeMap.get(msp.id) || null;
-    const RESUME_STAGE_ORDER = ['plan', 'plan-review', 'parallelize', 'branch', 'execute', 'ship'];
+    const RESUME_STAGE_ORDER = LEGAL_STAGES;
     const resumeStartIdx = resume ? RESUME_STAGE_ORDER.indexOf(resume.stage) : 0;
-    const skipPlan = resumeStartIdx > 0;
+    const skipPlan = resumeStartIdx > RESUME_STAGE_ORDER.indexOf('plan');
     const planTriedSeed = resume && resume.stage === 'plan' ? resume.triedSet : undefined;
     const parallelizeTriedSeed = resume && resume.stage === 'parallelize' ? resume.triedSet : undefined;
     const isBuiltResume = Boolean(resume) && resume.built === true && resume.stage === 'ship';
@@ -2770,7 +2770,7 @@ async function runUnit(unit) {
     }
     log(`mitosis[${msp.id}]: planned -> ${planned.planPath}`);
 
-    const skipPlanReview = resumeStartIdx > 1;
+    const skipPlanReview = resumeStartIdx > RESUME_STAGE_ORDER.indexOf('plan-review');
     if (!skipPlanReview) {
       phase('Plan review');
       let planReviewApproved = false;
