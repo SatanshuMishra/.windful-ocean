@@ -963,6 +963,10 @@ const RECONCILE_SCHEMA = {
     manifestFound: { type: 'boolean' },
     manifestRaw: { type: ['string', 'null'] },
     specContentHash: { type: ['string', 'null'] },
+    checkpointRefPages: {
+      type: 'array',
+      items: { type: 'array', items: { type: 'string' } },
+    },
     mergedPRs: {
       type: 'array',
       items: {
@@ -1047,6 +1051,16 @@ const BRANCH_SCHEMA = {
   additionalProperties: false,
   properties: {
     ready: { type: 'boolean' },
+    detail: { type: 'string' },
+  },
+};
+
+const RESTORE_SCHEMA = {
+  type: 'object',
+  required: ['restored', 'detail'],
+  additionalProperties: false,
+  properties: {
+    restored: { type: 'boolean' },
     detail: { type: 'string' },
   },
 };
@@ -2310,8 +2324,9 @@ try {
       `1. Inspect the run manifest if present: \`cat ${repoRoot}/.mitosis/run.json\`. If the file exists, return its exact raw contents as manifestRaw (a string) and set manifestFound=true; if it is absent, set manifestFound=false and manifestRaw=null. Do NOT parse, repair, or alter it — return the bytes verbatim, the engine parses it.\n` +
       `2. List the pull requests already merged into the base so the engine can skip re-shipping them: \`gh pr list --state merged --base ${baseBranch} --json headRefName,url,mergedAt\`. Return that array verbatim as mergedPRs (an empty array if none).\n` +
       `3. For diagnostics only you MAY run \`git log origin/${baseBranch}\` to observe recent base history; it does not affect the returned object.\n` +
-      `4. Compute a content fingerprint of the spec so the engine can detect an in-place spec edit since the manifest was recorded: run \`shasum -a 256 ${spec}\` and return ONLY the leading 64-character hex field as specContentHash (a string). If the spec file cannot be read, return specContentHash=null.\n\n` +
-      `Return ONLY the structured object: { manifestFound, manifestRaw, mergedPRs: [ { headRefName, url, mergedAt } ], specContentHash }.`,
+      `4. Compute a content fingerprint of the spec so the engine can detect an in-place spec edit since the manifest was recorded: run \`shasum -a 256 ${spec}\` and return ONLY the leading 64-character hex field as specContentHash (a string). If the spec file cannot be read, return specContentHash=null.\n` +
+      `5. List the DURABLE mitosis checkpoint refs so the engine can reconcile built-but-unmerged work against them: run \`git -C ${repoRoot} ls-remote origin 'refs/mitosis/*'\`. This is the authoritative record of which units were durably built on a prior run. Capture EVERY output line in full (each line is \`<sha>\\t<ref>\`), returning them COMPLETELY with no truncation as checkpointRefPages: an array of pages where each page is an array of the raw line strings (return a single page holding all lines; use additional pages only if you had to fetch the listing in multiple passes). Return checkpointRefPages=[] (an empty array) if there is no remote or no such ref. Return the lines verbatim; do NOT parse, filter, or alter them — the engine parses them.\n\n` +
+      `Return ONLY the structured object: { manifestFound, manifestRaw, mergedPRs: [ { headRefName, url, mergedAt } ], specContentHash, checkpointRefPages: [ [ "<sha>\\t<ref>" ] ] }.`,
       { agentType: 'implementer', schema: RECONCILE_SCHEMA, label: 'reconcile', phase: 'Reconcile', model: models.reconciler || models.shipper || 'sonnet' }
     ),
     { unitId: 'reconcile', stage: 'reconcile', resetRef: null, worktree: null, task: 'inspect durable run state and the already-merged set', ...makeRemediation({ unitId: 'reconcile', stage: 'reconcile', task: 'inspect durable run state and the already-merged set', schema: RECONCILE_SCHEMA, agentType: 'implementer', phase: 'Reconcile' }), compensate: makeCompensate(null, null) },
@@ -2332,12 +2347,33 @@ const reconciledMap = reconcileShippedSet(recon ? recon.mergedPRs : [], sourcePr
 const reconciledShipped = new Set(reconciledMap.keys());
 const reconciledShippedMeta = reconciledMap;
 const observedSpecHash = (recon && typeof recon.specContentHash === 'string') ? recon.specContentHash : null;
-const isRelaunch = priorManifest && priorManifest.logicalRunId === logicalRunId;
-const reuse = isRelaunch ? evaluateManifestReuse(priorManifest, observedSpecHash) : { reusable: false };
+
+const resumeRequested = input.verb === 'resume' && typeof input.runId === 'string' && input.runId.length > 0;
+if (resumeRequested) {
+  const resumeTarget = resolveResumeTarget(priorManifest, input.runId);
+  if (!resumeTarget.found) {
+    return fatalReport('reconcile', `resume: unknown runId ${clean(input.runId)} (${resumeTarget.reason}) — refusing a silent fresh start; no durable manifest matches this runId`, 0);
+  }
+}
+
+const checkpointRefLines = mergePaginated(recon && Array.isArray(recon.checkpointRefPages) ? recon.checkpointRefPages : []);
+const builtUnits = reconcileBuiltSet(checkpointRefLines, logicalRunId);
+const manifestUnitIds = priorManifest ? new Set(priorManifest.msps.map((m) => m.id)) : new Set();
+const reconciledManifest = builtUnits
+  .filter((unitId) => manifestUnitIds.has(unitId))
+  .reduce((mani, unitId) => applyBuiltTransition(mani, { unitId, checkpointRef: checkpointRef(logicalRunId, unitId), sha: null }), priorManifest);
+
+const isRelaunch = reconciledManifest && reconciledManifest.logicalRunId === logicalRunId;
+const reuse = isRelaunch ? evaluateManifestReuse(reconciledManifest, observedSpecHash) : { reusable: false };
 const reusable = reuse.reusable;
 const resumeMap = new Map();
 if (isRelaunch) {
-  for (const r of selectResumeUnits(priorManifest, reconciledShipped)) resumeMap.set(r.unitId, r);
+  const plannedIds = reconciledManifest.msps.map((m) => m.id);
+  const parkedIds = reconciledManifest.msps.filter((m) => m.status === 'parked').map((m) => m.id);
+  const remaining = computeRemaining({ planned: plannedIds, merged: [...reconciledShipped], built: builtUnits, parked: parkedIds });
+  log(`mitosis: reconcile — ${remaining.skipMerged.length} merged, ${remaining.resumeBuilt.length} built-resumable, ${remaining.resumeParked.length} parked-resumable, ${remaining.remaining.length} remaining (durable checkpoint refs seen: ${builtUnits.length})`);
+  for (const r of selectResumeUnits(reconciledManifest, reconciledShipped)) resumeMap.set(r.unitId, r);
+  for (const r of selectResumeBuilt(reconciledManifest, reconciledShipped)) resumeMap.set(r.unitId, { ...r, built: true });
 }
 
 let msps, clusters;
@@ -2639,6 +2675,37 @@ async function runUnit(unit) {
     const skipPlan = resumeStartIdx > 0;
     const planTriedSeed = resume && resume.stage === 'plan' ? resume.triedSet : undefined;
     const hardenTriedSeed = resume && resume.stage === 'harden' ? resume.triedSet : undefined;
+    const isBuiltResume = Boolean(resume) && resume.built === true && resume.stage === 'ship';
+    let aggregatedScope = Array.isArray(msp.fileScope) ? msp.fileScope : [];
+
+    if (isBuiltResume) {
+      const builtRef = resume.resumePoint && typeof resume.resumePoint.ref === 'string' ? resume.resumePoint.ref : null;
+      if (builtRef === null) {
+        return parkUnit(msp, 'ship', NeedsHuman({ kind: 'approve-decision', what: `built-resume for ${msp.id} carries no durable checkpoint ref to restore from`, remediation: null, resumePoint: { branch: integrationBranch, ref: baseBranch, stage: 'ship' } }), integrationBranch, compensationStack);
+      }
+      log(`mitosis[${msp.id}]: built-resume — skipping Plan/Harden/Branch/Execute; restoring ${integrationBranch} from durable checkpoint ${clean(builtRef)} and shipping straight`);
+      const restoreOutcome = await supervisedDispatch(
+        (attemptNo, preamble) => agent(
+          `You are the built-restore stage for MSP "${msp.id}" of a mitosis run. You have NO Skill tool.\n\n` +
+          `A prior run already BUILT and durably checkpointed this MSP's boundary-validated, integrated work at the mitosis checkpoint ref ${JSON.stringify(builtRef)}; this relaunch resumes it STRAIGHT at ship WITHOUT re-planning, re-hardening, re-branching, or re-executing. Restore the local integration branch ${JSON.stringify(integrationBranch)} to that durable tip so ship can publish it. Operate against the main repo at ${repoRoot}; do NOT check out the branch and do NOT enter any worktree.\n\n` +
+          `Restore observe-then-converge (idempotent under replay):\n` +
+          `1. Fetch the durable checkpoint tip into FETCH_HEAD: \`git -C ${repoRoot} fetch origin ${builtRef}\`.\n` +
+          `2. Point the local integration branch at that fetched tip: \`git -C ${repoRoot} branch -f ${integrationBranch} FETCH_HEAD\` (this ref is local and never-pushed here, so a destructive branch move is safe forward compensation; re-running sets the same tip).\n\n` +
+          `If both succeed set restored=true. If there is no remote or the checkpoint ref is missing so the tip cannot be fetched, set restored=false and explain in detail.\n\n` +
+          `Return ONLY: { restored: <bool>, detail: "<what happened>" }.`,
+          { agentType: 'implementer', schema: RESTORE_SCHEMA, label: `restore:${msp.id}`, phase: 'Ship' }
+        ),
+        { unitId: msp.id, stage: 'ship', resetRef: baseBranch, worktree: null, task: `restore ${msp.id} from durable checkpoint ${builtRef}`, ...makeRemediation({ unitId: msp.id, stage: 'ship', task: `restore ${msp.id} from durable checkpoint ${builtRef}`, schema: RESTORE_SCHEMA, agentType: 'implementer', phase: 'Ship' }), compensate: makeCompensate(null, baseBranch) },
+      );
+      if (restoreOutcome.tag !== 'Done') return parkUnit(msp, 'ship', restoreOutcome, integrationBranch, compensationStack);
+      const restored = restoreOutcome.value;
+      if (!restored || restored.restored !== true) {
+        return parkUnit(msp, 'ship', NeedsHuman({ kind: 'approve-decision', what: restored && restored.detail ? restored.detail : `could not restore ${msp.id} from durable checkpoint ${builtRef}`, remediation: null, resumePoint: { branch: integrationBranch, ref: builtRef, stage: 'ship' } }), integrationBranch, compensationStack);
+      }
+      log(`mitosis[${msp.id}]: restored ${integrationBranch} from durable checkpoint ${clean(builtRef)}`);
+      compensationStack = registerEffect(compensationStack, { kind: 'local-branch', ref: integrationBranch });
+      return finalizeShip();
+    }
 
     let planned;
     if (skipPlan) {
@@ -2730,7 +2797,7 @@ async function runUnit(unit) {
       return parkUnit(msp, 'harden', NeedsHuman({ kind: 'approve-decision', what: 'engineArgs.prompts must be a non-null, non-array object whose values are all strings', remediation: null, resumePoint: null }), integrationBranch);
     }
 
-    const aggregatedScope = aggregateMspFileScope(hardened.engineArgs.tasks);
+    aggregatedScope = aggregateMspFileScope(hardened.engineArgs.tasks);
     log(`mitosis[${msp.id}]: aggregated write-set = ${aggregatedScope.length} path(s)`);
 
     phase('Branch');
@@ -2858,17 +2925,21 @@ async function runUnit(unit) {
       return { halted: false, mspId: msp.id, prUrl: ship.prUrl };
     }
 
-    const link = (mergeQueue = mergeQueue.then(() => shipOneMsp()).catch((err) => ({ halted: true, crashed: true, stage: 'ship', mspId: msp.id, error: `ship threw: ${err.message}` })));
-    const ship = await link;
-    if (ship.halted) {
-      return parkUnit(msp, 'ship', NeedsHuman({ kind: 'approve-decision', what: ship.detail || ship.error || 'ship halted', remediation: null, resumePoint: { branch: integrationBranch, ref: baseBranch, stage: 'ship' } }), integrationBranch, compensationStack);
+    async function finalizeShip() {
+      const link = (mergeQueue = mergeQueue.then(() => shipOneMsp()).catch((err) => ({ halted: true, crashed: true, stage: 'ship', mspId: msp.id, error: `ship threw: ${err.message}` })));
+      const ship = await link;
+      if (ship.halted) {
+        return parkUnit(msp, 'ship', NeedsHuman({ kind: 'approve-decision', what: ship.detail || ship.error || 'ship halted', remediation: null, resumePoint: { branch: integrationBranch, ref: baseBranch, stage: 'ship' } }), integrationBranch, compensationStack);
+      }
+      if (ship.awaiting) {
+        awaitingApproval.push({ mspId: msp.id, prUrl: ship.prUrl, receiptsPass: ship.receiptsPass, d6Pass: ship.d6Pass, dependsOn: msp.dependsOn || [] });
+        for (const d of transitiveDependents(msps, msp.id)) blockedByApproval.add(d);
+        return AwaitingApproval({ mspId: msp.id, prUrl: ship.prUrl });
+      }
+      return Done({ mspId: msp.id, prUrl: ship.prUrl });
     }
-    if (ship.awaiting) {
-      awaitingApproval.push({ mspId: msp.id, prUrl: ship.prUrl, receiptsPass: ship.receiptsPass, d6Pass: ship.d6Pass, dependsOn: msp.dependsOn || [] });
-      for (const d of transitiveDependents(msps, msp.id)) blockedByApproval.add(d);
-      return AwaitingApproval({ mspId: msp.id, prUrl: ship.prUrl });
-    }
-    return Done({ mspId: msp.id, prUrl: ship.prUrl });
+
+    return finalizeShip();
 }
 
 let scheduleResult;

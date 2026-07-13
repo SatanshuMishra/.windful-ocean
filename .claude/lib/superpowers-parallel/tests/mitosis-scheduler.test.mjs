@@ -114,6 +114,8 @@ function createFakeAgent({ msps, sourcePrefix = SOURCE_PREFIX, planGate, shipRes
       }
       case 'branch':
         return { ready: true, detail: '' };
+      case 'restore':
+        return { restored: true, detail: '' };
       case 'ship': {
         const mspId = label.slice('ship:'.length);
         const override = shipResult ? shipResult(mspId) : null;
@@ -2358,4 +2360,85 @@ test('TRIEDSET-PERSIST round-trip: a remediation-exhaustion park persists the ac
     resumedDiagnosePrompt.includes('worktree:reset-one'),
     'the resumed unit\'s diagnostician prompt must list previously-exhausted mechanisms (worktree:reset-one) in its "already tried and excluded" set, so the relaunch does not re-propose a mechanism already proven not to work',
   );
+});
+
+function checkpointLsRemoteLine(runId, id) {
+  return `0123456789abcdef0123456789abcdef01234567\trefs/mitosis/${runId}/${id}`;
+}
+
+test('R4(d) built-resume: a relaunch whose durable checkpoint ls-remote shows a built-but-unmerged unit dispatches NO plan, NO harden, NO branch-prep and NO execute for it — it restores from the checkpoint and ships straight — while a fresh sibling plans, hardens, executes and ships normally', async () => {
+  const input = buildInput();
+  const logicalRunId = computeLogicalRunId(input.spec, input.baseBranch);
+  const builtRef = `refs/mitosis/${logicalRunId}/a`;
+  const reusedMsps = [
+    { id: 'a', title: 'a', rationale: 'r', status: 'built', integrationBranch: `${SOURCE_PREFIX}/a-integration`, checkpointRef: builtRef, builtSha: null, prUrl: null, mergedAt: null, dependsOn: [], fileScope: ['scope/a/**'] },
+    { id: 'b', title: 'b', rationale: 'r', status: 'planned', integrationBranch: `${SOURCE_PREFIX}/b-integration`, prUrl: null, mergedAt: null, dependsOn: [], fileScope: ['scope/b/**'] },
+  ];
+  const manifestRaw = JSON.stringify({ logicalRunId, specContentHash: SPEC_CONTENT_HASH, clusters: [['a'], ['b']], msps: reusedMsps }, null, 2);
+  assert.ok(parseRunManifest(manifestRaw), 'the built-bearing manifest is read back as a valid hint');
+  const reconcileResult = {
+    manifestFound: true,
+    manifestRaw,
+    mergedPRs: [],
+    specContentHash: SPEC_CONTENT_HASH,
+    checkpointRefPages: [[checkpointLsRemoteLine(logicalRunId, 'a')]],
+  };
+  const labels = [];
+  const base = createFakeAgent({ reconcileResult });
+  const agent = async (prompt, opts = {}) => { labels.push(opts.label || ''); return base(prompt, opts); };
+  const { resultPromise } = invokeMitosis(input, agent);
+  const result = await resultPromise;
+
+  assert.ok(!labels.includes('plan:a'), 'a durably-built unit is NOT re-planned on relaunch');
+  assert.ok(!labels.includes('harden:a'), 'a durably-built unit is NOT re-hardened on relaunch');
+  assert.ok(!labels.includes('branch:a'), 'a durably-built unit does NOT re-run branch-prep on relaunch');
+  assert.ok(!labels.includes('checkpoint-push:a'), 'a durably-built unit does NOT re-execute (no fresh durable-checkpoint push) on relaunch');
+  assert.ok(!labels.includes('built-checkpoint:a'), 'a durably-built unit writes no fresh built checkpoint on relaunch');
+  assert.ok(labels.includes('restore:a'), 'a durably-built unit restores its integration branch from the durable checkpoint ref before shipping');
+  assert.ok(labels.includes('ship:a'), 'a durably-built unit is shipped straight from the durable checkpoint');
+
+  assert.ok(labels.includes('plan:b'), 'the fresh sibling is planned');
+  assert.ok(labels.includes('harden:b'), 'the fresh sibling is hardened');
+  assert.ok(labels.includes('branch:b'), 'the fresh sibling runs branch-prep');
+  assert.ok(labels.includes('ship:b'), 'the fresh sibling ships');
+
+  assert.equal(labels.filter((l) => l === 'impl:t0').length, 1, 'only the fresh sibling enters the execute engine; the built unit never re-executes');
+
+  assert.equal(result.overallStatus, 'all-shipped');
+  assert.deepEqual(result.shipped.map((s) => s.mspId).sort(), ['a', 'b'], 'both the resumed-built unit and the fresh sibling reach shipped');
+});
+
+test('R4 resume-target: a resume of an UNKNOWN runId halts loudly at reconcile (failed report, no Decompose, no ship) rather than silently starting a fresh run', async () => {
+  const input = buildInput({ verb: 'resume', runId: 'deadbeef' });
+  const reconcileResult = { manifestFound: false, manifestRaw: null, mergedPRs: [], specContentHash: SPEC_CONTENT_HASH, checkpointRefPages: [] };
+  const labels = [];
+  const base = createFakeAgent({ msps: twoIndependentMsps(), reconcileResult });
+  const agent = async (prompt, opts = {}) => { labels.push(opts.label || ''); return base(prompt, opts); };
+  const { resultPromise } = invokeMitosis(input, agent);
+  const result = await resultPromise;
+
+  assert.equal(result.overallStatus, 'failed', 'an unknown-runId resume fails loudly');
+  assert.equal(result.stage, 'reconcile', 'the loud halt is attributed to the reconcile stage');
+  assert.match(result.detail, /runId/, 'the halt detail names the unresolved runId');
+  assert.ok(!labels.includes('decompose'), 'an unknown-runId resume never decomposes fresh');
+  assert.ok(!labels.some((l) => l.startsWith('plan:')), 'an unknown-runId resume never plans any unit');
+  assert.ok(!labels.some((l) => l.startsWith('ship:')), 'an unknown-runId resume never ships any unit');
+});
+
+test('R4 resume-target: a resume of a KNOWN runId resolves through resolveResumeTarget and proceeds — it does NOT falsely halt', async () => {
+  const input = buildInput();
+  const logicalRunId = computeLogicalRunId(input.spec, input.baseBranch);
+  const resumeInput = buildInput({ verb: 'resume', runId: logicalRunId });
+  const reusedMsps = [
+    { id: 'a', title: 'a', rationale: 'r', status: 'planned', integrationBranch: `${SOURCE_PREFIX}/a-integration`, prUrl: null, mergedAt: null, dependsOn: [], fileScope: ['scope/a/**'] },
+    { id: 'b', title: 'b', rationale: 'r', status: 'planned', integrationBranch: `${SOURCE_PREFIX}/b-integration`, prUrl: null, mergedAt: null, dependsOn: [], fileScope: ['scope/b/**'] },
+  ];
+  const manifestRaw = JSON.stringify({ logicalRunId, specContentHash: SPEC_CONTENT_HASH, clusters: [['a'], ['b']], msps: reusedMsps }, null, 2);
+  const reconcileResult = { manifestFound: true, manifestRaw, mergedPRs: [], specContentHash: SPEC_CONTENT_HASH, checkpointRefPages: [] };
+  const base = createFakeAgent({ reconcileResult });
+  const { resultPromise } = invokeMitosis(resumeInput, base);
+  const result = await resultPromise;
+
+  assert.equal(result.overallStatus, 'all-shipped', 'a resume whose runId matches the durable manifest proceeds and ships — it does not halt');
+  assert.deepEqual(result.shipped.map((s) => s.mspId).sort(), ['a', 'b']);
 });
