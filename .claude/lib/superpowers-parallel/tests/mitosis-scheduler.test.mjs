@@ -2556,3 +2556,24 @@ test('SECURITY HIGH-1 deny: a non-reusable relaunch (spec content hash changed) 
   assert.equal(result.overallStatus, 'all-shipped', 'both freshly-decomposed units ship');
   assert.deepEqual(result.shipped.map((s) => s.mspId).sort(), ['a', 'c']);
 });
+
+test('SECURITY HIGH-2 deny: a fresh Decompose returning an injection / non-kebab MSP id fatal-reports at the decompose stage and NEVER weaves that id into a branch/execute/ship prompt', async () => {
+  const injectionId = 'a; rm -rf ~ #';
+  const decomposeMsps = [
+    { id: injectionId, title: 't', rationale: 'r', dependsOn: [], fileScope: ['scope/a/**'] },
+    mspSpec('b', { fileScope: ['scope/b/**'] }),
+  ];
+  const labels = [];
+  const prompts = [];
+  const base = createFakeAgent({ msps: decomposeMsps });
+  const agent = async (prompt, opts = {}) => { labels.push(opts.label || ''); prompts.push(prompt); return base(prompt, opts); };
+  const { resultPromise } = invokeMitosis(buildInput(), agent);
+  const result = await resultPromise;
+
+  assert.equal(result.overallStatus, 'failed', 'an injection decompose id fails the run closed');
+  assert.equal(result.stage, 'decompose', 'the fail-closed halt is attributed to the decompose stage');
+  assert.ok(!labels.some((l) => l.startsWith('plan:')), 'no unit is planned once a decompose id is rejected');
+  assert.ok(!labels.some((l) => l.startsWith('branch:')), 'no unit reaches branch-prep');
+  assert.ok(!labels.some((l) => l.startsWith('ship:')), 'no unit reaches ship');
+  assert.ok(!prompts.some((p) => p.includes(injectionId)), 'the injection id is never woven into a branch/execute/ship prompt');
+});

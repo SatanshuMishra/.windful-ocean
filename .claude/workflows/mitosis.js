@@ -944,7 +944,7 @@ const DECOMPOSE_SCHEMA = {
         required: ['id', 'title', 'rationale', 'dependsOn', 'fileScope'],
         additionalProperties: false,
         properties: {
-          id: { type: 'string' },
+          id: { type: 'string', pattern: '^[a-z0-9][a-z0-9-]*$' },
           title: { type: 'string' },
           rationale: { type: 'string' },
           dependsOn: { type: 'array', items: { type: 'string' } },
