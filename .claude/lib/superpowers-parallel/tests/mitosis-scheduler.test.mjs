@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { computeLogicalRunId, buildInitialManifest, applyShipTransition, parseRunManifest } from '../recovery.mjs';
-import { park } from '../parking.mjs';
+import { park, LEGAL_STAGES } from '../parking.mjs';
 
 const MITOSIS_PATH = process.env.MITOSIS_PATH || new URL('../../../workflows/mitosis.js', import.meta.url).pathname;
 const SOURCE_PREFIX = 'mitosis-test';
@@ -2316,7 +2316,7 @@ test('SECURITY deny-case: a NeedsHuman-supplied resumePoint.stage outside the kn
   const { resultPromise } = invokeMitosis(buildInput(), agent);
   const result = await resultPromise;
 
-  const ALLOWED_STAGES = new Set(['plan', 'plan-review', 'parallelize', 'branch', 'execute', 'ship']);
+  const ALLOWED_STAGES = new Set(LEGAL_STAGES);
   assert.equal(result.parked.length, 1);
   const stage = result.parked[0].resumePoint.stage;
   assert.ok(
