@@ -1001,6 +1001,15 @@ const PLAN_SCHEMA = {
   },
 };
 
+const PLAN_PROBE_SCHEMA = {
+  type: 'object',
+  required: ['planFound'],
+  additionalProperties: false,
+  properties: {
+    planFound: { type: 'boolean' },
+  },
+};
+
 const PLAN_REVIEW_SCHEMA = {
   type: 'object',
   required: ['verdict', 'findings', 'pillarsAlignment'],
@@ -2751,7 +2760,22 @@ async function runUnit(unit) {
     let planned;
     if (skipPlan) {
       planned = { planPath: `${repoRoot}/.mitosis/${msp.id}.plan.md`, summary: 'resumed from a prior parked run' };
-      log(`mitosis[${msp.id}]: resuming at ${clean(resume.stage)} (skipping Plan) — plan artifact assumed present at ${planned.planPath}`);
+      const planProbeOutcome = await supervisedDispatch(
+        (attemptNo, preamble) => agent(
+          `You are the plan-artifact probe for MSP \"${msp.id}\" of a resumed mitosis run. You have NO Skill tool.\n\n` +
+          `This stage is STRICTLY READ-ONLY: it verifies that the locally persisted plan artifact survived into this workspace before the resumed run skips the Plan stage. It makes NO commits and mutates NO files whatsoever.\n\n` +
+          `Check the plan artifact: \`test -f ${planned.planPath} && test -s ${planned.planPath}\`. Set planFound=true ONLY if the file exists and is non-empty; otherwise set planFound=false.\n\n` +
+          `Return ONLY: { planFound: <bool> }.`,
+          { agentType: 'implementer', schema: PLAN_PROBE_SCHEMA, label: `plan-probe:${msp.id}`, phase: 'Plan' }
+        ),
+        { unitId: msp.id, stage: resume.stage, resetRef: null, worktree: null, task: `verify the plan artifact for ${msp.id} at ${planned.planPath}` },
+      );
+      if (planProbeOutcome.tag !== 'Done') return parkUnit(msp, resume.stage, planProbeOutcome, integrationBranch, compensationStack);
+      const planProbe = planProbeOutcome.value;
+      if (!planProbe || planProbe.planFound !== true) {
+        return parkUnit(msp, resume.stage, NeedsHuman({ kind: 'approve-decision', what: `resume of ${msp.id} at ${resume.stage} requires the plan artifact at ${planned.planPath}, but it is missing or empty — .mitosis/ is local-only (gitignored) and does not survive a fresh clone, new worktree, or CI workspace; restore the artifact at that exact path, or set the unit's resumePoint.stage to plan in ${repoRoot}/.mitosis/run.json to re-run from Plan`, remediation: null, resumePoint: { branch: integrationBranch, ref: baseBranch, stage: resume.stage } }), integrationBranch, compensationStack);
+      }
+      log(`mitosis[${msp.id}]: resuming at ${clean(resume.stage)} (skipping Plan) — plan artifact verified present at ${planned.planPath}`);
     } else {
       phase('Plan');
       const planOutcome = await supervisedDispatch(

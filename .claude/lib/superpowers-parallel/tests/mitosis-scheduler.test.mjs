@@ -117,6 +117,8 @@ function createFakeAgent({ msps, sourcePrefix = SOURCE_PREFIX, planGate, shipRes
         return { receiptsConfigFound: true, receiptsConfigRaw: '{"gates":{"G10":{"mode":"warn"}}}', receiptsYmlFound: true, d6CheckFound: true, templateConfigRaw: null, templateYmlRaw: null };
       case 'prepare-write':
         return { written: [], skipped: [], detail: '' };
+      case 'plan-probe':
+        return { planFound: true };
       case 'plan': {
         const mspId = label.slice('plan:'.length);
         if (planGate) await planGate(mspId);
@@ -2726,4 +2728,50 @@ test('PLAN-REVIEW skip-forward: a relaunch of a unit parked past plan-review (at
   assert.ok(labels.includes('parallelize:solo'), 'the resumed unit re-enters at Parallelize');
   assert.equal(result.overallStatus, 'all-shipped', 'the resumed unit proceeds past the skipped plan-review to ship');
   assert.deepEqual(result.shipped.map((s) => s.mspId), ['solo']);
+});
+
+test('PLAN-ARTIFACT guard: a relaunch resuming past Plan whose local plan artifact did not survive parks the unit fail-closed instead of proceeding to Parallelize', async () => {
+  const input = buildInput();
+  const logicalRunId = computeLogicalRunId(input.spec, input.baseBranch);
+  const msps = [mspSpec('solo', { fileScope: ['scope/solo/**'] })];
+  const initialManifest = buildInitialManifest({
+    logicalRunId,
+    harnessRunId: null,
+    spec: input.spec,
+    repoRoot: input.repoRoot,
+    baseBranch: input.baseBranch,
+    sourcePrefix: SOURCE_PREFIX,
+    clusters: [['solo']],
+    msps,
+    specContentHash: SPEC_CONTENT_HASH,
+  });
+  const parkedManifest = park(initialManifest, {
+    unitId: 'solo',
+    stage: 'parallelize',
+    diagnosis: 'parallelize did not converge on a prior run',
+    request: { kind: 'approve-decision', what: 'a human must decide' },
+    remediation: null,
+    resumePoint: { branch: `${SOURCE_PREFIX}/solo-integration`, ref: input.baseBranch, stage: 'parallelize' },
+    triedSet: [],
+  });
+  const manifestRaw = JSON.stringify(parkedManifest);
+  const reconcileResult = { manifestFound: true, manifestRaw, mergedPRs: [], specContentHash: SPEC_CONTENT_HASH };
+  const base = createFakeAgent({ msps, reconcileResult });
+  const labels = [];
+  const agent = async (prompt, opts = {}) => {
+    const label = opts.label || '';
+    labels.push(label);
+    if (label === 'plan-probe:solo') return { planFound: false };
+    return base(prompt, opts);
+  };
+  const { resultPromise } = invokeMitosis(input, agent);
+  const result = await resultPromise;
+
+  assert.ok(!labels.includes('parallelize:solo'), 'a resume whose plan artifact is gone must NOT reach Parallelize');
+  assert.equal(result.parked.length, 1);
+  assert.equal(result.parked[0].mspId, 'solo');
+  assert.equal(result.parked[0].stage, 'parallelize');
+  assert.match(result.parked[0].request.what, /plan artifact/);
+  assert.match(result.parked[0].request.what, /local-only/);
+  assert.deepEqual(result.parked[0].resumePoint, { branch: `${SOURCE_PREFIX}/solo-integration`, ref: input.baseBranch, stage: 'parallelize' });
 });
