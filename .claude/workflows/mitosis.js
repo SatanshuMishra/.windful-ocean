@@ -503,6 +503,61 @@ function applyBuiltTransition(manifest, { unitId, checkpointRef, sha }) {
   return { ...manifest, msps };
 }
 
+function shipDelta({ mspId, prUrl, mergedAt, title, rationale }) {
+  return { kind: 'ship', mspId, prUrl: prUrl ?? null, mergedAt: mergedAt ?? null, title: title ?? null, rationale: rationale ?? null };
+}
+
+function builtDelta({ unitId, checkpointRef, sha }) {
+  return { kind: 'built', unitId, checkpointRef: checkpointRef ?? null, sha: sha ?? null };
+}
+
+function parkDelta({ unitId, stage, diagnosis, request, remediation, resumePoint, triedSet }) {
+  return {
+    kind: 'park',
+    unitId,
+    stage: stage ?? null,
+    diagnosis: diagnosis ?? null,
+    request: request ?? null,
+    remediation: remediation ?? null,
+    resumePoint: resumePoint ?? null,
+    triedSet: Array.isArray(triedSet) ? [...triedSet] : [],
+  };
+}
+
+function applyRunDelta(manifest, record) {
+  if (!record || typeof record !== 'object' || Array.isArray(record)) return manifest;
+  if (record.kind === 'ship') return applyShipTransition(manifest, record);
+  if (record.kind === 'built') return applyBuiltTransition(manifest, record);
+  if (record.kind === 'park') {
+    try {
+      return park(manifest, record);
+    } catch {
+      return manifest;
+    }
+  }
+  return manifest;
+}
+
+function foldRunManifest(raw) {
+  const whole = parseRunManifest(raw);
+  if (whole) return whole;
+  if (typeof raw !== 'string' || raw.length === 0) return null;
+  const lines = raw.split('\n').map((line) => line.trim()).filter((line) => line.length > 0);
+  const base = lines.length > 0 ? parseRunManifest(lines[0]) : null;
+  if (!base) return null;
+  let manifest = base;
+  for (let i = 1; i < lines.length; i += 1) {
+    let record;
+    try {
+      record = JSON.parse(lines[i]);
+    } catch {
+      continue;
+    }
+    manifest = applyRunDelta(manifest, record);
+  }
+  return manifest;
+}
+
 function indexMsps(msps) {
   if (!Array.isArray(msps)) throw new Error('msps must be an array');
   const byId = new Map();
@@ -2671,7 +2726,7 @@ try {
 if (!recon || !Array.isArray(recon.mergedPRs)) {
   return fatalReport('reconcile', 'reconcile agent returned null or no mergedPRs (transient drop or blocked before decompose)', 0, { crashed: true });
 }
-const priorManifest = recon && recon.manifestFound ? parseRunManifest(recon.manifestRaw) : null;
+const priorManifest = recon && recon.manifestFound ? foldRunManifest(recon.manifestRaw) : null;
 const reconciledMap = reconcileShippedSet(recon ? recon.mergedPRs : [], sourcePrefix);
 const reconciledShipped = new Set(reconciledMap.keys());
 const reconciledShippedMeta = reconciledMap;
@@ -2791,14 +2846,14 @@ if (!reusable) {
 
 if (!reusable) {
   const initialManifest = { ...buildInitialManifest({ logicalRunId, harnessRunId: input.harnessRunId, spec, repoRoot, baseBranch, sourcePrefix, clusters, msps, specContentHash: observedSpecHash }), parked: [] };
-  const initialManifestJson = JSON.stringify(initialManifest, null, 2);
+  const initialManifestJson = JSON.stringify(initialManifest);
   try {
     const checkpointRes = await agent(
       `You are the initial-checkpoint stage of a mitosis run. You have NO Skill tool; follow these instructions directly.\n\n` +
-      `Durably record the initial run manifest so a later relaunch can reconcile against it. Operate in ${repoRoot}:\n` +
+      `Durably record the genesis run record so a later relaunch can fold the run journal against it. Operate in ${repoRoot}:\n` +
       `1. Create the directory ${repoRoot}/.mitosis/ if it does not already exist.\n` +
       `2. Ensure .mitosis/ is gitignored: if ${repoRoot}/.gitignore does not already ignore it, append a line \`.mitosis/\` to ${repoRoot}/.gitignore. This file is machine run-state and is never committed.\n` +
-      `3. Write the following to ${repoRoot}/.mitosis/run.json, overwriting any existing contents. It is a single, complete, pretty-printed JSON object; write it EXACTLY as given, verbatim, as the entire file body:\n\n` +
+      `3. Write the following to ${repoRoot}/.mitosis/run.json, overwriting any existing contents. It is a single, complete JSON object on ONE line — the genesis record of a newline-delimited run journal; write it EXACTLY as given, verbatim, as the entire file body:\n\n` +
       `${initialManifestJson}\n\n` +
       `Do NOT commit, push, or run any other git mutation. Return ONLY: { written: <bool>, detail: "<what you did>" }.`,
       { agentType: 'implementer', label: 'checkpoint-init', phase: 'Reconcile' }
@@ -2931,25 +2986,14 @@ async function parkUnit(msp, stage, outcome, integrationBranch, compensationStac
 
 async function persistParkCheckpoint(record) {
   try {
-    const readRes = await agent(
-      `You are the park-checkpoint read stage of a mitosis run. You have NO Skill tool.\n\n` +
-      `This stage is STRICTLY READ-ONLY: it inspects durable state so the engine can update it in-process. It makes NO commits and mutates NO files whatsoever.\n\n` +
-      `1. Inspect the run manifest if present: \`cat ${repoRoot}/.mitosis/run.json\`. If the file exists, return its exact raw contents as manifestRaw (a string) and set manifestFound=true; if it is absent, set manifestFound=false and manifestRaw=null. Do NOT parse, repair, or alter it — return the bytes verbatim, the engine parses it.\n\n` +
-      `Return ONLY: { manifestFound, manifestRaw }.`,
-      { agentType: 'implementer', label: `park-read:${record.unitId}`, phase: 'Remediate' }
-    );
-    const priorRaw = readRes && readRes.manifestFound && typeof readRes.manifestRaw === 'string' ? readRes.manifestRaw : null;
-    const parsed = priorRaw ? parseRunManifest(priorRaw) : null;
-    const currentManifest = parsed || { ...buildInitialManifest({ logicalRunId, harnessRunId: input.harnessRunId, spec, repoRoot, baseBranch, sourcePrefix, clusters, msps, specContentHash: observedSpecHash }), parked: [] };
-    const updatedManifest = park(currentManifest, { unitId: record.unitId, stage: record.stage, diagnosis: record.diagnosis, request: record.request, remediation: record.remediation, resumePoint: record.resumePoint, triedSet: record.triedSet });
-    const updatedManifestJson = JSON.stringify(updatedManifest, null, 2);
+    const deltaJson = JSON.stringify(parkDelta({ unitId: record.unitId, stage: record.stage, diagnosis: record.diagnosis, request: record.request, remediation: record.remediation, resumePoint: record.resumePoint, triedSet: record.triedSet }));
     const writeRes = await agent(
       `You are the park-checkpoint stage of a mitosis run. You have NO Skill tool; follow these instructions directly.\n\n` +
-      `Durably record the parked run manifest so a later relaunch can reconcile against it and resume the parked unit. Operate in ${repoRoot}:\n` +
+      `Durably APPEND one parked-unit delta record to the run journal so a later relaunch can fold it and resume the parked unit. Operate in ${repoRoot}:\n` +
       `1. Create the directory ${repoRoot}/.mitosis/ if it does not already exist.\n` +
       `2. Ensure .mitosis/ is gitignored: if ${repoRoot}/.gitignore does not already ignore it, append a line \`.mitosis/\` to ${repoRoot}/.gitignore. This file is machine run-state and is never committed.\n` +
-      `3. Write the following to ${repoRoot}/.mitosis/run.json, overwriting any existing contents. It is a single, complete, pretty-printed JSON object; write it EXACTLY as given, verbatim, as the entire file body:\n\n` +
-      `${updatedManifestJson}\n\n` +
+      `3. APPEND the following single line to the END of ${repoRoot}/.mitosis/run.json as a new final line (create the file if it does not exist). Do NOT overwrite, rewrite, or re-read the file, and do NOT alter any existing line. Append it EXACTLY as given, verbatim, as one line:\n\n` +
+      `${deltaJson}\n\n` +
       `Do NOT commit, push, or run any other git mutation. Return ONLY: { written: <bool>, detail: "<what you did>" }.`,
       { agentType: 'implementer', label: `park-checkpoint:${record.unitId}`, phase: 'Remediate' }
     );
@@ -2964,25 +3008,14 @@ async function persistParkCheckpoint(record) {
 
 async function persistBuiltCheckpoint({ unitId, checkpointRef: builtRef, sha }) {
   try {
-    const readRes = await agent(
-      `You are the built-checkpoint read stage of a mitosis run. You have NO Skill tool.\n\n` +
-      `This stage is STRICTLY READ-ONLY: it inspects durable state so the engine can update it in-process. It makes NO commits and mutates NO files whatsoever.\n\n` +
-      `1. Inspect the run manifest if present: \`cat ${repoRoot}/.mitosis/run.json\`. If the file exists, return its exact raw contents as manifestRaw (a string) and set manifestFound=true; if it is absent, set manifestFound=false and manifestRaw=null. Do NOT parse, repair, or alter it — return the bytes verbatim, the engine parses it.\n\n` +
-      `Return ONLY: { manifestFound, manifestRaw }.`,
-      { agentType: 'implementer', label: `built-read:${unitId}`, phase: 'Ship' }
-    );
-    const priorRaw = readRes && readRes.manifestFound && typeof readRes.manifestRaw === 'string' ? readRes.manifestRaw : null;
-    const parsed = priorRaw ? parseRunManifest(priorRaw) : null;
-    const currentManifest = parsed || { ...buildInitialManifest({ logicalRunId, harnessRunId: input.harnessRunId, spec, repoRoot, baseBranch, sourcePrefix, clusters, msps, specContentHash: observedSpecHash }), parked: [] };
-    const updatedManifest = applyBuiltTransition(currentManifest, { unitId, checkpointRef: builtRef, sha });
-    const updatedManifestJson = JSON.stringify(updatedManifest, null, 2);
+    const deltaJson = JSON.stringify(builtDelta({ unitId, checkpointRef: builtRef, sha }));
     const writeRes = await agent(
       `You are the built-checkpoint stage of a mitosis run. You have NO Skill tool; follow these instructions directly.\n\n` +
-      `Durably record the built run manifest so a later relaunch can reconcile built-but-unshipped work against it and resume the unit at ship. Operate in ${repoRoot}:\n` +
+      `Durably APPEND one built-unit delta record to the run journal so a later relaunch can fold built-but-unshipped work and resume the unit at ship. Operate in ${repoRoot}:\n` +
       `1. Create the directory ${repoRoot}/.mitosis/ if it does not already exist.\n` +
       `2. Ensure .mitosis/ is gitignored: if ${repoRoot}/.gitignore does not already ignore it, append a line \`.mitosis/\` to ${repoRoot}/.gitignore. This file is machine run-state and is never committed.\n` +
-      `3. Write the following to ${repoRoot}/.mitosis/run.json, overwriting any existing contents. It is a single, complete, pretty-printed JSON object; write it EXACTLY as given, verbatim, as the entire file body:\n\n` +
-      `${updatedManifestJson}\n\n` +
+      `3. APPEND the following single line to the END of ${repoRoot}/.mitosis/run.json as a new final line (create the file if it does not exist). Do NOT overwrite, rewrite, or re-read the file, and do NOT alter any existing line. Append it EXACTLY as given, verbatim, as one line:\n\n` +
+      `${deltaJson}\n\n` +
       `Do NOT commit, push, or run any other git mutation. Return ONLY: { written: <bool>, detail: "<what you did>" }.`,
       { agentType: 'implementer', label: `built-checkpoint:${unitId}`, phase: 'Ship' }
     );
@@ -2997,25 +3030,14 @@ async function persistBuiltCheckpoint({ unitId, checkpointRef: builtRef, sha }) 
 
 async function persistShipCheckpoint({ unitId, prUrl, mergedAt, title, rationale }) {
   try {
-    const readRes = await agent(
-      `You are the ship-checkpoint read stage of a mitosis run. You have NO Skill tool.\n\n` +
-      `This stage is STRICTLY READ-ONLY: it inspects durable state so the engine can update it in-process. It makes NO commits and mutates NO files whatsoever.\n\n` +
-      `1. Inspect the run manifest if present: \`cat ${repoRoot}/.mitosis/run.json\`. If the file exists, return its exact raw contents as manifestRaw (a string) and set manifestFound=true; if it is absent, set manifestFound=false and manifestRaw=null. Do NOT parse, repair, or alter it — return the bytes verbatim, the engine parses it.\n\n` +
-      `Return ONLY: { manifestFound, manifestRaw }.`,
-      { agentType: 'implementer', label: `ship-read:${unitId}`, phase: 'Ship' }
-    );
-    const priorRaw = readRes && readRes.manifestFound && typeof readRes.manifestRaw === 'string' ? readRes.manifestRaw : null;
-    const parsed = priorRaw ? parseRunManifest(priorRaw) : null;
-    const currentManifest = parsed || { ...buildInitialManifest({ logicalRunId, harnessRunId: input.harnessRunId, spec, repoRoot, baseBranch, sourcePrefix, clusters, msps, specContentHash: observedSpecHash }), parked: [] };
-    const updatedManifest = applyShipTransition(currentManifest, { mspId: unitId, prUrl, mergedAt, title, rationale });
-    const updatedManifestJson = JSON.stringify(updatedManifest, null, 2);
+    const deltaJson = JSON.stringify(shipDelta({ mspId: unitId, prUrl, mergedAt, title, rationale }));
     const writeRes = await agent(
       `You are the ship-checkpoint stage of a mitosis run. You have NO Skill tool; follow these instructions directly.\n\n` +
-      `Durably record the shipped run manifest so a later relaunch can reconcile shipped work against it. Operate in ${repoRoot}:\n` +
+      `Durably APPEND one shipped-unit delta record to the run journal so a later relaunch can fold shipped work against it. Operate in ${repoRoot}:\n` +
       `1. Create the directory ${repoRoot}/.mitosis/ if it does not already exist.\n` +
       `2. Ensure .mitosis/ is gitignored: if ${repoRoot}/.gitignore does not already ignore it, append a line \`.mitosis/\` to ${repoRoot}/.gitignore. This file is machine run-state and is never committed.\n` +
-      `3. Write the following to ${repoRoot}/.mitosis/run.json, overwriting any existing contents. It is a single, complete, pretty-printed JSON object; write it EXACTLY as given, verbatim, as the entire file body:\n\n` +
-      `${updatedManifestJson}\n\n` +
+      `3. APPEND the following single line to the END of ${repoRoot}/.mitosis/run.json as a new final line (create the file if it does not exist). Do NOT overwrite, rewrite, or re-read the file, and do NOT alter any existing line. Append it EXACTLY as given, verbatim, as one line:\n\n` +
+      `${deltaJson}\n\n` +
       `Do NOT commit, push, or run any other git mutation. Return ONLY: { written: <bool>, detail: "<what you did>" }.`,
       { agentType: 'implementer', label: `ship-checkpoint:${unitId}`, phase: 'Ship' }
     );

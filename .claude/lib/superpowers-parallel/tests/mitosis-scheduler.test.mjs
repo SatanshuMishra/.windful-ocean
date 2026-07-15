@@ -2,6 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { computeLogicalRunId, buildInitialManifest, applyShipTransition, parseRunManifest } from '../recovery.mjs';
+import { foldRunManifest } from '../run-log.mjs';
 import { park, LEGAL_STAGES } from '../parking.mjs';
 
 const MITOSIS_PATH = process.env.MITOSIS_PATH || new URL('../../../workflows/mitosis.js', import.meta.url).pathname;
@@ -108,12 +109,8 @@ function createFakeAgent({ msps, sourcePrefix = SOURCE_PREFIX, planGate, shipRes
         return { written: true, detail: '' };
       case 'checkpoint-push':
         return { pushed: true, ref: '', detail: '' };
-      case 'built-read':
-        return { manifestFound: false, manifestRaw: null };
       case 'built-checkpoint':
         return { written: true, detail: '' };
-      case 'ship-read':
-        return { manifestFound: false, manifestRaw: null };
       case 'ship-checkpoint':
         return { written: true, detail: '' };
       case 'decompose':
@@ -561,7 +558,7 @@ test('F2a: a Prepare crash (agent returns null) is a crashed fatal report naming
   assert.deepEqual(result.shipped, []);
 });
 
-test('F3 (T4b): the ship-time manifest write goes through the engine-side applyShipTransition sink — a durable single-object run.json records status:shipped, prUrl and the read-back mergedAt for the merged mspId, JSON-escaped, never a newline-delimited append', async () => {
+test('F3 (T4b): the ship-time write appends one delta record that folds to status:shipped, prUrl and the read-back mergedAt for the merged mspId, JSON-escaped through the delta', async () => {
   const input = buildInput();
   const soloTitle = 'solo "quoted" title';
   const soloRationale = 'rationale\nwith newline and "quotes"';
@@ -576,19 +573,49 @@ test('F3 (T4b): the ship-time manifest write goes through the engine-side applyS
   const result = await resultPromise;
 
   assert.equal(result.overallStatus, 'all-shipped');
-  assert.equal(shipCheckpointPrompts.length, 1, 'exactly one engine-side ship-checkpoint write fires for the shipped MSP');
+  assert.equal(shipCheckpointPrompts.length, 1, 'exactly one engine-side ship-checkpoint delta-append fires for the shipped MSP');
+  assert.ok(!shipCheckpointPrompts[0].includes('overwriting any existing contents'), 'the ship-checkpoint write appends a delta record, never rewrites the whole run.json');
   assert.ok(fileMap.has(runJsonPath), 'the ship-time write durably persists run.json via the engine-mediated checkpoint');
 
   const raw = fileMap.get(runJsonPath);
-  assert.ok(parseRunManifest(raw), 'the ENGINE-produced run.json is a single-object manifest hint, never a newline-delimited append');
-  const persisted = JSON.parse(raw);
+  const persisted = foldRunManifest(raw);
+  assert.ok(persisted, 'the ENGINE-produced run journal folds back to a valid manifest hint');
   const soloEntry = persisted.msps.find((m) => m.id === 'solo');
-  assert.ok(soloEntry, 'the engine-produced run.json carries the shipped MSP entry');
-  assert.equal(soloEntry.status, 'shipped', 'applyShipTransition records status:shipped for the merged unit');
+  assert.ok(soloEntry, 'the folded run journal carries the shipped MSP entry');
+  assert.equal(soloEntry.status, 'shipped', 'the folded ship delta records status:shipped for the merged unit');
   assert.equal(soloEntry.prUrl, 'https://example.test/pr/solo', 'the shipped entry records the merged PR url');
   assert.equal(soloEntry.mergedAt, '2026-07-08T00:00:00Z', 'the shipped entry records the mergedAt from the independent verified read-back, not the ship agent self-report');
-  assert.equal(soloEntry.title, soloTitle, 'a quote in the title round-trips intact through the engine JSON.stringify + verbatim write — no invalid JSON');
+  assert.equal(soloEntry.title, soloTitle, 'a quote in the title round-trips intact through the genesis JSON.stringify + verbatim write — no invalid JSON');
   assert.equal(soloEntry.rationale, soloRationale, 'a newline/quote in the rationale round-trips intact');
+});
+
+test('E1t delta-append: an n-MSP run dispatches no per-checkpoint read-agent and no transition-checkpoint write inlines the whole run.json — each write carries only its own delta record (O(n), not O(n^2))', async () => {
+  const msps = independentMsps();
+  const base = createFakeAgent({ msps });
+  const dispatches = [];
+  const agent = async (prompt, opts = {}) => {
+    dispatches.push({ label: (opts && opts.label) || '', prompt });
+    return base(prompt, opts);
+  };
+  const { resultPromise } = invokeMitosis(buildInput(), agent);
+  const result = await resultPromise;
+
+  assert.equal(result.overallStatus, 'all-shipped');
+
+  const readLabels = dispatches
+    .map((d) => d.label)
+    .filter((label) => /^(park-read|built-read|ship-read)(:|$)/.test(label));
+  assert.deepEqual(readLabels, [], 'the checkpoint read-agent is removed: the manifest is held in memory and read once at launch, never re-read per checkpoint');
+
+  const shipWrites = dispatches.filter((d) => d.label.startsWith('ship-checkpoint:'));
+  assert.equal(shipWrites.length, msps.length, 'exactly one delta-append ship-checkpoint write fires per shipped MSP');
+
+  const ids = msps.map((m) => m.id);
+  for (const write of shipWrites) {
+    const ownId = write.label.slice('ship-checkpoint:'.length);
+    const foreign = ids.filter((id) => id !== ownId && write.prompt.includes(id));
+    assert.deepEqual(foreign, [], `the ${ownId} ship-checkpoint write inlines only its own delta, never the whole run.json carrying sibling ids (leaked: ${foreign.join(', ')})`);
+  }
 });
 
 test('human-gated default: a foundational MSP awaiting approval yields overallStatus awaiting-approval, a distinct awaitingApproval category, a blocked-pending-approval dependent, and a ship prompt that never merges', async () => {
@@ -692,7 +719,7 @@ test('B3 in-run merge poll fail-safe (human-gated): when the merge-watch never c
   assert.equal(blockedB.request.kind, 'blocked-pending-approval');
 });
 
-test('T4b accumulation: every ship reads the existing manifest first through the engine-side sink and rewrites the whole object, so a later ship accumulates onto — never clobbers — an earlier ship', async () => {
+test('T4b accumulation: each ship appends its own delta record to the run journal, so folding the journal shows a later ship accumulate onto — never clobber — an earlier ship', async () => {
   const input = buildInput();
   const msps = twoIndependentMsps();
   const { agent: durableAgent, fileMap, runJsonPath } = makeDurableFakeAgent({ msps, repoRoot: input.repoRoot });
@@ -706,11 +733,11 @@ test('T4b accumulation: every ship reads the existing manifest first through the
   const result = await resultPromise;
 
   assert.equal(result.overallStatus, 'all-shipped');
-  assert.deepEqual(shipCheckpointIds.sort(), ['a', 'b'], 'each shipped MSP fires exactly one engine-side ship-checkpoint write keyed on its own id');
-  const persisted = JSON.parse(fileMap.get(runJsonPath));
+  assert.deepEqual(shipCheckpointIds.sort(), ['a', 'b'], 'each shipped MSP fires exactly one engine-side ship-checkpoint delta-append keyed on its own id');
+  const persisted = foldRunManifest(fileMap.get(runJsonPath));
   const statusById = Object.fromEntries(persisted.msps.map((m) => [m.id, m.status]));
-  assert.equal(statusById.a, 'shipped', 'the earlier ship stays shipped after the later ship rewrites the whole object');
-  assert.equal(statusById.b, 'shipped', 'the later ship reads the accumulated manifest through ship-read and adds itself without clobbering the earlier ship');
+  assert.equal(statusById.a, 'shipped', 'the earlier ship stays shipped after the later ship appends its own delta');
+  assert.equal(statusById.b, 'shipped', 'the later ship appends its delta without clobbering the earlier ship when the journal is folded');
 });
 
 test('T4b relaunch story: a reusable manifest bearing prior ship-transitions is read as a valid hint — the decomposition is reused, the already-merged MSP is skipped, and the remainder ships', async () => {
@@ -1791,7 +1818,7 @@ test('T4a skip: a skipped MSP enters no retry-budgeted dispatch, and a sibling w
   assert.deepEqual(result.shipped.map((s) => s.mspId).sort(), ['a', 'b']);
 });
 
-test('T4a checkpoint: the initial run manifest is written once on the fresh path, embedding the logicalRunId, both MSP ids, and a single JSON object (never newline-delimited)', async () => {
+test('T4a checkpoint: the genesis run record is written once on the fresh path, embedding the logicalRunId, both MSP ids, and a single compact JSON object on one line', async () => {
   const input = buildInput();
   const msps = twoIndependentMsps();
   const logicalRunId = computeLogicalRunId(input.spec, input.baseBranch);
@@ -1805,13 +1832,13 @@ test('T4a checkpoint: the initial run manifest is written once on the fresh path
   const result = await resultPromise;
 
   assert.equal(result.overallStatus, 'all-shipped');
-  assert.equal(captured.length, 1, 'exactly one initial-manifest checkpoint on the fresh path');
+  assert.equal(captured.length, 1, 'exactly one genesis checkpoint on the fresh path');
   assert.ok(captured[0].includes(logicalRunId), 'the checkpoint embeds the run logicalRunId');
-  assert.match(captured[0], /"id": "a"/);
-  assert.match(captured[0], /"id": "b"/);
+  assert.match(captured[0], /"id":"a"/);
+  assert.match(captured[0], /"id":"b"/);
   assert.match(captured[0], /\.mitosis\/run\.json/);
   assert.match(captured[0], /\.gitignore/);
-  assert.doesNotMatch(captured[0], /newline-delimited|one object per line/i);
+  assert.match(captured[0], /overwriting any existing contents/, 'the genesis write resets the journal on a fresh run');
 });
 
 test('T4a checkpoint: the reuse path writes no initial-manifest checkpoint (the manifest already exists)', async () => {
@@ -2283,14 +2310,18 @@ function makeDurableFakeAgent({ msps, parallelizeFailUnitId, shipResult, repoRoo
       const raw = fileMap.get(runJsonPath);
       return { manifestFound: raw !== undefined, manifestRaw: raw ?? null, mergedPRs: [], specContentHash: SPEC_CONTENT_HASH };
     }
-    if (prefix === 'checkpoint-init' || prefix === 'park-checkpoint' || prefix === 'built-checkpoint' || prefix === 'ship-checkpoint') {
+    if (prefix === 'checkpoint-init') {
       const literal = literalOf(prompt);
       if (literal !== null) fileMap.set(runJsonPath, literal);
       return { written: literal !== null, detail: '' };
     }
-    if (prefix === 'park-read' || prefix === 'built-read' || prefix === 'ship-read') {
-      const raw = fileMap.get(runJsonPath);
-      return { manifestFound: raw !== undefined, manifestRaw: raw ?? null };
+    if (prefix === 'park-checkpoint' || prefix === 'built-checkpoint' || prefix === 'ship-checkpoint') {
+      const literal = literalOf(prompt);
+      if (literal !== null) {
+        const prior = fileMap.get(runJsonPath);
+        fileMap.set(runJsonPath, prior === undefined ? literal : `${prior}\n${literal}`);
+      }
+      return { written: literal !== null, detail: '' };
     }
     if (parallelizeFailUnitId && label === `parallelize:${parallelizeFailUnitId}`) {
       parallelizeAttempts += 1;
@@ -2320,7 +2351,7 @@ test('PARK-PERSIST round-trip: a park durably writes run.json via an agent-media
   assert.equal(firstResult.parked[0].stage, 'parallelize');
 
   assert.ok(fileMap.has(runJsonPath), 'a park must durably write run.json via an agent-mediated dispatch');
-  const persisted = JSON.parse(fileMap.get(runJsonPath));
+  const persisted = foldRunManifest(fileMap.get(runJsonPath));
   const soloEntry = persisted.msps.find((m) => m.id === 'solo');
   assert.ok(soloEntry, 'the engine-produced run.json must still carry a msps entry for the parked unit');
   assert.equal(soloEntry.status, 'parked', 'the ENGINE-produced run.json must record status:parked for the parked unit');
@@ -2433,7 +2464,7 @@ test('R3 SPEC-R3(d): a human-gated run durably journals status:built for the uni
   assert.ok(!result.shipped.some((s) => s.mspId === 'a'), 'the human-gated unit never merged');
 
   assert.ok(fileMap.has(runJsonPath), 'a human-gated run must durably write run.json');
-  const persisted = JSON.parse(fileMap.get(runJsonPath));
+  const persisted = foldRunManifest(fileMap.get(runJsonPath));
   const aEntry = persisted.msps.find((m) => m.id === 'a');
   assert.ok(aEntry, 'the durable manifest still carries the awaiting unit');
   assert.equal(aEntry.status, 'built', 'a human-gated unit that reached green is durably recorded status:built even though it never merged');
@@ -2584,7 +2615,7 @@ test('TRIEDSET-PERSIST round-trip: a remediation-exhaustion park persists the ac
   assert.equal(firstResult.parked[0].stage, 'plan', 'the exhaustion must occur at the plan stage where the injected faults were driven');
 
   assert.ok(fileMap.has(runJsonPath), 'a remediation-exhaustion park must durably write run.json via the agent-mediated checkpoint');
-  const persisted = JSON.parse(fileMap.get(runJsonPath));
+  const persisted = foldRunManifest(fileMap.get(runJsonPath));
   const soloEntry = persisted.msps.find((m) => m.id === 'solo');
   assert.ok(soloEntry, 'the engine-produced run.json must still carry a msps entry for the parked unit');
   assert.ok(
