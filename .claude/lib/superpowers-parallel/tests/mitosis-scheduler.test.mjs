@@ -2878,3 +2878,55 @@ test('A3 E2 model invariant: an engine-authored model matching policy and an ope
   assert.deepEqual(result.parked, [], 'a matching echoed model and an unchanged operator models echo must not park');
   assert.deepEqual(result.shipped.map((s) => s.mspId), ['solo']);
 });
+
+test('A5 E5 knob hardening: an operator models.reviewer downgrade below opus is rejected fail-closed at the input stage before any agent runs', async () => {
+  let agentCalls = 0;
+  const agent = async () => { agentCalls += 1; return {}; };
+  const { resultPromise } = invokeMitosis(buildInput({ models: { reviewer: 'sonnet' } }), agent);
+  const result = await resultPromise;
+
+  assert.equal(result.overallStatus, 'failed');
+  assert.equal(result.stage, 'input');
+  assert.match(result.detail, /reviewer/);
+  assert.equal(agentCalls, 0, 'a rejected knob never dispatches an agent (security review can never be pulled below opus)');
+});
+
+test('A5 E5 knob hardening: a non-whitelisted models value (haiku) is unrepresentable and rejected at the input stage', async () => {
+  let agentCalls = 0;
+  const agent = async () => { agentCalls += 1; return {}; };
+  const { resultPromise } = invokeMitosis(buildInput({ models: { reviewer: 'haiku' } }), agent);
+  const result = await resultPromise;
+
+  assert.equal(result.overallStatus, 'failed');
+  assert.equal(result.stage, 'input');
+  assert.equal(agentCalls, 0);
+});
+
+test('A5 E5 knob hardening: a non-review models key outside the whitelist (implementer:fable) is also rejected at the input stage', async () => {
+  let agentCalls = 0;
+  const agent = async () => { agentCalls += 1; return {}; };
+  const { resultPromise } = invokeMitosis(buildInput({ models: { implementer: 'fable' } }), agent);
+  const result = await resultPromise;
+
+  assert.equal(result.overallStatus, 'failed');
+  assert.equal(result.stage, 'input');
+  assert.equal(agentCalls, 0);
+});
+
+test('A5 E4 review pin: the MSP-stage plan-review dispatch carries an explicit opus model (never a session/knob inherit)', async () => {
+  const msps = [mspSpec('solo', { fileScope: ['scope/solo/**'] })];
+  const base = createFakeAgent({ msps });
+  const captured = [];
+  const agent = async (prompt, opts = {}) => {
+    if ((opts.label || '').startsWith('plan-review:')) captured.push(opts);
+    return base(prompt, opts);
+  };
+  const { resultPromise } = invokeMitosis(buildInput(), agent);
+  const result = await resultPromise;
+
+  assert.equal(result.overallStatus, 'all-shipped');
+  assert.ok(captured.length >= 1, 'a plan-review dispatch was captured');
+  for (const opts of captured) {
+    assert.equal(opts.model, 'opus', 'plan-review is a review lens and must dispatch on an explicit opus');
+  }
+});

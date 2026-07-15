@@ -245,7 +245,7 @@ export async function runEngine(engineArgs, ctx) {
   async function reviewLoop(task, branch, wt, makePrompt, label, agentType) {
     let loops = 0;
     while (true) {
-      const base = { label: `${label}:${task.id}`, phase: 'Waves', schema: REVIEW_SCHEMA };
+      const base = { label: `${label}:${task.id}`, phase: 'Waves', schema: REVIEW_SCHEMA, model: 'opus' };
       const opts = agentType ? { ...base, agentType } : base;
       const r = await guard.dispatch(makePrompt(task, branch), opts, { kind: 'review', task });
       if (guard.getHalt()) return { ok: false, reason: 'model-policy' };
@@ -401,7 +401,7 @@ export async function runEngine(engineArgs, ctx) {
       result.finalReview = await guard.dispatch(
         `${prompts.finalReviewer}\n\n--- REVIEW THE WHOLE IMPLEMENTATION ---\n` +
         `Read-only. ${reviewScope} Review the complete set of changes for this effort and summarize strengths, issues, and an overall assessment.`,
-        { label: 'final-review', phase: 'Final review', agentType: 'code-reviewer' }, { kind: 'review', task: null });
+        { label: 'final-review', phase: 'Final review', agentType: 'code-reviewer', model: 'opus' }, { kind: 'review', task: null });
     } else {
       result.halted = true;
       result.haltReason = { stage: 'boundary', detail: boundary && boundary.output };

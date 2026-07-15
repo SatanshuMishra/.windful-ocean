@@ -889,7 +889,7 @@ async function runEngine(engineArgs, ctx) {
   async function reviewLoop(task, branch, wt, makePrompt, label, agentType) {
     let loops = 0;
     while (true) {
-      const base = { label: `${label}:${task.id}`, phase: 'Waves', schema: REVIEW_SCHEMA };
+      const base = { label: `${label}:${task.id}`, phase: 'Waves', schema: REVIEW_SCHEMA, model: 'opus' };
       const opts = agentType ? { ...base, agentType } : base;
       const r = await guard.dispatch(makePrompt(task, branch), opts, { kind: 'review', task });
       if (guard.getHalt()) return { ok: false, reason: 'model-policy' };
@@ -1045,7 +1045,7 @@ async function runEngine(engineArgs, ctx) {
       result.finalReview = await guard.dispatch(
         `${prompts.finalReviewer}\n\n--- REVIEW THE WHOLE IMPLEMENTATION ---\n` +
         `Read-only. ${reviewScope} Review the complete set of changes for this effort and summarize strengths, issues, and an overall assessment.`,
-        { label: 'final-review', phase: 'Final review', agentType: 'code-reviewer' }, { kind: 'review', task: null });
+        { label: 'final-review', phase: 'Final review', agentType: 'code-reviewer', model: 'opus' }, { kind: 'review', task: null });
     } else {
       result.halted = true;
       result.haltReason = { stage: 'boundary', detail: boundary && boundary.output };
@@ -2416,6 +2416,25 @@ function decidePrepareActions({ probe, buildConfig, verify }) {
     anyWrite,
   });
 }
+const KNOB_MODEL_WHITELIST = ['opus', 'sonnet'];
+const REVIEW_PINNED_KNOB_KEYS = ['reviewer'];
+function validateModelsKnob(models) {
+  if (models === undefined || models === null) return { ok: true, reason: null };
+  if (typeof models !== 'object' || Array.isArray(models)) {
+    return { ok: false, reason: 'models must be a plain object mapping a role to a model' };
+  }
+  for (const key of Object.keys(models)) {
+    const value = models[key];
+    if (!KNOB_MODEL_WHITELIST.includes(value)) {
+      return { ok: false, reason: `models.${key}=${JSON.stringify(value)} is not an allowed model; allowed models are ${KNOB_MODEL_WHITELIST.join(', ')}` };
+    }
+    if (REVIEW_PINNED_KNOB_KEYS.includes(key) && value !== 'opus') {
+      return { ok: false, reason: `models.${key} may only be 'opus'; reviews are pinned to opus and the reviewer knob can never pull a review below opus` };
+    }
+  }
+  return { ok: true, reason: null };
+}
+
 const mergePolicy = normalizeMergePolicy(input.mergePolicy);
 const isAutonomous = mergePolicy === MERGE_POLICY_AUTONOMOUS;
 
@@ -2442,6 +2461,10 @@ if (retryConfig.maxAttempts !== undefined && (!Number.isInteger(retryConfig.maxA
 }
 if (retryConfig.runBudget !== undefined && (!Number.isInteger(retryConfig.runBudget) || retryConfig.runBudget < 0)) {
   return fatalReport('input', 'retry.runBudget must be a non-negative integer', 0);
+}
+const modelsKnobCheck = validateModelsKnob(models);
+if (!modelsKnobCheck.ok) {
+  return fatalReport('input', modelsKnobCheck.reason, 0);
 }
 
 log(`mitosis: spec=${spec} repo=${repoRoot} base=${baseBranch} source=${sourcePrefix}`);
@@ -2932,7 +2955,7 @@ async function runUnit(unit) {
         const reviewOutcome = await supervisedDispatch(
           (attemptNo, preamble) => agent(
             planReviewPrompt({ unitId: msp.id, title: msp.title, planPath: planned.planPath, rationale: msp.rationale, dependsList, iteration: reviewIter }),
-            { agentType: 'solution-architect', schema: PLAN_REVIEW_SCHEMA, label: `plan-review:${msp.id}`, phase: 'Plan review' },
+            { agentType: 'solution-architect', schema: PLAN_REVIEW_SCHEMA, label: `plan-review:${msp.id}`, phase: 'Plan review', model: 'opus' },
           ),
           { unitId: msp.id, stage: 'plan-review', resetRef: baseBranch, worktree: null, task: `adversarial review of the plan for ${msp.id}` },
         );
