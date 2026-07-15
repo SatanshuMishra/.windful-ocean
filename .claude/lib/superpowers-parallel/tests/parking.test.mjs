@@ -6,7 +6,10 @@ import {
   park,
   selectResumeUnits,
   selectResumeBuilt,
+  selectPreservedBuilt,
 } from '../parking.mjs';
+import { mspContentHash } from '../recovery.mjs';
+import { checkpointRef } from '../checkpoint.mjs';
 
 function manifestWith(msps) {
   return {
@@ -217,4 +220,88 @@ test('selectResumeBuilt: built units yield a ship-stage resume descriptor carryi
 test('selectResumeBuilt: an already-shipped built unit is excluded from the resume set', () => {
   const manifest = builtManifest([{ id: 'a', status: 'built', integrationBranch: 'mitosis/a-integration', checkpointRef: 'refs/mitosis/deadbeef/a' }]);
   assert.deepEqual(selectResumeBuilt(manifest, new Set(['a'])), []);
+});
+
+function priorManifestWithHashes(defs) {
+  return {
+    logicalRunId: 'deadbeef',
+    sourcePrefix: 'mitosis',
+    baseBranch: 'main',
+    clusters: [defs.map((d) => d.id)],
+    msps: defs.map((d) => ({
+      id: d.id,
+      title: d.title ?? d.id,
+      rationale: d.rationale ?? `rationale for ${d.id}`,
+      status: 'built',
+      integrationBranch: `mitosis/${d.id}-integration`,
+      dependsOn: d.dependsOn ?? [],
+      fileScope: d.fileScope ?? [`src/${d.id}.ts`],
+      contentHash: 'contentHash' in d ? d.contentHash : mspContentHash({ id: d.id, title: d.title ?? d.id, rationale: d.rationale ?? `rationale for ${d.id}`, dependsOn: d.dependsOn ?? [], fileScope: d.fileScope ?? [`src/${d.id}.ts`] }),
+    })),
+  };
+}
+
+function freshMsp(id, overrides = {}) {
+  return { id, title: id, rationale: `rationale for ${id}`, dependsOn: [], fileScope: [`src/${id}.ts`], ...overrides };
+}
+
+test('selectPreservedBuilt: a fresh MSP whose content hash matches the prior durable-built record replay-forward-skips at ship, carrying the reconstructed checkpoint ref', () => {
+  const prior = priorManifestWithHashes([{ id: 'a' }, { id: 'b' }]);
+  const fresh = [freshMsp('a'), freshMsp('b')];
+  const preserved = selectPreservedBuilt(prior, fresh, ['a', 'b'], new Set());
+  assert.deepEqual(preserved.map((r) => r.unitId).sort(), ['a', 'b']);
+  const a = preserved.find((r) => r.unitId === 'a');
+  assert.equal(a.stage, 'ship');
+  assert.equal(a.built, true);
+  assert.equal(a.resumePoint.stage, 'ship');
+  assert.equal(a.resumePoint.branch, 'mitosis/a-integration');
+  assert.equal(a.resumePoint.ref, checkpointRef('deadbeef', 'a'));
+});
+
+test('selectPreservedBuilt: editing MSP-K slice invalidates ONLY MSP-K — the changed unit is dropped, the unaffected sibling still replay-forward-skips', () => {
+  const prior = priorManifestWithHashes([{ id: 'a' }, { id: 'b' }]);
+  const fresh = [freshMsp('a', { title: 'a-EDITED' }), freshMsp('b')];
+  const preserved = selectPreservedBuilt(prior, fresh, ['a', 'b'], new Set());
+  assert.deepEqual(preserved.map((r) => r.unitId), ['b'], 'only the content-changed MSP is invalidated; the sibling is preserved');
+});
+
+test('selectPreservedBuilt: a malformed or absent prior per-MSP hash degrades ONLY that MSP, never the siblings', () => {
+  const cases = [
+    { label: 'absent', contentHash: undefined },
+    { label: 'null', contentHash: null },
+    { label: 'non-string number', contentHash: 1234 },
+    { label: 'garbage string', contentHash: '!!!not-a-hash!!!' },
+  ];
+  for (const c of cases) {
+    const prior = priorManifestWithHashes([{ id: 'a', contentHash: c.contentHash }, { id: 'b' }]);
+    const fresh = [freshMsp('a'), freshMsp('b')];
+    const preserved = selectPreservedBuilt(prior, fresh, ['a', 'b'], new Set());
+    assert.deepEqual(preserved.map((r) => r.unitId), ['b'], `${c.label}: the malformed-hash MSP degrades to fresh, the sibling is preserved`);
+  }
+});
+
+test('selectPreservedBuilt: a fresh MSP with no observed durable checkpoint ref (not in builtUnits) is never preserved even when its hash matches', () => {
+  const prior = priorManifestWithHashes([{ id: 'a' }, { id: 'b' }]);
+  const fresh = [freshMsp('a'), freshMsp('b')];
+  const preserved = selectPreservedBuilt(prior, fresh, ['b'], new Set());
+  assert.deepEqual(preserved.map((r) => r.unitId), ['b'], 'only a unit with a real observed durable checkpoint replay-forward-skips');
+});
+
+test('selectPreservedBuilt: an already-shipped fresh MSP is excluded from the preserved set', () => {
+  const prior = priorManifestWithHashes([{ id: 'a' }, { id: 'b' }]);
+  const fresh = [freshMsp('a'), freshMsp('b')];
+  const preserved = selectPreservedBuilt(prior, fresh, ['a', 'b'], new Set(['a']));
+  assert.deepEqual(preserved.map((r) => r.unitId), ['b']);
+});
+
+test('selectPreservedBuilt: a fresh MSP id absent from the prior manifest is never preserved (new ids build fresh)', () => {
+  const prior = priorManifestWithHashes([{ id: 'a' }]);
+  const fresh = [freshMsp('a'), freshMsp('z')];
+  const preserved = selectPreservedBuilt(prior, fresh, ['a', 'z'], new Set());
+  assert.deepEqual(preserved.map((r) => r.unitId), ['a']);
+});
+
+test('selectPreservedBuilt: tolerates a null prior manifest and a non-array fresh set without throwing', () => {
+  assert.deepEqual(selectPreservedBuilt(null, [freshMsp('a')], ['a'], new Set()), []);
+  assert.deepEqual(selectPreservedBuilt(priorManifestWithHashes([{ id: 'a' }]), null, ['a'], new Set()), []);
 });

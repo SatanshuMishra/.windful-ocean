@@ -2684,6 +2684,119 @@ test('R4(d) built-resume: a relaunch whose durable checkpoint ls-remote shows a 
   assert.deepEqual(result.shipped.map((s) => s.mspId).sort(), ['a', 'b'], 'both the resumed-built unit and the fresh sibling reach shipped');
 });
 
+test('E3t granular resume: a spec edit that changes ONE MSP slice re-decomposes, rebuilds ONLY the changed MSP, and lets the content-unchanged siblings replay-forward-skip from their durable checkpoints', async () => {
+  const input = buildInput();
+  const logicalRunId = computeLogicalRunId(input.spec, input.baseBranch);
+  const genesisMsps = [
+    mspSpec('a', { fileScope: ['scope/a/**'] }),
+    mspSpec('b', { fileScope: ['scope/b/**'] }),
+    mspSpec('c', { fileScope: ['scope/c/**'] }),
+  ];
+  const genesisManifest = buildInitialManifest({
+    logicalRunId, harnessRunId: null, spec: input.spec, repoRoot: input.repoRoot,
+    baseBranch: input.baseBranch, sourcePrefix: SOURCE_PREFIX, clusters: [['a'], ['b'], ['c']],
+    msps: genesisMsps,
+    specContentHash: SPEC_CONTENT_HASH,
+  });
+  const manifestRaw = JSON.stringify(genesisManifest);
+  const freshMsps = [
+    mspSpec('a', { fileScope: ['scope/a/**'] }),
+    mspSpec('b', { title: 'b-EDITED', fileScope: ['scope/b/**'] }),
+    mspSpec('c', { fileScope: ['scope/c/**'] }),
+  ];
+  const reconcileResult = {
+    manifestFound: true,
+    manifestRaw,
+    mergedPRs: [],
+    specContentHash: 'f'.repeat(64),
+    checkpointRefPages: [[
+      checkpointLsRemoteLine(logicalRunId, 'a'),
+      checkpointLsRemoteLine(logicalRunId, 'b'),
+      checkpointLsRemoteLine(logicalRunId, 'c'),
+    ]],
+  };
+  const labels = [];
+  let decomposeCalls = 0;
+  const base = createFakeAgent({ msps: freshMsps, reconcileResult });
+  const agent = async (prompt, opts = {}) => {
+    if ((opts.label || '') === 'decompose') decomposeCalls += 1;
+    labels.push(opts.label || '');
+    return base(prompt, opts);
+  };
+  const { resultPromise } = invokeMitosis(input, agent);
+  const result = await resultPromise;
+
+  assert.equal(decomposeCalls, 1, 'the changed spec hash re-decomposes fresh (per-MSP granularity operates over the fresh decomposition, not the whole-manifest gate)');
+
+  for (const unchanged of ['a', 'c']) {
+    assert.ok(labels.includes(`restore:${unchanged}`), `${unchanged} restores from its durable checkpoint`);
+    assert.ok(labels.includes(`ship:${unchanged}`), `${unchanged} ships straight from the durable checkpoint`);
+    assert.ok(!labels.includes(`plan:${unchanged}`), `${unchanged} is NOT re-planned — its per-MSP content hash is unchanged`);
+    assert.ok(!labels.includes(`parallelize:${unchanged}`), `${unchanged} is NOT re-parallelized`);
+    assert.ok(!labels.includes(`branch:${unchanged}`), `${unchanged} does NOT re-run branch-prep`);
+  }
+
+  assert.ok(labels.includes('plan:b'), 'the content-changed MSP is re-planned fresh');
+  assert.ok(labels.includes('parallelize:b'), 'the content-changed MSP is re-parallelized fresh');
+  assert.ok(labels.includes('branch:b'), 'the content-changed MSP re-runs branch-prep');
+  assert.ok(!labels.includes('restore:b'), 'the content-changed MSP never enters the built-resume skip-to-ship restore path');
+  assert.ok(labels.includes('ship:b'), 'the content-changed MSP is rebuilt and ships');
+
+  assert.equal(result.overallStatus, 'all-shipped');
+  assert.deepEqual(result.shipped.map((s) => s.mspId).sort(), ['a', 'b', 'c']);
+});
+
+test('E3t granular resume: a malformed per-MSP content hash degrades ONLY that MSP to a fresh rebuild — the siblings still replay-forward-skip and the run never halts', async () => {
+  const input = buildInput();
+  const logicalRunId = computeLogicalRunId(input.spec, input.baseBranch);
+  const genesisMsps = [
+    mspSpec('a', { fileScope: ['scope/a/**'] }),
+    mspSpec('b', { fileScope: ['scope/b/**'] }),
+    mspSpec('c', { fileScope: ['scope/c/**'] }),
+  ];
+  const genesisManifest = buildInitialManifest({
+    logicalRunId, harnessRunId: null, spec: input.spec, repoRoot: input.repoRoot,
+    baseBranch: input.baseBranch, sourcePrefix: SOURCE_PREFIX, clusters: [['a'], ['b'], ['c']],
+    msps: genesisMsps,
+    specContentHash: SPEC_CONTENT_HASH,
+  });
+  const corrupted = JSON.parse(JSON.stringify(genesisManifest));
+  corrupted.msps.find((m) => m.id === 'b').contentHash = '!!!malformed-per-msp-hash!!!';
+  const manifestRaw = JSON.stringify(corrupted);
+  const freshMsps = [
+    mspSpec('a', { fileScope: ['scope/a/**'] }),
+    mspSpec('b', { fileScope: ['scope/b/**'] }),
+    mspSpec('c', { fileScope: ['scope/c/**'] }),
+  ];
+  const reconcileResult = {
+    manifestFound: true,
+    manifestRaw,
+    mergedPRs: [],
+    specContentHash: 'f'.repeat(64),
+    checkpointRefPages: [[
+      checkpointLsRemoteLine(logicalRunId, 'a'),
+      checkpointLsRemoteLine(logicalRunId, 'b'),
+      checkpointLsRemoteLine(logicalRunId, 'c'),
+    ]],
+  };
+  const labels = [];
+  const base = createFakeAgent({ msps: freshMsps, reconcileResult });
+  const agent = async (prompt, opts = {}) => { labels.push(opts.label || ''); return base(prompt, opts); };
+  const { resultPromise } = invokeMitosis(input, agent);
+  const result = await resultPromise;
+
+  assert.ok(labels.includes('plan:b'), 'the MSP with a malformed per-MSP hash is rebuilt fresh');
+  assert.ok(!labels.includes('restore:b'), 'the malformed-hash MSP never replay-forward-skips');
+  for (const unchanged of ['a', 'c']) {
+    assert.ok(labels.includes(`restore:${unchanged}`), `${unchanged} still replay-forward-skips — the malformed hash degraded only its own MSP`);
+    assert.ok(!labels.includes(`plan:${unchanged}`), `${unchanged} is not rebuilt`);
+  }
+
+  assert.notEqual(result.overallStatus, 'failed', 'a malformed per-MSP hash degrades, it never halts the run');
+  assert.equal(result.overallStatus, 'all-shipped');
+  assert.deepEqual(result.shipped.map((s) => s.mspId).sort(), ['a', 'b', 'c']);
+});
+
 test('R4 resume-target: a resume of an UNKNOWN runId halts loudly at reconcile (failed report, no Decompose, no ship) rather than silently starting a fresh run', async () => {
   const input = buildInput({ verb: 'resume', runId: 'deadbeef' });
   const reconcileResult = { manifestFound: false, manifestRaw: null, mergedPRs: [], specContentHash: SPEC_CONTENT_HASH, checkpointRefPages: [] };

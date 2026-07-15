@@ -413,6 +413,22 @@ function parseRunManifest(raw) {
   return parsed;
 }
 
+function mspContentHash(msp) {
+  const source = msp !== null && typeof msp === 'object' && !Array.isArray(msp) ? msp : {};
+  const id = typeof source.id === 'string' ? source.id : '';
+  const title = typeof source.title === 'string' ? source.title : '';
+  const rationale = typeof source.rationale === 'string' ? source.rationale : '';
+  const dependsOn = Array.isArray(source.dependsOn) ? source.dependsOn.filter((d) => typeof d === 'string') : [];
+  const fileScope = Array.isArray(source.fileScope) ? source.fileScope.filter((f) => typeof f === 'string') : [];
+  const canonical = JSON.stringify([id, title, rationale, dependsOn, fileScope]);
+  let h = 0x811c9dc5;
+  for (let i = 0; i < canonical.length; i += 1) {
+    h = (h ^ canonical.charCodeAt(i)) >>> 0;
+    h = Math.imul(h, 0x01000193) >>> 0;
+  }
+  return h.toString(16).padStart(8, '0');
+}
+
 function buildInitialManifest({ logicalRunId, harnessRunId, spec, repoRoot, baseBranch, sourcePrefix, clusters, msps, specContentHash }) {
   return {
     logicalRunId,
@@ -434,6 +450,7 @@ function buildInitialManifest({ logicalRunId, harnessRunId, spec, repoRoot, base
       mergedAt: null,
       dependsOn: msp.dependsOn,
       fileScope: msp.fileScope,
+      contentHash: mspContentHash(msp),
     })),
   };
 }
@@ -1966,6 +1983,37 @@ function selectResumeBuilt(manifest, shippedSet) {
   return resume;
 }
 
+function selectPreservedBuilt(priorManifest, freshMsps, builtUnits, shippedSet) {
+  if (!priorManifest || typeof priorManifest !== 'object' || !Array.isArray(priorManifest.msps)) return [];
+  if (!Array.isArray(freshMsps)) return [];
+  const runId = typeof priorManifest.logicalRunId === 'string' ? priorManifest.logicalRunId : null;
+  const builtSet = builtUnits instanceof Set ? builtUnits : new Set(Array.isArray(builtUnits) ? builtUnits : []);
+  const priorById = new Map(priorManifest.msps.filter((m) => m && typeof m.id === 'string').map((m) => [m.id, m]));
+  const resume = [];
+  for (const msp of freshMsps) {
+    if (!msp || typeof msp.id !== 'string') continue;
+    if (!builtSet.has(msp.id)) continue;
+    if (isShippedUnit(shippedSet, msp.id)) continue;
+    const prior = priorById.get(msp.id);
+    if (!prior || typeof prior !== 'object') continue;
+    const priorHash = typeof prior.contentHash === 'string' ? prior.contentHash : null;
+    if (priorHash === null || priorHash !== mspContentHash(msp)) continue;
+    let ref = null;
+    try {
+      ref = checkpointRef(runId, msp.id);
+    } catch (err) {
+      ref = null;
+    }
+    const resumePoint = {
+      branch: typeof prior.integrationBranch === 'string' ? prior.integrationBranch : null,
+      ref,
+      stage: 'ship',
+    };
+    resume.push({ unitId: msp.id, stage: 'ship', resumePoint, built: true });
+  }
+  return resume;
+}
+
 const COMPENSATION_POLICY = Object.freeze({
   'worktree-add': Object.freeze({ state: 'local', destructive: true, forwardOnly: false, pointOfNoReturn: false }),
   'local-branch': Object.freeze({ state: 'local', destructive: true, forwardOnly: false, pointOfNoReturn: false }),
@@ -2843,6 +2891,14 @@ const unknownDepErrors = msps.flatMap((m) =>
 );
 if (unknownDepErrors.length > 0) {
   return fatalReport('decompose', `dependsOn references unknown id(s): ${unknownDepErrors.join('; ')}`, msps.length);
+}
+
+if (!reusable && isRelaunch) {
+  const preservedBuilt = selectPreservedBuilt(reconciledManifest, msps, builtUnits, reconciledShipped);
+  for (const r of preservedBuilt) resumeMap.set(r.unitId, r);
+  if (preservedBuilt.length > 0) {
+    log(`mitosis: reconcile — spec content changed but ${preservedBuilt.length} MSP(s) whose per-MSP content hash is unchanged replay-forward-skip from their durable checkpoint (granular per-MSP resume): ${preservedBuilt.map((r) => r.unitId).join(', ')}`);
+  }
 }
 
 if (!reusable) {

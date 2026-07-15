@@ -1,5 +1,6 @@
 import { isValidFingerprint } from './remediation.mjs';
 import { checkpointRef } from './checkpoint.mjs';
+import { mspContentHash } from './recovery.mjs';
 
 export const LEGAL_STAGES = Object.freeze(['plan', 'plan-review', 'parallelize', 'branch', 'execute', 'ship']);
 
@@ -121,6 +122,37 @@ export function selectResumeBuilt(manifest, shippedSet) {
       stage: 'ship',
     };
     resume.push({ unitId: msp.id, stage: 'ship', resumePoint });
+  }
+  return resume;
+}
+
+export function selectPreservedBuilt(priorManifest, freshMsps, builtUnits, shippedSet) {
+  if (!priorManifest || typeof priorManifest !== 'object' || !Array.isArray(priorManifest.msps)) return [];
+  if (!Array.isArray(freshMsps)) return [];
+  const runId = typeof priorManifest.logicalRunId === 'string' ? priorManifest.logicalRunId : null;
+  const builtSet = builtUnits instanceof Set ? builtUnits : new Set(Array.isArray(builtUnits) ? builtUnits : []);
+  const priorById = new Map(priorManifest.msps.filter((m) => m && typeof m.id === 'string').map((m) => [m.id, m]));
+  const resume = [];
+  for (const msp of freshMsps) {
+    if (!msp || typeof msp.id !== 'string') continue;
+    if (!builtSet.has(msp.id)) continue;
+    if (isShippedUnit(shippedSet, msp.id)) continue;
+    const prior = priorById.get(msp.id);
+    if (!prior || typeof prior !== 'object') continue;
+    const priorHash = typeof prior.contentHash === 'string' ? prior.contentHash : null;
+    if (priorHash === null || priorHash !== mspContentHash(msp)) continue;
+    let ref = null;
+    try {
+      ref = checkpointRef(runId, msp.id);
+    } catch (err) {
+      ref = null;
+    }
+    const resumePoint = {
+      branch: typeof prior.integrationBranch === 'string' ? prior.integrationBranch : null,
+      ref,
+      stage: 'ship',
+    };
+    resume.push({ unitId: msp.id, stage: 'ship', resumePoint, built: true });
   }
   return resume;
 }

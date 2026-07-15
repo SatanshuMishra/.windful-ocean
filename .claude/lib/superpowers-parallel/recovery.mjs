@@ -48,6 +48,22 @@ export function parseRunManifest(raw) {
   return parsed;
 }
 
+export function mspContentHash(msp) {
+  const source = msp !== null && typeof msp === 'object' && !Array.isArray(msp) ? msp : {};
+  const id = typeof source.id === 'string' ? source.id : '';
+  const title = typeof source.title === 'string' ? source.title : '';
+  const rationale = typeof source.rationale === 'string' ? source.rationale : '';
+  const dependsOn = Array.isArray(source.dependsOn) ? source.dependsOn.filter((d) => typeof d === 'string') : [];
+  const fileScope = Array.isArray(source.fileScope) ? source.fileScope.filter((f) => typeof f === 'string') : [];
+  const canonical = JSON.stringify([id, title, rationale, dependsOn, fileScope]);
+  let h = 0x811c9dc5;
+  for (let i = 0; i < canonical.length; i += 1) {
+    h = (h ^ canonical.charCodeAt(i)) >>> 0;
+    h = Math.imul(h, 0x01000193) >>> 0;
+  }
+  return h.toString(16).padStart(8, '0');
+}
+
 export function buildInitialManifest({ logicalRunId, harnessRunId, spec, repoRoot, baseBranch, sourcePrefix, clusters, msps, specContentHash }) {
   return {
     logicalRunId,
@@ -69,6 +85,7 @@ export function buildInitialManifest({ logicalRunId, harnessRunId, spec, repoRoo
       mergedAt: null,
       dependsOn: msp.dependsOn,
       fileScope: msp.fileScope,
+      contentHash: mspContentHash(msp),
     })),
   };
 }
