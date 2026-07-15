@@ -28,6 +28,23 @@ export function engineWorktreePath(worktreeRoot, branchPrefix, taskId) {
   return `${worktreeRoot}/${branchPrefix}/task-${taskId}`;
 }
 
+export function planIncomplete(fullText) {
+  if (typeof fullText !== 'string') return true;
+  const text = fullText.trim();
+  if (text.length === 0) return true;
+  const placeholderTokens = /\bTODO\b|\bFIXME\b|\bTBD\b|\bXXX\b|\bplaceholder\b|\bimplement here\b|\byour code here\b/i;
+  if (placeholderTokens.test(text)) return true;
+  const bareEllipsis = /(?:^|\s)(?:\.\.\.|…)(?:$|\s)/;
+  if (bareEllipsis.test(text)) return true;
+  const stubRedStep = /(?:^|\n)[ \t]*(?:[-*][ \t]*)?RED\b[ \t]*[:.—-]?[ \t]*(?=\n|$)/i;
+  if (stubRedStep.test(text)) return true;
+  for (const block of text.matchAll(/```([\s\S]*?)```/g)) {
+    const inner = block[1].replace(/^[ \t]*[\w+#.-]*[ \t]*\r?\n/, '');
+    if (inner.trim() === '') return true;
+  }
+  return false;
+}
+
 export async function runEngine(engineArgs, ctx) {
   const { agent, parallel, log, phase } = ctx;
 
