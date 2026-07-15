@@ -14,6 +14,7 @@ import {
   progressPossible,
   runSchedule,
 } from '../leases.mjs';
+import * as leasesModule from '../leases.mjs';
 
 function alwaysDone() {
   return async () => Done({ ok: true });
@@ -329,4 +330,132 @@ test('IN-RUN MERGE POLL FAIL-SAFE: with the merge-watch reporting never-merged, 
   assert.equal(byId.get('d1').state, 'planned');
   assert.equal(withPoll.polls.length, 5, 'the poll cycle budget is fully consumed before falling back to park');
   assert.equal(noPoll.polls.length, 0, 'the no-poll run runs zero poll cycles');
+});
+
+const drainMicrotasks = () => new Promise((resolve) => setImmediate(resolve));
+
+function gatedRunner() {
+  const gates = new Map();
+  const startOrder = [];
+  const liveSet = new Set();
+  let maxWidth = 0;
+  const runUnit = (unit) => {
+    startOrder.push(unit.id);
+    liveSet.add(unit.id);
+    maxWidth = Math.max(maxWidth, liveSet.size);
+    return new Promise((resolve) => {
+      gates.set(unit.id, (outcome) => {
+        liveSet.delete(unit.id);
+        resolve(outcome || Done({ ok: true }));
+      });
+    });
+  };
+  return {
+    runUnit,
+    startOrder,
+    running: () => [...liveSet].sort(),
+    isRunning: (id) => liveSet.has(id),
+    maxWidth: () => maxWidth,
+    settle: async (id, outcome) => {
+      const gate = gates.get(id);
+      if (!gate) throw new Error(`unit ${id} is not currently running`);
+      gates.delete(id);
+      gate(outcome);
+      await drainMicrotasks();
+    },
+  };
+}
+
+test('STREAMING FLAG: the streaming-dispatch flag defaults OFF, so the shipped default scheduler stays the tick barrier until the flip is proven', () => {
+  assert.equal(leasesModule.STREAMING_DISPATCH_ENABLED, false, 'STREAMING_DISPATCH_ENABLED must default false: tick remains the shipped default');
+});
+
+test('STREAMING SAFETY + INTERLEAVE + WIDTH: under streaming a unit whose lease overlaps a RUNNING unit is not co-dispatched (lease held for the running duration, released on settle), a dependent launches the instant its own prereq settles while an independent sibling straggler is still running (which the tick barrier forbids), and the sibling roots exceed width 1.0', async () => {
+  const r = gatedRunner();
+  const done = runSchedule(
+    [
+      { id: 'a', fileScope: ['shared.mjs'] },
+      { id: 'b', fileScope: ['shared.mjs'] },
+      { id: 'c', fileScope: ['c.mjs'] },
+      { id: 'd', prereqs: ['c'], fileScope: ['d.mjs'] },
+    ],
+    r.runUnit,
+    undefined,
+    { streaming: true },
+  );
+
+  await drainMicrotasks();
+  assert.deepEqual(r.running(), ['a', 'c'], 'both non-overlapping roots launch immediately; b overlaps a\'s live lease and waits');
+  assert.ok(!r.isRunning('b'), 'b is not co-dispatched with the RUNNING a because a still holds the shared lease');
+  assert.ok(r.maxWidth() > 1, 'the sibling roots a and c achieve a running width greater than 1.0 under streaming');
+
+  await r.settle('c', Done({ ok: true }));
+  assert.ok(r.isRunning('d'), 'd launches the instant its own prereq c settles, even though the co-dispatched straggler a is still running (tick would idle d behind the barrier)');
+  assert.ok(r.isRunning('a'), 'the independent straggler a is still running while d streams in');
+  assert.deepEqual(r.running(), ['a', 'd'], 'streaming interleaves d with the still-running straggler a across the c->d edge');
+  assert.ok(!r.isRunning('b'), 'b STILL cannot co-dispatch: a\'s shared lease is held for its entire running duration, not reset per tick');
+
+  await r.settle('a', Done({ ok: true }));
+  assert.ok(r.isRunning('b'), 'only once a settles and releases the shared lease does b launch');
+  assert.equal(r.maxWidth(), 2, 'at no point do the two shared-lease units a and b run concurrently');
+
+  await r.settle('d', Done({ ok: true }));
+  await r.settle('b', Done({ ok: true }));
+  const { units } = await done;
+  const byId = indexUnits(units);
+  for (const id of ['a', 'b', 'c', 'd']) assert.equal(byId.get(id).state, 'done', `${id} reaches done under streaming`);
+});
+
+test('STREAMING DEFAULT IS TICK: the SAME graph run WITHOUT the streaming flag keeps the tick barrier - a dependent cannot launch while a co-dispatched straggler in its tick is still running', async () => {
+  const r = gatedRunner();
+  const done = runSchedule(
+    [
+      { id: 'a', fileScope: ['a.mjs'] },
+      { id: 'c', fileScope: ['c.mjs'] },
+      { id: 'd', prereqs: ['c'], fileScope: ['d.mjs'] },
+    ],
+    r.runUnit,
+  );
+
+  await drainMicrotasks();
+  assert.deepEqual(r.running(), ['a', 'c'], 'both roots dispatch into the same tick');
+
+  await r.settle('c', Done({ ok: true }));
+  assert.ok(!r.isRunning('d'), 'DEFAULT (tick barrier): d does NOT launch when c settles because the tick has not joined - a still runs');
+  assert.ok(r.isRunning('a'), 'a is still running, holding the tick barrier closed');
+
+  await r.settle('a', Done({ ok: true }));
+  assert.ok(r.isRunning('d'), 'd launches only after the whole tick [a, c] joins');
+
+  await r.settle('d', Done({ ok: true }));
+  const { units } = await done;
+  const byId = indexUnits(units);
+  for (const id of ['a', 'c', 'd']) assert.equal(byId.get(id).state, 'done');
+});
+
+test('STREAMING + PART B: the in-run merge poll composes with streaming - a 2-root/14-dependent graph whose roots merge after one poll cycle ships all 16 in a single streaming run', async () => {
+  const specs = [
+    { id: 'r0', fileScope: ['r0.mjs'] },
+    { id: 'r1', fileScope: ['r1.mjs'] },
+  ];
+  for (let i = 0; i < 14; i += 1) specs.push({ id: `d${i}`, prereqs: ['r0', 'r1'], fileScope: [`d${i}.mjs`] });
+
+  const runUnit = async (u) => (u.id.startsWith('r')
+    ? AwaitingApproval({ mspId: u.id, prUrl: `https://github.com/o/repo/pull/${u.id === 'r0' ? '1' : '2'}` })
+    : Done({ ok: true }));
+
+  const shipLog = [];
+  const poll = {
+    maxCycles: 4,
+    watch: async () => ({ merged: true, mergedAt: '2026-07-15T00:00:00Z', readError: null }),
+    onMerged: async (unit) => { shipLog.push(unit.id); },
+  };
+
+  const { units, polls } = await runSchedule(specs, runUnit, poll, { streaming: true });
+  const byId = indexUnits(units);
+  const doneCount = [...byId.values()].filter((u) => u.state === 'done').length;
+
+  assert.equal(doneCount, 16, 'both merged roots and all 14 dependents reach done in a single streaming run (>|root antichain|)');
+  assert.deepEqual([...shipLog].sort(), ['r0', 'r1'], 'each polled-merge is recorded exactly once under streaming');
+  assert.ok(polls.length >= 1 && polls.length <= 4, 'the streaming poll ran within its deterministic cycle budget');
 });
