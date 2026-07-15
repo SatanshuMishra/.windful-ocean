@@ -382,3 +382,106 @@ test('E3 every engine dispatch routes through the guard and carries an explicit 
     assert.equal(c.opts && c.opts.model, 'opus', `dispatch ${c.opts && c.opts.label} did not carry an explicit opus model`);
   }
 });
+
+function clearEngineTask(over = {}) {
+  return {
+    id: 't1',
+    title: 'add slugify helper',
+    agentType: 'implementer',
+    fileScope: ['lib/a.js'],
+    fullText: 'RED then GREEN: implement slugify in lib/a.js and assert it throws on non-string input.',
+    risk: 'low',
+    dependentCount: 0,
+    edgeReasons: [],
+    validation: 'scoped',
+    ...over,
+  };
+}
+
+function soloTaskArgs(over = {}) {
+  return baseArgs({ tasks: { t1: clearEngineTask() }, waves: [['t1']], ...over });
+}
+
+function escalationAgent(calls, { firstImpl, reviewOutcome } = {}) {
+  let reviews = 0;
+  return async (prompt, opts) => {
+    calls.push({ prompt, opts });
+    const label = opts && opts.label ? opts.label : '';
+    if (label === 'impl:t1') return firstImpl || { status: 'DONE' };
+    if (label === 'escalate:t1') return { status: 'DONE' };
+    if (label === 'review:t1') {
+      reviews += 1;
+      return reviewOutcome ? reviewOutcome(reviews) : { verdict: 'pass' };
+    }
+    if (label.startsWith('fix-')) return {};
+    if (label.startsWith('integrate:')) return { merged: ['b'], conflict: false };
+    if (label === 'boundary' || label === 'boundary-recheck') return { pass: true, output: 'ok' };
+    if (label === 'final-review') return { summary: 'lgtm' };
+    return {};
+  };
+}
+
+test('E6 makeModelGuard threads the layer3 policy option so an implementer resolves sonnet under the forced gate', async () => {
+  const calls = [];
+  const guard = engineModule.makeModelGuard(async (p, o) => { calls.push(o); return { status: 'DONE' }; }, { layer3Sonnet: true });
+  const r = await guard.dispatch('impl', { label: 'impl:t1' }, { kind: 'implementer', task: clearImplementerTask() });
+  assert.deepEqual(r, { status: 'DONE' });
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0].model, 'sonnet');
+});
+
+test('E6 guardModelDecision resolves an escalation dispatch to opus (gate-triggered ratchet-up, never the task sonnet)', () => {
+  const d = engineModule.guardModelDecision('escalation', clearImplementerTask(), undefined, { layer3Sonnet: true });
+  assert.equal(d.ok, true);
+  assert.equal(d.model, 'opus');
+});
+
+test('R8-3 a BLOCKED discretionary (sonnet) task escalates the implementer to opus on a gate-triggered retry', async () => {
+  const calls = [];
+  const result = await runEngine(soloTaskArgs({ layer3Sonnet: true }), ctxWith(escalationAgent(calls, { firstImpl: { status: 'BLOCKED' } })));
+  assert.equal(result.halted, false, `run should thread through after the opus escalation; haltReason=${JSON.stringify(result.haltReason)}`);
+  const impl = calls.find((c) => c.opts.label === 'impl:t1');
+  const escalate = calls.find((c) => c.opts.label === 'escalate:t1');
+  assert.ok(impl, 'first implementer dispatch captured');
+  assert.equal(impl.opts.model, 'sonnet', 'the first attempt runs on the discretionary sonnet model');
+  assert.ok(escalate, 'a gate-triggered escalation dispatch was issued after BLOCKED');
+  assert.equal(escalate.opts.model, 'opus', 'the escalation redispatches on opus, never sonnet');
+});
+
+test('R8-3 a review-exhausted discretionary (sonnet) task escalates the implementer to opus', async () => {
+  const calls = [];
+  const result = await runEngine(
+    soloTaskArgs({ layer3Sonnet: true, fixLoopMax: 2 }),
+    ctxWith(escalationAgent(calls, { reviewOutcome: (n) => (n <= 3 ? { verdict: 'fail', issues: ['x'] } : { verdict: 'pass' }) })),
+  );
+  assert.equal(result.halted, false, `run should thread through after the opus escalation; haltReason=${JSON.stringify(result.haltReason)}`);
+  const impl = calls.find((c) => c.opts.label === 'impl:t1');
+  const escalate = calls.find((c) => c.opts.label === 'escalate:t1');
+  assert.equal(impl.opts.model, 'sonnet', 'the first attempt runs on sonnet');
+  assert.ok(escalate, 'review exhaustion is a gate that triggers escalation');
+  assert.equal(escalate.opts.model, 'opus', 'the escalation redispatches on opus');
+});
+
+test('R8-3 a non-discretionary (opus) BLOCKED task does NOT escalate (default behavior unchanged)', async () => {
+  const calls = [];
+  const result = await runEngine(soloTaskArgs(), ctxWith(escalationAgent(calls, { firstImpl: { status: 'BLOCKED' } })));
+  assert.equal(result.halted, true);
+  const impl = calls.find((c) => c.opts.label === 'impl:t1');
+  assert.equal(impl.opts.model, 'opus');
+  assert.equal(calls.some((c) => c.opts.label === 'escalate:t1'), false, 'an opus task is never escalated');
+  const failed = (result.haltReason && result.haltReason.failed) || [];
+  assert.ok(failed.some((f) => f && f.reason === 'BLOCKED'), 'the opus task fails BLOCKED with no escalation');
+});
+
+test('E6 the execute-stage remediation carries the task policy model (sonnet), and the escalation carries opus (no model drop)', async () => {
+  const remediationModels = [];
+  const makeRemediation = (opts) => { remediationModels.push({ unitId: opts.unitId, stage: opts.stage, model: opts.model }); return {}; };
+  const calls = [];
+  const ctx = { ...ctxWith(escalationAgent(calls, { firstImpl: { status: 'BLOCKED' } })), makeRemediation };
+  const result = await runEngine(soloTaskArgs({ layer3Sonnet: true }), ctx);
+  assert.equal(result.halted, false);
+  assert.deepEqual(remediationModels, [
+    { unitId: 't1', stage: 'execute', model: 'sonnet' },
+    { unitId: 't1', stage: 'execute', model: 'opus' },
+  ]);
+});

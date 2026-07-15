@@ -3020,3 +3020,36 @@ test('A5b knob hardening: a mistyped models key (Reviewer) is rejected fail-clos
   assert.match(result.detail, /known role|Reviewer/);
   assert.equal(agentCalls, 0);
 });
+
+test('A6/E6 the remediation redispatch carries an explicit model instead of dropping it to a session inherit', async () => {
+  const msps = [mspSpec('m0', { fileScope: ['scope/m0/**'] })];
+  const base = createFakeAgent({ msps });
+  const redispatchCalls = [];
+  let planCalls = 0;
+  const agent = async (prompt, opts = {}) => {
+    const label = opts.label || '';
+    const prefix = label.split(':')[0];
+    if (prefix === 'plan') {
+      planCalls += 1;
+      if (planCalls === 1) {
+        return { planPath: '/tmp/mitosis-scheduler-test/m0.plan.md', summary: '', fault: { kind: 'approach-fixable', mechanism: 'plan:redo', diagnosis: 'incomplete' } };
+      }
+      return { planPath: '/tmp/mitosis-scheduler-test/m0.plan.md', summary: '' };
+    }
+    if (prefix === 'diagnose') {
+      return { verdict: 'remediable', mechanism: 'plan:fix-x', correctedTask: 'redo the plan minimally', diagnosis: 'd' };
+    }
+    if (prefix === 'redispatch') {
+      redispatchCalls.push({ label, model: opts.model });
+      return { planPath: '/tmp/mitosis-scheduler-test/m0.plan.md', summary: '' };
+    }
+    return base(prompt, opts);
+  };
+  const { resultPromise } = invokeMitosis(buildInput(), agent);
+  const result = await resultPromise;
+
+  assert.equal(result.overallStatus, 'all-shipped');
+  assert.equal(redispatchCalls.length, 1, 'the plan stage was remediated via exactly one redispatch');
+  assert.equal(redispatchCalls[0].label, 'redispatch:m0:plan');
+  assert.equal(redispatchCalls[0].model, 'opus', 'the redispatch carries an explicit whitelisted model, never a dropped/undefined session inherit');
+});

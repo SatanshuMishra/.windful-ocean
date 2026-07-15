@@ -762,8 +762,8 @@ function authorTaskModels(tasks, opts) {
   );
 }
 
-function guardModelDecision(kind, task, attemptedModel) {
-  const policyModel = kind === 'implementer' ? policyModelFor(task) : 'opus';
+function guardModelDecision(kind, task, attemptedModel, opts) {
+  const policyModel = kind === 'implementer' ? policyModelFor(task, opts) : 'opus';
   if (policyModel !== 'opus' && policyModel !== 'sonnet') {
     return { ok: false, model: policyModel, reason: `resolved a non-whitelisted policy model ${JSON.stringify(policyModel)}` };
   }
@@ -773,12 +773,12 @@ function guardModelDecision(kind, task, attemptedModel) {
   return { ok: true, model: policyModel, reason: null };
 }
 
-function makeModelGuard(agent) {
+function makeModelGuard(agent, guardOpts) {
   let halt = null;
   async function dispatch(prompt, opts, spec) {
     if (halt) return null;
     const attemptedModel = opts ? opts.model : undefined;
-    const decision = guardModelDecision(spec.kind, spec.task, attemptedModel);
+    const decision = guardModelDecision(spec.kind, spec.task, attemptedModel, guardOpts);
     if (!decision.ok) {
       halt = { stage: 'model-policy', detail: { kind: spec.kind, taskId: spec.task ? spec.task.id : null, attemptedModel: attemptedModel === undefined ? null : attemptedModel, policyModel: decision.model, reason: decision.reason } };
       return null;
@@ -791,7 +791,8 @@ function makeModelGuard(agent) {
 async function runEngine(engineArgs, ctx) {
   const { agent, parallel, log, phase } = ctx;
 
-  const tasks = authorTaskModels(engineArgs.tasks);
+  const modelPolicyOpts = { layer3Sonnet: engineArgs.layer3Sonnet };
+  const tasks = authorTaskModels(engineArgs.tasks, modelPolicyOpts);
   const waves = engineArgs.waves;
   const branchPrefix = engineArgs.branchPrefix;
   const baseBranch = engineArgs.baseBranch;
@@ -807,7 +808,7 @@ async function runEngine(engineArgs, ctx) {
   const retry = engineArgs.retry || { maxAttempts: 1, state: { used: 0, max: 0 } };
   const fingerprintBase = engineArgs.fingerprintBase || baseBranch;
 
-  const guard = makeModelGuard(agent);
+  const guard = makeModelGuard(agent, modelPolicyOpts);
   const integrationWt = `${worktreeRoot}/${branchPrefix}/integration`;
   const baseGateWt = `${worktreeRoot}/${branchPrefix}/gate-base`;
 
@@ -907,27 +908,40 @@ async function runEngine(engineArgs, ctx) {
     const wt = worktreeOf(taskId);
     const reviewMode = task.risk === 'high' ? 'three-lens' : 'merged';
     const resolvedAgentType = EXEC_AGENT_TYPES.has(task.agentType) ? task.agentType : 'implementer';
-    const status = await ctx.dispatchWithRetry(
-      (attemptNo, preamble) => guard.dispatch(preamble + implementerPrompt(task, branch, wt), { label: `impl:${taskId}`, phase: 'Waves', schema: STATUS_SCHEMA, agentType: resolvedAgentType }, { kind: 'implementer', task }),
-      { isPermanent: (r) => r.status === 'BLOCKED' || r.status === 'NEEDS_CONTEXT', maxAttempts: retry.maxAttempts, state: retry.state, resetRef: baseBranch, worktree: wt, unitId: taskId, task: task.fullText, ...(typeof ctx.makeRemediation === 'function' ? ctx.makeRemediation({ unitId: taskId, stage: 'execute', task: task.fullText, schema: STATUS_SCHEMA, agentType: resolvedAgentType, phase: 'Waves' }) : {}) },
-    );
+    async function attempt(dispatchKind, escalated) {
+      const implLabel = escalated ? `escalate:${taskId}` : `impl:${taskId}`;
+      const remediationModel = escalated ? 'opus' : task.model;
+      const status = await ctx.dispatchWithRetry(
+        (attemptNo, preamble) => guard.dispatch(preamble + implementerPrompt(task, branch, wt), { label: implLabel, phase: 'Waves', schema: STATUS_SCHEMA, agentType: resolvedAgentType }, { kind: dispatchKind, task }),
+        { isPermanent: (r) => r.status === 'BLOCKED' || r.status === 'NEEDS_CONTEXT', maxAttempts: retry.maxAttempts, state: retry.state, resetRef: baseBranch, worktree: wt, unitId: taskId, task: task.fullText, ...(typeof ctx.makeRemediation === 'function' ? ctx.makeRemediation({ unitId: taskId, stage: 'execute', task: task.fullText, schema: STATUS_SCHEMA, agentType: resolvedAgentType, phase: 'Waves', model: remediationModel }) : {}) },
+      );
+      if (guard.getHalt()) return { gate: 'halt' };
+      if (status && status.__quarantined) {
+        return { gate: 'quarantined', quarantined: { stage: 'execute', retries: status.attempts, error: `implementer exhausted ${status.attempts} attempt(s) (transient drops)` } };
+      }
+      if (!status || status.status === 'BLOCKED' || status.status === 'NEEDS_CONTEXT')
+        return { gate: 'blocked', reason: status ? status.status : 'null-status' };
+      if (task.risk === 'high') {
+        const spec = await reviewLoop(task, branch, wt, specReviewPrompt, 'spec');
+        if (!spec.ok) return { gate: 'review', reason: spec.reason, issues: spec.issues };
+        const qual = await reviewLoop(task, branch, wt, qualityReviewPrompt, 'qual', 'code-reviewer');
+        if (!qual.ok) return { gate: 'review', reason: qual.reason, issues: qual.issues };
+        const sec = await reviewLoop(task, branch, wt, securityReviewPrompt, 'sec', 'security-reviewer');
+        if (!sec.ok) return { gate: 'review', reason: sec.reason, issues: sec.issues };
+      } else {
+        const merged = await reviewLoop(task, branch, wt, mergedReviewPrompt, 'review', 'code-reviewer');
+        if (!merged.ok) return { gate: 'review', reason: merged.reason, issues: merged.issues };
+      }
+      return { gate: null };
+    }
+    let outcome = await attempt('implementer', false);
+    if (!guard.getHalt() && (outcome.gate === 'blocked' || outcome.gate === 'review') && task.model === 'sonnet') {
+      outcome = await attempt('escalation', true);
+    }
     if (guard.getHalt()) return { taskId, branch, wt, reviewMode, ok: false, reason: 'model-policy' };
-    if (status && status.__quarantined) {
-      return { taskId, branch, wt, reviewMode, ok: false, reason: 'quarantined', quarantined: { stage: 'execute', retries: status.attempts, error: `implementer exhausted ${status.attempts} attempt(s) (transient drops)` } };
-    }
-    if (!status || status.status === 'BLOCKED' || status.status === 'NEEDS_CONTEXT')
-      return { taskId, branch, wt, reviewMode, ok: false, reason: status ? status.status : 'null-status' };
-    if (task.risk === 'high') {
-      const spec = await reviewLoop(task, branch, wt, specReviewPrompt, 'spec');
-      if (!spec.ok) return { taskId, branch, wt, reviewMode, ok: false, reason: spec.reason, issues: spec.issues };
-      const qual = await reviewLoop(task, branch, wt, qualityReviewPrompt, 'qual', 'code-reviewer');
-      if (!qual.ok) return { taskId, branch, wt, reviewMode, ok: false, reason: qual.reason, issues: qual.issues };
-      const sec = await reviewLoop(task, branch, wt, securityReviewPrompt, 'sec', 'security-reviewer');
-      if (!sec.ok) return { taskId, branch, wt, reviewMode, ok: false, reason: sec.reason, issues: sec.issues };
-    } else {
-      const merged = await reviewLoop(task, branch, wt, mergedReviewPrompt, 'review', 'code-reviewer');
-      if (!merged.ok) return { taskId, branch, wt, reviewMode, ok: false, reason: merged.reason, issues: merged.issues };
-    }
+    if (outcome.gate === 'quarantined') return { taskId, branch, wt, reviewMode, ok: false, reason: 'quarantined', quarantined: outcome.quarantined };
+    if (outcome.gate === 'blocked') return { taskId, branch, wt, reviewMode, ok: false, reason: outcome.reason };
+    if (outcome.gate === 'review') return { taskId, branch, wt, reviewMode, ok: false, reason: outcome.reason, issues: outcome.issues };
     return { taskId, branch, wt, reviewMode, ok: true };
   }
 
@@ -2172,7 +2186,8 @@ function replanPrompt({ unitId, title, planPath, rationale, dependsList, finding
     `Return ONLY: { planPath: "<absolute path to the revised plan you wrote>", summary: "<one sentence on what you changed>" }.`;
 }
 
-function makeRemediation({ unitId, stage, task, schema, agentType, phase: phaseName }) {
+function makeRemediation({ unitId, stage, task, schema, agentType, phase: phaseName, model }) {
+  const redispatchModel = model === 'sonnet' ? 'sonnet' : 'opus';
   const diagnose = async (input) => {
     let raw;
     try {
@@ -2191,7 +2206,7 @@ function makeRemediation({ unitId, stage, task, schema, agentType, phase: phaseN
     return runStage(
       () => agent(
         redispatchPrompt({ unitId, stage, task, correctedTask, mechanism, attempt: redispatchNo }),
-        { agentType, schema, label: `redispatch:${unitId}:${stage}`, phase: phaseName },
+        { agentType, schema, label: `redispatch:${unitId}:${stage}`, phase: phaseName, model: redispatchModel },
       ),
       { attemptNo: redispatchNo },
     );
