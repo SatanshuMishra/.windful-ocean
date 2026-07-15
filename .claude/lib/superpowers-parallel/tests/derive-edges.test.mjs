@@ -103,6 +103,54 @@ test('hardened dependsOn is sorted and deduplicated', () => {
   assert.deepEqual(graph.tasks.find((t) => t.id === 't3').dependsOn, ['t1', 't2']);
 });
 
+test('exposes reverse-transitive-dependent counts on each hardened task', () => {
+  const g = graphOf(
+    { id: 't1', fileScope: ['lib/a.js'] },
+    { id: 't2', fileScope: ['lib/b.js'], dependsOn: ['t1'] },
+    { id: 't3', fileScope: ['lib/c.js'], dependsOn: ['t2'] },
+    { id: 't4', fileScope: ['lib/d.js'], dependsOn: ['t2'] },
+  );
+  const { graph } = deriveEdges(g, []);
+  const byId = Object.fromEntries(graph.tasks.map((t) => [t.id, t]));
+  assert.equal(byId.t1.dependentCount, 3);
+  assert.equal(byId.t2.dependentCount, 2);
+  assert.equal(byId.t3.dependentCount, 0);
+  assert.equal(byId.t4.dependentCount, 0);
+});
+
+test('reverse-transitive-dependent count includes auto-added overlap edges', () => {
+  const g = graphOf(
+    { id: 't1', fileScope: ['lib/shared.js'] },
+    { id: 't2', fileScope: ['lib/shared.js'] },
+  );
+  const { graph } = deriveEdges(g, []);
+  const byId = Object.fromEntries(graph.tasks.map((t) => [t.id, t]));
+  assert.equal(byId.t1.dependentCount, 1);
+  assert.equal(byId.t2.dependentCount, 0);
+});
+
+test('exposes edgeReasons for tasks participating in derived edges', () => {
+  const g = graphOf(
+    { id: 't1', fileScope: ['lib/a.js'] },
+    { id: 't2', fileScope: ['lib/b.js'] },
+  );
+  const { graph } = deriveEdges(g, [{ from: 't2', to: 't1', reason: 'api-contract' }]);
+  const byId = Object.fromEntries(graph.tasks.map((t) => [t.id, t]));
+  assert.deepEqual(byId.t2.edgeReasons, ['api-contract']);
+  assert.deepEqual(byId.t1.edgeReasons, ['api-contract']);
+});
+
+test('tasks with no derived edges expose an empty edgeReasons array', () => {
+  const g = graphOf(
+    { id: 't1', fileScope: ['lib/a.js'] },
+    { id: 't2', fileScope: ['lib/b.js'], dependsOn: ['t1'] },
+  );
+  const { graph } = deriveEdges(g, []);
+  const byId = Object.fromEntries(graph.tasks.map((t) => [t.id, t]));
+  assert.deepEqual(byId.t1.edgeReasons, []);
+  assert.deepEqual(byId.t2.edgeReasons, []);
+});
+
 import { execFileSync } from 'node:child_process';
 import { mkdtempSync, writeFileSync, readFileSync, existsSync } from 'node:fs';
 import { tmpdir } from 'node:os';

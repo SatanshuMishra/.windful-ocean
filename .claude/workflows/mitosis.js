@@ -689,6 +689,71 @@ function planIncomplete(fullText) {
   return false;
 }
 
+const BLAST_RADIUS_K = 3;
+const LAYER3_SONNET_ENABLED = false;
+const SENSITIVE_SCOPE_GLOBS = ['*.sql', '**/*.sql', '.github/workflows'];
+const SENSITIVE_SCOPE_KEYWORDS = ['auth', 'security', 'secret', 'payment', 'crypto', 'migrations', 'infra', 'deploy'];
+const SENSITIVE_SCOPE_KEYWORD_RE = new RegExp('(^|/)(?:' + SENSITIVE_SCOPE_KEYWORDS.join('|') + ')', 'i');
+const IRREVERSIBLE_SCOPE_RE = /(^|\/)migrations(?:\/|$)|\.sql$/i;
+const DESTRUCTIVE_OP_RE = /\bdrop\s+(?:table|database|schema|index|view|column)\b|\btruncate\b|\bdelete\s+from\b|\brm\s+-rf\b|\bforce[-\s]?push\b|\bgit\s+push\s+(?:--force\b|-f\b)|\breset\s+--hard\b|--force-with-lease\b/i;
+const CONTRACT_EDGE_RE = /\b(?:contract|api|schema)\b/i;
+const POLICY_VALID_RISK = new Set(['low', 'high']);
+
+function sensitiveScope(fileScope) {
+  if (!Array.isArray(fileScope)) return false;
+  return fileScope.some((raw) => {
+    if (typeof raw !== 'string') return false;
+    const p = normalizePath(raw);
+    if (SENSITIVE_SCOPE_GLOBS.some((g) => scopeCovers(g, p))) return true;
+    return SENSITIVE_SCOPE_KEYWORD_RE.test(p);
+  });
+}
+
+function irreversible(fileScope, fullText) {
+  if (Array.isArray(fileScope) && fileScope.some((p) => typeof p === 'string' && IRREVERSIBLE_SCOPE_RE.test(normalizePath(p)))) return true;
+  return typeof fullText === 'string' && DESTRUCTIVE_OP_RE.test(fullText);
+}
+
+function breakingContract(task) {
+  const reasons = task && task.edgeReasons;
+  if (!Array.isArray(reasons)) return false;
+  return reasons.some((r) => typeof r === 'string' && CONTRACT_EDGE_RE.test(r));
+}
+
+function blastRadius(task) {
+  const n = task && task.dependentCount;
+  return Number.isInteger(n) && n >= 0 ? n : 0;
+}
+
+function isImplementationRole(task) {
+  return typeof task.agentType === 'string' && EXEC_AGENT_TYPES.has(task.agentType);
+}
+
+function policySignalAmbiguous(task) {
+  if (!Array.isArray(task.fileScope) || task.fileScope.some((p) => typeof p !== 'string')) return true;
+  if (typeof task.fullText !== 'string') return true;
+  if (task.risk !== undefined && task.risk !== null && !POLICY_VALID_RISK.has(task.risk)) return true;
+  if (!Number.isInteger(task.dependentCount) || task.dependentCount < 0) return true;
+  if (task.edgeReasons !== undefined && task.edgeReasons !== null && !Array.isArray(task.edgeReasons)) return true;
+  return false;
+}
+
+function policyModelFor(task, opts) {
+  const layer3Sonnet = opts && typeof opts.layer3Sonnet === 'boolean' ? opts.layer3Sonnet : LAYER3_SONNET_ENABLED;
+  if (!task || typeof task !== 'object') return 'opus';
+  if (!isImplementationRole(task)) return 'opus';
+  if (policySignalAmbiguous(task)) return 'opus';
+  if (
+    sensitiveScope(task.fileScope) ||
+    irreversible(task.fileScope, task.fullText) ||
+    breakingContract(task) ||
+    blastRadius(task) >= BLAST_RADIUS_K ||
+    task.risk === 'high'
+  ) return 'opus';
+  if (planIncomplete(task.fullText)) return 'opus';
+  return layer3Sonnet ? 'sonnet' : 'opus';
+}
+
 async function runEngine(engineArgs, ctx) {
   const { agent, parallel, log, phase } = ctx;
 

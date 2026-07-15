@@ -83,9 +83,35 @@ export function deriveEdges(graph, discoveredEdges = []) {
 
   detectCycle(byId, deps);
 
+  const directDependents = new Map();
+  for (const id of byId.keys()) directDependents.set(id, new Set());
+  for (const [dependent, depSet] of deps) for (const dep of depSet) if (directDependents.has(dep)) directDependents.get(dep).add(dependent);
+  const dependentCounts = new Map();
+  for (const id of byId.keys()) {
+    const seen = new Set();
+    const stack = [...directDependents.get(id)];
+    while (stack.length) {
+      const cur = stack.pop();
+      if (cur === id || seen.has(cur)) continue;
+      seen.add(cur);
+      for (const next of directDependents.get(cur)) stack.push(next);
+    }
+    dependentCounts.set(id, seen.size);
+  }
+
+  const edgeReasonsById = new Map();
+  for (const id of byId.keys()) edgeReasonsById.set(id, new Set());
+  for (const e of added) {
+    if (typeof e.reason !== 'string') continue;
+    if (edgeReasonsById.has(e.from)) edgeReasonsById.get(e.from).add(e.reason);
+    if (edgeReasonsById.has(e.to)) edgeReasonsById.get(e.to).add(e.reason);
+  }
+
   const tasks = graph.tasks.map((t) => ({
     ...t,
     dependsOn: [...deps.get(t.id)].sort(),
+    dependentCount: dependentCounts.get(t.id),
+    edgeReasons: [...edgeReasonsById.get(t.id)].sort(),
   }));
 
   return {
