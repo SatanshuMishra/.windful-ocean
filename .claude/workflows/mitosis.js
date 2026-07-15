@@ -666,6 +666,48 @@ function scopeCovers(scope, path) {
   return ns === np || np.startsWith(ns + '/');
 }
 
+const COARSE_SCOPE_FILE_THRESHOLD = 3;
+const SCOPE_NAMED_FILE_RE = /[\w][\w./-]*\.[A-Za-z][A-Za-z0-9]{0,5}/g;
+function scopeDirPrefix(scope) {
+  const star = scope.search(/[*?]/);
+  return normalizePath(star === -1 ? scope : scope.slice(0, star));
+}
+function scopeIsSpecificFile(scope) {
+  if (typeof scope !== 'string' || /[*?]/.test(scope)) return false;
+  const base = normalizePath(scope).split('/').pop();
+  return /\.[A-Za-z][A-Za-z0-9]{0,5}$/.test(base);
+}
+function scopeIsBareTopLevelDir(scope) {
+  if (typeof scope !== 'string' || scopeIsSpecificFile(scope)) return false;
+  const prefix = scopeDirPrefix(scope);
+  return prefix !== '' && !prefix.includes('/');
+}
+function namedFilesInText(text) {
+  if (typeof text !== 'string') return [];
+  const out = new Set();
+  for (const raw of text.match(SCOPE_NAMED_FILE_RE) || []) {
+    const t = normalizePath(raw);
+    const base = t.split('/').pop();
+    if (base.lastIndexOf('.') >= 2 || t.includes('/')) out.add(t);
+  }
+  return [...out];
+}
+function lintCoarseScope(task, opts) {
+  const threshold = opts && Number.isInteger(opts.fileThreshold) ? opts.fileThreshold : COARSE_SCOPE_FILE_THRESHOLD;
+  const fileScope = task && Array.isArray(task.fileScope) ? task.fileScope : [];
+  const named = namedFilesInText([task && task.fullText, task && task.title, task && task.rationale].filter((t) => typeof t === 'string').join('\n'));
+  const flags = [];
+  for (const raw of fileScope) {
+    if (typeof raw !== 'string') continue;
+    if (scopeIsBareTopLevelDir(raw)) { flags.push({ scope: raw, reason: 'bare-top-level-dir' }); continue; }
+    if (!scopeIsSpecificFile(raw) && named.length > 0) {
+      const covered = named.filter((f) => scopeCovers(raw, f));
+      if (covered.length > threshold) flags.push({ scope: raw, reason: 'covers-named-files', covered });
+    }
+  }
+  return { id: task && task.id ? task.id : null, flags };
+}
+
 function engineWorktreePath(worktreeRoot, branchPrefix, taskId) {
   return `${worktreeRoot}/${branchPrefix}/task-${taskId}`;
 }
@@ -2682,7 +2724,7 @@ if (reusable) {
         `Target repository root: ${repoRoot}\n\n` +
         `Decompose the spec into clusters of MSPs (minimum shippable products). An MSP is the smallest unit that is independently shippable behind its own PR and leaves the shared branch green. Use the D1 code-intelligence stack to ground the decomposition: native caller/callee facts (Serena find_referencing_symbols / find_symbol) for dependency edges, the Graphify map (run \`graphify query\` / \`graphify explain\` via Bash, token-free) for orientation, and targeted Read/Grep for the seams the oracle cannot see (dynamic dispatch, DI, FFI, SQL, codegen).\n\n` +
         `Order the MSPs BOTTOM-UP: an MSP must appear AFTER every MSP it depends on. Express every cross-MSP dependency in dependsOn using the MSP ids you assign. Assign each MSP a stable kebab-case id unique within this run.\n\n` +
-        `For each MSP, declare its fileScope: the coarse, best-effort set of repository paths and globs (e.g. "src/auth/**", "lib/config.ts") naming the surface that MSP writes or owns. Ground fileScope in the SAME D1 code-intelligence stack you used above (the Graphify map for orientation, Serena / native LSP for the symbols each MSP touches, targeted Read/Grep for the seams the oracle cannot see). Coarse and slightly over-broad is correct: fileScope overlap is what clusters MSPs that must not run in parallel, so err toward naming a path when unsure.\n\n` +
+        `For each MSP, declare its fileScope: the NARROWEST CORRECT set of repository paths and globs that still covers EVERYTHING that MSP writes or owns. When a change is file-local, name the EXACT files (e.g. "lib/config.ts", "src/auth/login.ts"), NOT their parent directory; reserve a directory glob (e.g. "src/auth/**") for an MSP that genuinely owns the whole directory. Ground fileScope in the SAME D1 code-intelligence stack you used above (the Graphify map for orientation, Serena / native LSP for the symbols each MSP touches, targeted Read/Grep for the seams the oracle cannot see). Completeness is non-negotiable: omitting a path an MSP writes lets two MSPs collide on the same file, so declare every surface you touch — but no MORE. Over-broad scope needlessly serializes MSPs that could run in parallel (fileScope overlap is what clusters MSPs that must not co-run); a deterministic post-derivation lint flags suspiciously coarse scopes (a bare top-level directory, or a directory covering files the task text names specifically) for reviewer attention.\n\n` +
         `Return ONLY the structured object: { msps: [ { id, title, rationale, dependsOn, fileScope } ] }, ordered bottom-up.`,
         { agentType: 'codebase-analyst', schema: DECOMPOSE_SCHEMA, label: 'decompose', phase: 'Decompose', model: models.decomposer || 'opus' }
       ),
@@ -2723,6 +2765,16 @@ const unknownDepErrors = msps.flatMap((m) =>
 );
 if (unknownDepErrors.length > 0) {
   return fatalReport('decompose', `dependsOn references unknown id(s): ${unknownDepErrors.join('; ')}`, msps.length);
+}
+
+if (!reusable) {
+  const coarseScopeFlags = msps.map((m) => lintCoarseScope(m)).filter((r) => r.flags.length > 0);
+  if (coarseScopeFlags.length > 0) {
+    const summary = coarseScopeFlags
+      .map((r) => `${r.id}: ${r.flags.map((f) => `${f.scope} [${f.reason}]`).join(', ')}`)
+      .join(' | ');
+    log(`mitosis: coarse-scope lint flagged ${coarseScopeFlags.length} MSP(s) for reviewer attention — declared fileScope is broader than a file-local change warrants; narrow to the exact path set (the lint surfaces only, it does not auto-narrow): ${summary}`);
+  }
 }
 
 if (!reusable) {

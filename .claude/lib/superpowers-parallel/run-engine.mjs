@@ -22,6 +22,48 @@ export function scopeCovers(scope, path) {
   return ns === np || np.startsWith(ns + '/');
 }
 
+export const COARSE_SCOPE_FILE_THRESHOLD = 3;
+const SCOPE_NAMED_FILE_RE = /[\w][\w./-]*\.[A-Za-z][A-Za-z0-9]{0,5}/g;
+export function scopeDirPrefix(scope) {
+  const star = scope.search(/[*?]/);
+  return normalizePath(star === -1 ? scope : scope.slice(0, star));
+}
+export function scopeIsSpecificFile(scope) {
+  if (typeof scope !== 'string' || /[*?]/.test(scope)) return false;
+  const base = normalizePath(scope).split('/').pop();
+  return /\.[A-Za-z][A-Za-z0-9]{0,5}$/.test(base);
+}
+export function scopeIsBareTopLevelDir(scope) {
+  if (typeof scope !== 'string' || scopeIsSpecificFile(scope)) return false;
+  const prefix = scopeDirPrefix(scope);
+  return prefix !== '' && !prefix.includes('/');
+}
+export function namedFilesInText(text) {
+  if (typeof text !== 'string') return [];
+  const out = new Set();
+  for (const raw of text.match(SCOPE_NAMED_FILE_RE) || []) {
+    const t = normalizePath(raw);
+    const base = t.split('/').pop();
+    if (base.lastIndexOf('.') >= 2 || t.includes('/')) out.add(t);
+  }
+  return [...out];
+}
+export function lintCoarseScope(task, opts) {
+  const threshold = opts && Number.isInteger(opts.fileThreshold) ? opts.fileThreshold : COARSE_SCOPE_FILE_THRESHOLD;
+  const fileScope = task && Array.isArray(task.fileScope) ? task.fileScope : [];
+  const named = namedFilesInText([task && task.fullText, task && task.title, task && task.rationale].filter((t) => typeof t === 'string').join('\n'));
+  const flags = [];
+  for (const raw of fileScope) {
+    if (typeof raw !== 'string') continue;
+    if (scopeIsBareTopLevelDir(raw)) { flags.push({ scope: raw, reason: 'bare-top-level-dir' }); continue; }
+    if (!scopeIsSpecificFile(raw) && named.length > 0) {
+      const covered = named.filter((f) => scopeCovers(raw, f));
+      if (covered.length > threshold) flags.push({ scope: raw, reason: 'covers-named-files', covered });
+    }
+  }
+  return { id: task && task.id ? task.id : null, flags };
+}
+
 export function engineWorktreePath(worktreeRoot, branchPrefix, taskId) {
   return `${worktreeRoot}/${branchPrefix}/task-${taskId}`;
 }
