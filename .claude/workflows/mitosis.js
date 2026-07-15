@@ -2796,6 +2796,15 @@ async function persistShipCheckpoint({ unitId, prUrl, mergedAt, title, rationale
   }
 }
 
+function modelsMapEqual(a, b) {
+  if (a === b) return true;
+  if (!a || !b || typeof a !== 'object' || typeof b !== 'object' || Array.isArray(a) || Array.isArray(b)) return false;
+  const keysA = Object.keys(a);
+  const keysB = Object.keys(b);
+  if (keysA.length !== keysB.length) return false;
+  return keysA.every((k) => Object.prototype.hasOwnProperty.call(b, k) && a[k] === b[k]);
+}
+
 async function runUnit(unit) {
     const msp = mspById.get(unit.id);
     const branchPrefix = `${sourcePrefix}/${msp.id}`;
@@ -2990,6 +2999,21 @@ async function runUnit(unit) {
       !Object.values(parallelized.engineArgs.prompts).every((v) => typeof v === 'string')
     ) {
       return parkUnit(msp, 'parallelize', NeedsHuman({ kind: 'approve-decision', what: 'engineArgs.prompts must be a non-null, non-array object whose values are all strings', remediation: null, resumePoint: null }), integrationBranch);
+    }
+
+    if (!modelsMapEqual(parallelized.engineArgs.models, models)) {
+      return parkUnit(msp, 'parallelize', NeedsHuman({ kind: 'approve-decision', what: `engineArgs.models (${JSON.stringify(parallelized.engineArgs.models)}) does not echo the operator models input (${JSON.stringify(models)}) unchanged; the model map is engine-owned and the parallelize round-trip must not add, drop, or alter it`, remediation: null, resumePoint: null }), integrationBranch);
+    }
+
+    for (const [taskId, task] of Object.entries(parallelized.engineArgs.tasks)) {
+      const policyModel = policyModelFor(task);
+      if (policyModel !== 'opus' && policyModel !== 'sonnet') {
+        return parkUnit(msp, 'parallelize', NeedsHuman({ kind: 'approve-decision', what: `engineArgs.tasks[${taskId}] resolved a non-whitelisted policy model ${JSON.stringify(policyModel)}; only {opus, sonnet} are representable`, remediation: null, resumePoint: null }), integrationBranch);
+      }
+      const echoed = task && typeof task === 'object' && !Array.isArray(task) ? task.model : undefined;
+      if (echoed !== undefined && echoed !== null && echoed !== policyModel) {
+        return parkUnit(msp, 'parallelize', NeedsHuman({ kind: 'approve-decision', what: `engineArgs.tasks[${taskId}].model=${JSON.stringify(echoed)} disagrees with the engine-authored policy model ${JSON.stringify(policyModel)}; the per-task model is engine-authored (deterministic policyModelFor) and must never be supplied or mutated by the parallelize round-trip or a stale resume`, remediation: null, resumePoint: null }), integrationBranch);
+      }
     }
 
     aggregatedScope = aggregateMspFileScope(parallelized.engineArgs.tasks);

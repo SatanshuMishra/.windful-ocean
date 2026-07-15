@@ -2801,3 +2801,80 @@ test('PLAN-REVIEW infra fail-closed: an unreachable reviewer parks the unit at p
   assert.ok(!labels.some((l) => l.startsWith('parallelize:')), 'an unreviewed plan never reaches Parallelize');
   assert.ok(!labels.some((l) => l.startsWith('ship:')), 'an unreviewed plan never reaches ship');
 });
+
+function overrideParallelize(base, targetMspId, mutateEngineArgs) {
+  return async (prompt, opts = {}) => {
+    const label = opts.label || '';
+    if (label === `parallelize:${targetMspId}`) {
+      const mspId = label.slice('parallelize:'.length);
+      const engineArgs = buildEngineArgs({ sourcePrefix: SOURCE_PREFIX, mspId });
+      return { engineArgs: mutateEngineArgs(engineArgs), route: { lane: 'solo', N: 1 } };
+    }
+    return base(prompt, opts);
+  };
+}
+
+test('A3 E2 model invariant: a parallelize round-trip that echoes a per-task model disagreeing with the engine-authored policy model parks at parallelize (tamper/drift/stale-resume)', async () => {
+  const msps = [mspSpec('solo', { fileScope: ['scope/solo/**'] })];
+  const base = createFakeAgent({ msps });
+  const agent = overrideParallelize(base, 'solo', (ea) => ({
+    ...ea,
+    tasks: { ...ea.tasks, t0: { ...ea.tasks.t0, model: 'sonnet' } },
+  }));
+  const { resultPromise } = invokeMitosis(buildInput(), agent);
+  const result = await resultPromise;
+
+  assert.deepEqual(result.shipped, []);
+  const park = result.parked.find((p) => p.mspId === 'solo');
+  assert.ok(park, 'a task whose echoed model disagrees with policy is parked, not dispatched');
+  assert.equal(park.stage, 'parallelize');
+  assert.match(park.request.what, /model/);
+});
+
+test('A3 E2 model invariant: an echoed per-task model outside the {opus,sonnet} whitelist parks at parallelize', async () => {
+  const msps = [mspSpec('solo', { fileScope: ['scope/solo/**'] })];
+  const base = createFakeAgent({ msps });
+  const agent = overrideParallelize(base, 'solo', (ea) => ({
+    ...ea,
+    tasks: { ...ea.tasks, t0: { ...ea.tasks.t0, model: 'haiku' } },
+  }));
+  const { resultPromise } = invokeMitosis(buildInput(), agent);
+  const result = await resultPromise;
+
+  assert.deepEqual(result.shipped, []);
+  const park = result.parked.find((p) => p.mspId === 'solo');
+  assert.ok(park, 'a non-whitelisted echoed model is unrepresentable and parks');
+  assert.equal(park.stage, 'parallelize');
+});
+
+test('A3 E2 model invariant: a parallelize round-trip whose engineArgs.models does not echo the operator models input unchanged parks at parallelize', async () => {
+  const msps = [mspSpec('solo', { fileScope: ['scope/solo/**'] })];
+  const base = createFakeAgent({ msps });
+  const agent = overrideParallelize(base, 'solo', (ea) => ({
+    ...ea,
+    models: { reviewer: 'sonnet' },
+  }));
+  const { resultPromise } = invokeMitosis(buildInput(), agent);
+  const result = await resultPromise;
+
+  assert.deepEqual(result.shipped, []);
+  const park = result.parked.find((p) => p.mspId === 'solo');
+  assert.ok(park, 'an LLM round-trip that adds a models override the operator never supplied is parked (echo hole closed)');
+  assert.equal(park.stage, 'parallelize');
+  assert.match(park.request.what, /models/);
+});
+
+test('A3 E2 model invariant: an engine-authored model matching policy and an operator models map echoed unchanged pass the invariant and ship (no over-parking)', async () => {
+  const msps = [mspSpec('solo', { fileScope: ['scope/solo/**'] })];
+  const base = createFakeAgent({ msps });
+  const agent = overrideParallelize(base, 'solo', (ea) => ({
+    ...ea,
+    models: { reviewer: 'opus' },
+    tasks: { ...ea.tasks, t0: { ...ea.tasks.t0, model: 'opus' } },
+  }));
+  const { resultPromise } = invokeMitosis(buildInput({ models: { reviewer: 'opus' } }), agent);
+  const result = await resultPromise;
+
+  assert.deepEqual(result.parked, [], 'a matching echoed model and an unchanged operator models echo must not park');
+  assert.deepEqual(result.shipped.map((s) => s.mspId), ['solo']);
+});
