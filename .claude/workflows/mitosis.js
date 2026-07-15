@@ -2417,19 +2417,25 @@ function decidePrepareActions({ probe, buildConfig, verify }) {
   });
 }
 const KNOB_MODEL_WHITELIST = ['opus', 'sonnet'];
+const KNOB_KNOWN_ROLE_KEYS = ['implementer', 'reviewer', 'fixer', 'decomposer', 'reconciler', 'shipper'];
 const REVIEW_PINNED_KNOB_KEYS = ['reviewer'];
+const OPUS_PINNED_KNOB_KEYS = ['reviewer', 'decomposer', 'shipper'];
 function validateModelsKnob(models) {
   if (models === undefined || models === null) return { ok: true, reason: null };
   if (typeof models !== 'object' || Array.isArray(models)) {
     return { ok: false, reason: 'models must be a plain object mapping a role to a model' };
   }
   for (const key of Object.keys(models)) {
+    if (!KNOB_KNOWN_ROLE_KEYS.includes(key)) {
+      return { ok: false, reason: `models.${key} is not a known model role; known roles are ${KNOB_KNOWN_ROLE_KEYS.join(', ')}` };
+    }
     const value = models[key];
     if (!KNOB_MODEL_WHITELIST.includes(value)) {
       return { ok: false, reason: `models.${key}=${JSON.stringify(value)} is not an allowed model; allowed models are ${KNOB_MODEL_WHITELIST.join(', ')}` };
     }
-    if (REVIEW_PINNED_KNOB_KEYS.includes(key) && value !== 'opus') {
-      return { ok: false, reason: `models.${key} may only be 'opus'; reviews are pinned to opus and the reviewer knob can never pull a review below opus` };
+    if (OPUS_PINNED_KNOB_KEYS.includes(key) && value !== 'opus') {
+      const why = REVIEW_PINNED_KNOB_KEYS.includes(key) ? 'reviews are pinned to opus' : `${key} feeds an opus-pinned stage`;
+      return { ok: false, reason: `models.${key} may only be 'opus'; ${why} and the knob can never pull it below opus` };
     }
   }
   return { ok: true, reason: null };
@@ -2938,7 +2944,7 @@ async function runUnit(unit) {
           `Target repo: ${repoRoot}. Earlier MSPs in this cluster's chain (already planned/merged) you may depend on: ${dependsList}.\n\n` +
           `Write the plan to: ${repoRoot}/.mitosis/${msp.id}.plan.md (create the .mitosis directory if absent).\n\n` +
           `Return ONLY: { planPath: "<absolute path to the plan you wrote>", summary: "<one sentence>" }.`,
-          { agentType: 'implementer', schema: PLAN_SCHEMA, label: `plan:${msp.id}`, phase: 'Plan' }
+          { agentType: 'implementer', schema: PLAN_SCHEMA, label: `plan:${msp.id}`, phase: 'Plan', model: 'opus' }
         ),
         { unitId: msp.id, stage: 'plan', resetRef: baseBranch, worktree: null, task: msp.rationale, triedSet: planTriedSeed, ...makeRemediation({ unitId: msp.id, stage: 'plan', task: msp.rationale, schema: PLAN_SCHEMA, agentType: 'implementer', phase: 'Plan' }), compensate: makeCompensate(null, baseBranch) },
       );
@@ -2950,12 +2956,16 @@ async function runUnit(unit) {
     const skipPlanReview = resumeStartIdx > RESUME_STAGE_ORDER.indexOf('plan-review');
     if (!skipPlanReview) {
       phase('Plan review');
+      const planReviewModel = guardModelDecision('review', null, 'opus');
+      if (!planReviewModel.ok) {
+        return parkUnit(msp, 'plan-review', NeedsHuman({ kind: 'approve-decision', what: `plan-review model policy violation: ${planReviewModel.reason}; the outer plan-review lens must dispatch on opus (verifier >= generator) and parks rather than silently reviewing below opus`, remediation: null, resumePoint: { branch: integrationBranch, ref: baseBranch, stage: 'plan-review' } }), integrationBranch, compensationStack);
+      }
       let planReviewApproved = false;
       for (let reviewIter = 1; reviewIter <= MAX_PLAN_REVIEW_ITERATIONS && !planReviewApproved; reviewIter += 1) {
         const reviewOutcome = await supervisedDispatch(
           (attemptNo, preamble) => agent(
             planReviewPrompt({ unitId: msp.id, title: msp.title, planPath: planned.planPath, rationale: msp.rationale, dependsList, iteration: reviewIter }),
-            { agentType: 'solution-architect', schema: PLAN_REVIEW_SCHEMA, label: `plan-review:${msp.id}`, phase: 'Plan review', model: 'opus' },
+            { agentType: 'solution-architect', schema: PLAN_REVIEW_SCHEMA, label: `plan-review:${msp.id}`, phase: 'Plan review', model: planReviewModel.model },
           ),
           { unitId: msp.id, stage: 'plan-review', resetRef: baseBranch, worktree: null, task: `adversarial review of the plan for ${msp.id}` },
         );
@@ -2971,7 +2981,7 @@ async function runUnit(unit) {
         const replanOutcome = await supervisedDispatch(
           (attemptNo, preamble) => agent(
             replanPrompt({ unitId: msp.id, title: msp.title, planPath: planned.planPath, rationale: msp.rationale, dependsList, findings }),
-            { agentType: 'implementer', schema: PLAN_SCHEMA, label: `replan:${msp.id}`, phase: 'Plan review' }
+            { agentType: 'implementer', schema: PLAN_SCHEMA, label: `replan:${msp.id}`, phase: 'Plan review', model: 'opus' }
           ),
           { unitId: msp.id, stage: 'plan-review', resetRef: baseBranch, worktree: null, task: `revise the plan for ${msp.id} to satisfy adversarial review`, ...makeRemediation({ unitId: msp.id, stage: 'plan-review', task: `revise the plan for ${msp.id} to satisfy adversarial review`, schema: PLAN_SCHEMA, agentType: 'implementer', phase: 'Plan review' }), compensate: makeCompensate(null, baseBranch) },
         );
@@ -3185,7 +3195,7 @@ async function runUnit(unit) {
         `6. Wait for CI to finish on the FRESH head+base with \`gh run watch --exit-status\`: the receipts red->green enforcer + G9 full-suite + the D6 cluster-boundary step. Because the PR base is origin/${baseBranch} (now including every sibling that already merged) and the head is the rebased tip, the D6 step computes NEW base..head dependents over the COMBINED post-rebase state - not this cluster's changes in isolation.\n` +
         shipStep7 +
         shipReturnLine,
-        { agentType: 'implementer', schema: SHIP_SCHEMA, label: `ship:${msp.id}`, phase: 'Ship' }
+        { agentType: 'implementer', schema: SHIP_SCHEMA, label: `ship:${msp.id}`, phase: 'Ship', model: 'opus' }
       );
       if (!ship) {
         log(`mitosis[${msp.id}]: ship agent returned null (blocked by permission classifier or died before returning)`);

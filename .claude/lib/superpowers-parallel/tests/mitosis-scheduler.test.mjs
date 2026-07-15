@@ -2941,3 +2941,82 @@ test('A5 E4 review pin: the MSP-stage plan-review dispatch carries an explicit o
     assert.equal(opts.model, 'opus', 'plan-review is a review lens and must dispatch on an explicit opus');
   }
 });
+
+function captureStageModels(base, prefixes) {
+  const models = {};
+  const agent = async (prompt, opts = {}) => {
+    const prefix = (opts.label || '').split(':')[0];
+    if (prefixes.includes(prefix) && !(prefix in models)) models[prefix] = opts.model;
+    return base(prompt, opts);
+  };
+  return { agent, models };
+}
+
+test('A5b Opus pin: decompose, plan, and ship each dispatch an explicit opus model (never a session/knob inherit)', async () => {
+  const msps = [mspSpec('solo', { fileScope: ['scope/solo/**'] })];
+  const base = createFakeAgent({ msps });
+  const { agent, models } = captureStageModels(base, ['decompose', 'plan', 'ship']);
+  const { resultPromise } = invokeMitosis(buildInput(), agent);
+  const result = await resultPromise;
+
+  assert.equal(result.overallStatus, 'all-shipped');
+  assert.equal(models.decompose, 'opus', 'decompose is opus-pinned regardless of the knob');
+  assert.equal(models.plan, 'opus', 'plan is opus-pinned regardless of the knob');
+  assert.equal(models.ship, 'opus', 'ship stays opus (consequential publish + rebase-conflict judgment)');
+});
+
+test('A5b Opus pin: the plan-review re-plan (replan) dispatch is opus-pinned so a revised plan is never generated below opus', async () => {
+  const msps = [mspSpec('solo', { fileScope: ['scope/solo/**'] })];
+  let reviewCalls = 0;
+  const base = createFakeAgent({
+    msps,
+    planReview: () => {
+      reviewCalls += 1;
+      return reviewCalls === 1
+        ? { verdict: 'needs-changes', findings: [{ axis: 'over-scope', severity: 'high', detail: 'tighten scope' }], pillarsAlignment: 'over-scoped' }
+        : { verdict: 'approve', findings: [], pillarsAlignment: 'minimal plan now aligns' };
+    },
+  });
+  const { agent, models } = captureStageModels(base, ['replan']);
+  const { resultPromise } = invokeMitosis(buildInput(), agent);
+  const result = await resultPromise;
+
+  assert.equal(result.overallStatus, 'all-shipped');
+  assert.equal(models.replan, 'opus', 'a re-plan generates the pinned plan artifact and must run on opus');
+});
+
+test('A5b knob hardening: an operator models.decomposer downgrade below opus is rejected fail-closed at the input stage before any agent runs', async () => {
+  let agentCalls = 0;
+  const agent = async () => { agentCalls += 1; return {}; };
+  const { resultPromise } = invokeMitosis(buildInput({ models: { decomposer: 'sonnet' } }), agent);
+  const result = await resultPromise;
+
+  assert.equal(result.overallStatus, 'failed');
+  assert.equal(result.stage, 'input');
+  assert.match(result.detail, /decomposer/);
+  assert.equal(agentCalls, 0, 'a rejected knob never dispatches an agent (decompose can never be pulled below opus)');
+});
+
+test('A5b knob hardening: an operator models.shipper downgrade below opus is rejected fail-closed at the input stage before any agent runs', async () => {
+  let agentCalls = 0;
+  const agent = async () => { agentCalls += 1; return {}; };
+  const { resultPromise } = invokeMitosis(buildInput({ models: { shipper: 'sonnet' } }), agent);
+  const result = await resultPromise;
+
+  assert.equal(result.overallStatus, 'failed');
+  assert.equal(result.stage, 'input');
+  assert.match(result.detail, /shipper/);
+  assert.equal(agentCalls, 0);
+});
+
+test('A5b knob hardening: a mistyped models key (Reviewer) is rejected fail-closed at the input stage so it can never silently bypass the reviewer pin', async () => {
+  let agentCalls = 0;
+  const agent = async () => { agentCalls += 1; return {}; };
+  const { resultPromise } = invokeMitosis(buildInput({ models: { Reviewer: 'opus' } }), agent);
+  const result = await resultPromise;
+
+  assert.equal(result.overallStatus, 'failed');
+  assert.equal(result.stage, 'input');
+  assert.match(result.detail, /known role|Reviewer/);
+  assert.equal(agentCalls, 0);
+});

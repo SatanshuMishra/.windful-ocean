@@ -8,20 +8,25 @@ const DEFAULTS = {
 };
 
 const KNOB_MODEL_WHITELIST = ['opus', 'sonnet'];
+const KNOB_KNOWN_ROLE_KEYS = ['implementer', 'reviewer', 'fixer', 'decomposer', 'reconciler', 'shipper'];
 const REVIEW_PINNED_KNOB_KEYS = ['reviewer'];
-
+const OPUS_PINNED_KNOB_KEYS = ['reviewer', 'decomposer', 'shipper'];
 export function validateModelsKnob(models) {
   if (models === undefined || models === null) return { ok: true, reason: null };
   if (typeof models !== 'object' || Array.isArray(models)) {
     return { ok: false, reason: 'models must be a plain object mapping a role to a model' };
   }
   for (const key of Object.keys(models)) {
+    if (!KNOB_KNOWN_ROLE_KEYS.includes(key)) {
+      return { ok: false, reason: `models.${key} is not a known model role; known roles are ${KNOB_KNOWN_ROLE_KEYS.join(', ')}` };
+    }
     const value = models[key];
     if (!KNOB_MODEL_WHITELIST.includes(value)) {
       return { ok: false, reason: `models.${key}=${JSON.stringify(value)} is not an allowed model; allowed models are ${KNOB_MODEL_WHITELIST.join(', ')}` };
     }
-    if (REVIEW_PINNED_KNOB_KEYS.includes(key) && value !== 'opus') {
-      return { ok: false, reason: `models.${key} may only be 'opus'; reviews are pinned to opus and the reviewer knob can never pull a review below opus` };
+    if (OPUS_PINNED_KNOB_KEYS.includes(key) && value !== 'opus') {
+      const why = REVIEW_PINNED_KNOB_KEYS.includes(key) ? 'reviews are pinned to opus' : `${key} feeds an opus-pinned stage`;
+      return { ok: false, reason: `models.${key} may only be 'opus'; ${why} and the knob can never pull it below opus` };
     }
   }
   return { ok: true, reason: null };

@@ -25,3 +25,24 @@ for (const twin of ['outcome.mjs', 'run-engine.mjs', 'retry.mjs', 'prepare-guard
     );
   });
 }
+
+function knobRegion(src) {
+  const start = src.indexOf('const KNOB_MODEL_WHITELIST');
+  assert.ok(start >= 0, 'KNOB_MODEL_WHITELIST declaration not found');
+  const endAnchor = 'return { ok: true, reason: null };\n}';
+  const end = src.indexOf(endAnchor, start);
+  assert.ok(end >= 0, 'validateModelsKnob end anchor not found');
+  return src.slice(start, end + endAnchor.length).replace(/^export /gm, '');
+}
+
+test('the models-knob validation twin (KNOB_MODEL_WHITELIST + REVIEW_PINNED_KNOB_KEYS + validateModelsKnob) is byte-identical (minus export) between engine-args.mjs and mitosis.js', () => {
+  const engineRegion = knobRegion(readFileSync(`${LIB}engine-args.mjs`, 'utf8'));
+  const mitosisRegion = knobRegion(readFileSync(MITOSIS_PATH, 'utf8'));
+  assert.equal(
+    mitosisRegion,
+    engineRegion,
+    'the fail-closed models-knob validation drifted between engine-args.mjs and its inline mitosis.js copy — update BOTH copies identically',
+  );
+  assert.match(engineRegion, /REVIEW_PINNED_KNOB_KEYS/);
+  assert.match(engineRegion, /function validateModelsKnob/);
+});

@@ -17,7 +17,7 @@ function fullInput() {
     runArtifacts: { plan: 'p.md', graph: 'p.graph.json' },
     isolation: 'scope-fence',
     launchCommit: 'abc123',
-    models: { implement: 'sonnet' },
+    models: { implementer: 'sonnet' },
     fixLoopMax: 3,
   };
 }
@@ -34,7 +34,7 @@ test('passes through provided values unchanged', () => {
   assert.deepEqual(out.waves, input.waves);
   assert.equal(out.isolation, 'scope-fence');
   assert.equal(out.launchCommit, 'abc123');
-  assert.deepEqual(out.models, { implement: 'sonnet' });
+  assert.deepEqual(out.models, { implementer: 'sonnet' });
 });
 
 test('applies defaults for the optional keys when absent', () => {
@@ -83,7 +83,7 @@ test('E5 validateModelsKnob accepts the empty/absent knob and whitelisted {opus,
   assert.deepEqual(validateModelsKnob(undefined), { ok: true, reason: null });
   assert.deepEqual(validateModelsKnob(null), { ok: true, reason: null });
   assert.equal(validateModelsKnob({ implementer: 'sonnet' }).ok, true);
-  assert.equal(validateModelsKnob({ decomposer: 'opus', shipper: 'sonnet' }).ok, true);
+  assert.equal(validateModelsKnob({ decomposer: 'opus', reconciler: 'sonnet' }).ok, true);
 });
 
 test('E5 validateModelsKnob rejects a non-whitelisted value so haiku/fable are unrepresentable', () => {
@@ -123,4 +123,52 @@ test('E5 buildEngineArgs still accepts a whitelisted upgrade knob (reviewer:opus
   input.models = { reviewer: 'opus' };
   const out = buildEngineArgs(input);
   assert.deepEqual(out.models, { reviewer: 'opus' });
+});
+
+test('A5b validateModelsKnob rejects an unknown/mistyped role key fail-closed against the known role set', () => {
+  const mistyped = validateModelsKnob({ Reviewer: 'opus' });
+  assert.equal(mistyped.ok, false, 'a mistyped models.Reviewer must NOT silently bypass the reviewer pin');
+  assert.match(mistyped.reason, /Reviewer/);
+  assert.match(mistyped.reason, /known role/);
+  assert.equal(validateModelsKnob({ reviewrer: 'opus' }).ok, false);
+  assert.equal(validateModelsKnob({ implementor: 'sonnet' }).ok, false);
+  assert.equal(validateModelsKnob({ ship: 'opus' }).ok, false);
+});
+
+test('A5b validateModelsKnob recognizes the full known role set', () => {
+  for (const key of ['implementer', 'reviewer', 'fixer', 'decomposer', 'reconciler', 'shipper']) {
+    assert.equal(validateModelsKnob({ [key]: 'opus' }).ok, true, `${key} must be a recognized role key`);
+  }
+});
+
+test('A5b validateModelsKnob pins the opus-pinned generator/ship knobs (decomposer, shipper) to opus-only', () => {
+  const decomposerDowngrade = validateModelsKnob({ decomposer: 'sonnet' });
+  assert.equal(decomposerDowngrade.ok, false, 'decompose is an opus-pinned stage; the decomposer knob can never downgrade it');
+  assert.match(decomposerDowngrade.reason, /decomposer/);
+  const shipperDowngrade = validateModelsKnob({ shipper: 'sonnet' });
+  assert.equal(shipperDowngrade.ok, false, 'ship is an opus-pinned stage; the shipper knob can never downgrade it');
+  assert.match(shipperDowngrade.reason, /shipper/);
+  assert.equal(validateModelsKnob({ decomposer: 'opus' }).ok, true, 'decomposer:opus is the allowed upgrade no-op');
+  assert.equal(validateModelsKnob({ shipper: 'opus' }).ok, true, 'shipper:opus is the allowed upgrade no-op');
+});
+
+test('A5b validateModelsKnob leaves the non-pinned free roles (reconciler, implementer, fixer) able to select sonnet', () => {
+  assert.equal(validateModelsKnob({ reconciler: 'sonnet' }).ok, true, 'reconcile is a read-only stage, not opus-pinned');
+  assert.equal(validateModelsKnob({ implementer: 'sonnet' }).ok, true);
+  assert.equal(validateModelsKnob({ fixer: 'sonnet' }).ok, true);
+});
+
+test('A5b buildEngineArgs rejects a decomposer/shipper downgrade below opus (fail-closed at the arg boundary)', () => {
+  const withDecomposer = fullInput();
+  withDecomposer.models = { decomposer: 'sonnet' };
+  assert.throws(() => buildEngineArgs(withDecomposer), /decomposer/);
+  const withShipper = fullInput();
+  withShipper.models = { shipper: 'sonnet' };
+  assert.throws(() => buildEngineArgs(withShipper), /shipper/);
+});
+
+test('A5b buildEngineArgs rejects an unknown/mistyped role key (fail-closed at the arg boundary)', () => {
+  const input = fullInput();
+  input.models = { Reviewer: 'opus' };
+  assert.throws(() => buildEngineArgs(input), /known role|Reviewer/);
 });
