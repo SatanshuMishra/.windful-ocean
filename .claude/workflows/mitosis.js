@@ -1675,22 +1675,58 @@ async function joinTick(units, runUnit) {
   return settled.map((r) => (r.status === 'fulfilled' ? r.value : null));
 }
 
-async function runSchedule(specs, runUnit) {
+function awaitingUnits(units) {
+  return units.filter((u) => u.state === 'awaiting');
+}
+
+function progressPossible(units) {
+  if (!units.some((u) => u.state === 'awaiting')) return false;
+  const hypothetical = units.map((u) => (u.state === 'awaiting' ? { ...u, state: 'done' } : u));
+  return planTick(hypothetical).dispatch.length > 0;
+}
+
+function markMerged(units, mergedIds) {
+  const set = new Set(mergedIds);
+  return Object.freeze(units.map((u) => (set.has(u.id) ? Object.freeze({ ...u, state: 'done', leaseHeld: false }) : u)));
+}
+
+async function runSchedule(specs, runUnit, poll) {
   let units = buildUnitTable(specs);
   const ticks = [];
-  const maxTicks = units.length + 1;
-  for (let tick = 0; tick < maxTicks; tick++) {
+  const polls = [];
+  const maxPollCycles = poll && Number.isInteger(poll.maxCycles) && poll.maxCycles > 0 ? poll.maxCycles : 0;
+  const maxSteps = units.length + 1 + maxPollCycles;
+  let pollsUsed = 0;
+  for (let step = 0; step < maxSteps; step++) {
     const { dispatch } = planTick(units);
-    if (dispatch.length === 0) break;
-    ticks.push(dispatch);
-    units = markDispatched(units, dispatch);
-    const byId = indexUnits(units);
-    const dispatchUnits = dispatch.map((id) => byId.get(id));
-    const results = await joinTick(dispatchUnits, runUnit);
-    const outcomes = new Map(dispatch.map((id, i) => [id, results[i]]));
-    units = applyOutcomes(units, outcomes);
+    if (dispatch.length > 0) {
+      ticks.push(dispatch);
+      units = markDispatched(units, dispatch);
+      const byId = indexUnits(units);
+      const dispatchUnits = dispatch.map((id) => byId.get(id));
+      const results = await joinTick(dispatchUnits, runUnit);
+      const outcomes = new Map(dispatch.map((id, i) => [id, results[i]]));
+      units = applyOutcomes(units, outcomes);
+      continue;
+    }
+    if (poll && pollsUsed < maxPollCycles && progressPossible(units)) {
+      pollsUsed++;
+      const watching = awaitingUnits(units);
+      const merged = [];
+      for (const unit of watching) {
+        const result = await poll.watch(unit);
+        if (classifyMergeWatch(result)) {
+          merged.push(unit.id);
+          if (typeof poll.onMerged === 'function') await poll.onMerged(unit, result);
+        }
+      }
+      polls.push({ cycle: pollsUsed, watched: watching.map((u) => u.id), merged });
+      if (merged.length > 0) units = markMerged(units, merged);
+      continue;
+    }
+    break;
   }
-  return { units, ticks };
+  return { units, ticks, polls };
 }
 
 const LEGAL_STAGES = Object.freeze(['plan', 'plan-review', 'parallelize', 'branch', 'execute', 'ship']);
@@ -3328,11 +3364,46 @@ async function runUnit(unit) {
     return finalizeShip();
 }
 
+const MERGE_POLL_MAX_CYCLES = 6;
+const MERGE_POLL_WAIT_SECONDS = 300;
+const MERGE_POLL_INTERVAL_SECONDS = 30;
+const pollRepoIdentity = validateRepoIdentity(input.repoIdentity) ? input.repoIdentity : null;
+
+const mergePoll = {
+  maxCycles: MERGE_POLL_MAX_CYCLES,
+  watch: async (unit) => {
+    const entry = awaitingApproval.find((a) => a.mspId === unit.id);
+    if (!entry || typeof entry.prUrl !== 'string') return { merged: false, mergedAt: null, readError: 'no awaiting-approval PR reference for the polled unit' };
+    const plan = planMergeWatch({ prUrl: entry.prUrl, repoIdentity: pollRepoIdentity });
+    if (!plan.enabled) return { merged: false, mergedAt: null, readError: `merge-watch disabled (${plan.reason}); poll degrades to park` };
+    try {
+      const result = await agent(
+        mergeWatchPrompt(plan, { maxWaitSeconds: MERGE_POLL_WAIT_SECONDS, pollIntervalSeconds: MERGE_POLL_INTERVAL_SECONDS }),
+        { agentType: 'implementer', schema: MERGE_WATCH_SCHEMA, label: `merge-watch:${unit.id}`, phase: 'Ship' }
+      );
+      return result || { merged: false, mergedAt: null, readError: 'merge-watch returned null (blocked or dropped)' };
+    } catch (err) {
+      return { merged: false, mergedAt: null, readError: `merge-watch threw: ${clean(err.message)}` };
+    }
+  },
+  onMerged: async (unit, result) => {
+    const idx = awaitingApproval.findIndex((a) => a.mspId === unit.id);
+    const entry = idx >= 0 ? awaitingApproval[idx] : null;
+    const msp = mspById.get(unit.id);
+    const prUrl = entry ? entry.prUrl : null;
+    if (idx >= 0) awaitingApproval.splice(idx, 1);
+    shipped.push({ mspId: unit.id, prUrl, receiptsPass: entry ? entry.receiptsPass : null, d6Pass: entry ? entry.d6Pass : null, dependsOn: (msp && msp.dependsOn) || [] });
+    log(`mitosis[${unit.id}]: in-run merge poll confirmed PR merged -> ${clean(prUrl)}; releasing lease and unblocking dependents`);
+    await persistShipCheckpoint({ unitId: unit.id, prUrl, mergedAt: result && result.mergedAt, title: msp && msp.title, rationale: msp && msp.rationale });
+  },
+};
+
 let scheduleResult;
 try {
   scheduleResult = await runSchedule(
     msps.map((m) => ({ id: m.id, prereqs: m.dependsOn || [], fileScope: m.fileScope || [] })),
     (unit) => runUnit(unit),
+    mergePoll,
   );
 } catch (err) {
   return fatalReportShipped('schedule', `scheduler fan-out rejected: ${err.message}`, msps.length, shipped, { crashed: true });

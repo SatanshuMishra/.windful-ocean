@@ -1,6 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { Done, NeedsHuman, Unknown, Transient, ApproachFixable, AwaitingApproval } from '../boundary.mjs';
+import { planMergeWatch } from '../merge-watch.mjs';
 import {
   makeUnit,
   buildUnitTable,
@@ -10,6 +11,7 @@ import {
   acquire,
   dispositionOf,
   planTick,
+  progressPossible,
   runSchedule,
 } from '../leases.mjs';
 
@@ -230,4 +232,101 @@ test('runSchedule terminates (no unbounded loop) even when every dispatched unit
   const byId = indexUnits(units);
   assert.equal(byId.get('a').state, 'parked');
   assert.equal(byId.get('b').state, 'parked');
+});
+
+test('PROGRESS-POSSIBLE: true only when an awaiting unit\'s completion unblocks a currently-blocked dependent; false with no awaiting unit or a dependent still blocked by a non-awaiting prereq', () => {
+  const unblockable = buildUnitTable([
+    { id: 'root', state: 'awaiting', fileScope: ['root.mjs'] },
+    { id: 'dep', state: 'planned', prereqs: ['root'], fileScope: ['dep.mjs'] },
+  ]);
+  assert.equal(progressPossible(unblockable), true);
+
+  const noAwaiting = buildUnitTable([
+    { id: 'a', state: 'done' },
+    { id: 'b', state: 'planned', prereqs: ['a'], fileScope: ['b.mjs'] },
+  ]);
+  assert.equal(progressPossible(noAwaiting), false);
+
+  const stillBlockedByPark = buildUnitTable([
+    { id: 'root', state: 'awaiting', fileScope: ['root.mjs'] },
+    { id: 'blocker', state: 'parked', fileScope: ['blocker.mjs'] },
+    { id: 'dep', state: 'planned', prereqs: ['root', 'blocker'], fileScope: ['dep.mjs'] },
+  ]);
+  assert.equal(progressPossible(stillBlockedByPark), false);
+
+  const awaitingWithNoDependent = buildUnitTable([
+    { id: 'root', state: 'awaiting', fileScope: ['root.mjs'] },
+    { id: 'free', state: 'done', fileScope: ['free.mjs'] },
+  ]);
+  assert.equal(progressPossible(awaitingWithNoDependent), false);
+});
+
+test('IN-RUN MERGE POLL: a 2-root/14-dependent graph whose roots merge after one poll cycle ships far more than the |root antichain| in a single run, records each merge in the ship log, and issues only read-only gh pr view reads (no merge/push)', async () => {
+  const specs = [
+    { id: 'r0', fileScope: ['r0.mjs'] },
+    { id: 'r1', fileScope: ['r1.mjs'] },
+  ];
+  for (let i = 0; i < 14; i += 1) specs.push({ id: `d${i}`, prereqs: ['r0', 'r1'], fileScope: [`d${i}.mjs`] });
+
+  const prNumberFor = (id) => (id === 'r0' ? '1' : '2');
+  const runUnit = async (u) => (u.id.startsWith('r')
+    ? AwaitingApproval({ mspId: u.id, prUrl: `https://github.com/o/repo/pull/${prNumberFor(u.id)}` })
+    : Done({ ok: true }));
+
+  const shipLog = [];
+  const watchArgvs = [];
+  const watch = async (unit) => {
+    const plan = planMergeWatch({ prUrl: `https://github.com/o/repo/pull/${prNumberFor(unit.id)}`, repoIdentity: 'o/repo' });
+    watchArgvs.push(plan.argv);
+    return { merged: true, mergedAt: '2026-07-15T00:00:00Z', readError: null };
+  };
+  const poll = { maxCycles: 4, watch, onMerged: async (unit) => { shipLog.push(unit.id); } };
+
+  const { units, ticks, polls } = await runSchedule(specs, runUnit, poll);
+  const byId = indexUnits(units);
+  const doneCount = [...byId.values()].filter((u) => u.state === 'done').length;
+
+  assert.ok(doneCount > 2, `expected far more than the 2-root antichain to ship in one run, got ${doneCount} done`);
+  assert.equal(doneCount, 16, 'both merged roots and all 14 dependents reach done in a single run');
+  assert.equal(byId.get('r0').state, 'done');
+  assert.equal(byId.get('r1').state, 'done');
+  assert.deepEqual([...shipLog].sort(), ['r0', 'r1'], 'each polled-merge is recorded in the ship log exactly once');
+  assert.ok(polls.length >= 1 && polls.length <= 4, 'the poll ran within its deterministic cycle budget');
+  assert.equal(watchArgvs.length, 2, 'the poll watched both awaiting roots');
+  for (const argv of watchArgvs) {
+    assert.deepEqual(argv.slice(0, 3), ['gh', 'pr', 'view'], 'the poll issues a read-only gh pr view');
+    assert.ok(!argv.includes('merge'), 'the poll never issues gh pr merge');
+    assert.ok(!argv.some((t) => String(t).includes('push')), 'the poll never pushes');
+  }
+});
+
+test('IN-RUN MERGE POLL FAIL-SAFE: with the merge-watch reporting never-merged, the poll bound is exhausted and the graph lands in exactly the same terminal state as the no-poll run (strict superset, no regression)', async () => {
+  const specs = [
+    { id: 'r0', fileScope: ['r0.mjs'] },
+    { id: 'r1', fileScope: ['r1.mjs'] },
+    { id: 'd0', prereqs: ['r0', 'r1'], fileScope: ['d0.mjs'] },
+    { id: 'd1', prereqs: ['r0'], fileScope: ['d1.mjs'] },
+  ];
+  const runUnit = async (u) => (u.id.startsWith('r')
+    ? AwaitingApproval({ mspId: u.id, prUrl: `https://github.com/o/repo/pull/${u.id === 'r0' ? '1' : '2'}` })
+    : Done({ ok: true }));
+
+  const noPoll = await runSchedule(specs, runUnit);
+  const neverMerged = { merged: false, mergedAt: null, readError: null };
+  const withPoll = await runSchedule(specs, runUnit, {
+    maxCycles: 5,
+    watch: async () => neverMerged,
+    onMerged: async () => { throw new Error('onMerged must never fire when nothing merges'); },
+  });
+
+  const stateEntries = (r) => r.units.map((u) => [u.id, u.state]).sort();
+  assert.deepEqual(stateEntries(withPoll), stateEntries(noPoll), 'the never-merged poll run lands every unit in the same terminal state as the no-poll run');
+  assert.deepEqual(withPoll.ticks, noPoll.ticks, 'a never-merged poll issues no extra dispatch tick');
+  const byId = indexUnits(withPoll.units);
+  assert.equal(byId.get('r0').state, 'awaiting');
+  assert.equal(byId.get('r1').state, 'awaiting');
+  assert.equal(byId.get('d0').state, 'planned');
+  assert.equal(byId.get('d1').state, 'planned');
+  assert.equal(withPoll.polls.length, 5, 'the poll cycle budget is fully consumed before falling back to park');
+  assert.equal(noPoll.polls.length, 0, 'the no-poll run runs zero poll cycles');
 });

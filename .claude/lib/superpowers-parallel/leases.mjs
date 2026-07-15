@@ -1,4 +1,5 @@
 import { scopesOverlap } from './wave-planner.mjs';
+import { classifyMergeWatch } from './merge-watch.mjs';
 
 export function makeUnit(spec) {
   if (!spec || typeof spec !== 'object') throw new Error('unit spec must be an object');
@@ -92,20 +93,56 @@ async function joinTick(units, runUnit) {
   return settled.map((r) => (r.status === 'fulfilled' ? r.value : null));
 }
 
-export async function runSchedule(specs, runUnit) {
+function awaitingUnits(units) {
+  return units.filter((u) => u.state === 'awaiting');
+}
+
+export function progressPossible(units) {
+  if (!units.some((u) => u.state === 'awaiting')) return false;
+  const hypothetical = units.map((u) => (u.state === 'awaiting' ? { ...u, state: 'done' } : u));
+  return planTick(hypothetical).dispatch.length > 0;
+}
+
+function markMerged(units, mergedIds) {
+  const set = new Set(mergedIds);
+  return Object.freeze(units.map((u) => (set.has(u.id) ? Object.freeze({ ...u, state: 'done', leaseHeld: false }) : u)));
+}
+
+export async function runSchedule(specs, runUnit, poll) {
   let units = buildUnitTable(specs);
   const ticks = [];
-  const maxTicks = units.length + 1;
-  for (let tick = 0; tick < maxTicks; tick++) {
+  const polls = [];
+  const maxPollCycles = poll && Number.isInteger(poll.maxCycles) && poll.maxCycles > 0 ? poll.maxCycles : 0;
+  const maxSteps = units.length + 1 + maxPollCycles;
+  let pollsUsed = 0;
+  for (let step = 0; step < maxSteps; step++) {
     const { dispatch } = planTick(units);
-    if (dispatch.length === 0) break;
-    ticks.push(dispatch);
-    units = markDispatched(units, dispatch);
-    const byId = indexUnits(units);
-    const dispatchUnits = dispatch.map((id) => byId.get(id));
-    const results = await joinTick(dispatchUnits, runUnit);
-    const outcomes = new Map(dispatch.map((id, i) => [id, results[i]]));
-    units = applyOutcomes(units, outcomes);
+    if (dispatch.length > 0) {
+      ticks.push(dispatch);
+      units = markDispatched(units, dispatch);
+      const byId = indexUnits(units);
+      const dispatchUnits = dispatch.map((id) => byId.get(id));
+      const results = await joinTick(dispatchUnits, runUnit);
+      const outcomes = new Map(dispatch.map((id, i) => [id, results[i]]));
+      units = applyOutcomes(units, outcomes);
+      continue;
+    }
+    if (poll && pollsUsed < maxPollCycles && progressPossible(units)) {
+      pollsUsed++;
+      const watching = awaitingUnits(units);
+      const merged = [];
+      for (const unit of watching) {
+        const result = await poll.watch(unit);
+        if (classifyMergeWatch(result)) {
+          merged.push(unit.id);
+          if (typeof poll.onMerged === 'function') await poll.onMerged(unit, result);
+        }
+      }
+      polls.push({ cycle: pollsUsed, watched: watching.map((u) => u.id), merged });
+      if (merged.length > 0) units = markMerged(units, merged);
+      continue;
+    }
+    break;
   }
-  return { units, ticks };
+  return { units, ticks, polls };
 }

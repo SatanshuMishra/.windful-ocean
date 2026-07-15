@@ -82,11 +82,16 @@ function mspSpec(id, overrides = {}) {
   return { id, title: id, rationale: `rationale for ${id}`, dependsOn: [], fileScope: [], ...overrides };
 }
 
-function createFakeAgent({ msps, sourcePrefix = SOURCE_PREFIX, planGate, shipResult, reconcileResult, planReview, replanResult } = {}) {
+function createFakeAgent({ msps, sourcePrefix = SOURCE_PREFIX, planGate, shipResult, reconcileResult, planReview, replanResult, mergeWatch } = {}) {
   return async function fakeAgent(prompt, opts = {}) {
     const label = opts.label || '';
     const prefix = label.split(':')[0];
     switch (prefix) {
+      case 'merge-watch': {
+        const mspId = label.slice('merge-watch:'.length);
+        const override = mergeWatch ? mergeWatch(mspId) : null;
+        return override || { merged: false, mergedAt: null, readError: null };
+      }
       case 'plan-review': {
         const mspId = label.slice('plan-review:'.length);
         const verdict = planReview ? planReview(mspId) : null;
@@ -553,6 +558,64 @@ test('human-gated default: a foundational MSP awaiting approval yields overallSt
   assert.match(shipA, /HUMAN-GATED/);
   assert.match(shipA, /awaiting human approval to merge/);
   assert.match(shipA, /before opening the PR/);
+});
+
+test('B3 in-run merge poll (human-gated): a merge-watch that confirms the awaiting foundational MSP merged unblocks and ships its dependent in the same run, records the merge in the ship log, and the poll read is repo-scoped and issues no merge/push', async () => {
+  const msps = [
+    mspSpec('a', { fileScope: ['scope/a/**'] }),
+    mspSpec('b', { dependsOn: ['a'], fileScope: ['scope/b/**'] }),
+  ];
+  const watchPrompts = [];
+  const base = createFakeAgent({
+    msps,
+    shipResult: (mspId) => (mspId === 'a'
+      ? { merged: false, awaitingApproval: true, prUrl: 'https://github.com/o/repo/pull/1', receiptsPass: true, d6Pass: true, detail: 'CI green; PR open and awaiting human approval to merge' }
+      : null),
+    mergeWatch: (mspId) => (mspId === 'a'
+      ? { merged: true, mergedAt: '2026-07-15T00:00:00Z', readError: null }
+      : { merged: false, mergedAt: null, readError: null }),
+  });
+  const agent = async (prompt, opts = {}) => {
+    const label = opts.label || '';
+    if (label.startsWith('merge-watch:')) watchPrompts.push(prompt);
+    return base(prompt, opts);
+  };
+  const { resultPromise } = invokeMitosis(buildInput({ mergePolicy: undefined, repoIdentity: 'o/repo' }), agent);
+  const result = await resultPromise;
+
+  assert.equal(result.overallStatus, 'all-shipped');
+  assert.deepEqual(result.shipped.map((s) => s.mspId).sort(), ['a', 'b'], 'the polled-merge root and the dependent it unblocks both ship in one run (>|root antichain|)');
+  assert.deepEqual(result.awaitingApproval, [], 'the awaiting root is moved out of the awaiting category once the poll confirms the merge');
+  assert.ok(!result.parked.some((p) => p.mspId === 'b'), 'the dependent is unblocked by the poll, not parked as blocked-pending-approval');
+
+  assert.ok(watchPrompts.length >= 1, 'the in-run poll dispatched a repo-scoped merge-watch for the awaiting root');
+  const watchA = watchPrompts[0];
+  assert.match(watchA, /-R o\/repo/, 'the merge-watch read is scoped to the run repo via -R, never the ambient cwd');
+  assert.ok(!watchA.includes('gh pr merge'), 'the poll path issues no gh pr merge');
+  assert.ok(!watchA.includes('git push'), 'the poll path issues no git push to the base');
+});
+
+test('B3 in-run merge poll fail-safe (human-gated): when the merge-watch never confirms a merge, the awaiting root and its dependent park exactly as today (no regression)', async () => {
+  const msps = [
+    mspSpec('a', { fileScope: ['scope/a/**'] }),
+    mspSpec('b', { dependsOn: ['a'], fileScope: ['scope/b/**'] }),
+  ];
+  const agent = createFakeAgent({
+    msps,
+    shipResult: (mspId) => (mspId === 'a'
+      ? { merged: false, awaitingApproval: true, prUrl: 'https://github.com/o/repo/pull/1', receiptsPass: true, d6Pass: true, detail: 'CI green; PR open and awaiting human approval to merge' }
+      : null),
+    mergeWatch: () => ({ merged: false, mergedAt: null, readError: null }),
+  });
+  const { resultPromise } = invokeMitosis(buildInput({ mergePolicy: undefined, repoIdentity: 'o/repo' }), agent);
+  const result = await resultPromise;
+
+  assert.equal(result.overallStatus, 'awaiting-approval');
+  assert.deepEqual(result.awaitingApproval.map((a) => a.mspId), ['a'], 'the never-merged root stays awaiting after the poll budget is exhausted');
+  assert.ok(!result.shipped.some((s) => s.mspId === 'a'), 'the never-merged root is not marked shipped');
+  const blockedB = result.parked.find((p) => p.mspId === 'b');
+  assert.ok(blockedB, 'the dependent parks as blocked-pending-approval exactly as today');
+  assert.equal(blockedB.request.kind, 'blocked-pending-approval');
 });
 
 test('T4b accumulation: every ship reads the existing manifest first through the engine-side sink and rewrites the whole object, so a later ship accumulates onto — never clobbers — an earlier ship', async () => {
