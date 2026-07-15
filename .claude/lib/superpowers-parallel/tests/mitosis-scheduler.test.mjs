@@ -316,6 +316,80 @@ test('merge serialization: shipped[] order follows real merge-queue attachment o
   assert.equal(maxActive(), 1);
 });
 
+test('D1 pre-merge pipelining (human-gated): two independent MSPs\' pre-merge ship agents overlap in time; the human merge step is not the engine\'s step, so nothing serializes them', { timeout: 5000 }, async () => {
+  const msps = twoIndependentMsps();
+  let arrived = 0;
+  const bothArrived = deferred();
+  const base = createFakeAgent({
+    msps,
+    shipResult: (mspId) => {
+      arrived += 1;
+      if (arrived >= 2) bothArrived.resolve();
+      return bothArrived.promise.then(() => ({
+        merged: false,
+        awaitingApproval: true,
+        prUrl: `https://github.com/o/repo/pull/${mspId === 'a' ? 1 : 2}`,
+        receiptsPass: true,
+        d6Pass: true,
+        detail: 'CI green; PR open and awaiting human approval to merge',
+      }));
+    },
+  });
+  const { agent, maxActive } = trackLabelOverlap(base, 'ship:');
+  const { resultPromise } = invokeMitosis(buildInput({ mergePolicy: 'human-gated' }), agent);
+  const result = await resultPromise;
+
+  assert.equal(result.overallStatus, 'awaiting-approval');
+  assert.deepEqual(result.awaitingApproval.map((a) => a.mspId).sort(), ['a', 'b']);
+  assert.equal(maxActive(), 2, 'both pre-merge ship agents run concurrently under human-gated; the pre-merge work (rebase/push/PR/CI-watch) is pipelined, not chained through the serial merge queue');
+});
+
+test('D1 autonomous merge still serializes: the fresh-base rebase + combined CI + engine merge stays one-at-a-time (Pillar-1, non-speculative)', { timeout: 5000 }, async () => {
+  const msps = twoIndependentMsps();
+  const gateA = deferred();
+  const bShipStarted = deferred();
+  const base = createFakeAgent({
+    msps,
+    planGate: async (mspId) => { if (mspId === 'a') await gateA.promise; },
+    shipResult: (mspId) => { if (mspId === 'b') bShipStarted.resolve(); return null; },
+  });
+  const { agent, maxActive } = trackLabelOverlap(base, 'ship:');
+  const { resultPromise } = invokeMitosis(buildInput({ mergePolicy: 'autonomous' }), agent);
+
+  await bShipStarted.promise;
+  gateA.resolve();
+  const result = await resultPromise;
+
+  assert.equal(result.overallStatus, 'all-shipped');
+  assert.deepEqual(result.shipped.map((s) => s.mspId), ['b', 'a']);
+  assert.equal(maxActive(), 1, 'under autonomous the engine performs the merge, so ship stays serialized through the merge queue');
+});
+
+test('D1 CI wait is a backgrounded, timeout-bounded watch returning the terminal conclusion, not a foreground gh run watch stream', async () => {
+  const msps = [mspSpec('a', { fileScope: ['scope/a/**'] })];
+  const shipPrompts = new Map();
+  const base = createFakeAgent({
+    msps,
+    shipResult: () => ({ merged: false, awaitingApproval: true, prUrl: 'https://github.com/o/repo/pull/1', receiptsPass: true, d6Pass: true, detail: 'CI green; awaiting human approval to merge' }),
+  });
+  const agent = async (prompt, opts = {}) => {
+    const label = opts.label || '';
+    if (label.startsWith('ship:')) shipPrompts.set(label.slice('ship:'.length), prompt);
+    return base(prompt, opts);
+  };
+  const { resultPromise } = invokeMitosis(buildInput({ mergePolicy: 'human-gated' }), agent);
+  await resultPromise;
+
+  const shipA = shipPrompts.get('a');
+  assert.ok(shipA, 'ship prompt for a was captured');
+  assert.ok(!shipA.includes('gh run watch --exit-status'), 'the foreground streaming CI watch is removed (no gh run watch --exit-status)');
+  assert.match(shipA, /timeout \d+ bash -c/, 'the CI wait is a backgrounded, timeout-bounded shell watch');
+  assert.match(shipA, /--json conclusion/, 'the watch reads the terminal CI conclusion once after the bounded wait');
+  assert.match(shipA, /backgrounded/, 'the CI wait is described as a backgrounded watch, never a foreground stream');
+  assert.match(shipA, /rebase origin\//, 'Pillar-1: the fresh-base rebase stays at ship');
+  assert.match(shipA, /D6/, 'Pillar-1: the combined D6 cluster-boundary CI over the post-rebase base..head stays at ship');
+});
+
 test('report blame: assembleReport blames the unit that actually parked first under the flat scheduler (temporal completion order), not an array-index tie-break', { timeout: 5000 }, async () => {
   const msps = twoIndependentMsps();
   const gateA = deferred();
