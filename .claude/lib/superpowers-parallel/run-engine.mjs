@@ -110,10 +110,20 @@ export function policyModelFor(task, opts) {
   return layer3Sonnet ? 'sonnet' : 'opus';
 }
 
+export function authorTaskModels(tasks, opts) {
+  if (!tasks || typeof tasks !== 'object' || Array.isArray(tasks)) return tasks;
+  return Object.fromEntries(
+    Object.entries(tasks).map(([id, task]) => {
+      if (!task || typeof task !== 'object' || Array.isArray(task)) return [id, task];
+      return [id, { ...task, model: policyModelFor(task, opts) }];
+    }),
+  );
+}
+
 export async function runEngine(engineArgs, ctx) {
   const { agent, parallel, log, phase } = ctx;
 
-  const tasks = engineArgs.tasks;
+  const tasks = authorTaskModels(engineArgs.tasks);
   const waves = engineArgs.waves;
   const branchPrefix = engineArgs.branchPrefix;
   const baseBranch = engineArgs.baseBranch;

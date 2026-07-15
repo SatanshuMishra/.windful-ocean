@@ -754,10 +754,20 @@ function policyModelFor(task, opts) {
   return layer3Sonnet ? 'sonnet' : 'opus';
 }
 
+function authorTaskModels(tasks, opts) {
+  if (!tasks || typeof tasks !== 'object' || Array.isArray(tasks)) return tasks;
+  return Object.fromEntries(
+    Object.entries(tasks).map(([id, task]) => {
+      if (!task || typeof task !== 'object' || Array.isArray(task)) return [id, task];
+      return [id, { ...task, model: policyModelFor(task, opts) }];
+    }),
+  );
+}
+
 async function runEngine(engineArgs, ctx) {
   const { agent, parallel, log, phase } = ctx;
 
-  const tasks = engineArgs.tasks;
+  const tasks = authorTaskModels(engineArgs.tasks);
   const waves = engineArgs.waves;
   const branchPrefix = engineArgs.branchPrefix;
   const baseBranch = engineArgs.baseBranch;
@@ -3007,7 +3017,7 @@ async function runUnit(unit) {
     compensationStack = registerEffect(compensationStack, { kind: 'local-branch', ref: integrationBranch });
 
     const engineResult = await runEngine(
-      { ...parallelized.engineArgs, retry: { maxAttempts: retryMaxAttempts, state: retryState }, fingerprintBase: `origin/${baseBranch}` },
+      { ...parallelized.engineArgs, tasks: authorTaskModels(parallelized.engineArgs.tasks), retry: { maxAttempts: retryMaxAttempts, state: retryState }, fingerprintBase: `origin/${baseBranch}` },
       { agent, parallel, log, phase, dispatchWithRetry: supervisedEngineDispatch, makeRemediation },
     );
     if (engineResult.halted) {

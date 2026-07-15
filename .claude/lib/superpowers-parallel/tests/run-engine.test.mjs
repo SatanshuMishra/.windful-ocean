@@ -1,6 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { runEngine } from '../run-engine.mjs';
+import * as engineModule from '../run-engine.mjs';
 import { dispatchWithRetry } from '../retry.mjs';
 
 function baseArgs(overrides = {}) {
@@ -240,4 +241,70 @@ test('P4 §8.4 native fingerprint gate: the boundary prompt structural-diffs HEA
   assert.match(boundary.prompt, /ZERO files were linted/);
   assert.match(boundary.prompt, /scanned-zero-files/i);
   assert.match(boundary.prompt, /ONLY to tools judged EXPECTED/i);
+});
+
+function clearImplementerTask(over = {}) {
+  return {
+    id: 't1',
+    title: 'add slugify helper',
+    agentType: 'implementer',
+    fileScope: ['src/slugify.mjs', 'tests/slugify.test.mjs'],
+    fullText: 'RED: assert slugify throws on non-string input.\nGREEN: implement slugify in src/slugify.mjs.',
+    risk: 'low',
+    dependentCount: 0,
+    edgeReasons: [],
+    ...over,
+  };
+}
+
+test('E1 authorTaskModels writes an engine-authored model onto every task (graph round-trips model)', () => {
+  const tasks = { t1: clearImplementerTask() };
+  const authored = engineModule.authorTaskModels(tasks);
+  assert.equal(authored.t1.model, 'opus');
+  assert.equal(Object.keys(authored).length, 1);
+  assert.equal(authored.t1.id, 't1');
+  assert.equal(authored.t1.title, 'add slugify helper');
+  assert.deepEqual(authored.t1.fileScope, ['src/slugify.mjs', 'tests/slugify.test.mjs']);
+});
+
+test('E1 authorTaskModels ignores/overwrites any LLM-authored model with the engine policy value', () => {
+  const authored = engineModule.authorTaskModels({ t1: clearImplementerTask({ model: 'sonnet' }) });
+  assert.equal(authored.t1.model, 'opus');
+});
+
+test('E1 authorTaskModels derives from policyModelFor, not a hardcoded default (forced gate proves the wiring)', () => {
+  const authored = engineModule.authorTaskModels({ t1: clearImplementerTask({ model: 'opus' }) }, { layer3Sonnet: true });
+  assert.equal(authored.t1.model, 'sonnet');
+});
+
+test('E1 authorTaskModels is immutable: the input map and task objects are not mutated', () => {
+  const task = clearImplementerTask();
+  const tasks = { t1: task };
+  const authored = engineModule.authorTaskModels(tasks);
+  assert.equal('model' in task, false);
+  assert.notEqual(authored.t1, task);
+  assert.notEqual(authored, tasks);
+});
+
+test('E1 authorTaskModels only ever emits the whitelisted enum {opus, sonnet}', () => {
+  const cases = {
+    clear: clearImplementerTask(),
+    sensitive: clearImplementerTask({ fileScope: ['src/auth/login.ts'] }),
+    review: clearImplementerTask({ agentType: 'security-reviewer' }),
+    ambiguous: clearImplementerTask({ dependentCount: undefined }),
+    highRisk: clearImplementerTask({ risk: 'high' }),
+  };
+  const authored = engineModule.authorTaskModels(cases, { layer3Sonnet: true });
+  for (const id of Object.keys(cases)) {
+    assert.ok(['opus', 'sonnet'].includes(authored[id].model), `${id} authored a non-whitelisted model: ${authored[id].model}`);
+  }
+});
+
+test('E1 authorTaskModels fails safe on malformed input (non-object map or task passes through)', () => {
+  assert.equal(engineModule.authorTaskModels(null), null);
+  assert.equal(engineModule.authorTaskModels(undefined), undefined);
+  assert.deepEqual(engineModule.authorTaskModels([]), []);
+  const authored = engineModule.authorTaskModels({ t1: null, t2: clearImplementerTask() });
+  assert.equal(authored.t1, null);
+  assert.equal(authored.t2.model, 'opus');
 });
