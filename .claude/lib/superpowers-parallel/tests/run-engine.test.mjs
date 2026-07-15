@@ -308,3 +308,77 @@ test('E1 authorTaskModels fails safe on malformed input (non-object map or task 
   assert.equal(authored.t1, null);
   assert.equal(authored.t2.model, 'opus');
 });
+
+test('E3 guardModelDecision parks an implementer dispatch attempting a non-policy model', () => {
+  const d = engineModule.guardModelDecision('implementer', clearImplementerTask(), 'sonnet');
+  assert.equal(d.ok, false);
+  assert.equal(d.model, 'opus');
+});
+
+test('E3 guardModelDecision parks a review dispatch that is not on Opus', () => {
+  const d = engineModule.guardModelDecision('review', clearImplementerTask(), 'sonnet');
+  assert.equal(d.ok, false);
+  assert.equal(d.model, 'opus');
+});
+
+test('E3 guardModelDecision passes when no model is attempted (implementer resolves policy, review/engine resolve opus)', () => {
+  assert.deepEqual(engineModule.guardModelDecision('implementer', clearImplementerTask(), undefined), { ok: true, model: 'opus', reason: null });
+  assert.deepEqual(engineModule.guardModelDecision('review', clearImplementerTask(), undefined), { ok: true, model: 'opus', reason: null });
+  assert.deepEqual(engineModule.guardModelDecision('engine', null, undefined), { ok: true, model: 'opus', reason: null });
+});
+
+test('E3 guardModelDecision passes an implementer dispatch whose attempted model equals the resolved policy model', () => {
+  const d = engineModule.guardModelDecision('implementer', clearImplementerTask(), 'opus');
+  assert.deepEqual(d, { ok: true, model: 'opus', reason: null });
+});
+
+test('E3 makeModelGuard parks (issues no dispatch) when a review dispatch attempts a non-Opus model', async () => {
+  const calls = [];
+  const guard = engineModule.makeModelGuard(async (p, o) => { calls.push({ p, o }); return { verdict: 'pass' }; });
+  const r = await guard.dispatch('review this', { label: 'review:t1', model: 'sonnet' }, { kind: 'review', task: null });
+  assert.equal(r, null);
+  assert.equal(calls.length, 0);
+  const halt = guard.getHalt();
+  assert.ok(halt, 'a drift dispatch records a halt');
+  assert.equal(halt.stage, 'model-policy');
+  assert.equal(halt.detail.policyModel, 'opus');
+  assert.equal(halt.detail.attemptedModel, 'sonnet');
+});
+
+test('E3 makeModelGuard parks (issues no dispatch) when an implementer dispatch attempts a non-policy model', async () => {
+  const calls = [];
+  const guard = engineModule.makeModelGuard(async (p, o) => { calls.push({ p, o }); return { status: 'DONE' }; });
+  const r = await guard.dispatch('impl', { label: 'impl:t1', model: 'sonnet' }, { kind: 'implementer', task: clearImplementerTask() });
+  assert.equal(r, null);
+  assert.equal(calls.length, 0);
+  assert.equal(guard.getHalt().stage, 'model-policy');
+});
+
+test('E3 makeModelGuard dispatches with the resolved policy model and overrides any attempted model on the ok path', async () => {
+  const calls = [];
+  const guard = engineModule.makeModelGuard(async (p, o) => { calls.push({ p, o }); return { status: 'DONE' }; });
+  const r = await guard.dispatch('impl', { label: 'impl:t1' }, { kind: 'implementer', task: clearImplementerTask() });
+  assert.deepEqual(r, { status: 'DONE' });
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0].o.model, 'opus');
+  assert.equal(guard.getHalt(), null);
+});
+
+test('E3 makeModelGuard short-circuits every subsequent dispatch once a halt is recorded (fail-closed)', async () => {
+  const calls = [];
+  const guard = engineModule.makeModelGuard(async (p, o) => { calls.push({ p, o }); return {}; });
+  await guard.dispatch('x', { label: 'a', model: 'haiku' }, { kind: 'review', task: null });
+  const r2 = await guard.dispatch('y', { label: 'b' }, { kind: 'implementer', task: clearImplementerTask() });
+  assert.equal(r2, null);
+  assert.equal(calls.length, 0);
+});
+
+test('E3 every engine dispatch routes through the guard and carries an explicit opus policy model (no implicit session inherit)', async () => {
+  const calls = [];
+  const result = await runEngine(baseArgs(), ctxWith(scriptedAgent(calls)));
+  assert.equal(result.halted, false);
+  assert.ok(calls.length >= 4, `expected several dispatches, got ${calls.length}`);
+  for (const c of calls) {
+    assert.equal(c.opts && c.opts.model, 'opus', `dispatch ${c.opts && c.opts.label} did not carry an explicit opus model`);
+  }
+});

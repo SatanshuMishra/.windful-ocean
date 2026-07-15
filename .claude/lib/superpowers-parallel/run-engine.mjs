@@ -5,8 +5,6 @@ const BOUNDARY_SCHEMA = { type: 'object', properties: { pass: { type: 'boolean' 
 const FENCE_SCHEMA = { type: 'object', properties: { paths: { type: 'array', items: { type: 'string' } } }, required: ['paths'] };
 const EXEC_AGENT_TYPES = new Set(['implementer', 'test-engineer', 'general-purpose']);
 
-export function withModel(opts, model) { return model ? { ...opts, model } : opts; }
-
 export function normalizePath(p) { return p.replace(/^\.\//, '').replace(/\/+$/, ''); }
 export function globToRegExp(glob) {
   const body = glob.split(/(\*\*|\*|\?)/).map((part) => {
@@ -120,6 +118,32 @@ export function authorTaskModels(tasks, opts) {
   );
 }
 
+export function guardModelDecision(kind, task, attemptedModel) {
+  const policyModel = kind === 'implementer' ? policyModelFor(task) : 'opus';
+  if (policyModel !== 'opus' && policyModel !== 'sonnet') {
+    return { ok: false, model: policyModel, reason: `resolved a non-whitelisted policy model ${JSON.stringify(policyModel)}` };
+  }
+  if (attemptedModel !== undefined && attemptedModel !== null && attemptedModel !== policyModel) {
+    return { ok: false, model: policyModel, reason: `attempted model ${JSON.stringify(attemptedModel)} does not equal the policy model ${JSON.stringify(policyModel)}` };
+  }
+  return { ok: true, model: policyModel, reason: null };
+}
+
+export function makeModelGuard(agent) {
+  let halt = null;
+  async function dispatch(prompt, opts, spec) {
+    if (halt) return null;
+    const attemptedModel = opts ? opts.model : undefined;
+    const decision = guardModelDecision(spec.kind, spec.task, attemptedModel);
+    if (!decision.ok) {
+      halt = { stage: 'model-policy', detail: { kind: spec.kind, taskId: spec.task ? spec.task.id : null, attemptedModel: attemptedModel === undefined ? null : attemptedModel, policyModel: decision.model, reason: decision.reason } };
+      return null;
+    }
+    return agent(prompt, { ...(opts || {}), model: decision.model });
+  }
+  return { dispatch, getHalt: () => halt };
+}
+
 export async function runEngine(engineArgs, ctx) {
   const { agent, parallel, log, phase } = ctx;
 
@@ -136,13 +160,10 @@ export async function runEngine(engineArgs, ctx) {
   const isolation = engineArgs.isolation || 'worktree';
   const launchCommit = engineArgs.launchCommit || null;
   const runArtifacts = engineArgs.runArtifacts;
-  const models = engineArgs.models || {};
   const retry = engineArgs.retry || { maxAttempts: 1, state: { used: 0, max: 0 } };
   const fingerprintBase = engineArgs.fingerprintBase || baseBranch;
 
-  const reviewerModel = models.reviewer || 'sonnet';
-  const fixerModel = models.fixer || 'sonnet';
-  const implementerModel = null;
+  const guard = makeModelGuard(agent);
   const integrationWt = `${worktreeRoot}/${branchPrefix}/integration`;
   const baseGateWt = `${worktreeRoot}/${branchPrefix}/gate-base`;
 
@@ -226,12 +247,13 @@ export async function runEngine(engineArgs, ctx) {
     while (true) {
       const base = { label: `${label}:${task.id}`, phase: 'Waves', schema: REVIEW_SCHEMA };
       const opts = agentType ? { ...base, agentType } : base;
-      const chosenModel = agentType ? (models.reviewer || null) : reviewerModel;
-      const r = await agent(makePrompt(task, branch), withModel(opts, chosenModel));
+      const r = await guard.dispatch(makePrompt(task, branch), opts, { kind: 'review', task });
+      if (guard.getHalt()) return { ok: false, reason: 'model-policy' };
       if (r && r.verdict === 'pass') return { ok: true };
       loops++;
       if (loops > fixLoopMax) return { ok: false, reason: `${label}-exhausted`, issues: r && r.issues };
-      await agent(fixPrompt(task, branch, wt, r && r.issues), withModel({ label: `fix-${label}:${task.id}`, phase: 'Waves' }, fixerModel));
+      await guard.dispatch(fixPrompt(task, branch, wt, r && r.issues), { label: `fix-${label}:${task.id}`, phase: 'Waves' }, { kind: 'engine', task });
+      if (guard.getHalt()) return { ok: false, reason: 'model-policy' };
     }
   }
 
@@ -241,11 +263,11 @@ export async function runEngine(engineArgs, ctx) {
     const wt = worktreeOf(taskId);
     const reviewMode = task.risk === 'high' ? 'three-lens' : 'merged';
     const resolvedAgentType = EXEC_AGENT_TYPES.has(task.agentType) ? task.agentType : 'implementer';
-    const taskModel = resolvedAgentType === 'test-engineer' ? (models.tester || null) : implementerModel;
     const status = await ctx.dispatchWithRetry(
-      (attemptNo, preamble) => agent(preamble + implementerPrompt(task, branch, wt), withModel({ label: `impl:${taskId}`, phase: 'Waves', schema: STATUS_SCHEMA, agentType: resolvedAgentType }, taskModel)),
+      (attemptNo, preamble) => guard.dispatch(preamble + implementerPrompt(task, branch, wt), { label: `impl:${taskId}`, phase: 'Waves', schema: STATUS_SCHEMA, agentType: resolvedAgentType }, { kind: 'implementer', task }),
       { isPermanent: (r) => r.status === 'BLOCKED' || r.status === 'NEEDS_CONTEXT', maxAttempts: retry.maxAttempts, state: retry.state, resetRef: baseBranch, worktree: wt, unitId: taskId, task: task.fullText, ...(typeof ctx.makeRemediation === 'function' ? ctx.makeRemediation({ unitId: taskId, stage: 'execute', task: task.fullText, schema: STATUS_SCHEMA, agentType: resolvedAgentType, phase: 'Waves' }) : {}) },
     );
+    if (guard.getHalt()) return { taskId, branch, wt, reviewMode, ok: false, reason: 'model-policy' };
     if (status && status.__quarantined) {
       return { taskId, branch, wt, reviewMode, ok: false, reason: 'quarantined', quarantined: { stage: 'execute', retries: status.attempts, error: `implementer exhausted ${status.attempts} attempt(s) (transient drops)` } };
     }
@@ -285,6 +307,7 @@ export async function runEngine(engineArgs, ctx) {
     log(`Wave ${w + 1}/${waves.length}: ${waveIds.length} task(s) [${waveIds.join(', ')}] [${isolation}]`);
     phase('Waves');
     const outcomes = await parallel(waveIds.map((id) => () => runTask(id)));
+    if (guard.getHalt()) { result.halted = true; result.haltReason = guard.getHalt(); break; }
     const failed = outcomes.filter((o) => !o || !o.ok);
     if (failed.length > 0) {
       result.waves.push(isolation === 'scope-fence' ? { wave: w, outcomes, fence: null } : { wave: w, outcomes, merge: null });
@@ -294,9 +317,9 @@ export async function runEngine(engineArgs, ctx) {
     }
     phase('Integrate');
     if (isolation === 'scope-fence') {
-      const fence = await agent(
+      const fence = await guard.dispatch(
         `From the main repo at ${repoRoot}, run \`git status --porcelain=v1 -uall\` and return EVERY path it reports as a JSON array of repo-relative paths. For rename lines include both the old and the new path. Do not mutate anything.`,
-        { label: `fence:wave-${w}`, phase: 'Integrate', schema: FENCE_SCHEMA });
+        { label: `fence:wave-${w}`, phase: 'Integrate', schema: FENCE_SCHEMA }, { kind: 'engine', task: null });
       const declared = waveIds.flatMap((id) => tasks[id].fileScope);
       const exempt = runArtifacts || [];
       const undeclared = ((fence && fence.paths) || []).filter((p) => !exempt.includes(normalizePath(p)) && !declared.some((s) => scopeCovers(s, p)));
@@ -314,14 +337,14 @@ export async function runEngine(engineArgs, ctx) {
     } else {
       const okBranches = outcomes.map((o) => o.branch);
       const okWorktrees = outcomes.map((o) => o.wt);
-      const merge = await agent(
+      const merge = await guard.dispatch(
         `Integrate this wave into \`${baseBranch}\` inside this MSP's dedicated integration worktree at ${integrationWt} (NEVER the main tree; do not enter any task worktree).\n` +
         `1. Ensure the integration worktree exists (idempotent): \`git -C ${repoRoot} worktree add ${integrationWt} ${baseBranch}\`. If it already exists, instead run \`cd ${integrationWt} && git checkout ${baseBranch}\`.\n` +
         `2. For each branch in order ${JSON.stringify(okBranches)}: observe-then-converge - FIRST check whether it is already merged (idempotent under replay): \`git -C ${integrationWt} merge-base --is-ancestor <branch> HEAD\`. If exit 0, that branch's commits are already contained - SKIP it. Otherwise \`git -C ${integrationWt} merge --no-ff <branch>\`.\n` +
         `   If ANY merge reports a conflict: run \`git -C ${integrationWt} merge --abort\`, set conflict=true, record the conflicting files + branch in conflictDetail, and STOP (do not merge the rest).\n` +
         `3. If all merged cleanly, remove the spent task worktrees: for each path in ${JSON.stringify(okWorktrees)} run \`git -C ${repoRoot} worktree remove --force <path>\`.\n` +
         `Return { merged: [branches merged], conflict, conflictDetail }.`,
-        { label: `integrate:wave-${w}`, phase: 'Integrate', schema: MERGE_SCHEMA });
+        { label: `integrate:wave-${w}`, phase: 'Integrate', schema: MERGE_SCHEMA }, { kind: 'engine', task: null });
       result.waves.push({ wave: w, outcomes, merge });
       if (!merge) {
         result.halted = true;
@@ -355,19 +378,19 @@ export async function runEngine(engineArgs, ctx) {
       `6. Tear down the throwaway base worktree: \`git -C ${repoRoot} worktree remove --force ${baseGateWt}\`.\n` +
       `Report pass=true iff BOTH: the blocking set is empty across all EXPECTED tools, AND every EXPECTED tool was collected cleanly on both sides. If EVERY tool is NOT-EXPECTED (the repo has no lint/type toolchain on either side), the lint/type dimension is legitimately empty and pass=true - the full test suite remains gated separately at ship (G9). List the blocking identities (or a short summary), and note any tool judged NOT-EXPECTED, in output.`;
     phase('Boundary');
-    let boundary = await agent(
+    let boundary = await guard.dispatch(
       gatePrompt(false),
-      { label: 'boundary', phase: 'Boundary', schema: BOUNDARY_SCHEMA });
+      { label: 'boundary', phase: 'Boundary', schema: BOUNDARY_SCHEMA }, { kind: 'engine', task: null });
     if (boundary && !boundary.pass) {
       const fixWhere = isolation === 'scope-fence'
         ? `in the main repo working tree at ${repoRoot}; stay within the union of the declared task scopes and leave changes uncommitted`
         : `on \`${baseBranch}\` inside the integration worktree at ${integrationWt} so it passes, then commit`;
-      await agent(
+      await guard.dispatch(
         `The diff-scoped gate found NEW lint/type errors this MSP introduced. Fix the integrated code ${fixWhere} by CORRECTING the root cause - do NOT pass the gate by suppression: add no new \`eslint-disable\` / \`@ts-ignore\` / \`@ts-expect-error\`, and do not loosen eslint or tsconfig rules or newly ignore or exclude files; new suppression directives and strictness-reducing config changes are themselves blocked by the gate. Failing output:\n${boundary.output}`,
-        withModel({ label: 'boundary-fix', phase: 'Boundary' }, fixerModel));
-      boundary = await agent(
+        { label: 'boundary-fix', phase: 'Boundary' }, { kind: 'engine', task: null });
+      boundary = await guard.dispatch(
         gatePrompt(true),
-        { label: 'boundary-recheck', phase: 'Boundary', schema: BOUNDARY_SCHEMA });
+        { label: 'boundary-recheck', phase: 'Boundary', schema: BOUNDARY_SCHEMA }, { kind: 'engine', task: null });
     }
     result.boundary = boundary;
     if (boundary && boundary.pass) {
@@ -375,15 +398,19 @@ export async function runEngine(engineArgs, ctx) {
         ? `You are in the main repo at ${repoRoot}; the whole implementation is the uncommitted change set: \`git diff ${launchCommit}\` plus untracked files listed by \`git status --porcelain\`.`
         : `You are on \`${baseBranch}\` inside this MSP's integration worktree at ${integrationWt} with all wave work merged.`;
       phase('Final review');
-      result.finalReview = await agent(
+      result.finalReview = await guard.dispatch(
         `${prompts.finalReviewer}\n\n--- REVIEW THE WHOLE IMPLEMENTATION ---\n` +
         `Read-only. ${reviewScope} Review the complete set of changes for this effort and summarize strengths, issues, and an overall assessment.`,
-        { label: 'final-review', phase: 'Final review', agentType: 'code-reviewer' });
+        { label: 'final-review', phase: 'Final review', agentType: 'code-reviewer' }, { kind: 'review', task: null });
     } else {
       result.halted = true;
       result.haltReason = { stage: 'boundary', detail: boundary && boundary.output };
     }
   }
 
+  if (guard.getHalt() && !result.halted) {
+    result.halted = true;
+    result.haltReason = guard.getHalt();
+  }
   return result;
 }
