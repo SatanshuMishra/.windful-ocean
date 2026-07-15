@@ -23,25 +23,34 @@ const CLEAR = {
 const clear = (over) => ({ ...CLEAR, ...over });
 const ON = { layer3Sonnet: true };
 
-test('LAYER3_SONNET_ENABLED defaults to false (gate closed until A8 flips it)', () => {
-  assert.equal(LAYER3_SONNET_ENABLED, false);
+test('LAYER3_SONNET_ENABLED is enabled: A8 flipped the discretionary implementer gate on', () => {
+  assert.equal(LAYER3_SONNET_ENABLED, true);
 });
 
 test('BLAST_RADIUS_K is the documented conservative v1 default (3)', () => {
   assert.equal(BLAST_RADIUS_K, 3);
 });
 
-test('a fully-clear implementer task: default gate -> opus, forced gate -> sonnet', () => {
-  assert.equal(policyModelFor(clear()), 'opus');
+test('a fully-clear implementer task: default gate -> sonnet (post-A8), forced gate -> sonnet', () => {
+  assert.equal(policyModelFor(clear()), 'sonnet');
   assert.equal(policyModelFor(clear(), ON), 'sonnet');
 });
 
 for (const at of ['implementer', 'test-engineer', 'general-purpose']) {
-  test(`implementation role ${at} is the discretionary sonnet path (forced gate) and opus by default`, () => {
+  test(`implementation role ${at} is the discretionary sonnet path by default (and forced)`, () => {
     assert.equal(policyModelFor(clear({ agentType: at }), ON), 'sonnet');
-    assert.equal(policyModelFor(clear({ agentType: at })), 'opus');
+    assert.equal(policyModelFor(clear({ agentType: at })), 'sonnet');
   });
 }
+
+test('post-A8 default gate: the Pillar-1 floor holds without opts (categorical + fail-safe still opus)', () => {
+  assert.equal(policyModelFor(clear({ fileScope: ['src/auth/login.ts'] })), 'opus');
+  assert.equal(policyModelFor(clear({ dependentCount: BLAST_RADIUS_K })), 'opus');
+  assert.equal(policyModelFor(clear({ risk: 'high' })), 'opus');
+  assert.equal(policyModelFor(clear({ agentType: 'wizard' })), 'opus');
+  assert.equal(policyModelFor(clear({ fullText: 'GREEN: TODO wire the handler.' })), 'opus');
+  assert.equal(policyModelFor(clear({ agentType: 'code-reviewer' })), 'opus');
+});
 
 const LAYER1 = [
   ['sensitiveScope: auth path', clear({ fileScope: ['src/auth/login.ts'] })],

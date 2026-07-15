@@ -260,7 +260,7 @@ function clearImplementerTask(over = {}) {
 test('E1 authorTaskModels writes an engine-authored model onto every task (graph round-trips model)', () => {
   const tasks = { t1: clearImplementerTask() };
   const authored = engineModule.authorTaskModels(tasks);
-  assert.equal(authored.t1.model, 'opus');
+  assert.equal(authored.t1.model, 'sonnet');
   assert.equal(Object.keys(authored).length, 1);
   assert.equal(authored.t1.id, 't1');
   assert.equal(authored.t1.title, 'add slugify helper');
@@ -268,7 +268,7 @@ test('E1 authorTaskModels writes an engine-authored model onto every task (graph
 });
 
 test('E1 authorTaskModels ignores/overwrites any LLM-authored model with the engine policy value', () => {
-  const authored = engineModule.authorTaskModels({ t1: clearImplementerTask({ model: 'sonnet' }) });
+  const authored = engineModule.authorTaskModels({ t1: clearImplementerTask({ model: 'sonnet' }) }, { layer3Sonnet: false });
   assert.equal(authored.t1.model, 'opus');
 });
 
@@ -306,11 +306,11 @@ test('E1 authorTaskModels fails safe on malformed input (non-object map or task 
   assert.deepEqual(engineModule.authorTaskModels([]), []);
   const authored = engineModule.authorTaskModels({ t1: null, t2: clearImplementerTask() });
   assert.equal(authored.t1, null);
-  assert.equal(authored.t2.model, 'opus');
+  assert.equal(authored.t2.model, 'sonnet');
 });
 
 test('E3 guardModelDecision parks an implementer dispatch attempting a non-policy model', () => {
-  const d = engineModule.guardModelDecision('implementer', clearImplementerTask(), 'sonnet');
+  const d = engineModule.guardModelDecision('implementer', clearImplementerTask(), 'sonnet', { layer3Sonnet: false });
   assert.equal(d.ok, false);
   assert.equal(d.model, 'opus');
 });
@@ -322,14 +322,14 @@ test('E3 guardModelDecision parks a review dispatch that is not on Opus', () => 
 });
 
 test('E3 guardModelDecision passes when no model is attempted (implementer resolves policy, review/engine resolve opus)', () => {
-  assert.deepEqual(engineModule.guardModelDecision('implementer', clearImplementerTask(), undefined), { ok: true, model: 'opus', reason: null });
+  assert.deepEqual(engineModule.guardModelDecision('implementer', clearImplementerTask(), undefined), { ok: true, model: 'sonnet', reason: null });
   assert.deepEqual(engineModule.guardModelDecision('review', clearImplementerTask(), undefined), { ok: true, model: 'opus', reason: null });
   assert.deepEqual(engineModule.guardModelDecision('engine', null, undefined), { ok: true, model: 'opus', reason: null });
 });
 
 test('E3 guardModelDecision passes an implementer dispatch whose attempted model equals the resolved policy model', () => {
-  const d = engineModule.guardModelDecision('implementer', clearImplementerTask(), 'opus');
-  assert.deepEqual(d, { ok: true, model: 'opus', reason: null });
+  const d = engineModule.guardModelDecision('implementer', clearImplementerTask(), 'sonnet');
+  assert.deepEqual(d, { ok: true, model: 'sonnet', reason: null });
 });
 
 test('E3 makeModelGuard parks (issues no dispatch) when a review dispatch attempts a non-Opus model', async () => {
@@ -347,7 +347,7 @@ test('E3 makeModelGuard parks (issues no dispatch) when a review dispatch attemp
 
 test('E3 makeModelGuard parks (issues no dispatch) when an implementer dispatch attempts a non-policy model', async () => {
   const calls = [];
-  const guard = engineModule.makeModelGuard(async (p, o) => { calls.push({ p, o }); return { status: 'DONE' }; });
+  const guard = engineModule.makeModelGuard(async (p, o) => { calls.push({ p, o }); return { status: 'DONE' }; }, { layer3Sonnet: false });
   const r = await guard.dispatch('impl', { label: 'impl:t1', model: 'sonnet' }, { kind: 'implementer', task: clearImplementerTask() });
   assert.equal(r, null);
   assert.equal(calls.length, 0);
@@ -360,7 +360,7 @@ test('E3 makeModelGuard dispatches with the resolved policy model and overrides 
   const r = await guard.dispatch('impl', { label: 'impl:t1' }, { kind: 'implementer', task: clearImplementerTask() });
   assert.deepEqual(r, { status: 'DONE' });
   assert.equal(calls.length, 1);
-  assert.equal(calls[0].o.model, 'opus');
+  assert.equal(calls[0].o.model, 'sonnet');
   assert.equal(guard.getHalt(), null);
 });
 
@@ -464,7 +464,7 @@ test('R8-3 a review-exhausted discretionary (sonnet) task escalates the implemen
 
 test('R8-3 a non-discretionary (opus) BLOCKED task does NOT escalate (default behavior unchanged)', async () => {
   const calls = [];
-  const result = await runEngine(soloTaskArgs(), ctxWith(escalationAgent(calls, { firstImpl: { status: 'BLOCKED' } })));
+  const result = await runEngine(soloTaskArgs({ layer3Sonnet: false }), ctxWith(escalationAgent(calls, { firstImpl: { status: 'BLOCKED' } })));
   assert.equal(result.halted, true);
   const impl = calls.find((c) => c.opts.label === 'impl:t1');
   assert.equal(impl.opts.model, 'opus');

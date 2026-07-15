@@ -86,7 +86,7 @@ export function planIncomplete(fullText) {
 }
 
 export const BLAST_RADIUS_K = 3;
-export const LAYER3_SONNET_ENABLED = false;
+export const LAYER3_SONNET_ENABLED = true;
 const SENSITIVE_SCOPE_GLOBS = ['*.sql', '**/*.sql', '.github/workflows'];
 const SENSITIVE_SCOPE_KEYWORDS = ['auth', 'security', 'secret', 'payment', 'crypto', 'migrations', 'infra', 'deploy'];
 const SENSITIVE_SCOPE_KEYWORD_RE = new RegExp('(^|/)(?:' + SENSITIVE_SCOPE_KEYWORDS.join('|') + ')', 'i');
