@@ -2189,11 +2189,15 @@ function replanPrompt({ unitId, title, planPath, rationale, dependsList, finding
 function makeRemediation({ unitId, stage, task, schema, agentType, phase: phaseName, model }) {
   const redispatchModel = model === 'sonnet' ? 'sonnet' : 'opus';
   const diagnose = async (input) => {
+    const diagnoseModel = guardModelDecision('review', null, 'opus');
+    if (!diagnoseModel.ok) {
+      return { verdict: 'needs-human', request: { kind: 'approve-decision', what: `${stage}: in-run diagnostician model policy violation: ${diagnoseModel.reason}; the diagnostician is an analysis lens and must dispatch on opus (never below)`, remediation: null, resumePoint: null } };
+    }
     let raw;
     try {
       raw = await agent(
         diagnosticianPrompt({ unitId, stage, task, evidence: input.evidence, triedSet: input.triedSet }),
-        { agentType: 'diagnostician', schema: DIAGNOSE_SCHEMA, label: `diagnose:${unitId}:${stage}`, phase: 'Remediate' },
+        { agentType: 'debugger', schema: DIAGNOSE_SCHEMA, label: `diagnose:${unitId}:${stage}`, phase: 'Remediate', model: diagnoseModel.model },
       );
     } catch (err) {
       return { verdict: 'needs-human', request: { kind: 'approve-decision', what: `${stage}: diagnostician dispatch failed (${err.message})`, remediation: null, resumePoint: null } };

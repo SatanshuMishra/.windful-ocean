@@ -3053,3 +3053,38 @@ test('A6/E6 the remediation redispatch carries an explicit model instead of drop
   assert.equal(redispatchCalls[0].label, 'redispatch:m0:plan');
   assert.equal(redispatchCalls[0].model, 'opus', 'the redispatch carries an explicit whitelisted model, never a dropped/undefined session inherit');
 });
+
+test('A7 the in-run diagnostician dispatch pins opus and re-points off the phantom agentType (analysis lens never dispatches below opus)', async () => {
+  const msps = [mspSpec('m0', { fileScope: ['scope/m0/**'] })];
+  const base = createFakeAgent({ msps });
+  const diagnoseCalls = [];
+  let planCalls = 0;
+  const agent = async (prompt, opts = {}) => {
+    const label = opts.label || '';
+    const prefix = label.split(':')[0];
+    if (prefix === 'plan') {
+      planCalls += 1;
+      if (planCalls === 1) {
+        return { planPath: '/tmp/mitosis-scheduler-test/m0.plan.md', summary: '', fault: { kind: 'approach-fixable', mechanism: 'plan:redo', diagnosis: 'incomplete' } };
+      }
+      return { planPath: '/tmp/mitosis-scheduler-test/m0.plan.md', summary: '' };
+    }
+    if (prefix === 'diagnose') {
+      diagnoseCalls.push({ label, model: opts.model, agentType: opts.agentType });
+      return { verdict: 'remediable', mechanism: 'plan:fix-x', correctedTask: 'redo the plan minimally', diagnosis: 'd' };
+    }
+    if (prefix === 'redispatch') {
+      return { planPath: '/tmp/mitosis-scheduler-test/m0.plan.md', summary: '' };
+    }
+    return base(prompt, opts);
+  };
+  const { resultPromise } = invokeMitosis(buildInput(), agent);
+  const result = await resultPromise;
+
+  assert.equal(result.overallStatus, 'all-shipped');
+  assert.equal(diagnoseCalls.length, 1, 'the plan-stage approach-fixable fault reaches the in-run diagnostician exactly once');
+  assert.equal(diagnoseCalls[0].label, 'diagnose:m0:plan');
+  assert.equal(diagnoseCalls[0].model, 'opus', 'the in-run diagnostician is an analysis lens with an unknown/non-implementation agentType and must dispatch on opus, never an implicit session inherit or a downgrade');
+  assert.notEqual(diagnoseCalls[0].agentType, 'diagnostician', 'the phantom diagnostician agentType must resolve to a real agent definition');
+  assert.equal(diagnoseCalls[0].agentType, 'debugger', 'the in-run diagnostician re-points to the existing debugger analysis agent');
+});
