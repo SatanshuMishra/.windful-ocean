@@ -45,7 +45,7 @@ export function overlapHolder(leases, fileScope, excludeId) {
 }
 
 export function isDispatchable(unit, unitsById, leases) {
-  if (unit.state === 'done' || unit.state === 'parked' || unit.state === 'dispatched') return false;
+  if (unit.state === 'done' || unit.state === 'parked' || unit.state === 'awaiting' || unit.state === 'dispatched') return false;
   for (const pid of unit.prereqs) {
     const prereq = unitsById.get(pid);
     if (!prereq || prereq.state !== 'done') return false;
@@ -60,7 +60,9 @@ export function acquire(leases, unit) {
 }
 
 export function dispositionOf(outcome) {
-  return outcome && outcome.tag === 'Done' ? 'done' : 'parked';
+  if (outcome && outcome.tag === 'Done') return 'done';
+  if (outcome && outcome.tag === 'AwaitingApproval') return 'awaiting';
+  return 'parked';
 }
 
 export function planTick(units) {

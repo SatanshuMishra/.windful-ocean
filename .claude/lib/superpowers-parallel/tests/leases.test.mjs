@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { Done, NeedsHuman, Unknown, Transient, ApproachFixable } from '../boundary.mjs';
+import { Done, NeedsHuman, Unknown, Transient, ApproachFixable, AwaitingApproval } from '../boundary.mjs';
 import {
   makeUnit,
   buildUnitTable,
@@ -71,14 +71,15 @@ test('READINESS: isDispatchable admits a unit only when all prereqs are done AND
   assert.equal(isDispatchable(b, byId, contended), false);
 });
 
-test('isDispatchable is false for units already in a terminal or dispatched state', () => {
+test('isDispatchable is false for units already in a terminal, awaiting, or dispatched state', () => {
   const units = buildUnitTable([
     { id: 'd', state: 'done' },
     { id: 'p', state: 'parked' },
+    { id: 'w', state: 'awaiting' },
     { id: 'x', state: 'dispatched' },
   ]);
   const byId = indexUnits(units);
-  for (const id of ['d', 'p', 'x']) assert.equal(isDispatchable(byId.get(id), byId, new Map()), false);
+  for (const id of ['d', 'p', 'w', 'x']) assert.equal(isDispatchable(byId.get(id), byId, new Map()), false);
 });
 
 test('TIE-BREAK: planTick dispatches the lower-index unit and makes the overlapping contender wait this tick', () => {
@@ -99,8 +100,12 @@ test('planTick dispatches all non-overlapping ready units together in one tick',
   assert.deepEqual(planTick(units).dispatch, ['a', 'b']);
 });
 
-test('dispositionOf maps Done to done and every non-Done outcome (including a null crash) to parked', () => {
+test('dispositionOf maps Done to done, AwaitingApproval to the distinct non-terminal awaiting, and every other non-Done outcome (including a null crash) to parked', () => {
   assert.equal(dispositionOf(Done(1)), 'done');
+  const awaitingDisposition = dispositionOf(AwaitingApproval({ mspId: 'm', prUrl: 'https://pr' }));
+  assert.equal(awaitingDisposition, 'awaiting');
+  assert.notEqual(awaitingDisposition, 'parked');
+  assert.notEqual(awaitingDisposition, 'done');
   assert.equal(dispositionOf(NeedsHuman({ kind: 'grant' })), 'parked');
   assert.equal(dispositionOf(Unknown({ raw: null })), 'parked');
   assert.equal(dispositionOf(Transient({ signal: 'rate-limit' })), 'parked');
@@ -136,6 +141,32 @@ test('PARK RELEASES LEASE: a parked unit frees its lease so an unrelated overlap
   assert.equal(byId.get('a').state, 'parked');
   assert.equal(byId.get('c').state, 'done');
   assert.equal(byId.get('a').leaseHeld, false);
+});
+
+test("AWAITING IS DISTINCT FROM PARKED AND DONE: a unit that settles AwaitingApproval reaches the non-terminal 'awaiting' state, releases its lease, is never re-dispatched, and its dependent waits while an unrelated unit still ships", async () => {
+  const dispatchCount = new Map();
+  const runUnit = async (u) => {
+    dispatchCount.set(u.id, (dispatchCount.get(u.id) || 0) + 1);
+    if (u.id === 'root') return AwaitingApproval({ mspId: 'root', prUrl: 'https://pr/root' });
+    return Done({ ok: true });
+  };
+  const { units, ticks } = await runSchedule(
+    [
+      { id: 'root', fileScope: ['root.mjs'] },
+      { id: 'dep', prereqs: ['root'], fileScope: ['dep.mjs'] },
+      { id: 'free', fileScope: ['free.mjs'] },
+    ],
+    runUnit,
+  );
+  const byId = indexUnits(units);
+  assert.equal(byId.get('root').state, 'awaiting');
+  assert.notEqual(byId.get('root').state, 'parked');
+  assert.notEqual(byId.get('root').state, 'done');
+  assert.equal(byId.get('root').leaseHeld, false);
+  assert.equal(dispatchCount.get('root'), 1, 'an awaiting unit is not re-dispatched by the tick scheduler');
+  assert.ok(!ticks.flat().includes('dep'), 'a dependent of an awaiting prereq waits: awaiting is treated as not-yet-done');
+  assert.equal(byId.get('dep').state, 'planned');
+  assert.equal(byId.get('free').state, 'done');
 });
 
 test('OR-SEMANTICS: a crashed thunk (null via allSettled) parks only that unit and never restarts or blocks siblings', async () => {
