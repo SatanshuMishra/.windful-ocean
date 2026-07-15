@@ -1622,6 +1622,14 @@ function fingerprintOf(outcome) {
   return outcome.tag;
 }
 
+const REMEDIATION_BACKOFF_BASE_SECONDS = 5;
+const REMEDIATION_BACKOFF_MAX_SECONDS = 60;
+
+function remediationBackoff(cycle) {
+  if (!Number.isInteger(cycle) || cycle <= 0) return 0;
+  return Math.min(REMEDIATION_BACKOFF_MAX_SECONDS, REMEDIATION_BACKOFF_BASE_SECONDS * (2 ** (cycle - 1)));
+}
+
 async function obtainUntriedProposal(diagnose, input, state) {
   for (let attempt = 0; attempt < 2; attempt += 1) {
     const proposal = await diagnose(input);
@@ -1637,10 +1645,15 @@ async function obtainUntriedProposal(diagnose, input, state) {
 }
 
 async function runRemediationLoop({ trigger, task, stage }, deps, state0) {
+  const runBudget = deps.runBudget;
   let state = state0;
   let evidence = trigger;
   let prevFingerprint = fingerprintOf(trigger);
+  let cycle = 0;
   while (true) {
+    if (runBudget && Number.isInteger(runBudget.max) && Number.isInteger(runBudget.used) && runBudget.used >= runBudget.max) {
+      return { tag: 'Exhausted', reason: 'run-budget', state: withStatus(state, 'parked') };
+    }
     if (state.budget.remaining <= 0) {
       return { tag: 'Exhausted', reason: 'budget', state: withStatus(state, 'parked') };
     }
@@ -1656,7 +1669,10 @@ async function runRemediationLoop({ trigger, task, stage }, deps, state0) {
     }
     state = withTried(state, proposal.mechanism);
     state = decrementBudget(state, 1);
-    const result = await deps.redispatch({ correctedTask: proposal.correctedTask, mechanism: proposal.mechanism, task, stage });
+    if (runBudget && Number.isInteger(runBudget.used)) { runBudget.used += 1; }
+    cycle += 1;
+    const backoffSeconds = remediationBackoff(cycle);
+    const result = await deps.redispatch({ correctedTask: proposal.correctedTask, mechanism: proposal.mechanism, task, stage, backoffSeconds });
     const newFingerprint = fingerprintOf(result);
     const terminalResult = result.tag === 'Done' || result.tag === 'NeedsHuman';
     if (!terminalResult && newFingerprint !== null && newFingerprint === prevFingerprint) {
@@ -2357,8 +2373,12 @@ function diagnosticianPrompt({ unitId, stage, task, evidence, triedSet }) {
     `Return ONLY: { verdict: "remediable" | "needs-human", mechanism?: "<category>:<mechanism>", correctedTask?: "<what to do differently>", diagnosis?: "<root cause>", request?: { kind, what } }.`;
 }
 
-function redispatchPrompt({ unitId, stage, task, correctedTask, mechanism, attempt }) {
+function redispatchPrompt({ unitId, stage, task, correctedTask, mechanism, attempt, backoffSeconds }) {
+  const backoff = Number.isInteger(backoffSeconds) && backoffSeconds > 0
+    ? `Before doing anything else, back off once to let transient conditions clear by running this exactly once in your shell: \`sleep ${backoffSeconds}\`. Do NOT loop or poll; run it a single time, then continue.\n`
+    : '';
   return `You are re-attempting the ${stage} stage for MSP "${unitId}" of a mitosis run after an in-run diagnosis (correction attempt ${attempt}). You have NO Skill tool; follow these instructions directly.\n\n` +
+    backoff +
     `The prior attempt failed. Apply this corrected approach BEFORE producing the result: ${correctedTask || mechanism}\n` +
     `Diagnosed mechanism fingerprint: ${mechanism}\n` +
     `Original objective for this stage: ${task}\n\n` +
@@ -2407,11 +2427,11 @@ function makeRemediation({ unitId, stage, task, schema, agentType, phase: phaseN
     return normalizeDiagnosis(raw, stage);
   };
   let redispatchNo = 0;
-  const redispatch = ({ correctedTask, mechanism }) => {
+  const redispatch = ({ correctedTask, mechanism, backoffSeconds }) => {
     redispatchNo += 1;
     return runStage(
       () => agent(
-        redispatchPrompt({ unitId, stage, task, correctedTask, mechanism, attempt: redispatchNo }),
+        redispatchPrompt({ unitId, stage, task, correctedTask, mechanism, attempt: redispatchNo, backoffSeconds }),
         { agentType, schema, label: `redispatch:${unitId}:${stage}`, phase: phaseName, model: redispatchModel },
       ),
       { attemptNo: redispatchNo },
@@ -2448,7 +2468,7 @@ async function supervisedDispatch(dispatchThunk, ctx) {
     const supervisor = makeSupervisorState({ unitId: ctx.unitId, stage, budgetRemaining: ctx.budget ?? REMEDIATION_BUDGET, triedSet: ctx.triedSet });
     const result = await runRemediationLoop(
       { trigger: outcome, task: ctx.task, stage },
-      { diagnose: ctx.diagnose, redispatch: ctx.redispatch, compensate: ctx.compensate },
+      { diagnose: ctx.diagnose, redispatch: ctx.redispatch, compensate: ctx.compensate, runBudget: ctx.runBudget },
       supervisor,
     );
     if (result.tag === 'Done') return Done(result.value);
@@ -2467,13 +2487,16 @@ async function supervisedDispatch(dispatchThunk, ctx) {
 }
 
 async function supervisedEngineDispatch(dispatchThunk, opts) {
+  const runBudget = opts && opts.state && typeof opts.state === 'object' ? opts.state : null;
+  const startUsed = runBudget && Number.isInteger(runBudget.used) ? runBudget.used : 0;
   const outcome = await supervisedDispatch(
     (attemptNo, preamble) => dispatchThunk(attemptNo, preamble),
-    { unitId: (opts && opts.unitId) || 'wave-task', stage: 'execute', resetRef: opts && opts.resetRef, worktree: opts && opts.worktree, task: opts && opts.task, diagnose: opts && opts.diagnose, redispatch: opts && opts.redispatch, budget: opts && opts.budget, triedSet: opts && opts.triedSet, compensate: opts && opts.compensate },
+    { unitId: (opts && opts.unitId) || 'wave-task', stage: 'execute', resetRef: opts && opts.resetRef, worktree: opts && opts.worktree, task: opts && opts.task, diagnose: opts && opts.diagnose, redispatch: opts && opts.redispatch, budget: opts && opts.budget, triedSet: opts && opts.triedSet, compensate: opts && opts.compensate, runBudget },
   );
   if (outcome.tag === 'Done') return outcome.value;
   const what = outcome.tag === 'NeedsHuman' && outcome.request ? outcome.request.what : outcome.tag;
-  return { __quarantined: true, attempts: 1, lastResult: outcome, park: { what } };
+  const attempts = (runBudget && Number.isInteger(runBudget.used) ? runBudget.used - startUsed : 0) + 1;
+  return { __quarantined: true, attempts, lastResult: outcome, park: { what } };
 }
 
 let input;
@@ -2800,7 +2823,7 @@ if (reusable) {
 }
 
 const retryMaxAttempts = Number.isInteger(retryConfig.maxAttempts) ? retryConfig.maxAttempts : 3;
-const retryState = { used: 0, max: Number.isInteger(retryConfig.runBudget) ? retryConfig.runBudget : 2 * msps.length };
+const retryState = { used: 0, max: Number.isInteger(retryConfig.runBudget) ? retryConfig.runBudget : Math.max(REMEDIATION_BUDGET, 2 * msps.length) };
 
 const mspIds = msps.map((m) => m.id);
 const duplicateIds = mspIds.filter((id, idx) => mspIds.indexOf(id) !== idx);
@@ -3104,7 +3127,7 @@ async function runUnit(unit) {
           `Return ONLY: { restored: <bool>, detail: "<what happened>" }.`,
           { agentType: 'implementer', schema: RESTORE_SCHEMA, label: `restore:${msp.id}`, phase: 'Ship' }
         ),
-        { unitId: msp.id, stage: 'ship', resetRef: baseBranch, worktree: null, task: `restore ${msp.id} from durable checkpoint ${builtRef}`, ...makeRemediation({ unitId: msp.id, stage: 'ship', task: `restore ${msp.id} from durable checkpoint ${builtRef}`, schema: RESTORE_SCHEMA, agentType: 'implementer', phase: 'Ship' }), compensate: makeCompensate(null, baseBranch) },
+        { unitId: msp.id, stage: 'ship', resetRef: baseBranch, worktree: null, task: `restore ${msp.id} from durable checkpoint ${builtRef}`, ...makeRemediation({ unitId: msp.id, stage: 'ship', task: `restore ${msp.id} from durable checkpoint ${builtRef}`, schema: RESTORE_SCHEMA, agentType: 'implementer', phase: 'Ship' }), runBudget: retryState, compensate: makeCompensate(null, baseBranch) },
       );
       if (restoreOutcome.tag !== 'Done') return parkUnit(msp, 'ship', restoreOutcome, integrationBranch, compensationStack);
       const restored = restoreOutcome.value;
@@ -3147,7 +3170,7 @@ async function runUnit(unit) {
           `Return ONLY: { planPath: "<absolute path to the plan you wrote>", summary: "<one sentence>" }.`,
           { agentType: 'implementer', schema: PLAN_SCHEMA, label: `plan:${msp.id}`, phase: 'Plan', model: 'opus' }
         ),
-        { unitId: msp.id, stage: 'plan', resetRef: baseBranch, worktree: null, task: msp.rationale, triedSet: planTriedSeed, ...makeRemediation({ unitId: msp.id, stage: 'plan', task: msp.rationale, schema: PLAN_SCHEMA, agentType: 'implementer', phase: 'Plan' }), compensate: makeCompensate(null, baseBranch) },
+        { unitId: msp.id, stage: 'plan', resetRef: baseBranch, worktree: null, task: msp.rationale, triedSet: planTriedSeed, ...makeRemediation({ unitId: msp.id, stage: 'plan', task: msp.rationale, schema: PLAN_SCHEMA, agentType: 'implementer', phase: 'Plan' }), runBudget: retryState, compensate: makeCompensate(null, baseBranch) },
       );
       if (planOutcome.tag !== 'Done') return parkUnit(msp, 'plan', planOutcome, integrationBranch, compensationStack);
       planned = planOutcome.value;
@@ -3184,7 +3207,7 @@ async function runUnit(unit) {
             replanPrompt({ unitId: msp.id, title: msp.title, planPath: planned.planPath, rationale: msp.rationale, dependsList, findings }),
             { agentType: 'implementer', schema: PLAN_SCHEMA, label: `replan:${msp.id}`, phase: 'Plan review', model: 'opus' }
           ),
-          { unitId: msp.id, stage: 'plan-review', resetRef: baseBranch, worktree: null, task: `revise the plan for ${msp.id} to satisfy adversarial review`, ...makeRemediation({ unitId: msp.id, stage: 'plan-review', task: `revise the plan for ${msp.id} to satisfy adversarial review`, schema: PLAN_SCHEMA, agentType: 'implementer', phase: 'Plan review' }), compensate: makeCompensate(null, baseBranch) },
+          { unitId: msp.id, stage: 'plan-review', resetRef: baseBranch, worktree: null, task: `revise the plan for ${msp.id} to satisfy adversarial review`, ...makeRemediation({ unitId: msp.id, stage: 'plan-review', task: `revise the plan for ${msp.id} to satisfy adversarial review`, schema: PLAN_SCHEMA, agentType: 'implementer', phase: 'Plan review' }), runBudget: retryState, compensate: makeCompensate(null, baseBranch) },
         );
         if (replanOutcome.tag !== 'Done') return parkUnit(msp, 'plan-review', replanOutcome, integrationBranch, compensationStack);
         planned = replanOutcome.value;
@@ -3215,7 +3238,7 @@ async function runUnit(unit) {
         `Return ONLY: { engineArgs: <the 14-key object>, route: { rule, lane, isolation, N, notes } }.`,
         { agentType: 'implementer', schema: PARALLELIZE_SCHEMA, label: `parallelize:${msp.id}`, phase: 'Parallelize' }
       ),
-      { unitId: msp.id, stage: 'parallelize', resetRef: baseBranch, worktree: null, task: `parallelize and route ${msp.id}`, triedSet: parallelizeTriedSeed, ...makeRemediation({ unitId: msp.id, stage: 'parallelize', task: `parallelize and route ${msp.id}`, schema: PARALLELIZE_SCHEMA, agentType: 'implementer', phase: 'Parallelize' }), compensate: makeCompensate(null, baseBranch) },
+      { unitId: msp.id, stage: 'parallelize', resetRef: baseBranch, worktree: null, task: `parallelize and route ${msp.id}`, triedSet: parallelizeTriedSeed, ...makeRemediation({ unitId: msp.id, stage: 'parallelize', task: `parallelize and route ${msp.id}`, schema: PARALLELIZE_SCHEMA, agentType: 'implementer', phase: 'Parallelize' }), runBudget: retryState, compensate: makeCompensate(null, baseBranch) },
     );
     if (parallelizeOutcome.tag !== 'Done') return parkUnit(msp, 'parallelize', parallelizeOutcome, integrationBranch, compensationStack);
     const parallelized = parallelizeOutcome.value;
@@ -3291,7 +3314,7 @@ async function runUnit(unit) {
         `Return ONLY: { ready: <bool>, detail: "<what happened>" }.`,
         { agentType: 'implementer', schema: BRANCH_SCHEMA, label: `branch:${msp.id}`, phase: 'Branch' }
       ),
-      { unitId: msp.id, stage: 'branch', resetRef: baseBranch, worktree: null, task: `branch-prep ${msp.id} onto ${baseBranch}`, ...makeRemediation({ unitId: msp.id, stage: 'branch', task: `branch-prep ${msp.id} onto ${baseBranch}`, schema: BRANCH_SCHEMA, agentType: 'implementer', phase: 'Branch' }), compensate: makeCompensate(null, baseBranch) },
+      { unitId: msp.id, stage: 'branch', resetRef: baseBranch, worktree: null, task: `branch-prep ${msp.id} onto ${baseBranch}`, ...makeRemediation({ unitId: msp.id, stage: 'branch', task: `branch-prep ${msp.id} onto ${baseBranch}`, schema: BRANCH_SCHEMA, agentType: 'implementer', phase: 'Branch' }), runBudget: retryState, compensate: makeCompensate(null, baseBranch) },
     );
     if (branchOutcome.tag !== 'Done') return parkUnit(msp, 'branch', branchOutcome, integrationBranch, compensationStack);
     const branched = branchOutcome.value;

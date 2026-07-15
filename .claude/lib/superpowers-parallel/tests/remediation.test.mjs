@@ -1,6 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { runRemediationLoop, fingerprintOf, isValidFingerprint } from '../remediation.mjs';
+import * as remediationModule from '../remediation.mjs';
 import { makeSupervisorState } from '../supervisor.mjs';
 import { Done, Transient, ApproachFixable, NeedsHuman, Unknown } from '../boundary.mjs';
 
@@ -231,4 +232,82 @@ test('runRemediationLoop never mutates the input state', async () => {
   assert.equal(state0.triedSet.size, 0);
   assert.equal(state0.ledger.length, 0);
   assert.equal(state0.status, 'ready');
+});
+
+test('E2t a per-run budget caps aggregate remediation dispatches below the much larger per-cycle budget and parks fail-closed (never spins)', async () => {
+  const diagnose = distinctMechanismDiagnostician();
+  const redispatch = countingRedispatch((i) => ApproachFixable({ mechanism: `moving:fp-${i}`, diagnosis: 'd', evidence: 1 }));
+  const runBudget = { used: 0, max: 3 };
+  const state0 = makeSupervisorState({ unitId: 'u1', stage: 'execute', budgetRemaining: 40 });
+  const trigger = ApproachFixable({ mechanism: 'seed:cause', diagnosis: 'd', evidence: 1 });
+
+  const result = await runRemediationLoop({ trigger, ...STAGE }, { diagnose, redispatch, runBudget }, state0);
+
+  assert.equal(result.tag, 'Exhausted');
+  assert.equal(result.reason, 'run-budget');
+  assert.equal(result.state.status, 'parked');
+  assert.equal(redispatch.calls.n, 3, 'the per-run aggregate cap binds before the much larger per-cycle budget');
+  assert.equal(runBudget.used, 3, 'each remediation dispatch consumes exactly one unit of the shared per-run budget');
+});
+
+test('E2t a per-run budget already at its ceiling parks the first remediation with zero dispatches (fail-closed, never spin)', async () => {
+  const diagnose = distinctMechanismDiagnostician();
+  const redispatch = countingRedispatch((i) => ApproachFixable({ mechanism: `moving:fp-${i}`, diagnosis: 'd', evidence: 1 }));
+  const runBudget = { used: 2, max: 2 };
+  const state0 = makeSupervisorState({ unitId: 'u1', stage: 'execute', budgetRemaining: 4 });
+  const trigger = ApproachFixable({ mechanism: 'seed:cause', diagnosis: 'd', evidence: 1 });
+
+  const result = await runRemediationLoop({ trigger, ...STAGE }, { diagnose, redispatch, runBudget }, state0);
+
+  assert.equal(result.tag, 'Exhausted');
+  assert.equal(result.reason, 'run-budget');
+  assert.equal(redispatch.calls.n, 0, 'an exhausted per-run budget dispatches nothing');
+  assert.equal(runBudget.used, 2);
+});
+
+test('E2t the per-run budget does not further constrain a loop that converges within both budgets (no regression when budget is ample)', async () => {
+  const diagnose = fixedDiagnostician({ verdict: 'remediable', mechanism: 'import-path:alias', correctedTask: 't', diagnosis: 'fix root' });
+  const redispatch = countingRedispatch(() => Done({ patched: true }));
+  const runBudget = { used: 0, max: 4 };
+  const state0 = makeSupervisorState({ unitId: 'u1', stage: 'execute', budgetRemaining: 4 });
+  const trigger = ApproachFixable({ mechanism: 'import-path:relative', diagnosis: 'd', evidence: 1 });
+
+  const result = await runRemediationLoop({ trigger, ...STAGE }, { diagnose, redispatch, runBudget }, state0);
+
+  assert.equal(result.tag, 'Done');
+  assert.equal(redispatch.calls.n, 1);
+  assert.equal(runBudget.used, 1, 'a converging remediation consumes exactly the dispatches it made');
+});
+
+test('E2t remediationBackoff is deterministic, monotone non-decreasing, and bounded by a hard cap', () => {
+  assert.equal(remediationModule.remediationBackoff(0), 0);
+  assert.equal(remediationModule.remediationBackoff(-1), 0);
+  const cap = remediationModule.REMEDIATION_BACKOFF_MAX_SECONDS;
+  assert.ok(Number.isInteger(cap) && cap > 0, 'the backoff cap is a positive integer');
+  let prev = 0;
+  for (let c = 1; c <= 20; c += 1) {
+    const b = remediationModule.remediationBackoff(c);
+    assert.ok(Number.isInteger(b) && b >= 0, `backoff for cycle ${c} must be a non-negative integer`);
+    assert.ok(b >= prev, `backoff must be monotone non-decreasing at cycle ${c}`);
+    assert.ok(b <= cap, `backoff must never exceed the cap at cycle ${c}`);
+    prev = b;
+  }
+  assert.equal(remediationModule.remediationBackoff(3), remediationModule.remediationBackoff(3), 'backoff is a pure deterministic function of the cycle index');
+});
+
+test('E2t runRemediationLoop threads a bounded, per-cycle-escalating backoff into every redispatch (the wait lives in the agent shell, never the script)', async () => {
+  const backoffs = [];
+  const diagnose = distinctMechanismDiagnostician();
+  const redispatch = async (arg) => { backoffs.push(arg.backoffSeconds); return ApproachFixable({ mechanism: `moving:fp-${backoffs.length}`, diagnosis: 'd', evidence: 1 }); };
+  const state0 = makeSupervisorState({ unitId: 'u1', stage: 'execute', budgetRemaining: 4 });
+  const trigger = ApproachFixable({ mechanism: 'seed:cause', diagnosis: 'd', evidence: 1 });
+
+  await runRemediationLoop({ trigger, ...STAGE }, { diagnose, redispatch }, state0);
+
+  assert.ok(backoffs.length >= 2, 'the loop ran multiple remediation cycles');
+  const cap = remediationModule.REMEDIATION_BACKOFF_MAX_SECONDS;
+  for (const b of backoffs) {
+    assert.ok(Number.isInteger(b) && b >= 0 && b <= cap, `each redispatch carries a bounded integer backoff; got ${b}`);
+  }
+  assert.ok(backoffs[1] >= backoffs[0], 'the backoff escalates across successive remediation cycles');
 });

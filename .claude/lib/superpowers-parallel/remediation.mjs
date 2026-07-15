@@ -13,6 +13,14 @@ export function fingerprintOf(outcome) {
   return outcome.tag;
 }
 
+export const REMEDIATION_BACKOFF_BASE_SECONDS = 5;
+export const REMEDIATION_BACKOFF_MAX_SECONDS = 60;
+
+export function remediationBackoff(cycle) {
+  if (!Number.isInteger(cycle) || cycle <= 0) return 0;
+  return Math.min(REMEDIATION_BACKOFF_MAX_SECONDS, REMEDIATION_BACKOFF_BASE_SECONDS * (2 ** (cycle - 1)));
+}
+
 async function obtainUntriedProposal(diagnose, input, state) {
   for (let attempt = 0; attempt < 2; attempt += 1) {
     const proposal = await diagnose(input);
@@ -28,10 +36,15 @@ async function obtainUntriedProposal(diagnose, input, state) {
 }
 
 export async function runRemediationLoop({ trigger, task, stage }, deps, state0) {
+  const runBudget = deps.runBudget;
   let state = state0;
   let evidence = trigger;
   let prevFingerprint = fingerprintOf(trigger);
+  let cycle = 0;
   while (true) {
+    if (runBudget && Number.isInteger(runBudget.max) && Number.isInteger(runBudget.used) && runBudget.used >= runBudget.max) {
+      return { tag: 'Exhausted', reason: 'run-budget', state: withStatus(state, 'parked') };
+    }
     if (state.budget.remaining <= 0) {
       return { tag: 'Exhausted', reason: 'budget', state: withStatus(state, 'parked') };
     }
@@ -47,7 +60,10 @@ export async function runRemediationLoop({ trigger, task, stage }, deps, state0)
     }
     state = withTried(state, proposal.mechanism);
     state = decrementBudget(state, 1);
-    const result = await deps.redispatch({ correctedTask: proposal.correctedTask, mechanism: proposal.mechanism, task, stage });
+    if (runBudget && Number.isInteger(runBudget.used)) { runBudget.used += 1; }
+    cycle += 1;
+    const backoffSeconds = remediationBackoff(cycle);
+    const result = await deps.redispatch({ correctedTask: proposal.correctedTask, mechanism: proposal.mechanism, task, stage, backoffSeconds });
     const newFingerprint = fingerprintOf(result);
     const terminalResult = result.tag === 'Done' || result.tag === 'NeedsHuman';
     if (!terminalResult && newFingerprint !== null && newFingerprint === prevFingerprint) {
