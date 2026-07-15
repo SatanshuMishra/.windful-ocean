@@ -229,4 +229,15 @@ test('P4 §8.4 native fingerprint gate: the boundary prompt structural-diffs HEA
   assert.match(boundary.prompt, /STRUCTURAL IDENTITY/);
   assert.match(boundary.prompt, /HEAD count EXCEEDS its BASE count/);
   assert.doesNotMatch(boundary.prompt, /npm run ci/);
+  assert.match(boundary.prompt, /NOT-EXPECTED/);
+  assert.match(boundary.prompt, /devDependencies/);
+  assert.match(boundary.prompt, /tsconfig/);
+  assert.match(boundary.prompt, /remains EXPECTED/);
+  assert.match(boundary.prompt, /MUST stay blocked/);
+  assert.match(boundary.prompt, /scanned ZERO files/);
+  assert.match(boundary.prompt, /positively observ/i);
+  assert.match(boundary.prompt, /NEVER infer absence/);
+  assert.match(boundary.prompt, /ZERO files were linted/);
+  assert.match(boundary.prompt, /scanned-zero-files/i);
+  assert.match(boundary.prompt, /ONLY to tools judged EXPECTED/i);
 });
