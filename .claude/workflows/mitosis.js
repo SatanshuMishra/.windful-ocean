@@ -1810,12 +1810,21 @@ function dispositionOf(outcome) {
   return 'parked';
 }
 
-function planTick(units) {
+function buildAheadWindow(units, frontierTrain, windowSize) {
+  if (!frontierTrain) return undefined;
+  return { builtUnmergedCount: units.filter((u) => u.state === 'built').length, size: Number.isInteger(windowSize) ? windowSize : WINDOW_FLOOR };
+}
+
+function planTick(units, frontierTrain, windowSize) {
   const byId = indexUnits(units);
   let leases = new Map();
   const dispatch = [];
+  const window = buildAheadWindow(units, frontierTrain, windowSize);
   for (const unit of units) {
     if (isDispatchable(unit, byId, leases)) {
+      dispatch.push(unit.id);
+      leases = acquire(leases, unit);
+    } else if (frontierTrain && isBuildable(unit, byId, leases, window)) {
       dispatch.push(unit.id);
       leases = acquire(leases, unit);
     }
@@ -1852,7 +1861,7 @@ function markMerged(units, mergedIds) {
   return Object.freeze(units.map((u) => (set.has(u.id) ? Object.freeze({ ...u, state: 'done', leaseHeld: false }) : u)));
 }
 
-async function runScheduleTick(specs, runUnit, poll, continuousDrain) {
+async function runScheduleTick(specs, runUnit, poll, continuousDrain, frontierTrain, windowSize) {
   let units = buildUnitTable(specs);
   const ticks = [];
   const polls = [];
@@ -1860,7 +1869,7 @@ async function runScheduleTick(specs, runUnit, poll, continuousDrain) {
   const maxSteps = continuousDrain ? units.length * (maxPollCycles + 2) + 1 : units.length + 1 + maxPollCycles;
   let pollsUsed = 0;
   for (let step = 0; step < maxSteps; step++) {
-    const { dispatch } = planTick(units);
+    const { dispatch } = planTick(units, frontierTrain, windowSize);
     if (dispatch.length > 0) {
       ticks.push(dispatch);
       units = markDispatched(units, dispatch);
@@ -1897,12 +1906,16 @@ function release(leases, unitId) {
   return next;
 }
 
-function dispatchableStreaming(units, liveLeases) {
+function dispatchableStreaming(units, liveLeases, frontierTrain, windowSize) {
   const byId = indexUnits(units);
   let leases = new Map(liveLeases);
   const dispatch = [];
+  const window = buildAheadWindow(units, frontierTrain, windowSize);
   for (const unit of units) {
     if (isDispatchable(unit, byId, leases)) {
+      dispatch.push(unit.id);
+      leases = acquire(leases, unit);
+    } else if (frontierTrain && isBuildable(unit, byId, leases, window)) {
       dispatch.push(unit.id);
       leases = acquire(leases, unit);
     }
@@ -1910,7 +1923,7 @@ function dispatchableStreaming(units, liveLeases) {
   return dispatch;
 }
 
-async function runScheduleStreaming(specs, runUnit, poll, continuousDrain) {
+async function runScheduleStreaming(specs, runUnit, poll, continuousDrain, frontierTrain, windowSize) {
   let units = buildUnitTable(specs);
   const ticks = [];
   const polls = [];
@@ -1920,7 +1933,7 @@ async function runScheduleStreaming(specs, runUnit, poll, continuousDrain) {
   let liveLeases = new Map();
   const running = new Map();
   for (let step = 0; step < maxSteps; step++) {
-    const dispatch = dispatchableStreaming(units, liveLeases);
+    const dispatch = dispatchableStreaming(units, liveLeases, frontierTrain, windowSize);
     if (dispatch.length > 0) {
       ticks.push(dispatch);
       units = markDispatched(units, dispatch);
@@ -1966,7 +1979,11 @@ const FRONTIER_TRAIN_ENABLED = false;
 async function runSchedule(specs, runUnit, poll, opts) {
   const streaming = opts && typeof opts.streaming === 'boolean' ? opts.streaming : STREAMING_DISPATCH_ENABLED;
   const continuousDrain = opts && typeof opts.continuousDrain === 'boolean' ? opts.continuousDrain : FRONTIER_TRAIN_ENABLED;
-  return streaming ? runScheduleStreaming(specs, runUnit, poll, continuousDrain) : runScheduleTick(specs, runUnit, poll, continuousDrain);
+  const frontierTrain = opts && typeof opts.frontierTrain === 'boolean' ? opts.frontierTrain : FRONTIER_TRAIN_ENABLED;
+  const windowSize = opts && Number.isInteger(opts.window) ? opts.window : undefined;
+  return streaming
+    ? runScheduleStreaming(specs, runUnit, poll, continuousDrain, frontierTrain, windowSize)
+    : runScheduleTick(specs, runUnit, poll, continuousDrain, frontierTrain, windowSize);
 }
 
 const WINDOW_FLOOR = 3;
@@ -3838,6 +3855,7 @@ try {
     msps.map((m) => ({ id: m.id, prereqs: m.dependsOn || [], fileScope: m.fileScope || [] })),
     (unit) => runUnit(unit),
     mergePoll,
+    { window: currentWindow },
   );
 } catch (err) {
   return fatalReportShipped('schedule', `scheduler fan-out rejected: ${err.message}`, msps.length, shipped, { crashed: true });

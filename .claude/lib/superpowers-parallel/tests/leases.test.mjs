@@ -407,6 +407,42 @@ test('CONTINUOUS DRAIN (streaming): with the flag override, poll budget resets o
   assert.ok([...byId2.values()].some((u) => u.state !== 'done'), 'without continuous drain the deep chain stalls at the monotonic poll ceiling (streaming)');
 });
 
+function buildFrontierSpecs(builtParentCount) {
+  const specs = [{ id: 'blocker', fileScope: ['blocker.mjs'] }];
+  for (let i = 0; i < builtParentCount; i += 1) specs.push({ id: `p${i}`, state: 'built', prereqs: ['blocker'], fileScope: [`p${i}.mjs`] });
+  specs.push({ id: 'child', prereqs: ['p0'], fileScope: ['child.mjs'] });
+  return specs;
+}
+
+const frontierRunUnit = async (u) => (u.id === 'blocker' ? NeedsHuman({ kind: 'grant', what: 'x' }) : Built({ checkpointRef: `refs/mitosis/x/${u.id}`, sha: 'abc1234' }));
+
+test('BUILD-DISPATCH WINDOW (tick): a build-ahead child is withheld while built-unmerged saturates W, and admitted once built-unmerged drops below W', async () => {
+  const saturated = await runSchedule(buildFrontierSpecs(3), frontierRunUnit, undefined, { frontierTrain: true, window: 3 });
+  const saturatedById = indexUnits(saturated.units);
+  assert.equal(saturatedById.get('child').state, 'planned', 'window saturated at 3/3 built-unmerged withholds the child from build-ahead dispatch');
+  assert.equal(saturatedById.get('p0').state, 'built', 'the saturating parents themselves stay built (never re-dispatched while their own prereq is unresolved)');
+
+  const underWindow = await runSchedule(buildFrontierSpecs(2), frontierRunUnit, undefined, { frontierTrain: true, window: 3 });
+  const underWindowById = indexUnits(underWindow.units);
+  assert.equal(underWindowById.get('child').state, 'built', 'with built-unmerged (2) under W (3), the child is admitted for build-ahead dispatch and itself reaches built');
+});
+
+test('BUILD-DISPATCH WINDOW: with FRONTIER_TRAIN_ENABLED off (no frontierTrain override), a child whose only prereq is built (not done) is never dispatched — byte-identical to today', async () => {
+  const { units } = await runSchedule(buildFrontierSpecs(1), frontierRunUnit, undefined, { window: 3 });
+  const byId = indexUnits(units);
+  assert.equal(byId.get('child').state, 'planned', 'without frontierTrain the window is never consulted and build-ahead dispatch never activates');
+});
+
+test('BUILD-DISPATCH WINDOW (streaming): the streaming scheduler applies the same AIMD window gate to build-ahead dispatch', async () => {
+  const saturated = await runSchedule(buildFrontierSpecs(3), frontierRunUnit, undefined, { streaming: true, frontierTrain: true, window: 3 });
+  const saturatedById = indexUnits(saturated.units);
+  assert.equal(saturatedById.get('child').state, 'planned', 'streaming: window saturated at 3/3 built-unmerged withholds the child');
+
+  const underWindow = await runSchedule(buildFrontierSpecs(2), frontierRunUnit, undefined, { streaming: true, frontierTrain: true, window: 3 });
+  const underWindowById = indexUnits(underWindow.units);
+  assert.equal(underWindowById.get('child').state, 'built', 'streaming: with built-unmerged (2) under W (3), the child is admitted and reaches built');
+});
+
 const drainMicrotasks = () => new Promise((resolve) => setImmediate(resolve));
 
 function gatedRunner() {
