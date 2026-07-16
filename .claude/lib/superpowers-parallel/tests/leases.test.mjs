@@ -92,6 +92,9 @@ test('READINESS: isBuildable admits a unit when every prereq is green-built (bui
   assert.equal(isBuildable(b, byId, contended, open), false, 'b blocked: fileScope lease overlaps a running unit');
   assert.equal(isBuildable(b, byId, new Map(), { builtUnmergedCount: 3, size: 3 }), false, 'b blocked: AIMD window saturated (built-unmerged >= W)');
   assert.equal(isBuildable(b, byId, new Map(), undefined), false, 'no window => fail closed (never build blind)');
+  assert.equal(isBuildable(b, byId, new Map(), { builtUnmergedCount: NaN, size: 3 }), false, 'non-integer builtUnmergedCount => fail closed (never bypass the AIMD throttle)');
+  assert.equal(isBuildable(b, byId, new Map(), { builtUnmergedCount: 'x', size: 3 }), false, 'string builtUnmergedCount => fail closed');
+  assert.equal(isBuildable(b, byId, new Map(), { size: 3 }), false, 'missing builtUnmergedCount => fail closed');
 });
 
 test('isDispatchable is false for units already in a terminal, awaiting, or dispatched state', () => {

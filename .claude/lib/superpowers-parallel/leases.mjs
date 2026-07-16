@@ -62,8 +62,8 @@ export function isBuildable(unit, unitsById, leases, window) {
   }
   if (overlapHolder(leases, unit.fileScope, unit.id) !== null) return false;
   if (!window || !Number.isInteger(window.size)) return false;
-  const builtUnmerged = Number.isInteger(window.builtUnmergedCount) ? window.builtUnmergedCount : 0;
-  return builtUnmerged < window.size;
+  if (!Number.isInteger(window.builtUnmergedCount)) return false;
+  return window.builtUnmergedCount < window.size;
 }
 
 export function acquire(leases, unit) {
