@@ -359,6 +359,30 @@ test('IN-RUN MERGE POLL FAIL-SAFE: with the merge-watch reporting never-merged, 
   assert.equal(noPoll.polls.length, 0, 'the no-poll run runs zero poll cycles');
 });
 
+test('CONTINUOUS DRAIN: with the flag override, poll budget resets on merge progress so a chain deeper than maxCycles drains in one run', async () => {
+  const chainLength = 8;
+  const buildChainSpecs = () => Array.from({ length: chainLength }, (_, i) => ({
+    id: `u${i}`,
+    prereqs: i > 0 ? [`u${i - 1}`] : [],
+    fileScope: [`u${i}.mjs`],
+  }));
+  const runUnitThatShips = async (u) => (u.id === `u${chainLength - 1}`
+    ? Done({ ok: true })
+    : AwaitingApproval({ mspId: u.id, prUrl: `https://github.com/o/repo/pull/${u.id}` }));
+  const buildPoll = () => ({
+    maxCycles: 6,
+    watch: async () => ({ merged: true, mergedAt: '2026-07-16T00:00:00Z', readError: null }),
+  });
+
+  const drained = await runSchedule(buildChainSpecs(), runUnitThatShips, buildPoll(), { continuousDrain: true });
+  const byId = indexUnits(drained.units);
+  for (let i = 0; i < chainLength; i++) assert.equal(byId.get(`u${i}`).state, 'done', `u${i} drains under continuous drain`);
+
+  const stalled = await runSchedule(buildChainSpecs(), runUnitThatShips, buildPoll(), { continuousDrain: false });
+  const byId2 = indexUnits(stalled.units);
+  assert.ok([...byId2.values()].some((u) => u.state !== 'done'), 'without continuous drain the deep chain stalls at the monotonic poll ceiling');
+});
+
 const drainMicrotasks = () => new Promise((resolve) => setImmediate(resolve));
 
 function gatedRunner() {
