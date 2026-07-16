@@ -3138,6 +3138,7 @@ const awaitingApproval = [];
 const blockedByPark = new Set();
 const blockedByApproval = new Set();
 let mergeQueue = Promise.resolve();
+const builtInRun = new Map();
 const mspById = new Map(msps.map((m) => [m.id, m]));
 
 async function parkUnit(msp, stage, outcome, integrationBranch, compensationStack) {
@@ -3260,12 +3261,13 @@ async function runUnit(unit) {
     const planTriedSeed = resume && resume.stage === 'plan' ? resume.triedSet : undefined;
     const parallelizeTriedSeed = resume && resume.stage === 'parallelize' ? resume.triedSet : undefined;
     const isBuiltResume = Boolean(resume) && resume.built === true && resume.stage === 'ship';
+    const frontierBuiltEntry = FRONTIER_TRAIN_ENABLED ? builtInRun.get(msp.id) : undefined;
+    const isFrontierBuiltRedispatch = frontierBuiltEntry !== undefined;
     let aggregatedScope = Array.isArray(msp.fileScope) ? msp.fileScope : [];
 
-    if (isBuiltResume) {
-      const builtRef = resume.resumePoint && typeof resume.resumePoint.ref === 'string' ? resume.resumePoint.ref : null;
+    async function restoreIntegrationFromBuiltCheckpoint(builtRef) {
       if (builtRef === null || parseCheckpointRef(builtRef, logicalRunId) !== msp.id) {
-        return parkUnit(msp, 'ship', NeedsHuman({ kind: 'approve-decision', what: `built-resume for ${msp.id} carries no valid durable checkpoint ref to restore from`, remediation: null, resumePoint: { branch: integrationBranch, ref: baseBranch, stage: 'ship' } }), integrationBranch, compensationStack);
+        return { ready: false, parkOutcome: await parkUnit(msp, 'ship', NeedsHuman({ kind: 'approve-decision', what: `built-resume for ${msp.id} carries no valid durable checkpoint ref to restore from`, remediation: null, resumePoint: { branch: integrationBranch, ref: baseBranch, stage: 'ship' } }), integrationBranch, compensationStack) };
       }
       log(`mitosis[${msp.id}]: built-resume — skipping Plan/Parallelize/Branch/Execute; restoring ${integrationBranch} from durable checkpoint ${clean(builtRef)} and shipping straight`);
       const restoreOutcome = await supervisedDispatch(
@@ -3282,13 +3284,28 @@ async function runUnit(unit) {
         ),
         { unitId: msp.id, stage: 'ship', resetRef: baseBranch, worktree: null, task: `restore ${msp.id} from durable checkpoint ${builtRef}`, ...makeRemediation({ unitId: msp.id, stage: 'ship', task: `restore ${msp.id} from durable checkpoint ${builtRef}`, schema: RESTORE_SCHEMA, agentType: 'implementer', phase: 'Ship' }), runBudget: retryState, compensate: makeCompensate(null, baseBranch) },
       );
-      if (restoreOutcome.tag !== 'Done') return parkUnit(msp, 'ship', restoreOutcome, integrationBranch, compensationStack);
+      if (restoreOutcome.tag !== 'Done') return { ready: false, parkOutcome: await parkUnit(msp, 'ship', restoreOutcome, integrationBranch, compensationStack) };
       const restored = restoreOutcome.value;
       if (!restored || restored.restored !== true) {
-        return parkUnit(msp, 'ship', NeedsHuman({ kind: 'approve-decision', what: restored && restored.detail ? restored.detail : `could not restore ${msp.id} from durable checkpoint ${builtRef}`, remediation: null, resumePoint: { branch: integrationBranch, ref: builtRef, stage: 'ship' } }), integrationBranch, compensationStack);
+        return { ready: false, parkOutcome: await parkUnit(msp, 'ship', NeedsHuman({ kind: 'approve-decision', what: restored && restored.detail ? restored.detail : `could not restore ${msp.id} from durable checkpoint ${builtRef}`, remediation: null, resumePoint: { branch: integrationBranch, ref: builtRef, stage: 'ship' } }), integrationBranch, compensationStack) };
       }
       log(`mitosis[${msp.id}]: restored ${integrationBranch} from durable checkpoint ${clean(builtRef)}`);
       compensationStack = registerEffect(compensationStack, { kind: 'local-branch', ref: integrationBranch });
+      return { ready: true, parkOutcome: null };
+    }
+
+    if (isBuiltResume) {
+      const builtRef = resume.resumePoint && typeof resume.resumePoint.ref === 'string' ? resume.resumePoint.ref : null;
+      const restore = await restoreIntegrationFromBuiltCheckpoint(builtRef);
+      if (!restore.ready) return restore.parkOutcome;
+      return finalizeShip();
+    }
+
+    if (isFrontierBuiltRedispatch) {
+      const restore = await restoreIntegrationFromBuiltCheckpoint(frontierBuiltEntry.checkpointRef);
+      if (!restore.ready) return restore.parkOutcome;
+      builtInRun.delete(msp.id);
+      log(`mitosis[${msp.id}]: frontier-train — every parent reached done; restacking ${integrationBranch} onto origin/${baseBranch} and opening its PR (built -> awaiting)`);
       return finalizeShip();
     }
 
@@ -3530,6 +3547,17 @@ async function runUnit(unit) {
       return null;
     }));
     await builtLink;
+
+    if (FRONTIER_TRAIN_ENABLED) {
+      const parentIds = Array.isArray(msp.dependsOn) ? msp.dependsOn : [];
+      const doneIds = new Set([...reconciledShipped, ...shipped.map((s) => s.mspId)]);
+      const parentsDone = parentIds.every((p) => doneIds.has(p));
+      if (!parentsDone) {
+        builtInRun.set(msp.id, { checkpointRef: durableCheckpointRef, sha: builtSha });
+        log(`mitosis[${msp.id}]: frontier-train — built ahead of unmerged parent(s) (${parentIds.join(', ')}); PR-open deferred until every parent reaches done`);
+        return Built({ mspId: msp.id, checkpointRef: durableCheckpointRef, sha: builtSha });
+      }
+    }
 
     async function readBackHandoff() {
       const rb = await agent(
