@@ -1347,6 +1347,18 @@ const BRANCH_SCHEMA = {
   },
 };
 
+const FRONTIER_BRANCH_SCHEMA = {
+  type: 'object',
+  required: ['ready', 'conflict', 'builtAgainst', 'detail'],
+  additionalProperties: false,
+  properties: {
+    ready: { type: 'boolean' },
+    conflict: { type: 'boolean' },
+    builtAgainst: { type: 'object' },
+    detail: { type: 'string' },
+  },
+};
+
 const RESTORE_SCHEMA = {
   type: 'object',
   required: ['restored', 'detail'],
@@ -2364,6 +2376,11 @@ function parseCheckpointRef(ref, runId) {
   return unitId;
 }
 
+function parentCheckpointRefs(runId, parentIds) {
+  if (!Array.isArray(parentIds)) return [];
+  return parentIds.map((unitId) => ({ unitId, ref: checkpointRef(runId, unitId) }));
+}
+
 function uniqStrings(list) {
   if (!Array.isArray(list)) return [];
   const seen = new Set();
@@ -3183,9 +3200,9 @@ async function persistParkCheckpoint(record) {
   }
 }
 
-async function persistBuiltCheckpoint({ unitId, checkpointRef: builtRef, sha }) {
+async function persistBuiltCheckpoint({ unitId, checkpointRef: builtRef, sha, builtAgainst }) {
   try {
-    const deltaJson = JSON.stringify(builtDelta({ unitId, checkpointRef: builtRef, sha }));
+    const deltaJson = JSON.stringify(builtDelta({ unitId, checkpointRef: builtRef, sha, builtAgainst }));
     const writeRes = await agent(
       `You are the built-checkpoint stage of a mitosis run. You have NO Skill tool; follow these instructions directly.\n\n` +
       `Durably APPEND one built-unit delta record to the run journal so a later relaunch can fold built-but-unshipped work and resume the unit at ship. Operate in ${repoRoot}:\n` +
@@ -3474,23 +3491,64 @@ async function runUnit(unit) {
     log(`mitosis[${msp.id}]: aggregated write-set = ${aggregatedScope.length} path(s)`);
 
     phase('Branch');
-    const branchOutcome = await supervisedDispatch(
-      (attemptNo, preamble) => agent(
-        `You are the branch-prep stage for MSP "${msp.id}" of a mitosis run. You have NO Skill tool.\n\n` +
-        `Create/move this MSP's integration REF FRESH onto the latest pushed base so it stacks bottom-up on already-merged MSPs, WITHOUT moving the main-repo HEAD (sibling clusters share this repo's working tree; the engine's per-instance integration worktree is what checks the ref out). Operate against the main repo at ${repoRoot}; do NOT check out the branch and do NOT enter any worktree.\n` +
-        `1. \`git -C ${repoRoot} fetch origin ${baseBranch}\`\n` +
-        `2. Observe-then-converge the integration ref (idempotent under replay): check whether ${integrationBranch} already points at origin/${baseBranch} - \`git -C ${repoRoot} rev-parse --verify --quiet ${integrationBranch}\` compared to \`git -C ${repoRoot} rev-parse origin/${baseBranch}\`. If they already match, the ref is already positioned - SKIP the update. Otherwise move it FRESH onto the pushed base: \`git -C ${repoRoot} branch -f ${integrationBranch} origin/${baseBranch}\` (this ref is local and never-pushed here, so a destructive branch move is safe forward compensation).\n\n` +
-        `If both succeed, set ready=true. If the fetch or branch update fails (no remote, missing base), set ready=false and explain in detail.\n\n` +
-        `Return ONLY: { ready: <bool>, detail: "<what happened>" }.`,
-        { agentType: 'implementer', schema: BRANCH_SCHEMA, label: `branch:${msp.id}`, phase: 'Branch' }
-      ),
-      { unitId: msp.id, stage: 'branch', resetRef: baseBranch, worktree: null, task: `branch-prep ${msp.id} onto ${baseBranch}`, ...makeRemediation({ unitId: msp.id, stage: 'branch', task: `branch-prep ${msp.id} onto ${baseBranch}`, schema: BRANCH_SCHEMA, agentType: 'implementer', phase: 'Branch' }), runBudget: retryState, compensate: makeCompensate(null, baseBranch) },
-    );
-    if (branchOutcome.tag !== 'Done') return parkUnit(msp, 'branch', branchOutcome, integrationBranch, compensationStack);
-    const branched = branchOutcome.value;
-    log(`mitosis[${msp.id}]: branch ready=${branched.ready} (${branched.detail})`);
-    if (!branched.ready) {
-      return parkUnit(msp, 'branch', NeedsHuman({ kind: 'approve-decision', what: branched.detail, remediation: null, resumePoint: null }), integrationBranch, compensationStack);
+    const parentIds = Array.isArray(msp.dependsOn) ? msp.dependsOn : [];
+    let builtAgainst = {};
+    if (FRONTIER_TRAIN_ENABLED && parentIds.length > 0) {
+      let parentRefs;
+      try {
+        parentRefs = parentCheckpointRefs(logicalRunId, parentIds);
+      } catch (err) {
+        return parkUnit(msp, 'branch', NeedsHuman({ kind: 'approve-decision', what: `frontier-train compose for ${msp.id} cannot compose a durable parent checkpoint ref: ${clean(err.message)}`, remediation: null, resumePoint: null }), integrationBranch, compensationStack);
+      }
+      const composeOutcome = await supervisedDispatch(
+        (attemptNo, preamble) => agent(
+          `You are the frontier-train branch-compose stage for MSP "${msp.id}" of a mitosis run. You have NO Skill tool.\n\n` +
+          `This MSP builds on the build frontier: its parent MSPs are GREEN but NOT YET MERGED to ${baseBranch}. Compose this MSP's integration ref by stacking its parents' durable checkpoint tips in dependency order onto the pushed base, this MSP on top, so it builds against real parent work ahead of the human merge frontier. Operate against the main repo at ${repoRoot}; do NOT check out the branch and do NOT enter any worktree.\n` +
+          `SECURITY: pass every ref as an INERT argv element to execFile-style invocations; NEVER build a command by shell-interpolating a ref into a string.\n\n` +
+          `The ordered parent checkpoint refs are ${JSON.stringify(parentRefs)} (dependency order; stack each in turn, this MSP on top).\n` +
+          `1. \`git -C ${repoRoot} fetch origin ${baseBranch}\`, then fetch each parent checkpoint ref: for each entry's ref above run \`git -C ${repoRoot} fetch origin <ref>\` (each ref a single inert argv token).\n` +
+          `2. Move the integration ref FRESH onto the pushed base: \`git -C ${repoRoot} branch -f ${integrationBranch} origin/${baseBranch}\` (this ref is local and never-pushed here, so a destructive branch move is safe forward compensation).\n` +
+          `3. For EACH parent { unitId, ref } in the given order, observe-then-converge (idempotent under replay): FIRST read that parent's tip sha \`git -C ${repoRoot} rev-parse <ref>\` and record it as builtAgainst[unitId]. Then check whether it is already contained: \`git -C ${repoRoot} merge-base --is-ancestor <parent tip> ${integrationBranch}\`. If exit 0, that parent (or a shared ancestor) is already stacked - SKIP its restack. Otherwise restack that parent's own commits onto ${integrationBranch} (rebase --onto ${integrationBranch} origin/${baseBranch} <parent tip>, or an equivalent cherry-pick of that parent's origin/${baseBranch}..tip range) and fast-forward ${integrationBranch} to the result.\n` +
+          `4. If ANY restack reports a conflict: abort it (\`git -C ${repoRoot} rebase --abort\` or \`git -C ${repoRoot} cherry-pick --abort\`), set conflict=true and ready=false, record the conflicting files and the parent unitId in detail, and STOP (do not stack the remaining parents).\n\n` +
+          `If every parent stacked cleanly (or was already contained), set ready=true and conflict=false. If the fetch or a base move fails (no remote, missing base or checkpoint ref), set ready=false, conflict=false, and explain in detail.\n\n` +
+          `Return ONLY: { ready: <bool>, conflict: <bool>, builtAgainst: { "<parent unitId>": "<that parent's tip sha>" }, detail: "<what happened>" }.`,
+          { agentType: 'implementer', schema: FRONTIER_BRANCH_SCHEMA, label: `branch:${msp.id}`, phase: 'Branch' }
+        ),
+        { unitId: msp.id, stage: 'branch', resetRef: baseBranch, worktree: null, task: `frontier-compose ${msp.id} on parents ${parentIds.join(', ')}`, ...makeRemediation({ unitId: msp.id, stage: 'branch', task: `frontier-compose ${msp.id} on parents ${parentIds.join(', ')}`, schema: FRONTIER_BRANCH_SCHEMA, agentType: 'implementer', phase: 'Branch' }), runBudget: retryState, compensate: makeCompensate(null, baseBranch) },
+      );
+      if (composeOutcome.tag !== 'Done') return parkUnit(msp, 'branch', composeOutcome, integrationBranch, compensationStack);
+      const composed = composeOutcome.value;
+      log(`mitosis[${msp.id}]: frontier-compose ready=${composed.ready} conflict=${composed.conflict} (${composed.detail})`);
+      if (composed.conflict === true) {
+        return parkUnit(msp, 'branch', NeedsHuman({ kind: 'approve-decision', what: `frontier-train compose conflict stacking ${msp.id} on unmerged parent tips (${parentIds.join(', ')}): ${composed.detail}`, remediation: null, resumePoint: null }), integrationBranch, compensationStack);
+      }
+      if (!composed.ready) {
+        return parkUnit(msp, 'branch', NeedsHuman({ kind: 'approve-decision', what: composed.detail, remediation: null, resumePoint: null }), integrationBranch, compensationStack);
+      }
+      const rawBuiltAgainst = composed.builtAgainst && typeof composed.builtAgainst === 'object' && !Array.isArray(composed.builtAgainst) ? composed.builtAgainst : {};
+      builtAgainst = parentIds.reduce((acc, p) => {
+        const tip = rawBuiltAgainst[p];
+        return typeof tip === 'string' && /^[0-9a-f]{7,64}$/.test(tip) ? { ...acc, [p]: tip } : acc;
+      }, {});
+    } else {
+      const branchOutcome = await supervisedDispatch(
+        (attemptNo, preamble) => agent(
+          `You are the branch-prep stage for MSP "${msp.id}" of a mitosis run. You have NO Skill tool.\n\n` +
+          `Create/move this MSP's integration REF FRESH onto the latest pushed base so it stacks bottom-up on already-merged MSPs, WITHOUT moving the main-repo HEAD (sibling clusters share this repo's working tree; the engine's per-instance integration worktree is what checks the ref out). Operate against the main repo at ${repoRoot}; do NOT check out the branch and do NOT enter any worktree.\n` +
+          `1. \`git -C ${repoRoot} fetch origin ${baseBranch}\`\n` +
+          `2. Observe-then-converge the integration ref (idempotent under replay): check whether ${integrationBranch} already points at origin/${baseBranch} - \`git -C ${repoRoot} rev-parse --verify --quiet ${integrationBranch}\` compared to \`git -C ${repoRoot} rev-parse origin/${baseBranch}\`. If they already match, the ref is already positioned - SKIP the update. Otherwise move it FRESH onto the pushed base: \`git -C ${repoRoot} branch -f ${integrationBranch} origin/${baseBranch}\` (this ref is local and never-pushed here, so a destructive branch move is safe forward compensation).\n\n` +
+          `If both succeed, set ready=true. If the fetch or branch update fails (no remote, missing base), set ready=false and explain in detail.\n\n` +
+          `Return ONLY: { ready: <bool>, detail: "<what happened>" }.`,
+          { agentType: 'implementer', schema: BRANCH_SCHEMA, label: `branch:${msp.id}`, phase: 'Branch' }
+        ),
+        { unitId: msp.id, stage: 'branch', resetRef: baseBranch, worktree: null, task: `branch-prep ${msp.id} onto ${baseBranch}`, ...makeRemediation({ unitId: msp.id, stage: 'branch', task: `branch-prep ${msp.id} onto ${baseBranch}`, schema: BRANCH_SCHEMA, agentType: 'implementer', phase: 'Branch' }), runBudget: retryState, compensate: makeCompensate(null, baseBranch) },
+      );
+      if (branchOutcome.tag !== 'Done') return parkUnit(msp, 'branch', branchOutcome, integrationBranch, compensationStack);
+      const branched = branchOutcome.value;
+      log(`mitosis[${msp.id}]: branch ready=${branched.ready} (${branched.detail})`);
+      if (!branched.ready) {
+        return parkUnit(msp, 'branch', NeedsHuman({ kind: 'approve-decision', what: branched.detail, remediation: null, resumePoint: null }), integrationBranch, compensationStack);
+      }
     }
     compensationStack = registerEffect(compensationStack, { kind: 'local-branch', ref: integrationBranch });
 
@@ -3542,20 +3600,19 @@ async function runUnit(unit) {
       log(`mitosis[${msp.id}]: durable checkpoint push failed (${clean(err.message)}); continuing — the checkpoint ref is a reconcile hint, not the skip authority, so recovery reconciles built state from git on the next relaunch`);
     }
 
-    const builtLink = (mergeQueue = mergeQueue.then(() => persistBuiltCheckpoint({ unitId: msp.id, checkpointRef: durableCheckpointRef, sha: builtSha })).catch((err) => {
+    const builtLink = (mergeQueue = mergeQueue.then(() => persistBuiltCheckpoint({ unitId: msp.id, checkpointRef: durableCheckpointRef, sha: builtSha, builtAgainst })).catch((err) => {
       log(`mitosis[${msp.id}]: durable built checkpoint failed (${clean(err.message)}); continuing — the manifest is a hint, not the skip authority, so recovery will reconcile built state from git on the next relaunch`);
       return null;
     }));
     await builtLink;
 
     if (FRONTIER_TRAIN_ENABLED) {
-      const parentIds = Array.isArray(msp.dependsOn) ? msp.dependsOn : [];
       const doneIds = new Set([...reconciledShipped, ...shipped.map((s) => s.mspId)]);
       const parentsDone = parentIds.every((p) => doneIds.has(p));
       if (!parentsDone) {
-        builtInRun.set(msp.id, { checkpointRef: durableCheckpointRef, sha: builtSha });
+        builtInRun.set(msp.id, { checkpointRef: durableCheckpointRef, sha: builtSha, builtAgainst });
         log(`mitosis[${msp.id}]: frontier-train — built ahead of unmerged parent(s) (${parentIds.join(', ')}); PR-open deferred until every parent reaches done`);
-        return Built({ mspId: msp.id, checkpointRef: durableCheckpointRef, sha: builtSha });
+        return Built({ mspId: msp.id, checkpointRef: durableCheckpointRef, sha: builtSha, builtAgainst });
       }
     }
 

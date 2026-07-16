@@ -21,3 +21,8 @@ export function parseCheckpointRef(ref, runId) {
   if (!UNIT_ID_PATTERN.test(unitId)) return null;
   return unitId;
 }
+
+export function parentCheckpointRefs(runId, parentIds) {
+  if (!Array.isArray(parentIds)) return [];
+  return parentIds.map((unitId) => ({ unitId, ref: checkpointRef(runId, unitId) }));
+}
