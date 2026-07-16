@@ -3173,6 +3173,7 @@ const blockedByApproval = new Set();
 let mergeQueue = Promise.resolve();
 const builtInRun = new Map();
 const mspById = new Map(msps.map((m) => [m.id, m]));
+let currentWindow = Number.isInteger(priorManifest && priorManifest.window) ? priorManifest.window : WINDOW_FLOOR;
 
 async function parkUnit(msp, stage, outcome, integrationBranch, compensationStack) {
   const request = outcome.tag === 'NeedsHuman' && outcome.request ? outcome.request : { kind: 'approve-decision', what: `${msp.id} could not proceed at ${stage}`, remediation: null, resumePoint: null };
@@ -3729,6 +3730,69 @@ const MERGE_POLL_WAIT_SECONDS = 300;
 const MERGE_POLL_INTERVAL_SECONDS = 30;
 const pollRepoIdentity = validateRepoIdentity(input.repoIdentity) ? input.repoIdentity : null;
 
+const REVIEW_DECISION_SCHEMA = {
+  type: 'object',
+  required: ['reviewDecision', 'readError'],
+  additionalProperties: false,
+  properties: {
+    reviewDecision: { type: ['string', 'null'] },
+    readError: { type: ['string', 'null'] },
+  },
+};
+
+function reviewDecisionPrompt(plan) {
+  if (!plan || plan.enabled !== true) throw new Error('reviewDecisionPrompt: refuses to build a prompt for a disabled merge-watch plan');
+  const read = `gh pr view -R ${plan.ownerRepo} ${plan.prNumber} --json reviewDecision`;
+  return `You are a REPO-SCOPED review-decision read for pull request ${plan.prNumber} in ${plan.ownerRepo}. You have NO Skill tool; follow these instructions directly.\n\n` +
+    `This stage is STRICTLY READ-ONLY. You MUST NOT merge, publish, rebase, comment on, approve, or mutate any ref, PR, file, or branch, and you MUST run no write command of any kind. You only READ pull-request review state.\n` +
+    `SECURITY: every read is scoped to ${plan.ownerRepo} via the -R flag. NEVER read the ambient repository and NEVER drop the -R flag.\n\n` +
+    `1. Read the pull request's review decision ONCE: \`${read}\`.\n` +
+    `2. Report the reviewDecision field verbatim as returned by gh (e.g. "APPROVED", "CHANGES_REQUESTED", "REVIEW_REQUIRED"), or null if the field is absent.\n` +
+    `If the read cannot be completed (no remote, http error, unparseable body, unknown repo), set readError to a short description and leave reviewDecision=null.\n\n` +
+    `Return ONLY: { reviewDecision: "<string>" | null, readError: "<string>" | null }.`;
+}
+
+async function readReviewDecision(unitId, plan) {
+  try {
+    const result = await agent(
+      reviewDecisionPrompt(plan),
+      { agentType: 'implementer', schema: REVIEW_DECISION_SCHEMA, label: `review-decision:${unitId}`, phase: 'Ship' }
+    );
+    return result || { reviewDecision: null, readError: 'review-decision returned null (blocked or dropped)' };
+  } catch (err) {
+    return { reviewDecision: null, readError: `review-decision threw: ${clean(err.message)}` };
+  }
+}
+
+function resolveReviewEvent(decision) {
+  if (!decision || (decision.readError !== undefined && decision.readError !== null && decision.readError !== '')) return null;
+  if (decision.reviewDecision === 'APPROVED') return 'approved';
+  if (decision.reviewDecision === 'CHANGES_REQUESTED') return 'changes-requested';
+  return null;
+}
+
+async function persistWindowCheckpoint(unitId, size) {
+  try {
+    const deltaJson = JSON.stringify(windowDelta(size));
+    const writeRes = await agent(
+      `You are the window-checkpoint stage of a mitosis run. You have NO Skill tool; follow these instructions directly.\n\n` +
+      `Durably APPEND one AIMD build/merge window-size delta record to the run journal so a later relaunch resumes the same self-tuning gap window. Operate in ${repoRoot}:\n` +
+      `1. Create the directory ${repoRoot}/.mitosis/ if it does not already exist.\n` +
+      `2. Ensure .mitosis/ is gitignored: if ${repoRoot}/.gitignore does not already ignore it, append a line \`.mitosis/\` to ${repoRoot}/.gitignore. This file is machine run-state and is never committed.\n` +
+      `3. APPEND the following single line to the END of ${repoRoot}/.mitosis/run.json as a new final line (create the file if it does not exist). Do NOT overwrite, rewrite, or re-read the file, and do NOT alter any existing line. Append it EXACTLY as given, verbatim, as one line:\n\n` +
+      `${deltaJson}\n\n` +
+      `Do NOT commit, push, or run any other git mutation. Return ONLY: { written: <bool>, detail: "<what you did>" }.`,
+      { agentType: 'implementer', label: `window-checkpoint:${unitId}`, phase: 'Ship' }
+    );
+    if (writeRes == null || writeRes.written === false) {
+      const detail = writeRes && typeof writeRes.detail === 'string' ? ` (${clean(writeRes.detail)})` : '';
+      log(`mitosis[${unitId}]: durable window checkpoint write did not persist (written=${writeRes == null ? 'null' : 'false'})${detail}; continuing — the manifest is a hint, not the skip authority, so the AIMD window resets to its safe default on the next relaunch`);
+    }
+  } catch (err) {
+    log(`mitosis[${unitId}]: durable window checkpoint failed (${clean(err.message)}); continuing — the manifest is a hint, not the skip authority, so the AIMD window resets to its safe default on the next relaunch`);
+  }
+}
+
 const mergePoll = {
   maxCycles: MERGE_POLL_MAX_CYCLES,
   watch: async (unit) => {
@@ -3736,15 +3800,25 @@ const mergePoll = {
     if (!entry || typeof entry.prUrl !== 'string') return { merged: false, mergedAt: null, readError: 'no awaiting-approval PR reference for the polled unit' };
     const plan = planMergeWatch({ prUrl: entry.prUrl, repoIdentity: pollRepoIdentity });
     if (!plan.enabled) return { merged: false, mergedAt: null, readError: `merge-watch disabled (${plan.reason}); poll degrades to park` };
+    let result;
     try {
-      const result = await agent(
+      result = await agent(
         mergeWatchPrompt(plan, { maxWaitSeconds: MERGE_POLL_WAIT_SECONDS, pollIntervalSeconds: MERGE_POLL_INTERVAL_SECONDS }),
         { agentType: 'implementer', schema: MERGE_WATCH_SCHEMA, label: `merge-watch:${unit.id}`, phase: 'Ship' }
       );
-      return result || { merged: false, mergedAt: null, readError: 'merge-watch returned null (blocked or dropped)' };
+      result = result || { merged: false, mergedAt: null, readError: 'merge-watch returned null (blocked or dropped)' };
     } catch (err) {
-      return { merged: false, mergedAt: null, readError: `merge-watch threw: ${clean(err.message)}` };
+      result = { merged: false, mergedAt: null, readError: `merge-watch threw: ${clean(err.message)}` };
     }
+    if (FRONTIER_TRAIN_ENABLED) {
+      const event = result.merged === true ? 'merged' : resolveReviewEvent(await readReviewDecision(unit.id, plan));
+      const nextSize = nextWindow(currentWindow, event);
+      if (nextSize !== currentWindow) {
+        currentWindow = nextSize;
+        await persistWindowCheckpoint(unit.id, nextSize);
+      }
+    }
+    return result;
   },
   onMerged: async (unit, result) => {
     const idx = awaitingApproval.findIndex((a) => a.mspId === unit.id);
