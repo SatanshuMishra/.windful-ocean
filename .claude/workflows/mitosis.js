@@ -1768,6 +1768,18 @@ function isDispatchable(unit, unitsById, leases) {
   return overlapHolder(leases, unit.fileScope, unit.id) === null;
 }
 
+function isBuildable(unit, unitsById, leases, window) {
+  if (unit.state === 'done' || unit.state === 'parked' || unit.state === 'awaiting' || unit.state === 'dispatched' || unit.state === 'built') return false;
+  for (const pid of unit.prereqs) {
+    const prereq = unitsById.get(pid);
+    if (!prereq || (prereq.state !== 'built' && prereq.state !== 'awaiting' && prereq.state !== 'done')) return false;
+  }
+  if (overlapHolder(leases, unit.fileScope, unit.id) !== null) return false;
+  if (!window || !Number.isInteger(window.size)) return false;
+  const builtUnmerged = Number.isInteger(window.builtUnmergedCount) ? window.builtUnmergedCount : 0;
+  return builtUnmerged < window.size;
+}
+
 function acquire(leases, unit) {
   const next = new Map(leases);
   for (const path of unit.fileScope) next.set(path, unit.id);

@@ -8,6 +8,7 @@ import {
   indexUnits,
   overlapHolder,
   isDispatchable,
+  isBuildable,
   acquire,
   dispositionOf,
   planTick,
@@ -72,6 +73,25 @@ test('READINESS: isDispatchable admits a unit only when all prereqs are done AND
   assert.equal(isDispatchable(c, byId, new Map()), false);
   const contended = acquire(new Map(), { id: 'x', fileScope: ['b.mjs'] });
   assert.equal(isDispatchable(b, byId, contended), false);
+});
+
+test('READINESS: isBuildable admits a unit when every prereq is green-built (built|awaiting|done), no held lease overlaps, and built-unmerged is under the window', () => {
+  const units = buildUnitTable([
+    { id: 'a', state: 'built', fileScope: ['a.mjs'] },
+    { id: 'b', state: 'planned', prereqs: ['a'], fileScope: ['b.mjs'] },
+    { id: 'c', state: 'planned', prereqs: ['pending'], fileScope: ['c.mjs'] },
+    { id: 'pending', state: 'planned', fileScope: ['p.mjs'] },
+  ]);
+  const byId = indexUnits(units);
+  const b = byId.get('b');
+  const c = byId.get('c');
+  const open = { builtUnmergedCount: 0, size: 3 };
+  assert.equal(isBuildable(b, byId, new Map(), open), true, 'b builds: prereq a is green-built, lease free, window open');
+  assert.equal(isBuildable(c, byId, new Map(), open), false, 'c blocked: prereq pending is not green-built');
+  const contended = acquire(new Map(), { id: 'x', fileScope: ['b.mjs'] });
+  assert.equal(isBuildable(b, byId, contended, open), false, 'b blocked: fileScope lease overlaps a running unit');
+  assert.equal(isBuildable(b, byId, new Map(), { builtUnmergedCount: 3, size: 3 }), false, 'b blocked: AIMD window saturated (built-unmerged >= W)');
+  assert.equal(isBuildable(b, byId, new Map(), undefined), false, 'no window => fail closed (never build blind)');
 });
 
 test('isDispatchable is false for units already in a terminal, awaiting, or dispatched state', () => {
