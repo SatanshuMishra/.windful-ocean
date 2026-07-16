@@ -554,6 +554,7 @@ function applyRunDelta(manifest, record) {
       return manifest;
     }
   }
+  if (record.kind === 'window') return { ...manifest, window: record.size };
   return manifest;
 }
 
@@ -1966,6 +1967,21 @@ async function runSchedule(specs, runUnit, poll, opts) {
   const streaming = opts && typeof opts.streaming === 'boolean' ? opts.streaming : STREAMING_DISPATCH_ENABLED;
   const continuousDrain = opts && typeof opts.continuousDrain === 'boolean' ? opts.continuousDrain : FRONTIER_TRAIN_ENABLED;
   return streaming ? runScheduleStreaming(specs, runUnit, poll, continuousDrain) : runScheduleTick(specs, runUnit, poll, continuousDrain);
+}
+
+const WINDOW_FLOOR = 3;
+const WINDOW_CEILING = 8;
+const WINDOW_INCREMENT = 1;
+
+function nextWindow(size, event) {
+  const current = Number.isInteger(size) && size >= WINDOW_FLOOR ? size : WINDOW_FLOOR;
+  if (event === 'approved' || event === 'merged') return Math.min(WINDOW_CEILING, current + WINDOW_INCREMENT);
+  if (event === 'changes-requested') return Math.max(WINDOW_FLOOR, Math.ceil(current / 2));
+  return current;
+}
+
+function windowDelta(size) {
+  return { kind: 'window', size };
 }
 
 const LEGAL_STAGES = Object.freeze(['plan', 'plan-review', 'parallelize', 'branch', 'execute', 'ship']);

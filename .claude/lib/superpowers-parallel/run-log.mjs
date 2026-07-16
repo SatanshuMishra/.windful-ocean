@@ -33,6 +33,7 @@ function applyRunDelta(manifest, record) {
       return manifest;
     }
   }
+  if (record.kind === 'window') return { ...manifest, window: record.size };
   return manifest;
 }
 

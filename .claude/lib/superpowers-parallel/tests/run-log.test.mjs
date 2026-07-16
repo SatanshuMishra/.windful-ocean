@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { foldRunManifest, shipDelta, builtDelta, parkDelta } from '../run-log.mjs';
 import { buildInitialManifest } from '../recovery.mjs';
 import { park } from '../parking.mjs';
+import { windowDelta } from '../window.mjs';
 
 const SPEC_CONTENT_HASH = 'a'.repeat(64);
 
@@ -152,4 +153,10 @@ test('foldRunManifest carries green + builtAgainst from a built delta onto the m
   assert.equal(a.status, 'built');
   assert.equal(a.green, true);
   assert.deepEqual(a.builtAgainst, { seed: 'f00ba12' });
+});
+
+test('foldRunManifest applies a window delta, persisting AIMD W across a simulated relaunch', () => {
+  const manifest = genesisManifest(TWO);
+  const folded = foldRunManifest([JSON.stringify(manifest), JSON.stringify(windowDelta(5))].join('\n'));
+  assert.equal(folded.window, 5);
 });
