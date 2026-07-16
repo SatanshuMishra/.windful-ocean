@@ -110,7 +110,11 @@ test('the delta constructors emit discriminated, single-unit records with no who
   );
   assert.deepEqual(
     builtDelta({ unitId: 'a', checkpointRef: 'refs/mitosis/a1b2c3d4/a', sha: null }),
-    { kind: 'built', unitId: 'a', checkpointRef: 'refs/mitosis/a1b2c3d4/a', sha: null },
+    { kind: 'built', unitId: 'a', checkpointRef: 'refs/mitosis/a1b2c3d4/a', sha: null, green: false, builtAgainst: {} },
+  );
+  assert.deepEqual(
+    builtDelta({ unitId: 'a', checkpointRef: 'r', sha: 'deadbee', green: true, builtAgainst: { p: '1234abc' } }),
+    { kind: 'built', unitId: 'a', checkpointRef: 'r', sha: 'deadbee', green: true, builtAgainst: { p: '1234abc' } },
   );
   const pd = parkDelta({ unitId: 'a', stage: 'plan', diagnosis: 'd', request: null, remediation: null, resumePoint: null, triedSet: undefined });
   assert.equal(pd.kind, 'park');
@@ -136,4 +140,16 @@ test('foldRunManifest round-trips an engine-produced park delta identically to a
     live.msps.find((m) => m.id === 'a'),
     'replaying the persisted park delta reconstructs the same parked entry the live engine held in memory',
   );
+});
+
+test('foldRunManifest carries green + builtAgainst from a built delta onto the msp', () => {
+  const manifest = genesisManifest(TWO);
+  const folded = foldRunManifest([
+    JSON.stringify(manifest),
+    JSON.stringify(builtDelta({ unitId: 'a', checkpointRef: 'refs/mitosis/a1b2c3d4/a', sha: 'abc1234', green: true, builtAgainst: { seed: 'f00ba12' } })),
+  ].join('\n'));
+  const a = folded.msps.find((m) => m.id === 'a');
+  assert.equal(a.status, 'built');
+  assert.equal(a.green, true);
+  assert.deepEqual(a.builtAgainst, { seed: 'f00ba12' });
 });

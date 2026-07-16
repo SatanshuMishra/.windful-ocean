@@ -127,12 +127,12 @@ export function resolveResumeTarget(manifest, runId) {
   return { found: false, reason: 'no such run' };
 }
 
-export function applyBuiltTransition(manifest, { unitId, checkpointRef, sha }) {
+export function applyBuiltTransition(manifest, { unitId, checkpointRef, sha, green, builtAgainst }) {
   const exists = manifest.msps.some((msp) => msp.id === unitId);
   const updated = manifest.msps.map((msp) => {
     if (msp.id !== unitId) return msp;
     if (msp.status === 'shipped') return msp;
-    return { ...msp, status: 'built', checkpointRef, builtSha: sha };
+    return { ...msp, status: 'built', checkpointRef, builtSha: sha, green: green ?? false, builtAgainst: builtAgainst ?? {} };
   });
   const msps = exists
     ? updated
@@ -148,6 +148,8 @@ export function applyBuiltTransition(manifest, { unitId, checkpointRef, sha }) {
           mergedAt: null,
           checkpointRef,
           builtSha: sha,
+          green: green ?? false,
+          builtAgainst: builtAgainst ?? {},
           dependsOn: [],
           fileScope: [],
         },
