@@ -29,6 +29,10 @@ export function AwaitingApproval(value) {
   return Object.freeze({ tag: 'AwaitingApproval', value });
 }
 
+export function Built(value) {
+  return Object.freeze({ tag: 'Built', value });
+}
+
 export function Unknown(raw) {
   return Object.freeze({ tag: 'Unknown', raw });
 }

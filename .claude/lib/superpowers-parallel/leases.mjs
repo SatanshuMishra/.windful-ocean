@@ -75,6 +75,7 @@ export function acquire(leases, unit) {
 export function dispositionOf(outcome) {
   if (outcome && outcome.tag === 'Done') return 'done';
   if (outcome && outcome.tag === 'AwaitingApproval') return 'awaiting';
+  if (outcome && outcome.tag === 'Built') return 'built';
   return 'parked';
 }
 

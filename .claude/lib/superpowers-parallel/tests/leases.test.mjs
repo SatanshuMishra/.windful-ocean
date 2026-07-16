@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { Done, NeedsHuman, Unknown, Transient, ApproachFixable, AwaitingApproval } from '../boundary.mjs';
+import { Done, NeedsHuman, Unknown, Transient, ApproachFixable, AwaitingApproval, Built } from '../boundary.mjs';
 import { planMergeWatch } from '../merge-watch.mjs';
 import {
   makeUnit,
@@ -137,6 +137,10 @@ test('dispositionOf maps Done to done, AwaitingApproval to the distinct non-term
   assert.equal(dispositionOf(Transient({ signal: 'rate-limit' })), 'parked');
   assert.equal(dispositionOf(ApproachFixable({ mechanism: 'a:b' })), 'parked');
   assert.equal(dispositionOf(null), 'parked');
+});
+
+test('DISPOSITION: a Built outcome maps to the built state (green, PR deferred)', () => {
+  assert.equal(dispositionOf(Built({ checkpointRef: 'refs/mitosis/x/a', sha: 'abc1234' })), 'built');
 });
 
 test('SERIALIZE: two overlapping-lease units serialize across ticks but both reach Done', async () => {

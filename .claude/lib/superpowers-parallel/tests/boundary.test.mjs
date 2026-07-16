@@ -6,6 +6,7 @@ import {
   ApproachFixable,
   NeedsHuman,
   AwaitingApproval,
+  Built,
   Unknown,
   classify,
   assertNever,
@@ -39,6 +40,10 @@ test('Outcome constructors produce immutable tagged objects with their named pay
   const awaiting = AwaitingApproval({ mspId: 'm1', prUrl: 'https://pr' });
   assert.deepEqual(awaiting, { tag: 'AwaitingApproval', value: { mspId: 'm1', prUrl: 'https://pr' } });
   assert.ok(Object.isFrozen(awaiting));
+
+  const built = Built({ checkpointRef: 'refs/mitosis/x/a', sha: 'abc1234' });
+  assert.deepEqual(built, { tag: 'Built', value: { checkpointRef: 'refs/mitosis/x/a', sha: 'abc1234' } });
+  assert.ok(Object.isFrozen(built));
 });
 
 test('classify: structured with no fault field maps to Done and preserves the value verbatim', () => {

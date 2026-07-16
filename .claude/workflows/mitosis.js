@@ -1505,6 +1505,10 @@ function AwaitingApproval(value) {
   return Object.freeze({ tag: 'AwaitingApproval', value });
 }
 
+function Built(value) {
+  return Object.freeze({ tag: 'Built', value });
+}
+
 function Unknown(raw) {
   return Object.freeze({ tag: 'Unknown', raw });
 }
@@ -1789,6 +1793,7 @@ function acquire(leases, unit) {
 function dispositionOf(outcome) {
   if (outcome && outcome.tag === 'Done') return 'done';
   if (outcome && outcome.tag === 'AwaitingApproval') return 'awaiting';
+  if (outcome && outcome.tag === 'Built') return 'built';
   return 'parked';
 }
 
