@@ -217,6 +217,8 @@ async function runScheduleStreaming(specs, runUnit, poll) {
 
 export const STREAMING_DISPATCH_ENABLED = false;
 
+export const FRONTIER_TRAIN_ENABLED = false;
+
 export async function runSchedule(specs, runUnit, poll, opts) {
   const streaming = opts && typeof opts.streaming === 'boolean' ? opts.streaming : STREAMING_DISPATCH_ENABLED;
   return streaming ? runScheduleStreaming(specs, runUnit, poll) : runScheduleTick(specs, runUnit, poll);

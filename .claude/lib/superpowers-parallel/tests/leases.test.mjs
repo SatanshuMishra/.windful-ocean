@@ -370,6 +370,10 @@ test('STREAMING FLAG: the streaming-dispatch flag defaults OFF, so the shipped d
   assert.equal(leasesModule.STREAMING_DISPATCH_ENABLED, false, 'STREAMING_DISPATCH_ENABLED must default false: tick remains the shipped default');
 });
 
+test('FRONTIER FLAG: the frontier-train flag defaults OFF, so mainline behavior is byte-identical until the flip is proven', () => {
+  assert.equal(leasesModule.FRONTIER_TRAIN_ENABLED, false, 'FRONTIER_TRAIN_ENABLED must default false: mainline behavior unchanged until the flip is proven');
+});
+
 test('STREAMING SAFETY + INTERLEAVE + WIDTH: under streaming a unit whose lease overlaps a RUNNING unit is not co-dispatched (lease held for the running duration, released on settle), a dependent launches the instant its own prereq settles while an independent sibling straggler is still running (which the tick barrier forbids), and the sibling roots exceed width 1.0', async () => {
   const r = gatedRunner();
   const done = runSchedule(
