@@ -3481,16 +3481,17 @@ async function runUnit(unit) {
       return parkUnit(msp, 'execute', NeedsHuman({ kind: 'approve-decision', what: `cannot compose a durable checkpoint ref for ${msp.id}: ${clean(err.message)}`, remediation: null, resumePoint: { branch: integrationBranch, ref: baseBranch, stage: 'execute' } }), integrationBranch, compensationStack);
     }
     compensationStack = registerEffect(compensationStack, { kind: 'checkpoint-push', ref: durableCheckpointRef });
+    let builtSha = null;
     try {
       const checkpointPush = await agent(
         `You are the durable-checkpoint push stage for MSP "${msp.id}" of a mitosis run. You have NO Skill tool.\n\n` +
         `The engine has integrated this MSP's work onto the LOCAL branch ${JSON.stringify(integrationBranch)} (boundary-validated, never pushed). Publish that integration tip to the DURABLE, mitosis-owned checkpoint ref ${JSON.stringify(durableCheckpointRef)} so a later relaunch can reconcile built-but-unshipped work against it. Operate against the main repo at ${repoRoot}; do NOT check out the branch and do NOT enter any worktree.\n\n` +
         `This ref is NOT a head or a tag: it is a mitosis checkpoint ref that is only ever ADVANCED, never rewound or deleted by compensation. Publish observe-then-converge and FORWARD-ONLY:\n` +
-        `1. Read the local integration tip: \`git -C ${repoRoot} rev-parse ${integrationBranch}\`.\n` +
+        `1. Read the local integration tip: \`git -C ${repoRoot} rev-parse ${integrationBranch}\`. Capture this as the tip sha you will report.\n` +
         `2. Read the remote checkpoint ref if present: \`git -C ${repoRoot} ls-remote origin ${durableCheckpointRef}\`. If it already equals the local tip, the checkpoint already exists — SKIP the push.\n` +
         `3. Otherwise publish the tip to the checkpoint ref: \`git -C ${repoRoot} push origin ${integrationBranch}:${durableCheckpointRef}\`. ONLY if that push is REJECTED as non-fast-forward retry once with \`git -C ${repoRoot} push --force-with-lease origin ${integrationBranch}:${durableCheckpointRef}\` — this is the sole permitted force, scoped to advancing this MSP's own checkpoint.\n\n` +
         `If the push succeeds (or the ref already matched) set pushed=true. If there is no remote or the push fails, set pushed=false and explain in detail.\n\n` +
-        `Return ONLY: { pushed: <bool>, ref: ${JSON.stringify(durableCheckpointRef)}, detail: "<what happened>" }.`,
+        `Return ONLY: { pushed: <bool>, ref: ${JSON.stringify(durableCheckpointRef)}, sha: "<the tip sha read in step 1>", detail: "<what happened>" }.`,
         { agentType: 'implementer', label: `checkpoint-push:${msp.id}`, phase: 'Ship' }
       );
       if (checkpointPush == null || checkpointPush.pushed === false) {
@@ -3499,11 +3500,14 @@ async function runUnit(unit) {
       } else {
         log(`mitosis[${msp.id}]: durable checkpoint published -> ${durableCheckpointRef}`);
       }
+      if (checkpointPush && typeof checkpointPush.sha === 'string' && checkpointPush.sha.length > 0) {
+        builtSha = checkpointPush.sha;
+      }
     } catch (err) {
       log(`mitosis[${msp.id}]: durable checkpoint push failed (${clean(err.message)}); continuing — the checkpoint ref is a reconcile hint, not the skip authority, so recovery reconciles built state from git on the next relaunch`);
     }
 
-    const builtLink = (mergeQueue = mergeQueue.then(() => persistBuiltCheckpoint({ unitId: msp.id, checkpointRef: durableCheckpointRef, sha: null })).catch((err) => {
+    const builtLink = (mergeQueue = mergeQueue.then(() => persistBuiltCheckpoint({ unitId: msp.id, checkpointRef: durableCheckpointRef, sha: builtSha })).catch((err) => {
       log(`mitosis[${msp.id}]: durable built checkpoint failed (${clean(err.message)}); continuing — the manifest is a hint, not the skip authority, so recovery will reconcile built state from git on the next relaunch`);
       return null;
     }));

@@ -2478,6 +2478,30 @@ test('R3 SPEC-R3(d): a human-gated run durably journals status:built for the uni
   assert.ok(shipIdx >= 0 && builtIdx < shipIdx, 'the built journal is written before the ship stage');
 });
 
+test('T3 builtSha: the ship-time built-persist threads the real checkpoint-push tip sha, never the hardcoded null', async () => {
+  const input = buildInput();
+  const runId = computeLogicalRunId(input.spec, input.baseBranch);
+  const msps = [mspSpec('solo', { fileScope: ['scope/solo/**'] })];
+  const FAKE_TIP_SHA = 'deadbeef'.repeat(5);
+  const { agent: durableAgent, fileMap, runJsonPath } = makeDurableFakeAgent({ msps, repoRoot: input.repoRoot });
+  const agent = async (prompt, opts = {}) => {
+    if ((opts.label || '').startsWith('checkpoint-push:')) {
+      return { pushed: true, ref: `refs/mitosis/${runId}/solo`, sha: FAKE_TIP_SHA, detail: '' };
+    }
+    return durableAgent(prompt, opts);
+  };
+
+  const { resultPromise } = invokeMitosis(input, agent);
+  const result = await resultPromise;
+
+  assert.equal(result.overallStatus, 'all-shipped');
+  assert.ok(fileMap.has(runJsonPath), 'a shipped run must durably write run.json');
+  const persisted = foldRunManifest(fileMap.get(runJsonPath));
+  const soloEntry = persisted.msps.find((m) => m.id === 'solo');
+  assert.ok(soloEntry, 'the durable manifest carries the built unit');
+  assert.equal(soloEntry.builtSha, FAKE_TIP_SHA, 'the persisted built delta threads the real checkpoint-push tip sha rather than the hardcoded null');
+});
+
 test('SECURITY deny-case: a NeedsHuman-supplied resumePoint.stage outside the known stage vocabulary must not be surfaced raw on the public ParkRecord', async () => {
   const msps = [mspSpec('solo', { fileScope: ['scope/solo/**'] })];
   const base = createFakeAgent({ msps });
