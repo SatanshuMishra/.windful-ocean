@@ -3363,7 +3363,7 @@ async function runUnit(unit) {
     const isFrontierBuiltRedispatch = frontierBuiltEntry !== undefined;
     let aggregatedScope = Array.isArray(msp.fileScope) ? msp.fileScope : [];
 
-    async function restoreIntegrationFromBuiltCheckpoint(builtRef, expectedSha) {
+    async function restoreIntegrationFromBuiltCheckpoint(builtRef, expectedSha, requireSha) {
       if (builtRef === null || parseCheckpointRef(builtRef, logicalRunId) !== msp.id) {
         return { ready: false, parkOutcome: await parkUnit(msp, 'ship', NeedsHuman({ kind: 'approve-decision', what: `built-resume for ${msp.id} carries no valid durable checkpoint ref to restore from`, remediation: null, resumePoint: { branch: integrationBranch, ref: baseBranch, stage: 'ship' } }), integrationBranch, compensationStack) };
       }
@@ -3387,10 +3387,14 @@ async function runUnit(unit) {
       if (!restored || restored.restored !== true) {
         return { ready: false, parkOutcome: await parkUnit(msp, 'ship', NeedsHuman({ kind: 'approve-decision', what: restored && restored.detail ? restored.detail : `could not restore ${msp.id} from durable checkpoint ${builtRef}`, remediation: null, resumePoint: { branch: integrationBranch, ref: builtRef, stage: 'ship' } }), integrationBranch, compensationStack) };
       }
-      if (typeof expectedSha === 'string' && expectedSha.length > 0) {
+      const expectedShaValue = typeof expectedSha === 'string' && expectedSha.length > 0 ? expectedSha : null;
+      if (requireSha || expectedShaValue !== null) {
         const restoredSha = typeof restored.sha === 'string' ? restored.sha : '';
-        if (restoredSha.length === 0 || restoredSha !== expectedSha) {
-          return { ready: false, parkOutcome: await parkUnit(msp, 'ship', NeedsHuman({ kind: 'approve-decision', what: `ambiguous frontier state for ${msp.id}: the durable checkpoint ${clean(builtRef)} restored to sha ${clean(restoredSha || '(none)')}, which does not match the builtSha ${clean(expectedSha)} recorded when this unit was built — the checkpoint ref moved or the recorded provenance is stale; refusing to ship an unverified frontier tip`, remediation: null, resumePoint: { branch: integrationBranch, ref: builtRef, stage: 'ship' } }), integrationBranch, compensationStack) };
+        if (expectedShaValue === null || restoredSha.length === 0 || restoredSha !== expectedShaValue) {
+          const what = expectedShaValue === null
+            ? `ambiguous frontier state for ${msp.id}: no builtSha was recorded when this unit was marked built, so the restored durable checkpoint ${clean(builtRef)} tip (sha ${clean(restoredSha || '(none)')}) carries no recorded provenance to verify against — refusing to ship an unverified frontier tip`
+            : `ambiguous frontier state for ${msp.id}: the durable checkpoint ${clean(builtRef)} restored to sha ${clean(restoredSha || '(none)')}, which does not match the builtSha ${clean(expectedShaValue)} recorded when this unit was built — the checkpoint ref moved or the recorded provenance is stale; refusing to ship an unverified frontier tip`;
+          return { ready: false, parkOutcome: await parkUnit(msp, 'ship', NeedsHuman({ kind: 'approve-decision', what, remediation: null, resumePoint: { branch: integrationBranch, ref: builtRef, stage: 'ship' } }), integrationBranch, compensationStack) };
         }
       }
       log(`mitosis[${msp.id}]: restored ${integrationBranch} from durable checkpoint ${clean(builtRef)}`);
@@ -3406,7 +3410,7 @@ async function runUnit(unit) {
     }
 
     if (isFrontierBuiltRedispatch) {
-      const restore = await restoreIntegrationFromBuiltCheckpoint(frontierBuiltEntry.checkpointRef, frontierBuiltEntry.sha);
+      const restore = await restoreIntegrationFromBuiltCheckpoint(frontierBuiltEntry.checkpointRef, frontierBuiltEntry.sha, true);
       if (!restore.ready) return restore.parkOutcome;
       builtInRun.delete(msp.id);
       log(`mitosis[${msp.id}]: frontier-train — every parent reached done; restacking ${integrationBranch} onto origin/${baseBranch} and opening its PR (built -> awaiting)`);
