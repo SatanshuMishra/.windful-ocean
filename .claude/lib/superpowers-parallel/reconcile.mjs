@@ -47,6 +47,22 @@ export function reconcileBuiltSet(lsRemoteRefs, runId) {
   return out;
 }
 
+export function reconcileBuiltShas(lsRemoteRefs, runId) {
+  const out = {};
+  if (!Array.isArray(lsRemoteRefs)) return out;
+  for (const entry of lsRemoteRefs) {
+    if (typeof entry !== 'string') continue;
+    const parts = entry.trim().split(/\s+/);
+    if (parts.length < 2) continue;
+    const sha = parts[0];
+    const unitId = parseCheckpointRef(parts[parts.length - 1], runId);
+    if (unitId === null || Object.prototype.hasOwnProperty.call(out, unitId)) continue;
+    if (typeof sha !== 'string' || sha.length === 0) continue;
+    out[unitId] = sha;
+  }
+  return out;
+}
+
 export function mergePaginated(pages) {
   if (!Array.isArray(pages)) return [];
   const out = [];
@@ -61,6 +77,32 @@ export function shouldReconcileOnly({ frontierTrain, isRelaunch, specByteIdentic
   return frontierTrain === true && isRelaunch === true && specByteIdentical === true && hasFrontierState === true;
 }
 
+export function assembleDivergenceVerdicts(manifest, live = {}) {
+  const verdicts = {};
+  if (!manifest || typeof manifest !== 'object' || Array.isArray(manifest) || !Array.isArray(manifest.msps)) return verdicts;
+  const liveObj = live && typeof live === 'object' && !Array.isArray(live) ? live : {};
+  const msps = manifest.msps;
+  const mergedLive = uniqStrings(liveObj.merged);
+  const mergedShas = liveObj.mergedShas && typeof liveObj.mergedShas === 'object' && !Array.isArray(liveObj.mergedShas) ? liveObj.mergedShas : {};
+  const probes = liveObj.divergenceProbes && typeof liveObj.divergenceProbes === 'object' && !Array.isArray(liveObj.divergenceProbes) ? liveObj.divergenceProbes : {};
+  const byId = new Map(msps.filter((m) => m && typeof m.id === 'string').map((m) => [m.id, m]));
+  for (const parentId of mergedLive) {
+    const gatesBuilt = transitiveDependents(msps, parentId).some((d) => { const m = byId.get(d); return Boolean(m) && m.status === 'built'; });
+    if (!gatesBuilt) continue;
+    const parent = byId.get(parentId);
+    const builtSha = parent && typeof parent.builtSha === 'string' && parent.builtSha.length > 0 ? parent.builtSha : null;
+    const mergedSha = typeof mergedShas[parentId] === 'string' && mergedShas[parentId].length > 0 ? mergedShas[parentId] : null;
+    const fileScope = parent && Array.isArray(parent.fileScope) ? parent.fileScope.filter((f) => typeof f === 'string' && f.length > 0) : [];
+    if (builtSha === null || mergedSha === null || fileScope.length === 0) { verdicts[parentId] = 'missing'; continue; }
+    const probe = probes[parentId];
+    if (!probe || typeof probe !== 'object' || Array.isArray(probe)) { verdicts[parentId] = 'indeterminate'; continue; }
+    if (probe.error !== undefined && probe.error !== null && probe.error !== '') { verdicts[parentId] = 'indeterminate'; continue; }
+    if (!Array.isArray(probe.paths)) { verdicts[parentId] = 'indeterminate'; continue; }
+    verdicts[parentId] = probe.paths.length > 0 ? 'divergent' : 'clean';
+  }
+  return verdicts;
+}
+
 export function planReconcile(manifest, live = {}) {
   const liveObj = live && typeof live === 'object' && !Array.isArray(live) ? live : {};
   const persistedWindow = manifest && typeof manifest === 'object' && !Array.isArray(manifest) ? manifest.window : undefined;
@@ -71,19 +113,12 @@ export function planReconcile(manifest, live = {}) {
   const msps = manifest.msps;
   const mergedLive = new Set(uniqStrings(liveObj.merged));
   const publishedLive = new Set(uniqStrings(liveObj.published));
-  const mergedShas = liveObj.mergedShas && typeof liveObj.mergedShas === 'object' && !Array.isArray(liveObj.mergedShas) ? liveObj.mergedShas : {};
   const shippedIds = msps.filter((m) => m && typeof m.id === 'string' && m.status === 'shipped').map((m) => m.id);
   const doneSet = new Set([...shippedIds, ...mergedLive]);
-  const builtShaById = new Map(msps.filter((m) => m && typeof m.id === 'string').map((m) => [m.id, typeof m.builtSha === 'string' ? m.builtSha : null]));
+  const verdicts = assembleDivergenceVerdicts(manifest, liveObj);
   const parkSet = new Set();
-  for (const parentId of mergedLive) {
-    const mergedSha = mergedShas[parentId];
-    if (typeof mergedSha !== 'string' || mergedSha.length === 0) {
-      for (const dep of transitiveDependents(msps, parentId)) parkSet.add(dep);
-      continue;
-    }
-    const priorSha = builtShaById.has(parentId) ? builtShaById.get(parentId) : null;
-    for (const dep of descendantsToInvalidate(manifest, parentId, { priorSha, mergedSha })) parkSet.add(dep);
+  for (const parentId of Object.keys(verdicts)) {
+    for (const dep of descendantsToInvalidate(manifest, parentId, { verdict: verdicts[parentId] })) parkSet.add(dep);
   }
   const toRestack = [];
   const toOpen = [];

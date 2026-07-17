@@ -1255,6 +1255,16 @@ const RECONCILE_SCHEMA = {
   },
 };
 
+const DIVERGENCE_PROBE_SCHEMA = {
+  type: 'object',
+  required: ['paths'],
+  additionalProperties: false,
+  properties: {
+    paths: { type: ['array', 'null'], items: { type: 'string' } },
+    error: { type: ['string', 'null'] },
+  },
+};
+
 const PLAN_SCHEMA = {
   type: 'object',
   required: ['planPath', 'summary'],
@@ -2083,8 +2093,8 @@ function transitiveDependents(msps, unitId) {
   return msps.map((msp) => msp.id).filter((id) => id !== unitId && blocked.has(id));
 }
 
-function descendantsToInvalidate(manifest, parentId, { priorSha, mergedSha }) {
-  if (priorSha === mergedSha) return [];
+function descendantsToInvalidate(manifest, parentId, { verdict }) {
+  if (verdict === 'clean') return [];
   return transitiveDependents(manifest.msps, parentId);
 }
 
@@ -2499,6 +2509,22 @@ function reconcileBuiltSet(lsRemoteRefs, runId) {
   return out;
 }
 
+function reconcileBuiltShas(lsRemoteRefs, runId) {
+  const out = {};
+  if (!Array.isArray(lsRemoteRefs)) return out;
+  for (const entry of lsRemoteRefs) {
+    if (typeof entry !== 'string') continue;
+    const parts = entry.trim().split(/\s+/);
+    if (parts.length < 2) continue;
+    const sha = parts[0];
+    const unitId = parseCheckpointRef(parts[parts.length - 1], runId);
+    if (unitId === null || Object.prototype.hasOwnProperty.call(out, unitId)) continue;
+    if (typeof sha !== 'string' || sha.length === 0) continue;
+    out[unitId] = sha;
+  }
+  return out;
+}
+
 function mergePaginated(pages) {
   if (!Array.isArray(pages)) return [];
   const out = [];
@@ -2513,6 +2539,32 @@ function shouldReconcileOnly({ frontierTrain, isRelaunch, specByteIdentical, has
   return frontierTrain === true && isRelaunch === true && specByteIdentical === true && hasFrontierState === true;
 }
 
+function assembleDivergenceVerdicts(manifest, live = {}) {
+  const verdicts = {};
+  if (!manifest || typeof manifest !== 'object' || Array.isArray(manifest) || !Array.isArray(manifest.msps)) return verdicts;
+  const liveObj = live && typeof live === 'object' && !Array.isArray(live) ? live : {};
+  const msps = manifest.msps;
+  const mergedLive = uniqStrings(liveObj.merged);
+  const mergedShas = liveObj.mergedShas && typeof liveObj.mergedShas === 'object' && !Array.isArray(liveObj.mergedShas) ? liveObj.mergedShas : {};
+  const probes = liveObj.divergenceProbes && typeof liveObj.divergenceProbes === 'object' && !Array.isArray(liveObj.divergenceProbes) ? liveObj.divergenceProbes : {};
+  const byId = new Map(msps.filter((m) => m && typeof m.id === 'string').map((m) => [m.id, m]));
+  for (const parentId of mergedLive) {
+    const gatesBuilt = transitiveDependents(msps, parentId).some((d) => { const m = byId.get(d); return Boolean(m) && m.status === 'built'; });
+    if (!gatesBuilt) continue;
+    const parent = byId.get(parentId);
+    const builtSha = parent && typeof parent.builtSha === 'string' && parent.builtSha.length > 0 ? parent.builtSha : null;
+    const mergedSha = typeof mergedShas[parentId] === 'string' && mergedShas[parentId].length > 0 ? mergedShas[parentId] : null;
+    const fileScope = parent && Array.isArray(parent.fileScope) ? parent.fileScope.filter((f) => typeof f === 'string' && f.length > 0) : [];
+    if (builtSha === null || mergedSha === null || fileScope.length === 0) { verdicts[parentId] = 'missing'; continue; }
+    const probe = probes[parentId];
+    if (!probe || typeof probe !== 'object' || Array.isArray(probe)) { verdicts[parentId] = 'indeterminate'; continue; }
+    if (probe.error !== undefined && probe.error !== null && probe.error !== '') { verdicts[parentId] = 'indeterminate'; continue; }
+    if (!Array.isArray(probe.paths)) { verdicts[parentId] = 'indeterminate'; continue; }
+    verdicts[parentId] = probe.paths.length > 0 ? 'divergent' : 'clean';
+  }
+  return verdicts;
+}
+
 function planReconcile(manifest, live = {}) {
   const liveObj = live && typeof live === 'object' && !Array.isArray(live) ? live : {};
   const persistedWindow = manifest && typeof manifest === 'object' && !Array.isArray(manifest) ? manifest.window : undefined;
@@ -2523,19 +2575,12 @@ function planReconcile(manifest, live = {}) {
   const msps = manifest.msps;
   const mergedLive = new Set(uniqStrings(liveObj.merged));
   const publishedLive = new Set(uniqStrings(liveObj.published));
-  const mergedShas = liveObj.mergedShas && typeof liveObj.mergedShas === 'object' && !Array.isArray(liveObj.mergedShas) ? liveObj.mergedShas : {};
   const shippedIds = msps.filter((m) => m && typeof m.id === 'string' && m.status === 'shipped').map((m) => m.id);
   const doneSet = new Set([...shippedIds, ...mergedLive]);
-  const builtShaById = new Map(msps.filter((m) => m && typeof m.id === 'string').map((m) => [m.id, typeof m.builtSha === 'string' ? m.builtSha : null]));
+  const verdicts = assembleDivergenceVerdicts(manifest, liveObj);
   const parkSet = new Set();
-  for (const parentId of mergedLive) {
-    const mergedSha = mergedShas[parentId];
-    if (typeof mergedSha !== 'string' || mergedSha.length === 0) {
-      for (const dep of transitiveDependents(msps, parentId)) parkSet.add(dep);
-      continue;
-    }
-    const priorSha = builtShaById.has(parentId) ? builtShaById.get(parentId) : null;
-    for (const dep of descendantsToInvalidate(manifest, parentId, { priorSha, mergedSha })) parkSet.add(dep);
+  for (const parentId of Object.keys(verdicts)) {
+    for (const dep of descendantsToInvalidate(manifest, parentId, { verdict: verdicts[parentId] })) parkSet.add(dep);
   }
   const toRestack = [];
   const toOpen = [];
@@ -2570,8 +2615,65 @@ function buildReconcileLiveSignals(recon, reconciledShipped, sourcePrefix) {
   return { merged: [...reconciledShipped], mergedShas, published, events: [] };
 }
 
+const SHA_HEX_PATTERN = /^[0-9a-f]{7,64}$/i;
+
+function divergenceProbePrompt(parentId, ref, builtSha, mergedSha, fileScope) {
+  return (
+    `You are the reconcile-only shepherd DIVERGENCE-PROBE stage for merged parent MSP "${parentId}" of a mitosis run. You have NO Skill tool.\n\n` +
+    `This stage is STRICTLY READ-ONLY: it inspects git to decide whether this parent's MERGED content diverged from the built tip its children were composed on. It makes NO commits, opens NO PRs, and mutates NO files whatsoever. Operate against the main repo at ${repoRoot}; do NOT check out any branch and do NOT enter any worktree.\n` +
+    `SECURITY: pass every ref and path as an INERT argv element to execFile-style invocations; NEVER build a command by shell-interpolating a ref or path into a string.\n\n` +
+    `1. Fetch both endpoints so the shas resolve locally: \`git -C ${repoRoot} fetch origin ${baseBranch}\`, then fetch this parent's durable checkpoint ref \`git -C ${repoRoot} fetch origin ${JSON.stringify(ref)}\` (the ref is a single inert argv token).\n` +
+    `2. Compute the SCOPED content divergence between the tip the children built on and the merged commit, restricted to this parent's own file scope: \`git -C ${repoRoot} diff --name-only --end-of-options ${JSON.stringify(builtSha)} ${JSON.stringify(mergedSha)} -- ${fileScope.map((p) => JSON.stringify(p)).join(' ')}\` (the two shas and every path are separate INERT argv tokens; the two shas sit after --end-of-options so a leading-dash value can never be read as a flag).\n` +
+    `3. Return the changed paths verbatim as paths (an array of the file paths git printed, one per line; an EMPTY array means the squash preserved content within this parent's scope and its children's build is still valid). If either sha or the ref cannot be resolved, or the diff cannot be computed, set paths=null and put the reason in error — the shepherd treats an unresolved probe as divergent and fails closed.\n\n` +
+    `Return ONLY: { paths: [ "<changed path>" ] | null, error: "<reason if the probe could not run, else null>" }.`
+  );
+}
+
+async function runDivergenceProbes(manifest, mergedIds, mergedShas) {
+  const probes = {};
+  const msps = manifest && Array.isArray(manifest.msps) ? manifest.msps : [];
+  const byId = new Map(msps.filter((m) => m && typeof m.id === 'string').map((m) => [m.id, m]));
+  const shas = mergedShas && typeof mergedShas === 'object' && !Array.isArray(mergedShas) ? mergedShas : {};
+  for (const parentId of Array.isArray(mergedIds) ? mergedIds : []) {
+    const parent = byId.get(parentId);
+    if (!parent) continue;
+    const gatesBuilt = transitiveDependents(msps, parentId).some((d) => { const m = byId.get(d); return Boolean(m) && m.status === 'built'; });
+    if (!gatesBuilt) continue;
+    const builtSha = typeof parent.builtSha === 'string' && SHA_HEX_PATTERN.test(parent.builtSha) ? parent.builtSha : null;
+    const mergedSha = typeof shas[parentId] === 'string' && SHA_HEX_PATTERN.test(shas[parentId]) ? shas[parentId] : null;
+    const fileScope = Array.isArray(parent.fileScope) ? parent.fileScope.filter((p) => typeof p === 'string' && p.length > 0) : [];
+    const fileScopeSafe = fileScope.length > 0 && fileScope.every((p) => !p.startsWith(':'));
+    if (builtSha === null || mergedSha === null || !fileScopeSafe) continue;
+    let ref;
+    try {
+      ref = checkpointRef(logicalRunId, parentId);
+    } catch (err) {
+      probes[parentId] = { paths: null, error: `cannot compose a safe probe ref for ${clean(parentId)}: ${clean(err.message)}` };
+      continue;
+    }
+    let probe;
+    try {
+      probe = await agent(
+        divergenceProbePrompt(parentId, ref, builtSha, mergedSha, fileScope),
+        { agentType: 'implementer', schema: DIVERGENCE_PROBE_SCHEMA, label: `divergence-probe:${parentId}`, phase: 'Shepherd' }
+      );
+    } catch (err) {
+      probe = { paths: null, error: `divergence-probe threw: ${clean(err.message)}` };
+    }
+    if (!probe || typeof probe !== 'object' || Array.isArray(probe)) {
+      probes[parentId] = { paths: null, error: 'divergence-probe returned a non-object (blocked or dropped) — treated as divergent' };
+      continue;
+    }
+    probes[parentId] = {
+      paths: Array.isArray(probe.paths) ? probe.paths : null,
+      error: (typeof probe.error === 'string' && probe.error.length > 0) ? probe.error : (Array.isArray(probe.paths) ? null : 'divergence-probe returned no resolvable paths'),
+    };
+  }
+  return probes;
+}
+
 async function runReconcileOnlyAdvance(advance, ctx) {
-  const { manifest, reconciledShippedMeta, sourcePrefix, baseBranch, repoRoot, logicalRunId, merged } = ctx;
+  const { manifest, reconciledShippedMeta, sourcePrefix, baseBranch, repoRoot, logicalRunId, merged, newlyMergedIds } = ctx;
   phase('Shepherd');
   const manifestMsps = manifest && Array.isArray(manifest.msps) ? manifest.msps : [];
   const shepherdMspById = new Map(manifestMsps.map((m) => [m.id, m]));
@@ -2591,12 +2693,31 @@ async function runReconcileOnlyAdvance(advance, ctx) {
       triedSet: [],
       dependents: transitiveDependents(manifestMsps, unitId),
     });
-    await persistParkCheckpoint(record);
+    try {
+      await persistParkCheckpoint(record);
+    } catch (err) {
+      log(`mitosis[${unitId}]: reconcile-only shepherd — durable park checkpoint threw (${clean(err.message)}); continuing so one failed write never crashes the shepherd`);
+    }
     log(`mitosis[${unitId}]: reconcile-only shepherd PARKED — ${clean(diagnosis)}`);
     return record;
   }
 
-  await persistWindowCheckpoint('shepherd', advance.nextW);
+  for (const id of (Array.isArray(newlyMergedIds) ? newlyMergedIds : [])) {
+    const meta = reconciledShippedMeta ? reconciledShippedMeta.get(id) : null;
+    const msp = shepherdMspById.get(id);
+    try {
+      await persistShipCheckpoint({ unitId: id, prUrl: meta ? meta.prUrl : null, mergedAt: meta ? meta.mergedAt : null, title: msp ? msp.title : null, rationale: msp ? msp.rationale : null });
+      log(`mitosis[${id}]: reconcile-only shepherd — memoized the newly-merged parent's ship delta so a later relaunch folds it shipped without re-folding`);
+    } catch (err) {
+      log(`mitosis[${id}]: reconcile-only shepherd — ship-checkpoint memo threw (${clean(err.message)}); continuing so one failed write never crashes the shepherd`);
+    }
+  }
+
+  try {
+    await persistWindowCheckpoint('shepherd', advance.nextW);
+  } catch (err) {
+    log(`mitosis: reconcile-only shepherd — durable window checkpoint threw (${clean(err.message)}); continuing so one failed write never crashes the shepherd`);
+  }
   log(`mitosis: reconcile-only shepherd — AIMD window carried across the relaunch and re-persisted (W=${advance.nextW}); no decompose, plan, fan-out, or rebuild performed`);
 
   for (const id of advance.toRestack) {
@@ -2604,6 +2725,12 @@ async function runReconcileOnlyAdvance(advance, ctx) {
     if (!msp) continue;
     if (!mayRestack(msp.status)) {
       log(`mitosis[${id}]: reconcile-only shepherd — refusing to restack a ${clean(msp.status)} branch (only an unpublished built/planned branch may be restacked; a published branch is frozen)`);
+      continue;
+    }
+    try {
+      checkpointRef(logicalRunId, id);
+    } catch (err) {
+      parked.push(await shepherdPark(id, `reconcile-only shepherd refuses to restack ${clean(id)} — its id is not a safe checkpoint/branch token (${clean(err.message)})`));
       continue;
     }
     const integrationBranch = `${sourcePrefix}/${id}-integration`;
@@ -3185,20 +3312,48 @@ if (resumeRequested) {
 
 const checkpointRefLines = mergePaginated(recon && Array.isArray(recon.checkpointRefPages) ? recon.checkpointRefPages : []);
 const builtUnits = reconcileBuiltSet(checkpointRefLines, logicalRunId);
+const builtShas = reconcileBuiltShas(checkpointRefLines, logicalRunId);
 const manifestUnitIds = priorManifest ? new Set(priorManifest.msps.map((m) => m.id)) : new Set();
+const priorStatusById = new Map(priorManifest ? priorManifest.msps.filter((m) => m && typeof m.id === 'string').map((m) => [m.id, m.status]) : []);
+const reconciledMergedIds = [...reconciledShipped].filter((id) => manifestUnitIds.has(id));
+const newlyMergedIds = reconciledMergedIds.filter((id) => priorStatusById.get(id) !== 'shipped');
+const shippedFoldedManifest = FRONTIER_TRAIN_ENABLED
+  ? reconciledMergedIds.reduce((mani, mspId) => {
+      const meta = reconciledShippedMeta.get(mspId) || null;
+      return applyShipTransition(mani, { mspId, prUrl: meta ? meta.prUrl : null, mergedAt: meta ? meta.mergedAt : null, title: null, rationale: null });
+    }, priorManifest)
+  : priorManifest;
 const reconciledManifest = builtUnits
   .filter((unitId) => manifestUnitIds.has(unitId))
-  .reduce((mani, unitId) => applyBuiltTransition(mani, { unitId, checkpointRef: checkpointRef(logicalRunId, unitId), sha: null }), priorManifest);
+  .reduce((mani, unitId) => {
+    if (!FRONTIER_TRAIN_ENABLED) return applyBuiltTransition(mani, { unitId, checkpointRef: checkpointRef(logicalRunId, unitId), sha: null });
+    const existing = mani.msps.find((m) => m.id === unitId);
+    return applyBuiltTransition(mani, {
+      unitId,
+      checkpointRef: checkpointRef(logicalRunId, unitId),
+      sha: builtShas[unitId] ?? (existing && typeof existing.builtSha === 'string' ? existing.builtSha : null),
+      green: existing ? existing.green : undefined,
+      builtAgainst: existing ? existing.builtAgainst : undefined,
+    });
+  }, shippedFoldedManifest);
 
 const isRelaunch = reconciledManifest && reconciledManifest.logicalRunId === logicalRunId;
 const reuse = isRelaunch ? evaluateManifestReuse(reconciledManifest, observedSpecHash) : { reusable: false };
 const reusable = reuse.reusable;
 const reconcileOnlyMode = shouldReconcileOnly({ frontierTrain: FRONTIER_TRAIN_ENABLED, isRelaunch, specByteIdentical: reusable, hasFrontierState: builtUnits.length > 0 });
 if (reconcileOnlyMode) {
-  const liveSignals = buildReconcileLiveSignals(recon, reconciledShipped, sourcePrefix);
+  const baseLiveSignals = buildReconcileLiveSignals(recon, reconciledShipped, sourcePrefix);
+  let divergenceProbes;
+  try {
+    divergenceProbes = await runDivergenceProbes(reconciledManifest, baseLiveSignals.merged, baseLiveSignals.mergedShas);
+  } catch (err) {
+    divergenceProbes = {};
+    log(`mitosis: reconcile-only shepherd — divergence-probe dispatch threw (${clean(err.message)}); treating every need-keyed merged parent as indeterminate so its built descendants park, and continuing the run`);
+  }
+  const liveSignals = { ...baseLiveSignals, divergenceProbes };
   const advance = planReconcile(reconciledManifest, liveSignals);
   log(`mitosis: reconcile-only shepherd — advancing the merge frontier without decompose or rebuild: ${advance.toOpen.length} PR(s) to open (${advance.toOpen.join(', ') || 'none'}), ${advance.toRestack.length} built branch(es) to restack (${advance.toRestack.join(', ') || 'none'}), ${advance.toParkSubtree.length} unit(s) to park on divergent-invalidation (${advance.toParkSubtree.join(', ') || 'none'})${advance.buildRunNeeded ? ' — BUILD RUN NEEDED' : ''}; AIMD window W=${advance.nextW}`);
-  return runReconcileOnlyAdvance(advance, { manifest: reconciledManifest, reconciledShippedMeta, sourcePrefix, baseBranch, repoRoot, logicalRunId, merged: liveSignals.merged });
+  return runReconcileOnlyAdvance(advance, { manifest: reconciledManifest, reconciledShippedMeta, sourcePrefix, baseBranch, repoRoot, logicalRunId, merged: liveSignals.merged, newlyMergedIds });
 }
 const resumeMap = new Map();
 if (reusable) {
@@ -3467,6 +3622,11 @@ async function persistParkCheckpoint(record) {
 }
 
 async function supersedeOpenPr(msp, { priorPrUrl, integrationBranch, diagnosis }, compensationStack) {
+  try {
+    checkpointRef(logicalRunId, msp.id);
+  } catch (err) {
+    return parkUnit(msp, 'ship', NeedsHuman({ kind: 'approve-decision', what: `divergent-invalidation supersede for ${clean(msp.id)} refused — its id is not a safe branch token (${clean(err.message)}); the prior open PR at ${clean(priorPrUrl)} remains untouched`, remediation: null, resumePoint: { branch: integrationBranch, ref: baseBranch, stage: 'ship' } }), integrationBranch, compensationStack);
+  }
   const supersedeBranch = `${integrationBranch}-supersede-${logicalRunId}`;
   const outcome = await supervisedDispatch(
     (attemptNo, preamble) => agent(

@@ -93,18 +93,20 @@ test('transitiveDependents: diamond graph parks every prereq-reachable dependent
   assert.deepEqual(transitiveDependents(msps, 'root'), ['left', 'right', 'join']);
 });
 
-test('descendantsToInvalidate: identical merged content (squash preserved) invalidates nothing', () => {
+test('descendantsToInvalidate: a clean verdict (the probe confirmed content-preserving) invalidates nothing', () => {
   const manifest = manifestWith([
     { id: 'root' }, { id: 'left', dependsOn: ['root'] }, { id: 'right', dependsOn: ['root'] },
   ]);
-  assert.deepEqual(descendantsToInvalidate(manifest, 'root', { priorSha: 'abc', mergedSha: 'abc' }), []);
+  assert.deepEqual(descendantsToInvalidate(manifest, 'root', { verdict: 'clean' }), []);
 });
 
-test('descendantsToInvalidate: diverged merged content resets exactly the true descendant set (never the whole suffix)', () => {
+test('descendantsToInvalidate: any non-clean verdict (divergent / missing / indeterminate) resets exactly the true descendant set (never the whole suffix, never nothing)', () => {
   const manifest = manifestWith([
     { id: 'root' }, { id: 'left', dependsOn: ['root'] }, { id: 'right', dependsOn: ['root'] }, { id: 'sibling' },
   ]);
-  assert.deepEqual(descendantsToInvalidate(manifest, 'root', { priorSha: 'abc', mergedSha: 'xyz' }), ['left', 'right']);
+  for (const verdict of ['divergent', 'missing', 'indeterminate', undefined]) {
+    assert.deepEqual(descendantsToInvalidate(manifest, 'root', { verdict }), ['left', 'right'], `verdict=${String(verdict)} parks the true descendants`);
+  }
 });
 
 test('park: marks the blocked unit and its transitive dependents parked, writes one ParkRecord, returns a NEW manifest', () => {

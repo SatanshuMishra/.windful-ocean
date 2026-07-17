@@ -49,8 +49,8 @@ export function transitiveDependents(msps, unitId) {
   return msps.map((msp) => msp.id).filter((id) => id !== unitId && blocked.has(id));
 }
 
-export function descendantsToInvalidate(manifest, parentId, { priorSha, mergedSha }) {
-  if (priorSha === mergedSha) return [];
+export function descendantsToInvalidate(manifest, parentId, { verdict }) {
+  if (verdict === 'clean') return [];
   return transitiveDependents(manifest.msps, parentId);
 }
 
