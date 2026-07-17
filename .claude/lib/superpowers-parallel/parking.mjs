@@ -49,6 +49,11 @@ export function transitiveDependents(msps, unitId) {
   return msps.map((msp) => msp.id).filter((id) => id !== unitId && blocked.has(id));
 }
 
+export function descendantsToInvalidate(manifest, parentId, { priorSha, mergedSha }) {
+  if (priorSha === mergedSha) return [];
+  return transitiveDependents(manifest.msps, parentId);
+}
+
 export function park(manifest, { unitId, stage, diagnosis, request, remediation, resumePoint, triedSet }) {
   if (!manifest || typeof manifest !== 'object' || !Array.isArray(manifest.msps)) {
     throw new Error('park: manifest must be an object with an msps array');

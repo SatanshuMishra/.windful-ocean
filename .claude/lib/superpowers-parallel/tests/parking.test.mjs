@@ -7,6 +7,7 @@ import {
   selectResumeUnits,
   selectResumeBuilt,
   selectPreservedBuilt,
+  descendantsToInvalidate,
 } from '../parking.mjs';
 import { mspContentHash } from '../recovery.mjs';
 import { checkpointRef } from '../checkpoint.mjs';
@@ -90,6 +91,20 @@ test('transitiveDependents: diamond graph parks every prereq-reachable dependent
     { id: 'sibling' },
   ]).msps;
   assert.deepEqual(transitiveDependents(msps, 'root'), ['left', 'right', 'join']);
+});
+
+test('descendantsToInvalidate: identical merged content (squash preserved) invalidates nothing', () => {
+  const manifest = manifestWith([
+    { id: 'root' }, { id: 'left', dependsOn: ['root'] }, { id: 'right', dependsOn: ['root'] },
+  ]);
+  assert.deepEqual(descendantsToInvalidate(manifest, 'root', { priorSha: 'abc', mergedSha: 'abc' }), []);
+});
+
+test('descendantsToInvalidate: diverged merged content resets exactly the true descendant set (never the whole suffix)', () => {
+  const manifest = manifestWith([
+    { id: 'root' }, { id: 'left', dependsOn: ['root'] }, { id: 'right', dependsOn: ['root'] }, { id: 'sibling' },
+  ]);
+  assert.deepEqual(descendantsToInvalidate(manifest, 'root', { priorSha: 'abc', mergedSha: 'xyz' }), ['left', 'right']);
 });
 
 test('park: marks the blocked unit and its transitive dependents parked, writes one ParkRecord, returns a NEW manifest', () => {
