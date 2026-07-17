@@ -1236,6 +1236,19 @@ const RECONCILE_SCHEMA = {
           headRefName: { type: 'string' },
           url: { type: 'string' },
           mergedAt: { type: 'string' },
+          mergedSha: { type: ['string', 'null'] },
+        },
+      },
+    },
+    openPRs: {
+      type: 'array',
+      items: {
+        type: 'object',
+        required: ['headRefName', 'reviewDecision'],
+        additionalProperties: false,
+        properties: {
+          headRefName: { type: 'string' },
+          reviewDecision: { type: ['string', 'null'] },
         },
       },
     },
@@ -2538,6 +2551,140 @@ function planReconcile(manifest, live = {}) {
   return { toRestack, toOpen, toParkSubtree, nextW, buildRunNeeded: toParkSubtree.length > 0 };
 }
 
+function buildReconcileLiveSignals(recon, reconciledShipped, sourcePrefix) {
+  const mergedPRs = recon && Array.isArray(recon.mergedPRs) ? recon.mergedPRs : [];
+  const openPRs = recon && Array.isArray(recon.openPRs) ? recon.openPRs : [];
+  const mergedShas = {};
+  for (const pr of mergedPRs) {
+    if (pr === null || typeof pr !== 'object') continue;
+    const id = branchToMspId(pr.headRefName, sourcePrefix);
+    if (id === null) continue;
+    if (typeof pr.mergedSha === 'string' && pr.mergedSha.length > 0) mergedShas[id] = pr.mergedSha;
+  }
+  const published = [];
+  for (const pr of openPRs) {
+    if (pr === null || typeof pr !== 'object') continue;
+    const id = branchToMspId(pr.headRefName, sourcePrefix);
+    if (id !== null) published.push(id);
+  }
+  return { merged: [...reconciledShipped], mergedShas, published, events: [] };
+}
+
+async function runReconcileOnlyAdvance(advance, ctx) {
+  const { manifest, reconciledShippedMeta, sourcePrefix, baseBranch, repoRoot, logicalRunId, merged } = ctx;
+  phase('Shepherd');
+  const manifestMsps = manifest && Array.isArray(manifest.msps) ? manifest.msps : [];
+  const shepherdMspById = new Map(manifestMsps.map((m) => [m.id, m]));
+  const doneSet = new Set([...manifestMsps.filter((m) => m && typeof m.id === 'string' && m.status === 'shipped').map((m) => m.id), ...(Array.isArray(merged) ? merged : [])]);
+  const shipped = [...(reconciledShippedMeta ? reconciledShippedMeta.entries() : [])].map(([mspId, meta]) => ({ mspId, prUrl: (meta && meta.prUrl) ?? null, receiptsPass: null, d6Pass: null }));
+  const parked = [];
+  const awaitingApproval = [];
+
+  async function shepherdPark(unitId, diagnosis) {
+    const record = ParkRecord({
+      unitId,
+      stage: 'ship',
+      diagnosis,
+      request: { kind: 'approve-decision', what: diagnosis },
+      remediation: null,
+      resumePoint: { branch: `${sourcePrefix}/${unitId}-integration`, ref: baseBranch, stage: 'ship' },
+      triedSet: [],
+      dependents: transitiveDependents(manifestMsps, unitId),
+    });
+    await persistParkCheckpoint(record);
+    log(`mitosis[${unitId}]: reconcile-only shepherd PARKED — ${clean(diagnosis)}`);
+    return record;
+  }
+
+  await persistWindowCheckpoint('shepherd', advance.nextW);
+  log(`mitosis: reconcile-only shepherd — AIMD window carried across the relaunch and re-persisted (W=${advance.nextW}); no decompose, plan, fan-out, or rebuild performed`);
+
+  for (const id of advance.toRestack) {
+    const msp = shepherdMspById.get(id);
+    if (!msp) continue;
+    if (!mayRestack(msp.status)) {
+      log(`mitosis[${id}]: reconcile-only shepherd — refusing to restack a ${clean(msp.status)} branch (only an unpublished built/planned branch may be restacked; a published branch is frozen)`);
+      continue;
+    }
+    const integrationBranch = `${sourcePrefix}/${id}-integration`;
+    const unmergedParents = (Array.isArray(msp.dependsOn) ? msp.dependsOn : []).filter((p) => !doneSet.has(p));
+    let unmergedParentRefs;
+    try {
+      unmergedParentRefs = parentCheckpointRefs(logicalRunId, unmergedParents);
+    } catch (err) {
+      parked.push(await shepherdPark(id, `reconcile-only shepherd cannot compose a durable parent ref to restack ${id}: ${clean(err.message)}`));
+      continue;
+    }
+    let restack;
+    try {
+      restack = await agent(
+        `You are the reconcile-only shepherd RESTACK stage for MSP "${id}" of a mitosis run. You have NO Skill tool.\n\n` +
+        `A parent of this built-but-unpublished MSP just merged to ${baseBranch}. Restack this MSP's UNPUBLISHED local integration branch ${JSON.stringify(integrationBranch)} FRESH onto the advanced base so it carries the merged parent's content, re-stacking only its STILL-UNMERGED parent checkpoint tips. This branch was never pushed, so a local branch move is a safe forward compensation; NEVER force-push, rebase, or rewrite any published branch or open PR. Operate against the main repo at ${repoRoot}; do NOT check out the branch and do NOT enter any worktree.\n` +
+        `SECURITY: pass every ref as an INERT argv element to execFile-style invocations; NEVER build a command by shell-interpolating a ref into a string.\n\n` +
+        `The still-unmerged parent checkpoint refs are ${JSON.stringify(unmergedParentRefs)} (dependency order).\n` +
+        `1. \`git -C ${repoRoot} fetch origin ${baseBranch}\`, then fetch each still-unmerged parent checkpoint ref listed above (each ref a single inert argv token).\n` +
+        `2. Move the integration ref FRESH onto the pushed base: \`git -C ${repoRoot} branch -f ${integrationBranch} origin/${baseBranch}\`.\n` +
+        `3. Re-stack this MSP's own commits and each still-unmerged parent's commits onto ${integrationBranch}, observe-then-converge (skip any tip already contained via \`git -C ${repoRoot} merge-base --is-ancestor\`). If any restack conflicts, abort it, set ready=false and conflict=true, and name the conflicting parent and files in detail.\n\n` +
+        `If the branch restacked cleanly onto the advanced base, set ready=true and conflict=false. If a fetch or base move fails, set ready=false, conflict=false, and explain in detail.\n\n` +
+        `Return ONLY: { ready: <bool>, conflict: <bool>, detail: "<what happened>" }.`,
+        { agentType: 'implementer', label: `shepherd-restack:${id}`, phase: 'Shepherd' }
+      );
+    } catch (err) {
+      restack = { ready: false, conflict: false, detail: `shepherd-restack threw: ${clean(err.message)}` };
+    }
+    if (!restack || restack.ready !== true) {
+      parked.push(await shepherdPark(id, `reconcile-only shepherd could not restack ${id} onto the advanced base (${clean(restack && restack.detail)})`));
+      continue;
+    }
+    log(`mitosis[${id}]: reconcile-only shepherd — restacked the unpublished built branch onto the advanced base; still built-ahead of its remaining unmerged parent(s)`);
+  }
+
+  for (const id of advance.toOpen) {
+    const msp = shepherdMspById.get(id);
+    if (!msp) continue;
+    const integrationBranch = `${sourcePrefix}/${id}-integration`;
+    let builtRef;
+    try {
+      builtRef = checkpointRef(logicalRunId, id);
+    } catch (err) {
+      parked.push(await shepherdPark(id, `reconcile-only shepherd cannot compose a durable checkpoint ref to open the deferred PR for ${id}: ${clean(err.message)}`));
+      continue;
+    }
+    let opened;
+    try {
+      opened = await agent(
+        `You are the reconcile-only shepherd PR-OPEN stage for MSP "${id}" of a mitosis run. You have NO Skill tool.\n\n` +
+        `Every parent of this built MSP has now MERGED to ${baseBranch}, so its deferred PR may finally open against a clean base showing a small diff. Restore this MSP's durable checkpoint tip ${JSON.stringify(builtRef)} onto the advanced base, publish it, and open ONE pull request for HUMAN review — do NOT merge it yourself under any circumstance (every merge to ${baseBranch} is human-gated). Operate against the main repo at ${repoRoot}; do NOT check out the branch and do NOT enter any worktree.\n` +
+        `SECURITY: pass every ref/URL as an INERT argv element to execFile-style invocations; NEVER build a command by shell-interpolating a ref into a string.\n\n` +
+        `1. \`git -C ${repoRoot} fetch origin ${baseBranch}\` and fetch the durable checkpoint ref: \`git -C ${repoRoot} fetch origin ${JSON.stringify(builtRef)}\`.\n` +
+        `2. Move the integration ref FRESH onto the advanced base and replay this MSP's checkpoint tip onto it (rebase --onto ${integrationBranch} origin/${baseBranch} FETCH_HEAD, or an equivalent cherry-pick). If the replay conflicts, abort it and set opened=false with the conflicting files in detail.\n` +
+        `3. Publish observe-then-converge: if origin/${integrationBranch} already equals the local tip, SKIP the push; otherwise \`git -C ${repoRoot} push -u origin ${integrationBranch}\` (first-time publish fast-forwards). The only permitted force is a \`--force-with-lease\` retry of your OWN rebase.\n` +
+        `4. Open ONE pull request observe-then-converge: FIRST \`gh pr list --head ${integrationBranch} --base ${baseBranch} --state open --json url,number\`; if one exists REUSE it, else open a new PR with head ${integrationBranch} onto base ${baseBranch}. Leave it OPEN for a human; perform no merge.\n\n` +
+        `If the PR is open (or already existed), set opened=true and report its url. If any step fails, set opened=false and explain in detail.\n\n` +
+        `Return ONLY: { opened: <bool>, prUrl: "<the pr url, or empty string if not opened>", detail: "<what happened>" }.`,
+        { agentType: 'implementer', label: `shepherd-open:${id}`, phase: 'Shepherd' }
+      );
+    } catch (err) {
+      opened = { opened: false, prUrl: '', detail: `shepherd-open threw: ${clean(err.message)}` };
+    }
+    if (!opened || opened.opened !== true) {
+      parked.push(await shepherdPark(id, `reconcile-only shepherd could not open the deferred PR for ${id} once its parents merged (${clean(opened && opened.detail)})`));
+      continue;
+    }
+    awaitingApproval.push({ mspId: id, prUrl: opened.prUrl, receiptsPass: null, d6Pass: null, dependsOn: msp.dependsOn || [] });
+    log(`mitosis[${id}]: reconcile-only shepherd — parents merged; opened the deferred PR for human review -> ${clean(opened.prUrl)} (no merge performed)`);
+  }
+
+  for (const id of advance.toParkSubtree) {
+    parked.push(await shepherdPark(id, `reconcile-only shepherd: ${id} was invalidated by a divergent parent merge (the parent merged with content that differs from the tip its subtree built on); its build is reset and a follow-up build run is needed`));
+  }
+  if (advance.buildRunNeeded) {
+    log(`mitosis: reconcile-only shepherd — divergent-invalidation reset ${advance.toParkSubtree.length} unit(s); a follow-up BUILD RUN is needed (this is a FLAG only — the shepherd never rebuilds in reconcile-only mode)`);
+  }
+
+  return assembleReport({ shipped, parked, halted: [], crashed: [], awaitingApproval, mspCount: manifestMsps.length });
+}
+
 function computeParkedStatus({ shipped, parked, halted, crashed, awaitingApproval, total }) {
   const awaitingList = awaitingApproval || [];
   const blockedPendingApprovalCount = parked.filter(isBlockedPendingApproval).length;
@@ -2986,6 +3133,15 @@ log(`mitosis: mergePolicy=${mergePolicy}`);
 
 const logicalRunId = computeLogicalRunId(spec, baseBranch);
 phase('Reconcile');
+const frontierMergedJson = FRONTIER_TRAIN_ENABLED ? ',mergeCommit' : '';
+const frontierMergedShaInstruction = FRONTIER_TRAIN_ENABLED
+  ? ` For EACH merged PR also report mergedSha as its merge commit sha (the mergeCommit.oid field), or null if absent — the shepherd compares it against the tip its children built on to detect a divergent (squashed or amended) merge.`
+  : '';
+const frontierMergedShaField = FRONTIER_TRAIN_ENABLED ? ', mergedSha' : '';
+const frontierOpenPrsStep = FRONTIER_TRAIN_ENABLED
+  ? `6. List the pull requests still OPEN against the base so the shepherd can observe live review state: \`gh pr list --state open --base ${baseBranch} --json headRefName,reviewDecision\`. Return that array verbatim as openPRs (an empty array if none); report each reviewDecision field exactly as gh returns it (e.g. "APPROVED", "CHANGES_REQUESTED", "REVIEW_REQUIRED") or null if absent.\n`
+  : '';
+const frontierOpenPrsReturn = FRONTIER_TRAIN_ENABLED ? ', openPRs: [ { headRefName, reviewDecision } ]' : '';
 let recon;
 try {
   const reconOutcome = await supervisedDispatch(
@@ -2993,11 +3149,11 @@ try {
       `You are the reconcile stage of a mitosis run. You have NO Skill tool; follow these instructions directly.\n\n` +
       `This stage is STRICTLY READ-ONLY: it inspects durable state to detect a relaunch and the already-merged set. It makes NO commits, opens NO PRs, and mutates NO files whatsoever.\n\n` +
       `1. Inspect the run manifest if present: \`cat ${repoRoot}/.mitosis/run.json\`. If the file exists, return its exact raw contents as manifestRaw (a string) and set manifestFound=true; if it is absent, set manifestFound=false and manifestRaw=null. Do NOT parse, repair, or alter it — return the bytes verbatim, the engine parses it.\n` +
-      `2. List the pull requests already merged into the base so the engine can skip re-shipping them: \`gh pr list --state merged --base ${baseBranch} --json headRefName,url,mergedAt\`. Return that array verbatim as mergedPRs (an empty array if none).\n` +
+      `2. List the pull requests already merged into the base so the engine can skip re-shipping them: \`gh pr list --state merged --base ${baseBranch} --json headRefName,url,mergedAt${frontierMergedJson}\`. Return that array verbatim as mergedPRs (an empty array if none).${frontierMergedShaInstruction}\n` +
       `3. For diagnostics only you MAY run \`git log origin/${baseBranch}\` to observe recent base history; it does not affect the returned object.\n` +
       `4. Compute a content fingerprint of the spec so the engine can detect an in-place spec edit since the manifest was recorded: run \`shasum -a 256 ${spec}\` and return ONLY the leading 64-character hex field as specContentHash (a string). If the spec file cannot be read, return specContentHash=null.\n` +
       `5. List the DURABLE mitosis checkpoint refs so the engine can reconcile built-but-unmerged work against them: run \`git -C ${repoRoot} ls-remote origin 'refs/mitosis/*'\`. This is the authoritative record of which units were durably built on a prior run. Capture EVERY output line in full (each line is \`<sha>\\t<ref>\`), returning them COMPLETELY with no truncation as checkpointRefPages: an array of pages where each page is an array of the raw line strings (return a single page holding all lines; use additional pages only if you had to fetch the listing in multiple passes). Return checkpointRefPages=[] (an empty array) if there is no remote or no such ref. Return the lines verbatim; do NOT parse, filter, or alter them — the engine parses them.\n\n` +
-      `Return ONLY the structured object: { manifestFound, manifestRaw, mergedPRs: [ { headRefName, url, mergedAt } ], specContentHash, checkpointRefPages: [ [ "<sha>\\t<ref>" ] ] }.`,
+      `${frontierOpenPrsStep}Return ONLY the structured object: { manifestFound, manifestRaw, mergedPRs: [ { headRefName, url, mergedAt${frontierMergedShaField} } ], specContentHash, checkpointRefPages: [ [ "<sha>\\t<ref>" ] ]${frontierOpenPrsReturn} }.`,
       { agentType: 'implementer', schema: RECONCILE_SCHEMA, label: 'reconcile', phase: 'Reconcile', model: models.reconciler || models.shipper || 'sonnet' }
     ),
     { unitId: 'reconcile', stage: 'reconcile', resetRef: null, worktree: null, task: 'inspect durable run state and the already-merged set', ...makeRemediation({ unitId: 'reconcile', stage: 'reconcile', task: 'inspect durable run state and the already-merged set', schema: RECONCILE_SCHEMA, agentType: 'implementer', phase: 'Reconcile' }), compensate: makeCompensate(null, null) },
@@ -3039,8 +3195,10 @@ const reuse = isRelaunch ? evaluateManifestReuse(reconciledManifest, observedSpe
 const reusable = reuse.reusable;
 const reconcileOnlyMode = shouldReconcileOnly({ frontierTrain: FRONTIER_TRAIN_ENABLED, isRelaunch, specByteIdentical: reusable, hasFrontierState: builtUnits.length > 0 });
 if (reconcileOnlyMode) {
-  const advance = planReconcile(reconciledManifest, { merged: [...reconciledShipped] });
+  const liveSignals = buildReconcileLiveSignals(recon, reconciledShipped, sourcePrefix);
+  const advance = planReconcile(reconciledManifest, liveSignals);
   log(`mitosis: reconcile-only shepherd — advancing the merge frontier without decompose or rebuild: ${advance.toOpen.length} PR(s) to open (${advance.toOpen.join(', ') || 'none'}), ${advance.toRestack.length} built branch(es) to restack (${advance.toRestack.join(', ') || 'none'}), ${advance.toParkSubtree.length} unit(s) to park on divergent-invalidation (${advance.toParkSubtree.join(', ') || 'none'})${advance.buildRunNeeded ? ' — BUILD RUN NEEDED' : ''}; AIMD window W=${advance.nextW}`);
+  return runReconcileOnlyAdvance(advance, { manifest: reconciledManifest, reconciledShippedMeta, sourcePrefix, baseBranch, repoRoot, logicalRunId, merged: liveSignals.merged });
 }
 const resumeMap = new Map();
 if (reusable) {
