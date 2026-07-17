@@ -1362,10 +1362,11 @@ const FRONTIER_BRANCH_SCHEMA = {
 
 const RESTORE_SCHEMA = {
   type: 'object',
-  required: ['restored', 'detail'],
+  required: ['restored', 'sha', 'detail'],
   additionalProperties: false,
   properties: {
     restored: { type: 'boolean' },
+    sha: { type: 'string' },
     detail: { type: 'string' },
   },
 };
@@ -1380,6 +1381,17 @@ const SHIP_SCHEMA = {
     prUrl: { type: 'string' },
     receiptsPass: { type: 'boolean' },
     d6Pass: { type: 'boolean' },
+    detail: { type: 'string' },
+  },
+};
+
+const SUPERSEDE_PR_SCHEMA = {
+  type: 'object',
+  required: ['opened', 'prUrl', 'detail'],
+  additionalProperties: false,
+  properties: {
+    opened: { type: 'boolean' },
+    prUrl: { type: 'string' },
     detail: { type: 'string' },
   },
 };
@@ -1861,6 +1873,10 @@ function markMerged(units, mergedIds) {
   return Object.freeze(units.map((u) => (set.has(u.id) ? Object.freeze({ ...u, state: 'done', leaseHeld: false }) : u)));
 }
 
+function markAwaitingMerge(units) {
+  return Object.freeze(units.map((u) => (u.state === 'awaiting' ? Object.freeze({ ...u, state: 'awaiting-merge' }) : u)));
+}
+
 async function runScheduleTick(specs, runUnit, poll, continuousDrain, frontierTrain, windowSize) {
   let units = buildUnitTable(specs);
   const ticks = [];
@@ -1895,6 +1911,7 @@ async function runScheduleTick(specs, runUnit, poll, continuousDrain, frontierTr
       if (merged.length > 0) { units = markMerged(units, merged); if (continuousDrain) pollsUsed = 0; }
       continue;
     }
+    if (continuousDrain) units = markAwaitingMerge(units);
     break;
   }
   return { units, ticks, polls };
@@ -1967,6 +1984,7 @@ async function runScheduleStreaming(specs, runUnit, poll, continuousDrain, front
       if (merged.length > 0) { units = markMerged(units, merged); if (continuousDrain) pollsUsed = 0; }
       continue;
     }
+    if (continuousDrain) units = markAwaitingMerge(units);
     break;
   }
   return { units, ticks, polls };
@@ -3239,6 +3257,30 @@ async function persistParkCheckpoint(record) {
   }
 }
 
+async function supersedeOpenPr(msp, { priorPrUrl, integrationBranch, diagnosis }, compensationStack) {
+  const supersedeBranch = `${integrationBranch}-supersede-${logicalRunId}`;
+  const outcome = await supervisedDispatch(
+    (attemptNo, preamble) => agent(
+      `You are the divergent-invalidation supersede stage for MSP "${msp.id}" of a mitosis run. You have NO Skill tool.\n\n` +
+      `This MSP already has an OPEN pull request at ${JSON.stringify(priorPrUrl)}, but its built content has been invalidated by a divergent merge on a parent (${clean(diagnosis)}). That open PR is FROZEN once published — this is an INVARIANT: NEVER force-push, rebase, or otherwise rewrite its branch. Instead, publish this MSP's freshly rebuilt integration tip to a NEW branch and open a SEPARATE superseding pull request whose body carries the interdiff against the prior PR so a reviewer sees exactly what changed. Operate against the main repo at ${repoRoot}; do NOT check out any branch and do NOT enter any worktree.\n` +
+      `SECURITY: pass every ref/URL as an INERT argv element to execFile-style invocations; NEVER build a command by shell-interpolating a ref or URL into a string.\n\n` +
+      `1. Publish the CURRENT local integration tip to a brand-new branch, never reusing or force-pushing the old head: \`git -C ${repoRoot} push -u origin ${integrationBranch}:${supersedeBranch}\`.\n` +
+      `2. Compute the interdiff against the OLD open PR for the review body: \`gh pr diff ${JSON.stringify(priorPrUrl)}\` and \`git -C ${repoRoot} diff ${JSON.stringify(priorPrUrl)}...${supersedeBranch}\`; summarize the delta in the new PR body so a reviewer sees only what changed since the superseded PR.\n` +
+      `3. Open ONE new pull request observe-then-converge: FIRST check for an existing open PR on this new head - \`gh pr list --head ${supersedeBranch} --base ${baseBranch} --state open --json url,number\`. If one exists, REUSE it (do NOT open a second). Otherwise open a new PR with head ${supersedeBranch} onto base ${baseBranch}, whose body explicitly states it SUPERSEDES ${JSON.stringify(priorPrUrl)} and includes the interdiff summary from step 2.\n` +
+      `4. Leave BOTH the old and the new PR open; do NOT merge, close, or push to the old PR's branch under any circumstance.\n\n` +
+      `If the new branch published and the new PR is open (or already existed), set opened=true. If any step fails, set opened=false and explain in detail; the old PR remains untouched either way.\n\n` +
+      `Return ONLY: { opened: <bool>, prUrl: "<the new superseding PR url, or empty string if not opened>", detail: "<what happened>" }.`,
+      { agentType: 'implementer', schema: SUPERSEDE_PR_SCHEMA, label: `supersede:${msp.id}`, phase: 'Ship' }
+    ),
+    { unitId: msp.id, stage: 'ship', resetRef: baseBranch, worktree: null, task: `supersede the open PR for ${msp.id} after a divergent invalidation`, ...makeRemediation({ unitId: msp.id, stage: 'ship', task: `supersede the open PR for ${msp.id} after a divergent invalidation`, schema: SUPERSEDE_PR_SCHEMA, agentType: 'implementer', phase: 'Ship' }), runBudget: retryState, compensate: makeCompensate(null, baseBranch) },
+  );
+  if (outcome.tag !== 'Done' || !outcome.value || outcome.value.opened !== true) {
+    const failDetail = outcome.tag === 'Done' && outcome.value && typeof outcome.value.detail === 'string' ? outcome.value.detail : null;
+    return parkUnit(msp, 'ship', NeedsHuman({ kind: 'approve-decision', what: `divergent-invalidation supersede for ${msp.id} could not open a fresh PR (${clean(failDetail || diagnosis)}); the prior open PR at ${clean(priorPrUrl)} remains untouched and unmerged`, remediation: null, resumePoint: { branch: integrationBranch, ref: baseBranch, stage: 'ship' } }), integrationBranch, compensationStack);
+  }
+  return parkUnit(msp, 'ship', NeedsHuman({ kind: 'approve-decision', what: `${msp.id}'s open PR ${clean(priorPrUrl)} was superseded by ${clean(outcome.value.prUrl)} after a divergent invalidation (${clean(diagnosis)}); review and merge the NEW PR, then close the superseded one — the original was never force-pushed`, remediation: null, resumePoint: { branch: integrationBranch, ref: baseBranch, stage: 'ship' } }), integrationBranch, compensationStack);
+}
+
 async function persistBuiltCheckpoint({ unitId, checkpointRef: builtRef, sha, builtAgainst }) {
   try {
     const deltaJson = JSON.stringify(builtDelta({ unitId, checkpointRef: builtRef, sha, builtAgainst }));
@@ -3321,7 +3363,7 @@ async function runUnit(unit) {
     const isFrontierBuiltRedispatch = frontierBuiltEntry !== undefined;
     let aggregatedScope = Array.isArray(msp.fileScope) ? msp.fileScope : [];
 
-    async function restoreIntegrationFromBuiltCheckpoint(builtRef) {
+    async function restoreIntegrationFromBuiltCheckpoint(builtRef, expectedSha) {
       if (builtRef === null || parseCheckpointRef(builtRef, logicalRunId) !== msp.id) {
         return { ready: false, parkOutcome: await parkUnit(msp, 'ship', NeedsHuman({ kind: 'approve-decision', what: `built-resume for ${msp.id} carries no valid durable checkpoint ref to restore from`, remediation: null, resumePoint: { branch: integrationBranch, ref: baseBranch, stage: 'ship' } }), integrationBranch, compensationStack) };
       }
@@ -3332,10 +3374,10 @@ async function runUnit(unit) {
           `A prior run already BUILT and durably checkpointed this MSP's boundary-validated, integrated work at the mitosis checkpoint ref ${JSON.stringify(builtRef)}; this relaunch resumes it STRAIGHT at ship WITHOUT re-planning, re-parallelizing, re-branching, or re-executing. Restore the local integration branch ${JSON.stringify(integrationBranch)} to that durable tip so ship can publish it. Operate against the main repo at ${repoRoot}; do NOT check out the branch and do NOT enter any worktree.\n\n` +
           `SECURITY: pass every ref as an INERT argv element to execFile-style invocations; NEVER build a command by shell-interpolating a ref into a string.\n\n` +
           `Restore observe-then-converge (idempotent under replay):\n` +
-          `1. Fetch the durable checkpoint tip into FETCH_HEAD: \`git -C ${repoRoot} fetch origin ${JSON.stringify(builtRef)}\` (the checkpoint ref ${JSON.stringify(builtRef)} is a single inert argv token).\n` +
+          `1. Fetch the durable checkpoint tip into FETCH_HEAD: \`git -C ${repoRoot} fetch origin ${JSON.stringify(builtRef)}\` (the checkpoint ref ${JSON.stringify(builtRef)} is a single inert argv token). Read its resolved tip sha: \`git -C ${repoRoot} rev-parse FETCH_HEAD\`; capture this as the sha you will report.\n` +
           `2. Point the local integration branch at that fetched tip: \`git -C ${repoRoot} branch -f ${integrationBranch} FETCH_HEAD\` (this ref is local and never-pushed here, so a destructive branch move is safe forward compensation; re-running sets the same tip).\n\n` +
-          `If both succeed set restored=true. If there is no remote or the checkpoint ref is missing so the tip cannot be fetched, set restored=false and explain in detail.\n\n` +
-          `Return ONLY: { restored: <bool>, detail: "<what happened>" }.`,
+          `If both succeed set restored=true. If there is no remote or the checkpoint ref is missing so the tip cannot be fetched, set restored=false, sha="" and explain in detail.\n\n` +
+          `Return ONLY: { restored: <bool>, sha: "<the tip sha read in step 1, or empty string if not restored>", detail: "<what happened>" }.`,
           { agentType: 'implementer', schema: RESTORE_SCHEMA, label: `restore:${msp.id}`, phase: 'Ship' }
         ),
         { unitId: msp.id, stage: 'ship', resetRef: baseBranch, worktree: null, task: `restore ${msp.id} from durable checkpoint ${builtRef}`, ...makeRemediation({ unitId: msp.id, stage: 'ship', task: `restore ${msp.id} from durable checkpoint ${builtRef}`, schema: RESTORE_SCHEMA, agentType: 'implementer', phase: 'Ship' }), runBudget: retryState, compensate: makeCompensate(null, baseBranch) },
@@ -3344,6 +3386,12 @@ async function runUnit(unit) {
       const restored = restoreOutcome.value;
       if (!restored || restored.restored !== true) {
         return { ready: false, parkOutcome: await parkUnit(msp, 'ship', NeedsHuman({ kind: 'approve-decision', what: restored && restored.detail ? restored.detail : `could not restore ${msp.id} from durable checkpoint ${builtRef}`, remediation: null, resumePoint: { branch: integrationBranch, ref: builtRef, stage: 'ship' } }), integrationBranch, compensationStack) };
+      }
+      if (typeof expectedSha === 'string' && expectedSha.length > 0) {
+        const restoredSha = typeof restored.sha === 'string' ? restored.sha : '';
+        if (restoredSha.length === 0 || restoredSha !== expectedSha) {
+          return { ready: false, parkOutcome: await parkUnit(msp, 'ship', NeedsHuman({ kind: 'approve-decision', what: `ambiguous frontier state for ${msp.id}: the durable checkpoint ${clean(builtRef)} restored to sha ${clean(restoredSha || '(none)')}, which does not match the builtSha ${clean(expectedSha)} recorded when this unit was built — the checkpoint ref moved or the recorded provenance is stale; refusing to ship an unverified frontier tip`, remediation: null, resumePoint: { branch: integrationBranch, ref: builtRef, stage: 'ship' } }), integrationBranch, compensationStack) };
+        }
       }
       log(`mitosis[${msp.id}]: restored ${integrationBranch} from durable checkpoint ${clean(builtRef)}`);
       compensationStack = registerEffect(compensationStack, { kind: 'local-branch', ref: integrationBranch });
@@ -3358,7 +3406,7 @@ async function runUnit(unit) {
     }
 
     if (isFrontierBuiltRedispatch) {
-      const restore = await restoreIntegrationFromBuiltCheckpoint(frontierBuiltEntry.checkpointRef);
+      const restore = await restoreIntegrationFromBuiltCheckpoint(frontierBuiltEntry.checkpointRef, frontierBuiltEntry.sha);
       if (!restore.ready) return restore.parkOutcome;
       builtInRun.delete(msp.id);
       log(`mitosis[${msp.id}]: frontier-train — every parent reached done; restacking ${integrationBranch} onto origin/${baseBranch} and opening its PR (built -> awaiting)`);

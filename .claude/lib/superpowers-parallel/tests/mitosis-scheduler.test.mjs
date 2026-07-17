@@ -133,7 +133,7 @@ function createFakeAgent({ msps, sourcePrefix = SOURCE_PREFIX, planGate, shipRes
       case 'branch':
         return { ready: true, detail: '' };
       case 'restore':
-        return { restored: true, detail: '' };
+        return { restored: true, sha: '', detail: '' };
       case 'ship': {
         const mspId = label.slice('ship:'.length);
         const override = shipResult ? shipResult(mspId) : null;

@@ -407,6 +407,50 @@ test('CONTINUOUS DRAIN (streaming): with the flag override, poll budget resets o
   assert.ok([...byId2.values()].some((u) => u.state !== 'done'), 'without continuous drain the deep chain stalls at the monotonic poll ceiling (streaming)');
 });
 
+function stalledPollSpecs() {
+  return [
+    { id: 'r0', fileScope: ['r0.mjs'] },
+    { id: 'r1', fileScope: ['r1.mjs'] },
+    { id: 'd0', prereqs: ['r0', 'r1'], fileScope: ['d0.mjs'] },
+  ];
+}
+
+const runUnitThatAwaits = async (u) => (u.id.startsWith('r')
+  ? AwaitingApproval({ mspId: u.id, prUrl: `https://github.com/o/repo/pull/${u.id === 'r0' ? '1' : '2'}` })
+  : Done({ ok: true }));
+
+const buildNeverMergingPoll = () => ({
+  maxCycles: 3,
+  watch: async () => ({ merged: false, mergedAt: null, readError: null }),
+  onMerged: async () => { throw new Error('onMerged must never fire when nothing merges'); },
+});
+
+test('MERGE-POLL EXHAUSTION UNDER CONTINUOUS DRAIN (tick): a stalled chain whose poll never merges persists remaining awaiting units as the explicit awaiting-merge disposition the shepherd owns, not a silent awaiting dangle', async () => {
+  const withoutDrain = await runSchedule(stalledPollSpecs(), runUnitThatAwaits, buildNeverMergingPoll());
+  const byIdWithout = indexUnits(withoutDrain.units);
+  assert.equal(byIdWithout.get('r0').state, 'awaiting', 'flag-off: poll exhaustion leaves the unit awaiting, byte-identical to today');
+  assert.equal(byIdWithout.get('r1').state, 'awaiting');
+
+  const withDrain = await runSchedule(stalledPollSpecs(), runUnitThatAwaits, buildNeverMergingPoll(), { continuousDrain: true });
+  const byIdWith = indexUnits(withDrain.units);
+  assert.equal(byIdWith.get('r0').state, 'awaiting-merge', 'under continuous drain, poll exhaustion persists an explicit awaiting-merge disposition instead of a silent awaiting dangle');
+  assert.equal(byIdWith.get('r1').state, 'awaiting-merge');
+  assert.equal(byIdWith.get('d0').state, 'planned', 'a unit that never reached awaiting is untouched by the exhaustion relabel');
+});
+
+test('MERGE-POLL EXHAUSTION UNDER CONTINUOUS DRAIN (streaming): a stalled chain whose poll never merges persists remaining awaiting units as the explicit awaiting-merge disposition under the streaming scheduler too', async () => {
+  const withoutDrain = await runSchedule(stalledPollSpecs(), runUnitThatAwaits, buildNeverMergingPoll(), { streaming: true });
+  const byIdWithout = indexUnits(withoutDrain.units);
+  assert.equal(byIdWithout.get('r0').state, 'awaiting', 'flag-off: poll exhaustion leaves the unit awaiting, byte-identical to today (streaming)');
+  assert.equal(byIdWithout.get('r1').state, 'awaiting');
+
+  const withDrain = await runSchedule(stalledPollSpecs(), runUnitThatAwaits, buildNeverMergingPoll(), { continuousDrain: true, streaming: true });
+  const byIdWith = indexUnits(withDrain.units);
+  assert.equal(byIdWith.get('r0').state, 'awaiting-merge', 'under continuous drain, poll exhaustion persists an explicit awaiting-merge disposition instead of a silent awaiting dangle (streaming)');
+  assert.equal(byIdWith.get('r1').state, 'awaiting-merge');
+  assert.equal(byIdWith.get('d0').state, 'planned', 'a unit that never reached awaiting is untouched by the exhaustion relabel (streaming)');
+});
+
 function buildFrontierSpecs(builtParentCount) {
   const specs = [{ id: 'blocker', fileScope: ['blocker.mjs'] }];
   for (let i = 0; i < builtParentCount; i += 1) specs.push({ id: `p${i}`, state: 'built', prereqs: ['blocker'], fileScope: [`p${i}.mjs`] });

@@ -131,6 +131,10 @@ function markMerged(units, mergedIds) {
   return Object.freeze(units.map((u) => (set.has(u.id) ? Object.freeze({ ...u, state: 'done', leaseHeld: false }) : u)));
 }
 
+function markAwaitingMerge(units) {
+  return Object.freeze(units.map((u) => (u.state === 'awaiting' ? Object.freeze({ ...u, state: 'awaiting-merge' }) : u)));
+}
+
 async function runScheduleTick(specs, runUnit, poll, continuousDrain, frontierTrain, windowSize) {
   let units = buildUnitTable(specs);
   const ticks = [];
@@ -165,6 +169,7 @@ async function runScheduleTick(specs, runUnit, poll, continuousDrain, frontierTr
       if (merged.length > 0) { units = markMerged(units, merged); if (continuousDrain) pollsUsed = 0; }
       continue;
     }
+    if (continuousDrain) units = markAwaitingMerge(units);
     break;
   }
   return { units, ticks, polls };
@@ -237,6 +242,7 @@ async function runScheduleStreaming(specs, runUnit, poll, continuousDrain, front
       if (merged.length > 0) { units = markMerged(units, merged); if (continuousDrain) pollsUsed = 0; }
       continue;
     }
+    if (continuousDrain) units = markAwaitingMerge(units);
     break;
   }
   return { units, ticks, polls };
