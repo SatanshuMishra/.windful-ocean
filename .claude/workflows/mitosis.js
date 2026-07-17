@@ -2496,6 +2496,42 @@ function mergePaginated(pages) {
   return out;
 }
 
+function shouldReconcileOnly({ frontierTrain, isRelaunch, specByteIdentical, hasFrontierState } = {}) {
+  return frontierTrain === true && isRelaunch === true && specByteIdentical === true && hasFrontierState === true;
+}
+
+function planReconcile(manifest, live = {}) {
+  const persistedWindow = manifest && typeof manifest === 'object' && !Array.isArray(manifest) ? manifest.window : undefined;
+  const events = Array.isArray(live.events) ? live.events : [];
+  const nextW = events.reduce((w, e) => nextWindow(w, e), nextWindow(persistedWindow, null));
+  const empty = { toRestack: [], toOpen: [], toParkSubtree: [], nextW, buildRunNeeded: false };
+  if (!manifest || typeof manifest !== 'object' || Array.isArray(manifest) || !Array.isArray(manifest.msps)) return empty;
+  const msps = manifest.msps;
+  const mergedLive = new Set(uniqStrings(live.merged));
+  const publishedLive = new Set(uniqStrings(live.published));
+  const mergedShas = live.mergedShas && typeof live.mergedShas === 'object' && !Array.isArray(live.mergedShas) ? live.mergedShas : {};
+  const shippedIds = msps.filter((m) => m && typeof m.id === 'string' && m.status === 'shipped').map((m) => m.id);
+  const doneSet = new Set([...shippedIds, ...mergedLive]);
+  const builtShaById = new Map(msps.filter((m) => m && typeof m.id === 'string').map((m) => [m.id, typeof m.builtSha === 'string' ? m.builtSha : null]));
+  const parkSet = new Set();
+  for (const parentId of Object.keys(mergedShas)) {
+    const priorSha = builtShaById.has(parentId) ? builtShaById.get(parentId) : null;
+    for (const dep of descendantsToInvalidate(manifest, parentId, { priorSha, mergedSha: mergedShas[parentId] })) parkSet.add(dep);
+  }
+  const toRestack = [];
+  const toOpen = [];
+  for (const msp of msps) {
+    if (!msp || typeof msp.id !== 'string') continue;
+    if (msp.status !== 'built') continue;
+    if (doneSet.has(msp.id) || parkSet.has(msp.id) || publishedLive.has(msp.id)) continue;
+    const prereqs = Array.isArray(msp.dependsOn) ? msp.dependsOn : [];
+    if (prereqs.every((p) => doneSet.has(p))) { toOpen.push(msp.id); continue; }
+    if (prereqs.some((p) => doneSet.has(p))) toRestack.push(msp.id);
+  }
+  const toParkSubtree = [...parkSet];
+  return { toRestack, toOpen, toParkSubtree, nextW, buildRunNeeded: toParkSubtree.length > 0 };
+}
+
 function computeParkedStatus({ shipped, parked, halted, crashed, awaitingApproval, total }) {
   const awaitingList = awaitingApproval || [];
   const blockedPendingApprovalCount = parked.filter(isBlockedPendingApproval).length;
@@ -2995,6 +3031,11 @@ const reconciledManifest = builtUnits
 const isRelaunch = reconciledManifest && reconciledManifest.logicalRunId === logicalRunId;
 const reuse = isRelaunch ? evaluateManifestReuse(reconciledManifest, observedSpecHash) : { reusable: false };
 const reusable = reuse.reusable;
+const reconcileOnlyMode = shouldReconcileOnly({ frontierTrain: FRONTIER_TRAIN_ENABLED, isRelaunch, specByteIdentical: reusable, hasFrontierState: builtUnits.length > 0 });
+if (reconcileOnlyMode) {
+  const advance = planReconcile(reconciledManifest, { merged: [...reconciledShipped] });
+  log(`mitosis: reconcile-only shepherd — advancing the merge frontier without decompose or rebuild: ${advance.toOpen.length} PR(s) to open (${advance.toOpen.join(', ') || 'none'}), ${advance.toRestack.length} built branch(es) to restack (${advance.toRestack.join(', ') || 'none'}), ${advance.toParkSubtree.length} unit(s) to park on divergent-invalidation (${advance.toParkSubtree.join(', ') || 'none'})${advance.buildRunNeeded ? ' — BUILD RUN NEEDED' : ''}; AIMD window W=${advance.nextW}`);
+}
 const resumeMap = new Map();
 if (reusable) {
   const plannedIds = reconciledManifest.msps.map((m) => m.id);

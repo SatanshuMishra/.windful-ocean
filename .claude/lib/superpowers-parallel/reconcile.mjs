@@ -1,4 +1,6 @@
 import { parseCheckpointRef } from './checkpoint.mjs';
+import { descendantsToInvalidate } from './parking.mjs';
+import { nextWindow } from './window.mjs';
 
 function uniqStrings(list) {
   if (!Array.isArray(list)) return [];
@@ -53,4 +55,40 @@ export function mergePaginated(pages) {
     for (const item of page) out.push(item);
   }
   return out;
+}
+
+export function shouldReconcileOnly({ frontierTrain, isRelaunch, specByteIdentical, hasFrontierState } = {}) {
+  return frontierTrain === true && isRelaunch === true && specByteIdentical === true && hasFrontierState === true;
+}
+
+export function planReconcile(manifest, live = {}) {
+  const persistedWindow = manifest && typeof manifest === 'object' && !Array.isArray(manifest) ? manifest.window : undefined;
+  const events = Array.isArray(live.events) ? live.events : [];
+  const nextW = events.reduce((w, e) => nextWindow(w, e), nextWindow(persistedWindow, null));
+  const empty = { toRestack: [], toOpen: [], toParkSubtree: [], nextW, buildRunNeeded: false };
+  if (!manifest || typeof manifest !== 'object' || Array.isArray(manifest) || !Array.isArray(manifest.msps)) return empty;
+  const msps = manifest.msps;
+  const mergedLive = new Set(uniqStrings(live.merged));
+  const publishedLive = new Set(uniqStrings(live.published));
+  const mergedShas = live.mergedShas && typeof live.mergedShas === 'object' && !Array.isArray(live.mergedShas) ? live.mergedShas : {};
+  const shippedIds = msps.filter((m) => m && typeof m.id === 'string' && m.status === 'shipped').map((m) => m.id);
+  const doneSet = new Set([...shippedIds, ...mergedLive]);
+  const builtShaById = new Map(msps.filter((m) => m && typeof m.id === 'string').map((m) => [m.id, typeof m.builtSha === 'string' ? m.builtSha : null]));
+  const parkSet = new Set();
+  for (const parentId of Object.keys(mergedShas)) {
+    const priorSha = builtShaById.has(parentId) ? builtShaById.get(parentId) : null;
+    for (const dep of descendantsToInvalidate(manifest, parentId, { priorSha, mergedSha: mergedShas[parentId] })) parkSet.add(dep);
+  }
+  const toRestack = [];
+  const toOpen = [];
+  for (const msp of msps) {
+    if (!msp || typeof msp.id !== 'string') continue;
+    if (msp.status !== 'built') continue;
+    if (doneSet.has(msp.id) || parkSet.has(msp.id) || publishedLive.has(msp.id)) continue;
+    const prereqs = Array.isArray(msp.dependsOn) ? msp.dependsOn : [];
+    if (prereqs.every((p) => doneSet.has(p))) { toOpen.push(msp.id); continue; }
+    if (prereqs.some((p) => doneSet.has(p))) toRestack.push(msp.id);
+  }
+  const toParkSubtree = [...parkSet];
+  return { toRestack, toOpen, toParkSubtree, nextW, buildRunNeeded: toParkSubtree.length > 0 };
 }
