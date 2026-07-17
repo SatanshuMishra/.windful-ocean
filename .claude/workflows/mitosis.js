@@ -2501,22 +2501,28 @@ function shouldReconcileOnly({ frontierTrain, isRelaunch, specByteIdentical, has
 }
 
 function planReconcile(manifest, live = {}) {
+  const liveObj = live && typeof live === 'object' && !Array.isArray(live) ? live : {};
   const persistedWindow = manifest && typeof manifest === 'object' && !Array.isArray(manifest) ? manifest.window : undefined;
-  const events = Array.isArray(live.events) ? live.events : [];
+  const events = Array.isArray(liveObj.events) ? liveObj.events : [];
   const nextW = events.reduce((w, e) => nextWindow(w, e), nextWindow(persistedWindow, null));
   const empty = { toRestack: [], toOpen: [], toParkSubtree: [], nextW, buildRunNeeded: false };
   if (!manifest || typeof manifest !== 'object' || Array.isArray(manifest) || !Array.isArray(manifest.msps)) return empty;
   const msps = manifest.msps;
-  const mergedLive = new Set(uniqStrings(live.merged));
-  const publishedLive = new Set(uniqStrings(live.published));
-  const mergedShas = live.mergedShas && typeof live.mergedShas === 'object' && !Array.isArray(live.mergedShas) ? live.mergedShas : {};
+  const mergedLive = new Set(uniqStrings(liveObj.merged));
+  const publishedLive = new Set(uniqStrings(liveObj.published));
+  const mergedShas = liveObj.mergedShas && typeof liveObj.mergedShas === 'object' && !Array.isArray(liveObj.mergedShas) ? liveObj.mergedShas : {};
   const shippedIds = msps.filter((m) => m && typeof m.id === 'string' && m.status === 'shipped').map((m) => m.id);
   const doneSet = new Set([...shippedIds, ...mergedLive]);
   const builtShaById = new Map(msps.filter((m) => m && typeof m.id === 'string').map((m) => [m.id, typeof m.builtSha === 'string' ? m.builtSha : null]));
   const parkSet = new Set();
-  for (const parentId of Object.keys(mergedShas)) {
+  for (const parentId of mergedLive) {
+    const mergedSha = mergedShas[parentId];
+    if (typeof mergedSha !== 'string' || mergedSha.length === 0) {
+      for (const dep of transitiveDependents(msps, parentId)) parkSet.add(dep);
+      continue;
+    }
     const priorSha = builtShaById.has(parentId) ? builtShaById.get(parentId) : null;
-    for (const dep of descendantsToInvalidate(manifest, parentId, { priorSha, mergedSha: mergedShas[parentId] })) parkSet.add(dep);
+    for (const dep of descendantsToInvalidate(manifest, parentId, { priorSha, mergedSha })) parkSet.add(dep);
   }
   const toRestack = [];
   const toOpen = [];

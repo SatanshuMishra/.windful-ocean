@@ -170,3 +170,46 @@ test('planReconcile: never mutates the input manifest', () => {
   planReconcile(manifest, { merged: ['root'], mergedShas: { root: 'diverged' } });
   assert.equal(JSON.stringify(manifest), snapshot);
 });
+
+test('planReconcile: a null / array / non-object live is normalized to a safe snapshot and never dereferenced raw (fail closed, not crash)', () => {
+  const manifest = { window: 3, msps: [
+    { id: 'root', status: 'shipped', dependsOn: [] },
+    { id: 'a', status: 'built', dependsOn: ['root'], builtSha: 'a0' },
+  ] };
+  const expected = { toRestack: [], toOpen: ['a'], toParkSubtree: [], nextW: 3, buildRunNeeded: false };
+  assert.deepEqual(planReconcile(manifest, null), expected);
+  assert.deepEqual(planReconcile(manifest, ['root']), expected);
+  assert.deepEqual(planReconcile(manifest, 'garbage'), expected);
+});
+
+test('planReconcile: a merged parent whose merged SHA is unknown (absent from mergedShas) parks its subtree and never advances the children — fail closed', () => {
+  const manifest = { window: 3, msps: [
+    { id: 'root', status: 'shipped', dependsOn: [], builtSha: 'r-built' },
+    { id: 'a', status: 'built', dependsOn: ['root'], builtSha: 'a0' },
+    { id: 'b', status: 'built', dependsOn: ['a'], builtSha: 'b0' },
+  ] };
+  const plan = planReconcile(manifest, { merged: ['root'], mergedShas: {} });
+  assert.deepEqual([...plan.toParkSubtree].sort(), ['a', 'b']);
+  assert.equal(plan.buildRunNeeded, true);
+  assert.deepEqual(plan.toOpen, []);
+  assert.deepEqual(plan.toRestack, []);
+});
+
+test('planReconcile: a merged parent with a null or empty merged SHA is treated as divergent (parked), never as a content-preserving squash', () => {
+  const nullPlan = planReconcile({ window: 3, msps: [
+    { id: 'root', status: 'shipped', dependsOn: [] },
+    { id: 'a', status: 'built', dependsOn: ['root'], builtSha: 'a0' },
+    { id: 'b', status: 'built', dependsOn: ['a'], builtSha: 'b0' },
+  ] }, { merged: ['root'], mergedShas: { root: null } });
+  assert.deepEqual([...nullPlan.toParkSubtree].sort(), ['a', 'b']);
+  assert.equal(nullPlan.buildRunNeeded, true);
+  assert.deepEqual(nullPlan.toOpen, []);
+  const emptyPlan = planReconcile({ window: 3, msps: [
+    { id: 'root', status: 'shipped', dependsOn: [], builtSha: '' },
+    { id: 'a', status: 'built', dependsOn: ['root'], builtSha: 'a0' },
+    { id: 'b', status: 'built', dependsOn: ['a'], builtSha: 'b0' },
+  ] }, { merged: ['root'], mergedShas: { root: '' } });
+  assert.deepEqual([...emptyPlan.toParkSubtree].sort(), ['a', 'b']);
+  assert.equal(emptyPlan.buildRunNeeded, true);
+  assert.deepEqual(emptyPlan.toOpen, []);
+});
