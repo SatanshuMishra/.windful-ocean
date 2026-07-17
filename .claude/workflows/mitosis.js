@@ -1809,6 +1809,10 @@ function isBuildable(unit, unitsById, leases, window) {
   return window.builtUnmergedCount < window.size;
 }
 
+function mayRestack(state) {
+  return state === 'built' || state === 'planned';
+}
+
 function acquire(leases, unit) {
   const next = new Map(leases);
   for (const path of unit.fileScope) next.set(path, unit.id);

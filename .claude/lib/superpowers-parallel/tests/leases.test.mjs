@@ -9,6 +9,7 @@ import {
   overlapHolder,
   isDispatchable,
   isBuildable,
+  mayRestack,
   acquire,
   dispositionOf,
   planTick,
@@ -106,6 +107,18 @@ test('isDispatchable is false for units already in a terminal, awaiting, or disp
   ]);
   const byId = indexUnits(units);
   for (const id of ['d', 'p', 'w', 'x']) assert.equal(isDispatchable(byId.get(id), byId, new Map()), false);
+});
+
+test('mayRestack: a published (awaiting) or shipped (done) branch is frozen; only an unpublished built/planned branch may restack', () => {
+  assert.equal(mayRestack('built'), true, 'built: not yet published, restack is safe');
+  assert.equal(mayRestack('planned'), true, 'planned: no branch published yet, restack is safe');
+  assert.equal(mayRestack('awaiting'), false, 'awaiting: PR is open, frozen — never force-push');
+  assert.equal(mayRestack('done'), false, 'done: shipped/merged, frozen');
+  assert.equal(mayRestack('parked'), false, 'parked: ambiguous/failed state, fail closed');
+  assert.equal(mayRestack('dispatched'), false, 'dispatched: mid-flight, fail closed');
+  assert.equal(mayRestack('awaiting-merge'), false, 'awaiting-merge: PR is open, frozen');
+  assert.equal(mayRestack(undefined), false, 'absent state fails closed');
+  assert.equal(mayRestack('bogus'), false, 'unrecognized state fails closed');
 });
 
 test('TIE-BREAK: planTick dispatches the lower-index unit and makes the overlapping contender wait this tick', () => {
