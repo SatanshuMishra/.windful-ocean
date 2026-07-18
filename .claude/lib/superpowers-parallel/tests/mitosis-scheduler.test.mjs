@@ -3379,22 +3379,24 @@ test('A5 E5 knob hardening: a non-review models key outside the whitelist (recon
   assert.equal(agentCalls, 0);
 });
 
-test('A5 E4 review pin: the MSP-stage plan-review dispatch carries an explicit opus model (never a session/knob inherit)', async () => {
-  const msps = [mspSpec('solo', { fileScope: ['scope/solo/**'] })];
+test('A5 E4 risk-scaled plan-review model: a coarse directory-glob MSP reviews on opus while a trivial specific-file low-blast MSP reviews on sonnet', async () => {
+  const msps = [
+    mspSpec('coarse', { fileScope: ['scope/coarse/**'] }),
+    mspSpec('trivial', { fileScope: ['scope/trivial/widget.mjs'] }),
+  ];
   const base = createFakeAgent({ msps });
-  const captured = [];
+  const captured = {};
   const agent = async (prompt, opts = {}) => {
-    if ((opts.label || '').startsWith('plan-review:')) captured.push(opts);
+    const label = opts.label || '';
+    if (label.startsWith('plan-review:')) captured[label.split(':')[1]] = opts.model;
     return base(prompt, opts);
   };
   const { resultPromise } = invokeMitosis(buildInput(), agent);
   const result = await resultPromise;
 
   assert.equal(result.overallStatus, 'all-shipped');
-  assert.ok(captured.length >= 1, 'a plan-review dispatch was captured');
-  for (const opts of captured) {
-    assert.equal(opts.model, 'opus', 'plan-review is a review lens and must dispatch on an explicit opus');
-  }
+  assert.equal(captured.coarse, 'opus', 'a coarse directory-glob scope is non-trivial: plan-review stays opus');
+  assert.equal(captured.trivial, 'sonnet', 'a trivial specific-file low-blast MSP down-tiers plan-review to sonnet');
 });
 
 function captureStageModels(base, prefixes) {
@@ -3407,7 +3409,7 @@ function captureStageModels(base, prefixes) {
   return { agent, models };
 }
 
-test('A5b Opus pin: decompose, plan, and ship each dispatch an explicit opus model (never a session/knob inherit)', async () => {
+test('A5b model tiers: decompose and ship stay opus-pinned; plan is risk-scaled and stays opus for this coarse-scope MSP', async () => {
   const msps = [mspSpec('solo', { fileScope: ['scope/solo/**'] })];
   const base = createFakeAgent({ msps });
   const { agent, models } = captureStageModels(base, ['decompose', 'plan', 'ship']);
@@ -3416,11 +3418,11 @@ test('A5b Opus pin: decompose, plan, and ship each dispatch an explicit opus mod
 
   assert.equal(result.overallStatus, 'all-shipped');
   assert.equal(models.decompose, 'opus', 'decompose is opus-pinned regardless of the knob');
-  assert.equal(models.plan, 'opus', 'plan is opus-pinned regardless of the knob');
+  assert.equal(models.plan, 'opus', 'plan shares the risk-scaled tier of its review; a coarse directory-glob MSP stays opus');
   assert.equal(models.ship, 'opus', 'ship stays opus (consequential publish + rebase-conflict judgment)');
 });
 
-test('A5b Opus pin: the plan-review re-plan (replan) dispatch is opus-pinned so a revised plan is never generated below opus', async () => {
+test('A5b tier match: the plan-review re-plan (replan) dispatch shares the plan tier, so a coarse-scope MSP re-plans on opus (verifier >= generator)', async () => {
   const msps = [mspSpec('solo', { fileScope: ['scope/solo/**'] })];
   let reviewCalls = 0;
   const base = createFakeAgent({
@@ -3437,7 +3439,7 @@ test('A5b Opus pin: the plan-review re-plan (replan) dispatch is opus-pinned so 
   const result = await resultPromise;
 
   assert.equal(result.overallStatus, 'all-shipped');
-  assert.equal(models.replan, 'opus', 'a re-plan generates the pinned plan artifact and must run on opus');
+  assert.equal(models.replan, 'opus', 'a re-plan is the generator for its review; for this coarse-scope MSP that tier is opus');
 });
 
 test('A5b knob hardening: an operator models.decomposer downgrade below opus is rejected fail-closed at the input stage before any agent runs', async () => {

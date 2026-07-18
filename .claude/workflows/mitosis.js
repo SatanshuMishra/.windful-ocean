@@ -828,6 +828,45 @@ function policyModelFor(task, opts) {
   return layer3Sonnet ? 'sonnet' : 'opus';
 }
 
+function planReviewModelFor(msp, opts) {
+  const layer3Sonnet = opts && typeof opts.layer3Sonnet === 'boolean' ? opts.layer3Sonnet : LAYER3_SONNET_ENABLED;
+  if (!msp || typeof msp !== 'object') return 'opus';
+  const fileScope = msp.fileScope;
+  if (!Array.isArray(fileScope) || fileScope.some((p) => typeof p !== 'string')) return 'opus';
+  if (fileScope.length !== 1 || !scopeIsSpecificFile(fileScope[0])) return 'opus';
+  if (sensitiveScope(fileScope)) return 'opus';
+  if (irreversible(fileScope, typeof msp.rationale === 'string' ? msp.rationale : '')) return 'opus';
+  if (msp.risk === 'high') return 'opus';
+  if (!Number.isInteger(msp.dependentCount) || msp.dependentCount < 0) return 'opus';
+  if (msp.dependentCount >= BLAST_RADIUS_K) return 'opus';
+  return layer3Sonnet ? 'sonnet' : 'opus';
+}
+
+function concreteFindings(review) {
+  if (!review || typeof review !== 'object' || !Array.isArray(review.findings)) return [];
+  return review.findings.filter((f) => f && typeof f === 'object'
+    && typeof f.axis === 'string' && f.axis.trim().length > 0
+    && typeof f.detail === 'string' && f.detail.trim().length > 0);
+}
+
+function resolvePlanReview(review, opts) {
+  const reReviewed = !!(opts && opts.reReviewed);
+  if (review && typeof review === 'object' && review.verdict === 'approve') {
+    return { decision: 'approve', findings: [] };
+  }
+  const findings = concreteFindings(review);
+  if (review && typeof review === 'object' && review.verdict === 'needs-changes' && findings.length > 0) {
+    return { decision: 'replan', findings };
+  }
+  return { decision: reReviewed ? 'approve' : 're-review', findings: [] };
+}
+
+function planGroundTruthSeed({ specPath, fileScope, unitId }) {
+  const scope = Array.isArray(fileScope) ? fileScope.filter((p) => typeof p === 'string') : [];
+  const scopeList = scope.length > 0 ? scope.map((p) => JSON.stringify(p)).join(', ') : '(none declared)';
+  return `Ground truth for MSP "${unitId}" (a hint to VERIFY against the live code, NOT a trust boundary): the approved spec lives at ${specPath} — read it to confirm this MSP's decomposition still holds against the current tree. This MSP's declared fileScope is [${scopeList}]; keep the plan STRICTLY within that slice. Do NOT expand into sibling-MSP territory or files outside this fileScope: sibling MSPs own their own slices and run in other waves, and an over-reaching plan collides on shared files (a collision surfaces as a merge conflict / CI failure / park, never a silent bad merge). If reading the spec reveals the decomposition itself is wrong (this MSP's slice is mis-cut), STOP and report that this MSP must be re-decomposed rather than planning around it.`;
+}
+
 function authorTaskModels(tasks, opts) {
   if (!tasks || typeof tasks !== 'object' || Array.isArray(tasks)) return tasks;
   return Object.fromEntries(
@@ -866,7 +905,7 @@ function routingTelemetry(tasks, opts) {
 }
 
 function guardModelDecision(kind, task, attemptedModel, opts) {
-  const policyModel = kind === 'implementer' ? policyModelFor(task, opts) : kind === 'fix' ? fixLoopModel(opts) : 'opus';
+  const policyModel = kind === 'implementer' ? policyModelFor(task, opts) : kind === 'fix' ? fixLoopModel(opts) : kind === 'plan-review' ? planReviewModelFor(task, opts) : 'opus';
   if (policyModel !== 'opus' && policyModel !== 'sonnet') {
     return { ok: false, model: policyModel, reason: `resolved a non-whitelisted policy model ${JSON.stringify(policyModel)}` };
   }
@@ -3225,6 +3264,8 @@ async function runUnit(unit) {
     const branchPrefix = `${sourcePrefix}/${msp.id}`;
     const integrationBranch = `${branchPrefix}-integration`;
     const dependsList = (msp.dependsOn || []).join(', ') || '(none)';
+    const mspDependentCount = Array.isArray(msps) ? msps.filter((m) => Array.isArray(m.dependsOn) && m.dependsOn.includes(msp.id)).length : -1;
+    const mspTierModel = guardModelDecision('plan-review', { ...msp, dependentCount: mspDependentCount }, null);
     let compensationStack = emptyCompensationStack();
 
     if (reconciledShipped.has(msp.id)) {
@@ -3295,15 +3336,19 @@ async function runUnit(unit) {
       log(`mitosis[${msp.id}]: resuming at ${clean(resume.stage)} (skipping Plan) — plan artifact verified present at ${planned.planPath}`);
     } else {
       phase('Plan');
+      if (!mspTierModel.ok) {
+        return parkUnit(msp, 'plan', NeedsHuman({ kind: 'approve-decision', what: `plan-stage model policy violation: ${mspTierModel.reason}; the plan and its adversarial review share one risk-scaled tier (verifier >= generator) and park rather than dispatching an unwhitelisted model`, remediation: null, resumePoint: { branch: integrationBranch, ref: baseBranch, stage: 'plan' } }), integrationBranch, compensationStack);
+      }
       const planOutcome = await supervisedDispatch(
         (attemptNo, preamble) => agent(
           `You are the planning stage for MSP "${msp.id}" (${msp.title}) of a mitosis run. You have NO Skill tool.\n\n` +
           `Locate the superpowers writing-plans skill WITHOUT hardcoding its version: run \`node ${LIB_DIR}/resolve-superpowers.mjs\` if it prints a skillsDir, otherwise glob \`/Users/satanshumishra/.claude/plugins/cache/claude-plugins-official/superpowers/*/skills/writing-plans/SKILL.md\`. Read that SKILL.md and follow it exactly.\n\n` +
           `Scope: produce an implementation plan for ONLY this MSP: ${msp.rationale}\n` +
           `Target repo: ${repoRoot}. Earlier MSPs in this cluster's chain (already planned/merged) you may depend on: ${dependsList}.\n\n` +
+          `${planGroundTruthSeed({ specPath: spec, fileScope: msp.fileScope, unitId: msp.id })}\n\n` +
           `Write the plan to: ${repoRoot}/.mitosis/${msp.id}.plan.md (create the .mitosis directory if absent).\n\n` +
           `Return ONLY: { planPath: "<absolute path to the plan you wrote>", summary: "<one sentence>" }.`,
-          { agentType: 'implementer', schema: PLAN_SCHEMA, label: `plan:${msp.id}`, phase: 'Plan', model: 'opus' }
+          { agentType: 'implementer', schema: PLAN_SCHEMA, label: `plan:${msp.id}`, phase: 'Plan', model: mspTierModel.model }
         ),
         { unitId: msp.id, stage: 'plan', resetRef: baseBranch, worktree: null, task: msp.rationale, triedSet: planTriedSeed, ...makeRemediation({ unitId: msp.id, stage: 'plan', task: msp.rationale, schema: PLAN_SCHEMA, agentType: 'implementer', phase: 'Plan' }), runBudget: retryState },
       );
@@ -3315,11 +3360,12 @@ async function runUnit(unit) {
     const skipPlanReview = resumeStartIdx > RESUME_STAGE_ORDER.indexOf('plan-review');
     if (!skipPlanReview) {
       phase('Plan review');
-      const planReviewModel = guardModelDecision('review', null, 'opus');
+      const planReviewModel = mspTierModel;
       if (!planReviewModel.ok) {
-        return parkUnit(msp, 'plan-review', NeedsHuman({ kind: 'approve-decision', what: `plan-review model policy violation: ${planReviewModel.reason}; the outer plan-review lens must dispatch on opus (verifier >= generator) and parks rather than silently reviewing below opus`, remediation: null, resumePoint: { branch: integrationBranch, ref: baseBranch, stage: 'plan-review' } }), integrationBranch, compensationStack);
+        return parkUnit(msp, 'plan-review', NeedsHuman({ kind: 'approve-decision', what: `plan-review model policy violation: ${planReviewModel.reason}; the risk-scaled plan-review lens must match the plan tier (verifier >= generator) and parks rather than silently reviewing below that tier`, remediation: null, resumePoint: { branch: integrationBranch, ref: baseBranch, stage: 'plan-review' } }), integrationBranch, compensationStack);
       }
       let planReviewApproved = false;
+      let planReviewReReviewed = false;
       for (let reviewIter = 1; reviewIter <= MAX_PLAN_REVIEW_ITERATIONS && !planReviewApproved; reviewIter += 1) {
         const reviewOutcome = await supervisedDispatch(
           (attemptNo, preamble) => agent(
@@ -3329,18 +3375,23 @@ async function runUnit(unit) {
           { unitId: msp.id, stage: 'plan-review', resetRef: baseBranch, worktree: null, task: `adversarial review of the plan for ${msp.id}` },
         );
         if (reviewOutcome.tag !== 'Done') return parkUnit(msp, 'plan-review', reviewOutcome, integrationBranch, compensationStack);
-        const review = reviewOutcome.value;
-        if (review && review.verdict === 'approve') {
+        const resolution = resolvePlanReview(reviewOutcome.value, { reReviewed: planReviewReReviewed });
+        if (resolution.decision === 'approve') {
           planReviewApproved = true;
           log(`mitosis[${msp.id}]: plan review converged (approve) after ${reviewIter} iteration(s)`);
           break;
         }
+        if (resolution.decision === 're-review') {
+          planReviewReReviewed = true;
+          log(`mitosis[${msp.id}]: plan review returned a non-approval with no concrete finding (or an unparseable verdict) at iteration ${reviewIter}; re-reviewing once before any approve rather than manufacturing a replan`);
+          continue;
+        }
         if (reviewIter === MAX_PLAN_REVIEW_ITERATIONS) break;
-        const findings = review && Array.isArray(review.findings) ? review.findings : [];
+        planReviewReReviewed = false;
         const replanOutcome = await supervisedDispatch(
           (attemptNo, preamble) => agent(
-            replanPrompt({ unitId: msp.id, title: msp.title, planPath: planned.planPath, rationale: msp.rationale, dependsList, findings }),
-            { agentType: 'implementer', schema: PLAN_SCHEMA, label: `replan:${msp.id}`, phase: 'Plan review', model: 'opus' }
+            replanPrompt({ unitId: msp.id, title: msp.title, planPath: planned.planPath, rationale: msp.rationale, dependsList, findings: resolution.findings }),
+            { agentType: 'implementer', schema: PLAN_SCHEMA, label: `replan:${msp.id}`, phase: 'Plan review', model: planReviewModel.model }
           ),
           { unitId: msp.id, stage: 'plan-review', resetRef: baseBranch, worktree: null, task: `revise the plan for ${msp.id} to satisfy adversarial review`, ...makeRemediation({ unitId: msp.id, stage: 'plan-review', task: `revise the plan for ${msp.id} to satisfy adversarial review`, schema: PLAN_SCHEMA, agentType: 'implementer', phase: 'Plan review' }), runBudget: retryState },
         );

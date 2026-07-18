@@ -162,6 +162,45 @@ export function policyModelFor(task, opts) {
   return layer3Sonnet ? 'sonnet' : 'opus';
 }
 
+export function planReviewModelFor(msp, opts) {
+  const layer3Sonnet = opts && typeof opts.layer3Sonnet === 'boolean' ? opts.layer3Sonnet : LAYER3_SONNET_ENABLED;
+  if (!msp || typeof msp !== 'object') return 'opus';
+  const fileScope = msp.fileScope;
+  if (!Array.isArray(fileScope) || fileScope.some((p) => typeof p !== 'string')) return 'opus';
+  if (fileScope.length !== 1 || !scopeIsSpecificFile(fileScope[0])) return 'opus';
+  if (sensitiveScope(fileScope)) return 'opus';
+  if (irreversible(fileScope, typeof msp.rationale === 'string' ? msp.rationale : '')) return 'opus';
+  if (msp.risk === 'high') return 'opus';
+  if (!Number.isInteger(msp.dependentCount) || msp.dependentCount < 0) return 'opus';
+  if (msp.dependentCount >= BLAST_RADIUS_K) return 'opus';
+  return layer3Sonnet ? 'sonnet' : 'opus';
+}
+
+export function concreteFindings(review) {
+  if (!review || typeof review !== 'object' || !Array.isArray(review.findings)) return [];
+  return review.findings.filter((f) => f && typeof f === 'object'
+    && typeof f.axis === 'string' && f.axis.trim().length > 0
+    && typeof f.detail === 'string' && f.detail.trim().length > 0);
+}
+
+export function resolvePlanReview(review, opts) {
+  const reReviewed = !!(opts && opts.reReviewed);
+  if (review && typeof review === 'object' && review.verdict === 'approve') {
+    return { decision: 'approve', findings: [] };
+  }
+  const findings = concreteFindings(review);
+  if (review && typeof review === 'object' && review.verdict === 'needs-changes' && findings.length > 0) {
+    return { decision: 'replan', findings };
+  }
+  return { decision: reReviewed ? 'approve' : 're-review', findings: [] };
+}
+
+export function planGroundTruthSeed({ specPath, fileScope, unitId }) {
+  const scope = Array.isArray(fileScope) ? fileScope.filter((p) => typeof p === 'string') : [];
+  const scopeList = scope.length > 0 ? scope.map((p) => JSON.stringify(p)).join(', ') : '(none declared)';
+  return `Ground truth for MSP "${unitId}" (a hint to VERIFY against the live code, NOT a trust boundary): the approved spec lives at ${specPath} — read it to confirm this MSP's decomposition still holds against the current tree. This MSP's declared fileScope is [${scopeList}]; keep the plan STRICTLY within that slice. Do NOT expand into sibling-MSP territory or files outside this fileScope: sibling MSPs own their own slices and run in other waves, and an over-reaching plan collides on shared files (a collision surfaces as a merge conflict / CI failure / park, never a silent bad merge). If reading the spec reveals the decomposition itself is wrong (this MSP's slice is mis-cut), STOP and report that this MSP must be re-decomposed rather than planning around it.`;
+}
+
 export function authorTaskModels(tasks, opts) {
   if (!tasks || typeof tasks !== 'object' || Array.isArray(tasks)) return tasks;
   return Object.fromEntries(
@@ -200,7 +239,7 @@ export function routingTelemetry(tasks, opts) {
 }
 
 export function guardModelDecision(kind, task, attemptedModel, opts) {
-  const policyModel = kind === 'implementer' ? policyModelFor(task, opts) : kind === 'fix' ? fixLoopModel(opts) : 'opus';
+  const policyModel = kind === 'implementer' ? policyModelFor(task, opts) : kind === 'fix' ? fixLoopModel(opts) : kind === 'plan-review' ? planReviewModelFor(task, opts) : 'opus';
   if (policyModel !== 'opus' && policyModel !== 'sonnet') {
     return { ok: false, model: policyModel, reason: `resolved a non-whitelisted policy model ${JSON.stringify(policyModel)}` };
   }
