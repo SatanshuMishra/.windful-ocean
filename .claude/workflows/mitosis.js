@@ -3135,50 +3135,6 @@ async function persistParkCheckpoint(record) {
   }
 }
 
-async function persistBuiltCheckpoint({ unitId, checkpointRef: builtRef, sha }) {
-  try {
-    const deltaJson = JSON.stringify(builtDelta({ unitId, checkpointRef: builtRef, sha }));
-    const writeRes = await agent(
-      `You are the built-checkpoint stage of a mitosis run. You have NO Skill tool; follow these instructions directly.\n\n` +
-      `Durably APPEND one built-unit delta record to the run journal so a later relaunch can fold built-but-unshipped work and resume the unit at ship. Operate in ${repoRoot}:\n` +
-      `1. Create the directory ${repoRoot}/.mitosis/ if it does not already exist.\n` +
-      `2. Ensure .mitosis/ is gitignored: if ${repoRoot}/.gitignore does not already ignore it, append a line \`.mitosis/\` to ${repoRoot}/.gitignore. This file is machine run-state and is never committed.\n` +
-      `3. APPEND the following single line to the END of ${repoRoot}/.mitosis/run.json as a new final line (create the file if it does not exist). Do NOT overwrite, rewrite, or re-read the file, and do NOT alter any existing line. Append it EXACTLY as given, verbatim, as one line:\n\n` +
-      `${deltaJson}\n\n` +
-      `Do NOT commit, push, or run any other git mutation. Return ONLY: { written: <bool>, detail: "<what you did>" }.`,
-      { agentType: 'implementer', label: `built-checkpoint:${unitId}`, phase: 'Ship' }
-    );
-    if (writeRes == null || writeRes.written === false) {
-      const detail = writeRes && typeof writeRes.detail === 'string' ? ` (${clean(writeRes.detail)})` : '';
-      log(`mitosis[${unitId}]: durable built checkpoint write did not persist (written=${writeRes == null ? 'null' : 'false'})${detail}; continuing — the manifest is a hint, not the skip authority, so recovery will reconcile built state from git on the next relaunch`);
-    }
-  } catch (err) {
-    log(`mitosis[${unitId}]: durable built checkpoint failed (${clean(err.message)}); continuing — the manifest is a hint, not the skip authority, so recovery will reconcile built state from git on the next relaunch`);
-  }
-}
-
-async function persistShipCheckpoint({ unitId, prUrl, mergedAt, title, rationale }) {
-  try {
-    const deltaJson = JSON.stringify(shipDelta({ mspId: unitId, prUrl, mergedAt, title, rationale }));
-    const writeRes = await agent(
-      `You are the ship-checkpoint stage of a mitosis run. You have NO Skill tool; follow these instructions directly.\n\n` +
-      `Durably APPEND one shipped-unit delta record to the run journal so a later relaunch can fold shipped work against it. Operate in ${repoRoot}:\n` +
-      `1. Create the directory ${repoRoot}/.mitosis/ if it does not already exist.\n` +
-      `2. Ensure .mitosis/ is gitignored: if ${repoRoot}/.gitignore does not already ignore it, append a line \`.mitosis/\` to ${repoRoot}/.gitignore. This file is machine run-state and is never committed.\n` +
-      `3. APPEND the following single line to the END of ${repoRoot}/.mitosis/run.json as a new final line (create the file if it does not exist). Do NOT overwrite, rewrite, or re-read the file, and do NOT alter any existing line. Append it EXACTLY as given, verbatim, as one line:\n\n` +
-      `${deltaJson}\n\n` +
-      `Do NOT commit, push, or run any other git mutation. Return ONLY: { written: <bool>, detail: "<what you did>" }.`,
-      { agentType: 'implementer', label: `ship-checkpoint:${unitId}`, phase: 'Ship' }
-    );
-    if (writeRes == null || writeRes.written === false) {
-      const detail = writeRes && typeof writeRes.detail === 'string' ? ` (${clean(writeRes.detail)})` : '';
-      log(`mitosis[${unitId}]: durable ship checkpoint write did not persist (written=${writeRes == null ? 'null' : 'false'})${detail}; continuing — the manifest is a hint, not the skip authority, so recovery will reconcile shipped state from gh/git on the next relaunch`);
-    }
-  } catch (err) {
-    log(`mitosis[${unitId}]: durable ship checkpoint failed (${clean(err.message)}); continuing — the manifest is a hint, not the skip authority, so recovery will reconcile shipped state from gh/git on the next relaunch`);
-  }
-}
-
 function modelsMapEqual(a, b) {
   if (a === b) return true;
   if (!a || !b || typeof a !== 'object' || typeof b !== 'object' || Array.isArray(a) || Array.isArray(b)) return false;
@@ -3474,12 +3430,6 @@ async function runUnit(unit) {
       log(`mitosis[${msp.id}]: durable checkpoint push failed (${clean(err.message)}); continuing — the checkpoint ref is a reconcile hint, not the skip authority, so recovery reconciles built state from git on the next relaunch`);
     }
 
-    const builtLink = (mergeQueue = mergeQueue.then(() => persistBuiltCheckpoint({ unitId: msp.id, checkpointRef: durableCheckpointRef, sha: null })).catch((err) => {
-      log(`mitosis[${msp.id}]: durable built checkpoint failed (${clean(err.message)}); continuing — the manifest is a hint, not the skip authority, so recovery will reconcile built state from git on the next relaunch`);
-      return null;
-    }));
-    await builtLink;
-
     async function readBackHandoff() {
       const rb = await agent(
         `You are the ship-handoff read-back stage for MSP "${msp.id}" of a mitosis run. You have NO Skill tool.\n\n` +
@@ -3548,7 +3498,6 @@ async function runUnit(unit) {
       }
       log(`mitosis[${msp.id}]: shipped -> ${ship.prUrl} (handoff verified by independent read-back)`);
       shipped.push({ mspId: msp.id, prUrl: ship.prUrl, receiptsPass: ship.receiptsPass, d6Pass: ship.d6Pass, dependsOn: msp.dependsOn || [], aggregatedScope });
-      await persistShipCheckpoint({ unitId: msp.id, prUrl: ship.prUrl, mergedAt: readback.mergedAt, title: msp.title, rationale: msp.rationale });
       return { halted: false, mspId: msp.id, prUrl: ship.prUrl };
     }
 
@@ -3602,7 +3551,6 @@ const mergePoll = {
     if (idx >= 0) awaitingApproval.splice(idx, 1);
     shipped.push({ mspId: unit.id, prUrl, receiptsPass: entry ? entry.receiptsPass : null, d6Pass: entry ? entry.d6Pass : null, dependsOn: (msp && msp.dependsOn) || [] });
     log(`mitosis[${unit.id}]: in-run merge poll confirmed PR merged -> ${clean(prUrl)}; releasing lease and unblocking dependents`);
-    await persistShipCheckpoint({ unitId: unit.id, prUrl, mergedAt: result && result.mergedAt, title: msp && msp.title, rationale: msp && msp.rationale });
   },
 };
 
