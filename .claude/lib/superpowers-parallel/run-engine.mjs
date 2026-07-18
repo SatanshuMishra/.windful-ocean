@@ -121,6 +121,17 @@ export function blastRadius(task) {
   return Number.isInteger(n) && n >= 0 ? n : 0;
 }
 
+export function securityReviewRequired(task, k) {
+  if (!task || typeof task !== 'object') return false;
+  const threshold = Number.isInteger(k) && k > 0 ? k : BLAST_RADIUS_K;
+  return (
+    task.risk === 'high' ||
+    sensitiveScope(task.fileScope) ||
+    irreversible(task.fileScope, task.fullText) ||
+    blastRadius(task) >= threshold
+  );
+}
+
 function isImplementationRole(task) {
   return typeof task.agentType === 'string' && EXEC_AGENT_TYPES.has(task.agentType);
 }
@@ -217,6 +228,7 @@ export async function runEngine(engineArgs, ctx) {
   const { agent, parallel, log, phase } = ctx;
 
   const modelPolicyOpts = { layer3Sonnet: engineArgs.layer3Sonnet };
+  const reviewBlastRadiusK = Number.isInteger(engineArgs.reviewBlastRadiusK) && engineArgs.reviewBlastRadiusK > 0 ? engineArgs.reviewBlastRadiusK : BLAST_RADIUS_K;
   const tasks = authorTaskModels(engineArgs.tasks, modelPolicyOpts);
   const routing = routingTelemetry(tasks, modelPolicyOpts);
   log(routing.line);
@@ -332,7 +344,8 @@ export async function runEngine(engineArgs, ctx) {
     const task = tasks[taskId];
     const branch = branchOf(taskId);
     const wt = worktreeOf(taskId);
-    const reviewMode = task.risk === 'high' ? 'two-lens' : 'merged';
+    const securityGate = securityReviewRequired(task, reviewBlastRadiusK);
+    const reviewMode = securityGate ? 'two-lens' : 'merged';
     const resolvedAgentType = EXEC_AGENT_TYPES.has(task.agentType) ? task.agentType : 'implementer';
     async function attempt(dispatchKind, escalated, priorIssues) {
       const implLabel = escalated ? `escalate:${taskId}` : `impl:${taskId}`;
@@ -350,7 +363,7 @@ export async function runEngine(engineArgs, ctx) {
         return { gate: 'blocked', reason: status ? status.status : 'null-status' };
       const merged = await reviewLoop(task, branch, wt, mergedReviewPrompt, 'review', 'code-reviewer');
       if (!merged.ok) return { gate: 'review', reason: merged.reason, issues: merged.issues };
-      if (task.risk === 'high') {
+      if (securityGate) {
         const sec = await reviewLoop(task, branch, wt, securityReviewPrompt, 'sec', 'security-reviewer');
         if (!sec.ok) return { gate: 'review', reason: sec.reason, issues: sec.issues };
       }
