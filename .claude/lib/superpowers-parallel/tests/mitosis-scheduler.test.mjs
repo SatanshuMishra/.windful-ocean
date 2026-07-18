@@ -4,6 +4,7 @@ import { readFileSync } from 'node:fs';
 import { computeLogicalRunId, buildInitialManifest, applyShipTransition, parseRunManifest } from '../recovery.mjs';
 import { foldRunManifest } from '../run-log.mjs';
 import { park, LEGAL_STAGES } from '../parking.mjs';
+import { runEngine } from '../run-engine.mjs';
 
 const MITOSIS_PATH = process.env.MITOSIS_PATH || new URL('../../../workflows/mitosis.js', import.meta.url).pathname;
 const SOURCE_PREFIX = 'mitosis-test';
@@ -3544,4 +3545,100 @@ test('A7 the in-run diagnostician dispatch pins opus and re-points off the phant
   assert.equal(diagnoseCalls[0].model, 'opus', 'the in-run diagnostician is an analysis lens with an unknown/non-implementation agentType and must dispatch on opus, never an implicit session inherit or a downgrade');
   assert.notEqual(diagnoseCalls[0].agentType, 'diagnostician', 'the phantom diagnostician agentType must resolve to a real agent definition');
   assert.equal(diagnoseCalls[0].agentType, 'debugger', 'the in-run diagnostician re-points to the existing debugger analysis agent');
+});
+
+function captureModels(base) {
+  const models = new Map();
+  const agent = async (prompt, opts = {}) => {
+    models.set(opts.label || '', opts.model);
+    return base(prompt, opts);
+  };
+  return { agent, models };
+}
+
+test('MSP-5a WS-5.1: worktree read-only probe + checkpoint clerical dispatches run Sonnet while branch-prep holds at Opus', async () => {
+  const msps = linearChainMsps();
+  const base = createFakeAgent({ msps });
+  const { agent, models } = captureModels(base);
+  const { resultPromise } = invokeMitosis(buildInput(), agent);
+  const result = await resultPromise;
+
+  assert.equal(result.overallStatus, 'all-shipped');
+  assert.equal(models.get('prepare-probe'), 'sonnet', 'the read-only prepare probe is down-tiered to Sonnet');
+  assert.equal(models.get('checkpoint-init'), 'sonnet', 'the genesis checkpoint journal append is down-tiered to Sonnet');
+  for (const m of msps) {
+    assert.equal(models.get(`checkpoint-push:${m.id}`), 'sonnet', `the durable checkpoint push for ${m.id} is down-tiered to Sonnet`);
+    assert.equal(models.get(`ship-verify:${m.id}`), 'sonnet', `the ship-handoff read-back for ${m.id} is down-tiered to Sonnet`);
+    assert.equal(models.get(`branch:${m.id}`), 'opus', `branch-prep for ${m.id} is HELD at Opus (destructive git floor)`);
+  }
+});
+
+test('MSP-5a WS-5.1: the in-run merge-watch poll runs Sonnet', async () => {
+  const msps = [mspSpec('a', { fileScope: ['scope/a/**'] }), mspSpec('b', { dependsOn: ['a'], fileScope: ['scope/b/**'] })];
+  const base = createFakeAgent({
+    msps,
+    shipResult: (mspId) => (mspId === 'a'
+      ? { merged: false, awaitingApproval: true, prUrl: 'https://github.com/o/repo/pull/1', receiptsPass: true, d6Pass: true, detail: 'CI green; PR open and awaiting human approval to merge' }
+      : null),
+    mergeWatch: (mspId) => (mspId === 'a'
+      ? { merged: true, mergedAt: '2026-07-15T00:00:00Z', readError: null }
+      : { merged: false, mergedAt: null, readError: null }),
+  });
+  const { agent, models } = captureModels(base);
+  const { resultPromise } = invokeMitosis(buildInput({ mergePolicy: undefined, repoIdentity: 'o/repo' }), agent);
+  const result = await resultPromise;
+
+  assert.equal(result.overallStatus, 'all-shipped');
+  assert.equal(models.get('merge-watch:a'), 'sonnet', 'the clerical merge-watch poll is down-tiered to Sonnet');
+});
+
+test('MSP-5a WS-5.1: the park-checkpoint journal append runs Sonnet', async () => {
+  const input = buildInput();
+  const msps = [mspSpec('solo', { fileScope: ['scope/solo/**'] })];
+  const { agent: durableAgent } = makeDurableFakeAgent({ msps, parallelizeFailUnitId: 'solo', repoRoot: input.repoRoot });
+  const { agent, models } = captureModels(durableAgent);
+  const { resultPromise } = invokeMitosis(input, agent);
+  const result = await resultPromise;
+
+  assert.equal(result.parked.length, 1);
+  assert.equal(models.get('park-checkpoint:solo'), 'sonnet', 'the park-checkpoint journal append is down-tiered to Sonnet');
+});
+
+test('MSP-5a WS-5.1: the resumed-run plan-artifact probe (plan-probe) runs Sonnet', async () => {
+  const input = buildInput();
+  const msps = [mspSpec('solo', { fileScope: ['scope/solo/**'] })];
+  const { agent: durableAgent } = makeDurableFakeAgent({ msps, parallelizeFailUnitId: 'solo', repoRoot: input.repoRoot });
+  const { agent, models } = captureModels(durableAgent);
+  await invokeMitosis(input, agent).resultPromise;
+  models.clear();
+  const second = await invokeMitosis(input, agent).resultPromise;
+
+  assert.equal(second.overallStatus, 'all-shipped');
+  assert.equal(models.get('plan-probe:solo'), 'sonnet', 'the resumed-run read-only plan-artifact probe is down-tiered to Sonnet');
+});
+
+test('MSP-5a WS-5.1: the scope-fence completeness-gate dispatch is HELD at Opus', async () => {
+  const engineArgs = { ...buildEngineArgs({ sourcePrefix: SOURCE_PREFIX, mspId: 'solo' }), isolation: 'scope-fence', launchCommit: 'launch-sha' };
+  const models = new Map();
+  const agent = async (prompt, opts = {}) => {
+    models.set(opts.label || '', opts.model);
+    const label = opts.label || '';
+    const prefix = label.split(':')[0];
+    if (prefix === 'impl') return { status: 'DONE', summary: '' };
+    if (['review', 'spec', 'qual', 'sec', 'fix-review', 'fix-spec', 'fix-qual', 'fix-sec'].includes(prefix)) return { verdict: 'pass', issues: [] };
+    if (prefix === 'fence') return { paths: [] };
+    if (label === 'boundary' || label === 'boundary-recheck') return { pass: true, output: '' };
+    return {};
+  };
+  const ctx = {
+    agent,
+    parallel: async (thunks) => Promise.all(thunks.map((fn) => fn())),
+    log: () => {},
+    phase: () => {},
+    dispatchWithRetry: (thunk) => thunk(1, ''),
+  };
+  const result = await runEngine(engineArgs, ctx);
+
+  assert.equal(result.halted, false);
+  assert.equal(models.get('fence:wave-0'), 'opus', 'the scope-fence completeness gate is HELD at Opus (feeds a fail-closed gate)');
 });

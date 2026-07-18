@@ -3063,7 +3063,7 @@ if (!reusable) {
       `3. Write the following to ${repoRoot}/.mitosis/run.json, overwriting any existing contents. It is a single, complete JSON object on ONE line — the genesis record of a newline-delimited run journal; write it EXACTLY as given, verbatim, as the entire file body:\n\n` +
       `${initialManifestJson}\n\n` +
       `Do NOT commit, push, or run any other git mutation. Return ONLY: { written: <bool>, detail: "<what you did>" }.`,
-      { agentType: 'implementer', label: 'checkpoint-init', phase: 'Reconcile' }
+      { agentType: 'implementer', label: 'checkpoint-init', phase: 'Reconcile', model: 'sonnet' }
     );
     if (checkpointRes == null || checkpointRes.written === false) {
       const detail = checkpointRes && typeof checkpointRes.detail === 'string' ? ` (${clean(checkpointRes.detail)})` : '';
@@ -3086,7 +3086,7 @@ try {
     `3. D6 presence: set d6CheckFound=true if ${repoRoot}/scripts/d6-check.cjs exists, else false.\n` +
     `4. Template bytes for deterministic bootstrap: return templateConfigRaw = the EXACT raw contents of ${TEMPLATES_DIR}/receipts.config.json (a string), and templateYmlRaw = the EXACT raw contents of ${TEMPLATES_DIR}/receipts.yml (a string). Return the bytes verbatim; do NOT parse or alter them.\n\n` +
     `Return ONLY: { receiptsConfigFound, receiptsConfigRaw, receiptsYmlFound, d6CheckFound, templateConfigRaw, templateYmlRaw }.`,
-    { agentType: 'implementer', schema: PROBE_SCHEMA, label: 'prepare-probe', phase: 'Prepare' }
+    { agentType: 'implementer', schema: PROBE_SCHEMA, label: 'prepare-probe', phase: 'Prepare', model: 'sonnet' }
   );
 } catch (err) {
   return fatalReport('prepare', `prepare probe agent threw before fan-out: ${err.message}`, msps.length, { crashed: true });
@@ -3202,7 +3202,7 @@ async function persistParkCheckpoint(record) {
       `3. APPEND the following single line to the END of ${repoRoot}/.mitosis/run.json as a new final line (create the file if it does not exist). Do NOT overwrite, rewrite, or re-read the file, and do NOT alter any existing line. Append it EXACTLY as given, verbatim, as one line:\n\n` +
       `${deltaJson}\n\n` +
       `Do NOT commit, push, or run any other git mutation. Return ONLY: { written: <bool>, detail: "<what you did>" }.`,
-      { agentType: 'implementer', label: `park-checkpoint:${record.unitId}`, phase: 'Remediate' }
+      { agentType: 'implementer', label: `park-checkpoint:${record.unitId}`, phase: 'Remediate', model: 'sonnet' }
     );
     if (writeRes == null || writeRes.written === false) {
       const detail = writeRes && typeof writeRes.detail === 'string' ? ` (${clean(writeRes.detail)})` : '';
@@ -3324,7 +3324,7 @@ async function runUnit(unit) {
           `This stage is STRICTLY READ-ONLY: it verifies that the locally persisted plan artifact survived into this workspace before the resumed run skips the Plan stage. It makes NO commits and mutates NO files whatsoever.\n\n` +
           `Check the plan artifact: \`test -f ${planned.planPath} && test -s ${planned.planPath}\`. Set planFound=true ONLY if the file exists and is non-empty; otherwise set planFound=false.\n\n` +
           `Return ONLY: { planFound: <bool> }.`,
-          { agentType: 'implementer', schema: PLAN_PROBE_SCHEMA, label: `plan-probe:${msp.id}`, phase: 'Plan' }
+          { agentType: 'implementer', schema: PLAN_PROBE_SCHEMA, label: `plan-probe:${msp.id}`, phase: 'Plan', model: 'sonnet' }
         ),
         { unitId: msp.id, stage: resume.stage, resetRef: null, worktree: null, task: `verify the plan artifact for ${msp.id} at ${planned.planPath}` },
       );
@@ -3499,7 +3499,7 @@ async function runUnit(unit) {
         `2. Observe-then-converge the integration ref (idempotent under replay): check whether ${integrationBranch} already points at origin/${baseBranch} - \`git -C ${repoRoot} rev-parse --verify --quiet ${integrationBranch}\` compared to \`git -C ${repoRoot} rev-parse origin/${baseBranch}\`. If they already match, the ref is already positioned - SKIP the update. Otherwise move it FRESH onto the pushed base: \`git -C ${repoRoot} branch -f ${integrationBranch} origin/${baseBranch}\` (this ref is local and never-pushed here, so a destructive branch move is safe forward compensation).\n\n` +
         `If both succeed, set ready=true. If the fetch or branch update fails (no remote, missing base), set ready=false and explain in detail.\n\n` +
         `Return ONLY: { ready: <bool>, detail: "<what happened>" }.`,
-        { agentType: 'implementer', schema: BRANCH_SCHEMA, label: `branch:${msp.id}`, phase: 'Branch' }
+        { agentType: 'implementer', schema: BRANCH_SCHEMA, label: `branch:${msp.id}`, phase: 'Branch', model: 'opus' }
       ),
       { unitId: msp.id, stage: 'branch', resetRef: baseBranch, worktree: null, task: `branch-prep ${msp.id} onto ${baseBranch}`, ...makeRemediation({ unitId: msp.id, stage: 'branch', task: `branch-prep ${msp.id} onto ${baseBranch}`, schema: BRANCH_SCHEMA, agentType: 'implementer', phase: 'Branch' }), runBudget: retryState },
     );
@@ -3543,7 +3543,7 @@ async function runUnit(unit) {
         `3. Otherwise publish the tip to the checkpoint ref: \`git -C ${repoRoot} push origin ${integrationBranch}:${durableCheckpointRef}\`. ONLY if that push is REJECTED as non-fast-forward retry once with \`git -C ${repoRoot} push --force-with-lease origin ${integrationBranch}:${durableCheckpointRef}\` — this is the sole permitted force, scoped to advancing this MSP's own checkpoint.\n\n` +
         `If the push succeeds (or the ref already matched) set pushed=true. If there is no remote or the push fails, set pushed=false and explain in detail.\n\n` +
         `Return ONLY: { pushed: <bool>, ref: ${JSON.stringify(durableCheckpointRef)}, detail: "<what happened>" }.`,
-        { agentType: 'implementer', label: `checkpoint-push:${msp.id}`, phase: 'Ship' }
+        { agentType: 'implementer', label: `checkpoint-push:${msp.id}`, phase: 'Ship', model: 'sonnet' }
       );
       if (checkpointPush == null || checkpointPush.pushed === false) {
         const detail = checkpointPush && typeof checkpointPush.detail === 'string' ? ` (${clean(checkpointPush.detail)})` : '';
@@ -3564,7 +3564,7 @@ async function runUnit(unit) {
         `2. Read the base...head containment: \`gh api "repos/$(cd ${repoRoot} && gh repo view --json nameWithOwner -q .nameWithOwner)/compare/${baseBranch}...${integrationBranch}"\` (base ${JSON.stringify(baseBranch)} and head ${JSON.stringify(integrationBranch)} are trusted kebab-validated config refs interpolated into the compare URL path). Report ahead_by (integer) and status (string) exactly as the API returns them; a genuinely merged head is CONTAINED in the base (ahead_by 0).\n` +
         `If either read cannot be completed (no remote, http error, unparseable body), set readError to a short description and leave merged, compare and mergedAt null.\n\n` +
         `Return ONLY: { merged: <bool|null>, compare: { ahead_by: <int>, status: "<string>" } | null, mergedAt: "<iso8601>" | null, readError: "<string>" | null }.`,
-        { agentType: 'implementer', label: `ship-verify:${msp.id}`, phase: 'Ship' }
+        { agentType: 'implementer', label: `ship-verify:${msp.id}`, phase: 'Ship', model: 'sonnet' }
       );
       if (rb == null || typeof rb !== 'object') {
         return { merged: null, compare: null, mergedAt: null, readError: 'ship-verify read-back returned no parseable result' };
@@ -3661,7 +3661,7 @@ const mergePoll = {
     try {
       const result = await agent(
         mergeWatchPrompt(plan, { maxWaitSeconds: MERGE_POLL_WAIT_SECONDS, pollIntervalSeconds: MERGE_POLL_INTERVAL_SECONDS }),
-        { agentType: 'implementer', schema: MERGE_WATCH_SCHEMA, label: `merge-watch:${unit.id}`, phase: 'Ship' }
+        { agentType: 'implementer', schema: MERGE_WATCH_SCHEMA, label: `merge-watch:${unit.id}`, phase: 'Ship', model: 'sonnet' }
       );
       return result || { merged: false, mergedAt: null, readError: 'merge-watch returned null (blocked or dropped)' };
     } catch (err) {
