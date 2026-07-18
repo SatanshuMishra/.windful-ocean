@@ -1803,11 +1803,39 @@ function dispositionOf(outcome) {
   return 'parked';
 }
 
+function computeDependentCounts(units) {
+  const directDependents = new Map(units.map((u) => [u.id, []]));
+  for (const u of units)
+    for (const p of u.prereqs)
+      if (directDependents.has(p)) directDependents.get(p).push(u.id);
+  const counts = new Map();
+  for (const u of units) {
+    const seen = new Set();
+    const stack = [...directDependents.get(u.id)];
+    while (stack.length > 0) {
+      const id = stack.pop();
+      if (seen.has(id)) continue;
+      seen.add(id);
+      for (const next of directDependents.get(id)) stack.push(next);
+    }
+    counts.set(u.id, seen.size);
+  }
+  return counts;
+}
+
+function criticalPathOrder(units) {
+  const counts = computeDependentCounts(units);
+  return units
+    .map((unit, index) => ({ unit, index }))
+    .sort((a, b) => (counts.get(b.unit.id) - counts.get(a.unit.id)) || (a.index - b.index))
+    .map((entry) => entry.unit);
+}
+
 function planTick(units) {
   const byId = indexUnits(units);
   let leases = new Map();
   const dispatch = [];
-  for (const unit of units) {
+  for (const unit of criticalPathOrder(units)) {
     if (isDispatchable(unit, byId, leases)) {
       dispatch.push(unit.id);
       leases = acquire(leases, unit);
@@ -1894,7 +1922,7 @@ function dispatchableStreaming(units, liveLeases) {
   const byId = indexUnits(units);
   let leases = new Map(liveLeases);
   const dispatch = [];
-  for (const unit of units) {
+  for (const unit of criticalPathOrder(units)) {
     if (isDispatchable(unit, byId, leases)) {
       dispatch.push(unit.id);
       leases = acquire(leases, unit);

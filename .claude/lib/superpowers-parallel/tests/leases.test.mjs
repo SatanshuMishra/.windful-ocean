@@ -366,6 +366,33 @@ function gatedRunner() {
   };
 }
 
+test('CRITICAL-PATH READY-SET ORDER: within a tick the ready-set dispatches the highest downstream-dependent-count unit first (test-unlocking value), and the lease guard still serializes an overlapping-scope contender out of that tick (isolation untouched)', async () => {
+  const specs = [
+    { id: 'rival', fileScope: ['shared.mjs'] },
+    { id: 'solo', fileScope: ['solo.mjs'] },
+    { id: 'hub', fileScope: ['shared.mjs'] },
+    { id: 'h1', prereqs: ['hub'], fileScope: ['h1.mjs'] },
+    { id: 'h2', prereqs: ['hub'], fileScope: ['h2.mjs'] },
+    { id: 'h3', prereqs: ['h1'], fileScope: ['h3.mjs'] },
+    { id: 's1', prereqs: ['solo'], fileScope: ['s1.mjs'] },
+  ];
+  const { units, ticks } = await runSchedule(specs, alwaysDone());
+
+  assert.deepEqual(
+    ticks[0],
+    ['hub', 'solo'],
+    'the first tick leads with hub (3 transitive dependents) then solo (1), ranked above the zero-dependent rival; rival shares hub\'s lease and is held out of the tick by the untouched isolation guard',
+  );
+  for (const tick of ticks) {
+    assert.ok(!(tick.includes('hub') && tick.includes('rival')), 'the two shared-scope units never co-dispatch: lease isolation is unchanged by ready-set ranking');
+  }
+  assert.equal(ticks.flat().filter((id) => id === 'rival').length, 1, 'the lower-ranked overlapping contender still runs, in a later tick');
+  const byId = indexUnits(units);
+  for (const id of ['rival', 'solo', 'hub', 'h1', 'h2', 'h3', 's1']) {
+    assert.equal(byId.get(id).state, 'done', `${id} reaches done`);
+  }
+});
+
 test('STREAMING FLAG: the streaming-dispatch flag defaults OFF, so the shipped default scheduler stays the tick barrier until the flip is proven', () => {
   assert.equal(leasesModule.STREAMING_DISPATCH_ENABLED, false, 'STREAMING_DISPATCH_ENABLED must default false: tick remains the shipped default');
 });
