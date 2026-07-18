@@ -1,0 +1,68 @@
+name: security
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  secret-scan:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  sast:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: pip install semgrep==1.170.0
+      - name: Resolve diff baseline
+        id: baseline
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          PUSH_BEFORE_SHA: ${{ github.event.before }}
+        run: |
+          if [ "$EVENT_NAME" = "pull_request" ]; then
+            ref="$PR_BASE_SHA"
+          elif [ "$EVENT_NAME" = "push" ] && [ "$PUSH_BEFORE_SHA" != "0000000000000000000000000000000000000000" ]; then
+            ref="$PUSH_BEFORE_SHA"
+          else
+            ref=""
+          fi
+          if [ -n "$ref" ] && ! git cat-file -e "${ref}^{commit}" 2>/dev/null; then
+            ref=""
+          fi
+          echo "ref=$ref" >> "$GITHUB_OUTPUT"
+      - name: Semgrep scan (p/default, diff-aware)
+        env:
+          BASELINE_REF: ${{ steps.baseline.outputs.ref }}
+        run: |
+          if [ -n "$BASELINE_REF" ]; then
+            semgrep scan --config p/default --error --metrics=off --baseline-commit "$BASELINE_REF" .
+          else
+            semgrep scan --config p/default --error --metrics=off .
+          fi
+
+  sca:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install osv-scanner
+        run: |
+          curl -sSfLo osv-scanner https://github.com/google/osv-scanner/releases/download/v2.4.0/osv-scanner_linux_amd64
+          chmod +x osv-scanner
+      - name: OSV dependency scan
+        run: ./osv-scanner scan source --recursive --allow-no-lockfiles .
