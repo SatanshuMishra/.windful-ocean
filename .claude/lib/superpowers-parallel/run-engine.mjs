@@ -279,19 +279,6 @@ export async function runEngine(engineArgs, ctx) {
       `\`git diff ${baseBranch}..${branch}\` and \`git diff --stat ${baseBranch}..${branch}\`.`;
   }
 
-  function specReviewPrompt(task, branch) {
-    return `${prompts.specReviewer}\n\n--- WHAT TO REVIEW ---\n${reviewTarget(task, branch)}\n\n` +
-      `Spec for this task:\n${task.fullText}\n\n` +
-      `File scope for THIS task: ${JSON.stringify(task.fileScope)}\n` +
-      `Judge ONLY the files in this task's fileScope. Files outside it belong to SIBLING TASKS in the same MSP that are built in other waves and are correctly absent from this branch - do NOT flag them as missing or incomplete. Do NOT open .mitosis/*.plan.md or *.graph.json to assess completeness; the task body above is the complete and authoritative scope for THIS task.\n\n` +
-      `Return verdict 'pass' if the code matches the spec, else 'fail' with specific issues (file:line).`;
-  }
-  function qualityReviewPrompt(task, branch) {
-    return `${prompts.qualityReviewer}\n\n--- WHAT TO REVIEW ---\n${reviewTarget(task, branch)}\n` +
-      `File scope for THIS task: ${JSON.stringify(task.fileScope)}\n` +
-      `Judge ONLY the files in this task's fileScope. Files outside it belong to SIBLING TASKS in the same MSP that are built in other waves and are correctly absent from this branch - do NOT flag them as missing or incomplete. Do NOT open .mitosis/*.plan.md or *.graph.json to assess completeness; the task body above is the complete and authoritative scope for THIS task.\n\n` +
-      `Return verdict 'pass' if quality is acceptable, else 'fail' with specific issues.`;
-  }
   function mergedReviewPrompt(task, branch) {
     return `${prompts.specReviewer}\n\n${prompts.qualityReviewer}\n\n--- WHAT TO REVIEW ---\n${reviewTarget(task, branch)}\n\n` +
       `Spec for this task:\n${task.fullText}\n\n` +
@@ -338,7 +325,7 @@ export async function runEngine(engineArgs, ctx) {
     const task = tasks[taskId];
     const branch = branchOf(taskId);
     const wt = worktreeOf(taskId);
-    const reviewMode = task.risk === 'high' ? 'three-lens' : 'merged';
+    const reviewMode = task.risk === 'high' ? 'two-lens' : 'merged';
     const resolvedAgentType = EXEC_AGENT_TYPES.has(task.agentType) ? task.agentType : 'implementer';
     async function attempt(dispatchKind, escalated, priorIssues) {
       const implLabel = escalated ? `escalate:${taskId}` : `impl:${taskId}`;
@@ -354,16 +341,11 @@ export async function runEngine(engineArgs, ctx) {
       }
       if (!status || status.status === 'BLOCKED' || status.status === 'NEEDS_CONTEXT')
         return { gate: 'blocked', reason: status ? status.status : 'null-status' };
+      const merged = await reviewLoop(task, branch, wt, mergedReviewPrompt, 'review', 'code-reviewer');
+      if (!merged.ok) return { gate: 'review', reason: merged.reason, issues: merged.issues };
       if (task.risk === 'high') {
-        const spec = await reviewLoop(task, branch, wt, specReviewPrompt, 'spec');
-        if (!spec.ok) return { gate: 'review', reason: spec.reason, issues: spec.issues };
-        const qual = await reviewLoop(task, branch, wt, qualityReviewPrompt, 'qual', 'code-reviewer');
-        if (!qual.ok) return { gate: 'review', reason: qual.reason, issues: qual.issues };
         const sec = await reviewLoop(task, branch, wt, securityReviewPrompt, 'sec', 'security-reviewer');
         if (!sec.ok) return { gate: 'review', reason: sec.reason, issues: sec.issues };
-      } else {
-        const merged = await reviewLoop(task, branch, wt, mergedReviewPrompt, 'review', 'code-reviewer');
-        if (!merged.ok) return { gate: 'review', reason: merged.reason, issues: merged.issues };
       }
       return { gate: null };
     }

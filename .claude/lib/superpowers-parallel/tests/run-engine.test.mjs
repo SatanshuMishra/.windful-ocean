@@ -195,15 +195,41 @@ test('early-wave completeness review prompts inject the task fileScope and the s
     waves: [['t0'], ['t1']],
   }), ctxWith(scriptedAgent(highCalls)));
   assert.equal(highResult.halted, false);
-  const spec = highCalls.find((c) => c.opts && c.opts.label === 'spec:t0');
-  const qual = highCalls.find((c) => c.opts && c.opts.label === 'qual:t0');
-  assert.ok(spec, 'spec review prompt for early-wave t0 captured');
-  assert.ok(qual, 'quality review prompt for early-wave t0 captured');
-  for (const [name, c] of [['spec', spec], ['quality', qual]]) {
-    assert.ok(c.prompt.includes(SCOPE), `${name} review injects t0 fileScope`);
-    assert.ok(c.prompt.includes(SIBLING), `${name} review carries the sibling-task directive`);
-    assert.ok(c.prompt.includes(ANTIPLAN), `${name} review forbids reading the whole-MSP plan/graph`);
-  }
+  const highMerged = highCalls.find((c) => c.opts && c.opts.label === 'review:t0');
+  assert.ok(highMerged, 'high-risk merged review prompt for early-wave t0 captured');
+  assert.ok(highMerged.prompt.includes(SCOPE), 'high-risk merged review injects t0 fileScope');
+  assert.ok(highMerged.prompt.includes(SIBLING), 'high-risk merged review carries the sibling-task directive');
+  assert.ok(highMerged.prompt.includes(ANTIPLAN), 'high-risk merged review forbids reading the whole-MSP plan/graph');
+});
+
+test('high-risk review collapses spec+quality into one merged lens while security stays an independent Opus lens', async () => {
+  const calls = [];
+  const result = await runEngine(baseArgs({
+    tasks: {
+      t0: { id: 't0', title: 'T0', fullText: 'do t0', fileScope: ['lib/a.js'], risk: 'high', agentType: 'implementer', validation: 'scoped' },
+    },
+    waves: [['t0']],
+  }), ctxWith(scriptedAgent(calls)));
+  assert.equal(result.halted, false);
+  assert.equal(result.waves[0].outcomes[0].reviewMode, 'two-lens');
+
+  assert.equal(calls.some((c) => c.opts && c.opts.label === 'spec:t0'), false, 'no standalone spec lens after collapse');
+  assert.equal(calls.some((c) => c.opts && c.opts.label === 'qual:t0'), false, 'no standalone quality lens after collapse');
+
+  const merged = calls.find((c) => c.opts && c.opts.label === 'review:t0');
+  assert.ok(merged, 'merged spec+quality lens dispatched for high-risk task');
+  assert.equal(merged.opts.model, 'opus');
+  assert.equal(merged.opts.agentType, 'code-reviewer');
+  assert.ok(merged.prompt.includes('SPEC'), 'merged lens carries the spec-reviewer prompt');
+  assert.ok(merged.prompt.includes('QUAL'), 'merged lens carries the quality-reviewer prompt');
+  assert.ok(merged.prompt.includes('STAGE 1'), 'merged lens keeps spec as a distinct hard-precondition stage');
+  assert.equal(merged.prompt.includes('SECURITY REVIEW TARGET'), false, 'security is NOT folded into the merged lens');
+
+  const sec = calls.find((c) => c.opts && c.opts.label === 'sec:t0');
+  assert.ok(sec, 'security lens remains a separate dispatch');
+  assert.equal(sec.opts.agentType, 'security-reviewer', 'security lens uses the security-reviewer agent');
+  assert.equal(sec.opts.model, 'opus', 'security stays an Opus lens (floor F3)');
+  assert.ok(sec.prompt.includes('SECURITY REVIEW TARGET'), 'security lens keeps its own security-focused prompt');
 });
 
 test('a two-wave serial task chain (t0 then t1) completes without halting', async () => {
