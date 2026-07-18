@@ -637,3 +637,25 @@ test('MSP-3d review+fix round-trips are budgeted against runBudget and PARK fail
     assert.equal(c.opts.model, 'sonnet', 'only the mechanical fix is down-tiered to Sonnet');
   }
 });
+
+test('MSP-8c a low-risk merged review folds in the Tier-1 OWASP-shaped security checklist without adding any extra dispatch', async () => {
+  const calls = [];
+  const result = await runEngine(baseArgs({
+    tasks: {
+      t0: { id: 't0', title: 'T0', fullText: 'do t0', fileScope: ['lib/a.js'], risk: 'low', agentType: 'implementer', validation: 'scoped', dependentCount: 0, edgeReasons: [] },
+    },
+    waves: [['t0']],
+  }), ctxWith(scriptedAgent(calls)));
+  assert.equal(result.halted, false);
+  assert.equal(result.waves[0].outcomes[0].reviewMode, 'merged', 'low-risk task stays on the merged (no dedicated security lens) review mode');
+
+  const merged = calls.find((c) => c.opts && c.opts.label === 'review:t0');
+  assert.ok(merged, 'merged review prompt captured for the low-risk task');
+
+  for (const term of [/injection/i, /author/i, /secret/i, /SSRF/, /deserializ/i, /path traversal/i]) {
+    assert.match(merged.prompt, term, `the Tier-1 checklist rides inside the merged review prompt and names ${term}`);
+  }
+
+  assert.equal(calls.some((c) => c.opts && c.opts.label === 'sec:t0'), false, 'the Tier-1 checklist adds NO separate security dispatch for a low-risk task');
+  assert.equal(calls.filter((c) => c.opts && c.opts.label === 'review:t0').length, 1, 'exactly one merged review dispatch runs for the low-risk task');
+});

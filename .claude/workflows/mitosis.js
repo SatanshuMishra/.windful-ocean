@@ -965,6 +965,8 @@ async function runEngine(engineArgs, ctx) {
       `File scope for THIS task: ${JSON.stringify(task.fileScope)}\n` +
       `Judge ONLY the files in this task's fileScope. Files outside it belong to SIBLING TASKS in the same MSP that are built in other waves and are correctly absent from this branch - do NOT flag them as missing or incomplete. Do NOT open .mitosis/*.plan.md or *.graph.json to assess completeness; the task body above is the complete and authoritative scope for THIS task.\n\n` +
       `${ciEnforcedScoping}\n\n` +
+      `--- TIER-1 SECURITY CHECKLIST (lightweight, every task) ---\n` +
+      `Scan ONLY this task's diff for these OWASP-shaped classes and, for any that are present, return verdict 'fail' with the file:line and CWE class: injection - SQL / command / template (CWE-89/78/94), broken authorization or access control (CWE-285/862), hardcoded or leaked secrets (CWE-798), server-side request forgery / SSRF (CWE-918), unsafe deserialization (CWE-502), and path traversal (CWE-22). This is a scoped pass over the diff already under review, NOT an open-ended vulnerability hunt.\n\n` +
       `Review in two stages. STAGE 1 (hard precondition): verify the code matches the spec; any spec mismatch is verdict 'fail' regardless of code quality. STAGE 2 (only if stage 1 passes): judge code quality. Return a single verdict: 'pass' only if BOTH stages pass, else 'fail' with specific issues (file:line).`;
   }
   function securityReviewPrompt(task, branch) {
