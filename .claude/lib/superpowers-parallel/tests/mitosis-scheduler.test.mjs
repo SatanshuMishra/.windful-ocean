@@ -915,6 +915,49 @@ test('P2 no-amplification: an always-null implementer is bounded to the initial 
   assert.equal(result.parked[0].stage, 'execute');
 });
 
+function approachFixableRemediationAgent(msps) {
+  const base = createFakeAgent({ msps });
+  let mech = 0;
+  let redispatches = 0;
+  const agent = async (prompt, opts = {}) => {
+    const label = opts.label || '';
+    if (label.startsWith('impl:')) {
+      return { fault: { kind: 'approach-fixable', mechanism: 'init:m0', diagnosis: 'stuck' } };
+    }
+    if (label.startsWith('diagnose:')) {
+      mech += 1;
+      return { verdict: 'remediable', mechanism: `fix:m${mech}`, correctedTask: 'apply correction', diagnosis: 'root cause' };
+    }
+    if (label.startsWith('redispatch:')) {
+      redispatches += 1;
+      return { fault: { kind: 'approach-fixable', mechanism: `redisp:m${redispatches}`, diagnosis: 'still stuck' } };
+    }
+    return base(prompt, opts);
+  };
+  return { agent, redispatches: () => redispatches };
+}
+
+test('honest maxAttempts: operator maxAttempts bounds remediation redispatch attempts in supervisedEngineDispatch (not the hardcoded REMEDIATION_BUDGET)', async () => {
+  const msps = [mspSpec('solo', { fileScope: ['scope/solo/**'] })];
+  const { agent, redispatches } = approachFixableRemediationAgent(msps);
+  const { resultPromise } = invokeMitosis({ ...buildInput(), retry: { maxAttempts: 2, runBudget: 20 } }, agent);
+  const result = await resultPromise;
+
+  assert.equal(redispatches(), 2, 'remediation redispatch attempts are bounded by operator retry.maxAttempts (2), not the internal REMEDIATION_BUDGET default (4)');
+  assert.notEqual(result.overallStatus, 'all-shipped');
+  assert.equal(result.parked[0].mspId, 'solo');
+  assert.equal(result.parked[0].stage, 'execute');
+});
+
+test('honest maxAttempts: raising maxAttempts raises the remediation redispatch bound (proves the operator knob is live, not ignored)', async () => {
+  const msps = [mspSpec('solo', { fileScope: ['scope/solo/**'] })];
+  const { agent, redispatches } = approachFixableRemediationAgent(msps);
+  const { resultPromise } = invokeMitosis({ ...buildInput(), retry: { maxAttempts: 5, runBudget: 20 } }, agent);
+  await resultPromise;
+
+  assert.equal(redispatches(), 5, 'a higher operator maxAttempts yields a higher remediation redispatch bound');
+});
+
 test('P2 park: an MSP whose implementer never succeeds is parked (Tier 2) while the sibling ships; report is partial', async () => {
   const msps = twoIndependentMsps();
   const base = createFakeAgent({ msps });

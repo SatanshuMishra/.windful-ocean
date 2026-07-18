@@ -484,3 +484,23 @@ test('E6 the execute-stage remediation carries the task policy model (sonnet), a
     { unitId: 't1', stage: 'execute', model: 'opus' },
   ]);
 });
+
+test('honest maxAttempts: runEngine threads the operator retry.maxAttempts into the per-dispatch remediation budget', async () => {
+  const dispatchOpts = [];
+  const agent = scriptedAgent([]);
+  const ctx = { ...ctxWith(agent), dispatchWithRetry: (thunk, opts) => { dispatchOpts.push(opts); return thunk(1, ''); } };
+  await runEngine(soloTaskArgs({ retry: { maxAttempts: 5, state: { used: 0, max: 20 } } }), ctx);
+  assert.equal(dispatchOpts.length, 1);
+  assert.equal(dispatchOpts[0].budget, 5, 'the operator maxAttempts (5) is threaded as the remediation budget, never silently hardcoded');
+});
+
+test('honest maxAttempts: the run-engine retry fallback default is never a 0-run-budget immediate quarantine', async () => {
+  const dispatchOpts = [];
+  const agent = scriptedAgent([]);
+  const ctx = { ...ctxWith(agent), dispatchWithRetry: (thunk, opts) => { dispatchOpts.push(opts); return thunk(1, ''); } };
+  await runEngine(soloTaskArgs(), ctx);
+  assert.equal(dispatchOpts.length, 1);
+  assert.equal(dispatchOpts[0].budget, 1, 'absent engineArgs.retry, the fallback remediation budget is the fallback maxAttempts (1), matching the pinned default retry shape');
+  assert.equal(dispatchOpts[0].state.max, 0, 'the pinned fallback retry state is { used: 0, max: 0 }; a half-edit that changes this shape must trip this assertion');
+  assert.equal(dispatchOpts[0].state.used, 0);
+});
