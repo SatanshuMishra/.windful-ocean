@@ -2,7 +2,6 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { runEngine } from '../run-engine.mjs';
 import * as engineModule from '../run-engine.mjs';
-import { dispatchWithRetry } from '../retry.mjs';
 
 function baseArgs(overrides = {}) {
   return {
@@ -43,7 +42,7 @@ function ctxWith(agent) {
     parallel: async (thunks) => Promise.all(thunks.map((fn) => fn())),
     log: () => {},
     phase: () => {},
-    dispatchWithRetry,
+    dispatchWithRetry: (thunk) => thunk(1, ''),
   };
 }
 

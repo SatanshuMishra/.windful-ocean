@@ -56,57 +56,7 @@ test('partitionOutcomes rejects an unknown outcome kind', () => {
   assert.throws(() => partitionOutcomes([{ kind: 'bogus', mspId: 'x' }]), /unknown outcome kind/);
 });
 
-import { assembleRunReport, fatalReport } from '../outcome.mjs';
-
-test('assembleRunReport maps a null cluster chain to crashed, never skips it (F2b)', () => {
-  const report = assembleRunReport({
-    clusters: [['a'], ['b']],
-    chainResults: [{ halted: false }, null],
-    shipped: [{ mspId: 'a', prUrl: 'ua', receiptsPass: true, d6Pass: true }],
-    mspCount: 2,
-  });
-  assert.equal(report.overallStatus, 'partial');
-  assert.deepEqual(report.shipped.map((o) => o.mspId), ['a']);
-  assert.deepEqual(report.crashed.map((o) => o.mspId), ['b']);
-  assert.equal(report.crashed[0].stage, 'cluster');
-  assert.equal(report.mspCount, 2);
-});
-
-test('assembleRunReport blames the first unshipped MSP in a crashed multi-MSP cluster', () => {
-  const report = assembleRunReport({
-    clusters: [['a', 'b', 'c']],
-    chainResults: [null],
-    shipped: [{ mspId: 'a', prUrl: 'ua' }],
-    mspCount: 3,
-  });
-  assert.deepEqual(report.crashed.map((o) => o.mspId), ['b']);
-});
-
-test('assembleRunReport maps a halt object to a halted outcome and mirrors it at top level', () => {
-  const report = assembleRunReport({
-    clusters: [['a'], ['b']],
-    chainResults: [{ halted: false }, { halted: true, stage: 'ship', mspId: 'b', detail: 'CI red on fresh base' }],
-    shipped: [{ mspId: 'a', prUrl: 'ua' }],
-    mspCount: 2,
-  });
-  assert.equal(report.overallStatus, 'partial');
-  assert.deepEqual(report.halted.map((o) => o.mspId), ['b']);
-  assert.equal(report.halted[0].stage, 'ship');
-  assert.equal(report.stage, 'ship');
-  assert.equal(report.mspId, 'b');
-  assert.equal(report.detail, 'CI red on fresh base');
-});
-
-test('assembleRunReport returns all-shipped when every cluster completed and all MSPs shipped', () => {
-  const report = assembleRunReport({
-    clusters: [['a'], ['b']],
-    chainResults: [{ halted: false }, { halted: false }],
-    shipped: [{ mspId: 'a', prUrl: 'ua' }, { mspId: 'b', prUrl: 'ub' }],
-    mspCount: 2,
-  });
-  assert.equal(report.overallStatus, 'all-shipped');
-  assert.equal(report.stage, undefined);
-});
+import { fatalReport } from '../outcome.mjs';
 
 test('fatalReport is a failed partition carrying stage and detail', () => {
   const r = fatalReport('input', 'args is not valid JSON', 0);
@@ -130,29 +80,4 @@ test('quarantinedOutcome carries an optional redrive hint only when provided', (
     { kind: 'quarantined', mspId: 'm3', stage: 'execute', error: 'boom', retries: 3 });
   assert.deepEqual(quarantinedOutcome('m3', 'execute', 'boom', 3, { branch: 'x-integration', ref: 'main', stage: 'execute' }),
     { kind: 'quarantined', mspId: 'm3', stage: 'execute', error: 'boom', retries: 3, redrive: { branch: 'x-integration', ref: 'main', stage: 'execute' } });
-});
-
-test('assembleRunReport maps a quarantined chain result to a quarantined outcome and blocks all-shipped', () => {
-  const report = assembleRunReport({
-    clusters: [['a'], ['b']],
-    chainResults: [{ halted: false }, { halted: true, quarantined: true, stage: 'execute', mspId: 'b', error: 'exhausted', retries: 3, redrive: { branch: 'b-integration', ref: 'main', stage: 'execute' } }],
-    shipped: [{ mspId: 'a', prUrl: 'ua' }],
-    mspCount: 2,
-  });
-  assert.equal(report.overallStatus, 'partial');
-  assert.deepEqual(report.quarantined.map((o) => o.mspId), ['b']);
-  assert.equal(report.quarantined[0].stage, 'execute');
-  assert.equal(report.quarantined[0].redrive.branch, 'b-integration');
-});
-
-test('assembleRunReport maps a crashed chain result (guarded stage) to a crashed outcome with accurate stage', () => {
-  const report = assembleRunReport({
-    clusters: [['a'], ['b']],
-    chainResults: [{ halted: false }, { halted: true, crashed: true, stage: 'branch', mspId: 'b', error: 'branch agent returned null' }],
-    shipped: [{ mspId: 'a', prUrl: 'ua' }],
-    mspCount: 2,
-  });
-  assert.equal(report.overallStatus, 'partial');
-  assert.deepEqual(report.crashed.map((o) => o.mspId), ['b']);
-  assert.equal(report.crashed[0].stage, 'branch');
 });

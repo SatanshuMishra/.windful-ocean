@@ -114,58 +114,9 @@ function partitionOutcomes(outcomes, total = outcomes.length) {
   return { shipped, halted, crashed, quarantined, overallStatus };
 }
 
-function assembleRunReport({ clusters, chainResults, shipped, mspCount }) {
-  const shippedIds = new Set(shipped.map((s) => s.mspId));
-  const outcomes = shipped.map((s) => shippedOutcome(s.mspId, s));
-  clusters.forEach((clusterIds, i) => {
-    const r = chainResults[i];
-    if (r === null || r === undefined) {
-      const blamed = clusterIds.find((id) => !shippedIds.has(id)) || clusterIds[0];
-      outcomes.push(crashedOutcome(blamed, 'cluster', `cluster chain returned ${r} (thunk crashed or was killed); cluster ids: ${clusterIds.join(', ')}`));
-      return;
-    }
-    if (r.halted && r.quarantined) {
-      const blamed = r.mspId || clusterIds.find((id) => !shippedIds.has(id)) || clusterIds[0];
-      outcomes.push(quarantinedOutcome(blamed, r.stage || 'unknown', r.error || r.detail || 'quarantined', r.retries, r.redrive));
-      return;
-    }
-    if (r.halted && r.crashed) {
-      const blamed = r.mspId || clusterIds.find((id) => !shippedIds.has(id)) || clusterIds[0];
-      outcomes.push(crashedOutcome(blamed, r.stage || 'unknown', r.error || r.detail || 'crashed'));
-      return;
-    }
-    if (r.halted) {
-      const blamed = r.mspId || clusterIds.find((id) => !shippedIds.has(id)) || clusterIds[0];
-      const reason = r.detail || (r.haltReason && (r.haltReason.detail || JSON.stringify(r.haltReason))) || 'halted';
-      outcomes.push(haltedOutcome(blamed, r.stage || 'unknown', reason));
-    }
-  });
-  const partition = partitionOutcomes(outcomes, mspCount);
-  const report = { ...partition, mspCount };
-  if (partition.overallStatus !== 'all-shipped') {
-    const firstProblem = partition.crashed[0] || partition.halted[0] || partition.quarantined[0];
-    if (firstProblem) {
-      report.stage = firstProblem.stage;
-      report.mspId = firstProblem.mspId;
-      report.detail = firstProblem.error || firstProblem.reason;
-    }
-  }
-  return report;
-}
-
 function fatalReport(stage, detail, mspCount, opts = {}) {
   const crashed = opts.crashed ? [crashedOutcome(null, stage, detail)] : [];
   return { shipped: [], halted: [], awaitingApproval: [], crashed, quarantined: [], overallStatus: 'failed', stage, detail, mspCount };
-}
-
-function classifyOutcome(result, isPermanent) {
-  if (result === null || result === undefined) return 'transient';
-  if (isPermanent(result)) return 'permanent';
-  return 'ok';
-}
-
-function withinRetryBudget({ attempt, maxAttempts, state }) {
-  return attempt < maxAttempts && state.used < state.max;
 }
 
 function resetPreamble(worktree, ref) {
@@ -176,23 +127,6 @@ function resetPreamble(worktree, ref) {
     throw new Error(`retry: refusing unsafe ref in reset preamble: ${JSON.stringify(ref)}`);
   }
   return `git -C ${worktree} reset --hard ${ref}\ngit -C ${worktree} clean -fdx\n`;
-}
-
-async function dispatchWithRetry(dispatchThunk, { isPermanent, maxAttempts, state, resetRef, worktree }) {
-  let attempt = 0;
-  let lastResult = null;
-  while (true) {
-    attempt += 1;
-    const preamble = attempt > 1 && resetRef ? resetPreamble(worktree, resetRef) : '';
-    const result = await dispatchThunk(attempt, preamble);
-    const cls = classifyOutcome(result, isPermanent);
-    if (cls === 'ok' || cls === 'permanent') return result;
-    lastResult = result;
-    if (!withinRetryBudget({ attempt, maxAttempts, state })) {
-      return { __quarantined: true, attempts: attempt, lastResult };
-    }
-    state.used += 1;
-  }
 }
 
 const GATE_STRICTNESS = {
@@ -1043,7 +977,7 @@ async function runEngine(engineArgs, ctx) {
       const remediationModel = escalated ? 'opus' : task.model;
       const status = await ctx.dispatchWithRetry(
         (attemptNo, preamble) => guard.dispatch(preamble + implementerPrompt(task, branch, wt), { label: implLabel, phase: 'Waves', schema: STATUS_SCHEMA, agentType: resolvedAgentType }, { kind: dispatchKind, task }),
-        { isPermanent: (r) => r.status === 'BLOCKED' || r.status === 'NEEDS_CONTEXT', maxAttempts: retry.maxAttempts, state: retry.state, resetRef: baseBranch, worktree: wt, unitId: taskId, task: task.fullText, ...(typeof ctx.makeRemediation === 'function' ? ctx.makeRemediation({ unitId: taskId, stage: 'execute', task: task.fullText, schema: STATUS_SCHEMA, agentType: resolvedAgentType, phase: 'Waves', model: remediationModel }) : {}) },
+        { state: retry.state, resetRef: baseBranch, worktree: wt, unitId: taskId, task: task.fullText, ...(typeof ctx.makeRemediation === 'function' ? ctx.makeRemediation({ unitId: taskId, stage: 'execute', task: task.fullText, schema: STATUS_SCHEMA, agentType: resolvedAgentType, phase: 'Waves', model: remediationModel }) : {}) },
       );
       if (guard.getHalt()) return { gate: 'halt' };
       if (status && status.__quarantined) {
@@ -2879,7 +2813,7 @@ try {
       `Return ONLY the structured object: { manifestFound, manifestRaw, mergedPRs: [ { headRefName, url, mergedAt } ], specContentHash, checkpointRefPages: [ [ "<sha>\\t<ref>" ] ], ownerRepo, repoHost }.`,
       { agentType: 'implementer', schema: RECONCILE_SCHEMA, label: 'reconcile', phase: 'Reconcile', model: models.reconciler || models.shipper || 'sonnet' }
     ),
-    { unitId: 'reconcile', stage: 'reconcile', resetRef: null, worktree: null, task: 'inspect durable run state and the already-merged set', ...makeRemediation({ unitId: 'reconcile', stage: 'reconcile', task: 'inspect durable run state and the already-merged set', schema: RECONCILE_SCHEMA, agentType: 'implementer', phase: 'Reconcile' }), compensate: makeCompensate(null, null) },
+    { unitId: 'reconcile', stage: 'reconcile', resetRef: null, worktree: null, task: 'inspect durable run state and the already-merged set', ...makeRemediation({ unitId: 'reconcile', stage: 'reconcile', task: 'inspect durable run state and the already-merged set', schema: RECONCILE_SCHEMA, agentType: 'implementer', phase: 'Reconcile' }) },
   );
   recon = reconOutcome.tag === 'Done' ? reconOutcome.value : null;
   if (reconOutcome.tag !== 'Done') {
@@ -2951,7 +2885,7 @@ if (reusable) {
         `Return ONLY the structured object: { msps: [ { id, title, rationale, dependsOn, fileScope } ] }, ordered bottom-up.`,
         { agentType: 'codebase-analyst', schema: DECOMPOSE_SCHEMA, label: 'decompose', phase: 'Decompose', model: models.decomposer || 'opus' }
       ),
-      { unitId: 'decompose', stage: 'decompose', resetRef: null, worktree: null, task: 'decompose the approved spec into clusters of MSPs', ...makeRemediation({ unitId: 'decompose', stage: 'decompose', task: 'decompose the approved spec into clusters of MSPs', schema: DECOMPOSE_SCHEMA, agentType: 'codebase-analyst', phase: 'Decompose' }), compensate: makeCompensate(null, null) },
+      { unitId: 'decompose', stage: 'decompose', resetRef: null, worktree: null, task: 'decompose the approved spec into clusters of MSPs', ...makeRemediation({ unitId: 'decompose', stage: 'decompose', task: 'decompose the approved spec into clusters of MSPs', schema: DECOMPOSE_SCHEMA, agentType: 'codebase-analyst', phase: 'Decompose' }) },
     );
     decomposition = decompositionOutcome.tag === 'Done' ? decompositionOutcome.value : null;
     if (decompositionOutcome.tag !== 'Done') {
@@ -3280,7 +3214,7 @@ async function runUnit(unit) {
           `Return ONLY: { restored: <bool>, detail: "<what happened>" }.`,
           { agentType: 'implementer', schema: RESTORE_SCHEMA, label: `restore:${msp.id}`, phase: 'Ship' }
         ),
-        { unitId: msp.id, stage: 'ship', resetRef: baseBranch, worktree: null, task: `restore ${msp.id} from durable checkpoint ${builtRef}`, ...makeRemediation({ unitId: msp.id, stage: 'ship', task: `restore ${msp.id} from durable checkpoint ${builtRef}`, schema: RESTORE_SCHEMA, agentType: 'implementer', phase: 'Ship' }), runBudget: retryState, compensate: makeCompensate(null, baseBranch) },
+        { unitId: msp.id, stage: 'ship', resetRef: baseBranch, worktree: null, task: `restore ${msp.id} from durable checkpoint ${builtRef}`, ...makeRemediation({ unitId: msp.id, stage: 'ship', task: `restore ${msp.id} from durable checkpoint ${builtRef}`, schema: RESTORE_SCHEMA, agentType: 'implementer', phase: 'Ship' }), runBudget: retryState },
       );
       if (restoreOutcome.tag !== 'Done') return parkUnit(msp, 'ship', restoreOutcome, integrationBranch, compensationStack);
       const restored = restoreOutcome.value;
@@ -3323,7 +3257,7 @@ async function runUnit(unit) {
           `Return ONLY: { planPath: "<absolute path to the plan you wrote>", summary: "<one sentence>" }.`,
           { agentType: 'implementer', schema: PLAN_SCHEMA, label: `plan:${msp.id}`, phase: 'Plan', model: 'opus' }
         ),
-        { unitId: msp.id, stage: 'plan', resetRef: baseBranch, worktree: null, task: msp.rationale, triedSet: planTriedSeed, ...makeRemediation({ unitId: msp.id, stage: 'plan', task: msp.rationale, schema: PLAN_SCHEMA, agentType: 'implementer', phase: 'Plan' }), runBudget: retryState, compensate: makeCompensate(null, baseBranch) },
+        { unitId: msp.id, stage: 'plan', resetRef: baseBranch, worktree: null, task: msp.rationale, triedSet: planTriedSeed, ...makeRemediation({ unitId: msp.id, stage: 'plan', task: msp.rationale, schema: PLAN_SCHEMA, agentType: 'implementer', phase: 'Plan' }), runBudget: retryState },
       );
       if (planOutcome.tag !== 'Done') return parkUnit(msp, 'plan', planOutcome, integrationBranch, compensationStack);
       planned = planOutcome.value;
@@ -3360,7 +3294,7 @@ async function runUnit(unit) {
             replanPrompt({ unitId: msp.id, title: msp.title, planPath: planned.planPath, rationale: msp.rationale, dependsList, findings }),
             { agentType: 'implementer', schema: PLAN_SCHEMA, label: `replan:${msp.id}`, phase: 'Plan review', model: 'opus' }
           ),
-          { unitId: msp.id, stage: 'plan-review', resetRef: baseBranch, worktree: null, task: `revise the plan for ${msp.id} to satisfy adversarial review`, ...makeRemediation({ unitId: msp.id, stage: 'plan-review', task: `revise the plan for ${msp.id} to satisfy adversarial review`, schema: PLAN_SCHEMA, agentType: 'implementer', phase: 'Plan review' }), runBudget: retryState, compensate: makeCompensate(null, baseBranch) },
+          { unitId: msp.id, stage: 'plan-review', resetRef: baseBranch, worktree: null, task: `revise the plan for ${msp.id} to satisfy adversarial review`, ...makeRemediation({ unitId: msp.id, stage: 'plan-review', task: `revise the plan for ${msp.id} to satisfy adversarial review`, schema: PLAN_SCHEMA, agentType: 'implementer', phase: 'Plan review' }), runBudget: retryState },
         );
         if (replanOutcome.tag !== 'Done') return parkUnit(msp, 'plan-review', replanOutcome, integrationBranch, compensationStack);
         planned = replanOutcome.value;
@@ -3391,7 +3325,7 @@ async function runUnit(unit) {
         `Return ONLY: { engineArgs: <the 14-key object>, route: { rule, lane, isolation, N, notes } }.`,
         { agentType: 'implementer', schema: PARALLELIZE_SCHEMA, label: `parallelize:${msp.id}`, phase: 'Parallelize' }
       ),
-      { unitId: msp.id, stage: 'parallelize', resetRef: baseBranch, worktree: null, task: `parallelize and route ${msp.id}`, triedSet: parallelizeTriedSeed, ...makeRemediation({ unitId: msp.id, stage: 'parallelize', task: `parallelize and route ${msp.id}`, schema: PARALLELIZE_SCHEMA, agentType: 'implementer', phase: 'Parallelize' }), runBudget: retryState, compensate: makeCompensate(null, baseBranch) },
+      { unitId: msp.id, stage: 'parallelize', resetRef: baseBranch, worktree: null, task: `parallelize and route ${msp.id}`, triedSet: parallelizeTriedSeed, ...makeRemediation({ unitId: msp.id, stage: 'parallelize', task: `parallelize and route ${msp.id}`, schema: PARALLELIZE_SCHEMA, agentType: 'implementer', phase: 'Parallelize' }), runBudget: retryState },
     );
     if (parallelizeOutcome.tag !== 'Done') return parkUnit(msp, 'parallelize', parallelizeOutcome, integrationBranch, compensationStack);
     const parallelized = parallelizeOutcome.value;
@@ -3467,7 +3401,7 @@ async function runUnit(unit) {
         `Return ONLY: { ready: <bool>, detail: "<what happened>" }.`,
         { agentType: 'implementer', schema: BRANCH_SCHEMA, label: `branch:${msp.id}`, phase: 'Branch' }
       ),
-      { unitId: msp.id, stage: 'branch', resetRef: baseBranch, worktree: null, task: `branch-prep ${msp.id} onto ${baseBranch}`, ...makeRemediation({ unitId: msp.id, stage: 'branch', task: `branch-prep ${msp.id} onto ${baseBranch}`, schema: BRANCH_SCHEMA, agentType: 'implementer', phase: 'Branch' }), runBudget: retryState, compensate: makeCompensate(null, baseBranch) },
+      { unitId: msp.id, stage: 'branch', resetRef: baseBranch, worktree: null, task: `branch-prep ${msp.id} onto ${baseBranch}`, ...makeRemediation({ unitId: msp.id, stage: 'branch', task: `branch-prep ${msp.id} onto ${baseBranch}`, schema: BRANCH_SCHEMA, agentType: 'implementer', phase: 'Branch' }), runBudget: retryState },
     );
     if (branchOutcome.tag !== 'Done') return parkUnit(msp, 'branch', branchOutcome, integrationBranch, compensationStack);
     const branched = branchOutcome.value;
