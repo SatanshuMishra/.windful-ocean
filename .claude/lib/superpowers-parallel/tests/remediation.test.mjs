@@ -162,6 +162,43 @@ test('a proposal already in the tried-set is rejected at ZERO budget cost (no di
   assert.equal(result.state.budget.remaining, 3);
 });
 
+test('the second within-cycle diagnose is informed by the first-attempt rejected mechanism (informed retry, never a byte-identical re-sample)', async () => {
+  const inputs = [];
+  const proposals = [
+    { verdict: 'remediable', mechanism: 'acquisition:raw-http', correctedTask: 't1', diagnosis: 'd1' },
+    { verdict: 'remediable', mechanism: 'acquisition:streamed', correctedTask: 't2', diagnosis: 'd2' },
+  ];
+  const calls = counter();
+  const diagnose = async (input) => { const i = calls.bump() - 1; inputs.push(input); return proposals[Math.min(i, proposals.length - 1)]; };
+  const redispatch = countingRedispatch(() => Done({ ok: true }));
+  const state0 = makeSupervisorState({ unitId: 'u1', stage: 'execute', budgetRemaining: 4, triedSet: ['acquisition:raw-http'] });
+  const trigger = ApproachFixable({ mechanism: 'acquisition:raw-http', diagnosis: 'd', evidence: 1 });
+
+  const result = await runRemediationLoop({ trigger, ...STAGE }, { diagnose, redispatch }, state0);
+
+  assert.equal(result.tag, 'Done');
+  assert.equal(calls.n, 2);
+  assert.equal(inputs[0].rejectedMechanism ?? null, null);
+  assert.equal(inputs[1].rejectedMechanism, 'acquisition:raw-http');
+  assert.notEqual(JSON.stringify(inputs[0]), JSON.stringify(inputs[1]));
+});
+
+test('the informed-retry input does NOT alter the loop control flow: needs-human on the first attempt still escalates untouched', async () => {
+  const inputs = [];
+  const calls = counter();
+  const diagnose = async (input) => { calls.bump(); inputs.push(input); return { verdict: 'needs-human', request: { kind: 'install', what: 'docker daemon' } }; };
+  const redispatch = countingRedispatch(() => Done({ ok: true }));
+  const state0 = makeSupervisorState({ unitId: 'u1', stage: 'execute', budgetRemaining: 4 });
+  const trigger = ApproachFixable({ mechanism: 'seed:cause', diagnosis: 'd', evidence: 1 });
+
+  const result = await runRemediationLoop({ trigger, ...STAGE }, { diagnose, redispatch }, state0);
+
+  assert.equal(result.tag, 'NeedsHuman');
+  assert.equal(calls.n, 1);
+  assert.equal(inputs[0].rejectedMechanism ?? null, null);
+  assert.equal(redispatch.calls.n, 0);
+});
+
 test('a diagnostician needs-human verdict escalates without spending a dispatch', async () => {
   const diagnose = fixedDiagnostician({ verdict: 'needs-human', request: { kind: 'install', what: 'docker daemon' } });
   const redispatch = countingRedispatch(() => Done({ ok: true }));

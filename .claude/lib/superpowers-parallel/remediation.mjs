@@ -22,14 +22,18 @@ export function remediationBackoff(cycle) {
 }
 
 async function obtainUntriedProposal(diagnose, input, state) {
+  let rejectedMechanism = null;
   for (let attempt = 0; attempt < 2; attempt += 1) {
-    const proposal = await diagnose(input);
+    const proposal = await diagnose(rejectedMechanism ? { ...input, rejectedMechanism } : input);
     if (proposal && proposal.verdict === 'needs-human') {
       return { kind: 'needs-human', request: proposal.request || null };
     }
     const mechanism = proposal && proposal.mechanism;
     if (isValidFingerprint(mechanism) && !hasTried(state, mechanism)) {
       return { kind: 'proposal', mechanism, correctedTask: proposal.correctedTask, diagnosis: proposal.diagnosis };
+    }
+    if (typeof mechanism === 'string' && mechanism.length > 0) {
+      rejectedMechanism = mechanism;
     }
   }
   return { kind: 'exhausted', reason: 'no-untried-mechanism' };

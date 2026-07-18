@@ -1600,14 +1600,18 @@ function remediationBackoff(cycle) {
 }
 
 async function obtainUntriedProposal(diagnose, input, state) {
+  let rejectedMechanism = null;
   for (let attempt = 0; attempt < 2; attempt += 1) {
-    const proposal = await diagnose(input);
+    const proposal = await diagnose(rejectedMechanism ? { ...input, rejectedMechanism } : input);
     if (proposal && proposal.verdict === 'needs-human') {
       return { kind: 'needs-human', request: proposal.request || null };
     }
     const mechanism = proposal && proposal.mechanism;
     if (isValidFingerprint(mechanism) && !hasTried(state, mechanism)) {
       return { kind: 'proposal', mechanism, correctedTask: proposal.correctedTask, diagnosis: proposal.diagnosis };
+    }
+    if (typeof mechanism === 'string' && mechanism.length > 0) {
+      rejectedMechanism = mechanism;
     }
   }
   return { kind: 'exhausted', reason: 'no-untried-mechanism' };
@@ -2438,9 +2442,13 @@ function normalizeDiagnosis(raw, stage) {
   return { verdict: 'remediable', mechanism, correctedTask: raw.correctedTask ?? null, diagnosis: raw.diagnosis ?? null };
 }
 
-function diagnosticianPrompt({ unitId, stage, task, evidence, triedSet }) {
+function diagnosticianPrompt({ unitId, stage, task, evidence, triedSet, rejectedMechanism }) {
   const cause = evidence && typeof evidence === 'object' && evidence.cause ? { mechanism: evidence.cause.mechanism, diagnosis: evidence.cause.diagnosis } : evidence;
-  const tried = Array.isArray(triedSet) && triedSet.length > 0 ? triedSet.join(', ') : '(none)';
+  const excluded = Array.isArray(triedSet) ? [...triedSet] : [];
+  if (typeof rejectedMechanism === 'string' && rejectedMechanism.length > 0 && !excluded.includes(rejectedMechanism)) {
+    excluded.push(rejectedMechanism);
+  }
+  const tried = excluded.length > 0 ? excluded.join(', ') : '(none)';
   return `You are the in-run diagnostician for MSP "${unitId}" at the ${stage} stage of a mitosis run. You have NO Skill tool; follow these instructions directly.\n\n` +
     `A prior attempt at this stage failed with an approach-fixable fault. Failure evidence: ${clean(cause)}\n` +
     `Mechanisms already tried and excluded (do NOT repeat any of these): ${tried}\n` +
@@ -2494,7 +2502,7 @@ function makeRemediation({ unitId, stage, task, schema, agentType, phase: phaseN
     let raw;
     try {
       raw = await agent(
-        diagnosticianPrompt({ unitId, stage, task, evidence: input.evidence, triedSet: input.triedSet }),
+        diagnosticianPrompt({ unitId, stage, task, evidence: input.evidence, triedSet: input.triedSet, rejectedMechanism: input.rejectedMechanism }),
         { agentType: 'debugger', schema: DIAGNOSE_SCHEMA, label: `diagnose:${unitId}:${stage}`, phase: 'Remediate', model: diagnoseModel.model },
       );
     } catch (err) {
