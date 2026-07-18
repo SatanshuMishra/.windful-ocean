@@ -461,6 +461,21 @@ test('R8-3 a review-exhausted discretionary (sonnet) task escalates the implemen
   assert.equal(escalate.opts.model, 'opus', 'the escalation redispatches on opus');
 });
 
+test('MSP-2b the escalated Opus dispatch is INFORMED by attempt-1 review issues (threaded, not re-derived)', async () => {
+  const calls = [];
+  const attempt1Issues = ['lib/a.js:42 missing null guard on input', 'lib/a.js:7 unhandled reject path'];
+  const result = await runEngine(
+    soloTaskArgs({ layer3Sonnet: true, fixLoopMax: 2 }),
+    ctxWith(escalationAgent(calls, { reviewOutcome: (n) => (n <= 3 ? { verdict: 'fail', issues: attempt1Issues } : { verdict: 'pass' }) })),
+  );
+  assert.equal(result.halted, false, `run should thread through after the opus escalation; haltReason=${JSON.stringify(result.haltReason)}`);
+  const escalate = calls.find((c) => c.opts.label === 'escalate:t1');
+  assert.ok(escalate, 'a gate-triggered escalation dispatch was issued');
+  for (const issue of attempt1Issues) {
+    assert.ok(escalate.prompt.includes(issue), `the escalated Opus dispatch must thread attempt-1 review issue verbatim, not re-derive it: ${issue}`);
+  }
+});
+
 test('R8-3 a non-discretionary (opus) BLOCKED task does NOT escalate (default behavior unchanged)', async () => {
   const calls = [];
   const result = await runEngine(soloTaskArgs({ layer3Sonnet: false }), ctxWith(escalationAgent(calls, { firstImpl: { status: 'BLOCKED' } })));

@@ -243,9 +243,13 @@ export async function runEngine(engineArgs, ctx) {
   function branchOf(id) { return `${branchPrefix}/task-${id}`; }
   function worktreeOf(id) { return engineWorktreePath(worktreeRoot, branchPrefix, id); }
 
-  function implementerPrompt(task, branch, wt) {
+  function implementerPrompt(task, branch, wt, priorIssues) {
+    const escalationContext = priorIssues && priorIssues.length
+      ? `--- PRIOR ATTEMPT REVIEW ISSUES (gate-triggered escalation; do NOT re-derive them or restart the pipeline) ---\n` +
+        `A prior attempt on this task was rejected at review. Its work is already committed on the existing branch/worktree; continue from there and address each specific issue below directly:\n- ${priorIssues.join('\n- ')}\n\n`
+      : '';
     if (isolation === 'scope-fence') {
-      return `${prompts.implementer}\n\n--- THIS TASK ---\n` +
+      return `${prompts.implementer}\n\n--- THIS TASK ---\n${escalationContext}` +
         `Work directly in the main repository working tree at ${repoRoot}. Do NOT create a worktree or a branch.\n` +
         `1. Edit ONLY files within this task's declared scope: ${JSON.stringify(task.fileScope)}. Creating or editing anything outside this scope is a hard failure.\n` +
         `2. Do NOT run any git mutation (no add, no commit, no branch, no checkout, no stash). Leave all changes uncommitted.\n` +
@@ -254,7 +258,7 @@ export async function runEngine(engineArgs, ctx) {
         `Task: ${task.title}\n\n${task.fullText}\n\n` +
         `Report status as exactly one of DONE / DONE_WITH_CONCERNS / BLOCKED / NEEDS_CONTEXT.`;
     }
-    return `${prompts.implementer}\n\n--- THIS TASK ---\n` +
+    return `${prompts.implementer}\n\n--- THIS TASK ---\n${escalationContext}` +
       `Set up an isolated workspace, then implement.\n` +
       `1. Create a dedicated worktree (observe-then-converge; idempotent under replay). FIRST check whether it already exists: \`git -C ${repoRoot} worktree list --porcelain\` and \`git -C ${repoRoot} rev-parse --verify --quiet ${branch}\`. If a worktree at ${wt} is already checked out on ${branch}, REUSE it (skip the add). If ${branch} exists but no worktree is attached, attach without -b: \`git -C ${repoRoot} worktree add ${wt} ${branch}\`. Otherwise create it fresh (retry once if git reports a lock):\n` +
       `   \`git -C ${repoRoot} worktree add -b ${branch} ${wt} ${baseBranch}\`\n` +
@@ -336,11 +340,12 @@ export async function runEngine(engineArgs, ctx) {
     const wt = worktreeOf(taskId);
     const reviewMode = task.risk === 'high' ? 'three-lens' : 'merged';
     const resolvedAgentType = EXEC_AGENT_TYPES.has(task.agentType) ? task.agentType : 'implementer';
-    async function attempt(dispatchKind, escalated) {
+    async function attempt(dispatchKind, escalated, priorIssues) {
       const implLabel = escalated ? `escalate:${taskId}` : `impl:${taskId}`;
       const remediationModel = escalated ? 'opus' : task.model;
+      const escalationIssues = escalated ? priorIssues : null;
       const status = await ctx.dispatchWithRetry(
-        (attemptNo, preamble) => guard.dispatch(preamble + implementerPrompt(task, branch, wt), { label: implLabel, phase: 'Waves', schema: STATUS_SCHEMA, agentType: resolvedAgentType }, { kind: dispatchKind, task }),
+        (attemptNo, preamble) => guard.dispatch(preamble + implementerPrompt(task, branch, wt, escalationIssues), { label: implLabel, phase: 'Waves', schema: STATUS_SCHEMA, agentType: resolvedAgentType }, { kind: dispatchKind, task }),
         { state: retry.state, budget: retry.maxAttempts, resetRef: baseBranch, worktree: wt, unitId: taskId, task: task.fullText, ...(typeof ctx.makeRemediation === 'function' ? ctx.makeRemediation({ unitId: taskId, stage: 'execute', task: task.fullText, schema: STATUS_SCHEMA, agentType: resolvedAgentType, phase: 'Waves', model: remediationModel }) : {}) },
       );
       if (guard.getHalt()) return { gate: 'halt' };
@@ -364,7 +369,7 @@ export async function runEngine(engineArgs, ctx) {
     }
     let outcome = await attempt('implementer', false);
     if (!guard.getHalt() && (outcome.gate === 'blocked' || outcome.gate === 'review') && task.model === 'sonnet') {
-      outcome = await attempt('escalation', true);
+      outcome = await attempt('escalation', true, outcome.issues);
     }
     if (guard.getHalt()) return { taskId, branch, wt, reviewMode, ok: false, reason: 'model-policy' };
     if (outcome.gate === 'quarantined') return { taskId, branch, wt, reviewMode, ok: false, reason: 'quarantined', quarantined: outcome.quarantined };
