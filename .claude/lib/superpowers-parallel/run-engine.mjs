@@ -270,6 +270,7 @@ export async function runEngine(engineArgs, ctx) {
       `Report status as exactly one of DONE / DONE_WITH_CONCERNS / BLOCKED / NEEDS_CONTEXT.`;
   }
 
+  const ciEnforcedScoping = `CI already enforces lint, formatting, type-checks, and the test suite deterministically: a Tier-0 static layer gates every merge, so pure style, formatting, lint-shaped, and generic-maintainability nits, plus failing tests, type errors, and lint output, are caught deterministically without an LLM and are NOT yours to re-flag - do not spend review budget on them. Concentrate your judgment where it is structurally necessary. You are an OBJECTIVE reviewer with NO merge authority: return only a verdict and specific findings; you never merge.`;
   function reviewTarget(task, branch) {
     if (isolation === 'scope-fence') {
       return `Do NOT enter any worktree and do NOT mutate anything. From the main repo at ${repoRoot}, inspect READ-ONLY:\n` +
@@ -284,12 +285,14 @@ export async function runEngine(engineArgs, ctx) {
       `Spec for this task:\n${task.fullText}\n\n` +
       `File scope for THIS task: ${JSON.stringify(task.fileScope)}\n` +
       `Judge ONLY the files in this task's fileScope. Files outside it belong to SIBLING TASKS in the same MSP that are built in other waves and are correctly absent from this branch - do NOT flag them as missing or incomplete. Do NOT open .mitosis/*.plan.md or *.graph.json to assess completeness; the task body above is the complete and authoritative scope for THIS task.\n\n` +
+      `${ciEnforcedScoping}\n\n` +
       `Review in two stages. STAGE 1 (hard precondition): verify the code matches the spec; any spec mismatch is verdict 'fail' regardless of code quality. STAGE 2 (only if stage 1 passes): judge code quality. Return a single verdict: 'pass' only if BOTH stages pass, else 'fail' with specific issues (file:line).`;
   }
   function securityReviewPrompt(task, branch) {
     return `--- SECURITY REVIEW TARGET ---\n${reviewTarget(task, branch)}\n\n` +
       `Task id: ${task.id}\nTitle: ${task.title}\n\n${task.fullText}\n\n` +
       `File scope: ${JSON.stringify(task.fileScope)}\n\n` +
+      `${ciEnforcedScoping}\n\n` +
       `Return verdict 'pass' if no security issues are found, else 'fail' with specific issues (file:line).`;
   }
   function fixPrompt(task, branch, wt, issues) {

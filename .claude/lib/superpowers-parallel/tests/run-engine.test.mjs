@@ -202,6 +202,32 @@ test('early-wave completeness review prompts inject the task fileScope and the s
   assert.ok(highMerged.prompt.includes(ANTIPLAN), 'high-risk merged review forbids reading the whole-MSP plan/graph');
 });
 
+test('MSP-3c every reviewer dispatch prompt scopes past CI-enforced concerns and stays neutral with no merge authority', async () => {
+  const calls = [];
+  const result = await runEngine(baseArgs({
+    tasks: {
+      t0: { id: 't0', title: 'T0', fullText: 'do t0', fileScope: ['lib/a.js'], risk: 'high', agentType: 'implementer', validation: 'scoped' },
+    },
+    waves: [['t0']],
+  }), ctxWith(scriptedAgent(calls)));
+  assert.equal(result.halted, false);
+
+  const merged = calls.find((c) => c.opts && c.opts.label === 'review:t0');
+  const sec = calls.find((c) => c.opts && c.opts.label === 'sec:t0');
+  assert.ok(merged, 'merged review prompt captured');
+  assert.ok(sec, 'security review prompt captured');
+
+  for (const { label, prompt } of [{ label: 'review:t0', prompt: merged.prompt }, { label: 'sec:t0', prompt: sec.prompt }]) {
+    assert.match(prompt, /CI already enforces/, `${label} tells the reviewer CI already enforces the deterministic checks`);
+    assert.match(prompt, /lint/, `${label} names lint as CI-enforced`);
+    assert.match(prompt, /format/, `${label} names formatting as CI-enforced`);
+    assert.match(prompt, /type-check/, `${label} names type-checks as CI-enforced`);
+    assert.match(prompt, /failing tests/, `${label} names failing tests as CI-enforced`);
+    assert.match(prompt, /Tier-0/, `${label} points style/lint-shaped concerns at the Tier-0 deterministic layer`);
+    assert.match(prompt, /NO merge authority/, `${label} keeps the reviewer neutral with no merge authority`);
+  }
+});
+
 test('high-risk review collapses spec+quality into one merged lens while security stays an independent Opus lens', async () => {
   const calls = [];
   const result = await runEngine(baseArgs({
