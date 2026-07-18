@@ -130,8 +130,8 @@ test('worktree merge/boundary target the per-instance integration worktree, neve
 function twoTaskArgs() {
   return baseArgs({
     tasks: {
-      t1: { id: 't1', title: 'T1', fullText: 'do t1', fileScope: ['lib/a.js'], risk: 'low', agentType: 'implementer', validation: 'scoped' },
-      t2: { id: 't2', title: 'T2', fullText: 'do t2', fileScope: ['lib/b.js'], risk: 'low', agentType: 'implementer', validation: 'scoped' },
+      t1: { id: 't1', title: 'T1', fullText: 'do t1', fileScope: ['lib/a.js'], risk: 'low', agentType: 'implementer', validation: 'scoped', dependentCount: 0, edgeReasons: [] },
+      t2: { id: 't2', title: 'T2', fullText: 'do t2', fileScope: ['lib/b.js'], risk: 'low', agentType: 'implementer', validation: 'scoped', dependentCount: 0, edgeReasons: [] },
     },
     waves: [['t1', 't2']],
   });

@@ -122,9 +122,10 @@ export function blastRadius(task) {
 }
 
 export function securityReviewRequired(task, k) {
-  if (!task || typeof task !== 'object') return false;
+  if (!task || typeof task !== 'object') return true;
   const threshold = Number.isInteger(k) && k > 0 ? k : BLAST_RADIUS_K;
   return (
+    policySignalAmbiguous(task) ||
     task.risk === 'high' ||
     sensitiveScope(task.fileScope) ||
     irreversible(task.fileScope, task.fullText) ||

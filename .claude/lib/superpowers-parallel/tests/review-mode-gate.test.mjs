@@ -94,6 +94,22 @@ test('blast-radius threshold K is operator-configurable and defaulted', async ()
   assert.equal(tunedResult.waves[0].outcomes[0].reviewMode, 'two-lens');
 });
 
+test('a sensitive scope with a malformed (non-array) fileScope still routes to the security-inclusive review', async () => {
+  const calls = [];
+  const result = await runEngine(baseArgs({ tasks: { t1: taskWith({ fileScope: 'auth/login.js' }) } }), ctxWith(scriptedAgent(calls)));
+  assert.equal(result.halted, false);
+  assert.ok(calls.some((c) => c.opts && c.opts.label === 'sec:t1'), 'security-reviewer must run when signals are malformed (fail closed)');
+  assert.equal(result.waves[0].outcomes[0].reviewMode, 'two-lens');
+});
+
+test('an ambiguous non-integer dependentCount fails closed to the security-inclusive review', async () => {
+  const calls = [];
+  const result = await runEngine(baseArgs({ tasks: { t1: taskWith({ dependentCount: 'many' }) } }), ctxWith(scriptedAgent(calls)));
+  assert.equal(result.halted, false);
+  assert.ok(calls.some((c) => c.opts && c.opts.label === 'sec:t1'), 'security-reviewer must run when dependentCount is malformed (fail closed)');
+  assert.equal(result.waves[0].outcomes[0].reviewMode, 'two-lens');
+});
+
 test('a high-risk task still routes to the security-inclusive review', async () => {
   const calls = [];
   const result = await runEngine(baseArgs({ tasks: { t1: taskWith({ risk: 'high' }) } }), ctxWith(scriptedAgent(calls)));
