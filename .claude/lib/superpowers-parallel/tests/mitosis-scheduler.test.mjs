@@ -3282,54 +3282,52 @@ function overrideParallelize(base, targetMspId, mutateEngineArgs) {
   };
 }
 
-test('A3 E2 model invariant: a parallelize round-trip that echoes a per-task model disagreeing with the engine-authored policy model parks at parallelize (tamper/drift/stale-resume)', async () => {
+test('WS-1.6 authoritative-substitute: a per-task model echoed disagreeing with policy is overwritten by the engine-authored model, fires a logged drift canary, and still ships (no park on non-safety transcription drift)', async () => {
   const msps = [mspSpec('solo', { fileScope: ['scope/solo/**'] })];
   const base = createFakeAgent({ msps });
   const agent = overrideParallelize(base, 'solo', (ea) => ({
     ...ea,
     tasks: { ...ea.tasks, t0: { ...ea.tasks.t0, model: 'sonnet' } },
   }));
-  const { resultPromise } = invokeMitosis(buildInput(), agent);
+  const { resultPromise, logLines } = invokeMitosis(buildInput(), agent);
   const result = await resultPromise;
 
-  assert.deepEqual(result.shipped, []);
-  const park = result.parked.find((p) => p.mspId === 'solo');
-  assert.ok(park, 'a task whose echoed model disagrees with policy is parked, not dispatched');
-  assert.equal(park.stage, 'parallelize');
-  assert.match(park.request.what, /model/);
+  assert.equal(result.parked.find((p) => p.mspId === 'solo'), undefined, 'a non-safety model echo drift is substituted, not parked');
+  assert.deepEqual(result.shipped.map((s) => s.mspId), ['solo']);
+  const canary = logLines.find((l) => /DRIFT CANARY/.test(l) && /tasks\.t0\.model/.test(l) && /"sonnet"/.test(l));
+  assert.ok(canary, `the corrupt per-task model must remain observable via a logged drift canary; got:\n${logLines.join('\n')}`);
 });
 
-test('A3 E2 model invariant: an echoed per-task model outside the {opus,sonnet} whitelist parks at parallelize', async () => {
+test('WS-1.6 authoritative-substitute: an echoed per-task model outside {opus,sonnet} (e.g. haiku) is overwritten by the engine-authored model and fires a drift canary rather than ever dispatching haiku', async () => {
   const msps = [mspSpec('solo', { fileScope: ['scope/solo/**'] })];
   const base = createFakeAgent({ msps });
   const agent = overrideParallelize(base, 'solo', (ea) => ({
     ...ea,
     tasks: { ...ea.tasks, t0: { ...ea.tasks.t0, model: 'haiku' } },
   }));
-  const { resultPromise } = invokeMitosis(buildInput(), agent);
+  const { resultPromise, logLines } = invokeMitosis(buildInput(), agent);
   const result = await resultPromise;
 
-  assert.deepEqual(result.shipped, []);
-  const park = result.parked.find((p) => p.mspId === 'solo');
-  assert.ok(park, 'a non-whitelisted echoed model is unrepresentable and parks');
-  assert.equal(park.stage, 'parallelize');
+  assert.equal(result.parked.find((p) => p.mspId === 'solo'), undefined, 'a haiku echo is authoritatively substituted, not parked');
+  assert.deepEqual(result.shipped.map((s) => s.mspId), ['solo']);
+  const canary = logLines.find((l) => /DRIFT CANARY/.test(l) && /tasks\.t0\.model/.test(l) && /"haiku"/.test(l));
+  assert.ok(canary, `a haiku echo must remain observable via a logged drift canary while the engine overwrites it; got:\n${logLines.join('\n')}`);
 });
 
-test('A3 E2 model invariant: a parallelize round-trip whose engineArgs.models does not echo the operator models input unchanged parks at parallelize', async () => {
+test('WS-1.6 authoritative-substitute: a parallelize round-trip whose engineArgs.models drifts from the operator input is overwritten with the operator-authoritative map, fires a drift canary, and still ships', async () => {
   const msps = [mspSpec('solo', { fileScope: ['scope/solo/**'] })];
   const base = createFakeAgent({ msps });
   const agent = overrideParallelize(base, 'solo', (ea) => ({
     ...ea,
     models: { reviewer: 'sonnet' },
   }));
-  const { resultPromise } = invokeMitosis(buildInput(), agent);
+  const { resultPromise, logLines } = invokeMitosis(buildInput(), agent);
   const result = await resultPromise;
 
-  assert.deepEqual(result.shipped, []);
-  const park = result.parked.find((p) => p.mspId === 'solo');
-  assert.ok(park, 'an LLM round-trip that adds a models override the operator never supplied is parked (echo hole closed)');
-  assert.equal(park.stage, 'parallelize');
-  assert.match(park.request.what, /models/);
+  assert.equal(result.parked.find((p) => p.mspId === 'solo'), undefined, 'a drifted models map is substituted with the validated operator map, not parked');
+  assert.deepEqual(result.shipped.map((s) => s.mspId), ['solo']);
+  const canary = logLines.find((l) => /DRIFT CANARY/.test(l) && /\bmodels\b/.test(l));
+  assert.ok(canary, `a drifted engineArgs.models must remain observable via a logged drift canary; got:\n${logLines.join('\n')}`);
 });
 
 test('A3 E2 model invariant: an engine-authored model matching policy and an operator models map echoed unchanged pass the invariant and ship (no over-parking)', async () => {

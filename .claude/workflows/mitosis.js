@@ -3135,13 +3135,47 @@ async function persistParkCheckpoint(record) {
   }
 }
 
-function modelsMapEqual(a, b) {
+function authoritativeMapsEqual(a, b) {
   if (a === b) return true;
   if (!a || !b || typeof a !== 'object' || typeof b !== 'object' || Array.isArray(a) || Array.isArray(b)) return false;
   const keysA = Object.keys(a);
   const keysB = Object.keys(b);
   if (keysA.length !== keysB.length) return false;
   return keysA.every((k) => Object.prototype.hasOwnProperty.call(b, k) && a[k] === b[k]);
+}
+
+function reconcileAuthoritativeConstants(engineArgs, authoritative) {
+  if (!engineArgs || typeof engineArgs !== 'object' || Array.isArray(engineArgs)) {
+    return { engineArgs, drift: [] };
+  }
+  const drift = [];
+  const next = { ...engineArgs };
+  for (const field of ['baseBranch', 'isolation', 'branchPrefix']) {
+    if (engineArgs[field] !== authoritative[field]) {
+      drift.push({ field, echoed: engineArgs[field], authoritative: authoritative[field] });
+      next[field] = authoritative[field];
+    }
+  }
+  if (!authoritativeMapsEqual(engineArgs.models, authoritative.models)) {
+    drift.push({ field: 'models', echoed: engineArgs.models, authoritative: authoritative.models });
+    next.models = authoritative.models;
+  }
+  return { engineArgs: next, drift };
+}
+
+function detectTaskModelDrift(tasks, resolvePolicyModel) {
+  const drift = [];
+  if (!tasks || typeof tasks !== 'object' || Array.isArray(tasks)) return drift;
+  for (const [taskId, task] of Object.entries(tasks)) {
+    if (!task || typeof task !== 'object' || Array.isArray(task)) continue;
+    const echoed = task.model;
+    if (echoed === undefined || echoed === null) continue;
+    const authoritative = resolvePolicyModel(task);
+    if (echoed !== authoritative) {
+      drift.push({ field: `tasks.${taskId}.model`, echoed, authoritative });
+    }
+  }
+  return drift;
 }
 
 const CI_WATCH_MAX_SECONDS = 1800;
@@ -3307,14 +3341,6 @@ async function runUnit(unit) {
     log(`mitosis[${msp.id}]: parallelized lane=${parallelized.route.lane} isolation=worktree(forced) N~${parallelized.route.N}`);
 
     if (
-      parallelized.engineArgs.baseBranch !== integrationBranch ||
-      parallelized.engineArgs.isolation !== 'worktree' ||
-      parallelized.engineArgs.branchPrefix !== branchPrefix
-    ) {
-      return parkUnit(msp, 'parallelize', NeedsHuman({ kind: 'approve-decision', what: `engineArgs invariant violated: baseBranch=${parallelized.engineArgs.baseBranch} isolation=${parallelized.engineArgs.isolation} branchPrefix=${parallelized.engineArgs.branchPrefix}`, remediation: null, resumePoint: null }), integrationBranch);
-    }
-
-    if (
       typeof parallelized.engineArgs.tasks !== 'object' ||
       parallelized.engineArgs.tasks === null ||
       Array.isArray(parallelized.engineArgs.tasks)
@@ -3347,22 +3373,25 @@ async function runUnit(unit) {
       return parkUnit(msp, 'parallelize', NeedsHuman({ kind: 'approve-decision', what: 'engineArgs.prompts must be a non-null, non-array object whose values are all strings', remediation: null, resumePoint: null }), integrationBranch);
     }
 
-    if (!modelsMapEqual(parallelized.engineArgs.models, models)) {
-      return parkUnit(msp, 'parallelize', NeedsHuman({ kind: 'approve-decision', what: `engineArgs.models (${JSON.stringify(parallelized.engineArgs.models)}) does not echo the operator models input (${JSON.stringify(models)}) unchanged; the model map is engine-owned and the parallelize round-trip must not add, drop, or alter it`, remediation: null, resumePoint: null }), integrationBranch);
-    }
-
     for (const [taskId, task] of Object.entries(parallelized.engineArgs.tasks)) {
       const policyModel = policyModelFor(task);
       if (policyModel !== 'opus' && policyModel !== 'sonnet') {
         return parkUnit(msp, 'parallelize', NeedsHuman({ kind: 'approve-decision', what: `engineArgs.tasks[${taskId}] resolved a non-whitelisted policy model ${JSON.stringify(policyModel)}; only {opus, sonnet} are representable`, remediation: null, resumePoint: null }), integrationBranch);
       }
-      const echoed = task && typeof task === 'object' && !Array.isArray(task) ? task.model : undefined;
-      if (echoed !== undefined && echoed !== null && echoed !== policyModel) {
-        return parkUnit(msp, 'parallelize', NeedsHuman({ kind: 'approve-decision', what: `engineArgs.tasks[${taskId}].model=${JSON.stringify(echoed)} disagrees with the engine-authored policy model ${JSON.stringify(policyModel)}; the per-task model is engine-authored (deterministic policyModelFor) and must never be supplied or mutated by the parallelize round-trip or a stale resume`, remediation: null, resumePoint: null }), integrationBranch);
-      }
     }
 
-    aggregatedScope = aggregateMspFileScope(parallelized.engineArgs.tasks);
+    const authoritativeConstants = { baseBranch: integrationBranch, isolation: 'worktree', branchPrefix, models };
+    const constantReconcile = reconcileAuthoritativeConstants(parallelized.engineArgs, authoritativeConstants);
+    const constantDrift = [
+      ...constantReconcile.drift,
+      ...detectTaskModelDrift(constantReconcile.engineArgs.tasks, (task) => policyModelFor(task)),
+    ];
+    for (const d of constantDrift) {
+      log(`mitosis[${msp.id}]: DRIFT CANARY at parallelize round-trip — authoritative constant ${d.field} echoed as ${JSON.stringify(d.echoed)} was overwritten with ${JSON.stringify(d.authoritative)}; a corrupt hand-copy stays observable rather than silently normalized`);
+    }
+    const reconciledEngineArgs = constantReconcile.engineArgs;
+
+    aggregatedScope = aggregateMspFileScope(reconciledEngineArgs.tasks);
     log(`mitosis[${msp.id}]: aggregated write-set = ${aggregatedScope.length} path(s)`);
 
     phase('Branch');
@@ -3387,7 +3416,7 @@ async function runUnit(unit) {
     compensationStack = registerEffect(compensationStack, { kind: 'local-branch', ref: integrationBranch });
 
     const engineResult = await runEngine(
-      { ...parallelized.engineArgs, tasks: authorTaskModels(parallelized.engineArgs.tasks), retry: { maxAttempts: retryMaxAttempts, state: retryState }, fingerprintBase: `origin/${baseBranch}` },
+      { ...reconciledEngineArgs, tasks: authorTaskModels(reconciledEngineArgs.tasks), retry: { maxAttempts: retryMaxAttempts, state: retryState }, fingerprintBase: `origin/${baseBranch}` },
       { agent, parallel, log, phase, dispatchWithRetry: supervisedEngineDispatch, makeRemediation },
     );
     if (engineResult.halted) {
