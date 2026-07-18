@@ -46,13 +46,13 @@ export function loadPrompts(skillsDir, { snapshotDir, deps = {} } = {}) {
   const readFile = deps.readFile || ((p) => readFileSync(p, 'utf8'));
   const out = {};
   for (const [key, rel] of Object.entries(PROMPT_FILES)) {
-    const live = join(skillsDir, rel);
-    if (exists(live)) { out[key] = { text: readFile(live), source: 'live', path: live }; continue; }
     if (snapshotDir) {
       const snap = join(snapshotDir, key + '.md');
       if (exists(snap)) { out[key] = { text: readFile(snap), source: 'snapshot', path: snap }; continue; }
     }
-    throw new Error(`prompt ${key} missing live (${live}) and snapshot`);
+    const live = join(skillsDir, rel);
+    if (exists(live)) { out[key] = { text: readFile(live), source: 'live', path: live }; continue; }
+    throw new Error(`prompt ${key} missing pinned snapshot (${snapshotDir}) and live (${live})`);
   }
   return out;
 }
