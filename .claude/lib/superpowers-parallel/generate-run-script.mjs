@@ -30,6 +30,21 @@ export function buildRunScript(engineSource, values) {
   return out.join('\n');
 }
 
+export function buildEngineTasks(tasks) {
+  if (!Array.isArray(tasks)) throw new Error('graph.tasks must be an array');
+  return Object.fromEntries(tasks.map((t) => [t.id, {
+    id: t.id,
+    title: t.title,
+    fullText: t.fullText,
+    fileScope: t.fileScope,
+    risk: t.risk,
+    agentType: t.agentType || 'implementer',
+    validation: t.validation,
+    dependentCount: t.dependentCount,
+    edgeReasons: t.edgeReasons,
+  }]));
+}
+
 export function validateGraph(graph) {
   if (!graph || !Array.isArray(graph.tasks) || graph.tasks.length === 0) throw new Error('graph.tasks must be a non-empty array');
   for (const t of graph.tasks) {
@@ -115,7 +130,7 @@ function run() {
   for (const w of resolved.warnings) process.stderr.write(`warning: ${w}\n`);
 
   const values = {
-    tasks: Object.fromEntries(graph.tasks.map((t) => [t.id, { id: t.id, title: t.title, fullText: t.fullText, fileScope: t.fileScope, risk: t.risk, agentType: t.agentType || 'implementer', validation: t.validation }])),
+    tasks: buildEngineTasks(graph.tasks),
     waves,
     branchPrefix: `wf-${new Date().toISOString().replace(/\D/g, '').slice(0, 14)}`,
     baseBranch,

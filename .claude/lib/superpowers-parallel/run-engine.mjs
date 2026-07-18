@@ -130,7 +130,7 @@ function policySignalAmbiguous(task) {
   if (typeof task.fullText !== 'string') return true;
   if (task.risk !== undefined && task.risk !== null && !POLICY_VALID_RISK.has(task.risk)) return true;
   if (!Number.isInteger(task.dependentCount) || task.dependentCount < 0) return true;
-  if (task.edgeReasons !== undefined && task.edgeReasons !== null && !Array.isArray(task.edgeReasons)) return true;
+  if (!Array.isArray(task.edgeReasons)) return true;
   return false;
 }
 
@@ -160,8 +160,35 @@ export function authorTaskModels(tasks, opts) {
   );
 }
 
+function fixLoopModel(opts) {
+  const layer3Sonnet = opts && typeof opts.layer3Sonnet === 'boolean' ? opts.layer3Sonnet : LAYER3_SONNET_ENABLED;
+  return layer3Sonnet ? 'sonnet' : 'opus';
+}
+
+export function routingTelemetry(tasks, opts) {
+  const entries = tasks && typeof tasks === 'object' && !Array.isArray(tasks)
+    ? Object.values(tasks).filter((t) => t && typeof t === 'object' && !Array.isArray(t))
+    : [];
+  let opus = 0;
+  let sonnet = 0;
+  let ambiguous = 0;
+  for (const task of entries) {
+    if (policySignalAmbiguous(task)) ambiguous++;
+    if (policyModelFor(task, opts) === 'sonnet') sonnet++;
+    else opus++;
+  }
+  const total = entries.length;
+  const line = `model routing: opus=${opus} sonnet=${sonnet} ambiguous(reason)=${ambiguous}`;
+  const warning = total > 0 && ambiguous === total
+    ? `WARNING: model routing is 100% ambiguous across ${total} task(s) — routing signals appear unthreaded; every task fell to the fail-closed Opus default`
+    : total > 0 && opus === total
+      ? `WARNING: model routing is 100% Opus across ${total} task(s) — the Sonnet tier is inactive; confirm this is intended and not a silent regression to the dead state`
+      : null;
+  return { opus, sonnet, ambiguous, total, line, warning };
+}
+
 export function guardModelDecision(kind, task, attemptedModel, opts) {
-  const policyModel = kind === 'implementer' ? policyModelFor(task, opts) : 'opus';
+  const policyModel = kind === 'implementer' ? policyModelFor(task, opts) : kind === 'fix' ? fixLoopModel(opts) : 'opus';
   if (policyModel !== 'opus' && policyModel !== 'sonnet') {
     return { ok: false, model: policyModel, reason: `resolved a non-whitelisted policy model ${JSON.stringify(policyModel)}` };
   }
@@ -191,6 +218,9 @@ export async function runEngine(engineArgs, ctx) {
 
   const modelPolicyOpts = { layer3Sonnet: engineArgs.layer3Sonnet };
   const tasks = authorTaskModels(engineArgs.tasks, modelPolicyOpts);
+  const routing = routingTelemetry(tasks, modelPolicyOpts);
+  log(routing.line);
+  if (routing.warning) log(routing.warning);
   const waves = engineArgs.waves;
   const branchPrefix = engineArgs.branchPrefix;
   const baseBranch = engineArgs.baseBranch;
@@ -295,7 +325,7 @@ export async function runEngine(engineArgs, ctx) {
       if (r && r.verdict === 'pass') return { ok: true };
       loops++;
       if (loops > fixLoopMax) return { ok: false, reason: `${label}-exhausted`, issues: r && r.issues };
-      await guard.dispatch(fixPrompt(task, branch, wt, r && r.issues), { label: `fix-${label}:${task.id}`, phase: 'Waves' }, { kind: 'engine', task });
+      await guard.dispatch(fixPrompt(task, branch, wt, r && r.issues), { label: `fix-${label}:${task.id}`, phase: 'Waves' }, { kind: 'fix', task });
       if (guard.getHalt()) return { ok: false, reason: 'model-policy' };
     }
   }

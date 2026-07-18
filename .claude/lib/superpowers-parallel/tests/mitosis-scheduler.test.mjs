@@ -64,7 +64,7 @@ function buildEngineArgs({ sourcePrefix, mspId, taskId = 't0' }) {
   const baseBranch = `${branchPrefix}-integration`;
   return {
     tasks: {
-      [taskId]: { id: taskId, title: 'task', fullText: '', fileScope: [], risk: 'low', agentType: 'implementer', validation: null },
+      [taskId]: { id: taskId, title: 'task', fullText: '', fileScope: [], risk: 'low', agentType: 'implementer', validation: null, dependentCount: 0, edgeReasons: [] },
     },
     waves: [[taskId]],
     branchPrefix,

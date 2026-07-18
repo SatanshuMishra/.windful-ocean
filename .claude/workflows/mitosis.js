@@ -796,7 +796,7 @@ function policySignalAmbiguous(task) {
   if (typeof task.fullText !== 'string') return true;
   if (task.risk !== undefined && task.risk !== null && !POLICY_VALID_RISK.has(task.risk)) return true;
   if (!Number.isInteger(task.dependentCount) || task.dependentCount < 0) return true;
-  if (task.edgeReasons !== undefined && task.edgeReasons !== null && !Array.isArray(task.edgeReasons)) return true;
+  if (!Array.isArray(task.edgeReasons)) return true;
   return false;
 }
 
@@ -826,8 +826,35 @@ function authorTaskModels(tasks, opts) {
   );
 }
 
+function fixLoopModel(opts) {
+  const layer3Sonnet = opts && typeof opts.layer3Sonnet === 'boolean' ? opts.layer3Sonnet : LAYER3_SONNET_ENABLED;
+  return layer3Sonnet ? 'sonnet' : 'opus';
+}
+
+function routingTelemetry(tasks, opts) {
+  const entries = tasks && typeof tasks === 'object' && !Array.isArray(tasks)
+    ? Object.values(tasks).filter((t) => t && typeof t === 'object' && !Array.isArray(t))
+    : [];
+  let opus = 0;
+  let sonnet = 0;
+  let ambiguous = 0;
+  for (const task of entries) {
+    if (policySignalAmbiguous(task)) ambiguous++;
+    if (policyModelFor(task, opts) === 'sonnet') sonnet++;
+    else opus++;
+  }
+  const total = entries.length;
+  const line = `model routing: opus=${opus} sonnet=${sonnet} ambiguous(reason)=${ambiguous}`;
+  const warning = total > 0 && ambiguous === total
+    ? `WARNING: model routing is 100% ambiguous across ${total} task(s) — routing signals appear unthreaded; every task fell to the fail-closed Opus default`
+    : total > 0 && opus === total
+      ? `WARNING: model routing is 100% Opus across ${total} task(s) — the Sonnet tier is inactive; confirm this is intended and not a silent regression to the dead state`
+      : null;
+  return { opus, sonnet, ambiguous, total, line, warning };
+}
+
 function guardModelDecision(kind, task, attemptedModel, opts) {
-  const policyModel = kind === 'implementer' ? policyModelFor(task, opts) : 'opus';
+  const policyModel = kind === 'implementer' ? policyModelFor(task, opts) : kind === 'fix' ? fixLoopModel(opts) : 'opus';
   if (policyModel !== 'opus' && policyModel !== 'sonnet') {
     return { ok: false, model: policyModel, reason: `resolved a non-whitelisted policy model ${JSON.stringify(policyModel)}` };
   }
@@ -857,6 +884,9 @@ async function runEngine(engineArgs, ctx) {
 
   const modelPolicyOpts = { layer3Sonnet: engineArgs.layer3Sonnet };
   const tasks = authorTaskModels(engineArgs.tasks, modelPolicyOpts);
+  const routing = routingTelemetry(tasks, modelPolicyOpts);
+  log(routing.line);
+  if (routing.warning) log(routing.warning);
   const waves = engineArgs.waves;
   const branchPrefix = engineArgs.branchPrefix;
   const baseBranch = engineArgs.baseBranch;
@@ -961,7 +991,7 @@ async function runEngine(engineArgs, ctx) {
       if (r && r.verdict === 'pass') return { ok: true };
       loops++;
       if (loops > fixLoopMax) return { ok: false, reason: `${label}-exhausted`, issues: r && r.issues };
-      await guard.dispatch(fixPrompt(task, branch, wt, r && r.issues), { label: `fix-${label}:${task.id}`, phase: 'Waves' }, { kind: 'engine', task });
+      await guard.dispatch(fixPrompt(task, branch, wt, r && r.issues), { label: `fix-${label}:${task.id}`, phase: 'Waves' }, { kind: 'fix', task });
       if (guard.getHalt()) return { ok: false, reason: 'model-policy' };
     }
   }
@@ -3337,7 +3367,7 @@ async function runUnit(unit) {
         `   - import { resolveAll } from '${LIB_DIR}/resolve-superpowers.mjs' and call it to get resolved.prompts, an object shaped { key: { text, source, path } }. Flatten it to a plain string map BEFORE passing it anywhere: prompts = Object.fromEntries(Object.entries(resolved.prompts).map(([k, v]) => [k, v.text])). Do NOT pass resolved.prompts itself.\n` +
         `   - Determine runArtifacts: read ${ENGINE_PATH}, find every use of \`runArtifacts\`, and construct an object that satisfies those reads (include the plan path ${planned.planPath} and the graph path).\n\n` +
         `3. Assemble the engine args with the pure helper, passing the orchestration context so all 14 keys are present:\n` +
-        `   First build the id-keyed tasks map (the engine indexes tasks by id, NOT by array position): tasks = Object.fromEntries(graph.tasks.map((t) => [t.id, { id: t.id, title: t.title, fullText: t.fullText, fileScope: t.fileScope, risk: t.risk, agentType: t.agentType || 'implementer', validation: t.validation }])). Do NOT pass the raw graph.tasks array as tasks.\n` +
+        `   First build the id-keyed tasks map (the engine indexes tasks by id, NOT by array position): tasks = Object.fromEntries(graph.tasks.map((t) => [t.id, { id: t.id, title: t.title, fullText: t.fullText, fileScope: t.fileScope, risk: t.risk, agentType: t.agentType || 'implementer', validation: t.validation, dependentCount: t.dependentCount, edgeReasons: t.edgeReasons }])). The dependentCount AND edgeReasons pair is derived by derive-edges.mjs and MUST be carried through together - they drive the engine model policy; dropping either one fails the parallelize invariant below. Do NOT pass the raw graph.tasks array as tasks.\n` +
         `   import { buildEngineArgs } from '${LIB_DIR}/engine-args.mjs' and call buildEngineArgs({ tasks, waves, branchPrefix: ${JSON.stringify(branchPrefix)}, baseBranch: ${JSON.stringify(integrationBranch)}, worktreeRoot: ${JSON.stringify(worktreeRoot)}, repoRoot: ${JSON.stringify(repoRoot)}, scopedCheckCmd: ${JSON.stringify(verify.scopedCheckCmd || '')}, fullValidationCmd: ${JSON.stringify(verify.fullValidationCmd || '')}, prompts, fixLoopMax: ${fixLoopMax}, isolation: 'worktree', launchCommit: null, runArtifacts, models: ${JSON.stringify(models)} }). It throws if any required key is missing.\n\n` +
         `Return ONLY: { engineArgs: <the 14-key object>, route: { rule, lane, isolation, N, notes } }.`,
         { agentType: 'implementer', schema: PARALLELIZE_SCHEMA, label: `parallelize:${msp.id}`, phase: 'Parallelize' }
@@ -3382,6 +3412,12 @@ async function runUnit(unit) {
     }
 
     for (const [taskId, task] of Object.entries(parallelized.engineArgs.tasks)) {
+      if (!Number.isInteger(task.dependentCount) || task.dependentCount < 0) {
+        return parkUnit(msp, 'parallelize', NeedsHuman({ kind: 'approve-decision', what: `engineArgs.tasks[${taskId}] is missing the derive-edges routing signal dependentCount (got ${JSON.stringify(task.dependentCount)}); the task-map builder dropped a required field — dependentCount and edgeReasons must be threaded together or the model policy cannot classify this task`, remediation: null, resumePoint: null }), integrationBranch);
+      }
+      if (!Array.isArray(task.edgeReasons)) {
+        return parkUnit(msp, 'parallelize', NeedsHuman({ kind: 'approve-decision', what: `engineArgs.tasks[${taskId}] is missing the derive-edges routing signal edgeReasons (got ${JSON.stringify(task.edgeReasons)}); the task-map builder dropped a required field — dependentCount and edgeReasons must be threaded together or the model policy cannot classify this task`, remediation: null, resumePoint: null }), integrationBranch);
+      }
       const policyModel = policyModelFor(task);
       if (policyModel !== 'opus' && policyModel !== 'sonnet') {
         return parkUnit(msp, 'parallelize', NeedsHuman({ kind: 'approve-decision', what: `engineArgs.tasks[${taskId}] resolved a non-whitelisted policy model ${JSON.stringify(policyModel)}; only {opus, sonnet} are representable`, remediation: null, resumePoint: null }), integrationBranch);
