@@ -14,7 +14,7 @@ const COMPENSATION_REQUIRED_FIELDS = Object.freeze({
   'local-branch': Object.freeze(['ref']),
   'push-integration': Object.freeze(['ref']),
   'checkpoint-push': Object.freeze(['ref']),
-  'pr-open': Object.freeze(['pr']),
+  'pr-open': Object.freeze(['pr', 'ownerRepo']),
   'squash-merge': Object.freeze(['mergeCommit']),
 });
 
@@ -22,6 +22,7 @@ const EFFECT_FIELD_PATTERNS = Object.freeze({
   worktree: /^\/[A-Za-z0-9._\/-]+$/,
   ref: /^[A-Za-z0-9][A-Za-z0-9._\/-]*$/,
   pr: /^[0-9]+$/,
+  ownerRepo: /^[A-Za-z0-9._-]+\/[A-Za-z0-9._-]+$/,
   mergeCommit: /^[0-9a-f]{7,40}$/,
 });
 
@@ -52,7 +53,7 @@ export function undoCommandFor(effect) {
   if (effect.kind === 'local-branch') return `git branch -D ${effect.ref}`;
   if (effect.kind === 'push-integration') return `git push origin --delete ${effect.ref}`;
   if (effect.kind === 'checkpoint-push') return null;
-  if (effect.kind === 'pr-open') return `gh pr close ${effect.pr}`;
+  if (effect.kind === 'pr-open') return `gh pr close -R ${effect.ownerRepo} ${effect.pr}`;
   if (effect.kind === 'squash-merge') return `git revert --no-edit ${effect.mergeCommit}`;
   throw new Error(`saga: no undo command for effect kind: ${JSON.stringify(effect.kind)}`);
 }

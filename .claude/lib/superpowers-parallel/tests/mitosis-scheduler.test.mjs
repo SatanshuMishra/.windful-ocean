@@ -8,6 +8,9 @@ import { park, LEGAL_STAGES } from '../parking.mjs';
 const MITOSIS_PATH = process.env.MITOSIS_PATH || new URL('../../../workflows/mitosis.js', import.meta.url).pathname;
 const SOURCE_PREFIX = 'mitosis-test';
 const SPEC_CONTENT_HASH = 'a'.repeat(64);
+const TEST_REPO_ROOT = '/tmp/mitosis-scheduler-test/repo';
+const SCOPED = `-R "$(cd ${TEST_REPO_ROOT} && gh repo view --json nameWithOwner -q .nameWithOwner)"`;
+const SLUG_DERIVATION = `$(cd ${TEST_REPO_ROOT} && gh repo view --json nameWithOwner -q .nameWithOwner)`;
 
 const mitosisBody = readFileSync(MITOSIS_PATH, 'utf8').replace(/^export const meta/m, 'const meta');
 const AsyncFunction = Object.getPrototypeOf(async function () {}).constructor;
@@ -1122,7 +1125,10 @@ test('P4 §8.1 done-oracle-first: the ship prompt makes its FIRST action a merge
   assert.equal(result.overallStatus, 'all-shipped');
   assert.equal(captured.length, 1);
   assert.match(captured[0], /DONE-ORACLE FIRST/);
+  assert.ok(captured[0].includes(`gh pr view ${SCOPED} `), 'the ship done-oracle read is pinned to the TARGET repo via -R');
   assert.match(captured[0], /gh pr view .*--json state,mergedAt/);
+  assert.doesNotMatch(captured[0], /gh pr view (?!-R)/, 'no unscoped gh pr view in the ship prompt');
+  assert.doesNotMatch(captured[0], /gh pr list (?!-R)/, 'no unscoped gh pr list in the ship prompt');
   assert.match(captured[0], /already merged \(done-oracle skip\)/);
 });
 
@@ -1156,8 +1162,27 @@ test('P4 §8.2 ship PR is observe-then-converge (reuse an existing open PR, neve
   const result = await resultPromise;
 
   assert.equal(result.overallStatus, 'all-shipped');
-  assert.match(captured[0], /gh pr list --head/);
+  assert.ok(captured[0].includes(`gh pr list ${SCOPED} --head`), 'the ship existing-PR check is pinned to the TARGET repo via -R');
+  assert.doesNotMatch(captured[0], /gh pr list (?!-R)/);
   assert.match(captured[0], /REUSE it/);
+});
+
+test('gh-scope: the ship CI-wait derives the target repo slug ONCE and scopes every gh run to it (never the ambient cwd)', async () => {
+  const msps = [mspSpec('solo', { fileScope: ['scope/solo/**'] })];
+  const captured = [];
+  const base = createFakeAgent({ msps });
+  const agent = async (prompt, opts = {}) => {
+    if ((opts.label || '').startsWith('ship:')) captured.push(prompt);
+    return base(prompt, opts);
+  };
+  const { resultPromise } = invokeMitosis(buildInput(), agent);
+  const result = await resultPromise;
+
+  assert.equal(result.overallStatus, 'all-shipped');
+  assert.ok(captured[0].includes(`repoSlug="${SLUG_DERIVATION}"`), 'the CI-wait derives the target repo slug once into a shell var');
+  assert.ok(captured[0].includes('gh run list -R "$repoSlug" --branch'), 'gh run list is scoped to the derived slug');
+  assert.ok(captured[0].includes('gh run view \'"$runId"\' -R \'"$repoSlug"\' --json status'), 'the polled gh run view inside the until-loop is scoped');
+  assert.ok(captured[0].includes('gh run view "$runId" -R "$repoSlug" --json conclusion'), 'the terminal gh run view is scoped');
 });
 
 test('MINOR-2: a ship agent that returns null is parked (Tier 2, aligned with branch-null), never a top-level crashed entry', async () => {
@@ -1190,11 +1215,14 @@ test('R1 verify-handoff: the main thread independently reads back the CLAIMED me
 
   assert.equal(result.overallStatus, 'all-shipped');
   assert.equal(captured.length, 1, 'a claimed merge triggers exactly one independent read-back');
-  assert.match(captured[0], /gh pr view/);
+  assert.ok(captured[0].includes(`gh pr view ${SCOPED} `), 'the ship-verify PR-state read is pinned to the TARGET repo via -R');
   assert.match(captured[0], /state,mergedAt/);
+  assert.ok(captured[0].includes(`gh api "repos/${SLUG_DERIVATION}/compare/`), 'the ship-verify compare replaces the literal {owner}/{repo} with the derived target slug');
+  assert.doesNotMatch(captured[0], /repos\/\{owner\}\/\{repo\}/, 'the literal {owner}/{repo} placeholder is gone');
+  assert.doesNotMatch(captured[0], /gh pr view (?!-R)/, 'no unscoped gh pr view in the ship-verify prompt');
   assert.match(captured[0], /compare/);
   assert.match(captured[0], /inert argv/i);
-  assert.match(captured[0], /never .*shell/i);
+  assert.match(captured[0], /trusted kebab-validated/i, 'the ship-verify preamble states the interpolated refs are trusted kebab-validated config, not a false no-shell-interpolation guarantee');
 });
 
 test('R1 verify-handoff: a ship that CLAIMS merged but whose independent read-back is AMBIGUOUS is parked kind unknown-handoff and never recorded shipped (no blind accept, never retry-merge)', async () => {
@@ -1349,9 +1377,14 @@ test('T3 reconcile prompt-contract: read-only inspection of run.json and the mer
 
   assert.equal(result.overallStatus, 'all-shipped');
   assert.equal(captured.length, 1);
-  assert.match(captured[0], /gh pr list --state merged --base /);
+  assert.ok(captured[0].includes(`gh pr list ${SCOPED} --state merged --base `), 'the reconcile merged-PR list is pinned to the TARGET repo via -R, never the ambient cwd');
   assert.match(captured[0], /--json headRefName,url,mergedAt/);
   assert.match(captured[0], /\.mitosis\/run\.json/);
+  assert.ok(captured[0].includes(SLUG_DERIVATION), 'the reconcile stage derives the target repo slug from repoRoot');
+  assert.match(captured[0], /report the exact owner\/repo it prints as ownerRepo/i, 'the reconcile prompt instructs deriving and returning ownerRepo');
+  assert.match(captured[0], /gh repo view --json nameWithOwner,url/, 'the reconcile derivation resolves both nameWithOwner and url in one call so the origin host can be parsed');
+  assert.match(captured[0], /repoHost/, 'the reconcile prompt instructs deriving and returning the origin host as repoHost');
+  assert.doesNotMatch(captured[0], /gh pr list (?!-R)/, 'no unscoped gh pr list may resolve the ambient repo');
   assert.doesNotMatch(captured[0], /append|write .*run\.json/i);
 });
 
@@ -1816,6 +1849,91 @@ test('T4a skip: a skipped MSP enters no retry-budgeted dispatch, and a sibling w
   assert.equal(labelCounts.get('plan:b'), 2, 'the sibling retries its plan once and ships, so a retry unit remained available to it');
   assert.equal(result.overallStatus, 'all-shipped');
   assert.deepEqual(result.shipped.map((s) => s.mspId).sort(), ['a', 'b']);
+});
+
+function extractObjectLiteral(src, name) {
+  const decl = `const ${name} = `;
+  const declStart = src.indexOf(decl);
+  assert.ok(declStart >= 0, `${name} declaration not found`);
+  const open = src.indexOf('{', declStart);
+  assert.ok(open >= 0, `${name} object literal not found`);
+  let depth = 0;
+  for (let end = open; end < src.length; end += 1) {
+    const ch = src[end];
+    if (ch === '{') depth += 1;
+    else if (ch === '}') {
+      depth -= 1;
+      if (depth === 0) {
+        return Function(`"use strict"; return (${src.slice(open, end + 1)});`)();
+      }
+    }
+  }
+  throw new Error(`${name} object literal not balanced`);
+}
+
+test('T3 reconcile schema fail-closed: ownerRepo and repoHost are required and structurally pattern-guarded so a malformed slug/host fails schema loudly on the real-agent path', () => {
+  const schema = extractObjectLiteral(mitosisBody, 'RECONCILE_SCHEMA');
+  assert.ok(schema.required.includes('ownerRepo'), 'ownerRepo is a required field');
+  assert.ok(schema.required.includes('repoHost'), 'repoHost is a required field');
+
+  const ownerPattern = new RegExp(schema.properties.ownerRepo.pattern);
+  assert.ok(ownerPattern.test('me/target'), 'a valid owner/repo slug passes schema');
+  assert.equal(ownerPattern.test(''), false, 'an empty ownerRepo fails schema loudly rather than silently switching the filter off');
+  assert.equal(ownerPattern.test('noslash'), false, 'a slugless value fails schema');
+  assert.equal(ownerPattern.test('a/b/c'), false, 'an over-segmented value fails schema');
+
+  const hostPattern = new RegExp(schema.properties.repoHost.pattern);
+  assert.ok(hostPattern.test('github.com'), 'a hostname passes schema');
+  assert.ok(hostPattern.test('ghe.example.com'), 'an enterprise hostname passes schema');
+  assert.equal(hostPattern.test(''), false, 'an empty repoHost fails schema loudly');
+  assert.equal(hostPattern.test('has space'), false, 'a hostname with whitespace fails schema');
+});
+
+test('T4c host+slug skip-set wiring: recon.ownerRepo/repoHost gate the reconciled skip set end-to-end — a matching host+slug is skipped, a same-slug wrong-host is rejected (built), and a wrong-slug is rejected (built)', async () => {
+  const input = buildInput();
+  const msps = [
+    mspSpec('a', { fileScope: ['scope/a/**'] }),
+    mspSpec('b', { fileScope: ['scope/b/**'] }),
+    mspSpec('c', { fileScope: ['scope/c/**'] }),
+  ];
+  const reconcileResult = {
+    manifestFound: false,
+    manifestRaw: null,
+    ownerRepo: 'me/target',
+    repoHost: 'github.com',
+    specContentHash: SPEC_CONTENT_HASH,
+    mergedPRs: [
+      { headRefName: `${SOURCE_PREFIX}/a-integration`, url: 'https://github.com/me/target/pull/1', mergedAt: '2026-07-14T00:00:00Z' },
+      { headRefName: `${SOURCE_PREFIX}/b-integration`, url: 'https://evil.example/me/target/pull/2', mergedAt: '2026-07-14T01:00:00Z' },
+      { headRefName: `${SOURCE_PREFIX}/c-integration`, url: 'https://github.com/other/repo/pull/3', mergedAt: '2026-07-14T02:00:00Z' },
+    ],
+  };
+  const labels = [];
+  const base = createFakeAgent({ msps, reconcileResult });
+  const agent = async (prompt, opts = {}) => {
+    labels.push(opts.label || '');
+    return base(prompt, opts);
+  };
+  const { resultPromise } = invokeMitosis(input, agent);
+  const result = await resultPromise;
+
+  assert.equal(result.overallStatus, 'all-shipped');
+  assert.equal(result.mspCount, 3);
+
+  assert.ok(!labels.includes('plan:a'), 'the matching host+slug MSP is reconciled-skipped (never planned)');
+  assert.ok(!labels.includes('ship:a'), 'the matching host+slug MSP is reconciled-skipped (never freshly shipped)');
+  assert.ok(labels.includes('ship:b'), 'the same-slug wrong-HOST PR is rejected, so its MSP is built and shipped this run');
+  assert.ok(labels.includes('ship:c'), 'the wrong-slug PR is rejected, so its MSP is built and shipped this run');
+
+  const shippedA = result.shipped.find((s) => s.mspId === 'a');
+  assert.ok(shippedA, 'the reconciled-skip MSP appears in the shipped set');
+  assert.equal(shippedA.receiptsPass, null, 'a skip records no fresh receipts check ran this run');
+  assert.equal(shippedA.prUrl, 'https://github.com/me/target/pull/1', 'the skip carries the reconciled matching-host PR url');
+
+  const shippedB = result.shipped.find((s) => s.mspId === 'b');
+  assert.equal(shippedB.receiptsPass, true, 'the same-slug wrong-host MSP is genuinely rebuilt+shipped this run');
+  const shippedC = result.shipped.find((s) => s.mspId === 'c');
+  assert.equal(shippedC.receiptsPass, true, 'the wrong-slug MSP is genuinely rebuilt+shipped this run');
 });
 
 test('T4a checkpoint: the genesis run record is written once on the fresh path, embedding the logicalRunId, both MSP ids, and a single compact JSON object on one line', async () => {

@@ -21,11 +21,27 @@ export function branchToMspId(headRefName, sourcePrefix) {
   return id;
 }
 
-export function reconcileShippedSet(mergedPRs, sourcePrefix) {
+export function prUrlToRepoRef(url) {
+  if (typeof url !== 'string') return null;
+  const match = url.trim().match(/^https?:\/\/([^/]+)\/([A-Za-z0-9._-]+)\/([A-Za-z0-9._-]+)\/pull\/[0-9]+(?:[/?#].*)?$/);
+  if (match === null) return null;
+  return { host: match[1].toLowerCase(), ownerRepo: `${match[2]}/${match[3]}`.toLowerCase() };
+}
+
+export function reconcileShippedSet(mergedPRs, sourcePrefix, targetOwnerRepo, targetRepoHost) {
   const shipped = new Map();
   if (!Array.isArray(mergedPRs)) return shipped;
+  const enforceRepo = typeof targetOwnerRepo === 'string' && targetOwnerRepo.length > 0;
+  const targetLower = enforceRepo ? targetOwnerRepo.toLowerCase() : null;
+  const enforceHost = enforceRepo && typeof targetRepoHost === 'string' && targetRepoHost.length > 0;
+  const targetHostLower = enforceHost ? targetRepoHost.toLowerCase() : null;
   for (const pr of mergedPRs) {
     if (pr === null || typeof pr !== 'object') continue;
+    if (enforceRepo) {
+      const ref = prUrlToRepoRef(pr.url);
+      if (ref === null || ref.ownerRepo !== targetLower) continue;
+      if (enforceHost && ref.host !== targetHostLower) continue;
+    }
     const mspId = branchToMspId(pr.headRefName, sourcePrefix);
     if (mspId === null) continue;
     shipped.set(mspId, { prUrl: pr.url, mergedAt: pr.mergedAt });

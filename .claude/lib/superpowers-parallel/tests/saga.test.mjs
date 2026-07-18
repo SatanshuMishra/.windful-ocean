@@ -103,8 +103,15 @@ test('undoCommandFor: pushed integration branch compensates forward-only by dele
   assert.doesNotMatch(cmd, HISTORY_REWRITE);
 });
 
-test('undoCommandFor: PR open closes the PR idempotently', () => {
-  assert.equal(undoCommandFor({ kind: 'pr-open', pr: '123' }), 'gh pr close 123');
+test('undoCommandFor: PR open closes the PR idempotently, repo-scoped to the target (-R), never the ambient cwd repo', () => {
+  assert.equal(undoCommandFor({ kind: 'pr-open', pr: '123', ownerRepo: 'o/repo' }), 'gh pr close -R o/repo 123');
+});
+
+test('validateEffect: pr-open REQUIRES a target ownerRepo so the compensation can never resolve the ambient repo', () => {
+  assert.throws(() => validateEffect({ kind: 'pr-open', pr: '123' }), /requires field "ownerRepo"/);
+  assert.throws(() => validateEffect({ kind: 'pr-open', pr: '123', ownerRepo: 'not-a-repo' }), /unsafe value/);
+  assert.throws(() => validateEffect({ kind: 'pr-open', pr: '123', ownerRepo: 'o/repo; rm -rf ~' }), /unsafe value/);
+  assert.doesNotThrow(() => validateEffect({ kind: 'pr-open', pr: '123', ownerRepo: 'o/repo' }));
 });
 
 test('undoCommandFor: squash-merge recovers FORWARD with git revert, never un-merges the shared squash', () => {
@@ -144,7 +151,7 @@ test('validateEffect rejects a shell-metacharacter or option-injection value in 
 test('validateEffect accepts the well-formed safe values used across the compensation layer', () => {
   assert.doesNotThrow(() => validateEffect({ kind: 'worktree-add', worktree: '/wt/a' }));
   assert.doesNotThrow(() => validateEffect({ kind: 'local-branch', ref: 'mitosis/int/u1' }));
-  assert.doesNotThrow(() => validateEffect({ kind: 'pr-open', pr: '123' }));
+  assert.doesNotThrow(() => validateEffect({ kind: 'pr-open', pr: '123', ownerRepo: 'o/repo' }));
   assert.doesNotThrow(() => validateEffect({ kind: 'squash-merge', mergeCommit: 'abc1234' }));
 });
 
@@ -184,11 +191,11 @@ test('PROOF 2 — abandon/park unwinds the per-unit compensation stack LIFO (rev
   stack = registerEffect(stack, { kind: 'worktree-add', worktree: '/wt/a' });
   stack = registerEffect(stack, { kind: 'local-branch', ref: 'mitosis/int/u1' });
   stack = registerEffect(stack, { kind: 'push-integration', ref: 'mitosis/int/u1' });
-  stack = registerEffect(stack, { kind: 'pr-open', pr: '123' });
+  stack = registerEffect(stack, { kind: 'pr-open', pr: '123', ownerRepo: 'o/repo' });
   const undos = perUnitCompensation(stack);
   assert.deepEqual(undos.map((c) => c.effect.kind), ['pr-open', 'push-integration', 'local-branch', 'worktree-add']);
   assert.deepEqual(undoCommandList(stack), [
-    'gh pr close 123',
+    'gh pr close -R o/repo 123',
     'git branch -D mitosis/int/u1',
     'git worktree remove --force /wt/a',
   ]);
@@ -200,11 +207,11 @@ test('R6a — undoCommandList skips forward-only effects so a park never deletes
   stack = registerEffect(stack, { kind: 'worktree-add', worktree: '/wt/a' });
   stack = registerEffect(stack, { kind: 'local-branch', ref: 'mitosis/int/u1' });
   stack = registerEffect(stack, { kind: 'push-integration', ref: 'mitosis/int/u1' });
-  stack = registerEffect(stack, { kind: 'pr-open', pr: '123' });
+  stack = registerEffect(stack, { kind: 'pr-open', pr: '123', ownerRepo: 'o/repo' });
   const undos = undoCommandList(stack);
   assert.ok(!undos.some((cmd) => /push .*--delete/.test(cmd)), 'a forward-only pushed ref must never be torn down by a delete');
   assert.deepEqual(undos, [
-    'gh pr close 123',
+    'gh pr close -R o/repo 123',
     'git branch -D mitosis/int/u1',
     'git worktree remove --force /wt/a',
   ]);
@@ -214,8 +221,8 @@ test('R6a — undoCommandList still honors pointOfNoReturn as the stop boundary 
   let stack = emptyCompensationStack();
   stack = registerEffect(stack, { kind: 'local-branch', ref: 'mitosis/int/u1' });
   stack = registerEffect(stack, { kind: 'squash-merge', mergeCommit: 'abc1234' });
-  stack = registerEffect(stack, { kind: 'pr-open', pr: '123' });
-  assert.deepEqual(undoCommandList(stack), ['gh pr close 123']);
+  stack = registerEffect(stack, { kind: 'pr-open', pr: '123', ownerRepo: 'o/repo' });
+  assert.deepEqual(undoCommandList(stack), ['gh pr close -R o/repo 123']);
 });
 
 test('PROOF 2c — undoCommandList stops at the first point of no return and skips the forward-only merge: a stack ending in squash-merge yields NO destructive pre-merge teardown (no auto-revert past the point of no return)', () => {
@@ -228,7 +235,7 @@ test('PROOF 2c — undoCommandList stops at the first point of no return and ski
 });
 
 test('PROOF 2b — perUnitCompensation does not mutate the input stack and rejects a non-array', () => {
-  const stack = registerEffect(emptyCompensationStack(), { kind: 'pr-open', pr: '1' });
+  const stack = registerEffect(emptyCompensationStack(), { kind: 'pr-open', pr: '1', ownerRepo: 'o/repo' });
   perUnitCompensation(stack);
   assert.equal(stack.length, 1);
   assert.throws(() => perUnitCompensation('nope'), /must be an array/);

@@ -386,11 +386,27 @@ function branchToMspId(headRefName, sourcePrefix) {
   return id;
 }
 
-function reconcileShippedSet(mergedPRs, sourcePrefix) {
+function prUrlToRepoRef(url) {
+  if (typeof url !== 'string') return null;
+  const match = url.trim().match(/^https?:\/\/([^/]+)\/([A-Za-z0-9._-]+)\/([A-Za-z0-9._-]+)\/pull\/[0-9]+(?:[/?#].*)?$/);
+  if (match === null) return null;
+  return { host: match[1].toLowerCase(), ownerRepo: `${match[2]}/${match[3]}`.toLowerCase() };
+}
+
+function reconcileShippedSet(mergedPRs, sourcePrefix, targetOwnerRepo, targetRepoHost) {
   const shipped = new Map();
   if (!Array.isArray(mergedPRs)) return shipped;
+  const enforceRepo = typeof targetOwnerRepo === 'string' && targetOwnerRepo.length > 0;
+  const targetLower = enforceRepo ? targetOwnerRepo.toLowerCase() : null;
+  const enforceHost = enforceRepo && typeof targetRepoHost === 'string' && targetRepoHost.length > 0;
+  const targetHostLower = enforceHost ? targetRepoHost.toLowerCase() : null;
   for (const pr of mergedPRs) {
     if (pr === null || typeof pr !== 'object') continue;
+    if (enforceRepo) {
+      const ref = prUrlToRepoRef(pr.url);
+      if (ref === null || ref.ownerRepo !== targetLower) continue;
+      if (enforceHost && ref.host !== targetHostLower) continue;
+    }
     const mspId = branchToMspId(pr.headRefName, sourcePrefix);
     if (mspId === null) continue;
     shipped.set(mspId, { prUrl: pr.url, mergedAt: pr.mergedAt });
@@ -1213,12 +1229,14 @@ const DECOMPOSE_SCHEMA = {
 
 const RECONCILE_SCHEMA = {
   type: 'object',
-  required: ['manifestFound', 'manifestRaw', 'mergedPRs', 'specContentHash'],
+  required: ['manifestFound', 'manifestRaw', 'mergedPRs', 'specContentHash', 'ownerRepo', 'repoHost'],
   additionalProperties: false,
   properties: {
     manifestFound: { type: 'boolean' },
     manifestRaw: { type: ['string', 'null'] },
     specContentHash: { type: ['string', 'null'] },
+    ownerRepo: { type: 'string', pattern: '^[A-Za-z0-9._-]+/[A-Za-z0-9._-]+$' },
+    repoHost: { type: 'string', pattern: '^[A-Za-z0-9.-]+$' },
     checkpointRefPages: {
       type: 'array',
       items: { type: 'array', items: { type: 'string' } },
@@ -2105,7 +2123,7 @@ const COMPENSATION_REQUIRED_FIELDS = Object.freeze({
   'local-branch': Object.freeze(['ref']),
   'push-integration': Object.freeze(['ref']),
   'checkpoint-push': Object.freeze(['ref']),
-  'pr-open': Object.freeze(['pr']),
+  'pr-open': Object.freeze(['pr', 'ownerRepo']),
   'squash-merge': Object.freeze(['mergeCommit']),
 });
 
@@ -2113,6 +2131,7 @@ const EFFECT_FIELD_PATTERNS = Object.freeze({
   worktree: /^\/[A-Za-z0-9._\/-]+$/,
   ref: /^[A-Za-z0-9][A-Za-z0-9._\/-]*$/,
   pr: /^[0-9]+$/,
+  ownerRepo: /^[A-Za-z0-9._-]+\/[A-Za-z0-9._-]+$/,
   mergeCommit: /^[0-9a-f]{7,40}$/,
 });
 
@@ -2143,7 +2162,7 @@ function undoCommandFor(effect) {
   if (effect.kind === 'local-branch') return `git branch -D ${effect.ref}`;
   if (effect.kind === 'push-integration') return `git push origin --delete ${effect.ref}`;
   if (effect.kind === 'checkpoint-push') return null;
-  if (effect.kind === 'pr-open') return `gh pr close ${effect.pr}`;
+  if (effect.kind === 'pr-open') return `gh pr close -R ${effect.ownerRepo} ${effect.pr}`;
   if (effect.kind === 'squash-merge') return `git revert --no-edit ${effect.mergeCommit}`;
   throw new Error(`saga: no undo command for effect kind: ${JSON.stringify(effect.kind)}`);
 }
@@ -2846,17 +2865,18 @@ log(`mitosis: mergePolicy=${mergePolicy}`);
 const logicalRunId = computeLogicalRunId(spec, baseBranch);
 phase('Reconcile');
 let recon;
+let targetOwnerRepo = null;
 try {
   const reconOutcome = await supervisedDispatch(
     (attemptNo, preamble) => agent(
       `You are the reconcile stage of a mitosis run. You have NO Skill tool; follow these instructions directly.\n\n` +
       `This stage is STRICTLY READ-ONLY: it inspects durable state to detect a relaunch and the already-merged set. It makes NO commits, opens NO PRs, and mutates NO files whatsoever.\n\n` +
       `1. Inspect the run manifest if present: \`cat ${repoRoot}/.mitosis/run.json\`. If the file exists, return its exact raw contents as manifestRaw (a string) and set manifestFound=true; if it is absent, set manifestFound=false and manifestRaw=null. Do NOT parse, repair, or alter it — return the bytes verbatim, the engine parses it.\n` +
-      `2. List the pull requests already merged into the base so the engine can skip re-shipping them: \`gh pr list --state merged --base ${baseBranch} --json headRefName,url,mergedAt\`. Return that array verbatim as mergedPRs (an empty array if none).\n` +
+      `2. Derive the TARGET repository slug AND origin host so every gh read in this run is pinned to the target repo and never the ambient cwd: run \`cd ${repoRoot} && gh repo view --json nameWithOwner,url\` and report the exact owner/repo it prints as ownerRepo (the nameWithOwner field) and the origin hostname parsed from the url field (e.g. github.com for https://github.com/owner/repo) as repoHost. If it prints nothing or errors, STOP and report the failure (do NOT return an empty or unscoped mergedPRs as if it were authoritative) — a loud stop is required because an unscoped read would silently query the WRONG repository. Then list the pull requests already merged into the base so the engine can skip re-shipping them, pinned to that target slug: \`gh pr list -R "$(cd ${repoRoot} && gh repo view --json nameWithOwner -q .nameWithOwner)" --state merged --base ${baseBranch} --json headRefName,url,mergedAt\`. Return that array verbatim as mergedPRs (an empty array if none).\n` +
       `3. For diagnostics only you MAY run \`git log origin/${baseBranch}\` to observe recent base history; it does not affect the returned object.\n` +
       `4. Compute a content fingerprint of the spec so the engine can detect an in-place spec edit since the manifest was recorded: run \`shasum -a 256 ${spec}\` and return ONLY the leading 64-character hex field as specContentHash (a string). If the spec file cannot be read, return specContentHash=null.\n` +
       `5. List the DURABLE mitosis checkpoint refs so the engine can reconcile built-but-unmerged work against them: run \`git -C ${repoRoot} ls-remote origin 'refs/mitosis/*'\`. This is the authoritative record of which units were durably built on a prior run. Capture EVERY output line in full (each line is \`<sha>\\t<ref>\`), returning them COMPLETELY with no truncation as checkpointRefPages: an array of pages where each page is an array of the raw line strings (return a single page holding all lines; use additional pages only if you had to fetch the listing in multiple passes). Return checkpointRefPages=[] (an empty array) if there is no remote or no such ref. Return the lines verbatim; do NOT parse, filter, or alter them — the engine parses them.\n\n` +
-      `Return ONLY the structured object: { manifestFound, manifestRaw, mergedPRs: [ { headRefName, url, mergedAt } ], specContentHash, checkpointRefPages: [ [ "<sha>\\t<ref>" ] ] }.`,
+      `Return ONLY the structured object: { manifestFound, manifestRaw, mergedPRs: [ { headRefName, url, mergedAt } ], specContentHash, checkpointRefPages: [ [ "<sha>\\t<ref>" ] ], ownerRepo, repoHost }.`,
       { agentType: 'implementer', schema: RECONCILE_SCHEMA, label: 'reconcile', phase: 'Reconcile', model: models.reconciler || models.shipper || 'sonnet' }
     ),
     { unitId: 'reconcile', stage: 'reconcile', resetRef: null, worktree: null, task: 'inspect durable run state and the already-merged set', ...makeRemediation({ unitId: 'reconcile', stage: 'reconcile', task: 'inspect durable run state and the already-merged set', schema: RECONCILE_SCHEMA, agentType: 'implementer', phase: 'Reconcile' }), compensate: makeCompensate(null, null) },
@@ -2872,8 +2892,10 @@ try {
 if (!recon || !Array.isArray(recon.mergedPRs)) {
   return fatalReport('reconcile', 'reconcile agent returned null or no mergedPRs (transient drop or blocked before decompose)', 0, { crashed: true });
 }
+targetOwnerRepo = (typeof recon.ownerRepo === 'string' && validateRepoIdentity(recon.ownerRepo)) ? recon.ownerRepo : null;
+const targetRepoHost = (typeof recon.repoHost === 'string' && /^[A-Za-z0-9.-]+$/.test(recon.repoHost)) ? recon.repoHost : undefined;
 const priorManifest = recon && recon.manifestFound ? foldRunManifest(recon.manifestRaw) : null;
-const reconciledMap = reconcileShippedSet(recon ? recon.mergedPRs : [], sourcePrefix);
+const reconciledMap = reconcileShippedSet(recon ? recon.mergedPRs : [], sourcePrefix, targetOwnerRepo, targetRepoHost);
 const reconciledShipped = new Set(reconciledMap.keys());
 const reconciledShippedMeta = reconciledMap;
 const observedSpecHash = (recon && typeof recon.specContentHash === 'string') ? recon.specContentHash : null;
@@ -3509,9 +3531,9 @@ async function runUnit(unit) {
       const rb = await agent(
         `You are the ship-handoff read-back stage for MSP "${msp.id}" of a mitosis run. You have NO Skill tool.\n\n` +
         `This stage is STRICTLY READ-ONLY: it independently RE-READS the durable oracle to confirm the merge the ship stage CLAIMED. Do NOT rebase, push, open, merge, or mutate any ref, file, or PR — only read.\n` +
-        `SECURITY: pass every ref as an INERT argv element to execFile-style invocations; NEVER build a command by shell-interpolating a ref into a string.\n\n` +
-        `1. Read the PR state with argv \`gh pr view ${integrationBranch} --json state,mergedAt,url\` (head ${JSON.stringify(integrationBranch)} is a single inert argv token). Report merged=true ONLY if state is MERGED and mergedAt is non-null, and report that mergedAt timestamp verbatim.\n` +
-        `2. Read the base...head containment with argv \`gh api repos/{owner}/{repo}/compare/${baseBranch}...${integrationBranch}\` (base ${JSON.stringify(baseBranch)} and head ${JSON.stringify(integrationBranch)} each a separate inert argv token). Report ahead_by (integer) and status (string) exactly as the API returns them; a genuinely merged head is CONTAINED in the base (ahead_by 0).\n` +
+        `SECURITY: the base and head refs below are trusted kebab-validated run config (never agent- or user-supplied), so interpolating them into these READ-ONLY gh reads carries no injection risk; this stage mutates nothing.\n\n` +
+        `1. Read the PR state with argv \`gh pr view -R "$(cd ${repoRoot} && gh repo view --json nameWithOwner -q .nameWithOwner)" ${integrationBranch} --json state,mergedAt,url\` (head ${JSON.stringify(integrationBranch)} is a single inert argv token). Report merged=true ONLY if state is MERGED and mergedAt is non-null, and report that mergedAt timestamp verbatim.\n` +
+        `2. Read the base...head containment: \`gh api "repos/$(cd ${repoRoot} && gh repo view --json nameWithOwner -q .nameWithOwner)/compare/${baseBranch}...${integrationBranch}"\` (base ${JSON.stringify(baseBranch)} and head ${JSON.stringify(integrationBranch)} are trusted kebab-validated config refs interpolated into the compare URL path). Report ahead_by (integer) and status (string) exactly as the API returns them; a genuinely merged head is CONTAINED in the base (ahead_by 0).\n` +
         `If either read cannot be completed (no remote, http error, unparseable body), set readError to a short description and leave merged, compare and mergedAt null.\n\n` +
         `Return ONLY: { merged: <bool|null>, compare: { ahead_by: <int>, status: "<string>" } | null, mergedAt: "<iso8601>" | null, readError: "<string>" | null }.`,
         { agentType: 'implementer', label: `ship-verify:${msp.id}`, phase: 'Ship' }
@@ -3542,12 +3564,12 @@ async function runUnit(unit) {
         `Repo: ${repoRoot}. The engine has already integrated this MSP's work onto the LOCAL branch ${JSON.stringify(integrationBranch)} (boundary-validated, merged, never pushed). Sibling clusters merge into ${JSON.stringify(baseBranch)} concurrently, so you MUST revalidate on the FRESH combined base ${revalidateClause}.\n` +
         `Branch contract is PRE-RESOLVED: head = ${JSON.stringify(integrationBranch)}, base/target = ${JSON.stringify(baseBranch)}. Do NOT derive a base from the platform default; use exactly this base.\n\n` +
         `Every git side effect below is OBSERVE-THEN-CONVERGE: check the durable oracle (PR state / remote ref) BEFORE acting so a whole-agent replay after a crash is idempotent (${idempotencyScope}). Compensation is forward-only on shared refs: never rewrite history on a pushed ref; the only permitted force is the documented \`--force-with-lease\` retry after your OWN in-attempt rebase.\n\n` +
-        `1. DONE-ORACLE FIRST (idempotent replay guard): before anything else, ask whether this MSP's PR is already merged: \`gh pr view ${integrationBranch} --json state,mergedAt,url\`. If it reports state MERGED (mergedAt is non-null), this MSP already shipped on a prior attempt; do NOT rebase, push, open, or merge anything (re-running would produce a garbled second PR). Immediately return { merged: true, prUrl: "<the url it reported>", receiptsPass: true, d6Pass: true, detail: "already merged (done-oracle skip)" } and STOP.\n` +
+        `1. DONE-ORACLE FIRST (idempotent replay guard): before anything else, ask whether this MSP's PR is already merged: \`gh pr view -R "$(cd ${repoRoot} && gh repo view --json nameWithOwner -q .nameWithOwner)" ${integrationBranch} --json state,mergedAt,url\`. If it reports state MERGED (mergedAt is non-null), this MSP already shipped on a prior attempt; do NOT rebase, push, open, or merge anything (re-running would produce a garbled second PR). Immediately return { merged: true, prUrl: "<the url it reported>", receiptsPass: true, d6Pass: true, detail: "already merged (done-oracle skip)" } and STOP.\n` +
         `2. Refresh the base: \`git -C ${repoRoot} fetch origin ${baseBranch}\`.\n` +
         `3. Detect whether a sibling cluster advanced the base since this integration ref was cut: run \`git -C ${repoRoot} merge-base --is-ancestor origin/${baseBranch} ${integrationBranch}\`. Exit 0 = the base tip is already contained (no rebase needed); exit 1 = the base advanced, a sibling landed, rebase required.\n` +
         `4. Fresh-base (receipts G8): if the base advanced, run \`git -C ${repoRoot} rebase origin/${baseBranch} ${integrationBranch}\`. If the rebase reports conflicts, run \`git -C ${repoRoot} rebase --abort\` and STOP with merged=false and detail naming the conflicting paths (a cross-cluster file collision the coarse clustering missed - a human must resolve); on conflict do NOT publish anything. If the rebase replayed cleanly (or no rebase was needed), PUBLISH observe-then-converge: check whether the remote already has this exact head with \`git -C ${repoRoot} ls-remote --heads origin ${integrationBranch}\` and compare it to \`git -C ${repoRoot} rev-parse ${integrationBranch}\`. If origin/${integrationBranch} already equals the local head, the push already happened on a prior attempt - SKIP the push. Otherwise publish: \`git -C ${repoRoot} push -u origin ${integrationBranch}\` (this branch was never pushed before ship, so a first-time publish fast-forwards). ONLY if that push is REJECTED as non-fast-forward (a retry where this branch was already published and has since been rebased) retry once with \`git -C ${repoRoot} push --force-with-lease -u origin ${integrationBranch}\` - this is the sole permitted force, scoped to your own rebase.\n` +
-        `5. Open ONE pull request observe-then-converge: FIRST check for an existing open PR - \`gh pr list --head ${integrationBranch} --base ${baseBranch} --state open --json url,number\`. If one exists, REUSE it (do NOT open a second). Only if none exists, open a new PR with head ${integrationBranch} onto base ${baseBranch}, stacked bottom-up on already-merged MSPs (${dependsList}).\n` +
-        `6. Wait for CI to finish on the FRESH head+base with a BACKGROUNDED, timeout-bounded watch that returns the terminal conclusion - NEVER foreground-stream CI logs by re-invoking a blocking watch that pipes every progress line into context. Resolve the run id for this head, then poll its status in a backgrounded shell bounded by a hard timeout so the wait lives in your shell and never blocks indefinitely: \`runId=$(gh run list --branch ${integrationBranch} --limit 1 --json databaseId -q '.[0].databaseId'); timeout ${CI_WATCH_MAX_SECONDS} bash -c 'until [ "$(gh run view '"$runId"' --json status -q .status)" = "completed" ]; do sleep ${CI_WATCH_INTERVAL_SECONDS}; done'\`, then read the terminal conclusion ONCE: \`gh run view "$runId" --json conclusion -q .conclusion\`. Treat conclusion=success as CI GREEN and any other terminal conclusion (failure/cancelled/timed_out, or the timeout expiring before completion) as CI RED. This CI runs the receipts red->green enforcer + G9 full-suite + the D6 cluster-boundary step. Because the PR base is origin/${baseBranch} (now including every sibling that already merged) and the head is the rebased tip, the D6 step computes NEW base..head dependents over the COMBINED post-rebase state - not this cluster's changes in isolation.\n` +
+        `5. Open ONE pull request observe-then-converge: FIRST check for an existing open PR - \`gh pr list -R "$(cd ${repoRoot} && gh repo view --json nameWithOwner -q .nameWithOwner)" --head ${integrationBranch} --base ${baseBranch} --state open --json url,number\`. If one exists, REUSE it (do NOT open a second). Only if none exists, open a new PR with head ${integrationBranch} onto base ${baseBranch}, stacked bottom-up on already-merged MSPs (${dependsList}).\n` +
+        `6. Wait for CI to finish on the FRESH head+base with a BACKGROUNDED, timeout-bounded watch that returns the terminal conclusion - NEVER foreground-stream CI logs by re-invoking a blocking watch that pipes every progress line into context. Resolve the run id for this head, then poll its status in a backgrounded shell bounded by a hard timeout so the wait lives in your shell and never blocks indefinitely. First derive the TARGET repo slug ONCE so every run-status read is pinned to the target repo (never the ambient cwd): \`repoSlug="$(cd ${repoRoot} && gh repo view --json nameWithOwner -q .nameWithOwner)"; runId=$(gh run list -R "$repoSlug" --branch ${integrationBranch} --limit 1 --json databaseId -q '.[0].databaseId'); timeout ${CI_WATCH_MAX_SECONDS} bash -c 'until [ "$(gh run view '"$runId"' -R '"$repoSlug"' --json status -q .status)" = "completed" ]; do sleep ${CI_WATCH_INTERVAL_SECONDS}; done'\`, then read the terminal conclusion ONCE: \`gh run view "$runId" -R "$repoSlug" --json conclusion -q .conclusion\`. Treat conclusion=success as CI GREEN and any other terminal conclusion (failure/cancelled/timed_out, or the timeout expiring before completion) as CI RED. This CI runs the receipts red->green enforcer + G9 full-suite + the D6 cluster-boundary step. Because the PR base is origin/${baseBranch} (now including every sibling that already merged) and the head is the rebased tip, the D6 step computes NEW base..head dependents over the COMBINED post-rebase state - not this cluster's changes in isolation.\n` +
         shipStep7 +
         shipReturnLine,
         { agentType: 'implementer', schema: SHIP_SCHEMA, label: `ship:${msp.id}`, phase: 'Ship', model: 'opus' }
@@ -3600,7 +3622,7 @@ async function runUnit(unit) {
 const MERGE_POLL_MAX_CYCLES = 6;
 const MERGE_POLL_WAIT_SECONDS = 300;
 const MERGE_POLL_INTERVAL_SECONDS = 30;
-const pollRepoIdentity = validateRepoIdentity(input.repoIdentity) ? input.repoIdentity : null;
+const pollRepoIdentity = validateRepoIdentity(targetOwnerRepo) ? targetOwnerRepo : (validateRepoIdentity(input.repoIdentity) ? input.repoIdentity : null);
 
 const mergePoll = {
   maxCycles: MERGE_POLL_MAX_CYCLES,

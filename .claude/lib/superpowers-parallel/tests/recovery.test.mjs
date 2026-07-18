@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import {
   computeLogicalRunId,
   branchToMspId,
+  prUrlToRepoRef,
   reconcileShippedSet,
   parseRunManifest,
   buildInitialManifest,
@@ -61,6 +62,88 @@ test('reconcileShippedSet: maps matching PRs by mspId, ignores foreign branches'
 test('reconcileShippedSet: empty or nullish input yields an empty map', () => {
   assert.equal(reconcileShippedSet([], 'mitosis').size, 0);
   assert.equal(reconcileShippedSet(null, 'mitosis').size, 0);
+});
+
+test('prUrlToRepoRef: parses {host, ownerRepo} out of an https PR url', () => {
+  assert.deepEqual(prUrlToRepoRef('https://github.com/me/target/pull/2'), { host: 'github.com', ownerRepo: 'me/target' });
+  assert.deepEqual(prUrlToRepoRef('http://github.com/o/r/pull/7#discussion'), { host: 'github.com', ownerRepo: 'o/r' });
+  assert.deepEqual(prUrlToRepoRef('https://github.com/o/r/pull/7?foo=bar'), { host: 'github.com', ownerRepo: 'o/r' });
+});
+
+test('prUrlToRepoRef: lowercases both host and owner/repo (GitHub identity is case-insensitive) and tolerates a leading-dot repo name and an enterprise host', () => {
+  assert.deepEqual(prUrlToRepoRef('https://github.com/SatanshuMishra/.windful-ocean/pull/2'), { host: 'github.com', ownerRepo: 'satanshumishra/.windful-ocean' });
+  assert.deepEqual(prUrlToRepoRef('https://GHE.Example.COM/Acme/Widgets/pull/9'), { host: 'ghe.example.com', ownerRepo: 'acme/widgets' });
+});
+
+test('prUrlToRepoRef: returns null on anything not a /pull/<n> url', () => {
+  assert.equal(prUrlToRepoRef('https://github.com/me/target'), null);
+  assert.equal(prUrlToRepoRef('https://github.com/me/target/pull/notanumber'), null);
+  assert.equal(prUrlToRepoRef('http://pr/1'), null);
+  assert.equal(prUrlToRepoRef('not a url'), null);
+  assert.equal(prUrlToRepoRef(''), null);
+  assert.equal(prUrlToRepoRef(null), null);
+  assert.equal(prUrlToRepoRef(undefined), null);
+  assert.equal(prUrlToRepoRef(42), null);
+});
+
+test('reconcileShippedSet defense-in-depth: a wrong-repo merged PR is NEVER added to the skip set when a target is given', () => {
+  const merged = [
+    { headRefName: 'mitosis/foo-integration', url: 'https://github.com/me/target/pull/2', mergedAt: '2026-07-14T00:00:00Z' },
+    { headRefName: 'mitosis/bar-integration', url: 'https://github.com/other/repo/pull/9', mergedAt: '2026-07-14T01:00:00Z' },
+  ];
+  const m = reconcileShippedSet(merged, 'mitosis', 'me/target');
+  assert.deepEqual([...m.keys()], ['foo'], 'only the target-repo PR maps to an mspId; the wrong-repo PR is rejected');
+  assert.deepEqual(m.get('foo'), { prUrl: 'https://github.com/me/target/pull/2', mergedAt: '2026-07-14T00:00:00Z' });
+  assert.equal(m.has('bar'), false);
+});
+
+test('reconcileShippedSet defense-in-depth: owner/repo comparison is case-insensitive (GitHub identity)', () => {
+  const merged = [
+    { headRefName: 'mitosis/foo-integration', url: 'https://github.com/Me/Target/pull/2', mergedAt: '2026-07-14T00:00:00Z' },
+  ];
+  assert.deepEqual([...reconcileShippedSet(merged, 'mitosis', 'me/target').keys()], ['foo']);
+});
+
+test('reconcileShippedSet defense-in-depth: a merged PR whose url is unparseable is rejected when a target is set', () => {
+  const merged = [
+    { headRefName: 'mitosis/foo-integration', url: 'http://pr/1', mergedAt: '2026-07-14T00:00:00Z' },
+  ];
+  assert.equal(reconcileShippedSet(merged, 'mitosis', 'me/target').size, 0);
+});
+
+test('reconcileShippedSet back-compat: with no target, existing behavior is preserved (no repo filtering)', () => {
+  const merged = [
+    { headRefName: 'mitosis/foo-integration', url: 'http://pr/1', mergedAt: '2026-07-14T00:00:00Z' },
+  ];
+  assert.deepEqual([...reconcileShippedSet(merged, 'mitosis').keys()], ['foo']);
+  assert.deepEqual([...reconcileShippedSet(merged, 'mitosis', null).keys()], ['foo']);
+  assert.deepEqual([...reconcileShippedSet(merged, 'mitosis', '').keys()], ['foo']);
+});
+
+test('reconcileShippedSet host defense-in-depth: a same-slug wrong-HOST merged PR is rejected when a target host is given', () => {
+  const merged = [
+    { headRefName: 'mitosis/foo-integration', url: 'https://github.com/me/target/pull/1', mergedAt: '2026-07-14T00:00:00Z' },
+    { headRefName: 'mitosis/bar-integration', url: 'https://evil.example/me/target/pull/2', mergedAt: '2026-07-14T01:00:00Z' },
+  ];
+  const m = reconcileShippedSet(merged, 'mitosis', 'me/target', 'github.com');
+  assert.deepEqual([...m.keys()], ['foo'], 'only the matching-host PR maps to an mspId; the same-slug wrong-host PR is rejected');
+  assert.equal(m.has('bar'), false);
+});
+
+test('reconcileShippedSet host defense-in-depth: host comparison is case-insensitive', () => {
+  const merged = [
+    { headRefName: 'mitosis/foo-integration', url: 'https://GitHub.COM/Me/Target/pull/1', mergedAt: '2026-07-14T00:00:00Z' },
+  ];
+  assert.deepEqual([...reconcileShippedSet(merged, 'mitosis', 'me/target', 'GITHUB.com').keys()], ['foo']);
+});
+
+test('reconcileShippedSet host back-compat: a 3-arg call (no target host) enforces owner/repo only, never host', () => {
+  const merged = [
+    { headRefName: 'mitosis/foo-integration', url: 'https://evil.example/me/target/pull/1', mergedAt: '2026-07-14T00:00:00Z' },
+  ];
+  assert.deepEqual([...reconcileShippedSet(merged, 'mitosis', 'me/target').keys()], ['foo'], 'without a target host the same-slug PR still matches (old behavior preserved)');
+  assert.deepEqual([...reconcileShippedSet(merged, 'mitosis', 'me/target', undefined).keys()], ['foo']);
+  assert.deepEqual([...reconcileShippedSet(merged, 'mitosis', 'me/target', '').keys()], ['foo']);
 });
 
 test('parseRunManifest: valid single-object manifest is returned', () => {
