@@ -74,12 +74,7 @@ function decideConfig(probe, buildConfig, verify) {
 }
 
 function decideYml(probe) {
-  const writeYml = probe.receiptsYmlFound !== true;
-  if (!writeYml) return { writeYml: false, ymlBytes: null };
-  if (typeof probe.templateYmlRaw !== 'string' || probe.templateYmlRaw.length === 0) {
-    throw new Error('template receipts.yml could not be read to bootstrap an absent workflow');
-  }
-  return { writeYml: true, ymlBytes: probe.templateYmlRaw };
+  return { writeYml: probe.receiptsYmlFound !== true };
 }
 
 export function decidePrepareActions({ probe, buildConfig, verify }) {
@@ -93,8 +88,34 @@ export function decidePrepareActions({ probe, buildConfig, verify }) {
     writeConfig: config.writeConfig,
     bootstrapConfig: config.bootstrapConfig,
     writeYml: yml.writeYml,
-    ymlBytes: yml.ymlBytes,
     generateD6,
     anyWrite,
   });
+}
+
+export function buildPrepareWriteSections({ plan, repoRoot, templatesDir }) {
+  const configPath = `${repoRoot}/receipts.config.json`;
+  const ymlPath = `${repoRoot}/.github/workflows/receipts.yml`;
+  const d6Path = `${repoRoot}/scripts/d6-check.cjs`;
+  const requested = [];
+  const writeSections = [];
+  if (plan.writeConfig) {
+    requested.push({ full: configPath, suffix: 'receipts.config.json' });
+    writeSections.push(
+      `${configPath} — it is a single, complete, pretty-printed JSON object; create it with EXACTLY these bytes, verbatim, as the entire file body:\n\n${JSON.stringify(plan.bootstrapConfig, null, 2)}\n`,
+    );
+  }
+  if (plan.writeYml) {
+    requested.push({ full: ymlPath, suffix: '.github/workflows/receipts.yml' });
+    writeSections.push(
+      `${ymlPath} — create ${repoRoot}/.github/workflows/ if needed, then copy the template byte-for-byte with \`cp ${templatesDir}/receipts.yml ${ymlPath}\`. Do NOT type out, reconstruct, or paraphrase the file contents yourself — use cp so the bytes come directly from source, never through model output.\n`,
+    );
+  }
+  if (plan.generateD6) {
+    requested.push({ full: d6Path, suffix: 'scripts/d6-check.cjs' });
+    writeSections.push(
+      `${d6Path} — create ${repoRoot}/scripts/ if needed, then implement this file per the spec at ${templatesDir}/d6-check.md. Generate it once from that spec.\n`,
+    );
+  }
+  return { requested, writeSections };
 }

@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { decidePrepareActions, deepMerge } from '../prepare-plan.mjs';
+import { decidePrepareActions, deepMerge, buildPrepareWriteSections } from '../prepare-plan.mjs';
 import { refuseToWeaken } from '../prepare-guard.mjs';
 
 const TEMPLATE_CONFIG_PATH = '/Users/satanshumishra/.claude/skills/mitosis/templates/receipts.config.json';
@@ -99,13 +99,13 @@ test('SIBLINGS present: config/yml/d6 all present -> writeYml=false, generateD6=
   assert.equal(plan.anyWrite, false);
 });
 
-test('SIBLINGS absent: adopted config but absent yml/d6 -> writeYml=true (template bytes), generateD6=true, anyWrite=true', () => {
-  const probe = presentProbe({ receiptsYmlFound: false, d6CheckFound: false, templateYmlRaw: TEMPLATE_YML_RAW });
+test('SIBLINGS absent: adopted config but absent yml/d6 -> writeYml=true, generateD6=true, anyWrite=true, and the plan carries no raw template bytes at all', () => {
+  const probe = presentProbe({ receiptsYmlFound: false, d6CheckFound: false });
   const plan = decidePrepareActions({ probe, buildConfig: {}, verify: {} });
   assert.equal(plan.adoptConfig, true);
   assert.equal(plan.writeConfig, false);
   assert.equal(plan.writeYml, true);
-  assert.equal(plan.ymlBytes, TEMPLATE_YML_RAW);
+  assert.equal(Object.prototype.hasOwnProperty.call(plan, 'ymlBytes'), false, 'the decided plan must never carry yml template bytes — the write stage copies them from disk directly, never through model output');
   assert.equal(plan.generateD6, true);
   assert.equal(plan.anyWrite, true);
 });
@@ -130,9 +130,33 @@ test('fail closed: an absent config with an unreadable template throws (halt, ne
   assert.throws(() => decidePrepareActions({ probe, buildConfig: {}, verify: {} }), /template receipts\.config\.json could not be read/);
 });
 
-test('fail closed: an absent yml with an unreadable template throws (halt, never a blind write)', () => {
-  const probe = presentProbe({ receiptsYmlFound: false, templateYmlRaw: null });
-  assert.throws(() => decidePrepareActions({ probe, buildConfig: {}, verify: {} }), /template receipts\.yml could not be read/);
+test('an absent yml never throws on missing template bytes (the write stage copies from disk; a missing source file surfaces as a failed cp, not a probe-stage throw)', () => {
+  const probe = presentProbe({ receiptsYmlFound: false });
+  assert.doesNotThrow(() => decidePrepareActions({ probe, buildConfig: {}, verify: {} }));
+});
+
+test('WS-5.2 REGRESSION: buildPrepareWriteSections copies receipts.yml byte-for-byte from TEMPLATES_DIR via cp, never embedding template bytes in the prompt', () => {
+  const plan = { writeConfig: false, writeYml: true, bootstrapConfig: null, generateD6: false };
+  const { requested, writeSections } = buildPrepareWriteSections({ plan, repoRoot: '/repo', templatesDir: '/templates' });
+  assert.deepEqual(requested, [{ full: '/repo/.github/workflows/receipts.yml', suffix: '.github/workflows/receipts.yml' }]);
+  assert.equal(writeSections.length, 1);
+  assert.match(writeSections[0], /cp \/templates\/receipts\.yml \/repo\/\.github\/workflows\/receipts\.yml/);
+  assert.doesNotMatch(writeSections[0], /EXACTLY these bytes/);
+  assert.doesNotMatch(writeSections[0], new RegExp(TEMPLATE_YML_RAW.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
+});
+
+test('buildPrepareWriteSections: the copy path is conditionalized to the bootstrap case only — writeYml=false omits the yml entry (and the cp instruction) entirely', () => {
+  const plan = { writeConfig: false, writeYml: false, bootstrapConfig: null, generateD6: false };
+  const { requested, writeSections } = buildPrepareWriteSections({ plan, repoRoot: '/repo', templatesDir: '/templates' });
+  assert.deepEqual(requested, []);
+  assert.deepEqual(writeSections, []);
+});
+
+test('buildPrepareWriteSections: writeConfig true still embeds the computed (merged) bootstrap config bytes — this is decided content, not a raw template copy', () => {
+  const plan = { writeConfig: true, writeYml: false, bootstrapConfig: { version: 1 }, generateD6: false };
+  const { requested, writeSections } = buildPrepareWriteSections({ plan, repoRoot: '/repo', templatesDir: '/templates' });
+  assert.deepEqual(requested, [{ full: '/repo/receipts.config.json', suffix: 'receipts.config.json' }]);
+  assert.match(writeSections[0], /"version": 1/);
 });
 
 test('fail closed: a malformed probe (missing presence flags) throws rather than guessing', () => {

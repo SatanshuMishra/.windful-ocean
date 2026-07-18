@@ -1342,7 +1342,6 @@ const PROBE_SCHEMA = {
     receiptsYmlFound: { type: 'boolean' },
     d6CheckFound: { type: 'boolean' },
     templateConfigRaw: { type: ['string', 'null'] },
-    templateYmlRaw: { type: ['string', 'null'] },
   },
 };
 
@@ -2790,12 +2789,7 @@ function decideConfig(probe, buildConfig, verify) {
 }
 
 function decideYml(probe) {
-  const writeYml = probe.receiptsYmlFound !== true;
-  if (!writeYml) return { writeYml: false, ymlBytes: null };
-  if (typeof probe.templateYmlRaw !== 'string' || probe.templateYmlRaw.length === 0) {
-    throw new Error('template receipts.yml could not be read to bootstrap an absent workflow');
-  }
-  return { writeYml: true, ymlBytes: probe.templateYmlRaw };
+  return { writeYml: probe.receiptsYmlFound !== true };
 }
 
 function decidePrepareActions({ probe, buildConfig, verify }) {
@@ -2809,10 +2803,36 @@ function decidePrepareActions({ probe, buildConfig, verify }) {
     writeConfig: config.writeConfig,
     bootstrapConfig: config.bootstrapConfig,
     writeYml: yml.writeYml,
-    ymlBytes: yml.ymlBytes,
     generateD6,
     anyWrite,
   });
+}
+
+function buildPrepareWriteSections({ plan, repoRoot, templatesDir }) {
+  const configPath = `${repoRoot}/receipts.config.json`;
+  const ymlPath = `${repoRoot}/.github/workflows/receipts.yml`;
+  const d6Path = `${repoRoot}/scripts/d6-check.cjs`;
+  const requested = [];
+  const writeSections = [];
+  if (plan.writeConfig) {
+    requested.push({ full: configPath, suffix: 'receipts.config.json' });
+    writeSections.push(
+      `${configPath} — it is a single, complete, pretty-printed JSON object; create it with EXACTLY these bytes, verbatim, as the entire file body:\n\n${JSON.stringify(plan.bootstrapConfig, null, 2)}\n`,
+    );
+  }
+  if (plan.writeYml) {
+    requested.push({ full: ymlPath, suffix: '.github/workflows/receipts.yml' });
+    writeSections.push(
+      `${ymlPath} — create ${repoRoot}/.github/workflows/ if needed, then copy the template byte-for-byte with \`cp ${templatesDir}/receipts.yml ${ymlPath}\`. Do NOT type out, reconstruct, or paraphrase the file contents yourself — use cp so the bytes come directly from source, never through model output.\n`,
+    );
+  }
+  if (plan.generateD6) {
+    requested.push({ full: d6Path, suffix: 'scripts/d6-check.cjs' });
+    writeSections.push(
+      `${d6Path} — create ${repoRoot}/scripts/ if needed, then implement this file per the spec at ${templatesDir}/d6-check.md. Generate it once from that spec.\n`,
+    );
+  }
+  return { requested, writeSections };
 }
 const KNOB_MODEL_WHITELIST = ['opus', 'sonnet'];
 const KNOB_KNOWN_ROLE_KEYS = ['reviewer', 'decomposer', 'reconciler', 'shipper'];
@@ -3084,8 +3104,8 @@ try {
     `1. Config presence: if ${repoRoot}/receipts.config.json exists, return its EXACT raw contents as receiptsConfigRaw (a string) and set receiptsConfigFound=true; if it is absent, set receiptsConfigFound=false and receiptsConfigRaw=null. Do NOT parse, repair, reformat, or alter it.\n` +
     `2. Workflow presence: set receiptsYmlFound=true if ${repoRoot}/.github/workflows/receipts.yml exists, else false.\n` +
     `3. D6 presence: set d6CheckFound=true if ${repoRoot}/scripts/d6-check.cjs exists, else false.\n` +
-    `4. Template bytes for deterministic bootstrap: return templateConfigRaw = the EXACT raw contents of ${TEMPLATES_DIR}/receipts.config.json (a string), and templateYmlRaw = the EXACT raw contents of ${TEMPLATES_DIR}/receipts.yml (a string). Return the bytes verbatim; do NOT parse or alter them.\n\n` +
-    `Return ONLY: { receiptsConfigFound, receiptsConfigRaw, receiptsYmlFound, d6CheckFound, templateConfigRaw, templateYmlRaw }.`,
+    `4. Template bytes for deterministic bootstrap, ONLY if genuinely needed: if receiptsConfigFound is false (from step 1), read ${TEMPLATES_DIR}/receipts.config.json and return its EXACT raw contents as templateConfigRaw (a string), verbatim — do NOT parse or alter it. If receiptsConfigFound is true, do NOT read that template file at all; return templateConfigRaw=null. The receipts.yml template is never fetched here — it is copied directly from source in a later stage.\n\n` +
+    `Return ONLY: { receiptsConfigFound, receiptsConfigRaw, receiptsYmlFound, d6CheckFound, templateConfigRaw }.`,
     { agentType: 'implementer', schema: PROBE_SCHEMA, label: 'prepare-probe', phase: 'Prepare', model: 'sonnet' }
   );
 } catch (err) {
@@ -3112,29 +3132,7 @@ if (plan.writeConfig) {
 if (!plan.anyWrite) {
   log(`mitosis: prepare adopted existing receipts config/workflow/d6 verbatim; nothing to install`);
 } else {
-  const configPath = `${repoRoot}/receipts.config.json`;
-  const ymlPath = `${repoRoot}/.github/workflows/receipts.yml`;
-  const d6Path = `${repoRoot}/scripts/d6-check.cjs`;
-  const requested = [];
-  const writeSections = [];
-  if (plan.writeConfig) {
-    requested.push({ full: configPath, suffix: 'receipts.config.json' });
-    writeSections.push(
-      `${configPath} — it is a single, complete, pretty-printed JSON object; create it with EXACTLY these bytes, verbatim, as the entire file body:\n\n${JSON.stringify(plan.bootstrapConfig, null, 2)}\n`,
-    );
-  }
-  if (plan.writeYml) {
-    requested.push({ full: ymlPath, suffix: '.github/workflows/receipts.yml' });
-    writeSections.push(
-      `${ymlPath} — create ${repoRoot}/.github/workflows/ if needed, then create the file with EXACTLY these bytes, verbatim, as the entire file body:\n\n${plan.ymlBytes}\n`,
-    );
-  }
-  if (plan.generateD6) {
-    requested.push({ full: d6Path, suffix: 'scripts/d6-check.cjs' });
-    writeSections.push(
-      `${d6Path} — create ${repoRoot}/scripts/ if needed, then implement this file per the spec at ${TEMPLATES_DIR}/d6-check.md. Generate it once from that spec.\n`,
-    );
-  }
+  const { requested, writeSections } = buildPrepareWriteSections({ plan, repoRoot, templatesDir: TEMPLATES_DIR });
   let writeRes;
   try {
     writeRes = await agent(
