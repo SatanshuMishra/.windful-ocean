@@ -4,6 +4,6 @@
   "private": true,
   "description": "Deterministic test backstop for the mitosis parallel-execution engine",
   "scripts": {
-    "test": "node --test $(ls .claude/lib/superpowers-parallel/tests/*.test.mjs | grep -v generate-run-script.test.mjs)"
+    "test": "node --test .claude/lib/superpowers-parallel/tests/*.test.mjs"
   }
 }
