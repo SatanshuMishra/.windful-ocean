@@ -1,9 +1,27 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import { runRemediationLoop, fingerprintOf, isValidFingerprint } from '../remediation.mjs';
 import * as remediationModule from '../remediation.mjs';
 import { makeSupervisorState } from '../supervisor.mjs';
 import { Done, Transient, ApproachFixable, NeedsHuman, Unknown } from '../boundary.mjs';
+
+const MITOSIS_PATH = process.env.MITOSIS_PATH || new URL('../../../workflows/mitosis.js', import.meta.url).pathname;
+
+function sliceTopLevelFn(src, name) {
+  const start = src.indexOf(`function ${name}(`);
+  assert.ok(start >= 0, `${name} not found in mitosis.js`);
+  const end = src.indexOf('\n}\n', start);
+  assert.ok(end >= 0, `${name} end brace not found in mitosis.js`);
+  return src.slice(start, end + 2);
+}
+
+function loadDiagnosticianPrompt() {
+  const src = readFileSync(MITOSIS_PATH, 'utf8');
+  const cleanSrc = sliceTopLevelFn(src, 'clean');
+  const promptSrc = sliceTopLevelFn(src, 'diagnosticianPrompt');
+  return new Function(`${cleanSrc}\n${promptSrc}\nreturn diagnosticianPrompt;`)();
+}
 
 function counter() {
   return { n: 0, bump() { this.n += 1; return this.n; } };
@@ -181,6 +199,22 @@ test('the second within-cycle diagnose is informed by the first-attempt rejected
   assert.equal(inputs[0].rejectedMechanism ?? null, null);
   assert.equal(inputs[1].rejectedMechanism, 'acquisition:raw-http');
   assert.notEqual(JSON.stringify(inputs[0]), JSON.stringify(inputs[1]));
+});
+
+test('the rendered attempt-2 diagnostician prompt differs from attempt-1 even when the rejected mechanism is already in triedSet (the informed retry reaches the LLM, not just the loop input)', () => {
+  const diagnosticianPrompt = loadDiagnosticianPrompt();
+  const base = {
+    unitId: 'u1',
+    stage: 'execute',
+    task: 'original objective',
+    evidence: { cause: { mechanism: 'acquisition:raw-http', diagnosis: 'd' } },
+    triedSet: ['acquisition:raw-http'],
+  };
+  const attempt1 = diagnosticianPrompt({ ...base, rejectedMechanism: null });
+  const attempt2 = diagnosticianPrompt({ ...base, rejectedMechanism: 'acquisition:raw-http' });
+  assert.notEqual(attempt1, attempt2);
+  assert.ok(attempt2.includes('acquisition:raw-http'));
+  assert.ok(/needs-human/.test(attempt2));
 });
 
 test('the informed-retry input does NOT alter the loop control flow: needs-human on the first attempt still escalates untouched', async () => {

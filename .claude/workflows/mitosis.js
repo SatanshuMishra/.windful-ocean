@@ -2449,9 +2449,13 @@ function diagnosticianPrompt({ unitId, stage, task, evidence, triedSet, rejected
     excluded.push(rejectedMechanism);
   }
   const tried = excluded.length > 0 ? excluded.join(', ') : '(none)';
+  const rejectedLine = typeof rejectedMechanism === 'string' && rejectedMechanism.length > 0
+    ? `Your immediately-previous within-cycle proposal "${rejectedMechanism}" was already attempted and rejected this cycle; propose a genuinely different, untried mechanism, or return verdict "needs-human" if no untried mechanism exists.\n`
+    : '';
   return `You are the in-run diagnostician for MSP "${unitId}" at the ${stage} stage of a mitosis run. You have NO Skill tool; follow these instructions directly.\n\n` +
     `A prior attempt at this stage failed with an approach-fixable fault. Failure evidence: ${clean(cause)}\n` +
     `Mechanisms already tried and excluded (do NOT repeat any of these): ${tried}\n` +
+    rejectedLine +
     `Original objective for this stage: ${task}\n\n` +
     `Diagnose the root cause and propose ONE untried, concrete corrective mechanism as a "<category>:<mechanism>" fingerprint (lowercase, e.g. "worktree:reset-clean"), plus a correctedTask describing exactly what to do differently. If no mechanical correction is possible and a human must decide, return verdict "needs-human" with a request describing what you need.\n\n` +
     `Return ONLY: { verdict: "remediable" | "needs-human", mechanism?: "<category>:<mechanism>", correctedTask?: "<what to do differently>", diagnosis?: "<root cause>", request?: { kind, what } }.`;
