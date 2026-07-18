@@ -2490,7 +2490,8 @@ function makeDurableFakeAgent({ msps, parallelizeFailUnitId, shipResult, repoRoo
     const prefix = label.split(':')[0];
     if (prefix === 'reconcile') {
       const raw = fileMap.get(runJsonPath);
-      return { manifestFound: raw !== undefined, manifestRaw: raw ?? null, mergedPRs: [], specContentHash: SPEC_CONTENT_HASH };
+      const folded = raw === undefined ? null : foldRunManifest(raw);
+      return { manifestFound: folded !== null, manifestRaw: folded === null ? null : JSON.stringify(folded), mergedPRs: [], specContentHash: SPEC_CONTENT_HASH };
     }
     if (prefix === 'checkpoint-init') {
       const literal = literalOf(prompt);
