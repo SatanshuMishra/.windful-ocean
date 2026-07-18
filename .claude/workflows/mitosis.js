@@ -1150,16 +1150,7 @@ async function runEngine(engineArgs, ctx) {
         { label: 'boundary-recheck', phase: 'Boundary', schema: BOUNDARY_SCHEMA }, { kind: 'engine', task: null });
     }
     result.boundary = boundary;
-    if (boundary && boundary.pass) {
-      const reviewScope = isolation === 'scope-fence'
-        ? `You are in the main repo at ${repoRoot}; the whole implementation is the uncommitted change set: \`git diff ${launchCommit}\` plus untracked files listed by \`git status --porcelain\`.`
-        : `You are on \`${baseBranch}\` inside this MSP's integration worktree at ${integrationWt} with all wave work merged.`;
-      phase('Final review');
-      result.finalReview = await guard.dispatch(
-        `${prompts.finalReviewer}\n\n--- REVIEW THE WHOLE IMPLEMENTATION ---\n` +
-        `Read-only. ${reviewScope} Review the complete set of changes for this effort and summarize strengths, issues, and an overall assessment.`,
-        { label: 'final-review', phase: 'Final review', agentType: 'code-reviewer', model: 'opus' }, { kind: 'review', task: null });
-    } else {
+    if (!boundary || !boundary.pass) {
       result.halted = true;
       result.haltReason = { stage: 'boundary', detail: boundary && boundary.output };
     }

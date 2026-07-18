@@ -56,16 +56,41 @@ test('unknown isolation halts at config stage without invoking agent', async () 
   assert.equal(result.isolation, 'bogus');
 });
 
-test('a trivial single-wave worktree run threads through to final review', async () => {
+test('a trivial single-wave worktree run threads through to a passing boundary', async () => {
   const calls = [];
   const result = await runEngine(baseArgs(), ctxWith(scriptedAgent(calls)));
   assert.equal(result.halted, false);
   assert.equal(result.haltReason, null);
   assert.equal(result.boundary.pass, true);
-  assert.ok(result.finalReview);
   assert.equal(result.waves.length, 1);
   assert.ok(calls.some((c) => c.opts && c.opts.label === 'impl:t1'));
   assert.ok(calls.some((c) => c.opts && c.opts.label === 'integrate:wave-0'));
+});
+
+test('the inert final review is deleted: a passing boundary ships with no final review, a failed boundary still halts', async () => {
+  const passCalls = [];
+  const passResult = await runEngine(baseArgs(), ctxWith(scriptedAgent(passCalls)));
+  assert.equal(passResult.halted, false);
+  assert.equal(passResult.boundary.pass, true);
+  assert.equal(passResult.finalReview, undefined);
+  assert.equal(passCalls.some((c) => c.opts && c.opts.label === 'final-review'), false);
+
+  const failCalls = [];
+  const failAgent = async (prompt, opts) => {
+    failCalls.push({ prompt, opts });
+    const label = opts && opts.label ? opts.label : '';
+    if (label.startsWith('impl:')) return { status: 'DONE' };
+    if (label.startsWith('review:') || label.startsWith('spec:') || label.startsWith('qual:') || label.startsWith('sec:')) return { verdict: 'pass' };
+    if (label.startsWith('integrate:')) return { merged: ['b'], conflict: false };
+    if (label === 'boundary' || label === 'boundary-recheck') return { pass: false, output: 'NEW lint error introduced by MSP' };
+    return {};
+  };
+  const failResult = await runEngine(baseArgs(), ctxWith(failAgent));
+  assert.equal(failResult.halted, true);
+  assert.equal(failResult.haltReason.stage, 'boundary');
+  assert.equal(failResult.haltReason.detail, 'NEW lint error introduced by MSP');
+  assert.equal(failResult.finalReview, undefined);
+  assert.equal(failCalls.some((c) => c.opts && c.opts.label === 'final-review'), false);
 });
 
 import { engineWorktreePath } from '../run-engine.mjs';
@@ -81,7 +106,7 @@ test('engineWorktreePath path includes the branchPrefix segment', () => {
   assert.notEqual(p, '/tmp/wt/task-t9');
 });
 
-test('worktree merge/boundary/final-review target the per-instance integration worktree, never a repoRoot checkout', async () => {
+test('worktree merge/boundary target the per-instance integration worktree, never a repoRoot checkout', async () => {
   const calls = [];
   const result = await runEngine(baseArgs(), ctxWith(scriptedAgent(calls)));
   assert.equal(result.halted, false);
@@ -89,7 +114,6 @@ test('worktree merge/boundary/final-review target the per-instance integration w
   const integrationWt = '/tmp/wt/wf-test/integration';
   const merge = calls.find((c) => c.opts && c.opts.label === 'integrate:wave-0');
   const boundary = calls.find((c) => c.opts && c.opts.label === 'boundary');
-  const final = calls.find((c) => c.opts && c.opts.label === 'final-review');
 
   assert.ok(merge, 'merge agent call captured');
   assert.ok(merge.prompt.includes(integrationWt), 'merge prompt targets integration worktree');
@@ -97,9 +121,8 @@ test('worktree merge/boundary/final-review target the per-instance integration w
   assert.ok(merge.prompt.includes(`git -C ${integrationWt} merge --no-ff`), 'merge happens inside the integration worktree');
 
   assert.ok(boundary.prompt.includes(`cd ${integrationWt} &&`), 'boundary validates inside the integration worktree');
-  assert.ok(final.prompt.includes(integrationWt), 'final review reads the integration worktree');
 
-  for (const c of [merge, boundary, final]) {
+  for (const c of [merge, boundary]) {
     assert.equal(c.prompt.includes('git -C /repo checkout'), false, `no main-tree checkout in ${c.opts.label}`);
   }
 });
