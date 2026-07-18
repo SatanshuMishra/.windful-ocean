@@ -2587,7 +2587,7 @@ const baseBranch = input.baseBranch;
 const sourcePrefix = input.sourcePrefix;
 const verify = input.verify || {};
 const buildConfig = input.build || {};
-const models = input.models || {};
+let models = input.models || {};
 const fixLoopMax = input.fixLoopMax ?? 2;
 const worktreeRoot = input.worktreeRoot;
 const retryConfig = (input.retry && typeof input.retry === 'object' && !Array.isArray(input.retry)) ? input.retry : {};
@@ -2737,7 +2737,7 @@ function decidePrepareActions({ probe, buildConfig, verify }) {
   });
 }
 const KNOB_MODEL_WHITELIST = ['opus', 'sonnet'];
-const KNOB_KNOWN_ROLE_KEYS = ['implementer', 'reviewer', 'fixer', 'decomposer', 'reconciler', 'shipper'];
+const KNOB_KNOWN_ROLE_KEYS = ['reviewer', 'decomposer', 'reconciler', 'shipper'];
 const REVIEW_PINNED_KNOB_KEYS = ['reviewer'];
 const OPUS_PINNED_KNOB_KEYS = ['reviewer', 'decomposer', 'shipper'];
 function validateModelsKnob(models) {
@@ -2759,6 +2759,16 @@ function validateModelsKnob(models) {
     }
   }
   return { ok: true, reason: null };
+}
+
+const KNOB_LEGACY_ROLE_KEYS = ['implementer', 'fixer'];
+function legacyModelKeysIn(modelsMap) {
+  if (modelsMap === null || typeof modelsMap !== 'object' || Array.isArray(modelsMap)) return [];
+  return KNOB_LEGACY_ROLE_KEYS.filter((key) => Object.prototype.hasOwnProperty.call(modelsMap, key));
+}
+function withoutLegacyModelKeys(modelsMap) {
+  if (modelsMap === null || typeof modelsMap !== 'object' || Array.isArray(modelsMap)) return modelsMap;
+  return Object.fromEntries(Object.entries(modelsMap).filter(([key]) => !KNOB_LEGACY_ROLE_KEYS.includes(key)));
 }
 
 const mergePolicy = normalizeMergePolicy(input.mergePolicy);
@@ -2788,7 +2798,7 @@ if (retryConfig.maxAttempts !== undefined && (!Number.isInteger(retryConfig.maxA
 if (retryConfig.runBudget !== undefined && (!Number.isInteger(retryConfig.runBudget) || retryConfig.runBudget < 0)) {
   return fatalReport('input', 'retry.runBudget must be a non-negative integer', 0);
 }
-const modelsKnobCheck = validateModelsKnob(models);
+const modelsKnobCheck = validateModelsKnob(withoutLegacyModelKeys(models));
 if (!modelsKnobCheck.ok) {
   return fatalReport('input', modelsKnobCheck.reason, 0);
 }
@@ -2850,6 +2860,15 @@ const reconciledManifest = builtUnits
   .reduce((mani, unitId) => applyBuiltTransition(mani, { unitId, checkpointRef: checkpointRef(logicalRunId, unitId), sha: null }), priorManifest);
 
 const isRelaunch = reconciledManifest && reconciledManifest.logicalRunId === logicalRunId;
+const legacyModelKeys = legacyModelKeysIn(models);
+if (legacyModelKeys.length > 0) {
+  if (isRelaunch) {
+    log(`mitosis: reconcile — ignoring legacy operator model key(s) ${legacyModelKeys.join(', ')} on relaunch (back-compat migration); the implementer/fixer model tier is engine-authored via policyModelFor and can never be operator-set — resuming without them`);
+    models = withoutLegacyModelKeys(models);
+  } else {
+    return fatalReport('input', `models.${legacyModelKeys[0]} is not a known model role; the implementer/fixer model tier is engine-authored via policyModelFor and can never be operator-set (known roles are ${KNOB_KNOWN_ROLE_KEYS.join(', ')})`, 0);
+  }
+}
 const reuse = isRelaunch ? evaluateManifestReuse(reconciledManifest, observedSpecHash) : { reusable: false };
 const reusable = reuse.reusable;
 const resumeMap = new Map();

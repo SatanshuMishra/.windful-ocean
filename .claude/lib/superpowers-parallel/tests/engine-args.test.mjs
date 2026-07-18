@@ -17,7 +17,7 @@ function fullInput() {
     runArtifacts: { plan: 'p.md', graph: 'p.graph.json' },
     isolation: 'scope-fence',
     launchCommit: 'abc123',
-    models: { implementer: 'sonnet' },
+    models: { reconciler: 'sonnet' },
     fixLoopMax: 3,
   };
 }
@@ -34,7 +34,7 @@ test('passes through provided values unchanged', () => {
   assert.deepEqual(out.waves, input.waves);
   assert.equal(out.isolation, 'scope-fence');
   assert.equal(out.launchCommit, 'abc123');
-  assert.deepEqual(out.models, { implementer: 'sonnet' });
+  assert.deepEqual(out.models, { reconciler: 'sonnet' });
 });
 
 test('applies defaults for the optional keys when absent', () => {
@@ -82,12 +82,12 @@ test('E5 validateModelsKnob accepts the empty/absent knob and whitelisted {opus,
   assert.deepEqual(validateModelsKnob({}), { ok: true, reason: null });
   assert.deepEqual(validateModelsKnob(undefined), { ok: true, reason: null });
   assert.deepEqual(validateModelsKnob(null), { ok: true, reason: null });
-  assert.equal(validateModelsKnob({ implementer: 'sonnet' }).ok, true);
+  assert.equal(validateModelsKnob({ reconciler: 'sonnet' }).ok, true);
   assert.equal(validateModelsKnob({ decomposer: 'opus', reconciler: 'sonnet' }).ok, true);
 });
 
 test('E5 validateModelsKnob rejects a non-whitelisted value so haiku/fable are unrepresentable', () => {
-  const haiku = validateModelsKnob({ implementer: 'haiku' });
+  const haiku = validateModelsKnob({ reconciler: 'haiku' });
   assert.equal(haiku.ok, false);
   assert.match(haiku.reason, /haiku/);
   assert.equal(validateModelsKnob({ decomposer: 'fable' }).ok, false);
@@ -114,7 +114,7 @@ test('E5 buildEngineArgs rejects a models.reviewer downgrade below opus (fail-cl
 
 test('E5 buildEngineArgs rejects a models value outside the {opus,sonnet} whitelist', () => {
   const input = fullInput();
-  input.models = { implementer: 'haiku' };
+  input.models = { reconciler: 'haiku' };
   assert.throws(() => buildEngineArgs(input), /haiku|allowed model/);
 });
 
@@ -136,7 +136,7 @@ test('A5b validateModelsKnob rejects an unknown/mistyped role key fail-closed ag
 });
 
 test('A5b validateModelsKnob recognizes the full known role set', () => {
-  for (const key of ['implementer', 'reviewer', 'fixer', 'decomposer', 'reconciler', 'shipper']) {
+  for (const key of ['reviewer', 'decomposer', 'reconciler', 'shipper']) {
     assert.equal(validateModelsKnob({ [key]: 'opus' }).ok, true, `${key} must be a recognized role key`);
   }
 });
@@ -152,10 +152,18 @@ test('A5b validateModelsKnob pins the opus-pinned generator/ship knobs (decompos
   assert.equal(validateModelsKnob({ shipper: 'opus' }).ok, true, 'shipper:opus is the allowed upgrade no-op');
 });
 
-test('A5b validateModelsKnob leaves the non-pinned free roles (reconciler, implementer, fixer) able to select sonnet', () => {
+test('A5b validateModelsKnob leaves the non-pinned free role reconciler able to select sonnet', () => {
   assert.equal(validateModelsKnob({ reconciler: 'sonnet' }).ok, true, 'reconcile is a read-only stage, not opus-pinned');
-  assert.equal(validateModelsKnob({ implementer: 'sonnet' }).ok, true);
-  assert.equal(validateModelsKnob({ fixer: 'sonnet' }).ok, true);
+});
+
+test('MSP-1c validateModelsKnob rejects the retired implementer/fixer keys as unknown roles — the per-task model tier is engine-authored via policyModelFor, never operator-set', () => {
+  const impl = validateModelsKnob({ implementer: 'sonnet' });
+  assert.equal(impl.ok, false, 'implementer is no longer an accepted operator model key');
+  assert.match(impl.reason, /implementer/);
+  assert.match(impl.reason, /known model role/);
+  const fixer = validateModelsKnob({ fixer: 'sonnet' });
+  assert.equal(fixer.ok, false, 'fixer is no longer an accepted operator model key');
+  assert.match(fixer.reason, /fixer/);
 });
 
 test('A5b buildEngineArgs rejects a decomposer/shipper downgrade below opus (fail-closed at the arg boundary)', () => {

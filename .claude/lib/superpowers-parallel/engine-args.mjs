@@ -8,7 +8,7 @@ const DEFAULTS = {
 };
 
 const KNOB_MODEL_WHITELIST = ['opus', 'sonnet'];
-const KNOB_KNOWN_ROLE_KEYS = ['implementer', 'reviewer', 'fixer', 'decomposer', 'reconciler', 'shipper'];
+const KNOB_KNOWN_ROLE_KEYS = ['reviewer', 'decomposer', 'reconciler', 'shipper'];
 const REVIEW_PINNED_KNOB_KEYS = ['reviewer'];
 const OPUS_PINNED_KNOB_KEYS = ['reviewer', 'decomposer', 'shipper'];
 export function validateModelsKnob(models) {

@@ -768,6 +768,49 @@ test('T4b relaunch story: a reusable manifest bearing prior ship-transitions is 
   assert.equal(shippedA.prUrl, 'https://example.test/pr/a');
 });
 
+test('MSP-1c reject: a FRESH run whose operator models knob carries the legacy implementer key is loudly rejected at the input stage before Decompose — implementer/fixer are engine-authored via policyModelFor, never operator-set', async () => {
+  const input = buildInput({ models: { implementer: 'sonnet' } });
+  const labels = [];
+  const base = createFakeAgent({ msps: independentMsps() });
+  const agent = async (prompt, opts = {}) => { labels.push(opts.label || ''); return base(prompt, opts); };
+  const { resultPromise } = invokeMitosis(input, agent);
+  const result = await resultPromise;
+
+  assert.equal(result.overallStatus, 'failed');
+  assert.equal(result.stage, 'input');
+  assert.match(result.detail, /implementer/);
+  assert.match(result.detail, /not a known model role|policyModelFor|engine-authored/);
+  assert.ok(!labels.includes('decompose'), 'a rejected legacy knob never reaches Decompose');
+  assert.deepEqual(result.shipped, []);
+});
+
+test('MSP-1c migration: a RELAUNCH whose persisted run.json is reused but whose operator models knob still carries the legacy implementer key resumes via ignore-with-warning, never a fatalReport hard-fail', async () => {
+  const input = buildInput({ models: { implementer: 'sonnet' } });
+  const logicalRunId = computeLogicalRunId(input.spec, input.baseBranch);
+  const decomposeMsps = [
+    mspSpec('a', { fileScope: ['scope/a/**'] }),
+    mspSpec('b', { dependsOn: ['a'], fileScope: ['scope/b/**'] }),
+  ];
+  const manifest = buildInitialManifest({
+    logicalRunId, harnessRunId: null, spec: input.spec, repoRoot: input.repoRoot,
+    baseBranch: input.baseBranch, sourcePrefix: SOURCE_PREFIX, clusters: [['a'], ['b']], msps: decomposeMsps,
+    specContentHash: SPEC_CONTENT_HASH,
+  });
+  const manifestRaw = JSON.stringify(manifest);
+  const reconcileResult = { manifestFound: true, manifestRaw, mergedPRs: [], specContentHash: SPEC_CONTENT_HASH };
+  const labels = [];
+  const base = createFakeAgent({ msps: decomposeMsps, reconcileResult });
+  const agent = async (prompt, opts = {}) => { labels.push(opts.label || ''); return base(prompt, opts); };
+  const { resultPromise, logLines } = invokeMitosis(input, agent);
+  const result = await resultPromise;
+
+  assert.notEqual(result.stage, 'input', 'a legacy-key relaunch must not hard-fail at the input stage');
+  assert.equal(result.overallStatus, 'all-shipped', 'the persisted run resumes to completion, ignoring the legacy key');
+  assert.ok(!labels.includes('decompose'), 'the persisted manifest is reused on relaunch — no fresh Decompose');
+  const warn = logLines.find((l) => /implementer/.test(l) && /(legacy|ignor|migrat)/i.test(l));
+  assert.ok(warn, `a migration warning naming the ignored legacy key must be surfaced; got:\n${logLines.join('\n')}`);
+});
+
 test('RT-1 round-trip: a manifest produced by the REAL buildInitialManifest (no hand-injected title/rationale) is reused on relaunch — no fresh Decompose, every MSP still runs', async () => {
   const input = buildInput();
   const logicalRunId = computeLogicalRunId(input.spec, input.baseBranch);
@@ -3355,10 +3398,10 @@ test('A5 E5 knob hardening: a non-whitelisted models value (haiku) is unrepresen
   assert.equal(agentCalls, 0);
 });
 
-test('A5 E5 knob hardening: a non-review models key outside the whitelist (implementer:fable) is also rejected at the input stage', async () => {
+test('A5 E5 knob hardening: a non-review models key outside the whitelist (reconciler:fable) is also rejected at the input stage before any agent runs', async () => {
   let agentCalls = 0;
   const agent = async () => { agentCalls += 1; return {}; };
-  const { resultPromise } = invokeMitosis(buildInput({ models: { implementer: 'fable' } }), agent);
+  const { resultPromise } = invokeMitosis(buildInput({ models: { reconciler: 'fable' } }), agent);
   const result = await resultPromise;
 
   assert.equal(result.overallStatus, 'failed');
