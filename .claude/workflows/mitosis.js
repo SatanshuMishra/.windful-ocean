@@ -2528,10 +2528,6 @@ function makeRemediation({ unitId, stage, task, schema, agentType, phase: phaseN
   return { diagnose, redispatch };
 }
 
-function makeCompensate(worktree, ref) {
-  return async () => (worktree && ref ? perAttemptCompensation(worktree, ref) : null);
-}
-
 async function supervisedDispatch(dispatchThunk, ctx) {
   const stage = ctx.stage;
   const preambleFor = () => (ctx.resetRef && ctx.worktree ? resetPreamble(ctx.worktree, ctx.resetRef) : '');
