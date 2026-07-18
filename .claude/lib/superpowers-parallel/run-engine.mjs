@@ -319,6 +319,10 @@ export async function runEngine(engineArgs, ctx) {
       if (r && r.verdict === 'pass') return { ok: true };
       loops++;
       if (loops > fixLoopMax) return { ok: false, reason: `${label}-exhausted`, issues: r && r.issues };
+      const budget = retry && retry.state;
+      const budgeted = budget && Number.isInteger(budget.max) && budget.max > 0 && Number.isInteger(budget.used);
+      if (budgeted && budget.used >= budget.max) return { ok: false, reason: `${label}-budget-exhausted`, issues: r && r.issues };
+      if (budgeted) budget.used += 1;
       await guard.dispatch(fixPrompt(task, branch, wt, r && r.issues), { label: `fix-${label}:${task.id}`, phase: 'Waves' }, { kind: 'fix', task });
       if (guard.getHalt()) return { ok: false, reason: 'model-policy' };
     }

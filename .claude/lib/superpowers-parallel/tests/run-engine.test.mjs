@@ -594,3 +594,46 @@ test('honest maxAttempts: the run-engine retry fallback default is never a 0-run
   assert.equal(dispatchOpts[0].state.max, 0, 'the pinned fallback retry state is { used: 0, max: 0 }; a half-edit that changes this shape must trip this assertion');
   assert.equal(dispatchOpts[0].state.used, 0);
 });
+
+function failingReviewAgent(calls) {
+  return async (prompt, opts) => {
+    calls.push({ prompt, opts });
+    const label = opts && opts.label ? opts.label : '';
+    if (label.startsWith('impl:')) return { status: 'DONE' };
+    if (label.startsWith('review:') || label.startsWith('sec:')) return { verdict: 'fail', issues: ['lib/a.js:1 fix me'] };
+    if (label.startsWith('fix-')) return {};
+    if (label.startsWith('integrate:')) return { merged: ['b'], conflict: false };
+    if (label === 'boundary' || label === 'boundary-recheck') return { pass: true, output: 'ok' };
+    return {};
+  };
+}
+
+test('MSP-3d review+fix round-trips are budgeted against runBudget and PARK fail-closed on exhaustion, only the fix down-tiered', async () => {
+  const calls = [];
+  const runBudget = { used: 0, max: 2 };
+  const result = await runEngine(baseArgs({ fixLoopMax: 10, retry: { maxAttempts: 3, state: runBudget } }), ctxWith(failingReviewAgent(calls)));
+
+  assert.equal(result.halted, true, 'a budget-exhausted review loop halts fail-closed');
+  assert.equal(
+    calls.some((c) => c.opts && c.opts.label && c.opts.label.startsWith('integrate:')),
+    false,
+    'a budget-exhausted review parks and NEVER reaches integrate/merge',
+  );
+
+  const fixCalls = calls.filter((c) => c.opts && c.opts.label === 'fix-review:t1');
+  assert.equal(fixCalls.length, 2, 'review+fix round-trips are bounded by runBudget.max (2), not fixLoopMax (10)');
+  assert.equal(runBudget.used, 2, 'each review+fix round-trip is charged against the shared runBudget');
+
+  const failed = (result.haltReason && result.haltReason.failed) || [];
+  assert.ok(
+    failed.some((f) => f && f.reason === 'review-budget-exhausted'),
+    `the park reason names run-budget exhaustion; got ${JSON.stringify(failed)}`,
+  );
+
+  for (const c of calls.filter((x) => x.opts && x.opts.label === 'review:t1')) {
+    assert.equal(c.opts.model, 'opus', 'every judgment review stays Opus');
+  }
+  for (const c of fixCalls) {
+    assert.equal(c.opts.model, 'sonnet', 'only the mechanical fix is down-tiered to Sonnet');
+  }
+});
