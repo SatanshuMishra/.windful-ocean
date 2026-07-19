@@ -112,21 +112,20 @@ function criticalPathOrder(units) {
     .map((entry) => entry.unit);
 }
 
-function buildAheadWindow(units, frontierTrain, windowSize) {
-  if (!frontierTrain) return undefined;
+function buildAheadWindow(units, windowSize) {
   return { builtUnmergedCount: units.filter((u) => u.state === 'built').length, size: Number.isInteger(windowSize) ? windowSize : WINDOW_FLOOR };
 }
 
-export function planTick(units, frontierTrain, windowSize) {
+export function planTick(units, windowSize) {
   const byId = indexUnits(units);
   let leases = new Map();
   const dispatch = [];
-  const window = buildAheadWindow(units, frontierTrain, windowSize);
+  const window = buildAheadWindow(units, windowSize);
   for (const unit of criticalPathOrder(units)) {
     if (isDispatchable(unit, byId, leases)) {
       dispatch.push(unit.id);
       leases = acquire(leases, unit);
-    } else if (frontierTrain && isBuildable(unit, byId, leases, window)) {
+    } else if (isBuildable(unit, byId, leases, window)) {
       dispatch.push(unit.id);
       leases = acquire(leases, unit);
     }
@@ -167,15 +166,15 @@ function markAwaitingMerge(units) {
   return Object.freeze(units.map((u) => (u.state === 'awaiting' ? Object.freeze({ ...u, state: 'awaiting-merge' }) : u)));
 }
 
-async function runScheduleTick(specs, runUnit, poll, continuousDrain, frontierTrain, windowSize) {
+async function runScheduleTick(specs, runUnit, poll, windowSize) {
   let units = buildUnitTable(specs);
   const ticks = [];
   const polls = [];
   const maxPollCycles = poll && Number.isInteger(poll.maxCycles) && poll.maxCycles > 0 ? poll.maxCycles : 0;
-  const maxSteps = continuousDrain ? units.length * (maxPollCycles + 2) + 1 : units.length + 1 + maxPollCycles;
+  const maxSteps = units.length * (maxPollCycles + 2) + 1;
   let pollsUsed = 0;
   for (let step = 0; step < maxSteps; step++) {
-    const { dispatch } = planTick(units, frontierTrain, windowSize);
+    const { dispatch } = planTick(units, windowSize);
     if (dispatch.length > 0) {
       ticks.push(dispatch);
       units = markDispatched(units, dispatch);
@@ -198,10 +197,10 @@ async function runScheduleTick(specs, runUnit, poll, continuousDrain, frontierTr
         }
       }
       polls.push({ cycle: pollsUsed, watched: watching.map((u) => u.id), merged });
-      if (merged.length > 0) { units = markMerged(units, merged); if (continuousDrain) pollsUsed = 0; }
+      if (merged.length > 0) { units = markMerged(units, merged); pollsUsed = 0; }
       continue;
     }
-    if (continuousDrain) units = markAwaitingMerge(units);
+    units = markAwaitingMerge(units);
     break;
   }
   return { units, ticks, polls };
@@ -213,16 +212,16 @@ function release(leases, unitId) {
   return next;
 }
 
-function dispatchableStreaming(units, liveLeases, frontierTrain, windowSize) {
+function dispatchableStreaming(units, liveLeases, windowSize) {
   const byId = indexUnits(units);
   let leases = new Map(liveLeases);
   const dispatch = [];
-  const window = buildAheadWindow(units, frontierTrain, windowSize);
+  const window = buildAheadWindow(units, windowSize);
   for (const unit of criticalPathOrder(units)) {
     if (isDispatchable(unit, byId, leases)) {
       dispatch.push(unit.id);
       leases = acquire(leases, unit);
-    } else if (frontierTrain && isBuildable(unit, byId, leases, window)) {
+    } else if (isBuildable(unit, byId, leases, window)) {
       dispatch.push(unit.id);
       leases = acquire(leases, unit);
     }
@@ -230,17 +229,17 @@ function dispatchableStreaming(units, liveLeases, frontierTrain, windowSize) {
   return dispatch;
 }
 
-async function runScheduleStreaming(specs, runUnit, poll, continuousDrain, frontierTrain, windowSize) {
+async function runScheduleStreaming(specs, runUnit, poll, windowSize) {
   let units = buildUnitTable(specs);
   const ticks = [];
   const polls = [];
   const maxPollCycles = poll && Number.isInteger(poll.maxCycles) && poll.maxCycles > 0 ? poll.maxCycles : 0;
-  const maxSteps = continuousDrain ? units.length * (maxPollCycles + 2) + 2 : 2 * units.length + maxPollCycles + 2;
+  const maxSteps = units.length * (maxPollCycles + 2) + 2;
   let pollsUsed = 0;
   let liveLeases = new Map();
   const running = new Map();
   for (let step = 0; step < maxSteps; step++) {
-    const dispatch = dispatchableStreaming(units, liveLeases, frontierTrain, windowSize);
+    const dispatch = dispatchableStreaming(units, liveLeases, windowSize);
     if (dispatch.length > 0) {
       ticks.push(dispatch);
       units = markDispatched(units, dispatch);
@@ -271,10 +270,10 @@ async function runScheduleStreaming(specs, runUnit, poll, continuousDrain, front
         }
       }
       polls.push({ cycle: pollsUsed, watched: watching.map((u) => u.id), merged });
-      if (merged.length > 0) { units = markMerged(units, merged); if (continuousDrain) pollsUsed = 0; }
+      if (merged.length > 0) { units = markMerged(units, merged); pollsUsed = 0; }
       continue;
     }
-    if (continuousDrain) units = markAwaitingMerge(units);
+    units = markAwaitingMerge(units);
     break;
   }
   return { units, ticks, polls };
@@ -282,14 +281,10 @@ async function runScheduleStreaming(specs, runUnit, poll, continuousDrain, front
 
 export const STREAMING_DISPATCH_ENABLED = false;
 
-export const FRONTIER_TRAIN_ENABLED = false;
-
 export async function runSchedule(specs, runUnit, poll, opts) {
   const streaming = opts && typeof opts.streaming === 'boolean' ? opts.streaming : STREAMING_DISPATCH_ENABLED;
-  const continuousDrain = opts && typeof opts.continuousDrain === 'boolean' ? opts.continuousDrain : FRONTIER_TRAIN_ENABLED;
-  const frontierTrain = opts && typeof opts.frontierTrain === 'boolean' ? opts.frontierTrain : FRONTIER_TRAIN_ENABLED;
   const windowSize = opts && Number.isInteger(opts.window) ? opts.window : undefined;
   return streaming
-    ? runScheduleStreaming(specs, runUnit, poll, continuousDrain, frontierTrain, windowSize)
-    : runScheduleTick(specs, runUnit, poll, continuousDrain, frontierTrain, windowSize);
+    ? runScheduleStreaming(specs, runUnit, poll, windowSize)
+    : runScheduleTick(specs, runUnit, poll, windowSize);
 }

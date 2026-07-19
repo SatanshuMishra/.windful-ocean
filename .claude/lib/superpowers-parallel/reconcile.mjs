@@ -73,8 +73,8 @@ export function mergePaginated(pages) {
   return out;
 }
 
-export function shouldReconcileOnly({ frontierTrain, isRelaunch, specByteIdentical, hasFrontierState } = {}) {
-  return frontierTrain === true && isRelaunch === true && specByteIdentical === true && hasFrontierState === true;
+export function shouldReconcileOnly({ isRelaunch, specByteIdentical, hasFrontierState } = {}) {
+  return isRelaunch === true && specByteIdentical === true && hasFrontierState === true;
 }
 
 export function assembleDivergenceVerdicts(manifest, live = {}) {

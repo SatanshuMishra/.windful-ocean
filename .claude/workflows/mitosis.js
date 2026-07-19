@@ -1915,21 +1915,20 @@ function criticalPathOrder(units) {
     .map((entry) => entry.unit);
 }
 
-function buildAheadWindow(units, frontierTrain, windowSize) {
-  if (!frontierTrain) return undefined;
+function buildAheadWindow(units, windowSize) {
   return { builtUnmergedCount: units.filter((u) => u.state === 'built').length, size: Number.isInteger(windowSize) ? windowSize : WINDOW_FLOOR };
 }
 
-function planTick(units, frontierTrain, windowSize) {
+function planTick(units, windowSize) {
   const byId = indexUnits(units);
   let leases = new Map();
   const dispatch = [];
-  const window = buildAheadWindow(units, frontierTrain, windowSize);
+  const window = buildAheadWindow(units, windowSize);
   for (const unit of criticalPathOrder(units)) {
     if (isDispatchable(unit, byId, leases)) {
       dispatch.push(unit.id);
       leases = acquire(leases, unit);
-    } else if (frontierTrain && isBuildable(unit, byId, leases, window)) {
+    } else if (isBuildable(unit, byId, leases, window)) {
       dispatch.push(unit.id);
       leases = acquire(leases, unit);
     }
@@ -1970,15 +1969,15 @@ function markAwaitingMerge(units) {
   return Object.freeze(units.map((u) => (u.state === 'awaiting' ? Object.freeze({ ...u, state: 'awaiting-merge' }) : u)));
 }
 
-async function runScheduleTick(specs, runUnit, poll, continuousDrain, frontierTrain, windowSize) {
+async function runScheduleTick(specs, runUnit, poll, windowSize) {
   let units = buildUnitTable(specs);
   const ticks = [];
   const polls = [];
   const maxPollCycles = poll && Number.isInteger(poll.maxCycles) && poll.maxCycles > 0 ? poll.maxCycles : 0;
-  const maxSteps = continuousDrain ? units.length * (maxPollCycles + 2) + 1 : units.length + 1 + maxPollCycles;
+  const maxSteps = units.length * (maxPollCycles + 2) + 1;
   let pollsUsed = 0;
   for (let step = 0; step < maxSteps; step++) {
-    const { dispatch } = planTick(units, frontierTrain, windowSize);
+    const { dispatch } = planTick(units, windowSize);
     if (dispatch.length > 0) {
       ticks.push(dispatch);
       units = markDispatched(units, dispatch);
@@ -2001,10 +2000,10 @@ async function runScheduleTick(specs, runUnit, poll, continuousDrain, frontierTr
         }
       }
       polls.push({ cycle: pollsUsed, watched: watching.map((u) => u.id), merged });
-      if (merged.length > 0) { units = markMerged(units, merged); if (continuousDrain) pollsUsed = 0; }
+      if (merged.length > 0) { units = markMerged(units, merged); pollsUsed = 0; }
       continue;
     }
-    if (continuousDrain) units = markAwaitingMerge(units);
+    units = markAwaitingMerge(units);
     break;
   }
   return { units, ticks, polls };
@@ -2016,16 +2015,16 @@ function release(leases, unitId) {
   return next;
 }
 
-function dispatchableStreaming(units, liveLeases, frontierTrain, windowSize) {
+function dispatchableStreaming(units, liveLeases, windowSize) {
   const byId = indexUnits(units);
   let leases = new Map(liveLeases);
   const dispatch = [];
-  const window = buildAheadWindow(units, frontierTrain, windowSize);
+  const window = buildAheadWindow(units, windowSize);
   for (const unit of criticalPathOrder(units)) {
     if (isDispatchable(unit, byId, leases)) {
       dispatch.push(unit.id);
       leases = acquire(leases, unit);
-    } else if (frontierTrain && isBuildable(unit, byId, leases, window)) {
+    } else if (isBuildable(unit, byId, leases, window)) {
       dispatch.push(unit.id);
       leases = acquire(leases, unit);
     }
@@ -2033,17 +2032,17 @@ function dispatchableStreaming(units, liveLeases, frontierTrain, windowSize) {
   return dispatch;
 }
 
-async function runScheduleStreaming(specs, runUnit, poll, continuousDrain, frontierTrain, windowSize) {
+async function runScheduleStreaming(specs, runUnit, poll, windowSize) {
   let units = buildUnitTable(specs);
   const ticks = [];
   const polls = [];
   const maxPollCycles = poll && Number.isInteger(poll.maxCycles) && poll.maxCycles > 0 ? poll.maxCycles : 0;
-  const maxSteps = continuousDrain ? units.length * (maxPollCycles + 2) + 2 : 2 * units.length + maxPollCycles + 2;
+  const maxSteps = units.length * (maxPollCycles + 2) + 2;
   let pollsUsed = 0;
   let liveLeases = new Map();
   const running = new Map();
   for (let step = 0; step < maxSteps; step++) {
-    const dispatch = dispatchableStreaming(units, liveLeases, frontierTrain, windowSize);
+    const dispatch = dispatchableStreaming(units, liveLeases, windowSize);
     if (dispatch.length > 0) {
       ticks.push(dispatch);
       units = markDispatched(units, dispatch);
@@ -2074,10 +2073,10 @@ async function runScheduleStreaming(specs, runUnit, poll, continuousDrain, front
         }
       }
       polls.push({ cycle: pollsUsed, watched: watching.map((u) => u.id), merged });
-      if (merged.length > 0) { units = markMerged(units, merged); if (continuousDrain) pollsUsed = 0; }
+      if (merged.length > 0) { units = markMerged(units, merged); pollsUsed = 0; }
       continue;
     }
-    if (continuousDrain) units = markAwaitingMerge(units);
+    units = markAwaitingMerge(units);
     break;
   }
   return { units, ticks, polls };
@@ -2085,16 +2084,12 @@ async function runScheduleStreaming(specs, runUnit, poll, continuousDrain, front
 
 const STREAMING_DISPATCH_ENABLED = false;
 
-const FRONTIER_TRAIN_ENABLED = false;
-
 async function runSchedule(specs, runUnit, poll, opts) {
   const streaming = opts && typeof opts.streaming === 'boolean' ? opts.streaming : STREAMING_DISPATCH_ENABLED;
-  const continuousDrain = opts && typeof opts.continuousDrain === 'boolean' ? opts.continuousDrain : FRONTIER_TRAIN_ENABLED;
-  const frontierTrain = opts && typeof opts.frontierTrain === 'boolean' ? opts.frontierTrain : FRONTIER_TRAIN_ENABLED;
   const windowSize = opts && Number.isInteger(opts.window) ? opts.window : undefined;
   return streaming
-    ? runScheduleStreaming(specs, runUnit, poll, continuousDrain, frontierTrain, windowSize)
-    : runScheduleTick(specs, runUnit, poll, continuousDrain, frontierTrain, windowSize);
+    ? runScheduleStreaming(specs, runUnit, poll, windowSize)
+    : runScheduleTick(specs, runUnit, poll, windowSize);
 }
 
 const WINDOW_FLOOR = 3;
@@ -2602,8 +2597,8 @@ function mergePaginated(pages) {
   return out;
 }
 
-function shouldReconcileOnly({ frontierTrain, isRelaunch, specByteIdentical, hasFrontierState } = {}) {
-  return frontierTrain === true && isRelaunch === true && specByteIdentical === true && hasFrontierState === true;
+function shouldReconcileOnly({ isRelaunch, specByteIdentical, hasFrontierState } = {}) {
+  return isRelaunch === true && specByteIdentical === true && hasFrontierState === true;
 }
 
 function assembleDivergenceVerdicts(manifest, live = {}) {
@@ -3366,15 +3361,6 @@ log(`mitosis: mergePolicy=${mergePolicy}`);
 
 const logicalRunId = computeLogicalRunId(spec, baseBranch);
 phase('Reconcile');
-const frontierMergedJson = FRONTIER_TRAIN_ENABLED ? ',mergeCommit' : '';
-const frontierMergedShaInstruction = FRONTIER_TRAIN_ENABLED
-  ? ` For EACH merged PR also report mergedSha as its merge commit sha (the mergeCommit.oid field), or null if absent — the shepherd compares it against the tip its children built on to detect a divergent (squashed or amended) merge.`
-  : '';
-const frontierMergedShaField = FRONTIER_TRAIN_ENABLED ? ', mergedSha' : '';
-const frontierOpenPrsStep = FRONTIER_TRAIN_ENABLED
-  ? `6. List the pull requests still OPEN against the base so the shepherd can observe live review state, pinned to the target slug: \`gh pr list -R "$(cd ${repoRoot} && gh repo view --json nameWithOwner -q .nameWithOwner)" --state open --base ${baseBranch} --json headRefName,reviewDecision\`. Return that array verbatim as openPRs (an empty array if none); report each reviewDecision field exactly as gh returns it (e.g. "APPROVED", "CHANGES_REQUESTED", "REVIEW_REQUIRED") or null if absent.\n`
-  : '';
-const frontierOpenPrsReturn = FRONTIER_TRAIN_ENABLED ? ', openPRs: [ { headRefName, reviewDecision } ]' : '';
 let recon;
 let targetOwnerRepo = null;
 try {
@@ -3383,11 +3369,12 @@ try {
       `You are the reconcile stage of a mitosis run. You have NO Skill tool; follow these instructions directly.\n\n` +
       `This stage is STRICTLY READ-ONLY: it inspects durable state to detect a relaunch and the already-merged set. It makes NO commits, opens NO PRs, and mutates NO files whatsoever.\n\n` +
       `1. Fold the run manifest via the deterministic node CLI: run \`node ${LIB_DIR}/fold-run-log.mjs ${repoRoot}/.mitosis/run.json\`. If it exits 0, return its exact stdout as manifestRaw (a string) and set manifestFound=true; if it exits non-zero (absent, empty, or malformed run journal), set manifestFound=false and manifestRaw=null. Do NOT parse, repair, or alter the output — return the bytes verbatim, the engine re-validates it.\n` +
-      `2. Derive the TARGET repository slug AND origin host so every gh read in this run is pinned to the target repo and never the ambient cwd: run \`cd ${repoRoot} && gh repo view --json nameWithOwner,url\` and report the exact owner/repo it prints as ownerRepo (the nameWithOwner field) and the origin hostname parsed from the url field (e.g. github.com for https://github.com/owner/repo) as repoHost. If it prints nothing or errors, STOP and report the failure (do NOT return an empty or unscoped mergedPRs as if it were authoritative) — a loud stop is required because an unscoped read would silently query the WRONG repository. Then list the pull requests already merged into the base so the engine can skip re-shipping them, pinned to that target slug: \`gh pr list -R "$(cd ${repoRoot} && gh repo view --json nameWithOwner -q .nameWithOwner)" --state merged --base ${baseBranch} --json headRefName,url,mergedAt${frontierMergedJson}\`. Return that array verbatim as mergedPRs (an empty array if none).${frontierMergedShaInstruction}\n` +
+      `2. Derive the TARGET repository slug AND origin host so every gh read in this run is pinned to the target repo and never the ambient cwd: run \`cd ${repoRoot} && gh repo view --json nameWithOwner,url\` and report the exact owner/repo it prints as ownerRepo (the nameWithOwner field) and the origin hostname parsed from the url field (e.g. github.com for https://github.com/owner/repo) as repoHost. If it prints nothing or errors, STOP and report the failure (do NOT return an empty or unscoped mergedPRs as if it were authoritative) — a loud stop is required because an unscoped read would silently query the WRONG repository. Then list the pull requests already merged into the base so the engine can skip re-shipping them, pinned to that target slug: \`gh pr list -R "$(cd ${repoRoot} && gh repo view --json nameWithOwner -q .nameWithOwner)" --state merged --base ${baseBranch} --json headRefName,url,mergedAt,mergeCommit\`. Return that array verbatim as mergedPRs (an empty array if none). For EACH merged PR also report mergedSha as its merge commit sha (the mergeCommit.oid field), or null if absent — the shepherd compares it against the tip its children built on to detect a divergent (squashed or amended) merge.\n` +
       `3. For diagnostics only you MAY run \`git log origin/${baseBranch}\` to observe recent base history; it does not affect the returned object.\n` +
       `4. Compute a content fingerprint of the spec so the engine can detect an in-place spec edit since the manifest was recorded: run \`shasum -a 256 ${spec}\` and return ONLY the leading 64-character hex field as specContentHash (a string). If the spec file cannot be read, return specContentHash=null.\n` +
       `5. List the DURABLE mitosis checkpoint refs so the engine can reconcile built-but-unmerged work against them: run \`git -C ${repoRoot} ls-remote origin 'refs/mitosis/*'\`. This is the authoritative record of which units were durably built on a prior run. Capture EVERY output line in full (each line is \`<sha>\\t<ref>\`), returning them COMPLETELY with no truncation as checkpointRefPages: an array of pages where each page is an array of the raw line strings (return a single page holding all lines; use additional pages only if you had to fetch the listing in multiple passes). Return checkpointRefPages=[] (an empty array) if there is no remote or no such ref. Return the lines verbatim; do NOT parse, filter, or alter them — the engine parses them.\n\n` +
-      `${frontierOpenPrsStep}Return ONLY the structured object: { manifestFound, manifestRaw, mergedPRs: [ { headRefName, url, mergedAt${frontierMergedShaField} } ], specContentHash, checkpointRefPages: [ [ "<sha>\\t<ref>" ] ]${frontierOpenPrsReturn}, ownerRepo, repoHost }.`,
+      `6. List the pull requests still OPEN against the base so the shepherd can observe live review state, pinned to the target slug: \`gh pr list -R "$(cd ${repoRoot} && gh repo view --json nameWithOwner -q .nameWithOwner)" --state open --base ${baseBranch} --json headRefName,reviewDecision\`. Return that array verbatim as openPRs (an empty array if none); report each reviewDecision field exactly as gh returns it (e.g. "APPROVED", "CHANGES_REQUESTED", "REVIEW_REQUIRED") or null if absent.\n` +
+      `Return ONLY the structured object: { manifestFound, manifestRaw, mergedPRs: [ { headRefName, url, mergedAt, mergedSha } ], specContentHash, checkpointRefPages: [ [ "<sha>\\t<ref>" ] ], openPRs: [ { headRefName, reviewDecision } ], ownerRepo, repoHost }.`,
       { agentType: 'implementer', schema: RECONCILE_SCHEMA, label: 'reconcile', phase: 'Reconcile', model: models.reconciler || models.shipper || 'sonnet' }
     ),
     { unitId: 'reconcile', stage: 'reconcile', resetRef: null, worktree: null, task: 'inspect durable run state and the already-merged set', ...makeRemediation({ unitId: 'reconcile', stage: 'reconcile', task: 'inspect durable run state and the already-merged set', schema: RECONCILE_SCHEMA, agentType: 'implementer', phase: 'Reconcile' }) },
@@ -3426,16 +3413,13 @@ const manifestUnitIds = priorManifest ? new Set(priorManifest.msps.map((m) => m.
 const priorStatusById = new Map(priorManifest ? priorManifest.msps.filter((m) => m && typeof m.id === 'string').map((m) => [m.id, m.status]) : []);
 const reconciledMergedIds = [...reconciledShipped].filter((id) => manifestUnitIds.has(id));
 const newlyMergedIds = reconciledMergedIds.filter((id) => priorStatusById.get(id) !== 'shipped');
-const shippedFoldedManifest = FRONTIER_TRAIN_ENABLED
-  ? reconciledMergedIds.reduce((mani, mspId) => {
-      const meta = reconciledShippedMeta.get(mspId) || null;
-      return applyShipTransition(mani, { mspId, prUrl: meta ? meta.prUrl : null, mergedAt: meta ? meta.mergedAt : null, title: null, rationale: null });
-    }, priorManifest)
-  : priorManifest;
+const shippedFoldedManifest = reconciledMergedIds.reduce((mani, mspId) => {
+  const meta = reconciledShippedMeta.get(mspId) || null;
+  return applyShipTransition(mani, { mspId, prUrl: meta ? meta.prUrl : null, mergedAt: meta ? meta.mergedAt : null, title: null, rationale: null });
+}, priorManifest);
 const reconciledManifest = builtUnits
   .filter((unitId) => manifestUnitIds.has(unitId))
   .reduce((mani, unitId) => {
-    if (!FRONTIER_TRAIN_ENABLED) return applyBuiltTransition(mani, { unitId, checkpointRef: checkpointRef(logicalRunId, unitId), sha: null });
     const existing = mani.msps.find((m) => m.id === unitId);
     return applyBuiltTransition(mani, {
       unitId,
@@ -3458,7 +3442,7 @@ if (legacyModelKeys.length > 0) {
 }
 const reuse = isRelaunch ? evaluateManifestReuse(reconciledManifest, observedSpecHash) : { reusable: false };
 const reusable = reuse.reusable;
-const reconcileOnlyMode = shouldReconcileOnly({ frontierTrain: FRONTIER_TRAIN_ENABLED, isRelaunch, specByteIdentical: reusable, hasFrontierState: builtUnits.length > 0 });
+const reconcileOnlyMode = shouldReconcileOnly({ isRelaunch, specByteIdentical: reusable, hasFrontierState: builtUnits.length > 0 });
 if (reconcileOnlyMode) {
   const baseLiveSignals = buildReconcileLiveSignals(recon, reconciledShipped, sourcePrefix);
   let divergenceProbes;
@@ -3860,7 +3844,7 @@ async function runUnit(unit) {
     const planTriedSeed = resume && resume.stage === 'plan' ? resume.triedSet : undefined;
     const parallelizeTriedSeed = resume && resume.stage === 'parallelize' ? resume.triedSet : undefined;
     const isBuiltResume = Boolean(resume) && resume.built === true && resume.stage === 'ship';
-    const frontierBuiltEntry = FRONTIER_TRAIN_ENABLED ? builtInRun.get(msp.id) : undefined;
+    const frontierBuiltEntry = builtInRun.get(msp.id);
     const isFrontierBuiltRedispatch = frontierBuiltEntry !== undefined;
     let aggregatedScope = Array.isArray(msp.fileScope) ? msp.fileScope : [];
 
@@ -4096,7 +4080,7 @@ async function runUnit(unit) {
     phase('Branch');
     const parentIds = Array.isArray(msp.dependsOn) ? msp.dependsOn : [];
     let builtAgainst = {};
-    if (FRONTIER_TRAIN_ENABLED && parentIds.length > 0) {
+    if (parentIds.length > 0) {
       let parentRefs;
       try {
         parentRefs = parentCheckpointRefs(logicalRunId, parentIds);
@@ -4209,14 +4193,12 @@ async function runUnit(unit) {
     }));
     await builtLink;
 
-    if (FRONTIER_TRAIN_ENABLED) {
-      const doneIds = new Set([...reconciledShipped, ...shipped.map((s) => s.mspId)]);
-      const parentsDone = parentIds.every((p) => doneIds.has(p));
-      if (!parentsDone) {
-        builtInRun.set(msp.id, { checkpointRef: durableCheckpointRef, sha: builtSha, builtAgainst });
-        log(`mitosis[${msp.id}]: frontier-train — built ahead of unmerged parent(s) (${parentIds.join(', ')}); PR-open deferred until every parent reaches done`);
-        return Built({ mspId: msp.id, checkpointRef: durableCheckpointRef, sha: builtSha, builtAgainst });
-      }
+    const doneIds = new Set([...reconciledShipped, ...shipped.map((s) => s.mspId)]);
+    const parentsDone = parentIds.every((p) => doneIds.has(p));
+    if (!parentsDone) {
+      builtInRun.set(msp.id, { checkpointRef: durableCheckpointRef, sha: builtSha, builtAgainst });
+      log(`mitosis[${msp.id}]: frontier-train — built ahead of unmerged parent(s) (${parentIds.join(', ')}); PR-open deferred until every parent reaches done`);
+      return Built({ mspId: msp.id, checkpointRef: durableCheckpointRef, sha: builtSha, builtAgainst });
     }
 
     async function readBackHandoff() {
@@ -4395,13 +4377,11 @@ const mergePoll = {
     } catch (err) {
       result = { merged: false, mergedAt: null, readError: `merge-watch threw: ${clean(err.message)}` };
     }
-    if (FRONTIER_TRAIN_ENABLED) {
-      const event = result.merged === true ? 'merged' : resolveReviewEvent(await readReviewDecision(unit.id, plan));
-      const nextSize = nextWindow(currentWindow, event);
-      if (nextSize !== currentWindow) {
-        currentWindow = nextSize;
-        await persistWindowCheckpoint(unit.id, nextSize);
-      }
+    const event = result.merged === true ? 'merged' : resolveReviewEvent(await readReviewDecision(unit.id, plan));
+    const nextSize = nextWindow(currentWindow, event);
+    if (nextSize !== currentWindow) {
+      currentWindow = nextSize;
+      await persistWindowCheckpoint(unit.id, nextSize);
     }
     return result;
   },
