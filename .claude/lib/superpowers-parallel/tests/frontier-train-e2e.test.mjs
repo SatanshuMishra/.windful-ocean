@@ -12,14 +12,8 @@ const BASE_BRANCH = 'main';
 const RUN_ID = computeLogicalRunId(SPEC, BASE_BRANCH);
 
 const mitosisBody = readFileSync(MITOSIS_PATH, 'utf8').replace(/^export const meta/m, 'const meta');
-const FRONTIER_FLAG_SOURCE = 'const FRONTIER_TRAIN_ENABLED = false;';
-const frontierBody = mitosisBody.replace(FRONTIER_FLAG_SOURCE, 'const FRONTIER_TRAIN_ENABLED = true;');
-if (frontierBody === mitosisBody) {
-  throw new Error('FRONTIER_TRAIN_ENABLED patch point drifted — the e2e fixture cannot flip the flag');
-}
 const AsyncFunction = Object.getPrototypeOf(async function () {}).constructor;
-const runOff = new AsyncFunction('args', 'agent', 'parallel', 'log', 'phase', 'workflow', mitosisBody);
-const runOn = new AsyncFunction('args', 'agent', 'parallel', 'log', 'phase', 'workflow', frontierBody);
+const runOn = new AsyncFunction('args', 'agent', 'parallel', 'log', 'phase', 'workflow', mitosisBody);
 
 const harnessParallel = (thunks) => Promise.all(thunks.map((fn) => Promise.resolve().then(fn).then((v) => v, () => null)));
 
@@ -70,7 +64,7 @@ function buildInput(overrides = {}) {
 function buildEngineArgs(mspId, taskId = 't0') {
   const branchPrefix = `${SOURCE_PREFIX}/${mspId}`;
   return {
-    tasks: { [taskId]: { id: taskId, title: 'task', fullText: '', fileScope: [], risk: 'low', agentType: 'implementer', validation: null } },
+    tasks: { [taskId]: { id: taskId, title: 'task', fullText: '', fileScope: [], risk: 'low', agentType: 'implementer', validation: null, dependentCount: 0, edgeReasons: [] } },
     waves: [[taskId]],
     branchPrefix,
     baseBranch: `${branchPrefix}-integration`,
@@ -360,30 +354,6 @@ test('bullet 6: the AIMD window is carried at the ceiling across a shepherd rela
   assert.match(prompts.get('window-checkpoint:shepherd'), /\{"kind":"window","size":8\}/, 'W is carried at the ceiling (8) and a replayed live APPROVED review never inflates it to 9');
   assert.ok(logLines.some((l) => /AIMD window W=8/.test(l)), 'the carried window stays bounded at the ceiling');
   assert.ok(!labels.includes('shepherd-open:l2'), 'l2 already has an OPEN PR — the shepherd does not double-open it');
-});
-
-test('bullet 7: flag-off regression — the same 2-layer spec is merge-gated (no build frontier), byte-identical to today; no built state is ever entered', async () => {
-  const msps = [mspSpec('l1', {}), mspSpec('l2', { dependsOn: ['l1'] })];
-  const makeBase = () => createFrontierAgent({
-    msps,
-    shipResult: (id) => (id === 'l1'
-      ? { merged: false, awaitingApproval: true, prUrl: 'https://github.com/o/repo/pull/1', receiptsPass: true, d6Pass: true, detail: 'CI green; PR open and awaiting human approval to merge' }
-      : null),
-    mergeWatch: () => ({ merged: false, mergedAt: null, readError: null }),
-  });
-
-  const off = invoke(runOff, buildInput({ mergePolicy: undefined }), makeBase());
-  const offResult = await off.resultPromise;
-  assert.equal(offResult.overallStatus, 'awaiting-approval');
-  assert.deepEqual(offResult.awaitingApproval.map((a) => a.mspId), ['l1'], 'flag-off: l1 awaits merge exactly as today');
-  const blockedL2 = offResult.parked.find((p) => p.mspId === 'l2');
-  assert.ok(blockedL2, 'flag-off: l2 is merge-gated (blocked-pending-approval), never built ahead');
-  assert.ok(!off.logLines.some((l) => /built ahead|frontier-train|frontier-compose/.test(l)), 'flag-off enters NO built state and runs no frontier-compose');
-  assert.ok(!off.phaseLines.includes('Shepherd'), 'flag-off never runs the shepherd phase');
-
-  const on = invoke(runOn, buildInput({ mergePolicy: undefined }), makeBase());
-  await on.resultPromise;
-  assert.ok(on.logLines.some((l) => /built ahead of unmerged parent/.test(l)), 'flag-on DOES build ahead — proving the flag, not the harness, drives the difference');
 });
 
 test('security fix 1: a merged parent whose builtSha or mergedSha is a leading-dash token emits NO probe carrying that raw token and fail-closes to a PARK of its built descendants', async () => {

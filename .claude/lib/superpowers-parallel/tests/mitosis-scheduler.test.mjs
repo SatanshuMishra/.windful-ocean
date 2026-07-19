@@ -44,32 +44,6 @@ function invokeMitosis(input, agent) {
   return { resultPromise, logLines, parallelCalls, phaseLines };
 }
 
-const FRONTIER_TRAIN_FLAG_SOURCE = 'const FRONTIER_TRAIN_ENABLED = false;';
-const frontierMitosisBody = mitosisBody.replace(FRONTIER_TRAIN_FLAG_SOURCE, 'const FRONTIER_TRAIN_ENABLED = true;');
-if (frontierMitosisBody === mitosisBody) {
-  throw new Error('FRONTIER_TRAIN_ENABLED constant text not found — the frontier-train test harness patch point drifted');
-}
-const runMitosisFrontier = new AsyncFunction('args', 'agent', 'parallel', 'log', 'phase', 'workflow', frontierMitosisBody);
-
-function invokeMitosisFrontier(input, agent) {
-  const logLines = [];
-  const parallelCalls = [];
-  const phaseLines = [];
-  const trackedParallel = async (thunks) => {
-    parallelCalls.push(thunks.length);
-    return harnessParallel(thunks);
-  };
-  const resultPromise = runMitosisFrontier(
-    typeof input === 'string' ? input : JSON.stringify(input),
-    agent,
-    trackedParallel,
-    (line) => logLines.push(line),
-    (name) => { phaseLines.push(name); },
-    {},
-  );
-  return { resultPromise, logLines, parallelCalls, phaseLines };
-}
-
 function buildInput(overrides = {}) {
   return {
     spec: '/tmp/mitosis-scheduler-test/spec.md',
@@ -138,7 +112,7 @@ function createFakeAgent({ msps, sourcePrefix = SOURCE_PREFIX, planGate, shipRes
       case 'checkpoint-init':
         return { written: true, detail: '' };
       case 'checkpoint-push':
-        return { pushed: true, ref: '', detail: '' };
+        return { pushed: true, ref: '', sha: `sha-${label.slice('checkpoint-push:'.length)}`, detail: '' };
       case 'built-checkpoint':
         return { written: true, detail: '' };
       case 'ship-checkpoint':
@@ -163,7 +137,7 @@ function createFakeAgent({ msps, sourcePrefix = SOURCE_PREFIX, planGate, shipRes
       case 'branch':
         return { ready: true, detail: '' };
       case 'restore':
-        return { restored: true, sha: '', detail: '' };
+        return { restored: true, sha: `sha-${label.slice('restore:'.length)}`, detail: '' };
       case 'ship': {
         const mspId = label.slice('ship:'.length);
         const override = shipResult ? shipResult(mspId) : null;
@@ -588,7 +562,7 @@ test('F2a: a Prepare crash (agent returns null) is a crashed fatal report naming
   assert.deepEqual(result.shipped, []);
 });
 
-test('E1t delta-append: an n-MSP run dispatches no per-checkpoint read-agent and, with the redundant built/ship journal writes cut, no per-transition checkpoint write at all — the durable record is the checkpoint ref (git) + merged PRs (gh)', async () => {
+test('E1t delta-append: an n-MSP run dispatches no per-checkpoint read-agent, cuts the redundant ship-journal write, and under the frontier default fires exactly one built-checkpoint per unit — the durable record is the checkpoint ref (git) + merged PRs (gh) + the built-journal provenance (builtSha/builtAgainst) git cannot reconstruct', async () => {
   const msps = independentMsps();
   const base = createFakeAgent({ msps });
   const dispatches = [];
@@ -606,14 +580,14 @@ test('E1t delta-append: an n-MSP run dispatches no per-checkpoint read-agent and
     .filter((label) => /^(park-read|built-read|ship-read)(:|$)/.test(label));
   assert.deepEqual(readLabels, [], 'the checkpoint read-agent is removed: the manifest is held in memory and read once at launch, never re-read per checkpoint');
 
-  assert.deepEqual(dispatches.filter((d) => d.label.startsWith('ship-checkpoint:')).map((d) => d.label), [], 'the redundant per-ship journal delta-append is cut — no ship-checkpoint write fires');
-  assert.deepEqual(dispatches.filter((d) => d.label.startsWith('built-checkpoint:')).map((d) => d.label), [], 'the redundant per-built journal delta-append is cut — no built-checkpoint write fires');
+  assert.deepEqual(dispatches.filter((d) => d.label.startsWith('ship-checkpoint:')).map((d) => d.label), [], 'the redundant per-ship journal delta-append is cut — no ship-checkpoint write fires on a fresh run');
+  assert.deepEqual(dispatches.filter((d) => d.label.startsWith('built-checkpoint:')).map((d) => d.label).sort(), msps.map((m) => `built-checkpoint:${m.id}`).sort(), 'under the frontier default the built-checkpoint delta-append fires exactly once per built unit — it records the builtSha/builtAgainst provenance the checkpoint ref alone cannot reconstruct');
 
   const pushes = dispatches.filter((d) => d.label.startsWith('checkpoint-push:')).map((d) => d.label).sort();
   assert.deepEqual(pushes, msps.map((m) => `checkpoint-push:${m.id}`).sort(), 'the durable checkpoint ref push is kept — exactly one per built unit is the O(n) durable record, with no redundant journal write');
 });
 
-test('MSP-1d WS-1.5: the redundant built/ship checkpoint delta-appends are CUT — a shipped run fires the durable checkpoint-push (KEPT) but no built-checkpoint and no ship-checkpoint delta-append', async () => {
+test('MSP-1d WS-1.5: the redundant ship-checkpoint delta-append stays CUT while the built-checkpoint is KEPT under the frontier default — a shipped run fires the durable checkpoint-push (KEPT) and one built-checkpoint provenance delta per unit, but no ship-checkpoint delta-append', async () => {
   const input = buildInput();
   const msps = twoIndependentMsps();
   const labels = [];
@@ -632,14 +606,14 @@ test('MSP-1d WS-1.5: the redundant built/ship checkpoint delta-appends are CUT �
     'the durable checkpoint ref push is KEPT — exactly one per built unit is the authoritative durable record',
   );
   assert.deepEqual(
-    labels.filter((l) => l.startsWith('built-checkpoint:')),
-    [],
-    'the redundant built-checkpoint delta-append is CUT — built state is reconciled from refs/mitosis/* on relaunch, never the journal',
+    labels.filter((l) => l.startsWith('built-checkpoint:')).sort(),
+    ['built-checkpoint:a', 'built-checkpoint:b'],
+    'under the frontier default the built-checkpoint delta-append is KEPT — exactly one per unit records the builtSha/builtAgainst provenance that divergence-scoped invalidation reads on relaunch',
   );
   assert.deepEqual(
     labels.filter((l) => l.startsWith('ship-checkpoint:')),
     [],
-    'the redundant ship-checkpoint delta-append is CUT — shipped state is reconciled from gh merged PRs on relaunch, never the journal',
+    'the redundant ship-checkpoint delta-append stays CUT on a fresh run — shipped state is reconciled from gh merged PRs on relaunch, never the journal',
   );
 });
 
@@ -2647,7 +2621,7 @@ test('R2 forward-only: a park after the durable checkpoint push has fired never 
   assert.doesNotMatch(remediationText, /push origin --delete/, 'no backward undo deletes any pushed ref (checkpoint-push is forward-only)');
 });
 
-test('R3 SPEC-R3(d): a human-gated unit awaiting approval has its built state preserved durably by the checkpoint ref push (KEPT) — not a redundant built-journal delta (CUT) — written before the ship stage', async () => {
+test('R3 SPEC-R3(d): a human-gated unit awaiting approval has its built state preserved durably by the checkpoint ref push AND, under the frontier default, one built-journal provenance delta — both written before the ship stage', async () => {
   const input = buildInput({ mergePolicy: undefined });
   const runId = computeLogicalRunId(input.spec, input.baseBranch);
   const msps = [
@@ -2675,12 +2649,13 @@ test('R3 SPEC-R3(d): a human-gated unit awaiting approval has its built state pr
   assert.ok(!result.shipped.some((s) => s.mspId === 'a'), 'the human-gated unit never merged');
 
   assert.match(pushPrompts.get('a') || '', new RegExp(`refs/mitosis/${runId}/a`), 'the durable checkpoint ref push is KEPT — it publishes the built tip to the per-unit ref, the authoritative record reconcile reads for a built-but-unmerged unit');
-  assert.equal(order.indexOf('built-checkpoint:a'), -1, 'the redundant built-journal delta-append is CUT for the human-gated unit — built state lives in the checkpoint ref, not the journal');
 
   const pushIdx = order.indexOf('checkpoint-push:a');
+  const builtIdx = order.indexOf('built-checkpoint:a');
   const shipIdx = order.indexOf('ship:a');
   assert.ok(pushIdx >= 0, 'the durable checkpoint push fires for the human-gated unit');
-  assert.ok(shipIdx >= 0 && pushIdx < shipIdx, 'the durable checkpoint push is published before the ship stage (intent-before-effect)');
+  assert.ok(builtIdx >= 0, 'under the frontier default the built-journal provenance delta fires for the human-gated unit — divergence-scoped invalidation reads its builtSha/builtAgainst on relaunch');
+  assert.ok(shipIdx >= 0 && pushIdx < builtIdx && builtIdx < shipIdx, 'the durable checkpoint push and the built-journal provenance delta are both published before the ship stage (intent-before-effect)');
 });
 
 test('T3 builtSha: the ship-time built-persist threads the real checkpoint-push tip sha, never the hardcoded null', async () => {
@@ -2870,47 +2845,6 @@ test('TRIEDSET-PERSIST round-trip: a remediation-exhaustion park persists the ac
 function checkpointLsRemoteLine(runId, id) {
   return `0123456789abcdef0123456789abcdef01234567\trefs/mitosis/${runId}/${id}`;
 }
-
-test('R4(d) built-resume: a relaunch whose durable checkpoint ls-remote shows a built-but-unmerged unit dispatches NO plan, NO parallelize, NO branch-prep and NO execute for it — it restores from the checkpoint and ships straight — while a fresh sibling plans, parallelizes, executes and ships normally', async () => {
-  const input = buildInput();
-  const logicalRunId = computeLogicalRunId(input.spec, input.baseBranch);
-  const builtRef = `refs/mitosis/${logicalRunId}/a`;
-  const reusedMsps = [
-    { id: 'a', title: 'a', rationale: 'r', status: 'built', integrationBranch: `${SOURCE_PREFIX}/a-integration`, checkpointRef: builtRef, builtSha: null, prUrl: null, mergedAt: null, dependsOn: [], fileScope: ['scope/a/**'] },
-    { id: 'b', title: 'b', rationale: 'r', status: 'planned', integrationBranch: `${SOURCE_PREFIX}/b-integration`, prUrl: null, mergedAt: null, dependsOn: [], fileScope: ['scope/b/**'] },
-  ];
-  const manifestRaw = JSON.stringify({ logicalRunId, specContentHash: SPEC_CONTENT_HASH, clusters: [['a'], ['b']], msps: reusedMsps }, null, 2);
-  assert.ok(parseRunManifest(manifestRaw), 'the built-bearing manifest is read back as a valid hint');
-  const reconcileResult = {
-    manifestFound: true,
-    manifestRaw,
-    mergedPRs: [],
-    specContentHash: SPEC_CONTENT_HASH,
-    checkpointRefPages: [[checkpointLsRemoteLine(logicalRunId, 'a')]],
-  };
-  const labels = [];
-  const base = createFakeAgent({ reconcileResult });
-  const agent = async (prompt, opts = {}) => { labels.push(opts.label || ''); return base(prompt, opts); };
-  const { resultPromise } = invokeMitosis(input, agent);
-  const result = await resultPromise;
-
-  assert.ok(!labels.includes('plan:a'), 'a durably-built unit is NOT re-planned on relaunch');
-  assert.ok(!labels.includes('parallelize:a'), 'a durably-built unit is NOT re-parallelized on relaunch');
-  assert.ok(!labels.includes('branch:a'), 'a durably-built unit does NOT re-run branch-prep on relaunch');
-  assert.ok(!labels.includes('checkpoint-push:a'), 'a durably-built unit does NOT re-execute (no fresh durable-checkpoint push) on relaunch');
-  assert.ok(labels.includes('restore:a'), 'a durably-built unit restores its integration branch from the durable checkpoint ref before shipping');
-  assert.ok(labels.includes('ship:a'), 'a durably-built unit is shipped straight from the durable checkpoint');
-
-  assert.ok(labels.includes('plan:b'), 'the fresh sibling is planned');
-  assert.ok(labels.includes('parallelize:b'), 'the fresh sibling is parallelized');
-  assert.ok(labels.includes('branch:b'), 'the fresh sibling runs branch-prep');
-  assert.ok(labels.includes('ship:b'), 'the fresh sibling ships');
-
-  assert.equal(labels.filter((l) => l === 'impl:t0').length, 1, 'only the fresh sibling enters the execute engine; the built unit never re-executes');
-
-  assert.equal(result.overallStatus, 'all-shipped');
-  assert.deepEqual(result.shipped.map((s) => s.mspId).sort(), ['a', 'b'], 'both the resumed-built unit and the fresh sibling reach shipped');
-});
 
 test('E3t granular resume: a spec edit that changes ONE MSP slice re-decomposes, rebuilds ONLY the changed MSP, and lets the content-unchanged siblings replay-forward-skip from their durable checkpoints', async () => {
   const input = buildInput();
@@ -3694,7 +3628,7 @@ test('MSP-5a WS-5.1: the scope-fence completeness-gate dispatch is HELD at Opus'
   assert.equal(models.get('fence:wave-0'), 'opus', 'the scope-fence completeness gate is HELD at Opus (feeds a fail-closed gate)');
 });
 
-test('T14(c) fix (FRONTIER_TRAIN_ENABLED on): a build-ahead unit redispatched with no recorded builtSha fails CLOSED — parks ambiguous frontier state, never bypasses the sha check to ship an unverified tip', async () => {
+test('T14(c) fix (frontier default): a build-ahead unit redispatched with no recorded builtSha fails CLOSED — parks ambiguous frontier state, never bypasses the sha check to ship an unverified tip', async () => {
   const msps = [
     mspSpec('a', { fileScope: ['scope/a/**'] }),
     mspSpec('b', { dependsOn: ['a'], fileScope: ['scope/b/**'] }),
@@ -3708,7 +3642,12 @@ test('T14(c) fix (FRONTIER_TRAIN_ENABLED on): a build-ahead unit redispatched wi
       ? { merged: true, mergedAt: '2026-07-16T00:00:00Z', readError: null }
       : { merged: false, mergedAt: null, readError: null }),
   });
-  const { resultPromise } = invokeMitosisFrontier(buildInput({ mergePolicy: undefined, repoIdentity: 'o/repo' }), base);
+  const agent = async (prompt, opts = {}) => {
+    const res = await base(prompt, opts);
+    if ((opts.label || '') === 'checkpoint-push:b') return { ...res, sha: '' };
+    return res;
+  };
+  const { resultPromise } = invokeMitosis(buildInput({ mergePolicy: undefined, repoIdentity: 'o/repo' }), agent);
   const result = await resultPromise;
 
   assert.ok(!result.shipped.some((s) => s.mspId === 'b'), 'a build-ahead unit with no recorded builtSha must never ship on frontier redispatch');

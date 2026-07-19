@@ -92,18 +92,17 @@ test('mergePaginated: tolerant of empty or non-array pages', () => {
   assert.deepEqual(mergePaginated(null), []);
 });
 
-test('shouldReconcileOnly: trips ONLY when the flag is on AND it is a byte-identical relaunch AND persisted frontier state exists', () => {
-  assert.equal(shouldReconcileOnly({ frontierTrain: true, isRelaunch: true, specByteIdentical: true, hasFrontierState: true }), true);
-  assert.equal(shouldReconcileOnly({ frontierTrain: false, isRelaunch: true, specByteIdentical: true, hasFrontierState: true }), false);
-  assert.equal(shouldReconcileOnly({ frontierTrain: true, isRelaunch: false, specByteIdentical: true, hasFrontierState: true }), false);
-  assert.equal(shouldReconcileOnly({ frontierTrain: true, isRelaunch: true, specByteIdentical: false, hasFrontierState: true }), false);
-  assert.equal(shouldReconcileOnly({ frontierTrain: true, isRelaunch: true, specByteIdentical: true, hasFrontierState: false }), false);
+test('shouldReconcileOnly: trips ONLY when it is a byte-identical relaunch AND persisted frontier state exists', () => {
+  assert.equal(shouldReconcileOnly({ isRelaunch: true, specByteIdentical: true, hasFrontierState: true }), true);
+  assert.equal(shouldReconcileOnly({ isRelaunch: false, specByteIdentical: true, hasFrontierState: true }), false);
+  assert.equal(shouldReconcileOnly({ isRelaunch: true, specByteIdentical: false, hasFrontierState: true }), false);
+  assert.equal(shouldReconcileOnly({ isRelaunch: true, specByteIdentical: true, hasFrontierState: false }), false);
 });
 
 test('shouldReconcileOnly: fails closed on absent or non-boolean input (never trips reconcile-only by accident)', () => {
   assert.equal(shouldReconcileOnly(), false);
   assert.equal(shouldReconcileOnly({}), false);
-  assert.equal(shouldReconcileOnly({ frontierTrain: 'yes', isRelaunch: 1, specByteIdentical: 1, hasFrontierState: 1 }), false);
+  assert.equal(shouldReconcileOnly({ isRelaunch: 1, specByteIdentical: 1, hasFrontierState: 1 }), false);
 });
 
 test('planReconcile: opens the next-layer PR for a built-unpublished unit whose parents all merged, and restacks a unit with only some parents merged', () => {
