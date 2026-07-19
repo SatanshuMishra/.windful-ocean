@@ -671,6 +671,79 @@ test('MSP-3d review+fix round-trips are budgeted against runBudget and PARK fail
   }
 });
 
+function firstReviewGateAgent(calls) {
+  let releaseT2Review;
+  const t2ReviewGate = new Promise((resolve) => { releaseT2Review = resolve; });
+  let t1Reviews = 0;
+  let t2Reviews = 0;
+  return async (prompt, opts) => {
+    calls.push({ prompt, opts });
+    const label = opts && opts.label ? opts.label : '';
+    if (label.startsWith('impl:')) return { status: 'DONE' };
+    if (label === 'review:t1') {
+      t1Reviews += 1;
+      return t1Reviews === 1 ? { verdict: 'fail', issues: ['lib/a.js:1 fix me'] } : { verdict: 'pass' };
+    }
+    if (label === 'fix-review:t1') { releaseT2Review(); return {}; }
+    if (label === 'review:t2') {
+      await t2ReviewGate;
+      t2Reviews += 1;
+      return t2Reviews === 1 ? { verdict: 'fail', issues: ['lib/b.js:1 fix me'] } : { verdict: 'pass' };
+    }
+    if (label.startsWith('fix-')) return {};
+    if (label.startsWith('review:') || label.startsWith('sec:')) return { verdict: 'pass' };
+    if (label.startsWith('integrate:')) return { merged: ['b'], conflict: false };
+    if (label === 'boundary' || label === 'boundary-recheck') return { pass: true, output: 'ok' };
+    return {};
+  };
+}
+
+test('R1 a later task keeps its guaranteed first fix round despite a sibling-exhausted shared budget', { timeout: 2000 }, async () => {
+  const calls = [];
+  const runBudget = { used: 0, max: 1 };
+  const result = await runEngine({ ...twoTaskArgs(), layer3Sonnet: false, fixLoopMax: 5, retry: { maxAttempts: 1, state: runBudget } }, ctxWith(firstReviewGateAgent(calls)));
+
+  const count = (label) => calls.filter((c) => c.opts && c.opts.label === label).length;
+  assert.equal(result.halted, false, `both tasks ship; no order-dependent starvation halt; haltReason=${JSON.stringify(result.haltReason)}`);
+  assert.equal(count('fix-review:t1'), 1);
+  assert.equal(count('fix-review:t2'), 1, 'the later task retains its guaranteed first fix round despite the sibling-exhausted shared budget');
+  assert.equal(count('review:t2'), 2);
+  assert.equal(runBudget.used, 2, 'the guaranteed first round is still CHARGED: used counts every fix dispatch and may overshoot max');
+  assert.ok(calls.some((c) => c.opts && c.opts.label && c.opts.label.startsWith('integrate:')), 'the wave integrates once both tasks ship');
+});
+
+function boundedFailReviewAgent(calls, cap) {
+  let reviews = 0;
+  return async (prompt, opts) => {
+    calls.push({ prompt, opts });
+    const label = opts && opts.label ? opts.label : '';
+    if (label.startsWith('impl:')) return { status: 'DONE' };
+    if (label === 'review:t1') {
+      reviews += 1;
+      return reviews > cap ? { verdict: 'pass' } : { verdict: 'fail', issues: ['lib/a.js:1 fix me'] };
+    }
+    if (label.startsWith('review:') || label.startsWith('sec:')) return { verdict: 'pass' };
+    if (label.startsWith('fix-')) return {};
+    if (label.startsWith('integrate:')) return { merged: ['b'], conflict: false };
+    if (label === 'boundary' || label === 'boundary-recheck') return { pass: true, output: 'ok' };
+    return {};
+  };
+}
+
+test('R2 the fix loop terminates BOUNDED when fixLoopMax is omitted from engineArgs (default 2)', { timeout: 2000 }, async () => {
+  const calls = [];
+  const { fixLoopMax: _omitted, ...args } = baseArgs();
+  const result = await runEngine(args, ctxWith(boundedFailReviewAgent(calls, 25)));
+
+  const count = (label) => calls.filter((c) => c.opts && c.opts.label === label).length;
+  assert.equal(result.halted, true, `an exhausted review loop halts fail-closed; haltReason=${JSON.stringify(result.haltReason)}`);
+  assert.equal(count('fix-review:t1'), 2, 'the omitted knob falls back to the default bound of 2 fix rounds');
+  assert.equal(count('review:t1'), 3);
+  const failed = (result.haltReason && result.haltReason.failed) || [];
+  assert.ok(failed.some((f) => f && f.reason === 'review-exhausted'), `per-task exhaustion, NOT budget; got ${JSON.stringify(failed)}`);
+  assert.equal(calls.some((c) => c.opts && c.opts.label && c.opts.label.startsWith('integrate:')), false, 'no integrate on a per-task exhaustion halt');
+});
+
 test('MSP-8c a low-risk merged review folds in the Tier-1 OWASP-shaped security checklist without adding any extra dispatch', async () => {
   const calls = [];
   const result = await runEngine(baseArgs({

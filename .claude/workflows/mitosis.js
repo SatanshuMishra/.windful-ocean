@@ -947,7 +947,7 @@ async function runEngine(engineArgs, ctx) {
   const scopedCheckCmd = engineArgs.scopedCheckCmd;
   const fullValidationCmd = engineArgs.fullValidationCmd;
   const prompts = engineArgs.prompts;
-  const fixLoopMax = engineArgs.fixLoopMax;
+  const fixLoopMax = Number.isInteger(engineArgs.fixLoopMax) && engineArgs.fixLoopMax >= 0 ? engineArgs.fixLoopMax : 2;
   const isolation = engineArgs.isolation || 'worktree';
   const launchCommit = engineArgs.launchCommit || null;
   const runArtifacts = engineArgs.runArtifacts;
@@ -1041,7 +1041,7 @@ async function runEngine(engineArgs, ctx) {
       if (loops > fixLoopMax) return { ok: false, reason: `${label}-exhausted`, issues: r && r.issues };
       const budget = retry && retry.state;
       const budgeted = budget && Number.isInteger(budget.max) && budget.max > 0 && Number.isInteger(budget.used);
-      if (budgeted && budget.used >= budget.max) return { ok: false, reason: `${label}-budget-exhausted`, issues: r && r.issues };
+      if (budgeted && loops > 1 && budget.used >= budget.max) return { ok: false, reason: `${label}-budget-exhausted`, issues: r && r.issues };
       if (budgeted) budget.used += 1;
       await guard.dispatch(fixPrompt(task, branch, wt, r && r.issues), { label: `fix-${label}:${task.id}`, phase: 'Waves' }, { kind: 'fix', task });
       if (guard.getHalt()) return { ok: false, reason: 'model-policy' };
