@@ -1,5 +1,6 @@
 import { scopesOverlap } from './wave-planner.mjs';
 import { classifyMergeWatch } from './merge-watch.mjs';
+import { WINDOW_FLOOR } from './window.mjs';
 
 export function makeUnit(spec) {
   if (!spec || typeof spec !== 'object') throw new Error('unit spec must be an object');
@@ -54,6 +55,22 @@ export function isDispatchable(unit, unitsById, leases) {
   return overlapHolder(leases, unit.fileScope, unit.id) === null;
 }
 
+export function isBuildable(unit, unitsById, leases, window) {
+  if (unit.state === 'done' || unit.state === 'parked' || unit.state === 'awaiting' || unit.state === 'dispatched' || unit.state === 'built') return false;
+  for (const pid of unit.prereqs) {
+    const prereq = unitsById.get(pid);
+    if (!prereq || (prereq.state !== 'built' && prereq.state !== 'awaiting' && prereq.state !== 'done')) return false;
+  }
+  if (overlapHolder(leases, unit.fileScope, unit.id) !== null) return false;
+  if (!window || !Number.isInteger(window.size)) return false;
+  if (!Number.isInteger(window.builtUnmergedCount)) return false;
+  return window.builtUnmergedCount < window.size;
+}
+
+export function mayRestack(state) {
+  return state === 'built' || state === 'planned';
+}
+
 export function acquire(leases, unit) {
   const next = new Map(leases);
   for (const path of unit.fileScope) next.set(path, unit.id);
@@ -63,6 +80,7 @@ export function acquire(leases, unit) {
 export function dispositionOf(outcome) {
   if (outcome && outcome.tag === 'Done') return 'done';
   if (outcome && outcome.tag === 'AwaitingApproval') return 'awaiting';
+  if (outcome && outcome.tag === 'Built') return 'built';
   return 'parked';
 }
 
@@ -94,12 +112,21 @@ function criticalPathOrder(units) {
     .map((entry) => entry.unit);
 }
 
-export function planTick(units) {
+function buildAheadWindow(units, frontierTrain, windowSize) {
+  if (!frontierTrain) return undefined;
+  return { builtUnmergedCount: units.filter((u) => u.state === 'built').length, size: Number.isInteger(windowSize) ? windowSize : WINDOW_FLOOR };
+}
+
+export function planTick(units, frontierTrain, windowSize) {
   const byId = indexUnits(units);
   let leases = new Map();
   const dispatch = [];
+  const window = buildAheadWindow(units, frontierTrain, windowSize);
   for (const unit of criticalPathOrder(units)) {
     if (isDispatchable(unit, byId, leases)) {
+      dispatch.push(unit.id);
+      leases = acquire(leases, unit);
+    } else if (frontierTrain && isBuildable(unit, byId, leases, window)) {
       dispatch.push(unit.id);
       leases = acquire(leases, unit);
     }
@@ -136,15 +163,19 @@ function markMerged(units, mergedIds) {
   return Object.freeze(units.map((u) => (set.has(u.id) ? Object.freeze({ ...u, state: 'done', leaseHeld: false }) : u)));
 }
 
-async function runScheduleTick(specs, runUnit, poll) {
+function markAwaitingMerge(units) {
+  return Object.freeze(units.map((u) => (u.state === 'awaiting' ? Object.freeze({ ...u, state: 'awaiting-merge' }) : u)));
+}
+
+async function runScheduleTick(specs, runUnit, poll, continuousDrain, frontierTrain, windowSize) {
   let units = buildUnitTable(specs);
   const ticks = [];
   const polls = [];
   const maxPollCycles = poll && Number.isInteger(poll.maxCycles) && poll.maxCycles > 0 ? poll.maxCycles : 0;
-  const maxSteps = units.length + 1 + maxPollCycles;
+  const maxSteps = continuousDrain ? units.length * (maxPollCycles + 2) + 1 : units.length + 1 + maxPollCycles;
   let pollsUsed = 0;
   for (let step = 0; step < maxSteps; step++) {
-    const { dispatch } = planTick(units);
+    const { dispatch } = planTick(units, frontierTrain, windowSize);
     if (dispatch.length > 0) {
       ticks.push(dispatch);
       units = markDispatched(units, dispatch);
@@ -167,9 +198,10 @@ async function runScheduleTick(specs, runUnit, poll) {
         }
       }
       polls.push({ cycle: pollsUsed, watched: watching.map((u) => u.id), merged });
-      if (merged.length > 0) units = markMerged(units, merged);
+      if (merged.length > 0) { units = markMerged(units, merged); if (continuousDrain) pollsUsed = 0; }
       continue;
     }
+    if (continuousDrain) units = markAwaitingMerge(units);
     break;
   }
   return { units, ticks, polls };
@@ -181,12 +213,16 @@ function release(leases, unitId) {
   return next;
 }
 
-function dispatchableStreaming(units, liveLeases) {
+function dispatchableStreaming(units, liveLeases, frontierTrain, windowSize) {
   const byId = indexUnits(units);
   let leases = new Map(liveLeases);
   const dispatch = [];
+  const window = buildAheadWindow(units, frontierTrain, windowSize);
   for (const unit of criticalPathOrder(units)) {
     if (isDispatchable(unit, byId, leases)) {
+      dispatch.push(unit.id);
+      leases = acquire(leases, unit);
+    } else if (frontierTrain && isBuildable(unit, byId, leases, window)) {
       dispatch.push(unit.id);
       leases = acquire(leases, unit);
     }
@@ -194,17 +230,17 @@ function dispatchableStreaming(units, liveLeases) {
   return dispatch;
 }
 
-async function runScheduleStreaming(specs, runUnit, poll) {
+async function runScheduleStreaming(specs, runUnit, poll, continuousDrain, frontierTrain, windowSize) {
   let units = buildUnitTable(specs);
   const ticks = [];
   const polls = [];
   const maxPollCycles = poll && Number.isInteger(poll.maxCycles) && poll.maxCycles > 0 ? poll.maxCycles : 0;
-  const maxSteps = 2 * units.length + maxPollCycles + 2;
+  const maxSteps = continuousDrain ? units.length * (maxPollCycles + 2) + 2 : 2 * units.length + maxPollCycles + 2;
   let pollsUsed = 0;
   let liveLeases = new Map();
   const running = new Map();
   for (let step = 0; step < maxSteps; step++) {
-    const dispatch = dispatchableStreaming(units, liveLeases);
+    const dispatch = dispatchableStreaming(units, liveLeases, frontierTrain, windowSize);
     if (dispatch.length > 0) {
       ticks.push(dispatch);
       units = markDispatched(units, dispatch);
@@ -235,9 +271,10 @@ async function runScheduleStreaming(specs, runUnit, poll) {
         }
       }
       polls.push({ cycle: pollsUsed, watched: watching.map((u) => u.id), merged });
-      if (merged.length > 0) units = markMerged(units, merged);
+      if (merged.length > 0) { units = markMerged(units, merged); if (continuousDrain) pollsUsed = 0; }
       continue;
     }
+    if (continuousDrain) units = markAwaitingMerge(units);
     break;
   }
   return { units, ticks, polls };
@@ -245,7 +282,14 @@ async function runScheduleStreaming(specs, runUnit, poll) {
 
 export const STREAMING_DISPATCH_ENABLED = false;
 
+export const FRONTIER_TRAIN_ENABLED = false;
+
 export async function runSchedule(specs, runUnit, poll, opts) {
   const streaming = opts && typeof opts.streaming === 'boolean' ? opts.streaming : STREAMING_DISPATCH_ENABLED;
-  return streaming ? runScheduleStreaming(specs, runUnit, poll) : runScheduleTick(specs, runUnit, poll);
+  const continuousDrain = opts && typeof opts.continuousDrain === 'boolean' ? opts.continuousDrain : FRONTIER_TRAIN_ENABLED;
+  const frontierTrain = opts && typeof opts.frontierTrain === 'boolean' ? opts.frontierTrain : FRONTIER_TRAIN_ENABLED;
+  const windowSize = opts && Number.isInteger(opts.window) ? opts.window : undefined;
+  return streaming
+    ? runScheduleStreaming(specs, runUnit, poll, continuousDrain, frontierTrain, windowSize)
+    : runScheduleTick(specs, runUnit, poll, continuousDrain, frontierTrain, windowSize);
 }

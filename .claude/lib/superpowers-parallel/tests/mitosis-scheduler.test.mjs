@@ -44,6 +44,32 @@ function invokeMitosis(input, agent) {
   return { resultPromise, logLines, parallelCalls, phaseLines };
 }
 
+const FRONTIER_TRAIN_FLAG_SOURCE = 'const FRONTIER_TRAIN_ENABLED = false;';
+const frontierMitosisBody = mitosisBody.replace(FRONTIER_TRAIN_FLAG_SOURCE, 'const FRONTIER_TRAIN_ENABLED = true;');
+if (frontierMitosisBody === mitosisBody) {
+  throw new Error('FRONTIER_TRAIN_ENABLED constant text not found — the frontier-train test harness patch point drifted');
+}
+const runMitosisFrontier = new AsyncFunction('args', 'agent', 'parallel', 'log', 'phase', 'workflow', frontierMitosisBody);
+
+function invokeMitosisFrontier(input, agent) {
+  const logLines = [];
+  const parallelCalls = [];
+  const phaseLines = [];
+  const trackedParallel = async (thunks) => {
+    parallelCalls.push(thunks.length);
+    return harnessParallel(thunks);
+  };
+  const resultPromise = runMitosisFrontier(
+    typeof input === 'string' ? input : JSON.stringify(input),
+    agent,
+    trackedParallel,
+    (line) => logLines.push(line),
+    (name) => { phaseLines.push(name); },
+    {},
+  );
+  return { resultPromise, logLines, parallelCalls, phaseLines };
+}
+
 function buildInput(overrides = {}) {
   return {
     spec: '/tmp/mitosis-scheduler-test/spec.md',
@@ -137,7 +163,7 @@ function createFakeAgent({ msps, sourcePrefix = SOURCE_PREFIX, planGate, shipRes
       case 'branch':
         return { ready: true, detail: '' };
       case 'restore':
-        return { restored: true, detail: '' };
+        return { restored: true, sha: '', detail: '' };
       case 'ship': {
         const mspId = label.slice('ship:'.length);
         const override = shipResult ? shipResult(mspId) : null;
@@ -2657,6 +2683,30 @@ test('R3 SPEC-R3(d): a human-gated unit awaiting approval has its built state pr
   assert.ok(shipIdx >= 0 && pushIdx < shipIdx, 'the durable checkpoint push is published before the ship stage (intent-before-effect)');
 });
 
+test('T3 builtSha: the ship-time built-persist threads the real checkpoint-push tip sha, never the hardcoded null', async () => {
+  const input = buildInput();
+  const runId = computeLogicalRunId(input.spec, input.baseBranch);
+  const msps = [mspSpec('solo', { fileScope: ['scope/solo/**'] })];
+  const FAKE_TIP_SHA = 'deadbeef'.repeat(5);
+  const { agent: durableAgent, fileMap, runJsonPath } = makeDurableFakeAgent({ msps, repoRoot: input.repoRoot });
+  const agent = async (prompt, opts = {}) => {
+    if ((opts.label || '').startsWith('checkpoint-push:')) {
+      return { pushed: true, ref: `refs/mitosis/${runId}/solo`, sha: FAKE_TIP_SHA, detail: '' };
+    }
+    return durableAgent(prompt, opts);
+  };
+
+  const { resultPromise } = invokeMitosis(input, agent);
+  const result = await resultPromise;
+
+  assert.equal(result.overallStatus, 'all-shipped');
+  assert.ok(fileMap.has(runJsonPath), 'a shipped run must durably write run.json');
+  const persisted = foldRunManifest(fileMap.get(runJsonPath));
+  const soloEntry = persisted.msps.find((m) => m.id === 'solo');
+  assert.ok(soloEntry, 'the durable manifest carries the built unit');
+  assert.equal(soloEntry.builtSha, FAKE_TIP_SHA, 'the persisted built delta threads the real checkpoint-push tip sha rather than the hardcoded null');
+});
+
 test('SECURITY deny-case: a NeedsHuman-supplied resumePoint.stage outside the known stage vocabulary must not be surfaced raw on the public ParkRecord', async () => {
   const msps = [mspSpec('solo', { fileScope: ['scope/solo/**'] })];
   const base = createFakeAgent({ msps });
@@ -3642,4 +3692,29 @@ test('MSP-5a WS-5.1: the scope-fence completeness-gate dispatch is HELD at Opus'
 
   assert.equal(result.halted, false);
   assert.equal(models.get('fence:wave-0'), 'opus', 'the scope-fence completeness gate is HELD at Opus (feeds a fail-closed gate)');
+});
+
+test('T14(c) fix (FRONTIER_TRAIN_ENABLED on): a build-ahead unit redispatched with no recorded builtSha fails CLOSED — parks ambiguous frontier state, never bypasses the sha check to ship an unverified tip', async () => {
+  const msps = [
+    mspSpec('a', { fileScope: ['scope/a/**'] }),
+    mspSpec('b', { dependsOn: ['a'], fileScope: ['scope/b/**'] }),
+  ];
+  const base = createFakeAgent({
+    msps,
+    shipResult: (mspId) => (mspId === 'a'
+      ? { merged: false, awaitingApproval: true, prUrl: 'https://github.com/o/repo/pull/1', receiptsPass: true, d6Pass: true, detail: 'CI green; PR open and awaiting human approval to merge' }
+      : null),
+    mergeWatch: (mspId) => (mspId === 'a'
+      ? { merged: true, mergedAt: '2026-07-16T00:00:00Z', readError: null }
+      : { merged: false, mergedAt: null, readError: null }),
+  });
+  const { resultPromise } = invokeMitosisFrontier(buildInput({ mergePolicy: undefined, repoIdentity: 'o/repo' }), base);
+  const result = await resultPromise;
+
+  assert.ok(!result.shipped.some((s) => s.mspId === 'b'), 'a build-ahead unit with no recorded builtSha must never ship on frontier redispatch');
+  const parkedB = result.parked.find((p) => p.mspId === 'b');
+  assert.ok(parkedB, 'the frontier-redispatched unit with no recorded provenance parks rather than silently shipping or dropping');
+  assert.match(parkedB.diagnosis, /ambiguous frontier state/, 'the park diagnosis names the ambiguous-frontier trigger');
+  assert.match(parkedB.diagnosis, /no builtSha was recorded/, 'the diagnosis distinguishes the absent-provenance case from a plain sha mismatch');
+  assert.deepEqual(result.shipped.map((s) => s.mspId).sort(), ['a'], 'the awaiting root still ships once its poll confirms the merge; only the ambiguous frontier redispatch parks');
 });

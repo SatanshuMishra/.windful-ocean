@@ -223,8 +223,18 @@ test('applyBuiltTransition: marks the unit built with checkpointRef/builtSha, re
   assert.equal(a.status, 'built');
   assert.equal(a.checkpointRef, 'refs/mitosis/x/a');
   assert.equal(a.builtSha, 'abc1234');
+  assert.equal(a.green, false, 'green defaults false when omitted (field plumbing; value wired later)');
+  assert.deepEqual(a.builtAgainst, {}, 'builtAgainst defaults to an empty map when omitted');
   assert.deepEqual(after.msps.find((m) => m.id === 'b'), snapshot.msps.find((m) => m.id === 'b'));
   assert.deepEqual(before, snapshot);
+});
+
+test('applyBuiltTransition: persists an explicit green + builtAgainst provenance record', () => {
+  const before = builtBase();
+  const after = applyBuiltTransition(before, { unitId: 'a', checkpointRef: 'refs/mitosis/x/a', sha: 'abc1234', green: true, builtAgainst: { b: 'cafe123' } });
+  const a = after.msps.find((m) => m.id === 'a');
+  assert.equal(a.green, true);
+  assert.deepEqual(a.builtAgainst, { b: 'cafe123' });
 });
 
 test('applyBuiltTransition: idempotent — applying twice equals applying once', () => {

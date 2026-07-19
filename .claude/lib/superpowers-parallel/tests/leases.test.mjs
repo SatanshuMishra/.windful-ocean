@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { Done, NeedsHuman, Unknown, Transient, ApproachFixable, AwaitingApproval } from '../boundary.mjs';
+import { Done, NeedsHuman, Unknown, Transient, ApproachFixable, AwaitingApproval, Built } from '../boundary.mjs';
 import { planMergeWatch } from '../merge-watch.mjs';
 import {
   makeUnit,
@@ -8,6 +8,8 @@ import {
   indexUnits,
   overlapHolder,
   isDispatchable,
+  isBuildable,
+  mayRestack,
   acquire,
   dispositionOf,
   planTick,
@@ -74,6 +76,28 @@ test('READINESS: isDispatchable admits a unit only when all prereqs are done AND
   assert.equal(isDispatchable(b, byId, contended), false);
 });
 
+test('READINESS: isBuildable admits a unit when every prereq is green-built (built|awaiting|done), no held lease overlaps, and built-unmerged is under the window', () => {
+  const units = buildUnitTable([
+    { id: 'a', state: 'built', fileScope: ['a.mjs'] },
+    { id: 'b', state: 'planned', prereqs: ['a'], fileScope: ['b.mjs'] },
+    { id: 'c', state: 'planned', prereqs: ['pending'], fileScope: ['c.mjs'] },
+    { id: 'pending', state: 'planned', fileScope: ['p.mjs'] },
+  ]);
+  const byId = indexUnits(units);
+  const b = byId.get('b');
+  const c = byId.get('c');
+  const open = { builtUnmergedCount: 0, size: 3 };
+  assert.equal(isBuildable(b, byId, new Map(), open), true, 'b builds: prereq a is green-built, lease free, window open');
+  assert.equal(isBuildable(c, byId, new Map(), open), false, 'c blocked: prereq pending is not green-built');
+  const contended = acquire(new Map(), { id: 'x', fileScope: ['b.mjs'] });
+  assert.equal(isBuildable(b, byId, contended, open), false, 'b blocked: fileScope lease overlaps a running unit');
+  assert.equal(isBuildable(b, byId, new Map(), { builtUnmergedCount: 3, size: 3 }), false, 'b blocked: AIMD window saturated (built-unmerged >= W)');
+  assert.equal(isBuildable(b, byId, new Map(), undefined), false, 'no window => fail closed (never build blind)');
+  assert.equal(isBuildable(b, byId, new Map(), { builtUnmergedCount: NaN, size: 3 }), false, 'non-integer builtUnmergedCount => fail closed (never bypass the AIMD throttle)');
+  assert.equal(isBuildable(b, byId, new Map(), { builtUnmergedCount: 'x', size: 3 }), false, 'string builtUnmergedCount => fail closed');
+  assert.equal(isBuildable(b, byId, new Map(), { size: 3 }), false, 'missing builtUnmergedCount => fail closed');
+});
+
 test('isDispatchable is false for units already in a terminal, awaiting, or dispatched state', () => {
   const units = buildUnitTable([
     { id: 'd', state: 'done' },
@@ -83,6 +107,18 @@ test('isDispatchable is false for units already in a terminal, awaiting, or disp
   ]);
   const byId = indexUnits(units);
   for (const id of ['d', 'p', 'w', 'x']) assert.equal(isDispatchable(byId.get(id), byId, new Map()), false);
+});
+
+test('mayRestack: a published (awaiting) or shipped (done) branch is frozen; only an unpublished built/planned branch may restack', () => {
+  assert.equal(mayRestack('built'), true, 'built: not yet published, restack is safe');
+  assert.equal(mayRestack('planned'), true, 'planned: no branch published yet, restack is safe');
+  assert.equal(mayRestack('awaiting'), false, 'awaiting: PR is open, frozen — never force-push');
+  assert.equal(mayRestack('done'), false, 'done: shipped/merged, frozen');
+  assert.equal(mayRestack('parked'), false, 'parked: ambiguous/failed state, fail closed');
+  assert.equal(mayRestack('dispatched'), false, 'dispatched: mid-flight, fail closed');
+  assert.equal(mayRestack('awaiting-merge'), false, 'awaiting-merge: PR is open, frozen');
+  assert.equal(mayRestack(undefined), false, 'absent state fails closed');
+  assert.equal(mayRestack('bogus'), false, 'unrecognized state fails closed');
 });
 
 test('TIE-BREAK: planTick dispatches the lower-index unit and makes the overlapping contender wait this tick', () => {
@@ -114,6 +150,10 @@ test('dispositionOf maps Done to done, AwaitingApproval to the distinct non-term
   assert.equal(dispositionOf(Transient({ signal: 'rate-limit' })), 'parked');
   assert.equal(dispositionOf(ApproachFixable({ mechanism: 'a:b' })), 'parked');
   assert.equal(dispositionOf(null), 'parked');
+});
+
+test('DISPOSITION: a Built outcome maps to the built state (green, PR deferred)', () => {
+  assert.equal(dispositionOf(Built({ checkpointRef: 'refs/mitosis/x/a', sha: 'abc1234' })), 'built');
 });
 
 test('SERIALIZE: two overlapping-lease units serialize across ticks but both reach Done', async () => {
@@ -332,6 +372,134 @@ test('IN-RUN MERGE POLL FAIL-SAFE: with the merge-watch reporting never-merged, 
   assert.equal(noPoll.polls.length, 0, 'the no-poll run runs zero poll cycles');
 });
 
+test('CONTINUOUS DRAIN: with the flag override, poll budget resets on merge progress so a chain deeper than maxCycles drains in one run', async () => {
+  const chainLength = 8;
+  const buildChainSpecs = () => Array.from({ length: chainLength }, (_, i) => ({
+    id: `u${i}`,
+    prereqs: i > 0 ? [`u${i - 1}`] : [],
+    fileScope: [`u${i}.mjs`],
+  }));
+  const runUnitThatShips = async (u) => (u.id === `u${chainLength - 1}`
+    ? Done({ ok: true })
+    : AwaitingApproval({ mspId: u.id, prUrl: `https://github.com/o/repo/pull/${u.id}` }));
+  const buildPoll = () => ({
+    maxCycles: 6,
+    watch: async () => ({ merged: true, mergedAt: '2026-07-16T00:00:00Z', readError: null }),
+  });
+
+  const drained = await runSchedule(buildChainSpecs(), runUnitThatShips, buildPoll(), { continuousDrain: true });
+  const byId = indexUnits(drained.units);
+  for (let i = 0; i < chainLength; i++) assert.equal(byId.get(`u${i}`).state, 'done', `u${i} drains under continuous drain`);
+
+  const stalled = await runSchedule(buildChainSpecs(), runUnitThatShips, buildPoll(), { continuousDrain: false });
+  const byId2 = indexUnits(stalled.units);
+  assert.ok([...byId2.values()].some((u) => u.state !== 'done'), 'without continuous drain the deep chain stalls at the monotonic poll ceiling');
+});
+
+test('CONTINUOUS DRAIN (streaming): with the flag override, poll budget resets on merge progress under the streaming scheduler so a chain deeper than maxCycles drains in one run', async () => {
+  const chainLength = 8;
+  const buildChainSpecs = () => Array.from({ length: chainLength }, (_, i) => ({
+    id: `u${i}`,
+    prereqs: i > 0 ? [`u${i - 1}`] : [],
+    fileScope: [`u${i}.mjs`],
+  }));
+  const runUnitThatShips = async (u) => (u.id === `u${chainLength - 1}`
+    ? Done({ ok: true })
+    : AwaitingApproval({ mspId: u.id, prUrl: `https://github.com/o/repo/pull/${u.id}` }));
+  const buildPoll = () => ({
+    maxCycles: 6,
+    watch: async () => ({ merged: true, mergedAt: '2026-07-16T00:00:00Z', readError: null }),
+  });
+
+  const drained = await runSchedule(buildChainSpecs(), runUnitThatShips, buildPoll(), { continuousDrain: true, streaming: true });
+  const byId = indexUnits(drained.units);
+  for (let i = 0; i < chainLength; i++) assert.equal(byId.get(`u${i}`).state, 'done', `u${i} drains under continuous drain (streaming)`);
+
+  const stalled = await runSchedule(buildChainSpecs(), runUnitThatShips, buildPoll(), { continuousDrain: false, streaming: true });
+  const byId2 = indexUnits(stalled.units);
+  assert.ok([...byId2.values()].some((u) => u.state !== 'done'), 'without continuous drain the deep chain stalls at the monotonic poll ceiling (streaming)');
+});
+
+function stalledPollSpecs() {
+  return [
+    { id: 'r0', fileScope: ['r0.mjs'] },
+    { id: 'r1', fileScope: ['r1.mjs'] },
+    { id: 'd0', prereqs: ['r0', 'r1'], fileScope: ['d0.mjs'] },
+  ];
+}
+
+const runUnitThatAwaits = async (u) => (u.id.startsWith('r')
+  ? AwaitingApproval({ mspId: u.id, prUrl: `https://github.com/o/repo/pull/${u.id === 'r0' ? '1' : '2'}` })
+  : Done({ ok: true }));
+
+const buildNeverMergingPoll = () => ({
+  maxCycles: 3,
+  watch: async () => ({ merged: false, mergedAt: null, readError: null }),
+  onMerged: async () => { throw new Error('onMerged must never fire when nothing merges'); },
+});
+
+test('MERGE-POLL EXHAUSTION UNDER CONTINUOUS DRAIN (tick): a stalled chain whose poll never merges persists remaining awaiting units as the explicit awaiting-merge disposition the shepherd owns, not a silent awaiting dangle', async () => {
+  const withoutDrain = await runSchedule(stalledPollSpecs(), runUnitThatAwaits, buildNeverMergingPoll());
+  const byIdWithout = indexUnits(withoutDrain.units);
+  assert.equal(byIdWithout.get('r0').state, 'awaiting', 'flag-off: poll exhaustion leaves the unit awaiting, byte-identical to today');
+  assert.equal(byIdWithout.get('r1').state, 'awaiting');
+
+  const withDrain = await runSchedule(stalledPollSpecs(), runUnitThatAwaits, buildNeverMergingPoll(), { continuousDrain: true });
+  const byIdWith = indexUnits(withDrain.units);
+  assert.equal(byIdWith.get('r0').state, 'awaiting-merge', 'under continuous drain, poll exhaustion persists an explicit awaiting-merge disposition instead of a silent awaiting dangle');
+  assert.equal(byIdWith.get('r1').state, 'awaiting-merge');
+  assert.equal(byIdWith.get('d0').state, 'planned', 'a unit that never reached awaiting is untouched by the exhaustion relabel');
+});
+
+test('MERGE-POLL EXHAUSTION UNDER CONTINUOUS DRAIN (streaming): a stalled chain whose poll never merges persists remaining awaiting units as the explicit awaiting-merge disposition under the streaming scheduler too', async () => {
+  const withoutDrain = await runSchedule(stalledPollSpecs(), runUnitThatAwaits, buildNeverMergingPoll(), { streaming: true });
+  const byIdWithout = indexUnits(withoutDrain.units);
+  assert.equal(byIdWithout.get('r0').state, 'awaiting', 'flag-off: poll exhaustion leaves the unit awaiting, byte-identical to today (streaming)');
+  assert.equal(byIdWithout.get('r1').state, 'awaiting');
+
+  const withDrain = await runSchedule(stalledPollSpecs(), runUnitThatAwaits, buildNeverMergingPoll(), { continuousDrain: true, streaming: true });
+  const byIdWith = indexUnits(withDrain.units);
+  assert.equal(byIdWith.get('r0').state, 'awaiting-merge', 'under continuous drain, poll exhaustion persists an explicit awaiting-merge disposition instead of a silent awaiting dangle (streaming)');
+  assert.equal(byIdWith.get('r1').state, 'awaiting-merge');
+  assert.equal(byIdWith.get('d0').state, 'planned', 'a unit that never reached awaiting is untouched by the exhaustion relabel (streaming)');
+});
+
+function buildFrontierSpecs(builtParentCount) {
+  const specs = [{ id: 'blocker', fileScope: ['blocker.mjs'] }];
+  for (let i = 0; i < builtParentCount; i += 1) specs.push({ id: `p${i}`, state: 'built', prereqs: ['blocker'], fileScope: [`p${i}.mjs`] });
+  specs.push({ id: 'child', prereqs: ['p0'], fileScope: ['child.mjs'] });
+  return specs;
+}
+
+const frontierRunUnit = async (u) => (u.id === 'blocker' ? NeedsHuman({ kind: 'grant', what: 'x' }) : Built({ checkpointRef: `refs/mitosis/x/${u.id}`, sha: 'abc1234' }));
+
+test('BUILD-DISPATCH WINDOW (tick): a build-ahead child is withheld while built-unmerged saturates W, and admitted once built-unmerged drops below W', async () => {
+  const saturated = await runSchedule(buildFrontierSpecs(3), frontierRunUnit, undefined, { frontierTrain: true, window: 3 });
+  const saturatedById = indexUnits(saturated.units);
+  assert.equal(saturatedById.get('child').state, 'planned', 'window saturated at 3/3 built-unmerged withholds the child from build-ahead dispatch');
+  assert.equal(saturatedById.get('p0').state, 'built', 'the saturating parents themselves stay built (never re-dispatched while their own prereq is unresolved)');
+
+  const underWindow = await runSchedule(buildFrontierSpecs(2), frontierRunUnit, undefined, { frontierTrain: true, window: 3 });
+  const underWindowById = indexUnits(underWindow.units);
+  assert.equal(underWindowById.get('child').state, 'built', 'with built-unmerged (2) under W (3), the child is admitted for build-ahead dispatch and itself reaches built');
+});
+
+test('BUILD-DISPATCH WINDOW: with FRONTIER_TRAIN_ENABLED off (no frontierTrain override), a child whose only prereq is built (not done) is never dispatched — byte-identical to today', async () => {
+  const { units } = await runSchedule(buildFrontierSpecs(1), frontierRunUnit, undefined, { window: 3 });
+  const byId = indexUnits(units);
+  assert.equal(byId.get('child').state, 'planned', 'without frontierTrain the window is never consulted and build-ahead dispatch never activates');
+});
+
+test('BUILD-DISPATCH WINDOW (streaming): the streaming scheduler applies the same AIMD window gate to build-ahead dispatch', async () => {
+  const saturated = await runSchedule(buildFrontierSpecs(3), frontierRunUnit, undefined, { streaming: true, frontierTrain: true, window: 3 });
+  const saturatedById = indexUnits(saturated.units);
+  assert.equal(saturatedById.get('child').state, 'planned', 'streaming: window saturated at 3/3 built-unmerged withholds the child');
+
+  const underWindow = await runSchedule(buildFrontierSpecs(2), frontierRunUnit, undefined, { streaming: true, frontierTrain: true, window: 3 });
+  const underWindowById = indexUnits(underWindow.units);
+  assert.equal(underWindowById.get('child').state, 'built', 'streaming: with built-unmerged (2) under W (3), the child is admitted and reaches built');
+});
+
 const drainMicrotasks = () => new Promise((resolve) => setImmediate(resolve));
 
 function gatedRunner() {
@@ -395,6 +563,10 @@ test('CRITICAL-PATH READY-SET ORDER: within a tick the ready-set dispatches the 
 
 test('STREAMING FLAG: the streaming-dispatch flag defaults OFF, so the shipped default scheduler stays the tick barrier until the flip is proven', () => {
   assert.equal(leasesModule.STREAMING_DISPATCH_ENABLED, false, 'STREAMING_DISPATCH_ENABLED must default false: tick remains the shipped default');
+});
+
+test('FRONTIER FLAG: the frontier-train flag defaults OFF, so mainline behavior is byte-identical until the flip is proven', () => {
+  assert.equal(leasesModule.FRONTIER_TRAIN_ENABLED, false, 'FRONTIER_TRAIN_ENABLED must default false: mainline behavior unchanged until the flip is proven');
 });
 
 test('STREAMING SAFETY + INTERLEAVE + WIDTH: under streaming a unit whose lease overlaps a RUNNING unit is not co-dispatched (lease held for the running duration, released on settle), a dependent launches the instant its own prereq settles while an independent sibling straggler is still running (which the tick barrier forbids), and the sibling roots exceed width 1.0', async () => {

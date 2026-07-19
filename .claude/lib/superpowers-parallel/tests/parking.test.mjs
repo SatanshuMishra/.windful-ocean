@@ -7,6 +7,7 @@ import {
   selectResumeUnits,
   selectResumeBuilt,
   selectPreservedBuilt,
+  descendantsToInvalidate,
 } from '../parking.mjs';
 import { mspContentHash } from '../recovery.mjs';
 import { checkpointRef } from '../checkpoint.mjs';
@@ -90,6 +91,22 @@ test('transitiveDependents: diamond graph parks every prereq-reachable dependent
     { id: 'sibling' },
   ]).msps;
   assert.deepEqual(transitiveDependents(msps, 'root'), ['left', 'right', 'join']);
+});
+
+test('descendantsToInvalidate: a clean verdict (the probe confirmed content-preserving) invalidates nothing', () => {
+  const manifest = manifestWith([
+    { id: 'root' }, { id: 'left', dependsOn: ['root'] }, { id: 'right', dependsOn: ['root'] },
+  ]);
+  assert.deepEqual(descendantsToInvalidate(manifest, 'root', { verdict: 'clean' }), []);
+});
+
+test('descendantsToInvalidate: any non-clean verdict (divergent / missing / indeterminate) resets exactly the true descendant set (never the whole suffix, never nothing)', () => {
+  const manifest = manifestWith([
+    { id: 'root' }, { id: 'left', dependsOn: ['root'] }, { id: 'right', dependsOn: ['root'] }, { id: 'sibling' },
+  ]);
+  for (const verdict of ['divergent', 'missing', 'indeterminate', undefined]) {
+    assert.deepEqual(descendantsToInvalidate(manifest, 'root', { verdict }), ['left', 'right'], `verdict=${String(verdict)} parks the true descendants`);
+  }
 });
 
 test('park: marks the blocked unit and its transitive dependents parked, writes one ParkRecord, returns a NEW manifest', () => {
