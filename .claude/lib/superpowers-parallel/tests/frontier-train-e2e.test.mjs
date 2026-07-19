@@ -197,6 +197,219 @@ function createFrontierAgent({ msps, shipResult, mergeWatch } = {}) {
   };
 }
 
+function multiRelaunchAgent({ reconcileResult, shipResult } = {}) {
+  const shepherd = shepherdAgent({ reconcileResult });
+  const frontier = createFrontierAgent({ msps: [], shipResult });
+  const labels = [];
+  const agent = async (prompt, opts = {}) => {
+    const label = opts.label || '';
+    labels.push(label);
+    const prefix = label.split(':')[0];
+    if (prefix === 'reconcile' || prefix === 'divergence-probe' || prefix === 'shepherd-restack' || prefix === 'shepherd-open') {
+      return shepherd.agent(prompt, opts);
+    }
+    return frontier(prompt, opts);
+  };
+  return { agent, labels };
+}
+
+function multiRelaunchCapturingAgent({ reconcileResult, probeResult, shipResult } = {}) {
+  const shepherd = shepherdAgent({ reconcileResult, probeResult });
+  const frontier = createFrontierAgent({ msps: [], shipResult });
+  const labels = [];
+  const prompts = new Map();
+  const agent = async (prompt, opts = {}) => {
+    const label = opts.label || '';
+    labels.push(label);
+    if (!prompts.has(label)) prompts.set(label, prompt);
+    const prefix = label.split(':')[0];
+    if (prefix === 'reconcile' || prefix === 'divergence-probe' || prefix === 'shepherd-restack' || prefix === 'shepherd-open') {
+      return shepherd.agent(prompt, opts);
+    }
+    return frontier(prompt, opts);
+  };
+  return { agent, labels, prompts };
+}
+
+test('C1 repro: relaunch of a spec whose planned units are deeper than the built frontier still BUILDS those deeper units instead of freezing in reconcile-only mode', async () => {
+  const msps = [
+    manifestMsp('l1', { status: 'shipped', builtSha: hexSha('l1'), prUrl: 'https://example.test/pr/l1', mergedAt: '2026-07-10T00:00:00Z' }),
+    manifestMsp('l2', { status: 'built', builtSha: hexSha('l2'), dependsOn: ['l1'] }),
+    manifestMsp('l3', { status: 'planned', dependsOn: ['l2'] }),
+  ];
+  const reconcileResult = {
+    manifestFound: true,
+    manifestRaw: frontierManifest({ msps, window: 3 }),
+    specContentHash: SPEC_CONTENT_HASH,
+    mergedPRs: [mergedPr('l1', { mergedSha: hexSha('l1') })],
+    openPRs: [],
+    checkpointRefPages: checkpointPages(['l2']),
+  };
+  const shipResult = (id) => (id === 'l2'
+    ? { merged: false, awaitingApproval: true, prUrl: 'https://github.com/o/repo/pull/2', receiptsPass: true, d6Pass: true, detail: 'CI green; PR open and awaiting human approval to merge' }
+    : null);
+  const { agent, labels } = multiRelaunchAgent({ reconcileResult, shipResult });
+  const { resultPromise, logLines } = invoke(runOn, buildInput({ mergePolicy: undefined }), agent);
+  await resultPromise;
+
+  assert.ok(labels.includes('plan:l3'), 'l3 is PLANNED and one layer deeper than the built frontier (l2) — a relaunch must still Plan/build it, not silently freeze in reconcile-only mode forever');
+  assert.ok(labels.includes('branch:l3'), 'l3 reaches Branch (frontier-compose stacking onto its still-unmerged parent l2), proving the build pipeline actually ran for the deeper unit');
+  assert.ok(!labels.includes('decompose'), 'the deeper unit is built by reusing the reconciled manifest, not by a wasteful fresh Decompose');
+  assert.ok(logLines.some((l) => /mitosis\[l3\]:.*built ahead of unmerged parent/.test(l)), 'l3 builds ahead of its still-unmerged parent l2, extending the frontier past the previously-built layer instead of stopping there forever');
+});
+
+test('C1 frozen-PR: on a build-path relaunch a built unit with an OPEN, unmerged PR is seeded awaiting approval — it is NEVER re-shipped or force-pushed, and its still-unmerged dependent does not open a PR early', async () => {
+  const msps = [
+    manifestMsp('l1', { status: 'shipped', builtSha: hexSha('l1'), prUrl: 'https://example.test/pr/l1', mergedAt: '2026-07-10T00:00:00Z' }),
+    manifestMsp('l2', { status: 'built', builtSha: hexSha('l2'), dependsOn: ['l1'] }),
+    manifestMsp('l3', { status: 'planned', dependsOn: ['l2'] }),
+  ];
+  const reconcileResult = {
+    manifestFound: true,
+    manifestRaw: frontierManifest({ msps, window: 3 }),
+    specContentHash: SPEC_CONTENT_HASH,
+    mergedPRs: [mergedPr('l1', { mergedSha: hexSha('l1') })],
+    openPRs: [{ headRefName: `${SOURCE_PREFIX}/l2-integration`, reviewDecision: null, url: 'https://github.com/o/repo/pull/2' }],
+    checkpointRefPages: checkpointPages(['l2']),
+  };
+  const { agent, labels } = multiRelaunchAgent({ reconcileResult });
+  const { resultPromise } = invoke(runOn, buildInput({ mergePolicy: undefined }), agent);
+  const result = await resultPromise;
+
+  assert.ok(!labels.includes('ship:l2'), 'the published, unmerged l2 is NEVER re-dispatched to ship (no rebase + --force-with-lease rewrite of the frozen published branch)');
+  assert.ok(!labels.includes('restore:l2'), 'the published l2 is never restored-and-reshipped from its checkpoint');
+  assert.deepEqual(result.awaitingApproval.map((a) => a.mspId), ['l2'], 'the frozen open PR for l2 is surfaced as awaiting human approval (with its PR url), not re-shipped');
+  assert.equal(result.awaitingApproval.find((a) => a.mspId === 'l2').prUrl, 'https://github.com/o/repo/pull/2', 'the seeded awaiting-approval entry carries the open PR url from the reconcile probe');
+  assert.ok(!result.shipped.some((s) => s.mspId === 'l2'), 'l2 is not shipped by the engine — its merge stays human-gated');
+  assert.ok(!labels.includes('branch:l3') || !result.shipped.some((s) => s.mspId === 'l3'), 'l3 never ships ahead of its unmerged parent l2 (PR-open stays deferred)');
+});
+
+test('H1 repro: a live APPROVED review mid-run must widen the frozen launch-time build-ahead window, not leave it snapshotted for the whole run', async () => {
+  const msps = [
+    mspSpec('r', {}),
+    mspSpec('a', { dependsOn: ['r'] }),
+    mspSpec('b', { dependsOn: ['a'] }),
+    mspSpec('c', { dependsOn: ['b'] }),
+    mspSpec('d', { dependsOn: ['c'] }),
+  ];
+  const base = createFrontierAgent({
+    msps,
+    shipResult: (id) => (id === 'r'
+      ? { merged: false, awaitingApproval: true, prUrl: 'https://github.com/o/repo/pull/1', receiptsPass: true, d6Pass: true, detail: 'CI green; PR open and awaiting human approval to merge' }
+      : null),
+    mergeWatch: () => ({ merged: false, mergedAt: null, readError: null }),
+  });
+  const agent = async (prompt, opts = {}) => {
+    const label = opts.label || '';
+    if (label === 'review-decision:r') return { reviewDecision: 'APPROVED', readError: null };
+    return base(prompt, opts);
+  };
+  const { resultPromise, logLines } = invoke(runOn, buildInput({ mergePolicy: undefined }), agent);
+  await resultPromise;
+
+  assert.ok(logLines.some((l) => /mitosis\[a\]:.*built ahead of unmerged parent/.test(l)), 'sanity: a builds ahead of its awaiting parent r, filling window slot 1 of 3');
+  assert.ok(logLines.some((l) => /mitosis\[b\]:.*built ahead of unmerged parent/.test(l)), 'sanity: b builds ahead, filling window slot 2 of 3');
+  assert.ok(logLines.some((l) => /mitosis\[c\]:.*built ahead of unmerged parent/.test(l)), 'sanity: c builds ahead, filling window slot 3 of 3 (the launch-time floor)');
+  assert.ok(logLines.some((l) => /mitosis\[d\]:.*built ahead of unmerged parent/.test(l)), 'd must be admitted once the mid-run APPROVED review widens W past 3 — today runSchedule snapshots the window once at launch, so the live widening is invisible to the running scheduler and d never builds');
+});
+
+test('H2 repro: a live CHANGES_REQUESTED review on an already-open deferred PR must halve the AIMD window across a shepherd relaunch, not leave it unchanged', async () => {
+  const msps = [
+    manifestMsp('l1a', { status: 'shipped', builtSha: hexSha('l1a'), prUrl: 'https://example.test/pr/l1a', mergedAt: '2026-07-10T00:00:00Z' }),
+    manifestMsp('l2', { status: 'built', builtSha: hexSha('l2'), dependsOn: ['l1a'] }),
+  ];
+  const reconcileResult = {
+    manifestFound: true,
+    manifestRaw: frontierManifest({ msps, window: 5 }),
+    specContentHash: SPEC_CONTENT_HASH,
+    mergedPRs: [mergedPr('l1a', { mergedSha: hexSha('l1a') })],
+    openPRs: [{ headRefName: `${SOURCE_PREFIX}/l2-integration`, reviewDecision: 'CHANGES_REQUESTED' }],
+    checkpointRefPages: checkpointPages(['l2']),
+  };
+  const { agent, prompts } = shepherdAgent({ reconcileResult });
+  const { resultPromise, logLines } = invoke(runOn, buildInput(), agent);
+  await resultPromise;
+
+  assert.match(prompts.get('window-checkpoint:shepherd'), /\{"kind":"window","size":3\}/, 'W must halve from the persisted 5 to 3 (ceil(5/2), floor-clamped) in response to the live CHANGES_REQUESTED on the open PR for l2');
+  assert.ok(logLines.some((l) => /AIMD window W=3/.test(l)), 'the shepherd must log the contracted window W=3, not the untouched persisted W=5 -- buildReconcileLiveSignals hardcodes events:[], so reviewDecision is silently discarded');
+});
+
+test('H2 dedup + foreign filter: two open PRs on the same run branch reading APPROVED yield exactly one +1 window event, and a foreign (non-run) open PR yields none', async () => {
+  const msps = [
+    manifestMsp('l1a', { status: 'shipped', builtSha: hexSha('l1a'), prUrl: 'https://example.test/pr/l1a', mergedAt: '2026-07-10T00:00:00Z' }),
+    manifestMsp('l2', { status: 'built', builtSha: hexSha('l2'), dependsOn: ['l1a'] }),
+  ];
+  const reconcileResult = {
+    manifestFound: true,
+    manifestRaw: frontierManifest({ msps, window: 5 }),
+    specContentHash: SPEC_CONTENT_HASH,
+    mergedPRs: [mergedPr('l1a', { mergedSha: hexSha('l1a') })],
+    openPRs: [
+      { headRefName: `${SOURCE_PREFIX}/l2-integration`, reviewDecision: 'APPROVED' },
+      { headRefName: `${SOURCE_PREFIX}/l2-integration`, reviewDecision: 'APPROVED' },
+      { headRefName: 'someones-foreign-human-branch', reviewDecision: 'CHANGES_REQUESTED' },
+    ],
+    checkpointRefPages: checkpointPages(['l2']),
+  };
+  const { agent, prompts } = shepherdAgent({ reconcileResult });
+  const { resultPromise, logLines } = invoke(runOn, buildInput(), agent);
+  await resultPromise;
+
+  assert.match(prompts.get('window-checkpoint:shepherd'), /\{"kind":"window","size":6\}/, 'the duplicate APPROVED review on the same run branch counts once (+1 -> 6), never twice (7); the foreign human PR resolves to no run MSP and contributes no event, so it never contracts W');
+  assert.ok(logLines.some((l) => /AIMD window W=6/.test(l)), 'the shepherd logs the single-incremented window W=6');
+});
+
+function promptCapturingAgent(base) {
+  const prompts = new Map();
+  const agent = async (prompt, opts = {}) => {
+    const label = opts.label || '';
+    if (!prompts.has(label)) prompts.set(label, prompt);
+    return base(prompt, opts);
+  };
+  return { agent, prompts };
+}
+
+test('H3: an in-run dependent whose every parent has already merged takes the plain branch-prep path (no frontier-compose, no parent-ref fetch), so a missing parent checkpoint ref can never park it', async () => {
+  const msps = [mspSpec('p', {}), mspSpec('c', { dependsOn: ['p'] })];
+  const { agent, prompts } = promptCapturingAgent(createFrontierAgent({ msps }));
+  const { resultPromise } = invoke(runOn, buildInput(), agent);
+  const result = await resultPromise;
+
+  const branchPrompt = prompts.get('branch:c');
+  assert.ok(branchPrompt, 'c reaches the Branch stage');
+  assert.match(branchPrompt, /branch-prep stage/, 'c takes the plain branch-prep path because its only parent p has already merged to the base');
+  assert.ok(!/branch-compose stage/.test(branchPrompt), 'no frontier-compose runs for an all-parents-merged dependent — the merged parent content is already on the base');
+  assert.ok(!/ordered parent checkpoint refs are/.test(branchPrompt), 'the all-merged dependent never fetches a parent checkpoint ref, so a missing/soft checkpoint hint can never park it');
+  assert.ok(result.shipped.some((s) => s.mspId === 'c'), 'c ships cleanly on the already-merged base');
+});
+
+test('H3 mixed parents: a build-path dependent with one merged and one still-unmerged parent composes ONLY the unmerged parent checkpoint ref, never restacking the already-merged parent whose content is already on the base', async () => {
+  const msps = [
+    manifestMsp('pm', { status: 'shipped', builtSha: hexSha('pm'), prUrl: 'https://example.test/pr/pm', mergedAt: '2026-07-10T00:00:00Z' }),
+    manifestMsp('pu', { status: 'built', builtSha: hexSha('pu') }),
+    manifestMsp('c', { status: 'planned', dependsOn: ['pm', 'pu'] }),
+  ];
+  const reconcileResult = {
+    manifestFound: true,
+    manifestRaw: frontierManifest({ msps, window: 3 }),
+    specContentHash: SPEC_CONTENT_HASH,
+    mergedPRs: [mergedPr('pm', { mergedSha: hexSha('pm') })],
+    openPRs: [],
+    checkpointRefPages: checkpointPages(['pu']),
+  };
+  const shipResult = (id) => (id === 'pu'
+    ? { merged: false, awaitingApproval: true, prUrl: 'https://github.com/o/repo/pull/9', receiptsPass: true, d6Pass: true, detail: 'CI green; PR open and awaiting human approval to merge' }
+    : null);
+  const { agent, prompts } = multiRelaunchCapturingAgent({ reconcileResult, shipResult });
+  const { resultPromise } = invoke(runOn, buildInput({ mergePolicy: undefined }), agent);
+  await resultPromise;
+
+  const branchPrompt = prompts.get('branch:c');
+  assert.ok(branchPrompt && /branch-compose stage/.test(branchPrompt), 'c composes because its parent pu is still unmerged (built ahead)');
+  assert.ok(branchPrompt.includes(`refs/mitosis/${RUN_ID}/pu`), 'the still-unmerged parent pu checkpoint ref IS in the compose refs list');
+  assert.ok(!branchPrompt.includes(`refs/mitosis/${RUN_ID}/pm`), 'the already-merged parent pm is NOT restacked — its content is already on the advanced base, so only pu is composed');
+});
+
 test('bullet 5 + 2: reconcile-only shepherd opens the deferred next-layer PR only after every parent has merged, carries W across the relaunch, and runs no decompose/plan/execute', async () => {
   const msps = [
     manifestMsp('l1a', { status: 'shipped', builtSha: hexSha('l1a'), prUrl: 'https://example.test/pr/l1a', mergedAt: '2026-07-10T00:00:00Z' }),
@@ -264,7 +477,7 @@ test('bullet 3: restack-on-merge — a child with one merged and one still-unmer
   assert.match(restackPrompt, /refs\/mitosis\/[a-f0-9]{8}\/l1b/, 'the restack re-stacks the still-unmerged parent l1b checkpoint ref');
 });
 
-test('bullet 4a: a divergent parent merge — the probe reports non-empty changed paths in the parent scope — resets exactly the true descendants and flags a build run; no PR opened for the invalidated subtree', async () => {
+test('bullet 4a / H4: a divergent parent merge resets exactly its true descendants — they are durably parked at stage plan with dropped checkpoint provenance and REBUILD from plan on this same relaunch, never restored from the condemned checkpoint', async () => {
   const msps = [
     manifestMsp('l1a', { status: 'shipped', builtSha: hexSha('l1a-built'), prUrl: 'https://example.test/pr/l1a', mergedAt: '2026-07-10T00:00:00Z' }),
     manifestMsp('l1b', { status: 'shipped', builtSha: hexSha('l1b'), prUrl: 'https://example.test/pr/l1b', mergedAt: '2026-07-10T00:00:00Z' }),
@@ -280,15 +493,39 @@ test('bullet 4a: a divergent parent merge — the probe reports non-empty change
     checkpointRefPages: checkpointPages(['l2', 'l3']),
   };
   const probeResult = (id) => (id === 'l1a' ? { paths: ['scope/l1a/reviewer-amended.txt'], error: null } : { paths: [], error: null });
-  const { agent, labels } = shepherdAgent({ reconcileResult, probeResult });
+  const { agent, labels, prompts } = multiRelaunchCapturingAgent({ reconcileResult, probeResult });
   const { resultPromise, logLines } = invoke(runOn, buildInput(), agent);
   const result = await resultPromise;
 
-  assert.deepEqual(result.parked.map((p) => p.mspId).sort(), ['l2', 'l3'], 'a probe-confirmed divergent l1a merge resets exactly its true descendants l2 and l3 (l1b, probed clean, is untouched)');
-  assert.ok(!labels.includes('shepherd-open:l2'), 'the invalidated l2 does NOT open a PR — its build is reset');
-  assert.ok(labels.includes('park-checkpoint:l2') && labels.includes('park-checkpoint:l3'), 'the reset subtree is durably parked');
-  assert.ok(logLines.some((l) => /BUILD RUN NEEDED/.test(l)), 'the shepherd flags that a follow-up build run is needed (flag only, no rebuild)');
-  assert.deepEqual(result.shipped.map((s) => s.mspId).sort(), ['l1a', 'l1b'], 'the merged parents remain shipped');
+  assert.ok(labels.includes('park-checkpoint:l2') && labels.includes('park-checkpoint:l3'), 'the probe-confirmed divergent l1a merge resets exactly its true descendants l2 and l3 (l1b, probed clean, is untouched) and durably parks them');
+  assert.match(prompts.get('park-checkpoint:l2'), /"stage":"plan"/, 'the invalidation park records resumePoint stage:plan (H4) so the resumed unit re-plans rather than shipping condemned content at stage ship');
+  assert.ok(!/refs\/mitosis\//.test(prompts.get('park-checkpoint:l2')), 'the invalidation park drops its checkpoint provenance — its resumePoint ref is the base branch, not the condemned durable checkpoint ref');
+  assert.ok(logLines.some((l) => /BUILD RUN NEEDED/.test(l)), 'the reconcile advance flags that a follow-up build run is needed for the reset subtree');
+  assert.ok(labels.includes('plan:l2') && labels.includes('plan:l3'), 'the reset subtree REBUILDS from plan on this same relaunch (C1 routes parked units into the build path) instead of freezing forever in reconcile-only');
+  assert.ok(!labels.includes('restore:l2') && !labels.includes('restore:l3'), 'the reset units are NEVER restored from their condemned durable checkpoints (H4: no ship-resume of invalidated content)');
+  assert.deepEqual(result.shipped.map((s) => s.mspId).filter((id) => id === 'l1a' || id === 'l1b').sort(), ['l1a', 'l1b'], 'the merged parents remain shipped');
+});
+
+test('H4 resurrection guard: a folded unit already parked at stage plan, whose durable checkpoint ref still exists, stays parked and resumes at plan on the next relaunch — it is NEVER flipped back to built and ship-restored from the condemned checkpoint', async () => {
+  const msps = [
+    manifestMsp('p', { status: 'shipped', builtSha: hexSha('p'), prUrl: 'https://example.test/pr/p', mergedAt: '2026-07-10T00:00:00Z' }),
+    manifestMsp('d', { status: 'parked', builtSha: hexSha('d'), dependsOn: ['p'], resumePoint: { branch: `${SOURCE_PREFIX}/d-integration`, ref: BASE_BRANCH, stage: 'plan' } }),
+  ];
+  const reconcileResult = {
+    manifestFound: true,
+    manifestRaw: frontierManifest({ msps, window: 3 }),
+    specContentHash: SPEC_CONTENT_HASH,
+    mergedPRs: [mergedPr('p', { mergedSha: hexSha('p') })],
+    openPRs: [],
+    checkpointRefPages: checkpointPages(['d']),
+  };
+  const { agent, labels } = multiRelaunchAgent({ reconcileResult });
+  const { resultPromise } = invoke(runOn, buildInput(), agent);
+  await resultPromise;
+
+  assert.ok(labels.includes('plan:d'), 'the folded parked+stage:plan unit resumes at plan and rebuilds — the resurrection guard kept it parked despite its still-live checkpoint ref');
+  assert.ok(!labels.includes('restore:d'), 'd is NEVER restored from its condemned durable checkpoint (the reconcile reduce did not flip parked+plan back to built)');
+  assert.ok(!labels.includes('shepherd-open:d') && !labels.includes('shepherd-restack:d'), 'd is never handled as a built unit by the shepherd (no ship-stage resume)');
 });
 
 test('bullet 4b: a squash-rewritten merge on a STILL-BUILT parent whose content the probe confirms clean advances the multi-layer frontier — opens the deferred grandchild PR, parks nothing, and memoizes each newly-merged parent ship delta', async () => {
@@ -377,9 +614,9 @@ test('security fix 1: a merged parent whose builtSha or mergedSha is a leading-d
     openPRs: [],
     checkpointRefPages: checkpointPages(['ca', 'cb', 'cc']),
   };
-  const { agent, labels, prompts } = shepherdAgent({ reconcileResult });
+  const { agent, labels, prompts } = multiRelaunchCapturingAgent({ reconcileResult });
   const { resultPromise } = invoke(runOn, buildInput(), agent);
-  const result = await resultPromise;
+  await resultPromise;
 
   assert.ok(!labels.includes('divergence-probe:pa'), 'pa (mergedSha is a leading-dash token) is never dispatched a probe');
   assert.ok(!labels.includes('divergence-probe:pb'), 'pb (builtSha is a leading-dash token) is never dispatched a probe');
@@ -387,7 +624,7 @@ test('security fix 1: a merged parent whose builtSha or mergedSha is a leading-d
     assert.ok(!prompt.includes('--output=/tmp/pwn'), 'the raw --output=/tmp/pwn token never reaches a dispatched git probe command');
     assert.ok(!prompt.includes('--flagpwn'), 'the raw --flagpwn token never reaches a dispatched git probe command');
   }
-  assert.deepEqual(result.parked.map((p) => p.mspId).sort(), ['ca', 'cb'], 'both descendants of the bad-SHA parents fail-closed to a PARK');
+  assert.ok(labels.includes('park-checkpoint:ca') && labels.includes('park-checkpoint:cb'), 'both descendants of the bad-SHA parents fail-closed to a durable reset+park (the fail-closed indeterminate verdict invalidates their build)');
   assert.ok(labels.includes('divergence-probe:pc'), 'the well-formed parent pc IS probed');
   assert.match(prompts.get('divergence-probe:pc'), /diff --name-only --end-of-options /, 'the emitted probe inserts --end-of-options before the two revisions');
 });
@@ -405,12 +642,12 @@ test('security fix 2: a merged parent whose fileScope carries a pathspec-magic e
     openPRs: [],
     checkpointRefPages: checkpointPages(['cm']),
   };
-  const { agent, labels } = shepherdAgent({ reconcileResult });
+  const { agent, labels } = multiRelaunchCapturingAgent({ reconcileResult });
   const { resultPromise } = invoke(runOn, buildInput(), agent);
-  const result = await resultPromise;
+  await resultPromise;
 
   assert.ok(!labels.includes('divergence-probe:pm'), 'no probe is dispatched for a pathspec-magic fileScope parent');
-  assert.deepEqual(result.parked.map((p) => p.mspId), ['cm'], 'the built descendant fail-closed to a PARK instead of a trusting clean');
+  assert.ok(labels.includes('park-checkpoint:cm'), 'the built descendant fail-closed to a durable reset+park instead of a trusting clean');
 });
 
 test('robustness fix 4: a top-level throw from the divergence-probe dispatch degrades gracefully — the need-keyed parent parks its built descendant and the reconcile-only run does NOT reject', async () => {
@@ -427,10 +664,10 @@ test('robustness fix 4: a top-level throw from the divergence-probe dispatch deg
     checkpointRefPages: checkpointPages(['cx']),
   };
   const probeResult = () => { throw { nonError: true }; };
-  const { agent } = shepherdAgent({ reconcileResult, probeResult });
+  const { agent, labels } = multiRelaunchCapturingAgent({ reconcileResult, probeResult });
   const { resultPromise, logLines } = invoke(runOn, buildInput(), agent);
-  const result = await resultPromise;
+  await resultPromise;
 
-  assert.deepEqual(result.parked.map((p) => p.mspId), ['cx'], 'the need-keyed parent parks its built descendant when the probe dispatch throws at the top level');
+  assert.ok(labels.includes('park-checkpoint:cx'), 'the need-keyed parent fail-closes to a durable reset+park of its built descendant when the probe dispatch throws at the top level');
   assert.ok(logLines.some((l) => /divergence-probe dispatch threw/.test(l)), 'the top-level backstop logs the degraded probe dispatch and continues the run');
 });

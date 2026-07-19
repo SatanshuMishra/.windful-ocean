@@ -1284,6 +1284,7 @@ const RECONCILE_SCHEMA = {
         properties: {
           headRefName: { type: 'string' },
           reviewDecision: { type: ['string', 'null'] },
+          url: { type: ['string', 'null'] },
         },
       },
     },
@@ -1977,7 +1978,8 @@ async function runScheduleTick(specs, runUnit, poll, windowSize) {
   const maxSteps = units.length * (maxPollCycles + 2) + 1;
   let pollsUsed = 0;
   for (let step = 0; step < maxSteps; step++) {
-    const { dispatch } = planTick(units, windowSize);
+    const w = typeof windowSize === 'function' ? windowSize() : windowSize;
+    const { dispatch } = planTick(units, w);
     if (dispatch.length > 0) {
       ticks.push(dispatch);
       units = markDispatched(units, dispatch);
@@ -2042,7 +2044,8 @@ async function runScheduleStreaming(specs, runUnit, poll, windowSize) {
   let liveLeases = new Map();
   const running = new Map();
   for (let step = 0; step < maxSteps; step++) {
-    const dispatch = dispatchableStreaming(units, liveLeases, windowSize);
+    const w = typeof windowSize === 'function' ? windowSize() : windowSize;
+    const dispatch = dispatchableStreaming(units, liveLeases, w);
     if (dispatch.length > 0) {
       ticks.push(dispatch);
       units = markDispatched(units, dispatch);
@@ -2086,7 +2089,7 @@ const STREAMING_DISPATCH_ENABLED = false;
 
 async function runSchedule(specs, runUnit, poll, opts) {
   const streaming = opts && typeof opts.streaming === 'boolean' ? opts.streaming : STREAMING_DISPATCH_ENABLED;
-  const windowSize = opts && Number.isInteger(opts.window) ? opts.window : undefined;
+  const windowSize = opts && (Number.isInteger(opts.window) || typeof opts.window === 'function') ? opts.window : undefined;
   return streaming
     ? runScheduleStreaming(specs, runUnit, poll, windowSize)
     : runScheduleTick(specs, runUnit, poll, windowSize);
@@ -2597,8 +2600,13 @@ function mergePaginated(pages) {
   return out;
 }
 
-function shouldReconcileOnly({ isRelaunch, specByteIdentical, hasFrontierState } = {}) {
-  return isRelaunch === true && specByteIdentical === true && hasFrontierState === true;
+function shouldReconcileOnly({ isRelaunch, specByteIdentical, hasFrontierState, buildableWorkRemains } = {}) {
+  return isRelaunch === true && specByteIdentical === true && hasFrontierState === true && buildableWorkRemains === false;
+}
+
+function hasBuildableWork(manifest) {
+  if (!manifest || typeof manifest !== 'object' || Array.isArray(manifest) || !Array.isArray(manifest.msps)) return false;
+  return manifest.msps.some((m) => m && typeof m === 'object' && m.status !== 'built' && m.status !== 'shipped');
 }
 
 function assembleDivergenceVerdicts(manifest, live = {}) {
@@ -2669,12 +2677,19 @@ function buildReconcileLiveSignals(recon, reconciledShipped, sourcePrefix) {
     if (typeof pr.mergedSha === 'string' && pr.mergedSha.length > 0) mergedShas[id] = pr.mergedSha;
   }
   const published = [];
+  const events = [];
+  const seenReview = new Set();
   for (const pr of openPRs) {
     if (pr === null || typeof pr !== 'object') continue;
     const id = branchToMspId(pr.headRefName, sourcePrefix);
-    if (id !== null) published.push(id);
+    if (id === null) continue;
+    published.push(id);
+    if (seenReview.has(id)) continue;
+    seenReview.add(id);
+    if (pr.reviewDecision === 'APPROVED') events.push('approved');
+    else if (pr.reviewDecision === 'CHANGES_REQUESTED') events.push('changes-requested');
   }
-  return { merged: [...reconciledShipped], mergedShas, published, events: [] };
+  return { merged: [...reconciledShipped], mergedShas, published, events };
 }
 
 const SHA_HEX_PATTERN = /^[0-9a-f]{7,64}$/i;
@@ -3373,8 +3388,8 @@ try {
       `3. For diagnostics only you MAY run \`git log origin/${baseBranch}\` to observe recent base history; it does not affect the returned object.\n` +
       `4. Compute a content fingerprint of the spec so the engine can detect an in-place spec edit since the manifest was recorded: run \`shasum -a 256 ${spec}\` and return ONLY the leading 64-character hex field as specContentHash (a string). If the spec file cannot be read, return specContentHash=null.\n` +
       `5. List the DURABLE mitosis checkpoint refs so the engine can reconcile built-but-unmerged work against them: run \`git -C ${repoRoot} ls-remote origin 'refs/mitosis/*'\`. This is the authoritative record of which units were durably built on a prior run. Capture EVERY output line in full (each line is \`<sha>\\t<ref>\`), returning them COMPLETELY with no truncation as checkpointRefPages: an array of pages where each page is an array of the raw line strings (return a single page holding all lines; use additional pages only if you had to fetch the listing in multiple passes). Return checkpointRefPages=[] (an empty array) if there is no remote or no such ref. Return the lines verbatim; do NOT parse, filter, or alter them — the engine parses them.\n\n` +
-      `6. List the pull requests still OPEN against the base so the shepherd can observe live review state, pinned to the target slug: \`gh pr list -R "$(cd ${repoRoot} && gh repo view --json nameWithOwner -q .nameWithOwner)" --state open --base ${baseBranch} --json headRefName,reviewDecision\`. Return that array verbatim as openPRs (an empty array if none); report each reviewDecision field exactly as gh returns it (e.g. "APPROVED", "CHANGES_REQUESTED", "REVIEW_REQUIRED") or null if absent.\n` +
-      `Return ONLY the structured object: { manifestFound, manifestRaw, mergedPRs: [ { headRefName, url, mergedAt, mergedSha } ], specContentHash, checkpointRefPages: [ [ "<sha>\\t<ref>" ] ], openPRs: [ { headRefName, reviewDecision } ], ownerRepo, repoHost }.`,
+      `6. List the pull requests still OPEN against the base so the shepherd can observe live review state, pinned to the target slug: \`gh pr list -R "$(cd ${repoRoot} && gh repo view --json nameWithOwner -q .nameWithOwner)" --state open --base ${baseBranch} --json headRefName,reviewDecision,url\`. Return that array verbatim as openPRs (an empty array if none); report each reviewDecision field exactly as gh returns it (e.g. "APPROVED", "CHANGES_REQUESTED", "REVIEW_REQUIRED") or null if absent, and report each PR's url verbatim so the engine can surface a frozen, still-open PR as awaiting human approval.\n` +
+      `Return ONLY the structured object: { manifestFound, manifestRaw, mergedPRs: [ { headRefName, url, mergedAt, mergedSha } ], specContentHash, checkpointRefPages: [ [ "<sha>\\t<ref>" ] ], openPRs: [ { headRefName, reviewDecision, url } ], ownerRepo, repoHost }.`,
       { agentType: 'implementer', schema: RECONCILE_SCHEMA, label: 'reconcile', phase: 'Reconcile', model: models.reconciler || models.shipper || 'sonnet' }
     ),
     { unitId: 'reconcile', stage: 'reconcile', resetRef: null, worktree: null, task: 'inspect durable run state and the already-merged set', ...makeRemediation({ unitId: 'reconcile', stage: 'reconcile', task: 'inspect durable run state and the already-merged set', schema: RECONCILE_SCHEMA, agentType: 'implementer', phase: 'Reconcile' }) },
@@ -3417,10 +3432,11 @@ const shippedFoldedManifest = reconciledMergedIds.reduce((mani, mspId) => {
   const meta = reconciledShippedMeta.get(mspId) || null;
   return applyShipTransition(mani, { mspId, prUrl: meta ? meta.prUrl : null, mergedAt: meta ? meta.mergedAt : null, title: null, rationale: null });
 }, priorManifest);
-const reconciledManifest = builtUnits
+let reconciledManifest = builtUnits
   .filter((unitId) => manifestUnitIds.has(unitId))
   .reduce((mani, unitId) => {
     const existing = mani.msps.find((m) => m.id === unitId);
+    if (existing && existing.status === 'parked' && existing.resumePoint && existing.resumePoint.stage === 'plan') return mani;
     return applyBuiltTransition(mani, {
       unitId,
       checkpointRef: checkpointRef(logicalRunId, unitId),
@@ -3442,20 +3458,51 @@ if (legacyModelKeys.length > 0) {
 }
 const reuse = isRelaunch ? evaluateManifestReuse(reconciledManifest, observedSpecHash) : { reusable: false };
 const reusable = reuse.reusable;
-const reconcileOnlyMode = shouldReconcileOnly({ isRelaunch, specByteIdentical: reusable, hasFrontierState: builtUnits.length > 0 });
-if (reconcileOnlyMode) {
+let relaunchAdvance = null;
+if (isRelaunch && reusable && builtUnits.length > 0) {
   const baseLiveSignals = buildReconcileLiveSignals(recon, reconciledShipped, sourcePrefix);
   let divergenceProbes;
   try {
     divergenceProbes = await runDivergenceProbes(reconciledManifest, baseLiveSignals.merged, baseLiveSignals.mergedShas);
   } catch (err) {
     divergenceProbes = {};
-    log(`mitosis: reconcile-only shepherd — divergence-probe dispatch threw (${clean(err.message)}); treating every need-keyed merged parent as indeterminate so its built descendants park, and continuing the run`);
+    log(`mitosis: reconcile — divergence-probe dispatch threw (${clean(err.message)}); treating every need-keyed merged parent as indeterminate so its built descendants park, and continuing the run`);
   }
   const liveSignals = { ...baseLiveSignals, divergenceProbes };
   const advance = planReconcile(reconciledManifest, liveSignals);
-  log(`mitosis: reconcile-only shepherd — advancing the merge frontier without decompose or rebuild: ${advance.toOpen.length} PR(s) to open (${advance.toOpen.join(', ') || 'none'}), ${advance.toRestack.length} built branch(es) to restack (${advance.toRestack.join(', ') || 'none'}), ${advance.toParkSubtree.length} unit(s) to park on divergent-invalidation (${advance.toParkSubtree.join(', ') || 'none'})${advance.buildRunNeeded ? ' — BUILD RUN NEEDED' : ''}; AIMD window W=${advance.nextW}`);
-  return runReconcileOnlyAdvance(advance, { manifest: reconciledManifest, reconciledShippedMeta, sourcePrefix, baseBranch, repoRoot, logicalRunId, merged: liveSignals.merged, newlyMergedIds });
+  relaunchAdvance = advance;
+  for (const id of advance.toParkSubtree) {
+    const parkRecord = ParkRecord({
+      unitId: id,
+      stage: 'plan',
+      diagnosis: `${id} was invalidated by a divergent parent merge (the parent merged with content that differs from the tip its subtree built on); its build is reset and it will rebuild from plan`,
+      request: { kind: 'approve-decision', what: `${id} invalidated by a divergent parent merge; rebuild required` },
+      remediation: null,
+      resumePoint: { branch: `${sourcePrefix}/${id}-integration`, ref: baseBranch, stage: 'plan' },
+      triedSet: [],
+      dependents: transitiveDependents(reconciledManifest.msps, id),
+    });
+    try {
+      await persistParkCheckpoint(parkRecord);
+    } catch (err) {
+      log(`mitosis[${id}]: reconcile — durable park checkpoint threw (${clean(err.message)}); continuing so one failed write never crashes the run`);
+    }
+    log(`mitosis[${id}]: reconcile — RESET by divergent-invalidation; checkpoint provenance dropped, will rebuild from plan`);
+  }
+  const parkSubtreeSet = new Set(advance.toParkSubtree);
+  if (parkSubtreeSet.size > 0) {
+    reconciledManifest = {
+      ...reconciledManifest,
+      msps: reconciledManifest.msps.map((m) => (parkSubtreeSet.has(m.id)
+        ? { ...m, status: 'parked', resumePoint: { branch: `${sourcePrefix}/${m.id}-integration`, ref: baseBranch, stage: 'plan' } }
+        : m)),
+    };
+  }
+  log(`mitosis: reconcile — merge-frontier advance: ${advance.toOpen.length} PR(s) to open (${advance.toOpen.join(', ') || 'none'}), ${advance.toRestack.length} built branch(es) to restack (${advance.toRestack.join(', ') || 'none'}), ${advance.toParkSubtree.length} unit(s) reset on divergent-invalidation (${advance.toParkSubtree.join(', ') || 'none'})${advance.buildRunNeeded ? ' — BUILD RUN NEEDED' : ''}; AIMD window W=${advance.nextW}`);
+  const reconcileOnlyMode = shouldReconcileOnly({ isRelaunch, specByteIdentical: reusable, hasFrontierState: builtUnits.length > 0, buildableWorkRemains: hasBuildableWork(reconciledManifest) });
+  if (reconcileOnlyMode) {
+    return runReconcileOnlyAdvance(advance, { manifest: reconciledManifest, reconciledShippedMeta, sourcePrefix, baseBranch, repoRoot, logicalRunId, merged: liveSignals.merged, newlyMergedIds });
+  }
 }
 const resumeMap = new Map();
 if (reusable) {
@@ -3658,6 +3705,42 @@ let mergeQueue = Promise.resolve();
 const builtInRun = new Map();
 const mspById = new Map(msps.map((m) => [m.id, m]));
 let currentWindow = Number.isInteger(priorManifest && priorManifest.window) ? priorManifest.window : WINDOW_FLOOR;
+
+const publishedRelaunchIds = new Set();
+if (reusable && recon && Array.isArray(recon.openPRs)) {
+  for (const pr of recon.openPRs) {
+    if (pr === null || typeof pr !== 'object') continue;
+    const id = branchToMspId(pr.headRefName, sourcePrefix);
+    if (id !== null && mspById.has(id)) publishedRelaunchIds.add(id);
+  }
+}
+const relaunchStatusById = new Map(reusable ? reconciledManifest.msps.map((m) => [m.id, m.status]) : []);
+const relaunchStateFor = (id) => {
+  if (!reusable) return undefined;
+  const status = relaunchStatusById.get(id);
+  if (status === 'shipped') return undefined;
+  if (publishedRelaunchIds.has(id)) return 'awaiting';
+  if (status === 'built') return 'built';
+  return undefined;
+};
+if (reusable) {
+  for (const m of reconciledManifest.msps) {
+    if (!publishedRelaunchIds.has(m.id)) continue;
+    const pr = recon.openPRs.find((p) => p && typeof p === 'object' && branchToMspId(p.headRefName, sourcePrefix) === m.id);
+    const prUrl = pr && typeof pr.url === 'string' && pr.url.length > 0 ? pr.url : null;
+    awaitingApproval.push({ mspId: m.id, prUrl, receiptsPass: null, d6Pass: null, dependsOn: Array.isArray(m.dependsOn) ? m.dependsOn : [] });
+    for (const d of transitiveDependents(reconciledManifest.msps, m.id)) blockedByApproval.add(d);
+    log(`mitosis[${m.id}]: reconcile — open, unmerged PR is frozen; seeding it awaiting human approval and NOT re-dispatching it (no re-ship, no force-push of a published branch)`);
+  }
+}
+if (relaunchAdvance && Number.isInteger(relaunchAdvance.nextW) && relaunchAdvance.nextW !== currentWindow) {
+  currentWindow = relaunchAdvance.nextW;
+  try {
+    await persistWindowCheckpoint('shepherd', currentWindow);
+  } catch (err) {
+    log(`mitosis: reconcile — durable window checkpoint threw while seeding the build-path window (${clean(err.message)}); continuing with the in-memory window W=${currentWindow}`);
+  }
+}
 
 async function parkUnit(msp, stage, outcome, integrationBranch, compensationStack) {
   const request = outcome.tag === 'NeedsHuman' && outcome.request ? outcome.request : { kind: 'approve-decision', what: `${msp.id} could not proceed at ${stage}`, remediation: null, resumePoint: null };
@@ -4079,11 +4162,13 @@ async function runUnit(unit) {
 
     phase('Branch');
     const parentIds = Array.isArray(msp.dependsOn) ? msp.dependsOn : [];
+    const doneAtCompose = new Set([...reconciledShipped, ...shipped.map((s) => s.mspId)]);
+    const unmergedParentIds = parentIds.filter((p) => !doneAtCompose.has(p));
     let builtAgainst = {};
-    if (parentIds.length > 0) {
+    if (unmergedParentIds.length > 0) {
       let parentRefs;
       try {
-        parentRefs = parentCheckpointRefs(logicalRunId, parentIds);
+        parentRefs = parentCheckpointRefs(logicalRunId, unmergedParentIds);
       } catch (err) {
         return parkUnit(msp, 'branch', NeedsHuman({ kind: 'approve-decision', what: `frontier-train compose for ${msp.id} cannot compose a durable parent checkpoint ref: ${clean(err.message)}`, remediation: null, resumePoint: null }), integrationBranch, compensationStack);
       }
@@ -4113,7 +4198,7 @@ async function runUnit(unit) {
         return parkUnit(msp, 'branch', NeedsHuman({ kind: 'approve-decision', what: composed.detail, remediation: null, resumePoint: null }), integrationBranch, compensationStack);
       }
       const rawBuiltAgainst = composed.builtAgainst && typeof composed.builtAgainst === 'object' && !Array.isArray(composed.builtAgainst) ? composed.builtAgainst : {};
-      builtAgainst = parentIds.reduce((acc, p) => {
+      builtAgainst = unmergedParentIds.reduce((acc, p) => {
         const tip = rawBuiltAgainst[p];
         return typeof tip === 'string' && /^[0-9a-f]{7,64}$/.test(tip) ? { ...acc, [p]: tip } : acc;
       }, {});
@@ -4399,10 +4484,14 @@ const mergePoll = {
 let scheduleResult;
 try {
   scheduleResult = await runSchedule(
-    msps.map((m) => ({ id: m.id, prereqs: m.dependsOn || [], fileScope: m.fileScope || [] })),
+    msps.map((m) => {
+      const base = { id: m.id, prereqs: m.dependsOn || [], fileScope: m.fileScope || [] };
+      const relaunchState = relaunchStateFor(m.id);
+      return relaunchState ? { ...base, state: relaunchState } : base;
+    }),
     (unit) => runUnit(unit),
     mergePoll,
-    { window: currentWindow },
+    { window: () => currentWindow },
   );
 } catch (err) {
   return fatalReportShipped('schedule', `scheduler fan-out rejected: ${err.message}`, msps.length, shipped, { crashed: true });
@@ -4422,6 +4511,10 @@ for (const u of scheduleResult.units) {
   }
   if (blockedByPark.has(u.id)) {
     parked.push(ParkRecord({ unitId: u.id, stage: 'blocked', diagnosis: 'blocked by a parked prerequisite', request: { kind: 'approve-decision', what: `resolve the parked prerequisite before ${u.id} can run` }, remediation: null, resumePoint: { branch: `${sourcePrefix}/${u.id}-integration`, ref: baseBranch, stage: 'plan' }, triedSet: [], dependents: [] }));
+    continue;
+  }
+  if (u.state === 'built') {
+    parked.push(ParkRecord({ unitId: u.id, stage: 'blocked', diagnosis: BLOCKED_PENDING_APPROVAL_DIAGNOSIS, request: { kind: AWAITING_UPSTREAM_KIND, what: `${BLOCKED_PENDING_APPROVAL_DIAGNOSIS} (${u.id} is built ahead of an MSP awaiting approval and cannot ship until its parent merges)` }, remediation: null, resumePoint: { branch: `${sourcePrefix}/${u.id}-integration`, ref: baseBranch, stage: 'plan' }, triedSet: [], dependents: [] }));
     continue;
   }
   halted.push(haltedOutcome(u.id, 'schedule', `unit ${u.id} did not reach a terminal shipped or parked state (state=${u.state})`));

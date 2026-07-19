@@ -477,6 +477,22 @@ test('BUILD-DISPATCH WINDOW (streaming): the streaming scheduler applies the sam
   assert.equal(underWindowById.get('child').state, 'built', 'streaming: with built-unmerged (2) under W (3), the child is admitted and reaches built');
 });
 
+test('LIVE WINDOW ACCESSOR (tick): runSchedule resolves a function-valued window every iteration, so a window that widens from a saturating value across ticks admits a build-ahead child a launch-time snapshot would have frozen out', async () => {
+  let resolves = 0;
+  const widenAfterFirstTick = () => (resolves++ === 0 ? 3 : 4);
+  const admitted = await runSchedule(buildFrontierSpecs(3), frontierRunUnit, undefined, { window: widenAfterFirstTick });
+  const admittedById = indexUnits(admitted.units);
+  assert.equal(admittedById.get('child').state, 'built', 'the accessor is re-read each tick: it reads 3 (saturated, child withheld) on the first tick and 4 on the next, so the widened window admits the build-ahead child a frozen W=3 snapshot never would');
+});
+
+test('LIVE WINDOW ACCESSOR (streaming): the streaming scheduler also re-reads a function-valued window every iteration, admitting the build-ahead child once the accessor widens past the saturating value', async () => {
+  let resolves = 0;
+  const widenAfterFirstTick = () => (resolves++ === 0 ? 3 : 4);
+  const admitted = await runSchedule(buildFrontierSpecs(3), frontierRunUnit, undefined, { streaming: true, window: widenAfterFirstTick });
+  const admittedById = indexUnits(admitted.units);
+  assert.equal(admittedById.get('child').state, 'built', 'streaming: the widened window read on a later iteration admits the build-ahead child that a launch-time snapshot of W=3 would have frozen out');
+});
+
 const drainMicrotasks = () => new Promise((resolve) => setImmediate(resolve));
 
 function gatedRunner() {

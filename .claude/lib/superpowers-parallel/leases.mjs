@@ -174,7 +174,8 @@ async function runScheduleTick(specs, runUnit, poll, windowSize) {
   const maxSteps = units.length * (maxPollCycles + 2) + 1;
   let pollsUsed = 0;
   for (let step = 0; step < maxSteps; step++) {
-    const { dispatch } = planTick(units, windowSize);
+    const w = typeof windowSize === 'function' ? windowSize() : windowSize;
+    const { dispatch } = planTick(units, w);
     if (dispatch.length > 0) {
       ticks.push(dispatch);
       units = markDispatched(units, dispatch);
@@ -239,7 +240,8 @@ async function runScheduleStreaming(specs, runUnit, poll, windowSize) {
   let liveLeases = new Map();
   const running = new Map();
   for (let step = 0; step < maxSteps; step++) {
-    const dispatch = dispatchableStreaming(units, liveLeases, windowSize);
+    const w = typeof windowSize === 'function' ? windowSize() : windowSize;
+    const dispatch = dispatchableStreaming(units, liveLeases, w);
     if (dispatch.length > 0) {
       ticks.push(dispatch);
       units = markDispatched(units, dispatch);
@@ -283,7 +285,7 @@ export const STREAMING_DISPATCH_ENABLED = false;
 
 export async function runSchedule(specs, runUnit, poll, opts) {
   const streaming = opts && typeof opts.streaming === 'boolean' ? opts.streaming : STREAMING_DISPATCH_ENABLED;
-  const windowSize = opts && Number.isInteger(opts.window) ? opts.window : undefined;
+  const windowSize = opts && (Number.isInteger(opts.window) || typeof opts.window === 'function') ? opts.window : undefined;
   return streaming
     ? runScheduleStreaming(specs, runUnit, poll, windowSize)
     : runScheduleTick(specs, runUnit, poll, windowSize);
