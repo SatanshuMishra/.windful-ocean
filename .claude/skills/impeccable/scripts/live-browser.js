@@ -3654,6 +3654,7 @@ void main() {
   }
 
   function onDetectMessage(e) {
+    if (e.source !== window) return;
     if (!e.data || typeof e.data.source !== 'string') return;
     // Detection script is loaded and ready
     if (e.data.source === 'impeccable-ready') {
@@ -3730,7 +3731,14 @@ void main() {
       const prefs = JSON.parse(raw);
       if (prefs.tab === 'visual' || prefs.tab === 'raw') designState.tab = prefs.tab;
       if (prefs.collapsed && typeof prefs.collapsed === 'object') {
-        Object.assign(designState.collapsed, prefs.collapsed);
+        const incoming = prefs.collapsed;
+        const next = { ...designState.collapsed };
+        for (const k of ['rules', 'dosdonts', 'overview']) {
+          if (Object.prototype.hasOwnProperty.call(incoming, k) && typeof incoming[k] === 'boolean') {
+            next[k] = incoming[k];
+          }
+        }
+        designState.collapsed = next;
       }
     } catch { /* ignore */ }
   }

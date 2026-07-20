@@ -28,7 +28,7 @@ def already_nudged(session, cands):
     if not session:
         return False
     key = session + ":" + ",".join(sorted(cands))
-    h = hashlib.sha1(key.encode()).hexdigest()[:16]
+    h = hashlib.sha256(key.encode()).hexdigest()[:16]
     d = os.path.join(L.root(), ".nudge-cache")
     os.makedirs(d, exist_ok=True)
     marker = os.path.join(d, h)
