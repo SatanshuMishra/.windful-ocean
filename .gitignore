@@ -16,6 +16,13 @@ claude.json
 *.log
 *session*
 .local/
+/graphify-out/
+/.playwright-mcp/
 
 # Runtime state and credentials from stowed config
+/.config/com.corsair/
 /.config/github-copilot/
+/.config/gtk-2.0/
+/.config/psysh/
+/.config/uv/
+/.config/zed/
