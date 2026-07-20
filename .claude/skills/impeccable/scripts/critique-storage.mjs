@@ -27,7 +27,7 @@
 
 import fs from 'node:fs';
 import path from 'node:path';
-import { pathToFileURL } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import { getCritiqueDir } from './impeccable-paths.mjs';
 
 const SLUG_MAX = 50;
@@ -222,10 +222,16 @@ function main(argv) {
   }
 }
 
-// Why pathToFileURL: on Windows, import.meta.url is file:///D:/... (forward
-// slashes) while process.argv[1] is D:\... (backslashes), so the naive
-// `file://${process.argv[1]}` compare fails and main() never runs — the
-// script silently exits 0. pathToFileURL normalizes both. (issue #155)
-if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+function isMainModule() {
+  if (!process.argv[1]) return false;
+  if (import.meta.url === pathToFileURL(process.argv[1]).href) return true;
+  try {
+    return fs.realpathSync(fileURLToPath(import.meta.url)) === fs.realpathSync(process.argv[1]);
+  } catch {
+    return path.basename(fileURLToPath(import.meta.url)) === path.basename(process.argv[1]);
+  }
+}
+
+if (isMainModule()) {
   main(process.argv.slice(2));
 }

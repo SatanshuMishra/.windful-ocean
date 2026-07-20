@@ -18,8 +18,9 @@
  *   4. Removes the corresponding entries from skills-lock.json.
  */
 
-import { existsSync, readFileSync, writeFileSync, rmSync, readdirSync, statSync, lstatSync, unlinkSync } from 'node:fs';
-import { join, resolve } from 'node:path';
+import { existsSync, readFileSync, writeFileSync, rmSync, readdirSync, statSync, lstatSync, unlinkSync, realpathSync } from 'node:fs';
+import { basename, join, resolve } from 'node:path';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 
 // Skills that were renamed, merged, or folded in v2.0, v2.1, and v3.0.
 const DEPRECATED_NAMES = [
@@ -267,7 +268,17 @@ export function cleanup(projectRoot) {
 }
 
 // CLI entry point
-if (process.argv[1] && resolve(process.argv[1]) === resolve(new URL(import.meta.url).pathname)) {
+function isMainModule() {
+  if (!process.argv[1]) return false;
+  if (import.meta.url === pathToFileURL(process.argv[1]).href) return true;
+  try {
+    return realpathSync(fileURLToPath(import.meta.url)) === realpathSync(process.argv[1]);
+  } catch {
+    return basename(fileURLToPath(import.meta.url)) === basename(process.argv[1]);
+  }
+}
+
+if (isMainModule()) {
   const result = cleanup();
   if (result.deletedPaths.length === 0 && result.removedLockEntries.length === 0) {
     console.log('No deprecated Impeccable skills found. Nothing to clean up.');
