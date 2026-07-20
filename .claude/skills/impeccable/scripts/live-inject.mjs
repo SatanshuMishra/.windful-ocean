@@ -34,7 +34,7 @@ const HARD_EXCLUDES = [
 ];
 
 const GLOB_MAX_LENGTH = 1024;
-const GLOB_MAX_WILDCARDS = 32;
+const GLOB_MAX_WILDCARDS = 8;
 
 export async function injectCli() {
   const args = process.argv.slice(2);
@@ -230,7 +230,7 @@ function globToRegex(pattern) {
       i += 1;
     }
   }
-  return new RegExp('^' + re + '$'); // nosemgrep: javascript.lang.security.audit.detect-non-literal-regexp.detect-non-literal-regexp -- metacharacters escaped, only wildcards become quantifiers, capped at 1024 chars and 32 wildcards
+  return new RegExp('^' + re + '$'); // nosemgrep: javascript.lang.security.audit.detect-non-literal-regexp.detect-non-literal-regexp -- metacharacters escaped, only wildcards become quantifiers
 }
 
 // ---------------------------------------------------------------------------
