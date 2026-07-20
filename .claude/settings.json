@@ -61,7 +61,7 @@
       "Read(~/Library/Keychains/**)"
     ]
   },
-  "model": "claude-opus-4-8[1m]",
+  "model": "opus[1m]",
   "hooks": {
     "Stop": [
       {
@@ -131,7 +131,11 @@
             "command": "$HOME/.claude/hooks/plugin-update-check.sh",
             "timeout": 10
           },
-          { "type": "command", "command": "python3 $HOME/.claude/hooks/agent-ledger/roster-index-gen.py", "timeout": 10 }
+          {
+            "type": "command",
+            "command": "python3 $HOME/.claude/hooks/agent-ledger/roster-index-gen.py",
+            "timeout": 10
+          }
         ]
       }
     ],
@@ -217,7 +221,11 @@
       {
         "matcher": "Agent",
         "hooks": [
-          { "type": "command", "command": "python3 $HOME/.claude/hooks/agent-ledger/agent-fallback-capture.py", "timeout": 10 }
+          {
+            "type": "command",
+            "command": "python3 $HOME/.claude/hooks/agent-ledger/agent-fallback-capture.py",
+            "timeout": 10
+          }
         ]
       }
     ],
@@ -252,7 +260,11 @@
       {
         "matcher": "",
         "hooks": [
-          { "type": "command", "command": "python3 $HOME/.claude/hooks/agent-ledger/agent-permission-capture.py", "timeout": 10 }
+          {
+            "type": "command",
+            "command": "python3 $HOME/.claude/hooks/agent-ledger/agent-permission-capture.py",
+            "timeout": 10
+          }
         ]
       }
     ],
@@ -260,7 +272,11 @@
       {
         "matcher": "",
         "hooks": [
-          { "type": "command", "command": "node $HOME/.claude/hooks/agent-ledger/agent-run-analyzer.mjs", "async": true }
+          {
+            "type": "command",
+            "command": "node $HOME/.claude/hooks/agent-ledger/agent-run-analyzer.mjs",
+            "async": true
+          }
         ]
       }
     ]
