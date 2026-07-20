@@ -1,0 +1,1837 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>The Continuity Ledger — how your sessions hand off and resume</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --font-body: 'IBM Plex Sans', system-ui, -apple-system, sans-serif;
+    --font-mono: 'IBM Plex Mono', 'SF Mono', Consolas, monospace;
+
+    --bg: #eaeef4;
+    --surface: #ffffff;
+    --surface2: #f3f6fb;
+    --surface-elevated: #ffffff;
+    --border: rgba(20, 40, 70, 0.11);
+    --border-bright: rgba(20, 40, 70, 0.20);
+    --grid-line: rgba(29, 78, 216, 0.055);
+
+    --text: #132440;
+    --text-dim: #586a84;
+
+    --accent: #1d4ed8;
+    --accent-dim: rgba(29, 78, 216, 0.08);
+
+    --green: #2f8f56;
+    --green-dim: rgba(47, 143, 86, 0.10);
+    --amber: #b07d24;
+    --amber-dim: rgba(176, 125, 36, 0.12);
+    --red: #c43d3d;
+    --red-dim: rgba(196, 61, 61, 0.10);
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #0b1320;
+      --surface: #111d2f;
+      --surface2: #16243a;
+      --surface-elevated: #16243a;
+      --border: rgba(150, 180, 220, 0.13);
+      --border-bright: rgba(150, 180, 220, 0.24);
+      --grid-line: rgba(120, 165, 230, 0.06);
+
+      --text: #dce8f6;
+      --text-dim: #93a6c0;
+
+      --accent: #6ba3f0;
+      --accent-dim: rgba(107, 163, 240, 0.15);
+
+      --green: #5cba80;
+      --green-dim: rgba(92, 186, 128, 0.14);
+      --amber: #d8aa57;
+      --amber-dim: rgba(216, 170, 87, 0.15);
+      --red: #e8736f;
+      --red-dim: rgba(232, 115, 111, 0.14);
+    }
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  html { scroll-behavior: smooth; }
+
+  body {
+    background-color: var(--bg);
+    background-image:
+      linear-gradient(var(--grid-line) 1px, transparent 1px),
+      linear-gradient(90deg, var(--grid-line) 1px, transparent 1px);
+    background-size: 28px 28px;
+    color: var(--text);
+    font-family: var(--font-body);
+    font-size: 14px;
+    line-height: 1.6;
+    padding: 40px;
+    min-height: 100vh;
+    overflow-wrap: break-word;
+  }
+
+  .grid > *, .flex > *,
+  [style*="display: grid"] > *,
+  [style*="display:grid"] > *,
+  [style*="display: flex"] > *,
+  [style*="display:flex"] > * { min-width: 0; }
+
+  @keyframes fadeUp {
+    from { opacity: 0; transform: translateY(10px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  .animate {
+    animation: fadeUp 0.4s ease-out both;
+    animation-delay: calc(var(--i, 0) * 0.05s);
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    html { scroll-behavior: auto; }
+    *, *::before, *::after {
+      animation-duration: 0.01ms !important;
+      animation-delay: 0ms !important;
+      transition-duration: 0.01ms !important;
+    }
+  }
+
+  .wrap {
+    max-width: 1340px;
+    margin: 0 auto;
+    display: grid;
+    grid-template-columns: 192px 1fr;
+    gap: 0 44px;
+  }
+  .main { min-width: 0; }
+
+  .toc {
+    position: sticky;
+    top: 24px;
+    align-self: start;
+    padding: 14px 0;
+    grid-row: 1 / -1;
+    max-height: calc(100dvh - 48px);
+    overflow-y: auto;
+  }
+  .toc::-webkit-scrollbar { width: 3px; }
+  .toc::-webkit-scrollbar-thumb { background: var(--border-bright); border-radius: 2px; }
+
+  .toc-title {
+    font-family: var(--font-mono);
+    font-size: 9px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 2px;
+    color: var(--text-dim);
+    padding: 0 0 10px;
+    margin-bottom: 8px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .toc a {
+    display: block;
+    font-family: var(--font-mono);
+    font-size: 11px;
+    color: var(--text-dim);
+    text-decoration: none;
+    padding: 5px 9px;
+    border-radius: 5px;
+    border-left: 2px solid transparent;
+    transition: color 0.15s, background 0.15s, border-color 0.15s;
+    line-height: 1.4;
+    margin-bottom: 1px;
+  }
+  .toc a:hover { color: var(--text); background: var(--surface2); }
+  .toc a.active { color: var(--text); background: var(--accent-dim); border-left-color: var(--accent); }
+  .toc a span.num { color: var(--accent); font-weight: 600; margin-right: 6px; }
+
+  .eyebrow {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 2px;
+    color: var(--accent);
+    margin-bottom: 14px;
+  }
+
+  h1 {
+    font-size: 34px;
+    font-weight: 700;
+    letter-spacing: -0.6px;
+    line-height: 1.12;
+    margin-bottom: 10px;
+    text-wrap: balance;
+  }
+
+  .subtitle {
+    color: var(--text-dim);
+    font-family: var(--font-mono);
+    font-size: 12px;
+    line-height: 1.6;
+    margin-bottom: 8px;
+  }
+
+  .sec-head {
+    display: flex;
+    align-items: baseline;
+    gap: 12px;
+    margin: 56px 0 20px;
+    padding-top: 18px;
+    border-top: 1px solid var(--border);
+    scroll-margin-top: 18px;
+  }
+  .sec-head .sec-num {
+    font-family: var(--font-mono);
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--accent);
+    background: var(--accent-dim);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 2px 8px;
+    flex-shrink: 0;
+  }
+  .sec-head h2 {
+    font-size: 21px;
+    font-weight: 600;
+    letter-spacing: -0.3px;
+    line-height: 1.2;
+  }
+
+  .sub-head {
+    font-family: var(--font-mono);
+    font-size: 12px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    color: var(--text-dim);
+    margin: 26px 0 12px;
+  }
+
+  p { margin-bottom: 14px; }
+  .main p { max-width: 76ch; }
+  strong { color: var(--text); font-weight: 600; }
+
+  code {
+    font-family: var(--font-mono);
+    font-size: 0.86em;
+    background: var(--accent-dim);
+    color: var(--accent);
+    padding: 1px 5px;
+    border-radius: 3px;
+    word-break: break-word;
+  }
+
+  .lead-list { list-style: none; margin: 0 0 6px; padding: 0; }
+  .lead-list li {
+    position: relative;
+    padding-left: 18px;
+    margin-bottom: 8px;
+    max-width: 76ch;
+  }
+  .lead-list li::before {
+    content: '\203A';
+    position: absolute;
+    left: 0;
+    color: var(--accent);
+    font-weight: 700;
+  }
+
+  .hero {
+    background: color-mix(in srgb, var(--surface) 90%, var(--accent) 10%);
+    border: 1px solid var(--border-bright);
+    border-left: 4px solid var(--accent);
+    border-radius: 0 12px 12px 0;
+    padding: 24px 28px;
+    margin-bottom: 26px;
+    box-shadow: 0 4px 22px rgba(8, 20, 40, 0.07);
+  }
+  .hero .hero-eyebrow {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 1.6px;
+    color: var(--accent);
+    margin-bottom: 12px;
+  }
+  .hero p {
+    font-size: 16.5px;
+    line-height: 1.62;
+    max-width: 70ch;
+    margin-bottom: 0;
+    color: var(--text);
+  }
+
+  .card-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+    gap: 16px;
+    margin-bottom: 22px;
+  }
+  .card-grid > * { min-width: 0; }
+
+  .ve-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 18px 20px;
+  }
+  .ve-card--elevated {
+    box-shadow: 0 2px 10px rgba(8, 20, 40, 0.06);
+  }
+  .ve-card .ve-card__label {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 1.2px;
+    color: var(--accent);
+    margin-bottom: 9px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .ve-card .ve-card__label::before {
+    content: '';
+    width: 7px;
+    height: 7px;
+    border-radius: 2px;
+    background: currentColor;
+    flex-shrink: 0;
+  }
+  .ve-card p { font-size: 13.5px; margin-bottom: 0; color: var(--text-dim); }
+  .ve-card p strong { color: var(--text); }
+
+  .num-card { counter-reset: none; }
+  .num-card .ve-card__num {
+    font-family: var(--font-mono);
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--accent);
+    background: var(--accent-dim);
+    border-radius: 6px;
+    width: 26px;
+    height: 26px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    margin-bottom: 10px;
+  }
+  .num-card h4 { font-size: 14px; font-weight: 600; margin-bottom: 6px; }
+  .num-card p { font-size: 13px; }
+
+  .table-wrap {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    overflow: hidden;
+    margin-bottom: 16px;
+  }
+  .table-scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+
+  .data-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13px;
+    line-height: 1.55;
+  }
+  .data-table thead { position: sticky; top: 0; z-index: 2; }
+  .data-table th {
+    background: var(--surface2);
+    font-family: var(--font-mono);
+    font-size: 10px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    color: var(--text-dim);
+    text-align: left;
+    padding: 12px 15px;
+    border-bottom: 2px solid var(--border-bright);
+    white-space: nowrap;
+    vertical-align: bottom;
+  }
+  .data-table td {
+    padding: 13px 15px;
+    border-bottom: 1px solid var(--border);
+    vertical-align: top;
+    color: var(--text);
+  }
+  .data-table tbody tr:last-child td { border-bottom: none; }
+  .data-table tbody tr:nth-child(even) { background: var(--accent-dim); }
+  .data-table tbody tr { transition: background 0.15s ease; }
+  .data-table tbody tr:hover { background: var(--surface2); }
+  .data-table td.num-cell {
+    font-family: var(--font-mono);
+    font-weight: 600;
+    color: var(--accent);
+    text-align: center;
+    white-space: nowrap;
+    width: 38px;
+  }
+  .data-table td.rowlab {
+    font-weight: 600;
+    color: var(--text);
+    white-space: nowrap;
+  }
+  .data-table .wide { min-width: 200px; max-width: 460px; }
+  .data-table .midw { min-width: 150px; max-width: 280px; }
+  .data-table code { font-size: 11px; }
+  .data-table small {
+    display: block;
+    color: var(--text-dim);
+    font-size: 11px;
+    margin-top: 4px;
+  }
+
+  .state {
+    display: inline-block;
+    font-family: var(--font-mono);
+    font-size: 11px;
+    font-weight: 600;
+    padding: 2px 8px;
+    border-radius: 5px;
+    white-space: nowrap;
+  }
+  .state--active { background: var(--accent-dim); color: var(--accent); }
+  .state--paused { background: var(--amber-dim); color: var(--amber); }
+  .state--blocked { background: var(--red-dim); color: var(--red); }
+  .state--done { background: var(--green-dim); color: var(--green); }
+  .state--abandoned { background: var(--surface2); color: var(--text-dim); }
+
+  .table-note {
+    font-size: 12px;
+    color: var(--text-dim);
+    margin: 0 0 22px;
+    padding-left: 2px;
+    max-width: 78ch;
+  }
+
+  .callout {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-left: 3px solid var(--accent);
+    border-radius: 0 10px 10px 0;
+    padding: 15px 19px;
+    font-size: 13px;
+    line-height: 1.62;
+    color: var(--text-dim);
+    margin: 16px 0 22px;
+  }
+  .callout strong { color: var(--text); }
+  .callout .callout__title {
+    display: block;
+    font-family: var(--font-mono);
+    font-size: 10px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 1.2px;
+    color: var(--accent);
+    margin-bottom: 7px;
+  }
+  .callout--principle {
+    border-left-color: var(--accent);
+    background: color-mix(in srgb, var(--surface) 92%, var(--accent) 8%);
+  }
+  .callout--principle p { font-size: 14.5px; color: var(--text); font-style: italic; margin: 0; max-width: none; }
+  .callout--principle cite { display: block; font-style: normal; font-family: var(--font-mono); font-size: 11px; color: var(--text-dim); margin-top: 8px; }
+  .callout--highlight {
+    border-left-color: var(--amber);
+    background: var(--amber-dim);
+  }
+  .callout--highlight .callout__title { color: var(--amber); }
+  .callout--aside {
+    border-left-color: var(--text-dim);
+    border-style: dashed;
+    background: var(--surface2);
+  }
+  .callout--aside .callout__title { color: var(--text-dim); }
+  .callout p { max-width: none; }
+  .callout p:last-child { margin-bottom: 0; }
+  .callout--stack { display: grid; gap: 14px; }
+  .callout ul { margin: 6px 0 0; padding-left: 1.4em; }
+  .callout ul li { margin-bottom: 6px; }
+
+  .callout-pair {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+    margin: 16px 0 22px;
+  }
+  .callout-pair > * { min-width: 0; margin: 0; }
+  @media (max-width: 760px) { .callout-pair { grid-template-columns: 1fr; } }
+
+  .code-card {
+    font-family: var(--font-mono);
+    font-size: 12.5px;
+    line-height: 1.6;
+    background: var(--surface2);
+    border: 1px solid var(--border-bright);
+    border-radius: 10px;
+    padding: 16px 18px;
+    margin: 16px 0 22px;
+    color: var(--text);
+    white-space: pre-wrap;
+    word-break: break-word;
+    overflow-x: auto;
+    box-shadow: inset 0 1px 3px rgba(8, 20, 40, 0.05);
+  }
+  .code-card .ckey { color: var(--accent); font-weight: 600; }
+  .code-card .cmuted { color: var(--text-dim); }
+
+  details.collapsible {
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    overflow: hidden;
+    margin-top: 10px;
+    background: var(--surface);
+  }
+  details.collapsible summary {
+    padding: 10px 14px;
+    background: var(--surface);
+    font-family: var(--font-mono);
+    font-size: 11.5px;
+    font-weight: 600;
+    cursor: pointer;
+    list-style: none;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    color: var(--text);
+    transition: background 0.15s ease;
+  }
+  details.collapsible summary:hover { background: var(--surface2); }
+  details.collapsible summary::-webkit-details-marker { display: none; }
+  details.collapsible summary::before {
+    content: '\25B8';
+    font-size: 10px;
+    color: var(--accent);
+    transition: transform 0.15s ease;
+  }
+  details.collapsible[open] summary::before { transform: rotate(90deg); }
+  details.collapsible .collapsible__body {
+    padding: 14px 16px;
+    border-top: 1px solid var(--border);
+    font-size: 12.5px;
+    line-height: 1.6;
+    color: var(--text-dim);
+  }
+  details.collapsible .collapsible__body strong { color: var(--text); }
+  details.collapsible ul { list-style: none; margin: 0; padding: 0; }
+  details.collapsible ul li {
+    position: relative;
+    padding-left: 16px;
+    margin-bottom: 6px;
+  }
+  details.collapsible ul li::before {
+    content: '\203A';
+    position: absolute;
+    left: 0;
+    color: var(--accent);
+    font-weight: 700;
+  }
+
+  .term {
+    position: relative;
+    border-bottom: 1px dashed var(--accent);
+    cursor: help;
+    color: inherit;
+    font-weight: 500;
+  }
+  .term:focus { outline: none; }
+  .term:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 2px; }
+  .term .tip {
+    position: absolute;
+    top: calc(100% + 8px);
+    left: 50%;
+    transform: translateX(-50%);
+    width: max-content;
+    max-width: min(300px, 80vw);
+    background: var(--surface-elevated);
+    color: var(--text);
+    border: 1px solid var(--border-bright);
+    border-radius: 8px;
+    padding: 10px 13px;
+    font-family: var(--font-body);
+    font-size: 12px;
+    font-weight: 400;
+    line-height: 1.5;
+    letter-spacing: 0;
+    text-transform: none;
+    font-style: normal;
+    text-align: left;
+    box-shadow: 0 8px 28px rgba(8, 20, 40, 0.22);
+    opacity: 0;
+    visibility: hidden;
+    transition: opacity 0.15s ease;
+    z-index: 60;
+    pointer-events: none;
+    white-space: normal;
+  }
+  .term .tip strong { color: var(--accent); }
+  .term:hover .tip,
+  .term:focus .tip,
+  .term:focus-visible .tip { opacity: 1; visibility: visible; }
+
+  .diagram-shell { position: relative; margin: 6px 0 8px; }
+  .diagram-shell__hint {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    color: var(--text-dim);
+    margin-bottom: 8px;
+    opacity: 0.8;
+  }
+  .mermaid-wrap {
+    position: relative;
+    background: var(--surface);
+    border: 1px solid var(--border-bright);
+    border-radius: 12px;
+    padding: 28px 22px;
+    overflow: hidden;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    min-height: 420px;
+    cursor: grab;
+  }
+  .mermaid-wrap.is-panning { cursor: grabbing; user-select: none; }
+  .zoom-controls {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    display: flex;
+    gap: 2px;
+    z-index: 10;
+    background: var(--surface);
+    border: 1px solid var(--border-bright);
+    border-radius: 6px;
+    padding: 2px;
+  }
+  .zoom-controls button {
+    width: 28px;
+    height: 28px;
+    border: none;
+    background: transparent;
+    color: var(--text-dim);
+    font-family: var(--font-mono);
+    font-size: 14px;
+    cursor: pointer;
+    border-radius: 4px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: background 0.15s ease, color 0.15s ease;
+  }
+  .zoom-controls button:hover { background: var(--accent-dim); color: var(--accent); }
+  .mermaid-viewport {
+    position: relative;
+    overflow: hidden;
+    width: 100%;
+    height: 100%;
+    min-height: 340px;
+  }
+  .mermaid-canvas { position: absolute; top: 0; left: 0; }
+  .zoom-label {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    color: var(--text-dim);
+    padding: 0 6px;
+    white-space: nowrap;
+    align-self: center;
+  }
+  .mermaid .nodeLabel { font-family: var(--font-body) !important; font-size: 15px !important; }
+  .mermaid .edgeLabel { font-family: var(--font-mono) !important; font-size: 12px !important; }
+  .mermaid .node rect, .mermaid .node circle, .mermaid .node polygon, .mermaid .node path { stroke-width: 1.5px !important; }
+  .mermaid .edge-pattern-solid { stroke-width: 1.5px !important; }
+
+  .legend {
+    display: flex;
+    gap: 18px;
+    flex-wrap: wrap;
+    margin: 14px 0 18px;
+  }
+  .legend-item {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    font-family: var(--font-mono);
+    font-size: 11px;
+    color: var(--text-dim);
+  }
+  .legend-swatch {
+    width: 13px;
+    height: 13px;
+    border-radius: 3px;
+    border: 1.5px solid;
+    flex-shrink: 0;
+  }
+
+  .principles {
+    background: var(--surface);
+    border: 1px solid var(--border-bright);
+    border-radius: 12px;
+    padding: 22px 26px;
+    margin: 18px 0 26px;
+    box-shadow: 0 2px 12px rgba(8, 20, 40, 0.05);
+  }
+  .principles .principles__title {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 1.4px;
+    color: var(--accent);
+    margin-bottom: 14px;
+  }
+  .principles ol { list-style: none; margin: 0; padding: 0; counter-reset: pr; }
+  .principles li {
+    counter-increment: pr;
+    position: relative;
+    padding-left: 30px;
+    margin-bottom: 10px;
+    font-size: 13.5px;
+    line-height: 1.5;
+  }
+  .principles li:last-child { margin-bottom: 0; }
+  .principles li::before {
+    content: counter(pr, decimal-leading-zero);
+    position: absolute;
+    left: 0;
+    top: 1px;
+    font-family: var(--font-mono);
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--accent);
+  }
+
+  footer {
+    margin-top: 40px;
+    padding-top: 18px;
+    border-top: 1px solid var(--border);
+    font-family: var(--font-mono);
+    font-size: 11px;
+    line-height: 1.7;
+    color: var(--text-dim);
+    max-width: 90ch;
+  }
+  footer code { font-size: 10.5px; }
+
+  @media (max-width: 1000px) {
+    body { padding: 16px; }
+    .wrap { grid-template-columns: 1fr; gap: 0; }
+    .toc {
+      position: sticky;
+      top: 0;
+      z-index: 200;
+      max-height: none;
+      display: flex;
+      gap: 4px;
+      align-items: center;
+      overflow-x: auto;
+      -webkit-overflow-scrolling: touch;
+      background: var(--bg);
+      border-bottom: 1px solid var(--border-bright);
+      padding: 10px 16px;
+      margin: -16px -16px 8px;
+      grid-row: auto;
+    }
+    .toc::-webkit-scrollbar { display: none; }
+    .toc-title { display: none; }
+    .toc a {
+      white-space: nowrap;
+      flex-shrink: 0;
+      border-left: none;
+      border-bottom: 2px solid transparent;
+      border-radius: 4px 4px 0 0;
+      padding: 6px 10px;
+      font-size: 10px;
+    }
+    .toc a.active { border-left: none; border-bottom-color: var(--accent); }
+    .sec-head { scroll-margin-top: 58px; }
+    h1 { font-size: 26px; }
+    .callout-pair { grid-template-columns: 1fr; }
+  }
+
+  @media (max-width: 600px) {
+    .card-grid { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body>
+
+<div class="wrap">
+
+  <nav class="toc" id="toc">
+    <div class="toc-title">Contents</div>
+    <a href="#s1"><span class="num">1</span>TL;DR</a>
+    <a href="#s2"><span class="num">2</span>Why it exists</a>
+    <a href="#s3"><span class="num">3</span>Two layers</a>
+    <a href="#s4"><span class="num">4</span>Anatomy</a>
+    <a href="#s5"><span class="num">5</span>Hand off</a>
+    <a href="#s6"><span class="num">6</span>Resume</a>
+    <a href="#s7"><span class="num">7</span>The hooks</a>
+    <a href="#s8"><span class="num">8</span>Lifecycle</a>
+  </nav>
+
+  <div class="main">
+
+    <div class="eyebrow animate" style="--i:0">A deep-dive into your global ~/.claude config &middot; session-handoff &middot; resume-project &middot; the ledger hooks</div>
+    <h1 class="animate" style="--i:1">The Continuity Ledger</h1>
+    <p class="subtitle animate" style="--i:2">How your sessions hand off and resume &mdash; the files, the skills, and the five automatic hooks that keep your work from evaporating.</p>
+
+    <div id="s1" class="sec-head animate" style="--i:3">
+      <span class="sec-num">01</span>
+      <h2>TL;DR &mdash; the answer first</h2>
+    </div>
+
+    <div class="hero animate" style="--i:4">
+      <div class="hero-eyebrow">In one breath</div>
+      <p><strong>The <span class="term" tabindex="0">ledger<span class="tip"><strong>ledger:</strong> a set of small Markdown files inside the repo that record the cumulative state of a project, so any future session can resume from the files alone.</span></span> is a black-box flight recorder for your work.</strong> Because each Claude <span class="term" tabindex="0">session<span class="tip"><strong>session:</strong> one continuous Claude conversation. It begins with empty memory and ends when you close it or run <code>/clear</code>.</span></span> starts with an empty memory, the system writes the <em>cumulative state of a project</em> into small Markdown files inside the repo. When you <span class="term" tabindex="0">hand off<span class="tip"><strong>hand off:</strong> saving the current session&rsquo;s state into the ledger files at the end of work, so the next session can pick up cleanly.</span></span>, Claude saves what happened to those files. When you <span class="term" tabindex="0">resume<span class="tip"><strong>resume:</strong> reading the ledger back at the start of work, verifying it against the real code, and being briefed on where you left off.</span></span>, Claude reads them back, checks them against the real code, shows you a one-screen briefing, and then <strong>stops and waits for you</strong>. The files are the source of truth; the chat summary is just a courtesy copy.</p>
+    </div>
+
+    <div class="card-grid animate" style="--i:5">
+      <div class="ve-card ve-card--elevated">
+        <div class="ve-card__label">Hand off</div>
+        <p>Say <strong>&ldquo;wrap up session&rdquo;</strong> (or confirm the auto-nudge when <span class="term" tabindex="0">context<span class="tip"><strong>context window:</strong> the amount of text the model can &ldquo;see&rdquo; at once &mdash; yours is a 1M-token Opus window. When it fills, old detail is at risk.</span></span> gets full). Claude writes the ledger and prints a summary ending in <code>/clear</code>.</p>
+      </div>
+      <div class="ve-card ve-card--elevated">
+        <div class="ve-card__label">Resume</div>
+        <p>Say <strong>&ldquo;continue&rdquo;</strong> / <strong>&ldquo;resume&rdquo;</strong> / <code>/resume-project &lt;name&gt;</code>. Claude shows a menu of open work, loads exactly one item, and briefs you.</p>
+      </div>
+      <div class="ve-card ve-card--elevated">
+        <div class="ve-card__label">It mostly runs itself</div>
+        <p>Five background scripts (<span class="term" tabindex="0">hooks<span class="tip"><strong>hook:</strong> a small shell script the harness runs automatically at a fixed moment in the session lifecycle. It triggers; it never authors.</span></span>) watch the dangerous moments &mdash; context filling up, an auto-summarize about to happen, a crashed session &mdash; and prompt the right action automatically.</p>
+      </div>
+    </div>
+
+    <div class="table-wrap animate" style="--i:6">
+      <div class="table-scroll">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th class="midw">You say&hellip;</th>
+              <th><span class="term" tabindex="0" style="color:inherit">Skill<span class="tip"><strong>skill:</strong> a packaged set of instructions Claude follows when you (or a nudge) invoke it &mdash; here, session-handoff and resume-project.</span></span> that runs</th>
+              <th class="wide">What it does in one line</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>&ldquo;wrap up session&rdquo; / &ldquo;hand off&rdquo;</td>
+              <td><code>session-handoff</code></td>
+              <td class="wide"><strong>WRITES</strong> the ledger (the save)</td>
+            </tr>
+            <tr>
+              <td>&ldquo;continue&rdquo; / &ldquo;resume&rdquo;</td>
+              <td><code>resume-project</code></td>
+              <td class="wide"><strong>READS</strong> the ledger (the load)</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div id="s2" class="sec-head animate" style="--i:0">
+      <span class="sec-num">02</span>
+      <h2>Why this exists &mdash; the problem</h2>
+    </div>
+
+    <p>A Claude session (one continuous conversation) has a finite context window (the amount of text the model can &ldquo;see&rdquo; at once &mdash; yours is a <span class="term" tabindex="0">1M-token<span class="tip"><strong>token:</strong> the unit of text a model processes &mdash; roughly a word-piece. Window size is measured in tokens; yours holds about one million.</span></span> Opus window). Two things destroy continuity: (1) the window fills up and Claude Code <span class="term" tabindex="0">compacts<span class="tip"><strong>compaction:</strong> when the window fills, Claude Code auto-summarizes the old turns and throws the detail away to make room. Detail is lost exactly when work is deepest.</span></span> it &mdash; auto-summarizes the old turns and throws the detail away; (2) you end the session and start a fresh one tomorrow with a blank slate. In both cases the <em>reasoning, decisions, and &ldquo;where I left off&rdquo;</em> evaporate unless they were written somewhere durable. The ledger is that durable somewhere.</p>
+
+    <div class="sub-head">Three hard facts the design assumes</div>
+    <div class="card-grid">
+      <div class="ve-card num-card">
+        <div class="ve-card__num">1</div>
+        <h4>Memory is not persistent</h4>
+        <p>A new session knows nothing the files don&rsquo;t say. So the files must be enough to resume <em>from files alone</em>.</p>
+      </div>
+      <div class="ve-card num-card">
+        <div class="ve-card__num">2</div>
+        <h4>Context is finite &amp; gets compacted</h4>
+        <p>Detail is lost exactly when work is deepest. So the system must checkpoint <em>before</em> the cliff, automatically.</p>
+      </div>
+      <div class="ve-card num-card">
+        <div class="ve-card__num">3</div>
+        <h4>Resuming the WRONG work is the worst failure</h4>
+        <p>Silently auto-picking the most-recently-touched task and charging ahead is the cardinal sin. So resume always <em>presents and stops</em>.</p>
+      </div>
+    </div>
+
+    <div class="callout callout--principle">
+      <p>&ldquo;The files are canonical; the chat summary is a courtesy. The audience is a future session with zero context.&rdquo;</p>
+      <cite>&mdash; quoted from your session-handoff skill</cite>
+    </div>
+
+    <div id="s3" class="sec-head animate" style="--i:0">
+      <span class="sec-num">03</span>
+      <h2>The mental model: two layers</h2>
+    </div>
+
+    <p>The single most important architectural idea is that the system is split in two on purpose: a deterministic layer and a judgment layer.</p>
+    <ul class="lead-list">
+      <li><strong>The deterministic layer = hooks.</strong> Small shell scripts the harness runs <em>automatically</em> at fixed moments. They never decide <em>what your work means</em> &mdash; they only fire on schedule and either save a tiny <span class="term" tabindex="0">breadcrumb<span class="tip"><strong>breadcrumb / sentinel file:</strong> a tiny file a hook writes to disk to mark state (e.g. that a compaction is about to happen), to be read back later.</span></span> to disk or <span class="term" tabindex="0">inject<span class="tip"><strong>inject (additionalContext):</strong> a hook adding text directly into the chat context as a reminder, without you typing it.</span></span> a reminder into the chat. They are the reflexes.</li>
+      <li><strong>The judgment layer = skills.</strong> <code>session-handoff</code> and <code>resume-project</code>. These read your actual work, decide what matters, and write the real ledger files. They are the thinking.</li>
+    </ul>
+    <p>The seam between them: a hook can <em>prompt</em> the skill at the right moment with the right facts, but the model (and you) still decide what to do.</p>
+
+    <div class="table-wrap">
+      <div class="table-scroll">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th class="midw"></th>
+              <th class="wide">Deterministic layer (hooks)</th>
+              <th class="wide">Judgment layer (skills)</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td class="rowlab">What it is</td>
+              <td class="wide">5 shell scripts</td>
+              <td class="wide">2 skills: <code>session-handoff</code>, <code>resume-project</code></td>
+            </tr>
+            <tr>
+              <td class="rowlab">When it runs</td>
+              <td class="wide">Automatically, on <span class="term" tabindex="0">lifecycle events<span class="tip"><strong>lifecycle event:</strong> a fixed moment the harness fires on &mdash; e.g. session start, before a compaction, after every tool call, when you submit a prompt.</span></span></td>
+              <td class="wide">When you ask (or confirm a nudge)</td>
+            </tr>
+            <tr>
+              <td class="rowlab">What it can do</td>
+              <td class="wide">Save a breadcrumb file, or inject a reminder</td>
+              <td class="wide">Read your work, write the real ledger files</td>
+            </tr>
+            <tr>
+              <td class="rowlab">Decides meaning?</td>
+              <td class="wide">Never</td>
+              <td class="wide">Yes</td>
+            </tr>
+            <tr>
+              <td class="rowlab">Can it lose work?</td>
+              <td class="wide">No (it only triggers)</td>
+              <td class="wide">It is what actually persists the work</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="callout">
+      <span class="callout__title">The seam</span>
+      <p>Every hook is a <strong>trigger</strong>, never an <strong>author</strong>. The actual ledger content is always written by a skill. This is why a prompt-injected or confused hook can&rsquo;t corrupt your record.</p>
+    </div>
+
+    <div id="s4" class="sec-head animate" style="--i:0">
+      <span class="sec-num">04</span>
+      <h2>Anatomy of the ledger &mdash; what gets stored</h2>
+    </div>
+
+    <div class="sub-head">4a &middot; Where it lives</div>
+    <div class="table-wrap">
+      <div class="table-scroll">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th class="midw">Project type</th>
+              <th class="wide">Ledger location</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td class="rowlab">Git repo</td>
+              <td class="wide"><code>&lt;repo&gt;/.claude/ledger/</code> &mdash; committed, travels with the repo</td>
+            </tr>
+            <tr>
+              <td class="rowlab">Non-git</td>
+              <td class="wide"><code>~/.claude/projects/&lt;project-slug&gt;/ledger/</code> &mdash; kept under your home config</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+    <p class="table-note">In a git repo the ledger is committed (so it clones/branches with the code); the hand-off commit message is exactly <code>chore: ledger handoff &lt;thread-slug&gt;</code>. Non-git projects are written but never committed.</p>
+
+    <div class="sub-head">4b &middot; The four kinds of file</div>
+    <div class="table-wrap">
+      <div class="table-scroll">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th class="midw">File</th>
+              <th class="midw">Path template</th>
+              <th class="wide">What it holds (why)</th>
+              <th class="midw">Write pattern</th>
+              <th>Cap</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td class="rowlab">PROJECT.md</td>
+              <td><code>ledger/PROJECT.md</code></td>
+              <td class="wide">The stable core + indexes: Goal, Constraints, an <strong>Active Decisions</strong> index (links only), a <strong>Threads</strong> index (<code>slug &mdash; state &mdash; one-liner</code>), Pointers. The one file always read first on resume.</td>
+              <td class="midw">Living index, updated only when project-level facts change</td>
+              <td>80 lines</td>
+            </tr>
+            <tr>
+              <td class="rowlab"><span class="term" tabindex="0" style="color:inherit">Thread<span class="tip"><strong>thread:</strong> one line of work &mdash; a single task or goal &mdash; tracked as its own file with its own state.</span></span></td>
+              <td><code>ledger/threads/&lt;slug&gt;.md</code></td>
+              <td class="wide">One <em>line of work</em>. YAML <span class="term" tabindex="0" style="color:inherit">frontmatter<span class="tip"><strong>frontmatter (YAML):</strong> the structured key-value block at the top of a Markdown file (status, updated, priority, and so on).</span></span> (status, updated, priority, completion_criteria, next_step, blocked_by, abandoned_reason, branch) + the <span class="term" tabindex="0" style="color:inherit">spine<span class="tip"><strong>spine / progressive summary:</strong> a fixed set of running-summary fields kept in each thread file, merged and refreshed at every handoff so the file stays one short, current page.</span></span> body (see 4d).</td>
+              <td class="midw">Living file, refreshed each handoff; terminal states write-once</td>
+              <td>80 lines</td>
+            </tr>
+            <tr>
+              <td class="rowlab">Decision record</td>
+              <td><code>ledger/decisions/YYYY-MM-DD-&lt;slug&gt;.md</code></td>
+              <td class="wide">One locked decision: Context, Decision, Consequences (incl. rejected alternatives that carry signal). Why: decisions must never be summarized away.</td>
+              <td class="midw"><span class="term" tabindex="0" style="color:inherit">Write-once<span class="tip"><strong>write-once / append-only:</strong> a file you never edit after creating it; new information goes into a new file, not back into the old one.</span></span> (append-only); only the Status line may later change</td>
+              <td>20 lines</td>
+            </tr>
+            <tr>
+              <td class="rowlab">Session log</td>
+              <td><code>ledger/sessions/YYYY-MM-DD-NN-&lt;slug&gt;.md</code></td>
+              <td class="wide">The narrative of one session: where it started, what shipped, <strong>what failed and why</strong>, verification commands, running-state (shell IDs + kill cmds), deferred items, &ldquo;pick up here&rdquo;.</td>
+              <td class="midw"><strong>Write-once</strong> (never edit a past log)</td>
+              <td>none &mdash; also the overflow sink</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+    <p class="table-note"><code>NN</code> is a zero-padded sequence number, so files sort chronologically by filename alone. <code>&lt;<span class="term" tabindex="0" style="color:inherit">slug<span class="tip"><strong>slug:</strong> a short kebab-case name (e.g. <code>fix-login-bug</code>) used in filenames to identify a thread.</span></span>&gt;</code> is a short kebab-case name for the thread.</p>
+
+    <div class="sub-head">4c &middot; The five thread states</div>
+    <p class="table-note">A thread (one line of work) is always in exactly ONE state.</p>
+    <div class="table-wrap">
+      <div class="table-scroll">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>State</th>
+              <th class="wide">Meaning</th>
+              <th class="midw">How it&rsquo;s entered</th>
+              <th class="midw">Required field</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><span class="state state--active">active</span></td>
+              <td class="wide">Being worked <strong>in this session, right now</strong></td>
+              <td class="midw">New thread, or resumed</td>
+              <td class="midw"><code>completion_criteria</code> (at creation)</td>
+            </tr>
+            <tr>
+              <td><span class="state state--paused">paused</span></td>
+              <td class="wide">Parked, resumable</td>
+              <td class="midw"><strong>Automatic at every handoff</strong> (<code>active &rarr; paused</code>)</td>
+              <td class="midw">&mdash;</td>
+            </tr>
+            <tr>
+              <td><span class="state state--blocked">blocked</span></td>
+              <td class="wide">Waiting on a dependency</td>
+              <td class="midw">Explicit</td>
+              <td class="midw"><code>blocked_by</code></td>
+            </tr>
+            <tr>
+              <td><span class="state state--done">done</span></td>
+              <td class="wide">Finished</td>
+              <td class="midw">Explicit, <strong>only if DoD gate passes</strong></td>
+              <td class="midw">all <code>completion_criteria</code> checked + closure line</td>
+            </tr>
+            <tr>
+              <td><span class="state state--abandoned">abandoned</span></td>
+              <td class="wide">Dropped</td>
+              <td class="midw">Explicit</td>
+              <td class="midw"><code>abandoned_reason</code></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+    <div class="callout-pair">
+      <div class="callout">
+        <span class="callout__title">The &ldquo;active is an anomaly&rdquo; rule</span>
+        <p><code>active</code> means <em>this session only</em>. So if a later session ever <em>finds</em> an <code>active</code> thread, something crashed &mdash; that&rsquo;s a &ldquo;zombie,&rdquo; and the staleness scan flags it (Section 7).</p>
+      </div>
+      <div class="callout">
+        <span class="callout__title">The Definition-of-Done (DoD) gate</span>
+        <p>Claude will <strong>refuse</strong> to mark a thread <span class="term" tabindex="0" style="color:inherit">done<span class="tip"><strong>DoD gate:</strong> the Definition-of-Done check &mdash; a thread can only be marked done if its completion criteria are non-empty, all checked, with a one-sentence closure line.</span></span> unless its <code>completion_criteria</code> list is non-empty, every item is checked, and there&rsquo;s a one-sentence closure. Criteria are set when the thread is <em>created</em>, never invented at the end. This stops &ldquo;done&rdquo; from meaning &ldquo;I got bored.&rdquo;</p>
+      </div>
+    </div>
+
+    <div class="sub-head">4d &middot; The &ldquo;spine&rdquo; &mdash; why resume stays cheap</div>
+    <p>Each thread file carries a fixed set of running-summary fields &mdash; the spine: <code>Status, Active Goal, Next Step, Open Risks, Key Decisions (links only), Out of Scope, Pointers, Recent Sessions</code>. At each handoff Claude <em>merges</em> the old spine with the new session log into a refreshed spine. So whether a thread spans 2 sessions or 20, the thread file stays one short, current page &mdash; not an ever-growing transcript. Decisions are never compressed into the spine; the spine only <em>links</em> to the decision sidecar files by filename.</p>
+    <div class="callout callout--stack">
+      <div>
+        <span class="callout__title">Two cross-cutting disciplines</span>
+        <p><strong>Pointers, not payloads.</strong> Ledger files carry <em>paths and links</em>, never copied-in file contents.</p>
+      </div>
+      <div>
+        <p><strong>Caps + demotion, never deletion.</strong> When a file exceeds its line cap, the overflow is <em>demoted</em> into the current session log with a pointer left in its place. Nothing is deleted outright.</p>
+      </div>
+    </div>
+
+    <div id="s5" class="sec-head animate" style="--i:0">
+      <span class="sec-num">05</span>
+      <h2>What happens when you HAND OFF &mdash; the write side</h2>
+    </div>
+
+    <p>You trigger it by saying &ldquo;session handoff&rdquo; / &ldquo;wrap up session&rdquo; / &ldquo;hand off&rdquo;, or by confirming the auto-nudge when context fills up. Then Claude runs an ordered 11-step protocol.</p>
+
+    <div class="table-wrap">
+      <div class="table-scroll">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>#</th>
+              <th class="wide">Step</th>
+              <th class="midw">Reads / writes</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td class="num-cell">1</td>
+              <td class="wide"><strong>Wind down</strong> &mdash; collect results from any running subagents/background tasks, or stop them cleanly. Never abandon a write mid-flight; anything still running is recorded with shell IDs + kill commands.</td>
+              <td class="midw">reads session state</td>
+            </tr>
+            <tr>
+              <td class="num-cell">2</td>
+              <td class="wide"><strong>Locate or initialize the ledger</strong> &mdash; resolve the dir (git vs non-git); if absent, create PROJECT.md + empty threads/decisions/sessions. Idempotent: never overwrites an existing file.</td>
+              <td class="midw">writes (maybe) PROJECT.md + dirs</td>
+            </tr>
+            <tr>
+              <td class="num-cell">3</td>
+              <td class="wide"><strong>Append the session log</strong> <code>sessions/YYYY-MM-DD-NN-&lt;slug&gt;.md</code> &mdash; the narrative, including what FAILED and why.
+                <details class="collapsible">
+                  <summary>What&rsquo;s inside a session log</summary>
+                  <div class="collapsible__body">
+                    <ul>
+                      <li><strong>Where it started</strong> &mdash; the entry state for this session</li>
+                      <li><strong>What shipped</strong> &mdash; the concrete delta</li>
+                      <li><strong>Tried and failed</strong> &mdash; dead ends and why they failed</li>
+                      <li><strong>Verification</strong> &mdash; the commands run to prove it</li>
+                      <li><strong>Running state</strong> &mdash; shell IDs + kill commands</li>
+                      <li><strong>Deferred + open</strong> &mdash; what was punted</li>
+                      <li><strong>Pick up here</strong> &mdash; the precise next stopping point</li>
+                    </ul>
+                  </div>
+                </details>
+              </td>
+              <td class="midw">writes new session log</td>
+            </tr>
+            <tr>
+              <td class="num-cell">4</td>
+              <td class="wide"><strong>Promote stragglers</strong> &mdash; any decision locked this session that has no decision record gets one now (safety net; ideally captured at decision-time).
+                <details class="collapsible">
+                  <summary>Decision-record template + supersession rule</summary>
+                  <div class="collapsible__body">
+                    <p><strong>Template fields:</strong> Status / Date / Thread / Context / Decision / Consequences.</p>
+                    <p><strong>Supersession rule:</strong> a new decision = a <em>new</em> file. The old record&rsquo;s only allowed edit is its Status line, changed to <code>superseded-by: &lt;filename&gt;</code>. The original is never rewritten.</p>
+                  </div>
+                </details>
+              </td>
+              <td class="midw">writes 0+ decision records</td>
+            </tr>
+            <tr>
+              <td class="num-cell">5</td>
+              <td class="wide"><strong>Refresh the thread spine + apply the state transition</strong> &mdash; merge old spine + new log into the refreshed spine fields; default transition <code>active &rarr; paused</code>.</td>
+              <td class="midw">reads old thread + new log; writes thread</td>
+            </tr>
+            <tr>
+              <td class="num-cell">6</td>
+              <td class="wide"><strong>DoD gate</strong> (only if closing <code>done</code>) &mdash; verify completion_criteria non-empty + all checked + closure line; else REFUSE done, leave paused/blocked, say why.</td>
+              <td class="midw">decision gate</td>
+            </tr>
+            <tr>
+              <td class="num-cell">7</td>
+              <td class="wide"><strong>WIP check</strong> &mdash; if more than one unrelated non-terminal thread exists, surface it and recommend disposing the stragglers. Never auto-close.</td>
+              <td class="midw">reports</td>
+            </tr>
+            <tr>
+              <td class="num-cell">8</td>
+              <td class="wide"><strong>Touch PROJECT.md</strong> &mdash; only if project-level facts changed (new decision index line, thread added / status changed, new constraint).</td>
+              <td class="midw">writes (maybe) PROJECT.md</td>
+            </tr>
+            <tr>
+              <td class="num-cell">9</td>
+              <td class="wide"><strong>Enforce caps</strong> &mdash; PROJECT.md/thread 80 lines, decision 20; demote overflow into the session log with a pointer. Nothing deleted.</td>
+              <td class="midw">rewrites to cap</td>
+            </tr>
+            <tr>
+              <td class="num-cell">10</td>
+              <td class="wide"><strong>Commit</strong> (git only) &mdash; commit <em>only</em> the ledger files: <code>chore: ledger handoff &lt;slug&gt;</code>. Your wrap-up confirmation is the consent. Non-git: write only.</td>
+              <td class="midw">git commit</td>
+            </tr>
+            <tr>
+              <td class="num-cell">11</td>
+              <td class="wide"><strong>Print the chat summary</strong> &mdash; the human-facing courtesy block (below).</td>
+              <td class="midw">prints</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="sub-head">The chat summary block (the courtesy copy)</div>
+<pre class="code-card"><span class="ckey">SESSION HAND-OFF</span> &mdash; &lt;thread-slug&gt;
+Shipped this session:  &lt;the delta&gt;
+Thread + state:        &lt;slug&gt; &mdash; active -&gt; paused
+Handed off (next):     &lt;the single next action&gt;
+Resume command:        /resume-project &lt;slug&gt;
+Open / blockers:       &lt;if any, else "none"&gt;
+Files written:         &lt;ledger paths&gt;
+<span class="cmuted">Then: /clear</span></pre>
+
+    <div class="callout">
+      <span class="callout__title">Files vs chat &mdash; what&rsquo;s the difference?</span>
+      <p>The chat block is a compressed snapshot for <em>you</em>; it is NOT the record. The canonical record is the four files. The chat block even adds two things that are deliberately <em>not</em> written to any file: the <code>/resume-project &lt;slug&gt;</code> command and the <code>Then: /clear</code> instruction &mdash; operational affordances, not part of the saved state.</p>
+    </div>
+
+    <div id="s6" class="sec-head animate" style="--i:0">
+      <span class="sec-num">06</span>
+      <h2>What happens when you RESUME &mdash; the read side</h2>
+    </div>
+
+    <p>You trigger it by saying &ldquo;continue&rdquo; / &ldquo;resume&rdquo; / &ldquo;pick up where we left off&rdquo; / <code>/resume-project &lt;slug&gt;</code>.</p>
+
+    <div class="table-wrap">
+      <div class="table-scroll">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>#</th>
+              <th class="midw">Step</th>
+              <th class="wide">What it does</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td class="num-cell">1</td>
+              <td class="midw"><strong>Locate the ledger</strong></td>
+              <td class="wide">git path first, then the global fallback. Missing &rarr; tell you, offer to initialize via session-handoff, stop.</td>
+            </tr>
+            <tr>
+              <td class="num-cell">2</td>
+              <td class="midw"><strong>Read PROJECT.md</strong></td>
+              <td class="wide">the only file read unconditionally besides the chosen thread + its latest log.</td>
+            </tr>
+            <tr>
+              <td class="num-cell">3</td>
+              <td class="midw"><strong>Select the thread deterministically</strong></td>
+              <td class="wide">explicit <code>/resume-project &lt;slug&gt;</code> &rarr; use it, skip the menu. Otherwise &rarr; present a <strong>menu</strong> of every resumable thread (active/paused/blocked), one line each, and <strong>STOP for you to choose</strong>. Never auto-select by recency.</td>
+            </tr>
+            <tr>
+              <td class="num-cell">4</td>
+              <td class="midw"><strong>Load exactly two more files</strong></td>
+              <td class="wide">the chosen <code>threads/&lt;slug&gt;.md</code> + its single most-recent session log. Nothing else. Decisions load on demand later, by the filename in PROJECT.md&rsquo;s index.</td>
+            </tr>
+            <tr>
+              <td class="num-cell">5</td>
+              <td class="midw"><strong>Verify against code + git</strong></td>
+              <td class="wide">run <code>git log --oneline -5</code> (or file mtimes) vs the thread&rsquo;s <code>updated</code> date; flag work done after the last wrap-up. Spot-check the thread&rsquo;s Pointers exist on disk. On divergence: <strong>code wins</strong> &mdash; note it in the brief, fix the ledger.</td>
+            </tr>
+            <tr>
+              <td class="num-cell">6</td>
+              <td class="midw"><strong>Present the Resumption Brief, then STOP</strong></td>
+              <td class="wide">show the brief (below) and wait. Do not proceed, do not offer &ldquo;which path?&rdquo; prompts.</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="callout callout--highlight">
+      <span class="callout__title">The token budget &mdash; how resume re-acquires context cheaply</span>
+      <p>The hard read budget is <strong>PROJECT.md + one thread file + one session log, &le; 3k tokens</strong>. It deliberately does <strong>not</strong> bulk-read <code>decisions/</code> or <code>sessions/</code>. That&rsquo;s the payoff of the spine + pointers design: a thread that spans 20 sessions still resumes from ~3k tokens because the spine is always one current page and the deep history stays on disk, loaded only if needed.</p>
+    </div>
+
+    <div class="sub-head">The Resumption Brief block</div>
+<pre class="code-card"><span class="ckey">RESUMPTION BRIEF</span> &mdash; &lt;thread-slug&gt;            state: &lt;current&gt; -&gt; active (awaiting confirm)
+Priority:     &lt;high | medium | low&gt;
+Done so far:  &lt;2-3 sentences: what shipped, current state&gt;
+Left off at:  &lt;the precise stopping point&gt;
+Next step(s): &lt;the single first action, then any follow-ons&gt;
+Open / risks: &lt;blockers, open questions&gt;
+<span class="cmuted">&mdash; Awaiting your instruction. I will not proceed until you direct.</span></pre>
+
+    <div class="callout callout--stack">
+      <div>
+        <span class="callout__title">Present, then STOP</span>
+        <p>The single most important resume rule. The transition <code>paused/blocked &rarr; active</code> happens <em>only after the brief is shown and you direct it</em>, never silently. The brief header literally annotates it <code>-&gt; active (awaiting confirm)</code>.</p>
+      </div>
+      <div>
+        <span class="callout__title">Hints, not truth</span>
+        <p>The ledger is hints; the code is truth. Resume verifies before trusting, and on any mismatch the code wins and the ledger gets corrected.</p>
+      </div>
+      <div>
+        <span class="callout__title">How context is re-acquired (the answer)</span>
+        <p>PROJECT.md gives the project shape; the thread spine gives the current state + next step; the latest session log gives the fine-grained &ldquo;pick up here&rdquo; + what failed; decision records are pulled by filename only if a specific decision matters. That layered load reconstructs just enough to continue, cheaply.</p>
+      </div>
+    </div>
+
+    <div id="s7" class="sec-head animate" style="--i:0">
+      <span class="sec-num">07</span>
+      <h2>The automatic safety net &mdash; the five hooks</h2>
+    </div>
+
+    <p>Most of the time you don&rsquo;t invoke any of this &mdash; five background scripts watch the dangerous moments and prompt the right action.</p>
+
+    <div class="table-wrap">
+      <div class="table-scroll">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th class="midw">Hook</th>
+              <th class="midw">Fires on (real moment)</th>
+              <th class="wide">Writes / Injects</th>
+              <th class="wide">Why it exists</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td class="midw"><code>context-wrapup-nudge</code></td>
+              <td class="midw">PostToolUse &mdash; after <em>every</em> tool call, watching context fill</td>
+              <td class="wide">Writes a telemetry sentinel at &ge;50%; <strong>injects</strong> a wind-down + handoff reminder at 70%, stronger at 80% (each once)</td>
+              <td class="wide">Warn <em>before</em> the context cliff so you can hand off cleanly while detail still exists</td>
+            </tr>
+            <tr>
+              <td class="midw"><code>ledger-precompact-checkpoint</code></td>
+              <td class="midw">PreCompact &mdash; <em>just before</em> an auto-summarize wipes context</td>
+              <td class="wide"><strong>Writes</strong> <code>.compact-sentinel-&lt;sid&gt;.json</code> (active thread slug + path to the full pre-compaction transcript). Injects nothing &mdash; it&rsquo;d be wiped</td>
+              <td class="wide">Preserve &ldquo;what was I doing + where&rsquo;s the full record&rdquo; across a context wipe</td>
+            </tr>
+            <tr>
+              <td class="midw"><code>ledger-compact-checkpoint</code></td>
+              <td class="midw">SessionStart (only <code>source=compact</code>) &mdash; right after a compaction</td>
+              <td class="wide">Reads + deletes the sentinel, <strong>injects</strong>: &ldquo;context was compacted; write a mid-session checkpoint NOW (stay active, no /clear)&rdquo;</td>
+              <td class="wide">Re-inject the preserved facts into the fresh context and force a durable checkpoint</td>
+            </tr>
+            <tr>
+              <td class="midw"><code>ledger-staleness-scan</code></td>
+              <td class="midw">SessionStart (startup/resume/clear)</td>
+              <td class="wide"><strong>Injects</strong> a roster of stale/zombie threads needing disposition (never auto-closes)</td>
+              <td class="wide">Make crashed <code>active</code> threads and rotting <code>paused</code>/<code>blocked</code> ones visible instead of silently lingering</td>
+            </tr>
+            <tr>
+              <td class="midw"><code>ledger-resume-roster</code></td>
+              <td class="midw">UserPromptSubmit &mdash; when your message signals resume intent</td>
+              <td class="wide"><strong>Injects</strong> the menu of resumable threads + &ldquo;use resume-project, present + STOP, never auto-select&rdquo;</td>
+              <td class="wide">Guarantee &ldquo;continue&rdquo; always yields an accurate menu, never a wrong-thread guess</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="callout callout--highlight">
+      <span class="callout__title">The compaction pair &mdash; the cleverest bit</span>
+      <p><code>ledger-precompact-checkpoint</code> and <code>ledger-compact-checkpoint</code> are one operation split across a context wipe. PreCompact can&rsquo;t <em>talk</em> to the model (the context it would talk into is about to be destroyed), so it <em>writes</em> the essential state to a sentinel file. The post-compaction SessionStart hook then <em>reads</em> that file back and <em>injects</em> the reminder into the freshly rebuilt context. Neither could do the job alone.</p>
+    </div>
+
+    <div class="callout">
+      <span class="callout__title">Staleness thresholds &mdash; the clock only raises the question</span>
+      <p><code>active</code> &rarr; flagged always (&gt;7 days idle = &ldquo;zombie&rdquo;, else &ldquo;likely crashed&rdquo;); <code>paused</code> &rarr; flagged after 30 days idle; <code>blocked</code> &rarr; after 90 days. The clock only raises the question; <em>you</em> decide disposition. Nothing is ever auto-closed.</p>
+    </div>
+
+    <div class="callout callout--aside">
+      <span class="callout__title">Things to notice</span>
+      <p>The <code>ledger-resume-roster</code> hook keys on the words &ldquo;continue&rdquo;/&ldquo;resume&rdquo; in your prompt &mdash; which is exactly why generating this very report tripped it twice. It&rsquo;s harmless: the hook only <em>injects a menu</em>; it can&rsquo;t act on its own, and you (or Claude) simply ignore it when the intent was a false positive.</p>
+    </div>
+
+    <div id="s8" class="sec-head animate" style="--i:0">
+      <span class="sec-num">08</span>
+      <h2>The full lifecycle</h2>
+    </div>
+
+    <section class="diagram-shell">
+      <p class="diagram-shell__hint">Ctrl/Cmd + wheel to zoom. Scroll to pan. Drag to pan when zoomed. Double-click to fit. Expand icon opens full size in a new tab.</p>
+      <div class="mermaid-wrap">
+        <div class="zoom-controls">
+          <button type="button" data-action="zoom-in" title="Zoom in">+</button>
+          <button type="button" data-action="zoom-out" title="Zoom out">&minus;</button>
+          <button type="button" data-action="zoom-fit" title="Smart fit">&#8634;</button>
+          <button type="button" data-action="zoom-one" title="1:1 zoom">1:1</button>
+          <button type="button" data-action="zoom-expand" title="Open full size">&#x26F6;</button>
+          <span class="zoom-label">Loading...</span>
+        </div>
+        <div class="mermaid-viewport">
+          <div class="mermaid mermaid-canvas"></div>
+        </div>
+      </div>
+      <script type="text/plain" class="diagram-source">
+flowchart TD
+    classDef you fill:#dbeafe,stroke:#2563eb,color:#0f2747;
+    classDef skill fill:#eef2f7,stroke:#46597a,color:#1a2c44;
+    classDef hook fill:#fbecd0,stroke:#b07d24,color:#4a3410;
+    classDef disk fill:#d9efe2,stroke:#2f8f56,color:#143524;
+
+    subgraph S1["Session 1 — doing the work"]
+        A(["You work with Claude"]):::you --> B{"Decision locked?"}
+        B -- yes --> C["Write decision record now<br/>decisions/DATE-slug.md"]:::skill
+        C --> D[("decisions/*.md")]:::disk
+        B -- no --> E
+        D --> E["Context keeps filling"]:::skill
+        E --> F[/"context-wrapup-nudge:<br/>inject reminder at 70% / 80%"/]:::hook
+        F --> G(["You confirm: 'wrap up session'"]):::you
+    end
+
+    G --> H["session-handoff skill runs<br/>11-step write protocol"]:::skill
+    H --> I[("session log + spine refresh<br/>+ PROJECT.md index")]:::disk
+    H --> J["active -> paused<br/>commit: chore: ledger handoff"]:::skill
+    J --> K(["Chat summary printed<br/>Then: /clear"]):::you
+
+    subgraph CB["If context fills mid-work instead"]
+        L[/"PreCompact:<br/>write .compact-sentinel.json"/]:::hook
+        L --> M[("sentinel = active slug<br/>+ full transcript path")]:::disk
+        M --> N[["Claude Code compacts<br/>the window"]]
+        N --> O[/"SessionStart source=compact:<br/>read sentinel, inject"/]:::hook
+        O --> P["Mid-session checkpoint<br/>stay active, no /clear"]:::skill
+        P --> A
+    end
+
+    K -.-> Q(["Later: you say 'continue'"]):::you
+
+    subgraph S2["Session 2 — resuming"]
+        Q --> R[/"ledger-resume-roster:<br/>inject thread menu"/]:::hook
+        R --> S["resume-project skill"]:::skill
+        S --> T{"Explicit slug?"}
+        T -- yes --> V
+        T -- no --> U["Present menu, STOP<br/>you choose"]:::skill
+        U --> V["Load PROJECT.md + 1 thread<br/>+ 1 session log  ≤3k tokens"]:::skill
+        V --> W["Verify vs code + git<br/>code wins on conflict"]:::skill
+        W --> X["Present Resumption Brief<br/>then STOP"]:::skill
+        X --> Y(["You direct -> paused becomes active"]):::you
+        Y --> A
+    end
+
+    SS1[/"SessionStart: ledger-staleness-scan<br/>flag zombie/stale threads"/]:::hook
+    SS1 -.-> Q
+      </script>
+    </section>
+
+    <div class="legend">
+      <div class="legend-item"><span class="legend-swatch" style="background:#dbeafe;border-color:#2563eb"></span> rounded = your action</div>
+      <div class="legend-item"><span class="legend-swatch" style="background:#eef2f7;border-color:#46597a"></span> rectangle = a skill step</div>
+      <div class="legend-item"><span class="legend-swatch" style="background:#fbecd0;border-color:#b07d24"></span> parallelogram = a hook firing automatically</div>
+      <div class="legend-item"><span class="legend-swatch" style="background:#d9efe2;border-color:#2f8f56"></span> cylinder = a file written to disk</div>
+    </div>
+
+    <div class="callout">
+      <p><strong>The loop in one sentence:</strong> work &rarr; (capture decisions as they happen) &rarr; context warns &rarr; hand off (write files) &rarr; <code>/clear</code> &rarr; later say continue &rarr; menu &rarr; load one thread &rarr; brief &rarr; you direct &rarr; work resumes &mdash; with the compaction pair as an automatic mid-stream safety valve.</p>
+    </div>
+
+    <div class="principles">
+      <div class="principles__title">Design principles &mdash; one line each</div>
+      <ol>
+        <li>Files are canonical; chat is courtesy.</li>
+        <li>Hooks trigger; skills author. (Deterministic vs judgment.)</li>
+        <li>Pointers, not payloads.</li>
+        <li>Caps + demotion, never deletion.</li>
+        <li>Decisions are append-only and never compressed.</li>
+        <li>Resume presents, then STOPS &mdash; never auto-selects, never auto-proceeds.</li>
+        <li>The ledger is hints; the code is truth.</li>
+        <li>Nothing is auto-closed; the clock only raises the question, the human decides.</li>
+      </ol>
+    </div>
+
+    <footer>
+      Every claim here was read directly from your live config: <code>rules/common/continuity-ledger.md</code>, <code>skills/session-handoff/SKILL.md</code>, <code>skills/resume-project/SKILL.md</code>, and the five ledger hooks under <code>hooks/</code> wired in <code>settings.json</code>. This is your machine, not generic documentation.
+    </footer>
+
+  </div>
+</div>
+
+<script type="module">
+  import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs';
+  import elkLayouts from 'https://cdn.jsdelivr.net/npm/@mermaid-js/layout-elk/dist/mermaid-layout-elk.esm.min.mjs';
+
+  const config = {
+    fitPadding: 28,
+    minHeight: 380,
+    maxHeightPx: 1000,
+    maxHeightVh: 0.86,
+    maxInitialZoom: 1.6,
+    minZoom: 0.08,
+    maxZoom: 6.5,
+    zoomStep: 0.14,
+    readabilityFloor: 0.5
+  };
+
+  const clamp = (n, lo, hi) => Math.max(lo, Math.min(hi, n));
+
+  let activeDrag = null;
+  addEventListener('mousemove', (e) => activeDrag?.onMove(e));
+  addEventListener('mouseup', () => { activeDrag?.onEnd(); activeDrag = null; });
+
+  const isDark = matchMedia('(prefers-color-scheme: dark)').matches;
+
+  mermaid.registerLayoutLoaders(elkLayouts);
+  mermaid.initialize({
+    startOnLoad: false,
+    theme: 'base',
+    look: 'classic',
+    layout: 'elk',
+    flowchart: { htmlLabels: true, curve: 'basis' },
+    themeVariables: {
+      fontFamily: "'IBM Plex Sans', system-ui, sans-serif",
+      fontSize: '15px',
+      background: isDark ? '#111d2f' : '#ffffff',
+      primaryColor: isDark ? '#16243a' : '#eef2f7',
+      primaryBorderColor: isDark ? '#5b9bd5' : '#46597a',
+      primaryTextColor: isDark ? '#dce8f6' : '#1a2c44',
+      secondaryColor: isDark ? '#16243a' : '#eef2f7',
+      secondaryBorderColor: isDark ? '#5b9bd5' : '#46597a',
+      secondaryTextColor: isDark ? '#dce8f6' : '#1a2c44',
+      tertiaryColor: isDark ? '#16243a' : '#f3f6fb',
+      tertiaryBorderColor: isDark ? '#33496b' : '#c3cfde',
+      tertiaryTextColor: isDark ? '#dce8f6' : '#1a2c44',
+      lineColor: isDark ? '#7da5e6' : '#5b6b82',
+      clusterBkg: isDark ? '#13233a' : '#f3f6fb',
+      clusterBorder: isDark ? '#33496b' : '#c3cfde',
+      titleColor: isDark ? '#dce8f6' : '#1a2c44',
+      edgeLabelBackground: isDark ? '#111d2f' : '#ffffff',
+      nodeTextColor: isDark ? '#dce8f6' : '#1a2c44'
+    }
+  });
+
+  function initDiagram(shell) {
+    const wrap = shell.querySelector('.mermaid-wrap');
+    const viewport = shell.querySelector('.mermaid-viewport');
+    const canvas = shell.querySelector('.mermaid-canvas');
+    const source = shell.querySelector('.diagram-source');
+    const label = shell.querySelector('.zoom-label');
+
+    if (!wrap || !viewport || !canvas || !source || !label) return;
+
+    let zoom = 1;
+    let fitMode = 'contain';
+    let panX = 0;
+    let panY = 0;
+    let svgW = 0;
+    let svgH = 0;
+
+    let sx = 0;
+    let sy = 0;
+    let spx = 0;
+    let spy = 0;
+
+    let touchDist = 0;
+    let touchCx = 0;
+    let touchCy = 0;
+
+    function constrainPan() {
+      const vpW = viewport.clientWidth;
+      const vpH = viewport.clientHeight;
+      const rW = svgW * zoom;
+      const rH = svgH * zoom;
+      const pad = config.fitPadding;
+
+      panX = (rW + pad * 2 <= vpW) ? (vpW - rW) / 2 : clamp(panX, vpW - rW - pad, pad);
+      panY = (rH + pad * 2 <= vpH) ? (vpH - rH) / 2 : clamp(panY, vpH - rH - pad, pad);
+    }
+
+    function applyTransform() {
+      const svg = canvas.querySelector('svg');
+      if (!svg || !svgW) return;
+      constrainPan();
+      svg.style.width = (svgW * zoom) + 'px';
+      svg.style.height = (svgH * zoom) + 'px';
+      canvas.style.transform = `translate(${panX}px, ${panY}px)`;
+      label.textContent = Math.round(zoom * 100) + '% — ' + fitMode;
+    }
+
+    function canPan() {
+      const rW = svgW * zoom;
+      const rH = svgH * zoom;
+      return rW + config.fitPadding * 2 > viewport.clientWidth
+          || rH + config.fitPadding * 2 > viewport.clientHeight;
+    }
+
+    function computeSmartFit() {
+      const vpW = viewport.clientWidth;
+      const vpH = viewport.clientHeight;
+      const aW = Math.max(80, vpW - config.fitPadding * 2);
+      const aH = Math.max(80, vpH - config.fitPadding * 2);
+      const contain = Math.min(aW / svgW, aH / svgH);
+
+      let z = contain;
+      let mode = 'contain';
+      if (contain < config.readabilityFloor) {
+        const chartR = svgH / svgW;
+        const vpR = vpH / Math.max(vpW, 1);
+        if (chartR >= vpR) {
+          z = aW / svgW;
+          mode = 'width-priority';
+        } else {
+          z = aH / svgH;
+          mode = 'height-priority';
+        }
+      }
+      return { zoom: clamp(z, config.minZoom, config.maxInitialZoom), mode };
+    }
+
+    function fitDiagram() {
+      if (!svgW) return;
+      const fit = computeSmartFit();
+      zoom = fit.zoom;
+      fitMode = fit.mode;
+      panX = (viewport.clientWidth - svgW * zoom) / 2;
+      panY = (viewport.clientHeight - svgH * zoom) / 2;
+      applyTransform();
+    }
+
+    function setOneToOne() {
+      zoom = clamp(1, config.minZoom, config.maxZoom);
+      fitMode = '1:1';
+      panX = (viewport.clientWidth - svgW * zoom) / 2;
+      panY = (viewport.clientHeight - svgH * zoom) / 2;
+      applyTransform();
+    }
+
+    function zoomAround(factor, cx, cy) {
+      const next = clamp(zoom * factor, config.minZoom, config.maxZoom);
+      const ratio = next / zoom;
+      panX = cx - ratio * (cx - panX);
+      panY = cy - ratio * (cy - panY);
+      zoom = next;
+      fitMode = 'custom';
+      applyTransform();
+    }
+
+    function readSvgNaturalSize(svg) {
+      let w = 0;
+      let h = 0;
+      if (svg.viewBox?.baseVal?.width > 0) {
+        w = svg.viewBox.baseVal.width;
+        h = svg.viewBox.baseVal.height;
+      }
+      if (!w) {
+        w = parseFloat(svg.getAttribute('width')) || 0;
+        h = parseFloat(svg.getAttribute('height')) || 0;
+      }
+      if (!w) {
+        const b = svg.getBBox();
+        w = b.width;
+        h = b.height;
+      }
+      if (!w) {
+        const r = svg.getBoundingClientRect();
+        w = r.width || 1000;
+        h = r.height || 700;
+      }
+      if (!svg.getAttribute('viewBox')) {
+        svg.setAttribute('viewBox', `0 0 ${w} ${h}`);
+      }
+      return { w, h };
+    }
+
+    function setAdaptiveHeight() {
+      if (!svgW) return;
+      const usableW = Math.max(280, wrap.getBoundingClientRect().width - 2);
+      const idealH = (svgH / svgW) * usableW + config.fitPadding * 2;
+      const maxVp = Math.floor(innerHeight * config.maxHeightVh);
+      const hardMax = Math.min(config.maxHeightPx, Math.max(config.minHeight + 40, maxVp));
+      wrap.style.height = Math.round(clamp(idealH, config.minHeight, hardMax)) + 'px';
+    }
+
+    function openInNewTab() {
+      const svg = canvas.querySelector('svg');
+      if (!svg) return;
+      const clone = svg.cloneNode(true);
+      clone.style.width = '';
+      clone.style.height = '';
+      const bg = isDark ? '#111d2f' : '#ffffff';
+      const html = `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8">
+      <meta name="viewport" content="width=device-width, initial-scale=1.0">
+      <title>Diagram</title><style>
+      body{margin:0;min-height:100vh;display:flex;align-items:center;justify-content:center;
+      background:${bg};padding:40px;box-sizing:border-box}
+      svg{max-width:100%;max-height:90vh;height:auto}
+      </style></head><body>${clone.outerHTML}</body></html>`;
+      open(URL.createObjectURL(new Blob([html], { type: 'text/html' })), '_blank');
+    }
+
+    async function render() {
+      try {
+        const code = source.textContent.trim();
+        if (!code) {
+          label.textContent = 'Error: Empty source';
+          return;
+        }
+        const id = 'diagram-' + Date.now() + '-' + Math.random().toString(36).slice(2, 8);
+        const { svg } = await mermaid.render(id, code);
+        canvas.innerHTML = svg;
+
+        const svgNode = canvas.querySelector('svg');
+        if (!svgNode) {
+          label.textContent = 'Error: No SVG';
+          return;
+        }
+
+        const size = readSvgNaturalSize(svgNode);
+        svgW = size.w;
+        svgH = size.h;
+
+        svgNode.removeAttribute('width');
+        svgNode.removeAttribute('height');
+        svgNode.style.maxWidth = 'none';
+        svgNode.style.display = 'block';
+
+        setAdaptiveHeight();
+        fitDiagram();
+      } catch (err) {
+        label.textContent = 'Error: ' + (err.message || 'Render failed');
+      }
+    }
+
+    const actions = {
+      'zoom-in': () => zoomAround(1 + config.zoomStep, viewport.clientWidth / 2, viewport.clientHeight / 2),
+      'zoom-out': () => zoomAround(1 / (1 + config.zoomStep), viewport.clientWidth / 2, viewport.clientHeight / 2),
+      'zoom-fit': fitDiagram,
+      'zoom-one': setOneToOne,
+      'zoom-expand': openInNewTab
+    };
+
+    Object.entries(actions).forEach(([action, handler]) => {
+      wrap.querySelector(`[data-action="${action}"]`)?.addEventListener('click', handler);
+    });
+
+    viewport.addEventListener('dblclick', fitDiagram);
+
+    viewport.addEventListener('wheel', (e) => {
+      if (e.ctrlKey || e.metaKey) {
+        e.preventDefault();
+        const rect = viewport.getBoundingClientRect();
+        const factor = e.deltaY < 0 ? 1 + config.zoomStep : 1 / (1 + config.zoomStep);
+        zoomAround(factor, e.clientX - rect.left, e.clientY - rect.top);
+        return;
+      }
+      if (canPan()) {
+        e.preventDefault();
+        panX -= e.deltaX;
+        panY -= e.deltaY;
+        applyTransform();
+      }
+    }, { passive: false });
+
+    viewport.addEventListener('mousedown', (e) => {
+      if (e.target.closest('.zoom-controls') || !canPan()) return;
+      wrap.classList.add('is-panning');
+      sx = e.clientX;
+      sy = e.clientY;
+      spx = panX;
+      spy = panY;
+      e.preventDefault();
+      activeDrag = {
+        onMove: (ev) => {
+          panX = spx + (ev.clientX - sx);
+          panY = spy + (ev.clientY - sy);
+          applyTransform();
+        },
+        onEnd: () => { wrap.classList.remove('is-panning'); }
+      };
+    });
+
+    viewport.addEventListener('touchstart', (e) => {
+      if (e.touches.length === 1) {
+        sx = e.touches[0].clientX;
+        sy = e.touches[0].clientY;
+        spx = panX;
+        spy = panY;
+      } else if (e.touches.length === 2) {
+        const dx = e.touches[0].clientX - e.touches[1].clientX;
+        const dy = e.touches[0].clientY - e.touches[1].clientY;
+        touchDist = Math.sqrt(dx * dx + dy * dy);
+        const r = viewport.getBoundingClientRect();
+        touchCx = (e.touches[0].clientX + e.touches[1].clientX) / 2 - r.left;
+        touchCy = (e.touches[0].clientY + e.touches[1].clientY) / 2 - r.top;
+      }
+    }, { passive: true });
+
+    viewport.addEventListener('touchmove', (e) => {
+      if (e.touches.length === 1 && canPan()) {
+        if (touchDist > 0) {
+          sx = e.touches[0].clientX;
+          sy = e.touches[0].clientY;
+          spx = panX;
+          spy = panY;
+          touchDist = 0;
+        }
+        e.preventDefault();
+        panX = spx + (e.touches[0].clientX - sx);
+        panY = spy + (e.touches[0].clientY - sy);
+        applyTransform();
+      } else if (e.touches.length === 2 && touchDist > 0) {
+        e.preventDefault();
+        const dx = e.touches[0].clientX - e.touches[1].clientX;
+        const dy = e.touches[0].clientY - e.touches[1].clientY;
+        const d = Math.sqrt(dx * dx + dy * dy);
+        zoomAround(d / touchDist, touchCx, touchCy);
+        touchDist = d;
+      }
+    }, { passive: false });
+
+    new ResizeObserver(() => {
+      if (svgW) {
+        setAdaptiveHeight();
+        fitDiagram();
+      }
+    }).observe(wrap);
+
+    render();
+  }
+
+  document.querySelectorAll('.diagram-shell').forEach(initDiagram);
+</script>
+
+<script>
+(function() {
+  const toc = document.getElementById('toc');
+  const links = toc.querySelectorAll('a');
+  const sections = [];
+
+  links.forEach(link => {
+    const id = link.getAttribute('href').slice(1);
+    const el = document.getElementById(id);
+    if (el) sections.push({ id, el, link });
+  });
+
+  const observer = new IntersectionObserver(entries => {
+    entries.forEach(entry => {
+      if (entry.isIntersecting) {
+        links.forEach(l => l.classList.remove('active'));
+        const match = sections.find(s => s.el === entry.target);
+        if (match) {
+          match.link.classList.add('active');
+          if (window.innerWidth <= 1000) {
+            match.link.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
+          }
+        }
+      }
+    });
+  }, { rootMargin: '-10% 0px -80% 0px' });
+
+  sections.forEach(s => observer.observe(s.el));
+
+  links.forEach(link => {
+    link.addEventListener('click', e => {
+      e.preventDefault();
+      const id = link.getAttribute('href').slice(1);
+      const el = document.getElementById(id);
+      if (el) {
+        el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        history.replaceState(null, '', '#' + id);
+      }
+    });
+  });
+})();
+</script>
+
+</body>
+</html>

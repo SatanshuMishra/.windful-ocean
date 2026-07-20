@@ -2,10 +2,13 @@
 **/.DS_Store
 
 # Development tools and temporary files
-.claude/
 .claude-*
 CLAUDE.md
 **/CLAUDE.md
+!/.claude/CLAUDE.md
+/.claude/settings.local.json
+/.claude/reports/
+/.claude/docs/analysis/
 claude.json
 .claude.json
 *claude-session*
@@ -14,3 +17,14 @@ claude.json
 *.log
 *session*
 .local/
+/graphify-out/
+/.playwright-mcp/
+/docs/superpowers/plans/
+
+# Runtime state and credentials from stowed config
+/.config/com.corsair/
+/.config/github-copilot/
+/.config/gtk-2.0/
+/.config/psysh/
+/.config/uv/
+/.config/zed/

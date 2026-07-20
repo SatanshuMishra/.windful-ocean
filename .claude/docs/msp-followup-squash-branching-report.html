@@ -1,0 +1,1357 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>MSP Follow-up — Squash vs Atomic Commits &amp; Reliable Branch Targeting</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --font-body: 'IBM Plex Sans', system-ui, sans-serif;
+    --font-mono: 'IBM Plex Mono', 'SF Mono', Consolas, monospace;
+
+    --bg: #e8eef5;
+    --surface: #ffffff;
+    --surface2: #f1f5fa;
+    --surface-elevated: #ffffff;
+    --grid: rgba(30, 64, 110, 0.055);
+    --border: rgba(15, 40, 70, 0.12);
+    --border-bright: rgba(15, 40, 70, 0.22);
+    --text: #0e2438;
+    --text-dim: #51647c;
+
+    --blue: #1d4ed8;
+    --blue-dim: rgba(29, 78, 216, 0.09);
+    --teal: #0e7490;
+    --teal-dim: rgba(14, 116, 144, 0.10);
+    --amber: #b45309;
+    --amber-dim: rgba(180, 83, 9, 0.11);
+    --green: #15803d;
+    --green-dim: rgba(21, 128, 61, 0.11);
+    --red: #b91c1c;
+    --red-dim: rgba(185, 28, 28, 0.10);
+    --slate: #475569;
+    --slate-dim: rgba(71, 85, 105, 0.10);
+  }
+
+  :root[data-theme="dark"] {
+    --bg: #081320;
+    --surface: #0e1f33;
+    --surface2: #122639;
+    --surface-elevated: #122a42;
+    --grid: rgba(120, 165, 220, 0.06);
+    --border: rgba(125, 165, 215, 0.14);
+    --border-bright: rgba(125, 165, 215, 0.26);
+    --text: #d7e5f6;
+    --text-dim: #88a1bd;
+
+    --blue: #60a5fa;
+    --blue-dim: rgba(96, 165, 250, 0.14);
+    --teal: #38bdf8;
+    --teal-dim: rgba(56, 189, 248, 0.14);
+    --amber: #fbbf24;
+    --amber-dim: rgba(251, 191, 36, 0.15);
+    --green: #4ade80;
+    --green-dim: rgba(74, 222, 128, 0.14);
+    --red: #f87171;
+    --red-dim: rgba(248, 113, 113, 0.15);
+    --slate: #94a3b8;
+    --slate-dim: rgba(148, 163, 184, 0.14);
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #081320;
+      --surface: #0e1f33;
+      --surface2: #122639;
+      --surface-elevated: #122a42;
+      --grid: rgba(120, 165, 220, 0.06);
+      --border: rgba(125, 165, 215, 0.14);
+      --border-bright: rgba(125, 165, 215, 0.26);
+      --text: #d7e5f6;
+      --text-dim: #88a1bd;
+
+      --blue: #60a5fa;
+      --blue-dim: rgba(96, 165, 250, 0.14);
+      --teal: #38bdf8;
+      --teal-dim: rgba(56, 189, 248, 0.14);
+      --amber: #fbbf24;
+      --amber-dim: rgba(251, 191, 36, 0.15);
+      --green: #4ade80;
+      --green-dim: rgba(74, 222, 128, 0.14);
+      --red: #f87171;
+      --red-dim: rgba(248, 113, 113, 0.15);
+      --slate: #94a3b8;
+      --slate-dim: rgba(148, 163, 184, 0.14);
+    }
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+
+  body {
+    background-color: var(--bg);
+    background-image:
+      linear-gradient(var(--grid) 1px, transparent 1px),
+      linear-gradient(90deg, var(--grid) 1px, transparent 1px);
+    background-size: 30px 30px;
+    color: var(--text);
+    font-family: var(--font-body);
+    line-height: 1.6;
+    padding: 36px 40px 90px;
+    overflow-wrap: break-word;
+  }
+
+  @keyframes fadeUp { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+  @keyframes fadeScale { from { opacity: 0; transform: scale(0.94); } to { opacity: 1; transform: scale(1); } }
+  .animate { animation: fadeUp 0.4s ease-out both; animation-delay: calc(var(--i, 0) * 0.05s); }
+
+  @media (prefers-reduced-motion: reduce) {
+    html { scroll-behavior: auto; }
+    *, *::before, *::after {
+      animation-duration: 0.01ms !important;
+      animation-delay: 0ms !important;
+      transition-duration: 0.01ms !important;
+    }
+  }
+
+  .wrap {
+    max-width: 1440px;
+    margin: 0 auto;
+    display: grid;
+    grid-template-columns: 210px 1fr;
+    gap: 0 44px;
+  }
+  .main { min-width: 0; }
+  .main > * { min-width: 0; }
+
+  a { color: var(--blue); text-decoration: none; }
+  a:hover { text-decoration: underline; }
+
+  .toc {
+    position: sticky;
+    top: 20px;
+    align-self: start;
+    grid-row: 1 / -1;
+    padding: 16px 0;
+    max-height: calc(100dvh - 40px);
+    overflow-y: auto;
+  }
+  .toc::-webkit-scrollbar { width: 3px; }
+  .toc::-webkit-scrollbar-thumb { background: var(--border-bright); border-radius: 2px; }
+  .toc-title {
+    font-family: var(--font-mono);
+    font-size: 9px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 2.4px;
+    color: var(--text-dim);
+    padding: 0 10px 10px;
+    margin-bottom: 8px;
+    border-bottom: 1px solid var(--border);
+  }
+  .toc a {
+    display: block;
+    font-family: var(--font-mono);
+    font-size: 11px;
+    color: var(--text-dim);
+    text-decoration: none;
+    padding: 6px 10px;
+    border-radius: 5px;
+    border-left: 2px solid transparent;
+    transition: all 0.15s;
+    line-height: 1.4;
+    margin-bottom: 1px;
+  }
+  .toc a:hover { color: var(--text); background: var(--surface2); }
+  .toc a.active { color: var(--text); border-left-color: var(--blue); background: var(--blue-dim); }
+  .toc a .tnum { color: var(--blue); font-weight: 600; }
+
+  .theme-toggle {
+    position: fixed;
+    bottom: 22px;
+    right: 22px;
+    z-index: 400;
+    font-family: var(--font-mono);
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.5px;
+    color: var(--text);
+    background: var(--surface-elevated);
+    border: 1px solid var(--border-bright);
+    border-radius: 9px;
+    padding: 9px 14px;
+    cursor: pointer;
+    box-shadow: 0 6px 22px rgba(0, 0, 0, 0.18);
+    transition: background 0.15s ease, transform 0.15s ease;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .theme-toggle:hover { background: var(--surface2); transform: translateY(-1px); }
+  .theme-toggle::before { content: ''; width: 9px; height: 9px; border-radius: 50%; background: var(--blue); }
+
+  .masthead { margin-bottom: 26px; }
+  .masthead__kicker {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    font-weight: 500;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    color: var(--teal);
+    margin-bottom: 10px;
+    display: flex;
+    align-items: center;
+    gap: 9px;
+  }
+  .masthead__kicker::before { content: ''; width: 9px; height: 9px; border: 1.5px solid var(--teal); border-radius: 2px; display: inline-block; }
+  h1 {
+    font-size: clamp(27px, 4vw, 43px);
+    font-weight: 700;
+    letter-spacing: -1px;
+    line-height: 1.06;
+    text-wrap: balance;
+    margin-bottom: 12px;
+  }
+  .masthead__sub { font-size: 15px; color: var(--text-dim); max-width: 820px; }
+  .masthead__path {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    color: var(--text-dim);
+    margin-top: 12px;
+    padding: 5px 10px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    display: inline-block;
+  }
+
+  .sec-head {
+    font-size: 23px;
+    font-weight: 600;
+    letter-spacing: -0.4px;
+    margin: 56px 0 18px;
+    padding-bottom: 12px;
+    border-bottom: 1px solid var(--border-bright);
+    display: flex;
+    align-items: baseline;
+    gap: 12px;
+    flex-wrap: wrap;
+    scroll-margin-top: 20px;
+  }
+  .sec-head__num {
+    font-family: var(--font-mono);
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--blue);
+    background: var(--blue-dim);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 3px 9px;
+    letter-spacing: 1px;
+  }
+  .sec-head__sub {
+    font-family: var(--font-mono);
+    font-size: 12px;
+    font-weight: 400;
+    color: var(--text-dim);
+    text-transform: lowercase;
+    letter-spacing: 0.5px;
+  }
+  .sec2 .sec-head__num { color: var(--amber); background: var(--amber-dim); }
+  .sec3 .sec-head__num { color: var(--green); background: var(--green-dim); }
+  .sec4 .sec-head__num { color: var(--teal); background: var(--teal-dim); }
+  .sec5 .sec-head__num { color: var(--red); background: var(--red-dim); }
+
+  .lead { font-size: 16px; line-height: 1.7; color: var(--text); max-width: 860px; margin-bottom: 20px; }
+  .lead strong { font-weight: 600; }
+  p.body { font-size: 14.5px; color: var(--text-dim); max-width: 860px; margin-bottom: 16px; }
+  p.body strong { color: var(--text); font-weight: 600; }
+
+  .term { border-bottom: 1px dotted var(--blue); color: inherit; cursor: help; position: relative; font-weight: 500; }
+  .term::after {
+    content: attr(data-tip);
+    position: absolute;
+    bottom: calc(100% + 9px);
+    left: 0;
+    width: max-content;
+    max-width: 280px;
+    background: var(--surface-elevated);
+    color: var(--text);
+    border: 1px solid var(--border-bright);
+    border-radius: 9px;
+    padding: 9px 12px;
+    font-family: var(--font-body);
+    font-size: 12px;
+    font-weight: 400;
+    line-height: 1.5;
+    letter-spacing: 0;
+    text-transform: none;
+    white-space: normal;
+    box-shadow: 0 8px 28px rgba(0, 0, 0, 0.22);
+    z-index: 60;
+    pointer-events: none;
+    display: none;
+  }
+  @keyframes tipIn { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: translateY(0); } }
+  .term:hover::after, .term:focus::after, .term:focus-visible::after { display: block; animation: tipIn 0.14s ease-out both; }
+  .term:focus-visible { outline: 2px solid var(--blue); outline-offset: 2px; border-radius: 2px; }
+
+  code {
+    font-family: var(--font-mono);
+    font-size: 0.86em;
+    background: var(--blue-dim);
+    color: var(--blue);
+    padding: 1px 5px;
+    border-radius: 3px;
+    overflow-wrap: anywhere;
+  }
+
+  .kicker-label {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 1.6px;
+    color: var(--teal);
+    margin: 30px 0 12px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .kicker-label::before { content: ''; width: 7px; height: 7px; background: var(--teal); border-radius: 50%; flex-shrink: 0; }
+
+  /* ===== BLUF two-box grid ===== */
+  .bluf-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 8px; }
+  @media (max-width: 860px) { .bluf-grid { grid-template-columns: 1fr; } }
+  .bluf-box {
+    border: 1px solid var(--border-bright);
+    border-radius: 14px;
+    padding: 22px 24px;
+    box-shadow: 0 6px 26px rgba(0, 0, 0, 0.08);
+    min-width: 0;
+  }
+  .bluf-box--q1 { background: color-mix(in srgb, var(--surface) 86%, var(--amber) 14%); border-left: 4px solid var(--amber); }
+  .bluf-box--q2 { background: color-mix(in srgb, var(--surface) 86%, var(--green) 14%); border-left: 4px solid var(--green); }
+  .bluf-box__tag {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 1.6px;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 12px;
+  }
+  .bluf-box__tag::before { content: ''; width: 9px; height: 9px; border-radius: 2px; }
+  .bluf-box--q1 .bluf-box__tag { color: var(--amber); }
+  .bluf-box--q1 .bluf-box__tag::before { background: var(--amber); }
+  .bluf-box--q2 .bluf-box__tag { color: var(--green); }
+  .bluf-box--q2 .bluf-box__tag::before { background: var(--green); }
+  .bluf-box__q { font-size: 14px; font-weight: 600; color: var(--text); line-height: 1.5; margin-bottom: 12px; }
+  .bluf-box__q span { color: var(--text-dim); font-weight: 400; font-style: italic; }
+  .bluf-box__a { font-size: 13.5px; line-height: 1.65; color: var(--text-dim); }
+  .bluf-box__a strong { color: var(--text); font-weight: 600; }
+  .bluf-box--q1 code { background: var(--amber-dim); color: var(--amber); }
+  .bluf-box--q2 code { background: var(--green-dim); color: var(--green); }
+  .bluf-box__verdict {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    font-weight: 600;
+    margin-top: 14px;
+    padding-top: 12px;
+    border-top: 1px dashed var(--border-bright);
+    display: block;
+  }
+  .bluf-box--q1 .bluf-box__verdict { color: var(--amber); }
+  .bluf-box--q2 .bluf-box__verdict { color: var(--green); }
+
+  /* ===== Tables ===== */
+  .centerpiece-label {
+    font-family: var(--font-mono);
+    font-size: 9.5px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 2px;
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    padding: 4px 10px;
+    border-radius: 6px 6px 0 0;
+    margin-bottom: -1px;
+    position: relative;
+    z-index: 1;
+  }
+  .centerpiece-label::before { content: ''; width: 7px; height: 7px; border-radius: 50%; background: currentColor; }
+  .centerpiece-label.amber { color: var(--amber); background: var(--amber-dim); border: 1px solid var(--amber); border-bottom: none; }
+  .centerpiece-label.green { color: var(--green); background: var(--green-dim); border: 1px solid var(--green); border-bottom: none; }
+  .centerpiece-label.blue  { color: var(--blue);  background: var(--blue-dim);  border: 1px solid var(--blue);  border-bottom: none; }
+
+  .table-wrap { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; overflow: hidden; margin-bottom: 18px; }
+  .table-wrap--ground  { border: 2px solid var(--blue);  border-radius: 0 12px 12px 12px; box-shadow: 0 8px 30px rgba(0,0,0,0.10); }
+  .table-wrap--center-amber { border: 2px solid var(--amber); border-radius: 0 12px 12px 12px; box-shadow: 0 8px 30px rgba(0,0,0,0.10); }
+  .table-wrap--center-green { border: 2px solid var(--green); border-radius: 0 12px 12px 12px; box-shadow: 0 8px 30px rgba(0,0,0,0.10); }
+  .table-scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+  .data-table { width: 100%; border-collapse: collapse; font-size: 13px; line-height: 1.5; }
+  .data-table thead { position: sticky; top: 0; z-index: 2; }
+  .data-table th {
+    background: var(--surface2);
+    font-family: var(--font-mono);
+    font-size: 10px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    color: var(--text-dim);
+    text-align: left;
+    padding: 12px 15px;
+    border-bottom: 2px solid var(--border-bright);
+    white-space: nowrap;
+  }
+  .data-table td { padding: 12px 15px; border-bottom: 1px solid var(--border); vertical-align: top; }
+  .data-table tbody tr:last-child td { border-bottom: none; }
+  .data-table .wide { min-width: 190px; }
+  .data-table .nm { font-family: var(--font-mono); font-size: 12px; font-weight: 500; color: var(--text); }
+  .data-table tbody tr { transition: background 0.15s ease; }
+  .data-table tbody tr:hover { background: var(--surface2); }
+  .data-table code { font-size: 11px; }
+  .data-table small { display: block; color: var(--text-dim); font-size: 11px; margin-top: 3px; line-height: 1.45; }
+  .data-table a { word-break: break-word; }
+  .data-table .center { text-align: center; }
+  .data-table .rank { font-family: var(--font-mono); font-weight: 700; font-size: 16px; text-align: center; }
+  .data-table .rank.r1 { color: var(--green); }
+  .data-table .rank.r2 { color: var(--teal); }
+  .data-table .rank.r3 { color: var(--blue); }
+  .data-table .rank.r4 { color: var(--amber); }
+  .data-table .rank.r5 { color: var(--red); }
+  .data-table .dim { font-family: var(--font-mono); font-size: 11.5px; font-weight: 600; color: var(--text); white-space: nowrap; }
+  .src-line { display: block; font-size: 11px; margin-top: 4px; }
+
+  .yes { color: var(--green); font-weight: 600; }
+  .no { color: var(--red); font-weight: 600; }
+  .partial { color: var(--amber); font-weight: 600; }
+  .for-col { color: var(--green); }
+  .against-col { color: var(--red); }
+
+  .badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    font-family: var(--font-mono);
+    font-size: 9.5px;
+    font-weight: 600;
+    padding: 3px 8px;
+    border-radius: 5px;
+    white-space: nowrap;
+    letter-spacing: 0.4px;
+    text-transform: uppercase;
+    vertical-align: middle;
+  }
+  .badge::before { content: ''; width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+  .badge--high { background: var(--green-dim); color: var(--green); }
+  .badge--med { background: var(--amber-dim); color: var(--amber); }
+  .badge--medhigh { background: var(--teal-dim); color: var(--teal); }
+  .badge--low { background: var(--slate-dim); color: var(--slate); }
+  .conf-tag { font-family: var(--font-mono); font-size: 10px; color: var(--text-dim); }
+
+  .callout {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-left: 3px solid var(--amber);
+    border-radius: 0 11px 11px 0;
+    padding: 15px 20px;
+    font-size: 13.5px;
+    line-height: 1.65;
+    color: var(--text-dim);
+    margin: 22px 0 12px;
+  }
+  .callout strong { color: var(--text); font-weight: 600; }
+  .callout p { margin-bottom: 8px; }
+  .callout p:last-child { margin-bottom: 0; }
+  .callout a { word-break: break-word; }
+  .callout__tag {
+    font-family: var(--font-mono);
+    font-size: 9.5px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 1.6px;
+    color: var(--amber);
+    display: block;
+    margin-bottom: 6px;
+  }
+  .callout code { background: var(--amber-dim); color: var(--amber); }
+  .callout--insight { border-left-color: var(--blue); }
+  .callout--insight .callout__tag { color: var(--blue); }
+  .callout--insight code { background: var(--blue-dim); color: var(--blue); }
+  .callout--counter { border-left-color: var(--red); }
+  .callout--counter .callout__tag { color: var(--red); }
+  .callout--counter code { background: var(--red-dim); color: var(--red); }
+  .callout--tradeoff { border-left-color: var(--amber); }
+  .callout--honesty { border-left-color: var(--teal); }
+  .callout--honesty .callout__tag { color: var(--teal); }
+  .callout--honesty code { background: var(--teal-dim); color: var(--teal); }
+  .callout--verdict { border-left-color: var(--green); }
+  .callout--verdict .callout__tag { color: var(--green); }
+  .callout--verdict code { background: var(--green-dim); color: var(--green); }
+
+  /* ===== Two granularities diagram ===== */
+  .two-gran {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 14px;
+    margin: 6px 0 20px;
+  }
+  @media (max-width: 720px) { .two-gran { grid-template-columns: 1fr; } }
+  .gran {
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 18px 20px;
+    min-width: 0;
+  }
+  .gran--feature { background: var(--blue-dim); border-top: 3px solid var(--blue); }
+  .gran--integration { background: var(--green-dim); border-top: 3px solid var(--green); }
+  .gran__label {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 1.2px;
+    margin-bottom: 9px;
+  }
+  .gran--feature .gran__label { color: var(--blue); }
+  .gran--integration .gran__label { color: var(--green); }
+  .gran__atomic { font-size: 14.5px; font-weight: 600; color: var(--text); margin-bottom: 6px; }
+  .gran__who { font-family: var(--font-mono); font-size: 11px; color: var(--text-dim); margin-bottom: 9px; }
+  .gran p { font-size: 12.5px; color: var(--text-dim); line-height: 1.55; }
+
+  .split2 { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-bottom: 16px; }
+  @media (max-width: 760px) { .split2 { grid-template-columns: 1fr; } }
+  .panel {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 18px 20px;
+    min-width: 0;
+  }
+  .panel--strong { border-top: 3px solid var(--green); }
+  .panel--gaps { border-top: 3px solid var(--red); }
+  .panel__title {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 1.2px;
+    margin-bottom: 12px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .panel--strong .panel__title { color: var(--green); }
+  .panel--gaps .panel__title { color: var(--red); }
+  .panel ul { list-style: none; padding: 0; margin: 0; display: grid; gap: 11px; }
+  .panel li { position: relative; padding-left: 20px; font-size: 13px; line-height: 1.55; color: var(--text-dim); }
+  .panel li::before { content: ''; position: absolute; left: 2px; top: 7px; width: 8px; height: 8px; border-radius: 2px; }
+  .panel--strong li::before { background: var(--green); }
+  .panel--gaps li::before { background: var(--red); }
+  .panel li strong { color: var(--text); font-weight: 600; }
+  .panel li a { word-break: break-word; font-family: var(--font-mono); font-size: 11px; }
+
+  .card-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(270px, 1fr)); gap: 14px; margin-bottom: 16px; }
+  .ve-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 11px;
+    padding: 17px 18px;
+    border-top: 3px solid var(--teal);
+    min-width: 0;
+  }
+  .ve-card h4 { font-family: var(--font-mono); font-size: 12.5px; font-weight: 600; letter-spacing: 0.2px; color: var(--text); margin-bottom: 8px; }
+  .ve-card p { font-size: 12.5px; color: var(--text-dim); line-height: 1.55; }
+  .ve-card p + p { margin-top: 8px; }
+  .ve-card a { word-break: break-word; font-family: var(--font-mono); font-size: 11px; }
+  .ve-card .meta {
+    font-family: var(--font-mono);
+    font-size: 10.5px;
+    margin-top: 11px;
+    padding-top: 9px;
+    border-top: 1px dashed var(--border);
+    display: block;
+  }
+  .ve-card .meta b { font-weight: 700; text-transform: uppercase; letter-spacing: 0.6px; }
+  .ve-card.b1 { border-top-color: var(--green); }
+  .ve-card.b1 .meta b { color: var(--green); }
+  .ve-card.b2 { border-top-color: var(--teal); }
+  .ve-card.b2 .meta b { color: var(--teal); }
+  .ve-card.b3 { border-top-color: var(--blue); }
+  .ve-card.b3 .meta b { color: var(--blue); }
+  .ve-card .meta span { color: var(--text-dim); }
+
+  /* ===== Drift callout (distinct) ===== */
+  .drift {
+    background: repeating-linear-gradient(135deg, var(--red-dim), var(--red-dim) 13px, transparent 13px, transparent 26px), var(--surface);
+    border: 2px solid var(--red);
+    border-radius: 14px;
+    padding: 22px 24px;
+    margin: 18px 0 18px;
+    box-shadow: 0 6px 26px rgba(0, 0, 0, 0.09);
+  }
+  .drift__flag {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    font-family: var(--font-mono);
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 1.4px;
+    color: var(--red);
+    background: var(--surface);
+    border: 1.5px solid var(--red);
+    border-radius: 8px;
+    padding: 7px 13px;
+    margin-bottom: 14px;
+  }
+  .drift__flag::before { content: ''; width: 9px; height: 9px; background: var(--red); border-radius: 50%; }
+  .drift p { font-size: 13.5px; line-height: 1.65; color: var(--text-dim); margin-bottom: 10px; }
+  .drift p:last-child { margin-bottom: 0; }
+  .drift p strong { color: var(--text); font-weight: 600; }
+  .drift code { background: var(--red-dim); color: var(--red); }
+  .drift a { word-break: break-word; }
+
+  /* layered shape tiers */
+  .tiers { display: grid; gap: 10px; margin: 6px 0 14px; }
+  .tier {
+    display: grid;
+    grid-template-columns: 42px 1fr;
+    gap: 14px;
+    align-items: start;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 11px;
+    padding: 14px 16px;
+    min-width: 0;
+  }
+  .tier__n {
+    font-family: var(--font-mono);
+    font-size: 16px;
+    font-weight: 700;
+    text-align: center;
+    border-radius: 8px;
+    padding: 6px 0;
+  }
+  .tier--auth { border-left: 3px solid var(--green); }
+  .tier--auth .tier__n { color: var(--green); background: var(--green-dim); }
+  .tier--label { border-left: 3px solid var(--amber); }
+  .tier--label .tier__n { color: var(--amber); background: var(--amber-dim); }
+  .tier--fresh { border-left: 3px solid var(--blue); }
+  .tier--fresh .tier__n { color: var(--blue); background: var(--blue-dim); }
+  .tier__body h5 { font-size: 13.5px; font-weight: 600; color: var(--text); margin-bottom: 4px; }
+  .tier__body p { font-size: 12.5px; color: var(--text-dim); line-height: 1.55; }
+  .tier__body code { font-size: 0.85em; }
+
+  /* resolution ladder */
+  .ladder { display: grid; gap: 10px; margin: 6px 0 14px; }
+  .rung {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-left: 3px solid var(--blue);
+    border-radius: 0 11px 11px 0;
+    padding: 14px 18px;
+    min-width: 0;
+  }
+  .rung__head { display: flex; align-items: baseline; gap: 11px; flex-wrap: wrap; margin-bottom: 5px; }
+  .rung__num {
+    font-family: var(--font-mono);
+    font-size: 12px;
+    font-weight: 700;
+    color: var(--blue);
+    background: var(--blue-dim);
+    border-radius: 5px;
+    padding: 2px 9px;
+  }
+  .rung__title { font-size: 14px; font-weight: 600; color: var(--text); }
+  .rung__rank {
+    font-family: var(--font-mono);
+    font-size: 9.5px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.8px;
+    color: var(--green);
+    background: var(--green-dim);
+    border-radius: 5px;
+    padding: 2px 8px;
+  }
+  .rung p { font-size: 12.5px; color: var(--text-dim); line-height: 1.55; }
+  .rung--never { border-left-color: var(--red); background: var(--red-dim); }
+  .rung--never .rung__num { color: var(--red); background: var(--surface); }
+  .rung--never .rung__title { color: var(--red); }
+
+  /* ===== Decision checklist ===== */
+  .checklist {
+    background: color-mix(in srgb, var(--surface) 88%, var(--red) 12%);
+    border: 1px solid var(--border-bright);
+    border-radius: 14px;
+    padding: 24px 26px;
+    margin: 8px 0 22px;
+    box-shadow: 0 6px 26px rgba(0, 0, 0, 0.08);
+  }
+  .checklist__head {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 1.6px;
+    color: var(--red);
+    margin-bottom: 16px;
+    display: flex;
+    align-items: center;
+    gap: 9px;
+  }
+  .checklist__head::before { content: ''; width: 9px; height: 9px; background: var(--red); border-radius: 2px; }
+  .check-item {
+    display: grid;
+    grid-template-columns: 26px 1fr;
+    gap: 13px;
+    align-items: start;
+    padding: 14px 0;
+    border-top: 1px solid var(--border);
+  }
+  .check-item:first-of-type { border-top: none; padding-top: 0; }
+  .check-box {
+    width: 20px; height: 20px;
+    border: 2px solid var(--border-bright);
+    border-radius: 5px;
+    margin-top: 1px;
+    flex-shrink: 0;
+  }
+  .check-item__body { min-width: 0; }
+  .check-item__q { font-size: 14px; font-weight: 600; color: var(--text); line-height: 1.5; margin-bottom: 5px; }
+  .check-item__q .qn { font-family: var(--font-mono); color: var(--red); margin-right: 8px; }
+  .check-item__d { font-size: 12.5px; color: var(--text-dim); line-height: 1.55; }
+  .rec-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-family: var(--font-mono);
+    font-size: 10px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.6px;
+    color: var(--green);
+    background: var(--green-dim);
+    border-radius: 5px;
+    padding: 2px 9px;
+    margin-top: 7px;
+  }
+  .rec-chip::before { content: ''; width: 6px; height: 6px; border-radius: 50%; background: var(--green); }
+  .rec-chip.amber { color: var(--amber); background: var(--amber-dim); }
+  .rec-chip.amber::before { background: var(--amber); }
+
+  .ref-block { margin-bottom: 16px; }
+  .ref-block__title {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 1.4px;
+    color: var(--teal);
+    margin-bottom: 9px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .ref-block__title::before { content: ''; width: 7px; height: 7px; background: var(--teal); border-radius: 50%; }
+  .ref-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(330px, 1fr)); gap: 8px 18px; }
+  .ref-grid a {
+    display: block;
+    font-family: var(--font-mono);
+    font-size: 12px;
+    color: var(--blue);
+    text-decoration: none;
+    padding: 8px 12px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: var(--surface);
+    word-break: break-all;
+    transition: background 0.15s ease;
+  }
+  .ref-grid a:hover { background: var(--surface2); text-decoration: underline; }
+  .ref-grid a .ref-note { display: block; color: var(--text-dim); font-size: 10.5px; margin-top: 2px; word-break: normal; }
+
+  .footer-note {
+    margin-top: 36px;
+    padding: 16px 20px;
+    border: 1px dashed var(--border-bright);
+    border-radius: 11px;
+    font-size: 12.5px;
+    color: var(--text-dim);
+    line-height: 1.6;
+    background: var(--surface2);
+  }
+  .footer-note strong { color: var(--text); font-weight: 600; }
+
+  @media (max-width: 1000px) {
+    body { padding: 0 18px 70px; }
+    .wrap { grid-template-columns: 1fr; gap: 0; }
+    .toc {
+      position: sticky;
+      top: 0;
+      z-index: 200;
+      grid-row: auto;
+      max-height: none;
+      display: flex;
+      gap: 4px;
+      align-items: center;
+      overflow-x: auto;
+      -webkit-overflow-scrolling: touch;
+      background: var(--bg);
+      border-bottom: 1px solid var(--border-bright);
+      padding: 10px 18px;
+      margin: 0 -18px 14px;
+    }
+    .toc::-webkit-scrollbar { display: none; }
+    .toc-title { display: none; }
+    .toc a {
+      white-space: nowrap;
+      flex-shrink: 0;
+      border-left: none;
+      border-bottom: 2px solid transparent;
+      border-radius: 4px 4px 0 0;
+      padding: 6px 10px;
+      font-size: 10px;
+    }
+    .toc a.active { border-left: none; border-bottom-color: var(--blue); background: var(--surface); }
+    .main { padding-top: 18px; }
+    .masthead { margin-top: 6px; }
+  }
+  @media (max-width: 680px) {
+    h1 { font-size: 24px; }
+    .data-table th, .data-table td { padding: 10px 12px; }
+    .bluf-box, .checklist, .drift { padding: 18px 18px; }
+    .theme-toggle { bottom: 14px; right: 14px; padding: 8px 11px; }
+  }
+</style>
+</head>
+<body>
+
+<button type="button" class="theme-toggle" id="theme-toggle" aria-label="Toggle colour theme">Dark mode</button>
+
+<div class="wrap">
+
+  <nav class="toc" id="toc">
+    <div class="toc-title">Sections</div>
+    <a href="#s0"><span class="tnum">00</span> BLUF &mdash; both answers</a>
+    <a href="#s1"><span class="tnum">01</span> Engine reality check</a>
+    <a href="#s2"><span class="tnum">02</span> Squash vs atomic</a>
+    <a href="#s3"><span class="tnum">03</span> Reliable branch target</a>
+    <a href="#s4"><span class="tnum">04</span> Revised levers</a>
+    <a href="#s5"><span class="tnum">05</span> Decision asks</a>
+    <a href="#srefs"><span class="tnum">RF</span> Sources</a>
+  </nav>
+
+  <div class="main">
+
+    <header class="masthead animate" style="--i:0">
+      <div class="masthead__kicker">Follow-up Research &middot; squash + branch-target strategy</div>
+      <h1>Per-MSP Squash, and Targeting a Branch Without Guessing Its Name</h1>
+      <p class="masthead__sub">A focused answer to two pointed objections raised against the prior MSP report: (1) does per-MSP squash throw away the point of atomic commits, and (2) how does industry reliably identify the branch to target when names are unenforced. Evidence-led, code-grounded, and willing to say &ldquo;your instinct is correct.&rdquo; Read-only deliverable &mdash; no configuration was changed.</p>
+      <div class="masthead__path">~/.claude/docs/msp-followup-squash-branching-report.html</div>
+    </header>
+
+    <!-- ============ SECTION 0 : BLUF ============ -->
+    <h2 id="s0" class="sec-head animate" style="--i:1"><span class="sec-head__num">00</span> Bottom line up front <span class="sec-head__sub">two questions, two answers</span></h2>
+
+    <div class="bluf-grid animate" style="--i:2">
+      <div class="bluf-box bluf-box--q1">
+        <span class="bluf-box__tag">Q1 &middot; Genuine tradeoff</span>
+        <div class="bluf-box__q">&ldquo;Why per-MSP squash? Why not leave the hundreds of atomic commits in place? <span>Isn&rsquo;t squashing losing the point of atomic commits?</span>&rdquo;</div>
+        <div class="bluf-box__a">Squash does <strong>not</strong> destroy atomicity &mdash; it <strong>scopes it to two granularities</strong>. Atomic commits serve the developer and reviewer <strong>on the feature branch</strong> (work-in-progress navigation, granular review, mid-PR debugging). On the protected branch the <strong>PR/MSP itself becomes the atomic unit</strong>, and squash enforces one-logical-change-per-commit there. The real cost is losing sub-PR <code>git bisect</code> granularity in the <em>published</em> history &mdash; bounded, because the feature branch is retained for archaeology. Grounding: our engine <strong>never squashes today</strong> (it merges <code>--no-ff</code>), so this would be a <strong>new behavior, not a fix</strong>. A strong alternative keeps both linear history and per-commit granularity: rebase-and-merge with small/stacked PRs.</div>
+        <span class="bluf-box__verdict">Verdict: present a 3-way choice. Do not silently adopt squash.</span>
+      </div>
+      <div class="bluf-box bluf-box--q2">
+        <span class="bluf-box__tag">Q2 &middot; Confirmed</span>
+        <div class="bluf-box__q">&ldquo;Detect-then-confirm is still flawed &mdash; <span>you cannot assume dev/development is the integration branch, main can be named anything, and nothing enforces standards. Why not declare the strategy, or pass the exact target?</span>&rdquo;</div>
+        <div class="bluf-box__a">Your instinct is correct and the evidence is unambiguous. Heuristic name detection is <strong>not</strong> the industry standard &mdash; the one tool that hardcodes branch names (semantic-release) had to be <strong>publicly patched</strong> when the industry moved <code>master</code> &rarr; <code>main</code>, proving the fragility. Every well-designed tool either <strong>requires the caller to state the base</strong>, derives it from the repo&rsquo;s <strong>API-configured default branch</strong>, or reads <strong>stored machine-readable config</strong>. Both alternatives you proposed are validated by practice. And our engine <strong>already implements the most robust path</strong> &mdash; <code>baseBranch</code> is a required CLI parameter with zero name-guessing.</div>
+        <span class="bluf-box__verdict">Verdict: kill detect-then-confirm. Replace with declare-or-pass, never guess.</span>
+      </div>
+    </div>
+
+    <!-- ============ SECTION 1 : ENGINE REALITY CHECK ============ -->
+    <h2 id="s1" class="sec-head sec1"><span class="sec-head__num">01</span> Grounding: what our engine actually does today <span class="sec-head__sub">code-verified</span></h2>
+
+    <p class="lead">Before reaching for industry practice, anchor both concerns in the real code. The table below is verified against the current files this session &mdash; it is the foundation everything else rests on.</p>
+
+    <span class="centerpiece-label blue">Engine reality check &middot; code-verified</span>
+    <div class="table-wrap table-wrap--ground"><div class="table-scroll">
+      <table class="data-table">
+        <thead><tr><th style="min-width:130px">Behavior</th><th class="wide">What the code does</th><th style="min-width:170px">Location (current)</th><th class="wide">Implication for the levers</th></tr></thead>
+        <tbody>
+          <tr>
+            <td class="nm">Validation timing</td>
+            <td>Runs <strong>only after all waves complete</strong>; runs up to <strong>twice</strong> (initial check, then a fix-agent plus re-validate). <strong>Never</strong> validates between waves.</td>
+            <td><code>workflows/parallel-plan-execution.js:233</code> (first call), <code>:243</code> (re-validate after fix)</td>
+            <td>A non-MSP or broken task merged mid-run can corrupt the shared branch and nothing catches it until the very end. This is the core argument for the <em>MSP task criterion</em> and <em>per-wave validation</em> levers &mdash; separate from these two concerns.</td>
+          </tr>
+          <tr>
+            <td class="nm">Merge strategy</td>
+            <td><code>git merge --no-ff &lt;branch&gt;</code>; <strong>no</strong> <code>--squash</code> anywhere in the engine, generator, planners, or skills.</td>
+            <td><code>parallel-plan-execution.js:210</code></td>
+            <td>We do <strong>not</strong> squash today. &ldquo;Per-MSP squash&rdquo; is a <strong>new capability</strong> &mdash; a deliberate choice, not a correction.</td>
+          </tr>
+          <tr>
+            <td class="nm">Base-branch determination</td>
+            <td><code>baseBranch</code> is a <strong>required CLI flag</strong> (<code>--base-branch</code>), read verbatim; <strong>zero</strong> topology or name detection. Guard: the skill refuses to run on <code>main</code>/<code>master</code> and asks.</td>
+            <td><code>parallel-plan-execution.js:15</code>; <code>generate-run-script.mjs:67-68,105</code>; <code>parallel-subagent-development/SKILL.md:14-15,78</code></td>
+            <td>We already use the <strong>most robust</strong> industry pattern (explicit base). There is nothing to &ldquo;fix&rdquo; in detection because there is <strong>no</strong> detection &mdash; the prior &ldquo;detect-then-confirm&rdquo; lever would have <strong>added</strong> fragility we don&rsquo;t currently have.</td>
+          </tr>
+        </tbody>
+      </table>
+    </div></div>
+
+    <div class="callout callout--insight">
+      <span class="callout__tag">Ties to your own philosophy</span>
+      <p>Our engine already obeys &ldquo;never guess the target branch.&rdquo; The prior &ldquo;detect-then-confirm&rdquo; lever would have <strong>regressed</strong> us toward heuristics. The right move is to keep explicit-base and, optionally, let a project <strong>declare</strong> its model in machine-readable config.</p>
+    </div>
+
+    <!-- ============ SECTION 2 : SQUASH vs ATOMIC ============ -->
+    <h2 id="s2" class="sec-head sec2"><span class="sec-head__num">02</span> Concern #1: per-MSP squash vs preserving atomic commits <span class="sec-head__sub">a genuine tradeoff</span></h2>
+
+    <p class="lead">An <span class="term" data-tip="One small, self-contained, logical change that leaves the tree in a working (buildable, testable) state." tabindex="0">atomic commit</span> is one small, self-contained, logical change that leaves the tree in a working state. The skeptic view (squash throws away atomicity) and the integration view (the PR is the atomic unit) are <strong>both right</strong> &mdash; at different levels.</p>
+
+    <div class="kicker-label">2.1 &mdash; The premise shift: one word, two granularities</div>
+    <div class="two-gran">
+      <div class="gran gran--feature">
+        <div class="gran__label">Feature-branch level</div>
+        <div class="gran__atomic">atomic = one testable change within the feature</div>
+        <div class="gran__who">audience: developer + reviewer</div>
+        <p>Work-in-progress navigation, granular review, mid-PR <span class="term" data-tip="git bisect: a binary search across commit history to find the exact commit that introduced a bug." tabindex="0">bisect</span>/debugging. The hundreds of atomic commits do their job <em>here</em> &mdash; and the feature branch is retained, so they are never lost.</p>
+      </div>
+      <div class="gran gran--integration">
+        <div class="gran__label">Integration-branch level</div>
+        <div class="gran__atomic">atomic = one deployable, reviewed PR/MSP</div>
+        <div class="gran__who">audience: history, releases, reverts</div>
+        <p>One PR &rarr; one commit &rarr; one changelog entry &rarr; one-command revert. Squash enforces &ldquo;one logical change per commit&rdquo; on the protected branch &mdash; exactly the rule you already apply to published history.</p>
+      </div>
+    </div>
+
+    <div class="kicker-label">2.2 &mdash; The three merge strategies and what each does to history</div>
+    <div class="table-wrap"><div class="table-scroll">
+      <table class="data-table">
+        <thead><tr><th>Strategy</th><th>History shape</th><th>Original commits on main?</th><th>Authorship</th><th>Source</th></tr></thead>
+        <tbody>
+          <tr><td class="nm">Merge commit (<code>--no-ff</code>, our current default)</td><td>Non-linear; merge commit + all feature commits</td><td class="yes">Yes, all preserved</td><td>Full per-commit</td><td><a href="https://docs.github.com/en/repositories/configuring-branches-and-merges-in-your-repository/configuring-pull-request-merges/about-merge-methods-on-github">GitHub: merge methods</a></td></tr>
+          <tr><td class="nm">Squash-and-merge</td><td>Linear; <strong>one</strong> commit per PR</td><td class="no">No (collapsed)</td><td class="against-col">Lost (single author)</td><td>same GitHub merge-methods doc</td></tr>
+          <tr><td class="nm">Rebase-and-merge</td><td>Linear; commits replayed individually</td><td class="yes">Yes (new hashes)</td><td>Preserved per commit; <strong>signatures not carried</strong></td><td>same GitHub merge-methods doc</td></tr>
+        </tbody>
+      </table>
+    </div></div>
+
+    <div class="kicker-label">2.3 / 2.4 &mdash; Why teams squash, and why they don&rsquo;t</div>
+    <div class="split2">
+      <div class="panel panel--strong">
+        <div class="panel__title">For squash</div>
+        <ul>
+          <li><strong>Google release-please recommends it:</strong> &ldquo;We highly recommend that you use squash-merges&rdquo; &mdash; cleaner history, easier bisect, changelog control; feature-branch messages &ldquo;don&rsquo;t make sense when merged in the main branch.&rdquo; <a href="https://github.com/googleapis/release-please?tab=readme-ov-file">github.com/googleapis/release-please</a></li>
+          <li><strong>Conventional Commits supports it</strong> explicitly &mdash; maintainers clean up the message at merge. <a href="https://www.conventionalcommits.org/en/v1.0.0/">conventionalcommits.org/v1.0.0</a></li>
+          <li><strong>Bisect reliability</strong> (not just cleanliness): every squashed commit on main is a reviewed, CI-passing state, so <code>git bisect</code> never lands on a broken WIP commit. <a href="https://danielrotter.at/2023/10/28/git-bisect-and-the-importance-of-a-clean-history.html">danielrotter.at</a></li>
+          <li><strong>One-command whole-feature revert:</strong> <code>git revert &lt;squash-commit&gt;</code>.</li>
+          <li><strong>&ldquo;Commit often, perfect later, squash on merge&rdquo;</strong> is a first-class documented workflow: squash &ldquo;gives your team the freedom to commit as often as they want, without&hellip; unnecessary commits to the main repository.&rdquo; <a href="https://docs.gitlab.com/user/project/merge_requests/squash_and_merge/">GitLab: squash and merge</a></li>
+        </ul>
+      </div>
+      <div class="panel panel--gaps">
+        <div class="panel__title">Against squash</div>
+        <ul>
+          <li><strong>Linux kernel:</strong> every patch is already a standalone atomic unit that builds and runs &mdash; &ldquo;Separate each logical change into a separate patch.&rdquo; The patch <em>is</em> the squash equivalent; they never bundle. <a href="https://www.kernel.org/doc/html/latest/process/submitting-patches.html">kernel.org: submitting-patches</a></li>
+          <li><strong>Mitchell Hashimoto</strong> prefers merge commits ~90% of the time; squashing a big diff destroys bisect value and loses authorship. <a href="https://gist.github.com/mitchellh/319019b1b8aac9110fcfb1862e0c97fb">gist: mitchellh</a></li>
+          <li><strong>GitHub&rsquo;s own docs flag drawbacks:</strong> loses authorship; <code>git rerere</code> is less effective; long-lived branch reuse causes previously-squashed commits to <strong>reappear</strong> in later PR diffs. <span class="conf-tag">(same GitHub merge-methods doc)</span></li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="kicker-label">2.5 &mdash; Tooling interaction (where squash has real consequences)</div>
+    <div class="table-wrap"><div class="table-scroll">
+      <table class="data-table">
+        <thead><tr><th>Release tool</th><th>Squash-compatible?</th><th class="wide">Condition</th></tr></thead>
+        <tbody>
+          <tr><td class="nm">semantic-release</td><td class="partial">Yes, with friction</td><td class="wide">Squash commit message <strong>must</strong> be Conventional-Commits-formatted; requires PR-title linting (it parses commit messages on main and knows nothing about PRs). <a href="https://github.com/semantic-release/semantic-release/discussions/2362">discussion #2362</a></td></tr>
+          <tr><td class="nm">release-please (Google)</td><td class="yes">Yes &mdash; recommended</td><td class="wide">Designed for squash; the squash message drives versioning + changelog. <a href="https://github.com/googleapis/release-please?tab=readme-ov-file">release-please README</a></td></tr>
+          <tr><td class="nm">changesets</td><td class="yes">Yes &mdash; strategy-agnostic</td><td class="wide">Uses explicit changeset files, not commit-message parsing. <a href="https://github.com/changesets/changesets/blob/main/docs/config-file-options.md">changesets config-file-options</a></td></tr>
+          <tr><td class="nm">Plain merge commit</td><td class="yes">Yes</td><td class="wide">But WIP commit messages (<code>wip</code>, <code>fix typo</code>) pollute and mislead version detection.</td></tr>
+        </tbody>
+      </table>
+    </div></div>
+
+    <div class="kicker-label">2.6 &mdash; The master comparison matrix</div>
+    <span class="centerpiece-label amber">Centerpiece &middot; merge-strategy decision matrix</span>
+    <div class="table-wrap table-wrap--center-amber"><div class="table-scroll">
+      <table class="data-table">
+        <thead><tr><th>Dimension</th><th>Merge commit (<code>--no-ff</code>, current)</th><th>Squash-and-merge</th><th>Rebase-and-merge</th></tr></thead>
+        <tbody>
+          <tr><td class="dim">History shape</td><td>Non-linear; merge commits</td><td>Linear; 1 commit / PR</td><td>Linear; commits replayed</td></tr>
+          <tr><td class="dim">Bisect granularity</td><td>Finest (per WIP commit) &mdash; but noisy</td><td class="against-col">Coarse (per PR only)</td><td class="for-col">Fine (per commit)</td></tr>
+          <tr><td class="dim">Bisect reliability</td><td class="against-col">Low &mdash; can land on broken WIP commit</td><td class="for-col">High &mdash; every commit reviewed + CI-passing</td><td class="for-col">High <em>if</em> every commit is atomic + CI-passing</td></tr>
+          <tr><td class="dim">Revert whole PR</td><td class="partial">Harder (revert merge, <code>-m</code>)</td><td class="for-col">Trivial: <code>git revert &lt;squash&gt;</code></td><td class="partial">Multiple reverts (one per commit)</td></tr>
+          <tr><td class="dim">Revert part of PR</td><td class="for-col">Possible (per commit)</td><td class="against-col">Impossible (collapsed)</td><td class="for-col">Possible (per commit)</td></tr>
+          <tr><td class="dim">Authorship preservation</td><td class="for-col">Full per-commit</td><td class="against-col">Lost (single author/message)</td><td class="partial">Preserved per commit; signatures not carried</td></tr>
+          <tr><td class="dim">Readability of main</td><td class="against-col">Cluttered (<code>wip</code> / <code>fix typo</code> noise)</td><td class="for-col">Cleanest</td><td class="for-col">Clean if commits curated</td></tr>
+          <tr><td class="dim">semantic-release fit</td><td class="partial">Works, but WIP messages pollute detection</td><td class="partial">Works <em>if</em> squash message is CC-formatted (PR-title lint)</td><td class="partial">Works if each commit is CC-formatted</td></tr>
+          <tr><td class="dim">release-please fit</td><td class="for-col">Works</td><td class="for-col">Recommended &mdash; squash msg drives version + changelog</td><td class="for-col">Works</td></tr>
+          <tr><td class="dim">When to use</td><td>Preserve full context; Hashimoto&rsquo;s ~90% default on long-lived shared branches</td><td>1 PR = 1 shippable unit; want clean history + easy whole-feature revert</td><td>Want linear history <strong>and</strong> per-commit granularity; small / atomic PRs</td></tr>
+        </tbody>
+      </table>
+    </div></div>
+    <p class="body"><span class="badge badge--high">High</span> Matrix triangulated against the GitHub merge-methods doc, release-please, semantic-release, GitLab, kernel.org, and the practitioner sources cited above.</p>
+
+    <div class="kicker-label">2.7 &mdash; For / Against / Alternative</div>
+    <div class="callout callout--honesty">
+      <span class="callout__tag">For squash &middot; High confidence</span>
+      <p>Clean integration history; reliable PR-granularity bisect; trivial whole-feature revert; developer freedom (&ldquo;commit often, perfect later&rdquo;); release-tool fit (release-please recommends it outright).</p>
+    </div>
+    <div class="callout callout--counter">
+      <span class="callout__tag">Against squash &middot; High confidence</span>
+      <p>Permanent loss of sub-PR bisect granularity in published history; lost authorship; bundles separable changes; weaker <code>rerere</code>; semantic-release needs extra config (CC-formatted PR titles); long-lived-branch reuse hazard (squashed commits reappear).</p>
+    </div>
+    <div class="callout callout--insight">
+      <span class="callout__tag">Alternative that dissolves the tension entirely</span>
+      <p><strong>Rebase-and-merge + small / stacked PRs.</strong> Keeps linear history <strong>and</strong> per-commit granularity <em>if</em> every commit is atomic and CI-passing &mdash; removing the squash-vs-preserve tension. <a href="https://graphite.com/blog/pull-request-merge-strategy">graphite.com: PR merge strategy</a>. Lower-ceremony variant: interactive-rebase cleanup before opening the PR, then merge-commit or rebase-merge.</p>
+    </div>
+
+    <div class="callout callout--verdict">
+      <span class="callout__tag">2.8 &mdash; Verdict for the lever (decision-ready)</span>
+      <p>The squash lever is a <strong>genuine tradeoff, not an obvious win</strong>, and we don&rsquo;t squash today. If MSP = &ldquo;one PR = one shippable unit,&rdquo; squash maps cleanly (1 MSP &rarr; 1 commit &rarr; 1 changelog entry &rarr; 1-command revert) &mdash; that is the case <em>for</em> the lever. The cost (sub-PR bisect) is real but <strong>bounded by keeping MSPs small</strong>, which the MSP discipline already pushes. Recommendation: present a 3-way choice &mdash; keep <code>--no-ff</code> / squash-per-MSP (with CC-formatted PR title) / rebase + small PRs. <strong>Do not silently adopt squash.</strong></p>
+    </div>
+
+    <!-- ============ SECTION 3 : BRANCH TARGET ============ -->
+    <h2 id="s3" class="sec-head sec3"><span class="sec-head__num">03</span> Concern #2: how industry reliably targets a branch <span class="sec-head__sub">no guessing</span></h2>
+
+    <div class="callout callout--counter">
+      <span class="callout__tag">3.1 &mdash; The flaw, confirmed</span>
+      <p>Name-based detection &mdash; assume <code>dev</code>/<code>development</code>/<code>staging</code> is the pre-main integration branch, assume <code>main</code>/<code>master</code> is the mainline &mdash; is <strong>not</strong> the industry standard. The one prominent tool that hardcodes names is <strong>semantic-release</strong> (default list <code>['master','main','next','beta','alpha', &hellip;]</code>). It had to be <strong>publicly patched to add <code>main</code></strong> when the industry migrated <code>master</code> &rarr; <code>main</code> &mdash; concrete proof of fragility. <a href="https://github.com/semantic-release/semantic-release/issues/1581">issue #1581</a> &middot; <a href="https://semantic-release.gitbook.io/semantic-release/usage/configuration">config docs</a></p>
+      <p>Every other primary tool avoids name-guessing: GitHub REST makes <code>base</code> <strong>required</strong>; GitLab REST makes <code>target_branch</code> <strong>required</strong>; the <code>gh</code> CLI falls back to the API-configured <strong>default branch</strong> (not a name scan); Renovate and Dependabot read the API default branch.</p>
+    </div>
+
+    <div class="kicker-label">3.2 &mdash; Ranked robust mechanisms (most &rarr; least deterministic)</div>
+    <span class="centerpiece-label green">Centerpiece &middot; branch-target mechanism ranking</span>
+    <div class="table-wrap table-wrap--center-green"><div class="table-scroll">
+      <table class="data-table">
+        <thead><tr><th class="center">Rank</th><th style="min-width:150px">Mechanism</th><th>Deterministic?</th><th>Where the truth lives</th><th class="wide">Failure mode</th><th class="wide">Tooling</th></tr></thead>
+        <tbody>
+          <tr>
+            <td class="rank r1">1</td>
+            <td class="nm">Explicit per-PR base (caller declares)</td>
+            <td class="yes">Yes &mdash; no inference</td>
+            <td>The caller&rsquo;s invocation</td>
+            <td class="wide">Only if the caller is wrong</td>
+            <td class="wide"><a href="https://cli.github.com/manual/gh_pr_create"><code>gh pr create --base</code></a>; GitHub REST <code>base</code> <strong>required</strong> <a href="https://docs.github.com/en/rest/pulls/pulls">(pulls API)</a>; GitLab <code>target_branch</code> <strong>required</strong> <a href="https://docs.gitlab.com/api/merge_requests/">(merge_requests API)</a></td>
+          </tr>
+          <tr>
+            <td class="rank r2">2</td>
+            <td class="nm">Repo&rsquo;s configured default branch</td>
+            <td class="yes">Yes for single-mainline</td>
+            <td>Repo settings (admin UI / API)</td>
+            <td class="wide">Wrong for git-flow (default = <code>main</code> but integration = <code>develop</code>)</td>
+            <td class="wide">GitHub <code>default_branch</code> field + <code>GITHUB_DEFAULT_BRANCH</code>; <code>gh repo set-default</code>; GitLab <code>default_branch</code>; <code>git symbolic-ref refs/remotes/origin/HEAD</code> (local cache, can be stale)</td>
+          </tr>
+          <tr>
+            <td class="rank r3">3</td>
+            <td class="nm">Stored branching config</td>
+            <td class="yes">Yes &mdash; machine-readable</td>
+            <td><code>.git/config</code> / committed <code>.gitflow</code></td>
+            <td class="wide">Absent unless git-flow initialized</td>
+            <td class="wide"><code>git config --get gitflow.branch.develop</code> <a href="https://github.com/petervanderdoes/gitflow-avh/wiki/Reference:-git-flow-config">(git-flow config reference)</a></td>
+          </tr>
+          <tr>
+            <td class="rank r4">4</td>
+            <td class="nm">Branch-protection / ruleset enumeration</td>
+            <td class="partial">Partial &mdash; over-inclusive</td>
+            <td>Repo ruleset / protection config</td>
+            <td class="wide">Multiple protected branches; &ldquo;important&rdquo; &ne; &ldquo;the PR target&rdquo;</td>
+            <td class="wide">GitHub <code>GET /branches?protected=true</code>, Rulesets API</td>
+          </tr>
+          <tr>
+            <td class="rank r5">5</td>
+            <td class="nm">Name-based heuristic</td>
+            <td class="no">No &mdash; convention-dependent</td>
+            <td>Unenforced naming conventions</td>
+            <td class="wide">Any non-conventional name; multi-branch models; renames</td>
+            <td class="wide">semantic-release defaults; ad-hoc CI <code>if ref == 'main'</code> scripts</td>
+          </tr>
+        </tbody>
+      </table>
+    </div></div>
+    <p class="body"><span class="badge badge--high">High</span> Rank 1 (explicit base) is exactly what our engine already does &mdash; and what GitHub&rsquo;s REST API mandates.</p>
+
+    <div class="kicker-label">3.3 &mdash; Your two proposals, each validated</div>
+    <div class="card-grid">
+      <div class="ve-card b1">
+        <h4>(a) Explicit per-PR target</h4>
+        <p>&ldquo;PR from worktree &rarr; branch X&rdquo;, &ldquo;branch X &rarr; development&rdquo;. This is <strong>Rank 1</strong>, the most robust mechanism, and exactly what GitHub&rsquo;s REST API mandates. It is also what our engine already does.</p>
+        <span class="meta"><b>Verdict</b> &middot; <span>Adopt as the default contract &mdash; every MSP run states its base; never inferred.</span></span>
+      </div>
+      <div class="ve-card b2">
+        <h4>(b) Declare the strategy per project</h4>
+        <p>In config / CLAUDE.md. Valid and with direct precedent &mdash; git-flow stores <code>gitflow.branch.develop</code>; semantic-release stores a <code>branches</code> array. But a critical refinement applies (see 3.4).</p>
+        <span class="meta"><b>Verdict</b> &middot; <span>Valid &mdash; but the declaration must be machine-readable + verified, not prose alone.</span></span>
+      </div>
+      <div class="ve-card b3">
+        <h4>(c) Enforce a default on fresh projects</h4>
+        <p>Standard practice. <code>git flow init -d</code> (creates <code>master</code>+<code>develop</code> and writes machine-readable config in one command); GitHub template repos (carry committed config); <code>git init -b main</code> / <code>init.defaultBranch</code>; org default-branch policy; cookiecutter post-gen hooks. <a href="https://git-scm.com/docs/git-init">git-init</a> &middot; <a href="https://docs.github.com/en/organizations/managing-organization-settings/managing-the-default-branch-name-for-repositories-in-your-organization">GitHub org default branch</a></p>
+        <span class="meta"><b>Verdict</b> &middot; <span>Standard &mdash; enforce via real setup commands, not prose.</span></span>
+      </div>
+    </div>
+
+    <div class="kicker-label">3.4 &mdash; The refinement that makes &ldquo;declare&rdquo; robust</div>
+    <div class="drift">
+      <span class="drift__flag">The drift trap &middot; the single most important nuance</span>
+      <p>Declaring the model in CLAUDE.md <em>prose</em> carries <strong>high drift risk</strong>. Nothing validates that &ldquo;we use gitflow, main+develop&rdquo; in CLAUDE.md matches the actual branches. Under your own <code>no-comments.md</code> philosophy (&ldquo;the code is the only reliable source of truth; comments drift&rdquo;) and <code>memory-discipline.md</code> (&ldquo;if memory and code disagree, code wins&rdquo;), a prose branch declaration is a <strong>hint, not authority</strong>.</p>
+      <p>Industry has <strong>no cross-tool schema</strong> for &ldquo;branch roles&rdquo; &mdash; each tool invents its own (git-flow INI keys; semantic-release <code>branches</code> array; changesets a single <code>baseBranch</code>). <a href="https://github.com/changesets/changesets/blob/main/docs/config-file-options.md">changesets config-file-options</a></p>
+      <p><strong>Therefore the robust shape is layered</strong> &mdash; authority lives in the machine-readable + live git state, with CLAUDE.md as a verified label only.</p>
+    </div>
+
+    <div class="tiers">
+      <div class="tier tier--auth">
+        <div class="tier__n">1</div>
+        <div class="tier__body">
+          <h5>Authoritative = machine-readable + live git state</h5>
+          <p>The actual branches; a committed config key if a tool needs one. <strong>This is what automation trusts.</strong></p>
+        </div>
+      </div>
+      <div class="tier tier--label">
+        <div class="tier__n">2</div>
+        <div class="tier__body">
+          <h5>CLAUDE.md = human / AI-readable label + pointer</h5>
+          <p>&ldquo;This project uses trunk-based; base = <code>main</code>.&rdquo; The agent must <strong>verify it against the real branch before acting</strong> &mdash; never the sole source.</p>
+        </div>
+      </div>
+      <div class="tier tier--fresh">
+        <div class="tier__n">3</div>
+        <div class="tier__body">
+          <h5>Fresh projects = enforce a default via real commands</h5>
+          <p>A setup step (e.g. <code>git flow init -d</code>, <code>git init -b main</code>), <strong>not prose</strong>.</p>
+        </div>
+      </div>
+    </div>
+    <p class="body">Net: your &ldquo;declare in CLAUDE.md&rdquo; instinct is <strong>right for intent</strong>, but the agent must treat it as a hint and confirm against reality &mdash; exactly the discipline already encoded in this config.</p>
+
+    <div class="kicker-label">3.5 &mdash; Recommended revised lever: declare-or-pass, never guess</div>
+    <p class="body">A three-tier resolution order for the base branch &mdash; all deterministic, none heuristic:</p>
+    <div class="ladder">
+      <div class="rung">
+        <div class="rung__head"><span class="rung__num">1</span><span class="rung__title">Explicit pass wins</span><span class="rung__rank">Rank 1</span></div>
+        <p>If the run/PR states <code>--base X</code> (or &ldquo;worktree &rarr; X&rdquo;), use X.</p>
+      </div>
+      <div class="rung">
+        <div class="rung__head"><span class="rung__num">2</span><span class="rung__title">Else read a declared machine-readable source</span><span class="rung__rank">Rank 2&ndash;3</span></div>
+        <p>A committed branch config key, or the repo&rsquo;s API / <code>HEAD</code> default branch.</p>
+      </div>
+      <div class="rung">
+        <div class="rung__head"><span class="rung__num">3</span><span class="rung__title">Else stop and ask the human</span></div>
+        <p>Our engine already has the &ldquo;on <code>main</code>/<code>master</code>, stop and ask&rdquo; guard &mdash; generalize it to &ldquo;if base is neither passed nor declared, ask; never infer from a name.&rdquo;</p>
+      </div>
+      <div class="rung rung--never">
+        <div class="rung__head"><span class="rung__num">&times;</span><span class="rung__title">Never</span></div>
+        <p>Scan branch names for <code>dev</code> / <code>develop</code> / <code>staging</code> / <code>main</code> and assume a role.</p>
+      </div>
+    </div>
+
+    <!-- ============ SECTION 4 : REVISED LEVERS ============ -->
+    <h2 id="s4" class="sec-head sec4"><span class="sec-head__num">04</span> Revised levers <span class="sec-head__sub">what changes vs the prior report</span></h2>
+
+    <p class="lead">These two follow-up concerns revise two of the six levers proposed in the prior MSP report (round-2, &sect;7). This is the action surface.</p>
+
+    <div class="table-wrap"><div class="table-scroll">
+      <table class="data-table">
+        <thead><tr><th style="min-width:180px">Prior lever (round-2 report &sect;7)</th><th class="wide">Status after this research</th><th class="wide">Revised form</th></tr></thead>
+        <tbody>
+          <tr>
+            <td class="nm">&ldquo;Branching detect-then-confirm&rdquo;</td>
+            <td class="wide"><span class="badge badge--low" style="color:var(--red);background:var(--red-dim)">Rejected</span> Heuristic detection isn&rsquo;t industry-standard and is fragile.</td>
+            <td class="wide"><strong>Replace</strong> with &ldquo;declare-or-pass, never guess&rdquo; (&sect;3.5): explicit base wins; else declared / default; else <strong>ask</strong>.</td>
+          </tr>
+          <tr>
+            <td class="nm">&ldquo;Per-MSP squash&rdquo;</td>
+            <td class="wide"><span class="badge badge--med">Keep as a choice</span> Genuine tradeoff, not auto-adopt; we never squash today.</td>
+            <td class="wide"><strong>Present 3 options:</strong> keep <code>--no-ff</code> / squash-per-MSP (requires CC-formatted PR title if semantic-release is used) / rebase + small PRs. User picks.</td>
+          </tr>
+        </tbody>
+      </table>
+    </div></div>
+
+    <div class="callout callout--insight">
+      <span class="callout__tag">Unchanged by this research</span>
+      <p>The other four levers from the prior report are <strong>unchanged</strong> &mdash; they remain pending selection: <strong>MSP task criterion</strong>, <strong>validate-before-proceed + merge-queue</strong>, <strong>auto draft-PR-per-MSP + allow-list</strong>, and <strong>dependency-graph gate</strong>.</p>
+    </div>
+
+    <!-- ============ SECTION 5 : DECISION ASKS ============ -->
+    <h2 id="s5" class="sec-head sec5"><span class="sec-head__num">05</span> Decision asks <span class="sec-head__sub">what we need from you</span></h2>
+
+    <div class="checklist">
+      <div class="checklist__head">Decision checklist &middot; 5 asks</div>
+
+      <div class="check-item">
+        <div class="check-box"></div>
+        <div class="check-item__body">
+          <div class="check-item__q"><span class="qn">1</span>Branch target</div>
+          <div class="check-item__d">Confirm &ldquo;declare-or-pass, never guess&rdquo; replaces &ldquo;detect-then-confirm.&rdquo;</div>
+          <span class="rec-chip">Recommended: yes</span>
+        </div>
+      </div>
+
+      <div class="check-item">
+        <div class="check-box"></div>
+        <div class="check-item__body">
+          <div class="check-item__q"><span class="qn">2</span>CLAUDE.md role</div>
+          <div class="check-item__d">Confirm CLAUDE.md carries a branch <strong>label / pointer only</strong>, with the live git state authoritative.</div>
+          <span class="rec-chip">Recommended: yes</span>
+        </div>
+      </div>
+
+      <div class="check-item">
+        <div class="check-box"></div>
+        <div class="check-item__body">
+          <div class="check-item__q"><span class="qn">3</span>Fresh-project default</div>
+          <div class="check-item__d">Do you want a default branching model enforced on new projects, and which (trunk / main-only vs main+develop)? Via real setup commands, not prose.</div>
+          <span class="rec-chip amber">Your call</span>
+        </div>
+      </div>
+
+      <div class="check-item">
+        <div class="check-box"></div>
+        <div class="check-item__body">
+          <div class="check-item__q"><span class="qn">4</span>Merge strategy</div>
+          <div class="check-item__d">Pick: keep <code>--no-ff</code> / squash-per-MSP / rebase + small PRs.</div>
+          <span class="rec-chip amber">Your call &mdash; genuine tradeoff</span>
+        </div>
+      </div>
+
+      <div class="check-item">
+        <div class="check-box"></div>
+        <div class="check-item__body">
+          <div class="check-item__q"><span class="qn">5</span>Next step</div>
+          <div class="check-item__d">Turn the chosen set (plus the four still-pending levers) into an implementation plan.</div>
+          <span class="rec-chip">After 1&ndash;4 decided</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- ============ SOURCES ============ -->
+    <h2 id="srefs" class="sec-head"><span class="sec-head__num">RF</span> Consolidated sources <span class="sec-head__sub">grouped &middot; primary first</span></h2>
+
+    <div class="ref-block">
+      <div class="ref-block__title">GitHub</div>
+      <div class="ref-grid">
+        <a href="https://docs.github.com/en/repositories/configuring-branches-and-merges-in-your-repository/configuring-pull-request-merges/about-merge-methods-on-github">docs.github.com &middot; merge methods<span class="ref-note">merge / squash / rebase behavior + drawbacks</span></a>
+        <a href="https://docs.github.com/en/rest/pulls/pulls">docs.github.com &middot; pulls REST<span class="ref-note"><code>base</code> is a required parameter</span></a>
+        <a href="https://docs.github.com/en/organizations/managing-organization-settings/managing-the-default-branch-name-for-repositories-in-your-organization">docs.github.com &middot; org default branch<span class="ref-note">enforce a default branch name org-wide</span></a>
+        <a href="https://cli.github.com/manual/gh_pr_create">cli.github.com &middot; gh pr create<span class="ref-note"><code>--base</code> explicit target</span></a>
+      </div>
+    </div>
+
+    <div class="ref-block">
+      <div class="ref-block__title">GitLab</div>
+      <div class="ref-grid">
+        <a href="https://docs.gitlab.com/api/merge_requests/">docs.gitlab.com &middot; merge_requests API<span class="ref-note"><code>target_branch</code> is required</span></a>
+        <a href="https://docs.gitlab.com/user/project/merge_requests/squash_and_merge/">docs.gitlab.com &middot; squash and merge<span class="ref-note">commit often, perfect later, squash on merge</span></a>
+      </div>
+    </div>
+
+    <div class="ref-block">
+      <div class="ref-block__title">Git &amp; git-flow</div>
+      <div class="ref-grid">
+        <a href="https://git-scm.com/docs/git-init">git-scm.com &middot; git-init<span class="ref-note"><code>init.defaultBranch</code> / <code>-b main</code></span></a>
+        <a href="https://github.com/petervanderdoes/gitflow-avh/wiki/Reference:-git-flow-config">gitflow-avh &middot; git-flow config<span class="ref-note">machine-readable <code>gitflow.branch.*</code> keys</span></a>
+      </div>
+    </div>
+
+    <div class="ref-block">
+      <div class="ref-block__title">Release tooling</div>
+      <div class="ref-grid">
+        <a href="https://github.com/googleapis/release-please?tab=readme-ov-file">github.com &middot; release-please<span class="ref-note">recommends squash; message drives version + changelog</span></a>
+        <a href="https://semantic-release.gitbook.io/semantic-release/usage/configuration">semantic-release &middot; configuration<span class="ref-note">hardcoded branches default list</span></a>
+        <a href="https://github.com/semantic-release/semantic-release/issues/1581">semantic-release &middot; issue #1581<span class="ref-note">had to add <code>main</code> after master &rarr; main</span></a>
+        <a href="https://github.com/semantic-release/semantic-release/discussions/2362">semantic-release &middot; discussion #2362<span class="ref-note">squash needs CC-formatted PR title</span></a>
+        <a href="https://github.com/changesets/changesets/blob/main/docs/config-file-options.md">changesets &middot; config-file-options<span class="ref-note">strategy-agnostic; single <code>baseBranch</code></span></a>
+      </div>
+    </div>
+
+    <div class="ref-block">
+      <div class="ref-block__title">Conventions &amp; practitioner / secondary <span style="color:var(--text-dim);font-weight:400;letter-spacing:0;text-transform:none">(weighted lower)</span></div>
+      <div class="ref-grid">
+        <a href="https://www.conventionalcommits.org/en/v1.0.0/">conventionalcommits.org &middot; v1.0.0<span class="ref-note">supports squash-message cleanup</span></a>
+        <a href="https://www.kernel.org/doc/html/latest/process/submitting-patches.html">kernel.org &middot; submitting-patches<span class="ref-note">one logical change per patch (never bundle)</span></a>
+        <a href="https://gist.github.com/mitchellh/319019b1b8aac9110fcfb1862e0c97fb">gist &middot; mitchellh<span class="ref-note">prefers merge commits ~90% of the time</span></a>
+        <a href="https://danielrotter.at/2023/10/28/git-bisect-and-the-importance-of-a-clean-history.html">danielrotter.at &middot; bisect + clean history<span class="ref-note">bisect reliability, not just cleanliness</span></a>
+        <a href="https://graphite.com/blog/pull-request-merge-strategy">graphite.com &middot; PR merge strategy<span class="ref-note">rebase + small/stacked PRs alternative</span></a>
+      </div>
+    </div>
+
+    <div class="footer-note">
+      <strong>Additional secondary sources</strong> named in the prior research and weighted lower &mdash; Microsoft engineering playbook, Google small-CL guide, Renovate config, Dependabot changelog, Document360 doc-drift, IBM config-drift &mdash; are not re-linked here; this report relies on the primary and practitioner sources above, each carrying a resolving URL. <strong>No configuration was changed by this research.</strong> Confidence on both headline answers: <span class="badge badge--high" style="vertical-align:baseline">High</span> &mdash; the branch-target finding is unambiguous; the squash finding is a genuine, evidence-backed tradeoff.
+    </div>
+
+  </div>
+</div>
+
+<script>
+(function () {
+  const root = document.documentElement;
+  const btn = document.getElementById('theme-toggle');
+  function effDark() {
+    const t = root.dataset.theme;
+    if (t === 'dark') return true;
+    if (t === 'light') return false;
+    return matchMedia('(prefers-color-scheme: dark)').matches;
+  }
+  function syncBtn() { if (btn) btn.textContent = (effDark() ? 'Light' : 'Dark') + ' mode'; }
+  syncBtn();
+  btn && btn.addEventListener('click', function () {
+    root.dataset.theme = effDark() ? 'light' : 'dark';
+    syncBtn();
+  });
+  matchMedia('(prefers-color-scheme: dark)').addEventListener('change', function () {
+    if (!root.dataset.theme) syncBtn();
+  });
+})();
+</script>
+
+<script>
+(function () {
+  const toc = document.getElementById('toc');
+  if (!toc) return;
+  const links = toc.querySelectorAll('a');
+  const sections = [];
+  links.forEach(function (link) {
+    const id = link.getAttribute('href').slice(1);
+    const el = document.getElementById(id);
+    if (el) sections.push({ id: id, el: el, link: link });
+  });
+  const observer = new IntersectionObserver(function (entries) {
+    entries.forEach(function (entry) {
+      if (entry.isIntersecting) {
+        links.forEach(function (l) { l.classList.remove('active'); });
+        const match = sections.find(function (s) { return s.el === entry.target; });
+        if (match) {
+          match.link.classList.add('active');
+          if (window.innerWidth <= 1000) {
+            match.link.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
+          }
+        }
+      }
+    });
+  }, { rootMargin: '-8% 0px -82% 0px' });
+  sections.forEach(function (s) { observer.observe(s.el); });
+  links.forEach(function (link) {
+    link.addEventListener('click', function (e) {
+      e.preventDefault();
+      const id = link.getAttribute('href').slice(1);
+      const el = document.getElementById(id);
+      if (el) { el.scrollIntoView({ behavior: 'smooth', block: 'start' }); history.replaceState(null, '', '#' + id); }
+    });
+  });
+})();
+</script>
+
+</body>
+</html>

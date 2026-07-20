@@ -1,0 +1,1594 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Your Claude Code Config, Explained</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --font-body: 'IBM Plex Sans', system-ui, sans-serif;
+    --font-mono: 'IBM Plex Mono', 'SF Mono', Consolas, monospace;
+
+    --bg: #e8eef5;
+    --surface: #ffffff;
+    --surface2: #f1f5fa;
+    --surface-elevated: #ffffff;
+    --grid: rgba(30, 64, 110, 0.055);
+    --border: rgba(15, 40, 70, 0.12);
+    --border-bright: rgba(15, 40, 70, 0.22);
+    --text: #0e2438;
+    --text-dim: #51647c;
+
+    --blue: #1d4ed8;
+    --blue-dim: rgba(29, 78, 216, 0.09);
+    --teal: #0e7490;
+    --teal-dim: rgba(14, 116, 144, 0.10);
+    --amber: #b45309;
+    --amber-dim: rgba(180, 83, 9, 0.11);
+    --green: #15803d;
+    --green-dim: rgba(21, 128, 61, 0.11);
+    --red: #b91c1c;
+    --red-dim: rgba(185, 28, 28, 0.10);
+    --slate: #475569;
+    --slate-dim: rgba(71, 85, 105, 0.10);
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #081320;
+      --surface: #0e1f33;
+      --surface2: #122639;
+      --surface-elevated: #122a42;
+      --grid: rgba(120, 165, 220, 0.06);
+      --border: rgba(125, 165, 215, 0.14);
+      --border-bright: rgba(125, 165, 215, 0.26);
+      --text: #d7e5f6;
+      --text-dim: #88a1bd;
+
+      --blue: #60a5fa;
+      --blue-dim: rgba(96, 165, 250, 0.14);
+      --teal: #38bdf8;
+      --teal-dim: rgba(56, 189, 248, 0.14);
+      --amber: #fbbf24;
+      --amber-dim: rgba(251, 191, 36, 0.15);
+      --green: #4ade80;
+      --green-dim: rgba(74, 222, 128, 0.14);
+      --red: #f87171;
+      --red-dim: rgba(248, 113, 113, 0.15);
+      --slate: #94a3b8;
+      --slate-dim: rgba(148, 163, 184, 0.14);
+    }
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background-color: var(--bg);
+    background-image:
+      linear-gradient(var(--grid) 1px, transparent 1px),
+      linear-gradient(90deg, var(--grid) 1px, transparent 1px);
+    background-size: 30px 30px;
+    color: var(--text);
+    font-family: var(--font-body);
+    line-height: 1.6;
+    padding: 36px 40px 80px;
+    overflow-wrap: break-word;
+  }
+
+  @keyframes fadeUp {
+    from { opacity: 0; transform: translateY(10px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+  @keyframes fadeScale {
+    from { opacity: 0; transform: scale(0.94); }
+    to { opacity: 1; transform: scale(1); }
+  }
+
+  .animate { animation: fadeUp 0.4s ease-out both; animation-delay: calc(var(--i, 0) * 0.05s); }
+
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after {
+      animation-duration: 0.01ms !important;
+      animation-delay: 0ms !important;
+      transition-duration: 0.01ms !important;
+    }
+  }
+
+  .wrap {
+    max-width: 1440px;
+    margin: 0 auto;
+    display: grid;
+    grid-template-columns: 192px 1fr;
+    gap: 0 44px;
+  }
+  .main { min-width: 0; }
+  .main > * { min-width: 0; }
+
+  .toc {
+    position: sticky;
+    top: 20px;
+    align-self: start;
+    grid-row: 1 / -1;
+    padding: 16px 0;
+    max-height: calc(100dvh - 40px);
+    overflow-y: auto;
+  }
+  .toc::-webkit-scrollbar { width: 3px; }
+  .toc::-webkit-scrollbar-thumb { background: var(--border-bright); border-radius: 2px; }
+
+  .toc-title {
+    font-family: var(--font-mono);
+    font-size: 9px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 2.4px;
+    color: var(--text-dim);
+    padding: 0 10px 10px;
+    margin-bottom: 8px;
+    border-bottom: 1px solid var(--border);
+  }
+  .toc a {
+    display: block;
+    font-family: var(--font-mono);
+    font-size: 11px;
+    color: var(--text-dim);
+    text-decoration: none;
+    padding: 6px 10px;
+    border-radius: 5px;
+    border-left: 2px solid transparent;
+    transition: all 0.15s;
+    line-height: 1.4;
+    margin-bottom: 1px;
+  }
+  .toc a:hover { color: var(--text); background: var(--surface2); }
+  .toc a.active { color: var(--text); border-left-color: var(--blue); background: var(--blue-dim); }
+  .toc a .tnum { color: var(--blue); font-weight: 600; }
+
+  .masthead { margin-bottom: 30px; }
+  .masthead__kicker {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    font-weight: 500;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    color: var(--teal);
+    margin-bottom: 10px;
+    display: flex;
+    align-items: center;
+    gap: 9px;
+  }
+  .masthead__kicker::before {
+    content: '';
+    width: 9px; height: 9px;
+    border: 1.5px solid var(--teal);
+    border-radius: 2px;
+    display: inline-block;
+  }
+  h1 {
+    font-size: clamp(30px, 4vw, 44px);
+    font-weight: 700;
+    letter-spacing: -1px;
+    line-height: 1.05;
+    text-wrap: balance;
+    margin-bottom: 12px;
+  }
+  .masthead__sub {
+    font-size: 15px;
+    color: var(--text-dim);
+    max-width: 760px;
+  }
+  .masthead__path {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    color: var(--text-dim);
+    margin-top: 12px;
+    padding: 5px 10px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    display: inline-block;
+  }
+
+  .sec-head {
+    font-size: 23px;
+    font-weight: 600;
+    letter-spacing: -0.4px;
+    margin: 52px 0 18px;
+    padding-bottom: 12px;
+    border-bottom: 1px solid var(--border-bright);
+    display: flex;
+    align-items: baseline;
+    gap: 12px;
+    flex-wrap: wrap;
+    scroll-margin-top: 20px;
+  }
+  .sec-head__num {
+    font-family: var(--font-mono);
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--blue);
+    background: var(--blue-dim);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 3px 9px;
+    letter-spacing: 1px;
+  }
+  .sec-head__sub {
+    font-family: var(--font-mono);
+    font-size: 12px;
+    font-weight: 400;
+    color: var(--text-dim);
+    text-transform: lowercase;
+    letter-spacing: 0.5px;
+  }
+  .sec7 .sec-head__num { color: var(--teal); background: var(--teal-dim); }
+
+  .lead {
+    font-size: 16px;
+    line-height: 1.7;
+    color: var(--text);
+    max-width: 820px;
+    margin-bottom: 22px;
+  }
+  .lead strong { font-weight: 600; }
+  p.body { font-size: 14.5px; color: var(--text-dim); max-width: 820px; margin-bottom: 16px; }
+  p.body strong { color: var(--text); font-weight: 600; }
+
+  .term {
+    border-bottom: 1px dotted var(--blue);
+    color: inherit;
+    cursor: help;
+    position: relative;
+    font-weight: 500;
+  }
+  .term::after {
+    content: attr(data-tip);
+    position: absolute;
+    bottom: calc(100% + 9px);
+    left: 0;
+    width: max-content;
+    max-width: 270px;
+    background: var(--surface-elevated);
+    color: var(--text);
+    border: 1px solid var(--border-bright);
+    border-radius: 9px;
+    padding: 9px 12px;
+    font-family: var(--font-body);
+    font-size: 12px;
+    font-weight: 400;
+    line-height: 1.5;
+    letter-spacing: 0;
+    text-transform: none;
+    white-space: normal;
+    box-shadow: 0 8px 28px rgba(0, 0, 0, 0.22);
+    z-index: 60;
+    pointer-events: none;
+    display: none;
+  }
+  @keyframes tipIn {
+    from { opacity: 0; transform: translateY(5px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+  .term:hover::after, .term:focus::after, .term:focus-visible::after {
+    display: block;
+    animation: tipIn 0.14s ease-out both;
+  }
+  .term:focus-visible { outline: 2px solid var(--blue); outline-offset: 2px; border-radius: 2px; }
+
+  code {
+    font-family: var(--font-mono);
+    font-size: 0.86em;
+    background: var(--blue-dim);
+    color: var(--blue);
+    padding: 1px 5px;
+    border-radius: 3px;
+  }
+
+  .kpi-row {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(168px, 1fr));
+    gap: 14px;
+    margin-bottom: 22px;
+  }
+  .kpi-card {
+    background: var(--surface-elevated);
+    border: 1px solid var(--border);
+    border-radius: 11px;
+    padding: 17px 18px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+    animation: fadeScale 0.4s ease-out both;
+    animation-delay: calc(var(--i, 0) * 0.05s);
+  }
+  .kpi-card__value {
+    font-family: var(--font-mono);
+    font-size: 30px;
+    font-weight: 600;
+    line-height: 1.05;
+    letter-spacing: -1px;
+    font-variant-numeric: tabular-nums;
+    color: var(--blue);
+  }
+  .kpi-card__value.teal { color: var(--teal); }
+  .kpi-card__value.green { color: var(--green); }
+  .kpi-card__value.amber { color: var(--amber); }
+  .kpi-card__value.small { font-size: 17px; letter-spacing: 0; }
+  .kpi-card__label {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 1.2px;
+    color: var(--text-dim);
+    margin-top: 7px;
+  }
+  .kpi-card__note { font-size: 11px; color: var(--text-dim); margin-top: 5px; line-height: 1.45; }
+
+  .kicker-label {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 1.6px;
+    color: var(--teal);
+    margin: 26px 0 12px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .kicker-label::before {
+    content: '';
+    width: 7px; height: 7px;
+    background: var(--teal);
+    border-radius: 50%;
+  }
+
+  .table-wrap {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    overflow: hidden;
+    margin-bottom: 18px;
+  }
+  .table-scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+  .data-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13px;
+    line-height: 1.5;
+  }
+  .data-table thead { position: sticky; top: 0; z-index: 2; }
+  .data-table th {
+    background: var(--surface2);
+    font-family: var(--font-mono);
+    font-size: 10px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    color: var(--text-dim);
+    text-align: left;
+    padding: 12px 15px;
+    border-bottom: 2px solid var(--border-bright);
+    white-space: nowrap;
+  }
+  .data-table th.num, .data-table td.num {
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+    font-family: var(--font-mono);
+  }
+  .data-table td {
+    padding: 12px 15px;
+    border-bottom: 1px solid var(--border);
+    vertical-align: top;
+  }
+  .data-table tbody tr:last-child td { border-bottom: none; }
+  .data-table .wide { min-width: 240px; max-width: 520px; }
+  .data-table .nm { font-family: var(--font-mono); font-size: 12px; font-weight: 500; color: var(--text); white-space: nowrap; }
+  .data-table tbody tr { transition: background 0.15s ease; }
+  .data-table tbody tr:hover { background: var(--surface2); }
+  .data-table code { font-size: 11px; }
+  .data-table small { display: block; color: var(--text-dim); font-size: 11px; margin-top: 3px; line-height: 1.45; }
+
+  .grp-row td {
+    background: var(--surface2);
+    font-family: var(--font-mono);
+    font-size: 10px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 1.4px;
+    color: var(--teal);
+    padding: 9px 15px;
+    border-bottom: 1px solid var(--border-bright);
+  }
+  .grp-row td::before {
+    content: '';
+    display: inline-block;
+    width: 6px; height: 6px;
+    background: var(--teal);
+    border-radius: 50%;
+    margin-right: 8px;
+    vertical-align: middle;
+  }
+
+  .badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    font-family: var(--font-mono);
+    font-size: 9.5px;
+    font-weight: 600;
+    padding: 3px 8px;
+    border-radius: 5px;
+    white-space: nowrap;
+    letter-spacing: 0.4px;
+    text-transform: uppercase;
+  }
+  .badge::before { content: ''; width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+  .badge--block { background: var(--red-dim); color: var(--red); }
+  .badge--prompt { background: var(--amber-dim); color: var(--amber); }
+  .badge--warn { background: var(--teal-dim); color: var(--teal); }
+  .badge--passive { background: var(--slate-dim); color: var(--slate); }
+  .badge--opus { background: var(--blue-dim); color: var(--blue); }
+  .badge--sonnet { background: var(--teal-dim); color: var(--teal); }
+  .badge--haiku { background: var(--green-dim); color: var(--green); }
+  .badge--inherit { background: var(--slate-dim); color: var(--slate); }
+  .badge--ro { background: var(--slate-dim); color: var(--slate); }
+  .badge--rw { background: var(--amber-dim); color: var(--amber); }
+  .badge--local { background: var(--blue-dim); color: var(--blue); }
+  .badge--plug { background: var(--slate-dim); color: var(--slate); }
+  .badge.noflag::before { display: none; }
+
+  details.box {
+    border: 1px solid var(--border);
+    border-radius: 11px;
+    overflow: hidden;
+    margin-bottom: 12px;
+    background: var(--surface);
+  }
+  details.box > summary {
+    padding: 13px 18px;
+    background: var(--surface);
+    font-family: var(--font-mono);
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    list-style: none;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    color: var(--text);
+    transition: background 0.15s ease;
+  }
+  details.box > summary:hover { background: var(--surface2); }
+  details.box > summary::-webkit-details-marker { display: none; }
+  details.box > summary::before {
+    content: '▸';
+    font-size: 11px;
+    color: var(--blue);
+    transition: transform 0.15s ease;
+  }
+  details.box[open] > summary::before { transform: rotate(90deg); }
+  details.box > summary .cnt {
+    margin-left: auto;
+    font-size: 10px;
+    color: var(--text-dim);
+    font-weight: 400;
+    letter-spacing: 0.5px;
+  }
+  details.box .box__body { border-top: 1px solid var(--border); }
+  details.box .box__body .table-wrap { border: none; border-radius: 0; margin: 0; }
+
+  .callout {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-left: 3px solid var(--amber);
+    border-radius: 0 11px 11px 0;
+    padding: 15px 20px;
+    font-size: 13.5px;
+    line-height: 1.65;
+    color: var(--text-dim);
+    margin: 22px 0 8px;
+  }
+  .callout strong { color: var(--text); font-weight: 600; }
+  .callout .callout__tag {
+    font-family: var(--font-mono);
+    font-size: 9.5px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 1.6px;
+    color: var(--amber);
+    display: block;
+    margin-bottom: 6px;
+  }
+  .callout code { background: var(--amber-dim); color: var(--amber); }
+
+  .hero-card {
+    background: color-mix(in srgb, var(--surface) 90%, var(--blue) 10%);
+    border: 1px solid var(--border-bright);
+    border-radius: 13px;
+    padding: 22px 24px;
+    margin-bottom: 22px;
+    box-shadow: 0 4px 22px rgba(0, 0, 0, 0.07);
+  }
+  .hero-card__label {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 1.6px;
+    color: var(--blue);
+    margin-bottom: 14px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .hero-card__label::before { content: ''; width: 8px; height: 8px; background: var(--blue); border-radius: 2px; }
+  ol.invariants { list-style: none; counter-reset: inv; padding: 0; margin: 0; display: grid; gap: 10px; }
+  ol.invariants li {
+    counter-increment: inv;
+    position: relative;
+    padding-left: 40px;
+    font-size: 13.5px;
+    line-height: 1.55;
+    color: var(--text);
+  }
+  ol.invariants li::before {
+    content: counter(inv, decimal-leading-zero);
+    position: absolute;
+    left: 0; top: 1px;
+    font-family: var(--font-mono);
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--red);
+    background: var(--red-dim);
+    border-radius: 5px;
+    padding: 2px 6px;
+  }
+  ol.invariants li strong { font-weight: 600; }
+  ol.invariants code { background: var(--red-dim); color: var(--red); }
+
+  .legend {
+    display: flex;
+    gap: 18px;
+    flex-wrap: wrap;
+    margin: 0 0 14px;
+  }
+  .legend-item {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    font-family: var(--font-mono);
+    font-size: 11px;
+    color: var(--text-dim);
+  }
+  .legend-swatch { width: 13px; height: 13px; border-radius: 3px; flex-shrink: 0; }
+  .legend-swatch.diamond { border-radius: 2px; transform: rotate(45deg); width: 11px; height: 11px; }
+
+  .mermaid-wrap {
+    position: relative;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 30px 22px;
+    overflow: auto;
+    margin-bottom: 16px;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    min-height: 400px;
+    cursor: grab;
+  }
+  .mermaid-wrap.is-panning { cursor: grabbing; user-select: none; }
+  .mermaid-wrap--compact { min-height: 260px; padding: 22px 18px; }
+
+  .zoom-controls {
+    position: absolute;
+    top: 8px; right: 8px;
+    display: flex;
+    gap: 2px;
+    z-index: 10;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 2px;
+  }
+  .zoom-controls button {
+    width: 28px; height: 28px;
+    border: none;
+    background: transparent;
+    color: var(--text-dim);
+    font-family: var(--font-mono);
+    font-size: 14px;
+    cursor: pointer;
+    border-radius: 4px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: background 0.15s ease, color 0.15s ease;
+  }
+  .zoom-controls button:hover { background: var(--border); color: var(--text); }
+
+  .diagram-shell { position: relative; }
+  .diagram-shell__hint {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    color: var(--text-dim);
+    margin-bottom: 8px;
+    opacity: 0.75;
+  }
+  .mermaid-viewport { position: relative; overflow: hidden; width: 100%; height: 100%; min-height: 300px; }
+  .mermaid-canvas { position: absolute; top: 0; left: 0; }
+  .zoom-label { font-family: var(--font-mono); font-size: 10px; color: var(--text-dim); padding: 0 6px; white-space: nowrap; }
+
+  .mermaid .nodeLabel { font-family: var(--font-body) !important; font-size: 18px !important; color: var(--text) !important; }
+  .mermaid .edgeLabel { font-family: var(--font-mono) !important; font-size: 13px !important; color: var(--text-dim) !important; background-color: var(--surface) !important; }
+  .mermaid .edgeLabel rect { fill: var(--surface) !important; }
+  .mermaid .cluster rect { rx: 10px; ry: 10px; }
+  .mermaid .node rect, .mermaid .node circle, .mermaid .node polygon { stroke-width: 1.5px !important; }
+  .mermaid .edge-pattern-solid { stroke-width: 1.5px !important; }
+
+  .card-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(248px, 1fr));
+    gap: 14px;
+    margin-bottom: 16px;
+  }
+  .ve-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 11px;
+    padding: 17px 18px;
+    border-top: 3px solid var(--teal);
+  }
+  .ve-card h4 {
+    font-family: var(--font-mono);
+    font-size: 12px;
+    font-weight: 600;
+    letter-spacing: 0.3px;
+    color: var(--text);
+    margin-bottom: 7px;
+  }
+  .ve-card p { font-size: 12.5px; color: var(--text-dim); line-height: 1.55; }
+  .ve-card.b1 { border-top-color: var(--blue); }
+  .ve-card.b2 { border-top-color: var(--teal); }
+  .ve-card.b3 { border-top-color: var(--amber); }
+  .ve-card.b4 { border-top-color: var(--green); }
+
+  .cmd-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px; margin-bottom: 14px; }
+  .cmd-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 13px 15px;
+  }
+  .cmd-card__head {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    color: var(--teal);
+    margin-bottom: 9px;
+  }
+  .cmd-list { list-style: none; padding: 0; margin: 0; display: flex; flex-wrap: wrap; gap: 6px; }
+  .cmd-list li {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    background: var(--blue-dim);
+    color: var(--blue);
+    padding: 3px 8px;
+    border-radius: 5px;
+  }
+
+  .crosscut {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 10px;
+    margin: 18px 0 8px;
+  }
+  .crosscut .cc {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-left: 3px solid var(--blue);
+    border-radius: 0 10px 10px 0;
+    padding: 12px 16px;
+    font-size: 13px;
+    line-height: 1.55;
+    color: var(--text-dim);
+  }
+  .crosscut .cc strong { color: var(--text); font-weight: 600; }
+  .crosscut .cc:nth-child(2) { border-left-color: var(--teal); }
+  .crosscut .cc:nth-child(3) { border-left-color: var(--amber); }
+  .crosscut .cc:nth-child(4) { border-left-color: var(--green); }
+
+  .closing {
+    background: color-mix(in srgb, var(--surface) 88%, var(--teal) 12%);
+    border: 1px solid var(--border-bright);
+    border-radius: 13px;
+    padding: 20px 24px;
+    margin-top: 20px;
+    font-size: 14.5px;
+    line-height: 1.65;
+    color: var(--text);
+  }
+  .closing strong { font-weight: 600; }
+  .closing .closing__tag {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 1.6px;
+    color: var(--teal);
+    display: block;
+    margin-bottom: 8px;
+  }
+
+  @media (max-width: 1000px) {
+    body { padding: 0 18px 60px; }
+    .wrap { grid-template-columns: 1fr; gap: 0; }
+    .toc {
+      position: sticky;
+      top: 0;
+      z-index: 200;
+      grid-row: auto;
+      max-height: none;
+      display: flex;
+      gap: 4px;
+      align-items: center;
+      overflow-x: auto;
+      -webkit-overflow-scrolling: touch;
+      background: var(--bg);
+      border-bottom: 1px solid var(--border-bright);
+      padding: 10px 18px;
+      margin: 0 -18px 14px;
+    }
+    .toc::-webkit-scrollbar { display: none; }
+    .toc-title { display: none; }
+    .toc a {
+      white-space: nowrap;
+      flex-shrink: 0;
+      border-left: none;
+      border-bottom: 2px solid transparent;
+      border-radius: 4px 4px 0 0;
+      padding: 6px 10px;
+      font-size: 10px;
+    }
+    .toc a.active { border-left: none; border-bottom-color: var(--blue); background: var(--surface); }
+    .main { padding-top: 18px; }
+    .masthead { margin-top: 6px; }
+  }
+  @media (max-width: 680px) {
+    h1 { font-size: 27px; }
+    .data-table th, .data-table td { padding: 10px 12px; }
+    .mermaid-wrap { padding: 18px 10px; }
+  }
+</style>
+</head>
+<body>
+
+<div class="wrap">
+
+  <nav class="toc" id="toc">
+    <div class="toc-title">Sections</div>
+    <a href="#s1"><span class="tnum">01</span> Overview</a>
+    <a href="#s2"><span class="tnum">02</span> Skills</a>
+    <a href="#s3"><span class="tnum">03</span> Agents</a>
+    <a href="#s4"><span class="tnum">04</span> Rules</a>
+    <a href="#s5"><span class="tnum">05</span> Hooks</a>
+    <a href="#s6"><span class="tnum">06</span> Plugins &amp; Integrations</a>
+    <a href="#s7"><span class="tnum">07</span> Development Flow</a>
+  </nav>
+
+  <div class="main">
+
+    <header class="masthead animate" style="--i:0">
+      <div class="masthead__kicker">Configuration Atlas &middot; ~/.claude</div>
+      <h1>Your Claude Code Config, Explained</h1>
+      <p class="masthead__sub">A blueprint of the rules, skills, agents, hooks, and plugins that turn one chat assistant into a small, governed software organization &mdash; and the fixed pipeline a task runs through.</p>
+      <div class="masthead__path">~/.claude/docs/claude-config-explained.html</div>
+    </header>
+
+    <h2 id="s1" class="sec-head animate" style="--i:1"><span class="sec-head__num">01</span> Overview <span class="sec-head__sub">what is all this?</span></h2>
+
+    <p class="lead animate" style="--i:2">
+      This configuration turns Claude Code from a single chat assistant into a small, governed software organization. A single
+      <span class="term" tabindex="0" data-tip="The main Claude in the session; it routes and reviews work but delegates the doing.">orchestrator</span>
+      (the main Claude in the session) almost never writes code itself &mdash; it routes work to a fleet of specialized
+      <span class="term" tabindex="0" data-tip="A separate Claude worker spun up with fresh, empty context to do one scoped job and report back.">subagents</span>,
+      each in its own fresh context. Surrounding that fleet are four control layers that all fire automatically:
+      <span class="term" tabindex="0" data-tip="Always-on instructions (CLAUDE.md / rules/) that constrain behavior on every task, no invocation needed.">rules</span>
+      that constrain every task,
+      <span class="term" tabindex="0" data-tip="A saved Markdown procedure Claude loads and follows step-by-step when a matching task appears.">skills</span>
+      invoked when a matching task appears,
+      <span class="term" tabindex="0" data-tip="A small script the system runs automatically at a fixed lifecycle moment to check, block, or react.">hooks</span>
+      that block or react at fixed lifecycle moments, and
+      <span class="term" tabindex="0" data-tip="Installable bundles that add skills, commands, agents, or tool servers (MCP), from a marketplace.">plugins / MCP</span>
+      that add capabilities and external-tool connectors. Three persistence systems &mdash;
+      <span class="term" tabindex="0" data-tip="Durable per-project notes kept so a later session remembers non-code decisions.">auto-memory</span>,
+      the <span class="term" tabindex="0" data-tip="Per-project files teaching the next session the cumulative state of the work.">continuity ledger</span>, and
+      <span class="term" tabindex="0" data-tip="A locally-built knowledge-graph map of a codebase Claude queries to orient before drilling in.">graphify</span> &mdash;
+      carry context across sessions. The net effect: a feature request flows through a fixed pipeline of design &rarr; plan &rarr; delegated implementation &rarr; review &rarr; verification &rarr; commit, with safety rails enforced deterministically rather than relying on the model to remember them.
+    </p>
+
+    <div class="kicker-label animate" style="--i:3">Inventory at a glance</div>
+    <div class="kpi-row">
+      <div class="kpi-card" style="--i:0"><div class="kpi-card__value">27</div><div class="kpi-card__label">Skills (unique)</div><div class="kpi-card__note">11 local + 16 plugin</div></div>
+      <div class="kpi-card" style="--i:1"><div class="kpi-card__value teal">14</div><div class="kpi-card__label">Custom subagents</div></div>
+      <div class="kpi-card" style="--i:2"><div class="kpi-card__value">25</div><div class="kpi-card__label">Rule files</div></div>
+      <div class="kpi-card" style="--i:3"><div class="kpi-card__value amber">19</div><div class="kpi-card__label">Hook scripts</div><div class="kpi-card__note">across 7 lifecycle events</div></div>
+      <div class="kpi-card" style="--i:4"><div class="kpi-card__value teal">13</div><div class="kpi-card__label">Plugins</div><div class="kpi-card__note">4 marketplaces</div></div>
+      <div class="kpi-card" style="--i:5"><div class="kpi-card__value">12</div><div class="kpi-card__label">Plugin slash-commands</div></div>
+      <div class="kpi-card" style="--i:6"><div class="kpi-card__value green">4</div><div class="kpi-card__label">MCP servers</div><div class="kpi-card__note">2 user + 2 plugin</div></div>
+    </div>
+
+    <div class="kicker-label">Key settings</div>
+    <div class="kpi-row">
+      <div class="kpi-card" style="--i:0"><div class="kpi-card__value small">claude-opus-4-8[1m]</div><div class="kpi-card__label">Model</div><div class="kpi-card__note">Opus 4.8, 1M-token context</div></div>
+      <div class="kpi-card" style="--i:1"><div class="kpi-card__value small teal">xhigh</div><div class="kpi-card__label">Effort level</div><div class="kpi-card__note">max reasoning per turn</div></div>
+      <div class="kpi-card" style="--i:2"><div class="kpi-card__value small">ON &middot; ON &middot; OFF</div><div class="kpi-card__label">Thinking &middot; Memory &middot; AI attribution</div></div>
+      <div class="kpi-card" style="--i:3"><div class="kpi-card__value small"><span style="color:var(--green)">22</span> / <span style="color:var(--red)">29</span></div><div class="kpi-card__label">Permissions allow / deny</div></div>
+    </div>
+
+    <div class="kicker-label">How the layers connect</div>
+    <section class="diagram-shell">
+      <p class="diagram-shell__hint">Ctrl/Cmd + wheel to zoom. Drag to pan when zoomed. Double-click to fit. &#x26F6; opens full size.</p>
+      <div class="mermaid-wrap mermaid-wrap--compact">
+        <div class="zoom-controls">
+          <button type="button" data-action="zoom-in" title="Zoom in">+</button>
+          <button type="button" data-action="zoom-out" title="Zoom out">&minus;</button>
+          <button type="button" data-action="zoom-fit" title="Smart fit">&#8634;</button>
+          <button type="button" data-action="zoom-one" title="1:1 zoom">1:1</button>
+          <button type="button" data-action="zoom-expand" title="Open full size">&#x26F6;</button>
+          <span class="zoom-label">Loading...</span>
+        </div>
+        <div class="mermaid-viewport"><div class="mermaid mermaid-canvas"></div></div>
+      </div>
+      <script type="text/plain" class="diagram-source">
+flowchart TD
+  RULES["Rules — always-on<br/>constitution"] -->|"constrain"| ORC(["Orchestrator<br/>main session Claude"])
+  ORC -->|"invokes"| SK["Skills<br/>saved playbooks"]
+  ORC -->|"dispatches"| AG["Subagents<br/>worker fleet"]
+  PL["Plugins + MCP"] -->|"add capabilities"| ORC
+  HK["Hooks"] -->|"fire on lifecycle events"| ORC
+  PER["Memory · Ledger · graphify"] -->|"persist context"| ORC
+  class RULES rule
+  class ORC orc
+  class HK hook
+  classDef rule fill:#b91c1c22,stroke:#b91c1c,stroke-width:1.5px
+  classDef orc fill:#1d4ed833,stroke:#1d4ed8,stroke-width:2px
+  classDef hook fill:#0e749022,stroke:#0e7490,stroke-width:1.5px
+      </script>
+    </section>
+
+    <div class="callout">
+      <span class="callout__tag">Things to notice</span>
+      The owner's own rules layer (<code>~/.claude/rules</code> + <code>CLAUDE.md</code>) is hand-authored and far stricter than the stock plugin defaults &mdash; for example it supersedes the superpowers "always TDD" law with a scoped test-admission gate. Where a rule and a plugin skill disagree, the user's rule wins. This is by design; no change implied.
+    </div>
+
+    <h2 id="s2" class="sec-head"><span class="sec-head__num">02</span> Skills <span class="sec-head__sub">the playbooks</span></h2>
+
+    <p class="body">
+      A <span class="term" tabindex="0" data-tip="A saved Markdown procedure Claude loads and follows step-by-step when a matching task appears.">skill</span>
+      is a saved procedure Claude loads and follows step-by-step when a matching task appears. Skills are triggered three ways: the owner typing
+      <code>/&lt;name&gt;</code>, the model auto-matching a task to a skill's description (the <code>using-superpowers</code> rule forces a skill-check before <em>any</em> response), or a hook auto-loading one. Skills compose into chains &mdash; that chaining is the heart of Section 7.
+    </p>
+
+    <details class="box" open>
+      <summary>Process / Workflow <span class="cnt">the development spine &middot; 10</span></summary>
+      <div class="box__body"><div class="table-scroll"><table class="data-table">
+        <thead><tr><th>Skill</th><th class="wide">Purpose</th><th>Source</th></tr></thead>
+        <tbody>
+          <tr><td class="nm">using-superpowers</td><td class="wide">Forces a skill-check before any response, even clarifying questions.</td><td><span class="badge badge--plug noflag">superpowers</span></td></tr>
+          <tr><td class="nm">brainstorming</td><td class="wide">Mandatory before any creative work; explores intent, proposes 2&ndash;3 approaches. Hard gate: no code until a design is approved, then a written spec is approved too.</td><td><span class="badge badge--plug noflag">superpowers</span></td></tr>
+          <tr><td class="nm">writing-plans</td><td class="wide">Turns an approved spec into a task-by-task plan with complete code, sized so each task is independently testable.</td><td><span class="badge badge--plug noflag">superpowers</span></td></tr>
+          <tr><td class="nm">parallel-plan-annotation</td><td class="wide">Converts the plan into a machine-readable task graph (dependencies, file-scope, risk, validation) and previews the parallel "waves" to the human.</td><td><span class="badge badge--local noflag">local</span></td></tr>
+          <tr><td class="nm">parallel-subagent-development</td><td class="wide">Default executor for approved multi-task plans; a two-lane router (heavy Workflow engine vs light direct-dispatch). Supersedes subagent-driven-development.</td><td><span class="badge badge--local noflag">local</span></td></tr>
+          <tr><td class="nm">subagent-driven-development</td><td class="wide">Upstream same-session executor (superseded locally for multi-task plans).</td><td><span class="badge badge--plug noflag">superpowers</span></td></tr>
+          <tr><td class="nm">executing-plans</td><td class="wide">Inline single-session plan executor with review checkpoints.</td><td><span class="badge badge--plug noflag">superpowers</span></td></tr>
+          <tr><td class="nm">dispatching-parallel-agents</td><td class="wide">Pattern for fanning out 2+ independent tasks with no shared state.</td><td><span class="badge badge--plug noflag">superpowers</span></td></tr>
+          <tr><td class="nm">using-git-worktrees</td><td class="wide">Ensures an isolated workspace before risky feature work.</td><td><span class="badge badge--plug noflag">superpowers</span></td></tr>
+          <tr><td class="nm">finishing-a-development-branch</td><td class="wide">Final step: verifies tests, then presents merge / PR / keep / discard options.</td><td><span class="badge badge--plug noflag">superpowers</span></td></tr>
+        </tbody>
+      </table></div></div>
+    </details>
+
+    <details class="box">
+      <summary>Quality / Verification <span class="cnt">8</span></summary>
+      <div class="box__body"><div class="table-scroll"><table class="data-table">
+        <thead><tr><th>Skill</th><th class="wide">Purpose</th><th>Source</th></tr></thead>
+        <tbody>
+          <tr><td class="nm">test-driven-development</td><td class="wide">Red &rarr; Green &rarr; Refactor; no production code without a failing test first.</td><td><span class="badge badge--plug noflag">superpowers</span></td></tr>
+          <tr><td class="nm">systematic-debugging</td><td class="wide">No fix without root-cause investigation; stop-and-rethink after 3 failed attempts.</td><td><span class="badge badge--plug noflag">superpowers</span></td></tr>
+          <tr><td class="nm">requesting-code-review</td><td class="wide">Dispatches a reviewer subagent with curated context after each task / before merge.</td><td><span class="badge badge--plug noflag">superpowers</span></td></tr>
+          <tr><td class="nm">receiving-code-review</td><td class="wide">Governs how feedback is consumed: verify before implementing, no performative agreement.</td><td><span class="badge badge--plug noflag">superpowers</span></td></tr>
+          <tr><td class="nm">verification-before-completion</td><td class="wide">Always-on honesty gate: no "done" claim without fresh verification evidence.</td><td><span class="badge badge--plug noflag">superpowers</span></td></tr>
+          <tr><td class="nm">verification-discipline</td><td class="wide">Auto-loads on completion words ("done", "ship"); enforces evidence scaled to change size, prefers <code>/verify-&lt;project&gt;</code>.</td><td><span class="badge badge--local noflag">local</span></td></tr>
+          <tr><td class="nm">verify-setup</td><td class="wide">One-time: writes a project's <code>/verify-&lt;project&gt;</code> scoped-verification command.</td><td><span class="badge badge--local noflag">local</span></td></tr>
+          <tr><td class="nm">test-cleanup</td><td class="wide">On explicit request only: finds and removes redundant / low-value tests in approved batches.</td><td><span class="badge badge--local noflag">local</span></td></tr>
+        </tbody>
+      </table></div></div>
+    </details>
+
+    <details class="box">
+      <summary>Project Continuity <span class="cnt">2</span></summary>
+      <div class="box__body"><div class="table-scroll"><table class="data-table">
+        <thead><tr><th>Skill</th><th class="wide">Purpose</th><th>Source</th></tr></thead>
+        <tbody>
+          <tr><td class="nm">resume-project</td><td class="wide">On "continue / resume": presents a menu of resumable ledger threads, loads one, gives a Resumption Brief, then STOPS.</td><td><span class="badge badge--local noflag">local</span></td></tr>
+          <tr><td class="nm">session-handoff</td><td class="wide">On "wrap up": writes the ledger (session log, decisions, thread spine) so a fresh session resumes from files alone.</td><td><span class="badge badge--local noflag">local</span></td></tr>
+        </tbody>
+      </table></div></div>
+    </details>
+
+    <details class="box">
+      <summary>Design / Frontend <span class="cnt">3</span></summary>
+      <div class="box__body"><div class="table-scroll"><table class="data-table">
+        <thead><tr><th>Skill</th><th class="wide">Purpose</th><th>Source</th></tr></thead>
+        <tbody>
+          <tr><td class="nm">impeccable</td><td class="wide">Frontend design / redesign / critique / polish: UX, hierarchy, accessibility, motion, design systems.</td><td><span class="badge badge--local noflag">local</span></td></tr>
+          <tr><td class="nm">ui-ux-baseline</td><td class="wide">Auto-loads when editing component / style files; establishes &amp; enforces a per-project design baseline.</td><td><span class="badge badge--local noflag">local</span></td></tr>
+          <tr><td class="nm">hue</td><td class="wide">Meta-skill that generates new design-language skills.</td><td><span class="badge badge--local noflag">local</span></td></tr>
+        </tbody>
+      </table></div></div>
+    </details>
+
+    <details class="box">
+      <summary>Meta / Tooling <span class="cnt">4</span></summary>
+      <div class="box__body"><div class="table-scroll"><table class="data-table">
+        <thead><tr><th>Skill</th><th class="wide">Purpose</th><th>Source</th></tr></thead>
+        <tbody>
+          <tr><td class="nm">writing-skills</td><td class="wide">Create / edit / verify skills.</td><td><span class="badge badge--plug noflag">superpowers</span></td></tr>
+          <tr><td class="nm">explain-my-config</td><td class="wide">Audits ~/.claude and renders this very HTML hub (what produced this page).</td><td><span class="badge badge--local noflag">local</span></td></tr>
+          <tr><td class="nm">claude-automation-recommender</td><td class="wide">Recommends hooks / agents / skills / MCP for a codebase.</td><td><span class="badge badge--plug noflag">claude-code-setup</span></td></tr>
+          <tr><td class="nm">visual-explainer</td><td class="wide">Renders self-contained HTML explainers (diagrams, diffs, plans) &mdash; the renderer of this page.</td><td><span class="badge badge--plug noflag">visual-explainer</span></td></tr>
+        </tbody>
+      </table></div></div>
+    </details>
+
+    <div class="callout">
+      <span class="callout__tag">Things to notice</span>
+      Several skills overlap by design as a local-overrides-upstream pattern &mdash; <code>parallel-subagent-development</code> supersedes <code>subagent-driven-development</code>, and <code>verification-discipline</code> (local) layers over <code>verification-before-completion</code> (superpowers). The local ones are the operative versions in this config.
+    </div>
+
+    <h2 id="s3" class="sec-head"><span class="sec-head__num">03</span> Agents <span class="sec-head__sub">the worker fleet</span></h2>
+
+    <p class="body">
+      A <span class="term" tabindex="0" data-tip="A separate Claude worker spun up with fresh, empty context to do one scoped job and report back.">subagent</span>
+      does the actual work in fresh, isolated context and reports back a distilled result, so noisy logs and file dumps never pollute the main conversation. Under the <strong>delegation discipline</strong> rule the main thread dispatches a subagent even for a one-line typo fix &mdash; a deliberate ~5&ndash;10k-token round-trip &mdash; because the orchestrator's job is judgment, not typing.
+    </p>
+
+    <div class="legend">
+      <div class="legend-item"><span class="legend-swatch" style="background:var(--blue)"></span> opus &mdash; deepest reasoning</div>
+      <div class="legend-item"><span class="legend-swatch" style="background:var(--teal)"></span> sonnet &mdash; general builder</div>
+      <div class="legend-item"><span class="legend-swatch" style="background:var(--green)"></span> haiku &mdash; cheap / fast</div>
+      <div class="legend-item"><span class="legend-swatch" style="background:var(--slate)"></span> inherit &mdash; session model</div>
+    </div>
+
+    <div class="table-wrap"><div class="table-scroll"><table class="data-table">
+      <thead><tr><th>Agent</th><th class="wide">Role</th><th class="num">Tools</th><th>Model</th></tr></thead>
+      <tbody>
+        <tr><td class="nm">implementer</td><td class="wide">Primary code worker; implements a scoped task under project standards, runs narrow checks. <small>Read &amp; write</small></td><td class="num">13</td><td><span class="badge badge--inherit">inherit</span></td></tr>
+        <tr><td class="nm">mechanical-editor</td><td class="wide">Cheap fast worker for unambiguous rote edits (renames, import paths); stops if ambiguous. <small>Read &amp; write</small></td><td class="num">4</td><td><span class="badge badge--haiku">haiku</span></td></tr>
+        <tr><td class="nm">codebase-analyst</td><td class="wide">Read-only relational / architectural mapping + primary code locator (preferred over Explore). <small>Read-only</small></td><td class="num">11</td><td><span class="badge badge--sonnet">sonnet</span></td></tr>
+        <tr><td class="nm">researcher</td><td class="wide">Primary research worker (web + codebase); objectivity-by-design, cites every external claim. <small>Read-only</small></td><td class="num">15</td><td><span class="badge badge--sonnet">sonnet</span></td></tr>
+        <tr><td class="nm">solution-architect</td><td class="wide">Read-only design analysis; weighs 2&ndash;3 options, recommends one; feeds a plan. <small>Read-only</small></td><td class="num">9</td><td><span class="badge badge--opus">opus</span></td></tr>
+        <tr><td class="nm">debugger</td><td class="wide">Root-cause debugging; absorbs noisy logs in its own context; minimal proven fix. <small>Read &amp; write</small></td><td class="num">9</td><td><span class="badge badge--opus">opus</span></td></tr>
+        <tr><td class="nm">code-reviewer</td><td class="wide">Read-only correctness / quality / a11y review of a diff; severity-ranked findings. <small>Read-only</small></td><td class="num">8</td><td><span class="badge badge--opus">opus</span></td></tr>
+        <tr><td class="nm">security-reviewer</td><td class="wide">Read-only threat-model of security-relevant diffs; severity-ranked vulns. <small>Read-only</small></td><td class="num">8</td><td><span class="badge badge--opus">opus</span></td></tr>
+        <tr><td class="nm">test-engineer</td><td class="wide">Adds / repairs tests under the admission gate; asserts observable behavior. <small>Read &amp; write</small></td><td class="num">6</td><td><span class="badge badge--sonnet">sonnet</span></td></tr>
+        <tr><td class="nm">performance-engineer</td><td class="wide">Profiles, optimizes, re-measures; never claims an unmeasured speedup. <small>Read &amp; write</small></td><td class="num">9</td><td><span class="badge badge--opus">opus</span></td></tr>
+        <tr><td class="nm">data-engineer</td><td class="wide">Authors migration / schema <code>.sql</code> only; never touches a live DB (human runs it). <small>Read &amp; write</small></td><td class="num">7</td><td><span class="badge badge--opus">opus</span></td></tr>
+        <tr><td class="nm">devops-engineer</td><td class="wide">Authors CI/CD + IaC config only; never runs a live deploy. <small>Read &amp; write</small></td><td class="num">6</td><td><span class="badge badge--sonnet">sonnet</span></td></tr>
+        <tr><td class="nm">technical-writer</td><td class="wide">READMEs / ADRs / changelogs grounded in real code; cites sources. <small>Read &amp; write</small></td><td class="num">6</td><td><span class="badge badge--sonnet">sonnet</span></td></tr>
+        <tr><td class="nm">verification-strategist</td><td class="wide">Reads a diff + the verify routing table, returns the minimal verification scope as JSON. <small>Read-only</small></td><td class="num">4</td><td><span class="badge badge--sonnet">sonnet</span></td></tr>
+      </tbody>
+    </table></div></div>
+
+    <p class="body">
+      <strong>Model strategy.</strong> The deepest-reasoning roles use <strong>opus</strong> (architecture, debugging, both reviewers, performance, data, security &mdash; judgment-heavy and read-only). General builders use <strong>sonnet</strong> (analysis, research, tests, docs, strategy). Rote edits use <strong>haiku</strong> (cheap, fast). The <code>implementer</code> uses <strong>inherit</strong> &mdash; it runs at whatever model the session is on (here, Opus 4.8). This matches the owner's <code>performance.md</code> model-selection rule.
+    </p>
+
+    <div class="callout">
+      <span class="callout__tag">Things to notice</span>
+      The reviewer / analyst / architect / researcher agents are all read-only &mdash; they never edit. Only <code>implementer</code>, <code>mechanical-editor</code>, <code>debugger</code>, <code>data-engineer</code>, <code>devops-engineer</code>, and <code>technical-writer</code> can write. Review and authoring are strictly separated.
+    </div>
+
+    <h2 id="s4" class="sec-head"><span class="sec-head__num">04</span> Rules <span class="sec-head__sub">the always-on constitution</span></h2>
+
+    <p class="body">
+      A <span class="term" tabindex="0" data-tip="An always-on instruction (CLAUDE.md / rules/) that constrains behavior on every task, with no invocation needed.">rule</span>
+      constrains behavior on every task, no invocation needed. <code>CLAUDE.md</code> (the global-invariants hub, loaded every session) sits at the top; it points to <code>rules/common/*</code> (apply everywhere) and <code>rules/typescript/*</code> (loaded for TS/JS work). Precedence: <strong>user rules outrank skills outrank the default system prompt</strong> &mdash; so these files are the highest authority in the session.
+    </p>
+
+    <div class="hero-card">
+      <div class="hero-card__label">Six hard invariants &mdash; no exceptions</div>
+      <ol class="invariants">
+        <li>NEVER write code comments (derive understanding from raw code; stale comments mislead).</li>
+        <li>NEVER use emojis in code / commits / docs / UI unless asked.</li>
+        <li>NEVER add AI co-author attribution.</li>
+        <li>NEVER connect directly to live databases or cloud-admin surfaces (author static SQL; a human runs it).</li>
+        <li>Destructive shell / git operations require explicit confirmation.</li>
+        <li>Tool routing: <code>graphify</code> to orient &rarr; <span class="term" tabindex="0" data-tip="An MCP server for precise code navigation and symbol-level edits.">Serena</span> for precise symbol nav &rarr; grep / Read for local / quick.</li>
+      </ol>
+    </div>
+
+    <div class="kicker-label">25 rule files by theme</div>
+    <div class="table-wrap"><div class="table-scroll"><table class="data-table">
+      <thead><tr><th>Theme</th><th class="wide">Rules</th><th class="wide">What it governs</th></tr></thead>
+      <tbody>
+        <tr><td class="nm">Workflow &amp; delegation</td><td class="wide"><code>delegation-discipline</code>, <code>agents.md</code>, <code>git-workflow.md</code></td><td class="wide">Main thread = pure orchestrator; parallel dispatch; the feature-workflow hub.</td></tr>
+        <tr><td class="nm">Git</td><td class="wide"><code>git/branching</code>, <code>git/commits</code>, <code>git/pull-requests</code></td><td class="wide">Never commit to default branch; Conventional Commits, atomic, ~200&ndash;400 LOC; full-history PR summaries.</td></tr>
+        <tr><td class="nm">Testing</td><td class="wide"><code>testing.md</code>, <code>typescript/testing.md</code></td><td class="wide">Trust-based admission gate + scoped TDD; supersedes superpowers' unconditional TDD.</td></tr>
+        <tr><td class="nm">Code quality</td><td class="wide"><code>coding-style.md</code>, <code>no-comments.md</code>, <code>patterns.md</code>, <code>typescript/coding-style.md</code>, <code>typescript/patterns.md</code></td><td class="wide">Immutability, many small files (&lt;800 lines), no comments, shared design patterns.</td></tr>
+        <tr><td class="nm">Security</td><td class="wide"><code>security.md</code>, <code>no-direct-db-access.md</code>, <code>typescript/security.md</code></td><td class="wide">Pre-commit checklist, secret management, never touch a live DB / cloud.</td></tr>
+        <tr><td class="nm">Research</td><td class="wide"><code>research.md</code>, <code>research-citations.md</code></td><td class="wide">Always-on standard: delegate to researcher, objectivity, verifiable URL or <code>[unverified]</code>.</td></tr>
+        <tr><td class="nm">Performance</td><td class="wide"><code>performance.md</code></td><td class="wide">Model-selection ladder, background long commands, context-window management.</td></tr>
+        <tr><td class="nm">Tooling &amp; routing</td><td class="wide"><code>tool-routing.md</code>, <code>hooks.md</code>, <code>typescript/hooks.md</code></td><td class="wide">Map / GPS / street-view routing; hook-system conventions.</td></tr>
+        <tr><td class="nm">Memory &amp; continuity</td><td class="wide"><code>memory-discipline.md</code>, <code>continuity-ledger.md</code></td><td class="wide">Store only durable, non-derivable facts; per-project thread lifecycle + DoD gate.</td></tr>
+      </tbody>
+    </table></div></div>
+
+    <div class="callout">
+      <span class="callout__tag">Things to notice</span>
+      Three rules explicitly OVERRIDE plugin / skill defaults &mdash; <code>testing.md</code> supersedes superpowers' "always TDD" with a scoped gate; <code>delegation-discipline</code> supersedes tool-routing's "stay native" for code mutations; <code>research.md</code> forbids the bundled deep-research workflow. The owner's rules are the deliberate top of the precedence stack.
+    </div>
+
+    <h2 id="s5" class="sec-head"><span class="sec-head__num">05</span> Hooks <span class="sec-head__sub">the automated reflexes</span></h2>
+
+    <p class="body">
+      A <span class="term" tabindex="0" data-tip="A small script the system runs automatically at a fixed lifecycle moment to check, block, or react.">hook</span>
+      is a script the system runs automatically at a fixed
+      <span class="term" tabindex="0" data-tip="A named moment a hook may fire: session start, before/after a tool runs, on stop, on notification.">lifecycle event</span>.
+      Hooks are deterministic &mdash; they fire whether or not the model "remembers" to. Three behaviors matter: <strong>HARD-BLOCK</strong> denies the action, <strong>PROMPT</strong> asks for confirmation, and <strong>WARN/LOG</strong> only nudges. A few are passive bookkeeping, background, or sound.
+    </p>
+
+    <div class="legend">
+      <div class="legend-item"><span class="badge badge--block">block</span> denies the action</div>
+      <div class="legend-item"><span class="badge badge--prompt">prompt</span> asks first</div>
+      <div class="legend-item"><span class="badge badge--warn">warn</span> nudges only</div>
+      <div class="legend-item"><span class="badge badge--passive">passive</span> background / sound / bookkeeping</div>
+    </div>
+
+    <div class="table-wrap"><div class="table-scroll"><table class="data-table">
+      <thead><tr><th class="wide">Script</th><th>Behavior</th><th class="wide">What it does</th></tr></thead>
+      <tbody>
+        <tr class="grp-row"><td colspan="3">SessionStart</td></tr>
+        <tr><td class="nm">dep-audit.sh</td><td><span class="badge badge--warn">warn</span></td><td class="wide">Runs <code>npm audit</code>, injects high/critical vuln count.</td></tr>
+        <tr><td class="nm">superpowers-drift-check.sh</td><td><span class="badge badge--warn">warn</span></td><td class="wide">Warns if the superpowers version drifted from the validated contract.</td></tr>
+        <tr><td class="nm">graphify-provision.sh</td><td><span class="badge badge--passive">background</span></td><td class="wide">Builds / refreshes the codebase knowledge graph.</td></tr>
+        <tr><td class="nm">ledger-staleness-scan.sh</td><td><span class="badge badge--warn">warn</span></td><td class="wide">Flags zombie / stale ledger threads for disposition (never auto-closes).</td></tr>
+        <tr><td class="nm">ledger-compact-checkpoint.sh</td><td><span class="badge badge--warn">warn</span></td><td class="wide">After a compaction restart, nudges to write a ledger checkpoint.</td></tr>
+
+        <tr class="grp-row"><td colspan="3">UserPromptSubmit</td></tr>
+        <tr><td class="nm">ledger-resume-roster.sh</td><td><span class="badge badge--warn">warn</span></td><td class="wide">On "continue / resume" intent, lists resumable threads + points to resume-project.</td></tr>
+
+        <tr class="grp-row"><td colspan="3">PreToolUse &middot; Edit | Write</td></tr>
+        <tr><td class="nm">block-env-edits.sh</td><td><span class="badge badge--block">block*</span></td><td class="wide">Blocks edits to <code>.env</code> / <code>.env.*</code> (uses exit 1 &mdash; see note below).</td></tr>
+        <tr><td class="nm">secret-scanner.sh</td><td><span class="badge badge--block">hard-block</span></td><td class="wide">Scans content for secret patterns (<code>sk-</code>, <code>ghp_</code>, <code>AKIA</code>, JWT, <code>PRIVATE KEY</code>) and denies the write. <small>exit 2</small></td></tr>
+        <tr><td class="nm">protect-claude-config.sh</td><td><span class="badge badge--prompt">prompt</span></td><td class="wide">Edits to ~/.claude settings / CLAUDE.md / hooks / rules require confirmation.</td></tr>
+
+        <tr class="grp-row"><td colspan="3">PreToolUse &middot; Bash</td></tr>
+        <tr><td class="nm">block-destructive-bash.sh</td><td><span class="badge badge--prompt">prompt</span></td><td class="wide">Catches <code>rm -rf</code>, force push, <code>reset --hard</code>, history rewrite, <code>dd</code> / <code>mkfs</code>, etc., and asks before running.</td></tr>
+        <tr><td class="nm">pre-commit-scoped-verify.sh</td><td><span class="badge badge--block">hard-block</span></td><td class="wide">On <code>git commit</code>, runs tsc + eslint on staged TS/JS; blocks the commit on failure. <small>exit 2</small></td></tr>
+
+        <tr class="grp-row"><td colspan="3">PreToolUse &middot; Workflow | Skill</td></tr>
+        <tr><td class="nm">block-deep-research.sh</td><td><span class="badge badge--block">hard-block</span></td><td class="wide">Denies the unbounded <code>deep-research</code> workflow (token-cost guardrail). <small>exit 2</small></td></tr>
+
+        <tr class="grp-row"><td colspan="3">PostToolUse &middot; Edit | Write</td></tr>
+        <tr><td class="nm">lint-on-edit.sh</td><td><span class="badge badge--warn">warn</span></td><td class="wide">Runs <code>eslint --fix</code> on edited TS/JS, reports remaining issues.</td></tr>
+        <tr><td class="nm">ui-ux-audit-on-edit.sh</td><td><span class="badge badge--warn">warn</span></td><td class="wide">On UI files, runs <code>impeccable detect</code> or nudges to set a design baseline.</td></tr>
+
+        <tr class="grp-row"><td colspan="3">PostToolUse &middot; all tools</td></tr>
+        <tr><td class="nm">context-wrapup-nudge.sh</td><td><span class="badge badge--warn">warn</span></td><td class="wide">Tracks context usage; at ~70&ndash;80% nudges a session-handoff.</td></tr>
+
+        <tr class="grp-row"><td colspan="3">PreCompact</td></tr>
+        <tr><td class="nm">ledger-precompact-checkpoint.sh</td><td><span class="badge badge--passive">bookkeeping</span></td><td class="wide">Snapshots the active thread before context compaction.</td></tr>
+
+        <tr class="grp-row"><td colspan="3">Stop</td></tr>
+        <tr><td class="nm">graphify-refresh.sh</td><td><span class="badge badge--passive">background</span></td><td class="wide">Re-runs <code>graphify update</code> if any source file is newer than the graph.</td></tr>
+        <tr><td class="nm">notify-complete.sh</td><td><span class="badge badge--passive">sound</span></td><td class="wide">Plays a completion chime.</td></tr>
+
+        <tr class="grp-row"><td colspan="3">Notification &middot; permission_prompt | idle_prompt</td></tr>
+        <tr><td class="nm">notify-input.sh</td><td><span class="badge badge--passive">sound</span></td><td class="wide">Plays a chime when input / permission is needed.</td></tr>
+      </tbody>
+    </table></div></div>
+
+    <div class="callout">
+      <span class="callout__tag">Things to notice</span>
+      Only THREE hooks truly hard-deny (<code>secret-scanner</code>, <code>pre-commit-scoped-verify</code>, <code>block-deep-research</code>). The destructive-bash and protect-config hooks PROMPT rather than block &mdash; they add a confirmation step, not a wall. And <code>block-env-edits.sh</code> uses exit code 1 where Claude Code's documented hard-block code is exit 2, so it may surface as a non-blocking error rather than a true deny (marked <strong>block*</strong> above). A one-line change to exit 2 would make it a real block &mdash; adjust via a hooks-editing skill if desired.
+    </div>
+
+    <h2 id="s6" class="sec-head"><span class="sec-head__num">06</span> Plugins &amp; Integrations <span class="sec-head__sub">installed capabilities</span></h2>
+
+    <p class="body">
+      A <span class="term" tabindex="0" data-tip="An installable bundle adding skills, commands, agents, or tool servers, from a marketplace.">plugin</span>
+      is an installable bundle from a
+      <span class="term" tabindex="0" data-tip="A catalog / source plugins are installed from.">marketplace</span>.
+      Some plugins ship an
+      <span class="term" tabindex="0" data-tip="Model Context Protocol — a standard for Claude to talk to an external tool / service via a connector program.">MCP</span>
+      <span class="term" tabindex="0" data-tip="The connector program exposing one external service's abilities to Claude as tools.">server</span>:
+      a connector program exposing one external service's abilities to Claude as tools.
+    </p>
+
+    <div class="table-wrap"><div class="table-scroll"><table class="data-table">
+      <thead><tr><th>Name</th><th>Marketplace</th><th>Version</th><th class="wide">Adds</th></tr></thead>
+      <tbody>
+        <tr><td class="nm">superpowers</td><td>claude-plugins-official</td><td class="num">6.0.3</td><td class="wide">The workflow-skills engine (brainstorming, planning, TDD, review, etc.).</td></tr>
+        <tr><td class="nm">visual-explainer</td><td>visual-explainer-marketplace</td><td class="num">0.7.1</td><td class="wide">HTML explainer renderer + 8 slash commands.</td></tr>
+        <tr><td class="nm">serena</td><td>claude-plugins-official</td><td class="num">&mdash;</td><td class="wide">MCP server for precise symbol navigation &amp; symbol-level edits.</td></tr>
+        <tr><td class="nm">context7</td><td>claude-plugins-official</td><td class="num">&mdash;</td><td class="wide">MCP server for version-aware official library docs.</td></tr>
+        <tr><td class="nm">code-review</td><td>claude-plugins-official</td><td class="num">&mdash;</td><td class="wide"><code>/code-review</code> command (+ the ultrareview cloud flow).</td></tr>
+        <tr><td class="nm">security-guidance</td><td>claude-plugins-official</td><td class="num">2.0.6</td><td class="wide">Security-review guidance.</td></tr>
+        <tr><td class="nm">commit-commands</td><td>claude-plugins-official</td><td class="num">&mdash;</td><td class="wide"><code>/commit</code>, <code>/commit-push-pr</code>, <code>/clean_gone</code>.</td></tr>
+        <tr><td class="nm">code-simplifier</td><td>claude-plugins-official</td><td class="num">1.0.0</td><td class="wide">The code-simplifier agent.</td></tr>
+        <tr><td class="nm">claude-code-setup</td><td>claude-plugins-official</td><td class="num">1.0.0</td><td class="wide">The automation-recommender skill.</td></tr>
+        <tr><td class="nm">typescript-lsp</td><td>claude-plugins-official</td><td class="num">1.0.0</td><td class="wide">TypeScript language server.</td></tr>
+        <tr><td class="nm">rust-analyzer-lsp</td><td>claude-plugins-official</td><td class="num">1.0.0</td><td class="wide">Rust language server.</td></tr>
+        <tr><td class="nm">vscode-langservers</td><td>claude-code-lsps</td><td class="num">0.1.0</td><td class="wide">Extra language servers.</td></tr>
+        <tr><td class="nm">warp</td><td>claude-code-warp</td><td class="num">2.1.0</td><td class="wide">Warp terminal integration.</td></tr>
+      </tbody>
+    </table></div></div>
+
+    <div class="kicker-label">Slash commands</div>
+    <div class="cmd-grid">
+      <div class="cmd-card">
+        <div class="cmd-card__head">commit-commands</div>
+        <ul class="cmd-list"><li>/commit</li><li>/commit-push-pr</li><li>/clean_gone</li></ul>
+      </div>
+      <div class="cmd-card">
+        <div class="cmd-card__head">code-review</div>
+        <ul class="cmd-list"><li>/code-review</li></ul>
+      </div>
+      <div class="cmd-card">
+        <div class="cmd-card__head">visual-explainer</div>
+        <ul class="cmd-list"><li>/diff-review</li><li>/fact-check</li><li>/generate-slides</li><li>/generate-visual-plan</li><li>/generate-web-diagram</li><li>/plan-review</li><li>/project-recap</li><li>/share-page</li></ul>
+      </div>
+    </div>
+    <p class="body" style="font-size:13px">
+      Local skills also act as
+      <span class="term" tabindex="0" data-tip="A slash-prefixed shortcut that triggers a saved prompt or skill.">slash commands</span>:
+      <code>/explain-my-config</code>, <code>/resume-project</code>, <code>/session-handoff</code>, <code>/verify-setup</code>, <code>/test-cleanup</code>, <code>/impeccable</code>, <code>/hue</code>.
+    </p>
+
+    <div class="kicker-label">MCP servers (4)</div>
+    <div class="table-wrap"><div class="table-scroll"><table class="data-table">
+      <thead><tr><th>Server</th><th>Origin</th><th class="wide">What it connects to</th></tr></thead>
+      <tbody>
+        <tr><td class="nm">github</td><td><span class="badge badge--ro noflag">user config</span></td><td class="wide">GitHub PRs / issues via a scoped token.</td></tr>
+        <tr><td class="nm">playwright</td><td><span class="badge badge--ro noflag">user config</span></td><td class="wide">Local browser automation.</td></tr>
+        <tr><td class="nm">serena</td><td><span class="badge badge--plug noflag">plugin</span></td><td class="wide">Code navigation &amp; symbol-level edits.</td></tr>
+        <tr><td class="nm">context7</td><td><span class="badge badge--plug noflag">plugin</span></td><td class="wide">Version-aware library docs.</td></tr>
+      </tbody>
+    </table></div></div>
+    <p class="body" style="font-size:13px"><strong>Security boundary:</strong> NO database / cloud-admin MCP is installed, by rule (<code>no-direct-db-access</code>).</p>
+
+    <div class="kicker-label">Cross-cutting systems</div>
+    <div class="card-grid">
+      <div class="ve-card b1"><h4>Auto-memory</h4><p>Durable per-project facts (decisions, constraints) that aren't in the code; stored as one-file-per-fact with an index.</p></div>
+      <div class="ve-card b2"><h4>Continuity ledger</h4><p>Per-project thread files (PROJECT.md, threads, decisions, sessions) with a 5-state lifecycle and a Definition-of-Done gate; written by session-handoff, read by resume-project.</p></div>
+      <div class="ve-card b3"><h4>graphify</h4><p>A locally-built knowledge graph of the codebase, provisioned at session start and refreshed on Stop; queried token-free to orient before drilling in.</p></div>
+      <div class="ve-card b4"><h4>Tool routing</h4><p>Map &rarr; GPS &rarr; Street view: graphify to orient, Serena for precise symbol facts / edits, native grep / Read for local known-location work.</p></div>
+    </div>
+
+    <div class="callout">
+      <span class="callout__tag">Things to notice</span>
+      The integration set is deliberately read-or-author-only at the boundary &mdash; github (scoped token), serena / context7 (local / docs), playwright (local browser). The absence of any DB / cloud MCP is intentional and enforced by both a rule and the deny-list.
+    </div>
+
+    <div class="sec7">
+    <h2 id="s7" class="sec-head"><span class="sec-head__num">07</span> The Development Flow <span class="sec-head__sub">the centerpiece &middot; end to end</span></h2>
+
+    <p class="lead">
+      When you hand Claude a task &mdash; "build feature X", "fix this bug", "resolve this issue" &mdash; it does NOT start typing. It runs the request through a fixed pipeline of gates and delegated workers. Here is that pipeline end to end.
+    </p>
+
+    <div class="legend">
+      <div class="legend-item"><span class="legend-swatch" style="background:var(--blue)"></span> skill / agent step</div>
+      <div class="legend-item"><span class="legend-swatch diamond" style="background:var(--teal)"></span> automatic decision</div>
+      <div class="legend-item"><span class="legend-swatch diamond" style="background:var(--amber)"></span> human-approval gate (5)</div>
+    </div>
+
+    <section class="diagram-shell">
+      <p class="diagram-shell__hint">Opens at ~150%. Ctrl/Cmd + wheel to zoom. Drag to pan. Double-click to fit. &#x26F6; opens full size.</p>
+      <div class="mermaid-wrap" data-initial-zoom="1.5">
+        <div class="zoom-controls">
+          <button type="button" data-action="zoom-in" title="Zoom in">+</button>
+          <button type="button" data-action="zoom-out" title="Zoom out">&minus;</button>
+          <button type="button" data-action="zoom-fit" title="Smart fit">&#8634;</button>
+          <button type="button" data-action="zoom-one" title="1:1 zoom">1:1</button>
+          <button type="button" data-action="zoom-expand" title="Open full size">&#x26F6;</button>
+          <span class="zoom-label">Loading...</span>
+        </div>
+        <div class="mermaid-viewport"><div class="mermaid mermaid-canvas"></div></div>
+      </div>
+      <script type="text/plain" class="diagram-source">
+flowchart TD
+  A["Request arrives"] --> B{"Skill-check first<br/>using-superpowers rule"}:::decision
+  B --> C{"Task type?"}:::decision
+  C -->|"new feature / creative"| D["brainstorming skill"]
+  C -->|"bug / failure"| DBG0["systematic-debugging skill"]
+  C -->|"trivial / conversational"| TZ["Answer or single<br/>delegated edit"]
+
+  subgraph DESIGN["Design phase"]
+    D --> D1{"HUMAN GATE 1<br/>approve design"}:::gate
+    D1 --> D2["Write spec to<br/>docs/superpowers/specs"]
+    D2 --> D3{"HUMAN GATE 2<br/>approve written spec"}:::gate
+  end
+
+  subgraph PLAN["Planning phase"]
+    D3 --> P1["writing-plans<br/>spec to task-by-task plan"]
+    P1 --> P2["parallel-plan-annotation<br/>task graph + wave preview"]
+    P2 --> P3{"HUMAN GATE 3<br/>wave layout shown"}:::gate
+  end
+
+  subgraph EXEC["Execution — parallel-subagent-development"]
+    P3 --> R{"HUMAN GATE 4<br/>route-planner lane choice"}:::gate
+    R -->|"many tasks / isolation"| H["HEAVY: Workflow engine<br/>worktrees, parallel waves,<br/>auto review + fix loops"]
+    R -->|"few tasks"| L["LIGHT: direct Agent dispatch<br/>one message per wave"]
+    H --> IMP["implementer / mechanical-editor<br/>/ test-engineer per task"]
+    L --> IMP
+    IMP --> TDD["test-driven-development<br/>Red to Green to Refactor"]
+    TDD --> DFAIL{"Tests fail?"}:::decision
+    DFAIL -->|"yes"| DBGX["debugger /<br/>systematic-debugging"]
+    DBGX --> IMP
+  end
+
+  DBG0 -.->|"root cause first"| P1
+
+  subgraph REVIEW["Review + Verify"]
+    DFAIL -->|"pass"| CR["requesting-code-review<br/>code-reviewer subagent"]
+    CR --> SR["security-reviewer on<br/>security-relevant diffs"]
+    SR --> RCV["receiving-code-review<br/>fix Critical now, High next"]
+    RCV --> V["verification-before-completion<br/>+ verification-strategist scope"]
+    V --> VC[/"verify-project scoped run"/]
+  end
+
+  subgraph SHIP["Commit + Finish"]
+    VC --> CM{"block-destructive-bash +<br/>pre-commit-scoped-verify hooks"}:::decision
+    CM --> CMT["commit: Conventional, atomic<br/>feature branch, never default"]
+    CMT --> FIN["finishing-a-development-branch"]
+    FIN --> FG{"HUMAN GATE 5<br/>merge / PR / keep / discard"}:::gate
+  end
+
+  subgraph PERSIST["Persist context"]
+    FG --> HO["session-handoff<br/>write ledger"]
+    HO --> MEM["auto-memory<br/>durable decisions"]
+    MEM --> GR["Stop hook<br/>graphify-refresh map"]
+  end
+
+  classDef gate fill:#b4530933,stroke:#b45309,stroke-width:2.5px
+  classDef decision fill:#0e749033,stroke:#0e7490,stroke-width:1.5px
+      </script>
+    </section>
+
+    <div class="kicker-label">Step-by-step annotation</div>
+    <div class="table-wrap"><div class="table-scroll"><table class="data-table">
+      <thead><tr><th class="num">#</th><th>Step</th><th class="wide">Skill / Agent</th><th class="wide">Rules in force</th><th class="wide">Hooks that fire</th></tr></thead>
+      <tbody>
+        <tr><td class="num">1</td><td class="nm">Request arrives</td><td class="wide">using-superpowers</td><td class="wide">Skill-check before any response.</td><td class="wide"><span class="badge badge--passive noflag">none</span></td></tr>
+        <tr><td class="num">2</td><td class="nm">Brainstorm (feature)</td><td class="wide">brainstorming &middot; <small>bug path: systematic-debugging (root cause before any fix; stop after 3 failed attempts)</small></td><td class="wide">2 human approval gates: design, then spec.</td><td class="wide"><span class="badge badge--passive noflag">none</span></td></tr>
+        <tr><td class="num">3</td><td class="nm">Plan</td><td class="wide">writing-plans</td><td class="wide">Tasks sized to be independently testable; complete code, no placeholders.</td><td class="wide"><span class="badge badge--passive noflag">none</span></td></tr>
+        <tr><td class="num">4</td><td class="nm">Annotate</td><td class="wide">parallel-plan-annotation</td><td class="wide">Task graph w/ dependencies, file-scope, risk; wave preview to human.</td><td class="wide"><span class="badge badge--passive noflag">none</span></td></tr>
+        <tr><td class="num">5</td><td class="nm">Dispatch</td><td class="wide">parallel-subagent-development (two-lane router)</td><td class="wide">delegation-discipline (orchestrator never edits); NO cost gate, interrupt-only.</td><td class="wide"><span class="badge badge--passive noflag">none</span></td></tr>
+        <tr><td class="num">6</td><td class="nm">Implement</td><td class="wide">implementer / mechanical-editor / test-engineer</td><td class="wide">testing.md admission gate + scoped TDD; no-comments; coding-style immutability.</td><td class="wide"><span class="badge badge--block">block</span> secret-scanner; <span class="badge badge--prompt">prompt</span> protect-config; <span class="badge badge--warn">warn</span> lint-on-edit, ui-ux-audit &middot; <small>+ block-env-edits</small></td></tr>
+        <tr><td class="num">7</td><td class="nm">Debug (if tests fail)</td><td class="wide">debugger / systematic-debugging</td><td class="wide">No fix without root cause.</td><td class="wide"><small>same edit / write hooks as step 6</small></td></tr>
+        <tr><td class="num">8</td><td class="nm">Review</td><td class="wide">code-reviewer (+ security-reviewer on sensitive diffs)</td><td class="wide">Address CRITICAL / HIGH before proceeding.</td><td class="wide"><span class="badge badge--passive noflag">read-only</span></td></tr>
+        <tr><td class="num">9</td><td class="nm">Receive review</td><td class="wide">receiving-code-review</td><td class="wide">Verify before implementing; no performative agreement.</td><td class="wide"><small>edit hooks on fixes</small></td></tr>
+        <tr><td class="num">10</td><td class="nm">Verify</td><td class="wide">verification-before-completion + verification-strategist</td><td class="wide">Evidence before any "done" claim; scoped <code>/verify-&lt;project&gt;</code>.</td><td class="wide"><span class="badge badge--passive noflag">none</span></td></tr>
+        <tr><td class="num">11</td><td class="nm">Commit</td><td class="wide">commit-commands plugin</td><td class="wide">git/commits (Conventional, atomic); git/branching (never default branch).</td><td class="wide"><span class="badge badge--prompt">prompt</span> block-destructive-bash; <span class="badge badge--block">hard-block</span> pre-commit-scoped-verify (tsc / eslint fail)</td></tr>
+        <tr><td class="num">12</td><td class="nm">Finish</td><td class="wide">finishing-a-development-branch</td><td class="wide">Verifies tests pass first; presents merge / PR / keep / discard; discard needs typed confirmation.</td><td class="wide"><span class="badge badge--passive noflag">none</span></td></tr>
+        <tr><td class="num">13</td><td class="nm">Persist</td><td class="wide">session-handoff + auto-memory</td><td class="wide">continuity-ledger discipline; memory stores only durable facts.</td><td class="wide"><span class="badge badge--passive">stop</span> graphify-refresh, notify-complete</td></tr>
+      </tbody>
+    </table></div></div>
+
+    <div class="kicker-label">Cross-cutting &mdash; active at every step</div>
+    <div class="crosscut">
+      <div class="cc"><strong>Tool routing</strong> governs every read: graphify (orient) &rarr; Serena (precise) &rarr; grep / Read (local).</div>
+      <div class="cc"><strong>no-direct-db-access</strong> forbids touching any live DB / cloud at every step; the deny-list backs it.</div>
+      <div class="cc"><strong>Permissions</strong> gate every shell action: 22 pre-approved, 29 hard-denied.</div>
+      <div class="cc"><strong>verification-before-completion</strong> is not a single step &mdash; it guards EVERY "done" / commit / PR claim throughout.</div>
+    </div>
+
+    <div class="closing">
+      <span class="closing__tag">The five human gates</span>
+      The pipeline is mostly autonomous between gates. The human is asked at <strong>five points</strong>: approve the design, approve the written spec, (informationally) the wave layout, the writing-plans execution-mode choice, and the final merge / PR / keep / discard decision. Everything else &mdash; implementation, review, debugging, verification &mdash; is delegated to subagents and enforced by hooks.
+    </div>
+    </div>
+
+  </div>
+</div>
+
+<script type="module">
+  import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs';
+
+  const config = {
+    fitPadding: 26,
+    minHeight: 380,
+    maxHeightPx: 1100,
+    maxHeightVh: 0.86,
+    maxInitialZoom: 1.7,
+    minZoom: 0.08,
+    maxZoom: 6.5,
+    zoomStep: 0.14,
+    readabilityFloor: 0.6
+  };
+
+  const clamp = (n, lo, hi) => Math.max(lo, Math.min(hi, n));
+  let activeDrag = null;
+  addEventListener('mousemove', (e) => activeDrag?.onMove(e));
+  addEventListener('mouseup', () => { activeDrag?.onEnd(); activeDrag = null; });
+
+  const isDark = matchMedia('(prefers-color-scheme: dark)').matches;
+
+  mermaid.initialize({
+    startOnLoad: false,
+    theme: 'base',
+    look: 'classic',
+    flowchart: { padding: 14, nodeSpacing: 46, rankSpacing: 56, useMaxWidth: false },
+    themeVariables: {
+      fontFamily: "'IBM Plex Sans', system-ui, sans-serif",
+      fontSize: '18px',
+      primaryColor: isDark ? '#12304f' : '#dbe7fb',
+      primaryBorderColor: isDark ? '#60a5fa' : '#1d4ed8',
+      primaryTextColor: isDark ? '#d7e5f6' : '#0e2438',
+      secondaryColor: isDark ? '#0d3344' : '#d9f0f6',
+      secondaryBorderColor: isDark ? '#38bdf8' : '#0e7490',
+      secondaryTextColor: isDark ? '#d7e5f6' : '#0e2438',
+      tertiaryColor: isDark ? '#33260f' : '#fbeccd',
+      tertiaryBorderColor: isDark ? '#fbbf24' : '#b45309',
+      tertiaryTextColor: isDark ? '#d7e5f6' : '#0e2438',
+      lineColor: isDark ? '#7da0c2' : '#5a6f8a',
+      clusterBkg: isDark ? '#0c1c2e' : '#eef3fa',
+      clusterBorder: isDark ? '#34507a' : '#bdcde4',
+      titleColor: isDark ? '#88a1bd' : '#51647c',
+      noteBkgColor: isDark ? '#12304f' : '#fefce8',
+      noteTextColor: isDark ? '#d7e5f6' : '#0e2438',
+      noteBorderColor: isDark ? '#fbbf24' : '#b45309'
+    }
+  });
+
+  function initDiagram(shell) {
+    const wrap = shell.querySelector('.mermaid-wrap');
+    const viewport = shell.querySelector('.mermaid-viewport');
+    const canvas = shell.querySelector('.mermaid-canvas');
+    const source = shell.querySelector('.diagram-source');
+    const label = shell.querySelector('.zoom-label');
+    if (!wrap || !viewport || !canvas || !source || !label) {
+      console.error('initDiagram: missing required elements in', shell);
+      return;
+    }
+
+    const initialZoom = parseFloat(wrap.dataset.initialZoom) || 0;
+    let userInteracted = false;
+    let zoom = 1, fitMode = 'contain', panX = 0, panY = 0, svgW = 0, svgH = 0;
+    let sx = 0, sy = 0, spx = 0, spy = 0, touchDist = 0, touchCx = 0, touchCy = 0;
+
+    function constrainPan() {
+      const vpW = viewport.clientWidth, vpH = viewport.clientHeight;
+      const rW = svgW * zoom, rH = svgH * zoom, pad = config.fitPadding;
+      panX = (rW + pad * 2 <= vpW) ? (vpW - rW) / 2 : clamp(panX, vpW - rW - pad, pad);
+      panY = (rH + pad * 2 <= vpH) ? (vpH - rH) / 2 : clamp(panY, vpH - rH - pad, pad);
+    }
+    function applyTransform() {
+      const svg = canvas.querySelector('svg');
+      if (!svg || !svgW) return;
+      constrainPan();
+      svg.style.width = (svgW * zoom) + 'px';
+      svg.style.height = (svgH * zoom) + 'px';
+      canvas.style.transform = `translate(${panX}px, ${panY}px)`;
+      label.textContent = Math.round(zoom * 100) + '% — ' + fitMode;
+    }
+    function canPan() {
+      const rW = svgW * zoom, rH = svgH * zoom;
+      return rW + config.fitPadding * 2 > viewport.clientWidth || rH + config.fitPadding * 2 > viewport.clientHeight;
+    }
+    function computeSmartFit() {
+      const vpW = viewport.clientWidth, vpH = viewport.clientHeight;
+      const aW = Math.max(80, vpW - config.fitPadding * 2);
+      const aH = Math.max(80, vpH - config.fitPadding * 2);
+      const contain = Math.min(aW / svgW, aH / svgH);
+      let z = contain, mode = 'contain';
+      if (contain < config.readabilityFloor) {
+        const chartR = svgH / svgW, vpR = vpH / Math.max(vpW, 1);
+        if (chartR >= vpR) { z = aW / svgW; mode = 'width-fit'; }
+        else { z = aH / svgH; mode = 'height-fit'; }
+      }
+      return { zoom: clamp(z, config.minZoom, config.maxInitialZoom), mode };
+    }
+    function fitDiagram() {
+      if (!svgW) return;
+      const fit = computeSmartFit();
+      zoom = fit.zoom; fitMode = fit.mode;
+      panX = (viewport.clientWidth - svgW * zoom) / 2;
+      panY = (viewport.clientHeight - svgH * zoom) / 2;
+      applyTransform();
+    }
+    function applyInitialZoom() {
+      zoom = clamp(initialZoom, config.minZoom, config.maxZoom);
+      fitMode = 'initial';
+      panX = (viewport.clientWidth - svgW * zoom) / 2;
+      panY = config.fitPadding;
+      applyTransform();
+    }
+    function relayout() {
+      if (!svgW) return;
+      setAdaptiveHeight();
+      if (initialZoom && !userInteracted) applyInitialZoom();
+      else fitDiagram();
+    }
+    function setOneToOne() {
+      userInteracted = true;
+      zoom = clamp(1, config.minZoom, config.maxZoom);
+      fitMode = '1:1';
+      panX = (viewport.clientWidth - svgW * zoom) / 2;
+      panY = (viewport.clientHeight - svgH * zoom) / 2;
+      applyTransform();
+    }
+    function zoomAround(factor, cx, cy) {
+      userInteracted = true;
+      const next = clamp(zoom * factor, config.minZoom, config.maxZoom);
+      const ratio = next / zoom;
+      panX = cx - ratio * (cx - panX);
+      panY = cy - ratio * (cy - panY);
+      zoom = next; fitMode = 'custom';
+      applyTransform();
+    }
+    function readSvgNaturalSize(svg) {
+      let w = 0, h = 0;
+      if (svg.viewBox?.baseVal?.width > 0) { w = svg.viewBox.baseVal.width; h = svg.viewBox.baseVal.height; }
+      if (!w) { w = parseFloat(svg.getAttribute('width')) || 0; h = parseFloat(svg.getAttribute('height')) || 0; }
+      if (!w) { const b = svg.getBBox(); w = b.width; h = b.height; }
+      if (!w) { const r = svg.getBoundingClientRect(); w = r.width || 1000; h = r.height || 700; }
+      if (!svg.getAttribute('viewBox')) svg.setAttribute('viewBox', `0 0 ${w} ${h}`);
+      return { w, h };
+    }
+    function setAdaptiveHeight() {
+      if (!svgW) return;
+      const usableW = Math.max(280, wrap.getBoundingClientRect().width - 2);
+      const idealH = (svgH / svgW) * usableW + config.fitPadding * 2;
+      const maxVp = Math.floor(innerHeight * config.maxHeightVh);
+      const hardMax = Math.min(config.maxHeightPx, Math.max(config.minHeight + 40, maxVp));
+      wrap.style.height = Math.round(clamp(idealH, config.minHeight, hardMax)) + 'px';
+    }
+    function openInNewTab() {
+      const svg = canvas.querySelector('svg');
+      if (!svg) return;
+      const clone = svg.cloneNode(true);
+      clone.style.width = ''; clone.style.height = '';
+      const bg = isDark ? '#081320' : '#e8eef5';
+      const html = `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8">
+      <meta name="viewport" content="width=device-width, initial-scale=1.0"><title>Development Flow</title><style>
+      body{margin:0;min-height:100vh;display:flex;align-items:center;justify-content:center;background:${bg};padding:40px;box-sizing:border-box}
+      svg{max-width:100%;max-height:92vh;height:auto}</style></head><body>${clone.outerHTML}</body></html>`;
+      open(URL.createObjectURL(new Blob([html], { type: 'text/html' })), '_blank');
+    }
+    async function render() {
+      try {
+        const code = source.textContent.trim();
+        if (!code) { label.textContent = 'Error: Empty source'; return; }
+        const id = 'diagram-' + Date.now() + '-' + Math.random().toString(36).slice(2, 8);
+        const { svg } = await mermaid.render(id, code);
+        canvas.innerHTML = svg;
+        const svgNode = canvas.querySelector('svg');
+        if (!svgNode) { label.textContent = 'Error: No SVG'; return; }
+        const size = readSvgNaturalSize(svgNode);
+        svgW = size.w; svgH = size.h;
+        svgNode.removeAttribute('width'); svgNode.removeAttribute('height');
+        svgNode.style.maxWidth = 'none'; svgNode.style.display = 'block';
+        relayout();
+      } catch (err) {
+        console.error('Mermaid render failed:', err);
+        label.textContent = 'Error: ' + (err.message || 'Render failed');
+      }
+    }
+
+    const actions = {
+      'zoom-in': () => zoomAround(1 + config.zoomStep, viewport.clientWidth / 2, viewport.clientHeight / 2),
+      'zoom-out': () => zoomAround(1 / (1 + config.zoomStep), viewport.clientWidth / 2, viewport.clientHeight / 2),
+      'zoom-fit': () => { userInteracted = true; fitDiagram(); },
+      'zoom-one': setOneToOne,
+      'zoom-expand': openInNewTab
+    };
+    Object.entries(actions).forEach(([action, handler]) => {
+      wrap.querySelector(`[data-action="${action}"]`)?.addEventListener('click', handler);
+    });
+
+    viewport.addEventListener('dblclick', () => { userInteracted = true; fitDiagram(); });
+    viewport.addEventListener('wheel', (e) => {
+      if (e.ctrlKey || e.metaKey) {
+        e.preventDefault();
+        const rect = viewport.getBoundingClientRect();
+        const factor = e.deltaY < 0 ? 1 + config.zoomStep : 1 / (1 + config.zoomStep);
+        zoomAround(factor, e.clientX - rect.left, e.clientY - rect.top);
+        return;
+      }
+      if (canPan()) { e.preventDefault(); userInteracted = true; panX -= e.deltaX; panY -= e.deltaY; applyTransform(); }
+    }, { passive: false });
+
+    viewport.addEventListener('mousedown', (e) => {
+      if (e.target.closest('.zoom-controls') || !canPan()) return;
+      wrap.classList.add('is-panning');
+      userInteracted = true;
+      sx = e.clientX; sy = e.clientY; spx = panX; spy = panY;
+      e.preventDefault();
+      activeDrag = {
+        onMove: (ev) => { panX = spx + (ev.clientX - sx); panY = spy + (ev.clientY - sy); applyTransform(); },
+        onEnd: () => { wrap.classList.remove('is-panning'); }
+      };
+    });
+
+    viewport.addEventListener('touchstart', (e) => {
+      if (e.touches.length === 1) { sx = e.touches[0].clientX; sy = e.touches[0].clientY; spx = panX; spy = panY; }
+      else if (e.touches.length === 2) {
+        const dx = e.touches[0].clientX - e.touches[1].clientX;
+        const dy = e.touches[0].clientY - e.touches[1].clientY;
+        touchDist = Math.sqrt(dx * dx + dy * dy);
+        const r = viewport.getBoundingClientRect();
+        touchCx = (e.touches[0].clientX + e.touches[1].clientX) / 2 - r.left;
+        touchCy = (e.touches[0].clientY + e.touches[1].clientY) / 2 - r.top;
+      }
+    }, { passive: true });
+
+    viewport.addEventListener('touchmove', (e) => {
+      if (e.touches.length === 1 && canPan()) {
+        if (touchDist > 0) { sx = e.touches[0].clientX; sy = e.touches[0].clientY; spx = panX; spy = panY; touchDist = 0; }
+        e.preventDefault(); userInteracted = true;
+        panX = spx + (e.touches[0].clientX - sx); panY = spy + (e.touches[0].clientY - sy); applyTransform();
+      } else if (e.touches.length === 2 && touchDist > 0) {
+        e.preventDefault();
+        const dx = e.touches[0].clientX - e.touches[1].clientX;
+        const dy = e.touches[0].clientY - e.touches[1].clientY;
+        const d = Math.sqrt(dx * dx + dy * dy);
+        zoomAround(d / touchDist, touchCx, touchCy);
+        touchDist = d;
+      }
+    }, { passive: false });
+
+    new ResizeObserver(() => { if (svgW) relayout(); }).observe(wrap);
+    render();
+  }
+
+  document.querySelectorAll('.diagram-shell').forEach(initDiagram);
+</script>
+
+<script>
+(function () {
+  const toc = document.getElementById('toc');
+  if (!toc) return;
+  const links = toc.querySelectorAll('a');
+  const sections = [];
+  links.forEach(link => {
+    const id = link.getAttribute('href').slice(1);
+    const el = document.getElementById(id);
+    if (el) sections.push({ id, el, link });
+  });
+  const observer = new IntersectionObserver(entries => {
+    entries.forEach(entry => {
+      if (entry.isIntersecting) {
+        links.forEach(l => l.classList.remove('active'));
+        const match = sections.find(s => s.el === entry.target);
+        if (match) {
+          match.link.classList.add('active');
+          if (window.innerWidth <= 1000) {
+            match.link.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
+          }
+        }
+      }
+    });
+  }, { rootMargin: '-8% 0px -82% 0px' });
+  sections.forEach(s => observer.observe(s.el));
+  links.forEach(link => {
+    link.addEventListener('click', e => {
+      e.preventDefault();
+      const id = link.getAttribute('href').slice(1);
+      const el = document.getElementById(id);
+      if (el) { el.scrollIntoView({ behavior: 'smooth', block: 'start' }); history.replaceState(null, '', '#' + id); }
+    });
+  });
+})();
+</script>
+
+</body>
+</html>

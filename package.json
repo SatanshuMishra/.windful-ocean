@@ -1,0 +1,9 @@
+{
+  "name": "windful-ocean",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Deterministic test backstop for the mitosis parallel-execution engine",
+  "scripts": {
+    "test": "node --test .claude/lib/superpowers-parallel/tests/*.test.mjs .claude/hooks/tests/*.test.mjs .claude/skills/impeccable/tests/*.test.mjs"
+  }
+}
