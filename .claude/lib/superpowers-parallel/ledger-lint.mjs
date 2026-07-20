@@ -1,5 +1,6 @@
-import { readdirSync, readFileSync, statSync } from 'node:fs';
+import { readdirSync, readFileSync, statSync, realpathSync } from 'node:fs';
 import { join } from 'node:path';
+import { pathToFileURL } from 'node:url';
 
 export const DEFAULT_MAX_AGE_DAYS = 14;
 
@@ -197,4 +198,4 @@ function main() {
   }
 }
 
-if (import.meta.url === `file://${process.argv[1]}`) main();
+if (process.argv[1] && import.meta.url === pathToFileURL(realpathSync(process.argv[1])).href) main();

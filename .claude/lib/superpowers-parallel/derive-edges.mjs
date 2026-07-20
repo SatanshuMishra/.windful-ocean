@@ -125,7 +125,7 @@ export function deriveEdges(graph, discoveredEdges = []) {
   };
 }
 
-import { readFileSync as _read, writeFileSync as _write } from 'node:fs';
+import { readFileSync as _read, writeFileSync as _write, realpathSync as _realpath } from 'node:fs';
 import { fileURLToPath as _toPath } from 'node:url';
 
 function cli(argv) {
@@ -148,7 +148,7 @@ function cli(argv) {
   process.stdout.write(JSON.stringify({ outPath, auditPath, addedEdgeCount: result.audit.addedEdgeCount }) + '\n');
 }
 
-if (process.argv[1] && process.argv[1] === _toPath(import.meta.url)) {
+if (process.argv[1] && _toPath(import.meta.url) === _realpath(process.argv[1])) {
   try {
     cli(process.argv.slice(2));
   } catch (err) {

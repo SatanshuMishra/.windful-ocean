@@ -1,3 +1,6 @@
+import { realpathSync } from 'node:fs';
+import { pathToFileURL } from 'node:url';
+
 const CONTEXT_WINDOW = 200000;
 const CAP_LINE = 160000;
 const TOKENS_PER_DISPATCH = 425;
@@ -88,4 +91,4 @@ function main() {
   }
 }
 
-if (import.meta.url === `file://${process.argv[1]}`) main();
+if (process.argv[1] && import.meta.url === pathToFileURL(realpathSync(process.argv[1])).href) main();

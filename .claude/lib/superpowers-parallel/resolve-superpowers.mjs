@@ -1,7 +1,8 @@
-import { readFileSync, existsSync, readdirSync, statSync } from 'node:fs';
+import { readFileSync, existsSync, readdirSync, statSync, realpathSync } from 'node:fs';
 import { join } from 'node:path';
 import { homedir } from 'node:os';
 import { createHash } from 'node:crypto';
+import { pathToFileURL } from 'node:url';
 
 export const PROMPT_FILES = {
   implementer: 'subagent-driven-development/implementer-prompt.md',
@@ -107,4 +108,4 @@ function main() {
   }
 }
 
-if (import.meta.url === `file://${process.argv[1]}`) main();
+if (process.argv[1] && import.meta.url === pathToFileURL(realpathSync(process.argv[1])).href) main();

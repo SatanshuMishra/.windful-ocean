@@ -1,5 +1,6 @@
 #!/usr/bin/env node
-import { readFileSync } from 'node:fs';
+import { readFileSync, realpathSync } from 'node:fs';
+import { pathToFileURL } from 'node:url';
 import { foldRunManifest } from './run-log.mjs';
 
 export function foldFile(path) {
@@ -26,4 +27,4 @@ function main() {
   process.stdout.write(JSON.stringify(manifest) + '\n');
 }
 
-if (import.meta.url === `file://${process.argv[1]}`) main();
+if (process.argv[1] && import.meta.url === pathToFileURL(realpathSync(process.argv[1])).href) main();

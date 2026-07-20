@@ -2,6 +2,7 @@ import { readFileSync, writeFileSync, mkdtempSync, realpathSync } from 'node:fs'
 import { execFileSync } from 'node:child_process';
 import { join, dirname, basename, relative, resolve } from 'node:path';
 import { homedir, tmpdir } from 'node:os';
+import { pathToFileURL } from 'node:url';
 import { planWaves } from './wave-planner.mjs';
 import { resolveAll } from './resolve-superpowers.mjs';
 import { resolveBranch } from './branch-contract.mjs';
@@ -160,4 +161,4 @@ function main() {
   }
 }
 
-if (import.meta.url === `file://${process.argv[1]}`) main();
+if (process.argv[1] && import.meta.url === pathToFileURL(realpathSync(process.argv[1])).href) main();
