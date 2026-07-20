@@ -16,8 +16,10 @@ case "$input" in
   *) exit 0 ;;
 esac
 
+FALLBACK_COMMIT_RE='(^|["'"'"';&|(]|\$\()[[:space:]]*([A-Za-z_][A-Za-z0-9_]*=[^[:space:]]*[[:space:]]+)*([^[:space:];&|]*/)?git[[:space:]]+([^[:space:];&|]+[[:space:]]+)*commit([[:space:];&|]|$)'
+
 # Walk argv to detect `git commit` regardless of global option position.
-is_commit=$(echo "$input" | python3 -c '
+if is_commit_raw=$(echo "$input" | python3 -c '
 import json, re, shlex, sys
 
 FALLBACK_COMMIT_RE = re.compile(
@@ -61,7 +63,19 @@ def is_git_commit(cmd):
 
 data = json.load(sys.stdin)
 print("true" if is_git_commit(data.get("tool_input", {}).get("command", "")) else "false")
-' 2>/dev/null || echo "false")
+' 2>/dev/null); then
+  python_rc=0
+else
+  python_rc=$?
+fi
+
+if [ "$python_rc" -eq 0 ] && { [ "$is_commit_raw" = "true" ] || [ "$is_commit_raw" = "false" ]; }; then
+  is_commit="$is_commit_raw"
+elif printf '%s' "$input" | grep -Eq "$FALLBACK_COMMIT_RE"; then
+  is_commit="true"
+else
+  is_commit="false"
+fi
 
 [ "$is_commit" != "true" ] && exit 0
 
