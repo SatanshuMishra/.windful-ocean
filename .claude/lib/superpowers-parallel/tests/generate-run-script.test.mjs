@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync, writeFileSync, mkdtempSync } from 'node:fs';
+import { readFileSync, writeFileSync, mkdtempSync, mkdirSync, copyFileSync, cpSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
@@ -17,6 +17,32 @@ const FAKE_ENGINE = [
 
 const SCRIPT = fileURLToPath(new URL('../generate-run-script.mjs', import.meta.url));
 const ENGINE_PATH = fileURLToPath(new URL('../../../workflows/parallel-plan-execution.js', import.meta.url));
+const SNAPSHOT_PATH = fileURLToPath(new URL('../prompt-snapshots', import.meta.url));
+
+const FIXTURE_SUPERPOWERS_VERSION = '6.1.1';
+
+function makeFixtureHome() {
+  const home = mkdtempSync(join(tmpdir(), 'gen-home-'));
+  const claude = join(home, '.claude');
+  const installPath = join(claude, 'plugins/cache/claude-plugins-official/superpowers', FIXTURE_SUPERPOWERS_VERSION);
+
+  mkdirSync(join(installPath, 'skills'), { recursive: true });
+  writeFileSync(join(claude, 'plugins/installed_plugins.json'), JSON.stringify({
+    plugins: {
+      'superpowers@claude-plugins-official': [{ scope: 'user', installPath, version: FIXTURE_SUPERPOWERS_VERSION }],
+    },
+  }));
+
+  mkdirSync(join(claude, 'lib/superpowers-parallel'), { recursive: true });
+  cpSync(SNAPSHOT_PATH, join(claude, 'lib/superpowers-parallel/prompt-snapshots'), { recursive: true });
+
+  mkdirSync(join(claude, 'workflows'), { recursive: true });
+  copyFileSync(ENGINE_PATH, join(claude, 'workflows/parallel-plan-execution.js'));
+
+  return home;
+}
+
+const FIXTURE_HOME = makeFixtureHome();
 
 const STRIPPED_GIT_VARS = ['GIT_DIR', 'GIT_INDEX_FILE', 'GIT_WORK_TREE', 'GIT_COMMON_DIR', 'GIT_OBJECT_DIRECTORY', 'GIT_PREFIX', 'GIT_AUTHOR_DATE', 'GIT_COMMITTER_DATE', 'GIT_AUTHOR_NAME', 'GIT_AUTHOR_EMAIL', 'GIT_COMMITTER_NAME', 'GIT_COMMITTER_EMAIL'];
 
@@ -30,6 +56,8 @@ const TEST_GIT_IDENTITY = {
 const CLEAN_ENV = Object.freeze({
   ...Object.fromEntries(Object.entries(process.env).filter(([k]) => !STRIPPED_GIT_VARS.includes(k))),
   ...TEST_GIT_IDENTITY,
+  HOME: FIXTURE_HOME,
+  XDG_CONFIG_HOME: join(FIXTURE_HOME, '.config'),
 });
 
 test('buildRunScript inlines values and keeps the body verbatim', () => {
