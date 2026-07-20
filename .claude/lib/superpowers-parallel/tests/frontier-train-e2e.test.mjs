@@ -142,7 +142,7 @@ function withReconcileDefaults(recon) {
   if (!recon || typeof recon !== 'object') return recon;
   const openPRs = Array.isArray(recon.openPRs)
     ? recon.openPRs.map((row) => (row && typeof row === 'object'
-      ? { url: targetPrUrl(row.headRefName), isCrossRepository: false, ...row }
+      ? { url: targetPrUrl(row.headRefName), isCrossRepository: false, headRepositoryOwner: 'o', headRepository: 'repo', ...row }
       : row))
     : recon.openPRs;
   const withOpen = openPRs === undefined ? {} : { openPRs };
