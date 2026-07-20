@@ -27,6 +27,9 @@ import { readLiveServerInfo } from './impeccable-paths.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
+const GLOB_MAX_LENGTH = 1024;
+const GLOB_MAX_WILDCARDS = 32;
+
 async function liveCli() {
   const args = process.argv.slice(2);
 
@@ -172,14 +175,29 @@ function scanForDrift(rootDir, resolvedFiles, config) {
  * from live.mjs). The two must stay in sync.
  */
 function globToRegex(pattern) {
+  if (typeof pattern !== 'string') {
+    throw new TypeError('glob pattern must be a string');
+  }
+  if (pattern.length > GLOB_MAX_LENGTH) {
+    throw new RangeError(`glob pattern exceeds ${GLOB_MAX_LENGTH} characters: ${pattern.slice(0, 64)}`);
+  }
+  const wildcards = (pattern.match(/[*?]/g) || []).length;
+  if (wildcards > GLOB_MAX_WILDCARDS) {
+    throw new RangeError(`glob pattern exceeds ${GLOB_MAX_WILDCARDS} wildcards: ${pattern.slice(0, 64)}`);
+  }
   let re = '';
   let i = 0;
   while (i < pattern.length) {
     const c = pattern[i];
     if (c === '*') {
       if (pattern[i + 1] === '*') {
-        if (pattern[i + 2] === '/') { re += '(?:.*/)?'; i += 3; }
-        else { re += '.*'; i += 2; }
+        if (pattern[i + 2] === '/') {
+          re += '(?:.*/)?';
+          i += 3;
+        } else {
+          re += '.*';
+          i += 2;
+        }
       } else {
         re += '[^/]*';
         i += 1;

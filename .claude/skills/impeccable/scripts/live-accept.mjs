@@ -44,12 +44,21 @@ Output (JSON):
   }
 
   const id = argVal(args, '--id');
-  const variantNum = argVal(args, '--variant');
+  const variantRaw = argVal(args, '--variant');
   const paramValuesRaw = argVal(args, '--param-values');
   const isDiscard = args.includes('--discard');
 
   if (!id) { console.error('Missing --id'); process.exit(1); }
-  if (!isDiscard && !variantNum) { console.error('Need --discard or --variant N'); process.exit(1); }
+  if (!isDiscard && !variantRaw) { console.error('Need --discard or --variant N'); process.exit(1); }
+
+  let variantNum = null;
+  if (!isDiscard) {
+    variantNum = parseVariantNum(variantRaw);
+    if (variantNum === null) {
+      console.error('--variant must be a positive integer, got: ' + variantRaw);
+      process.exit(1);
+    }
+  }
 
   let paramValues = null;
   if (paramValuesRaw) {
@@ -586,10 +595,19 @@ function argVal(args, flag) {
   return idx !== -1 && idx + 1 < args.length ? args[idx + 1] : null;
 }
 
+function parseVariantNum(raw) {
+  if (typeof raw !== 'string') return null;
+  const trimmed = raw.trim();
+  const n = Number.parseInt(trimmed, 10);
+  if (!Number.isInteger(n) || n < 1) return null;
+  if (String(n) !== trimmed) return null;
+  return n;
+}
+
 // Auto-execute when run directly
 const _running = process.argv[1];
 if (_running?.endsWith('live-accept.mjs') || _running?.endsWith('live-accept.mjs/')) {
   acceptCli();
 }
 
-export { findMarkerBlock, extractOriginal, extractVariant, extractCss, deindentContent, detectCommentSyntax };
+export { findMarkerBlock, extractOriginal, extractVariant, extractCss, deindentContent, detectCommentSyntax, parseVariantNum };

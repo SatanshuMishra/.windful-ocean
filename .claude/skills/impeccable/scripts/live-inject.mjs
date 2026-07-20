@@ -33,6 +33,9 @@ const HARD_EXCLUDES = [
   '**/.git/**',
 ];
 
+const GLOB_MAX_LENGTH = 1024;
+const GLOB_MAX_WILDCARDS = 32;
+
 export async function injectCli() {
   const args = process.argv.slice(2);
 
@@ -189,14 +192,22 @@ export function resolveFiles(rootDir, config) {
  * Paths are normalized to forward slashes before matching.
  */
 function globToRegex(pattern) {
+  if (typeof pattern !== 'string') {
+    throw new TypeError('glob pattern must be a string');
+  }
+  if (pattern.length > GLOB_MAX_LENGTH) {
+    throw new RangeError(`glob pattern exceeds ${GLOB_MAX_LENGTH} characters: ${pattern.slice(0, 64)}`);
+  }
+  const wildcards = (pattern.match(/[*?]/g) || []).length;
+  if (wildcards > GLOB_MAX_WILDCARDS) {
+    throw new RangeError(`glob pattern exceeds ${GLOB_MAX_WILDCARDS} wildcards: ${pattern.slice(0, 64)}`);
+  }
   let re = '';
   let i = 0;
   while (i < pattern.length) {
     const c = pattern[i];
     if (c === '*') {
       if (pattern[i + 1] === '*') {
-        // ** — any number of segments, including zero. Handle the common
-        // **/ and /** forms so `a/**/b` matches `a/b` as well as `a/x/y/b`.
         if (pattern[i + 2] === '/') {
           re += '(?:.*/)?';
           i += 3;
@@ -349,13 +360,28 @@ function getAttr(attrs, name) {
   return m ? { quote: m[1], value: m[2], full: m[0] } : null;
 }
 
+function replaceFirstLiteral(haystack, needle, replacement) {
+  const at = haystack.indexOf(needle);
+  if (at === -1) return haystack;
+  return haystack.slice(0, at) + replacement + haystack.slice(at + needle.length);
+}
+
+function stripAttrLiteral(attrs, literal) {
+  const start = attrs.indexOf(literal);
+  if (start === -1) return attrs;
+  let cut = start;
+  while (cut > 0 && /\s/.test(attrs[cut - 1])) cut -= 1;
+  return attrs.slice(0, cut) + attrs.slice(start + literal.length);
+}
+
 function appendOriginToDirective(csp, directive, origin) {
   const re = new RegExp(`(^|;)(\\s*)(${directive})\\s+([^;]*)`, 'i');
   const m = csp.match(re);
   if (m) {
     const tokens = m[4].trim().split(/\s+/);
     if (tokens.includes(origin)) return csp;
-    return csp.replace(re, `${m[1]}${m[2]}${m[3]} ${[...tokens, origin].join(' ')}`);
+    const replacement = `${m[1]}${m[2]}${m[3]} ${[...tokens, origin].join(' ')}`;
+    return csp.replace(re, () => replacement);
   }
   // Directive missing — add it. Use 'self' + origin so we don't inadvertently
   // narrow the policy compared to the default-src fallback (most users with
@@ -398,8 +424,8 @@ export function patchCspMeta(content, port) {
     // `<meta … />` round-trips byte-for-byte.
     const trailingWs = (attrs.match(/[ \t]*$/) || [''])[0];
     const attrsBody = attrs.slice(0, attrs.length - trailingWs.length);
-    const newAttrs = attrsBody.replace(contentAttr.full, newContentAttr) + ' ' + marker + trailingWs;
-    const newTag = tag.full.replace(attrs, newAttrs);
+    const newAttrs = replaceFirstLiteral(attrsBody, contentAttr.full, newContentAttr) + ' ' + marker + trailingWs;
+    const newTag = replaceFirstLiteral(tag.full, attrs, newAttrs);
 
     result = result.slice(0, tag.start) + newTag + result.slice(tag.end);
   }
@@ -423,10 +449,9 @@ export function revertCspMeta(content) {
     catch { continue; }
 
     const newContentAttr = `content=${contentAttr.quote}${originalValue}${contentAttr.quote}`;
-    let newAttrs = tag.attrs.replace(contentAttr.full, newContentAttr);
-    // Drop the marker attribute and any single space immediately preceding it.
-    newAttrs = newAttrs.replace(new RegExp(`\\s*${origAttr.full}`), '');
-    const newTag = tag.full.replace(tag.attrs, newAttrs);
+    let newAttrs = replaceFirstLiteral(tag.attrs, contentAttr.full, newContentAttr);
+    newAttrs = stripAttrLiteral(newAttrs, origAttr.full);
+    const newTag = replaceFirstLiteral(tag.full, tag.attrs, newAttrs);
 
     result = result.slice(0, tag.start) + newTag + result.slice(tag.end);
   }
