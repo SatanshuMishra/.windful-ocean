@@ -49,6 +49,26 @@ export function reconcileShippedSet(mergedPRs, sourcePrefix, targetOwnerRepo, ta
   return shipped;
 }
 
+export function manifestPrUrlById(manifest, targetOwnerRepo, targetRepoHost) {
+  const byId = new Map();
+  const msps = manifest && typeof manifest === 'object' && Array.isArray(manifest.msps) ? manifest.msps : [];
+  const enforceRepo = typeof targetOwnerRepo === 'string' && targetOwnerRepo.length > 0;
+  const targetLower = enforceRepo ? targetOwnerRepo.toLowerCase() : null;
+  const enforceHost = enforceRepo && typeof targetRepoHost === 'string' && targetRepoHost.length > 0;
+  const targetHostLower = enforceHost ? targetRepoHost.toLowerCase() : null;
+  for (const m of msps) {
+    if (m === null || typeof m !== 'object') continue;
+    if (typeof m.id !== 'string' || m.id.length === 0) continue;
+    if (typeof m.prUrl !== 'string' || m.prUrl.length === 0) continue;
+    const ref = prUrlToRepoRef(m.prUrl);
+    if (ref === null) continue;
+    if (enforceRepo && ref.ownerRepo !== targetLower) continue;
+    if (enforceHost && ref.host !== targetHostLower) continue;
+    byId.set(m.id, m.prUrl);
+  }
+  return byId;
+}
+
 export function parseRunManifest(raw) {
   if (typeof raw !== 'string' || raw.length === 0) return null;
   let parsed;

@@ -954,6 +954,50 @@ test('HIGH-1: in reconcile-only mode a CONTESTED open PR that withholds the unit
   assert.match(signal, /provenance/, 'the signal names the disposition that withheld the unit');
 });
 
+test('L6: in reconcile-only mode a manifest-shipped unit absent from a truncated live merged listing is still reported shipped, carrying its repo-pinned manifest url', async () => {
+  const msps = [
+    manifestMsp('l1', { status: 'shipped', builtSha: hexSha('l1'), prUrl: targetPrUrl('l1'), mergedAt: '2026-07-10T00:00:00Z' }),
+    manifestMsp('l2', { status: 'built', builtSha: hexSha('l2'), dependsOn: ['l1'] }),
+  ];
+  const reconcileResult = {
+    manifestFound: true,
+    manifestRaw: frontierManifest({ msps, window: 3 }),
+    specContentHash: SPEC_CONTENT_HASH,
+    mergedPRs: [],
+    openPRs: [],
+    checkpointRefPages: checkpointPages(['l2']),
+  };
+  const { agent } = shepherdAgent({ reconcileResult });
+  const { resultPromise } = invoke(runOn, buildInput(), agent);
+  const result = await resultPromise;
+
+  const entry = result.shipped.find((s) => s.mspId === 'l1');
+  assert.ok(entry, 'omitting a manifest-shipped unit from the reconcile-only shipped set is strictly worse than reporting it with a null url — the operator loses the unit entirely');
+  assert.equal(entry.prUrl, targetPrUrl('l1'), 'the repo-pinned manifest url is the surviving audit pointer');
+});
+
+test('L6b: a manifest-shipped unit whose manifest url is FOREIGN is reported shipped with a null url in reconcile-only mode', async () => {
+  const msps = [
+    manifestMsp('l1', { status: 'shipped', builtSha: hexSha('l1'), prUrl: 'https://github.com/attacker/evil/pull/9', mergedAt: '2026-07-10T00:00:00Z' }),
+    manifestMsp('l2', { status: 'built', builtSha: hexSha('l2'), dependsOn: ['l1'] }),
+  ];
+  const reconcileResult = {
+    manifestFound: true,
+    manifestRaw: frontierManifest({ msps, window: 3 }),
+    specContentHash: SPEC_CONTENT_HASH,
+    mergedPRs: [],
+    openPRs: [],
+    checkpointRefPages: checkpointPages(['l2']),
+  };
+  const { agent } = shepherdAgent({ reconcileResult });
+  const { resultPromise } = invoke(runOn, buildInput(), agent);
+  const result = await resultPromise;
+
+  const entry = result.shipped.find((s) => s.mspId === 'l1');
+  assert.ok(entry, 'the unit is still reported');
+  assert.equal(entry.prUrl, null, 'the repo pin applies identically on both paths — a foreign manifest url is never published as an audit pointer');
+});
+
 test('HIGH-2: a fork row racing a GENUINE provenance-verified PR on the same head branch never shadows it — the built unit stays awaiting the genuine url, is not frozen, its dependents are not park-blocked, and the genuine review decision still drives AIMD', async () => {
   const reconcileResult = builtL2Fixture([
     { headRefName: `${SOURCE_PREFIX}/l2-integration`, reviewDecision: 'APPROVED', url: 'https://github.com/attacker/evil/pull/9', isCrossRepository: true, headRepositoryOwner: 'attacker', headRepository: 'evil' },
@@ -970,7 +1014,141 @@ test('HIGH-2: a fork row racing a GENUINE provenance-verified PR on the same hea
   assert.ok(!result.parked.some((p) => p.mspId === 'l3' && /parked prerequisite/.test(p.request.what)), 'the whole transitive subtree must not be park-blocked behind a forgeable row');
   assert.ok(!labels.includes('plan:l2') && !labels.includes('ship:l2'), 'l2 owns a frozen open PR and is never rebuilt or re-shipped');
   assert.ok(logLines.some((l) => /AIMD window W=3/.test(l)), 'the GENUINE CHANGES_REQUESTED must still contract the window from 6 — deleting the accepted row would silently suppress a real review signal');
-  assert.ok(logLines.some((l) => /l2\]:.*SHADOWED|shadow/i.test(l)), 'the shadowed unverifiable row is announced so the operator still learns a foreign PR occupies the branch namespace');
+  assert.ok(logLines.some((l) => /^mitosis\[l2\]:.*SHADOWED/.test(l)), 'the shadowed unverifiable row is announced so the operator still learns a foreign PR occupies the branch namespace');
+});
+
+test('M1a: when the shadowed row names the SAME url as the accepted PR, the SHADOWED signal never instructs the operator to close the run own merge target', async () => {
+  const sharedUrl = targetPrUrl('l2-genuine');
+  const reconcileResult = builtL2Fixture([
+    { headRefName: `${SOURCE_PREFIX}/l2-integration`, reviewDecision: 'APPROVED', url: sharedUrl, isCrossRepository: null, headRepositoryOwner: null, headRepository: null },
+    { headRefName: `${SOURCE_PREFIX}/l2-integration`, reviewDecision: 'APPROVED', url: sharedUrl, isCrossRepository: false, headRepositoryOwner: 'o', headRepository: 'repo' },
+  ], { window: 6 });
+  const { agent } = multiRelaunchAgent({ reconcileResult });
+  const { resultPromise, logLines } = invoke(runOn, buildInput({ mergePolicy: undefined }), agent);
+  const result = await resultPromise;
+
+  const awaiting = result.awaitingApproval.find((a) => a.mspId === 'l2');
+  assert.ok(awaiting, 'sanity: the provenance-verified row still wins and seeds awaiting approval');
+  assert.equal(awaiting.prUrl, sharedUrl, 'sanity: the merge target is the verified url');
+  const signal = logLines.find((l) => /^mitosis\[l2\]:.*SHADOWED/.test(l));
+  assert.ok(signal, 'the degraded duplicate transcription is still announced');
+  assert.ok(!/close the unverifiable PR/i.test(signal), 'a degraded duplicate of the run OWN merge target must never be named as something to close — following that instruction destroys the run published work');
+  assert.match(signal, /same url/i, 'the signal names the duplicate-transcription disposition so the operator can act correctly');
+});
+
+test('M1b: a shadowed row with merely UNREADABLE provenance is never described as closable — degraded gh tooling on a genuine PR is indistinguishable from a foreign one', async () => {
+  const reconcileResult = builtL2Fixture([
+    { headRefName: `${SOURCE_PREFIX}/l2-integration`, reviewDecision: 'APPROVED', url: targetPrUrl('l2-degraded'), isCrossRepository: null, headRepositoryOwner: null, headRepository: null },
+    { headRefName: `${SOURCE_PREFIX}/l2-integration`, reviewDecision: 'APPROVED', url: targetPrUrl('l2-genuine'), isCrossRepository: false, headRepositoryOwner: 'o', headRepository: 'repo' },
+  ], { window: 6 });
+  const { agent } = multiRelaunchAgent({ reconcileResult });
+  const { resultPromise, logLines } = invoke(runOn, buildInput({ mergePolicy: undefined }), agent);
+  const result = await resultPromise;
+
+  assert.equal(result.awaitingApproval.find((a) => a.mspId === 'l2').prUrl, targetPrUrl('l2-genuine'), 'sanity: the verified row is the merge target');
+  const signal = logLines.find((l) => /^mitosis\[l2\]:.*SHADOWED/.test(l));
+  assert.ok(signal, 'the shadowed row is announced');
+  assert.ok(!/verify and close/i.test(signal), 'an unreadable provenance field is not proof of a foreign PR — the operator must not be told to close it outright');
+  assert.match(signal, /do NOT close/i, 'the signal carries the same repair-tooling discipline the park record already uses');
+  assert.match(signal, /l2-degraded|pull\/\d+/, 'the signal still names the url the operator must inspect');
+});
+
+test('M2: TWO provenance-verified open PRs on one unit fail CLOSED — GitHub cannot produce that state, so neither url is silently promoted to the operator merge target', async () => {
+  const reconcileResult = builtL2Fixture([
+    { headRefName: `${SOURCE_PREFIX}/l2-integration`, reviewDecision: 'APPROVED', url: targetPrUrl('l2-injected'), isCrossRepository: false, headRepositoryOwner: 'o', headRepository: 'repo' },
+    { headRefName: `${SOURCE_PREFIX}/l2-integration`, reviewDecision: 'APPROVED', url: targetPrUrl('l2-genuine'), isCrossRepository: false, headRepositoryOwner: 'o', headRepository: 'repo' },
+  ], { window: 6 });
+  const { agent, labels } = multiRelaunchAgent({ reconcileResult });
+  const { resultPromise, logLines } = invoke(runOn, buildInput({ mergePolicy: undefined }), agent);
+  const result = await resultPromise;
+
+  assert.ok(!result.awaitingApproval.some((a) => a.mspId === 'l2'), 'first-wins would hand the operator whichever row gh listed first — a successful transcription injection must never become the merge target');
+  const record = result.parked.find((p) => p.mspId === 'l2');
+  assert.ok(record, 'two accepted rows for one unit is an impossible state and freezes the unit for a human');
+  assert.ok(!labels.includes('ship:l2'), 'the frozen unit is never re-shipped');
+  assert.match(record.request.what, /more than one/i, 'the park record names the duplicate-accepted cause, not a misleading no-build-record cause');
+  assert.ok(!/NO build record/i.test(record.request.what), 'the unit DOES hold a build record — reporting otherwise misdirects the operator');
+  assert.ok(logLines.some((l) => /^mitosis\[l2\]:.*duplicate-accepted/.test(l)), 'the discarded row is announced rather than dropped with no trace');
+});
+
+test('M2b: two provenance-verified rows naming the SAME url are a benign duplicate transcription, not tamper — the unit still ships awaiting that url and is never frozen', async () => {
+  const sharedUrl = targetPrUrl('l2-genuine');
+  const reconcileResult = builtL2Fixture([
+    { headRefName: `${SOURCE_PREFIX}/l2-integration`, reviewDecision: 'APPROVED', url: sharedUrl, isCrossRepository: false, headRepositoryOwner: 'o', headRepository: 'repo' },
+    { headRefName: `${SOURCE_PREFIX}/l2-integration`, reviewDecision: 'APPROVED', url: sharedUrl, isCrossRepository: false, headRepositoryOwner: 'o', headRepository: 'repo' },
+  ], { window: 6 });
+  const { agent } = multiRelaunchAgent({ reconcileResult });
+  const { resultPromise } = invoke(runOn, buildInput({ mergePolicy: undefined }), agent);
+  const result = await resultPromise;
+
+  const awaiting = result.awaitingApproval.find((a) => a.mspId === 'l2');
+  assert.ok(awaiting, 'pagination overlap and degraded second passes legitimately transcribe one PR twice — freezing on that would stall healthy runs');
+  assert.equal(awaiting.prUrl, sharedUrl, 'the single genuine url remains the merge target');
+  assert.ok(!result.parked.some((p) => p.mspId === 'l2'), 'a duplicate of the SAME url is deduplicated, never treated as two competing PRs');
+});
+
+test('M3: a manifest-sourced prUrl that does not resolve to the target repository is dropped to null rather than surfaced as a MERGED unit audit url', async () => {
+  const reconcileResult = {
+    manifestFound: true,
+    manifestRaw: frontierManifest({
+      msps: [
+        manifestMsp('l1', { status: 'shipped', builtSha: hexSha('l1'), prUrl: 'https://github.com/attacker/evil/pull/9', mergedAt: '2026-07-10T00:00:00Z' }),
+        manifestMsp('l2', { status: 'built', builtSha: hexSha('l2'), dependsOn: ['l1'] }),
+        manifestMsp('l3', { status: 'planned', dependsOn: ['l2'] }),
+      ],
+      window: 6,
+    }),
+    specContentHash: SPEC_CONTENT_HASH,
+    mergedPRs: [],
+    openPRs: [],
+    checkpointRefPages: checkpointPages(['l2']),
+  };
+  const { agent } = multiRelaunchAgent({ reconcileResult });
+  const { resultPromise } = invoke(runOn, buildInput({ mergePolicy: undefined }), agent);
+  const result = await resultPromise;
+
+  const entry = result.shipped.find((s) => s.mspId === 'l1');
+  assert.ok(entry, 'sanity: the manifest-shipped unit is still reported shipped');
+  assert.equal(entry.prUrl, null, 'the merged-PR path already drops foreign urls; the manifest fallback must fail closed the same way rather than publishing an attacker-controlled audit url');
+});
+
+test('M3b: a manifest-sourced prUrl that DOES resolve to the target repository is preserved when the live merged listing omits the unit', async () => {
+  const reconcileResult = {
+    manifestFound: true,
+    manifestRaw: frontierManifest({
+      msps: [
+        manifestMsp('l1', { status: 'shipped', builtSha: hexSha('l1'), prUrl: targetPrUrl('l1'), mergedAt: '2026-07-10T00:00:00Z' }),
+        manifestMsp('l2', { status: 'built', builtSha: hexSha('l2'), dependsOn: ['l1'] }),
+        manifestMsp('l3', { status: 'planned', dependsOn: ['l2'] }),
+      ],
+      window: 6,
+    }),
+    specContentHash: SPEC_CONTENT_HASH,
+    mergedPRs: [],
+    openPRs: [],
+    checkpointRefPages: checkpointPages(['l2']),
+  };
+  const { agent } = multiRelaunchAgent({ reconcileResult });
+  const { resultPromise } = invoke(runOn, buildInput({ mergePolicy: undefined }), agent);
+  const result = await resultPromise;
+
+  assert.equal(result.shipped.find((s) => s.mspId === 'l1').prUrl, targetPrUrl('l1'), 'a repo-pinned manifest url is the only audit pointer left when the live listing is truncated — dropping it would blind the operator');
+});
+
+test('L2: a unit that is BOTH condemned by a divergent parent merge AND unreadable-provenance-contested still carries the do-NOT-merge instruction alongside the repair-tooling instruction', async () => {
+  const reconcileResult = condemnedPublishedFixture([
+    { headRefName: `${SOURCE_PREFIX}/d-integration`, reviewDecision: null, url: targetPrUrl('d-open'), isCrossRepository: null, headRepositoryOwner: null, headRepository: null },
+  ]);
+  const { agent } = multiRelaunchCapturingAgent({ reconcileResult, probeResult: condemnedProbe });
+  const { resultPromise } = invoke(runOn, buildInput({ mergePolicy: undefined }), agent);
+  const result = await resultPromise;
+
+  const record = result.parked.find((p) => p.mspId === 'd');
+  assert.ok(record, 'sanity: the unit is frozen');
+  assert.match(record.diagnosis, /INVALIDATED/, 'sanity: the condemnation is genuinely part of this record');
+  assert.match(record.request.what, /provenance is unreadable/, 'sanity: the unreadable-provenance contest is also part of this record');
+  assert.match(record.request.what, /do NOT close/i, 'the unreadable-provenance repair discipline is still carried');
+  assert.match(record.request.what, /do NOT merge/i, 'a record that declares the content INVALIDATED and then omits do-NOT-merge contradicts itself at the moment it is read');
 });
 
 for (const variant of [

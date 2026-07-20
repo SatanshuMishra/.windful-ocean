@@ -32,6 +32,10 @@ function clean(v) {
   return JSON.stringify(v).replace(/[\p{Cc}\p{Zl}\p{Zp}]/gu, ' ');
 }
 
+function cleanUrl(v) {
+  return typeof v === 'string' ? clean(v.slice(0, MAX_LOGGED_TOKEN_LEN)) : clean(v);
+}
+
 function normalize(p) {
   return p.replace(/^\.\//, '').replace(/\/+$/, '');
 }
@@ -346,6 +350,26 @@ function reconcileShippedSet(mergedPRs, sourcePrefix, targetOwnerRepo, targetRep
     shipped.set(mspId, { prUrl: pr.url, mergedAt: pr.mergedAt });
   }
   return shipped;
+}
+
+function manifestPrUrlById(manifest, targetOwnerRepo, targetRepoHost) {
+  const byId = new Map();
+  const msps = manifest && typeof manifest === 'object' && Array.isArray(manifest.msps) ? manifest.msps : [];
+  const enforceRepo = typeof targetOwnerRepo === 'string' && targetOwnerRepo.length > 0;
+  const targetLower = enforceRepo ? targetOwnerRepo.toLowerCase() : null;
+  const enforceHost = enforceRepo && typeof targetRepoHost === 'string' && targetRepoHost.length > 0;
+  const targetHostLower = enforceHost ? targetRepoHost.toLowerCase() : null;
+  for (const m of msps) {
+    if (m === null || typeof m !== 'object') continue;
+    if (typeof m.id !== 'string' || m.id.length === 0) continue;
+    if (typeof m.prUrl !== 'string' || m.prUrl.length === 0) continue;
+    const ref = prUrlToRepoRef(m.prUrl);
+    if (ref === null) continue;
+    if (enforceRepo && ref.ownerRepo !== targetLower) continue;
+    if (enforceHost && ref.host !== targetHostLower) continue;
+    byId.set(m.id, m.prUrl);
+  }
+  return byId;
 }
 
 function parseRunManifest(raw) {
@@ -2690,6 +2714,7 @@ function prHeadOwnerRepo(pr) {
 function classifyRunOpenPRs(openPRs, { sourcePrefix, statusById, targetOwnerRepo, targetRepoHost } = {}) {
   const accepted = new Map();
   const contested = new Map();
+  const duplicateAccepted = new Set();
   if (!Array.isArray(openPRs)) return { accepted, contested, claimed: new Set() };
   const byId = statusById instanceof Map ? statusById : new Map();
   const targetLower = typeof targetOwnerRepo === 'string' && targetOwnerRepo.length > 0 ? targetOwnerRepo.toLowerCase() : null;
@@ -2732,13 +2757,29 @@ function classifyRunOpenPRs(openPRs, { sourcePrefix, statusById, targetOwnerRepo
       }
       continue;
     }
-    if (!accepted.has(id)) accepted.set(id, { url, reviewDecision: pr.reviewDecision });
+    if (duplicateAccepted.has(id)) continue;
+    if (accepted.has(id)) {
+      const prior = accepted.get(id);
+      if (prior.url === url) continue;
+      accepted.delete(id);
+      duplicateAccepted.add(id);
+      contested.set(id, { url: prior.url, reason: 'duplicate-accepted', foreign: false });
+      log(`mitosis[${id}]: reconcile — CONTESTED (duplicate-accepted): MORE THAN ONE open, provenance-verified PR occupies this unit's integration branch (${cleanUrl(prior.url)} and ${cleanUrl(url)}); GitHub permits only one open PR per head/base pair, so this state cannot be genuine live listing output and is treated as tamper or transcription fault — the engine refuses to pick a merge target and withholds the unit pending a human decision`);
+      continue;
+    }
+    accepted.set(id, { url, reviewDecision: pr.reviewDecision });
   }
   for (const [id, entry] of accepted) {
     const shadowed = contested.get(id);
     if (shadowed === undefined) continue;
     contested.delete(id);
-    log(`mitosis[${id}]: reconcile — SHADOWED: an unverifiable PR (${clean(shadowed.url)}) also occupies this unit's branch namespace, but a provenance-verified PR (${clean(entry.url)}) is authoritative and wins; the run proceeds on the verified PR — verify and close the unverifiable PR at ${clean(shadowed.url)}`);
+    const sameUrl = typeof shadowed.url === 'string' && shadowed.url === entry.url;
+    const disposition = sameUrl
+      ? `the unverifiable row names the SAME url as the verified PR, so there is nothing to close — treat it as a degraded duplicate transcription of this run's own published work and repair the tooling that dropped its provenance fields`
+      : (shadowed.foreign === true
+        ? `verify and close the unverifiable PR at ${cleanUrl(shadowed.url)}`
+        : `do NOT close the unverifiable PR at ${cleanUrl(shadowed.url)} on the strength of this check alone — an unreadable provenance field is equally consistent with degraded gh tooling on a GENUINE pull request; repair the tooling so the cross-repository and head-repository fields are reported, then relaunch`);
+    log(`mitosis[${id}]: reconcile — SHADOWED: an unverifiable PR (${cleanUrl(shadowed.url)}) also occupies this unit's branch namespace, but a provenance-verified PR (${cleanUrl(entry.url)}) is authoritative and wins; the run proceeds on the verified PR — ${disposition}`);
   }
   return { accepted, contested, claimed: new Set([...accepted.keys(), ...contested.keys()]) };
 }
@@ -2820,12 +2861,20 @@ async function runDivergenceProbes(manifest, mergedIds, mergedShas) {
 }
 
 async function runReconcileOnlyAdvance(advance, ctx) {
-  const { manifest, reconciledShippedMeta, sourcePrefix, baseBranch, repoRoot, logicalRunId, merged, newlyMergedIds } = ctx;
+  const { manifest, reconciledShippedMeta, sourcePrefix, baseBranch, repoRoot, logicalRunId, merged, newlyMergedIds, targetOwnerRepo, targetRepoHost } = ctx;
   phase('Shepherd');
   const manifestMsps = manifest && Array.isArray(manifest.msps) ? manifest.msps : [];
   const shepherdMspById = new Map(manifestMsps.map((m) => [m.id, m]));
   const doneSet = new Set([...manifestMsps.filter((m) => m && typeof m.id === 'string' && m.status === 'shipped').map((m) => m.id), ...(Array.isArray(merged) ? merged : [])]);
-  const shipped = [...(reconciledShippedMeta ? reconciledShippedMeta.entries() : [])].map(([mspId, meta]) => ({ mspId, prUrl: (meta && meta.prUrl) ?? null, receiptsPass: null, d6Pass: null }));
+  const manifestPrUrls = manifestPrUrlById(manifest, targetOwnerRepo, targetRepoHost);
+  const shippedIds = new Set([
+    ...(reconciledShippedMeta ? reconciledShippedMeta.keys() : []),
+    ...manifestMsps.filter((m) => m && typeof m.id === 'string' && m.status === 'shipped').map((m) => m.id),
+  ]);
+  const shipped = [...shippedIds].map((mspId) => {
+    const meta = reconciledShippedMeta ? reconciledShippedMeta.get(mspId) : null;
+    return { mspId, prUrl: (meta && meta.prUrl) ?? manifestPrUrls.get(mspId) ?? null, receiptsPass: null, d6Pass: null };
+  });
   const parked = [];
   const awaitingApproval = [];
 
@@ -3451,7 +3500,7 @@ try {
       `3. For diagnostics only you MAY run \`git log origin/${baseBranch}\` to observe recent base history; it does not affect the returned object.\n` +
       `4. Compute a content fingerprint of the spec so the engine can detect an in-place spec edit since the manifest was recorded: run \`shasum -a 256 ${spec}\` and return ONLY the leading 64-character hex field as specContentHash (a string). If the spec file cannot be read, return specContentHash=null.\n` +
       `5. List the DURABLE mitosis checkpoint refs so the engine can reconcile built-but-unmerged work against them: run \`git -C ${repoRoot} ls-remote origin 'refs/mitosis/*'\`. This is the authoritative record of which units were durably built on a prior run. Capture EVERY output line in full (each line is \`<sha>\\t<ref>\`), returning them COMPLETELY with no truncation as checkpointRefPages: an array of pages where each page is an array of the raw line strings (return a single page holding all lines; use additional pages only if you had to fetch the listing in multiple passes). Return checkpointRefPages=[] (an empty array) if there is no remote or no such ref. Return the lines verbatim; do NOT parse, filter, or alter them — the engine parses them.\n\n` +
-      `6. List the pull requests still OPEN against the base so the shepherd can observe live review state, pinned to the target slug: \`gh pr list -R "$(cd ${repoRoot} && gh repo view --json nameWithOwner -q .nameWithOwner)" --state open --base ${baseBranch} --limit 200 --json headRefName,reviewDecision,url,isCrossRepository,headRepositoryOwner,headRepository\`. Return that array verbatim as openPRs (an empty array if none); report each reviewDecision field exactly as gh returns it (e.g. "APPROVED", "CHANGES_REQUESTED", "REVIEW_REQUIRED") or null if absent, report each PR's url verbatim so the engine can surface a frozen, still-open PR as awaiting human approval, report each PR's isCrossRepository flag EXACTLY as gh returns it (true when the pull request is opened from a FORK, false when its head branch lives in this same repository) or null if the field is absent, and report headRepositoryOwner as that PR's head-repository OWNER LOGIN string (the \`login\` field of gh's headRepositoryOwner object) and headRepository as that PR's head-repository NAME string (the \`name\` field of gh's headRepository object), each null if gh did not return it — the engine trusts a PR as its own published work ONLY when the fork flag is false AND the head repository is this same repository, and fails closed on anything else including absent or malformed fields.\n` +
+      `6. List the pull requests still OPEN against the base so the shepherd can observe live review state, pinned to the target slug: \`gh pr list -R "$(cd ${repoRoot} && gh repo view --json nameWithOwner -q .nameWithOwner)" --state open --base ${baseBranch} --limit 200 --json headRefName,reviewDecision,url,isCrossRepository,headRepositoryOwner,headRepository\`. Return that array as openPRs (an empty array if none), preserving each row's headRefName, reviewDecision and url VERBATIM, but returning headRepositoryOwner and headRepository as STRINGS extracted from gh's objects (never the objects themselves) as described below; report each reviewDecision field exactly as gh returns it (e.g. "APPROVED", "CHANGES_REQUESTED", "REVIEW_REQUIRED") or null if absent, report each PR's url verbatim so the engine can surface a frozen, still-open PR as awaiting human approval, report each PR's isCrossRepository flag EXACTLY as gh returns it (true when the pull request is opened from a FORK, false when its head branch lives in this same repository) or null if the field is absent, and report headRepositoryOwner as that PR's head-repository OWNER LOGIN string (the \`login\` field of gh's headRepositoryOwner object) and headRepository as that PR's head-repository NAME string (the \`name\` field of gh's headRepository object), each null if gh did not return it — the engine trusts a PR as its own published work ONLY when the fork flag is false AND the head repository is this same repository, and fails closed on anything else including absent or malformed fields.\n` +
       `Return ONLY the structured object: { manifestFound, manifestRaw, mergedPRs: [ { headRefName, url, mergedAt, mergedSha } ], specContentHash, checkpointRefPages: [ [ "<sha>\\t<ref>" ] ], openPRs: [ { headRefName, reviewDecision, url, isCrossRepository, headRepositoryOwner, headRepository } ], ownerRepo, repoHost }.`,
       { agentType: 'implementer', schema: RECONCILE_SCHEMA, label: 'reconcile', phase: 'Reconcile', model: models.reconciler || models.shipper || 'sonnet' }
     ),
@@ -3573,7 +3622,7 @@ if (isRelaunch && reusable && builtUnits.length > 0) {
   log(`mitosis: reconcile — merge-frontier advance: ${advance.toOpen.length} PR(s) to open (${advance.toOpen.join(', ') || 'none'}), ${advance.toRestack.length} built branch(es) to restack (${advance.toRestack.join(', ') || 'none'}), ${advance.toParkSubtree.length} unit(s) reset on divergent-invalidation (${advance.toParkSubtree.join(', ') || 'none'})${advance.buildRunNeeded ? ' — BUILD RUN NEEDED' : ''}; AIMD window W=${advance.nextW}`);
   const reconcileOnlyMode = shouldReconcileOnly({ isRelaunch, specByteIdentical: reusable, hasFrontierState: builtUnits.length > 0, buildableWorkRemains: hasBuildableWork(reconciledManifest) });
   if (reconcileOnlyMode) {
-    return runReconcileOnlyAdvance(advance, { manifest: reconciledManifest, reconciledShippedMeta, sourcePrefix, baseBranch, repoRoot, logicalRunId, merged: liveSignals.merged, newlyMergedIds });
+    return runReconcileOnlyAdvance(advance, { manifest: reconciledManifest, reconciledShippedMeta, sourcePrefix, baseBranch, repoRoot, logicalRunId, merged: liveSignals.merged, newlyMergedIds, targetOwnerRepo, targetRepoHost });
   }
 }
 const resumeMap = new Map();
@@ -3782,9 +3831,7 @@ const reconciledDoneIds = new Set([
   ...reconciledShipped,
   ...(reusable ? reconciledManifest.msps.filter((m) => m && m.status === 'shipped').map((m) => m.id) : []),
 ]);
-const reconciledManifestPrUrlById = new Map(reusable
-  ? reconciledManifest.msps.filter((m) => m && typeof m.id === 'string' && typeof m.prUrl === 'string' && m.prUrl.length > 0).map((m) => [m.id, m.prUrl])
-  : []);
+const reconciledManifestPrUrlById = manifestPrUrlById(reusable ? reconciledManifest : null, targetOwnerRepo, targetRepoHost);
 const condemnedIds = new Set(relaunchAdvance ? relaunchAdvance.toParkSubtree : []);
 const frozenIds = new Set([
   ...[...runOpenPRs.accepted.keys()].filter((id) => condemnedIds.has(id)),
@@ -3815,20 +3862,26 @@ if (reusable) {
     const unreadableProvenance = contested !== null && contested.reason === 'provenance' && contested.foreign !== true;
     const diagnoses = [];
     if (condemnedIds.has(id)) {
-      diagnoses.push(`${id} has an OPEN pull request at ${clean(prUrl)} but its built content was INVALIDATED by a divergent parent merge — the engine cannot vouch for that PR's content and will not invite a merge of it`);
+      diagnoses.push(`${id} has an OPEN pull request at ${cleanUrl(prUrl)} but its built content was INVALIDATED by a divergent parent merge — the engine cannot vouch for that PR's content and will not invite a merge of it`);
     }
     if (contested !== null) {
-      diagnoses.push(contested.reason === 'provenance'
-        ? `${id} has an OPEN pull request at ${clean(contested.url)} that the engine could NOT verify as its own published work (${unreadableProvenance ? 'its cross-repository or head-repository fields were absent or malformed, so provenance is unreadable' : 'it is a fork pull request, or its url or head repository resolves to a different repository'})`
-        : `${id} has an OPEN pull request at ${clean(contested.url)} but this run holds NO build record for it — the engine never published this unit, so it cannot vouch for that PR's content`);
-    }
-    if (diagnoses.length === 0) {
-      diagnoses.push(`${id} has an OPEN pull request at ${clean(prUrl)} the engine cannot vouch for and will not invite a merge of`);
+      if (contested.reason === 'provenance') {
+        diagnoses.push(`${id} has an OPEN pull request at ${cleanUrl(contested.url)} that the engine could NOT verify as its own published work (${unreadableProvenance ? 'its cross-repository or head-repository fields were absent or malformed, so provenance is unreadable' : 'it is a fork pull request, or its url or head repository resolves to a different repository'})`);
+      } else if (contested.reason === 'duplicate-accepted') {
+        diagnoses.push(`${id} has MORE THAN ONE open, provenance-verified pull request on its integration branch (one of them at ${cleanUrl(contested.url)}) — GitHub permits only one open pull request per head/base pair, so that state cannot be genuine live listing output; the engine refuses to promote either url to a merge target`);
+      } else {
+        diagnoses.push(`${id} has an OPEN pull request at ${cleanUrl(contested.url)} but this run holds NO build record for it — the engine never published this unit, so it cannot vouch for that PR's content`);
+      }
     }
     const diagnosis = diagnoses.join(' ALSO: ');
-    const action = unreadableProvenance
-      ? `HUMAN ACTION: do NOT close this pull request on the strength of this check alone — an unreadable provenance field is equally consistent with degraded gh tooling on a GENUINE pull request. Repair the tooling so the cross-repository and head-repository fields are reported, then relaunch; close the pull request at ${clean(contested.url)} only once you have confirmed it is not this run's own published work.`
-      : `HUMAN ACTION: verify and CLOSE the pull request at ${clean(prUrl)} — do NOT merge it — then relaunch, and this unit and its dependents rebuild from plan.`;
+    const baseAction = unreadableProvenance
+      ? `HUMAN ACTION: do NOT close this pull request on the strength of this check alone — an unreadable provenance field is equally consistent with degraded gh tooling on a GENUINE pull request. Repair the tooling so the cross-repository and head-repository fields are reported, then relaunch; close the pull request at ${cleanUrl(contested.url)} only once you have confirmed it is not this run's own published work.`
+      : (contested !== null && contested.reason === 'duplicate-accepted'
+        ? `HUMAN ACTION: do NOT merge any pull request on this unit's branch. Inspect the branch's open pull requests directly on the forge, establish which (if any) is this run's own published work, close the rest, then relaunch.`
+        : `HUMAN ACTION: verify and CLOSE the pull request at ${cleanUrl(prUrl)} — do NOT merge it — then relaunch, and this unit and its dependents rebuild from plan.`);
+    const action = condemnedIds.has(id)
+      ? `${baseAction} Whichever disposition applies, do NOT merge this pull request — its built content was INVALIDATED by a divergent parent merge and the engine cannot vouch for it.`
+      : baseAction;
     parked.push(ParkRecord({
       unitId: id,
       stage: 'blocked',
@@ -4029,7 +4082,7 @@ async function runUnit(unit) {
       const meta = reconciledShippedMeta.get(msp.id) || {};
       const prUrl = meta.prUrl ?? reconciledManifestPrUrlById.get(msp.id) ?? null;
       shipped.push({ mspId: msp.id, prUrl, receiptsPass: null, d6Pass: null });
-      log(`mitosis: skipping ${msp.id} — reconciled as already merged (pr ${prUrl})`);
+      log(`mitosis: skipping ${msp.id} — reconciled as already merged (pr ${cleanUrl(prUrl)})`);
       return Done({ mspId: msp.id, prUrl });
     }
 
