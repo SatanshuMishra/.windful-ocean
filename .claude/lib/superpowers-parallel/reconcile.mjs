@@ -78,7 +78,7 @@ export function shouldReconcileOnly({ isRelaunch, specByteIdentical, hasFrontier
 }
 
 export function hasBuildableWork(manifest) {
-  if (!manifest || typeof manifest !== 'object' || Array.isArray(manifest) || !Array.isArray(manifest.msps)) return false;
+  if (!manifest || typeof manifest !== 'object' || Array.isArray(manifest) || !Array.isArray(manifest.msps)) return true;
   return manifest.msps.some((m) => m && typeof m === 'object' && m.status !== 'built' && m.status !== 'shipped');
 }
 
@@ -123,7 +123,10 @@ export function planReconcile(manifest, live = {}) {
   const verdicts = assembleDivergenceVerdicts(manifest, liveObj);
   const parkSet = new Set();
   for (const parentId of Object.keys(verdicts)) {
-    for (const dep of descendantsToInvalidate(manifest, parentId, { verdict: verdicts[parentId] })) parkSet.add(dep);
+    for (const dep of descendantsToInvalidate(manifest, parentId, { verdict: verdicts[parentId] })) {
+      if (doneSet.has(dep)) continue;
+      parkSet.add(dep);
+    }
   }
   const toRestack = [];
   const toOpen = [];

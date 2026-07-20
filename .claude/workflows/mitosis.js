@@ -316,7 +316,7 @@ function branchToMspId(headRefName, sourcePrefix) {
   const suffix = '-integration';
   if (!headRefName.startsWith(prefix) || !headRefName.endsWith(suffix)) return null;
   const id = headRefName.slice(prefix.length, headRefName.length - suffix.length);
-  if (id.length === 0 || id.includes('/')) return null;
+  if (!/^[A-Za-z0-9._-]+$/.test(id)) return null;
   return id;
 }
 
@@ -1285,6 +1285,7 @@ const RECONCILE_SCHEMA = {
           headRefName: { type: 'string' },
           reviewDecision: { type: ['string', 'null'] },
           url: { type: ['string', 'null'] },
+          isCrossRepository: { type: ['boolean', 'null'] },
         },
       },
     },
@@ -2110,6 +2111,10 @@ function windowDelta(size) {
   return { kind: 'window', size };
 }
 
+function clampWindow(size) {
+  return Number.isInteger(size) ? Math.min(WINDOW_CEILING, Math.max(WINDOW_FLOOR, size)) : WINDOW_FLOOR;
+}
+
 const LEGAL_STAGES = Object.freeze(['plan', 'plan-review', 'parallelize', 'branch', 'execute', 'ship']);
 
 function sanitizeStage(stage) {
@@ -2605,7 +2610,7 @@ function shouldReconcileOnly({ isRelaunch, specByteIdentical, hasFrontierState, 
 }
 
 function hasBuildableWork(manifest) {
-  if (!manifest || typeof manifest !== 'object' || Array.isArray(manifest) || !Array.isArray(manifest.msps)) return false;
+  if (!manifest || typeof manifest !== 'object' || Array.isArray(manifest) || !Array.isArray(manifest.msps)) return true;
   return manifest.msps.some((m) => m && typeof m === 'object' && m.status !== 'built' && m.status !== 'shipped');
 }
 
@@ -2650,7 +2655,10 @@ function planReconcile(manifest, live = {}) {
   const verdicts = assembleDivergenceVerdicts(manifest, liveObj);
   const parkSet = new Set();
   for (const parentId of Object.keys(verdicts)) {
-    for (const dep of descendantsToInvalidate(manifest, parentId, { verdict: verdicts[parentId] })) parkSet.add(dep);
+    for (const dep of descendantsToInvalidate(manifest, parentId, { verdict: verdicts[parentId] })) {
+      if (doneSet.has(dep)) continue;
+      parkSet.add(dep);
+    }
   }
   const toRestack = [];
   const toOpen = [];
@@ -2666,9 +2674,50 @@ function planReconcile(manifest, live = {}) {
   return { toRestack, toOpen, toParkSubtree, nextW, buildRunNeeded: toParkSubtree.length > 0 };
 }
 
-function buildReconcileLiveSignals(recon, reconciledShipped, sourcePrefix) {
+const EMPTY_OPEN_PR_CLASSIFICATION = { accepted: new Map(), contested: new Map(), claimed: new Set() };
+
+function classifyRunOpenPRs(openPRs, { sourcePrefix, statusById, targetOwnerRepo, targetRepoHost } = {}) {
+  const accepted = new Map();
+  const contested = new Map();
+  if (!Array.isArray(openPRs)) return { accepted, contested, claimed: new Set() };
+  const byId = statusById instanceof Map ? statusById : new Map();
+  const targetLower = typeof targetOwnerRepo === 'string' && targetOwnerRepo.length > 0 ? targetOwnerRepo.toLowerCase() : null;
+  const hostLower = typeof targetRepoHost === 'string' && targetRepoHost.length > 0 ? targetRepoHost.toLowerCase() : null;
+  for (const pr of openPRs) {
+    if (pr === null || typeof pr !== 'object') continue;
+    const id = branchToMspId(pr.headRefName, sourcePrefix);
+    if (id === null) continue;
+    if (!byId.has(id)) continue;
+    const status = byId.get(id);
+    const url = typeof pr.url === 'string' && pr.url.length > 0 ? pr.url : null;
+    const ref = prUrlToRepoRef(pr.url);
+    const sameRepo = pr.isCrossRepository === false;
+    const urlPinned = ref !== null && targetLower !== null && ref.ownerRepo === targetLower && (hostLower === null || ref.host === hostLower);
+    const provenance = sameRepo && urlPinned;
+    if (status === 'shipped') {
+      log(`mitosis[${id}]: reconcile — ignoring a still-open PR (${clean(url)}) on an already-merged unit; a merged unit is never re-opened, re-shipped, or re-seeded from live PR state`);
+      continue;
+    }
+    if (!provenance) {
+      if (status === 'built' || status === 'parked') {
+        contested.set(id, { url, reason: 'provenance' });
+        continue;
+      }
+      log(`mitosis[${id}]: reconcile — ignoring an unverifiable open PR (${clean(url)}) on a unit with no recorded build; ${sameRepo ? 'its url does not resolve to this repository' : 'it is a fork (cross-repository) pull request'} — untrusted PR noise never freezes legitimate planned work`);
+      continue;
+    }
+    if (status !== 'built' && status !== 'parked') {
+      contested.set(id, { url, reason: 'unrecorded-build' });
+      continue;
+    }
+    if (!accepted.has(id)) accepted.set(id, { url, reviewDecision: pr.reviewDecision });
+  }
+  for (const id of contested.keys()) accepted.delete(id);
+  return { accepted, contested, claimed: new Set([...accepted.keys(), ...contested.keys()]) };
+}
+
+function buildReconcileLiveSignals(recon, reconciledShipped, sourcePrefix, classification) {
   const mergedPRs = recon && Array.isArray(recon.mergedPRs) ? recon.mergedPRs : [];
-  const openPRs = recon && Array.isArray(recon.openPRs) ? recon.openPRs : [];
   const mergedShas = {};
   for (const pr of mergedPRs) {
     if (pr === null || typeof pr !== 'object') continue;
@@ -2676,18 +2725,12 @@ function buildReconcileLiveSignals(recon, reconciledShipped, sourcePrefix) {
     if (id === null) continue;
     if (typeof pr.mergedSha === 'string' && pr.mergedSha.length > 0) mergedShas[id] = pr.mergedSha;
   }
-  const published = [];
+  const cls = classification || EMPTY_OPEN_PR_CLASSIFICATION;
+  const published = [...cls.claimed];
   const events = [];
-  const seenReview = new Set();
-  for (const pr of openPRs) {
-    if (pr === null || typeof pr !== 'object') continue;
-    const id = branchToMspId(pr.headRefName, sourcePrefix);
-    if (id === null) continue;
-    published.push(id);
-    if (seenReview.has(id)) continue;
-    seenReview.add(id);
-    if (pr.reviewDecision === 'APPROVED') events.push('approved');
-    else if (pr.reviewDecision === 'CHANGES_REQUESTED') events.push('changes-requested');
+  for (const entry of cls.accepted.values()) {
+    if (entry.reviewDecision === 'APPROVED') events.push('approved');
+    else if (entry.reviewDecision === 'CHANGES_REQUESTED') events.push('changes-requested');
   }
   return { merged: [...reconciledShipped], mergedShas, published, events };
 }
@@ -2877,13 +2920,6 @@ async function runReconcileOnlyAdvance(advance, ctx) {
     }
     awaitingApproval.push({ mspId: id, prUrl: opened.prUrl, receiptsPass: null, d6Pass: null, dependsOn: msp.dependsOn || [] });
     log(`mitosis[${id}]: reconcile-only shepherd — parents merged; opened the deferred PR for human review -> ${clean(opened.prUrl)} (no merge performed)`);
-  }
-
-  for (const id of advance.toParkSubtree) {
-    parked.push(await shepherdPark(id, `reconcile-only shepherd: ${id} was invalidated by a divergent parent merge (the parent merged with content that differs from the tip its subtree built on); its build is reset and a follow-up build run is needed`));
-  }
-  if (advance.buildRunNeeded) {
-    log(`mitosis: reconcile-only shepherd — divergent-invalidation reset ${advance.toParkSubtree.length} unit(s); a follow-up BUILD RUN is needed (this is a FLAG only — the shepherd never rebuilds in reconcile-only mode)`);
   }
 
   return assembleReport({ shipped, parked, halted: [], crashed: [], awaitingApproval, mspCount: manifestMsps.length });
@@ -3384,12 +3420,12 @@ try {
       `You are the reconcile stage of a mitosis run. You have NO Skill tool; follow these instructions directly.\n\n` +
       `This stage is STRICTLY READ-ONLY: it inspects durable state to detect a relaunch and the already-merged set. It makes NO commits, opens NO PRs, and mutates NO files whatsoever.\n\n` +
       `1. Fold the run manifest via the deterministic node CLI: run \`node ${LIB_DIR}/fold-run-log.mjs ${repoRoot}/.mitosis/run.json\`. If it exits 0, return its exact stdout as manifestRaw (a string) and set manifestFound=true; if it exits non-zero (absent, empty, or malformed run journal), set manifestFound=false and manifestRaw=null. Do NOT parse, repair, or alter the output — return the bytes verbatim, the engine re-validates it.\n` +
-      `2. Derive the TARGET repository slug AND origin host so every gh read in this run is pinned to the target repo and never the ambient cwd: run \`cd ${repoRoot} && gh repo view --json nameWithOwner,url\` and report the exact owner/repo it prints as ownerRepo (the nameWithOwner field) and the origin hostname parsed from the url field (e.g. github.com for https://github.com/owner/repo) as repoHost. If it prints nothing or errors, STOP and report the failure (do NOT return an empty or unscoped mergedPRs as if it were authoritative) — a loud stop is required because an unscoped read would silently query the WRONG repository. Then list the pull requests already merged into the base so the engine can skip re-shipping them, pinned to that target slug: \`gh pr list -R "$(cd ${repoRoot} && gh repo view --json nameWithOwner -q .nameWithOwner)" --state merged --base ${baseBranch} --json headRefName,url,mergedAt,mergeCommit\`. Return that array verbatim as mergedPRs (an empty array if none). For EACH merged PR also report mergedSha as its merge commit sha (the mergeCommit.oid field), or null if absent — the shepherd compares it against the tip its children built on to detect a divergent (squashed or amended) merge.\n` +
+      `2. Derive the TARGET repository slug AND origin host so every gh read in this run is pinned to the target repo and never the ambient cwd: run \`cd ${repoRoot} && gh repo view --json nameWithOwner,url\` and report the exact owner/repo it prints as ownerRepo (the nameWithOwner field) and the origin hostname parsed from the url field (e.g. github.com for https://github.com/owner/repo) as repoHost. If it prints nothing or errors, STOP and report the failure (do NOT return an empty or unscoped mergedPRs as if it were authoritative) — a loud stop is required because an unscoped read would silently query the WRONG repository. Then list the pull requests already merged into the base so the engine can skip re-shipping them, pinned to that target slug: \`gh pr list -R "$(cd ${repoRoot} && gh repo view --json nameWithOwner -q .nameWithOwner)" --state merged --base ${baseBranch} --limit 200 --json headRefName,url,mergedAt,mergeCommit\`. Return that array verbatim as mergedPRs (an empty array if none). For EACH merged PR also report mergedSha as its merge commit sha (the mergeCommit.oid field), or null if absent — the shepherd compares it against the tip its children built on to detect a divergent (squashed or amended) merge.\n` +
       `3. For diagnostics only you MAY run \`git log origin/${baseBranch}\` to observe recent base history; it does not affect the returned object.\n` +
       `4. Compute a content fingerprint of the spec so the engine can detect an in-place spec edit since the manifest was recorded: run \`shasum -a 256 ${spec}\` and return ONLY the leading 64-character hex field as specContentHash (a string). If the spec file cannot be read, return specContentHash=null.\n` +
       `5. List the DURABLE mitosis checkpoint refs so the engine can reconcile built-but-unmerged work against them: run \`git -C ${repoRoot} ls-remote origin 'refs/mitosis/*'\`. This is the authoritative record of which units were durably built on a prior run. Capture EVERY output line in full (each line is \`<sha>\\t<ref>\`), returning them COMPLETELY with no truncation as checkpointRefPages: an array of pages where each page is an array of the raw line strings (return a single page holding all lines; use additional pages only if you had to fetch the listing in multiple passes). Return checkpointRefPages=[] (an empty array) if there is no remote or no such ref. Return the lines verbatim; do NOT parse, filter, or alter them — the engine parses them.\n\n` +
-      `6. List the pull requests still OPEN against the base so the shepherd can observe live review state, pinned to the target slug: \`gh pr list -R "$(cd ${repoRoot} && gh repo view --json nameWithOwner -q .nameWithOwner)" --state open --base ${baseBranch} --json headRefName,reviewDecision,url\`. Return that array verbatim as openPRs (an empty array if none); report each reviewDecision field exactly as gh returns it (e.g. "APPROVED", "CHANGES_REQUESTED", "REVIEW_REQUIRED") or null if absent, and report each PR's url verbatim so the engine can surface a frozen, still-open PR as awaiting human approval.\n` +
-      `Return ONLY the structured object: { manifestFound, manifestRaw, mergedPRs: [ { headRefName, url, mergedAt, mergedSha } ], specContentHash, checkpointRefPages: [ [ "<sha>\\t<ref>" ] ], openPRs: [ { headRefName, reviewDecision, url } ], ownerRepo, repoHost }.`,
+      `6. List the pull requests still OPEN against the base so the shepherd can observe live review state, pinned to the target slug: \`gh pr list -R "$(cd ${repoRoot} && gh repo view --json nameWithOwner -q .nameWithOwner)" --state open --base ${baseBranch} --limit 200 --json headRefName,reviewDecision,url,isCrossRepository\`. Return that array verbatim as openPRs (an empty array if none); report each reviewDecision field exactly as gh returns it (e.g. "APPROVED", "CHANGES_REQUESTED", "REVIEW_REQUIRED") or null if absent, report each PR's url verbatim so the engine can surface a frozen, still-open PR as awaiting human approval, and report each PR's isCrossRepository flag EXACTLY as gh returns it (true when the pull request is opened from a FORK, false when its head branch lives in this same repository) or null if the field is absent — the engine trusts only a same-repository PR as its own published work and fails closed on anything else.\n` +
+      `Return ONLY the structured object: { manifestFound, manifestRaw, mergedPRs: [ { headRefName, url, mergedAt, mergedSha } ], specContentHash, checkpointRefPages: [ [ "<sha>\\t<ref>" ] ], openPRs: [ { headRefName, reviewDecision, url, isCrossRepository } ], ownerRepo, repoHost }.`,
       { agentType: 'implementer', schema: RECONCILE_SCHEMA, label: 'reconcile', phase: 'Reconcile', model: models.reconciler || models.shipper || 'sonnet' }
     ),
     { unitId: 'reconcile', stage: 'reconcile', resetRef: null, worktree: null, task: 'inspect durable run state and the already-merged set', ...makeRemediation({ unitId: 'reconcile', stage: 'reconcile', task: 'inspect durable run state and the already-merged set', schema: RECONCILE_SCHEMA, agentType: 'implementer', phase: 'Reconcile' }) },
@@ -3458,9 +3494,18 @@ if (legacyModelKeys.length > 0) {
 }
 const reuse = isRelaunch ? evaluateManifestReuse(reconciledManifest, observedSpecHash) : { reusable: false };
 const reusable = reuse.reusable;
+const preReflectionStatusById = new Map(reusable && reconciledManifest && Array.isArray(reconciledManifest.msps)
+  ? reconciledManifest.msps.filter((m) => m && typeof m.id === 'string').map((m) => [m.id, m.status])
+  : []);
+const runOpenPRs = classifyRunOpenPRs(reusable && recon ? recon.openPRs : [], {
+  sourcePrefix,
+  statusById: preReflectionStatusById,
+  targetOwnerRepo,
+  targetRepoHost,
+});
 let relaunchAdvance = null;
 if (isRelaunch && reusable && builtUnits.length > 0) {
-  const baseLiveSignals = buildReconcileLiveSignals(recon, reconciledShipped, sourcePrefix);
+  const baseLiveSignals = buildReconcileLiveSignals(recon, reconciledShipped, sourcePrefix, runOpenPRs);
   let divergenceProbes;
   try {
     divergenceProbes = await runDivergenceProbes(reconciledManifest, baseLiveSignals.merged, baseLiveSignals.mergedShas);
@@ -3704,37 +3749,62 @@ const blockedByApproval = new Set();
 let mergeQueue = Promise.resolve();
 const builtInRun = new Map();
 const mspById = new Map(msps.map((m) => [m.id, m]));
-let currentWindow = Number.isInteger(priorManifest && priorManifest.window) ? priorManifest.window : WINDOW_FLOOR;
+let currentWindow = clampWindow(Number.isInteger(priorManifest && priorManifest.window) ? priorManifest.window : WINDOW_FLOOR);
 
-const publishedRelaunchIds = new Set();
-if (reusable && recon && Array.isArray(recon.openPRs)) {
-  for (const pr of recon.openPRs) {
-    if (pr === null || typeof pr !== 'object') continue;
-    const id = branchToMspId(pr.headRefName, sourcePrefix);
-    if (id !== null && mspById.has(id)) publishedRelaunchIds.add(id);
-  }
-}
+const reconciledDoneIds = new Set([
+  ...reconciledShipped,
+  ...(reusable ? reconciledManifest.msps.filter((m) => m && m.status === 'shipped').map((m) => m.id) : []),
+]);
+const condemnedIds = new Set(relaunchAdvance ? relaunchAdvance.toParkSubtree : []);
+const frozenIds = new Set([
+  ...[...runOpenPRs.accepted.keys()].filter((id) => condemnedIds.has(id)),
+  ...runOpenPRs.contested.keys(),
+].filter((id) => mspById.has(id)));
 const relaunchStatusById = new Map(reusable ? reconciledManifest.msps.map((m) => [m.id, m.status]) : []);
 const relaunchStateFor = (id) => {
   if (!reusable) return undefined;
   const status = relaunchStatusById.get(id);
   if (status === 'shipped') return undefined;
-  if (publishedRelaunchIds.has(id)) return 'awaiting';
+  if (frozenIds.has(id)) return 'parked';
+  if (runOpenPRs.accepted.has(id)) return 'awaiting';
   if (status === 'built') return 'built';
   return undefined;
 };
 if (reusable) {
   for (const m of reconciledManifest.msps) {
-    if (!publishedRelaunchIds.has(m.id)) continue;
-    const pr = recon.openPRs.find((p) => p && typeof p === 'object' && branchToMspId(p.headRefName, sourcePrefix) === m.id);
-    const prUrl = pr && typeof pr.url === 'string' && pr.url.length > 0 ? pr.url : null;
+    if (relaunchStateFor(m.id) !== 'awaiting') continue;
+    const prUrl = runOpenPRs.accepted.get(m.id).url;
     awaitingApproval.push({ mspId: m.id, prUrl, receiptsPass: null, d6Pass: null, dependsOn: Array.isArray(m.dependsOn) ? m.dependsOn : [] });
     for (const d of transitiveDependents(reconciledManifest.msps, m.id)) blockedByApproval.add(d);
     log(`mitosis[${m.id}]: reconcile — open, unmerged PR is frozen; seeding it awaiting human approval and NOT re-dispatching it (no re-ship, no force-push of a published branch)`);
   }
+  for (const id of frozenIds) {
+    const contested = runOpenPRs.contested.get(id) || null;
+    const prUrl = contested ? contested.url : (runOpenPRs.accepted.has(id) ? runOpenPRs.accepted.get(id).url : null);
+    const diagnosis = contested === null
+      ? `${id} has an OPEN pull request at ${clean(prUrl)} but its built content was INVALIDATED by a divergent parent merge — the engine cannot vouch for that PR's content and will not invite a merge of it`
+      : (contested.reason === 'provenance'
+        ? `${id} has an OPEN pull request at ${clean(prUrl)} that the engine could NOT verify as its own published work (it is a fork pull request, its url does not resolve to this repository, or the provenance fields were absent)`
+        : `${id} has an OPEN pull request at ${clean(prUrl)} but this run holds NO build record for it — the engine never published this unit, so it cannot vouch for that PR's content`);
+    parked.push(ParkRecord({
+      unitId: id,
+      stage: 'blocked',
+      diagnosis,
+      request: {
+        kind: 'approve-decision',
+        what: `${diagnosis}. HUMAN ACTION: verify and CLOSE the pull request at ${clean(prUrl)} — do NOT merge it — then relaunch, and this unit and its dependents rebuild from plan.${contested === null ? '' : ` (disposition: ${contested.reason})`}`,
+      },
+      remediation: null,
+      resumePoint: { branch: `${sourcePrefix}/${id}-integration`, ref: baseBranch, stage: 'plan' },
+      triedSet: [],
+      dependents: transitiveDependents(reconciledManifest.msps, id),
+    }));
+    for (const d of transitiveDependents(reconciledManifest.msps, id)) blockedByPark.add(d);
+    log(`mitosis[${id}]: reconcile — FROZEN pending a human decision on its open PR (${clean(prUrl)}); not rebuilt, not re-shipped, and never invited for merge`);
+  }
 }
-if (relaunchAdvance && Number.isInteger(relaunchAdvance.nextW) && relaunchAdvance.nextW !== currentWindow) {
-  currentWindow = relaunchAdvance.nextW;
+if (relaunchAdvance && Number.isInteger(relaunchAdvance.nextW) && clampWindow(relaunchAdvance.nextW) !== currentWindow) {
+  currentWindow = clampWindow(relaunchAdvance.nextW);
   try {
     await persistWindowCheckpoint('shepherd', currentWindow);
   } catch (err) {
@@ -3912,7 +3982,7 @@ async function runUnit(unit) {
     const mspTierModel = guardModelDecision('plan-review', { ...msp, dependentCount: mspDependentCount }, null);
     let compensationStack = emptyCompensationStack();
 
-    if (reconciledShipped.has(msp.id)) {
+    if (reconciledDoneIds.has(msp.id)) {
       const meta = reconciledShippedMeta.get(msp.id) || {};
       const prUrl = meta.prUrl ?? null;
       shipped.push({ mspId: msp.id, prUrl, receiptsPass: null, d6Pass: null });
@@ -4162,7 +4232,7 @@ async function runUnit(unit) {
 
     phase('Branch');
     const parentIds = Array.isArray(msp.dependsOn) ? msp.dependsOn : [];
-    const doneAtCompose = new Set([...reconciledShipped, ...shipped.map((s) => s.mspId)]);
+    const doneAtCompose = new Set([...reconciledDoneIds, ...shipped.map((s) => s.mspId)]);
     const unmergedParentIds = parentIds.filter((p) => !doneAtCompose.has(p));
     let builtAgainst = {};
     if (unmergedParentIds.length > 0) {
@@ -4278,7 +4348,7 @@ async function runUnit(unit) {
     }));
     await builtLink;
 
-    const doneIds = new Set([...reconciledShipped, ...shipped.map((s) => s.mspId)]);
+    const doneIds = new Set([...reconciledDoneIds, ...shipped.map((s) => s.mspId)]);
     const parentsDone = parentIds.every((p) => doneIds.has(p));
     if (!parentsDone) {
       builtInRun.set(msp.id, { checkpointRef: durableCheckpointRef, sha: builtSha, builtAgainst });
@@ -4450,6 +4520,7 @@ const mergePoll = {
   watch: async (unit) => {
     const entry = awaitingApproval.find((a) => a.mspId === unit.id);
     if (!entry || typeof entry.prUrl !== 'string') return { merged: false, mergedAt: null, readError: 'no awaiting-approval PR reference for the polled unit' };
+    if (pollRepoIdentity === null) return { merged: false, mergedAt: null, readError: 'merge-watch disabled (no validated repo identity); poll degrades to park' };
     const plan = planMergeWatch({ prUrl: entry.prUrl, repoIdentity: pollRepoIdentity });
     if (!plan.enabled) return { merged: false, mergedAt: null, readError: `merge-watch disabled (${plan.reason}); poll degrades to park` };
     let result;

@@ -17,7 +17,7 @@ export function branchToMspId(headRefName, sourcePrefix) {
   const suffix = '-integration';
   if (!headRefName.startsWith(prefix) || !headRefName.endsWith(suffix)) return null;
   const id = headRefName.slice(prefix.length, headRefName.length - suffix.length);
-  if (id.length === 0 || id.includes('/')) return null;
+  if (!/^[A-Za-z0-9._-]+$/.test(id)) return null;
   return id;
 }
 
