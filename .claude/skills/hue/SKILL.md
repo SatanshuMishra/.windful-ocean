@@ -464,7 +464,7 @@ tokens:
       weight: "regular"        # thin / light / regular / bold / fill / duotone
       match_score: "high"      # high / medium / low
       match_reasoning: "Phosphor regular matches the observed stroke weight (~1.5px), rounded terminals, and humanist form language. Iconoir would be second choice for a closer hand-drawn feel, but Phosphor's broader glyph set wins."
-      cdn: "https://unpkg.com/@phosphor-icons/web@2/src/regular/style.css"
+      cdn: "https://unpkg.com/@phosphor-icons/web@2.1.2/src/regular/style.css"
       icon_class_prefix: "ph ph-"
     disclaimer: "Icons in the generated preview are a best-match fallback from the Phosphor kit. The brand's actual icons are proprietary and not redistributed with this skill."
 

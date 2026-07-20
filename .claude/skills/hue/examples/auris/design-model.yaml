@@ -166,5 +166,5 @@ iconography:
   fallback_kit:
     name: "Phosphor"
     weight: "thin"
-    cdn: "https://unpkg.com/@phosphor-icons/web@2/src/thin/style.css"
+    cdn: "https://unpkg.com/@phosphor-icons/web@2.1.2/src/thin/style.css"
     icon_class_prefix: "ph-thin ph-"

@@ -244,7 +244,7 @@ tokens:
       weight: "regular"
       match_score: "medium-high"
       match_reasoning: "Phosphor regular matches observed stroke weight (1.5px) and humanist form language. It is less hand-drawn than mymind's real icons — Iconoir would be closer on the wobbly axis, but Phosphor's broader glyph coverage wins for general preview work. Known gap: Phosphor's curves are perfectly regular, mymind's have intentional irregularity that the fallback cannot reproduce."
-      cdn: "https://unpkg.com/@phosphor-icons/web@2/src/regular/style.css"
+      cdn: "https://unpkg.com/@phosphor-icons/web@2.1.2/src/regular/style.css"
       icon_class_prefix: "ph ph-"
     sizes:
       inline: "16px"

@@ -165,7 +165,7 @@ Use a real icon library that matches the brand's aesthetic. Include via CDN `<li
 | Library | CDN | Best for |
 |---------|-----|----------|
 | Lucide | `https://unpkg.com/lucide-static/font/lucide.css` | Clean, modern brands (Linear, Notion, Perplexity) |
-| Phosphor | `https://unpkg.com/@phosphor-icons/web@2/src/regular/style.css` | Friendly, rounded brands (mymind, Claude) |
+| Phosphor | `https://unpkg.com/@phosphor-icons/web@2.1.2/src/regular/style.css` | Friendly, rounded brands (mymind, Claude) |
 | SF Symbols-style (via Lucide) | Same as Lucide | System/Apple-like brands |
 | Tabler Icons | `https://unpkg.com/@tabler/icons-webfont/dist/tabler-icons.min.css` | Versatile, works everywhere |
 

@@ -41,7 +41,7 @@ For each brand, extract these five attributes from the brand's actual icons (fet
 
 **CDN (per weight).**
 ```html
-<link rel="stylesheet" href="https://unpkg.com/@phosphor-icons/web@2/src/regular/style.css">
+<link rel="stylesheet" href="https://unpkg.com/@phosphor-icons/web@2.1.2/src/regular/style.css">
 <!-- Swap "regular" for: thin, light, bold, fill, duotone -->
 <i class="ph ph-heart"></i>
 ```

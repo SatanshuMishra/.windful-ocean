@@ -154,5 +154,5 @@ iconography:
   fallback_kit:
     name: "Phosphor"
     weight: "regular"
-    cdn: "https://unpkg.com/@phosphor-icons/web@2/src/regular/style.css"
+    cdn: "https://unpkg.com/@phosphor-icons/web@2.1.2/src/regular/style.css"
     icon_class_prefix: "ph ph-"
