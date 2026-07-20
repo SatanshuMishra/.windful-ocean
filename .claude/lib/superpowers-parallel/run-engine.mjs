@@ -6,7 +6,13 @@ const FENCE_SCHEMA = { type: 'object', properties: { paths: { type: 'array', ite
 const EXEC_AGENT_TYPES = new Set(['implementer', 'test-engineer', 'general-purpose']);
 
 export function normalizePath(p) { return p.replace(/^\.\//, '').replace(/\/+$/, ''); }
+export const GLOB_MAX_LENGTH = 1024;
+export const GLOB_MAX_WILDCARDS = 32;
 export function globToRegExp(glob) {
+  if (typeof glob !== 'string') throw new TypeError(`glob must be a string, got ${typeof glob}`);
+  if (glob.length > GLOB_MAX_LENGTH) throw new RangeError(`glob length ${glob.length} exceeds the maximum of ${GLOB_MAX_LENGTH}`);
+  const wildcardCount = (glob.match(/[*?]/g) || []).length;
+  if (wildcardCount > GLOB_MAX_WILDCARDS) throw new RangeError(`glob wildcard count ${wildcardCount} exceeds the maximum of ${GLOB_MAX_WILDCARDS}`);
   const body = glob.split(/(\*\*|\*|\?)/).map((part) => {
     if (part === '**') return '.*';
     if (part === '*') return '[^/]*';
