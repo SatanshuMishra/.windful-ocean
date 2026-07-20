@@ -111,10 +111,10 @@ test('hasBuildableWork: true when any msp is neither built nor shipped (planned 
   assert.equal(hasBuildableWork({ msps: [] }), false);
 });
 
-test('hasBuildableWork: fails closed (false) on a malformed or missing manifest', () => {
-  assert.equal(hasBuildableWork(null), false);
-  assert.equal(hasBuildableWork({}), false);
-  assert.equal(hasBuildableWork([]), false);
+test('hasBuildableWork: fails TOWARD work (true) on a malformed or missing manifest — an unreadable manifest must never be the value that SATISFIES the reconcile-only gate and freezes the run', () => {
+  assert.equal(hasBuildableWork(null), true);
+  assert.equal(hasBuildableWork({}), true);
+  assert.equal(hasBuildableWork([]), true);
 });
 
 test('shouldReconcileOnly: fails closed on absent or non-boolean input (never trips reconcile-only by accident)', () => {
@@ -161,6 +161,21 @@ test('planReconcile: a divergent probe (non-empty changed paths in the parent sc
   assert.deepEqual(plan.toOpen, []);
   assert.deepEqual(plan.toRestack, []);
   assert.ok(!('toBuild' in plan) && !('toRebuild' in plan), 'reconcile-only emits no rebuild directive');
+});
+
+test('planReconcile: a divergent parent NEVER re-parks an already-done descendant — only the still-built part of the subtree is invalidated', () => {
+  const manifest = { window: 3, msps: [
+    { id: 'p', status: 'shipped', dependsOn: [], builtSha: 'p-built', fileScope: ['scope/p/**'] },
+    { id: 'c1', status: 'shipped', dependsOn: ['p'], builtSha: 'c1-built' },
+    { id: 'c2', status: 'built', dependsOn: ['p'], builtSha: 'c2-built' },
+  ] };
+  const plan = planReconcile(manifest, {
+    merged: ['p'],
+    mergedShas: { p: 'p-merged' },
+    divergenceProbes: { p: { paths: ['scope/p/reviewer-amended.txt'], error: null } },
+  });
+  assert.deepEqual(plan.toParkSubtree, ['c2'], 'c1 already MERGED to the base — condemning and rebuilding it would re-ship merged content; only the still-built c2 is invalidated');
+  assert.equal(plan.buildRunNeeded, true, 'a non-empty park subtree still flags the follow-up build run');
 });
 
 test('planReconcile: a clean probe (no changed paths in the parent scope) invalidates nothing even when the raw merge SHA differs from the built tip, and lets the next layer open', () => {
