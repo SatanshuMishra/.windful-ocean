@@ -123,8 +123,30 @@ function checkpointPages(unitIds) {
   return [unitIds.map((id, i) => `${String.fromCharCode(97 + i).repeat(40)}\trefs/mitosis/${RUN_ID}/${id}`)];
 }
 
-function mergedPr(id, { url = `https://example.test/pr/${id}`, mergedAt = '2026-07-10T00:00:00Z', mergedSha = null } = {}) {
+function prNumber(seed) {
+  let h = 0;
+  const s = typeof seed === 'string' ? seed : 'unknown';
+  for (let i = 0; i < s.length; i += 1) h = (h * 31 + s.charCodeAt(i)) % 8999;
+  return h + 1000;
+}
+
+function targetPrUrl(seed) {
+  return `https://github.com/o/repo/pull/${prNumber(seed)}`;
+}
+
+function mergedPr(id, { url = targetPrUrl(id), mergedAt = '2026-07-10T00:00:00Z', mergedSha = null } = {}) {
   return { headRefName: `${SOURCE_PREFIX}/${id}-integration`, url, mergedAt, mergedSha };
+}
+
+function withReconcileDefaults(recon) {
+  if (!recon || typeof recon !== 'object') return recon;
+  const openPRs = Array.isArray(recon.openPRs)
+    ? recon.openPRs.map((row) => (row && typeof row === 'object'
+      ? { url: targetPrUrl(row.headRefName), isCrossRepository: false, ...row }
+      : row))
+    : recon.openPRs;
+  const withOpen = openPRs === undefined ? {} : { openPRs };
+  return { ownerRepo: 'o/repo', repoHost: 'github.com', ...recon, ...withOpen };
 }
 
 function shepherdAgent({ reconcileResult, openResult, restackResult, probeResult } = {}) {
@@ -135,7 +157,7 @@ function shepherdAgent({ reconcileResult, openResult, restackResult, probeResult
     labels.push(label);
     if (!prompts.has(label)) prompts.set(label, prompt);
     const prefix = label.split(':')[0];
-    if (prefix === 'reconcile') return reconcileResult;
+    if (prefix === 'reconcile') return withReconcileDefaults(reconcileResult);
     if (prefix === 'window-checkpoint') return { written: true, detail: '' };
     if (prefix === 'park-checkpoint') return { written: true, detail: '' };
     if (prefix === 'ship-checkpoint') return { written: true, detail: '' };
@@ -161,7 +183,7 @@ function createFrontierAgent({ msps, shipResult, mergeWatch } = {}) {
     const label = opts.label || '';
     const prefix = label.split(':')[0];
     switch (prefix) {
-      case 'reconcile': return { manifestFound: false, manifestRaw: null, mergedPRs: [], specContentHash: SPEC_CONTENT_HASH, checkpointRefPages: [], openPRs: [] };
+      case 'reconcile': return withReconcileDefaults({ manifestFound: false, manifestRaw: null, mergedPRs: [], specContentHash: SPEC_CONTENT_HASH, checkpointRefPages: [], openPRs: [] });
       case 'merge-watch': {
         const id = label.slice('merge-watch:'.length);
         return (mergeWatch ? mergeWatch(id) : null) || { merged: false, mergedAt: null, readError: null };
