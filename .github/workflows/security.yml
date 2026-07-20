@@ -46,14 +46,26 @@ jobs:
             ref=""
           fi
           echo "ref=$ref" >> "$GITHUB_OUTPUT"
-      - name: Semgrep scan (p/default, diff-aware)
+      - name: Fetch and verify p/default ruleset
+        run: |
+          curl -sSfL https://semgrep.dev/c/p/default -o /tmp/p-default.yml
+          actual_sha256="$(sha256sum /tmp/p-default.yml | awk '{print $1}')"
+          expected_sha256="$(cat .semgrep/p-default.sha256)"
+          if [ "$actual_sha256" != "$expected_sha256" ]; then
+            echo "p/default ruleset hash mismatch: upstream ruleset has drifted from the pinned version."
+            echo "expected: $expected_sha256"
+            echo "actual:   $actual_sha256"
+            echo "Re-vendor the pin (.semgrep/p-default.sha256) and re-adjudicate the nosemgrep pragmas before updating it."
+            exit 1
+          fi
+      - name: Semgrep scan (pinned p/default, diff-aware)
         env:
           BASELINE_REF: ${{ steps.baseline.outputs.ref }}
         run: |
           if [ -n "$BASELINE_REF" ]; then
-            semgrep scan --config p/default --error --metrics=off --baseline-commit "$BASELINE_REF" .
+            semgrep scan --config /tmp/p-default.yml --error --metrics=off --baseline-commit "$BASELINE_REF" .
           else
-            semgrep scan --config p/default --error --metrics=off .
+            semgrep scan --config /tmp/p-default.yml --error --metrics=off .
           fi
 
   sca:
