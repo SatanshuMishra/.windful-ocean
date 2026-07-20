@@ -8,6 +8,7 @@ CLAUDE.md
 !/.claude/CLAUDE.md
 /.claude/settings.local.json
 /.claude/reports/
+/.claude/docs/analysis/
 claude.json
 .claude.json
 *claude-session*
@@ -18,6 +19,7 @@ claude.json
 .local/
 /graphify-out/
 /.playwright-mcp/
+/docs/superpowers/plans/
 
 # Runtime state and credentials from stowed config
 /.config/com.corsair/
