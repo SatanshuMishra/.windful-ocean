@@ -1,10 +1,11 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
 import { decidePrepareActions, deepMerge, buildPrepareWriteSections } from '../prepare-plan.mjs';
 import { refuseToWeaken } from '../prepare-guard.mjs';
 
-const TEMPLATE_CONFIG_PATH = '/Users/satanshumishra/.claude/skills/mitosis/templates/receipts.config.json';
+const TEMPLATE_CONFIG_PATH = fileURLToPath(new URL('../../../skills/mitosis/templates/receipts.config.json', import.meta.url));
 
 const TEMPLATE_CONFIG = {
   version: 1,

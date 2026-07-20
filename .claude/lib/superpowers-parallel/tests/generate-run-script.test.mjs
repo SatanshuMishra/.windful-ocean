@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { readFileSync, writeFileSync, mkdtempSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
 import { join } from 'node:path';
-import { homedir, tmpdir } from 'node:os';
+import { tmpdir } from 'node:os';
 import { fileURLToPath } from 'node:url';
 import { buildRunScript, validateGraph, ENGINE_ARG_NAMES } from '../generate-run-script.mjs';
 
@@ -16,9 +16,21 @@ const FAKE_ENGINE = [
 ].join('\n');
 
 const SCRIPT = fileURLToPath(new URL('../generate-run-script.mjs', import.meta.url));
+const ENGINE_PATH = fileURLToPath(new URL('../../../workflows/parallel-plan-execution.js', import.meta.url));
 
-const CLEAN_ENV = { ...process.env };
-for (const k of ['GIT_DIR', 'GIT_INDEX_FILE', 'GIT_WORK_TREE', 'GIT_COMMON_DIR', 'GIT_OBJECT_DIRECTORY', 'GIT_PREFIX', 'GIT_AUTHOR_DATE', 'GIT_COMMITTER_DATE', 'GIT_AUTHOR_NAME', 'GIT_AUTHOR_EMAIL', 'GIT_COMMITTER_NAME', 'GIT_COMMITTER_EMAIL']) delete CLEAN_ENV[k];
+const STRIPPED_GIT_VARS = ['GIT_DIR', 'GIT_INDEX_FILE', 'GIT_WORK_TREE', 'GIT_COMMON_DIR', 'GIT_OBJECT_DIRECTORY', 'GIT_PREFIX', 'GIT_AUTHOR_DATE', 'GIT_COMMITTER_DATE', 'GIT_AUTHOR_NAME', 'GIT_AUTHOR_EMAIL', 'GIT_COMMITTER_NAME', 'GIT_COMMITTER_EMAIL'];
+
+const TEST_GIT_IDENTITY = {
+  GIT_AUTHOR_NAME: 'generate-run-script test',
+  GIT_AUTHOR_EMAIL: 'generate-run-script-test@invalid.local',
+  GIT_COMMITTER_NAME: 'generate-run-script test',
+  GIT_COMMITTER_EMAIL: 'generate-run-script-test@invalid.local',
+};
+
+const CLEAN_ENV = Object.freeze({
+  ...Object.fromEntries(Object.entries(process.env).filter(([k]) => !STRIPPED_GIT_VARS.includes(k))),
+  ...TEST_GIT_IDENTITY,
+});
 
 test('buildRunScript inlines values and keeps the body verbatim', () => {
   const out = buildRunScript(FAKE_ENGINE, { a: [1], b: 2 });
@@ -76,8 +88,7 @@ test('validateGraph propagates wave-planner cycle errors', () => {
 });
 
 test('the real engine has exactly the expected arg lines and they all replace', () => {
-  const enginePath = join(homedir(), '.claude/workflows/parallel-plan-execution.js');
-  const engine = readFileSync(enginePath, 'utf8');
+  const engine = readFileSync(ENGINE_PATH, 'utf8');
   const values = Object.fromEntries(ENGINE_ARG_NAMES.map((n) => [n, `v-${n}`]));
   const out = buildRunScript(engine, values);
   assert.equal(out.match(/\bargs\./g), null);
