@@ -603,9 +603,9 @@ function findClosingLine(lines, start) {
 
   const tagName = openMatch[1];
   let depth = 0;
-  const openRe = new RegExp('<' + tagName + '(?=[\\s/>]|$)', 'g');
-  const selfCloseRe = new RegExp('<' + tagName + '[^>]*/>', 'g');
-  const closeRe = new RegExp('</' + tagName + '\\s*>', 'g');
+  const openRe = new RegExp('<' + tagName + '(?=[\\s/>]|$)', 'g'); // nosemgrep: javascript.lang.security.audit.detect-non-literal-regexp.detect-non-literal-regexp -- tagName is capture group 1 of OPENER_RE, alphanumeric only
+  const selfCloseRe = new RegExp('<' + tagName + '[^>]*/>', 'g'); // nosemgrep: javascript.lang.security.audit.detect-non-literal-regexp.detect-non-literal-regexp -- tagName is capture group 1 of OPENER_RE, alphanumeric only
+  const closeRe = new RegExp('</' + tagName + '\\s*>', 'g'); // nosemgrep: javascript.lang.security.audit.detect-non-literal-regexp.detect-non-literal-regexp -- tagName is capture group 1 of OPENER_RE, alphanumeric only
 
   for (let i = start; i < lines.length; i++) {
     const line = lines[i];

@@ -74,9 +74,9 @@ export function scanFlagDeclarations(text) {
 export function flagHasReachableTruePath(name, corpus) {
   if (typeof name !== 'string' || typeof corpus !== 'string') return false;
   const ident = escapeIdentifier(name);
-  const env = new RegExp(`process\\.env(?:\\.${ident}\\b|\\[['"\`]${ident}['"\`]\\])`);
+  const env = new RegExp(`process\\.env(?:\\.${ident}\\b|\\[['"\`]${ident}['"\`]\\])`); // nosemgrep: javascript.lang.security.audit.detect-non-literal-regexp.detect-non-literal-regexp -- ident is [A-Za-z_$][A-Za-z0-9_$]* with $ escaped by escapeIdentifier
   if (env.test(corpus)) return true;
-  const assign = new RegExp(`(?:^|[^.\\w$])${ident}\\s*=\\s*([^=].*)`, 'gm');
+  const assign = new RegExp(`(?:^|[^.\\w$])${ident}\\s*=\\s*([^=].*)`, 'gm'); // nosemgrep: javascript.lang.security.audit.detect-non-literal-regexp.detect-non-literal-regexp -- ident is [A-Za-z_$][A-Za-z0-9_$]* with $ escaped by escapeIdentifier
   let match;
   while ((match = assign.exec(corpus)) !== null) {
     const rhs = match[1].replace(/;.*$/, '').trim();

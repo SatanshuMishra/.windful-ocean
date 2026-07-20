@@ -91,7 +91,7 @@ export function detectCsp(cwd = process.cwd()) {
     const ext = path.extname(absPath);
     const base = path.basename(absPath).toLowerCase();
     const isConfig = (name) =>
-      new RegExp('(^|/)' + name + '\\.config\\.').test(relPath);
+      new RegExp('(^|/)' + name + '\\.config\\.').test(relPath); // nosemgrep: javascript.lang.security.audit.detect-non-literal-regexp.detect-non-literal-regexp -- isConfig is called only with the literals svelte and nuxt
 
     // === append-arrays candidates ===
 

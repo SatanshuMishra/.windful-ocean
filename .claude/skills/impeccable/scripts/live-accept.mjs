@@ -354,7 +354,7 @@ function stripStyleAndJoin(lines, block) {
  * Returns the inner string (may be empty), or null if not found.
  */
 function extractInnerByAttr(text, attrMatch) {
-  const openerRe = new RegExp('<([A-Za-z][A-Za-z0-9]*)\\b[^>]*' + attrMatch + '[^>]*>');
+  const openerRe = new RegExp('<([A-Za-z][A-Za-z0-9]*)\\b[^>]*' + attrMatch + '[^>]*>'); // nosemgrep: javascript.lang.security.audit.detect-non-literal-regexp.detect-non-literal-regexp -- attrMatch is a literal or a literal plus variantNum validated by parseVariantNum
   const openMatch = text.match(openerRe);
   if (!openMatch) return null;
 
@@ -363,7 +363,7 @@ function extractInnerByAttr(text, attrMatch) {
 
   // Match any opener or closer of this tag name after innerStart.
   // (Does not match self-closing <TAG … />, which doesn't contribute to depth.)
-  const tagRe = new RegExp('<(?:/)?' + tagName + '\\b[^>]*>', 'g');
+  const tagRe = new RegExp('<(?:/)?' + tagName + '\\b[^>]*>', 'g'); // nosemgrep: javascript.lang.security.audit.detect-non-literal-regexp.detect-non-literal-regexp -- tagName is capture group 1 of <([A-Za-z][A-Za-z0-9]*), alphanumeric only
   tagRe.lastIndex = innerStart;
 
   let depth = 1;

@@ -213,7 +213,7 @@ function globToRegex(pattern) {
       i += 1;
     }
   }
-  return new RegExp('^' + re + '$');
+  return new RegExp('^' + re + '$'); // nosemgrep: javascript.lang.security.audit.detect-non-literal-regexp.detect-non-literal-regexp -- metacharacters escaped, only wildcards become quantifiers, capped at 1024 chars and 32 wildcards
 }
 
 // ---------------------------------------------------------------------------

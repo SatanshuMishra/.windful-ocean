@@ -258,7 +258,7 @@ def _post_whisper(endpoint: str, api_key: str, model: str, audio_path: Path) -> 
     for attempt in range(MAX_ATTEMPTS):
         request = Request(endpoint, data=body, headers=headers, method="POST")
         try:
-            with urlopen(request, timeout=300, context=context) as response:
+            with urlopen(request, timeout=300, context=context) as response: # nosemgrep: python.lang.security.audit.dynamic-urllib-use-detected.dynamic-urllib-use-detected -- endpoint is only the module constants GROQ_ENDPOINT or OPENAI_ENDPOINT
                 payload = response.read().decode("utf-8", errors="replace")
         except urllib.error.HTTPError as exc:
             detail = _read_error_body(exc)

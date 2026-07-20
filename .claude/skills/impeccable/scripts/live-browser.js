@@ -3615,12 +3615,12 @@ void main() {
         detectPendingScan = true;
         loadDetectScript();
       } else if (detectReady) {
-        window.postMessage({ source: 'impeccable-command', action: 'scan' }, '*');
+        window.postMessage({ source: 'impeccable-command', action: 'scan' }, '*'); // nosemgrep: javascript.browser.security.wildcard-postmessage-configuration.wildcard-postmessage-configuration -- payload is a static command object carrying no token or user data
       } else {
         detectPendingScan = true;
       }
     } else {
-      window.postMessage({ source: 'impeccable-command', action: 'remove' }, '*');
+      window.postMessage({ source: 'impeccable-command', action: 'remove' }, '*'); // nosemgrep: javascript.browser.security.wildcard-postmessage-configuration.wildcard-postmessage-configuration -- payload is a static command object carrying no token or user data
       detectCount = 0;
       updateGlobalBarState();
     }
@@ -3661,7 +3661,7 @@ void main() {
       detectReady = true;
       if (detectPendingScan && detectActive) {
         detectPendingScan = false;
-        window.postMessage({ source: 'impeccable-command', action: 'scan' }, '*');
+        window.postMessage({ source: 'impeccable-command', action: 'scan' }, '*'); // nosemgrep: javascript.browser.security.wildcard-postmessage-configuration.wildcard-postmessage-configuration -- payload is a static command object carrying no token or user data
       }
     }
     // Scan results arrived
@@ -3690,7 +3690,7 @@ void main() {
     document.removeEventListener('keydown', handleKeyDown, true);
     window.removeEventListener('message', onDetectMessage);
     // Remove detection overlays
-    window.postMessage({ source: 'impeccable-command', action: 'remove' }, '*');
+    window.postMessage({ source: 'impeccable-command', action: 'remove' }, '*'); // nosemgrep: javascript.browser.security.wildcard-postmessage-configuration.wildcard-postmessage-configuration -- payload is a static command object carrying no token or user data
     state = 'IDLE';
     window.__IMPECCABLE_LIVE_INIT__ = false;
     console.log('[impeccable] Live mode exited.');

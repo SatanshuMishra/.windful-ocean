@@ -46,7 +46,7 @@ function getPath(obj, dotted) {
   let cur = obj;
   for (const key of dotted.split('.')) {
     if (!isGateObject(cur)) return undefined;
-    cur = cur[key];
+    cur = cur[key]; // nosemgrep: javascript.lang.security.audit.prototype-pollution.prototype-pollution-loop.prototype-pollution-loop -- getPath reads only, the loop assigns to local cur never into obj
   }
   return cur;
 }

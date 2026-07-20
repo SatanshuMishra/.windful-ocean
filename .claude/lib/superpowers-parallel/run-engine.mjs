@@ -19,7 +19,7 @@ export function globToRegExp(glob) {
     if (part === '?') return '[^/]';
     return part.replace(/[.+^${}()|[\]\\]/g, '\\$&');
   }).join('');
-  return new RegExp(`^${body}$`);
+  return new RegExp(`^${body}$`); // nosemgrep: javascript.lang.security.audit.detect-non-literal-regexp.detect-non-literal-regexp -- metacharacters escaped, only wildcards become quantifiers, capped at 1024 chars and 32 wildcards
 }
 export function scopeCovers(scope, path) {
   const ns = normalizePath(scope);

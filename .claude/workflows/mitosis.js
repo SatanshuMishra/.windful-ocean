@@ -181,7 +181,7 @@ function getPath(obj, dotted) {
   let cur = obj;
   for (const key of dotted.split('.')) {
     if (!isGateObject(cur)) return undefined;
-    cur = cur[key];
+    cur = cur[key]; // nosemgrep: javascript.lang.security.audit.prototype-pollution.prototype-pollution-loop.prototype-pollution-loop -- getPath reads only, the loop assigns to local cur never into obj
   }
   return cur;
 }
@@ -712,7 +712,7 @@ function globToRegExp(glob) {
     if (part === '?') return '[^/]';
     return part.replace(/[.+^${}()|[\]\\]/g, '\\$&');
   }).join('');
-  return new RegExp(`^${body}$`);
+  return new RegExp(`^${body}$`); // nosemgrep: javascript.lang.security.audit.detect-non-literal-regexp.detect-non-literal-regexp -- metacharacters escaped, only wildcards become quantifiers, capped at 1024 chars and 32 wildcards
 }
 function scopeCovers(scope, path) {
   const ns = normalizePath(scope);

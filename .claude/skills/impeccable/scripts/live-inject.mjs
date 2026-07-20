@@ -230,7 +230,7 @@ function globToRegex(pattern) {
       i += 1;
     }
   }
-  return new RegExp('^' + re + '$');
+  return new RegExp('^' + re + '$'); // nosemgrep: javascript.lang.security.audit.detect-non-literal-regexp.detect-non-literal-regexp -- metacharacters escaped, only wildcards become quantifiers, capped at 1024 chars and 32 wildcards
 }
 
 // ---------------------------------------------------------------------------
@@ -355,7 +355,7 @@ function findCspMetaTags(content) {
 }
 
 function getAttr(attrs, name) {
-  const re = new RegExp(`\\b${name}\\s*=\\s*(['"])([\\s\\S]*?)\\1`, 'i');
+  const re = new RegExp(`\\b${name}\\s*=\\s*(['"])([\\s\\S]*?)\\1`, 'i'); // nosemgrep: javascript.lang.security.audit.detect-non-literal-regexp.detect-non-literal-regexp -- name is only CSP_MARKER_ATTR or the literal content
   const m = attrs.match(re);
   return m ? { quote: m[1], value: m[2], full: m[0] } : null;
 }
@@ -375,7 +375,7 @@ function stripAttrLiteral(attrs, literal) {
 }
 
 function appendOriginToDirective(csp, directive, origin) {
-  const re = new RegExp(`(^|;)(\\s*)(${directive})\\s+([^;]*)`, 'i');
+  const re = new RegExp(`(^|;)(\\s*)(${directive})\\s+([^;]*)`, 'i'); // nosemgrep: javascript.lang.security.audit.detect-non-literal-regexp.detect-non-literal-regexp -- directive is only the literals script-src, connect-src, img-src
   const m = csp.match(re);
   if (m) {
     const tokens = m[4].trim().split(/\s+/);
