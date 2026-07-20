@@ -18,13 +18,18 @@ esac
 
 # Walk argv to detect `git commit` regardless of global option position.
 is_commit=$(echo "$input" | python3 -c '
-import json, shlex, sys
+import json, re, shlex, sys
+
+FALLBACK_COMMIT_RE = re.compile(
+    r"(?:\A|[;&|(]|\$\()\s*(?:[A-Za-z_]\w*=\S*\s+)*(?:[^\s;&|]*/)?git\s+"
+    r"(?:[^\s;&|]+\s+)*?commit(?:[\s;&|]|\Z)"
+)
 
 def is_git_commit(cmd):
     try:
         tokens = shlex.split(cmd)
     except ValueError:
-        return False
+        return bool(FALLBACK_COMMIT_RE.search(cmd))
     i, n = 0, len(tokens)
     while i < n and "=" in tokens[i] and not tokens[i].startswith("-"):
         head = tokens[i].split("=", 1)[0]
@@ -75,8 +80,33 @@ changed=$(git diff --cached --name-only --diff-filter=ACM 2>/dev/null || true)
 # Filter to TS/JS files
 ts_files=$(echo "$changed" | grep -E '\.(ts|tsx|js|jsx|mjs|cjs)$' || true)
 
+find_up() {
+  local dir name
+  dir=$(cd "$1" 2>/dev/null && pwd) || return 1
+  shift
+  while : ; do
+    for name in "$@"; do
+      if [ -e "$dir/$name" ]; then return 0; fi
+    done
+    if [ "$dir" = "/" ]; then return 1; fi
+    dir=$(dirname "$dir")
+  done
+}
+
+has_eslint_config() {
+  if find_up "$project_dir" \
+    eslint.config.js eslint.config.mjs eslint.config.cjs \
+    eslint.config.ts eslint.config.mts eslint.config.cts \
+    .eslintrc .eslintrc.js .eslintrc.cjs .eslintrc.mjs \
+    .eslintrc.json .eslintrc.yml .eslintrc.yaml; then return 0; fi
+  if grep -q '"eslintConfig"' package.json 2>/dev/null; then return 0; fi
+  return 1
+}
+
 # Typecheck if any TS files
-if echo "$ts_files" | grep -qE '\.(ts|tsx)$'; then
+if echo "$ts_files" | grep -qE '\.(ts|tsx)$' && ! find_up "$project_dir" tsconfig.json; then
+  echo "SKIP: type-check — no tsconfig.json resolves from $project_dir upward."
+elif echo "$ts_files" | grep -qE '\.(ts|tsx)$'; then
   tsc_out=$(npx tsc --noEmit --incremental 2>&1) && tsc_rc=0 || tsc_rc=$?
   echo "$tsc_out" | tail -50
   if [ "$tsc_rc" -ne 0 ]; then
@@ -86,7 +116,9 @@ if echo "$ts_files" | grep -qE '\.(ts|tsx)$'; then
 fi
 
 # Lint touched JS/TS files
-if [ -n "$ts_files" ]; then
+if [ -n "$ts_files" ] && ! has_eslint_config; then
+  echo "SKIP: lint — no ESLint config resolves from $project_dir upward."
+elif [ -n "$ts_files" ]; then
   # shellcheck disable=SC2086
   if ! npx eslint --no-error-on-unmatched-pattern $ts_files 2>&1; then
     echo "BLOCKED: Lint failed on changed files. Fix before committing." >&2
