@@ -7,7 +7,7 @@ const EXEC_AGENT_TYPES = new Set(['implementer', 'test-engineer', 'general-purpo
 
 export function normalizePath(p) { return p.replace(/^\.\//, '').replace(/\/+$/, ''); }
 export const GLOB_MAX_LENGTH = 1024;
-export const GLOB_MAX_WILDCARDS = 32;
+export const GLOB_MAX_WILDCARDS = 8;
 export function globToRegExp(glob) {
   if (typeof glob !== 'string') throw new TypeError(`glob must be a string, got ${typeof glob}`);
   if (glob.length > GLOB_MAX_LENGTH) throw new RangeError(`glob length ${glob.length} exceeds the maximum of ${GLOB_MAX_LENGTH}`);
@@ -19,7 +19,7 @@ export function globToRegExp(glob) {
     if (part === '?') return '[^/]';
     return part.replace(/[.+^${}()|[\]\\]/g, '\\$&');
   }).join('');
-  return new RegExp(`^${body}$`); // nosemgrep: javascript.lang.security.audit.detect-non-literal-regexp.detect-non-literal-regexp -- metacharacters escaped, only wildcards become quantifiers, capped at 1024 chars and 32 wildcards
+  return new RegExp(`^${body}$`); // nosemgrep: javascript.lang.security.audit.detect-non-literal-regexp.detect-non-literal-regexp -- metacharacters escaped, only wildcards become quantifiers
 }
 export function scopeCovers(scope, path) {
   const ns = normalizePath(scope);

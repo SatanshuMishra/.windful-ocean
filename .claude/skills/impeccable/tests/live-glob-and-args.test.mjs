@@ -30,7 +30,7 @@ test('resolveFiles rejects an exclude glob with more wildcards than the cap', ()
   };
   assert.throws(
     () => resolveFiles(process.cwd(), config),
-    (err) => err instanceof RangeError && /glob pattern exceeds 32 wildcards/.test(err.message),
+    (err) => err instanceof RangeError && /glob pattern exceeds \d+ wildcards/.test(err.message),
   );
 });
 

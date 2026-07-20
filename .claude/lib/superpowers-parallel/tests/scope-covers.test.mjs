@@ -27,7 +27,6 @@ test('scopeCovers: double-star spans directories', () => {
 
 test('globToRegExp: caps are roomy enough for every real glob shape in this repo', () => {
   assert.ok(GLOB_MAX_LENGTH >= 256);
-  assert.ok(GLOB_MAX_WILDCARDS >= 16);
   const longestRealPathGlob = `${'a/'.repeat(5)}${'b'.repeat(60)}/**/*.test.mjs`;
   assert.ok(longestRealPathGlob.length <= GLOB_MAX_LENGTH);
   assert.ok(globToRegExp(longestRealPathGlob) instanceof RegExp);

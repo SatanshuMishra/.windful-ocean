@@ -16,6 +16,7 @@ node_modules/
 _opam/
 _build/
 _cargo/
+.semgrep/
 test/
 tests/
 testsuite/

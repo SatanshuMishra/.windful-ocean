@@ -107,7 +107,7 @@ sudo pacman -S eza bat fd ripgrep
 
 1. **Clone the dotfiles repository** (if not already done):
    ```bash
-   git clone https://github.com/satanshumishra/windful-ocean.git ~/.dotfiles
+   git clone https://github.com/satanshumishra/.windful-ocean.git ~/.dotfiles
    cd ~/.dotfiles
    ```
 
