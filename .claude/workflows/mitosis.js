@@ -3256,11 +3256,9 @@ let models = input.models || {};
 const fixLoopMax = input.fixLoopMax ?? 2;
 const worktreeRoot = input.worktreeRoot;
 const retryConfig = (input.retry && typeof input.retry === 'object' && !Array.isArray(input.retry)) ? input.retry : {};
-const MERGE_POLICY_AUTONOMOUS = 'autonomous';
 const MERGE_POLICY_HUMAN_GATED = 'human-gated';
 
 const MERGE_POLICIES = Object.freeze({
-  AUTONOMOUS: MERGE_POLICY_AUTONOMOUS,
   HUMAN_GATED: MERGE_POLICY_HUMAN_GATED,
 });
 
@@ -3268,8 +3266,8 @@ const AWAITING_UPSTREAM_KIND = 'blocked-pending-approval';
 
 const BLOCKED_PENDING_APPROVAL_DIAGNOSIS = 'approve + merge the prerequisite PR, then relaunch mitosis to continue';
 
-function normalizeMergePolicy(value) {
-  return value === MERGE_POLICY_AUTONOMOUS ? MERGE_POLICY_AUTONOMOUS : MERGE_POLICY_HUMAN_GATED;
+function normalizeMergePolicy() {
+  return MERGE_POLICY_HUMAN_GATED;
 }
 
 function awaitingApprovalOutcome(mspId, extra = {}) {
@@ -3457,8 +3455,7 @@ function withoutLegacyModelKeys(modelsMap) {
   return Object.fromEntries(Object.entries(modelsMap).filter(([key]) => !KNOB_LEGACY_ROLE_KEYS.includes(key)));
 }
 
-const mergePolicy = normalizeMergePolicy(input.mergePolicy);
-const isAutonomous = mergePolicy === MERGE_POLICY_AUTONOMOUS;
+const mergePolicy = normalizeMergePolicy();
 
 const requiredFields = {
   spec,
@@ -4482,14 +4479,10 @@ async function runUnit(unit) {
 
     async function shipOneMsp() {
       phase('Ship');
-      const revalidateClause = isAutonomous ? 'before merging' : 'before opening the PR';
-      const idempotencyScope = isAutonomous ? 'no duplicate branch, push, PR, or merge' : 'no duplicate branch, push, or PR';
-      const shipStep7 = isAutonomous
-        ? `7. If CI is GREEN, squash-merge the PR at the published boundary (one squash per MSP) and set merged=true. If CI is RED on the fresh base, do NOT merge: set merged=false and put the failing job/step and first failing assertion in detail.\n\n`
-        : `7. This run is HUMAN-GATED: do NOT merge the PR yourself and perform no merge of any kind. Leave the PR open for a human to review and merge. If CI is GREEN, STOP with the PR left open and return { merged: false, awaitingApproval: true, prUrl: "<the pr url>", receiptsPass: true, d6Pass: true, detail: "CI green; PR <url> open and awaiting human approval to merge" }. If CI is RED on the fresh base, return { merged: false, awaitingApproval: false, prUrl: "<the pr url>", receiptsPass: <bool>, d6Pass: <bool>, detail: "<failing job/step and first failing assertion>" }.\n\n`;
-      const shipReturnLine = isAutonomous
-        ? `Return ONLY: { merged: <bool>, prUrl: "<url>", receiptsPass: <bool>, d6Pass: <bool>, detail: "<summary>" }.`
-        : `Return ONLY: { merged: false, awaitingApproval: <bool>, prUrl: "<url>", receiptsPass: <bool>, d6Pass: <bool>, detail: "<summary>" }.`;
+      const revalidateClause = 'before opening the PR';
+      const idempotencyScope = 'no duplicate branch, push, or PR';
+      const shipStep7 = `7. This run is HUMAN-GATED: do NOT merge the PR yourself and perform no merge of any kind. Leave the PR open for a human to review and merge. If CI is GREEN, STOP with the PR left open and return { merged: false, awaitingApproval: true, prUrl: "<the pr url>", receiptsPass: true, d6Pass: true, detail: "CI green; PR <url> open and awaiting human approval to merge" }. If CI is RED on the fresh base, return { merged: false, awaitingApproval: false, prUrl: "<the pr url>", receiptsPass: <bool>, d6Pass: <bool>, detail: "<failing job/step and first failing assertion>" }.\n\n`;
+      const shipReturnLine = `Return ONLY: { merged: false, awaitingApproval: <bool>, prUrl: "<url>", receiptsPass: <bool>, d6Pass: <bool>, detail: "<summary>" }.`;
       const ship = await agent(
         `You are the ship stage for MSP "${msp.id}" of a mitosis run. You have NO Skill tool.\n\n` +
         `Repo: ${repoRoot}. The engine has already integrated this MSP's work onto the LOCAL branch ${JSON.stringify(integrationBranch)} (boundary-validated, merged, never pushed). Sibling clusters merge into ${JSON.stringify(baseBranch)} concurrently, so you MUST revalidate on the FRESH combined base ${revalidateClause}.\n` +
@@ -4509,7 +4502,7 @@ async function runUnit(unit) {
         log(`mitosis[${msp.id}]: ship agent returned null (blocked by permission classifier or died before returning)`);
         return { halted: true, crashed: true, stage: 'ship', mspId: msp.id, error: 'ship agent returned null (blocked by permission classifier or died before returning)' };
       }
-      if (!isAutonomous && ship.merged !== true && ship.awaitingApproval === true) {
+      if (ship.merged !== true && ship.awaitingApproval === true) {
         log(`mitosis[${msp.id}]: PR open, awaiting human approval -> ${ship.prUrl}`);
         return { halted: false, awaiting: true, mspId: msp.id, prUrl: ship.prUrl, receiptsPass: ship.receiptsPass, d6Pass: ship.d6Pass };
       }
@@ -4531,9 +4524,7 @@ async function runUnit(unit) {
 
     async function finalizeShip() {
       const shipGuard = (err) => ({ halted: true, crashed: true, stage: 'ship', mspId: msp.id, error: `ship threw: ${err.message}` });
-      const ship = isAutonomous
-        ? await (mergeQueue = mergeQueue.then(() => shipOneMsp()).catch(shipGuard))
-        : await shipOneMsp().catch(shipGuard);
+      const ship = await shipOneMsp().catch(shipGuard);
       if (ship.halted) {
         const kind = ship.unknownHandoff ? 'unknown-handoff' : 'approve-decision';
         return parkUnit(msp, 'ship', NeedsHuman({ kind, what: ship.detail || ship.error || 'ship halted', remediation: null, resumePoint: { branch: integrationBranch, ref: baseBranch, stage: 'ship' } }), integrationBranch, compensationStack);

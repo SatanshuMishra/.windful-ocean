@@ -1,7 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  MERGE_POLICY_AUTONOMOUS,
   MERGE_POLICY_HUMAN_GATED,
   AWAITING_UPSTREAM_KIND,
   normalizeMergePolicy,
@@ -15,12 +14,12 @@ test('normalizeMergePolicy defaults to human-gated when the field is absent', ()
   assert.equal(normalizeMergePolicy(null), MERGE_POLICY_HUMAN_GATED);
 });
 
-test('normalizeMergePolicy resolves autonomous only for the exact string', () => {
-  assert.equal(normalizeMergePolicy('autonomous'), MERGE_POLICY_AUTONOMOUS);
+test('normalizeMergePolicy no longer resolves autonomous: the removed policy fail-closes to human-gated', () => {
+  assert.equal(normalizeMergePolicy('autonomous'), MERGE_POLICY_HUMAN_GATED);
 });
 
 test('normalizeMergePolicy fails closed to human-gated for invalid, cased, or non-string values', () => {
-  for (const bad of ['HUMAN-GATED', 'auto', 'AUTONOMOUS', 'Autonomous', ' autonomous', 'human-gated', '', 0, 1, true, false, {}, [], () => {}]) {
+  for (const bad of ['autonomous', 'HUMAN-GATED', 'auto', 'AUTONOMOUS', 'Autonomous', ' autonomous', 'human-gated', '', 0, 1, true, false, {}, [], () => {}]) {
     assert.equal(normalizeMergePolicy(bad), MERGE_POLICY_HUMAN_GATED, `expected human-gated for ${JSON.stringify(bad)}`);
   }
 });

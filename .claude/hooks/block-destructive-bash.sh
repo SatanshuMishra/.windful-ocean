@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 input="$(cat)"
 case "$input" in
-  *rm* | *git* | *dd* | *mkfs* | *':|:'* | *'>'*'/dev/'* | *'.claude'* ) : ;;
+  *rm* | *git* | *gh* | *dd* | *mkfs* | *':|:'* | *'>'*'/dev/'* | *'.claude'* ) : ;;
   *) exit 0 ;;
 esac
 
@@ -17,22 +17,34 @@ low="$(printf '%s' "$cmd" | tr '[:upper:]' '[:lower:]')"
 has() { printf '%s' "$low" | grep -Eq "$1"; }
 has_cs() { printf '%s' "$cmd" | grep -Eq "$1"; }
 reason=""
+gitopt='(-c[[:space:]]+[^[:space:]]+|--git-dir[=[:space:]][^[:space:]]+|--work-tree[=[:space:]][^[:space:]]+|--namespace[[:space:]]+[^[:space:]]+|--no-pager|--paginate|-p|--bare|--literal-pathspecs|--no-optional-locks)'
+gitpre="(^|[^a-z])git([[:space:]]+${gitopt})*[[:space:]]+"
+gitopt_cs='(-C[[:space:]]+[^[:space:]]+|-c[[:space:]]+[^[:space:]]+|--git-dir[=[:space:]][^[:space:]]+|--work-tree[=[:space:]][^[:space:]]+|--namespace[[:space:]]+[^[:space:]]+|--no-pager|--paginate|-p|--bare|--literal-pathspecs|--no-optional-locks)'
+gitpre_cs="(^|[^a-zA-Z])git([[:space:]]+${gitopt_cs})*[[:space:]]+"
+
+if has '(^|[^[:alnum:]_./-])gh[[:space:]]+pr[[:space:]]+merge([[:space:]]|$)' \
+  || { has '(^|[^[:alnum:]_./-])gh[[:space:]]+api([[:space:]]|$)' && has 'pulls/[^/[:space:]]+/merge([^[:alnum:]]|$)'; }; then
+  denyreason="merging a PR is human-gated: mitosis never merges PRs (gh pr merge and the gh api pulls/*/merge REST endpoint are both blocked); a human merges via the PR after review"
+  denyesc="$(REASON="$denyreason" python3 -c 'import os, json, sys; sys.stdout.write(json.dumps(os.environ["REASON"]))' 2>/dev/null || printf '%s' '"Merging a PR is denied - merges are human-gated."')"
+  printf '{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"deny","permissionDecisionReason":%s}}\n' "$denyesc"
+  exit 0
+fi
 
 if has '(^|[^a-z])rm([[:space:]]|$)' && has '(-[a-z]*r|--recursive)' && has '(-[a-z]*f|--force)'; then
   reason="recursive force remove (rm -rf)"
-elif has '(^|[^a-z])git[[:space:]]+push' && { has '[[:space:]]--force([^-]|$)' || has '(^|[[:space:]])-f([[:space:]]|$)'; } && ! has 'force-with-lease'; then
+elif has "${gitpre}push" && { has '[[:space:]]--force([^-]|$)' || has '(^|[[:space:]])-f([[:space:]]|$)'; } && ! has 'force-with-lease'; then
   reason="git force push"
-elif has '(^|[^a-z])git[[:space:]]+reset' && has '[[:space:]]--hard'; then
+elif has "${gitpre}reset" && has '[[:space:]]--hard'; then
   reason="git reset --hard"
-elif has '(^|[^a-z])git[[:space:]]+clean' && has '(-[a-z]*f|--force)'; then
+elif has "${gitpre}clean" && has '(-[a-z]*f|--force)'; then
   reason="git clean -f"
-elif has '(^|[^a-z])git[[:space:]]+(filter-branch|filter-repo)'; then
+elif has "${gitpre}(filter-branch|filter-repo)"; then
   reason="git history rewrite"
-elif has '(^|[^a-z])git[[:space:]]+reflog[[:space:]]+expire' || { has '(^|[^a-z])git[[:space:]]+gc' && has '[[:space:]]--prune'; }; then
+elif has "${gitpre}reflog[[:space:]]+expire" || { has "${gitpre}gc" && has '[[:space:]]--prune'; }; then
   reason="git gc/reflog prune"
-elif has '(^|[^a-z])git[[:space:]]+stash[[:space:]]+clear'; then
+elif has "${gitpre}stash[[:space:]]+clear"; then
   reason="git stash clear"
-elif has_cs '(^|[^a-zA-Z])git[[:space:]]+branch[[:space:]]+-[a-zA-Z]*D'; then
+elif has_cs "${gitpre_cs}branch[[:space:]]+-[a-zA-Z]*D"; then
   reason="git branch force delete (-D)"
 elif has '(^|[^a-z])dd([[:space:]]|$)' && has 'of=/dev/'; then
   reason="dd to device"

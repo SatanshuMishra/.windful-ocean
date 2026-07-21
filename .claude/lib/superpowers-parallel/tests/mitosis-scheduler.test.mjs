@@ -345,25 +345,32 @@ test('D1 pre-merge pipelining (human-gated): two independent MSPs\' pre-merge sh
   assert.equal(maxActive(), 2, 'both pre-merge ship agents run concurrently under human-gated; the pre-merge work (rebase/push/PR/CI-watch) is pipelined, not chained through the serial merge queue');
 });
 
-test('D1 autonomous merge still serializes: the fresh-base rebase + combined CI + engine merge stays one-at-a-time (Pillar-1, non-speculative)', { timeout: 5000 }, async () => {
+test('autonomous is fully removed: an explicit mergePolicy:"autonomous" fail-closes to human-gated, so the engine never self-merges and the merge-queue ship serialization does not re-appear', { timeout: 5000 }, async () => {
   const msps = twoIndependentMsps();
-  const gateA = deferred();
-  const bShipStarted = deferred();
+  let arrived = 0;
+  const bothArrived = deferred();
   const base = createFakeAgent({
     msps,
-    planGate: async (mspId) => { if (mspId === 'a') await gateA.promise; },
-    shipResult: (mspId) => { if (mspId === 'b') bShipStarted.resolve(); return null; },
+    shipResult: (mspId) => {
+      arrived += 1;
+      if (arrived >= 2) bothArrived.resolve();
+      return bothArrived.promise.then(() => ({
+        merged: false,
+        awaitingApproval: true,
+        prUrl: `https://github.com/o/repo/pull/${mspId === 'a' ? 1 : 2}`,
+        receiptsPass: true,
+        d6Pass: true,
+        detail: 'CI green; PR open and awaiting human approval to merge',
+      }));
+    },
   });
   const { agent, maxActive } = trackLabelOverlap(base, 'ship:');
   const { resultPromise } = invokeMitosis(buildInput({ mergePolicy: 'autonomous' }), agent);
-
-  await bShipStarted.promise;
-  gateA.resolve();
   const result = await resultPromise;
 
-  assert.equal(result.overallStatus, 'all-shipped');
-  assert.deepEqual(result.shipped.map((s) => s.mspId), ['b', 'a']);
-  assert.equal(maxActive(), 1, 'under autonomous the engine performs the merge, so ship stays serialized through the merge queue');
+  assert.equal(result.overallStatus, 'awaiting-approval', 'the removed autonomous path is unreachable: an explicit autonomous request cannot self-merge, so both PRs are left awaiting human approval');
+  assert.deepEqual(result.awaitingApproval.map((a) => a.mspId).sort(), ['a', 'b']);
+  assert.equal(maxActive(), 2, 'the merge-queue ship serialization is gone: pre-merge ship agents pipeline concurrently even when autonomous is explicitly requested');
 });
 
 test('D1 CI wait is a backgrounded, timeout-bounded watch returning the terminal conclusion, not a foreground gh run watch stream', async () => {
