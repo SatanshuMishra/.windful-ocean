@@ -2530,6 +2530,16 @@ function classifyMergeWatch(result) {
   return true;
 }
 
+const RUN_PATH_PATTERN = /^\/[A-Za-z0-9._+@\/-]*$/;
+const MAX_RUN_PATH_LEN = 4096;
+
+function validateRunPath(value) {
+  if (typeof value !== 'string') return false;
+  if (value.length === 0 || value.length > MAX_RUN_PATH_LEN) return false;
+  if (!RUN_PATH_PATTERN.test(value)) return false;
+  return value.split('/').every((part) => part !== '..');
+}
+
 const CHECKPOINT_REF_PREFIX = 'refs/mitosis';
 
 const RUN_ID_PATTERN = /^[a-f0-9]{8}$/;
@@ -3513,6 +3523,12 @@ const unsafeRefFields = Object.entries({ baseBranch, sourcePrefix })
   .map(([name, value]) => `${name}=${cleanUrl(value)}`);
 if (unsafeRefFields.length > 0) {
   return fatalReport('input', `these ref fields did not validate as conservative git ref tokens: ${unsafeRefFields.join(', ')} — baseBranch and sourcePrefix are interpolated into git and gh command strings (fetch/cat-file/compare) and into every integration branch name, so a token bearing whitespace, a shell metacharacter, a leading -, a .. sequence, or a .lock/. component halts the run here rather than reaching a shell`, 0);
+}
+const unsafePathFields = Object.entries({ spec, repoRoot, worktreeRoot })
+  .filter(([, value]) => !validateRunPath(value))
+  .map(([name, value]) => `${name}=${cleanUrl(value)}`);
+if (unsafePathFields.length > 0) {
+  return fatalReport('input', `these path fields did not validate as safe absolute paths: ${unsafePathFields.join(', ')} — spec, repoRoot and worktreeRoot are interpolated unquoted into shell command strings (shasum of the spec, the fold-run-log CLI on the run journal, every git -C on the repo root) and composed into every git worktree add path, so a value that is relative, bears whitespace, a shell metacharacter, a quote, a glob, a ~, or a .. component halts the run here rather than reaching a shell`, 0);
 }
 if (!Number.isInteger(fixLoopMax) || fixLoopMax < 0) {
   return fatalReport('input', 'fixLoopMax must be a non-negative integer', 0);

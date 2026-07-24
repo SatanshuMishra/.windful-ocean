@@ -1355,6 +1355,65 @@ test('MSP-2 FIX1 allow-case: a conservative ref token passes the gate — the gu
   }
 });
 
+const UNSAFE_RUN_PATHS = [
+  'relative/path',
+  '../escape',
+  '/tmp/repo; rm -rf /',
+  '/tmp/repo rm',
+  '/tmp/repo\nwhoami',
+  '/tmp/$(id)/repo',
+  '/tmp/`id`/repo',
+  '/tmp/repo&&id',
+  '/tmp/repo|id',
+  '/tmp/../etc/passwd',
+  '/tmp/repo/..',
+  '/tmp/re"po',
+  "/tmp/re'po",
+  '/tmp/{a,b}',
+  '/tmp/repo*',
+  '~/repo',
+  '/tmp/repo?',
+  '/tmp/re[0]po',
+  '/tmp/back\\slash',
+  '/tmp/repo>out',
+  '/tmp/repo<in',
+  '/tmp/repo#frag',
+  '/tmp/repo\tspec',
+  '/tmp/repo$HOME',
+];
+
+test('MSP-2 R1 deny-case: an unsafe spec, repoRoot or worktreeRoot HALTS at the input stage before ANY agent is dispatched, so it is never interpolated into a shell command string or a worktree path', async () => {
+  for (const token of UNSAFE_RUN_PATHS) {
+    for (const field of ['spec', 'repoRoot', 'worktreeRoot']) {
+      let agentCalls = 0;
+      const agent = async () => { agentCalls += 1; return {}; };
+      const { resultPromise } = invokeMitosis(buildInput({ [field]: token }), agent);
+      const result = await resultPromise;
+
+      assert.equal(result.overallStatus, 'failed', `expected a halt for ${field}=${JSON.stringify(token)}`);
+      assert.equal(result.stage, 'input', `expected an input-stage halt for ${field}=${JSON.stringify(token)}`);
+      assert.match(result.detail, new RegExp(field), `the halt names the offending field ${field}`);
+      assert.equal(agentCalls, 0, `no agent may be dispatched with ${field}=${JSON.stringify(token)} interpolated into its prompt`);
+    }
+  }
+});
+
+test('MSP-2 R1 allow-case: legitimate absolute run paths (including dot-directories) pass the gate and still drive a full green run', async () => {
+  const msps = [mspSpec('solo', { fileScope: ['scope/solo/**'] })];
+  const paths = {
+    spec: '/Users/dev/Documents/.windful-ocean/docs/spec.md',
+    repoRoot: '/Users/dev/Documents/.windful-ocean',
+    worktreeRoot: '/var/folders/xy/T/sp-wt-1',
+  };
+  for (const [field, value] of Object.entries(paths)) {
+    const agent = createFakeAgent({ msps });
+    const { resultPromise } = invokeMitosis(buildInput({ [field]: value }), agent);
+    const result = await resultPromise;
+    assert.notEqual(result.stage, 'input', `${field}=${JSON.stringify(value)} is a legitimate absolute path and must pass the gate`);
+    assert.equal(result.overallStatus, 'all-shipped', `${field}=${JSON.stringify(value)} must still drive a full green run`);
+  }
+});
+
 test('D7 hard fail: an unvalidatable target repo slug HALTS the run rather than falling back to an unscoped or unvalidated interpolation', async () => {
   for (const ownerRepo of ['-R/widgets', 'noslash', '', 'me/target\nrm -rf /', 'me/$(id)', null, 42]) {
     const msps = independentMsps();
