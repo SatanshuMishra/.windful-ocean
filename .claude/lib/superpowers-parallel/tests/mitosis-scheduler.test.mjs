@@ -2283,6 +2283,109 @@ test('MSP-2 FIX4 schema: mergedPRsAuthoritative is a REQUIRED boolean so a recon
   assert.deepEqual(schema.properties.mergedPRsAuthoritative, { type: 'boolean' }, 'the flag is strictly boolean — a string or null cannot masquerade as an authoritative read');
 });
 
+function schemaViolations(schema, value, path = '<root>') {
+  const types = Array.isArray(schema.type) ? schema.type : [schema.type];
+  const actual = value === null ? 'null' : (Array.isArray(value) ? 'array' : typeof value);
+  if (!types.includes(actual)) return [`${path}: type ${actual} is not one of ${types.join('|')}`];
+  if (actual === 'object') {
+    const missing = (schema.required || [])
+      .filter((key) => !Object.prototype.hasOwnProperty.call(value, key))
+      .map((key) => `${path}.${key}: required but absent`);
+    const children = Object.entries(value).flatMap(([key, child]) => {
+      const childSchema = (schema.properties || {})[key];
+      if (!childSchema) return schema.additionalProperties === false ? [`${path}.${key}: additional property not allowed`] : [];
+      return schemaViolations(childSchema, child, `${path}.${key}`);
+    });
+    return [...missing, ...children];
+  }
+  if (actual === 'array' && schema.items) return value.flatMap((item, i) => schemaViolations(schema.items, item, `${path}[${i}]`));
+  if (actual === 'string' && schema.pattern && !new RegExp(schema.pattern).test(value)) {
+    return [`${path}: ${JSON.stringify(value)} does not match ${schema.pattern}`];
+  }
+  return [];
+}
+
+test('MSP-2 R3: the slug-read failure the reconcile prompt instructs is SCHEMA-EMITTABLE and reaches the clean reconcile halt — it never degrades into a schema rejection and a crashed reconcile', async () => {
+  const schema = extractObjectLiteral(mitosisBody, 'RECONCILE_SCHEMA');
+  const slugReadFailed = {
+    manifestFound: false,
+    manifestRaw: null,
+    mergedPRs: [],
+    mergedPRsAuthoritative: false,
+    specContentHash: null,
+    checkpointRefPages: [],
+    openPRs: [],
+    ownerRepo: null,
+    repoHost: null,
+  };
+  assert.deepEqual(
+    schemaViolations(schema, slugReadFailed),
+    [],
+    'an agent that could not read the slug must be able to emit the object the prompt tells it to emit',
+  );
+
+  const msps = independentMsps();
+  const dispatched = [];
+  const base = createFakeAgent({ msps });
+  const agent = async (prompt, opts = {}) => {
+    dispatched.push(opts.label || '');
+    if ((opts.label || '') === 'reconcile') return slugReadFailed;
+    return base(prompt, opts);
+  };
+  const { resultPromise } = invokeMitosis(buildInput(), agent);
+  const result = await resultPromise;
+
+  assert.equal(result.overallStatus, 'failed');
+  assert.equal(result.stage, 'reconcile');
+  assert.match(result.detail, /mergedPRsAuthoritative=false/, 'the halt attributes the stop to the non-authoritative read, not to a crash');
+  assert.deepEqual(result.crashed, [], 'the intended halt is clean — no crashed reconcile entry');
+  assert.equal(dispatched.some((l) => l === 'decompose'), false, 'the run halts before decompose');
+});
+
+test('MSP-2 R3: a reconcile that claims an authoritative read must still carry a real slug and host — null is admissible ONLY on the failure branch', async () => {
+  const schema = extractObjectLiteral(mitosisBody, 'RECONCILE_SCHEMA');
+  assert.ok(schema.required.includes('ownerRepo'), 'ownerRepo stays required — it may be null, never absent');
+  assert.ok(schema.required.includes('repoHost'), 'repoHost stays required — it may be null, never absent');
+  assert.deepEqual(schemaViolations(schema.properties.ownerRepo, 'me/target'), [], 'a real slug still validates');
+  assert.deepEqual(schemaViolations(schema.properties.ownerRepo, 'noslash').length, 1, 'a malformed slug still fails schema');
+
+  const msps = independentMsps();
+  const dispatched = [];
+  const base = createFakeAgent({ msps });
+  const agent = async (prompt, opts = {}) => {
+    dispatched.push(opts.label || '');
+    if ((opts.label || '') === 'reconcile') {
+      return { manifestFound: false, manifestRaw: null, mergedPRs: [], mergedPRsAuthoritative: true, specContentHash: null, ownerRepo: null, repoHost: null };
+    }
+    return base(prompt, opts);
+  };
+  const { resultPromise } = invokeMitosis(buildInput(), agent);
+  const result = await resultPromise;
+
+  assert.equal(result.overallStatus, 'failed');
+  assert.equal(result.stage, 'reconcile');
+  assert.match(result.detail, /slug/i, 'a null slug paired with an authoritative claim halts on the slug gate');
+  assert.equal(dispatched.some((l) => l === 'decompose'), false, 'no gh read is ever emitted with a null slug');
+});
+
+test('MSP-2 R3: the reconcile prompt tells the agent exactly what to return when the slug read fails, and that is the shape the schema admits', async () => {
+  const msps = [mspSpec('solo', { fileScope: ['scope/solo/**'] })];
+  let reconcilePrompt = null;
+  const base = createFakeAgent({ msps });
+  const agent = async (prompt, opts = {}) => {
+    if ((opts.label || '') === 'reconcile') reconcilePrompt = prompt;
+    return base(prompt, opts);
+  };
+  const { resultPromise } = invokeMitosis(buildInput(), agent);
+  await resultPromise;
+
+  assert.ok(reconcilePrompt, 'the reconcile prompt was emitted');
+  const stepTwo = reconcilePrompt.split('\n').find((line) => line.startsWith('2.'));
+  assert.ok(stepTwo, 'step 2 (the slug read) is present');
+  assert.match(stepTwo, /ownerRepo=null/, 'the slug-read failure branch names the null slug it must return');
+  assert.match(stepTwo, /repoHost=null/, 'the slug-read failure branch names the null host it must return');
+});
+
 test('T4c host+slug skip-set wiring: recon.ownerRepo/repoHost gate the reconciled skip set end-to-end — a matching host+slug is skipped, a same-slug wrong-host is rejected (built), and a wrong-slug is rejected (built)', async () => {
   const input = buildInput();
   const msps = [
