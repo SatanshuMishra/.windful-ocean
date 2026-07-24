@@ -1398,6 +1398,28 @@ test('D7: a valid slug is threaded as a literal into every consumer prompt (ship
   assert.ok(captured.get('ship-verify').includes(`gh api "repos/${TEST_REPO_SLUG}/compare/`), 'the compare API path carries the literal slug');
 });
 
+test('MSP-2 FIX2: the ship-verify SECURITY preamble states only the guarantee the engine actually provides — it never claims the interpolated refs are unreachable by an agent or by run input', async () => {
+  const msps = [mspSpec('solo', { fileScope: ['scope/solo/**'] })];
+  let verifyPrompt = null;
+  const base = createFakeAgent({ msps });
+  const agent = async (prompt, opts = {}) => {
+    if ((opts.label || '').startsWith('ship-verify:')) verifyPrompt = prompt;
+    return base(prompt, opts);
+  };
+  const { resultPromise } = invokeMitosis(buildInput(), agent);
+  const result = await resultPromise;
+
+  assert.equal(result.overallStatus, 'all-shipped');
+  assert.ok(verifyPrompt, 'the ship-verify prompt was emitted');
+  assert.doesNotMatch(verifyPrompt, /never agent- or user-supplied/, 'the refs DO originate from run input and a prior agent read; asserting otherwise trains the agent to skip its own checks');
+  assert.doesNotMatch(verifyPrompt, /kebab-validated/, 'the ref-token pattern is not kebab-case — it admits dots, underscores, uppercase and slashes');
+  assert.doesNotMatch(verifyPrompt, /carries no injection risk/, 'the preamble must name the validation performed, not hand out a blanket no-risk verdict');
+  assert.match(verifyPrompt, /engine-validated/, 'the preamble names the validation the engine actually performed');
+  assert.match(verifyPrompt, /ref-token/, 'the preamble names the conservative ref-token pattern the refs were checked against');
+  assert.match(verifyPrompt, /run input|prior agent read/i, 'the preamble states truthfully where the values came from');
+  assert.match(verifyPrompt, /EXACTLY the two read-only commands/, 'the preamble instructs the agent to run exactly the written reads and no others');
+});
+
 test('MINOR-2: a ship agent that returns null is parked (Tier 2, aligned with branch-null), never a top-level crashed entry', async () => {
   const msps = [mspSpec('solo', { fileScope: ['scope/solo/**'] })];
   const base = createFakeAgent({ msps });
@@ -1435,7 +1457,6 @@ test('R1 verify-handoff: the main thread independently reads back the CLAIMED me
   assert.doesNotMatch(captured[0], /gh pr view (?!-R)/, 'no unscoped gh pr view in the ship-verify prompt');
   assert.match(captured[0], /compare/);
   assert.match(captured[0], /inert argv/i);
-  assert.match(captured[0], /trusted kebab-validated/i, 'the ship-verify preamble states the interpolated refs are trusted kebab-validated config, not a false no-shell-interpolation guarantee');
 });
 
 test('R1 verify-handoff: a ship that CLAIMS merged but whose independent read-back is AMBIGUOUS is parked kind unknown-handoff and never recorded shipped (no blind accept, never retry-merge)', async () => {
