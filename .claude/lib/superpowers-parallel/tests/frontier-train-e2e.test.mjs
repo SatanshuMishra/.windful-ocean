@@ -146,7 +146,7 @@ function withReconcileDefaults(recon) {
       : row))
     : recon.openPRs;
   const withOpen = openPRs === undefined ? {} : { openPRs };
-  return { ownerRepo: 'o/repo', repoHost: 'github.com', ...recon, ...withOpen };
+  return { ownerRepo: 'o/repo', repoHost: 'github.com', mergedPRsAuthoritative: true, ...recon, ...withOpen };
 }
 
 function shepherdAgent({ reconcileResult, openResult, restackResult, probeResult } = {}) {

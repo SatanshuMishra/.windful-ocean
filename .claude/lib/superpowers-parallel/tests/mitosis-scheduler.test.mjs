@@ -111,7 +111,7 @@ function createFakeAgent({ msps, sourcePrefix = SOURCE_PREFIX, planGate, shipRes
         return override || { planPath: `/tmp/mitosis-scheduler-test/${mspId}.plan.md`, summary: 'revised' };
       }
       case 'reconcile':
-        return { ownerRepo: TEST_REPO_SLUG, ...(reconcileResult || { manifestFound: false, manifestRaw: null, mergedPRs: [] }) };
+        return { ownerRepo: TEST_REPO_SLUG, mergedPRsAuthoritative: true, ...(reconcileResult || { manifestFound: false, manifestRaw: null, mergedPRs: [] }) };
       case 'checkpoint-init':
         return { written: true, detail: '' };
       case 'checkpoint-push':
@@ -525,7 +525,7 @@ test('F2b regression: an MSP whose plan stage always throws is parked (Tier 2), 
 
 test('F2a: a Decompose transient drop (agent returns null) is a crashed fatal report, not an unhandled rejection', async () => {
   const agent = async (prompt, opts = {}) => {
-    if ((opts.label || '') === 'reconcile') return { manifestFound: false, manifestRaw: null, mergedPRs: [], ownerRepo: TEST_REPO_SLUG };
+    if ((opts.label || '') === 'reconcile') return { manifestFound: false, manifestRaw: null, mergedPRs: [], mergedPRsAuthoritative: true, ownerRepo: TEST_REPO_SLUG };
     if ((opts.label || '') === 'decompose') return null;
     throw new Error(`unexpected agent call after decompose crash: ${opts.label}`);
   };
@@ -541,7 +541,7 @@ test('F2a: a Decompose transient drop (agent returns null) is a crashed fatal re
 test('F2a: a Decompose throw is classified Unknown (bounded to one probe, never an unbounded retry) and reported as a crashed fatal report', async () => {
   let decomposeCalls = 0;
   const agent = async (prompt, opts = {}) => {
-    if ((opts.label || '') === 'reconcile') return { manifestFound: false, manifestRaw: null, mergedPRs: [], ownerRepo: TEST_REPO_SLUG };
+    if ((opts.label || '') === 'reconcile') return { manifestFound: false, manifestRaw: null, mergedPRs: [], mergedPRsAuthoritative: true, ownerRepo: TEST_REPO_SLUG };
     if ((opts.label || '') === 'decompose') { decomposeCalls += 1; throw new Error('boom in decompose'); }
     throw new Error(`unexpected agent call: ${opts.label}`);
   };
@@ -1052,7 +1052,7 @@ test('P2 shared-fate: decompose that never returns is bounded to the initial dis
   let decomposeCalls = 0;
   let otherCalls = 0;
   const agent = async (prompt, opts = {}) => {
-    if ((opts.label || '') === 'reconcile') return { manifestFound: false, manifestRaw: null, mergedPRs: [], ownerRepo: TEST_REPO_SLUG };
+    if ((opts.label || '') === 'reconcile') return { manifestFound: false, manifestRaw: null, mergedPRs: [], mergedPRsAuthoritative: true, ownerRepo: TEST_REPO_SLUG };
     if ((opts.label || '') === 'decompose') { decomposeCalls += 1; return null; }
     otherCalls += 1; return {};
   };
@@ -1363,7 +1363,7 @@ test('D7 hard fail: an unvalidatable target repo slug HALTS the run rather than 
     const agent = async (prompt, opts = {}) => {
       dispatched.push(opts.label || '');
       if ((opts.label || '') === 'reconcile') {
-        return { manifestFound: false, manifestRaw: null, mergedPRs: [], ownerRepo };
+        return { manifestFound: false, manifestRaw: null, mergedPRs: [], mergedPRsAuthoritative: true, ownerRepo };
       }
       return base(prompt, opts);
     };
@@ -2000,6 +2000,64 @@ test('T3 reconcile fail-closed: a reconcile result missing mergedPRs is caught b
   assert.equal(decomposeCalls, 0, 'no Decompose after a shape-guarded reconcile');
 });
 
+test('MSP-2 FIX4 deny-case: a reconcile whose mergedPRsAuthoritative is not exactly true HALTS before Decompose — an empty mergedPRs from a gh list that never ran is never treated as "nothing already merged"', async () => {
+  for (const authoritative of [undefined, false, null, 'true', 1, {}]) {
+    let decomposeCalls = 0;
+    const agent = async (prompt, opts = {}) => {
+      const label = opts.label || '';
+      if (label === 'reconcile') {
+        const recon = { manifestFound: false, manifestRaw: null, mergedPRs: [], ownerRepo: TEST_REPO_SLUG };
+        return authoritative === undefined ? recon : { ...recon, mergedPRsAuthoritative: authoritative };
+      }
+      if (label === 'decompose') decomposeCalls += 1;
+      return {};
+    };
+    const { resultPromise } = invokeMitosis(buildInput(), agent);
+    const result = await resultPromise;
+
+    assert.equal(result.overallStatus, 'failed', `expected a halt for mergedPRsAuthoritative=${JSON.stringify(authoritative)}`);
+    assert.equal(result.stage, 'reconcile', `expected a reconcile-stage halt for mergedPRsAuthoritative=${JSON.stringify(authoritative)}`);
+    assert.match(result.detail, /mergedPRsAuthoritative/, 'the halt names the flag that failed');
+    assert.equal(decomposeCalls, 0, 'a non-authoritative merged set never re-plans and re-ships already-merged MSPs');
+  }
+});
+
+test('MSP-2 FIX4 allow-case: mergedPRsAuthoritative===true lets the reconciled merged set drive the run', async () => {
+  const msps = independentMsps();
+  const agent = createFakeAgent({ msps });
+  const { resultPromise } = invokeMitosis(buildInput(), agent);
+  const result = await resultPromise;
+
+  assert.equal(result.overallStatus, 'all-shipped');
+  assert.deepEqual(result.shipped.map((s) => s.mspId).sort(), ['alpha', 'bravo', 'charlie']);
+});
+
+test('MSP-2 FIX4: the reconcile prompt attaches the STOP-and-report instruction to BOTH gh pr list commands and defines mergedPRsAuthoritative in terms of them', async () => {
+  const msps = [mspSpec('solo', { fileScope: ['scope/solo/**'] })];
+  let reconcilePrompt = null;
+  const base = createFakeAgent({ msps });
+  const agent = async (prompt, opts = {}) => {
+    if ((opts.label || '') === 'reconcile') reconcilePrompt = prompt;
+    return base(prompt, opts);
+  };
+  const { resultPromise } = invokeMitosis(buildInput(), agent);
+  const result = await resultPromise;
+
+  assert.equal(result.overallStatus, 'all-shipped');
+  assert.ok(reconcilePrompt, 'the reconcile prompt was emitted');
+  assert.equal(reconcilePrompt.split(SLUG_PLACEHOLDER).length - 1 >= 2, true, 'the placeholder-substitution instruction is still present');
+  assert.match(reconcilePrompt, /mergedPRsAuthoritative/, 'the prompt names the authoritativeness flag it must return');
+  assert.match(reconcilePrompt, /mergedPRsAuthoritative=false/, 'the prompt states the false case explicitly');
+  assert.match(reconcilePrompt, /mergedPRsAuthoritative=true/, 'the prompt states the true case explicitly');
+  assert.match(reconcilePrompt, /literal placeholder text[\s\S]*FAILED read, not an empty result/, 'the prompt warns that emitting the placeholder verbatim is a failed read, not an empty result');
+  const stepTwo = reconcilePrompt.slice(reconcilePrompt.indexOf('\n2. '), reconcilePrompt.indexOf('\n3. '));
+  const listStop = stepTwo.slice(stepTwo.indexOf('gh pr list'));
+  assert.match(listStop, /STOP/, 'the STOP instruction covers the gh pr list step, not only the gh repo view step');
+  assert.match(reconcilePrompt, /Return ONLY the structured object: \{ manifestFound, manifestRaw, mergedPRs.*mergedPRsAuthoritative/s, 'the return contract carries the flag');
+  const stepSix = reconcilePrompt.slice(reconcilePrompt.indexOf('\n6. '));
+  assert.match(stepSix, /STOP-and-report rule from step 2 applies[\s\S]*mergedPRsAuthoritative=false/, 'the open-PR list read carries the same STOP-and-report obligation');
+});
+
 test('T3 reconcile fail-closed: a reconcile that always drops (null) exhausts retries and halts as crashed, never an empty skip-set', async () => {
   let decomposeCalls = 0;
   const agent = async (prompt, opts = {}) => {
@@ -2121,6 +2179,12 @@ test('T3 reconcile schema fail-closed: ownerRepo and repoHost are required and s
   assert.ok(hostPattern.test('ghe.example.com'), 'an enterprise hostname passes schema');
   assert.equal(hostPattern.test(''), false, 'an empty repoHost fails schema loudly');
   assert.equal(hostPattern.test('has space'), false, 'a hostname with whitespace fails schema');
+});
+
+test('MSP-2 FIX4 schema: mergedPRsAuthoritative is a REQUIRED boolean so a reconcile that omits it fails schema loudly on the real-agent path', () => {
+  const schema = extractObjectLiteral(mitosisBody, 'RECONCILE_SCHEMA');
+  assert.ok(schema.required.includes('mergedPRsAuthoritative'), 'mergedPRsAuthoritative is a required field');
+  assert.deepEqual(schema.properties.mergedPRsAuthoritative, { type: 'boolean' }, 'the flag is strictly boolean — a string or null cannot masquerade as an authoritative read');
 });
 
 test('T4c host+slug skip-set wiring: recon.ownerRepo/repoHost gate the reconciled skip set end-to-end — a matching host+slug is skipped, a same-slug wrong-host is rejected (built), and a wrong-slug is rejected (built)', async () => {
@@ -2661,7 +2725,7 @@ function makeDurableFakeAgent({ msps, parallelizeFailUnitId, shipResult, repoRoo
     if (prefix === 'reconcile') {
       const raw = fileMap.get(runJsonPath);
       const folded = raw === undefined ? null : foldRunManifest(raw);
-      return { manifestFound: folded !== null, manifestRaw: folded === null ? null : JSON.stringify(folded), mergedPRs: [], specContentHash: SPEC_CONTENT_HASH, ownerRepo: TEST_REPO_SLUG };
+      return { manifestFound: folded !== null, manifestRaw: folded === null ? null : JSON.stringify(folded), mergedPRs: [], mergedPRsAuthoritative: true, specContentHash: SPEC_CONTENT_HASH, ownerRepo: TEST_REPO_SLUG };
     }
     if (prefix === 'checkpoint-init') {
       const literal = literalOf(prompt);
