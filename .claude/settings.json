@@ -30,8 +30,6 @@
       "Bash(graphify update:*)",
       "Bash(gh pr view:*)",
       "Bash(gh pr list:*)",
-      "Bash(gh pr create:*)",
-      "Bash(gh pr edit:*)",
       "Bash(gh repo view:*)",
       "Bash(gh run view:*)",
       "Bash(gh run list:*)"
