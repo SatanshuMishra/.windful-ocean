@@ -1290,6 +1290,71 @@ test('D7 gh-scope: the ship CI-wait scopes every gh run to the engine-resolved L
   assert.ok(captured[0].includes(`gh run view "$runId" ${SCOPED} --json conclusion`), 'the terminal gh run view is scoped to the literal slug');
 });
 
+const UNSAFE_REF_TOKENS = [
+  'main;rm -rf /',
+  'main rm',
+  'main\nwhoami',
+  'main$(id)',
+  'main`id`',
+  'main&&id',
+  'main|id',
+  '-delete',
+  '--upload-pack=touch /tmp/pwned',
+  'feat/../../etc/passwd',
+  'refs/heads/a..b',
+  'main.lock',
+  'feat/x.lock/y',
+  'main.',
+  '/leading-slash',
+  'trailing-slash/',
+  'double//slash',
+  'quote"inject',
+  "quote'inject",
+  'brace{a,b}',
+  'star*glob',
+  'tilde~1',
+  'caret^1',
+  'colon:ref',
+  'question?',
+  'bracket[0]',
+  'back\\slash',
+];
+
+test('MSP-2 FIX1 deny-case: an unsafe baseBranch or sourcePrefix HALTS at the input stage before ANY agent is dispatched, so it is never interpolated into a shell command string', async () => {
+  for (const token of UNSAFE_REF_TOKENS) {
+    for (const field of ['baseBranch', 'sourcePrefix']) {
+      let agentCalls = 0;
+      const agent = async () => { agentCalls += 1; return {}; };
+      const { resultPromise } = invokeMitosis(buildInput({ [field]: token }), agent);
+      const result = await resultPromise;
+
+      assert.equal(result.overallStatus, 'failed', `expected a halt for ${field}=${JSON.stringify(token)}`);
+      assert.equal(result.stage, 'input', `expected an input-stage halt for ${field}=${JSON.stringify(token)}`);
+      assert.match(result.detail, new RegExp(field), `the halt names the offending field ${field}`);
+      assert.equal(agentCalls, 0, `no agent may be dispatched with ${field}=${JSON.stringify(token)} interpolated into its prompt`);
+    }
+  }
+});
+
+test('MSP-2 FIX1 allow-case: a conservative ref token passes the gate — the guard rejects unsafe shapes without over-tightening legitimate branch names', async () => {
+  for (const baseBranch of ['main', 'master', 'release/2026-07', 'v1.2.3', 'develop']) {
+    const msps = [mspSpec('solo', { fileScope: ['scope/solo/**'] })];
+    const agent = createFakeAgent({ msps });
+    const { resultPromise } = invokeMitosis(buildInput({ baseBranch }), agent);
+    const result = await resultPromise;
+    assert.notEqual(result.stage, 'input', `baseBranch ${JSON.stringify(baseBranch)} is a legitimate ref and must pass the gate`);
+    assert.equal(result.overallStatus, 'all-shipped', `baseBranch ${JSON.stringify(baseBranch)} must still drive a full green run`);
+  }
+  for (const sourcePrefix of ['mitosis-test', 'feat/mitosis', 'team.a/mitosis-run']) {
+    const msps = [mspSpec('solo', { fileScope: ['scope/solo/**'] })];
+    const agent = createFakeAgent({ msps, sourcePrefix });
+    const { resultPromise } = invokeMitosis(buildInput({ sourcePrefix }), agent);
+    const result = await resultPromise;
+    assert.notEqual(result.stage, 'input', `sourcePrefix ${JSON.stringify(sourcePrefix)} is a legitimate ref token and must pass the gate`);
+    assert.equal(result.overallStatus, 'all-shipped', `sourcePrefix ${JSON.stringify(sourcePrefix)} must still drive a full green run`);
+  }
+});
+
 test('D7 hard fail: an unvalidatable target repo slug HALTS the run rather than falling back to an unscoped or unvalidated interpolation', async () => {
   for (const ownerRepo of ['-R/widgets', 'noslash', '', 'me/target\nrm -rf /', 'me/$(id)', null, 42]) {
     const msps = independentMsps();

@@ -2532,6 +2532,17 @@ const CHECKPOINT_REF_PREFIX = 'refs/mitosis';
 
 const RUN_ID_PATTERN = /^[a-f0-9]{8}$/;
 const UNIT_ID_PATTERN = /^[a-z0-9][a-z0-9-]*$/;
+const REF_TOKEN_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._-]*(?:\/[A-Za-z0-9][A-Za-z0-9._-]*)*$/;
+const MAX_REF_TOKEN_LEN = 255;
+
+function validateRefToken(token) {
+  if (typeof token !== 'string') return false;
+  if (token.length === 0 || token.length > MAX_REF_TOKEN_LEN) return false;
+  if (!REF_TOKEN_PATTERN.test(token)) return false;
+  if (token.startsWith('-')) return false;
+  if (token.includes('..')) return false;
+  return token.split('/').every((part) => !part.endsWith('.lock') && !part.endsWith('.'));
+}
 
 function checkpointRef(runId, unitId) {
   if (typeof runId !== 'string' || !RUN_ID_PATTERN.test(runId)) {
@@ -3494,6 +3505,12 @@ const missingFields = Object.entries(requiredFields)
   .map(([name]) => name);
 if (missingFields.length > 0) {
   return fatalReport('input', `missing or empty required fields: ${missingFields.join(', ')}`, 0);
+}
+const unsafeRefFields = Object.entries({ baseBranch, sourcePrefix })
+  .filter(([, value]) => !validateRefToken(value))
+  .map(([name, value]) => `${name}=${cleanUrl(value)}`);
+if (unsafeRefFields.length > 0) {
+  return fatalReport('input', `these ref fields did not validate as conservative git ref tokens: ${unsafeRefFields.join(', ')} — baseBranch and sourcePrefix are interpolated into git and gh command strings (fetch/cat-file/compare) and into every integration branch name, so a token bearing whitespace, a shell metacharacter, a leading -, a .. sequence, or a .lock/. component halts the run here rather than reaching a shell`, 0);
 }
 if (!Number.isInteger(fixLoopMax) || fixLoopMax < 0) {
   return fatalReport('input', 'fixLoopMax must be a non-negative integer', 0);
