@@ -27,9 +27,22 @@
       "Bash(graphify path:*)",
       "Bash(graphify explain:*)",
       "Bash(graphify affected:*)",
-      "Bash(graphify update:*)"
+      "Bash(graphify update:*)",
+      "Bash(gh pr view:*)",
+      "Bash(gh pr list:*)",
+      "Bash(gh pr create:*)",
+      "Bash(gh pr edit:*)",
+      "Bash(gh repo view:*)",
+      "Bash(gh run view:*)",
+      "Bash(gh run list:*)"
     ],
     "deny": [
+      "Bash(git --config-env:*)",
+      "Bash(git -c:*)",
+      "Bash(git push origin main:*)",
+      "Bash(git push origin master:*)",
+      "Bash(git push origin development:*)",
+      "Bash(gh pr review:*)",
       "Bash(supabase db push:*)",
       "Bash(supabase db pull:*)",
       "Bash(supabase db reset:*)",
@@ -59,10 +72,14 @@
       "Read(~/.npmrc)",
       "Read(~/.cargo/credentials*)",
       "Read(~/.pypirc)",
-      "Read(~/Library/Keychains/**)"
+      "Read(~/Library/Keychains/**)",
+      "Edit(~/Documents/DevLabs/.windful-ocean/.claude/lib/**)",
+      "Write(~/Documents/DevLabs/.windful-ocean/.claude/lib/**)",
+      "Edit(~/Documents/DevLabs/.windful-ocean/.claude/workflows/**)",
+      "Write(~/Documents/DevLabs/.windful-ocean/.claude/workflows/**)"
     ]
   },
-  "model": "opus[1m]",
+  "model": "claude-opus-5[1m]",
   "hooks": {
     "Stop": [
       {
