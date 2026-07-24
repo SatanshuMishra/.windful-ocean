@@ -1,4 +1,5 @@
 import { ENGINE_ARG_NAMES } from './generate-run-script.mjs';
+import { validateRefToken } from './checkpoint.mjs';
 
 const DEFAULTS = {
   isolation: 'worktree',
@@ -39,6 +40,10 @@ export function buildEngineArgs(input) {
   const modelsCheck = validateModelsKnob(input.models);
   if (!modelsCheck.ok) {
     throw new Error(`buildEngineArgs: ${modelsCheck.reason}`);
+  }
+  const unsafeRefs = ['baseBranch', 'branchPrefix'].filter((name) => !validateRefToken(input[name]));
+  if (unsafeRefs.length > 0) {
+    throw new Error(`buildEngineArgs: ${unsafeRefs.join(' and ')} did not validate as a conservative git ref token; the engine interpolates them unquoted into git worktree add, branch and push command strings, so a value bearing whitespace, a shell metacharacter, a leading -, a .. sequence, or a .lock/. component is refused here rather than reaching a shell`);
   }
   const out = {};
   const missing = [];
