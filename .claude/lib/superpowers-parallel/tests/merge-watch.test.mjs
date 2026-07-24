@@ -33,6 +33,25 @@ test('validateRepoIdentity accepts owner/repo and rejects anything else', () => 
   assert.equal(validateRepoIdentity('acme widgets/x'), false);
 });
 
+test('D7 deny-case: a slug whose owner or repo segment leads with a non-alphanumeric byte is REJECTED — the validated slug is interpolated into gh argv, so an option-looking leading dash must never pass', () => {
+  assert.equal(validateRepoIdentity('-R/widgets'), false);
+  assert.equal(validateRepoIdentity('--upload-file/x'), false);
+  assert.equal(validateRepoIdentity('acme/-rf'), false);
+  assert.equal(validateRepoIdentity('.acme/widgets'), false);
+  assert.equal(validateRepoIdentity('_acme/widgets'), false);
+  assert.equal(validateRepoIdentity('acme/.git'), false);
+  assert.equal(validateRepoIdentity('a/b'), true);
+});
+
+test('D7 deny-case: a multi-line or metacharacter-bearing slug is REJECTED rather than interpolated into a shell string', () => {
+  assert.equal(validateRepoIdentity('acme/widgets\nrm -rf /'), false);
+  assert.equal(validateRepoIdentity('acme/widgets\n'), false);
+  assert.equal(validateRepoIdentity('acme/widgets;id'), false);
+  assert.equal(validateRepoIdentity('acme/$(id)'), false);
+  assert.equal(validateRepoIdentity('acme/widgets `id`'), false);
+  assert.equal(validateRepoIdentity('acme/wid|gets'), false);
+});
+
 test('parsePrRef extracts owner/repo and PR number from a GitHub PR URL', () => {
   assert.deepEqual({ ...parsePrRef(PR_URL) }, { ownerRepo: 'acme/widgets', prNumber: '42' });
   assert.deepEqual({ ...parsePrRef('http://github.com/o/r/pull/7#discussion') }, { ownerRepo: 'o/r', prNumber: '7' });

@@ -93,6 +93,38 @@ export function decidePrepareActions({ probe, buildConfig, verify }) {
   });
 }
 
+export const REQUIRED_BASE_ARTIFACTS = Object.freeze([
+  'receipts.config.json',
+  '.github/workflows/receipts.yml',
+  'scripts/d6-check.cjs',
+]);
+
+const BASE_ARTIFACT_FLAGS = Object.freeze({
+  'receipts.config.json': 'receiptsConfigFound',
+  '.github/workflows/receipts.yml': 'receiptsYmlFound',
+  'scripts/d6-check.cjs': 'd6CheckFound',
+});
+
+function undetermined(reason) {
+  return Object.freeze({ determined: false, reason, missing: Object.freeze([]) });
+}
+
+export function assertBasePrerequisites(probe) {
+  if (probe === null || typeof probe !== 'object' || Array.isArray(probe)) {
+    return undetermined('the prepare probe returned no object to read a base-presence verdict from');
+  }
+  if (probe.baseRefResolved !== true) {
+    const detail = typeof probe.baseRefDetail === 'string' ? probe.baseRefDetail.trim() : '';
+    return undetermined(detail.length > 0 ? detail : 'the prepare probe did not confirm that the remote-tracking base ref resolves');
+  }
+  const unreadable = REQUIRED_BASE_ARTIFACTS.filter((path) => typeof probe[BASE_ARTIFACT_FLAGS[path]] !== 'boolean');
+  if (unreadable.length > 0) {
+    return undetermined(`the prepare probe returned no boolean presence verdict for ${unreadable.join(', ')}`);
+  }
+  const missing = REQUIRED_BASE_ARTIFACTS.filter((path) => probe[BASE_ARTIFACT_FLAGS[path]] !== true);
+  return Object.freeze({ determined: true, reason: null, missing: Object.freeze(missing) });
+}
+
 export function buildPrepareWriteSections({ plan, repoRoot, templatesDir }) {
   const configPath = `${repoRoot}/receipts.config.json`;
   const ymlPath = `${repoRoot}/.github/workflows/receipts.yml`;

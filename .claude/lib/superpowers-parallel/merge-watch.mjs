@@ -9,7 +9,7 @@ export const MERGE_WATCH_SCHEMA = {
   },
 };
 
-const REPO_IDENTITY_PATTERN = /^[A-Za-z0-9._-]+\/[A-Za-z0-9._-]+$/;
+const REPO_IDENTITY_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._-]*\/[A-Za-z0-9][A-Za-z0-9._-]*$/;
 const PR_URL_PATTERN = /^https?:\/\/github\.com\/([A-Za-z0-9._-]+)\/([A-Za-z0-9._-]+)\/pull\/([0-9]+)(?:[/?#].*)?$/;
 
 export function validateRepoIdentity(identity) {

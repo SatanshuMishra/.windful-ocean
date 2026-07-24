@@ -6,7 +6,7 @@ const MITOSIS_PATH = process.env.MITOSIS_PATH || new URL('../../../workflows/mit
 const source = readFileSync(MITOSIS_PATH, 'utf8');
 
 const GH_ACTION = /gh (pr|api|run|issue)\b/g;
-const SCOPE_TOKENS = [' -R ', '$repoSlug', '$(cd ${repoRoot}'];
+const SCOPE_TOKENS = [' -R ', '${repoSlug}', '<OWNER_REPO>'];
 const CODE_SPAN_CLOSE = '\\`';
 
 function ghActionSites(src) {
@@ -44,4 +44,15 @@ test('every gh (pr|api|run|issue) command in the engine is repo-scoped and never
 test('the derivation primitive gh repo view is not itself in the pr/api/run/issue set (naturally exempt)', () => {
   assert.ok(source.includes('gh repo view --json nameWithOwner'), 'the target-repo slug derivation primitive is present');
   assert.equal([...'gh repo view'.matchAll(GH_ACTION)].length, 0);
+});
+
+test('D7: the target repo slug is derived exactly ONCE — no other prompt asks an agent to resolve nameWithOwner', () => {
+  const hits = source.split('gh repo view --json nameWithOwner').length - 1;
+  assert.equal(hits, 1, `the slug derivation command must appear exactly once (the reconcile probe); found ${hits} occurrences`);
+});
+
+test('D7: no emitted command derives the repo slug through a $( ) subshell or a cd-and-chain', () => {
+  assert.equal(source.includes('$(cd '), false, 'a cd-subshell makes the emitted command unmatchable by a literal permission allow-rule');
+  assert.equal(source.includes('gh repo view --json nameWithOwner -q .nameWithOwner'), false, 'the -q slug read only ever existed inside the removed subshells');
+  assert.equal(source.includes('$repoSlug'), false, 'the slug is an engine-resolved literal, never a shell variable');
 });

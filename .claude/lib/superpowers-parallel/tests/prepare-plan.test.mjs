@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
-import { decidePrepareActions, deepMerge, buildPrepareWriteSections } from '../prepare-plan.mjs';
+import { decidePrepareActions, deepMerge, buildPrepareWriteSections, assertBasePrerequisites, REQUIRED_BASE_ARTIFACTS } from '../prepare-plan.mjs';
 import { refuseToWeaken } from '../prepare-guard.mjs';
 
 const TEMPLATE_CONFIG_PATH = fileURLToPath(new URL('../../../skills/mitosis/templates/receipts.config.json', import.meta.url));
@@ -163,6 +163,79 @@ test('buildPrepareWriteSections: writeConfig true still embeds the computed (mer
 test('fail closed: a malformed probe (missing presence flags) throws rather than guessing', () => {
   assert.throws(() => decidePrepareActions({ probe: null, buildConfig: {}, verify: {} }), /probe result is not an object/);
   assert.throws(() => decidePrepareActions({ probe: { receiptsConfigFound: true }, buildConfig: {}, verify: {} }), /missing required presence flags/);
+});
+
+function basePresenceProbe(overrides = {}) {
+  return {
+    baseRefResolved: true,
+    baseRefDetail: null,
+    receiptsConfigFound: true,
+    receiptsConfigRaw: '{"gates":{"G10":{"mode":"warn"}}}',
+    receiptsYmlFound: true,
+    d6CheckFound: true,
+    templateConfigRaw: null,
+    ...overrides,
+  };
+}
+
+test('D6.3: the required base artifacts are exactly the three receipts artifacts buildPrepareWriteSections knows how to name', () => {
+  assert.deepEqual([...REQUIRED_BASE_ARTIFACTS], ['receipts.config.json', '.github/workflows/receipts.yml', 'scripts/d6-check.cjs']);
+  const { requested } = buildPrepareWriteSections({
+    plan: { writeConfig: true, writeYml: true, bootstrapConfig: { version: 1 }, generateD6: true },
+    repoRoot: '/repo',
+    templatesDir: '/templates',
+  });
+  assert.deepEqual(requested.map((r) => r.suffix), [...REQUIRED_BASE_ARTIFACTS]);
+});
+
+test('D6.3: a base ref carrying all three artifacts is determined and complete', () => {
+  const verdict = assertBasePrerequisites(basePresenceProbe());
+  assert.equal(verdict.determined, true);
+  assert.equal(verdict.reason, null);
+  assert.deepEqual([...verdict.missing], []);
+  assert.ok(Object.isFrozen(verdict));
+});
+
+test('D6.2: each absent base artifact is reported by its verbatim repo-relative path, in required order', () => {
+  const verdict = assertBasePrerequisites(basePresenceProbe({ receiptsYmlFound: false }));
+  assert.equal(verdict.determined, true);
+  assert.deepEqual([...verdict.missing], ['.github/workflows/receipts.yml']);
+
+  const allAbsent = assertBasePrerequisites(basePresenceProbe({ receiptsConfigFound: false, receiptsConfigRaw: null, receiptsYmlFound: false, d6CheckFound: false }));
+  assert.deepEqual([...allAbsent.missing], ['receipts.config.json', '.github/workflows/receipts.yml', 'scripts/d6-check.cjs']);
+});
+
+test('D6.3 fail closed: an unresolved base ref is COULD-NOT-DETERMINE and never reported as present', () => {
+  const verdict = assertBasePrerequisites(basePresenceProbe({ baseRefResolved: false, baseRefDetail: 'no origin remote configured' }));
+  assert.equal(verdict.determined, false);
+  assert.match(verdict.reason, /no origin remote configured/);
+  assert.deepEqual([...verdict.missing], [], 'an undetermined probe reports no missing set — the caller must halt, not install');
+});
+
+test('D6.3 fail closed: an unresolved base ref with no detail still halts with a usable reason', () => {
+  const verdict = assertBasePrerequisites(basePresenceProbe({ baseRefResolved: false, baseRefDetail: null }));
+  assert.equal(verdict.determined, false);
+  assert.ok(typeof verdict.reason === 'string' && verdict.reason.length > 0);
+});
+
+test('D6.3 fail closed: a missing or non-boolean presence verdict is COULD-NOT-DETERMINE, never coerced to present', () => {
+  for (const probe of [
+    basePresenceProbe({ receiptsYmlFound: undefined }),
+    basePresenceProbe({ d6CheckFound: 'true' }),
+    basePresenceProbe({ receiptsConfigFound: null }),
+  ]) {
+    const verdict = assertBasePrerequisites(probe);
+    assert.equal(verdict.determined, false, `expected a non-boolean presence flag to be undetermined: ${JSON.stringify(probe)}`);
+    assert.deepEqual([...verdict.missing], []);
+  }
+});
+
+test('D6.3 fail closed: a null or non-object probe is COULD-NOT-DETERMINE rather than throwing or defaulting', () => {
+  for (const probe of [null, undefined, 'ok', 42, []]) {
+    const verdict = assertBasePrerequisites(probe);
+    assert.equal(verdict.determined, false);
+    assert.ok(typeof verdict.reason === 'string' && verdict.reason.length > 0);
+  }
 });
 
 test('deepMerge: over wins on leaves; base-only keys are kept', () => {

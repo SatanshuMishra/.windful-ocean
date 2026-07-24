@@ -193,7 +193,7 @@ function createFrontierAgent({ msps, shipResult, mergeWatch } = {}) {
       case 'park-checkpoint': case 'built-checkpoint': case 'ship-checkpoint': case 'checkpoint-init': return { written: true, detail: '' };
       case 'checkpoint-push': return { pushed: true, ref: '', sha: '', detail: '' };
       case 'decompose': return { msps };
-      case 'prepare-probe': return { receiptsConfigFound: true, receiptsConfigRaw: '{"gates":{"G10":{"mode":"warn"}}}', receiptsYmlFound: true, d6CheckFound: true, templateConfigRaw: null, templateYmlRaw: null };
+      case 'prepare-probe': return { baseRefResolved: true, baseRefDetail: null, receiptsConfigFound: true, receiptsConfigRaw: '{"gates":{"G10":{"mode":"warn"}}}', receiptsYmlFound: true, d6CheckFound: true, templateConfigRaw: null, templateYmlRaw: null };
       case 'prepare-write': return { written: [], skipped: [], detail: '' };
       case 'plan-probe': return { planFound: true };
       case 'plan': return { planPath: `/tmp/mitosis-frontier-e2e/${label.slice('plan:'.length)}.plan.md`, summary: '' };
@@ -896,7 +896,7 @@ test('E9: a persisted window far above the ceiling is clamped at every read site
   assert.equal(builtAhead.size, 8, 'a corrupt/out-of-range persisted window must be clamped to WINDOW_CEILING (8) at the read site, not trusted verbatim as 9999 unbounded build-ahead');
 });
 
-test('E11: with no validated repo identity, merge-watch is disabled rather than polling an unpinned PR reference', async () => {
+test('E11 (D7): an unvalidatable repo identity HALTS the run at reconcile — no merge-watch, no review-decision, no gh read is ever dispatched unpinned', async () => {
   const msps = [mspSpec('l1', {}), mspSpec('l2', { dependsOn: ['l1'] })];
   const { agent, labels } = freshRunAgent({
     msps,
@@ -909,7 +909,9 @@ test('E11: with no validated repo identity, merge-watch is disabled rather than 
   const { resultPromise } = invoke(runOn, buildInput({ mergePolicy: undefined, repoIdentity: undefined }), agent);
   const result = await resultPromise;
 
-  assert.ok(result.awaitingApproval.some((a) => a.mspId === 'l1'), 'sanity: l1 reaches awaiting-approval, so the merge-poll path is genuinely exercised');
+  assert.equal(result.overallStatus, 'failed');
+  assert.equal(result.stage, 'reconcile', 'the run halts where the slug is resolved, before any consumer prompt is built');
+  assert.match(result.detail, /slug/i);
   assert.ok(!labels.some((l) => l.startsWith('merge-watch:')), 'with no validated repo identity the watch must fail closed — an unpinned gh read could poll the WRONG repository');
   assert.ok(!labels.some((l) => l.startsWith('review-decision:')), 'the downstream review-decision read is likewise never dispatched unpinned');
 });
