@@ -107,6 +107,28 @@ test('planMergeWatch DISABLES on a malformed engine repoIdentity rather than gue
   assert.equal(plan.argv, null);
 });
 
+test('MSP-2 FIX3 deny-case: planMergeWatch REJECTS a URL-derived ownerRepo that fails the repo-identity guard, even when no engine repoIdentity was supplied', () => {
+  for (const prUrl of [
+    'https://github.com/-R/x/pull/1',
+    'https://github.com/--upload-file/x/pull/1',
+    'https://github.com/acme/-rf/pull/1',
+    'https://github.com/.acme/widgets/pull/1',
+    'https://github.com/_acme/widgets/pull/1',
+    'https://github.com/acme/.git/pull/1',
+  ]) {
+    const plan = planMergeWatch({ prUrl });
+    assert.equal(plan.enabled, false, `expected planMergeWatch to disable for ${prUrl}`);
+    assert.equal(plan.reason, 'invalid-repo-identity', `expected an invalid-repo-identity refusal for ${prUrl}`);
+    assert.equal(plan.ownerRepo, null, `a rejected slug must never be exposed as ownerRepo for ${prUrl}`);
+    assert.equal(plan.argv, null, `a rejected slug must never reach gh argv for ${prUrl}`);
+  }
+});
+
+test('MSP-2 FIX3: an option-looking URL-derived slug never reaches the merge-watch prompt shell string', () => {
+  const plan = planMergeWatch({ prUrl: 'https://github.com/-R/x/pull/1' });
+  assert.throws(() => mergeWatchPrompt(plan), /disabled|enabled/i);
+});
+
 test('mergeWatchPrompt embeds the repo-scoped read and issues NO merge/push (read-only)', () => {
   const plan = planMergeWatch({ prUrl: PR_URL });
   const prompt = mergeWatchPrompt(plan, { maxWaitSeconds: 120, pollIntervalSeconds: 20 });

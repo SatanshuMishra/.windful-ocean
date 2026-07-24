@@ -2493,6 +2493,7 @@ function disabledPlan(reason) {
 function planMergeWatch({ prUrl, repoIdentity } = {}) {
   const ref = parsePrRef(prUrl);
   if (ref === null) return disabledPlan('unresolved-pr-reference');
+  if (!validateRepoIdentity(ref.ownerRepo)) return disabledPlan('invalid-repo-identity');
   let ownerRepo = ref.ownerRepo;
   if (repoIdentity !== undefined && repoIdentity !== null && repoIdentity !== '') {
     if (!validateRepoIdentity(repoIdentity)) return disabledPlan('invalid-repo-identity');
