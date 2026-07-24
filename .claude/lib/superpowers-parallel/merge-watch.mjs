@@ -9,11 +9,14 @@ export const MERGE_WATCH_SCHEMA = {
   },
 };
 
-const REPO_IDENTITY_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._-]*\/[A-Za-z0-9][A-Za-z0-9._-]*$/;
+const REPO_IDENTITY_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._-]*\/[A-Za-z0-9.][A-Za-z0-9._-]*$/;
 const PR_URL_PATTERN = /^https?:\/\/github\.com\/([A-Za-z0-9._-]+)\/([A-Za-z0-9._-]+)\/pull\/([0-9]+)(?:[/?#].*)?$/;
 
 export function validateRepoIdentity(identity) {
-  return typeof identity === 'string' && REPO_IDENTITY_PATTERN.test(identity);
+  if (typeof identity !== 'string') return false;
+  if (!REPO_IDENTITY_PATTERN.test(identity)) return false;
+  if (identity.includes('..')) return false;
+  return identity.split('/')[1] !== '.';
 }
 
 export function parsePrRef(prUrl) {
@@ -30,6 +33,7 @@ function disabledPlan(reason) {
 export function planMergeWatch({ prUrl, repoIdentity } = {}) {
   const ref = parsePrRef(prUrl);
   if (ref === null) return disabledPlan('unresolved-pr-reference');
+  if (!validateRepoIdentity(ref.ownerRepo)) return disabledPlan('invalid-repo-identity');
   let ownerRepo = ref.ownerRepo;
   if (repoIdentity !== undefined && repoIdentity !== null && repoIdentity !== '') {
     if (!validateRepoIdentity(repoIdentity)) return disabledPlan('invalid-repo-identity');

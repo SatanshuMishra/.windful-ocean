@@ -78,6 +78,61 @@ test('treats explicit null on a required key as missing', () => {
   });
 });
 
+const UNSAFE_ENGINE_REF_TOKENS = [
+  'main;rm -rf /',
+  'main rm',
+  'main\nwhoami',
+  'main$(id)',
+  'main`id`',
+  'main&&id',
+  'main|id',
+  '-delete',
+  '--upload-pack=touch /tmp/pwned',
+  'feat/../../etc/passwd',
+  'refs/heads/a..b',
+  'main.lock',
+  'main.',
+  '/leading-slash',
+  'trailing-slash/',
+  'double//slash',
+  'quote"inject',
+  "quote'inject",
+  'brace{a,b}',
+  'star*glob',
+  'tilde~1',
+  'colon:ref',
+  'back\\slash',
+  '',
+  42,
+];
+
+test('MSP-2 R4 deny-case: buildEngineArgs rejects a baseBranch or branchPrefix that is not a conservative git ref token — the engine interpolates both into git worktree add / branch command strings', () => {
+  for (const token of UNSAFE_ENGINE_REF_TOKENS) {
+    for (const field of ['baseBranch', 'branchPrefix']) {
+      const input = fullInput();
+      input[field] = token;
+      assert.throws(() => buildEngineArgs(input), (err) => {
+        assert.match(err.message, /buildEngineArgs/, `the throw is attributed to the arg boundary for ${field}=${JSON.stringify(token)}`);
+        assert.match(err.message, new RegExp(field), `the throw names the offending field ${field}=${JSON.stringify(token)}`);
+        return true;
+      }, `expected a throw for ${field}=${JSON.stringify(token)}`);
+    }
+  }
+});
+
+test('MSP-2 R4 allow-case: legitimate ref tokens still build engine args unchanged', () => {
+  for (const baseBranch of ['main', 'develop', 'release/2026-07', 'v1.2.3', 'mitosis-run/msp-a-integration']) {
+    const input = fullInput();
+    input.baseBranch = baseBranch;
+    assert.equal(buildEngineArgs(input).baseBranch, baseBranch);
+  }
+  for (const branchPrefix of ['feat/x', 'wf-20260724120000', 'mitosis-run/msp-a', 'team.a/run_1']) {
+    const input = fullInput();
+    input.branchPrefix = branchPrefix;
+    assert.equal(buildEngineArgs(input).branchPrefix, branchPrefix);
+  }
+});
+
 test('E5 validateModelsKnob accepts the empty/absent knob and whitelisted {opus,sonnet} values', () => {
   assert.deepEqual(validateModelsKnob({}), { ok: true, reason: null });
   assert.deepEqual(validateModelsKnob(undefined), { ok: true, reason: null });

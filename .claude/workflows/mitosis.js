@@ -1279,14 +1279,15 @@ const DECOMPOSE_SCHEMA = {
 
 const RECONCILE_SCHEMA = {
   type: 'object',
-  required: ['manifestFound', 'manifestRaw', 'mergedPRs', 'specContentHash', 'ownerRepo', 'repoHost'],
+  required: ['manifestFound', 'manifestRaw', 'mergedPRs', 'mergedPRsAuthoritative', 'specContentHash', 'ownerRepo', 'repoHost'],
   additionalProperties: false,
   properties: {
     manifestFound: { type: 'boolean' },
     manifestRaw: { type: ['string', 'null'] },
+    mergedPRsAuthoritative: { type: 'boolean' },
     specContentHash: { type: ['string', 'null'] },
-    ownerRepo: { type: 'string', pattern: '^[A-Za-z0-9][A-Za-z0-9._-]*/[A-Za-z0-9][A-Za-z0-9._-]*$' },
-    repoHost: { type: 'string', pattern: '^[A-Za-z0-9.-]+$' },
+    ownerRepo: { type: ['string', 'null'], pattern: '^[A-Za-z0-9][A-Za-z0-9._-]*/[A-Za-z0-9.][A-Za-z0-9._-]*$' },
+    repoHost: { type: ['string', 'null'], pattern: '^[A-Za-z0-9.-]+$' },
     checkpointRefPages: {
       type: 'array',
       items: { type: 'array', items: { type: 'string' } },
@@ -2472,11 +2473,14 @@ const MERGE_WATCH_SCHEMA = {
   },
 };
 
-const REPO_IDENTITY_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._-]*\/[A-Za-z0-9][A-Za-z0-9._-]*$/;
+const REPO_IDENTITY_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._-]*\/[A-Za-z0-9.][A-Za-z0-9._-]*$/;
 const PR_URL_PATTERN = /^https?:\/\/github\.com\/([A-Za-z0-9._-]+)\/([A-Za-z0-9._-]+)\/pull\/([0-9]+)(?:[/?#].*)?$/;
 
 function validateRepoIdentity(identity) {
-  return typeof identity === 'string' && REPO_IDENTITY_PATTERN.test(identity);
+  if (typeof identity !== 'string') return false;
+  if (!REPO_IDENTITY_PATTERN.test(identity)) return false;
+  if (identity.includes('..')) return false;
+  return identity.split('/')[1] !== '.';
 }
 
 function parsePrRef(prUrl) {
@@ -2493,6 +2497,7 @@ function disabledPlan(reason) {
 function planMergeWatch({ prUrl, repoIdentity } = {}) {
   const ref = parsePrRef(prUrl);
   if (ref === null) return disabledPlan('unresolved-pr-reference');
+  if (!validateRepoIdentity(ref.ownerRepo)) return disabledPlan('invalid-repo-identity');
   let ownerRepo = ref.ownerRepo;
   if (repoIdentity !== undefined && repoIdentity !== null && repoIdentity !== '') {
     if (!validateRepoIdentity(repoIdentity)) return disabledPlan('invalid-repo-identity');
@@ -2528,10 +2533,31 @@ function classifyMergeWatch(result) {
   return true;
 }
 
+const RUN_PATH_PATTERN = /^\/[A-Za-z0-9._+@\/-]*$/;
+const MAX_RUN_PATH_LEN = 4096;
+
+function validateRunPath(value) {
+  if (typeof value !== 'string') return false;
+  if (value.length === 0 || value.length > MAX_RUN_PATH_LEN) return false;
+  if (!RUN_PATH_PATTERN.test(value)) return false;
+  return value.split('/').every((part) => part !== '..');
+}
+
 const CHECKPOINT_REF_PREFIX = 'refs/mitosis';
 
 const RUN_ID_PATTERN = /^[a-f0-9]{8}$/;
 const UNIT_ID_PATTERN = /^[a-z0-9][a-z0-9-]*$/;
+const REF_TOKEN_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._-]*(?:\/[A-Za-z0-9][A-Za-z0-9._-]*)*$/;
+const MAX_REF_TOKEN_LEN = 255;
+
+function validateRefToken(token) {
+  if (typeof token !== 'string') return false;
+  if (token.length === 0 || token.length > MAX_REF_TOKEN_LEN) return false;
+  if (!REF_TOKEN_PATTERN.test(token)) return false;
+  if (token.startsWith('-')) return false;
+  if (token.includes('..')) return false;
+  return token.split('/').every((part) => !part.endsWith('.lock') && !part.endsWith('.'));
+}
 
 function checkpointRef(runId, unitId) {
   if (typeof runId !== 'string' || !RUN_ID_PATTERN.test(runId)) {
@@ -3495,6 +3521,18 @@ const missingFields = Object.entries(requiredFields)
 if (missingFields.length > 0) {
   return fatalReport('input', `missing or empty required fields: ${missingFields.join(', ')}`, 0);
 }
+const unsafeRefFields = Object.entries({ baseBranch, sourcePrefix })
+  .filter(([, value]) => !validateRefToken(value))
+  .map(([name, value]) => `${name}=${cleanUrl(value)}`);
+if (unsafeRefFields.length > 0) {
+  return fatalReport('input', `these ref fields did not validate as conservative git ref tokens: ${unsafeRefFields.join(', ')} — baseBranch and sourcePrefix are interpolated into git and gh command strings (fetch/cat-file/compare) and into every integration branch name, so a token bearing whitespace, a shell metacharacter, a leading -, a .. sequence, or a .lock/. component halts the run here rather than reaching a shell`, 0);
+}
+const unsafePathFields = Object.entries({ spec, repoRoot, worktreeRoot })
+  .filter(([, value]) => !validateRunPath(value))
+  .map(([name, value]) => `${name}=${cleanUrl(value)}`);
+if (unsafePathFields.length > 0) {
+  return fatalReport('input', `these path fields did not validate as safe absolute paths: ${unsafePathFields.join(', ')} — spec, repoRoot and worktreeRoot are interpolated unquoted into shell command strings (shasum of the spec, the fold-run-log CLI on the run journal, every git -C on the repo root) and composed into every git worktree add path, so a value that is relative, bears whitespace, a shell metacharacter, a quote, a glob, a ~, or a .. component halts the run here rather than reaching a shell`, 0);
+}
 if (!Number.isInteger(fixLoopMax) || fixLoopMax < 0) {
   return fatalReport('input', 'fixLoopMax must be a non-negative integer', 0);
 }
@@ -3522,12 +3560,12 @@ try {
       `You are the reconcile stage of a mitosis run. You have NO Skill tool; follow these instructions directly.\n\n` +
       `This stage is STRICTLY READ-ONLY: it inspects durable state to detect a relaunch and the already-merged set. It makes NO commits, opens NO PRs, and mutates NO files whatsoever.\n\n` +
       `1. Fold the run manifest via the deterministic node CLI: run \`node ${LIB_DIR}/fold-run-log.mjs ${repoRoot}/.mitosis/run.json\`. If it exits 0, return its exact stdout as manifestRaw (a string) and set manifestFound=true; if it exits non-zero (absent, empty, or malformed run journal), set manifestFound=false and manifestRaw=null. Do NOT parse, repair, or alter the output — return the bytes verbatim, the engine re-validates it.\n` +
-      `2. Derive the TARGET repository slug AND origin host ONCE so every gh read in this run is pinned to the target repo and never the ambient cwd: with ${repoRoot} as the working directory run \`gh repo view --json nameWithOwner,url\` and report the exact owner/repo it prints as ownerRepo (the nameWithOwner field) and the origin hostname parsed from the url field (e.g. github.com for https://github.com/owner/repo) as repoHost. If it prints nothing or errors, STOP and report the failure (do NOT return an empty or unscoped mergedPRs as if it were authoritative) — a loud stop is required because an unscoped read would silently query the WRONG repository. Then list the pull requests already merged into the base so the engine can skip re-shipping them, pinned to that target slug: \`gh pr list -R <OWNER_REPO> --state merged --base ${baseBranch} --limit 200 --json headRefName,url,mergedAt,mergeCommit\`, typing the literal ownerRepo value you just read in place of <OWNER_REPO> — never a command substitution, never a shell variable, never a \`cd\`-and-chain. Return that array verbatim as mergedPRs (an empty array if none). For EACH merged PR also report mergedSha as its merge commit sha (the mergeCommit.oid field), or null if absent — the shepherd compares it against the tip its children built on to detect a divergent (squashed or amended) merge.\n` +
+      `2. Derive the TARGET repository slug AND origin host ONCE so every gh read in this run is pinned to the target repo and never the ambient cwd: with ${repoRoot} as the working directory run \`gh repo view --json nameWithOwner,url\` and report the exact owner/repo it prints as ownerRepo (the nameWithOwner field) and the origin hostname parsed from the url field (e.g. github.com for https://github.com/owner/repo) as repoHost. If it prints nothing or errors, STOP, run no further command, and return the failure shape: ownerRepo=null, repoHost=null, mergedPRs=[] and mergedPRsAuthoritative=false (do NOT return an empty or unscoped mergedPRs as if it were authoritative, and do NOT invent, guess, or reconstruct a slug so the object looks complete) — a loud stop is required because an unscoped read would silently query the WRONG repository, and the engine halts the run on that flag. Then list the pull requests already merged into the base so the engine can skip re-shipping them, pinned to that target slug: \`gh pr list -R <OWNER_REPO> --state merged --base ${baseBranch} --limit 200 --json headRefName,url,mergedAt,mergeCommit\`, typing the literal ownerRepo value you just read in place of <OWNER_REPO> — never a command substitution, never a shell variable, never a \`cd\`-and-chain, and never the placeholder itself. If the command you actually ran still carried the literal placeholder text instead of the slug, the shell parsed it as an input redirection and gh never ran: that is a FAILED read, not an empty result. This STOP-and-report rule binds EVERY command that produces a list in this run — the slug read above, the merged-PR list read in this step, AND the open-PR list read in step 6: if ANY of them errors, prints nothing, or was emitted with the placeholder unsubstituted, STOP, report the failure, and set mergedPRsAuthoritative=false; do NOT return an empty or unscoped mergedPRs as if it were authoritative, because the engine reads an empty authoritative set as "nothing is already merged" and would re-plan and re-ship ALREADY MERGED work. Set mergedPRsAuthoritative=true ONLY when BOTH list reads ran with the substituted literal slug and returned a parseable JSON array. Return that array verbatim as mergedPRs (an empty array if none). For EACH merged PR also report mergedSha as its merge commit sha (the mergeCommit.oid field), or null if absent — the shepherd compares it against the tip its children built on to detect a divergent (squashed or amended) merge.\n` +
       `3. For diagnostics only you MAY run \`git log origin/${baseBranch}\` to observe recent base history; it does not affect the returned object.\n` +
       `4. Compute a content fingerprint of the spec so the engine can detect an in-place spec edit since the manifest was recorded: run \`shasum -a 256 ${spec}\` and return ONLY the leading 64-character hex field as specContentHash (a string). If the spec file cannot be read, return specContentHash=null.\n` +
       `5. List the DURABLE mitosis checkpoint refs so the engine can reconcile built-but-unmerged work against them: run \`git -C ${repoRoot} ls-remote origin 'refs/mitosis/*'\`. This is the authoritative record of which units were durably built on a prior run. Capture EVERY output line in full (each line is \`<sha>\\t<ref>\`), returning them COMPLETELY with no truncation as checkpointRefPages: an array of pages where each page is an array of the raw line strings (return a single page holding all lines; use additional pages only if you had to fetch the listing in multiple passes). Return checkpointRefPages=[] (an empty array) if there is no remote or no such ref. Return the lines verbatim; do NOT parse, filter, or alter them — the engine parses them.\n\n` +
-      `6. List the pull requests still OPEN against the base so the shepherd can observe live review state, pinned to the target slug (again typing the literal ownerRepo value from step 2 in place of <OWNER_REPO>): \`gh pr list -R <OWNER_REPO> --state open --base ${baseBranch} --limit 200 --json headRefName,reviewDecision,url,isCrossRepository,headRepositoryOwner,headRepository\`. Return that array as openPRs (an empty array if none), preserving each row's headRefName, reviewDecision and url VERBATIM, but returning headRepositoryOwner and headRepository as STRINGS extracted from gh's objects (never the objects themselves) as described below; report each reviewDecision field exactly as gh returns it (e.g. "APPROVED", "CHANGES_REQUESTED", "REVIEW_REQUIRED") or null if absent, report each PR's url verbatim so the engine can surface a frozen, still-open PR as awaiting human approval, report each PR's isCrossRepository flag EXACTLY as gh returns it (true when the pull request is opened from a FORK, false when its head branch lives in this same repository) or null if the field is absent, and report headRepositoryOwner as that PR's head-repository OWNER LOGIN string (the \`login\` field of gh's headRepositoryOwner object) and headRepository as that PR's head-repository NAME string (the \`name\` field of gh's headRepository object), each null if gh did not return it — the engine trusts a PR as its own published work ONLY when the fork flag is false AND the head repository is this same repository, and fails closed on anything else including absent or malformed fields.\n` +
-      `Return ONLY the structured object: { manifestFound, manifestRaw, mergedPRs: [ { headRefName, url, mergedAt, mergedSha } ], specContentHash, checkpointRefPages: [ [ "<sha>\\t<ref>" ] ], openPRs: [ { headRefName, reviewDecision, url, isCrossRepository, headRepositoryOwner, headRepository } ], ownerRepo, repoHost }.`,
+      `6. List the pull requests still OPEN against the base so the shepherd can observe live review state, pinned to the target slug (again typing the literal ownerRepo value from step 2 in place of <OWNER_REPO>): \`gh pr list -R <OWNER_REPO> --state open --base ${baseBranch} --limit 200 --json headRefName,reviewDecision,url,isCrossRepository,headRepositoryOwner,headRepository\`. Return that array as openPRs (an empty array if none), preserving each row's headRefName, reviewDecision and url VERBATIM, but returning headRepositoryOwner and headRepository as STRINGS extracted from gh's objects (never the objects themselves) as described below; report each reviewDecision field exactly as gh returns it (e.g. "APPROVED", "CHANGES_REQUESTED", "REVIEW_REQUIRED") or null if absent, report each PR's url verbatim so the engine can surface a frozen, still-open PR as awaiting human approval, report each PR's isCrossRepository flag EXACTLY as gh returns it (true when the pull request is opened from a FORK, false when its head branch lives in this same repository) or null if the field is absent, and report headRepositoryOwner as that PR's head-repository OWNER LOGIN string (the \`login\` field of gh's headRepositoryOwner object) and headRepository as that PR's head-repository NAME string (the \`name\` field of gh's headRepository object), each null if gh did not return it — the engine trusts a PR as its own published work ONLY when the fork flag is false AND the head repository is this same repository, and fails closed on anything else including absent or malformed fields. If THIS command errors, prints nothing, or was emitted with the placeholder unsubstituted, the same STOP-and-report rule from step 2 applies: report the failure and set mergedPRsAuthoritative=false.\n` +
+      `Return ONLY the structured object: { manifestFound, manifestRaw, mergedPRs: [ { headRefName, url, mergedAt, mergedSha } ], mergedPRsAuthoritative, specContentHash, checkpointRefPages: [ [ "<sha>\\t<ref>" ] ], openPRs: [ { headRefName, reviewDecision, url, isCrossRepository, headRepositoryOwner, headRepository } ], ownerRepo, repoHost }.`,
       { agentType: 'implementer', schema: RECONCILE_SCHEMA, label: 'reconcile', phase: 'Reconcile', model: models.reconciler || models.shipper || 'sonnet' }
     ),
     { unitId: 'reconcile', stage: 'reconcile', resetRef: null, worktree: null, task: 'inspect durable run state and the already-merged set', ...makeRemediation({ unitId: 'reconcile', stage: 'reconcile', task: 'inspect durable run state and the already-merged set', schema: RECONCILE_SCHEMA, agentType: 'implementer', phase: 'Reconcile' }) },
@@ -3542,6 +3580,10 @@ try {
 }
 if (!recon || !Array.isArray(recon.mergedPRs)) {
   return fatalReport('reconcile', 'reconcile agent returned null or no mergedPRs (transient drop or blocked before decompose)', 0, { crashed: true });
+}
+if (recon.mergedPRsAuthoritative !== true) {
+  const observedFlag = recon.mergedPRsAuthoritative === undefined ? 'absent' : cleanUrl(recon.mergedPRsAuthoritative);
+  return fatalReport('reconcile', `reconcile returned mergedPRsAuthoritative=${observedFlag} rather than exactly true, so the already-merged set is NOT authoritative — halting instead of reading it as "nothing already merged", which would re-plan and re-ship MSPs that are already merged`, 0);
 }
 const repoSlug = typeof recon.ownerRepo === 'string' ? recon.ownerRepo.trim() : '';
 if (!validateRepoIdentity(repoSlug)) {
@@ -4093,6 +4135,10 @@ async function runUnit(unit) {
     const mspTierModel = guardModelDecision('plan-review', { ...msp, dependentCount: mspDependentCount }, null);
     let compensationStack = emptyCompensationStack();
 
+    if (!validateRefToken(integrationBranch)) {
+      return parkUnit(msp, 'plan', NeedsHuman({ kind: 'approve-decision', what: `the composed integration branch ${clean(integrationBranch.slice(0, MAX_LOGGED_TOKEN_LEN))} is not a conservative git ref token; sourcePrefix and the MSP id each pass their own gate, but the composite is what every ship, ship-verify and engine prompt interpolates, so it is validated as one token and parks here rather than reaching a prompt that asserts it was validated`, remediation: null, resumePoint: null }), integrationBranch, compensationStack);
+    }
+
     if (reconciledDoneIds.has(msp.id)) {
       const meta = reconciledShippedMeta.get(msp.id) || {};
       const prUrl = meta.prUrl ?? reconciledManifestPrUrlById.get(msp.id) ?? null;
@@ -4471,9 +4517,9 @@ async function runUnit(unit) {
       const rb = await agent(
         `You are the ship-handoff read-back stage for MSP "${msp.id}" of a mitosis run. You have NO Skill tool.\n\n` +
         `This stage is STRICTLY READ-ONLY: it independently RE-READS the durable oracle to confirm the merge the ship stage CLAIMED. Do NOT rebase, push, open, merge, or mutate any ref, file, or PR — only read.\n` +
-        `SECURITY: the base and head refs below are trusted kebab-validated run config (never agent- or user-supplied), so interpolating them into these READ-ONLY gh reads carries no injection risk; this stage mutates nothing.\n\n` +
+        `SECURITY: the slug, base ref and head ref interpolated below are engine-validated values, and that validation is the ONLY guarantee they carry. The slug came from a prior agent read and matched a literal owner/repo pattern; the base ref came from this run input and matched a conservative git ref-token pattern (no whitespace, no shell metacharacter, no leading -, no .. sequence); the head ref was composed by the engine from that same run input and this MSP's engine-validated id, and the composed ref was itself re-checked against that same ref-token pattern before this prompt was built. Run EXACTLY the two read-only commands written below, verbatim and with no substitutions, and run nothing else; this stage mutates nothing.\n\n` +
         `1. Read the PR state with argv \`gh pr view -R ${repoSlug} ${integrationBranch} --json state,mergedAt,url\` (head ${JSON.stringify(integrationBranch)} is a single inert argv token). Report merged=true ONLY if state is MERGED and mergedAt is non-null, and report that mergedAt timestamp verbatim.\n` +
-        `2. Read the base...head containment: \`gh api "repos/${repoSlug}/compare/${baseBranch}...${integrationBranch}"\` (slug ${JSON.stringify(repoSlug)} is the engine-validated target repo, and base ${JSON.stringify(baseBranch)} and head ${JSON.stringify(integrationBranch)} are trusted kebab-validated config refs interpolated into the compare URL path). Report ahead_by (integer) and status (string) exactly as the API returns them; a genuinely merged head is CONTAINED in the base (ahead_by 0).\n` +
+        `2. Read the base...head containment: \`gh api "repos/${repoSlug}/compare/${baseBranch}...${integrationBranch}"\` (slug ${JSON.stringify(repoSlug)} is the engine-validated target repo, base ${JSON.stringify(baseBranch)} is the ref-token-validated run-input base, and head ${JSON.stringify(integrationBranch)} is the engine-composed integration ref re-checked against that same ref-token pattern, each interpolated into the compare URL path). Report ahead_by (integer) and status (string) exactly as the API returns them; a genuinely merged head is CONTAINED in the base (ahead_by 0).\n` +
         `If either read cannot be completed (no remote, http error, unparseable body), set readError to a short description and leave merged, compare and mergedAt null.\n\n` +
         `Return ONLY: { merged: <bool|null>, compare: { ahead_by: <int>, status: "<string>" } | null, mergedAt: "<iso8601>" | null, readError: "<string>" | null }.`,
         { agentType: 'implementer', label: `ship-verify:${msp.id}`, phase: 'Ship', model: 'sonnet' }

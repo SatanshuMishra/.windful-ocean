@@ -39,8 +39,28 @@ test('D7 deny-case: a slug whose owner or repo segment leads with a non-alphanum
   assert.equal(validateRepoIdentity('acme/-rf'), false);
   assert.equal(validateRepoIdentity('.acme/widgets'), false);
   assert.equal(validateRepoIdentity('_acme/widgets'), false);
-  assert.equal(validateRepoIdentity('acme/.git'), false);
   assert.equal(validateRepoIdentity('a/b'), true);
+});
+
+test('MSP-2 R5 allow-case: a dot-leading REPO name is legitimate on GitHub (owner/.github) and must not disable merge-watch', () => {
+  assert.equal(validateRepoIdentity('acme/.github'), true);
+  assert.equal(validateRepoIdentity('acme-corp/.github-private'), true);
+
+  const plan = planMergeWatch({ prUrl: 'https://github.com/acme/.github/pull/42' });
+  assert.equal(plan.enabled, true, 'a PR against owner/.github is watchable, not parked as an invalid identity');
+  assert.equal(plan.reason, null);
+  assert.equal(plan.ownerRepo, 'acme/.github');
+  assert.deepEqual([...plan.argv], ['gh', 'pr', 'view', '-R', 'acme/.github', '42', '--json', 'state,mergedAt']);
+});
+
+test('MSP-2 R5 deny-case: allowing a dot-leading repo never admits a bare dot or a traversal component', () => {
+  assert.equal(validateRepoIdentity('acme/.'), false);
+  assert.equal(validateRepoIdentity('acme/..'), false);
+  assert.equal(validateRepoIdentity('acme/../../etc'), false);
+  assert.equal(validateRepoIdentity('acme/a..b'), false);
+  assert.equal(validateRepoIdentity('./widgets'), false);
+  assert.equal(validateRepoIdentity('../widgets'), false);
+  assert.equal(planMergeWatch({ prUrl: 'https://github.com/acme/../pull/42' }).enabled, false);
 });
 
 test('D7 deny-case: a multi-line or metacharacter-bearing slug is REJECTED rather than interpolated into a shell string', () => {
@@ -105,6 +125,29 @@ test('planMergeWatch DISABLES on a malformed engine repoIdentity rather than gue
   const plan = planMergeWatch({ prUrl: PR_URL, repoIdentity: 'not-a-repo' });
   assert.equal(plan.enabled, false);
   assert.equal(plan.argv, null);
+});
+
+test('MSP-2 FIX3 deny-case: planMergeWatch REJECTS a URL-derived ownerRepo that fails the repo-identity guard, even when no engine repoIdentity was supplied', () => {
+  for (const prUrl of [
+    'https://github.com/-R/x/pull/1',
+    'https://github.com/--upload-file/x/pull/1',
+    'https://github.com/acme/-rf/pull/1',
+    'https://github.com/.acme/widgets/pull/1',
+    'https://github.com/_acme/widgets/pull/1',
+    'https://github.com/acme/./pull/1',
+    'https://github.com/acme/../pull/1',
+  ]) {
+    const plan = planMergeWatch({ prUrl });
+    assert.equal(plan.enabled, false, `expected planMergeWatch to disable for ${prUrl}`);
+    assert.equal(plan.reason, 'invalid-repo-identity', `expected an invalid-repo-identity refusal for ${prUrl}`);
+    assert.equal(plan.ownerRepo, null, `a rejected slug must never be exposed as ownerRepo for ${prUrl}`);
+    assert.equal(plan.argv, null, `a rejected slug must never reach gh argv for ${prUrl}`);
+  }
+});
+
+test('MSP-2 FIX3: an option-looking URL-derived slug never reaches the merge-watch prompt shell string', () => {
+  const plan = planMergeWatch({ prUrl: 'https://github.com/-R/x/pull/1' });
+  assert.throws(() => mergeWatchPrompt(plan), /disabled|enabled/i);
 });
 
 test('mergeWatchPrompt embeds the repo-scoped read and issues NO merge/push (read-only)', () => {
