@@ -2266,6 +2266,8 @@ test('T3 reconcile schema fail-closed: ownerRepo and repoHost are required and s
 
   const ownerPattern = new RegExp(schema.properties.ownerRepo.pattern);
   assert.ok(ownerPattern.test('me/target'), 'a valid owner/repo slug passes schema');
+  assert.ok(ownerPattern.test('me/.github'), 'a dot-leading repo name is legitimate on GitHub and passes the schema gate too');
+  assert.equal(ownerPattern.test('.me/target'), false, 'a dot-leading OWNER is not a legal login and still fails schema');
   assert.equal(ownerPattern.test(''), false, 'an empty ownerRepo fails schema loudly rather than silently switching the filter off');
   assert.equal(ownerPattern.test('noslash'), false, 'a slugless value fails schema');
   assert.equal(ownerPattern.test('a/b/c'), false, 'an over-segmented value fails schema');

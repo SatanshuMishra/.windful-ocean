@@ -1286,7 +1286,7 @@ const RECONCILE_SCHEMA = {
     manifestRaw: { type: ['string', 'null'] },
     mergedPRsAuthoritative: { type: 'boolean' },
     specContentHash: { type: ['string', 'null'] },
-    ownerRepo: { type: ['string', 'null'], pattern: '^[A-Za-z0-9][A-Za-z0-9._-]*/[A-Za-z0-9][A-Za-z0-9._-]*$' },
+    ownerRepo: { type: ['string', 'null'], pattern: '^[A-Za-z0-9][A-Za-z0-9._-]*/[A-Za-z0-9.][A-Za-z0-9._-]*$' },
     repoHost: { type: ['string', 'null'], pattern: '^[A-Za-z0-9.-]+$' },
     checkpointRefPages: {
       type: 'array',
@@ -2473,11 +2473,14 @@ const MERGE_WATCH_SCHEMA = {
   },
 };
 
-const REPO_IDENTITY_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._-]*\/[A-Za-z0-9][A-Za-z0-9._-]*$/;
+const REPO_IDENTITY_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._-]*\/[A-Za-z0-9.][A-Za-z0-9._-]*$/;
 const PR_URL_PATTERN = /^https?:\/\/github\.com\/([A-Za-z0-9._-]+)\/([A-Za-z0-9._-]+)\/pull\/([0-9]+)(?:[/?#].*)?$/;
 
 function validateRepoIdentity(identity) {
-  return typeof identity === 'string' && REPO_IDENTITY_PATTERN.test(identity);
+  if (typeof identity !== 'string') return false;
+  if (!REPO_IDENTITY_PATTERN.test(identity)) return false;
+  if (identity.includes('..')) return false;
+  return identity.split('/')[1] !== '.';
 }
 
 function parsePrRef(prUrl) {

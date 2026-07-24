@@ -39,8 +39,28 @@ test('D7 deny-case: a slug whose owner or repo segment leads with a non-alphanum
   assert.equal(validateRepoIdentity('acme/-rf'), false);
   assert.equal(validateRepoIdentity('.acme/widgets'), false);
   assert.equal(validateRepoIdentity('_acme/widgets'), false);
-  assert.equal(validateRepoIdentity('acme/.git'), false);
   assert.equal(validateRepoIdentity('a/b'), true);
+});
+
+test('MSP-2 R5 allow-case: a dot-leading REPO name is legitimate on GitHub (owner/.github) and must not disable merge-watch', () => {
+  assert.equal(validateRepoIdentity('acme/.github'), true);
+  assert.equal(validateRepoIdentity('acme-corp/.github-private'), true);
+
+  const plan = planMergeWatch({ prUrl: 'https://github.com/acme/.github/pull/42' });
+  assert.equal(plan.enabled, true, 'a PR against owner/.github is watchable, not parked as an invalid identity');
+  assert.equal(plan.reason, null);
+  assert.equal(plan.ownerRepo, 'acme/.github');
+  assert.deepEqual([...plan.argv], ['gh', 'pr', 'view', '-R', 'acme/.github', '42', '--json', 'state,mergedAt']);
+});
+
+test('MSP-2 R5 deny-case: allowing a dot-leading repo never admits a bare dot or a traversal component', () => {
+  assert.equal(validateRepoIdentity('acme/.'), false);
+  assert.equal(validateRepoIdentity('acme/..'), false);
+  assert.equal(validateRepoIdentity('acme/../../etc'), false);
+  assert.equal(validateRepoIdentity('acme/a..b'), false);
+  assert.equal(validateRepoIdentity('./widgets'), false);
+  assert.equal(validateRepoIdentity('../widgets'), false);
+  assert.equal(planMergeWatch({ prUrl: 'https://github.com/acme/../pull/42' }).enabled, false);
 });
 
 test('D7 deny-case: a multi-line or metacharacter-bearing slug is REJECTED rather than interpolated into a shell string', () => {
@@ -114,7 +134,8 @@ test('MSP-2 FIX3 deny-case: planMergeWatch REJECTS a URL-derived ownerRepo that 
     'https://github.com/acme/-rf/pull/1',
     'https://github.com/.acme/widgets/pull/1',
     'https://github.com/_acme/widgets/pull/1',
-    'https://github.com/acme/.git/pull/1',
+    'https://github.com/acme/./pull/1',
+    'https://github.com/acme/../pull/1',
   ]) {
     const plan = planMergeWatch({ prUrl });
     assert.equal(plan.enabled, false, `expected planMergeWatch to disable for ${prUrl}`);
