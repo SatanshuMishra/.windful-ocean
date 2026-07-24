@@ -1477,6 +1477,43 @@ test('MSP-2 FIX2: the ship-verify SECURITY preamble states only the guarantee th
   assert.match(verifyPrompt, /ref-token/, 'the preamble names the conservative ref-token pattern the refs were checked against');
   assert.match(verifyPrompt, /run input|prior agent read/i, 'the preamble states truthfully where the values came from');
   assert.match(verifyPrompt, /EXACTLY the two read-only commands/, 'the preamble instructs the agent to run exactly the written reads and no others');
+  assert.doesNotMatch(verifyPrompt, /base and head refs came from this run input/, 'the head ref is composed by the engine from the run input and the MSP id; it does not come from run input');
+  assert.doesNotMatch(verifyPrompt, /engine ref-token-validated config refs/, 'the head ref is not run config — it is an engine-composed integration ref');
+  assert.match(verifyPrompt, /composed by the engine/, 'the preamble states the real provenance of the head ref');
+  assert.match(verifyPrompt, /re-checked against that same ref-token pattern/, 'the preamble claims the composite check the engine now actually performs');
+});
+
+test('MSP-2 R2: the MSP-id gate the ship-verify preamble leans on is in force — a decomposed id outside the kebab pattern HALTS before any integration ref is composed', async () => {
+  for (const badId of ['Solo', 'solo_unit', 'solo unit', 'solo/x', '-solo', 'solo;id', 'solo..x']) {
+    const msps = [mspSpec(badId, { fileScope: ['scope/solo/**'] })];
+    const agent = createFakeAgent({ msps });
+    const { resultPromise } = invokeMitosis(buildInput(), agent);
+    const result = await resultPromise;
+
+    assert.equal(result.overallStatus, 'failed', `expected a halt for MSP id ${JSON.stringify(badId)}`);
+    assert.equal(result.stage, 'decompose', `expected a decompose-stage halt for MSP id ${JSON.stringify(badId)}`);
+    assert.match(result.detail, /invalid MSP id/, 'the halt names the MSP-id gate');
+  }
+});
+
+test('MSP-2 R2: an integration ref the composition pushes past the ref-token bound PARKS the unit rather than reaching a prompt that asserts it was ref-token-validated', async () => {
+  const sourcePrefix = `mitosis-${'a'.repeat(245)}`;
+  assert.equal(sourcePrefix.length, 253, 'the prefix itself is a legal ref token; only the composed integration ref exceeds the bound');
+  const msps = [mspSpec('solo', { fileScope: ['scope/solo/**'] })];
+  const labels = [];
+  const base = createFakeAgent({ msps, sourcePrefix });
+  const agent = async (prompt, opts = {}) => {
+    labels.push(opts.label || '');
+    return base(prompt, opts);
+  };
+  const { resultPromise } = invokeMitosis(buildInput({ sourcePrefix }), agent);
+  const result = await resultPromise;
+
+  assert.equal(result.overallStatus, 'failed');
+  assert.deepEqual(result.parked.map((p) => p.mspId), ['solo']);
+  assert.match(result.parked[0].diagnosis, /integration branch/, 'the park names the composed ref that failed the ref-token check');
+  assert.ok(!labels.some((l) => l.startsWith('ship-verify:')), 'no ship-verify prompt asserting a validated head ref may be built from an unvalidated composite');
+  assert.ok(!labels.some((l) => l.startsWith('ship:')), 'no ship prompt may interpolate the unvalidated composite');
 });
 
 test('MINOR-2: a ship agent that returns null is parked (Tier 2, aligned with branch-null), never a top-level crashed entry', async () => {
