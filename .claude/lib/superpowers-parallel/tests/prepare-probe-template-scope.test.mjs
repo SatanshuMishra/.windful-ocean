@@ -17,14 +17,27 @@ test('WS-5.2: PROBE_SCHEMA declares no templateYmlRaw property', () => {
   assert.doesNotMatch(region, /templateYmlRaw/);
 });
 
-test('WS-5.2: the receipts.config.json template fetch is conditionalized to the bootstrap case (only requested when receiptsConfigFound is false)', () => {
+function prepareProbePrompt() {
   const start = source.indexOf('const PROBE_SCHEMA');
   const promptStart = source.indexOf('prepare probe stage', start);
   assert.ok(promptStart >= 0, 'prepare-probe prompt not found');
   const promptEnd = source.indexOf('label: \'prepare-probe\'', promptStart);
-  const promptRegion = source.slice(promptStart, promptEnd);
-  assert.match(promptRegion, /templateConfigRaw/);
-  assert.match(promptRegion, /receiptsConfigFound is false/i);
+  return source.slice(promptStart, promptEnd);
+}
+
+test('D6.2 (supersedes the WS-5.2 conditional fetch): the prepare-probe requests NO template bytes at all — an absent artifact halts as a human prerequisite instead of being bootstrapped', () => {
+  const promptRegion = prepareProbePrompt();
+  assert.doesNotMatch(promptRegion, /templateConfigRaw/, 'the probe must not pull bootstrap template bytes through model output — an absent artifact is a halt, not an install');
+  assert.match(promptRegion, /human prerequisite/i);
+});
+
+test('D6.3: the prepare-probe reads presence from origin/<base> only, and refreshes that ref before reading it', () => {
+  const promptRegion = prepareProbePrompt();
+  assert.match(promptRegion, /fetch origin \$\{baseBranch\}/);
+  for (const path of ['receipts\\.config\\.json', '\\.github/workflows/receipts\\.yml', 'scripts/d6-check\\.cjs']) {
+    assert.match(promptRegion, new RegExp(`cat-file -e origin/\\$\\{baseBranch\\}:${path}`));
+  }
+  assert.match(promptRegion, /baseRefResolved/);
 });
 
 test('WS-5.2: the prepare-write instructions for receipts.yml use cp from TEMPLATES_DIR, never an embedded byte body', () => {

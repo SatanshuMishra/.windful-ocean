@@ -10,7 +10,10 @@ const MITOSIS_PATH = process.env.MITOSIS_PATH || new URL('../../../workflows/mit
 const SOURCE_PREFIX = 'mitosis-test';
 const SPEC_CONTENT_HASH = 'a'.repeat(64);
 const TEST_REPO_ROOT = '/tmp/mitosis-scheduler-test/repo';
-const SCOPED = `-R "$(cd ${TEST_REPO_ROOT} && gh repo view --json nameWithOwner -q .nameWithOwner)"`;
+const TEST_REPO_SLUG = 'me/target';
+const SCOPED = `-R ${TEST_REPO_SLUG}`;
+const SLUG_PLACEHOLDER = '<OWNER_REPO>';
+const testPrUrl = (seed) => `https://example.test/${TEST_REPO_SLUG}/pull/${[...String(seed)].reduce((acc, ch) => acc + ch.charCodeAt(0), 0)}`;
 const SLUG_DERIVATION = `$(cd ${TEST_REPO_ROOT} && gh repo view --json nameWithOwner -q .nameWithOwner)`;
 
 const mitosisBody = readFileSync(MITOSIS_PATH, 'utf8').replace(/^export const meta/m, 'const meta');
@@ -108,7 +111,7 @@ function createFakeAgent({ msps, sourcePrefix = SOURCE_PREFIX, planGate, shipRes
         return override || { planPath: `/tmp/mitosis-scheduler-test/${mspId}.plan.md`, summary: 'revised' };
       }
       case 'reconcile':
-        return reconcileResult || { manifestFound: false, manifestRaw: null, mergedPRs: [] };
+        return { ownerRepo: TEST_REPO_SLUG, ...(reconcileResult || { manifestFound: false, manifestRaw: null, mergedPRs: [] }) };
       case 'checkpoint-init':
         return { written: true, detail: '' };
       case 'checkpoint-push':
@@ -120,7 +123,7 @@ function createFakeAgent({ msps, sourcePrefix = SOURCE_PREFIX, planGate, shipRes
       case 'decompose':
         return { msps };
       case 'prepare-probe':
-        return { receiptsConfigFound: true, receiptsConfigRaw: '{"gates":{"G10":{"mode":"warn"}}}', receiptsYmlFound: true, d6CheckFound: true, templateConfigRaw: null, templateYmlRaw: null };
+        return { baseRefResolved: true, baseRefDetail: null, receiptsConfigFound: true, receiptsConfigRaw: '{"gates":{"G10":{"mode":"warn"}}}', receiptsYmlFound: true, d6CheckFound: true, templateConfigRaw: null, templateYmlRaw: null };
       case 'prepare-write':
         return { written: [], skipped: [], detail: '' };
       case 'plan-probe':
@@ -142,7 +145,7 @@ function createFakeAgent({ msps, sourcePrefix = SOURCE_PREFIX, planGate, shipRes
         const mspId = label.slice('ship:'.length);
         const override = shipResult ? shipResult(mspId) : null;
         if (override) return override;
-        return { merged: true, prUrl: `https://example.test/pr/${mspId}`, receiptsPass: true, d6Pass: true, detail: '' };
+        return { merged: true, prUrl: testPrUrl(mspId), receiptsPass: true, d6Pass: true, detail: '' };
       }
       case 'ship-verify':
         return { merged: true, compare: { ahead_by: 0, status: 'identical' }, mergedAt: '2026-07-08T00:00:00Z', readError: null };
@@ -378,7 +381,7 @@ test('D1 CI wait is a backgrounded, timeout-bounded watch returning the terminal
   const shipPrompts = new Map();
   const base = createFakeAgent({
     msps,
-    shipResult: () => ({ merged: false, awaitingApproval: true, prUrl: 'https://github.com/o/repo/pull/1', receiptsPass: true, d6Pass: true, detail: 'CI green; awaiting human approval to merge' }),
+    shipResult: () => ({ merged: false, awaitingApproval: true, prUrl: `https://github.com/${TEST_REPO_SLUG}/pull/1`, receiptsPass: true, d6Pass: true, detail: 'CI green; awaiting human approval to merge' }),
   });
   const agent = async (prompt, opts = {}) => {
     const label = opts.label || '';
@@ -522,7 +525,7 @@ test('F2b regression: an MSP whose plan stage always throws is parked (Tier 2), 
 
 test('F2a: a Decompose transient drop (agent returns null) is a crashed fatal report, not an unhandled rejection', async () => {
   const agent = async (prompt, opts = {}) => {
-    if ((opts.label || '') === 'reconcile') return { manifestFound: false, manifestRaw: null, mergedPRs: [] };
+    if ((opts.label || '') === 'reconcile') return { manifestFound: false, manifestRaw: null, mergedPRs: [], ownerRepo: TEST_REPO_SLUG };
     if ((opts.label || '') === 'decompose') return null;
     throw new Error(`unexpected agent call after decompose crash: ${opts.label}`);
   };
@@ -538,7 +541,7 @@ test('F2a: a Decompose transient drop (agent returns null) is a crashed fatal re
 test('F2a: a Decompose throw is classified Unknown (bounded to one probe, never an unbounded retry) and reported as a crashed fatal report', async () => {
   let decomposeCalls = 0;
   const agent = async (prompt, opts = {}) => {
-    if ((opts.label || '') === 'reconcile') return { manifestFound: false, manifestRaw: null, mergedPRs: [] };
+    if ((opts.label || '') === 'reconcile') return { manifestFound: false, manifestRaw: null, mergedPRs: [], ownerRepo: TEST_REPO_SLUG };
     if ((opts.label || '') === 'decompose') { decomposeCalls += 1; throw new Error('boom in decompose'); }
     throw new Error(`unexpected agent call: ${opts.label}`);
   };
@@ -652,7 +655,7 @@ test('human-gated default: a foundational MSP awaiting approval yields overallSt
   const base = createFakeAgent({
     msps,
     shipResult: (mspId) => (mspId === 'a'
-      ? { merged: false, awaitingApproval: true, prUrl: 'https://example.test/pr/a', receiptsPass: true, d6Pass: true, detail: 'CI green; PR open and awaiting human approval to merge' }
+      ? { merged: false, awaitingApproval: true, prUrl: testPrUrl('a'), receiptsPass: true, d6Pass: true, detail: 'CI green; PR open and awaiting human approval to merge' }
       : null),
   });
   const agent = async (prompt, opts = {}) => {
@@ -666,7 +669,7 @@ test('human-gated default: a foundational MSP awaiting approval yields overallSt
   assert.equal(result.overallStatus, 'awaiting-approval');
   assert.deepEqual(result.awaitingApproval.map((a) => a.mspId), ['a']);
   assert.equal(result.awaitingApproval[0].kind, 'awaiting-approval');
-  assert.equal(result.awaitingApproval[0].prUrl, 'https://example.test/pr/a');
+  assert.equal(result.awaitingApproval[0].prUrl, testPrUrl('a'));
   assert.deepEqual(result.halted, []);
   assert.ok(!result.shipped.some((s) => s.mspId === 'a'), 'the awaiting MSP is not marked shipped');
 
@@ -695,7 +698,7 @@ test('B3 in-run merge poll (human-gated): a merge-watch that confirms the awaiti
   const base = createFakeAgent({
     msps,
     shipResult: (mspId) => (mspId === 'a'
-      ? { merged: false, awaitingApproval: true, prUrl: 'https://github.com/o/repo/pull/1', receiptsPass: true, d6Pass: true, detail: 'CI green; PR open and awaiting human approval to merge' }
+      ? { merged: false, awaitingApproval: true, prUrl: `https://github.com/${TEST_REPO_SLUG}/pull/1`, receiptsPass: true, d6Pass: true, detail: 'CI green; PR open and awaiting human approval to merge' }
       : null),
     mergeWatch: (mspId) => (mspId === 'a'
       ? { merged: true, mergedAt: '2026-07-15T00:00:00Z', readError: null }
@@ -706,7 +709,7 @@ test('B3 in-run merge poll (human-gated): a merge-watch that confirms the awaiti
     if (label.startsWith('merge-watch:')) watchPrompts.push(prompt);
     return base(prompt, opts);
   };
-  const { resultPromise } = invokeMitosis(buildInput({ mergePolicy: undefined, repoIdentity: 'o/repo' }), agent);
+  const { resultPromise } = invokeMitosis(buildInput({ mergePolicy: undefined, repoIdentity: TEST_REPO_SLUG }), agent);
   const result = await resultPromise;
 
   assert.equal(result.overallStatus, 'all-shipped');
@@ -716,7 +719,7 @@ test('B3 in-run merge poll (human-gated): a merge-watch that confirms the awaiti
 
   assert.ok(watchPrompts.length >= 1, 'the in-run poll dispatched a repo-scoped merge-watch for the awaiting root');
   const watchA = watchPrompts[0];
-  assert.match(watchA, /-R o\/repo/, 'the merge-watch read is scoped to the run repo via -R, never the ambient cwd');
+  assert.ok(watchA.includes(`-R ${TEST_REPO_SLUG}`), 'the merge-watch read is scoped to the run repo via -R, never the ambient cwd');
   assert.ok(!watchA.includes('gh pr merge'), 'the poll path issues no gh pr merge');
   assert.ok(!watchA.includes('git push'), 'the poll path issues no git push to the base');
 });
@@ -729,11 +732,11 @@ test('B3 in-run merge poll fail-safe (human-gated): when the merge-watch never c
   const agent = createFakeAgent({
     msps,
     shipResult: (mspId) => (mspId === 'a'
-      ? { merged: false, awaitingApproval: true, prUrl: 'https://github.com/o/repo/pull/1', receiptsPass: true, d6Pass: true, detail: 'CI green; PR open and awaiting human approval to merge' }
+      ? { merged: false, awaitingApproval: true, prUrl: `https://github.com/${TEST_REPO_SLUG}/pull/1`, receiptsPass: true, d6Pass: true, detail: 'CI green; PR open and awaiting human approval to merge' }
       : null),
     mergeWatch: () => ({ merged: false, mergedAt: null, readError: null }),
   });
-  const { resultPromise } = invokeMitosis(buildInput({ mergePolicy: undefined, repoIdentity: 'o/repo' }), agent);
+  const { resultPromise } = invokeMitosis(buildInput({ mergePolicy: undefined, repoIdentity: TEST_REPO_SLUG }), agent);
   const result = await resultPromise;
 
   assert.equal(result.overallStatus, 'awaiting-approval');
@@ -748,12 +751,12 @@ test('T4b relaunch story: a reusable manifest bearing prior ship-transitions is 
   const input = buildInput();
   const logicalRunId = computeLogicalRunId(input.spec, input.baseBranch);
   const reusedMsps = [
-    { id: 'a', title: 'a', rationale: 'r', status: 'shipped', integrationBranch: `${SOURCE_PREFIX}/a-integration`, prUrl: 'https://example.test/pr/a', mergedAt: '2026-07-08T00:00:00Z', dependsOn: [], fileScope: ['scope/a/**'] },
+    { id: 'a', title: 'a', rationale: 'r', status: 'shipped', integrationBranch: `${SOURCE_PREFIX}/a-integration`, prUrl: testPrUrl('a'), mergedAt: '2026-07-08T00:00:00Z', dependsOn: [], fileScope: ['scope/a/**'] },
     { id: 'b', title: 'b', rationale: 'r', status: 'planned', integrationBranch: `${SOURCE_PREFIX}/b-integration`, prUrl: null, mergedAt: null, dependsOn: [], fileScope: ['scope/b/**'] },
   ];
   const manifestRaw = JSON.stringify({ logicalRunId, specContentHash: SPEC_CONTENT_HASH, clusters: [['a'], ['b']], msps: reusedMsps }, null, 2);
   assert.ok(parseRunManifest(manifestRaw), 'the accumulated single-object manifest is read back as a valid hint');
-  const reconcileResult = { manifestFound: true, manifestRaw, mergedPRs: [mergedPr('a', 'https://example.test/pr/a')], specContentHash: SPEC_CONTENT_HASH };
+  const reconcileResult = { manifestFound: true, manifestRaw, mergedPRs: [mergedPr('a', testPrUrl('a'))], specContentHash: SPEC_CONTENT_HASH };
   const labels = [];
   const base = createFakeAgent({ reconcileResult });
   const agent = async (prompt, opts = {}) => { labels.push(opts.label || ''); return base(prompt, opts); };
@@ -766,7 +769,7 @@ test('T4b relaunch story: a reusable manifest bearing prior ship-transitions is 
   assert.equal(result.overallStatus, 'all-shipped');
   const shippedA = result.shipped.find((s) => s.mspId === 'a');
   assert.equal(shippedA.receiptsPass, null, 'the reconciled skip claims no fresh receipts check');
-  assert.equal(shippedA.prUrl, 'https://example.test/pr/a');
+  assert.equal(shippedA.prUrl, testPrUrl('a'));
 });
 
 test('MSP-1c reject: a FRESH run whose operator models knob carries the legacy implementer key is loudly rejected at the input stage before Decompose — implementer/fixer are engine-authored via policyModelFor, never operator-set', async () => {
@@ -851,7 +854,7 @@ test('RT-2 round-trip: a manifest carried through the REAL applyShipTransition d
     specContentHash: SPEC_CONTENT_HASH,
   });
   const shipped = applyShipTransition(built, {
-    mspId: 'c', prUrl: 'https://example.test/pr/c', mergedAt: '2026-07-08T00:00:00Z',
+    mspId: 'c', prUrl: testPrUrl('c'), mergedAt: '2026-07-08T00:00:00Z',
     title: 'C title', rationale: 'C rationale',
   });
   const appended = shipped.msps.find((m) => m.id === 'c');
@@ -877,7 +880,7 @@ test('T4b skip: a reconciled already-merged MSP is skipped at ship (shipped stat
     mspSpec('a', { fileScope: ['scope/a/**'] }),
     mspSpec('b', { fileScope: ['scope/b/**'] }),
   ];
-  const reconcileResult = { manifestFound: false, manifestRaw: null, mergedPRs: [mergedPr('a', 'https://example.test/pr/merged-a')] };
+  const reconcileResult = { manifestFound: false, manifestRaw: null, mergedPRs: [mergedPr('a', testPrUrl('merged-a'))] };
   const shipDispatchIds = [];
   const shipCheckpointIds = [];
   const base = createFakeAgent({ msps, reconcileResult });
@@ -1049,7 +1052,7 @@ test('P2 shared-fate: decompose that never returns is bounded to the initial dis
   let decomposeCalls = 0;
   let otherCalls = 0;
   const agent = async (prompt, opts = {}) => {
-    if ((opts.label || '') === 'reconcile') return { manifestFound: false, manifestRaw: null, mergedPRs: [] };
+    if ((opts.label || '') === 'reconcile') return { manifestFound: false, manifestRaw: null, mergedPRs: [], ownerRepo: TEST_REPO_SLUG };
     if ((opts.label || '') === 'decompose') { decomposeCalls += 1; return null; }
     otherCalls += 1; return {};
   };
@@ -1086,7 +1089,7 @@ test('P4 prepare adopt-if-present (run-3 regression): a probe that finds an exis
   const agent = async (prompt, opts = {}) => {
     dispatched.push(opts.label || '');
     if ((opts.label || '') === 'prepare-probe') {
-      return { receiptsConfigFound: true, receiptsConfigRaw: '{"gates":{"G10":{"mode":"warn"}}}', receiptsYmlFound: true, d6CheckFound: true, templateConfigRaw: null, templateYmlRaw: null };
+      return { baseRefResolved: true, baseRefDetail: null, receiptsConfigFound: true, receiptsConfigRaw: '{"gates":{"G10":{"mode":"warn"}}}', receiptsYmlFound: true, d6CheckFound: true, templateConfigRaw: null, templateYmlRaw: null };
     }
     return base(prompt, opts);
   };
@@ -1113,46 +1116,44 @@ test('P4 prepare probe prompt is strictly read-only and never asks the agent to 
   assert.equal(captured.length, 1);
   assert.match(captured[0], /STRICTLY READ-ONLY/);
   assert.match(captured[0], /receiptsConfigFound/);
-  assert.match(captured[0], /templateConfigRaw/);
   assert.doesNotMatch(captured[0], /intendedConfig/);
 });
 
-test('P4 prepare bootstrap-if-absent: an absent config makes the engine dispatch ONE write agent carrying the template gates verbatim, the project build/verify, and observe-then-converge base push', async () => {
+test('D6.3: the prepare probe asserts presence on origin/<base>, refreshing the remote-tracking ref first and never testing the working tree', async () => {
   const msps = independentMsps();
   const captured = [];
   const base = createFakeAgent({ msps });
-  const templateConfigRaw = '{"version":1,"build":{"sha_source":"none"},"verify":{"require_fresh_base":"warn"},"gates":{"enabled":"all","G10":{"mode":"warn"}}}';
   const agent = async (prompt, opts = {}) => {
-    if ((opts.label || '') === 'prepare-probe') {
-      return { receiptsConfigFound: false, receiptsConfigRaw: null, receiptsYmlFound: true, d6CheckFound: true, templateConfigRaw, templateYmlRaw: null };
-    }
-    if ((opts.label || '') === 'prepare-write') { captured.push(prompt); return { written: [`${buildInput().repoRoot}/receipts.config.json`], skipped: [], detail: '' }; }
+    if ((opts.label || '') === 'prepare-probe') captured.push(prompt);
     return base(prompt, opts);
   };
   const { resultPromise } = invokeMitosis(buildInput(), agent);
   const result = await resultPromise;
 
   assert.equal(result.overallStatus, 'all-shipped');
-  assert.equal(captured.length, 1, 'exactly one install/write agent for the absent config');
-  assert.match(captured[0], /"G10"/);
-  assert.match(captured[0], /"mode": "warn"/);
-  assert.match(captured[0], /"scopedCheckCmd": "true"/);
-  assert.match(captured[0], /receipts\.config\.json/);
-  assert.match(captured[0], /CREATE-ONLY/);
-  assert.match(captured[0], /already exists/);
-  assert.match(captured[0], /status --porcelain/);
-  assert.match(captured[0], /push origin/);
+  assert.equal(captured.length, 1);
+  assert.ok(captured[0].includes(`git -C ${TEST_REPO_ROOT} fetch origin main`), 'the probe refreshes origin/<base> before reading it');
+  for (const path of ['receipts.config.json', '.github/workflows/receipts.yml', 'scripts/d6-check.cjs']) {
+    assert.ok(
+      captured[0].includes(`git -C ${TEST_REPO_ROOT} cat-file -e origin/main:${path}`),
+      `the probe tests ${path} against origin/main, not the working tree`,
+    );
+  }
+  assert.match(captured[0], /baseRefResolved/);
+  assert.doesNotMatch(captured[0], /test -e/, 'a working-tree existence test would re-open the silent-wrong-success hole');
+  assert.ok(!captured[0].includes(`${TEST_REPO_ROOT}/receipts.config.json`), 'the probe never names a working-tree path as the presence oracle');
+  assert.ok(!captured[0].includes(`${TEST_REPO_ROOT}/scripts/d6-check.cjs`), 'the probe never names a working-tree path as the presence oracle');
 });
 
-test('FIX1 fail-closed: an incomplete bootstrap (write agent installs/pushes NONE of the requested files) HALTS the run — receipts CI never silently absent', async () => {
+test('D6.1/D6.2: an artifact absent from origin/<base> HALTS with a human-prerequisite message naming it, and dispatches NO write agent', async () => {
   const msps = independentMsps();
   const base = createFakeAgent({ msps });
-  const templateConfigRaw = '{"version":1,"gates":{"enabled":"all","G10":{"mode":"warn"}}}';
+  const dispatched = [];
   const agent = async (prompt, opts = {}) => {
+    dispatched.push(opts.label || '');
     if ((opts.label || '') === 'prepare-probe') {
-      return { receiptsConfigFound: false, receiptsConfigRaw: null, receiptsYmlFound: true, d6CheckFound: true, templateConfigRaw, templateYmlRaw: null };
+      return { baseRefResolved: true, baseRefDetail: null, receiptsConfigFound: true, receiptsConfigRaw: '{"gates":{}}', receiptsYmlFound: false, d6CheckFound: false, templateConfigRaw: null };
     }
-    if ((opts.label || '') === 'prepare-write') { return { written: [], skipped: [], detail: 'no git remote configured; could not push' }; }
     return base(prompt, opts);
   };
   const { resultPromise } = invokeMitosis(buildInput(), agent);
@@ -1160,26 +1161,58 @@ test('FIX1 fail-closed: an incomplete bootstrap (write agent installs/pushes NON
 
   assert.equal(result.overallStatus, 'failed');
   assert.equal(result.stage, 'prepare');
-  assert.match(result.detail, /could not be durably installed/);
-  assert.match(result.detail, /receipts\.config\.json/);
+  assert.ok(
+    result.detail.includes('absent from origin/main: ".github/workflows/receipts.yml", "scripts/d6-check.cjs".'),
+    `the halt names each absent artifact verbatim; got: ${result.detail}`,
+  );
+  assert.ok(!result.detail.includes('"receipts.config.json"'), 'a present artifact is never named as missing');
+  assert.match(result.detail, /push .* to origin\/main/, 'the halt names the authoritative ref the human must push to');
+  assert.match(result.detail, /human/i, 'the halt states this is a human prerequisite');
   assert.deepEqual(result.shipped, []);
+  assert.equal(dispatched.some((l) => l === 'prepare-write'), false, 'the engine never dispatches a write/install agent for a missing base artifact');
+  assert.equal(dispatched.some((l) => l.startsWith('plan:')), false, 'the halt is fail-fast — no fan-out after a failed preflight');
 });
 
-test('FIX1 anti-clobber: a requested-but-already-present file reported in `skipped` counts as COVERED (adopted, never overwritten) — the run proceeds', async () => {
+test('D6.3 fail closed: a could-not-determine base ref (no remote, failed fetch, not a git repo) HALTS and never falls through as present', async () => {
   const msps = independentMsps();
   const base = createFakeAgent({ msps });
-  const templateConfigRaw = '{"version":1,"gates":{"enabled":"all","G10":{"mode":"warn"}}}';
+  const dispatched = [];
   const agent = async (prompt, opts = {}) => {
+    dispatched.push(opts.label || '');
     if ((opts.label || '') === 'prepare-probe') {
-      return { receiptsConfigFound: false, receiptsConfigRaw: null, receiptsYmlFound: true, d6CheckFound: true, templateConfigRaw, templateYmlRaw: null };
+      return { baseRefResolved: false, baseRefDetail: 'no origin remote configured', receiptsConfigFound: false, receiptsConfigRaw: null, receiptsYmlFound: false, d6CheckFound: false, templateConfigRaw: null };
     }
-    if ((opts.label || '') === 'prepare-write') { return { written: [], skipped: [`${buildInput().repoRoot}/receipts.config.json`], detail: 'config already existed at write time; adopted, not overwritten' }; }
+    return base(prompt, opts);
+  };
+  const { resultPromise } = invokeMitosis(buildInput(), agent);
+  const result = await resultPromise;
+
+  assert.equal(result.overallStatus, 'failed');
+  assert.equal(result.stage, 'prepare');
+  assert.match(result.detail, /no origin remote configured/, 'the halt surfaces the probe-reported reason verbatim');
+  assert.match(result.detail, /origin\/main/);
+  assert.equal(dispatched.some((l) => l === 'prepare-write'), false, 'an undetermined preflight never installs anything');
+  assert.equal(dispatched.some((l) => l.startsWith('plan:')), false);
+});
+
+test('D6.1: no prepare-stage prompt instructs a base-branch checkout, commit, or push — receipts configuration is a human prerequisite', async () => {
+  const msps = independentMsps();
+  const captured = [];
+  const base = createFakeAgent({ msps });
+  const agent = async (prompt, opts = {}) => {
+    if ((opts.label || '').startsWith('prepare-')) captured.push(prompt);
     return base(prompt, opts);
   };
   const { resultPromise } = invokeMitosis(buildInput(), agent);
   const result = await resultPromise;
 
   assert.equal(result.overallStatus, 'all-shipped');
+  assert.equal(captured.length, 1, 'the prepare phase dispatches exactly one (read-only) agent');
+  for (const prompt of captured) {
+    assert.doesNotMatch(prompt, /push origin main/);
+    assert.doesNotMatch(prompt, /checkout main/);
+    assert.doesNotMatch(prompt, /status --porcelain/);
+  }
 });
 
 test('P4 §8.1 done-oracle-first: the ship prompt makes its FIRST action a merged-PR check that skips and reports shipped', async () => {
@@ -1238,7 +1271,7 @@ test('P4 §8.2 ship PR is observe-then-converge (reuse an existing open PR, neve
   assert.match(captured[0], /REUSE it/);
 });
 
-test('gh-scope: the ship CI-wait derives the target repo slug ONCE and scopes every gh run to it (never the ambient cwd)', async () => {
+test('D7 gh-scope: the ship CI-wait scopes every gh run to the engine-resolved LITERAL slug — no subshell, no shell variable, no cd', async () => {
   const msps = [mspSpec('solo', { fileScope: ['scope/solo/**'] })];
   const captured = [];
   const base = createFakeAgent({ msps });
@@ -1250,10 +1283,54 @@ test('gh-scope: the ship CI-wait derives the target repo slug ONCE and scopes ev
   const result = await resultPromise;
 
   assert.equal(result.overallStatus, 'all-shipped');
-  assert.ok(captured[0].includes(`repoSlug="${SLUG_DERIVATION}"`), 'the CI-wait derives the target repo slug once into a shell var');
-  assert.ok(captured[0].includes('gh run list -R "$repoSlug" --branch'), 'gh run list is scoped to the derived slug');
-  assert.ok(captured[0].includes('gh run view \'"$runId"\' -R \'"$repoSlug"\' --json status'), 'the polled gh run view inside the until-loop is scoped');
-  assert.ok(captured[0].includes('gh run view "$runId" -R "$repoSlug" --json conclusion'), 'the terminal gh run view is scoped');
+  assert.ok(!captured[0].includes(SLUG_DERIVATION), 'the CI-wait no longer derives the slug through a $( ) subshell');
+  assert.ok(!captured[0].includes('$repoSlug'), 'the CI-wait no longer routes the slug through a shell variable');
+  assert.ok(captured[0].includes(`gh run list ${SCOPED} --branch`), 'gh run list is scoped to the literal slug');
+  assert.ok(captured[0].includes(`gh run view '"$runId"' ${SCOPED} --json status`), 'the polled gh run view inside the until-loop is scoped to the literal slug');
+  assert.ok(captured[0].includes(`gh run view "$runId" ${SCOPED} --json conclusion`), 'the terminal gh run view is scoped to the literal slug');
+});
+
+test('D7 hard fail: an unvalidatable target repo slug HALTS the run rather than falling back to an unscoped or unvalidated interpolation', async () => {
+  for (const ownerRepo of ['-R/widgets', 'noslash', '', 'me/target\nrm -rf /', 'me/$(id)', null, 42]) {
+    const msps = independentMsps();
+    const base = createFakeAgent({ msps });
+    const dispatched = [];
+    const agent = async (prompt, opts = {}) => {
+      dispatched.push(opts.label || '');
+      if ((opts.label || '') === 'reconcile') {
+        return { manifestFound: false, manifestRaw: null, mergedPRs: [], ownerRepo };
+      }
+      return base(prompt, opts);
+    };
+    const { resultPromise } = invokeMitosis(buildInput(), agent);
+    const result = await resultPromise;
+
+    assert.equal(result.overallStatus, 'failed', `expected a halt for ownerRepo ${JSON.stringify(ownerRepo)}`);
+    assert.equal(result.stage, 'reconcile');
+    assert.match(result.detail, /slug/i);
+    assert.equal(dispatched.some((l) => l === 'decompose'), false, 'the run halts before decompose — no gh command is ever emitted with an unvalidated slug');
+  }
+});
+
+test('D7: a valid slug is threaded as a literal into every consumer prompt (ship, ship-verify, reconcile)', async () => {
+  const msps = [mspSpec('solo', { fileScope: ['scope/solo/**'] })];
+  const captured = new Map();
+  const base = createFakeAgent({ msps });
+  const agent = async (prompt, opts = {}) => {
+    const label = opts.label || '';
+    if (label === 'reconcile' || label.startsWith('ship:') || label.startsWith('ship-verify:')) captured.set(label.split(':')[0], prompt);
+    return base(prompt, opts);
+  };
+  const { resultPromise } = invokeMitosis(buildInput(), agent);
+  const result = await resultPromise;
+
+  assert.equal(result.overallStatus, 'all-shipped');
+  assert.deepEqual([...captured.keys()].sort(), ['reconcile', 'ship', 'ship-verify']);
+  for (const [label, prompt] of captured) {
+    assert.ok(!prompt.includes('$(cd '), `${label} still emits a cd-subshell slug derivation`);
+  }
+  assert.ok(captured.get('ship').includes(`gh pr view ${SCOPED} `));
+  assert.ok(captured.get('ship-verify').includes(`gh api "repos/${TEST_REPO_SLUG}/compare/`), 'the compare API path carries the literal slug');
 });
 
 test('MINOR-2: a ship agent that returns null is parked (Tier 2, aligned with branch-null), never a top-level crashed entry', async () => {
@@ -1288,7 +1365,7 @@ test('R1 verify-handoff: the main thread independently reads back the CLAIMED me
   assert.equal(captured.length, 1, 'a claimed merge triggers exactly one independent read-back');
   assert.ok(captured[0].includes(`gh pr view ${SCOPED} `), 'the ship-verify PR-state read is pinned to the TARGET repo via -R');
   assert.match(captured[0], /state,mergedAt/);
-  assert.ok(captured[0].includes(`gh api "repos/${SLUG_DERIVATION}/compare/`), 'the ship-verify compare replaces the literal {owner}/{repo} with the derived target slug');
+  assert.ok(captured[0].includes(`gh api "repos/${TEST_REPO_SLUG}/compare/`), 'the ship-verify compare replaces the literal {owner}/{repo} with the engine-resolved target slug');
   assert.doesNotMatch(captured[0], /repos\/\{owner\}\/\{repo\}/, 'the literal {owner}/{repo} placeholder is gone');
   assert.doesNotMatch(captured[0], /gh pr view (?!-R)/, 'no unscoped gh pr view in the ship-verify prompt');
   assert.match(captured[0], /compare/);
@@ -1448,10 +1525,10 @@ test('T3 reconcile prompt-contract: read-only inspection of run.json and the mer
 
   assert.equal(result.overallStatus, 'all-shipped');
   assert.equal(captured.length, 1);
-  assert.ok(captured[0].includes(`gh pr list ${SCOPED} --state merged --base `), 'the reconcile merged-PR list is pinned to the TARGET repo via -R, never the ambient cwd');
+  assert.ok(captured[0].includes(`gh pr list -R ${SLUG_PLACEHOLDER} --state merged --base `), 'the reconcile merged-PR list is pinned to the TARGET repo via -R, never the ambient cwd');
   assert.match(captured[0], /--json headRefName,url,mergedAt/);
   assert.match(captured[0], /\.mitosis\/run\.json/);
-  assert.ok(captured[0].includes(SLUG_DERIVATION), 'the reconcile stage derives the target repo slug from repoRoot');
+  assert.ok(!captured[0].includes(SLUG_DERIVATION), 'D7: the reconcile stage substitutes the literal slug it read, never a $( ) command substitution inside a gh consumer command');
   assert.match(captured[0], /report the exact owner\/repo it prints as ownerRepo/i, 'the reconcile prompt instructs deriving and returning ownerRepo');
   assert.match(captured[0], /gh repo view --json nameWithOwner,url/, 'the reconcile derivation resolves both nameWithOwner and url in one call so the origin host can be parsed');
   assert.match(captured[0], /repoHost/, 'the reconcile prompt instructs deriving and returning the origin host as repoHost');
@@ -1825,7 +1902,7 @@ test('T3 reconcile fail-closed: a reconcile result missing mergedPRs is caught b
   let decomposeCalls = 0;
   const agent = async (prompt, opts = {}) => {
     const label = opts.label || '';
-    if (label === 'reconcile') return { manifestFound: false, manifestRaw: null };
+    if (label === 'reconcile') return { manifestFound: false, manifestRaw: null, ownerRepo: TEST_REPO_SLUG };
     if (label === 'decompose') decomposeCalls += 1;
     return {};
   };
@@ -1864,7 +1941,7 @@ test('T4a skip: a reconciled already-merged MSP is skipped in-chain (never plann
     mspSpec('a', { fileScope: ['scope/a/**'] }),
     mspSpec('b', { dependsOn: ['a'], fileScope: ['scope/b/**'] }),
   ];
-  const reconcileResult = { manifestFound: false, manifestRaw: null, mergedPRs: [mergedPr('a', 'https://example.test/pr/merged-a')] };
+  const reconcileResult = { manifestFound: false, manifestRaw: null, mergedPRs: [mergedPr('a', testPrUrl('merged-a'))] };
   const labels = [];
   const base = createFakeAgent({ msps, reconcileResult });
   const agent = async (prompt, opts = {}) => {
@@ -1888,20 +1965,20 @@ test('T4a skip: a reconciled already-merged MSP is skipped in-chain (never plann
   assert.ok(shippedA, 'the skipped MSP appears in the shipped set');
   assert.equal(shippedA.receiptsPass, null, 'a skip asserts no fresh receipts check ran this run');
   assert.equal(shippedA.d6Pass, null, 'a skip asserts no fresh D6 check ran this run');
-  assert.equal(shippedA.prUrl, 'https://example.test/pr/merged-a', 'the skip carries the reconciled PR url');
+  assert.equal(shippedA.prUrl, testPrUrl('merged-a'), 'the skip carries the reconciled PR url');
 
   const shippedB = result.shipped.find((s) => s.mspId === 'b');
   assert.equal(shippedB.receiptsPass, true, 'the freshly-shipped sibling records a real receipts pass');
 
   const skipLog = logLines.find((l) => /skipping a\b/.test(l));
   assert.ok(skipLog, 'a per-skip audit log line names the skipped id');
-  assert.match(skipLog, /https:\/\/example\.test\/pr\/merged-a/);
+  assert.ok(skipLog.includes(testPrUrl('merged-a')));
 });
 
 test('T4a skip: a skipped MSP enters no retry-budgeted dispatch, and a sibling whose plan transiently drops still retries and ships on the shared budget', async () => {
   const input = buildInput();
   const msps = twoIndependentMsps();
-  const reconcileResult = { manifestFound: false, manifestRaw: null, mergedPRs: [mergedPr('a', 'https://example.test/pr/merged-a')] };
+  const reconcileResult = { manifestFound: false, manifestRaw: null, mergedPRs: [mergedPr('a', testPrUrl('merged-a'))] };
   const labelCounts = new Map();
   let planBDrops = 0;
   const base = createFakeAgent({ msps, reconcileResult });
@@ -2498,7 +2575,7 @@ function makeDurableFakeAgent({ msps, parallelizeFailUnitId, shipResult, repoRoo
     if (prefix === 'reconcile') {
       const raw = fileMap.get(runJsonPath);
       const folded = raw === undefined ? null : foldRunManifest(raw);
-      return { manifestFound: folded !== null, manifestRaw: folded === null ? null : JSON.stringify(folded), mergedPRs: [], specContentHash: SPEC_CONTENT_HASH };
+      return { manifestFound: folded !== null, manifestRaw: folded === null ? null : JSON.stringify(folded), mergedPRs: [], specContentHash: SPEC_CONTENT_HASH, ownerRepo: TEST_REPO_SLUG };
     }
     if (prefix === 'checkpoint-init') {
       const literal = literalOf(prompt);
@@ -2636,7 +2713,7 @@ test('R3 SPEC-R3(d): a human-gated unit awaiting approval has its built state pr
     mspSpec('b', { dependsOn: ['a'], fileScope: ['scope/b/**'] }),
   ];
   const shipResult = (mspId) => (mspId === 'a'
-    ? { merged: false, awaitingApproval: true, prUrl: 'https://example.test/pr/a', receiptsPass: true, d6Pass: true, detail: 'CI green; PR open and awaiting human approval to merge' }
+    ? { merged: false, awaitingApproval: true, prUrl: testPrUrl('a'), receiptsPass: true, d6Pass: true, detail: 'CI green; PR open and awaiting human approval to merge' }
     : null);
   const { agent: durableAgent } = makeDurableFakeAgent({ msps, shipResult, repoRoot: input.repoRoot });
   const order = [];
@@ -3570,14 +3647,14 @@ test('MSP-5a WS-5.1: the in-run merge-watch poll runs Sonnet', async () => {
   const base = createFakeAgent({
     msps,
     shipResult: (mspId) => (mspId === 'a'
-      ? { merged: false, awaitingApproval: true, prUrl: 'https://github.com/o/repo/pull/1', receiptsPass: true, d6Pass: true, detail: 'CI green; PR open and awaiting human approval to merge' }
+      ? { merged: false, awaitingApproval: true, prUrl: `https://github.com/${TEST_REPO_SLUG}/pull/1`, receiptsPass: true, d6Pass: true, detail: 'CI green; PR open and awaiting human approval to merge' }
       : null),
     mergeWatch: (mspId) => (mspId === 'a'
       ? { merged: true, mergedAt: '2026-07-15T00:00:00Z', readError: null }
       : { merged: false, mergedAt: null, readError: null }),
   });
   const { agent, models } = captureModels(base);
-  const { resultPromise } = invokeMitosis(buildInput({ mergePolicy: undefined, repoIdentity: 'o/repo' }), agent);
+  const { resultPromise } = invokeMitosis(buildInput({ mergePolicy: undefined, repoIdentity: TEST_REPO_SLUG }), agent);
   const result = await resultPromise;
 
   assert.equal(result.overallStatus, 'all-shipped');
@@ -3643,7 +3720,7 @@ test('T14(c) fix (frontier default): a build-ahead unit redispatched with no rec
   const base = createFakeAgent({
     msps,
     shipResult: (mspId) => (mspId === 'a'
-      ? { merged: false, awaitingApproval: true, prUrl: 'https://github.com/o/repo/pull/1', receiptsPass: true, d6Pass: true, detail: 'CI green; PR open and awaiting human approval to merge' }
+      ? { merged: false, awaitingApproval: true, prUrl: `https://github.com/${TEST_REPO_SLUG}/pull/1`, receiptsPass: true, d6Pass: true, detail: 'CI green; PR open and awaiting human approval to merge' }
       : null),
     mergeWatch: (mspId) => (mspId === 'a'
       ? { merged: true, mergedAt: '2026-07-16T00:00:00Z', readError: null }
@@ -3654,7 +3731,7 @@ test('T14(c) fix (frontier default): a build-ahead unit redispatched with no rec
     if ((opts.label || '') === 'checkpoint-push:b') return { ...res, sha: '' };
     return res;
   };
-  const { resultPromise } = invokeMitosis(buildInput({ mergePolicy: undefined, repoIdentity: 'o/repo' }), agent);
+  const { resultPromise } = invokeMitosis(buildInput({ mergePolicy: undefined, repoIdentity: TEST_REPO_SLUG }), agent);
   const result = await resultPromise;
 
   assert.ok(!result.shipped.some((s) => s.mspId === 'b'), 'a build-ahead unit with no recorded builtSha must never ship on frontier redispatch');

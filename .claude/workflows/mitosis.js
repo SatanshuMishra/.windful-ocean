@@ -1285,7 +1285,7 @@ const RECONCILE_SCHEMA = {
     manifestFound: { type: 'boolean' },
     manifestRaw: { type: ['string', 'null'] },
     specContentHash: { type: ['string', 'null'] },
-    ownerRepo: { type: 'string', pattern: '^[A-Za-z0-9._-]+/[A-Za-z0-9._-]+$' },
+    ownerRepo: { type: 'string', pattern: '^[A-Za-z0-9][A-Za-z0-9._-]*/[A-Za-z0-9][A-Za-z0-9._-]*$' },
     repoHost: { type: 'string', pattern: '^[A-Za-z0-9.-]+$' },
     checkpointRefPages: {
       type: 'array',
@@ -1407,25 +1407,16 @@ const PARALLELIZE_SCHEMA = {
 
 const PROBE_SCHEMA = {
   type: 'object',
-  required: ['receiptsConfigFound', 'receiptsYmlFound', 'd6CheckFound'],
+  required: ['baseRefResolved', 'receiptsConfigFound', 'receiptsYmlFound', 'd6CheckFound'],
   additionalProperties: false,
   properties: {
+    baseRefResolved: { type: 'boolean' },
+    baseRefDetail: { type: ['string', 'null'] },
     receiptsConfigFound: { type: 'boolean' },
     receiptsConfigRaw: { type: ['string', 'null'] },
     receiptsYmlFound: { type: 'boolean' },
     d6CheckFound: { type: 'boolean' },
     templateConfigRaw: { type: ['string', 'null'] },
-  },
-};
-
-const PREPARE_WRITE_SCHEMA = {
-  type: 'object',
-  required: ['written', 'detail'],
-  additionalProperties: false,
-  properties: {
-    written: { type: 'array', items: { type: 'string' } },
-    skipped: { type: 'array', items: { type: 'string' } },
-    detail: { type: 'string' },
   },
 };
 
@@ -2481,7 +2472,7 @@ const MERGE_WATCH_SCHEMA = {
   },
 };
 
-const REPO_IDENTITY_PATTERN = /^[A-Za-z0-9._-]+\/[A-Za-z0-9._-]+$/;
+const REPO_IDENTITY_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._-]*\/[A-Za-z0-9][A-Za-z0-9._-]*$/;
 const PR_URL_PATTERN = /^https?:\/\/github\.com\/([A-Za-z0-9._-]+)\/([A-Za-z0-9._-]+)\/pull\/([0-9]+)(?:[/?#].*)?$/;
 
 function validateRepoIdentity(identity) {
@@ -2988,7 +2979,7 @@ async function runReconcileOnlyAdvance(advance, ctx) {
         `1. \`git -C ${repoRoot} fetch origin ${baseBranch}\` and fetch the durable checkpoint ref: \`git -C ${repoRoot} fetch origin ${JSON.stringify(builtRef)}\`.\n` +
         `2. Move the integration ref FRESH onto the advanced base and replay this MSP's checkpoint tip onto it (rebase --onto ${integrationBranch} origin/${baseBranch} FETCH_HEAD, or an equivalent cherry-pick). If the replay conflicts, abort it and set opened=false with the conflicting files in detail.\n` +
         `3. Publish observe-then-converge: if origin/${integrationBranch} already equals the local tip, SKIP the push; otherwise \`git -C ${repoRoot} push -u origin ${integrationBranch}\` (first-time publish fast-forwards). The only permitted force is a \`--force-with-lease\` retry of your OWN rebase.\n` +
-        `4. Open ONE pull request observe-then-converge: FIRST \`gh pr list -R "$(cd ${repoRoot} && gh repo view --json nameWithOwner -q .nameWithOwner)" --head ${integrationBranch} --base ${baseBranch} --state open --json url,number\`; if one exists REUSE it, else open a new PR with head ${integrationBranch} onto base ${baseBranch}. Leave it OPEN for a human; perform no merge.\n\n` +
+        `4. Open ONE pull request observe-then-converge: FIRST \`gh pr list -R ${repoSlug} --head ${integrationBranch} --base ${baseBranch} --state open --json url,number\`; if one exists REUSE it, else open a new PR with head ${integrationBranch} onto base ${baseBranch}. Leave it OPEN for a human; perform no merge.\n\n` +
         `If the PR is open (or already existed), set opened=true and report its url. If any step fails, set opened=false and explain in detail.\n\n` +
         `Return ONLY: { opened: <bool>, prUrl: "<the pr url, or empty string if not opened>", detail: "<what happened>" }.`,
         { agentType: 'implementer', label: `shepherd-open:${id}`, phase: 'Shepherd' }
@@ -3394,6 +3385,38 @@ function decidePrepareActions({ probe, buildConfig, verify }) {
   });
 }
 
+const REQUIRED_BASE_ARTIFACTS = Object.freeze([
+  'receipts.config.json',
+  '.github/workflows/receipts.yml',
+  'scripts/d6-check.cjs',
+]);
+
+const BASE_ARTIFACT_FLAGS = Object.freeze({
+  'receipts.config.json': 'receiptsConfigFound',
+  '.github/workflows/receipts.yml': 'receiptsYmlFound',
+  'scripts/d6-check.cjs': 'd6CheckFound',
+});
+
+function undetermined(reason) {
+  return Object.freeze({ determined: false, reason, missing: Object.freeze([]) });
+}
+
+function assertBasePrerequisites(probe) {
+  if (probe === null || typeof probe !== 'object' || Array.isArray(probe)) {
+    return undetermined('the prepare probe returned no object to read a base-presence verdict from');
+  }
+  if (probe.baseRefResolved !== true) {
+    const detail = typeof probe.baseRefDetail === 'string' ? probe.baseRefDetail.trim() : '';
+    return undetermined(detail.length > 0 ? detail : 'the prepare probe did not confirm that the remote-tracking base ref resolves');
+  }
+  const unreadable = REQUIRED_BASE_ARTIFACTS.filter((path) => typeof probe[BASE_ARTIFACT_FLAGS[path]] !== 'boolean');
+  if (unreadable.length > 0) {
+    return undetermined(`the prepare probe returned no boolean presence verdict for ${unreadable.join(', ')}`);
+  }
+  const missing = REQUIRED_BASE_ARTIFACTS.filter((path) => probe[BASE_ARTIFACT_FLAGS[path]] !== true);
+  return Object.freeze({ determined: true, reason: null, missing: Object.freeze(missing) });
+}
+
 function buildPrepareWriteSections({ plan, repoRoot, templatesDir }) {
   const configPath = `${repoRoot}/receipts.config.json`;
   const ymlPath = `${repoRoot}/.github/workflows/receipts.yml`;
@@ -3499,11 +3522,11 @@ try {
       `You are the reconcile stage of a mitosis run. You have NO Skill tool; follow these instructions directly.\n\n` +
       `This stage is STRICTLY READ-ONLY: it inspects durable state to detect a relaunch and the already-merged set. It makes NO commits, opens NO PRs, and mutates NO files whatsoever.\n\n` +
       `1. Fold the run manifest via the deterministic node CLI: run \`node ${LIB_DIR}/fold-run-log.mjs ${repoRoot}/.mitosis/run.json\`. If it exits 0, return its exact stdout as manifestRaw (a string) and set manifestFound=true; if it exits non-zero (absent, empty, or malformed run journal), set manifestFound=false and manifestRaw=null. Do NOT parse, repair, or alter the output — return the bytes verbatim, the engine re-validates it.\n` +
-      `2. Derive the TARGET repository slug AND origin host so every gh read in this run is pinned to the target repo and never the ambient cwd: run \`cd ${repoRoot} && gh repo view --json nameWithOwner,url\` and report the exact owner/repo it prints as ownerRepo (the nameWithOwner field) and the origin hostname parsed from the url field (e.g. github.com for https://github.com/owner/repo) as repoHost. If it prints nothing or errors, STOP and report the failure (do NOT return an empty or unscoped mergedPRs as if it were authoritative) — a loud stop is required because an unscoped read would silently query the WRONG repository. Then list the pull requests already merged into the base so the engine can skip re-shipping them, pinned to that target slug: \`gh pr list -R "$(cd ${repoRoot} && gh repo view --json nameWithOwner -q .nameWithOwner)" --state merged --base ${baseBranch} --limit 200 --json headRefName,url,mergedAt,mergeCommit\`. Return that array verbatim as mergedPRs (an empty array if none). For EACH merged PR also report mergedSha as its merge commit sha (the mergeCommit.oid field), or null if absent — the shepherd compares it against the tip its children built on to detect a divergent (squashed or amended) merge.\n` +
+      `2. Derive the TARGET repository slug AND origin host ONCE so every gh read in this run is pinned to the target repo and never the ambient cwd: with ${repoRoot} as the working directory run \`gh repo view --json nameWithOwner,url\` and report the exact owner/repo it prints as ownerRepo (the nameWithOwner field) and the origin hostname parsed from the url field (e.g. github.com for https://github.com/owner/repo) as repoHost. If it prints nothing or errors, STOP and report the failure (do NOT return an empty or unscoped mergedPRs as if it were authoritative) — a loud stop is required because an unscoped read would silently query the WRONG repository. Then list the pull requests already merged into the base so the engine can skip re-shipping them, pinned to that target slug: \`gh pr list -R <OWNER_REPO> --state merged --base ${baseBranch} --limit 200 --json headRefName,url,mergedAt,mergeCommit\`, typing the literal ownerRepo value you just read in place of <OWNER_REPO> — never a command substitution, never a shell variable, never a \`cd\`-and-chain. Return that array verbatim as mergedPRs (an empty array if none). For EACH merged PR also report mergedSha as its merge commit sha (the mergeCommit.oid field), or null if absent — the shepherd compares it against the tip its children built on to detect a divergent (squashed or amended) merge.\n` +
       `3. For diagnostics only you MAY run \`git log origin/${baseBranch}\` to observe recent base history; it does not affect the returned object.\n` +
       `4. Compute a content fingerprint of the spec so the engine can detect an in-place spec edit since the manifest was recorded: run \`shasum -a 256 ${spec}\` and return ONLY the leading 64-character hex field as specContentHash (a string). If the spec file cannot be read, return specContentHash=null.\n` +
       `5. List the DURABLE mitosis checkpoint refs so the engine can reconcile built-but-unmerged work against them: run \`git -C ${repoRoot} ls-remote origin 'refs/mitosis/*'\`. This is the authoritative record of which units were durably built on a prior run. Capture EVERY output line in full (each line is \`<sha>\\t<ref>\`), returning them COMPLETELY with no truncation as checkpointRefPages: an array of pages where each page is an array of the raw line strings (return a single page holding all lines; use additional pages only if you had to fetch the listing in multiple passes). Return checkpointRefPages=[] (an empty array) if there is no remote or no such ref. Return the lines verbatim; do NOT parse, filter, or alter them — the engine parses them.\n\n` +
-      `6. List the pull requests still OPEN against the base so the shepherd can observe live review state, pinned to the target slug: \`gh pr list -R "$(cd ${repoRoot} && gh repo view --json nameWithOwner -q .nameWithOwner)" --state open --base ${baseBranch} --limit 200 --json headRefName,reviewDecision,url,isCrossRepository,headRepositoryOwner,headRepository\`. Return that array as openPRs (an empty array if none), preserving each row's headRefName, reviewDecision and url VERBATIM, but returning headRepositoryOwner and headRepository as STRINGS extracted from gh's objects (never the objects themselves) as described below; report each reviewDecision field exactly as gh returns it (e.g. "APPROVED", "CHANGES_REQUESTED", "REVIEW_REQUIRED") or null if absent, report each PR's url verbatim so the engine can surface a frozen, still-open PR as awaiting human approval, report each PR's isCrossRepository flag EXACTLY as gh returns it (true when the pull request is opened from a FORK, false when its head branch lives in this same repository) or null if the field is absent, and report headRepositoryOwner as that PR's head-repository OWNER LOGIN string (the \`login\` field of gh's headRepositoryOwner object) and headRepository as that PR's head-repository NAME string (the \`name\` field of gh's headRepository object), each null if gh did not return it — the engine trusts a PR as its own published work ONLY when the fork flag is false AND the head repository is this same repository, and fails closed on anything else including absent or malformed fields.\n` +
+      `6. List the pull requests still OPEN against the base so the shepherd can observe live review state, pinned to the target slug (again typing the literal ownerRepo value from step 2 in place of <OWNER_REPO>): \`gh pr list -R <OWNER_REPO> --state open --base ${baseBranch} --limit 200 --json headRefName,reviewDecision,url,isCrossRepository,headRepositoryOwner,headRepository\`. Return that array as openPRs (an empty array if none), preserving each row's headRefName, reviewDecision and url VERBATIM, but returning headRepositoryOwner and headRepository as STRINGS extracted from gh's objects (never the objects themselves) as described below; report each reviewDecision field exactly as gh returns it (e.g. "APPROVED", "CHANGES_REQUESTED", "REVIEW_REQUIRED") or null if absent, report each PR's url verbatim so the engine can surface a frozen, still-open PR as awaiting human approval, report each PR's isCrossRepository flag EXACTLY as gh returns it (true when the pull request is opened from a FORK, false when its head branch lives in this same repository) or null if the field is absent, and report headRepositoryOwner as that PR's head-repository OWNER LOGIN string (the \`login\` field of gh's headRepositoryOwner object) and headRepository as that PR's head-repository NAME string (the \`name\` field of gh's headRepository object), each null if gh did not return it — the engine trusts a PR as its own published work ONLY when the fork flag is false AND the head repository is this same repository, and fails closed on anything else including absent or malformed fields.\n` +
       `Return ONLY the structured object: { manifestFound, manifestRaw, mergedPRs: [ { headRefName, url, mergedAt, mergedSha } ], specContentHash, checkpointRefPages: [ [ "<sha>\\t<ref>" ] ], openPRs: [ { headRefName, reviewDecision, url, isCrossRepository, headRepositoryOwner, headRepository } ], ownerRepo, repoHost }.`,
       { agentType: 'implementer', schema: RECONCILE_SCHEMA, label: 'reconcile', phase: 'Reconcile', model: models.reconciler || models.shipper || 'sonnet' }
     ),
@@ -3520,7 +3543,12 @@ try {
 if (!recon || !Array.isArray(recon.mergedPRs)) {
   return fatalReport('reconcile', 'reconcile agent returned null or no mergedPRs (transient drop or blocked before decompose)', 0, { crashed: true });
 }
-targetOwnerRepo = (typeof recon.ownerRepo === 'string' && validateRepoIdentity(recon.ownerRepo)) ? recon.ownerRepo : null;
+const repoSlug = typeof recon.ownerRepo === 'string' ? recon.ownerRepo.trim() : '';
+if (!validateRepoIdentity(repoSlug)) {
+  const observed = typeof recon.ownerRepo === 'string' ? cleanUrl(recon.ownerRepo) : `a ${typeof recon.ownerRepo} value`;
+  return fatalReport('reconcile', `target repository slug did not validate as a literal owner/repo token (reconcile returned ${observed}); every gh read in this run is pinned to that literal, so an empty, unparseable, multi-line, or metacharacter-bearing slug halts here — it is never interpolated unvalidated and never falls back to an unscoped read of the ambient repository`, 0);
+}
+targetOwnerRepo = repoSlug;
 const targetRepoHost = (typeof recon.repoHost === 'string' && /^[A-Za-z0-9.-]+$/.test(recon.repoHost)) ? recon.repoHost : undefined;
 const priorManifest = recon && recon.manifestFound ? parseRunManifest(recon.manifestRaw) : null;
 const reconciledMap = reconcileShippedSet(recon ? recon.mergedPRs : [], sourcePrefix, targetOwnerRepo, targetRepoHost);
@@ -3754,17 +3782,20 @@ if (!reusable) {
 }
 
 phase('Prepare');
+const humanPrerequisiteDetail = (paths) =>
+  `HUMAN PREREQUISITE — mitosis does not install receipts configuration and writes nothing to ${baseBranch}. These required artifact(s) are absent from origin/${baseBranch}: ${paths.map((p) => clean(p)).join(', ')}. A human must add ${paths.length === 1 ? 'this file' : 'these files'} to ${baseBranch} and push ${paths.length === 1 ? 'it' : 'them'} to origin/${baseBranch}, then re-run. Templates to copy from: ${TEMPLATES_DIR}/receipts.config.json, ${TEMPLATES_DIR}/receipts.yml, and the spec at ${TEMPLATES_DIR}/d6-check.md.`;
 let probe;
 try {
   probe = await agent(
     `You are the prepare probe stage of a mitosis run. You have NO Skill tool.\n\n` +
-    `This stage is STRICTLY READ-ONLY: it inspects durable config state so the engine can decide adopt-vs-bootstrap in-process. It makes NO commits, opens NO PRs, repairs nothing, and mutates NO files whatsoever. Return bytes verbatim; the engine parses and decides.\n\n` +
-    `Target repo: ${repoRoot}\n\n` +
-    `1. Config presence: if ${repoRoot}/receipts.config.json exists, return its EXACT raw contents as receiptsConfigRaw (a string) and set receiptsConfigFound=true; if it is absent, set receiptsConfigFound=false and receiptsConfigRaw=null. Do NOT parse, repair, reformat, or alter it.\n` +
-    `2. Workflow presence: set receiptsYmlFound=true if ${repoRoot}/.github/workflows/receipts.yml exists, else false.\n` +
-    `3. D6 presence: set d6CheckFound=true if ${repoRoot}/scripts/d6-check.cjs exists, else false.\n` +
-    `4. Template bytes for deterministic bootstrap, ONLY if genuinely needed: if receiptsConfigFound is false (from step 1), read ${TEMPLATES_DIR}/receipts.config.json and return its EXACT raw contents as templateConfigRaw (a string), verbatim — do NOT parse or alter it. If receiptsConfigFound is true, do NOT read that template file at all; return templateConfigRaw=null. The receipts.yml template is never fetched here — it is copied directly from source in a later stage.\n\n` +
-    `Return ONLY: { receiptsConfigFound, receiptsConfigRaw, receiptsYmlFound, d6CheckFound, templateConfigRaw }.`,
+    `This stage is STRICTLY READ-ONLY: it inspects the AUTHORITATIVE base ref so the engine can assert the receipts prerequisites in-process. It makes NO commits, opens NO PRs, pushes nothing, repairs nothing, and mutates NO files whatsoever. Return bytes verbatim; the engine parses and decides.\n\n` +
+    `Target repo: ${repoRoot}. AUTHORITATIVE ref: origin/${baseBranch}. Read presence ONLY from that remote-tracking ref — NEVER from the working tree and NEVER from the local ${baseBranch} branch. A file can sit in the working tree (or in an unpushed local commit) while being absent from origin/${baseBranch}; treating that as present is the silent-wrong-success this stage exists to prevent.\n\n` +
+    `1. Refresh the authoritative ref: run \`git -C ${repoRoot} fetch origin ${baseBranch}\`, then resolve it with \`git -C ${repoRoot} rev-parse --verify origin/${baseBranch}\`. Set baseRefResolved=true ONLY if the fetch succeeded AND rev-parse printed a commit sha. If ${repoRoot} is not a git repo, has no origin remote, the fetch failed, or origin/${baseBranch} does not resolve, set baseRefResolved=false, put the exact failure text in baseRefDetail, and set receiptsConfigFound, receiptsYmlFound and d6CheckFound all to false — do NOT guess and do NOT fall back to the working tree; the engine halts on an undetermined verdict.\n` +
+    `2. Config presence: run \`git -C ${repoRoot} cat-file -e origin/${baseBranch}:receipts.config.json\`. Exit 0 means present — set receiptsConfigFound=true and return the EXACT bytes of \`git -C ${repoRoot} show origin/${baseBranch}:receipts.config.json\` as receiptsConfigRaw (a string), verbatim; do NOT parse, repair, reformat, or alter it. A non-zero exit means absent — set receiptsConfigFound=false and receiptsConfigRaw=null.\n` +
+    `3. Workflow presence: run \`git -C ${repoRoot} cat-file -e origin/${baseBranch}:.github/workflows/receipts.yml\`. Exit 0 -> receiptsYmlFound=true, non-zero -> false.\n` +
+    `4. D6 presence: run \`git -C ${repoRoot} cat-file -e origin/${baseBranch}:scripts/d6-check.cjs\`. Exit 0 -> d6CheckFound=true, non-zero -> false.\n` +
+    `Read NO template file and produce NO bootstrap content: receipts configuration is a human prerequisite on origin/${baseBranch}, so an absent artifact halts the run rather than being installed from a template.\n\n` +
+    `Return ONLY: { baseRefResolved, baseRefDetail, receiptsConfigFound, receiptsConfigRaw, receiptsYmlFound, d6CheckFound }.`,
     { agentType: 'implementer', schema: PROBE_SCHEMA, label: 'prepare-probe', phase: 'Prepare', model: 'sonnet' }
   );
 } catch (err) {
@@ -3772,6 +3803,13 @@ try {
 }
 if (!probe) {
   return fatalReport('prepare', 'prepare probe agent returned null (transient drop or blocked before fan-out)', msps.length, { crashed: true });
+}
+const prerequisites = assertBasePrerequisites(probe);
+if (!prerequisites.determined) {
+  return fatalReport('prepare', `could not determine whether the receipts prerequisites exist on origin/${baseBranch} (${clean(prerequisites.reason)}); halting fail-closed rather than assuming they are present — a human must make origin/${baseBranch} readable from ${repoRoot} (an origin remote plus fetch access) and re-run`, msps.length);
+}
+if (prerequisites.missing.length > 0) {
+  return fatalReport('prepare', humanPrerequisiteDetail(prerequisites.missing), msps.length);
 }
 let plan;
 try {
@@ -3788,37 +3826,11 @@ if (plan.writeConfig) {
     return fatalReport('prepare', `refuse to weaken existing stricter gate(s): ${weakenCheck.guard.conflicts.map((c) => `${clean(c.path)}: ${clean(c.existing)} -> ${clean(c.intended)}`).join('; ')}`, msps.length);
   }
 }
-if (!plan.anyWrite) {
-  log(`mitosis: prepare adopted existing receipts config/workflow/d6 verbatim; nothing to install`);
-} else {
-  const { requested, writeSections } = buildPrepareWriteSections({ plan, repoRoot, templatesDir: TEMPLATES_DIR });
-  let writeRes;
-  try {
-    writeRes = await agent(
-      `You are the prepare install stage of a mitosis run. You have NO Skill tool.\n\n` +
-      `Target repo: ${repoRoot}. This stage is CREATE-ONLY. Install ONLY the files listed below, each EXACTLY as given. Any receipts file NOT listed here MUST be left untouched — do NOT create, regenerate, reformat, or infer any other file.\n\n` +
-      `For EACH file below, FIRST check whether the path already exists (e.g. \`test -e <path>\`). If it ALREADY EXISTS, do NOT overwrite or modify it — leave it exactly as-is and record its path in the \`skipped\` array. Only create a file whose path is genuinely ABSENT. Never overwrite an existing file under any circumstances.\n\n` +
-      writeSections.map((section, i) => `${i + 1}. ${section}`).join('\n') + `\n` +
-      `After creating the genuinely-absent files, ensure you are on ${baseBranch} (\`git -C ${repoRoot} checkout ${baseBranch}\`), then commit + publish observe-then-converge: run \`git -C ${repoRoot} status --porcelain\` first; if it reports no changes, SKIP both the commit and the push (never create an empty commit, never push an unchanged ref). If there ARE changes, commit them and publish with \`git -C ${repoRoot} push origin ${baseBranch}\` so integration branches cut from origin/${baseBranch} inherit the receipts workflow and PRs targeting ${baseBranch} fire CI.\n\n` +
-      `A path belongs in \`written\` ONLY if you created it AND it is now committed on ${baseBranch} AND pushed to origin/${baseBranch}. If the repo is not a git repo, or has no remote, or the push fails, do NOT list that path in either array — explain in \`detail\`. Use the exact absolute paths shown above.\n\n` +
-      `Return ONLY: { written: ["<paths created AND pushed>"], skipped: ["<paths that already existed>"], detail: "<what you did or why not>" }.`,
-      { agentType: 'implementer', schema: PREPARE_WRITE_SCHEMA, label: 'prepare-write', phase: 'Prepare' }
-    );
-  } catch (err) {
-    return fatalReport('prepare', `prepare install agent threw before fan-out: ${err.message}`, msps.length, { crashed: true });
-  }
-  if (!writeRes) {
-    return fatalReport('prepare', 'prepare install agent returned null (transient drop or blocked before fan-out)', msps.length, { crashed: true });
-  }
-  const writtenList = Array.isArray(writeRes.written) ? writeRes.written.filter((p) => typeof p === 'string') : [];
-  const skippedList = Array.isArray(writeRes.skipped) ? writeRes.skipped.filter((p) => typeof p === 'string') : [];
-  const covered = [...writtenList, ...skippedList];
-  const missing = requested.filter((r) => !covered.some((c) => c === r.full || c.endsWith(r.suffix)));
-  if (missing.length > 0) {
-    return fatalReport('prepare', `receipts scaffolding could not be durably installed: ${missing.map((m) => clean(m.full)).join(', ')} (${clean(writeRes.detail)})`, msps.length);
-  }
-  log(`mitosis: prepare bootstrapped absent receipts file(s): written=[${writtenList.map((p) => clean(p)).join(', ')}] skipped=[${skippedList.map((p) => clean(p)).join(', ')}] (${clean(writeRes.detail)})`);
+if (plan.anyWrite) {
+  const { requested } = buildPrepareWriteSections({ plan, repoRoot, templatesDir: TEMPLATES_DIR });
+  return fatalReport('prepare', humanPrerequisiteDetail(requested.map((r) => r.suffix)), msps.length);
 }
+log(`mitosis: prepare verified the receipts prerequisites on origin/${baseBranch} and adopted the existing config/workflow/d6 verbatim; nothing to install`);
 
 const shipped = [];
 const parked = [];
@@ -3967,7 +3979,7 @@ async function supersedeOpenPr(msp, { priorPrUrl, integrationBranch, diagnosis }
       `SECURITY: pass every ref/URL as an INERT argv element to execFile-style invocations; NEVER build a command by shell-interpolating a ref or URL into a string.\n\n` +
       `1. Publish the CURRENT local integration tip to a brand-new branch, never reusing or force-pushing the old head: \`git -C ${repoRoot} push -u origin ${integrationBranch}:${supersedeBranch}\`.\n` +
       `2. Compute the interdiff against the OLD open PR for the review body: \`git -C ${repoRoot} diff origin/${integrationBranch}...origin/${supersedeBranch}\` (origin/${integrationBranch} is the OLD open PR's frozen head — it is NEVER force-pushed while the PR stays open, so this ref still resolves to exactly the superseded PR's content; origin/${supersedeBranch} is the remote-tracking ref updated by step 1's push, since the new branch was never checked out locally; do NOT pass the PR URL itself to git diff, it is not a valid revision); summarize the delta in the new PR body so a reviewer sees only what changed since the superseded PR.\n` +
-      `3. Open ONE new pull request observe-then-converge: FIRST check for an existing open PR on this new head - \`gh pr list -R "$(cd ${repoRoot} && gh repo view --json nameWithOwner -q .nameWithOwner)" --head ${supersedeBranch} --base ${baseBranch} --state open --json url,number\`. If one exists, REUSE it (do NOT open a second). Otherwise open a new PR with head ${supersedeBranch} onto base ${baseBranch}, whose body explicitly states it SUPERSEDES ${JSON.stringify(priorPrUrl)} and includes the interdiff summary from step 2.\n` +
+      `3. Open ONE new pull request observe-then-converge: FIRST check for an existing open PR on this new head - \`gh pr list -R ${repoSlug} --head ${supersedeBranch} --base ${baseBranch} --state open --json url,number\`. If one exists, REUSE it (do NOT open a second). Otherwise open a new PR with head ${supersedeBranch} onto base ${baseBranch}, whose body explicitly states it SUPERSEDES ${JSON.stringify(priorPrUrl)} and includes the interdiff summary from step 2.\n` +
       `4. Leave BOTH the old and the new PR open; do NOT merge, close, or push to the old PR's branch under any circumstance.\n\n` +
       `If the new branch published and the new PR is open (or already existed), set opened=true. If any step fails, set opened=false and explain in detail; the old PR remains untouched either way.\n\n` +
       `Return ONLY: { opened: <bool>, prUrl: "<the new superseding PR url, or empty string if not opened>", detail: "<what happened>" }.`,
@@ -4460,8 +4472,8 @@ async function runUnit(unit) {
         `You are the ship-handoff read-back stage for MSP "${msp.id}" of a mitosis run. You have NO Skill tool.\n\n` +
         `This stage is STRICTLY READ-ONLY: it independently RE-READS the durable oracle to confirm the merge the ship stage CLAIMED. Do NOT rebase, push, open, merge, or mutate any ref, file, or PR — only read.\n` +
         `SECURITY: the base and head refs below are trusted kebab-validated run config (never agent- or user-supplied), so interpolating them into these READ-ONLY gh reads carries no injection risk; this stage mutates nothing.\n\n` +
-        `1. Read the PR state with argv \`gh pr view -R "$(cd ${repoRoot} && gh repo view --json nameWithOwner -q .nameWithOwner)" ${integrationBranch} --json state,mergedAt,url\` (head ${JSON.stringify(integrationBranch)} is a single inert argv token). Report merged=true ONLY if state is MERGED and mergedAt is non-null, and report that mergedAt timestamp verbatim.\n` +
-        `2. Read the base...head containment: \`gh api "repos/$(cd ${repoRoot} && gh repo view --json nameWithOwner -q .nameWithOwner)/compare/${baseBranch}...${integrationBranch}"\` (base ${JSON.stringify(baseBranch)} and head ${JSON.stringify(integrationBranch)} are trusted kebab-validated config refs interpolated into the compare URL path). Report ahead_by (integer) and status (string) exactly as the API returns them; a genuinely merged head is CONTAINED in the base (ahead_by 0).\n` +
+        `1. Read the PR state with argv \`gh pr view -R ${repoSlug} ${integrationBranch} --json state,mergedAt,url\` (head ${JSON.stringify(integrationBranch)} is a single inert argv token). Report merged=true ONLY if state is MERGED and mergedAt is non-null, and report that mergedAt timestamp verbatim.\n` +
+        `2. Read the base...head containment: \`gh api "repos/${repoSlug}/compare/${baseBranch}...${integrationBranch}"\` (slug ${JSON.stringify(repoSlug)} is the engine-validated target repo, and base ${JSON.stringify(baseBranch)} and head ${JSON.stringify(integrationBranch)} are trusted kebab-validated config refs interpolated into the compare URL path). Report ahead_by (integer) and status (string) exactly as the API returns them; a genuinely merged head is CONTAINED in the base (ahead_by 0).\n` +
         `If either read cannot be completed (no remote, http error, unparseable body), set readError to a short description and leave merged, compare and mergedAt null.\n\n` +
         `Return ONLY: { merged: <bool|null>, compare: { ahead_by: <int>, status: "<string>" } | null, mergedAt: "<iso8601>" | null, readError: "<string>" | null }.`,
         { agentType: 'implementer', label: `ship-verify:${msp.id}`, phase: 'Ship', model: 'sonnet' }
@@ -4488,12 +4500,12 @@ async function runUnit(unit) {
         `Repo: ${repoRoot}. The engine has already integrated this MSP's work onto the LOCAL branch ${JSON.stringify(integrationBranch)} (boundary-validated, merged, never pushed). Sibling clusters merge into ${JSON.stringify(baseBranch)} concurrently, so you MUST revalidate on the FRESH combined base ${revalidateClause}.\n` +
         `Branch contract is PRE-RESOLVED: head = ${JSON.stringify(integrationBranch)}, base/target = ${JSON.stringify(baseBranch)}. Do NOT derive a base from the platform default; use exactly this base.\n\n` +
         `Every git side effect below is OBSERVE-THEN-CONVERGE: check the durable oracle (PR state / remote ref) BEFORE acting so a whole-agent replay after a crash is idempotent (${idempotencyScope}). Compensation is forward-only on shared refs: never rewrite history on a pushed ref; the only permitted force is the documented \`--force-with-lease\` retry after your OWN in-attempt rebase.\n\n` +
-        `1. DONE-ORACLE FIRST (idempotent replay guard): before anything else, ask whether this MSP's PR is already merged: \`gh pr view -R "$(cd ${repoRoot} && gh repo view --json nameWithOwner -q .nameWithOwner)" ${integrationBranch} --json state,mergedAt,url\`. If it reports state MERGED (mergedAt is non-null), this MSP already shipped on a prior attempt; do NOT rebase, push, open, or merge anything (re-running would produce a garbled second PR). Immediately return { merged: true, prUrl: "<the url it reported>", receiptsPass: true, d6Pass: true, detail: "already merged (done-oracle skip)" } and STOP.\n` +
+        `1. DONE-ORACLE FIRST (idempotent replay guard): before anything else, ask whether this MSP's PR is already merged: \`gh pr view -R ${repoSlug} ${integrationBranch} --json state,mergedAt,url\`. If it reports state MERGED (mergedAt is non-null), this MSP already shipped on a prior attempt; do NOT rebase, push, open, or merge anything (re-running would produce a garbled second PR). Immediately return { merged: true, prUrl: "<the url it reported>", receiptsPass: true, d6Pass: true, detail: "already merged (done-oracle skip)" } and STOP.\n` +
         `2. Refresh the base: \`git -C ${repoRoot} fetch origin ${baseBranch}\`.\n` +
         `3. Detect whether a sibling cluster advanced the base since this integration ref was cut: run \`git -C ${repoRoot} merge-base --is-ancestor origin/${baseBranch} ${integrationBranch}\`. Exit 0 = the base tip is already contained (no rebase needed); exit 1 = the base advanced, a sibling landed, rebase required.\n` +
         `4. Fresh-base (receipts G8): if the base advanced, run \`git -C ${repoRoot} rebase origin/${baseBranch} ${integrationBranch}\`. If the rebase reports conflicts, run \`git -C ${repoRoot} rebase --abort\` and STOP with merged=false and detail naming the conflicting paths (a cross-cluster file collision the coarse clustering missed - a human must resolve); on conflict do NOT publish anything. If the rebase replayed cleanly (or no rebase was needed), PUBLISH observe-then-converge: check whether the remote already has this exact head with \`git -C ${repoRoot} ls-remote --heads origin ${integrationBranch}\` and compare it to \`git -C ${repoRoot} rev-parse ${integrationBranch}\`. If origin/${integrationBranch} already equals the local head, the push already happened on a prior attempt - SKIP the push. Otherwise publish: \`git -C ${repoRoot} push -u origin ${integrationBranch}\` (this branch was never pushed before ship, so a first-time publish fast-forwards). ONLY if that push is REJECTED as non-fast-forward (a retry where this branch was already published and has since been rebased) retry once with \`git -C ${repoRoot} push --force-with-lease -u origin ${integrationBranch}\` - this is the sole permitted force, scoped to your own rebase.\n` +
-        `5. Open ONE pull request observe-then-converge: FIRST check for an existing open PR - \`gh pr list -R "$(cd ${repoRoot} && gh repo view --json nameWithOwner -q .nameWithOwner)" --head ${integrationBranch} --base ${baseBranch} --state open --json url,number\`. If one exists, REUSE it (do NOT open a second). Only if none exists, open a new PR with head ${integrationBranch} onto base ${baseBranch}, stacked bottom-up on already-merged MSPs (${dependsList}).\n` +
-        `6. Wait for CI to finish on the FRESH head+base with a BACKGROUNDED, timeout-bounded watch that returns the terminal conclusion - NEVER foreground-stream CI logs by re-invoking a blocking watch that pipes every progress line into context. Resolve the run id for this head, then poll its status in a backgrounded shell bounded by a hard timeout so the wait lives in your shell and never blocks indefinitely. First derive the TARGET repo slug ONCE so every run-status read is pinned to the target repo (never the ambient cwd): \`repoSlug="$(cd ${repoRoot} && gh repo view --json nameWithOwner -q .nameWithOwner)"; runId=$(gh run list -R "$repoSlug" --branch ${integrationBranch} --limit 1 --json databaseId -q '.[0].databaseId'); timeout ${CI_WATCH_MAX_SECONDS} bash -c 'until [ "$(gh run view '"$runId"' -R '"$repoSlug"' --json status -q .status)" = "completed" ]; do sleep ${CI_WATCH_INTERVAL_SECONDS}; done'\`, then read the terminal conclusion ONCE: \`gh run view "$runId" -R "$repoSlug" --json conclusion -q .conclusion\`. Treat conclusion=success as CI GREEN and any other terminal conclusion (failure/cancelled/timed_out, or the timeout expiring before completion) as CI RED. This CI runs the receipts red->green enforcer + G9 full-suite + the D6 cluster-boundary step. Because the PR base is origin/${baseBranch} (now including every sibling that already merged) and the head is the rebased tip, the D6 step computes NEW base..head dependents over the COMBINED post-rebase state - not this cluster's changes in isolation.\n` +
+        `5. Open ONE pull request observe-then-converge: FIRST check for an existing open PR - \`gh pr list -R ${repoSlug} --head ${integrationBranch} --base ${baseBranch} --state open --json url,number\`. If one exists, REUSE it (do NOT open a second). Only if none exists, open a new PR with head ${integrationBranch} onto base ${baseBranch}, stacked bottom-up on already-merged MSPs (${dependsList}).\n` +
+        `6. Wait for CI to finish on the FRESH head+base with a BACKGROUNDED, timeout-bounded watch that returns the terminal conclusion - NEVER foreground-stream CI logs by re-invoking a blocking watch that pipes every progress line into context. Resolve the run id for this head, then poll its status in a backgrounded shell bounded by a hard timeout so the wait lives in your shell and never blocks indefinitely. Every run-status read is pinned to the engine-resolved target repo ${JSON.stringify(repoSlug)} (never the ambient cwd): \`runId=$(gh run list -R ${repoSlug} --branch ${integrationBranch} --limit 1 --json databaseId -q '.[0].databaseId'); timeout ${CI_WATCH_MAX_SECONDS} bash -c 'until [ "$(gh run view '"$runId"' -R ${repoSlug} --json status -q .status)" = "completed" ]; do sleep ${CI_WATCH_INTERVAL_SECONDS}; done'\`, then read the terminal conclusion ONCE: \`gh run view "$runId" -R ${repoSlug} --json conclusion -q .conclusion\`. Treat conclusion=success as CI GREEN and any other terminal conclusion (failure/cancelled/timed_out, or the timeout expiring before completion) as CI RED. This CI runs the receipts red->green enforcer + G9 full-suite + the D6 cluster-boundary step. Because the PR base is origin/${baseBranch} (now including every sibling that already merged) and the head is the rebased tip, the D6 step computes NEW base..head dependents over the COMBINED post-rebase state - not this cluster's changes in isolation.\n` +
         shipStep7 +
         shipReturnLine,
         { agentType: 'implementer', schema: SHIP_SCHEMA, label: `ship:${msp.id}`, phase: 'Ship', model: 'opus' }
