@@ -480,9 +480,9 @@ function makeSandbox(plan) {
     "const steps = JSON.parse(fs.readFileSync(process.env.FAKE_GH_PLAN, 'utf8'));",
     "const seen = fs.readFileSync(process.env.FAKE_GH_RECORD, 'utf8').split('\\n').filter(Boolean).length;",
     'const step = steps[Math.min(seen - 1, steps.length - 1)] || {};',
-    "if (step.stdout) process.stdout.write(step.stdout);",
-    "if (step.stderr) process.stderr.write(step.stderr);",
-    'process.exit(step.exit || 0);',
+    "if (step.stdout) fs.writeSync(1, step.stdout);",
+    "if (step.stderr) fs.writeSync(2, step.stderr);",
+    'process.exitCode = step.exit || 0;',
     '',
   ].join('\n'));
   writeFileSync(join(fakeDir, 'package.json'), '{"type":"commonjs"}\n');
@@ -576,6 +576,19 @@ test('e2e: pr-create reports the converge failure and forwards gh stderr', () =>
     const res = runWrapper(prCreateArgv(), sandbox);
     assert.equal(res.status, MITOSIS_GIT_CONVERGE_EXIT);
     assert.match(res.stderr, /pull request creation failed/);
+  });
+});
+
+test('e2e: pr-create forwards the WHOLE gh stderr on a converge failure, not just one pipe buffer', () => {
+  const emitted = `${'E'.repeat(400000)}Z`;
+  withSandbox([
+    { stdout: '[]' },
+    { stderr: emitted, exit: 1 },
+  ], (sandbox) => {
+    const res = runWrapper(prCreateArgv(), sandbox);
+    assert.equal(res.status, MITOSIS_GIT_CONVERGE_EXIT);
+    assert.equal(res.stderr.length, emitted.length, 'the forwarded diagnostic must not be cut at the pipe buffer');
+    assert.ok(res.stderr.endsWith('Z'), 'the tail of the gh diagnostic must survive');
   });
 });
 

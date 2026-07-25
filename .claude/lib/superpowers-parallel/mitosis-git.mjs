@@ -463,7 +463,7 @@ export function mitosisGitMain() {
     log: (text) => process.stdout.write(text),
     err: (text) => process.stderr.write(text),
   });
-  process.exit(runMitosisGit(process.argv.slice(2), out));
+  process.exitCode = runMitosisGit(process.argv.slice(2), out);
 }
 
 export function isDirectInvocation() {
