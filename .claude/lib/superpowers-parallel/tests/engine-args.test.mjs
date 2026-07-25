@@ -114,8 +114,25 @@ test('MSP-2 R4 deny-case: buildEngineArgs rejects a baseBranch or branchPrefix t
       assert.throws(() => buildEngineArgs(input), (err) => {
         assert.match(err.message, /buildEngineArgs/, `the throw is attributed to the arg boundary for ${field}=${JSON.stringify(token)}`);
         assert.match(err.message, new RegExp(field), `the throw names the offending field ${field}=${JSON.stringify(token)}`);
+        assert.match(err.message, /conservative git ref token/, `a present-but-hostile ${field}=${JSON.stringify(token)} is a content fault, reported as a ref-token failure`);
         return true;
       }, `expected a throw for ${field}=${JSON.stringify(token)}`);
+    }
+  }
+});
+
+test('MSP-3 diagnostics: an absent or null baseBranch/branchPrefix is reported as a missing required engine arg, never misreported as a ref-token content failure', () => {
+  for (const field of ['baseBranch', 'branchPrefix']) {
+    for (const shape of ['absent', 'null']) {
+      const input = fullInput();
+      if (shape === 'absent') delete input[field];
+      else input[field] = null;
+      assert.throws(() => buildEngineArgs(input), (err) => {
+        assert.match(err.message, /missing required engine args/, `${shape} ${field} is an absence fault, reported as missing`);
+        assert.match(err.message, new RegExp(field), `the missing-args throw names ${field}`);
+        assert.doesNotMatch(err.message, /conservative git ref token/, `${shape} ${field} must not point the operator at the value's content when the fault is its absence`);
+        return true;
+      }, `expected a missing-args throw for ${shape} ${field}`);
     }
   }
 });
