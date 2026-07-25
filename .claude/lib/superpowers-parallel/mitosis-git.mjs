@@ -38,6 +38,9 @@ const LINE_CAP = 512;
 const PR_NUMBER_PATTERN = /^[1-9][0-9]{0,9}$/;
 const DEPENDS_ID_PATTERN = /^[a-z0-9][a-z0-9-]*$/;
 const DEPENDS_CAP = 64;
+const DEPENDS_ID_CAP = 64;
+const SUPERSEDES_PREFIX = 'SUPERSEDES ';
+const DEPENDS_PREFIX = 'DEPENDS-ON ';
 const BODY_TRAILER = 'Opened by the mitosis engine. HUMAN-GATED: a human reviews and lands this pull request.';
 
 function rejection(error) {
@@ -56,8 +59,16 @@ function inertText(value, cap) {
 function parseDependsList(value) {
   const parts = String(value).split(',').map((part) => part.trim());
   if (parts.length === 0 || parts.length > DEPENDS_CAP) return null;
-  if (!parts.every((part) => DEPENDS_ID_PATTERN.test(part))) return null;
+  if (!parts.every((part) => part.length <= DEPENDS_ID_CAP && DEPENDS_ID_PATTERN.test(part))) return null;
   return parts;
+}
+
+function canonicalPrUrl(candidate) {
+  const ref = parsePrRef(candidate);
+  if (ref === null || !validateRepoIdentity(ref.ownerRepo)) return null;
+  const canonical = `https://github.com/${ref.ownerRepo}/pull/${ref.prNumber}`;
+  if (inertText(`${SUPERSEDES_PREFIX}${canonical}`, LINE_CAP) === null) return null;
+  return canonical;
 }
 
 function collectFlags(verb, argv) {
@@ -113,8 +124,8 @@ function parsePrCreate(single, multiple) {
   let supersedes = null;
   if (single.has('--supersedes')) {
     const candidate = single.get('--supersedes');
-    if (parsePrRef(candidate) === null) return rejection(`mitosis-git pr-create: --supersedes ${JSON.stringify(candidate)} is not a github pull-request url`);
-    supersedes = candidate;
+    supersedes = canonicalPrUrl(candidate);
+    if (supersedes === null) return rejection(`mitosis-git pr-create: --supersedes ${JSON.stringify(candidate)} is not a github pull-request url that composes an inert body line within the ${LINE_CAP}-character cap`);
   }
   let depends = [];
   if (single.has('--depends')) {
@@ -171,8 +182,8 @@ export function parseMitosisGitArgv(argv) {
 export function renderPrCreateBody(opts) {
   const lines = [];
   for (const line of opts.bodyLines || []) lines.push(line);
-  if (opts.supersedes) lines.push(`SUPERSEDES ${opts.supersedes}`);
-  if (opts.depends && opts.depends.length > 0) lines.push(`DEPENDS-ON ${opts.depends.join(', ')}`);
+  if (opts.supersedes) lines.push(`${SUPERSEDES_PREFIX}${opts.supersedes}`);
+  if (opts.depends && opts.depends.length > 0) lines.push(`${DEPENDS_PREFIX}${opts.depends.join(', ')}`);
   lines.push(BODY_TRAILER);
   return lines.join('\n');
 }

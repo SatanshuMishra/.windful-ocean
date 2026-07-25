@@ -257,6 +257,35 @@ test('parse ACCEPTS a github pull-request url for --supersedes', () => {
   assert.equal(parsed.opts.supersedes, 'https://github.com/acme/widgets/pull/41');
 });
 
+const CONTROL_IN_BODY = /[\u0000-\u001F\u007F]/;
+
+test('parse drops the caller-controlled --supersedes tail so no control character reaches the body', () => {
+  const tail = `${String.fromCharCode(0)}${String.fromCharCode(7)}${String.fromCharCode(27)}[31m`;
+  const parsed = okParse(prCreateArgv(['--supersedes', `https://github.com/acme/widgets/pull/41/${tail}`]));
+  const body = renderPrCreateBody(parsed.opts);
+  for (const line of body.split('\n')) {
+    assert.ok(!CONTROL_IN_BODY.test(line), `a composed body line must carry no control character: ${JSON.stringify(line)}`);
+  }
+  assert.match(body, /^SUPERSEDES https:\/\/github\.com\/acme\/widgets\/pull\/41$/m);
+});
+
+test('parse keeps the human-gated trailer reachable by refusing a markdown tail on the supersedes line', () => {
+  const parsed = okParse(prCreateArgv(['--supersedes', 'https://github.com/acme/widgets/pull/1?x=<!--']));
+  const body = renderPrCreateBody(parsed.opts);
+  assert.ok(!body.includes('<!--'), 'no caller-controlled tail may reach the supersedes line');
+  assert.match(body, /HUMAN-GATED/);
+});
+
+test('parse canonicalises a --supersedes carrying a trailing newline so its body line cannot split', () => {
+  const parsed = okParse(prCreateArgv(['--supersedes', 'https://github.com/acme/widgets/pull/1?x=y\n']));
+  assert.equal(parsed.opts.supersedes, 'https://github.com/acme/widgets/pull/1');
+  assert.equal(renderPrCreateBody(parsed.opts).split('\n').length, 2);
+});
+
+test('parse REJECTS a --supersedes whose composed body line would exceed the line cap', () => {
+  failParse(prCreateArgv(['--supersedes', `https://github.com/${'a'.repeat(600)}/widgets/pull/41`]));
+});
+
 const REJECTED_DEPENDS = Object.freeze(['', '(none)', 'MSP-1', 'msp 1', 'msp-1,,msp-2', 'msp-1;id', '-msp-1', ',']);
 
 for (const depends of REJECTED_DEPENDS) {
@@ -268,6 +297,13 @@ for (const depends of REJECTED_DEPENDS) {
 test('parse ACCEPTS a comma-separated --depends list and tolerates the engine spacing', () => {
   const parsed = okParse(prCreateArgv(['--depends', 'msp-1, msp-2']));
   assert.deepEqual(parsed.opts.depends, ['msp-1', 'msp-2']);
+});
+
+test('parse REJECTS a --depends id past the per-id cap so the body line stays bounded', () => {
+  okParse(prCreateArgv(['--depends', 'a'.repeat(64)]));
+  failParse(prCreateArgv(['--depends', 'a'.repeat(65)]));
+  failParse(prCreateArgv(['--depends', 'a'.repeat(70000)]));
+  failParse(prCreateArgv(['--depends', `msp-1,${'b'.repeat(65)}`]));
 });
 
 test('renderPrCreateBody composes a fixed template from inert values only', () => {
