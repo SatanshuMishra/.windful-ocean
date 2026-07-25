@@ -85,7 +85,8 @@ function collectFlags(verb, argv) {
       return { error: `mitosis-git ${verb}: unknown flag ${JSON.stringify(token)}; the accepted flags are ${[...spec.single, ...spec.multiple].join(' ')}` };
     }
     const value = argv[i + 1];
-    if (typeof value !== 'string' || value.length === 0 || value.startsWith('-')) {
+    const swallowedFlag = typeof value === 'string' && (spec.single.includes(value) || spec.multiple.includes(value));
+    if (typeof value !== 'string' || value.length === 0 || swallowedFlag) {
       return { error: `mitosis-git ${verb}: flag ${token} requires one inline value and received ${JSON.stringify(value === undefined ? null : value)}` };
     }
     i += 1;

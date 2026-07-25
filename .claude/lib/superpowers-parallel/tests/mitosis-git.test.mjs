@@ -134,6 +134,36 @@ test('parse accumulates a repeated --body-line instead of rejecting it', () => {
   assert.deepEqual(parsed.opts.bodyLines, ['first', 'second']);
 });
 
+test('parse ACCEPTS the dash-leading prose an interdiff summary is made of', () => {
+  const parsed = okParse(prCreateArgv([
+    '--body-line', '- fixed the parser',
+    '--body-line', '-3 files changed',
+    '--body-line', '--- a/src/parser.mjs',
+  ]));
+  assert.deepEqual(parsed.opts.bodyLines, ['- fixed the parser', '-3 files changed', '--- a/src/parser.mjs']);
+});
+
+test('parse ACCEPTS a dash-leading title and comment', () => {
+  const titled = okParse(['pr-create', '--repo', REPO, '--head', HEAD, '--base', BASE, '--title', '-refactor the parser']);
+  assert.equal(titled.opts.title, '-refactor the parser');
+  const closed = okParse(['pr-close', '--repo', REPO, '--pr', '12', '--comment', '- superseded by #500']);
+  assert.equal(closed.opts.comment, '- superseded by #500');
+});
+
+const FLAG_IN_VALUE_POSITION = Object.freeze([
+  ['pr-create', '--repo', REPO, '--head', HEAD, '--base', BASE, '--title', '--body-line', 'x'],
+  prCreateArgv(['--body-line', '--depends', 'msp-1']),
+  prCreateArgv(['--supersedes', '--title']),
+  ['pr-close', '--repo', REPO, '--pr', '12', '--comment', '--repo', 'other/repo'],
+  ['compare', '--repo', REPO, '--base', '--head', '--head', HEAD],
+]);
+
+for (const argv of FLAG_IN_VALUE_POSITION) {
+  test(`parse REJECTS a value position occupied by another allowlisted flag ${JSON.stringify(argv.slice(-3))}`, () => {
+    failParse(argv);
+  });
+}
+
 const AT_SIGIL_VALUES = Object.freeze([
   ['pr-create', '--repo', REPO, '--head', HEAD, '--base', BASE, '--title', '@/etc/passwd'],
   prCreateArgv(['--body-line', '@/etc/passwd']),
