@@ -9,6 +9,10 @@ const GH_ACTION = /gh (pr|api|run|issue)\b/g;
 const SCOPE_TOKENS = [' -R ', '${repoSlug}'];
 const CODE_SPAN_CLOSE = '\\`';
 const PLACEHOLDER = '<OWNER_REPO>';
+const LIB_DIR_NAME = 'LIB_DIR';
+const LIB_DIR_LITERAL = '/Users/satanshumishra/.claude/lib/superpowers-parallel';
+const LIB_DIR_TEMPLATE = '${LIB_DIR}';
+const PR_CREATE_SITES = 3;
 const RECONCILE_PLACEHOLDER_SITES = [
   `gh pr list -R ${PLACEHOLDER} --state merged --base `,
   `gh pr list -R ${PLACEHOLDER} --state open --base `,
@@ -77,4 +81,15 @@ test('D7: no emitted command derives the repo slug through a $( ) subshell or a 
   assert.equal(source.includes('$(cd '), false, 'a cd-subshell makes the emitted command unmatchable by a literal permission allow-rule');
   assert.equal(source.includes('gh repo view --json nameWithOwner -q .nameWithOwner'), false, 'the -q slug read only ever existed inside the removed subshells');
   assert.equal(source.includes('$repoSlug'), false, 'the slug is an engine-resolved literal, never a shell variable');
+});
+
+test('MSP-3: every pull-request-CREATION site emits the anchored mitosis-git wrapper, and none of them still hands the agent a free-form open-PR probe', () => {
+  const invocations = source.split(`node ${LIB_DIR_TEMPLATE}/mitosis-git.mjs pr-create`).length - 1;
+  assert.equal(invocations, PR_CREATE_SITES, `all ${PR_CREATE_SITES} PR-creation sites (shepherd-open, supersede, ship) must invoke the wrapper; found ${invocations}`);
+  assert.equal(source.includes('gh pr list -R ${repoSlug} --head'), false, 'the --head open-PR probe is the observe step the wrapper now owns; emitting it too restores the free-form surface this increment removes');
+});
+
+test('MSP-3: the wrapper anchor resolves to one absolute literal a string-matching permission rule can pin, never a tilde', () => {
+  assert.ok(source.includes(`const ${LIB_DIR_NAME} = '${LIB_DIR_LITERAL}';`), 'the emitted anchor is the absolute superpowers-parallel path');
+  assert.equal(source.includes('~/.claude'), false, 'no emitted command may spell the anchor with a tilde: the permission matcher compares strings, not inodes');
 });

@@ -5,6 +5,7 @@ import { computeLogicalRunId, buildInitialManifest, applyShipTransition, parseRu
 import { foldRunManifest } from '../run-log.mjs';
 import { park, LEGAL_STAGES } from '../parking.mjs';
 import { runEngine } from '../run-engine.mjs';
+import { parseMitosisGitArgv } from '../mitosis-git.mjs';
 
 const MITOSIS_PATH = process.env.MITOSIS_PATH || new URL('../../../workflows/mitosis.js', import.meta.url).pathname;
 const SOURCE_PREFIX = 'mitosis-test';
@@ -15,6 +16,7 @@ const SCOPED = `-R ${TEST_REPO_SLUG}`;
 const SLUG_PLACEHOLDER = '<OWNER_REPO>';
 const testPrUrl = (seed) => `https://example.test/${TEST_REPO_SLUG}/pull/${[...String(seed)].reduce((acc, ch) => acc + ch.charCodeAt(0), 0)}`;
 const SLUG_DERIVATION = `$(cd ${TEST_REPO_ROOT} && gh repo view --json nameWithOwner -q .nameWithOwner)`;
+const PR_CREATE_CLI = 'node /Users/satanshumishra/.claude/lib/superpowers-parallel/mitosis-git.mjs pr-create';
 
 const mitosisBody = readFileSync(MITOSIS_PATH, 'utf8').replace(/^export const meta/m, 'const meta');
 const AsyncFunction = Object.getPrototypeOf(async function () {}).constructor;
@@ -84,6 +86,16 @@ function buildEngineArgs({ sourcePrefix, mspId, taskId = 't0' }) {
     runArtifacts: [],
     models: {},
   };
+}
+
+function prCreateArgvFromPrompt(prompt) {
+  const start = prompt.indexOf(PR_CREATE_CLI);
+  assert.ok(start >= 0, 'the prompt carries the wrapper invocation');
+  const end = prompt.indexOf('`', start);
+  assert.ok(end > start, 'the wrapper invocation is closed by its code span');
+  const tokens = (prompt.slice(start, end).match(/"(?:[^"\\]|\\.)*"|\S+/g) || []).map((t) => (t.startsWith('"') ? JSON.parse(t) : t));
+  assert.equal(tokens[0], 'node', 'the invocation is a bare node call the permission matcher can anchor on');
+  return tokens.slice(2);
 }
 
 function mspSpec(id, overrides = {}) {
@@ -1254,7 +1266,7 @@ test('P4 §8.2 ship push is observe-then-converge and forward-only (checks origi
   assert.match(captured[0], /forward-only on shared refs/);
 });
 
-test('P4 §8.2 ship PR is observe-then-converge (reuse an existing open PR, never open a second)', async () => {
+test('P4 §8.2 ship PR-open is ONE literal wrapper invocation that carries observe-then-converge itself (no free-form gh pr list)', async () => {
   const msps = [mspSpec('solo', { fileScope: ['scope/solo/**'] })];
   const captured = [];
   const base = createFakeAgent({ msps });
@@ -1266,9 +1278,40 @@ test('P4 §8.2 ship PR is observe-then-converge (reuse an existing open PR, neve
   const result = await resultPromise;
 
   assert.equal(result.overallStatus, 'all-shipped');
-  assert.ok(captured[0].includes(`gh pr list ${SCOPED} --head`), 'the ship existing-PR check is pinned to the TARGET repo via -R');
-  assert.doesNotMatch(captured[0], /gh pr list (?!-R)/);
-  assert.match(captured[0], /REUSE it/);
+  assert.ok(
+    captured[0].includes(`${PR_CREATE_CLI} --repo ${TEST_REPO_SLUG} --head ${SOURCE_PREFIX}/solo-integration --base main --title "mitosis: solo"`),
+    'the ship PR-open is the absolutely-spelled wrapper invocation a literal permission rule can match',
+  );
+  assert.doesNotMatch(captured[0], /gh pr list/, 'the wrapper performs the observe step itself; handing the agent a gh pr list too would restore the free-form surface');
+  assert.doesNotMatch(captured[0], /~\/\.claude/, 'the anchor is never spelled with a tilde: the permission matcher compares strings, not inodes');
+  assert.match(captured[0], /reuses an existing open PR/, 'the prompt still states the reuse guarantee the removed prose carried');
+});
+
+test('P4 §8.2 the ship PR-open emits an argv the mitosis-git wrapper actually accepts, carrying the stacked MSPs as --depends', async () => {
+  const msps = [
+    mspSpec('a', { fileScope: ['scope/a/**'] }),
+    mspSpec('b', { dependsOn: ['a'], fileScope: ['scope/b/**'] }),
+  ];
+  const captured = new Map();
+  const base = createFakeAgent({ msps });
+  const agent = async (prompt, opts = {}) => {
+    const label = opts.label || '';
+    if (label.startsWith('ship:')) captured.set(label.slice('ship:'.length), prompt);
+    return base(prompt, opts);
+  };
+  const { resultPromise } = invokeMitosis(buildInput(), agent);
+  await resultPromise;
+
+  const root = parseMitosisGitArgv(prCreateArgvFromPrompt(captured.get('a')));
+  assert.equal(root.ok, true, `the root MSP's emitted argv must parse: ${root.error}`);
+  assert.equal(root.opts.head, `${SOURCE_PREFIX}/a-integration`);
+  assert.equal(root.opts.base, 'main');
+  assert.equal(root.opts.title, 'mitosis: a');
+  assert.deepEqual([...root.opts.depends], [], 'a root MSP emits no --depends flag rather than a value the wrapper would reject');
+
+  const child = parseMitosisGitArgv(prCreateArgvFromPrompt(captured.get('b')));
+  assert.equal(child.ok, true, `the dependent MSP's emitted argv must parse: ${child.error}`);
+  assert.deepEqual([...child.opts.depends], ['a'], 'a dependent MSP names its parents as one comma-joined --depends value');
 });
 
 test('D7 gh-scope: the ship CI-wait scopes every gh run to the engine-resolved LITERAL slug — no subshell, no shell variable, no cd', async () => {

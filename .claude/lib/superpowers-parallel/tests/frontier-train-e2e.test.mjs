@@ -10,6 +10,7 @@ const SPEC = '/tmp/mitosis-frontier-e2e/spec.md';
 const REPO_ROOT = '/tmp/mitosis-frontier-e2e/repo';
 const BASE_BRANCH = 'main';
 const RUN_ID = computeLogicalRunId(SPEC, BASE_BRANCH);
+const PR_CREATE_CLI = 'node /Users/satanshumishra/.claude/lib/superpowers-parallel/mitosis-git.mjs pr-create';
 
 const mitosisBody = readFileSync(MITOSIS_PATH, 'utf8').replace(/^export const meta/m, 'const meta');
 const AsyncFunction = Object.getPrototypeOf(async function () {}).constructor;
@@ -490,6 +491,12 @@ test('bullet 5 + 2: reconcile-only shepherd opens the deferred next-layer PR onl
   const openPrompt = prompts.get('shepherd-open:l2');
   assert.ok(!/gh pr merge|squash-merge|git merge/.test(openPrompt), 'the shepherd opens the PR for a human and NEVER merges');
   assert.match(openPrompt, /human-gated/i, 'the shepherd-open prompt is explicitly human-gated');
+  assert.ok(
+    openPrompt.includes(`${PR_CREATE_CLI} --repo o/repo --head ${SOURCE_PREFIX}/l2-integration --base ${BASE_BRANCH} --title "mitosis: l2"`),
+    'the deferred PR opens through the absolutely-spelled wrapper invocation, not free-form prose',
+  );
+  assert.doesNotMatch(openPrompt, /gh pr list/, 'the wrapper performs the observe step itself; a second gh pr list would restore the free-form surface');
+  assert.doesNotMatch(openPrompt, /~\/\.claude/, 'the anchor is never spelled with a tilde: the permission matcher compares strings, not inodes');
 });
 
 test('bullet 3: restack-on-merge — a child with one merged and one still-unmerged parent restacks its unpublished built branch onto the advanced base and opens no PR yet', async () => {
