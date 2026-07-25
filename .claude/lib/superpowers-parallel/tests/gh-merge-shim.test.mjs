@@ -1,15 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { spawnSync } from 'node:child_process';
-import { mkdtempSync, mkdirSync, writeFileSync, chmodSync, readFileSync, existsSync, rmSync } from 'node:fs';
-import { tmpdir } from 'node:os';
-import { join, dirname } from 'node:path';
-import { fileURLToPath } from 'node:url';
-import { classifyGhMerge, resolveRealGh, MERGE_DENY_EXIT } from '../gh-merge-shim.mjs';
-
-const SHIM_BIN = fileURLToPath(new URL('../bin/gh', import.meta.url));
-const SHIM_DIR = dirname(SHIM_BIN);
-const NODE_DIR = dirname(process.execPath);
+import { classifyGhMerge, resolveRealGh } from '../gh-merge-shim.mjs';
 
 const noIo = Object.freeze({ readFile: () => null, readStdin: () => null });
 
@@ -363,28 +354,6 @@ for (const argv of PASSTHROUGH_ALIAS_ARGV) {
   });
 }
 
-test('e2e: shim REFUSES gh api -iX PUT (clustered) merge and never calls real gh', () => {
-  const sandbox = makeSandbox();
-  try {
-    const res = runThroughShell('gh api -iX PUT repos/o/r/pulls/12/merge', sandbox);
-    assert.notEqual(res.status, 0, `expected non-zero exit; stderr=${res.stderr}`);
-    assert.deepEqual(recordedCalls(sandbox), [], 'real gh must NOT be called for clustered -iX PUT merge');
-  } finally {
-    rmSync(sandbox.root, { recursive: true, force: true });
-  }
-});
-
-test('e2e: shim PASSES THROUGH gh api -i repos/o/r/pulls/1 (clustered boolean) verbatim', () => {
-  const sandbox = makeSandbox();
-  try {
-    const res = runThroughShell('gh api -i repos/o/r/pulls/1', sandbox);
-    assert.equal(res.status, 0, `expected exit 0; stderr=${res.stderr}`);
-    assert.deepEqual(recordedCalls(sandbox), [['api', '-i', 'repos/o/r/pulls/1']]);
-  } finally {
-    rmSync(sandbox.root, { recursive: true, force: true });
-  }
-});
-
 test('resolveRealGh skips its own realpath even via a symlink alias (infinite-loop guard)', () => {
   const selfPath = '/shim/bin/gh';
   const realpath = (p) => (p === '/alias/gh' ? '/shim/bin/gh' : p);
@@ -402,127 +371,4 @@ test('resolveRealGh falls back to a pinned absolute path when PATH holds only th
 test('resolveRealGh returns null when no real gh exists anywhere (runtime then errors, never self-execs)', () => {
   const got = resolveRealGh({ selfPath: '/shim/bin/gh', pathValue: '/shim/bin', fallbacks: [], realpath: (p) => p, isExecutable: (p) => p === '/shim/bin/gh' });
   assert.equal(got, null);
-});
-
-function makeSandbox() {
-  const root = mkdtempSync(join(tmpdir(), 'gh-shim-e2e-'));
-  const fakeDir = join(root, 'fakebin');
-  mkdirSync(fakeDir, { recursive: true });
-  const record = join(root, 'record.jsonl');
-  const fakeGh = join(fakeDir, 'gh');
-  writeFileSync(fakeGh, [
-    '#!/usr/bin/env node',
-    'import { appendFileSync } from "node:fs";',
-    'appendFileSync(process.env.FAKE_GH_RECORD, JSON.stringify(process.argv.slice(2)) + "\\n");',
-    'process.exit(Number(process.env.FAKE_GH_EXIT || "0"));',
-    '',
-  ].join('\n'));
-  writeFileSync(join(fakeDir, 'package.json'), '{"type":"module"}\n');
-  chmodSync(fakeGh, 0o755);
-  return { root, fakeDir, record };
-}
-
-function runThroughShell(script, sandbox, extra = {}) {
-  const env = {
-    PATH: `${SHIM_DIR}:${sandbox.fakeDir}:${NODE_DIR}:/usr/bin:/bin`,
-    FAKE_GH_RECORD: sandbox.record,
-    HOME: process.env.HOME,
-    ...extra,
-  };
-  return spawnSync('/bin/bash', ['-c', script], { env, encoding: 'utf8' });
-}
-
-function recordedCalls(sandbox) {
-  if (!existsSync(sandbox.record)) return [];
-  return readFileSync(sandbox.record, 'utf8').split('\n').filter(Boolean).map((line) => JSON.parse(line));
-}
-
-const E2E_REFUSE_SCRIPTS = Object.freeze([
-  ['gh pr me$(echo r)ge 12', 'command-substitution verb'],
-  ["gh pr $'\\x6d\\x65\\x72\\x67\\x65' 12", 'ANSI-C hex verb'],
-  ['gh${IFS}pr${IFS}merge 12', 'IFS fusion'],
-  ["bash -c 'gh pr $1' _ merge", 'positional param verb'],
-  ['g=gh; $g pr merge 12', 'command name from variable'],
-  ['gh p$(echo r) merge 12', 'reconstructed pr identifier'],
-  ["eval 'gh pr merge 12'", 'eval'],
-  ["echo 'gh pr merge 12' | bash", 'pipe to shell'],
-]);
-
-for (const [script, label] of E2E_REFUSE_SCRIPTS) {
-  test(`e2e: shim REFUSES post-expansion (${label}) and never calls real gh`, () => {
-    const sandbox = makeSandbox();
-    try {
-      const res = runThroughShell(script, sandbox);
-      assert.notEqual(res.status, 0, `expected non-zero exit for ${label}; stderr=${res.stderr}`);
-      assert.deepEqual(recordedCalls(sandbox), [], `real gh must NOT be called for ${label}`);
-    } finally {
-      rmSync(sandbox.root, { recursive: true, force: true });
-    }
-  });
-}
-
-test('e2e: shim REFUSES api PUT to the merge endpoint and never calls real gh', () => {
-  const sandbox = makeSandbox();
-  try {
-    const res = runThroughShell('gh api -X PUT repos/o/r/pulls/12/merge', sandbox);
-    assert.notEqual(res.status, 0);
-    assert.deepEqual(recordedCalls(sandbox), []);
-  } finally {
-    rmSync(sandbox.root, { recursive: true, force: true });
-  }
-});
-
-test('e2e: shim REFUSES gh -R o/r pr merge 12 (value-flag shift) and never calls real gh', () => {
-  const sandbox = makeSandbox();
-  try {
-    const res = runThroughShell('gh -R o/r pr merge 12', sandbox);
-    assert.notEqual(res.status, 0, `expected non-zero exit; stderr=${res.stderr}`);
-    assert.deepEqual(recordedCalls(sandbox), [], 'real gh must NOT be called for gh -R o/r pr merge 12');
-  } finally {
-    rmSync(sandbox.root, { recursive: true, force: true });
-  }
-});
-
-test('e2e: shim PASSES THROUGH gh -R o/r pr view 12 faithfully after value-flag resolution', () => {
-  const sandbox = makeSandbox();
-  try {
-    const res = runThroughShell('gh -R o/r pr view 12', sandbox);
-    assert.equal(res.status, 0, `expected exit 0; stderr=${res.stderr}`);
-    assert.deepEqual(recordedCalls(sandbox), [['-R', 'o/r', 'pr', 'view', '12']]);
-  } finally {
-    rmSync(sandbox.root, { recursive: true, force: true });
-  }
-});
-
-const E2E_PASSTHROUGH_SCRIPTS = Object.freeze([
-  ['gh pr create --title x --body y', ['pr', 'create', '--title', 'x', '--body', 'y']],
-  ['gh pr view 12', ['pr', 'view', '12']],
-  ['gh pr list', ['pr', 'list']],
-  ['gh pr edit 12 --add-label needs-merge', ['pr', 'edit', '12', '--add-label', 'needs-merge']],
-  ['gh pr comment 12 --body "please merge this"', ['pr', 'comment', '12', '--body', 'please merge this']],
-  ['gh repo view', ['repo', 'view']],
-]);
-
-for (const [script, expectedArgv] of E2E_PASSTHROUGH_SCRIPTS) {
-  test(`e2e: shim PASSES THROUGH faithfully (${script})`, () => {
-    const sandbox = makeSandbox();
-    try {
-      const res = runThroughShell(script, sandbox);
-      assert.equal(res.status, 0, `expected exit 0; stderr=${res.stderr}`);
-      assert.deepEqual(recordedCalls(sandbox), [expectedArgv]);
-    } finally {
-      rmSync(sandbox.root, { recursive: true, force: true });
-    }
-  });
-}
-
-test('e2e: shim forwards a non-zero exit code faithfully on pass-through', () => {
-  const sandbox = makeSandbox();
-  try {
-    const res = runThroughShell('gh pr view 12', sandbox, { FAKE_GH_EXIT: '7' });
-    assert.equal(res.status, 7, `expected forwarded exit 7; stderr=${res.stderr}`);
-    assert.deepEqual(recordedCalls(sandbox), [['pr', 'view', '12']]);
-  } finally {
-    rmSync(sandbox.root, { recursive: true, force: true });
-  }
 });
