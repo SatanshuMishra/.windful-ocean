@@ -57,7 +57,7 @@ export function buildEngineArgs(input) {
   if (missing.length > 0) {
     throw new Error(`buildEngineArgs: missing required engine args: ${missing.join(', ')}`);
   }
-  const unsafeRefs = ['baseBranch', 'branchPrefix'].filter((name) => !validateRefToken(input[name]));
+  const unsafeRefs = ['baseBranch', 'branchPrefix'].filter((name) => !validateRefToken(out[name]));
   if (unsafeRefs.length > 0) {
     throw new Error(`buildEngineArgs: ${unsafeRefs.join(' and ')} did not validate as a conservative git ref token; the engine interpolates them unquoted into git worktree add, branch and push command strings, so a value bearing whitespace, a shell metacharacter, a leading -, a .. sequence, or a .lock/. component is refused here rather than reaching a shell`);
   }
