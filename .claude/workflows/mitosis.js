@@ -29,7 +29,7 @@ const MAX_MSP_DEPENDS_ON = 64;
 const MAX_MANIFEST_FILE_SCOPE = 1024;
 
 function clean(v) {
-  return JSON.stringify(v).replace(/[\p{Cc}\p{Zl}\p{Zp}]/gu, ' ');
+  return JSON.stringify(v).replace(/[\p{Cc}\p{Cf}\p{Zl}\p{Zp}]/gu, ' ');
 }
 
 function cleanUrl(v) {

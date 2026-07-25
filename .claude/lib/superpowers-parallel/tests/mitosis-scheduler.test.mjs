@@ -1436,6 +1436,32 @@ test('D7 hard fail: an unvalidatable target repo slug HALTS the run rather than 
   }
 });
 
+test('D7 log hygiene: the fatal detail for a rejected slug strips Unicode format characters (RTL override, zero-width space, soft hyphen) so attacker text can never visually reorder a log line', async () => {
+  const formatChars = [
+    ['U+202E RIGHT-TO-LEFT OVERRIDE', String.fromCharCode(0x202e)],
+    ['U+200B ZERO WIDTH SPACE', String.fromCharCode(0x200b)],
+    ['U+00AD SOFT HYPHEN', String.fromCharCode(0xad)],
+  ];
+  const hostileSlug = `me/tar${formatChars.map(([, ch]) => ch).join('x')}get`;
+  const msps = independentMsps();
+  const base = createFakeAgent({ msps });
+  const agent = async (prompt, opts = {}) => {
+    if ((opts.label || '') === 'reconcile') {
+      return { manifestFound: false, manifestRaw: null, mergedPRs: [], mergedPRsAuthoritative: true, ownerRepo: hostileSlug };
+    }
+    return base(prompt, opts);
+  };
+  const { resultPromise } = invokeMitosis(buildInput(), agent);
+  const result = await resultPromise;
+
+  assert.equal(result.overallStatus, 'failed');
+  assert.equal(result.stage, 'reconcile');
+  assert.match(result.detail, /slug/i);
+  for (const [name, ch] of formatChars) {
+    assert.equal(result.detail.includes(ch), false, `the sanitized fatal detail must not carry ${name}`);
+  }
+});
+
 test('D7: a valid slug is threaded as a literal into every consumer prompt (ship, ship-verify, reconcile)', async () => {
   const msps = [mspSpec('solo', { fileScope: ['scope/solo/**'] })];
   const captured = new Map();
