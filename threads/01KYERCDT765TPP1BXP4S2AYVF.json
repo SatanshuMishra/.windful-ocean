@@ -1,0 +1,65 @@
+{
+  "schema_version": 1,
+  "id": "01KYERCDT765TPP1BXP4S2AYVF",
+  "slug": "mitosis-frontier-default",
+  "title": "Mitosis frontier-train default",
+  "status": "active",
+  "parent_id": null,
+  "predecessor_id": null,
+  "completion_criteria": [
+    {
+      "text": "C1 fixed: relaunch of a spec with planned units deeper than one window builds them (multi-layer specs finish)",
+      "done": true
+    },
+    {
+      "text": "H1 fixed: in-run AIMD window actuates (mid-run CHANGES_REQUESTED contracts, approvals widen the running scheduler)",
+      "done": true
+    },
+    {
+      "text": "H2 fixed: shepherd maps openPRs[].reviewDecision to AIMD events across relaunches",
+      "done": true
+    },
+    {
+      "text": "H3 fixed: frontier-compose only composes still-unmerged parents; all-parents-merged takes branch-from-base",
+      "done": true
+    },
+    {
+      "text": "H4 fixed: divergent-invalidation parks reset to stage plan + drop checkpoint provenance",
+      "done": true
+    },
+    {
+      "text": "Re-review passes (no CRITICAL/HIGH); tests cover the multi-relaunch build path + AIMD actuation",
+      "done": true
+    },
+    {
+      "text": "Promotion into feat/mitosis-robustness DONE @ 8eedadd (pushed + PR #3, 2026-07-19); remaining open half: frontier-train decision record + design spec still not marked implemented",
+      "done": false
+    }
+  ],
+  "vcs_ref": "feat/mitosis-robustness",
+  "external_refs": [
+    {
+      "system": "v1-ledger-archive",
+      "id": "mitosis-frontier-default",
+      "url": "file:///Users/satanshumishra/Documents/DevLabs/.windful-ocean/.claude/ledger-archive-v1/threads/mitosis-frontier-default.md"
+    },
+    {
+      "system": "spec",
+      "id": "2026-07-19-frontier-train-fix-backlog",
+      "url": "file:///Users/satanshumishra/Documents/DevLabs/.windful-ocean/.claude/docs/superpowers/specs/2026-07-19-frontier-train-fix-backlog.md"
+    }
+  ],
+  "blocked_by": null,
+  "abandoned_reason": null,
+  "closure_statement": null,
+  "spine": {
+    "status": "active",
+    "active_goal": "",
+    "next_step": "",
+    "open_risks": [],
+    "key_decisions": [],
+    "out_of_scope": []
+  },
+  "created_at": "2026-07-26T08:24:06.726Z",
+  "updated_at": "2026-07-26T08:24:06.726Z"
+}
