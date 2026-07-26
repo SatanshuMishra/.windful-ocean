@@ -55,39 +55,41 @@
   "closure_statement": null,
   "spine": {
     "status": "paused",
-    "active_goal": "Replace the torn-down client layers with two halves. (1) Server boundary: human-applied GitHub ruleset + separate machine-user identity, guarded by a REQUIRED preflight that PARKS a run unless it verifies. (2) Deterministic restack (0012): BUILD in-engine - persist a checkpoint SHA per unit, drive `git rebase --onto <merge-sha> <checkpoint> <branch>`, read conflicts from git state, never self-report. Items 1-3 DONE; remaining: preflight, restack driver, MSP-4.",
-    "next_step": "Four items. (1) CONFIRM the runbook's ~10 flagged unknowns against live GitHub docs FIRST - its Section 7 gh api field names are UNVERIFIED and that table IS the preflight's contract. (2) BUILD the preflight: seat before phase('Reconcile') mitosis.js:3591, halt via failedRun mitosis.js:123; verify ruleset ACTIVE, empty bypass, >=1 review, identity NOT admin. (3) FIX squash-blindness at BOTH sites (2964-2974, 4452-4453), replace with the 0012 driver. (4) Commit teardown + runbook.",
+    "active_goal": "Replace the torn-down client layers with two halves. (1) Server boundary: human-applied GitHub ruleset + separate machine-user identity, guarded by a REQUIRED preflight that PARKS a run unless it verifies. (2) Deterministic restack (0012 as amended): a `restack` verb in mitosis-git.mjs driving `git rebase --onto <merge-sha> <checkpoint> <branch>`, conflicts read from git state. Items 1 and 4 DONE; remaining: BUILD the preflight, BUILD the restack verb, MSP-4.",
+    "next_step": "Two BUILDS remain; designs USER-LOCKED in the two 0017 records - read them, do NOT re-litigate. (A) PREFLIGHT: seat AFTER mitosis.js:3631, halt via fatalReport (failedRun does not exist); gate on .permissions.admin===false, ACTIVE ruleset, review count>=1; never read an absent bypass_actors as proof. (B) RESTACK VERB in mitosis-git.mjs: thread mergedShas into runReconcileOnlyAdvance ctx, then fix the squash-blind checks at 2971 and 4452.",
     "open_risks": [
-      "Runbook is AUTHORED, NOT APPLIED, and its citations are UNVERIFIED - the author had no network and cited GitHub docs from training knowledge. Confirm the ~10 flagged items before the preflight hard-codes its gh api field names.",
-      "TOP PRE-MORTEM: the HUMAN-APPLIED steps never happen, the boundary never exists, and mitosis ships on a shared identity while everyone believes the server layer is live. The preflight is the mitigation and is NOT optional.",
-      "LIVE DEFECT, unfixed: both restack sites use `merge-base --is-ancestor` as their ONLY containment check. A SQUASH merge defeats it, so the engine RE-APPLIES already-landed content. Bites today, independent of the rewrite.",
-      "STALE-GREEN: auto-retarget fires pull_request type `edited`, excluded from Actions' default opened/synchronize/reopened. A retargeted PR shows its OLD check result - green against a base it was never tested against.",
-      "Auto-retarget does NOT dissolve restack: only a true merge commit keeps the child diff clean; squash and rebase rewrite parent SHAs and force one. Multi-hop cascade is undocumented, with reports of the child AUTO-CLOSING.",
-      "PUSH SAFETY: repo is PUBLIC. main is 35 commits ahead and unpushed but CLEAN. Commit d57e233 (on feat/mitosis-resilience) carries the flagged confidential codename - SCRUB before ever pushing that branch.",
-      "stash@{0} retained - contents RETIRED under 0009 so very likely droppable, but dropping is destructive and needs EXPLICIT human confirm.",
-      "Thread 01KYG4AEKA6NM746BXVRAZ9DWE (pre-tool-use-guard inversion) was found ACTIVE mid-session, created by a CONCURRENT or CRASHED session, NOT this one. Deliberately left undisposed - needs the human's call.",
-      "NOTHING from this session is committed: the teardown and the untracked runbook sit in a dirty tree beside 3 unrelated dirty entries that must stay untouched.",
-      "Two older engine defects still unfixed: clean(undefined) TypeError, and conditional host enforcement accepting a same-slug FOREIGN-HOST merged PR. Line numbers predate cd5c65d and have drifted - re-locate first.",
-      "Do NOT restore the two D4 Write denies. main carries the INTENDED 38. Checking out any branch predating cd5c65d re-dangles the wrapper."
+      "ENGINE-BREAKING: the 'Checks' permission is NOT assignable to a fine-grained PAT (GitHub Support, Mar 2025 - Apps only). A grep of mitosis.js and the .mjs libs found NO check-status call at all. LOCATE the real call site before applying Section 3, then pick Commit statuses vs a GitHub App.",
+      "Runbook is docs-verified and committed but STILL NOT APPLIED. Top pre-mortem unchanged: the human steps never happen, the boundary never exists, and mitosis ships on a shared identity while all believe the server layer is live. The preflight is the mitigation and is still unbuilt.",
+      "LIVE DEFECT: mitosis.js:2971 and 4452 use `merge-base --is-ancestor` as their only containment check; a squash merge defeats it and the engine re-applies landed content. Two further sites: 1175 (wave-merge, squash-SAFE) and 4593 (ship sibling-advance, partly exposed).",
+      "`current_user_can_bypass` is inferred Metadata:read-visible from the ABSENCE of gating language, not a positive statement. Confirm against a live sandbox before making it a load-bearing fourth invariant.",
+      "STALE-GREEN: auto-retarget fires pull_request type `edited`, excluded from the Actions default. Default types and `edited`-covers-base-change are now CONFIRMED; the `changes.base` key names remain unverified.",
+      "Auto-retarget is conditional on the merged head branch being DELETED, not on merge alone. Docs are SILENT on multi-hop stacked cascades - 0012's cascade concern is an assumption, not a guarantee.",
+      "PUSH SAFETY: repo is PUBLIC. Commit d57e233 on feat/mitosis-resilience carries the flagged confidential codename - SCRUB before ever pushing it. Branch docs/mitosis-merge-boundary-runbook (a0bb6e1) passed a leak gate and is safe to push.",
+      "The two new decision records were BOTH assigned number 0017 - a numbering collision. Both files exist; disambiguate by slug and treat the numbering as untrustworthy.",
+      "stash@{0} retained - RETIRED under 0009 so very likely droppable, but dropping is destructive and needs EXPLICIT human confirm.",
+      "Thread 01KYG4AEKA6NM746BXVRAZ9DWE (pre-tool-use-guard inversion) went ACTIVE again mid-session and the Stop hook flags it. NOT this thread's work, NOT disposed - needs the human's call.",
+      "Two older engine defects still unfixed: clean(undefined) TypeError, and conditional host enforcement accepting a same-slug FOREIGN-HOST merged PR. Re-locate before trusting any line number.",
+      "Do NOT restore the two D4 Write denies. Do NOT check out any branch predating cd5c65d - it re-dangles the wrapper; fix/mitosis-git-actions-robustness (f9e43a5) is one such branch."
     ],
     "key_decisions": [
-      "0012-build-deterministic-restack-in-engine-not-delegate - BUILD not delegate; checkpoint SHA + rebase --onto the EXACT merge SHA; git's native --empty=drop handles already-applied; conflicts read from .git/rebase-merge",
-      "0009-tear-down-msp2-msp3-replace-with-robust-simple-server-boundary - USER-LOCKED teardown; server boundary + identity separation; preflight required",
-      "0010-restack-not-pr-creation-is-the-load-bearing-operation - depth cap withdrawn; amendment not rejection is the driver",
+      "0017-preflight-verifies-only-what-metadata-read-proves-bypass-emptiness-is-human-governance - USER-LOCKED; carries the field-path contract and the permission/push naming trap",
+      "0017-restack-driver-ships-as-a-mitosis-git-mjs-verb-because-mitosis-js-cannot-exec - USER-LOCKED; AMENDS 0012's letter, keeps its intent; carries the fatalReport/seat/merge-SHA facts",
+      "0012-build-deterministic-restack-in-engine-not-delegate - algorithm intact; its 'in-engine' location superseded by the verb decision",
+      "0009-tear-down-msp2-msp3-replace-with-robust-simple-server-boundary - VERIFIED COMPLETE this session; it left nothing to commit",
+      "0010-restack-not-pr-creation-is-the-load-bearing-operation",
       "0005-step-0-executed-main-is-now-the-integration-point-anchor-live",
-      "0004-landing-route-msp3-alone-into-main-is-prohibited-startup-breakage",
-      "v1 archive: decisions/2026-07-25-d4-write-denies-not-restored-startup-breakage.md - the two Write denies stay REMOVED",
-      "0017-restack-driver-ships-as-a-mitosis-git-mjs-verb-because-mitosis-js-cannot-exec"
+      "0004-landing-route-msp3-alone-into-main-is-prohibited-startup-breakage"
     ],
     "out_of_scope": [
-      "Delegating restack to Graphite, ejoffe/spr, ghstack, or git-town - REJECTED by 0012. Graphite disqualified outright (closed-source, telemetry, worktree-cache corruption); spr panics on exactly the protected-branch/CODEOWNERS setup this builds; git-town auto-resolves conflicts by heuristic.",
-      "The MSP-3b anchor probe - MOOT under 0009; 3b is retired and needs no artifact edit (no standalone plan file).",
-      "Further work on the PreToolUse merge-denial hook (MSP-2a) - superseded by the server boundary; TORN DOWN this session.",
+      "Delegating restack to Graphite, ejoffe/spr, ghstack, or git-town - REJECTED by 0012.",
+      "The MSP-3b anchor probe - MOOT under 0009.",
+      "Further work on the PreToolUse merge-denial hook (MSP-2a) - superseded by the server boundary.",
       "Running the hardening via mitosis-on-itself (forbidden - self-modification hazard).",
       "Agent-applied GitHub settings. Every ruleset/identity/token change is authored for a HUMAN to apply.",
-      "Pushing feat/mitosis-resilience in any form until commit d57e233 is scrubbed."
+      "Pushing feat/mitosis-resilience in any form until commit d57e233 is scrubbed.",
+      "The no-self-merge-consent.test.mjs working-tree change (5/5 green) - belongs to the mitosis-preflight-hardening thread, not this one."
     ]
   },
   "created_at": "2026-07-26T08:24:13.881Z",
-  "updated_at": "2026-07-26T21:49:08.013Z"
+  "updated_at": "2026-07-26T21:52:15.706Z"
 }
