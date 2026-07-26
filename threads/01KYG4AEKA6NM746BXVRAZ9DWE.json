@@ -35,22 +35,20 @@
   "closure_statement": null,
   "spine": {
     "status": "paused",
-    "active_goal": "Invert the PreToolUse Bash guard from allow-unless-provably-destructive to deny-by-default inside a protected root, so parse gaps in the frozen bash tokenizer stop being silent evasions. Design is DONE and user-approved (0018). Remaining: TDD the build, review, merge, publish, re-install.",
-    "next_step": "BUILD. Design locked in 0018 - do NOT re-litigate A-H. Read the spec at .claude/docs/superpowers/specs/2026-07-26-pre-tool-use-guard-deny-by-default-design.md (UNTRACKED) and follow its implementation order, one commit each: size cap; tokenizer tripwire; RED corpus with output captured first; allowlist tables; splitControl; the inversion. Repo continuity-ledger-plugin, branch fix/pre-tool-use-guard. Dispatch implementer/test-engineer.",
+    "active_goal": "Invert the PreToolUse Bash guard to deny-by-default inside a protected root. Design DONE and user-approved (0018). Commits 1-3 of 7 LANDED on fix/pre-tool-use-guard: size cap b920ddd, tokenizer tripwire 11cfa0e, RED corpus b60ac56. Remaining: commits 4-7, then review. Merge/publish still blocked.",
+    "next_step": "BUILD commits 4-7 on fix/pre-tool-use-guard at b60ac56, one commit each, locked by 0018+0020 - do NOT re-litigate. (4) extract normalizeHead + allowlist tables + git resolver + find/sed predicates, pure additions. (5) splitControl with the MANDATORY fd-dup exemption. (6) the inversion: classifyBashCommand replaces mutatesUnderRoot; see open risks. (7) narrow runGuardEntry per 0018 call 3. Dispatch implementer, then GREEN evidence + reviews. Do NOT merge.",
     "open_risks": [
-      "splitControl MUST carry the fd-dup exemption: an ampersand-digit word token after a redirect token is NOT a control char. Without it, `ls -la ROOT 2>&1 | head` breaks - asserted allowed at test/unit/hooks/pre-tool-use.test.mjs:139.",
-      "NEW, refutes 0011: inversion alone does NOT close backgrounding, it INTRODUCES the hole. A bare ampersand is an ordinary word char, so `ls ROOT & rm -rf ROOT` is ONE segment headed by ls. 0011 assumed grouping AND backgrounding closed; only grouping does.",
-      "Whole-command scoping is DISQUALIFIED, do not revisit: heredoc bodies tokenize as segments with arbitrary heads, so it denies every heredoc and resurrects the canonical false positive. Per-segment deny plus sink overlays O1/O2 adopted.",
-      "Five assertions need verdicts REWRITTEN not extended: pre-tool-use.test.mjs lines 28, 79, 80 to deny; 84 to ask; 85 to deny. Lines 62-63 (git -C ROOT show) must STAY allowed - that is what the operand-aware git resolver preserves.",
-      "The 12 and 41 corpus figures are FLOORS with no upstream provenance (0014). Assert them programmatically and report ACTUAL measured counts; never present 12/41 as findings.",
-      "MERGE BLOCK STANDS on fix/pre-tool-use-guard for the 0016 reason. Repo is currently checked out on that branch at 5f04dd4.",
-      "Criterion 3 tension resolved: cap input in pre-tool-use.mjs BEFORE scanSegments; shell-tokens.mjs stays frozen. Measured curve: 25.34 ms at 16 KB, 166 ms at 32 KB, 4.1 s at 128 KB. MAX_COMMAND_BYTES = 16384.",
-      "Silent allow-paths approved in the NARROW variant ONLY - a PreToolUse-only runGuardEntry. Do NOT make runEntry globally fail closed; all six hooks share it and the blast radius is session-breaking. The roots-length-zero bypass is DEFERRED.",
-      "UNAUTHORIZED DEFECT, do not fix without explicit go: the Stop hook nags every turn while any thread is active. stop.mjs:5-13 exits 2 unconditionally and never reads ctx.input (supplied at hook-io.mjs:28); the documented breaker is stop_hook_active, and it wants SessionEnd not Stop.",
-      "Parking the thread at paused is what lets stop.mjs:11 run `ledger-cli sync`, which this thread lists as out of scope. That is why the thread was kept active mid-session despite the nag.",
-      "The design spec is UNTRACKED in windful-ocean and exists only on disk. Commit it or it dies with the working tree.",
-      "Suite is 513 pass / 0 fail WHILE 21+ evasions exist. Green proves nothing until the corpora land.",
-      "Concurrent sessions write ONE store. Decision numbers are not contiguous; 0017 was taken by another session while this one wrote 0018."
+      "splitControl MUST carry the fd-dup exemption: an ampersand-digit word token after a redirect token is NOT a control char, or R1/R2 break (pre-tool-use.test.mjs:139).",
+      "COMMIT 6 MUST delete the legacyVerdict RED adapter in pre-tool-use.corpus.test.mjs and flip it to import classifyBashCommand, or the corpus keeps grading the OLD boolean guard and silently passes.",
+      "COMMIT 6 MUST also delete the dash-prefix operand filter (old pre-tool-use.mjs:71), keep redirectTargetsRoot per sub-segment plus cd tracking, add overlays O1/O2, rewrite every mutatesUnderRoot call site in the test, and drop the five assertions the corpus owns.",
+      "E12 needs NO process-substitution carve-out - the test-engineer flagged one but misread. splitControl emits the post-paren REMAINDER as the new head, so diff yields heads diff/cat/cat (allowlisted) while E1 yields rm (not). Resolved in 0020.",
+      "RED evidence is COMMITTED and reachable: git checkout b60ac56 && npm test gives 657 tests / 608 pass / 49 fail. Do NOT squash commits 1-3 or criterion 2 evidence is destroyed.",
+      "Actual corpus counts are 48 deny / 5 ask / 71 allow. Report these as measured; 12 and 41 remain floors with NO upstream provenance.",
+      "MERGE BLOCK STANDS on fix/pre-tool-use-guard for the 0016 reason. Build and commit only; do not merge, publish, or reinstall.",
+      "Design spec sits in a DELIBERATELY GITIGNORED path (.claude/.gitignore:44 docs/superpowers/); none of the 22 specs there are tracked. The 'commit it or it dies' risk predates that finding - tracking needs git add -f against policy, so it is a USER CALL. 0018+0020 carry the content.",
+      "All 11 tokenizer probe-table facts were re-verified empirically and ALL MATCHED - the design's measured foundation is independently confirmed.",
+      "UNAUTHORIZED DEFECT, do not fix without explicit go: the Stop hook nags every turn while a thread is active (stop.mjs:5-13 exits 2 unconditionally, never reads ctx.input; wants stop_hook_active, and SessionEnd not Stop).",
+      "Concurrent sessions write ONE store; decision numbers are not contiguous."
     ],
     "key_decisions": [
       "0018-deny-by-default-design-approved-with-control-split - design approved, six user calls resolved, control-split mandatory, whole-command scoping disqualified",
@@ -69,5 +67,5 @@
     ]
   },
   "created_at": "2026-07-26T21:11:59.338Z",
-  "updated_at": "2026-07-26T22:35:03.155Z"
+  "updated_at": "2026-07-26T22:36:38.123Z"
 }
