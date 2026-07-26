@@ -55,7 +55,8 @@
       "0013-close-predecessor-and-open-guard-successor - this thread's mandate",
       "Predecessor 0011-guard-branch-blocked-invert-to-deny-by-default",
       "Predecessor 0008-b0e1079-not-merged-as-is-quoted-literal-regression",
-      "Predecessor 0007-guard-scope-defect-refuted - CLAUDE_PLUGIN_DATA reaches hooks; store is protected today"
+      "Predecessor 0007-guard-scope-defect-refuted - CLAUDE_PLUGIN_DATA reaches hooks; store is protected today",
+      "0015-adopt-over-catch-ask-never-under-catch"
     ],
     "out_of_scope": [
       "Ref-level destruction: git update-ref -d refs/heads/_ledger, git branch -D _ledger, and deletion of <repo>/.git/worktrees/ledger-worktree. Uncovered by BOTH guards; the ref is the authoritative data. Tracked separately, not fixed here.",
@@ -65,5 +66,5 @@
     ]
   },
   "created_at": "2026-07-26T21:11:59.338Z",
-  "updated_at": "2026-07-26T21:21:45.973Z"
+  "updated_at": "2026-07-26T21:22:09.234Z"
 }
