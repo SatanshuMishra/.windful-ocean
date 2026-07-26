@@ -3,7 +3,7 @@
   "id": "01KYG4AEKA6NM746BXVRAZ9DWE",
   "slug": "pre-tool-use-guard-deny-by-default-inversion",
   "title": "Pre-tool-use guard deny-by-default inversion",
-  "status": "paused",
+  "status": "active",
   "parent_id": null,
   "predecessor_id": "01KYERGSD9QA9XC6QD4XPM8R37",
   "completion_criteria": [
@@ -34,7 +34,7 @@
   "abandoned_reason": null,
   "closure_statement": null,
   "spine": {
-    "status": "paused",
+    "status": "active",
     "active_goal": "Invert the PreToolUse Bash guard from allow-unless-provably-destructive to deny-by-default inside a protected root, so parse gaps in the hand-rolled bash tokenizer stop being silent evasions. Then prove both directions, review, merge, publish, re-install. Successor to ledger-v2-archive-and-seed.",
     "next_step": "RE-DISPATCH solution-architect for the deny-by-default design (decisions A-H). The prior run was stopped before writing anything - the target file .claude/docs/superpowers/specs/2026-07-26-pre-tool-use-guard-deny-by-default-design.md DOES NOT EXIST. Feed it 0015 + 0016 + the allowlist traps below. G0 is DONE - do not re-measure. Then get a USER CALL on the over-block bill, on allow/deny/ask as a third verdict, and on whether the three silent allow-paths are in scope. Only then TDD.",
     "open_risks": [
@@ -70,5 +70,5 @@
     ]
   },
   "created_at": "2026-07-26T21:11:59.338Z",
-  "updated_at": "2026-07-26T21:28:25.142Z"
+  "updated_at": "2026-07-26T21:35:28.132Z"
 }
