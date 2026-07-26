@@ -73,7 +73,8 @@
       "v1 archive: decisions/2026-07-25-msp3-3b-four-corrections-provenance-resolved.md - 3b HELD; dangling anchor; four allows not one; probe procedure",
       "v1 archive: decisions/2026-07-25-d4-write-denies-not-restored-startup-breakage.md - the two Write denies stay REMOVED; 38 is intended",
       "v1 archive: decisions/2026-07-25-msp3-3a-3c-landed-dual-approve.md - 3a + 3c landed, 10 commits, dual APPROVE",
-      "v1 archive: decisions/2026-07-20-mitosis-git-spec-direction-never-merge-enforcement-first.md - never-merge direction"
+      "v1 archive: decisions/2026-07-20-mitosis-git-spec-direction-never-merge-enforcement-first.md - never-merge direction",
+      "0003-msp3-3b-held-fifth-correction-wrong-branch-and-live-3c-breakage"
     ],
     "out_of_scope": [
       "Resuming the merge-deny review-implement-review loop (user-deferred).",
@@ -83,5 +84,5 @@
     ]
   },
   "created_at": "2026-07-26T08:24:13.881Z",
-  "updated_at": "2026-07-26T08:26:21.817Z"
+  "updated_at": "2026-07-26T19:05:03.451Z"
 }
