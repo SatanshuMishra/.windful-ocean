@@ -42,12 +42,28 @@
   "closure_statement": null,
   "spine": {
     "status": "active",
-    "active_goal": "",
-    "next_step": "",
-    "open_risks": [],
-    "key_decisions": [],
-    "out_of_scope": []
+    "active_goal": "Resolve the report leak caveat, then dispose of Increment 3 against the four completion criteria. Increments 2, 3A and 3B are COMPLETE and committed through 296eb36; the fold is independently security-re-confirmed APPROVE (MEDIUM + LOW closed, 2 INFO). Nothing pushed.",
+    "next_step": "AWAIT user instruction. Resolve the report LEAK CAVEAT before ANY commit/push: `.claude/reports/` is git-TRACKED (unlike the write-only ledger) and the architecture report contains a flagged confidential codename - either gitignore `.claude/reports/` (mirroring the ledger) or scrub the codename. Do NOT auto-close.",
+    "open_risks": [
+      "LEAK CAVEAT: `.claude/reports/` is git-TRACKED and the 2026-07-10 architecture report contains a flagged confidential codename from an external project's run-failure diagnostic. Committing it reintroduces the leak. Decide gitignore-vs-scrub BEFORE any commit.",
+      "Shared branch is NOT fully green, foreign to this thread: generate-run-script.test.mjs fails, introduced by dotfiles commit 25a505e and untouched by every mitosis commit. This makes criterion 4 ambiguous - the mitosis work is green, the branch is not.",
+      "MEDIUM fix rationale: a per-msp fileScope cap does NOT close the quadratic; only the AGGREGATE bound does. 1024 measured ~164ms and short-circuits before the derive.",
+      "code-review INFO not folded: parseRunManifest does an unbounded JSON.parse of manifestRaw (parse-time DoS upstream of the msp cap).",
+      "mitosis.js is far over the 800-line size cap; twin-aware extraction is a tracked follow-up that can only shed non-twin helpers.",
+      "Implementer reports have carried FALSE claims on this branch - verify empirically, never on assertion.",
+      "ENVIRONMENTAL: macOS Full Disk Access is revocable mid-session. `Operation not permitted` under ~/Documents while `ls -l` works => STOP, zero mutations, re-grant FDA, relaunch host."
+    ],
+    "key_decisions": [
+      "v1 archive: decisions/2026-07-10-mitosis-resilience-inc3-fix-review-and-fold.md - dual review + fold; AGGREGATE fileScope cap over per-msp; committed 296eb36",
+      "v1 archive: decisions/2026-07-09-mitosis-resilience-low-n1-spec-content-hash.md - spec CONTENT hash as a separate top-level reuse gate",
+      "v1 archive: decisions/2026-07-09-mitosis-resilience-sanitizer-rescoped.md - control-char strip rejected as theater; length cap at the write layer",
+      "v1 archive: decisions/2026-07-07-mitosis-resilience-design-locked.md - the 4-pillar design"
+    ],
+    "out_of_scope": [
+      "Pillar 1 (predecessor thread); section 7.4 checkpoint-and-exit; same-session resumeFromRunId fast-path; scopesOverlap top-level dup; config charset-allowlist.",
+      "Deferred follow-ups: structured-report `skipped` outcome kind; merged-PR author allowlist at reconcile; twin-aware extraction of mitosis.js."
+    ]
   },
   "created_at": "2026-07-26T08:24:21.447Z",
-  "updated_at": "2026-07-26T08:24:21.447Z"
+  "updated_at": "2026-07-26T08:25:26.998Z"
 }
