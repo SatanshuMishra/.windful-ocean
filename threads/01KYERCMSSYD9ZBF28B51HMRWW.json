@@ -76,7 +76,8 @@
       "0010-restack-not-pr-creation-is-the-load-bearing-operation - depth cap withdrawn; amendment not rejection is the driver",
       "0005-step-0-executed-main-is-now-the-integration-point-anchor-live",
       "0004-landing-route-msp3-alone-into-main-is-prohibited-startup-breakage",
-      "v1 archive: decisions/2026-07-25-d4-write-denies-not-restored-startup-breakage.md - the two Write denies stay REMOVED"
+      "v1 archive: decisions/2026-07-25-d4-write-denies-not-restored-startup-breakage.md - the two Write denies stay REMOVED",
+      "0017-restack-driver-ships-as-a-mitosis-git-mjs-verb-because-mitosis-js-cannot-exec"
     ],
     "out_of_scope": [
       "Delegating restack to Graphite, ejoffe/spr, ghstack, or git-town - REJECTED by 0012. Graphite disqualified outright (closed-source, telemetry, worktree-cache corruption); spr panics on exactly the protected-branch/CODEOWNERS setup this builds; git-town auto-resolves conflicts by heuristic.",
@@ -88,5 +89,5 @@
     ]
   },
   "created_at": "2026-07-26T08:24:13.881Z",
-  "updated_at": "2026-07-26T21:20:52.747Z"
+  "updated_at": "2026-07-26T21:49:08.013Z"
 }
