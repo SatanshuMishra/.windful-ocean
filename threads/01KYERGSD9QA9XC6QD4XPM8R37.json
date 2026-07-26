@@ -68,7 +68,8 @@
       "v1 archive: decisions/2026-07-25-hold-archive-move-until-v2-store-exists.md - move re-sequenced; precondition satisfied 2026-07-26",
       "v1 archive: decisions/2026-07-26-c-verified-and-plugin-tool-namespace-waiver.md - C3/C4/C5 verified; tool-namespace defect found; scope waived",
       "v1 archive: decisions/2026-07-26-hook-fix-blocked-and-publish-split.md - hook fix classifier-blocked; publish split; remaining plan preserved",
-      "0001-v1-ledger-archived-and-frozen"
+      "0001-v1-ledger-archived-and-frozen",
+      "0002-v2-seed-set-limited-to-seven-threads"
     ],
     "out_of_scope": [
       "Migrating any v1 thread, decision or session. No migrator is to be written.",
@@ -79,5 +80,5 @@
     ]
   },
   "created_at": "2026-07-26T08:26:29.673Z",
-  "updated_at": "2026-07-26T08:26:58.674Z"
+  "updated_at": "2026-07-26T08:28:21.937Z"
 }
