@@ -3,7 +3,7 @@
   "id": "01KYERC4Y2XFVQ5GFQRRV0BKTS",
   "slug": "agent-roster-gap-resolution",
   "title": "Agent roster gap resolution",
-  "status": "active",
+  "status": "paused",
   "parent_id": null,
   "predecessor_id": null,
   "completion_criteria": [
@@ -50,7 +50,7 @@
   "abandoned_reason": null,
   "closure_statement": null,
   "spine": {
-    "status": "active",
+    "status": "paused",
     "active_goal": "Turn the approved agent-roster gap recommendations into a SPEC, then implement them. SPEC is authored and user-approved; no roster files changed yet.",
     "next_step": "AWAIT explicit user go. Most likely first action: revise the 2026-07-14 SPEC per the 2026-07-24 audit-rerun findings (drop visual-renderer; add verification-strategist extend; re-label spec-author; promote reviewer fence; add non-roster classifier note). Do NOT implement agent files without a further explicit go.",
     "open_risks": [
@@ -70,5 +70,5 @@
     ]
   },
   "created_at": "2026-07-26T08:23:57.632Z",
-  "updated_at": "2026-07-26T08:24:41.930Z"
+  "updated_at": "2026-07-26T08:26:01.462Z"
 }
