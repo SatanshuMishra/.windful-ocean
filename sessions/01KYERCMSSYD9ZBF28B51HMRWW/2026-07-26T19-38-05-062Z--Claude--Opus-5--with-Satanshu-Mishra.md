@@ -1,0 +1,30 @@
+Resumed via lift-off. Session disposed of the 3b decision, then executed the corrected Step 0. Nothing pushed.
+
+SHIPPED
+- Decision 0003: 3b DECIDED = HELD, on corrected grounds. Verifying the ratified 2026-07-25 record against the live tree produced a FIFTH correction - its Step 0 named `fix/mitosis-git-actions-robustness` as the branch to land, but a cat-file sweep of all 13 branches found `mitosis-git.mjs` on exactly ONE, `fix/mitosis-msp3-low-folds`. Landing the named branch would have undangled nothing. Also found: the dangling anchor was already a LIVE 3c defect (LIB_DIR at mitosis.js:23 is absolute into the main checkout, 3c routed all three PR sites through it, no existsSync guard, no gh prose fallback, raw allow removed by 0ecf1bc) - so PR creation was broken, not merely at risk. And the anchor is BRANCH-TRANSIENT: both ~/.claude symlinks resolve through the main checkout's working tree.
+- Decision 0004: the landing route as recommended was PROHIBITED. msp3 carries settings.json with 40 denies including both D4 Write entries - the two that break Claude Code startup. Their removal (a923763) lives only on the chore branch; the two diverged at f9e43a5. Landing msp3 alone then checking out main would have restored the startup breakage through the settings symlink.
+- Decision 0005: Step 0 EXECUTED on the user's chosen route (land both into main, move the checkout there - chosen over the two alternatives because it resolves the branch-transient fragility instead of relocating it). main is now cd5c65d, fully containing both branches, 35 commits unpushed.
+
+METHOD (why the landing was safe)
+Merge built on a temp branch in a throwaway worktree, never on main. Its tree hashed to ef8b130, byte-identical to the read-only `git merge-tree` result verified BEFORE deciding, so the tested artifact is provably the landed artifact. Full suite green there first: 1216 pass / 0 fail / exit 0. Only then was main fast-forwarded (ancestry asserted first) and the checkout moved. Temp worktree and branch removed.
+
+VERIFIED THROUGH THE LIVE SYMLINKS, NOT INFERRED
+`node ~/.claude/lib/superpowers-parallel/mitosis-git.mjs` now EXECUTES and prints its frozen verb list (pr-create, pr-close, compare). Live ~/.claude/settings.json reads 38 denies, ZERO Write denies, Bash(node:*) still present. Startup hazard did not fire; no PR blackout.
+
+PRESERVED
+Three colliding untracked paths MOVED (never deleted) to the session scratchpad at scratchpad/preserved-untracked/: gh-merge-shim.mjs (byte-identical to the tracked version), tests/gh-merge-shim.test.mjs (the SUPERSEDED 528-line pre-disposition copy carrying the bin/-dependent e2e tier that the ratified 3a decision deleted; merged successor is 374 lines), and bin/. These are scratchpad-scoped and will be lost on cleanup - they are superseded, but confirm before relying on that. The four modified tracked files and stash@{0} survived untouched.
+
+WHAT DID NOT HAPPEN / WHY
+- The anchor probe was NOT run. It is human-only by construction: with Bash(node:*) live, any positive agent result is indistinguishable from the broad rule firing. Runnable procedure written to scratchpad/anchor-probe.md (throwaway CLAUDE_CONFIG_DIR, empty cwd, one positive + three negative controls). This file is also scratchpad-scoped; decision 0003 carries the procedure durably.
+- 3b was NOT applied. Landing was necessary, not sufficient - the anchor GRAMMAR remains [unverified].
+- Nothing was pushed. main sits 35 commits ahead of origin/main by design.
+
+BRIEFING FOR THE NEXT SESSION (the user asked to be TAUGHT this before any further work)
+The user wants a plain-language walkthrough of MSP-3b assuming minimal domain knowledge, so they can resolve the blocker and move through the remaining MSPs efficiently. The substance to teach, in order:
+1. WHAT 3b IS. mitosis drives parallel development by instructing subagents to run shell commands. Claude Code gates those through permission rules. Today a broad rule, `Bash(node:*)`, lets an agent run ANY node command. 3b is the "permission flip": replace that broad grant with four NARROW rules naming the four specific node scripts the engine actually invokes (mitosis-git.mjs pr-create, fold-run-log.mjs, resolve-superpowers.mjs, derive-edges.mjs), plus a global deny on raw `gh pr create`.
+2. WHY IT IS NOT DONE - reason 1, the grammar is unproven. Nobody has demonstrated that Claude Code's matcher actually fires on the exact string `Bash(node /abs/path/mitosis-git.mjs pr-create:*)`. If it does not, applying 3b removes the grant the engine currently runs on and replaces it with a rule that never matches - every PR creation then stalls. That is the "PR blackout".
+3. WHY NO AGENT CAN SETTLE IT. While Bash(node:*) is live, a command succeeding proves nothing about the narrow rule - the broad rule may be what allowed it. Only an isolated config containing the narrow rule ALONE can distinguish them, which makes it a human task.
+4. WHY IT IS NOT DONE - reason 2, coverage. The narrowing reaches only 3 of 7 node-invoking sites. Shipping it alone READS as closure while four sites stay open, which is why the record says shipping alone is worse than not shipping.
+5. WHY IT IS NOT DONE - reason 3, misattribution. The defect 3b was thought to fix (scopedCheckCmd) turned out to be a PROVENANCE problem - the value is a subagent's schema-unconstrained echo - not an execution one. 3b does not touch it.
+6. THE HONESTY CLAUSE, which must travel with every description: while Bash(node:*) is live the wrapper is run-reliability, determinism, and the only expressible anchor for the inexpressible `git -C` class - NOT a security boundary. It closes no security hole.
+7. THE FORK. Probe says grammar LIVE -> 3b becomes applicable, but the 3-of-7 coverage question must still be answered before it ships. Probe says INERT -> 3b is dead as designed and the wrapper needs a different activation mechanism, reopening part of the MSP-3 design.
