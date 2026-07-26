@@ -55,37 +55,38 @@
   "closure_statement": null,
   "spine": {
     "status": "paused",
-    "active_goal": "REDIRECTED by 0009: TEAR DOWN MSP-2 and MSP-3, replacing them with a ROBUST + SIMPLE architecture in two halves. (1) A GitHub ruleset plus a SEPARATE machine-user identity becomes THE merge boundary, so the fail-open client layers get DELETED. (2) RESTACK becomes deterministic (0010) - a stacked PR train, not merge prevention, is the real requirement. MSP-3b is retired as UNNECESSARY (G1: workflow agents never run bypassPermissions), not broken.",
-    "next_step": "Proceed with the teardown-and-replace goal; think hard. Order: (1) research the UNCOVERED half - restack determinism + build-vs-delegate (Graphite/ghstack/spr/git-town); verify the auto-retarget-on-base-deletion lead EARLY. (2) Execute the 0009 teardown set; stash@{0} drop needs EXPLICIT human confirm. (3) Author the human runbook (machine-user + PAT + ruleset) - agent authors, HUMAN applies. (4) Build the engine PREFLIGHT that PARKS a run unless ruleset + non-admin identity verify. Then MSP-4.",
+    "active_goal": "Replace the torn-down client layers with two halves. (1) Server boundary: human-applied GitHub ruleset + separate machine-user identity, guarded by a REQUIRED preflight that PARKS a run unless it verifies. (2) Deterministic restack (0012): BUILD in-engine - persist a checkpoint SHA per unit, drive `git rebase --onto <merge-sha> <checkpoint> <branch>`, read conflicts from git state, never self-report. Items 1-3 DONE; remaining: preflight, restack driver, MSP-4.",
+    "next_step": "Four items. (1) CONFIRM the runbook's ~10 flagged unknowns against live GitHub docs FIRST - its Section 7 gh api field names are UNVERIFIED and that table IS the preflight's contract. (2) BUILD the preflight: seat before phase('Reconcile') mitosis.js:3591, halt via failedRun mitosis.js:123; verify ruleset ACTIVE, empty bypass, >=1 review, identity NOT admin. (3) FIX squash-blindness at BOTH sites (2964-2974, 4452-4453), replace with the 0012 driver. (4) Commit teardown + runbook.",
     "open_risks": [
-      "PUSH SAFETY: repo is PUBLIC. Pushing main is CLEAN - 0 codename hits in tracked files or the 35 unpushed commits; .claude/reports/ is untracked. BUT commit d57e233 (on feat/mitosis-resilience, no remote, not an ancestor of HEAD) carries the flagged codename. SCRUB before ever pushing that branch.",
-      "The researcher's report PREDATES the stacked-PR-train clarification. It does NOT cover restack determinism, stack depth, O(N^2) CI cost, or build-vs-delegate. Treat that half as UNRESEARCHED.",
-      "Top pre-mortem: the HUMAN-APPLIED steps never happen, the boundary never exists, and mitosis ships on a shared identity while everyone believes the server layer is live. The engine preflight is the mitigation and is NOT optional.",
-      "Option B (pr-opener agent) has ONE unprobed seam: whether frontmatter tools: narrowing binds WORKFLOW-spawned agents (composed from two doc statements). A 2-minute live probe settles it; if it does not bind, B is dead.",
-      "Do NOT restore the two D4 Write denies. main carries the INTENDED 38; a 38-vs-40 count is NOT a regression.",
-      "Branch-transient residual: checking the main checkout out to any branch predating cd5c65d re-dangles the wrapper; fix/mitosis-msp3-low-folds specifically would restore the 40-deny settings.",
-      "main is 35 commits ahead of origin/main and unpushed. Working tree still DIRTY (4 modified, 3 untracked); stash@{0} retained - do NOT discard without explicit confirm.",
-      "Two engine defects recorded not fixed: clean(undefined) TypeError, and conditional host enforcement accepting a same-slug FOREIGN-HOST merged PR. Their line numbers PREDATE the cd5c65d merge and have drifted - re-locate first.",
-      "The wrapper is NOT a security boundary while Bash(node:*) is live. Under 0009 that grant is now an ACCEPTED residual, not a defect to fix."
+      "Runbook is AUTHORED, NOT APPLIED, and its citations are UNVERIFIED - the author had no network and cited GitHub docs from training knowledge. Confirm the ~10 flagged items before the preflight hard-codes its gh api field names.",
+      "TOP PRE-MORTEM: the HUMAN-APPLIED steps never happen, the boundary never exists, and mitosis ships on a shared identity while everyone believes the server layer is live. The preflight is the mitigation and is NOT optional.",
+      "LIVE DEFECT, unfixed: both restack sites use `merge-base --is-ancestor` as their ONLY containment check. A SQUASH merge defeats it, so the engine RE-APPLIES already-landed content. Bites today, independent of the rewrite.",
+      "STALE-GREEN: auto-retarget fires pull_request type `edited`, excluded from Actions' default opened/synchronize/reopened. A retargeted PR shows its OLD check result - green against a base it was never tested against.",
+      "Auto-retarget does NOT dissolve restack: only a true merge commit keeps the child diff clean; squash and rebase rewrite parent SHAs and force one. Multi-hop cascade is undocumented, with reports of the child AUTO-CLOSING.",
+      "PUSH SAFETY: repo is PUBLIC. main is 35 commits ahead and unpushed but CLEAN. Commit d57e233 (on feat/mitosis-resilience) carries the flagged confidential codename - SCRUB before ever pushing that branch.",
+      "stash@{0} retained - contents RETIRED under 0009 so very likely droppable, but dropping is destructive and needs EXPLICIT human confirm.",
+      "Thread 01KYG4AEKA6NM746BXVRAZ9DWE (pre-tool-use-guard inversion) was found ACTIVE mid-session, created by a CONCURRENT or CRASHED session, NOT this one. Deliberately left undisposed - needs the human's call.",
+      "NOTHING from this session is committed: the teardown and the untracked runbook sit in a dirty tree beside 3 unrelated dirty entries that must stay untouched.",
+      "Two older engine defects still unfixed: clean(undefined) TypeError, and conditional host enforcement accepting a same-slug FOREIGN-HOST merged PR. Line numbers predate cd5c65d and have drifted - re-locate first.",
+      "Do NOT restore the two D4 Write denies. main carries the INTENDED 38. Checking out any branch predating cd5c65d re-dangles the wrapper."
     ],
     "key_decisions": [
-      "0009-tear-down-msp2-msp3-replace-with-robust-simple-server-boundary - USER-LOCKED teardown; server boundary + identity separation; teardown set; preflight required",
-      "0010-restack-not-pr-creation-is-the-load-bearing-operation - depth cap withdrawn; amendment not rejection is the driver; restack must become deterministic",
+      "0012-build-deterministic-restack-in-engine-not-delegate - BUILD not delegate; checkpoint SHA + rebase --onto the EXACT merge SHA; git's native --empty=drop handles already-applied; conflicts read from .git/rebase-merge",
+      "0009-tear-down-msp2-msp3-replace-with-robust-simple-server-boundary - USER-LOCKED teardown; server boundary + identity separation; preflight required",
+      "0010-restack-not-pr-creation-is-the-load-bearing-operation - depth cap withdrawn; amendment not rejection is the driver",
       "0005-step-0-executed-main-is-now-the-integration-point-anchor-live",
       "0004-landing-route-msp3-alone-into-main-is-prohibited-startup-breakage",
-      "0003-msp3-3b-held-fifth-correction-wrong-branch-and-live-3c-breakage",
-      "v1 archive: decisions/2026-07-25-msp3-3b-four-corrections-provenance-resolved.md - four corrections; probe procedure",
-      "v1 archive: decisions/2026-07-25-d4-write-denies-not-restored-startup-breakage.md - the two Write denies stay REMOVED",
-      "0012-build-deterministic-restack-in-engine-not-delegate"
+      "v1 archive: decisions/2026-07-25-d4-write-denies-not-restored-startup-breakage.md - the two Write denies stay REMOVED"
     ],
     "out_of_scope": [
-      "The MSP-3b anchor probe - now MOOT under 0009; 3b is retired as unnecessary, so the grammar question gates nothing.",
-      "Further work on the PreToolUse merge-denial hook (MSP-2a) - superseded by the server boundary; its denylist-over-an-open-grammar scope is undecidable.",
+      "Delegating restack to Graphite, ejoffe/spr, ghstack, or git-town - REJECTED by 0012. Graphite disqualified outright (closed-source, telemetry, worktree-cache corruption); spr panics on exactly the protected-branch/CODEOWNERS setup this builds; git-town auto-resolves conflicts by heuristic.",
+      "The MSP-3b anchor probe - MOOT under 0009; 3b is retired and needs no artifact edit (no standalone plan file).",
+      "Further work on the PreToolUse merge-denial hook (MSP-2a) - superseded by the server boundary; TORN DOWN this session.",
       "Running the hardening via mitosis-on-itself (forbidden - self-modification hazard).",
       "Agent-applied GitHub settings. Every ruleset/identity/token change is authored for a HUMAN to apply.",
       "Pushing feat/mitosis-resilience in any form until commit d57e233 is scrubbed."
     ]
   },
   "created_at": "2026-07-26T08:24:13.881Z",
-  "updated_at": "2026-07-26T21:10:11.452Z"
+  "updated_at": "2026-07-26T21:20:52.747Z"
 }
