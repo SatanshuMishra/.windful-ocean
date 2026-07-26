@@ -3,7 +3,7 @@
   "id": "01KYERCRCDC25CJMZ253812KC4",
   "slug": "mitosis-preflight-hardening",
   "title": "Mitosis preflight hardening",
-  "status": "active",
+  "status": "paused",
   "parent_id": null,
   "predecessor_id": null,
   "completion_criteria": [
@@ -32,7 +32,7 @@
   "abandoned_reason": null,
   "closure_statement": null,
   "spine": {
-    "status": "active",
+    "status": "paused",
     "active_goal": "Make the mitosis engine survive a real unattended run by removing the ship-stage merge-authorization block and the prepare-stage config-regeneration false-halt. Both fixes are done, tested and reviewed (APPROVE-WITH-FIXES, all fixes applied) but UNCOMMITTED.",
     "next_step": "Await user instruction. Likely: isolate the two fixes into atomic commits, then launch (or continue hardening).",
     "open_risks": [
@@ -54,5 +54,5 @@
     ]
   },
   "created_at": "2026-07-26T08:24:17.549Z",
-  "updated_at": "2026-07-26T08:25:16.176Z"
+  "updated_at": "2026-07-26T08:26:09.477Z"
 }
