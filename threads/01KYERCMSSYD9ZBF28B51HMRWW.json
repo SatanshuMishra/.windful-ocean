@@ -55,20 +55,18 @@
   "closure_statement": null,
   "spine": {
     "status": "paused",
-    "active_goal": "3b is DECIDED: HELD, on corrected grounds (decision 0003). Its recorded Step 0 named a branch that does not carry the wrapper, and the dangling anchor proved to be a LIVE 3c defect, not a future 3b hazard. MSP-3 remains complete to the ratified boundary: 3a+3c landed as 10 commits on fix/mitosis-msp3-low-folds, dual-reviewed APPROVE, 1216/1216 verified, nothing pushed. 3d done.",
-    "next_step": "Ordered. (0) HUMAN, runnable NOW, decoupled from landing: run the anchor probe on a throwaway CLAUDE_CONFIG_DIR (procedure in decision 0003). An inert result kills 3b as designed. (1) DECIDE whether to land fix/mitosis-msp3-low-folds - fast-forward, 30 ahead of main, 0 behind, worktree clean. Required for 3c CORRECTNESS, not just as a 3b precondition. Mutates main: user's call. (2) Only then re-open 3b: four anchored allows, three-token pr-create. (3) MSP-4 onward.",
+    "active_goal": "Step 0 is DONE (decision 0005): main is cd5c65d, fully contains chore+msp3, suite green 1216/1216, and the anchor is LIVE - the wrapper executes through ~/.claude/lib. The live 3c defect is repaired and global config now resolves through main. 3b remains HELD; its anchor grammar is still [unverified] pending the human probe.",
+    "next_step": "(0) HUMAN, still open and now the only thing gating 3b: run the anchor probe per scratchpad/anchor-probe.md and decision 0003 - throwaway CLAUDE_CONFIG_DIR, run from an EMPTY cwd (this repo's project settings carry Bash(node:*) and would pass every case), one positive plus three negative controls. Inert result kills 3b as designed. (1) Then either re-open 3b or proceed to MSP-4. Pushing main's 35 commits stays out of scope.",
     "open_risks": [
-      "Do NOT restore the two D4 Write(...) denies. Deny count 38 is the INTENDED state; restoring them breaks Claude Code startup. A 38-vs-40 count is NOT a regression.",
-      "PR CREATION IS BROKEN ON fix/mitosis-msp3-low-folds TODAY: LIB_DIR (mitosis.js:23) is absolute into the main checkout, 3c routed all three PR sites through it, the gh prose fallback is gone, 0ecf1bc removed the raw gh pr create allow, and no existsSync guards it.",
-      "ANCHOR DANGLING, and the wrapper is on fix/mitosis-msp3-low-folds (9051764) - NOT on fix/mitosis-git-actions-robustness (f9e43a5), which the 2026-07-25 record wrongly named as Step 0. Verified across all 13 branches.",
-      "ANCHOR IS BRANCH-TRANSIENT: ~/.claude/lib AND ~/.claude/settings.json both resolve through the main checkout's WORKING TREE, so global lib and permissions track whatever branch it sits on - now chore/ledger-v2-archive-and-seed, neither mitosis branch.",
-      "Knowingly carried: file CREATION via Write in the main checkout's .claude/lib/** and .claude/workflows/** is ungated (Edit denies remain). The engine-self-edit hazard is held by the worktree vehicle, not by these denies.",
+      "Do NOT restore the two D4 Write(...) denies. main now carries the INTENDED 38; restoring them breaks Claude Code startup. A 38-vs-40 count is NOT a regression.",
+      "RESIDUAL of the branch-transient fragility: the anchor is live only while the main checkout stays on main or a descendant. Checking out any branch predating cd5c65d re-dangles the wrapper, and fix/mitosis-msp3-low-folds specifically would restore the 40-deny settings.",
+      "main is 35 commits ahead of origin/main and unpushed. Pushing is out of scope for this thread and was not done.",
       "The wrapper is NOT a security boundary while Bash(node:*) is live. Say so wherever it is described.",
       "No agent can run the anchor probe: live Bash(node:*) makes any positive result indistinguishable from the broad rule firing. HUMAN task, isolated CLAUDE_CONFIG_DIR, never --settings.",
       "Shipping 3b's node:* narrowing ALONE is worse than not shipping it - 3 of 7 sites, reproduced exactly.",
       "The real scopedCheckCmd defect is PROVENANCE, not execution, and 3b does not touch it.",
       "Two pre-existing engine defects recorded not fixed: clean(undefined) TypeError at mitosis.js:4574; conditional host enforcement accepts a same-slug FOREIGN-HOST merged PR.",
-      "Main tree DIRTY and stash@{0} retained - do NOT discard. The untracked bin/ and gh-merge-shim.mjs there are the PRE-3a state; the msp3 branch deletes the former and tracks the latter."
+      "Main tree still DIRTY (4 modified, 3 untracked) and stash@{0} retained - do NOT discard. Three untracked paths were MOVED to the session scratchpad (preserved-untracked/) and will be lost when the scratchpad is cleaned; they are superseded, but confirm before relying on that."
     ],
     "key_decisions": [
       "v1 archive: decisions/2026-07-25-msp3-3b-four-corrections-provenance-resolved.md - 3b HELD; dangling anchor; four allows not one; probe procedure",
@@ -87,5 +85,5 @@
     ]
   },
   "created_at": "2026-07-26T08:24:13.881Z",
-  "updated_at": "2026-07-26T19:27:21.888Z"
+  "updated_at": "2026-07-26T19:27:38.881Z"
 }
