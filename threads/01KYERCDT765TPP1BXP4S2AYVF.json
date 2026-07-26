@@ -54,12 +54,28 @@
   "closure_statement": null,
   "spine": {
     "status": "active",
-    "active_goal": "",
-    "next_step": "",
-    "open_risks": [],
-    "key_decisions": [],
-    "out_of_scope": []
+    "active_goal": "Close the last open half of criterion 7. Engine work is COMPLETE, LIVE and PUBLISHED (commits 3665160 / 9af1fbe / 0c3a8f6 / e03b18a; pushed 2499df1..e03b18a; PR #3 open to main; suite 853/853).",
+    "next_step": "Mark the frontier-train decision record + design spec implemented. Do NOT merge PR #3 (left open by user instruction).",
+    "open_risks": [
+      "SECURITY: a live `ghu_` Copilot token sits untracked and unignored in the working tree on a PUBLIC repo. In no commit. Was owned by the pr3-remediation thread, which was NOT carried into v2 - re-confirm ownership before any push.",
+      "PR #3 checks are UNSTABLE: two pre-existing machine-dependence failures in the superpowers-parallel suite plus one flaky `sast`.",
+      "PR #3 proposes 129 commits, not just the guard fix. A fix-only branch off main was offered and not taken up.",
+      "The LLM transcription boundary is narrowed, NOT closed; the durable fix is a deterministic non-agent `gh` read.",
+      "Fail-closed cost is live: an old `gh`, or a transcriber dropping head-repo fields, freezes every genuine published unit. Watch the first live relaunch.",
+      "The settings.json allow-list was recorded as lacking `gh pr create` / `git push`, yet both succeeded - the recorded constraint appears stale and should be re-verified."
+    ],
+    "key_decisions": [
+      "v1 archive: decisions/2026-07-19-frontier-train-promoted-live.md - promotion via worktree-merge-then-CAS-ff",
+      "v1 archive: decisions/2026-07-19-esm-entrypoint-guard-canonical-form.md - two-sided realpath guard; import.meta.main alone rejected",
+      "v1 archive: decisions/2026-07-19-condemned-published-unit-freeze-not-rebuild.md - freeze condemned-and-published, hand to human",
+      "v1 archive: decisions/2026-07-19-autonomous-commit-push-pr-policy.md - autonomous commits + per-MSP PR policy"
+    ],
+    "out_of_scope": [
+      "M1, M3, M4, M5, M6, L1, L2 from the original fix backlog (only the M2 read-site half was taken)",
+      "Extracting classifyRunOpenPRs out of mitosis.js",
+      "Merging PR #3"
+    ]
   },
   "created_at": "2026-07-26T08:24:06.726Z",
-  "updated_at": "2026-07-26T08:24:06.726Z"
+  "updated_at": "2026-07-26T08:24:56.208Z"
 }
