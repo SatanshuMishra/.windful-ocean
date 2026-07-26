@@ -25,7 +25,7 @@
     },
     {
       "text": "v2 plugin installed globally and set up (coexistence verified, core.hooksPath reconciled, CLAUDE_PLUGIN_DATA resolving), with a live /lift-off presenting the seeded roster and a live /ledgerize writing back into the same store",
-      "done": false
+      "done": true
     }
   ],
   "vcs_ref": "chore/ledger-v2-archive-and-seed",
@@ -51,8 +51,8 @@
   "closure_statement": null,
   "spine": {
     "status": "paused",
-    "active_goal": "Retire the v1 file ledger by freezing it as a grep-only archive and standing v2 up fresh. Archive DONE. 7 v2 threads seeded. On 2026-07-26 the two open clauses of criterion 5 were PROVEN (core.hooksPath reconciled; CLAUDE_PLUGIN_DATA resolving) and the suspected guard-scope defect was REFUTED. The guard branch is now BLOCKED from merge on security grounds and needs a redesign before anything ships.",
-    "next_step": "DO NOT merge fix/pre-tool-use-guard - see decision 0011. Next: rebuild the guard decision rule as deny-by-default within the protected root (keep the new tokenizer, change only the rule), then re-review, merge, publish, re-install, restart. Criterion 5 itself no longer depends on the guard: its remaining clause is a live /ledgerize write-back, which the next hand-off satisfies.",
+    "active_goal": "Retire the v1 file ledger by freezing it as a grep-only archive and stand v2 up fresh. ALL FIVE CRITERIA NOW MET: archive frozen and byte-verified, 7 threads seeded, skills renamed/published, and criterion 5 closed 2026-07-26 - core.hooksPath reconciled and CLAUDE_PLUGIN_DATA resolving both PROVEN, live /lift-off and /ledgerize both demonstrated. Eligible to close; the outstanding guard work is NOT in its criteria and belongs to a successor thread.",
+    "next_step": "DECIDE FIRST: all 5 criteria met, so close this thread and open a successor for the guard work. Guard task: invert the rule at hooks/lib/pre-tool-use.mjs:76 to deny-by-default - any resolvable token under a protected root DENIES unless the head is on a read-only allowlist. Keep shell-tokens.mjs as-is. Prove both ways: the 12 verified evasions flip to DENY, the 41-command read-only corpus stays ALLOW. Then suite, re-review, merge, publish, re-install. DO NOT merge before that - see 0011.",
     "open_risks": [
       "BLOCKED: fix/pre-tool-use-guard must NOT merge. 20 commands the old guard DENIED are ALLOWED by it; 12/12 reproduced independently. `( rm -rf <root> )` and `sudo rm -rf <root>` both pass. See decision 0011.",
       "Root cause is architectural: pre-tool-use.mjs is allow-unless-provably-destructive over a hand-rolled bash parser. Every parse gap is a silent evasion. Fix is to invert to deny-by-default within the root, not to enumerate gaps.",
@@ -87,5 +87,5 @@
     ]
   },
   "created_at": "2026-07-26T08:26:29.673Z",
-  "updated_at": "2026-07-26T20:52:52.983Z"
+  "updated_at": "2026-07-26T21:01:56.636Z"
 }
