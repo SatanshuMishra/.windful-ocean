@@ -36,25 +36,26 @@
   "spine": {
     "status": "active",
     "active_goal": "Invert the PreToolUse Bash guard from allow-unless-provably-destructive to deny-by-default inside a protected root, so parse gaps in the hand-rolled bash tokenizer stop being silent evasions. Then prove both directions, review, merge, publish, re-install. Successor to ledger-v2-archive-and-seed.",
-    "next_step": "Map the guard architecture (codebase-analyst in flight), then invert the decision rule at hooks/lib/pre-tool-use.mjs:76 in the continuity-ledger-plugin repo. Do NOT merge until the 12 evasions flip to DENY and the 41-command read-only corpus stays ALLOW.",
+    "next_step": "Two agents in flight: empirical OLD-vs-TIP verdict matrix, and the deny-by-default design (decisions A-H incl. a possible three-state allow/deny/ask). When both land, settle the design with the user, then TDD the inversion. DO NOT merge before the two-way proof.",
     "open_risks": [
-      "The STATUS QUO IS SAFER. Live install is 0fe1c02 - it over-blocks reads but resists evasion. There is no urgency to ship. Merging fix/pre-tool-use-guard as-is would NET-WEAKEN the store: 20 commands the old guard DENIED are ALLOWED by it, 12/12 reproduced. See predecessor decision 0011.",
-      "Root cause is architectural: the guard is allow-unless-provably-destructive over a hand-rolled bash parser, so every parse gap is a silent evasion. Fix by inverting to deny-by-default within the root, never by enumerating gaps.",
-      "Branch tip is 5f04dd4 (resolve quoted paths), one commit PAST the b0e1079 that predecessor decisions 0008 and 0011 evaluated. Re-verify which commit the 12 evasions were reproduced against before trusting either finding.",
-      "scanSegments is quadratic in tokens per segment (128k tokens = 15.2s) against a 10s hook timeout, so the guard fails OPEN under a large single-line command. Any size cap added must fail CLOSED.",
-      "REFUTED, do not re-litigate: CLAUDE_PLUGIN_DATA IS delivered to hooks and the real store IS protected today. ledger-roots.mjs is byte-identical across 0fe1c02 and b0e1079. The old probe measured the env-absent fallback. See predecessor decision 0007.",
-      "Guard work lives in /Users/satanshumishra/Documents/DevLabs/continuity-ledger-plugin - a DIFFERENT repo from .windful-ocean. Working tree clean, on fix/pre-tool-use-guard. Do not look for hooks/ in the windful-ocean repo.",
-      "The v2 store is git-ref-backed at refs/heads/_ledger, not a working directory. Read thread state with `git show refs/heads/_ledger:threads/<id>.json`. An ls of <repo>/.git/ledger shows an empty dir and looks like data loss - it is not.",
-      "Concurrent sessions write ONE store. Decision numbers are not contiguous and you may not hold the latest state. Never assume.",
-      "Spine list items are capped at 300 chars each; an over-cap item rejects the WHOLE update_thread call rather than truncating. Completion criteria are immutable after creation."
+      "The 12-evasion and 41-command corpora DO NOT EXIST as artifacts - they were planning targets. Only test/unit/hooks/pre-tool-use.test.mjs exists: 23 blocks, 51 asserts, not table-driven. Treat 12/41 as coverage floors. See decision 0014.",
+      "BIGGER FAIL-OPEN THAN THE PARSE GAPS: pre-tool-use.mjs:115-116 returns {} - a total bypass of every check for every tool - whenever roots resolves empty. gitCommonDir drops a root silently on any git failure.",
+      "hook-io.mjs:50-57 swallows every exception and exits 0 silently; readHookInput returns {} on malformed stdin. Both are silent ALLOW. runEntry is shared by ALL hooks, so a global fail-closed change risks breaking sessions.",
+      "shell-tokens.mjs sets `unresolvable` ONLY for double-quoted spans containing $ or a backtick. Bare $VAR, $(...), backticks and globs are NOT flagged - they become garbled literal text that misses a root by accident, not by design.",
+      "CRITERIA TENSION: criterion 1 freezes shell-tokens.mjs but the scanSegments quadratic lives there (spread-copy at :64 and :72). Resolve by capping input in pre-tool-use.mjs BEFORE it calls scanSegments, leaving the tokenizer byte-unchanged.",
+      "CORRECTION, do not re-add as if missing: the tip ALREADY checks redirect targets head-independently (:66-68) and ALREADY tracks cd across && segments (:72-74). The gap is solely the 14-verb DESTRUCTIVE head set at :76.",
+      "Pipes are segment boundaries, so `find / | xargs rm -rf X` presents xargs as the head and the rm is never seen. Deny-by-default covers this only because xargs is not allowlisted - incidental, so keep a test on it.",
+      "isUnderRoot is a textual prefix test with no realpath resolution, so a symlink pointing into the store is not seen as under it. Out of scope for the inversion but it is a live hole.",
+      "STATUS QUO IS SAFER. Live 0fe1c02 rule is hasMutatingConstruct(cmd) && cmd.includes(root); its leading char class includes `(`, which is why it catches `( rm -rf ROOT )` and `sudo rm -rf ROOT` that the tip misses.",
+      "Concurrent sessions write ONE store. 0012 was taken by another session while this one wrote 0013/0014. Decision numbers are not contiguous.",
+      "Spine list items are capped at 300 chars each; an over-cap item rejects the WHOLE update_thread call. Completion criteria are immutable after creation."
     ],
     "key_decisions": [
-      "Predecessor 0011-guard-branch-blocked-invert-to-deny-by-default - the mandate for this thread",
+      "0014-evasion-corpora-never-existed - 12/41 are coverage floors, not artifacts; the existing 51 assertions need verdicts rewritten, not just extended",
+      "0013-close-predecessor-and-open-guard-successor - this thread's mandate",
+      "Predecessor 0011-guard-branch-blocked-invert-to-deny-by-default",
       "Predecessor 0008-b0e1079-not-merged-as-is-quoted-literal-regression",
-      "Predecessor 0007-guard-scope-defect-refuted - CLAUDE_PLUGIN_DATA reaches hooks; store is protected today",
-      "Predecessor 0006-bash-guard-fixed-at-root-cause-not-symptom",
-      "0013-close-predecessor-and-open-guard-successor",
-      "0014-evasion-corpora-never-existed"
+      "Predecessor 0007-guard-scope-defect-refuted - CLAUDE_PLUGIN_DATA reaches hooks; store is protected today"
     ],
     "out_of_scope": [
       "Ref-level destruction: git update-ref -d refs/heads/_ledger, git branch -D _ledger, and deletion of <repo>/.git/worktrees/ledger-worktree. Uncovered by BOTH guards; the ref is the authoritative data. Tracked separately, not fixed here.",
@@ -64,5 +65,5 @@
     ]
   },
   "created_at": "2026-07-26T21:11:59.338Z",
-  "updated_at": "2026-07-26T21:18:21.897Z"
+  "updated_at": "2026-07-26T21:20:04.648Z"
 }
