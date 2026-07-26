@@ -3,7 +3,7 @@
   "id": "01KYERGSD9QA9XC6QD4XPM8R37",
   "slug": "ledger-v2-archive-and-seed",
   "title": "Ledger v2 archive and seed",
-  "status": "paused",
+  "status": "done",
   "parent_id": null,
   "predecessor_id": null,
   "completion_criteria": [
@@ -48,9 +48,9 @@
   ],
   "blocked_by": null,
   "abandoned_reason": null,
-  "closure_statement": null,
+  "closure_statement": "The v1 file ledger is frozen as a byte-verified grep-only archive and continuity v2 is standing on its own: seven threads seeded, skills renamed and published, plugin installed globally with core.hooksPath reconciled and CLAUDE_PLUGIN_DATA proven to resolve, and both /lift-off and /ledgerize demonstrated live against the same store. The outstanding pre-tool-use guard hardening was never in this thread's criteria and continues in its successor.",
   "spine": {
-    "status": "paused",
+    "status": "done",
     "active_goal": "Retire the v1 file ledger by freezing it as a grep-only archive and stand v2 up fresh. ALL FIVE CRITERIA NOW MET: archive frozen and byte-verified, 7 threads seeded, skills renamed/published, and criterion 5 closed 2026-07-26 - core.hooksPath reconciled and CLAUDE_PLUGIN_DATA resolving both PROVEN, live /lift-off and /ledgerize both demonstrated. Eligible to close; the outstanding guard work is NOT in its criteria and belongs to a successor thread.",
     "next_step": "DECIDE FIRST: all 5 criteria met, so close this thread and open a successor for the guard work. Guard task: invert the rule at hooks/lib/pre-tool-use.mjs:76 to deny-by-default - any resolvable token under a protected root DENIES unless the head is on a read-only allowlist. Keep shell-tokens.mjs as-is. Prove both ways: the 12 verified evasions flip to DENY, the 41-command read-only corpus stays ALLOW. Then suite, re-review, merge, publish, re-install. DO NOT merge before that - see 0011.",
     "open_risks": [
@@ -87,5 +87,5 @@
     ]
   },
   "created_at": "2026-07-26T08:26:29.673Z",
-  "updated_at": "2026-07-26T21:01:56.636Z"
+  "updated_at": "2026-07-26T21:11:43.159Z"
 }
