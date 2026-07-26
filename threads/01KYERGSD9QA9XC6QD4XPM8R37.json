@@ -3,7 +3,7 @@
   "id": "01KYERGSD9QA9XC6QD4XPM8R37",
   "slug": "ledger-v2-archive-and-seed",
   "title": "Ledger v2 archive and seed",
-  "status": "active",
+  "status": "paused",
   "parent_id": null,
   "predecessor_id": null,
   "completion_criteria": [
@@ -50,7 +50,7 @@
   "abandoned_reason": null,
   "closure_statement": null,
   "spine": {
-    "status": "active",
+    "status": "paused",
     "active_goal": "Retire the v1 file ledger by freezing it as a grep-only archive and standing v2 up fresh. Archive move DONE and verified 2026-07-26; 7 v2 threads seeded; index rebuilt. Only the live-plugin half of criterion 5 remains.",
     "next_step": "Re-install the plugin to pick up the published fix 0fe1c02 (currently installed at the PRE-fix 3b9de99), then RESTART Claude Code a second time, then run a live /lift-off to confirm it presents the 7 seeded threads. The live /ledgerize half was already exercised on 2026-07-26 against the pre-fix plugin and wrote correctly. That closes criterion 5.",
     "open_risks": [
@@ -80,5 +80,5 @@
     ]
   },
   "created_at": "2026-07-26T08:26:29.673Z",
-  "updated_at": "2026-07-26T08:29:11.189Z"
+  "updated_at": "2026-07-26T08:29:16.917Z"
 }
