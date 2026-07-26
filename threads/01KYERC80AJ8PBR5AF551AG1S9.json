@@ -1,0 +1,57 @@
+{
+  "schema_version": 1,
+  "id": "01KYERC80AJ8PBR5AF551AG1S9",
+  "slug": "continuity-plugin-realworld-test",
+  "title": "Continuity plugin real-world install test",
+  "status": "active",
+  "parent_id": null,
+  "predecessor_id": null,
+  "completion_criteria": [
+    {
+      "text": "Plugin installs into an isolated CLAUDE_CONFIG_DIR sandbox (marketplace add + install succeed)",
+      "done": false
+    },
+    {
+      "text": "/mcp shows the ledger server connected (or GitHub #51573 spawn bug confirmed and worked around)",
+      "done": false
+    },
+    {
+      "text": "A hand-off records the thread to the plugin ledger (refs/heads/_ledger shows commits)",
+      "done": false
+    },
+    {
+      "text": "A fresh session's resume brief shows the recorded next_step (cross-session round-trip proven)",
+      "done": false
+    },
+    {
+      "text": "Non-git LocalDriver parity confirmed",
+      "done": false
+    }
+  ],
+  "vcs_ref": "feat/mitosis-robustness",
+  "external_refs": [
+    {
+      "system": "v1-ledger-archive",
+      "id": "continuity-plugin-realworld-test",
+      "url": "file:///Users/satanshumishra/Documents/DevLabs/.windful-ocean/.claude/ledger-archive-v1/threads/continuity-plugin-realworld-test.md"
+    },
+    {
+      "system": "repo",
+      "id": "continuity-ledger-plugin",
+      "url": "file:///Users/satanshumishra/Documents/DevLabs/continuity-ledger-plugin"
+    }
+  ],
+  "blocked_by": null,
+  "abandoned_reason": null,
+  "closure_statement": null,
+  "spine": {
+    "status": "active",
+    "active_goal": "",
+    "next_step": "",
+    "open_risks": [],
+    "key_decisions": [],
+    "out_of_scope": []
+  },
+  "created_at": "2026-07-26T08:24:00.778Z",
+  "updated_at": "2026-07-26T08:24:00.778Z"
+}
