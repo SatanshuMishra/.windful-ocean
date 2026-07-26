@@ -1,6 +1,6 @@
 # Continuity Ledger
 
-Per-project, file-based continuity: each session teaches the next the cumulative project state. Write side: the `session-handoff` skill. Read side: the `resume-project` skill. Load-bearing guarantees live in hooks (deterministic); procedure and judgment live in the skills.
+Per-project, file-based continuity: each session teaches the next the cumulative project state. Write side: the `ledgerize` skill. Read side: the `lift-off` skill. Load-bearing guarantees live in hooks (deterministic); procedure and judgment live in the skills.
 
 ## Location and layout
 
@@ -42,7 +42,7 @@ The clock only raises the question; the human decides.
 
 ## Resume = present then STOP
 
-On resume, never auto-select a thread by recency or last-modified time. Present the menu of resumable threads (or honor an explicit `/resume-project <slug>`), load only the chosen thread, present the Resumption Brief, and STOP. The brief is the synthesis-by-receiver step; auto-proceeding into the work is forbidden.
+On resume, never auto-select a thread by recency or last-modified time. Present the menu of resumable threads (or honor an explicit `/lift-off <slug>`), load only the chosen thread, present the Resumption Brief, and STOP. The brief is the synthesis-by-receiver step; auto-proceeding into the work is forbidden.
 
 ## Decision-time capture (the core duty)
 

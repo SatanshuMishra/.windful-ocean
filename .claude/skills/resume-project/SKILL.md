@@ -1,6 +1,6 @@
 ---
 name: resume-project
-description: Use when the user says "continue", "resume", "pick up where we left off", "/resume-project", or near-equivalents at the start of work in a project that has a .claude/ledger/ directory (or its global fallback under ~/.claude/projects/<slug>/ledger/). Presents a menu of resumable threads (or honors an explicit /resume-project <slug>), loads only the chosen thread plus its latest session log (<=3k tokens), verifies against code, presents a Resumption Brief, then STOPS for user instruction.
+description: Use ONLY when the user explicitly types the /resume-project slash command. Reads the ARCHIVED v1 file ledger under .claude/ledger/ (or its global fallback ~/.claude/projects/<slug>/ledger/) — the legacy markdown PROJECT.md, thread files, session logs, and decision records that the current continuity tooling does not read. Presents a menu of archived threads (or honors /resume-project <slug>), loads only the chosen thread plus its latest session log (<=3k tokens), verifies against code, presents a Resumption Brief, then STOPS for user instruction. Plain-language start-of-work phrasing routes to the current continuity skill instead, never here.
 ---
 
 # Resume Project

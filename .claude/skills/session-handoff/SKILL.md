@@ -1,6 +1,6 @@
 ---
 name: session-handoff
-description: Use when the user says "session handoff", "wrap up session", "hand off", "handoff summary", or confirms a wrap-up after the context nudge. Writes the project ledger (session log, straggler decision records, thread spine refresh with state transition, PROJECT.md index updates) so any fresh session resumes from files alone, then prints the hand-off chat summary.
+description: Use ONLY when the user explicitly types the /session-handoff slash command. Writes the legacy v1 markdown file ledger under .claude/ledger/ (or its global fallback ~/.claude/projects/<slug>/ledger/) — session log, straggler decision records, thread spine refresh with state transition, PROJECT.md index updates — so a fresh session can resume from those files alone, then prints the chat summary. Plain-language end-of-session phrasing routes to the current continuity skill instead, never here.
 ---
 
 # Session Handoff
