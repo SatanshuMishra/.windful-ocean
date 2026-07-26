@@ -51,12 +51,24 @@
   "closure_statement": null,
   "spine": {
     "status": "active",
-    "active_goal": "",
-    "next_step": "",
-    "open_risks": [],
-    "key_decisions": [],
-    "out_of_scope": []
+    "active_goal": "Turn the approved agent-roster gap recommendations into a SPEC, then implement them. SPEC is authored and user-approved; no roster files changed yet.",
+    "next_step": "AWAIT explicit user go. Most likely first action: revise the 2026-07-14 SPEC per the 2026-07-24 audit-rerun findings (drop visual-renderer; add verification-strategist extend; re-label spec-author; promote reviewer fence; add non-roster classifier note). Do NOT implement agent files without a further explicit go.",
+    "open_risks": [
+      "Implementation is user-GATED: do not create or edit agent files without an explicit go.",
+      "The 2026-07-14 SPEC is approved but PARTLY SUPERSEDED by the 2026-07-24 audit rerun; revise before implementing.",
+      "mitosis.js re-point is a live-engine change: 5 agentType edits across 3 sites. Create the agents BEFORE re-pointing or a missing agentType silently misdispatches. Never global-replace 'implementer'.",
+      "Adjacent defect, out of scope: mitosis dispatches a non-existent `diagnostician` agent for every stage's remediation-diagnose.",
+      "Commit-time: mitosis.js also carries an unrelated uncommitted edit, so use hunk-scoped staging to keep threads atomic."
+    ],
+    "key_decisions": [
+      "v1 archive: decisions/2026-07-14-agent-roster-gap-resolution.md - approved 3 creates + 2 extends; git-ops agent rejected",
+      "v1 archive: decisions/2026-07-14-agent-roster-gap-resolution-spec-approved.md - SPEC approved as written (R1 skills-preload fence, R2 concrete re-point targets, diagnostician deferred); implementation gated on explicit user go"
+    ],
+    "out_of_scope": [
+      "A git/PR/CI operator agent (rejected on safety grounds)",
+      "Applying agent-file changes without an explicit user go"
+    ]
   },
   "created_at": "2026-07-26T08:23:57.632Z",
-  "updated_at": "2026-07-26T08:23:57.632Z"
+  "updated_at": "2026-07-26T08:24:41.930Z"
 }
