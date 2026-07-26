@@ -3,7 +3,7 @@
   "id": "01KYERC80AJ8PBR5AF551AG1S9",
   "slug": "continuity-plugin-realworld-test",
   "title": "Continuity plugin real-world install test",
-  "status": "active",
+  "status": "paused",
   "parent_id": null,
   "predecessor_id": null,
   "completion_criteria": [
@@ -45,7 +45,7 @@
   "abandoned_reason": null,
   "closure_statement": null,
   "spine": {
-    "status": "active",
+    "status": "paused",
     "active_goal": "Prove the continuity-ledger-plugin works end-to-end when really installed: install -> record a hand-off -> resume from the ledger in a fresh session. Audit complete, sandbox staged, runbook delivered; Track B never executed.",
     "next_step": "Await the user's SPECIFIC instructions; do NOT auto-run the runbook. Re-scope first: the LIVE global install on 2026-07-26 already demonstrated MCP connectivity and per-project store writes, so several criteria may now be provable without the sandbox.",
     "open_risks": [
@@ -63,5 +63,5 @@
     ]
   },
   "created_at": "2026-07-26T08:24:00.778Z",
-  "updated_at": "2026-07-26T08:24:46.953Z"
+  "updated_at": "2026-07-26T08:26:03.987Z"
 }
