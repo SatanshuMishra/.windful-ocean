@@ -5,6 +5,7 @@ import { computeLogicalRunId, buildInitialManifest, applyShipTransition, parseRu
 import { foldRunManifest } from '../run-log.mjs';
 import { park, LEGAL_STAGES } from '../parking.mjs';
 import { runEngine } from '../run-engine.mjs';
+import { parseMitosisGitArgv, renderPrCreateBody } from '../mitosis-git.mjs';
 
 const MITOSIS_PATH = process.env.MITOSIS_PATH || new URL('../../../workflows/mitosis.js', import.meta.url).pathname;
 const SOURCE_PREFIX = 'mitosis-test';
@@ -15,6 +16,7 @@ const SCOPED = `-R ${TEST_REPO_SLUG}`;
 const SLUG_PLACEHOLDER = '<OWNER_REPO>';
 const testPrUrl = (seed) => `https://example.test/${TEST_REPO_SLUG}/pull/${[...String(seed)].reduce((acc, ch) => acc + ch.charCodeAt(0), 0)}`;
 const SLUG_DERIVATION = `$(cd ${TEST_REPO_ROOT} && gh repo view --json nameWithOwner -q .nameWithOwner)`;
+const PR_CREATE_CLI = 'node /Users/satanshumishra/.claude/lib/superpowers-parallel/mitosis-git.mjs pr-create';
 
 const mitosisBody = readFileSync(MITOSIS_PATH, 'utf8').replace(/^export const meta/m, 'const meta');
 const AsyncFunction = Object.getPrototypeOf(async function () {}).constructor;
@@ -84,6 +86,20 @@ function buildEngineArgs({ sourcePrefix, mspId, taskId = 't0' }) {
     runArtifacts: [],
     models: {},
   };
+}
+
+function prCreateCommandFromPrompt(prompt) {
+  const start = prompt.indexOf(PR_CREATE_CLI);
+  assert.ok(start >= 0, 'the prompt carries the wrapper invocation');
+  const end = prompt.indexOf('`', start);
+  assert.ok(end > start, 'the wrapper invocation is closed by its code span');
+  return prompt.slice(start, end);
+}
+
+function prCreateArgvFromPrompt(prompt) {
+  const tokens = (prCreateCommandFromPrompt(prompt).match(/"(?:[^"\\]|\\.)*"|\S+/g) || []).map((t) => (t.startsWith('"') ? JSON.parse(t) : t));
+  assert.equal(tokens[0], 'node', 'the invocation is a bare node call the permission matcher can anchor on');
+  return tokens.slice(2);
 }
 
 function mspSpec(id, overrides = {}) {
@@ -1254,7 +1270,7 @@ test('P4 §8.2 ship push is observe-then-converge and forward-only (checks origi
   assert.match(captured[0], /forward-only on shared refs/);
 });
 
-test('P4 §8.2 ship PR is observe-then-converge (reuse an existing open PR, never open a second)', async () => {
+test('P4 §8.2 ship PR-open is ONE literal wrapper invocation that carries observe-then-converge itself (no free-form gh pr list)', async () => {
   const msps = [mspSpec('solo', { fileScope: ['scope/solo/**'] })];
   const captured = [];
   const base = createFakeAgent({ msps });
@@ -1266,9 +1282,80 @@ test('P4 §8.2 ship PR is observe-then-converge (reuse an existing open PR, neve
   const result = await resultPromise;
 
   assert.equal(result.overallStatus, 'all-shipped');
-  assert.ok(captured[0].includes(`gh pr list ${SCOPED} --head`), 'the ship existing-PR check is pinned to the TARGET repo via -R');
-  assert.doesNotMatch(captured[0], /gh pr list (?!-R)/);
-  assert.match(captured[0], /REUSE it/);
+  assert.ok(
+    captured[0].includes(`${PR_CREATE_CLI} --repo ${TEST_REPO_SLUG} --head ${SOURCE_PREFIX}/solo-integration --base main --title "mitosis: solo"`),
+    'the ship PR-open is the absolutely-spelled wrapper invocation a literal permission rule can match',
+  );
+  assert.doesNotMatch(captured[0], /gh pr list/, 'the wrapper performs the observe step itself; handing the agent a gh pr list too would restore the free-form surface');
+  assert.doesNotMatch(captured[0], /~\/\.claude/, 'the anchor is never spelled with a tilde: the permission matcher compares strings, not inodes');
+  assert.match(captured[0], /reuses an existing open PR/, 'the prompt still states the reuse guarantee the removed prose carried');
+});
+
+test('P4 §8.2 the ship PR-open emits an argv the mitosis-git wrapper actually accepts, carrying the stacked MSPs as --depends', async () => {
+  const msps = [
+    mspSpec('a', { fileScope: ['scope/a/**'] }),
+    mspSpec('b', { dependsOn: ['a'], fileScope: ['scope/b/**'] }),
+  ];
+  const captured = new Map();
+  const base = createFakeAgent({ msps });
+  const agent = async (prompt, opts = {}) => {
+    const label = opts.label || '';
+    if (label.startsWith('ship:')) captured.set(label.slice('ship:'.length), prompt);
+    return base(prompt, opts);
+  };
+  const { resultPromise } = invokeMitosis(buildInput(), agent);
+  await resultPromise;
+
+  const root = parseMitosisGitArgv(prCreateArgvFromPrompt(captured.get('a')));
+  assert.equal(root.ok, true, `the root MSP's emitted argv must parse: ${root.error}`);
+  assert.equal(root.opts.head, `${SOURCE_PREFIX}/a-integration`);
+  assert.equal(root.opts.base, 'main');
+  assert.equal(root.opts.title, 'mitosis: a');
+  assert.deepEqual([...root.opts.depends], [], 'a root MSP emits no --depends flag rather than a value the wrapper would reject');
+
+  const child = parseMitosisGitArgv(prCreateArgvFromPrompt(captured.get('b')));
+  assert.equal(child.ok, true, `the dependent MSP's emitted argv must parse: ${child.error}`);
+  assert.deepEqual([...child.opts.depends], ['a'], 'a dependent MSP names its parents as one comma-joined --depends value');
+});
+
+async function shipPromptFor(mspOverrides) {
+  const msps = [mspSpec('solo', { fileScope: ['scope/solo/**'], ...mspOverrides })];
+  const captured = [];
+  const base = createFakeAgent({ msps });
+  const agent = async (prompt, opts = {}) => {
+    if ((opts.label || '').startsWith('ship:')) captured.push(prompt);
+    return base(prompt, opts);
+  };
+  const { resultPromise } = invokeMitosis(buildInput(), agent);
+  await resultPromise;
+  assert.equal(captured.length, 1, 'exactly one ship prompt was captured');
+  return captured[0];
+}
+
+test('MSP-3 fold: the ship PR-open hands the wrapper the MSP title and scope, so the human who lands it does not get a boilerplate-only body', async () => {
+  const prompt = await shipPromptFor({ title: 'Solo replaces the hand-rolled tokenizer', rationale: 'Swap the bespoke lexer for the shared one and delete the dead branch' });
+  const parsed = parseMitosisGitArgv(prCreateArgvFromPrompt(prompt));
+  assert.equal(parsed.ok, true, `the emitted argv must parse: ${parsed.error}`);
+
+  const body = renderPrCreateBody(parsed.opts);
+  assert.match(body, /Solo replaces the hand-rolled tokenizer/, 'the reviewer-facing body carries the MSP title, not just the "mitosis: <id>" PR title');
+  assert.match(body, /Swap the bespoke lexer for the shared one and delete the dead branch/, 'the reviewer-facing body carries what this MSP is scoped to change');
+});
+
+test('MSP-3 fold: decomposer-authored MSP prose reaches the wrapper as an inert value, never as live shell syntax', async () => {
+  const hostile = 'ship $(id) `whoami` "quoted" ; rm -rf / && echo pwned';
+  const prompt = await shipPromptFor({ title: hostile, rationale: hostile });
+
+  const command = prCreateCommandFromPrompt(prompt);
+  assert.doesNotMatch(command, /[$`\\;&|<>'*?{}()!~#@]/, `the emitted command carries live shell syntax from decomposer-authored prose: ${command}`);
+
+  const parsed = parseMitosisGitArgv(prCreateArgvFromPrompt(prompt));
+  assert.equal(parsed.ok, true, `the sanitised argv must still parse: ${parsed.error}`);
+  assert.deepEqual(
+    [...parsed.opts.bodyLines],
+    ['MSP ship id whoami quoted rm -rf / echo pwned', 'SCOPE ship id whoami quoted rm -rf / echo pwned'],
+    'every character outside the inert prose set is collapsed to whitespace before the value is emitted',
+  );
 });
 
 test('D7 gh-scope: the ship CI-wait scopes every gh run to the engine-resolved LITERAL slug — no subshell, no shell variable, no cd', async () => {
@@ -1433,6 +1520,32 @@ test('D7 hard fail: an unvalidatable target repo slug HALTS the run rather than 
     assert.equal(result.stage, 'reconcile');
     assert.match(result.detail, /slug/i);
     assert.equal(dispatched.some((l) => l === 'decompose'), false, 'the run halts before decompose — no gh command is ever emitted with an unvalidated slug');
+  }
+});
+
+test('D7 log hygiene: the fatal detail for a rejected slug strips Unicode format characters (RTL override, zero-width space, soft hyphen) so attacker text can never visually reorder a log line', async () => {
+  const formatChars = [
+    ['U+202E RIGHT-TO-LEFT OVERRIDE', String.fromCharCode(0x202e)],
+    ['U+200B ZERO WIDTH SPACE', String.fromCharCode(0x200b)],
+    ['U+00AD SOFT HYPHEN', String.fromCharCode(0xad)],
+  ];
+  const hostileSlug = `me/tar${formatChars.map(([, ch]) => ch).join('x')}get`;
+  const msps = independentMsps();
+  const base = createFakeAgent({ msps });
+  const agent = async (prompt, opts = {}) => {
+    if ((opts.label || '') === 'reconcile') {
+      return { manifestFound: false, manifestRaw: null, mergedPRs: [], mergedPRsAuthoritative: true, ownerRepo: hostileSlug };
+    }
+    return base(prompt, opts);
+  };
+  const { resultPromise } = invokeMitosis(buildInput(), agent);
+  const result = await resultPromise;
+
+  assert.equal(result.overallStatus, 'failed');
+  assert.equal(result.stage, 'reconcile');
+  assert.match(result.detail, /slug/i);
+  for (const [name, ch] of formatChars) {
+    assert.equal(result.detail.includes(ch), false, `the sanitized fatal detail must not carry ${name}`);
   }
 });
 

@@ -5,6 +5,7 @@ import {
   branchToMspId,
   prUrlToRepoRef,
   reconcileShippedSet,
+  manifestPrUrlById,
   parseRunManifest,
   buildInitialManifest,
   applyShipTransition,
@@ -52,16 +53,16 @@ test('branchToMspId: rejects wrong prefix, wrong suffix, empty id, and foreign b
 
 test('reconcileShippedSet: maps matching PRs by mspId, ignores foreign branches', () => {
   const m = reconcileShippedSet([
-    { headRefName: 'mitosis/a-integration', url: 'http://pr/1', mergedAt: '2026-07-08T00:00:00Z' },
-    { headRefName: 'feature/unrelated', url: 'http://pr/2', mergedAt: '2026-07-08T01:00:00Z' },
-  ], 'mitosis');
+    { headRefName: 'mitosis/a-integration', url: 'https://github.com/me/target/pull/1', mergedAt: '2026-07-08T00:00:00Z' },
+    { headRefName: 'feature/unrelated', url: 'https://github.com/me/target/pull/2', mergedAt: '2026-07-08T01:00:00Z' },
+  ], 'mitosis', 'me/target');
   assert.deepEqual([...m.keys()], ['a']);
-  assert.deepEqual(m.get('a'), { prUrl: 'http://pr/1', mergedAt: '2026-07-08T00:00:00Z' });
+  assert.deepEqual(m.get('a'), { prUrl: 'https://github.com/me/target/pull/1', mergedAt: '2026-07-08T00:00:00Z' });
 });
 
 test('reconcileShippedSet: empty or nullish input yields an empty map', () => {
-  assert.equal(reconcileShippedSet([], 'mitosis').size, 0);
-  assert.equal(reconcileShippedSet(null, 'mitosis').size, 0);
+  assert.equal(reconcileShippedSet([], 'mitosis', 'me/target').size, 0);
+  assert.equal(reconcileShippedSet(null, 'mitosis', 'me/target').size, 0);
 });
 
 test('prUrlToRepoRef: parses {host, ownerRepo} out of an https PR url', () => {
@@ -111,13 +112,36 @@ test('reconcileShippedSet defense-in-depth: a merged PR whose url is unparseable
   assert.equal(reconcileShippedSet(merged, 'mitosis', 'me/target').size, 0);
 });
 
-test('reconcileShippedSet back-compat: with no target, existing behavior is preserved (no repo filtering)', () => {
+test('reconcileShippedSet deny-by-default: an absent, empty, or non-string target repo yields an EMPTY shipped set — an unidentifiable target trusts nothing, never everything', () => {
   const merged = [
-    { headRefName: 'mitosis/foo-integration', url: 'http://pr/1', mergedAt: '2026-07-14T00:00:00Z' },
+    { headRefName: 'mitosis/foo-integration', url: 'https://github.com/me/target/pull/1', mergedAt: '2026-07-14T00:00:00Z' },
   ];
-  assert.deepEqual([...reconcileShippedSet(merged, 'mitosis').keys()], ['foo']);
-  assert.deepEqual([...reconcileShippedSet(merged, 'mitosis', null).keys()], ['foo']);
-  assert.deepEqual([...reconcileShippedSet(merged, 'mitosis', '').keys()], ['foo']);
+  assert.equal(reconcileShippedSet(merged, 'mitosis').size, 0);
+  assert.equal(reconcileShippedSet(merged, 'mitosis', null).size, 0);
+  assert.equal(reconcileShippedSet(merged, 'mitosis', '').size, 0);
+  assert.equal(reconcileShippedSet(merged, 'mitosis', 42).size, 0);
+  assert.deepEqual([...reconcileShippedSet(merged, 'mitosis', 'me/target').keys()], ['foo'], 'a usable target keeps the existing narrow acceptance unchanged');
+});
+
+test('manifestPrUrlById deny-by-default: an absent, empty, or non-string target repo yields an EMPTY url map — an unidentifiable target trusts nothing, never everything', () => {
+  const manifest = { msps: [{ id: 'a', prUrl: 'https://github.com/me/target/pull/3' }] };
+  assert.equal(manifestPrUrlById(manifest).size, 0);
+  assert.equal(manifestPrUrlById(manifest, null).size, 0);
+  assert.equal(manifestPrUrlById(manifest, '').size, 0);
+  assert.equal(manifestPrUrlById(manifest, 42).size, 0);
+  assert.deepEqual([...manifestPrUrlById(manifest, 'me/target').entries()], [['a', 'https://github.com/me/target/pull/3']], 'a usable target keeps the existing narrow acceptance unchanged');
+});
+
+test('manifestPrUrlById defense-in-depth: wrong-repo, wrong-host, and unparseable prUrl entries are rejected under a usable target', () => {
+  const manifest = {
+    msps: [
+      { id: 'a', prUrl: 'https://github.com/me/target/pull/1' },
+      { id: 'b', prUrl: 'https://github.com/other/repo/pull/2' },
+      { id: 'c', prUrl: 'https://evil.example/me/target/pull/3' },
+      { id: 'd', prUrl: 'http://pr/4' },
+    ],
+  };
+  assert.deepEqual([...manifestPrUrlById(manifest, 'me/target', 'github.com').keys()], ['a']);
 });
 
 test('reconcileShippedSet host defense-in-depth: a same-slug wrong-HOST merged PR is rejected when a target host is given', () => {

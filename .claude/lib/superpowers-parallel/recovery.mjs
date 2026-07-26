@@ -31,17 +31,15 @@ export function prUrlToRepoRef(url) {
 export function reconcileShippedSet(mergedPRs, sourcePrefix, targetOwnerRepo, targetRepoHost) {
   const shipped = new Map();
   if (!Array.isArray(mergedPRs)) return shipped;
-  const enforceRepo = typeof targetOwnerRepo === 'string' && targetOwnerRepo.length > 0;
-  const targetLower = enforceRepo ? targetOwnerRepo.toLowerCase() : null;
-  const enforceHost = enforceRepo && typeof targetRepoHost === 'string' && targetRepoHost.length > 0;
+  if (typeof targetOwnerRepo !== 'string' || targetOwnerRepo.length === 0) return shipped;
+  const targetLower = targetOwnerRepo.toLowerCase();
+  const enforceHost = typeof targetRepoHost === 'string' && targetRepoHost.length > 0;
   const targetHostLower = enforceHost ? targetRepoHost.toLowerCase() : null;
   for (const pr of mergedPRs) {
     if (pr === null || typeof pr !== 'object') continue;
-    if (enforceRepo) {
-      const ref = prUrlToRepoRef(pr.url);
-      if (ref === null || ref.ownerRepo !== targetLower) continue;
-      if (enforceHost && ref.host !== targetHostLower) continue;
-    }
+    const ref = prUrlToRepoRef(pr.url);
+    if (ref === null || ref.ownerRepo !== targetLower) continue;
+    if (enforceHost && ref.host !== targetHostLower) continue;
     const mspId = branchToMspId(pr.headRefName, sourcePrefix);
     if (mspId === null) continue;
     shipped.set(mspId, { prUrl: pr.url, mergedAt: pr.mergedAt });
@@ -51,10 +49,10 @@ export function reconcileShippedSet(mergedPRs, sourcePrefix, targetOwnerRepo, ta
 
 export function manifestPrUrlById(manifest, targetOwnerRepo, targetRepoHost) {
   const byId = new Map();
+  if (typeof targetOwnerRepo !== 'string' || targetOwnerRepo.length === 0) return byId;
   const msps = manifest && typeof manifest === 'object' && Array.isArray(manifest.msps) ? manifest.msps : [];
-  const enforceRepo = typeof targetOwnerRepo === 'string' && targetOwnerRepo.length > 0;
-  const targetLower = enforceRepo ? targetOwnerRepo.toLowerCase() : null;
-  const enforceHost = enforceRepo && typeof targetRepoHost === 'string' && targetRepoHost.length > 0;
+  const targetLower = targetOwnerRepo.toLowerCase();
+  const enforceHost = typeof targetRepoHost === 'string' && targetRepoHost.length > 0;
   const targetHostLower = enforceHost ? targetRepoHost.toLowerCase() : null;
   for (const m of msps) {
     if (m === null || typeof m !== 'object') continue;
@@ -62,7 +60,7 @@ export function manifestPrUrlById(manifest, targetOwnerRepo, targetRepoHost) {
     if (typeof m.prUrl !== 'string' || m.prUrl.length === 0) continue;
     const ref = prUrlToRepoRef(m.prUrl);
     if (ref === null) continue;
-    if (enforceRepo && ref.ownerRepo !== targetLower) continue;
+    if (ref.ownerRepo !== targetLower) continue;
     if (enforceHost && ref.host !== targetHostLower) continue;
     byId.set(m.id, m.prUrl);
   }
