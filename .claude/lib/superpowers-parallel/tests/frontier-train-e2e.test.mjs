@@ -495,6 +495,10 @@ test('bullet 5 + 2: reconcile-only shepherd opens the deferred next-layer PR onl
     openPrompt.includes(`${PR_CREATE_CLI} --repo o/repo --head ${SOURCE_PREFIX}/l2-integration --base ${BASE_BRANCH} --title "mitosis: l2"`),
     'the deferred PR opens through the absolutely-spelled wrapper invocation, not free-form prose',
   );
+  assert.ok(
+    openPrompt.includes('--title "mitosis: l2" --body-line "MSP l2" --body-line "SCOPE r-l2"'),
+    'the deferred PR carries this MSP title and scope so the human who lands it is not handed a boilerplate-only body',
+  );
   assert.doesNotMatch(openPrompt, /gh pr list/, 'the wrapper performs the observe step itself; a second gh pr list would restore the free-form surface');
   assert.doesNotMatch(openPrompt, /~\/\.claude/, 'the anchor is never spelled with a tilde: the permission matcher compares strings, not inodes');
 });

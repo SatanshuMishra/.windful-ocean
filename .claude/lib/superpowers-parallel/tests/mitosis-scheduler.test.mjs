@@ -5,7 +5,7 @@ import { computeLogicalRunId, buildInitialManifest, applyShipTransition, parseRu
 import { foldRunManifest } from '../run-log.mjs';
 import { park, LEGAL_STAGES } from '../parking.mjs';
 import { runEngine } from '../run-engine.mjs';
-import { parseMitosisGitArgv } from '../mitosis-git.mjs';
+import { parseMitosisGitArgv, renderPrCreateBody } from '../mitosis-git.mjs';
 
 const MITOSIS_PATH = process.env.MITOSIS_PATH || new URL('../../../workflows/mitosis.js', import.meta.url).pathname;
 const SOURCE_PREFIX = 'mitosis-test';
@@ -88,12 +88,16 @@ function buildEngineArgs({ sourcePrefix, mspId, taskId = 't0' }) {
   };
 }
 
-function prCreateArgvFromPrompt(prompt) {
+function prCreateCommandFromPrompt(prompt) {
   const start = prompt.indexOf(PR_CREATE_CLI);
   assert.ok(start >= 0, 'the prompt carries the wrapper invocation');
   const end = prompt.indexOf('`', start);
   assert.ok(end > start, 'the wrapper invocation is closed by its code span');
-  const tokens = (prompt.slice(start, end).match(/"(?:[^"\\]|\\.)*"|\S+/g) || []).map((t) => (t.startsWith('"') ? JSON.parse(t) : t));
+  return prompt.slice(start, end);
+}
+
+function prCreateArgvFromPrompt(prompt) {
+  const tokens = (prCreateCommandFromPrompt(prompt).match(/"(?:[^"\\]|\\.)*"|\S+/g) || []).map((t) => (t.startsWith('"') ? JSON.parse(t) : t));
   assert.equal(tokens[0], 'node', 'the invocation is a bare node call the permission matcher can anchor on');
   return tokens.slice(2);
 }
@@ -1312,6 +1316,46 @@ test('P4 §8.2 the ship PR-open emits an argv the mitosis-git wrapper actually a
   const child = parseMitosisGitArgv(prCreateArgvFromPrompt(captured.get('b')));
   assert.equal(child.ok, true, `the dependent MSP's emitted argv must parse: ${child.error}`);
   assert.deepEqual([...child.opts.depends], ['a'], 'a dependent MSP names its parents as one comma-joined --depends value');
+});
+
+async function shipPromptFor(mspOverrides) {
+  const msps = [mspSpec('solo', { fileScope: ['scope/solo/**'], ...mspOverrides })];
+  const captured = [];
+  const base = createFakeAgent({ msps });
+  const agent = async (prompt, opts = {}) => {
+    if ((opts.label || '').startsWith('ship:')) captured.push(prompt);
+    return base(prompt, opts);
+  };
+  const { resultPromise } = invokeMitosis(buildInput(), agent);
+  await resultPromise;
+  assert.equal(captured.length, 1, 'exactly one ship prompt was captured');
+  return captured[0];
+}
+
+test('MSP-3 fold: the ship PR-open hands the wrapper the MSP title and scope, so the human who lands it does not get a boilerplate-only body', async () => {
+  const prompt = await shipPromptFor({ title: 'Solo replaces the hand-rolled tokenizer', rationale: 'Swap the bespoke lexer for the shared one and delete the dead branch' });
+  const parsed = parseMitosisGitArgv(prCreateArgvFromPrompt(prompt));
+  assert.equal(parsed.ok, true, `the emitted argv must parse: ${parsed.error}`);
+
+  const body = renderPrCreateBody(parsed.opts);
+  assert.match(body, /Solo replaces the hand-rolled tokenizer/, 'the reviewer-facing body carries the MSP title, not just the "mitosis: <id>" PR title');
+  assert.match(body, /Swap the bespoke lexer for the shared one and delete the dead branch/, 'the reviewer-facing body carries what this MSP is scoped to change');
+});
+
+test('MSP-3 fold: decomposer-authored MSP prose reaches the wrapper as an inert value, never as live shell syntax', async () => {
+  const hostile = 'ship $(id) `whoami` "quoted" ; rm -rf / && echo pwned';
+  const prompt = await shipPromptFor({ title: hostile, rationale: hostile });
+
+  const command = prCreateCommandFromPrompt(prompt);
+  assert.doesNotMatch(command, /[$`\\;&|<>'*?{}()!~#@]/, `the emitted command carries live shell syntax from decomposer-authored prose: ${command}`);
+
+  const parsed = parseMitosisGitArgv(prCreateArgvFromPrompt(prompt));
+  assert.equal(parsed.ok, true, `the sanitised argv must still parse: ${parsed.error}`);
+  assert.deepEqual(
+    [...parsed.opts.bodyLines],
+    ['MSP ship id whoami quoted rm -rf / echo pwned', 'SCOPE ship id whoami quoted rm -rf / echo pwned'],
+    'every character outside the inert prose set is collapsed to whitespace before the value is emitted',
+  );
 });
 
 test('D7 gh-scope: the ship CI-wait scopes every gh run to the engine-resolved LITERAL slug — no subshell, no shell variable, no cd', async () => {
