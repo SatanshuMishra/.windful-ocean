@@ -1,0 +1,62 @@
+{
+  "schema_version": 1,
+  "id": "01KYERGSD9QA9XC6QD4XPM8R37",
+  "slug": "ledger-v2-archive-and-seed",
+  "title": "Ledger v2 archive and seed",
+  "status": "active",
+  "parent_id": null,
+  "predecessor_id": null,
+  "completion_criteria": [
+    {
+      "text": "Detailed SPEC authored in a fresh session and user-approved, covering archive layout, per-thread v2 seeding, and plugin install/setup",
+      "done": true
+    },
+    {
+      "text": "v1 ledger archived - relocated so it cannot collide with the continuity-ledger store subdirs, frozen read-only, contents byte-unchanged and verified",
+      "done": true
+    },
+    {
+      "text": "Plugin skills renamed session-handoff -> ledgerize and resume-project -> lift-off, published, and continuity-ledger.md updated in lockstep AND committed",
+      "done": true
+    },
+    {
+      "text": "Every non-terminal v1 thread carried into v2 as a NEW hand-authored thread preserving work done and work remaining, pointing at the archive, parked at its correct status",
+      "done": true
+    },
+    {
+      "text": "v2 plugin installed globally and set up (coexistence verified, core.hooksPath reconciled, CLAUDE_PLUGIN_DATA resolving), with a live /lift-off presenting the seeded roster and a live /ledgerize writing back into the same store",
+      "done": false
+    }
+  ],
+  "vcs_ref": "chore/ledger-v2-archive-and-seed",
+  "external_refs": [
+    {
+      "system": "v1-ledger-archive",
+      "id": "ledger-v2-archive-and-seed",
+      "url": "file:///Users/satanshumishra/Documents/DevLabs/.windful-ocean/.claude/ledger-archive-v1/threads/ledger-v2-archive-and-seed.md"
+    },
+    {
+      "system": "spec",
+      "id": "2026-07-25-ledger-v2-archive-and-seed-design",
+      "url": "file:///Users/satanshumishra/Documents/DevLabs/.windful-ocean/.claude/docs/superpowers/specs/2026-07-25-ledger-v2-archive-and-seed-design.md"
+    },
+    {
+      "system": "backup",
+      "id": "windful-ocean-ledger-v1-backup-2026-07-25",
+      "url": "file:///Users/satanshumishra/Documents/DevLabs/windful-ocean-ledger-v1-backup-2026-07-25.tar.gz"
+    }
+  ],
+  "blocked_by": null,
+  "abandoned_reason": null,
+  "closure_statement": null,
+  "spine": {
+    "status": "active",
+    "active_goal": "",
+    "next_step": "",
+    "open_risks": [],
+    "key_decisions": [],
+    "out_of_scope": []
+  },
+  "created_at": "2026-07-26T08:26:29.673Z",
+  "updated_at": "2026-07-26T08:26:29.673Z"
+}
