@@ -46,12 +46,22 @@
   "closure_statement": null,
   "spine": {
     "status": "active",
-    "active_goal": "",
-    "next_step": "",
-    "open_risks": [],
-    "key_decisions": [],
-    "out_of_scope": []
+    "active_goal": "Prove the continuity-ledger-plugin works end-to-end when really installed: install -> record a hand-off -> resume from the ledger in a fresh session. Audit complete, sandbox staged, runbook delivered; Track B never executed.",
+    "next_step": "Await the user's SPECIFIC instructions; do NOT auto-run the runbook. Re-scope first: the LIVE global install on 2026-07-26 already demonstrated MCP connectivity and per-project store writes, so several criteria may now be provable without the sandbox.",
+    "open_risks": [
+      "MCP server may silently fail to spawn due to `${user_config.*}` in the .mcp.json env block (GitHub #51573).",
+      "Plugin throws if CLAUDE_PLUGIN_DATA is unset (documented as injected; dir auto-creation unverified).",
+      "This thread's sandbox premise is partly overtaken by events - the plugin is now installed live and globally, which was the alternative that was originally rejected.",
+      "A second plugin identity `session-continuity-inline` has its own data root; two identities can mint separate stores for one project."
+    ],
+    "key_decisions": [
+      "v1 archive: decisions/2026-07-20-sandbox-realworld-test-approach.md - isolated CLAUDE_CONFIG_DIR sandbox chosen over a live-config install"
+    ],
+    "out_of_scope": [
+      "Modifying plugin code; it is code-complete (built under the done continuity-redesign-v2 thread).",
+      "Fixing GitHub #51573 in Claude Code itself."
+    ]
   },
   "created_at": "2026-07-26T08:24:00.778Z",
-  "updated_at": "2026-07-26T08:24:00.778Z"
+  "updated_at": "2026-07-26T08:24:46.953Z"
 }
