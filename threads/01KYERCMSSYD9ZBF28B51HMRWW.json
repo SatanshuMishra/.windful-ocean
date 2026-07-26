@@ -3,7 +3,7 @@
   "id": "01KYERCMSSYD9ZBF28B51HMRWW",
   "slug": "mitosis-git-actions-robustness",
   "title": "Mitosis git-actions robustness",
-  "status": "active",
+  "status": "paused",
   "parent_id": null,
   "predecessor_id": null,
   "completion_criteria": [
@@ -54,7 +54,7 @@
   "abandoned_reason": null,
   "closure_statement": null,
   "spine": {
-    "status": "active",
+    "status": "paused",
     "active_goal": "Dispose of increment 3b (the permission flip) on EVIDENCE, not on the recorded design, which is now wrong in four places. MSP-3 is complete to the ratified boundary: 3a + 3c landed as 10 commits, dual-reviewed APPROVE, 1216/1216 verified, tree clean, nothing pushed. 3d done. 3b HELD.",
     "next_step": "Ordered; the first two items are DISPOSITIONS, do not start by building. (1) DECIDE 3b - its Step 0 is landing this branch so the `~/.claude/lib` anchor stops dangling; ratifying before that ratifies a PR blackout. (2) RUN THE ANCHOR PROBE as a HUMAN task on a throwaway CLAUDE_CONFIG_DIR. (3) Only then MSP-4 onward.",
     "open_risks": [
@@ -83,5 +83,5 @@
     ]
   },
   "created_at": "2026-07-26T08:24:13.881Z",
-  "updated_at": "2026-07-26T08:25:58.999Z"
+  "updated_at": "2026-07-26T08:26:21.817Z"
 }
