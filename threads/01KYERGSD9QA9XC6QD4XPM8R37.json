@@ -51,19 +51,19 @@
   "closure_statement": null,
   "spine": {
     "status": "paused",
-    "active_goal": "Retire the v1 file ledger by freezing it as a grep-only archive and standing v2 up fresh. Archive move DONE and verified 2026-07-26; 7 v2 threads seeded; index rebuilt. Only the live-plugin half of criterion 5 remains.",
-    "next_step": "Re-install the plugin to pick up the published fix 0fe1c02 (currently installed at the PRE-fix 3b9de99), then RESTART Claude Code a second time, then run a live /lift-off to confirm it presents the 7 seeded threads. The live /ledgerize half was already exercised on 2026-07-26 against the pre-fix plugin and wrote correctly. That closes criterion 5.",
+    "active_goal": "Retire the v1 file ledger by freezing it as a grep-only archive and standing v2 up fresh. Archive move DONE and verified 2026-07-26; 7 v2 threads seeded; index rebuilt. Remaining: the live-plugin verification, plus the two PreToolUse fixes carried as a spine task.",
+    "next_step": "Two independent tracks. (A) Re-install the plugin to pick up published fix 0fe1c02 (still on pre-fix 3b9de99), RESTART Claude Code a second time, then a live /lift-off confirming the 7 seeded threads - that closes criterion 5. (B) TASK, not a criterion: land BOTH PreToolUse fixes, the hook matcher and the read-only guard, in one change.",
     "open_risks": [
+      "TASK (user-added 2026-07-26): the guard blocking read-only greps is a live defect worth fixing ALONGSIDE the hook matcher. It will keep blocking legitimate verification. It is a spine task, NOT a completion criterion - the server refuses new criteria after open_thread.",
+      "BOTH plugin fixes need the USER to approve the edits directly at the prompt. The auto-mode classifier denied the hook-matcher edit TWICE last session without ever surfacing an interactive prompt, so neither can be delegated to a subagent by relay.",
+      "The guard rejects READ-ONLY commands against the store - it pattern-matches command text instead of classifying the operation. It blocked a plain grep+xargs read this session and forced verification onto the MCP tools.",
+      "HOOK-MATCHER FIX fully specified, zero technical unknowns: hooks/hooks.json:5 and hooks/lib/pre-tool-use.mjs:50 match only `mcp__ledger__`, so the plugin never auto-approves its own tools under plugin install.",
       "The installed plugin is still the PRE-fix 3b9de99. Picking up 0fe1c02 needs a marketplace/plugin update AND a second restart. The guard message still printing `mcp__ledger__*` is the cheap way to confirm which build is live.",
-      "HOOK-MATCHER FIX STILL BLOCKED, fully specified, zero technical unknowns: hooks/hooks.json:5 and hooks/lib/pre-tool-use.mjs:50 match only `mcp__ledger__`, so the plugin never auto-approves its own tools under plugin install. Needs the user to approve the edit directly.",
-      "The plugin's PreToolUse guard blocks even READ-ONLY shell commands touching the store. Verify the store through the MCP tools, not the shell.",
-      "Spine list items are capped at 300 chars each; an over-cap item rejects the WHOLE update_thread call rather than truncating.",
+      "COMPLETION CRITERIA ARE IMMUTABLE after open_thread - update_thread only toggles `done` on existing text and rejects the whole call on unknown text. Get criteria right at creation; later work lands in the spine.",
       "Live tool names are `mcp__plugin_session-continuity_ledger__*`. Never re-use the old `mcp__ledger__*` ToolSearch check to test whether the server is loaded - it false-negatives even when the server IS running.",
-      "Store content becomes pushable once v2 lands; never run `ledger-cli sync` without a fresh foreign-token scan.",
+      "Spine list items are capped at 300 chars each; an over-cap item rejects the WHOLE update_thread call rather than truncating.",
       "`chmod -R a-w` is an accident guardrail, not tamper resistance. Never call the freeze immutable. `.git/info/exclude` is clone-local; a fresh clone is protected only by .claude/.gitignore:42.",
-      "Three v1 threads were deliberately NOT carried into v2 (decision 0002). Their open items exist ONLY in the frozen archive and nothing will surface them at resume.",
-      "bindings / by_branch are 0 - vcs_ref is stored per thread but bind_branch was never called, so branch-based lookup will not resolve.",
-      "Chained multi-command Bash calls get denied; issue git operations atomically."
+      "Three v1 threads were deliberately NOT carried into v2 (decision 0002). Their open items exist ONLY in the frozen archive and nothing will surface them at resume."
     ],
     "key_decisions": [
       "0001-v1-ledger-archived-and-frozen.md - digest+move+freeze in ONE turn; byte-unchanged verified twice; criterion 2 MET",
@@ -80,5 +80,5 @@
     ]
   },
   "created_at": "2026-07-26T08:26:29.673Z",
-  "updated_at": "2026-07-26T08:29:16.917Z"
+  "updated_at": "2026-07-26T18:50:22.889Z"
 }
