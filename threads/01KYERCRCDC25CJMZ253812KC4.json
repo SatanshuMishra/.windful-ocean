@@ -33,12 +33,26 @@
   "closure_statement": null,
   "spine": {
     "status": "active",
-    "active_goal": "",
-    "next_step": "",
-    "open_risks": [],
-    "key_decisions": [],
-    "out_of_scope": []
+    "active_goal": "Make the mitosis engine survive a real unattended run by removing the ship-stage merge-authorization block and the prepare-stage config-regeneration false-halt. Both fixes are done, tested and reviewed (APPROVE-WITH-FIXES, all fixes applied) but UNCOMMITTED.",
+    "next_step": "Await user instruction. Likely: isolate the two fixes into atomic commits, then launch (or continue hardening).",
+    "open_risks": [
+      "Uncommitted. The two fixes are intermixed in the working tree with pre-existing resilience twins - isolate into atomic commits.",
+      "Commit was gated on branch leak-remediation in the claude-config-repo-native-architecture thread, which is now status DONE in the v1 archive and was NOT carried into v2. RE-VERIFY whether that gate still holds before committing.",
+      "Human-gated efficacy depends on the external classifier permitting push + PR-open when the ship task has no merge (harness-level, unverifiable in-repo).",
+      "F4 not fully closed: the prepare ground-truth read is still agent-mediated (accepted posture, improved).",
+      "Full lib suite 388/396: the 8 failures are pre-existing and foreign to this work."
+    ],
+    "key_decisions": [
+      "v1 archive: decisions/2026-07-11-mitosis-merge-policy-human-gated.md - mergePolicy human-gated propose/apply default",
+      "v1 archive: decisions/2026-07-11-mitosis-prepare-adopt-existing-config.md - engine adopts existing config; create-only bootstrap"
+    ],
+    "out_of_scope": [
+      "Canonical d6-check.cjs verbatim-copy template (deferred follow-up).",
+      "Retiring the now-non-load-bearing refuseToWeaken functions (after a run proves the new invariant).",
+      "Fully fs-trusted ground-truth read / F4 full closure.",
+      "The actual 36-MSP journal-app run (separate project/thread)."
+    ]
   },
   "created_at": "2026-07-26T08:24:17.549Z",
-  "updated_at": "2026-07-26T08:24:17.549Z"
+  "updated_at": "2026-07-26T08:25:16.176Z"
 }
