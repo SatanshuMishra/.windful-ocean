@@ -55,18 +55,19 @@
   "closure_statement": null,
   "spine": {
     "status": "paused",
-    "active_goal": "Step 0 is DONE (decision 0005): main is cd5c65d, fully contains chore+msp3, suite green 1216/1216, and the anchor is LIVE - the wrapper executes through ~/.claude/lib. The live 3c defect is repaired and global config now resolves through main. 3b remains HELD; its anchor grammar is still [unverified] pending the human probe.",
-    "next_step": "(0) HUMAN, still open and now the only thing gating 3b: run the anchor probe per scratchpad/anchor-probe.md and decision 0003 - throwaway CLAUDE_CONFIG_DIR, run from an EMPTY cwd (this repo's project settings carry Bash(node:*) and would pass every case), one positive plus three negative controls. Inert result kills 3b as designed. (1) Then either re-open 3b or proceed to MSP-4. Pushing main's 35 commits stays out of scope.",
+    "active_goal": "Step 0 DONE (0005): main is cd5c65d, anchor LIVE, suite green 1216/1216, the live 3c defect repaired. The thread now turns on ONE human-only gate - the 3b anchor probe. Per explicit user instruction the next session OPENS with a plain-language walkthrough of MSP-3b before any further work.",
+    "next_step": "TEACHING TASK FIRST, per explicit user instruction. Before ANY other work: walk the user through what MSP-3b IS, why it is still incomplete, and what blocks it. Assume MINIMAL domain knowledge; define every term. Goal: shared understanding so the blocker resolves and remaining MSPs move efficiently. Source: decisions 0003/0004/0005 + the 2026-07-26 session log (7-point briefing). Do NOT build, do NOT apply 3b, do NOT attempt the probe as an agent.",
     "open_risks": [
       "Do NOT restore the two D4 Write(...) denies. main now carries the INTENDED 38; restoring them breaks Claude Code startup. A 38-vs-40 count is NOT a regression.",
-      "RESIDUAL of the branch-transient fragility: the anchor is live only while the main checkout stays on main or a descendant. Checking out any branch predating cd5c65d re-dangles the wrapper, and fix/mitosis-msp3-low-folds specifically would restore the 40-deny settings.",
+      "RESIDUAL branch-transient fragility: the anchor is live only while the main checkout stays on main or a descendant. Checking out any branch predating cd5c65d re-dangles the wrapper, and fix/mitosis-msp3-low-folds specifically would restore the 40-deny settings.",
       "main is 35 commits ahead of origin/main and unpushed. Pushing is out of scope for this thread and was not done.",
       "The wrapper is NOT a security boundary while Bash(node:*) is live. Say so wherever it is described.",
-      "No agent can run the anchor probe: live Bash(node:*) makes any positive result indistinguishable from the broad rule firing. HUMAN task, isolated CLAUDE_CONFIG_DIR, never --settings.",
+      "No agent can run the anchor probe: live Bash(node:*) makes any positive result indistinguishable from the broad rule firing. HUMAN task, isolated CLAUDE_CONFIG_DIR, never --settings, run from an EMPTY cwd.",
       "Shipping 3b's node:* narrowing ALONE is worse than not shipping it - 3 of 7 sites, reproduced exactly.",
       "The real scopedCheckCmd defect is PROVENANCE, not execution, and 3b does not touch it.",
       "Two pre-existing engine defects recorded not fixed: clean(undefined) TypeError at mitosis.js:4574; conditional host enforcement accepts a same-slug FOREIGN-HOST merged PR.",
-      "Main tree still DIRTY (4 modified, 3 untracked) and stash@{0} retained - do NOT discard. Three untracked paths were MOVED to the session scratchpad (preserved-untracked/) and will be lost when the scratchpad is cleaned; they are superseded, but confirm before relying on that."
+      "Main tree still DIRTY (4 modified, 3 untracked) and stash@{0} retained - do NOT discard.",
+      "SCRATCHPAD-SCOPED, will be lost on cleanup: anchor-probe.md (procedure also durable in decision 0003) and preserved-untracked/ (superseded copies). Move them somewhere permanent if wanted."
     ],
     "key_decisions": [
       "v1 archive: decisions/2026-07-25-msp3-3b-four-corrections-provenance-resolved.md - 3b HELD; dangling anchor; four allows not one; probe procedure",
@@ -85,5 +86,5 @@
     ]
   },
   "created_at": "2026-07-26T08:24:13.881Z",
-  "updated_at": "2026-07-26T19:27:38.881Z"
+  "updated_at": "2026-07-26T19:38:28.351Z"
 }
