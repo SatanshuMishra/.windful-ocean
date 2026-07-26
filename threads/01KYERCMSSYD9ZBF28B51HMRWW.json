@@ -1,0 +1,66 @@
+{
+  "schema_version": 1,
+  "id": "01KYERCMSSYD9ZBF28B51HMRWW",
+  "slug": "mitosis-git-actions-robustness",
+  "title": "Mitosis git-actions robustness",
+  "status": "active",
+  "parent_id": null,
+  "predecessor_id": null,
+  "completion_criteria": [
+    {
+      "text": "A DETAILED, APPROVED spec exists that makes ALL mitosis git actions performable without fail",
+      "done": false
+    },
+    {
+      "text": "The spec eliminates every fabricated-consent / classifier-bypass path (no self-asserted authorization)",
+      "done": false
+    },
+    {
+      "text": "The spec makes mitosis NEVER run `gh pr merge` (merge structurally removed, not gated); all PRs stay open; dependents stack on the parent's open-PR HEAD; humans merge outside mitosis",
+      "done": false
+    },
+    {
+      "text": "The spec grounds every load-bearing rule in deterministic Claude Code harness/git/server enforcement (never prose), each proven by a red->green demonstration",
+      "done": false
+    },
+    {
+      "text": "The spec preserves idempotent resume + reconcile without stable-name ref overwrites (content-addressed create-only refs + compare-and-swap), with concrete re-keying",
+      "done": false
+    },
+    {
+      "text": "The spec is grounded by the approved report + deep-audit artifact and survives adversarial review",
+      "done": false
+    }
+  ],
+  "vcs_ref": "fix/mitosis-msp3-low-folds",
+  "external_refs": [
+    {
+      "system": "v1-ledger-archive",
+      "id": "mitosis-git-actions-robustness",
+      "url": "file:///Users/satanshumishra/Documents/DevLabs/.windful-ocean/.claude/ledger-archive-v1/threads/mitosis-git-actions-robustness.md"
+    },
+    {
+      "system": "analysis",
+      "id": "2026-07-24-mitosis-git-adversarial-audit-findings",
+      "url": "file:///Users/satanshumishra/Documents/DevLabs/.windful-ocean/.claude/ledger-archive-v1/analysis/2026-07-24-mitosis-git-adversarial-audit-findings.md"
+    },
+    {
+      "system": "analysis",
+      "id": "2026-07-21-mitosis-git-robustness-design-analysis",
+      "url": "file:///Users/satanshumishra/Documents/DevLabs/.windful-ocean/.claude/ledger-archive-v1/analysis/2026-07-21-mitosis-git-robustness-design-analysis.md"
+    }
+  ],
+  "blocked_by": null,
+  "abandoned_reason": null,
+  "closure_statement": null,
+  "spine": {
+    "status": "active",
+    "active_goal": "",
+    "next_step": "",
+    "open_risks": [],
+    "key_decisions": [],
+    "out_of_scope": []
+  },
+  "created_at": "2026-07-26T08:24:13.881Z",
+  "updated_at": "2026-07-26T08:24:13.881Z"
+}
