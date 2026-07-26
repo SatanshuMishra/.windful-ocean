@@ -36,28 +36,30 @@
   "spine": {
     "status": "paused",
     "active_goal": "Invert the PreToolUse Bash guard from allow-unless-provably-destructive to deny-by-default inside a protected root, so parse gaps in the hand-rolled bash tokenizer stop being silent evasions. Then prove both directions, review, merge, publish, re-install. Successor to ledger-v2-archive-and-seed.",
-    "next_step": "Two agents in flight: empirical OLD-vs-TIP verdict matrix, and the deny-by-default design (decisions A-H incl. a possible three-state allow/deny/ask). When both land, settle the design with the user, then TDD the inversion. DO NOT merge before the two-way proof.",
+    "next_step": "READ THE DESIGN FIRST: .claude/docs/superpowers/specs/2026-07-26-pre-tool-use-guard-deny-by-default-design.md (architect was writing it as this session ended - verify it exists; if absent, re-dispatch solution-architect). Then settle the over-block bill and the allow/deny/ask question with the user, then TDD the inversion. G0 is DONE - do not re-measure.",
     "open_risks": [
-      "The 12-evasion and 41-command corpora DO NOT EXIST as artifacts - they were planning targets. Only test/unit/hooks/pre-tool-use.test.mjs exists: 23 blocks, 51 asserts, not table-driven. Treat 12/41 as coverage floors. See decision 0014.",
-      "BIGGER FAIL-OPEN THAN THE PARSE GAPS: pre-tool-use.mjs:115-116 returns {} - a total bypass of every check for every tool - whenever roots resolves empty. gitCommonDir drops a root silently on any git failure.",
-      "hook-io.mjs:50-57 swallows every exception and exits 0 silently; readHookInput returns {} on malformed stdin. Both are silent ALLOW. runEntry is shared by ALL hooks, so a global fail-closed change risks breaking sessions.",
-      "shell-tokens.mjs sets `unresolvable` ONLY for double-quoted spans containing $ or a backtick. Bare $VAR, $(...), backticks and globs are NOT flagged - they become garbled literal text that misses a root by accident, not by design.",
-      "CRITERIA TENSION: criterion 1 freezes shell-tokens.mjs but the scanSegments quadratic lives there (spread-copy at :64 and :72). Resolve by capping input in pre-tool-use.mjs BEFORE it calls scanSegments, leaving the tokenizer byte-unchanged.",
+      "G0 IS DONE. 159-case OLD-vs-TIP matrix measured; harness at scratchpad/guardbench/ (corpus.mjs, results.json) - SESSION-SCOPED, may be gone. If so, rebuild from decision 0016 rather than trusting inherited counts.",
+      "Neither guard dominates - see 0016. OLD ~19 read-only false positives + 10 evasions; TIP 0 false positives but ~21-23 evasions. The inherited 20-command figure conflated evasions with correct over-block relaxations.",
+      "MERGE BLOCK STANDS on fix/pre-tool-use-guard, but for the corrected reason in 0016: the tip trades evasion coverage for false positives. It is not uniformly worse than the live guard.",
+      "10 holes predate BOTH versions and are new allowlist scope: sh/bash/zsh -c '<string>' indirection; find <ROOT> -delete and -exec; git -C <ROOT> clean -fdx and reset --hard; xargs rm -rf < list.txt.",
+      "ALLOWLIST TRAPS: find must not be blanket-allowlisted (-delete/-exec); git needs -C/--git-dir/--work-tree operand awareness, not just a subcommand list; sh -c puts a whole command in ONE token that never path-resolves under a root.",
+      "PIPELINE BLINDNESS is unclosable with the tokenizer frozen: scanSegments discards WHICH separator was used, so `echo <ROOT> | xargs rm -rf` cannot be seen as a pipeline. Mitigate by keeping the read-only allowlist minimal - do not allowlist echo.",
+      "QUADRATIC IS NOT A LIVE HAZARD (measured): slowest classification 0.29 ms, steady state 0.02-0.11 ms, zero hangs across 159 cases. Criterion 3's cap is a bound on deliberate abuse; size it so no realistic command trips it.",
+      "Suite is 513 pass / 0 fail WHILE 21+ evasions exist. Green means nothing here - the suite covers prefix-word and grouping evasion not at all.",
+      "$'...' ANSI-C quoting defeated both regex and tokenizer on the sibling guard; our shell-tokens.mjs has NO handling for it and is frozen. Treat $' as a suspicious token. See 0015.",
+      "The 12-evasion and 41-command corpora DO NOT EXIST as artifacts - coverage floors only. See 0014.",
+      "BIGGER FAIL-OPEN THAN THE PARSE GAPS: pre-tool-use.mjs:115-116 returns {} - total bypass of every check for every tool - when roots resolves empty. hook-io.mjs:50-57 swallows exceptions and exits 0. runEntry is shared by ALL hooks, so a global fail-closed fix risks breaking sessions.",
+      "CRITERIA TENSION: criterion 1 freezes shell-tokens.mjs but the quadratic lives there (:64, :72). Satisfy criterion 3 by capping input in pre-tool-use.mjs BEFORE it calls scanSegments.",
       "CORRECTION, do not re-add as if missing: the tip ALREADY checks redirect targets head-independently (:66-68) and ALREADY tracks cd across && segments (:72-74). The gap is solely the 14-verb DESTRUCTIVE head set at :76.",
-      "Pipes are segment boundaries, so `find / | xargs rm -rf X` presents xargs as the head and the rm is never seen. Deny-by-default covers this only because xargs is not allowlisted - incidental, so keep a test on it.",
-      "isUnderRoot is a textual prefix test with no realpath resolution, so a symlink pointing into the store is not seen as under it. Out of scope for the inversion but it is a live hole.",
-      "STATUS QUO IS SAFER. Live 0fe1c02 rule is hasMutatingConstruct(cmd) && cmd.includes(root); its leading char class includes `(`, which is why it catches `( rm -rf ROOT )` and `sudo rm -rf ROOT` that the tip misses.",
-      "Concurrent sessions write ONE store. 0012 was taken by another session while this one wrote 0013/0014. Decision numbers are not contiguous.",
-      "Spine list items are capped at 300 chars each; an over-cap item rejects the WHOLE update_thread call. Completion criteria are immutable after creation."
+      "Concurrent sessions write ONE store. 0012 was taken by another session while this one wrote 0013-0016. Decision numbers are not contiguous.",
+      "Spine list items cap at 300 chars each; an over-cap item rejects the WHOLE update_thread call. Completion criteria are immutable after creation."
     ],
     "key_decisions": [
-      "0014-evasion-corpora-never-existed - 12/41 are coverage floors, not artifacts; the existing 51 assertions need verdicts rewritten, not just extended",
+      "0016-status-quo-is-safer-partially-refuted - neither guard dominates; merge block stands for a corrected reason; quadratic is not a live hazard",
+      "0015-adopt-over-catch-ask-never-under-catch - house principle from the sibling guard; raw union disqualified by measurement, redirect-stripped variant is the fallback shape",
+      "0014-evasion-corpora-never-existed - 12/41 are coverage floors; the existing 51 assertions need verdicts rewritten",
       "0013-close-predecessor-and-open-guard-successor - this thread's mandate",
-      "Predecessor 0011-guard-branch-blocked-invert-to-deny-by-default",
-      "Predecessor 0008-b0e1079-not-merged-as-is-quoted-literal-regression",
-      "Predecessor 0007-guard-scope-defect-refuted - CLAUDE_PLUGIN_DATA reaches hooks; store is protected today",
-      "0015-adopt-over-catch-ask-never-under-catch",
-      "0016-status-quo-is-safer-partially-refuted"
+      "Predecessor 0011-guard-branch-blocked-invert-to-deny-by-default"
     ],
     "out_of_scope": [
       "Ref-level destruction: git update-ref -d refs/heads/_ledger, git branch -D _ledger, and deletion of <repo>/.git/worktrees/ledger-worktree. Uncovered by BOTH guards; the ref is the authoritative data. Tracked separately, not fixed here.",
@@ -67,5 +69,5 @@
     ]
   },
   "created_at": "2026-07-26T21:11:59.338Z",
-  "updated_at": "2026-07-26T21:25:28.092Z"
+  "updated_at": "2026-07-26T21:26:28.313Z"
 }
