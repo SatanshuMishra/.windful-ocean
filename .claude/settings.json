@@ -72,9 +72,7 @@
       "Read(~/.pypirc)",
       "Read(~/Library/Keychains/**)",
       "Edit(~/Documents/DevLabs/.windful-ocean/.claude/lib/**)",
-      "Write(~/Documents/DevLabs/.windful-ocean/.claude/lib/**)",
-      "Edit(~/Documents/DevLabs/.windful-ocean/.claude/workflows/**)",
-      "Write(~/Documents/DevLabs/.windful-ocean/.claude/workflows/**)"
+      "Edit(~/Documents/DevLabs/.windful-ocean/.claude/workflows/**)"
     ]
   },
   "model": "claude-opus-5[1m]",
