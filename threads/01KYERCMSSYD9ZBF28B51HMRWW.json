@@ -75,7 +75,8 @@
       "0004-landing-route-msp3-alone-into-main-is-prohibited-startup-breakage",
       "0003-msp3-3b-held-fifth-correction-wrong-branch-and-live-3c-breakage",
       "v1 archive: decisions/2026-07-25-msp3-3b-four-corrections-provenance-resolved.md - four corrections; probe procedure",
-      "v1 archive: decisions/2026-07-25-d4-write-denies-not-restored-startup-breakage.md - the two Write denies stay REMOVED"
+      "v1 archive: decisions/2026-07-25-d4-write-denies-not-restored-startup-breakage.md - the two Write denies stay REMOVED",
+      "0012-build-deterministic-restack-in-engine-not-delegate"
     ],
     "out_of_scope": [
       "The MSP-3b anchor probe - now MOOT under 0009; 3b is retired as unnecessary, so the grammar question gates nothing.",
@@ -86,5 +87,5 @@
     ]
   },
   "created_at": "2026-07-26T08:24:13.881Z",
-  "updated_at": "2026-07-26T20:37:29.596Z"
+  "updated_at": "2026-07-26T21:10:11.452Z"
 }
