@@ -78,7 +78,8 @@
       "0009-tear-down-msp2-msp3-replace-with-robust-simple-server-boundary - VERIFIED COMPLETE this session; it left nothing to commit",
       "0010-restack-not-pr-creation-is-the-load-bearing-operation",
       "0005-step-0-executed-main-is-now-the-integration-point-anchor-live",
-      "0004-landing-route-msp3-alone-into-main-is-prohibited-startup-breakage"
+      "0004-landing-route-msp3-alone-into-main-is-prohibited-startup-breakage",
+      "0019-restore-clobbered-preflight-decision-lost-to-the-0017-numbering-collision"
     ],
     "out_of_scope": [
       "Delegating restack to Graphite, ejoffe/spr, ghstack, or git-town - REJECTED by 0012.",
@@ -91,5 +92,5 @@
     ]
   },
   "created_at": "2026-07-26T08:24:13.881Z",
-  "updated_at": "2026-07-26T21:52:15.706Z"
+  "updated_at": "2026-07-26T22:14:05.708Z"
 }
