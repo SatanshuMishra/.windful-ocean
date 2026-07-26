@@ -39,6 +39,7 @@ settings.local.json
 __pycache__/
 *.pyc
 ledger/
+ledger-archive-v1/
 notes/
 docs/superpowers/
 !skills/session-handoff/
