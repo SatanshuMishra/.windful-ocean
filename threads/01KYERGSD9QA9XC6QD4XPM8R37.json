@@ -71,7 +71,8 @@
       "0002-v2-seed-set-limited-to-seven-threads.md - user dropped all three finished/stale threads; their open items live only in the archive",
       "v1 archive: decisions/2026-07-25-archive-not-migrate-v1-ledger.md - migration rejected; archive-and-seed adopted",
       "v1 archive: decisions/2026-07-26-hook-fix-blocked-and-publish-split.md - hook fix classifier-blocked; publish split; remaining plan preserved",
-      "0006-bash-guard-fixed-at-root-cause-not-symptom"
+      "0006-bash-guard-fixed-at-root-cause-not-symptom",
+      "0007-guard-scope-defect-refuted"
     ],
     "out_of_scope": [
       "Migrating any v1 thread, decision or session. No migrator is to be written.",
@@ -82,5 +83,5 @@
     ]
   },
   "created_at": "2026-07-26T08:26:29.673Z",
-  "updated_at": "2026-07-26T19:41:16.421Z"
+  "updated_at": "2026-07-26T20:23:02.112Z"
 }
