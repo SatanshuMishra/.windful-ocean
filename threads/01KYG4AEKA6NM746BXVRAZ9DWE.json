@@ -35,12 +35,32 @@
   "closure_statement": null,
   "spine": {
     "status": "active",
-    "active_goal": "",
-    "next_step": "",
-    "open_risks": [],
-    "key_decisions": [],
-    "out_of_scope": []
+    "active_goal": "Invert the PreToolUse Bash guard from allow-unless-provably-destructive to deny-by-default inside a protected root, so parse gaps in the hand-rolled bash tokenizer stop being silent evasions. Then prove both directions, review, merge, publish, re-install. Successor to ledger-v2-archive-and-seed.",
+    "next_step": "Map the guard architecture (codebase-analyst in flight), then invert the decision rule at hooks/lib/pre-tool-use.mjs:76 in the continuity-ledger-plugin repo. Do NOT merge until the 12 evasions flip to DENY and the 41-command read-only corpus stays ALLOW.",
+    "open_risks": [
+      "The STATUS QUO IS SAFER. Live install is 0fe1c02 - it over-blocks reads but resists evasion. There is no urgency to ship. Merging fix/pre-tool-use-guard as-is would NET-WEAKEN the store: 20 commands the old guard DENIED are ALLOWED by it, 12/12 reproduced. See predecessor decision 0011.",
+      "Root cause is architectural: the guard is allow-unless-provably-destructive over a hand-rolled bash parser, so every parse gap is a silent evasion. Fix by inverting to deny-by-default within the root, never by enumerating gaps.",
+      "Branch tip is 5f04dd4 (resolve quoted paths), one commit PAST the b0e1079 that predecessor decisions 0008 and 0011 evaluated. Re-verify which commit the 12 evasions were reproduced against before trusting either finding.",
+      "scanSegments is quadratic in tokens per segment (128k tokens = 15.2s) against a 10s hook timeout, so the guard fails OPEN under a large single-line command. Any size cap added must fail CLOSED.",
+      "REFUTED, do not re-litigate: CLAUDE_PLUGIN_DATA IS delivered to hooks and the real store IS protected today. ledger-roots.mjs is byte-identical across 0fe1c02 and b0e1079. The old probe measured the env-absent fallback. See predecessor decision 0007.",
+      "Guard work lives in /Users/satanshumishra/Documents/DevLabs/continuity-ledger-plugin - a DIFFERENT repo from .windful-ocean. Working tree clean, on fix/pre-tool-use-guard. Do not look for hooks/ in the windful-ocean repo.",
+      "The v2 store is git-ref-backed at refs/heads/_ledger, not a working directory. Read thread state with `git show refs/heads/_ledger:threads/<id>.json`. An ls of <repo>/.git/ledger shows an empty dir and looks like data loss - it is not.",
+      "Concurrent sessions write ONE store. Decision numbers are not contiguous and you may not hold the latest state. Never assume.",
+      "Spine list items are capped at 300 chars each; an over-cap item rejects the WHOLE update_thread call rather than truncating. Completion criteria are immutable after creation."
+    ],
+    "key_decisions": [
+      "Predecessor 0011-guard-branch-blocked-invert-to-deny-by-default - the mandate for this thread",
+      "Predecessor 0008-b0e1079-not-merged-as-is-quoted-literal-regression",
+      "Predecessor 0007-guard-scope-defect-refuted - CLAUDE_PLUGIN_DATA reaches hooks; store is protected today",
+      "Predecessor 0006-bash-guard-fixed-at-root-cause-not-symptom"
+    ],
+    "out_of_scope": [
+      "Ref-level destruction: git update-ref -d refs/heads/_ledger, git branch -D _ledger, and deletion of <repo>/.git/worktrees/ledger-worktree. Uncovered by BOTH guards; the ref is the authoritative data. Tracked separately, not fixed here.",
+      "Rewriting shell-tokens.mjs. It is kept as-is; only the decision rule inverts.",
+      "The other four canonical stores - future rollout, per-repo.",
+      "`ledger-cli sync` and any publication of the `_ledger` ref."
+    ]
   },
   "created_at": "2026-07-26T21:11:59.338Z",
-  "updated_at": "2026-07-26T21:11:59.338Z"
+  "updated_at": "2026-07-26T21:12:32.217Z"
 }
