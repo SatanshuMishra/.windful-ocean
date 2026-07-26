@@ -1,6 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
+import { MITOSIS_GIT_CONVERGE_EXIT } from '../mitosis-git.mjs';
 
 const MITOSIS_PATH = process.env.MITOSIS_PATH || new URL('../../../workflows/mitosis.js', import.meta.url).pathname;
 const source = readFileSync(MITOSIS_PATH, 'utf8');
@@ -87,6 +88,26 @@ test('MSP-3: every pull-request-CREATION site emits the anchored mitosis-git wra
   const invocations = source.split(`node ${LIB_DIR_TEMPLATE}/mitosis-git.mjs pr-create`).length - 1;
   assert.equal(invocations, PR_CREATE_SITES, `all ${PR_CREATE_SITES} PR-creation sites (shepherd-open, supersede, ship) must invoke the wrapper; found ${invocations}`);
   assert.equal(source.includes('gh pr list -R ${repoSlug} --head'), false, 'the --head open-PR probe is the observe step the wrapper now owns; emitting it too restores the free-form surface this increment removes');
+});
+
+test('MSP-3 fold: every pr-create site states the wrapper AMBIGUOUS converge exit instead of a flat nothing-was-opened guarantee', () => {
+  const sites = source.split('\n').filter((line) => line.includes(`node ${LIB_DIR_TEMPLATE}/mitosis-git.mjs pr-create`));
+  assert.equal(sites.length, PR_CREATE_SITES, `expected all ${PR_CREATE_SITES} pr-create instruction lines; found ${sites.length}`);
+  for (const site of sites) {
+    assert.ok(
+      site.includes(`Exit ${MITOSIS_GIT_CONVERGE_EXIT} is AMBIGUOUS`),
+      `this pr-create site never names exit ${MITOSIS_GIT_CONVERGE_EXIT}, the one exit whose own stderr says a pull request MAY exist: ${site.trim().slice(0, 160)}`,
+    );
+    assert.ok(
+      site.includes('a pull request MAY exist'),
+      `this pr-create site does not carry the wrapper own MAY-exist wording: ${site.trim().slice(0, 160)}`,
+    );
+    assert.equal(
+      /any non-zero exit means (nothing was opened|no pull request was opened)/.test(site),
+      false,
+      `this pr-create site still asserts a flat non-zero guarantee the wrapper contradicts on exit ${MITOSIS_GIT_CONVERGE_EXIT}: ${site.trim().slice(0, 160)}`,
+    );
+  }
 });
 
 test('MSP-3: the wrapper anchor resolves to one absolute literal a string-matching permission rule can pin, never a tilde', () => {
