@@ -3,7 +3,7 @@
   "id": "01KYG4AEKA6NM746BXVRAZ9DWE",
   "slug": "pre-tool-use-guard-deny-by-default-inversion",
   "title": "Pre-tool-use guard deny-by-default inversion",
-  "status": "active",
+  "status": "paused",
   "parent_id": null,
   "predecessor_id": "01KYERGSD9QA9XC6QD4XPM8R37",
   "completion_criteria": [
@@ -34,7 +34,7 @@
   "abandoned_reason": null,
   "closure_statement": null,
   "spine": {
-    "status": "active",
+    "status": "paused",
     "active_goal": "Invert the PreToolUse Bash guard from allow-unless-provably-destructive to deny-by-default inside a protected root, so parse gaps in the hand-rolled bash tokenizer stop being silent evasions. Then prove both directions, review, merge, publish, re-install. Successor to ledger-v2-archive-and-seed.",
     "next_step": "Two agents in flight: empirical OLD-vs-TIP verdict matrix, and the deny-by-default design (decisions A-H incl. a possible three-state allow/deny/ask). When both land, settle the design with the user, then TDD the inversion. DO NOT merge before the two-way proof.",
     "open_risks": [
@@ -65,5 +65,5 @@
     ]
   },
   "created_at": "2026-07-26T21:11:59.338Z",
-  "updated_at": "2026-07-26T21:20:04.648Z"
+  "updated_at": "2026-07-26T21:21:45.973Z"
 }
