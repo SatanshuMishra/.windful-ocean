@@ -51,15 +51,17 @@
   "closure_statement": null,
   "spine": {
     "status": "paused",
-    "active_goal": "Retire the v1 file ledger by freezing it as a grep-only archive and standing v2 up fresh. Archive DONE and verified; 7 v2 threads seeded; Track A confirmed on evidence 2026-07-26. Remaining: prove criterion 5's two open clauses, and get the PreToolUse guard fix published and installed.",
-    "next_step": "Two items, in order. (1) VERIFY the suspected guard-scope defect: do hooks receive CLAUDE_PLUGIN_DATA, and does the guard actually cover the managed ledger-worktree? (2) Land b0e1079: merge fix/pre-tool-use-guard, publish, re-install, restart. Criterion 5 closes only after both.",
+    "active_goal": "Retire the v1 file ledger by freezing it as a grep-only archive and standing v2 up fresh. Archive DONE. 7 v2 threads seeded. On 2026-07-26 the two open clauses of criterion 5 were PROVEN (core.hooksPath reconciled; CLAUDE_PLUGIN_DATA resolving) and the suspected guard-scope defect was REFUTED. The guard branch is now BLOCKED from merge on security grounds and needs a redesign before anything ships.",
+    "next_step": "DO NOT merge fix/pre-tool-use-guard - see decision 0011. Next: rebuild the guard decision rule as deny-by-default within the protected root (keep the new tokenizer, change only the rule), then re-review, merge, publish, re-install, restart. Criterion 5 itself no longer depends on the guard: its remaining clause is a live /ledgerize write-back, which the next hand-off satisfies.",
     "open_risks": [
-      "SUSPECTED DEFECT, verify before anything else: ledger writes land in ~/.claude/plugins/data/session-continuity-continuity-ledger/<project-key>/ledger-worktree/, but a resolveLedgerRoots probe saw only <repo>/.git/ledger, which is EMPTY. If hooks get no CLAUDE_PLUGIN_DATA the guard protects nothing.",
-      "Guard fix b0e1079 is committed and pushed on fix/pre-tool-use-guard but NOT merged, published, or installed. The live install is still 0fe1c02, so sessions still run the OLD over-blocking guard: any Bash naming the store plus any '>' anywhere is denied.",
-      "Criterion 5 is NOT met. Two of its five clauses are unproven: 'core.hooksPath reconciled' and 'CLAUDE_PLUGIN_DATA resolving'. Do not flip it without proving both. The store-root finding above bears directly on the second clause.",
+      "BLOCKED: fix/pre-tool-use-guard must NOT merge. 20 commands the old guard DENIED are ALLOWED by it; 12/12 reproduced independently. `( rm -rf <root> )` and `sudo rm -rf <root>` both pass. See decision 0011.",
+      "Root cause is architectural: pre-tool-use.mjs is allow-unless-provably-destructive over a hand-rolled bash parser. Every parse gap is a silent evasion. Fix is to invert to deny-by-default within the root, not to enumerate gaps.",
+      "The STATUS QUO IS SAFER. Live install is 0fe1c02, which over-blocks reads but resists evasion. There is no urgency to ship the branch. Shipping it as-is would net-weaken protection of the store.",
+      "REFUTED (was the top risk): CLAUDE_PLUGIN_DATA IS delivered to hooks and the real store IS protected today. ledger-roots.mjs is byte-identical across 0fe1c02 and b0e1079. The old probe measured the env-absent fallback. See 0007.",
+      "Uncovered by BOTH guards, out of scope for the guard branch: ref-level destruction (git update-ref -d refs/heads/_ledger, git branch -D _ledger) and deletion of <repo>/.git/worktrees/ledger-worktree. The ref is the authoritative data.",
+      "scanSegments is quadratic in tokens per segment (128k tokens = 15.2s) against a 10s hook timeout, so the guard fails OPEN under a large single-line command. Any size cap added must fail CLOSED.",
       "The v2 store is git-ref-backed at refs/heads/_ledger, not a working directory. Read thread state with `git show refs/heads/_ledger:threads/<id>.json`. An ls of <repo>/.git/ledger shows an empty dir and looks like data loss - it is not.",
-      "Concurrent Claude sessions can run different plugin builds against ONE store. A session started before a re-install keeps the old code in memory (one was 12h stale this session). Build skew is invisible from inside a session; compare process start time against install time.",
-      "The new guard under-blocks deliberately in two ways: no environment-variable expansion (rm -rf \"$LEDGER/x\" escapes) and no symlink resolution. Both fail toward allow, chosen so the read-path fix could not regress into over-blocking.",
+      "Concurrent sessions write ONE store: this session's decisions landed as 0007, 0008, then 0011, so another session took 0009/0010 mid-work. Never assume decision numbers are contiguous or that you hold the latest state.",
       "COMPLETION CRITERIA ARE IMMUTABLE after open_thread - update_thread only toggles done on existing text and rejects the whole call on unknown text. Get criteria right at creation; later work lands in the spine.",
       "Live tool names are mcp__plugin_session-continuity_ledger__*. Never re-use the old mcp__ledger__* ToolSearch check to test whether the server is loaded - it false-negatives even when the server IS running.",
       "Spine list items are capped at 300 chars each; an over-cap item rejects the WHOLE update_thread call rather than truncating.",
@@ -85,5 +87,5 @@
     ]
   },
   "created_at": "2026-07-26T08:26:29.673Z",
-  "updated_at": "2026-07-26T20:52:22.484Z"
+  "updated_at": "2026-07-26T20:52:52.983Z"
 }
