@@ -51,16 +51,17 @@
   "closure_statement": null,
   "spine": {
     "status": "paused",
-    "active_goal": "Retire the v1 file ledger by freezing it as a grep-only archive and standing v2 up fresh. Archive move DONE and verified 2026-07-26; 7 v2 threads seeded; index rebuilt. Remaining: the live-plugin verification, plus the two PreToolUse fixes carried as a spine task.",
-    "next_step": "Two independent tracks. (A) Re-install the plugin to pick up published fix 0fe1c02 (still on pre-fix 3b9de99), RESTART Claude Code a second time, then a live /lift-off confirming the 7 seeded threads - that closes criterion 5. (B) TASK, not a criterion: land BOTH PreToolUse fixes, the hook matcher and the read-only guard, in one change.",
+    "active_goal": "Retire the v1 file ledger by freezing it as a grep-only archive and standing v2 up fresh. Archive DONE and verified; 7 v2 threads seeded; Track A confirmed on evidence 2026-07-26. Remaining: prove criterion 5's two open clauses, and get the PreToolUse guard fix published and installed.",
+    "next_step": "Two items, in order. (1) VERIFY the suspected guard-scope defect: do hooks receive CLAUDE_PLUGIN_DATA, and does the guard actually cover the managed ledger-worktree? (2) Land b0e1079: merge fix/pre-tool-use-guard, publish, re-install, restart. Criterion 5 closes only after both.",
     "open_risks": [
-      "TASK (user-added 2026-07-26): the guard blocking read-only greps is a live defect worth fixing ALONGSIDE the hook matcher. It will keep blocking legitimate verification. It is a spine task, NOT a completion criterion - the server refuses new criteria after open_thread.",
-      "BOTH plugin fixes need the USER to approve the edits directly at the prompt. The auto-mode classifier denied the hook-matcher edit TWICE last session without ever surfacing an interactive prompt, so neither can be delegated to a subagent by relay.",
-      "The guard rejects READ-ONLY commands against the store - it pattern-matches command text instead of classifying the operation. It blocked a plain grep+xargs read this session and forced verification onto the MCP tools.",
-      "HOOK-MATCHER FIX fully specified, zero technical unknowns: hooks/hooks.json:5 and hooks/lib/pre-tool-use.mjs:50 match only `mcp__ledger__`, so the plugin never auto-approves its own tools under plugin install.",
-      "The installed plugin is still the PRE-fix 3b9de99. Picking up 0fe1c02 needs a marketplace/plugin update AND a second restart. The guard message still printing `mcp__ledger__*` is the cheap way to confirm which build is live.",
-      "COMPLETION CRITERIA ARE IMMUTABLE after open_thread - update_thread only toggles `done` on existing text and rejects the whole call on unknown text. Get criteria right at creation; later work lands in the spine.",
-      "Live tool names are `mcp__plugin_session-continuity_ledger__*`. Never re-use the old `mcp__ledger__*` ToolSearch check to test whether the server is loaded - it false-negatives even when the server IS running.",
+      "SUSPECTED DEFECT, verify before anything else: ledger writes land in ~/.claude/plugins/data/session-continuity-continuity-ledger/<project-key>/ledger-worktree/, but a resolveLedgerRoots probe saw only <repo>/.git/ledger, which is EMPTY. If hooks get no CLAUDE_PLUGIN_DATA the guard protects nothing.",
+      "Guard fix b0e1079 is committed and pushed on fix/pre-tool-use-guard but NOT merged, published, or installed. The live install is still 0fe1c02, so sessions still run the OLD over-blocking guard: any Bash naming the store plus any '>' anywhere is denied.",
+      "Criterion 5 is NOT met. Two of its five clauses are unproven: 'core.hooksPath reconciled' and 'CLAUDE_PLUGIN_DATA resolving'. Do not flip it without proving both. The store-root finding above bears directly on the second clause.",
+      "The v2 store is git-ref-backed at refs/heads/_ledger, not a working directory. Read thread state with `git show refs/heads/_ledger:threads/<id>.json`. An ls of <repo>/.git/ledger shows an empty dir and looks like data loss - it is not.",
+      "Concurrent Claude sessions can run different plugin builds against ONE store. A session started before a re-install keeps the old code in memory (one was 12h stale this session). Build skew is invisible from inside a session; compare process start time against install time.",
+      "The new guard under-blocks deliberately in two ways: no environment-variable expansion (rm -rf \"$LEDGER/x\" escapes) and no symlink resolution. Both fail toward allow, chosen so the read-path fix could not regress into over-blocking.",
+      "COMPLETION CRITERIA ARE IMMUTABLE after open_thread - update_thread only toggles done on existing text and rejects the whole call on unknown text. Get criteria right at creation; later work lands in the spine.",
+      "Live tool names are mcp__plugin_session-continuity_ledger__*. Never re-use the old mcp__ledger__* ToolSearch check to test whether the server is loaded - it false-negatives even when the server IS running.",
       "Spine list items are capped at 300 chars each; an over-cap item rejects the WHOLE update_thread call rather than truncating.",
       "`chmod -R a-w` is an accident guardrail, not tamper resistance. Never call the freeze immutable. `.git/info/exclude` is clone-local; a fresh clone is protected only by .claude/.gitignore:42.",
       "Three v1 threads were deliberately NOT carried into v2 (decision 0002). Their open items exist ONLY in the frozen archive and nothing will surface them at resume."
@@ -81,5 +82,5 @@
     ]
   },
   "created_at": "2026-07-26T08:26:29.673Z",
-  "updated_at": "2026-07-26T19:40:35.139Z"
+  "updated_at": "2026-07-26T19:41:16.421Z"
 }
