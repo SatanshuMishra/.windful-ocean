@@ -57,7 +57,8 @@
       "0016-status-quo-is-safer-partially-refuted - neither guard dominates; merge block stands for a corrected reason",
       "0015-adopt-over-catch-ask-never-under-catch - the ask verdict is house precedent",
       "0014-evasion-corpora-never-existed - 12/41 are coverage floors",
-      "Predecessor 0011-guard-branch-blocked-invert-to-deny-by-default - its backgrounding assumption is now refuted by 0018"
+      "Predecessor 0011-guard-branch-blocked-invert-to-deny-by-default - its backgrounding assumption is now refuted by 0018",
+      "0020-red-corpus-evidence-captured-and-six-ambiguities-resolved-inside-the-locked-design"
     ],
     "out_of_scope": [
       "Ref-level destruction: git update-ref -d refs/heads/_ledger, git branch -D _ledger, deletion of the ledger worktree. Uncovered by BOTH guards and by this design. Tracked separately.",
@@ -68,5 +69,5 @@
     ]
   },
   "created_at": "2026-07-26T21:11:59.338Z",
-  "updated_at": "2026-07-26T22:08:33.433Z"
+  "updated_at": "2026-07-26T22:35:03.155Z"
 }
