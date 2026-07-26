@@ -1,0 +1,44 @@
+{
+  "schema_version": 1,
+  "id": "01KYERCRCDC25CJMZ253812KC4",
+  "slug": "mitosis-preflight-hardening",
+  "title": "Mitosis preflight hardening",
+  "status": "active",
+  "parent_id": null,
+  "predecessor_id": null,
+  "completion_criteria": [
+    {
+      "text": "Merge-policy (human-gated propose/apply) fix reviewed and committed as an atomic commit",
+      "done": false
+    },
+    {
+      "text": "Prepare-stage adopt-existing-config fix reviewed and committed as an atomic commit",
+      "done": false
+    },
+    {
+      "text": "Both validated in a real mitosis run: prepare no longer false-halts on an existing config; ship produces review-ready PRs under human-gated",
+      "done": false
+    }
+  ],
+  "vcs_ref": "feat/mitosis-resilience",
+  "external_refs": [
+    {
+      "system": "v1-ledger-archive",
+      "id": "mitosis-preflight-hardening",
+      "url": "file:///Users/satanshumishra/Documents/DevLabs/.windful-ocean/.claude/ledger-archive-v1/threads/mitosis-preflight-hardening.md"
+    }
+  ],
+  "blocked_by": null,
+  "abandoned_reason": null,
+  "closure_statement": null,
+  "spine": {
+    "status": "active",
+    "active_goal": "",
+    "next_step": "",
+    "open_risks": [],
+    "key_decisions": [],
+    "out_of_scope": []
+  },
+  "created_at": "2026-07-26T08:24:17.549Z",
+  "updated_at": "2026-07-26T08:24:17.549Z"
+}
