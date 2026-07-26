@@ -202,6 +202,36 @@ test('parse REJECTS an over-cap body line rather than silently truncating it', (
   failParse(prCreateArgv(['--body-line', 'y'.repeat(513)]));
 });
 
+const GITHUB_PR_BODY_LIMIT = 65536;
+
+function bodyLineArgv(count, line) {
+  const argv = [];
+  for (let i = 0; i < count; i += 1) argv.push('--body-line', line);
+  return argv;
+}
+
+test('parse REJECTS a --body-line COUNT past the cap rather than accumulating an unbounded body', () => {
+  const atCap = bodyLineArgv(64, 'a body line');
+  assert.equal(okParse(prCreateArgv(atCap)).opts.bodyLines.length, 64);
+  failParse(prCreateArgv([...atCap, '--body-line', 'one past the cap']));
+  failParse(prCreateArgv(bodyLineArgv(5000, 'y'.repeat(500))));
+});
+
+test('the WIDEST body any caller can compose still fits inside the github pull-request body limit', () => {
+  const widest = okParse([
+    'pr-create', '--repo', REPO, '--head', HEAD, '--base', BASE,
+    '--title', 'x'.repeat(256),
+    '--supersedes', 'https://github.com/acme/widgets/pull/4294967295',
+    '--depends', Array.from({ length: 64 }, (_, i) => `d${String(i).padStart(2, '0')}${'x'.repeat(61)}`).join(','),
+    ...bodyLineArgv(64, 'y'.repeat(512)),
+  ]);
+  const body = renderPrCreateBody(widest.opts);
+  assert.ok(
+    body.length <= GITHUB_PR_BODY_LIMIT,
+    `the composed body is ${body.length} characters; the per-line, per-id and count caps must compose to a bound under ${GITHUB_PR_BODY_LIMIT}`,
+  );
+});
+
 const REJECTED_REPO_SLUGS = Object.freeze([
   'acme',
   'acme/widgets/extra',

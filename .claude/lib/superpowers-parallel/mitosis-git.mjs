@@ -35,6 +35,7 @@ const FLAG_SPEC = Object.freeze({
 const CONTROL_CHARS = /[\u0000-\u001F\u007F]/g;
 const TITLE_CAP = 256;
 const LINE_CAP = 512;
+const BODY_LINE_CAP = 64;
 const PR_NUMBER_PATTERN = /^[1-9][0-9]{0,9}$/;
 const DEPENDS_ID_PATTERN = /^[a-z0-9][a-z0-9-]*$/;
 const DEPENDS_CAP = 64;
@@ -116,6 +117,9 @@ function parsePrCreate(single, multiple) {
   if (!validateRefToken(base)) return rejection(`mitosis-git pr-create: --base ${JSON.stringify(base)} is not a conservative git ref token`);
   const title = inertText(single.get('--title'), TITLE_CAP);
   if (title === null) return rejection(`mitosis-git pr-create: --title is empty, over the ${TITLE_CAP}-character cap, or begins with the field-indirection sigil`);
+  if (multiple.length > BODY_LINE_CAP) {
+    return rejection(`mitosis-git pr-create: ${multiple.length} --body-line values exceed the ${BODY_LINE_CAP}-line cap; the composed body must stay bounded`);
+  }
   const bodyLines = [];
   for (const raw of multiple) {
     const line = inertText(raw, LINE_CAP);
