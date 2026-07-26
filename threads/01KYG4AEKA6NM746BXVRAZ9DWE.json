@@ -1,0 +1,46 @@
+{
+  "schema_version": 1,
+  "id": "01KYG4AEKA6NM746BXVRAZ9DWE",
+  "slug": "pre-tool-use-guard-deny-by-default-inversion",
+  "title": "Pre-tool-use guard deny-by-default inversion",
+  "status": "active",
+  "parent_id": null,
+  "predecessor_id": "01KYERGSD9QA9XC6QD4XPM8R37",
+  "completion_criteria": [
+    {
+      "text": "hooks/lib/pre-tool-use.mjs inverted to deny-by-default inside a protected root: any resolvable token under a protected root DENIES unless the segment head is on an explicit read-only allowlist. shell-tokens.mjs left unchanged.",
+      "done": false
+    },
+    {
+      "text": "Both directions proven by committed tests: all 12 verified evasions (including `( rm -rf <root> )` and `sudo rm -rf <root>`) assert DENY, and the 41-command read-only corpus asserts ALLOW. Red-before/green-after evidence recorded.",
+      "done": false
+    },
+    {
+      "text": "The scanSegments blow-up resolved so the guard fails CLOSED on oversized or pathological input, never open, with a test asserting the fail-closed path at the boundary.",
+      "done": false
+    },
+    {
+      "text": "Full plugin test suite green on the branch, and a fresh code-reviewer plus security-reviewer pass over the final diff returns no CRITICAL or HIGH findings.",
+      "done": false
+    },
+    {
+      "text": "Branch merged to main, plugin published to the marketplace, and re-installed globally - then a live end-to-end check against the real store shows a real evasion DENIED and ordinary read commands still ALLOWED.",
+      "done": false
+    }
+  ],
+  "vcs_ref": null,
+  "external_refs": [],
+  "blocked_by": null,
+  "abandoned_reason": null,
+  "closure_statement": null,
+  "spine": {
+    "status": "active",
+    "active_goal": "",
+    "next_step": "",
+    "open_risks": [],
+    "key_decisions": [],
+    "out_of_scope": []
+  },
+  "created_at": "2026-07-26T21:11:59.338Z",
+  "updated_at": "2026-07-26T21:11:59.338Z"
+}
