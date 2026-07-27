@@ -9,7 +9,7 @@
   "completion_criteria": [
     {
       "text": "Runbook Section 6 applied: the PR-gating workflow's `pull_request` trigger includes `edited` (.github/workflows/security.yml:3-5 currently carries the bare `on: pull_request:` hazard), shipped via its own PR and verified in the merged file",
-      "done": false
+      "done": true
     },
     {
       "text": "Runbook Sections 2-5 applied by the human -- machine user, PAT scoped to Actions:Read, branch ruleset, merge-strategy decision -- and each invariant confirmed against the runbook's Section 7 verification table",
@@ -69,5 +69,5 @@
     ]
   },
   "created_at": "2026-07-27T22:24:20.192Z",
-  "updated_at": "2026-07-27T22:54:27.586Z"
+  "updated_at": "2026-07-27T22:54:57.859Z"
 }
