@@ -69,7 +69,8 @@
       "0022-two-scope-rules-derived-from-the-locked-corpus-not-design-amendments",
       "0023-full-hardening-round-authorized-both-reviews-block",
       "0025-mixed-ampersand-residual-was-fail-open-not-fail-closed",
-      "0028-threat-model-scoped-to-agent-accident"
+      "0028-threat-model-scoped-to-agent-accident",
+      "0029-parser-deleted-round-c-killed"
     ],
     "out_of_scope": [
       "Ref-level destruction: git update-ref -d refs/heads/_ledger, git branch -D _ledger, deletion of the ledger worktree. Uncovered by BOTH guards and by this design. Tracked separately.",
@@ -80,5 +81,5 @@
     ]
   },
   "created_at": "2026-07-26T21:11:59.338Z",
-  "updated_at": "2026-07-27T20:11:45.844Z"
+  "updated_at": "2026-07-27T20:12:02.768Z"
 }
