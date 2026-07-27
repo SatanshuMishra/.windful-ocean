@@ -60,7 +60,8 @@
       "0028-threat-model-scoped-to-agent-accident",
       "0029-parser-deleted-round-c-killed",
       "0030-non-git-recoverability-is-the-real-work",
-      "0032-delete-forward-on-the-existing-branch-no-reverts-no-refork"
+      "0032-delete-forward-on-the-existing-branch-no-reverts-no-refork",
+      "0036-tripwire-triggers-are-spellings-only-configured-branch-left-uncovered"
     ],
     "out_of_scope": [
       "Babysitting the user's own deliberate deletion of their files. Explicitly ruled out 2026-07-27 (0028).",
@@ -71,5 +72,5 @@
     ]
   },
   "created_at": "2026-07-26T21:11:59.338Z",
-  "updated_at": "2026-07-27T20:23:45.326Z"
+  "updated_at": "2026-07-27T20:53:35.776Z"
 }
