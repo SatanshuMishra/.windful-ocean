@@ -3,6 +3,11 @@ name: security
 on:
   push:
   pull_request:
+    types:
+      - opened
+      - synchronize
+      - reopened
+      - edited
 
 permissions:
   contents: read
