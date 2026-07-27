@@ -35,12 +35,34 @@
   "closure_statement": null,
   "spine": {
     "status": "active",
-    "active_goal": "",
-    "next_step": "",
-    "open_risks": [],
-    "key_decisions": [],
-    "out_of_scope": []
+    "active_goal": "Make Build A actually work. The merge-boundary preflight is merged to main (PR #5, 457d6fa) but INERT: it halts every mitosis run until the runbook's GitHub-side setup is applied. Get it live, and clear the SAST residue the pin re-adjudication deliberately deferred.",
+    "next_step": "START HERE, no human needed: apply runbook Section 6 per 0045 -- add `edited` to the `pull_request` trigger's `types:` list on the PR-gating workflow. .github/workflows/security.yml:3-5 has the bare `on: pull_request:` hazard; before/after at runbook Section 6, lines 129-146. Ship it as its own PR. IN PARALLEL, ask the human for Sections 2-5 (machine user, PAT with Actions:Read, ruleset, merge strategy) -- GitHub account actions no agent can perform.",
+    "open_risks": [
+      "Build A is shipped but INERT. Until Sections 2-5 are human-applied, the preflight halts every mitosis run, so nothing downstream can be exercised end-to-end.",
+      "A green diff-aware CI check is NOT proof main is clean (0044). CI is diff-aware on pushes to main with a resolvable baseline; re-run the no-baseline full-repo scan before any 'main is clean' claim.",
+      "Section 6 caveat from the runbook itself: the nested key names under `changes.base` in the `edited` webhook payload are `[unverified]` and need a live-payload check at apply time. The fix depends only on the docs-verified fact that `edited` fires on retarget, which is enough to proceed.",
+      "Re-verify suites with `node --test <dir>/*.test.mjs`. A bare directory fails MODULE_NOT_FOUND on Node 26 and LOOKS like a real test failure. No node_modules exists or is needed. A pre-commit hook already runs the full suite (1217 tests) on every commit.",
+      "The p/default pin is HASH-ONLY -- content was never vendored -- so the next upstream drift forces a from-scratch pragma re-adjudication with no diff to read. Budget for it; do not treat a drift failure as a quick bump.",
+      "Section 6's fix belongs on whichever workflow actually gates PRs. Confirm that surface before editing; do not assume security.yml is the only one.",
+      "Decision numbering is global across threads and NOT contiguous. Disambiguate by SLUG, never by number.",
+      "Worktrees .claude/worktrees/semgrep-pin and .claude/worktrees/boundary-preflight hold fully-merged branches and are prunable, but squash-merge means `git branch --merged` will not list them. Cleanup is destructive; offered, NOT performed."
+    ],
+    "key_decisions": [
+      "0045-runbook-section-6-is-agent-doable-and-this-repo-is-itself-exposed -- the unblock that seeds this thread's first step",
+      "0044-merged-main-proven-clean-full-repo-not-merely-diff-aware-green -- carries the standing no-baseline-scan caveat",
+      "0038-pragma-readjudication-two-refuted-reachable-redos -- source of the 3 NARROW pragmas this thread owes",
+      "0031-pushes-to-origin-main-are-policy-denied-and-must-be-human-run",
+      "0026-preflight-gate-moves-to-skill-md-engine-check-is-corroborating -- USER-LOCKED; its PreToolUse hook on the Workflow tool is still a pending human settings.json edit"
+    ],
+    "out_of_scope": [
+      "Build B / the restack verb -- CUT by 0027 and deliberately NOT chartered here. It needs its OWN thread, carrying mergedSha at reconcileShippedSet:371, the git exec primitive in mitosis-git.mjs, and decisions 0010/0012/0017. Flagged so it is not silently lost.",
+      "MSP-4 -- DROPPED by 0027; reopens only if the user defines it.",
+      "The squash-merge containment gap (mitosis.js:3004, 4490), the clean(undefined) TypeError, and the conditional-host foreign-merged-PR gap -- real defects, moved out by 0027.",
+      "Agent-applied settings.json and GitHub settings edits. Sections 2-5 and 0026's hook are authored for a HUMAN to apply; the preflight only READS.",
+      "Re-vendoring p/default content to replace the hash-only pin. Out of scope unless the user asks.",
+      "The no-self-merge-consent.test.mjs working-tree change -- belongs to the mitosis-preflight-hardening thread."
+    ]
   },
   "created_at": "2026-07-27T22:24:20.192Z",
-  "updated_at": "2026-07-27T22:24:20.192Z"
+  "updated_at": "2026-07-27T22:25:14.523Z"
 }
