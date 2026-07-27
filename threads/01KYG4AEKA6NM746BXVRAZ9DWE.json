@@ -42,7 +42,7 @@
       "Recoverability depends on per-mutation commit and the Stop-hook push firing. No-remote repos, or an agent that disables hooks before destroying ref plus remote, degrade a recoverable store to an unrecoverable one. A mirror outside the repo is the fix if ever scoped.",
       "A determined same-uid agent is explicitly NOT covered and cannot be, for the _ledger ref inside .git - the agent must retain normal git rights over that directory. Accepted per 0028; replicas, not prevention.",
       "BRANCH TOPOLOGY UNDECIDED: 18 commits on fix/pre-tool-use-guard are largely to be reverted. Choose a fresh branch off b60ac56 versus reverts on the existing branch. That history is the audit trail for WHY the parser died - do not discard it silently.",
-      "The thread's completion_criteria were written for the parser design; criterion 4 (a clean review of the parser) is now moot. Re-derive them before any DoD close - do not toggle the old ones.",
+      "COMPLETION CRITERIA ARE STALE: 1 and 2 are done but describe the deleted parser; 3 is parser-framed; 5 asserts a live evasion is DENIED, which the tripwire answers with ask. Only 4 survives as written. Re-derive the set before any DoD close; do not toggle the old ones.",
       "NON-GIT IS THE ONLY UNPROTECTED STORE (verified: LocalDriver commit/sync are no-op stubs at local-driver.mjs:183-189). Until item 3 ships, rm -rf is permanent there, while the recoverable git store absorbed all 23 commits of attention.",
       "UNAUTHORIZED DEFECT, still open, do not fix without explicit go: the Stop hook nags every turn (stop.mjs exits 2 unconditionally, never reads stop_hook_active).",
       "Deleting ~790 lines will drop the suite count sharply from 735. Expected, not a regression - those tests only proved the parser's own fixed vectors stayed fixed."
@@ -70,5 +70,5 @@
     ]
   },
   "created_at": "2026-07-26T21:11:59.338Z",
-  "updated_at": "2026-07-27T20:14:09.701Z"
+  "updated_at": "2026-07-27T20:14:44.475Z"
 }
