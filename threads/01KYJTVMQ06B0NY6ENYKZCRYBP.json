@@ -3,7 +3,7 @@
   "id": "01KYJTVMQ06B0NY6ENYKZCRYBP",
   "slug": "mitosis-merge-boundary-activation-and-sast-residue",
   "title": "Mitosis merge-boundary activation and SAST residue",
-  "status": "paused",
+  "status": "active",
   "parent_id": null,
   "predecessor_id": "01KYERCMSSYD9ZBF28B51HMRWW",
   "completion_criteria": [
@@ -34,7 +34,7 @@
   "abandoned_reason": null,
   "closure_statement": null,
   "spine": {
-    "status": "paused",
+    "status": "active",
     "active_goal": "Make Build A actually work. Criterion 1 done (Section 6 merged, 00f495d). Criterion 4 is 2/3: the ledger-lint boundary guards shipped this session on branch fix/ledger-lint-boundary-guards (60cba74 guard+tests, 0fe891a prose) with 1217 tests green and semgrep 0-findings, but the branch is deliberately NOT pushed because 0052's pin drift makes the sast job red on every PR. Build A stays INERT until the human applies Sections 2-5, GitHub account actions no agent can perform.",
     "next_step": "Criterion 4 is 2/3 DONE. REMAINING leg: the one-line boundary guard at live-accept.mjs:357 via the exported extractVariant:613 (prose there is already deleted; only the guard is owed). Criterion 5 then needs a no-baseline full-repo scan after the work LANDS. DECIDE FIRST per 0052: the p/default pin bump -- sast is red on every push/PR until then, so do not push fix/ledger-lint-boundary-guards. Sections 2-5 stay human-only.",
     "open_risks": [
@@ -73,5 +73,5 @@
     ]
   },
   "created_at": "2026-07-27T22:24:20.192Z",
-  "updated_at": "2026-07-27T23:28:52.582Z"
+  "updated_at": "2026-07-27T23:29:23.086Z"
 }
