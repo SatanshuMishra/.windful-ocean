@@ -54,7 +54,8 @@
       "0029-parser-deleted-round-c-killed",
       "0030-non-git-recoverability-is-the-real-work",
       "0028-threat-model-scoped-to-agent-accident",
-      "0015-adopt-over-catch-ask-never-under-catch - the ask verdict is house precedent"
+      "0015-adopt-over-catch-ask-never-under-catch - the ask verdict is house precedent",
+      "0040-localdriver-recovery-repo-gated-on-isgit-sync-stays-a-no-op"
     ],
     "out_of_scope": [
       "Babysitting the user's own deliberate deletion of their files. Explicitly ruled out 2026-07-27 (0028).",
@@ -65,5 +66,5 @@
     ]
   },
   "created_at": "2026-07-26T21:11:59.338Z",
-  "updated_at": "2026-07-27T21:20:52.971Z"
+  "updated_at": "2026-07-27T21:32:31.095Z"
 }
