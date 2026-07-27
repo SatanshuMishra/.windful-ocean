@@ -54,7 +54,8 @@
       "0030-non-git-recoverability-is-the-real-work",
       "0028-threat-model-scoped-to-agent-accident",
       "0018-deny-by-default-design-approved-with-control-split - superseded in direction by 0029",
-      "0015-adopt-over-catch-ask-never-under-catch - the ask verdict is house precedent"
+      "0015-adopt-over-catch-ask-never-under-catch - the ask verdict is house precedent",
+      "0037-sandbox-hooks-mcp-exemption-unverified-do-not-document-until-tested"
     ],
     "out_of_scope": [
       "Babysitting the user's own deliberate deletion of their files. Explicitly ruled out 2026-07-27 (0028).",
@@ -65,5 +66,5 @@
     ]
   },
   "created_at": "2026-07-26T21:11:59.338Z",
-  "updated_at": "2026-07-27T21:09:00.103Z"
+  "updated_at": "2026-07-27T21:19:50.438Z"
 }
