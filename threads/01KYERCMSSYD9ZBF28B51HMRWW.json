@@ -56,7 +56,7 @@
   "spine": {
     "status": "paused",
     "active_goal": "Ship Build A — the read-only merge-boundary preflight — as its own PR. Scope narrowed by 0027: Build B (restack) cut to a successor thread, MSP-4 dropped, four unrelated defects moved out. Option C per 0026 adds the authoritative gate to SKILL.md preconditions (main-thread Bash, real exit code, pre-dispatch) and demotes the engine-side check to corroborating.",
-    "next_step": "Workflow wf_0d8f1db5-85e is implementing option C, then code-reviewer + security-reviewer in parallel, fix CRITICAL/HIGH, verify. WHEN IT RETURNS: read its verify block, then commit on fix/mitosis-boundary-preflight in worktree .claude/worktrees/boundary-preflight, push, open the PR against main, and record the deferred PreToolUse hook in the PR body. Push safety CLEARED 2026-07-26: d57e233 is NOT an ancestor of cd5c65d, and a codename scan over all 35 unpushed commits returned 0 hits.",
+    "next_step": "COMMITTED as c59ca79 on fix/mitosis-boundary-preflight (worktree .claude/worktrees/boundary-preflight); tree clean, suite 1346/1346. REMAINING: push + PR, BLOCKED ON A USER CALL: origin/main is 35 commits BEHIND local main, so pushing this branch publishes all 35 and a base=main PR shows 36 commits, not just Build A. Decide topology (push main to origin first then PR only Build A / accept the 36-commit PR / retarget). Record the deferred PreToolUse hook per 0026 in the PR body.",
     "open_risks": [
       "Build A was UNCOMMITTED across sessions and exists only as worktree state until the commit lands. A worktree is not durable storage — commit as soon as the workflow returns green.",
       "DELIVERY DEPENDENCY, not a code blocker: runbook Sections 2-6 are still UNAPPLIED by a human. Until they are, the preflight correctly halts every run, so Build A ships but is inert. Shipping the code and applying the boundary are two halves of one delivery.",
@@ -84,5 +84,5 @@
     ]
   },
   "created_at": "2026-07-26T08:24:13.881Z",
-  "updated_at": "2026-07-27T03:40:18.103Z"
+  "updated_at": "2026-07-27T04:12:35.809Z"
 }
