@@ -119,6 +119,22 @@ test('flagHasReachableTruePath detects a runtime enable path and a truthy reassi
     flagHasReachableTruePath('X_ENABLED', 'let X_ENABLED = false;\nX_ENABLED = true;\n'),
     true,
   );
+  assert.equal(
+    flagHasReachableTruePath('$X_ENABLED', "const $X_ENABLED = false;\nprocess.env.$X_ENABLED === '1';\n"),
+    true,
+  );
+  assert.equal(
+    flagHasReachableTruePath('$X_ENABLED', 'let $X_ENABLED = false;\n$X_ENABLED = true;\n'),
+    true,
+  );
+});
+
+test('flagHasReachableTruePath rejects names that are not plain identifiers', () => {
+  const corpus = "const A_ENABLED = false;\nprocess.env.ANYTHING === '1';\nlet other = true;\n";
+  assert.equal(flagHasReachableTruePath('(', corpus), false);
+  assert.equal(flagHasReachableTruePath('.*', 'process.env.ANYTHING'), false);
+  assert.equal(flagHasReachableTruePath('', 'const A_ENABLED = true;'), false);
+  assert.equal(flagHasReachableTruePath('A-B', 'let A-B = false;\nA-B = true;\n'), false);
 });
 
 test('lintFlags flags an old disabled flag with no true-path, sparing fresh and runtime-enabled ones', () => {
