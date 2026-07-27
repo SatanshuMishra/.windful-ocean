@@ -56,25 +56,24 @@
   "spine": {
     "status": "paused",
     "active_goal": "Build A is SHIPPED (PR #5). The narrowed scope per 0027 is complete in substance. What remains is disposition, not code: this thread CANNOT reach `done` as chartered because all six completion criteria describe producing an approved SPEC, none says \"ship Build A\", and retroactive rewrites are forbidden. The clean ending is a successor thread carrying the narrowed charter.",
-    "next_step": "DECIDE DISPOSITION (user call): close this thread via create_successor carrying the narrowed charter, rather than forcing `done` against six spec-shaped criteria it never satisfied. Before or alongside that, one human action finishes the delivery: run `git push origin main` (agents are policy-denied per 0031) — PR #5 then collapses from 36 commits to just c59ca79, automatically, no PR edit needed. Then review and merge PR #5.",
+    "next_step": "THREE ITEMS, in order. (1) Re-vendor the semgrep p/default pin as its OWN PR per 0033 — re-adjudicate every nosemgrep pragma against the new rules, then update .semgrep/p-default.sha256. Never bundle into PR #5, never auto-bump. (2) Re-run PR #5 checks; sast scans this diff for the FIRST time and may surface real findings needing changes to c59ca79. (3) Human runs `git push origin main` (agents denied, 0031) — PR #5 collapses to 1 commit. Then decide disposition via create_successor.",
     "open_risks": [
-      "DELIVERY DEPENDENCY: runbook Sections 2-6 are still UNAPPLIED by a human. Until then the preflight correctly halts every run, so Build A is shipped but INERT. Code and boundary are two halves of one delivery.",
+      "PR #5 sast is RED from upstream semgrep p/default drift, NOT from Build A. Job aborted at the pin-verify step before scanning. test/secret-scan/sca/label all pass. Fix per 0033 is a separate PR.",
+      "Build A is SAST-UNEVALUATED, not SAST-clean — the scan never ran against this diff. merge-boundary-preflight.mjs builds gh argv and parses untrusted JSON, exactly what semgrep rules target. Real findings may appear once the pin is fixed.",
+      "DELIVERY DEPENDENCY: runbook Sections 2-6 still UNAPPLIED by a human. Until then the preflight correctly halts every run, so Build A is shipped but INERT.",
       "PR #5 shows 36 commits, not 1, because origin/main is behind. A human `git push origin main` collapses it automatically. Agents cannot do this (0031).",
       "0026 defers the strongest gate (a PreToolUse hook on the Workflow tool) to human application; it needs a settings.json edit. Recorded in the PR #5 body, not dropped.",
-      "As shipped the gate is an instruction the orchestrator follows, not a harness-enforced denial. Failure mode is degraded diagnostics, not an open merge path: the server-side ruleset still refuses the merge.",
+      "As shipped the gate is an instruction the orchestrator follows, not a harness-enforced denial. Failure mode is degraded diagnostics, not an open merge path.",
       "The workflow's ok:true flag checked only suite-green plus hygiene, NOT whether blocking review findings were resolved. Reading journal.jsonl was required. Do not trust that flag on resume.",
-      "Ledger line numbers drift with every edit to mitosis.js; the file grew again this session. Re-locate before trusting any number in 0026/0027.",
-      "Decision numbering is still unreliable — this session wrote 0026, 0027, then jumped to 0031. Disambiguate by SLUG, never by number.",
-      "The codename and credential sweeps covered the 35 commits published this session. Re-run before any future push carrying new unpushed history."
+      "Decision numbering is unreliable — this session wrote 0026, 0027, 0031, 0033. Disambiguate by SLUG, never by number. Ledger line numbers also drift; re-locate before trusting any."
     ],
     "key_decisions": [
-      "0031-pushes-to-origin-main-are-policy-denied-and-must-be-human-run — agents push feature branches only; plans needing a current origin/main must budget a human step",
+      "0033-semgrep-pin-re-vendor-is-its-own-pr-never-bundled-into-a-feature-pr — human re-adjudication is the load-bearing step, not the hash bump",
+      "0031-pushes-to-origin-main-are-policy-denied-and-must-be-human-run — agents push feature branches only",
       "0027-cut-build-b-and-msp4-from-this-thread — scope narrowed to shipping Build A",
-      "0026-preflight-gate-moves-to-skill-md-engine-check-is-corroborating — USER-LOCKED option C; no shell launcher exists, so the real gate is a SKILL.md precondition run by the main thread",
+      "0026-preflight-gate-moves-to-skill-md-engine-check-is-corroborating — USER-LOCKED option C; no shell launcher exists, so the real gate is a SKILL.md precondition",
       "0021-build-a-unblocks-via-worktree-not-a-settings-relaxation — build in a worktree, leave settings.json alone",
-      "0019-restore-clobbered-preflight-decision — gate on the Metadata:read-provable invariants; bypass-emptiness is HUMAN GOVERNANCE, never an engine gate",
-      "0009-tear-down-msp2-msp3-replace-with-robust-simple-server-boundary — VERIFIED COMPLETE",
-      "0033-semgrep-pin-re-vendor-is-its-own-pr-never-bundled-into-a-feature-pr"
+      "0009-tear-down-msp2-msp3-replace-with-robust-simple-server-boundary — VERIFIED COMPLETE"
     ],
     "out_of_scope": [
       "Build B / the restack verb — CUT by 0027 to a successor thread, carrying its two verified prerequisites (mergedSha at reconcileShippedSet:371, git exec primitive in mitosis-git.mjs) and decisions 0010/0012/0017.",
@@ -87,5 +86,5 @@
     ]
   },
   "created_at": "2026-07-26T08:24:13.881Z",
-  "updated_at": "2026-07-27T20:24:52.057Z"
+  "updated_at": "2026-07-27T20:25:24.936Z"
 }
