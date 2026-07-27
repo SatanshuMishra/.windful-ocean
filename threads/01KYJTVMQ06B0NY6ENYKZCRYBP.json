@@ -1,0 +1,46 @@
+{
+  "schema_version": 1,
+  "id": "01KYJTVMQ06B0NY6ENYKZCRYBP",
+  "slug": "mitosis-merge-boundary-activation-and-sast-residue",
+  "title": "Mitosis merge-boundary activation and SAST residue",
+  "status": "active",
+  "parent_id": null,
+  "predecessor_id": "01KYERCMSSYD9ZBF28B51HMRWW",
+  "completion_criteria": [
+    {
+      "text": "Runbook Section 6 applied: the PR-gating workflow's `pull_request` trigger includes `edited` (.github/workflows/security.yml:3-5 currently carries the bare `on: pull_request:` hazard), shipped via its own PR and verified in the merged file",
+      "done": false
+    },
+    {
+      "text": "Runbook Sections 2-5 applied by the human -- machine user, PAT scoped to Actions:Read, branch ruleset, merge-strategy decision -- and each invariant confirmed against the runbook's Section 7 verification table",
+      "done": false
+    },
+    {
+      "text": "Build A is LIVE, not inert: a real mitosis run clears the merge-boundary preflight end-to-end instead of halting on it",
+      "done": false
+    },
+    {
+      "text": "The 3 NARROW pragmas from 0038 carry one-line boundary guards: ledger-lint.mjs:77, ledger-lint.mjs:79 (escapeIdentifier at :13 escapes only $), and live-accept.mjs:357 (extractVariant exported at :613)",
+      "done": false
+    },
+    {
+      "text": "main is re-proven sast-clean by a no-baseline full-repo scan with the pinned ruleset after this thread's changes land, per 0044's standing caveat that a green diff-aware check is not proof",
+      "done": false
+    }
+  ],
+  "vcs_ref": null,
+  "external_refs": [],
+  "blocked_by": null,
+  "abandoned_reason": null,
+  "closure_statement": null,
+  "spine": {
+    "status": "active",
+    "active_goal": "",
+    "next_step": "",
+    "open_risks": [],
+    "key_decisions": [],
+    "out_of_scope": []
+  },
+  "created_at": "2026-07-27T22:24:20.192Z",
+  "updated_at": "2026-07-27T22:24:20.192Z"
+}
