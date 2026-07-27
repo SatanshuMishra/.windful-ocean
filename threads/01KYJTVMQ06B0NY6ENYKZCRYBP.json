@@ -52,7 +52,8 @@
       "0044-merged-main-proven-clean-full-repo-not-merely-diff-aware-green -- carries the standing no-baseline-scan caveat",
       "0038-pragma-readjudication-two-refuted-reachable-redos -- source of the 3 NARROW pragmas this thread owes",
       "0031-pushes-to-origin-main-are-policy-denied-and-must-be-human-run",
-      "0026-preflight-gate-moves-to-skill-md-engine-check-is-corroborating -- USER-LOCKED; its PreToolUse hook on the Workflow tool is still a pending human settings.json edit"
+      "0026-preflight-gate-moves-to-skill-md-engine-check-is-corroborating -- USER-LOCKED; its PreToolUse hook on the Workflow tool is still a pending human settings.json edit",
+      "0046-section-6-covers-both-pr-gating-workflows-unguarded"
     ],
     "out_of_scope": [
       "Build B / the restack verb -- CUT by 0027 and deliberately NOT chartered here. It needs its OWN thread, carrying mergedSha at reconcileShippedSet:371, the git exec primitive in mitosis-git.mjs, and decisions 0010/0012/0017. Flagged so it is not silently lost.",
@@ -64,5 +65,5 @@
     ]
   },
   "created_at": "2026-07-27T22:24:20.192Z",
-  "updated_at": "2026-07-27T22:25:21.005Z"
+  "updated_at": "2026-07-27T22:34:08.078Z"
 }
