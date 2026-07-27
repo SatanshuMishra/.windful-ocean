@@ -55,24 +55,25 @@
   "closure_statement": null,
   "spine": {
     "status": "paused",
-    "active_goal": "Ship Build A — the read-only merge-boundary preflight — as its own PR. Scope narrowed by 0027: Build B (restack) cut to a successor thread, MSP-4 dropped, four unrelated defects moved out. Option C per 0026 adds the authoritative gate to SKILL.md preconditions (main-thread Bash, real exit code, pre-dispatch) and demotes the engine-side check to corroborating.",
-    "next_step": "COMMITTED as c59ca79 on fix/mitosis-boundary-preflight (worktree .claude/worktrees/boundary-preflight); tree clean, suite 1346/1346. REMAINING: push + PR, BLOCKED ON A USER CALL: origin/main is 35 commits BEHIND local main, so pushing this branch publishes all 35 and a base=main PR shows 36 commits, not just Build A. Decide topology (push main to origin first then PR only Build A / accept the 36-commit PR / retarget). Record the deferred PreToolUse hook per 0026 in the PR body.",
+    "active_goal": "Build A is SHIPPED (PR #5). The narrowed scope per 0027 is complete in substance. What remains is disposition, not code: this thread CANNOT reach `done` as chartered because all six completion criteria describe producing an approved SPEC, none says \"ship Build A\", and retroactive rewrites are forbidden. The clean ending is a successor thread carrying the narrowed charter.",
+    "next_step": "DECIDE DISPOSITION (user call): close this thread via create_successor carrying the narrowed charter, rather than forcing `done` against six spec-shaped criteria it never satisfied. Before or alongside that, one human action finishes the delivery: run `git push origin main` (agents are policy-denied per 0031) — PR #5 then collapses from 36 commits to just c59ca79, automatically, no PR edit needed. Then review and merge PR #5.",
     "open_risks": [
-      "Build A was UNCOMMITTED across sessions and exists only as worktree state until the commit lands. A worktree is not durable storage — commit as soon as the workflow returns green.",
-      "DELIVERY DEPENDENCY, not a code blocker: runbook Sections 2-6 are still UNAPPLIED by a human. Until they are, the preflight correctly halts every run, so Build A ships but is inert. Shipping the code and applying the boundary are two halves of one delivery.",
-      "0026 defers the structurally strongest form (a PreToolUse hook on the Workflow tool) because it needs a settings.json edit, which agents are forbidden from making here. It must be recorded in the PR description, not silently dropped.",
-      "Pushing this branch publishes 35 previously-unpushed commits to a PUBLIC repo. Verified clean this session, but re-verify if the branch is rebased onto anything new before pushing.",
-      "Ledger line numbers drift with every edit to mitosis.js. All numbers in decisions 0026/0027 were re-verified against the worktree on 2026-07-26; re-locate before trusting any of them again.",
-      "Decision numbering is contiguous through 0027 (both landed cleanly this session), but earlier gaps at 0022/0023 remain. Disambiguate by SLUG, never by number."
+      "DELIVERY DEPENDENCY: runbook Sections 2-6 are still UNAPPLIED by a human. Until then the preflight correctly halts every run, so Build A is shipped but INERT. Code and boundary are two halves of one delivery.",
+      "PR #5 shows 36 commits, not 1, because origin/main is behind. A human `git push origin main` collapses it automatically. Agents cannot do this (0031).",
+      "0026 defers the strongest gate (a PreToolUse hook on the Workflow tool) to human application; it needs a settings.json edit. Recorded in the PR #5 body, not dropped.",
+      "As shipped the gate is an instruction the orchestrator follows, not a harness-enforced denial. Failure mode is degraded diagnostics, not an open merge path: the server-side ruleset still refuses the merge.",
+      "The workflow's ok:true flag checked only suite-green plus hygiene, NOT whether blocking review findings were resolved. Reading journal.jsonl was required. Do not trust that flag on resume.",
+      "Ledger line numbers drift with every edit to mitosis.js; the file grew again this session. Re-locate before trusting any number in 0026/0027.",
+      "Decision numbering is still unreliable — this session wrote 0026, 0027, then jumped to 0031. Disambiguate by SLUG, never by number.",
+      "The codename and credential sweeps covered the 35 commits published this session. Re-run before any future push carrying new unpushed history."
     ],
     "key_decisions": [
-      "0027-cut-build-b-and-msp4-from-this-thread — scope narrows to one criterion: ship Build A",
-      "0026-preflight-gate-moves-to-skill-md-engine-check-is-corroborating — USER-LOCKED option C; no shell launcher exists (SKILL.md:36-39 dispatches Workflow directly), so the real gate is a SKILL.md precondition",
+      "0031-pushes-to-origin-main-are-policy-denied-and-must-be-human-run — agents push feature branches only; plans needing a current origin/main must budget a human step",
+      "0027-cut-build-b-and-msp4-from-this-thread — scope narrowed to shipping Build A",
+      "0026-preflight-gate-moves-to-skill-md-engine-check-is-corroborating — USER-LOCKED option C; no shell launcher exists, so the real gate is a SKILL.md precondition run by the main thread",
       "0021-build-a-unblocks-via-worktree-not-a-settings-relaxation — build in a worktree, leave settings.json alone",
-      "0024-engine-ci-reads-need-actions-read-not-commit-statuses — the PAT needs Actions at Read-only, never higher",
-      "0019-restore-clobbered-preflight-decision — gate on the three Metadata:read-provable invariants; bypass-emptiness is HUMAN GOVERNANCE, never an engine gate",
-      "0009-tear-down-msp2-msp3-replace-with-robust-simple-server-boundary — VERIFIED COMPLETE",
-      "0031-pushes-to-origin-main-are-policy-denied-and-must-be-human-run"
+      "0019-restore-clobbered-preflight-decision — gate on the Metadata:read-provable invariants; bypass-emptiness is HUMAN GOVERNANCE, never an engine gate",
+      "0009-tear-down-msp2-msp3-replace-with-robust-simple-server-boundary — VERIFIED COMPLETE"
     ],
     "out_of_scope": [
       "Build B / the restack verb — CUT by 0027 to a successor thread, carrying its two verified prerequisites (mergedSha at reconcileShippedSet:371, git exec primitive in mitosis-git.mjs) and decisions 0010/0012/0017.",
@@ -85,5 +86,5 @@
     ]
   },
   "created_at": "2026-07-26T08:24:13.881Z",
-  "updated_at": "2026-07-27T20:17:16.458Z"
+  "updated_at": "2026-07-27T20:18:02.731Z"
 }
