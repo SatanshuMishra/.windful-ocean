@@ -55,47 +55,34 @@
   "closure_statement": null,
   "spine": {
     "status": "paused",
-    "active_goal": "Two halves replace the torn-down client layers: (1) a server boundary - human-applied ruleset plus a separate machine-user identity, guarded by a REQUIRED preflight that halts a run unless it verifies; (2) deterministic restack per 0012+0017, a `restack` verb in mitosis-git.mjs driving `git rebase --onto`. Build A, the preflight, is BUILT AND GREEN but uncommitted and unreviewed. Remaining: rule on its trust limitation, review and ship it, then Build B, then MSP-4.",
-    "next_step": "Build A is BUILT AND GREEN in worktree .claude/worktrees/boundary-preflight (branch fix/mitosis-boundary-preflight, base cd5c65d): 1316/1316 vs a 1216 committed baseline, gate mutation-tested. UNCOMMITTED, UNREVIEWED. FIRST get a user ruling on the honest-reporting limitation (open risk 1); everything waits on it. THEN code-reviewer + security-reviewer, THEN commit/PR, THEN Build B. Settings deny->ask is WITHDRAWN per 0021; work in the worktree, never the main checkout.",
+    "active_goal": "Ship Build A — the read-only merge-boundary preflight — as its own PR. Scope narrowed by 0027: Build B (restack) cut to a successor thread, MSP-4 dropped, four unrelated defects moved out. Option C per 0026 adds the authoritative gate to SKILL.md preconditions (main-thread Bash, real exit code, pre-dispatch) and demotes the engine-side check to corroborating.",
+    "next_step": "Workflow wf_0d8f1db5-85e is implementing option C, then code-reviewer + security-reviewer in parallel, fix CRITICAL/HIGH, verify. WHEN IT RETURNS: read its verify block, then commit on fix/mitosis-boundary-preflight in worktree .claude/worktrees/boundary-preflight, push, open the PR against main, and record the deferred PreToolUse hook in the PR body. Push safety CLEARED 2026-07-26: d57e233 is NOT an ancestor of cd5c65d, and a codename scan over all 35 unpushed commits returned 0 hits.",
     "open_risks": [
-      "NEEDS A USER RULING BEFORE BUILD A SHIPS: mitosis.js has ZERO exec surface, so the gate only CONSUMES a verdict routed via the `reconcile` agent dispatch - strength bounded by that agent reporting honestly, the same client-side trust 0009 tore down MSP-2/3 for. Detail in session log 2026-07-27.",
-      "Build A is UNREVIEWED - neither code-reviewer nor security-reviewer has run on the ~900-line worktree diff - and UNCOMMITTED, so it exists only as worktree state.",
-      "The FIVE Build A spec fixes from the 2026-07-26 log were NEVER recovered (no Glob, Serena unbound, Bash hook-blocked on the store). Build A was built from runbook Section 7 + 0017/0019 instead. Whether any of the five contradict it is UNKNOWN.",
-      "Runbook is committed but STILL NOT APPLIED. The preflight makes this MORE urgent: until a human performs Sections 2-6, every run correctly halts - or passes on a boundary nobody built.",
-      "LIVE DEFECT: mitosis.js:2971 and 4452 use `merge-base --is-ancestor` as their only containment check; a squash merge defeats it and the engine re-applies landed content. 1175 squash-SAFE, 4593 partly exposed. Lines re-verified 2026-07-26.",
-      "BUILD B BLOCKER: reconcileShippedSet (mitosis.js:334-351) drops mergedSha, so the restack driver has nothing to rebase onto. mitosis-git.mjs still has NO git exec primitive - Build A only exported execGh.",
-      "PUSH SAFETY: repo is PUBLIC. Commit d57e233 on feat/mitosis-resilience carries the flagged confidential codename - SCRUB before pushing. docs/mitosis-merge-boundary-runbook passed leak checks; UNPUSHED by choice.",
-      "Decision numbers remain untrustworthy: this session's writes landed as 0021 and 0024, skipping 0022/0023. Disambiguate by SLUG, and verify a record exists on disk after writing.",
-      "BASELINE CORRECTION: the long-quoted 1229 is NOT reproducible from committed state - 13 come from an uncommitted no-self-merge-consent.test.mjs edit owned by the mitosis-preflight-hardening thread. Use 1216.",
-      "STALE-GREEN: auto-retarget fires pull_request type `edited`, excluded from the Actions default. `changes.base` key names unverified. Retarget also requires the merged head branch DELETED; docs SILENT on multi-hop cascades.",
-      "Two older engine defects unfixed: clean(undefined) TypeError, and conditional host enforcement accepting a same-slug FOREIGN-HOST merged PR. Re-locate before trusting any line number.",
-      "If bypass_actors were EVER returned to the engine's token, that alone proves it holds ruleset write access - a boundary violation and a free tripwire, worth its own decision. `current_user_can_bypass` is inferred from absence, not a positive statement.",
-      "MSP-4 IS UNDEFINED here. It traces to a v1 plan where it meant the target-aware ref-parsing hook (RC2), likely moot under 0009. Needs the user's definition before scheduling.",
-      "Do NOT restore the two D4 Write denies (they break startup AND are inert - Edit rules already gate Write per 0021). Do NOT check out any branch predating cd5c65d; f9e43a5 is one. stash@{0} retained, dropping needs explicit confirm."
+      "Build A was UNCOMMITTED across sessions and exists only as worktree state until the commit lands. A worktree is not durable storage — commit as soon as the workflow returns green.",
+      "DELIVERY DEPENDENCY, not a code blocker: runbook Sections 2-6 are still UNAPPLIED by a human. Until they are, the preflight correctly halts every run, so Build A ships but is inert. Shipping the code and applying the boundary are two halves of one delivery.",
+      "0026 defers the structurally strongest form (a PreToolUse hook on the Workflow tool) because it needs a settings.json edit, which agents are forbidden from making here. It must be recorded in the PR description, not silently dropped.",
+      "Pushing this branch publishes 35 previously-unpushed commits to a PUBLIC repo. Verified clean this session, but re-verify if the branch is rebased onto anything new before pushing.",
+      "Ledger line numbers drift with every edit to mitosis.js. All numbers in decisions 0026/0027 were re-verified against the worktree on 2026-07-26; re-locate before trusting any of them again.",
+      "Decision numbering is contiguous through 0027 (both landed cleanly this session), but earlier gaps at 0022/0023 remain. Disambiguate by SLUG, never by number."
     ],
     "key_decisions": [
-      "0021-build-a-unblocks-via-worktree-not-a-settings-relaxation - the blocker was a MISDIAGNOSIS; build in a worktree, leave settings.json alone; also falsifies a923763's 'Write is ungated' note",
-      "0024-engine-ci-reads-need-actions-read-not-commit-statuses - PROMOTED STRAGGLER, lost to six record_decision failures; the PAT needs Actions at Read-only, never higher",
-      "0019-restore-clobbered-preflight-decision-lost-to-the-0017-numbering-collision - gate on the three Metadata:read-provable invariants; bypass-emptiness is HUMAN GOVERNANCE, never an engine gate",
-      "0017-restack-driver-ships-as-a-mitosis-git-mjs-verb-because-mitosis-js-cannot-exec - USER-LOCKED; also seats the preflight after mitosis.js:3631 and fixes the halt form; failedRun does not exist",
-      "0012-build-deterministic-restack-in-engine-not-delegate - algorithm intact; its 'in-engine' location superseded by the verb decision",
-      "0009-tear-down-msp2-msp3-replace-with-robust-simple-server-boundary - VERIFIED COMPLETE",
-      "0010-restack-not-pr-creation-is-the-load-bearing-operation",
-      "0004-landing-route-msp3-alone-into-main-is-prohibited-startup-breakage",
-      "0026-preflight-gate-moves-to-skill-md-engine-check-is-corroborating",
-      "0027-cut-build-b-and-msp4-from-this-thread"
+      "0027-cut-build-b-and-msp4-from-this-thread — scope narrows to one criterion: ship Build A",
+      "0026-preflight-gate-moves-to-skill-md-engine-check-is-corroborating — USER-LOCKED option C; no shell launcher exists (SKILL.md:36-39 dispatches Workflow directly), so the real gate is a SKILL.md precondition",
+      "0021-build-a-unblocks-via-worktree-not-a-settings-relaxation — build in a worktree, leave settings.json alone",
+      "0024-engine-ci-reads-need-actions-read-not-commit-statuses — the PAT needs Actions at Read-only, never higher",
+      "0019-restore-clobbered-preflight-decision — gate on the three Metadata:read-provable invariants; bypass-emptiness is HUMAN GOVERNANCE, never an engine gate",
+      "0009-tear-down-msp2-msp3-replace-with-robust-simple-server-boundary — VERIFIED COMPLETE"
     ],
     "out_of_scope": [
-      "Delegating restack to Graphite, ejoffe/spr, ghstack, or git-town - REJECTED by 0012.",
-      "The MSP-3b anchor probe - MOOT under 0009.",
-      "Further work on the PreToolUse merge-denial hook (MSP-2a) - superseded by the server boundary.",
-      "Running the hardening via mitosis-on-itself (forbidden). NOTE: plain git-worktree isolation is NOT mitosis-on-itself and is the sanctioned route per 0021.",
-      "Relaxing the settings.json Edit denies - WITHDRAWN as unnecessary under 0021; the main-checkout freeze stays. Agent-applied settings.json edits remain forbidden.",
-      "Agent-applied GitHub settings. Every ruleset/identity/token change is authored for a HUMAN to apply; the preflight only READS.",
-      "Pushing feat/mitosis-resilience in any form until commit d57e233 is scrubbed.",
-      "The no-self-merge-consent.test.mjs working-tree change - belongs to the mitosis-preflight-hardening thread."
+      "Build B / the restack verb — CUT by 0027 to a successor thread, carrying its two verified prerequisites (mergedSha at reconcileShippedSet:371, git exec primitive in mitosis-git.mjs) and decisions 0010/0012/0017.",
+      "MSP-4 — DROPPED by 0027; reopens only if the user defines it.",
+      "The squash-merge containment gap (mitosis.js:3004, 4490), the clean(undefined) TypeError, and the conditional-host foreign-merged-PR gap — real defects, moved out by 0027.",
+      "The d57e233 codename scrub and pushing feat/mitosis-resilience — belongs to the mitosis-resilience thread.",
+      "Agent-applied settings.json edits and agent-applied GitHub settings. Every ruleset/identity/token change is authored for a HUMAN to apply; the preflight only READS.",
+      "Running the hardening via mitosis-on-itself. Plain git-worktree isolation is NOT that, and remains the sanctioned route per 0021.",
+      "The no-self-merge-consent.test.mjs working-tree change — belongs to the mitosis-preflight-hardening thread."
     ]
   },
   "created_at": "2026-07-26T08:24:13.881Z",
-  "updated_at": "2026-07-27T03:39:25.601Z"
+  "updated_at": "2026-07-27T03:40:18.103Z"
 }
