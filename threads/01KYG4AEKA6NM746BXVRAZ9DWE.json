@@ -68,7 +68,8 @@
       "0020-red-corpus-evidence-captured-and-six-ambiguities-resolved-inside-the-locked-design",
       "0022-two-scope-rules-derived-from-the-locked-corpus-not-design-amendments",
       "0023-full-hardening-round-authorized-both-reviews-block",
-      "0025-mixed-ampersand-residual-was-fail-open-not-fail-closed"
+      "0025-mixed-ampersand-residual-was-fail-open-not-fail-closed",
+      "0028-threat-model-scoped-to-agent-accident"
     ],
     "out_of_scope": [
       "Ref-level destruction: git update-ref -d refs/heads/_ledger, git branch -D _ledger, deletion of the ledger worktree. Uncovered by BOTH guards and by this design. Tracked separately.",
@@ -79,5 +80,5 @@
     ]
   },
   "created_at": "2026-07-26T21:11:59.338Z",
-  "updated_at": "2026-07-27T03:29:38.838Z"
+  "updated_at": "2026-07-27T20:11:45.844Z"
 }
