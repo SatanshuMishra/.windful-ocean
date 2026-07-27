@@ -354,7 +354,7 @@ function stripStyleAndJoin(lines, block) {
  * Returns the inner string (may be empty), or null if not found.
  */
 function extractInnerByAttr(text, attrMatch) {
-  const openerRe = new RegExp('<([A-Za-z][A-Za-z0-9]*)\\b[^>]*' + attrMatch + '[^>]*>'); // nosemgrep: javascript.lang.security.audit.detect-non-literal-regexp.detect-non-literal-regexp -- attrMatch is a literal or a literal plus variantNum validated by parseVariantNum
+  const openerRe = new RegExp('<([A-Za-z][A-Za-z0-9]*)\\b[^>]*' + attrMatch + '[^>]*>'); // nosemgrep: javascript.lang.security.audit.detect-non-literal-regexp.detect-non-literal-regexp
   const openMatch = text.match(openerRe);
   if (!openMatch) return null;
 
