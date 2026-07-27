@@ -3,7 +3,7 @@
   "id": "01KYERCMSSYD9ZBF28B51HMRWW",
   "slug": "mitosis-git-actions-robustness",
   "title": "Mitosis git-actions robustness",
-  "status": "paused",
+  "status": "abandoned",
   "parent_id": null,
   "predecessor_id": null,
   "completion_criteria": [
@@ -51,10 +51,10 @@
     }
   ],
   "blocked_by": null,
-  "abandoned_reason": null,
+  "abandoned_reason": "Charter mismatch, NOT failed work. All six completion criteria require producing an approved SPEC; no spec was ever produced. 0027 had already cut Build B and MSP-4 from the thread, and its real output became shipped code instead: Build A (PR #5, 457d6fa) and the p/default pin re-vendor plus the linear glob matcher (PR #6, b2f45bb), both now merged, with main green and proven clean full-repo under the new pin per 0044. Marking `done` is structurally refused by the DoD gate and would also be dishonest, since the spec criteria are genuinely unmet. Abandoning is the only legal route to the successor, which carries the remaining actionable work. Nothing here is lost: the shipped work is on main, and every decision record survives in the append-only sidecars.",
   "closure_statement": null,
   "spine": {
-    "status": "paused",
+    "status": "abandoned",
     "active_goal": "ENDED. The chartered goal -- an approved SPEC making all mitosis git actions performable without fail -- was never produced; 0027 had already cut Build B and MSP-4, and the thread's real output became shipped code. All execution work is now merged: PR #5 (Build A, 457d6fa) and PR #6 (pin + linear glob matcher, b2f45bb). main is green and proven clean full-repo under the new pin. Nothing actionable remains under this charter.",
     "next_step": "NOTHING. This thread is terminal (abandoned on charter mismatch, not failure). Work continues in the successor thread chartered this session: activate the mitosis merge boundary and clear the SAST residue. Resume that thread, not this one.",
     "open_risks": [
@@ -90,5 +90,5 @@
     ]
   },
   "created_at": "2026-07-26T08:24:13.881Z",
-  "updated_at": "2026-07-27T22:23:55.556Z"
+  "updated_at": "2026-07-27T22:24:07.886Z"
 }
