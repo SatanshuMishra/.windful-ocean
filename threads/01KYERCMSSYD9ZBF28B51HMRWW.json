@@ -78,7 +78,8 @@
       "0033-semgrep-pin-re-vendor-is-its-own-pr-never-bundled-into-a-feature-pr",
       "0031-pushes-to-origin-main-are-policy-denied-and-must-be-human-run",
       "0027-cut-build-b-and-msp4-from-this-thread",
-      "0026-preflight-gate-moves-to-skill-md-engine-check-is-corroborating -- USER-LOCKED option C"
+      "0026-preflight-gate-moves-to-skill-md-engine-check-is-corroborating -- USER-LOCKED option C",
+      "0044-merged-main-proven-clean-full-repo-not-merely-diff-aware-green"
     ],
     "out_of_scope": [
       "Build B / the restack verb -- CUT by 0027 to a successor, carrying mergedSha at reconcileShippedSet:371, the git exec primitive in mitosis-git.mjs, and decisions 0010/0012/0017.",
@@ -91,5 +92,5 @@
     ]
   },
   "created_at": "2026-07-26T08:24:13.881Z",
-  "updated_at": "2026-07-27T21:49:04.611Z"
+  "updated_at": "2026-07-27T22:23:19.623Z"
 }
