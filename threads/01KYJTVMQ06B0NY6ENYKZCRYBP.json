@@ -35,8 +35,8 @@
   "closure_statement": null,
   "spine": {
     "status": "paused",
-    "active_goal": "Make Build A actually work. Runbook Section 6 is now APPLIED and merged (PR #7, squashed into 00f495d). Build A remains INERT until the human applies Sections 2-5 -- GitHub account actions no agent can perform. The SAST residue is discharged as a security matter per 0049; what remains is prose cleanup plus one hardening judgment call.",
-    "next_step": "AWAIT go on SAST cleanup -- no longer security work per 0049. (1) DELETE the prose trailing the nosemgrep pragma at the 5 defective sites: ledger-lint.mjs:77/:79, live-accept.mjs:357, live-inject.mjs:233, live.mjs:216; per no-comments, delete don't update -- the trail is in 0038/0049. Leave the 14 UPHELD alone. (2) RECOMMENDED: harden ledger-lint.mjs -- widen escapeIdentifier:13 past $ and guard flagHasReachableTruePath:75 -- so the exported surface enforces its own invariant; needs a test.",
+    "active_goal": "Make Build A actually work. Runbook Section 6 is APPLIED and merged (PR #7, squashed into 00f495d) -- criterion 1 done. Build A stays INERT until the human applies Sections 2-5, GitHub account actions no agent can perform. The SAST residue is security-discharged per 0049; what remains is owed code hardening (criterion 4) plus prose deletion.",
+    "next_step": "SAST residue is security-DISCHARGED (0049); what remains is owed cleanup, awaiting go. (1) Harden ledger-lint.mjs -- widen escapeIdentifier:13 past $ and guard flagHasReachableTruePath:75 -- this is completion criterion 4 ('boundary guards'), NOT optional; needs a test. (2) DELETE the prose trailing the nosemgrep pragma at the 5 defective sites: ledger-lint.mjs:77/:79, live-accept.mjs:357, live-inject.mjs:233, live.mjs:216 -- per no-comments, delete don't update. Leave the 14 UPHELD alone.",
     "open_risks": [
       "Build A is shipped but INERT. rulesets and rules/branches/main both return [] -- no ruleset, no branch protection, so the merge boundary is fiction today and nothing downstream can be exercised end-to-end.",
       "NEW (0049): 9 PartialParsing warnings leave regions UNSCANNED in 6 shell hooks including secret-scanner.sh, plus 2 non-code files. CI shares this blind spot, so 'main is clean' means 'clean in what semgrep could parse' -- weakest in the security-relevant hook layer.",
@@ -45,7 +45,7 @@
       "Per 0048, whether an empty bypass list binds the repository OWNER on a User-owned repo is UNTESTED, not false. Test empirically after Section 4: open a throwaway PR and attempt a self-merge. The PR #7 self-merge did not test it -- reviews was [] and no ruleset existed.",
       "Re-verify suites with `node --test <dir>/*.test.mjs`. A bare directory fails MODULE_NOT_FOUND on Node 26 and LOOKS like a real failure. No node_modules exists or is needed. Suite is now 1347 tests, not the 1217 recorded earlier.",
       "The p/default pin is HASH-ONLY -- content was never vendored despite b2f45bb being titled 're-vendor'. Verified INTACT on 2026-07-27 (0049), so re-adjudication is not due, but the next real drift still forces a from-scratch pass with no diff to read.",
-      "Decision numbering is global across threads and NOT contiguous. Disambiguate by SLUG, never by number.",
+      "curl is DENIED to subagents by the permission system; use python3 urllib for network fetches. Bash reads of the ledger store are guard-blocked -- use the Read tool or the ledger MCP tools. update_thread caps next_step at 500 chars and each open_risks item at 300.",
       "Worktrees semgrep-pin, boundary-preflight, and ci-retarget-rerun all hold fully-merged work and are prunable, but squash-merge means `git branch --merged` will not list them. Cleanup is destructive; offered, NOT performed."
     ],
     "key_decisions": [
@@ -69,5 +69,5 @@
     ]
   },
   "created_at": "2026-07-27T22:24:20.192Z",
-  "updated_at": "2026-07-27T22:54:57.859Z"
+  "updated_at": "2026-07-27T22:57:20.983Z"
 }
