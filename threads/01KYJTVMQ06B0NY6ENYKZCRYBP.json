@@ -58,7 +58,8 @@
       "0047-train-integrates-via-merge-commit-with-head-branch-deletion",
       "0048-self-merge-of-pr-7-does-not-refute-the-required-review-premise",
       "0049-full-repo-scan-clears-main-and-discharges-the-sast-residue-as-a-security-matter",
-      "0052-p-default-pin-drifted-not-bumped-sast-is-red"
+      "0052-p-default-pin-drifted-not-bumped-sast-is-red",
+      "0053-const-propagation-high-refuted-against-the-real-pinned-ruleset"
     ],
     "out_of_scope": [
       "Build B / the restack verb -- CUT by 0027 and deliberately NOT chartered here. It needs its OWN thread, carrying mergedSha at reconcileShippedSet:371, the git exec primitive in mitosis-git.mjs, and decisions 0010/0012/0017. Flagged so it is not silently lost.",
@@ -70,5 +71,5 @@
     ]
   },
   "created_at": "2026-07-27T22:24:20.192Z",
-  "updated_at": "2026-07-27T23:27:12.840Z"
+  "updated_at": "2026-07-27T23:27:36.662Z"
 }
