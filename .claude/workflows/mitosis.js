@@ -21,6 +21,7 @@ export const meta = {
 const ENGINE_PATH = '/Users/satanshumishra/.claude/workflows/parallel-plan-execution.js';
 const GRAPH_SKILL = '/Users/satanshumishra/.claude/skills/plan-to-task-graph/SKILL.md';
 const LIB_DIR = '/Users/satanshumishra/.claude/lib/superpowers-parallel';
+const BOUNDARY_PREFLIGHT_CLI = `${LIB_DIR}/merge-boundary-preflight.mjs`;
 const TEMPLATES_DIR = '/Users/satanshumishra/.claude/skills/mitosis/templates';
 
 const MAX_LOGGED_TOKEN_LEN = 128;
@@ -121,6 +122,41 @@ function partitionOutcomes(outcomes, total = outcomes.length) {
 function fatalReport(stage, detail, mspCount, opts = {}) {
   const crashed = opts.crashed ? [crashedOutcome(null, stage, detail)] : [];
   return { shipped: [], halted: [], awaitingApproval: [], crashed, quarantined: [], overallStatus: 'failed', stage, detail, mspCount };
+}
+
+function readBoundaryPreflightVerdict(recon, expected) {
+  const wanted = expected && typeof expected === 'object' ? expected : {};
+  const verdict = recon && typeof recon === 'object' ? recon.boundaryPreflight : undefined;
+  if (verdict === undefined || verdict === null) {
+    return { proven: false, reason: 'the reconcile agent reported no merge-boundary preflight verdict, so the corroborating re-run of the preflight the orchestrator already gated on produced nothing — the run halts because corroboration failed, and an absent verdict is never read as a pass' };
+  }
+  if (typeof verdict !== 'object' || Array.isArray(verdict)) {
+    return { proven: false, reason: 'the reconcile agent reported a merge-boundary preflight verdict that was not an object, so the corroborating verdict is malformed — the run halts because corroboration failed' };
+  }
+  if (!Array.isArray(verdict.halted)) {
+    return { proven: false, reason: 'the reconcile agent reported a merge-boundary preflight verdict that carried no halted list, so the corroborating verdict is malformed — the run halts because corroboration failed' };
+  }
+  if (verdict.passed !== true) {
+    const named = verdict.halted.filter((id) => typeof id === 'string' && id.length > 0);
+    const detail = named.length > 0 ? named.join(', ') : 'no invariant was positively proven';
+    return { proven: false, reason: `the reconcile agent reported a merge-boundary preflight verdict that did not pass; invariant(s) it named unproven: ${detail} — the run halts because corroboration failed` };
+  }
+  if (verdict.halted.length > 0) {
+    return { proven: false, reason: `the reconcile agent reported a merge-boundary preflight verdict claiming passed=true while still naming unproven invariant(s): ${verdict.halted.join(', ')} — a self-contradictory verdict is never read as a pass, so the run halts because corroboration failed` };
+  }
+  if (verdict.bypassVerified !== false) {
+    return { proven: false, reason: `the reconcile agent reported a merge-boundary preflight verdict carrying bypassVerified=${cleanUrl(verdict.bypassVerified)} — the preflight emits exactly false on every path because the bypass list is human governance this token structurally cannot read, so a verdict claiming otherwise was never produced by the preflight and is never read as a pass; the run halts because corroboration failed` };
+  }
+  if (typeof verdict.invokedAs !== 'string' || verdict.invokedAs !== wanted.gatePath) {
+    return { proven: false, reason: `the reconcile agent reported a merge-boundary preflight verdict produced by the gate invoked as ${cleanUrl(verdict.invokedAs)} rather than the installed gate at ${cleanUrl(wanted.gatePath)} — a verdict from any other copy of the preflight, including one vendored inside the repository being merged into, attests nothing about this run's boundary, so the run halts because corroboration failed` };
+  }
+  if (typeof verdict.boundarySlug !== 'string' || typeof wanted.targetOwnerRepo !== 'string' || verdict.boundarySlug.toLowerCase() !== wanted.targetOwnerRepo.toLowerCase()) {
+    return { proven: false, reason: `the reconcile agent reported a merge-boundary preflight verdict proving the boundary of the repository ${cleanUrl(verdict.boundarySlug)} while this run merges into ${cleanUrl(wanted.targetOwnerRepo)} — a boundary proven for a different repository proves nothing about this one, so the run halts because corroboration failed` };
+  }
+  if (typeof verdict.boundaryBaseBranch !== 'string' || verdict.boundaryBaseBranch !== wanted.baseBranch) {
+    return { proven: false, reason: `the reconcile agent reported a merge-boundary preflight verdict proving the boundary of the base branch ${cleanUrl(verdict.boundaryBaseBranch)} while this run merges into ${cleanUrl(wanted.baseBranch)} — branch names are case-sensitive and a boundary proven for a different base branch proves nothing about this one, so the run halts because corroboration failed` };
+  }
+  return { proven: true, reason: null };
 }
 
 function resetPreamble(worktree, ref) {
@@ -1286,6 +1322,20 @@ const RECONCILE_SCHEMA = {
     specContentHash: { type: ['string', 'null'] },
     ownerRepo: { type: ['string', 'null'], pattern: '^[A-Za-z0-9][A-Za-z0-9._-]*/[A-Za-z0-9.][A-Za-z0-9._-]*$' },
     repoHost: { type: ['string', 'null'], pattern: '^[A-Za-z0-9.-]+$' },
+    boundaryPreflight: {
+      type: ['object', 'null'],
+      required: ['passed', 'halted', 'boundarySlug', 'boundaryBaseBranch', 'invokedAs', 'bypassVerified'],
+      additionalProperties: false,
+      properties: {
+        passed: { type: 'boolean' },
+        halted: { type: 'array', items: { type: 'string' } },
+        boundarySlug: { type: ['string', 'null'] },
+        boundaryBaseBranch: { type: ['string', 'null'] },
+        invokedAs: { type: ['string', 'null'] },
+        bypassVerified: { type: 'boolean' },
+        bypassGap: { type: ['string', 'null'] },
+      },
+    },
     checkpointRefPages: {
       type: 'array',
       items: { type: 'array', items: { type: 'string' } },
@@ -3602,7 +3652,8 @@ try {
       `4. Compute a content fingerprint of the spec so the engine can detect an in-place spec edit since the manifest was recorded: run \`shasum -a 256 ${spec}\` and return ONLY the leading 64-character hex field as specContentHash (a string). If the spec file cannot be read, return specContentHash=null.\n` +
       `5. List the DURABLE mitosis checkpoint refs so the engine can reconcile built-but-unmerged work against them: run \`git -C ${repoRoot} ls-remote origin 'refs/mitosis/*'\`. This is the authoritative record of which units were durably built on a prior run. Capture EVERY output line in full (each line is \`<sha>\\t<ref>\`), returning them COMPLETELY with no truncation as checkpointRefPages: an array of pages where each page is an array of the raw line strings (return a single page holding all lines; use additional pages only if you had to fetch the listing in multiple passes). Return checkpointRefPages=[] (an empty array) if there is no remote or no such ref. Return the lines verbatim; do NOT parse, filter, or alter them — the engine parses them.\n\n` +
       `6. List the pull requests still OPEN against the base so the shepherd can observe live review state, pinned to the target slug (again typing the literal ownerRepo value from step 2 in place of <OWNER_REPO>): \`gh pr list -R <OWNER_REPO> --state open --base ${baseBranch} --limit 200 --json headRefName,reviewDecision,url,isCrossRepository,headRepositoryOwner,headRepository\`. Return that array as openPRs (an empty array if none), preserving each row's headRefName, reviewDecision and url VERBATIM, but returning headRepositoryOwner and headRepository as STRINGS extracted from gh's objects (never the objects themselves) as described below; report each reviewDecision field exactly as gh returns it (e.g. "APPROVED", "CHANGES_REQUESTED", "REVIEW_REQUIRED") or null if absent, report each PR's url verbatim so the engine can surface a frozen, still-open PR as awaiting human approval, report each PR's isCrossRepository flag EXACTLY as gh returns it (true when the pull request is opened from a FORK, false when its head branch lives in this same repository) or null if the field is absent, and report headRepositoryOwner as that PR's head-repository OWNER LOGIN string (the \`login\` field of gh's headRepositoryOwner object) and headRepository as that PR's head-repository NAME string (the \`name\` field of gh's headRepository object), each null if gh did not return it — the engine trusts a PR as its own published work ONLY when the fork flag is false AND the head repository is this same repository, and fails closed on anything else including absent or malformed fields. If THIS command errors, prints nothing, or was emitted with the placeholder unsubstituted, the same STOP-and-report rule from step 2 applies: report the failure and set mergedPRsAuthoritative=false.\n` +
-      `Return ONLY the structured object: { manifestFound, manifestRaw, mergedPRs: [ { headRefName, url, mergedAt, mergedSha } ], mergedPRsAuthoritative, specContentHash, checkpointRefPages: [ [ "<sha>\\t<ref>" ] ], openPRs: [ { headRefName, reviewDecision, url, isCrossRepository, headRepositoryOwner, headRepository } ], ownerRepo, repoHost }.`,
+      `7. CORROBORATE the server-side merge boundary before any work is planned, by re-running the read-only preflight the orchestrator already gated on before this run was dispatched, exactly as written and from this exact absolute path: \`node ${BOUNDARY_PREFLIGHT_CLI}\`. Run THAT path literally: never a copy of the preflight that lives inside ${repoRoot} or any other repository, because a gate loaded from the repository being merged into could authorize its own merges. It reads its deployment configuration from the environment and mutates nothing. Your report is corroboration only — the authoritative gate is the orchestrator's own exit-code check in real process space, and what you return establishes only what this re-run reported. Its FIRST stdout line is a JSON object shaped { passed, halted, boundarySlug, boundaryBaseBranch, invokedAs, bypassVerified, bypassGap }; return that object VERBATIM as boundaryPreflight, including boundarySlug, boundaryBaseBranch and invokedAs exactly as printed — the engine compares them against the repository and base branch this run actually merges into and against the gate path above, and halts on any mismatch, so altering or "correcting" them halts the run. Exit 0 means every gated invariant was positively proven; on any non-zero exit the corroboration has failed and the engine halts. Do NOT edit, retry with different arguments, or work around a non-zero exit, and do NOT synthesise, guess, or hand-write this object — if the command cannot be run at all, or printed no parseable JSON line, return boundaryPreflight=null so the engine halts rather than proceeding on failed corroboration. bypassVerified is ALWAYS false: the bypass list is human governance that this token structurally cannot read, it is NOT a gate, and its false value must never be treated as a failure or corrected.\n` +
+      `Return ONLY the structured object: { manifestFound, manifestRaw, mergedPRs: [ { headRefName, url, mergedAt, mergedSha } ], mergedPRsAuthoritative, specContentHash, checkpointRefPages: [ [ "<sha>\\t<ref>" ] ], openPRs: [ { headRefName, reviewDecision, url, isCrossRepository, headRepositoryOwner, headRepository } ], ownerRepo, repoHost, boundaryPreflight: { passed, halted, boundarySlug, boundaryBaseBranch, invokedAs, bypassVerified, bypassGap } | null }.`,
       { agentType: 'implementer', schema: RECONCILE_SCHEMA, label: 'reconcile', phase: 'Reconcile', model: models.reconciler || models.shipper || 'sonnet' }
     ),
     { unitId: 'reconcile', stage: 'reconcile', resetRef: null, worktree: null, task: 'inspect durable run state and the already-merged set', ...makeRemediation({ unitId: 'reconcile', stage: 'reconcile', task: 'inspect durable run state and the already-merged set', schema: RECONCILE_SCHEMA, agentType: 'implementer', phase: 'Reconcile' }) },
@@ -3629,6 +3680,10 @@ if (!validateRepoIdentity(repoSlug)) {
 }
 targetOwnerRepo = repoSlug;
 const targetRepoHost = (typeof recon.repoHost === 'string' && /^[A-Za-z0-9.-]+$/.test(recon.repoHost)) ? recon.repoHost : undefined;
+const boundaryVerdict = readBoundaryPreflightVerdict(recon, { gatePath: BOUNDARY_PREFLIGHT_CLI, targetOwnerRepo, baseBranch });
+if (!boundaryVerdict.proven) {
+  return fatalReport('preflight-boundary', boundaryVerdict.reason, 0);
+}
 const priorManifest = recon && recon.manifestFound ? parseRunManifest(recon.manifestRaw) : null;
 const reconciledMap = reconcileShippedSet(recon ? recon.mergedPRs : [], sourcePrefix, targetOwnerRepo, targetRepoHost);
 const reconciledShipped = new Set(reconciledMap.keys());
