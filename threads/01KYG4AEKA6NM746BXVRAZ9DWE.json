@@ -35,27 +35,26 @@
   "closure_statement": null,
   "spine": {
     "status": "paused",
-    "active_goal": "Items 1-2 LANDED, pushed as c25516c on fix/pre-tool-use-guard: parser deleted (5 modules, the unit/scope/overlay machinery, and the consumerless splitControl tokenizer), replaced by a parse-free substring tripwire. Suite 735 -> 532, 532 pass, 0 fail, check-packaging ok, independently verified on a quiet machine. Two reviews returned APPROVE-WITH-FIXES; every fix applied before commit. Items 3 (LocalDriver recoverability) and 4 (README) NOT started.",
-    "next_step": "ITEM 3 then ITEM 4. Item 3 per 0030: LocalDriver commit()/sync() are no-op stubs at local-driver.mjs:183-189, so non-git projects are the only store where rm -rf is permanent. Give it a private git repo under its data dir, reusing GitRefDriver's commit-per-mutation choke point (#commitWorktree at git-ref-driver.mjs:236-247); must degrade safely when git is absent. selectDriver: src/drivers/select.mjs:32-47. Item 4: README.md is a 3-line stub - write the protection model. No PR without a user go.",
+    "active_goal": "Items 1-2 LANDED, pushed as c25516c on fix/pre-tool-use-guard: parser deleted (5 modules, the unit/scope/overlay machinery, and the consumerless splitControl tokenizer), replaced by a parse-free substring tripwire. Suite 735 -> 532, 532 pass, 0 fail, check-packaging ok, independently verified on a quiet machine. Two reviews returned APPROVE-WITH-FIXES and every fix landed before the commit. Items 3 (LocalDriver recoverability) and 4 (README) NOT started.",
+    "next_step": "ITEM 3, then a FRESH review, then ITEM 4. Item 3 per 0030: LocalDriver commit()/sync() are no-op stubs (local-driver.mjs:183-189); give it a private git repo under its data dir reusing GitRefDriver's commit-per-mutation choke point (#commitWorktree, git-ref-driver.mjs:236-247), degrading safely without git. FRESH code+security review over c25516c: prior reviews ran on the PRE-FIX diff, so criterion 4 is not yet checkable. Item 4 per 0037: only verified sandbox claims. No PR without a go.",
     "open_risks": [
-      "ITEM 4 BLOCKER: 0030 asserts sandbox denyWrite does not sandbox hooks or MCP servers, so the plugin can still write its store. Docs do NOT confirm this - they say only that the sandbox covers Bash commands and their children. Do NOT assert the exemption in the README without an empirical test.",
+      "ITEM 4 BLOCKER per 0037: 0030 asserts sandbox denyWrite does not sandbox hooks or MCP servers, so the plugin can still write its store. Docs do NOT confirm this. If it is false, a denyWrite entry over the ledger root turns a protection into an outage. Human-run empirical test required.",
       "Docs-verified: sandbox.filesystem.denyWrite takes an array of path globs; OS-enforced via Seatbelt (macOS) and bubblewrap (Linux/WSL2), so /bin/rm and find -delete cannot evade it; arrays MERGE across settings scopes; unsupported platforms warn and run UNSANDBOXED unless failIfUnavailable.",
       "PROMPT FATIGUE is now the guard's real failure mode and is security-relevant. 68 formerly-allowed read-only commands now prompt, including grep -rn '_ledger' src. The prompt IS the protection, so volume that trains reflexive approval degrades it. State plainly in the README.",
       "Under a NON-DEFAULT ledger_branch the headline gain evaporates: LEDGER_REF is hardcoded '_ledger' while ledger_branch is user-configurable via LEDGER_BRANCH. Deliberately not fixed per 0036; refs/ledger/ is the partial mitigation. MUST be documented.",
+      "COMPLETION CRITERIA NOT TOGGLED, deliberately. 1-2 are marked done but describe a deleted parser; 3 names scanSegments, now deleted; 5 asserts DENY where the tripwire answers ask. Only 4 is satisfiable as written and is NOT met: both reviews ran on the pre-fix diff. Re-derive before any DoD close.",
       "Residual losses vs the parser, acceptable under the accident model: a symlink-aliased spelling where the root is canonical and the command names the alias; and shell quoting games. The relative-spelling and cd-then-rm gaps were CLOSED by the review fixes.",
-      "UNAUTHORIZED DEFECT, open, do not fix without explicit go: the Stop hook nags every turn (stop.mjs exits 2 unconditionally, never reads stop_hook_active). Surfaced to the user this session; no go given.",
-      "COMPLETION CRITERIA REMAIN STALE and now describe a deleted parser. Re-derive the whole set before any DoD close; do not toggle the old ones.",
+      "UNAUTHORIZED DEFECT, open, do not fix without explicit go: the Stop hook nags every turn (stop.mjs exits 2 unconditionally, never reads stop_hook_active). Surfaced twice this session; no user reply either time.",
       "test/e2e/drift-signals.test.mjs can fail with 'gpg: signing failed: Cannot allocate memory' under concurrent agent load. Environmental: passes 6/6 in isolation, untouched by the diff. Re-run it alone."
     ],
     "key_decisions": [
-      "0032-delete-forward-on-the-existing-branch-no-reverts-no-refork - re-forking off b60ac56 would have dropped f95bdcb, 3cb599d, 4b54a46 (they harden the KEEP set); revert would have restored an allow-by-default guard",
+      "0037-sandbox-hooks-mcp-exemption-unverified-do-not-document-until-tested - narrows 0030; its second premise is unconfirmed and must not be repeated as fact",
       "0036-tripwire-triggers-are-spellings-only-configured-branch-left-uncovered - the trigger list grows only with spellings of a fixed target, never a new mechanism, never an exception",
+      "0032-delete-forward-on-the-existing-branch-no-reverts-no-refork - re-forking off b60ac56 would have dropped f95bdcb, 3cb599d, 4b54a46 (they harden the KEEP set); revert would have restored an allow-by-default guard",
       "0029-parser-deleted-round-c-killed",
       "0030-non-git-recoverability-is-the-real-work",
       "0028-threat-model-scoped-to-agent-accident",
-      "0018-deny-by-default-design-approved-with-control-split - superseded in direction by 0029",
-      "0015-adopt-over-catch-ask-never-under-catch - the ask verdict is house precedent",
-      "0037-sandbox-hooks-mcp-exemption-unverified-do-not-document-until-tested"
+      "0015-adopt-over-catch-ask-never-under-catch - the ask verdict is house precedent"
     ],
     "out_of_scope": [
       "Babysitting the user's own deliberate deletion of their files. Explicitly ruled out 2026-07-27 (0028).",
@@ -66,5 +65,5 @@
     ]
   },
   "created_at": "2026-07-26T21:11:59.338Z",
-  "updated_at": "2026-07-27T21:19:50.438Z"
+  "updated_at": "2026-07-27T21:20:52.971Z"
 }
