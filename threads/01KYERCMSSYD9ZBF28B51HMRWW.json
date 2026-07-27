@@ -55,46 +55,45 @@
   "closure_statement": null,
   "spine": {
     "status": "paused",
-    "active_goal": "Two halves replace the torn-down client layers. (1) Server boundary: human-applied ruleset + separate machine-user identity, guarded by a REQUIRED preflight that halts a run unless it verifies. (2) Deterministic restack per 0012+0017: a `restack` verb in mitosis-git.mjs driving `git rebase --onto`. Items 1 and 4 DONE; runbook is docs-verified and permission-corrected. Remaining: BUILD the preflight, BUILD the restack verb, MSP-4.",
-    "next_step": "UNBLOCK FIRST: settings.json DENIES Edit on .claude/lib/** and .claude/workflows/**, so Build A wrote zero lines. Deny never prompts, so interactive approval needs those two entries moved deny -> ask. NOT consented - get an explicit call (hook-guarded; a923763 shows denies here broke startup). THEN re-dispatch Build A with the FIVE spec fixes in this session's log; the live-workflow fake agents that throw on unknown labels are the big one. Baseline npm test 1229/1229. THEN Build B.",
+    "active_goal": "Two halves replace the torn-down client layers: (1) a server boundary - human-applied ruleset plus a separate machine-user identity, guarded by a REQUIRED preflight that halts a run unless it verifies; (2) deterministic restack per 0012+0017, a `restack` verb in mitosis-git.mjs driving `git rebase --onto`. Build A, the preflight, is BUILT AND GREEN but uncommitted and unreviewed. Remaining: rule on its trust limitation, review and ship it, then Build B, then MSP-4.",
+    "next_step": "Build A is BUILT AND GREEN in worktree .claude/worktrees/boundary-preflight (branch fix/mitosis-boundary-preflight, base cd5c65d): 1316/1316 vs a 1216 committed baseline, gate mutation-tested. UNCOMMITTED, UNREVIEWED. FIRST get a user ruling on the honest-reporting limitation (open risk 1); everything waits on it. THEN code-reviewer + security-reviewer, THEN commit/PR, THEN Build B. Settings deny->ask is WITHDRAWN per 0021; work in the worktree, never the main checkout.",
     "open_risks": [
-      "BUILD A IS BLOCKED: settings.json denies Edit on .claude/lib/** and .claude/workflows/**. Nothing ships until resolved, and the fix is a user-owned settings change (deny -> ask), NOT an agent action.",
-      "Runbook is docs-verified, permission-corrected and committed - but STILL NOT APPLIED. Pre-mortem: the human steps never happen, the boundary never exists, and mitosis ships on a shared identity while all believe the server layer is live. The preflight is the mitigation and is unbuilt.",
-      "LIVE DEFECT: mitosis.js:2971 and 4452 use `merge-base --is-ancestor` as their only containment check; a squash merge defeats it and the engine re-applies landed content. Further sites: 1175 (squash-SAFE) and 4593 (partly exposed).",
-      "mitosis-git.mjs has NO git execution path - execGh only spawns gh. Build B must add a git exec primitive with its own fail-closed guard, not just a verb entry. B is materially larger than A.",
-      "LEDGER TOOL FAULT: record_decision rejected the CI-status decision on a required-property error across six encodings. That finding lives in the session log and commit 4575265 instead. Retry next session; do not assume the tool is healthy.",
-      "`current_user_can_bypass` is inferred from the ABSENCE of gating language, not a positive statement. Confirm against a live sandbox before making it a load-bearing fourth invariant.",
-      "STALE-GREEN: auto-retarget fires pull_request type `edited`, excluded from the Actions default. Default types and `edited`-covers-base-change are CONFIRMED; the `changes.base` key names remain unverified.",
-      "Auto-retarget requires the merged head branch to be DELETED, not merge alone. Docs are SILENT on multi-hop cascades - 0012's cascade concern is an assumption.",
-      "PUSH SAFETY: repo is PUBLIC. Commit d57e233 on feat/mitosis-resilience carries the flagged confidential codename - SCRUB before pushing. Branch docs/mitosis-merge-boundary-runbook (a0bb6e1, 4575265) passed leak checks; UNPUSHED by explicit choice.",
-      "The 0017 numbering collision CLOBBERED the preflight decision record; restored as 0019. Treat decision numbers as untrustworthy, disambiguate by slug, and verify a record exists on disk after writing.",
-      "stash@{0} retained - RETIRED under 0009 so likely droppable, but dropping is destructive and needs EXPLICIT human confirm.",
-      "Thread 01KYG4AEKA6NM746BXVRAZ9DWE (pre-tool-use-guard inversion) is NOT this thread's work and remains the human's call.",
+      "NEEDS A USER RULING BEFORE BUILD A SHIPS: mitosis.js has ZERO exec surface, so the gate only CONSUMES a verdict routed via the `reconcile` agent dispatch - strength bounded by that agent reporting honestly, the same client-side trust 0009 tore down MSP-2/3 for. Detail in session log 2026-07-27.",
+      "Build A is UNREVIEWED - neither code-reviewer nor security-reviewer has run on the ~900-line worktree diff - and UNCOMMITTED, so it exists only as worktree state.",
+      "The FIVE Build A spec fixes from the 2026-07-26 log were NEVER recovered (no Glob, Serena unbound, Bash hook-blocked on the store). Build A was built from runbook Section 7 + 0017/0019 instead. Whether any of the five contradict it is UNKNOWN.",
+      "Runbook is committed but STILL NOT APPLIED. The preflight makes this MORE urgent: until a human performs Sections 2-6, every run correctly halts - or passes on a boundary nobody built.",
+      "LIVE DEFECT: mitosis.js:2971 and 4452 use `merge-base --is-ancestor` as their only containment check; a squash merge defeats it and the engine re-applies landed content. 1175 squash-SAFE, 4593 partly exposed. Lines re-verified 2026-07-26.",
+      "BUILD B BLOCKER: reconcileShippedSet (mitosis.js:334-351) drops mergedSha, so the restack driver has nothing to rebase onto. mitosis-git.mjs still has NO git exec primitive - Build A only exported execGh.",
+      "PUSH SAFETY: repo is PUBLIC. Commit d57e233 on feat/mitosis-resilience carries the flagged confidential codename - SCRUB before pushing. docs/mitosis-merge-boundary-runbook passed leak checks; UNPUSHED by choice.",
+      "Decision numbers remain untrustworthy: this session's writes landed as 0021 and 0024, skipping 0022/0023. Disambiguate by SLUG, and verify a record exists on disk after writing.",
+      "BASELINE CORRECTION: the long-quoted 1229 is NOT reproducible from committed state - 13 come from an uncommitted no-self-merge-consent.test.mjs edit owned by the mitosis-preflight-hardening thread. Use 1216.",
+      "STALE-GREEN: auto-retarget fires pull_request type `edited`, excluded from the Actions default. `changes.base` key names unverified. Retarget also requires the merged head branch DELETED; docs SILENT on multi-hop cascades.",
       "Two older engine defects unfixed: clean(undefined) TypeError, and conditional host enforcement accepting a same-slug FOREIGN-HOST merged PR. Re-locate before trusting any line number.",
-      "Do NOT restore the two D4 Write denies. Do NOT check out any branch predating cd5c65d - it re-dangles the wrapper; fix/mitosis-git-actions-robustness (f9e43a5) is one such branch."
+      "If bypass_actors were EVER returned to the engine's token, that alone proves it holds ruleset write access - a boundary violation and a free tripwire, worth its own decision. `current_user_can_bypass` is inferred from absence, not a positive statement.",
+      "MSP-4 IS UNDEFINED here. It traces to a v1 plan where it meant the target-aware ref-parsing hook (RC2), likely moot under 0009. Needs the user's definition before scheduling.",
+      "Do NOT restore the two D4 Write denies (they break startup AND are inert - Edit rules already gate Write per 0021). Do NOT check out any branch predating cd5c65d; f9e43a5 is one. stash@{0} retained, dropping needs explicit confirm."
     ],
     "key_decisions": [
-      "0019-restore-clobbered-preflight-decision-lost-to-the-0017-numbering-collision - RESTORES the preflight ruling: gate on the three Metadata:read-provable invariants; bypass-emptiness is HUMAN GOVERNANCE, never an engine gate",
-      "0017-restack-driver-ships-as-a-mitosis-git-mjs-verb-because-mitosis-js-cannot-exec - USER-LOCKED; carries the fatalReport/seat/merge-SHA facts",
+      "0021-build-a-unblocks-via-worktree-not-a-settings-relaxation - the blocker was a MISDIAGNOSIS; build in a worktree, leave settings.json alone; also falsifies a923763's 'Write is ungated' note",
+      "0024-engine-ci-reads-need-actions-read-not-commit-statuses - PROMOTED STRAGGLER, lost to six record_decision failures; the PAT needs Actions at Read-only, never higher",
+      "0019-restore-clobbered-preflight-decision-lost-to-the-0017-numbering-collision - gate on the three Metadata:read-provable invariants; bypass-emptiness is HUMAN GOVERNANCE, never an engine gate",
+      "0017-restack-driver-ships-as-a-mitosis-git-mjs-verb-because-mitosis-js-cannot-exec - USER-LOCKED; also seats the preflight after mitosis.js:3631 and fixes the halt form; failedRun does not exist",
       "0012-build-deterministic-restack-in-engine-not-delegate - algorithm intact; its 'in-engine' location superseded by the verb decision",
-      "CI-status resolution (record_decision FAILED; see session log + commit 4575265): the engine reads CI at mitosis.js:4596 via the Actions Workflow Runs API, so the PAT needs Actions:Read, not Commit statuses. That ENGINE-BREAKING risk is CLOSED.",
       "0009-tear-down-msp2-msp3-replace-with-robust-simple-server-boundary - VERIFIED COMPLETE",
       "0010-restack-not-pr-creation-is-the-load-bearing-operation",
-      "0004-landing-route-msp3-alone-into-main-is-prohibited-startup-breakage",
-      "0021-build-a-unblocks-via-worktree-not-a-settings-relaxation",
-      "0024-engine-ci-reads-need-actions-read-not-commit-statuses"
+      "0004-landing-route-msp3-alone-into-main-is-prohibited-startup-breakage"
     ],
     "out_of_scope": [
       "Delegating restack to Graphite, ejoffe/spr, ghstack, or git-town - REJECTED by 0012.",
       "The MSP-3b anchor probe - MOOT under 0009.",
       "Further work on the PreToolUse merge-denial hook (MSP-2a) - superseded by the server boundary.",
-      "Running the hardening via mitosis-on-itself (forbidden - self-modification hazard). The settings.json denies that blocked Build A appear to BE this guardrail, which is why lifting them wholesale was rejected.",
-      "Agent-applied GitHub settings. Every ruleset/identity/token change is authored for a HUMAN to apply.",
-      "Agent-applied settings.json edits. The permission unblock is the user's action.",
+      "Running the hardening via mitosis-on-itself (forbidden). NOTE: plain git-worktree isolation is NOT mitosis-on-itself and is the sanctioned route per 0021.",
+      "Relaxing the settings.json Edit denies - WITHDRAWN as unnecessary under 0021; the main-checkout freeze stays. Agent-applied settings.json edits remain forbidden.",
+      "Agent-applied GitHub settings. Every ruleset/identity/token change is authored for a HUMAN to apply; the preflight only READS.",
       "Pushing feat/mitosis-resilience in any form until commit d57e233 is scrubbed.",
       "The no-self-merge-consent.test.mjs working-tree change - belongs to the mitosis-preflight-hardening thread."
     ]
   },
   "created_at": "2026-07-26T08:24:13.881Z",
-  "updated_at": "2026-07-27T03:19:24.367Z"
+  "updated_at": "2026-07-27T03:21:53.860Z"
 }
