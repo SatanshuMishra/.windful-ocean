@@ -74,7 +74,8 @@
       "0026-preflight-gate-moves-to-skill-md-engine-check-is-corroborating — USER-LOCKED option C; no shell launcher exists, so the real gate is a SKILL.md precondition",
       "0021-build-a-unblocks-via-worktree-not-a-settings-relaxation — build in a worktree, leave settings.json alone",
       "0009-tear-down-msp2-msp3-replace-with-robust-simple-server-boundary — VERIFIED COMPLETE",
-      "0034-main-push-precedes-the-pin-pr-and-the-pin-pr-never-carries-mains-backlog"
+      "0034-main-push-precedes-the-pin-pr-and-the-pin-pr-never-carries-mains-backlog",
+      "0035-build-a-is-sast-clean-under-the-new-ruleset-item-2-closed-with-evidence"
     ],
     "out_of_scope": [
       "Build B / the restack verb — CUT by 0027 to a successor thread, carrying its two verified prerequisites (mergedSha at reconcileShippedSet:371, git exec primitive in mitosis-git.mjs) and decisions 0010/0012/0017.",
@@ -87,5 +88,5 @@
     ]
   },
   "created_at": "2026-07-26T08:24:13.881Z",
-  "updated_at": "2026-07-27T20:36:46.165Z"
+  "updated_at": "2026-07-27T20:45:11.344Z"
 }
