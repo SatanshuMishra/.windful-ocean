@@ -9,15 +9,15 @@
   "completion_criteria": [
     {
       "text": "hooks/lib/pre-tool-use.mjs inverted to deny-by-default inside a protected root: any resolvable token under a protected root DENIES unless the segment head is on an explicit read-only allowlist. shell-tokens.mjs left unchanged.",
-      "done": false
+      "done": true
     },
     {
       "text": "Both directions proven by committed tests: all 12 verified evasions (including `( rm -rf <root> )` and `sudo rm -rf <root>`) assert DENY, and the 41-command read-only corpus asserts ALLOW. Red-before/green-after evidence recorded.",
-      "done": false
+      "done": true
     },
     {
       "text": "The scanSegments blow-up resolved so the guard fails CLOSED on oversized or pathological input, never open, with a test asserting the fail-closed path at the boundary.",
-      "done": true
+      "done": false
     },
     {
       "text": "Full plugin test suite green on the branch, and a fresh code-reviewer plus security-reviewer pass over the final diff returns no CRITICAL or HIGH findings.",
@@ -35,26 +35,29 @@
   "closure_statement": null,
   "spine": {
     "status": "paused",
-    "active_goal": "Invert the PreToolUse Bash guard to deny-by-default. Build AND the authorized hardening round are DONE: 18 commits on fix/pre-tool-use-guard above b60ac56, suite 735/735 green (verified independently), every previously-bypassing attack string re-probed and closed. Criterion 4 re-reviews were dispatched over the full f95bdcb..HEAD diff and are the only thing outstanding. Nothing pushed or merged.",
-    "next_step": "READ the two re-review reports (security-reviewer + code-reviewer over f95bdcb..HEAD). If both are clean of CRITICAL and HIGH, mark criterion 4 done and present criterion 5 (merge, publish, reinstall, live end-to-end check) as a USER CALL - the merge block has never been lifted. If either still blocks, triage the same way: reproduce each claim by execution before acting on it, and stop again if a remedy would need a fresh user authorization.",
+    "active_goal": "18 commits on fix/pre-tool-use-guard above b60ac56, suite 735/735 green (independently verified), nothing pushed or merged. Criteria 1 and 2 are MET. Criterion 4 FAILED TWICE: both re-reviews over f95bdcb..HEAD returned BLOCK with 3 CRITICAL + 4 HIGH, each demonstrated by executing the payload. All PRIOR findings are confirmed closed; the new holes sit in code the hardening round added, plus environment assignments - a surface neither pass had inspected.",
+    "next_step": "ROUND C, then a THIRD re-review. RED corpus first, pinning MECHANISMS not strings. (1) fail closed on unbalanced quotes - CRITICAL-1, no tokenizer change needed; (2) inspect env assignments and env -S - CRITICAL-2/3; (3) scope from UNSPLIT tokens per 0025; (4) bare-dash operand, long-option abbreviation, sort --compress-program; (5) symlink-then-dotdot canonicalization; (6) O1 cleared-gating, git globals restore plus inert-key allowlist. Do NOT merge.",
     "open_risks": [
-      "ACCEPTED, fail-closed: a command mixing quoted and unquoted ampersands over-denies the quoted one - the frozen tokenizer emits no source offsets to map tokens to positions.",
-      "ACCEPTED: monotonic cwd marks units textually BEFORE a cd into the root as in scope; over-block only.",
-      "ACCEPTED: O1's git/find exemption is name-based, not clearance-based, so a store read plus an OUT-OF-SCOPE git clean is now null where it was ask.",
-      "ACCEPTED: uniqAllows and xxdAllows treat a valued option's value as an operand, so xxd -c 16 ROOT/f over-denies.",
-      "OPEN, unauthorized: M8 ancestor deletion - rm -rf of the CLAUDE_PLUGIN_DATA root destroys EVERY project's ledger, broader than the tracked worktree exclusion.",
-      "OPEN, unauthorized: L9 - roots re-resolve via a git subprocess on every guarded call inside a 10s hook budget, making the deferred empty-roots bypass reachable transiently from a git hiccup.",
-      "OPEN: the roots-length-zero total bypass stays deferred pending a product judgment about non-git projects.",
-      "NOTED, out of scope: a gpg-signing fixture is flaky - it creates a commit without the commit.gpgsign false that fixtures.mjs sets.",
-      "The positive audit found SEVEN writers among 38 ALLOW_HEADS members, not the five reported by review - file -C and rg --pre were missed. Assume the list still needs adversarial re-audit rather than trust.",
-      "A generic -o denial across the allowlist would be WRONG: od, strings, cksum and join each have an -o that is not a file. Predicates must stay per-head.",
-      "Scope inheritance from 0022 is CONFIRMED load-bearing: INHERIT_EVASION passed on landing, refuting the code review's corpus-limited claim that it buys only FP1. Pinned both sides now.",
-      "The code review's proposed ampersand fix (boundary-only splitting) would have REOPENED E5, whose ampersand is mid-token. Fixed via a quote-aware raw-source scan instead. Do not re-apply the original suggestion.",
-      "git --config-env accepts an UNDOCUMENTED spaced form, verified against git 2.55.0 - covered by GIT_CFG_ENV_SPACED.",
-      "RED evidence remains reachable at b60ac56 (657/608/49) and the hardening RED at c3f8137 (715/688/27). Do NOT squash.",
-      "Design spec still sits in a DELIBERATELY GITIGNORED path; 0018, 0020, 0022 and 0023 carry the content. Tracking it needs git add -f against policy - a USER CALL.",
-      "UNAUTHORIZED DEFECT, do not fix without explicit go: the Stop hook nags every turn (stop.mjs exits 2 unconditionally, never reads stop_hook_active).",
-      "Concurrent sessions write ONE store; decision numbers are not contiguous."
+      "CRITICAL-1 unterminated quote fails OPEN: an unmatched single quote reads as quoted-to-end-of-input, so ANSI-C quoting and hash comments swallow every later separator into one token under a cleared head. Fix: fail closed on unbalanced quotes. Needs NO tokenizer change.",
+      "CRITICAL-2 env -S: skipPrefixOperands eats the whole -S payload as a flag, the index runs off the end, and normalizeHead returns assignment-only, which is treated as CLEARED. assignment-only must mean every word matched ASSIGNMENT.",
+      "CRITICAL-3 env assignments are skipped without inspection. PATH=/tmp cat ROOT/f was verified to DESTROY a stand-in ledger. The same gap reopens the -c escape via GIT_CONFIG_COUNT/KEY/VALUE, GIT_EXTERNAL_DIFF, GIT_PAGER and RIPGREP_CONFIG_PATH.",
+      "HIGH: bare dash counts as a flag, so uniq - ROOT/f and xxd - ROOT/f leave the ledger path as the OUTPUT operand; all four forms wrote the target. Exclude only /^-./ and handle a bare double-dash.",
+      "HIGH: sort accepts any unambiguous long-option prefix, so --out= and --outp= both wrote the file; --compress-program hands its value to sh. Sweep abbreviation across every long-option predicate; file --comp leaks too. git rejects abbreviations itself.",
+      "HIGH: isUnderRoot calls resolve() BEFORE canonicalizing, collapsing dotdot lexically while POSIX resolves the symlink first, so link/../PROJECT.md escapes. The symlinked-ROOT direction works, so the fix is half-complete.",
+      "HIGH and MY ERROR, see 0025: the mixed-ampersand residual is fail-OPEN, not fail-closed - shredding destroys the root substring, removing scope. Fix by scoping on UNSPLIT tokens. Do NOT use boundary-only splitting; it reopens E5.",
+      "MED: O1 drops git/find by NAME, so cat ROOT/f plus git push, git init, git hash-object -w or find -delete went from ask to ALLOW while rm still asks. Gate on whether the other unit is CLEARED instead.",
+      "MED: removing -c, -p, --paginate, --namespace, --super-prefix from the git globals hard-DENIES legitimate reads like git -C ROOT -c color.ui=false log. GIT_CFG_BENIGN only appears to pin this - it names no root.",
+      "MED: GIT_EXEC_CONFIG_KEY misses pager.SUB, alias.NAME, gpg.program, credential.helper, core.gitProxy, uploadpack.packObjectsHook, core.fsmonitor, init.templateDir, include.path, filter.CLEAN. Invert to an inert-key allowlist.",
+      "MED: the unbounded deny fires before the scope gate with a reason claiming the command targets the store when it does not; it needs its own BASH_REASONS entry. Corpus why fields also mix conventions and three cite the deleted sedAllows.",
+      "TEST GAP: grep across test/ for dollar-quote, hash-quote, env -S, split-string, PATH=, GIT_EXTERNAL_DIFF, GIT_CONFIG_, uniq dash, xxd dash, compress-program, dotdot and LD_PRELOAD returns ZERO hits. Green proves only that FIXED vectors stay fixed.",
+      "NEEDS AN EMPIRICAL CHECK: the H6 fix is correct as code but depends on the harness reporting a cwd that tracks intra-session cd. Docs say it does; nobody proved it live. If the harness always reports the project dir, the fix is inert.",
+      "LOW: isUnderRoot now THROWS on a non-string root where it returned false; latency hits 630 ms on an 8000-ampersand in-cap command because canonicalPath re-walks per root per token; shell-source.mjs duplicates the frozen tokenizer's quote logic.",
+      "PROCESS LESSON, twice burned: a corpus case has twice asserted a hole closed while the mechanism stayed open. Pin mechanisms, not the strings that first exposed them; treat any residual labelled fail-closed as unproven until shown by execution.",
+      "Scope inheritance (0022) is CONFIRMED load-bearing but INTRA-SEGMENT only: ls ROOT semicolon rm -rf dollar-D lands on ask via the overlay, not deny.",
+      "RED evidence reachable at b60ac56 (657/608/49) and c3f8137 (715/688/27). Do NOT squash.",
+      "Design spec sits in a DELIBERATELY GITIGNORED path; 0018, 0020, 0022, 0023 and 0025 carry the content. Tracking it needs git add -f against policy - a USER CALL.",
+      "OPEN, unauthorized: M8 ancestor deletion (rm -rf of the CLAUDE_PLUGIN_DATA root kills every project's ledger), L9 per-call git subprocess in a 10s budget, the deferred roots-length-zero bypass, a flaky gpg fixture.",
+      "UNAUTHORIZED DEFECT, do not fix without explicit go: the Stop hook nags every turn (stop.mjs exits 2 unconditionally, never reads stop_hook_active)."
     ],
     "key_decisions": [
       "0018-deny-by-default-design-approved-with-control-split - design approved, six user calls resolved, control-split mandatory, whole-command scoping disqualified",
@@ -76,5 +79,5 @@
     ]
   },
   "created_at": "2026-07-26T21:11:59.338Z",
-  "updated_at": "2026-07-27T03:25:34.896Z"
+  "updated_at": "2026-07-27T03:29:38.838Z"
 }
