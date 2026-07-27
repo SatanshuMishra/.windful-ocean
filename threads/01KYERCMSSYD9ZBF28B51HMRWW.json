@@ -55,43 +55,41 @@
   "closure_statement": null,
   "spine": {
     "status": "paused",
-    "active_goal": "Build A is SHIPPED (PR #5) and PROVEN SAST-CLEAN by 0035, so the substantive work is done. Remaining: (a) the pin re-vendor PR per 0033, gated ONLY on the human per-justification adjudication of the 21 pragmas; (b) disposition. This thread still CANNOT reach `done` as chartered -- all six completion criteria describe producing an approved SPEC, none says \"ship Build A\", and retroactive rewrites are forbidden. The clean ending remains a successor thread carrying the narrowed charter.",
-    "next_step": "FIVE ITEMS. (1) Human re-runs the p/default curl (agents denied, settings.json:56); canonical hash MUST equal d9f73571cb16f43a3a51b5c9c29d712a77bfe5133f684bd7d713347205a55c96 or STOP. (2) Verify all 21 pragma justifications vs code; HUMAN rules. 0033's load-bearing step, NOT done. (3) Branch off origin/main, ONE commit: pin bump + pragma edits; no unrelated commits (0034); never push main (0031). (4) Re-run PR #5 sast: green under any baseline. (5) Disposition via create_successor.",
+    "active_goal": "Items 1 and 2 are CLOSED. Item 1 passed (human-run curl). Item 2 -- 0033's load-bearing re-adjudication -- is done with evidence and the human ruled (0038, 0039, 0041). The glob ReDoS fix is VERIFIED but UNCOMMITTED in a worktree. Remaining work is mechanical: two commits, push, PR, re-run PR #5 sast, dispose. This thread still CANNOT reach done as chartered: all six completion criteria describe producing an approved SPEC. The clean ending is a successor thread.",
+    "next_step": "UNCOMMITTED work in worktree .claude/worktrees/semgrep-pin (branch fix/semgrep-pin-readjudication, off origin/main @ cd5c65d) -- DO NOT delete. (1) COMMIT 1: bump .semgrep/p-default.sha256 to d9f73571cb16f43a3a51b5c9c29d712a77bfe5133f684bd7d713347205a55c96 (human-verified; curl denied to agents) + fix false pragmas at live-inject.mjs:233, live.mjs:216. (2) COMMIT 2: the verified matcher work; TWO commits per 0039. (3) Push BRANCH, open PR. (4) Re-run PR #5 sast. (5) create_successor.",
     "open_risks": [
-      "main's sast is RED until the pin PR merges. VERIFIED drift-only: run 30303354357's sole failed step is \"Fetch and verify p/default ruleset\"; secret-scan, sca, test all green. Accepted cost of 0034.",
-      "The 21-pragma adjudication is NOT done. .semgrep/p-default.sha256 must stay at 39e9e106... until the human rules; bumping first is the fabricated-consent shape 0033 rejected.",
-      "The pin is HASH-ONLY -- p/default content was never vendored, so every future drift forces a from-scratch re-adjudication with no diff. Vendoring it would fix this; flagged, deliberately OUT of 0033's PR.",
-      "9 pre-existing PartialParsing warnings: semgrep coverage of six .claude/hooks/*.sh, one HTML doc and receipts.yml is INCOMPLETE. Do not read \"0 findings\" as \"fully scanned\" for those files.",
+      "main's sast stays RED until the pin PR merges. VERIFIED drift-only: run 30303354357's only failed step is the p/default fetch; secret-scan, sca, test all green. Accepted cost of 0034.",
+      "The matcher fix is UNCOMMITTED in .claude/worktrees/semgrep-pin. Deleting that worktree destroys a verified 1146-test-green change. Commit it first.",
+      "3 NARROW pragmas UNFIXED, deferred to the successor: ledger-lint.mjs:77 and :79 (escapeIdentifier at :13 escapes only $) and live-accept.mjs:357 (extractVariant exported at :613). Each needs a one-line boundary guard.",
+      "Re-verify the suite with 'node --test <dir>/*.test.mjs'. A bare directory fails MODULE_NOT_FOUND on Node 26 and LOOKS like a real test failure. No node_modules exists or is needed.",
+      "The pin is HASH-ONLY -- p/default content was never vendored, so future drift forces a from-scratch re-adjudication with no diff. Deliberately out of scope.",
+      "9 pre-existing PartialParsing warnings: coverage of six .claude/hooks/*.sh, one HTML doc and receipts.yml is INCOMPLETE. Do not read '0 findings' as 'fully scanned' there.",
       "DELIVERY DEPENDENCY unchanged: runbook Sections 2-6 still UNAPPLIED by a human, so the preflight halts every run and Build A is shipped but INERT.",
       "0026 defers the strongest gate (PreToolUse hook on the Workflow tool) to a human settings.json edit. In the PR #5 body, not dropped.",
-      "As shipped the gate is an instruction the orchestrator follows, not a harness-enforced denial. Failure mode is degraded diagnostics, not an open merge path.",
-      "The workflow's ok:true flag checked only suite-green plus hygiene, NOT whether blocking review findings were resolved. Do not trust it on resume.",
-      "Decision numbering is unreliable -- this thread now holds 0026, 0027, 0031, 0033, 0034, 0035. Disambiguate by SLUG, never by number.",
-      "GitHub's API still reports commits:36 for PR #5 from a stale cache; git ground truth is 1 commit. Cosmetic -- do NOT re-push main to \"fix\" it."
+      "Decision numbering is unreliable -- this thread holds 0026, 0027, 0031, 0033, 0034, 0035, 0038, 0039, 0041. Disambiguate by SLUG, never by number.",
+      "GitHub's API still reports commits:36 for PR #5 from a stale cache; git ground truth is 1 commit. Cosmetic -- do NOT re-push main to fix it."
     ],
     "key_decisions": [
-      "0035-build-a-is-sast-clean-under-the-new-ruleset-item-2-closed-with-evidence -- c59ca79 needs no change; 21 pragmas all live and ID-scoped",
-      "0034-main-push-precedes-the-pin-pr-and-the-pin-pr-never-carries-mains-backlog -- main pushed c1d2606..cd5c65d",
-      "0033-semgrep-pin-re-vendor-is-its-own-pr-never-bundled-into-a-feature-pr -- human re-adjudication is load-bearing, not the hash bump",
-      "0031-pushes-to-origin-main-are-policy-denied-and-must-be-human-run -- agents push feature branches only",
-      "0027-cut-build-b-and-msp4-from-this-thread -- scope narrowed to shipping Build A",
-      "0026-preflight-gate-moves-to-skill-md-engine-check-is-corroborating -- USER-LOCKED option C",
-      "0021-build-a-unblocks-via-worktree-not-a-settings-relaxation",
-      "0009-tear-down-msp2-msp3-replace-with-robust-simple-server-boundary -- VERIFIED COMPLETE",
-      "0038-pragma-readjudication-two-refuted-reachable-redos",
-      "0039-glob-matcher-goes-linear-suppressions-deleted",
-      "0041-accept-two-globmatches-divergences-from-the-old-regex"
+      "0041-accept-two-globmatches-divergences-from-the-old-regex -- newline semantics + added path guard, both accepted",
+      "0039-glob-matcher-goes-linear-suppressions-deleted -- USER-LOCKED; PR becomes TWO commits",
+      "0038-pragma-readjudication-two-refuted-reachable-redos -- 14 upheld, 3 narrow, 2 refuted, 2 contested-premise",
+      "0035-build-a-is-sast-clean-under-the-new-ruleset -- c59ca79 needs no change",
+      "0034-main-push-precedes-the-pin-pr-and-the-pin-pr-never-carries-mains-backlog",
+      "0033-semgrep-pin-re-vendor-is-its-own-pr-never-bundled-into-a-feature-pr",
+      "0031-pushes-to-origin-main-are-policy-denied-and-must-be-human-run",
+      "0027-cut-build-b-and-msp4-from-this-thread",
+      "0026-preflight-gate-moves-to-skill-md-engine-check-is-corroborating -- USER-LOCKED option C"
     ],
     "out_of_scope": [
-      "Build B / the restack verb — CUT by 0027 to a successor thread, carrying its two verified prerequisites (mergedSha at reconcileShippedSet:371, git exec primitive in mitosis-git.mjs) and decisions 0010/0012/0017.",
-      "MSP-4 — DROPPED by 0027; reopens only if the user defines it.",
-      "The squash-merge containment gap (mitosis.js:3004, 4490), the clean(undefined) TypeError, and the conditional-host foreign-merged-PR gap — real defects, moved out by 0027.",
-      "The d57e233 codename scrub and pushing feat/mitosis-resilience — belongs to the mitosis-resilience thread.",
-      "Agent-applied settings.json edits and agent-applied GitHub settings. Every ruleset/identity/token change is authored for a HUMAN to apply; the preflight only READS.",
-      "Running the hardening via mitosis-on-itself. Plain git-worktree isolation is NOT that, and remains the sanctioned route per 0021.",
-      "The no-self-merge-consent.test.mjs working-tree change — belongs to the mitosis-preflight-hardening thread."
+      "Build B / the restack verb -- CUT by 0027 to a successor, carrying mergedSha at reconcileShippedSet:371, the git exec primitive in mitosis-git.mjs, and decisions 0010/0012/0017.",
+      "MSP-4 -- DROPPED by 0027; reopens only if the user defines it.",
+      "The squash-merge containment gap (mitosis.js:3004, 4490), the clean(undefined) TypeError, and the conditional-host foreign-merged-PR gap -- real defects, moved out by 0027.",
+      "The d57e233 codename scrub and pushing feat/mitosis-resilience -- belongs to the mitosis-resilience thread.",
+      "Agent-applied settings.json and GitHub settings edits. Every ruleset/identity/token change is authored for a HUMAN to apply; the preflight only READS.",
+      "The no-self-merge-consent.test.mjs working-tree change -- belongs to the mitosis-preflight-hardening thread.",
+      "The 3 benign unadjudicated dynamic-RegExp sites (run-engine.mjs:98, mitosis.js:789, design-parser.mjs:166). CLOSED, no action: the real p/default does not flag them."
     ]
   },
   "created_at": "2026-07-26T08:24:13.881Z",
-  "updated_at": "2026-07-27T21:45:45.813Z"
+  "updated_at": "2026-07-27T21:49:04.611Z"
 }
