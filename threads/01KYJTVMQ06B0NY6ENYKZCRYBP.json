@@ -3,7 +3,7 @@
   "id": "01KYJTVMQ06B0NY6ENYKZCRYBP",
   "slug": "mitosis-merge-boundary-activation-and-sast-residue",
   "title": "Mitosis merge-boundary activation and SAST residue",
-  "status": "active",
+  "status": "paused",
   "parent_id": null,
   "predecessor_id": "01KYERCMSSYD9ZBF28B51HMRWW",
   "completion_criteria": [
@@ -34,7 +34,7 @@
   "abandoned_reason": null,
   "closure_statement": null,
   "spine": {
-    "status": "active",
+    "status": "paused",
     "active_goal": "Make Build A actually work. The merge-boundary preflight is merged to main (PR #5, 457d6fa) but INERT: it halts every mitosis run until the runbook's GitHub-side setup is applied. Get it live, and clear the SAST residue the pin re-adjudication deliberately deferred.",
     "next_step": "START HERE, no human needed: apply runbook Section 6 per 0045 -- add `edited` to the `pull_request` trigger's `types:` list on the PR-gating workflow. .github/workflows/security.yml:3-5 has the bare `on: pull_request:` hazard; before/after at runbook Section 6, lines 129-146. Ship it as its own PR. IN PARALLEL, ask the human for Sections 2-5 (machine user, PAT with Actions:Read, ruleset, merge strategy) -- GitHub account actions no agent can perform.",
     "open_risks": [
@@ -64,5 +64,5 @@
     ]
   },
   "created_at": "2026-07-27T22:24:20.192Z",
-  "updated_at": "2026-07-27T22:25:14.523Z"
+  "updated_at": "2026-07-27T22:25:21.005Z"
 }
