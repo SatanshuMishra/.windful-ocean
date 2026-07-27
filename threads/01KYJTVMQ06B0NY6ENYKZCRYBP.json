@@ -35,18 +35,20 @@
   "closure_statement": null,
   "spine": {
     "status": "paused",
-    "active_goal": "Make Build A actually work. Runbook Section 6 is APPLIED and merged (PR #7, squashed into 00f495d) -- criterion 1 done. Build A stays INERT until the human applies Sections 2-5, GitHub account actions no agent can perform. The SAST residue is security-discharged per 0049; what remains is owed code hardening (criterion 4) plus prose deletion.",
-    "next_step": "SAST residue is security-DISCHARGED (0049); what remains is owed cleanup, awaiting go. (1) Harden ledger-lint.mjs -- widen escapeIdentifier:13 past $ and guard flagHasReachableTruePath:75 -- this is completion criterion 4 ('boundary guards'), NOT optional; needs a test. (2) DELETE the prose trailing the nosemgrep pragma at the 5 defective sites: ledger-lint.mjs:77/:79, live-accept.mjs:357, live-inject.mjs:233, live.mjs:216 -- per no-comments, delete don't update. Leave the 14 UPHELD alone.",
+    "active_goal": "Make Build A actually work. Criterion 1 done (Section 6 merged, 00f495d). Criterion 4 is 2/3: the ledger-lint boundary guards shipped this session on branch fix/ledger-lint-boundary-guards (60cba74 guard+tests, 0fe891a prose) with 1217 tests green and semgrep 0-findings, but the branch is deliberately NOT pushed because 0052's pin drift makes the sast job red on every PR. Build A stays INERT until the human applies Sections 2-5, GitHub account actions no agent can perform.",
+    "next_step": "Criterion 4 is 2/3 DONE. REMAINING leg: the one-line boundary guard at live-accept.mjs:357 via the exported extractVariant:613 (prose there is already deleted; only the guard is owed). Criterion 5 then needs a no-baseline full-repo scan after the work LANDS. DECIDE FIRST per 0052: the p/default pin bump -- sast is red on every push/PR until then, so do not push fix/ledger-lint-boundary-guards. Sections 2-5 stay human-only.",
     "open_risks": [
       "Build A is shipped but INERT. rulesets and rules/branches/main both return [] -- no ruleset, no branch protection, so the merge boundary is fiction today and nothing downstream can be exercised end-to-end.",
-      "NEW (0049): 9 PartialParsing warnings leave regions UNSCANNED in 6 shell hooks including secret-scanner.sh, plus 2 non-code files. CI shares this blind spot, so 'main is clean' means 'clean in what semgrep could parse' -- weakest in the security-relevant hook layer.",
+      "BLOCKER per 0052: the p/default pin has DRIFTED (canonical d9f73571 vs pinned 39e9e106). security.yml exits 1 at its hash-verify step, so the sast job fails on EVERY push and PR. Do not push this thread's branch until the human rules on the bump.",
+      "CORRECTED: the suite is 1217 tests, NOT the 1347 previously recorded. Measured via `npm test` on 2026-07-27, already including this thread's +1 test. Re-verify with `node --test <dir>/*.test.mjs`; a bare directory fails MODULE_NOT_FOUND on Node 26 and LOOKS like a real failure.",
+      "9 PartialParsing warnings leave regions UNSCANNED in 6 shell hooks including secret-scanner.sh, plus 2 non-code files. RE-VERIFIED unchanged on 2026-07-27 under the drifted ruleset. CI shares this blind spot, so 'clean' means 'clean in what semgrep could parse'.",
+      "Pre-existing and NOT fixed (surfaced by the security review): flagHasReachableTruePath's env probe has no left boundary, so `myprocess.env.X_ENABLED` returns true and lintFlags SKIPS the flag. Fails in the suppressing direction. Needs its own item.",
       "0047 is UNENFORCED: delete_branch_on_merge is still false and squash/rebase are still enabled, which is why PR #7 landed squashed (single parent). Config fix: disable squash and rebase repo-side so the merge button can only produce merge commits.",
       "Engine gap nobody owns: if a child PR goes conflicted after retarget, GitHub cannot build the merge ref, no run executes, and the stale green survives. The ship stage treats conclusion=success as GREEN (mitosis.js:4596) without checking mergeability or recency.",
       "Per 0048, whether an empty bypass list binds the repository OWNER on a User-owned repo is UNTESTED, not false. Test empirically after Section 4: open a throwaway PR and attempt a self-merge. The PR #7 self-merge did not test it -- reviews was [] and no ruleset existed.",
-      "Re-verify suites with `node --test <dir>/*.test.mjs`. A bare directory fails MODULE_NOT_FOUND on Node 26 and LOOKS like a real failure. No node_modules exists or is needed. Suite is now 1347 tests, not the 1217 recorded earlier.",
-      "The p/default pin is HASH-ONLY -- content was never vendored despite b2f45bb being titled 're-vendor'. Verified INTACT on 2026-07-27 (0049), so re-adjudication is not due, but the next real drift still forces a from-scratch pass with no diff to read.",
-      "curl is DENIED to subagents by the permission system; use python3 urllib for network fetches. Bash reads of the ledger store are guard-blocked -- use the Read tool or the ledger MCP tools. update_thread caps next_step at 500 chars and each open_risks item at 300.",
-      "Worktrees semgrep-pin, boundary-preflight, and ci-retarget-rerun all hold fully-merged work and are prunable, but squash-merge means `git branch --merged` will not list them. Cleanup is destructive; offered, NOT performed."
+      "Give subagents ABSOLUTE worktree paths. A worktree mirrors the parent repo at identical relative paths, and one editor silently opened the PARENT copy of ledger-lint.mjs before correctly stopping. Cost a full re-dispatch.",
+      "curl is DENIED to subagents; use python3 urllib. Bash reads of the ledger store are guard-blocked -- use Read or the ledger MCP tools. `timeout` is absent on macOS (exit 127). update_thread caps next_step at 500 chars and each open_risks item at 300.",
+      "Worktrees semgrep-pin, boundary-preflight, ci-retarget-rerun (all fully merged) plus the new ledger-lint-guards are prunable, but squash-merge means `git branch --merged` will not list them. Cleanup is destructive; offered, NOT performed."
     ],
     "key_decisions": [
       "0045-runbook-section-6-is-agent-doable-and-this-repo-is-itself-exposed -- the unblock that seeds this thread's first step",
@@ -71,5 +73,5 @@
     ]
   },
   "created_at": "2026-07-27T22:24:20.192Z",
-  "updated_at": "2026-07-27T23:27:36.662Z"
+  "updated_at": "2026-07-27T23:28:52.582Z"
 }
