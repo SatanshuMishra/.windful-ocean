@@ -56,7 +56,8 @@
       "0028-threat-model-scoped-to-agent-accident",
       "0015-adopt-over-catch-ask-never-under-catch - the ask verdict is house precedent",
       "0040-localdriver-recovery-repo-gated-on-isgit-sync-stays-a-no-op",
-      "0042-config-loading-is-the-second-half-of-the-git-env-fix-two-scope-items-held-for-the-user"
+      "0042-config-loading-is-the-second-half-of-the-git-env-fix-two-scope-items-held-for-the-user",
+      "0043-user-rulings-gitrefdriver-pinning-in-scope-no-git-trigger-readme-ships-caveated"
     ],
     "out_of_scope": [
       "Babysitting the user's own deliberate deletion of their files. Explicitly ruled out 2026-07-27 (0028).",
@@ -67,5 +68,5 @@
     ]
   },
   "created_at": "2026-07-26T21:11:59.338Z",
-  "updated_at": "2026-07-27T22:20:11.247Z"
+  "updated_at": "2026-07-27T22:22:16.058Z"
 }
