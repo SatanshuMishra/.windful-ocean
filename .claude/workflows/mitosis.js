@@ -735,23 +735,46 @@ const EXEC_AGENT_TYPES = new Set(['implementer', 'test-engineer', 'general-purpo
 function normalizePath(p) { return p.replace(/^\.\//, '').replace(/\/+$/, ''); }
 const GLOB_MAX_LENGTH = 1024;
 const GLOB_MAX_WILDCARDS = 8;
-function globToRegExp(glob) {
+function tokenizeGlob(glob) {
+  const tokens = [];
+  let index = 0;
+  while (index < glob.length) {
+    const char = glob[index];
+    if (char === '*' && glob[index + 1] === '*') { tokens.push({ kind: 'globstar' }); index += 2; continue; }
+    if (char === '*') { tokens.push({ kind: 'star' }); index += 1; continue; }
+    if (char === '?') { tokens.push({ kind: 'anyChar' }); index += 1; continue; }
+    tokens.push({ kind: 'literal', char }); index += 1;
+  }
+  return tokens;
+}
+function matchGlobTokens(tokens, text) {
+  const end = text.length;
+  let suffixMatches = Array.from({ length: end + 1 }, (_, at) => at === end);
+  for (let token = tokens.length - 1; token >= 0; token -= 1) {
+    const { kind, char } = tokens[token];
+    const row = new Array(end + 1);
+    for (let at = end; at >= 0; at -= 1) {
+      if (kind === 'star') row[at] = suffixMatches[at] || (at < end && text[at] !== '/' && row[at + 1]);
+      else if (kind === 'globstar') row[at] = suffixMatches[at] || (at < end && row[at + 1]);
+      else if (kind === 'anyChar') row[at] = at < end && text[at] !== '/' && suffixMatches[at + 1];
+      else row[at] = at < end && text[at] === char && suffixMatches[at + 1];
+    }
+    suffixMatches = row;
+  }
+  return suffixMatches[0];
+}
+function globMatches(glob, path) {
   if (typeof glob !== 'string') throw new TypeError(`glob must be a string, got ${typeof glob}`);
   if (glob.length > GLOB_MAX_LENGTH) throw new RangeError(`glob length ${glob.length} exceeds the maximum of ${GLOB_MAX_LENGTH}`);
   const wildcardCount = (glob.match(/[*?]/g) || []).length;
   if (wildcardCount > GLOB_MAX_WILDCARDS) throw new RangeError(`glob wildcard count ${wildcardCount} exceeds the maximum of ${GLOB_MAX_WILDCARDS}`);
-  const body = glob.split(/(\*\*|\*|\?)/).map((part) => {
-    if (part === '**') return '.*';
-    if (part === '*') return '[^/]*';
-    if (part === '?') return '[^/]';
-    return part.replace(/[.+^${}()|[\]\\]/g, '\\$&');
-  }).join('');
-  return new RegExp(`^${body}$`); // nosemgrep: javascript.lang.security.audit.detect-non-literal-regexp.detect-non-literal-regexp -- metacharacters escaped, only wildcards become quantifiers
+  if (typeof path !== 'string') throw new TypeError(`path must be a string, got ${typeof path}`);
+  return matchGlobTokens(tokenizeGlob(glob), path);
 }
 function scopeCovers(scope, path) {
   const ns = normalizePath(scope);
   const np = normalizePath(path);
-  if (/[*?]/.test(ns)) return globToRegExp(ns).test(np);
+  if (/[*?]/.test(ns)) return globMatches(ns, np);
   return ns === np || np.startsWith(ns + '/');
 }
 
