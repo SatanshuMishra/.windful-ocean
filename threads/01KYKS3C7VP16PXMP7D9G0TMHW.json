@@ -39,12 +39,37 @@
   "closure_statement": null,
   "spine": {
     "status": "active",
-    "active_goal": "",
-    "next_step": "",
-    "open_risks": [],
-    "key_decisions": [],
-    "out_of_scope": []
+    "active_goal": "The guard WORK is shipped and verified at d102fb8 on fix/pre-tool-use-guard in DevLabs/continuity-ledger-plugin: 622/622, check-packaging ok, clean tree, 30 commits unpushed, no PR. This successor carries only the residuals the 0068 delta review confirmed, plus the two user calls the predecessor could not make. The predecessor died on its SPECIFICATION (criteria naming a parser 0029 deleted), not on its code - so criteria here are behavior-shaped on purpose.",
+    "next_step": "AWAIT an explicit go; nothing here is authorized. Recommended first, criterion 1: the installer config-scope fix - installer.mjs:51 reads `config --get` with no --local, :8 applies only clearedGitLocationEnv(), :96 writes the merged value back as LOCAL config, :124 restores it. Two lenses found it (HIGH/MEDIUM); orchestrator confirmed the code facts. It runs every SessionStart with errors swallowed. Red-first under hostile ambient config. No push or PR without a separate go.",
+    "open_risks": [
+      "CONFIRMED DEFECT at d102fb8: 0042's config fix never reached hook installation. installer.mjs:8 lacks the config-isolating env that local-driver.mjs:23 and git-scope.mjs:52,76,85 apply. A foreign core.hooksPath is recorded as the repo's prior value, so uninstall cannot restore the user's hooks.",
+      "The local 622/622 is NOT health evidence: this machine has no global core.hooksPath and zero GIT_CONFIG* vars. Under hostile ambient config 4 installer tests fail - they assert on MERGED config, so they measure the developer's machine.",
+      "isolatedScope still loads the repo's own .git/config and info/attributes, so a repo-local content filter or merge driver executes during the ledger's add/merge (verified). merge.verifySignatures is unneutralized: a repo-local value runs gpg.program and sync() silently stops converging.",
+      "Six README line-range citations are stale at d102fb8: the README commit is the OLDEST in the delta and later commits shifted the lines. The range cited for 'a match returns ask, not deny' now lands on the deny branch.",
+      "UNRESOLVED, needs a user call: Round B used git add -A and swept Round A in-flight files into 3 commits. No content lost, suite green; damage is attribution only. src/util/git-env.mjs exists ONLY in 8962003, whose message is about the tripwire. All 30 commits unpushed.",
+      "ALL VERIFICATION IS macOS, git 2.55.0, Node 26.4.0, ONE MACHINE. Unverified on Windows and older git: resolve() on UNC paths, ABSENT_HOOKS_PATH under the Windows null device, devNull as GIT_CONFIG_GLOBAL, -c core.hooksPath quoting. git init -b needs git 2.28+.",
+      "PROMPT FATIGUE remains the real failure mode and the prompt IS the protection. A near-root CLAUDE_PLUGIN_DATA makes it worse: the guard fails CLOSED over a wide slice of the filesystem. No test pins the newly-prompting command count.",
+      "Under a NON-DEFAULT ledger_branch the guard offers nothing (0036/0043). rm -rf .git && git init still destroys the ledger ref unprompted. Both documented in the README, both deliberate.",
+      "Sandbox hooks/MCP question still UNVERIFIED per 0037: if MCP servers are subject to denyWrite, a denyWrite entry over the ledger root stops the plugin writing its own store. The test is a human action.",
+      "UNAUTHORIZED DEFECT, open, do not fix without explicit go: the Stop hook nags every turn (stop.mjs exits 2 unconditionally, never reads stop_hook_active). Surfaced four times now with no user reply."
+    ],
+    "key_decisions": [
+      "0068-delta-review-one-high-carried-into-successor-not-fixed-here",
+      "0063-closing-instruction-done-is-unreachable-so-terminate-via-abandoned-plus-successor",
+      "0050-git-invocations-split-into-four-scopes-network-keeps-user-config",
+      "0042-config-loading-is-the-second-half-of-the-git-env-fix",
+      "0029-parser-deleted-round-c-killed",
+      "0028-threat-model-scoped-to-agent-accident",
+      "0015-adopt-over-catch-ask-never-under-catch"
+    ],
+    "out_of_scope": [
+      "Shell parsing, tokenization, allowlisting or head normalization in ANY form (0029/0054). Substring and quoting evasions are an accepted cost, not a defect.",
+      "A determined or adversarial same-uid agent, and the user's own deliberate deletion of their files (0028).",
+      "The other four canonical stores; future rollout, per-repo.",
+      "ledger-cli sync and publication of the _ledger ref. LocalDriver.sync() stays {synced:false}.",
+      "The one-line commit.gpgsign=false in the e2e fixture that would finish the drift-signals flake."
+    ]
   },
   "created_at": "2026-07-28T07:12:50.939Z",
-  "updated_at": "2026-07-28T07:12:50.939Z"
+  "updated_at": "2026-07-28T07:14:25.958Z"
 }
