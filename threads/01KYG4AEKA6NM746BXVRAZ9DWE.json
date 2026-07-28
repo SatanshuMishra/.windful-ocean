@@ -36,7 +36,7 @@
   "spine": {
     "status": "paused",
     "active_goal": "Items 3 and 4 SHIPPED plus five review-driven fix rounds. HEAD d102fb8, 30 commits ahead of origin, NOTHING PUSHED, no PR. Orchestrator-verified: 622 tests, 622 pass, 0 fail, check-packaging ok, clean tree. Item 3 gave LocalDriver a private recovery repo gated on !isGit(); Item 4 (d0454ab) documented what is and is not protected. Reviews found the env pinning closed repo LOCATION but left CONFIG LOADING open, a code-execution surface, now closed across both drivers and the guard.",
-    "next_step": "DECIDE THE TERMINATION RULE FIRST; do not start another review lap by default. Criterion 4 wants review over the FINAL diff, but round-1 reviewed f69add3 then 16 fix commits landed, and the confirming pass reviewed 351a931 then 10 more landed (d102fb8). Criterion 4 is left FALSE. Every round so far produced new findings. THEN: (a) rule on the git add -A attribution damage, recommend LEAVE IT; (b) dispose via create_successor, this thread cannot close as written. No push or PR without a go.",
+    "next_step": "USER RULING (0063): do any CRITICAL task, else close. There are NONE - both confirming reviews returned no CRITICAL/HIGH, suite 622/622 verified. So: (1) ONE delta-only review over 351a931..d102fb8 (unreviewed), bar = no new CRITICAL/HIGH; that ends the review recursion. (2) If clean, dispose NOW: paused -> abandoned, reason = the WORK shipped, only the SPECIFICATION died when 0029 deleted the parser; then create_successor. done is UNREACHABLE per 0063. No push or PR without a go.",
     "open_risks": [
       "CRITERION 4 NOT MET AT HEAD; THIS THREAD CANNOT CLOSE AS WRITTEN. Criteria are fixed at creation under the DoD gate. 1-2 describe the parser 0029 deleted; 3 names scanSegments, deleted; 5 asserts DENY where the tripwire answers ask. Disposition is create_successor, not an in-place rewrite.",
       "UNRESOLVED, needs a user call: Round B used git add -A and swept Round A in-flight files into 3 commits. No content lost, suite green; damage is attribution only. src/util/git-env.mjs exists ONLY in 8962003, whose message is about the tripwire. All 30 commits unpushed. Later rounds used pathspecs.",
@@ -72,5 +72,5 @@
     ]
   },
   "created_at": "2026-07-26T21:11:59.338Z",
-  "updated_at": "2026-07-28T04:33:33.609Z"
+  "updated_at": "2026-07-28T04:34:09.326Z"
 }
