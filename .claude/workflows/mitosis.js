@@ -138,11 +138,11 @@ function readBoundaryPreflightVerdict(recon, expected) {
   }
   if (verdict.passed !== true) {
     const named = verdict.halted.filter((id) => typeof id === 'string' && id.length > 0);
-    const detail = named.length > 0 ? named.join(', ') : 'no invariant was positively proven';
+    const detail = named.length > 0 ? named.map((id) => cleanUrl(id)).join(', ') : 'no invariant was positively proven';
     return { proven: false, reason: `the reconcile agent reported a merge-boundary preflight verdict that did not pass; invariant(s) it named unproven: ${detail} — the run halts because corroboration failed` };
   }
   if (verdict.halted.length > 0) {
-    return { proven: false, reason: `the reconcile agent reported a merge-boundary preflight verdict claiming passed=true while still naming unproven invariant(s): ${verdict.halted.join(', ')} — a self-contradictory verdict is never read as a pass, so the run halts because corroboration failed` };
+    return { proven: false, reason: `the reconcile agent reported a merge-boundary preflight verdict claiming passed=true while still naming unproven invariant(s): ${verdict.halted.map((id) => cleanUrl(id)).join(', ')} — a self-contradictory verdict is never read as a pass, so the run halts because corroboration failed` };
   }
   if (verdict.bypassVerified !== false) {
     return { proven: false, reason: `the reconcile agent reported a merge-boundary preflight verdict carrying bypassVerified=${cleanUrl(verdict.bypassVerified)} — the preflight emits exactly false on every path because the bypass list is human governance this token structurally cannot read, so a verdict claiming otherwise was never produced by the preflight and is never read as a pass; the run halts because corroboration failed` };
