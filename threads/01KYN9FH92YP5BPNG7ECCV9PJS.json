@@ -54,7 +54,8 @@
     ],
     "key_decisions": [
       "Inherited: 0092, 0093, 0094 define the three defects; 0095 descoped runbook Sections 2-5 permanently; 0097 closed the predecessor as abandoned with criteria 2 and 3 left unchecked rather than falsified.",
-      "0096-reconcile-schema-optionality-was-not-the-cause-of-the-silent-severance -- tested, refuted, reverted. Do NOT re-attempt this line of investigation."
+      "0096-reconcile-schema-optionality-was-not-the-cause-of-the-silent-severance -- tested, refuted, reverted. Do NOT re-attempt this line of investigation.",
+      "0098-corrected-0092-mechanism-is-an-unsatisfiable-config-contract-not-a-severed-exec"
     ],
     "out_of_scope": [
       "Runbook Sections 2-5 and Build A activation -- DESCOPED by 0095. Treat the boundary as permanently UNCONFIGURED; never assume it will be provisioned.",
@@ -65,5 +66,5 @@
     ]
   },
   "created_at": "2026-07-28T21:18:20.962Z",
-  "updated_at": "2026-07-28T21:45:11.313Z"
+  "updated_at": "2026-07-28T21:46:28.965Z"
 }

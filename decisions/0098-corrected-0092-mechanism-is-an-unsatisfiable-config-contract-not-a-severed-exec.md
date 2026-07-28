@@ -1,0 +1,22 @@
+---
+Status: accepted
+Date: 2026-07-28T21:46:28.964Z
+Thread-Id: 01KYN9FH92YP5BPNG7ECCV9PJS
+---
+
+# 0098. 0092's mechanism as previously recorded is wrong: the failure is an unsatisfiable configuration contract, not a severed exec call
+
+## Context
+
+0092 recorded that the mitosis engine execs the merge-boundary preflight CLI at step 7 with no MITOSIS_BOUNDARY_* environment, so it exits 31 with empty stdout and every run halts. Reproduction against a pristine worktree at origin/main a229c9c refuted the mechanism while confirming the symptom. mitosis.js contains ZERO child_process/spawn/exec calls; step 7 is item 7 of a natural-language prompt string at mitosis.js:3720 handed to a reconcile subagent, which runs the command in its own separately-spawned shell. Executing the CLI directly with the four variables unset reproduces exit 31 and 0-byte stdout (verified with wc -c and xxd), but it also writes 242 bytes to STDERR naming all four missing variables (merge-boundary-preflight.mjs:372) - so "prints nothing" is false; the caller parses only stdout and discards the explanation. The decisive finding is a contract that cannot be satisfied: SKILL.md:43 mandates the four values be set INLINE on the command and explicitly forbids ambient shell export, while mitosis.js:3720 requires the same CLI to read them from the environment and attaches none. Inline variables apply to one process and do not propagate into a subagent's separately-spawned shell, so an operator who follows SKILL.md correctly GUARANTEES layer-2 failure. This explains why a week-long severance went unnoticed: there was never a working state to regress from. Two further facts were established. First, exits 0 and 30 emit the stdout verdict line but 31 and 127 emit none, so config-missing, gh-missing, file-missing and agent-failure all collapse into one generic message at mitosis.js:130-131 - the operator sees a symptom, never a cause. Second, the gate file does not exist on this machine at all: ~/.claude/lib symlinks into the primary checkout, which sits on feat/centralized-pr-creation, 8 commits behind origin/main and predating 457d6fa which created merge-boundary-preflight.mjs, so both call sites currently fail with node exit 1 MODULE_NOT_FOUND rather than 31. No test catches that, because merge-boundary-preflight.test.mjs:667 compares two path strings and never calls existsSync.
+
+## Options
+
+- Accept 0092's recorded mechanism and fix the engine's exec call - REJECTED, there is no exec call to fix; mitosis.js has no child_process at all, so this option targets code that does not exist
+- Treat the symptom only by passing env to step 7, leaving SKILL.md:43's inline-only mandate in place - REJECTED as incomplete, it silently resolves a documented contradiction inside a patch rather than settling it, which is the exact failure mode the thread's own next_step warns against
+- Record the corrected mechanism now, before any implementation, so the fix targets the real contract and the diagnosis/amplifier/deployment faults are addressed as distinct problems - CHOSEN
+- Defer recording until implementation lands - REJECTED, the reproduction is expensive and non-derivable from the code, and the predecessor thread already lost a week to a spine that asserted a false mechanism
+
+## Outcome
+
+The recorded mechanism is superseded. 0092's root cause is an unsatisfiable configuration contract between SKILL.md:43 (inline-only, never ambient) and mitosis.js:3720 (reads env, receives none), not a severed exec. The symptom (exit 31, empty stdout, run halts at preflight-boundary) is confirmed; the cause, the exec framing, and "prints nothing" are all corrected. Three distinct faults now stand where one was recorded: (1) the unsatisfiable contract, (2) the silent-channel amplifier where exits 31 and 127 emit no stdout verdict line so every failure mode collapses into one indistinguishable message, and (3) a deployment fault where the hardcoded gate path resolves to a file that does not exist because a stale branch is checked out - meaning a git checkout silently changes the live security tooling. Any fix must address these as separate problems; treating them as one exec bug would leave two of the three in place. This record corrects the factual basis of 0092 and does NOT settle the posture question (halt versus degrade on an unconfigured boundary), which remains open and is the user's ruling to make.
