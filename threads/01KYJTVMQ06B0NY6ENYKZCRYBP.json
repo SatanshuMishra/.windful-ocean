@@ -3,7 +3,7 @@
   "id": "01KYJTVMQ06B0NY6ENYKZCRYBP",
   "slug": "mitosis-merge-boundary-activation-and-sast-residue",
   "title": "Mitosis merge-boundary activation and SAST residue",
-  "status": "paused",
+  "status": "abandoned",
   "parent_id": null,
   "predecessor_id": "01KYERCMSSYD9ZBF28B51HMRWW",
   "completion_criteria": [
@@ -31,10 +31,10 @@
   "vcs_ref": null,
   "external_refs": [],
   "blocked_by": null,
-  "abandoned_reason": null,
+  "abandoned_reason": "Shipped to completion within the scope that survived 0095, then closed by user ruling 0097. PRs #10, #11 and #12 are merged and origin/main = a229c9c is fully green (1544/1544, exit 0) - the first green main in this thread's history. Completion criteria 2 and 3 remain UNCHECKED and were never rewritten: user ruling 0095 descoped human runbook Sections 2-5, which makes Build A activation permanently unachievable rather than merely deferred. The structural DoD gate therefore refuses `done`, and the FSM offers no third terminal state, so this thread closes under the `abandoned` token. That token records the DoD outcome, NOT a judgment on the work - the work shipped. Cleanup was executed and verified against the repository: 4 scratchpad worktrees removed and 3 squash-merged branches deleted, each proven byte-identical to origin/main before removal; worktrees 16 -> 12, branches 24 -> 21. Residual defects 0092, 0093 and 0094 are real, unfixed, and transferred to a successor thread rather than dying here.",
   "closure_statement": null,
   "spine": {
-    "status": "paused",
+    "status": "abandoned",
     "active_goal": "CLOSED 2026-07-28. Shipping finished: PRs #10/#11/#12 merged, origin/main = a229c9c fully green (1544/1544, exit 0), the first green main in this thread's history. Per 0095 the human runbook Sections 2-5 were descoped, so criteria 2 and 3 are permanently unachievable and stay UNCHECKED. Cleanup executed and verified against the repository. Closed as `abandoned` per 0097 - the label records the DoD outcome, not a judgment on the work. Read the closure reason, not the status token.",
     "next_step": "NONE. This thread is terminal. Residual defects 0092, 0093 and 0094 live in the successor thread; do not reopen this one - reopening creates a new thread by design.",
     "open_risks": [
@@ -68,5 +68,5 @@
     ]
   },
   "created_at": "2026-07-27T22:24:20.192Z",
-  "updated_at": "2026-07-28T21:17:41.214Z"
+  "updated_at": "2026-07-28T21:17:52.541Z"
 }
