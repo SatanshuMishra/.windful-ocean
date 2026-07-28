@@ -35,35 +35,34 @@
   "closure_statement": null,
   "spine": {
     "status": "blocked",
-    "active_goal": "Make Build A actually work. Criterion 1 done (Section 6 merged, 00f495d). Criterion 4 is 2/3: the ledger-lint boundary guards shipped this session on branch fix/ledger-lint-boundary-guards (60cba74 guard+tests, 0fe891a prose) with 1217 tests green and semgrep 0-findings, but the branch is deliberately NOT pushed because 0052's pin drift makes the sast job red on every PR. Build A stays INERT until the human applies Sections 2-5, GitHub account actions no agent can perform.",
-    "next_step": "Criterion 4 is 2/3 DONE. REMAINING leg: the one-line boundary guard at live-accept.mjs:357 via the exported extractVariant:613 (prose there is already deleted; only the guard is owed). Criterion 5 then needs a no-baseline full-repo scan after the work LANDS. DECIDE FIRST per 0052: the p/default pin bump -- sast is red on every push/PR until then, so do not push fix/ledger-lint-boundary-guards. Sections 2-5 stay human-only.",
+    "active_goal": "Criterion 4 is COMPLETE (all three legs) and criterion 5 has its receipt; both shipped as PR #9. What remains on this thread is human-only: Build A is still INERT until Sections 2-5 of the runbook are applied by hand, and PR #9 needs a human merge.",
+    "next_step": "Human-only from here. (1) Merge PR #9 (fix/ledger-lint-boundary-guards -> main), accepting that its CI test job is red on 20 failures inherited from origin/main. (2) Apply runbook Sections 2-5 to make the merge boundary real. Do NOT toggle this thread's completion_criteria without first reading their exact texts - they were not read this session. Two follow-ups need disposition: the secret-scanner SAST blind spot, and whether to vendor the p/default ruleset content.",
     "open_risks": [
-      "Build A is shipped but INERT. rulesets and rules/branches/main both return [] -- no ruleset, no branch protection, so the merge boundary is fiction today and nothing downstream can be exercised end-to-end.",
-      "BLOCKER per 0052: the p/default pin has DRIFTED (canonical d9f73571 vs pinned 39e9e106). security.yml exits 1 at its hash-verify step, so the sast job fails on EVERY push and PR. Do not push this thread's branch until the human rules on the bump.",
-      "CORRECTED: the suite is 1217 tests, NOT the 1347 previously recorded. Measured via `npm test` on 2026-07-27, already including this thread's +1 test. Re-verify with `node --test <dir>/*.test.mjs`; a bare directory fails MODULE_NOT_FOUND on Node 26 and LOOKS like a real failure.",
-      "9 PartialParsing warnings leave regions UNSCANNED in 6 shell hooks including secret-scanner.sh, plus 2 non-code files. RE-VERIFIED unchanged on 2026-07-27 under the drifted ruleset. CI shares this blind spot, so 'clean' means 'clean in what semgrep could parse'.",
-      "Pre-existing and NOT fixed (surfaced by the security review): flagHasReachableTruePath's env probe has no left boundary, so `myprocess.env.X_ENABLED` returns true and lintFlags SKIPS the flag. Fails in the suppressing direction. Needs its own item.",
-      "0047 is UNENFORCED: delete_branch_on_merge is still false and squash/rebase are still enabled, which is why PR #7 landed squashed (single parent). Config fix: disable squash and rebase repo-side so the merge button can only produce merge commits.",
-      "Engine gap nobody owns: if a child PR goes conflicted after retarget, GitHub cannot build the merge ref, no run executes, and the stale green survives. The ship stage treats conclusion=success as GREEN (mitosis.js:4596) without checking mergeability or recency.",
-      "Per 0048, whether an empty bypass list binds the repository OWNER on a User-owned repo is UNTESTED, not false. Test empirically after Section 4: open a throwaway PR and attempt a self-merge. The PR #7 self-merge did not test it -- reviews was [] and no ruleset existed.",
-      "Give subagents ABSOLUTE worktree paths. A worktree mirrors the parent repo at identical relative paths, and one editor silently opened the PARENT copy of ledger-lint.mjs before correctly stopping. Cost a full re-dispatch.",
-      "curl is DENIED to subagents; use python3 urllib. Bash reads of the ledger store are guard-blocked -- use Read or the ledger MCP tools. `timeout` is absent on macOS (exit 127). update_thread caps next_step at 500 chars and each open_risks item at 300.",
-      "Worktrees semgrep-pin, boundary-preflight, ci-retarget-rerun (all fully merged) plus the new ledger-lint-guards are prunable, but squash-merge means `git branch --merged` will not list them. Cleanup is destructive; offered, NOT performed."
+      "0052 is DISCHARGED by 0070. The blocker was branch STALENESS, not an owed bump: origin/main already pinned d9f73571 via PR #6. A fresh fetch canonicalizes to that same hash and security is GREEN on origin/main 7e2e7d7.",
+      "Build A is shipped but INERT, unchanged this session. rulesets and rules/branches/main both still return [] - no ruleset, no branch protection, so the merge boundary remains fiction end-to-end.",
+      "origin/main's test job is RED: 20 failures (18 BOUNDARY PREFLIGHT, 2 guardrail cases). PROVEN pre-existing by re-running the suite in a pristine origin/main worktree - identical failing names. PR #9 inherits them, adds none. Owned by mitosis-preflight-hardening.",
+      "NEW: .claude/hooks/secret-scanner.sh has a python3 shebang but a .sh name, so semgrep parses it as bash and fails its ENTIRE body. None of the 243 Python rules apply to the repo's own blocking secret-scanner, and the scan still exits 0 so the gap is invisible.",
+      "PartialParsing is now 15 warnings across 9 files (was 9 across 8); the merged tree adds block-destructive-bash.sh. Regions stay UNSCANNED and CI shares the blind spot. They surface only under --verbose.",
+      "The suite is 1540 tests on the merged tree (1520 pass), NOT the 1217 previously recorded - that count predated the merge. Re-measure rather than trusting any recorded number.",
+      "The .githooks/pre-commit hook runs the full npm test, so while origin/main is red NO commit lands without --no-verify. Merge commit 45f988e used it, after the inherited red was proven. Any further commit hits the same wall.",
+      "Per 0071 the merge resolved two nosemgrep pragma lines toward the bare directive, OVERWRITING a human's same-line rewrite from PR #6 at live-inject.mjs:233 and live.mjs:216. A one-line revert if the user disagrees.",
+      "Pre-existing and still NOT fixed: flagHasReachableTruePath's env probe has no left boundary, so `myprocess.env.X_ENABLED` returns true and lintFlags SKIPS the flag. Fails in the suppressing direction.",
+      "0047 is UNENFORCED: delete_branch_on_merge is still false and squash/rebase still enabled. Disable both repo-side so the merge button can only produce merge commits.",
+      "The security review independently recommends vendoring the canonical p/default content, which this thread had scoped OUT. A hash-with-no-content pin cannot diff old rules against new, and drift recurred within 8 days. User call.",
+      "Engine gap nobody owns: if a child PR goes conflicted after retarget, GitHub cannot build the merge ref, no run executes, and the stale green survives. The ship stage treats conclusion=success as GREEN (mitosis.js:4596)."
     ],
     "key_decisions": [
-      "0045-runbook-section-6-is-agent-doable-and-this-repo-is-itself-exposed -- the unblock that seeds this thread's first step",
-      "0044-merged-main-proven-clean-full-repo-not-merely-diff-aware-green -- carries the standing no-baseline-scan caveat",
-      "0038-pragma-readjudication-two-refuted-reachable-redos -- source of the 3 NARROW pragmas this thread owes",
-      "0031-pushes-to-origin-main-are-policy-denied-and-must-be-human-run",
-      "0026-preflight-gate-moves-to-skill-md-engine-check-is-corroborating -- USER-LOCKED; its PreToolUse hook on the Workflow tool is still a pending human settings.json edit",
-      "0046-section-6-covers-both-pr-gating-workflows-unguarded",
-      "0047-train-integrates-via-merge-commit-with-head-branch-deletion",
-      "0048-self-merge-of-pr-7-does-not-refute-the-required-review-premise",
+      "0070-pin-drift-was-branch-staleness-not-an-owed-bump -- discharges 0052; no agent authored a pin value",
+      "0071-pragma-conflict-resolves-toward-the-bare-directive -- overwrites a human's same-line edit, deliberately",
+      "0052-p-default-pin-drifted-not-bumped-sast-is-red -- superseded in effect by 0070",
       "0049-full-repo-scan-clears-main-and-discharges-the-sast-residue-as-a-security-matter",
-      "0052-p-default-pin-drifted-not-bumped-sast-is-red",
-      "0053-const-propagation-high-refuted-against-the-real-pinned-ruleset",
-      "0070-pin-drift-was-branch-staleness-not-an-owed-bump",
-      "0071-pragma-conflict-resolves-toward-the-bare-directive"
+      "0045-runbook-section-6-is-agent-doable-and-this-repo-is-itself-exposed",
+      "0044-merged-main-proven-clean-full-repo-not-merely-diff-aware-green",
+      "0038-pragma-readjudication-two-refuted-reachable-redos",
+      "0031-pushes-to-origin-main-are-policy-denied-and-must-be-human-run",
+      "0026-preflight-gate-moves-to-skill-md-engine-check-is-corroborating -- USER-LOCKED; hook still a pending human settings.json edit",
+      "0047-train-integrates-via-merge-commit-with-head-branch-deletion",
+      "0048-self-merge-of-pr-7-does-not-refute-the-required-review-premise"
     ],
     "out_of_scope": [
       "Build B / the restack verb -- CUT by 0027 and deliberately NOT chartered here. It needs its OWN thread, carrying mergedSha at reconcileShippedSet:371, the git exec primitive in mitosis-git.mjs, and decisions 0010/0012/0017. Flagged so it is not silently lost.",
@@ -75,5 +74,5 @@
     ]
   },
   "created_at": "2026-07-27T22:24:20.192Z",
-  "updated_at": "2026-07-28T19:18:39.232Z"
+  "updated_at": "2026-07-28T19:30:01.218Z"
 }
