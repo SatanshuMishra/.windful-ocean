@@ -33,7 +33,7 @@
     },
     {
       "text": "GitHub MCP authenticated and the eight deny tool names pinned against the live tool list",
-      "done": false
+      "done": true
     },
     {
       "text": "Disposition decided for the temporary ask entries on .claude/lib/** and .claude/workflows/**",
@@ -47,15 +47,14 @@
   "closure_statement": null,
   "spine": {
     "status": "paused",
-    "active_goal": "Land centralized PR creation (one tool, one gate, one rule), prove the new path is live with every old implementation removed, and close the GitHub MCP leg by pinning its deny names against the live tool list.",
-    "next_step": "THREE ITEMS, in order. (1) `git status --short .zshrc` must be EMPTY; else `git checkout -- .zshrc` - tracked, pushed, may hold a burned PAT. (2) /mcp must show github CONNECTED; if not, confirm the launch was FROM A TERMINAL (Dock never sources .zshrc), then suspect ${VAR} expansion unsupported at user scope - fallback is a project .mcp.json, same placeholder. (3) Enumerate live github tools, reconcile vs the 8 denied in settings.json, hunting PR-writers NOT denied. Only then consider done.",
+    "active_goal": "Land centralized PR creation (one tool, one gate, one rule) and prove the new path is live with every old implementation removed. The GitHub MCP leg is now CLOSED and proven; the only outstanding work is the LIVE end-to-end proof of the new PR path.",
+    "next_step": "ONE item remains; it needs a human ruling FIRST. Criterion 5 demands the PR path be 'verified LIVE end to end', but out_of_scope forbids opening a PR - unsatisfiable without a forbidden action. DECIDE: (a) authorize one real PR via `mitosis-git.mjs pr-create`; (b) amend criterion 5 to accept the static verification recorded in the 2026-07-28 log; or (c) split the live proof into a successor. No push or PR without a go. Re-run `claude mcp list` after the next app restart.",
     "open_risks": [
-      "The 8 GitHub MCP deny names are still unverified guesses; that path stays probably-but-not-provably closed until the live tool list is read post-restart.",
-      "${VAR} expansion in MCP config is documented for .mcp.json but UNCONFIRMED for user-scope ~/.claude.json; if auth fails after restart this is the first suspect, and the fallback is a project .mcp.json.",
-      "~/.zshrc is a symlink to <repo>/.zshrc, which is TRACKED and pushed. If the checkout was not run it still carries a burned PAT. Never let a credential reach it or anything under ~/.claude.",
-      "The gate is a text matcher: it blocks benign commands that merely mention a blocked phrase (observed firsthand this session), and cannot close subprocess indirection. Accepted, documented, not to be re-litigated.",
-      "The harness emits a FALSE-POSITIVE self-modification warning on gate work that adds deny entries. Verify direction by direct read before reacting.",
-      "Branch is 7 commits unpushed, and the tree carries three unrelated items (.drift-state.json, no-self-merge-consent.test.mjs, untracked .claude/skills/context7-mcp/) that must NOT be swept into commits."
+      "~/.claude.json was edited while Claude Code was running. If the app rewrites it from memory on exit, the headersHelper change is lost and github reverts to failing. Re-verify with `claude mcp list` after a restart; backup at ~/.claude.json.bak-pr-thread.",
+      "The GitHub MCP deny list enumerates names against a server-side versioned toolset; a PR-writer the server adds is not denied until named. On any server change, diff the endpoint tools/list against the session toolset - the difference must equal the deny list (proven, 47 vs 43).",
+      "The Bash gate is a text matcher and cannot close subprocess indirection. Observed again this session: a curl inside a shell script ran despite Bash(curl:*) being denied. Accepted and documented; not to be re-litigated.",
+      "Criterion 5 demands a LIVE end-to-end PR while out_of_scope forbids opening one. The thread structurally cannot close until a human resolves that contradiction.",
+      "Branch feat/centralized-pr-creation has 8 unpushed commits and no upstream. Three unrelated tree items (.drift-state.json, no-self-merge-consent.test.mjs, untracked .claude/skills/context7-mcp/) must NOT be swept in - explicit pathspec, never `git add -A`."
     ],
     "key_decisions": [
       "0055-pr-creation-one-tool-one-gate-one-rule",
@@ -75,5 +74,5 @@
     ]
   },
   "created_at": "2026-07-28T03:17:35.121Z",
-  "updated_at": "2026-07-28T04:31:46.647Z"
+  "updated_at": "2026-07-28T04:33:22.379Z"
 }
