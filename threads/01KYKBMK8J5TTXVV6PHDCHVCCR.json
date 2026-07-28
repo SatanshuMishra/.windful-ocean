@@ -3,7 +3,7 @@
   "id": "01KYKBMK8J5TTXVV6PHDCHVCCR",
   "slug": "centralized-pr-creation",
   "title": "Centralized PR creation",
-  "status": "active",
+  "status": "paused",
   "parent_id": null,
   "predecessor_id": null,
   "completion_criteria": [
@@ -46,7 +46,7 @@
   "abandoned_reason": null,
   "closure_statement": null,
   "spine": {
-    "status": "active",
+    "status": "paused",
     "active_goal": "Land centralized PR creation (one tool, one gate, one rule) and prove the new path is live with every old PR-creation implementation removed.",
     "next_step": "FOUR ITEMS. (1) VERIFY LIVE + OLD REMOVED by READING THE DIFF - green suites prove consistency, not absence. Check --body-line gone from FLAG_SPEC, 'mitosis:' prefix gone, duplicate sanitizer at old prBodyLine gone, all 3 engine call sites on the new CLI, BODY_TRAILER origin-parameterized; then grep repo-wide. (2) Delete untracked mitosis.js.bak-49b8b89c. (3) Authenticate GitHub MCP, pin the 8 MCP deny names vs the live list. (4) Decide ask-vs-deny disposition per decision 0058.",
     "open_risks": [
@@ -70,5 +70,5 @@
     ]
   },
   "created_at": "2026-07-28T03:17:35.121Z",
-  "updated_at": "2026-07-28T03:19:40.546Z"
+  "updated_at": "2026-07-28T03:19:50.934Z"
 }
