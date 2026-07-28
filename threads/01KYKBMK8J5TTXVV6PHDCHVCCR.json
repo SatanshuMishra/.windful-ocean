@@ -47,17 +47,28 @@
   "closure_statement": null,
   "spine": {
     "status": "active",
-    "active_goal": "",
-    "next_step": "",
-    "open_risks": [],
+    "active_goal": "Land centralized PR creation (one tool, one gate, one rule) and prove the new path is live with every old PR-creation implementation removed.",
+    "next_step": "FOUR ITEMS. (1) VERIFY LIVE + OLD REMOVED by READING THE DIFF - green suites prove consistency, not absence. Check --body-line gone from FLAG_SPEC, 'mitosis:' prefix gone, duplicate sanitizer at old prBodyLine gone, all 3 engine call sites on the new CLI, BODY_TRAILER origin-parameterized; then grep repo-wide. (2) Delete untracked mitosis.js.bak-49b8b89c. (3) Authenticate GitHub MCP, pin the 8 MCP deny names vs the live list. (4) Decide ask-vs-deny disposition per decision 0058.",
+    "open_risks": [
+      "The 8 GitHub MCP deny tool names are unverified guesses; that path is probably but NOT provably closed until the server is authenticated.",
+      "The Edit guard on .claude/lib and .claude/workflows is currently 'ask', weaker than the prior 'deny'; disposition owed.",
+      "The gate is a text matcher: it blocks benign commands that merely mention a blocked phrase, and cannot close subprocess indirection. Accepted, documented, not to be re-litigated.",
+      "The harness emits a FALSE-POSITIVE self-modification warning on gate work that adds deny entries. Verify direction by direct read before reacting.",
+      "Branch is unpushed and the tree carries pre-existing unrelated modifications that must NOT be swept into commits."
+    ],
     "key_decisions": [
       "0055-pr-creation-one-tool-one-gate-one-rule",
       "0056-pr-title-cc-from-msp-declared-type",
       "0057-no-draft-by-default-for-machine-prs",
       "0058-lib-workflows-edit-guard-set-to-ask"
     ],
-    "out_of_scope": []
+    "out_of_scope": [
+      "Auto-assigning PR reviewers - reviewers are chosen manually.",
+      "Merging PRs - always human, never Claude, under any origin.",
+      "Editing vendored plugin code - the origin-agnostic gate covers it instead.",
+      "Pushing the branch or opening a PR for this work."
+    ]
   },
   "created_at": "2026-07-28T03:17:35.121Z",
-  "updated_at": "2026-07-28T03:18:42.480Z"
+  "updated_at": "2026-07-28T03:19:40.546Z"
 }
