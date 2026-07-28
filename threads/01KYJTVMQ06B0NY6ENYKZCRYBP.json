@@ -55,7 +55,8 @@
       "0094-the-config-guard-does-not-cover-git-worktrees-so-the-engine-bypasses-it-by-design -- successor thread",
       "0096-reconcile-schema-optionality-was-not-the-cause-of-the-silent-severance -- tested, refuted, reverted; do not re-attempt",
       "0083-merge-boundary-preflight-is-unwired-and-fails-open -- FIXED and merged via PR #10",
-      "0089-the-authoritative-skill-md-gate-survived -- INDEPENDENTLY CONFIRMED this session"
+      "0089-the-authoritative-skill-md-gate-survived -- INDEPENDENTLY CONFIRMED this session",
+      "0097-close-this-thread-as-abandoned-because-the-dod-gate-cannot-be-cleared-without-falsification"
     ],
     "out_of_scope": [
       "Runbook Sections 2-5 and Build A activation -- DESCOPED by user ruling 0095, not deferred.",
@@ -66,5 +67,5 @@
     ]
   },
   "created_at": "2026-07-27T22:24:20.192Z",
-  "updated_at": "2026-07-28T21:14:25.245Z"
+  "updated_at": "2026-07-28T21:17:04.903Z"
 }
