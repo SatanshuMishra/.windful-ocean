@@ -1,0 +1,13 @@
+Executed the 0063 closing instruction. Repo located: /Users/satanshumishra/Documents/DevLabs/continuity-ledger-plugin, branch fix/pre-tool-use-guard, HEAD d102fb8, clean tree. Brief's "30 ahead of origin" verified accurate (vs origin/fix/pre-tool-use-guard; 54 vs origin/main). 351a931 confirmed an ancestor of HEAD.
+
+RECEIPTS, fresh at d102fb8, run by the orchestrator:
+- npm test (node --test): tests 622, pass 622, fail 0, skipped 0, todo 0, duration 20.8s, exit 0.
+- node scripts/check-packaging.mjs: "check-packaging: ok", exit 0. Script is read-only (stat/readFile only), wrote no artifacts; tree still 0 changes at d102fb8 after both runs.
+
+DELTA REVIEW (the one round 0063 authorized), scope 351a931..d102fb8, both lenses given 0028/0029/0054/0015/0050/0036/0043 and the known-risk list as explicit non-findings:
+- code-reviewer: 0 CRITICAL, 1 HIGH. HIGH = hooks/lib/installer.mjs config-scope asymmetry. Also 4 MEDIUM (six drifted README line citations, an unfalsifiable hostScope hook assertion, two non-hermetic installer tests, two recovery-repair gaps) and 4 LOW. Explicitly cleared 024d102: the fixture consolidation weakened no assertion (TRAP_HOOKS 4 -> 8).
+- security-reviewer: 0 CRITICAL, 0 HIGH. Same installer defect at MEDIUM, reached independently. Two further MEDIUMs verified by experiment: isolatedScope still loads repo-local .git/config + info/attributes, so a filter/merge driver executes during the ledger's own `git add -A`/`merge`; and merge.verifySignatures is not neutralized, so a repo-local value runs gpg.program and makes sync() silently stop converging. Cleared the recovery repo and restore read paths, and confirmed no network->local scope leak.
+
+ORCHESTRATOR VERIFICATION of the HIGH (not taken on trust): installer.mjs:51 uses ['config','--get',key] with no --local; :8 applies only clearedGitLocationEnv(); local-driver.mjs:23 and git-scope.mjs:52,76,85 apply the config-isolating env. This machine: `git config --global --get core.hooksPath` unset, zero GIT_CONFIG* vars - which is why the local suite is green while the reviewer's hostile-config run fails 4 installer tests. The suite is non-hermetic, not exonerating.
+
+DISPOSITION per 0068: bar (no new CRITICAL/HIGH) NOT met, so the if-clean branch did not fire; but `done` was unreachable regardless, so the terminal state is unchanged and the finding is inherited rather than dropped. No code was changed, nothing pushed, no PR opened.
