@@ -3,7 +3,7 @@
   "id": "01KYKS3C7VP16PXMP7D9G0TMHW",
   "slug": "guard-hardening-residuals-installer-config-scope-hermetic-tests-readme-pins-branch-disposition",
   "title": "Guard hardening residuals: installer config scope, hermetic tests, README pins, branch disposition",
-  "status": "paused",
+  "status": "done",
   "parent_id": null,
   "predecessor_id": "01KYG4AEKA6NM746BXVRAZ9DWE",
   "completion_criteria": [
@@ -36,9 +36,9 @@
   "external_refs": [],
   "blocked_by": null,
   "abandoned_reason": null,
-  "closure_statement": null,
+  "closure_statement": "All six criteria are met and the work shipped: nine commits landed on fix/pre-tool-use-guard and merged as PR #21 (squash commit ff5800b, 2026-07-28T20:01:31Z), verified 632/632 across clean, hostile-global-config and GIT_CONFIG_*-injection environments with check-packaging ok; the separately-authorized Stop hook fix is open as PR #22 and four deferred findings are recorded in Open Risks for a successor.",
   "spine": {
-    "status": "paused",
+    "status": "done",
     "active_goal": "All six residual criteria are met. Eight commits landed on fix/pre-tool-use-guard in DevLabs/continuity-ledger-plugin (e8739a8 through e8c4f34), the branch is pushed, and PR #21 is open per decision 0073.",
     "next_step": "THREAD IS CLOSABLE - all six criteria are done and the DoD gate would pass; the user's call whether to close now or hold until PR #21 merges. Merge stays human-gated and was never part of the criteria. If more work is wanted here, the honest next items are the three deferred findings in Open Risks, each of which needs its own atomic change: the install-time repair of poisoned legacy state, the merged reads in hooks/dispatcher and hooks/commit-msg, and the RECOVERY_HEAD_REF coupling.",
     "open_risks": [
@@ -72,5 +72,5 @@
     ]
   },
   "created_at": "2026-07-28T07:12:50.939Z",
-  "updated_at": "2026-07-28T20:16:48.284Z"
+  "updated_at": "2026-07-28T20:18:03.380Z"
 }
