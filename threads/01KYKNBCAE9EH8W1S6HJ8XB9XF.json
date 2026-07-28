@@ -39,17 +39,19 @@
   "closure_statement": null,
   "spine": {
     "status": "paused",
-    "active_goal": "Implement the APPROVED quiescent-advance architecture. The spec is done and is the authority: docs/superpowers/specs/2026-07-28-mitosis-quiescent-advance.md. A run must never stop dead at a human review boundary, must drive a shipped MSP's red CI back to green within a bounded path, and must resume from ANY clone via one idempotent command.",
-    "next_step": "IN A FRESH SESSION: dispatch a targeted dynamic workflow implementing the spec's landing plan in order M1 -> M2 -> M6 -> M3 -> M5 -> M7, one MSP per PR, each green. M4/M8 blocked on spec asks (b)/(c); M0 on ask (a). TWO CHORES needing a user ruling: decisions/0074 is a COMMITTED duplicate of 0075 (HEAD-lock race), orphaned and unlinked - delete or leave; and all six criteria are now DONE, so this thread is closable and implementation likely belongs in a successor.",
+    "active_goal": "Implement the APPROVED quiescent-advance architecture (docs/superpowers/specs/2026-07-28-mitosis-quiescent-advance.md, the authority). A run must never stop dead at a human review boundary, must drive a shipped MSP's red CI back to green within a bounded path, and must resume from ANY clone via one idempotent command. Preflight on 2026-07-28 found four blockers that must clear before dispatch.",
+    "next_step": "Order is HERMETICITY -> GUARD -> RE-GROUND -> DISPATCH, not guard-first. (1) Fix the non-hermetic suite: main is 1520/1540, and a worktree fails 2 more at the SAME commit; mitosis verifies IN worktrees, so no MSP can claim green until this clears. (2) Guard fix on fix/guard-any-claude-root (cut at beca874, no commits). (3) Re-run the cite mapping (the first analyst returned nothing), correct §11's stale baseline, COMMIT the still-untracked spec. (4) Then dispatch M1->M2->M6->M3->M5->M7.",
     "open_risks": [
-      "mitosis.js INLINES lib copies (window :2141-2158 = window.mjs; planReconcile :2710 = reconcile.mjs). Every M3/M4/M7 deletion must land TWICE in one commit. Guard is tests/mirror-guard.test.mjs, NOT .drift-state.json (a SessionStart cache that never runs in CI).",
-      "Section 8's count is now -8, not -9, deliberately: the prior -9 undercounted additions by one because the deleted watcher triad never got a table row. Do not 'correct' it back; the reconciliation note in section 8 explains it and must survive edits.",
-      "M6 publishes a NEW durable forge artifact (refs/mitosis/RUNID/manifest). Its identity-only, write-once rule is the invariant behind 3.1's single authority. Smuggling status into that ref regresses the design to the four-disagreeing-reconstructions problem.",
-      "Live bug, unfixed and UNAUTHORIZED (M0): applyBuiltTransition (:473-479) never clears resumePoint; a plan-parked unit later rebuilt keeps stage:'plan', an ancestor park preserves it (:2234-2236), and the :3706 guard then blocks the git-ref rescue. One line, red test first.",
-      "Fixed cap K=8 replaces AIMD because the tuner's SIGNAL was incoherent (re-counts a persistent APPROVED every poll cycle, no dedup, :4789-4794), not because a constant is right. Divergence frequency was never instrumented; M4 owes it. The VALUE is open ask (b).",
-      "Spec section 4 class 6 is FILE-level, not 0067's line-level. Stricter, never weaker, but it is a deviation and it is open ask (c), gating M8.",
-      "Section 12 risk 1 is the honest weak point: a quiescent run advances only when a human next acts. M5 owes the instrumentation (wall-clock from quiescent exit to next advance) so it is measured, not assumed. Do not answer it with more engine mechanism.",
-      "Fact derivation puts the forge on the hot path. An outage must degrade to 'cannot advance, exit quiescent, say why', never to a wrong 'failed'. The manifest ref shares this exposure and must degrade to identity: local-only."
+      "NEW/BLOCKING: the suite is not hermetic - it resolves against the ambient ~/.claude install and its own checkout path. Proven: protect-claude-config.test.mjs passes 9/9 canonical, fails 2/9 in a worktree at the SAME commit. Mitosis verifies in worktrees, so green is unverifiable.",
+      "Spec §11's baseline is wrong. Measured origin/main @ beca874 = 1540 tests / 1520 pass / 20 fail, not '1415 pass / 0 fail'. Correct it during re-grounding; do not carry the old figure forward.",
+      "EVERY :line cite is stale: grounded at 450804e (4847 lines), origin/main is 4920. Mapping NOT produced this session. M3/M5 are deletion MSPs under the mirror-guard byte-identity rule, so a wrong cite deletes the wrong block twice.",
+      "mitosis.js INLINES lib copies (window.mjs, reconcile.mjs). Every M3/M4/M7 deletion must land TWICE in one commit. Guard is tests/mirror-guard.test.mjs, NOT .drift-state.json (a SessionStart cache that never runs in CI).",
+      "Section 8's count is -8, not -9, deliberately; the reconciliation note in §8 explains why and must survive edits. Do not 'correct' it back.",
+      "M6 publishes refs/mitosis/RUNID/manifest. Its identity-only, write-once rule is the invariant behind 3.1's single authority. Smuggling status into that ref regresses to the four-disagreeing-reconstructions problem.",
+      "Live bug, unfixed and UNAUTHORIZED (M0, ask a): applyBuiltTransition never clears resumePoint; a rebuilt plan-parked unit keeps stage:'plan', an ancestor park preserves it, and the guard blocks the git-ref rescue. One line, red test first.",
+      "Fixed cap K=8 replaces AIMD because the tuner's SIGNAL was incoherent, not because a constant is right. Divergence frequency was never instrumented; M4 owes it. The VALUE is open ask (b).",
+      "Fact derivation puts the forge on the hot path. An outage must degrade to 'cannot advance, exit quiescent, say why', never to a wrong 'failed'. The manifest ref shares this exposure and degrades to identity: local-only.",
+      "Section 12 risk 1 is the honest weak point: a quiescent run advances only when a human next acts. M5 owes the wall-clock instrumentation so it is measured, not assumed."
     ],
     "key_decisions": [
       "0065-mitosis-redesign-via-fable-fanout",
@@ -64,14 +66,16 @@
       "0082-leave-duplicate-decision-0074-in-place"
     ],
     "out_of_scope": [
-      "Any out-of-process or forge-side invoker. Ruled CLOSED by 0076 at user instruction - not deferred, not future work. The spec mentions it in no section, including the pre-mortem. Do not reintroduce it.",
+      "Any out-of-process or forge-side invoker. Ruled CLOSED by 0076 at user instruction - not deferred, not future work. Do not reintroduce it.",
       "Agent-performed merges. Every merge to any shared branch stays human-gated. The three callers may open PRs and push; they never merge.",
       "Reopening PR-open deferral (0066). Settled: squash-merge lands parent content under a new sha, so a published child branch would need a force-push on a published ref.",
-      "Unattended relaunch with no human in the session - rejected in 0069 as a trust-model change. The 60-day auto-disable that argument leaned on applies only to scheduled triggers; the rejection stands on the trust model.",
-      "Writing analysis to .claude/reports/ - it is git-TRACKED and carries an unresolved leak caveat on the resilience thread. Keep findings in the ledger, which is not tracked.",
-      "The other mitosis threads (frontier-default, preflight-hardening, resilience-implementation) and the blocked merge-boundary/SAST thread - do not fold their work in here."
+      "Unattended relaunch with no human in the session - rejected in 0069 as a trust-model change.",
+      "Writing analysis to .claude/reports/ - it is git-TRACKED and carries an unresolved leak caveat. Keep findings in the ledger, which is not tracked.",
+      "The other mitosis threads (frontier-default, preflight-hardening, resilience-implementation) - do not fold their work in here.",
+      "CAVEAT: the hermeticity blocker OVERLAPS guard-hardening-residuals' open 'hermetic tests' item. The user has NOT ruled whether it is taken on here or routed there - get that ruling first.",
+      "decisions/0074 - ruling given, closed by 0082. Leave the file alone."
     ]
   },
   "created_at": "2026-07-28T06:07:18.861Z",
-  "updated_at": "2026-07-28T19:54:20.866Z"
+  "updated_at": "2026-07-28T19:56:00.047Z"
 }
