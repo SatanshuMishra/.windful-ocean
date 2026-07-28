@@ -3,7 +3,7 @@
   "id": "01KYN9FH92YP5BPNG7ECCV9PJS",
   "slug": "mitosis-boundary-layer-residuals-0092-0093-and-0094",
   "title": "Mitosis boundary-layer residuals 0092, 0093 and 0094",
-  "status": "active",
+  "status": "paused",
   "parent_id": null,
   "predecessor_id": "01KYJTVMQ06B0NY6ENYKZCRYBP",
   "completion_criteria": [
@@ -38,7 +38,7 @@
   "abandoned_reason": null,
   "closure_statement": null,
   "spine": {
-    "status": "active",
+    "status": "paused",
     "active_goal": "Fix the three boundary-layer defects inherited from the predecessor, which shipped a green main (origin/main a229c9c, 1544/1544) but left these unfixed. 0092 is urgent: the engine is UNUSABLE - step 7 execs the merge-boundary preflight with no MITOSIS_BOUNDARY_* env, it exits 31 with no stdout, and every run halts. Under 0095 that is the permanent steady state, so this thread must settle the posture deliberately rather than await an activation that will never come.",
     "next_step": "START WITH 0092, and start by REPRODUCING: exec the preflight CLI directly with no MITOSIS_BOUNDARY_* env and confirm exit 31 with empty stdout before changing anything. Then decide the posture (halt vs degrade-with-warning) and record it as a decision BEFORE implementing - that choice trades availability against fail-closed security and must not be made implicitly inside a patch.",
     "open_risks": [
@@ -63,5 +63,5 @@
     ]
   },
   "created_at": "2026-07-28T21:18:20.962Z",
-  "updated_at": "2026-07-28T21:19:12.975Z"
+  "updated_at": "2026-07-28T21:19:20.783Z"
 }
