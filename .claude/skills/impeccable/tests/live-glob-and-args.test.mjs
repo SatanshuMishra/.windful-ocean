@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
 import { resolveFiles } from '../scripts/live-inject.mjs';
-import { parseVariantNum } from '../scripts/live-accept.mjs';
+import { parseVariantNum, findMarkerBlock, extractVariant } from '../scripts/live-accept.mjs';
 
 test('resolveFiles rejects an exclude glob longer than the length cap', () => {
   const config = {
@@ -71,4 +71,65 @@ test('parseVariantNum rejects non-string input', () => {
   for (const raw of [null, undefined, 3, {}, []]) {
     assert.equal(parseVariantNum(raw), null, `expected rejection for: ${String(raw)}`);
   }
+});
+
+const VARIANT_FIXTURE_LINES = [
+  '<!-- impeccable-variants-start SESSION1 -->',
+  '<div data-impeccable-variant="1">',
+  '  <p>variant one</p>',
+  '</div>',
+  '<div data-impeccable-variant="2">',
+  '  <p>variant two</p>',
+  '</div>',
+  '<!-- impeccable-variants-end SESSION1 -->',
+];
+
+function variantFixture() {
+  const lines = [...VARIANT_FIXTURE_LINES];
+  return { lines, block: findMarkerBlock('SESSION1', lines) };
+}
+
+test('extractVariant extracts the requested variant for a positive integer', () => {
+  const { lines, block } = variantFixture();
+  assert.deepEqual(extractVariant(lines, block, 1), ['  <p>variant one</p>']);
+  assert.deepEqual(extractVariant(lines, block, 2), ['  <p>variant two</p>']);
+});
+
+test('extractVariant accepts the decimal string form every caller above the CLI passes', () => {
+  const { lines, block } = variantFixture();
+  assert.deepEqual(extractVariant(lines, block, '1'), ['  <p>variant one</p>']);
+  assert.deepEqual(extractVariant(lines, block, ' 2 '), ['  <p>variant two</p>']);
+});
+
+test('extractVariant returns null for regex metacharacters, valid pattern or not', () => {
+  const { lines, block } = variantFixture();
+  assert.equal(extractVariant(lines, block, '('), null);
+  assert.equal(extractVariant(lines, block, '['), null);
+});
+
+test('extractVariant returns null for a variantNum crafted to match a different variant', () => {
+  const { lines, block } = variantFixture();
+  assert.equal(extractVariant(lines, block, '1"[^>]*>[\\s\\S]*?data-impeccable-variant="2'), null);
+  assert.equal(extractVariant(lines, block, '\\d'), null);
+});
+
+test('extractVariant returns null for variantNum outside the positive-integer contract', () => {
+  const { lines, block } = variantFixture();
+  for (const raw of [0, -1, 1.5, NaN, Infinity, null, undefined, {}, []]) {
+    assert.equal(extractVariant(lines, block, raw), null, `expected rejection for: ${String(raw)}`);
+  }
+});
+
+test('extractVariant returns null above the three-digit bound the server already enforces', () => {
+  const lines = [
+    '<!-- impeccable-variants-start SESSION2 -->',
+    '<div data-impeccable-variant="1ee21">',
+    '  <p>quantifier bait</p>',
+    '</div>',
+    '<!-- impeccable-variants-end SESSION2 -->',
+  ];
+  const block = findMarkerBlock('SESSION2', lines);
+  assert.equal(extractVariant(lines, block, 1e21), null);
+  assert.equal(extractVariant(lines, block, 1000), null);
+  assert.equal(extractVariant(lines, block, '1000'), null);
 });

@@ -19,6 +19,8 @@ import { isGeneratedFile } from './is-generated.mjs';
 
 const EXTENSIONS = ['.html', '.jsx', '.tsx', '.vue', '.svelte', '.astro'];
 
+const VARIANT_NUM_MAX = 999;
+
 // ---------------------------------------------------------------------------
 // CLI
 // ---------------------------------------------------------------------------
@@ -354,7 +356,7 @@ function stripStyleAndJoin(lines, block) {
  * Returns the inner string (may be empty), or null if not found.
  */
 function extractInnerByAttr(text, attrMatch) {
-  const openerRe = new RegExp('<([A-Za-z][A-Za-z0-9]*)\\b[^>]*' + attrMatch + '[^>]*>'); // nosemgrep: javascript.lang.security.audit.detect-non-literal-regexp.detect-non-literal-regexp -- attrMatch is a literal or a literal plus variantNum validated by parseVariantNum
+  const openerRe = new RegExp('<([A-Za-z][A-Za-z0-9]*)\\b[^>]*' + attrMatch + '[^>]*>'); // nosemgrep: javascript.lang.security.audit.detect-non-literal-regexp.detect-non-literal-regexp
   const openMatch = text.match(openerRe);
   if (!openMatch) return null;
 
@@ -392,13 +394,11 @@ function extractOriginal(lines, block) {
   return inner.split('\n');
 }
 
-/**
- * Extract a specific variant's inner content (stripping the wrapper div).
- * Returns an array of lines, or null if not found.
- */
 function extractVariant(lines, block, variantNum) {
+  const num = typeof variantNum === 'string' ? parseVariantNum(variantNum) : variantNum;
+  if (!Number.isInteger(num) || num < 1 || num > VARIANT_NUM_MAX) return null;
   const text = stripStyleAndJoin(lines, block);
-  const inner = extractInnerByAttr(text, 'data-impeccable-variant="' + variantNum + '"');
+  const inner = extractInnerByAttr(text, 'data-impeccable-variant="' + num + '"');
   if (inner === null) return null;
   const result = inner.split('\n');
   // Collapse a lone empty leading/trailing line (common after string splice).

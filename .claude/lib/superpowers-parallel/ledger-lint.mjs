@@ -8,9 +8,10 @@ const DAY_MS = 86400000;
 const SOURCE_EXTENSIONS = new Set(['.mjs', '.js', '.cjs', '.ts', '.tsx', '.jsx']);
 const COMMIT_HASH = '[0-9a-f]{7,40}';
 const IDENTIFIER = '[A-Za-z_$][A-Za-z0-9_$]*';
+const IDENTIFIER_RE = /^[A-Za-z_$][A-Za-z0-9_$]*$/;
 
 function escapeIdentifier(name) {
-  return String(name).replace(/[$]/g, '\\$');
+  return String(name).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
 function ageInDays(from, now) {
@@ -73,10 +74,11 @@ export function scanFlagDeclarations(text) {
 
 export function flagHasReachableTruePath(name, corpus) {
   if (typeof name !== 'string' || typeof corpus !== 'string') return false;
+  if (!IDENTIFIER_RE.test(name)) return false;
   const ident = escapeIdentifier(name);
-  const env = new RegExp(`process\\.env(?:\\.${ident}\\b|\\[['"\`]${ident}['"\`]\\])`); // nosemgrep: javascript.lang.security.audit.detect-non-literal-regexp.detect-non-literal-regexp -- ident is [A-Za-z_$][A-Za-z0-9_$]* with $ escaped by escapeIdentifier
+  const env = new RegExp(`process\\.env(?:\\.${ident}\\b|\\[['"\`]${ident}['"\`]\\])`); // nosemgrep: javascript.lang.security.audit.detect-non-literal-regexp.detect-non-literal-regexp
   if (env.test(corpus)) return true;
-  const assign = new RegExp(`(?:^|[^.\\w$])${ident}\\s*=\\s*([^=].*)`, 'gm'); // nosemgrep: javascript.lang.security.audit.detect-non-literal-regexp.detect-non-literal-regexp -- ident is [A-Za-z_$][A-Za-z0-9_$]* with $ escaped by escapeIdentifier
+  const assign = new RegExp(`(?:^|[^.\\w$])${ident}\\s*=\\s*([^=].*)`, 'gm'); // nosemgrep: javascript.lang.security.audit.detect-non-literal-regexp.detect-non-literal-regexp
   let match;
   while ((match = assign.exec(corpus)) !== null) {
     const rhs = match[1].replace(/;.*$/, '').trim();

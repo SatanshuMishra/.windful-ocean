@@ -230,7 +230,7 @@ function globToRegex(pattern) {
       i += 1;
     }
   }
-  return new RegExp('^' + re + '$'); // nosemgrep: javascript.lang.security.audit.detect-non-literal-regexp.detect-non-literal-regexp -- pattern comes from the local .impeccable/live/config.json, not remote input
+  return new RegExp('^' + re + '$'); // nosemgrep: javascript.lang.security.audit.detect-non-literal-regexp.detect-non-literal-regexp
 }
 
 // ---------------------------------------------------------------------------
