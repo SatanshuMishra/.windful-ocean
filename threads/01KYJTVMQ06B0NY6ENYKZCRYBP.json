@@ -21,7 +21,7 @@
     },
     {
       "text": "The 3 NARROW pragmas from 0038 carry one-line boundary guards: ledger-lint.mjs:77, ledger-lint.mjs:79 (escapeIdentifier at :13 escapes only $), and live-accept.mjs:357 (extractVariant exported at :613)",
-      "done": false
+      "done": true
     },
     {
       "text": "main is re-proven sast-clean by a no-baseline full-repo scan with the pinned ruleset after this thread's changes land, per 0044's standing caveat that a green diff-aware check is not proof",
@@ -74,5 +74,5 @@
     ]
   },
   "created_at": "2026-07-27T22:24:20.192Z",
-  "updated_at": "2026-07-28T19:30:01.218Z"
+  "updated_at": "2026-07-28T19:30:19.222Z"
 }
