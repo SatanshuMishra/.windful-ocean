@@ -40,7 +40,7 @@
   "spine": {
     "status": "paused",
     "active_goal": "Replace the mitosis shipping architecture so a run never stops at a human review boundary: drive a shipped MSP's CI/CD to green automatically, then continue into blocked MSPs. Simpler and more robust, not merely more capable.",
-    "next_step": "Write the architecture spec from the three Fable reports under decisions 0066 (PR-open deferral UNCHANGED) and 0067 (bounded CI fix loop + assertion-line escalation). Spec carries the design's mechanism ledger 18 -> 11: delete AIMD -> fixed cap K, delete divergence probes, derive state from forge+git not the journal fold, honest terminal states. Land the stale-resumePoint fix as a SEPARATE atomic commit first. USER APPROVAL of the spec before any implementation.",
+    "next_step": "Write the architecture spec from the three Fable reports under decisions 0066 (PR-open deferral UNCHANGED) and 0067 (bounded CI fix loop + assertion-line escalation). Spec carries the design's mechanism ledger 18 -> 11: delete AIMD -> fixed cap K, delete divergence probes, derive state from forge+git not the journal fold, honest terminal states. It must also answer watcher liveness. Land the stale-resumePoint fix as a SEPARATE atomic commit. USER APPROVAL of the spec before any implementation.",
     "open_risks": [
       "Finding 5 as stated is REFUTED - the git-ref rescue at mitosis.js:3702-3714 fires on its alleged trigger. But a narrower vector IS verified: applyBuiltTransition (:473-479) never clears resumePoint, so a unit parked-at-plan then rebuilt retains a stale stage:'plan'.",
       "Stale-resumePoint cont'd: a later ancestor park cascades status to 'parked' while PRESERVING resumePoint (:2230-2237), so the :3706 guard blocks git-ref rescue and the unit re-plans despite a live checkpoint. One-line root cause. Frequency (:3757/:3773) NOT verified.",
@@ -56,12 +56,13 @@
       "0067-ci-to-green-loop-bounded-plus-assertion-guard"
     ],
     "out_of_scope": [
-      "Any code change, commit, push, or PR this session - nothing was modified.",
+      "No code change, commit, push, or PR has occurred on this thread in EITHER session - the engine is untouched. Verify with git before assuming any of this landed.",
       "Merge policy itself: merges to any shared branch stay human-gated. The goal is non-stop AGENT progress, never agent-performed merges.",
       "The other paused mitosis threads (frontier-default, preflight-hardening, resilience-implementation) and the blocked merge-boundary/SAST thread - do not fold their work in here.",
-      "Implementation of any fix, including the finding-5 data-loss bug, until the user approves an architecture spec."
+      "Implementation of the redesign until the user approves an architecture spec (criterion 6). The stale-resumePoint fix is SEPARABLE and may be authorized on its own, but needs an explicit user go - do not land it silently under the spec gate.",
+      "Writing analysis to .claude/reports/ - it is git-TRACKED and carries an unresolved leak caveat on the resilience thread. Keep findings in the ledger, which is not tracked."
     ]
   },
   "created_at": "2026-07-28T06:07:18.861Z",
-  "updated_at": "2026-07-28T06:46:51.163Z"
+  "updated_at": "2026-07-28T06:49:38.909Z"
 }
