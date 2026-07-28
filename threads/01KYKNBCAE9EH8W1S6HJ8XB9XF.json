@@ -42,9 +42,11 @@
     "active_goal": "",
     "next_step": "",
     "open_risks": [],
-    "key_decisions": [],
+    "key_decisions": [
+      "0065-mitosis-redesign-via-fable-fanout"
+    ],
     "out_of_scope": []
   },
   "created_at": "2026-07-28T06:07:18.861Z",
-  "updated_at": "2026-07-28T06:07:18.861Z"
+  "updated_at": "2026-07-28T06:08:07.571Z"
 }
