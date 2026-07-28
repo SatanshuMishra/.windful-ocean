@@ -3,7 +3,7 @@
   "id": "01KYJTVMQ06B0NY6ENYKZCRYBP",
   "slug": "mitosis-merge-boundary-activation-and-sast-residue",
   "title": "Mitosis merge-boundary activation and SAST residue",
-  "status": "blocked",
+  "status": "paused",
   "parent_id": null,
   "predecessor_id": "01KYERCMSSYD9ZBF28B51HMRWW",
   "completion_criteria": [
@@ -30,11 +30,11 @@
   ],
   "vcs_ref": null,
   "external_refs": [],
-  "blocked_by": "Two human-only gates. (1) Runbook Sections 2-5 are GitHub account actions no agent can perform -- machine user, PAT scoped to Actions:Read, branch ruleset, merge-strategy -- so criteria 2 and 3 cannot advance. (2) The p/default pin decision per 0052: the pin has drifted, so security.yml exits 1 at hash-verify and the sast job is red on every push and PR, which is why fix/ledger-lint-boundary-guards is committed but deliberately unpushed. Criterion 4's last leg (the live-accept.mjs:357 guard via exported extractVariant:613) and criterion 5's post-landing full-repo scan are both agent-doable once (2) is resolved.",
+  "blocked_by": null,
   "abandoned_reason": null,
   "closure_statement": null,
   "spine": {
-    "status": "blocked",
+    "status": "paused",
     "active_goal": "PR #9 is MERGED as main beca874, closing criterion 4 in full. One agent-doable criterion remains (5: re-scan merged main). Criteria 2 and 3 are human-only - Build A stays INERT until the runbook's Sections 2-5 are applied by hand on GitHub.",
     "next_step": "USER INSTRUCTION for the fresh session: proceed with the agent-doable work AND in parallel clearly explain each human-only task plus the end goal, written for a reader with minimal domain knowledge. Agent-doable: (1) re-run the no-baseline full-repo scan against merged main beca874 to close criterion 5; (2) diagnose main's 20 red tests - is the hardcoded macOS path only a test artifact, or a real portability bug that silently drops the preflight on Linux? Human-only: runbook Sections 2-5.",
     "open_risks": [
@@ -78,5 +78,5 @@
     ]
   },
   "created_at": "2026-07-27T22:24:20.192Z",
-  "updated_at": "2026-07-28T19:44:49.032Z"
+  "updated_at": "2026-07-28T19:45:00.822Z"
 }
