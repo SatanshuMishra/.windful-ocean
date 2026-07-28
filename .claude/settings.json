@@ -51,6 +51,15 @@
       "Bash(git push -f:*)",
       "Bash(git reset --hard:*)",
       "Bash(gh pr merge:*)",
+      "Bash(gh pr create:*)",
+      "mcp__github__create_pull_request",
+      "mcp__plugin_github_github__create_pull_request",
+      "mcp__github__create_pull_request_with_copilot",
+      "mcp__plugin_github_github__create_pull_request_with_copilot",
+      "mcp__github__update_pull_request",
+      "mcp__plugin_github_github__update_pull_request",
+      "mcp__github__merge_pull_request",
+      "mcp__plugin_github_github__merge_pull_request",
       "Read(./**/*.pem)",
       "Read(./**/*.key)",
       "Bash(curl:*)",
@@ -70,7 +79,9 @@
       "Read(~/.npmrc)",
       "Read(~/.cargo/credentials*)",
       "Read(~/.pypirc)",
-      "Read(~/Library/Keychains/**)",
+      "Read(~/Library/Keychains/**)"
+    ],
+    "ask": [
       "Edit(~/Documents/DevLabs/.windful-ocean/.claude/lib/**)",
       "Edit(~/Documents/DevLabs/.windful-ocean/.claude/workflows/**)"
     ]
