@@ -3,7 +3,7 @@
   "id": "01KYG4AEKA6NM746BXVRAZ9DWE",
   "slug": "pre-tool-use-guard-deny-by-default-inversion",
   "title": "Pre-tool-use guard deny-by-default inversion",
-  "status": "paused",
+  "status": "abandoned",
   "parent_id": null,
   "predecessor_id": "01KYERGSD9QA9XC6QD4XPM8R37",
   "completion_criteria": [
@@ -31,10 +31,10 @@
   "vcs_ref": null,
   "external_refs": [],
   "blocked_by": null,
-  "abandoned_reason": null,
+  "abandoned_reason": "The WORK shipped and is verified at d102fb8 (622/622, check-packaging ok, clean tree); only the SPECIFICATION died. The completion criteria were fixed at creation and describe the shell parser decision 0029 deleted (criteria 1-2), a symbol that no longer exists (criterion 3), and a DENY the tripwire deliberately answers with ASK (criterion 5), so `done` is structurally unreachable per 0063 and the DoD gate forbids a retroactive rewrite. Terminating via abandoned + successor; the confirmed residual findings from the 0068 delta review are carried into the successor, not dropped.",
   "closure_statement": null,
   "spine": {
-    "status": "paused",
+    "status": "abandoned",
     "active_goal": "Items 3 and 4 SHIPPED plus five review-driven fix rounds. HEAD d102fb8, 30 commits ahead of origin, NOTHING PUSHED, no PR. Orchestrator-verified: 622 tests, 622 pass, 0 fail, check-packaging ok, clean tree. Item 3 gave LocalDriver a private recovery repo gated on !isGit(); Item 4 (d0454ab) documented what is and is not protected. Reviews found the env pinning closed repo LOCATION but left CONFIG LOADING open, a code-execution surface, now closed across both drivers and the guard.",
     "next_step": "USER RULING (0063): do any CRITICAL task, else close. There are NONE - both confirming reviews returned no CRITICAL/HIGH, suite 622/622 verified. So: (1) ONE delta-only review over 351a931..d102fb8 (unreviewed), bar = no new CRITICAL/HIGH; that ends the review recursion. (2) If clean, dispose NOW: paused -> abandoned, reason = the WORK shipped, only the SPECIFICATION died when 0029 deleted the parser; then create_successor. done is UNREACHABLE per 0063. No push or PR without a go.",
     "open_risks": [
@@ -73,5 +73,5 @@
     ]
   },
   "created_at": "2026-07-26T21:11:59.338Z",
-  "updated_at": "2026-07-28T07:12:01.653Z"
+  "updated_at": "2026-07-28T07:12:30.278Z"
 }
