@@ -1,0 +1,13 @@
+DRIVE-BY ENTRY. This thread was NOT worked this session. The session worked mitosis-nonstop-shipping-architecture (01KYKNBCAE9EH8W1S6HJ8XB9XF). This thread was found holding a STALE ACTIVE POINTER from a crashed session, which a Stop hook surfaced. Pausing it clears the pointer. Nothing was implemented, no criteria were toggled, and the spine was deliberately NOT rewritten - it is already more current than anything this session could have written.
+
+INDEPENDENT CORROBORATION of this thread's open risk 2, arrived at from the other direction while preflighting the quiescent-advance run:
+
+Measured origin/main @ beca874 in a pristine detached worktree: 1540 tests, 1520 pass, 20 FAIL. This matches this thread's recorded 18 BOUNDARY PREFLIGHT + 2 guardrail split and its ~1540 suite size exactly.
+
+NEW EVIDENCE that the 20 reds are NOT merely a test artifact, which is the open question in this thread's next_step: .claude/hooks/tests/protect-claude-config.test.mjs passes 9/9 in the canonical working tree and fails 2/9 in a worktree at the SAME commit. The mechanism is proven, not inferred: the test derives REPO_CLAUDE from its own file location, while protect-claude-config.sh matches guarded prefixes against exactly two hardcoded bases (~/.claude and the symlink-resolved repo .claude). Any checkout at a third path - a worktree, a fresh clone, or CI - is therefore UNGUARDED and the test correctly reports it. So at least 2 of the 20 are a REAL portability bug, not a test artifact: the guard genuinely does not protect any checkout but the author's canonical one.
+
+By extension this raises, but does not settle, the same question for the 18 preflight failures. The first of them shows the engine emitting the INSTALLED /Users/satanshumishra/.claude/lib/superpowers-parallel/fold-run-log.mjs path rather than the tree under test, which is the same hardcoded-path shape this thread already flagged as possibly dropping the preflight on Linux. Recommend the diagnosis chartered in this thread's next_step treat the guardrail pair as a SOLVED instance of the class and reason outward from it.
+
+CROSS-THREAD CONSEQUENCE: the shipping-architecture thread cannot dispatch its mitosis run until this is resolved, because mitosis verifies MSPs inside worktrees and would inherit a red, location-dependent signal. That thread has recorded the dependency and is paused behind it. Ownership of the 20-red diagnosis stays HERE per this thread's existing next_step; it was explicitly NOT taken on by the shipping thread.
+
+ALSO NOTED, no action taken: this thread's out_of_scope already assigns the uncommitted no-self-merge-consent.test.mjs change to mitosis-preflight-hardening. It was left untouched this session by user instruction, consistent with that.
