@@ -62,7 +62,8 @@
       "0028-threat-model-scoped-to-agent-accident",
       "0015-adopt-over-catch-ask-never-under-catch",
       "0072-round-b-sweep-misattribution-accepted-because-squash-on-merge-discards-it",
-      "0073-guard-branch-is-pushed-and-opened-as-one-pr-through-pr-create"
+      "0073-guard-branch-is-pushed-and-opened-as-one-pr-through-pr-create",
+      "0078-five-of-six-attribute-vectors-closed-info-attributes-accepted"
     ],
     "out_of_scope": [
       "Shell parsing, tokenization, allowlisting or head normalization in ANY form (0029/0054). Substring and quoting evasions are an accepted cost, not a defect.",
@@ -73,5 +74,5 @@
     ]
   },
   "created_at": "2026-07-28T07:12:50.939Z",
-  "updated_at": "2026-07-28T19:25:42.367Z"
+  "updated_at": "2026-07-28T19:37:23.330Z"
 }
