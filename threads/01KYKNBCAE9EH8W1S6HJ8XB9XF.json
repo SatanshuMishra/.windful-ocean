@@ -40,7 +40,7 @@
   "spine": {
     "status": "paused",
     "active_goal": "Implement the APPROVED quiescent-advance architecture. The spec is done and is the authority: docs/superpowers/specs/2026-07-28-mitosis-quiescent-advance.md. A run must never stop dead at a human review boundary, must drive a shipped MSP's red CI back to green within a bounded path, and must resume from ANY clone via one idempotent command.",
-    "next_step": "IN A FRESH SESSION: dispatch a targeted dynamic workflow implementing the spec's landing plan in order M1 -> M2 -> M6 -> M3 -> M5 -> M7, one MSP per PR, each leaving the branch green. One chore first: check for a stray uncommitted decisions/0074-*.md in the ledger worktree, left by a HEAD-lock race that was retried as 0075. M4/M8 are blocked on spec section 13 asks (b)/(c); M0 is blocked on ask (a) and must not land silently under the architecture approval.",
+    "next_step": "IN A FRESH SESSION: dispatch a targeted dynamic workflow implementing the spec's landing plan in order M1 -> M2 -> M6 -> M3 -> M5 -> M7, one MSP per PR, each green. M4/M8 blocked on spec asks (b)/(c); M0 on ask (a). TWO CHORES needing a user ruling: decisions/0074 is a COMMITTED duplicate of 0075 (HEAD-lock race), orphaned and unlinked - delete or leave; and all six criteria are now DONE, so this thread is closable and implementation likely belongs in a successor.",
     "open_risks": [
       "mitosis.js INLINES lib copies (window :2141-2158 = window.mjs; planReconcile :2710 = reconcile.mjs). Every M3/M4/M7 deletion must land TWICE in one commit. Guard is tests/mirror-guard.test.mjs, NOT .drift-state.json (a SessionStart cache that never runs in CI).",
       "Section 8's count is now -8, not -9, deliberately: the prior -9 undercounted additions by one because the deleted watcher triad never got a table row. Do not 'correct' it back; the reconciliation note in section 8 explains it and must survive edits.",
@@ -70,5 +70,5 @@
     ]
   },
   "created_at": "2026-07-28T06:07:18.861Z",
-  "updated_at": "2026-07-28T19:32:42.856Z"
+  "updated_at": "2026-07-28T19:33:25.924Z"
 }
