@@ -29,7 +29,7 @@
     },
     {
       "text": "Stray untracked .claude/workflows/mitosis.js.bak-49b8b89c deleted",
-      "done": false
+      "done": true
     },
     {
       "text": "GitHub MCP authenticated and the eight deny tool names pinned against the live tool list",
@@ -37,7 +37,7 @@
     },
     {
       "text": "Disposition decided for the temporary ask entries on .claude/lib/** and .claude/workflows/**",
-      "done": false
+      "done": true
     }
   ],
   "vcs_ref": "feat/centralized-pr-creation",
@@ -73,5 +73,5 @@
     ]
   },
   "created_at": "2026-07-28T03:17:35.121Z",
-  "updated_at": "2026-07-28T03:59:56.763Z"
+  "updated_at": "2026-07-28T04:00:13.509Z"
 }
