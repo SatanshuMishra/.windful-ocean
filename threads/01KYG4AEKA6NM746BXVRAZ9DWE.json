@@ -35,41 +35,41 @@
   "closure_statement": null,
   "spine": {
     "status": "paused",
-    "active_goal": "Items 1-2 LANDED, pushed as c25516c on fix/pre-tool-use-guard: parser deleted (5 modules, the unit/scope/overlay machinery, and the consumerless splitControl tokenizer), replaced by a parse-free substring tripwire. Suite 735 -> 532, 532 pass, 0 fail, check-packaging ok, independently verified on a quiet machine. Two reviews returned APPROVE-WITH-FIXES and every fix landed before the commit. Items 3 (LocalDriver recoverability) and 4 (README) NOT started.",
-    "next_step": "ITEM 3, then a FRESH review, then ITEM 4. Item 3 per 0030: LocalDriver commit()/sync() are no-op stubs (local-driver.mjs:183-189); give it a private git repo under its data dir reusing GitRefDriver's commit-per-mutation choke point (#commitWorktree, git-ref-driver.mjs:236-247), degrading safely without git. FRESH code+security review over c25516c: prior reviews ran on the PRE-FIX diff, so criterion 4 is not yet checkable. Item 4 per 0037: only verified sandbox claims. No PR without a go.",
+    "active_goal": "Items 3 and 4 SHIPPED plus five review-driven fix rounds. HEAD d102fb8, 30 commits ahead of origin, NOTHING PUSHED, no PR. Orchestrator-verified: 622 tests, 622 pass, 0 fail, check-packaging ok, clean tree. Item 3 gave LocalDriver a private recovery repo gated on !isGit(); Item 4 (d0454ab) documented what is and is not protected. Reviews found the env pinning closed repo LOCATION but left CONFIG LOADING open, a code-execution surface, now closed across both drivers and the guard.",
+    "next_step": "DECIDE THE TERMINATION RULE FIRST; do not start another review lap by default. Criterion 4 wants review over the FINAL diff, but round-1 reviewed f69add3 then 16 fix commits landed, and the confirming pass reviewed 351a931 then 10 more landed (d102fb8). Criterion 4 is left FALSE. Every round so far produced new findings. THEN: (a) rule on the git add -A attribution damage, recommend LEAVE IT; (b) dispose via create_successor, this thread cannot close as written. No push or PR without a go.",
     "open_risks": [
-      "ITEM 4 BLOCKER per 0037: 0030 asserts sandbox denyWrite does not sandbox hooks or MCP servers, so the plugin can still write its store. Docs do NOT confirm this. If it is false, a denyWrite entry over the ledger root turns a protection into an outage. Human-run empirical test required.",
-      "Docs-verified: sandbox.filesystem.denyWrite takes an array of path globs; OS-enforced via Seatbelt (macOS) and bubblewrap (Linux/WSL2), so /bin/rm and find -delete cannot evade it; arrays MERGE across settings scopes; unsupported platforms warn and run UNSANDBOXED unless failIfUnavailable.",
-      "PROMPT FATIGUE is now the guard's real failure mode and is security-relevant. 68 formerly-allowed read-only commands now prompt, including grep -rn '_ledger' src. The prompt IS the protection, so volume that trains reflexive approval degrades it. State plainly in the README.",
-      "Under a NON-DEFAULT ledger_branch the headline gain evaporates: LEDGER_REF is hardcoded '_ledger' while ledger_branch is user-configurable via LEDGER_BRANCH. Deliberately not fixed per 0036; refs/ledger/ is the partial mitigation. MUST be documented.",
-      "COMPLETION CRITERIA NOT TOGGLED, deliberately. 1-2 are marked done but describe a deleted parser; 3 names scanSegments, now deleted; 5 asserts DENY where the tripwire answers ask. Only 4 is satisfiable as written and is NOT met: both reviews ran on the pre-fix diff. Re-derive before any DoD close.",
-      "Residual losses vs the parser, acceptable under the accident model: a symlink-aliased spelling where the root is canonical and the command names the alias; and shell quoting games. The relative-spelling and cd-then-rm gaps were CLOSED by the review fixes.",
-      "UNAUTHORIZED DEFECT, open, do not fix without explicit go: the Stop hook nags every turn (stop.mjs exits 2 unconditionally, never reads stop_hook_active). Surfaced twice this session; no user reply either time.",
-      "test/e2e/drift-signals.test.mjs can fail with 'gpg: signing failed: Cannot allocate memory' under concurrent agent load. Environmental: passes 6/6 in isolation, untouched by the diff. Re-run it alone."
+      "CRITERION 4 NOT MET AT HEAD; THIS THREAD CANNOT CLOSE AS WRITTEN. Criteria are fixed at creation under the DoD gate. 1-2 describe the parser 0029 deleted; 3 names scanSegments, deleted; 5 asserts DENY where the tripwire answers ask. Disposition is create_successor, not an in-place rewrite.",
+      "UNRESOLVED, needs a user call: Round B used git add -A and swept Round A in-flight files into 3 commits. No content lost, suite green; damage is attribution only. src/util/git-env.mjs exists ONLY in 8962003, whose message is about the tripwire. All 30 commits unpushed. Later rounds used pathspecs.",
+      "ALL VERIFICATION IS macOS, git 2.55.0, Node 26.4.0, ONE MACHINE. Unverified on Windows and older git: resolve() on UNC paths in the guard root check, ABSENT_HOOKS_PATH under the Windows null device, devNull as GIT_CONFIG_GLOBAL, -c core.hooksPath quoting. git init -b needs git 2.28+.",
+      "PROMPT FATIGUE is still the guard's real failure mode and is security-relevant, since the prompt IS the protection. Documented in the README, but no test pins the count of newly-prompting commands.",
+      "The drift-signals gpg flake is REDUCED, NOT FIXED. Ledger commits no longer invoke gpg, but test/e2e/helpers/fixtures.mjs sets no commit.gpgsign=false, so the suite's own project commits still run real gpg. One-line fix, left out of scope.",
+      "Under a NON-DEFAULT ledger_branch the guard offers nothing, and this SHARPENED under verification: on the DEFAULT orphan-branch backend a custom branch resolves to refs/heads/<branch>, which the guard never checks. Only custom-ref is partially mitigated.",
+      "rm -rf .git && git init still destroys the ledger ref unprompted. Deliberately not trigger-covered per 0043; documented in the README.",
+      "Sandbox hooks/MCP question remains UNVERIFIED per 0037. Recoverable-history writes happen from an MCP server process, so if MCP servers are subject to denyWrite, a denyWrite entry over the ledger root stops the plugin writing its own store. The test is a human action.",
+      "UNAUTHORIZED DEFECT, open, do not fix without explicit go: the Stop hook nags every turn (stop.mjs exits 2 unconditionally, never reads stop_hook_active). Surfaced three times now with no user reply."
     ],
     "key_decisions": [
-      "0037-sandbox-hooks-mcp-exemption-unverified-do-not-document-until-tested - narrows 0030; its second premise is unconfirmed and must not be repeated as fact",
-      "0036-tripwire-triggers-are-spellings-only-configured-branch-left-uncovered - the trigger list grows only with spellings of a fixed target, never a new mechanism, never an exception",
-      "0032-delete-forward-on-the-existing-branch-no-reverts-no-refork - re-forking off b60ac56 would have dropped f95bdcb, 3cb599d, 4b54a46 (they harden the KEEP set); revert would have restored an allow-by-default guard",
-      "0029-parser-deleted-round-c-killed",
-      "0030-non-git-recoverability-is-the-real-work",
-      "0028-threat-model-scoped-to-agent-accident",
-      "0015-adopt-over-catch-ask-never-under-catch - the ask verdict is house precedent",
-      "0040-localdriver-recovery-repo-gated-on-isgit-sync-stays-a-no-op",
-      "0042-config-loading-is-the-second-half-of-the-git-env-fix-two-scope-items-held-for-the-user",
-      "0043-user-rulings-gitrefdriver-pinning-in-scope-no-git-trigger-readme-ships-caveated",
-      "0050-git-invocations-split-into-four-scopes-network-keeps-user-config",
+      "0054-two-review-findings-were-overstated-and-are-narrowed-here",
       "0051-three-recorded-claims-corrected-during-readme-verification",
-      "0054-two-review-findings-were-overstated-and-are-narrowed-here"
+      "0050-git-invocations-split-into-four-scopes-network-keeps-user-config",
+      "0043-user-rulings-gitrefdriver-pinning-in-scope-no-git-trigger-readme-ships-caveated",
+      "0042-config-loading-is-the-second-half-of-the-git-env-fix",
+      "0040-localdriver-recovery-repo-gated-on-isgit-sync-stays-a-no-op",
+      "0037-sandbox-hooks-mcp-exemption-unverified-do-not-document-until-tested",
+      "0036-tripwire-triggers-are-spellings-only-configured-branch-left-uncovered",
+      "0029-parser-deleted-round-c-killed",
+      "0028-threat-model-scoped-to-agent-accident",
+      "0015-adopt-over-catch-ask-never-under-catch"
     ],
     "out_of_scope": [
-      "Babysitting the user's own deliberate deletion of their files. Explicitly ruled out 2026-07-27 (0028).",
-      "A determined or adversarial same-uid agent. Not defensible for the _ledger ref inside .git; replicas, not prevention.",
-      "Shell command parsing, tokenization, allowlisting or head normalization in ANY form. Deleted by 0029; do not reintroduce without first showing the threat model changed.",
-      "The other four canonical stores - future rollout, per-repo.",
-      "ledger-cli sync and any publication of the _ledger ref."
+      "Babysitting the user's own deliberate deletion of their files (0028).",
+      "A determined or adversarial same-uid agent (0028); replicas, not prevention.",
+      "Shell parsing, tokenization, allowlisting or head normalization in ANY form (0029). Per 0054 this also covers the /t substring case: accepted cost, not a defect.",
+      "The other four canonical stores; future rollout, per-repo.",
+      "ledger-cli sync and publication of the _ledger ref. LocalDriver.sync() stays {synced:false}.",
+      "The one-line commit.gpgsign=false in the e2e fixture that would finish the drift-signals flake."
     ]
   },
   "created_at": "2026-07-26T21:11:59.338Z",
-  "updated_at": "2026-07-28T00:02:12.220Z"
+  "updated_at": "2026-07-28T00:05:24.884Z"
 }
