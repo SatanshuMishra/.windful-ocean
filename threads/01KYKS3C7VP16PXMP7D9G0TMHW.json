@@ -40,7 +40,7 @@
   "spine": {
     "status": "active",
     "active_goal": "The guard WORK is shipped and verified at d102fb8 on fix/pre-tool-use-guard in DevLabs/continuity-ledger-plugin: 622/622, check-packaging ok, clean tree, 30 commits unpushed, no PR. This successor carries only the residuals the 0068 delta review confirmed, plus the two user calls the predecessor could not make. The predecessor died on its SPECIFICATION (criteria naming a parser 0029 deleted), not on its code - so criteria here are behavior-shaped on purpose.",
-    "next_step": "AWAIT an explicit go; nothing here is authorized. Recommended first, criterion 1: the installer config-scope fix - installer.mjs:51 reads `config --get` with no --local, :8 applies only clearedGitLocationEnv(), :96 writes the merged value back as LOCAL config, :124 restores it. Two lenses found it (HIGH/MEDIUM); orchestrator confirmed the code facts. It runs every SessionStart with errors swallowed. Red-first under hostile ambient config. No push or PR without a separate go.",
+    "next_step": "AWAIT an explicit user go - two rulings pending, nothing here is authorized: (a) fix the installer config-scope defect now, or defer it; (b) commit attribution for the Round B `git add -A` sweep. If (a) is go, that is criterion 1: installer.mjs:51 reads `config --get` with no --local and :8 lacks the config-isolating env, so a foreign core.hooksPath becomes local repo state. Red-first under hostile ambient config. No push or PR without a separate go.",
     "open_risks": [
       "CONFIRMED DEFECT at d102fb8: 0042's config fix never reached hook installation. installer.mjs:8 lacks the config-isolating env that local-driver.mjs:23 and git-scope.mjs:52,76,85 apply. A foreign core.hooksPath is recorded as the repo's prior value, so uninstall cannot restore the user's hooks.",
       "The local 622/622 is NOT health evidence: this machine has no global core.hooksPath and zero GIT_CONFIG* vars. Under hostile ambient config 4 installer tests fail - they assert on MERGED config, so they measure the developer's machine.",
@@ -71,5 +71,5 @@
     ]
   },
   "created_at": "2026-07-28T07:12:50.939Z",
-  "updated_at": "2026-07-28T07:14:25.958Z"
+  "updated_at": "2026-07-28T07:16:09.054Z"
 }
