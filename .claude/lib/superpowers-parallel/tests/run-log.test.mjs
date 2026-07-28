@@ -22,8 +22,8 @@ function genesisManifest(msps) {
 }
 
 const TWO = [
-  { id: 'a', title: 'Alpha', rationale: 'alpha rationale', dependsOn: [], fileScope: ['a/**'] },
-  { id: 'b', title: 'Bravo', rationale: 'bravo rationale', dependsOn: ['a'], fileScope: ['b/**'] },
+  { id: 'a', title: 'Alpha', rationale: 'alpha rationale', changeType: 'feat', scope: 'alpha', dependsOn: [], fileScope: ['a/**'] },
+  { id: 'b', title: 'Bravo', rationale: 'bravo rationale', changeType: 'fix', scope: 'bravo', dependsOn: ['a'], fileScope: ['b/**'] },
 ];
 
 test('foldRunManifest accepts a legacy pretty single-object manifest verbatim (backward compatible)', () => {

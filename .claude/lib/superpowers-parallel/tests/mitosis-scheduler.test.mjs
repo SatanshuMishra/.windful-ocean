@@ -96,14 +96,17 @@ function prCreateCommandFromPrompt(prompt) {
   return prompt.slice(start, end);
 }
 
-function prCreateArgvFromPrompt(prompt) {
-  const tokens = (prCreateCommandFromPrompt(prompt).match(/"(?:[^"\\]|\\.)*"|\S+/g) || []).map((t) => (t.startsWith('"') ? JSON.parse(t) : t));
+const CHANGED_LINES_PLACEHOLDER = '<N>';
+
+function prCreateArgvFromPrompt(prompt, changedLines = '512') {
+  const command = prCreateCommandFromPrompt(prompt);
+  const tokens = (command.match(/"(?:[^"\\]|\\.)*"|\S+/g) || []).map((t) => (t.startsWith('"') ? JSON.parse(t) : t));
   assert.equal(tokens[0], 'node', 'the invocation is a bare node call the permission matcher can anchor on');
-  return tokens.slice(2);
+  return tokens.slice(2).map((t) => (t === CHANGED_LINES_PLACEHOLDER ? changedLines : t));
 }
 
 function mspSpec(id, overrides = {}) {
-  return { id, title: id, rationale: `rationale for ${id}`, dependsOn: [], fileScope: [], ...overrides };
+  return { id, title: `update ${id}`, rationale: `rationale for ${id}`, changeType: 'chore', scope: 'msp', dependsOn: [], fileScope: [], ...overrides };
 }
 
 function createFakeAgent({ msps, sourcePrefix = SOURCE_PREFIX, planGate, shipResult, reconcileResult, planReview, replanResult, mergeWatch } = {}) {
@@ -767,8 +770,8 @@ test('T4b relaunch story: a reusable manifest bearing prior ship-transitions is 
   const input = buildInput();
   const logicalRunId = computeLogicalRunId(input.spec, input.baseBranch);
   const reusedMsps = [
-    { id: 'a', title: 'a', rationale: 'r', status: 'shipped', integrationBranch: `${SOURCE_PREFIX}/a-integration`, prUrl: testPrUrl('a'), mergedAt: '2026-07-08T00:00:00Z', dependsOn: [], fileScope: ['scope/a/**'] },
-    { id: 'b', title: 'b', rationale: 'r', status: 'planned', integrationBranch: `${SOURCE_PREFIX}/b-integration`, prUrl: null, mergedAt: null, dependsOn: [], fileScope: ['scope/b/**'] },
+    { id: 'a', title: 'update a', rationale: 'r-a', changeType: 'chore', scope: 'msp', status: 'shipped', integrationBranch: `${SOURCE_PREFIX}/a-integration`, prUrl: testPrUrl('a'), mergedAt: '2026-07-08T00:00:00Z', dependsOn: [], fileScope: ['scope/a/**'] },
+    { id: 'b', title: 'update b', rationale: 'r-b', changeType: 'chore', scope: 'msp', status: 'planned', integrationBranch: `${SOURCE_PREFIX}/b-integration`, prUrl: null, mergedAt: null, dependsOn: [], fileScope: ['scope/b/**'] },
   ];
   const manifestRaw = JSON.stringify({ logicalRunId, specContentHash: SPEC_CONTENT_HASH, clusters: [['a'], ['b']], msps: reusedMsps }, null, 2);
   assert.ok(parseRunManifest(manifestRaw), 'the accumulated single-object manifest is read back as a valid hint');
@@ -871,11 +874,13 @@ test('RT-2 round-trip: a manifest carried through the REAL applyShipTransition d
   });
   const shipped = applyShipTransition(built, {
     mspId: 'c', prUrl: testPrUrl('c'), mergedAt: '2026-07-08T00:00:00Z',
-    title: 'C title', rationale: 'C rationale',
+    title: 'ship c', rationale: 'C rationale', changeType: 'chore', scope: 'msp',
   });
   const appended = shipped.msps.find((m) => m.id === 'c');
-  assert.equal(appended.title, 'C title', 'the defensive-append entry carries the title it was passed');
+  assert.equal(appended.title, 'ship c', 'the defensive-append entry carries the title it was passed');
   assert.equal(appended.rationale, 'C rationale', 'the defensive-append entry carries the rationale it was passed');
+  assert.equal(appended.changeType, 'chore', 'the defensive-append entry carries the declared change type the manifest-reuse gate now requires');
+  assert.equal(appended.scope, 'msp', 'the defensive-append entry carries the declared scope the manifest-reuse gate now requires');
   const manifestRaw = JSON.stringify(shipped, null, 2);
   assert.ok(parseRunManifest(manifestRaw), 'the ship-transitioned manifest parses back as a valid single-object hint');
   const reconcileResult = { manifestFound: true, manifestRaw, mergedPRs: [], specContentHash: SPEC_CONTENT_HASH };
@@ -1283,9 +1288,10 @@ test('P4 §8.2 ship PR-open is ONE literal wrapper invocation that carries obser
 
   assert.equal(result.overallStatus, 'all-shipped');
   assert.ok(
-    captured[0].includes(`${PR_CREATE_CLI} --repo ${TEST_REPO_SLUG} --head ${SOURCE_PREFIX}/solo-integration --base main --title "mitosis: solo"`),
-    'the ship PR-open is the absolutely-spelled wrapper invocation a literal permission rule can match',
+    captured[0].includes(`${PR_CREATE_CLI} --repo ${TEST_REPO_SLUG} --head ${SOURCE_PREFIX}/solo-integration --base main --title "chore(msp): update solo" --origin machine --provenance "agent=ship:solo model=opus"`),
+    'the ship PR-open is the absolutely-spelled wrapper invocation a literal permission rule can match, and its title is Conventional Commits composed from the MSP-declared change type and scope',
   );
+  assert.doesNotMatch(captured[0], /--title "mitosis: /, 'the removed mitosis prefix fails the Conventional-Commits PR-title lint the engine itself deploys');
   assert.doesNotMatch(captured[0], /gh pr list/, 'the wrapper performs the observe step itself; handing the agent a gh pr list too would restore the free-form surface');
   assert.doesNotMatch(captured[0], /~\/\.claude/, 'the anchor is never spelled with a tilde: the permission matcher compares strings, not inodes');
   assert.match(captured[0], /reuses an existing open PR/, 'the prompt still states the reuse guarantee the removed prose carried');
@@ -1310,12 +1316,35 @@ test('P4 §8.2 the ship PR-open emits an argv the mitosis-git wrapper actually a
   assert.equal(root.ok, true, `the root MSP's emitted argv must parse: ${root.error}`);
   assert.equal(root.opts.head, `${SOURCE_PREFIX}/a-integration`);
   assert.equal(root.opts.base, 'main');
-  assert.equal(root.opts.title, 'mitosis: a');
+  assert.equal(root.opts.title, 'chore(msp): update a');
   assert.deepEqual([...root.opts.depends], [], 'a root MSP emits no --depends flag rather than a value the wrapper would reject');
 
   const child = parseMitosisGitArgv(prCreateArgvFromPrompt(captured.get('b')));
   assert.equal(child.ok, true, `the dependent MSP's emitted argv must parse: ${child.error}`);
   assert.deepEqual([...child.opts.depends], ['a'], 'a dependent MSP names its parents as one comma-joined --depends value');
+});
+
+test('the ship PR-open substitutes exactly ONE placeholder — the changed-lines integer — and every other argv token is an engine-resolved literal', async () => {
+  const prompt = await shipPromptFor({});
+  const command = prCreateCommandFromPrompt(prompt);
+  assert.equal(command.split(CHANGED_LINES_PLACEHOLDER).length - 1, 1, 'the emitted command carries exactly one placeholder');
+  assert.doesNotMatch(command.replace(CHANGED_LINES_PLACEHOLDER, ''), /[<>]/, 'no other angle-bracket placeholder survives into the emitted command');
+
+  const rejected = parseMitosisGitArgv(prCreateArgvFromPrompt(prompt, CHANGED_LINES_PLACEHOLDER));
+  assert.equal(rejected.ok, false, 'an unsubstituted placeholder is a usage rejection, so the placeholder can carry no free text into the document');
+
+  const parsed = parseMitosisGitArgv(prCreateArgvFromPrompt(prompt, '512'));
+  assert.equal(parsed.ok, true, `substituting digits yields an argv the wrapper accepts: ${parsed.error}`);
+  assert.equal(parsed.opts.changedLines, 512);
+});
+
+test('every decomposer-authored value the ship PR-open emits is inert argv text carrying no live shell syntax', async () => {
+  const prompt = await shipPromptFor({ title: 'replace the hand-rolled tokenizer', rationale: 'Swap the bespoke lexer for the shared one and delete the dead branch' });
+  const parsed = parseMitosisGitArgv(prCreateArgvFromPrompt(prompt));
+  assert.equal(parsed.ok, true, `the emitted argv must parse: ${parsed.error}`);
+  for (const value of [parsed.opts.title, ...parsed.opts.why, ...parsed.opts.what, ...parsed.opts.notVerified, parsed.opts.provenance]) {
+    assert.doesNotMatch(String(value), /[$`\\]/, `an emitted argv value carries live shell syntax: ${value}`);
+  }
 });
 
 async function shipPromptFor(mspOverrides) {
@@ -1332,30 +1361,35 @@ async function shipPromptFor(mspOverrides) {
   return captured[0];
 }
 
-test('MSP-3 fold: the ship PR-open hands the wrapper the MSP title and scope, so the human who lands it does not get a boilerplate-only body', async () => {
-  const prompt = await shipPromptFor({ title: 'Solo replaces the hand-rolled tokenizer', rationale: 'Swap the bespoke lexer for the shared one and delete the dead branch' });
+test('MSP-3 fold: the ship PR-open hands the wrapper the MSP title and rationale as named body fields, so the human who lands it does not get a boilerplate-only body', async () => {
+  const prompt = await shipPromptFor({ title: 'replace the hand-rolled tokenizer', rationale: 'Swap the bespoke lexer for the shared one and delete the dead branch' });
   const parsed = parseMitosisGitArgv(prCreateArgvFromPrompt(prompt));
   assert.equal(parsed.ok, true, `the emitted argv must parse: ${parsed.error}`);
 
   const body = renderPrCreateBody(parsed.opts);
-  assert.match(body, /Solo replaces the hand-rolled tokenizer/, 'the reviewer-facing body carries the MSP title, not just the "mitosis: <id>" PR title');
-  assert.match(body, /Swap the bespoke lexer for the shared one and delete the dead branch/, 'the reviewer-facing body carries what this MSP is scoped to change');
+  assert.match(body, /^## What\n- replace the hand-rolled tokenizer$/m, 'the reviewer-facing body carries the MSP title as its What bullet');
+  assert.match(body, /^## Why\nSwap the bespoke lexer for the shared one and delete the dead branch$/m, 'the reviewer-facing body carries the MSP rationale as its Why line');
+  assert.match(body, /^Not verified: CI on the fresh head and base - not run/m, 'the ship stage opens the PR before CI starts, so it states the absence rather than predicting a green run');
+  assert.doesNotMatch(body, /^Verified:/m, 'no code path may emit a Verified line the caller did not supply');
+  assert.match(body, /^## Provenance\nagent=ship:solo model=opus$/m, 'a machine-opened pull request names the agent and the model the site actually dispatches');
 });
 
-test('MSP-3 fold: decomposer-authored MSP prose reaches the wrapper as an inert value, never as live shell syntax', async () => {
-  const hostile = 'ship $(id) `whoami` "quoted" ; rm -rf / && echo pwned';
-  const prompt = await shipPromptFor({ title: hostile, rationale: hostile });
+test('MSP-3 fold: decomposer-authored MSP prose carrying live shell syntax HALTS the run at decomposition and never reaches an emitted command', async () => {
+  const hostile = 'ship $(id) and `whoami` now';
+  const msps = [mspSpec('solo', { fileScope: ['scope/solo/**'], title: hostile })];
+  const captured = [];
+  const base = createFakeAgent({ msps });
+  const agent = async (prompt, opts = {}) => {
+    if ((opts.label || '').startsWith('ship:')) captured.push(prompt);
+    return base(prompt, opts);
+  };
+  const { resultPromise } = invokeMitosis(buildInput(), agent);
+  const result = await resultPromise;
 
-  const command = prCreateCommandFromPrompt(prompt);
-  assert.doesNotMatch(command, /[$`\\;&|<>'*?{}()!~#@]/, `the emitted command carries live shell syntax from decomposer-authored prose: ${command}`);
-
-  const parsed = parseMitosisGitArgv(prCreateArgvFromPrompt(prompt));
-  assert.equal(parsed.ok, true, `the sanitised argv must still parse: ${parsed.error}`);
-  assert.deepEqual(
-    [...parsed.opts.bodyLines],
-    ['MSP ship id whoami quoted rm -rf / echo pwned', 'SCOPE ship id whoami quoted rm -rf / echo pwned'],
-    'every character outside the inert prose set is collapsed to whitespace before the value is emitted',
-  );
+  assert.equal(result.overallStatus, 'failed', 'an MSP field carrying live shell syntax halts the run; the engine never mangles it into a plausible-looking value');
+  assert.equal(result.stage, 'decompose', 'the halt lands at decomposition, where a human decides, not after the branch is built and pushed');
+  assert.match(result.detail, /does not compose a valid pull-request title and body/);
+  assert.deepEqual(captured, [], 'no ship stage runs, so no emitted command ever carries the hostile prose');
 });
 
 test('D7 gh-scope: the ship CI-wait scopes every gh run to the engine-resolved LITERAL slug — no subshell, no shell variable, no cd', async () => {
@@ -1854,8 +1888,8 @@ test('T3 Decompose-reuse: a manifest whose logicalRunId matches the run reuses i
   const input = buildInput();
   const logicalRunId = computeLogicalRunId(input.spec, input.baseBranch);
   const reusedMsps = [
-    { id: 'a', title: 'a', rationale: 'r', dependsOn: [], fileScope: ['scope/a/**'] },
-    { id: 'b', title: 'b', rationale: 'r', dependsOn: [], fileScope: ['scope/b/**'] },
+    { id: 'a', title: 'update a', rationale: 'r-a', changeType: 'chore', scope: 'msp', dependsOn: [], fileScope: ['scope/a/**'] },
+    { id: 'b', title: 'update b', rationale: 'r-b', changeType: 'chore', scope: 'msp', dependsOn: [], fileScope: ['scope/b/**'] },
   ];
   const manifestRaw = JSON.stringify({ logicalRunId, specContentHash: SPEC_CONTENT_HASH, clusters: [['a'], ['b']], msps: reusedMsps });
   const reconcileResult = { manifestFound: true, manifestRaw, mergedPRs: [], specContentHash: SPEC_CONTENT_HASH };
@@ -1879,8 +1913,8 @@ test('LOW-N1 reuse gate: a manifest specContentHash equal to the freshly observe
   const logicalRunId = computeLogicalRunId(input.spec, input.baseBranch);
   const observed = 'a'.repeat(64);
   const reusedMsps = [
-    { id: 'a', title: 'a', rationale: 'r', dependsOn: [], fileScope: ['scope/a/**'] },
-    { id: 'b', title: 'b', rationale: 'r', dependsOn: [], fileScope: ['scope/b/**'] },
+    { id: 'a', title: 'update a', rationale: 'r-a', changeType: 'chore', scope: 'msp', dependsOn: [], fileScope: ['scope/a/**'] },
+    { id: 'b', title: 'update b', rationale: 'r-b', changeType: 'chore', scope: 'msp', dependsOn: [], fileScope: ['scope/b/**'] },
   ];
   const manifestRaw = JSON.stringify({ logicalRunId, specContentHash: observed, clusters: [['a'], ['b']], msps: reusedMsps });
   const reconcileResult = { manifestFound: true, manifestRaw, mergedPRs: [], specContentHash: observed };
@@ -1904,8 +1938,8 @@ test('LOW-N1 reuse gate: reuse is refused and the run re-decomposes when the man
   const hashA = 'a'.repeat(64);
   const hashB = 'b'.repeat(64);
   const manifestMsps = [
-    { id: 'a', title: 'a', rationale: 'r', dependsOn: [], fileScope: ['scope/a/**'] },
-    { id: 'b', title: 'b', rationale: 'r', dependsOn: [], fileScope: ['scope/b/**'] },
+    { id: 'a', title: 'update a', rationale: 'r-a', changeType: 'chore', scope: 'msp', dependsOn: [], fileScope: ['scope/a/**'] },
+    { id: 'b', title: 'update b', rationale: 'r-b', changeType: 'chore', scope: 'msp', dependsOn: [], fileScope: ['scope/b/**'] },
   ];
   const cases = [
     { name: 'absent manifest hash', manifestHash: undefined, observed: hashA },
@@ -1944,7 +1978,7 @@ test('T3 stale manifest: a manifest whose logicalRunId does not match falls back
   const staleRaw = JSON.stringify({
     logicalRunId: 'deadbeef',
     clusters: [['zzz']],
-    msps: [{ id: 'zzz', title: 'z', rationale: 'r', dependsOn: [], fileScope: [] }],
+    msps: [{ id: 'zzz', title: 'update z', rationale: 'r-z', changeType: 'chore', scope: 'msp', dependsOn: [], fileScope: [] }],
   });
   const reconcileResult = { manifestFound: true, manifestRaw: staleRaw, mergedPRs: [] };
   let decomposeCalls = 0;
@@ -1982,8 +2016,8 @@ test('T3 manifest integrity: a relaunch manifest whose corrupt clusters omit an 
   const input = buildInput();
   const logicalRunId = computeLogicalRunId(input.spec, input.baseBranch);
   const manifestMsps = [
-    { id: 'a', title: 'a', rationale: 'r', dependsOn: [], fileScope: ['scope/a/**'] },
-    { id: 'b', title: 'b', rationale: 'r', dependsOn: [], fileScope: ['scope/b/**'] },
+    { id: 'a', title: 'update a', rationale: 'r-a', changeType: 'chore', scope: 'msp', dependsOn: [], fileScope: ['scope/a/**'] },
+    { id: 'b', title: 'update b', rationale: 'r-b', changeType: 'chore', scope: 'msp', dependsOn: [], fileScope: ['scope/b/**'] },
   ];
   const corruptRaw = JSON.stringify({ logicalRunId, specContentHash: SPEC_CONTENT_HASH, clusters: [['a']], msps: manifestMsps });
   const reconcileResult = { manifestFound: true, manifestRaw: corruptRaw, mergedPRs: [], specContentHash: SPEC_CONTENT_HASH };
@@ -2006,8 +2040,8 @@ test('T3 manifest integrity: a relaunch manifest whose corrupt clusters name an 
   const input = buildInput();
   const logicalRunId = computeLogicalRunId(input.spec, input.baseBranch);
   const manifestMsps = [
-    { id: 'a', title: 'a', rationale: 'r', dependsOn: [], fileScope: ['scope/a/**'] },
-    { id: 'b', title: 'b', rationale: 'r', dependsOn: [], fileScope: ['scope/b/**'] },
+    { id: 'a', title: 'update a', rationale: 'r-a', changeType: 'chore', scope: 'msp', dependsOn: [], fileScope: ['scope/a/**'] },
+    { id: 'b', title: 'update b', rationale: 'r-b', changeType: 'chore', scope: 'msp', dependsOn: [], fileScope: ['scope/b/**'] },
   ];
   const corruptRaw = JSON.stringify({ logicalRunId, specContentHash: SPEC_CONTENT_HASH, clusters: [['a'], ['ghost']], msps: manifestMsps });
   const reconcileResult = { manifestFound: true, manifestRaw: corruptRaw, mergedPRs: [], specContentHash: SPEC_CONTENT_HASH };
@@ -2036,8 +2070,8 @@ test('T3 manifest reuse HIGH-repro: a relaunch manifest with a non-array depends
     specContentHash: SPEC_CONTENT_HASH,
     clusters: [['a'], ['b']],
     msps: [
-      { id: 'a', title: 'a', rationale: 'r', dependsOn: 'nope', fileScope: ['scope/a/**'] },
-      { id: 'b', title: 'b', rationale: 'r', dependsOn: [], fileScope: ['scope/b/**'] },
+      { id: 'a', title: 'update a', rationale: 'r-a', changeType: 'chore', scope: 'msp', dependsOn: 'nope', fileScope: ['scope/a/**'] },
+      { id: 'b', title: 'update b', rationale: 'r-b', changeType: 'chore', scope: 'msp', dependsOn: [], fileScope: ['scope/b/**'] },
     ],
   });
   let stringDecomposeCalls = 0;
@@ -2056,8 +2090,8 @@ test('T3 manifest reuse HIGH-repro: a relaunch manifest with a non-array depends
     specContentHash: SPEC_CONTENT_HASH,
     clusters: [['a'], ['b']],
     msps: [
-      { id: 'a', title: 'a', rationale: 'r', dependsOn: {}, fileScope: ['scope/a/**'] },
-      { id: 'b', title: 'b', rationale: 'r', dependsOn: [], fileScope: ['scope/b/**'] },
+      { id: 'a', title: 'update a', rationale: 'r-a', changeType: 'chore', scope: 'msp', dependsOn: {}, fileScope: ['scope/a/**'] },
+      { id: 'b', title: 'update b', rationale: 'r-b', changeType: 'chore', scope: 'msp', dependsOn: [], fileScope: ['scope/b/**'] },
     ],
   });
   let objectDecomposeCalls = 0;
@@ -2078,16 +2112,16 @@ test('T3 manifest reuse: bad-charset, duplicate, and unknown-dependsOn ids each 
 
   const cases = [
     { label: 'bad-charset id', clusters: [['Bad_Id'], ['b']], manifestMsps: [
-      { id: 'Bad_Id', title: 'a', rationale: 'r', dependsOn: [], fileScope: ['scope/a/**'] },
-      { id: 'b', title: 'b', rationale: 'r', dependsOn: [], fileScope: ['scope/b/**'] },
+      { id: 'Bad_Id', title: 'update a', rationale: 'r-a', changeType: 'chore', scope: 'msp', dependsOn: [], fileScope: ['scope/a/**'] },
+      { id: 'b', title: 'update b', rationale: 'r-b', changeType: 'chore', scope: 'msp', dependsOn: [], fileScope: ['scope/b/**'] },
     ] },
     { label: 'duplicate id', clusters: [['a']], manifestMsps: [
-      { id: 'a', title: 'a', rationale: 'r', dependsOn: [], fileScope: ['scope/a/**'] },
-      { id: 'a', title: 'a2', rationale: 'r', dependsOn: [], fileScope: ['scope/a2/**'] },
+      { id: 'a', title: 'update a', rationale: 'r-a', changeType: 'chore', scope: 'msp', dependsOn: [], fileScope: ['scope/a/**'] },
+      { id: 'a', title: 'update a2', rationale: 'r-a2', changeType: 'chore', scope: 'msp', dependsOn: [], fileScope: ['scope/a2/**'] },
     ] },
     { label: 'unknown dependsOn id', clusters: [['a'], ['b']], manifestMsps: [
-      { id: 'a', title: 'a', rationale: 'r', dependsOn: ['ghost'], fileScope: ['scope/a/**'] },
-      { id: 'b', title: 'b', rationale: 'r', dependsOn: [], fileScope: ['scope/b/**'] },
+      { id: 'a', title: 'update a', rationale: 'r-a', changeType: 'chore', scope: 'msp', dependsOn: ['ghost'], fileScope: ['scope/a/**'] },
+      { id: 'b', title: 'update b', rationale: 'r-b', changeType: 'chore', scope: 'msp', dependsOn: [], fileScope: ['scope/b/**'] },
     ] },
   ];
 
@@ -2116,8 +2150,8 @@ test('T3 manifest reuse: a cyclic dependsOn degrades to a fresh Decompose (the t
     specContentHash: SPEC_CONTENT_HASH,
     clusters: [['a', 'b']],
     msps: [
-      { id: 'a', title: 'a', rationale: 'r', dependsOn: ['b'], fileScope: ['scope/a/**'] },
-      { id: 'b', title: 'b', rationale: 'r', dependsOn: ['a'], fileScope: ['scope/b/**'] },
+      { id: 'a', title: 'update a', rationale: 'r-a', changeType: 'chore', scope: 'msp', dependsOn: ['b'], fileScope: ['scope/a/**'] },
+      { id: 'b', title: 'update b', rationale: 'r-b', changeType: 'chore', scope: 'msp', dependsOn: ['a'], fileScope: ['scope/b/**'] },
     ],
   });
   let decomposeCalls = 0;
@@ -2141,19 +2175,19 @@ test('T3 manifest reuse: non-string title/rationale and non-array-of-strings fil
   const cases = [
     { label: 'numeric title', manifestMsps: [
       { id: 'a', title: 42, rationale: 'r', dependsOn: [], fileScope: ['scope/a/**'] },
-      { id: 'b', title: 'b', rationale: 'r', dependsOn: [], fileScope: ['scope/b/**'] },
+      { id: 'b', title: 'update b', rationale: 'r-b', changeType: 'chore', scope: 'msp', dependsOn: [], fileScope: ['scope/b/**'] },
     ] },
     { label: 'null rationale', manifestMsps: [
       { id: 'a', title: 'a', rationale: null, dependsOn: [], fileScope: ['scope/a/**'] },
-      { id: 'b', title: 'b', rationale: 'r', dependsOn: [], fileScope: ['scope/b/**'] },
+      { id: 'b', title: 'update b', rationale: 'r-b', changeType: 'chore', scope: 'msp', dependsOn: [], fileScope: ['scope/b/**'] },
     ] },
     { label: 'non-array fileScope', manifestMsps: [
-      { id: 'a', title: 'a', rationale: 'r', dependsOn: [], fileScope: 'scope/a/**' },
-      { id: 'b', title: 'b', rationale: 'r', dependsOn: [], fileScope: ['scope/b/**'] },
+      { id: 'a', title: 'update a', rationale: 'r-a', changeType: 'chore', scope: 'msp', dependsOn: [], fileScope: 'scope/a/**' },
+      { id: 'b', title: 'update b', rationale: 'r-b', changeType: 'chore', scope: 'msp', dependsOn: [], fileScope: ['scope/b/**'] },
     ] },
     { label: 'fileScope of non-strings', manifestMsps: [
-      { id: 'a', title: 'a', rationale: 'r', dependsOn: [], fileScope: [1, 2] },
-      { id: 'b', title: 'b', rationale: 'r', dependsOn: [], fileScope: ['scope/b/**'] },
+      { id: 'a', title: 'update a', rationale: 'r-a', changeType: 'chore', scope: 'msp', dependsOn: [], fileScope: [1, 2] },
+      { id: 'b', title: 'update b', rationale: 'r-b', changeType: 'chore', scope: 'msp', dependsOn: [], fileScope: ['scope/b/**'] },
     ] },
   ];
 
@@ -2262,7 +2296,7 @@ test('MSP-2 FIX4: the reconcile prompt attaches the STOP-and-report instruction 
   const stepTwo = reconcilePrompt.slice(reconcilePrompt.indexOf('\n2. '), reconcilePrompt.indexOf('\n3. '));
   const listStop = stepTwo.slice(stepTwo.indexOf('gh pr list'));
   assert.match(listStop, /STOP/, 'the STOP instruction covers the gh pr list step, not only the gh repo view step');
-  assert.match(reconcilePrompt, /Return ONLY the structured object: \{ manifestFound, manifestRaw, mergedPRs.*mergedPRsAuthoritative/s, 'the return contract carries the flag');
+  assert.match(reconcilePrompt, /Return ONLY the structured object: \{ manifestFound, manifestRaw, manifestRawPages.*mergedPRs.*mergedPRsAuthoritative/s, 'the return contract carries the flag');
   const stepSix = reconcilePrompt.slice(reconcilePrompt.indexOf('\n6. '));
   assert.match(stepSix, /STOP-and-report rule from step 2 applies[\s\S]*mergedPRsAuthoritative=false/, 'the open-PR list read carries the same STOP-and-report obligation');
 });
@@ -2575,8 +2609,8 @@ test('T4a checkpoint: the reuse path writes no initial-manifest checkpoint (the 
   const input = buildInput();
   const logicalRunId = computeLogicalRunId(input.spec, input.baseBranch);
   const reusedMsps = [
-    { id: 'a', title: 'a', rationale: 'r', dependsOn: [], fileScope: ['scope/a/**'] },
-    { id: 'b', title: 'b', rationale: 'r', dependsOn: [], fileScope: ['scope/b/**'] },
+    { id: 'a', title: 'update a', rationale: 'r-a', changeType: 'chore', scope: 'msp', dependsOn: [], fileScope: ['scope/a/**'] },
+    { id: 'b', title: 'update b', rationale: 'r-b', changeType: 'chore', scope: 'msp', dependsOn: [], fileScope: ['scope/b/**'] },
   ];
   const manifestRaw = JSON.stringify({ logicalRunId, specContentHash: SPEC_CONTENT_HASH, clusters: [['a'], ['b']], msps: reusedMsps });
   const reconcileResult = { manifestFound: true, manifestRaw, mergedPRs: [], specContentHash: SPEC_CONTENT_HASH };
@@ -2634,8 +2668,8 @@ test('T4a checkpoint Case-C: a relaunch whose manifest matches the logicalRunId 
     specContentHash: SPEC_CONTENT_HASH,
     clusters: [['a'], ['b']],
     msps: [
-      { id: 'a', title: 'a', rationale: 'r', dependsOn: ['b'], fileScope: ['scope/a/**'] },
-      { id: 'b', title: 'b', rationale: 'r', dependsOn: ['a'], fileScope: ['scope/b/**'] },
+      { id: 'a', title: 'update a', rationale: 'r-a', changeType: 'chore', scope: 'msp', dependsOn: ['b'], fileScope: ['scope/a/**'] },
+      { id: 'b', title: 'update b', rationale: 'r-b', changeType: 'chore', scope: 'msp', dependsOn: ['a'], fileScope: ['scope/b/**'] },
     ],
   });
   const reconcileResult = { manifestFound: true, manifestRaw: corruptRaw, mergedPRs: [], specContentHash: SPEC_CONTENT_HASH };
@@ -2770,8 +2804,8 @@ test('F4 DoS bound: an otherwise-reusable manifest whose msp dependsOn entry cou
   const heavyDeps = [];
   for (let i = 0; i < DEPENDS_ON_BLOAT; i += 1) heavyDeps.push('b');
   const manifestMsps = [
-    { id: 'a', title: 'a', rationale: 'r', dependsOn: heavyDeps, fileScope: ['scope/a/**'] },
-    { id: 'b', title: 'b', rationale: 'r', dependsOn: [], fileScope: ['scope/b/**'] },
+    { id: 'a', title: 'update a', rationale: 'r-a', changeType: 'chore', scope: 'msp', dependsOn: heavyDeps, fileScope: ['scope/a/**'] },
+    { id: 'b', title: 'update b', rationale: 'r-b', changeType: 'chore', scope: 'msp', dependsOn: [], fileScope: ['scope/b/**'] },
   ];
   const manifestRaw = JSON.stringify({ logicalRunId, specContentHash: SPEC_CONTENT_HASH, clusters: [['a', 'b']], msps: manifestMsps });
   const reconcileResult = { manifestFound: true, manifestRaw, mergedPRs: [], specContentHash: SPEC_CONTENT_HASH };
@@ -3529,8 +3563,8 @@ test('R4 resume-target: a resume of a KNOWN runId resolves through resolveResume
   const logicalRunId = computeLogicalRunId(input.spec, input.baseBranch);
   const resumeInput = buildInput({ verb: 'resume', runId: logicalRunId });
   const reusedMsps = [
-    { id: 'a', title: 'a', rationale: 'r', status: 'planned', integrationBranch: `${SOURCE_PREFIX}/a-integration`, prUrl: null, mergedAt: null, dependsOn: [], fileScope: ['scope/a/**'] },
-    { id: 'b', title: 'b', rationale: 'r', status: 'planned', integrationBranch: `${SOURCE_PREFIX}/b-integration`, prUrl: null, mergedAt: null, dependsOn: [], fileScope: ['scope/b/**'] },
+    { id: 'a', title: 'update a', rationale: 'r-a', changeType: 'chore', scope: 'msp', status: 'planned', integrationBranch: `${SOURCE_PREFIX}/a-integration`, prUrl: null, mergedAt: null, dependsOn: [], fileScope: ['scope/a/**'] },
+    { id: 'b', title: 'update b', rationale: 'r-b', changeType: 'chore', scope: 'msp', status: 'planned', integrationBranch: `${SOURCE_PREFIX}/b-integration`, prUrl: null, mergedAt: null, dependsOn: [], fileScope: ['scope/b/**'] },
   ];
   const manifestRaw = JSON.stringify({ logicalRunId, specContentHash: SPEC_CONTENT_HASH, clusters: [['a'], ['b']], msps: reusedMsps }, null, 2);
   const reconcileResult = { manifestFound: true, manifestRaw, mergedPRs: [], specContentHash: SPEC_CONTENT_HASH, checkpointRefPages: [] };
@@ -3547,7 +3581,7 @@ test('SECURITY HIGH-1 deny: a non-reusable relaunch (spec content hash changed) 
   const logicalRunId = computeLogicalRunId(input.spec, input.baseBranch);
   const attackerRef = 'refs/heads/attacker-controlled;curl evil';
   const priorMsps = [
-    { id: 'a', title: 'a', rationale: 'r', status: 'built', integrationBranch: `${SOURCE_PREFIX}/a-integration`, checkpointRef: attackerRef, builtSha: null, prUrl: null, mergedAt: null, dependsOn: [], fileScope: ['scope/a/**'] },
+    { id: 'a', title: 'update a', rationale: 'r-a', changeType: 'chore', scope: 'msp', status: 'built', integrationBranch: `${SOURCE_PREFIX}/a-integration`, checkpointRef: attackerRef, builtSha: null, prUrl: null, mergedAt: null, dependsOn: [], fileScope: ['scope/a/**'] },
   ];
   const manifestRaw = JSON.stringify({ logicalRunId, specContentHash: SPEC_CONTENT_HASH, clusters: [['a']], msps: priorMsps }, null, 2);
   assert.ok(parseRunManifest(manifestRaw), 'the prior built-bearing manifest parses back as a valid hint');
