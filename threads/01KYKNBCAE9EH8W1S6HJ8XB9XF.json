@@ -49,7 +49,8 @@
       "Findings are read-only inferences from a 4847-line file; the suite was never run. No proposal should build on them without the audit agent's independent confirmation."
     ],
     "key_decisions": [
-      "0065-mitosis-redesign-via-fable-fanout"
+      "0065-mitosis-redesign-via-fable-fanout",
+      "0066-pr-open-policy-stays-deferral"
     ],
     "out_of_scope": [
       "Any code change, commit, push, or PR this session - nothing was modified.",
@@ -59,5 +60,5 @@
     ]
   },
   "created_at": "2026-07-28T06:07:18.861Z",
-  "updated_at": "2026-07-28T06:09:40.244Z"
+  "updated_at": "2026-07-28T06:44:53.554Z"
 }
