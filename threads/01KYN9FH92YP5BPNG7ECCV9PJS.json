@@ -1,0 +1,50 @@
+{
+  "schema_version": 1,
+  "id": "01KYN9FH92YP5BPNG7ECCV9PJS",
+  "slug": "mitosis-boundary-layer-residuals-0092-0093-and-0094",
+  "title": "Mitosis boundary-layer residuals 0092, 0093 and 0094",
+  "status": "active",
+  "parent_id": null,
+  "predecessor_id": "01KYJTVMQ06B0NY6ENYKZCRYBP",
+  "completion_criteria": [
+    {
+      "text": "0092 diagnosis: the merge-boundary preflight never exits non-zero with empty stdout again - every non-zero exit emits a human-readable reason, and running the CLI directly with no MITOSIS_BOUNDARY_* env prints why it refused. Proven by executing the real CLI in that exact unconfigured state and reading its output.",
+      "done": false
+    },
+    {
+      "text": "0092 posture: a decision record settles whether the unconfigured boundary halts the run or degrades with a surfaced warning, and the engine implements what that record decides. The record must state the security trade-off explicitly, since fail-closed is what currently makes the engine unusable.",
+      "done": false
+    },
+    {
+      "text": "0092 receipt: a test execs the real preflight CLI end-to-end instead of stubbing the verdict, and it is RED when the step-7 call site is severed and GREEN when it is wired. The red state is demonstrated by actually severing the call site in a scratch copy, not asserted.",
+      "done": false
+    },
+    {
+      "text": "0093: gate identity stops being string equality on an unresolved path - the gate resolves a real path, or is relocated outside the repo it manages. A test redirects the path to a different file and asserts the gate refuses rather than trusting it.",
+      "done": false
+    },
+    {
+      "text": "0094: the config guard covers git worktrees - a write to a guarded path inside a real git worktree of this repo is held for human confirmation, asserted by a test that builds an actual worktree fixture rather than simulating one.",
+      "done": false
+    },
+    {
+      "text": "Each of the above lands as its own MSP through the centralized pr-create tool, and origin/main is verified fully green (full suite, exit 0) after each merge - re-derived from the remote, never from a possibly-stale local main.",
+      "done": false
+    }
+  ],
+  "vcs_ref": null,
+  "external_refs": [],
+  "blocked_by": null,
+  "abandoned_reason": null,
+  "closure_statement": null,
+  "spine": {
+    "status": "active",
+    "active_goal": "",
+    "next_step": "",
+    "open_risks": [],
+    "key_decisions": [],
+    "out_of_scope": []
+  },
+  "created_at": "2026-07-28T21:18:20.962Z",
+  "updated_at": "2026-07-28T21:18:20.962Z"
+}
