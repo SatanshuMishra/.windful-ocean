@@ -67,7 +67,8 @@
       "0031-pushes-to-origin-main-are-policy-denied-and-must-be-human-run",
       "0026-preflight-gate-moves-to-skill-md-engine-check-is-corroborating -- USER-LOCKED; the surviving SKILL.md layer is exactly this gate",
       "0047-train-integrates-via-merge-commit-with-head-branch-deletion -- proven unenforced live",
-      "0092-boundary-wiring-shipped-without-its-config-so-the-engine-halts-every-run"
+      "0092-boundary-wiring-shipped-without-its-config-so-the-engine-halts-every-run",
+      "0093-the-two-boundary-layers-are-not-independent-because-both-exec-the-same-symlinked-file"
     ],
     "out_of_scope": [
       "Build B / the restack verb -- CUT by 0027, needs its OWN thread, carrying mergedSha at reconcileShippedSet:371, the git exec primitive in mitosis-git.mjs, and decisions 0010/0012/0017.",
@@ -80,5 +81,5 @@
     ]
   },
   "created_at": "2026-07-27T22:24:20.192Z",
-  "updated_at": "2026-07-28T20:57:18.842Z"
+  "updated_at": "2026-07-28T20:57:33.925Z"
 }
