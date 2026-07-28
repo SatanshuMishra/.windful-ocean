@@ -56,6 +56,8 @@
       "mcp__plugin_github_github__create_pull_request",
       "mcp__github__create_pull_request_with_copilot",
       "mcp__plugin_github_github__create_pull_request_with_copilot",
+      "mcp__github__assign_copilot_to_issue",
+      "mcp__plugin_github_github__assign_copilot_to_issue",
       "mcp__github__update_pull_request",
       "mcp__plugin_github_github__update_pull_request",
       "mcp__github__merge_pull_request",
