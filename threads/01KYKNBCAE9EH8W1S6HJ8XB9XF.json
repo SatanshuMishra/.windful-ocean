@@ -1,0 +1,50 @@
+{
+  "schema_version": 1,
+  "id": "01KYKNBCAE9EH8W1S6HJ8XB9XF",
+  "slug": "mitosis-nonstop-shipping-architecture",
+  "title": "Mitosis non-stop shipping architecture (CI-to-green + blocked-MSP continuation)",
+  "status": "active",
+  "parent_id": null,
+  "predecessor_id": null,
+  "completion_criteria": [
+    {
+      "text": "A dedicated Fable audit returns a flaw inventory of the current mitosis merge/PR-open gating with file:line citations, confirming or refuting the 7 findings from the 2026-07-27 review",
+      "done": false
+    },
+    {
+      "text": "Industry-standard research (merge queues, stacked PRs, CI auto-remediation, build-ahead schedulers) returns cited, verified findings",
+      "done": false
+    },
+    {
+      "text": "An improved architecture is specified that resolves the stop conditions and is demonstrably SIMPLER and MORE ROBUST than the current design, not merely more capable",
+      "done": false
+    },
+    {
+      "text": "The architecture specifies how mitosis drives a shipped MSP's CI/CD to green automatically (detect red, diagnose, fix, re-push, re-verify) with a bounded, non-looping failure path",
+      "done": false
+    },
+    {
+      "text": "The architecture specifies how mitosis continues into blocked MSPs while a parent PR is open for human review, without terminating the run",
+      "done": false
+    },
+    {
+      "text": "The user explicitly approves the architecture spec before any implementation begins",
+      "done": false
+    }
+  ],
+  "vcs_ref": "feat/centralized-pr-creation",
+  "external_refs": [],
+  "blocked_by": null,
+  "abandoned_reason": null,
+  "closure_statement": null,
+  "spine": {
+    "status": "active",
+    "active_goal": "",
+    "next_step": "",
+    "open_risks": [],
+    "key_decisions": [],
+    "out_of_scope": []
+  },
+  "created_at": "2026-07-28T06:07:18.861Z",
+  "updated_at": "2026-07-28T06:07:18.861Z"
+}
