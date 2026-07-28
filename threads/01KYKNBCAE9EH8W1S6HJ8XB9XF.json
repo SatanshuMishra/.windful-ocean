@@ -40,13 +40,15 @@
   "spine": {
     "status": "paused",
     "active_goal": "Replace the mitosis shipping architecture so a run never stops at a human review boundary: drive a shipped MSP's CI/CD to green automatically, then continue into blocked MSPs. Simpler and more robust, not merely more capable.",
-    "next_step": "Dispatch dedicated FABLE subagents IN PARALLEL: (a) AUDIT mitosis.js - confirm/refute the seven findings in the 2026-07-28 session log by file:line, and RUN the superpowers-parallel test suite (not run this session); (b) RESEARCH merge queues, stacked PRs under squash-merge, CI auto-remediation; (c) DESIGN - judged on mechanism REMOVED. User approval before implementing.",
+    "next_step": "Write the architecture spec from the three Fable reports under decisions 0066 (PR-open deferral UNCHANGED) and 0067 (bounded CI fix loop + assertion-line escalation). Spec carries the design's mechanism ledger 18 -> 11: delete AIMD -> fixed cap K, delete divergence probes, derive state from forge+git not the journal fold, honest terminal states. Land the stale-resumePoint fix as a SEPARATE atomic commit first. USER APPROVAL of the spec before any implementation.",
     "open_risks": [
-      "Finding 5 is data-loss-class and live: park() cascades status 'parked' onto already-built dependents, and the common identical-spec relaunch cannot recover them despite the git checkpoint refs existing. Runs launched before the fix can silently discard frontier-built work.",
-      "Open design question: may a child PR open against base carrying its parents' commits (superset diff, violates the MSP green-branch invariant), or is deferral until parent-merge the only correct answer? Every proposal must answer this.",
-      "Open question: an auto-CI-to-green loop is an unbounded remediation loop aimed at a PUBLISHED branch. Needs a hard attempt bound, a no-force-push guarantee, and which failure classes are agent-fixable vs human-only - else it becomes the forbidden fragility.",
-      "Complexity ratchet: frontier-train, AIMD window, divergence probes, reconcile-only shepherd and saga compensation were each added to fix a stop condition and together produced today's fragility. A ninth mechanism should read as failing the constraint.",
-      "Findings are read-only inferences from a 4847-line file; the suite was never run. No proposal should build on them without the audit agent's independent confirmation."
+      "Finding 5 as stated is REFUTED - the git-ref rescue at mitosis.js:3702-3714 fires on its alleged trigger. But a narrower vector IS verified: applyBuiltTransition (:473-479) never clears resumePoint, so a unit parked-at-plan then rebuilt retains a stale stage:'plan'.",
+      "Stale-resumePoint cont'd: a later ancestor park cascades status to 'parked' while PRESERVING resumePoint (:2230-2237), so the :3706 guard blocks git-ref rescue and the unit re-plans despite a live checkpoint. One-line root cause. Frequency (:3757/:3773) NOT verified.",
+      "Finding 1 was misattributed as the halt cause. PR deferral does not stop agent progress - no agent work exists at a review boundary and build-ahead already runs. The halt is findings 2/3/4: window floor, 6-cycle bounded poll, failure-shaped reporting of review latency.",
+      "Watcher liveness: the design moves non-stop out of the engine into an orchestrator background watch. If the session ends the system silently stalls - worse than today's loud mislabeled stop. Its own pre-mortem names this. The spec needs a re-arm/staleness answer.",
+      "Fixed cap K replaces AIMD on evidence the tuner's SIGNAL was weak, not that a constant is right; invalidation frequency was never instrumented. Deep chains may pay a rebuild burst that eager probes would have caught in one pass.",
+      "mitosis.js INLINES copies of lib modules (window :2141-2158 duplicates window.mjs; planReconcile :2710 duplicates reconcile.mjs) with a drift checker at .claude/lib/superpowers-parallel/.drift-state.json. Every deletion lands twice.",
+      "Two defects the seven findings missed: in-run AIMD re-counts a persistent APPROVED every poll cycle with no dedup (3->8 from one approval, :4789-4794); computeMergePolicyStatus:3394 returns 'failed' when shippedCount===0 despite an open PR and built work."
     ],
     "key_decisions": [
       "0065-mitosis-redesign-via-fable-fanout",
@@ -61,5 +63,5 @@
     ]
   },
   "created_at": "2026-07-28T06:07:18.861Z",
-  "updated_at": "2026-07-28T06:45:13.936Z"
+  "updated_at": "2026-07-28T06:46:37.851Z"
 }
