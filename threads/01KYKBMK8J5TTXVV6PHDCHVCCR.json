@@ -3,7 +3,7 @@
   "id": "01KYKBMK8J5TTXVV6PHDCHVCCR",
   "slug": "centralized-pr-creation",
   "title": "Centralized PR creation",
-  "status": "paused",
+  "status": "done",
   "parent_id": null,
   "predecessor_id": null,
   "completion_criteria": [
@@ -44,9 +44,9 @@
   "external_refs": [],
   "blocked_by": null,
   "abandoned_reason": null,
-  "closure_statement": null,
+  "closure_statement": "Centralized PR creation is landed and gated with the GitHub MCP leg proven against the live tool list; criterion 5 closes on static evidence only, its live end-to-end check having been explicitly waived per decision 0064.",
   "spine": {
-    "status": "paused",
+    "status": "done",
     "active_goal": "Land centralized PR creation (one tool, one gate, one rule) and prove the new path is live with every old implementation removed. The GitHub MCP leg is now CLOSED and proven; the only outstanding work is the LIVE end-to-end proof of the new PR path.",
     "next_step": "Thread closed. The new PR path has NEVER been exercised live - live verification was waived (decision 0064), so the first PR opened through `mitosis-git.mjs pr-create` is its first real run; watch it rather than assume it. Re-run `claude mcp list` after the next app restart to confirm the ~/.claude.json headersHelper edit survived; backup at ~/.claude.json.bak-pr-thread. Branch feat/centralized-pr-creation carries 8 unpushed commits and no upstream.",
     "open_risks": [
@@ -75,5 +75,5 @@
     ]
   },
   "created_at": "2026-07-28T03:17:35.121Z",
-  "updated_at": "2026-07-28T04:36:12.307Z"
+  "updated_at": "2026-07-28T04:36:19.434Z"
 }
