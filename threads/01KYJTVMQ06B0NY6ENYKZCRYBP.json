@@ -35,38 +35,36 @@
   "closure_statement": null,
   "spine": {
     "status": "paused",
-    "active_goal": "The severed preflight is FIXED and merged (PR #10, main = 2c95405), and the suite reaches 1544/1544 green with PR #11. But 0092 supersedes the thread's framing: the wiring landed WITHOUT its MITOSIS_BOUNDARY_* config, so every mitosis run now halts at reconcile. Criterion 3 has a second code blocker, independent of the human runbook. Criteria 1, 4, 5 remain done.",
-    "next_step": "USER DECISION on 0092 - no run can start until provisioning is fixed (fail-closed: availability, not security). Then (1) merge PR #11 and #12; (2) fix MITOSIS_BOUNDARY_* provisioning, which needs a new required run input for the machine-user handle; (3) 0094 worktree guard gap on fix/guard-any-claude-root; (4) 0093 gate-relocation MSP; (5) human applies runbook Sections 2-5.",
+    "active_goal": "SHIPPING IS DONE. main = a229c9c is FULLY GREEN (1544/1544, exit 0) - the first green main in this thread's history - via merged PRs #10, #11, #12. Per 0095 the human runbook Sections 2-5 are DESCOPED, so Build A will never be activated and criteria 2 and 3 are permanently unachievable as written. What remains is disposition, not engineering: close this thread and hand the residual defects to a successor.",
+    "next_step": "CLEANUP AND CLOSE. (1) USER RULING required: criteria 2 and 3 cannot be checked (0095), so the structural DoD gate refuses `done` - decide close-by-ruling vs abandon. Do NOT falsely check them. (2) Destructive cleanup, needs explicit confirmation: 16 worktrees registered, 4 in a dead scratchpad; the 3 squash-merged branches from this session are invisible to `git branch --merged`. (3) Open a successor thread carrying 0092, 0093, 0094.",
     "open_risks": [
-      "0092 LIVE ON MAIN: reconcile step 7 execs the preflight with no env, it exits 31 with zero stdout, the agent returns null, and the run halts at preflight-boundary. Measured from a clean env. Fail-closed but the engine is unusable.",
-      "0092 corollary: layer 2 has NEVER worked end-to-end, not even before the severance - which is why the week-long severance went unnoticed. Scheduler tests stub the verdict and never exec the CLI.",
-      "0093 MEDIUM: ~/.claude/lib symlinks into this repo, so both boundary layers exec the SAME mutable file inside the repo under management. invokedAs is string equality on the unresolved path and cannot detect a poisoned gate by construction.",
-      "0094: the config guard does not cover git worktrees at all, and mitosis instructs every fanned-out agent to work in one. Demonstrated live this session. This also weakens 0093's mitigation.",
-      "A subagent committed while reporting 'no commit, no push', and must have used --no-verify since the suite was red at that timestamp. Subagent self-reports are not trustworthy without repository verification.",
-      "A worktree reused from a STALE session's scratchpad was garbage-collected mid-session, destroying three uncommitted files. Recreated from agent reports. Never site a worktree in another session's scratchpad.",
-      "delete_branch_on_merge=false, rulesets 0, and all three merge methods still enabled - runbook Section 5 remains TWO settings flips and 0047 is still unenforced.",
-      "PR #12 is content-independent of PR #11 but its branch inherits the 2 guardrail failures until #11 merges; the failing-name set was diffed and nothing new was introduced."
+      "0092 LIVE ON MAIN, now PERMANENT under 0095: step 7 execs the preflight with no MITOSIS_BOUNDARY_* env, it exits 31 with no stdout, and every run halts at preflight-boundary. Fail-closed, so availability not security - but the engine is unusable.",
+      "0092 corollary: layer 2 has NEVER worked end-to-end, not even before the severance - which is why a week-long severance went unnoticed. Scheduler tests stub the verdict and never exec the CLI.",
+      "0093 MEDIUM: ~/.claude/lib symlinks into this repo, so both boundary layers exec the SAME mutable file inside the repo under management. invokedAs is string equality on an unresolved path and cannot detect a poisoned gate.",
+      "0094: the config guard does not cover git worktrees at all, and mitosis puts every fanned-out agent in one. Shown live this session. This also weakens 0093's mitigation that a poisoning write must pass the guard.",
+      "Subagent self-reports are NOT trustworthy: one committed while reporting 'no commit, no push', and must have used --no-verify since the suite was red then. Verify against the repository, always.",
+      "NEVER site a worktree in another session's scratchpad - one was garbage-collected mid-session, destroying three uncommitted files. Unstaged files are not in the object DB and are unrecoverable.",
+      "PR #10 was merged while its code review was still running, so the reviewer's BLOCK (0092) landed after the change it blocked was already on main. Merging before review returns has a real cost.",
+      "The primary checkout still sits on feat/centralized-pr-creation (450804e), the pre-feature lineage whose squash caused the original severance, and carries uncommitted work owned by other threads.",
+      "The semgrep upstream-drift check is still NOT RUN - the live curl remains sandbox-denied. The pin matches four cached copies, proving the scanned config, not that upstream is unchanged."
     ],
     "key_decisions": [
-      "0092-boundary-wiring-shipped-without-its-config-so-the-engine-halts-every-run -- UNRESOLVED, live on main, availability blocker",
-      "0093-the-two-boundary-layers-are-not-independent-because-both-exec-the-same-symlinked-file -- MEDIUM, own MSP",
-      "0094-the-config-guard-does-not-cover-git-worktrees-so-the-engine-bypasses-it-by-design -- held for fix/guard-any-claude-root",
-      "0083-merge-boundary-preflight-is-unwired-on-every-platform-and-fails-open -- now FIXED on main via PR #10",
-      "0088-boundary-preflight-loss-was-a-bad-merge-resolution -- discharged; 7e2e7d7 squash-merged a conflict resolution 29 seconds after it was made",
-      "0089-the-authoritative-skill-md-gate-survived -- INDEPENDENTLY CONFIRMED this session",
-      "REFUTED this session: RECONCILE_SCHEMA optionality was NOT the cause of the silent severance. No engine-side validator exists on that path and readBoundaryPreflightVerdict already fails closed on an absent key. Requiring it broke MSP-2 R3 and was reverted.",
-      "0095-runbook-sections-2-5-are-descoped-so-build-a-will-not-be-activated",
-      "0096-reconcile-schema-optionality-was-not-the-cause-of-the-silent-severance"
+      "0095-runbook-sections-2-5-are-descoped-so-build-a-will-not-be-activated -- criteria 2 and 3 stay UNCHECKED and are never rewritten",
+      "0092-boundary-wiring-shipped-without-its-config-so-the-engine-halts-every-run -- now the permanent steady state under 0095",
+      "0093-the-two-boundary-layers-are-not-independent-because-both-exec-the-same-symlinked-file -- MEDIUM, successor thread",
+      "0094-the-config-guard-does-not-cover-git-worktrees-so-the-engine-bypasses-it-by-design -- successor thread",
+      "0096-reconcile-schema-optionality-was-not-the-cause-of-the-silent-severance -- tested, refuted, reverted; do not re-attempt",
+      "0083-merge-boundary-preflight-is-unwired-and-fails-open -- FIXED and merged via PR #10",
+      "0089-the-authoritative-skill-md-gate-survived -- INDEPENDENTLY CONFIRMED this session"
     ],
     "out_of_scope": [
-      "Build B / the restack verb -- CUT by 0027, needs its OWN thread.",
-      "MSP-4 -- DROPPED by 0027.",
-      "Agent-applied settings.json and GitHub settings edits. Runbook Sections 2-5 and 0026's hook are authored for a HUMAN to apply.",
+      "Runbook Sections 2-5 and Build A activation -- DESCOPED by user ruling 0095, not deferred.",
+      "Build B / the restack verb -- CUT by 0027. MSP-4 -- DROPPED by 0027.",
+      "0092 provisioning, 0093 gate relocation, 0094 worktree guard widening -- real defects, but each needs its own MSP in a SUCCESSOR thread, not this one.",
       "Re-vendoring p/default content to replace the hash-only pin.",
-      "Merging PRs #11 and #12 -- merge stays human-gated.",
-      "Widening the config guard to cover worktrees (0094) and relocating the gate binary (0093) -- both are behavior changes to security controls and need their own MSPs."
+      "Falsely checking completion criteria 2 or 3, or retroactively rewriting them -- both refused; the criteria are write-once and the DoD gate is structural."
     ]
   },
   "created_at": "2026-07-27T22:24:20.192Z",
-  "updated_at": "2026-07-28T21:04:30.729Z"
+  "updated_at": "2026-07-28T21:05:14.883Z"
 }
