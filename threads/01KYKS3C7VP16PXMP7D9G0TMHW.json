@@ -13,7 +13,7 @@
     },
     {
       "text": "The suite's result does not change when a global core.hooksPath or any GIT_CONFIG_* is present in the environment. Today 4 installer tests fail under that condition while the machine-local run is 622/622.",
-      "done": false
+      "done": true
     },
     {
       "text": "The ledger's own commit and merge path is unaffected by repository-local content filters and by repository-local signature-verification settings - OR both gaps are recorded as accepted in a decision and named in the README's accepted-gaps list.",
@@ -21,15 +21,15 @@
     },
     {
       "text": "The recovery store reports success only when the resulting store is usable, and never adopts a pre-existing unrelated repository at that path. A test covers a store directory that exists but is not a usable repo.",
-      "done": false
+      "done": true
     },
     {
       "text": "Every line-range citation in the README resolves to the code it claims, verified at the commit where it ships (six ranges are wrong at d102fb8; one lands on a deny while claiming ask).",
-      "done": false
+      "done": true
     },
     {
       "text": "The two inherited user calls are each recorded as a decision: commit attribution for the Round B `git add -A` sweep, and whether this branch is pushed and opened as one PR through the centralized pr-create tool.",
-      "done": false
+      "done": true
     }
   ],
   "vcs_ref": null,
@@ -39,40 +39,37 @@
   "closure_statement": null,
   "spine": {
     "status": "paused",
-    "active_goal": "The guard WORK is shipped and verified at d102fb8 on fix/pre-tool-use-guard in DevLabs/continuity-ledger-plugin: 622/622, check-packaging ok, clean tree, 30 commits unpushed, no PR. This successor carries only the residuals the 0068 delta review confirmed, plus the two user calls the predecessor could not make. The predecessor died on its SPECIFICATION (criteria naming a parser 0029 deleted), not on its code - so criteria here are behavior-shaped on purpose.",
-    "next_step": "AWAIT an explicit user go - two rulings pending, nothing here is authorized: (a) fix the installer config-scope defect now, or defer it; (b) commit attribution for the Round B `git add -A` sweep. If (a) is go, that is criterion 1: installer.mjs:51 reads `config --get` with no --local and :8 lacks the config-isolating env, so a foreign core.hooksPath becomes local repo state. Red-first under hostile ambient config. No push or PR without a separate go.",
+    "active_goal": "Close the six residual criteria on fix/pre-tool-use-guard in DevLabs/continuity-ledger-plugin. User gave the go on 2026-07-28 for both inherited rulings: attribution accepted as-is (0072), branch pushed and opened as one PR through pr-create (0073).",
+    "next_step": "Two items remain. (1) Criterion 1 REOPENED by code review: legacy repos carry a poisoned local continuity.priorHooksPath and uninstall still writes it back as a local pin; migration fix in flight in hooks/lib/installer.mjs. (2) Criterion 3 needs the fourth README accepted-gap entry for .git/info/attributes per 0078, citing final git-env.mjs lines. Then the full suite under all three config environments, then push and open ONE PR through pr-create.",
     "open_risks": [
-      "CONFIRMED DEFECT at d102fb8: 0042's config fix never reached hook installation. installer.mjs:8 lacks the config-isolating env that local-driver.mjs:23 and git-scope.mjs:52,76,85 apply. A foreign core.hooksPath is recorded as the repo's prior value, so uninstall cannot restore the user's hooks.",
-      "The local 622/622 is NOT health evidence: this machine has no global core.hooksPath and zero GIT_CONFIG* vars. Under hostile ambient config 4 installer tests fail - they assert on MERGED config, so they measure the developer's machine.",
-      "isolatedScope still loads the repo's own .git/config and info/attributes, so a repo-local content filter or merge driver executes during the ledger's add/merge (verified). merge.verifySignatures is unneutralized: a repo-local value runs gpg.program and sync() silently stops converging.",
-      "Six README line-range citations are stale at d102fb8: the README commit is the OLDEST in the delta and later commits shifted the lines. The range cited for 'a match returns ask, not deny' now lands on the deny branch.",
-      "UNRESOLVED, needs a user call: Round B used git add -A and swept Round A in-flight files into 3 commits. No content lost, suite green; damage is attribution only. src/util/git-env.mjs exists ONLY in 8962003, whose message is about the tripwire. All 30 commits unpushed.",
-      "ALL VERIFICATION IS macOS, git 2.55.0, Node 26.4.0, ONE MACHINE. Unverified on Windows and older git: resolve() on UNC paths, ABSENT_HOOKS_PATH under the Windows null device, devNull as GIT_CONFIG_GLOBAL, -c core.hooksPath quoting. git init -b needs git 2.28+.",
-      "PROMPT FATIGUE remains the real failure mode and the prompt IS the protection. A near-root CLAUDE_PLUGIN_DATA makes it worse: the guard fails CLOSED over a wide slice of the filesystem. No test pins the newly-prompting command count.",
-      "Under a NON-DEFAULT ledger_branch the guard offers nothing (0036/0043). rm -rf .git && git init still destroys the ledger ref unprompted. Both documented in the README, both deliberate.",
+      "Deliberate fail-closed trade at 07daf15: the installer nulls global and system config, so a user in a dubious-ownership repo who had a global safe.directory grant no longer gets hooks installed there. No compensating logic added.",
+      "GIT_ATTR_NOSYSTEM is undocumented in git 2.55.0's man pages though present and working. If removed, the system-attributes vector reopens silently, with no error and no test failure. A CI test for it is impractical, so 0078 is the only mitigation.",
+      "UNIMPLEMENTED, described only: continuity.priorHooksPath is written only in the !alreadyInstalled branch, so a repo already pointing at the managed dir with no recorded prior gets --unset on uninstall, not a restore. Safe fix writes '' (NOT current) only when the local key is absent.",
+      "Left open as outside 0028's model: hooks/dispatcher and hooks/commit-msg read continuity.priorHooksPath and continuity.trailer MERGED and the dispatcher execs the result; and a config value beginning with -- is parsed as an option at the write sites.",
+      "Latent, not live: RECOVERY_HEAD_REF is coupled by coincidence to DEFAULT_LEDGER_BRANCH. LocalDriver has no configurable branch today, so nothing breaks; the day it gains one, every pre-existing store is refused.",
+      "ALL VERIFICATION IS macOS, git 2.55.0, Node 26.4.0, ONE MACHINE. Unverified on Windows and older git. Note node --test <dir> is broken on Node 26.4.0; the glob form is required.",
+      "PROMPT FATIGUE remains the real failure mode and the prompt IS the protection. No test pins the newly-prompting command count.",
+      "Under a NON-DEFAULT ledger_branch the guard offers nothing (0036/0043). rm -rf .git && git init still destroys the ledger ref unprompted. Both documented, both deliberate.",
       "Sandbox hooks/MCP question still UNVERIFIED per 0037: if MCP servers are subject to denyWrite, a denyWrite entry over the ledger root stops the plugin writing its own store. The test is a human action.",
-      "UNAUTHORIZED DEFECT, open, do not fix without explicit go: the Stop hook nags every turn (stop.mjs exits 2 unconditionally, never reads stop_hook_active). Surfaced four times now with no user reply."
+      "UNAUTHORIZED DEFECT, open, do not fix without explicit go: the Stop hook nags every turn (stop.mjs exits 2 unconditionally, never reads stop_hook_active). Surfaced five times with no user reply."
     ],
     "key_decisions": [
-      "0068-delta-review-one-high-carried-into-successor-not-fixed-here",
-      "0063-closing-instruction-done-is-unreachable-so-terminate-via-abandoned-plus-successor",
+      "0078-five-of-six-attribute-vectors-closed-info-attributes-accepted",
+      "0073-guard-branch-is-pushed-and-opened-as-one-pr-through-pr-create",
+      "0072-round-b-sweep-misattribution-accepted-because-squash-on-merge-discards-it",
       "0050-git-invocations-split-into-four-scopes-network-keeps-user-config",
       "0042-config-loading-is-the-second-half-of-the-git-env-fix",
       "0029-parser-deleted-round-c-killed",
-      "0028-threat-model-scoped-to-agent-accident",
-      "0015-adopt-over-catch-ask-never-under-catch",
-      "0072-round-b-sweep-misattribution-accepted-because-squash-on-merge-discards-it",
-      "0073-guard-branch-is-pushed-and-opened-as-one-pr-through-pr-create",
-      "0078-five-of-six-attribute-vectors-closed-info-attributes-accepted"
+      "0028-threat-model-scoped-to-agent-accident"
     ],
     "out_of_scope": [
       "Shell parsing, tokenization, allowlisting or head normalization in ANY form (0029/0054). Substring and quoting evasions are an accepted cost, not a defect.",
       "A determined or adversarial same-uid agent, and the user's own deliberate deletion of their files (0028).",
       "The other four canonical stores; future rollout, per-repo.",
       "ledger-cli sync and publication of the _ledger ref. LocalDriver.sync() stays {synced:false}.",
-      "The one-line commit.gpgsign=false in the e2e fixture that would finish the drift-signals flake."
+      "The continuity.trailer merged-read asymmetry in hooks/commit-msg - real, confirmed, but a separate atomic change."
     ]
   },
   "created_at": "2026-07-28T07:12:50.939Z",
-  "updated_at": "2026-07-28T19:37:23.330Z"
+  "updated_at": "2026-07-28T19:45:55.240Z"
 }
