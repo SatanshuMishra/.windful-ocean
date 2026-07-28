@@ -95,7 +95,13 @@ test('extractVariant extracts the requested variant for a positive integer', () 
   assert.deepEqual(extractVariant(lines, block, 2), ['  <p>variant two</p>']);
 });
 
-test('extractVariant returns null for a variantNum that breaks the regex source', () => {
+test('extractVariant accepts the decimal string form every caller above the CLI passes', () => {
+  const { lines, block } = variantFixture();
+  assert.deepEqual(extractVariant(lines, block, '1'), ['  <p>variant one</p>']);
+  assert.deepEqual(extractVariant(lines, block, ' 2 '), ['  <p>variant two</p>']);
+});
+
+test('extractVariant returns null for regex metacharacters, valid pattern or not', () => {
   const { lines, block } = variantFixture();
   assert.equal(extractVariant(lines, block, '('), null);
   assert.equal(extractVariant(lines, block, '['), null);
@@ -109,7 +115,21 @@ test('extractVariant returns null for a variantNum crafted to match a different 
 
 test('extractVariant returns null for variantNum outside the positive-integer contract', () => {
   const { lines, block } = variantFixture();
-  for (const raw of [0, -1, 1.5, NaN, Infinity, '1', null, undefined, {}, []]) {
+  for (const raw of [0, -1, 1.5, NaN, Infinity, null, undefined, {}, []]) {
     assert.equal(extractVariant(lines, block, raw), null, `expected rejection for: ${String(raw)}`);
   }
+});
+
+test('extractVariant returns null above the three-digit bound the server already enforces', () => {
+  const lines = [
+    '<!-- impeccable-variants-start SESSION2 -->',
+    '<div data-impeccable-variant="1ee21">',
+    '  <p>quantifier bait</p>',
+    '</div>',
+    '<!-- impeccable-variants-end SESSION2 -->',
+  ];
+  const block = findMarkerBlock('SESSION2', lines);
+  assert.equal(extractVariant(lines, block, 1e21), null);
+  assert.equal(extractVariant(lines, block, 1000), null);
+  assert.equal(extractVariant(lines, block, '1000'), null);
 });

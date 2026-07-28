@@ -19,6 +19,8 @@ import { isGeneratedFile } from './is-generated.mjs';
 
 const EXTENSIONS = ['.html', '.jsx', '.tsx', '.vue', '.svelte', '.astro'];
 
+const VARIANT_NUM_MAX = 999;
+
 // ---------------------------------------------------------------------------
 // CLI
 // ---------------------------------------------------------------------------
@@ -392,14 +394,11 @@ function extractOriginal(lines, block) {
   return inner.split('\n');
 }
 
-/**
- * Extract a specific variant's inner content (stripping the wrapper div).
- * Returns an array of lines, or null if not found.
- */
 function extractVariant(lines, block, variantNum) {
-  if (!Number.isInteger(variantNum) || variantNum < 1) return null;
+  const num = typeof variantNum === 'string' ? parseVariantNum(variantNum) : variantNum;
+  if (!Number.isInteger(num) || num < 1 || num > VARIANT_NUM_MAX) return null;
   const text = stripStyleAndJoin(lines, block);
-  const inner = extractInnerByAttr(text, 'data-impeccable-variant="' + variantNum + '"');
+  const inner = extractInnerByAttr(text, 'data-impeccable-variant="' + num + '"');
   if (inner === null) return null;
   const result = inner.split('\n');
   // Collapse a lone empty leading/trailing line (common after string splice).
