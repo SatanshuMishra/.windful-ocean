@@ -11,6 +11,15 @@ const REPO_ROOT = '/tmp/mitosis-frontier-e2e/repo';
 const BASE_BRANCH = 'main';
 const RUN_ID = computeLogicalRunId(SPEC, BASE_BRANCH);
 const PR_CREATE_CLI = 'node /Users/satanshumishra/.claude/lib/superpowers-parallel/mitosis-git.mjs pr-create';
+const PROVEN_BOUNDARY = Object.freeze({
+  passed: true,
+  halted: [],
+  boundarySlug: 'o/repo',
+  boundaryBaseBranch: BASE_BRANCH,
+  invokedAs: '/Users/satanshumishra/.claude/lib/superpowers-parallel/merge-boundary-preflight.mjs',
+  bypassVerified: false,
+  bypassGap: 'human governance',
+});
 
 const mitosisBody = readFileSync(MITOSIS_PATH, 'utf8').replace(/^export const meta/m, 'const meta');
 const AsyncFunction = Object.getPrototypeOf(async function () {}).constructor;
@@ -83,14 +92,16 @@ function buildEngineArgs(mspId, taskId = 't0') {
 }
 
 function mspSpec(id, overrides = {}) {
-  return { id, title: id, rationale: `rationale for ${id}`, dependsOn: [], fileScope: [`scope/${id}/**`], ...overrides };
+  return { id, title: `update ${id}`, rationale: `rationale for ${id}`, changeType: 'chore', scope: 'msp', dependsOn: [], fileScope: [`scope/${id}/**`], ...overrides };
 }
 
 function manifestMsp(id, overrides = {}) {
   return {
     id,
-    title: id,
+    title: `update ${id}`,
     rationale: `r-${id}`,
+    changeType: 'chore',
+    scope: 'msp',
     status: 'built',
     dependsOn: [],
     fileScope: [`scope/${id}/**`],
@@ -147,7 +158,7 @@ function withReconcileDefaults(recon) {
       : row))
     : recon.openPRs;
   const withOpen = openPRs === undefined ? {} : { openPRs };
-  return { ownerRepo: 'o/repo', repoHost: 'github.com', mergedPRsAuthoritative: true, ...recon, ...withOpen };
+  return { ownerRepo: 'o/repo', repoHost: 'github.com', mergedPRsAuthoritative: true, boundaryPreflight: PROVEN_BOUNDARY, ...recon, ...withOpen };
 }
 
 function shepherdAgent({ reconcileResult, openResult, restackResult, probeResult } = {}) {
@@ -492,13 +503,14 @@ test('bullet 5 + 2: reconcile-only shepherd opens the deferred next-layer PR onl
   assert.ok(!/gh pr merge|squash-merge|git merge/.test(openPrompt), 'the shepherd opens the PR for a human and NEVER merges');
   assert.match(openPrompt, /human-gated/i, 'the shepherd-open prompt is explicitly human-gated');
   assert.ok(
-    openPrompt.includes(`${PR_CREATE_CLI} --repo o/repo --head ${SOURCE_PREFIX}/l2-integration --base ${BASE_BRANCH} --title "mitosis: l2"`),
-    'the deferred PR opens through the absolutely-spelled wrapper invocation, not free-form prose',
+    openPrompt.includes(`${PR_CREATE_CLI} --repo o/repo --head ${SOURCE_PREFIX}/l2-integration --base ${BASE_BRANCH} --title "chore(msp): update l2"`),
+    'the deferred PR opens through the absolutely-spelled wrapper invocation, not free-form prose, under a Conventional-Commits title composed from the MSP-declared change type and scope',
   );
   assert.ok(
-    openPrompt.includes('--title "mitosis: l2" --body-line "MSP l2" --body-line "SCOPE r-l2"'),
-    'the deferred PR carries this MSP title and scope so the human who lands it is not handed a boilerplate-only body',
+    openPrompt.includes('--title "chore(msp): update l2" --origin machine --provenance "agent=shepherd-open:l2 model=unspecified" --why "r-l2" --what "update l2" --not-verified "CI on the fresh head and base - not run; this pull request opens before CI starts" --changed-lines <N>'),
+    'the deferred PR carries this MSP rationale and title as named body fields, states the CI it has not run rather than predicting one, and names the model the site actually sets',
   );
+  assert.doesNotMatch(openPrompt, /--body-line|--verified /, 'the free-form body-line escape hatch is gone, and no code path emits a Verified line the caller did not supply');
   assert.doesNotMatch(openPrompt, /gh pr list/, 'the wrapper performs the observe step itself; a second gh pr list would restore the free-form surface');
   assert.doesNotMatch(openPrompt, /~\/\.claude/, 'the anchor is never spelled with a tilde: the permission matcher compares strings, not inodes');
 });

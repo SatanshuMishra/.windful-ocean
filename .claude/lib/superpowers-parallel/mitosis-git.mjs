@@ -4,6 +4,23 @@ import { fileURLToPath } from 'node:url';
 import { classifyGhMerge, resolveRealGh, DEFAULT_FALLBACKS, MERGE_DENY_EXIT, REAL_GH_MISSING_EXIT } from './gh-merge-shim.mjs';
 import { validateRefToken } from './checkpoint.mjs';
 import { validateRepoIdentity, parsePrRef } from './merge-watch.mjs';
+import {
+  inertValue,
+  carriesToolTrailer,
+  renderPrCreateBody,
+  PR_TITLE_PATTERN,
+  PR_TITLE_TYPES,
+  PR_TITLE_CAP,
+  PR_VALUE_CAP,
+  PR_ORIGINS,
+  PR_PROVENANCE_PATTERN,
+  PR_CHANGED_LINES_PATTERN,
+  PR_MULTI_LIMITS,
+  SUPERSEDES_PREFIX,
+  DEPENDS_PREFIX,
+} from './pr-format.mjs';
+
+export { inertValue, renderPrCreateBody, PR_TITLE_PATTERN, PR_TITLE_TYPES };
 
 export const MITOSIS_GIT_USAGE_EXIT = 2;
 export const MITOSIS_GIT_TRIPWIRE_EXIT = MERGE_DENY_EXIT;
@@ -14,11 +31,11 @@ export const MITOSIS_GIT_VERBS = Object.freeze(['pr-create', 'pr-close', 'compar
 
 const NO_INDIRECT_IO = Object.freeze({ readFile: () => null, readStdin: () => null });
 
-const FLAG_SPEC = Object.freeze({
+export const FLAG_SPEC = Object.freeze({
   'pr-create': Object.freeze({
-    required: Object.freeze(['--repo', '--head', '--base', '--title']),
-    single: Object.freeze(['--repo', '--head', '--base', '--title', '--supersedes', '--depends']),
-    multiple: Object.freeze(['--body-line']),
+    required: Object.freeze(['--repo', '--head', '--base', '--title', '--origin', '--why', '--what']),
+    single: Object.freeze(['--repo', '--head', '--base', '--title', '--origin', '--provenance', '--risk', '--supersedes', '--depends', '--changed-lines']),
+    multiple: Object.freeze(['--why', '--what', '--verified', '--not-verified', '--link']),
   }),
   'pr-close': Object.freeze({
     required: Object.freeze(['--repo', '--pr']),
@@ -32,35 +49,32 @@ const FLAG_SPEC = Object.freeze({
   }),
 });
 
-const CONTROL_CHARS = /[\u0000-\u001F\u007F]/g;
-const TITLE_CAP = 256;
-const LINE_CAP = 512;
-const BODY_LINE_CAP = 64;
+const PR_NARRATIVE_FIELDS = Object.freeze([
+  Object.freeze(['--why', 'why']),
+  Object.freeze(['--what', 'what']),
+  Object.freeze(['--verified', 'verified']),
+  Object.freeze(['--not-verified', 'notVerified']),
+  Object.freeze(['--link', 'links']),
+]);
+
 const PR_NUMBER_PATTERN = /^[1-9][0-9]{0,9}$/;
 const DEPENDS_ID_PATTERN = /^[a-z0-9][a-z0-9-]*$/;
 const DEPENDS_CAP = 64;
 const DEPENDS_ID_CAP = 64;
-const SUPERSEDES_PREFIX = 'SUPERSEDES ';
-const DEPENDS_PREFIX = 'DEPENDS-ON ';
-const BODY_TRAILER = 'Opened by the mitosis engine. HUMAN-GATED: a human reviews and lands this pull request.';
 
 function rejection(error) {
   return Object.freeze({ ok: false, error, verb: null, opts: null });
 }
 
-function inertText(value, cap) {
-  if (typeof value !== 'string') return null;
-  const stripped = value.replace(CONTROL_CHARS, '').trim();
-  if (stripped.length === 0) return null;
-  if (stripped.length > cap) return null;
-  if (stripped.startsWith('@')) return null;
-  return stripped;
+function valueRejection(verb, flag, cap) {
+  return `mitosis-git ${verb}: a ${flag} value is empty, over the ${cap}-character cap, or carries something a pull-request document may not carry: a leading field-indirection sigil, a non-ascii character, an html tag opener, a leading markdown block opener, or a setext underline`;
 }
 
 function parseDependsList(value) {
   const parts = String(value).split(',').map((part) => part.trim());
   if (parts.length === 0 || parts.length > DEPENDS_CAP) return null;
   if (!parts.every((part) => part.length <= DEPENDS_ID_CAP && DEPENDS_ID_PATTERN.test(part))) return null;
+  if (inertValue(parts.join(', '), PR_VALUE_CAP - DEPENDS_PREFIX.length) === null) return null;
   return parts;
 }
 
@@ -68,7 +82,7 @@ function canonicalPrUrl(candidate) {
   const ref = parsePrRef(candidate);
   if (ref === null || !validateRepoIdentity(ref.ownerRepo)) return null;
   const canonical = `https://github.com/${ref.ownerRepo}/pull/${ref.prNumber}`;
-  if (inertText(`${SUPERSEDES_PREFIX}${canonical}`, LINE_CAP) === null) return null;
+  if (inertValue(canonical, PR_VALUE_CAP - SUPERSEDES_PREFIX.length) === null) return null;
   return canonical;
 }
 
@@ -92,7 +106,7 @@ function collectFlags(verb, argv) {
     }
     i += 1;
     if (spec.multiple.includes(token)) {
-      multiple.push(value);
+      multiple.push(Object.freeze({ flag: token, value }));
       continue;
     }
     if (single.has(token)) {
@@ -101,48 +115,123 @@ function collectFlags(verb, argv) {
     single.set(token, value);
   }
   for (const flag of spec.required) {
-    if (!single.has(flag)) {
-      return { error: `mitosis-git ${verb}: missing required flag ${flag}` };
-    }
+    if (single.has(flag)) continue;
+    if (multiple.some((entry) => entry.flag === flag)) continue;
+    return { error: `mitosis-git ${verb}: missing required flag ${flag}` };
   }
   return { single, multiple };
 }
 
-function parsePrCreate(single, multiple) {
+function collectInertList(multiple, flag) {
+  const raws = multiple.filter((entry) => entry.flag === flag).map((entry) => entry.value);
+  const ceiling = PR_MULTI_LIMITS[flag];
+  if (!Number.isInteger(ceiling)) {
+    return { error: `mitosis-git pr-create: ${flag} carries no value ceiling; refusing to compose an unbounded body` };
+  }
+  if (raws.length > ceiling) {
+    return { error: `mitosis-git pr-create: ${raws.length} ${flag} values exceed the ${ceiling}-value ceiling` };
+  }
+  const values = [];
+  for (const raw of raws) {
+    const value = inertValue(raw, PR_VALUE_CAP);
+    if (value === null) return { error: valueRejection('pr-create', flag, PR_VALUE_CAP) };
+    values.push(value);
+  }
+  return { values: Object.freeze(values) };
+}
+
+function readPrCreateTarget(single) {
   const repo = single.get('--repo');
-  if (!validateRepoIdentity(repo)) return rejection(`mitosis-git pr-create: --repo ${JSON.stringify(repo)} is not an owner/repo slug`);
+  if (!validateRepoIdentity(repo)) return { error: `mitosis-git pr-create: --repo ${JSON.stringify(repo)} is not an owner/repo slug` };
   const head = single.get('--head');
-  if (!validateRefToken(head)) return rejection(`mitosis-git pr-create: --head ${JSON.stringify(head)} is not a conservative git ref token`);
+  if (!validateRefToken(head)) return { error: `mitosis-git pr-create: --head ${JSON.stringify(head)} is not a conservative git ref token` };
   const base = single.get('--base');
-  if (!validateRefToken(base)) return rejection(`mitosis-git pr-create: --base ${JSON.stringify(base)} is not a conservative git ref token`);
-  const title = inertText(single.get('--title'), TITLE_CAP);
-  if (title === null) return rejection(`mitosis-git pr-create: --title is empty, over the ${TITLE_CAP}-character cap, or begins with the field-indirection sigil`);
-  if (multiple.length > BODY_LINE_CAP) {
-    return rejection(`mitosis-git pr-create: ${multiple.length} --body-line values exceed the ${BODY_LINE_CAP}-line cap; the composed body must stay bounded`);
+  if (!validateRefToken(base)) return { error: `mitosis-git pr-create: --base ${JSON.stringify(base)} is not a conservative git ref token` };
+  const title = inertValue(single.get('--title'), PR_TITLE_CAP);
+  if (title === null) return { error: valueRejection('pr-create', '--title', PR_TITLE_CAP) };
+  if (!PR_TITLE_PATTERN.test(title)) {
+    return { error: `mitosis-git pr-create: --title ${JSON.stringify(title)} is not a conventional-commits title of the form <type>(<scope>): <lowercase imperative summary>; the types are ${PR_TITLE_TYPES.join(' ')}, the scope is at most 16 lowercase characters, and the whole title is at most ${PR_TITLE_CAP} characters with no trailing period` };
   }
-  const bodyLines = [];
-  for (const raw of multiple) {
-    const line = inertText(raw, LINE_CAP);
-    if (line === null) return rejection(`mitosis-git pr-create: a --body-line is empty, over the ${LINE_CAP}-character cap, or begins with the field-indirection sigil`);
-    bodyLines.push(line);
+  const origin = single.get('--origin');
+  if (!PR_ORIGINS.includes(origin)) {
+    return { error: `mitosis-git pr-create: --origin ${JSON.stringify(origin)} is not one of ${PR_ORIGINS.join(' ')}` };
   }
+  return { target: Object.freeze({ repo, head, base, title, origin }) };
+}
+
+function readPrCreateNarrative(multiple) {
+  const narrative = {};
+  for (const [flag, field] of PR_NARRATIVE_FIELDS) {
+    const collected = collectInertList(multiple, flag);
+    if (collected.error) return { error: collected.error };
+    narrative[field] = collected.values;
+  }
+  if (narrative.verified.length + narrative.notVerified.length === 0) {
+    return { error: 'mitosis-git pr-create: the verification section needs at least one --verified or --not-verified value; a check that was not run is stated as --not-verified "<thing> - not run", never left out' };
+  }
+  return { narrative: Object.freeze(narrative) };
+}
+
+function readPrCreateAttribution(single, origin) {
+  let provenance = null;
+  if (single.has('--provenance')) {
+    if (origin === 'human') {
+      return { error: 'mitosis-git pr-create: --provenance belongs only to --origin machine; a human-directed pull request asserts no agent and no model' };
+    }
+    provenance = inertValue(single.get('--provenance'), PR_VALUE_CAP);
+    if (provenance === null) return { error: valueRejection('pr-create', '--provenance', PR_VALUE_CAP) };
+    if (!PR_PROVENANCE_PATTERN.test(provenance)) {
+      return { error: `mitosis-git pr-create: --provenance ${JSON.stringify(provenance)} is not of the form agent=<label> model=<model>` };
+    }
+  } else if (origin === 'machine') {
+    return { error: 'mitosis-git pr-create: --origin machine requires --provenance agent=<label> model=<model>; write model=unspecified when the calling site sets no model' };
+  }
+  let risk = null;
+  if (single.has('--risk')) {
+    risk = inertValue(single.get('--risk'), PR_VALUE_CAP);
+    if (risk === null) return { error: valueRejection('pr-create', '--risk', PR_VALUE_CAP) };
+  }
+  return { attribution: Object.freeze({ provenance, risk }) };
+}
+
+function readPrCreateReferences(single) {
   let supersedes = null;
   if (single.has('--supersedes')) {
     const candidate = single.get('--supersedes');
     supersedes = canonicalPrUrl(candidate);
-    if (supersedes === null) return rejection(`mitosis-git pr-create: --supersedes ${JSON.stringify(candidate)} is not a github pull-request url that composes an inert body line within the ${LINE_CAP}-character cap`);
+    if (supersedes === null) return { error: `mitosis-git pr-create: --supersedes ${JSON.stringify(candidate)} is not a github pull-request url that composes an inert link line within the ${PR_VALUE_CAP}-character cap` };
   }
   let depends = [];
   if (single.has('--depends')) {
     const ids = parseDependsList(single.get('--depends'));
-    if (ids === null) return rejection(`mitosis-git pr-create: --depends ${JSON.stringify(single.get('--depends'))} is not a comma-separated list of MSP ids`);
+    if (ids === null) return { error: `mitosis-git pr-create: --depends ${JSON.stringify(single.get('--depends'))} is not a comma-separated list of MSP ids composing a link line within the ${PR_VALUE_CAP}-character value cap` };
     depends = ids;
   }
+  let changedLines = null;
+  if (single.has('--changed-lines')) {
+    const raw = single.get('--changed-lines');
+    if (!PR_CHANGED_LINES_PATTERN.test(raw)) {
+      return { error: `mitosis-git pr-create: --changed-lines ${JSON.stringify(raw)} is not a plain integer of at most seven digits; read it from git diff --shortstat or leave the flag out entirely, never estimate it` };
+    }
+    changedLines = Number(raw);
+  }
+  return { references: Object.freeze({ supersedes, depends: Object.freeze(depends), changedLines }) };
+}
+
+function parsePrCreate(single, multiple) {
+  const target = readPrCreateTarget(single);
+  if (target.error) return rejection(target.error);
+  const narrative = readPrCreateNarrative(multiple);
+  if (narrative.error) return rejection(narrative.error);
+  const attribution = readPrCreateAttribution(single, target.target.origin);
+  if (attribution.error) return rejection(attribution.error);
+  const references = readPrCreateReferences(single);
+  if (references.error) return rejection(references.error);
   return Object.freeze({
     ok: true,
     error: null,
     verb: 'pr-create',
-    opts: Object.freeze({ repo, head, base, title, bodyLines: Object.freeze(bodyLines), supersedes, depends: Object.freeze(depends) }),
+    opts: Object.freeze({ ...target.target, ...narrative.narrative, ...attribution.attribution, ...references.references }),
   });
 }
 
@@ -153,8 +242,8 @@ function parsePrClose(single) {
   if (!PR_NUMBER_PATTERN.test(pr)) return rejection(`mitosis-git pr-close: --pr ${JSON.stringify(pr)} is not a pull-request number`);
   let comment = null;
   if (single.has('--comment')) {
-    comment = inertText(single.get('--comment'), LINE_CAP);
-    if (comment === null) return rejection(`mitosis-git pr-close: --comment is empty, over the ${LINE_CAP}-character cap, or begins with the field-indirection sigil`);
+    comment = inertValue(single.get('--comment'), PR_VALUE_CAP);
+    if (comment === null) return rejection(valueRejection('pr-close', '--comment', PR_VALUE_CAP));
   }
   return Object.freeze({ ok: true, error: null, verb: 'pr-close', opts: Object.freeze({ repo, pr, comment }) });
 }
@@ -184,18 +273,9 @@ export function parseMitosisGitArgv(argv) {
   return parseCompare(collected.single);
 }
 
-export function renderPrCreateBody(opts) {
-  const lines = [];
-  for (const line of opts.bodyLines || []) lines.push(line);
-  if (opts.supersedes) lines.push(`${SUPERSEDES_PREFIX}${opts.supersedes}`);
-  if (opts.depends && opts.depends.length > 0) lines.push(`${DEPENDS_PREFIX}${opts.depends.join(', ')}`);
-  lines.push(BODY_TRAILER);
-  return lines.join('\n');
-}
-
 export function buildGhArgv(verb, stage, opts) {
   if (verb === 'pr-create' && stage === 'observe') {
-    return ['pr', 'list', '-R', opts.repo, '--head', opts.head, '--base', opts.base, '--state', 'open', '--json', 'url,number'];
+    return ['pr', 'list', '-R', opts.repo, '--head', opts.head, '--base', opts.base, '--state', 'open', '--json', 'url,number,body'];
   }
   if (verb === 'pr-create' && stage === 'converge') {
     return ['pr', 'create', '-R', opts.repo, '--head', opts.head, '--base', opts.base, '--title', opts.title, '--body', renderPrCreateBody(opts)];
@@ -259,7 +339,7 @@ export function resolveGhBinary({ pathValue, fallbacks = DEFAULT_FALLBACKS } = {
   });
 }
 
-function execGh(ghBin, argv) {
+export function execGh(ghBin, argv) {
   const gate = ghExecTripwire(argv, classifyGhMerge);
   if (!gate.allow) {
     return Object.freeze({ refused: true, reason: gate.reason, status: null, stdout: '', stderr: '' });
@@ -285,7 +365,7 @@ function readPrEntry(entry, repo) {
   if (ref.ownerRepo.toLowerCase() !== repo.toLowerCase()) return null;
   const number = Number.isInteger(entry.number) ? entry.number : Number(ref.prNumber);
   if (!Number.isInteger(number)) return null;
-  return Object.freeze({ url: entry.url.trim(), number });
+  return Object.freeze({ url: entry.url.trim(), number, toolComposed: carriesToolTrailer(entry.body) });
 }
 
 function readPrUrl(text, repo) {
@@ -331,6 +411,11 @@ function runPrCreate(ghBin, opts, out) {
     if (existing === null) {
       out.err('mitosis-git pr-create: an open pull request already exists on this head but its url could not be read; refusing to open a second one.\n');
       return MITOSIS_GIT_OBSERVE_EXIT;
+    }
+    if (!existing.toolComposed) {
+      out.err(`mitosis-git pr-create: the open pull request already on this head (${existing.url}) does not end with a pr-create trailer, so this tool composed neither its title nor its body; reporting it as reused-unverified rather than asserting the mandated format. A human closes it and reopens it through this tool, or confirms it as it stands.\n`);
+      out.log(`${JSON.stringify({ action: 'reused-unverified', url: existing.url, number: existing.number })}\n`);
+      return 0;
     }
     out.log(`${JSON.stringify({ action: 'reused', url: existing.url, number: existing.number })}\n`);
     return 0;

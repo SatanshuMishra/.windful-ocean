@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 input="$(cat)"
-case "$input" in
+lowinput="$(printf '%s' "$input" | tr '[:upper:]' '[:lower:]')"
+case "$lowinput" in
   *rm* | *git* | *gh* | *dd* | *mkfs* | *':|:'* | *'>'*'/dev/'* | *'.claude'* ) : ;;
   *) exit 0 ;;
 esac
@@ -10,24 +11,55 @@ try:
     d = json.load(sys.stdin)
 except Exception:
     sys.exit(0)
-sys.stdout.write((d.get("tool_input") or {}).get("command", "") or "")' 2>/dev/null || true)"
+c = (d.get("tool_input") or {}).get("command", "") or ""
+sys.stdout.write(" ".join(c.replace("\\\n", " ").split()))' 2>/dev/null || true)"
 [ -z "$cmd" ] && exit 0
 
 low="$(printf '%s' "$cmd" | tr '[:upper:]' '[:lower:]')"
 has() { printf '%s' "$low" | grep -Eq "$1"; }
 has_cs() { printf '%s' "$cmd" | grep -Eq "$1"; }
+deny() {
+  denyesc="$(REASON="$1" python3 -c 'import os, json, sys; sys.stdout.write(json.dumps(os.environ["REASON"]))' 2>/dev/null || printf '%s' '"This command is denied - it is human-gated."')"
+  printf '{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"deny","permissionDecisionReason":%s}}\n' "$denyesc"
+  exit 0
+}
 reason=""
 gitopt='(-c[[:space:]]+[^[:space:]]+|--git-dir[=[:space:]][^[:space:]]+|--work-tree[=[:space:]][^[:space:]]+|--namespace[[:space:]]+[^[:space:]]+|--no-pager|--paginate|-p|--bare|--literal-pathspecs|--no-optional-locks)'
 gitpre="(^|[^a-z])git([[:space:]]+${gitopt})*[[:space:]]+"
 gitopt_cs='(-C[[:space:]]+[^[:space:]]+|-c[[:space:]]+[^[:space:]]+|--git-dir[=[:space:]][^[:space:]]+|--work-tree[=[:space:]][^[:space:]]+|--namespace[[:space:]]+[^[:space:]]+|--no-pager|--paginate|-p|--bare|--literal-pathspecs|--no-optional-locks)'
 gitpre_cs="(^|[^a-zA-Z])git([[:space:]]+${gitopt_cs})*[[:space:]]+"
 
-if has '(^|[^[:alnum:]_./-])gh[[:space:]]+pr[[:space:]]+merge([[:space:]]|$)' \
-  || { has '(^|[^[:alnum:]_./-])gh[[:space:]]+api([[:space:]]|$)' && has 'pulls/[^/[:space:]]+/merge([^[:alnum:]]|$)'; }; then
-  denyreason="merging a PR is human-gated: mitosis never merges PRs (gh pr merge and the gh api pulls/*/merge REST endpoint are both blocked); a human merges via the PR after review"
-  denyesc="$(REASON="$denyreason" python3 -c 'import os, json, sys; sys.stdout.write(json.dumps(os.environ["REASON"]))' 2>/dev/null || printf '%s' '"Merging a PR is denied - merges are human-gated."')"
-  printf '{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"deny","permissionDecisionReason":%s}}\n' "$denyesc"
-  exit 0
+ghtok='(^|[^[:alnum:]_.-])([[:alnum:]_./-]*/)?gh[[:space:]]+'
+ghapi="${ghtok}api([[:space:]]|$)"
+graphql='(^|[[:space:]])graphql([[:space:]]|$)'
+pullsep='repos/[^/[:space:]]+/[^/[:space:]]+/pulls/?([^/[:alnum:]]|$)'
+pullnum='repos/[^/[:space:]]+/[^/[:space:]]+/pulls/[0-9]+([^/[:alnum:]]|$)'
+postish='(--method[[:space:]=]+post|-x[[:space:]]*post|(^|[[:space:]])-f[[:space:]=]|--field[[:space:]=]|--raw-field[[:space:]=]|(^|[[:space:]])--input[[:space:]=])'
+patchish='(--method[[:space:]=]+patch|-x[[:space:]]*patch)'
+gqlopaque='((-f|--field|--raw-field)[[:space:]=]+[a-z_]+=@|(^|[[:space:]])--input[[:space:]=])'
+ghfileref='(^|[[:space:]])(-f|--field|--raw-field)[[:space:]=]+[a-z_]+=@'
+gqlsub='(\$\(|`)'
+prshortedit='(^|[[:space:]])-(t|b|F)([^a-zA-Z-]|$)'
+selfwrap='^([[:alnum:]_./-]*/)?node[[:space:]]+[^[:space:]]+mitosis-git\.mjs[[:space:]]+pr-create([[:space:]]|$)'
+chained='([;&|`]|\$\()'
+
+if has "${ghtok}pr[[:space:]]+merge([[:space:]]|$)" \
+  || { has "$ghapi" && has 'pulls/[^/[:space:]]+/merge([^[:alnum:]]|$)'; } \
+  || { has "$ghapi" && has "$graphql" && has '(mergepullrequest|enablepullrequestautomerge)'; }; then
+  deny "merging a PR is human-gated: mitosis never merges PRs (gh pr merge and the gh api pulls/*/merge REST endpoint are both blocked); a human merges via the PR after review"
+fi
+
+if ! { has "$selfwrap" && ! has "$chained"; }; then
+  if has "${ghtok}pr[[:space:]]+create([[:space:]]|$)" \
+    || { has "${ghtok}pr[[:space:]]+edit([[:space:]]|$)" && { has '(--title|--body|--body-file)([[:space:]=]|$)' || has_cs "$prshortedit"; }; } \
+    || { has "$ghapi" && has "$ghfileref"; } \
+    || { has "$ghapi" && has "$pullsep" && has "$postish"; } \
+    || { has "$ghapi" && has "$pullnum" && has "$patchish"; } \
+    || { has "$ghapi" && has "$graphql" && has 'createpullrequest'; } \
+    || { has "$ghapi" && has "$graphql" && has "$gqlopaque"; } \
+    || { has "$ghapi" && has "$graphql" && has "$gqlsub"; }; then
+    deny 'opening a pull request is centralized: every pull request in this environment is created by one tool, in one format, and its title and body may not be rewritten afterwards. Run this, quoting every value: node "$HOME"/.claude/lib/superpowers-parallel/mitosis-git.mjs pr-create --repo OWNER/REPO --head HEAD-BRANCH --base BASE-BRANCH --title TYPE(SCOPE): LOWERCASE IMPERATIVE SUMMARY --origin machine-or-human --why PROBLEM AND WHY NOW --what BEHAVIORAL CHANGE --not-verified THING YOU DID NOT CHECK - not run. Types: feat fix refactor docs test chore perf ci; title max 72 characters, no trailing period. Add --provenance agent=LABEL model=MODEL when --origin is machine. NEVER write a --verified line for a check you did not run. Pass every value as ONE inert argv value: never a file path, never an at-prefixed value, never a shell redirection, never a gh api field whose value starts with an at-sign. A pull/new URL printed by git push is not an approved path either. Full field set and caps: .claude/rules/common/git/pull-requests.md'
+  fi
 fi
 
 if has '(^|[^a-z])rm([[:space:]]|$)' && has '(-[a-z]*r|--recursive)' && has '(-[a-z]*f|--force)'; then

@@ -184,8 +184,8 @@ test('parseRunManifest: malformed, legacy-NDJSON, or field-incomplete input yiel
   assert.equal(parseRunManifest(null), null);
 });
 
-test('buildInitialManifest: planned msps, derived integration branch, title/rationale persisted verbatim, immutable inputs', () => {
-  const msps = [{ id: 'a', title: 'Alpha title', rationale: 'Alpha rationale', dependsOn: [], fileScope: ['src/a/**'] }];
+test('buildInitialManifest: planned msps, derived integration branch, title/rationale/changeType/scope persisted verbatim, immutable inputs', () => {
+  const msps = [{ id: 'a', title: 'Alpha title', rationale: 'Alpha rationale', changeType: 'feat', scope: 'alpha', dependsOn: [], fileScope: ['src/a/**'] }];
   const manifest = buildInitialManifest({
     logicalRunId: 'deadbeef', harnessRunId: undefined, spec: '/s.md', repoRoot: '/r',
     baseBranch: 'main', sourcePrefix: 'mitosis', clusters: [['a']], msps,
@@ -193,10 +193,16 @@ test('buildInitialManifest: planned msps, derived integration branch, title/rati
   assert.equal(manifest.harnessRunId, null);
   assert.equal(manifest.phase, 'Decompose');
   assert.deepEqual(manifest.msps[0], {
-    id: 'a', title: 'Alpha title', rationale: 'Alpha rationale', status: 'planned', integrationBranch: 'mitosis/a-integration',
+    id: 'a', title: 'Alpha title', rationale: 'Alpha rationale', changeType: 'feat', scope: 'alpha', status: 'planned', integrationBranch: 'mitosis/a-integration',
     prUrl: null, mergedAt: null, dependsOn: [], fileScope: ['src/a/**'], contentHash: mspContentHash(msps[0]),
   });
-  assert.deepEqual(msps[0], { id: 'a', title: 'Alpha title', rationale: 'Alpha rationale', dependsOn: [], fileScope: ['src/a/**'] });
+  assert.deepEqual(msps[0], { id: 'a', title: 'Alpha title', rationale: 'Alpha rationale', changeType: 'feat', scope: 'alpha', dependsOn: [], fileScope: ['src/a/**'] });
+});
+
+test('mspContentHash: the declared changeType and scope are inside the canonical tuple, so a re-declared change type is a content change', () => {
+  const base = { id: 'a', title: 'alpha title', rationale: 'Alpha rationale', changeType: 'feat', scope: 'alpha', dependsOn: [], fileScope: ['src/a/**'] };
+  assert.notEqual(mspContentHash(base), mspContentHash({ ...base, changeType: 'fix' }), 'a changed changeType must change the hash, or a stale pre-migration manifest would be replay-forward-skipped under a title it cannot compose');
+  assert.notEqual(mspContentHash(base), mspContentHash({ ...base, scope: 'beta' }), 'a changed scope must change the hash for the same reason');
 });
 
 test('applyShipTransition: marks the msp shipped and does not mutate the input', () => {
@@ -212,17 +218,17 @@ test('applyShipTransition: marks the msp shipped and does not mutate the input',
   assert.equal(before.msps.find((m) => m.id === 'a').status, 'planned');
 });
 
-test('applyShipTransition: appends a full defensive shipped entry carrying the passed title/rationale when the mspId is absent', () => {
+test('applyShipTransition: appends a full defensive shipped entry carrying the passed title/rationale/changeType/scope when the mspId is absent', () => {
   const before = buildInitialManifest({
     logicalRunId: 'x', harnessRunId: null, spec: '/s', repoRoot: '/r',
     baseBranch: 'main', sourcePrefix: 'mitosis', clusters: [['a', 'b']],
     msps: [{ id: 'a', title: 'A', rationale: 'ra', dependsOn: [], fileScope: [] }, { id: 'b', title: 'B', rationale: 'rb', dependsOn: [], fileScope: [] }],
   });
   const snapshot = structuredClone(before);
-  const after = applyShipTransition(before, { mspId: 'c', prUrl: 'http://pr/c', mergedAt: '2026-07-08T00:00:00Z', title: 'C title', rationale: 'C rationale' });
+  const after = applyShipTransition(before, { mspId: 'c', prUrl: 'http://pr/c', mergedAt: '2026-07-08T00:00:00Z', title: 'C title', rationale: 'C rationale', changeType: 'chore', scope: 'c' });
   assert.equal(after.msps.length, before.msps.length + 1);
   assert.deepEqual(after.msps.find((m) => m.id === 'c'), {
-    id: 'c', title: 'C title', rationale: 'C rationale', status: 'shipped', integrationBranch: 'mitosis/c-integration',
+    id: 'c', title: 'C title', rationale: 'C rationale', changeType: 'chore', scope: 'c', status: 'shipped', integrationBranch: 'mitosis/c-integration',
     prUrl: 'http://pr/c', mergedAt: '2026-07-08T00:00:00Z', dependsOn: [], fileScope: [],
   });
   assert.deepEqual(after.msps[0], snapshot.msps[0]);
