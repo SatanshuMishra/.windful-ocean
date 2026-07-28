@@ -397,6 +397,7 @@ function extractOriginal(lines, block) {
  * Returns an array of lines, or null if not found.
  */
 function extractVariant(lines, block, variantNum) {
+  if (!Number.isInteger(variantNum) || variantNum < 1) return null;
   const text = stripStyleAndJoin(lines, block);
   const inner = extractInnerByAttr(text, 'data-impeccable-variant="' + variantNum + '"');
   if (inner === null) return null;

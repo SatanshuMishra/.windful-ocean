@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
 import { resolveFiles } from '../scripts/live-inject.mjs';
-import { parseVariantNum } from '../scripts/live-accept.mjs';
+import { parseVariantNum, findMarkerBlock, extractVariant } from '../scripts/live-accept.mjs';
 
 test('resolveFiles rejects an exclude glob longer than the length cap', () => {
   const config = {
@@ -70,5 +70,46 @@ test('parseVariantNum rejects non-integer and non-positive input', () => {
 test('parseVariantNum rejects non-string input', () => {
   for (const raw of [null, undefined, 3, {}, []]) {
     assert.equal(parseVariantNum(raw), null, `expected rejection for: ${String(raw)}`);
+  }
+});
+
+const VARIANT_FIXTURE_LINES = [
+  '<!-- impeccable-variants-start SESSION1 -->',
+  '<div data-impeccable-variant="1">',
+  '  <p>variant one</p>',
+  '</div>',
+  '<div data-impeccable-variant="2">',
+  '  <p>variant two</p>',
+  '</div>',
+  '<!-- impeccable-variants-end SESSION1 -->',
+];
+
+function variantFixture() {
+  const lines = [...VARIANT_FIXTURE_LINES];
+  return { lines, block: findMarkerBlock('SESSION1', lines) };
+}
+
+test('extractVariant extracts the requested variant for a positive integer', () => {
+  const { lines, block } = variantFixture();
+  assert.deepEqual(extractVariant(lines, block, 1), ['  <p>variant one</p>']);
+  assert.deepEqual(extractVariant(lines, block, 2), ['  <p>variant two</p>']);
+});
+
+test('extractVariant returns null for a variantNum that breaks the regex source', () => {
+  const { lines, block } = variantFixture();
+  assert.equal(extractVariant(lines, block, '('), null);
+  assert.equal(extractVariant(lines, block, '['), null);
+});
+
+test('extractVariant returns null for a variantNum crafted to match a different variant', () => {
+  const { lines, block } = variantFixture();
+  assert.equal(extractVariant(lines, block, '1"[^>]*>[\\s\\S]*?data-impeccable-variant="2'), null);
+  assert.equal(extractVariant(lines, block, '\\d'), null);
+});
+
+test('extractVariant returns null for variantNum outside the positive-integer contract', () => {
+  const { lines, block } = variantFixture();
+  for (const raw of [0, -1, 1.5, NaN, Infinity, '1', null, undefined, {}, []]) {
+    assert.equal(extractVariant(lines, block, raw), null, `expected rejection for: ${String(raw)}`);
   }
 });
