@@ -339,7 +339,7 @@ export function resolveGhBinary({ pathValue, fallbacks = DEFAULT_FALLBACKS } = {
   });
 }
 
-function execGh(ghBin, argv) {
+export function execGh(ghBin, argv) {
   const gate = ghExecTripwire(argv, classifyGhMerge);
   if (!gate.allow) {
     return Object.freeze({ refused: true, reason: gate.reason, status: null, stdout: '', stderr: '' });

@@ -21,6 +21,7 @@ export const meta = {
 const ENGINE_PATH = '/Users/satanshumishra/.claude/workflows/parallel-plan-execution.js';
 const GRAPH_SKILL = '/Users/satanshumishra/.claude/skills/plan-to-task-graph/SKILL.md';
 const LIB_DIR = '/Users/satanshumishra/.claude/lib/superpowers-parallel';
+const BOUNDARY_PREFLIGHT_CLI = `${LIB_DIR}/merge-boundary-preflight.mjs`;
 const TEMPLATES_DIR = '/Users/satanshumishra/.claude/skills/mitosis/templates';
 
 const MAX_LOGGED_TOKEN_LEN = 128;
@@ -121,6 +122,41 @@ function partitionOutcomes(outcomes, total = outcomes.length) {
 function fatalReport(stage, detail, mspCount, opts = {}) {
   const crashed = opts.crashed ? [crashedOutcome(null, stage, detail)] : [];
   return { shipped: [], halted: [], awaitingApproval: [], crashed, quarantined: [], overallStatus: 'failed', stage, detail, mspCount };
+}
+
+function readBoundaryPreflightVerdict(recon, expected) {
+  const wanted = expected && typeof expected === 'object' ? expected : {};
+  const verdict = recon && typeof recon === 'object' ? recon.boundaryPreflight : undefined;
+  if (verdict === undefined || verdict === null) {
+    return { proven: false, reason: 'the reconcile agent reported no merge-boundary preflight verdict, so the corroborating re-run of the preflight the orchestrator already gated on produced nothing — the run halts because corroboration failed, and an absent verdict is never read as a pass' };
+  }
+  if (typeof verdict !== 'object' || Array.isArray(verdict)) {
+    return { proven: false, reason: 'the reconcile agent reported a merge-boundary preflight verdict that was not an object, so the corroborating verdict is malformed — the run halts because corroboration failed' };
+  }
+  if (!Array.isArray(verdict.halted)) {
+    return { proven: false, reason: 'the reconcile agent reported a merge-boundary preflight verdict that carried no halted list, so the corroborating verdict is malformed — the run halts because corroboration failed' };
+  }
+  if (verdict.passed !== true) {
+    const named = verdict.halted.filter((id) => typeof id === 'string' && id.length > 0);
+    const detail = named.length > 0 ? named.join(', ') : 'no invariant was positively proven';
+    return { proven: false, reason: `the reconcile agent reported a merge-boundary preflight verdict that did not pass; invariant(s) it named unproven: ${detail} — the run halts because corroboration failed` };
+  }
+  if (verdict.halted.length > 0) {
+    return { proven: false, reason: `the reconcile agent reported a merge-boundary preflight verdict claiming passed=true while still naming unproven invariant(s): ${verdict.halted.join(', ')} — a self-contradictory verdict is never read as a pass, so the run halts because corroboration failed` };
+  }
+  if (verdict.bypassVerified !== false) {
+    return { proven: false, reason: `the reconcile agent reported a merge-boundary preflight verdict carrying bypassVerified=${cleanUrl(verdict.bypassVerified)} — the preflight emits exactly false on every path because the bypass list is human governance this token structurally cannot read, so a verdict claiming otherwise was never produced by the preflight and is never read as a pass; the run halts because corroboration failed` };
+  }
+  if (typeof verdict.invokedAs !== 'string' || verdict.invokedAs !== wanted.gatePath) {
+    return { proven: false, reason: `the reconcile agent reported a merge-boundary preflight verdict produced by the gate invoked as ${cleanUrl(verdict.invokedAs)} rather than the installed gate at ${cleanUrl(wanted.gatePath)} — a verdict from any other copy of the preflight, including one vendored inside the repository being merged into, attests nothing about this run's boundary, so the run halts because corroboration failed` };
+  }
+  if (typeof verdict.boundarySlug !== 'string' || typeof wanted.targetOwnerRepo !== 'string' || verdict.boundarySlug.toLowerCase() !== wanted.targetOwnerRepo.toLowerCase()) {
+    return { proven: false, reason: `the reconcile agent reported a merge-boundary preflight verdict proving the boundary of the repository ${cleanUrl(verdict.boundarySlug)} while this run merges into ${cleanUrl(wanted.targetOwnerRepo)} — a boundary proven for a different repository proves nothing about this one, so the run halts because corroboration failed` };
+  }
+  if (typeof verdict.boundaryBaseBranch !== 'string' || verdict.boundaryBaseBranch !== wanted.baseBranch) {
+    return { proven: false, reason: `the reconcile agent reported a merge-boundary preflight verdict proving the boundary of the base branch ${cleanUrl(verdict.boundaryBaseBranch)} while this run merges into ${cleanUrl(wanted.baseBranch)} — branch names are case-sensitive and a boundary proven for a different base branch proves nothing about this one, so the run halts because corroboration failed` };
+  }
+  return { proven: true, reason: null };
 }
 
 function resetPreamble(worktree, ref) {
@@ -705,23 +741,46 @@ const EXEC_AGENT_TYPES = new Set(['implementer', 'test-engineer', 'general-purpo
 function normalizePath(p) { return p.replace(/^\.\//, '').replace(/\/+$/, ''); }
 const GLOB_MAX_LENGTH = 1024;
 const GLOB_MAX_WILDCARDS = 8;
-function globToRegExp(glob) {
+function tokenizeGlob(glob) {
+  const tokens = [];
+  let index = 0;
+  while (index < glob.length) {
+    const char = glob[index];
+    if (char === '*' && glob[index + 1] === '*') { tokens.push({ kind: 'globstar' }); index += 2; continue; }
+    if (char === '*') { tokens.push({ kind: 'star' }); index += 1; continue; }
+    if (char === '?') { tokens.push({ kind: 'anyChar' }); index += 1; continue; }
+    tokens.push({ kind: 'literal', char }); index += 1;
+  }
+  return tokens;
+}
+function matchGlobTokens(tokens, text) {
+  const end = text.length;
+  let suffixMatches = Array.from({ length: end + 1 }, (_, at) => at === end);
+  for (let token = tokens.length - 1; token >= 0; token -= 1) {
+    const { kind, char } = tokens[token];
+    const row = new Array(end + 1);
+    for (let at = end; at >= 0; at -= 1) {
+      if (kind === 'star') row[at] = suffixMatches[at] || (at < end && text[at] !== '/' && row[at + 1]);
+      else if (kind === 'globstar') row[at] = suffixMatches[at] || (at < end && row[at + 1]);
+      else if (kind === 'anyChar') row[at] = at < end && text[at] !== '/' && suffixMatches[at + 1];
+      else row[at] = at < end && text[at] === char && suffixMatches[at + 1];
+    }
+    suffixMatches = row;
+  }
+  return suffixMatches[0];
+}
+function globMatches(glob, path) {
   if (typeof glob !== 'string') throw new TypeError(`glob must be a string, got ${typeof glob}`);
   if (glob.length > GLOB_MAX_LENGTH) throw new RangeError(`glob length ${glob.length} exceeds the maximum of ${GLOB_MAX_LENGTH}`);
   const wildcardCount = (glob.match(/[*?]/g) || []).length;
   if (wildcardCount > GLOB_MAX_WILDCARDS) throw new RangeError(`glob wildcard count ${wildcardCount} exceeds the maximum of ${GLOB_MAX_WILDCARDS}`);
-  const body = glob.split(/(\*\*|\*|\?)/).map((part) => {
-    if (part === '**') return '.*';
-    if (part === '*') return '[^/]*';
-    if (part === '?') return '[^/]';
-    return part.replace(/[.+^${}()|[\]\\]/g, '\\$&');
-  }).join('');
-  return new RegExp(`^${body}$`); // nosemgrep: javascript.lang.security.audit.detect-non-literal-regexp.detect-non-literal-regexp -- metacharacters escaped, only wildcards become quantifiers
+  if (typeof path !== 'string') throw new TypeError(`path must be a string, got ${typeof path}`);
+  return matchGlobTokens(tokenizeGlob(glob), path);
 }
 function scopeCovers(scope, path) {
   const ns = normalizePath(scope);
   const np = normalizePath(path);
-  if (/[*?]/.test(ns)) return globToRegExp(ns).test(np);
+  if (/[*?]/.test(ns)) return globMatches(ns, np);
   return ns === np || np.startsWith(ns + '/');
 }
 
@@ -1295,6 +1354,20 @@ const RECONCILE_SCHEMA = {
     specContentHash: { type: ['string', 'null'] },
     ownerRepo: { type: ['string', 'null'], pattern: '^[A-Za-z0-9][A-Za-z0-9._-]*/[A-Za-z0-9.][A-Za-z0-9._-]*$' },
     repoHost: { type: ['string', 'null'], pattern: '^[A-Za-z0-9.-]+$' },
+    boundaryPreflight: {
+      type: ['object', 'null'],
+      required: ['passed', 'halted', 'boundarySlug', 'boundaryBaseBranch', 'invokedAs', 'bypassVerified'],
+      additionalProperties: false,
+      properties: {
+        passed: { type: 'boolean' },
+        halted: { type: 'array', items: { type: 'string' } },
+        boundarySlug: { type: ['string', 'null'] },
+        boundaryBaseBranch: { type: ['string', 'null'] },
+        invokedAs: { type: ['string', 'null'] },
+        bypassVerified: { type: 'boolean' },
+        bypassGap: { type: ['string', 'null'] },
+      },
+    },
     checkpointRefPages: {
       type: 'array',
       items: { type: 'array', items: { type: 'string' } },

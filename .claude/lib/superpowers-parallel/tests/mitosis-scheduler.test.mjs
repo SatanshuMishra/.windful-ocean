@@ -109,7 +109,25 @@ function mspSpec(id, overrides = {}) {
   return { id, title: `update ${id}`, rationale: `rationale for ${id}`, changeType: 'chore', scope: 'msp', dependsOn: [], fileScope: [], ...overrides };
 }
 
-function createFakeAgent({ msps, sourcePrefix = SOURCE_PREFIX, planGate, shipResult, reconcileResult, planReview, replanResult, mergeWatch } = {}) {
+const INSTALLED_PREFLIGHT = '/Users/satanshumishra/.claude/lib/superpowers-parallel/merge-boundary-preflight.mjs';
+const TEST_BASE_BRANCH = 'main';
+
+function provenBoundary(overrides = {}) {
+  return {
+    passed: true,
+    halted: [],
+    boundarySlug: TEST_REPO_SLUG,
+    boundaryBaseBranch: TEST_BASE_BRANCH,
+    invokedAs: INSTALLED_PREFLIGHT,
+    bypassVerified: false,
+    bypassGap: 'human governance',
+    ...overrides,
+  };
+}
+
+const PROVEN_BOUNDARY = Object.freeze(provenBoundary());
+
+function createFakeAgent({ msps, sourcePrefix = SOURCE_PREFIX, baseBranch = TEST_BASE_BRANCH, planGate, shipResult, reconcileResult, planReview, replanResult, mergeWatch } = {}) {
   return async function fakeAgent(prompt, opts = {}) {
     const label = opts.label || '';
     const prefix = label.split(':')[0];
@@ -130,7 +148,7 @@ function createFakeAgent({ msps, sourcePrefix = SOURCE_PREFIX, planGate, shipRes
         return override || { planPath: `/tmp/mitosis-scheduler-test/${mspId}.plan.md`, summary: 'revised' };
       }
       case 'reconcile':
-        return { ownerRepo: TEST_REPO_SLUG, mergedPRsAuthoritative: true, ...(reconcileResult || { manifestFound: false, manifestRaw: null, mergedPRs: [] }) };
+        return { ownerRepo: TEST_REPO_SLUG, mergedPRsAuthoritative: true, boundaryPreflight: provenBoundary({ boundaryBaseBranch: baseBranch }), ...(reconcileResult || { manifestFound: false, manifestRaw: null, mergedPRs: [] }) };
       case 'checkpoint-init':
         return { written: true, detail: '' };
       case 'checkpoint-push':
@@ -544,7 +562,7 @@ test('F2b regression: an MSP whose plan stage always throws is parked (Tier 2), 
 
 test('F2a: a Decompose transient drop (agent returns null) is a crashed fatal report, not an unhandled rejection', async () => {
   const agent = async (prompt, opts = {}) => {
-    if ((opts.label || '') === 'reconcile') return { manifestFound: false, manifestRaw: null, mergedPRs: [], mergedPRsAuthoritative: true, ownerRepo: TEST_REPO_SLUG };
+    if ((opts.label || '') === 'reconcile') return { manifestFound: false, manifestRaw: null, mergedPRs: [], mergedPRsAuthoritative: true, ownerRepo: TEST_REPO_SLUG, boundaryPreflight: PROVEN_BOUNDARY };
     if ((opts.label || '') === 'decompose') return null;
     throw new Error(`unexpected agent call after decompose crash: ${opts.label}`);
   };
@@ -560,7 +578,7 @@ test('F2a: a Decompose transient drop (agent returns null) is a crashed fatal re
 test('F2a: a Decompose throw is classified Unknown (bounded to one probe, never an unbounded retry) and reported as a crashed fatal report', async () => {
   let decomposeCalls = 0;
   const agent = async (prompt, opts = {}) => {
-    if ((opts.label || '') === 'reconcile') return { manifestFound: false, manifestRaw: null, mergedPRs: [], mergedPRsAuthoritative: true, ownerRepo: TEST_REPO_SLUG };
+    if ((opts.label || '') === 'reconcile') return { manifestFound: false, manifestRaw: null, mergedPRs: [], mergedPRsAuthoritative: true, ownerRepo: TEST_REPO_SLUG, boundaryPreflight: PROVEN_BOUNDARY };
     if ((opts.label || '') === 'decompose') { decomposeCalls += 1; throw new Error('boom in decompose'); }
     throw new Error(`unexpected agent call: ${opts.label}`);
   };
@@ -1073,7 +1091,7 @@ test('P2 shared-fate: decompose that never returns is bounded to the initial dis
   let decomposeCalls = 0;
   let otherCalls = 0;
   const agent = async (prompt, opts = {}) => {
-    if ((opts.label || '') === 'reconcile') return { manifestFound: false, manifestRaw: null, mergedPRs: [], mergedPRsAuthoritative: true, ownerRepo: TEST_REPO_SLUG };
+    if ((opts.label || '') === 'reconcile') return { manifestFound: false, manifestRaw: null, mergedPRs: [], mergedPRsAuthoritative: true, ownerRepo: TEST_REPO_SLUG, boundaryPreflight: PROVEN_BOUNDARY };
     if ((opts.label || '') === 'decompose') { decomposeCalls += 1; return null; }
     otherCalls += 1; return {};
   };
@@ -1460,7 +1478,7 @@ test('MSP-2 FIX1 deny-case: an unsafe baseBranch or sourcePrefix HALTS at the in
 test('MSP-2 FIX1 allow-case: a conservative ref token passes the gate — the guard rejects unsafe shapes without over-tightening legitimate branch names', async () => {
   for (const baseBranch of ['main', 'master', 'release/2026-07', 'v1.2.3', 'develop']) {
     const msps = [mspSpec('solo', { fileScope: ['scope/solo/**'] })];
-    const agent = createFakeAgent({ msps });
+    const agent = createFakeAgent({ msps, baseBranch });
     const { resultPromise } = invokeMitosis(buildInput({ baseBranch }), agent);
     const result = await resultPromise;
     assert.notEqual(result.stage, 'input', `baseBranch ${JSON.stringify(baseBranch)} is a legitimate ref and must pass the gate`);
@@ -1533,6 +1551,181 @@ test('MSP-2 R1 allow-case: legitimate absolute run paths (including dot-director
     assert.notEqual(result.stage, 'input', `${field}=${JSON.stringify(value)} is a legitimate absolute path and must pass the gate`);
     assert.equal(result.overallStatus, 'all-shipped', `${field}=${JSON.stringify(value)} must still drive a full green run`);
   }
+});
+
+const UNPROVEN_BOUNDARIES = Object.freeze([
+  ['the verdict is absent entirely', undefined, /reported no merge-boundary preflight verdict/],
+  ['the verdict is null', null, /reported no merge-boundary preflight verdict/],
+  ['the verdict is not an object', 'passed', /was not an object/],
+  ['the verdict carries no halted list', { passed: true, bypassVerified: false }, /carried no halted list/],
+  ['an invariant is unproven', { passed: false, halted: ['identity-is-the-machine-user'], bypassVerified: false }, /identity-is-the-machine-user/],
+  ['every invariant is unproven', { passed: false, halted: [], bypassVerified: false }, /no invariant was positively proven/],
+  ['the verdict claims passed while still naming a halt', { passed: true, halted: ['base-branch-requires-an-approving-review'], bypassVerified: false }, /self-contradictory/],
+  ['passed is a truthy string rather than the boolean true', { passed: 'true', halted: [], bypassVerified: false }, /no invariant was positively proven/],
+]);
+
+for (const [label, boundaryPreflight, expectedDiagnosis] of UNPROVEN_BOUNDARIES) {
+  test(`BOUNDARY PREFLIGHT: the run HALTS before decompose when ${label}`, async () => {
+    const msps = independentMsps();
+    const base = createFakeAgent({ msps });
+    const dispatched = [];
+    const agent = async (prompt, opts = {}) => {
+      dispatched.push(opts.label || '');
+      if ((opts.label || '') === 'reconcile') {
+        return { manifestFound: false, manifestRaw: null, mergedPRs: [], mergedPRsAuthoritative: true, ownerRepo: TEST_REPO_SLUG, boundaryPreflight };
+      }
+      return base(prompt, opts);
+    };
+    const { resultPromise } = invokeMitosis(buildInput(), agent);
+    const result = await resultPromise;
+
+    assert.equal(result.overallStatus, 'failed', `${label} must not ship anything`);
+    assert.equal(result.stage, 'preflight-boundary');
+    assert.deepEqual(result.crashed, [], 'a verification failure is not a crash');
+    assert.deepEqual(result.shipped, []);
+    assert.equal(dispatched.includes('decompose'), false, 'no work may be planned on an unproven merge boundary');
+    assert.match(result.detail, expectedDiagnosis, `${label} must be diagnosed for what it is`);
+    assert.match(result.detail, /reconcile agent reported/, 'the halt must attribute the verdict to the agent that reported it, since that is all this read establishes');
+    assert.match(result.detail, /corroborat/, 'the engine-side read is corroboration of the orchestrator gate, never the authoritative boundary proof');
+  });
+}
+
+test('BOUNDARY PREFLIGHT: bypassVerified=false NEVER blocks a run — the bypass list is human governance, not an engine gate', async () => {
+  const msps = independentMsps();
+  const base = createFakeAgent({ msps });
+  const agent = async (prompt, opts = {}) => {
+    if ((opts.label || '') === 'reconcile') {
+      return {
+        manifestFound: false,
+        manifestRaw: null,
+        mergedPRs: [],
+        mergedPRsAuthoritative: true,
+        ownerRepo: TEST_REPO_SLUG,
+        boundaryPreflight: provenBoundary({ bypassGap: 'a human must confirm the bypass list is empty' }),
+      };
+    }
+    return base(prompt, opts);
+  };
+  const { resultPromise } = invokeMitosis(buildInput(), agent);
+  const result = await resultPromise;
+  assert.equal(result.overallStatus, 'all-shipped', 'an unverifiable bypass list must not halt a run whose three gated invariants are proven');
+});
+
+const MISBOUND_BOUNDARIES = Object.freeze([
+  [
+    'the verdict attests a base branch other than the one this run merges into',
+    provenBoundary({ boundaryBaseBranch: 'development' }),
+    /base branch/,
+  ],
+  [
+    'the verdict attests the base branch in a different case, and branch names are case-sensitive',
+    provenBoundary({ boundaryBaseBranch: 'Main' }),
+    /base branch/,
+  ],
+  [
+    'the verdict names no base branch at all',
+    provenBoundary({ boundaryBaseBranch: null }),
+    /base branch/,
+  ],
+  [
+    'the verdict attests a different repository',
+    provenBoundary({ boundarySlug: 'me/other' }),
+    /repositor/,
+  ],
+  [
+    'the verdict names no repository at all',
+    provenBoundary({ boundarySlug: null }),
+    /repositor/,
+  ],
+  [
+    'the verdict came from a preflight copy inside the repository under management',
+    provenBoundary({ invokedAs: '/tmp/mitosis-scheduler-test/repo/.claude/lib/superpowers-parallel/merge-boundary-preflight.mjs' }),
+    /invoked|path/,
+  ],
+  [
+    'the verdict names no invocation path at all',
+    provenBoundary({ invokedAs: null }),
+    /invoked|path/,
+  ],
+  [
+    'the verdict claims the bypass list was verified, which no genuine preflight ever emits',
+    provenBoundary({ bypassVerified: true }),
+    /bypass/,
+  ],
+]);
+
+for (const [label, boundaryPreflight, expectedDiagnosis] of MISBOUND_BOUNDARIES) {
+  test(`BOUNDARY PREFLIGHT: the run HALTS before decompose when ${label}`, async () => {
+    const msps = independentMsps();
+    const base = createFakeAgent({ msps });
+    const dispatched = [];
+    const agent = async (prompt, opts = {}) => {
+      dispatched.push(opts.label || '');
+      if ((opts.label || '') === 'reconcile') {
+        return { manifestFound: false, manifestRaw: null, mergedPRs: [], mergedPRsAuthoritative: true, ownerRepo: TEST_REPO_SLUG, boundaryPreflight };
+      }
+      return base(prompt, opts);
+    };
+    const { resultPromise } = invokeMitosis(buildInput(), agent);
+    const result = await resultPromise;
+
+    assert.equal(result.overallStatus, 'failed', `${label} must not ship anything`);
+    assert.equal(result.stage, 'preflight-boundary');
+    assert.deepEqual(result.shipped, []);
+    assert.equal(dispatched.includes('decompose'), false, 'no work may be planned on a boundary proven for another target');
+    assert.match(result.detail, expectedDiagnosis, `${label} must be diagnosed for what it is`);
+  });
+}
+
+test('BOUNDARY PREFLIGHT: a verdict whose slug differs only in case is accepted — GitHub slugs are case-preserving but not case-sensitive', async () => {
+  const msps = independentMsps();
+  const base = createFakeAgent({ msps });
+  const agent = async (prompt, opts = {}) => {
+    if ((opts.label || '') === 'reconcile') {
+      return {
+        manifestFound: false,
+        manifestRaw: null,
+        mergedPRs: [],
+        mergedPRsAuthoritative: true,
+        ownerRepo: TEST_REPO_SLUG,
+        boundaryPreflight: provenBoundary({ boundarySlug: TEST_REPO_SLUG.toUpperCase() }),
+      };
+    }
+    return base(prompt, opts);
+  };
+  const result = await invokeMitosis(buildInput(), agent).resultPromise;
+  assert.equal(result.overallStatus, 'all-shipped', 'a case variant of the same slug names the same repository and must not halt the run');
+});
+
+test('BOUNDARY PREFLIGHT: the reconcile prompt runs the gate from the absolute installed path, never one inside the repository being merged into', () => {
+  let reconcilePrompt = null;
+  const base = createFakeAgent({ msps: independentMsps() });
+  const agent = async (prompt, opts = {}) => {
+    if ((opts.label || '') === 'reconcile') reconcilePrompt = prompt;
+    return base(prompt, opts);
+  };
+  return invokeMitosis(buildInput(), agent).resultPromise.then(() => {
+    assert.ok(reconcilePrompt.includes(`node ${INSTALLED_PREFLIGHT}`), 'the corroborating re-run must name the installed gate path');
+    assert.equal(reconcilePrompt.includes(`${TEST_REPO_ROOT}/.claude/lib`), false, 'the gate must never be sourced from the repository under management');
+    for (const field of ['boundarySlug', 'boundaryBaseBranch', 'invokedAs']) {
+      assert.ok(reconcilePrompt.includes(field), `the reconcile agent must be told to return ${field} so the engine can bind the attestation to this run`);
+    }
+  });
+});
+
+test('BOUNDARY PREFLIGHT: the reconcile prompt emits the anchored read-only preflight and never asks the agent to hand-write its verdict', () => {
+  let reconcilePrompt = null;
+  const base = createFakeAgent({ msps: independentMsps() });
+  const agent = async (prompt, opts = {}) => {
+    if ((opts.label || '') === 'reconcile') reconcilePrompt = prompt;
+    return base(prompt, opts);
+  };
+  return invokeMitosis(buildInput(), agent).resultPromise.then(() => {
+    assert.match(reconcilePrompt, /merge-boundary-preflight\.mjs/);
+    assert.match(reconcilePrompt, /boundaryPreflight/);
+    assert.match(reconcilePrompt, /do NOT synthesise, guess, or hand-write this object/);
+    assert.match(reconcilePrompt, /bypassVerified is ALWAYS false/);
+  });
 });
 
 test('D7 hard fail: an unvalidatable target repo slug HALTS the run rather than falling back to an unscoped or unvalidated interpolation', async () => {
@@ -3073,7 +3266,7 @@ function makeDurableFakeAgent({ msps, parallelizeFailUnitId, shipResult, repoRoo
     if (prefix === 'reconcile') {
       const raw = fileMap.get(runJsonPath);
       const folded = raw === undefined ? null : foldRunManifest(raw);
-      return { manifestFound: folded !== null, manifestRaw: folded === null ? null : JSON.stringify(folded), mergedPRs: [], mergedPRsAuthoritative: true, specContentHash: SPEC_CONTENT_HASH, ownerRepo: TEST_REPO_SLUG };
+      return { manifestFound: folded !== null, manifestRaw: folded === null ? null : JSON.stringify(folded), mergedPRs: [], mergedPRsAuthoritative: true, specContentHash: SPEC_CONTENT_HASH, ownerRepo: TEST_REPO_SLUG, boundaryPreflight: PROVEN_BOUNDARY };
     }
     if (prefix === 'checkpoint-init') {
       const literal = literalOf(prompt);
