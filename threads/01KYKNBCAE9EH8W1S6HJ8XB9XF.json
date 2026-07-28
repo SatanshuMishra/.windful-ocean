@@ -40,7 +40,7 @@
   "spine": {
     "status": "paused",
     "active_goal": "Implement the APPROVED quiescent-advance architecture (docs/superpowers/specs/2026-07-28-mitosis-quiescent-advance.md, the authority). A run must never stop dead at a human review boundary, must drive a shipped MSP's red CI back to green within a bounded path, and must resume from ANY clone via one idempotent command. Preflight on 2026-07-28 found four blockers that must clear before dispatch.",
-    "next_step": "Order is HERMETICITY -> GUARD -> RE-GROUND -> DISPATCH, not guard-first. (1) Fix the non-hermetic suite: main is 1520/1540, and a worktree fails 2 more at the SAME commit; mitosis verifies IN worktrees, so no MSP can claim green until this clears. (2) Guard fix on fix/guard-any-claude-root (cut at beca874, no commits). (3) Re-run the cite mapping (the first analyst returned nothing), correct §11's stale baseline, COMMIT the still-untracked spec. (4) Then dispatch M1->M2->M6->M3->M5->M7.",
+    "next_step": "Asks (a)/(b)/(c) CLOSED by 0085/0086/0087, so M0/M4/M8 are now IN SCOPE; landing order is M0 -> M1 -> M2 -> M6 -> M3 -> M5 -> M4 -> M7 -> M8. Sequence still HERMETICITY -> GUARD -> RE-GROUND -> DISPATCH. (1) Hermeticity, owned by the merge-boundary thread: main is 1520/1540 and a worktree fails 2 more at the SAME commit. (2) Guard fix on fix/guard-any-claude-root (cut at beca874, no commits). (3) Re-run the cite mapping, correct §11's stale baseline, COMMIT the untracked spec. (4) Dispatch.",
     "open_risks": [
       "NEW/BLOCKING: the suite is not hermetic - it resolves against the ambient ~/.claude install and its own checkout path. Proven: protect-claude-config.test.mjs passes 9/9 canonical, fails 2/9 in a worktree at the SAME commit. Mitosis verifies in worktrees, so green is unverifiable.",
       "Spec §11's baseline is wrong. Measured origin/main @ beca874 = 1540 tests / 1520 pass / 20 fail, not '1415 pass / 0 fail'. Correct it during re-grounding; do not carry the old figure forward.",
@@ -48,10 +48,12 @@
       "mitosis.js INLINES lib copies (window.mjs, reconcile.mjs). Every M3/M4/M7 deletion must land TWICE in one commit. Guard is tests/mirror-guard.test.mjs, NOT .drift-state.json (a SessionStart cache that never runs in CI).",
       "Section 8's count is -8, not -9, deliberately; the reconciliation note in §8 explains why and must survive edits. Do not 'correct' it back.",
       "M6 publishes refs/mitosis/RUNID/manifest. Its identity-only, write-once rule is the invariant behind 3.1's single authority. Smuggling status into that ref regresses to the four-disagreeing-reconstructions problem.",
-      "Live bug, unfixed and UNAUTHORIZED (M0, ask a): applyBuiltTransition never clears resumePoint; a rebuilt plan-parked unit keeps stage:'plan', an ancestor park preserves it, and the guard blocks the git-ref rescue. One line, red test first.",
-      "Fixed cap K=8 replaces AIMD because the tuner's SIGNAL was incoherent, not because a constant is right. Divergence frequency was never instrumented; M4 owes it. The VALUE is open ask (b).",
+      "M0 is now AUTHORIZED by 0085 but still UNFIXED: applyBuiltTransition never clears resumePoint, so a rebuilt plan-parked unit keeps stage:'plan' and the guard blocks the git-ref rescue. Red test first. Sits behind hermeticity, since red-then-green needs a trustworthy signal.",
+      "K=8 is CONFIRMED by 0086, but the instrumentation debt is NOT discharged: M4 still owes the per-run divergence and rebuild-unit counts. If that number is material, K becomes adaptive again - with data next time.",
+      "Class 6 is CONFIRMED file-level by 0087, stricter than 0067's line-level. 0067 is NOT superseded; it is implemented more conservatively. Do not silently relax it back to line granularity later.",
       "Fact derivation puts the forge on the hot path. An outage must degrade to 'cannot advance, exit quiescent, say why', never to a wrong 'failed'. The manifest ref shares this exposure and degrades to identity: local-only.",
-      "Section 12 risk 1 is the honest weak point: a quiescent run advances only when a human next acts. M5 owes the wall-clock instrumentation so it is measured, not assumed."
+      "Section 12 risk 1 is the honest weak point: a quiescent run advances only when a human next acts. M5 owes the wall-clock instrumentation so it is measured, not assumed.",
+      "§13 of the spec still reads asks (a)/(b)/(c) as OPEN. The spec file is stale against 0085/0086/0087 and must be updated in the same pass that re-grounds the cites."
     ],
     "key_decisions": [
       "0065-mitosis-redesign-via-fable-fanout",
@@ -80,5 +82,5 @@
     ]
   },
   "created_at": "2026-07-28T06:07:18.861Z",
-  "updated_at": "2026-07-28T20:01:01.440Z"
+  "updated_at": "2026-07-28T20:01:39.889Z"
 }
