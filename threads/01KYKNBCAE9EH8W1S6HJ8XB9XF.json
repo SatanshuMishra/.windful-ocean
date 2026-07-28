@@ -65,7 +65,8 @@
       "0081-close-worktree-guard-hole-before-the-run",
       "0082-leave-duplicate-decision-0074-in-place",
       "0085-m0-resumepoint-fix-authorized-as-standalone-commit",
-      "0086-build-ahead-cap-confirmed-at-eight"
+      "0086-build-ahead-cap-confirmed-at-eight",
+      "0087-ci-loop-class-six-guard-stays-file-level"
     ],
     "out_of_scope": [
       "Any out-of-process or forge-side invoker. Ruled CLOSED by 0076 at user instruction - not deferred, not future work. Do not reintroduce it.",
@@ -79,5 +80,5 @@
     ]
   },
   "created_at": "2026-07-28T06:07:18.861Z",
-  "updated_at": "2026-07-28T20:00:53.432Z"
+  "updated_at": "2026-07-28T20:01:01.440Z"
 }
