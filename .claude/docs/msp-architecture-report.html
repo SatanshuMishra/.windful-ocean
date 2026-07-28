@@ -858,6 +858,11 @@
       <div>This report supersedes the follow-up report <a href="msp-followup-squash-branching-report.html">msp-followup-squash-branching-report.html</a>, which reflected the <strong>pre-modification</strong> recommendation (it still listed the platform default branch as a fallback). The branch contract below now resolves <strong>declare-or-pass-or-ASK, never default</strong>.</div>
     </div>
 
+    <div class="supersede-note animate" style="--i:2">
+      <span class="supersede-note__icon">SUPERSEDED BY</span>
+      <div>PR creation and publishing did NOT ship as described in section 4 below. The <code>cc-pr-title-lint.sh</code> PreToolUse hook and the <code>gh pr create --draft</code> default were design-time proposals that were never built and do not exist in the current config. What actually shipped: a single generalized <code>pr-create</code> verb in <code>mitosis-git.mjs</code> (no separate publisher component, no draft-by-default), a Bash/MCP gate in <code>block-destructive-bash.sh</code> that denies raw PR creation and post-creation edits, and Conventional-Commits title enforcement via the <code>pr-title-lint</code> CI job in <code>receipts.yml</code> rather than a client-side hook. See <code>docs/superpowers/specs/2026-07-27-centralized-pr-creation.md</code> and <code>rules/common/git/pull-requests.md</code> for the design that actually landed.</div>
+    </div>
+
     <div class="legend animate" style="--i:3">
       <div class="legend__item is-locked"><span class="stag stag--locked">Locked</span><span class="legend__desc"><b>Decided this session</b> &mdash; do not relitigate.</span></div>
       <div class="legend__item is-rec"><span class="stag stag--rec">Recommended</span><span class="legend__desc"><b>The design&rsquo;s recommendation</b> &mdash; pending your approval.</span></div>
