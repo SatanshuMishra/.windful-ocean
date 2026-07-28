@@ -9,7 +9,7 @@
   "completion_criteria": [
     {
       "text": "Hook installation reads and writes its hook-path state in ONE config scope, so a global, system, or env-injected core.hooksPath is never recorded as the repository's prior value and never written back as local config. Proven by a test that is RED under hostile ambient config before the fix and green after.",
-      "done": false
+      "done": true
     },
     {
       "text": "The suite's result does not change when a global core.hooksPath or any GIT_CONFIG_* is present in the environment. Today 4 installer tests fail under that condition while the machine-local run is 622/622.",
@@ -17,7 +17,7 @@
     },
     {
       "text": "The ledger's own commit and merge path is unaffected by repository-local content filters and by repository-local signature-verification settings - OR both gaps are recorded as accepted in a decision and named in the README's accepted-gaps list.",
-      "done": false
+      "done": true
     },
     {
       "text": "The recovery store reports success only when the resulting store is usable, and never adopts a pre-existing unrelated repository at that path. A test covers a store directory that exists but is not a usable repo.",
@@ -39,19 +39,19 @@
   "closure_statement": null,
   "spine": {
     "status": "paused",
-    "active_goal": "Close the six residual criteria on fix/pre-tool-use-guard in DevLabs/continuity-ledger-plugin. User gave the go on 2026-07-28 for both inherited rulings: attribution accepted as-is (0072), branch pushed and opened as one PR through pr-create (0073).",
-    "next_step": "Two items remain. (1) Criterion 1 REOPENED by code review: legacy repos carry a poisoned local continuity.priorHooksPath and uninstall still writes it back as a local pin; migration fix in flight in hooks/lib/installer.mjs. (2) Criterion 3 needs the fourth README accepted-gap entry for .git/info/attributes per 0078, citing final git-env.mjs lines. Then the full suite under all three config environments, then push and open ONE PR through pr-create.",
+    "active_goal": "All six residual criteria are met. Eight commits landed on fix/pre-tool-use-guard in DevLabs/continuity-ledger-plugin (e8739a8 through e8c4f34), the branch is pushed, and PR #21 is open per decision 0073.",
+    "next_step": "THREAD IS CLOSABLE - all six criteria are done and the DoD gate would pass; the user's call whether to close now or hold until PR #21 merges. Merge stays human-gated and was never part of the criteria. If more work is wanted here, the honest next items are the three deferred findings in Open Risks, each of which needs its own atomic change: the install-time repair of poisoned legacy state, the merged reads in hooks/dispatcher and hooks/commit-msg, and the RECOVERY_HEAD_REF coupling.",
     "open_risks": [
-      "Deliberate fail-closed trade at 07daf15: the installer nulls global and system config, so a user in a dubious-ownership repo who had a global safe.directory grant no longer gets hooks installed there. No compensating logic added.",
+      "DEFERRED, not done: poisoned legacy continuity.priorHooksPath is migrated only on uninstall. A repo never uninstalled keeps the value indefinitely. Harmless while installed since the key is inert and only core.hooksPath is read by git, but its lifetime is unbounded.",
+      "Deliberate fail-closed trade at 07daf15: the installer nulls global and system config, so a user in a dubious-ownership repo who had a global safe.directory grant no longer gets hooks installed there. No compensating logic added. Recorded on PR #21 as a risk.",
       "GIT_ATTR_NOSYSTEM is undocumented in git 2.55.0's man pages though present and working. If removed, the system-attributes vector reopens silently, with no error and no test failure. A CI test for it is impractical, so 0078 is the only mitigation.",
-      "UNIMPLEMENTED, described only: continuity.priorHooksPath is written only in the !alreadyInstalled branch, so a repo already pointing at the managed dir with no recorded prior gets --unset on uninstall, not a restore. Safe fix writes '' (NOT current) only when the local key is absent.",
-      "Left open as outside 0028's model: hooks/dispatcher and hooks/commit-msg read continuity.priorHooksPath and continuity.trailer MERGED and the dispatcher execs the result; and a config value beginning with -- is parsed as an option at the write sites.",
+      "DEFERRED as outside 0028's model: hooks/dispatcher and hooks/commit-msg read continuity.priorHooksPath and continuity.trailer MERGED and the dispatcher execs the result; and a config value beginning with -- is parsed as an option at the write sites.",
+      "DEFERRED, described but unimplemented: continuity.priorHooksPath is written only in the !alreadyInstalled branch. The safe fix writes '' (NOT current) only when the local key is absent. The reviewer's unconditional-write version is WRONG and breaks an existing test.",
       "Latent, not live: RECOVERY_HEAD_REF is coupled by coincidence to DEFAULT_LEDGER_BRANCH. LocalDriver has no configurable branch today, so nothing breaks; the day it gains one, every pre-existing store is refused.",
-      "ALL VERIFICATION IS macOS, git 2.55.0, Node 26.4.0, ONE MACHINE. Unverified on Windows and older git. Note node --test <dir> is broken on Node 26.4.0; the glob form is required.",
+      "ALL VERIFICATION IS macOS, git 2.55.0, Node 26.4.0, ONE MACHINE. Unverified on Windows and older git, and stated as not-verified on PR #21. Note node --test <dir> is broken on Node 26.4.0; the glob form is required.",
       "PROMPT FATIGUE remains the real failure mode and the prompt IS the protection. No test pins the newly-prompting command count.",
-      "Under a NON-DEFAULT ledger_branch the guard offers nothing (0036/0043). rm -rf .git && git init still destroys the ledger ref unprompted. Both documented, both deliberate.",
       "Sandbox hooks/MCP question still UNVERIFIED per 0037: if MCP servers are subject to denyWrite, a denyWrite entry over the ledger root stops the plugin writing its own store. The test is a human action.",
-      "UNAUTHORIZED DEFECT, open, do not fix without explicit go: the Stop hook nags every turn (stop.mjs exits 2 unconditionally, never reads stop_hook_active). Surfaced five times with no user reply."
+      "UNAUTHORIZED DEFECT, open, do not fix without explicit go: the Stop hook nags every turn (stop.mjs exits 2 unconditionally, never reads stop_hook_active). It fired on every turn of this session."
     ],
     "key_decisions": [
       "0078-five-of-six-attribute-vectors-closed-info-attributes-accepted",
@@ -67,9 +67,9 @@
       "A determined or adversarial same-uid agent, and the user's own deliberate deletion of their files (0028).",
       "The other four canonical stores; future rollout, per-repo.",
       "ledger-cli sync and publication of the _ledger ref. LocalDriver.sync() stays {synced:false}.",
-      "The continuity.trailer merged-read asymmetry in hooks/commit-msg - real, confirmed, but a separate atomic change."
+      "Merging PR #21 - separately human-gated and never part of these criteria."
     ]
   },
   "created_at": "2026-07-28T07:12:50.939Z",
-  "updated_at": "2026-07-28T19:45:55.240Z"
+  "updated_at": "2026-07-28T19:54:05.212Z"
 }
