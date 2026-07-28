@@ -1,0 +1,1 @@
+CORRECTION to the preceding entry of the same session. That entry refers three times to "decision 0068" as the record that deletes the spec's section 3.5 watcher. The server assigned the record number 0069 (0068 was taken by another thread). The correct pointer everywhere is 0069-advance-is-a-command-not-a-resident-watcher. There is no 0068 on this thread.
