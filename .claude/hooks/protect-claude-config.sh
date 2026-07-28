@@ -33,7 +33,7 @@ for probe in ("CLAUDE.md", "settings.json", "keybindings.json"):
         break
 
 exact = ("settings.json", "settings.local.json", "CLAUDE.md", "keybindings.json")
-prefixes = ("hooks", "rules")
+prefixes = ("hooks", "rules", "lib", "workflows")
 
 candidates = {fp}
 try:

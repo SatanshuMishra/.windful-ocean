@@ -80,10 +80,6 @@
       "Read(~/.cargo/credentials*)",
       "Read(~/.pypirc)",
       "Read(~/Library/Keychains/**)"
-    ],
-    "ask": [
-      "Edit(~/Documents/DevLabs/.windful-ocean/.claude/lib/**)",
-      "Edit(~/Documents/DevLabs/.windful-ocean/.claude/workflows/**)"
     ]
   },
   "model": "claude-opus-5[1m]",
