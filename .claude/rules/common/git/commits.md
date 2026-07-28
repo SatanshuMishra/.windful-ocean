@@ -10,6 +10,8 @@
 
 Types: feat, fix, refactor, docs, test, chore, perf, ci. Conventional Commits for the published / squashed commit. No AI co-author attribution (disabled globally).
 
+On GitHub squash-merge, the PR title becomes this squashed commit's subject, so it must carry the same grammar. The PR title is composed and validated by the centralized `pr-create` tool (`PR_TITLE_PATTERN`, max 72 characters) — see `git/pull-requests.md`, never authored ad hoc.
+
 ## Cadence
 
 - **Atomic commits.** One logical change per commit. Separate refactor commits from behavior-change commits — never mix a rename or move with a behavior change.

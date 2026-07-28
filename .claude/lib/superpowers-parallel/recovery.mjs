@@ -87,9 +87,11 @@ export function mspContentHash(msp) {
   const id = typeof source.id === 'string' ? source.id : '';
   const title = typeof source.title === 'string' ? source.title : '';
   const rationale = typeof source.rationale === 'string' ? source.rationale : '';
+  const changeType = typeof source.changeType === 'string' ? source.changeType : '';
+  const scope = typeof source.scope === 'string' ? source.scope : '';
   const dependsOn = Array.isArray(source.dependsOn) ? source.dependsOn.filter((d) => typeof d === 'string') : [];
   const fileScope = Array.isArray(source.fileScope) ? source.fileScope.filter((f) => typeof f === 'string') : [];
-  const canonical = JSON.stringify([id, title, rationale, dependsOn, fileScope]);
+  const canonical = JSON.stringify([id, title, rationale, changeType, scope, dependsOn, fileScope]);
   let h = 0x811c9dc5;
   for (let i = 0; i < canonical.length; i += 1) {
     h = (h ^ canonical.charCodeAt(i)) >>> 0;
@@ -113,6 +115,8 @@ export function buildInitialManifest({ logicalRunId, harnessRunId, spec, repoRoo
       id: msp.id,
       title: typeof msp.title === 'string' ? msp.title.slice(0, MAX_TITLE_LEN) : msp.title,
       rationale: typeof msp.rationale === 'string' ? msp.rationale.slice(0, MAX_RATIONALE_LEN) : msp.rationale,
+      changeType: msp.changeType,
+      scope: msp.scope,
       status: 'planned',
       integrationBranch: `${sourcePrefix}/${msp.id}-integration`,
       prUrl: null,
@@ -124,7 +128,7 @@ export function buildInitialManifest({ logicalRunId, harnessRunId, spec, repoRoo
   };
 }
 
-export function applyShipTransition(manifest, { mspId, prUrl, mergedAt, title, rationale }) {
+export function applyShipTransition(manifest, { mspId, prUrl, mergedAt, title, rationale, changeType, scope }) {
   const exists = manifest.msps.some((msp) => msp.id === mspId);
   const updated = manifest.msps.map((msp) =>
     msp.id === mspId ? { ...msp, status: 'shipped', prUrl, mergedAt } : msp,
@@ -137,6 +141,8 @@ export function applyShipTransition(manifest, { mspId, prUrl, mergedAt, title, r
           id: mspId,
           title,
           rationale,
+          changeType,
+          scope,
           status: 'shipped',
           integrationBranch: `${manifest.sourcePrefix}/${mspId}-integration`,
           prUrl,

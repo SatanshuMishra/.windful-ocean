@@ -1,9 +1,11 @@
 name: receipts
 on:
   pull_request:
+    types: [opened, edited, reopened, synchronize]
 
 jobs:
   receipts:
+    if: github.event.action != 'edited'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5  # v4.3.1
@@ -28,5 +30,7 @@ jobs:
         env:
           PR_TITLE: ${{ github.event.pull_request.title }}
         run: |
-          echo "$PR_TITLE" | grep -Eq '^(feat|fix|refactor|docs|test|chore|perf|ci)(\([a-z0-9-]+\))?!?: .+' \
-            || { echo "PR title must be Conventional Commits (the per-MSP squash message)"; exit 1; }
+          [ "${#PR_TITLE}" -le 72 ] \
+            || { echo "PR title must be 72 characters or fewer (the squash commit subject)"; exit 1; }
+          printf '%s' "$PR_TITLE" | grep -Eq '^(feat|fix|refactor|docs|test|chore|perf|ci)(\([a-z0-9][a-z0-9-]{0,15}\))?!?: [a-z].*[^ .]$' \
+            || { echo "PR title must be Conventional Commits, lowercase imperative summary, no trailing period"; exit 1; }

@@ -426,9 +426,11 @@ function mspContentHash(msp) {
   const id = typeof source.id === 'string' ? source.id : '';
   const title = typeof source.title === 'string' ? source.title : '';
   const rationale = typeof source.rationale === 'string' ? source.rationale : '';
+  const changeType = typeof source.changeType === 'string' ? source.changeType : '';
+  const scope = typeof source.scope === 'string' ? source.scope : '';
   const dependsOn = Array.isArray(source.dependsOn) ? source.dependsOn.filter((d) => typeof d === 'string') : [];
   const fileScope = Array.isArray(source.fileScope) ? source.fileScope.filter((f) => typeof f === 'string') : [];
-  const canonical = JSON.stringify([id, title, rationale, dependsOn, fileScope]);
+  const canonical = JSON.stringify([id, title, rationale, changeType, scope, dependsOn, fileScope]);
   let h = 0x811c9dc5;
   for (let i = 0; i < canonical.length; i += 1) {
     h = (h ^ canonical.charCodeAt(i)) >>> 0;
@@ -452,6 +454,8 @@ function buildInitialManifest({ logicalRunId, harnessRunId, spec, repoRoot, base
       id: msp.id,
       title: typeof msp.title === 'string' ? msp.title.slice(0, MAX_TITLE_LEN) : msp.title,
       rationale: typeof msp.rationale === 'string' ? msp.rationale.slice(0, MAX_RATIONALE_LEN) : msp.rationale,
+      changeType: msp.changeType,
+      scope: msp.scope,
       status: 'planned',
       integrationBranch: `${sourcePrefix}/${msp.id}-integration`,
       prUrl: null,
@@ -463,7 +467,7 @@ function buildInitialManifest({ logicalRunId, harnessRunId, spec, repoRoot, base
   };
 }
 
-function applyShipTransition(manifest, { mspId, prUrl, mergedAt, title, rationale }) {
+function applyShipTransition(manifest, { mspId, prUrl, mergedAt, title, rationale, changeType, scope }) {
   const exists = manifest.msps.some((msp) => msp.id === mspId);
   const updated = manifest.msps.map((msp) =>
     msp.id === mspId ? { ...msp, status: 'shipped', prUrl, mergedAt } : msp,
@@ -476,6 +480,8 @@ function applyShipTransition(manifest, { mspId, prUrl, mergedAt, title, rational
           id: mspId,
           title,
           rationale,
+          changeType,
+          scope,
           status: 'shipped',
           integrationBranch: `${manifest.sourcePrefix}/${mspId}-integration`,
           prUrl,
@@ -1320,12 +1326,14 @@ const DECOMPOSE_SCHEMA = {
       minItems: 1,
       items: {
         type: 'object',
-        required: ['id', 'title', 'rationale', 'dependsOn', 'fileScope'],
+        required: ['id', 'title', 'rationale', 'changeType', 'scope', 'dependsOn', 'fileScope'],
         additionalProperties: false,
         properties: {
-          id: { type: 'string', pattern: '^[a-z0-9][a-z0-9-]*$' },
-          title: { type: 'string' },
-          rationale: { type: 'string' },
+          id: { type: 'string', pattern: '^[a-z0-9][a-z0-9-]{0,29}$' },
+          title: { type: 'string', pattern: '^[a-z][\\x20-\\x7E]{0,38}[\\x21-\\x2D\\x2F-\\x7E]$' },
+          rationale: { type: 'string', pattern: '^[A-Za-z0-9(][\\x20-\\x7E]{0,198}[\\x21-\\x7E]$' },
+          changeType: { type: 'string', enum: ['feat', 'fix', 'refactor', 'docs', 'test', 'chore', 'perf', 'ci'] },
+          scope: { type: 'string', pattern: '^[a-z0-9][a-z0-9-]{0,15}$' },
           dependsOn: { type: 'array', items: { type: 'string' } },
           fileScope: { type: 'array', items: { type: 'string' } },
         },
@@ -1341,6 +1349,7 @@ const RECONCILE_SCHEMA = {
   properties: {
     manifestFound: { type: 'boolean' },
     manifestRaw: { type: ['string', 'null'] },
+    manifestRawPages: { type: ['array', 'null'], items: { type: 'string' } },
     mergedPRsAuthoritative: { type: 'boolean' },
     specContentHash: { type: ['string', 'null'] },
     ownerRepo: { type: ['string', 'null'], pattern: '^[A-Za-z0-9][A-Za-z0-9._-]*/[A-Za-z0-9.][A-Za-z0-9._-]*$' },
@@ -1597,6 +1606,15 @@ function evaluateManifestReuse(priorManifest, observedSpecHash) {
     if (typeof m.title !== 'string' || typeof m.rationale !== 'string') {
       return { reusable: false, reason: `manifest msp ${m.id} has a non-string title or rationale` };
     }
+    if (typeof m.changeType !== 'string' || typeof m.scope !== 'string') {
+      return { reusable: false, reason: `manifest msp ${m.id} declares no changeType or scope, so no conventional-commits pull-request title composes from it` };
+    }
+    if (prTitleFor(m) === null || supersedePrTitleFor(m) === null) {
+      return { reusable: false, reason: `manifest msp ${m.id} changeType/scope/title do not compose a valid conventional-commits pull-request title` };
+    }
+    if (!prBodyValueOk(m.rationale) || !prBodyValueOk(m.title)) {
+      return { reusable: false, reason: `manifest msp ${m.id} title or rationale is not an acceptable inert pull-request body value` };
+    }
     if (!Array.isArray(m.dependsOn) || !m.dependsOn.every((d) => typeof d === 'string')) {
       return { reusable: false, reason: `manifest msp ${m.id} dependsOn is not an array of strings` };
     }
@@ -1615,6 +1633,8 @@ function evaluateManifestReuse(priorManifest, observedSpecHash) {
       id: m.id,
       title: m.title.slice(0, MAX_TITLE_LEN),
       rationale: m.rationale.slice(0, MAX_RATIONALE_LEN),
+      changeType: m.changeType,
+      scope: m.scope,
       dependsOn: m.dependsOn.slice(),
       fileScope: m.fileScope.slice(),
     };
@@ -3059,6 +3079,10 @@ async function runReconcileOnlyAdvance(advance, ctx) {
   for (const id of advance.toOpen) {
     const msp = shepherdMspById.get(id);
     if (!msp) continue;
+    if (!prComposable(msp)) {
+      parked.push(await shepherdPark(id, `reconcile-only shepherd refuses to open the deferred PR for ${id}: its manifest entry declares no changeType/scope/title composing a valid conventional-commits pull-request title and inert body, and the engine never guesses one`));
+      continue;
+    }
     const integrationBranch = `${sourcePrefix}/${id}-integration`;
     let builtRef;
     try {
@@ -3076,7 +3100,7 @@ async function runReconcileOnlyAdvance(advance, ctx) {
         `1. \`git -C ${repoRoot} fetch origin ${baseBranch}\` and fetch the durable checkpoint ref: \`git -C ${repoRoot} fetch origin ${JSON.stringify(builtRef)}\`.\n` +
         `2. Move the integration ref FRESH onto the advanced base and replay this MSP's checkpoint tip onto it (rebase --onto ${integrationBranch} origin/${baseBranch} FETCH_HEAD, or an equivalent cherry-pick). If the replay conflicts, abort it and set opened=false with the conflicting files in detail.\n` +
         `3. Publish observe-then-converge: if origin/${integrationBranch} already equals the local tip, SKIP the push; otherwise \`git -C ${repoRoot} push -u origin ${integrationBranch}\` (first-time publish fast-forwards). The only permitted force is a \`--force-with-lease\` retry of your OWN rebase.\n` +
-        `4. Open ONE pull request by running EXACTLY this one command, verbatim, with no substitutions and nothing chained: \`node ${LIB_DIR}/mitosis-git.mjs pr-create --repo ${repoSlug} --head ${integrationBranch} --base ${baseBranch} --title ${JSON.stringify(prTitleFor(id))}${prBodyFlags(msp)}\`. That command performs the observe step itself and reuses an existing open PR on this head instead of opening a second, so issue no gh command of your own for this step. Exit 0 prints ONE JSON object carrying action ("reused" or "created") and url. Exit 21 is AMBIGUOUS: the create call was reached and the wrapper could not confirm its outcome, so a pull request MAY exist — never report exit 21 as "nothing was opened", never retry it blind, and copy the wrapper stderr VERBATIM into detail so a human reads the repository. Every other non-zero exit means the create call was never reached and nothing was opened. Leave the PR OPEN for a human; perform no merge.\n\n` +
+        `4. Open ONE pull request by running EXACTLY this one command, substituting ONLY the digits for <N>: \`node ${LIB_DIR}/mitosis-git.mjs pr-create --repo ${repoSlug} --head ${integrationBranch} --base ${baseBranch} --title ${JSON.stringify(prTitleFor(msp))} --origin machine --provenance ${JSON.stringify(prProvenanceFor(`shepherd-open:${id}`, null))} --why ${JSON.stringify(msp.rationale)} --what ${JSON.stringify(msp.title)} --not-verified ${JSON.stringify(PR_NOT_VERIFIED_OPEN_CI)} --changed-lines <N>\`. ${PR_PLACEHOLDER_SENTENCE} ${prChangedLinesClause(repoRoot, baseBranch, integrationBranch)} That command performs the observe step itself and reuses an existing open PR on this head instead of opening a second, so issue no gh command of your own for this step. Exit 0 prints ONE JSON object carrying action ("created", "reused", or "reused-unverified" when an open PR already on this head was not composed by this tool) and url; on "reused-unverified" copy the wrapper stderr VERBATIM into detail so a human reads that PR. Exit 21 is AMBIGUOUS: the create call was reached and the wrapper could not confirm its outcome, so a pull request MAY exist — never report exit 21 as "nothing was opened", never retry it blind, and copy the wrapper stderr VERBATIM into detail so a human reads the repository. Every other non-zero exit means the create call was never reached and nothing was opened. Leave the PR OPEN for a human; perform no merge.\n\n` +
         `If the PR is open (or already existed), set opened=true and report its url. If any step fails, set opened=false and explain in detail.\n\n` +
         `Return ONLY: { opened: <bool>, prUrl: "<the pr url, or empty string if not opened>", detail: "<what happened>" }.`,
         { agentType: 'implementer', label: `shepherd-open:${id}`, phase: 'Shepherd' }
@@ -3214,43 +3238,61 @@ function redispatchPrompt({ unitId, stage, task, correctedTask, mechanism, attem
     `Perform the ${stage} stage's work exactly as its normal instructions require, incorporating the correction, and return ONLY that stage's normal structured result.`;
 }
 
-const PR_TITLE_PREFIX = 'mitosis';
+const PR_TITLE_TYPES = Object.freeze(['feat', 'fix', 'refactor', 'docs', 'test', 'chore', 'perf', 'ci']);
+const PR_TITLE_PATTERN = /^(?=.{1,72}$)(feat|fix|refactor|docs|test|chore|perf|ci)(\([a-z0-9][a-z0-9-]{0,15}\))?: [a-z][\x20-\x7E]*[\x21-\x2D\x2F-\x7E]$/;
+const PR_VALUE_LEAD = /^[A-Za-z0-9(]/;
+const PR_VALUE_TAG = /<[!\/A-Za-z]/;
+const PR_VALUE_SHELL = /[$`\\]/;
+const PR_VALUE_ASCII = /^[\x20-\x7E]+$/;
+const PR_VALUE_RESERVED_FIELD = /^(verified|not verified|size):/i;
+const PR_VALUE_RESERVED_STRUCTURE = /^(SUPERSEDES|DEPENDS-ON) /;
+const PR_VALUE_CAP = 200;
+const PR_NOT_VERIFIED_OPEN_CI = 'CI on the fresh head and base - not run; this pull request opens before CI starts';
+const PR_NOT_VERIFIED_SUPERSEDE_CI = 'CI on the superseding head - not run; this pull request opens before CI starts';
+const PR_SUPERSEDE_WHY = 'The prior pull request for this MSP was invalidated by a divergent parent merge.';
+const PR_PLACEHOLDER_SENTENCE = 'Change NOTHING except the named placeholder. Do not add, remove or reword a flag.';
 const PR_DEPENDS_MAX_IDS = 64;
 const PR_DEPENDS_MAX_ID_LEN = 64;
 const PR_DEPENDS_ID_PATTERN = /^[a-z0-9][a-z0-9-]*$/;
+const PR_DEPENDS_LINE_BUDGET = PR_VALUE_CAP - 'DEPENDS-ON '.length;
 
-function prTitleFor(mspId) {
-  return `${PR_TITLE_PREFIX}: ${mspId}`;
+function prTitleFor(msp) {
+  const source = msp !== null && typeof msp === 'object' && !Array.isArray(msp) ? msp : {};
+  const composed = `${source.changeType}(${source.scope}): ${source.title}`;
+  return PR_TITLE_PATTERN.test(composed) ? composed : null;
 }
 
-function supersedePrTitleFor(mspId) {
-  return `${PR_TITLE_PREFIX} supersede: ${mspId}`;
+function supersedePrTitleFor(msp) {
+  const source = msp !== null && typeof msp === 'object' && !Array.isArray(msp) ? msp : {};
+  const composed = `${source.changeType}(${source.scope}): supersede ${source.id}`;
+  return PR_TITLE_PATTERN.test(composed) ? composed : null;
 }
 
-const PR_BODY_LINE_MAX = 512;
-const PR_BODY_INERT_STRIP = /[^A-Za-z0-9 .,:/_-]+/g;
-const PR_BODY_TITLE_PREFIX = 'MSP ';
-const PR_BODY_SCOPE_PREFIX = 'SCOPE ';
-
-function prBodyLine(prefix, text) {
-  if (typeof text !== 'string') return '';
-  const inert = text.replace(PR_BODY_INERT_STRIP, ' ').replace(/\s+/g, ' ').trim();
-  if (inert.length === 0) return '';
-  return `${prefix}${inert}`.slice(0, PR_BODY_LINE_MAX).trim();
+function prProvenanceFor(label, model) {
+  return `agent=${label} model=${typeof model === 'string' && model.length > 0 ? model : 'unspecified'}`;
 }
 
-function prBodyFlags(msp) {
-  return [prBodyLine(PR_BODY_TITLE_PREFIX, msp && msp.title), prBodyLine(PR_BODY_SCOPE_PREFIX, msp && msp.rationale)]
-    .filter((line) => line.length > 0)
-    .map((line) => ` --body-line ${JSON.stringify(line)}`)
-    .join('');
+function prBodyValueOk(value) {
+  if (typeof value !== 'string' || value.length === 0 || value.length > PR_VALUE_CAP) return false;
+  if (PR_VALUE_RESERVED_FIELD.test(value) || PR_VALUE_RESERVED_STRUCTURE.test(value)) return false;
+  return PR_VALUE_ASCII.test(value) && PR_VALUE_LEAD.test(value) && !PR_VALUE_TAG.test(value) && !PR_VALUE_SHELL.test(value);
+}
+
+function prComposable(msp) {
+  const source = msp !== null && typeof msp === 'object' && !Array.isArray(msp) ? msp : {};
+  return prTitleFor(source) !== null && supersedePrTitleFor(source) !== null && prBodyValueOk(source.title) && prBodyValueOk(source.rationale);
+}
+
+function prChangedLinesClause(repoRoot, baseBranch, head) {
+  return `If you cannot read the changed-lines integer (insertions + deletions) from \`git -C ${repoRoot} diff --shortstat origin/${baseBranch}...${head}\`, delete \`--changed-lines <N>\` (both tokens) and run the rest verbatim — never estimate it.`;
 }
 
 function prDependsFlag(dependsOn) {
   const ids = Array.isArray(dependsOn) ? dependsOn : [];
   if (ids.length === 0 || ids.length > PR_DEPENDS_MAX_IDS) return '';
   const expressible = ids.every((id) => typeof id === 'string' && id.length <= PR_DEPENDS_MAX_ID_LEN && PR_DEPENDS_ID_PATTERN.test(id));
-  return expressible ? ` --depends ${JSON.stringify(ids.join(','))}` : '';
+  if (!expressible || ids.join(', ').length > PR_DEPENDS_LINE_BUDGET) return '';
+  return ` --depends ${JSON.stringify(ids.join(','))}`;
 }
 
 function planReviewPrompt({ unitId, title, planPath, rationale, dependsList, iteration }) {
@@ -3669,14 +3711,13 @@ try {
     (attemptNo, preamble) => agent(
       `You are the reconcile stage of a mitosis run. You have NO Skill tool; follow these instructions directly.\n\n` +
       `This stage is STRICTLY READ-ONLY: it inspects durable state to detect a relaunch and the already-merged set. It makes NO commits, opens NO PRs, and mutates NO files whatsoever.\n\n` +
-      `1. Fold the run manifest via the deterministic node CLI: run \`node ${LIB_DIR}/fold-run-log.mjs ${repoRoot}/.mitosis/run.json\`. If it exits 0, return its exact stdout as manifestRaw (a string) and set manifestFound=true; if it exits non-zero (absent, empty, or malformed run journal), set manifestFound=false and manifestRaw=null. Do NOT parse, repair, or alter the output — return the bytes verbatim, the engine re-validates it.\n` +
+      `1. Fold the run manifest via the deterministic node CLI: run \`node ${LIB_DIR}/fold-run-log.mjs ${repoRoot}/.mitosis/run.json\`. If it exits 0, set manifestFound=true and return its stdout COMPLETELY with NO TRUNCATION as manifestRawPages: an array of string chunks that concatenate (in order, with no separator and no bytes added or dropped) back to the exact stdout. The output is routinely tens of kilobytes and MUST NOT be abridged, summarised, or elided — split it into as many chunks of at most 2000 characters as it takes, and set manifestRaw=null when you use pages. If it exits non-zero (absent, empty, or malformed run journal), set manifestFound=false, manifestRaw=null and manifestRawPages=null. Do NOT parse, repair, or alter the output — return the bytes verbatim, the engine re-validates it and will FAIL the run if the chunks do not rejoin into parseable JSON.\n` +
       `2. Derive the TARGET repository slug AND origin host ONCE so every gh read in this run is pinned to the target repo and never the ambient cwd: with ${repoRoot} as the working directory run \`gh repo view --json nameWithOwner,url\` and report the exact owner/repo it prints as ownerRepo (the nameWithOwner field) and the origin hostname parsed from the url field (e.g. github.com for https://github.com/owner/repo) as repoHost. If it prints nothing or errors, STOP, run no further command, and return the failure shape: ownerRepo=null, repoHost=null, mergedPRs=[] and mergedPRsAuthoritative=false (do NOT return an empty or unscoped mergedPRs as if it were authoritative, and do NOT invent, guess, or reconstruct a slug so the object looks complete) — a loud stop is required because an unscoped read would silently query the WRONG repository, and the engine halts the run on that flag. Then list the pull requests already merged into the base so the engine can skip re-shipping them, pinned to that target slug: \`gh pr list -R <OWNER_REPO> --state merged --base ${baseBranch} --limit 200 --json headRefName,url,mergedAt,mergeCommit\`, typing the literal ownerRepo value you just read in place of <OWNER_REPO> — never a command substitution, never a shell variable, never a \`cd\`-and-chain, and never the placeholder itself. If the command you actually ran still carried the literal placeholder text instead of the slug, the shell parsed it as an input redirection and gh never ran: that is a FAILED read, not an empty result. This STOP-and-report rule binds EVERY command that produces a list in this run — the slug read above, the merged-PR list read in this step, AND the open-PR list read in step 6: if ANY of them errors, prints nothing, or was emitted with the placeholder unsubstituted, STOP, report the failure, and set mergedPRsAuthoritative=false; do NOT return an empty or unscoped mergedPRs as if it were authoritative, because the engine reads an empty authoritative set as "nothing is already merged" and would re-plan and re-ship ALREADY MERGED work. Set mergedPRsAuthoritative=true ONLY when BOTH list reads ran with the substituted literal slug and returned a parseable JSON array. Return that array verbatim as mergedPRs (an empty array if none). For EACH merged PR also report mergedSha as its merge commit sha (the mergeCommit.oid field), or null if absent — the shepherd compares it against the tip its children built on to detect a divergent (squashed or amended) merge.\n` +
       `3. For diagnostics only you MAY run \`git log origin/${baseBranch}\` to observe recent base history; it does not affect the returned object.\n` +
       `4. Compute a content fingerprint of the spec so the engine can detect an in-place spec edit since the manifest was recorded: run \`shasum -a 256 ${spec}\` and return ONLY the leading 64-character hex field as specContentHash (a string). If the spec file cannot be read, return specContentHash=null.\n` +
       `5. List the DURABLE mitosis checkpoint refs so the engine can reconcile built-but-unmerged work against them: run \`git -C ${repoRoot} ls-remote origin 'refs/mitosis/*'\`. This is the authoritative record of which units were durably built on a prior run. Capture EVERY output line in full (each line is \`<sha>\\t<ref>\`), returning them COMPLETELY with no truncation as checkpointRefPages: an array of pages where each page is an array of the raw line strings (return a single page holding all lines; use additional pages only if you had to fetch the listing in multiple passes). Return checkpointRefPages=[] (an empty array) if there is no remote or no such ref. Return the lines verbatim; do NOT parse, filter, or alter them — the engine parses them.\n\n` +
       `6. List the pull requests still OPEN against the base so the shepherd can observe live review state, pinned to the target slug (again typing the literal ownerRepo value from step 2 in place of <OWNER_REPO>): \`gh pr list -R <OWNER_REPO> --state open --base ${baseBranch} --limit 200 --json headRefName,reviewDecision,url,isCrossRepository,headRepositoryOwner,headRepository\`. Return that array as openPRs (an empty array if none), preserving each row's headRefName, reviewDecision and url VERBATIM, but returning headRepositoryOwner and headRepository as STRINGS extracted from gh's objects (never the objects themselves) as described below; report each reviewDecision field exactly as gh returns it (e.g. "APPROVED", "CHANGES_REQUESTED", "REVIEW_REQUIRED") or null if absent, report each PR's url verbatim so the engine can surface a frozen, still-open PR as awaiting human approval, report each PR's isCrossRepository flag EXACTLY as gh returns it (true when the pull request is opened from a FORK, false when its head branch lives in this same repository) or null if the field is absent, and report headRepositoryOwner as that PR's head-repository OWNER LOGIN string (the \`login\` field of gh's headRepositoryOwner object) and headRepository as that PR's head-repository NAME string (the \`name\` field of gh's headRepository object), each null if gh did not return it — the engine trusts a PR as its own published work ONLY when the fork flag is false AND the head repository is this same repository, and fails closed on anything else including absent or malformed fields. If THIS command errors, prints nothing, or was emitted with the placeholder unsubstituted, the same STOP-and-report rule from step 2 applies: report the failure and set mergedPRsAuthoritative=false.\n` +
-      `7. CORROBORATE the server-side merge boundary before any work is planned, by re-running the read-only preflight the orchestrator already gated on before this run was dispatched, exactly as written and from this exact absolute path: \`node ${BOUNDARY_PREFLIGHT_CLI}\`. Run THAT path literally: never a copy of the preflight that lives inside ${repoRoot} or any other repository, because a gate loaded from the repository being merged into could authorize its own merges. It reads its deployment configuration from the environment and mutates nothing. Your report is corroboration only — the authoritative gate is the orchestrator's own exit-code check in real process space, and what you return establishes only what this re-run reported. Its FIRST stdout line is a JSON object shaped { passed, halted, boundarySlug, boundaryBaseBranch, invokedAs, bypassVerified, bypassGap }; return that object VERBATIM as boundaryPreflight, including boundarySlug, boundaryBaseBranch and invokedAs exactly as printed — the engine compares them against the repository and base branch this run actually merges into and against the gate path above, and halts on any mismatch, so altering or "correcting" them halts the run. Exit 0 means every gated invariant was positively proven; on any non-zero exit the corroboration has failed and the engine halts. Do NOT edit, retry with different arguments, or work around a non-zero exit, and do NOT synthesise, guess, or hand-write this object — if the command cannot be run at all, or printed no parseable JSON line, return boundaryPreflight=null so the engine halts rather than proceeding on failed corroboration. bypassVerified is ALWAYS false: the bypass list is human governance that this token structurally cannot read, it is NOT a gate, and its false value must never be treated as a failure or corrected.\n` +
-      `Return ONLY the structured object: { manifestFound, manifestRaw, mergedPRs: [ { headRefName, url, mergedAt, mergedSha } ], mergedPRsAuthoritative, specContentHash, checkpointRefPages: [ [ "<sha>\\t<ref>" ] ], openPRs: [ { headRefName, reviewDecision, url, isCrossRepository, headRepositoryOwner, headRepository } ], ownerRepo, repoHost, boundaryPreflight: { passed, halted, boundarySlug, boundaryBaseBranch, invokedAs, bypassVerified, bypassGap } | null }.`,
+      `Return ONLY the structured object: { manifestFound, manifestRaw, manifestRawPages: [ "<chunk>" ], mergedPRs: [ { headRefName, url, mergedAt, mergedSha } ], mergedPRsAuthoritative, specContentHash, checkpointRefPages: [ [ "<sha>\\t<ref>" ] ], openPRs: [ { headRefName, reviewDecision, url, isCrossRepository, headRepositoryOwner, headRepository } ], ownerRepo, repoHost }.`,
       { agentType: 'implementer', schema: RECONCILE_SCHEMA, label: 'reconcile', phase: 'Reconcile', model: models.reconciler || models.shipper || 'sonnet' }
     ),
     { unitId: 'reconcile', stage: 'reconcile', resetRef: null, worktree: null, task: 'inspect durable run state and the already-merged set', ...makeRemediation({ unitId: 'reconcile', stage: 'reconcile', task: 'inspect durable run state and the already-merged set', schema: RECONCILE_SCHEMA, agentType: 'implementer', phase: 'Reconcile' }) },
@@ -3703,11 +3744,10 @@ if (!validateRepoIdentity(repoSlug)) {
 }
 targetOwnerRepo = repoSlug;
 const targetRepoHost = (typeof recon.repoHost === 'string' && /^[A-Za-z0-9.-]+$/.test(recon.repoHost)) ? recon.repoHost : undefined;
-const boundaryVerdict = readBoundaryPreflightVerdict(recon, { gatePath: BOUNDARY_PREFLIGHT_CLI, targetOwnerRepo, baseBranch });
-if (!boundaryVerdict.proven) {
-  return fatalReport('preflight-boundary', boundaryVerdict.reason, 0);
-}
-const priorManifest = recon && recon.manifestFound ? parseRunManifest(recon.manifestRaw) : null;
+const reconManifestText = (recon && Array.isArray(recon.manifestRawPages) && recon.manifestRawPages.length > 0)
+  ? recon.manifestRawPages.filter((chunk) => typeof chunk === 'string').join('')
+  : (recon ? recon.manifestRaw : null);
+const priorManifest = recon && recon.manifestFound ? parseRunManifest(reconManifestText) : null;
 const reconciledMap = reconcileShippedSet(recon ? recon.mergedPRs : [], sourcePrefix, targetOwnerRepo, targetRepoHost);
 const reconciledShipped = new Set(reconciledMap.keys());
 const reconciledShippedMeta = reconciledMap;
@@ -3841,9 +3881,13 @@ if (reusable) {
         `Read the approved spec/batch document at: ${spec}\n` +
         `Target repository root: ${repoRoot}\n\n` +
         `Decompose the spec into clusters of MSPs (minimum shippable products). An MSP is the smallest unit that is independently shippable behind its own PR and leaves the shared branch green. Use the D1 code-intelligence stack to ground the decomposition: native caller/callee facts (Serena find_referencing_symbols / find_symbol) for dependency edges, the Graphify map (run \`graphify query\` / \`graphify explain\` via Bash, token-free) for orientation, and targeted Read/Grep for the seams the oracle cannot see (dynamic dispatch, DI, FFI, SQL, codegen).\n\n` +
-        `Order the MSPs BOTTOM-UP: an MSP must appear AFTER every MSP it depends on. Express every cross-MSP dependency in dependsOn using the MSP ids you assign. Assign each MSP a stable kebab-case id unique within this run.\n\n` +
+        `Order the MSPs BOTTOM-UP: an MSP must appear AFTER every MSP it depends on. Express every cross-MSP dependency in dependsOn using the MSP ids you assign. Assign each MSP a stable kebab-case id of 30 characters or fewer, unique within this run.\n\n` +
+        `Each MSP DECLARES its own change type and scope; never infer either from which files the MSP touches. changeType is exactly one of: ${PR_TITLE_TYPES.join(' | ')} — the kind of change the MSP makes. scope is a short kebab-case subsystem noun of 16 characters or fewer (e.g. "auth", "pr-tool", "hooks").\n` +
+        `title is a lowercase imperative summary of 40 characters or fewer, printable ASCII only, with no trailing period — it becomes the Conventional-Commits summary of this MSP's pull-request title and therefore its squash commit subject.\n` +
+        `rationale is one sentence of 200 characters or fewer, printable ASCII only, starting with a letter or digit — it becomes the Why line of this MSP's pull-request body.\n` +
+        `Neither title nor rationale may contain a dollar sign, a backtick, a backslash, or an HTML tag opener: both are emitted as inert argv values into an engine-composed command, and a run whose MSP fields do not compose a valid pull-request title and body HALTS for a human rather than guessing a change type.\n\n` +
         `For each MSP, declare its fileScope: the NARROWEST CORRECT set of repository paths and globs that still covers EVERYTHING that MSP writes or owns. When a change is file-local, name the EXACT files (e.g. "lib/config.ts", "src/auth/login.ts"), NOT their parent directory; reserve a directory glob (e.g. "src/auth/**") for an MSP that genuinely owns the whole directory. Ground fileScope in the SAME D1 code-intelligence stack you used above (the Graphify map for orientation, Serena / native LSP for the symbols each MSP touches, targeted Read/Grep for the seams the oracle cannot see). Completeness is non-negotiable: omitting a path an MSP writes lets two MSPs collide on the same file, so declare every surface you touch — but no MORE. Over-broad scope needlessly serializes MSPs that could run in parallel (fileScope overlap is what clusters MSPs that must not co-run); a deterministic post-derivation lint flags suspiciously coarse scopes (a bare top-level directory, or a directory covering files the task text names specifically) for reviewer attention.\n\n` +
-        `Return ONLY the structured object: { msps: [ { id, title, rationale, dependsOn, fileScope } ] }, ordered bottom-up.`,
+        `Return ONLY the structured object: { msps: [ { id, title, rationale, changeType, scope, dependsOn, fileScope } ] }, ordered bottom-up.`,
         { agentType: 'codebase-analyst', schema: DECOMPOSE_SCHEMA, label: 'decompose', phase: 'Decompose', model: models.decomposer || 'opus' }
       ),
       { unitId: 'decompose', stage: 'decompose', resetRef: null, worktree: null, task: 'decompose the approved spec into clusters of MSPs', ...makeRemediation({ unitId: 'decompose', stage: 'decompose', task: 'decompose the approved spec into clusters of MSPs', schema: DECOMPOSE_SCHEMA, agentType: 'codebase-analyst', phase: 'Decompose' }) },
@@ -3873,6 +3917,10 @@ if (duplicateIds.length > 0) {
 const invalidIds = mspIds.filter((id) => !/^[a-z0-9][a-z0-9-]*$/.test(id));
 if (invalidIds.length > 0) {
   return fatalReport('decompose', `invalid MSP id(s) (must match ^[a-z0-9][a-z0-9-]*$): ${invalidIds.join(', ')}`, msps.length);
+}
+const uncomposableIds = msps.filter((m) => !prComposable(m)).map((m) => m && m.id);
+if (uncomposableIds.length > 0) {
+  return fatalReport('decompose', `${uncomposableIds.join(', ')} declared a changeType/scope/title/rationale that does not compose a valid pull-request title and body — the engine never guesses a change type; a human decides`, msps.length);
 }
 if (!reusable) {
   log(`mitosis: ${msps.length} MSP(s) -> ${mspIds.join(', ')}`);
@@ -4128,6 +4176,9 @@ async function supersedeOpenPr(msp, { priorPrUrl, integrationBranch, diagnosis }
   } catch (err) {
     return parkUnit(msp, 'ship', NeedsHuman({ kind: 'approve-decision', what: `divergent-invalidation supersede for ${clean(msp.id)} refused — its id is not a safe branch token (${clean(err.message)}); the prior open PR at ${clean(priorPrUrl)} remains untouched`, remediation: null, resumePoint: { branch: integrationBranch, ref: baseBranch, stage: 'ship' } }), integrationBranch, compensationStack);
   }
+  if (!prComposable(msp)) {
+    return parkUnit(msp, 'ship', NeedsHuman({ kind: 'approve-decision', what: `divergent-invalidation supersede for ${clean(msp.id)} refused — its declared changeType/scope/title do not compose a valid conventional-commits pull-request title and inert body, and the engine never guesses one; the prior open PR at ${clean(priorPrUrl)} remains untouched`, remediation: null, resumePoint: { branch: integrationBranch, ref: baseBranch, stage: 'ship' } }), integrationBranch, compensationStack);
+  }
   const priorRef = parsePrRef(priorPrUrl);
   if (priorRef === null || !validateRepoIdentity(priorRef.ownerRepo)) {
     return parkUnit(msp, 'ship', NeedsHuman({ kind: 'approve-decision', what: `divergent-invalidation supersede for ${clean(msp.id)} refused — its prior open PR reference ${cleanUrl(priorPrUrl)} is not a canonical github pull-request url, so the engine can neither render the SUPERSEDES statement nor emit that url as an inert argument; the prior open PR remains untouched`, remediation: null, resumePoint: { branch: integrationBranch, ref: baseBranch, stage: 'ship' } }), integrationBranch, compensationStack);
@@ -4141,7 +4192,7 @@ async function supersedeOpenPr(msp, { priorPrUrl, integrationBranch, diagnosis }
       `SECURITY: pass every ref/URL as an INERT argv element to execFile-style invocations; NEVER build a command by shell-interpolating a ref or URL into a string.\n\n` +
       `1. Publish the CURRENT local integration tip to a brand-new branch, never reusing or force-pushing the old head: \`git -C ${repoRoot} push -u origin ${integrationBranch}:${supersedeBranch}\`.\n` +
       `2. Compute the interdiff against the OLD open PR for the review body: \`git -C ${repoRoot} diff origin/${integrationBranch}...origin/${supersedeBranch}\` (origin/${integrationBranch} is the OLD open PR's frozen head — it is NEVER force-pushed while the PR stays open, so this ref still resolves to exactly the superseded PR's content; origin/${supersedeBranch} is the remote-tracking ref updated by step 1's push, since the new branch was never checked out locally; do NOT pass the PR URL itself to git diff, it is not a valid revision); summarize the delta in the new PR body so a reviewer sees only what changed since the superseded PR.\n` +
-      `3. Open ONE new pull request by running EXACTLY this one command, changing NOTHING except the quoted summary placeholder and chaining nothing onto it: \`node ${LIB_DIR}/mitosis-git.mjs pr-create --repo ${repoSlug} --head ${supersedeBranch} --base ${baseBranch} --title ${JSON.stringify(supersedePrTitleFor(msp.id))} --supersedes ${JSON.stringify(canonicalPriorPrUrl)} --body-line "<your one-line interdiff summary from step 2>"\`. Pass that summary as ONE inert argv VALUE: never a file path, never an @-prefixed value, never a shell redirection. The command writes the statement that this PR SUPERSEDES ${canonicalPriorPrUrl} into the body itself, performs the observe step itself, and reuses an existing open PR on this head instead of opening a second — so issue no gh command of your own for this step. Exit 0 prints ONE JSON object carrying action and url. Exit 21 is AMBIGUOUS: the create call was reached and the wrapper could not confirm its outcome, so a pull request MAY exist — never report exit 21 as "nothing was opened", never retry it blind, and copy the wrapper stderr VERBATIM into detail so a human reads the repository. Every other non-zero exit means the create call was never reached and nothing was opened. The old PR remains untouched on every exit.\n` +
+      `3. Open ONE new pull request by running EXACTLY this one command, changing NOTHING except the quoted summary placeholder and chaining nothing onto it: \`node ${LIB_DIR}/mitosis-git.mjs pr-create --repo ${repoSlug} --head ${supersedeBranch} --base ${baseBranch} --title ${JSON.stringify(supersedePrTitleFor(msp))} --origin machine --provenance ${JSON.stringify(prProvenanceFor(`supersede:${msp.id}`, null))} --why ${JSON.stringify(PR_SUPERSEDE_WHY)} --why ${JSON.stringify(msp.rationale)} --what ${JSON.stringify(msp.title)} --what "<your one-line interdiff summary from step 2>" --not-verified ${JSON.stringify(PR_NOT_VERIFIED_SUPERSEDE_CI)} --supersedes ${JSON.stringify(canonicalPriorPrUrl)}\`. Pass that summary as ONE inert argv VALUE: never a file path, never an @-prefixed value, never a shell redirection. The command writes the statement that this PR SUPERSEDES ${canonicalPriorPrUrl} into the body itself, performs the observe step itself, and reuses an existing open PR on this head instead of opening a second — so issue no gh command of your own for this step. Exit 0 prints ONE JSON object carrying action and url. Exit 21 is AMBIGUOUS: the create call was reached and the wrapper could not confirm its outcome, so a pull request MAY exist — never report exit 21 as "nothing was opened", never retry it blind, and copy the wrapper stderr VERBATIM into detail so a human reads the repository. Every other non-zero exit means the create call was never reached and nothing was opened. The old PR remains untouched on every exit.\n` +
       `4. Leave BOTH the old and the new PR open; do NOT merge, close, or push to the old PR's branch under any circumstance.\n\n` +
       `If the new branch published and the new PR is open (or already existed), set opened=true. If any step fails, set opened=false and explain in detail; the old PR remains untouched either way.\n\n` +
       `Return ONLY: { opened: <bool>, prUrl: "<the new superseding PR url, or empty string if not opened>", detail: "<what happened>" }.`,
@@ -4657,6 +4708,10 @@ async function runUnit(unit) {
 
     async function shipOneMsp() {
       phase('Ship');
+      if (!prComposable(msp)) {
+        return { halted: true, stage: 'ship', mspId: msp.id, detail: `ship refuses to open a pull request for ${clean(msp.id)} — its declared changeType/scope/title do not compose a valid conventional-commits pull-request title and inert body, and the engine never guesses one` };
+      }
+      const shipModel = 'opus';
       const revalidateClause = 'before opening the PR';
       const idempotencyScope = 'no duplicate branch, push, or PR';
       const shipStep7 = `7. This run is HUMAN-GATED: do NOT merge the PR yourself and perform no merge of any kind. Leave the PR open for a human to review and merge. If CI is GREEN, STOP with the PR left open and return { merged: false, awaitingApproval: true, prUrl: "<the pr url>", receiptsPass: true, d6Pass: true, detail: "CI green; PR <url> open and awaiting human approval to merge" }. If CI is RED on the fresh base, return { merged: false, awaitingApproval: false, prUrl: "<the pr url>", receiptsPass: <bool>, d6Pass: <bool>, detail: "<failing job/step and first failing assertion>" }.\n\n`;
@@ -4670,11 +4725,11 @@ async function runUnit(unit) {
         `2. Refresh the base: \`git -C ${repoRoot} fetch origin ${baseBranch}\`.\n` +
         `3. Detect whether a sibling cluster advanced the base since this integration ref was cut: run \`git -C ${repoRoot} merge-base --is-ancestor origin/${baseBranch} ${integrationBranch}\`. Exit 0 = the base tip is already contained (no rebase needed); exit 1 = the base advanced, a sibling landed, rebase required.\n` +
         `4. Fresh-base (receipts G8): if the base advanced, run \`git -C ${repoRoot} rebase origin/${baseBranch} ${integrationBranch}\`. If the rebase reports conflicts, run \`git -C ${repoRoot} rebase --abort\` and STOP with merged=false and detail naming the conflicting paths (a cross-cluster file collision the coarse clustering missed - a human must resolve); on conflict do NOT publish anything. If the rebase replayed cleanly (or no rebase was needed), PUBLISH observe-then-converge: check whether the remote already has this exact head with \`git -C ${repoRoot} ls-remote --heads origin ${integrationBranch}\` and compare it to \`git -C ${repoRoot} rev-parse ${integrationBranch}\`. If origin/${integrationBranch} already equals the local head, the push already happened on a prior attempt - SKIP the push. Otherwise publish: \`git -C ${repoRoot} push -u origin ${integrationBranch}\` (this branch was never pushed before ship, so a first-time publish fast-forwards). ONLY if that push is REJECTED as non-fast-forward (a retry where this branch was already published and has since been rebased) retry once with \`git -C ${repoRoot} push --force-with-lease -u origin ${integrationBranch}\` - this is the sole permitted force, scoped to your own rebase.\n` +
-        `5. Open ONE pull request by running EXACTLY this one command, verbatim, with no substitutions and nothing chained: \`node ${LIB_DIR}/mitosis-git.mjs pr-create --repo ${repoSlug} --head ${integrationBranch} --base ${baseBranch} --title ${JSON.stringify(prTitleFor(msp.id))}${prBodyFlags(msp)}${prDependsFlag(msp.dependsOn)}\`. It opens head ${integrationBranch} onto base ${baseBranch}, stacked bottom-up on the already-merged MSPs (${dependsList}). That command performs the observe step itself and reuses an existing open PR on this head instead of opening a second, so issue no gh command of your own for this step. Exit 0 prints ONE JSON object carrying action and url. Exit 21 is AMBIGUOUS: the create call was reached and the wrapper could not confirm its outcome, so a pull request MAY exist — never report exit 21 as "nothing was opened", never retry it blind, and copy the wrapper stderr VERBATIM into detail so a human reads the repository. Every other non-zero exit means the create call was never reached and nothing was opened. Stop on any non-zero exit.\n` +
+        `5. Open ONE pull request by running EXACTLY this one command, substituting ONLY the digits for <N>: \`node ${LIB_DIR}/mitosis-git.mjs pr-create --repo ${repoSlug} --head ${integrationBranch} --base ${baseBranch} --title ${JSON.stringify(prTitleFor(msp))} --origin machine --provenance ${JSON.stringify(prProvenanceFor(`ship:${msp.id}`, shipModel))} --why ${JSON.stringify(msp.rationale)} --what ${JSON.stringify(msp.title)} --not-verified ${JSON.stringify(PR_NOT_VERIFIED_OPEN_CI)}${prDependsFlag(msp.dependsOn)} --changed-lines <N>\`. ${PR_PLACEHOLDER_SENTENCE} ${prChangedLinesClause(repoRoot, baseBranch, integrationBranch)} It opens head ${integrationBranch} onto base ${baseBranch}, stacked bottom-up on the already-merged MSPs (${dependsList}). That command performs the observe step itself and reuses an existing open PR on this head instead of opening a second, so issue no gh command of your own for this step. Exit 0 prints ONE JSON object carrying action and url. Exit 21 is AMBIGUOUS: the create call was reached and the wrapper could not confirm its outcome, so a pull request MAY exist — never report exit 21 as "nothing was opened", never retry it blind, and copy the wrapper stderr VERBATIM into detail so a human reads the repository. Every other non-zero exit means the create call was never reached and nothing was opened. Stop on any non-zero exit.\n` +
         `6. Wait for CI to finish on the FRESH head+base with a BACKGROUNDED, timeout-bounded watch that returns the terminal conclusion - NEVER foreground-stream CI logs by re-invoking a blocking watch that pipes every progress line into context. Resolve the run id for this head, then poll its status in a backgrounded shell bounded by a hard timeout so the wait lives in your shell and never blocks indefinitely. Every run-status read is pinned to the engine-resolved target repo ${JSON.stringify(repoSlug)} (never the ambient cwd): \`runId=$(gh run list -R ${repoSlug} --branch ${integrationBranch} --limit 1 --json databaseId -q '.[0].databaseId'); timeout ${CI_WATCH_MAX_SECONDS} bash -c 'until [ "$(gh run view '"$runId"' -R ${repoSlug} --json status -q .status)" = "completed" ]; do sleep ${CI_WATCH_INTERVAL_SECONDS}; done'\`, then read the terminal conclusion ONCE: \`gh run view "$runId" -R ${repoSlug} --json conclusion -q .conclusion\`. Treat conclusion=success as CI GREEN and any other terminal conclusion (failure/cancelled/timed_out, or the timeout expiring before completion) as CI RED. This CI runs the receipts red->green enforcer + G9 full-suite + the D6 cluster-boundary step. Because the PR base is origin/${baseBranch} (now including every sibling that already merged) and the head is the rebased tip, the D6 step computes NEW base..head dependents over the COMBINED post-rebase state - not this cluster's changes in isolation.\n` +
         shipStep7 +
         shipReturnLine,
-        { agentType: 'implementer', schema: SHIP_SCHEMA, label: `ship:${msp.id}`, phase: 'Ship', model: 'opus' }
+        { agentType: 'implementer', schema: SHIP_SCHEMA, label: `ship:${msp.id}`, phase: 'Ship', model: shipModel }
       );
       if (!ship) {
         log(`mitosis[${msp.id}]: ship agent returned null (blocked by permission classifier or died before returning)`);

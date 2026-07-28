@@ -6,6 +6,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { classifyGhMerge } from '../gh-merge-shim.mjs';
+import { PR_TITLE_CAP, PR_VALUE_CAP, PR_MULTI_LIMITS, DEPENDS_PREFIX } from '../pr-format.mjs';
 import {
   MITOSIS_GIT_USAGE_EXIT,
   MITOSIS_GIT_TRIPWIRE_EXIT,
@@ -13,6 +14,7 @@ import {
   MITOSIS_GIT_CONVERGE_EXIT,
   MITOSIS_GIT_GH_MISSING_EXIT,
   MITOSIS_GIT_VERBS,
+  FLAG_SPEC,
   parseMitosisGitArgv,
   renderPrCreateBody,
   buildGhArgv,
@@ -26,8 +28,61 @@ const REPO = 'acme/widgets';
 const HEAD = 'mitosis/msp-1-integration';
 const BASE = 'main';
 
+const TITLE = 'refactor(pr-tool): centralize pull-request creation';
+const PROVENANCE = 'agent=ship:msp-1 model=opus';
+const WHY = 'four of the five paths that open a pull request invent the title and body ad hoc.';
+const WHAT = 'centralize pull-request creation';
+const NOT_VERIFIED = 'CI on the fresh head and base - not run; this pull request opens before CI starts';
+
+const NUL = String.fromCharCode(0);
+const BEL = String.fromCharCode(7);
+const TAB = String.fromCharCode(9);
+const LF = String.fromCharCode(10);
+const DEL = String.fromCharCode(127);
+
+const PR_CREATE_REQUIRED = Object.freeze(['--repo', '--head', '--base', '--title', '--origin', '--why', '--what']);
+
 function prCreateArgv(extra = []) {
-  return ['pr-create', '--repo', REPO, '--head', HEAD, '--base', BASE, '--title', 'MSP-1 ships the thing', ...extra];
+  return [
+    'pr-create', '--repo', REPO, '--head', HEAD, '--base', BASE, '--title', TITLE,
+    '--origin', 'machine', '--provenance', PROVENANCE,
+    '--why', WHY,
+    '--what', WHAT,
+    '--not-verified', NOT_VERIFIED,
+    ...extra,
+  ];
+}
+
+function prCreateArgvWithout(flag) {
+  const argv = prCreateArgv();
+  const kept = [];
+  for (let i = 0; i < argv.length; i += 1) {
+    if (argv[i] === flag) {
+      i += 1;
+      continue;
+    }
+    kept.push(argv[i]);
+  }
+  return kept;
+}
+
+function prCreateArgvReplacing(flag, value) {
+  const argv = prCreateArgv();
+  const replaced = [];
+  for (let i = 0; i < argv.length; i += 1) {
+    replaced.push(argv[i]);
+    if (argv[i] === flag) {
+      replaced.push(value);
+      i += 1;
+    }
+  }
+  return replaced;
+}
+
+function repeatFlag(flag, count, value) {
+  const argv = [];
+  for (let i = 0; i < count; i += 1) argv.push(flag, value);
+  return argv;
 }
 
 function okParse(argv) {
@@ -48,6 +103,17 @@ test('the wrapper exposes exactly three verbs and none of them is a merge verb',
   assert.deepEqual([...MITOSIS_GIT_VERBS].sort(), ['compare', 'pr-close', 'pr-create']);
   for (const verb of MITOSIS_GIT_VERBS) {
     assert.ok(!/merge|approve|review/.test(verb), `verb ${verb} must not name a merge or approval action`);
+  }
+});
+
+test('FLAG_SPEC pins the whole pr-create surface and every repeatable flag carries a cardinality ceiling', () => {
+  assert.deepEqual([...FLAG_SPEC['pr-create'].required], [...PR_CREATE_REQUIRED]);
+  assert.deepEqual([...FLAG_SPEC['pr-create'].single], [
+    '--repo', '--head', '--base', '--title', '--origin', '--provenance', '--risk', '--supersedes', '--depends', '--changed-lines',
+  ]);
+  assert.deepEqual([...FLAG_SPEC['pr-create'].multiple], ['--why', '--what', '--verified', '--not-verified', '--link']);
+  for (const flag of FLAG_SPEC['pr-create'].multiple) {
+    assert.equal(typeof PR_MULTI_LIMITS[flag], 'number', `${flag} must carry a cardinality ceiling`);
   }
 });
 
@@ -74,18 +140,29 @@ test('parse accepts a well-formed pr-create and freezes the parsed values', () =
   assert.equal(parsed.opts.repo, REPO);
   assert.equal(parsed.opts.head, HEAD);
   assert.equal(parsed.opts.base, BASE);
-  assert.equal(parsed.opts.title, 'MSP-1 ships the thing');
-  assert.deepEqual(parsed.opts.bodyLines, []);
+  assert.equal(parsed.opts.title, TITLE);
+  assert.equal(parsed.opts.origin, 'machine');
+  assert.equal(parsed.opts.provenance, PROVENANCE);
+  assert.deepEqual(parsed.opts.why, [WHY]);
+  assert.deepEqual(parsed.opts.what, [WHAT]);
+  assert.deepEqual(parsed.opts.verified, []);
+  assert.deepEqual(parsed.opts.notVerified, [NOT_VERIFIED]);
+  assert.deepEqual(parsed.opts.links, []);
+  assert.equal(parsed.opts.risk, null);
   assert.equal(parsed.opts.supersedes, null);
   assert.deepEqual(parsed.opts.depends, []);
+  assert.equal(parsed.opts.changedLines, null);
   assert.ok(Object.isFrozen(parsed.opts));
 });
 
+for (const flag of PR_CREATE_REQUIRED) {
+  test(`parse REJECTS a pr-create missing the required flag ${flag}`, () => {
+    const parsed = failParse(prCreateArgvWithout(flag));
+    assert.ok(parsed.error.includes(`missing required flag ${flag}`), `expected the rejection to name ${flag}, got: ${parsed.error}`);
+  });
+}
+
 const MISSING_REQUIRED = Object.freeze([
-  ['pr-create', '--head', HEAD, '--base', BASE, '--title', 't'],
-  ['pr-create', '--repo', REPO, '--base', BASE, '--title', 't'],
-  ['pr-create', '--repo', REPO, '--head', HEAD, '--title', 't'],
-  ['pr-create', '--repo', REPO, '--head', HEAD, '--base', BASE],
   ['pr-close', '--repo', REPO],
   ['pr-close', '--pr', '12'],
   ['compare', '--repo', REPO, '--base', BASE],
@@ -100,12 +177,12 @@ for (const argv of MISSING_REQUIRED) {
 }
 
 test('parse REJECTS --repo entirely so the wrapper can never resolve the ambient cwd repo', () => {
-  const parsed = failParse(['pr-create', '--head', HEAD, '--base', BASE, '--title', 't']);
+  const parsed = failParse(prCreateArgvWithout('--repo'));
   assert.match(parsed.error, /--repo/);
 });
 
 const REJECTED_FLAG_FORMS = Object.freeze([
-  ['pr-create', '--repo=acme/widgets', '--head', HEAD, '--base', BASE, '--title', 't'],
+  ['pr-create', '--repo=acme/widgets', '--head', HEAD, '--base', BASE, '--title', TITLE],
   prCreateArgv(['--body-file', '/etc/passwd']),
   prCreateArgv(['--fill']),
   prCreateArgv(['-F', 'body=@/etc/passwd']),
@@ -118,41 +195,48 @@ const REJECTED_FLAG_FORMS = Object.freeze([
   prCreateArgv(['--web']),
   prCreateArgv(['--repo', 'other/repo']),
   prCreateArgv(['--title', 'second title']),
-  prCreateArgv(['--body-line']),
   prCreateArgv(['stray-positional']),
   prCreateArgv(['--']),
 ]);
 
 for (const argv of REJECTED_FLAG_FORMS) {
-  test(`parse REJECTS the flag form ${JSON.stringify(argv)} before anything executes`, () => {
+  test(`parse REJECTS the flag form ${JSON.stringify(argv.slice(-2))} before anything executes`, () => {
     failParse(argv);
   });
 }
 
-test('parse accumulates a repeated --body-line instead of rejecting it', () => {
-  const parsed = okParse(prCreateArgv(['--body-line', 'first', '--body-line', 'second']));
-  assert.deepEqual(parsed.opts.bodyLines, ['first', 'second']);
+const RETIRED_FREE_FORM_FLAGS = Object.freeze(['--body-line', '--review-order']);
+
+for (const flag of RETIRED_FREE_FORM_FLAGS) {
+  test(`parse REJECTS the retired free-form flag ${flag} as unknown, keeping the escape hatch closed`, () => {
+    const parsed = failParse(prCreateArgv([flag, 'anything at all']));
+    assert.match(parsed.error, /unknown flag/);
+  });
+}
+
+test('parse accumulates repeated --why and --what values instead of rejecting them', () => {
+  const parsed = okParse(prCreateArgv(['--why', 'the gate now denies the ad-hoc path', '--what', 'removed the free-form line flag']));
+  assert.deepEqual(parsed.opts.why, [WHY, 'the gate now denies the ad-hoc path']);
+  assert.deepEqual(parsed.opts.what, [WHAT, 'removed the free-form line flag']);
 });
 
 test('parse ACCEPTS the dash-leading prose an interdiff summary is made of', () => {
   const parsed = okParse(prCreateArgv([
-    '--body-line', '- fixed the parser',
-    '--body-line', '-3 files changed',
-    '--body-line', '--- a/src/parser.mjs',
+    '--what', '- fixed the parser',
+    '--what', '-3 files changed',
+    '--what', '--- a/src/parser.mjs',
   ]));
-  assert.deepEqual(parsed.opts.bodyLines, ['- fixed the parser', '-3 files changed', '--- a/src/parser.mjs']);
+  assert.deepEqual(parsed.opts.what, [WHAT, '- fixed the parser', '-3 files changed', '--- a/src/parser.mjs']);
 });
 
-test('parse ACCEPTS a dash-leading title and comment', () => {
-  const titled = okParse(['pr-create', '--repo', REPO, '--head', HEAD, '--base', BASE, '--title', '-refactor the parser']);
-  assert.equal(titled.opts.title, '-refactor the parser');
+test('parse ACCEPTS a dash-leading pr-close comment', () => {
   const closed = okParse(['pr-close', '--repo', REPO, '--pr', '12', '--comment', '- superseded by #500']);
   assert.equal(closed.opts.comment, '- superseded by #500');
 });
 
 const FLAG_IN_VALUE_POSITION = Object.freeze([
-  ['pr-create', '--repo', REPO, '--head', HEAD, '--base', BASE, '--title', '--body-line', 'x'],
-  prCreateArgv(['--body-line', '--depends', 'msp-1']),
+  ['pr-create', '--repo', REPO, '--head', HEAD, '--base', BASE, '--title', '--what', 'x'],
+  prCreateArgv(['--what', '--depends', 'msp-1']),
   prCreateArgv(['--supersedes', '--title']),
   ['pr-close', '--repo', REPO, '--pr', '12', '--comment', '--repo', 'other/repo'],
   ['compare', '--repo', REPO, '--base', '--head', '--head', HEAD],
@@ -165,71 +249,161 @@ for (const argv of FLAG_IN_VALUE_POSITION) {
 }
 
 const AT_SIGIL_VALUES = Object.freeze([
-  ['pr-create', '--repo', REPO, '--head', HEAD, '--base', BASE, '--title', '@/etc/passwd'],
-  prCreateArgv(['--body-line', '@/etc/passwd']),
-  prCreateArgv(['--body-line', '@-']),
+  prCreateArgvReplacing('--title', '@/etc/passwd'),
+  prCreateArgv(['--what', '@/etc/passwd']),
+  prCreateArgv(['--why', '@-']),
+  prCreateArgv(['--link', '@/etc/passwd']),
+  prCreateArgv(['--verified', '@/etc/passwd']),
+  prCreateArgvReplacing('--provenance', '@/etc/passwd'),
+  prCreateArgv(['--risk', '@/etc/passwd']),
   ['pr-close', '--repo', REPO, '--pr', '12', '--comment', '@/etc/passwd'],
 ]);
 
 for (const argv of AT_SIGIL_VALUES) {
-  test(`parse REJECTS an @-prefixed field-indirection value ${JSON.stringify(argv)}`, () => {
+  test(`parse REJECTS an @-prefixed field-indirection value ${JSON.stringify(argv.slice(-2))}`, () => {
     failParse(argv);
   });
 }
 
 test('parse strips control characters from a title rather than letting them reach gh', () => {
-  const parsed = okParse(['pr-create', '--repo', REPO, '--head', HEAD, '--base', BASE, '--title', 'a\nb\tc\u0000d']);
-  assert.equal(parsed.opts.title, 'abcd');
+  const parsed = okParse(prCreateArgvReplacing('--title', `chore(pr-tool)${NUL}: strip control${BEL} characters`));
+  assert.equal(parsed.opts.title, 'chore(pr-tool): strip control characters');
 });
 
-test('parse strips control characters from every body line', () => {
-  const parsed = okParse(prCreateArgv(['--body-line', 'one\ntwo', '--body-line', 'three\u007f']));
-  assert.deepEqual(parsed.opts.bodyLines, ['onetwo', 'three']);
+test('parse strips control characters from every body value', () => {
+  const parsed = okParse(prCreateArgv(['--what', `one${LF}two`, '--what', `three${DEL}`]));
+  assert.deepEqual(parsed.opts.what, [WHAT, 'onetwo', 'three']);
 });
 
 test('parse REJECTS a value that is empty once control characters are stripped', () => {
-  failParse(['pr-create', '--repo', REPO, '--head', HEAD, '--base', BASE, '--title', '\n\t\u0000']);
+  failParse(prCreateArgvReplacing('--title', `${LF}${TAB}${NUL}`));
 });
 
 test('parse REJECTS an over-cap title rather than silently truncating it', () => {
-  const parsed = okParse(['pr-create', '--repo', REPO, '--head', HEAD, '--base', BASE, '--title', 'x'.repeat(256)]);
-  assert.equal(parsed.opts.title.length, 256);
-  failParse(['pr-create', '--repo', REPO, '--head', HEAD, '--base', BASE, '--title', 'x'.repeat(257)]);
+  const prefix = 'refactor(pr-tool): ';
+  const atCap = `${prefix}${'w'.repeat(PR_TITLE_CAP - prefix.length)}`;
+  assert.equal(okParse(prCreateArgvReplacing('--title', atCap)).opts.title.length, PR_TITLE_CAP);
+  failParse(prCreateArgvReplacing('--title', `${atCap}w`));
 });
 
-test('parse REJECTS an over-cap body line rather than silently truncating it', () => {
-  okParse(prCreateArgv(['--body-line', 'y'.repeat(512)]));
-  failParse(prCreateArgv(['--body-line', 'y'.repeat(513)]));
+test('parse REJECTS a --title that is not a conventional-commits subject', () => {
+  for (const bad of ['MSP-1 ships the thing', 'mitosis: msp-1', 'refactor(pr-tool): Centralize creation', 'refactor(pr-tool): centralize creation.', 'refactor: x']) {
+    failParse(prCreateArgvReplacing('--title', bad));
+  }
+  okParse(prCreateArgvReplacing('--title', 'fix(hooks): deny raw pr creation at the gate'));
+  okParse(prCreateArgvReplacing('--title', 'docs: point the rule at the central tool'));
 });
 
-const GITHUB_PR_BODY_LIMIT = 65536;
+test('parse REJECTS an over-cap body value rather than silently truncating it', () => {
+  okParse(prCreateArgv(['--what', 'y'.repeat(PR_VALUE_CAP)]));
+  failParse(prCreateArgv(['--what', 'y'.repeat(PR_VALUE_CAP + 1)]));
+});
 
-function bodyLineArgv(count, line) {
-  const argv = [];
-  for (let i = 0; i < count; i += 1) argv.push('--body-line', line);
-  return argv;
+const CARDINALITY_CEILINGS = Object.freeze([
+  ['--why', 1],
+  ['--what', 1],
+  ['--verified', 0],
+  ['--not-verified', 1],
+  ['--link', 0],
+]);
+
+for (const [flag, baseline] of CARDINALITY_CEILINGS) {
+  test(`parse REJECTS a ${flag} COUNT past the ${PR_MULTI_LIMITS[flag]}-value ceiling rather than accumulating an unbounded body`, () => {
+    const headroom = PR_MULTI_LIMITS[flag] - baseline;
+    okParse(prCreateArgv(repeatFlag(flag, headroom, 'a bounded value')));
+    failParse(prCreateArgv(repeatFlag(flag, headroom + 1, 'a bounded value')));
+  });
 }
 
-test('parse REJECTS a --body-line COUNT past the cap rather than accumulating an unbounded body', () => {
-  const atCap = bodyLineArgv(64, 'a body line');
-  assert.equal(okParse(prCreateArgv(atCap)).opts.bodyLines.length, 64);
-  failParse(prCreateArgv([...atCap, '--body-line', 'one past the cap']));
-  failParse(prCreateArgv(bodyLineArgv(5000, 'y'.repeat(500))));
-});
+const GITHUB_PR_BODY_LIMIT = 65536;
+const DEPENDS_LINE_BUDGET = PR_VALUE_CAP - DEPENDS_PREFIX.length;
+const WIDEST_DEPENDS = ['a'.repeat(64), 'b'.repeat(64), 'c'.repeat(DEPENDS_LINE_BUDGET - 64 - 2 - 64 - 2)].join(',');
 
 test('the WIDEST body any caller can compose still fits inside the github pull-request body limit', () => {
+  const wide = 'y'.repeat(PR_VALUE_CAP);
+  const scope = 'w'.repeat(16);
+  const prefix = `refactor(${scope}): `;
   const widest = okParse([
     'pr-create', '--repo', REPO, '--head', HEAD, '--base', BASE,
-    '--title', 'x'.repeat(256),
+    '--title', `${prefix}${'w'.repeat(PR_TITLE_CAP - prefix.length)}`,
+    '--origin', 'machine',
+    '--provenance', `agent=${'a'.repeat(64)} model=${'m'.repeat(64)}`,
+    '--risk', wide,
     '--supersedes', 'https://github.com/acme/widgets/pull/4294967295',
-    '--depends', Array.from({ length: 64 }, (_, i) => `d${String(i).padStart(2, '0')}${'x'.repeat(61)}`).join(','),
-    ...bodyLineArgv(64, 'y'.repeat(512)),
+    '--depends', WIDEST_DEPENDS,
+    '--changed-lines', '9999999',
+    ...repeatFlag('--why', PR_MULTI_LIMITS['--why'], wide),
+    ...repeatFlag('--what', PR_MULTI_LIMITS['--what'], wide),
+    ...repeatFlag('--verified', PR_MULTI_LIMITS['--verified'], wide),
+    ...repeatFlag('--not-verified', PR_MULTI_LIMITS['--not-verified'], wide),
+    ...repeatFlag('--link', PR_MULTI_LIMITS['--link'], wide),
   ]);
   const body = renderPrCreateBody(widest.opts);
   assert.ok(
     body.length <= GITHUB_PR_BODY_LIMIT,
-    `the composed body is ${body.length} characters; the per-line, per-id and count caps must compose to a bound under ${GITHUB_PR_BODY_LIMIT}`,
+    `the composed body is ${body.length} characters; the per-value cap, the cardinality ceilings and the depends bound must compose to a bound under ${GITHUB_PR_BODY_LIMIT}`,
   );
+});
+
+test('parse REJECTS a pr-create carrying no verification statement at all', () => {
+  const parsed = failParse(prCreateArgvWithout('--not-verified'));
+  assert.match(parsed.error, /--verified or --not-verified/);
+  okParse([...prCreateArgvWithout('--not-verified'), '--verified', 'node --test tests/mitosis-git.test.mjs - 0 fail']);
+});
+
+test('parse REJECTS --origin machine without --provenance, so a machine pull request always names its author', () => {
+  const parsed = failParse(prCreateArgvWithout('--provenance'));
+  assert.match(parsed.error, /--provenance/);
+});
+
+test('parse REJECTS --origin human carrying a --provenance it cannot honestly know', () => {
+  const parsed = failParse(prCreateArgvReplacing('--origin', 'human'));
+  assert.match(parsed.error, /--provenance/);
+});
+
+test('parse ACCEPTS --origin human with no provenance at all', () => {
+  const argv = prCreateArgvWithout('--provenance');
+  const parsed = okParse(argv.map((token, i) => (argv[i - 1] === '--origin' ? 'human' : token)));
+  assert.equal(parsed.opts.origin, 'human');
+  assert.equal(parsed.opts.provenance, null);
+});
+
+const REJECTED_PROVENANCE = Object.freeze([
+  'ship',
+  'agent=ship',
+  'model=opus',
+  'agent=ship model=',
+  'agent= model=opus',
+  'agent=ship model=opus extra',
+  'agent=ship agent=other model=opus',
+  `agent=${'a'.repeat(65)} model=opus`,
+]);
+
+for (const provenance of REJECTED_PROVENANCE) {
+  test(`parse REJECTS the free-form provenance ${JSON.stringify(provenance)}`, () => {
+    failParse(prCreateArgvReplacing('--provenance', provenance));
+  });
+}
+
+const REJECTED_ORIGINS = Object.freeze(['robot', 'Machine', 'HUMAN', 'machine human', '']);
+
+for (const origin of REJECTED_ORIGINS) {
+  test(`parse REJECTS the origin ${JSON.stringify(origin)}`, () => {
+    failParse(prCreateArgvReplacing('--origin', origin));
+  });
+}
+
+const REJECTED_CHANGED_LINES = Object.freeze(['-1', '01', '1.5', 'many', '10000000', '1 2', '0x10']);
+
+for (const value of REJECTED_CHANGED_LINES) {
+  test(`parse REJECTS --changed-lines ${JSON.stringify(value)} rather than carrying an estimate into the body`, () => {
+    failParse(prCreateArgv(['--changed-lines', value]));
+  });
+}
+
+test('parse ACCEPTS a plain --changed-lines integer and carries it as a number', () => {
+  assert.equal(okParse(prCreateArgv(['--changed-lines', '0'])).opts.changedLines, 0);
+  assert.equal(okParse(prCreateArgv(['--changed-lines', '9999999'])).opts.changedLines, 9999999);
 });
 
 const REJECTED_REPO_SLUGS = Object.freeze([
@@ -244,7 +418,7 @@ const REJECTED_REPO_SLUGS = Object.freeze([
   'acme/.',
   'acme/widgets;rm -rf /',
   '$(id)/widgets',
-  'acme/widgets\n',
+  `acme/widgets${LF}`,
   '',
 ]);
 
@@ -265,7 +439,7 @@ const REJECTED_REF_TOKENS = Object.freeze([
   '-main',
   'a..b',
   'refs/heads/x.lock',
-  'main\n',
+  `main${LF}`,
   '$(id)',
   '`id`',
   'main|tee',
@@ -275,7 +449,7 @@ const REJECTED_REF_TOKENS = Object.freeze([
 
 for (const ref of REJECTED_REF_TOKENS) {
   test(`parse REJECTS the ref token ${JSON.stringify(ref)} in --head`, () => {
-    failParse(['pr-create', '--repo', REPO, '--head', ref, '--base', BASE, '--title', 't']);
+    failParse(prCreateArgvReplacing('--head', ref));
   });
   test(`parse REJECTS the ref token ${JSON.stringify(ref)} in --base`, () => {
     failParse(['compare', '--repo', REPO, '--base', ref, '--head', HEAD]);
@@ -317,10 +491,10 @@ test('parse ACCEPTS a github pull-request url for --supersedes', () => {
   assert.equal(parsed.opts.supersedes, 'https://github.com/acme/widgets/pull/41');
 });
 
-const CONTROL_IN_BODY = /[\u0000-\u001F\u007F]/;
+const CONTROL_IN_BODY = /[\x00-\x1F\x7F]/;
 
 test('parse drops the caller-controlled --supersedes tail so no control character reaches the body', () => {
-  const tail = `${String.fromCharCode(0)}${String.fromCharCode(7)}${String.fromCharCode(27)}[31m`;
+  const tail = `${NUL}${BEL}${String.fromCharCode(27)}[31m`;
   const parsed = okParse(prCreateArgv(['--supersedes', `https://github.com/acme/widgets/pull/41/${tail}`]));
   const body = renderPrCreateBody(parsed.opts);
   for (const line of body.split('\n')) {
@@ -337,12 +511,12 @@ test('parse keeps the human-gated trailer reachable by refusing a markdown tail 
 });
 
 test('parse canonicalises a --supersedes carrying a trailing newline so its body line cannot split', () => {
-  const parsed = okParse(prCreateArgv(['--supersedes', 'https://github.com/acme/widgets/pull/1?x=y\n']));
+  const parsed = okParse(prCreateArgv(['--supersedes', `https://github.com/acme/widgets/pull/1?x=y${LF}`]));
   assert.equal(parsed.opts.supersedes, 'https://github.com/acme/widgets/pull/1');
-  assert.equal(renderPrCreateBody(parsed.opts).split('\n').length, 2);
+  assert.match(renderPrCreateBody(parsed.opts), /^SUPERSEDES https:\/\/github\.com\/acme\/widgets\/pull\/1$/m);
 });
 
-test('parse REJECTS a --supersedes whose composed body line would exceed the line cap', () => {
+test('parse REJECTS a --supersedes whose composed body line would exceed the value cap', () => {
   failParse(prCreateArgv(['--supersedes', `https://github.com/${'a'.repeat(600)}/widgets/pull/41`]));
 });
 
@@ -359,6 +533,14 @@ test('parse ACCEPTS a comma-separated --depends list and tolerates the engine sp
   assert.deepEqual(parsed.opts.depends, ['msp-1', 'msp-2']);
 });
 
+test('parse REJECTS a --depends list whose composed link line passes the value cap every other body value obeys', () => {
+  const accepted = okParse(prCreateArgv(['--depends', WIDEST_DEPENDS]));
+  const line = `${DEPENDS_PREFIX}${accepted.opts.depends.join(', ')}`;
+  assert.equal(line.length, PR_VALUE_CAP);
+  assert.match(renderPrCreateBody(accepted.opts), new RegExp(`^${DEPENDS_PREFIX}`, 'm'));
+  failParse(prCreateArgv(['--depends', `${WIDEST_DEPENDS},d`]));
+});
+
 test('parse REJECTS a --depends id past the per-id cap so the body line stays bounded', () => {
   okParse(prCreateArgv(['--depends', 'a'.repeat(64)]));
   failParse(prCreateArgv(['--depends', 'a'.repeat(65)]));
@@ -368,7 +550,11 @@ test('parse REJECTS a --depends id past the per-id cap so the body line stays bo
 
 test('renderPrCreateBody composes a fixed template from inert values only', () => {
   const body = renderPrCreateBody({
-    bodyLines: ['interdiff: renamed two helpers'],
+    origin: 'machine',
+    why: ['the prior pull request for this MSP was invalidated by a divergent parent'],
+    what: ['interdiff: renamed two helpers'],
+    notVerified: ['CI on the superseding head - not run'],
+    provenance: 'agent=supersede:msp-1 model=unspecified',
     supersedes: 'https://github.com/acme/widgets/pull/41',
     depends: ['msp-1', 'msp-2'],
   });
@@ -379,28 +565,29 @@ test('renderPrCreateBody composes a fixed template from inert values only', () =
 });
 
 test('renderPrCreateBody omits the supersedes and depends lines when they are absent', () => {
-  const body = renderPrCreateBody({ bodyLines: [], supersedes: null, depends: [] });
+  const body = renderPrCreateBody({ origin: 'human', why: ['a reason'], what: ['a change'], verified: ['a check - 0 fail'] });
   assert.ok(!body.includes('SUPERSEDES'));
   assert.ok(!body.includes('DEPENDS-ON'));
-  assert.ok(body.length > 0, 'the fixed trailer is always present');
+  assert.ok(!body.includes('## Links'));
+  assert.match(body, /HUMAN-GATED/);
 });
 
 test('buildGhArgv composes the pr-create OBSERVE probe as an exact argv array', () => {
   const { opts } = okParse(prCreateArgv());
   assert.deepEqual(buildGhArgv('pr-create', 'observe', opts), [
-    'pr', 'list', '-R', REPO, '--head', HEAD, '--base', BASE, '--state', 'open', '--json', 'url,number',
+    'pr', 'list', '-R', REPO, '--head', HEAD, '--base', BASE, '--state', 'open', '--json', 'url,number,body',
   ]);
 });
 
 test('buildGhArgv composes the pr-create CONVERGE call with an inline --body and no reference-valued flag', () => {
-  const { opts } = okParse(prCreateArgv(['--body-line', 'summary']));
+  const { opts } = okParse(prCreateArgv());
   const argv = buildGhArgv('pr-create', 'converge', opts);
   assert.deepEqual(argv.slice(0, 10), [
-    'pr', 'create', '-R', REPO, '--head', HEAD, '--base', BASE, '--title', 'MSP-1 ships the thing',
+    'pr', 'create', '-R', REPO, '--head', HEAD, '--base', BASE, '--title', TITLE,
   ]);
   assert.equal(argv[10], '--body');
   assert.equal(argv.length, 12);
-  assert.match(argv[11], /summary/);
+  assert.match(argv[11], /## Why/);
   for (const banned of ['--body-file', '--fill', '-F', '-f', '--field', '--raw-field', '--input', '-X', '--method']) {
     assert.ok(!argv.includes(banned), `the converge argv must never carry ${banned}`);
   }
@@ -437,7 +624,7 @@ test('every argv this wrapper can construct passes the shim classifier (merge is
   const noIo = Object.freeze({ readFile: () => null, readStdin: () => null });
   const cases = [
     ['pr-create', 'observe', okParse(prCreateArgv()).opts],
-    ['pr-create', 'converge', okParse(prCreateArgv(['--body-line', 'x'])).opts],
+    ['pr-create', 'converge', okParse(prCreateArgv()).opts],
     ['pr-close', 'observe', okParse(['pr-close', '--repo', REPO, '--pr', '412']).opts],
     ['pr-close', 'converge', okParse(['pr-close', '--repo', REPO, '--pr', '412']).opts],
     ['compare', 'read', okParse(['compare', '--repo', REPO, '--base', BASE, '--head', HEAD]).opts],
@@ -546,14 +733,29 @@ function withSandbox(plan, body) {
   }
 }
 
-test('e2e: pr-create REUSES an existing open PR and never issues a create call', () => {
-  withSandbox([{ stdout: '[{"url":"https://github.com/acme/widgets/pull/41","number":41}]' }], (sandbox) => {
+function openPrListing(body) {
+  return JSON.stringify([{ url: 'https://github.com/acme/widgets/pull/41', number: 41, body }]);
+}
+
+test('e2e: pr-create REUSES an existing open PR this tool composed and never issues a create call', () => {
+  const composed = renderPrCreateBody(okParse(prCreateArgv()).opts);
+  withSandbox([{ stdout: openPrListing(composed) }], (sandbox) => {
     const res = runWrapper(prCreateArgv(), sandbox);
     assert.equal(res.status, 0, `expected exit 0; stderr=${res.stderr}`);
     assert.deepEqual(JSON.parse(res.stdout), { action: 'reused', url: 'https://github.com/acme/widgets/pull/41', number: 41 });
     const calls = recordedCalls(sandbox);
     assert.equal(calls.length, 1, `expected only the observe probe, got ${JSON.stringify(calls)}`);
-    assert.deepEqual(calls[0], ['pr', 'list', '-R', REPO, '--head', HEAD, '--base', BASE, '--state', 'open', '--json', 'url,number']);
+    assert.deepEqual(calls[0], ['pr', 'list', '-R', REPO, '--head', HEAD, '--base', BASE, '--state', 'open', '--json', 'url,number,body']);
+  });
+});
+
+test('e2e: pr-create reports an out-of-format open PR as reused-unverified rather than laundering it into a compliance receipt', () => {
+  withSandbox([{ stdout: openPrListing('opened by hand with a free-form body and no trailer') }], (sandbox) => {
+    const res = runWrapper(prCreateArgv(), sandbox);
+    assert.equal(res.status, 0, `expected exit 0; stderr=${res.stderr}`);
+    assert.deepEqual(JSON.parse(res.stdout), { action: 'reused-unverified', url: 'https://github.com/acme/widgets/pull/41', number: 41 });
+    assert.match(res.stderr, /does not end with a pr-create trailer/);
+    assert.equal(recordedCalls(sandbox).length, 1, 'an unverified reuse must still never issue a create call');
   });
 });
 
@@ -562,14 +764,14 @@ test('e2e: pr-create CONVERGES only after an empty observe, and the create argv 
     { stdout: '[]' },
     { stdout: 'https://github.com/acme/widgets/pull/42\n' },
   ], (sandbox) => {
-    const res = runWrapper(prCreateArgv(['--body-line', 'interdiff summary', '--depends', 'msp-1']), sandbox);
+    const res = runWrapper(prCreateArgv(['--what', 'interdiff summary', '--depends', 'msp-1']), sandbox);
     assert.equal(res.status, 0, `expected exit 0; stderr=${res.stderr}`);
     assert.deepEqual(JSON.parse(res.stdout), { action: 'created', url: 'https://github.com/acme/widgets/pull/42', number: 42 });
     const calls = recordedCalls(sandbox);
     assert.equal(calls.length, 2);
     assert.deepEqual(calls[1].slice(0, 9), ['pr', 'create', '-R', REPO, '--head', HEAD, '--base', BASE, '--title']);
     assert.equal(calls[1][10], '--body');
-    assert.match(calls[1][11], /interdiff summary/);
+    assert.match(calls[1][11], /- interdiff summary/);
     assert.match(calls[1][11], /DEPENDS-ON msp-1/);
   });
 });
@@ -730,8 +932,10 @@ const E2E_USAGE_REJECTIONS = Object.freeze([
   ['pr-merge', '--repo', REPO, '--pr', '412'],
   ['merge', '--repo', REPO],
   prCreateArgv(['--body-file', '/etc/passwd']),
-  ['pr-create', '--repo', '../..', '--head', HEAD, '--base', BASE, '--title', 't'],
-  ['pr-create', '--repo', REPO, '--head', 'a..b', '--base', BASE, '--title', 't'],
+  prCreateArgvReplacing('--repo', '../..'),
+  prCreateArgvReplacing('--head', 'a..b'),
+  prCreateArgvReplacing('--title', 'MSP-1 ships the thing'),
+  prCreateArgvWithout('--not-verified'),
   ['compare', '--repo', REPO, '--base', BASE],
 ]);
 
