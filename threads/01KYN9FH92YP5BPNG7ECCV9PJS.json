@@ -39,7 +39,7 @@
   "closure_statement": null,
   "spine": {
     "status": "active",
-    "active_goal": "Fix the three boundary-layer defects inherited from the predecessor, which shipped a green main (origin/main a229c9c, 1544/1544) but left these unfixed. 0092 is urgent: the engine is UNUSABLE - step 7 execs the merge-boundary preflight with no MITOSIS_BOUNDARY_* env, it exits 31 with no stdout, and every run halts. Under 0095 that is the permanent steady state, so this thread must settle the posture deliberately rather than await an activation that will never come.",
+    "active_goal": "Fix the three boundary-layer defects inherited from the predecessor, which shipped a green main (origin/main a229c9c, 1544/1544) but left these unfixed. 0092's mechanism is now CORRECTED: the engine does not exec the CLI - step 7 is prompt text a subagent runs with no config, so it exits 31 with empty stdout and the run halts. Under 0095 the boundary is never provisioned, so this thread must settle the posture deliberately rather than await an activation that will never come.",
     "next_step": "Reproduction is DONE - do not redo it; read the 2026-07-28T21-43 session log for findings with citations. AWAITING the user's posture ruling. Unblocked meanwhile: 0094 worktree guard via git rev-parse --git-common-dir, which goes FIRST since every later fix lands inside that hole until closed; then 0093 realpath. Before implementing the posture, VERIFY IN CODE whether the receipts CI enforcer can merge without a human - the recommendation flips on it.",
     "open_risks": [
       "0092 ROOT CAUSE (corrected): an unsatisfiable contract, not a severed exec. mitosis.js has no child_process; step 7 is prompt text (mitosis.js:3720). SKILL.md:43 mandates inline-only config while step 7 reads env and gets none. Obeying the docs guarantees failure; it never worked.",
@@ -65,5 +65,5 @@
     ]
   },
   "created_at": "2026-07-28T21:18:20.962Z",
-  "updated_at": "2026-07-28T21:44:58.859Z"
+  "updated_at": "2026-07-28T21:45:11.313Z"
 }
