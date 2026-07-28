@@ -25,7 +25,7 @@
     },
     {
       "text": "main is re-proven sast-clean by a no-baseline full-repo scan with the pinned ruleset after this thread's changes land, per 0044's standing caveat that a green diff-aware check is not proof",
-      "done": false
+      "done": true
     }
   ],
   "vcs_ref": null,
@@ -35,50 +35,54 @@
   "closure_statement": null,
   "spine": {
     "status": "paused",
-    "active_goal": "PR #9 is MERGED as main beca874, closing criterion 4 in full. One agent-doable criterion remains (5: re-scan merged main). Criteria 2 and 3 are human-only - Build A stays INERT until the runbook's Sections 2-5 are applied by hand on GitHub.",
-    "next_step": "USER INSTRUCTION for the fresh session: proceed with the agent-doable work AND in parallel clearly explain each human-only task plus the end goal, written for a reader with minimal domain knowledge. Agent-doable: (1) re-run the no-baseline full-repo scan against merged main beca874 to close criterion 5; (2) diagnose main's 20 red tests - is the hardcoded macOS path only a test artifact, or a real portability bug that silently drops the preflight on Linux? Human-only: runbook Sections 2-5.",
+    "active_goal": "Criteria 1, 4 and 5 are DONE; 5 closed this session on a measured scan of beca874 (0084). The thread's central question is SETTLED and it changes the remaining work: per 0083 the merge-boundary preflight is severed on EVERY platform since 7e2e7d7 and the engine FAILS OPEN. Criterion 3 is now blocked on CODE, not only on the human - even after runbook Sections 2-5 are applied a real run would never invoke the preflight, so Build A cannot go LIVE until the two deleted call sites are restored.",
+    "next_step": "USER RULING needed on the severed preflight (0083) - highest-severity open item; no fix authorized. Order: (1) inspect fix/mitosis-boundary-preflight (c59ca79) for whether it already restores the wiring - NOT inspected; (2) decide whether the fix lands here or in mitosis-preflight-hardening, which owns the red suite; (3) the edits sit on guarded surfaces held for a human. Human-only and unchanged: runbook Sections 2-5. Two scratchpad worktrees await cleanup.",
     "open_risks": [
-      "main's test job is STILL RED at beca874: 20 failures (18 BOUNDARY PREFLIGHT, 2 guardrail). Proven pre-existing by diffing sorted failing-test-name sets against a pristine origin/main worktree. PR #9 added none. Owner: mitosis-preflight-hardening.",
-      "THE 20 RED TESTS MAY NOT BE A TEST ARTIFACT. The prompt CI emits carries a hardcoded /Users/satanshumishra/.claude/... path and OMITS the preflight instruction on Linux. Whether the engine degrades safely is UNVERIFIED - the merge-boundary check may run nowhere but the author's laptop.",
-      ".githooks/pre-commit runs the full suite, so while main is red NO commit lands anywhere without --no-verify. Merge commit 45f988e needed it. A guard bypassed by routine is a guard removed - fixing the suite is what restores it.",
-      "Build A is INERT and unchanged. Re-verified after the merge: the rulesets endpoint returns 0 and branch protection is empty. The lock is built and merged; it was never fitted to the door. Only Sections 2-5 change this.",
-      "0052 is DISCHARGED by 0070. The blocker was branch STALENESS, not an owed bump: origin/main already pinned d9f73571 via PR #6. A fresh fetch canonicalizes to that same hash and security is GREEN on beca874.",
-      "Criterion 5 is deliberately UNCHECKED. Its receipt (exit 0, 0 findings, 0 errors) was measured on the predicted merge result, not on merged main. Re-run against beca874 to close it honestly rather than by inference.",
-      "NEW: .claude/hooks/secret-scanner.sh has a python3 shebang but a .sh name, so semgrep parses it as bash and fails its ENTIRE body. None of the 243 Python rules apply to the repo's own blocking secret-scanner, and the scan still exits 0 so the gap is invisible.",
-      "PartialParsing is now 15 warnings across 9 files (was 9 across 8); the merged tree adds block-destructive-bash.sh. Regions stay UNSCANNED and CI shares the blind spot. They surface only under --verbose.",
-      "The suite is ~1540 tests, NOT the 1217 previously recorded - that count predated the merge of origin/main. Re-measure rather than trusting any recorded number.",
+      "SETTLED, SEVERE (0083): the merge-boundary preflight is dead code on every host, macOS included. BOUNDARY_PREFLIGHT_CLI and readBoundaryPreflightVerdict occur once each in mitosis.js - their own definitions at :24 and :127. preflight-boundary occurs zero times.",
+      "The engine FAILS OPEN: with the verdict absent the run reaches decompose and returns all-shipped - no halt, no diagnostic. 7e2e7d7 (PR #8) deleted both call sites that 457d6fa (PR #5) added.",
+      "Silent because RECONCILE_SCHEMA at mitosis.js:1357 still declares boundaryPreflight optional and absent from required, so a reconcile result with no verdict validates cleanly. Enforcement was removed while its shape survived.",
+      "Criterion 3 is blocked on CODE, not only on the human. Applying runbook Sections 2-5 will not make Build A live while the wiring is severed - the server-side lock would exist and the engine would still never check it.",
+      "NOT DETERMINED, resolve before any fix: whether fix/mitosis-boundary-preflight (c59ca79) already restores the wiring, and whether 7e2e7d7 dropped it deliberately or via a bad merge resolution. Neither inspected.",
+      "LIVE: the engine authenticates as SatanshuMishra with permissions.admin=true. Repo is PUBLIC, personal-account owned; rulesets 0; rules/branches/main 0; collaborators = owner only. Build A INERT re-confirmed after the merge.",
+      "NEW: delete_branch_on_merge=false. Per runbook Section 5 auto-retargeting of a stacked child PR fires on DELETION of the merged head branch, not on the merge. 0047's deletion half is unconfigured, so retargeting never fires. Section 5 is TWO settings flips.",
+      "0047 is UNENFORCED, proven live not inferred: allow_squash_merge, allow_merge_commit and allow_rebase_merge are ALL true repo-side. Whoever clicks merge picks, and two of the three break every remaining PR in the stack.",
+      "Suite re-measured at beca874: tests 1540 | pass 1520 | fail 20, confirming the 18 BOUNDARY PREFLIGHT + 2 guardrail split. The 1540 figure is measured, not inherited.",
+      "The 2 guardrail failures ARE a test artifact (0083): protect-claude-config.sh:20-33 builds bases only from ~/.claude while the test at :8 derives REPO_CLAUDE from import.meta.url. They coincide only because ~/.claude symlinks into this repo.",
+      ".githooks/pre-commit runs the full suite, so while main is red NO commit lands without --no-verify. A guard bypassed by routine is a guard removed - fixing the suite is what restores it.",
+      "REFUTED (0084): semgrep detects secret-scanner.sh by SHEBANG as well as extension, so it is enqueued as BOTH python and bash and the python rules DO run - proven by an eval payload yielding 1 blocking finding. Residual: 4 bash rules wasted.",
+      "The ~97.5% and ~97.8% line-skip entries (ledger-compact-checkpoint.sh, ledger-precompact-checkpoint.sh) are the suspicious PartialParsing files and were NOT root-caused - not run. PartialParsing re-measured at 15 warnings across 9 files.",
+      "The live curl to semgrep.dev was sandbox-DENIED, so the upstream-drift half of the CI pin check is NOT RUN. The pin MATCHES over four cached copies - proving the config scanned with is the pinned content, not that upstream is unchanged.",
       "Per 0071 the merge resolved two nosemgrep pragma lines toward the bare directive, OVERWRITING a human's same-line rewrite from PR #6 at live-inject.mjs:233 and live.mjs:216. Now on main. A one-line revert if the user disagrees.",
-      "0047 is still UNENFORCED and PR #9 proved it: main shows #9 as a single SQUASHED commit. Disable squash and rebase repo-side so the merge button can only produce merge commits.",
-      "Pre-existing and still NOT fixed: flagHasReachableTruePath's env probe has no left boundary, so `myprocess.env.X_ENABLED` returns true and lintFlags SKIPS the flag. Fails in the suppressing direction.",
-      "The security review independently recommends vendoring the canonical p/default content, which this thread had scoped OUT. A hash-with-no-content pin cannot diff old rules against new, and drift recurred within 8 days. User call.",
-      "fix/ledger-lint-boundary-guards and its worktree are merged and prunable. Squash-merge means `git branch --merged` will not list the branch. Cleanup is destructive; offered, NOT performed.",
+      "Pre-existing, still NOT fixed: flagHasReachableTruePath's env probe has no left boundary, so `myprocess.env.X_ENABLED` returns true and lintFlags SKIPS the flag. Fails in the suppressing direction.",
+      "The security review recommends vendoring the canonical p/default content, which this thread scoped OUT. A hash-with-no-content pin cannot diff old rules against new, and drift recurred within 8 days. User call.",
+      "fix/ledger-lint-boundary-guards and its worktree are merged and prunable; squash-merge means `git branch --merged` will not list it. Cleanup is destructive; offered, NOT performed.",
       "pr-create rejects a provenance model string carrying a bracketed context suffix (model=claude-opus-5[1m] was refused). Use the bare model id."
     ],
     "key_decisions": [
+      "0083-merge-boundary-preflight-is-unwired-on-every-platform-and-fails-open -- neither test artifact nor portability bug; the check runs nowhere",
+      "0084-merged-main-beca874-is-measured-sast-clean-and-the-secret-scanner-shebang-claim-is-refuted -- closes criterion 5 on measurement",
       "0079-inherited-red-does-not-block-shipping-when-baseline-proven -- ship only on a diffed failing-test-name set, never on assumption",
       "0070-pin-drift-was-branch-staleness-not-an-owed-bump -- discharges 0052; no agent authored a pin value",
       "0071-pragma-conflict-resolves-toward-the-bare-directive -- overwrites a human's same-line edit, deliberately",
-      "0052-p-default-pin-drifted-not-bumped-sast-is-red -- superseded in effect by 0070",
       "0049-full-repo-scan-clears-main-and-discharges-the-sast-residue-as-a-security-matter",
       "0045-runbook-section-6-is-agent-doable-and-this-repo-is-itself-exposed",
       "0044-merged-main-proven-clean-full-repo-not-merely-diff-aware-green",
       "0038-pragma-readjudication-two-refuted-reachable-redos",
       "0031-pushes-to-origin-main-are-policy-denied-and-must-be-human-run",
       "0026-preflight-gate-moves-to-skill-md-engine-check-is-corroborating -- USER-LOCKED; hook still a pending human settings.json edit",
-      "0047-train-integrates-via-merge-commit-with-head-branch-deletion -- proven unenforced by PR #9 landing squashed",
-      "0048-self-merge-of-pr-7-does-not-refute-the-required-review-premise",
-      "0083-merge-boundary-preflight-is-unwired-on-every-platform-and-fails-open",
-      "0084-merged-main-beca874-is-measured-sast-clean-and-the-secret-scanner-shebang-claim-is-refuted"
+      "0047-train-integrates-via-merge-commit-with-head-branch-deletion -- proven unenforced live: all three merge methods enabled",
+      "0048-self-merge-of-pr-7-does-not-refute-the-required-review-premise"
     ],
     "out_of_scope": [
-      "Build B / the restack verb -- CUT by 0027 and deliberately NOT chartered here. It needs its OWN thread, carrying mergedSha at reconcileShippedSet:371, the git exec primitive in mitosis-git.mjs, and decisions 0010/0012/0017. Flagged so it is not silently lost.",
+      "Build B / the restack verb -- CUT by 0027, needs its OWN thread, carrying mergedSha at reconcileShippedSet:371, the git exec primitive in mitosis-git.mjs, and decisions 0010/0012/0017.",
       "MSP-4 -- DROPPED by 0027; reopens only if the user defines it.",
       "The squash-merge containment gap (mitosis.js:3004, 4490), the clean(undefined) TypeError, and the conditional-host foreign-merged-PR gap -- real defects, moved out by 0027.",
       "Agent-applied settings.json and GitHub settings edits. Sections 2-5 and 0026's hook are authored for a HUMAN to apply; the preflight only READS.",
       "Re-vendoring p/default content to replace the hash-only pin. Out of scope unless the user asks.",
-      "The no-self-merge-consent.test.mjs working-tree change -- belongs to the mitosis-preflight-hardening thread."
+      "The no-self-merge-consent.test.mjs working-tree change -- belongs to the mitosis-preflight-hardening thread.",
+      "APPLYING the 0083 fix -- diagnosis only was chartered; the edits sit on guarded surfaces and need a user ruling plus a thread-ownership decision."
     ]
   },
   "created_at": "2026-07-27T22:24:20.192Z",
-  "updated_at": "2026-07-28T19:58:20.388Z"
+  "updated_at": "2026-07-28T20:01:47.115Z"
 }
