@@ -1,0 +1,58 @@
+{
+  "schema_version": 1,
+  "id": "01KYKBMK8J5TTXVV6PHDCHVCCR",
+  "slug": "centralized-pr-creation",
+  "title": "Centralized PR creation",
+  "status": "active",
+  "parent_id": null,
+  "predecessor_id": null,
+  "completion_criteria": [
+    {
+      "text": "Authoritative spec authored and adversarially reviewed before implementation",
+      "done": true
+    },
+    {
+      "text": "Implementation committed to feat/centralized-pr-creation with engine and hook suites green",
+      "done": true
+    },
+    {
+      "text": "permissions.deny covers the Bash and GitHub MCP PR-write surface; permissions.allow verified untouched",
+      "done": true
+    },
+    {
+      "text": "Gate demonstrably blocks raw PR creation at runtime, with merge denials preserved",
+      "done": true
+    },
+    {
+      "text": "New PR path verified LIVE end to end AND every old PR-creation implementation verified removed (no residual --body-line, no mitosis: title prefix, no duplicate sanitizer at the old mitosis.js site, no caller still on the old CLI surface)",
+      "done": false
+    },
+    {
+      "text": "Stray untracked .claude/workflows/mitosis.js.bak-49b8b89c deleted",
+      "done": false
+    },
+    {
+      "text": "GitHub MCP authenticated and the eight deny tool names pinned against the live tool list",
+      "done": false
+    },
+    {
+      "text": "Disposition decided for the temporary ask entries on .claude/lib/** and .claude/workflows/**",
+      "done": false
+    }
+  ],
+  "vcs_ref": "feat/centralized-pr-creation",
+  "external_refs": [],
+  "blocked_by": null,
+  "abandoned_reason": null,
+  "closure_statement": null,
+  "spine": {
+    "status": "active",
+    "active_goal": "",
+    "next_step": "",
+    "open_risks": [],
+    "key_decisions": [],
+    "out_of_scope": []
+  },
+  "created_at": "2026-07-28T03:17:35.121Z",
+  "updated_at": "2026-07-28T03:17:35.121Z"
+}
