@@ -35,37 +35,38 @@
   "closure_statement": null,
   "spine": {
     "status": "paused",
-    "active_goal": "SHIPPING IS DONE. main = a229c9c is FULLY GREEN (1544/1544, exit 0) - the first green main in this thread's history - via merged PRs #10, #11, #12. Per 0095 the human runbook Sections 2-5 are DESCOPED, so Build A will never be activated and criteria 2 and 3 are permanently unachievable as written. What remains is disposition, not engineering: close this thread and hand the residual defects to a successor.",
-    "next_step": "CLEANUP AND CLOSE. (1) USER RULING required: criteria 2 and 3 cannot be checked (0095), so the structural DoD gate refuses `done` - decide close-by-ruling vs abandon. Do NOT falsely check them. (2) Destructive cleanup, needs explicit confirmation: 16 worktrees registered, 4 in a dead scratchpad; the 3 squash-merged branches from this session are invisible to `git branch --merged`. (3) Open a successor thread carrying 0092, 0093, 0094.",
+    "active_goal": "CLOSED 2026-07-28. Shipping finished: PRs #10/#11/#12 merged, origin/main = a229c9c fully green (1544/1544, exit 0), the first green main in this thread's history. Per 0095 the human runbook Sections 2-5 were descoped, so criteria 2 and 3 are permanently unachievable and stay UNCHECKED. Cleanup executed and verified against the repository. Closed as `abandoned` per 0097 - the label records the DoD outcome, not a judgment on the work. Read the closure reason, not the status token.",
+    "next_step": "NONE. This thread is terminal. Residual defects 0092, 0093 and 0094 live in the successor thread; do not reopen this one - reopening creates a new thread by design.",
     "open_risks": [
-      "0092 LIVE ON MAIN, now PERMANENT under 0095: step 7 execs the preflight with no MITOSIS_BOUNDARY_* env, it exits 31 with no stdout, and every run halts at preflight-boundary. Fail-closed, so availability not security - but the engine is unusable.",
-      "0092 corollary: layer 2 has NEVER worked end-to-end, not even before the severance - which is why a week-long severance went unnoticed. Scheduler tests stub the verdict and never exec the CLI.",
-      "0093 MEDIUM: ~/.claude/lib symlinks into this repo, so both boundary layers exec the SAME mutable file inside the repo under management. invokedAs is string equality on an unresolved path and cannot detect a poisoned gate.",
-      "0094: the config guard does not cover git worktrees at all, and mitosis puts every fanned-out agent in one. Shown live this session. This also weakens 0093's mitigation that a poisoning write must pass the guard.",
-      "Subagent self-reports are NOT trustworthy: one committed while reporting 'no commit, no push', and must have used --no-verify since the suite was red then. Verify against the repository, always.",
-      "NEVER site a worktree in another session's scratchpad - one was garbage-collected mid-session, destroying three uncommitted files. Unstaged files are not in the object DB and are unrecoverable.",
-      "PR #10 was merged while its code review was still running, so the reviewer's BLOCK (0092) landed after the change it blocked was already on main. Merging before review returns has a real cost.",
-      "The primary checkout still sits on feat/centralized-pr-creation (450804e), the pre-feature lineage whose squash caused the original severance, and carries uncommitted work owned by other threads.",
-      "The semgrep upstream-drift check is still NOT RUN - the live curl remains sandbox-denied. The pin matches four cached copies, proving the scanned config, not that upstream is unchanged."
+      "TRANSFERRED to the successor. 0092: step 7 execs the preflight with no MITOSIS_BOUNDARY_* env, it exits 31 with no stdout, and every run halts at preflight-boundary. Fail-closed, so availability not security - but the engine is unusable, and permanently so under 0095.",
+      "TRANSFERRED. 0092 corollary: layer 2 has NEVER worked end-to-end, not even before the severance - which is why a week-long severance went unnoticed. Scheduler tests stub the verdict and never exec the CLI.",
+      "TRANSFERRED. 0093 MEDIUM: ~/.claude/lib symlinks into this repo, so both boundary layers exec the SAME mutable file inside the repo under management. invokedAs is string equality on an unresolved path and cannot detect a poisoned gate.",
+      "TRANSFERRED. 0094: the config guard does not cover git worktrees at all, and mitosis puts every fanned-out agent in one. Shown live this session.",
+      "DURABLE LESSON: subagent self-reports are NOT trustworthy - one committed while reporting 'no commit, no push'. Verify against the repository, always. This session's cleanup was gated on blob-level comparison to origin/main, never on a report.",
+      "DURABLE LESSON: never site a worktree in another session's scratchpad. Also beware the inverse error made here - the spine called that scratchpad 'dead' when it was live and held 3 modified files. Both directions of that assumption must be checked, not asserted.",
+      "DURABLE LESSON: local main was 8 behind origin/main while the spine described main as green. Always re-derive the baseline from the remote before judging what has landed.",
+      "STILL OPEN, owned by no thread: the semgrep upstream-drift check has NOT been run - the live curl remains sandbox-denied. The pin matches four cached copies, proving the scanned config, not that upstream is unchanged.",
+      "STILL OPEN, owned by other threads: the primary checkout sits on feat/centralized-pr-creation (450804e, PR #8 already merged) and carries uncommitted work belonging to other threads. Left untouched deliberately.",
+      "STALE LEDGER ELSEWHERE: the mitosis-frontier-default thread claims 'Do NOT merge PR #3', but gh reports PR #3 MERGED 2026-07-20. Correct that spine when it is next resumed."
     ],
     "key_decisions": [
+      "0097-close-this-thread-as-abandoned-because-the-dod-gate-cannot-be-cleared-without-falsification -- the ruling that closed this thread",
       "0095-runbook-sections-2-5-are-descoped-so-build-a-will-not-be-activated -- criteria 2 and 3 stay UNCHECKED and are never rewritten",
       "0092-boundary-wiring-shipped-without-its-config-so-the-engine-halts-every-run -- now the permanent steady state under 0095",
       "0093-the-two-boundary-layers-are-not-independent-because-both-exec-the-same-symlinked-file -- MEDIUM, successor thread",
       "0094-the-config-guard-does-not-cover-git-worktrees-so-the-engine-bypasses-it-by-design -- successor thread",
       "0096-reconcile-schema-optionality-was-not-the-cause-of-the-silent-severance -- tested, refuted, reverted; do not re-attempt",
       "0083-merge-boundary-preflight-is-unwired-and-fails-open -- FIXED and merged via PR #10",
-      "0089-the-authoritative-skill-md-gate-survived -- INDEPENDENTLY CONFIRMED this session",
-      "0097-close-this-thread-as-abandoned-because-the-dod-gate-cannot-be-cleared-without-falsification"
+      "0089-the-authoritative-skill-md-gate-survived -- INDEPENDENTLY CONFIRMED this session"
     ],
     "out_of_scope": [
       "Runbook Sections 2-5 and Build A activation -- DESCOPED by user ruling 0095, not deferred.",
       "Build B / the restack verb -- CUT by 0027. MSP-4 -- DROPPED by 0027.",
-      "0092 provisioning, 0093 gate relocation, 0094 worktree guard widening -- real defects, but each needs its own MSP in a SUCCESSOR thread, not this one.",
+      "0092 provisioning, 0093 gate relocation, 0094 worktree guard widening -- transferred to the successor thread, not done here.",
       "Re-vendoring p/default content to replace the hash-only pin.",
-      "Falsely checking completion criteria 2 or 3, or retroactively rewriting them -- both refused; the criteria are write-once and the DoD gate is structural."
+      "Falsely checking completion criteria 2 or 3, or retroactively rewriting them -- both refused and never done; 0097 chose an honest terminal label over a falsified one."
     ]
   },
   "created_at": "2026-07-27T22:24:20.192Z",
-  "updated_at": "2026-07-28T21:17:04.903Z"
+  "updated_at": "2026-07-28T21:17:41.214Z"
 }
