@@ -73,7 +73,8 @@
       "0047-train-integrates-via-merge-commit-with-head-branch-deletion -- proven unenforced live: all three merge methods enabled",
       "0048-self-merge-of-pr-7-does-not-refute-the-required-review-premise",
       "0088-boundary-preflight-loss-was-a-bad-merge-resolution-and-the-fix-lands-in-this-thread",
-      "0089-the-authoritative-skill-md-gate-survived-so-only-the-corroborating-engine-layer-was-lost"
+      "0089-the-authoritative-skill-md-gate-survived-so-only-the-corroborating-engine-layer-was-lost",
+      "0091-reviewer-edits-contaminated-the-green-suite-evidence-and-the-salvaged-patch-is-held-not-committed"
     ],
     "out_of_scope": [
       "Build B / the restack verb -- CUT by 0027, needs its OWN thread, carrying mergedSha at reconcileShippedSet:371, the git exec primitive in mitosis-git.mjs, and decisions 0010/0012/0017.",
@@ -86,5 +87,5 @@
     ]
   },
   "created_at": "2026-07-27T22:24:20.192Z",
-  "updated_at": "2026-07-28T20:16:18.033Z"
+  "updated_at": "2026-07-28T20:38:40.341Z"
 }
