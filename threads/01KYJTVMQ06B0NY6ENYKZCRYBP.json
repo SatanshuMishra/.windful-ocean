@@ -54,7 +54,8 @@
       "0083-merge-boundary-preflight-is-unwired-on-every-platform-and-fails-open -- now FIXED on main via PR #10",
       "0088-boundary-preflight-loss-was-a-bad-merge-resolution -- discharged; 7e2e7d7 squash-merged a conflict resolution 29 seconds after it was made",
       "0089-the-authoritative-skill-md-gate-survived -- INDEPENDENTLY CONFIRMED this session",
-      "REFUTED this session: RECONCILE_SCHEMA optionality was NOT the cause of the silent severance. No engine-side validator exists on that path and readBoundaryPreflightVerdict already fails closed on an absent key. Requiring it broke MSP-2 R3 and was reverted."
+      "REFUTED this session: RECONCILE_SCHEMA optionality was NOT the cause of the silent severance. No engine-side validator exists on that path and readBoundaryPreflightVerdict already fails closed on an absent key. Requiring it broke MSP-2 R3 and was reverted.",
+      "0095-runbook-sections-2-5-are-descoped-so-build-a-will-not-be-activated"
     ],
     "out_of_scope": [
       "Build B / the restack verb -- CUT by 0027, needs its OWN thread.",
@@ -66,5 +67,5 @@
     ]
   },
   "created_at": "2026-07-27T22:24:20.192Z",
-  "updated_at": "2026-07-28T20:58:58.411Z"
+  "updated_at": "2026-07-28T21:03:03.843Z"
 }
