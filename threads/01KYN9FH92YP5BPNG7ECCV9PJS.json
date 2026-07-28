@@ -40,15 +40,17 @@
   "spine": {
     "status": "active",
     "active_goal": "Fix the three boundary-layer defects inherited from the predecessor, which shipped a green main (origin/main a229c9c, 1544/1544) but left these unfixed. 0092 is urgent: the engine is UNUSABLE - step 7 execs the merge-boundary preflight with no MITOSIS_BOUNDARY_* env, it exits 31 with no stdout, and every run halts. Under 0095 that is the permanent steady state, so this thread must settle the posture deliberately rather than await an activation that will never come.",
-    "next_step": "START WITH 0092, and start by REPRODUCING: exec the preflight CLI directly with no MITOSIS_BOUNDARY_* env and confirm exit 31 with empty stdout before changing anything. Then decide the posture (halt vs degrade-with-warning) and record it as a decision BEFORE implementing - that choice trades availability against fail-closed security and must not be made implicitly inside a patch.",
+    "next_step": "Reproduction is DONE - do not redo it; read the 2026-07-28T21-43 session log for findings with citations. AWAITING the user's posture ruling. Unblocked meanwhile: 0094 worktree guard via git rev-parse --git-common-dir, which goes FIRST since every later fix lands inside that hole until closed; then 0093 realpath. Before implementing the posture, VERIFY IN CODE whether the receipts CI enforcer can merge without a human - the recommendation flips on it.",
     "open_risks": [
-      "0092 corollary: layer 2 has NEVER worked end-to-end, not even before the severance - which is why a week-long severance went unnoticed. Scheduler tests stub the verdict and never exec the CLI, so they cannot catch this class of defect. Fixing the stub matters as much as fixing the wiring.",
-      "0093 MEDIUM: ~/.claude/lib symlinks into this repo, so both boundary layers exec the SAME mutable file inside the repo under management. invokedAs is string equality on an unresolved path and cannot detect a poisoned gate - the two layers are not independent.",
-      "0094: the config guard does not cover git worktrees, and mitosis puts every fanned-out agent in one, so the engine bypasses its own guard by design. This also weakens 0093's mitigation, which assumed a poisoning write must pass the guard.",
-      "PROCESS: subagent self-reports are NOT trustworthy - one committed while reporting 'no commit, no push', evidently with --no-verify since the suite was red. Verify every claim against the repository.",
-      "PROCESS: never site a worktree in another session's scratchpad - one was garbage-collected mid-session, destroying three uncommitted files. Equally, never assume a scratchpad is dead: the predecessor's spine said 'dead scratchpad' while it was live with 3 modified files.",
-      "PROCESS: local main can lag origin/main badly (8 behind at close). Re-derive the baseline from the remote. For squash-merged branches `git branch --merged` is blind - compare blobs against origin/main instead.",
-      "PR #10 was merged while its review was still running, so the reviewer's BLOCK (0092) landed after the change was already on main. That is the direct cause of this thread existing. Do not merge before review returns."
+      "0092 ROOT CAUSE (corrected): an unsatisfiable contract, not a severed exec. mitosis.js has no child_process; step 7 is prompt text (mitosis.js:3720). SKILL.md:43 mandates inline-only config while step 7 reads env and gets none. Obeying the docs guarantees failure; it never worked.",
+      "0092 AMPLIFIER: exits 0 and 30 emit the stdout verdict line; 31 and 127 emit none, so config-missing, gh-missing, file-missing and agent-failure collapse into one message (mitosis.js:130-131). The 242-byte stderr naming the missing vars is discarded.",
+      "NEW: the gate file does not exist here. ~/.claude/lib points at the primary checkout on feat/centralized-pr-creation, 8 behind origin/main and predating 457d6fa. Both call sites fail node exit 1, not 31. Untested - preflight test:667 compares strings, never existsSync.",
+      "0093 CONFIRMED, STRUCTURAL: invokedAs is raw process.argv[1] (preflight:369) string-compared at mitosis.js:150. Detects a different COPY, never a tampered same-path file. No self-hosted gate can attest to its own integrity. The real mitigation is 0094, not more gate code.",
+      "0094 CONFIRMED: protect-claude-config.sh:20-53 prefix-matches two bases, never shells to git, so guarded trees are writable with no prompt inside any worktree - and mitosis fans each task into one (run-engine.mjs:96). Ancillary: block-destructive-bash.sh:91 omits lib/ and workflows/.",
+      "PROCESS: subagent self-reports are NOT trustworthy - one committed while reporting 'no commit, no push'. Verify every claim against the repository.",
+      "PROCESS: never site a worktree in another session's scratchpad, and never assume a scratchpad is dead. This session: .claude/worktrees/boundary-residuals on fix/mitosis-boundary-residuals, cut from origin/main a229c9c.",
+      "PROCESS: local main can lag origin/main badly (8 behind, confirmed again). Re-derive from the remote. For squash-merged branches git branch --merged is blind - compare blobs against origin/main.",
+      "PR #10 was merged while its review was still running, so the reviewer's BLOCK (0092) landed after the change was on main. Do not merge before review returns."
     ],
     "key_decisions": [
       "Inherited: 0092, 0093, 0094 define the three defects; 0095 descoped runbook Sections 2-5 permanently; 0097 closed the predecessor as abandoned with criteria 2 and 3 left unchecked rather than falsified.",
@@ -63,5 +65,5 @@
     ]
   },
   "created_at": "2026-07-28T21:18:20.962Z",
-  "updated_at": "2026-07-28T21:26:04.172Z"
+  "updated_at": "2026-07-28T21:44:58.859Z"
 }
