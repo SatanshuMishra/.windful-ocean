@@ -58,7 +58,8 @@
       "0069-advance-is-a-command-not-a-resident-watcher",
       "0075-quiescent-advance-architecture-approved",
       "0076-invoker-is-one-command-three-callers",
-      "0077-durable-run-identity-published-manifest"
+      "0077-durable-run-identity-published-manifest",
+      "0080-base-origin-main-with-spec-regrounding-first"
     ],
     "out_of_scope": [
       "Any out-of-process or forge-side invoker. Ruled CLOSED by 0076 at user instruction - not deferred, not future work. The spec mentions it in no section, including the pre-mortem. Do not reintroduce it.",
@@ -70,5 +71,5 @@
     ]
   },
   "created_at": "2026-07-28T06:07:18.861Z",
-  "updated_at": "2026-07-28T19:33:25.924Z"
+  "updated_at": "2026-07-28T19:54:09.398Z"
 }
