@@ -39,14 +39,25 @@
   "closure_statement": null,
   "spine": {
     "status": "active",
-    "active_goal": "",
-    "next_step": "",
-    "open_risks": [],
+    "active_goal": "Replace the mitosis shipping architecture so a run never stops at a human review boundary: drive a shipped MSP's CI/CD to green automatically, then continue into blocked MSPs. Simpler and more robust, not merely more capable.",
+    "next_step": "Dispatch dedicated FABLE subagents IN PARALLEL: (a) AUDIT mitosis.js - confirm/refute the seven findings in the 2026-07-28 session log by file:line, and RUN the superpowers-parallel test suite (not run this session); (b) RESEARCH merge queues, stacked PRs under squash-merge, CI auto-remediation; (c) DESIGN - judged on mechanism REMOVED. User approval before implementing.",
+    "open_risks": [
+      "Finding 5 is data-loss-class and live: park() cascades status 'parked' onto already-built dependents, and the common identical-spec relaunch cannot recover them despite the git checkpoint refs existing. Runs launched before the fix can silently discard frontier-built work.",
+      "Open design question: may a child PR open against base carrying its parents' commits (superset diff, violates the MSP green-branch invariant), or is deferral until parent-merge the only correct answer? Every proposal must answer this.",
+      "Open question: an auto-CI-to-green loop is an unbounded remediation loop aimed at a PUBLISHED branch. Needs a hard attempt bound, a no-force-push guarantee, and which failure classes are agent-fixable vs human-only - else it becomes the forbidden fragility.",
+      "Complexity ratchet: frontier-train, AIMD window, divergence probes, reconcile-only shepherd and saga compensation were each added to fix a stop condition and together produced today's fragility. A ninth mechanism should read as failing the constraint.",
+      "Findings are read-only inferences from a 4847-line file; the suite was never run. No proposal should build on them without the audit agent's independent confirmation."
+    ],
     "key_decisions": [
       "0065-mitosis-redesign-via-fable-fanout"
     ],
-    "out_of_scope": []
+    "out_of_scope": [
+      "Any code change, commit, push, or PR this session - nothing was modified.",
+      "Merge policy itself: merges to any shared branch stay human-gated. The goal is non-stop AGENT progress, never agent-performed merges.",
+      "The other paused mitosis threads (frontier-default, preflight-hardening, resilience-implementation) and the blocked merge-boundary/SAST thread - do not fold their work in here.",
+      "Implementation of any fix, including the finding-5 data-loss bug, until the user approves an architecture spec."
+    ]
   },
   "created_at": "2026-07-28T06:07:18.861Z",
-  "updated_at": "2026-07-28T06:08:07.571Z"
+  "updated_at": "2026-07-28T06:09:35.684Z"
 }
