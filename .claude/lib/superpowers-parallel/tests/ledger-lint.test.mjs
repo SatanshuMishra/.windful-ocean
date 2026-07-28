@@ -137,6 +137,65 @@ test('flagHasReachableTruePath rejects names that are not plain identifiers', ()
   assert.equal(flagHasReachableTruePath('A-B', 'let A-B = false;\nA-B = true;\n'), false);
 });
 
+test('flagHasReachableTruePath requires identifier boundaries on both sides of the env probe', () => {
+  assert.equal(
+    flagHasReachableTruePath('X_ENABLED', 'const X_ENABLED = false;\nmyprocess.env.X_ENABLED;\n'),
+    false,
+  );
+  assert.equal(
+    flagHasReachableTruePath('X_ENABLED', "const X_ENABLED = false;\nmyprocess.env['X_ENABLED'];\n"),
+    false,
+  );
+  assert.equal(
+    flagHasReachableTruePath('X_ENABLED', 'const X_ENABLED = false;\n$process.env.X_ENABLED;\n'),
+    false,
+  );
+  assert.equal(
+    flagHasReachableTruePath('X_ENABLED', 'const X_ENABLED = false;\nprocess.env.X_ENABLED$suffix;\n'),
+    false,
+  );
+  assert.equal(
+    flagHasReachableTruePath('X_ENABLED', 'const X_ENABLED = false;\nprocess.env.X_ENABLEDMORE;\n'),
+    false,
+  );
+});
+
+test('flagHasReachableTruePath still suppresses on a genuine bare or globalThis env read', () => {
+  assert.equal(
+    flagHasReachableTruePath('X_ENABLED', "process.env.X_ENABLED === '1';\n"),
+    true,
+  );
+  assert.equal(
+    flagHasReachableTruePath('X_ENABLED', "const X_ENABLED = false;\nprocess.env.X_ENABLED === '1';\n"),
+    true,
+  );
+  assert.equal(
+    flagHasReachableTruePath('X_ENABLED', "const X_ENABLED = false;\nreturn process.env['X_ENABLED'];\n"),
+    true,
+  );
+  assert.equal(
+    flagHasReachableTruePath('X_ENABLED', "const X_ENABLED = false;\nglobalThis.process.env.X_ENABLED === '1';\n"),
+    true,
+  );
+  assert.equal(
+    flagHasReachableTruePath('X_ENABLED', "const X_ENABLED = false;\nif (!process.env.X_ENABLED) {}\n"),
+    true,
+  );
+});
+
+test('lintFlags reports a flag whose only env-like read fails an identifier boundary', () => {
+  const files = [
+    { path: 'suffix-left.mjs', text: 'const A_ENABLED = false;\nif (A_ENABLED) {}\nmyprocess.env.A_ENABLED;\n', mtime: daysAgo(100) },
+    { path: 'suffix-left-bracket.mjs', text: "const B_ENABLED = false;\nif (B_ENABLED) {}\nmyprocess.env['B_ENABLED'];\n", mtime: daysAgo(100) },
+    { path: 'dollar-right.mjs', text: 'const C_ENABLED = false;\nif (C_ENABLED) {}\nprocess.env.C_ENABLED$suffix;\n', mtime: daysAgo(100) },
+    { path: 'genuine.mjs', text: "const D_ENABLED = false;\nprocess.env.D_ENABLED === '1';\n", mtime: daysAgo(100) },
+    { path: 'global-this.mjs', text: "const E_ENABLED = false;\nglobalThis.process.env.E_ENABLED === '1';\n", mtime: daysAgo(100) },
+  ];
+  const flags = lintFlags(files, { now: NOW, maxAgeDays: DEFAULT_MAX_AGE_DAYS });
+  assert.deepEqual(flags.map((f) => f.name), ['A_ENABLED', 'B_ENABLED', 'C_ENABLED']);
+  assert.deepEqual(flags.map((f) => f.reason), Array(3).fill('disabled-flag-no-true-path'));
+});
+
 test('lintFlags flags an old disabled flag with no true-path, sparing fresh and runtime-enabled ones', () => {
   const files = [
     { path: 'a.mjs', text: 'const A_ENABLED = false;\nif (A_ENABLED) {}\n', mtime: daysAgo(100) },
