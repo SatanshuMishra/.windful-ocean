@@ -3,7 +3,7 @@
   "id": "01KYJTVMQ06B0NY6ENYKZCRYBP",
   "slug": "mitosis-merge-boundary-activation-and-sast-residue",
   "title": "Mitosis merge-boundary activation and SAST residue",
-  "status": "paused",
+  "status": "active",
   "parent_id": null,
   "predecessor_id": "01KYERCMSSYD9ZBF28B51HMRWW",
   "completion_criteria": [
@@ -34,7 +34,7 @@
   "abandoned_reason": null,
   "closure_statement": null,
   "spine": {
-    "status": "paused",
+    "status": "active",
     "active_goal": "Criteria 1, 4 and 5 are DONE; 5 closed this session on a measured scan of beca874 (0084). The thread's central question is SETTLED and it changes the remaining work: per 0083 the merge-boundary preflight is severed on EVERY platform since 7e2e7d7 and the engine FAILS OPEN. Criterion 3 is now blocked on CODE, not only on the human - even after runbook Sections 2-5 are applied a real run would never invoke the preflight, so Build A cannot go LIVE until the two deleted call sites are restored.",
     "next_step": "USER RULING needed on the severed preflight (0083) - highest-severity open item; no fix authorized. Order: (1) inspect fix/mitosis-boundary-preflight (c59ca79) for whether it already restores the wiring - NOT inspected; (2) decide whether the fix lands here or in mitosis-preflight-hardening, which owns the red suite; (3) the edits sit on guarded surfaces held for a human. Human-only and unchanged: runbook Sections 2-5. Two scratchpad worktrees await cleanup.",
     "open_risks": [
@@ -84,5 +84,5 @@
     ]
   },
   "created_at": "2026-07-27T22:24:20.192Z",
-  "updated_at": "2026-07-28T20:01:47.115Z"
+  "updated_at": "2026-07-28T20:08:03.198Z"
 }
