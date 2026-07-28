@@ -1,0 +1,50 @@
+{
+  "schema_version": 1,
+  "id": "01KYKS3C7VP16PXMP7D9G0TMHW",
+  "slug": "guard-hardening-residuals-installer-config-scope-hermetic-tests-readme-pins-branch-disposition",
+  "title": "Guard hardening residuals: installer config scope, hermetic tests, README pins, branch disposition",
+  "status": "active",
+  "parent_id": null,
+  "predecessor_id": "01KYG4AEKA6NM746BXVRAZ9DWE",
+  "completion_criteria": [
+    {
+      "text": "Hook installation reads and writes its hook-path state in ONE config scope, so a global, system, or env-injected core.hooksPath is never recorded as the repository's prior value and never written back as local config. Proven by a test that is RED under hostile ambient config before the fix and green after.",
+      "done": false
+    },
+    {
+      "text": "The suite's result does not change when a global core.hooksPath or any GIT_CONFIG_* is present in the environment. Today 4 installer tests fail under that condition while the machine-local run is 622/622.",
+      "done": false
+    },
+    {
+      "text": "The ledger's own commit and merge path is unaffected by repository-local content filters and by repository-local signature-verification settings - OR both gaps are recorded as accepted in a decision and named in the README's accepted-gaps list.",
+      "done": false
+    },
+    {
+      "text": "The recovery store reports success only when the resulting store is usable, and never adopts a pre-existing unrelated repository at that path. A test covers a store directory that exists but is not a usable repo.",
+      "done": false
+    },
+    {
+      "text": "Every line-range citation in the README resolves to the code it claims, verified at the commit where it ships (six ranges are wrong at d102fb8; one lands on a deny while claiming ask).",
+      "done": false
+    },
+    {
+      "text": "The two inherited user calls are each recorded as a decision: commit attribution for the Round B `git add -A` sweep, and whether this branch is pushed and opened as one PR through the centralized pr-create tool.",
+      "done": false
+    }
+  ],
+  "vcs_ref": null,
+  "external_refs": [],
+  "blocked_by": null,
+  "abandoned_reason": null,
+  "closure_statement": null,
+  "spine": {
+    "status": "active",
+    "active_goal": "",
+    "next_step": "",
+    "open_risks": [],
+    "key_decisions": [],
+    "out_of_scope": []
+  },
+  "created_at": "2026-07-28T07:12:50.939Z",
+  "updated_at": "2026-07-28T07:12:50.939Z"
+}
