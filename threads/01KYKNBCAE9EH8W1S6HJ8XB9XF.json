@@ -39,39 +39,36 @@
   "closure_statement": null,
   "spine": {
     "status": "paused",
-    "active_goal": "Refine the mitosis shipping architecture spec to approval, then implement. A run must never stop dead at a human review boundary: continue into blocked MSPs, drive a shipped MSP's CI to green, and resume via one idempotent command rather than a resident process. Simpler and more robust, not merely more capable.",
-    "next_step": "EXPLORE THE INVOKER MODEL under 0069, then edit the spec ONCE. Open: PAT vs GitHub App token (under GITHUB_TOKEN a workflow-opened child PR gets NO CI); where a replay conflict surfaces; concurrency per child MSP; cost of determinizing the advance out of the shepherd dispatch (:3006-3044). Then edit: delete 3.5, rewrite M6, fix the section 8 count (22->14/net-8 as written; net-9 after). NO implementation until the five asks in section 13 are answered. M0 separable, still unauthorized.",
+    "active_goal": "Implement the APPROVED quiescent-advance architecture. The spec is done and is the authority: docs/superpowers/specs/2026-07-28-mitosis-quiescent-advance.md. A run must never stop dead at a human review boundary, must drive a shipped MSP's red CI back to green within a bounded path, and must resume from ANY clone via one idempotent command.",
+    "next_step": "IN A FRESH SESSION: dispatch a targeted dynamic workflow implementing the spec's landing plan in order M1 -> M2 -> M6 -> M3 -> M5 -> M7, one MSP per PR, each leaving the branch green. Two chores first: tick criterion 6 (satisfied this session, NOT recorded - the brief omits criterion texts and update_thread matches by exact text); and check for a stray uncommitted decisions/0074-*.md, from a HEAD-lock race that was retried as 0075. M4/M8 blocked on spec asks (b)/(c); M0 blocked on ask (a).",
     "open_risks": [
-      "Spec file on disk is STALE against 0069: section 3.5 still specifies the deleted watcher and M6 still ships it. Read the spec with 0069 in hand or the watcher reads as current.",
-      "Spec section 8's count is wrong as written (22 -> 14, net -8, not -9): the deleted watcher triad was a NEW mechanism that never got a table row. Deleting it per 0069 restores net -9. Fix table and prose together.",
-      "The Actions-workflow invoker is NOT approved. Its only new liability: one PAT or GitHub App token whose expiry fails SILENTLY until the first missed advance. It buys wall-clock CI overnight, not tokens - both invokers cost nothing while idle.",
-      "Researcher hit its context limit early. VERIFIED: GITHUB_TOKEN recursion guard, run-on-merge idiom, 60-day auto-disable of scheduled workflows. NOT verified: merge_commit_sha semantics, Actions billing, release-please/Renovate/Graphite trigger models.",
-      "Fixed cap K=8 replaces AIMD because the tuner's SIGNAL was incoherent (it re-counts a persistent APPROVED every poll cycle with no dedup, :4789-4794), not because a constant is right. Divergence frequency was never instrumented; M4 owes it.",
-      "Spec section 4 deviates from 0067 deliberately: the assertion guard is FILE-level, not line-level. Stricter, never weaker - but it is a deviation, and it is approval ask 3.",
-      "mitosis.js INLINES lib copies (window :2141-2158 = window.mjs; planReconcile :2710 = reconcile.mjs) with a drift checker at .claude/lib/superpowers-parallel/.drift-state.json. Every M3/M4/M7 deletion must land TWICE in one commit.",
-      "Live bug, unfixed: applyBuiltTransition (:473-479) never clears resumePoint; a plan-parked unit later rebuilt keeps stage:'plan', an ancestor park preserves it (:2234-2236), the :3706 guard blocks git-ref rescue, and the unit re-plans. One line."
+      "mitosis.js INLINES lib copies (window :2141-2158 = window.mjs; planReconcile :2710 = reconcile.mjs). Every M3/M4/M7 deletion must land TWICE in one commit. Guard is tests/mirror-guard.test.mjs, NOT .drift-state.json (a SessionStart cache that never runs in CI).",
+      "Section 8's count is now -8, not -9, deliberately: the prior -9 undercounted additions by one because the deleted watcher triad never got a table row. Do not 'correct' it back; the reconciliation note in section 8 explains it and must survive edits.",
+      "M6 publishes a NEW durable forge artifact (refs/mitosis/RUNID/manifest). Its identity-only, write-once rule is the invariant behind 3.1's single authority. Smuggling status into that ref regresses the design to the four-disagreeing-reconstructions problem.",
+      "Live bug, unfixed and UNAUTHORIZED (M0): applyBuiltTransition (:473-479) never clears resumePoint; a plan-parked unit later rebuilt keeps stage:'plan', an ancestor park preserves it (:2234-2236), and the :3706 guard then blocks the git-ref rescue. One line, red test first.",
+      "Fixed cap K=8 replaces AIMD because the tuner's SIGNAL was incoherent (re-counts a persistent APPROVED every poll cycle, no dedup, :4789-4794), not because a constant is right. Divergence frequency was never instrumented; M4 owes it. The VALUE is open ask (b).",
+      "Spec section 4 class 6 is FILE-level, not 0067's line-level. Stricter, never weaker, but it is a deviation and it is open ask (c), gating M8.",
+      "Section 12 risk 1 is the honest weak point: a quiescent run advances only when a human next acts. M5 owes the instrumentation (wall-clock from quiescent exit to next advance) so it is measured, not assumed. Do not answer it with more engine mechanism.",
+      "Fact derivation puts the forge on the hot path. An outage must degrade to 'cannot advance, exit quiescent, say why', never to a wrong 'failed'. The manifest ref shares this exposure and must degrade to identity: local-only."
     ],
     "key_decisions": [
       "0065-mitosis-redesign-via-fable-fanout",
       "0066-pr-open-policy-stays-deferral",
       "0067-ci-to-green-loop-bounded-plus-assertion-guard",
       "0069-advance-is-a-command-not-a-resident-watcher",
-      "0074-quiescent-advance-architecture-approved",
       "0075-quiescent-advance-architecture-approved",
       "0076-invoker-is-one-command-three-callers",
       "0077-durable-run-identity-published-manifest"
     ],
     "out_of_scope": [
-      "Implementation of the redesign until the user answers the five approval asks in spec section 13. NONE are answered yet.",
-      "The M0 resumePoint one-liner may be authorized on its own, but needs an explicit user go - do not land it silently under the spec gate.",
-      "Merge policy: merges to any shared branch stay human-gated. The goal is non-stop AGENT progress, never agent-performed merges. The Actions workflow may only OPEN PRs.",
-      "Autonomy beyond the mechanical advance: the CI-to-green loop needs judgment and a parked unit has no forge event, so both wait for a human. Do not extend the workflow toward autonomy.",
-      "Reopening PR-open deferral (0066). The mechanics are settled: squash-merge lands parent content under a new sha, so a published child branch must be restacked when its parent merges - a force-push on a published ref.",
-      "Unattended cron / launchd re-arm - rejected in 0069 (scheduled workflows self-disable after 60 days) and deferred as a trust-model change, not a mechanism change.",
+      "Any out-of-process or forge-side invoker. Ruled CLOSED by 0076 at user instruction - not deferred, not future work. The spec mentions it in no section, including the pre-mortem. Do not reintroduce it.",
+      "Agent-performed merges. Every merge to any shared branch stays human-gated. The three callers may open PRs and push; they never merge.",
+      "Reopening PR-open deferral (0066). Settled: squash-merge lands parent content under a new sha, so a published child branch would need a force-push on a published ref.",
+      "Unattended relaunch with no human in the session - rejected in 0069 as a trust-model change. The 60-day auto-disable that argument leaned on applies only to scheduled triggers; the rejection stands on the trust model.",
       "Writing analysis to .claude/reports/ - it is git-TRACKED and carries an unresolved leak caveat on the resilience thread. Keep findings in the ledger, which is not tracked.",
       "The other mitosis threads (frontier-default, preflight-hardening, resilience-implementation) and the blocked merge-boundary/SAST thread - do not fold their work in here."
     ]
   },
   "created_at": "2026-07-28T06:07:18.861Z",
-  "updated_at": "2026-07-28T19:30:51.965Z"
+  "updated_at": "2026-07-28T19:32:32.786Z"
 }
