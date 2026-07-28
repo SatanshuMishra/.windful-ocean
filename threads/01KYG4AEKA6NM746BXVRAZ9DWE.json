@@ -59,7 +59,8 @@
       "0036-tripwire-triggers-are-spellings-only-configured-branch-left-uncovered",
       "0029-parser-deleted-round-c-killed",
       "0028-threat-model-scoped-to-agent-accident",
-      "0015-adopt-over-catch-ask-never-under-catch"
+      "0015-adopt-over-catch-ask-never-under-catch",
+      "0063-closing-instruction-done-is-unreachable-so-terminate-via-abandoned-plus-successor"
     ],
     "out_of_scope": [
       "Babysitting the user's own deliberate deletion of their files (0028).",
@@ -71,5 +72,5 @@
     ]
   },
   "created_at": "2026-07-26T21:11:59.338Z",
-  "updated_at": "2026-07-28T00:05:24.884Z"
+  "updated_at": "2026-07-28T04:33:33.609Z"
 }
