@@ -25,7 +25,7 @@
     },
     {
       "text": "0094: the config guard covers git worktrees - a write to a guarded path inside a real git worktree of this repo is held for human confirmation, asserted by a test that builds an actual worktree fixture rather than simulating one.",
-      "done": false
+      "done": true
     },
     {
       "text": "Each of the above lands as its own MSP through the centralized pr-create tool, and origin/main is verified fully green (full suite, exit 0) after each merge - re-derived from the remote, never from a possibly-stale local main.",
@@ -39,23 +39,24 @@
   "closure_statement": null,
   "spine": {
     "status": "paused",
-    "active_goal": "0100/0101: pin the global install to a detached origin/main worktree at ~/.claude-install, landing the safeguards BEFORE the pin so staleness can never be silent. (0099 merge-boundary posture is CLOSED.) MSP A MERGED (#13). Step 1 of 4 shipped, PR #14 open. Steps 2-4 remain, all fully DESIGNED in docs/superpowers/specs/2026-07-29-install-pin-safeguards.md, which is now COMMITTED on the step-1 branch.",
-    "next_step": "Merge PR #14, then re-derive origin/main and confirm it is fully green. Then implement the remaining ratified steps, one MSP and one PR each, each on a fresh branch off origin/main: (2) the SessionStart freshness check, (3) the install-root deny plus chmod, (4) the migration script plus the new install-pin-applied marker, then apply the migration under explicit human authorization. The spec carries both scripts in full and the row A-J outcome matrix.",
+    "active_goal": "0100/0101: pin the global install to a detached origin/main worktree at ~/.claude-install, landing the safeguards BEFORE the pin so staleness can never be silent. (0099 posture CLOSED; the 0094 criterion is now met and merged.) MSP A MERGED (#13). Step 1 of 4 shipped, PR #14 open. Steps 2-4 remain, unstarted and fully DESIGNED in docs/superpowers/specs/2026-07-29-install-pin-safeguards.md, now COMMITTED on the step-1 branch.",
+    "next_step": "START HERE IN A FRESH SESSION, per explicit user directive. Merge PR #14, then re-derive origin/main from the remote and confirm it is fully green. Then implement step 2, the SessionStart freshness check, on a fresh branch off origin/main as one MSP and one PR: phases 0-5, outcome rows A-J, the mkdir lock in ~/.claude/state, and the unconditional window audit that 0102 makes the real crash-safety guarantee. Steps 3 and 4 follow, in that order.",
     "open_risks": [
-      "The live hook STILL writes the OLD path until the pin cuts over, because ~/.claude/hooks resolves into the primary checkout. Re-run the cp -p of the drift state to ~/.claude/state/ immediately before applying the migration, or accept one spurious drift line.",
-      "R4 UNAPPLIED. Until the pin lands ~/.claude serves the primary checkout on feat/centralized-pr-creation, so the live install is still missing the merge-boundary gate. MSP B/C remain inert - they edit code that is not there.",
-      "origin/main was NOT independently re-verified green after the #13 merge. The 1559/1559 runs were on the branches pre-merge. Re-derive from the remote before checking the DoD criterion that requires it.",
-      "PRESERVE mv -fh in the migration script. Verified against this machine's man mv: -f only suppresses the prompt; -h is the actual guard against following a symlink-to-directory.",
+      "UNSETTLED and recurring: does a ratified decision record alone authorize a destructive git op without separate user confirmation? Raised by the step-1 git rm; due again at the step-3 chmod and step-4 migration. ASK the user before step 3.",
+      "The live hook STILL writes the OLD path until the pin cuts over, since ~/.claude/hooks resolves into the primary checkout. Re-run the cp -p to ~/.claude/state/ immediately before migrating, or accept one spurious drift line.",
+      "R4 UNAPPLIED. Until the pin lands, ~/.claude serves the primary checkout on feat/centralized-pr-creation, so the live install still lacks the merge-boundary gate. MSP B/C are inert - they edit code that is not there.",
+      "origin/main was NOT re-verified green after #13 merged. Both 1559/1559 runs were on branches PRE-merge. The final DoD criterion demands re-derivation from the remote, which is why it stays unchecked.",
+      "PRESERVE mv -fh. Verified against this machine's man mv: -f only suppresses the prompt; -h is the actual guard against following a symlink-to-directory.",
       "The 38-link constant is a point-in-time snapshot; any new farm symlink makes preflight abort. That is INTENDED - do not 'fix' it by deleting the check.",
-      "Step 3's deny silently upgrades ask to deny for the ~/.claude symlink paths post-pin, since every entry realpaths into the install root. Everyday edits become checkout, PR, merge, auto-refresh. Tell the user before landing it.",
+      "Step 3's deny silently upgrades ask to deny for the ~/.claude symlink paths post-pin, since every entry realpaths into the install root. Everyday edits become checkout, PR, merge, auto-refresh. Tell the user first.",
       "chmod -R a-w buys NOTHING against a deliberate same-uid actor - the hook chmods the tree writable itself. Never describe it as more than accident-protection.",
-      "~/.zshrc still symlinks into the primary checkout - post-pin it is the LAST live-config symlink tracking an unpinned branch. Outside 0100's scope, UNDECIDED.",
+      "~/.zshrc still symlinks into the primary checkout - post-pin it is the LAST live-config symlink tracking an unpinned branch. Outside 0100's scope, UNDECIDED, and it belongs to the user.",
       "Designed-around but unverified: whether permissions.deny resolves symlinks; the hook-timeout signal; whether SessionStart stdout reaches context on nonzero exit; checkout's unlink-vs-truncate.",
-      "PROCESS, held twice this session: subagent self-reports are NOT trustworthy. Both MSP A and step 1 were re-verified directly before push - the step-1 fail-loud probe was re-run from scratch rather than believed."
+      "PROCESS, held twice: subagent self-reports are NOT trustworthy. Both MSP A and step 1 were re-verified directly before push; the step-1 fail-loud probe was re-run from scratch rather than believed."
     ],
     "key_decisions": [
       "0102-crash-safety-of-the-write-window-is-next-session-reseal-not-the-trap -- the trap is the fast path; the GUARANTEE is an unconditional next-session audit-and-reseal. Also records the honest limits of each layer and the ask-to-deny upgrade.",
-      "0101-land-install-safeguards-before-applying-the-pin -- ratified order 1,2,3,4. Step 1 now DONE.",
+      "0101-land-install-safeguards-before-applying-the-pin -- ratified order 1,2,3,4. Step 1 now DONE and awaiting merge as #14.",
       "0100-pin-global-install-to-a-main-tracking-worktree -- ~/.claude-install detached at origin/main; 38 symlinks; name origin/main explicitly, local main is stale.",
       "0099-merge-boundary-posture-pr-required-zero-approvals-single-honest-gate -- operative ruling, posture CLOSED.",
       "0098-corrected-0092-mechanism-is-an-unsatisfiable-config-contract-not-a-severed-exec.",
@@ -74,5 +75,5 @@
     ]
   },
   "created_at": "2026-07-28T21:18:20.962Z",
-  "updated_at": "2026-07-29T18:39:23.272Z"
+  "updated_at": "2026-07-29T18:44:23.257Z"
 }
