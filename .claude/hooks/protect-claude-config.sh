@@ -100,7 +100,7 @@ if not derived:
     for candidate in candidates:
         parts = candidate.split(os.sep)
         for index, part in enumerate(parts):
-            if part == ".claude" and index + 1 < len(parts) and parts[index + 1] in prefixes:
+            if part == ".claude" and index + 1 < len(parts) and parts[index + 1] in prefixes + exact:
                 ask()
 
 sys.exit(0)

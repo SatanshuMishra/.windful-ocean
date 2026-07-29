@@ -172,6 +172,11 @@ describe('every git worktree of the repository behind ~/.claude, not only the pr
     const path = join(OUTSIDE_CLAUDE, 'hooks/block-destructive-bash.sh');
     assert.equal(decide(path, NO_GIT_ENV), 'ask', `${path} must fail closed: an underivable worktree set may never downgrade to no protection`);
   });
+
+  test('with git off the PATH a write to an exact guardrail filename directly under .claude is still held', () => {
+    const path = join(PRIMARY_CLAUDE, 'settings.json');
+    assert.equal(decide(path, NO_GIT_ENV), 'ask', `${path} must fail closed: the exact guardrail filenames are protected surfaces even when the worktree set is underivable`);
+  });
 });
 
 describe('the installed ~/.claude topology the guard discovers its repository base from', () => {
