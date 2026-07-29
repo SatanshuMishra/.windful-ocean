@@ -39,39 +39,41 @@
   "closure_statement": null,
   "spine": {
     "status": "paused",
-    "active_goal": "Two tracks. (1) 0099: the merge boundary becomes ONE honest gate - layer 2 deleted, layer 1 reshaped to gate only on no-direct-push-to-base plus active repo-owned ruleset binding, identity/admin/review demoted and relabelled. Posture CLOSED. (2) 0100/0101: pin the global install to a detached origin/main worktree at ~/.claude-install, landing the safeguards BEFORE the pin so staleness can never be silent.",
-    "next_step": "Per 0101, in order: (1) relocate .drift-state.json to ~/.claude/state/ and untrack (superpowers-drift-check.sh:4 writes it; fix its :7 fail-open too). (2) SessionStart freshness check - auto-refresh when behind AND clean, loud when dirty or offline, NEVER exit 0 quietly. (3) Install-root hard DENY plus chmod -R a-w. (4) Re-author the migration script (old one ephemeral; keep mv -fh) and apply. THEN MSP B, then MSP C. MSP A done and verified but UNPUSHED, no PR.",
+    "active_goal": "Two tracks. (1) 0099: the merge boundary is ONE honest gate - posture CLOSED. (2) 0100/0101: pin the global install to a detached origin/main worktree at ~/.claude-install, safeguards BEFORE the pin. MSP A is SHIPPED (PR #13). All four safeguard steps are DESIGNED but NOT IMPLEMENTED; the implementable spec is docs/superpowers/specs/2026-07-29-install-pin-safeguards.md.",
+    "next_step": "FIRST commit the UNTRACKED spec docs/superpowers/specs/2026-07-29-install-pin-safeguards.md on a fresh branch off origin/main, never onto feat/centralized-pr-creation. Then implement in ratified order, one MSP and one PR each: (1) drift-state relocation and fail-loud rewrite (hook body is in the spec; the file removal needs human confirmation); (2) freshness check; (3) deny and chmod; (4) migration script plus the new install-pin-applied marker.",
     "open_risks": [
-      "R4 is DECIDED (0100) but UNAPPLIED. Until the pin lands, ~/.claude still serves the primary checkout on feat/centralized-pr-creation, so the merge-boundary gate stays absent from the live install and MSP B/C remain inert - they edit code that is not there.",
-      "PREREQUISITE blocking the pin: superpowers-drift-check.sh:4 writes .drift-state.json, a TRACKED file. Post-migration it permanently dirties the install worktree and destroys the cleanliness signal. Relocate to ~/.claude/state/ and untrack FIRST.",
-      "The migration script sits at an EPHEMERAL scratchpad path and will not survive. Re-author from 0100/0101. PRESERVE the mv -fh fix: BSD mv -f FOLLOWS a symlink resolving to a directory, so lib and rules/common would survive untouched while stray temp symlinks land inside them.",
-      "RULESET EXISTS - supersedes 'assume it does not exist'. id 19939922, active, repo-owned, binds ~DEFAULT_BRANCH, 0 approvals, empty bypass, bypass=never. Layer 1's ruleset invariant (:262) is now SATISFIED; identity (:153), admin===false (:171), review>=1 (:236-241) stay unsatisfiable.",
-      "0099 ACCEPTED CONSEQUENCE: with zero approvals no server-side mechanism distinguishes an agent merging a PR from a human. Direct push to main IS blocked server-side (bypass never), but MERGE stays gated only by client-side denies. Never call it a human-gated merge.",
-      "MSP A residual: its fail-closed branch matches only the four prefixes, not the four exact filenames, so <worktree>/.claude/settings.json escapes that branch. The normal path still covers it; widening is free since the decision is ask, not deny.",
-      "SAME FAIL-OPEN CLASS, THIRD INSTANCE, unfixed: superpowers-drift-check.sh:7 opens with [ -f \"$RESOLVER\" ] || exit 0, so the drift checker silently reports nothing when its dependency is missing. Step 1 touches this exact file - fix it there.",
-      "~/.zshrc still symlinks into the PRIMARY checkout, so shell config keeps tracking whatever branch is out. Same coupling class as R4, outside R4's scope, UNDECIDED.",
-      "The gh merge-deny shim is NOT on PATH (command -v gh gives /opt/homebrew/bin/gh); its classifier only guards mitosis-git.mjs's own execGh calls. settings.json:40 is a PREFIX pattern that push origin HEAD:main would not match - read, never tested.",
-      "PROCESS, reaffirmed: subagent self-reports are NOT trustworthy. This session re-ran MSP A's full hook suite and all four live probes directly rather than believing the report, and caught its own broken sed before reporting a false 404 as evidence."
+      "The spec file is UNTRACKED and lives only in the primary checkout working tree. It is the sole artifact of the whole design phase. Commit it FIRST next session or a git clean can lose it.",
+      "R4 UNAPPLIED. Until the pin lands ~/.claude serves the primary checkout on feat/centralized-pr-creation, so the merge-boundary gate is absent from the live install and MSP B/C are inert - they edit code that is not there.",
+      "Corroborated this session: a design agent reading the LIVE guard found no worktree enumeration, because the live install predates MSP A. 0100's diagnosis reproducing in the wild.",
+      "PREREQUISITE still live: superpowers-drift-check.sh:4 writes .drift-state.json, a TRACKED file, currently MODIFIED. Step 1 must land before the pin or the install worktree is permanently dirty.",
+      "PRESERVE mv -fh. Verified against this machine's man mv: -f only suppresses the prompt; -h is the actual guard against following a symlink-to-directory.",
+      "The 38-link constant is a point-in-time snapshot; any new farm symlink makes preflight abort. That is INTENDED - do not 'fix' it by deleting the check.",
+      "Step 3's deny silently upgrades ask to deny for the ~/.claude symlink paths post-pin, since every entry realpaths into the install root. Everyday edits become checkout, PR, merge, auto-refresh. Tell the user.",
+      "chmod -R a-w buys NOTHING against a deliberate same-uid actor - the hook chmods the tree writable itself. Never describe it as more than accident-protection.",
+      "~/.zshrc still symlinks into the primary checkout - post-pin it is the LAST live-config symlink tracking an unpinned branch. Outside 0100's scope, UNDECIDED.",
+      "Designed-around but unverified: whether permissions.deny resolves symlinks; the hook-timeout signal; whether SessionStart stdout reaches context on nonzero exit; checkout's unlink-vs-truncate.",
+      "PROCESS, reaffirmed: subagent self-reports are NOT trustworthy. This session re-ran MSP A's suites and re-read the diff directly before pushing rather than believing the implementer's report."
     ],
     "key_decisions": [
-      "0101-land-install-safeguards-before-applying-the-pin -- ratified order: relocate .drift-state.json, build the fail-closed SessionStart freshness check, add install-root deny plus read-only, THEN apply the migration.",
-      "0100-pin-global-install-to-a-main-tracking-worktree -- ~/.claude-install detached at origin/main; the pin withdraws almost nothing because the branch's PR-tool work already shipped via 7e2e7d7 (#8), sole regression one line (export function execGh).",
+      "0102-crash-safety-of-the-write-window-is-next-session-reseal-not-the-trap -- the trap is the fast path; the GUARANTEE is an unconditional next-session audit-and-reseal. Also records the honest limits of each layer and the ask-to-deny upgrade.",
+      "0101-land-install-safeguards-before-applying-the-pin -- ratified order 1,2,3,4.",
+      "0100-pin-global-install-to-a-main-tracking-worktree -- ~/.claude-install detached at origin/main; 38 symlinks; name origin/main explicitly, local main is stale.",
       "0099-merge-boundary-posture-pr-required-zero-approvals-single-honest-gate -- operative ruling, posture CLOSED.",
-      "0098-corrected-0092-mechanism-is-an-unsatisfiable-config-contract-not-a-severed-exec -- reproduction REFUTED the recorded exec mechanism.",
-      "Inherited: 0092, 0093, 0094 define the three defects; 0095 descoped runbook Sections 2-5; 0097 closed the predecessor as abandoned.",
-      "0096-reconcile-schema-optionality-was-not-the-cause -- tested, refuted, reverted. Do NOT re-attempt.",
-      "0102-crash-safety-of-the-write-window-is-next-session-reseal-not-the-trap"
+      "0098-corrected-0092-mechanism-is-an-unsatisfiable-config-contract-not-a-severed-exec.",
+      "Inherited: 0092/0093/0094 define the defects; 0095 descoped runbook 2-5; 0097 closed the predecessor.",
+      "0096 -- tested, refuted, reverted. Do NOT re-attempt."
     ],
     "out_of_scope": [
       "Provisioning a machine user or GitHub App, and any approval requirement of 1 or more -- excluded by 0099.",
-      "Creating or editing the main ruleset -- HUMAN ACTION ONLY, and the human has now DONE it (id 19939922). The agent must never hold write access to the boundary it rests on (merge-boundary-preflight.mjs:270). Verify it, never mutate it.",
+      "Creating or editing the main ruleset -- HUMAN ACTION ONLY, already done (id 19939922). Verify it, never mutate it.",
       "Runbook Sections 2-5 and Build A activation -- DESCOPED by 0095.",
       "Build B / the restack verb -- CUT by 0027.",
       "Re-vendoring p/default content to replace the hash-only pin.",
       "The semgrep upstream-drift check -- unowned residue.",
-      "The primary checkout's uncommitted work on feat/centralized-pr-creation -- owned by other threads, leave it alone. That branch's work already merged to main via #8, so it is stale duplicate history."
+      "A periodic launchd audit to close the open-window-with-no-next-session gap -- deferred by 0102, recorded as a known residual.",
+      "The primary checkout's uncommitted work on feat/centralized-pr-creation -- owned by other threads, leave it alone."
     ]
   },
   "created_at": "2026-07-28T21:18:20.962Z",
-  "updated_at": "2026-07-29T18:08:13.237Z"
+  "updated_at": "2026-07-29T18:09:58.700Z"
 }
