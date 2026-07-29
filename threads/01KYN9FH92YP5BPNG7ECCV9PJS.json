@@ -39,17 +39,18 @@
   "closure_statement": null,
   "spine": {
     "status": "active",
-    "active_goal": "Implement decision 0099: the merge boundary becomes ONE honest gate. Human creates a PR-required, zero-approval, empty-bypass ruleset on main; layer 2 is deleted; layer 1 is reshaped to gate only on no-direct-push-to-base plus active repo-owned ruleset binding, with identity/admin/review demoted to non-gating and honestly relabelled. Posture is CLOSED - stop asking it.",
-    "next_step": "MSP A (0094 worktree guard + block-destructive-bash lib/ workflows/) is DISPATCHED in .claude/worktrees/boundary-residuals; VERIFY its commit claims against the repo, then code-reviewer + security-reviewer BEFORE the PR. Then MSP B (delete layer 2 from mitosis.js) and MSP C (reshape layer 1, emit the verdict line on EVERY CLI exit path, realpath invokedAs); both touch guarded trees and will prompt. UNRULED, must be raised: R4 deployment pinning - without it every fix here stays undeployed.",
+    "active_goal": "Implement decision 0099: the merge boundary becomes ONE honest gate. Human creates a PR-required, zero-approval, empty-bypass ruleset on main; layer 2 is deleted; layer 1 is reshaped to gate only on no-direct-push-to-base plus active repo-owned ruleset binding, with identity/admin/review demoted to non-gating and honestly relabelled. Posture is CLOSED - do not reopen it.",
+    "next_step": "RAISE R4 FIRST - without deployment pinning, MSP B and C change nothing observable. Then re-dispatch MSP A (0094: protect-claude-config.sh:20-33 via git rev-parse --git-common-dir, fail CLOSED on empty; plus lib/ and workflows/ into block-destructive-bash.sh:91). Hook tests already live at .claude/hooks/tests/. Then MSP B (delete layer 2 from mitosis.js) and MSP C (reshape layer 1, verdict line on EVERY exit path, realpath invokedAs). Re-probe for the ruleset; assume it does not exist.",
     "open_risks": [
-      "0099 ACCEPTED CONSEQUENCE: with zero required approvals, NO server-side mechanism distinguishes an agent merging a PR from a human merging one. Merge stays gated only by client-side denies. Do not later describe this as a human-gated merge.",
+      "0099 ACCEPTED CONSEQUENCE: with zero required approvals, NO server-side mechanism distinguishes an agent merging a PR from a human merging one. Merge stays gated only by client-side denies. Never describe this as a human-gated merge.",
       "R4 OPEN and dominant: ~/.claude/lib points at a checkout where merge-boundary-preflight.mjs does not exist. The gate has been inert its ENTIRE existence, not a week - 457d6fa merged 2026-07-27 and the installed path never held it. Fixing gate logic without deployment changes nothing.",
+      "LAYER 1 HAS FOUR GATING INVARIANTS, not one: identity=machine user (:153), admin===false (:171), review>=1 with require_last_push_approval (:236-241), ruleset binding (:262). The first three are UNSATISFIABLE in a single-owner repo. Creating the ruleset fixes only the fourth.",
       "0094 CITATION CORRECTED: protect-claude-config.sh:36 DOES list lib and workflows. The hole is the two-base prefix derivation at :20-33, which no worktree path matches. Also run-engine.mjs:1077-1078 does NOT exist at origin/main (585 lines); the real cite is :96-98.",
       "SAME BUG CLASS, THIRD INSTANCE, unfixed: superpowers-drift-check.sh:7 opens with [ -f \"$RESOLVER\" ] || exit 0, so the drift checker silently reports nothing when its own dependency is missing. Excluded from MSP A to keep it atomic; needs its own change.",
       "The gh merge-deny shim is NOT wired into PATH (command -v gh gives /opt/homebrew/bin/gh); its classifier only guards mitosis-git.mjs's own execGh calls. settings.json:40 is a PREFIX pattern that push origin HEAD:main would not match - read, never tested.",
       "UNVERIFIED, dispatcher-supplied: the machine-user descoping itself. Zero in-repo evidence; the owner credential is consistent with it but does not prove it.",
-      "PROCESS: subagent self-reports are NOT trustworthy - one committed while reporting 'no commit, no push'. Verify every claim against the repository.",
-      "PROCESS: never site a worktree in another session's scratchpad. This session reuses .claude/worktrees/boundary-residuals on fix/mitosis-boundary-residuals at a229c9c (confirmed clean).",
+      "PROCESS: subagent self-reports are NOT trustworthy. This session verified the worktree with git directly rather than believing a report. Keep doing that.",
+      "PROCESS: worktree .claude/worktrees/boundary-residuals on fix/mitosis-boundary-residuals VERIFIED clean at a229c9c, zero commits ahead. MSP A was killed mid-exploration and wrote nothing.",
       "PR #10 was merged while its review was still running, so a reviewer BLOCK landed after the change was on main. Never merge before review returns."
     ],
     "key_decisions": [
@@ -60,7 +61,7 @@
     ],
     "out_of_scope": [
       "Provisioning a machine user or GitHub App, and any approval requirement of 1 or more -- excluded by 0099. It is the only path to a server-side human merge gate and was deliberately not taken.",
-      "Creating or editing the main ruleset -- HUMAN ACTION ONLY. The agent must never hold write access to the boundary it rests on (merge-boundary-preflight.mjs:270).",
+      "Creating or editing the main ruleset -- HUMAN ACTION ONLY. The agent must never hold write access to the boundary it rests on (merge-boundary-preflight.mjs:270). Recompose the payload from 0099; the scratchpad copy will not survive.",
       "Runbook Sections 2-5 and Build A activation -- DESCOPED by 0095.",
       "Build B / the restack verb -- CUT by 0027.",
       "Re-vendoring p/default content to replace the hash-only pin.",
@@ -69,5 +70,5 @@
     ]
   },
   "created_at": "2026-07-28T21:18:20.962Z",
-  "updated_at": "2026-07-29T02:12:58.438Z"
+  "updated_at": "2026-07-29T02:17:54.475Z"
 }
