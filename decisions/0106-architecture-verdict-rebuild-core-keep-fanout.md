@@ -1,0 +1,22 @@
+---
+Status: accepted
+Date: 2026-07-29T23:44:48.149Z
+Thread-Id: 01KYR405KFXHM15J5XXK5BXTVT
+---
+
+# 0106. Research verdict: rebuild the engine core, preserve the two-layer fan-out as semantics (RECOMMENDATION, not yet user-approved)
+
+## Context
+
+The user asked whether the current way of architecting mitosis is CORRECT, stated that a ground-up rebuild is acceptable, and required only that the two-layer fan-out survive. A four-domain code audit plus an externally-grounded research pass with a mandatory disconfirming pass were run on 2026-07-29. Priority order for every trade-off: robustness/quality, then optimization including tokens/context/cost, then wall-clock speed.
+
+## Options
+
+- Repair in place along the 2026-07-29 run-readiness-repair spec's 11 MSPs and the quiescent-advance spec's M0-M8
+- Rebuild the engine core against the durable-execution pattern while preserving fan-out semantics and the prompt IP
+- Adopt an off-the-shelf durable-execution runtime wholesale
+- Leave the architecture as-is and accept the measured cost
+
+## Outcome
+
+RECOMMENDED (confidence HIGH for the effector boundary and durability model, MEDIUM-HIGH for pipeline-as-data): rebuild the core, preserve the fan-out as semantics rather than as code. STATUS: this is the researcher's verdict and my synthesis. The user has NOT approved a rebuild — they asked for audit and research only and deferred specific details to a fresh session. Do not treat this record as authorization to implement. Three errors in kind, not degree, each solved years ago by durable-execution systems: (1) deterministic side effects routed through a language model, inverting the orchestrator/activity boundary that Temporal, Azure Durable Functions, DBOS and Restate all draw identically — Temporal names LLM invocations as one KIND of activity to quarantine, never the transport other activities travel through; (2) durability at the wrong granularity (whole built MSP), in the wrong place (machine-local, gitignored, self-overwriting), under the wrong key (spec file path rather than content) when the industry unit is the individual step output in a store any fresh worker can read; (3) pipeline as closure-coupled imperative control flow when mature systems express workflow shape as data over one shared runtime. THE BOUNDARY TO DRAW: deterministic code executes everything whose next step is knowable in advance, the LLM is consulted only where judgment is genuinely required, and every LLM consultation is itself a journaled idempotent step. Four layers: strict-deterministic orchestrator interpreting pipeline-as-data (no I/O, clock, or randomness); deterministic activities covering every git/gh/file/CI-poll operation as subprocess calls with idempotency keys and journaled results; LLM activities for decompose, plan, implement, review, and diagnosis of failures the deterministic layer could not classify; and a human gate the engine sleeps on for free. Mitosis's error in these terms: it built layer 1 without durability, deleted layer 2 entirely, and made layer 3 impersonate layer 2 at roughly 55k tokens per impersonation. KEEP: two-layer fan-out semantics; build-ahead with built|awaiting|done; fail-closed halting (correct under the pillar order — the flaw was never halting but that halting forfeits everything); worktree isolation per unit; leases DEMOTED from safety mechanism to speculation-pruning heuristic reconciled against observed write-sets, with merge-time detection as the real safety net; per-MSP PRs, the green-branch invariant and the PR honesty rules; and all prompt/skill IP inside agent dispatches, changing only its transport. The disconfirming pass defeated the twinning-buys-testability defense outright and relocated the adaptability defense to the exception path (deterministic executor on the happy path plus LLM diagnostician on failure keeps nearly all adaptability for 5-10% of the dispatches); it found no prior art where prose-mediated effectors outperformed deterministic ones, and noted both measured zero-yield runs were CAUSED by the prose layer. RISKS: determinism is a discipline and replay bugs are subtler than anything in the current engine; the second-system effect is the real danger because the correct-feature list is long; prompt-embedded operational knowledge outside the canonical modules can be silently lost; the bottleneck does not move so wall-clock expectations must be reset; and a rebuild team treating everything old as wrong would regress fail-closed halting and the build-ahead states.
