@@ -3,7 +3,7 @@
   "id": "01KYN9FH92YP5BPNG7ECCV9PJS",
   "slug": "mitosis-boundary-layer-residuals-0092-0093-and-0094",
   "title": "Mitosis boundary-layer residuals 0092, 0093 and 0094",
-  "status": "paused",
+  "status": "active",
   "parent_id": null,
   "predecessor_id": "01KYJTVMQ06B0NY6ENYKZCRYBP",
   "completion_criteria": [
@@ -38,7 +38,7 @@
   "abandoned_reason": null,
   "closure_statement": null,
   "spine": {
-    "status": "paused",
+    "status": "active",
     "active_goal": "Fix the three boundary-layer defects inherited from the predecessor, which shipped a green main (origin/main a229c9c, 1544/1544) but left these unfixed. 0092's mechanism is now CORRECTED: the engine does not exec the CLI - step 7 is prompt text a subagent runs with no config, so it exits 31 with empty stdout and the run halts. Under 0095 the boundary is never provisioned, so this thread must settle the posture deliberately rather than await an activation that will never come.",
     "next_step": "AWAITING the user posture ruling - asked but never answered, so ASK IT FIRST; do not assume it. Reproduction is DONE: read the 2026-07-28T21-46 hand-off log and decision 0098 instead of redoing it. Unblocked without a ruling: 0094 worktree guard via git rev-parse --git-common-dir goes FIRST, since every later fix lands inside that hole; then 0093 realpath. Before the posture, VERIFY IN CODE whether the receipts enforcer can merge without a human. Reuse .claude/worktrees/boundary-residuals.",
     "open_risks": [
@@ -66,5 +66,5 @@
     ]
   },
   "created_at": "2026-07-28T21:18:20.962Z",
-  "updated_at": "2026-07-28T21:47:23.749Z"
+  "updated_at": "2026-07-29T02:11:00.380Z"
 }
