@@ -1,13 +1,24 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-STATE="$HOME/.claude/lib/superpowers-parallel/.drift-state.json"
+STATE_DIR="$HOME/.claude/state"
+STATE="$STATE_DIR/superpowers-drift-state.json"
 RESOLVER="$HOME/.claude/lib/superpowers-parallel/resolve-superpowers.mjs"
 
-[ -f "$RESOLVER" ] || exit 0
+fail() {
+  printf 'superpowers-drift-check: %s\n' "$1" >&2
+  exit 1
+}
 
-CUR="$(node "$RESOLVER" --state 2>/dev/null || true)"
-[ -n "$CUR" ] || exit 0
+[ -f "$RESOLVER" ] || fail "resolver missing at $RESOLVER; drift cannot be checked - the superpowers-parallel install is broken or was removed without deregistering this hook"
+
+mkdir -p "$STATE_DIR" || fail "cannot create $STATE_DIR; drift state has nowhere to live"
+
+if ! CUR="$(node "$RESOLVER" --state 2>/dev/null)"; then
+  ERR="$(node "$RESOLVER" --state 2>&1 >/dev/null || true)"
+  fail "resolver failed; drift cannot be checked: ${ERR:-nonzero exit, no stderr}"
+fi
+[ -n "$CUR" ] || fail "resolver printed nothing; drift cannot be checked"
 
 if [ ! -f "$STATE" ]; then
   printf '%s\n' "$CUR" > "$STATE"
