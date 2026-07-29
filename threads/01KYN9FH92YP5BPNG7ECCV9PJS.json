@@ -39,38 +39,38 @@
   "closure_statement": null,
   "spine": {
     "status": "paused",
-    "active_goal": "Implement decision 0099: the merge boundary becomes ONE honest gate. Human creates a PR-required, zero-approval, empty-bypass ruleset on main; layer 2 is deleted; layer 1 is reshaped to gate only on no-direct-push-to-base plus active repo-owned ruleset binding, with identity/admin/review demoted to non-gating and honestly relabelled. Posture is CLOSED - do not reopen it.",
-    "next_step": "RAISE R4 FIRST - without deployment pinning, MSP B and C change nothing observable. Then re-dispatch MSP A (0094: protect-claude-config.sh:20-33 via git rev-parse --git-common-dir, fail CLOSED on empty; plus lib/ and workflows/ into block-destructive-bash.sh:91). Hook tests already live at .claude/hooks/tests/. Then MSP B (delete layer 2 from mitosis.js) and MSP C (reshape layer 1, verdict line on EVERY exit path, realpath invokedAs). Re-probe for the ruleset; assume it does not exist.",
+    "active_goal": "Two tracks. (1) 0099: the merge boundary becomes ONE honest gate - layer 2 deleted, layer 1 reshaped to gate only on no-direct-push-to-base plus active repo-owned ruleset binding, identity/admin/review demoted and relabelled. Posture CLOSED. (2) 0100/0101: pin the global install to a detached origin/main worktree at ~/.claude-install, landing the safeguards BEFORE the pin so staleness can never be silent.",
+    "next_step": "Per 0101, in order: (1) relocate .drift-state.json to ~/.claude/state/ and untrack (superpowers-drift-check.sh:4 writes it; fix its :7 fail-open too). (2) SessionStart freshness check - auto-refresh when behind AND clean, loud when dirty or offline, NEVER exit 0 quietly. (3) Install-root hard DENY plus chmod -R a-w. (4) Re-author the migration script (old one ephemeral; keep mv -fh) and apply. THEN MSP B, then MSP C. MSP A done and verified but UNPUSHED, no PR.",
     "open_risks": [
-      "0099 ACCEPTED CONSEQUENCE: with zero required approvals, NO server-side mechanism distinguishes an agent merging a PR from a human merging one. Merge stays gated only by client-side denies. Never describe this as a human-gated merge.",
-      "R4 OPEN and dominant: ~/.claude/lib points at a checkout where merge-boundary-preflight.mjs does not exist. The gate has been inert its ENTIRE existence, not a week - 457d6fa merged 2026-07-27 and the installed path never held it. Fixing gate logic without deployment changes nothing.",
-      "LAYER 1 HAS FOUR GATING INVARIANTS, not one: identity=machine user (:153), admin===false (:171), review>=1 with require_last_push_approval (:236-241), ruleset binding (:262). The first three are UNSATISFIABLE in a single-owner repo. Creating the ruleset fixes only the fourth.",
-      "0094 CITATION CORRECTED: protect-claude-config.sh:36 DOES list lib and workflows. The hole is the two-base prefix derivation at :20-33, which no worktree path matches. Also run-engine.mjs:1077-1078 does NOT exist at origin/main (585 lines); the real cite is :96-98.",
-      "SAME BUG CLASS, THIRD INSTANCE, unfixed: superpowers-drift-check.sh:7 opens with [ -f \"$RESOLVER\" ] || exit 0, so the drift checker silently reports nothing when its own dependency is missing. Excluded from MSP A to keep it atomic; needs its own change.",
-      "The gh merge-deny shim is NOT wired into PATH (command -v gh gives /opt/homebrew/bin/gh); its classifier only guards mitosis-git.mjs's own execGh calls. settings.json:40 is a PREFIX pattern that push origin HEAD:main would not match - read, never tested.",
-      "UNVERIFIED, dispatcher-supplied: the machine-user descoping itself. Zero in-repo evidence; the owner credential is consistent with it but does not prove it.",
-      "PROCESS: subagent self-reports are NOT trustworthy. This session verified the worktree with git directly rather than believing a report. Keep doing that.",
-      "PROCESS: worktree .claude/worktrees/boundary-residuals on fix/mitosis-boundary-residuals VERIFIED clean at a229c9c, zero commits ahead. MSP A was killed mid-exploration and wrote nothing.",
-      "PR #10 was merged while its review was still running, so a reviewer BLOCK landed after the change was on main. Never merge before review returns."
+      "R4 is DECIDED (0100) but UNAPPLIED. Until the pin lands, ~/.claude still serves the primary checkout on feat/centralized-pr-creation, so the merge-boundary gate stays absent from the live install and MSP B/C remain inert - they edit code that is not there.",
+      "PREREQUISITE blocking the pin: superpowers-drift-check.sh:4 writes .drift-state.json, a TRACKED file. Post-migration it permanently dirties the install worktree and destroys the cleanliness signal. Relocate to ~/.claude/state/ and untrack FIRST.",
+      "The migration script sits at an EPHEMERAL scratchpad path and will not survive. Re-author from 0100/0101. PRESERVE the mv -fh fix: BSD mv -f FOLLOWS a symlink resolving to a directory, so lib and rules/common would survive untouched while stray temp symlinks land inside them.",
+      "RULESET EXISTS - supersedes 'assume it does not exist'. id 19939922, active, repo-owned, binds ~DEFAULT_BRANCH, 0 approvals, empty bypass, bypass=never. Layer 1's ruleset invariant (:262) is now SATISFIED; identity (:153), admin===false (:171), review>=1 (:236-241) stay unsatisfiable.",
+      "0099 ACCEPTED CONSEQUENCE: with zero approvals no server-side mechanism distinguishes an agent merging a PR from a human. Direct push to main IS blocked server-side (bypass never), but MERGE stays gated only by client-side denies. Never call it a human-gated merge.",
+      "MSP A residual: its fail-closed branch matches only the four prefixes, not the four exact filenames, so <worktree>/.claude/settings.json escapes that branch. The normal path still covers it; widening is free since the decision is ask, not deny.",
+      "SAME FAIL-OPEN CLASS, THIRD INSTANCE, unfixed: superpowers-drift-check.sh:7 opens with [ -f \"$RESOLVER\" ] || exit 0, so the drift checker silently reports nothing when its dependency is missing. Step 1 touches this exact file - fix it there.",
+      "~/.zshrc still symlinks into the PRIMARY checkout, so shell config keeps tracking whatever branch is out. Same coupling class as R4, outside R4's scope, UNDECIDED.",
+      "The gh merge-deny shim is NOT on PATH (command -v gh gives /opt/homebrew/bin/gh); its classifier only guards mitosis-git.mjs's own execGh calls. settings.json:40 is a PREFIX pattern that push origin HEAD:main would not match - read, never tested.",
+      "PROCESS, reaffirmed: subagent self-reports are NOT trustworthy. This session re-ran MSP A's full hook suite and all four live probes directly rather than believing the report, and caught its own broken sed before reporting a false 404 as evidence."
     ],
     "key_decisions": [
-      "0099-merge-boundary-posture-pr-required-zero-approvals-single-honest-gate -- operative ruling. Posture CLOSED: zero approvals is deliberate (a lone maintainer cannot self-approve), empty bypass is load-bearing, layer 2 deleted, layer 1 reshaped rather than left to halt.",
-      "0098-corrected-0092-mechanism-is-an-unsatisfiable-config-contract-not-a-severed-exec -- reproduction REFUTED the recorded exec mechanism; three distinct faults stand where one was recorded.",
-      "Inherited: 0092, 0093, 0094 define the three defects; 0095 descoped runbook Sections 2-5 permanently; 0097 closed the predecessor as abandoned.",
-      "0096-reconcile-schema-optionality-was-not-the-cause-of-the-silent-severance -- tested, refuted, reverted. Do NOT re-attempt.",
-      "0100-pin-global-install-to-a-main-tracking-worktree",
-      "0101-land-install-safeguards-before-applying-the-pin"
+      "0101-land-install-safeguards-before-applying-the-pin -- ratified order: relocate .drift-state.json, build the fail-closed SessionStart freshness check, add install-root deny plus read-only, THEN apply the migration.",
+      "0100-pin-global-install-to-a-main-tracking-worktree -- ~/.claude-install detached at origin/main; the pin withdraws almost nothing because the branch's PR-tool work already shipped via 7e2e7d7 (#8), sole regression one line (export function execGh).",
+      "0099-merge-boundary-posture-pr-required-zero-approvals-single-honest-gate -- operative ruling, posture CLOSED.",
+      "0098-corrected-0092-mechanism-is-an-unsatisfiable-config-contract-not-a-severed-exec -- reproduction REFUTED the recorded exec mechanism.",
+      "Inherited: 0092, 0093, 0094 define the three defects; 0095 descoped runbook Sections 2-5; 0097 closed the predecessor as abandoned.",
+      "0096-reconcile-schema-optionality-was-not-the-cause -- tested, refuted, reverted. Do NOT re-attempt."
     ],
     "out_of_scope": [
-      "Provisioning a machine user or GitHub App, and any approval requirement of 1 or more -- excluded by 0099. It is the only path to a server-side human merge gate and was deliberately not taken.",
-      "Creating or editing the main ruleset -- HUMAN ACTION ONLY. The agent must never hold write access to the boundary it rests on (merge-boundary-preflight.mjs:270). Recompose the payload from 0099; the scratchpad copy will not survive.",
+      "Provisioning a machine user or GitHub App, and any approval requirement of 1 or more -- excluded by 0099.",
+      "Creating or editing the main ruleset -- HUMAN ACTION ONLY, and the human has now DONE it (id 19939922). The agent must never hold write access to the boundary it rests on (merge-boundary-preflight.mjs:270). Verify it, never mutate it.",
       "Runbook Sections 2-5 and Build A activation -- DESCOPED by 0095.",
       "Build B / the restack verb -- CUT by 0027.",
       "Re-vendoring p/default content to replace the hash-only pin.",
       "The semgrep upstream-drift check -- unowned residue.",
-      "The primary checkout's uncommitted work on feat/centralized-pr-creation -- owned by other threads, leave it alone."
+      "The primary checkout's uncommitted work on feat/centralized-pr-creation -- owned by other threads, leave it alone. That branch's work already merged to main via #8, so it is stale duplicate history."
     ]
   },
   "created_at": "2026-07-28T21:18:20.962Z",
-  "updated_at": "2026-07-29T03:49:31.402Z"
+  "updated_at": "2026-07-29T03:51:42.729Z"
 }
