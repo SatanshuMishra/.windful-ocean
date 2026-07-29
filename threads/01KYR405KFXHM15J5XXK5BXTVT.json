@@ -1,0 +1,46 @@
+{
+  "schema_version": 1,
+  "id": "01KYR405KFXHM15J5XXK5BXTVT",
+  "slug": "mitosis-architecture-rebuild-exploration",
+  "title": "Mitosis architecture audit and rebuild exploration",
+  "status": "active",
+  "parent_id": null,
+  "predecessor_id": null,
+  "completion_criteria": [
+    {
+      "text": "Foundational audit of the current engine complete across all four domains: two-layer fan-out, durability/resume, cost/latency, pipeline rigidity + fragility",
+      "done": false
+    },
+    {
+      "text": "External research verdict delivered on whether the architecture is correct, with disconfirming pass and cited prior art",
+      "done": false
+    },
+    {
+      "text": "The child_process runtime-capability question settled empirically (does dynamic import of node:child_process EXECUTE inside a Workflow script, not merely resolve)",
+      "done": false
+    },
+    {
+      "text": "Three open architecture decisions resolved by the user: adopt an off-the-shelf durable-execution runtime vs only its state model; default speculation depth given that rework costs tokens not machine time; which work-type pipelines to define first",
+      "done": false
+    },
+    {
+      "text": "An approved architecture spec for the rebuild exists, superseding or explicitly scoping the six paused repair-oriented mitosis threads",
+      "done": false
+    }
+  ],
+  "vcs_ref": null,
+  "external_refs": [],
+  "blocked_by": null,
+  "abandoned_reason": null,
+  "closure_statement": null,
+  "spine": {
+    "status": "active",
+    "active_goal": "",
+    "next_step": "",
+    "open_risks": [],
+    "key_decisions": [],
+    "out_of_scope": []
+  },
+  "created_at": "2026-07-29T23:40:17.901Z",
+  "updated_at": "2026-07-29T23:40:17.901Z"
+}
