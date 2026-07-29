@@ -88,7 +88,7 @@ elif has ':[[:space:]]*\([[:space:]]*\)[[:space:]]*\{[[:space:]]*:[[:space:]]*\|
   reason="fork bomb"
 elif has '(^|[^a-z])sudo[[:space:]]+rm'; then
   reason="sudo rm"
-elif has_cs '\.claude/(settings(\.local)?\.json|CLAUDE\.md|keybindings\.json|hooks/|rules/)' \
+elif has_cs '\.claude/(settings(\.local)?\.json|CLAUDE\.md|keybindings\.json|hooks/|rules/|lib/|workflows/)' \
   && has_cs '(>|(^|[;&|[:space:]])tee[[:space:]]|(^|[;&|[:space:]])sed[[:space:]].*-i|(^|[;&|[:space:]])mv[[:space:]]|(^|[;&|[:space:]])cp[[:space:]]|(^|[;&|[:space:]])rm[[:space:]]|(^|[;&|[:space:]])chmod[[:space:]]|(^|[;&|[:space:]])truncate[[:space:]])'; then
   reason="shell write to Claude Code guardrail file"
 fi

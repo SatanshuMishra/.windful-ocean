@@ -112,6 +112,8 @@ const allowCommands = [
   'git -C /repo status',
   'git -C /repo push --force-with-lease origin main',
   'git -C /repo branch -d feature',
+  'echo x > .claude/skills/mitosis/SKILL.md',
+  'cat .claude/lib/superpowers-parallel/mitosis-git.mjs',
 ];
 
 for (const command of allowCommands) {
@@ -147,5 +149,25 @@ for (const command of askCommands) {
     const r = runHook(command);
     assert.equal(r.status, 0);
     assert.match(r.stdout, /"permissionDecision":"ask"/);
+  });
+}
+
+const guardrailWriteCommands = [
+  'echo x > .claude/lib/superpowers-parallel/mitosis-git.mjs',
+  'sed -i "" s/a/b/ .claude/lib/superpowers-parallel/engine-args.mjs',
+  'cp /tmp/patched.mjs .claude/lib/superpowers-parallel/mitosis-git.mjs',
+  'echo x > .claude/workflows/mitosis.js',
+  'mv /tmp/mitosis.js .claude/workflows/mitosis.js',
+  'rm .claude/workflows/mitosis.js',
+  'echo x > .claude/hooks/protect-claude-config.sh',
+  'echo x > .claude/rules/common/git/pull-requests.md',
+];
+
+for (const command of guardrailWriteCommands) {
+  test(`asks before a shell write to a guardrail tree: ${command}`, () => {
+    const r = runHook(command);
+    assert.equal(r.status, 0);
+    assert.match(r.stdout, /"permissionDecision":"ask"/);
+    assert.match(denyReasonOf(r), /shell write to Claude Code guardrail file/);
   });
 }
