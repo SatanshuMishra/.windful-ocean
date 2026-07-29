@@ -9,11 +9,11 @@
   "completion_criteria": [
     {
       "text": "Foundational audit of the current engine complete across all four domains: two-layer fan-out, durability/resume, cost/latency, pipeline rigidity + fragility",
-      "done": false
+      "done": true
     },
     {
       "text": "External research verdict delivered on whether the architecture is correct, with disconfirming pass and cited prior art",
-      "done": false
+      "done": true
     },
     {
       "text": "The child_process runtime-capability question settled empirically (does dynamic import of node:child_process EXECUTE inside a Workflow script, not merely resolve)",
@@ -35,17 +35,30 @@
   "closure_statement": null,
   "spine": {
     "status": "active",
-    "active_goal": "",
-    "next_step": "",
-    "open_risks": [],
+    "active_goal": "Settle the mitosis engine ARCHITECTURE before any code is written. Audit and research are complete; what remains is one empirical test, then the user's call on three design decisions.",
+    "next_step": "START HERE, before any design talk: settle decision 0103's open half. Prove whether node:child_process EXECUTES inside a Workflow script or merely resolves — throwaway Workflow script, dynamic import, run a trivial command, read the result. ~30 seconds, and it gates the entire rebuild premise. Then put the three open decisions to the user: durable-execution runtime vs its state model only; default speculation depth; which work-type pipeline first. Do NOT implement — no rebuild is approved.",
+    "open_risks": [
+      "Second-system effect is the primary danger: the correct-feature list is long, and attempting it at once repeats this engine's original sin of ambition outrunning verification.",
+      "The bottleneck does not move (0104). Wall-clock barely improves; the wins are token cost and crash-loss. Reset expectations BEFORE seeking approval.",
+      "Regression risk on the two things the engine got right: fail-closed halting, and the built/awaiting/done speculation states (0106).",
+      "Determinism is a discipline. Replay bugs in a durable orchestrator are subtler than anything currently in the engine.",
+      "Six other paused mitosis threads target REPAIRING this engine. A rebuild makes several moot; they need explicit disposition, not silent abandonment.",
+      "The running engine is a DIRTY FEATURE BRANCH: ~/.claude symlinks into this repo, four divergent states. Any experiment changes what executes.",
+      "The write guard holds every Edit/Write under .claude/{hooks,rules,lib,workflows} for a human, so unattended fan-out on the engine itself is impossible."
+    ],
     "key_decisions": [
       "0103-engine-sandbox-constraint-is-self-imposed",
       "0104-throughput-bound-is-merge-latency-not-fanout",
       "0105-build-ahead-prior-art-is-stacked-diffs-not-zuul",
       "0106-architecture-verdict-rebuild-core-keep-fanout"
     ],
-    "out_of_scope": []
+    "out_of_scope": [
+      "Implementing any rebuild before the user approves one.",
+      "Executing the run-readiness-repair spec's 11 MSPs or quiescent-advance M0-M8. Valid repair work, on hold pending the rebuild decision, NOT cancelled.",
+      "Dispatching or restarting any target-repo mitosis run.",
+      "Editing the current engine, its twins, or its prompts."
+    ]
   },
   "created_at": "2026-07-29T23:40:17.901Z",
-  "updated_at": "2026-07-29T23:44:48.150Z"
+  "updated_at": "2026-07-29T23:46:02.534Z"
 }
