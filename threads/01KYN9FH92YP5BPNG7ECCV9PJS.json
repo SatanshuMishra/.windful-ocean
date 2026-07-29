@@ -57,7 +57,8 @@
       "0099-merge-boundary-posture-pr-required-zero-approvals-single-honest-gate -- operative ruling. Posture CLOSED: zero approvals is deliberate (a lone maintainer cannot self-approve), empty bypass is load-bearing, layer 2 deleted, layer 1 reshaped rather than left to halt.",
       "0098-corrected-0092-mechanism-is-an-unsatisfiable-config-contract-not-a-severed-exec -- reproduction REFUTED the recorded exec mechanism; three distinct faults stand where one was recorded.",
       "Inherited: 0092, 0093, 0094 define the three defects; 0095 descoped runbook Sections 2-5 permanently; 0097 closed the predecessor as abandoned.",
-      "0096-reconcile-schema-optionality-was-not-the-cause-of-the-silent-severance -- tested, refuted, reverted. Do NOT re-attempt."
+      "0096-reconcile-schema-optionality-was-not-the-cause-of-the-silent-severance -- tested, refuted, reverted. Do NOT re-attempt.",
+      "0100-pin-global-install-to-a-main-tracking-worktree"
     ],
     "out_of_scope": [
       "Provisioning a machine user or GitHub App, and any approval requirement of 1 or more -- excluded by 0099. It is the only path to a server-side human merge gate and was deliberately not taken.",
@@ -70,5 +71,5 @@
     ]
   },
   "created_at": "2026-07-28T21:18:20.962Z",
-  "updated_at": "2026-07-29T02:17:59.174Z"
+  "updated_at": "2026-07-29T02:57:38.362Z"
 }
