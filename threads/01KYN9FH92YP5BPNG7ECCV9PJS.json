@@ -39,24 +39,23 @@
   "closure_statement": null,
   "spine": {
     "status": "paused",
-    "active_goal": "Two tracks. (1) 0099: the merge boundary is ONE honest gate - posture CLOSED. (2) 0100/0101: pin the global install to a detached origin/main worktree at ~/.claude-install, safeguards BEFORE the pin. MSP A is SHIPPED (PR #13). All four safeguard steps are DESIGNED but NOT IMPLEMENTED; the implementable spec is docs/superpowers/specs/2026-07-29-install-pin-safeguards.md.",
-    "next_step": "FIRST commit the UNTRACKED spec docs/superpowers/specs/2026-07-29-install-pin-safeguards.md on a fresh branch off origin/main, never onto feat/centralized-pr-creation. Then implement in ratified order, one MSP and one PR each: (1) drift-state relocation and fail-loud rewrite (hook body is in the spec; the file removal needs human confirmation); (2) freshness check; (3) deny and chmod; (4) migration script plus the new install-pin-applied marker.",
+    "active_goal": "0100/0101: pin the global install to a detached origin/main worktree at ~/.claude-install, landing the safeguards BEFORE the pin so staleness can never be silent. (0099 merge-boundary posture is CLOSED.) MSP A MERGED (#13). Step 1 of 4 shipped, PR #14 open. Steps 2-4 remain, all fully DESIGNED in docs/superpowers/specs/2026-07-29-install-pin-safeguards.md, which is now COMMITTED on the step-1 branch.",
+    "next_step": "Merge PR #14, then re-derive origin/main and confirm it is fully green. Then implement the remaining ratified steps, one MSP and one PR each, each on a fresh branch off origin/main: (2) the SessionStart freshness check, (3) the install-root deny plus chmod, (4) the migration script plus the new install-pin-applied marker, then apply the migration under explicit human authorization. The spec carries both scripts in full and the row A-J outcome matrix.",
     "open_risks": [
-      "The spec file is UNTRACKED and lives only in the primary checkout working tree. It is the sole artifact of the whole design phase. Commit it FIRST next session or a git clean can lose it.",
-      "R4 UNAPPLIED. Until the pin lands ~/.claude serves the primary checkout on feat/centralized-pr-creation, so the merge-boundary gate is absent from the live install and MSP B/C are inert - they edit code that is not there.",
-      "Corroborated this session: a design agent reading the LIVE guard found no worktree enumeration, because the live install predates MSP A. 0100's diagnosis reproducing in the wild.",
-      "PREREQUISITE still live: superpowers-drift-check.sh:4 writes .drift-state.json, a TRACKED file, currently MODIFIED. Step 1 must land before the pin or the install worktree is permanently dirty.",
-      "PRESERVE mv -fh. Verified against this machine's man mv: -f only suppresses the prompt; -h is the actual guard against following a symlink-to-directory.",
+      "The live hook STILL writes the OLD path until the pin cuts over, because ~/.claude/hooks resolves into the primary checkout. Re-run the cp -p of the drift state to ~/.claude/state/ immediately before applying the migration, or accept one spurious drift line.",
+      "R4 UNAPPLIED. Until the pin lands ~/.claude serves the primary checkout on feat/centralized-pr-creation, so the live install is still missing the merge-boundary gate. MSP B/C remain inert - they edit code that is not there.",
+      "origin/main was NOT independently re-verified green after the #13 merge. The 1559/1559 runs were on the branches pre-merge. Re-derive from the remote before checking the DoD criterion that requires it.",
+      "PRESERVE mv -fh in the migration script. Verified against this machine's man mv: -f only suppresses the prompt; -h is the actual guard against following a symlink-to-directory.",
       "The 38-link constant is a point-in-time snapshot; any new farm symlink makes preflight abort. That is INTENDED - do not 'fix' it by deleting the check.",
-      "Step 3's deny silently upgrades ask to deny for the ~/.claude symlink paths post-pin, since every entry realpaths into the install root. Everyday edits become checkout, PR, merge, auto-refresh. Tell the user.",
+      "Step 3's deny silently upgrades ask to deny for the ~/.claude symlink paths post-pin, since every entry realpaths into the install root. Everyday edits become checkout, PR, merge, auto-refresh. Tell the user before landing it.",
       "chmod -R a-w buys NOTHING against a deliberate same-uid actor - the hook chmods the tree writable itself. Never describe it as more than accident-protection.",
       "~/.zshrc still symlinks into the primary checkout - post-pin it is the LAST live-config symlink tracking an unpinned branch. Outside 0100's scope, UNDECIDED.",
       "Designed-around but unverified: whether permissions.deny resolves symlinks; the hook-timeout signal; whether SessionStart stdout reaches context on nonzero exit; checkout's unlink-vs-truncate.",
-      "PROCESS, reaffirmed: subagent self-reports are NOT trustworthy. This session re-ran MSP A's suites and re-read the diff directly before pushing rather than believing the implementer's report."
+      "PROCESS, held twice this session: subagent self-reports are NOT trustworthy. Both MSP A and step 1 were re-verified directly before push - the step-1 fail-loud probe was re-run from scratch rather than believed."
     ],
     "key_decisions": [
       "0102-crash-safety-of-the-write-window-is-next-session-reseal-not-the-trap -- the trap is the fast path; the GUARANTEE is an unconditional next-session audit-and-reseal. Also records the honest limits of each layer and the ask-to-deny upgrade.",
-      "0101-land-install-safeguards-before-applying-the-pin -- ratified order 1,2,3,4.",
+      "0101-land-install-safeguards-before-applying-the-pin -- ratified order 1,2,3,4. Step 1 now DONE.",
       "0100-pin-global-install-to-a-main-tracking-worktree -- ~/.claude-install detached at origin/main; 38 symlinks; name origin/main explicitly, local main is stale.",
       "0099-merge-boundary-posture-pr-required-zero-approvals-single-honest-gate -- operative ruling, posture CLOSED.",
       "0098-corrected-0092-mechanism-is-an-unsatisfiable-config-contract-not-a-severed-exec.",
@@ -75,5 +74,5 @@
     ]
   },
   "created_at": "2026-07-28T21:18:20.962Z",
-  "updated_at": "2026-07-29T18:09:58.700Z"
+  "updated_at": "2026-07-29T18:39:23.272Z"
 }
