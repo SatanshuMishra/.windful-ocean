@@ -59,7 +59,8 @@
       "0099-merge-boundary-posture-pr-required-zero-approvals-single-honest-gate -- operative ruling, posture CLOSED.",
       "0098-corrected-0092-mechanism-is-an-unsatisfiable-config-contract-not-a-severed-exec -- reproduction REFUTED the recorded exec mechanism.",
       "Inherited: 0092, 0093, 0094 define the three defects; 0095 descoped runbook Sections 2-5; 0097 closed the predecessor as abandoned.",
-      "0096-reconcile-schema-optionality-was-not-the-cause -- tested, refuted, reverted. Do NOT re-attempt."
+      "0096-reconcile-schema-optionality-was-not-the-cause -- tested, refuted, reverted. Do NOT re-attempt.",
+      "0102-crash-safety-of-the-write-window-is-next-session-reseal-not-the-trap"
     ],
     "out_of_scope": [
       "Provisioning a machine user or GitHub App, and any approval requirement of 1 or more -- excluded by 0099.",
@@ -72,5 +73,5 @@
     ]
   },
   "created_at": "2026-07-28T21:18:20.962Z",
-  "updated_at": "2026-07-29T03:51:42.729Z"
+  "updated_at": "2026-07-29T18:08:13.237Z"
 }
