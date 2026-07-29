@@ -3,7 +3,7 @@
   "id": "01KYN9FH92YP5BPNG7ECCV9PJS",
   "slug": "mitosis-boundary-layer-residuals-0092-0093-and-0094",
   "title": "Mitosis boundary-layer residuals 0092, 0093 and 0094",
-  "status": "active",
+  "status": "paused",
   "parent_id": null,
   "predecessor_id": "01KYJTVMQ06B0NY6ENYKZCRYBP",
   "completion_criteria": [
@@ -38,7 +38,7 @@
   "abandoned_reason": null,
   "closure_statement": null,
   "spine": {
-    "status": "active",
+    "status": "paused",
     "active_goal": "Implement decision 0099: the merge boundary becomes ONE honest gate. Human creates a PR-required, zero-approval, empty-bypass ruleset on main; layer 2 is deleted; layer 1 is reshaped to gate only on no-direct-push-to-base plus active repo-owned ruleset binding, with identity/admin/review demoted to non-gating and honestly relabelled. Posture is CLOSED - do not reopen it.",
     "next_step": "RAISE R4 FIRST - without deployment pinning, MSP B and C change nothing observable. Then re-dispatch MSP A (0094: protect-claude-config.sh:20-33 via git rev-parse --git-common-dir, fail CLOSED on empty; plus lib/ and workflows/ into block-destructive-bash.sh:91). Hook tests already live at .claude/hooks/tests/. Then MSP B (delete layer 2 from mitosis.js) and MSP C (reshape layer 1, verdict line on EVERY exit path, realpath invokedAs). Re-probe for the ruleset; assume it does not exist.",
     "open_risks": [
@@ -70,5 +70,5 @@
     ]
   },
   "created_at": "2026-07-28T21:18:20.962Z",
-  "updated_at": "2026-07-29T02:17:54.475Z"
+  "updated_at": "2026-07-29T02:17:59.174Z"
 }
