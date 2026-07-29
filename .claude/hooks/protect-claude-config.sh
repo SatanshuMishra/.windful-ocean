@@ -6,7 +6,7 @@ case "$input" in
 esac
 
 printf '%s' "$input" | python3 -c '
-import sys, json, os
+import sys, json, os, subprocess
 
 try:
     d = json.load(sys.stdin)
@@ -17,45 +17,92 @@ fp = ((d.get("tool_input") or {}).get("file_path", "") or "")
 if not fp:
     sys.exit(0)
 
-home = os.path.expanduser("~")
-home_base = os.path.join(home, ".claude")
-bases = [home_base]
-for probe in ("CLAUDE.md", "settings.json", "keybindings.json"):
-    p = os.path.join(home_base, probe)
-    try:
-        rp = os.path.realpath(p)
-    except Exception:
-        continue
-    if rp != p and os.path.basename(rp) == probe:
-        rb = os.path.dirname(rp)
-        if rb not in bases:
-            bases.append(rb)
-        break
-
 exact = ("settings.json", "settings.local.json", "CLAUDE.md", "keybindings.json")
 prefixes = ("hooks", "rules", "lib", "workflows")
+probes = ("CLAUDE.md", "settings.json", "keybindings.json")
 
-candidates = {fp}
-try:
-    candidates.add(os.path.realpath(fp))
-except Exception:
-    pass
+def resolve(path):
+    try:
+        return os.path.realpath(path)
+    except Exception:
+        return path
 
-def protected(path):
-    for base in bases:
-        for name in exact:
-            if path == os.path.join(base, name):
-                return True
-        for name in prefixes:
-            root = os.path.join(base, name)
-            if path == root or path.startswith(root + os.sep):
-                return True
+candidates = [fp]
+resolved_fp = resolve(fp)
+if resolved_fp != fp:
+    candidates.append(resolved_fp)
+
+def under(path, base):
+    for name in exact:
+        if path == os.path.join(base, name):
+            return True
+    for name in prefixes:
+        root = os.path.join(base, name)
+        if path == root or path.startswith(root + os.sep):
+            return True
     return False
 
-if any(protected(c) for c in candidates):
+def ask():
     reason = "Modifying Claude Code guardrail file: " + fp + " - confirm this change is intended."
     out = {"hookSpecificOutput": {"hookEventName": "PreToolUse", "permissionDecision": "ask", "permissionDecisionReason": reason}}
     sys.stdout.write(json.dumps(out) + "\n")
+    sys.exit(0)
+
+home_base = os.path.join(os.path.expanduser("~"), ".claude")
+if any(under(c, home_base) for c in candidates):
+    ask()
+
+repo_dirs = []
+
+def note_repo_dir(path):
+    if path and path not in repo_dirs and os.path.isdir(path):
+        repo_dirs.append(path)
+
+resolved_home_base = resolve(home_base)
+if resolved_home_base != home_base:
+    note_repo_dir(resolved_home_base)
+for probe in probes:
+    literal = os.path.join(home_base, probe)
+    target = resolve(literal)
+    if target != literal and os.path.basename(target) == probe:
+        note_repo_dir(os.path.dirname(target))
+
+def worktree_roots(cwd):
+    for flags, sep in ((["--porcelain", "-z"], "\0"), (["--porcelain"], "\n")):
+        try:
+            done = subprocess.run(["git", "-C", cwd, "worktree", "list"] + flags,
+                                  stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, timeout=5)
+        except Exception:
+            return None
+        if done.returncode != 0:
+            continue
+        roots = []
+        for record in done.stdout.decode("utf-8", "replace").split(sep):
+            if record.startswith("worktree "):
+                root = record[len("worktree "):].rstrip("\r")
+                if root:
+                    roots.append(root)
+        return roots or None
+    return None
+
+derived = False
+for repo_dir in repo_dirs:
+    roots = worktree_roots(repo_dir)
+    if roots is None:
+        continue
+    derived = True
+    for root in roots:
+        for base in (os.path.join(root, ".claude"), os.path.join(resolve(root), ".claude")):
+            if any(under(c, base) for c in candidates):
+                ask()
+
+if not derived:
+    for candidate in candidates:
+        parts = candidate.split(os.sep)
+        for index, part in enumerate(parts):
+            if part == ".claude" and index + 1 < len(parts) and parts[index + 1] in prefixes:
+                ask()
+
 sys.exit(0)
 '
 exit 0
