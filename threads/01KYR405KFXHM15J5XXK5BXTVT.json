@@ -55,7 +55,8 @@
       "0108-adopt-durable-execution-state-model-not-runtime",
       "0109-speculation-depth-derived-from-restack-capability",
       "0110-fix-work-type-pipeline-ships-first",
-      "0111-rebuild-authorized-and-polling-removal-in-scope"
+      "0111-rebuild-authorized-and-polling-removal-in-scope",
+      "0112-robustness-means-per-action-legitimate-value"
     ],
     "out_of_scope": [
       "Implementing any rebuild before the user approves one.",
@@ -65,5 +66,5 @@
     ]
   },
   "created_at": "2026-07-29T23:40:17.901Z",
-  "updated_at": "2026-07-30T04:39:15.311Z"
+  "updated_at": "2026-07-30T04:39:38.582Z"
 }
