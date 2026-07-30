@@ -57,7 +57,8 @@
       "0127-msp0-falsifier-survives-with-two-extractor-rules",
       "0128-spec-line-citations-measured-against-the-wrong-base",
       "0129-spec-lands-on-its-own-docs-branch-off-main",
-      "0130-msp0-landed-gate-had-three-false-clean-paths"
+      "0130-msp0-landed-gate-had-three-false-clean-paths",
+      "0131-hookspath-capture-race-fixed-before-precondition-work"
     ],
     "out_of_scope": [
       "Pipelines for refactor, perf, docs or chore - closed by 0118. Limits PIPELINES only, not the PR title type vocabulary.",
@@ -71,5 +72,5 @@
     ]
   },
   "created_at": "2026-07-29T23:40:17.901Z",
-  "updated_at": "2026-07-30T08:27:26.599Z"
+  "updated_at": "2026-07-30T16:41:01.092Z"
 }
