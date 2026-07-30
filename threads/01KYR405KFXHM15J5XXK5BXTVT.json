@@ -64,7 +64,8 @@
       "0117-gate-trust-model-declared-coverage-probed-by-execution",
       "0118-pipeline-work-types-limited-to-fix-and-feat",
       "0119-relaunch-fires-on-human-merge-surfaced-by-sessionstart-read",
-      "0120-lsp-probe-green-edges-derive-from-a-verb-with-seeded-project"
+      "0120-lsp-probe-green-edges-derive-from-a-verb-with-seeded-project",
+      "0121-phase-declarations-and-call-sites-must-agree-both-directions"
     ],
     "out_of_scope": [
       "Pipelines for refactor, perf, docs or chore - closed by 0118. Limits PIPELINES only, not the PR title type vocabulary.",
@@ -78,5 +79,5 @@
     ]
   },
   "created_at": "2026-07-29T23:40:17.901Z",
-  "updated_at": "2026-07-30T06:11:48.887Z"
+  "updated_at": "2026-07-30T06:12:12.670Z"
 }
