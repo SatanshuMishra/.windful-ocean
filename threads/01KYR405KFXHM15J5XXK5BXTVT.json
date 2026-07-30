@@ -35,19 +35,20 @@
   "closure_statement": null,
   "spine": {
     "status": "paused",
-    "active_goal": "Rebuild authorized (0111); architecture settled and approved across 0106-0121, with both remaining design gaps CLOSED this session (0119 relaunch trigger, 0120 LSP probe run and GREEN) and phase parity widened (0121). Teaching deliverables delivered. Nothing implemented, no repo file touched. Immediate goal: WRITE the step-6 rebuild spec, then execute the eight-entry landing order from step 0.",
-    "next_step": "WRITE THE SPEC FIRST, per explicit user directive - no implementation before it exists. ONE spec for landing-order step 6: fix pipeline + phase collapse + gate model. Binding inputs: 0115 phases/deletions, 0117 gate tiers+floors+probe-by-execution, 0118 fix and feat only, 0119 relaunch + args envelope, 0120's four LSP seeding rules, 0121 phase-parity gate. Write to docs/superpowers/specs/2026-07-30-mitosis-core-rebuild.md. Attach each falsifier per 0112 rule 3.",
+    "active_goal": "The step-6 rebuild spec EXISTS at docs/superpowers/specs/2026-07-30-mitosis-core-rebuild.md - 15 sections, 14 MSPs, a falsifier on every MSP, every line citation re-verified against the live tree on 2026-07-30. The spec-first gate set by the user is now SATISFIED and retired. Immediate goal: IMPLEMENT that spec, landing MSP-0 then MSP-1 before any collapse MSP, per explicit user directive given at hand-off.",
+    "next_step": "IMPLEMENT the spec at docs/superpowers/specs/2026-07-30-mitosis-core-rebuild.md, per explicit user directive. Settle two blockers FIRST: (a) branch - the spec is untracked on feat/centralized-pr-creation, a different line of work; cut a branch off freshly fetched remote main and commit it there; (b) VERIFY the hard preconditions in spec section 2 (steps 0, 1, 1.5, 2, 3) actually landed - do not assume. Then MSP-0 (parity gate) and MSP-1 (baseline census) IN THAT ORDER, before any collapse MSP.",
     "open_risks": [
-      "Second-system effect is the primary danger (0106); the spec must not widen scope past 0118's two work types - mitigation is narrowing, NOT more reviewers.",
-      "12 leaked worktrees / 78 MB are a LIVE TRIPWIRE under step 4 restack (a checked-out branch blocks branch -f). hermetic-guard-test holds an UNCOMMITTED modified tracked file - human call needed first.",
-      "LSP seeding is the new silent-failure surface (0120): an unseeded query returns a PLAUSIBLE NON-EMPTY answer missing every cross-file edge. The canary receipt asserting both halves is mandatory, not optional.",
-      "No timing or token telemetry exists for the current 4,851-line engine. All 0114/0115 numbers are dispatch counts read from code, never measurements; the before-and-after replay owed by 0115's falsifiers is still unpaid.",
+      "Spec section 2 hard preconditions (step 0 reaper, step 1 sandbox harness, step 1.5 streaming flip, step 2 twinning removal, step 3 state model and journal) are ASSUMED landed and were NOT verified this session. Verify by execution before MSP-0, or the sequence repeats the 0103 mistake 0107 caught.",
+      "Every MSP writes under .claude/{lib,workflows}, which the write guard holds for human approval per write - implementers cannot be fanned out unattended; plan interactive approval or land a carve-out first.",
+      "The spec is UNCOMMITTED and untracked on feat/centralized-pr-creation; committing it there pollutes that branch's PR-creation diff. Branch choice is the first decision of the next session.",
+      "12 leaked worktrees / 78 MB remain a LIVE TRIPWIRE (a checked-out branch blocks branch -f). hermetic-guard-test holds an UNCOMMITTED modified tracked file - human call needed.",
+      "Second-system effect (0106) is still the primary danger: the spec adds 10 verbs to a 3-verb surface (6 prose transcriptions, 4 new capability). Mitigation is narrowing, never more reviewers.",
+      "MSP-12 (pipeline-as-data) rests on 0106's ONLY below-HIGH claim (MEDIUM-HIGH); its falsifier - any stage needing a closure over run state - is the sharpest in the spec and must be run early, not at the end.",
+      "LSP seeding is a silent-failure surface (0120): an unseeded query returns a PLAUSIBLE NON-EMPTY answer missing every cross-file edge. The canary receipt asserting BOTH halves is mandatory.",
+      "Three performance claims (8 round trips to 3 or 2; census 100 to 57; token drop) stay LABELLED UNMEASURED until MSP-1 produces a baseline on the current engine, per 0125.",
       "record_decision DROPS the largest parameter on oversized payloads - keep decision outcomes under roughly 2500 characters. update_thread caps next_step at 500.",
-      "A gate that cannot fail is worse than no gate (0112); 0107 caught the suite certifying code that cannot run. Coverage must be declared and failability-proven.",
-      "Write guard holds all .claude/{hooks,rules,lib,workflows} edits for a human, so step 0 and every engine edit need a human in the loop.",
-      "Six other paused mitosis threads still need explicit per-thread disposition from the user.",
-      "Dirty tree on feat/centralized-pr-creation: modified .drift-state.json, a test, mitosis.js; untracked .bak twins and three specs.",
-      "Merge-to-resume latency is human-paced by design under 0119; a missed trigger costs latency only, never correctness."
+      "Dirty tree on feat/centralized-pr-creation: modified .drift-state.json, a test, mitosis.js; untracked .bak twins and three specs including this one.",
+      "Six other paused mitosis threads still need explicit per-thread disposition from the user."
     ],
     "key_decisions": [
       "0106-architecture-verdict-rebuild-core-keep-fanout",
@@ -73,16 +74,15 @@
     ],
     "out_of_scope": [
       "Pipelines for refactor, perf, docs or chore - closed by 0118. Limits PIPELINES only, not the PR title type vocabulary.",
-      "Bootstrapping a project's test infrastructure as a side effect of shipping - closed by 0117; that is verify-setup, human-invoked.",
-      "Adopting an off-the-shelf durable-execution runtime - closed by 0108.",
-      "Global adaptive speculation windows / AIMD - closed by 0109.",
-      "fileScope-only task-edge derivation - rejected outright by 0116 and now settled by 0120: edges derive from a deterministic verb driving LSP over a seeded project.",
-      "ANY implementation, including landing-order step 0, before the step-6 spec is written - explicit user directive on 2026-07-30. The teaching-deliverable gate that preceded it is satisfied and retired.",
-      "An off-the-shelf runtime, a webhook, or a daemon for the relaunch trigger - closed by 0119; the trigger is the human merge action read at SessionStart.",
-      "Executing the run-readiness-repair spec's 11 MSPs or quiescent-advance M0-M8, pending per-thread disposition.",
-      "Dispatching or restarting any target-repo mitosis run."
+      "The feat pipeline - 0110 sequences it second, after the fix pipeline proves the effector boundary and durability model against a machine-checkable oracle.",
+      "Speculation depth above 1 - 0109 requires a restack proven for the fix work type first.",
+      "Bootstrapping a target repo's test infrastructure as a side effect of shipping - closed by 0117; that is verify-setup, human-invoked.",
+      "Adopting an off-the-shelf durable-execution runtime - closed by 0108. A webhook, server or daemon for the relaunch trigger - closed by 0119.",
+      "fileScope-only task-edge derivation - rejected by 0116, settled by 0120: edges derive from a deterministic verb driving LSP over a seeded project.",
+      "Cluster-aware scheduling, and the journal's 2000-char model-output paging - real defects, but they change the scheduler and step 3 respectively; spec section 1 fences both out.",
+      "Executing the run-readiness-repair spec's 11 MSPs or quiescent-advance M0-M8, pending per-thread disposition. Dispatching or restarting any target-repo mitosis run."
     ]
   },
   "created_at": "2026-07-29T23:40:17.901Z",
-  "updated_at": "2026-07-30T06:39:21.465Z"
+  "updated_at": "2026-07-30T06:39:58.755Z"
 }
