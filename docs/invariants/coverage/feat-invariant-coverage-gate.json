@@ -1,0 +1,64 @@
+{
+  "rows": [
+    {
+      "id": "B1",
+      "verdict": "not-threatened",
+      "check": "no sandbox source is in this diff; git status against origin/main lists only docs/invariants/, scripts/invariant-coverage-check.mjs and its test, and workflow-sandbox.mjs is untouched"
+    },
+    {
+      "id": "B2",
+      "verdict": "not-threatened",
+      "check": "no sandbox source is in this diff; no error-tagging path is added, removed or reached by any file this MSP touches"
+    },
+    {
+      "id": "B3",
+      "verdict": "not-threatened",
+      "check": "no sandbox source is in this diff; no guarded-intrinsic trap is added, removed or reached by any file this MSP touches"
+    },
+    {
+      "id": "B4",
+      "verdict": "not-threatened",
+      "check": "no sandbox source is in this diff; VALUE_GLOBALS, ALWAYS_DENIED and ALLOWED_GLOBALS are neither read nor written by any file this MSP touches"
+    },
+    {
+      "id": "B5",
+      "verdict": "not-threatened",
+      "check": "no sandbox source is in this diff; this MSP adds no identifier to the workflow-body position and changes no census row"
+    },
+    {
+      "id": "B6",
+      "verdict": "not-threatened",
+      "check": "dead-export-lint.test.mjs enumerates only the .mjs files directly under .claude/lib/superpowers-parallel/; the new checker lives in scripts/ and declares no export, so no liveness verdict moves, confirmed by the full npm test run"
+    },
+    {
+      "id": "M1",
+      "verdict": "threatened",
+      "check": "M1 is the subject of this MSP: scripts/invariant-coverage-check.mjs enforces set equality between the registry ids and each entry's row ids, proven by invariant-coverage-check.test.mjs passing on a set-equal entry, going red and naming the id on a missing one, and going red and naming the id on an unknown one"
+    },
+    {
+      "id": "M2",
+      "verdict": "threatened",
+      "check": "the checker derives its id universe by reading docs/invariants/registry.json at runtime, holds no hardcoded id list and asserts nothing about row counts; halt-on-unclassifiable is proven by the unparseable-entry, non-entry-shape, stray-non-json-file and out-of-domain-verdict tests"
+    },
+    {
+      "id": "M3",
+      "verdict": "threatened",
+      "check": "all 15 tests in invariant-coverage-check.test.mjs were observed red before the checker existed (tests 15 / pass 0 / fail 15) and green after it landed (tests 15 / pass 15 / fail 0); the inertness mutation is the falsifier test, which adds an id to a fixture registry with entries unchanged and requires the previously green run to turn red"
+    },
+    {
+      "id": "M4",
+      "verdict": "not-threatened",
+      "check": "this MSP is additive only: it creates docs/invariants/registry.json, docs/invariants/coverage/feat-invariant-coverage-gate.json, scripts/invariant-coverage-check.mjs and its test, and appends one job to .github/workflows/test.yml; no existing source is refactored and the existing test job is unchanged"
+    },
+    {
+      "id": "M5",
+      "verdict": "threatened",
+      "check": "this MSP authors citation-bearing artifacts; every repository path named in this entry and in the registry was re-derived against the live tree on 2026-07-30 by git status and grep, and no path:line anchor is asserted anywhere in this diff"
+    },
+    {
+      "id": "M6",
+      "verdict": "not-threatened",
+      "check": "the new CI job invokes scripts/invariant-coverage-check.mjs directly from the actions/checkout tree at the head SHA; this MSP creates no build artifact, no cache copy and no vendored duplicate of the checker"
+    }
+  ]
+}
