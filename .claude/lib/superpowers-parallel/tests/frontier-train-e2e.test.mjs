@@ -486,7 +486,7 @@ test('bullet 5 + 2: reconcile-only shepherd opens the deferred next-layer PR onl
 
   assert.ok(!labels.includes('decompose'), 'reconcile-only relaunch performs NO decompose');
   assert.ok(!labels.some((l) => l.startsWith('plan:') || l.startsWith('parallelize:') || l.startsWith('impl:') || l.startsWith('branch:')), 'reconcile-only relaunch performs no plan/parallelize/execute/branch fan-out');
-  assert.ok(phaseLines.includes('Shepherd'), 'the shepherd phase runs');
+  assert.ok(phaseLines.includes('Resume'), 'the resume phase runs');
 
   assert.ok(labels.includes('shepherd-open:l2'), 'the deferred PR for l2 opens now that BOTH its parents (l1a, l1b) merged');
   assert.ok(!labels.includes('shepherd-open:l3'), 'l3 does NOT open — its parent l2 has not merged yet (PR-defer honored)');
