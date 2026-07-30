@@ -35,20 +35,21 @@
   "closure_statement": null,
   "spine": {
     "status": "paused",
-    "active_goal": "The step-6 rebuild spec EXISTS at docs/superpowers/specs/2026-07-30-mitosis-core-rebuild.md - 15 sections, 14 MSPs, a falsifier on every MSP, every line citation re-verified against the live tree on 2026-07-30. The spec-first gate set by the user is now SATISFIED and retired. Immediate goal: IMPLEMENT that spec, landing MSP-0 then MSP-1 before any collapse MSP, per explicit user directive given at hand-off.",
-    "next_step": "IMPLEMENT the spec at docs/superpowers/specs/2026-07-30-mitosis-core-rebuild.md, per explicit user directive. Settle two blockers FIRST: (a) branch - the spec is untracked on feat/centralized-pr-creation, a different line of work; cut a branch off freshly fetched remote main and commit it there; (b) VERIFY the hard preconditions in spec section 2 (steps 0, 1, 1.5, 2, 3) actually landed - do not assume. Then MSP-0 (parity gate) and MSP-1 (baseline census) IN THAT ORDER, before any collapse MSP.",
+    "active_goal": "Implement the step-6 rebuild spec. Both hand-off blockers are CLOSED: the spec is committed and pushed on docs/mitosis-core-rebuild-spec (d444797, off origin/main 6d19499), and all five section-2 preconditions were audited by execution (0126). MSP-0 is cleared; MSP-1 is blocked by the absent journal. Immediate goal: implement MSP-0, the phase-parity gate plus honest declarations.",
+    "next_step": "IMPLEMENT MSP-0 on a fresh branch off origin/main. Its falsifier is already run and survives (0127) — do not re-run it. Dispatch an implementer carrying: the corrected anchor table from 0128, NEVER the spec's own line numbers; 0127's two extractor rules; and a warning that every write under .claude/{lib,workflows} needs per-write human approval. Do NOT start MSP-1 — 0126 blocks it until a journal records dispatch boundaries.",
     "open_risks": [
-      "Spec section 2 hard preconditions (step 0 reaper, step 1 sandbox harness, step 1.5 streaming flip, step 2 twinning removal, step 3 state model and journal) are ASSUMED landed and were NOT verified this session. Verify by execution before MSP-0, or the sequence repeats the 0103 mistake 0107 caught.",
-      "Every MSP writes under .claude/{lib,workflows}, which the write guard holds for human approval per write - implementers cannot be fanned out unattended; plan interactive approval or land a carve-out first.",
-      "The spec is UNCOMMITTED and untracked on feat/centralized-pr-creation; committing it there pollutes that branch's PR-creation diff. Branch choice is the first decision of the next session.",
-      "12 leaked worktrees / 78 MB remain a LIVE TRIPWIRE (a checked-out branch blocks branch -f). hermetic-guard-test holds an UNCOMMITTED modified tracked file - human call needed.",
-      "Second-system effect (0106) is still the primary danger: the spec adds 10 verbs to a 3-verb surface (6 prose transcriptions, 4 new capability). Mitigation is narrowing, never more reviewers.",
-      "MSP-12 (pipeline-as-data) rests on 0106's ONLY below-HIGH claim (MEDIUM-HIGH); its falsifier - any stage needing a closure over run state - is the sharpest in the spec and must be run early, not at the end.",
-      "LSP seeding is a silent-failure surface (0120): an unseeded query returns a PLAUSIBLE NON-EMPTY answer missing every cross-file edge. The canary receipt asserting BOTH halves is mandatory.",
-      "Three performance claims (8 round trips to 3 or 2; census 100 to 57; token drop) stay LABELLED UNMEASURED until MSP-1 produces a baseline on the current engine, per 0125.",
-      "record_decision DROPS the largest parameter on oversized payloads - keep decision outcomes under roughly 2500 characters. update_thread caps next_step at 500.",
-      "Dirty tree on feat/centralized-pr-creation: modified .drift-state.json, a test, mitosis.js; untracked .bak twins and three specs including this one.",
-      "Six other paused mitosis threads still need explicit per-thread disposition from the user."
+      "MSP-1 is BLOCKED by 0126 and cannot be unblocked inside step 6: .mitosis/run.json records no timestamp, dispatch count, wall-clock or phase entry, so there is nothing to fold. Step 3 must land a real journal first.",
+      "All three performance claims in spec section 14 stay labelled UNMEASURED while MSP-1 is blocked, and 0115's three falsifiers remain unpayable.",
+      "Four of five hard preconditions are NOT-LANDED, one PARTIAL (0126). Only MSP-0 is startable. Collapse MSPs 2, 3, 4, 5, 8 and 11 depend on preconditions that do not exist, so the spec's landing order stops after MSP-0.",
+      "Step 1.5 is the cheapest unblock: runScheduleStreaming exists and is tested; only the production flip is missing (STREAMING_DISPATCH_ENABLED = false at mitosis.js:2204, sole call site :4888-4897).",
+      "Twinning is alive, enforced by mirror-guard.test.mjs over 21 modules plus the models-knob region: any edit there must land twice byte-identically. MSP-0 is exempt — Shepherd and Final review appear in no twinned module.",
+      "Every write under .claude/{hooks,rules,lib,workflows} is held for per-write human approval, so implementers cannot be fanned out unattended. Plan interactive approval.",
+      "Spec section 15's provenance claim is false for anyone branching off main. Corrected anchors live in 0128; the spec text itself has NOT been amended.",
+      "PARKED stash@{0}: uncommitted work belonging to feat/centralized-pr-creation (drift-state, no-self-merge-consent test, mitosis.js), stashed 2026-07-30 to free the tree. It must be restored to that branch.",
+      "docs/superpowers/specs/2026-07-29-install-pin-safeguards.md was moved to the session scratchpad to allow the branch switch. It is byte-identical to main's committed copy, so nothing is lost.",
+      "The spec branch is pushed but has NO PR yet. Open it through the centralized pr-create tool.",
+      "12 leaked worktrees / 78 MB remain live; step 0's reaper verb does not exist at all (0126).",
+      "Six other paused mitosis threads still need explicit per-thread disposition."
     ],
     "key_decisions": [
       "0106-architecture-verdict-rebuild-core-keep-fanout",
@@ -87,5 +88,5 @@
     ]
   },
   "created_at": "2026-07-29T23:40:17.901Z",
-  "updated_at": "2026-07-30T07:01:53.617Z"
+  "updated_at": "2026-07-30T07:03:00.657Z"
 }
