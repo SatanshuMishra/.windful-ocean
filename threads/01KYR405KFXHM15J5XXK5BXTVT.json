@@ -35,11 +35,11 @@
   "closure_statement": null,
   "spine": {
     "status": "paused",
-    "active_goal": "MSP-0 is SHIPPED: commit 3806be0 on feat/phase-parity-gate (off origin/main 6d19499), PR 15 open, 1612 tests pass. That exhausts what step 6 can currently land - MSP-1 and every collapse MSP stay blocked on absent preconditions (0126). The thread is at the re-plan point where the spec's landing order stops dead.",
-    "next_step": "MERGE PR 15 (human-gated), then RE-PLAN - do NOT start any collapse MSP. Next work is funding a precondition, and which one is the decision: step 1.5 is cheapest (streaming is built and tested, only the production flip is missing), step 3 unblocks the most (the journal alone unblocks MSP-1 and makes section 14 measurable). RE-DERIVE every anchor against the live tree; 0128 and MSP-0 both proved the spec's numbers wrong. Also open: docs/mitosis-core-rebuild-spec is pushed with no PR.",
+    "active_goal": "MSP-0 is MERGED to main as 12053dc (squash, so 3806be0 is not an ancestor - normal). That exhausts what step 6 can currently land; MSP-1 and every collapse MSP stay blocked on absent preconditions (0126). Next session opens with the hooksPath capture race (0131), then re-plans which precondition to fund.",
+    "next_step": "FIRST, before any precondition work, per 0131: fix the continuity plugin's hooksPath capture race - it can record its own managed dir as continuity.priorHooksPath, so the chain self-references and silently skips .githooks/pre-commit, the full npm gate. Healthy right now (prior=.githooks): latent, not broken. Close stale task_70509bf0; fold it into task_21df6527. Open sub-decision is fail-loud vs the bootstrap trap. THEN re-plan the precondition - step 1.5 cheapest, step 3 unblocks most.",
     "open_risks": [
       "A false-clean gate is worse than no gate. MSP-0's first draft had three reproduced false-clean paths plus a tautological test asserting the guarantee it lacked (0130). Review every later gate MSP (6, 7, 8, 9) adversarially with reproduced probes - never on green tests alone.",
-      "NAMED RESIDUAL in the shipped gate: a phase key built by concatenation (['pha'+'se']) reads clean, since no text gate sees it without constant folding. The literal ['phase'] form halts. Zero occurrences today.",
+      "NAMED RESIDUAL in the merged gate: a phase key built by concatenation (['pha'+'se']) reads clean, since no text gate sees it without constant folding. The literal ['phase'] form halts. Zero occurrences today.",
       "parallel-plan-execution.js has the SAME defect MSP-0 fixed: it declares Final review, nothing uses it. The gate halts fail-closed (exit 42) there because that file delegates phase into run-engine.mjs - declaration and use in different files. Needs a CROSS-FILE gate mode, not another target path.",
       "MSP-1 stays BLOCKED (0126) and cannot be unblocked inside step 6: .mitosis/run.json records no timestamp, dispatch count, wall-clock or phase entry. Step 3 owns the journal. All three section-14 performance claims stay UNMEASURED; 0115's falsifiers stay unpayable.",
       "Four of five hard preconditions are NOT-LANDED, one PARTIAL. Collapse MSPs 2, 3, 4, 5, 8 and 11 rest on capability that does not exist - a defect in the plan as carried, not in the architecture.",
@@ -47,7 +47,7 @@
       "The spec OMITS required collateral edits. MSP-0 needed frontier-train-e2e.test.mjs:489 updated (it pinned the old Shepherd name) or the branch would be red. Grep for tests pinning any renamed string BEFORE dispatching a rename MSP.",
       "Every write under .claude/{hooks,rules,lib,workflows} is held for per-write human approval, so implementers cannot be fanned out unattended. Plan interactive approval.",
       "mirror-guard.test.mjs's twin array at :19 covers ONLY modules inlined verbatim inside mitosis.js; standalone CLI siblings are correctly absent. A new standalone lib module needs no dual edit - verified for mitosis-gate.mjs.",
-      "LATENT, task-chipped: the continuity plugin can capture its own managed githooks dir as continuity.priorHooksPath, so the chain self-references and silently skips .githooks/pre-commit (the npm test gate). Observed dead then self-healed on 2026-07-30. Commits in such a window land unguarded.",
+      "task_70509bf0 is RUNNING in a separate user-started session against a premise that no longer holds (it believes the pre-commit gate is dead; it self-healed). Close it rather than act on its output. 0131 folds its real residue into task_21df6527.",
       "PARKED stash@{0}: uncommitted work belonging to feat/centralized-pr-creation (drift-state, no-self-merge-consent test, mitosis.js, 78 insertions). Not reviewed, not this thread's to commit. MUST be restored to that branch.",
       "12 leaked worktrees / 78 MB remain live; 0126 found the reaper verb does not exist at all.",
       "Six other paused mitosis threads still need explicit per-thread disposition."
@@ -68,9 +68,10 @@
       "Adopting an off-the-shelf durable-execution runtime - closed by 0108. A webhook, server or daemon for the relaunch trigger - closed by 0119.",
       "fileScope-only task-edge derivation - rejected by 0116, settled by 0120: edges derive from a deterministic verb driving LSP over a seeded project.",
       "Cluster-aware scheduling, and the journal's 2000-char model-output paging - real defects, but they change the scheduler and step 3 respectively; spec section 1 fences both out.",
-      "Executing the run-readiness-repair spec's 11 MSPs or quiescent-advance M0-M8, pending per-thread disposition. Dispatching or restarting any target-repo mitosis run."
+      "Executing the run-readiness-repair spec's 11 MSPs or quiescent-advance M0-M8, pending per-thread disposition. Dispatching or restarting any target-repo mitosis run.",
+      "Opening a pull request for docs/mitosis-core-rebuild-spec - the user ruled on 2026-07-30 that leaving that branch without a PR is fine. No longer an open item."
     ]
   },
   "created_at": "2026-07-29T23:40:17.901Z",
-  "updated_at": "2026-07-30T16:41:01.092Z"
+  "updated_at": "2026-07-30T16:41:57.906Z"
 }
