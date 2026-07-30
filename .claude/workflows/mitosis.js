@@ -12,7 +12,7 @@ export const meta = {
     { title: 'Waves' },
     { title: 'Integrate' },
     { title: 'Boundary' },
-    { title: 'Final review' },
+    { title: 'Resume' },
     { title: 'Ship' },
     { title: 'Remediate' },
   ],
@@ -2957,7 +2957,7 @@ async function runDivergenceProbes(manifest, mergedIds, mergedShas) {
     try {
       probe = await agent(
         divergenceProbePrompt(parentId, ref, builtSha, mergedSha, fileScope),
-        { agentType: 'implementer', schema: DIVERGENCE_PROBE_SCHEMA, label: `divergence-probe:${parentId}`, phase: 'Shepherd' }
+        { agentType: 'implementer', schema: DIVERGENCE_PROBE_SCHEMA, label: `divergence-probe:${parentId}`, phase: 'Resume' }
       );
     } catch (err) {
       probe = { paths: null, error: `divergence-probe threw: ${clean(err.message)}` };
@@ -2976,7 +2976,7 @@ async function runDivergenceProbes(manifest, mergedIds, mergedShas) {
 
 async function runReconcileOnlyAdvance(advance, ctx) {
   const { manifest, reconciledShippedMeta, sourcePrefix, baseBranch, repoRoot, logicalRunId, merged, newlyMergedIds, targetOwnerRepo, targetRepoHost } = ctx;
-  phase('Shepherd');
+  phase('Resume');
   const manifestMsps = manifest && Array.isArray(manifest.msps) ? manifest.msps : [];
   const shepherdMspById = new Map(manifestMsps.map((m) => [m.id, m]));
   const doneSet = new Set([...manifestMsps.filter((m) => m && typeof m.id === 'string' && m.status === 'shipped').map((m) => m.id), ...(Array.isArray(merged) ? merged : [])]);
@@ -3064,7 +3064,7 @@ async function runReconcileOnlyAdvance(advance, ctx) {
         `3. Re-stack this MSP's own commits and each still-unmerged parent's commits onto ${integrationBranch}, observe-then-converge (skip any tip already contained via \`git -C ${repoRoot} merge-base --is-ancestor\`). If any restack conflicts, abort it, set ready=false and conflict=true, and name the conflicting parent and files in detail.\n\n` +
         `If the branch restacked cleanly onto the advanced base, set ready=true and conflict=false. If a fetch or base move fails, set ready=false, conflict=false, and explain in detail.\n\n` +
         `Return ONLY: { ready: <bool>, conflict: <bool>, detail: "<what happened>" }.`,
-        { agentType: 'implementer', label: `shepherd-restack:${id}`, phase: 'Shepherd' }
+        { agentType: 'implementer', label: `shepherd-restack:${id}`, phase: 'Resume' }
       );
     } catch (err) {
       restack = { ready: false, conflict: false, detail: `shepherd-restack threw: ${clean(err.message)}` };
@@ -3103,7 +3103,7 @@ async function runReconcileOnlyAdvance(advance, ctx) {
         `4. Open ONE pull request by running EXACTLY this one command, substituting ONLY the digits for <N>: \`node ${LIB_DIR}/mitosis-git.mjs pr-create --repo ${repoSlug} --head ${integrationBranch} --base ${baseBranch} --title ${JSON.stringify(prTitleFor(msp))} --origin machine --provenance ${JSON.stringify(prProvenanceFor(`shepherd-open:${id}`, null))} --why ${JSON.stringify(msp.rationale)} --what ${JSON.stringify(msp.title)} --not-verified ${JSON.stringify(PR_NOT_VERIFIED_OPEN_CI)} --changed-lines <N>\`. ${PR_PLACEHOLDER_SENTENCE} ${prChangedLinesClause(repoRoot, baseBranch, integrationBranch)} That command performs the observe step itself and reuses an existing open PR on this head instead of opening a second, so issue no gh command of your own for this step. Exit 0 prints ONE JSON object carrying action ("created", "reused", or "reused-unverified" when an open PR already on this head was not composed by this tool) and url; on "reused-unverified" copy the wrapper stderr VERBATIM into detail so a human reads that PR. Exit 21 is AMBIGUOUS: the create call was reached and the wrapper could not confirm its outcome, so a pull request MAY exist — never report exit 21 as "nothing was opened", never retry it blind, and copy the wrapper stderr VERBATIM into detail so a human reads the repository. Every other non-zero exit means the create call was never reached and nothing was opened. Leave the PR OPEN for a human; perform no merge.\n\n` +
         `If the PR is open (or already existed), set opened=true and report its url. If any step fails, set opened=false and explain in detail.\n\n` +
         `Return ONLY: { opened: <bool>, prUrl: "<the pr url, or empty string if not opened>", detail: "<what happened>" }.`,
-        { agentType: 'implementer', label: `shepherd-open:${id}`, phase: 'Shepherd' }
+        { agentType: 'implementer', label: `shepherd-open:${id}`, phase: 'Resume' }
       );
     } catch (err) {
       opened = { opened: false, prUrl: '', detail: `shepherd-open threw: ${clean(err.message)}` };
