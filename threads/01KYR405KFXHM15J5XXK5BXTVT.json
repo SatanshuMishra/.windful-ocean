@@ -67,7 +67,8 @@
       "0133-0133-fund-step-1-sandbox-harness-before-step-3",
       "0134-0134-halt-fix-rounds-plan-both-tracks-against-one-invariant-set",
       "0135-two-track-invariant-plan-exists-halt-lifts",
-      "0136-defer-track-a-until-mitosis-msps-land"
+      "0136-defer-track-a-until-mitosis-msps-land",
+      "0137-every-hand-written-enumeration-in-the-plan-was-wrong"
     ],
     "out_of_scope": [
       "Pipelines for refactor, perf, docs or chore - closed by 0118. Limits PIPELINES only, not the PR title type vocabulary.",
@@ -82,5 +83,5 @@
     ]
   },
   "created_at": "2026-07-29T23:40:17.901Z",
-  "updated_at": "2026-07-30T23:48:28.767Z"
+  "updated_at": "2026-07-30T23:48:46.068Z"
 }
