@@ -35,21 +35,21 @@
   "closure_statement": null,
   "spine": {
     "status": "paused",
-    "active_goal": "Architecture settled and rebuild authorized (0111). Audit + design complete and approved (0113-0116). Nothing implemented. Now designing the gate-based review model: how a gate pass earns trust across projects with different test infrastructure.",
-    "next_step": "Answer delivered on gate trust (capability probe by EXECUTION not config-detection, a coverage manifest, differential gates, per-work-type floors, fail-closed on unmet floor, verify-setup as the human-gated bootstrap, honesty lines fed mechanically into pr-create). Await the user's decision on the five gate-design questions, then start landing-order step 0 (worktree reaper).",
+    "active_goal": "Rebuild authorized (0111); architecture, audits and designs settled and approved (0113-0118). Pipelines scoped to fix and feat ONLY. Nothing implemented. Remaining: teach the user the new engine and the pipeline feature, then execute the eight-entry landing order.",
+    "next_step": "FIRST IN THE FRESH SESSION, before ANY implementation, per user directive. Two teaching deliverables in order: (1) walk through the NEW engine's phases per 0115 (Probe, Decompose+Cut, Prep, Execute, Integrate+Gate, Ship) - what each does, HOW, with EXAMPLES - plus the five deleted phases; (2) THEN the PIPELINE feature for fix and feat only per 0118 - what it is, how it works, what INPUT each needs - using the 0117 gate model. Define every term; headings/tables; no large paragraphs. THEN STOP.",
     "open_risks": [
-      "Second-system effect remains the primary danger (0106); mitigation is 0110 fix-first with a machine-checkable oracle, NOT more reviewers.",
-      "12 leaked worktrees / 78 MB are a LIVE TRIPWIRE under step 4 restack (branch checked out blocks branch -f). hermetic-guard-test holds an UNCOMMITTED modified tracked file - needs a human call before anything touches it.",
-      "LSP-from-a-CLI-verb is UNPROBED (0116). Running it before the spec is the 0112 rule-3 obligation; skipping it repeats the 0103 mistake.",
-      "No timing or token data exists for the current 4,851-line engine. Every improvement claim needs a before-and-after replay of a real cluster set.",
-      "Relaunch trigger for end-and-relaunch still UNRESOLVED (0111), the last design gap in 0108.",
-      "A gate that cannot fail is worse than no gate (0112); 0107 already caught the suite certifying code that cannot run. Gate coverage must be declared, not assumed.",
+      "Second-system effect is the primary danger (0106); mitigation is 0110 fix-first plus 0118's two-work-type narrowing, NOT more reviewers.",
+      "12 leaked worktrees / 78 MB are a LIVE TRIPWIRE under step 4 restack (a checked-out branch blocks branch -f). hermetic-guard-test holds an UNCOMMITTED modified tracked file - human call needed first.",
+      "LSP-from-a-CLI-verb is UNPROBED (0116). Probe BEFORE the spec per 0112 rule 3, or repeat the 0103 mistake exactly.",
+      "No timing or token telemetry exists for the current 4,851-line engine. All 0114/0115 numbers are dispatch counts read from code, never measurements; the before-and-after replay is still owed.",
+      "record_decision DROPS the largest parameter on oversized payloads - keep decision outcomes under roughly 2500 characters.",
+      "Relaunch trigger for end-and-relaunch is still UNRESOLVED (0111), the last design gap in 0108.",
+      "A gate that cannot fail is worse than no gate (0112); 0107 caught the suite certifying code that cannot run. Coverage must be declared and failability-proven.",
       "Write guard holds all .claude/{hooks,rules,lib,workflows} edits for a human, so step 0 cannot proceed unattended.",
       "Six other paused mitosis threads still need explicit per-thread disposition from the user.",
-      "Dirty tree on feat/centralized-pr-creation: modified .drift-state.json, a test, mitosis.js; untracked .bak-pre-promptsfix-* twins and three specs."
+      "Dirty tree on feat/centralized-pr-creation: modified .drift-state.json, a test, mitosis.js; untracked .bak twins and three specs."
     ],
     "key_decisions": [
-      "0104-throughput-bound-is-merge-latency-not-fanout",
       "0106-architecture-verdict-rebuild-core-keep-fanout",
       "0107-workflow-sandbox-is-a-real-harness-limit-supersedes-0103",
       "0108-adopt-durable-execution-state-model-not-runtime",
@@ -65,14 +65,16 @@
       "0118-pipeline-work-types-limited-to-fix-and-feat"
     ],
     "out_of_scope": [
-      "Bootstrapping a project's test infrastructure as a side effect of shipping a spec - that is verify-setup, human-invoked, one-time.",
+      "Pipelines for refactor, perf, docs or chore - closed by 0118. Limits PIPELINES only, not the PR title type vocabulary.",
+      "Bootstrapping a project's test infrastructure as a side effect of shipping - closed by 0117; that is verify-setup, human-invoked.",
       "Adopting an off-the-shelf durable-execution runtime - closed by 0108.",
       "Global adaptive speculation windows / AIMD - closed by 0109.",
-      "fileScope-only task-edge derivation - partially rejected by 0116.",
+      "fileScope-only task-edge derivation - rejected by 0116 pending the LSP probe.",
+      "Starting landing-order step 0 or any implementation before the user has received AND responded to the two teaching deliverables.",
       "Executing the run-readiness-repair spec's 11 MSPs or quiescent-advance M0-M8, pending per-thread disposition.",
       "Dispatching or restarting any target-repo mitosis run."
     ]
   },
   "created_at": "2026-07-29T23:40:17.901Z",
-  "updated_at": "2026-07-30T05:47:24.247Z"
+  "updated_at": "2026-07-30T05:49:08.894Z"
 }
