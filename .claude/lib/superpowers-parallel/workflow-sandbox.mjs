@@ -1,4 +1,4 @@
-import { compileFunction, createContext, runInContext } from 'node:vm';
+import { compileFunction, constants, createContext, runInContext } from 'node:vm';
 
 export const SANDBOX_VIOLATION = Symbol.for('mitosis.workflow-sandbox.violation');
 
@@ -111,7 +111,7 @@ function guardedBinding(name, target, deniedMembers) {
 }
 
 function createSandboxContext() {
-  const context = createContext({});
+  const context = createContext(constants.DONT_CONTEXTIFY);
   const install = runInContext(CONTEXT_INSTALLER, context);
   const retained = retainedNames();
   const guarded = Object.keys(GUARDED_INTRINSICS)
