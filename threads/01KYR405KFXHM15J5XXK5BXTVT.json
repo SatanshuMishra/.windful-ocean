@@ -35,21 +35,23 @@
   "closure_statement": null,
   "spine": {
     "status": "paused",
-    "active_goal": "MSP-0 is MERGED to main as 12053dc (squash, so 3806be0 is not an ancestor - normal). That exhausts what step 6 can currently land; MSP-1 and every collapse MSP stay blocked on absent preconditions (0126). Next session opens with the hooksPath capture race (0131), then re-plans which precondition to fund.",
-    "next_step": "FIRST, before any precondition work, per 0131: fix the continuity plugin's hooksPath capture race - it can record its own managed dir as continuity.priorHooksPath, so the chain self-references and silently skips .githooks/pre-commit, the full npm gate. Healthy right now (prior=.githooks): latent, not broken. Close stale task_70509bf0; fold it into task_21df6527. Open sub-decision is fail-loud vs the bootstrap trap. THEN re-plan the precondition - step 1.5 cheapest, step 3 unblocks most.",
+    "active_goal": "Implementation HALTED on both tracks by user directive after five fix rounds each introduced a defect on a path its own finding list did not name (0134). Two branches carry real, tested, pushed progress and must NOT be reverted: Track A (fix/hooks-prior-path-self-heal @ 5bc19a4, 692/692) and Track B (feat/workflow-sandbox-harness @ e40a292, 1690/1690). Neither is landed; no PR on either. Next move is a planning pass, not code.",
+    "next_step": "START HERE IN A FRESH SESSION per user directive: dispatch a dedicated FABLE subagent to understand BOTH tracks and plan a solution so completing either does not regress the other. The plan must state per-track INVARIANTS, not a finding list, and check every step against all of them. Feed it this session's five reproduced escapes as test data - a plan that cannot explain why each would have been caught is not finished. NO CODE until the plan exists. See 0134.",
     "open_risks": [
-      "A false-clean gate is worse than no gate. MSP-0's first draft had three reproduced false-clean paths plus a tautological test asserting the guarantee it lacked (0130). Review every later gate MSP (6, 7, 8, 9) adversarially with reproduced probes - never on green tests alone.",
-      "NAMED RESIDUAL in the merged gate: a phase key built by concatenation (['pha'+'se']) reads clean, since no text gate sees it without constant folding. The literal ['phase'] form halts. Zero occurrences today.",
-      "parallel-plan-execution.js has the SAME defect MSP-0 fixed: it declares Final review, nothing uses it. The gate halts fail-closed (exit 42) there because that file delegates phase into run-engine.mjs - declaration and use in different files. Needs a CROSS-FILE gate mode, not another target path.",
-      "MSP-1 stays BLOCKED (0126) and cannot be unblocked inside step 6: .mitosis/run.json records no timestamp, dispatch count, wall-clock or phase entry. Step 3 owns the journal. All three section-14 performance claims stay UNMEASURED; 0115's falsifiers stay unpayable.",
-      "Four of five hard preconditions are NOT-LANDED, one PARTIAL. Collapse MSPs 2, 3, 4, 5, 8 and 11 rest on capability that does not exist - a defect in the plan as carried, not in the architecture.",
-      "Spec anchors are POISON: 0128 found every citation measured against a dirty tree of another branch, and MSP-0 confirmed it - all five anchors had moved. Re-derive against the live tree per MSP; never pass the spec's numbers to an implementer.",
-      "The spec OMITS required collateral edits. MSP-0 needed frontier-train-e2e.test.mjs:489 updated (it pinned the old Shepherd name) or the branch would be red. Grep for tests pinning any renamed string BEFORE dispatching a rename MSP.",
-      "Every write under .claude/{hooks,rules,lib,workflows} is held for per-write human approval, so implementers cannot be fanned out unattended. Plan interactive approval.",
-      "mirror-guard.test.mjs's twin array at :19 covers ONLY modules inlined verbatim inside mitosis.js; standalone CLI siblings are correctly absent. A new standalone lib module needs no dual edit - verified for mitosis-gate.mjs.",
-      "task_70509bf0 is RUNNING in a separate user-started session against a premise that no longer holds (it believes the pre-commit gate is dead; it self-healed). Close it rather than act on its output. 0131 folds its real residue into task_21df6527.",
-      "PARKED stash@{0}: uncommitted work belonging to feat/centralized-pr-creation (drift-state, no-self-merge-consent test, mitosis.js, 78 insertions). Not reviewed, not this thread's to commit. MUST be restored to that branch.",
-      "12 leaked worktrees / 78 MB remain live; 0126 found the reaper verb does not exist at all.",
+      "CENTRAL LESSON: an implementer given N findings fixes exactly N findings; the N+1th path stays invisible because no artifact says what the system must be true of as a whole. Five rounds proved it. Never dispatch another fix round scoped to a finding list.",
+      "Track A round 3 has NEVER BEEN REVIEWED. It deleted the content probe and refactored installer.mjs 426 -> 135 lines into four modules - a big refactor plus behaviour change in one range, the shape that hid the last two escapes. Unverified regardless of 692/692 green.",
+      "Track B BLOCKED on a reproduced CRITICAL: createContext({}) leaves a host-realm backing object, so nine bare identifiers (constructor, toString, valueOf, hasOwnProperty, isPrototypeOf, propertyIsEnumerable, toLocaleString, __defineGetter__, __lookupSetter__) bridge to the host.",
+      "Track B's host bridge defeats the Date, Math.random and globalThis denials WITHOUT THROWING, and its own suite asserts the one closed route and none of the nine open ones. Reviewer-verified fix: createContext(vm.constants.DONT_CONTEXTIFY).",
+      "A false-clean gate is worse than no gate, and this session produced FIVE of them in code written to prevent exactly that. Both artifacts under construction are themselves gates. Green tests have failed to catch a defect five times running - demand reproduced probes.",
+      "The deployed plugin cache is an UNVERSIONED HAND-PATCH (0132): installed_plugins.json records 0fe1c02, which lacks the guard, and the file mtime precedes commit 2e91b33 by three minutes. A plugin refresh silently reverts it, restoring a false-clean commit gate.",
+      "Track B's compileWorkflow passes dead-export-lint VACUOUSLY - zero real callers, kept alive only by its own TypeError message strings, since tests/ is excluded. Constants VALUE_GLOBALS and ALWAYS_DENIED survive being emptied - unkilled assertions.",
+      "Step 1.5 is NOT fundable in isolation - 0116 gates it behind Step 1, which is NOT-LANDED. Stop describing it as the cheapest next move.",
+      "MSP-1 stays BLOCKED (0126) until Step 3 lands; Step 3 is the correct SECOND precondition after Step 1. All three section-14 performance claims stay UNMEASURED and 0115's falsifiers unpayable.",
+      "Spec anchors are POISON (0128) - every citation was measured against a dirty tree of another branch. Re-derive against the live tree per MSP; never pass the spec's numbers to an implementer.",
+      "Every write under .claude/{hooks,rules,lib,workflows} needs per-write human approval - the guard matches lib wholesale, so tests/ is gated too. No unattended fan-out on Track B. Track A is a different repo and is NOT gated.",
+      "task_70509bf0 could NOT be withdrawn - the harness reports the user already started it, so the USER must stop it. Its premise is dead: it believes the pre-commit gate is dead; it self-healed.",
+      "PARKED stash@{0}: uncommitted work belonging to feat/centralized-pr-creation. Not this thread's to commit. MUST be restored to that branch. stash@{1} also parked.",
+      "12 leaked worktrees / 78 MB remain live; the reaper verb does not exist at all (Step 0).",
       "Six other paused mitosis threads still need explicit per-thread disposition."
     ],
     "key_decisions": [
@@ -76,5 +78,5 @@
     ]
   },
   "created_at": "2026-07-29T23:40:17.901Z",
-  "updated_at": "2026-07-30T19:57:38.290Z"
+  "updated_at": "2026-07-30T19:59:28.070Z"
 }
