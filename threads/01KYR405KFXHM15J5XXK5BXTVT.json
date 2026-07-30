@@ -59,7 +59,8 @@
       "0111-rebuild-authorized-and-polling-removal-in-scope",
       "0112-robustness-means-per-action-legitimate-value",
       "0113-worktree-cleanup-guaranteed-by-external-sessionstart-reaper",
-      "0114-hand-dispatch-is-the-speed-oracle-triple-re-exploration-is-the-cause"
+      "0114-hand-dispatch-is-the-speed-oracle-triple-re-exploration-is-the-cause",
+      "0115-collapse-to-three-delete-five-phases"
     ],
     "out_of_scope": [
       "Implementing landing-order step 1 before the user has received AND responded to the architecture breakdown.",
@@ -71,5 +72,5 @@
     ]
   },
   "created_at": "2026-07-29T23:40:17.901Z",
-  "updated_at": "2026-07-30T05:40:38.207Z"
+  "updated_at": "2026-07-30T05:41:04.241Z"
 }

@@ -1,0 +1,21 @@
+---
+Status: accepted
+Date: 2026-07-30T05:41:04.240Z
+Thread-Id: 01KYR405KFXHM15J5XXK5BXTVT
+---
+
+# 0115. Collapse-to-Three: delete five phases, emit task briefs from the decomposer, collapse deterministic work into typed verbs
+
+## Context
+
+0114 established an 8-round-trip runway, three discarded repo explorations, 100 dispatches per 6-MSP run of which 45 are deterministic work in prose, and one phase that auto-approves by construction. The user's overriding directive for the remedy, marked CRITICAL: Simple + Robust is strongly preferred to Complex + Multi-layered + Fragile, and deleting a phase beats optimizing it.
+
+## Options
+
+- Optimize each phase in place - cache the exploration, tier down models, shrink prompts
+- Collapse run setup and the per-MSP preamble by deleting phases outright
+- Keep the phase set and only flip the streaming scheduler
+
+## Outcome
+
+COLLAPSE-TO-THREE, APPROVED. Five phases deleted, none added. DELETIONS with what is lost: PLAN as a default (lost: per-MSP plan documents; acceptable because decomposer task briefs plus the spec pointer carry intent and implementers self-plan their slice, which the hand-dispatch baseline proved sufficient) - survives ONLY as a needsPlan escalation the decomposer flags for an MSP it cannot confidently cut. PLAN-REVIEW unconditionally: it auto-approves by construction (:889-899) so it cannot reliably change an outcome; its useful residue, "this slice is mis-cut, stop", already lives in the ground-truth seed stop rule (:904) and moves into the implementer brief. PARALLELIZE as a dispatch: edges derived in-engine where pathsOverlap/scopesOverlap already live (:49-64); this also kills the tens-of-KB payload transport (:4420) and the echo-then-overwrite of authoritative constants (:4478-4487). BRANCH for root MSPs: the implementer worktree-add already branches (:1018-1019); a frontier-only unit-prep verb remains. BOUNDARY as a standalone stochastic dispatch: becomes a deterministic gate-lint verb inside Integrate, since the prompt logic at :1206-1228 is already fully mechanical (multiset identity diff plus config-strictness diff). Plus the already-inert Final review title (:15). Reconcile and Prepare MERGE into one run-probe verb; checkpoint-init becomes fire-and-forget off the critical path. THE EXPLORATION FIX: collapse decompose and plan into ONE dispatch - the decomposer already holds the whole repo picture when it derives fileScopes, so cutting each MSP into task briefs (title, 2-5 sentence brief, acceptance criterion, per-task fileScope, spec-section pointer) adds OUTPUT, not exploration. NUMBERS: time to first code 8 -> 3 round-trips (probe, decompose+cut, implementers), or 2 under an explicit fresh flag running probe and decompose in parallel; census 100 -> 57 (3 fixed + 6 x 9, where 9 = 3 implementers + 3 reviews + 2 integrate + 1 ship); free-prose git transcription 45 -> 0. SEVEN NEW VERBS, each a transcription of a prose recipe the engine already dictates verbatim and therefore not new logic: run-probe, journal-append, unit-prep, integrate, gate-lint, publish, ci-watch, plus folding checkpoint-push into a verb. REVIEW ECONOMICS under 0112: fix-type spec conformance moves to the receipt gate; lint/type/suppressions to gate-lint; design quality keeps ONE review per task at the policy tier (sonnet default, opus by blast radius) instead of opus on every task; the fix-loop re-review reads the FIX DELTA plus the open issue list rather than re-reading the whole diff (:1074); the conditional security lens is KEPT as the one genuinely different lens. DO NOT REGRESS: fail-closed halting (:3663-3666, :3848-3851, :944-968), the built/awaiting/done frontier (:4610-4616), worktree isolation with file-scope leases, per-MSP PRs via pr-create, and the ship read-back (:4618-4638) which fires only on a merged=true claim and is the cheap anti-fabrication check. FALSIFIERS, all needing a before-and-after replay of a real cluster set since no current-engine timing data exists: fails if spec-start to first implementer commit exceeds the hand-dispatch baseline, if dispatches per shipped MSP exceed ~10 on a zero-failure run, or if tokens per shipped MSP do not drop by the share the deleted phases represent.
