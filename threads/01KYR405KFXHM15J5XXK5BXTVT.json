@@ -72,12 +72,13 @@
       "Bootstrapping a project's test infrastructure as a side effect of shipping - closed by 0117; that is verify-setup, human-invoked.",
       "Adopting an off-the-shelf durable-execution runtime - closed by 0108.",
       "Global adaptive speculation windows / AIMD - closed by 0109.",
-      "fileScope-only task-edge derivation - rejected by 0116 pending the LSP probe.",
-      "Starting landing-order step 0 or any implementation before the user has received AND responded to the two teaching deliverables.",
+      "fileScope-only task-edge derivation - rejected outright by 0116 and now settled by 0120: edges derive from a deterministic verb driving LSP over a seeded project.",
+      "ANY implementation, including landing-order step 0, before the step-6 spec is written - explicit user directive on 2026-07-30. The teaching-deliverable gate that preceded it is satisfied and retired.",
+      "An off-the-shelf runtime, a webhook, or a daemon for the relaunch trigger - closed by 0119; the trigger is the human merge action read at SessionStart.",
       "Executing the run-readiness-repair spec's 11 MSPs or quiescent-advance M0-M8, pending per-thread disposition.",
       "Dispatching or restarting any target-repo mitosis run."
     ]
   },
   "created_at": "2026-07-29T23:40:17.901Z",
-  "updated_at": "2026-07-30T06:15:31.024Z"
+  "updated_at": "2026-07-30T06:15:44.918Z"
 }
