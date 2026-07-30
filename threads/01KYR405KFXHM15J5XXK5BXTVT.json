@@ -70,7 +70,8 @@
       "0122-phase-parity-covers-a-third-surface-opts-phase",
       "0123-edges-verb-runs-inside-decompose-so-the-census-is-preserved",
       "0124-resume-envelope-cap-derived-at-16kb-with-a-failable-fallback",
-      "0125-baseline-census-lands-before-the-collapse"
+      "0125-baseline-census-lands-before-the-collapse",
+      "0126-preconditions-audited-by-execution-msp1-blocked"
     ],
     "out_of_scope": [
       "Pipelines for refactor, perf, docs or chore - closed by 0118. Limits PIPELINES only, not the PR title type vocabulary.",
@@ -84,5 +85,5 @@
     ]
   },
   "created_at": "2026-07-29T23:40:17.901Z",
-  "updated_at": "2026-07-30T06:39:58.755Z"
+  "updated_at": "2026-07-30T07:01:19.098Z"
 }
