@@ -1,13 +1,16 @@
-import { compileFunction, createContext } from 'node:vm';
+import { compileFunction, createContext, runInContext } from 'node:vm';
 
 export const SANDBOX_VIOLATION = Symbol.for('mitosis.workflow-sandbox.violation');
 
+const RUNTIME_ABSENT = 'the Workflow runtime does not provide it';
+
 export class SandboxViolationError extends Error {
-  constructor(deniedName, operation) {
-    super(`workflow sandbox violation: ${operation} of "${deniedName}" — the Workflow runtime does not provide it`);
+  constructor(deniedName, operation, reason = RUNTIME_ABSENT) {
+    super(`workflow sandbox violation: ${operation} on "${deniedName}" — ${reason}`);
     this.name = 'SandboxViolationError';
     this.deniedName = deniedName;
     this.operation = operation;
+    this.reason = reason;
     this[SANDBOX_VIOLATION] = true;
   }
 }
@@ -17,44 +20,92 @@ export const ALLOWED_GLOBALS = Object.freeze([
   'String', 'Boolean', 'Promise', 'TypeError', 'RangeError', 'RegExp', 'Symbol',
 ]);
 
+export const VALUE_GLOBALS = Object.freeze(['undefined', 'NaN', 'Infinity']);
+
 export const HOOK_NAMES = Object.freeze(['args', 'agent', 'parallel', 'pipeline', 'log', 'phase', 'workflow']);
 
 const GUARDED_INTRINSICS = Object.freeze({ Math: Object.freeze(['random']) });
 
-const IDENTIFIER = /^[A-Za-z_$][A-Za-z0-9_$]*$/;
+const BOUND_DENIALS = Object.freeze({
+  Date: Object.freeze({ callable: true }),
+  globalThis: Object.freeze({ callable: false }),
+});
 
 const DYNAMIC_IMPORT_CODE = 'ERR_VM_DYNAMIC_IMPORT_CALLBACK_MISSING';
 
-function derivedDenyList() {
-  const exempt = new Set([...ALLOWED_GLOBALS, ...HOOK_NAMES]);
-  return Object.freeze(
-    Object.getOwnPropertyNames(globalThis)
-      .filter((name) => IDENTIFIER.test(name) && !exempt.has(name))
-      .sort(),
-  );
+const CONTEXT_INSTALLER = `(retained, bindings) => {
+  const globals = globalThis;
+  const own = Object.getOwnPropertyNames;
+  const describe = Object.getOwnPropertyDescriptor;
+  const define = Object.defineProperty;
+  const names = own(globals);
+  for (let i = 0; i < names.length; i += 1) {
+    const name = names[i];
+    if (retained.indexOf(name) >= 0) continue;
+    const descriptor = describe(globals, name);
+    if (descriptor && descriptor.configurable) delete globals[name];
+  }
+  for (let i = 0; i < bindings.length; i += 1) {
+    define(globals, bindings[i][0], { value: bindings[i][1], writable: false, enumerable: false, configurable: false });
+  }
+}`;
+
+function retainedNames() {
+  return [...ALLOWED_GLOBALS, ...VALUE_GLOBALS];
 }
 
 function denyBinding(name) {
   const raise = (operation) => { throw new SandboxViolationError(name, operation); };
-  return new Proxy(function denied() {}, {
+  return new Proxy(BOUND_DENIALS[name].callable ? function denied() {} : {}, {
     get: (_target, property) => raise(`read of .${String(property)}`),
     set: (_target, property) => raise(`assignment to .${String(property)}`),
     deleteProperty: (_target, property) => raise(`deletion of .${String(property)}`),
+    defineProperty: (_target, property) => raise(`definition of .${String(property)}`),
+    getOwnPropertyDescriptor: (_target, property) => raise(`descriptor read of .${String(property)}`),
     has: () => raise('membership test'),
+    ownKeys: () => raise('key enumeration'),
+    getPrototypeOf: () => raise('prototype read'),
+    setPrototypeOf: () => raise('prototype assignment'),
+    isExtensible: () => raise('extensibility probe'),
+    preventExtensions: () => raise('extension lock'),
     apply: () => raise('call'),
     construct: () => raise('construction'),
   });
 }
 
-function guardedBinding(name, deniedMembers) {
+function guardedBinding(name, target, deniedMembers) {
   const denied = new Set(deniedMembers);
-  return new Proxy(globalThis[name], {
-    get: (target, property, receiver) => {
-      if (denied.has(property)) throw new SandboxViolationError(`${name}.${String(property)}`, 'read');
-      return Reflect.get(target, property, receiver);
+  const guard = (property, operation) => {
+    if (!denied.has(property)) return;
+    throw new SandboxViolationError(`${name}.${String(property)}`, operation);
+  };
+  const reject = (property, operation) => {
+    throw new SandboxViolationError(`${name}.${String(property)}`, operation, 'the sandbox binds it read-only');
+  };
+  return new Proxy(target, {
+    get: (subject, property, receiver) => { guard(property, 'read'); return Reflect.get(subject, property, receiver); },
+    has: (subject, property) => { guard(property, 'membership test'); return Reflect.has(subject, property); },
+    getOwnPropertyDescriptor: (subject, property) => {
+      guard(property, 'descriptor read');
+      return Reflect.getOwnPropertyDescriptor(subject, property);
     },
-    set: (_target, property) => { throw new SandboxViolationError(`${name}.${String(property)}`, 'assignment to'); },
+    ownKeys: (subject) => Reflect.ownKeys(subject).filter((key) => !denied.has(key)),
+    set: (_subject, property) => reject(property, 'assignment to'),
+    defineProperty: (_subject, property) => reject(property, 'definition of'),
+    deleteProperty: (_subject, property) => reject(property, 'deletion of'),
   });
+}
+
+function createSandboxContext() {
+  const context = createContext({});
+  const install = runInContext(CONTEXT_INSTALLER, context);
+  const retained = retainedNames();
+  const guarded = Object.keys(GUARDED_INTRINSICS)
+    .filter((name) => retained.includes(name))
+    .map((name) => [name, guardedBinding(name, runInContext(name, context), GUARDED_INTRINSICS[name])]);
+  const denied = Object.keys(BOUND_DENIALS).map((name) => [name, denyBinding(name)]);
+  install(retained, [...guarded, ...denied]);
+  return context;
 }
 
 function notStubbed(hookName) {
@@ -122,37 +173,27 @@ function validateHooks(hooks) {
   return { ...createHookStubs().hooks, ...hooks };
 }
 
-function bindings(hooks) {
-  const guarded = Object.keys(GUARDED_INTRINSICS);
-  const denied = derivedDenyList();
-  const names = [...HOOK_NAMES, ...guarded, ...denied];
-  const afterArgs = [
-    ...HOOK_NAMES.slice(1).map((name) => hooks[name]),
-    ...guarded.map((name) => guardedBinding(name, GUARDED_INTRINSICS[name])),
-    ...denied.map((name) => denyBinding(name)),
-  ];
-  return { names, afterArgs, denied };
-}
-
-export function compileWorkflow(source, hooks = {}) {
-  validateSource(source);
-  const { names, afterArgs } = bindings(validateHooks(hooks));
-  let compiled;
+function compileInSandbox(source) {
   try {
-    compiled = compileFunction(`return (async () => {\n${source}\n})();`, names, {
+    return compileFunction(`return (async () => {\n${source}\n})();`, [...HOOK_NAMES], {
       filename: 'workflow-sandbox-compiled.js',
-      parsingContext: createContext({}),
+      parsingContext: createSandboxContext(),
     });
   } catch (error) {
     throw new Error(`workflow source failed to compile in the sandbox: ${error.message}`, { cause: error });
   }
+}
+
+export function compileWorkflow(source, hooks = {}) {
+  validateSource(source);
+  const resolved = validateHooks(hooks);
+  const compiled = compileInSandbox(source);
+  const bound = HOOK_NAMES.slice(1).map((name) => resolved[name]);
   return async function invokeWorkflow(args) {
     try {
-      return await compiled(args, ...afterArgs);
+      return await compiled(args, ...bound);
     } catch (error) {
-      if (error && error.code === DYNAMIC_IMPORT_CODE) {
-        throw new SandboxViolationError('import', 'dynamic import()');
-      }
+      if (error && error.code === DYNAMIC_IMPORT_CODE) throw new SandboxViolationError('import', 'dynamic import()');
       throw error;
     }
   };
