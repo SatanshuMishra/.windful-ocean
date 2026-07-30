@@ -72,7 +72,8 @@
       "0124-resume-envelope-cap-derived-at-16kb-with-a-failable-fallback",
       "0125-baseline-census-lands-before-the-collapse",
       "0126-preconditions-audited-by-execution-msp1-blocked",
-      "0127-msp0-falsifier-survives-with-two-extractor-rules"
+      "0127-msp0-falsifier-survives-with-two-extractor-rules",
+      "0128-spec-line-citations-measured-against-the-wrong-base"
     ],
     "out_of_scope": [
       "Pipelines for refactor, perf, docs or chore - closed by 0118. Limits PIPELINES only, not the PR title type vocabulary.",
@@ -86,5 +87,5 @@
     ]
   },
   "created_at": "2026-07-29T23:40:17.901Z",
-  "updated_at": "2026-07-30T07:01:35.881Z"
+  "updated_at": "2026-07-30T07:01:53.617Z"
 }
