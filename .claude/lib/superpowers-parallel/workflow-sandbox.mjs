@@ -24,6 +24,13 @@ export const VALUE_GLOBALS = Object.freeze(['undefined', 'NaN', 'Infinity']);
 
 export const ALWAYS_DENIED = Object.freeze([
   'require', 'module', 'exports', '__dirname', '__filename', 'process', 'console', 'eval', 'Function',
+  'AggregateError', 'ArrayBuffer', 'AsyncDisposableStack', 'Atomics', 'BigInt', 'BigInt64Array',
+  'BigUint64Array', 'DataView', 'DisposableStack', 'EvalError', 'FinalizationRegistry', 'Float16Array',
+  'Float32Array', 'Float64Array', 'Int16Array', 'Int32Array', 'Int8Array', 'Intl', 'Iterator', 'Proxy',
+  'ReferenceError', 'Reflect', 'SharedArrayBuffer', 'SuppressedError', 'SyntaxError', 'URIError',
+  'Uint16Array', 'Uint32Array', 'Uint8Array', 'Uint8ClampedArray', 'WeakMap', 'WeakRef', 'WeakSet',
+  'WebAssembly', 'decodeURI', 'decodeURIComponent', 'encodeURI', 'encodeURIComponent', 'escape', 'isFinite',
+  'isNaN', 'parseFloat', 'parseInt', 'unescape',
 ]);
 
 export const HOOK_NAMES = Object.freeze(['args', 'agent', 'parallel', 'pipeline', 'log', 'phase', 'workflow']);
@@ -45,26 +52,68 @@ const BOUND_DENIALS = Object.freeze({
 
 const DYNAMIC_IMPORT_CODE = 'ERR_VM_DYNAMIC_IMPORT_CALLBACK_MISSING';
 
-const CONTEXT_INSTALLER = `(retained, bindings) => {
+const CONTEXT_INSTALLER = `(pruned, bindings) => {
   const globals = globalThis;
-  const own = Object.getOwnPropertyNames;
   const describe = Object.getOwnPropertyDescriptor;
   const define = Object.defineProperty;
-  const names = own(globals);
-  for (let i = 0; i < names.length; i += 1) {
-    const name = names[i];
-    if (retained.indexOf(name) >= 0) continue;
-    const descriptor = describe(globals, name);
-    if (descriptor && descriptor.configurable) delete globals[name];
+  let survived = [];
+  for (let i = 0; i < pruned.length; i += 1) {
+    delete globals[pruned[i]];
+    if (describe(globals, pruned[i])) survived = [...survived, pruned[i]];
   }
   for (let i = 0; i < bindings.length; i += 1) {
     define(globals, bindings[i][0], { value: bindings[i][1], writable: false, enumerable: false, configurable: false });
   }
+  return survived.join(', ');
 }`;
 
+const POLICY_LISTS = 'ALLOWED_GLOBALS, VALUE_GLOBALS, ALWAYS_DENIED or BOUND_DENIALS';
+
+function policyFailure(problem, names) {
+  return new Error(`workflow sandbox policy: ${problem}: ${names.join(', ')}`);
+}
+
 function retainedNames() {
-  const banned = new Set(ALWAYS_DENIED);
-  return [...ALLOWED_GLOBALS, ...VALUE_GLOBALS].filter((name) => !banned.has(name));
+  return [...ALLOWED_GLOBALS, ...VALUE_GLOBALS];
+}
+
+function boundNames() {
+  return Object.keys(BOUND_DENIALS);
+}
+
+function assertPolicyListsAgree() {
+  const denied = new Set(ALWAYS_DENIED);
+  const bound = new Set(boundNames());
+  const claimedTwice = [
+    ...retainedNames().filter((name) => denied.has(name) || bound.has(name)),
+    ...boundNames().filter((name) => denied.has(name)),
+  ];
+  if (claimedTwice.length > 0) {
+    throw policyFailure('names claimed by more than one policy list', [...new Set(claimedTwice)]);
+  }
+  const retained = new Set(retainedNames());
+  const unretainedGuards = Object.keys(GUARDED_INTRINSICS).filter((name) => !retained.has(name));
+  if (unretainedGuards.length > 0) {
+    throw policyFailure('guarded intrinsics missing from the retained lists', unretainedGuards);
+  }
+}
+
+function prunePlan(realmNames) {
+  assertPolicyListsAgree();
+  const present = new Set(realmNames);
+  const declared = [...retainedNames(), ...boundNames()];
+  const absent = declared.filter((name) => !present.has(name));
+  if (absent.length > 0) {
+    throw policyFailure('retained and bound names the realm global does not carry', absent);
+  }
+  const retained = new Set(retainedNames());
+  const bound = new Set(boundNames());
+  const denied = new Set(ALWAYS_DENIED);
+  const unclassified = realmNames.filter((name) => !retained.has(name) && !bound.has(name) && !denied.has(name));
+  if (unclassified.length > 0) {
+    throw policyFailure(`the realm global carries names no policy list classifies, so classify each in ${POLICY_LISTS}`, unclassified);
+  }
+  return realmNames.filter((name) => denied.has(name) || bound.has(name));
 }
 
 function denyBinding(name, { callable, reason }) {
@@ -86,15 +135,14 @@ function denyBinding(name, { callable, reason }) {
   });
 }
 
+const INTEGRITY_LOCK_REASON = 'the sandbox hides denied members from key enumeration, which an integrity lock cannot preserve';
+
 function guardedBinding(name, target, deniedMembers) {
   const denied = new Set(deniedMembers);
   const guard = (property, operation) => {
     if (!denied.has(property)) return;
     const member = `${name}.${String(property)}`;
     throw new SandboxViolationError(member, operation, DETERMINISM_POLICY[member] ?? RUNTIME_ABSENT);
-  };
-  const reject = (property, operation) => {
-    throw new SandboxViolationError(`${name}.${String(property)}`, operation, 'the sandbox binds it read-only');
   };
   return new Proxy(target, {
     get: (subject, property, receiver) => { guard(property, 'read'); return Reflect.get(subject, property, receiver); },
@@ -104,21 +152,33 @@ function guardedBinding(name, target, deniedMembers) {
       return Reflect.getOwnPropertyDescriptor(subject, property);
     },
     ownKeys: (subject) => Reflect.ownKeys(subject).filter((key) => !denied.has(key)),
-    set: (_subject, property) => reject(property, 'assignment to'),
-    defineProperty: (_subject, property) => reject(property, 'definition of'),
-    deleteProperty: (_subject, property) => reject(property, 'deletion of'),
+    set: (subject, property, value, receiver) => {
+      guard(property, 'assignment to');
+      return Reflect.set(subject, property, value, receiver);
+    },
+    defineProperty: (subject, property, descriptor) => {
+      guard(property, 'definition of');
+      return Reflect.defineProperty(subject, property, descriptor);
+    },
+    deleteProperty: (subject, property) => {
+      guard(property, 'deletion of');
+      return Reflect.deleteProperty(subject, property);
+    },
+    preventExtensions: () => {
+      throw new SandboxViolationError(name, 'extension lock', INTEGRITY_LOCK_REASON);
+    },
   });
 }
 
 function createSandboxContext() {
   const context = createContext(constants.DONT_CONTEXTIFY);
   const install = runInContext(CONTEXT_INSTALLER, context);
-  const retained = retainedNames();
+  const pruned = prunePlan([...runInContext('Object.getOwnPropertyNames(globalThis)', context)]);
   const guarded = Object.keys(GUARDED_INTRINSICS)
-    .filter((name) => retained.includes(name))
     .map((name) => [name, guardedBinding(name, runInContext(name, context), GUARDED_INTRINSICS[name])]);
-  const denied = Object.keys(BOUND_DENIALS).map((name) => [name, denyBinding(name, BOUND_DENIALS[name])]);
-  install(retained, [...guarded, ...denied]);
+  const denied = boundNames().map((name) => [name, denyBinding(name, BOUND_DENIALS[name])]);
+  const survived = install(pruned, [...guarded, ...denied]);
+  if (survived !== '') throw policyFailure('denied names that survived the prune', survived.split(', '));
   return context;
 }
 
@@ -186,10 +246,11 @@ function validateSource(source) {
 }
 
 function compileInSandbox(source) {
+  const parsingContext = createSandboxContext();
   try {
     return compileFunction(`return (async () => {\n${source}\n})();`, [...HOOK_NAMES], {
       filename: 'workflow-sandbox-compiled.js',
-      parsingContext: createSandboxContext(),
+      parsingContext,
     });
   } catch (error) {
     throw new Error(`workflow source failed to compile in the sandbox: ${error.message}`, { cause: error });
