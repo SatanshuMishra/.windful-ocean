@@ -35,19 +35,20 @@
   "closure_statement": null,
   "spine": {
     "status": "paused",
-    "active_goal": "Settle the mitosis engine ARCHITECTURE before any code is written. Audit and research are complete; what remains is one empirical test, then the user's call on three design decisions.",
-    "next_step": "START HERE, before any design talk: settle decision 0103's open half. Prove whether node:child_process EXECUTES inside a Workflow script or merely resolves — throwaway Workflow script, dynamic import, run a trivial command, read the result. ~30 seconds, and it gates the entire rebuild premise. Then put the three open decisions to the user: durable-execution runtime vs its state model only; default speculation depth; which work-type pipeline first. Do NOT implement — no rebuild is approved.",
+    "active_goal": "Architecture is SETTLED and the rebuild is AUTHORIZED (0111). Nothing implemented. Remaining: teach the user the complete picture, then execute the six-step landing order fixed by 0112.",
+    "next_step": "FIRST TASK, before ANY implementation: a CLEAR breakdown of the complete new architecture and scope for MINIMAL domain understanding - define every term, small organized text (headings/lists/tables), NO large paragraphs, complete picture not a summary. Cover 0107 sandbox pinch, 0106's four layers, 0108 state model, 0109 depth, 0110 fix-first, 0111 polling/end-and-relaunch, 0112 robustness, and the six-step landing order. THEN STOP for the user's reply; do not start step 1.",
     "open_risks": [
-      "Second-system effect is the primary danger: the correct-feature list is long, and attempting it at once repeats this engine's original sin of ambition outrunning verification.",
-      "The bottleneck does not move (0104). Wall-clock barely improves; the wins are token cost and crash-loss. Reset expectations BEFORE seeking approval.",
-      "Regression risk on the two things the engine got right: fail-closed halting, and the built/awaiting/done speculation states (0106).",
-      "Determinism is a discipline. Replay bugs in a durable orchestrator are subtler than anything currently in the engine.",
-      "Six other paused mitosis threads target REPAIRING this engine. A rebuild makes several moot; they need explicit disposition, not silent abandonment.",
-      "The running engine is a DIRTY FEATURE BRANCH: ~/.claude symlinks into this repo, four divergent states. Any experiment changes what executes.",
-      "The write guard holds every Edit/Write under .claude/{hooks,rules,lib,workflows} for a human, so unattended fan-out on the engine itself is impossible."
+      "Second-system effect is still the primary danger (0106). Mitigation is 0110's narrow fix-first slice with a machine-checkable oracle, NOT more reviewers.",
+      "Wall-clock will barely improve (0104); wins are token cost, crash-loss, twinning tax. Expectations were reset this session and must not drift back.",
+      "Determinism is a discipline; replay bugs are subtle (0106). Known trap: 0108 requires the prompt-text hash in the journal key.",
+      "Regression risk on what the engine got right: fail-closed halting, and built/awaiting/done. 0112 cuts redundancy, never floors.",
+      "LEDGER SPLIT defect: 0103-0106 in the session-continuity-continuity-ledger store, 0107-0112 in session-continuity-inline. A read against the wrong store loses half the architecture record.",
+      "Six other paused mitosis threads are now UNBLOCKED and need explicit PER-THREAD disposition by the user. Likely superseded, but the user's call, not the agent's.",
+      "Write guard holds all .claude/{hooks,rules,lib,workflows} edits for a human, so landing-order step 1 cannot proceed unattended.",
+      "Relaunch trigger for end-and-relaunch is UNRESOLVED (0111), the last design gap in 0108. Candidates: the human's merge action, or a cheap scheduled deterministic check. Webhook excluded.",
+      "Dirty tree on feat/centralized-pr-creation: modified .drift-state.json, a test, mitosis.js; untracked .bak-pre-promptsfix-* twins and three specs incl. the vindicated run-readiness-repair spec."
     ],
     "key_decisions": [
-      "0103-engine-sandbox-constraint-is-self-imposed",
       "0104-throughput-bound-is-merge-latency-not-fanout",
       "0105-build-ahead-prior-art-is-stacked-diffs-not-zuul",
       "0106-architecture-verdict-rebuild-core-keep-fanout",
@@ -59,12 +60,14 @@
       "0112-robustness-means-per-action-legitimate-value"
     ],
     "out_of_scope": [
-      "Implementing any rebuild before the user approves one.",
-      "Executing the run-readiness-repair spec's 11 MSPs or quiescent-advance M0-M8. Valid repair work, on hold pending the rebuild decision, NOT cancelled.",
+      "Implementing landing-order step 1 before the user has received AND responded to the architecture breakdown.",
+      "Adopting an off-the-shelf durable-execution runtime - closed by 0108.",
+      "Global adaptive speculation windows / AIMD - closed by 0109.",
+      "Executing the run-readiness-repair spec's 11 MSPs or quiescent-advance M0-M8, pending per-thread disposition.",
       "Dispatching or restarting any target-repo mitosis run.",
-      "Editing the current engine, its twins, or its prompts."
+      "Editing the current engine, its twins, or its prompts outside the authorized landing order."
     ]
   },
   "created_at": "2026-07-29T23:40:17.901Z",
-  "updated_at": "2026-07-30T04:39:38.582Z"
+  "updated_at": "2026-07-30T04:47:05.543Z"
 }
