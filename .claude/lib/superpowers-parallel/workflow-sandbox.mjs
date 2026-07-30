@@ -22,13 +22,25 @@ export const ALLOWED_GLOBALS = Object.freeze([
 
 export const VALUE_GLOBALS = Object.freeze(['undefined', 'NaN', 'Infinity']);
 
+export const ALWAYS_DENIED = Object.freeze([
+  'require', 'module', 'exports', '__dirname', '__filename', 'process', 'console', 'eval', 'Function',
+]);
+
 export const HOOK_NAMES = Object.freeze(['args', 'agent', 'parallel', 'pipeline', 'log', 'phase', 'workflow']);
+
+export const DETERMINISM_POLICY = Object.freeze({
+  Date: 'policy, not a sandbox defect: the determinism contract bans every wall-clock and timezone read, and the engine is Date-free, so the whole constructor is denied — including new Date(isoString)',
+  'Math.random': 'policy, not a sandbox defect: the determinism contract requires identical output for identical input',
+});
 
 const GUARDED_INTRINSICS = Object.freeze({ Math: Object.freeze(['random']) });
 
 const BOUND_DENIALS = Object.freeze({
-  Date: Object.freeze({ callable: true }),
-  globalThis: Object.freeze({ callable: false }),
+  Date: Object.freeze({ callable: true, reason: DETERMINISM_POLICY.Date }),
+  globalThis: Object.freeze({
+    callable: false,
+    reason: 'the global object is a capability gateway; reach a capability through an injected hook instead',
+  }),
 });
 
 const DYNAMIC_IMPORT_CODE = 'ERR_VM_DYNAMIC_IMPORT_CALLBACK_MISSING';
@@ -51,12 +63,13 @@ const CONTEXT_INSTALLER = `(retained, bindings) => {
 }`;
 
 function retainedNames() {
-  return [...ALLOWED_GLOBALS, ...VALUE_GLOBALS];
+  const banned = new Set(ALWAYS_DENIED);
+  return [...ALLOWED_GLOBALS, ...VALUE_GLOBALS].filter((name) => !banned.has(name));
 }
 
-function denyBinding(name) {
-  const raise = (operation) => { throw new SandboxViolationError(name, operation); };
-  return new Proxy(BOUND_DENIALS[name].callable ? function denied() {} : {}, {
+function denyBinding(name, { callable, reason }) {
+  const raise = (operation) => { throw new SandboxViolationError(name, operation, reason); };
+  return new Proxy(callable ? function denied() {} : {}, {
     get: (_target, property) => raise(`read of .${String(property)}`),
     set: (_target, property) => raise(`assignment to .${String(property)}`),
     deleteProperty: (_target, property) => raise(`deletion of .${String(property)}`),
@@ -77,7 +90,8 @@ function guardedBinding(name, target, deniedMembers) {
   const denied = new Set(deniedMembers);
   const guard = (property, operation) => {
     if (!denied.has(property)) return;
-    throw new SandboxViolationError(`${name}.${String(property)}`, operation);
+    const member = `${name}.${String(property)}`;
+    throw new SandboxViolationError(member, operation, DETERMINISM_POLICY[member] ?? RUNTIME_ABSENT);
   };
   const reject = (property, operation) => {
     throw new SandboxViolationError(`${name}.${String(property)}`, operation, 'the sandbox binds it read-only');
@@ -103,7 +117,7 @@ function createSandboxContext() {
   const guarded = Object.keys(GUARDED_INTRINSICS)
     .filter((name) => retained.includes(name))
     .map((name) => [name, guardedBinding(name, runInContext(name, context), GUARDED_INTRINSICS[name])]);
-  const denied = Object.keys(BOUND_DENIALS).map((name) => [name, denyBinding(name)]);
+  const denied = Object.keys(BOUND_DENIALS).map((name) => [name, denyBinding(name, BOUND_DENIALS[name])]);
   install(retained, [...guarded, ...denied]);
   return context;
 }
@@ -128,10 +142,24 @@ function runParallel(record) {
   };
 }
 
-export function createHookStubs(overrides = {}) {
-  if (overrides === null || typeof overrides !== 'object') {
-    throw new TypeError(`createHookStubs expects an object of overrides, received ${overrides === null ? 'null' : typeof overrides}`);
+function validateHookMap(candidate) {
+  if (candidate === null || typeof candidate !== 'object') {
+    throw new TypeError(`workflow hooks must be an object, received ${candidate === null ? 'null' : typeof candidate}`);
   }
+  const injectable = HOOK_NAMES.filter((name) => name !== 'args');
+  for (const name of Object.keys(candidate)) {
+    if (!injectable.includes(name)) {
+      throw new TypeError(`workflow hooks received an unknown hook "${name}"; known hooks are ${injectable.join(', ')}`);
+    }
+    if (typeof candidate[name] !== 'function') {
+      throw new TypeError(`workflow hooks expect hook "${name}" to be a function, received ${typeof candidate[name]}`);
+    }
+  }
+  return candidate;
+}
+
+export function createHookStubs(overrides = {}) {
+  validateHookMap(overrides);
   let log = [];
   let phases = [];
   let parallelBatches = [];
@@ -157,22 +185,6 @@ function validateSource(source) {
   }
 }
 
-function validateHooks(hooks) {
-  if (hooks === null || typeof hooks !== 'object') {
-    throw new TypeError(`compileWorkflow expects a hooks object, received ${hooks === null ? 'null' : typeof hooks}`);
-  }
-  const injectable = new Set(HOOK_NAMES.filter((name) => name !== 'args'));
-  for (const name of Object.keys(hooks)) {
-    if (!injectable.has(name)) {
-      throw new TypeError(`compileWorkflow received an unknown hook "${name}"; known hooks are ${[...injectable].join(', ')}`);
-    }
-    if (typeof hooks[name] !== 'function') {
-      throw new TypeError(`compileWorkflow expects hook "${name}" to be a function, received ${typeof hooks[name]}`);
-    }
-  }
-  return { ...createHookStubs().hooks, ...hooks };
-}
-
 function compileInSandbox(source) {
   try {
     return compileFunction(`return (async () => {\n${source}\n})();`, [...HOOK_NAMES], {
@@ -186,10 +198,10 @@ function compileInSandbox(source) {
 
 export function compileWorkflow(source, hooks = {}) {
   validateSource(source);
-  const resolved = validateHooks(hooks);
+  const stubs = createHookStubs(hooks);
   const compiled = compileInSandbox(source);
-  const bound = HOOK_NAMES.slice(1).map((name) => resolved[name]);
-  return async function invokeWorkflow(args) {
+  const bound = HOOK_NAMES.slice(1).map((name) => stubs.hooks[name]);
+  const invokeWorkflow = async (args) => {
     try {
       return await compiled(args, ...bound);
     } catch (error) {
@@ -197,4 +209,6 @@ export function compileWorkflow(source, hooks = {}) {
       throw error;
     }
   };
+  invokeWorkflow.records = stubs.records;
+  return Object.freeze(invokeWorkflow);
 }

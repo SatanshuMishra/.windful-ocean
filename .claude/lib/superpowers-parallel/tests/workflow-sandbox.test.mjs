@@ -175,9 +175,18 @@ test('the sloppy-mode this escape still hits the tagged denials', async () => {
   await assert.rejects(run('return [].constructor.constructor("return new Date()")();'), violation('Date'));
 });
 
-test('Date stays bound so typeof matches production while every use is tagged', async () => {
+test('the wholesale Date denial reports itself as determinism policy rather than a sandbox defect', async () => {
+  await assert.rejects(run('return new Date("2026-07-30T00:00:00Z").getTime();'), (error) => {
+    assert.ok(violation('Date')(error));
+    assert.match(error.reason, /policy, not a sandbox defect/);
+    assert.match(error.reason, /new Date\(isoString\)/);
+    return true;
+  });
+  await assert.rejects(run('return Math.random();'), (error) => {
+    assert.match(error.reason, /policy, not a sandbox defect/);
+    return true;
+  });
   assert.equal(await run('return typeof Date;'), 'function');
-  await assert.rejects(run('return new Date("2026-07-30T00:00:00Z").getTime();'), violation('Date'));
 });
 
 test('args reaches the workflow body as an injected global', async () => {
@@ -189,6 +198,13 @@ test('log and phase accumulate in call order and are readable through records()'
   await run('phase("one"); log("a"); log("b"); phase("two"); return 1;', stubs.hooks);
   assert.deepEqual(stubs.records().log, ['a', 'b']);
   assert.deepEqual(stubs.records().phases, ['one', 'two']);
+});
+
+test('a partial hook set still exposes the stub records it did not override', async () => {
+  const compiled = compileWorkflow('phase("start"); log("kept"); return agent("plan");', { agent: async () => 'ok' });
+  assert.equal(await compiled({}), 'ok');
+  assert.deepEqual(compiled.records().log, ['kept']);
+  assert.deepEqual(compiled.records().phases, ['start']);
 });
 
 test('parallel resolves thunks in argument order, not completion order', async () => {
@@ -244,8 +260,16 @@ test('errors thrown inside the workflow body propagate unchanged', async () => {
 test('compileWorkflow validates its inputs at the boundary', () => {
   assert.throws(() => compileWorkflow(null), /source as a string, received null/);
   assert.throws(() => compileWorkflow('   '), /non-empty workflow source/);
-  assert.throws(() => compileWorkflow('return 1;', null), /expects a hooks object, received null/);
+  assert.throws(() => compileWorkflow('return 1;', null), /workflow hooks must be an object, received null/);
   assert.throws(() => compileWorkflow('return 1;', { nope: () => {} }), /unknown hook "nope"/);
   assert.throws(() => compileWorkflow('return 1;', { log: 'not-a-function' }), /hook "log" to be a function/);
   assert.throws(() => compileWorkflow('return ((;'), /failed to compile in the sandbox/);
+});
+
+test('createHookStubs applies the same override validation as compileWorkflow', () => {
+  assert.throws(() => createHookStubs(null), /workflow hooks must be an object, received null/);
+  assert.throws(() => createHookStubs('nope'), /workflow hooks must be an object, received string/);
+  assert.throws(() => createHookStubs({ log: 'not-a-function' }), /hook "log" to be a function, received string/);
+  assert.throws(() => createHookStubs({ args: () => {} }), /unknown hook "args"/);
+  assert.throws(() => createHookStubs({ nope: () => {} }), /unknown hook "nope"/);
 });
