@@ -67,7 +67,8 @@
       "0120-lsp-probe-green-edges-derive-from-a-verb-with-seeded-project",
       "0121-phase-declarations-and-call-sites-must-agree-both-directions",
       "0122-phase-parity-covers-a-third-surface-opts-phase",
-      "0123-edges-verb-runs-inside-decompose-so-the-census-is-preserved"
+      "0123-edges-verb-runs-inside-decompose-so-the-census-is-preserved",
+      "0124-resume-envelope-cap-derived-at-16kb-with-a-failable-fallback"
     ],
     "out_of_scope": [
       "Pipelines for refactor, perf, docs or chore - closed by 0118. Limits PIPELINES only, not the PR title type vocabulary.",
@@ -82,5 +83,5 @@
     ]
   },
   "created_at": "2026-07-29T23:40:17.901Z",
-  "updated_at": "2026-07-30T06:38:53.960Z"
+  "updated_at": "2026-07-30T06:39:07.446Z"
 }
