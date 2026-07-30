@@ -59,7 +59,8 @@
       "0129-spec-lands-on-its-own-docs-branch-off-main",
       "0130-msp0-landed-gate-had-three-false-clean-paths",
       "0131-hookspath-capture-race-fixed-before-precondition-work",
-      "0132-0132-hooks-race-already-fixed-upstream-cache-hand-patched"
+      "0132-0132-hooks-race-already-fixed-upstream-cache-hand-patched",
+      "0133-0133-fund-step-1-sandbox-harness-before-step-3"
     ],
     "out_of_scope": [
       "Pipelines for refactor, perf, docs or chore - closed by 0118. Limits PIPELINES only, not the PR title type vocabulary.",
@@ -74,5 +75,5 @@
     ]
   },
   "created_at": "2026-07-29T23:40:17.901Z",
-  "updated_at": "2026-07-30T17:20:09.740Z"
+  "updated_at": "2026-07-30T17:22:50.921Z"
 }
