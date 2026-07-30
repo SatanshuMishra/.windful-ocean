@@ -17,11 +17,11 @@
     },
     {
       "text": "The child_process runtime-capability question settled empirically (does dynamic import of node:child_process EXECUTE inside a Workflow script, not merely resolve)",
-      "done": false
+      "done": true
     },
     {
       "text": "Three open architecture decisions resolved by the user: adopt an off-the-shelf durable-execution runtime vs only its state model; default speculation depth given that rework costs tokens not machine time; which work-type pipelines to define first",
-      "done": false
+      "done": true
     },
     {
       "text": "An approved architecture spec for the rebuild exists, superseding or explicitly scoping the six paused repair-oriented mitosis threads",
@@ -69,5 +69,5 @@
     ]
   },
   "created_at": "2026-07-29T23:40:17.901Z",
-  "updated_at": "2026-07-30T04:47:05.543Z"
+  "updated_at": "2026-07-30T04:47:19.859Z"
 }
