@@ -75,7 +75,8 @@
       "0126-preconditions-audited-by-execution-msp1-blocked",
       "0127-msp0-falsifier-survives-with-two-extractor-rules",
       "0128-spec-line-citations-measured-against-the-wrong-base",
-      "0129-spec-lands-on-its-own-docs-branch-off-main"
+      "0129-spec-lands-on-its-own-docs-branch-off-main",
+      "0130-msp0-landed-gate-had-three-false-clean-paths"
     ],
     "out_of_scope": [
       "Pipelines for refactor, perf, docs or chore - closed by 0118. Limits PIPELINES only, not the PR title type vocabulary.",
@@ -89,5 +90,5 @@
     ]
   },
   "created_at": "2026-07-29T23:40:17.901Z",
-  "updated_at": "2026-07-30T07:16:09.870Z"
+  "updated_at": "2026-07-30T08:25:51.357Z"
 }
