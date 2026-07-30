@@ -52,7 +52,8 @@
       "0105-build-ahead-prior-art-is-stacked-diffs-not-zuul",
       "0106-architecture-verdict-rebuild-core-keep-fanout",
       "0107-workflow-sandbox-is-a-real-harness-limit-supersedes-0103",
-      "0108-adopt-durable-execution-state-model-not-runtime"
+      "0108-adopt-durable-execution-state-model-not-runtime",
+      "0109-speculation-depth-derived-from-restack-capability"
     ],
     "out_of_scope": [
       "Implementing any rebuild before the user approves one.",
@@ -62,5 +63,5 @@
     ]
   },
   "created_at": "2026-07-29T23:40:17.901Z",
-  "updated_at": "2026-07-30T04:33:19.544Z"
+  "updated_at": "2026-07-30T04:33:42.105Z"
 }
