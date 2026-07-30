@@ -35,19 +35,19 @@
   "closure_statement": null,
   "spine": {
     "status": "paused",
-    "active_goal": "Rebuild authorized (0111); architecture, audits and designs settled and approved (0113-0118). Pipelines scoped to fix and feat ONLY. Nothing implemented. Remaining: teach the user the new engine and the pipeline feature, then execute the eight-entry landing order.",
-    "next_step": "FIRST IN THE FRESH SESSION, before ANY implementation, per user directive. Two teaching deliverables in order: (1) walk through the NEW engine's phases per 0115 (Probe, Decompose+Cut, Prep, Execute, Integrate+Gate, Ship) - what each does, HOW, with EXAMPLES - plus the five deleted phases; (2) THEN the PIPELINE feature for fix and feat only per 0118 - what it is, how it works, what INPUT each needs - using the 0117 gate model. Define every term; headings/tables; no large paragraphs. THEN STOP.",
+    "active_goal": "Teaching deliverables DELIVERED (new engine phases + the fix/feat pipeline feature). Both open design gaps CLOSED: relaunch trigger (0119) and the LSP-from-a-verb probe, run and GREEN (0120). Phase parity widened past Final review (0121). Still nothing implemented. Remaining: write the step-6 spec, then execute the eight-entry landing order from step 0.",
+    "next_step": "AWAIT explicit go; two tracks now unblocked. (a) Step 0, the worktree reaper: needs a HUMAN for the write guard on .claude/{hooks,lib,workflows} plus a human call on hermetic-guard-test, which holds an uncommitted modified tracked file. (b) The spec is writable now that 0120 closed the probe 0112 rule 3 demanded first - carry 0120's four binding rules and 0121's two-directional phase-parity gate into it. Start neither without the go.",
     "open_risks": [
       "Second-system effect is the primary danger (0106); mitigation is 0110 fix-first plus 0118's two-work-type narrowing, NOT more reviewers.",
       "12 leaked worktrees / 78 MB are a LIVE TRIPWIRE under step 4 restack (a checked-out branch blocks branch -f). hermetic-guard-test holds an UNCOMMITTED modified tracked file - human call needed first.",
-      "LSP-from-a-CLI-verb is UNPROBED (0116). Probe BEFORE the spec per 0112 rule 3, or repeat the 0103 mistake exactly.",
+      "LSP seeding is the new silent-failure surface (0120): an unseeded query returns a PLAUSIBLE NON-EMPTY answer missing every cross-file edge. The canary receipt asserting both halves is mandatory, not optional.",
       "No timing or token telemetry exists for the current 4,851-line engine. All 0114/0115 numbers are dispatch counts read from code, never measurements; the before-and-after replay is still owed.",
       "record_decision DROPS the largest parameter on oversized payloads - keep decision outcomes under roughly 2500 characters.",
-      "Relaunch trigger for end-and-relaunch is still UNRESOLVED (0111), the last design gap in 0108.",
       "A gate that cannot fail is worse than no gate (0112); 0107 caught the suite certifying code that cannot run. Coverage must be declared and failability-proven.",
       "Write guard holds all .claude/{hooks,rules,lib,workflows} edits for a human, so step 0 cannot proceed unattended.",
       "Six other paused mitosis threads still need explicit per-thread disposition from the user.",
-      "Dirty tree on feat/centralized-pr-creation: modified .drift-state.json, a test, mitosis.js; untracked .bak twins and three specs."
+      "Dirty tree on feat/centralized-pr-creation: modified .drift-state.json, a test, mitosis.js; untracked .bak twins and three specs.",
+      "Merge-to-resume latency is human-paced by design under 0119; a missed trigger costs latency only, never correctness."
     ],
     "key_decisions": [
       "0106-architecture-verdict-rebuild-core-keep-fanout",
@@ -79,5 +79,5 @@
     ]
   },
   "created_at": "2026-07-29T23:40:17.901Z",
-  "updated_at": "2026-07-30T06:12:12.670Z"
+  "updated_at": "2026-07-30T06:12:55.178Z"
 }
