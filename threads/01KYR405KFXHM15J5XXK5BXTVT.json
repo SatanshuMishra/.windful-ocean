@@ -61,7 +61,8 @@
       "0114-hand-dispatch-is-the-speed-oracle-triple-re-exploration-is-the-cause",
       "0115-collapse-to-three-delete-five-phases",
       "0116-landing-order-amended-lsp-grounded-edges-and-streaming-flip",
-      "0117-gate-trust-model-declared-coverage-probed-by-execution"
+      "0117-gate-trust-model-declared-coverage-probed-by-execution",
+      "0118-pipeline-work-types-limited-to-fix-and-feat"
     ],
     "out_of_scope": [
       "Bootstrapping a project's test infrastructure as a side effect of shipping a spec - that is verify-setup, human-invoked, one-time.",
@@ -73,5 +74,5 @@
     ]
   },
   "created_at": "2026-07-29T23:40:17.901Z",
-  "updated_at": "2026-07-30T05:47:03.872Z"
+  "updated_at": "2026-07-30T05:47:24.247Z"
 }
