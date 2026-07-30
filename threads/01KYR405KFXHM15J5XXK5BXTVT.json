@@ -35,22 +35,21 @@
   "closure_statement": null,
   "spine": {
     "status": "paused",
-    "active_goal": "Architecture is SETTLED and the rebuild is AUTHORIZED (0111). Nothing implemented. Remaining: teach the user the complete picture, then execute the six-step landing order fixed by 0112.",
-    "next_step": "FIRST TASK, before ANY implementation: a CLEAR breakdown of the complete new architecture and scope for MINIMAL domain understanding - define every term, small organized text (headings/lists/tables), NO large paragraphs, complete picture not a summary. Cover 0107 sandbox pinch, 0106's four layers, 0108 state model, 0109 depth, 0110 fix-first, 0111 polling/end-and-relaunch, 0112 robustness, and the six-step landing order. THEN STOP for the user's reply; do not start step 1.",
+    "active_goal": "Architecture settled and rebuild authorized (0111). Audit + design complete and approved (0113-0116). Nothing implemented. Now designing the gate-based review model: how a gate pass earns trust across projects with different test infrastructure.",
+    "next_step": "Answer delivered on gate trust (capability probe by EXECUTION not config-detection, a coverage manifest, differential gates, per-work-type floors, fail-closed on unmet floor, verify-setup as the human-gated bootstrap, honesty lines fed mechanically into pr-create). Await the user's decision on the five gate-design questions, then start landing-order step 0 (worktree reaper).",
     "open_risks": [
-      "Second-system effect is still the primary danger (0106). Mitigation is 0110's narrow fix-first slice with a machine-checkable oracle, NOT more reviewers.",
-      "Wall-clock will barely improve (0104); wins are token cost, crash-loss, twinning tax. Expectations were reset this session and must not drift back.",
-      "Determinism is a discipline; replay bugs are subtle (0106). Known trap: 0108 requires the prompt-text hash in the journal key.",
-      "Regression risk on what the engine got right: fail-closed halting, and built/awaiting/done. 0112 cuts redundancy, never floors.",
-      "LEDGER SPLIT defect: 0103-0106 in the session-continuity-continuity-ledger store, 0107-0112 in session-continuity-inline. A read against the wrong store loses half the architecture record.",
-      "Six other paused mitosis threads are now UNBLOCKED and need explicit PER-THREAD disposition by the user. Likely superseded, but the user's call, not the agent's.",
-      "Write guard holds all .claude/{hooks,rules,lib,workflows} edits for a human, so landing-order step 1 cannot proceed unattended.",
-      "Relaunch trigger for end-and-relaunch is UNRESOLVED (0111), the last design gap in 0108. Candidates: the human's merge action, or a cheap scheduled deterministic check. Webhook excluded.",
-      "Dirty tree on feat/centralized-pr-creation: modified .drift-state.json, a test, mitosis.js; untracked .bak-pre-promptsfix-* twins and three specs incl. the vindicated run-readiness-repair spec."
+      "Second-system effect remains the primary danger (0106); mitigation is 0110 fix-first with a machine-checkable oracle, NOT more reviewers.",
+      "12 leaked worktrees / 78 MB are a LIVE TRIPWIRE under step 4 restack (branch checked out blocks branch -f). hermetic-guard-test holds an UNCOMMITTED modified tracked file - needs a human call before anything touches it.",
+      "LSP-from-a-CLI-verb is UNPROBED (0116). Running it before the spec is the 0112 rule-3 obligation; skipping it repeats the 0103 mistake.",
+      "No timing or token data exists for the current 4,851-line engine. Every improvement claim needs a before-and-after replay of a real cluster set.",
+      "Relaunch trigger for end-and-relaunch still UNRESOLVED (0111), the last design gap in 0108.",
+      "A gate that cannot fail is worse than no gate (0112); 0107 already caught the suite certifying code that cannot run. Gate coverage must be declared, not assumed.",
+      "Write guard holds all .claude/{hooks,rules,lib,workflows} edits for a human, so step 0 cannot proceed unattended.",
+      "Six other paused mitosis threads still need explicit per-thread disposition from the user.",
+      "Dirty tree on feat/centralized-pr-creation: modified .drift-state.json, a test, mitosis.js; untracked .bak-pre-promptsfix-* twins and three specs."
     ],
     "key_decisions": [
       "0104-throughput-bound-is-merge-latency-not-fanout",
-      "0105-build-ahead-prior-art-is-stacked-diffs-not-zuul",
       "0106-architecture-verdict-rebuild-core-keep-fanout",
       "0107-workflow-sandbox-is-a-real-harness-limit-supersedes-0103",
       "0108-adopt-durable-execution-state-model-not-runtime",
@@ -64,14 +63,14 @@
       "0116-landing-order-amended-lsp-grounded-edges-and-streaming-flip"
     ],
     "out_of_scope": [
-      "Implementing landing-order step 1 before the user has received AND responded to the architecture breakdown.",
+      "Bootstrapping a project's test infrastructure as a side effect of shipping a spec - that is verify-setup, human-invoked, one-time.",
       "Adopting an off-the-shelf durable-execution runtime - closed by 0108.",
       "Global adaptive speculation windows / AIMD - closed by 0109.",
+      "fileScope-only task-edge derivation - partially rejected by 0116.",
       "Executing the run-readiness-repair spec's 11 MSPs or quiescent-advance M0-M8, pending per-thread disposition.",
-      "Dispatching or restarting any target-repo mitosis run.",
-      "Editing the current engine, its twins, or its prompts outside the authorized landing order."
+      "Dispatching or restarting any target-repo mitosis run."
     ]
   },
   "created_at": "2026-07-29T23:40:17.901Z",
-  "updated_at": "2026-07-30T05:41:25.926Z"
+  "updated_at": "2026-07-30T05:41:55.846Z"
 }
