@@ -35,21 +35,21 @@
   "closure_statement": null,
   "spine": {
     "status": "paused",
-    "active_goal": "Implement the step-6 rebuild spec. Both hand-off blockers are CLOSED: the spec is committed and pushed on docs/mitosis-core-rebuild-spec (d444797, off origin/main 6d19499), and all five section-2 preconditions were audited by execution (0126). MSP-0 is cleared; MSP-1 is blocked by the absent journal. Immediate goal: implement MSP-0, the phase-parity gate plus honest declarations.",
-    "next_step": "IMPLEMENT MSP-0 on a fresh branch off origin/main. Its falsifier is already run and survives (0127) — do not re-run it. Dispatch an implementer carrying: the corrected anchor table from 0128, NEVER the spec's own line numbers; 0127's two extractor rules; and a warning that every write under .claude/{lib,workflows} needs per-write human approval. Do NOT start MSP-1 — 0126 blocks it until a journal records dispatch boundaries.",
+    "active_goal": "Implement the step-6 rebuild spec. Both hand-off blockers are CLOSED: the spec is committed and pushed on docs/mitosis-core-rebuild-spec (d444797, off origin/main 6d19499) per 0129, and all five section-2 preconditions were audited by execution (0126). MSP-0 is cleared and is the whole of what step 6 can currently land; MSP-1 and every collapse MSP are blocked on absent preconditions.",
+    "next_step": "IMPLEMENT MSP-0 FIRST — it is cleared, the spec orders it first because it fences every later phase edit, and it depends on no precondition. Dispatch an implementer carrying 0128's corrected anchors (NEVER the spec's own line numbers), 0127's two extractor rules, and the per-write approval warning. Its falsifier is already run and survives — do not re-run it. Do NOT start MSP-1 (0126 blocks it). AFTER MSP-0, stop and re-plan: the next work is preconditions, not collapse MSPs.",
     "open_risks": [
-      "MSP-1 is BLOCKED by 0126 and cannot be unblocked inside step 6: .mitosis/run.json records no timestamp, dispatch count, wall-clock or phase entry, so there is nothing to fold. Step 3 must land a real journal first.",
-      "All three performance claims in spec section 14 stay labelled UNMEASURED while MSP-1 is blocked, and 0115's three falsifiers remain unpayable.",
-      "Four of five hard preconditions are NOT-LANDED, one PARTIAL (0126). Only MSP-0 is startable. Collapse MSPs 2, 3, 4, 5, 8 and 11 depend on preconditions that do not exist, so the spec's landing order stops after MSP-0.",
-      "Step 1.5 is the cheapest unblock: runScheduleStreaming exists and is tested; only the production flip is missing (STREAMING_DISPATCH_ENABLED = false at mitosis.js:2204, sole call site :4888-4897).",
+      "MSP-1 is BLOCKED by 0126 and cannot be unblocked inside step 6: .mitosis/run.json records no timestamp, dispatch count, wall-clock or phase entry, so there is nothing to fold. Step 3 owns the journal and must land first.",
+      "All three performance claims in spec section 14 stay labelled UNMEASURED while MSP-1 is blocked, and 0115's three falsifiers stay unpayable.",
+      "Four of five hard preconditions are NOT-LANDED, one PARTIAL (0126). Collapse MSPs 2, 3, 4, 5, 8 and 11 rest on capability that does not exist, so the spec's landing order stops dead after MSP-0. This is a defect in the plan as carried, not in the architecture.",
+      "After MSP-0 the choice is which precondition to fund. Step 1.5 is cheapest — runScheduleStreaming is built and tested, only the production flip is missing (STREAMING_DISPATCH_ENABLED = false at mitosis.js:2204, sole call site :4888-4897). Step 3 unblocks the most.",
       "Twinning is alive, enforced by mirror-guard.test.mjs over 21 modules plus the models-knob region: any edit there must land twice byte-identically. MSP-0 is exempt — Shepherd and Final review appear in no twinned module.",
       "Every write under .claude/{hooks,rules,lib,workflows} is held for per-write human approval, so implementers cannot be fanned out unattended. Plan interactive approval.",
-      "Spec section 15's provenance claim is false for anyone branching off main. Corrected anchors live in 0128; the spec text itself has NOT been amended.",
-      "PARKED stash@{0}: uncommitted work belonging to feat/centralized-pr-creation (drift-state, no-self-merge-consent test, mitosis.js), stashed 2026-07-30 to free the tree. It must be restored to that branch.",
-      "docs/superpowers/specs/2026-07-29-install-pin-safeguards.md was moved to the session scratchpad to allow the branch switch. It is byte-identical to main's committed copy, so nothing is lost.",
-      "The spec branch is pushed but has NO PR yet. Open it through the centralized pr-create tool.",
-      "12 leaked worktrees / 78 MB remain live; step 0's reaper verb does not exist at all (0126).",
-      "Six other paused mitosis threads still need explicit per-thread disposition."
+      "Spec section 15's provenance claim is false for anyone branching off main. Corrected anchors live in 0128; the spec text itself was deliberately NOT amended — amending an approved spec is the user's call.",
+      "PARKED stash@{0}: uncommitted work belonging to feat/centralized-pr-creation (drift-state, no-self-merge-consent test, mitosis.js, 78 insertions), stashed 2026-07-30 to free the tree. Not reviewed, not mine to commit. MUST be restored to that branch.",
+      "docs/superpowers/specs/2026-07-29-install-pin-safeguards.md was moved to the session scratchpad to allow the checkout. Verified byte-identical to main's committed copy first, so nothing is lost.",
+      "docs/mitosis-core-rebuild-spec is pushed with NO pull request. Open it through the centralized pr-create tool.",
+      "12 leaked worktrees / 78 MB remain live. 0126 upgrades this from 'reaper may be inert' to 'the reaper verb does not exist at all'.",
+      "Six other paused mitosis threads still need explicit per-thread disposition. The spec defers them rather than scoping them, which is why the last completion criterion stays unmet."
     ],
     "key_decisions": [
       "0106-architecture-verdict-rebuild-core-keep-fanout",
@@ -89,5 +89,5 @@
     ]
   },
   "created_at": "2026-07-29T23:40:17.901Z",
-  "updated_at": "2026-07-30T07:15:45.904Z"
+  "updated_at": "2026-07-30T07:16:09.870Z"
 }
