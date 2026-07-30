@@ -35,23 +35,25 @@
   "closure_statement": null,
   "spine": {
     "status": "paused",
-    "active_goal": "Implementation HALTED on both tracks by user directive after five fix rounds each introduced a defect on a path its own finding list did not name (0134). Two branches carry real, tested, pushed progress and must NOT be reverted: Track A (fix/hooks-prior-path-self-heal @ 5bc19a4, 692/692) and Track B (feat/workflow-sandbox-harness @ e40a292, 1690/1690). Neither is landed; no PR on either. Next move is a planning pass, not code.",
-    "next_step": "START HERE IN A FRESH SESSION per user directive: dispatch a dedicated FABLE subagent to understand BOTH tracks and plan a solution so completing either does not regress the other. The plan must state per-track INVARIANTS, not a finding list, and check every step against all of them. Feed it this session's five reproduced escapes as test data - a plan that cannot explain why each would have been caught is not finished. NO CODE until the plan exists. See 0134.",
+    "active_goal": "The two-track invariant plan EXISTS, so 0134's halt is LIFTED (0135). Plan: docs/superpowers/specs/2026-07-30-two-track-invariant-plan.md - A1-A6, B1-B6, M1-M6, six-escape matrix; A5/A3/A4/B2/B3 oracles CLOSED after review, A2 open defensibly. Both branches UNCHANGED and UNLANDED: Track A fix/hooks-prior-path-self-heal @ 5bc19a4 (692/692, round 3 unreviewed), Track B feat/workflow-sandbox-harness @ e40a292 (1690/1690, host bridge open). Execution resumes at Wave 0. No code was written.",
+    "next_step": "START HERE, FRESH SESSION. See 0135 and plan sections 4-5. (0) Move the UNTRACKED plan file off feat/workflow-sandbox-harness to its own docs branch off main per 0129. (1) Wave 0 in BOTH repos: invariant registry plus coverage-census script wired into receipts.yml (A) and test.yml (B); M1 cannot live in a PR body. (2) Then A-1 and B-1 CONCURRENTLY. A-1 IS the missing round-3 review and a HARD GATE: E1-E4 RED on 942d5f8/fde6f46^, GREEN on 5bc19a4. B-1 is red oracles only.",
     "open_risks": [
-      "CENTRAL LESSON: an implementer given N findings fixes exactly N findings; the N+1th path stays invisible because no artifact says what the system must be true of as a whole. Five rounds proved it. Never dispatch another fix round scoped to a finding list.",
-      "Track A round 3 has NEVER BEEN REVIEWED. It deleted the content probe and refactored installer.mjs 426 -> 135 lines into four modules - a big refactor plus behaviour change in one range, the shape that hid the last two escapes. Unverified regardless of 692/692 green.",
-      "Track B BLOCKED on a reproduced CRITICAL: createContext({}) leaves a host-realm backing object, so nine bare identifiers (constructor, toString, valueOf, hasOwnProperty, isPrototypeOf, propertyIsEnumerable, toLocaleString, __defineGetter__, __lookupSetter__) bridge to the host.",
-      "Track B's host bridge defeats the Date, Math.random and globalThis denials WITHOUT THROWING, and its own suite asserts the one closed route and none of the nine open ones. Reviewer-verified fix: createContext(vm.constants.DONT_CONTEXTIFY).",
-      "A false-clean gate is worse than no gate, and this session produced FIVE of them in code written to prevent exactly that. Both artifacts under construction are themselves gates. Green tests have failed to catch a defect five times running - demand reproduced probes.",
-      "The deployed plugin cache is an UNVERSIONED HAND-PATCH (0132): installed_plugins.json records 0fe1c02, which lacks the guard, and the file mtime precedes commit 2e91b33 by three minutes. A plugin refresh silently reverts it, restoring a false-clean commit gate.",
-      "Track B's compileWorkflow passes dead-export-lint VACUOUSLY - zero real callers, kept alive only by its own TypeError message strings, since tests/ is excluded. Constants VALUE_GLOBALS and ALWAYS_DENIED survive being emptied - unkilled assertions.",
-      "Step 1.5 is NOT fundable in isolation - 0116 gates it behind Step 1, which is NOT-LANDED. Stop describing it as the cheapest next move.",
-      "MSP-1 stays BLOCKED (0126) until Step 3 lands; Step 3 is the correct SECOND precondition after Step 1. All three section-14 performance claims stay UNMEASURED and 0115's falsifiers unpayable.",
-      "Spec anchors are POISON (0128) - every citation was measured against a dirty tree of another branch. Re-derive against the live tree per MSP; never pass the spec's numbers to an implementer.",
+      "CENTRAL LESSON: an implementer given N findings fixes exactly N findings; the N+1th path stays invisible because no artifact states what the system must be true of as a whole. NEVER scope a fix round to a finding list. Invariant sets plus M1's census are the remedy.",
+      "The matrix is 1 of 6 PROVED BY EXECUTION - only E6 ran red-then-green. E1-E4 are traced from reading 942d5f8 and fde6f46^; E5 never ran against round 1. Step A-1 is that missing proof - do not soften or skip it.",
+      "Track A round 3 STILL never reviewed: content probe deleted plus installer.mjs 426 -> 135 lines into four modules - refactor and behaviour change in one range, the shape that hid two escapes. 692/692 does not answer it; the A-1 corpus is the review.",
+      "Track B's host bridge is STILL OPEN. createContext({}) leaves a host-realm backing object; nine bare identifiers reach the host and defeat the denials WITHOUT THROWING. Reproduced live; DONT_CONTEXTIFY verified live. Suite is 78/78 while it is open - the green IS the false clean.",
+      "CONTRADICTS 0134: independent as CODE (neither repo imports the other), but the plugin MANAGES .windful-ocean's core.hooksPath, so Track A is the pre-commit gate that runs Track B's tests. A Track A regression makes a Track B local green meaningless.",
+      "The plan file is UNTRACKED on feat/workflow-sandbox-harness. Per 0129 specs land on their own docs branch off main. Move it before any Track B commit or it gets swept in.",
+      "LEDGER STORE DISCREPANCY, unverified: decisions were READ from the session-continuity-continuity-ledger store while 0135 WROTE to session-continuity-inline. One store or two was not checked; the guard refused the shell probe. Resolve via MCP before trusting either by hand.",
+      "A false-clean gate is worse than no gate, and both artifacts under construction ARE gates. Green tests failed to catch a defect five times running. Demand reproduced probes, never a green suite.",
+      "The deployed plugin cache is an UNVERSIONED HAND-PATCH (0132): installed_plugins.json records 0fe1c02, which greps 0 for isManagedHooksDir while the deployed file greps 2. A refresh restores a false-clean gate. Closed only by A6/M6 plus a real release, NOT yet executed.",
+      "Track B's compileWorkflow passes dead-export-lint VACUOUSLY - zero real callers, alive only via its own TypeError strings at :181 and :184 since tests/ is excluded. VALUE_GLOBALS and ALWAYS_DENIED both survive being emptied. Confirmed live.",
       "Every write under .claude/{hooks,rules,lib,workflows} needs per-write human approval - the guard matches lib wholesale, so tests/ is gated too. No unattended fan-out on Track B. Track A is a different repo and is NOT gated.",
+      "Spec anchors are POISON (0128). Every path:line in the plan was re-derived at cite time; re-derive again per MSP and never pass a document's numbers to an implementer.",
+      "Step 1.5 is NOT fundable in isolation - 0116 gates it behind Step 1, which is NOT-LANDED. MSP-1 stays BLOCKED (0126) until Step 3 lands. Section-14 performance claims stay UNMEASURED.",
       "task_70509bf0 could NOT be withdrawn - the harness reports the user already started it, so the USER must stop it. Its premise is dead: it believes the pre-commit gate is dead; it self-healed.",
-      "PARKED stash@{0}: uncommitted work belonging to feat/centralized-pr-creation. Not this thread's to commit. MUST be restored to that branch. stash@{1} also parked.",
-      "12 leaked worktrees / 78 MB remain live; the reaper verb does not exist at all (Step 0).",
+      "PARKED stash@{0} and stash@{1}: uncommitted work belonging to feat/centralized-pr-creation. Not this thread's to commit. Untouched again.",
+      "12 leaked worktrees / 78 MB remain live; the reaper verb does not exist at all (Step 0). No new worktrees created this session.",
       "Six other paused mitosis threads still need explicit per-thread disposition."
     ],
     "key_decisions": [
@@ -79,5 +81,5 @@
     ]
   },
   "created_at": "2026-07-29T23:40:17.901Z",
-  "updated_at": "2026-07-30T20:53:34.017Z"
+  "updated_at": "2026-07-30T21:24:52.836Z"
 }
