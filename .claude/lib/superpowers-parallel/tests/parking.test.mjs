@@ -250,11 +250,32 @@ test('selectResumeBuilt: a manifest-built unit the observed built-unit fact does
   ]);
 });
 
-test('selectResumeBuilt: an omitted or unusable built-unit fact carries no id, so no ref is synthesized for anyone', () => {
+test('selectResumeBuilt: an omitted or unusable built-unit fact is no observation at all, so the deterministic ref is still synthesized', () => {
   const manifest = builtManifest([{ id: 'a', status: 'built', integrationBranch: 'mitosis/a-integration' }]);
+  assert.deepEqual(selectResumeBuilt(manifest, new Map()).map((r) => r.resumePoint.ref), ['refs/mitosis/deadbeef/a']);
+  assert.deepEqual(selectResumeBuilt(manifest, new Map(), null).map((r) => r.resumePoint.ref), ['refs/mitosis/deadbeef/a']);
+  assert.deepEqual(selectResumeBuilt(manifest, new Map(), 'a').map((r) => r.resumePoint.ref), ['refs/mitosis/deadbeef/a']);
+});
+
+test('selectResumeBuilt: an EMPTY built-unit fact is the documented return for "no remote", so it withholds no ref from anyone', () => {
+  const manifest = builtManifest([
+    { id: 'a', status: 'built', integrationBranch: 'mitosis/a-integration' },
+    { id: 'b', status: 'built', integrationBranch: 'mitosis/b-integration' },
+  ]);
+  assert.deepEqual(
+    selectResumeBuilt(manifest, new Map(), []).map((r) => r.resumePoint.ref),
+    ['refs/mitosis/deadbeef/a', 'refs/mitosis/deadbeef/b'],
+  );
+  assert.deepEqual(
+    selectResumeBuilt(manifest, new Map(), new Set()).map((r) => r.resumePoint.ref),
+    ['refs/mitosis/deadbeef/a', 'refs/mitosis/deadbeef/b'],
+  );
+});
+
+test('selectResumeBuilt: a checkpointRef the run id makes unbuildable degrades that unit to a null ref rather than throwing', () => {
+  const manifest = { ...builtManifest([{ id: 'a', status: 'built', integrationBranch: 'mitosis/a-integration' }]), logicalRunId: 'not a safe run id' };
   assert.deepEqual(selectResumeBuilt(manifest, new Map()).map((r) => r.resumePoint.ref), [null]);
-  assert.deepEqual(selectResumeBuilt(manifest, new Map(), null).map((r) => r.resumePoint.ref), [null]);
-  assert.deepEqual(selectResumeBuilt(manifest, new Map(), 'a').map((r) => r.resumePoint.ref), [null]);
+  assert.deepEqual(selectResumeBuilt(manifest, new Map(), ['a']).map((r) => r.resumePoint.ref), [null]);
 });
 
 test('selectResumeBuilt: the built-unit fact is accepted as a Set as well as an array', () => {
