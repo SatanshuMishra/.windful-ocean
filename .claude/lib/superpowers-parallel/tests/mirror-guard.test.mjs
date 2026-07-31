@@ -42,6 +42,7 @@ const MIRROR_CENSUS = Object.freeze({
   'run-engine.mjs': WHOLE,
   'run-log.mjs': WHOLE,
   'saga.mjs': WHOLE,
+  'status-facts.mjs': WHOLE,
   'supervisor.mjs': WHOLE,
   'window.mjs': WHOLE,
   'engine-args.mjs': Object.freeze(['validateModelsKnob']),
