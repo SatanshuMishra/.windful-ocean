@@ -38,26 +38,26 @@
     "active_goal": "Five-PR mirror-gaps sequence (0156) underway. P1 IMPLEMENTED, COMMITTED, GREEN at 7b8acd2 on test/mirror-census-closure, orchestrator-verified - but UNPUSHED, no PR, coverage entry unwritten. P0 (track the plan, 0158) ruled, unimplemented. P2 re-scoped SMALLER than the plan's 115-line estimate: 0159 strikes H-C, 0160 keeps the H-A veto, leaving H-B plus veto naming/logging plus the A1 extraction. P3-P5 conditional. Nothing pushed or merged; main still 1bb149d.",
     "next_step": "START HERE. (1) FINISH P1: author docs/invariants/coverage/test-mirror-census-closure.json (12 rows; M2, M3, M5 threatened, M1 trivially, rest not-threatened), commit on that branch, push ONCE, open the PR via mitosis-git.mjs pr-create - NEVER gh pr create. (2) P0 per 0158: .gitignore:22 becomes /docs/superpowers/plans/* plus a negation for the plan file; own branch, coverage entry, PR. (3) RE-SCOPE P2 BEFORE DISPATCH - strike section 9's done-union row (0159), reword its monotone row (0160).",
     "open_risks": [
-      "msp-file-scope.mjs is a LIVE unpoliced twin, verified independently by the orchestrator: aggregateMspFileScope is duplicated at mitosis.js:67-78 and absent from mirror-guard.test.mjs:19 (grep count 0). Edit either copy and nothing detects drift. P1 fixes it.",
-      "The mirror guard's WHOLE-FILE granularity HIDES partial twins: pr-format.mjs (PR_TITLE_TYPES/PATTERN/VALUE_CAP), wave-planner.mjs (pathsOverlap/scopesOverlap), engine-args.mjs. A file-granular census would pass while real duplication drifted; the census must work at EXPORT granularity.",
-      "Implementing spec 3.1 LITERALLY is a SAFETY REGRESSION - a total fact-assign resurrects condemned content because a ref means a commit exists, not that it is shippable; frontier-train-e2e.test.mjs:578 forbids it. gh pr list --limit 200 means absence is not evidence of non-merge. See 0154.",
-      "The orchestrator has NOT read the 37KB plan - only the audit's summary plus facts it verified itself. On ANY conflict the plan's own re-derived anchors win; surface the discrepancy rather than smooth it over.",
-      "docs/superpowers/plans/ is gitignored (.gitignore:22), so the plan is machine-local and invisible to a clean checkout and to CI. Third instance of this repo's ignore rules swallowing real work. Ruling owed: track it or accept machine-local.",
-      "H-C is UNRESOLVED: journal shipped unioning into done at mitosis.js:4058-4061. The recommended approach edits two reader sites, covering H-A (the 3787 veto) and H-B (selectResumeBuilt) only. Rule H-C in or out of M2 BEFORE implementing.",
-      "P3-P5 are explicitly CONDITIONAL - re-confirm the justifying milestone still names the region before opening each. If M3 deletes runReconcileOnlyAdvance outright rather than absorbing it, P4 would extract code only to delete it.",
-      "M3's 'shepherd path' wording has TWO candidate referents; settle it before planning M3. Blocks M3 and the P4/P5 justification only - nothing earlier.",
-      "Spec anchors pin to 450804e and run +68 to +81 off against main, which has moved again. Re-derive by execution; NEVER copy a spec line number (0148). Held for every M2 anchor this session.",
-      "0152 generalized: treat EVERY enumeration and every absolute claim in the quiescent-advance spec as UNVERIFIED until executed. Four more defects found this session. Section 8's 22-to-14 arithmetic is still NOT re-derived.",
-      "Section 10's mirror-twin gotcha list is WRONG for a third consecutive MSP, and M2 is the first with TWO policed twins in scope (parking.mjs, run-log.mjs). Grep every target symbol against mirror-guard.test.mjs:19 per MSP; the guard asserts whole-file containment.",
-      "Every PR needs a docs/invariants/coverage/*.json entry verdicting ALL 12 registry ids, ADDED in that PR's own diff. The gate reads COMMITTED history, not the index. Piping the gate to tail MASKS its exit code - capture it directly.",
+      "P1 is committed but UNPUSHED (7b8acd2, test/mirror-census-closure). Invisible to CI and to a fresh clone; a branch cut off main will not carry it. Push it first or the census is absent from every later PR's baseline.",
+      "Plan section 9's monotone-forward receipt row is MISWORDED - rewrite before P2 (0160). It demands a test red-on-parent BECAUSE the mitosis.js:3787 veto exists; that veto is the resurrection guard. Handing the row over verbatim ships a safety regression.",
+      "Plan section 7's LOC table is STALE for P2: ~115 production lines assumed a scope including H-C and an H-A rewrite, both removed by 0159 and 0160. Re-estimate; do not reuse the number.",
+      "METHOD RISK (0159): round one refuted H-C on a sole-caller claim one grep falsified - applyShipTransition has a second caller at mitosis.js:562, journal replay. Trace producers; never accept 'this has one caller'.",
+      "Spec 3.1 implemented LITERALLY is a SAFETY REGRESSION (0155): a total fact-assign resurrects condemned content, and gh pr list --limit 200 at mitosis.js:3718 means absence from the merged listing is not evidence of non-merge (0154).",
+      ".mitosis/run.json is operator-hand-editable (documented at mitosis.js:4410), so a hand-injected status shipped is reachable though no in-code path writes one. 0159 records this as an open TAMPER SURFACE, not closed, not in M2.",
+      "P3-P5 are CONDITIONAL - re-confirm the justifying milestone still names the region before opening each. If M3 deletes runReconcileOnlyAdvance rather than absorbing it, P4 shrinks to a characterization test with no extraction.",
+      "M3's 'shepherd path' has TWO referents: the leases.mjs poll shepherd (mirrored), and runReconcileOnlyAdvance, which log strings at mitosis.js:3009/3011/3020/3031 name 'reconcile-only shepherd'. Settle before planning M3.",
+      "Spec anchors pin to 450804e, +68 to +81 off against main. Re-derive by execution; NEVER copy a spec line number (0148). The plan's own 1bb149d anchors verified clean on every one checked this session.",
+      "0152 generalized: treat EVERY enumeration and absolute claim in the quiescent-advance spec as UNVERIFIED until executed. Section 8's 22-to-14 arithmetic is STILL not re-derived.",
+      "Section 10's mirror-twin gotcha list is WRONG for a third MSP. From 0159: mitosis.js's applyRunDelta/foldRunManifest at :560-593 mirror run-log.mjs and are called by nothing in mitosis.js; the live fold is the fold-run-log.mjs CLI. Not dead code - do not delete.",
+      "Every PR needs a docs/invariants/coverage/*.json entry verdicting ALL 12 registry ids, ADDED in its own diff. The gate reads COMMITTED history, not the index. Piping the gate to tail MASKS its exit code - capture it directly.",
       "The coverage gate checks row SHAPE, never the truth of a check string, so the entry stays orchestrator-authored per 0143.",
-      "NEVER invoke the compiled workflow. compileWorkflow returns a frozen async callable that would dispatch REAL AGENTS; compileUnderSandbox discards it deliberately. No test may call it.",
-      "Every write under .claude/{hooks,rules,lib,workflows} needs per-write human approval, and every extraction PR edits those trees. Batch edits per file; no unattended fan-out.",
-      "The pre-commit hook runs the FULL suite inline (1766 tests). ALWAYS redirect and read only the tail, and match the node reporter's info-prefixed summary lines, not the TAP form. --no-verify only for a deliberately-red receipt commit.",
-      "A PR's scope is FROZEN at creation; post-creation title/body edits are denied. Later facts go in a PR comment (0142). Push once BEFORE opening the PR (0141). Titles cap at 72 chars. Merge stays human-gated.",
-      "Verdict truthfulness stays a HUMAN/orchestrator gate (0143). Held this session: the orchestrator verified the unpoliced twin and the green baseline itself rather than relaying agent numbers.",
+      "NEVER invoke the compiled workflow. compileWorkflow returns a frozen async callable that would dispatch REAL AGENTS. mitosis.js is read as TEXT only - held by both subagents this session.",
+      "Every write under .claude/{hooks,rules,lib,workflows} needs per-write human approval. Batch edits per file; no unattended fan-out.",
+      "The pre-commit hook runs the FULL suite inline (now 1788, up from 1766). ALWAYS redirect and read only the tail, matching the node reporter's info-prefixed summary lines. --no-verify only for a deliberately-red receipt commit.",
+      "A PR's scope is FROZEN at creation; title/body edits are denied. Later facts go in a PR comment (0142). Push once BEFORE opening the PR (0141). Titles cap at 72 chars. Merge stays human-gated.",
+      "P1-P5 must land SERIALLY, never in parallel worktrees (plan section 8) - they touch mitosis.js and each other's neighbourhoods, and a policed-twin edit must land in both copies in one commit. Parallelize investigation, never landing.",
       "ALWAYS_DENIED's pinned realm surface runs in CI on every push and PR while node-version floats at 26.x, so a Node minor adding a global halts the gate. Fail-closed by design (0140); classify the name, do NOT pin Node.",
-      "12 leaked worktrees / ~78MB remain live and the reaper verb does not exist. The tree carries pre-existing dirt (.claude/settings.json, .zshrc, three untracked paths) - stage explicit paths only, NEVER git add -A."
+      "12 leaked worktrees / ~78MB remain live; the reaper verb does not exist. The tree carries five pre-existing dirty paths - stage explicit paths only, NEVER git add -A."
     ],
     "key_decisions": [
       "0136-defer-track-a-until-mitosis-msps-land",
@@ -86,6 +86,9 @@
       "0160-h-a-is-the-guard-not-the-hole-plan-section-9-is-misworded"
     ],
     "out_of_scope": [
+      "Any change at mitosis.js:4058-4061. H-C is REFUTED by 0159, not deferred - the done-union is correct and narrowing it is a liveness regression. Re-opening needs new evidence of an unconfirmed-ship producer.",
+      "Removing or weakening the veto at mitosis.js:3787. It is the resurrection guard (0160); frontier-train-e2e.test.mjs:578 forbids it. M2 names and logs it, nothing more.",
+      "Un-ignoring docs/superpowers/plans/ wholesale, and git add -f as the tracking mechanism - both rejected by 0158 in favour of the /* plus negation form.",
       "Track A / continuity-ledger-plugin until all mitosis MSPs are delivered (0136). A-1, A-2, A-3 and the Track A half of Wave 0 are DEFERRED, not abandoned.",
       "Any further B-6 work. Implemented, merged and green; the invariant is discharged. Re-opening needs a new reason, not a re-read.",
       "Rewriting the specs' 78 anchors as a standalone effort - rejected by 0148. Re-baseline by execution per MSP instead.",
@@ -103,5 +106,5 @@
     ]
   },
   "created_at": "2026-07-29T23:40:17.901Z",
-  "updated_at": "2026-07-31T19:46:43.130Z"
+  "updated_at": "2026-07-31T19:48:12.648Z"
 }
