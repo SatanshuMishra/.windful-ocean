@@ -91,3 +91,33 @@ test('a parent whose shas are not hex, or whose file scope carries a pathspec ma
   assert.deepEqual(probes, {});
   assert.equal(calls.length, 0);
 });
+
+test('an agent that throws has its error message cleaned before being composed into the probe error', async () => {
+  const { ctx } = makeCtx(() => {
+    throw new Error('boom');
+  });
+  const manifest = manifestOf([
+    { id: 'a', status: 'shipped', builtSha: 'abc1234', fileScope: ['src/a.ts'], dependsOn: [] },
+    { id: 'b', status: 'built', dependsOn: ['a'] },
+  ]);
+
+  const probes = await runDivergenceProbes(manifest, ['a'], { a: 'def5678' }, ctx);
+
+  assert.deepEqual(probes, {
+    a: { paths: null, error: 'divergence-probe threw: "boom"' },
+  });
+});
+
+test('a probe result with no paths array and no error message falls back to a fixed no-resolvable-paths error', async () => {
+  const { ctx } = makeCtx({ paths: null, error: '' });
+  const manifest = manifestOf([
+    { id: 'a', status: 'shipped', builtSha: 'abc1234', fileScope: ['src/a.ts'], dependsOn: [] },
+    { id: 'b', status: 'built', dependsOn: ['a'] },
+  ]);
+
+  const probes = await runDivergenceProbes(manifest, ['a'], { a: 'def5678' }, ctx);
+
+  assert.deepEqual(probes, {
+    a: { paths: null, error: 'divergence-probe returned no resolvable paths' },
+  });
+});
