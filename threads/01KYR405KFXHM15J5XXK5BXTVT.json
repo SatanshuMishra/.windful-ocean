@@ -86,7 +86,8 @@
       "0160-h-a-is-the-guard-not-the-hole-plan-section-9-is-misworded",
       "0161-m3-shepherd-has-one-referent-and-m3-deletes-it",
       "0162-four-of-six-gap-1-items-are-extract-to-delete-p3-p5-reshaped",
-      "0163-the-sandbox-import-trap-is-the-twin-pattern-not-a-blocker"
+      "0163-the-sandbox-import-trap-is-the-twin-pattern-not-a-blocker",
+      "0164-m2-monotone-forward-premise-refuted-p2-ships-two-changes"
     ],
     "out_of_scope": [
       "Any change at mitosis.js:4058-4061. H-C is REFUTED by 0159, not deferred - the done-union is correct and narrowing it is a liveness regression. Re-opening needs new evidence of an unconfirmed-ship producer.",
@@ -109,5 +110,5 @@
     ]
   },
   "created_at": "2026-07-29T23:40:17.901Z",
-  "updated_at": "2026-07-31T20:27:52.495Z"
+  "updated_at": "2026-07-31T21:38:27.835Z"
 }
