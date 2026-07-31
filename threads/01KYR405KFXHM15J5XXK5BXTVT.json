@@ -35,8 +35,8 @@
   "closure_statement": null,
   "spine": {
     "status": "paused",
-    "active_goal": "M2 IS NOW ON MAIN. P2's nine commits were cherry-picked onto a fresh branch off origin/main, opened as PR #26, and merged by the user as e7e4025 (+540/-31, 10 files). CI green on the PR and on main. Receipts: nine identical patch-ids, tree parity showing only P0's four paths added and nothing deleted, npm test 1813/1813 pass, coverage gate ok on all 12 ids. Decision 0172 records it. A7 is UNBLOCKED and is the remaining work; grounding of its seam is in flight.",
-    "next_step": "A7 only, per 0162. Cut a fresh branch off origin/main e7e4025 and extract runDivergenceProbes (mitosis.js:2989) plus SHA_HEX_PATTERN (:2975) into a new lib module divergence.mjs as a policed twin, add its mirror-guard census row, write the section 9 receipts and a coverage entry, then ONE PR to main via pr-create with fresh verification lines. Landing stays serial: nothing else touching mitosis.js or the census may be in flight.",
+    "active_goal": "M2 landed on main as e7e4025 (PR #26). A7 is IMPLEMENTED AND SHIPPED as PR #27, open and fully green: four commits, 245 lines - divergence.mjs extracted as a WHOLE policed twin, SHA_HEX_PATTERN relocated for contiguity, a ctx seam for the five refused deps, six tests, a 12-row coverage entry. Receipts: npm test 1820/1820/0, coverage gate ok, byte-identity re-derived independently. Decisions 0172 and 0173 record both. Merge of #27 is human-gated and NOT done.",
+    "next_step": "MERGE PR #27 (human-gated), then confirm origin/main is green at the squash. The mirror-gaps programme then has no ratified next item: 0162 dropped A4 and A6, made A3 and A5 characterization-only, and HELD A2 pending the section 3.1 check of its M2 claim - that read-only check is the natural next question. Do NOT start A3/A5 or A2 work without an explicit go. Also owed: the 0171 second-channel decision, and the plan's stale anchors for the A7 region.",
     "open_risks": [
       "A7 repeats B6 by construction: a new lib module imported only by tests while production runs the inline twin. Decide deliberately whether divergence.mjs gets a real production importer; record the verdict rather than inheriting status-facts.mjs's threatened row.",
       "Coverage-filename convention drifted one entry: fix-m2-monotone-status.json landed from branch fix/m2-monotone-status-onto-main. The gate keys on registry-id completeness, not branch name, so it passes; the M1 row's sentence about the branch name is now stale, left byte-identical deliberately.",
@@ -113,5 +113,5 @@
     ]
   },
   "created_at": "2026-07-29T23:40:17.901Z",
-  "updated_at": "2026-07-31T23:50:51.191Z"
+  "updated_at": "2026-07-31T23:51:25.580Z"
 }
