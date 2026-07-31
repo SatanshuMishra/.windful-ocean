@@ -71,7 +71,8 @@
       "0136-defer-track-a-until-mitosis-msps-land",
       "0137-every-hand-written-enumeration-in-the-plan-was-wrong",
       "0138-coverage-gate-binds-only-a-pr-head-that-carries-it",
-      "0139-open-prs-authorized-plan-lands-before-the-gate"
+      "0139-open-prs-authorized-plan-lands-before-the-gate",
+      "0140-pinned-realm-surface-halted-on-a-second-node-as-designed"
     ],
     "out_of_scope": [
       "Track A / continuity-ledger-plugin entirely until all mitosis MSPs are delivered (0136). A-1, A-2, A-3 and the Track A half of Wave 0 are DEFERRED, not abandoned.",
@@ -88,5 +89,5 @@
     ]
   },
   "created_at": "2026-07-29T23:40:17.901Z",
-  "updated_at": "2026-07-31T00:14:27.567Z"
+  "updated_at": "2026-07-31T00:14:49.258Z"
 }
