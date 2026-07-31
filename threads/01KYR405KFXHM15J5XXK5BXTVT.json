@@ -35,24 +35,23 @@
   "closure_statement": null,
   "spine": {
     "status": "paused",
-    "active_goal": "Mirror-gaps sequence re-scoped. P0 at 7d5d890, P1 at 7b8acd2 with receipts proven by execution, P2 at 9e36674 (4 commits stacked on P1) green at 1818/0 but BLOCKED on five anchored defects (0166). CHANGE 1's monotone premise is REFUTED (0164), so P2 ships two changes not three. P3-P5 collapsed under the conditionality gate (0162); only A7 survives. NOTHING pushed, no PR open, main still 1bb149d, and no coverage entry exists on any of the three branches.",
-    "next_step": "START HERE. (1) FIX P2 per 0166 - five defects, anchors at 9e36674; every twin edit lands in BOTH copies in one commit. (2) AUTHOR three coverage entries (P1, P0, P2), 12 ids each, orchestrator-authored per 0143, in each PR's own diff. (3) Unset the upstream on docs/track-m2-mirror-gaps-plan before pushing. (4) Push ONCE per branch, then PRs via mitosis-git.mjs pr-create - NEVER gh pr create - order P1, P0, P2; retitle P2 off any monotone claim (0164). (5) THEN A7 only (0162).",
+    "active_goal": "P2 UNBLOCKED. All five 0166 defects fixed in four atomic commits on fix/m2-monotone-status (dcb1a46 D1+D2, b7b54b0 D3, 5684271 D4, ef92657 D5), every twin edit in both copies in one commit. Orchestrator-verified npm test 1813/1813/0, reconciling against the 1820 baseline; D3 and D5 carry red-before-green receipts. P0 at 7d5d890, P1 at 7b8acd2. CHANGE 1 stays REFUTED (0164); of P3-P5 only A7 survives (0162). NOTHING pushed, no PR, main still 1bb149d, no coverage entry on any branch.",
+    "next_step": "START HERE. (1) AUTHOR three coverage entries (P1, P0, P2), 12 ids each, per 0143; supply receipts from the 2026-07-31 session log. (2) RE-MEASURE P2's changed lines (was 484 vs a 200-400 budget); decide whether it splits. (3) Unset upstream on docs/track-m2-mirror-gaps-plan. (4) Push ONCE per branch, then PRs via mitosis-git.mjs pr-create, NEVER gh pr create, order P1, P0, P2; P2's title must not claim monotone status (0164), though its branch name still does. (5) THEN A7 only (0162).",
     "open_risks": [
-      "P2 is GREEN at 1818/0 WITH all five defects of 0166 present. The suite is not the gate for any of them. Do not let a green run substitute for the fix list.",
-      "D3 matters most (0166): parking.mjs:114 coerces a missing builtUnits to an EMPTY Set, :120 gates on it, and mitosis.js:3766 tells the agent to return checkpointRefPages=[] when there is no remote. An expected return parks EVERY built unit. The new parking test blesses it - rewrite it.",
-      "P2 is STACKED on P1: 5 commits ahead of origin/main, one of them P1's 7b8acd2. Its PR base is test/mirror-census-closure, not main. If P1 merges first, P2 needs a rebase, and P1's coverage commit is not in P2's history.",
+      "A PR's scope is FROZEN at creation; title/body edits are denied. Push once BEFORE opening (0141); later facts go in a PR comment (0142). Titles cap at 72 chars. Merge stays human-gated.",
+      "P2 is STACKED on P1: tip ef92657 is 8 commits above 7b8acd2, and its PR base is test/mirror-census-closure, not main. If P1 merges first P2 needs a rebase, and P1's coverage commit is not in P2's history.",
       "docs/track-m2-mirror-gaps-plan is the ONLY branch with upstream tracking, pointing at refs/heads/main. push.default=simple blocks a bare push today, so it is latent not live - unset it before pushing anything.",
-      "P2's increment is 484 changed lines against a 200-400 budget, 713 cumulative. Production is 141, of which 38 are the mandated inline twin - about 70 lines of new logic. The overrun is all test mass. Any split must keep each twin edit atomic.",
-      "Found, NOT fixed: relaunchStateFor seeds 'awaiting' for any id in runOpenPRs.accepted, and classifyRunOpenPRs accepts a PR whose unit is built OR parked - so a parked unit with an open PR is seeded awaiting, consulting only the condemned veto. Pre-existing. Needs its own record.",
-      "0164's refutation is a TRACED path, not an executed reproduction, and swept only foldObservedStatus and the planReconcile condemned reset - Waves, Integrate and Ship were never swept for status assignments. Demand the reproduction before reopening CHANGE 1.",
-      "NEVER invoke the compiled workflow. compileWorkflow returns a frozen async callable that would dispatch REAL agents. mitosis.js is read as TEXT only - held by every subagent across both workflows this session.",
+      "Found, NOT fixed, needs its own record: relaunchStateFor seeds 'awaiting' for any id in runOpenPRs.accepted, and classifyRunOpenPRs accepts a PR whose unit is built OR parked - so a parked unit with an open PR is seeded awaiting. Pre-existing.",
+      "0169's guard swallows the log sink's error, against the never-silently-swallow rule, because the only channel inside the fold IS the failed sink. Surfacing it needs a SECOND channel - a follow-up, not a re-litigation of the guard.",
+      "0164's refutation is TRACED, not an executed reproduction, and swept only foldObservedStatus and the planReconcile condemned reset - Waves, Integrate and Ship were never swept. Demand the reproduction before reopening CHANGE 1.",
+      "NEVER invoke the compiled workflow. compileWorkflow returns a frozen async callable that would dispatch REAL agents. mitosis.js is read and edited as TEXT only - held by every subagent this session.",
+      "The suite runner is `npm test` (package.json:7). `node --test <dir>` fails MODULE_NOT_FOUND on node v26.4.0 and reports a bogus 1 test / 1 fail - it cost a cycle this session.",
+      "The pre-commit hook runs the FULL suite inline (1813 on P2, 1788 on P1, 1766 on P0). ALWAYS redirect and read only the tail; --no-verify only for a deliberately-red receipt commit.",
+      "Returned numbers need re-running, not trusting. A subagent reported D4's suite as 1813 tests / 1812 pass / 0 fail, which does not reconcile; the re-run showed 1813/1813/0. Fifth such correction, after 0145, 0152, 0159 and 0164.",
+      "Landing stays SERIAL. P1, P0 and P2 all touch mitosis.js or the mirror-guard neighbourhoods, and a policed-twin edit must land in BOTH copies in one commit. Parallelize investigation, never landing.",
+      "ORCHESTRATION: never put an agent that switches branches in the same workflow phase as one reading the working tree.",
       "Every write under .claude/{hooks,rules,lib,workflows} needs per-write human approval. Batch edits per file; no unattended fan-out.",
-      "The pre-commit hook runs the FULL suite inline (1818 on P2, 1788 on P1, 1766 on P0 - the spread tracks which commits each branch carries). ALWAYS redirect and read only the info-prefixed tail. --no-verify only for a deliberately-red receipt commit.",
-      "A PR's scope is FROZEN at creation; title/body edits are denied. Later facts go in a PR comment (0142). Push once BEFORE opening the PR (0141). Titles cap at 72 chars. Merge stays human-gated.",
-      "Landing stays SERIAL. P1, P0 and P2 all touch mitosis.js or mirror-guard.test.mjs neighbourhoods, and a policed-twin edit must land in both copies in one commit. Parallelize investigation, never landing.",
-      "ORCHESTRATION: never put an agent that switches branches in the same workflow phase as one reading the working tree. It happened this session (auditor vs reviewer); only careful snapshot fallback saved it.",
-      "Agent findings have inverted on verification four times (0159, 0163, 0164, and D3's understatement in 0166). Verify load-bearing claims against the mechanism - the correction cuts both ways, sometimes harsher than reported.",
-      "17 worktree entries remain live, unchanged this session; the reaper verb does not exist. The tree carries five pre-existing dirty paths - stage explicit paths only, NEVER git add -A."
+      "17 worktree entries remain live; the reaper verb does not exist. The tree carries five pre-existing dirty paths (.claude/settings.json, .zshrc, two .bak files, .claude/skills/context7-mcp/) - stage explicit paths only, NEVER git add -A."
     ],
     "key_decisions": [
       "0136-defer-track-a-until-mitosis-msps-land",
@@ -110,5 +109,5 @@
     ]
   },
   "created_at": "2026-07-29T23:40:17.901Z",
-  "updated_at": "2026-07-31T22:26:23.850Z"
+  "updated_at": "2026-07-31T22:28:09.383Z"
 }
