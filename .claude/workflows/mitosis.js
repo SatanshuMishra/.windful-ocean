@@ -3454,17 +3454,20 @@ function computeMergePolicyStatus({
   genuineParkedCount = 0,
   haltedCount = 0,
   crashedCount = 0,
+  ciRedExhaustedCount = 0,
   total,
 }) {
   const hasFault = genuineParkedCount > 0 || haltedCount > 0 || crashedCount > 0;
   const awaitingTotal = awaitingApprovalCount + blockedPendingApprovalCount;
-  if (!hasFault && total > 0 && shippedCount === total && awaitingTotal === 0) {
+  const healthy = !hasFault && ciRedExhaustedCount === 0;
+  if (healthy && total > 0 && shippedCount === total && awaitingTotal === 0) {
     return 'all-shipped';
   }
-  if (!hasFault && awaitingTotal > 0) {
+  if (healthy && awaitingTotal > 0) {
     return 'awaiting-approval';
   }
-  if (shippedCount === 0) return 'failed';
+  if (ciRedExhaustedCount > 0) return 'ci-red-exhausted';
+  if (hasFault) return 'blocked';
   return 'partial';
 }
 
@@ -4879,7 +4882,10 @@ const mergePoll = {
     const prUrl = entry ? entry.prUrl : null;
     if (idx >= 0) awaitingApproval.splice(idx, 1);
     shipped.push({ mspId: unit.id, prUrl, receiptsPass: entry ? entry.receiptsPass : null, d6Pass: entry ? entry.d6Pass : null, dependsOn: (msp && msp.dependsOn) || [] });
-    log(`mitosis[${unit.id}]: in-run merge poll confirmed PR merged -> ${clean(prUrl)}; releasing lease and unblocking dependents`);
+    const stillBlocked = new Set(awaitingApproval.flatMap((a) => transitiveDependents(msps, a.mspId)));
+    const released = transitiveDependents(msps, unit.id).filter((d) => !stillBlocked.has(d) && blockedByApproval.has(d));
+    for (const d of released) blockedByApproval.delete(d);
+    log(`mitosis[${unit.id}]: in-run merge poll confirmed PR merged -> ${clean(prUrl)}; releasing lease and unblocking dependents${released.length > 0 ? ` (no longer waiting on any unmerged PR: ${released.join(', ')})` : ''}`);
   },
 };
 
@@ -4903,20 +4909,24 @@ const shippedIds = new Set(shipped.map((s) => s.mspId));
 const directParkedIds = new Set(parked.map((p) => p.unitId));
 const awaitingApprovalIds = new Set(awaitingApproval.map((a) => a.mspId));
 const halted = [];
+const reportOnlyResumePoint = (u) => {
+  const anchor = { branch: `${sourcePrefix}/${u.id}-integration`, ref: baseBranch };
+  return u.state === 'built' ? anchor : { ...anchor, stage: 'plan' };
+};
 for (const u of scheduleResult.units) {
   if (u.state === 'done' || shippedIds.has(u.id)) continue;
   if (directParkedIds.has(u.id)) continue;
   if (awaitingApprovalIds.has(u.id)) continue;
   if (blockedByApproval.has(u.id) && !blockedByPark.has(u.id)) {
-    parked.push(ParkRecord({ unitId: u.id, stage: 'blocked', diagnosis: BLOCKED_PENDING_APPROVAL_DIAGNOSIS, request: { kind: AWAITING_UPSTREAM_KIND, what: `${BLOCKED_PENDING_APPROVAL_DIAGNOSIS} (${u.id} depends on an MSP awaiting approval)` }, remediation: null, resumePoint: { branch: `${sourcePrefix}/${u.id}-integration`, ref: baseBranch, stage: 'plan' }, triedSet: [], dependents: [] }));
+    parked.push(ParkRecord({ unitId: u.id, stage: 'blocked', diagnosis: BLOCKED_PENDING_APPROVAL_DIAGNOSIS, request: { kind: AWAITING_UPSTREAM_KIND, what: `${BLOCKED_PENDING_APPROVAL_DIAGNOSIS} (${u.id} depends on an MSP awaiting approval)` }, remediation: null, resumePoint: reportOnlyResumePoint(u), triedSet: [], dependents: [] }));
     continue;
   }
   if (blockedByPark.has(u.id)) {
-    parked.push(ParkRecord({ unitId: u.id, stage: 'blocked', diagnosis: 'blocked by a parked prerequisite', request: { kind: 'approve-decision', what: `resolve the parked prerequisite before ${u.id} can run` }, remediation: null, resumePoint: { branch: `${sourcePrefix}/${u.id}-integration`, ref: baseBranch, stage: 'plan' }, triedSet: [], dependents: [] }));
+    parked.push(ParkRecord({ unitId: u.id, stage: 'blocked', diagnosis: 'blocked by a parked prerequisite', request: { kind: 'approve-decision', what: `resolve the parked prerequisite before ${u.id} can run` }, remediation: null, resumePoint: reportOnlyResumePoint(u), triedSet: [], dependents: [] }));
     continue;
   }
   if (u.state === 'built') {
-    parked.push(ParkRecord({ unitId: u.id, stage: 'blocked', diagnosis: BLOCKED_PENDING_APPROVAL_DIAGNOSIS, request: { kind: AWAITING_UPSTREAM_KIND, what: `${BLOCKED_PENDING_APPROVAL_DIAGNOSIS} (${u.id} is built ahead of an MSP awaiting approval and cannot ship until its parent merges)` }, remediation: null, resumePoint: { branch: `${sourcePrefix}/${u.id}-integration`, ref: baseBranch, stage: 'plan' }, triedSet: [], dependents: [] }));
+    parked.push(ParkRecord({ unitId: u.id, stage: 'blocked', diagnosis: BLOCKED_PENDING_APPROVAL_DIAGNOSIS, request: { kind: AWAITING_UPSTREAM_KIND, what: `${BLOCKED_PENDING_APPROVAL_DIAGNOSIS} (${u.id} is built ahead of an MSP awaiting approval and cannot ship until its parent merges)` }, remediation: null, resumePoint: reportOnlyResumePoint(u), triedSet: [], dependents: [] }));
     continue;
   }
   halted.push(haltedOutcome(u.id, 'schedule', `unit ${u.id} did not reach a terminal shipped or parked state (state=${u.state})`));
