@@ -88,7 +88,8 @@
       "0162-four-of-six-gap-1-items-are-extract-to-delete-p3-p5-reshaped",
       "0163-the-sandbox-import-trap-is-the-twin-pattern-not-a-blocker",
       "0164-m2-monotone-forward-premise-refuted-p2-ships-two-changes",
-      "0165-change-3-repeats-the-h-c-error-class-p2-pr-is-blocked"
+      "0165-change-3-repeats-the-h-c-error-class-p2-pr-is-blocked",
+      "0166-p2-defect-register-anchored-at-9e36674"
     ],
     "out_of_scope": [
       "Any change at mitosis.js:4058-4061. H-C is REFUTED by 0159, not deferred - the done-union is correct and narrowing it is a liveness regression. Re-opening needs new evidence of an unconfirmed-ship producer.",
@@ -111,5 +112,5 @@
     ]
   },
   "created_at": "2026-07-29T23:40:17.901Z",
-  "updated_at": "2026-07-31T21:38:52.431Z"
+  "updated_at": "2026-07-31T21:47:12.306Z"
 }
