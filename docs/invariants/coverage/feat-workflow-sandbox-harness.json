@@ -1,0 +1,64 @@
+{
+  "rows": [
+    {
+      "id": "B1",
+      "verdict": "threatened",
+      "check": "createSandboxContext builds the realm with createContext(constants.DONT_CONTEXTIFY) in .claude/lib/superpowers-parallel/workflow-sandbox.mjs, replacing the createContext({}) host bridge; tests/workflow-sandbox-census.test.mjs drives every own-property name of the host globalThis, Object.prototype and Function.prototype through a prototype-walk probe and requires each verdict to be absent, denied-tagged, primitive or realm-local, asserts the anchored constructor and __proto__ Function-constructor probes reject with ReferenceError process is not defined, and pins the static rule that DONT_CONTEXTIFY is present and createContext({}) is absent from the masked module source"
+    },
+    {
+      "id": "B2",
+      "verdict": "threatened",
+      "check": "SandboxViolationError carries Symbol.for('mitosis.workflow-sandbox.violation') and the guarded binding's preventExtensions trap now raises it instead of a host TypeError, so freeze, seal and preventExtensions surface tagged; tests/workflow-sandbox-traps.test.mjs derives the trap universe from the function-valued own properties of Reflect, asserts the driving-operation table is set-equal to it with no empty trap, exercises all 13 traps against the guarded, guarded-denied and both denied bindings, and asserts no row classifies as untagged-sandbox-error or unclassifiable-throw and that no denied binding permits any trap"
+    },
+    {
+      "id": "B3",
+      "verdict": "threatened",
+      "check": "guardedBinding's set, deleteProperty and defineProperty traps now call the same guard as get, which returns without raising unless the property is in the enumerated denied set, so non-denied members reach Reflect unchanged; tests/workflow-sandbox-traps.test.mjs asserts the guarded intrinsic partitions exactly into ['random'] and its complement over Reflect.ownKeys(Math), then runs get, set, delete and defineProperty over every complement key asserting zero tagged violations, and over the declared denied member asserting it stays tagged under all four"
+    },
+    {
+      "id": "B4",
+      "verdict": "threatened",
+      "check": "the retained set is derived from ALLOWED_GLOBALS and VALUE_GLOBALS via retainedNames(), the prune list from ALWAYS_DENIED and BOUND_DENIALS via prunePlan, and assertPolicyListsAgree rejects any name claimed by two lists; tests/workflow-sandbox-policy.test.mjs rewrites one constant at a time in a temp copy of the module, asserts the mutant adopted the substitution, and requires the sandbox to refuse to build for VALUE_GLOBALS emptied, ALWAYS_DENIED emptied, ALLOWED_GLOBALS emptied, JSON withdrawn, Math claimed as both retained and denied, and a retained name the realm global does not carry, with a control row proving the unmutated policy still builds"
+    },
+    {
+      "id": "B5",
+      "verdict": "threatened",
+      "check": "prunePlan throws a policy failure naming every realm-global own property that no policy list classifies, so an unclassified realm name halts sandbox construction rather than being silently retained; tests/workflow-sandbox-census.test.mjs masks strings, comments, templates and regexes in .claude/workflows/mitosis.js, tokenises the bare identifiers, probes which of them resolve inside the workflow body, and asserts that set is equal in both directions to the classification table (unclassified identifiers and stale rows are both required empty), with a per-name row asserting each identifier satisfies its allow, value, hook, realm-intrinsic or deny class and failing outright on an unknown class"
+    },
+    {
+      "id": "B6",
+      "verdict": "not-threatened",
+      "check": "B6 is NOT satisfied and this MSP does not discharge it: grep for compileWorkflow across the tree outside node_modules and .git returns only workflow-sandbox.mjs itself, its four test files and the plan document, so the harness has zero real production callers, and .claude/workflows/mitosis.js does not import it; this MSP adds no caller and removes none, so the invariant is out of its reach and remains the declared subject of Step B-3 (docs/superpowers/specs/2026-07-30-two-track-invariant-plan.md:207), which wires the engine reconstruction through compileWorkflow and fixes the dead-export lint"
+    },
+    {
+      "id": "M1",
+      "verdict": "not-threatened",
+      "check": "this MSP changes no part of the gate mechanism: git diff --stat origin/main...HEAD lists only workflow-sandbox.mjs and its four test files, so docs/invariants/registry.json, scripts/invariant-coverage-check.mjs, its test and the CI job are untouched; this entry is the compliance artifact the gate consumes, recorded in the repo rather than in the PR body, not a change to how the gate works"
+    },
+    {
+      "id": "M2",
+      "verdict": "threatened",
+      "check": "the four test files are themselves gates that classify identifiers, traps and intrinsic keys, and each halts on the unclassifiable: an unexpected realm verdict becomes unclassifiable:<name>:<message> and fails the host-surface census, an engine identifier with no classification row fails the B5 census, an unknown class value hits an explicit assert.fail, a Reflect trap with no driving operation breaks the set-equality of the trap universe, an untagged or nameless throw becomes untagged-sandbox-error or unclassifiable-throw and fails the B2 row, a guarded-intrinsic key with no sandbox-expressible form fails the B3 universe row, and prunePlan itself throws on any unclassified realm global; grep for length, count and size across the four files found no pinned count assertion at all, only non-vacuity guards of the form length > 0, one empty-list check, and an offset-preservation equality on the literal masker, so nothing acts as a change-detector"
+    },
+    {
+      "id": "M3",
+      "verdict": "threatened",
+      "check": "this range is five fix commits and M3 is only partly established, stated rather than overclaimed: the inertness half is satisfied by tests/workflow-sandbox-policy.test.mjs, the empty-the-constant mutation M3 demands, which requires six mutants to refuse to build; red-before-green is recorded for two of the five - 750cd14 is red on its parent e40a292 by construction, the parent carrying createContext({}) at line 114 while the census asserts it absent, and 2f4ee4d is red on its parent 3e59d05 by CI receipt, Actions run 30591117430 recording the B1 host-reachability census and the B5 identifier census failing on node 26.5.1 against run 30593758261 recording test success at 2f4ee4d, a red unreproducible on this worktree's node v26.4.0 where Temporal is absent from the realm global; 937b1cd and e40a292 ship their oracle in the same commit as the fix, so no red-on-parent run exists for them and none is claimed"
+    },
+    {
+      "id": "M4",
+      "verdict": "not-threatened",
+      "check": "the reviewable range mixes no refactor with the behavior change: git diff --stat origin/main...HEAD reports 5 files changed, 1142 insertions and 0 deletions, and all five are new files, so no file that existed on origin/main is modified or restructured and no surviving pre-existing behavior needed a characterization test; the intermediate commits do rewrite lines inside files that were themselves created within this same range, which is iteration on new code rather than a structural refactor of shipped behavior"
+    },
+    {
+      "id": "M5",
+      "verdict": "threatened",
+      "check": "this entry names repository paths, so every path written here was re-derived against this worktree by a filesystem existence check on 2026-07-30 after the origin/main merge: workflow-sandbox.mjs, its four test files under .claude/lib/superpowers-parallel/tests/, .claude/workflows/mitosis.js, dead-export-lint.test.mjs, docs/invariants/registry.json, scripts/invariant-coverage-check.mjs and the plan document all returned present; the one line anchor asserted here, plan line 207, and the createContext({}) location at line 114 of the module as it stood at e40a292, were both read from the live tree and from git show at write time, never copied from an earlier document"
+    },
+    {
+      "id": "M6",
+      "verdict": "not-threatened",
+      "check": "this MSP produces and patches no enforcement artifact: the five changed files are all library and test sources under .claude/lib/superpowers-parallel/, no githooks directory, no plugin cache, no vendored copy and no build output is touched, and the harness is not itself a deployed gate, so no deployed-hash versus build-from-recorded-SHA comparison moves"
+    }
+  ]
+}
