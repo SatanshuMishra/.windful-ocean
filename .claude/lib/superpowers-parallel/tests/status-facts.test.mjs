@@ -44,6 +44,29 @@ test('the parked-at-plan veto is what withholds the built transition, not a miss
   assert.equal(unvetoed.resumePoint, null);
 });
 
+test('a throwing log sink does not discard the transitions the fold already computed', () => {
+  const vetoed = statusFoldCases().find((entry) => entry.prior.msps.some((m) => m.status === 'parked'));
+  const rescued = statusFoldCases().find((entry) => entry.observed.builtUnits.includes('c'));
+  assert.ok(vetoed && rescued, 'the characterization table must carry a parked-at-plan shape and a built-rescue shape');
+
+  const folded = foldObservedStatus(
+    { ...vetoed.prior, msps: [...vetoed.prior.msps, ...rescued.prior.msps] },
+    {
+      mergedIds: [],
+      shippedMeta: new Map(),
+      manifestUnitIds: new Set(['d', 'c']),
+      builtUnits: ['d', 'c'],
+      builtShas: { d: 'sha-d-new', c: 'sha-c' },
+      logicalRunId: 'a1b2c3d4',
+      log: () => {
+        throw new Error('the log sink is down');
+      },
+    },
+  );
+
+  assert.deepEqual(folded, { ...vetoed.expected, msps: [...vetoed.expected.msps, ...rescued.expected.msps] });
+});
+
 test('foldObservedStatus returns the null prior unchanged when no merged id and no built unit is observed', () => {
   const folded = foldObservedStatus(null, {
     mergedIds: [],
