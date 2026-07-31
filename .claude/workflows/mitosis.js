@@ -2378,18 +2378,21 @@ function selectResumeUnits(manifest, shippedSet) {
   return resume;
 }
 
-function selectResumeBuilt(manifest, shippedSet) {
+function selectResumeBuilt(manifest, shippedSet, builtUnits) {
   if (!manifest || typeof manifest !== 'object' || !Array.isArray(manifest.msps)) return [];
   const runId = typeof manifest.logicalRunId === 'string' ? manifest.logicalRunId : null;
+  const builtSet = builtUnits instanceof Set ? builtUnits : new Set(Array.isArray(builtUnits) ? builtUnits : []);
   const resume = [];
   for (const msp of manifest.msps) {
     if (msp.status !== 'built') continue;
     if (isShippedUnit(shippedSet, msp.id)) continue;
     let ref = null;
-    try {
-      ref = checkpointRef(runId, msp.id);
-    } catch (err) {
-      ref = null;
+    if (builtSet.has(msp.id)) {
+      try {
+        ref = checkpointRef(runId, msp.id);
+      } catch (err) {
+        ref = null;
+      }
     }
     const resumePoint = {
       branch: typeof msp.integrationBranch === 'string' ? msp.integrationBranch : null,
@@ -3903,7 +3906,7 @@ if (reusable) {
   const remaining = computeRemaining({ planned: plannedIds, merged: [...reconciledShipped], built: builtUnits, parked: parkedIds });
   log(`mitosis: reconcile — ${remaining.skipMerged.length} merged, ${remaining.resumeBuilt.length} built-resumable, ${remaining.resumeParked.length} parked-resumable, ${remaining.remaining.length} remaining (durable checkpoint refs seen: ${builtUnits.length})`);
   for (const r of selectResumeUnits(reconciledManifest, reconciledShipped)) resumeMap.set(r.unitId, r);
-  for (const r of selectResumeBuilt(reconciledManifest, reconciledShipped)) resumeMap.set(r.unitId, { ...r, built: true });
+  for (const r of selectResumeBuilt(reconciledManifest, reconciledShipped, builtUnits)) resumeMap.set(r.unitId, { ...r, built: true });
 }
 
 let msps, clusters;
