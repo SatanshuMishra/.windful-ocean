@@ -18,6 +18,7 @@ jobs:
         with:
           node-version: '26.x'
       - run: npm test
+      - run: node .claude/lib/superpowers-parallel/mitosis-gate.mjs phase-parity
 
   invariant-coverage:
     runs-on: ubuntu-latest
