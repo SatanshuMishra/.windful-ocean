@@ -35,23 +35,24 @@
   "closure_statement": null,
   "spine": {
     "status": "paused",
-    "active_goal": "P2 UNBLOCKED. All five 0166 defects fixed in four atomic commits on fix/m2-monotone-status (dcb1a46 D1+D2, b7b54b0 D3, 5684271 D4, ef92657 D5), every twin edit in both copies in one commit. Orchestrator-verified npm test 1813/1813/0, reconciling against the 1820 baseline; D3 and D5 carry red-before-green receipts. P0 at 7d5d890, P1 at 7b8acd2. CHANGE 1 stays REFUTED (0164); of P3-P5 only A7 survives (0162). NOTHING pushed, no PR, main still 1bb149d, no coverage entry on any branch.",
-    "next_step": "START HERE. (1) AUTHOR three coverage entries (P1, P0, P2), 12 ids each, per 0143; supply receipts from the 2026-07-31 session log. (2) RE-MEASURE P2's changed lines (was 484 vs a 200-400 budget); decide whether it splits. (3) Unset upstream on docs/track-m2-mirror-gaps-plan. (4) Push ONCE per branch, then PRs via mitosis-git.mjs pr-create, NEVER gh pr create, order P1, P0, P2; P2's title must not claim monotone status (0164), though its branch name still does. (5) THEN A7 only (0162).",
+    "active_goal": "All three PRs merged by the user, but only two landed where intended: P1 (#23) and P0 (#24) squash-merged into main (8933c2c); P2 (#25) merged into its base test/mirror-census-closure (99eb137), NOT main, so M2 is stranded. Shipped: upstream unset, P2 ruled no-split at 507 lines (0170), three coverage entries landed green (fc418de, 731a0d1, 05bfa7f), three pushes, three PRs. New: 0171, D5's bare catch would swallow a tagged sandbox violation. A7 not started.",
+    "next_step": "START HERE. (1) Cut a FRESH branch off origin/main (8933c2c) and cherry-pick P2's nine commits in order: f04b8de, 9363558, 6b11f25, 9e36674, dcb1a46, b7b54b0, 5684271, ef92657, 05bfa7f. Do NOT PR test/mirror-census-closure into main - that tree never held P0's work, so the diff would DELETE the plan, the .gitignore hunk and P0's entry. No force-push without explicit confirmation. (2) npm test + coverage gate. (3) ONE PR to main via pr-create, FRESH verification lines. (4) THEN A7 only (0162).",
     "open_risks": [
+      "P2 is NOT in main. origin/main 8933c2c lacks status-facts.mjs, parking.mjs's gate and mitosis.js's twin. Until fixed, M2 is undelivered no matter what the PR list says.",
+      "Squash-merge asymmetry is the trap: 7b8acd2, fc418de, 731a0d1 and 05bfa7f are none of them ancestors of origin/main, so a cross-branch diff reads content main already has as a deletion. Cherry-pick onto a fresh branch.",
       "A PR's scope is FROZEN at creation; title/body edits are denied. Push once BEFORE opening (0141); later facts go in a PR comment (0142). Titles cap at 72 chars. Merge stays human-gated.",
-      "P2 is STACKED on P1: tip ef92657 is 8 commits above 7b8acd2, and its PR base is test/mirror-census-closure, not main. If P1 merges first P2 needs a rebase, and P1's coverage commit is not in P2's history.",
-      "docs/track-m2-mirror-gaps-plan is the ONLY branch with upstream tracking, pointing at refs/heads/main. push.default=simple blocks a bare push today, so it is latent not live - unset it before pushing anything.",
-      "Found, NOT fixed, needs its own record: relaunchStateFor seeds 'awaiting' for any id in runOpenPRs.accepted, and classifyRunOpenPRs accepts a PR whose unit is built OR parked - so a parked unit with an open PR is seeded awaiting. Pre-existing.",
-      "0169's guard swallows the log sink's error, against the never-silently-swallow rule, because the only channel inside the fold IS the failed sink. Surfacing it needs a SECOND channel - a follow-up, not a re-litigation of the guard.",
-      "0164's refutation is TRACED, not an executed reproduction, and swept only foldObservedStatus and the planReconcile condemned reset - Waves, Integrate and Ship were never swept. Demand the reproduction before reopening CHANGE 1.",
-      "NEVER invoke the compiled workflow. compileWorkflow returns a frozen async callable that would dispatch REAL agents. mitosis.js is read and edited as TEXT only - held by every subagent this session.",
-      "The suite runner is `npm test` (package.json:7). `node --test <dir>` fails MODULE_NOT_FOUND on node v26.4.0 and reports a bogus 1 test / 1 fail - it cost a cycle this session.",
-      "The pre-commit hook runs the FULL suite inline (1813 on P2, 1788 on P1, 1766 on P0). ALWAYS redirect and read only the tail; --no-verify only for a deliberately-red receipt commit.",
-      "Returned numbers need re-running, not trusting. A subagent reported D4's suite as 1813 tests / 1812 pass / 0 fail, which does not reconcile; the re-run showed 1813/1813/0. Fifth such correction, after 0145, 0152, 0159 and 0164.",
-      "Landing stays SERIAL. P1, P0 and P2 all touch mitosis.js or the mirror-guard neighbourhoods, and a policed-twin edit must land in BOTH copies in one commit. Parallelize investigation, never landing.",
-      "ORCHESTRATION: never put an agent that switches branches in the same workflow phase as one reading the working tree.",
+      "0171 follow-up owed: D5's guard is a bare catch in workflow-body position, so a tagged SandboxViolationError from the log sink is swallowed. The second-channel design 0169 deferred must decide whether it is RE-THROWN.",
+      "Found, NOT fixed, needs its own record: relaunchStateFor seeds 'awaiting' for any id in runOpenPRs.accepted, and classifyRunOpenPRs accepts a PR whose unit is built OR parked. Pre-existing.",
+      "B6 threatened on P2's entry: NO non-test file imports status-facts.mjs; production runs the inline twin and dead-export-lint counts the twin's copied text as liveness. Structural, not a P2 defect.",
+      "0164's refutation is TRACED, not an executed reproduction, and swept only foldObservedStatus and the planReconcile condemned reset - Waves, Integrate and Ship were never swept.",
+      "NEVER invoke the compiled workflow. compileWorkflow returns a frozen async callable that would dispatch REAL agents. mitosis.js is read and edited as TEXT only.",
+      "The suite runner is `npm test` (package.json:7). `node --test <dir>` fails MODULE_NOT_FOUND on node v26.4.0 and reports a bogus 1 test / 1 fail.",
+      "The pre-commit hook runs the FULL suite inline. Redirect and read only the tail; --no-verify only for a deliberately-red receipt commit.",
+      "Returned numbers need re-running and an apparent state needs explaining, not accepting. gh pr list showing only one open PR is what exposed both the early merges and the mis-targeted base.",
+      "Landing stays SERIAL for anything touching mitosis.js or the mirror-guard neighbourhoods; a policed-twin edit lands in BOTH copies in one commit. Parallelize investigation, never landing.",
+      "ORCHESTRATION: never put an agent that switches branches in the same phase as one reading the working tree. Giving authoring agents no Bash made this structurally impossible - reuse it.",
       "Every write under .claude/{hooks,rules,lib,workflows} needs per-write human approval. Batch edits per file; no unattended fan-out.",
-      "17 worktree entries remain live; the reaper verb does not exist. The tree carries five pre-existing dirty paths (.claude/settings.json, .zshrc, two .bak files, .claude/skills/context7-mcp/) - stage explicit paths only, NEVER git add -A."
+      "17 worktree entries remain live; the reaper verb does not exist. Five pre-existing dirty paths (.claude/settings.json, .zshrc, two .bak files, .claude/skills/context7-mcp/) - stage explicit paths only, NEVER git add -A. Two stashes at depth 2."
     ],
     "key_decisions": [
       "0136-defer-track-a-until-mitosis-msps-land",
@@ -111,5 +112,5 @@
     ]
   },
   "created_at": "2026-07-29T23:40:17.901Z",
-  "updated_at": "2026-07-31T22:47:05.920Z"
+  "updated_at": "2026-07-31T23:01:58.840Z"
 }
