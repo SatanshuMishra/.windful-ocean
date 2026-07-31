@@ -27,16 +27,19 @@ export function computeMergePolicyStatus({
   genuineParkedCount = 0,
   haltedCount = 0,
   crashedCount = 0,
+  ciRedExhaustedCount = 0,
   total,
 }) {
   const hasFault = genuineParkedCount > 0 || haltedCount > 0 || crashedCount > 0;
   const awaitingTotal = awaitingApprovalCount + blockedPendingApprovalCount;
-  if (!hasFault && total > 0 && shippedCount === total && awaitingTotal === 0) {
+  const healthy = !hasFault && ciRedExhaustedCount === 0;
+  if (healthy && total > 0 && shippedCount === total && awaitingTotal === 0) {
     return 'all-shipped';
   }
-  if (!hasFault && awaitingTotal > 0) {
+  if (healthy && awaitingTotal > 0) {
     return 'awaiting-approval';
   }
-  if (shippedCount === 0) return 'failed';
+  if (ciRedExhaustedCount > 0) return 'ci-red-exhausted';
+  if (hasFault) return 'blocked';
   return 'partial';
 }

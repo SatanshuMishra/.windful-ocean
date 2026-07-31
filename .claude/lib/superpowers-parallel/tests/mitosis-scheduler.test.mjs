@@ -462,7 +462,7 @@ test('report blame: assembleReport blames the unit that actually parked first un
   gateA.resolve();
   const result = await resultPromise;
 
-  assert.equal(result.overallStatus, 'failed');
+  assert.equal(result.overallStatus, 'blocked', 'two genuine ship-stage faults and no merge is a blocked run needing human action, not a merge-count verdict');
   assert.equal(result.stage, 'ship');
   assert.equal(result.mspId, 'b');
   assert.equal(result.detail, 'b failed first');
@@ -484,7 +484,7 @@ test('N1: a Ship-stage failure on a dependent MSP parks it (Tier 2) with stage s
   const { resultPromise } = invokeMitosis(buildInput(), agent);
   const result = await resultPromise;
 
-  assert.equal(result.overallStatus, 'partial');
+  assert.equal(result.overallStatus, 'blocked', 'a genuine ship-stage park is a fault the operator must clear, even though m0 merged');
   assert.equal(result.stage, 'ship');
   assert.equal(result.mspId, 'm1');
   assert.equal(result.parked.find((p) => p.mspId === 'm1').stage, 'ship');
@@ -552,7 +552,7 @@ test('F2b regression: an MSP whose plan stage always throws is parked (Tier 2), 
   const { resultPromise } = invokeMitosis(buildInput(), agent);
   const result = await resultPromise;
 
-  assert.equal(result.overallStatus, 'partial');
+  assert.equal(result.overallStatus, 'blocked', 'the parked sibling is a genuine fault, so the run reports blocked while a still shows as merged');
   assert.deepEqual(result.shipped.map((s) => s.mspId), ['a']);
   assert.deepEqual(result.parked.map((p) => p.mspId), ['b']);
   assert.equal(result.parked[0].stage, 'plan');
@@ -746,19 +746,53 @@ test('B3 in-run merge poll (human-gated): a merge-watch that confirms the awaiti
     if (label.startsWith('merge-watch:')) watchPrompts.push(prompt);
     return base(prompt, opts);
   };
-  const { resultPromise } = invokeMitosis(buildInput({ mergePolicy: undefined, repoIdentity: TEST_REPO_SLUG }), agent);
+  const { resultPromise, logLines } = invokeMitosis(buildInput({ mergePolicy: undefined, repoIdentity: TEST_REPO_SLUG }), agent);
   const result = await resultPromise;
 
   assert.equal(result.overallStatus, 'all-shipped');
   assert.deepEqual(result.shipped.map((s) => s.mspId).sort(), ['a', 'b'], 'the polled-merge root and the dependent it unblocks both ship in one run (>|root antichain|)');
+  const releaseLine = logLines.find((l) => /^mitosis\[a\]: in-run merge poll confirmed PR merged/.test(l));
+  assert.ok(releaseLine, 'the poll records the confirmed merge');
+  assert.match(releaseLine, /no longer waiting on any unmerged PR: b/, 'the merge does not just log "unblocking dependents" — it actually releases b from the approval-wait set, so no later stage can report b as waiting on the PR that just merged');
   assert.deepEqual(result.awaitingApproval, [], 'the awaiting root is moved out of the awaiting category once the poll confirms the merge');
   assert.ok(!result.parked.some((p) => p.mspId === 'b'), 'the dependent is unblocked by the poll, not parked as blocked-pending-approval');
+  assert.deepEqual(
+    result.parked.filter((p) => p.request && p.request.kind === 'blocked-pending-approval').map((p) => p.mspId),
+    [],
+    'once the in-run poll confirms the merge, nothing is reported as waiting on that PR: a blocked-pending-approval record here would send the operator to approve a PR that already merged',
+  );
 
   assert.ok(watchPrompts.length >= 1, 'the in-run poll dispatched a repo-scoped merge-watch for the awaiting root');
   const watchA = watchPrompts[0];
   assert.ok(watchA.includes(`-R ${TEST_REPO_SLUG}`), 'the merge-watch read is scoped to the run repo via -R, never the ambient cwd');
   assert.ok(!watchA.includes('gh pr merge'), 'the poll path issues no gh pr merge');
   assert.ok(!watchA.includes('git push'), 'the poll path issues no git push to the base');
+});
+
+test('B3 in-run merge poll (human-gated): a dependent of TWO awaiting roots is released only when the last of them merges — one merge must not release a unit still waiting on the other', async () => {
+  const msps = [
+    mspSpec('a', { fileScope: ['scope/a/**'] }),
+    mspSpec('x', { fileScope: ['scope/x/**'] }),
+    mspSpec('b', { dependsOn: ['a', 'x'], fileScope: ['scope/b/**'] }),
+  ];
+  const agent = createFakeAgent({
+    msps,
+    shipResult: (mspId) => (mspId === 'a' || mspId === 'x'
+      ? { merged: false, awaitingApproval: true, prUrl: `https://github.com/${TEST_REPO_SLUG}/pull/${mspId === 'a' ? 1 : 2}`, receiptsPass: true, d6Pass: true, detail: 'CI green; PR open and awaiting human approval to merge' }
+      : null),
+    mergeWatch: (mspId) => ({ merged: mspId === 'a', mergedAt: mspId === 'a' ? '2026-07-15T00:00:00Z' : null, readError: null }),
+  });
+  const { resultPromise, logLines } = invokeMitosis(buildInput({ mergePolicy: undefined, repoIdentity: TEST_REPO_SLUG }), agent);
+  const result = await resultPromise;
+
+  assert.deepEqual(result.shipped.map((s) => s.mspId), ['a'], 'only the polled-merge root ships');
+  assert.deepEqual(result.awaitingApproval.map((e) => e.mspId), ['x'], 'the unmerged root stays awaiting');
+  const blockedB = result.parked.find((p) => p.mspId === 'b');
+  assert.ok(blockedB, 'b is still reported: it cannot ship while x is unmerged');
+  assert.equal(blockedB.request.kind, 'blocked-pending-approval', 'b remains blocked pending approval of x — releasing it on a\'s merge alone would claim it is ready when it is not');
+  const releaseLine = logLines.find((l) => /^mitosis\[a\]: in-run merge poll confirmed PR merged/.test(l));
+  assert.ok(releaseLine, 'the poll records the confirmed merge');
+  assert.doesNotMatch(releaseLine, /no longer waiting on any unmerged PR/, 'a\'s merge releases nobody here: the release set is recomputed from the units still awaiting, never a blind delete of the merged unit\'s dependents');
 });
 
 test('B3 in-run merge poll fail-safe (human-gated): when the merge-watch never confirms a merge, the awaiting root and its dependent park exactly as today (no regression)', async () => {
@@ -782,6 +816,9 @@ test('B3 in-run merge poll fail-safe (human-gated): when the merge-watch never c
   const blockedB = result.parked.find((p) => p.mspId === 'b');
   assert.ok(blockedB, 'the dependent parks as blocked-pending-approval exactly as today');
   assert.equal(blockedB.request.kind, 'blocked-pending-approval');
+  assert.equal(blockedB.resumePoint.branch, `${SOURCE_PREFIX}/b-integration`, 'the report-only record still names the branch the built work sits on');
+  assert.equal(blockedB.resumePoint.ref, 'main', 'the report-only record still names the base ref');
+  assert.equal(blockedB.resumePoint.stage, null, 'b is BUILT ahead of its unmerged parent — it already completed plan and execute, so the report-only record must claim no resume stage rather than sending a reader back to plan');
 });
 
 test('T4b relaunch story: a reusable manifest bearing prior ship-transitions is read as a valid hint — the decomposition is reused, the already-merged MSP is skipped, and the remainder ships', async () => {
@@ -1028,7 +1065,7 @@ test('honest maxAttempts: raising maxAttempts raises the remediation redispatch 
   assert.equal(redispatches(), 5, 'a higher operator maxAttempts yields a higher remediation redispatch bound');
 });
 
-test('P2 park: an MSP whose implementer never succeeds is parked (Tier 2) while the sibling ships; report is partial', async () => {
+test('P2 park: an MSP whose implementer never succeeds is parked (Tier 2) while the sibling ships; report is blocked', async () => {
   const msps = twoIndependentMsps();
   const base = createFakeAgent({ msps });
   const agent = async (prompt, opts = {}) => {
@@ -1038,7 +1075,7 @@ test('P2 park: an MSP whose implementer never succeeds is parked (Tier 2) while 
   const { resultPromise } = invokeMitosis(buildInput(), agent);
   const result = await resultPromise;
 
-  assert.equal(result.overallStatus, 'partial');
+  assert.equal(result.overallStatus, 'blocked', 'an exhausted implementer is a genuine fault the operator must clear');
   assert.deepEqual(result.shipped.map((s) => s.mspId), ['a']);
   assert.deepEqual(result.parked.map((o) => o.mspId), ['b']);
   assert.equal(result.parked[0].stage, 'execute');
@@ -1056,7 +1093,7 @@ test('P2 merge-queue isolation: a ship that THROWS for one cluster does not pois
   const { resultPromise } = invokeMitosis(buildInput(), agent);
   const result = await resultPromise;
 
-  assert.equal(result.overallStatus, 'partial');
+  assert.equal(result.overallStatus, 'blocked', 'the thrower parks as a genuine fault; the sibling merge is still reported in shipped');
   assert.deepEqual(result.shipped.map((s) => s.mspId), ['b']);
   assert.deepEqual(result.parked.map((o) => o.mspId), ['a']);
   assert.equal(result.parked[0].stage, 'ship');
@@ -1849,7 +1886,7 @@ test('MSP-2 R2: an integration ref the composition pushes past the ref-token bou
   const { resultPromise } = invokeMitosis(buildInput({ sourcePrefix }), agent);
   const result = await resultPromise;
 
-  assert.equal(result.overallStatus, 'failed');
+  assert.equal(result.overallStatus, 'blocked', 'the ref-token park is a genuine fault; zero merges is not what makes the run non-green');
   assert.deepEqual(result.parked.map((p) => p.mspId), ['solo']);
   assert.match(result.parked[0].diagnosis, /integration branch/, 'the park names the composed ref that failed the ref-token check');
   assert.ok(!labels.some((l) => l.startsWith('ship-verify:')), 'no ship-verify prompt asserting a validated head ref may be built from an unvalidated composite');
@@ -1866,7 +1903,7 @@ test('MINOR-2: a ship agent that returns null is parked (Tier 2, aligned with br
   const { resultPromise } = invokeMitosis(buildInput(), agent);
   const result = await resultPromise;
 
-  assert.equal(result.overallStatus, 'failed');
+  assert.equal(result.overallStatus, 'blocked', 'a null ship parks the unit as a genuine fault rather than reporting a merge-count failure');
   assert.deepEqual(result.parked.map((o) => o.mspId), ['solo']);
   assert.equal(result.parked[0].stage, 'ship');
   assert.deepEqual(result.crashed, []);
@@ -1908,7 +1945,7 @@ test('R1 verify-handoff: a ship that CLAIMS merged but whose independent read-ba
   const { resultPromise } = invokeMitosis(buildInput(), agent);
   const result = await resultPromise;
 
-  assert.equal(result.overallStatus, 'failed');
+  assert.equal(result.overallStatus, 'blocked', 'an unverifiable handoff parks the unit as a genuine fault needing human action');
   assert.ok(!result.shipped.some((s) => s.mspId === 'solo'), 'an unverifiable handoff is never recorded shipped');
   const parked = result.parked.find((p) => p.mspId === 'solo');
   assert.ok(parked, 'the ambiguous-handoff unit is parked, not silently dropped');
@@ -1927,7 +1964,7 @@ test('R1 verify-handoff: a ship that CLAIMS merged but whose independent read-ba
   const { resultPromise } = invokeMitosis(buildInput(), agent);
   const result = await resultPromise;
 
-  assert.equal(result.overallStatus, 'failed');
+  assert.equal(result.overallStatus, 'blocked', 'a contradicted handoff parks the unit as a genuine fault needing human action');
   assert.ok(!result.shipped.some((s) => s.mspId === 'solo'), 'a contradicted handoff is never recorded shipped');
   const parked = result.parked.find((p) => p.mspId === 'solo');
   assert.ok(parked, 'the contradicted-handoff unit is parked');
@@ -3073,7 +3110,7 @@ test('FLAGSHIP obligation-3.5/3.6: a null return no longer causes unbounded iden
   const result = await resultPromise;
 
   assert.equal(planCalls, 2, 'a persistently-null plan stage is classified Unknown and dispatched exactly twice (initial + one bounded probe), never retried identically forever');
-  assert.equal(result.overallStatus, 'failed');
+  assert.equal(result.overallStatus, 'blocked', 'the bounded-probe park is a genuine fault; the run reports blocked rather than reading zero merges as the failure');
   assert.deepEqual(result.shipped, []);
   assert.deepEqual(result.parked.map((p) => p.mspId), ['solo']);
   assert.equal(result.parked[0].stage, 'plan');
@@ -3090,7 +3127,7 @@ test('FLAGSHIP obligation-4: a raw throw from the Branch stage is caught and pro
   const { resultPromise } = invokeMitosis(buildInput(), agent);
   const result = await resultPromise;
 
-  assert.equal(result.overallStatus, 'partial', 'the run completes with a report value; the throw never propagates as an unhandled rejection');
+  assert.equal(result.overallStatus, 'blocked', 'the run completes with a report value naming the fault; the throw never propagates as an unhandled rejection');
   assert.deepEqual(result.shipped.map((s) => s.mspId), ['a'], 'the sibling MSP that already shipped is preserved in the report despite the sibling throw');
   assert.deepEqual(result.crashed, []);
   assert.deepEqual(result.halted, [], 'a Branch-stage throw is caught and parked like every other stage failure, never left as a bare schedule-level halt with no record');
@@ -3100,7 +3137,7 @@ test('FLAGSHIP obligation-4: a raw throw from the Branch stage is caught and pro
   assert.match(result.parked[0].diagnosis, /injected branch throw for b/);
 });
 
-test('FLAGSHIP obligation Tier-2 park: an exhausted unit parks only itself and its transitive dependents while independent MSPs still ship — partial success is a successful run', async () => {
+test('FLAGSHIP obligation Tier-2 park: an exhausted unit parks only itself and its transitive dependents while independent MSPs still ship — the blocked verdict scopes to the fault, never to the whole run', async () => {
   const msps = [
     mspSpec('m0', { fileScope: ['scope/m0/**'] }),
     mspSpec('m1', { dependsOn: ['m0'], fileScope: ['scope/m1/**'] }),
@@ -3124,7 +3161,7 @@ test('FLAGSHIP obligation Tier-2 park: an exhausted unit parks only itself and i
   const { resultPromise } = invokeMitosis(buildInput(), agent);
   const result = await resultPromise;
 
-  assert.equal(result.overallStatus, 'partial', 'shipping 2 of 4 MSPs with one parked subtree is a successful partial run, not a failure');
+  assert.equal(result.overallStatus, 'blocked', 'the parked subtree is a genuine fault, so the run reports blocked while the 2 MSPs that merged stay reported in shipped');
   assert.deepEqual(result.shipped.map((s) => s.mspId).sort(), ['m0', 'm3'], 'the unrelated independent MSP and the parked unit\'s own already-satisfied prerequisite both ship');
   assert.deepEqual(result.parked.map((p) => p.mspId).sort(), ['m1', 'm2']);
   const m1Park = result.parked.find((p) => p.mspId === 'm1');
@@ -3155,7 +3192,7 @@ test('FLAGSHIP obligation-4.3.3(a): run-away is structurally impossible — ever
   const { resultPromise } = invokeMitosis(buildInput(), agent);
   const result = await resultPromise;
 
-  assert.equal(result.overallStatus, 'failed');
+  assert.equal(result.overallStatus, 'blocked', 'three genuine parks report blocked; the per-unit budget is what bounds the run, not the merge count');
   assert.deepEqual(result.shipped, []);
   assert.deepEqual(result.parked.map((p) => p.mspId).sort(), ['h', 'p', 'x']);
   assert.equal(result.parked.find((p) => p.mspId === 'p').stage, 'plan');
@@ -3869,7 +3906,7 @@ test('PLAN-REVIEW fail-closed: a persistently unsatisfied reviewer parks the uni
   const { resultPromise } = invokeMitosis(buildInput(), agent);
   const result = await resultPromise;
 
-  assert.equal(result.overallStatus, 'failed', 'a plan that never converges never ships — the run fails closed');
+  assert.equal(result.overallStatus, 'blocked', 'a plan that never converges never ships — the run fails closed on the plan-review park');
   assert.equal(reviewCalls, 3, 'the bounded loop runs exactly MAX_PLAN_REVIEW_ITERATIONS reviews before parking');
   assert.equal(labels.filter((l) => l === 'replan:solo').length, 2, 'a re-plan fires between reviews but not after the final unsatisfied review');
   const park = result.parked.find((p) => p.mspId === 'solo');
@@ -4018,7 +4055,7 @@ test('PLAN-REVIEW infra fail-closed: an unreachable reviewer parks the unit at p
   const { resultPromise } = invokeMitosis(buildInput(), agent);
   const result = await resultPromise;
 
-  assert.equal(result.overallStatus, 'failed');
+  assert.equal(result.overallStatus, 'blocked', 'an unreachable reviewer parks the unit as a genuine fault the operator must clear');
   const park = result.parked.find((p) => p.mspId === 'solo');
   assert.ok(park, 'the unit is parked, not silently dropped');
   assert.equal(park.stage, 'plan-review');
