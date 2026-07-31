@@ -23,7 +23,12 @@ export function vetoLogLine(unitId, veto, heldAdvance) {
 }
 
 export function foldObservedStatus(priorManifest, { mergedIds, shippedMeta, manifestUnitIds, builtUnits, builtShas, logicalRunId, log }) {
-  const emit = typeof log === 'function' ? log : () => {};
+  const emit = (line) => {
+    if (typeof log !== 'function') return;
+    try {
+      log(line);
+    } catch {}
+  };
   const shippedFoldedManifest = mergedIds.reduce((mani, mspId) => {
     const meta = shippedMeta.get(mspId) || null;
     return applyShipTransition(mani, { mspId, prUrl: meta ? meta.prUrl : null, mergedAt: meta ? meta.mergedAt : null, title: null, rationale: null });
