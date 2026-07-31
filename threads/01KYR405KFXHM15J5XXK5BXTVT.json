@@ -82,7 +82,8 @@
       "0156-mirror-gaps-land-as-five-prs-census-first-all-before-m3",
       "0157-gap-1-extracts-only-what-a-named-milestone-is-about-to-touch",
       "0158-track-the-m2-mirror-gaps-plan-in-git",
-      "0159-h-c-is-refuted-not-deferred-the-done-union-is-correct"
+      "0159-h-c-is-refuted-not-deferred-the-done-union-is-correct",
+      "0160-h-a-is-the-guard-not-the-hole-plan-section-9-is-misworded"
     ],
     "out_of_scope": [
       "Track A / continuity-ledger-plugin until all mitosis MSPs are delivered (0136). A-1, A-2, A-3 and the Track A half of Wave 0 are DEFERRED, not abandoned.",
@@ -102,5 +103,5 @@
     ]
   },
   "created_at": "2026-07-29T23:40:17.901Z",
-  "updated_at": "2026-07-31T19:22:19.788Z"
+  "updated_at": "2026-07-31T19:22:46.557Z"
 }
