@@ -340,6 +340,23 @@ test('the assignment extractor halts fail-closed when a forwarding call site dec
   assert.match(assigned.error, /carries 0 phase keys/);
 });
 
+test('the assignment extractor halts fail-closed when the forwarding function is never called', () => {
+  const assigned = extractAssignedPhases(`
+export const meta = { phases: [{ title: 'Plan' }] };
+
+function makeRemediation({ phase: phaseName }) {
+  return { redispatch: () => agent(prompt, { phase: phaseName }) };
+}
+
+export function run() {
+  phase('Plan');
+  agent(prompt, { phase: 'Plan' });
+}
+`);
+  assert.equal(assigned.ok, false);
+  assert.match(assigned.error, /forwarding function makeRemediation has no resolvable call sites/);
+});
+
 test('the assignment extractor halts fail-closed on an identifier that binds to no parameter pattern', () => {
   const assigned = extractAssignedPhases(withBody('  agent(prompt, { phase: somePhase });'));
   assert.equal(assigned.ok, false);
