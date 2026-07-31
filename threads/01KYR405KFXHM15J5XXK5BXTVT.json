@@ -35,23 +35,24 @@
   "closure_statement": null,
   "spine": {
     "status": "paused",
-    "active_goal": "Track A still DEFERRED (0136). Track B is landing. PR #16 MERGED - origin/main is 1253052 and the two-track plan spec is tracked there, so the registry citation target resolves. feat/workflow-sandbox-harness is at 2f4ee4d with Temporal classified and BOTH test and security green on CI node v26.5.1. Remaining Track B units, in order: the registry source rewrite plus the gate PR, the sandbox branch's coverage entry, then B-6.",
-    "next_step": "START HERE. PR #16 is MERGED (main @ 1253052); the spec is tracked, so the citation target now resolves. (1) On feat/invariant-coverage-gate, in its own worktree, rewrite all 12 registry source values to docs/superpowers/specs/2026-07-30-two-track-invariant-plan.md, merge origin/main in, then pr-create it. (2) Once the gate lands, merge origin/main into feat/workflow-sandbox-harness and add its coverage entry, else that PR is ungated (0138). (3) B-6 last.",
+    "active_goal": "Track A still DEFERRED (0136). Track B: units (1) and (2) LANDED and merged. main is f908a74 and carries scripts/invariant-coverage-check.mjs, docs/invariants/registry.json with all 12 sources citing the tracked spec path, both coverage entries, the invariant-coverage CI job, and workflow-sandbox.mjs. The gate is now load-bearing on EVERY pull request. Exactly one Track B unit remains: B-6.",
+    "next_step": "START HERE. B-6 is the only Track B unit left, unblocked now that workflow-sandbox.mjs is on main. On a FRESH branch off origin/main (f908a74), one MSP, one PR: wire a real production caller of compileWorkflow (mitosis.js does not import it); drop the vacuous dead-export lint; edit mitosis-gate.mjs:455 and adjudicate its semgrep finding in the SAME change; add the 12-row coverage entry with B6 threatened and discharged; pr-create. Per 0143 write each failing test in its own commit first.",
     "open_risks": [
-      "feat/invariant-coverage-gate is now 1 behind main and MUST merge origin/main in, so its PR head carries both the gate workflow and its coverage entry. That PR is the FIRST exercise of invariant-coverage on a pull_request event; the fetch-depth 0 origin/<base-ref> assumption is still unproven.",
-      "B-6 must edit mitosis-gate.mjs:455, one of 3 semgrep findings pre-existing on main (non-literal RegExp ReDoS, sg.run/gr65). A diff-aware scan surfaces a pre-existing finding once its lines are touched, so the B-6 PR WILL go red on sast unless adjudicated in the same change.",
-      "B-6 open: compileWorkflow has ZERO real production callers and its dead-export lint passes vacuously off its own two TypeError message strings. Until B-6 lands the harness certifies nothing, which was the whole point of Step 1 per 0133.",
-      "CENTRAL LESSON proved a third time (0141): this thread's own risk list claimed NO CI RUN EXISTS for any branch. Runs existed for all three and invariant-coverage had already gone green in push mode. Re-derive mechanically, including claims a prior session of this thread wrote.",
-      "ALWAYS_DENIED is 54 entries pinned to a realm surface, but node-version 26.x floats, so the NEXT Node minor adding a global halts sandbox construction on an unrelated PR. Fail-closed and now proven to work (0140); exact-patch pinning considered and declined.",
-      "main carries 3 blocking semgrep findings only a full scan sees; the diff-aware design hides them. That is fix/semgrep-pin-readjudication's territory, but every new branch's FIRST push will look red for this reason alone.",
-      "M1 verdict truthfulness stays a HUMAN gate (plan residual 3). CI proves the coverage table is present and total, never that a not-threatened verdict is true.",
-      "Track A round 3 STILL never reviewed - probe deletion plus installer.mjs 426 -> 135 into four modules, refactor and behaviour in one range. A-1 stays the missing review and a hard gate when Track A resumes.",
+      "B-6 edits mitosis-gate.mjs:455, one of 3 blocking semgrep findings pre-existing on main (sg.run/gr65, lines 262/275/455). Baselines match by finding fingerprint, so EDITING the line changes it and the finding resurfaces as new. Real, unlike the first-push artifact; adjudicate in the same change.",
+      "SEMGREP MECHANISM, proven: security.yml baselines from github.event.before on push (all-zeros on a FIRST push -> full scan -> the 3 pre-existing main findings -> red) and from pull_request.base.sha on PR events. A first-push red is an artifact; push once before opening a PR.",
+      "compileWorkflow still has ZERO production callers on main. The harness certifies nothing until B-6 lands, which was the whole point of Step 1 per 0133. Its dead-export lint passes vacuously off its own two TypeError message strings.",
+      "M1 verdict truthfulness stays a HUMAN gate (spec line 124), proven load-bearing here: the sandbox M3 row understated until the orchestrator supplied a CI receipt the authoring agent could not see (0143). A subagent cannot cite evidence it never saw.",
+      "M3 evidence is weak on 4 of the 5 already-merged sandbox commits - they ship their oracle in the same commit as the fix, so no red-on-parent run exists. Recorded candidly per 0143. Do NOT repeat the pattern in B-6.",
+      "Local node is v26.4.0; CI resolves node-version 26.x to 26.5.1+. Census reds depending on newer realm globals (Temporal) are NOT reproducible locally - only CI sees them. Never read 'not reproducible' as 'not real'.",
+      "ALWAYS_DENIED is 54 entries pinned to a realm surface while node-version floats at 26.x, so the next Node minor adding a global halts sandbox construction on an unrelated PR. Fail-closed and proven to work (0140); exact-patch pinning declined.",
+      "Every write under .claude/{hooks,rules,lib,workflows} needs per-write human approval; B-6 touches BOTH lib and workflows. No unattended fan-out.",
+      "The pre-commit hook runs the FULL suite inline (now 1756 tests) and emits ~187KB into one tool result. ALWAYS redirect commit output and read only the tail.",
+      "PARKED stash@{0} and stash@{1} untouched. Seven dirty paths in the primary tree (.zshrc, .claude/settings.json, two .bak files, .claude/skills/context7-mcp/, two untracked specs) - stage explicit paths only, NEVER git add -A.",
+      "12 leaked worktrees / ~78MB remain live; the reaper verb does not exist. The one worktree created this session was removed after its push, so the count did not grow.",
+      "A PR's scope is FROZEN at creation: pr-create composes the body and post-creation body edits are denied. New behavior ships as its own PR, never appended to an open one. Later facts go in a PR comment, which is not denied (0142).",
       "Track A deferral keeps the 0132 hand-patch window OPEN: the deployed cache carries a guard absent from its recorded SHA 0fe1c02 and a refresh reverts it.",
-      "Every write under .claude/{hooks,rules,lib,workflows} needs per-write human approval; the guard matches lib wholesale so tests/ is gated. No unattended fan-out on Track B.",
-      "The pre-commit hook runs the FULL suite inline on every commit and emitted 187KB into one tool result this session. Background it or redirect its output when committing here.",
-      "PARKED stash@{0} and stash@{1} untouched. Two untracked specs, two .bak files, untracked .claude/skills/context7-mcp/, plus modified .claude/settings.json and .zshrc - stage explicit paths only, NEVER git add -A.",
-      "12 leaked worktrees / 78 MB remain live; the reaper verb does not exist. No new worktrees created this session.",
-      "Step 1.5 is NOT fundable in isolation - 0116 gates it behind Step 1, NOT-LANDED. MSP-1 stays BLOCKED (0126) until Step 3 lands.",
+      "Track A round 3 STILL never reviewed - probe deletion plus installer.mjs 426 -> 135 into four modules, refactor and behaviour in one range. A-1 stays the missing review and a hard gate when Track A resumes.",
+      "Step 1.5 is NOT fundable in isolation - 0116 gates it behind Step 1. MSP-1 stays BLOCKED (0126) until Step 3 lands.",
       "task_70509bf0 could NOT be withdrawn - the user must stop it. Its premise is dead.",
       "Six other paused mitosis threads still need explicit per-thread disposition."
     ],
@@ -83,5 +84,5 @@
     ]
   },
   "created_at": "2026-07-29T23:40:17.901Z",
-  "updated_at": "2026-07-31T01:48:35.421Z"
+  "updated_at": "2026-07-31T01:50:12.097Z"
 }
