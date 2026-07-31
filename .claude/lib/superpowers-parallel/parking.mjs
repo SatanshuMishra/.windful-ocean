@@ -108,18 +108,22 @@ export function selectResumeUnits(manifest, shippedSet) {
   return resume;
 }
 
-export function selectResumeBuilt(manifest, shippedSet) {
+export function selectResumeBuilt(manifest, shippedSet, builtUnits) {
   if (!manifest || typeof manifest !== 'object' || !Array.isArray(manifest.msps)) return [];
   const runId = typeof manifest.logicalRunId === 'string' ? manifest.logicalRunId : null;
+  const observed = builtUnits instanceof Set ? builtUnits : (Array.isArray(builtUnits) ? new Set(builtUnits) : null);
+  const gate = observed !== null && observed.size > 0 ? observed : null;
   const resume = [];
   for (const msp of manifest.msps) {
     if (msp.status !== 'built') continue;
     if (isShippedUnit(shippedSet, msp.id)) continue;
     let ref = null;
-    try {
-      ref = checkpointRef(runId, msp.id);
-    } catch (err) {
-      ref = null;
+    if (gate === null || gate.has(msp.id)) {
+      try {
+        ref = checkpointRef(runId, msp.id);
+      } catch (err) {
+        ref = null;
+      }
     }
     const resumePoint = {
       branch: typeof msp.integrationBranch === 'string' ? msp.integrationBranch : null,
