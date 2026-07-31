@@ -35,8 +35,8 @@
   "closure_statement": null,
   "spine": {
     "status": "paused",
-    "active_goal": "M2 is SCOPED AND DESIGNED but NOT implemented - no code, test or config changed this session and the tree is clean. main re-derived at 1bb149d (PR #22 squash), green 1766/0 by orchestrator execution, merged M1 branch deleted. Work is now a five-PR sequence that must ALL land before M3 per 0156: P1 mirror-census closure, P2 MSP M2, then P3-P5 conditional extractions. P1 and P2 are implementation-ready; no further research is owed for them.",
-    "next_step": "READ docs/superpowers/plans/2026-07-31-m2-mirror-gaps.md FIRST - 37KB, gitignored, machine-local, the orchestrator never read it, and its re-derived anchors WIN over any summary. Then settle two rulings: is H-C (journal shipped unioning into done at mitosis.js:4058-4061) in M2 or deferred, and track the plan or accept it machine-local. Then implement P1 (census closure, zero production change), then P2 (M2). Every PR owes a 12-id coverage entry.",
+    "active_goal": "Five-PR mirror-gaps sequence (0156) underway. P1 IMPLEMENTED, COMMITTED, GREEN at 7b8acd2 on test/mirror-census-closure, orchestrator-verified - but UNPUSHED, no PR, coverage entry unwritten. P0 (track the plan, 0158) ruled, unimplemented. P2 re-scoped SMALLER than the plan's 115-line estimate: 0159 strikes H-C, 0160 keeps the H-A veto, leaving H-B plus veto naming/logging plus the A1 extraction. P3-P5 conditional. Nothing pushed or merged; main still 1bb149d.",
+    "next_step": "START HERE. (1) FINISH P1: author docs/invariants/coverage/test-mirror-census-closure.json (12 rows; M2, M3, M5 threatened, M1 trivially, rest not-threatened), commit on that branch, push ONCE, open the PR via mitosis-git.mjs pr-create - NEVER gh pr create. (2) P0 per 0158: .gitignore:22 becomes /docs/superpowers/plans/* plus a negation for the plan file; own branch, coverage entry, PR. (3) RE-SCOPE P2 BEFORE DISPATCH - strike section 9's done-union row (0159), reword its monotone row (0160).",
     "open_risks": [
       "msp-file-scope.mjs is a LIVE unpoliced twin, verified independently by the orchestrator: aggregateMspFileScope is duplicated at mitosis.js:67-78 and absent from mirror-guard.test.mjs:19 (grep count 0). Edit either copy and nothing detects drift. P1 fixes it.",
       "The mirror guard's WHOLE-FILE granularity HIDES partial twins: pr-format.mjs (PR_TITLE_TYPES/PATTERN/VALUE_CAP), wave-planner.mjs (pathsOverlap/scopesOverlap), engine-args.mjs. A file-granular census would pass while real duplication drifted; the census must work at EXPORT granularity.",
@@ -103,5 +103,5 @@
     ]
   },
   "created_at": "2026-07-29T23:40:17.901Z",
-  "updated_at": "2026-07-31T19:22:46.557Z"
+  "updated_at": "2026-07-31T19:46:43.130Z"
 }
