@@ -78,7 +78,8 @@
       "0152-m1-scope-excludes-two-refuted-section-6-deletions",
       "0153-ci-red-exhausted-ships-in-m1-without-a-producer",
       "0154-m2-derivation-is-monotone-forward-with-two-named-vetoes",
-      "0155-m2-ships-no-resumepoint-change-spec-3-1-is-wrong-as-written"
+      "0155-m2-ships-no-resumepoint-change-spec-3-1-is-wrong-as-written",
+      "0156-mirror-gaps-land-as-five-prs-census-first-all-before-m3"
     ],
     "out_of_scope": [
       "Track A / continuity-ledger-plugin until all mitosis MSPs are delivered (0136). A-1, A-2, A-3 and the Track A half of Wave 0 are DEFERRED, not abandoned.",
@@ -98,5 +99,5 @@
     ]
   },
   "created_at": "2026-07-29T23:40:17.901Z",
-  "updated_at": "2026-07-31T18:56:22.924Z"
+  "updated_at": "2026-07-31T18:56:39.802Z"
 }
