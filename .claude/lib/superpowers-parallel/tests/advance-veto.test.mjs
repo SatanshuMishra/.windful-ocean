@@ -46,14 +46,14 @@ test('advanceVeto names the condemned veto for a unit invalidated by a divergent
   assert.equal(advanceVeto({ status: 'parked', resumePoint: { stage: 'plan' }, condemned: true }), VETO_CONDEMNED);
 });
 
-test('each named veto renders a line that carries the unit, the veto name and the advance it holds', () => {
+test('each named veto renders a line that carries the unit, the veto name, the advance it holds and what it does to the unit', () => {
   assert.equal(
     vetoLogLine('d', VETO_PARKED, 'built'),
     'mitosis[d]: reconcile — PARKED VETO holds the forward advance to built; the derived status is unchanged',
   );
   assert.equal(
     vetoLogLine('d', VETO_CONDEMNED, 'awaiting'),
-    'mitosis[d]: reconcile — CONDEMNED VETO holds the forward advance to awaiting; the derived status is unchanged',
+    'mitosis[d]: reconcile — CONDEMNED VETO holds the forward advance to awaiting; the unit is reset to parked and rebuilds from plan',
   );
 });
 

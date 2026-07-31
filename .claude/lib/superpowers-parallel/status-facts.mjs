@@ -3,7 +3,11 @@ import { checkpointRef } from './checkpoint.mjs';
 
 export const VETO_PARKED = 'parked';
 export const VETO_CONDEMNED = 'condemned';
-export const ADVANCE_VETOES = Object.freeze([VETO_PARKED, VETO_CONDEMNED]);
+const VETO_EFFECTS = Object.freeze({
+  [VETO_PARKED]: 'the derived status is unchanged',
+  [VETO_CONDEMNED]: 'the unit is reset to parked and rebuilds from plan',
+});
+export const ADVANCE_VETOES = Object.freeze(Object.keys(VETO_EFFECTS));
 
 export function advanceVeto({ status, resumePoint, condemned } = {}) {
   if (condemned === true) return VETO_CONDEMNED;
@@ -15,7 +19,7 @@ export function vetoLogLine(unitId, veto, heldAdvance) {
   if (!ADVANCE_VETOES.includes(veto)) {
     throw new Error(`vetoLogLine: ${JSON.stringify(veto)} is not an advance veto; exactly ${ADVANCE_VETOES.length} vetoes may hold a forward advance (${ADVANCE_VETOES.join(', ')})`);
   }
-  return `mitosis[${unitId}]: reconcile — ${veto.toUpperCase()} VETO holds the forward advance to ${heldAdvance}; the derived status is unchanged`;
+  return `mitosis[${unitId}]: reconcile — ${veto.toUpperCase()} VETO holds the forward advance to ${heldAdvance}; ${VETO_EFFECTS[veto]}`;
 }
 
 export function foldObservedStatus(priorManifest, { mergedIds, shippedMeta, manifestUnitIds, builtUnits, builtShas, logicalRunId, log }) {
