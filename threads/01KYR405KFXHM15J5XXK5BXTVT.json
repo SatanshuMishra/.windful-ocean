@@ -67,7 +67,8 @@
       "0140-pinned-realm-surface-halted-on-a-second-node-as-designed",
       "0141-ci-runs-do-exist-and-the-sast-red-is-a-first-push-artifact",
       "0142-coverage-verdict-domain-stays-two-valued",
-      "0143-coverage-rows-state-missing-receipts-candidly"
+      "0143-coverage-rows-state-missing-receipts-candidly",
+      "0144-b6-masks-only-the-defining-module-and-the-gate-is-the-caller"
     ],
     "out_of_scope": [
       "Track A / continuity-ledger-plugin entirely until all mitosis MSPs are delivered (0136). A-1, A-2, A-3 and the Track A half of Wave 0 are DEFERRED, not abandoned.",
@@ -84,5 +85,5 @@
     ]
   },
   "created_at": "2026-07-29T23:40:17.901Z",
-  "updated_at": "2026-07-31T01:50:12.097Z"
+  "updated_at": "2026-07-31T04:26:51.604Z"
 }
