@@ -35,27 +35,28 @@
   "closure_statement": null,
   "spine": {
     "status": "paused",
-    "active_goal": "Track B complete; both approved engine specs are now TRACKED on main (PR #20, merged 11421ef), discharging the spec-loss risk. Standing question answered: NO mitosis spec MSP was ever implemented - PRs #1-#19 are all Track B gate/invariant hardening, and mitosis.js still carries progressPossible, maxSteps and the shepherd stage that M3/M5 delete. Track A stays deferred per 0136. Work now moves to engine implementation: quiescent-advance M0..M8, gated only by one hermeticity check.",
-    "next_step": "Run the hermeticity check FIRST per 0149: worktree at 11421ef, full suite, compare the pass count against 1761 (the ledger's 1520/1540 is stale). Equal clears the blocker and M0 starts at once - 0085 authorizes it, red test first per spec section 11. Unequal localizes the leak. Re-baseline anchors by execution before trusting any line number (0148). Order after M0: M1 -> M2 -> M6 -> M3 -> M5 -> M4 -> M7 -> M8; 0086 fixes the cap at 8, 0087 fixes class-6 at file level.",
+    "active_goal": "M0 is DELIVERED and merged (PR #21, merge commit 60f4217) - the first mitosis engine spec MSP ever implemented; PRs #1-#20 were all Track B gate/invariant hardening or docs. The hermeticity blocker that gated it is refuted and closed by 0150. Work is now straight engine implementation of the approved quiescent-advance spec, with no blocker outstanding: M1 next, then M2 -> M6 -> M3 -> M5 -> M4 -> M7 -> M8. 0086 fixes the cap at 8; 0087 fixes class-6 at file level. Track A stays deferred per 0136.",
+    "next_step": "Re-derive origin/main FIRST (it is 60f4217; local main is one behind); delete the merged M0 branch. Then implement M1, honest terminal states plus the blockedByApproval prune (spec section 6), as one MSP and one PR. No gate remains: 0085's caveat is discharged. Per 0151, grep M1's symbols against the twin list at mirror-guard.test.mjs:19 BEFORE editing, and re-derive every anchor by execution - the spec is pinned to 450804e, not main. Every PR owes a 12-id coverage entry.",
     "open_risks": [
-      "Spec anchors are pinned to 450804e, an UNMERGED branch head. Against main they run +36 to +78 off, varying BY REGION, so no single offset repairs them. Re-derive by execution before trusting any line number (0148).",
-      "M0 is authorized by 0085 but gated by that same decision's caveat: its red-then-green proof needs a trustworthy suite signal. Do not start the red test before the worktree run (0149).",
-      "The ledger's 1520/1540 suite figure is STALE. Measured this session: 1761/1761 in the primary working directory, twice. The worktree half of the claim - 2 extra failures at the same commit - was NEVER re-tested.",
-      "Hand-written enumerations were wrong on contact in 0137, 0144 and 0145. Specs re-derived by EXECUTION held, including both engine specs at their own baseline (0148). Re-derive; never copy or hand-count.",
-      "Section 8's mechanism arithmetic (22 to 14, net -8) was NOT re-verified. It is a hand-written enumeration in a baseline-pinned spec - exactly the class 0137 burned on. Re-derive before it gates an MSP.",
-      "NEVER invoke the compiled workflow function. compileWorkflow returns a frozen async callable that would dispatch REAL AGENTS; compileUnderSandbox discards it deliberately. No test may call it.",
+      "Spec anchors pin to 450804e, an unmerged head; against main they run +36 to +78 off VARYING BY REGION, and main has moved again to 60f4217. Re-derive by execution; never copy a spec line number (0148). Held again this session for every M0 anchor.",
+      "Spec section 10's mirror-twin gotcha list is INCOMPLETE: it names only M3/M4/M7, but M0's own symbol was a policed twin (0151). Per MSP, grep the target symbol against the 21-entry twin list at mirror-guard.test.mjs:19; the guard asserts whole-file containment.",
+      "Section 8's mechanism arithmetic (22 to 14, net -8) is still NOT re-verified - a hand-written enumeration in a baseline-pinned spec, the class 0137/0144/0145/0151 burned on. Re-derive before it gates an MSP.",
+      "NEVER invoke the compiled workflow. compileWorkflow returns a frozen async callable that would dispatch REAL AGENTS; compileUnderSandbox discards it deliberately. No test may call it. M0's test asserts the state the relaunch guard READS, not the guard.",
+      "Every PR needs a docs/invariants/coverage/*.json entry verdicting ALL 12 registry ids and ADDED OR MODIFIED in that PR's own diff; an untouched existing entry fails. Run scripts/invariant-coverage-check.mjs --event pull_request --base-ref main before pushing.",
+      "The coverage gate checks row SHAPE, never the truth of a check string, so the entry stays orchestrator-authored per 0143.",
       "ALWAYS_DENIED's 54-entry pinned realm surface runs in CI on every push and PR while node-version floats at 26.x, so a Node minor adding a global halts the gate. Fail-closed by design (0140); classify the name, do NOT pin Node.",
       "phase-parity requires any --target to be a compilable workflow body after ^export stripping or it exits 44; a fixture carrying ESM imports would exit 44 unanalyzed.",
-      "Track A deferral keeps the 0132 hand-patch window OPEN: the deployed cache carries a guard absent from its recorded SHA 0fe1c02, and a refresh reverts it.",
-      "Track A round 3 was never reviewed - probe deletion plus installer.mjs 426 to 135 into four modules, refactor and behaviour in one range. A-1 is a hard gate when Track A resumes.",
-      "Six other paused mitosis threads still need per-thread disposition. Each predates 11421ef and must be re-grounded first - this session found PR #14 already merged and main 5 behind.",
-      "12 leaked worktrees / ~78MB remain live; the reaper verb does not exist. No worktree was created this session - the hermeticity check will create the first.",
-      "PARKED stash@{0} and stash@{1} untouched, depth held at 2. Seven dirty paths remain - stage explicit paths only, NEVER git add -A.",
+      ".gitignore:18's `*session*` swallows real files: .claude/hooks/tests/session-config-drift-check.test.mjs is untracked, so its 9 tests exist only in the primary tree and are invisible to clean checkouts and CI. Spec-loss class; belongs to the boundary-residuals thread.",
+      "Any worktree-vs-primary suite comparison must diff test-name SETS, never counts alone - a matching count could hide an offsetting pair (0150).",
       "Every write under .claude/{hooks,rules,lib,workflows} needs per-write human approval; the engine MSPs all edit those trees. Batch edits per file; no unattended fan-out.",
-      "The pre-commit hook runs the FULL suite inline (1761 tests, ~187KB in one result). ALWAYS redirect and read only the tail. --no-verify only for a deliberately-red receipt commit.",
-      "A PR's scope is FROZEN at creation; post-creation title/body edits are denied. Later facts go in a PR comment (0142). Push once BEFORE opening the PR (0141).",
-      "M1 verdict truthfulness stays a HUMAN/orchestrator gate - a subagent cannot cite evidence it never saw (0143). Held again: the orchestrator wrote the coverage entry and ran the gate itself.",
-      "The ledger MCP silently DROPS the parameter following a long multi-line value, and update_thread nests spine fields under a spine object with a 500-char cap on each. Order the long field LAST.",
+      "The pre-commit hook runs the FULL suite inline (1762 tests at 60f4217, ~187KB in one result). ALWAYS redirect and read only the tail. --no-verify only for a deliberately-red receipt commit.",
+      "A PR's scope is FROZEN at creation; post-creation title/body edits are denied. Later facts go in a PR comment (0142). Push once BEFORE opening the PR (0141). Merge stays human-gated.",
+      "Verdict truthfulness stays a HUMAN/orchestrator gate (0143). Held again: the orchestrator re-ran the full suite, mirror guard, red-on-parent revert and coverage gate itself rather than relaying the implementer's numbers.",
+      "Track A deferral keeps the 0132 hand-patch window OPEN (deployed cache carries a guard absent from its recorded SHA 0fe1c02; a refresh reverts it), and Track A round 3 was never reviewed - installer.mjs 426 to 135 into four modules. A-1 is a hard gate when Track A resumes.",
+      "Six other paused mitosis threads still need per-thread disposition. Each predates 60f4217 and must be re-grounded first - an earlier session found PR #14 already merged and main 5 behind.",
+      "12 leaked worktrees / ~78MB remain live; the reaper verb does not exist. The scratch worktree made for this session's gate was removed after use, so the count is unchanged.",
+      "PARKED stash@{0} and stash@{1} untouched, depth 2. The tree carries pre-existing dirt (.claude/settings.json, .zshrc, three untracked paths) - stage explicit paths only, NEVER git add -A.",
+      "Ledger MCP: it drops the parameter after a long multi-line value; spine fields cap at 500 chars and open_risks at 20 items of 300 chars. A Bash hook blocks reads of the store, so completion_criteria are invisible outside the MCP tools and were left untouched here.",
       "task_70509bf0 could NOT be withdrawn - the user must stop it. Its premise is dead."
     ],
     "key_decisions": [
@@ -93,5 +94,5 @@
     ]
   },
   "created_at": "2026-07-29T23:40:17.901Z",
-  "updated_at": "2026-07-31T16:56:25.947Z"
+  "updated_at": "2026-07-31T16:58:47.674Z"
 }
