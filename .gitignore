@@ -19,7 +19,8 @@ claude.json
 .local/
 /graphify-out/
 /.playwright-mcp/
-/docs/superpowers/plans/
+/docs/superpowers/plans/*
+!/docs/superpowers/plans/2026-07-31-m2-mirror-gaps.md
 
 # Runtime state and credentials from stowed config
 /.config/com.corsair/

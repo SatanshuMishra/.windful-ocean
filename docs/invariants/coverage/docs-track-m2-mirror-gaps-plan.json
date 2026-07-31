@@ -1,0 +1,64 @@
+{
+  "rows": [
+    {
+      "id": "B1",
+      "verdict": "not-threatened",
+      "check": "the diff is exactly two files, .gitignore and one new .md under docs/superpowers/plans/; no .mjs or .js path is in it. A glob for .claude/lib/superpowers-parallel/*sandbox* returns workflow-sandbox.mjs as the tree's only sandbox module, and it is absent from this diff, so no vm realm construction and no DONT_CONTEXTIFY reference is added, removed or reached. An ignore pattern is consumed by git, never by a realm"
+    },
+    {
+      "id": "B2",
+      "verdict": "not-threatened",
+      "check": "no denial path is added, removed or reached. Neither a .gitignore line nor a markdown file raises or catches anything, so no sandbox mechanism gains a route that surfaces an untagged host error a workflow could claim as its own. workflow-sandbox.mjs, the sole tagging site found by glob, is not one of the two files in this diff"
+    },
+    {
+      "id": "B3",
+      "verdict": "not-threatened",
+      "check": "no guarded intrinsic is enumerated, trapped or called, because the diff carries no executable file at all. Stated candidly, the guarded-intrinsic enumeration was not re-read row by row for this entry; there is no member access in an ignore pattern or a markdown document to compare against it, and the full suite carrying those assertions ran 1766 pass / 0 fail on this branch"
+    },
+    {
+      "id": "B4",
+      "verdict": "not-threatened",
+      "check": "grep for VALUE_GLOBALS, ALWAYS_DENIED and ALLOWED_GLOBALS places their only executable definition site in .claude/lib/superpowers-parallel/workflow-sandbox.mjs, with the remaining hits in registry.json, two specs and prior coverage entries. workflow-sandbox.mjs is not in this two-file diff, so no constant is read or written and no assertion depending on one moves. This entry could not scan the plan file for a prose mention, but a markdown mention cannot make a constant non-load-bearing"
+    },
+    {
+      "id": "B5",
+      "verdict": "not-threatened",
+      "check": "the workflow-body position is .claude/workflows/mitosis.js, which is not one of the two files here, so this diff adds no bare identifier and no free identifier to that position and moves no census row. A .gitignore pattern and a markdown document are never evaluated as workflow source. Receipt: the full suite carrying the closed census and the sandbox compile gate ran 1766 pass / 0 fail on this branch, lower than the siblings at 1788 and 1813 only because P0 sits one commit off origin/main at 1bb149d"
+    },
+    {
+      "id": "B6",
+      "verdict": "not-threatened",
+      "check": "dead-export-lint.test.mjs:13-14 enumerates only entries ending in .mjs directly under .claude/lib/superpowers-parallel/. This diff adds no .mjs, removes none and declares no export; an ignore pattern and a markdown file fall outside that enumeration entirely, so no harness liveness verdict moves in either direction. The lint ran inside the 1766 pass / 0 fail suite on this branch"
+    },
+    {
+      "id": "M1",
+      "verdict": "threatened",
+      "check": "per the candid reading in 0147 this entry is itself the M1 mechanism, so the invariant is engaged rather than incidental. All 12 registry ids carry a verdict here, in a committed artifact and not in a PR body. Read against scripts/invariant-coverage-check.mjs: rowErrors at :106-117 tests only that id and check are non-empty strings and that verdict is one of ALLOWED_VERDICTS at :9, and pullRequestErrors at :161-177 fails any PR touching no coverage file, which is what this entry answers for P0. The permanent residual is unchanged: the gate checks the shape of every row and never the truth of any check string"
+    },
+    {
+      "id": "M2",
+      "verdict": "threatened",
+      "check": "engaged, not dismissed: a .gitignore negation is a path-classification rule, and the census it installs is a hand-written one-file allowlist, the shape M2 distrusts. Nothing halts. Git's evaluation is total but silent, so a plan file added later falls through /docs/superpowers/plans/* and stays untracked with no error. The form is forced, not chosen: git refuses to re-include a file whose parent directory is excluded, so the trailing-slash rule cannot be negated and a halting classifier is inexpressible at this layer (0158 also rejected un-ignoring the directory wholesale). Acceptance was a check-ignore census over all four files in the directory, plus a codename leak scan returning 0 hits on the newly tracked file"
+    },
+    {
+      "id": "M3",
+      "verdict": "threatened",
+      "check": "plainly: this branch ships no fix and no test, so no red-on-parent acceptance test and no inertness mutation exist, and none is claimed. What exists is a real before/after: git check-ignore over all four files under docs/superpowers/plans/ verdicts the target NOT ignored after the hunk and ignored before, and a plain git add succeeded with no -f, the mechanism 0158 required precisely so the ignore rule stops lying. That is manual acceptance evidence for an ignore-rule change. No automated guard backs it: grep across **/*.test.mjs finds no check-ignore invocation and no assertion on repo ignore state; the one .gitignore hit, mitosis-scheduler.test.mjs:2834, asserts a genesis-checkpoint prompt string instead"
+    },
+    {
+      "id": "M4",
+      "verdict": "not-threatened",
+      "check": "one three-line hunk plus one added file; nothing is moved, renamed or reorganized. The /docs/superpowers/plans/ to /docs/superpowers/plans/* rewrite is behavior-preserving on its own, since both forms ignore the same set of files under that directory, and the negation line is the sole behavior change, so no independent refactor shares the reviewable range. The surviving behavior was pinned by census rather than assumed: check-ignore was run over all four files in the directory and the three non-target files remain ignored after the hunk"
+    },
+    {
+      "id": "M5",
+      "verdict": "threatened",
+      "check": "threatened, and the gap is this author's to name. Every path:line above was re-derived by reading this checkout on 2026-07-31, none copied: .gitignore:22 still carries the pre-hunk /docs/superpowers/plans/ line the hunk deletes; scripts/invariant-coverage-check.mjs :9, :106-117 and :161-177; .github/workflows/test.yml :3-10, :20-21, :32; dead-export-lint.test.mjs:13-14; mitosis-scheduler.test.mjs:2834. The residual: the 372-line plan is absent from this working tree (checked out at fix/m2-monotone-status; a glob of docs/superpowers/plans/ returns only three other files), so whatever anchors it carries were NOT re-derived here"
+    },
+    {
+      "id": "M6",
+      "verdict": "not-threatened",
+      "check": "this diff builds no artifact, patches no deployed file and vendors no cached duplicate of any gate. The enforcing artifacts run from committed source at the checked-out SHA: .github/workflows/test.yml:20-21 runs npm test and the phase-parity gate, :32 runs scripts/invariant-coverage-check.mjs, and the triggers at :3-10 declare no paths filter, so a docs-only PR still executes both rather than skipping them. .gitignore is committed source evaluated by git directly, with no build step between source and enforcement"
+    }
+  ]
+}
