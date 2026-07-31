@@ -84,7 +84,8 @@
       "0158-track-the-m2-mirror-gaps-plan-in-git",
       "0159-h-c-is-refuted-not-deferred-the-done-union-is-correct",
       "0160-h-a-is-the-guard-not-the-hole-plan-section-9-is-misworded",
-      "0161-m3-shepherd-has-one-referent-and-m3-deletes-it"
+      "0161-m3-shepherd-has-one-referent-and-m3-deletes-it",
+      "0162-four-of-six-gap-1-items-are-extract-to-delete-p3-p5-reshaped"
     ],
     "out_of_scope": [
       "Any change at mitosis.js:4058-4061. H-C is REFUTED by 0159, not deferred - the done-union is correct and narrowing it is a liveness regression. Re-opening needs new evidence of an unconfirmed-ship producer.",
@@ -107,5 +108,5 @@
     ]
   },
   "created_at": "2026-07-29T23:40:17.901Z",
-  "updated_at": "2026-07-31T20:27:10.207Z"
+  "updated_at": "2026-07-31T20:27:34.694Z"
 }
