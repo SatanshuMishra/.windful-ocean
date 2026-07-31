@@ -511,7 +511,7 @@ function applyBuiltTransition(manifest, { unitId, checkpointRef, sha, green, bui
   const updated = manifest.msps.map((msp) => {
     if (msp.id !== unitId) return msp;
     if (msp.status === 'shipped') return msp;
-    return { ...msp, status: 'built', checkpointRef, builtSha: sha, green: green ?? false, builtAgainst: builtAgainst ?? {} };
+    return { ...msp, status: 'built', checkpointRef, builtSha: sha, green: green ?? false, builtAgainst: builtAgainst ?? {}, resumePoint: null };
   });
   const msps = exists
     ? updated
