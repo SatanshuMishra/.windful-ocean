@@ -80,7 +80,8 @@
       "0154-m2-derivation-is-monotone-forward-with-two-named-vetoes",
       "0155-m2-ships-no-resumepoint-change-spec-3-1-is-wrong-as-written",
       "0156-mirror-gaps-land-as-five-prs-census-first-all-before-m3",
-      "0157-gap-1-extracts-only-what-a-named-milestone-is-about-to-touch"
+      "0157-gap-1-extracts-only-what-a-named-milestone-is-about-to-touch",
+      "0158-track-the-m2-mirror-gaps-plan-in-git"
     ],
     "out_of_scope": [
       "Track A / continuity-ledger-plugin until all mitosis MSPs are delivered (0136). A-1, A-2, A-3 and the Track A half of Wave 0 are DEFERRED, not abandoned.",
@@ -100,5 +101,5 @@
     ]
   },
   "created_at": "2026-07-29T23:40:17.901Z",
-  "updated_at": "2026-07-31T18:57:58.737Z"
+  "updated_at": "2026-07-31T19:04:37.848Z"
 }
