@@ -76,7 +76,8 @@
       "0150-hermeticity-blocker-refuted-delta-is-one-gitignored-test-file",
       "0151-spec-mirror-twin-gotcha-list-is-incomplete-re-derive-per-msp",
       "0152-m1-scope-excludes-two-refuted-section-6-deletions",
-      "0153-ci-red-exhausted-ships-in-m1-without-a-producer"
+      "0153-ci-red-exhausted-ships-in-m1-without-a-producer",
+      "0154-m2-derivation-is-monotone-forward-with-two-named-vetoes"
     ],
     "out_of_scope": [
       "Track A / continuity-ledger-plugin until all mitosis MSPs are delivered (0136). A-1, A-2, A-3 and the Track A half of Wave 0 are DEFERRED, not abandoned.",
@@ -96,5 +97,5 @@
     ]
   },
   "created_at": "2026-07-29T23:40:17.901Z",
-  "updated_at": "2026-07-31T18:13:01.510Z"
+  "updated_at": "2026-07-31T18:56:14.731Z"
 }
