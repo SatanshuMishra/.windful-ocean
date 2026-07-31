@@ -1,0 +1,64 @@
+{
+  "rows": [
+    {
+      "id": "B1",
+      "verdict": "not-threatened",
+      "check": "no realm construction is touched: the diff changes one object literal in recovery.mjs and its inline twin in mitosis.js plus one test; workflow-sandbox.mjs is not in git diff --name-only against origin/main, and no DONT_CONTEXTIFY or vm call is added, removed or reached"
+    },
+    {
+      "id": "B2",
+      "verdict": "not-threatened",
+      "check": "no sandbox denial path is added, removed or reached; the change raises nothing and catches nothing, so no mechanism gains an untagged host error route"
+    },
+    {
+      "id": "B3",
+      "verdict": "not-threatened",
+      "check": "no guarded intrinsic is added, removed or reached; the diff introduces no member access on any guarded object"
+    },
+    {
+      "id": "B4",
+      "verdict": "not-threatened",
+      "check": "VALUE_GLOBALS, ALWAYS_DENIED and ALLOWED_GLOBALS are neither read nor written by either changed file in this diff, and no assertion depending on them moves"
+    },
+    {
+      "id": "B5",
+      "verdict": "not-threatened",
+      "check": "mitosis.js IS the workflow-body position, so this was checked rather than assumed: the added text is the property key resumePoint and the null literal. A property key is not a free identifier and null is a keyword literal, so the diff adds no bare identifier to the census and no row is owed. The full suite, which carries the census and the sandbox compile gate, ran 1762 pass / 0 fail on this branch"
+    },
+    {
+      "id": "B6",
+      "verdict": "not-threatened",
+      "check": "recovery.mjs is one of the .mjs files dead-export-lint.test.mjs enumerates, so this was checked: the diff adds no export and removes none. applyBuiltTransition was already exported and keeps its real production callers at run-log.mjs:28 and the inline copy at mitosis.js:509, so no liveness verdict moves"
+    },
+    {
+      "id": "M1",
+      "verdict": "threatened",
+      "check": "candid reading per 0147: this entry is itself the M1 mechanism, so the change cannot be said to leave it unexercised. All 12 registry ids carry a verdict here, in a committed artifact and not in the PR body. The residual M1 threat is unchanged by this diff and is that the entry is orchestrator-authored prose: the gate checks the shape of every row, never the truth of any check string"
+    },
+    {
+      "id": "M2",
+      "verdict": "not-threatened",
+      "check": "this diff adds no gate that classifies tokens, identifiers or paths, pins no count and samples no allowlist; scripts/invariant-coverage-check.mjs and the phase-parity gate are both untouched"
+    },
+    {
+      "id": "M3",
+      "verdict": "threatened",
+      "check": "M3 is the invariant this diff most engages, since it ships a fix. The acceptance test at recovery.test.mjs:302 asserts the reported symptom directly, the predicate the relaunch guard reads (status parked AND resumePoint.stage plan). Red on the parent code was proven by EXECUTION, not asserted: with both twin edits reverted to 11421ef the file ran 44 tests, 43 pass, 1 fail, and the one failure was that test. Green on the fix ran 44 pass / 0 fail, and the full suite 1762 pass / 0 fail. That same revert is the inertness mutation M3 requires: removing the change under test turns exactly this assertion red and nothing else. Stated candidly, no mutation of the ASSERTION itself was run, and the live guard at mitosis.js:3784 is never executed by the test, because it is inline in the workflow body and reaching it would require invoking the compiled workflow, which dispatches real agents and is prohibited"
+    },
+    {
+      "id": "M4",
+      "verdict": "not-threatened",
+      "check": "no structural refactor shares the reviewable range: the production diff is one line changed in each of two files, appending a field to an existing object literal, with zero lines moved, renamed or reorganized and no behavior change beyond the fix under test"
+    },
+    {
+      "id": "M5",
+      "verdict": "threatened",
+      "check": "this change is anchor-dense and the spec it implements is known stale, so M5 is engaged rather than incidental. Every path:line in the dispatch, this entry and the PR body was re-derived by execution against main at 11421ef before use, never copied: applyBuiltTransition at recovery.mjs:170 with the returning line :175, the inline twin at mitosis.js:509, the park cascade at mitosis.js:2303-2310, the relaunch guard at mitosis.js:3784, mirror-guard.test.mjs:19 listing recovery.mjs, run-log.mjs:28. The spec's own section 9 anchors were NOT used: per 0148 they resolve at 450804e and are off by +36 to +78 varying by region against main. The re-derivation corrected the spec's section 10 gotcha list, which names only M3, M4 and M7 as mirror-affected and omits that M0's own target symbol is a policed twin"
+    },
+    {
+      "id": "M6",
+      "verdict": "not-threatened",
+      "check": "this diff builds no artifact, patches no deployed file and creates no cache copy or vendored duplicate of any gate; both edited copies of applyBuiltTransition are committed source, and their byte identity is enforced by mirror-guard.test.mjs, which ran 22 pass / 0 fail on this branch"
+    }
+  ]
+}
