@@ -1,0 +1,64 @@
+{
+  "rows": [
+    {
+      "id": "B1",
+      "verdict": "not-threatened",
+      "check": "this diff adds two markdown files under docs/superpowers/specs/ and nothing else; git diff --name-only against origin/main lists no .mjs or .js path, and workflow-sandbox.mjs is untouched"
+    },
+    {
+      "id": "B2",
+      "verdict": "not-threatened",
+      "check": "markdown only; no error-tagging path is added, removed or reached by either file in this diff"
+    },
+    {
+      "id": "B3",
+      "verdict": "not-threatened",
+      "check": "markdown only; no guarded-intrinsic trap is added, removed or reached by either file in this diff"
+    },
+    {
+      "id": "B4",
+      "verdict": "not-threatened",
+      "check": "markdown only; VALUE_GLOBALS, ALWAYS_DENIED and ALLOWED_GLOBALS are neither read nor written by either file in this diff"
+    },
+    {
+      "id": "B5",
+      "verdict": "not-threatened",
+      "check": "markdown only; this diff adds no identifier to the workflow-body position and changes no census row"
+    },
+    {
+      "id": "B6",
+      "verdict": "not-threatened",
+      "check": "dead-export-lint.test.mjs enumerates only the .mjs files directly under .claude/lib/superpowers-parallel/; both added files are .md under docs/superpowers/specs/ and declare no export, so no liveness verdict moves"
+    },
+    {
+      "id": "M1",
+      "verdict": "not-threatened",
+      "check": "this entry records a verdict for all 12 registry ids, which is what M1 requires of every change; no verification mechanism is added, removed or modified by this diff, so the invariant is satisfied rather than exercised"
+    },
+    {
+      "id": "M2",
+      "verdict": "not-threatened",
+      "check": "markdown only; this diff adds no gate that classifies tokens, identifiers or paths, and modifies neither scripts/invariant-coverage-check.mjs nor the phase-parity gate"
+    },
+    {
+      "id": "M3",
+      "verdict": "not-threatened",
+      "check": "no fix and no behavior change ships here: the diff records two previously untracked specs verbatim as authored, so no symptom exists to assert and no acceptance test is owed under the test admission gate"
+    },
+    {
+      "id": "M4",
+      "verdict": "not-threatened",
+      "check": "purely additive: two new files, zero lines removed or moved, no existing source refactored, so no refactor shares a reviewable range with a behavior change"
+    },
+    {
+      "id": "M5",
+      "verdict": "threatened",
+      "check": "M5 is the invariant this diff most engages: 2026-07-28-mitosis-quiescent-advance.md carries 78 distinct path:line anchors. Its section 8 declares its derivation baseline as commit 450804e, and that claim was re-derived by execution against git show 450804e:.claude/workflows/mitosis.js on 2026-07-31: all 23 anchors that name a symbol resolve correctly at that SHA, 19 to the symbol definition line and 4 to the cited usage site (isBuildable at :1909, WINDOW_FLOOR at :1963, planTick at :1966-1981, PR_NOT_VERIFIED_OPEN_CI at :4655). The same anchors do NOT hold against main at 95ef8e1, where mitosis.js is 4926 lines rather than 4847 and the offsets vary by region from +36 to +78; the spec is accurate against the baseline it declares and stale against current main, and 2026-07-29-mitosis-run-readiness-repair.md carries no path:line anchor at all. No anchor was copied and none was rewritten in this diff"
+    },
+    {
+      "id": "M6",
+      "verdict": "not-threatened",
+      "check": "markdown only; this diff builds no artifact, patches no deployed file and creates no cache copy or vendored duplicate of any gate"
+    }
+  ]
+}
