@@ -13,6 +13,7 @@ import {
   resolveResumeTarget,
   mspContentHash,
 } from '../recovery.mjs';
+import { park } from '../parking.mjs';
 
 test('computeLogicalRunId: deterministic for identical inputs', () => {
   assert.equal(
@@ -296,6 +297,37 @@ test('applyBuiltTransition: appends a defensive built entry with the derived int
   assert.equal(c.integrationBranch, 'mitosis/c-integration');
   assert.equal(c.checkpointRef, 'refs/mitosis/x/c');
   assert.equal(c.builtSha, 'def5678');
+});
+
+test('applyBuiltTransition: clears the resumePoint, so a rebuilt unit re-parked by an ancestor cascade no longer reads as stage plan', () => {
+  const base = buildInitialManifest({
+    logicalRunId: 'x', harnessRunId: null, spec: '/s', repoRoot: '/r',
+    baseBranch: 'main', sourcePrefix: 'mitosis', clusters: [['a', 'b']],
+    msps: [
+      { id: 'a', title: 'A', rationale: 'ra', dependsOn: [], fileScope: [] },
+      { id: 'b', title: 'B', rationale: 'rb', dependsOn: ['a'], fileScope: [] },
+    ],
+  });
+  const parkedAtPlan = park(base, {
+    unitId: 'b',
+    stage: 'plan',
+    diagnosis: 'planner stalled',
+    resumePoint: { branch: 'mitosis/b-integration', ref: null },
+    triedSet: [],
+  });
+  assert.equal(parkedAtPlan.msps.find((m) => m.id === 'b').resumePoint.stage, 'plan');
+
+  const rebuilt = applyBuiltTransition(parkedAtPlan, { unitId: 'b', checkpointRef: 'refs/mitosis/x/b', sha: 'abc1234' });
+  const cascaded = park(rebuilt, { unitId: 'a', stage: 'execute', diagnosis: 'ancestor failed', triedSet: [] });
+
+  const b = cascaded.msps.find((m) => m.id === 'b');
+  assert.equal(b.status, 'parked', 'the ancestor cascade parks the dependent');
+  assert.notEqual(
+    b.resumePoint && b.resumePoint.stage,
+    'plan',
+    'a rebuilt unit carries no plan-stage resumePoint; otherwise the relaunch guard skips its built transition and git-ref rescue and it re-plans despite holding a live checkpoint',
+  );
+  assert.equal(b.checkpointRef, 'refs/mitosis/x/b', 'the checkpoint ref survives the cascade for the rescue to use');
 });
 
 test('resolveResumeTarget: a known runId (logical or harness) resolves the manifest; an unknown runId returns the halt sentinel, never a silent fresh start', () => {
