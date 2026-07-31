@@ -1,0 +1,64 @@
+{
+  "invariants": [
+    {
+      "id": "B1",
+      "statement": "The sandbox realm's backing global is a fresh vm realm global (DONT_CONTEXTIFY), never a host-realm object; no identifier resolvable in the workflow body reaches a host-realm intrinsic or host prototype chain.",
+      "source": "docs/superpowers/specs/2026-07-30-two-track-invariant-plan.md"
+    },
+    {
+      "id": "B2",
+      "statement": "Every denial is observable as a tagged SandboxViolationError; no sandbox mechanism (proxy invariant, ownKeys filter, freeze/seal) raises an untagged host error a workflow could catch as its own.",
+      "source": "docs/superpowers/specs/2026-07-30-two-track-invariant-plan.md"
+    },
+    {
+      "id": "B3",
+      "statement": "A guarded intrinsic denies exactly its enumerated members and does not raise a sandbox violation on any non-denied member.",
+      "source": "docs/superpowers/specs/2026-07-30-two-track-invariant-plan.md"
+    },
+    {
+      "id": "B4",
+      "statement": "Every named policy constant (VALUE_GLOBALS, ALWAYS_DENIED, ALLOWED_GLOBALS) is load-bearing: emptying it turns at least one assertion red.",
+      "source": "docs/superpowers/specs/2026-07-30-two-track-invariant-plan.md"
+    },
+    {
+      "id": "B5",
+      "statement": "The test census of routes into the host is closed: every host-reachable bare identifier and every free identifier the engine source uses in the workflow-body position has an assertion row classifying it allow/deny/value; an unclassified identifier halts.",
+      "source": "docs/superpowers/specs/2026-07-30-two-track-invariant-plan.md"
+    },
+    {
+      "id": "B6",
+      "statement": "The harness has at least one real production caller and its liveness is proven by that caller, not by self-referential lint artifacts.",
+      "source": "docs/superpowers/specs/2026-07-30-two-track-invariant-plan.md"
+    },
+    {
+      "id": "M1",
+      "statement": "Whole-invariant-set check per step: every change is verified against the full invariant set of its track and the verdict recorded in a committed coverage artifact in the repo, never in the PR body.",
+      "source": "docs/superpowers/specs/2026-07-30-two-track-invariant-plan.md"
+    },
+    {
+      "id": "M2",
+      "statement": "Any gate that classifies tokens, identifiers or paths is a closed census that halts on the unclassifiable; a pinned count or a sampled allowlist is forbidden as a change-detector.",
+      "source": "docs/superpowers/specs/2026-07-30-two-track-invariant-plan.md"
+    },
+    {
+      "id": "M3",
+      "statement": "Every fix ships an acceptance test that is red on the parent commit and green on the fix, asserting the reported symptom, plus an inertness mutation that must turn the assertion red.",
+      "source": "docs/superpowers/specs/2026-07-30-two-track-invariant-plan.md"
+    },
+    {
+      "id": "M4",
+      "statement": "A structural refactor and a behavior change do not share one reviewable range unless a characterization test pinning the surviving behavior is written before the refactor.",
+      "source": "docs/superpowers/specs/2026-07-30-two-track-invariant-plan.md"
+    },
+    {
+      "id": "M5",
+      "statement": "Every path:line citation in a plan, spec or PR is re-derived against the live tree when written, never copied.",
+      "source": "docs/superpowers/specs/2026-07-30-two-track-invariant-plan.md"
+    },
+    {
+      "id": "M6",
+      "statement": "The artifact that enforces a gate is a versioned build of committed source at its recorded SHA; a hand-patched deployed file is forbidden, and a refresh must reproduce the guard.",
+      "source": "docs/superpowers/specs/2026-07-30-two-track-invariant-plan.md"
+    }
+  ]
+}
