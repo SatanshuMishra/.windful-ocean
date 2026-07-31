@@ -257,30 +257,39 @@ function enclosingOpener(masked, position) {
   return null;
 }
 
+function findIdentifierTokens(masked, name) {
+  const found = [];
+  let from = 0;
+  for (;;) {
+    const start = masked.indexOf(name, from);
+    if (start === -1) return found;
+    from = start + name.length;
+    if (start > 0 && IDENT_PART.test(masked[start - 1])) continue;
+    if (from < masked.length && IDENT_PART.test(masked[from])) continue;
+    found.push(start);
+  }
+}
+
 function countIdentifierTokens(masked, name) {
   if (!FUNCTION_NAME_PATTERN.test(name)) return 0;
-  const pattern = new RegExp(`(?<![\\w$])${name}(?![\\w$])`, 'g');
-  let count = 0;
-  let m = pattern.exec(masked);
-  while (m !== null) {
-    const before = m.index - 1;
-    const memberAccess = masked[before] === '.' && masked[before - 1] !== '.';
-    if (!memberAccess) count += 1;
-    m = pattern.exec(masked);
-  }
-  return count;
+  return findIdentifierTokens(masked, name)
+    .filter((start) => !(masked[start - 1] === '.' && masked[start - 2] !== '.'))
+    .length;
 }
 
 function collectKeyOccurrences(masked, key) {
-  const pattern = new RegExp(`(^|[^\\w$.])${key}\\s*:`, 'g');
   const found = [];
-  let m = pattern.exec(masked);
-  while (m !== null) {
-    const colon = m.index + m[0].length - 1;
-    found.push({ start: m.index + m[1].length, colon, valueStart: nextCodeIndex(masked, colon + 1) });
-    m = pattern.exec(masked);
+  let from = 0;
+  for (;;) {
+    const start = masked.indexOf(key, from);
+    if (start === -1) return found;
+    from = start + key.length;
+    const before = masked[start - 1];
+    if (start > 0 && (IDENT_PART.test(before) || before === '.')) continue;
+    const colon = nextCodeIndex(masked, from);
+    if (masked[colon] !== ':') continue;
+    found.push({ start, colon, valueStart: nextCodeIndex(masked, colon + 1) });
   }
-  return found;
 }
 
 function detectAliasedPhaseSpellings(source, scan) {
@@ -447,37 +456,46 @@ function describeParameterPattern(scan, pair) {
   return { name, bodyOpen, bodyClose };
 }
 
+function findCallSites(masked, name) {
+  const found = [];
+  let from = 0;
+  for (;;) {
+    const nameStart = masked.indexOf(name, from);
+    if (nameStart === -1) return found;
+    from = nameStart + name.length;
+    if (nameStart > 0 && IDENT_PART.test(masked[nameStart - 1])) continue;
+    const paren = nextCodeIndex(masked, from);
+    if (masked[paren] !== '(') continue;
+    found.push({ nameStart, paren });
+  }
+}
+
 function resolveCallSitePhases(source, scan, functionName, occurrences) {
   const { masked, stringSpans, braceByOpen } = scan;
   if (!FUNCTION_NAME_PATTERN.test(functionName)) {
     return halt(`the forwarding function name ${JSON.stringify(functionName)} is not a plain identifier; refusing to guess`);
   }
-  const pattern = new RegExp(`(^|[^\\w$])(${functionName})\\s*\\(`, 'g');
-  const phases = [];
-  let sites = 0;
-  let m = pattern.exec(masked);
-  while (m !== null) {
-    const nameStart = m.index + m[1].length;
-    const paren = m.index + m[0].length - 1;
-    if (wordEndingAt(masked, previousCodeIndex(masked, nameStart - 1)) !== 'function') {
-      sites += 1;
-      const argStart = nextCodeIndex(masked, paren + 1);
-      if (masked[argStart] !== '{' || braceByOpen.get(argStart) === undefined) {
-        return halt(`the ${functionName} call at ${at(source, paren)} does not pass an object literal, so its phase cannot be resolved; refusing to guess`);
-      }
-      const carried = occurrences.filter((o) => o.enclosing !== null && o.enclosing.open === argStart);
-      if (carried.length !== 1) {
-        return halt(`the ${functionName} call at ${at(source, paren)} carries ${carried.length} phase keys; refusing to guess`);
-      }
-      const value = readStringLiteral(source, stringSpans, carried[0].valueStart);
-      if (value === null) {
-        return halt(`the ${functionName} call at ${at(source, paren)} forwards a non-literal phase; refusing to guess`);
-      }
-      phases.push(value);
-    }
-    m = pattern.exec(masked);
+  const callSites = findCallSites(masked, functionName)
+    .filter((site) => wordEndingAt(masked, previousCodeIndex(masked, site.nameStart - 1)) !== 'function');
+  if (callSites.length === 0) {
+    return halt(`the forwarding function ${functionName} has no resolvable call sites; refusing to guess`);
   }
-  if (sites === 0) return halt(`the forwarding function ${functionName} has no resolvable call sites; refusing to guess`);
+  const phases = [];
+  for (const { paren } of callSites) {
+    const argStart = nextCodeIndex(masked, paren + 1);
+    if (masked[argStart] !== '{' || braceByOpen.get(argStart) === undefined) {
+      return halt(`the ${functionName} call at ${at(source, paren)} does not pass an object literal, so its phase cannot be resolved; refusing to guess`);
+    }
+    const carried = occurrences.filter((o) => o.enclosing !== null && o.enclosing.open === argStart);
+    if (carried.length !== 1) {
+      return halt(`the ${functionName} call at ${at(source, paren)} carries ${carried.length} phase keys; refusing to guess`);
+    }
+    const value = readStringLiteral(source, stringSpans, carried[0].valueStart);
+    if (value === null) {
+      return halt(`the ${functionName} call at ${at(source, paren)} forwards a non-literal phase; refusing to guess`);
+    }
+    phases.push(value);
+  }
   return Object.freeze({ ok: true, phases: Object.freeze(phases) });
 }
 
