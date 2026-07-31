@@ -1,0 +1,64 @@
+{
+  "rows": [
+    {
+      "id": "B1",
+      "verdict": "not-threatened",
+      "check": "no realm construction is touched. workflow-sandbox.mjs is absent from the 9 changed files, and neither status-facts.mjs nor parking.mjs, both read in full, contains a vm call, a DONT_CONTEXTIFY reference or any global-object construction. The mitosis.js hunks I located are the inline twin at :540-:582 and its two call sites at :3834 and :3895, all of which operate on run-local manifest objects passed in as arguments. Nothing in the diff reaches for a host-realm intrinsic or a host prototype chain"
+    },
+    {
+      "id": "B2",
+      "verdict": "threatened",
+      "check": "engaged, and by the template's own test: that entry read not-threatened because its change raised nothing and caught nothing. This one does both. status-facts.mjs:18-21 throws on an unclassifiable veto, and status-facts.mjs:26-31 wraps the log-sink call in a bare catch that discards the error, mirrored at mitosis.js:553-555 and :561-566. No sandbox mechanism is added or altered and no denial loses its SandboxViolationError tag, so the invariant's own property is intact. What bears on it is scope: that catch sits in workflow-body position and would swallow a tagged violation raised inside the sink, making that one denial unobservable. Decision 0169 accepted that swallow knowingly, against this project's rule that errors are never silently swallowed, because the only reporting channel inside the fold IS the sink that just failed; a second channel is deferred as a follow-up, not re-litigated here"
+    },
+    {
+      "id": "B3",
+      "verdict": "not-threatened",
+      "check": "stated candidly: the guarded-intrinsic enumeration was not read row by row for this diff, and neither workflow-sandbox-policy.test.mjs nor workflow-sandbox-census.test.mjs was opened. What was checked is the member surface the diff actually adds, by reading both new production files end to end: Object.freeze and Object.keys, Array reduce/filter/find/includes/join, Set.prototype.has and .size, Map.prototype.get, JSON.stringify, String.prototype.toUpperCase. All are applied to run-local values built inside the workflow body, none is a newly denied member, and no denial list gains or loses a row. The receipt is the orchestrator-executed suite on the tip: 1813 tests, 1813 pass, 0 fail, exit 0"
+    },
+    {
+      "id": "B4",
+      "verdict": "not-threatened",
+      "check": "VALUE_GLOBALS, ALWAYS_DENIED and ALLOWED_GLOBALS occur in exactly three files in .claude, located by content search: workflow-sandbox.mjs, tests/workflow-sandbox-policy.test.mjs and tests/workflow-sandbox-census.test.mjs. None of the three is among the 9 changed files. status-facts.mjs and parking.mjs were read in full and name none of them; the three named constants this diff does add (VETO_PARKED, VETO_CONDEMNED, ADVANCE_VETOES at status-facts.mjs:4, :5, :10) are veto vocabulary, not sandbox policy. No assertion depending on the policy constants moves"
+    },
+    {
+      "id": "B5",
+      "verdict": "not-threatened",
+      "check": "checked rather than assumed, because mitosis.js IS the workflow-body position and this diff adds roughly 38 lines of declarations there. I located each: const VETO_CONDEMNED at :540, const ADVANCE_VETOES at :545, function advanceVeto at :547, function vetoLogLine at :553, function foldObservedStatus at :560. Every one is a const or function declaration, which binds a name inside the body rather than leaving a free identifier to resolve against the host, and no new bare global reference appears in the added text. The two call sites at :3834 and :3895 reference only those body-local bindings and pre-existing locals. Said plainly: the census assertion rows in workflow-sandbox-census.test.mjs were not read row by row; the receipt that the census still closes is the 1813 pass / 0 fail suite on the tip"
+    },
+    {
+      "id": "B6",
+      "verdict": "threatened",
+      "check": "a real question here, and the honest answer is the uncomfortable one. status-facts.mjs is a brand new lib module and NO non-test file imports it: the only importers are tests/status-facts.test.mjs:5 and tests/advance-veto.test.mjs:3, plus the census row at tests/mirror-guard.test.mjs:45. Production execution of this logic happens through the byte-identical inline twin at mitosis.js:540-:582, called at :3834 and :3895 — those call sites bind the twin's declarations, not the module's exports. dead-export-lint.test.mjs:66-71 computes liveness as raw identifier matches in mitosis.js plus sibling modules, so a WHOLE twin's own copied declaration text makes every export of its original look live with zero callers. Contrast parking.mjs, which has genuine production importers at run-log.mjs:1 and reconcile.mjs:2"
+    },
+    {
+      "id": "M1",
+      "verdict": "threatened",
+      "check": "this entry is itself the M1 mechanism: all 12 registry ids carry a verdict here, once each, in a committed artifact rather than in the PR body. What it must record first is that CHANGE 1, the monotone-status comparator, was PLANNED AND NOT DELIVERED. Decision 0164 refuted its premise by execution: across all 128 input combinations of foldObservedStatus the measured count of ladder lowerings is ZERO, and a condemned probe found 11 park events with zero done-or-shipped units condemned. The only non-forward transition the fold can make is parked to built for a unit whose resumePoint.stage is not 'plan', 7 of 128, and turning that red would require generalising the resurrection guard, which decision 0160 forbids. Two limits on that refutation: the regression argument is a TRACED code path across four gates, not an executed reproduction; and the sweep covers only foldObservedStatus and the planReconcile-driven condemned reset — the Waves, Integrate and Ship phases were never swept for status assignments. The branch is still named fix/m2-monotone-status and the change does not deliver it; the PR title will not repeat the claim. Standing threats: the gate checks row shape, never the truth of a check string, and the receipts I reason from (the 1813-test suite, the 0164 sweep, the red-on-parent runs) were orchestrator-executed under decision 0143. I re-derived every path:line myself; I re-ran nothing"
+    },
+    {
+      "id": "M2",
+      "verdict": "threatened",
+      "check": "engaged directly: this diff adds a new lib module, and a new lib module is exactly what a closed census must halt on. mirror-guard.test.mjs enumerates the directory with readdirSync at :114-119 and asserts at :164-171 that no module lacks a row, so status-facts.mjs halted the gate until the one added line at :45 classified it WHOLE. That class is then verified by measured verbatim containment in both directions at :121-157, not by a pinned count or a sampled allowlist. The change also adds a second census of its own: ADVANCE_VETOES is derived from Object.keys(VETO_EFFECTS) at status-facts.mjs:6-10, so it cannot drift from the effects table, and vetoLogLine at :18-21 throws on an unclassifiable veto rather than defaulting. advance-veto.test.mjs:26 pins the veto list by exact enumeration, which turns red on a third veto"
+    },
+    {
+      "id": "M3",
+      "verdict": "threatened",
+      "check": "no uniform receipt exists across these eight commits, so per commit. f04b8de is a characterization test: green on its parent by construction, and no red is owed. 9363558 is a pure extraction: no acceptance test and none owed; its guard is the characterization test that preceded it plus mirror-guard. For 6b11f25 and 9e36674 decision 0165 records semantic red-on-parent proven for both shipped changes and two inertness mutations proven. b7b54b0 carries a receipted red at parent dcb1a46 with two failing assertions. ef92657 carries a receipted red at parent 5684271, the injected throw escaping foldObservedStatus from inside Array.reduce. 5684271 is test-only deletion; no red owed. The named gap is dcb1a46 (D1+D2): it changed the CONDEMNED effect clause and the call site, updated both frontier-train-e2e assertions in the SAME commit, and carries NO red-on-parent receipt — the H4 parked assertion was confirmed unmodified by reading, which is weaker. No inertness mutation is reported for dcb1a46, b7b54b0, 5684271 or ef92657. Found, not fixed, pre-existing and untouched by this diff, so it ships with no acceptance test at all: relaunchStateFor seeds 'awaiting' for any id in runOpenPRs.accepted at mitosis.js:4122 before it consults the unit's own status at :4123, and classifyRunOpenPRs accepts a PR whose unit is built OR parked (mitosis.js:2912, :2922) — so a parked unit with an open PR is seeded awaiting"
+    },
+    {
+      "id": "M4",
+      "verdict": "threatened",
+      "check": "both halves belong here. The licence half: f04b8de characterizes the reconcile status fold and precedes the extraction 9363558 in commit order, which is M4 satisfied by construction rather than by argument — that ordering is the orchestrator's receipt under 0143 and I did not re-derive it from git. The half that must not be buried: 5684271 then DELETED that characterization. After the extraction it had become a third, unpoliced textual copy of the fold asserting the same goldens as the real module's tests at status-facts.test.mjs, so it could no longer catch a production regression while still looking like it did. The consequence is that the artifact licensing this refactor-plus-behavior range no longer exists in the tree; the surviving guard is status-facts.test.mjs over the shared status-fold-cases.mjs goldens plus mirror-guard's WHOLE row. The range is also genuinely mixed: one extraction and five behavior fixes share it"
+    },
+    {
+      "id": "M5",
+      "verdict": "threatened",
+      "check": "anchor-dense, and anchors moved inside this branch's own history, so every citation below was re-derived by me against the tree at ef92657 and nothing recorded earlier was reused. Module: VETO_PARKED status-facts.mjs:4, VETO_CONDEMNED :5, ADVANCE_VETOES :10, advanceVeto :12, vetoLogLine :18 with its throw at :19-21, foldObservedStatus :25, the swallowing emit :26-31. Inline twin: mitosis.js:540, :545, :547, :553-555, :560, veto evaluated :575, emitted :577. Call sites: fold at :3834, condemned veto log at :3895 next to the RESET line at :3894. D3: parking.mjs selectResumeBuilt :111-136, the populated-set gate at :114-115 and :121. Census: mirror-guard.test.mjs:45. Two disagreements with what I was handed. mirror-guard.test.mjs is at .claude/lib/superpowers-parallel/tests/, not .claude/tests/. And dead-export-lint.test.mjs exists at that same tests/ directory; a content search for the string 'dead-export' does not find it"
+    },
+    {
+      "id": "M6",
+      "verdict": "not-threatened",
+      "check": "this diff builds no artifact, patches no deployed file, and creates no cache copy or vendored duplicate of any gate. The two copies of the status fold are both committed source — status-facts.mjs and the inline twin at mitosis.js:540-:582 — and their byte identity is enforced by mirror-guard, which the orchestrator reports green for BOTH status-facts.mjs and parking.mjs, each carrying a WHOLE row (mirror-guard.test.mjs:45 and :35). templates/receipts.yml and scripts/invariant-coverage-check.mjs are untouched, so no deployed enforcer is refreshed or regenerated by this change"
+    }
+  ]
+}

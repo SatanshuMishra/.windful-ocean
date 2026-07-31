@@ -226,7 +226,7 @@ test('selectResumeBuilt: built units yield a ship-stage resume descriptor carryi
     { id: 'b', status: 'parked' },
     { id: 'c', status: 'planned' },
   ]);
-  const resume = selectResumeBuilt(manifest, new Map());
+  const resume = selectResumeBuilt(manifest, new Map(), ['a', 'b', 'c']);
   assert.deepEqual(resume, [{
     unitId: 'a',
     stage: 'ship',
@@ -236,7 +236,51 @@ test('selectResumeBuilt: built units yield a ship-stage resume descriptor carryi
 
 test('selectResumeBuilt: an already-shipped built unit is excluded from the resume set', () => {
   const manifest = builtManifest([{ id: 'a', status: 'built', integrationBranch: 'mitosis/a-integration', checkpointRef: 'refs/mitosis/deadbeef/a' }]);
-  assert.deepEqual(selectResumeBuilt(manifest, new Set(['a'])), []);
+  assert.deepEqual(selectResumeBuilt(manifest, new Set(['a']), ['a']), []);
+});
+
+test('selectResumeBuilt: a manifest-built unit the observed built-unit fact does not carry gets NO synthesized checkpoint ref', () => {
+  const manifest = builtManifest([
+    { id: 'a', status: 'built', integrationBranch: 'mitosis/a-integration' },
+    { id: 'b', status: 'built', integrationBranch: 'mitosis/b-integration' },
+  ]);
+  assert.deepEqual(selectResumeBuilt(manifest, new Map(), ['a']), [
+    { unitId: 'a', stage: 'ship', resumePoint: { branch: 'mitosis/a-integration', ref: 'refs/mitosis/deadbeef/a', stage: 'ship' } },
+    { unitId: 'b', stage: 'ship', resumePoint: { branch: 'mitosis/b-integration', ref: null, stage: 'ship' } },
+  ]);
+});
+
+test('selectResumeBuilt: an omitted or unusable built-unit fact is no observation at all, so the deterministic ref is still synthesized', () => {
+  const manifest = builtManifest([{ id: 'a', status: 'built', integrationBranch: 'mitosis/a-integration' }]);
+  assert.deepEqual(selectResumeBuilt(manifest, new Map()).map((r) => r.resumePoint.ref), ['refs/mitosis/deadbeef/a']);
+  assert.deepEqual(selectResumeBuilt(manifest, new Map(), null).map((r) => r.resumePoint.ref), ['refs/mitosis/deadbeef/a']);
+  assert.deepEqual(selectResumeBuilt(manifest, new Map(), 'a').map((r) => r.resumePoint.ref), ['refs/mitosis/deadbeef/a']);
+});
+
+test('selectResumeBuilt: an EMPTY built-unit fact is the documented return for "no remote", so it withholds no ref from anyone', () => {
+  const manifest = builtManifest([
+    { id: 'a', status: 'built', integrationBranch: 'mitosis/a-integration' },
+    { id: 'b', status: 'built', integrationBranch: 'mitosis/b-integration' },
+  ]);
+  assert.deepEqual(
+    selectResumeBuilt(manifest, new Map(), []).map((r) => r.resumePoint.ref),
+    ['refs/mitosis/deadbeef/a', 'refs/mitosis/deadbeef/b'],
+  );
+  assert.deepEqual(
+    selectResumeBuilt(manifest, new Map(), new Set()).map((r) => r.resumePoint.ref),
+    ['refs/mitosis/deadbeef/a', 'refs/mitosis/deadbeef/b'],
+  );
+});
+
+test('selectResumeBuilt: a checkpointRef the run id makes unbuildable degrades that unit to a null ref rather than throwing', () => {
+  const manifest = { ...builtManifest([{ id: 'a', status: 'built', integrationBranch: 'mitosis/a-integration' }]), logicalRunId: 'not a safe run id' };
+  assert.deepEqual(selectResumeBuilt(manifest, new Map()).map((r) => r.resumePoint.ref), [null]);
+  assert.deepEqual(selectResumeBuilt(manifest, new Map(), ['a']).map((r) => r.resumePoint.ref), [null]);
+});
+
+test('selectResumeBuilt: the built-unit fact is accepted as a Set as well as an array', () => {
+  const manifest = builtManifest([{ id: 'a', status: 'built', integrationBranch: 'mitosis/a-integration' }]);
+  assert.deepEqual(selectResumeBuilt(manifest, new Map(), new Set(['a'])).map((r) => r.resumePoint.ref), ['refs/mitosis/deadbeef/a']);
 });
 
 function priorManifestWithHashes(defs) {

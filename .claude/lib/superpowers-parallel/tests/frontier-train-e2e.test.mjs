@@ -567,6 +567,12 @@ test('bullet 4a / H4: a divergent parent merge resets exactly its true descendan
   assert.match(prompts.get('park-checkpoint:l2'), /"stage":"plan"/, 'the invalidation park records resumePoint stage:plan (H4) so the resumed unit re-plans rather than shipping condemned content at stage ship');
   assert.ok(!/refs\/mitosis\//.test(prompts.get('park-checkpoint:l2')), 'the invalidation park drops its checkpoint provenance — its resumePoint ref is the base branch, not the condemned durable checkpoint ref');
   assert.ok(logLines.some((l) => /BUILD RUN NEEDED/.test(l)), 'the reconcile advance flags that a follow-up build run is needed for the reset subtree');
+  for (const id of ['l2', 'l3']) {
+    assert.ok(
+      logLines.includes(`mitosis[${id}]: reconcile — CONDEMNED VETO holds the forward advance to awaiting; the unit is reset to parked and rebuilds from plan`),
+      `the condemned veto that stops ${id} advancing to awaiting announces itself by name AND states the reset it performs; a veto that fires silently is unauditable, and one that claims the status is unchanged while the very next lines park the unit at stage plan is worse than silent`,
+    );
+  }
   assert.ok(labels.includes('plan:l2') && labels.includes('plan:l3'), 'the reset subtree REBUILDS from plan on this same relaunch (C1 routes parked units into the build path) instead of freezing forever in reconcile-only');
   assert.ok(!labels.includes('restore:l2') && !labels.includes('restore:l3'), 'the reset units are NEVER restored from their condemned durable checkpoints (H4: no ship-resume of invalidated content)');
 
@@ -589,9 +595,13 @@ test('H4 resurrection guard: a folded unit already parked at stage plan, whose d
     checkpointRefPages: checkpointPages(['d']),
   };
   const { agent, labels } = multiRelaunchAgent({ reconcileResult });
-  const { resultPromise } = invoke(runOn, buildInput(), agent);
+  const { resultPromise, logLines } = invoke(runOn, buildInput(), agent);
   const result = await resultPromise;
 
+  assert.ok(
+    logLines.includes('mitosis[d]: reconcile — PARKED VETO holds the forward advance to built; the derived status is unchanged'),
+    'the resurrection guard announces itself by name when it holds d back from built; a veto that fires silently is unauditable',
+  );
   assert.ok(labels.includes('plan:d'), 'the folded parked+stage:plan unit resumes at plan and rebuilds — the resurrection guard kept it parked despite its still-live checkpoint ref');
   assert.ok(!labels.includes('restore:d'), 'd is NEVER restored from its condemned durable checkpoint (the reconcile reduce did not flip parked+plan back to built)');
   assert.ok(!labels.includes('shepherd-open:d') && !labels.includes('shepherd-restack:d'), 'd is never handled as a built unit by the shepherd (no ship-stage resume)');
