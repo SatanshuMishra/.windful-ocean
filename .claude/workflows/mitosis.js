@@ -536,7 +536,25 @@ function applyBuiltTransition(manifest, { unitId, checkpointRef, sha, green, bui
   return { ...manifest, msps };
 }
 
-function foldObservedStatus(priorManifest, { mergedIds, shippedMeta, manifestUnitIds, builtUnits, builtShas, logicalRunId }) {
+const VETO_PARKED = 'parked';
+const VETO_CONDEMNED = 'condemned';
+const ADVANCE_VETOES = Object.freeze([VETO_PARKED, VETO_CONDEMNED]);
+
+function advanceVeto({ status, resumePoint, condemned } = {}) {
+  if (condemned === true) return VETO_CONDEMNED;
+  if (status === 'parked' && resumePoint && resumePoint.stage === 'plan') return VETO_PARKED;
+  return null;
+}
+
+function vetoLogLine(unitId, veto, heldAdvance) {
+  if (!ADVANCE_VETOES.includes(veto)) {
+    throw new Error(`vetoLogLine: ${JSON.stringify(veto)} is not an advance veto; exactly ${ADVANCE_VETOES.length} vetoes may hold a forward advance (${ADVANCE_VETOES.join(', ')})`);
+  }
+  return `mitosis[${unitId}]: reconcile — ${veto.toUpperCase()} VETO holds the forward advance to ${heldAdvance}; the derived status is unchanged`;
+}
+
+function foldObservedStatus(priorManifest, { mergedIds, shippedMeta, manifestUnitIds, builtUnits, builtShas, logicalRunId, log }) {
+  const emit = typeof log === 'function' ? log : () => {};
   const shippedFoldedManifest = mergedIds.reduce((mani, mspId) => {
     const meta = shippedMeta.get(mspId) || null;
     return applyShipTransition(mani, { mspId, prUrl: meta ? meta.prUrl : null, mergedAt: meta ? meta.mergedAt : null, title: null, rationale: null });
@@ -545,7 +563,11 @@ function foldObservedStatus(priorManifest, { mergedIds, shippedMeta, manifestUni
     .filter((unitId) => manifestUnitIds.has(unitId))
     .reduce((mani, unitId) => {
       const existing = mani.msps.find((m) => m.id === unitId);
-      if (existing && existing.status === 'parked' && existing.resumePoint && existing.resumePoint.stage === 'plan') return mani;
+      const veto = existing ? advanceVeto({ status: existing.status, resumePoint: existing.resumePoint, condemned: false }) : null;
+      if (veto !== null) {
+        emit(vetoLogLine(unitId, veto, 'built'));
+        return mani;
+      }
       return applyBuiltTransition(mani, {
         unitId,
         checkpointRef: checkpointRef(logicalRunId, unitId),
@@ -3803,6 +3825,7 @@ let reconciledManifest = foldObservedStatus(priorManifest, {
   builtUnits,
   builtShas,
   logicalRunId,
+  log,
 });
 
 const isRelaunch = reconciledManifest && reconciledManifest.logicalRunId === logicalRunId;
@@ -3856,6 +3879,7 @@ if (isRelaunch && reusable && builtUnits.length > 0) {
       log(`mitosis[${id}]: reconcile — durable park checkpoint threw (${clean(err.message)}); continuing so one failed write never crashes the run`);
     }
     log(`mitosis[${id}]: reconcile — RESET by divergent-invalidation; checkpoint provenance dropped, will rebuild from plan`);
+    log(vetoLogLine(id, advanceVeto({ status: 'built', resumePoint: null, condemned: true }), 'awaiting'));
   }
   const parkSubtreeSet = new Set(advance.toParkSubtree);
   if (parkSubtreeSet.size > 0) {
