@@ -90,7 +90,8 @@
       "0170-p2-does-not-split-507-lines-is-346-test-mass-over-161-production",
       "0171-d5-guard-engages-b2-shipped-as-a-threatened-verdict-not-a-blocker",
       "0172-p2-re-lands-on-main-as-pr-26-by-cherry-pick",
-      "0173-a7-ships-shadow-rename-declined-b6-threatened"
+      "0173-a7-ships-shadow-rename-declined-b6-threatened",
+      "0174-m6-is-next-not-m3-a2-check-first"
     ],
     "out_of_scope": [
       "Any change at mitosis.js:4058-4061. H-C is REFUTED by 0159, not deferred - the done-union is correct and narrowing it is a liveness regression. Re-opening needs new evidence of an unconfirmed-ship producer.",
@@ -113,5 +114,5 @@
     ]
   },
   "created_at": "2026-07-29T23:40:17.901Z",
-  "updated_at": "2026-07-31T23:51:25.580Z"
+  "updated_at": "2026-07-31T23:57:58.643Z"
 }
