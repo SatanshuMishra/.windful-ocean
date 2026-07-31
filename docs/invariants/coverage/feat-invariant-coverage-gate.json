@@ -53,7 +53,7 @@
     {
       "id": "M5",
       "verdict": "threatened",
-      "check": "this MSP authors citation-bearing artifacts; every repository path named in this entry and in the registry was re-derived against the live tree on 2026-07-30 by git status and grep, and no path:line anchor is asserted anywhere in this diff"
+      "check": "all 12 registry source values now carry the repo-relative path docs/superpowers/specs/2026-07-30-two-track-invariant-plan.md, which was re-derived against this worktree's merged tree by a filesystem existence check on 2026-07-30, and no path:line anchor is asserted anywhere in this diff"
     },
     {
       "id": "M6",
