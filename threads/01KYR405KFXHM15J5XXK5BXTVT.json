@@ -85,7 +85,8 @@
       "0164-m2-monotone-forward-premise-refuted-p2-ships-two-changes",
       "0165-change-3-repeats-the-h-c-error-class-p2-pr-is-blocked",
       "0166-p2-defect-register-anchored-at-9e36674",
-      "0167-an-empty-built-unit-observation-is-unobserved-not-absence"
+      "0167-an-empty-built-unit-observation-is-unobserved-not-absence",
+      "0168-d4-repoints-the-two-unique-assertions-rather-than-deleting-them"
     ],
     "out_of_scope": [
       "Any change at mitosis.js:4058-4061. H-C is REFUTED by 0159, not deferred - the done-union is correct and narrowing it is a liveness regression. Re-opening needs new evidence of an unconfirmed-ship producer.",
@@ -108,5 +109,5 @@
     ]
   },
   "created_at": "2026-07-29T23:40:17.901Z",
-  "updated_at": "2026-07-31T22:17:43.640Z"
+  "updated_at": "2026-07-31T22:26:08.460Z"
 }
