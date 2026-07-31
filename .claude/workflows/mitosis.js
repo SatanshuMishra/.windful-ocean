@@ -2972,8 +2972,6 @@ function buildReconcileLiveSignals(recon, reconciledShipped, sourcePrefix, class
   return { merged: [...reconciledShipped], mergedShas, published, events };
 }
 
-const SHA_HEX_PATTERN = /^[0-9a-f]{7,64}$/i;
-
 function divergenceProbePrompt(parentId, ref, builtSha, mergedSha, fileScope) {
   return (
     `You are the reconcile-only shepherd DIVERGENCE-PROBE stage for merged parent MSP "${parentId}" of a mitosis run. You have NO Skill tool.\n\n` +
@@ -2986,7 +2984,10 @@ function divergenceProbePrompt(parentId, ref, builtSha, mergedSha, fileScope) {
   );
 }
 
-async function runDivergenceProbes(manifest, mergedIds, mergedShas) {
+const SHA_HEX_PATTERN = /^[0-9a-f]{7,64}$/i;
+
+async function runDivergenceProbes(manifest, mergedIds, mergedShas, ctx) {
+  const { agent, clean, logicalRunId, divergenceProbePrompt, DIVERGENCE_PROBE_SCHEMA } = ctx;
   const probes = {};
   const msps = manifest && Array.isArray(manifest.msps) ? manifest.msps : [];
   const byId = new Map(msps.filter((m) => m && typeof m.id === 'string').map((m) => [m.id, m]));
@@ -3867,7 +3868,7 @@ if (isRelaunch && reusable && builtUnits.length > 0) {
   const baseLiveSignals = buildReconcileLiveSignals(recon, reconciledShipped, sourcePrefix, runOpenPRs);
   let divergenceProbes;
   try {
-    divergenceProbes = await runDivergenceProbes(reconciledManifest, baseLiveSignals.merged, baseLiveSignals.mergedShas);
+    divergenceProbes = await runDivergenceProbes(reconciledManifest, baseLiveSignals.merged, baseLiveSignals.mergedShas, { agent, clean, logicalRunId, divergenceProbePrompt, DIVERGENCE_PROBE_SCHEMA });
   } catch (err) {
     divergenceProbes = {};
     log(`mitosis: reconcile — divergence-probe dispatch threw (${clean(err.message)}); treating every need-keyed merged parent as indeterminate so its built descendants park, and continuing the run`);
