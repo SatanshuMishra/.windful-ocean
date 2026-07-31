@@ -27,7 +27,7 @@ export const ALWAYS_DENIED = Object.freeze([
   'AggregateError', 'ArrayBuffer', 'AsyncDisposableStack', 'Atomics', 'BigInt', 'BigInt64Array',
   'BigUint64Array', 'DataView', 'DisposableStack', 'EvalError', 'FinalizationRegistry', 'Float16Array',
   'Float32Array', 'Float64Array', 'Int16Array', 'Int32Array', 'Int8Array', 'Intl', 'Iterator', 'Proxy',
-  'ReferenceError', 'Reflect', 'SharedArrayBuffer', 'SuppressedError', 'SyntaxError', 'URIError',
+  'ReferenceError', 'Reflect', 'SharedArrayBuffer', 'SuppressedError', 'SyntaxError', 'Temporal', 'URIError',
   'Uint16Array', 'Uint32Array', 'Uint8Array', 'Uint8ClampedArray', 'WeakMap', 'WeakRef', 'WeakSet',
   'WebAssembly', 'decodeURI', 'decodeURIComponent', 'encodeURI', 'encodeURIComponent', 'escape', 'isFinite',
   'isNaN', 'parseFloat', 'parseInt', 'unescape',
