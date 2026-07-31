@@ -35,23 +35,24 @@
   "closure_statement": null,
   "spine": {
     "status": "paused",
-    "active_goal": "M2 landed on main as e7e4025 (PR #26). A7 is IMPLEMENTED AND SHIPPED as PR #27, open and fully green: four commits, 245 lines - divergence.mjs extracted as a WHOLE policed twin, SHA_HEX_PATTERN relocated for contiguity, a ctx seam for the five refused deps, six tests, a 12-row coverage entry. Receipts: npm test 1820/1820/0, coverage gate ok, byte-identity re-derived independently. Decisions 0172 and 0173 record both. Merge of #27 is human-gated and NOT done.",
-    "next_step": "MERGE PR #27 (human-gated), then confirm origin/main is green at the squash. The mirror-gaps programme then has no ratified next item: 0162 dropped A4 and A6, made A3 and A5 characterization-only, and HELD A2 pending the section 3.1 check of its M2 claim - that read-only check is the natural next question. Do NOT start A3/A5 or A2 work without an explicit go. Also owed: the 0171 second-channel decision, and the plan's stale anchors for the A7 region.",
+    "active_goal": "Both MSPs shipped and merged: M2 as e7e4025 (PR #26) and A7 as 5dd7176 (PR #27), main green at both. Suite 1820/1820, coverage gate ok on all 12 ids at each landing. Gap 2 is resolved and was proven live - the census halted on divergence.mjs and refused green until its row landed. Gap 1 is NOT resolved: A3 and A5 characterization tests are owed and A2 is held. M2 is delivered as reshaped, since 0164 refuted its monotone-status comparator. Decisions 0172, 0173 and 0174 record it.",
+    "next_step": "Per 0174, in a FRESH session. (1) Run the A2 section 3.1 check - read-only; it admits or kills 0162's last held Gap 1 item. (2) Re-ground M6's preconditions against today's main: hermeticity, the guard fix on fix/guard-any-claude-root, the cite mapping. They live in the non-stop-shipping thread and predate several merges. (3) Dispatch M6 - durable run-identity manifest ref (spec 3.5), engine plus SKILL.md. Do NOT start M3.",
     "open_risks": [
-      "A7 repeats B6 by construction: a new lib module imported only by tests while production runs the inline twin. Decide deliberately whether divergence.mjs gets a real production importer; record the verdict rather than inheriting status-facts.mjs's threatened row.",
-      "Coverage-filename convention drifted one entry: fix-m2-monotone-status.json landed from branch fix/m2-monotone-status-onto-main. The gate keys on registry-id completeness, not branch name, so it passes; the M1 row's sentence about the branch name is now stale, left byte-identical deliberately.",
-      "0171 follow-up still owed: D5's guard is a bare catch in workflow-body position, so a tagged SandboxViolationError from the log sink is swallowed. The second-channel design 0169 deferred must decide whether it is RE-THROWN. Now shipped on main.",
+      "M6's recorded preconditions were NOT verified this session. They live in the non-stop-shipping thread and predate several merges; re-ground hermeticity, the guard fix on fix/guard-any-claude-root, and the cite mapping against today's main before dispatching M6.",
+      "A3 and A5 characterization tests are owed before M3 and M5 respectively (0162). M3 deletes runReconcileOnlyAdvance (0161), so starting M3 without A3's test deletes unpinned behaviour and forfeits why those tests were ratified.",
+      "A2 is HELD pending the section 3.1 check of its M2 claim (0162). A4 and A6 are dropped. Gap 1 is therefore NOT closed, even though A7 shipped.",
+      "B6 ships threatened on divergence.mjs by construction and by ratified decision 0173: no production importer is possible, since mitosis.js runs in a sandbox that denies import, so dead-export lint reads the twin's own copied text as liveness.",
+      "The plan's anchors for the A7 region are stale by 55 lines - it cites :2920 and :2934-2975. PR #27's M5 row names this and does not fix it, so the next reader of plan section 5.2 will be misled.",
+      "0171 follow-up still owed: D5's bare catch in workflow-body position swallows a tagged SandboxViolationError from the log sink. The second-channel design 0169 deferred must decide whether it is RE-THROWN. Now shipped on main.",
       "Found, NOT fixed, needs its own record: relaunchStateFor seeds 'awaiting' for any id in runOpenPRs.accepted, and classifyRunOpenPRs accepts a PR whose unit is built OR parked. Pre-existing.",
-      "A2 is HELD pending the section 3.1 check of its M2 claim (0162). A3 and A5 get characterization tests and no extraction; A4 and A6 are dropped. Only A7 extracts.",
+      "Coverage-filename convention drifted one entry: fix-m2-monotone-status.json landed from branch fix/m2-monotone-status-onto-main, and its M1 row's sentence about the branch name is now stale. The gate keys on registry-id completeness, so it passes.",
       "A PR's scope is FROZEN at creation; title/body edits are denied. Push once BEFORE opening (0141); later facts go in a PR comment (0142). Titles cap at 72 chars. Merge stays human-gated.",
-      "0164's refutation is TRACED, not an executed reproduction, and swept only foldObservedStatus and the planReconcile condemned reset - Waves, Integrate and Ship were never swept.",
       "NEVER invoke the compiled workflow. compileWorkflow returns a frozen async callable that would dispatch REAL agents. mitosis.js is read and edited as TEXT only.",
-      "The suite runner is `npm test` (package.json:7). `node --test <dir>` fails MODULE_NOT_FOUND on node v26.4.0. The full suite takes about 7 seconds, so run it rather than reasoning about it.",
-      "The pre-commit hook chains through the continuity plugin's hooksPath to .githooks/pre-commit, which runs the FULL suite inline. Cherry-pick does not trigger it; a plain commit does.",
-      "Landing stays SERIAL for anything touching mitosis.js or the mirror-guard neighbourhoods; a policed-twin edit lands in BOTH copies in one commit. Parallelize investigation, never landing.",
-      "ORCHESTRATION: never put an agent that switches branches in the same phase as one reading the working tree. Giving authoring agents no Bash made this structurally impossible - reuse it.",
-      "Every write under .claude/{hooks,rules,lib,workflows} needs per-write human approval. Batch edits per file; no unattended fan-out.",
-      "17 worktree entries remain live; the reaper verb does not exist. Five pre-existing dirty paths (.claude/settings.json, .zshrc, two .bak files, .claude/skills/context7-mcp/) - stage explicit paths only, NEVER git add -A. Two stashes at depth 2. Two merged branches are deletable on confirmation."
+      "The suite runner is `npm test` (package.json:7); `node --test <dir>` fails MODULE_NOT_FOUND on node v26.4.0. It takes about 7 seconds, so run it. .githooks/pre-commit runs it on every commit but NOT on cherry-pick.",
+      "A negative result from a hand-rolled shell check deserves suspicion before the code does: a malformed BSD-sed and zsh-glob one-liner reported a false byte-identity failure this session. Re-run it in node before believing it.",
+      "Landing stays SERIAL for anything touching mitosis.js or the mirror-guard census; a policed-twin edit lands in BOTH copies in one commit. Parallelize investigation, never landing.",
+      "ORCHESTRATION: never put an agent that switches branches in the same phase as one reading the working tree. Cut the branch in the main thread first, then dispatch. Every write under .claude/{hooks,rules,lib,workflows} needs per-write human approval.",
+      "17 worktree entries remain live; the reaper verb does not exist. Five pre-existing dirty paths (.claude/settings.json, .zshrc, two .bak files, .claude/skills/context7-mcp/) - stage explicit paths only, NEVER git add -A. Two stashes at depth 2. Three merged branches are deletable on confirmation."
     ],
     "key_decisions": [
       "0136-defer-track-a-until-mitosis-msps-land",
@@ -114,5 +115,5 @@
     ]
   },
   "created_at": "2026-07-29T23:40:17.901Z",
-  "updated_at": "2026-07-31T23:57:58.643Z"
+  "updated_at": "2026-07-31T23:59:03.810Z"
 }
