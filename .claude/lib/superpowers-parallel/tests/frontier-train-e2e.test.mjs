@@ -569,8 +569,8 @@ test('bullet 4a / H4: a divergent parent merge resets exactly its true descendan
   assert.ok(logLines.some((l) => /BUILD RUN NEEDED/.test(l)), 'the reconcile advance flags that a follow-up build run is needed for the reset subtree');
   for (const id of ['l2', 'l3']) {
     assert.ok(
-      logLines.includes(`mitosis[${id}]: reconcile — CONDEMNED VETO holds the forward advance to awaiting; the derived status is unchanged`),
-      `the condemned veto that stops ${id} advancing to awaiting announces itself by name; a veto that fires silently is unauditable`,
+      logLines.includes(`mitosis[${id}]: reconcile — CONDEMNED VETO holds the forward advance to awaiting; the unit is reset to parked and rebuilds from plan`),
+      `the condemned veto that stops ${id} advancing to awaiting announces itself by name AND states the reset it performs; a veto that fires silently is unauditable, and one that claims the status is unchanged while the very next lines park the unit at stage plan is worse than silent`,
     );
   }
   assert.ok(labels.includes('plan:l2') && labels.includes('plan:l3'), 'the reset subtree REBUILDS from plan on this same relaunch (C1 routes parked units into the build path) instead of freezing forever in reconcile-only');
