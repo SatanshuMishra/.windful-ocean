@@ -1,3 +1,4 @@
+import { compileWorkflow } from './workflow-sandbox.mjs';
 import { readFileSync, realpathSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 
@@ -6,12 +7,14 @@ export const GATE_USAGE_EXIT = 40;
 export const GATE_VIOLATION_EXIT = 41;
 export const GATE_UNRESOLVABLE_EXIT = 42;
 export const GATE_READ_EXIT = 43;
+export const GATE_COMPILE_EXIT = 44;
 
 export const MITOSIS_GATE_VERBS = Object.freeze(['phase-parity']);
 
 export const DEFAULT_PHASE_PARITY_TARGET = fileURLToPath(new URL('../../workflows/mitosis.js', import.meta.url));
 
 const PHASE_TOKEN_TEXT = 'phase';
+const ESM_EXPORT_PREFIX = /^export /gm;
 const IDENT_START = /[A-Za-z_$]/;
 const IDENT_PART = /[\w$]/;
 const FUNCTION_NAME_PATTERN = /^[A-Za-z_$][\w$]*$/;
@@ -572,6 +575,15 @@ function scanned(source, derive) {
   return derive(source, scan);
 }
 
+export function compileUnderSandbox(source) {
+  try {
+    compileWorkflow(source.replace(ESM_EXPORT_PREFIX, ''));
+    return Object.freeze({ ok: true });
+  } catch (error) {
+    return halt(error && error.message ? error.message : 'an unknown failure');
+  }
+}
+
 export function extractDeclaredPhases(source) {
   return scanned(source, declaredFromScan);
 }
@@ -674,6 +686,11 @@ export function runMitosisGate(argv, out, readSource) {
   if (typeof source !== 'string' || source.length === 0) {
     out.err(`mitosis-gate: ${parsed.target} carried no readable source\n`);
     return GATE_READ_EXIT;
+  }
+  const compiled = compileUnderSandbox(source);
+  if (!compiled.ok) {
+    out.err(`mitosis-gate: ${parsed.target} does not compile under the workflow sandbox: ${compiled.error}\n`);
+    return GATE_COMPILE_EXIT;
   }
   const extracted = extractPhaseSurfaces(source);
   if (!extracted.ok) {

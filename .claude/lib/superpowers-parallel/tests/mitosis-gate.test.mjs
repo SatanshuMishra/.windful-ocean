@@ -7,10 +7,12 @@ import {
   GATE_VIOLATION_EXIT,
   GATE_UNRESOLVABLE_EXIT,
   GATE_READ_EXIT,
+  GATE_COMPILE_EXIT,
   MITOSIS_GATE_VERBS,
   DEFAULT_PHASE_PARITY_TARGET,
   scanJsStructure,
   checkPhaseParity,
+  compileUnderSandbox,
   extractDeclaredPhases,
   extractCalledPhases,
   extractAssignedPhases,
@@ -475,7 +477,7 @@ test('the cli exits on the read code when the target cannot be read', () => {
 });
 
 test('the gate exit codes stay distinct from every sibling cli exit code', () => {
-  const codes = [GATE_CLEAN_EXIT, GATE_USAGE_EXIT, GATE_VIOLATION_EXIT, GATE_UNRESOLVABLE_EXIT, GATE_READ_EXIT];
+  const codes = [GATE_CLEAN_EXIT, GATE_USAGE_EXIT, GATE_VIOLATION_EXIT, GATE_UNRESOLVABLE_EXIT, GATE_READ_EXIT, GATE_COMPILE_EXIT];
   assert.equal(new Set(codes).size, codes.length);
   const siblings = new Set([
     MITOSIS_GIT_USAGE_EXIT,
@@ -491,4 +493,27 @@ test('the gate exit codes stay distinct from every sibling cli exit code', () =>
   for (const code of codes.filter((c) => c !== GATE_CLEAN_EXIT)) {
     assert.equal(siblings.has(code), false, `exit code ${code} collides with a sibling cli`);
   }
+});
+
+test('the sandbox compile accepts the live workflow only after the ESM export prefix is stripped', () => {
+  const source = liveSource();
+  assert.match(source, /^export /m, 'the live workflow no longer carries the ESM prefix the normalization exists to strip');
+  assert.equal(compileUnderSandbox(source).ok, true);
+});
+
+test('the sandbox compile halts fail-closed on a target that is not a compilable workflow body', () => {
+  const compiled = compileUnderSandbox("export const meta = { phases: [{ title: 'Plan' }] };\nfunction (\n");
+  assert.equal(compiled.ok, false);
+  assert.match(compiled.error, /failed to compile in the sandbox/);
+});
+
+test('the cli exits on the compile code when the target does not compile under the sandbox', () => {
+  const { out, stderr } = capture();
+  const code = runMitosisGate(
+    ['phase-parity', '--target', 'broken.js'],
+    out,
+    () => "export const meta = { phases: [{ title: 'Plan' }] };\nfunction (\n",
+  );
+  assert.equal(code, GATE_COMPILE_EXIT);
+  assert.match(stderr.join(''), /broken\.js does not compile under the workflow sandbox/);
 });
