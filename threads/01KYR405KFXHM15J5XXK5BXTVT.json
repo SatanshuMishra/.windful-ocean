@@ -109,7 +109,8 @@
       "0185-m3-ships-two-of-three-deletion-rows-maxsteps-defers-to-m5",
       "0186-m3-closes-the-lost-publish-gap-and-flips-m6-i4s-absent-ref-contract",
       "0187-the-torestack-log-line-is-assigned-to-the-next-region-owner-not-hotfixed",
-      "0188-restore-path-residual-resolved-inert-m5-precondition-discharged"
+      "0188-restore-path-residual-resolved-inert-m5-precondition-discharged",
+      "0189-a5-narrows-to-three-untwinned-targets-proven-unpinned-by-mutation"
     ],
     "out_of_scope": [
       "Any change at mitosis.js:4058-4061. H-C is REFUTED by 0159, not deferred - the done-union is correct and narrowing it is a liveness regression. Re-opening needs new evidence of an unconfirmed-ship producer.",
@@ -132,5 +133,5 @@
     ]
   },
   "created_at": "2026-07-29T23:40:17.901Z",
-  "updated_at": "2026-08-01T18:51:14.012Z"
+  "updated_at": "2026-08-01T18:51:40.773Z"
 }
