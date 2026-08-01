@@ -35,27 +35,27 @@
   "closure_statement": null,
   "spine": {
     "status": "active",
-    "active_goal": "M3 is SHIPPED and MERGED. PR #30 merged 2026-08-01T08:48:46Z as squash commit cad6ba2 on origin/main, all six CI checks green beforehand. Verified first-hand: the streaming path, the shepherd and its gate are at ZERO occurrences in mitosis.js, leases.mjs and reconcile.mjs; a relaunch falls through into runScheduleTick. Suite 1850 -> 1838. Two of three deletion rows shipped - maxSteps retained, moves to M5 (0185). Next MSP not started, per user directive.",
-    "next_step": "START IN A FRESH SESSION per user directive; dispatch a DEDICATED SMALL dynamic Workflow (M3's shape: Ground x3 / Design / Implement sole-writer / Verify x3 / Remediate cap 2 / Ship) to ship ONE MSP. Order: (1) Re-derive origin/main (now cad6ba2) and confirm it is green. (2) RE-READ 0162 FIRST - A5 is owed before M5; do not assume it is done. (3) Verify 0187's restore-path residual. (4) Cut the branch in the MAIN thread. (5) The dispatch prompt MUST carry the coverage-receipt gate - risk 1.",
+    "active_goal": "MSP A5 IN FLIGHT. origin/main re-derived at cad6ba2, green. 0162 re-read: A5 is characterization-only. 0188 resolved M5's restore-path residual INERT by exhaustive enumeration. 0189 narrowed A5 by mutation to five unpinned gaps on three untwinned targets. Branch test/a5-merge-poll-characterization cut at cad6ba2 in the main thread. Workflow wi3nyl4z1 (run wf_52e7fa01-8fa) dispatched: Ground/Design/Implement/Verify x3/Remediate cap 2/Ship, carrying the coverage-receipt gate verbatim.",
+    "next_step": "AWAIT workflow wi3nyl4z1. On completion read its shipped flag. If false it HALTED before ship with findings that survived two remediation rounds - read them, do not re-dispatch blindly. If true, confirm the PR opened, watch CI to green, leave merge to the user. THEN M5 is unblocked on both preconditions and is next: quiescent exit plus continuation block, deleting the bounded poll, progressPossible AND maxSteps (0185 moved that row to M5).",
     "open_risks": [
-      "DISPATCH-PROMPT GAP that cost this session a red CI: every PR must COMMIT docs/invariants/coverage/<branch>.json with a verdict plus evidence string for ALL 12 ids in docs/invariants/registry.json. The gate never checks whether a check string is TRUE, so fabricated greens pass (0143).",
-      "A5's characterization test is still owed before M5 (0162). A3's half is discharged and merged. This gates the choice of next MSP.",
-      "RESTORE-PATH RESIDUAL, gates M5 (0187): unverified that every route a built unit takes to ship passes through restoreIntegrationFromBuiltCheckpoint (mitosis.js:4545, callers :4586/:4592). If one does not, M3's dropped eager restack was load-bearing there.",
-      "advance.toRestack is computed (reconcile.mjs:122/:130 + twin) and logged (mitosis.js:3996) with ZERO consumers at HEAD - a relaunch reports restacks it will not perform. Assigned to the next region owner, not hotfixed (0187). Not urgent: the engine acts on none of it.",
-      "The M6 I4 contract flip (0186) is recorded ONLY in the ledger and the coverage receipt - PR #30's body never named it and the PR is now MERGED, so no in-band remedy remains. Anyone reading git history alone will not find it.",
-      "Local checkout is still parked on the merged branch refactor/m3-one-advance-loop with the five pre-existing dirty paths; origin/main is cad6ba2. Re-derive before cutting the next branch.",
-      "0182's revisit trigger HAS FIRED: A3's characterization file was repointed at the unified loop, not deleted, so its 76 percent duplicated fixture helpers are now long-lived. Extraction is a follow-up, not M5's job.",
+      "DISPATCH-PROMPT GAP that cost a prior session a red CI: every PR must COMMIT docs/invariants/coverage/<branch>.json with a verdict for ALL 12 registry ids. The PR-mode gate reads git diff merge-base..HEAD and cannot see untracked paths; it never checks whether a check string is TRUE (0143).",
+      "NEW from 0188: the isBuiltResume restore call at mitosis.js:4586 passes only builtRef, so the sha-verification block at :4572-4579 never runs there, while the frontier redispatch at :4592 passes requireSha true. Not a bypass - a weaker check inside a call that happens. Assign to M5's owner.",
+      "supersedeOpenPr (mitosis.js:4386-4421) is DEAD CODE with zero call sites tree-wide (0188). Not a live ship path; do not chase it again.",
+      "advance.toRestack is computed (reconcile.mjs:122/:130 + twin) and logged (mitosis.js:3996) with ZERO consumers - a relaunch reports restacks it will not perform. Assigned to M5, not hotfixed (0187).",
+      "M5's scope is THREE deletions not two: the bounded poll, progressPossible, AND maxSteps (leases.mjs:170/172, mitosis.js:2382/2384), which 0185 moved out of M3 because the step bound is all that bounds the tick loop until the quiescent exit exists.",
+      "The M6 I4 contract flip (0186) is recorded ONLY in the ledger and a coverage receipt - PR #30's body never named it and the PR is MERGED, so no in-band remedy remains.",
+      "0182's revisit trigger HAS FIRED: A3's characterization file was repointed at the unified loop, not deleted, so its 76 percent duplicated fixture helpers are long-lived. A5's new file may inherit the same duplication - watch for it.",
       "M4 stays THREATENED by 174a0dc: three behavior changes plus the structural publishedSpecPath share one commit range and three characterization tests were rewritten in it.",
       "computeLogicalRunId still hashes only spec path + baseBranch (0176), so a superseded manifest ref is never reaped. Accepted, not silently carried.",
       "published.sourcePrefix is logged on disagreement but does not WIN (0179). A relaunch under a different prefix can re-ship shipped work.",
       "PR scope is FROZEN at creation; title/body edits are denied, later facts go in a comment (0142). pr-create rejects angle brackets in a --what value - reword, never force.",
-      "NEVER invoke the compiled workflow. To exercise the engine from a test use the AsyncFunction harness with a stub agent (frontier-train-e2e.test.mjs:26-29); MITOSIS_PATH swaps in a mutated scratch copy for inertness proofs.",
+      "NEVER invoke the compiled workflow. mergePoll has no seam narrower than the full AsyncFunction harness: a bare const at mitosis.js:5057 passed as runSchedule's third positional arg at :5099-5108. MITOSIS_PATH swaps in a mutated scratch copy for inertness proofs.",
       "A red result from a hand-rolled shell one-liner is suspect BEFORE the code is - re-run it in node.",
-      "Landing stays SERIAL for mitosis.js and the mirror census; a policed-twin edit lands in BOTH copies in one commit. reconcile.mjs AND leases.mjs are both WHOLE mirrors. Parallelize investigation, never landing.",
-      "ORCHESTRATION: cut the branch in the main thread BEFORE dispatching; never pair a branch-switching agent with one reading the working tree. Writes under .claude/{hooks,rules,lib,workflows} need per-write approval.",
+      "Landing stays SERIAL for mitosis.js and the mirror census; a policed-twin edit lands in BOTH copies in one commit. reconcile.mjs AND leases.mjs are both WHOLE mirrors. A5 touches no twin (0189). Parallelize investigation, never landing.",
+      "ORCHESTRATION: cut the branch in the main thread BEFORE dispatching (done for A5); never pair a branch-switching agent with one reading the working tree. Writes under .claude/{hooks,rules,lib,workflows} need per-write approval, so wi3nyl4z1 WILL prompt.",
       "Five pre-existing dirty paths persist (.claude/settings.json, .zshrc, two .bak files, .claude/skills/context7-mcp/) - stage explicit paths only, NEVER git add -A. 17 worktree entries remain live; no reaper verb.",
-      "Spec/plan anchors remain stale wholesale (0148 rejected a standalone rewrite). Re-baseline by execution per MSP. Section 10's M3 row and section 8 row 2 are now inaccurate (0185).",
-      "Standing method rule, now six instances deep (0159, 0163, 0181, 0184's refutation of 0180, and this session's durable-no-op claim): verify a confident finding against the mechanism before acting."
+      "Spec/plan anchors remain stale wholesale (0148 rejected a standalone rewrite). Re-baseline by execution per MSP. Section 10's M3 row and section 8 row 2 are inaccurate (0185).",
+      "Standing method rule, now SEVEN instances deep (0159, 0163, 0181, 0184, 0188, 0189): verify a confident finding against the mechanism before acting. 0189's scope came from MUTATION, not from reading for absence - reading would have written two redundant tests."
     ],
     "key_decisions": [
       "0136-defer-track-a-until-mitosis-msps-land",
@@ -133,5 +133,5 @@
     ]
   },
   "created_at": "2026-07-29T23:40:17.901Z",
-  "updated_at": "2026-08-01T18:51:40.773Z"
+  "updated_at": "2026-08-01T18:55:21.485Z"
 }
