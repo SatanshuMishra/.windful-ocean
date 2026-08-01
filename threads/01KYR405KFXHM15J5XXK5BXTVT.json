@@ -95,7 +95,8 @@
       "0174-m6-is-next-not-m3-a2-check-first",
       "0175-a2-is-killed-gap-1-extraction-inventory-closed",
       "0176-m6-content-keys-the-ref-instead-of-changing-the-run-id",
-      "0177-the-identity-probe-ref-is-agent-composed-and-engine-compared"
+      "0177-the-identity-probe-ref-is-agent-composed-and-engine-compared",
+      "0178-identity-is-three-valued-and-the-published-spec-path-is-relative"
     ],
     "out_of_scope": [
       "Any change at mitosis.js:4058-4061. H-C is REFUTED by 0159, not deferred - the done-union is correct and narrowing it is a liveness regression. Re-opening needs new evidence of an unconfirmed-ship producer.",
@@ -118,5 +119,5 @@
     ]
   },
   "created_at": "2026-07-29T23:40:17.901Z",
-  "updated_at": "2026-08-01T04:33:19.880Z"
+  "updated_at": "2026-08-01T04:33:30.856Z"
 }
