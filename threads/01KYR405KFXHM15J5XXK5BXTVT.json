@@ -35,25 +35,26 @@
   "closure_statement": null,
   "spine": {
     "status": "paused",
-    "active_goal": "M6 and A3 are both MERGED and main is green at 7b34a61, 1850/1850 verified first-hand. A3's four-case characterization test pins runReconcileOnlyAdvance (mitosis.js:3293) and its shouldReconcileOnly gate (:3063) at the unit layer, with mutation-proven deletion observability. M3 is now UNBLOCKED and is next in spec order (M0/M1/M2/M6 all landed). M3 was deliberately NOT started - the prior session hit ~84 percent context and the user directed a fresh one.",
-    "next_step": "START M3 IN A FRESH SESSION, per user directive. STANDING DIRECTIVE for M3: resolve open decisions with the ROBUST + SIMPLE option, no menus where a default exists. Read 0183 FIRST - it resolves 0180: M3 deletes BOTH gate twins (mitosis.js:3063/:3067, reconcile.mjs:76/:80) plus reconcile.test.mjs:102-131 in ONE commit. Check 0183's dead-export-lint residual first. Then decompose M3, cut the branch in the MAIN thread before dispatching, ship as one MSP and one PR.",
+    "active_goal": "M3 SHIPPED and fully GREEN: PR #30 (refactor/m3-one-advance-loop, fec38ac + edc918f), all six CI checks pass, CLEAN, OPEN, NOT MERGED - the merge is the human's. Verified first-hand: the streaming path, the shepherd and its gate are at ZERO occurrences in mitosis.js, leases.mjs and reconcile.mjs; a relaunch falls through into runScheduleTick. Suite 1850 -> 1838. Two of three deletion rows shipped - maxSteps retained, moves to M5 (0185). Next MSP not started, per user directive.",
+    "next_step": "START IN A FRESH SESSION per user directive; dispatch a DEDICATED SMALL dynamic Workflow (M3's shape: Ground x3 / Design / Implement sole-writer / Verify x3 / Remediate cap 2 / Ship) to ship ONE MSP. Order: (1) HUMAN merges PR #30, never the agent. (2) RE-READ 0162 FIRST - A5 is owed before M5; do not assume it is done. (3) Verify 0187's restore-path residual. (4) Cut the branch in the MAIN thread. (5) The dispatch prompt MUST carry the coverage-receipt gate - risk 1.",
     "open_risks": [
-      "A5's characterization test is still owed before M5 (0162). A3's half of that debt is discharged and merged.",
-      "0161's open item is M3's to answer: the spec resolves M3 at mechanism-disposition granularity, not implementation-line granularity, so whether M3's unified loop reuses fragments of the deleted body under a new name is unestablished. A3 makes it checkable.",
-      "0183 residual: 0180 claimed dead-export-lint will not catch an orphaned lib predicate, asserted without checking the lint's mitosis.js-as-caller clause. Read dead-export-lint.test.mjs:66-71 and settle it; do not carry 0180's claim forward unverified.",
-      "M4 stays THREATENED by 174a0dc: three behavior changes plus the structural publishedSpecPath share one commit range and three characterization tests were rewritten in it - after-the-fact evidence, not characterization.",
-      "A reconcile-only relaunch returns before the publish stage so it does NOT retry a lost publish; a full advance does. M3 rewrites this region - re-check after M3 lands.",
+      "DISPATCH-PROMPT GAP that cost this session a red CI: every PR must COMMIT docs/invariants/coverage/<branch>.json with a verdict plus evidence string for ALL 12 ids in docs/invariants/registry.json. The gate never checks whether a check string is TRUE, so fabricated greens pass (0143).",
+      "A5's characterization test is still owed before M5 (0162). A3's half is discharged and merged. This gates the choice of next MSP.",
+      "RESTORE-PATH RESIDUAL, gates M5 (0187): unverified that every route a built unit takes to ship passes through restoreIntegrationFromBuiltCheckpoint (mitosis.js:4545, callers :4586/:4592). If one does not, M3's dropped eager restack was load-bearing there.",
+      "advance.toRestack is computed (reconcile.mjs:122/:130 + twin) and logged (mitosis.js:3996) with ZERO consumers at HEAD - a relaunch reports restacks it will not perform. Assigned to the next region owner, not hotfixed (0187). Not urgent: the engine acts on none of it.",
+      "PR #30's body does not name the M6 I4 contract flip (0186) and is FROZEN at creation. A PR comment is the only in-band remedy and is outward-facing, so it needs the user's explicit go (0142).",
+      "0182's revisit trigger HAS FIRED: A3's characterization file was repointed at the unified loop, not deleted, so its 76 percent duplicated fixture helpers are now long-lived. Extraction is a follow-up, not M5's job.",
+      "M4 stays THREATENED by 174a0dc: three behavior changes plus the structural publishedSpecPath share one commit range and three characterization tests were rewritten in it.",
       "computeLogicalRunId still hashes only spec path + baseBranch (0176), so a superseded manifest ref is never reaped. Accepted, not silently carried.",
       "published.sourcePrefix is logged on disagreement but does not WIN (0179). A relaunch under a different prefix can re-ship shipped work.",
-      "Seven of A3's twenty-two assertions are corroborating but unfalsified by the mutation matrix - node:assert is fail-fast, so an earlier assertion always fails first. The receipt says so rather than overstating.",
       "PR scope is FROZEN at creation; title/body edits are denied, later facts go in a comment (0142). pr-create rejects angle brackets in a --what value - reword, never force.",
       "NEVER invoke the compiled workflow. To exercise the engine from a test use the AsyncFunction harness with a stub agent (frontier-train-e2e.test.mjs:26-29); MITOSIS_PATH swaps in a mutated scratch copy for inertness proofs.",
       "A red result from a hand-rolled shell one-liner is suspect BEFORE the code is - re-run it in node.",
-      "Landing stays SERIAL for mitosis.js and the mirror census; a policed-twin edit lands in BOTH copies in one commit. Parallelize investigation, never landing.",
+      "Landing stays SERIAL for mitosis.js and the mirror census; a policed-twin edit lands in BOTH copies in one commit. reconcile.mjs AND leases.mjs are both WHOLE mirrors. Parallelize investigation, never landing.",
       "ORCHESTRATION: cut the branch in the main thread BEFORE dispatching; never pair a branch-switching agent with one reading the working tree. Writes under .claude/{hooks,rules,lib,workflows} need per-write approval.",
       "Five pre-existing dirty paths persist (.claude/settings.json, .zshrc, two .bak files, .claude/skills/context7-mcp/) - stage explicit paths only, NEVER git add -A. 17 worktree entries remain live; no reaper verb.",
-      "Spec/plan line anchors remain stale wholesale (0148 rejected a standalone rewrite). Re-baseline by execution per MSP.",
-      "Standing method rule, four instances deep (0159, 0163, 0181, A3's harness fixture claim): verify a confident agent finding against the mechanism before acting. Two of A3's own plan mutation rows were measured false."
+      "Spec/plan anchors remain stale wholesale (0148 rejected a standalone rewrite). Re-baseline by execution per MSP. Section 10's M3 row and section 8 row 2 are now inaccurate (0185).",
+      "Standing method rule, now six instances deep (0159, 0163, 0181, 0184's refutation of 0180, and this session's durable-no-op claim): verify a confident finding against the mechanism before acting."
     ],
     "key_decisions": [
       "0136-defer-track-a-until-mitosis-msps-land",
@@ -129,5 +130,5 @@
     ]
   },
   "created_at": "2026-07-29T23:40:17.901Z",
-  "updated_at": "2026-08-01T08:52:43.714Z"
+  "updated_at": "2026-08-01T08:55:29.453Z"
 }
