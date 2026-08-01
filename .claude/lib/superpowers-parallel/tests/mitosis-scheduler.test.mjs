@@ -22,6 +22,13 @@ const mitosisBody = readFileSync(MITOSIS_PATH, 'utf8').replace(/^export const me
 const AsyncFunction = Object.getPrototypeOf(async function () {}).constructor;
 const runMitosis = new AsyncFunction('args', 'agent', 'parallel', 'log', 'phase', 'workflow', mitosisBody);
 
+function withProbedManifestRef(recon, prompt) {
+  if (Object.prototype.hasOwnProperty.call(recon, 'publishedManifestRefProbed')) return recon;
+  const prefix = typeof prompt === 'string' ? prompt.match(/refs\/mitosis-manifest\/[a-f0-9]{8}\//) : null;
+  const probed = prefix !== null && typeof recon.specContentHash === 'string' ? `${prefix[0]}${recon.specContentHash}` : null;
+  return { ...recon, publishedManifestRefProbed: probed };
+}
+
 function deferred() {
   let resolve;
   const promise = new Promise((res) => { resolve = res; });
@@ -51,8 +58,8 @@ function invokeMitosis(input, agent) {
 
 function buildInput(overrides = {}) {
   return {
-    spec: '/tmp/mitosis-scheduler-test/spec.md',
-    repoRoot: '/tmp/mitosis-scheduler-test/repo',
+    spec: `${TEST_REPO_ROOT}/spec.md`,
+    repoRoot: TEST_REPO_ROOT,
     baseBranch: 'main',
     sourcePrefix: SOURCE_PREFIX,
     verify: { scopedCheckCmd: 'true', fullValidationCmd: 'true' },
@@ -148,9 +155,14 @@ function createFakeAgent({ msps, sourcePrefix = SOURCE_PREFIX, baseBranch = TEST
         return override || { planPath: `/tmp/mitosis-scheduler-test/${mspId}.plan.md`, summary: 'revised' };
       }
       case 'reconcile':
-        return { ownerRepo: TEST_REPO_SLUG, mergedPRsAuthoritative: true, boundaryPreflight: provenBoundary({ boundaryBaseBranch: baseBranch }), ...(reconcileResult || { manifestFound: false, manifestRaw: null, mergedPRs: [] }) };
+        return withProbedManifestRef(
+          { ownerRepo: TEST_REPO_SLUG, mergedPRsAuthoritative: true, boundaryPreflight: provenBoundary({ boundaryBaseBranch: baseBranch }), ...(reconcileResult || { manifestFound: false, manifestRaw: null, mergedPRs: [], specContentHash: SPEC_CONTENT_HASH }) },
+          prompt,
+        );
       case 'checkpoint-init':
         return { written: true, detail: '' };
+      case 'manifest-publish':
+        return { published: false, alreadyPresent: false, ref: null, commit: null, readBackPages: null, detail: 'fixture: no remote' };
       case 'checkpoint-push':
         return { pushed: true, ref: '', sha: `sha-${label.slice('checkpoint-push:'.length)}`, detail: '' };
       case 'built-checkpoint':
@@ -3198,7 +3210,7 @@ test('FLAGSHIP obligation-4.3.3(a): run-away is structurally impossible — ever
   assert.equal(result.parked.find((p) => p.mspId === 'p').stage, 'plan');
   assert.equal(result.parked.find((p) => p.mspId === 'h').stage, 'parallelize');
   assert.equal(result.parked.find((p) => p.mspId === 'x').stage, 'execute');
-  assert.equal(totalCalls, 19, 'each of the three simultaneously-failing units is bounded by its own per-unit dispatch budget (no shared global budget one pathological unit could exhaust), so the total dispatch count across the whole run is exactly the sum of each unit\'s bounded cost — including the one bounded durable park-checkpoint dispatch each park incurs, and the single bounded approve plan-review dispatch each of the two units that clear Plan (h, x) incurs before failing downstream (p parks at plan, before review) — never unbounded');
+  assert.equal(totalCalls, 20, 'each of the three simultaneously-failing units is bounded by its own per-unit dispatch budget (no shared global budget one pathological unit could exhaust), so the total dispatch count across the whole run is exactly the sum of each unit\'s bounded cost — including the one bounded durable park-checkpoint dispatch each park incurs, and the single bounded approve plan-review dispatch each of the two units that clear Plan (h, x) incurs before failing downstream (p parks at plan, before review) — plus the two RUN-LEVEL genesis dispatches the fresh path incurs exactly once each and never per unit (the local checkpoint-init journal write and the durable manifest-publish of the run identity) — never unbounded');
 });
 
 test('RESILIENCE-A: an ApproachFixable plan outcome dispatches an in-run diagnostician and redispatch, and a successful correction ships the unit instead of parking it', async () => {
@@ -3303,7 +3315,7 @@ function makeDurableFakeAgent({ msps, parallelizeFailUnitId, shipResult, repoRoo
     if (prefix === 'reconcile') {
       const raw = fileMap.get(runJsonPath);
       const folded = raw === undefined ? null : foldRunManifest(raw);
-      return { manifestFound: folded !== null, manifestRaw: folded === null ? null : JSON.stringify(folded), mergedPRs: [], mergedPRsAuthoritative: true, specContentHash: SPEC_CONTENT_HASH, ownerRepo: TEST_REPO_SLUG, boundaryPreflight: PROVEN_BOUNDARY };
+      return withProbedManifestRef({ manifestFound: folded !== null, manifestRaw: folded === null ? null : JSON.stringify(folded), mergedPRs: [], mergedPRsAuthoritative: true, specContentHash: SPEC_CONTENT_HASH, ownerRepo: TEST_REPO_SLUG, boundaryPreflight: PROVEN_BOUNDARY }, prompt);
     }
     if (prefix === 'checkpoint-init') {
       const literal = literalOf(prompt);

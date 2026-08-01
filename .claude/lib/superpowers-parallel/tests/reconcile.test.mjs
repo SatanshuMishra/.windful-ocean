@@ -1,6 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { computeRemaining, reconcileBuiltSet, reconcileBuiltShas, mergePaginated, planReconcile, assembleDivergenceVerdicts, shouldReconcileOnly, hasBuildableWork } from '../reconcile.mjs';
+import { publishedManifestRef } from '../checkpoint.mjs';
 
 test('computeRemaining: remaining = planned - (merged U built U parked), keyed by unitId', () => {
   const r = computeRemaining({ planned: ['a', 'b', 'c', 'd'], merged: ['a'], built: ['b'], parked: ['c'] });
@@ -58,6 +59,12 @@ test('reconcileBuiltSet: parses raw ls-remote sha\\tref lines and dedups', () =>
 
 test('reconcileBuiltSet: non-array input yields an empty set', () => {
   assert.deepEqual(reconcileBuiltSet(null, 'a1b2c3d4'), []);
+});
+
+test('reconcileBuiltSet/reconcileBuiltShas: the durable run-identity ref is structurally incapable of being counted as a built unit', () => {
+  const line = `${'b'.repeat(40)}\t${publishedManifestRef('a1b2c3d4', 'c'.repeat(64))}`;
+  assert.deepEqual(reconcileBuiltSet([line], 'a1b2c3d4'), [], 'the identity ref never inflates builtUnits, which gates the relaunch-advance branch, hasFrontierState, computeRemaining and selectResumeBuilt');
+  assert.deepEqual(reconcileBuiltShas([line], 'a1b2c3d4'), {}, 'the identity ref contributes no phantom built sha');
 });
 
 test('reconcileBuiltShas: keeps the sha column reconcileBuiltSet discards, mapping each unitId to its durable ref tip (first-seen wins, foreign runIds and ref-only lines dropped)', () => {

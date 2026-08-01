@@ -37,3 +37,22 @@ export function parentCheckpointRefs(runId, parentIds) {
   if (!Array.isArray(parentIds)) return [];
   return parentIds.map((unitId) => ({ unitId, ref: checkpointRef(runId, unitId) }));
 }
+
+export const MANIFEST_REF_PREFIX = 'refs/mitosis-manifest';
+
+const SPEC_CONTENT_HASH_PATTERN = /^[a-f0-9]{64}$/;
+
+export function publishedManifestRefPrefix(runId) {
+  if (typeof runId !== 'string' || !RUN_ID_PATTERN.test(runId)) {
+    throw new Error(`checkpoint: refuses to build a manifest ref from an unsafe runId: ${JSON.stringify(runId)}`);
+  }
+  return `${MANIFEST_REF_PREFIX}/${runId}/`;
+}
+
+export function publishedManifestRef(runId, specContentHash) {
+  const prefix = publishedManifestRefPrefix(runId);
+  if (typeof specContentHash !== 'string' || !SPEC_CONTENT_HASH_PATTERN.test(specContentHash)) {
+    throw new Error(`checkpoint: refuses to build a manifest ref from an unsafe specContentHash: ${JSON.stringify(specContentHash)}`);
+  }
+  return `${prefix}${specContentHash}`;
+}

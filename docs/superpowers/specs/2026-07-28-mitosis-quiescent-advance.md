@@ -114,7 +114,7 @@ The MSP table — `id`, `dependsOn`, `fileScope`, `changeType`, `scope`, `title`
 
 So the durability claim this architecture rests on — any relaunch of the same `logicalRunId`, by anyone, at any later time, resumes from durable facts — holds only on the machine that happens to hold the journal. Everywhere else it is false. That is a correctness hole, not a convenience gap: it is the difference between a run that is resumable and a run that merely appears resumable.
 
-**Publish the manifest.** At run genesis the engine writes the identity table to a mitosis-owned durable ref beside the checkpoint refs, `refs/mitosis/<logicalRunId>/manifest`, and reads it back at derivation.
+**Publish the manifest.** At run genesis the engine writes the identity table to a mitosis-owned durable ref beside the checkpoint refs, `refs/mitosis-manifest/<logicalRunId>/<specContentHash>`, and reads it back at derivation. (This draft specified `refs/mitosis/<logicalRunId>/manifest`; see "As shipped" below for why the identifier moved.)
 
 Rules, kept deliberately narrow:
 
@@ -124,6 +124,20 @@ Rules, kept deliberately narrow:
 - **Absence is reported, never inferred.** A run started before this lands has no manifest ref. The engine falls back to the local journal and reports `identity: 'local-only'` in the continuation block. The limitation becomes visible at the moment it matters instead of surfacing as an unexplained failure on another machine.
 
 Cost: one ref write at genesis, one ref read at derivation. No new control flow, no new decision, no new failure path that is not already the "forge or git unreachable" path in §12.
+
+**As shipped (amended 2026-07-31, MSP M6 on `feat/m6-durable-run-identity`).** Four clauses above did not survive contact with the code. Each deviation below is deliberate, tested, and ratified; the prose above is left intact so the delta is legible.
+
+1. **The ref identifier moved to `refs/mitosis-manifest/<logicalRunId>/<specContentHash>`.** Two reasons. The `refs/mitosis/*` namespace is globbed by the reconcile stage's checkpoint listing, so a manifest under `refs/mitosis/<id>/manifest` inflates `builtUnits`; the manifest therefore lives in a disjoint namespace, pinned by a `reconcile.test.mjs` row. Separately, the ref is keyed by spec content — see clause 2.
+
+2. **"A decompose that changes the MSP table is a different `logicalRunId`" is FALSE and was not made true.** `computeLogicalRunId` hashes the spec *path* and base branch, never spec content, so an in-place spec edit re-decomposes a different MSP table under the same id. Changing that derivation would orphan every `refs/mitosis/<runId>/<unitId>` checkpoint and reach the §9 resurrection guard. What the clause actually needs for correctness is *a different ref*, and that is what shipped: the ref is content-keyed, so each spec revision owns its own write-once ref and a spec edit publishes a fresh one instead of dead-ending that run at `local-only` forever. Write-once/forward-only holds per ref. The residual is that a superseded ref is never reaped.
+
+3. **`identity` is a three-value domain: `'published' | 'local-only' | 'unresolved'`.** A run that halts before the ref is ever probed has not observed absence. Reporting `local-only` there would *infer* absence, which the fourth rule forbids; omitting the field would make the halt silent on exactly the question an operator asks first. `'unresolved'` is that third state, and every report path carries the field.
+
+4. **The published `spec` is a repo-relative POSIX path, not the absolute path.** The absolute form leaks the originating machine's home directory onto a shared remote. The reader rejects a leading `/`, any `..` segment, a drive prefix, and a backslash.
+
+**Known limitation, accepted.** `published.sourcePrefix` is validated and its disagreement with the invocation is logged with its operational consequence, but the published value does not *win*: `reconcileShippedSet` runs on the invocation prefix before identity resolves, and making it win requires reordering the reconcile pipeline. `sourcePrefix` is the one identity field `logicalRunId` does not pin, so a relaunch under a different prefix will not recognise already-merged integration branches. Deferred rather than risked.
+
+**Not yet covered.** A reconcile-only relaunch returns before the publish stage, so it does not retry a lost publish; a full advance does.
 
 ### 3.6 The invoker: one command, three callers
 
