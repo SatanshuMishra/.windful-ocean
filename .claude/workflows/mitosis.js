@@ -2279,10 +2279,6 @@ function isBuildable(unit, unitsById, leases, window) {
   return window.builtUnmergedCount < window.size;
 }
 
-function mayRestack(state) {
-  return state === 'built' || state === 'planned';
-}
-
 function acquire(leases, unit) {
   const next = new Map(leases);
   for (const path of unit.fileScope) next.set(path, unit.id);
@@ -2419,88 +2415,9 @@ async function runScheduleTick(specs, runUnit, poll, windowSize) {
   return { units, ticks, polls };
 }
 
-function release(leases, unitId) {
-  const next = new Map();
-  for (const [path, holder] of leases) if (holder !== unitId) next.set(path, holder);
-  return next;
-}
-
-function dispatchableStreaming(units, liveLeases, windowSize) {
-  const byId = indexUnits(units);
-  let leases = new Map(liveLeases);
-  const dispatch = [];
-  const window = buildAheadWindow(units, windowSize);
-  for (const unit of criticalPathOrder(units)) {
-    if (isDispatchable(unit, byId, leases)) {
-      dispatch.push(unit.id);
-      leases = acquire(leases, unit);
-    } else if (isBuildable(unit, byId, leases, window)) {
-      dispatch.push(unit.id);
-      leases = acquire(leases, unit);
-    }
-  }
-  return dispatch;
-}
-
-async function runScheduleStreaming(specs, runUnit, poll, windowSize) {
-  let units = buildUnitTable(specs);
-  const ticks = [];
-  const polls = [];
-  const maxPollCycles = poll && Number.isInteger(poll.maxCycles) && poll.maxCycles > 0 ? poll.maxCycles : 0;
-  const maxSteps = units.length * (maxPollCycles + 2) + 2;
-  let pollsUsed = 0;
-  let liveLeases = new Map();
-  const running = new Map();
-  for (let step = 0; step < maxSteps; step++) {
-    const w = typeof windowSize === 'function' ? windowSize() : windowSize;
-    const dispatch = dispatchableStreaming(units, liveLeases, w);
-    if (dispatch.length > 0) {
-      ticks.push(dispatch);
-      units = markDispatched(units, dispatch);
-      const byId = indexUnits(units);
-      for (const id of dispatch) {
-        const unit = byId.get(id);
-        liveLeases = acquire(liveLeases, unit);
-        running.set(id, (async () => { try { return { id, result: await runUnit(unit) }; } catch { return { id, result: null }; } })());
-      }
-      continue;
-    }
-    if (running.size > 0) {
-      const settled = await Promise.race(running.values());
-      running.delete(settled.id);
-      liveLeases = release(liveLeases, settled.id);
-      units = applyOutcomes(units, new Map([[settled.id, settled.result]]));
-      continue;
-    }
-    if (poll && pollsUsed < maxPollCycles && progressPossible(units)) {
-      pollsUsed++;
-      const watching = awaitingUnits(units);
-      const merged = [];
-      for (const unit of watching) {
-        const result = await poll.watch(unit);
-        if (classifyMergeWatch(result)) {
-          merged.push(unit.id);
-          if (typeof poll.onMerged === 'function') await poll.onMerged(unit, result);
-        }
-      }
-      polls.push({ cycle: pollsUsed, watched: watching.map((u) => u.id), merged });
-      if (merged.length > 0) { units = markMerged(units, merged); pollsUsed = 0; }
-      continue;
-    }
-    units = markAwaitingMerge(units);
-    break;
-  }
-  return { units, ticks, polls };
-}
-
-const STREAMING_DISPATCH_ENABLED = false;
-
 async function runSchedule(specs, runUnit, poll, opts) {
-  const streaming = opts && typeof opts.streaming === 'boolean' ? opts.streaming : STREAMING_DISPATCH_ENABLED;
   const windowSize = opts && (Number.isInteger(opts.window) || typeof opts.window === 'function') ? opts.window : undefined;
-  return streaming
-    ? runScheduleStreaming(specs, runUnit, poll, windowSize)
-    : runScheduleTick(specs, runUnit, poll, windowSize);
+  return runScheduleTick(specs, runUnit, poll, windowSize);
 }
 
 const WINDOW_FLOOR = 3;
@@ -3060,15 +2977,6 @@ function mergePaginated(pages) {
   return out;
 }
 
-function shouldReconcileOnly({ isRelaunch, specByteIdentical, hasFrontierState, buildableWorkRemains } = {}) {
-  return isRelaunch === true && specByteIdentical === true && hasFrontierState === true && buildableWorkRemains === false;
-}
-
-function hasBuildableWork(manifest) {
-  if (!manifest || typeof manifest !== 'object' || Array.isArray(manifest) || !Array.isArray(manifest.msps)) return true;
-  return manifest.msps.some((m) => m && typeof m === 'object' && m.status !== 'built' && m.status !== 'shipped');
-}
-
 function assembleDivergenceVerdicts(manifest, live = {}) {
   const verdicts = {};
   if (!manifest || typeof manifest !== 'object' || Array.isArray(manifest) || !Array.isArray(manifest.msps)) return verdicts;
@@ -3288,151 +3196,6 @@ async function runDivergenceProbes(manifest, mergedIds, mergedShas, ctx) {
     };
   }
   return probes;
-}
-
-async function runReconcileOnlyAdvance(advance, ctx) {
-  const { manifest, reconciledShippedMeta, sourcePrefix, baseBranch, repoRoot, logicalRunId, merged, newlyMergedIds, targetOwnerRepo, targetRepoHost, identity } = ctx;
-  phase('Resume');
-  const manifestMsps = manifest && Array.isArray(manifest.msps) ? manifest.msps : [];
-  const shepherdMspById = new Map(manifestMsps.map((m) => [m.id, m]));
-  const doneSet = new Set([...manifestMsps.filter((m) => m && typeof m.id === 'string' && m.status === 'shipped').map((m) => m.id), ...(Array.isArray(merged) ? merged : [])]);
-  const manifestPrUrls = manifestPrUrlById(manifest, targetOwnerRepo, targetRepoHost);
-  const shippedIds = new Set([
-    ...(reconciledShippedMeta ? reconciledShippedMeta.keys() : []),
-    ...manifestMsps.filter((m) => m && typeof m.id === 'string' && m.status === 'shipped').map((m) => m.id),
-  ]);
-  const shipped = [...shippedIds].map((mspId) => {
-    const meta = reconciledShippedMeta ? reconciledShippedMeta.get(mspId) : null;
-    return { mspId, prUrl: (meta && meta.prUrl) ?? manifestPrUrls.get(mspId) ?? null, receiptsPass: null, d6Pass: null };
-  });
-  const parked = [];
-  const awaitingApproval = [];
-
-  async function shepherdPark(unitId, diagnosis) {
-    const record = ParkRecord({
-      unitId,
-      stage: 'ship',
-      diagnosis,
-      request: { kind: 'approve-decision', what: diagnosis },
-      remediation: null,
-      resumePoint: { branch: `${sourcePrefix}/${unitId}-integration`, ref: baseBranch, stage: 'ship' },
-      triedSet: [],
-      dependents: transitiveDependents(manifestMsps, unitId),
-    });
-    try {
-      await persistParkCheckpoint(record);
-    } catch (err) {
-      log(`mitosis[${unitId}]: reconcile-only shepherd — durable park checkpoint threw (${clean(err.message)}); continuing so one failed write never crashes the shepherd`);
-    }
-    log(`mitosis[${unitId}]: reconcile-only shepherd PARKED — ${clean(diagnosis)}`);
-    return record;
-  }
-
-  for (const id of (Array.isArray(newlyMergedIds) ? newlyMergedIds : [])) {
-    const meta = reconciledShippedMeta ? reconciledShippedMeta.get(id) : null;
-    const msp = shepherdMspById.get(id);
-    try {
-      await persistShipCheckpoint({ unitId: id, prUrl: meta ? meta.prUrl : null, mergedAt: meta ? meta.mergedAt : null, title: msp ? msp.title : null, rationale: msp ? msp.rationale : null });
-      log(`mitosis[${id}]: reconcile-only shepherd — memoized the newly-merged parent's ship delta so a later relaunch folds it shipped without re-folding`);
-    } catch (err) {
-      log(`mitosis[${id}]: reconcile-only shepherd — ship-checkpoint memo threw (${clean(err.message)}); continuing so one failed write never crashes the shepherd`);
-    }
-  }
-
-  try {
-    await persistWindowCheckpoint('shepherd', advance.nextW);
-  } catch (err) {
-    log(`mitosis: reconcile-only shepherd — durable window checkpoint threw (${clean(err.message)}); continuing so one failed write never crashes the shepherd`);
-  }
-  log(`mitosis: reconcile-only shepherd — AIMD window carried across the relaunch and re-persisted (W=${advance.nextW}); no decompose, plan, fan-out, or rebuild performed`);
-
-  for (const id of advance.toRestack) {
-    const msp = shepherdMspById.get(id);
-    if (!msp) continue;
-    if (!mayRestack(msp.status)) {
-      log(`mitosis[${id}]: reconcile-only shepherd — refusing to restack a ${clean(msp.status)} branch (only an unpublished built/planned branch may be restacked; a published branch is frozen)`);
-      continue;
-    }
-    try {
-      checkpointRef(logicalRunId, id);
-    } catch (err) {
-      parked.push(await shepherdPark(id, `reconcile-only shepherd refuses to restack ${clean(id)} — its id is not a safe checkpoint/branch token (${clean(err.message)})`));
-      continue;
-    }
-    const integrationBranch = `${sourcePrefix}/${id}-integration`;
-    const unmergedParents = (Array.isArray(msp.dependsOn) ? msp.dependsOn : []).filter((p) => !doneSet.has(p));
-    let unmergedParentRefs;
-    try {
-      unmergedParentRefs = parentCheckpointRefs(logicalRunId, unmergedParents);
-    } catch (err) {
-      parked.push(await shepherdPark(id, `reconcile-only shepherd cannot compose a durable parent ref to restack ${id}: ${clean(err.message)}`));
-      continue;
-    }
-    let restack;
-    try {
-      restack = await agent(
-        `You are the reconcile-only shepherd RESTACK stage for MSP "${id}" of a mitosis run. You have NO Skill tool.\n\n` +
-        `A parent of this built-but-unpublished MSP just merged to ${baseBranch}. Restack this MSP's UNPUBLISHED local integration branch ${JSON.stringify(integrationBranch)} FRESH onto the advanced base so it carries the merged parent's content, re-stacking only its STILL-UNMERGED parent checkpoint tips. This branch was never pushed, so a local branch move is a safe forward compensation; NEVER force-push, rebase, or rewrite any published branch or open PR. Operate against the main repo at ${repoRoot}; do NOT check out the branch and do NOT enter any worktree.\n` +
-        `SECURITY: pass every ref as an INERT argv element to execFile-style invocations; NEVER build a command by shell-interpolating a ref into a string.\n\n` +
-        `The still-unmerged parent checkpoint refs are ${JSON.stringify(unmergedParentRefs)} (dependency order).\n` +
-        `1. \`git -C ${repoRoot} fetch origin ${baseBranch}\`, then fetch each still-unmerged parent checkpoint ref listed above (each ref a single inert argv token).\n` +
-        `2. Move the integration ref FRESH onto the pushed base: \`git -C ${repoRoot} branch -f ${integrationBranch} origin/${baseBranch}\`.\n` +
-        `3. Re-stack this MSP's own commits and each still-unmerged parent's commits onto ${integrationBranch}, observe-then-converge (skip any tip already contained via \`git -C ${repoRoot} merge-base --is-ancestor\`). If any restack conflicts, abort it, set ready=false and conflict=true, and name the conflicting parent and files in detail.\n\n` +
-        `If the branch restacked cleanly onto the advanced base, set ready=true and conflict=false. If a fetch or base move fails, set ready=false, conflict=false, and explain in detail.\n\n` +
-        `Return ONLY: { ready: <bool>, conflict: <bool>, detail: "<what happened>" }.`,
-        { agentType: 'implementer', label: `shepherd-restack:${id}`, phase: 'Resume' }
-      );
-    } catch (err) {
-      restack = { ready: false, conflict: false, detail: `shepherd-restack threw: ${clean(err.message)}` };
-    }
-    if (!restack || restack.ready !== true) {
-      parked.push(await shepherdPark(id, `reconcile-only shepherd could not restack ${id} onto the advanced base (${clean(restack && restack.detail)})`));
-      continue;
-    }
-    log(`mitosis[${id}]: reconcile-only shepherd — restacked the unpublished built branch onto the advanced base; still built-ahead of its remaining unmerged parent(s)`);
-  }
-
-  for (const id of advance.toOpen) {
-    const msp = shepherdMspById.get(id);
-    if (!msp) continue;
-    if (!prComposable(msp)) {
-      parked.push(await shepherdPark(id, `reconcile-only shepherd refuses to open the deferred PR for ${id}: its manifest entry declares no changeType/scope/title composing a valid conventional-commits pull-request title and inert body, and the engine never guesses one`));
-      continue;
-    }
-    const integrationBranch = `${sourcePrefix}/${id}-integration`;
-    let builtRef;
-    try {
-      builtRef = checkpointRef(logicalRunId, id);
-    } catch (err) {
-      parked.push(await shepherdPark(id, `reconcile-only shepherd cannot compose a durable checkpoint ref to open the deferred PR for ${id}: ${clean(err.message)}`));
-      continue;
-    }
-    let opened;
-    try {
-      opened = await agent(
-        `You are the reconcile-only shepherd PR-OPEN stage for MSP "${id}" of a mitosis run. You have NO Skill tool.\n\n` +
-        `Every parent of this built MSP has now MERGED to ${baseBranch}, so its deferred PR may finally open against a clean base showing a small diff. Restore this MSP's durable checkpoint tip ${JSON.stringify(builtRef)} onto the advanced base, publish it, and open ONE pull request for HUMAN review — do NOT merge it yourself under any circumstance (every merge to ${baseBranch} is human-gated). Operate against the main repo at ${repoRoot}; do NOT check out the branch and do NOT enter any worktree.\n` +
-        `SECURITY: pass every ref/URL as an INERT argv element to execFile-style invocations; NEVER build a command by shell-interpolating a ref into a string.\n\n` +
-        `1. \`git -C ${repoRoot} fetch origin ${baseBranch}\` and fetch the durable checkpoint ref: \`git -C ${repoRoot} fetch origin ${JSON.stringify(builtRef)}\`.\n` +
-        `2. Move the integration ref FRESH onto the advanced base and replay this MSP's checkpoint tip onto it (rebase --onto ${integrationBranch} origin/${baseBranch} FETCH_HEAD, or an equivalent cherry-pick). If the replay conflicts, abort it and set opened=false with the conflicting files in detail.\n` +
-        `3. Publish observe-then-converge: if origin/${integrationBranch} already equals the local tip, SKIP the push; otherwise \`git -C ${repoRoot} push -u origin ${integrationBranch}\` (first-time publish fast-forwards). The only permitted force is a \`--force-with-lease\` retry of your OWN rebase.\n` +
-        `4. Open ONE pull request by running EXACTLY this one command, substituting ONLY the digits for <N>: \`node ${LIB_DIR}/mitosis-git.mjs pr-create --repo ${repoSlug} --head ${integrationBranch} --base ${baseBranch} --title ${JSON.stringify(prTitleFor(msp))} --origin machine --provenance ${JSON.stringify(prProvenanceFor(`shepherd-open:${id}`, null))} --why ${JSON.stringify(msp.rationale)} --what ${JSON.stringify(msp.title)} --not-verified ${JSON.stringify(PR_NOT_VERIFIED_OPEN_CI)} --changed-lines <N>\`. ${PR_PLACEHOLDER_SENTENCE} ${prChangedLinesClause(repoRoot, baseBranch, integrationBranch)} That command performs the observe step itself and reuses an existing open PR on this head instead of opening a second, so issue no gh command of your own for this step. Exit 0 prints ONE JSON object carrying action ("created", "reused", or "reused-unverified" when an open PR already on this head was not composed by this tool) and url; on "reused-unverified" copy the wrapper stderr VERBATIM into detail so a human reads that PR. Exit 21 is AMBIGUOUS: the create call was reached and the wrapper could not confirm its outcome, so a pull request MAY exist — never report exit 21 as "nothing was opened", never retry it blind, and copy the wrapper stderr VERBATIM into detail so a human reads the repository. Every other non-zero exit means the create call was never reached and nothing was opened. Leave the PR OPEN for a human; perform no merge.\n\n` +
-        `If the PR is open (or already existed), set opened=true and report its url. If any step fails, set opened=false and explain in detail.\n\n` +
-        `Return ONLY: { opened: <bool>, prUrl: "<the pr url, or empty string if not opened>", detail: "<what happened>" }.`,
-        { agentType: 'implementer', label: `shepherd-open:${id}`, phase: 'Resume' }
-      );
-    } catch (err) {
-      opened = { opened: false, prUrl: '', detail: `shepherd-open threw: ${clean(err.message)}` };
-    }
-    if (!opened || opened.opened !== true) {
-      parked.push(await shepherdPark(id, `reconcile-only shepherd could not open the deferred PR for ${id} once its parents merged (${clean(opened && opened.detail)})`));
-      continue;
-    }
-    awaitingApproval.push({ mspId: id, prUrl: opened.prUrl, receiptsPass: null, d6Pass: null, dependsOn: msp.dependsOn || [] });
-    log(`mitosis[${id}]: reconcile-only shepherd — parents merged; opened the deferred PR for human review -> ${clean(opened.prUrl)} (no merge performed)`);
-  }
-
-  return assembleReport({ shipped, parked, halted: [], crashed: [], awaitingApproval, mspCount: manifestMsps.length, identity });
 }
 
 function computeParkedStatus({ shipped, parked, halted, crashed, awaitingApproval, total }) {
@@ -4210,6 +3973,17 @@ if (isRelaunch && reusable && builtUnits.length > 0) {
     log(`mitosis[${id}]: reconcile — RESET by divergent-invalidation; checkpoint provenance dropped, will rebuild from plan`);
     log(vetoLogLine(id, VETO_CONDEMNED, 'awaiting'));
   }
+  const reconcileMspById = new Map((Array.isArray(reconciledManifest.msps) ? reconciledManifest.msps : []).map((m) => [m.id, m]));
+  for (const id of (Array.isArray(newlyMergedIds) ? newlyMergedIds : [])) {
+    const meta = reconciledShippedMeta ? reconciledShippedMeta.get(id) : null;
+    const msp = reconcileMspById.get(id);
+    try {
+      await persistShipCheckpoint({ unitId: id, prUrl: meta ? meta.prUrl : null, mergedAt: meta ? meta.mergedAt : null, title: msp ? msp.title : null, rationale: msp ? msp.rationale : null });
+      log(`mitosis[${id}]: reconcile — memoized the newly-merged parent's ship delta so a later relaunch folds it shipped without re-folding`);
+    } catch (err) {
+      log(`mitosis[${id}]: reconcile — ship-checkpoint memo threw (${clean(err.message)}); continuing so one failed write never crashes the run`);
+    }
+  }
   const parkSubtreeSet = new Set(advance.toParkSubtree);
   if (parkSubtreeSet.size > 0) {
     reconciledManifest = {
@@ -4220,10 +3994,6 @@ if (isRelaunch && reusable && builtUnits.length > 0) {
     };
   }
   log(`mitosis: reconcile — merge-frontier advance: ${advance.toOpen.length} PR(s) to open (${advance.toOpen.join(', ') || 'none'}), ${advance.toRestack.length} built branch(es) to restack (${advance.toRestack.join(', ') || 'none'}), ${advance.toParkSubtree.length} unit(s) reset on divergent-invalidation (${advance.toParkSubtree.join(', ') || 'none'})${advance.buildRunNeeded ? ' — BUILD RUN NEEDED' : ''}; AIMD window W=${advance.nextW}`);
-  const reconcileOnlyMode = shouldReconcileOnly({ isRelaunch, specByteIdentical: reusable, hasFrontierState: builtUnits.length > 0, buildableWorkRemains: hasBuildableWork(reconciledManifest) });
-  if (reconcileOnlyMode) {
-    return runReconcileOnlyAdvance(advance, { manifest: reconciledManifest, reconciledShippedMeta, sourcePrefix, baseBranch, repoRoot, logicalRunId, merged: liveSignals.merged, newlyMergedIds, targetOwnerRepo, targetRepoHost, identity: runIdentity });
-  }
 }
 const resumeMap = new Map();
 if (reusable) {
@@ -4412,6 +4182,23 @@ if (identityPublishable) {
   }
 }
 
+function reconciledShippedSoFar() {
+  const manifestMsps = reusable && reconciledManifest && Array.isArray(reconciledManifest.msps) ? reconciledManifest.msps : [];
+  const shippedIds = new Set([
+    ...reconciledShipped,
+    ...manifestMsps.filter((m) => m && typeof m.id === 'string' && m.status === 'shipped').map((m) => m.id),
+  ]);
+  const manifestPrUrls = manifestPrUrlById(reusable ? reconciledManifest : null, targetOwnerRepo, targetRepoHost);
+  return [...shippedIds].map((mspId) => {
+    const meta = reconciledShippedMeta ? reconciledShippedMeta.get(mspId) : null;
+    return { mspId, prUrl: (meta && meta.prUrl) ?? manifestPrUrls.get(mspId) ?? null, receiptsPass: null, d6Pass: null };
+  });
+}
+
+function prepareHaltReport(detail, opts) {
+  return fatalReportShipped('prepare', detail, msps.length, reconciledShippedSoFar(), opts);
+}
+
 phase('Prepare');
 const humanPrerequisiteDetail = (paths) =>
   `HUMAN PREREQUISITE — mitosis does not install receipts configuration and writes nothing to ${baseBranch}. These required artifact(s) are absent from origin/${baseBranch}: ${paths.map((p) => clean(p)).join(', ')}. A human must add ${paths.length === 1 ? 'this file' : 'these files'} to ${baseBranch} and push ${paths.length === 1 ? 'it' : 'them'} to origin/${baseBranch}, then re-run. Templates to copy from: ${TEMPLATES_DIR}/receipts.config.json, ${TEMPLATES_DIR}/receipts.yml, and the spec at ${TEMPLATES_DIR}/d6-check.md.`;
@@ -4430,36 +4217,36 @@ try {
     { agentType: 'implementer', schema: PROBE_SCHEMA, label: 'prepare-probe', phase: 'Prepare', model: 'sonnet' }
   );
 } catch (err) {
-  return haltReport('prepare', `prepare probe agent threw before fan-out: ${err.message}`, msps.length, { crashed: true });
+  return prepareHaltReport(`prepare probe agent threw before fan-out: ${err.message}`, { crashed: true });
 }
 if (!probe) {
-  return haltReport('prepare', 'prepare probe agent returned null (transient drop or blocked before fan-out)', msps.length, { crashed: true });
+  return prepareHaltReport('prepare probe agent returned null (transient drop or blocked before fan-out)', { crashed: true });
 }
 const prerequisites = assertBasePrerequisites(probe);
 if (!prerequisites.determined) {
-  return haltReport('prepare', `could not determine whether the receipts prerequisites exist on origin/${baseBranch} (${clean(prerequisites.reason)}); halting fail-closed rather than assuming they are present — a human must make origin/${baseBranch} readable from ${repoRoot} (an origin remote plus fetch access) and re-run`, msps.length);
+  return prepareHaltReport(`could not determine whether the receipts prerequisites exist on origin/${baseBranch} (${clean(prerequisites.reason)}); halting fail-closed rather than assuming they are present — a human must make origin/${baseBranch} readable from ${repoRoot} (an origin remote plus fetch access) and re-run`);
 }
 if (prerequisites.missing.length > 0) {
-  return haltReport('prepare', humanPrerequisiteDetail(prerequisites.missing), msps.length);
+  return prepareHaltReport(humanPrerequisiteDetail(prerequisites.missing));
 }
 let plan;
 try {
   plan = decidePrepareActions({ probe, buildConfig, verify });
 } catch (err) {
-  return haltReport('prepare', `could not read ground-truth config state to decide adopt-vs-bootstrap: ${err.message}`, msps.length);
+  return prepareHaltReport(`could not read ground-truth config state to decide adopt-vs-bootstrap: ${err.message}`);
 }
 if (plan.writeConfig) {
   const weakenCheck = refuseToWeakenBounded({}, plan.bootstrapConfig || {});
   if (weakenCheck.blocked) {
-    return haltReport('prepare', `refuse to weaken (halted as value, needs human): ${weakenCheck.detail}`, msps.length);
+    return prepareHaltReport(`refuse to weaken (halted as value, needs human): ${weakenCheck.detail}`);
   }
   if (weakenCheck.guard.weakens) {
-    return haltReport('prepare', `refuse to weaken existing stricter gate(s): ${weakenCheck.guard.conflicts.map((c) => `${clean(c.path)}: ${clean(c.existing)} -> ${clean(c.intended)}`).join('; ')}`, msps.length);
+    return prepareHaltReport(`refuse to weaken existing stricter gate(s): ${weakenCheck.guard.conflicts.map((c) => `${clean(c.path)}: ${clean(c.existing)} -> ${clean(c.intended)}`).join('; ')}`);
   }
 }
 if (plan.anyWrite) {
   const { requested } = buildPrepareWriteSections({ plan, repoRoot, templatesDir: TEMPLATES_DIR });
-  return haltReport('prepare', humanPrerequisiteDetail(requested.map((r) => r.suffix)), msps.length);
+  return prepareHaltReport(humanPrerequisiteDetail(requested.map((r) => r.suffix)));
 }
 log(`mitosis: prepare verified the receipts prerequisites on origin/${baseBranch} and adopted the existing config/workflow/d6 verbatim; nothing to install`);
 

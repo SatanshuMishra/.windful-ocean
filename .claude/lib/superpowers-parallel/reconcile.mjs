@@ -73,15 +73,6 @@ export function mergePaginated(pages) {
   return out;
 }
 
-export function shouldReconcileOnly({ isRelaunch, specByteIdentical, hasFrontierState, buildableWorkRemains } = {}) {
-  return isRelaunch === true && specByteIdentical === true && hasFrontierState === true && buildableWorkRemains === false;
-}
-
-export function hasBuildableWork(manifest) {
-  if (!manifest || typeof manifest !== 'object' || Array.isArray(manifest) || !Array.isArray(manifest.msps)) return true;
-  return manifest.msps.some((m) => m && typeof m === 'object' && m.status !== 'built' && m.status !== 'shipped');
-}
-
 export function assembleDivergenceVerdicts(manifest, live = {}) {
   const verdicts = {};
   if (!manifest || typeof manifest !== 'object' || Array.isArray(manifest) || !Array.isArray(manifest.msps)) return verdicts;

@@ -14,7 +14,7 @@ const PLACEHOLDER = '<OWNER_REPO>';
 const LIB_DIR_NAME = 'LIB_DIR';
 const LIB_DIR_LITERAL = '/Users/satanshumishra/.claude/lib/superpowers-parallel';
 const LIB_DIR_TEMPLATE = '${LIB_DIR}';
-const PR_CREATE_SITES = 3;
+const PR_CREATE_SITES = 2;
 const RECONCILE_PLACEHOLDER_SITES = [
   `gh pr list -R ${PLACEHOLDER} --state merged --base `,
   `gh pr list -R ${PLACEHOLDER} --state open --base `,
@@ -87,7 +87,7 @@ test('D7: no emitted command derives the repo slug through a $( ) subshell or a 
 
 test('MSP-3: every pull-request-CREATION site emits the anchored mitosis-git wrapper, and none of them still hands the agent a free-form open-PR probe', () => {
   const invocations = source.split(`node ${LIB_DIR_TEMPLATE}/mitosis-git.mjs pr-create`).length - 1;
-  assert.equal(invocations, PR_CREATE_SITES, `all ${PR_CREATE_SITES} PR-creation sites (shepherd-open, supersede, ship) must invoke the wrapper; found ${invocations}`);
+  assert.equal(invocations, PR_CREATE_SITES, `all ${PR_CREATE_SITES} PR-creation sites (supersede, ship) must invoke the wrapper; found ${invocations}`);
   assert.equal(source.includes('gh pr list -R ${repoSlug} --head'), false, 'the --head open-PR probe is the observe step the wrapper now owns; emitting it too restores the free-form surface this increment removes');
   assert.equal(source.includes('--body-line'), false, 'the free-form body-line flag is the ad-hoc surface centralized PR creation removes; the engine composes named fields only');
 });
@@ -149,7 +149,7 @@ function engineExports() {
   return new Function(`${decls}\n${dependsDecls}\n${fns}\nreturn { prBodyValueOk, prTitleFor, prDependsFlag };`)();
 }
 
-test('every pr-create site — shepherd-open, supersede and ship — emits every flag the tool requires and none it removed', () => {
+test('every pr-create site — supersede and ship — emits every flag the tool requires and none it removed', () => {
   const sites = source.split('\n').filter((line) => line.includes(`node ${LIB_DIR_TEMPLATE}/mitosis-git.mjs pr-create`));
   assert.equal(sites.length, PR_CREATE_SITES);
   for (const site of sites) {

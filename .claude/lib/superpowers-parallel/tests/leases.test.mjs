@@ -9,14 +9,12 @@ import {
   overlapHolder,
   isDispatchable,
   isBuildable,
-  mayRestack,
   acquire,
   dispositionOf,
   planTick,
   progressPossible,
   runSchedule,
 } from '../leases.mjs';
-import * as leasesModule from '../leases.mjs';
 
 function alwaysDone() {
   return async () => Done({ ok: true });
@@ -107,18 +105,6 @@ test('isDispatchable is false for units already in a terminal, awaiting, or disp
   ]);
   const byId = indexUnits(units);
   for (const id of ['d', 'p', 'w', 'x']) assert.equal(isDispatchable(byId.get(id), byId, new Map()), false);
-});
-
-test('mayRestack: a published (awaiting) or shipped (done) branch is frozen; only an unpublished built/planned branch may restack', () => {
-  assert.equal(mayRestack('built'), true, 'built: not yet published, restack is safe');
-  assert.equal(mayRestack('planned'), true, 'planned: no branch published yet, restack is safe');
-  assert.equal(mayRestack('awaiting'), false, 'awaiting: PR is open, frozen — never force-push');
-  assert.equal(mayRestack('done'), false, 'done: shipped/merged, frozen');
-  assert.equal(mayRestack('parked'), false, 'parked: ambiguous/failed state, fail closed');
-  assert.equal(mayRestack('dispatched'), false, 'dispatched: mid-flight, fail closed');
-  assert.equal(mayRestack('awaiting-merge'), false, 'awaiting-merge: PR is open, frozen');
-  assert.equal(mayRestack(undefined), false, 'absent state fails closed');
-  assert.equal(mayRestack('bogus'), false, 'unrecognized state fails closed');
 });
 
 test('TIE-BREAK: planTick dispatches the lower-index unit and makes the overlapping contender wait this tick', () => {
@@ -276,6 +262,21 @@ test('runSchedule terminates (no unbounded loop) even when every dispatched unit
   assert.equal(byId.get('b').state, 'parked');
 });
 
+test('runSchedule terminates unconditionally: a dispatchable unit that keeps settling Built is re-selected by isDispatchable, so only a structural step bound stops the loop', async () => {
+  const RESELECTION_BOUND = 64;
+  let calls = 0;
+  const runUnit = async () => {
+    calls += 1;
+    if (calls > RESELECTION_BOUND) throw new Error(`runSchedule re-dispatched a settled unit ${calls} times`);
+    return Built({ mspId: 'a' });
+  };
+  const { units, ticks } = await runSchedule([{ id: 'a', fileScope: ['a.mjs'] }], runUnit);
+  const byId = indexUnits(units);
+  assert.ok(calls <= RESELECTION_BOUND, `the loop settled after ${calls} dispatch(es) rather than spinning; without a step bound it never yields, so no timeout can kill it and the process dies on heap exhaustion instead of failing`);
+  assert.equal(byId.get('a').state, 'built', 'the unit ends in the state its outcome names — a run that tripped the guard would end parked, because the thrown guard is delivered as a crashed dispatch');
+  assert.ok(ticks.length >= 1, 'the unit was genuinely dispatched at least once, so the bound is not passing by dispatching nothing');
+});
+
 test('PROGRESS-POSSIBLE: true only when an awaiting unit\'s completion unblocks a currently-blocked dependent; false with no awaiting unit or a dependent still blocked by a non-awaiting prereq', () => {
   const unblockable = buildUnitTable([
     { id: 'root', state: 'awaiting', fileScope: ['root.mjs'] },
@@ -402,15 +403,6 @@ test('BUILD-AHEAD DRAIN (tick): a dependency chain deeper than the poll budget d
   assert.equal(polls.length, 0, 'build-ahead drained the whole chain, so the configured merge poll never needed to fire');
 });
 
-test('BUILD-AHEAD DRAIN (streaming): the same deep chain drains in one streaming run via build-ahead — every awaiting link lands awaiting-merge and the tail ships without a merge poll', async () => {
-  const chainLength = 8;
-  const { units, polls } = await runSchedule(deepChainSpecs(chainLength), chainRunUnit(chainLength), mergingPoll(), { streaming: true });
-  const byId = indexUnits(units);
-  for (let i = 0; i < chainLength - 1; i += 1) assert.equal(byId.get(`u${i}`).state, 'awaiting-merge', `u${i} builds ahead and lands awaiting-merge (streaming)`);
-  assert.equal(byId.get(`u${chainLength - 1}`).state, 'done', 'the chain tail ships to done in the same streaming run');
-  assert.equal(polls.length, 0, 'build-ahead drained the whole chain under streaming, so the merge poll never fired');
-});
-
 function stalledPollSpecs() {
   return [
     { id: 'r0', fileScope: ['r0.mjs'] },
@@ -438,15 +430,6 @@ test('BUILD-AHEAD DRAINS THE JOIN (tick): a diamond dependent builds ahead on bo
   assert.equal(polls.length, 0, 'build-ahead drained the frontier so the configured never-merging poll never fired');
 });
 
-test('BUILD-AHEAD DRAINS THE JOIN (streaming): the diamond dependent builds ahead to done under the streaming scheduler too and the stalled roots land awaiting-merge with no poll fired', async () => {
-  const { units, polls } = await runSchedule(stalledPollSpecs(), runUnitThatAwaits, buildNeverMergingPoll(), { streaming: true });
-  const byId = indexUnits(units);
-  assert.equal(byId.get('r0').state, 'awaiting-merge', 'the stalled root lands awaiting-merge under streaming');
-  assert.equal(byId.get('r1').state, 'awaiting-merge');
-  assert.equal(byId.get('d0').state, 'done', 'the join dependent builds ahead to done (streaming)');
-  assert.equal(polls.length, 0, 'build-ahead drained the frontier so the never-merging poll never fired (streaming)');
-});
-
 function buildFrontierSpecs(builtParentCount) {
   const specs = [{ id: 'blocker', fileScope: ['blocker.mjs'] }];
   for (let i = 0; i < builtParentCount; i += 1) specs.push({ id: `p${i}`, state: 'built', prereqs: ['blocker'], fileScope: [`p${i}.mjs`] });
@@ -467,30 +450,12 @@ test('BUILD-DISPATCH WINDOW (tick): a build-ahead child is withheld while built-
   assert.equal(underWindowById.get('child').state, 'built', 'with built-unmerged (2) under W (3), the child is admitted for build-ahead dispatch and itself reaches built');
 });
 
-test('BUILD-DISPATCH WINDOW (streaming): the streaming scheduler applies the same AIMD window gate to build-ahead dispatch', async () => {
-  const saturated = await runSchedule(buildFrontierSpecs(3), frontierRunUnit, undefined, { streaming: true, window: 3 });
-  const saturatedById = indexUnits(saturated.units);
-  assert.equal(saturatedById.get('child').state, 'planned', 'streaming: window saturated at 3/3 built-unmerged withholds the child');
-
-  const underWindow = await runSchedule(buildFrontierSpecs(2), frontierRunUnit, undefined, { streaming: true, window: 3 });
-  const underWindowById = indexUnits(underWindow.units);
-  assert.equal(underWindowById.get('child').state, 'built', 'streaming: with built-unmerged (2) under W (3), the child is admitted and reaches built');
-});
-
 test('LIVE WINDOW ACCESSOR (tick): runSchedule resolves a function-valued window every iteration, so a window that widens from a saturating value across ticks admits a build-ahead child a launch-time snapshot would have frozen out', async () => {
   let resolves = 0;
   const widenAfterFirstTick = () => (resolves++ === 0 ? 3 : 4);
   const admitted = await runSchedule(buildFrontierSpecs(3), frontierRunUnit, undefined, { window: widenAfterFirstTick });
   const admittedById = indexUnits(admitted.units);
   assert.equal(admittedById.get('child').state, 'built', 'the accessor is re-read each tick: it reads 3 (saturated, child withheld) on the first tick and 4 on the next, so the widened window admits the build-ahead child a frozen W=3 snapshot never would');
-});
-
-test('LIVE WINDOW ACCESSOR (streaming): the streaming scheduler also re-reads a function-valued window every iteration, admitting the build-ahead child once the accessor widens past the saturating value', async () => {
-  let resolves = 0;
-  const widenAfterFirstTick = () => (resolves++ === 0 ? 3 : 4);
-  const admitted = await runSchedule(buildFrontierSpecs(3), frontierRunUnit, undefined, { streaming: true, window: widenAfterFirstTick });
-  const admittedById = indexUnits(admitted.units);
-  assert.equal(admittedById.get('child').state, 'built', 'streaming: the widened window read on a later iteration admits the build-ahead child that a launch-time snapshot of W=3 would have frozen out');
 });
 
 const drainMicrotasks = () => new Promise((resolve) => setImmediate(resolve));
@@ -554,47 +519,7 @@ test('CRITICAL-PATH READY-SET ORDER: within a tick the ready-set dispatches the 
   }
 });
 
-test('STREAMING FLAG: the streaming-dispatch flag defaults OFF, so the shipped default scheduler stays the tick barrier until the flip is proven', () => {
-  assert.equal(leasesModule.STREAMING_DISPATCH_ENABLED, false, 'STREAMING_DISPATCH_ENABLED must default false: tick remains the shipped default');
-});
-
-test('STREAMING SAFETY + INTERLEAVE + WIDTH: under streaming a unit whose lease overlaps a RUNNING unit is not co-dispatched (lease held for the running duration, released on settle), a dependent launches the instant its own prereq settles while an independent sibling straggler is still running (which the tick barrier forbids), and the sibling roots exceed width 1.0', async () => {
-  const r = gatedRunner();
-  const done = runSchedule(
-    [
-      { id: 'a', fileScope: ['shared.mjs'] },
-      { id: 'b', fileScope: ['shared.mjs'] },
-      { id: 'c', fileScope: ['c.mjs'] },
-      { id: 'd', prereqs: ['c'], fileScope: ['d.mjs'] },
-    ],
-    r.runUnit,
-    undefined,
-    { streaming: true },
-  );
-
-  await drainMicrotasks();
-  assert.deepEqual(r.running(), ['a', 'c'], 'both non-overlapping roots launch immediately; b overlaps a\'s live lease and waits');
-  assert.ok(!r.isRunning('b'), 'b is not co-dispatched with the RUNNING a because a still holds the shared lease');
-  assert.ok(r.maxWidth() > 1, 'the sibling roots a and c achieve a running width greater than 1.0 under streaming');
-
-  await r.settle('c', Done({ ok: true }));
-  assert.ok(r.isRunning('d'), 'd launches the instant its own prereq c settles, even though the co-dispatched straggler a is still running (tick would idle d behind the barrier)');
-  assert.ok(r.isRunning('a'), 'the independent straggler a is still running while d streams in');
-  assert.deepEqual(r.running(), ['a', 'd'], 'streaming interleaves d with the still-running straggler a across the c->d edge');
-  assert.ok(!r.isRunning('b'), 'b STILL cannot co-dispatch: a\'s shared lease is held for its entire running duration, not reset per tick');
-
-  await r.settle('a', Done({ ok: true }));
-  assert.ok(r.isRunning('b'), 'only once a settles and releases the shared lease does b launch');
-  assert.equal(r.maxWidth(), 2, 'at no point do the two shared-lease units a and b run concurrently');
-
-  await r.settle('d', Done({ ok: true }));
-  await r.settle('b', Done({ ok: true }));
-  const { units } = await done;
-  const byId = indexUnits(units);
-  for (const id of ['a', 'b', 'c', 'd']) assert.equal(byId.get(id).state, 'done', `${id} reaches done under streaming`);
-});
-
-test('STREAMING DEFAULT IS TICK: the SAME graph run WITHOUT the streaming flag keeps the tick barrier - a dependent cannot launch while a co-dispatched straggler in its tick is still running', async () => {
+test('TICK BARRIER: a dependent cannot launch while a co-dispatched straggler in its tick is still running', async () => {
   const r = gatedRunner();
   const done = runSchedule(
     [
@@ -619,22 +544,4 @@ test('STREAMING DEFAULT IS TICK: the SAME graph run WITHOUT the streaming flag k
   const { units } = await done;
   const byId = indexUnits(units);
   for (const id of ['a', 'c', 'd']) assert.equal(byId.get(id).state, 'done');
-});
-
-test('IN-RUN MERGE POLL (streaming): the in-run merge poll composes with the streaming scheduler — a window-saturated build-ahead frontier is unblocked by a merging poll and every unit ships in a single streaming run, recording each merge once', async () => {
-  const mergedRoots = new Set();
-  const shipLog = [];
-  const poll = {
-    maxCycles: 4,
-    watch: async () => ({ merged: true, mergedAt: '2026-07-15T00:00:00Z', readError: null }),
-    onMerged: async (unit) => { mergedRoots.add(unit.id); shipLog.push(unit.id); },
-  };
-
-  const { units, polls } = await runSchedule(saturatingRootDepSpecs(), saturatingRunUnit(mergedRoots), poll, { streaming: true });
-  const byId = indexUnits(units);
-  const doneCount = [...byId.values()].filter((u) => u.state === 'done').length;
-
-  assert.equal(doneCount, 5, 'both merged roots and all three window-saturating dependents reach done in a single streaming run (>|root antichain|)');
-  assert.deepEqual([...shipLog].sort(), ['r0', 'r1'], 'each polled-merge is recorded exactly once under streaming');
-  assert.ok(polls.length >= 1, 'the streaming in-run poll fired to unblock the saturated frontier');
 });

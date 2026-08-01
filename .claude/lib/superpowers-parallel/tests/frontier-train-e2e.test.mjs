@@ -245,7 +245,7 @@ function withHonestProbedRef(merged, source) {
   };
 }
 
-function shepherdAgent({ reconcileResult, openResult, restackResult, probeResult } = {}) {
+function shepherdAgent({ reconcileResult, shipResult, mergeWatch, probeResult } = {}) {
   const labels = [];
   const prompts = new Map();
   const agent = async (prompt, opts = {}) => {
@@ -257,19 +257,39 @@ function shepherdAgent({ reconcileResult, openResult, restackResult, probeResult
     if (prefix === 'window-checkpoint') return { written: true, detail: '' };
     if (prefix === 'park-checkpoint') return { written: true, detail: '' };
     if (prefix === 'ship-checkpoint') return { written: true, detail: '' };
+    if (prefix === 'built-checkpoint' || prefix === 'checkpoint-init') return { written: true, detail: '' };
+    if (prefix === 'checkpoint-push') return { pushed: true, ref: '', sha: '', detail: '' };
+    if (prefix === 'review-decision') return { reviewDecision: null, readError: null };
+    if (prefix === 'manifest-publish') {
+      const payload = publishedPayloadFromPrompt(prompt);
+      return {
+        published: payload !== null,
+        alreadyPresent: false,
+        ref: `refs/mitosis-manifest/${RUN_ID}`,
+        commit: 'f'.repeat(40),
+        readBackPages: payload === null ? null : [payload],
+        detail: 'fixture: published the run-identity manifest and read it back verbatim',
+      };
+    }
     if (prefix === 'divergence-probe') {
       const id = label.slice('divergence-probe:'.length);
       return probeResult ? probeResult(id) : { paths: [], error: null };
     }
-    if (prefix === 'shepherd-restack') {
-      const id = label.slice('shepherd-restack:'.length);
-      return restackResult ? restackResult(id) : { ready: true, conflict: false, detail: 'restacked onto advanced base' };
+    if (prefix === 'prepare-probe') return { baseRefResolved: true, baseRefDetail: null, receiptsConfigFound: true, receiptsConfigRaw: '{"gates":{"G10":{"mode":"warn"}}}', receiptsYmlFound: true, d6CheckFound: true, templateConfigRaw: null, templateYmlRaw: null };
+    if (prefix === 'prepare-write') return { written: [], skipped: [], detail: '' };
+    if (prefix === 'restore') return { restored: true, sha: '', detail: '' };
+    if (prefix === 'merge-watch') {
+      const id = label.slice('merge-watch:'.length);
+      return (mergeWatch ? mergeWatch(id) : null) || { merged: false, mergedAt: null, readError: null };
     }
-    if (prefix === 'shepherd-open') {
-      const id = label.slice('shepherd-open:'.length);
-      return openResult ? openResult(id) : { opened: true, prUrl: `https://example.test/pr/${id}`, detail: 'opened for human review' };
+    if (prefix === 'ship') {
+      const id = label.slice('ship:'.length);
+      const override = shipResult ? shipResult(id) : null;
+      if (override) return override;
+      return { merged: false, awaitingApproval: true, prUrl: `https://example.test/pr/${id}`, receiptsPass: true, d6Pass: true, detail: 'CI green; PR open and awaiting human approval to merge' };
     }
-    throw new Error(`reconcile-only shepherd relaunch dispatched an unexpected stage label: ${JSON.stringify(label)}`);
+    if (prefix === 'ship-verify') return { merged: true, compare: { ahead_by: 0, status: 'identical' }, mergedAt: '2026-07-10T00:00:00Z', readError: null };
+    throw new Error(`relaunch dispatched an unexpected stage label: ${JSON.stringify(label)}`);
   };
   return { agent, labels, prompts };
 }
@@ -336,7 +356,7 @@ function multiRelaunchAgent({ reconcileResult, shipResult, manifestPublish } = {
     const label = opts.label || '';
     labels.push(label);
     const prefix = label.split(':')[0];
-    if (prefix === 'reconcile' || prefix === 'divergence-probe' || prefix === 'shepherd-restack' || prefix === 'shepherd-open') {
+    if (prefix === 'reconcile' || prefix === 'divergence-probe') {
       return shepherd.agent(prompt, opts);
     }
     return frontier(prompt, opts);
@@ -354,7 +374,7 @@ function multiRelaunchCapturingAgent({ reconcileResult, probeResult, shipResult 
     labels.push(label);
     if (!prompts.has(label)) prompts.set(label, prompt);
     const prefix = label.split(':')[0];
-    if (prefix === 'reconcile' || prefix === 'divergence-probe' || prefix === 'shepherd-restack' || prefix === 'shepherd-open') {
+    if (prefix === 'reconcile' || prefix === 'divergence-probe') {
       return shepherd.agent(prompt, opts);
     }
     return frontier(prompt, opts);
@@ -465,7 +485,7 @@ test('H1 repro: a live APPROVED review mid-run must widen the frozen launch-time
   assert.ok(logLines.some((l) => /mitosis\[d\]:.*built ahead of unmerged parent/.test(l)), 'd must be admitted once the mid-run APPROVED review widens W past 3 — today runSchedule snapshots the window once at launch, so the live widening is invisible to the running scheduler and d never builds');
 });
 
-test('H2 repro: a live CHANGES_REQUESTED review on an already-open deferred PR must halve the AIMD window across a shepherd relaunch, not leave it unchanged', async () => {
+test('H2 repro: a live CHANGES_REQUESTED review on an already-open deferred PR must halve the AIMD window across a relaunch, not leave it unchanged', async () => {
   const msps = [
     manifestMsp('l1a', { status: 'shipped', builtSha: hexSha('l1a'), prUrl: 'https://example.test/pr/l1a', mergedAt: '2026-07-10T00:00:00Z' }),
     manifestMsp('l2', { status: 'built', builtSha: hexSha('l2'), dependsOn: ['l1a'] }),
@@ -562,7 +582,7 @@ test('H3 mixed parents: a build-path dependent with one merged and one still-unm
   assert.ok(!branchPrompt.includes(`refs/mitosis/${RUN_ID}/pm`), 'the already-merged parent pm is NOT restacked — its content is already on the advanced base, so only pu is composed');
 });
 
-test('bullet 5 + 2: reconcile-only shepherd opens the deferred next-layer PR only after every parent has merged, carries W across the relaunch, and runs no decompose/plan/execute', async () => {
+test('bullet 5 + 2: a relaunch opens the deferred next-layer PR only after every parent has merged, carries W across the relaunch, and runs no decompose/plan/execute', async () => {
   const msps = [
     manifestMsp('l1a', { status: 'shipped', builtSha: hexSha('l1a'), prUrl: 'https://example.test/pr/l1a', mergedAt: '2026-07-10T00:00:00Z' }),
     manifestMsp('l1b', { status: 'shipped', builtSha: hexSha('l1b'), prUrl: 'https://example.test/pr/l1b', mergedAt: '2026-07-10T00:00:00Z' }),
@@ -578,66 +598,36 @@ test('bullet 5 + 2: reconcile-only shepherd opens the deferred next-layer PR onl
     checkpointRefPages: checkpointPages(['l2', 'l3']),
   };
   const { agent, labels, prompts } = shepherdAgent({ reconcileResult });
-  const { resultPromise, logLines, phaseLines } = invoke(runOn, buildInput(), agent);
+  const { resultPromise, logLines } = invoke(runOn, buildInput(), agent);
   const result = await resultPromise;
 
-  assert.ok(!labels.includes('decompose'), 'reconcile-only relaunch performs NO decompose');
-  assert.ok(!labels.some((l) => l.startsWith('plan:') || l.startsWith('parallelize:') || l.startsWith('impl:') || l.startsWith('branch:')), 'reconcile-only relaunch performs no plan/parallelize/execute/branch fan-out');
-  assert.ok(phaseLines.includes('Resume'), 'the resume phase runs');
+  assert.ok(!labels.includes('decompose'), 'a ship-only relaunch performs NO decompose');
+  assert.ok(!labels.some((l) => l.startsWith('plan:') || l.startsWith('parallelize:') || l.startsWith('impl:') || l.startsWith('branch:')), 'a ship-only relaunch performs no plan/parallelize/execute/branch fan-out');
 
-  assert.ok(labels.includes('shepherd-open:l2'), 'the deferred PR for l2 opens now that BOTH its parents (l1a, l1b) merged');
-  assert.ok(!labels.includes('shepherd-open:l3'), 'l3 does NOT open — its parent l2 has not merged yet (PR-defer honored)');
-  assert.deepEqual(result.awaitingApproval.map((a) => a.mspId), ['l2'], 'l2 is recorded awaiting human approval, not merged by the shepherd');
+  assert.ok(labels.includes('restore:l2'), 'l2 restores from its durable checkpoint instead of rebuilding');
+  assert.ok(labels.includes('ship:l2'), 'the deferred PR for l2 opens through the ship stage now that BOTH its parents (l1a, l1b) merged');
+  assert.ok(!labels.some((l) => l.endsWith(':l3')), 'l3 is never dispatched — its parent l2 has not merged yet (PR-defer honored)');
+  assert.deepEqual(result.awaitingApproval.map((a) => a.mspId), ['l2'], 'l2 is recorded awaiting human approval, never merged by the engine');
   assert.deepEqual(result.shipped.map((s) => s.mspId).sort(), ['l1a', 'l1b'], 'the already-merged parents are reported shipped');
-  assert.deepEqual(result.parked, [], 'an identical-content parent merge invalidates nothing');
+  assert.deepEqual(result.parked.map((p) => ({ mspId: p.mspId, stage: p.stage })), [{ mspId: 'l3', stage: 'blocked' }], 'an identical-content parent merge invalidates nothing: l3 is not reset to plan, only reported blocked behind its unmerged parent l2');
   assert.equal(result.overallStatus, 'awaiting-approval');
 
-  assert.ok(labels.includes('window-checkpoint:shepherd'), 'the AIMD window is re-persisted across the relaunch');
-  assert.match(prompts.get('window-checkpoint:shepherd'), /\{"kind":"window","size":5\}/, 'W=5 is carried across the relaunch verbatim');
-  assert.ok(logLines.some((l) => /AIMD window W=5/.test(l)), 'the shepherd logs the carried window W=5');
+  assert.ok(logLines.some((l) => /AIMD window W=5/.test(l)), 'W=5 is carried across the relaunch verbatim and the reconcile stage logs it');
 
-  const openPrompt = prompts.get('shepherd-open:l2');
-  assert.ok(!/gh pr merge|squash-merge|git merge/.test(openPrompt), 'the shepherd opens the PR for a human and NEVER merges');
-  assert.match(openPrompt, /human-gated/i, 'the shepherd-open prompt is explicitly human-gated');
+  const openPrompt = prompts.get('ship:l2');
+  assert.ok(!/gh pr merge|squash-merge|git merge/.test(openPrompt), 'the engine opens the PR for a human and NEVER merges');
+  assert.match(openPrompt, /human-gated/i, 'the ship prompt is explicitly human-gated');
   assert.ok(
     openPrompt.includes(`${PR_CREATE_CLI} --repo o/repo --head ${SOURCE_PREFIX}/l2-integration --base ${BASE_BRANCH} --title "chore(msp): update l2"`),
     'the deferred PR opens through the absolutely-spelled wrapper invocation, not free-form prose, under a Conventional-Commits title composed from the MSP-declared change type and scope',
   );
   assert.ok(
-    openPrompt.includes('--title "chore(msp): update l2" --origin machine --provenance "agent=shepherd-open:l2 model=unspecified" --why "r-l2" --what "update l2" --not-verified "CI on the fresh head and base - not run; this pull request opens before CI starts" --changed-lines <N>'),
+    openPrompt.includes('--title "chore(msp): update l2" --origin machine --provenance "agent=ship:l2 model=opus" --why "r-l2" --what "update l2" --not-verified "CI on the fresh head and base - not run; this pull request opens before CI starts" --depends "l1a,l1b" --changed-lines <N>'),
     'the deferred PR carries this MSP rationale and title as named body fields, states the CI it has not run rather than predicting one, and names the model the site actually sets',
   );
   assert.doesNotMatch(openPrompt, /--body-line|--verified /, 'the free-form body-line escape hatch is gone, and no code path emits a Verified line the caller did not supply');
   assert.doesNotMatch(openPrompt, /gh pr list/, 'the wrapper performs the observe step itself; a second gh pr list would restore the free-form surface');
   assert.doesNotMatch(openPrompt, /~\/\.claude/, 'the anchor is never spelled with a tilde: the permission matcher compares strings, not inodes');
-});
-
-test('bullet 3: restack-on-merge — a child with one merged and one still-unmerged parent restacks its unpublished built branch onto the advanced base and opens no PR yet', async () => {
-  const msps = [
-    manifestMsp('l1a', { status: 'shipped', builtSha: hexSha('l1a'), prUrl: 'https://example.test/pr/l1a', mergedAt: '2026-07-10T00:00:00Z' }),
-    manifestMsp('l1b', { status: 'built', builtSha: hexSha('l1b'), dependsOn: ['l1a'] }),
-    manifestMsp('l2', { status: 'built', builtSha: hexSha('l2'), dependsOn: ['l1a', 'l1b'] }),
-  ];
-  const reconcileResult = {
-    manifestFound: true,
-    manifestRaw: frontierManifest({ msps, window: 3 }),
-    specContentHash: SPEC_CONTENT_HASH,
-    mergedPRs: [mergedPr('l1a', { mergedSha: hexSha('l1a') })],
-    openPRs: [],
-    checkpointRefPages: checkpointPages(['l1b', 'l2']),
-  };
-  const { agent, labels, prompts } = shepherdAgent({ reconcileResult });
-  const { resultPromise } = invoke(runOn, buildInput(), agent);
-  const result = await resultPromise;
-
-  assert.ok(labels.includes('shepherd-restack:l2'), 'l2 (one merged parent l1a, one unmerged parent l1b) restacks onto the advanced base');
-  assert.ok(!labels.includes('shepherd-open:l2'), 'l2 does NOT open a PR yet — not all its parents have merged');
-  assert.ok(labels.includes('shepherd-open:l1b'), 'l1b, whose only parent l1a merged, opens its own deferred PR');
-  assert.deepEqual(result.awaitingApproval.map((a) => a.mspId), ['l1b'], 'only l1b (all parents merged) is awaiting approval');
-  assert.deepEqual(result.parked, [], 'a clean restack parks nothing');
-  const restackPrompt = prompts.get('shepherd-restack:l2');
-  assert.match(restackPrompt, /NEVER force-push, rebase, or rewrite any published branch/, 'the restack explicitly forbids force-pushing or rewriting any published branch');
-  assert.match(restackPrompt, /refs\/mitosis\/[a-f0-9]{8}\/l1b/, 'the restack re-stacks the still-unmerged parent l1b checkpoint ref');
 });
 
 test('bullet 4a / H4: a divergent parent merge resets exactly its true descendants — they are durably parked at stage plan with dropped checkpoint provenance and REBUILD from plan on this same relaunch, never restored from the condemned checkpoint', async () => {
@@ -701,7 +691,7 @@ test('H4 resurrection guard: a folded unit already parked at stage plan, whose d
   );
   assert.ok(labels.includes('plan:d'), 'the folded parked+stage:plan unit resumes at plan and rebuilds — the resurrection guard kept it parked despite its still-live checkpoint ref');
   assert.ok(!labels.includes('restore:d'), 'd is NEVER restored from its condemned durable checkpoint (the reconcile reduce did not flip parked+plan back to built)');
-  assert.ok(!labels.includes('shepherd-open:d') && !labels.includes('shepherd-restack:d'), 'd is never handled as a built unit by the shepherd (no ship-stage resume)');
+  assert.ok(labels.indexOf('plan:d') < labels.indexOf('ship:d'), 'd is never handled as a built unit resumed straight to ship — every dispatch for d is downstream of its replan');
 
   assert.deepEqual(result.shipped.map((s) => s.mspId).sort(), ['d', 'p'], 'operator-visible contract: the parked unit rebuilds and ships alongside its already-merged parent');
   assert.deepEqual(result.awaitingApproval.map((a) => a.mspId), [], 'a parked unit with no open PR is never surfaced awaiting a human merge');
@@ -726,7 +716,7 @@ test('bullet 4b: a squash-rewritten merge on a STILL-BUILT parent whose content 
   const { resultPromise, logLines } = invoke(runOn, buildInput(), agent);
   const result = await resultPromise;
 
-  assert.ok(labels.includes('shepherd-open:l3'), 'the deferred grandchild PR opens — both gating parents merged and the probe confirmed their content clean despite the squash-rewritten SHAs');
+  assert.ok(labels.includes('ship:l3'), 'the deferred grandchild PR opens — both gating parents merged and the probe confirmed their content clean despite the squash-rewritten SHAs');
   assert.deepEqual(result.parked, [], 'a content-preserving squash on a STILL-BUILT parent invalidates nothing (raw SHA identity would have mis-parked the whole subtree)');
   assert.ok(!logLines.some((l) => /BUILD RUN NEEDED/.test(l)), 'no build run is flagged — the multi-layer advance is trusted');
   assert.ok(labels.includes('ship-checkpoint:l1') && labels.includes('ship-checkpoint:l2'), 'each newly-merged still-built parent memoizes its ship delta once so a later relaunch folds it shipped without re-folding');
@@ -751,7 +741,7 @@ test('bullet 1: build-frontier-ahead-of-merge — a layer-2 unit reaches built w
   assert.ok(!result.shipped.some((s) => s.mspId === 'l2'), 'the build-ahead unit is not shipped while its parent is unmerged (PR-defer)');
 });
 
-test('bullet 6: the AIMD window is carried at the ceiling across a shepherd relaunch and a live APPROVED review does NOT inflate it past the ceiling (idempotent, window-bounded)', async () => {
+test('bullet 6: the AIMD window is carried at the ceiling across a relaunch and a live APPROVED review does NOT inflate it past the ceiling (idempotent, window-bounded)', async () => {
   const msps = [
     manifestMsp('l1a', { status: 'shipped', builtSha: hexSha('l1a'), prUrl: 'https://example.test/pr/l1a', mergedAt: '2026-07-10T00:00:00Z' }),
     manifestMsp('l2', { status: 'built', builtSha: hexSha('l2'), dependsOn: ['l1a'] }),
@@ -764,13 +754,13 @@ test('bullet 6: the AIMD window is carried at the ceiling across a shepherd rela
     openPRs: [{ headRefName: `${SOURCE_PREFIX}/l2-integration`, reviewDecision: 'APPROVED' }],
     checkpointRefPages: checkpointPages(['l2']),
   };
-  const { agent, labels, prompts } = shepherdAgent({ reconcileResult });
+  const { agent, labels } = shepherdAgent({ reconcileResult });
   const { resultPromise, logLines } = invoke(runOn, buildInput(), agent);
   await resultPromise;
 
-  assert.match(prompts.get('window-checkpoint:shepherd'), /\{"kind":"window","size":8\}/, 'W is carried at the ceiling (8) and a replayed live APPROVED review never inflates it to 9');
-  assert.ok(logLines.some((l) => /AIMD window W=8/.test(l)), 'the carried window stays bounded at the ceiling');
-  assert.ok(!labels.includes('shepherd-open:l2'), 'l2 already has an OPEN PR — the shepherd does not double-open it');
+  assert.ok(logLines.some((l) => /AIMD window W=8/.test(l)), 'W is carried at the ceiling (8) and the carried window stays bounded at the ceiling');
+  assert.ok(!logLines.some((l) => /AIMD window W=9/.test(l)), 'a replayed live APPROVED review never inflates the carried window to 9');
+  assert.ok(!labels.includes('ship:l2') && !labels.includes('restore:l2'), 'l2 already has an OPEN PR — the engine does not double-open it');
 });
 
 test('security fix 1: a merged parent whose builtSha or mergedSha is a leading-dash token emits NO probe carrying that raw token and fail-closes to a PARK of its built descendants', async () => {
@@ -830,7 +820,7 @@ test('security fix 2: a merged parent whose fileScope carries a pathspec-magic e
   assert.ok(labels.includes('park-checkpoint:cm'), 'the built descendant fail-closed to a durable reset+park instead of a trusting clean');
 });
 
-test('robustness fix 4: a top-level throw from the divergence-probe dispatch degrades gracefully — the need-keyed parent parks its built descendant and the reconcile-only run does NOT reject', async () => {
+test('robustness fix 4: a top-level throw from the divergence-probe dispatch degrades gracefully — the need-keyed parent parks its built descendant and the relaunch does NOT reject', async () => {
   const msps = [
     manifestMsp('px', { status: 'shipped', builtSha: 'a'.repeat(40), prUrl: 'https://example.test/pr/px', mergedAt: '2026-07-10T00:00:00Z' }),
     manifestMsp('cx', { status: 'built', builtSha: hexSha('cx'), dependsOn: ['px'] }),
@@ -1062,7 +1052,7 @@ function builtL2Fixture(openPRs, { window = 3, msps: mspsOverride = null } = {})
   };
 }
 
-test('HIGH-1: in reconcile-only mode a CONTESTED open PR that withholds the unit deferred PR is announced with its id, url and reason — it is never suppressed without a trace', async () => {
+test('HIGH-1: a CONTESTED open PR that withholds the unit deferred PR is announced with its id, url and reason — it is never suppressed without a trace', async () => {
   const msps = [
     manifestMsp('l1', { status: 'shipped', builtSha: hexSha('l1'), prUrl: targetPrUrl('l1'), mergedAt: '2026-07-10T00:00:00Z' }),
     manifestMsp('l2', { status: 'built', builtSha: hexSha('l2'), dependsOn: ['l1'] }),
@@ -1079,14 +1069,14 @@ test('HIGH-1: in reconcile-only mode a CONTESTED open PR that withholds the unit
   const { resultPromise, logLines } = invoke(runOn, buildInput(), agent);
   await resultPromise;
 
-  assert.ok(!labels.includes('shepherd-open:l2'), 'sanity: the contested PR occupies l2 branch namespace, so its deferred PR is withheld');
+  assert.ok(!labels.some((l) => l.endsWith(':l2')), 'sanity: the contested PR occupies l2 branch namespace, so its deferred PR is withheld and l2 is never dispatched at all');
   const signal = logLines.find((l) => /^mitosis\[l2\]:.*CONTESTED/.test(l));
-  assert.ok(signal, 'a withheld PR with no announced cause is indistinguishable from a stuck engine — the contested classification must be operator-visible in reconcile-only mode, where no park loop ever runs');
+  assert.ok(signal, 'a withheld PR with no announced cause is indistinguishable from a stuck engine — the contested classification must be operator-visible');
   assert.match(signal, /attacker\/evil\/pull\/9/, 'the signal names the exact PR url the operator has to inspect');
   assert.match(signal, /provenance/, 'the signal names the disposition that withheld the unit');
 });
 
-test('L6: in reconcile-only mode a manifest-shipped unit absent from a truncated live merged listing is still reported shipped, carrying its repo-pinned manifest url', async () => {
+test('L6: a manifest-shipped unit absent from a truncated live merged listing is still reported shipped, carrying its repo-pinned manifest url', async () => {
   const msps = [
     manifestMsp('l1', { status: 'shipped', builtSha: hexSha('l1'), prUrl: targetPrUrl('l1'), mergedAt: '2026-07-10T00:00:00Z' }),
     manifestMsp('l2', { status: 'built', builtSha: hexSha('l2'), dependsOn: ['l1'] }),
@@ -1104,11 +1094,11 @@ test('L6: in reconcile-only mode a manifest-shipped unit absent from a truncated
   const result = await resultPromise;
 
   const entry = result.shipped.find((s) => s.mspId === 'l1');
-  assert.ok(entry, 'omitting a manifest-shipped unit from the reconcile-only shipped set is strictly worse than reporting it with a null url — the operator loses the unit entirely');
+  assert.ok(entry, 'omitting a manifest-shipped unit from the shipped set is strictly worse than reporting it with a null url — the operator loses the unit entirely');
   assert.equal(entry.prUrl, targetPrUrl('l1'), 'the repo-pinned manifest url is the surviving audit pointer');
 });
 
-test('L6b: a manifest-shipped unit whose manifest url is FOREIGN is reported shipped with a null url in reconcile-only mode', async () => {
+test('L6b: a manifest-shipped unit whose manifest url is FOREIGN is reported shipped with a null url', async () => {
   const msps = [
     manifestMsp('l1', { status: 'shipped', builtSha: hexSha('l1'), prUrl: 'https://github.com/attacker/evil/pull/9', mergedAt: '2026-07-10T00:00:00Z' }),
     manifestMsp('l2', { status: 'built', builtSha: hexSha('l2'), dependsOn: ['l1'] }),
@@ -1433,11 +1423,11 @@ test('M6 portability: a workspace with NO .mitosis/ journal recovers the whole M
   assert.ok(!labels.some((l) => l.startsWith('plan:')), 'no unit replans');
   assert.deepEqual(result.shipped.map((s) => s.mspId), ['a'], 'the already-merged unit is reported shipped');
   assert.ok(!labels.includes('ship:a'), 'the already-merged unit is NEVER re-dispatched to ship');
-  assert.ok(labels.includes('shepherd-open:b'), 'the durably-built unit resumes from its checkpoint ref instead of rebuilding');
+  assert.ok(labels.includes('restore:b') && labels.includes('ship:b'), 'the durably-built unit resumes from its checkpoint ref instead of rebuilding');
   assert.deepEqual(result.awaitingApproval.map((a) => a.mspId), ['b']);
 });
 
-test('M6 I4: an ABSENT identity ref, a ref whose payload could not be READ, and a ref whose payload is INVALID each report identity local-only through a DIFFERENT line', async () => {
+test('M6 I4: an ABSENT identity ref, a ref whose payload could not be READ, and a ref whose payload is INVALID are each reported through a DIFFERENT line, and only the provably-absent ref is republished', async () => {
   const msps = [
     manifestMsp('a', { status: 'shipped', builtSha: hexSha('a'), prUrl: 'https://example.test/pr/a', mergedAt: '2026-07-10T00:00:00Z' }),
     manifestMsp('b', { status: 'built', builtSha: hexSha('b') }),
@@ -1454,14 +1444,14 @@ test('M6 I4: an ABSENT identity ref, a ref whose payload could not be READ, and 
   const absent = shepherdAgent({ reconcileResult: { ...baseRecon, publishedManifestFound: false, publishedManifestRawPages: null } });
   const absentRun = invoke(runOn, buildInput(), absent.agent);
   const absentResult = await absentRun.resultPromise;
-  assert.equal(absentResult.identity, 'local-only', 'no readable ref means the run is NOT portable, and that is reported rather than inferred away');
+  assert.equal(absentResult.identity, 'published', 'a ref proved ABSENT is the one case the write-once ref may still be claimed, so the relaunch republishes it rather than leaving the run local-only forever — unreadable and invalid are asserted below to behave the OPPOSITE way, which is what makes this the safe case rather than the lenient one');
   const absenceLine = absentRun.logLines.find((l) => /resumable ONLY from the local \.mitosis\/ journal on this machine/.test(l));
   assert.ok(absenceLine, 'the absence is named in words an operator can act on');
 
   const unreadable = shepherdAgent({ reconcileResult: { ...baseRecon, publishedManifestFound: true, publishedManifestRawPages: null } });
   const unreadableRun = invoke(runOn, buildInput(), unreadable.agent);
   const unreadableResult = await unreadableRun.resultPromise;
-  assert.equal(unreadableResult.identity, 'local-only', 'a ref whose payload could not be fetched degrades exactly as absence does');
+  assert.equal(unreadableResult.identity, 'local-only', 'a ref that EXISTS but whose payload could not be fetched is never republished over — an unread ref is not an absent one, so the run stays local-only rather than overwriting a write-once identity it could not rule out');
   const unreadableLine = unreadableRun.logLines.find((l) => /could not be READ/.test(l));
   assert.ok(unreadableLine, 'a ref that exists but whose payload could not be fetched is reported distinctly');
   assert.notEqual(unreadableLine, absenceLine, 'absence and unreadability are never conflated into one indistinguishable message');
@@ -1469,7 +1459,7 @@ test('M6 I4: an ABSENT identity ref, a ref whose payload could not be READ, and 
   const invalid = shepherdAgent({ reconcileResult: { ...baseRecon, publishedManifestFound: true, publishedManifestRawPages: ['{"schemaVersion":1,"logicalRunId":"deadbeef"}'] } });
   const invalidRun = invoke(runOn, buildInput(), invalid.agent);
   const invalidResult = await invalidRun.resultPromise;
-  assert.equal(invalidResult.identity, 'local-only', 'a payload that was read but does not validate degrades exactly as absence does');
+  assert.equal(invalidResult.identity, 'local-only', 'a payload that WAS read and does not validate is likewise never republished over — a corrupt identity still proves the ref is claimed, so it degrades to local-only instead of being overwritten');
   const invalidLine = invalidRun.logLines.find((l) => /did not validate as an identity-only manifest/.test(l));
   assert.ok(invalidLine, 'a payload that WAS read and is malformed is reported distinctly from one that could not be read at all');
   assert.equal(new Set([absenceLine, unreadableLine, invalidLine]).size, 3, 'a fetch that failed and a payload that is corrupt invite OPPOSITE operator actions, so they never share a message');
