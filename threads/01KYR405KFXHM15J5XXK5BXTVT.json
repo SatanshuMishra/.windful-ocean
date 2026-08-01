@@ -35,14 +35,15 @@
   "closure_statement": null,
   "spine": {
     "status": "paused",
-    "active_goal": "M3 SHIPPED and fully GREEN: PR #30 (refactor/m3-one-advance-loop, fec38ac + edc918f), all six CI checks pass, CLEAN, OPEN, NOT MERGED - the merge is the human's. Verified first-hand: the streaming path, the shepherd and its gate are at ZERO occurrences in mitosis.js, leases.mjs and reconcile.mjs; a relaunch falls through into runScheduleTick. Suite 1850 -> 1838. Two of three deletion rows shipped - maxSteps retained, moves to M5 (0185). Next MSP not started, per user directive.",
-    "next_step": "START IN A FRESH SESSION per user directive; dispatch a DEDICATED SMALL dynamic Workflow (M3's shape: Ground x3 / Design / Implement sole-writer / Verify x3 / Remediate cap 2 / Ship) to ship ONE MSP. Order: (1) HUMAN merges PR #30, never the agent. (2) RE-READ 0162 FIRST - A5 is owed before M5; do not assume it is done. (3) Verify 0187's restore-path residual. (4) Cut the branch in the MAIN thread. (5) The dispatch prompt MUST carry the coverage-receipt gate - risk 1.",
+    "active_goal": "M3 is SHIPPED and MERGED. PR #30 merged 2026-08-01T08:48:46Z as squash commit cad6ba2 on origin/main, all six CI checks green beforehand. Verified first-hand: the streaming path, the shepherd and its gate are at ZERO occurrences in mitosis.js, leases.mjs and reconcile.mjs; a relaunch falls through into runScheduleTick. Suite 1850 -> 1838. Two of three deletion rows shipped - maxSteps retained, moves to M5 (0185). Next MSP not started, per user directive.",
+    "next_step": "START IN A FRESH SESSION per user directive; dispatch a DEDICATED SMALL dynamic Workflow (M3's shape: Ground x3 / Design / Implement sole-writer / Verify x3 / Remediate cap 2 / Ship) to ship ONE MSP. Order: (1) Re-derive origin/main (now cad6ba2) and confirm it is green. (2) RE-READ 0162 FIRST - A5 is owed before M5; do not assume it is done. (3) Verify 0187's restore-path residual. (4) Cut the branch in the MAIN thread. (5) The dispatch prompt MUST carry the coverage-receipt gate - risk 1.",
     "open_risks": [
       "DISPATCH-PROMPT GAP that cost this session a red CI: every PR must COMMIT docs/invariants/coverage/<branch>.json with a verdict plus evidence string for ALL 12 ids in docs/invariants/registry.json. The gate never checks whether a check string is TRUE, so fabricated greens pass (0143).",
       "A5's characterization test is still owed before M5 (0162). A3's half is discharged and merged. This gates the choice of next MSP.",
       "RESTORE-PATH RESIDUAL, gates M5 (0187): unverified that every route a built unit takes to ship passes through restoreIntegrationFromBuiltCheckpoint (mitosis.js:4545, callers :4586/:4592). If one does not, M3's dropped eager restack was load-bearing there.",
       "advance.toRestack is computed (reconcile.mjs:122/:130 + twin) and logged (mitosis.js:3996) with ZERO consumers at HEAD - a relaunch reports restacks it will not perform. Assigned to the next region owner, not hotfixed (0187). Not urgent: the engine acts on none of it.",
-      "PR #30's body does not name the M6 I4 contract flip (0186) and is FROZEN at creation. A PR comment is the only in-band remedy and is outward-facing, so it needs the user's explicit go (0142).",
+      "The M6 I4 contract flip (0186) is recorded ONLY in the ledger and the coverage receipt - PR #30's body never named it and the PR is now MERGED, so no in-band remedy remains. Anyone reading git history alone will not find it.",
+      "Local checkout is still parked on the merged branch refactor/m3-one-advance-loop with the five pre-existing dirty paths; origin/main is cad6ba2. Re-derive before cutting the next branch.",
       "0182's revisit trigger HAS FIRED: A3's characterization file was repointed at the unified loop, not deleted, so its 76 percent duplicated fixture helpers are now long-lived. Extraction is a follow-up, not M5's job.",
       "M4 stays THREATENED by 174a0dc: three behavior changes plus the structural publishedSpecPath share one commit range and three characterization tests were rewritten in it.",
       "computeLogicalRunId still hashes only spec path + baseBranch (0176), so a superseded manifest ref is never reaped. Accepted, not silently carried.",
@@ -130,5 +131,5 @@
     ]
   },
   "created_at": "2026-07-29T23:40:17.901Z",
-  "updated_at": "2026-08-01T08:55:29.453Z"
+  "updated_at": "2026-08-01T08:57:45.694Z"
 }
