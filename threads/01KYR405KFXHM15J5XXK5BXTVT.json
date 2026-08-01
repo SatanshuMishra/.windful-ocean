@@ -35,14 +35,14 @@
   "closure_statement": null,
   "spine": {
     "status": "paused",
-    "active_goal": "PR #28 (M6) MERGED as 1986aab; main re-derived green first-hand at 1846/1846. A3 SHIPPED and open as PR #29 on test/a3-reconcile-only-characterization, commit 78fb13b: four-case characterization test pinning runReconcileOnlyAdvance and its shouldReconcileOnly gate, plus the coverage receipt. Suite 1850/1850 first-hand, coverage gate ok in pull_request mode post-commit, mitosis.js byte-identical. Test-only. PR #29 NOT merged - merge stays human-gated.",
-    "next_step": "(1) Merge PR #29 when ready, then re-derive origin/main and confirm green. (2) Then M3 - A3's blocker is discharged. M3 MUST read 0180 first: it has to decide deliberately whether it deletes BOTH gate twins (mitosis.js:3063/:3067 and reconcile.mjs:76/:80) or only the workflow copy, and if both, reconcile.test.mjs:102-131 goes in the SAME commit. (3) A5's characterization test is still owed before M5, unchanged.",
+    "active_goal": "M6 and A3 are both MERGED and main is green at 7b34a61, 1850/1850 verified first-hand. A3's four-case characterization test pins runReconcileOnlyAdvance (mitosis.js:3293) and its shouldReconcileOnly gate (:3063) at the unit layer, with mutation-proven deletion observability. M3 is now UNBLOCKED and is next in spec order (M0/M1/M2/M6 all landed). M3 was deliberately NOT started - the prior session hit ~84 percent context and the user directed a fresh one.",
+    "next_step": "START M3 IN A FRESH SESSION, per user directive. STANDING DIRECTIVE for M3: resolve open decisions with the ROBUST + SIMPLE option, no menus where a default exists. Read 0183 FIRST - it resolves 0180: M3 deletes BOTH gate twins (mitosis.js:3063/:3067, reconcile.mjs:76/:80) plus reconcile.test.mjs:102-131 in ONE commit. Check 0183's dead-export-lint residual first. Then decompose M3, cut the branch in the MAIN thread before dispatching, ship as one MSP and one PR.",
     "open_risks": [
-      "A5's characterization test is still owed before M5 (0162). A3's half of that debt is discharged by PR #29.",
-      "M3 twin hazard (0180): the gate predicates' only unit tests import the LIB copy (reconcile.mjs:76/:80), not the workflow copy M3 deletes, so reconcile.test.mjs:102-131 would stay green against an orphan. dead-export-lint misses it - tests count nowhere as callers.",
-      "Production defect on the M3-deleted path (0181), unfixed by design: a shepherd returning {opened:false} with no detail rejects the WHOLE run via clean(undefined) at mitosis.js:34, from :3428 and :3389. Shepherd-failure fixtures must supply detail.",
+      "A5's characterization test is still owed before M5 (0162). A3's half of that debt is discharged and merged.",
+      "0161's open item is M3's to answer: the spec resolves M3 at mechanism-disposition granularity, not implementation-line granularity, so whether M3's unified loop reuses fragments of the deleted body under a new name is unestablished. A3 makes it checkable.",
+      "0183 residual: 0180 claimed dead-export-lint will not catch an orphaned lib predicate, asserted without checking the lint's mitosis.js-as-caller clause. Read dead-export-lint.test.mjs:66-71 and settle it; do not carry 0180's claim forward unverified.",
       "M4 stays THREATENED by 174a0dc: three behavior changes plus the structural publishedSpecPath share one commit range and three characterization tests were rewritten in it - after-the-fact evidence, not characterization.",
-      "A reconcile-only relaunch returns before the publish stage so it does NOT retry a lost publish; a full advance does. Named in SKILL.md and the spec amendment.",
+      "A reconcile-only relaunch returns before the publish stage so it does NOT retry a lost publish; a full advance does. M3 rewrites this region - re-check after M3 lands.",
       "computeLogicalRunId still hashes only spec path + baseBranch (0176), so a superseded manifest ref is never reaped. Accepted, not silently carried.",
       "published.sourcePrefix is logged on disagreement but does not WIN (0179). A relaunch under a different prefix can re-ship shipped work.",
       "Seven of A3's twenty-two assertions are corroborating but unfalsified by the mutation matrix - node:assert is fail-fast, so an earlier assertion always fails first. The receipt says so rather than overstating.",
@@ -125,5 +125,5 @@
     ]
   },
   "created_at": "2026-07-29T23:40:17.901Z",
-  "updated_at": "2026-08-01T05:46:54.593Z"
+  "updated_at": "2026-08-01T05:48:58.123Z"
 }
