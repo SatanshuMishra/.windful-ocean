@@ -642,3 +642,46 @@ test('I3 guard: resolveRunIdentity REFUSES a published copy that is stale agains
   assert.equal(foreign.manifest, local);
   assert.equal(foreignLines.filter((l) => /FOREIGN/i.test(l)).length, 1);
 });
+
+test('I4 taxonomy: a FAILED probe, an unread payload, an invalid payload and a genuine absence each report a DISTINCT line, and a failed probe never asserts absence', () => {
+  const local = localJournalFixture();
+  const capture = (overrides) => {
+    const lines = [];
+    const resolved = resolveRunIdentity(null, local, identityCtx({ ...overrides, log: (line) => lines.push(line) }));
+    assert.equal(resolved.identity, 'local-only');
+    assert.equal(resolved.manifest, local);
+    assert.equal(lines.length, 1, 'exactly one identity line is emitted per resolution');
+    return lines[0];
+  };
+
+  const absent = capture({ refPresent: false });
+  const probeFailed = capture({ refPresent: false, probeFailed: true });
+  const unread = capture({ refPresent: true, payloadUnreadable: true });
+  const invalid = capture({ refPresent: true });
+
+  assert.match(absent, /no published run-identity manifest ref/, 'a definite absence is stated as an absence');
+  assert.match(probeFailed, /does NOT assert that the ref is absent/, 'a failed probe explicitly declines to assert absence — absence is reported, never inferred from a read that did not run');
+  assert.doesNotMatch(probeFailed, /a fresh clone will not find it/, 'a failed probe never borrows the confident wording of a genuine absence');
+  assert.match(unread, /could not be READ/, 'a ref whose payload could not be fetched is reported as unread');
+  assert.match(unread, /do NOT delete or republish that ref/, 'the unread case names the action an operator must NOT take on this evidence');
+  assert.match(invalid, /did not validate as an identity-only manifest/, 'a payload that was read but is malformed is reported as invalid');
+
+  assert.equal(new Set([absent, probeFailed, unread, invalid]).size, 4, 'four operationally different causes never collapse into one indistinguishable message');
+});
+
+test('I3 envelope: a published run-level identity field that DISAGREES with the invocation is logged with the consequence, and sourcePrefix is named as the field the run id does not pin', () => {
+  const lines = [];
+  const local = localJournalFixture();
+  const published = publishedPayloadObject({ sourcePrefix: 'wave' });
+  const resolved = resolveRunIdentity(published, local, identityCtx({ log: (line) => lines.push(line) }));
+
+  assert.equal(resolved.identity, 'published', 'an envelope disagreement is reported, not a refusal — the identity table itself is still authoritative');
+  const envelope = lines.filter((l) => /run-level identity field/.test(l));
+  assert.equal(envelope.length, 1, 'the disagreement is reported exactly once');
+  assert.match(envelope[0], /sourcePrefix \(published "wave", in effect "mitosis"\)/, 'the line names the field, the published value and the value actually in effect');
+  assert.match(envelope[0], /will NOT be recognised as shipped/, 'the line names the operational consequence: already-merged branches under the published prefix go unrecognised');
+
+  const quiet = [];
+  resolveRunIdentity(publishedPayloadObject(), local, identityCtx({ log: (line) => quiet.push(line) }));
+  assert.equal(quiet.filter((l) => /run-level identity field/.test(l)).length, 0, 'an envelope that agrees emits no disagreement line');
+});

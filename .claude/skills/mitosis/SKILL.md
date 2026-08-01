@@ -61,14 +61,28 @@ Do nothing else until it returns.
 
 ## Relay the report
 
-When the workflow returns, relay its result to the user: the shipped MSPs (id + PR url) from `shipped`, the run's `identity`, and if `overallStatus !== 'all-shipped'`, the failing stage/MSP and reason (from the top-level `stage`/`mspId`/`detail` and the `crashed`/`halted` arrays). Do not re-run or "continue" the loop in main.
+When the workflow returns, relay its result to the user: the shipped MSPs (id + PR url) from `shipped`, the run's `identity` (present on every report, including failed ones), and if `overallStatus !== 'all-shipped'`, the failing stage/MSP and reason (from the top-level `stage`/`mspId`/`detail` and the `crashed`/`halted` arrays). Do not re-run or "continue" the loop in main.
 
 ## Run identity and portability
 
-The report carries an `identity` field saying where this run can be resumed from.
+EVERY report carries an `identity` field saying where this run can be resumed from — the successful ones and the failed ones alike. Relay it on a halt too: "where can I resume this from?" is the operator's first question at exactly the stops where the run did not finish.
 
-`identity: 'published'` means the run's MSP table is durably published to a mitosis-owned git ref. Any clone, worktree or CI workspace can resume the run with the same logical run id, even one that has no `.mitosis/` directory at all.
+`identity: 'published'` means the run's MSP table is durably published to a mitosis-owned git ref (`refs/mitosis-manifest/<logicalRunId>`; the spec's §3.5 sketch of `refs/mitosis/<id>/manifest` was moved so the identity ref cannot be mistaken for a unit checkpoint under `refs/mitosis/*`). Any clone, worktree or CI workspace can resume the run with the same logical run id, even one that has no `.mitosis/` directory at all. One limitation: on a workspace with no local journal, only `resume <logicalRunId>` resolves — `resume <harnessRunId>` of a PRIOR harness run does not, and the run logs that when it applies.
 
-`identity: 'local-only'` means no such ref was readable, so the run is resumable ONLY from the local `.mitosis/` journal on this machine — a fresh clone will not find it. Relay that limitation to the user rather than leaving it implicit.
+`identity: 'local-only'` means no published ref was adopted, so the run is resumable ONLY from the local `.mitosis/` journal on this machine — a fresh clone will not find it. Relay that limitation rather than leaving it implicit.
 
-`local-only` is expected for any run started before durable run identity landed. Otherwise it signals one of: the git remote was unreachable, the publish could not be verified, or a manifest ref already existed for this logical run id and was left untouched (the ref is written once and never rewritten).
+`identity: 'unresolved'` means the run halted before it got as far as resolving identity at all (an input or early reconcile halt). It is never a claim about portability in either direction.
+
+`local-only` is expected for any run started before durable run identity landed. Otherwise the run log names which cause applied, and they are not interchangeable — read the log line rather than guessing:
+
+| Cause | What the operator should do |
+|---|---|
+| the git remote was unreachable, or the publish could not be verified | retry; nothing durable is wrong |
+| a manifest ref already existed for this logical run id and was left untouched | nothing; the ref is written once and never rewritten |
+| the published payload is STALE against the spec's current content | expected after an in-place spec edit — the run id hashes the spec PATH, never its content, so the edited spec re-decomposes under the same id and can no longer adopt the published table |
+| the published payload carries a FOREIGN logical run id | investigate; the ref does not belong to this run |
+| the ref exists but its payload could not be READ | transient fetch failure — do NOT delete or republish the ref on this evidence |
+| the ref exists and its payload did not validate | the payload really is malformed |
+| the engine REFUSED to publish because its own reader rejected the composed payload | usually a spec whose content could not be hashed; fix the spec's readability and re-run |
+
+A run whose identity probe could not be answered at all does not report `local-only` — it halts at reconcile, because inferring "no ref exists" from a read that never ran would re-decompose a fresh MSP table over a ref that may already own one.

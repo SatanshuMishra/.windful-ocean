@@ -148,7 +148,7 @@ function createFakeAgent({ msps, sourcePrefix = SOURCE_PREFIX, baseBranch = TEST
         return override || { planPath: `/tmp/mitosis-scheduler-test/${mspId}.plan.md`, summary: 'revised' };
       }
       case 'reconcile':
-        return { ownerRepo: TEST_REPO_SLUG, mergedPRsAuthoritative: true, boundaryPreflight: provenBoundary({ boundaryBaseBranch: baseBranch }), ...(reconcileResult || { manifestFound: false, manifestRaw: null, mergedPRs: [] }) };
+        return { ownerRepo: TEST_REPO_SLUG, mergedPRsAuthoritative: true, boundaryPreflight: provenBoundary({ boundaryBaseBranch: baseBranch }), ...(reconcileResult || { manifestFound: false, manifestRaw: null, mergedPRs: [], specContentHash: SPEC_CONTENT_HASH }) };
       case 'checkpoint-init':
         return { written: true, detail: '' };
       case 'manifest-publish':

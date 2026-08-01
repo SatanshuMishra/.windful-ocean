@@ -272,7 +272,7 @@ export function parsePublishedManifest(raw) {
 
 export function resolveRunIdentity(published, local, ctx) {
   const context = ctx !== null && typeof ctx === 'object' && !Array.isArray(ctx) ? ctx : {};
-  const { logicalRunId, observedSpecHash, harnessRunId, spec, repoRoot, baseBranch, sourcePrefix, refPresent, log } = context;
+  const { logicalRunId, observedSpecHash, harnessRunId, spec, repoRoot, baseBranch, sourcePrefix, refPresent, probeFailed, payloadUnreadable, log } = context;
   const emit = (line) => {
     if (typeof log !== 'function') return;
     try {
@@ -280,9 +280,15 @@ export function resolveRunIdentity(published, local, ctx) {
     } catch {}
   };
   if (published === null || published === undefined) {
-    emit(refPresent === true
-      ? `mitosis: run identity — a manifest ref exists for ${logicalRunId} but its payload did not validate as an identity-only manifest; falling back to the local .mitosis/ journal and reporting identity local-only`
-      : `mitosis: run identity — no published run-identity manifest ref for ${logicalRunId}; this run is resumable ONLY from the local .mitosis/ journal on this machine, and a fresh clone will not find it`);
+    if (probeFailed === true) {
+      emit(`mitosis: run identity — the probe for a published run-identity manifest ref for ${logicalRunId} FAILED to run to a definite answer, so this run does NOT assert that the ref is absent; falling back to the local .mitosis/ journal and reporting identity local-only`);
+    } else if (refPresent === true && payloadUnreadable === true) {
+      emit(`mitosis: run identity — a manifest ref EXISTS for ${logicalRunId} but its payload could not be READ (the fetch or the cat-file failed), so the ref itself may be entirely valid; falling back to the local .mitosis/ journal and reporting identity local-only — do NOT delete or republish that ref on this evidence`);
+    } else if (refPresent === true) {
+      emit(`mitosis: run identity — a manifest ref exists for ${logicalRunId} but its payload did not validate as an identity-only manifest; falling back to the local .mitosis/ journal and reporting identity local-only`);
+    } else {
+      emit(`mitosis: run identity — no published run-identity manifest ref for ${logicalRunId}; this run is resumable ONLY from the local .mitosis/ journal on this machine, and a fresh clone will not find it`);
+    }
     return { manifest: local, identity: 'local-only' };
   }
   if (published.logicalRunId !== logicalRunId) {
@@ -293,6 +299,13 @@ export function resolveRunIdentity(published, local, ctx) {
     const observed = typeof observedSpecHash === 'string' ? observedSpecHash : 'unreadable';
     emit(`mitosis: run identity — the published manifest for ${logicalRunId} is STALE against the observed spec content (published ${published.specContentHash}, observed ${observed}); the run id hashes the spec PATH and never its content, so an in-place spec edit re-decomposes under the same id — refusing the published copy and falling back to the local .mitosis/ journal`);
     return { manifest: local, identity: 'local-only' };
+  }
+  const envelopeInEffect = { spec, baseBranch, sourcePrefix };
+  const envelopeDisagreements = ['spec', 'baseBranch', 'sourcePrefix']
+    .filter((field) => published[field] !== envelopeInEffect[field])
+    .map((field) => `${field} (published ${JSON.stringify(published[field])}, in effect ${JSON.stringify(envelopeInEffect[field])})`);
+  if (envelopeDisagreements.length > 0) {
+    emit(`mitosis: run identity — the published manifest for ${logicalRunId} DISAGREES with this invocation on run-level identity field(s): ${envelopeDisagreements.join(', ')}; the run PROCEEDS on the invocation values, so integration branch names, the already-merged set and every worktree path derive from them and NOT from the published copy — sourcePrefix is the one identity field the logical run id does not pin, so an already-merged branch under the published prefix will NOT be recognised as shipped under the invocation prefix`);
   }
   const hydrated = {
     ...buildInitialManifest({
