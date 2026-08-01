@@ -102,7 +102,8 @@
       "0180-m3-must-delete-both-gate-twins-or-reconcile-test-goes-orphan",
       "0181-shepherd-result-without-detail-rejects-the-run-left-as-a-deletion-benefit",
       "0182-a3-fixture-helpers-stay-duplicated-because-the-file-dies-with-m3",
-      "0183-m3-deletes-both-gate-twins-and-their-truth-table-in-one-commit"
+      "0183-m3-deletes-both-gate-twins-and-their-truth-table-in-one-commit",
+      "0184-the-dead-export-lint-residual-is-settled-by-measurement-deletion-is-self-policing"
     ],
     "out_of_scope": [
       "Any change at mitosis.js:4058-4061. H-C is REFUTED by 0159, not deferred - the done-union is correct and narrowing it is a liveness regression. Re-opening needs new evidence of an unconfirmed-ship producer.",
@@ -125,5 +126,5 @@
     ]
   },
   "created_at": "2026-07-29T23:40:17.901Z",
-  "updated_at": "2026-08-01T05:48:58.123Z"
+  "updated_at": "2026-08-01T08:23:25.013Z"
 }
