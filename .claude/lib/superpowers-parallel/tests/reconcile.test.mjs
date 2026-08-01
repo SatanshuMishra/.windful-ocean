@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { computeRemaining, reconcileBuiltSet, reconcileBuiltShas, mergePaginated, planReconcile, assembleDivergenceVerdicts, shouldReconcileOnly, hasBuildableWork } from '../reconcile.mjs';
+import { computeRemaining, reconcileBuiltSet, reconcileBuiltShas, mergePaginated, planReconcile, assembleDivergenceVerdicts } from '../reconcile.mjs';
 import { publishedManifestRef } from '../checkpoint.mjs';
 
 test('computeRemaining: remaining = planned - (merged U built U parked), keyed by unitId', () => {
@@ -97,37 +97,6 @@ test('mergePaginated: tolerant of empty or non-array pages', () => {
   assert.deepEqual(mergePaginated([]), []);
   assert.deepEqual(mergePaginated([['a'], null, ['b']]), ['a', 'b']);
   assert.deepEqual(mergePaginated(null), []);
-});
-
-test('shouldReconcileOnly: trips ONLY when it is a byte-identical relaunch AND persisted frontier state exists AND no buildable work remains', () => {
-  assert.equal(shouldReconcileOnly({ isRelaunch: true, specByteIdentical: true, hasFrontierState: true, buildableWorkRemains: false }), true);
-  assert.equal(shouldReconcileOnly({ isRelaunch: false, specByteIdentical: true, hasFrontierState: true, buildableWorkRemains: false }), false);
-  assert.equal(shouldReconcileOnly({ isRelaunch: true, specByteIdentical: false, hasFrontierState: true, buildableWorkRemains: false }), false);
-  assert.equal(shouldReconcileOnly({ isRelaunch: true, specByteIdentical: true, hasFrontierState: false, buildableWorkRemains: false }), false);
-});
-
-test('shouldReconcileOnly: falls through to the build path whenever buildable work remains (a planned or parked unit), never freezing in reconcile-only', () => {
-  assert.equal(shouldReconcileOnly({ isRelaunch: true, specByteIdentical: true, hasFrontierState: true, buildableWorkRemains: true }), false);
-  assert.equal(shouldReconcileOnly({ isRelaunch: true, specByteIdentical: true, hasFrontierState: true }), false);
-});
-
-test('hasBuildableWork: true when any msp is neither built nor shipped (planned or parked counts as buildable), false when every unit is built/shipped', () => {
-  assert.equal(hasBuildableWork({ msps: [{ id: 'a', status: 'built' }, { id: 'b', status: 'shipped' }] }), false);
-  assert.equal(hasBuildableWork({ msps: [{ id: 'a', status: 'built' }, { id: 'b', status: 'planned' }] }), true);
-  assert.equal(hasBuildableWork({ msps: [{ id: 'a', status: 'built' }, { id: 'b', status: 'parked' }] }), true);
-  assert.equal(hasBuildableWork({ msps: [] }), false);
-});
-
-test('hasBuildableWork: fails TOWARD work (true) on a malformed or missing manifest — an unreadable manifest must never be the value that SATISFIES the reconcile-only gate and freezes the run', () => {
-  assert.equal(hasBuildableWork(null), true);
-  assert.equal(hasBuildableWork({}), true);
-  assert.equal(hasBuildableWork([]), true);
-});
-
-test('shouldReconcileOnly: fails closed on absent or non-boolean input (never trips reconcile-only by accident)', () => {
-  assert.equal(shouldReconcileOnly(), false);
-  assert.equal(shouldReconcileOnly({}), false);
-  assert.equal(shouldReconcileOnly({ isRelaunch: 1, specByteIdentical: 1, hasFrontierState: 1, buildableWorkRemains: false }), false);
 });
 
 test('planReconcile: opens the next-layer PR for a built-unpublished unit whose parents all merged, and restacks a unit with only some parents merged', () => {

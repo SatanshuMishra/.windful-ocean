@@ -147,7 +147,31 @@ function withReconcileDefaults(recon) {
   return withHonestProbedRef(merged, recon);
 }
 
-function shepherdAgent({ reconcileResult, openResult, restackResult, probeResult } = {}) {
+function publishedPayloadFromPrompt(prompt) {
+  const start = typeof prompt === 'string' ? prompt.indexOf('{"schemaVersion"') : -1;
+  if (start === -1) return null;
+  let depth = 0;
+  let inString = false;
+  let escaped = false;
+  for (let i = start; i < prompt.length; i += 1) {
+    const ch = prompt[i];
+    if (inString) {
+      if (escaped) escaped = false;
+      else if (ch === '\\') escaped = true;
+      else if (ch === '"') inString = false;
+      continue;
+    }
+    if (ch === '"') { inString = true; continue; }
+    if (ch === '{') depth += 1;
+    else if (ch === '}') {
+      depth -= 1;
+      if (depth === 0) return prompt.slice(start, i + 1);
+    }
+  }
+  return null;
+}
+
+function shepherdAgent({ reconcileResult, shipResult, mergeWatch, probeResult, prepareProbe } = {}) {
   const labels = [];
   const prompts = new Map();
   const agent = async (prompt, opts = {}) => {
@@ -159,19 +183,43 @@ function shepherdAgent({ reconcileResult, openResult, restackResult, probeResult
     if (prefix === 'window-checkpoint') return { written: true, detail: '' };
     if (prefix === 'park-checkpoint') return { written: true, detail: '' };
     if (prefix === 'ship-checkpoint') return { written: true, detail: '' };
+    if (prefix === 'built-checkpoint' || prefix === 'checkpoint-init') return { written: true, detail: '' };
+    if (prefix === 'checkpoint-push') return { pushed: true, ref: '', sha: '', detail: '' };
+    if (prefix === 'review-decision') return { reviewDecision: null, readError: null };
     if (prefix === 'divergence-probe') {
       const id = label.slice('divergence-probe:'.length);
       return probeResult ? probeResult(id) : { paths: [], error: null };
     }
-    if (prefix === 'shepherd-restack') {
-      const id = label.slice('shepherd-restack:'.length);
-      return restackResult ? restackResult(id) : { ready: true, conflict: false, detail: 'restacked onto advanced base' };
+    if (prefix === 'manifest-publish') {
+      const payload = publishedPayloadFromPrompt(prompt);
+      return {
+        published: payload !== null,
+        alreadyPresent: false,
+        ref: `refs/mitosis-manifest/${RUN_ID}`,
+        commit: 'f'.repeat(40),
+        readBackPages: payload === null ? null : [payload],
+        detail: 'fixture: published the run-identity manifest and read it back verbatim',
+      };
     }
-    if (prefix === 'shepherd-open') {
-      const id = label.slice('shepherd-open:'.length);
-      return openResult ? openResult(id) : { opened: true, prUrl: `https://example.test/pr/${id}`, detail: 'opened for human review' };
+    if (prefix === 'prepare-probe') {
+      const override = prepareProbe ? prepareProbe() : null;
+      if (override) return override;
+      return { baseRefResolved: true, baseRefDetail: null, receiptsConfigFound: true, receiptsConfigRaw: '{"gates":{"G10":{"mode":"warn"}}}', receiptsYmlFound: true, d6CheckFound: true, templateConfigRaw: null, templateYmlRaw: null };
     }
-    throw new Error(`reconcile-only shepherd relaunch dispatched an unexpected stage label: ${JSON.stringify(label)}`);
+    if (prefix === 'prepare-write') return { written: [], skipped: [], detail: '' };
+    if (prefix === 'restore') return { restored: true, sha: '', detail: '' };
+    if (prefix === 'merge-watch') {
+      const id = label.slice('merge-watch:'.length);
+      return (mergeWatch ? mergeWatch(id) : null) || { merged: false, mergedAt: null, readError: null };
+    }
+    if (prefix === 'ship') {
+      const id = label.slice('ship:'.length);
+      const override = shipResult ? shipResult(id) : null;
+      if (override) return override;
+      return { merged: false, awaitingApproval: true, prUrl: `https://example.test/pr/${id}`, receiptsPass: true, d6Pass: true, detail: 'CI green; PR open and awaiting human approval to merge' };
+    }
+    if (prefix === 'ship-verify') return { merged: true, compare: { ahead_by: 0, status: 'identical' }, mergedAt: '2026-07-10T00:00:00Z', readError: null };
+    throw new Error(`relaunch dispatched an unexpected stage label: ${JSON.stringify(label)}`);
   };
   return { agent, labels, prompts };
 }
@@ -191,17 +239,17 @@ function oneMergedParentOneBuiltChild() {
   };
 }
 
-test('T1: a shepherd-open that reports failure parks the unit at stage ship and is NEVER reported awaiting a human approval that no PR exists for', async () => {
+test('T1: a ship that reports failure parks the unit at stage ship and is NEVER reported awaiting a human approval that no PR exists for', async () => {
   const reconcileResult = oneMergedParentOneBuiltChild();
-  const openResult = () => ({ opened: false, detail: 'replay conflicted on scope/l2/a.js' });
-  const { agent, labels } = shepherdAgent({ reconcileResult, openResult });
-  const { resultPromise, phaseLines } = invoke(runOn, buildInput(), agent);
+  const shipResult = () => ({ merged: false, awaitingApproval: false, prUrl: null, receiptsPass: false, d6Pass: false, detail: 'replay conflicted on scope/l2/a.js' });
+  const { agent, labels } = shepherdAgent({ reconcileResult, shipResult });
+  const { resultPromise } = invoke(runOn, buildInput(), agent);
   const result = await resultPromise;
 
-  assert.ok(!phaseLines.includes('Prepare'), 'entry guard: the run took the reconcile-only path, not the build path — a fixture that misses an upstream precondition still resolves to a report, so without this the rest of the assertions could pass while testing nothing');
+  assert.ok(labels.includes('restore:l2') && labels.includes('ship:l2'), 'entry guard: the resumed built unit genuinely reached the ship stage through the one scheduler loop — an absence-only guard would pass against an engine that dispatched nothing at all');
   assert.deepEqual(result.parked.map((p) => p.mspId), ['l2'], 'the unit whose deferred PR could not be opened is reported parked');
   const record = result.parked.find((p) => p.mspId === 'l2');
-  assert.equal(record.stage, 'ship', 'a shepherd park preserves the good build and resumes at ship — unlike the divergent-invalidation park, which resets the unit to stage plan');
+  assert.equal(record.stage, 'ship', 'the park preserves the good build and resumes at ship — unlike the divergent-invalidation park, which resets the unit to stage plan');
   assert.equal(record.request.kind, 'approve-decision', 'the park asks a human for a decision, which is what makes the failure actionable rather than silent');
   assert.deepEqual(record.resumePoint, { branch: `${SOURCE_PREFIX}/l2-integration`, ref: BASE_BRANCH, stage: 'ship' }, 'the resumePoint the next relaunch reads names the unit integration branch, the base ref, and the ship stage');
   assert.deepEqual(result.awaitingApproval, [], 'a failed open is NEVER surfaced awaiting human approval — there is no PR for a human to approve');
@@ -209,19 +257,19 @@ test('T1: a shepherd-open that reports failure parks the unit at stage ship and 
   assert.ok(labels.includes('park-checkpoint:l2'), 'the park is durably persisted, which is what makes the next relaunch resumable');
 });
 
-test('T2: a shepherd-open that throws is contained — the unit parks and the run still returns a report instead of rejecting', async () => {
+test('T2: a ship dispatch that throws is contained — the unit parks and the run still returns a report instead of rejecting', async () => {
   const reconcileResult = oneMergedParentOneBuiltChild();
-  const openResult = () => { throw new Error('dispatch lost'); };
-  const { agent } = shepherdAgent({ reconcileResult, openResult });
-  const { resultPromise, phaseLines } = invoke(runOn, buildInput(), agent);
+  const shipResult = () => { throw new Error('dispatch lost'); };
+  const { agent, labels } = shepherdAgent({ reconcileResult, shipResult });
+  const { resultPromise } = invoke(runOn, buildInput(), agent);
   const result = await resultPromise;
 
-  assert.ok(!phaseLines.includes('Prepare'), 'entry guard: the run took the reconcile-only path, not the build path');
+  assert.ok(labels.includes('restore:l2') && labels.includes('ship:l2'), 'entry guard: the resumed built unit genuinely reached the ship stage through the one scheduler loop');
   assert.deepEqual(result.parked.map((p) => p.mspId), ['l2'], 'a lost or crashed subagent dispatch degrades to a named park, so an operator sees a blocked unit with a cause instead of a dead engine');
   assert.equal(result.overallStatus, 'blocked', 'the contained throw still reports blocked');
 });
 
-test('T3: a restack failure parks that unit without stranding the sibling unit that could still advance', async () => {
+test('T3: a built unit with an unmerged parent is never dispatched at all — it is reported blocked while its sibling, whose every parent merged, still advances', async () => {
   const msps = [
     manifestMsp('p1', { status: 'shipped', builtSha: hexSha('p1'), prUrl: 'https://example.test/pr/p1', mergedAt: '2026-07-10T00:00:00Z' }),
     manifestMsp('p2', { status: 'built', builtSha: hexSha('p2'), dependsOn: ['p1'] }),
@@ -235,21 +283,20 @@ test('T3: a restack failure parks that unit without stranding the sibling unit t
     openPRs: [],
     checkpointRefPages: checkpointPages(['p2', 'c']),
   };
-  const restackResult = () => ({ ready: false, conflict: true, detail: 'conflict in scope/c' });
-  const { agent, labels } = shepherdAgent({ reconcileResult, restackResult });
-  const { resultPromise, phaseLines } = invoke(runOn, buildInput(), agent);
+  const { agent, labels } = shepherdAgent({ reconcileResult });
+  const { resultPromise } = invoke(runOn, buildInput(), agent);
   const result = await resultPromise;
 
-  assert.ok(!phaseLines.includes('Prepare'), 'entry guard: the run took the reconcile-only path, not the build path');
-  assert.deepEqual(result.parked.map((p) => p.mspId), ['c'], 'c has one merged and one unmerged parent, so it restacks — and its failed restack parks it');
+  assert.ok(labels.includes('ship:p2'), 'entry guard and fault isolation: p2, whose every parent has merged, is genuinely dispatched to ship — asserted positively so a weakened engine that dispatches nothing cannot pass this test');
+  assert.ok(!labels.some((l) => l.endsWith(':c')), 'c has one merged and one still-unmerged parent (p2), so it is never dispatched at all — no restore, no ship, and above all no premature PR carrying the unmerged parent diff');
+  assert.deepEqual(result.parked.map((p) => p.mspId), ['c'], 'c is reported to the operator rather than silently dropped');
   const record = result.parked.find((p) => p.mspId === 'c');
-  assert.equal(record.stage, 'ship', 'the restack park also preserves the good build at stage ship');
-  assert.deepEqual(result.awaitingApproval.map((a) => a.mspId), ['p2'], 'per-unit fault isolation: p2, whose every parent has merged, still opens its deferred PR after the sibling park — one unit failing must not strand the units that could advance');
-  assert.ok(labels.includes('shepherd-open:p2'), 'the sibling open was genuinely dispatched, not merely reported');
-  assert.equal(result.overallStatus, 'blocked', 'one parked unit blocks the run even though another unit advanced successfully');
+  assert.equal(record.stage, 'blocked', 'c is blocked behind its unmerged parent, not parked at ship — its build is untouched and no failure is attributed to it');
+  assert.deepEqual(result.awaitingApproval.map((a) => a.mspId), ['p2'], 'per-unit isolation: the blocked sibling never strands the unit that could advance');
+  assert.equal(result.overallStatus, 'awaiting-approval', 'c is blocked pending a human merge of p2, not blocked by a failure — the run honestly reports that the only thing it waits on is an approval');
 });
 
-test('T4: a quiescent relaunch advances nothing — an all-shipped manifest dispatches no restack and no open and reports all-shipped', async () => {
+test('T4: a quiescent relaunch advances nothing — an all-shipped manifest dispatches no per-unit stage and reports all-shipped', async () => {
   const msps = [
     manifestMsp('s1', { status: 'shipped', builtSha: hexSha('s1'), prUrl: 'https://example.test/pr/s1', mergedAt: '2026-07-10T00:00:00Z' }),
     manifestMsp('s2', { status: 'shipped', builtSha: hexSha('s2'), prUrl: 'https://example.test/pr/s2', mergedAt: '2026-07-10T00:00:00Z' }),
@@ -263,12 +310,37 @@ test('T4: a quiescent relaunch advances nothing — an all-shipped manifest disp
     checkpointRefPages: checkpointPages(['s1']),
   };
   const { agent, labels } = shepherdAgent({ reconcileResult });
-  const { resultPromise, phaseLines } = invoke(runOn, buildInput(), agent);
+  const { resultPromise } = invoke(runOn, buildInput(), agent);
   const result = await resultPromise;
 
-  assert.ok(!phaseLines.includes('Prepare'), 'a relaunch with nothing left to build does not rebuild');
-  assert.ok(!labels.some((l) => l.startsWith('shepherd-')), 'zero restack and zero open are dispatched when every unit has already merged — an already-shipped unit is never advanced a second time');
+  assert.ok(!labels.some((l) => /^(restore|ship|plan|execute|branch|parallelize|impl):/.test(l)), 'zero per-unit stages are dispatched when every unit has already merged — an already-shipped unit is never advanced a second time, and a relaunch with nothing left to build does not rebuild');
   assert.equal(result.overallStatus, 'all-shipped', 'the empty advance terminates quietly with the terminal status');
   assert.deepEqual(result.parked, [], 'a quiescent relaunch parks nothing');
   assert.deepEqual(result.awaitingApproval, [], 'a quiescent relaunch surfaces nothing awaiting a human');
+});
+
+test('T5: a relaunch that halts in Prepare still reports every unit the reconcile already proved merged, with its repo-pinned PR url', async () => {
+  const msps = [
+    manifestMsp('s1', { status: 'shipped', builtSha: hexSha('s1'), prUrl: targetPrUrl('s1'), mergedAt: '2026-07-10T00:00:00Z' }),
+    manifestMsp('s2', { status: 'shipped', builtSha: hexSha('s2'), prUrl: targetPrUrl('s2'), mergedAt: '2026-07-10T00:00:00Z' }),
+  ];
+  const reconcileResult = {
+    manifestFound: true,
+    manifestRaw: frontierManifest({ msps, window: 3 }),
+    specContentHash: SPEC_CONTENT_HASH,
+    mergedPRs: [],
+    openPRs: [],
+    checkpointRefPages: checkpointPages(['s1']),
+  };
+  const prepareProbe = () => ({ baseRefResolved: false, baseRefDetail: 'fatal: could not read from remote repository', receiptsConfigFound: false, receiptsConfigRaw: null, receiptsYmlFound: false, d6CheckFound: false, templateConfigRaw: null, templateYmlRaw: null });
+  const { agent, labels } = shepherdAgent({ reconcileResult, prepareProbe });
+  const { resultPromise } = invoke(runOn, buildInput(), agent);
+  const result = await resultPromise;
+
+  assert.ok(labels.includes('prepare-probe'), 'entry guard: the relaunch genuinely reached the Prepare stage, so this test exercises the halt rather than an earlier exit');
+  assert.equal(result.stage, 'prepare', 'the halt names the stage that could not proceed');
+  assert.deepEqual(result.shipped.map((s) => s.mspId).sort(), ['s1', 's2'], 'a Prepare halt NEVER erases the merged inventory: every already-merged unit stays in the report, so an operator whose origin is unreachable still sees what landed instead of an empty shipped list');
+  assert.deepEqual(result.shipped.map((s) => s.prUrl).sort(), [targetPrUrl('s1'), targetPrUrl('s2')].sort(), 'each preserved unit carries the repo-pinned PR url the manifest records, so the report stays actionable without a live gh listing');
+  assert.equal(result.overallStatus, 'partial', 'the run honestly reports partial — it did not complete, but it did not lose the units that shipped; reporting failed here would claim nothing landed');
+  assert.equal(result.identity, 'published', 'the halt still reports where this run can be resumed from');
 });
