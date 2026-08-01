@@ -35,27 +35,29 @@
   "closure_statement": null,
   "spine": {
     "status": "paused",
-    "active_goal": "MSP A5 IN FLIGHT. origin/main re-derived at cad6ba2, green. 0162 re-read: A5 is characterization-only. 0188 resolved M5's restore-path residual INERT by exhaustive enumeration. 0189 narrowed A5 by mutation to five unpinned gaps on three untwinned targets. Branch test/a5-merge-poll-characterization cut at cad6ba2 in the main thread. Workflow wi3nyl4z1 (run wf_52e7fa01-8fa) dispatched: Ground/Design/Implement/Verify x3/Remediate cap 2/Ship, carrying the coverage-receipt gate verbatim.",
-    "next_step": "AWAIT workflow wi3nyl4z1. On completion read its shipped flag. If false it HALTED before ship with findings that survived two remediation rounds - read them, do not re-dispatch blindly. If true, confirm the PR opened, watch CI to green, leave merge to the user. THEN M5 is unblocked on both preconditions and is next: quiescent exit plus continuation block, deleting the bounded poll, progressPossible AND maxSteps (0185 moved that row to M5).",
+    "active_goal": "MSP A5 SHIPPED and awaiting a human merge. PR #31 open on test/a5-merge-poll-characterization at commit 24e0d61, ELEVEN CI checks green and mergeStateStatus CLEAN, verified first-hand by the orchestrator. Zero production change (engine md5 identical to cad6ba2), suite 1838 to 1843, clean six-by-five mutant diagonal with zero inert tests, reproduced independently by the adversarial verifier. Workflow wi3nyl4z1 needed ZERO remediation rounds. G3 withdrawn on measurement (0190).",
+    "next_step": "MERGE PR #31 - human-gated, the agent must not merge it. Then re-derive origin/main and confirm green. M5 is then unblocked on both preconditions (A5 landed, 0188 discharged the restore-path residual) and is next: quiescent exit plus continuation block, deleting THREE things - the bounded poll, progressPossible, maxSteps (0185). Read 0187-0190 first; four residuals are assigned to M5. Cut the branch in the MAIN thread, then dispatch one small dynamic Workflow of the same shape.",
     "open_risks": [
-      "DISPATCH-PROMPT GAP that cost a prior session a red CI: every PR must COMMIT docs/invariants/coverage/<branch>.json with a verdict for ALL 12 registry ids. The PR-mode gate reads git diff merge-base..HEAD and cannot see untracked paths; it never checks whether a check string is TRUE (0143).",
-      "NEW from 0188: the isBuiltResume restore call at mitosis.js:4586 passes only builtRef, so the sha-verification block at :4572-4579 never runs there, while the frontier redispatch at :4592 passes requireSha true. Not a bypass - a weaker check inside a call that happens. Assign to M5's owner.",
+      "Give each workflow agent a DISTINCT scratch subdirectory. A5's inertness verifier found its own scratch file overwritten mid-run by a sibling agent sharing the path. Its results survived because they were printed first, but parallel verifiers can silently destroy each other's evidence.",
+      "M5 owes the G5 wiring gap A5 could not pin: mergeWatchPrompt defaults to 300/30 internally at mitosis.js:2817-2818, so a dropped-opts mutant at the :5068 call site renders an identical prompt and the new T5 is blind to it. Declared, not overclaimed (0190).",
+      "The coverage-receipt gate is now PROVEN dischargeable - PR #31's invariant-coverage check is green with a committed receipt. Keep committing it: the PR-mode gate diffs merge-base..HEAD and cannot see untracked paths, and it never checks whether a check string is TRUE (0143).",
+      "From 0188: the isBuiltResume restore call at mitosis.js:4586 passes only builtRef, so the sha-verification block at :4572-4579 never runs there, while the frontier redispatch at :4592 passes requireSha true. Not a bypass - a weaker check inside a call that happens. M5's owner.",
       "supersedeOpenPr (mitosis.js:4386-4421) is DEAD CODE with zero call sites tree-wide (0188). Not a live ship path; do not chase it again.",
       "advance.toRestack is computed (reconcile.mjs:122/:130 + twin) and logged (mitosis.js:3996) with ZERO consumers - a relaunch reports restacks it will not perform. Assigned to M5, not hotfixed (0187).",
-      "M5's scope is THREE deletions not two: the bounded poll, progressPossible, AND maxSteps (leases.mjs:170/172, mitosis.js:2382/2384), which 0185 moved out of M3 because the step bound is all that bounds the tick loop until the quiescent exit exists.",
+      "M5's scope is THREE deletions: the bounded poll, progressPossible, AND maxSteps (leases.mjs:170/172, mitosis.js:2382/2384). 0185 moved maxSteps out of M3 because the step bound is all that bounds the tick loop until the quiescent exit exists.",
+      "Two A5 receipt rows state candidly that B3's guarded-intrinsic enumeration and B5's census rows were not read member by member, with the 1843-pass suite named as the standing receipt. That candour is the precedent to copy, not a defect to fix.",
       "The M6 I4 contract flip (0186) is recorded ONLY in the ledger and a coverage receipt - PR #30's body never named it and the PR is MERGED, so no in-band remedy remains.",
-      "0182's revisit trigger HAS FIRED: A3's characterization file was repointed at the unified loop, not deleted, so its 76 percent duplicated fixture helpers are long-lived. A5's new file may inherit the same duplication - watch for it.",
+      "0182's revisit trigger HAS FIRED: A3's characterization helpers are long-lived. A5's new file measured 84 percent line-identical to frontier-train-e2e.test.mjs, so the duplication is now two files deep. Extraction is a follow-up, not M5's job.",
       "M4 stays THREATENED by 174a0dc: three behavior changes plus the structural publishedSpecPath share one commit range and three characterization tests were rewritten in it.",
       "computeLogicalRunId still hashes only spec path + baseBranch (0176), so a superseded manifest ref is never reaped. Accepted, not silently carried.",
       "published.sourcePrefix is logged on disagreement but does not WIN (0179). A relaunch under a different prefix can re-ship shipped work.",
       "PR scope is FROZEN at creation; title/body edits are denied, later facts go in a comment (0142). pr-create rejects angle brackets in a --what value - reword, never force.",
       "NEVER invoke the compiled workflow. mergePoll has no seam narrower than the full AsyncFunction harness: a bare const at mitosis.js:5057 passed as runSchedule's third positional arg at :5099-5108. MITOSIS_PATH swaps in a mutated scratch copy for inertness proofs.",
-      "A red result from a hand-rolled shell one-liner is suspect BEFORE the code is - re-run it in node.",
-      "Landing stays SERIAL for mitosis.js and the mirror census; a policed-twin edit lands in BOTH copies in one commit. reconcile.mjs AND leases.mjs are both WHOLE mirrors. A5 touches no twin (0189). Parallelize investigation, never landing.",
-      "ORCHESTRATION: cut the branch in the main thread BEFORE dispatching (done for A5); never pair a branch-switching agent with one reading the working tree. Writes under .claude/{hooks,rules,lib,workflows} need per-write approval, so wi3nyl4z1 WILL prompt.",
+      "A red result from a hand-rolled shell one-liner is suspect BEFORE the code is. A5's implementer hit exactly this - a PIPESTATUS artifact printed an empty exit code and it re-derived in isolation rather than reporting the suspect result.",
+      "Landing stays SERIAL for mitosis.js and the mirror census; a policed-twin edit lands in BOTH copies in one commit. reconcile.mjs AND leases.mjs are both WHOLE mirrors. M5 DOES touch twins - progressPossible and maxSteps both live in leases.mjs.",
       "Five pre-existing dirty paths persist (.claude/settings.json, .zshrc, two .bak files, .claude/skills/context7-mcp/) - stage explicit paths only, NEVER git add -A. 17 worktree entries remain live; no reaper verb.",
       "Spec/plan anchors remain stale wholesale (0148 rejected a standalone rewrite). Re-baseline by execution per MSP. Section 10's M3 row and section 8 row 2 are inaccurate (0185).",
-      "Standing method rule, now SEVEN instances deep (0159, 0163, 0181, 0184, 0188, 0189): verify a confident finding against the mechanism before acting. 0189's scope came from MUTATION, not from reading for absence - reading would have written two redundant tests."
+      "Standing method rule, now EIGHT instances deep (0159, 0163, 0181, 0184, 0188, 0189, 0190): verify a confident finding against the mechanism. 0190 is the sharpest case - G3 looked like a real gap and mutation showed one half already covered and the other half untestable."
     ],
     "key_decisions": [
       "0136-defer-track-a-until-mitosis-msps-land",
@@ -134,5 +136,5 @@
     ]
   },
   "created_at": "2026-07-29T23:40:17.901Z",
-  "updated_at": "2026-08-01T20:03:02.252Z"
+  "updated_at": "2026-08-01T20:04:55.437Z"
 }
