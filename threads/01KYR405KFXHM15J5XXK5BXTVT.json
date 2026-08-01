@@ -3,7 +3,7 @@
   "id": "01KYR405KFXHM15J5XXK5BXTVT",
   "slug": "mitosis-architecture-rebuild-exploration",
   "title": "Mitosis architecture audit and rebuild exploration",
-  "status": "active",
+  "status": "paused",
   "parent_id": null,
   "predecessor_id": null,
   "completion_criteria": [
@@ -34,7 +34,7 @@
   "abandoned_reason": null,
   "closure_statement": null,
   "spine": {
-    "status": "active",
+    "status": "paused",
     "active_goal": "MSP A5 IN FLIGHT. origin/main re-derived at cad6ba2, green. 0162 re-read: A5 is characterization-only. 0188 resolved M5's restore-path residual INERT by exhaustive enumeration. 0189 narrowed A5 by mutation to five unpinned gaps on three untwinned targets. Branch test/a5-merge-poll-characterization cut at cad6ba2 in the main thread. Workflow wi3nyl4z1 (run wf_52e7fa01-8fa) dispatched: Ground/Design/Implement/Verify x3/Remediate cap 2/Ship, carrying the coverage-receipt gate verbatim.",
     "next_step": "AWAIT workflow wi3nyl4z1. On completion read its shipped flag. If false it HALTED before ship with findings that survived two remediation rounds - read them, do not re-dispatch blindly. If true, confirm the PR opened, watch CI to green, leave merge to the user. THEN M5 is unblocked on both preconditions and is next: quiescent exit plus continuation block, deleting the bounded poll, progressPossible AND maxSteps (0185 moved that row to M5).",
     "open_risks": [
@@ -133,5 +133,5 @@
     ]
   },
   "created_at": "2026-07-29T23:40:17.901Z",
-  "updated_at": "2026-08-01T18:55:21.485Z"
+  "updated_at": "2026-08-01T18:56:56.857Z"
 }
