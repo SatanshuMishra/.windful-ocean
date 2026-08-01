@@ -37,3 +37,12 @@ export function parentCheckpointRefs(runId, parentIds) {
   if (!Array.isArray(parentIds)) return [];
   return parentIds.map((unitId) => ({ unitId, ref: checkpointRef(runId, unitId) }));
 }
+
+export const MANIFEST_REF_PREFIX = 'refs/mitosis-manifest';
+
+export function publishedManifestRef(runId) {
+  if (typeof runId !== 'string' || !RUN_ID_PATTERN.test(runId)) {
+    throw new Error(`checkpoint: refuses to build a manifest ref from an unsafe runId: ${JSON.stringify(runId)}`);
+  }
+  return `${MANIFEST_REF_PREFIX}/${runId}`;
+}

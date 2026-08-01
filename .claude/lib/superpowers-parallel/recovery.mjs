@@ -196,3 +196,152 @@ export function applyBuiltTransition(manifest, { unitId, checkpointRef, sha, gre
       ];
   return { ...manifest, msps };
 }
+
+const PUBLISHED_SCHEMA_VERSION = 1;
+
+export const PUBLISHED_RUN_FIELDS = Object.freeze(['schemaVersion', 'logicalRunId', 'spec', 'baseBranch', 'sourcePrefix', 'specContentHash', 'clusters', 'msps']);
+
+export const PUBLISHED_MSP_FIELDS = Object.freeze(['id', 'dependsOn', 'fileScope', 'changeType', 'scope', 'title', 'rationale']);
+
+const IDENTITY_OVERLAY_FIELDS = Object.freeze(['status', 'prUrl', 'mergedAt', 'checkpointRef', 'builtSha', 'green', 'builtAgainst', 'resumePoint', 'triedSet']);
+
+export function buildPublishedManifest(manifest) {
+  const source = manifest !== null && typeof manifest === 'object' && !Array.isArray(manifest) ? manifest : {};
+  const sourceMsps = Array.isArray(source.msps) ? source.msps : [];
+  const projected = sourceMsps.map((msp) => {
+    const from = msp !== null && typeof msp === 'object' && !Array.isArray(msp) ? msp : {};
+    const entry = {};
+    for (const field of PUBLISHED_MSP_FIELDS) entry[field] = from[field];
+    return entry;
+  });
+  const identity = {
+    schemaVersion: PUBLISHED_SCHEMA_VERSION,
+    logicalRunId: source.logicalRunId,
+    spec: source.spec,
+    baseBranch: source.baseBranch,
+    sourcePrefix: source.sourcePrefix,
+    specContentHash: source.specContentHash,
+    clusters: source.clusters,
+    msps: projected,
+  };
+  const payload = {};
+  for (const field of PUBLISHED_RUN_FIELDS) payload[field] = identity[field];
+  return payload;
+}
+
+function exactKeySet(value, fields) {
+  const keys = Object.keys(value).sort();
+  const expected = [...fields].sort();
+  return keys.length === expected.length && keys.every((key, index) => key === expected[index]);
+}
+
+export function parsePublishedManifest(raw) {
+  if (typeof raw !== 'string' || raw.length === 0) return null;
+  let parsed;
+  try {
+    parsed = JSON.parse(raw);
+  } catch {
+    return null;
+  }
+  if (parsed === null || typeof parsed !== 'object' || Array.isArray(parsed)) return null;
+  if (!exactKeySet(parsed, PUBLISHED_RUN_FIELDS)) return null;
+  if (parsed.schemaVersion !== PUBLISHED_SCHEMA_VERSION) return null;
+  if (typeof parsed.logicalRunId !== 'string' || !/^[a-f0-9]{8}$/.test(parsed.logicalRunId)) return null;
+  for (const field of ['spec', 'baseBranch', 'sourcePrefix']) {
+    if (typeof parsed[field] !== 'string' || parsed[field].length === 0) return null;
+  }
+  if (typeof parsed.specContentHash !== 'string' || !/^[a-f0-9]{64}$/.test(parsed.specContentHash)) return null;
+  if (!Array.isArray(parsed.clusters)) return null;
+  for (const cluster of parsed.clusters) {
+    if (!Array.isArray(cluster) || !cluster.every((id) => typeof id === 'string')) return null;
+  }
+  if (!Array.isArray(parsed.msps) || parsed.msps.length === 0) return null;
+  for (const msp of parsed.msps) {
+    if (msp === null || typeof msp !== 'object' || Array.isArray(msp)) return null;
+    if (!exactKeySet(msp, PUBLISHED_MSP_FIELDS)) return null;
+    if (typeof msp.id !== 'string' || !/^[a-z0-9][a-z0-9-]*$/.test(msp.id)) return null;
+    for (const field of ['title', 'rationale', 'changeType', 'scope']) {
+      if (typeof msp[field] !== 'string') return null;
+    }
+    for (const field of ['dependsOn', 'fileScope']) {
+      if (!Array.isArray(msp[field]) || !msp[field].every((entry) => typeof entry === 'string')) return null;
+    }
+  }
+  return parsed;
+}
+
+export function resolveRunIdentity(published, local, ctx) {
+  const context = ctx !== null && typeof ctx === 'object' && !Array.isArray(ctx) ? ctx : {};
+  const { logicalRunId, observedSpecHash, harnessRunId, spec, repoRoot, baseBranch, sourcePrefix, refPresent, log } = context;
+  const emit = (line) => {
+    if (typeof log !== 'function') return;
+    try {
+      log(line);
+    } catch {}
+  };
+  if (published === null || published === undefined) {
+    emit(refPresent === true
+      ? `mitosis: run identity — a manifest ref exists for ${logicalRunId} but its payload did not validate as an identity-only manifest; falling back to the local .mitosis/ journal and reporting identity local-only`
+      : `mitosis: run identity — no published run-identity manifest ref for ${logicalRunId}; this run is resumable ONLY from the local .mitosis/ journal on this machine, and a fresh clone will not find it`);
+    return { manifest: local, identity: 'local-only' };
+  }
+  if (published.logicalRunId !== logicalRunId) {
+    emit(`mitosis: run identity — the published manifest ref carries a FOREIGN logicalRunId ${published.logicalRunId} rather than ${logicalRunId}; refusing it and falling back to the local .mitosis/ journal on this machine`);
+    return { manifest: local, identity: 'local-only' };
+  }
+  if (typeof observedSpecHash !== 'string' || published.specContentHash !== observedSpecHash) {
+    const observed = typeof observedSpecHash === 'string' ? observedSpecHash : 'unreadable';
+    emit(`mitosis: run identity — the published manifest for ${logicalRunId} is STALE against the observed spec content (published ${published.specContentHash}, observed ${observed}); the run id hashes the spec PATH and never its content, so an in-place spec edit re-decomposes under the same id — refusing the published copy and falling back to the local .mitosis/ journal`);
+    return { manifest: local, identity: 'local-only' };
+  }
+  const hydrated = {
+    ...buildInitialManifest({
+      logicalRunId: published.logicalRunId,
+      harnessRunId,
+      spec,
+      repoRoot,
+      baseBranch,
+      sourcePrefix,
+      clusters: published.clusters,
+      msps: published.msps,
+      specContentHash: published.specContentHash,
+    }),
+    parked: [],
+  };
+  if (local === null || local === undefined) {
+    emit(`mitosis: run identity — recovered the MSP table for ${logicalRunId} from the published manifest ref alone; this workspace holds no local .mitosis/ journal, so per-unit durable state is reconciled from gh and git rather than from a journal`);
+    return { manifest: hydrated, identity: 'published' };
+  }
+  const localMsps = Array.isArray(local.msps) ? local.msps : [];
+  const localById = new Map(localMsps
+    .filter((m) => m !== null && typeof m === 'object' && !Array.isArray(m) && typeof m.id === 'string')
+    .map((m) => [m.id, m]));
+  const disagreements = [];
+  const msps = hydrated.msps.map((msp) => {
+    const localMsp = localById.get(msp.id);
+    if (localMsp === undefined) {
+      disagreements.push(`${msp.id}: absent from the local journal`);
+      return msp;
+    }
+    for (const field of PUBLISHED_MSP_FIELDS) {
+      if (field === 'id') continue;
+      if (JSON.stringify(msp[field]) !== JSON.stringify(localMsp[field])) disagreements.push(`${msp.id}.${field}`);
+    }
+    const overlay = {};
+    for (const field of IDENTITY_OVERLAY_FIELDS) {
+      if (Object.prototype.hasOwnProperty.call(localMsp, field)) overlay[field] = localMsp[field];
+    }
+    return { ...msp, ...overlay };
+  });
+  const publishedIds = new Set(hydrated.msps.map((m) => m.id));
+  const dropped = [...localById.keys()].filter((id) => !publishedIds.has(id));
+  if (dropped.length > 0) disagreements.push(`ids present only in the local journal and dropped: ${dropped.join(', ')}`);
+  const manifest = { ...hydrated, msps };
+  if (Number.isInteger(local.window)) manifest.window = local.window;
+  if (Array.isArray(local.parked)) manifest.parked = local.parked;
+  if (typeof local.harnessRunId === 'string') manifest.harnessRunId = local.harnessRunId;
+  if (disagreements.length > 0) {
+    emit(`mitosis: run identity — the published manifest for ${logicalRunId} DISAGREES with the local .mitosis/ journal on: ${disagreements.join(', ')}; the published copy WINS as the durable identity and the local values for those fields are discarded`);
+  }
+  return { manifest, identity: 'published' };
+}

@@ -61,4 +61,14 @@ Do nothing else until it returns.
 
 ## Relay the report
 
-When the workflow returns, relay its result to the user: the shipped MSPs (id + PR url) from `shipped`, and if `overallStatus !== 'all-shipped'`, the failing stage/MSP and reason (from the top-level `stage`/`mspId`/`detail` and the `crashed`/`halted` arrays). Do not re-run or "continue" the loop in main.
+When the workflow returns, relay its result to the user: the shipped MSPs (id + PR url) from `shipped`, the run's `identity`, and if `overallStatus !== 'all-shipped'`, the failing stage/MSP and reason (from the top-level `stage`/`mspId`/`detail` and the `crashed`/`halted` arrays). Do not re-run or "continue" the loop in main.
+
+## Run identity and portability
+
+The report carries an `identity` field saying where this run can be resumed from.
+
+`identity: 'published'` means the run's MSP table is durably published to a mitosis-owned git ref. Any clone, worktree or CI workspace can resume the run with the same logical run id, even one that has no `.mitosis/` directory at all.
+
+`identity: 'local-only'` means no such ref was readable, so the run is resumable ONLY from the local `.mitosis/` journal on this machine — a fresh clone will not find it. Relay that limitation to the user rather than leaving it implicit.
+
+`local-only` is expected for any run started before durable run identity landed. Otherwise it signals one of: the git remote was unreachable, the publish could not be verified, or a manifest ref already existed for this logical run id and was left untouched (the ref is written once and never rewritten).

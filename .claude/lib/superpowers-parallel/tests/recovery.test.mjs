@@ -12,6 +12,11 @@ import {
   applyBuiltTransition,
   resolveResumeTarget,
   mspContentHash,
+  buildPublishedManifest,
+  parsePublishedManifest,
+  resolveRunIdentity,
+  PUBLISHED_RUN_FIELDS,
+  PUBLISHED_MSP_FIELDS,
 } from '../recovery.mjs';
 import { park } from '../parking.mjs';
 
@@ -449,4 +454,191 @@ test('buildInitialManifest: persists the observed specContentHash as a top-level
   });
   assert.ok('specContentHash' in withNull, 'the top-level field is present even when null');
   assert.equal(withNull.specContentHash, null);
+});
+
+const IDENTITY_SPEC_HASH = 'a'.repeat(64);
+
+function identityMsp(overrides = {}) {
+  return { id: 'a', dependsOn: [], fileScope: ['src/a/**'], changeType: 'feat', scope: 'alpha', title: 'alpha title', rationale: 'Alpha rationale', ...overrides };
+}
+
+function publishedPayloadObject(overrides = {}) {
+  return {
+    schemaVersion: 1,
+    logicalRunId: 'deadbeef',
+    spec: '/specs/x.md',
+    baseBranch: 'main',
+    sourcePrefix: 'mitosis',
+    specContentHash: IDENTITY_SPEC_HASH,
+    clusters: [['a']],
+    msps: [identityMsp()],
+    ...overrides,
+  };
+}
+
+function identityCtx(overrides = {}) {
+  return {
+    logicalRunId: 'deadbeef',
+    observedSpecHash: IDENTITY_SPEC_HASH,
+    harnessRunId: 'harness-now',
+    spec: '/specs/x.md',
+    repoRoot: '/r',
+    baseBranch: 'main',
+    sourcePrefix: 'mitosis',
+    refPresent: true,
+    ...overrides,
+  };
+}
+
+function localJournalFixture(overrides = {}) {
+  return {
+    logicalRunId: 'deadbeef',
+    harnessRunId: 'harness-before',
+    spec: '/specs/x.md',
+    repoRoot: '/r',
+    baseBranch: 'main',
+    sourcePrefix: 'mitosis',
+    specContentHash: IDENTITY_SPEC_HASH,
+    phase: 'Execute',
+    window: 4,
+    parked: [],
+    clusters: [['a'], ['z']],
+    msps: [
+      {
+        id: 'a', title: 'alpha title', rationale: 'Alpha rationale', changeType: 'feat', scope: 'alpha',
+        status: 'built', integrationBranch: 'mitosis/a-integration', prUrl: null, mergedAt: null,
+        dependsOn: [], fileScope: ['old/**'], checkpointRef: 'refs/mitosis/deadbeef/a',
+        builtSha: 'a'.repeat(40), green: true, builtAgainst: {},
+      },
+      {
+        id: 'z', title: 'zeta title', rationale: 'Zeta rationale', changeType: 'chore', scope: 'zeta',
+        status: 'planned', integrationBranch: 'mitosis/z-integration', prUrl: null, mergedAt: null,
+        dependsOn: [], fileScope: ['z/**'],
+      },
+    ],
+    ...overrides,
+  };
+}
+
+test('I1 write side: buildPublishedManifest is a WHITELIST projection, so no run-state field can leak into the durable identity payload', () => {
+  const genesis = buildInitialManifest({
+    logicalRunId: 'deadbeef', harnessRunId: 'harness-before', spec: '/specs/x.md', repoRoot: '/r',
+    baseBranch: 'main', sourcePrefix: 'mitosis', clusters: [['a']],
+    msps: [{ id: 'a', title: 'alpha title', rationale: 'Alpha rationale', changeType: 'feat', scope: 'alpha', dependsOn: [], fileScope: ['src/a/**'] }],
+    specContentHash: IDENTITY_SPEC_HASH,
+  });
+  const decorated = {
+    ...genesis,
+    phase: 'Execute',
+    window: 5,
+    parked: [{ unitId: 'a' }],
+    msps: genesis.msps.map((m) => ({
+      ...m,
+      status: 'built',
+      resumePoint: { branch: 'mitosis/a-integration', ref: 'main', stage: 'plan' },
+      triedSet: ['solo'],
+      prUrl: 'https://example.test/pr/1',
+      mergedAt: '2026-07-10T00:00:00Z',
+      checkpointRef: 'refs/mitosis/deadbeef/a',
+      builtSha: 'a'.repeat(40),
+      green: true,
+      builtAgainst: { main: 'b'.repeat(40) },
+    })),
+  };
+  const payload = buildPublishedManifest(decorated);
+
+  assert.deepEqual(Object.keys(payload), [...PUBLISHED_RUN_FIELDS], 'the envelope carries exactly the declared identity fields, in the declared order, so JSON.stringify is byte-stable');
+  assert.deepEqual(Object.keys(payload.msps[0]), [...PUBLISHED_MSP_FIELDS], 'each msp carries exactly the declared identity fields — status, resumePoint, triedSet, prUrl, mergedAt, checkpointRef, builtSha, green, builtAgainst, integrationBranch and contentHash are all absent');
+  assert.equal(payload.schemaVersion, 1);
+  assert.equal(payload.logicalRunId, 'deadbeef');
+  assert.equal(payload.specContentHash, IDENTITY_SPEC_HASH);
+  assert.deepEqual(payload.msps[0].fileScope, ['src/a/**']);
+  assert.equal(Object.prototype.hasOwnProperty.call(payload, 'repoRoot'), false, 'repoRoot is a machine-local absolute path and is precisely the non-portable field the durable ref must not carry');
+  assert.equal(Object.prototype.hasOwnProperty.call(payload, 'harnessRunId'), false, 'harnessRunId is per-invocation, not identity');
+  assert.deepEqual(
+    [...PUBLISHED_MSP_FIELDS],
+    ['id', 'dependsOn', 'fileScope', 'changeType', 'scope', 'title', 'rationale'],
+    'transcribed from spec 3.5: a future field addition must be a VISIBLE edit to this test, never silent drift',
+  );
+});
+
+test('I1 read side: parsePublishedManifest is a CLOSED census that halts on the unclassifiable instead of sanitising it', () => {
+  assert.deepEqual(parsePublishedManifest(JSON.stringify(publishedPayloadObject())), publishedPayloadObject(), 'a well-formed identity payload parses');
+
+  const smuggledStatus = publishedPayloadObject({ msps: [{ ...identityMsp(), status: 'shipped' }] });
+  assert.equal(parsePublishedManifest(JSON.stringify(smuggledStatus)), null, 'an msp carrying status is REJECTED, not sanitised — smuggled status degrades the run to local-only rather than becoming a second authority');
+
+  const smuggledResumePoint = publishedPayloadObject({ msps: [{ ...identityMsp(), resumePoint: { stage: 'plan' } }] });
+  assert.equal(parsePublishedManifest(JSON.stringify(smuggledResumePoint)), null, 'an msp carrying resumePoint is rejected');
+
+  const smuggledTriedSet = publishedPayloadObject({ msps: [{ ...identityMsp(), triedSet: [] }] });
+  assert.equal(parsePublishedManifest(JSON.stringify(smuggledTriedSet)), null, 'an msp carrying triedSet is rejected');
+
+  assert.equal(parsePublishedManifest(JSON.stringify({ ...publishedPayloadObject(), window: 5 })), null, 'a top-level window is rejected');
+
+  const { specContentHash, ...noHash } = publishedPayloadObject();
+  assert.equal(specContentHash, IDENTITY_SPEC_HASH);
+  assert.equal(parsePublishedManifest(JSON.stringify(noHash)), null, 'a payload missing specContentHash is rejected — the staleness gate cannot run without it');
+
+  assert.equal(parsePublishedManifest(JSON.stringify(publishedPayloadObject({ schemaVersion: 2 }))), null, 'an unrecognised schemaVersion is rejected');
+  assert.equal(parsePublishedManifest(JSON.stringify(publishedPayloadObject({ logicalRunId: 'DEADBEEF' }))), null, 'a non-8-lowercase-hex logicalRunId is rejected');
+  assert.equal(parsePublishedManifest(JSON.stringify(publishedPayloadObject({ specContentHash: 'short' }))), null, 'a malformed specContentHash is rejected');
+  assert.equal(parsePublishedManifest(JSON.stringify(publishedPayloadObject({ msps: [] }))), null, 'an empty msp table is rejected');
+  assert.equal(parsePublishedManifest(JSON.stringify(publishedPayloadObject({ clusters: ['a'] }))), null, 'clusters that are not arrays of arrays of strings are rejected');
+  assert.equal(parsePublishedManifest(JSON.stringify(publishedPayloadObject({ msps: [identityMsp({ id: 'Bad Id' })] }))), null, 'a malformed msp id is rejected');
+  assert.equal(parsePublishedManifest(JSON.stringify(publishedPayloadObject({ msps: [identityMsp({ dependsOn: 'a' })] }))), null, 'a non-array dependsOn is rejected');
+  assert.equal(parsePublishedManifest(JSON.stringify(publishedPayloadObject({ msps: [identityMsp({ title: null })] }))), null, 'a non-string title is rejected');
+
+  assert.equal(parsePublishedManifest('{"mspId":"a"}\n{"mspId":"b"}'), null, 'a legacy NDJSON journal blob is rejected');
+  assert.equal(parsePublishedManifest('{not json'), null);
+  assert.equal(parsePublishedManifest('[]'), null);
+  assert.equal(parsePublishedManifest(''), null);
+  assert.equal(parsePublishedManifest(null), null);
+});
+
+test('I3 precedence: the published identity table WINS a disagreement with the local journal, the journal-only id is dropped, and run state is still carried', () => {
+  const lines = [];
+  const local = localJournalFixture();
+  const published = publishedPayloadObject({ msps: [identityMsp({ fileScope: ['new/**'] })] });
+  const resolved = resolveRunIdentity(published, local, identityCtx({ log: (line) => lines.push(line) }));
+
+  assert.equal(resolved.identity, 'published');
+  assert.deepEqual(resolved.manifest.msps.map((m) => m.id), ['a'], 'the id present only in the local journal is DROPPED — the published table is the identity authority');
+  assert.deepEqual(resolved.manifest.msps[0].fileScope, ['new/**'], 'the published fileScope wins over the local journal copy');
+  assert.equal(resolved.manifest.msps[0].status, 'built', 'status is run state, not identity, and is carried from the local journal');
+  assert.equal(resolved.manifest.msps[0].builtSha, 'a'.repeat(40), 'the durable build provenance the journal owns survives the overlay');
+  assert.equal(resolved.manifest.msps[0].checkpointRef, 'refs/mitosis/deadbeef/a');
+  assert.equal(resolved.manifest.window, 4, 'the persisted AIMD window is carried');
+  assert.equal(resolved.manifest.harnessRunId, 'harness-before', 'the journal harnessRunId is carried so resume <harnessRunId> still resolves when a journal exists');
+
+  const disagreement = lines.filter((l) => /a\.fileScope/.test(l));
+  assert.equal(disagreement.length, 1, 'exactly ONE line names every disagreement');
+  assert.match(disagreement[0], /ids present only in the local journal and dropped: z/, 'the same line names the dropped journal-only id');
+  assert.match(disagreement[0], /published copy WINS/i, 'the line states which copy won');
+
+  assert.equal(local.msps[0].fileScope[0], 'old/**', 'the local journal is never mutated');
+  assert.deepEqual(published.msps[0].fileScope, ['new/**'], 'the published payload is never mutated');
+});
+
+test('I3 guard: resolveRunIdentity REFUSES a published copy that is stale against the observed spec hash, and falls back to the local journal', () => {
+  const staleLines = [];
+  const local = localJournalFixture();
+  const published = publishedPayloadObject();
+  const stale = resolveRunIdentity(published, local, identityCtx({ observedSpecHash: 'b'.repeat(64), log: (line) => staleLines.push(line) }));
+
+  assert.equal(stale.identity, 'local-only', 'the run id hashes the spec PATH, never its content, so an in-place spec edit re-decomposes under the SAME id — a stale published table must never beat a correct fresh journal');
+  assert.equal(stale.manifest, local, 'the local journal is returned unchanged');
+  assert.equal(staleLines.filter((l) => /STALE/i.test(l)).length, 1, 'the refusal is reported, never silent');
+
+  const unreadableLines = [];
+  const unreadable = resolveRunIdentity(published, local, identityCtx({ observedSpecHash: null, log: (line) => unreadableLines.push(line) }));
+  assert.equal(unreadable.identity, 'local-only', 'an unreadable spec fails CLOSED rather than trusting the published copy');
+  assert.equal(unreadable.manifest, local);
+  assert.equal(unreadableLines.filter((l) => /STALE/i.test(l)).length, 1);
+
+  const foreignLines = [];
+  const foreign = resolveRunIdentity(publishedPayloadObject({ logicalRunId: 'a1b2c3d4' }), local, identityCtx({ log: (line) => foreignLines.push(line) }));
+  assert.equal(foreign.identity, 'local-only', 'a payload for a FOREIGN logicalRunId is never adopted');
+  assert.equal(foreign.manifest, local);
+  assert.equal(foreignLines.filter((l) => /FOREIGN/i.test(l)).length, 1);
 });

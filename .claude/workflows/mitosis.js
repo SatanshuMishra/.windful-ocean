@@ -536,6 +536,155 @@ function applyBuiltTransition(manifest, { unitId, checkpointRef, sha, green, bui
   return { ...manifest, msps };
 }
 
+const PUBLISHED_SCHEMA_VERSION = 1;
+
+const PUBLISHED_RUN_FIELDS = Object.freeze(['schemaVersion', 'logicalRunId', 'spec', 'baseBranch', 'sourcePrefix', 'specContentHash', 'clusters', 'msps']);
+
+const PUBLISHED_MSP_FIELDS = Object.freeze(['id', 'dependsOn', 'fileScope', 'changeType', 'scope', 'title', 'rationale']);
+
+const IDENTITY_OVERLAY_FIELDS = Object.freeze(['status', 'prUrl', 'mergedAt', 'checkpointRef', 'builtSha', 'green', 'builtAgainst', 'resumePoint', 'triedSet']);
+
+function buildPublishedManifest(manifest) {
+  const source = manifest !== null && typeof manifest === 'object' && !Array.isArray(manifest) ? manifest : {};
+  const sourceMsps = Array.isArray(source.msps) ? source.msps : [];
+  const projected = sourceMsps.map((msp) => {
+    const from = msp !== null && typeof msp === 'object' && !Array.isArray(msp) ? msp : {};
+    const entry = {};
+    for (const field of PUBLISHED_MSP_FIELDS) entry[field] = from[field];
+    return entry;
+  });
+  const identity = {
+    schemaVersion: PUBLISHED_SCHEMA_VERSION,
+    logicalRunId: source.logicalRunId,
+    spec: source.spec,
+    baseBranch: source.baseBranch,
+    sourcePrefix: source.sourcePrefix,
+    specContentHash: source.specContentHash,
+    clusters: source.clusters,
+    msps: projected,
+  };
+  const payload = {};
+  for (const field of PUBLISHED_RUN_FIELDS) payload[field] = identity[field];
+  return payload;
+}
+
+function exactKeySet(value, fields) {
+  const keys = Object.keys(value).sort();
+  const expected = [...fields].sort();
+  return keys.length === expected.length && keys.every((key, index) => key === expected[index]);
+}
+
+function parsePublishedManifest(raw) {
+  if (typeof raw !== 'string' || raw.length === 0) return null;
+  let parsed;
+  try {
+    parsed = JSON.parse(raw);
+  } catch {
+    return null;
+  }
+  if (parsed === null || typeof parsed !== 'object' || Array.isArray(parsed)) return null;
+  if (!exactKeySet(parsed, PUBLISHED_RUN_FIELDS)) return null;
+  if (parsed.schemaVersion !== PUBLISHED_SCHEMA_VERSION) return null;
+  if (typeof parsed.logicalRunId !== 'string' || !/^[a-f0-9]{8}$/.test(parsed.logicalRunId)) return null;
+  for (const field of ['spec', 'baseBranch', 'sourcePrefix']) {
+    if (typeof parsed[field] !== 'string' || parsed[field].length === 0) return null;
+  }
+  if (typeof parsed.specContentHash !== 'string' || !/^[a-f0-9]{64}$/.test(parsed.specContentHash)) return null;
+  if (!Array.isArray(parsed.clusters)) return null;
+  for (const cluster of parsed.clusters) {
+    if (!Array.isArray(cluster) || !cluster.every((id) => typeof id === 'string')) return null;
+  }
+  if (!Array.isArray(parsed.msps) || parsed.msps.length === 0) return null;
+  for (const msp of parsed.msps) {
+    if (msp === null || typeof msp !== 'object' || Array.isArray(msp)) return null;
+    if (!exactKeySet(msp, PUBLISHED_MSP_FIELDS)) return null;
+    if (typeof msp.id !== 'string' || !/^[a-z0-9][a-z0-9-]*$/.test(msp.id)) return null;
+    for (const field of ['title', 'rationale', 'changeType', 'scope']) {
+      if (typeof msp[field] !== 'string') return null;
+    }
+    for (const field of ['dependsOn', 'fileScope']) {
+      if (!Array.isArray(msp[field]) || !msp[field].every((entry) => typeof entry === 'string')) return null;
+    }
+  }
+  return parsed;
+}
+
+function resolveRunIdentity(published, local, ctx) {
+  const context = ctx !== null && typeof ctx === 'object' && !Array.isArray(ctx) ? ctx : {};
+  const { logicalRunId, observedSpecHash, harnessRunId, spec, repoRoot, baseBranch, sourcePrefix, refPresent, log } = context;
+  const emit = (line) => {
+    if (typeof log !== 'function') return;
+    try {
+      log(line);
+    } catch {}
+  };
+  if (published === null || published === undefined) {
+    emit(refPresent === true
+      ? `mitosis: run identity — a manifest ref exists for ${logicalRunId} but its payload did not validate as an identity-only manifest; falling back to the local .mitosis/ journal and reporting identity local-only`
+      : `mitosis: run identity — no published run-identity manifest ref for ${logicalRunId}; this run is resumable ONLY from the local .mitosis/ journal on this machine, and a fresh clone will not find it`);
+    return { manifest: local, identity: 'local-only' };
+  }
+  if (published.logicalRunId !== logicalRunId) {
+    emit(`mitosis: run identity — the published manifest ref carries a FOREIGN logicalRunId ${published.logicalRunId} rather than ${logicalRunId}; refusing it and falling back to the local .mitosis/ journal on this machine`);
+    return { manifest: local, identity: 'local-only' };
+  }
+  if (typeof observedSpecHash !== 'string' || published.specContentHash !== observedSpecHash) {
+    const observed = typeof observedSpecHash === 'string' ? observedSpecHash : 'unreadable';
+    emit(`mitosis: run identity — the published manifest for ${logicalRunId} is STALE against the observed spec content (published ${published.specContentHash}, observed ${observed}); the run id hashes the spec PATH and never its content, so an in-place spec edit re-decomposes under the same id — refusing the published copy and falling back to the local .mitosis/ journal`);
+    return { manifest: local, identity: 'local-only' };
+  }
+  const hydrated = {
+    ...buildInitialManifest({
+      logicalRunId: published.logicalRunId,
+      harnessRunId,
+      spec,
+      repoRoot,
+      baseBranch,
+      sourcePrefix,
+      clusters: published.clusters,
+      msps: published.msps,
+      specContentHash: published.specContentHash,
+    }),
+    parked: [],
+  };
+  if (local === null || local === undefined) {
+    emit(`mitosis: run identity — recovered the MSP table for ${logicalRunId} from the published manifest ref alone; this workspace holds no local .mitosis/ journal, so per-unit durable state is reconciled from gh and git rather than from a journal`);
+    return { manifest: hydrated, identity: 'published' };
+  }
+  const localMsps = Array.isArray(local.msps) ? local.msps : [];
+  const localById = new Map(localMsps
+    .filter((m) => m !== null && typeof m === 'object' && !Array.isArray(m) && typeof m.id === 'string')
+    .map((m) => [m.id, m]));
+  const disagreements = [];
+  const msps = hydrated.msps.map((msp) => {
+    const localMsp = localById.get(msp.id);
+    if (localMsp === undefined) {
+      disagreements.push(`${msp.id}: absent from the local journal`);
+      return msp;
+    }
+    for (const field of PUBLISHED_MSP_FIELDS) {
+      if (field === 'id') continue;
+      if (JSON.stringify(msp[field]) !== JSON.stringify(localMsp[field])) disagreements.push(`${msp.id}.${field}`);
+    }
+    const overlay = {};
+    for (const field of IDENTITY_OVERLAY_FIELDS) {
+      if (Object.prototype.hasOwnProperty.call(localMsp, field)) overlay[field] = localMsp[field];
+    }
+    return { ...msp, ...overlay };
+  });
+  const publishedIds = new Set(hydrated.msps.map((m) => m.id));
+  const dropped = [...localById.keys()].filter((id) => !publishedIds.has(id));
+  if (dropped.length > 0) disagreements.push(`ids present only in the local journal and dropped: ${dropped.join(', ')}`);
+  const manifest = { ...hydrated, msps };
+  if (Number.isInteger(local.window)) manifest.window = local.window;
+  if (Array.isArray(local.parked)) manifest.parked = local.parked;
+  if (typeof local.harnessRunId === 'string') manifest.harnessRunId = local.harnessRunId;
+  if (disagreements.length > 0) {
+    emit(`mitosis: run identity — the published manifest for ${logicalRunId} DISAGREES with the local .mitosis/ journal on: ${disagreements.join(', ')}; the published copy WINS as the durable identity and the local values for those fields are discarded`);
+  }
+  return { manifest, identity: 'published' };
+}
+
 const VETO_PARKED = 'parked';
 const VETO_CONDEMNED = 'condemned';
 const VETO_EFFECTS = Object.freeze({
@@ -1393,6 +1542,20 @@ const DECOMPOSE_SCHEMA = {
   },
 };
 
+const MANIFEST_PUBLISH_SCHEMA = {
+  type: 'object',
+  required: ['published', 'alreadyPresent', 'detail'],
+  additionalProperties: false,
+  properties: {
+    published: { type: 'boolean' },
+    alreadyPresent: { type: 'boolean' },
+    ref: { type: ['string', 'null'] },
+    commit: { type: ['string', 'null'] },
+    readBackPages: { type: ['array', 'null'], items: { type: 'string' } },
+    detail: { type: 'string' },
+  },
+};
+
 const RECONCILE_SCHEMA = {
   type: 'object',
   required: ['manifestFound', 'manifestRaw', 'mergedPRs', 'mergedPRsAuthoritative', 'specContentHash', 'ownerRepo', 'repoHost'],
@@ -1423,6 +1586,8 @@ const RECONCILE_SCHEMA = {
       type: 'array',
       items: { type: 'array', items: { type: 'string' } },
     },
+    publishedManifestFound: { type: 'boolean' },
+    publishedManifestRawPages: { type: ['array', 'null'], items: { type: 'string' } },
     mergedPRs: {
       type: 'array',
       items: {
@@ -2729,6 +2894,15 @@ function parentCheckpointRefs(runId, parentIds) {
   return parentIds.map((unitId) => ({ unitId, ref: checkpointRef(runId, unitId) }));
 }
 
+const MANIFEST_REF_PREFIX = 'refs/mitosis-manifest';
+
+function publishedManifestRef(runId) {
+  if (typeof runId !== 'string' || !RUN_ID_PATTERN.test(runId)) {
+    throw new Error(`checkpoint: refuses to build a manifest ref from an unsafe runId: ${JSON.stringify(runId)}`);
+  }
+  return `${MANIFEST_REF_PREFIX}/${runId}`;
+}
+
 function uniqStrings(list) {
   if (!Array.isArray(list)) return [];
   const seen = new Set();
@@ -3031,7 +3205,7 @@ async function runDivergenceProbes(manifest, mergedIds, mergedShas, ctx) {
 }
 
 async function runReconcileOnlyAdvance(advance, ctx) {
-  const { manifest, reconciledShippedMeta, sourcePrefix, baseBranch, repoRoot, logicalRunId, merged, newlyMergedIds, targetOwnerRepo, targetRepoHost } = ctx;
+  const { manifest, reconciledShippedMeta, sourcePrefix, baseBranch, repoRoot, logicalRunId, merged, newlyMergedIds, targetOwnerRepo, targetRepoHost, identity } = ctx;
   phase('Resume');
   const manifestMsps = manifest && Array.isArray(manifest.msps) ? manifest.msps : [];
   const shepherdMspById = new Map(manifestMsps.map((m) => [m.id, m]));
@@ -3172,7 +3346,7 @@ async function runReconcileOnlyAdvance(advance, ctx) {
     log(`mitosis[${id}]: reconcile-only shepherd — parents merged; opened the deferred PR for human review -> ${clean(opened.prUrl)} (no merge performed)`);
   }
 
-  return assembleReport({ shipped, parked, halted: [], crashed: [], awaitingApproval, mspCount: manifestMsps.length });
+  return assembleReport({ shipped, parked, halted: [], crashed: [], awaitingApproval, mspCount: manifestMsps.length, identity });
 }
 
 function computeParkedStatus({ shipped, parked, halted, crashed, awaitingApproval, total }) {
@@ -3194,12 +3368,12 @@ function parkedReportEntry(record) {
   return { kind: 'parked', mspId: record.unitId, stage: record.stage, diagnosis: record.diagnosis, request: record.request, remediation: record.remediation, resumePoint: record.resumePoint, triedSet: record.triedSet, dependents: record.dependents };
 }
 
-function assembleReport({ shipped, parked, halted, crashed, awaitingApproval, mspCount }) {
+function assembleReport({ shipped, parked, halted, crashed, awaitingApproval, mspCount, identity }) {
   const shippedOut = shipped.map((s) => shippedOutcome(s.mspId, s));
   const parkedOut = parked.map((p) => parkedReportEntry(p));
   const awaitingApprovalOut = (awaitingApproval || []).map((a) => awaitingApprovalOutcome(a.mspId, a));
   const overallStatus = computeParkedStatus({ shipped: shippedOut, parked: parkedOut, halted, crashed, awaitingApproval: awaitingApprovalOut, total: mspCount });
-  const report = { shipped: shippedOut, parked: parkedOut, awaitingApproval: awaitingApprovalOut, halted, crashed, overallStatus, mspCount };
+  const report = { shipped: shippedOut, parked: parkedOut, awaitingApproval: awaitingApprovalOut, halted, crashed, overallStatus, mspCount, identity };
   if (overallStatus !== 'all-shipped' && overallStatus !== 'awaiting-approval') {
     const firstProblem = crashed[0] || parkedOut[0] || halted[0];
     if (firstProblem) {
@@ -3762,6 +3936,12 @@ log(`mitosis: spec=${spec} repo=${repoRoot} base=${baseBranch} source=${sourcePr
 log(`mitosis: mergePolicy=${mergePolicy}`);
 
 const logicalRunId = computeLogicalRunId(spec, baseBranch);
+let manifestRef = null;
+try {
+  manifestRef = publishedManifestRef(logicalRunId);
+} catch (err) {
+  log(`mitosis: run identity — refusing to compose a published-manifest ref for this run (${err.message}); the run is resumable ONLY from the local .mitosis/ journal on this machine`);
+}
 phase('Reconcile');
 let recon;
 let targetOwnerRepo = null;
@@ -3769,7 +3949,7 @@ try {
   const reconOutcome = await supervisedDispatch(
     (attemptNo, preamble) => agent(
       `You are the reconcile stage of a mitosis run. You have NO Skill tool; follow these instructions directly.\n\n` +
-      `This stage is STRICTLY READ-ONLY: it inspects durable state to detect a relaunch and the already-merged set. It makes NO commits, opens NO PRs, and mutates NO files whatsoever.\n\n` +
+      `This stage is STRICTLY READ-ONLY: it inspects durable state to detect a relaunch and the already-merged set. It makes NO commits, opens NO PRs, and mutates NO working-tree file whatsoever; the only write it may perform is the single mitosis-owned local ref mirror in step 8.\n\n` +
       `1. Fold the run manifest via the deterministic node CLI: run \`node ${LIB_DIR}/fold-run-log.mjs ${repoRoot}/.mitosis/run.json\`. If it exits 0, set manifestFound=true and return its stdout COMPLETELY with NO TRUNCATION as manifestRawPages: an array of string chunks that concatenate (in order, with no separator and no bytes added or dropped) back to the exact stdout. The output is routinely tens of kilobytes and MUST NOT be abridged, summarised, or elided — split it into as many chunks of at most 2000 characters as it takes, and set manifestRaw=null when you use pages. If it exits non-zero (absent, empty, or malformed run journal), set manifestFound=false, manifestRaw=null and manifestRawPages=null. Do NOT parse, repair, or alter the output — return the bytes verbatim, the engine re-validates it and will FAIL the run if the chunks do not rejoin into parseable JSON.\n` +
       `2. Derive the TARGET repository slug AND origin host ONCE so every gh read in this run is pinned to the target repo and never the ambient cwd: with ${repoRoot} as the working directory run \`gh repo view --json nameWithOwner,url\` and report the exact owner/repo it prints as ownerRepo (the nameWithOwner field) and the origin hostname parsed from the url field (e.g. github.com for https://github.com/owner/repo) as repoHost. If it prints nothing or errors, STOP, run no further command, and return the failure shape: ownerRepo=null, repoHost=null, mergedPRs=[] and mergedPRsAuthoritative=false (do NOT return an empty or unscoped mergedPRs as if it were authoritative, and do NOT invent, guess, or reconstruct a slug so the object looks complete) — a loud stop is required because an unscoped read would silently query the WRONG repository, and the engine halts the run on that flag. Then list the pull requests already merged into the base so the engine can skip re-shipping them, pinned to that target slug: \`gh pr list -R <OWNER_REPO> --state merged --base ${baseBranch} --limit 200 --json headRefName,url,mergedAt,mergeCommit\`, typing the literal ownerRepo value you just read in place of <OWNER_REPO> — never a command substitution, never a shell variable, never a \`cd\`-and-chain, and never the placeholder itself. If the command you actually ran still carried the literal placeholder text instead of the slug, the shell parsed it as an input redirection and gh never ran: that is a FAILED read, not an empty result. This STOP-and-report rule binds EVERY command that produces a list in this run — the slug read above, the merged-PR list read in this step, AND the open-PR list read in step 6: if ANY of them errors, prints nothing, or was emitted with the placeholder unsubstituted, STOP, report the failure, and set mergedPRsAuthoritative=false; do NOT return an empty or unscoped mergedPRs as if it were authoritative, because the engine reads an empty authoritative set as "nothing is already merged" and would re-plan and re-ship ALREADY MERGED work. Set mergedPRsAuthoritative=true ONLY when BOTH list reads ran with the substituted literal slug and returned a parseable JSON array. Return that array verbatim as mergedPRs (an empty array if none). For EACH merged PR also report mergedSha as its merge commit sha (the mergeCommit.oid field), or null if absent — the shepherd compares it against the tip its children built on to detect a divergent (squashed or amended) merge.\n` +
       `3. For diagnostics only you MAY run \`git log origin/${baseBranch}\` to observe recent base history; it does not affect the returned object.\n` +
@@ -3777,7 +3957,10 @@ try {
       `5. List the DURABLE mitosis checkpoint refs so the engine can reconcile built-but-unmerged work against them: run \`git -C ${repoRoot} ls-remote origin 'refs/mitosis/*'\`. This is the authoritative record of which units were durably built on a prior run. Capture EVERY output line in full (each line is \`<sha>\\t<ref>\`), returning them COMPLETELY with no truncation as checkpointRefPages: an array of pages where each page is an array of the raw line strings (return a single page holding all lines; use additional pages only if you had to fetch the listing in multiple passes). Return checkpointRefPages=[] (an empty array) if there is no remote or no such ref. Return the lines verbatim; do NOT parse, filter, or alter them — the engine parses them.\n\n` +
       `6. List the pull requests still OPEN against the base so the shepherd can observe live review state, pinned to the target slug (again typing the literal ownerRepo value from step 2 in place of <OWNER_REPO>): \`gh pr list -R <OWNER_REPO> --state open --base ${baseBranch} --limit 200 --json headRefName,reviewDecision,url,isCrossRepository,headRepositoryOwner,headRepository\`. Return that array as openPRs (an empty array if none), preserving each row's headRefName, reviewDecision and url VERBATIM, but returning headRepositoryOwner and headRepository as STRINGS extracted from gh's objects (never the objects themselves) as described below; report each reviewDecision field exactly as gh returns it (e.g. "APPROVED", "CHANGES_REQUESTED", "REVIEW_REQUIRED") or null if absent, report each PR's url verbatim so the engine can surface a frozen, still-open PR as awaiting human approval, report each PR's isCrossRepository flag EXACTLY as gh returns it (true when the pull request is opened from a FORK, false when its head branch lives in this same repository) or null if the field is absent, and report headRepositoryOwner as that PR's head-repository OWNER LOGIN string (the \`login\` field of gh's headRepositoryOwner object) and headRepository as that PR's head-repository NAME string (the \`name\` field of gh's headRepository object), each null if gh did not return it — the engine trusts a PR as its own published work ONLY when the fork flag is false AND the head repository is this same repository, and fails closed on anything else including absent or malformed fields. If THIS command errors, prints nothing, or was emitted with the placeholder unsubstituted, the same STOP-and-report rule from step 2 applies: report the failure and set mergedPRsAuthoritative=false.\n` +
       `7. CORROBORATE the server-side merge boundary before any work is planned, by re-running the read-only preflight the orchestrator already gated on before this run was dispatched, exactly as written and from this exact absolute path: \`node ${BOUNDARY_PREFLIGHT_CLI}\`. Run THAT path literally: never a copy of the preflight that lives inside ${repoRoot} or any other repository, because a gate loaded from the repository being merged into could authorize its own merges. It reads its deployment configuration from the environment and mutates nothing. Your report is corroboration only — the authoritative gate is the orchestrator's own exit-code check in real process space, and what you return establishes only what this re-run reported. Its FIRST stdout line is a JSON object shaped { passed, halted, boundarySlug, boundaryBaseBranch, invokedAs, bypassVerified, bypassGap }; return that object VERBATIM as boundaryPreflight, including boundarySlug, boundaryBaseBranch and invokedAs exactly as printed — the engine compares them against the repository and base branch this run actually merges into and against the gate path above, and halts on any mismatch, so altering or "correcting" them halts the run. Exit 0 means every gated invariant was positively proven; on any non-zero exit the corroboration has failed and the engine halts. Do NOT edit, retry with different arguments, or work around a non-zero exit, and do NOT synthesise, guess, or hand-write this object — if the command cannot be run at all, or printed no parseable JSON line, return boundaryPreflight=null so the engine halts rather than proceeding on failed corroboration. bypassVerified is ALWAYS false: the bypass list is human governance that this token structurally cannot read, it is NOT a gate, and its false value must never be treated as a failure or corrected.\n` +
-      `Return ONLY the structured object: { manifestFound, manifestRaw, manifestRawPages: [ "<chunk>" ], mergedPRs: [ { headRefName, url, mergedAt, mergedSha } ], mergedPRsAuthoritative, specContentHash, checkpointRefPages: [ [ "<sha>\\t<ref>" ] ], openPRs: [ { headRefName, reviewDecision, url, isCrossRepository, headRepositoryOwner, headRepository } ], ownerRepo, repoHost, boundaryPreflight: { passed, halted, boundarySlug, boundaryBaseBranch, invokedAs, bypassVerified, bypassGap } | null }.`,
+      (manifestRef === null
+        ? ''
+        : `8. Read the DURABLE published run-identity manifest so the engine can recover the MSP table even in a workspace that has no .mitosis/ directory: run \`git -C ${repoRoot} ls-remote origin ${manifestRef}\`. If it prints NOTHING, set publishedManifestFound=false and publishedManifestRawPages=null. If it prints a line, set publishedManifestFound=true, then run \`git -C ${repoRoot} fetch --no-tags origin +${manifestRef}:${manifestRef}\` and then \`git -C ${repoRoot} cat-file -p ${manifestRef}:manifest.json\`, returning that stdout COMPLETELY with NO TRUNCATION as publishedManifestRawPages: an array of string chunks of at most 2000 characters that concatenate in order, with no separator and no bytes added or dropped, back to the exact stdout. If the ls-remote itself errors or there is no remote, set publishedManifestFound=false. If the ls-remote printed a line but the fetch or the cat-file fails, KEEP publishedManifestFound=true and set publishedManifestRawPages=null — the engine reports that distinct case rather than inferring absence. Do NOT parse, repair, reformat or alter the bytes; the engine re-validates them and treats anything it cannot validate as absent. NEVER pass --depth to that fetch (it would mark the operator repository shallow) and NEVER pass --force to any command in this step.\n`) +
+      `Return ONLY the structured object: { manifestFound, manifestRaw, manifestRawPages: [ "<chunk>" ], mergedPRs: [ { headRefName, url, mergedAt, mergedSha } ], mergedPRsAuthoritative, specContentHash, checkpointRefPages: [ [ "<sha>\\t<ref>" ] ], publishedManifestFound, publishedManifestRawPages: [ "<chunk>" ], openPRs: [ { headRefName, reviewDecision, url, isCrossRepository, headRepositoryOwner, headRepository } ], ownerRepo, repoHost, boundaryPreflight: { passed, halted, boundarySlug, boundaryBaseBranch, invokedAs, bypassVerified, bypassGap } | null }.`,
       { agentType: 'implementer', schema: RECONCILE_SCHEMA, label: 'reconcile', phase: 'Reconcile', model: models.reconciler || models.shipper || 'sonnet' }
     ),
     { unitId: 'reconcile', stage: 'reconcile', resetRef: null, worktree: null, task: 'inspect durable run state and the already-merged set', ...makeRemediation({ unitId: 'reconcile', stage: 'reconcile', task: 'inspect durable run state and the already-merged set', schema: RECONCILE_SCHEMA, agentType: 'implementer', phase: 'Reconcile' }) },
@@ -3811,11 +3994,32 @@ if (!boundaryVerdict.proven) {
 const reconManifestText = (recon && Array.isArray(recon.manifestRawPages) && recon.manifestRawPages.length > 0)
   ? recon.manifestRawPages.filter((chunk) => typeof chunk === 'string').join('')
   : (recon ? recon.manifestRaw : null);
-const priorManifest = recon && recon.manifestFound ? parseRunManifest(reconManifestText) : null;
+const localManifest = recon && recon.manifestFound ? parseRunManifest(reconManifestText) : null;
 const reconciledMap = reconcileShippedSet(recon ? recon.mergedPRs : [], sourcePrefix, targetOwnerRepo, targetRepoHost);
 const reconciledShipped = new Set(reconciledMap.keys());
 const reconciledShippedMeta = reconciledMap;
 const observedSpecHash = (recon && typeof recon.specContentHash === 'string') ? recon.specContentHash : null;
+
+const publishedManifestText = (recon && Array.isArray(recon.publishedManifestRawPages) && recon.publishedManifestRawPages.length > 0)
+  ? recon.publishedManifestRawPages.filter((chunk) => typeof chunk === 'string').join('')
+  : null;
+const publishedManifest = recon && recon.publishedManifestFound === true ? parsePublishedManifest(publishedManifestText) : null;
+const identityResolution = resolveRunIdentity(publishedManifest, localManifest, {
+  logicalRunId,
+  observedSpecHash,
+  harnessRunId: input.harnessRunId ?? null,
+  spec,
+  repoRoot,
+  baseBranch,
+  sourcePrefix,
+  refPresent: Boolean(recon && recon.publishedManifestFound === true),
+  log,
+});
+const priorManifest = identityResolution.manifest;
+let runIdentity = identityResolution.identity;
+if (runIdentity === 'published' && localManifest === null) {
+  log(`mitosis: run identity — LIMITATION on the published-ref path: \`resume <harnessRunId>\` of a PRIOR harness run is unresolvable here because the rehydrated manifest stamps THIS run's harnessRunId; \`resume ${logicalRunId}\` resolves`);
+}
 
 const resumeRequested = input.verb === 'resume' && typeof input.runId === 'string' && input.runId.length > 0;
 if (resumeRequested) {
@@ -3907,7 +4111,7 @@ if (isRelaunch && reusable && builtUnits.length > 0) {
   log(`mitosis: reconcile — merge-frontier advance: ${advance.toOpen.length} PR(s) to open (${advance.toOpen.join(', ') || 'none'}), ${advance.toRestack.length} built branch(es) to restack (${advance.toRestack.join(', ') || 'none'}), ${advance.toParkSubtree.length} unit(s) reset on divergent-invalidation (${advance.toParkSubtree.join(', ') || 'none'})${advance.buildRunNeeded ? ' — BUILD RUN NEEDED' : ''}; AIMD window W=${advance.nextW}`);
   const reconcileOnlyMode = shouldReconcileOnly({ isRelaunch, specByteIdentical: reusable, hasFrontierState: builtUnits.length > 0, buildableWorkRemains: hasBuildableWork(reconciledManifest) });
   if (reconcileOnlyMode) {
-    return runReconcileOnlyAdvance(advance, { manifest: reconciledManifest, reconciledShippedMeta, sourcePrefix, baseBranch, repoRoot, logicalRunId, merged: liveSignals.merged, newlyMergedIds, targetOwnerRepo, targetRepoHost });
+    return runReconcileOnlyAdvance(advance, { manifest: reconciledManifest, reconciledShippedMeta, sourcePrefix, baseBranch, repoRoot, logicalRunId, merged: liveSignals.merged, newlyMergedIds, targetOwnerRepo, targetRepoHost, identity: runIdentity });
   }
 }
 const resumeMap = new Map();
@@ -4020,8 +4224,9 @@ if (!reusable) {
   log(`mitosis: ${clusters.length} cluster(s) -> ${clusters.map((c) => c.join('>')).join(' | ')}`);
 }
 
+let initialManifest = null;
 if (!reusable) {
-  const initialManifest = { ...buildInitialManifest({ logicalRunId, harnessRunId: input.harnessRunId, spec, repoRoot, baseBranch, sourcePrefix, clusters, msps, specContentHash: observedSpecHash }), parked: [] };
+  initialManifest = { ...buildInitialManifest({ logicalRunId, harnessRunId: input.harnessRunId, spec, repoRoot, baseBranch, sourcePrefix, clusters, msps, specContentHash: observedSpecHash }), parked: [] };
   const initialManifestJson = JSON.stringify(initialManifest);
   try {
     const checkpointRes = await agent(
@@ -4040,6 +4245,45 @@ if (!reusable) {
     }
   } catch (err) {
     log(`mitosis: initial checkpoint write failed (${err.message}); continuing — the manifest is a hint, not the skip authority, so recovery will reconcile shipped state from gh/git on the next relaunch`);
+  }
+}
+
+if (!reusable && initialManifest !== null && manifestRef !== null) {
+  const publishedJson = JSON.stringify(buildPublishedManifest(initialManifest));
+  try {
+    const publishRes = await agent(
+      `You are the run-identity publish stage of a mitosis run. You have NO Skill tool; follow these instructions directly.\n\n` +
+      `Publish this run's IDENTITY-ONLY manifest to a durable, mitosis-owned git ref so a fresh clone, worktree or CI workspace that has no .mitosis/ directory can still recover the MSP table. The payload carries identity only — no status, no resume point, no window, no tried set. Run these steps IN ORDER and STOP at the first one that says STOP:\n` +
+      `1. Confirm this is a git repository: run \`git -C ${repoRoot} rev-parse --git-dir\`. If it exits non-zero, set published=false, alreadyPresent=false, put the failure text in detail, and STOP.\n` +
+      `2. Observe whether the identity is already published: run \`git -C ${repoRoot} ls-remote origin ${manifestRef}\`. If it prints ANY line, the run identity for this run is ALREADY published: set published=false, alreadyPresent=true, name the existing sha in detail, and STOP — write nothing and push nothing. The identity ref is WRITE ONCE, FORWARD ONLY; it is never rewritten, never amended, never replaced.\n` +
+      `3. Create ${repoRoot}/.mitosis/ if it does not already exist, then write the following to ${repoRoot}/.mitosis/published-manifest.json, overwriting any existing contents. It is a single, complete JSON object on ONE line; write it EXACTLY as given, verbatim, as the entire file body:\n\n` +
+      `${publishedJson}\n\n` +
+      `4. Hash it into the object store via stdin, so no JSON is ever shell-quoted: \`BLOB=$(git -C ${repoRoot} hash-object -w --stdin < ${repoRoot}/.mitosis/published-manifest.json)\`\n` +
+      `5. Build a one-entry tree: \`TREE=$(printf '100644 blob %s\\tmanifest.json\\n' "$BLOB" | git -C ${repoRoot} mktree)\`\n` +
+      `6. Commit that tree with an inline identity, because commit-tree fails on an unconfigured committer: \`COMMIT=$(git -C ${repoRoot} -c user.name=mitosis -c user.email=mitosis@localhost commit-tree "$TREE" -m "mitosis run manifest ${logicalRunId}")\`\n` +
+      `7. Point the local ref at it: \`git -C ${repoRoot} update-ref ${manifestRef} "$COMMIT"\`\n` +
+      `8. Publish it: \`git -C ${repoRoot} push origin ${manifestRef}:${manifestRef}\`. NEVER pass --force and NEVER pass --force-with-lease to this push, or to any command in this stage. The adjacent checkpoint-push stage of this engine DOES permit one force retry; copying that shape here would destroy a previously published run identity. A push rejected as non-fast-forward means the ref already carries a DIFFERENT run identity: set published=false, put the rejection text in detail, and STOP.\n` +
+      `9. Verify the remote actually landed it: run \`git -C ${repoRoot} ls-remote origin ${manifestRef}\` and confirm the sha it prints equals $COMMIT. Report that sha as commit and ${manifestRef} as ref.\n` +
+      `10. Verify the payload round-tripped: run \`git -C ${repoRoot} cat-file -p ${manifestRef}:manifest.json\` and return that stdout COMPLETELY with NO TRUNCATION as readBackPages: an array of string chunks of at most 2000 characters that rejoin, in order with no separator and no bytes added or dropped, to the exact stdout. Do NOT reformat, pretty-print or repair it — the engine compares the bytes against the payload it composed and reports a published identity ONLY on an exact match, so any alteration is reported as a failed publish.\n\n` +
+      `Return ONLY: { published: <bool>, alreadyPresent: <bool>, ref: "<ref or null>", commit: "<sha or null>", readBackPages: [ "<chunk>" ] | null, detail: "<what you did>" }.`,
+      { agentType: 'implementer', schema: MANIFEST_PUBLISH_SCHEMA, label: 'manifest-publish', phase: 'Reconcile', model: 'sonnet' }
+    );
+    const readBack = publishRes && Array.isArray(publishRes.readBackPages)
+      ? publishRes.readBackPages.filter((chunk) => typeof chunk === 'string').join('')
+      : null;
+    const detail = publishRes && typeof publishRes.detail === 'string' ? ` (${clean(publishRes.detail)})` : '';
+    if (publishRes && publishRes.published === true && readBack === publishedJson) {
+      runIdentity = 'published';
+      log(`mitosis: run identity — PUBLISHED to ${manifestRef} and verified byte-identical on read-back; any clone, worktree or CI workspace can resume this run from that ref`);
+    } else if (publishRes && publishRes.alreadyPresent === true) {
+      log(`mitosis: run identity — a manifest ref already exists at ${manifestRef} and was left untouched (write-once, forward only)${detail}; this run reports identity ${runIdentity} because it did not write that ref`);
+    } else if (!publishRes || publishRes.published !== true) {
+      log(`mitosis: run identity — the publish stage reported published=false${detail}; continuing with identity ${runIdentity}, so this run is resumable ONLY from the local .mitosis/ journal on this machine`);
+    } else {
+      log(`mitosis: run identity — the publish stage claimed success but its read-back did not rejoin byte-identically to the composed payload${detail}; refusing to report a published identity on an unverified claim, so this run stays identity ${runIdentity}`);
+    }
+  } catch (err) {
+    log(`mitosis: run identity — publishing the identity manifest failed (${err.message}); continuing with identity ${runIdentity}, so this run is resumable ONLY from the local .mitosis/ journal on this machine`);
   }
 }
 
@@ -4981,4 +5225,4 @@ for (const u of scheduleResult.units) {
   halted.push(haltedOutcome(u.id, 'schedule', `unit ${u.id} did not reach a terminal shipped or parked state (state=${u.state})`));
 }
 
-return assembleReport({ shipped, parked, halted, crashed: [], awaitingApproval, mspCount: msps.length });
+return assembleReport({ shipped, parked, halted, crashed: [], awaitingApproval, mspCount: msps.length, identity: runIdentity });

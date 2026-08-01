@@ -135,6 +135,51 @@ function checkpointPages(unitIds) {
   return [unitIds.map((id, i) => `${String.fromCharCode(97 + i).repeat(40)}\trefs/mitosis/${RUN_ID}/${id}`)];
 }
 
+function publishedIdentityJson(msps) {
+  return JSON.stringify({
+    schemaVersion: 1,
+    logicalRunId: RUN_ID,
+    spec: SPEC,
+    baseBranch: BASE_BRANCH,
+    sourcePrefix: SOURCE_PREFIX,
+    specContentHash: SPEC_CONTENT_HASH,
+    clusters: msps.map((m) => [m.id]),
+    msps: msps.map((m) => ({
+      id: m.id,
+      dependsOn: m.dependsOn,
+      fileScope: m.fileScope,
+      changeType: m.changeType,
+      scope: m.scope,
+      title: m.title,
+      rationale: m.rationale,
+    })),
+  });
+}
+
+function publishedPayloadFromPrompt(prompt) {
+  const start = typeof prompt === 'string' ? prompt.indexOf('{"schemaVersion"') : -1;
+  if (start === -1) return null;
+  let depth = 0;
+  let inString = false;
+  let escaped = false;
+  for (let i = start; i < prompt.length; i += 1) {
+    const ch = prompt[i];
+    if (inString) {
+      if (escaped) escaped = false;
+      else if (ch === '\\') escaped = true;
+      else if (ch === '"') inString = false;
+      continue;
+    }
+    if (ch === '"') { inString = true; continue; }
+    if (ch === '{') depth += 1;
+    else if (ch === '}') {
+      depth -= 1;
+      if (depth === 0) return prompt.slice(start, i + 1);
+    }
+  }
+  return null;
+}
+
 function prNumber(seed) {
   let h = 0;
   const s = typeof seed === 'string' ? seed : 'unknown';
@@ -190,7 +235,7 @@ function shepherdAgent({ reconcileResult, openResult, restackResult, probeResult
   return { agent, labels, prompts };
 }
 
-function createFrontierAgent({ msps, shipResult, mergeWatch } = {}) {
+function createFrontierAgent({ msps, shipResult, mergeWatch, manifestPublish } = {}) {
   return async function fakeAgent(prompt, opts = {}) {
     const label = opts.label || '';
     const prefix = label.split(':')[0];
@@ -203,6 +248,19 @@ function createFrontierAgent({ msps, shipResult, mergeWatch } = {}) {
       case 'review-decision': return { reviewDecision: null, readError: null };
       case 'window-checkpoint': return { written: true, detail: '' };
       case 'park-checkpoint': case 'built-checkpoint': case 'ship-checkpoint': case 'checkpoint-init': return { written: true, detail: '' };
+      case 'manifest-publish': {
+        const override = manifestPublish ? manifestPublish(prompt) : null;
+        if (override) return override;
+        const payload = publishedPayloadFromPrompt(prompt);
+        return {
+          published: payload !== null,
+          alreadyPresent: false,
+          ref: `refs/mitosis-manifest/${RUN_ID}`,
+          commit: 'f'.repeat(40),
+          readBackPages: payload === null ? null : [payload],
+          detail: 'fixture: published the run-identity manifest and read it back verbatim',
+        };
+      }
       case 'checkpoint-push': return { pushed: true, ref: '', sha: '', detail: '' };
       case 'decompose': return { msps };
       case 'prepare-probe': return { baseRefResolved: true, baseRefDetail: null, receiptsConfigFound: true, receiptsConfigRaw: '{"gates":{"G10":{"mode":"warn"}}}', receiptsYmlFound: true, d6CheckFound: true, templateConfigRaw: null, templateYmlRaw: null };
@@ -265,8 +323,8 @@ function multiRelaunchCapturingAgent({ reconcileResult, probeResult, shipResult 
   return { agent, labels, prompts };
 }
 
-function freshRunAgent({ msps, shipResult, mergeWatch, reconcileOverrides } = {}) {
-  const base = createFrontierAgent({ msps, shipResult, mergeWatch });
+function freshRunAgent({ msps, shipResult, mergeWatch, reconcileOverrides, manifestPublish } = {}) {
+  const base = createFrontierAgent({ msps, shipResult, mergeWatch, manifestPublish });
   const labels = [];
   const agent = async (prompt, opts = {}) => {
     const label = opts.label || '';
@@ -1300,4 +1358,101 @@ test('a unit that is BOTH condemned by a divergent parent merge AND carries an u
   assert.ok(record, 'd is frozen for a human decision');
   assert.match(record.request.what, /INVALIDATED by a divergent parent merge/, 'the condemned diagnosis must be reported');
   assert.match(record.request.what, /could NOT verify as its own published work/, 'the unverifiable-PR diagnosis must ALSO be reported — it is an independent blocker that survives rebuilding');
+});
+
+test('M6 genesis: a fresh run PUBLISHES its run-identity manifest to the durable ref and reports identity published, without disturbing what it ships', async () => {
+  const msps = [mspSpec('a'), mspSpec('b')];
+  const { agent, labels } = freshRunAgent({ msps });
+  const { resultPromise, logLines } = invoke(runOn, buildInput(), agent);
+  const result = await resultPromise;
+
+  assert.ok(labels.includes('manifest-publish'), 'the genesis path dispatches the durable identity publish');
+  assert.equal(result.identity, 'published', 'the run reports a durably published identity, so any clone can resume it');
+  assert.deepEqual(result.shipped.map((s) => s.mspId).sort(), ['a', 'b'], 'publishing identity changes nothing about what the run ships');
+  assert.equal(result.overallStatus, 'all-shipped');
+  assert.ok(logLines.some((l) => l.includes(`refs/mitosis-manifest/${RUN_ID}`)), 'the log names the exact ref the identity landed on');
+});
+
+test('M6 portability: a workspace with NO .mitosis/ journal recovers the whole MSP table from the published ref alone — no decompose, no re-ship, no replan', async () => {
+  const identityMsps = [manifestMsp('a'), manifestMsp('b')];
+  const reconcileResult = {
+    manifestFound: false,
+    manifestRaw: null,
+    specContentHash: SPEC_CONTENT_HASH,
+    mergedPRs: [mergedPr('a', { mergedSha: hexSha('a') })],
+    openPRs: [],
+    checkpointRefPages: checkpointPages(['b']),
+    publishedManifestFound: true,
+    publishedManifestRawPages: [publishedIdentityJson(identityMsps)],
+  };
+  const { agent, labels } = shepherdAgent({ reconcileResult });
+  const { resultPromise } = invoke(runOn, buildInput(), agent);
+  const result = await resultPromise;
+
+  assert.equal(result.identity, 'published', 'the identity came from the durable ref, not from a local journal that does not exist here');
+  assert.ok(!labels.includes('decompose'), 'the MSP table is recovered from the ref, never re-derived by a wasteful fresh Decompose');
+  assert.ok(!labels.some((l) => l.startsWith('plan:')), 'no unit replans');
+  assert.deepEqual(result.shipped.map((s) => s.mspId), ['a'], 'the already-merged unit is reported shipped');
+  assert.ok(!labels.includes('ship:a'), 'the already-merged unit is NEVER re-dispatched to ship');
+  assert.ok(labels.includes('shepherd-open:b'), 'the durably-built unit resumes from its checkpoint ref instead of rebuilding');
+  assert.deepEqual(result.awaitingApproval.map((a) => a.mspId), ['b']);
+});
+
+test('M6 I4: an ABSENT identity ref reports identity local-only and NAMES the limitation; a ref whose payload is unreadable reports it with a DIFFERENT line', async () => {
+  const msps = [
+    manifestMsp('a', { status: 'shipped', builtSha: hexSha('a'), prUrl: 'https://example.test/pr/a', mergedAt: '2026-07-10T00:00:00Z' }),
+    manifestMsp('b', { status: 'built', builtSha: hexSha('b') }),
+  ];
+  const baseRecon = {
+    manifestFound: true,
+    manifestRaw: frontierManifest({ msps, window: 3 }),
+    specContentHash: SPEC_CONTENT_HASH,
+    mergedPRs: [mergedPr('a', { mergedSha: hexSha('a') })],
+    openPRs: [],
+    checkpointRefPages: checkpointPages(['b']),
+  };
+
+  const absent = shepherdAgent({ reconcileResult: { ...baseRecon, publishedManifestFound: false, publishedManifestRawPages: null } });
+  const absentRun = invoke(runOn, buildInput(), absent.agent);
+  const absentResult = await absentRun.resultPromise;
+  assert.equal(absentResult.identity, 'local-only', 'no readable ref means the run is NOT portable, and that is reported rather than inferred away');
+  const absenceLine = absentRun.logLines.find((l) => /resumable ONLY from the local \.mitosis\/ journal on this machine/.test(l));
+  assert.ok(absenceLine, 'the absence is named in words an operator can act on');
+
+  const unreadable = shepherdAgent({ reconcileResult: { ...baseRecon, publishedManifestFound: true, publishedManifestRawPages: null } });
+  const unreadableRun = invoke(runOn, buildInput(), unreadable.agent);
+  const unreadableResult = await unreadableRun.resultPromise;
+  assert.equal(unreadableResult.identity, 'local-only', 'a ref whose payload does not validate degrades exactly as absence does');
+  const unreadableLine = unreadableRun.logLines.find((l) => /did not validate as an identity-only manifest/.test(l));
+  assert.ok(unreadableLine, 'the unreadable payload is reported distinctly');
+  assert.notEqual(unreadableLine, absenceLine, 'absence and unreadability are never conflated into one indistinguishable message');
+});
+
+test('M6 I2 write-once: an identity ref that ALREADY exists is left untouched and the run never claims a published identity it did not write', async () => {
+  const msps = [mspSpec('a')];
+  const { agent, labels } = freshRunAgent({
+    msps,
+    manifestPublish: () => ({ published: false, alreadyPresent: true, ref: `refs/mitosis-manifest/${RUN_ID}`, commit: null, readBackPages: null, detail: 'ref already exists at 1234abcd' }),
+  });
+  const { resultPromise, logLines } = invoke(runOn, buildInput(), agent);
+  const result = await resultPromise;
+
+  assert.ok(labels.includes('manifest-publish'), 'the stage still runs; it is the stage that observes the existing ref');
+  assert.notEqual(result.identity, 'published', 'a ref this run did not write is not this run own published identity');
+  assert.ok(logLines.some((l) => /left untouched/.test(l) && /write-once/.test(l)), 'the log states the existing ref was left untouched under the write-once rule');
+  assert.equal(result.overallStatus, 'all-shipped', 'nothing about the run halts or parks on an already-published identity');
+});
+
+test('M6 publish honesty: a stage that CLAIMS published but whose read-back does not rejoin byte-identically never upgrades the reported identity', async () => {
+  const msps = [mspSpec('a')];
+  const { agent } = freshRunAgent({
+    msps,
+    manifestPublish: () => ({ published: true, alreadyPresent: false, ref: `refs/mitosis-manifest/${RUN_ID}`, commit: 'f'.repeat(40), readBackPages: ['{"schemaVersion":1,"logicalRunId":"00000000"}'], detail: 'fixture: claims success it cannot prove' }),
+  });
+  const { resultPromise, logLines } = invoke(runOn, buildInput(), agent);
+  const result = await resultPromise;
+
+  assert.equal(result.identity, 'local-only', 'the reported identity is the ENGINE byte-comparison, never the stage unverified word');
+  assert.ok(logLines.some((l) => /read-back/.test(l)), 'the mismatch is named rather than silently accepted');
+  assert.equal(result.overallStatus, 'all-shipped', 'an unproven publish degrades the reported identity, it never fails the run');
 });

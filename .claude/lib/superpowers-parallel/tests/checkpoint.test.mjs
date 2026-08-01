@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { checkpointRef, parseCheckpointRef, parentCheckpointRefs, CHECKPOINT_REF_PREFIX } from '../checkpoint.mjs';
+import { checkpointRef, parseCheckpointRef, parentCheckpointRefs, CHECKPOINT_REF_PREFIX, publishedManifestRef, MANIFEST_REF_PREFIX } from '../checkpoint.mjs';
 
 test('CHECKPOINT_REF_PREFIX is the dedicated non-head/tag namespace', () => {
   assert.equal(CHECKPOINT_REF_PREFIX, 'refs/mitosis');
@@ -71,4 +71,31 @@ test('parentCheckpointRefs fails closed: throws on an unsafe parent id or runId 
   assert.throws(() => parentCheckpointRefs('a1b2c3d4', ['ok', '../evil']), /unitId/);
   assert.throws(() => parentCheckpointRefs('a1b2c3d4', ['a/b']), /unitId/);
   assert.throws(() => parentCheckpointRefs('BADRUNID', ['ok']), /runId/);
+});
+
+test('publishedManifestRef composes the durable run-identity ref in its OWN namespace beside the checkpoint refs', () => {
+  assert.equal(MANIFEST_REF_PREFIX, 'refs/mitosis-manifest');
+  assert.equal(publishedManifestRef('a1b2c3d4'), 'refs/mitosis-manifest/a1b2c3d4');
+  assert.equal(publishedManifestRef('00000000'), 'refs/mitosis-manifest/00000000');
+});
+
+test('publishedManifestRef throws on a runId that is not 8 lowercase hex (never interpolates an unsafe token into a git command)', () => {
+  assert.throws(() => publishedManifestRef('A1B2C3D4'), /runId/);
+  assert.throws(() => publishedManifestRef('a1b2c3d'), /runId/);
+  assert.throws(() => publishedManifestRef('a1b2c3d4e'), /runId/);
+  assert.throws(() => publishedManifestRef('zzzzzzzz'), /runId/);
+  assert.throws(() => publishedManifestRef('../evil'), /runId/);
+  assert.throws(() => publishedManifestRef(''), /runId/);
+  assert.throws(() => publishedManifestRef(null), /runId/);
+});
+
+test('the run-identity ref is DISJOINT from the checkpoint namespace: parseCheckpointRef can never invert it into a unit id', () => {
+  for (const runId of ['a1b2c3d4', '00ff00ff', 'deadbeef']) {
+    assert.equal(
+      parseCheckpointRef(publishedManifestRef(runId), runId),
+      null,
+      'the identity ref must not be readable as a built unit, or reconcileBuiltSet would admit a phantom unit named manifest and inflate the built-unit count that gates relaunch advance',
+    );
+  }
+  assert.equal(publishedManifestRef('a1b2c3d4').startsWith(`${CHECKPOINT_REF_PREFIX}/`), false, 'the identity ref is outside the refs/mitosis/* glob the reconcile stage lists');
 });

@@ -151,6 +151,8 @@ function createFakeAgent({ msps, sourcePrefix = SOURCE_PREFIX, baseBranch = TEST
         return { ownerRepo: TEST_REPO_SLUG, mergedPRsAuthoritative: true, boundaryPreflight: provenBoundary({ boundaryBaseBranch: baseBranch }), ...(reconcileResult || { manifestFound: false, manifestRaw: null, mergedPRs: [] }) };
       case 'checkpoint-init':
         return { written: true, detail: '' };
+      case 'manifest-publish':
+        return { published: false, alreadyPresent: false, ref: null, commit: null, readBackPages: null, detail: 'fixture: no remote' };
       case 'checkpoint-push':
         return { pushed: true, ref: '', sha: `sha-${label.slice('checkpoint-push:'.length)}`, detail: '' };
       case 'built-checkpoint':
@@ -3198,7 +3200,7 @@ test('FLAGSHIP obligation-4.3.3(a): run-away is structurally impossible — ever
   assert.equal(result.parked.find((p) => p.mspId === 'p').stage, 'plan');
   assert.equal(result.parked.find((p) => p.mspId === 'h').stage, 'parallelize');
   assert.equal(result.parked.find((p) => p.mspId === 'x').stage, 'execute');
-  assert.equal(totalCalls, 19, 'each of the three simultaneously-failing units is bounded by its own per-unit dispatch budget (no shared global budget one pathological unit could exhaust), so the total dispatch count across the whole run is exactly the sum of each unit\'s bounded cost — including the one bounded durable park-checkpoint dispatch each park incurs, and the single bounded approve plan-review dispatch each of the two units that clear Plan (h, x) incurs before failing downstream (p parks at plan, before review) — never unbounded');
+  assert.equal(totalCalls, 20, 'each of the three simultaneously-failing units is bounded by its own per-unit dispatch budget (no shared global budget one pathological unit could exhaust), so the total dispatch count across the whole run is exactly the sum of each unit\'s bounded cost — including the one bounded durable park-checkpoint dispatch each park incurs, and the single bounded approve plan-review dispatch each of the two units that clear Plan (h, x) incurs before failing downstream (p parks at plan, before review) — plus the two RUN-LEVEL genesis dispatches the fresh path incurs exactly once each and never per unit (the local checkpoint-init journal write and the durable manifest-publish of the run identity) — never unbounded');
 });
 
 test('RESILIENCE-A: an ApproachFixable plan outcome dispatches an in-run diagnostician and redispatch, and a successful correction ships the unit instead of parking it', async () => {
