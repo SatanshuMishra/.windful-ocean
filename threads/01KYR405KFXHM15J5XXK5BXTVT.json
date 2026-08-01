@@ -3,7 +3,7 @@
   "id": "01KYR405KFXHM15J5XXK5BXTVT",
   "slug": "mitosis-architecture-rebuild-exploration",
   "title": "Mitosis architecture audit and rebuild exploration",
-  "status": "paused",
+  "status": "active",
   "parent_id": null,
   "predecessor_id": null,
   "completion_criteria": [
@@ -34,7 +34,7 @@
   "abandoned_reason": null,
   "closure_statement": null,
   "spine": {
-    "status": "paused",
+    "status": "active",
     "active_goal": "M3 is SHIPPED and MERGED. PR #30 merged 2026-08-01T08:48:46Z as squash commit cad6ba2 on origin/main, all six CI checks green beforehand. Verified first-hand: the streaming path, the shepherd and its gate are at ZERO occurrences in mitosis.js, leases.mjs and reconcile.mjs; a relaunch falls through into runScheduleTick. Suite 1850 -> 1838. Two of three deletion rows shipped - maxSteps retained, moves to M5 (0185). Next MSP not started, per user directive.",
     "next_step": "START IN A FRESH SESSION per user directive; dispatch a DEDICATED SMALL dynamic Workflow (M3's shape: Ground x3 / Design / Implement sole-writer / Verify x3 / Remediate cap 2 / Ship) to ship ONE MSP. Order: (1) Re-derive origin/main (now cad6ba2) and confirm it is green. (2) RE-READ 0162 FIRST - A5 is owed before M5; do not assume it is done. (3) Verify 0187's restore-path residual. (4) Cut the branch in the MAIN thread. (5) The dispatch prompt MUST carry the coverage-receipt gate - risk 1.",
     "open_risks": [
@@ -131,5 +131,5 @@
     ]
   },
   "created_at": "2026-07-29T23:40:17.901Z",
-  "updated_at": "2026-08-01T08:57:45.694Z"
+  "updated_at": "2026-08-01T18:50:37.056Z"
 }
