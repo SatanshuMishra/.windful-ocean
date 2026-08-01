@@ -35,24 +35,23 @@
   "closure_statement": null,
   "spine": {
     "status": "paused",
-    "active_goal": "Both MSPs shipped and merged: M2 as e7e4025 (PR #26) and A7 as 5dd7176 (PR #27), main green at both. Suite 1820/1820, coverage gate ok on all 12 ids at each landing. Gap 2 is resolved and was proven live - the census halted on divergence.mjs and refused green until its row landed. Gap 1 is NOT resolved: A3 and A5 characterization tests are owed and A2 is held. M2 is delivered as reshaped, since 0164 refuted its monotone-status comparator. Decisions 0172, 0173 and 0174 record it.",
-    "next_step": "Per 0174, in a FRESH session. (1) Run the A2 section 3.1 check - read-only; it admits or kills 0162's last held Gap 1 item. (2) Re-ground M6's preconditions against today's main: hermeticity, the guard fix on fix/guard-any-claude-root, the cite mapping. They live in the non-stop-shipping thread and predate several merges. (3) Dispatch M6 - durable run-identity manifest ref (spec 3.5), engine plus SKILL.md. Do NOT start M3.",
+    "active_goal": "MSP M6 (durable run-identity manifest, spec 3.5) is SHIPPED and open as PR #28 on feat/m6-durable-run-identity - commits abde750/1ba18e1/174a0dc/e516fc9, suite 1846/1846 confirmed first-hand, guard 46/46, coverage gate ok. A2 is KILLED (0175), closing Gap 1's extraction inventory. All three M6 preconditions cleared. Four spec-3.5 deviations ratified and implemented (0176/0177/0178/0179); spec 3.5 carries an As-shipped amendment. PR #28 is NOT merged - merge stays human-gated.",
+    "next_step": "(1) Merge PR #28 when ready, then re-derive origin/main and confirm green. (2) M6 landing leaves M3 next in spec order, but M3 is BLOCKED on the A3 characterization test (0162): M3 deletes runReconcileOnlyAdvance (0161), so starting without A3's test deletes unpinned behaviour. Write A3's characterization test FIRST, on its own branch off a merged main. (3) Then M3. Do NOT start M3 before A3.",
     "open_risks": [
-      "M6's recorded preconditions were NOT verified this session. They live in the non-stop-shipping thread and predate several merges; re-ground hermeticity, the guard fix on fix/guard-any-claude-root, and the cite mapping against today's main before dispatching M6.",
-      "A3 and A5 characterization tests are owed before M3 and M5 respectively (0162). M3 deletes runReconcileOnlyAdvance (0161), so starting M3 without A3's test deletes unpinned behaviour and forfeits why those tests were ratified.",
-      "A2 is HELD pending the section 3.1 check of its M2 claim (0162). A4 and A6 are dropped. Gap 1 is therefore NOT closed, even though A7 shipped.",
-      "B6 ships threatened on divergence.mjs by construction and by ratified decision 0173: no production importer is possible, since mitosis.js runs in a sandbox that denies import, so dead-export lint reads the twin's own copied text as liveness.",
-      "The plan's anchors for the A7 region are stale by 55 lines - it cites :2920 and :2934-2975. PR #27's M5 row names this and does not fix it, so the next reader of plan section 5.2 will be misled.",
-      "0171 follow-up still owed: D5's bare catch in workflow-body position swallows a tagged SandboxViolationError from the log sink. The second-channel design 0169 deferred must decide whether it is RE-THROWN. Now shipped on main.",
-      "Found, NOT fixed, needs its own record: relaunchStateFor seeds 'awaiting' for any id in runOpenPRs.accepted, and classifyRunOpenPRs accepts a PR whose unit is built OR parked. Pre-existing.",
-      "Coverage-filename convention drifted one entry: fix-m2-monotone-status.json landed from branch fix/m2-monotone-status-onto-main, and its M1 row's sentence about the branch name is now stale. The gate keys on registry-id completeness, so it passes.",
-      "A PR's scope is FROZEN at creation; title/body edits are denied. Push once BEFORE opening (0141); later facts go in a PR comment (0142). Titles cap at 72 chars. Merge stays human-gated.",
+      "A3 and A5 characterization tests are still owed before M3 and M5 (0162). SEPARATE from Gap 1's extraction inventory, which 0175 closed. M3 deletes runReconcileOnlyAdvance, so A3 must land first or unpinned behaviour is deleted.",
+      "M4 moved to THREATENED by 174a0dc: three behavior changes plus the structural publishedSpecPath share one commit range, and three characterization tests were rewritten in it. 1840 prior tests stayed green - after-the-fact evidence, not before-the-fact characterization.",
+      "A reconcile-only relaunch returns before the publish stage (~mitosis.js:4173) so it does NOT retry a lost publish; a full advance does. Reaching it needs the publish block hoisted into a function, adjacent to out-of-scope constraints. Named in SKILL.md and the spec amendment.",
+      "computeLogicalRunId still hashes only spec path + baseBranch (0176), so a superseded manifest ref is never reaped. Accepted and recorded, not silently carried.",
+      "published.sourcePrefix is logged on disagreement but does not WIN (0179). A relaunch under a different prefix will not recognise already-merged integration branches and can re-ship shipped work.",
+      "Inertness mutations were NOT run for 174a0dc's four changes, so M3's coverage verdict is threatened rather than clean. invariant-coverage-check pull_request mode can now be run, since PR #28 exists.",
+      "PR scope is FROZEN at creation; title/body edits are denied, later facts go in a comment (0142). pr-create rejected angle brackets in a --what value as an HTML tag opener - reword, never force.",
       "NEVER invoke the compiled workflow. compileWorkflow returns a frozen async callable that would dispatch REAL agents. mitosis.js is read and edited as TEXT only.",
-      "The suite runner is `npm test` (package.json:7); `node --test <dir>` fails MODULE_NOT_FOUND on node v26.4.0. It takes about 7 seconds, so run it. .githooks/pre-commit runs it on every commit but NOT on cherry-pick.",
-      "A negative result from a hand-rolled shell check deserves suspicion before the code does: a malformed BSD-sed and zsh-glob one-liner reported a false byte-identity failure this session. Re-run it in node before believing it.",
-      "Landing stays SERIAL for anything touching mitosis.js or the mirror-guard census; a policed-twin edit lands in BOTH copies in one commit. Parallelize investigation, never landing.",
-      "ORCHESTRATION: never put an agent that switches branches in the same phase as one reading the working tree. Cut the branch in the main thread first, then dispatch. Every write under .claude/{hooks,rules,lib,workflows} needs per-write human approval.",
-      "17 worktree entries remain live; the reaper verb does not exist. Five pre-existing dirty paths (.claude/settings.json, .zshrc, two .bak files, .claude/skills/context7-mcp/) - stage explicit paths only, NEVER git add -A. Two stashes at depth 2. Three merged branches are deletable on confirmation."
+      "Runner is `npm test` (package.json:7), ~7s; `node --test <dir>` fails MODULE_NOT_FOUND, `node --test <file>` works. .githooks/pre-commit runs the full suite on every commit but NOT on cherry-pick.",
+      "A red result from a hand-rolled shell one-liner is suspect BEFORE the code is - re-run it in node. This produced false byte-identity failures in BOTH the verify and re-verify phases this session.",
+      "Landing stays SERIAL for mitosis.js and the mirror census; a policed-twin edit lands in BOTH copies in one commit. The fix round broke this once editing fatalReport (an outcome.mjs twin); the guard caught it. Parallelize investigation, never landing.",
+      "ORCHESTRATION: cut the branch in the main thread BEFORE dispatching; never pair a branch-switching agent with one reading the working tree. Writes under .claude/{hooks,rules,lib,workflows} need per-write human approval.",
+      "Five pre-existing dirty paths persist (.claude/settings.json, .zshrc, two .bak files, .claude/skills/context7-mcp/) - stage explicit paths only, NEVER git add -A. 17 worktree entries remain live; the reaper verb still does not exist.",
+      "Spec/plan line anchors remain stale wholesale (0148 rejected a standalone rewrite). Spec 3.5's identifier and clause text are now correct via the amendment, but its line anchors and the m2-mirror-gaps plan's are not re-baselined."
     ],
     "key_decisions": [
       "0136-defer-track-a-until-mitosis-msps-land",
@@ -120,5 +119,5 @@
     ]
   },
   "created_at": "2026-07-29T23:40:17.901Z",
-  "updated_at": "2026-08-01T04:33:41.673Z"
+  "updated_at": "2026-08-01T04:34:44.521Z"
 }
