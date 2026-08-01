@@ -105,7 +105,8 @@
       "0183-m3-deletes-both-gate-twins-and-their-truth-table-in-one-commit",
       "0184-the-dead-export-lint-residual-is-settled-by-measurement-deletion-is-self-policing",
       "0185-m3-ships-two-of-three-deletion-rows-maxsteps-defers-to-m5",
-      "0186-m3-closes-the-lost-publish-gap-and-flips-m6-i4s-absent-ref-contract"
+      "0186-m3-closes-the-lost-publish-gap-and-flips-m6-i4s-absent-ref-contract",
+      "0187-the-torestack-log-line-is-assigned-to-the-next-region-owner-not-hotfixed"
     ],
     "out_of_scope": [
       "Any change at mitosis.js:4058-4061. H-C is REFUTED by 0159, not deferred - the done-union is correct and narrowing it is a liveness regression. Re-opening needs new evidence of an unconfirmed-ship producer.",
@@ -128,5 +129,5 @@
     ]
   },
   "created_at": "2026-07-29T23:40:17.901Z",
-  "updated_at": "2026-08-01T08:46:48.812Z"
+  "updated_at": "2026-08-01T08:52:43.714Z"
 }
