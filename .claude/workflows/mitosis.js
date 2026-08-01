@@ -550,6 +550,29 @@ const PUBLISHED_MSP_FIELDS = Object.freeze(['id', 'dependsOn', 'fileScope', 'cha
 
 const IDENTITY_OVERLAY_FIELDS = Object.freeze(['status', 'prUrl', 'mergedAt', 'checkpointRef', 'builtSha', 'green', 'builtAgainst', 'resumePoint', 'triedSet']);
 
+const WINDOWS_DRIVE_PREFIX = /^[A-Za-z]:/;
+
+function isRepoRelativePath(value) {
+  if (typeof value !== 'string' || value.length === 0) return false;
+  if (value.startsWith('/') || value.includes('\\')) return false;
+  if (WINDOWS_DRIVE_PREFIX.test(value)) return false;
+  return value.split('/').every((part) => part !== '..');
+}
+
+function repoRelativeSpecPath(repoRoot, spec) {
+  if (typeof repoRoot !== 'string' || typeof spec !== 'string') return null;
+  const root = repoRoot.endsWith('/') ? repoRoot.slice(0, -1) : repoRoot;
+  if (root.length === 0 || !spec.startsWith(`${root}/`)) return null;
+  const relative = spec.slice(root.length + 1);
+  return isRepoRelativePath(relative) ? relative : null;
+}
+
+function publishedSpecPath(repoRoot, spec) {
+  const relative = repoRelativeSpecPath(repoRoot, spec);
+  if (relative !== null) return relative;
+  return isRepoRelativePath(spec) ? spec : null;
+}
+
 function buildPublishedManifest(manifest) {
   const source = manifest !== null && typeof manifest === 'object' && !Array.isArray(manifest) ? manifest : {};
   const sourceMsps = Array.isArray(source.msps) ? source.msps : [];
@@ -562,7 +585,7 @@ function buildPublishedManifest(manifest) {
   const identity = {
     schemaVersion: PUBLISHED_SCHEMA_VERSION,
     logicalRunId: source.logicalRunId,
-    spec: source.spec,
+    spec: publishedSpecPath(source.repoRoot, source.spec),
     baseBranch: source.baseBranch,
     sourcePrefix: source.sourcePrefix,
     specContentHash: source.specContentHash,
@@ -595,6 +618,7 @@ function parsePublishedManifest(raw) {
   for (const field of ['spec', 'baseBranch', 'sourcePrefix']) {
     if (typeof parsed[field] !== 'string' || parsed[field].length === 0) return null;
   }
+  if (!isRepoRelativePath(parsed.spec)) return null;
   if (typeof parsed.specContentHash !== 'string' || !/^[a-f0-9]{64}$/.test(parsed.specContentHash)) return null;
   if (!Array.isArray(parsed.clusters)) return null;
   for (const cluster of parsed.clusters) {
@@ -642,10 +666,10 @@ function resolveRunIdentity(published, local, ctx) {
   }
   if (typeof observedSpecHash !== 'string' || published.specContentHash !== observedSpecHash) {
     const observed = typeof observedSpecHash === 'string' ? observedSpecHash : 'unreadable';
-    emit(`mitosis: run identity — the published manifest for ${logicalRunId} is STALE against the observed spec content (published ${published.specContentHash}, observed ${observed}); the run id hashes the spec PATH and never its content, so an in-place spec edit re-decomposes under the same id — refusing the published copy and falling back to the local .mitosis/ journal`);
+    emit(`mitosis: run identity — INTEGRITY failure on the published manifest for ${logicalRunId}: the payload carries specContentHash ${published.specContentHash}, which disagrees with the ref it was read from (observed spec content ${observed}); the identity ref name IS the spec content hash, so a payload contradicting its own ref path is corrupt or misfiled rather than merely out of date — refusing the published copy and falling back to the local .mitosis/ journal`);
     return { manifest: local, identity: 'local-only' };
   }
-  const envelopeInEffect = { spec, baseBranch, sourcePrefix };
+  const envelopeInEffect = { spec: repoRelativeSpecPath(repoRoot, spec), baseBranch, sourcePrefix };
   const envelopeDisagreements = ['spec', 'baseBranch', 'sourcePrefix']
     .filter((field) => published[field] !== envelopeInEffect[field])
     .map((field) => `${field} (published ${JSON.stringify(published[field])}, in effect ${JSON.stringify(envelopeInEffect[field])})`);
@@ -1607,6 +1631,7 @@ const RECONCILE_SCHEMA = {
     },
     publishedManifestFound: { type: 'boolean' },
     publishedManifestProbeFailed: { type: 'boolean' },
+    publishedManifestRefProbed: { type: ['string', 'null'] },
     publishedManifestRawPages: { type: ['array', 'null'], items: { type: 'string' } },
     mergedPRs: {
       type: 'array',
@@ -1807,6 +1832,37 @@ const DIAGNOSE_SCHEMA = {
     request: { type: 'object' },
   },
 };
+
+const IDENTITY_MSP_TEXT_FIELDS = ['title', 'rationale', 'changeType', 'scope'];
+
+function identityPayloadRefusalCause(payloadJson, observedSpecHash) {
+  let payload;
+  try {
+    payload = JSON.parse(payloadJson);
+  } catch (err) {
+    return `the composed payload is not parseable JSON: ${clean(err.message)}`;
+  }
+  const source = payload !== null && typeof payload === 'object' && !Array.isArray(payload) ? payload : {};
+  const causes = [];
+  if (typeof source.spec !== 'string' || source.spec.length === 0) {
+    causes.push('spec did not reduce to a repo-relative path, which happens when the spec file lies outside repoRoot; the durable payload carries no absolute path, so no portable spec reference composes');
+  }
+  if (typeof source.specContentHash !== 'string') {
+    causes.push(`specContentHash is null because the spec content could not be hashed (reconcile reported ${observedSpecHash === null ? 'null' : 'a hash'})`);
+  }
+  if (!Array.isArray(source.clusters) || !source.clusters.every((c) => Array.isArray(c) && c.every((id) => typeof id === 'string'))) {
+    causes.push('clusters is not an array of arrays of MSP id strings, which is the shape a run journal written by a different engine can carry forward');
+  }
+  const msps = Array.isArray(source.msps) ? source.msps : [];
+  if (msps.length === 0) causes.push('the msp table is empty');
+  const textless = msps
+    .filter((m) => m === null || typeof m !== 'object' || Array.isArray(m) || IDENTITY_MSP_TEXT_FIELDS.some((f) => typeof m[f] !== 'string'))
+    .map((m) => (m !== null && typeof m === 'object' && typeof m.id === 'string' ? m.id : 'an entry with no id'));
+  if (textless.length > 0) {
+    causes.push(`these msp entries carry no identity text (${IDENTITY_MSP_TEXT_FIELDS.join('/')}), which is the shape a ship or built transition synthesises for an id this run never decomposed: ${textless.join(', ')}`);
+  }
+  return causes.length > 0 ? causes.join('; ') : 'the payload was rejected by parsePublishedManifest without a field this engine can name';
+}
 
 function evaluateManifestReuse(priorManifest, observedSpecHash) {
   const hashShape = /^[a-f0-9]{64}$/;
@@ -2916,11 +2972,21 @@ function parentCheckpointRefs(runId, parentIds) {
 
 const MANIFEST_REF_PREFIX = 'refs/mitosis-manifest';
 
-function publishedManifestRef(runId) {
+const SPEC_CONTENT_HASH_PATTERN = /^[a-f0-9]{64}$/;
+
+function publishedManifestRefPrefix(runId) {
   if (typeof runId !== 'string' || !RUN_ID_PATTERN.test(runId)) {
     throw new Error(`checkpoint: refuses to build a manifest ref from an unsafe runId: ${JSON.stringify(runId)}`);
   }
-  return `${MANIFEST_REF_PREFIX}/${runId}`;
+  return `${MANIFEST_REF_PREFIX}/${runId}/`;
+}
+
+function publishedManifestRef(runId, specContentHash) {
+  const prefix = publishedManifestRefPrefix(runId);
+  if (typeof specContentHash !== 'string' || !SPEC_CONTENT_HASH_PATTERN.test(specContentHash)) {
+    throw new Error(`checkpoint: refuses to build a manifest ref from an unsafe specContentHash: ${JSON.stringify(specContentHash)}`);
+  }
+  return `${prefix}${specContentHash}`;
 }
 
 function uniqStrings(list) {
@@ -3956,12 +4022,13 @@ log(`mitosis: spec=${spec} repo=${repoRoot} base=${baseBranch} source=${sourcePr
 log(`mitosis: mergePolicy=${mergePolicy}`);
 
 const logicalRunId = computeLogicalRunId(spec, baseBranch);
-let manifestRef = null;
+let manifestRefPrefix = null;
 try {
-  manifestRef = publishedManifestRef(logicalRunId);
+  manifestRefPrefix = publishedManifestRefPrefix(logicalRunId);
 } catch (err) {
-  log(`mitosis: run identity — refusing to compose a published-manifest ref for this run (${err.message}); the run is resumable ONLY from the local .mitosis/ journal on this machine`);
+  log(`mitosis: run identity — refusing to compose a published-manifest ref prefix for this run (${err.message}); the run is resumable ONLY from the local .mitosis/ journal on this machine`);
 }
+let manifestRef = null;
 phase('Reconcile');
 let recon;
 let targetOwnerRepo = null;
@@ -3977,10 +4044,11 @@ try {
       `5. List the DURABLE mitosis checkpoint refs so the engine can reconcile built-but-unmerged work against them: run \`git -C ${repoRoot} ls-remote origin 'refs/mitosis/*'\`. This is the authoritative record of which units were durably built on a prior run. Capture EVERY output line in full (each line is \`<sha>\\t<ref>\`), returning them COMPLETELY with no truncation as checkpointRefPages: an array of pages where each page is an array of the raw line strings (return a single page holding all lines; use additional pages only if you had to fetch the listing in multiple passes). Return checkpointRefPages=[] (an empty array) if there is no remote or no such ref. Return the lines verbatim; do NOT parse, filter, or alter them — the engine parses them.\n\n` +
       `6. List the pull requests still OPEN against the base so the shepherd can observe live review state, pinned to the target slug (again typing the literal ownerRepo value from step 2 in place of <OWNER_REPO>): \`gh pr list -R <OWNER_REPO> --state open --base ${baseBranch} --limit 200 --json headRefName,reviewDecision,url,isCrossRepository,headRepositoryOwner,headRepository\`. Return that array as openPRs (an empty array if none), preserving each row's headRefName, reviewDecision and url VERBATIM, but returning headRepositoryOwner and headRepository as STRINGS extracted from gh's objects (never the objects themselves) as described below; report each reviewDecision field exactly as gh returns it (e.g. "APPROVED", "CHANGES_REQUESTED", "REVIEW_REQUIRED") or null if absent, report each PR's url verbatim so the engine can surface a frozen, still-open PR as awaiting human approval, report each PR's isCrossRepository flag EXACTLY as gh returns it (true when the pull request is opened from a FORK, false when its head branch lives in this same repository) or null if the field is absent, and report headRepositoryOwner as that PR's head-repository OWNER LOGIN string (the \`login\` field of gh's headRepositoryOwner object) and headRepository as that PR's head-repository NAME string (the \`name\` field of gh's headRepository object), each null if gh did not return it — the engine trusts a PR as its own published work ONLY when the fork flag is false AND the head repository is this same repository, and fails closed on anything else including absent or malformed fields. If THIS command errors, prints nothing, or was emitted with the placeholder unsubstituted, the same STOP-and-report rule from step 2 applies: report the failure and set mergedPRsAuthoritative=false.\n` +
       `7. CORROBORATE the server-side merge boundary before any work is planned, by re-running the read-only preflight the orchestrator already gated on before this run was dispatched, exactly as written and from this exact absolute path: \`node ${BOUNDARY_PREFLIGHT_CLI}\`. Run THAT path literally: never a copy of the preflight that lives inside ${repoRoot} or any other repository, because a gate loaded from the repository being merged into could authorize its own merges. It reads its deployment configuration from the environment and mutates nothing. Your report is corroboration only — the authoritative gate is the orchestrator's own exit-code check in real process space, and what you return establishes only what this re-run reported. Its FIRST stdout line is a JSON object shaped { passed, halted, boundarySlug, boundaryBaseBranch, invokedAs, bypassVerified, bypassGap }; return that object VERBATIM as boundaryPreflight, including boundarySlug, boundaryBaseBranch and invokedAs exactly as printed — the engine compares them against the repository and base branch this run actually merges into and against the gate path above, and halts on any mismatch, so altering or "correcting" them halts the run. Exit 0 means every gated invariant was positively proven; on any non-zero exit the corroboration has failed and the engine halts. Do NOT edit, retry with different arguments, or work around a non-zero exit, and do NOT synthesise, guess, or hand-write this object — if the command cannot be run at all, or printed no parseable JSON line, return boundaryPreflight=null so the engine halts rather than proceeding on failed corroboration. bypassVerified is ALWAYS false: the bypass list is human governance that this token structurally cannot read, it is NOT a gate, and its false value must never be treated as a failure or corrected.\n` +
-      (manifestRef === null
+      (manifestRefPrefix === null
         ? ''
-        : `8. Read the DURABLE published run-identity manifest so the engine can recover the MSP table even in a workspace that has no .mitosis/ directory: run \`git -C ${repoRoot} ls-remote origin ${manifestRef}\`. That command answering is what separates "the ref is absent" from "nobody looked", and the engine acts on the difference, so report which one you observed. If it RAN and exited 0 and printed NOTHING, that is a definite absence: set publishedManifestFound=false, publishedManifestProbeFailed=false and publishedManifestRawPages=null. If it printed a line, set publishedManifestFound=true and publishedManifestProbeFailed=false, then run \`git -C ${repoRoot} fetch --no-tags origin +${manifestRef}:${manifestRef}\` and then \`git -C ${repoRoot} cat-file -p ${manifestRef}:manifest.json\`, returning that stdout COMPLETELY with NO TRUNCATION as publishedManifestRawPages: an array of string chunks of at most 2000 characters that concatenate in order, with no separator and no bytes added or dropped, back to the exact stdout. If the ls-remote ERRORS, exits non-zero, there is no origin remote, or you could not run it at all, you observed NO absence: set publishedManifestFound=false AND publishedManifestProbeFailed=true — never report a read that did not run as a definite absence, because the engine halts fail-closed on an undetermined probe rather than re-decomposing a fresh MSP table over a ref that may already own one. If the ls-remote printed a line but the fetch or the cat-file fails, KEEP publishedManifestFound=true and set publishedManifestRawPages=null — the engine reports that distinct case rather than inferring absence. Do NOT parse, repair, reformat or alter the bytes; the engine re-validates them and treats anything it cannot validate as absent. NEVER pass --depth to that fetch (it would mark the operator repository shallow) and NEVER pass --force to any command in this step.\n`) +
-      `Return ONLY the structured object: { manifestFound, manifestRaw, manifestRawPages: [ "<chunk>" ], mergedPRs: [ { headRefName, url, mergedAt, mergedSha } ], mergedPRsAuthoritative, specContentHash, checkpointRefPages: [ [ "<sha>\\t<ref>" ] ], publishedManifestFound, publishedManifestProbeFailed, publishedManifestRawPages: [ "<chunk>" ], openPRs: [ { headRefName, reviewDecision, url, isCrossRepository, headRepositoryOwner, headRepository } ], ownerRepo, repoHost, boundaryPreflight: { passed, halted, boundarySlug, boundaryBaseBranch, invokedAs, bypassVerified, bypassGap } | null }.`,
+        : `8. Read the DURABLE published run-identity manifest so the engine can recover the MSP table even in a workspace that has no .mitosis/ directory. This ref is CONTENT-KEYED: compose it by placing the 64-character specContentHash you computed in step 4 directly after the prefix ${manifestRefPrefix} (that prefix already ends in a slash), and report the exact string you composed as publishedManifestRefProbed. Below, REF means that exact composed string and nothing else. If step 4 could not read the spec there is no hash and therefore NO ref name exists: set publishedManifestRefProbed=null, publishedManifestFound=false and publishedManifestProbeFailed=true, run NO command in this step, and never probe the prefix alone, never invent, pad, truncate or re-case a hash. The engine RE-DERIVES this ref from its own copy of the hash and compares it character-for-character against what you report, and treats any difference as a FAILED probe rather than as an answer, so reporting the ref you actually probed is what makes the read count at all.\n` +
+          `   Run \`git -C ${repoRoot} ls-remote origin REF\`. That command answering is what separates "the ref is absent" from "nobody looked", and the engine acts on the difference, so report which one you observed. If it RAN and exited 0 and printed NOTHING, that is a definite absence: set publishedManifestFound=false, publishedManifestProbeFailed=false and publishedManifestRawPages=null. If it printed a line, set publishedManifestFound=true and publishedManifestProbeFailed=false, then run \`git -C ${repoRoot} fetch --no-tags origin +REF:REF\` and then \`git -C ${repoRoot} cat-file -p REF:manifest.json\`, returning that stdout COMPLETELY with NO TRUNCATION as publishedManifestRawPages: an array of string chunks of at most 2000 characters that concatenate in order, with no separator and no bytes added or dropped, back to the exact stdout. If the ls-remote ERRORS, exits non-zero, there is no origin remote, or you could not run it at all, you observed NO absence: set publishedManifestFound=false AND publishedManifestProbeFailed=true — never report a read that did not run as a definite absence, because the engine halts fail-closed on an undetermined probe rather than re-decomposing a fresh MSP table over a ref that may already own one. If the ls-remote printed a line but the fetch or the cat-file fails, KEEP publishedManifestFound=true and set publishedManifestRawPages=null — the engine reports that distinct case rather than inferring absence. Do NOT parse, repair, reformat or alter the bytes; the engine re-validates them and treats anything it cannot validate as absent. NEVER pass --depth to that fetch (it would mark the operator repository shallow) and NEVER pass --force to any command in this step.\n`) +
+      `Return ONLY the structured object: { manifestFound, manifestRaw, manifestRawPages: [ "<chunk>" ], mergedPRs: [ { headRefName, url, mergedAt, mergedSha } ], mergedPRsAuthoritative, specContentHash, checkpointRefPages: [ [ "<sha>\\t<ref>" ] ], publishedManifestFound, publishedManifestProbeFailed, publishedManifestRefProbed, publishedManifestRawPages: [ "<chunk>" ], openPRs: [ { headRefName, reviewDecision, url, isCrossRepository, headRepositoryOwner, headRepository } ], ownerRepo, repoHost, boundaryPreflight: { passed, halted, boundarySlug, boundaryBaseBranch, invokedAs, bypassVerified, bypassGap } | null }.`,
       { agentType: 'implementer', schema: RECONCILE_SCHEMA, label: 'reconcile', phase: 'Reconcile', model: models.reconciler || models.shipper || 'sonnet' }
     ),
     { unitId: 'reconcile', stage: 'reconcile', resetRef: null, worktree: null, task: 'inspect durable run state and the already-merged set', ...makeRemediation({ unitId: 'reconcile', stage: 'reconcile', task: 'inspect durable run state and the already-merged set', schema: RECONCILE_SCHEMA, agentType: 'implementer', phase: 'Reconcile' }) },
@@ -4020,12 +4088,27 @@ const reconciledShipped = new Set(reconciledMap.keys());
 const reconciledShippedMeta = reconciledMap;
 const observedSpecHash = (recon && typeof recon.specContentHash === 'string') ? recon.specContentHash : null;
 
+if (manifestRefPrefix !== null && observedSpecHash !== null) {
+  try {
+    manifestRef = publishedManifestRef(logicalRunId, observedSpecHash);
+  } catch (err) {
+    manifestRef = null;
+    log(`mitosis: run identity — refusing to compose a published-manifest ref for this run (${err.message}); the identity ref name IS the spec content hash, so a hash this engine will not build a ref from names no ref at all, and the run is resumable ONLY from the local .mitosis/ journal on this machine`);
+  }
+} else if (manifestRefPrefix !== null) {
+  log(`mitosis: run identity — reconcile could not read the spec content, so no content-keyed identity ref name exists under ${manifestRefPrefix} for this run; refusing to fabricate one and reporting the identity this run actually has rather than inferring that any ref is absent`);
+}
+const probedManifestRef = (recon && typeof recon.publishedManifestRefProbed === 'string') ? recon.publishedManifestRefProbed : null;
+const identityProbeRefAgrees = manifestRef !== null && probedManifestRef === manifestRef;
+if (manifestRefPrefix !== null && !identityProbeRefAgrees) {
+  log(`mitosis: run identity — the identity probe did NOT answer for the ref this engine derives: expected ${manifestRef === null ? 'no ref at all (the spec content is unreadable)' : manifestRef} but reconcile reported probing ${probedManifestRef === null ? 'no ref' : clean(probedManifestRef)}; treating the read as an UNDETERMINED probe rather than as evidence of absence, because a different ref answers a different question`);
+}
 const publishedManifestText = (recon && Array.isArray(recon.publishedManifestRawPages) && recon.publishedManifestRawPages.length > 0)
   ? recon.publishedManifestRawPages.filter((chunk) => typeof chunk === 'string').join('')
   : null;
-const publishedManifest = recon && recon.publishedManifestFound === true ? parsePublishedManifest(publishedManifestText) : null;
-const identityRefPresent = Boolean(recon && recon.publishedManifestFound === true);
-const identityProbeFailed = Boolean(recon && recon.publishedManifestProbeFailed === true);
+const publishedManifest = (identityProbeRefAgrees && recon && recon.publishedManifestFound === true) ? parsePublishedManifest(publishedManifestText) : null;
+const identityRefPresent = Boolean(identityProbeRefAgrees && recon && recon.publishedManifestFound === true);
+const identityProbeFailed = Boolean(recon && recon.publishedManifestProbeFailed === true) || !identityProbeRefAgrees;
 const identityResolution = resolveRunIdentity(publishedManifest, localManifest, {
   logicalRunId,
   observedSpecHash,
@@ -4276,15 +4359,20 @@ if (!reusable) {
   }
 }
 
-const genesisIdentityJson = (!reusable && initialManifest !== null && manifestRef !== null)
-  ? JSON.stringify(buildPublishedManifest(initialManifest))
+const identitySourceManifest = (!reusable && initialManifest !== null) ? initialManifest : reconciledManifest;
+const identityRefUnclaimed = manifestRef !== null && !identityRefPresent && !identityProbeFailed;
+const identityJson = (identityRefUnclaimed && identitySourceManifest !== null && typeof identitySourceManifest === 'object')
+  ? JSON.stringify(buildPublishedManifest(identitySourceManifest))
   : null;
-const genesisIdentityPublishable = genesisIdentityJson !== null && parsePublishedManifest(genesisIdentityJson) !== null;
-if (genesisIdentityJson !== null && !genesisIdentityPublishable) {
-  log(`mitosis: run identity — REFUSING to publish to ${manifestRef}: the composed identity payload does not validate against this engine's own reader, so publishing it would claim a portable identity on bytes every later run rejects, written to a ref that is write-once and could never be repaired. The usual cause is a spec whose content could not be hashed, which leaves specContentHash null (reconcile reported ${observedSpecHash === null ? 'null' : 'a hash'}). Continuing with identity ${runIdentity}, so this run is resumable ONLY from the local .mitosis/ journal on this machine`);
+const identityPublishable = identityJson !== null && parsePublishedManifest(identityJson) !== null;
+if (identityJson !== null && !identityPublishable) {
+  log(`mitosis: run identity — REFUSING to publish to ${manifestRef}: the composed identity payload does not validate against this engine's own reader (${identityPayloadRefusalCause(identityJson, observedSpecHash)}), so publishing it would claim a portable identity on bytes every later run rejects, written to a ref that is write-once and could never be repaired. Continuing with identity ${runIdentity}, so this run is resumable ONLY from the local .mitosis/ journal on this machine`);
 }
-if (genesisIdentityPublishable) {
-  const publishedJson = genesisIdentityJson;
+if (identityPublishable) {
+  const publishedJson = identityJson;
+  if (reusable) {
+    log(`mitosis: run identity — the content-keyed ref ${manifestRef} is UNCLAIMED even though this relaunch reuses the recorded MSP table, so an earlier publish never landed; retrying it now rather than leaving this run local-only on every future relaunch of an unchanged spec`);
+  }
   try {
     const publishRes = await agent(
       `You are the run-identity publish stage of a mitosis run. You have NO Skill tool; follow these instructions directly.\n\n` +

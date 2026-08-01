@@ -205,6 +205,29 @@ export const PUBLISHED_MSP_FIELDS = Object.freeze(['id', 'dependsOn', 'fileScope
 
 const IDENTITY_OVERLAY_FIELDS = Object.freeze(['status', 'prUrl', 'mergedAt', 'checkpointRef', 'builtSha', 'green', 'builtAgainst', 'resumePoint', 'triedSet']);
 
+const WINDOWS_DRIVE_PREFIX = /^[A-Za-z]:/;
+
+export function isRepoRelativePath(value) {
+  if (typeof value !== 'string' || value.length === 0) return false;
+  if (value.startsWith('/') || value.includes('\\')) return false;
+  if (WINDOWS_DRIVE_PREFIX.test(value)) return false;
+  return value.split('/').every((part) => part !== '..');
+}
+
+export function repoRelativeSpecPath(repoRoot, spec) {
+  if (typeof repoRoot !== 'string' || typeof spec !== 'string') return null;
+  const root = repoRoot.endsWith('/') ? repoRoot.slice(0, -1) : repoRoot;
+  if (root.length === 0 || !spec.startsWith(`${root}/`)) return null;
+  const relative = spec.slice(root.length + 1);
+  return isRepoRelativePath(relative) ? relative : null;
+}
+
+export function publishedSpecPath(repoRoot, spec) {
+  const relative = repoRelativeSpecPath(repoRoot, spec);
+  if (relative !== null) return relative;
+  return isRepoRelativePath(spec) ? spec : null;
+}
+
 export function buildPublishedManifest(manifest) {
   const source = manifest !== null && typeof manifest === 'object' && !Array.isArray(manifest) ? manifest : {};
   const sourceMsps = Array.isArray(source.msps) ? source.msps : [];
@@ -217,7 +240,7 @@ export function buildPublishedManifest(manifest) {
   const identity = {
     schemaVersion: PUBLISHED_SCHEMA_VERSION,
     logicalRunId: source.logicalRunId,
-    spec: source.spec,
+    spec: publishedSpecPath(source.repoRoot, source.spec),
     baseBranch: source.baseBranch,
     sourcePrefix: source.sourcePrefix,
     specContentHash: source.specContentHash,
@@ -250,6 +273,7 @@ export function parsePublishedManifest(raw) {
   for (const field of ['spec', 'baseBranch', 'sourcePrefix']) {
     if (typeof parsed[field] !== 'string' || parsed[field].length === 0) return null;
   }
+  if (!isRepoRelativePath(parsed.spec)) return null;
   if (typeof parsed.specContentHash !== 'string' || !/^[a-f0-9]{64}$/.test(parsed.specContentHash)) return null;
   if (!Array.isArray(parsed.clusters)) return null;
   for (const cluster of parsed.clusters) {
@@ -297,10 +321,10 @@ export function resolveRunIdentity(published, local, ctx) {
   }
   if (typeof observedSpecHash !== 'string' || published.specContentHash !== observedSpecHash) {
     const observed = typeof observedSpecHash === 'string' ? observedSpecHash : 'unreadable';
-    emit(`mitosis: run identity — the published manifest for ${logicalRunId} is STALE against the observed spec content (published ${published.specContentHash}, observed ${observed}); the run id hashes the spec PATH and never its content, so an in-place spec edit re-decomposes under the same id — refusing the published copy and falling back to the local .mitosis/ journal`);
+    emit(`mitosis: run identity — INTEGRITY failure on the published manifest for ${logicalRunId}: the payload carries specContentHash ${published.specContentHash}, which disagrees with the ref it was read from (observed spec content ${observed}); the identity ref name IS the spec content hash, so a payload contradicting its own ref path is corrupt or misfiled rather than merely out of date — refusing the published copy and falling back to the local .mitosis/ journal`);
     return { manifest: local, identity: 'local-only' };
   }
-  const envelopeInEffect = { spec, baseBranch, sourcePrefix };
+  const envelopeInEffect = { spec: repoRelativeSpecPath(repoRoot, spec), baseBranch, sourcePrefix };
   const envelopeDisagreements = ['spec', 'baseBranch', 'sourcePrefix']
     .filter((field) => published[field] !== envelopeInEffect[field])
     .map((field) => `${field} (published ${JSON.stringify(published[field])}, in effect ${JSON.stringify(envelopeInEffect[field])})`);

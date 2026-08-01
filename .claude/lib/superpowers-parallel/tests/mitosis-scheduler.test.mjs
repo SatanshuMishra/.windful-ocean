@@ -22,6 +22,13 @@ const mitosisBody = readFileSync(MITOSIS_PATH, 'utf8').replace(/^export const me
 const AsyncFunction = Object.getPrototypeOf(async function () {}).constructor;
 const runMitosis = new AsyncFunction('args', 'agent', 'parallel', 'log', 'phase', 'workflow', mitosisBody);
 
+function withProbedManifestRef(recon, prompt) {
+  if (Object.prototype.hasOwnProperty.call(recon, 'publishedManifestRefProbed')) return recon;
+  const prefix = typeof prompt === 'string' ? prompt.match(/refs\/mitosis-manifest\/[a-f0-9]{8}\//) : null;
+  const probed = prefix !== null && typeof recon.specContentHash === 'string' ? `${prefix[0]}${recon.specContentHash}` : null;
+  return { ...recon, publishedManifestRefProbed: probed };
+}
+
 function deferred() {
   let resolve;
   const promise = new Promise((res) => { resolve = res; });
@@ -51,8 +58,8 @@ function invokeMitosis(input, agent) {
 
 function buildInput(overrides = {}) {
   return {
-    spec: '/tmp/mitosis-scheduler-test/spec.md',
-    repoRoot: '/tmp/mitosis-scheduler-test/repo',
+    spec: `${TEST_REPO_ROOT}/spec.md`,
+    repoRoot: TEST_REPO_ROOT,
     baseBranch: 'main',
     sourcePrefix: SOURCE_PREFIX,
     verify: { scopedCheckCmd: 'true', fullValidationCmd: 'true' },
@@ -148,7 +155,10 @@ function createFakeAgent({ msps, sourcePrefix = SOURCE_PREFIX, baseBranch = TEST
         return override || { planPath: `/tmp/mitosis-scheduler-test/${mspId}.plan.md`, summary: 'revised' };
       }
       case 'reconcile':
-        return { ownerRepo: TEST_REPO_SLUG, mergedPRsAuthoritative: true, boundaryPreflight: provenBoundary({ boundaryBaseBranch: baseBranch }), ...(reconcileResult || { manifestFound: false, manifestRaw: null, mergedPRs: [], specContentHash: SPEC_CONTENT_HASH }) };
+        return withProbedManifestRef(
+          { ownerRepo: TEST_REPO_SLUG, mergedPRsAuthoritative: true, boundaryPreflight: provenBoundary({ boundaryBaseBranch: baseBranch }), ...(reconcileResult || { manifestFound: false, manifestRaw: null, mergedPRs: [], specContentHash: SPEC_CONTENT_HASH }) },
+          prompt,
+        );
       case 'checkpoint-init':
         return { written: true, detail: '' };
       case 'manifest-publish':
@@ -3305,7 +3315,7 @@ function makeDurableFakeAgent({ msps, parallelizeFailUnitId, shipResult, repoRoo
     if (prefix === 'reconcile') {
       const raw = fileMap.get(runJsonPath);
       const folded = raw === undefined ? null : foldRunManifest(raw);
-      return { manifestFound: folded !== null, manifestRaw: folded === null ? null : JSON.stringify(folded), mergedPRs: [], mergedPRsAuthoritative: true, specContentHash: SPEC_CONTENT_HASH, ownerRepo: TEST_REPO_SLUG, boundaryPreflight: PROVEN_BOUNDARY };
+      return withProbedManifestRef({ manifestFound: folded !== null, manifestRaw: folded === null ? null : JSON.stringify(folded), mergedPRs: [], mergedPRsAuthoritative: true, specContentHash: SPEC_CONTENT_HASH, ownerRepo: TEST_REPO_SLUG, boundaryPreflight: PROVEN_BOUNDARY }, prompt);
     }
     if (prefix === 'checkpoint-init') {
       const literal = literalOf(prompt);

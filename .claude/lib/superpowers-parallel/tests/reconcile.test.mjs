@@ -62,7 +62,7 @@ test('reconcileBuiltSet: non-array input yields an empty set', () => {
 });
 
 test('reconcileBuiltSet/reconcileBuiltShas: the durable run-identity ref is structurally incapable of being counted as a built unit', () => {
-  const line = `${'b'.repeat(40)}\t${publishedManifestRef('a1b2c3d4')}`;
+  const line = `${'b'.repeat(40)}\t${publishedManifestRef('a1b2c3d4', 'c'.repeat(64))}`;
   assert.deepEqual(reconcileBuiltSet([line], 'a1b2c3d4'), [], 'the identity ref never inflates builtUnits, which gates the relaunch-advance branch, hasFrontierState, computeRemaining and selectResumeBuilt');
   assert.deepEqual(reconcileBuiltShas([line], 'a1b2c3d4'), {}, 'the identity ref contributes no phantom built sha');
 });

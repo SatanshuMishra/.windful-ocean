@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { checkpointRef, parseCheckpointRef, parentCheckpointRefs, CHECKPOINT_REF_PREFIX, publishedManifestRef, MANIFEST_REF_PREFIX } from '../checkpoint.mjs';
+import { checkpointRef, parseCheckpointRef, parentCheckpointRefs, CHECKPOINT_REF_PREFIX, publishedManifestRef, publishedManifestRefPrefix, MANIFEST_REF_PREFIX } from '../checkpoint.mjs';
 
 test('CHECKPOINT_REF_PREFIX is the dedicated non-head/tag namespace', () => {
   assert.equal(CHECKPOINT_REF_PREFIX, 'refs/mitosis');
@@ -73,29 +73,52 @@ test('parentCheckpointRefs fails closed: throws on an unsafe parent id or runId 
   assert.throws(() => parentCheckpointRefs('BADRUNID', ['ok']), /runId/);
 });
 
-test('publishedManifestRef composes the durable run-identity ref in its OWN namespace beside the checkpoint refs', () => {
+const SPEC_HASH = 'a'.repeat(64);
+const OTHER_SPEC_HASH = 'b'.repeat(64);
+
+test('publishedManifestRef is CONTENT-KEYED: the same logical run id under different spec content composes DIFFERENT refs', () => {
   assert.equal(MANIFEST_REF_PREFIX, 'refs/mitosis-manifest');
-  assert.equal(publishedManifestRef('a1b2c3d4'), 'refs/mitosis-manifest/a1b2c3d4');
-  assert.equal(publishedManifestRef('00000000'), 'refs/mitosis-manifest/00000000');
+  assert.equal(publishedManifestRefPrefix('a1b2c3d4'), 'refs/mitosis-manifest/a1b2c3d4/');
+  assert.equal(publishedManifestRef('a1b2c3d4', SPEC_HASH), `refs/mitosis-manifest/a1b2c3d4/${SPEC_HASH}`);
+  assert.equal(publishedManifestRef('00000000', OTHER_SPEC_HASH), `refs/mitosis-manifest/00000000/${OTHER_SPEC_HASH}`);
+  assert.notEqual(
+    publishedManifestRef('a1b2c3d4', SPEC_HASH),
+    publishedManifestRef('a1b2c3d4', OTHER_SPEC_HASH),
+    'the run id hashes the spec PATH and never its content, so an in-place spec edit re-decomposes a DIFFERENT table under the same id — keying the ref on the run id alone would pin that run to the write-once STOP permanently',
+  );
+  assert.ok(publishedManifestRef('a1b2c3d4', SPEC_HASH).startsWith(publishedManifestRefPrefix('a1b2c3d4')), 'the engine composes the prefix before the hash is known and the agent appends the hash, so the full ref must extend the prefix exactly');
 });
 
 test('publishedManifestRef throws on a runId that is not 8 lowercase hex (never interpolates an unsafe token into a git command)', () => {
-  assert.throws(() => publishedManifestRef('A1B2C3D4'), /runId/);
-  assert.throws(() => publishedManifestRef('a1b2c3d'), /runId/);
-  assert.throws(() => publishedManifestRef('a1b2c3d4e'), /runId/);
-  assert.throws(() => publishedManifestRef('zzzzzzzz'), /runId/);
-  assert.throws(() => publishedManifestRef('../evil'), /runId/);
-  assert.throws(() => publishedManifestRef(''), /runId/);
-  assert.throws(() => publishedManifestRef(null), /runId/);
+  assert.throws(() => publishedManifestRef('A1B2C3D4', SPEC_HASH), /runId/);
+  assert.throws(() => publishedManifestRef('a1b2c3d', SPEC_HASH), /runId/);
+  assert.throws(() => publishedManifestRef('a1b2c3d4e', SPEC_HASH), /runId/);
+  assert.throws(() => publishedManifestRef('zzzzzzzz', SPEC_HASH), /runId/);
+  assert.throws(() => publishedManifestRef('../evil', SPEC_HASH), /runId/);
+  assert.throws(() => publishedManifestRef('', SPEC_HASH), /runId/);
+  assert.throws(() => publishedManifestRef(null, SPEC_HASH), /runId/);
+  assert.throws(() => publishedManifestRefPrefix('../evil'), /runId/);
+  assert.throws(() => publishedManifestRefPrefix(null), /runId/);
+});
+
+test('publishedManifestRef THROWS on a malformed or absent specContentHash rather than fabricating a ref', () => {
+  assert.throws(() => publishedManifestRef('a1b2c3d4'), /specContentHash/, 'an absent hash names no ref at all; silently composing the prefix would probe a ref no run ever publishes and read its emptiness as absence');
+  assert.throws(() => publishedManifestRef('a1b2c3d4', null), /specContentHash/);
+  assert.throws(() => publishedManifestRef('a1b2c3d4', ''), /specContentHash/);
+  assert.throws(() => publishedManifestRef('a1b2c3d4', 'a'.repeat(63)), /specContentHash/);
+  assert.throws(() => publishedManifestRef('a1b2c3d4', 'a'.repeat(65)), /specContentHash/);
+  assert.throws(() => publishedManifestRef('a1b2c3d4', 'A'.repeat(64)), /specContentHash/);
+  assert.throws(() => publishedManifestRef('a1b2c3d4', `../${'a'.repeat(61)}`), /specContentHash/);
+  assert.throws(() => publishedManifestRef('a1b2c3d4', SPEC_HASH.slice(0, 63) + '/'), /specContentHash/);
 });
 
 test('the run-identity ref is DISJOINT from the checkpoint namespace: parseCheckpointRef can never invert it into a unit id', () => {
   for (const runId of ['a1b2c3d4', '00ff00ff', 'deadbeef']) {
     assert.equal(
-      parseCheckpointRef(publishedManifestRef(runId), runId),
+      parseCheckpointRef(publishedManifestRef(runId, SPEC_HASH), runId),
       null,
       'the identity ref must not be readable as a built unit, or reconcileBuiltSet would admit a phantom unit named manifest and inflate the built-unit count that gates relaunch advance',
     );
   }
-  assert.equal(publishedManifestRef('a1b2c3d4').startsWith(`${CHECKPOINT_REF_PREFIX}/`), false, 'the identity ref is outside the refs/mitosis/* glob the reconcile stage lists');
+  assert.equal(publishedManifestRef('a1b2c3d4', SPEC_HASH).startsWith(`${CHECKPOINT_REF_PREFIX}/`), false, 'the identity ref is outside the refs/mitosis/* glob the reconcile stage lists');
 });
