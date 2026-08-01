@@ -35,23 +35,25 @@
   "closure_statement": null,
   "spine": {
     "status": "paused",
-    "active_goal": "MSP M6 (durable run-identity manifest, spec 3.5) is SHIPPED and open as PR #28 on feat/m6-durable-run-identity - commits abde750/1ba18e1/174a0dc/e516fc9, suite 1846/1846 confirmed first-hand, guard 46/46, coverage gate ok. A2 is KILLED (0175), closing Gap 1's extraction inventory. All three M6 preconditions cleared. Four spec-3.5 deviations ratified and implemented (0176/0177/0178/0179); spec 3.5 carries an As-shipped amendment. PR #28 is NOT merged - merge stays human-gated.",
-    "next_step": "(1) Merge PR #28 when ready, then re-derive origin/main and confirm green. (2) M6 landing leaves M3 next in spec order, but M3 is BLOCKED on the A3 characterization test (0162): M3 deletes runReconcileOnlyAdvance (0161), so starting without A3's test deletes unpinned behaviour. Write A3's characterization test FIRST, on its own branch off a merged main. (3) Then M3. Do NOT start M3 before A3.",
+    "active_goal": "PR #28 (M6) MERGED as 1986aab; main re-derived green first-hand at 1846/1846. A3 SHIPPED and open as PR #29 on test/a3-reconcile-only-characterization, commit 78fb13b: four-case characterization test pinning runReconcileOnlyAdvance and its shouldReconcileOnly gate, plus the coverage receipt. Suite 1850/1850 first-hand, coverage gate ok in pull_request mode post-commit, mitosis.js byte-identical. Test-only. PR #29 NOT merged - merge stays human-gated.",
+    "next_step": "(1) Merge PR #29 when ready, then re-derive origin/main and confirm green. (2) Then M3 - A3's blocker is discharged. M3 MUST read 0180 first: it has to decide deliberately whether it deletes BOTH gate twins (mitosis.js:3063/:3067 and reconcile.mjs:76/:80) or only the workflow copy, and if both, reconcile.test.mjs:102-131 goes in the SAME commit. (3) A5's characterization test is still owed before M5, unchanged.",
     "open_risks": [
-      "A3 and A5 characterization tests are still owed before M3 and M5 (0162). SEPARATE from Gap 1's extraction inventory, which 0175 closed. M3 deletes runReconcileOnlyAdvance, so A3 must land first or unpinned behaviour is deleted.",
-      "M4 moved to THREATENED by 174a0dc: three behavior changes plus the structural publishedSpecPath share one commit range, and three characterization tests were rewritten in it. 1840 prior tests stayed green - after-the-fact evidence, not before-the-fact characterization.",
-      "A reconcile-only relaunch returns before the publish stage (~mitosis.js:4173) so it does NOT retry a lost publish; a full advance does. Reaching it needs the publish block hoisted into a function, adjacent to out-of-scope constraints. Named in SKILL.md and the spec amendment.",
-      "computeLogicalRunId still hashes only spec path + baseBranch (0176), so a superseded manifest ref is never reaped. Accepted and recorded, not silently carried.",
-      "published.sourcePrefix is logged on disagreement but does not WIN (0179). A relaunch under a different prefix will not recognise already-merged integration branches and can re-ship shipped work.",
-      "Inertness mutations were NOT run for 174a0dc's four changes, so M3's coverage verdict is threatened rather than clean. invariant-coverage-check pull_request mode can now be run, since PR #28 exists.",
-      "PR scope is FROZEN at creation; title/body edits are denied, later facts go in a comment (0142). pr-create rejected angle brackets in a --what value as an HTML tag opener - reword, never force.",
-      "NEVER invoke the compiled workflow. compileWorkflow returns a frozen async callable that would dispatch REAL agents. mitosis.js is read and edited as TEXT only.",
-      "Runner is `npm test` (package.json:7), ~7s; `node --test <dir>` fails MODULE_NOT_FOUND, `node --test <file>` works. .githooks/pre-commit runs the full suite on every commit but NOT on cherry-pick.",
-      "A red result from a hand-rolled shell one-liner is suspect BEFORE the code is - re-run it in node. This produced false byte-identity failures in BOTH the verify and re-verify phases this session.",
-      "Landing stays SERIAL for mitosis.js and the mirror census; a policed-twin edit lands in BOTH copies in one commit. The fix round broke this once editing fatalReport (an outcome.mjs twin); the guard caught it. Parallelize investigation, never landing.",
-      "ORCHESTRATION: cut the branch in the main thread BEFORE dispatching; never pair a branch-switching agent with one reading the working tree. Writes under .claude/{hooks,rules,lib,workflows} need per-write human approval.",
-      "Five pre-existing dirty paths persist (.claude/settings.json, .zshrc, two .bak files, .claude/skills/context7-mcp/) - stage explicit paths only, NEVER git add -A. 17 worktree entries remain live; the reaper verb still does not exist.",
-      "Spec/plan line anchors remain stale wholesale (0148 rejected a standalone rewrite). Spec 3.5's identifier and clause text are now correct via the amendment, but its line anchors and the m2-mirror-gaps plan's are not re-baselined."
+      "A5's characterization test is still owed before M5 (0162). A3's half of that debt is discharged by PR #29.",
+      "M3 twin hazard (0180): the gate predicates' only unit tests import the LIB copy (reconcile.mjs:76/:80), not the workflow copy M3 deletes, so reconcile.test.mjs:102-131 would stay green against an orphan. dead-export-lint misses it - tests count nowhere as callers.",
+      "Production defect on the M3-deleted path (0181), unfixed by design: a shepherd returning {opened:false} with no detail rejects the WHOLE run via clean(undefined) at mitosis.js:34, from :3428 and :3389. Shepherd-failure fixtures must supply detail.",
+      "M4 stays THREATENED by 174a0dc: three behavior changes plus the structural publishedSpecPath share one commit range and three characterization tests were rewritten in it - after-the-fact evidence, not characterization.",
+      "A reconcile-only relaunch returns before the publish stage so it does NOT retry a lost publish; a full advance does. Named in SKILL.md and the spec amendment.",
+      "computeLogicalRunId still hashes only spec path + baseBranch (0176), so a superseded manifest ref is never reaped. Accepted, not silently carried.",
+      "published.sourcePrefix is logged on disagreement but does not WIN (0179). A relaunch under a different prefix can re-ship shipped work.",
+      "Seven of A3's twenty-two assertions are corroborating but unfalsified by the mutation matrix - node:assert is fail-fast, so an earlier assertion always fails first. The receipt says so rather than overstating.",
+      "PR scope is FROZEN at creation; title/body edits are denied, later facts go in a comment (0142). pr-create rejects angle brackets in a --what value - reword, never force.",
+      "NEVER invoke the compiled workflow. To exercise the engine from a test use the AsyncFunction harness with a stub agent (frontier-train-e2e.test.mjs:26-29); MITOSIS_PATH swaps in a mutated scratch copy for inertness proofs.",
+      "A red result from a hand-rolled shell one-liner is suspect BEFORE the code is - re-run it in node.",
+      "Landing stays SERIAL for mitosis.js and the mirror census; a policed-twin edit lands in BOTH copies in one commit. Parallelize investigation, never landing.",
+      "ORCHESTRATION: cut the branch in the main thread BEFORE dispatching; never pair a branch-switching agent with one reading the working tree. Writes under .claude/{hooks,rules,lib,workflows} need per-write approval.",
+      "Five pre-existing dirty paths persist (.claude/settings.json, .zshrc, two .bak files, .claude/skills/context7-mcp/) - stage explicit paths only, NEVER git add -A. 17 worktree entries remain live; no reaper verb.",
+      "Spec/plan line anchors remain stale wholesale (0148 rejected a standalone rewrite). Re-baseline by execution per MSP.",
+      "Standing method rule, four instances deep (0159, 0163, 0181, A3's harness fixture claim): verify a confident agent finding against the mechanism before acting. Two of A3's own plan mutation rows were measured false."
     ],
     "key_decisions": [
       "0136-defer-track-a-until-mitosis-msps-land",
@@ -122,5 +124,5 @@
     ]
   },
   "created_at": "2026-07-29T23:40:17.901Z",
-  "updated_at": "2026-08-01T05:40:17.582Z"
+  "updated_at": "2026-08-01T05:42:06.245Z"
 }
