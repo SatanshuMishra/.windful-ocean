@@ -109,7 +109,8 @@
       "0189-a5-narrows-to-three-untwinned-targets-proven-unpinned-by-mutation",
       "0190-a5-withdraws-g3-on-measurement-and-ships-four-of-five-gaps",
       "0191-m5-halts-pre-ship-and-two-of-four-blockers-were-manufactured-by-the-harness",
-      "0192-the-termination-remedy-is-audited-before-it-is-implemented"
+      "0192-the-termination-remedy-is-audited-before-it-is-implemented",
+      "0193-the-in-process-window-accessor-bound-wins-and-neither-route-reddens-the-full-suite"
     ],
     "out_of_scope": [
       "Any change at mitosis.js:4058-4061. H-C is REFUTED by 0159, not deferred - the done-union is correct and narrowing it is a liveness regression. Re-opening needs new evidence of an unconfirmed-ship producer.",
@@ -132,5 +133,5 @@
     ]
   },
   "created_at": "2026-07-29T23:40:17.901Z",
-  "updated_at": "2026-08-02T01:27:31.951Z"
+  "updated_at": "2026-08-02T02:49:30.132Z"
 }
