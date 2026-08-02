@@ -118,7 +118,8 @@
       "0199-stacked-pr-probe",
       "0200-the-divergence-counter-reads-the-oracles-output-not-its-rule",
       "0201-m4-remediation-is-audit-first-and-the-1839-baseline-is-environment-local",
-      "0202-ledger-session-entries-and-decisions-are-git-read-only"
+      "0202-ledger-session-entries-and-decisions-are-git-read-only",
+      "0203-buildaheadcap-is-bounded-narrow-only-and-halts-on-invalid"
     ],
     "out_of_scope": [
       "Any change at mitosis.js:4058-4061. H-C is REFUTED by 0159, not deferred - the done-union is correct and narrowing it is a liveness regression. Re-opening needs new evidence of an unconfirmed-ship producer.",
@@ -142,5 +143,5 @@
     ]
   },
   "created_at": "2026-07-29T23:40:17.901Z",
-  "updated_at": "2026-08-02T07:14:56.430Z"
+  "updated_at": "2026-08-02T07:32:04.350Z"
 }
