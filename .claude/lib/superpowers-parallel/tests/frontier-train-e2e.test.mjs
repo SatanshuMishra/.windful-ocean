@@ -245,6 +245,27 @@ function withHonestProbedRef(merged, source) {
   };
 }
 
+function divergenceTargetsFromPrompt(prompt) {
+  const line = typeof prompt === 'string' ? prompt.split('\n').find((l) => l.startsWith('TARGETS: ')) : null;
+  if (!line) return [];
+  try {
+    const parsed = JSON.parse(line.slice('TARGETS: '.length));
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
+
+function divergenceCheckResponse(prompt, probeResult) {
+  return {
+    results: divergenceTargetsFromPrompt(prompt).map((target) => {
+      const probe = probeResult ? probeResult(target.parentId) : { paths: [], error: null };
+      return { parentId: target.parentId, changedPaths: probe.paths, error: probe.error };
+    }),
+    error: null,
+  };
+}
+
 function shepherdAgent({ reconcileResult, shipResult, mergeWatch, probeResult } = {}) {
   const labels = [];
   const prompts = new Map();
@@ -270,10 +291,7 @@ function shepherdAgent({ reconcileResult, shipResult, mergeWatch, probeResult } 
         detail: 'fixture: published the run-identity manifest and read it back verbatim',
       };
     }
-    if (prefix === 'divergence-probe') {
-      const id = label.slice('divergence-probe:'.length);
-      return probeResult ? probeResult(id) : { paths: [], error: null };
-    }
+    if (prefix === 'divergence-check') return divergenceCheckResponse(prompt, probeResult);
     if (prefix === 'prepare-probe') return { baseRefResolved: true, baseRefDetail: null, receiptsConfigFound: true, receiptsConfigRaw: '{"gates":{"G10":{"mode":"warn"}}}', receiptsYmlFound: true, d6CheckFound: true, templateConfigRaw: null, templateYmlRaw: null };
     if (prefix === 'prepare-write') return { written: [], skipped: [], detail: '' };
     if (prefix === 'restore') return { restored: true, sha: '', detail: '' };
@@ -354,7 +372,7 @@ function multiRelaunchAgent({ reconcileResult, shipResult, manifestPublish } = {
     const label = opts.label || '';
     labels.push(label);
     const prefix = label.split(':')[0];
-    if (prefix === 'reconcile' || prefix === 'divergence-probe') {
+    if (prefix === 'reconcile' || prefix === 'divergence-check') {
       return shepherd.agent(prompt, opts);
     }
     return frontier(prompt, opts);
@@ -372,7 +390,7 @@ function multiRelaunchCapturingAgent({ reconcileResult, probeResult, shipResult 
     labels.push(label);
     if (!prompts.has(label)) prompts.set(label, prompt);
     const prefix = label.split(':')[0];
-    if (prefix === 'reconcile' || prefix === 'divergence-probe') {
+    if (prefix === 'reconcile' || prefix === 'divergence-check') {
       return shepherd.agent(prompt, opts);
     }
     return frontier(prompt, opts);
@@ -687,15 +705,16 @@ test('security fix 1: a merged parent whose builtSha or mergedSha is a leading-d
   const { resultPromise } = invoke(runOn, buildInput(), agent);
   await resultPromise;
 
-  assert.ok(!labels.includes('divergence-probe:pa'), 'pa (mergedSha is a leading-dash token) is never dispatched a probe');
-  assert.ok(!labels.includes('divergence-probe:pb'), 'pb (builtSha is a leading-dash token) is never dispatched a probe');
+  const checked = divergenceTargetsFromPrompt(prompts.get('divergence-check')).map((t) => t.parentId);
+  assert.ok(!checked.includes('pa'), 'pa (mergedSha is a leading-dash token) is never enumerated as a divergence-check target');
+  assert.ok(!checked.includes('pb'), 'pb (builtSha is a leading-dash token) is never enumerated as a divergence-check target');
   for (const prompt of prompts.values()) {
-    assert.ok(!prompt.includes('--output=/tmp/pwn'), 'the raw --output=/tmp/pwn token never reaches a dispatched git probe command');
-    assert.ok(!prompt.includes('--flagpwn'), 'the raw --flagpwn token never reaches a dispatched git probe command');
+    assert.ok(!prompt.includes('--output=/tmp/pwn'), 'the raw --output=/tmp/pwn token never reaches a dispatched git command');
+    assert.ok(!prompt.includes('--flagpwn'), 'the raw --flagpwn token never reaches a dispatched git command');
   }
-  assert.ok(labels.includes('park-checkpoint:ca') && labels.includes('park-checkpoint:cb'), 'both descendants of the bad-SHA parents fail-closed to a durable reset+park (the fail-closed indeterminate verdict invalidates their build)');
-  assert.ok(labels.includes('divergence-probe:pc'), 'the well-formed parent pc IS probed');
-  assert.match(prompts.get('divergence-probe:pc'), /diff --name-only --end-of-options /, 'the emitted probe inserts --end-of-options before the two revisions');
+  assert.ok(labels.includes('park-checkpoint:ca') && labels.includes('park-checkpoint:cb'), 'both descendants of the bad-SHA parents fail-closed to a durable reset+park (the fail-closed diverged fold invalidates their build)');
+  assert.deepEqual(checked, ['pc'], 'the well-formed parent pc IS checked, and it is the only target');
+  assert.match(prompts.get('divergence-check'), /diff --name-only --end-of-options /, 'the emitted check inserts --end-of-options before the two revisions');
 });
 
 test('security fix 2: a merged parent whose fileScope carries a pathspec-magic entry emits NO trusting clean probe and fail-closes to a PARK of its built descendants', async () => {
@@ -715,11 +734,11 @@ test('security fix 2: a merged parent whose fileScope carries a pathspec-magic e
   const { resultPromise } = invoke(runOn, buildInput(), agent);
   await resultPromise;
 
-  assert.ok(!labels.includes('divergence-probe:pm'), 'no probe is dispatched for a pathspec-magic fileScope parent');
+  assert.ok(!labels.includes('divergence-check'), 'no target survives the pathspec-magic pre-check, so the scope never reaches a dispatched git diff at all');
   assert.ok(labels.includes('park-checkpoint:cm'), 'the built descendant fail-closed to a durable reset+park instead of a trusting clean');
 });
 
-test('robustness fix 4: a top-level throw from the divergence-probe dispatch degrades gracefully — the need-keyed parent parks its built descendant and the relaunch does NOT reject', async () => {
+test('robustness fix 4: a non-Error throw from the divergence-check dispatch degrades gracefully — the need-keyed parent parks its built descendant and the relaunch does NOT reject', async () => {
   const msps = [
     manifestMsp('px', { status: 'shipped', builtSha: 'a'.repeat(40), prUrl: 'https://example.test/pr/px', mergedAt: '2026-07-10T00:00:00Z' }),
     manifestMsp('cx', { status: 'built', builtSha: hexSha('cx'), dependsOn: ['px'] }),
@@ -734,11 +753,11 @@ test('robustness fix 4: a top-level throw from the divergence-probe dispatch deg
   };
   const probeResult = () => { throw { nonError: true }; };
   const { agent, labels } = multiRelaunchCapturingAgent({ reconcileResult, probeResult });
-  const { resultPromise, logLines } = invoke(runOn, buildInput(), agent);
+  const { resultPromise } = invoke(runOn, buildInput(), agent);
   await resultPromise;
 
-  assert.ok(labels.includes('park-checkpoint:cx'), 'the need-keyed parent fail-closes to a durable reset+park of its built descendant when the probe dispatch throws at the top level');
-  assert.ok(logLines.some((l) => /divergence-probe dispatch threw/.test(l)), 'the top-level backstop logs the degraded probe dispatch and continues the run');
+  assert.ok(labels.includes('divergence-check'), 'the dispatch is attempted');
+  assert.ok(labels.includes('park-checkpoint:cx'), 'the need-keyed parent fail-closes to a durable reset+park of its built descendant when the check dispatch throws a value carrying no message');
 });
 
 function spoofFixture(craftedRow) {

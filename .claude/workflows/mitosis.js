@@ -1677,12 +1677,24 @@ const RECONCILE_SCHEMA = {
   },
 };
 
-const DIVERGENCE_PROBE_SCHEMA = {
+const DIVERGENCE_CHECK_SCHEMA = {
   type: 'object',
-  required: ['paths'],
+  required: ['results'],
   additionalProperties: false,
   properties: {
-    paths: { type: ['array', 'null'], items: { type: 'string' } },
+    results: {
+      type: 'array',
+      items: {
+        type: 'object',
+        required: ['parentId', 'changedPaths'],
+        additionalProperties: false,
+        properties: {
+          parentId: { type: 'string' },
+          changedPaths: { type: ['array', 'null'], items: { type: 'string' } },
+          error: { type: ['string', 'null'] },
+        },
+      },
+    },
     error: { type: ['string', 'null'] },
   },
 };
@@ -2449,11 +2461,6 @@ function transitiveDependents(msps, unitId) {
   return msps.map((msp) => msp.id).filter((id) => id !== unitId && blocked.has(id));
 }
 
-function descendantsToInvalidate(manifest, parentId, { verdict }) {
-  if (verdict === 'clean') return [];
-  return transitiveDependents(manifest.msps, parentId);
-}
-
 function park(manifest, { unitId, stage, diagnosis, request, remediation, resumePoint, triedSet }) {
   if (!manifest || typeof manifest !== 'object' || !Array.isArray(manifest.msps)) {
     throw new Error('park: manifest must be an object with an msps array');
@@ -2940,32 +2947,6 @@ function mergePaginated(pages) {
   return out;
 }
 
-function assembleDivergenceVerdicts(manifest, live = {}) {
-  const verdicts = {};
-  if (!manifest || typeof manifest !== 'object' || Array.isArray(manifest) || !Array.isArray(manifest.msps)) return verdicts;
-  const liveObj = live && typeof live === 'object' && !Array.isArray(live) ? live : {};
-  const msps = manifest.msps;
-  const mergedLive = uniqStrings(liveObj.merged);
-  const mergedShas = liveObj.mergedShas && typeof liveObj.mergedShas === 'object' && !Array.isArray(liveObj.mergedShas) ? liveObj.mergedShas : {};
-  const probes = liveObj.divergenceProbes && typeof liveObj.divergenceProbes === 'object' && !Array.isArray(liveObj.divergenceProbes) ? liveObj.divergenceProbes : {};
-  const byId = new Map(msps.filter((m) => m && typeof m.id === 'string').map((m) => [m.id, m]));
-  for (const parentId of mergedLive) {
-    const gatesBuilt = transitiveDependents(msps, parentId).some((d) => { const m = byId.get(d); return Boolean(m) && m.status === 'built'; });
-    if (!gatesBuilt) continue;
-    const parent = byId.get(parentId);
-    const builtSha = parent && typeof parent.builtSha === 'string' && parent.builtSha.length > 0 ? parent.builtSha : null;
-    const mergedSha = typeof mergedShas[parentId] === 'string' && mergedShas[parentId].length > 0 ? mergedShas[parentId] : null;
-    const fileScope = parent && Array.isArray(parent.fileScope) ? parent.fileScope.filter((f) => typeof f === 'string' && f.length > 0) : [];
-    if (builtSha === null || mergedSha === null || fileScope.length === 0) { verdicts[parentId] = 'missing'; continue; }
-    const probe = probes[parentId];
-    if (!probe || typeof probe !== 'object' || Array.isArray(probe)) { verdicts[parentId] = 'indeterminate'; continue; }
-    if (probe.error !== undefined && probe.error !== null && probe.error !== '') { verdicts[parentId] = 'indeterminate'; continue; }
-    if (!Array.isArray(probe.paths)) { verdicts[parentId] = 'indeterminate'; continue; }
-    verdicts[parentId] = probe.paths.length > 0 ? 'divergent' : 'clean';
-  }
-  return verdicts;
-}
-
 function planReconcile(manifest, live = {}) {
   const liveObj = live && typeof live === 'object' && !Array.isArray(live) ? live : {};
   const empty = { toRestack: [], toOpen: [], toParkSubtree: [], buildRunNeeded: false, invalidatingParents: 0 };
@@ -2975,11 +2956,11 @@ function planReconcile(manifest, live = {}) {
   const publishedLive = new Set(uniqStrings(liveObj.published));
   const shippedIds = msps.filter((m) => m && typeof m.id === 'string' && m.status === 'shipped').map((m) => m.id);
   const doneSet = new Set([...shippedIds, ...mergedLive]);
-  const verdicts = assembleDivergenceVerdicts(manifest, liveObj);
+  const divergedLive = uniqStrings(liveObj.divergedParents);
   const parkSet = new Set();
   let invalidatingParents = 0;
-  for (const parentId of Object.keys(verdicts)) {
-    const invalidated = descendantsToInvalidate(manifest, parentId, { verdict: verdicts[parentId] });
+  for (const parentId of divergedLive) {
+    const invalidated = transitiveDependents(msps, parentId);
     if (invalidated.length > 0) invalidatingParents += 1;
     for (const dep of invalidated) {
       if (doneSet.has(dep)) continue;
@@ -3098,62 +3079,84 @@ function buildReconcileLiveSignals(recon, reconciledShipped, sourcePrefix, class
   return { merged: [...reconciledShipped], mergedShas, published };
 }
 
-function divergenceProbePrompt(parentId, ref, builtSha, mergedSha, fileScope) {
+function divergenceCheckPrompt(targets) {
   return (
-    `You are the reconcile-only shepherd DIVERGENCE-PROBE stage for merged parent MSP "${parentId}" of a mitosis run. You have NO Skill tool.\n\n` +
-    `This stage is STRICTLY READ-ONLY: it inspects git to decide whether this parent's MERGED content diverged from the built tip its children were composed on. It makes NO commits, opens NO PRs, and mutates NO files whatsoever. Operate against the main repo at ${repoRoot}; do NOT check out any branch and do NOT enter any worktree.\n` +
+    `You are the reconcile-only shepherd DIVERGENCE-CHECK stage of a mitosis run, evaluating ${targets.length} merged parent MSP(s) in ONE pass. You have NO Skill tool.\n\n` +
+    `This stage is STRICTLY READ-ONLY: it inspects git to decide, for EACH listed parent, whether that parent's MERGED content diverged from the built tip its children were composed on. It makes NO commits, opens NO PRs, and mutates NO files whatsoever. Operate against the main repo at ${repoRoot}; do NOT check out any branch and do NOT enter any worktree.\n` +
     `SECURITY: pass every ref and path as an INERT argv element to execFile-style invocations; NEVER build a command by shell-interpolating a ref or path into a string.\n\n` +
-    `1. Fetch both endpoints so the shas resolve locally: \`git -C ${repoRoot} fetch origin ${baseBranch}\`, then fetch this parent's durable checkpoint ref \`git -C ${repoRoot} fetch origin ${JSON.stringify(ref)}\` (the ref is a single inert argv token).\n` +
-    `2. Compute the SCOPED content divergence between the tip the children built on and the merged commit, restricted to this parent's own file scope: \`git -C ${repoRoot} diff --name-only --end-of-options ${JSON.stringify(builtSha)} ${JSON.stringify(mergedSha)} -- ${fileScope.map((p) => JSON.stringify(p)).join(' ')}\` (the two shas and every path are separate INERT argv tokens; the two shas sit after --end-of-options so a leading-dash value can never be read as a flag).\n` +
-    `3. Return the changed paths verbatim as paths (an array of the file paths git printed, one per line; an EMPTY array means the squash preserved content within this parent's scope and its children's build is still valid). If either sha or the ref cannot be resolved, or the diff cannot be computed, set paths=null and put the reason in error — the shepherd treats an unresolved probe as divergent and fails closed.\n\n` +
-    `Return ONLY: { paths: [ "<changed path>" ] | null, error: "<reason if the probe could not run, else null>" }.`
+    `TARGETS: ${JSON.stringify(targets)}\n\n` +
+    `1. Fetch the base branch once so the merged commits resolve locally: \`git -C ${repoRoot} fetch origin ${baseBranch}\`.\n` +
+    `2. For EACH target, fetch that target's durable checkpoint ref: \`git -C ${repoRoot} fetch origin <that target's ref>\` (the ref is a single inert argv token).\n` +
+    `3. For EACH target, compute the SCOPED content divergence between the tip its children built on and the merged commit, restricted to that target's own file scope: \`git -C ${repoRoot} diff --name-only --end-of-options <that target's builtSha> <that target's mergedSha> -- <that target's fileScope paths>\` (the two shas and every path are separate INERT argv tokens; the two shas sit after --end-of-options so a leading-dash value can never be read as a flag).\n` +
+    `4. Report EXACTLY ONE results entry for EVERY listed target, keyed by its parentId, carrying the changed paths verbatim as changedPaths (an array of the file paths git printed, one per line; an EMPTY array means the squash preserved content within that parent's scope and its children's build is still valid). If either sha or the ref cannot be resolved for a target, or its diff cannot be computed, set that target's changedPaths=null and put the reason in that target's error. A target you omit, or name more than once, is treated as DIVERGED and fails closed — so never drop a target and never repeat one. If the whole check could not run, set the top-level error and every target fails closed.\n\n` +
+    `Return ONLY: { results: [ { parentId: "<target parentId>", changedPaths: [ "<changed path>" ] | null, error: "<reason this target could not be checked, else null>" } ], error: "<reason the whole check could not run, else null>" }.`
   );
 }
 
 const SHA_HEX_PATTERN = /^[0-9a-f]{7,64}$/i;
 
-async function runDivergenceProbes(manifest, mergedIds, mergedShas, ctx) {
-  const { agent, clean, logicalRunId, divergenceProbePrompt, DIVERGENCE_PROBE_SCHEMA } = ctx;
-  const probes = {};
-  const msps = manifest && Array.isArray(manifest.msps) ? manifest.msps : [];
+function needKeyedParents(manifest, mergedIds) {
+  const msps = manifest && typeof manifest === 'object' && !Array.isArray(manifest) && Array.isArray(manifest.msps) ? manifest.msps : [];
   const byId = new Map(msps.filter((m) => m && typeof m.id === 'string').map((m) => [m.id, m]));
-  const shas = mergedShas && typeof mergedShas === 'object' && !Array.isArray(mergedShas) ? mergedShas : {};
+  const keyed = [];
+  const seen = new Set();
   for (const parentId of Array.isArray(mergedIds) ? mergedIds : []) {
-    const parent = byId.get(parentId);
-    if (!parent) continue;
+    if (typeof parentId !== 'string' || parentId.length === 0 || seen.has(parentId)) continue;
+    seen.add(parentId);
     const gatesBuilt = transitiveDependents(msps, parentId).some((d) => { const m = byId.get(d); return Boolean(m) && m.status === 'built'; });
     if (!gatesBuilt) continue;
-    const builtSha = typeof parent.builtSha === 'string' && SHA_HEX_PATTERN.test(parent.builtSha) ? parent.builtSha : null;
+    keyed.push(parentId);
+  }
+  return keyed;
+}
+
+async function divergedParents(manifest, mergedIds, mergedShas, ctx) {
+  const { agent, logicalRunId, divergenceCheckPrompt, DIVERGENCE_CHECK_SCHEMA } = ctx && typeof ctx === 'object' ? ctx : {};
+  const msps = manifest && typeof manifest === 'object' && !Array.isArray(manifest) && Array.isArray(manifest.msps) ? manifest.msps : [];
+  const byId = new Map(msps.filter((m) => m && typeof m.id === 'string').map((m) => [m.id, m]));
+  const shas = mergedShas && typeof mergedShas === 'object' && !Array.isArray(mergedShas) ? mergedShas : {};
+  const keyed = needKeyedParents(manifest, mergedIds);
+  const diverged = new Set();
+  const targets = [];
+  for (const parentId of keyed) {
+    const parent = byId.get(parentId);
+    const builtSha = parent && typeof parent.builtSha === 'string' && SHA_HEX_PATTERN.test(parent.builtSha) ? parent.builtSha : null;
     const mergedSha = typeof shas[parentId] === 'string' && SHA_HEX_PATTERN.test(shas[parentId]) ? shas[parentId] : null;
-    const fileScope = Array.isArray(parent.fileScope) ? parent.fileScope.filter((p) => typeof p === 'string' && p.length > 0) : [];
+    const fileScope = parent && Array.isArray(parent.fileScope) ? parent.fileScope.filter((p) => typeof p === 'string' && p.length > 0) : [];
     const fileScopeSafe = fileScope.length > 0 && fileScope.every((p) => !p.startsWith(':'));
-    if (builtSha === null || mergedSha === null || !fileScopeSafe) continue;
+    if (builtSha === null || mergedSha === null || !fileScopeSafe) { diverged.add(parentId); continue; }
     let ref;
     try {
       ref = checkpointRef(logicalRunId, parentId);
-    } catch (err) {
-      probes[parentId] = { paths: null, error: `cannot compose a safe probe ref for ${clean(parentId)}: ${clean(err.message)}` };
+    } catch {
+      diverged.add(parentId);
       continue;
     }
-    let probe;
-    try {
-      probe = await agent(
-        divergenceProbePrompt(parentId, ref, builtSha, mergedSha, fileScope),
-        { agentType: 'implementer', schema: DIVERGENCE_PROBE_SCHEMA, label: `divergence-probe:${parentId}`, phase: 'Resume' }
-      );
-    } catch (err) {
-      probe = { paths: null, error: `divergence-probe threw: ${clean(err.message)}` };
-    }
-    if (!probe || typeof probe !== 'object' || Array.isArray(probe)) {
-      probes[parentId] = { paths: null, error: 'divergence-probe returned a non-object (blocked or dropped) — treated as divergent' };
-      continue;
-    }
-    probes[parentId] = {
-      paths: Array.isArray(probe.paths) ? probe.paths : null,
-      error: (typeof probe.error === 'string' && probe.error.length > 0) ? probe.error : (Array.isArray(probe.paths) ? null : 'divergence-probe returned no resolvable paths'),
-    };
+    targets.push({ parentId, ref, builtSha, mergedSha, fileScope });
   }
-  return probes;
+  if (targets.length > 0) {
+    let response;
+    try {
+      response = await agent(
+        divergenceCheckPrompt(targets),
+        { agentType: 'implementer', schema: DIVERGENCE_CHECK_SCHEMA, label: 'divergence-check', phase: 'Resume' }
+      );
+    } catch {
+      response = null;
+    }
+    const envelope = response && typeof response === 'object' && !Array.isArray(response) ? response : null;
+    const results = envelope && Array.isArray(envelope.results) ? envelope.results : null;
+    const batchFailed = results === null || (typeof envelope.error === 'string' && envelope.error.length > 0);
+    for (const target of targets) {
+      if (batchFailed) { diverged.add(target.parentId); continue; }
+      const matches = results.filter((e) => e && typeof e === 'object' && !Array.isArray(e) && e.parentId === target.parentId);
+      if (matches.length !== 1) { diverged.add(target.parentId); continue; }
+      const entry = matches[0];
+      if (typeof entry.error === 'string' && entry.error.length > 0) { diverged.add(target.parentId); continue; }
+      if (!Array.isArray(entry.changedPaths) || entry.changedPaths.length > 0) diverged.add(target.parentId);
+    }
+  }
+  return keyed.filter((id) => diverged.has(id));
 }
 
 function computeParkedStatus({ shipped, parked, halted, crashed, awaitingApproval, total }) {
@@ -3917,14 +3920,8 @@ const runOpenPRs = classifyRunOpenPRs(reusable && recon ? recon.openPRs : [], {
 let relaunchAdvance = null;
 if (isRelaunch && reusable && builtUnits.length > 0) {
   const baseLiveSignals = buildReconcileLiveSignals(recon, reconciledShipped, sourcePrefix, runOpenPRs);
-  let divergenceProbes;
-  try {
-    divergenceProbes = await runDivergenceProbes(reconciledManifest, baseLiveSignals.merged, baseLiveSignals.mergedShas, { agent, clean, logicalRunId, divergenceProbePrompt, DIVERGENCE_PROBE_SCHEMA });
-  } catch (err) {
-    divergenceProbes = {};
-    log(`mitosis: reconcile — divergence-probe dispatch threw (${clean(err.message)}); treating every need-keyed merged parent as indeterminate so its built descendants park, and continuing the run`);
-  }
-  const liveSignals = { ...baseLiveSignals, divergenceProbes };
+  const diverged = await divergedParents(reconciledManifest, baseLiveSignals.merged, baseLiveSignals.mergedShas, { agent, logicalRunId, divergenceCheckPrompt, DIVERGENCE_CHECK_SCHEMA });
+  const liveSignals = { ...baseLiveSignals, divergedParents: diverged };
   const advance = planReconcile(reconciledManifest, liveSignals);
   relaunchAdvance = advance;
   for (const id of advance.toParkSubtree) {
@@ -3967,7 +3964,7 @@ if (isRelaunch && reusable && builtUnits.length > 0) {
     };
   }
   log(`mitosis: reconcile — merge-frontier advance: ${advance.toOpen.length} PR(s) to open (${advance.toOpen.join(', ') || 'none'}), ${advance.toRestack.length} built branch(es) to restack (${advance.toRestack.join(', ') || 'none'}), ${advance.toParkSubtree.length} unit(s) reset on divergent-invalidation (${advance.toParkSubtree.join(', ') || 'none'})${advance.buildRunNeeded ? ' — BUILD RUN NEEDED' : ''}`);
-  log(`mitosis: reconcile — per-run divergence count: ${advance.invalidatingParents} merged parent(s) fired subtree invalidation this run (counts EVERY non-clean verdict, since divergent, missing and indeterminate all invalidate)`);
+  log(`mitosis: reconcile — per-run divergence count: ${advance.invalidatingParents} merged parent(s) fired subtree invalidation this run (counts every merged parent that gates built work and could NOT be confirmed content-preserving, since the check has two states and every cannot-tell folds to diverged)`);
 }
 const resumeMap = new Map();
 if (reusable) {

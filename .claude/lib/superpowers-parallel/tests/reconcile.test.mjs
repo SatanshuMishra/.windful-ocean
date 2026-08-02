@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { computeRemaining, reconcileBuiltSet, reconcileBuiltShas, mergePaginated, planReconcile, assembleDivergenceVerdicts } from '../reconcile.mjs';
+import { computeRemaining, reconcileBuiltSet, reconcileBuiltShas, mergePaginated, planReconcile } from '../reconcile.mjs';
 import { publishedManifestRef } from '../checkpoint.mjs';
 
 test('computeRemaining: remaining = planned - (merged U built U parked), keyed by unitId', () => {
@@ -130,8 +130,8 @@ function divergenceManifest(rootOverrides = {}) {
   ] };
 }
 
-test('planReconcile: a divergent probe (non-empty changed paths in the parent scope) parks exactly the true descendant subtree and flags a build run — it NEVER rebuilds', () => {
-  const plan = planReconcile(divergenceManifest(), { merged: ['root'], mergedShas: { root: 'r-merged' }, divergenceProbes: { root: { paths: ['scope/root/reviewer-amended.txt'], error: null } } });
+test('planReconcile: a diverged parent parks exactly the true descendant subtree and flags a build run — it NEVER rebuilds', () => {
+  const plan = planReconcile(divergenceManifest(), { merged: ['root'], mergedShas: { root: 'r-merged' }, divergedParents: ['root'] });
   assert.deepEqual([...plan.toParkSubtree].sort(), ['a', 'b']);
   assert.equal(plan.buildRunNeeded, true);
   assert.equal(plan.invalidatingParents, 1, 'the one keyed parent whose invalidation fired is counted once');
@@ -140,7 +140,7 @@ test('planReconcile: a divergent probe (non-empty changed paths in the parent sc
   assert.ok(!('toBuild' in plan) && !('toRebuild' in plan), 'reconcile-only emits no rebuild directive');
 });
 
-test('planReconcile: a divergent parent NEVER re-parks an already-done descendant — only the still-built part of the subtree is invalidated', () => {
+test('planReconcile: a diverged parent NEVER re-parks an already-done descendant — only the still-built part of the subtree is invalidated', () => {
   const manifest = { window: 3, msps: [
     { id: 'p', status: 'shipped', dependsOn: [], builtSha: 'p-built', fileScope: ['scope/p/**'] },
     { id: 'c1', status: 'shipped', dependsOn: ['p'], builtSha: 'c1-built' },
@@ -149,57 +149,35 @@ test('planReconcile: a divergent parent NEVER re-parks an already-done descendan
   const plan = planReconcile(manifest, {
     merged: ['p'],
     mergedShas: { p: 'p-merged' },
-    divergenceProbes: { p: { paths: ['scope/p/reviewer-amended.txt'], error: null } },
+    divergedParents: ['p'],
   });
   assert.deepEqual(plan.toParkSubtree, ['c2'], 'c1 already MERGED to the base — condemning and rebuilding it would re-ship merged content; only the still-built c2 is invalidated');
   assert.equal(plan.buildRunNeeded, true, 'a non-empty park subtree still flags the follow-up build run');
   assert.equal(plan.invalidatingParents, 1, 'the parent fired once — the count tracks parents whose invalidation fired, never the units that survived the already-done filter');
 });
 
-test('planReconcile: a clean probe (no changed paths in the parent scope) invalidates nothing even when the raw merge SHA differs from the built tip, and lets the next layer open', () => {
-  const plan = planReconcile(divergenceManifest(), { merged: ['root'], mergedShas: { root: 'r-squash-rewritten' }, divergenceProbes: { root: { paths: [], error: null } } });
+test('planReconcile: a parent the oracle did NOT diverge invalidates nothing even when the raw merge SHA differs from the built tip, and lets the next layer open', () => {
+  const plan = planReconcile(divergenceManifest(), { merged: ['root'], mergedShas: { root: 'r-squash-rewritten' }, divergedParents: [] });
   assert.deepEqual(plan.toParkSubtree, []);
   assert.equal(plan.buildRunNeeded, false);
-  assert.equal(plan.invalidatingParents, 0, 'the parent is keyed and probed, but the oracle returned an empty set, so it is not counted');
+  assert.equal(plan.invalidatingParents, 0, 'the parent was confirmed content-preserving, so it is not counted');
   assert.deepEqual(plan.toOpen, ['a']);
 });
 
-test('planReconcile: fail-closed matrix — a merged parent gating a built subtree parks that subtree whenever the divergence oracle is anything but a clean probe (missing sha / missing scope / missing verdict / probe failure)', () => {
-  const cases = [
-    { label: 'absent parent builtSha', root: { builtSha: undefined }, live: { mergedShas: { root: 'r-merged' }, divergenceProbes: { root: { paths: [], error: null } } } },
-    { label: 'empty parent builtSha', root: { builtSha: '' }, live: { mergedShas: { root: 'r-merged' }, divergenceProbes: { root: { paths: [], error: null } } } },
-    { label: 'missing parent fileScope', root: { fileScope: [] }, live: { mergedShas: { root: 'r-merged' }, divergenceProbes: { root: { paths: [], error: null } } } },
-    { label: 'unknown merged sha (absent from mergedShas)', root: {}, live: { mergedShas: {}, divergenceProbes: { root: { paths: [], error: null } } } },
-    { label: 'null merged sha', root: {}, live: { mergedShas: { root: null }, divergenceProbes: { root: { paths: [], error: null } } } },
-    { label: 'empty merged sha', root: {}, live: { mergedShas: { root: '' }, divergenceProbes: { root: { paths: [], error: null } } } },
-    { label: 'missing verdict (no probe supplied)', root: {}, live: { mergedShas: { root: 'r-merged' } } },
-    { label: 'probe failure (paths null + error)', root: {}, live: { mergedShas: { root: 'r-merged' }, divergenceProbes: { root: { paths: null, error: 'ref unresolved' } } } },
-    { label: 'probe non-object', root: {}, live: { mergedShas: { root: 'r-merged' }, divergenceProbes: { root: 'garbage' } } },
-  ];
-  for (const c of cases) {
-    const plan = planReconcile(divergenceManifest(c.root), { merged: ['root'], ...c.live });
-    assert.deepEqual([...plan.toParkSubtree].sort(), ['a', 'b'], `${c.label}: parks the whole built subtree`);
-    assert.equal(plan.buildRunNeeded, true, `${c.label}: flags a build run`);
-    assert.equal(plan.invalidatingParents, 1, `${c.label}: counts the parent whose invalidation fired`);
-    assert.deepEqual(plan.toOpen, [], `${c.label}: opens nothing`);
-    assert.deepEqual(plan.toRestack, [], `${c.label}: restacks nothing`);
-  }
-});
+test('planReconcile: it holds NO divergence logic of its own — it invalidates exactly the parents the oracle handed it, and nothing when handed none', () => {
+  const noneSupplied = planReconcile(divergenceManifest(), { merged: ['root'], mergedShas: { root: 'r-merged' } });
+  assert.deepEqual(noneSupplied.toParkSubtree, [], 'with no divergedParents key there is no second fold point that could re-derive a verdict');
+  assert.equal(noneSupplied.invalidatingParents, 0);
+  assert.deepEqual(noneSupplied.toOpen, ['a']);
 
-test('assembleDivergenceVerdicts: NEED-KEYED — probes only a merged parent that gates at least one still-built dependent, and returns the fail-closed verdict per parent', () => {
-  const manifest = { window: 3, msps: [
-    { id: 'gates-built', status: 'shipped', dependsOn: [], builtSha: 'g-built', fileScope: ['scope/g/**'] },
-    { id: 'child', status: 'built', dependsOn: ['gates-built'], builtSha: 'c0', fileScope: ['scope/c/**'] },
-    { id: 'no-built-dep', status: 'shipped', dependsOn: [], builtSha: 'n-built', fileScope: ['scope/n/**'] },
-    { id: 'done-child', status: 'shipped', dependsOn: ['no-built-dep'], builtSha: 'd0', fileScope: ['scope/d/**'] },
-  ] };
-  const verdicts = assembleDivergenceVerdicts(manifest, {
-    merged: ['gates-built', 'no-built-dep'],
-    mergedShas: { 'gates-built': 'g-merged', 'no-built-dep': 'n-merged' },
-    divergenceProbes: { 'gates-built': { paths: [], error: null }, 'no-built-dep': { paths: ['scope/n/x'], error: null } },
-  });
-  assert.deepEqual(Object.keys(verdicts), ['gates-built'], 'a merged parent with no still-built dependent is not keyed at all (its divergence cannot invalidate anything)');
-  assert.equal(verdicts['gates-built'], 'clean');
+  for (const garbage of [null, 'root', {}, [7], ['']]) {
+    const plan = planReconcile(divergenceManifest(), { merged: ['root'], mergedShas: { root: 'r-merged' }, divergedParents: garbage });
+    assert.deepEqual(plan.toParkSubtree, [], `divergedParents=${JSON.stringify(garbage)}: a non-string-array is normalized away, never dereferenced raw`);
+  }
+
+  const supplied = planReconcile(divergenceManifest(), { merged: ['root'], mergedShas: { root: 'r-merged' }, divergedParents: ['root', 'root'] });
+  assert.deepEqual([...supplied.toParkSubtree].sort(), ['a', 'b'], 'a duplicated id parks the same subtree');
+  assert.equal(supplied.invalidatingParents, 1, 'and is counted once, never twice');
 });
 
 test('planReconcile: fails closed on a malformed manifest — empty advance, no rebuild', () => {

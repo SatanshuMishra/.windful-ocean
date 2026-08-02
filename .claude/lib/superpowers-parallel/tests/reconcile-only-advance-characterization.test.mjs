@@ -185,9 +185,16 @@ function shepherdAgent({ reconcileResult, shipResult, mergeWatch, probeResult, p
     if (prefix === 'built-checkpoint' || prefix === 'checkpoint-init') return { written: true, detail: '' };
     if (prefix === 'checkpoint-push') return { pushed: true, ref: '', sha: '', detail: '' };
     if (prefix === 'review-decision') return { reviewDecision: null, readError: null };
-    if (prefix === 'divergence-probe') {
-      const id = label.slice('divergence-probe:'.length);
-      return probeResult ? probeResult(id) : { paths: [], error: null };
+    if (prefix === 'divergence-check') {
+      const line = typeof prompt === 'string' ? prompt.split('\n').find((l) => l.startsWith('TARGETS: ')) : null;
+      const targets = line ? JSON.parse(line.slice('TARGETS: '.length)) : [];
+      return {
+        results: targets.map((target) => {
+          const probe = probeResult ? probeResult(target.parentId) : { paths: [], error: null };
+          return { parentId: target.parentId, changedPaths: probe.paths, error: probe.error };
+        }),
+        error: null,
+      };
     }
     if (prefix === 'manifest-publish') {
       const payload = publishedPayloadFromPrompt(prompt);
