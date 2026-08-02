@@ -100,7 +100,7 @@ export function assembleDivergenceVerdicts(manifest, live = {}) {
 
 export function planReconcile(manifest, live = {}) {
   const liveObj = live && typeof live === 'object' && !Array.isArray(live) ? live : {};
-  const empty = { toRestack: [], toOpen: [], toParkSubtree: [], buildRunNeeded: false };
+  const empty = { toRestack: [], toOpen: [], toParkSubtree: [], buildRunNeeded: false, invalidatingParents: 0 };
   if (!manifest || typeof manifest !== 'object' || Array.isArray(manifest) || !Array.isArray(manifest.msps)) return empty;
   const msps = manifest.msps;
   const mergedLive = new Set(uniqStrings(liveObj.merged));
@@ -109,8 +109,11 @@ export function planReconcile(manifest, live = {}) {
   const doneSet = new Set([...shippedIds, ...mergedLive]);
   const verdicts = assembleDivergenceVerdicts(manifest, liveObj);
   const parkSet = new Set();
+  let invalidatingParents = 0;
   for (const parentId of Object.keys(verdicts)) {
-    for (const dep of descendantsToInvalidate(manifest, parentId, { verdict: verdicts[parentId] })) {
+    const invalidated = descendantsToInvalidate(manifest, parentId, { verdict: verdicts[parentId] });
+    if (invalidated.length > 0) invalidatingParents += 1;
+    for (const dep of invalidated) {
       if (doneSet.has(dep)) continue;
       parkSet.add(dep);
     }
@@ -126,5 +129,5 @@ export function planReconcile(manifest, live = {}) {
     if (prereqs.some((p) => doneSet.has(p))) toRestack.push(msp.id);
   }
   const toParkSubtree = [...parkSet];
-  return { toRestack, toOpen, toParkSubtree, buildRunNeeded: toParkSubtree.length > 0 };
+  return { toRestack, toOpen, toParkSubtree, buildRunNeeded: toParkSubtree.length > 0, invalidatingParents };
 }
