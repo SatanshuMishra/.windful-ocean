@@ -35,18 +35,20 @@
   "closure_statement": null,
   "spine": {
     "status": "paused",
-    "active_goal": "M4 HAS TWO COMMITS, NEITHER SHIPPABLE YET, NOTHING PUSHED, NO PR. All four ship-gate findings are AUDITED and RECONCILED; two drafted remedies were REFUTED as wrong-surface, and a fifth finding (an uncovered divergence counter) was found by mutation. The three open rulings are locked as 0203/0204/0205. Remaining: execute the amend-and-rebase sequence, re-verify per commit, then ship the two stacked PRs.",
-    "next_step": "IMPLEMENT per 0203/0204/0205. Full reconciliation is in the 2026-08-02T07-28 session entry (read per 0202). ORDER on feat/m4-fixed-build-ahead-cap: AMEND 777617b (F3 validator move + corrected message), then THREE atomic commits -- F1 e2e test, F4 clamp cleanup, F2 coverage file. THEN rebase feat/m4-divergence-instrumentation onto the new tip and add the 0205 counter assertions plus its OWN coverage file. THE HISTORY REWRITE NEEDS EXPLICIT USER GO before any implementer runs.",
+    "active_goal": "M4 HAS TWO COMMITS, NEITHER SHIPPABLE YET, NOTHING PUSHED, NO PR. All four ship-gate findings are AUDITED and RECONCILED; two drafted remedies were REFUTED as wrong-surface and a fifth finding was found by mutation. Rulings locked as 0203/0204/0205 and the amend-and-rebase is USER-AUTHORIZED. Remaining: execute the sequence in a fresh session, re-verify per commit, then ship the two stacked PRs.",
+    "next_step": "START HERE IN A FRESH SESSION with a full context window. The user AUTHORIZED the amend-and-rebase 2026-08-02. Execute 0203/0204/0205; reconciliation is the 07-28 entry, close is the 07-35 entry (read per 0202). ORDER: amend 777617b (F3 validator + corrected message), then three atomic commits (F1 e2e test, F4 clamp cleanup, F2 coverage file), then rebase feat/m4-divergence-instrumentation and add the 0205 assertions plus its OWN coverage file. Re-verify per commit BEFORE any push.",
     "open_risks": [
       "F1 RESOLVED: the foreign-branch gap is CONFIRMED LIVE by mutation -- a foreign PR becomes a unit's merge target and freezes its real work. Remedy is an e2e test next to M2b. classifyRunOpenPRs has NO twin, so e2e is the lowest layer that can express it.",
       "F2 RESOLVED: TWO coverage files are MANDATORY, one per branch. A file added on commit 1 yields ZERO diff lines for PR 2 because linear history makes merge-base equal the base. The gate is PR-diff-scoped, which corrects 0201's per-commit rationale.",
       "F3 RESOLVED: buildAheadCap 9999 is silently ACCEPTED and widens the frontier unbounded -- the cap was never fixed. 0203 bounds it 1..8 and halts otherwise. The drafted one-line null fix was REFUTED as the wrong surface.",
       "F4 RESOLVED: manifest.window is read nowhere; the premise holds. But the blast radius is ~25 in-file calls plus a DUPLICATE helper in reconcile-only-advance-characterization.test.mjs -- the wide cleanup is a follow-up, not M4.",
       "FIFTH FINDING, mutation-proven by F2: invalidatingParents has ZERO acceptance coverage -- `if (false)` at reconcile.mjs:115 leaves reconcile.test.mjs at 23/23 green. 0205 adds assertions to the four real-invalidation tests.",
-      "THE AMEND-AND-REBASE IS A HISTORY REWRITE and needs explicit user confirmation. F2 measured it clean end to end: no conflicts, 1830/1830 on both commits, mirror-guard 46/46, gate green per commit against its real base.",
+      "THE AMEND-AND-REBASE IS USER-AUTHORIZED (2026-08-02) for the 0204 sequence ONLY; a deviation must be re-confirmed. F2 measured it clean: no conflicts, 1830/1830 on both commits, mirror-guard 46/46, gate green per commit against its real base.",
+      "UNVERIFIED POINTER, CHECK EARLY: a background task titled 'Fix dead pre-commit hook chain in this repo' was seen and deleted. If the chain IS dead, this thread's 'npm test + pre-commit hook' double-run claim is really ONE run. Verify before trusting commit-time verification.",
       "0203 RESIDUAL KNOWINGLY ACCEPTED: an out-of-repo caller passing buildAheadCap null to mean 'no override' would now HALT. F3 could not measure callers outside this repo.",
       "'REQUIRED' IS SOFTER THAN THIS THREAD ASSUMED: no branch protection on main, one ruleset (Require PR for Merge, 19939922) carrying NO required_status_checks. CI red does not physically block the merge button today.",
       "1830 IS CONFIRMED independently on BOTH commits in clean throwaway worktrees. 1839 is main-worktree inflation from a gitignored file. Never quote 1839 as a CI expectation.",
+      "F2's DRAFTED 12-ROW CONTENT for both coverage files is grounded but UNWRITTEN, and the commits change under 0204 -- re-check each verdict against the FINAL commit contents rather than pasting the draft.",
       "BARE-INVOCATION ERGONOMICS is a real, RECURRING defect -- two documented incidents. A local run with no env vars silently takes push mode and reports green. OUT OF M4 SCOPE; its own follow-up against the checker script.",
       "FIX-ROUND DISCIPLINE (standing; five prior rounds each introduced a new defect on an unnamed path): plan against INVARIANTS, never a finding list. This round vindicated it -- two of four drafted remedies were the wrong surface.",
       "PR scope is FROZEN at creation; later facts go in a comment (0142). pr-create is the ONLY PR path, requires --provenance with --origin machine, rejects angle brackets in --what, caps free text at 200 chars. MERGE STAYS HUMAN-GATED for both PRs.",
@@ -149,5 +151,5 @@
     ]
   },
   "created_at": "2026-07-29T23:40:17.901Z",
-  "updated_at": "2026-08-02T07:33:27.059Z"
+  "updated_at": "2026-08-02T07:35:32.570Z"
 }
