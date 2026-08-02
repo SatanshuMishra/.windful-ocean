@@ -134,6 +134,7 @@ test('planReconcile: a divergent probe (non-empty changed paths in the parent sc
   const plan = planReconcile(divergenceManifest(), { merged: ['root'], mergedShas: { root: 'r-merged' }, divergenceProbes: { root: { paths: ['scope/root/reviewer-amended.txt'], error: null } } });
   assert.deepEqual([...plan.toParkSubtree].sort(), ['a', 'b']);
   assert.equal(plan.buildRunNeeded, true);
+  assert.equal(plan.invalidatingParents, 1, 'the one keyed parent whose invalidation fired is counted once');
   assert.deepEqual(plan.toOpen, []);
   assert.deepEqual(plan.toRestack, []);
   assert.ok(!('toBuild' in plan) && !('toRebuild' in plan), 'reconcile-only emits no rebuild directive');
@@ -152,12 +153,14 @@ test('planReconcile: a divergent parent NEVER re-parks an already-done descendan
   });
   assert.deepEqual(plan.toParkSubtree, ['c2'], 'c1 already MERGED to the base — condemning and rebuilding it would re-ship merged content; only the still-built c2 is invalidated');
   assert.equal(plan.buildRunNeeded, true, 'a non-empty park subtree still flags the follow-up build run');
+  assert.equal(plan.invalidatingParents, 1, 'the parent fired once — the count tracks parents whose invalidation fired, never the units that survived the already-done filter');
 });
 
 test('planReconcile: a clean probe (no changed paths in the parent scope) invalidates nothing even when the raw merge SHA differs from the built tip, and lets the next layer open', () => {
   const plan = planReconcile(divergenceManifest(), { merged: ['root'], mergedShas: { root: 'r-squash-rewritten' }, divergenceProbes: { root: { paths: [], error: null } } });
   assert.deepEqual(plan.toParkSubtree, []);
   assert.equal(plan.buildRunNeeded, false);
+  assert.equal(plan.invalidatingParents, 0, 'the parent is keyed and probed, but the oracle returned an empty set, so it is not counted');
   assert.deepEqual(plan.toOpen, ['a']);
 });
 
@@ -177,6 +180,7 @@ test('planReconcile: fail-closed matrix — a merged parent gating a built subtr
     const plan = planReconcile(divergenceManifest(c.root), { merged: ['root'], ...c.live });
     assert.deepEqual([...plan.toParkSubtree].sort(), ['a', 'b'], `${c.label}: parks the whole built subtree`);
     assert.equal(plan.buildRunNeeded, true, `${c.label}: flags a build run`);
+    assert.equal(plan.invalidatingParents, 1, `${c.label}: counts the parent whose invalidation fired`);
     assert.deepEqual(plan.toOpen, [], `${c.label}: opens nothing`);
     assert.deepEqual(plan.toRestack, [], `${c.label}: restacks nothing`);
   }
