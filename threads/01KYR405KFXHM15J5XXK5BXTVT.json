@@ -36,7 +36,7 @@
   "spine": {
     "status": "paused",
     "active_goal": "M4 IS FULLY SHIPPED AND ON MAIN. origin/main is a618338 and tree(origin/main) == 05da3cd, the verified full-M4 tree. PRs 33 and 35 merged to main; PR 34 merged into a feature base and was corrected by the 0207 cherry-pick re-land. All feat/m4-* branches and both anchor tags are deleted.",
-    "next_step": "Choose the next MSP: per the landing order M0->M1->M2->M6->M3->M5->M4->M7->M8, M4 is done, so M7 is next, then M8. Nothing is blocked. Re-derive M7 scope against a618338 BEFORE planning - 0196 showed three of M4's spec-named targets were already wrong at the then-current main.",
+    "next_step": "START HERE: dispatch a dedicated SMALL dynamic Workflow to plan, implement and ship M7 (single divergence predicate, two states). Per 0208 default to ONE PR; stack only if it truly splits, and then apply the 0207 guard. Re-derive anchors against a618338 - mirror-guard twins affect M7.",
     "open_risks": [
       "CLEAN CI BASELINE, MEASURED: a618338 passes test, invariant-coverage, sast, sca, secret-scan. node:test on main is 1832 tests, 1831 pass, 0 fail, 1 skipped. The local 1841 figure was a dirty-worktree artifact - never quote it as a CI number.",
       "STACKED PRs MERGE INTO THEIR DECLARED BASE (0207). PR 34 landed on a feature branch, splitting M4 in half. If a stack is used again, retarget the upper PR to main before merge, or plan to land it by cherry-pick.",
@@ -146,5 +146,5 @@
     ]
   },
   "created_at": "2026-07-29T23:40:17.901Z",
-  "updated_at": "2026-08-02T19:28:06.135Z"
+  "updated_at": "2026-08-02T19:28:21.032Z"
 }
