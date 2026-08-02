@@ -374,7 +374,6 @@ export function resolveRunIdentity(published, local, ctx) {
   const dropped = [...localById.keys()].filter((id) => !publishedIds.has(id));
   if (dropped.length > 0) disagreements.push(`ids present only in the local journal and dropped: ${dropped.join(', ')}`);
   const manifest = { ...hydrated, msps };
-  if (Number.isInteger(local.window)) manifest.window = local.window;
   if (Array.isArray(local.parked)) manifest.parked = local.parked;
   if (typeof local.harnessRunId === 'string') manifest.harnessRunId = local.harnessRunId;
   if (typeof local.quiescentExitAt === 'string') manifest.quiescentExitAt = local.quiescentExitAt;

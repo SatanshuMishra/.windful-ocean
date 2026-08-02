@@ -43,7 +43,6 @@ function applyRunDelta(manifest, record) {
       return manifest;
     }
   }
-  if (record.kind === 'window') return { ...manifest, window: record.size };
   if (record.kind === 'quiescent-exit') return isIsoInstant(record.at) ? { ...manifest, quiescentExitAt: record.at, quiescentExitOutstanding: record.outstanding === true } : manifest;
   return manifest;
 }

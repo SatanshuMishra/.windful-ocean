@@ -180,7 +180,6 @@ function shepherdAgent({ reconcileResult, shipResult, mergeWatch, probeResult, p
     if (!prompts.has(label)) prompts.set(label, prompt);
     const prefix = label.split(':')[0];
     if (prefix === 'reconcile') return withReconcileDefaults(reconcileResult);
-    if (prefix === 'window-checkpoint') return { written: true, detail: '' };
     if (prefix === 'park-checkpoint') return { written: true, detail: '' };
     if (prefix === 'ship-checkpoint') return { written: true, detail: '' };
     if (prefix === 'built-checkpoint' || prefix === 'checkpoint-init') return { written: true, detail: '' };

@@ -1,6 +1,5 @@
 import { parseCheckpointRef } from './checkpoint.mjs';
 import { descendantsToInvalidate, transitiveDependents } from './parking.mjs';
-import { nextWindow } from './window.mjs';
 
 function uniqStrings(list) {
   if (!Array.isArray(list)) return [];
@@ -101,10 +100,7 @@ export function assembleDivergenceVerdicts(manifest, live = {}) {
 
 export function planReconcile(manifest, live = {}) {
   const liveObj = live && typeof live === 'object' && !Array.isArray(live) ? live : {};
-  const persistedWindow = manifest && typeof manifest === 'object' && !Array.isArray(manifest) ? manifest.window : undefined;
-  const events = Array.isArray(liveObj.events) ? liveObj.events : [];
-  const nextW = events.reduce((w, e) => nextWindow(w, e), nextWindow(persistedWindow, null));
-  const empty = { toRestack: [], toOpen: [], toParkSubtree: [], nextW, buildRunNeeded: false };
+  const empty = { toRestack: [], toOpen: [], toParkSubtree: [], buildRunNeeded: false };
   if (!manifest || typeof manifest !== 'object' || Array.isArray(manifest) || !Array.isArray(manifest.msps)) return empty;
   const msps = manifest.msps;
   const mergedLive = new Set(uniqStrings(liveObj.merged));
@@ -130,5 +126,5 @@ export function planReconcile(manifest, live = {}) {
     if (prereqs.some((p) => doneSet.has(p))) toRestack.push(msp.id);
   }
   const toParkSubtree = [...parkSet];
-  return { toRestack, toOpen, toParkSubtree, nextW, buildRunNeeded: toParkSubtree.length > 0 };
+  return { toRestack, toOpen, toParkSubtree, buildRunNeeded: toParkSubtree.length > 0 };
 }

@@ -254,7 +254,6 @@ function shepherdAgent({ reconcileResult, shipResult, mergeWatch, probeResult } 
     if (!prompts.has(label)) prompts.set(label, prompt);
     const prefix = label.split(':')[0];
     if (prefix === 'reconcile') return withReconcileDefaults(reconcileResult);
-    if (prefix === 'window-checkpoint') return { written: true, detail: '' };
     if (prefix === 'park-checkpoint') return { written: true, detail: '' };
     if (prefix === 'ship-checkpoint') return { written: true, detail: '' };
     if (prefix === 'built-checkpoint' || prefix === 'checkpoint-init') return { written: true, detail: '' };
@@ -305,7 +304,6 @@ function createFrontierAgent({ msps, shipResult, mergeWatch, manifestPublish } =
         return (mergeWatch ? mergeWatch(id) : null) || { merged: false, mergedAt: null, readError: null };
       }
       case 'review-decision': return { reviewDecision: null, readError: null };
-      case 'window-checkpoint': return { written: true, detail: '' };
       case 'park-checkpoint': case 'built-checkpoint': case 'ship-checkpoint': case 'checkpoint-init': return { written: true, detail: '' };
       case 'manifest-publish': {
         const override = manifestPublish ? manifestPublish(prompt) : null;
@@ -456,52 +454,6 @@ test('C1 frozen-PR: on a build-path relaunch a built unit with an OPEN, unmerged
   assert.equal(l3Park.request.kind, 'blocked-pending-approval', 'l3 is blocked pending its parent\'s human approval — a benign deferral, NOT a genuine park needing remediation');
 });
 
-test('H2 repro: a live CHANGES_REQUESTED review on an already-open deferred PR must halve the AIMD window across a relaunch, not leave it unchanged', async () => {
-  const msps = [
-    manifestMsp('l1a', { status: 'shipped', builtSha: hexSha('l1a'), prUrl: 'https://example.test/pr/l1a', mergedAt: '2026-07-10T00:00:00Z' }),
-    manifestMsp('l2', { status: 'built', builtSha: hexSha('l2'), dependsOn: ['l1a'] }),
-  ];
-  const reconcileResult = {
-    manifestFound: true,
-    manifestRaw: frontierManifest({ msps, window: 5 }),
-    specContentHash: SPEC_CONTENT_HASH,
-    mergedPRs: [mergedPr('l1a', { mergedSha: hexSha('l1a') })],
-    openPRs: [{ headRefName: `${SOURCE_PREFIX}/l2-integration`, reviewDecision: 'CHANGES_REQUESTED' }],
-    checkpointRefPages: checkpointPages(['l2']),
-  };
-  const { agent, prompts } = shepherdAgent({ reconcileResult });
-  const { resultPromise, logLines } = invoke(runOn, buildInput(), agent);
-  await resultPromise;
-
-  assert.match(prompts.get('window-checkpoint:shepherd'), /\{"kind":"window","size":3\}/, 'W must halve from the persisted 5 to 3 (ceil(5/2), floor-clamped) in response to the live CHANGES_REQUESTED on the open PR for l2');
-  assert.ok(logLines.some((l) => /AIMD window W=3/.test(l)), 'the shepherd must log the contracted window W=3, not the untouched persisted W=5 -- buildReconcileLiveSignals hardcodes events:[], so reviewDecision is silently discarded');
-});
-
-test('H2 dedup + foreign filter: two open PRs on the same run branch reading APPROVED yield exactly one +1 window event, and a foreign (non-run) open PR yields none', async () => {
-  const msps = [
-    manifestMsp('l1a', { status: 'shipped', builtSha: hexSha('l1a'), prUrl: 'https://example.test/pr/l1a', mergedAt: '2026-07-10T00:00:00Z' }),
-    manifestMsp('l2', { status: 'built', builtSha: hexSha('l2'), dependsOn: ['l1a'] }),
-  ];
-  const reconcileResult = {
-    manifestFound: true,
-    manifestRaw: frontierManifest({ msps, window: 5 }),
-    specContentHash: SPEC_CONTENT_HASH,
-    mergedPRs: [mergedPr('l1a', { mergedSha: hexSha('l1a') })],
-    openPRs: [
-      { headRefName: `${SOURCE_PREFIX}/l2-integration`, reviewDecision: 'APPROVED' },
-      { headRefName: `${SOURCE_PREFIX}/l2-integration`, reviewDecision: 'APPROVED' },
-      { headRefName: 'someones-foreign-human-branch', reviewDecision: 'CHANGES_REQUESTED' },
-    ],
-    checkpointRefPages: checkpointPages(['l2']),
-  };
-  const { agent, prompts } = shepherdAgent({ reconcileResult });
-  const { resultPromise, logLines } = invoke(runOn, buildInput(), agent);
-  await resultPromise;
-
-  assert.match(prompts.get('window-checkpoint:shepherd'), /\{"kind":"window","size":6\}/, 'the duplicate APPROVED review on the same run branch counts once (+1 -> 6), never twice (7); the foreign human PR resolves to no run MSP and contributes no event, so it never contracts W');
-  assert.ok(logLines.some((l) => /AIMD window W=6/.test(l)), 'the shepherd logs the single-incremented window W=6');
-});
-
 function promptCapturingAgent(base) {
   const prompts = new Map();
   const agent = async (prompt, opts = {}) => {
@@ -582,8 +534,6 @@ test('bullet 5 + 2: a relaunch opens the deferred next-layer PR only after every
   assert.deepEqual(result.shipped.map((s) => s.mspId).sort(), ['l1a', 'l1b'], 'the already-merged parents are reported shipped');
   assert.deepEqual(result.parked.map((p) => ({ mspId: p.mspId, stage: p.stage })), [{ mspId: 'l3', stage: 'blocked' }], 'an identical-content parent merge invalidates nothing: l3 is not reset to plan, only reported blocked behind its unmerged parent l2');
   assert.equal(result.overallStatus, 'awaiting-approval');
-
-  assert.ok(logLines.some((l) => /AIMD window W=5/.test(l)), 'W=5 is carried across the relaunch verbatim and the reconcile stage logs it');
 
   const openPrompt = prompts.get('ship:l2');
   assert.ok(!/gh pr merge|squash-merge|git merge/.test(openPrompt), 'the engine opens the PR for a human and NEVER merges');
@@ -712,28 +662,6 @@ test('bullet 1: build-frontier-ahead-of-merge — a layer-2 unit reaches built w
   assert.ok(!result.shipped.some((s) => s.mspId === 'l2'), 'the build-ahead unit is not shipped while its parent is unmerged (PR-defer)');
 });
 
-test('bullet 6: the AIMD window is carried at the ceiling across a relaunch and a live APPROVED review does NOT inflate it past the ceiling (idempotent, window-bounded)', async () => {
-  const msps = [
-    manifestMsp('l1a', { status: 'shipped', builtSha: hexSha('l1a'), prUrl: 'https://example.test/pr/l1a', mergedAt: '2026-07-10T00:00:00Z' }),
-    manifestMsp('l2', { status: 'built', builtSha: hexSha('l2'), dependsOn: ['l1a'] }),
-  ];
-  const reconcileResult = {
-    manifestFound: true,
-    manifestRaw: frontierManifest({ msps, window: 8 }),
-    specContentHash: SPEC_CONTENT_HASH,
-    mergedPRs: [mergedPr('l1a', { mergedSha: hexSha('l1a') })],
-    openPRs: [{ headRefName: `${SOURCE_PREFIX}/l2-integration`, reviewDecision: 'APPROVED' }],
-    checkpointRefPages: checkpointPages(['l2']),
-  };
-  const { agent, labels } = shepherdAgent({ reconcileResult });
-  const { resultPromise, logLines } = invoke(runOn, buildInput(), agent);
-  await resultPromise;
-
-  assert.ok(logLines.some((l) => /AIMD window W=8/.test(l)), 'W is carried at the ceiling (8) and the carried window stays bounded at the ceiling');
-  assert.ok(!logLines.some((l) => /AIMD window W=9/.test(l)), 'a replayed live APPROVED review never inflates the carried window to 9');
-  assert.ok(!labels.includes('ship:l2') && !labels.includes('restore:l2'), 'l2 already has an OPEN PR — the engine does not double-open it');
-});
-
 test('security fix 1: a merged parent whose builtSha or mergedSha is a leading-dash token emits NO probe carrying that raw token and fail-closes to a PARK of its built descendants', async () => {
   const msps = [
     manifestMsp('pa', { status: 'shipped', builtSha: 'a'.repeat(40), prUrl: 'https://example.test/pr/pa', mergedAt: '2026-07-10T00:00:00Z' }),
@@ -843,15 +771,14 @@ for (const variant of [
     row: { headRefName: `${SOURCE_PREFIX}/l3-integration`, reviewDecision: 'APPROVED', url: 'https://github.com/attacker/evil/pull/66', isCrossRepository: false },
   },
 ]) {
-  test(`HIGH-B deny: ${variant.label} whose head branch MATCHES the run's branch shape never seeds run state — the unit still builds, is never surfaced awaiting approval, and its spoofed APPROVED never moves the AIMD window`, async () => {
+  test(`HIGH-B deny: ${variant.label} whose head branch MATCHES the run's branch shape never seeds run state — the unit still builds and is never surfaced awaiting approval`, async () => {
     const { agent, labels } = multiRelaunchAgent({ reconcileResult: spoofFixture(variant.row), shipResult: spoofShipResult });
-    const { resultPromise, logLines } = invoke(runOn, buildInput({ mergePolicy: undefined }), agent);
+    const { resultPromise } = invoke(runOn, buildInput({ mergePolicy: undefined }), agent);
     const result = await resultPromise;
 
     assert.ok(!result.awaitingApproval.some((a) => a.mspId === 'l3'), 'the crafted PR must NEVER reach awaitingApproval — that would hijack the operator merge target with an attacker-controlled PR url');
     assert.ok(!result.parked.some((p) => p.mspId === 'l3' && p.request.kind === 'approve-decision'), 'attack noise must not FREEZE legitimate planned work — l3 may only appear parked as the benign blocked-pending-approval build-ahead report, never as a human-decision freeze');
     assert.ok(labels.includes('plan:l3'), 'the untrusted PR must not suppress the real work: l3 is still planned and dispatched');
-    assert.ok(logLines.some((l) => /AIMD window W=3/.test(l)), 'the spoofed APPROVED must not widen W from the persisted 3 to 4 — an unverifiable PR is never an AIMD signal');
   });
 }
 
@@ -956,7 +883,7 @@ test('HIGH-C: a manifest-shipped unit absent from a TRUNCATED live merged listin
   assert.ok(!logLines.some((l) => /^mitosis\[l4\]:.*built ahead of unmerged parent/.test(l)), 'l4 must not defer its PR behind a parent that is already merged');
 });
 
-test('E9: a persisted window far above the ceiling is clamped at every read site — build-ahead admissions never exceed WINDOW_CEILING', async () => {
+test('E9: a 12-unit planned chain admits at most BUILD_AHEAD_CAP units ahead of its unmerged parent', async () => {
   const chain = ['u1', 'u2', 'u3', 'u4', 'u5', 'u6', 'u7', 'u8', 'u9', 'u10', 'u11', 'u12'];
   const msps = [
     manifestMsp('r', { status: 'built', builtSha: hexSha('r'), dependsOn: [] }),
@@ -964,7 +891,7 @@ test('E9: a persisted window far above the ceiling is clamped at every read site
   ];
   const reconcileResult = {
     manifestFound: true,
-    manifestRaw: frontierManifest({ msps, window: 9999 }),
+    manifestRaw: frontierManifest({ msps }),
     specContentHash: SPEC_CONTENT_HASH,
     mergedPRs: [],
     openPRs: [],
@@ -983,7 +910,52 @@ test('E9: a persisted window far above the ceiling is clamped at every read site
     if (m) builtAhead.add(m[1]);
   }
   assert.ok(builtAhead.size > 0, 'sanity: the build-ahead frontier actually ran');
-  assert.equal(builtAhead.size, 8, 'a corrupt/out-of-range persisted window must be clamped to WINDOW_CEILING (8) at the read site, not trusted verbatim as 9999 unbounded build-ahead');
+  assert.equal(builtAhead.size, 8, 'the fixed BUILD_AHEAD_CAP (8) is the sole authority for the width: a 12-unit chain admits exactly 8, never the whole chain');
+});
+
+test('E10: the buildAheadCap engine arg may only NARROW the frontier — absent holds the cap of 8, 4 narrows to 4, and null / a non-integer / 0 / a value above the cap each HALT at the arg boundary', async () => {
+  const chain = ['u1', 'u2', 'u3', 'u4', 'u5', 'u6', 'u7', 'u8', 'u9', 'u10', 'u11', 'u12'];
+  const msps = [
+    manifestMsp('r', { status: 'built', builtSha: hexSha('r'), dependsOn: [] }),
+    ...chain.map((id, i) => manifestMsp(id, { status: 'planned', dependsOn: [i === 0 ? 'r' : chain[i - 1]] })),
+  ];
+  const reconcileResult = {
+    manifestFound: true,
+    manifestRaw: frontierManifest({ msps, window: undefined }),
+    specContentHash: SPEC_CONTENT_HASH,
+    mergedPRs: [],
+    openPRs: [],
+    checkpointRefPages: checkpointPages(['r']),
+  };
+  const shipResult = (id) => (id === 'r'
+    ? { merged: false, awaitingApproval: true, prUrl: targetPrUrl('r'), receiptsPass: true, d6Pass: true, detail: 'CI green; PR open and awaiting human approval to merge' }
+    : null);
+  const runWithKnob = async (overrides) => {
+    const { agent } = multiRelaunchAgent({ reconcileResult, shipResult });
+    const { resultPromise, logLines } = invoke(runOn, buildInput({ mergePolicy: undefined, ...overrides }), agent);
+    const result = await resultPromise;
+    const builtAhead = new Set();
+    for (const line of logLines) {
+      const m = /^mitosis\[([^\]]+)\]:.*built ahead of unmerged parent/.exec(line);
+      if (m) builtAhead.add(m[1]);
+    }
+    return { result, width: builtAhead.size };
+  };
+
+  const absent = await runWithKnob({});
+  assert.notEqual(absent.result.stage, 'input', 'the hot path — every normal run, which supplies no buildAheadCap — must never halt at the arg boundary');
+  assert.equal(absent.width, 8, 'an absent buildAheadCap means the engine default BUILD_AHEAD_CAP (8)');
+
+  const narrowed = await runWithKnob({ buildAheadCap: 4 });
+  assert.notEqual(narrowed.result.stage, 'input', 'a value inside 1..8 is accepted, not refused');
+  assert.equal(narrowed.width, 4, 'an accepted override narrows the build-ahead frontier to exactly its value');
+
+  for (const bad of [null, 'banana', 1.5, 0, -1, 9999]) {
+    const { result } = await runWithKnob({ buildAheadCap: bad });
+    assert.equal(result.overallStatus, 'failed', `buildAheadCap=${JSON.stringify(bad)} must fail the run rather than be silently swallowed`);
+    assert.equal(result.stage, 'input', `buildAheadCap=${JSON.stringify(bad)} must halt at the arg boundary like every sibling knob`);
+    assert.match(result.detail, /buildAheadCap/, `the halt names the knob that failed for buildAheadCap=${JSON.stringify(bad)}`);
+  }
 });
 
 test('E11 (D7): an unvalidatable repo identity HALTS the run at reconcile — no merge-watch, no review-decision, no gh read is ever dispatched unpinned', async () => {
@@ -1088,7 +1060,7 @@ test('L6b: a manifest-shipped unit whose manifest url is FOREIGN is reported shi
   assert.equal(entry.prUrl, null, 'the repo pin applies identically on both paths — a foreign manifest url is never published as an audit pointer');
 });
 
-test('HIGH-2: a fork row racing a GENUINE provenance-verified PR on the same head branch never shadows it — the built unit stays awaiting the genuine url, is not frozen, its dependents are not park-blocked, and the genuine review decision still drives AIMD', async () => {
+test('HIGH-2: a fork row racing a GENUINE provenance-verified PR on the same head branch never shadows it — the built unit stays awaiting the genuine url, is not frozen, and its dependents are not park-blocked', async () => {
   const reconcileResult = builtL2Fixture([
     { headRefName: `${SOURCE_PREFIX}/l2-integration`, reviewDecision: 'APPROVED', url: 'https://github.com/attacker/evil/pull/9', isCrossRepository: true, headRepositoryOwner: 'attacker', headRepository: 'evil' },
     { headRefName: `${SOURCE_PREFIX}/l2-integration`, reviewDecision: 'CHANGES_REQUESTED', url: targetPrUrl('l2-genuine'), isCrossRepository: false },
@@ -1103,7 +1075,6 @@ test('HIGH-2: a fork row racing a GENUINE provenance-verified PR on the same hea
   assert.ok(!result.parked.some((p) => p.mspId === 'l2'), 'the shadowed fork row must not freeze the legitimate unit');
   assert.ok(!result.parked.some((p) => p.mspId === 'l3' && /parked prerequisite/.test(p.request.what)), 'the whole transitive subtree must not be park-blocked behind a forgeable row');
   assert.ok(!labels.includes('plan:l2') && !labels.includes('ship:l2'), 'l2 owns a frozen open PR and is never rebuilt or re-shipped');
-  assert.ok(logLines.some((l) => /AIMD window W=3/.test(l)), 'the GENUINE CHANGES_REQUESTED must still contract the window from 6 — deleting the accepted row would silently suppress a real review signal');
   assert.ok(logLines.some((l) => /^mitosis\[l2\]:.*SHADOWED/.test(l)), 'the shadowed unverifiable row is announced so the operator still learns a foreign PR occupies the branch namespace');
 });
 
@@ -1175,6 +1146,28 @@ test('M2b: two provenance-verified rows naming the SAME url are a benign duplica
   assert.ok(awaiting, 'pagination overlap and degraded second passes legitimately transcribe one PR twice — freezing on that would stall healthy runs');
   assert.equal(awaiting.prUrl, sharedUrl, 'the single genuine url remains the merge target');
   assert.ok(!result.parked.some((p) => p.mspId === 'l2'), 'a duplicate of the SAME url is deduplicated, never treated as two competing PRs');
+});
+
+test('M2c: an open PR whose head branch is NOT the run integration shape is invisible to the run — it is attributed to no unit, freezes none, and never becomes an operator merge target', async () => {
+  const msps = [
+    manifestMsp('l1', { status: 'shipped', builtSha: hexSha('l1'), prUrl: targetPrUrl('l1'), mergedAt: '2026-07-10T00:00:00Z' }),
+    manifestMsp('l2', { status: 'built', builtSha: hexSha('l2'), dependsOn: ['l1'] }),
+  ];
+  const foreignBranch = 'someones-foreign-human-branch';
+  const foreignUrl = targetPrUrl(foreignBranch);
+  const reconcileResult = builtL2Fixture([
+    { headRefName: foreignBranch, reviewDecision: 'CHANGES_REQUESTED' },
+  ], { msps });
+  const { agent, labels } = multiRelaunchAgent({ reconcileResult });
+  const { resultPromise } = invoke(runOn, buildInput({ mergePolicy: undefined }), agent);
+  const result = await resultPromise;
+
+  assert.ok(labels.includes('ship:l2'), 'a pull request on an unrelated human branch must never suppress the run own work: l2 is built with its parent merged, so its PR is still opened');
+  assert.ok(!result.awaitingApproval.some((a) => a.mspId === 'l2'), 'a branch outside the run namespace carries no claim on any unit — attributing it to l2 would freeze a unit the run is free to ship');
+  assert.ok(!result.shipped.some((s) => s.prUrl === foreignUrl) && !result.awaitingApproval.some((a) => a.prUrl === foreignUrl), 'no unit may report the foreign PR as its url — the operator would be sent to merge a pull request this run never opened');
+  assert.deepEqual(result.awaitingApproval.map((a) => ({ mspId: a.mspId, prUrl: a.prUrl })), [], 'NO unit is left awaiting approval when the only open PR belongs to no unit');
+  assert.deepEqual(result.parked.map((p) => p.mspId), [], 'NO unit is frozen when the only open PR belongs to no unit');
+  assert.equal(result.overallStatus, 'all-shipped', 'the run reaches its terminal shipped state rather than stalling on a stranger pull request');
 });
 
 test('M3: a manifest-sourced prUrl that does not resolve to the target repository is dropped to null rather than surfaced as a MERGED unit audit url', async () => {
@@ -1292,7 +1285,7 @@ test('two contested rows on one unit resolve FIRST-wins: the operator-facing par
   assert.match(record.request.what, /CLOSE the pull request/i, 'a later unreadable row must not downgrade a demonstrated fork into a tooling-repair advisory');
 });
 
-test('a stale still-open PR on an already-merged unit is ignored: it never freezes the merged unit and never moves the AIMD window', async () => {
+test('a stale still-open PR on an already-merged unit is ignored: it never freezes the merged unit and never re-ships it', async () => {
   const msps = [
     manifestMsp('l1', { status: 'shipped', builtSha: hexSha('l1'), prUrl: targetPrUrl('l1'), mergedAt: '2026-07-10T00:00:00Z' }),
     manifestMsp('l2', { status: 'built', builtSha: hexSha('l2'), dependsOn: ['l1'] }),
@@ -1308,10 +1301,9 @@ test('a stale still-open PR on an already-merged unit is ignored: it never freez
   assert.ok(!result.parked.some((p) => p.mspId === 'l1'), 'an already-merged unit must never be frozen by a leftover open PR — merged work is finished, not contested');
   assert.ok(result.shipped.some((s) => s.mspId === 'l1'), 'the merged unit stays reported shipped');
   assert.ok(!labels.includes('ship:l1'), 'the merged unit is never re-shipped');
-  assert.ok(logLines.some((l) => /AIMD window W=3/.test(l)), 'a stale open PR on merged work is not a live review signal and must not widen W from 3 to 4');
 });
 
-test('window clamp at the manifest read site is independently load-bearing: with ZERO durable checkpoint refs there is no reconcile advance to re-clamp, and a corrupt persisted window is still capped at WINDOW_CEILING', async () => {
+test('the build path is independently capped: with ZERO durable checkpoint refs no reconcile advance runs at all, and build-ahead still stops at BUILD_AHEAD_CAP', async () => {
   const chain = ['u1', 'u2', 'u3', 'u4', 'u5', 'u6', 'u7', 'u8', 'u9', 'u10', 'u11', 'u12'];
   const msps = [
     manifestMsp('r', { status: 'planned', dependsOn: [] }),
@@ -1319,7 +1311,7 @@ test('window clamp at the manifest read site is independently load-bearing: with
   ];
   const reconcileResult = {
     manifestFound: true,
-    manifestRaw: frontierManifest({ msps, window: 9999 }),
+    manifestRaw: frontierManifest({ msps }),
     specContentHash: SPEC_CONTENT_HASH,
     mergedPRs: [],
     openPRs: [],
@@ -1332,7 +1324,7 @@ test('window clamp at the manifest read site is independently load-bearing: with
   const { resultPromise, logLines } = invoke(runOn, buildInput({ mergePolicy: undefined }), agent);
   await resultPromise;
 
-  assert.ok(!logLines.some((l) => /AIMD window W=/.test(l)), 'sanity: with no durable checkpoint refs no reconcile advance runs, so the advance-side clamp cannot mask the manifest read site');
+  assert.ok(!logLines.some((l) => /reconcile — merge-frontier advance:/.test(l)), 'sanity: with no durable checkpoint refs no reconcile advance runs at all, so nothing on the advance path can be what bounds the frontier here');
   assert.ok(labels.includes('plan:r'), 'sanity: the run genuinely reaches the build path');
   const builtAhead = new Set();
   for (const line of logLines) {
@@ -1340,7 +1332,7 @@ test('window clamp at the manifest read site is independently load-bearing: with
     if (m) builtAhead.add(m[1]);
   }
   assert.ok(builtAhead.size > 0, 'sanity: the build-ahead frontier actually ran');
-  assert.equal(builtAhead.size, 8, 'a corrupt persisted window must be clamped to WINDOW_CEILING (8) where it is read off the manifest, not trusted verbatim as 9999 unbounded build-ahead');
+  assert.equal(builtAhead.size, 8, 'the fixed BUILD_AHEAD_CAP (8) bounds the frontier on the build path alone, with no reconcile advance available to bound it');
 });
 
 test('a unit that is BOTH condemned by a divergent parent merge AND carries an unverifiable open PR reports BOTH diagnoses — an operator shown only one of two independent blockers cannot converge', async () => {
