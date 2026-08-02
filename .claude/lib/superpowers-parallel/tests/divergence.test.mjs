@@ -5,11 +5,15 @@ import { needKeyedParents, divergedParents } from '../divergence.mjs';
 const LOGICAL_RUN_ID = 'a1b2c3d4';
 const BUILT_SHA = 'abc1234';
 const MERGED_SHA = 'def5678';
+const BUILT_SHA_B = '1111aaa';
+const MERGED_SHA_B = '2222bbb';
 
 function makeCtx(agentResult) {
   const calls = [];
+  const dispatched = [];
   return {
     calls,
+    dispatched,
     ctx: {
       agent: async (prompt, opts) => {
         calls.push({ prompt, opts });
@@ -17,7 +21,10 @@ function makeCtx(agentResult) {
         return agentResult;
       },
       logicalRunId: LOGICAL_RUN_ID,
-      divergenceCheckPrompt: (targets) => `check ${JSON.stringify(targets)}`,
+      divergenceCheckPrompt: (targets) => {
+        dispatched.push(JSON.parse(JSON.stringify(targets)));
+        return `check ${JSON.stringify(targets)}`;
+      },
       DIVERGENCE_CHECK_SCHEMA: { type: 'object' },
     },
   };
@@ -61,17 +68,26 @@ test('needKeyedParents: a malformed manifest keys nothing', () => {
   assert.deepEqual(needKeyedParents({ msps: [] }, null), []);
 });
 
-test('divergedParents: every need-keyed parent is evaluated in exactly ONE batched dispatch', async () => {
-  const { calls, ctx } = makeCtx(confirmedClean('a', 'b'));
-  const manifest = { msps: [...gatingParent('a'), ...gatingParent('b')] };
+test('divergedParents: every need-keyed parent is evaluated in exactly ONE batched dispatch, each carrying its OWN checkpoint ref, built tip, merge commit and file scope', async () => {
+  const { calls, dispatched, ctx } = makeCtx(confirmedClean('a', 'b'));
+  const manifest = { msps: [...gatingParent('a'), ...gatingParent('b', { builtSha: BUILT_SHA_B })] };
 
-  const diverged = await divergedParents(manifest, ['a', 'b'], { a: MERGED_SHA, b: MERGED_SHA }, ctx);
+  const diverged = await divergedParents(manifest, ['a', 'b'], { a: MERGED_SHA, b: MERGED_SHA_B }, ctx);
 
   assert.deepEqual(diverged, []);
   assert.equal(calls.length, 1, 'two qualifying parents cost exactly one read-only dispatch, never one per parent');
   assert.equal(calls[0].opts.label, 'divergence-check');
   assert.equal(calls[0].opts.phase, 'Resume');
   assert.equal(calls[0].opts.agentType, 'implementer');
+
+  assert.deepEqual(
+    dispatched[0],
+    [
+      { parentId: 'a', ref: `refs/mitosis/${LOGICAL_RUN_ID}/a`, builtSha: BUILT_SHA, mergedSha: MERGED_SHA, fileScope: ['scope/a/**'] },
+      { parentId: 'b', ref: `refs/mitosis/${LOGICAL_RUN_ID}/b`, builtSha: BUILT_SHA_B, mergedSha: MERGED_SHA_B, fileScope: ['scope/b/**'] },
+    ],
+    'every target pairs a parent with ITS OWN checkpoint ref and compares ITS OWN built tip against ITS OWN merge commit over ITS OWN declared scope; comparing any commit against itself would read empty and silently confirm a squash that rewrote content',
+  );
 });
 
 test('divergedParents: ZERO dispatches when every need-keyed parent fails a pre-check, and all of them still fold to diverged', async () => {
