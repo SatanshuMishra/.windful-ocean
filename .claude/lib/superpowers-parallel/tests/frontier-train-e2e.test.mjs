@@ -456,35 +456,6 @@ test('C1 frozen-PR: on a build-path relaunch a built unit with an OPEN, unmerged
   assert.equal(l3Park.request.kind, 'blocked-pending-approval', 'l3 is blocked pending its parent\'s human approval — a benign deferral, NOT a genuine park needing remediation');
 });
 
-test('H1 repro: a live APPROVED review mid-run must widen the frozen launch-time build-ahead window, not leave it snapshotted for the whole run', async () => {
-  const msps = [
-    mspSpec('r', {}),
-    mspSpec('a', { dependsOn: ['r'] }),
-    mspSpec('b', { dependsOn: ['a'] }),
-    mspSpec('c', { dependsOn: ['b'] }),
-    mspSpec('d', { dependsOn: ['c'] }),
-  ];
-  const base = createFrontierAgent({
-    msps,
-    shipResult: (id) => (id === 'r'
-      ? { merged: false, awaitingApproval: true, prUrl: 'https://github.com/o/repo/pull/1', receiptsPass: true, d6Pass: true, detail: 'CI green; PR open and awaiting human approval to merge' }
-      : null),
-    mergeWatch: () => ({ merged: false, mergedAt: null, readError: null }),
-  });
-  const agent = async (prompt, opts = {}) => {
-    const label = opts.label || '';
-    if (label === 'review-decision:r') return { reviewDecision: 'APPROVED', readError: null };
-    return base(prompt, opts);
-  };
-  const { resultPromise, logLines } = invoke(runOn, buildInput({ mergePolicy: undefined }), agent);
-  await resultPromise;
-
-  assert.ok(logLines.some((l) => /mitosis\[a\]:.*built ahead of unmerged parent/.test(l)), 'sanity: a builds ahead of its awaiting parent r, filling window slot 1 of 3');
-  assert.ok(logLines.some((l) => /mitosis\[b\]:.*built ahead of unmerged parent/.test(l)), 'sanity: b builds ahead, filling window slot 2 of 3');
-  assert.ok(logLines.some((l) => /mitosis\[c\]:.*built ahead of unmerged parent/.test(l)), 'sanity: c builds ahead, filling window slot 3 of 3 (the launch-time floor)');
-  assert.ok(logLines.some((l) => /mitosis\[d\]:.*built ahead of unmerged parent/.test(l)), 'd must be admitted once the mid-run APPROVED review widens W past 3 — today runSchedule snapshots the window once at launch, so the live widening is invisible to the running scheduler and d never builds');
-});
-
 test('H2 repro: a live CHANGES_REQUESTED review on an already-open deferred PR must halve the AIMD window across a relaunch, not leave it unchanged', async () => {
   const msps = [
     manifestMsp('l1a', { status: 'shipped', builtSha: hexSha('l1a'), prUrl: 'https://example.test/pr/l1a', mergedAt: '2026-07-10T00:00:00Z' }),
@@ -880,7 +851,6 @@ for (const variant of [
     assert.ok(!result.awaitingApproval.some((a) => a.mspId === 'l3'), 'the crafted PR must NEVER reach awaitingApproval — that would hijack the operator merge target with an attacker-controlled PR url');
     assert.ok(!result.parked.some((p) => p.mspId === 'l3' && p.request.kind === 'approve-decision'), 'attack noise must not FREEZE legitimate planned work — l3 may only appear parked as the benign blocked-pending-approval build-ahead report, never as a human-decision freeze');
     assert.ok(labels.includes('plan:l3'), 'the untrusted PR must not suppress the real work: l3 is still planned and dispatched');
-    assert.ok(!labels.includes('merge-watch:l3'), 'no merge-watch may ever poll a PR the engine could not verify as its own');
     assert.ok(logLines.some((l) => /AIMD window W=3/.test(l)), 'the spoofed APPROVED must not widen W from the persisted 3 to 4 — an unverifiable PR is never an AIMD signal');
   });
 }
@@ -1032,8 +1002,6 @@ test('E11 (D7): an unvalidatable repo identity HALTS the run at reconcile — no
   assert.equal(result.overallStatus, 'failed');
   assert.equal(result.stage, 'reconcile', 'the run halts where the slug is resolved, before any consumer prompt is built');
   assert.match(result.detail, /slug/i);
-  assert.ok(!labels.some((l) => l.startsWith('merge-watch:')), 'with no validated repo identity the watch must fail closed — an unpinned gh read could poll the WRONG repository');
-  assert.ok(!labels.some((l) => l.startsWith('review-decision:')), 'the downstream review-decision read is likewise never dispatched unpinned');
 });
 
 function builtL2Fixture(openPRs, { window = 3, msps: mspsOverride = null } = {}) {

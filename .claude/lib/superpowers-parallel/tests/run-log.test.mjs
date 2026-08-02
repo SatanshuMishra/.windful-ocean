@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { foldRunManifest, shipDelta, builtDelta, parkDelta } from '../run-log.mjs';
+import { foldRunManifest, shipDelta, builtDelta, parkDelta, quiescentExitDelta, isIsoInstant } from '../run-log.mjs';
 import { buildInitialManifest } from '../recovery.mjs';
 import { park } from '../parking.mjs';
 import { windowDelta } from '../window.mjs';
@@ -159,4 +159,42 @@ test('foldRunManifest applies a window delta, persisting AIMD W across a simulat
   const manifest = genesisManifest(TWO);
   const folded = foldRunManifest([JSON.stringify(manifest), JSON.stringify(windowDelta(5))].join('\n'));
   assert.equal(folded.window, 5);
+});
+
+test('foldRunManifest applies a quiescent-exit delta carrying a real instant, so a later advance can measure the gap', () => {
+  const manifest = genesisManifest(TWO);
+  const folded = foldRunManifest([JSON.stringify(manifest), JSON.stringify(quiescentExitDelta({ at: '2026-07-31T10:00:00Z' }))].join('\n'));
+  assert.equal(folded.quiescentExitAt, '2026-07-31T10:00:00Z');
+});
+
+test('foldRunManifest carries whether the recorded exit had work outstanding, so a later advance cannot report post-completion idle time as a human wait', () => {
+  const manifest = genesisManifest(TWO);
+  const fold = (outstanding) => foldRunManifest([JSON.stringify(manifest), JSON.stringify(quiescentExitDelta({ at: '2026-07-31T10:00:00Z', outstanding }))].join('\n'));
+  assert.equal(fold(true).quiescentExitOutstanding, true, 'an exit that stopped with an MSP awaiting a human merge is the case section 3.6 describes, and only that case may be attributed to it');
+  assert.equal(fold(false).quiescentExitOutstanding, false, 'an exit with nothing outstanding waited on no human; recording it as outstanding would inflate the number section 3.6 is falsified against');
+  assert.equal(fold(undefined).quiescentExitOutstanding, false, 'an omitted flag is read as "nothing outstanding" — absence of evidence must not be promoted to a claimed human wait');
+});
+
+test('foldRunManifest REFUSES a quiescent-exit delta whose at is not an ISO-8601 instant, so an unsubstituted prompt placeholder never becomes a durable recorded instant', () => {
+  const manifest = genesisManifest(TWO);
+  const good = JSON.stringify(quiescentExitDelta({ at: '2026-07-31T10:00:00Z' }));
+  for (const rejected of ['<REPLACE-WITH-CURRENT-UTC-ISO-8601-INSTANT>', 'not a date at all', '2026-13-45T99:99:99Z', 'yesterday', '', null]) {
+    const folded = foldRunManifest([JSON.stringify(manifest), JSON.stringify(quiescentExitDelta({ at: rejected }))].join('\n'));
+    assert.equal(
+      Object.prototype.hasOwnProperty.call(folded, 'quiescentExitAt'),
+      false,
+      `at=${JSON.stringify(rejected)} must leave the manifest with no recorded exit at all — writing it through would let a later advance report it back as the instant a human was waited on`,
+    );
+    const afterGood = foldRunManifest([JSON.stringify(manifest), good, JSON.stringify(quiescentExitDelta({ at: rejected }))].join('\n'));
+    assert.equal(afterGood.quiescentExitAt, '2026-07-31T10:00:00Z', `at=${JSON.stringify(rejected)} must not clobber an instant that WAS recorded: an unreadable line is not evidence the prior exit never happened`);
+  }
+});
+
+test('isIsoInstant admits the instant forms an agent may legitimately report and rejects everything else', () => {
+  for (const ok of ['2026-08-01T12:34:56Z', '2026-08-01T12:34:56.123Z', '2026-08-01T12:34:56+05:30', '2026-08-01T00:00:00-08:00']) {
+    assert.equal(isIsoInstant(ok), true, `${ok} is a legitimate ISO-8601 instant`);
+  }
+  for (const bad of ['2026-08-01', '2026-08-01T12:34Z', '2026-00-01T00:00:00Z', '2026-08-32T00:00:00Z', '2026-08-01T24:00:00Z', ' 2026-08-01T12:34:56Z', 42, null, undefined]) {
+    assert.equal(isIsoInstant(bad), false, `${JSON.stringify(bad)} is not an instant the engine may report back as a recorded exit`);
+  }
 });

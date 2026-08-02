@@ -377,6 +377,8 @@ export function resolveRunIdentity(published, local, ctx) {
   if (Number.isInteger(local.window)) manifest.window = local.window;
   if (Array.isArray(local.parked)) manifest.parked = local.parked;
   if (typeof local.harnessRunId === 'string') manifest.harnessRunId = local.harnessRunId;
+  if (typeof local.quiescentExitAt === 'string') manifest.quiescentExitAt = local.quiescentExitAt;
+  if (typeof local.quiescentExitOutstanding === 'boolean') manifest.quiescentExitOutstanding = local.quiescentExitOutstanding;
   if (disagreements.length > 0) {
     emit(`mitosis: run identity — the published manifest for ${logicalRunId} DISAGREES with the local .mitosis/ journal on: ${disagreements.join(', ')}; the published copy WINS as the durable identity and the local values for those fields are discarded`);
   }

@@ -1,5 +1,4 @@
 import { scopesOverlap } from './wave-planner.mjs';
-import { classifyMergeWatch } from './merge-watch.mjs';
 import { WINDOW_FLOOR } from './window.mjs';
 
 export function makeUnit(spec) {
@@ -143,67 +142,36 @@ async function joinTick(units, runUnit) {
   return settled.map((r) => (r.status === 'fulfilled' ? r.value : null));
 }
 
-function awaitingUnits(units) {
-  return units.filter((u) => u.state === 'awaiting');
-}
-
-export function progressPossible(units) {
-  if (!units.some((u) => u.state === 'awaiting')) return false;
-  const hypothetical = units.map((u) => (u.state === 'awaiting' ? { ...u, state: 'done' } : u));
-  return planTick(hypothetical).dispatch.length > 0;
-}
-
-function markMerged(units, mergedIds) {
-  const set = new Set(mergedIds);
-  return Object.freeze(units.map((u) => (set.has(u.id) ? Object.freeze({ ...u, state: 'done', leaseHeld: false }) : u)));
-}
-
 function markAwaitingMerge(units) {
   return Object.freeze(units.map((u) => (u.state === 'awaiting' ? Object.freeze({ ...u, state: 'awaiting-merge' }) : u)));
 }
 
-async function runScheduleTick(specs, runUnit, poll, windowSize) {
+async function runScheduleTick(specs, runUnit, windowSize) {
   let units = buildUnitTable(specs);
   const ticks = [];
-  const polls = [];
-  const maxPollCycles = poll && Number.isInteger(poll.maxCycles) && poll.maxCycles > 0 ? poll.maxCycles : 0;
-  const maxSteps = units.length * (maxPollCycles + 2) + 1;
-  let pollsUsed = 0;
-  for (let step = 0; step < maxSteps; step++) {
+  const dispatchedEpochs = new Set();
+  for (;;) {
     const w = typeof windowSize === 'function' ? windowSize() : windowSize;
-    const { dispatch } = planTick(units, w);
-    if (dispatch.length > 0) {
-      ticks.push(dispatch);
-      units = markDispatched(units, dispatch);
-      const byId = indexUnits(units);
-      const dispatchUnits = dispatch.map((id) => byId.get(id));
-      const results = await joinTick(dispatchUnits, runUnit);
-      const outcomes = new Map(dispatch.map((id, i) => [id, results[i]]));
-      units = applyOutcomes(units, outcomes);
-      continue;
+    const stateOf = new Map(units.map((u) => [u.id, u.state]));
+    const epochOf = (id) => `${id}@${stateOf.get(id)}`;
+    const dispatch = planTick(units, w).dispatch.filter((id) => !dispatchedEpochs.has(epochOf(id)));
+    if (dispatch.length === 0) {
+      units = markAwaitingMerge(units);
+      return { units, ticks, quiescent: true };
     }
-    if (poll && pollsUsed < maxPollCycles && progressPossible(units)) {
-      pollsUsed++;
-      const watching = awaitingUnits(units);
-      const merged = [];
-      for (const unit of watching) {
-        const result = await poll.watch(unit);
-        if (classifyMergeWatch(result)) {
-          merged.push(unit.id);
-          if (typeof poll.onMerged === 'function') await poll.onMerged(unit, result);
-        }
-      }
-      polls.push({ cycle: pollsUsed, watched: watching.map((u) => u.id), merged });
-      if (merged.length > 0) { units = markMerged(units, merged); pollsUsed = 0; }
-      continue;
-    }
-    units = markAwaitingMerge(units);
-    break;
+    for (const id of dispatch) dispatchedEpochs.add(epochOf(id));
+    ticks.push(dispatch);
+    units = markDispatched(units, dispatch);
+    const byId = indexUnits(units);
+    const dispatchUnits = dispatch.map((id) => byId.get(id));
+    const results = await joinTick(dispatchUnits, runUnit);
+    const outcomes = new Map(dispatch.map((id, i) => [id, results[i]]));
+    units = applyOutcomes(units, outcomes);
   }
-  return { units, ticks, polls };
 }
 
-export async function runSchedule(specs, runUnit, poll, opts) {
+export async function runSchedule(specs, runUnit, opts, ...rest) {
+  if (rest.length > 0) throw new Error('runSchedule: the bounded merge poll was deleted, so the third argument is now opts; a 4-argument call would bind undefined to opts and silently degrade the build-ahead window to its floor');
   const windowSize = opts && (Number.isInteger(opts.window) || typeof opts.window === 'function') ? opts.window : undefined;
-  return runScheduleTick(specs, runUnit, poll, windowSize);
+  return runScheduleTick(specs, runUnit, windowSize);
 }

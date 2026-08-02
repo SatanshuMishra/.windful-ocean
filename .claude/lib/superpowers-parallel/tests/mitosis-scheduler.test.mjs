@@ -134,11 +134,17 @@ function provenBoundary(overrides = {}) {
 
 const PROVEN_BOUNDARY = Object.freeze(provenBoundary());
 
-function createFakeAgent({ msps, sourcePrefix = SOURCE_PREFIX, baseBranch = TEST_BASE_BRANCH, planGate, shipResult, reconcileResult, planReview, replanResult, mergeWatch } = {}) {
+const QUIESCENT_EXIT_FIXTURE_AT = '2026-08-01T12:00:00Z';
+
+function createFakeAgent({ msps, sourcePrefix = SOURCE_PREFIX, baseBranch = TEST_BASE_BRANCH, planGate, shipResult, reconcileResult, planReview, replanResult, mergeWatch, quiescentExit } = {}) {
   return async function fakeAgent(prompt, opts = {}) {
     const label = opts.label || '';
     const prefix = label.split(':')[0];
     switch (prefix) {
+      case 'quiescent-exit-checkpoint':
+        return quiescentExit
+          ? quiescentExit(prompt, opts)
+          : { written: true, detail: 'appended', at: QUIESCENT_EXIT_FIXTURE_AT, elapsedSincePriorExit: null };
       case 'merge-watch': {
         const mspId = label.slice('merge-watch:'.length);
         const override = mergeWatch ? mergeWatch(mspId) : null;
@@ -738,73 +744,178 @@ test('human-gated default: a foundational MSP awaiting approval yields overallSt
   assert.match(shipA, /before opening the PR/);
 });
 
-test('B3 in-run merge poll (human-gated): a merge-watch that confirms the awaiting foundational MSP merged unblocks and ships its dependent in the same run, records the merge in the ship log, and the poll read is repo-scoped and issues no merge/push', async () => {
+test('QUIESCENT EXIT: a run that stops with work outstanding returns a continuation block naming its status, what it waits on, the command that resumes it, and the identity that says whether that command works from another clone', async () => {
   const msps = [
     mspSpec('a', { fileScope: ['scope/a/**'] }),
     mspSpec('b', { dependsOn: ['a'], fileScope: ['scope/b/**'] }),
   ];
-  const watchPrompts = [];
-  const base = createFakeAgent({
+  const agent = createFakeAgent({
     msps,
     shipResult: (mspId) => (mspId === 'a'
-      ? { merged: false, awaitingApproval: true, prUrl: `https://github.com/${TEST_REPO_SLUG}/pull/1`, receiptsPass: true, d6Pass: true, detail: 'CI green; PR open and awaiting human approval to merge' }
+      ? { merged: false, awaitingApproval: true, prUrl: testPrUrl('a'), receiptsPass: true, d6Pass: true, detail: 'CI green; PR open and awaiting human approval to merge' }
       : null),
-    mergeWatch: (mspId) => (mspId === 'a'
-      ? { merged: true, mergedAt: '2026-07-15T00:00:00Z', readError: null }
-      : { merged: false, mergedAt: null, readError: null }),
   });
-  const agent = async (prompt, opts = {}) => {
-    const label = opts.label || '';
-    if (label.startsWith('merge-watch:')) watchPrompts.push(prompt);
-    return base(prompt, opts);
-  };
-  const { resultPromise, logLines } = invokeMitosis(buildInput({ mergePolicy: undefined, repoIdentity: TEST_REPO_SLUG }), agent);
+  const { resultPromise, logLines } = invokeMitosis(buildInput({ mergePolicy: undefined }), agent);
+  const result = await resultPromise;
+
+  assert.ok(result.continuation, 'a run that stops short of all-shipped reports a machine-readable continuation block');
+  assert.equal(result.continuation.status, result.overallStatus, 'the continuation status is the report\'s own overall status, never a second disagreeing authority');
+  assert.equal(result.continuation.status, 'awaiting-approval', 'a run waiting on a human merge says so, rather than reporting a failure it did not have');
+  assert.deepEqual(result.continuation.waitingOn, [{ mspId: 'a', prUrl: testPrUrl('a'), need: 'merge' }], 'waitingOn names the MSP, its PR and what it needs; need is merge because the engine no longer reads review state at all');
+  assert.equal(result.continuation.identity, result.identity, 'the continuation reports the identity assembleReport was handed, never a hardcoded literal');
+  assert.ok(['published', 'local-only', 'unresolved'].includes(result.continuation.identity), `identity is three-valued, got ${JSON.stringify(result.continuation.identity)}`);
+  assert.match(result.continuation.relaunchCommand, /--spec /, 'the relaunch command names the spec');
+  assert.match(result.continuation.relaunchCommand, /--base-branch /, 'the relaunch command names the base branch, so it re-derives the same logicalRunId');
+  assert.ok(!result.continuation.relaunchCommand.includes(TEST_REPO_ROOT), 'the relaunch command carries a repo-relative spec path, never an absolute one that leaks the originating machine\'s filesystem layout');
+  assert.ok(logLines.some((l) => /EXITS QUIESCENT/.test(l)), 'the exit is announced as a labelled terminal state rather than an unexplained stop');
+});
+
+test('QUIESCENT EXIT: a run with NOTHING outstanding still reports a continuation block, and its status tracks that run\'s own overallStatus rather than a constant', async () => {
+  const msps = twoIndependentMsps();
+  const agent = createFakeAgent({ msps });
+  const { resultPromise } = invokeMitosis(buildInput({ mergePolicy: undefined }), agent);
   const result = await resultPromise;
 
   assert.equal(result.overallStatus, 'all-shipped');
-  assert.deepEqual(result.shipped.map((s) => s.mspId).sort(), ['a', 'b'], 'the polled-merge root and the dependent it unblocks both ship in one run (>|root antichain|)');
-  const releaseLine = logLines.find((l) => /^mitosis\[a\]: in-run merge poll confirmed PR merged/.test(l));
-  assert.ok(releaseLine, 'the poll records the confirmed merge');
-  assert.match(releaseLine, /no longer waiting on any unmerged PR: b/, 'the merge does not just log "unblocking dependents" — it actually releases b from the approval-wait set, so no later stage can report b as waiting on the PR that just merged');
-  assert.deepEqual(result.awaitingApproval, [], 'the awaiting root is moved out of the awaiting category once the poll confirms the merge');
-  assert.ok(!result.parked.some((p) => p.mspId === 'b'), 'the dependent is unblocked by the poll, not parked as blocked-pending-approval');
-  assert.deepEqual(
-    result.parked.filter((p) => p.request && p.request.kind === 'blocked-pending-approval').map((p) => p.mspId),
-    [],
-    'once the in-run poll confirms the merge, nothing is reported as waiting on that PR: a blocked-pending-approval record here would send the operator to approve a PR that already merged',
-  );
-
-  assert.ok(watchPrompts.length >= 1, 'the in-run poll dispatched a repo-scoped merge-watch for the awaiting root');
-  const watchA = watchPrompts[0];
-  assert.ok(watchA.includes(`-R ${TEST_REPO_SLUG}`), 'the merge-watch read is scoped to the run repo via -R, never the ambient cwd');
-  assert.ok(!watchA.includes('gh pr merge'), 'the poll path issues no gh pr merge');
-  assert.ok(!watchA.includes('git push'), 'the poll path issues no git push to the base');
+  assert.ok(result.continuation, 'the continuation block is emitted on every terminal report, not only when something is outstanding — a caller must never have to infer "finished" from an absent key');
+  assert.equal(result.continuation.status, 'all-shipped', 'a run that shipped everything reports all-shipped here; a continuation hardcoded to awaiting-approval would send an operator to approve a PR that does not exist');
+  assert.equal(result.continuation.status, result.overallStatus, 'status is the report\'s own overall status on THIS run too, so the two can never disagree in either direction');
+  assert.deepEqual(result.continuation.waitingOn, [], 'nothing is outstanding, so nothing is claimed to be waited on');
 });
 
-test('B3 in-run merge poll (human-gated): a dependent of TWO awaiting roots is released only when the last of them merges — one merge must not release a unit still waiting on the other', async () => {
-  const msps = [
-    mspSpec('a', { fileScope: ['scope/a/**'] }),
-    mspSpec('x', { fileScope: ['scope/x/**'] }),
-    mspSpec('b', { dependsOn: ['a', 'x'], fileScope: ['scope/b/**'] }),
-  ];
+test('QUIESCENT EXIT: the section-11 latency emitter reports the gap the agent measured when a PRIOR quiescent exit is recorded, and reports none when it is not', async () => {
+  const input = buildInput({ mergePolicy: undefined });
+  const logicalRunId = computeLogicalRunId(input.spec, input.baseBranch);
+  const msps = twoIndependentMsps();
+  const manifestMsps = msps.map((m) => ({ ...m, status: 'planned', integrationBranch: `${SOURCE_PREFIX}/${m.id}-integration`, prUrl: null, mergedAt: null }));
+  const withPriorExit = (quiescentExitAt) => JSON.stringify({ logicalRunId, specContentHash: SPEC_CONTENT_HASH, clusters: [msps.map((m) => m.id)], msps: manifestMsps, ...(quiescentExitAt === null ? {} : { quiescentExitAt }) });
+  const run = (manifestRaw) => {
+    const agent = createFakeAgent({
+      msps,
+      reconcileResult: { manifestFound: true, manifestRaw, mergedPRs: [], specContentHash: SPEC_CONTENT_HASH },
+      quiescentExit: () => ({ written: true, detail: 'appended', at: '2026-08-01T12:00:00Z', elapsedSincePriorExit: '3h 12m' }),
+    });
+    return invokeMitosis(input, agent);
+  };
+
+  const { resultPromise, logLines } = run(withPriorExit('2026-08-01T08:48:00Z'));
+  await resultPromise;
+  const latency = logLines.find((l) => /QUIESCENT-EXIT LATENCY/.test(l));
+  assert.ok(latency, 'section 11 REQUIRES the wall-clock gap between a quiescent exit and the next advance to be logged; without this line section 3.6\'s "latency is the only residual cost" claim is unfalsifiable');
+  assert.match(latency, /3h 12m/, 'the emitted gap is the duration the journal agent measured, since the engine may not read a clock');
+  assert.match(latency, /2026-08-01T08:48:00Z/, 'the line names the prior exit it is measuring from, so the number can be checked rather than trusted');
+  assert.ok(logLines.some((l) => /follows a quiescent exit recorded at .*2026-08-01T08:48:00Z/.test(l)), 'the advance announces at start-up which recorded exit it is continuing from');
+
+  const fresh = run(withPriorExit(null));
+  await fresh.resultPromise;
+  assert.equal(fresh.logLines.find((l) => /QUIESCENT-EXIT LATENCY/.test(l)), undefined, 'with no prior exit on this machine there is no gap, and a duration volunteered by the agent must NOT be reported as one — that would be the run asserting something false about itself');
+});
+
+test('QUIESCENT EXIT: the gap is attributed to section 3.6\'s human-wait residual ONLY when the prior exit actually stopped with an MSP awaiting a human merge, and a run records which kind of exit it was', async () => {
+  const input = buildInput({ mergePolicy: undefined });
+  const logicalRunId = computeLogicalRunId(input.spec, input.baseBranch);
+  const msps = twoIndependentMsps();
+  const manifestMsps = msps.map((m) => ({ ...m, status: 'planned', integrationBranch: `${SOURCE_PREFIX}/${m.id}-integration`, prUrl: null, mergedAt: null }));
+  const priorExit = (quiescentExitOutstanding) => JSON.stringify({ logicalRunId, specContentHash: SPEC_CONTENT_HASH, clusters: [msps.map((m) => m.id)], msps: manifestMsps, quiescentExitAt: '2026-08-01T08:00:00Z', quiescentExitOutstanding });
+  const run = (manifestRaw, shipResult) => {
+    const templates = [];
+    const agent = createFakeAgent({
+      msps,
+      shipResult,
+      reconcileResult: { manifestFound: true, manifestRaw, mergedPRs: [], specContentHash: SPEC_CONTENT_HASH },
+      quiescentExit: (prompt) => {
+        templates.push(prompt.slice(prompt.indexOf('{"kind":"quiescent-exit"')).split('\n')[0]);
+        return { written: true, detail: 'appended', at: '2026-08-01T20:00:00Z', elapsedSincePriorExit: '12h 0m' };
+      },
+    });
+    return { ...invokeMitosis(input, agent), templates };
+  };
+
+  const awaitingShip = (mspId) => (mspId === 'a'
+    ? { merged: false, awaitingApproval: true, prUrl: testPrUrl('a'), receiptsPass: true, d6Pass: true, detail: 'CI green; PR open and awaiting human approval to merge' }
+    : null);
+
+  const afterHumanWait = run(priorExit(true), awaitingShip);
+  await afterHumanWait.resultPromise;
+  const humanWait = afterHumanWait.logLines.find((l) => /QUIESCENT-EXIT LATENCY/.test(l));
+  assert.match(humanWait, /HUMAN-WAIT/, 'a prior exit that stopped with an MSP awaiting a human merge is the case section 3.6 describes, so its gap is labelled a human wait');
+  assert.match(humanWait, /12h 0m/, 'the labelled line still carries the duration the journal agent measured');
+  assert.match(humanWait, /residual cost section 3\.6/, 'this is the gap section 3.6 claims is the design\'s only cost, and only this kind of gap may be attributed to it');
+
+  const afterAllShipped = run(priorExit(false), undefined);
+  await afterAllShipped.resultPromise;
+  const idle = afterAllShipped.logLines.find((l) => /QUIESCENT-EXIT LATENCY/.test(l));
+  assert.match(idle, /POST-COMPLETION IDLE/, 'a prior exit with nothing awaiting a human merge waited on no human, so its gap must NOT be reported as the human-wait residual — a run attributing idle time to section 3.6 asserts something false about itself, which is the defect class section 1 exists to delete');
+  assert.doesNotMatch(idle, /IS the residual cost section 3\.6/, 'the idle line must not claim the section 3.6 attribution the human-wait line carries');
+  assert.match(idle, /12h 0m/, 'the gap is still reported — deliverable 6 logs every quiescent-to-advance gap; only the attribution is conditional');
+
+  assert.equal(afterHumanWait.templates.length, 1, 'the run records exactly one quiescent-exit line');
+  assert.match(afterHumanWait.templates[0], /"outstanding":true/, 'a run that stops with an MSP awaiting a human merge records that fact, so the NEXT advance can attribute its gap correctly instead of guessing');
+  assert.match(afterAllShipped.templates[0], /"outstanding":false/, 'an all-shipped run records that nothing was outstanding; without this the next advance would report post-completion idle time as a human wait');
+});
+
+test('QUIESCENT EXIT: an unsubstituted timestamp placeholder in the run journal is REFUSED on read rather than reported back as the instant a human was waited on', async () => {
+  const input = buildInput({ mergePolicy: undefined });
+  const logicalRunId = computeLogicalRunId(input.spec, input.baseBranch);
+  const msps = twoIndependentMsps();
+  const manifestMsps = msps.map((m) => ({ ...m, status: 'planned', integrationBranch: `${SOURCE_PREFIX}/${m.id}-integration`, prUrl: null, mergedAt: null }));
+  const manifestRaw = JSON.stringify({ logicalRunId, specContentHash: SPEC_CONTENT_HASH, clusters: [msps.map((m) => m.id)], msps: manifestMsps, quiescentExitAt: '<REPLACE-WITH-CURRENT-UTC-ISO-8601-INSTANT>' });
   const agent = createFakeAgent({
     msps,
-    shipResult: (mspId) => (mspId === 'a' || mspId === 'x'
-      ? { merged: false, awaitingApproval: true, prUrl: `https://github.com/${TEST_REPO_SLUG}/pull/${mspId === 'a' ? 1 : 2}`, receiptsPass: true, d6Pass: true, detail: 'CI green; PR open and awaiting human approval to merge' }
-      : null),
-    mergeWatch: (mspId) => ({ merged: mspId === 'a', mergedAt: mspId === 'a' ? '2026-07-15T00:00:00Z' : null, readError: null }),
+    reconcileResult: { manifestFound: true, manifestRaw, mergedPRs: [], specContentHash: SPEC_CONTENT_HASH },
+    quiescentExit: () => ({ written: true, detail: 'appended', at: '2026-08-01T12:00:00Z', elapsedSincePriorExit: '9h' }),
   });
-  const { resultPromise, logLines } = invokeMitosis(buildInput({ mergePolicy: undefined, repoIdentity: TEST_REPO_SLUG }), agent);
-  const result = await resultPromise;
+  const { resultPromise, logLines } = invokeMitosis(input, agent);
+  await resultPromise;
 
-  assert.deepEqual(result.shipped.map((s) => s.mspId), ['a'], 'only the polled-merge root ships');
-  assert.deepEqual(result.awaitingApproval.map((e) => e.mspId), ['x'], 'the unmerged root stays awaiting');
-  const blockedB = result.parked.find((p) => p.mspId === 'b');
-  assert.ok(blockedB, 'b is still reported: it cannot ship while x is unmerged');
-  assert.equal(blockedB.request.kind, 'blocked-pending-approval', 'b remains blocked pending approval of x — releasing it on a\'s merge alone would claim it is ready when it is not');
-  const releaseLine = logLines.find((l) => /^mitosis\[a\]: in-run merge poll confirmed PR merged/.test(l));
-  assert.ok(releaseLine, 'the poll records the confirmed merge');
-  assert.doesNotMatch(releaseLine, /no longer waiting on any unmerged PR/, 'a\'s merge releases nobody here: the release set is recomputed from the units still awaiting, never a blind delete of the merged unit\'s dependents');
+  assert.equal(logLines.find((l) => /follows a quiescent exit recorded at/.test(l)), undefined, 'a placeholder is not an instant, so the engine must not announce it as a recorded exit');
+  assert.equal(logLines.find((l) => /QUIESCENT-EXIT LATENCY/.test(l)), undefined, 'no readable prior instant means no measurable gap, so no latency is reported');
+  const refusal = logLines.find((l) => /NOT an ISO-8601 instant/.test(l));
+  assert.ok(refusal, 'the refusal is stated rather than silent, so an operator can see the journal write is broken');
+  assert.match(refusal, /REPLACE-WITH-CURRENT-UTC-ISO-8601-INSTANT/, 'the refusal quotes the value it rejected');
+});
+
+test('QUIESCENT EXIT: the journal dispatch ASKS for the field the latency emitter reads, and never tells the agent to append the timestamp template verbatim', async () => {
+  const msps = twoIndependentMsps();
+  const captured = [];
+  const agent = createFakeAgent({
+    msps,
+    quiescentExit: (prompt, opts) => {
+      captured.push({ prompt, opts });
+      return { written: true, detail: 'appended', at: '2026-08-01T12:00:00Z', elapsedSincePriorExit: null };
+    },
+  });
+  const { resultPromise } = invokeMitosis(buildInput({ mergePolicy: undefined }), agent);
+  await resultPromise;
+
+  assert.equal(captured.length, 1, 'the quiescent exit costs exactly one run-level journal dispatch');
+  const { prompt, opts } = captured[0];
+  const returnContract = prompt.slice(prompt.lastIndexOf('Return ONLY:'));
+  assert.match(returnContract, /elapsedSincePriorExit/, 'the emitter reads elapsedSincePriorExit, so the dispatch must ASK for it in its return contract — a purpose sentence that requests a field the final "Return ONLY" line omits leaves a compliant agent returning neither, and the emitter permanently silent');
+  assert.match(returnContract, /\bat\b/, 'the engine reads back the instant the agent substituted, so the contract must ask for it');
+
+  assert.ok(opts.schema, 'the dispatch attaches a schema, so the extra fields are compelled rather than merely requested in prose');
+  assert.deepEqual([...opts.schema.required].sort(), ['at', 'detail', 'elapsedSincePriorExit', 'written']);
+  assert.equal(opts.schema.additionalProperties, false);
+
+  assert.ok(prompt.includes('<REPLACE-WITH-CURRENT-UTC-ISO-8601-INSTANT>'), 'the appended line is a template carrying the token the agent substitutes');
+  assert.ok(
+    !prompt.includes('EXACTLY as given, verbatim'),
+    'this dispatch must NOT carry the verbatim-append directive: ordering the agent to substitute the token AND to append the line exactly as given is a self-contradiction whose most specific reading appends the placeholder, which is then discarded on read',
+  );
+});
+
+test('QUIESCENT EXIT: a journal agent that appends the placeholder verbatim is named as such, so the broken write is visible in the run that made it rather than one relaunch later', async () => {
+  const msps = twoIndependentMsps();
+  const agent = createFakeAgent({
+    msps,
+    quiescentExit: () => ({ written: true, detail: 'appended', at: '<REPLACE-WITH-CURRENT-UTC-ISO-8601-INSTANT>', elapsedSincePriorExit: null }),
+  });
+  const { resultPromise, logLines } = invokeMitosis(buildInput({ mergePolicy: undefined }), agent);
+  await resultPromise;
+
+  const warning = logLines.find((l) => /UNSUBSTITUTED PLACEHOLDER/.test(l));
+  assert.ok(warning, 'the engine reads back the instant the journal stage claims it wrote; an unsubstituted placeholder is caught in THIS run, not silently carried into the next');
 });
 
 test('B3 in-run merge poll fail-safe (human-gated): when the merge-watch never confirms a merge, the awaiting root and its dependent park exactly as today (no regression)', async () => {
@@ -3210,7 +3321,7 @@ test('FLAGSHIP obligation-4.3.3(a): run-away is structurally impossible — ever
   assert.equal(result.parked.find((p) => p.mspId === 'p').stage, 'plan');
   assert.equal(result.parked.find((p) => p.mspId === 'h').stage, 'parallelize');
   assert.equal(result.parked.find((p) => p.mspId === 'x').stage, 'execute');
-  assert.equal(totalCalls, 20, 'each of the three simultaneously-failing units is bounded by its own per-unit dispatch budget (no shared global budget one pathological unit could exhaust), so the total dispatch count across the whole run is exactly the sum of each unit\'s bounded cost — including the one bounded durable park-checkpoint dispatch each park incurs, and the single bounded approve plan-review dispatch each of the two units that clear Plan (h, x) incurs before failing downstream (p parks at plan, before review) — plus the two RUN-LEVEL genesis dispatches the fresh path incurs exactly once each and never per unit (the local checkpoint-init journal write and the durable manifest-publish of the run identity) — never unbounded');
+  assert.equal(totalCalls, 21, 'each of the three simultaneously-failing units is bounded by its own per-unit dispatch budget (no shared global budget one pathological unit could exhaust), so the total dispatch count across the whole run is exactly the sum of each unit\'s bounded cost — including the one bounded durable park-checkpoint dispatch each park incurs, and the single bounded approve plan-review dispatch each of the two units that clear Plan (h, x) incurs before failing downstream (p parks at plan, before review) — plus the three RUN-LEVEL dispatches the fresh path incurs exactly once each and never per unit (the local checkpoint-init journal write, the durable manifest-publish of the run identity, and the quiescent-exit journal write that timestamps the exit for latency instrumentation) — never unbounded');
 });
 
 test('RESILIENCE-A: an ApproachFixable plan outcome dispatches an in-run diagnostician and redispatch, and a successful correction ships the unit instead of parking it', async () => {
@@ -4382,25 +4493,6 @@ test('MSP-5a WS-5.1: worktree read-only probe + checkpoint clerical dispatches r
   }
 });
 
-test('MSP-5a WS-5.1: the in-run merge-watch poll runs Sonnet', async () => {
-  const msps = [mspSpec('a', { fileScope: ['scope/a/**'] }), mspSpec('b', { dependsOn: ['a'], fileScope: ['scope/b/**'] })];
-  const base = createFakeAgent({
-    msps,
-    shipResult: (mspId) => (mspId === 'a'
-      ? { merged: false, awaitingApproval: true, prUrl: `https://github.com/${TEST_REPO_SLUG}/pull/1`, receiptsPass: true, d6Pass: true, detail: 'CI green; PR open and awaiting human approval to merge' }
-      : null),
-    mergeWatch: (mspId) => (mspId === 'a'
-      ? { merged: true, mergedAt: '2026-07-15T00:00:00Z', readError: null }
-      : { merged: false, mergedAt: null, readError: null }),
-  });
-  const { agent, models } = captureModels(base);
-  const { resultPromise } = invokeMitosis(buildInput({ mergePolicy: undefined, repoIdentity: TEST_REPO_SLUG }), agent);
-  const result = await resultPromise;
-
-  assert.equal(result.overallStatus, 'all-shipped');
-  assert.equal(models.get('merge-watch:a'), 'sonnet', 'the clerical merge-watch poll is down-tiered to Sonnet');
-});
-
 test('MSP-5a WS-5.1: the park-checkpoint journal append runs Sonnet', async () => {
   const input = buildInput();
   const msps = [mspSpec('solo', { fileScope: ['scope/solo/**'] })];
@@ -4452,32 +4544,61 @@ test('MSP-5a WS-5.1: the scope-fence completeness-gate dispatch is HELD at Opus'
   assert.equal(models.get('fence:wave-0'), 'opus', 'the scope-fence completeness gate is HELD at Opus (feeds a fail-closed gate)');
 });
 
-test('T14(c) fix (frontier default): a build-ahead unit redispatched with no recorded builtSha fails CLOSED — parks ambiguous frontier state, never bypasses the sha check to ship an unverified tip', async () => {
+function frontierRedispatchRelaunch({ checkpointPushSha } = {}) {
+  const input = buildInput({ mergePolicy: undefined, repoIdentity: TEST_REPO_SLUG });
+  const logicalRunId = computeLogicalRunId(input.spec, input.baseBranch);
   const msps = [
     mspSpec('a', { fileScope: ['scope/a/**'] }),
     mspSpec('b', { dependsOn: ['a'], fileScope: ['scope/b/**'] }),
+    mspSpec('c', { dependsOn: ['b'], fileScope: ['scope/c/**'] }),
   ];
-  const base = createFakeAgent({
-    msps,
-    shipResult: (mspId) => (mspId === 'a'
-      ? { merged: false, awaitingApproval: true, prUrl: `https://github.com/${TEST_REPO_SLUG}/pull/1`, receiptsPass: true, d6Pass: true, detail: 'CI green; PR open and awaiting human approval to merge' }
-      : null),
-    mergeWatch: (mspId) => (mspId === 'a'
-      ? { merged: true, mergedAt: '2026-07-16T00:00:00Z', readError: null }
-      : { merged: false, mergedAt: null, readError: null }),
-  });
-  const agent = async (prompt, opts = {}) => {
-    const res = await base(prompt, opts);
-    if ((opts.label || '') === 'checkpoint-push:b') return { ...res, sha: '' };
-    return res;
-  };
-  const { resultPromise } = invokeMitosis(buildInput({ mergePolicy: undefined, repoIdentity: TEST_REPO_SLUG }), agent);
+  const manifestMsps = msps.map((m) => ({
+    ...m,
+    status: m.id === 'b' ? 'built' : 'planned',
+    integrationBranch: `${SOURCE_PREFIX}/${m.id}-integration`,
+    prUrl: null,
+    mergedAt: null,
+    builtSha: m.id === 'b' ? 'sha-b' : null,
+    checkpointRef: m.id === 'b' ? `refs/mitosis/${logicalRunId}/b` : null,
+    green: true,
+    builtAgainst: {},
+  }));
+  const manifestRaw = JSON.stringify({ logicalRunId, specContentHash: SPEC_CONTENT_HASH, clusters: [msps.map((m) => m.id)], msps: manifestMsps, window: 3 });
+  const base = createFakeAgent({ msps, reconcileResult: { manifestFound: true, manifestRaw, mergedPRs: [], specContentHash: SPEC_CONTENT_HASH } });
+  const agent = checkpointPushSha === undefined
+    ? base
+    : async (prompt, opts = {}) => {
+      const res = await base(prompt, opts);
+      const label = opts.label || '';
+      return label.startsWith('checkpoint-push:') ? { ...res, sha: checkpointPushSha(label.slice('checkpoint-push:'.length)) } : res;
+    };
+  return invokeMitosis(input, agent);
+}
+
+test('FRONTIER REDISPATCH IS LIVE AFTER THE POLL DELETION: a relaunch seeded with a built mid-chain unit lets a deeper unit build ahead in-run, and when every parent then reaches done in that same run the built unit is REDISPATCHED and its durable checkpoint is sha-verified before it ships', async () => {
+  const { resultPromise, logLines } = frontierRedispatchRelaunch();
   const result = await resultPromise;
 
-  assert.ok(!result.shipped.some((s) => s.mspId === 'b'), 'a build-ahead unit with no recorded builtSha must never ship on frontier redispatch');
-  const parkedB = result.parked.find((p) => p.mspId === 'b');
-  assert.ok(parkedB, 'the frontier-redispatched unit with no recorded provenance parks rather than silently shipping or dropping');
-  assert.match(parkedB.diagnosis, /ambiguous frontier state/, 'the park diagnosis names the ambiguous-frontier trigger');
-  assert.match(parkedB.diagnosis, /no builtSha was recorded/, 'the diagnosis distinguishes the absent-provenance case from a plain sha mismatch');
-  assert.deepEqual(result.shipped.map((s) => s.mspId).sort(), ['a'], 'the awaiting root still ships once its poll confirms the merge; only the ambiguous frontier redispatch parks');
+  assert.deepEqual(result.shipped.map((s) => s.mspId).sort(), ['a', 'b', 'c'], 'the redispatched build-ahead unit ships once its parents reach done — the in-run frontier redispatch survives the deletion of the merge poll');
+  assert.deepEqual(result.parked, [], 'a redispatch whose restored checkpoint sha matches the recorded builtSha has nothing ambiguous to park for');
+  assert.ok(
+    logLines.some((l) => /mitosis\[c\]: frontier-train — built ahead of unmerged parent\(s\)/.test(l)),
+    'c builds ahead of b and defers its PR, which is the only way a unit enters the in-run built set the redispatch reads',
+  );
+  assert.ok(
+    logLines.some((l) => /mitosis\[c\]: frontier-train — every parent reached done/.test(l)),
+    'this line is emitted only from inside the frontier built-redispatch branch, so its presence is the receipt that the branch — and the requireSha fail-closed check it alone reaches — is REACHABLE production code rather than dead weight',
+  );
+});
+
+test('T14(c): a build-ahead unit REDISPATCHED with no recorded builtSha fails CLOSED — parks ambiguous frontier state, never bypasses the sha check to ship an unverified tip', async () => {
+  const { resultPromise } = frontierRedispatchRelaunch({ checkpointPushSha: (mspId) => (mspId === 'c' ? '' : `sha-${mspId}`) });
+  const result = await resultPromise;
+
+  assert.ok(!result.shipped.some((s) => s.mspId === 'c'), 'a build-ahead unit with no recorded builtSha must never ship on frontier redispatch');
+  const parkedC = result.parked.find((p) => p.mspId === 'c');
+  assert.ok(parkedC, 'the frontier-redispatched unit with no recorded provenance parks rather than silently shipping or dropping');
+  assert.match(parkedC.diagnosis, /ambiguous frontier state/, 'the park diagnosis names the ambiguous-frontier trigger');
+  assert.match(parkedC.diagnosis, /no builtSha was recorded/, 'the diagnosis distinguishes the absent-provenance case from a plain sha mismatch');
+  assert.deepEqual(result.shipped.map((s) => s.mspId).sort(), ['a', 'b'], 'only the ambiguous frontier redispatch parks; the rest of the chain still ships');
 });
