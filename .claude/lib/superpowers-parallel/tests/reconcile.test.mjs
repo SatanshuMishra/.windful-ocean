@@ -199,8 +199,8 @@ test('assembleDivergenceVerdicts: NEED-KEYED — probes only a merged parent tha
 });
 
 test('planReconcile: fails closed on a malformed manifest — empty advance, no rebuild', () => {
-  assert.deepEqual(planReconcile(null, { merged: ['x'] }), { toRestack: [], toOpen: [], toParkSubtree: [], buildRunNeeded: false });
-  assert.deepEqual(planReconcile({ msps: 'nope' }), { toRestack: [], toOpen: [], toParkSubtree: [], buildRunNeeded: false });
+  assert.deepEqual(planReconcile(null, { merged: ['x'] }), { toRestack: [], toOpen: [], toParkSubtree: [], buildRunNeeded: false, invalidatingParents: 0 });
+  assert.deepEqual(planReconcile({ msps: 'nope' }), { toRestack: [], toOpen: [], toParkSubtree: [], buildRunNeeded: false, invalidatingParents: 0 });
 });
 
 test('planReconcile: never mutates the input manifest', () => {
@@ -218,7 +218,7 @@ test('planReconcile: a null / array / non-object live is normalized to a safe sn
     { id: 'root', status: 'shipped', dependsOn: [] },
     { id: 'a', status: 'built', dependsOn: ['root'], builtSha: 'a0' },
   ] };
-  const expected = { toRestack: [], toOpen: ['a'], toParkSubtree: [], buildRunNeeded: false };
+  const expected = { toRestack: [], toOpen: ['a'], toParkSubtree: [], buildRunNeeded: false, invalidatingParents: 0 };
   assert.deepEqual(planReconcile(manifest, null), expected);
   assert.deepEqual(planReconcile(manifest, ['root']), expected);
   assert.deepEqual(planReconcile(manifest, 'garbage'), expected);
