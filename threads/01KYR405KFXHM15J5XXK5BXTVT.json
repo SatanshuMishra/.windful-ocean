@@ -35,21 +35,22 @@
   "closure_statement": null,
   "spine": {
     "status": "paused",
-    "active_goal": "M4 IS OPENED, GROUNDED AND DISPATCH-READY; dispatch withheld by user instruction. Branch feat/m4-fixed-build-ahead-cap is cut off origin/main at 9ea75d6 with ZERO commits, in the main worktree; no code written. CI was read on 9ea75d6 for the first time - test and security both success - and diff --stat 556706c 9ea75d6 is empty, so that green and M5's 1846-pass local run share one tree. A grounding pass re-derived M4's surface; both scope calls closed by 0197/0198. Nothing running or staged.",
-    "next_step": "FRESH SESSION: DISPATCH M4. Read 0196/0197/0198, then the M4 GROUNDING MAP entry (the anchor authority - do NOT re-run it, do NOT trust the spec's :line cites), then the M4 DISPATCH BRIEF entry, which carries the full contract with both scope calls closed. The branch ALREADY EXISTS at 9ea75d6 with zero commits - do not re-cut it. Two commits: the interlocked AIMD deletion, then the additive instrumentation. Four-agent serial shape, ship HARD-GATED on the verifier's verdict.",
+    "active_goal": "M4 COMMIT 1 IS LANDED AND GREEN. Commit 777617b on feat/m4-fixed-build-ahead-cap (13 files +57/-207), verified first-hand. NOT PUSHED, no PR. Suite 1839 pass / 0 fail LOCAL (baseline 1846; -8 deleted +1 added, fully accounted). Both 0197 preconditions discharged BY MEASUREMENT and 0197 HELD. Remaining: the additive instrumentation commit, adversarial verification, ship. Nothing is running.",
+    "next_step": "FRESH SESSION: dispatch ONE small dynamic Workflow for ALL remaining M4 phases, shipping TWO STACKED PRs (user directive 2026-08-02). Read the M4 REMAINING-PHASES DISPATCH BRIEF entry FIRST, then the THREE DECISIONS entry (A-D), then 0196/0197/0198 and the GROUNDING MAP. DO NOT re-do commit 1 or re-cut the branch. Order: instrumentation per 0198, adversarial verify targeting the three deleted e2e tests, ship HARD-GATED on the verdict.",
     "open_risks": [
-      "0197's TWO PRECONDITIONS ARE UNDISCHARGED; settle both by MEASUREMENT before the matching deletion: (a) grep-prove manifest.window has NO surviving reader - a survivor REFUTES 0197; (b) prove what applyRunDelta does with an UNKNOWN kind before deleting its 'window' case.",
-      "THE M3 TERMINATION RESIDUAL IS DECLARED, NOT FIXED, and the receipt says so: exit removal is a full-suite HANG with zero reddening and the suite EXIT CODE is not recovered. Never call it fixed; it belongs to a later MSP, not M4.",
-      "COMMIT 1 CANNOT BE SPLIT: the mirror guard forces each `whole` twin edit into both copies, and window.mjs's exports are imported by reconcile.mjs and leases.mjs, so any partial landing is red mid-branch. Resist an agent's instinct to stage it smaller.",
-      "TWO TEST FILES FAIL AT IMPORT, NOT ASSERTION: window.test.mjs:3 and run-log.test.mjs:6 import exports M4 deletes, so unless they are fixed in the SAME commit the suite does not load. The progressPossible mode this thread already paid for once.",
-      "THE SPEC IS WRONG WHERE 0196 SAYS: readReviewDecision/resolveReviewEvent do NOT exist (M5 deleted them in 9ea75d6), clampWindow was never a mirrored twin, WINDOW_FLOOR is not pure AIMD. Working from spec text chases absent symbols and mis-sizes the blast radius.",
-      "0187 IS ASSIGNED TO M4 COMMIT 1: strip the `AIMD window W=` clause from mitosis.js:3988. Do not hotfix it elsewhere and do not expand into the toRestack/toOpen dead weight, which is measured but NOT M4's.",
-      "THE MAIN WORKTREE IS NOW ON feat/m4-fixed-build-ahead-cap, not the merged feat/m5-quiescent-exit (that ref survives). FOUR DIRTY WORKTREES REMAIN BY DESIGN: frontier-default, hermetic-guard-test, mitosis-frontier-train, mitosis-opt-stage1. Reap on dirtiness (0195).",
-      "M4 TOUCHES POLICED TWINS - window.mjs, reconcile.mjs, leases.mjs, recovery.mjs are all `whole`: each edit lands in BOTH copies in ONE commit, landing stays SERIAL. clampWindow, buildReconcileLiveSignals and persistWindowCheckpoint are mitosis.js-ONLY.",
-      "ORDERING RULE 0194: do NOT tell any agent not to commit; every lens runs AFTER the commit producing what it measures. NO TEST is owed for the instrumentation - a log-string assertion is a change detector; do not let an agent add one.",
-      "METHOD RULE, twelve instances deep: verify a confident finding against the mechanism, and prove a probe CAN redden before believing a null result. It is why the grounding pass caught three wrong spec targets this session.",
-      "Five pre-existing dirty paths stay untouched: .claude/settings.json, .zshrc, the two .bak-pre-promptsfix files, .claude/skills/context7-mcp/. Stage explicit paths only, NEVER git add -A. Mutants via MITOSIS_PATH scratch copies only.",
-      "PR scope is FROZEN at creation; title/body edits are denied and later facts go in a comment (0142). pr-create rejects angle brackets in --what and requires --provenance when --origin machine. MERGE STAYS HUMAN-GATED."
+      "COMMIT 1 IS UNPUSHED AND CI HAS NEVER RUN ON 777617b. Every green claim on it is LOCAL. CI is green on 9ea75d6, the parent, but that tree predates the deletion.",
+      "THE THREE DELETED e2e TESTS ARE THE VERIFIER'S PRIMARY TARGET (decision D). Green proves the suite loads and passes, NOT that coverage survived. Prove :1148/:1167/:1267 carry the invariants and that the two kept clamp tests still REDDEN.",
+      "record_decision IS BROKEN for long field values; six well-formed calls rejected, a tiny probe succeeded. DECISION 0199 IS A VOID PROBE ARTIFACT - never link it. Decisions A-D live in the 2026-08-02T06-02 session-log entry and are BINDING.",
+      "TWO LEDGER STORES DISAGREE: session-continuity-inline is LIVE, session-continuity-continuity-ledger is STALE (frozen 04:23, claims CI unread). READ THE LEDGER THROUGH THE MCP TOOLS ONLY; the stale copy reads as consistent.",
+      "DEAD reviewDecision PAYLOAD LEFT BY DESIGN (decision B): mitosis.js:1667/1671 still require the field and :3800 still fetches it. Not M4's - external-payload contract, a later MSP.",
+      ".mitosis/ IS NOT GITIGNORED and does not exist here (decision C), refuting a premise in 0197 and the brief. The inertness result survives, proven by EXECUTION. mitosis.js logs the false claim twice. Not M4's.",
+      "ALL :line CITES IN THE GROUNDING MAP NOW SHIFT - commit 1 moved every line in mitosis.js and the touched tests. The map stays the authority for WHAT EXISTS; RE-LOCATE BY SYMBOL before editing.",
+      "THE M3 TERMINATION RESIDUAL IS DECLARED, NOT FIXED: exit removal is a full-suite HANG with zero reddening and the suite EXIT CODE is not recovered. A later MSP.",
+      "ORDERING RULE 0194: NEVER instruct an agent not to commit; every lens runs AFTER its commit. NO TEST is owed for the instrumentation - a log-string assertion is a change detector.",
+      "METHOD RULE, thirteen instances deep: verify a confident finding against the mechanism, and prove a probe CAN redden before believing a null result. It refuted the map's reviewDecision rationale this session.",
+      "MIRROR TWINS bind commit 2: if the divergence count is not derivable from planReconcile's return, adding ONE integer lands in BOTH twins in the SAME commit. tests/ is NOT census-governed.",
+      "Five pre-existing dirty paths stay untouched. Stage explicit paths only, NEVER git add -A. Mutants via MITOSIS_PATH scratch copies only. FOUR DIRTY WORKTREES REMAIN BY DESIGN (0195).",
+      "PR scope is FROZEN at creation; title/body edits denied, later facts go in a comment (0142). pr-create rejects angle brackets in --what and requires --provenance with --origin machine. MERGE STAYS HUMAN-GATED FOR BOTH PRs."
     ],
     "key_decisions": [
       "0136-defer-track-a-until-mitosis-msps-land",
@@ -138,5 +139,5 @@
     ]
   },
   "created_at": "2026-07-29T23:40:17.901Z",
-  "updated_at": "2026-08-02T06:00:27.427Z"
+  "updated_at": "2026-08-02T06:04:19.364Z"
 }
