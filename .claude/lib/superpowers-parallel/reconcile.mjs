@@ -1,5 +1,5 @@
 import { parseCheckpointRef } from './checkpoint.mjs';
-import { descendantsToInvalidate, transitiveDependents } from './parking.mjs';
+import { transitiveDependents } from './parking.mjs';
 
 function uniqStrings(list) {
   if (!Array.isArray(list)) return [];
@@ -72,32 +72,6 @@ export function mergePaginated(pages) {
   return out;
 }
 
-export function assembleDivergenceVerdicts(manifest, live = {}) {
-  const verdicts = {};
-  if (!manifest || typeof manifest !== 'object' || Array.isArray(manifest) || !Array.isArray(manifest.msps)) return verdicts;
-  const liveObj = live && typeof live === 'object' && !Array.isArray(live) ? live : {};
-  const msps = manifest.msps;
-  const mergedLive = uniqStrings(liveObj.merged);
-  const mergedShas = liveObj.mergedShas && typeof liveObj.mergedShas === 'object' && !Array.isArray(liveObj.mergedShas) ? liveObj.mergedShas : {};
-  const probes = liveObj.divergenceProbes && typeof liveObj.divergenceProbes === 'object' && !Array.isArray(liveObj.divergenceProbes) ? liveObj.divergenceProbes : {};
-  const byId = new Map(msps.filter((m) => m && typeof m.id === 'string').map((m) => [m.id, m]));
-  for (const parentId of mergedLive) {
-    const gatesBuilt = transitiveDependents(msps, parentId).some((d) => { const m = byId.get(d); return Boolean(m) && m.status === 'built'; });
-    if (!gatesBuilt) continue;
-    const parent = byId.get(parentId);
-    const builtSha = parent && typeof parent.builtSha === 'string' && parent.builtSha.length > 0 ? parent.builtSha : null;
-    const mergedSha = typeof mergedShas[parentId] === 'string' && mergedShas[parentId].length > 0 ? mergedShas[parentId] : null;
-    const fileScope = parent && Array.isArray(parent.fileScope) ? parent.fileScope.filter((f) => typeof f === 'string' && f.length > 0) : [];
-    if (builtSha === null || mergedSha === null || fileScope.length === 0) { verdicts[parentId] = 'missing'; continue; }
-    const probe = probes[parentId];
-    if (!probe || typeof probe !== 'object' || Array.isArray(probe)) { verdicts[parentId] = 'indeterminate'; continue; }
-    if (probe.error !== undefined && probe.error !== null && probe.error !== '') { verdicts[parentId] = 'indeterminate'; continue; }
-    if (!Array.isArray(probe.paths)) { verdicts[parentId] = 'indeterminate'; continue; }
-    verdicts[parentId] = probe.paths.length > 0 ? 'divergent' : 'clean';
-  }
-  return verdicts;
-}
-
 export function planReconcile(manifest, live = {}) {
   const liveObj = live && typeof live === 'object' && !Array.isArray(live) ? live : {};
   const empty = { toRestack: [], toOpen: [], toParkSubtree: [], buildRunNeeded: false, invalidatingParents: 0 };
@@ -107,11 +81,11 @@ export function planReconcile(manifest, live = {}) {
   const publishedLive = new Set(uniqStrings(liveObj.published));
   const shippedIds = msps.filter((m) => m && typeof m.id === 'string' && m.status === 'shipped').map((m) => m.id);
   const doneSet = new Set([...shippedIds, ...mergedLive]);
-  const verdicts = assembleDivergenceVerdicts(manifest, liveObj);
+  const divergedLive = uniqStrings(liveObj.divergedParents);
   const parkSet = new Set();
   let invalidatingParents = 0;
-  for (const parentId of Object.keys(verdicts)) {
-    const invalidated = descendantsToInvalidate(manifest, parentId, { verdict: verdicts[parentId] });
+  for (const parentId of divergedLive) {
+    const invalidated = transitiveDependents(msps, parentId);
     if (invalidated.length > 0) invalidatingParents += 1;
     for (const dep of invalidated) {
       if (doneSet.has(dep)) continue;
