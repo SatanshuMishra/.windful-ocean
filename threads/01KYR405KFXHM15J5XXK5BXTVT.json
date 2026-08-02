@@ -122,7 +122,8 @@
       "0205-the-divergence-counter-is-asserted-and-the-no-test-refusal-is-narrowed",
       "0206-the-0203-acceptance-test-rides-inside-the-amend-not-a-fourth-commit",
       "0207-m4-relands-on-main-by-cherry-pick-after-a-split-merge",
-      "0208-m7-ships-via-a-small-dynamic-workflow-with-pr-shape-chosen-by-the-work"
+      "0208-m7-ships-via-a-small-dynamic-workflow-with-pr-shape-chosen-by-the-work",
+      "0209-the-live-ledger-is-the-ledger-git-ref-not-the-plugin-data-copies"
     ],
     "out_of_scope": [
       "Any change at mitosis.js:4058-4061. H-C is REFUTED by 0159, not deferred - the done-union is correct and narrowing it is a liveness regression. Re-opening needs new evidence of an unconfirmed-ship producer.",
@@ -146,5 +147,5 @@
     ]
   },
   "created_at": "2026-07-29T23:40:17.901Z",
-  "updated_at": "2026-08-02T19:28:21.032Z"
+  "updated_at": "2026-08-02T22:38:10.740Z"
 }
