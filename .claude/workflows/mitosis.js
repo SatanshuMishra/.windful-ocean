@@ -722,6 +722,8 @@ function resolveRunIdentity(published, local, ctx) {
   if (Number.isInteger(local.window)) manifest.window = local.window;
   if (Array.isArray(local.parked)) manifest.parked = local.parked;
   if (typeof local.harnessRunId === 'string') manifest.harnessRunId = local.harnessRunId;
+  if (typeof local.quiescentExitAt === 'string') manifest.quiescentExitAt = local.quiescentExitAt;
+  if (typeof local.quiescentExitOutstanding === 'boolean') manifest.quiescentExitOutstanding = local.quiescentExitOutstanding;
   if (disagreements.length > 0) {
     emit(`mitosis: run identity — the published manifest for ${logicalRunId} DISAGREES with the local .mitosis/ journal on: ${disagreements.join(', ')}; the published copy WINS as the durable identity and the local values for those fields are discarded`);
   }
@@ -800,6 +802,16 @@ function parkDelta({ unitId, stage, diagnosis, request, remediation, resumePoint
   };
 }
 
+function quiescentExitDelta({ at, outstanding }) {
+  return { kind: 'quiescent-exit', at: at ?? null, outstanding: outstanding === true };
+}
+
+const ISO_INSTANT_PATTERN = /^\d{4}-(?:0[1-9]|1[0-2])-(?:0[1-9]|[12]\d|3[01])T(?:[01]\d|2[0-3]):[0-5]\d:[0-5]\d(?:\.\d{1,9})?(?:Z|[+-](?:[01]\d|2[0-3]):[0-5]\d)$/;
+
+function isIsoInstant(value) {
+  return typeof value === 'string' && ISO_INSTANT_PATTERN.test(value);
+}
+
 function applyRunDelta(manifest, record) {
   if (!record || typeof record !== 'object' || Array.isArray(record)) return manifest;
   if (record.kind === 'ship') return applyShipTransition(manifest, record);
@@ -812,6 +824,7 @@ function applyRunDelta(manifest, record) {
     }
   }
   if (record.kind === 'window') return { ...manifest, window: record.size };
+  if (record.kind === 'quiescent-exit') return isIsoInstant(record.at) ? { ...manifest, quiescentExitAt: record.at, quiescentExitOutstanding: record.outstanding === true } : manifest;
   return manifest;
 }
 
@@ -2355,69 +2368,38 @@ async function joinTick(units, runUnit) {
   return settled.map((r) => (r.status === 'fulfilled' ? r.value : null));
 }
 
-function awaitingUnits(units) {
-  return units.filter((u) => u.state === 'awaiting');
-}
-
-function progressPossible(units) {
-  if (!units.some((u) => u.state === 'awaiting')) return false;
-  const hypothetical = units.map((u) => (u.state === 'awaiting' ? { ...u, state: 'done' } : u));
-  return planTick(hypothetical).dispatch.length > 0;
-}
-
-function markMerged(units, mergedIds) {
-  const set = new Set(mergedIds);
-  return Object.freeze(units.map((u) => (set.has(u.id) ? Object.freeze({ ...u, state: 'done', leaseHeld: false }) : u)));
-}
-
 function markAwaitingMerge(units) {
   return Object.freeze(units.map((u) => (u.state === 'awaiting' ? Object.freeze({ ...u, state: 'awaiting-merge' }) : u)));
 }
 
-async function runScheduleTick(specs, runUnit, poll, windowSize) {
+async function runScheduleTick(specs, runUnit, windowSize) {
   let units = buildUnitTable(specs);
   const ticks = [];
-  const polls = [];
-  const maxPollCycles = poll && Number.isInteger(poll.maxCycles) && poll.maxCycles > 0 ? poll.maxCycles : 0;
-  const maxSteps = units.length * (maxPollCycles + 2) + 1;
-  let pollsUsed = 0;
-  for (let step = 0; step < maxSteps; step++) {
+  const dispatchedEpochs = new Set();
+  for (;;) {
     const w = typeof windowSize === 'function' ? windowSize() : windowSize;
-    const { dispatch } = planTick(units, w);
-    if (dispatch.length > 0) {
-      ticks.push(dispatch);
-      units = markDispatched(units, dispatch);
-      const byId = indexUnits(units);
-      const dispatchUnits = dispatch.map((id) => byId.get(id));
-      const results = await joinTick(dispatchUnits, runUnit);
-      const outcomes = new Map(dispatch.map((id, i) => [id, results[i]]));
-      units = applyOutcomes(units, outcomes);
-      continue;
+    const stateOf = new Map(units.map((u) => [u.id, u.state]));
+    const epochOf = (id) => `${id}@${stateOf.get(id)}`;
+    const dispatch = planTick(units, w).dispatch.filter((id) => !dispatchedEpochs.has(epochOf(id)));
+    if (dispatch.length === 0) {
+      units = markAwaitingMerge(units);
+      return { units, ticks, quiescent: true };
     }
-    if (poll && pollsUsed < maxPollCycles && progressPossible(units)) {
-      pollsUsed++;
-      const watching = awaitingUnits(units);
-      const merged = [];
-      for (const unit of watching) {
-        const result = await poll.watch(unit);
-        if (classifyMergeWatch(result)) {
-          merged.push(unit.id);
-          if (typeof poll.onMerged === 'function') await poll.onMerged(unit, result);
-        }
-      }
-      polls.push({ cycle: pollsUsed, watched: watching.map((u) => u.id), merged });
-      if (merged.length > 0) { units = markMerged(units, merged); pollsUsed = 0; }
-      continue;
-    }
-    units = markAwaitingMerge(units);
-    break;
+    for (const id of dispatch) dispatchedEpochs.add(epochOf(id));
+    ticks.push(dispatch);
+    units = markDispatched(units, dispatch);
+    const byId = indexUnits(units);
+    const dispatchUnits = dispatch.map((id) => byId.get(id));
+    const results = await joinTick(dispatchUnits, runUnit);
+    const outcomes = new Map(dispatch.map((id, i) => [id, results[i]]));
+    units = applyOutcomes(units, outcomes);
   }
-  return { units, ticks, polls };
 }
 
-async function runSchedule(specs, runUnit, poll, opts) {
+async function runSchedule(specs, runUnit, opts, ...rest) {
+  if (rest.length > 0) throw new Error('runSchedule: the bounded merge poll was deleted, so the third argument is now opts; a 4-argument call would bind undefined to opts and silently degrade the build-ahead window to its floor');
   const windowSize = opts && (Number.isInteger(opts.window) || typeof opts.window === 'function') ? opts.window : undefined;
-  return runScheduleTick(specs, runUnit, poll, windowSize);
+  return runScheduleTick(specs, runUnit, windowSize);
 }
 
 const WINDOW_FLOOR = 3;
@@ -3217,12 +3199,22 @@ function parkedReportEntry(record) {
   return { kind: 'parked', mspId: record.unitId, stage: record.stage, diagnosis: record.diagnosis, request: record.request, remediation: record.remediation, resumePoint: record.resumePoint, triedSet: record.triedSet, dependents: record.dependents };
 }
 
-function assembleReport({ shipped, parked, halted, crashed, awaitingApproval, mspCount, identity }) {
+function continuationBlock({ overallStatus, awaitingApproval, identity, relaunchCommand }) {
+  return {
+    status: overallStatus,
+    waitingOn: (awaitingApproval || []).map((a) => ({ mspId: a.mspId, prUrl: a.prUrl ?? null, need: 'merge' })),
+    relaunchCommand,
+    identity,
+  };
+}
+
+function assembleReport({ shipped, parked, halted, crashed, awaitingApproval, mspCount, identity, relaunchCommand }) {
   const shippedOut = shipped.map((s) => shippedOutcome(s.mspId, s));
   const parkedOut = parked.map((p) => parkedReportEntry(p));
   const awaitingApprovalOut = (awaitingApproval || []).map((a) => awaitingApprovalOutcome(a.mspId, a));
   const overallStatus = computeParkedStatus({ shipped: shippedOut, parked: parkedOut, halted, crashed, awaitingApproval: awaitingApprovalOut, total: mspCount });
-  const report = { shipped: shippedOut, parked: parkedOut, awaitingApproval: awaitingApprovalOut, halted, crashed, overallStatus, mspCount, identity };
+  const continuation = continuationBlock({ overallStatus, awaitingApproval, identity, relaunchCommand: relaunchCommand ?? null });
+  const report = { shipped: shippedOut, parked: parkedOut, awaitingApproval: awaitingApprovalOut, halted, crashed, overallStatus, mspCount, identity, continuation };
   if (overallStatus !== 'all-shipped' && overallStatus !== 'awaiting-approval') {
     const firstProblem = crashed[0] || parkedOut[0] || halted[0];
     if (firstProblem) {
@@ -4260,6 +4252,18 @@ const builtInRun = new Map();
 const mspById = new Map(msps.map((m) => [m.id, m]));
 let currentWindow = clampWindow(Number.isInteger(priorManifest && priorManifest.window) ? priorManifest.window : WINDOW_FLOOR);
 
+const recordedQuiescentExitAt = priorManifest && Object.prototype.hasOwnProperty.call(priorManifest, 'quiescentExitAt') ? priorManifest.quiescentExitAt : null;
+const priorQuiescentExitAt = isIsoInstant(recordedQuiescentExitAt) ? recordedQuiescentExitAt : null;
+if (priorQuiescentExitAt === null && recordedQuiescentExitAt !== null && recordedQuiescentExitAt !== undefined) {
+  log(`mitosis: the run manifest carries a quiescentExitAt that is NOT an ISO-8601 instant (${clean(JSON.stringify(recordedQuiescentExitAt))}) — most likely an unsubstituted placeholder from a journal-append agent that appended the template literally; REFUSING it rather than reporting it back as a recorded instant, so this advance measures no latency gap`);
+}
+const priorQuiescentExitOutstanding = Boolean(priorManifest) && priorManifest.quiescentExitOutstanding === true;
+if (priorQuiescentExitAt !== null) {
+  log(priorQuiescentExitOutstanding
+    ? `mitosis: this advance follows a quiescent exit recorded at ${clean(priorQuiescentExitAt)} in ${repoRoot}/.mitosis/run.json that STOPPED WITH AN MSP AWAITING A HUMAN MERGE — the wall-clock gap from that instant to this advance is the residual latency section 3.6 claims is the design's only cost, and it is measured and reported by the quiescent-exit journal stage at the end of this run rather than computed here, because the workflow sandbox bans every wall-clock read in the engine`
+    : `mitosis: this advance follows a quiescent exit recorded at ${clean(priorQuiescentExitAt)} in ${repoRoot}/.mitosis/run.json that had NOTHING awaiting a human merge — the gap from that instant to this advance is post-completion idle time, NOT the section 3.6 residual, and the quiescent-exit journal stage at the end of this run reports it as such rather than letting an idle gap be counted as a human wait`);
+}
+
 const reconciledDoneIds = new Set([
   ...reconciledShipped,
   ...(reusable ? reconciledManifest.msps.filter((m) => m && m.status === 'shipped').map((m) => m.id) : []),
@@ -4986,113 +4990,90 @@ async function runUnit(unit) {
     return finalizeShip();
 }
 
-const MERGE_POLL_MAX_CYCLES = 6;
-const MERGE_POLL_WAIT_SECONDS = 300;
-const MERGE_POLL_INTERVAL_SECONDS = 30;
-const pollRepoIdentity = validateRepoIdentity(targetOwnerRepo) ? targetOwnerRepo : (validateRepoIdentity(input.repoIdentity) ? input.repoIdentity : null);
-
-const REVIEW_DECISION_SCHEMA = {
-  type: 'object',
-  required: ['reviewDecision', 'readError'],
-  additionalProperties: false,
-  properties: {
-    reviewDecision: { type: ['string', 'null'] },
-    readError: { type: ['string', 'null'] },
-  },
-};
-
-function reviewDecisionPrompt(plan) {
-  if (!plan || plan.enabled !== true) throw new Error('reviewDecisionPrompt: refuses to build a prompt for a disabled merge-watch plan');
-  const read = `gh pr view -R ${plan.ownerRepo} ${plan.prNumber} --json reviewDecision`;
-  return `You are a REPO-SCOPED review-decision read for pull request ${plan.prNumber} in ${plan.ownerRepo}. You have NO Skill tool; follow these instructions directly.\n\n` +
-    `This stage is STRICTLY READ-ONLY. You MUST NOT merge, publish, rebase, comment on, approve, or mutate any ref, PR, file, or branch, and you MUST run no write command of any kind. You only READ pull-request review state.\n` +
-    `SECURITY: every read is scoped to ${plan.ownerRepo} via the -R flag. NEVER read the ambient repository and NEVER drop the -R flag.\n\n` +
-    `1. Read the pull request's review decision ONCE: \`${read}\`.\n` +
-    `2. Report the reviewDecision field verbatim as returned by gh (e.g. "APPROVED", "CHANGES_REQUESTED", "REVIEW_REQUIRED"), or null if the field is absent.\n` +
-    `If the read cannot be completed (no remote, http error, unparseable body, unknown repo), set readError to a short description and leave reviewDecision=null.\n\n` +
-    `Return ONLY: { reviewDecision: "<string>" | null, readError: "<string>" | null }.`;
-}
-
-async function readReviewDecision(unitId, plan) {
+async function appendRunJournal({
+  label,
+  unitId,
+  deltaJson,
+  purpose,
+  degradeNote,
+  appendDirective = 'Append it EXACTLY as given, verbatim, as one line:',
+  returnContract = '{ written: <bool>, detail: "<what you did>" }',
+  schema,
+  onWritten,
+}) {
   try {
-    const result = await agent(
-      reviewDecisionPrompt(plan),
-      { agentType: 'implementer', schema: REVIEW_DECISION_SCHEMA, label: `review-decision:${unitId}`, phase: 'Ship' }
-    );
-    return result || { reviewDecision: null, readError: 'review-decision returned null (blocked or dropped)' };
-  } catch (err) {
-    return { reviewDecision: null, readError: `review-decision threw: ${clean(err.message)}` };
-  }
-}
-
-function resolveReviewEvent(decision) {
-  if (!decision || (decision.readError !== undefined && decision.readError !== null && decision.readError !== '')) return null;
-  if (decision.reviewDecision === 'APPROVED') return 'approved';
-  if (decision.reviewDecision === 'CHANGES_REQUESTED') return 'changes-requested';
-  return null;
-}
-
-async function persistWindowCheckpoint(unitId, size) {
-  try {
-    const deltaJson = JSON.stringify(windowDelta(size));
     const writeRes = await agent(
-      `You are the window-checkpoint stage of a mitosis run. You have NO Skill tool; follow these instructions directly.\n\n` +
-      `Durably APPEND one AIMD build/merge window-size delta record to the run journal so a later relaunch resumes the same self-tuning gap window. Operate in ${repoRoot}:\n` +
+      `You are the ${label} stage of a mitosis run. You have NO Skill tool; follow these instructions directly.\n\n` +
+      `${purpose} Operate in ${repoRoot}:\n` +
       `1. Create the directory ${repoRoot}/.mitosis/ if it does not already exist.\n` +
       `2. Ensure .mitosis/ is gitignored: if ${repoRoot}/.gitignore does not already ignore it, append a line \`.mitosis/\` to ${repoRoot}/.gitignore. This file is machine run-state and is never committed.\n` +
-      `3. APPEND the following single line to the END of ${repoRoot}/.mitosis/run.json as a new final line (create the file if it does not exist). Do NOT overwrite, rewrite, or re-read the file, and do NOT alter any existing line. Append it EXACTLY as given, verbatim, as one line:\n\n` +
+      `3. APPEND the following single line to the END of ${repoRoot}/.mitosis/run.json as a new final line (create the file if it does not exist). Do NOT overwrite, rewrite, or re-read the file, and do NOT alter any existing line. ${appendDirective}\n\n` +
       `${deltaJson}\n\n` +
-      `Do NOT commit, push, or run any other git mutation. Return ONLY: { written: <bool>, detail: "<what you did>" }.`,
-      { agentType: 'implementer', label: `window-checkpoint:${unitId}`, phase: 'Ship' }
+      `Do NOT commit, push, or run any other git mutation. Return ONLY: ${returnContract}.`,
+      { agentType: 'implementer', label: `${label}:${unitId}`, phase: 'Ship', ...(schema ? { schema } : {}) }
     );
     if (writeRes == null || writeRes.written === false) {
       const detail = writeRes && typeof writeRes.detail === 'string' ? ` (${clean(writeRes.detail)})` : '';
-      log(`mitosis[${unitId}]: durable window checkpoint write did not persist (written=${writeRes == null ? 'null' : 'false'})${detail}; continuing — the manifest is a hint, not the skip authority, so the AIMD window resets to its safe default on the next relaunch`);
+      log(`mitosis[${unitId}]: durable ${label} write did not persist (written=${writeRes == null ? 'null' : 'false'})${detail}; continuing — ${degradeNote}`);
+      return;
     }
+    if (typeof onWritten === 'function') onWritten(writeRes);
   } catch (err) {
-    log(`mitosis[${unitId}]: durable window checkpoint failed (${clean(err.message)}); continuing — the manifest is a hint, not the skip authority, so the AIMD window resets to its safe default on the next relaunch`);
+    log(`mitosis[${unitId}]: durable ${label} failed (${clean(err.message)}); continuing — ${degradeNote}`);
   }
 }
 
-const mergePoll = {
-  maxCycles: MERGE_POLL_MAX_CYCLES,
-  watch: async (unit) => {
-    const entry = awaitingApproval.find((a) => a.mspId === unit.id);
-    if (!entry || typeof entry.prUrl !== 'string') return { merged: false, mergedAt: null, readError: 'no awaiting-approval PR reference for the polled unit' };
-    if (pollRepoIdentity === null) return { merged: false, mergedAt: null, readError: 'merge-watch disabled (no validated repo identity); poll degrades to park' };
-    const plan = planMergeWatch({ prUrl: entry.prUrl, repoIdentity: pollRepoIdentity });
-    if (!plan.enabled) return { merged: false, mergedAt: null, readError: `merge-watch disabled (${plan.reason}); poll degrades to park` };
-    let result;
-    try {
-      result = await agent(
-        mergeWatchPrompt(plan, { maxWaitSeconds: MERGE_POLL_WAIT_SECONDS, pollIntervalSeconds: MERGE_POLL_INTERVAL_SECONDS }),
-        { agentType: 'implementer', schema: MERGE_WATCH_SCHEMA, label: `merge-watch:${unit.id}`, phase: 'Ship', model: 'sonnet' }
-      );
-      result = result || { merged: false, mergedAt: null, readError: 'merge-watch returned null (blocked or dropped)' };
-    } catch (err) {
-      result = { merged: false, mergedAt: null, readError: `merge-watch threw: ${clean(err.message)}` };
-    }
-    const event = result.merged === true ? 'merged' : resolveReviewEvent(await readReviewDecision(unit.id, plan));
-    const nextSize = nextWindow(currentWindow, event);
-    if (nextSize !== currentWindow) {
-      currentWindow = nextSize;
-      await persistWindowCheckpoint(unit.id, nextSize);
-    }
-    return result;
-  },
-  onMerged: async (unit, result) => {
-    const idx = awaitingApproval.findIndex((a) => a.mspId === unit.id);
-    const entry = idx >= 0 ? awaitingApproval[idx] : null;
-    const msp = mspById.get(unit.id);
-    const prUrl = entry ? entry.prUrl : null;
-    if (idx >= 0) awaitingApproval.splice(idx, 1);
-    shipped.push({ mspId: unit.id, prUrl, receiptsPass: entry ? entry.receiptsPass : null, d6Pass: entry ? entry.d6Pass : null, dependsOn: (msp && msp.dependsOn) || [] });
-    const stillBlocked = new Set(awaitingApproval.flatMap((a) => transitiveDependents(msps, a.mspId)));
-    const released = transitiveDependents(msps, unit.id).filter((d) => !stillBlocked.has(d) && blockedByApproval.has(d));
-    for (const d of released) blockedByApproval.delete(d);
-    log(`mitosis[${unit.id}]: in-run merge poll confirmed PR merged -> ${clean(prUrl)}; releasing lease and unblocking dependents${released.length > 0 ? ` (no longer waiting on any unmerged PR: ${released.join(', ')})` : ''}`);
+async function persistWindowCheckpoint(unitId, size) {
+  await appendRunJournal({
+    label: 'window-checkpoint',
+    unitId,
+    deltaJson: JSON.stringify(windowDelta(size)),
+    purpose: 'Durably APPEND one AIMD build/merge window-size delta record to the run journal so a later relaunch resumes the same self-tuning gap window.',
+    degradeNote: 'the manifest is a hint, not the skip authority, so the AIMD window resets to its safe default on the next relaunch',
+  });
+}
+
+const QUIESCENT_EXIT_AT_PLACEHOLDER = '<REPLACE-WITH-CURRENT-UTC-ISO-8601-INSTANT>';
+
+const QUIESCENT_EXIT_SCHEMA = {
+  type: 'object',
+  required: ['written', 'detail', 'at', 'elapsedSincePriorExit'],
+  additionalProperties: false,
+  properties: {
+    written: { type: 'boolean' },
+    detail: { type: ['string', 'null'] },
+    at: { type: ['string', 'null'] },
+    elapsedSincePriorExit: { type: ['string', 'null'] },
   },
 };
+
+async function persistQuiescentExitCheckpoint(priorAt, priorOutstanding, outstanding) {
+  const template = JSON.stringify(quiescentExitDelta({ at: QUIESCENT_EXIT_AT_PLACEHOLDER, outstanding }));
+  const measure = priorAt === null
+    ? `This run followed no recorded quiescent exit on this machine, so there is no gap to measure; report elapsedSincePriorExit as null.`
+    : `The PRIOR quiescent exit on this machine was recorded at ${priorAt}. Report, as elapsedSincePriorExit, the wall-clock elapsed from that instant to now, as a human-readable duration.`;
+  await appendRunJournal({
+    label: 'quiescent-exit-checkpoint',
+    unitId: 'run',
+    deltaJson: template,
+    purpose: `Durably APPEND one quiescent-exit timestamp to the run journal so a LATER advance on this machine can measure how long a quiescent run waited for a human. The engine cannot read a clock, so the instant is yours to observe. ${measure}`,
+    degradeNote: 'the quiescent-exit latency for this run simply goes unmeasured, which costs instrumentation only and never correctness',
+    appendDirective: `The line below is a TEMPLATE, not a verbatim payload. Substitute the single token ${QUIESCENT_EXIT_AT_PLACEHOLDER} with the current UTC instant in ISO-8601 form (for example 2026-08-01T12:34:56Z), then append the resulting line. Change nothing else about the line, and NEVER append the token itself — an appended placeholder is discarded on read, so the exit would go unrecorded:`,
+    returnContract: `{ written: <bool>, detail: "<what you did>", at: "<the exact ISO-8601 instant you substituted into the appended line>", elapsedSincePriorExit: "<human-readable duration>" | null }`,
+    schema: QUIESCENT_EXIT_SCHEMA,
+    onWritten: (res) => {
+      const at = res && isIsoInstant(res.at) ? res.at : null;
+      if (at === null) {
+        log(`mitosis: the quiescent-exit journal write reported an ${res && res.at === QUIESCENT_EXIT_AT_PLACEHOLDER ? 'UNSUBSTITUTED PLACEHOLDER' : 'unusable'} instant (${clean(JSON.stringify(res ? res.at : null))}) — the appended line is therefore assumed NOT to carry a readable timestamp, and the next advance on this machine will report no latency gap rather than a fabricated one`);
+      }
+      const elapsed = res && typeof res.elapsedSincePriorExit === 'string' && res.elapsedSincePriorExit.length > 0 ? res.elapsedSincePriorExit : null;
+      if (elapsed === null || priorAt === null) return;
+      log(priorOutstanding
+        ? `mitosis: QUIESCENT-EXIT LATENCY (HUMAN-WAIT) — ${clean(elapsed)} elapsed between the prior quiescent exit recorded at ${clean(priorAt)} and this advance. That prior exit stopped with an MSP awaiting a human merge, so this gap IS the residual cost section 3.6 asserts is the design's only one, now measured rather than assumed. SAME-MACHINE ONLY: .mitosis/ is gitignored, so a relaunch from a fresh clone or a CI workspace records no prior exit and reports no gap, leaving cross-machine relaunch latency uncovered by this number`
+        : `mitosis: QUIESCENT-EXIT LATENCY (POST-COMPLETION IDLE) — ${clean(elapsed)} elapsed between the prior quiescent exit recorded at ${clean(priorAt)} and this advance. That prior exit had NOTHING awaiting a human merge, so this gap is idle time after the work was already finished and is NOT the section 3.6 residual; counting it as one would inflate the very number section 3.6's claim is falsified against. SAME-MACHINE ONLY: .mitosis/ is gitignored, so a relaunch from a fresh clone or a CI workspace records no prior exit and reports no gap, leaving cross-machine relaunch latency uncovered by this number`);
+    },
+  });
+}
 
 let scheduleResult;
 try {
@@ -5103,7 +5084,6 @@ try {
       return relaunchState ? { ...base, state: relaunchState } : base;
     }),
     (unit) => runUnit(unit),
-    mergePoll,
     { window: () => currentWindow },
   );
 } catch (err) {
@@ -5137,4 +5117,12 @@ for (const u of scheduleResult.units) {
   halted.push(haltedOutcome(u.id, 'schedule', `unit ${u.id} did not reach a terminal shipped or parked state (state=${u.state})`));
 }
 
-return assembleReport({ shipped, parked, halted, crashed: [], awaitingApproval, mspCount: msps.length, identity: runIdentity });
+log(`mitosis: the schedule reached quiescence — a tick produced no dispatchable action, so the run EXITS QUIESCENT rather than burning poll cycles or reporting a failure it did not have. ${awaitingApproval.length} MSP(s) wait on a human merge`);
+await persistQuiescentExitCheckpoint(priorQuiescentExitAt, priorQuiescentExitOutstanding, awaitingApproval.length > 0);
+
+const relaunchSpecPath = publishedSpecPath(repoRoot, spec);
+const relaunchCommand = relaunchSpecPath === null
+  ? null
+  : `mitosis --spec ${relaunchSpecPath} --base-branch ${baseBranch}`;
+
+return assembleReport({ shipped, parked, halted, crashed: [], awaitingApproval, mspCount: msps.length, identity: runIdentity, relaunchCommand });

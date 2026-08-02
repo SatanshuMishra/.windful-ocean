@@ -648,6 +648,30 @@ test('I3 precedence: the published identity table WINS a disagreement with the l
   assert.deepEqual(published.msps[0].fileScope, ['new/**'], 'the published payload is never mutated');
 });
 
+test('I3 continuity: the recorded quiescent-exit instant survives the published path, so the latency emitter is not dead on every run that published a manifest ref', () => {
+  const local = localJournalFixture({ quiescentExitAt: '2026-07-31T10:00:00Z' });
+  const published = publishedPayloadObject();
+
+  const localOnly = resolveRunIdentity(null, local, identityCtx({ refPresent: false }));
+  assert.equal(localOnly.identity, 'local-only');
+  assert.equal(localOnly.manifest.quiescentExitAt, '2026-07-31T10:00:00Z');
+
+  const resolved = resolveRunIdentity(published, local, identityCtx({ refPresent: true }));
+  assert.equal(resolved.identity, 'published');
+  assert.equal(
+    resolved.manifest.quiescentExitAt,
+    '2026-07-31T10:00:00Z',
+    'quiescentExitAt is machine-local run state the journal owns, exactly like window and harnessRunId — dropping it on the published path would silence the latency emitter for every run whose manifest ref exists, which is every run M6 published',
+  );
+
+  assert.equal(PUBLISHED_RUN_FIELDS.includes('quiescentExitAt'), false, 'the instant is carried from the LOCAL journal only; publishing it to the identity ref would make the ref carry status, which identity-only exists to forbid');
+  assert.equal(resolveRunIdentity(published, localJournalFixture(), identityCtx({ refPresent: true })).manifest.quiescentExitAt, undefined, 'a journal with no recorded exit yields no field to carry, rather than a fabricated one');
+
+  const outstanding = resolveRunIdentity(published, localJournalFixture({ quiescentExitAt: '2026-07-31T10:00:00Z', quiescentExitOutstanding: true }), identityCtx({ refPresent: true }));
+  assert.equal(outstanding.manifest.quiescentExitOutstanding, true, 'the instant travels with the fact of whether that exit waited on a human; carrying one without the other leaves the next advance unable to tell a human wait from post-completion idle time');
+  assert.equal(PUBLISHED_RUN_FIELDS.includes('quiescentExitOutstanding'), false, 'the flag is machine-local run state for the same reason the instant is, and publishing it would put status on the identity ref');
+});
+
 test('I3 guard: resolveRunIdentity REFUSES a published payload whose own specContentHash disagrees with the content-keyed ref it was read from, and falls back to the local journal', () => {
   const staleLines = [];
   const local = localJournalFixture();

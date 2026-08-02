@@ -22,6 +22,16 @@ export function parkDelta({ unitId, stage, diagnosis, request, remediation, resu
   };
 }
 
+export function quiescentExitDelta({ at, outstanding }) {
+  return { kind: 'quiescent-exit', at: at ?? null, outstanding: outstanding === true };
+}
+
+const ISO_INSTANT_PATTERN = /^\d{4}-(?:0[1-9]|1[0-2])-(?:0[1-9]|[12]\d|3[01])T(?:[01]\d|2[0-3]):[0-5]\d:[0-5]\d(?:\.\d{1,9})?(?:Z|[+-](?:[01]\d|2[0-3]):[0-5]\d)$/;
+
+export function isIsoInstant(value) {
+  return typeof value === 'string' && ISO_INSTANT_PATTERN.test(value);
+}
+
 function applyRunDelta(manifest, record) {
   if (!record || typeof record !== 'object' || Array.isArray(record)) return manifest;
   if (record.kind === 'ship') return applyShipTransition(manifest, record);
@@ -34,6 +44,7 @@ function applyRunDelta(manifest, record) {
     }
   }
   if (record.kind === 'window') return { ...manifest, window: record.size };
+  if (record.kind === 'quiescent-exit') return isIsoInstant(record.at) ? { ...manifest, quiescentExitAt: record.at, quiescentExitOutstanding: record.outstanding === true } : manifest;
   return manifest;
 }
 
