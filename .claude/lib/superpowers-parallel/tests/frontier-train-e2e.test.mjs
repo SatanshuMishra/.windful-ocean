@@ -1148,6 +1148,28 @@ test('M2b: two provenance-verified rows naming the SAME url are a benign duplica
   assert.ok(!result.parked.some((p) => p.mspId === 'l2'), 'a duplicate of the SAME url is deduplicated, never treated as two competing PRs');
 });
 
+test('M2c: an open PR whose head branch is NOT the run integration shape is invisible to the run — it is attributed to no unit, freezes none, and never becomes an operator merge target', async () => {
+  const msps = [
+    manifestMsp('l1', { status: 'shipped', builtSha: hexSha('l1'), prUrl: targetPrUrl('l1'), mergedAt: '2026-07-10T00:00:00Z' }),
+    manifestMsp('l2', { status: 'built', builtSha: hexSha('l2'), dependsOn: ['l1'] }),
+  ];
+  const foreignBranch = 'someones-foreign-human-branch';
+  const foreignUrl = targetPrUrl(foreignBranch);
+  const reconcileResult = builtL2Fixture([
+    { headRefName: foreignBranch, reviewDecision: 'CHANGES_REQUESTED' },
+  ], { msps });
+  const { agent, labels } = multiRelaunchAgent({ reconcileResult });
+  const { resultPromise } = invoke(runOn, buildInput({ mergePolicy: undefined }), agent);
+  const result = await resultPromise;
+
+  assert.ok(labels.includes('ship:l2'), 'a pull request on an unrelated human branch must never suppress the run own work: l2 is built with its parent merged, so its PR is still opened');
+  assert.ok(!result.awaitingApproval.some((a) => a.mspId === 'l2'), 'a branch outside the run namespace carries no claim on any unit — attributing it to l2 would freeze a unit the run is free to ship');
+  assert.ok(!result.shipped.some((s) => s.prUrl === foreignUrl) && !result.awaitingApproval.some((a) => a.prUrl === foreignUrl), 'no unit may report the foreign PR as its url — the operator would be sent to merge a pull request this run never opened');
+  assert.deepEqual(result.awaitingApproval.map((a) => ({ mspId: a.mspId, prUrl: a.prUrl })), [], 'NO unit is left awaiting approval when the only open PR belongs to no unit');
+  assert.deepEqual(result.parked.map((p) => p.mspId), [], 'NO unit is frozen when the only open PR belongs to no unit');
+  assert.equal(result.overallStatus, 'all-shipped', 'the run reaches its terminal shipped state rather than stalling on a stranger pull request');
+});
+
 test('M3: a manifest-sourced prUrl that does not resolve to the target repository is dropped to null rather than surfaced as a MERGED unit audit url', async () => {
   const reconcileResult = {
     manifestFound: true,
