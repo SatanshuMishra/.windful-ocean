@@ -198,15 +198,9 @@ test('assembleDivergenceVerdicts: NEED-KEYED — probes only a merged parent tha
   assert.equal(verdicts['gates-built'], 'clean');
 });
 
-test('planReconcile: folds review events through the AIMD window (approve opens, changes-requested slams)', () => {
-  assert.equal(planReconcile({ window: 3, msps: [] }, { events: ['approved', 'approved'] }).nextW, 5);
-  assert.equal(planReconcile({ window: 8, msps: [] }, { events: ['changes-requested'] }).nextW, 4);
-  assert.equal(planReconcile({ window: 3, msps: [] }, {}).nextW, 3);
-});
-
-test('planReconcile: fails closed on a malformed manifest — empty advance, no rebuild, window clamped to the floor', () => {
-  assert.deepEqual(planReconcile(null, { merged: ['x'] }), { toRestack: [], toOpen: [], toParkSubtree: [], nextW: 3, buildRunNeeded: false });
-  assert.deepEqual(planReconcile({ msps: 'nope' }), { toRestack: [], toOpen: [], toParkSubtree: [], nextW: 3, buildRunNeeded: false });
+test('planReconcile: fails closed on a malformed manifest — empty advance, no rebuild', () => {
+  assert.deepEqual(planReconcile(null, { merged: ['x'] }), { toRestack: [], toOpen: [], toParkSubtree: [], buildRunNeeded: false });
+  assert.deepEqual(planReconcile({ msps: 'nope' }), { toRestack: [], toOpen: [], toParkSubtree: [], buildRunNeeded: false });
 });
 
 test('planReconcile: never mutates the input manifest', () => {
@@ -224,7 +218,7 @@ test('planReconcile: a null / array / non-object live is normalized to a safe sn
     { id: 'root', status: 'shipped', dependsOn: [] },
     { id: 'a', status: 'built', dependsOn: ['root'], builtSha: 'a0' },
   ] };
-  const expected = { toRestack: [], toOpen: ['a'], toParkSubtree: [], nextW: 3, buildRunNeeded: false };
+  const expected = { toRestack: [], toOpen: ['a'], toParkSubtree: [], buildRunNeeded: false };
   assert.deepEqual(planReconcile(manifest, null), expected);
   assert.deepEqual(planReconcile(manifest, ['root']), expected);
   assert.deepEqual(planReconcile(manifest, 'garbage'), expected);

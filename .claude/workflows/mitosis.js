@@ -719,7 +719,6 @@ function resolveRunIdentity(published, local, ctx) {
   const dropped = [...localById.keys()].filter((id) => !publishedIds.has(id));
   if (dropped.length > 0) disagreements.push(`ids present only in the local journal and dropped: ${dropped.join(', ')}`);
   const manifest = { ...hydrated, msps };
-  if (Number.isInteger(local.window)) manifest.window = local.window;
   if (Array.isArray(local.parked)) manifest.parked = local.parked;
   if (typeof local.harnessRunId === 'string') manifest.harnessRunId = local.harnessRunId;
   if (typeof local.quiescentExitAt === 'string') manifest.quiescentExitAt = local.quiescentExitAt;
@@ -823,7 +822,6 @@ function applyRunDelta(manifest, record) {
       return manifest;
     }
   }
-  if (record.kind === 'window') return { ...manifest, window: record.size };
   if (record.kind === 'quiescent-exit') return isIsoInstant(record.at) ? { ...manifest, quiescentExitAt: record.at, quiescentExitOutstanding: record.outstanding === true } : manifest;
   return manifest;
 }
@@ -2334,7 +2332,7 @@ function criticalPathOrder(units) {
 }
 
 function buildAheadWindow(units, windowSize) {
-  return { builtUnmergedCount: units.filter((u) => u.state === 'built').length, size: Number.isInteger(windowSize) ? windowSize : WINDOW_FLOOR };
+  return { builtUnmergedCount: units.filter((u) => u.state === 'built').length, size: Number.isInteger(windowSize) ? windowSize : BUILD_AHEAD_CAP };
 }
 
 function planTick(units, windowSize) {
@@ -2397,29 +2395,12 @@ async function runScheduleTick(specs, runUnit, windowSize) {
 }
 
 async function runSchedule(specs, runUnit, opts, ...rest) {
-  if (rest.length > 0) throw new Error('runSchedule: the bounded merge poll was deleted, so the third argument is now opts; a 4-argument call would bind undefined to opts and silently degrade the build-ahead window to its floor');
+  if (rest.length > 0) throw new Error('runSchedule: the bounded merge poll was deleted, so the third argument is now opts; a 4-argument call would bind undefined to opts and silently degrade the build-ahead window to its default cap');
   const windowSize = opts && (Number.isInteger(opts.window) || typeof opts.window === 'function') ? opts.window : undefined;
   return runScheduleTick(specs, runUnit, windowSize);
 }
 
-const WINDOW_FLOOR = 3;
-const WINDOW_CEILING = 8;
-const WINDOW_INCREMENT = 1;
-
-function nextWindow(size, event) {
-  const current = Number.isInteger(size) && size >= WINDOW_FLOOR ? size : WINDOW_FLOOR;
-  if (event === 'approved' || event === 'merged') return Math.min(WINDOW_CEILING, current + WINDOW_INCREMENT);
-  if (event === 'changes-requested') return Math.max(WINDOW_FLOOR, Math.ceil(current / 2));
-  return current;
-}
-
-function windowDelta(size) {
-  return { kind: 'window', size };
-}
-
-function clampWindow(size) {
-  return Number.isInteger(size) ? Math.min(WINDOW_CEILING, Math.max(WINDOW_FLOOR, size)) : WINDOW_FLOOR;
-}
+const BUILD_AHEAD_CAP = 8;
 
 const LEGAL_STAGES = Object.freeze(['plan', 'plan-review', 'parallelize', 'branch', 'execute', 'ship']);
 
@@ -2987,10 +2968,7 @@ function assembleDivergenceVerdicts(manifest, live = {}) {
 
 function planReconcile(manifest, live = {}) {
   const liveObj = live && typeof live === 'object' && !Array.isArray(live) ? live : {};
-  const persistedWindow = manifest && typeof manifest === 'object' && !Array.isArray(manifest) ? manifest.window : undefined;
-  const events = Array.isArray(liveObj.events) ? liveObj.events : [];
-  const nextW = events.reduce((w, e) => nextWindow(w, e), nextWindow(persistedWindow, null));
-  const empty = { toRestack: [], toOpen: [], toParkSubtree: [], nextW, buildRunNeeded: false };
+  const empty = { toRestack: [], toOpen: [], toParkSubtree: [], buildRunNeeded: false };
   if (!manifest || typeof manifest !== 'object' || Array.isArray(manifest) || !Array.isArray(manifest.msps)) return empty;
   const msps = manifest.msps;
   const mergedLive = new Set(uniqStrings(liveObj.merged));
@@ -3016,7 +2994,7 @@ function planReconcile(manifest, live = {}) {
     if (prereqs.some((p) => doneSet.has(p))) toRestack.push(msp.id);
   }
   const toParkSubtree = [...parkSet];
-  return { toRestack, toOpen, toParkSubtree, nextW, buildRunNeeded: toParkSubtree.length > 0 };
+  return { toRestack, toOpen, toParkSubtree, buildRunNeeded: toParkSubtree.length > 0 };
 }
 
 function emptyOpenPrClassification() {
@@ -3086,7 +3064,7 @@ function classifyRunOpenPRs(openPRs, { sourcePrefix, statusById, targetOwnerRepo
       log(`mitosis[${id}]: reconcile — CONTESTED (duplicate-accepted): MORE THAN ONE open, provenance-verified PR occupies this unit's integration branch (${cleanUrl(prior.url)} and ${cleanUrl(url)}); GitHub permits only one open PR per head/base pair, so this state cannot be genuine live listing output and is treated as tamper or transcription fault — the engine refuses to pick a merge target and withholds the unit pending a human decision`);
       continue;
     }
-    accepted.set(id, { url, reviewDecision: pr.reviewDecision });
+    accepted.set(id, { url });
   }
   for (const [id, entry] of accepted) {
     const shadowed = contested.get(id);
@@ -3114,12 +3092,7 @@ function buildReconcileLiveSignals(recon, reconciledShipped, sourcePrefix, class
   }
   const cls = classification || emptyOpenPrClassification();
   const published = [...cls.claimed];
-  const events = [];
-  for (const entry of cls.accepted.values()) {
-    if (entry.reviewDecision === 'APPROVED') events.push('approved');
-    else if (entry.reviewDecision === 'CHANGES_REQUESTED') events.push('changes-requested');
-  }
-  return { merged: [...reconciledShipped], mergedShas, published, events };
+  return { merged: [...reconciledShipped], mergedShas, published };
 }
 
 function divergenceProbePrompt(parentId, ref, builtSha, mergedSha, fileScope) {
@@ -3494,6 +3467,7 @@ const verify = input.verify || {};
 const buildConfig = input.build || {};
 let models = input.models || {};
 const fixLoopMax = input.fixLoopMax ?? 2;
+const buildAheadCapOverride = input.buildAheadCap;
 const worktreeRoot = input.worktreeRoot;
 const retryConfig = (input.retry && typeof input.retry === 'object' && !Array.isArray(input.retry)) ? input.retry : {};
 const MERGE_POLICY_HUMAN_GATED = 'human-gated';
@@ -3768,6 +3742,10 @@ if (retryConfig.maxAttempts !== undefined && (!Number.isInteger(retryConfig.maxA
 if (retryConfig.runBudget !== undefined && (!Number.isInteger(retryConfig.runBudget) || retryConfig.runBudget < 0)) {
   return haltReport('input', 'retry.runBudget must be a non-negative integer', 0);
 }
+if (buildAheadCapOverride !== undefined && (!Number.isInteger(buildAheadCapOverride) || buildAheadCapOverride < 1 || buildAheadCapOverride > BUILD_AHEAD_CAP)) {
+  return haltReport('input', `buildAheadCap must be an integer in 1..${BUILD_AHEAD_CAP}: the override may only NARROW the build-ahead frontier, never widen it past the engine cap`, 0);
+}
+const buildAheadCap = buildAheadCapOverride ?? BUILD_AHEAD_CAP;
 const modelsKnobCheck = validateModelsKnob(withoutLegacyModelKeys(models));
 if (!modelsKnobCheck.ok) {
   return haltReport('input', modelsKnobCheck.reason, 0);
@@ -3985,7 +3963,7 @@ if (isRelaunch && reusable && builtUnits.length > 0) {
         : m)),
     };
   }
-  log(`mitosis: reconcile — merge-frontier advance: ${advance.toOpen.length} PR(s) to open (${advance.toOpen.join(', ') || 'none'}), ${advance.toRestack.length} built branch(es) to restack (${advance.toRestack.join(', ') || 'none'}), ${advance.toParkSubtree.length} unit(s) reset on divergent-invalidation (${advance.toParkSubtree.join(', ') || 'none'})${advance.buildRunNeeded ? ' — BUILD RUN NEEDED' : ''}; AIMD window W=${advance.nextW}`);
+  log(`mitosis: reconcile — merge-frontier advance: ${advance.toOpen.length} PR(s) to open (${advance.toOpen.join(', ') || 'none'}), ${advance.toRestack.length} built branch(es) to restack (${advance.toRestack.join(', ') || 'none'}), ${advance.toParkSubtree.length} unit(s) reset on divergent-invalidation (${advance.toParkSubtree.join(', ') || 'none'})${advance.buildRunNeeded ? ' — BUILD RUN NEEDED' : ''}`);
 }
 const resumeMap = new Map();
 if (reusable) {
@@ -4250,7 +4228,6 @@ const blockedByApproval = new Set();
 let mergeQueue = Promise.resolve();
 const builtInRun = new Map();
 const mspById = new Map(msps.map((m) => [m.id, m]));
-let currentWindow = clampWindow(Number.isInteger(priorManifest && priorManifest.window) ? priorManifest.window : WINDOW_FLOOR);
 
 const recordedQuiescentExitAt = priorManifest && Object.prototype.hasOwnProperty.call(priorManifest, 'quiescentExitAt') ? priorManifest.quiescentExitAt : null;
 const priorQuiescentExitAt = isIsoInstant(recordedQuiescentExitAt) ? recordedQuiescentExitAt : null;
@@ -4334,14 +4311,6 @@ if (reusable) {
     }));
     for (const d of transitiveDependents(reconciledManifest.msps, id)) blockedByPark.add(d);
     log(`mitosis[${id}]: reconcile — FROZEN pending a human decision on its open PR (${clean(prUrl)}); not rebuilt, not re-shipped, and never invited for merge`);
-  }
-}
-if (relaunchAdvance && Number.isInteger(relaunchAdvance.nextW) && clampWindow(relaunchAdvance.nextW) !== currentWindow) {
-  currentWindow = clampWindow(relaunchAdvance.nextW);
-  try {
-    await persistWindowCheckpoint('shepherd', currentWindow);
-  } catch (err) {
-    log(`mitosis: reconcile — durable window checkpoint threw while seeding the build-path window (${clean(err.message)}); continuing with the in-memory window W=${currentWindow}`);
   }
 }
 
@@ -5023,16 +4992,6 @@ async function appendRunJournal({
   }
 }
 
-async function persistWindowCheckpoint(unitId, size) {
-  await appendRunJournal({
-    label: 'window-checkpoint',
-    unitId,
-    deltaJson: JSON.stringify(windowDelta(size)),
-    purpose: 'Durably APPEND one AIMD build/merge window-size delta record to the run journal so a later relaunch resumes the same self-tuning gap window.',
-    degradeNote: 'the manifest is a hint, not the skip authority, so the AIMD window resets to its safe default on the next relaunch',
-  });
-}
-
 const QUIESCENT_EXIT_AT_PLACEHOLDER = '<REPLACE-WITH-CURRENT-UTC-ISO-8601-INSTANT>';
 
 const QUIESCENT_EXIT_SCHEMA = {
@@ -5084,7 +5043,7 @@ try {
       return relaunchState ? { ...base, state: relaunchState } : base;
     }),
     (unit) => runUnit(unit),
-    { window: () => currentWindow },
+    { window: buildAheadCap },
   );
 } catch (err) {
   return fatalReportShipped('schedule', `scheduler fan-out rejected: ${err.message}`, msps.length, shipped, { crashed: true });

@@ -1,5 +1,5 @@
 import { scopesOverlap } from './wave-planner.mjs';
-import { WINDOW_FLOOR } from './window.mjs';
+import { BUILD_AHEAD_CAP } from './window.mjs';
 
 export function makeUnit(spec) {
   if (!spec || typeof spec !== 'object') throw new Error('unit spec must be an object');
@@ -108,7 +108,7 @@ function criticalPathOrder(units) {
 }
 
 function buildAheadWindow(units, windowSize) {
-  return { builtUnmergedCount: units.filter((u) => u.state === 'built').length, size: Number.isInteger(windowSize) ? windowSize : WINDOW_FLOOR };
+  return { builtUnmergedCount: units.filter((u) => u.state === 'built').length, size: Number.isInteger(windowSize) ? windowSize : BUILD_AHEAD_CAP };
 }
 
 export function planTick(units, windowSize) {
@@ -171,7 +171,7 @@ async function runScheduleTick(specs, runUnit, windowSize) {
 }
 
 export async function runSchedule(specs, runUnit, opts, ...rest) {
-  if (rest.length > 0) throw new Error('runSchedule: the bounded merge poll was deleted, so the third argument is now opts; a 4-argument call would bind undefined to opts and silently degrade the build-ahead window to its floor');
+  if (rest.length > 0) throw new Error('runSchedule: the bounded merge poll was deleted, so the third argument is now opts; a 4-argument call would bind undefined to opts and silently degrade the build-ahead window to its default cap');
   const windowSize = opts && (Number.isInteger(opts.window) || typeof opts.window === 'function') ? opts.window : undefined;
   return runScheduleTick(specs, runUnit, windowSize);
 }

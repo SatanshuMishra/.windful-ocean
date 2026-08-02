@@ -87,9 +87,9 @@ test('READINESS: isBuildable admits a unit when every prereq is green-built (bui
   assert.equal(isBuildable(c, byId, new Map(), open), false, 'c blocked: prereq pending is not green-built');
   const contended = acquire(new Map(), { id: 'x', fileScope: ['b.mjs'] });
   assert.equal(isBuildable(b, byId, contended, open), false, 'b blocked: fileScope lease overlaps a running unit');
-  assert.equal(isBuildable(b, byId, new Map(), { builtUnmergedCount: 3, size: 3 }), false, 'b blocked: AIMD window saturated (built-unmerged >= W)');
+  assert.equal(isBuildable(b, byId, new Map(), { builtUnmergedCount: 3, size: 3 }), false, 'b blocked: build-ahead window saturated (built-unmerged >= W)');
   assert.equal(isBuildable(b, byId, new Map(), undefined), false, 'no window => fail closed (never build blind)');
-  assert.equal(isBuildable(b, byId, new Map(), { builtUnmergedCount: NaN, size: 3 }), false, 'non-integer builtUnmergedCount => fail closed (never bypass the AIMD throttle)');
+  assert.equal(isBuildable(b, byId, new Map(), { builtUnmergedCount: NaN, size: 3 }), false, 'non-integer builtUnmergedCount => fail closed (never bypass the build-ahead throttle)');
   assert.equal(isBuildable(b, byId, new Map(), { builtUnmergedCount: 'x', size: 3 }), false, 'string builtUnmergedCount => fail closed');
   assert.equal(isBuildable(b, byId, new Map(), { size: 3 }), false, 'missing builtUnmergedCount => fail closed');
 });
@@ -113,6 +113,17 @@ test('TIE-BREAK: planTick dispatches the lower-index unit and makes the overlapp
   const { dispatch, leases } = planTick(units);
   assert.deepEqual(dispatch, ['a']);
   assert.equal(leases.get('shared.mjs'), 'a');
+});
+
+test('planTick: a windowSize that is not an integer falls back to the fixed build-ahead cap, not to a narrower floor', () => {
+  const units = buildUnitTable([
+    { id: 'b1', state: 'built', fileScope: ['b1.mjs'] },
+    { id: 'b2', state: 'built', fileScope: ['b2.mjs'] },
+    { id: 'b3', state: 'built', fileScope: ['b3.mjs'] },
+    { id: 'c', state: 'planned', prereqs: ['b1'], fileScope: ['c.mjs'] },
+  ]);
+  assert.ok(planTick(units, undefined).dispatch.includes('c'), 'with 3 built-unmerged units the fallback width must still admit a build-ahead dispatch — a floor of 3 would withhold c and leave two authorities for one width');
+  assert.ok(!planTick(units, 3).dispatch.includes('c'), 'an explicit width of 3 still saturates at 3 built-unmerged, so the fallback is what changed, not the admission rule');
 });
 
 test('planTick dispatches all non-overlapping ready units together in one tick', () => {
@@ -344,7 +355,7 @@ test('BUILD-DISPATCH WINDOW (tick): a build-ahead child is withheld while built-
 
   const underWindow = await runSchedule(buildFrontierSpecs(8), frontierRunUnit, { window: 9 });
   const underWindowById = indexUnits(underWindow.units);
-  assert.equal(underWindowById.get('child').state, 'built', 'with built-unmerged (8) under W (9), the child is admitted for build-ahead dispatch and itself reaches built — W is deliberately 9 rather than WINDOW_FLOOR (3), so an opts.window that never reached the scheduler would fall back to 3, withhold the child, and redden this assertion');
+  assert.equal(underWindowById.get('child').state, 'built', 'with built-unmerged (8) under W (9), the child is admitted for build-ahead dispatch and itself reaches built — W is deliberately 9 rather than BUILD_AHEAD_CAP (8), so an opts.window that never reached the scheduler would fall back to 8, saturate at 8 built-unmerged, withhold the child, and redden this assertion');
 });
 
 test('LIVE WINDOW ACCESSOR (tick): runSchedule resolves a function-valued window every iteration, so a window that widens from a saturating value across ticks admits a build-ahead child a launch-time snapshot would have frozen out', async () => {

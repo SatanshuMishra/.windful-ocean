@@ -3,7 +3,6 @@ import assert from 'node:assert/strict';
 import { foldRunManifest, shipDelta, builtDelta, parkDelta, quiescentExitDelta, isIsoInstant } from '../run-log.mjs';
 import { buildInitialManifest } from '../recovery.mjs';
 import { park } from '../parking.mjs';
-import { windowDelta } from '../window.mjs';
 
 const SPEC_CONTENT_HASH = 'a'.repeat(64);
 
@@ -155,10 +154,16 @@ test('foldRunManifest carries green + builtAgainst from a built delta onto the m
   assert.deepEqual(a.builtAgainst, { seed: 'f00ba12' });
 });
 
-test('foldRunManifest applies a window delta, persisting AIMD W across a simulated relaunch', () => {
+test('foldRunManifest treats a legacy window record as inert: it folds no window key and never derails the records after it', () => {
   const manifest = genesisManifest(TWO);
-  const folded = foldRunManifest([JSON.stringify(manifest), JSON.stringify(windowDelta(5))].join('\n'));
-  assert.equal(folded.window, 5);
+  const folded = foldRunManifest([
+    JSON.stringify(manifest),
+    JSON.stringify({ kind: 'window', size: 5 }),
+    JSON.stringify(quiescentExitDelta({ at: '2026-07-31T10:00:00Z' })),
+  ].join('\n'));
+  assert.equal(Object.prototype.hasOwnProperty.call(folded, 'window'), false, 'a journal written before the fixed cap still folds, but its window record contributes nothing');
+  assert.equal(folded.quiescentExitAt, '2026-07-31T10:00:00Z', 'the unknown record is skipped rather than aborting the fold, so every later record still applies');
+  assert.deepEqual(folded.msps.map((m) => m.id), TWO.map((m) => m.id));
 });
 
 test('foldRunManifest applies a quiescent-exit delta carrying a real instant, so a later advance can measure the gap', () => {

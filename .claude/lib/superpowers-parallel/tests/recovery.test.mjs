@@ -636,7 +636,7 @@ test('I3 precedence: the published identity table WINS a disagreement with the l
   assert.equal(resolved.manifest.msps[0].status, 'built', 'status is run state, not identity, and is carried from the local journal');
   assert.equal(resolved.manifest.msps[0].builtSha, 'a'.repeat(40), 'the durable build provenance the journal owns survives the overlay');
   assert.equal(resolved.manifest.msps[0].checkpointRef, 'refs/mitosis/deadbeef/a');
-  assert.equal(resolved.manifest.window, 4, 'the persisted AIMD window is carried');
+  assert.equal(resolved.manifest.window, undefined, 'a journal-persisted window is NOT carried — the build-ahead width is a fixed engine constant and the manifest is never a second authority for it');
   assert.equal(resolved.manifest.harnessRunId, 'harness-before', 'the journal harnessRunId is carried so resume <harnessRunId> still resolves when a journal exists');
 
   const disagreement = lines.filter((l) => /a\.fileScope/.test(l));
