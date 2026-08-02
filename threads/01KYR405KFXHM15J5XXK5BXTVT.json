@@ -35,20 +35,20 @@
   "closure_statement": null,
   "spine": {
     "status": "paused",
-    "active_goal": "M5 IS SHIPPED AND MERGED; 0192 stages 1 and 2 are both CLOSED. PR #32 merged as squash 9ea75d6, now the tip of origin/main, verified first-hand. The branch carried ba981cc (quiescent exit + epoch-guarded dispatch), 2b936d7 (the mutation-proven bound test), 556706c (M6 correction + M3 residual). Suite 1846 pass / 0 fail and both coverage-gate modes exit 0, all measured LOCALLY - CI unread. The M-series now moves to M4. Nothing is running.",
-    "next_step": "FRESH SESSION: START M4. Read the M4 DISPATCH BRIEF session-log entry plus 0187 FIRST; it carries the full contract. M4: fix the build-ahead cap at K (0086 confirmed 8), DELETE AIMD, the window delta and the review-decision read, ADD section 3.3 divergence instrumentation. Cut the branch off origin/main at 9ea75d6, NEVER off the merged feat/m5-quiescent-exit. Re-derive anchors by grep. Optional first: read CI on 9ea75d6.",
+    "active_goal": "M4 IS OPENED, GROUNDED AND DISPATCH-READY; dispatch withheld by user instruction. Branch feat/m4-fixed-build-ahead-cap is cut off origin/main at 9ea75d6 with ZERO commits, in the main worktree; no code written. CI was read on 9ea75d6 for the first time - test and security both success - and diff --stat 556706c 9ea75d6 is empty, so that green and M5's 1846-pass local run share one tree. A grounding pass re-derived M4's surface; both scope calls closed by 0197/0198. Nothing running or staged.",
+    "next_step": "FRESH SESSION: DISPATCH M4. Read 0196/0197/0198, then the M4 GROUNDING MAP entry (the anchor authority - do NOT re-run it, do NOT trust the spec's :line cites), then the M4 DISPATCH BRIEF entry, which carries the full contract with both scope calls closed. The branch ALREADY EXISTS at 9ea75d6 with zero commits - do not re-cut it. Two commits: the interlocked AIMD deletion, then the additive instrumentation. Four-agent serial shape, ship HARD-GATED on the verifier's verdict.",
     "open_risks": [
-      "CI HAS NEVER BEEN READ - not on PR #32 before the merge, not on 9ea75d6 after it. Every green claim on this branch is a LOCAL measurement. One cheap command; the only outstanding unknown from M5.",
-      "THE M3 TERMINATION RESIDUAL IS DECLARED, NOT FIXED, and the receipt says so: exit removal is a full-suite HANG with zero reddening and the suite EXIT CODE is not recovered. Never call it fixed.",
-      "M4 INHERITS 0187: the advance.toRestack log line still carries a live AIMD clause. It is M4's to own; do not hotfix it elsewhere.",
-      "AIMD IS FULLY LIVE (nextWindow, clampWindow, windowDelta, persistWindowCheckpoint) and M5 deleted only ONE of its three signal sources. M4's deletion is larger than the spec row implies and will reach the nine 'AIMD window W=' assertions in frontier-train-e2e.test.mjs.",
-      "FOUR DIRTY WORKTREES REMAIN BY DESIGN: frontier-default, hermetic-guard-test, mitosis-frontier-train, mitosis-opt-stage1. Reap on dirtiness, never on merged-ness (0195). The nine clean ones are gone; their branch refs survive.",
-      "THE MAIN WORKTREE IS STILL ON THE MERGED feat/m5-quiescent-exit at 556706c, deliberately not switched. Cut M4 from origin/main at 9ea75d6.",
-      "M4 TOUCHES POLICED TWINS: each twin edit lands in BOTH leases.mjs and mitosis.js in ONE commit, landing stays SERIAL, and 0151 established the gotcha list is incomplete. tests/ is NOT census-governed (confirmed this session).",
-      "ALL :line CITES IN SPECS AND RECEIPTS ARE STALE - stated at 42e7d49 or earlier, tree is now 9ea75d6. Re-derive by grep before relying on any anchor.",
-      "ORDERING RULE 0194, demonstrated twice: do NOT tell any agent not to commit. Every lens runs AFTER the commit producing what it measures. Stage 2 manufactured zero blockers; the M5 dispatch manufactured two.",
-      "METHOD RULE, eleven instances deep: verify a confident finding against the mechanism, and prove a probe CAN redden before believing a null result. It overturned the orchestrator's own recommendation in 0193.",
-      "Five pre-existing dirty paths must stay untouched: .claude/settings.json, .zshrc, the two .bak-pre-promptsfix-043a2526 files, .claude/skills/context7-mcp/. Stage explicit paths only, NEVER git add -A. Distinct scratch subdir per agent.",
+      "0197's TWO PRECONDITIONS ARE UNDISCHARGED; settle both by MEASUREMENT before the matching deletion: (a) grep-prove manifest.window has NO surviving reader - a survivor REFUTES 0197; (b) prove what applyRunDelta does with an UNKNOWN kind before deleting its 'window' case.",
+      "THE M3 TERMINATION RESIDUAL IS DECLARED, NOT FIXED, and the receipt says so: exit removal is a full-suite HANG with zero reddening and the suite EXIT CODE is not recovered. Never call it fixed; it belongs to a later MSP, not M4.",
+      "COMMIT 1 CANNOT BE SPLIT: the mirror guard forces each `whole` twin edit into both copies, and window.mjs's exports are imported by reconcile.mjs and leases.mjs, so any partial landing is red mid-branch. Resist an agent's instinct to stage it smaller.",
+      "TWO TEST FILES FAIL AT IMPORT, NOT ASSERTION: window.test.mjs:3 and run-log.test.mjs:6 import exports M4 deletes, so unless they are fixed in the SAME commit the suite does not load. The progressPossible mode this thread already paid for once.",
+      "THE SPEC IS WRONG WHERE 0196 SAYS: readReviewDecision/resolveReviewEvent do NOT exist (M5 deleted them in 9ea75d6), clampWindow was never a mirrored twin, WINDOW_FLOOR is not pure AIMD. Working from spec text chases absent symbols and mis-sizes the blast radius.",
+      "0187 IS ASSIGNED TO M4 COMMIT 1: strip the `AIMD window W=` clause from mitosis.js:3988. Do not hotfix it elsewhere and do not expand into the toRestack/toOpen dead weight, which is measured but NOT M4's.",
+      "THE MAIN WORKTREE IS NOW ON feat/m4-fixed-build-ahead-cap, not the merged feat/m5-quiescent-exit (that ref survives). FOUR DIRTY WORKTREES REMAIN BY DESIGN: frontier-default, hermetic-guard-test, mitosis-frontier-train, mitosis-opt-stage1. Reap on dirtiness (0195).",
+      "M4 TOUCHES POLICED TWINS - window.mjs, reconcile.mjs, leases.mjs, recovery.mjs are all `whole`: each edit lands in BOTH copies in ONE commit, landing stays SERIAL. clampWindow, buildReconcileLiveSignals and persistWindowCheckpoint are mitosis.js-ONLY.",
+      "ORDERING RULE 0194: do NOT tell any agent not to commit; every lens runs AFTER the commit producing what it measures. NO TEST is owed for the instrumentation - a log-string assertion is a change detector; do not let an agent add one.",
+      "METHOD RULE, twelve instances deep: verify a confident finding against the mechanism, and prove a probe CAN redden before believing a null result. It is why the grounding pass caught three wrong spec targets this session.",
+      "Five pre-existing dirty paths stay untouched: .claude/settings.json, .zshrc, the two .bak-pre-promptsfix files, .claude/skills/context7-mcp/. Stage explicit paths only, NEVER git add -A. Mutants via MITOSIS_PATH scratch copies only.",
       "PR scope is FROZEN at creation; title/body edits are denied and later facts go in a comment (0142). pr-create rejects angle brackets in --what and requires --provenance when --origin machine. MERGE STAYS HUMAN-GATED."
     ],
     "key_decisions": [
@@ -137,5 +137,5 @@
     ]
   },
   "created_at": "2026-07-29T23:40:17.901Z",
-  "updated_at": "2026-08-02T04:49:13.890Z"
+  "updated_at": "2026-08-02T04:52:50.105Z"
 }
