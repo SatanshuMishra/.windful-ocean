@@ -35,23 +35,22 @@
   "closure_statement": null,
   "spine": {
     "status": "paused",
-    "active_goal": "M5 IS BUILT BUT NOT SHIPPED. Workflow wjy3c80jv landed the whole change (quiescent exit, continuation block with the real M6 identity, section 11 latency emitter, all five deletions across both twins) then correctly refused to ship. THE CHANGE IS PRESERVED, STAGED AND UNCOMMITTED, on feat/m5-quiescent-exit at HEAD 42e7d49; 12 staged paths verified first-hand. 0191 triaged the four findings to ONE substantive, ONE one-line receipt fix, and TWO the harness manufactured. Nothing is running.",
-    "next_step": "FRESH SESSION, TWO STAGES, per user directive 0192. STAGE 1: dispatch DEDICATED subagent(s) to AUDIT, RESEARCH and VERIFY the recommended termination remedy BEFORE implementing it - criteria in 0192. STAGE 2: only then re-dispatch a SMALL TARGETED dynamic workflow, about four agents and NOT nineteen, to complete M5 and ship. PREFLIGHT: confirm the 12 staged paths are intact, re-derive origin/main, read 0191 and 0192. DO NOT re-run M5 from scratch and DO NOT discard the staged work.",
+    "active_goal": "M5 IS COMMITTED BUT NOT SHIPPED; STAGE 1 OF 0192 IS CLOSED. The 12 staged paths landed as ba981cc on feat/m5-quiescent-exit, 1 ahead of origin/main 42e7d49, NOT pushed, no PR. That commit discharged the M1 landing obligation (the coverage gate now exits 0 in BOTH modes) and dissolved 0191's two manufactured findings; the suite is verified first-hand at 1845 pass / 0 fail. Stage 1's two-agent audit of the rival termination remedies is ruled by 0193. Nothing is running.",
+    "next_step": "FRESH SESSION, STAGE 2, per user directive: dispatch a SMALL TARGETED dynamic workflow - FOUR agents, not nineteen - to complete M5 and ship. Read the STAGE 2 DISPATCH BRIEF session-log entry plus 0193 and 0194 first; it carries the verbatim mutation-proven test source and the full contract. D1 add the bound test and re-prove it; D2 fix the M6 false sentence; D3 declare the M3 residual; D4 push and open ONE PR via mitosis-git.mjs pr-create, never merge. PREFLIGHT: HEAD still ba981cc, unpushed.",
     "open_risks": [
-      "STAGED WORK IS THE ASSET AND IT IS UNCOMMITTED: 12 staged paths on feat/m5-quiescent-exit at HEAD 42e7d49, 3.55M tokens of verified work. A stray checkout, reset, stash or clean destroys it. CONFIRM IT IS INTACT BEFORE ANYTHING ELSE; consider committing early.",
-      "SUBSTANTIVE FINDING: deleting the quiescent exit's return from both twins (mitosis.js:2384-2387, leases.mjs:158-161) HANGS all 60 test files at 240s with ZERO reddened. The spin is SYNCHRONOUS so node:test's timeout cannot fire. The epoch-guard half does redden.",
-      "THE REMEDY IS UNPROVEN AND UNDER AUDIT BY USER DIRECTIVE (0192). A child-process test is a new pattern here; it must be proven able to FAIL against an exit-removed mutant, with no flakiness and no sleeps. Fallback: declare the hang in the M3 receipt row, measured.",
-      "ONE-LINE HONESTY FIX OWED: the receipt's M6 row claims 'the staged set is empty' while 12 paths are staged, contradicting its own M1 row. The verdict survives; only the sentence is false. invariant-coverage-check.mjs never checks whether a string is TRUE (:107-137).",
-      "HARNESS LESSON: NEVER place a lens that measures committed state before the phase that commits. The receipt lens ran the coverage gate in PR mode against an empty merge-base..HEAD and burned a whole remediation round. Move it after Ship, or have the implementer commit.",
-      "THE ENGINE IS AT .claude/workflows/mitosis.js, NOT under .claude/lib/superpowers-parallel/. The prior dispatch brief carried this wrong and it cost a failed anchor sweep. mirror-guard classifies BOTH leases.mjs AND reconcile.mjs as WHOLE.",
-      "COMMIT docs/invariants/coverage/feat-m5-quiescent-exit.json IN THE SAME COMMIT as the production change. Its 12 rows already set-equal the registry with two-valued verdicts, independently confirmed. The PR-mode gate cannot see untracked or staged-only paths.",
-      "M5 TOUCHES POLICED TWINS - every twin edit lands in BOTH files in ONE commit. Landing stays SERIAL. Re-derive the twin surface per change; 0151 established the gotcha list is incomplete.",
-      "THE M4 TRAP: never rewrite a characterization test's assertions in the same commit as the behavior change. Deleting merge-poll-characterization.test.mjs with the mechanism it pinned was CORRECT and is already done in the staged tree.",
-      "Give each workflow agent a DISTINCT scratch subdirectory. Applied in wjy3c80jv; no collision recurred.",
-      "Five pre-existing dirty paths persist (.claude/settings.json, .zshrc, two .bak files, .claude/skills/context7-mcp/) - verified untouched after the run. Stage explicit paths only, NEVER git add -A.",
-      "PR scope is FROZEN at creation; title/body edits are denied, later facts go in a comment (0142). pr-create rejects angle brackets in a --what value. Merge stays human-gated - the workflow must not merge.",
-      "NEVER invoke the compiled workflow. Use the AsyncFunction harness with a stub agent; MITOSIS_PATH swaps in a mutated scratch copy.",
-      "Method rule, NINE instances deep and now applied to the orchestrator's OWN recommendations (0192): verify a confident finding against the mechanism before acting. A red shell one-liner is suspect before the code is - re-run it in node."
+      "ba981cc is UNPUSHED - safe in git but only locally. Push early in Stage 2. The old destroy-by-checkout/reset/stash/clean risk is discharged.",
+      "D2 STILL OWED: the M6 row's 'the staged set is empty' was FALSE when written. Do not just delete the clause, and do not let it stand because ba981cc has since made it accidentally true. invariant-coverage-check.mjs never checks whether a string is TRUE.",
+      "D3 DECLARED RESIDUAL: exit removal is a full-suite HANG with zero reddening, and NEITHER remedy recovers the suite exit code. The sole await is Promise.allSettled([]), microtasks only, so { timeout: N } cannot fire. Declare it; never imply it is fixed. See 0193.",
+      "ORDERING RULE FROM 0194, most easily got wrong: do NOT tell any Stage 2 agent not to commit. Every lens runs AFTER the commit that produces what it measures. The inverse manufactured two of M5's four blockers.",
+      "The engine is .claude/workflows/mitosis.js, NOT under .claude/lib/superpowers-parallel/. mirror-guard classifies BOTH leases.mjs AND reconcile.mjs as WHOLE. Tests are not policed twins - confirm that against MIRROR_CENSUS rather than assuming it.",
+      "ALL :line CITES ARE AT 42e7d49; THE TREE IS NOW ba981cc. Re-derive every anchor by grep. Both auditors did: the quiescent exit is leases.mjs:160 / mitosis.js:2386, the two loops byte-identical modulo the export prefix.",
+      "M5 TOUCHES POLICED TWINS - every twin edit lands in BOTH files in ONE commit, and landing stays SERIAL. Re-derive the twin surface per change; 0151 established the gotcha list is incomplete.",
+      "THE M4 TRAP: never rewrite a characterization test's assertions in the same commit as the behavior change. Deleting merge-poll-characterization.test.mjs with the mechanism it pinned was CORRECT and is already in ba981cc.",
+      "Give each workflow agent a DISTINCT scratch subdirectory. Applied in wjy3c80jv and again in the Stage 1 audit; no collision recurred.",
+      "Five pre-existing dirty paths persist (.claude/settings.json, .zshrc, two .bak files, .claude/skills/context7-mcp/) - verified untouched across the commit and both audits. Stage explicit paths only, NEVER git add -A.",
+      "PR scope is FROZEN at creation; title/body edits are denied, later facts go in a comment (0142). pr-create rejects angle brackets in --what and requires --provenance when --origin machine. Merge stays human-gated.",
+      "NEVER invoke the compiled workflow. leases.mjs exports runSchedule directly, so a lib-side test needs no AsyncFunction harness and no MITOSIS_PATH; coverage composes through mirror-guard instead.",
+      "Method rule, TEN instances deep and now applied to the orchestrator's OWN recommendation in 0193: verify a confident finding against the mechanism, and prove a probe CAN redden before believing a null result."
     ],
     "key_decisions": [
       "0136-defer-track-a-until-mitosis-msps-land",
@@ -134,5 +133,5 @@
     ]
   },
   "created_at": "2026-07-29T23:40:17.901Z",
-  "updated_at": "2026-08-02T03:16:28.407Z"
+  "updated_at": "2026-08-02T03:19:42.989Z"
 }
