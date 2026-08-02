@@ -47,16 +47,26 @@
   "closure_statement": null,
   "spine": {
     "status": "paused",
-    "active_goal": "AUTO-OPENED IN AUTO MODE at 2026-08-02T04:53Z, mid-session, by automation - not by the session that found it, which was working the unrelated mitosis M4 thread. It carries EIGHT completion criteria, and criterion 1 (the audit itself, deny and allow side of settings.json plus settings.local.json) is already marked DONE, so an audit ran and its findings are asserted persisted durably. Missing is the spine narrative and any session event: nothing here records where those findings live.",
-    "next_step": "AWAIT USER DISPOSITION, then LOCATE THE FINDINGS. Criterion 1 claims the audit is complete and persisted durably, but no session event in this thread records WHERE - find that artifact before treating any of the seven open criteria as actionable. Parked rather than abandoned deliberately: abandoning is terminal, and this thread was not opened by the session that found it.",
+    "active_goal": "Let Claude work as freely as possible in auto mode while keeping a hard human gate on catastrophic, irreversible actions. Audit COMPLETE; nothing implemented, nothing ratified.",
+    "next_step": "START HERE, FRESH SESSION. Read .claude/reports/2026-08-01-permission-config-audit.md, then PRESENT and STOP. Format is a USER DIRECTIVE: concise but well explained, assume MINIMAL domain knowledge, define terms, SMALL paragraphs not walls. Order: (1) principle - gate on recoverability + blast radius, not command name; (2) 4 P0 bugs; (3) why prompts fire: MITOSIS_PATH prefix defeats Bash(node:*); (4) cp = top friction, uninvestigated; (5) 2 unapproved proposals. Then WAIT. Do NOT implement.",
     "open_risks": [
-      "vcs_ref IS BOUND TO feat/m4-fixed-build-ahead-cap, this session's M4 branch. That binding is incidental and misleading - no permission-config work touched that branch. Re-bind or clear it before a reconcile attaches permission findings to M4.",
-      "CRITERION 1 IS MARKED DONE WITHOUT A LOCATOR: the audit findings are asserted persisted durably, but nothing in this thread points at them. Treat that claim as UNVERIFIED until the artifact is found; a done flag is not evidence.",
-      "This thread was auto-opened and left active with an empty spine, the zombie shape the lifecycle rules treat as an anomaly. If automation keeps opening it, the generator - not this thread - is what needs fixing."
+      "NOTHING RATIFIED. No config file modified. Every recommendation is still a proposal.",
+      "Do NOT implement test-hook design B as written: it rejects leading VAR= and rejects globs, which are exactly the two shapes that actually prompt. Needs a directory arg and a NAMED assignment allowlist (MITOSIS_PATH yes; NODE_OPTIONS/NODE_PATH/LD_PRELOAD never).",
+      "Several claims are [unverified] and need empirical tests first: does Bash(node --test:*) survive auto mode; drop scope across settings files; hook cwd vs tool cwd; multi-hook precedence; sandbox localhost.",
+      "Network relaxation contradicts official Anthropic guidance and is defensible ONLY with sandbox + autoMode.environment controls, which are ignored from project settings and must live in ~/.claude/settings.json.",
+      "Hooks bypass the permission system entirely, so rule hardening does nothing for the 9 hook scripts; 2 are network-capable. Treat hooks as trusted code.",
+      "3 of 8 subagents tripped auto-mode bypass warnings reading public docs. False positives. Fence future agents off the Claude Code bundle."
     ],
-    "key_decisions": [],
-    "out_of_scope": []
+    "key_decisions": [
+      "NO decision records written - the user ratified nothing this session.",
+      "Findings + citations: .claude/reports/2026-08-01-permission-config-audit.md"
+    ],
+    "out_of_scope": [
+      "Implementing any config change - deferred on user instruction.",
+      "The 8 other paused mitosis threads. NOTE: this session incidentally cleared the mitosis-resilience-implementation blocker - .claude/reports/ is now gitignored (.gitignore:10).",
+      "Auditing the CONTENTS of the 9 hook scripts. The boundary was mapped; the code was not reviewed."
+    ]
   },
   "created_at": "2026-08-02T04:53:05.796Z",
-  "updated_at": "2026-08-02T04:54:47.296Z"
+  "updated_at": "2026-08-02T04:55:02.196Z"
 }
