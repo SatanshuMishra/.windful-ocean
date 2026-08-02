@@ -110,7 +110,8 @@
       "0191-m5-halts-pre-ship-and-two-of-four-blockers-were-manufactured-by-the-harness",
       "0192-the-termination-remedy-is-audited-before-it-is-implemented",
       "0193-the-in-process-window-accessor-bound-wins-and-neither-route-reddens-the-full-suite",
-      "0194-the-orchestrator-commits-before-any-lens-runs-and-stage-2-inherits-that-ordering"
+      "0194-the-orchestrator-commits-before-any-lens-runs-and-stage-2-inherits-that-ordering",
+      "0195-worktree-reaping-turns-on-uncommitted-content-not-unmerged-commits"
     ],
     "out_of_scope": [
       "Any change at mitosis.js:4058-4061. H-C is REFUTED by 0159, not deferred - the done-union is correct and narrowing it is a liveness regression. Re-opening needs new evidence of an unconfirmed-ship producer.",
@@ -133,5 +134,5 @@
     ]
   },
   "created_at": "2026-07-29T23:40:17.901Z",
-  "updated_at": "2026-08-02T03:19:42.989Z"
+  "updated_at": "2026-08-02T04:21:24.279Z"
 }
