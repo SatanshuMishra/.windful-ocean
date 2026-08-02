@@ -1,0 +1,13 @@
+POST-MERGE CLEANUP, authorized explicitly by the user and completed. This entry supersedes the CLEANUP OUTSTANDING risk recorded earlier in this same session.
+
+FOUR SAFETY GATES CHECKED BEFORE ANY DESTRUCTIVE COMMAND, all passing: (1) the worktree at .claude/worktrees/m7-divergence-predicate reported zero uncommitted content, which is the 0195 reaping criterion; (2) git diff --stat origin/main refactor/m7-single-divergence-predicate was EMPTY, the same residual-diff proof the 0207 cleanup used; (3) the local branch tip equalled the remote tip at 23ed834, so nothing was unpushed; (4) git diff --name-only HEAD origin/main listed ten files, none of them among the five protected dirty paths, so the fast-forward could not disturb them.
+
+EXECUTED: git worktree remove; git branch -D refactor/m7-single-divergence-predicate (was 23ed834); git push origin --delete refactor/m7-single-divergence-predicate; git merge --ff-only origin/main.
+
+WHY -D RATHER THAN -d, stated because it is the one place a safety default was overridden: GitHub squash-merged PR 36, so 23ed834 is NOT an ancestor of e9306e6 and git branch -d would have refused as unmerged. The justification is gate (2), the empty residual diff, verified BEFORE the delete rather than asserted after. This is the same reasoning 0207 recorded when it deleted the three feat/m4-* branches.
+
+VERIFIED AFTER: HEAD is e9306e6 on main, tree is ee06be3d and byte-identical to origin/main; the fast-forward applied 10 files, 450 insertions and 296 deletions, creating docs/invariants/coverage/refactor-m7-single-divergence-predicate.json; zero M7 remnants in git branch -a or git worktree list; the worktree count is back to 11 entries, so the four dirty worktrees held by design under 0195 are intact; and git status --short still reports exactly the five pre-existing dirty paths, unchanged and never staged.
+
+PROCESS OBSERVATION WORTH KEEPING: the ledger was written BEFORE this cleanup in the same session, so its next_step and its cleanup risk went stale within minutes of being committed. A hand-off that records outstanding work the user then authorizes immediately will always produce this; the fix is the second spine refresh this entry accompanies, not a change to the write order. It is also a live example of the ledger-claims-are-hints rule: a fresh session reading the earlier next_step would have been told to do work already done.
+
+STILL UNADDRESSED, unchanged by this cleanup: ~/.claude/settings.json is a regular file rather than a symlink out of the home tree, so protect-claude-config's guard discovers no repository base and that protection is inert on this machine. Recorded as an open risk; no action taken.
