@@ -35,17 +35,17 @@
   "closure_statement": null,
   "spine": {
     "status": "paused",
-    "active_goal": "M7 IS SHIPPED AND MERGED. origin/main is e9306e6, tree ee06be3d; PR 36 squash-merged 2026-08-02 with every CI check green. The divergence probe layer is gone: needKeyedParents + divergedParents replace runDivergenceProbes, assembleDivergenceVerdicts and descendantsToInvalidate - two states, one batched read-only dispatch, every cannot-tell folded to diverged, content-based over fileScope. M8 (CI-to-green loop) is the LAST MSP; M0 stays unauthorized.",
-    "next_step": "START HERE IN THE FRESH SESSION per user directive: dispatch a DEDICATED SMALL dynamic Workflow to plan, implement and ship M8 (CI-to-green loop, six escalation classes, spec section 4). Shape and fences are in 0213; fold in M7's two residuals per 0212. Re-derive EVERY anchor against e9306e6. Before dispatch: pull local main (one behind) and decide the M7 branch/worktree cleanup - destructive, needs explicit confirmation.",
+    "active_goal": "M7 IS SHIPPED, MERGED AND CLEANED UP. Local main and origin/main are both e9306e6, tree ee06be3d; PR 36 squash-merged 2026-08-02 with every CI check green; the M7 branch (local and remote) and its worktree are deleted. The divergence probe layer is gone: needKeyedParents + divergedParents replace the three old mechanisms - two states, one batched read-only dispatch, every cannot-tell folded to diverged. M8 (CI-to-green loop) is the LAST MSP; M0 stays unauthorized.",
+    "next_step": "START HERE IN THE FRESH SESSION per user directive: dispatch a DEDICATED SMALL dynamic Workflow to plan, implement and ship M8 (CI-to-green loop, six escalation classes, spec section 4; depends on M1 and M5, both shipped; open decision (c) closed by 0087). Shape and fences are in 0213; fold in M7's two residuals per 0212. Re-derive EVERY anchor against e9306e6. The workspace is clean - NO pre-dispatch housekeeping remains.",
     "open_risks": [
-      "BASELINE AT e9306e6: npm test is 1836 tests, 1835 pass, 1 fail, 0 skipped locally; the one failure is the environment-only protect-claude-config test. CI on PR 36 was fully green. Never quote a dirty-worktree figure as a CI number.",
+      "BASELINE AT e9306e6, where local main now sits: npm test is 1836 tests, 1835 pass, 1 fail, 0 skipped locally; the one failure is the environment-only protect-claude-config test. CI on PR 36 was fully green. Never quote a dirty-worktree figure as a CI number.",
       "OPERATIVE GREEN TEST (0210): green means zero failures OTHER THAN .claude/hooks/tests/protect-claude-config.test.mjs, plus phase-parity and mirror-guard passing. Any OTHER failing test is a genuine red. NEVER restate this as 'the suite is green' - name the excluded test and its proof.",
       "~/.claude SYMLINK TOPOLOGY IS BROKEN AND UNFIXED: ~/.claude/settings.json is a regular file, not a symlink out of the home tree. The guard's own error says it therefore discovers no repository base and STOPS PROTECTING THE CHECKOUT. That protection is inert locally.",
       "STALE LEDGER COPIES (0209): decisions/ dirs under .claude/plugins/data/ are stale and produced a false BLOCKING finding claiming 0207 was fabricated. Only the _ledger git ref is authoritative. Treat any 'that decision does not exist' claim as a stale-copy read.",
       "M7 RESIDUAL (a), NOW M8'S (0212): a batch entry binds to its target only by an agent-echoed parentId, nothing binding it to the endpoints diffed - a mis-keying route to a false not-diverged. Fix: echo checkedBuiltSha/checkedMergedSha per entry, fold unless both match. Both mirror halves.",
       "M7 RESIDUAL (b), NOW M8'S (0212): both catches are bare, so a whole-batch dispatch failure is indistinguishable in the logs from N genuine divergences. Fix: pass log into the predicate ctx and restore the e2e logLines assertion. Both mirror halves.",
       "DELETION PASSES OWE A REVIEWER LENS FOR TESTS THAT PIN SURVIVING BEHAVIOR. M7's only HIGH was a deleted test whose payload assertion still described live behavior; a fail-open mutation left all 1836 tests green. Spec section 11 line 330's own lesson recurring.",
-      "CLEANUP OUTSTANDING, deliberately not done: branch refactor/m7-single-divergence-predicate (local and remote) and worktree .claude/worktrees/m7-divergence-predicate still exist; local main is one behind origin. Removal is destructive - needs explicit confirmation.",
+      "SQUASH-MERGE MAKES git branch -d REFUSE a fully shipped branch, since its commits are not ancestors of the squash. The proof that licenses -D is an EMPTY residual diff against origin/main, verified BEFORE the delete - the 0207 criterion, used again for M7.",
       "PR BODIES FREEZE AT CREATION (0142): gh pr edit, api PATCH, GraphQL and the MCP update tool are gate-denied. Later facts go in a COMMENT. pr-create rejects angle brackets in --what and caps free text at 200 chars.",
       "MERGE IS NOT GATED: gh api returned 404 'Branch not protected' on main and there are no required status checks, so a red CI does not block the merge button. A red must be surfaced in words.",
       "STACKED PRs MERGE INTO THEIR DECLARED BASE (0207). Default to ONE PR (0208/0213); a genuine split ships the lower unit now and defers the upper - never a same-run stack.",
@@ -155,5 +155,5 @@
     ]
   },
   "created_at": "2026-07-29T23:40:17.901Z",
-  "updated_at": "2026-08-02T22:42:03.426Z"
+  "updated_at": "2026-08-02T22:48:23.549Z"
 }
