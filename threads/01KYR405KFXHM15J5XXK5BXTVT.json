@@ -35,20 +35,24 @@
   "closure_statement": null,
   "spine": {
     "status": "paused",
-    "active_goal": "M4 IS FULLY SHIPPED AND ON MAIN. origin/main is a618338 and tree(origin/main) == 05da3cd, the verified full-M4 tree. PRs 33 and 35 merged to main; PR 34 merged into a feature base and was corrected by the 0207 cherry-pick re-land. All feat/m4-* branches and both anchor tags are deleted.",
-    "next_step": "START HERE: dispatch a dedicated SMALL dynamic Workflow to plan, implement and ship M7 (single divergence predicate, two states). Per 0208 default to ONE PR; stack only if it truly splits, and then apply the 0207 guard. Re-derive anchors against a618338 - mirror-guard twins affect M7.",
+    "active_goal": "M7 IS SHIPPED AND MERGED. origin/main is e9306e6, tree ee06be3d; PR 36 squash-merged 2026-08-02 with every CI check green. The divergence probe layer is gone: needKeyedParents + divergedParents replace runDivergenceProbes, assembleDivergenceVerdicts and descendantsToInvalidate - two states, one batched read-only dispatch, every cannot-tell folded to diverged, content-based over fileScope. M8 (CI-to-green loop) is the LAST MSP; M0 stays unauthorized.",
+    "next_step": "START HERE IN THE FRESH SESSION per user directive: dispatch a DEDICATED SMALL dynamic Workflow to plan, implement and ship M8 (CI-to-green loop, six escalation classes, spec section 4). Shape and fences are in 0213; fold in M7's two residuals per 0212. Re-derive EVERY anchor against e9306e6. Before dispatch: pull local main (one behind) and decide the M7 branch/worktree cleanup - destructive, needs explicit confirmation.",
     "open_risks": [
-      "CLEAN CI BASELINE, MEASURED: a618338 passes test, invariant-coverage, sast, sca, secret-scan. node:test on main is 1832 tests, 1831 pass, 0 fail, 1 skipped. The local 1841 figure was a dirty-worktree artifact - never quote it as a CI number.",
-      "STACKED PRs MERGE INTO THEIR DECLARED BASE (0207). PR 34 landed on a feature branch, splitting M4 in half. If a stack is used again, retarget the upper PR to main before merge, or plan to land it by cherry-pick.",
+      "BASELINE AT e9306e6: npm test is 1836 tests, 1835 pass, 1 fail, 0 skipped locally; the one failure is the environment-only protect-claude-config test. CI on PR 36 was fully green. Never quote a dirty-worktree figure as a CI number.",
+      "OPERATIVE GREEN TEST (0210): green means zero failures OTHER THAN .claude/hooks/tests/protect-claude-config.test.mjs, plus phase-parity and mirror-guard passing. Any OTHER failing test is a genuine red. NEVER restate this as 'the suite is green' - name the excluded test and its proof.",
+      "~/.claude SYMLINK TOPOLOGY IS BROKEN AND UNFIXED: ~/.claude/settings.json is a regular file, not a symlink out of the home tree. The guard's own error says it therefore discovers no repository base and STOPS PROTECTING THE CHECKOUT. That protection is inert locally.",
+      "STALE LEDGER COPIES (0209): decisions/ dirs under .claude/plugins/data/ are stale and produced a false BLOCKING finding claiming 0207 was fabricated. Only the _ledger git ref is authoritative. Treat any 'that decision does not exist' claim as a stale-copy read.",
+      "M7 RESIDUAL (a), NOW M8'S (0212): a batch entry binds to its target only by an agent-echoed parentId, nothing binding it to the endpoints diffed - a mis-keying route to a false not-diverged. Fix: echo checkedBuiltSha/checkedMergedSha per entry, fold unless both match. Both mirror halves.",
+      "M7 RESIDUAL (b), NOW M8'S (0212): both catches are bare, so a whole-batch dispatch failure is indistinguishable in the logs from N genuine divergences. Fix: pass log into the predicate ctx and restore the e2e logLines assertion. Both mirror halves.",
+      "DELETION PASSES OWE A REVIEWER LENS FOR TESTS THAT PIN SURVIVING BEHAVIOR. M7's only HIGH was a deleted test whose payload assertion still described live behavior; a fail-open mutation left all 1836 tests green. Spec section 11 line 330's own lesson recurring.",
+      "CLEANUP OUTSTANDING, deliberately not done: branch refactor/m7-single-divergence-predicate (local and remote) and worktree .claude/worktrees/m7-divergence-predicate still exist; local main is one behind origin. Removal is destructive - needs explicit confirmation.",
       "PR BODIES FREEZE AT CREATION (0142): gh pr edit, api PATCH, GraphQL and the MCP update tool are gate-denied. Later facts go in a COMMENT. pr-create rejects angle brackets in --what and caps free text at 200 chars.",
-      "MERGE IS NOT GATED: no branch protection on main, one ruleset (Require PR for Merge, id 19939922) with NO required_status_checks. CI red does not block the merge button, so a red must be surfaced in words.",
-      "ANCHOR TAGS DELETED in cleanup: m4-anchor-c1 (777617b), m4-anchor-c2 (fc035fc). Pre-rewrite M4 history is now unreachable except via reflog, temporarily. Shipped content is on main and verified byte-identical.",
-      "DEFERRED (not M4's): the wide frontierManifest cleanup still passes a dead window argument - ~19 live e2e call sites plus the duplicate helper at reconcile-only-advance-characterization.test.mjs:96.",
-      "DEFERRED (not M4's): coverage-checker bare invocation silently takes push mode and reports green; classifyRunOpenPRs is not extracted, so it cannot be unit-tested.",
-      "STILL UNOWNED: dead reviewDecision payload at mitosis.js:1667/1671 and :3800; advance.toRestack/toOpen dead weight; .mitosis/ not gitignored plus two log lines claiming it is; the M3 termination residual.",
+      "MERGE IS NOT GATED: gh api returned 404 'Branch not protected' on main and there are no required status checks, so a red CI does not block the merge button. A red must be surfaced in words.",
+      "STACKED PRs MERGE INTO THEIR DECLARED BASE (0207). Default to ONE PR (0208/0213); a genuine split ships the lower unit now and defers the upper - never a same-run stack.",
       "FIVE PRE-EXISTING DIRTY PATHS stay untouched: modified .claude/settings.json and .zshrc; untracked engine-args.mjs.bak-*, .claude/skills/context7-mcp/, mitosis.js.bak-*. Stage explicit paths only, NEVER git add -A. Four dirty worktrees remain by design (0195).",
-      "STANDING: plan fix rounds against INVARIANTS, never a finding list. Fence subagents with 'cite the supplied receipts, re-run nothing' - twice an agent re-executed its receipts and died mid-task.",
-      "LEDGER READ PATH (0202): spine and all WRITES via MCP; session entries and decision records ONLY via git show _ledger:<path>."
+      "STANDING: plan fix rounds against INVARIANTS, never a finding list. Fence reviewers with 'cite the supplied receipts, re-run nothing' and leave exactly ONE agent permitted to execute checks - both fences held across the M7 run.",
+      "STILL UNOWNED, none M7's: dead reviewDecision payload at mitosis.js:1667/1671 and :3800; advance.toRestack/toOpen; .mitosis/ not gitignored plus two log lines claiming it is; the M3 termination residual; the frontierManifest dead-window argument.",
+      "ALSO UNOWNED: coverage-checker's bare invocation silently takes push mode and reports a false green; classifyRunOpenPRs is not extracted, so it cannot be unit-tested."
     ],
     "key_decisions": [
       "0136-defer-track-a-until-mitosis-msps-land",
@@ -151,5 +155,5 @@
     ]
   },
   "created_at": "2026-07-29T23:40:17.901Z",
-  "updated_at": "2026-08-02T22:39:14.475Z"
+  "updated_at": "2026-08-02T22:42:03.426Z"
 }
