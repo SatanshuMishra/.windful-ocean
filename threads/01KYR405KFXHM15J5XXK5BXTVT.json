@@ -35,22 +35,26 @@
   "closure_statement": null,
   "spine": {
     "status": "paused",
-    "active_goal": "M4 HAS TWO COMMITS AND NEITHER IS SHIPPABLE. 777617b (AIMD deletion) on feat/m4-fixed-build-ahead-cap; fc035fc (divergence instrumentation) cut off it. NOTHING PUSHED, NO PR. The ship gate closed 3 FAIL / 1 PASS. Per 0201 all four findings are AUDITED before any implementer runs; the four audits dispatched 2026-08-02T07:07Z had NOT RETURNED at hand-off. Remaining: reconcile the four reports, implement by AMEND to each commit, re-run the gate, ship the two stacked PRs.",
-    "next_step": "FOUR AUDITS WERE IN FLIGHT AT HAND-OFF AND ARE SESSION-SCOPED -- if they did not return, RE-DISPATCH all four from the spec in the 2026-08-02T07-10 AUDIT DISPATCH entry (read it per 0202, not via MCP). One per finding, read-only: F2 coverage gate (PRIORITY, blocks both commits), F1 foreign-branch filtering, F3 buildAheadCap null (solution-architect), F4 inert window premise. RECONCILE ALL FOUR BEFORE any implementer -- remedies share both commits, so amend-and-rebase is planned ONCE.",
+    "active_goal": "M4 HAS TWO COMMITS, NEITHER SHIPPABLE YET, NOTHING PUSHED, NO PR. All four ship-gate findings are AUDITED and RECONCILED; two drafted remedies were REFUTED as wrong-surface, and a fifth finding (an uncovered divergence counter) was found by mutation. The three open rulings are locked as 0203/0204/0205. Remaining: execute the amend-and-rebase sequence, re-verify per commit, then ship the two stacked PRs.",
+    "next_step": "IMPLEMENT per 0203/0204/0205. Full reconciliation is in the 2026-08-02T07-28 session entry (read per 0202). ORDER on feat/m4-fixed-build-ahead-cap: AMEND 777617b (F3 validator move + corrected message), then THREE atomic commits -- F1 e2e test, F4 clamp cleanup, F2 coverage file. THEN rebase feat/m4-divergence-instrumentation onto the new tip and add the 0205 counter assertions plus its OWN coverage file. THE HISTORY REWRITE NEEDS EXPLICIT USER GO before any implementer runs.",
     "open_risks": [
-      "FOREIGN-BRANCH-FILTERING IS UNASSERTED after 777617b's third e2e deletion. Claimed replacement cites :1148/:1167/:1267 are WRONG; same-url dedup survives at M2b. A restoring test is drafted, red-on-mutant/green-on-engine. UNDER AUDIT F1.",
-      "BOTH COMMITS FAIL the required invariant-coverage CI job on the pull_request event: neither adds a file under docs/invariants/coverage/. A BARE run of the check takes the weaker PUSH path and reports green. Remedy is an AMEND to each commit or 777617b lands red. UNDER AUDIT F2.",
-      "AMEND-AND-REBASE IS ON THE CRITICAL PATH; no prior entry named it. Amending 777617b changes its SHA, so feat/m4-divergence-instrumentation must be REBASED onto it. The rebase needs its OWN re-verification: full suite per commit, mirror guard, coverage gate per commit on pull_request.",
-      "input.buildAheadCap REFUSES null SILENTLY (explicit !== null clause, mitosis.js:3475 at 9ea75d6 -- re-locate by symbol). JSON.stringify maps NaN/Infinity to null, so a computed garbage cap is swallowed. Cap holds 8. Removing BOTH guards CRASHED. UNDER AUDIT F3: one clause or a class?",
-      "THE 1839 BASELINE IS ENVIRONMENT-LOCAL, inflated by ~9 tests from a gitignored file in the main worktree. CI and any clean checkout measure 1830. Every 1839/1846 figure in this thread's earlier entries is a main-worktree number, never a CI expectation.",
-      "THE TWO KEPT CLAMP TESTS PASS but their `window: 9999` premise is INERT; the engine reads manifest.window nowhere. Tests-only fix at :894/:1247 plus the frontierManifest param. Do NOT restore a persisted-window test. UNDER AUDIT F4 -- if manifest.window IS read, the finding inverts.",
-      "FIX-ROUND DISCIPLINE (standing memory; five prior rounds each introduced a new defect on an unnamed path): plan against INVARIANTS, never against this finding list. A drafted mutation-proven fix answers 'does this edit work', never 'is this the right surface'.",
-      "PR scope is FROZEN at creation; title/body edits denied, later facts go in a comment (0142). pr-create is the ONLY PR path, requires --provenance with --origin machine, rejects angle brackets in --what, caps free text at 200 chars. MERGE STAYS HUMAN-GATED for both PRs.",
-      "STACK SHAPE IS FIXED (decision A): PR 1 = feat/m4-fixed-build-ahead-cap -> main with 777617b alone; PR 2 = feat/m4-divergence-instrumentation -> that branch, with fc035fc alone. Independent PRs off main are REJECTED: commit 2's site sits inside the block commit 1 rewrites.",
-      "CI ORDERING RULE: read CI on both head SHAs BEFORE opening either PR. Bodies are frozen at creation, so opening first would permanently lock in a not-run verification line on this thread's longest-standing risk.",
-      "TWO LEDGER STORES DISAGREE: session-continuity-inline is LIVE, the other STALE. Spine and ALL WRITES go through MCP, but there is NO MCP READER for session entries or decisions -- read those with `git show _ledger:<path>` per 0202. 0199 is a VOID probe artifact, never link it.",
-      "STILL NOT M4'S, all measured and left deliberately: the dead reviewDecision payload at mitosis.js:1667/1671 and :3800; advance.toRestack/toOpen dead weight; .mitosis/ not gitignored plus two log lines claiming it is; the M3 termination residual.",
-      "Five pre-existing dirty paths stay untouched. Stage explicit paths only, NEVER git add -A. Mutants via MITOSIS_PATH scratch copies only, never by patching a committed artifact. FOUR DIRTY WORKTREES REMAIN BY DESIGN (0195); lens worktrees were reaped."
+      "F1 RESOLVED: the foreign-branch gap is CONFIRMED LIVE by mutation -- a foreign PR becomes a unit's merge target and freezes its real work. Remedy is an e2e test next to M2b. classifyRunOpenPRs has NO twin, so e2e is the lowest layer that can express it.",
+      "F2 RESOLVED: TWO coverage files are MANDATORY, one per branch. A file added on commit 1 yields ZERO diff lines for PR 2 because linear history makes merge-base equal the base. The gate is PR-diff-scoped, which corrects 0201's per-commit rationale.",
+      "F3 RESOLVED: buildAheadCap 9999 is silently ACCEPTED and widens the frontier unbounded -- the cap was never fixed. 0203 bounds it 1..8 and halts otherwise. The drafted one-line null fix was REFUTED as the wrong surface.",
+      "F4 RESOLVED: manifest.window is read nowhere; the premise holds. But the blast radius is ~25 in-file calls plus a DUPLICATE helper in reconcile-only-advance-characterization.test.mjs -- the wide cleanup is a follow-up, not M4.",
+      "FIFTH FINDING, mutation-proven by F2: invalidatingParents has ZERO acceptance coverage -- `if (false)` at reconcile.mjs:115 leaves reconcile.test.mjs at 23/23 green. 0205 adds assertions to the four real-invalidation tests.",
+      "THE AMEND-AND-REBASE IS A HISTORY REWRITE and needs explicit user confirmation. F2 measured it clean end to end: no conflicts, 1830/1830 on both commits, mirror-guard 46/46, gate green per commit against its real base.",
+      "0203 RESIDUAL KNOWINGLY ACCEPTED: an out-of-repo caller passing buildAheadCap null to mean 'no override' would now HALT. F3 could not measure callers outside this repo.",
+      "'REQUIRED' IS SOFTER THAN THIS THREAD ASSUMED: no branch protection on main, one ruleset (Require PR for Merge, 19939922) carrying NO required_status_checks. CI red does not physically block the merge button today.",
+      "1830 IS CONFIRMED independently on BOTH commits in clean throwaway worktrees. 1839 is main-worktree inflation from a gitignored file. Never quote 1839 as a CI expectation.",
+      "BARE-INVOCATION ERGONOMICS is a real, RECURRING defect -- two documented incidents. A local run with no env vars silently takes push mode and reports green. OUT OF M4 SCOPE; its own follow-up against the checker script.",
+      "FIX-ROUND DISCIPLINE (standing; five prior rounds each introduced a new defect on an unnamed path): plan against INVARIANTS, never a finding list. This round vindicated it -- two of four drafted remedies were the wrong surface.",
+      "PR scope is FROZEN at creation; later facts go in a comment (0142). pr-create is the ONLY PR path, requires --provenance with --origin machine, rejects angle brackets in --what, caps free text at 200 chars. MERGE STAYS HUMAN-GATED for both PRs.",
+      "STACK SHAPE per decision A AS AMENDED BY 0204: PR 1 = feat/m4-fixed-build-ahead-cap -> main, no longer '777617b alone'; PR 2 = feat/m4-divergence-instrumentation -> that branch. Independent PRs off main stay REJECTED.",
+      "CI ORDERING RULE: read CI on both head SHAs BEFORE opening either PR. Bodies freeze at creation, so opening first would lock in a not-run verification line. Also run mitosis-gate.mjs phase-parity and the sandbox-compile gate (95ef8e1).",
+      "LEDGER READ PATH per 0202: spine and all WRITES via MCP, but session entries and decision records ONLY via `git show _ledger:<path>`. session-continuity-inline is LIVE. 0199 is a VOID probe artifact, never link it.",
+      "STILL NOT M4'S: the dead reviewDecision payload at mitosis.js:1667/1671 and :3800; advance.toRestack/toOpen dead weight; .mitosis/ not gitignored plus two log lines claiming it is; the M3 termination residual.",
+      "Five pre-existing dirty paths stay untouched. Stage explicit paths only, NEVER git add -A. Mutants via MITOSIS_PATH scratch copies only. FOUR DIRTY WORKTREES REMAIN BY DESIGN (0195)."
     ],
     "key_decisions": [
       "0136-defer-track-a-until-mitosis-msps-land",
@@ -145,5 +149,5 @@
     ]
   },
   "created_at": "2026-07-29T23:40:17.901Z",
-  "updated_at": "2026-08-02T07:32:33.821Z"
+  "updated_at": "2026-08-02T07:33:27.059Z"
 }
