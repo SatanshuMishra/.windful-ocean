@@ -883,7 +883,7 @@ test('HIGH-C: a manifest-shipped unit absent from a TRUNCATED live merged listin
   assert.ok(!logLines.some((l) => /^mitosis\[l4\]:.*built ahead of unmerged parent/.test(l)), 'l4 must not defer its PR behind a parent that is already merged');
 });
 
-test('E9: a persisted window far above the cap is ignored outright — build-ahead admissions never exceed BUILD_AHEAD_CAP', async () => {
+test('E9: a 12-unit planned chain admits at most BUILD_AHEAD_CAP units ahead of its unmerged parent', async () => {
   const chain = ['u1', 'u2', 'u3', 'u4', 'u5', 'u6', 'u7', 'u8', 'u9', 'u10', 'u11', 'u12'];
   const msps = [
     manifestMsp('r', { status: 'built', builtSha: hexSha('r'), dependsOn: [] }),
@@ -891,7 +891,7 @@ test('E9: a persisted window far above the cap is ignored outright — build-ahe
   ];
   const reconcileResult = {
     manifestFound: true,
-    manifestRaw: frontierManifest({ msps, window: 9999 }),
+    manifestRaw: frontierManifest({ msps }),
     specContentHash: SPEC_CONTENT_HASH,
     mergedPRs: [],
     openPRs: [],
@@ -910,7 +910,7 @@ test('E9: a persisted window far above the cap is ignored outright — build-ahe
     if (m) builtAhead.add(m[1]);
   }
   assert.ok(builtAhead.size > 0, 'sanity: the build-ahead frontier actually ran');
-  assert.equal(builtAhead.size, 8, 'a corrupt/out-of-range persisted window is never an authority for the width: the fixed BUILD_AHEAD_CAP (8) governs, not 9999 unbounded build-ahead');
+  assert.equal(builtAhead.size, 8, 'the fixed BUILD_AHEAD_CAP (8) is the sole authority for the width: a 12-unit chain admits exactly 8, never the whole chain');
 });
 
 test('E10: the buildAheadCap engine arg may only NARROW the frontier — absent holds the cap of 8, 4 narrows to 4, and null / a non-integer / 0 / a value above the cap each HALT at the arg boundary', async () => {
@@ -1303,7 +1303,7 @@ test('a stale still-open PR on an already-merged unit is ignored: it never freez
   assert.ok(!labels.includes('ship:l1'), 'the merged unit is never re-shipped');
 });
 
-test('the build path is independently capped: with ZERO durable checkpoint refs no reconcile advance runs at all, and a corrupt persisted window still never widens build-ahead past BUILD_AHEAD_CAP', async () => {
+test('the build path is independently capped: with ZERO durable checkpoint refs no reconcile advance runs at all, and build-ahead still stops at BUILD_AHEAD_CAP', async () => {
   const chain = ['u1', 'u2', 'u3', 'u4', 'u5', 'u6', 'u7', 'u8', 'u9', 'u10', 'u11', 'u12'];
   const msps = [
     manifestMsp('r', { status: 'planned', dependsOn: [] }),
@@ -1311,7 +1311,7 @@ test('the build path is independently capped: with ZERO durable checkpoint refs 
   ];
   const reconcileResult = {
     manifestFound: true,
-    manifestRaw: frontierManifest({ msps, window: 9999 }),
+    manifestRaw: frontierManifest({ msps }),
     specContentHash: SPEC_CONTENT_HASH,
     mergedPRs: [],
     openPRs: [],
@@ -1332,7 +1332,7 @@ test('the build path is independently capped: with ZERO durable checkpoint refs 
     if (m) builtAhead.add(m[1]);
   }
   assert.ok(builtAhead.size > 0, 'sanity: the build-ahead frontier actually ran');
-  assert.equal(builtAhead.size, 8, 'the fixed BUILD_AHEAD_CAP (8) bounds the frontier on the build path alone; a persisted 9999 is never read as the width');
+  assert.equal(builtAhead.size, 8, 'the fixed BUILD_AHEAD_CAP (8) bounds the frontier on the build path alone, with no reconcile advance available to bound it');
 });
 
 test('a unit that is BOTH condemned by a divergent parent merge AND carries an unverifiable open PR reports BOTH diagnoses — an operator shown only one of two independent blockers cannot converge', async () => {
