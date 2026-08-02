@@ -47,14 +47,16 @@
   "closure_statement": null,
   "spine": {
     "status": "active",
-    "active_goal": "AUTO-OPENED, NEVER WORKED. This thread was created mid-session by automation (auto mode) while the session was working the unrelated mitosis-architecture-rebuild-exploration thread. It has an empty spine, no session events and no decisions. No permission-config audit was performed by this session.",
-    "next_step": "AWAIT USER DISPOSITION. This is an empty auto-created thread, parked rather than closed because abandoning is terminal and the thread was not opened by the session that found it. If the auto-opened audit is not wanted, abandon it with a reason; if it is wanted, define completion_criteria at creation-equivalent time before doing any work, per the DoD gate.",
+    "active_goal": "AUTO-OPENED IN AUTO MODE at 2026-08-02T04:53Z, mid-session, by automation - not by the session that found it, which was working the unrelated mitosis M4 thread. It carries EIGHT completion criteria, and criterion 1 (the audit itself, deny and allow side of settings.json plus settings.local.json) is already marked DONE, so an audit ran and its findings are asserted persisted durably. Missing is the spine narrative and any session event: nothing here records where those findings live.",
+    "next_step": "AWAIT USER DISPOSITION, then LOCATE THE FINDINGS. Criterion 1 claims the audit is complete and persisted durably, but no session event in this thread records WHERE - find that artifact before treating any of the seven open criteria as actionable. Parked rather than abandoned deliberately: abandoning is terminal, and this thread was not opened by the session that found it.",
     "open_risks": [
-      "This thread was auto-opened and left active without a spine, which is the zombie shape the lifecycle rules treat as an anomaly. If automation keeps opening it, the generator - not this thread - is what needs fixing."
+      "vcs_ref IS BOUND TO feat/m4-fixed-build-ahead-cap, this session's M4 branch. That binding is incidental and misleading - no permission-config work touched that branch. Re-bind or clear it before a reconcile attaches permission findings to M4.",
+      "CRITERION 1 IS MARKED DONE WITHOUT A LOCATOR: the audit findings are asserted persisted durably, but nothing in this thread points at them. Treat that claim as UNVERIFIED until the artifact is found; a done flag is not evidence.",
+      "This thread was auto-opened and left active with an empty spine, the zombie shape the lifecycle rules treat as an anomaly. If automation keeps opening it, the generator - not this thread - is what needs fixing."
     ],
     "key_decisions": [],
     "out_of_scope": []
   },
   "created_at": "2026-08-02T04:53:05.796Z",
-  "updated_at": "2026-08-02T04:54:05.539Z"
+  "updated_at": "2026-08-02T04:54:43.274Z"
 }
