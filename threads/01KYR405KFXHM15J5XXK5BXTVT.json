@@ -35,25 +35,20 @@
   "closure_statement": null,
   "spine": {
     "status": "paused",
-    "active_goal": "M4 IS FULLY IMPLEMENTED AND VERIFIED LOCALLY: seven commits across two stacked branches. NOTHING PUSHED, NO PR. 0203, 0204, 0205 and 0206 discharged; F4's declared verification gap closed; the sandbox-compile gate no prior agent ran is green. ONLY THE SHIP PHASE REMAINS.",
-    "next_step": "SHIP PHASE ONLY -- implementation is done; do not re-verify or re-open findings. ORDER IS LOAD-BEARING: (1) push feat/m4-fixed-build-ahead-cap FIRST, then feat/m4-divergence-instrumentation; never force. (2) READ CI on both head SHAs (58cb6ea, b5c34c0) BEFORE opening either PR -- bodies freeze at creation and every edit path is gate-denied. (3) PR 1 --base main, then PR 2 --base feat/m4-fixed-build-ahead-cap, via mitosis-git.mjs pr-create ONLY, --origin machine + --provenance. Do NOT merge.",
+    "active_goal": "M4 IS FULLY SHIPPED AND ON MAIN. origin/main is a618338 and tree(origin/main) == 05da3cd, the verified full-M4 tree. PRs 33 and 35 merged to main; PR 34 merged into a feature base and was corrected by the 0207 cherry-pick re-land. All feat/m4-* branches and both anchor tags are deleted.",
+    "next_step": "Choose the next MSP: per the landing order M0->M1->M2->M6->M3->M5->M4->M7->M8, M4 is done, so M7 is next, then M8. Nothing is blocked. Re-derive M7 scope against a618338 BEFORE planning - 0196 showed three of M4's spec-named targets were already wrong at the then-current main.",
     "open_risks": [
-      "SHIP STATE: branch 1 tip 58cb6ea (4 commits over origin/main 9ea75d6), branch 2 tip b5c34c0 (3 over 58cb6ea). Tags m4-anchor-c1 (orig 777617b) and m4-anchor-c2 (orig fc035fc) MUST SURVIVE until both PRs merge -- the only handle on pre-rewrite history.",
-      "CI HAS NEVER RUN ON ANY OF THESE SEVEN SHAS. Every green figure in this thread is local. The push is the first CI exposure, which is why reading it precedes opening either PR.",
-      "GATE BASE FLIPS ONCE BRANCH 1 IS PUSHED. resolveBaseCommit (invariant-coverage-check.mjs:151) tries origin/<ref> before the local ref. Branch 2 resolved to LOCAL 58cb6ea since the remote did not exist. Push branch 1 FIRST so the two never diverge.",
-      "VERIFIED LOCALLY, QUOTABLE IN PR BODIES: npm test 1841/0 at BOTH tips; mirror-guard 46/46; phase-parity ok:true dead:0; sandbox-compile 129/129 across four workflow-sandbox files; coverage gate exit 0 in PULL_REQUEST mode on both branches against real bases.",
-      "THE 1841-VS-1830 DELTA IS NOT RE-DERIVED. 1830 was F2's clean-worktree figure at the OLD commits; this session added E10 and M2c (+2) on a 1839 local baseline, so clean is likely 1832 -- NOT MEASURED. Never quote 1841 as a CI number; do not assert 1830 or 1832 without reading CI.",
-      "PR BODIES FREEZE AT CREATION (0142); gh pr edit, the api PATCH, GraphQL and the MCP update tool are all gate-denied. Later facts go in a COMMENT. pr-create rejects angle brackets in --what and caps free text at 200 chars.",
-      "'REQUIRED' IS SOFTER THAN ASSUMED: no branch protection on main, one ruleset (Require PR for Merge, id 19939922) with NO required_status_checks. CI red does not block the merge button, so a red must be surfaced in words.",
-      "PRE-COMMIT CHAIN IS ALIVE (measured; the 07-35 pointer resolves in the thread's favour): core.hooksPath -> continuity plugin -> priorHooksPath=.githooks -> .githooks/pre-commit runs npm test. CAVEAT: it tests the WORKING TREE, so it is two runs of one tree, not two signals.",
-      "15 EXISTING COVERAGE ARTIFACTS, NOT THE 16 F2 CITED. Harmless -- the gate does no filename or branch-slug validation -- but do not quote 16.",
+      "CLEAN CI BASELINE, MEASURED: a618338 passes test, invariant-coverage, sast, sca, secret-scan. node:test on main is 1832 tests, 1831 pass, 0 fail, 1 skipped. The local 1841 figure was a dirty-worktree artifact - never quote it as a CI number.",
+      "STACKED PRs MERGE INTO THEIR DECLARED BASE (0207). PR 34 landed on a feature branch, splitting M4 in half. If a stack is used again, retarget the upper PR to main before merge, or plan to land it by cherry-pick.",
+      "PR BODIES FREEZE AT CREATION (0142): gh pr edit, api PATCH, GraphQL and the MCP update tool are gate-denied. Later facts go in a COMMENT. pr-create rejects angle brackets in --what and caps free text at 200 chars.",
+      "MERGE IS NOT GATED: no branch protection on main, one ruleset (Require PR for Merge, id 19939922) with NO required_status_checks. CI red does not block the merge button, so a red must be surfaced in words.",
+      "ANCHOR TAGS DELETED in cleanup: m4-anchor-c1 (777617b), m4-anchor-c2 (fc035fc). Pre-rewrite M4 history is now unreachable except via reflog, temporarily. Shipped content is on main and verified byte-identical.",
+      "DEFERRED (not M4's): the wide frontierManifest cleanup still passes a dead window argument - ~19 live e2e call sites plus the duplicate helper at reconcile-only-advance-characterization.test.mjs:96.",
+      "DEFERRED (not M4's): coverage-checker bare invocation silently takes push mode and reports green; classifyRunOpenPRs is not extracted, so it cannot be unit-tested.",
+      "STILL UNOWNED: dead reviewDecision payload at mitosis.js:1667/1671 and :3800; advance.toRestack/toOpen dead weight; .mitosis/ not gitignored plus two log lines claiming it is; the M3 termination residual.",
       "FIVE PRE-EXISTING DIRTY PATHS stay untouched: modified .claude/settings.json and .zshrc; untracked engine-args.mjs.bak-*, .claude/skills/context7-mcp/, mitosis.js.bak-*. Stage explicit paths only, NEVER git add -A. Four dirty worktrees remain by design (0195).",
-      "SUBAGENT FAILURE MODE SEEN TWICE: an agent given a task plus receipts will RE-EXECUTE the receipts, burn its budget on scratch mutants, and die mid-task. Fence it -- 'cite the supplied receipts, re-run nothing'. If one dies, verify repo state before re-dispatch.",
-      "DEFERRED FOLLOW-UP (not M4's): the wide frontierManifest cleanup -- ~19 live e2e call sites plus the independent duplicate helper at reconcile-only-advance-characterization.test.mjs:96 with four more -- still passes a dead window argument.",
-      "DEFERRED FOLLOW-UPS (not M4's): coverage-checker bare-invocation ergonomics (no env vars silently takes push mode and reports green; two documented incidents); extracting classifyRunOpenPRs into a lib module so it can be unit-tested.",
-      "STILL NOT M4'S: the dead reviewDecision payload at mitosis.js:1667/1671 and :3800; advance.toRestack/toOpen dead weight; .mitosis/ not gitignored plus two log lines claiming it is; the M3 termination residual.",
-      "FIX-ROUND DISCIPLINE (standing; five prior rounds each added a defect on an unnamed path): plan against INVARIANTS, never a finding list. Vindicated twice more -- audit-first caught two wrong-surface remedies, and the orchestrator re-ran the 0205 mutation itself.",
-      "LEDGER READ PATH per 0202: spine and all WRITES via MCP; session entries and decision records ONLY via `git show _ledger:<path>`. session-continuity-inline is the live store. 0199 is a VOID probe artifact -- never link it."
+      "STANDING: plan fix rounds against INVARIANTS, never a finding list. Fence subagents with 'cite the supplied receipts, re-run nothing' - twice an agent re-executed its receipts and died mid-task.",
+      "LEDGER READ PATH (0202): spine and all WRITES via MCP; session entries and decision records ONLY via git show _ledger:<path>."
     ],
     "key_decisions": [
       "0136-defer-track-a-until-mitosis-msps-land",
@@ -150,5 +145,5 @@
     ]
   },
   "created_at": "2026-07-29T23:40:17.901Z",
-  "updated_at": "2026-08-02T19:23:20.296Z"
+  "updated_at": "2026-08-02T19:24:22.146Z"
 }
