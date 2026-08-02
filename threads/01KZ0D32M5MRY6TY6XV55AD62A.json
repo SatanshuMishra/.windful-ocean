@@ -1,0 +1,58 @@
+{
+  "schema_version": 1,
+  "id": "01KZ0D32M5MRY6TY6XV55AD62A",
+  "slug": "permission-config-audit",
+  "title": "Permission config audit (auto mode)",
+  "status": "active",
+  "parent_id": null,
+  "predecessor_id": null,
+  "completion_criteria": [
+    {
+      "text": "Audit complete: deny-side and allow-side of .claude/settings.json + settings.local.json assessed under auto mode, findings persisted durably",
+      "done": true
+    },
+    {
+      "text": "Four P0 bugs fixed and verified: block-env-edits.sh exit code, default-branch push prefix gap, supabase db reset contradiction, orphan gh pr review deny",
+      "done": false
+    },
+    {
+      "text": "The gating principle (recovery-path + blast-radius, not command name) either ratified or rejected by the user, with a decision record written",
+      "done": false
+    },
+    {
+      "text": "The confirmed manual-approval cause (MITOSIS_PATH= env prefix defeating Bash(node:*)) resolved",
+      "done": false
+    },
+    {
+      "text": "The cp friction (23 accumulated approvals, largest measured) investigated and addressed",
+      "done": false
+    },
+    {
+      "text": "settings.local.json single-use rule accumulation addressed (was 15 -> 58 rules in one session)",
+      "done": false
+    },
+    {
+      "text": "Network deny relaxation (curl/wget/http/xh) explicitly adopted with compensating sandbox controls, or explicitly rejected",
+      "done": false
+    },
+    {
+      "text": "Hook trust boundary reviewed: the nine hook scripts treated as trusted code on the same tier as permission rules",
+      "done": false
+    }
+  ],
+  "vcs_ref": "feat/m4-fixed-build-ahead-cap",
+  "external_refs": [],
+  "blocked_by": null,
+  "abandoned_reason": null,
+  "closure_statement": null,
+  "spine": {
+    "status": "active",
+    "active_goal": "",
+    "next_step": "",
+    "open_risks": [],
+    "key_decisions": [],
+    "out_of_scope": []
+  },
+  "created_at": "2026-08-02T04:53:05.796Z",
+  "updated_at": "2026-08-02T04:53:05.796Z"
+}
