@@ -126,7 +126,8 @@
       "0209-the-live-ledger-is-the-ledger-git-ref-not-the-plugin-data-copies",
       "0210-the-m7-green-gate-carves-out-one-named-pre-existing-environment-failure",
       "0211-a-killed-workflow-is-recovered-by-journal-extraction-not-by-resumefromrunid",
-      "0212-m7-ships-with-the-batch-keying-residuals-open-and-they-belong-to-m8"
+      "0212-m7-ships-with-the-batch-keying-residuals-open-and-they-belong-to-m8",
+      "0213-m8-ships-via-a-dedicated-small-dynamic-workflow-in-a-fresh-session"
     ],
     "out_of_scope": [
       "Any change at mitosis.js:4058-4061. H-C is REFUTED by 0159, not deferred - the done-union is correct and narrowing it is a liveness regression. Re-opening needs new evidence of an unconfirmed-ship producer.",
@@ -150,5 +151,5 @@
     ]
   },
   "created_at": "2026-07-29T23:40:17.901Z",
-  "updated_at": "2026-08-02T22:38:54.550Z"
+  "updated_at": "2026-08-02T22:39:14.475Z"
 }
