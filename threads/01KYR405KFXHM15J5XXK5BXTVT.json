@@ -127,7 +127,8 @@
       "0202-ledger-session-entries-and-decisions-are-git-read-only",
       "0203-buildaheadcap-is-bounded-narrow-only-and-halts-on-invalid",
       "0204-pr-1-amends-only-for-f3-and-the-rest-land-as-atomic-commits",
-      "0205-the-divergence-counter-is-asserted-and-the-no-test-refusal-is-narrowed"
+      "0205-the-divergence-counter-is-asserted-and-the-no-test-refusal-is-narrowed",
+      "0206-the-0203-acceptance-test-rides-inside-the-amend-not-a-fourth-commit"
     ],
     "out_of_scope": [
       "Any change at mitosis.js:4058-4061. H-C is REFUTED by 0159, not deferred - the done-union is correct and narrowing it is a liveness regression. Re-opening needs new evidence of an unconfirmed-ship producer.",
@@ -151,5 +152,5 @@
     ]
   },
   "created_at": "2026-07-29T23:40:17.901Z",
-  "updated_at": "2026-08-02T07:35:32.570Z"
+  "updated_at": "2026-08-02T17:14:51.839Z"
 }
