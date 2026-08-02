@@ -35,22 +35,21 @@
   "closure_statement": null,
   "spine": {
     "status": "paused",
-    "active_goal": "M4 COMMIT 1 IS LANDED AND GREEN. Commit 777617b on feat/m4-fixed-build-ahead-cap (13 files +57/-207), verified first-hand. NOT PUSHED, no PR. Suite 1839 pass / 0 fail LOCAL (baseline 1846; -8 deleted +1 added, fully accounted). Both 0197 preconditions discharged BY MEASUREMENT and 0197 HELD. Remaining: the additive instrumentation commit, adversarial verification, ship. Nothing is running.",
-    "next_step": "FRESH SESSION: dispatch ONE small dynamic Workflow for ALL remaining M4 phases, shipping TWO STACKED PRs (user directive 2026-08-02). Read the M4 REMAINING-PHASES DISPATCH BRIEF entry FIRST, then the THREE DECISIONS entry (A-D), then 0196/0197/0198 and the GROUNDING MAP. DO NOT re-do commit 1 or re-cut the branch. Order: instrumentation per 0198, adversarial verify targeting the three deleted e2e tests, ship HARD-GATED on the verdict.",
+    "active_goal": "M4 HAS TWO COMMITS AND NEITHER IS SHIPPABLE YET. 777617b (AIMD deletion) on feat/m4-fixed-build-ahead-cap and fc035fc (divergence instrumentation) on feat/m4-divergence-instrumentation, cut off it. NOTHING PUSHED, NO PR, nothing running. The deterministic ship gate closed on 3 FAIL / 1 PASS. Remaining: audit each failure's CORE, then implement, then re-run the gate and ship the two stacked PRs.",
+    "next_step": "FRESH SESSION, user directive 2026-08-02: for EACH of the four findings dispatch DEDICATED AUDIT AND RESEARCH SUBAGENTS FIRST to understand the CORE issue and its solution space, and ONLY THEN dispatch implementers. Do NOT jump to the drafted remedies; 0201 says why. Read the 2026-08-02T06-59 session entry FIRST, then 0200/0201, then the REMAINING-PHASES BRIEF and the THREE DECISIONS (A-D) entry. Priority: invariant-coverage blocks BOTH commits, remedy is an AMEND to each.",
     "open_risks": [
-      "COMMIT 1 IS UNPUSHED AND CI HAS NEVER RUN ON 777617b. Every green claim on it is LOCAL. CI is green on 9ea75d6, the parent, but that tree predates the deletion.",
-      "THE THREE DELETED e2e TESTS ARE THE VERIFIER'S PRIMARY TARGET (decision D). Green proves the suite loads and passes, NOT that coverage survived. Prove :1148/:1167/:1267 carry the invariants and that the two kept clamp tests still REDDEN.",
-      "record_decision IS BROKEN for long field values; six well-formed calls rejected, a tiny probe succeeded. DECISION 0199 IS A VOID PROBE ARTIFACT - never link it. Decisions A-D live in the 2026-08-02T06-02 session-log entry and are BINDING.",
-      "TWO LEDGER STORES DISAGREE: session-continuity-inline is LIVE, session-continuity-continuity-ledger is STALE (frozen 04:23, claims CI unread). READ THE LEDGER THROUGH THE MCP TOOLS ONLY; the stale copy reads as consistent.",
-      "DEAD reviewDecision PAYLOAD LEFT BY DESIGN (decision B): mitosis.js:1667/1671 still require the field and :3800 still fetches it. Not M4's - external-payload contract, a later MSP.",
-      ".mitosis/ IS NOT GITIGNORED and does not exist here (decision C), refuting a premise in 0197 and the brief. The inertness result survives, proven by EXECUTION. mitosis.js logs the false claim twice. Not M4's.",
-      "ALL :line CITES IN THE GROUNDING MAP NOW SHIFT - commit 1 moved every line in mitosis.js and the touched tests. The map stays the authority for WHAT EXISTS; RE-LOCATE BY SYMBOL before editing.",
-      "THE M3 TERMINATION RESIDUAL IS DECLARED, NOT FIXED: exit removal is a full-suite HANG with zero reddening and the suite EXIT CODE is not recovered. A later MSP.",
-      "ORDERING RULE 0194: NEVER instruct an agent not to commit; every lens runs AFTER its commit. NO TEST is owed for the instrumentation - a log-string assertion is a change detector.",
-      "METHOD RULE, thirteen instances deep: verify a confident finding against the mechanism, and prove a probe CAN redden before believing a null result. It refuted the map's reviewDecision rationale this session.",
-      "MIRROR TWINS bind commit 2: if the divergence count is not derivable from planReconcile's return, adding ONE integer lands in BOTH twins in the SAME commit. tests/ is NOT census-governed.",
-      "Five pre-existing dirty paths stay untouched. Stage explicit paths only, NEVER git add -A. Mutants via MITOSIS_PATH scratch copies only. FOUR DIRTY WORKTREES REMAIN BY DESIGN (0195).",
-      "PR scope is FROZEN at creation; title/body edits denied, later facts go in a comment (0142). pr-create rejects angle brackets in --what and requires --provenance with --origin machine. MERGE STAYS HUMAN-GATED FOR BOTH PRs."
+      "FOREIGN-BRANCH-FILTERING IS UNASSERTED after 777617b's third e2e deletion; nothing in the suite covers it. The claimed replacement cites :1148/:1167/:1267 are WRONG; same-url dedup survives at M2b. A restoring test is drafted and proven red-on-mutant/green-on-engine in the lens result.",
+      "BOTH COMMITS FAIL the required invariant-coverage CI job on the pull_request event: neither adds a file under docs/invariants/coverage/. A BARE run of scripts/invariant-coverage-check.mjs takes the weaker PUSH path and reports green. Remedy is an AMEND to each commit or 777617b lands red.",
+      "input.buildAheadCap REFUSES null SILENTLY (explicit !== null clause, mitosis.js:3475). Args are JSON.parsed at :3460-3461 and JSON.stringify maps NaN/Infinity to null, so a computed garbage cap is swallowed. Cap still holds 8. Delete ONLY the null clause; removing both guards CRASHED on absent.",
+      "THE 1839 BASELINE IS ENVIRONMENT-LOCAL, inflated by ~9 tests from a gitignored file in the main worktree. CI and any clean checkout measure 1830. Every 1839/1846 figure in this thread's earlier entries is a main-worktree number, never a CI expectation.",
+      "THE TWO KEPT CLAMP TESTS PASS but their `window: 9999` premise is INERT; the engine reads manifest.window nowhere. Tests-only fix at :894/:1247, the frontierManifest window param, :913/:1268. Do NOT restore a persisted-window test: it would be unfalsifiable by construction.",
+      "FIX-ROUND DISCIPLINE (standing memory; five prior rounds each introduced a new defect on an unnamed path): plan against INVARIANTS, never against this finding list. A drafted mutation-proven fix answers 'does this edit work', never 'is this the right surface'.",
+      "PR scope is FROZEN at creation; title/body edits denied, later facts go in a comment (0142). pr-create is the ONLY PR path, requires --provenance with --origin machine, rejects angle brackets in --what, caps free text at 200 chars. MERGE STAYS HUMAN-GATED for both PRs.",
+      "STACK SHAPE IS FIXED (decision A): PR 1 = feat/m4-fixed-build-ahead-cap -> main with 777617b alone; PR 2 = feat/m4-divergence-instrumentation -> that branch, with fc035fc alone. Independent PRs off main are REJECTED: commit 2's site sits inside the block commit 1 rewrites.",
+      "CI ORDERING RULE ADOPTED THIS SESSION: read CI on both head SHAs BEFORE opening either PR. Bodies are frozen at creation, so opening first would permanently lock in a not-run verification line on this thread's longest-standing risk.",
+      "TWO LEDGER STORES STILL DISAGREE: session-continuity-inline is LIVE, session-continuity-continuity-ledger is STALE. Read the ledger through the MCP tools only. 0199 REMAINS A VOID PROBE ARTIFACT, never link it. record_decision accepted long values again, so that defect is intermittent.",
+      "STILL NOT M4'S, all measured and left deliberately: the dead reviewDecision payload at mitosis.js:1667/1671 and :3800; advance.toRestack/toOpen dead weight; .mitosis/ not gitignored plus two log lines claiming it is; the M3 termination residual.",
+      "Five pre-existing dirty paths stay untouched. Stage explicit paths only, NEVER git add -A. Mutants via MITOSIS_PATH scratch copies only, never by patching a committed artifact. FOUR DIRTY WORKTREES REMAIN BY DESIGN (0195); lens worktrees were reaped."
     ],
     "key_decisions": [
       "0136-defer-track-a-until-mitosis-msps-land",
@@ -141,5 +140,5 @@
     ]
   },
   "created_at": "2026-07-29T23:40:17.901Z",
-  "updated_at": "2026-08-02T06:59:39.468Z"
+  "updated_at": "2026-08-02T07:01:27.509Z"
 }
