@@ -129,9 +129,10 @@
       "Cluster-aware scheduling and the journal's 2000-char model-output paging - fenced out by spec section 1.",
       "Dispatching or restarting any target-repo mitosis run.",
       "Opening a pull request for docs/mitosis-core-rebuild-spec - the user ruled on 2026-07-30 that leaving it without a PR is fine.",
-      "The 12 leaked worktrees, the Step 0 reaper, and the two parked stashes."
+      "SUPERSEDED 2026-08-02 by 0195: the leaked-worktree fence is lifted and DONE - 9 of 13 reaped, 4 dirty ones deliberately held. Still out of scope: the Step 0 reaper and the two parked stashes.",
+      "Re-opening M5. It is merged as 9ea75d6; the declared M3 termination residual (suite exit code not recovered) belongs to a later MSP, not to a re-run of M5."
     ]
   },
   "created_at": "2026-07-29T23:40:17.901Z",
-  "updated_at": "2026-08-02T04:22:44.084Z"
+  "updated_at": "2026-08-02T04:23:33.276Z"
 }
