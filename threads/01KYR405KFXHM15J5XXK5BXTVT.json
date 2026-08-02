@@ -3,7 +3,7 @@
   "id": "01KYR405KFXHM15J5XXK5BXTVT",
   "slug": "mitosis-architecture-rebuild-exploration",
   "title": "Mitosis architecture audit and rebuild exploration",
-  "status": "paused",
+  "status": "active",
   "parent_id": null,
   "predecessor_id": null,
   "completion_criteria": [
@@ -34,7 +34,7 @@
   "abandoned_reason": null,
   "closure_statement": null,
   "spine": {
-    "status": "paused",
+    "status": "active",
     "active_goal": "M4 HAS TWO COMMITS AND NEITHER IS SHIPPABLE YET. 777617b (AIMD deletion) on feat/m4-fixed-build-ahead-cap and fc035fc (divergence instrumentation) on feat/m4-divergence-instrumentation, cut off it. NOTHING PUSHED, NO PR, nothing running. The deterministic ship gate closed on 3 FAIL / 1 PASS. Remaining: audit each failure's CORE, then implement, then re-run the gate and ship the two stacked PRs.",
     "next_step": "FRESH SESSION, user directive 2026-08-02: for EACH of the four findings dispatch DEDICATED AUDIT AND RESEARCH SUBAGENTS FIRST to understand the CORE issue and its solution space, and ONLY THEN dispatch implementers. Do NOT jump to the drafted remedies; 0201 says why. Read the 2026-08-02T06-59 session entry FIRST, then 0200/0201, then the REMAINING-PHASES BRIEF and the THREE DECISIONS (A-D) entry. Priority: invariant-coverage blocks BOTH commits, remedy is an AMEND to each.",
     "open_risks": [
@@ -140,5 +140,5 @@
     ]
   },
   "created_at": "2026-07-29T23:40:17.901Z",
-  "updated_at": "2026-08-02T07:01:27.509Z"
+  "updated_at": "2026-08-02T07:07:30.769Z"
 }
