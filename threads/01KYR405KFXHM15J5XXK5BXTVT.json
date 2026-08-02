@@ -35,29 +35,23 @@
   "closure_statement": null,
   "spine": {
     "status": "paused",
-    "active_goal": "MSP A5 MERGED. PR #31 landed as 42e7d49 on origin/main, both required checks green, verified after the merge. A5's test and coverage receipt are present on main. M5 is now UNBLOCKED on both preconditions - A5 landed, and 0188 discharged the restore-path residual - and is the next and last gating milestone before the tail of the spec. Nothing is running. Local checkout is parked on the merged branch test/a5-merge-poll-characterization with the five pre-existing dirty paths.",
-    "next_step": "DISPATCH A DEDICATED SMALL DYNAMIC WORKFLOW TO FULLY IMPLEMENT AND SHIP M5 - explicit user directive at close. The COMPLETE dispatch brief is in this thread's LATEST SESSION LOG; lift it almost verbatim. Preflight in the MAIN thread: re-derive origin/main (42e7d49) and confirm green, read 0185/0187/0188/0189/0190, re-confirm the anchors, then cut the branch (suggested feat/m5-quiescent-exit). Distinct scratch subdir per agent. M5 TOUCHES POLICED TWINS - add a fourth verify lens for twin parity.",
+    "active_goal": "M5 IS BUILT BUT NOT SHIPPED. Workflow wjy3c80jv landed the whole change (quiescent exit, continuation block with the real M6 identity, section 11 latency emitter, all five deletions across both twins) then correctly refused to ship. THE CHANGE IS PRESERVED, STAGED AND UNCOMMITTED, on feat/m5-quiescent-exit at HEAD 42e7d49; 12 staged paths verified first-hand. 0191 triaged the four findings to ONE substantive, ONE one-line receipt fix, and TWO the harness manufactured. Nothing is running.",
+    "next_step": "FRESH SESSION, TWO STAGES, per user directive 0192. STAGE 1: dispatch DEDICATED subagent(s) to AUDIT, RESEARCH and VERIFY the recommended termination remedy BEFORE implementing it - criteria in 0192. STAGE 2: only then re-dispatch a SMALL TARGETED dynamic workflow, about four agents and NOT nineteen, to complete M5 and ship. PREFLIGHT: confirm the 12 staged paths are intact, re-derive origin/main, read 0191 and 0192. DO NOT re-run M5 from scratch and DO NOT discard the staged work.",
     "open_risks": [
-      "M5 IS THE FIRST MSP HERE TOUCHING POLICED TWINS. leases.mjs is a WHOLE mirror; progressPossible, maxSteps, the poll-cycle guard and the tick loop all live in it, so the exit likely lands in BOTH copies. Twin edits land in both files in ONE commit. Check reconcile.mjs too.",
-      "M5 SHIPS SIX THINGS, NOT THE TWO THE LANDING TABLE LISTS: the quiescent exit, the continuation block with identity (from M6), deletion of the bounded poll, of progressPossible and of maxSteps (0185), and the section-11 per-exit latency emitter.",
-      "Omitting M5's section-11 latency emitter leaves the design's central claim - that residual latency is its only cost - unfalsifiable. Section 11 requires it MEASURED, not assumed.",
-      "THE M4 TRAP M5 could repeat: never rewrite a characterization test's assertions in the same commit as the behavior change. DELETING merge-poll-characterization.test.mjs alongside the mechanism it pins is correct (0189, 0190); rewriting it launders the evidence.",
-      "TERMINATION MUST BE PROVEN, NOT ASSERTED. Once maxSteps is deleted, the spec's claim that every iteration either acts or exits becomes load-bearing for liveness. M5 owes a test that the loop terminates on the no-actions path; a hang is worse than the bounded stop it replaces (0185).",
-      "Give each workflow agent a DISTINCT scratch subdirectory. A5's inertness verifier had its own scratch file overwritten mid-run by a sibling sharing the path; its results survived only because they were printed first.",
-      "COMMIT docs/invariants/coverage/<branch>.json with all 12 registry ids, verdict domain two-valued. The PR-mode gate diffs merge-base..HEAD and cannot see untracked paths; it never checks whether a check string is TRUE (0143). Proven dischargeable by PR #31.",
-      "From 0187, assigned to M5: advance.toRestack is computed (reconcile.mjs:122/:130 + twin) and logged (mitosis.js:3996) with ZERO consumers. The same string carries the AIMD clause M4 deletes; prompt-snapshot.test.mjs may pin it, unverified.",
-      "From 0188, assigned to M5: the isBuiltResume restore call at mitosis.js:4586 passes only builtRef, so the sha-verification block at :4572-4579 never runs there, while :4592 passes requireSha true. Decide explicitly whether M5 closes it or declares it again.",
-      "From 0190, assigned to M5: mergeWatchPrompt defaults to 300/30 internally at mitosis.js:2817-2818, so the :5068 call site is unpinned. If M5 deletes that call site the residual dies with it - say so rather than leaving it dangling.",
-      "supersedeOpenPr (mitosis.js:4386-4421) is DEAD CODE with zero call sites tree-wide (0188). Not a live ship path; do not chase it again.",
-      "M4 stays THREATENED by 174a0dc: three behavior changes plus the structural publishedSpecPath share one commit range and three characterization tests were rewritten in it.",
-      "computeLogicalRunId still hashes only spec path + baseBranch (0176). Identity is three-valued and the published spec path is relative (0178) - M5 consumes this for the continuation block.",
-      "published.sourcePrefix is logged on disagreement but does not WIN (0179). A relaunch under a different prefix can re-ship shipped work.",
-      "PR scope is FROZEN at creation; title/body edits are denied, later facts go in a comment (0142). pr-create rejects angle brackets in a --what value - reword, never force. Merge stays human-gated.",
-      "NEVER invoke the compiled workflow. Use the AsyncFunction harness with a stub agent; MITOSIS_PATH swaps in a mutated scratch copy. Run A5's test against a scratch PRE-deletion copy to prove M5's deletion is real before deleting the test.",
-      "A red result from a hand-rolled shell one-liner is suspect BEFORE the code is - re-run it in node. A5's implementer hit exactly this with a PIPESTATUS artifact and re-derived rather than reporting the suspect result.",
-      "Five pre-existing dirty paths persist (.claude/settings.json, .zshrc, two .bak files, .claude/skills/context7-mcp/) - stage explicit paths only, NEVER git add -A. 17 worktree entries remain live; no reaper verb.",
-      "Spec/plan anchors remain stale wholesale (0148 rejected a standalone rewrite). Section 10's M3 row and section 8 row 2 are inaccurate (0185) - re-baseline them BY EXECUTION inside M5.",
-      "Standing method rule, EIGHT instances deep (0159, 0163, 0181, 0184, 0188, 0189, 0190): verify a confident finding against the mechanism before acting. Every A5 scope change came from mutation; reading for absence would have missed two real holes."
+      "STAGED WORK IS THE ASSET AND IT IS UNCOMMITTED: 12 staged paths on feat/m5-quiescent-exit at HEAD 42e7d49, 3.55M tokens of verified work. A stray checkout, reset, stash or clean destroys it. CONFIRM IT IS INTACT BEFORE ANYTHING ELSE; consider committing early.",
+      "SUBSTANTIVE FINDING: deleting the quiescent exit's return from both twins (mitosis.js:2384-2387, leases.mjs:158-161) HANGS all 60 test files at 240s with ZERO reddened. The spin is SYNCHRONOUS so node:test's timeout cannot fire. The epoch-guard half does redden.",
+      "THE REMEDY IS UNPROVEN AND UNDER AUDIT BY USER DIRECTIVE (0192). A child-process test is a new pattern here; it must be proven able to FAIL against an exit-removed mutant, with no flakiness and no sleeps. Fallback: declare the hang in the M3 receipt row, measured.",
+      "ONE-LINE HONESTY FIX OWED: the receipt's M6 row claims 'the staged set is empty' while 12 paths are staged, contradicting its own M1 row. The verdict survives; only the sentence is false. invariant-coverage-check.mjs never checks whether a string is TRUE (:107-137).",
+      "HARNESS LESSON: NEVER place a lens that measures committed state before the phase that commits. The receipt lens ran the coverage gate in PR mode against an empty merge-base..HEAD and burned a whole remediation round. Move it after Ship, or have the implementer commit.",
+      "THE ENGINE IS AT .claude/workflows/mitosis.js, NOT under .claude/lib/superpowers-parallel/. The prior dispatch brief carried this wrong and it cost a failed anchor sweep. mirror-guard classifies BOTH leases.mjs AND reconcile.mjs as WHOLE.",
+      "COMMIT docs/invariants/coverage/feat-m5-quiescent-exit.json IN THE SAME COMMIT as the production change. Its 12 rows already set-equal the registry with two-valued verdicts, independently confirmed. The PR-mode gate cannot see untracked or staged-only paths.",
+      "M5 TOUCHES POLICED TWINS - every twin edit lands in BOTH files in ONE commit. Landing stays SERIAL. Re-derive the twin surface per change; 0151 established the gotcha list is incomplete.",
+      "THE M4 TRAP: never rewrite a characterization test's assertions in the same commit as the behavior change. Deleting merge-poll-characterization.test.mjs with the mechanism it pinned was CORRECT and is already done in the staged tree.",
+      "Give each workflow agent a DISTINCT scratch subdirectory. Applied in wjy3c80jv; no collision recurred.",
+      "Five pre-existing dirty paths persist (.claude/settings.json, .zshrc, two .bak files, .claude/skills/context7-mcp/) - verified untouched after the run. Stage explicit paths only, NEVER git add -A.",
+      "PR scope is FROZEN at creation; title/body edits are denied, later facts go in a comment (0142). pr-create rejects angle brackets in a --what value. Merge stays human-gated - the workflow must not merge.",
+      "NEVER invoke the compiled workflow. Use the AsyncFunction harness with a stub agent; MITOSIS_PATH swaps in a mutated scratch copy.",
+      "Method rule, NINE instances deep and now applied to the orchestrator's OWN recommendations (0192): verify a confident finding against the mechanism before acting. A red shell one-liner is suspect before the code is - re-run it in node."
     ],
     "key_decisions": [
       "0136-defer-track-a-until-mitosis-msps-land",
@@ -138,5 +132,5 @@
     ]
   },
   "created_at": "2026-07-29T23:40:17.901Z",
-  "updated_at": "2026-08-02T01:24:51.045Z"
+  "updated_at": "2026-08-02T01:27:31.951Z"
 }
