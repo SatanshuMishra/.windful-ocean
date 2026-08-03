@@ -35,24 +35,20 @@
   "closure_statement": null,
   "spine": {
     "status": "paused",
-    "active_goal": "The recorded explanation task is DELIVERED and the thread has pivoted. 0219 refuted the preflight's premise (mitosis.js carries zero merge invocations; three deny layers already hold) and 0220 ruled DELETE-not-neuter, re-homing the real boundary as a ~15-line test. The thread's next output is IMPLEMENTATION - the first repo write this thread makes - executed as one MSP with plan, implement and review, per the user's explicit go.",
-    "next_step": "START HERE IN A FRESH SESSION. Plan, implement and review the preflight deletion per 0219/0220 as ONE MSP on a fresh branch off origin/main. Order: (1) re-confirm blast radius, (2) delete the module + its test, (3) FIX the mitosis-gate.test.mjs siblings.size>=6 threshold, (4) strip the mitosis.js and SKILL.md call sites, (5) add the replacement test, (6) CHECK the coverage JSON, (7) verify per 0210, (8) code-reviewer, (9) pr-create. Put asks (a) and (b) to the user FIRST.",
+    "active_goal": "The preflight deletion is IMPLEMENTED and COMMITTED as 106b253 on branch fix/delete-merge-boundary-preflight (cut at 4fd03c2). Suite 1771/1770/1, only the named 0210 environment failure. Both code-reviewer and security-reviewer returned APPROVE-WITH-FIXES, no CRITICAL. The MSP is NOT shippable as-is: one HIGH and six MEDIUM findings must land first. NO PR IS OPEN and none should be opened until they do.",
+    "next_step": "START HERE. Do NOT open the PR yet. Land review fixes as follow-up commits on 106b253, in order: (1) HIGH add docs/invariants/coverage/fix-delete-merge-boundary-preflight.json with a row for ALL 12 registry ids, and revert the retroactive second edit at feat-m5-quiescent-exit.json:31; (2) restore the repo-vendored-executable assertion; (3) repoint the deny test at ~/.claude/settings.json; (4) widen the merge scan beyond mitosis.js; (5) rule on require_last_push_approval. Then pr-create.",
     "open_risks": [
-      "TWO OPEN ASKS, put first: (a) fold the ~15-line replacement test into the deletion or ship it separately; (b) supersede 0218 in the same PR or its own record. 0219 already supersedes 0218 in the ledger.",
-      "SELF-APPROVAL UNVERIFIED: that GitHub forbids a PR author approving their own PR was NOT checked against GitHub docs. Load-bearing for 0219's invariant-3 deadlock claim. Verify before citing it in a PR body, spec or commit.",
-      "MITOSIS-GATE TEST REDDENS, not merely loses imports: tests/mitosis-gate.test.mjs:492 asserts siblings.size >= 6. It is 7 today (5 mitosis-git codes plus 30 and 31; PREFLIGHT_GH_MISSING dedups). Dropping 3 preflight imports leaves 5 and FAILS. Adjust the threshold.",
-      "BLAST RADIUS, worktrees excluded, 9 live files: preflight .mjs (32 refs, delete), its test (84, delete), mitosis-gate.test.mjs (7), mitosis.js (3), SKILL.md (2), and 1 ref each in mitosis-scheduler, reconcile-only-advance-characterization, mirror-guard, frontier-train-e2e.",
-      "THE 4 SINGLE-REF TEST FILES ARE UNINSPECTED: each hit may be a MITOSIS_BOUNDARY_* env var in a fixture, not an import. Read each before deleting; do not assume the reference shape.",
-      "docs/invariants/coverage/feat-m5-quiescent-exit.json references the preflight and may feed an invariant-coverage checker. The coverage-checker-false-green residual means CHECK it, never assume. Three docs/superpowers/ files also reference it.",
-      "BASELINE AT 4fd03c2: npm test is 1887 tests, 1886 pass, 1 fail locally; the failure is the environment-only protect-claude-config test. The deletion changes the test count - re-baseline after, never compare raw totals.",
-      "OPERATIVE GREEN TEST (0210): green means zero failures OTHER THAN .claude/hooks/tests/protect-claude-config.test.mjs, plus phase-parity and mirror-guard passing. Any OTHER failure is a genuine red. NEVER say 'the suite is green' - name the excluded test.",
-      "FIVE PRE-EXISTING DIRTY PATHS stay untouched: modified .claude/settings.json and .zshrc; untracked engine-args.mjs.bak-*, .claude/skills/context7-mcp/, mitosis.js.bak-*. Stage explicit paths only, NEVER git add -A.",
-      "PR BODIES FREEZE AT CREATION (0142): gh pr edit, api PATCH, GraphQL and the MCP update tool are gate-denied. Later facts go in a COMMENT. pr-create rejects angle brackets in --what and caps free text at 200 chars.",
-      "MERGE IS NOT GATED here: gh api returns 404 'Branch not protected' on main and there are no required status checks, so a red CI does not block the merge button. A red must be surfaced in words.",
-      "STALE LEDGER COPIES (0209): decisions/ dirs under .claude/plugins/data/ are stale and once produced a false BLOCKING finding. Only the _ledger git ref is authoritative.",
-      "STANDING: plan fix rounds against INVARIANTS, never a finding list. Fence reviewers with 'cite the supplied receipts, re-run nothing' and leave exactly ONE agent permitted to execute checks.",
-      "UNOWNED RESIDUALS (M8 was last MSP): dead reviewDecision at mitosis.js:1667/1671/:3800; advance.toRestack/toOpen; .mitosis/ not gitignored plus 2 log lines claiming it is; M3 termination residual; frontierManifest dead-window arg; coverage-checker false green.",
-      "SEVEN GUARDS UNPINNED (0215): each survived the full suite at baseline. Shipped code is correct; missing is a test catching the guard's removal. NOT AUTHORIZED - do not fold into this MSP."
+      "HIGH: every change needs its OWN docs/invariants/coverage/<name>.json with a row for all 12 registry ids. This edited feat-m5-quiescent-exit.json instead. The checker only requires SOME file there be touched, so it goes green while unmet - the assurance inflation 0220 deleted the preflight for.",
+      "A STILL-LIVE ASSERTION WAS LOST. 19 of the 20 removed mitosis-scheduler tests were dead; the 20th asserted the reconcile prompt never sources an executable from the repo under management. mitosis.js:3962 still runs node ${LIB_DIR}/fold-run-log.mjs. Restore that one assertion.",
+      "no-self-merge-consent reads <repo>/.claude/settings.json but enforcement reads ~/.claude/settings.json, a REGULAR FILE not a symlink. Removing a deny entry from the installed copy leaves the test GREEN while its message claims the guarantee holds. Read the installed path, or assert both.",
+      "MERGE_INVOCATION_PATTERNS greps RAW SOURCE, so strengthening a prohibition in prose turns the test red with a message asserting the opposite. mitosis.js already carries seven such prose prohibitions. Fix: match extracted command sites per ghActionSites at tests/gh-scope-lint.test.mjs:23-35.",
+      "SECURITY MEDIUM: the new test scans ONLY mitosis.js. A merge verb added to mitosis-git.mjs, the sanctioned gh-exec wrapper and likeliest landing place, passes every assertion. Widen to lib/superpowers-parallel/*.mjs with one named exemption for gh-merge-shim.mjs.",
+      "SECURITY MEDIUM, the one property genuinely lost: the gate proved server-side that an approval cannot carry to commits appended later. The CI-to-green loop still appends to a PR mitosis.js:5207 calls one a human may be reading. Remedy: a SKILL.md ruleset line, or refuse to append when APPROVED.",
+      "PR BODY: the module is 410 lines and its test 668; 0220's '1078' conflated them. gh-merge-shim.mjs is NOT a PATH-level layer, being imported only by mitosis-git.mjs, so 'three deny layers' overcounts. Do NOT cite the unverified GitHub self-approval claim.",
+      "BASELINE CORRECTION: the spine's 1887/1886 does not reproduce. At the same commit 4fd03c2 this session it is 1896/1895/1. Post-change is 1771/1770/1, reconciled per-file as 1896-131+6. Never compare raw totals.",
+      "MERGE IS NOT GATED on this repo: no branch protection, no required status checks, so a red CI does not block the merge button. Surface any red in words.",
+      "Five pre-existing dirty paths are deliberately OUTSIDE commit 106b253 and must stay out: modified .claude/settings.json and .zshrc; untracked engine-args.mjs.bak-*, context7-mcp/, mitosis.js.bak-*. Both reviewers flagged them as scope contamination.",
+      "0221 retires 0218 by supersession. The Status-line flip was NOT executable: no ledger tool patches an existing decision, and 0202 forbids the git edit. 0218 still reads accepted, a known cosmetic defect. The continuity rule mandates a mutation the server cannot perform."
     ],
     "key_decisions": [
       "0136-defer-track-a-until-mitosis-msps-land",
@@ -163,5 +159,5 @@
     ]
   },
   "created_at": "2026-07-29T23:40:17.901Z",
-  "updated_at": "2026-08-03T15:46:47.937Z"
+  "updated_at": "2026-08-03T16:54:34.877Z"
 }
