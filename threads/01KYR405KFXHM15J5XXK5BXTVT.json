@@ -35,17 +35,18 @@
   "closure_statement": null,
   "spine": {
     "status": "paused",
-    "active_goal": "PR #38 is OPEN and FULLY GREEN (https://github.com/SatanshuMishra/.windful-ocean/pull/38). Three atomic commits on 106b253: b14935f restores the installed-path anchor, 2acd508 hardens the merge guard and widens the deny pin, 1170d5b adds the coverage file and reverts the retroactive edit. All 12 CI checks pass on both push-event and PR-event runs, including PR-mode invariant-coverage. Local suite 1776/1775/1, only the pre-existing protect-claude-config.test.mjs:194, which CI skips.",
-    "next_step": "The MSP is COMPLETE and awaits human merge; the agent never merges. Nothing further is owed on this branch. Two follow-ups are filed as task chips and are NOT part of this PR: harden block-destructive-bash.sh against its four measured evasions plus the GraphQL PR-body rewrite route, and detect settings.json deny drift between the tracked repo copy and the installed copy under HOME.",
+    "active_goal": "The preflight-deletion MSP is DONE: PR #38 squash-merged as da0cefd onto main at 2026-08-03T19:25:04Z with all 12 CI checks green. Completion criterion 5, an approved architecture spec for the rebuild, remains OPEN and is untouched by this session - the MSP was execution work, not spec work. Two PRE-EXISTING security-hardening gaps were surfaced during its review and filed as task chips; neither is part of any merged change.",
+    "next_step": "START HERE IN A FRESH SESSION. Clear the two filed follow-ups, worst first. (1) Harden .claude/hooks/block-destructive-bash.sh: four MEASURED merge-gate evasions plus a GraphQL PR-body rewrite route. Fix by tokenizing argv in the python3 block at :9-15, or delegate to gh-merge-shim's classifier which already resolves positionals; write red-first cases into block-destructive-bash.test.mjs:19-35. (2) Settings deny drift per 0227. Then return to criterion 5.",
     "open_risks": [
-      "0225 ruled the static merge-scan perfection loop CLOSED: the pattern list is a denylist over an infinite string space. Enforcement rests on the SINGLE spawnSync at mitosis-git.mjs:347 behind ghExecTripwire at :343, fail-closed. Do NOT reopen table-driven pair enumeration.",
-      "The argv enumeration's stage axis is a hand-typed local list (MITOSIS_GIT_STAGES). An existing verb carrying a branch at an unlisted stage that returns a computed merge argv passes all 232 tests. Named residual, deliberately not closed per 0225.",
-      "An unauthorized table-driven refactor of production mitosis-git.mjs appeared in the working tree mid-session and was reverted to comply with 0225. The patch is preserved at scratchpad/declined-mitosis-git-table-refactor.patch.",
-      "block-destructive-bash.sh has four MEASURED evasions - flag hoisting before the subcommand, quoting, command substitution, and the gh alias route - plus a GraphQL PR-body rewrite route. Pre-existing, filed as a task chip, NOT fixed here.",
-      "The five out-of-scope dirty paths remain uncommitted and must stay out of every commit: .claude/settings.json, .zshrc, engine-args.mjs.bak-pre-promptsfix-043a2526, .claude/skills/context7-mcp/, mitosis.js.bak-pre-promptsfix-043a2526.",
-      "Suite reconciliation, never compare raw totals: 1762 tracked plus 9 from the GITIGNORED .claude/hooks/tests/session-config-drift-check.test.mjs equals the 1771 baseline; plus 1 scheduler and plus 4 no-self-merge-consent equals 1776.",
-      "pr-create was BLOCKED once because a PR-body value carried the literal REST merge-endpoint pattern as prose. When using that tool, rephrase any prose that names a merge command.",
-      "Merge is only partly gated: ruleset 19939922 requires a PR on main with no bypass actors, but sets zero required approvals and no required status checks, so a red CI does not block the merge button."
+      "0225 ruled the static merge-scan perfection loop CLOSED. The pattern list is a denylist over an infinite string space; enforcement rests on the SINGLE spawnSync at mitosis-git.mjs:347 behind ghExecTripwire at :343, fail-closed. Do NOT reopen table-driven pair enumeration.",
+      "block-destructive-bash.sh has four MEASURED evasions - flag hoisting before the subcommand, quoting, command substitution, and the gh alias route - plus gh api graphql updatePullRequest. It is the weakest live layer, is NOT fixed, and is filed as a task chip.",
+      "The argv enumeration's stage axis is a hand-typed local list. An existing verb carrying a branch at an unlisted stage that returns a computed merge argv passes all 232 tests. Named residual per 0225, deliberately left open.",
+      "An unauthorized table-driven refactor of production mitosis-git.mjs appeared in the working tree mid-session and was reverted per 0225. Its patch sits in the session scratchpad and is EPHEMERAL - deliberately declined work, so losing it is intended.",
+      "The five out-of-scope dirty paths are STILL uncommitted and must stay out of every future commit: .claude/settings.json, .zshrc, engine-args.mjs.bak-pre-promptsfix-043a2526, .claude/skills/context7-mcp/, mitosis.js.bak-pre-promptsfix-043a2526.",
+      "Local checkout is still on fix/delete-merge-boundary-preflight, which is now merged. Re-derive from origin/main (da0cefd) before starting new work rather than branching off the stale local ref.",
+      "Never compare raw suite totals: 1762 tracked plus 9 from the GITIGNORED .claude/hooks/tests/session-config-drift-check.test.mjs equals the 1771 baseline. Reconcile per file. A prior session raised a false regression alarm on this.",
+      "pr-create BLOCKS when a body value carries a literal merge command or REST merge-endpoint string as prose - the gate cannot tell describing from running. Rephrase any prose that names merge tooling.",
+      "The invariant-coverage checker never verifies WHICH coverage file changed (invariant-coverage-check.mjs:161-179), so a future change can still satisfy the gate by touching a historical entry. Repaired by hand in #38 per 0226, not closed."
     ],
     "key_decisions": [
       "0136-defer-track-a-until-mitosis-msps-land",
@@ -162,5 +163,5 @@
     ]
   },
   "created_at": "2026-07-29T23:40:17.901Z",
-  "updated_at": "2026-08-03T19:29:16.880Z"
+  "updated_at": "2026-08-03T19:30:00.772Z"
 }
