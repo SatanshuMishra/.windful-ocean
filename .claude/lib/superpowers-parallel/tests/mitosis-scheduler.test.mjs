@@ -5275,3 +5275,23 @@ test('CI-WRITEAHEAD-FATAL: an attempt whose durable record cannot be written is 
   assert.ok(result.parked[0].triedSet.includes('ci-published:pr'),
     'and the park note carries the published-head marker itself, because the write that would otherwise have carried it is the one that just failed');
 });
+
+test('CI-WRITEAHEAD-PER-ATTEMPT: the durability guard covers EVERY attempt, not only loop entry, so an attempt whose record fails later is never dispatched either', async () => {
+  let checkpointCalls = 0;
+  const base = createFakeAgent({
+    msps: ciMsps(),
+    shipResult: () => ciRedShip(),
+    ciLoop: {
+      checkpoint: () => { checkpointCalls += 1; return checkpointCalls === 2 ? { written: false, detail: 'the journal could not be appended' } : { written: true, detail: '' }; },
+      probe: () => ciRedShip({ failedChecks: ['test', 'test-post-probe'] }),
+    },
+  });
+  const { agent, labels } = ciCapture(base);
+  const { resultPromise } = invokeMitosis(buildInput(), agent);
+  const result = await resultPromise;
+
+  assert.equal(checkpointCalls >= 2, true, 'loop entry was recorded, and the FIRST attempt then tried to record itself');
+  assert.deepEqual(ciLoopLabels(labels), [], 'the attempt whose record failed is never dispatched, so it can never be an attempt a relaunch cannot see');
+  assert.equal(result.parked[0].request.kind, 'ci-red-exhausted');
+  assert.match(result.parked[0].request.what, /durably record a ci attempt/, 'the park names the per-attempt durability failure, distinctly from the loop-entry one');
+});
