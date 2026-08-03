@@ -3,7 +3,7 @@
   "id": "01KZ4KGFM462TZZQBKDJCR0PAM",
   "slug": "mitosis-core-rebuild-step6-implementation",
   "title": "Mitosis core rebuild step 6: complete the SPEC implementation",
-  "status": "active",
+  "status": "paused",
   "parent_id": null,
   "predecessor_id": null,
   "completion_criteria": [
@@ -38,7 +38,7 @@
   "abandoned_reason": null,
   "closure_statement": null,
   "spine": {
-    "status": "active",
+    "status": "paused",
     "active_goal": "Finish implementing docs/superpowers/specs/2026-07-30-mitosis-core-rebuild.md - step 6: fix pipeline, phase collapse, gate model. MSP-0 shipped as PR #15 (12053dc). MSP-1 through MSP-13 are UNSTARTED: main at da0cefd still declares all 13 phases, MITOSIS_GIT_VERBS is still ['pr-create','pr-close','compare'], and mitosis-gate.mjs has no budget verb. Nothing is staged on any branch. The SPEC was written against mitosis.js at 4,851 lines; it is now 5,514.",
     "next_step": "START HERE IN A FRESH SESSION. Do NOT implement first. Follow the dispatch brief in this thread's first session log, in order: (A) dedicated subagents re-ground the SPEC against today's engine and re-verify every line anchor and precondition; (B) audit/research agents choose the remedy for each gap found; (C) commit the re-baselined SPEC and record decisions; (D) only then implement, via a DEDICATED small dynamic Workflow, stacked PRs permitted. Start at MSP-1.",
     "open_risks": [
@@ -66,5 +66,5 @@
     ]
   },
   "created_at": "2026-08-03T20:02:14.276Z",
-  "updated_at": "2026-08-03T20:03:12.211Z"
+  "updated_at": "2026-08-03T20:04:07.323Z"
 }
