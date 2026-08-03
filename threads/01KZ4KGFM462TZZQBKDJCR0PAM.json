@@ -39,12 +39,32 @@
   "closure_statement": null,
   "spine": {
     "status": "active",
-    "active_goal": "",
-    "next_step": "",
-    "open_risks": [],
+    "active_goal": "Finish implementing docs/superpowers/specs/2026-07-30-mitosis-core-rebuild.md - step 6: fix pipeline, phase collapse, gate model. MSP-0 shipped as PR #15 (12053dc). MSP-1 through MSP-13 are UNSTARTED: main at da0cefd still declares all 13 phases, MITOSIS_GIT_VERBS is still ['pr-create','pr-close','compare'], and mitosis-gate.mjs has no budget verb. Nothing is staged on any branch. The SPEC was written against mitosis.js at 4,851 lines; it is now 5,514.",
+    "next_step": "START HERE IN A FRESH SESSION. Do NOT implement first. Follow the dispatch brief in this thread's first session log, in order: (A) dedicated subagents re-ground the SPEC against today's engine and re-verify every line anchor and precondition; (B) audit/research agents choose the remedy for each gap found; (C) commit the re-baselined SPEC and record decisions; (D) only then implement, via a DEDICATED small dynamic Workflow, stacked PRs permitted. Start at MSP-1.",
+    "open_risks": [
+      "SPEC sections 4, 5, 12 and 14 were verified on 2026-07-30 against mitosis.js at 4,851 lines. That file is 5,514 lines at da0cefd. Treat EVERY line anchor as stale until re-derived by measurement.",
+      "The SPEC is NOT on main. Its only committed copy is branch docs/mitosis-core-rebuild-spec at d444797; the user ruled leaving it without a PR is fine. Decide in phase C whether to land it on main so CI, gates and subagents can read it.",
+      "Section 2's precondition table is dated 2026-07-30 and has moved: worktree reaping ran, and durable run identity, quiescent exit, the build-ahead cap and the ci-to-green loop all shipped. Re-derive precondition status by measurement; never inherit the table.",
+      "Section 2's human precondition is LIVE: a guard hook holds every Edit and Write under .claude/{hooks,rules,lib,workflows} for human approval. Every MSP writes there, so unattended fan-out stalls. Plan for interactive approval per write.",
+      "MSP-12's falsifier must be tested EARLY, not at the capstone. A 2026-07-30 audit measured that phases share state by LEXICAL CLOSURE (mspById, resumeMap, shipped/parked arrays, compensationStack, the mergeQueue chain). A stage needing that closure refutes pipeline-as-data.",
+      "The twinning tax (precondition step 2) may still be live: an engine edit lands twice, byte-identically, across the MIRROR_CENSUS twin surface. Re-derive the twin set per MSP from MIRROR_CENSUS - every hand-written twin list so far was measured incomplete.",
+      "pr-create BLOCKS when a body value carries a literal merge command or REST merge-endpoint string as prose; the gate cannot tell describing from running. Rephrase any PR prose that names merge tooling.",
+      "Never compare raw suite totals: a gitignored hooks test adds about 9 to local counts. Reconcile per file. A prior session raised a false regression alarm on exactly this.",
+      "Five pre-existing dirty paths must stay uncommitted: .claude/settings.json, .zshrc, engine-args.mjs.bak-pre-promptsfix-043a2526, .claude/skills/context7-mcp/, .claude/workflows/mitosis.js.bak-pre-promptsfix-043a2526. Stage explicit paths only, never git add -A.",
+      "The .bak snapshot in the working tree carries the PRE-MSP-0 phase set (Final review, Shepherd). It is inert and older than main. Never read it as the current engine or as a target state."
+    ],
     "key_decisions": [],
-    "out_of_scope": []
+    "out_of_scope": [
+      "The feat pipeline - 0110 and 0118 sequence it second, after the fix pipeline proves the effector boundary. Pipelines for refactor, perf, docs or chore - closed by 0118 (limits PIPELINES only, not the PR title type vocabulary).",
+      "Speculation depth above 1 - 0109 requires a restack proven for fix specifically. An off-the-shelf durable-execution runtime - 0108. A webhook, daemon or server for the relaunch trigger - 0119.",
+      "fileScope-only task-edge derivation - rejected by 0116 and 0120. Edges stay LSP-grounded; in-engine overlap survives as a pruning input only, never as the oracle.",
+      "Cluster-aware scheduling, and the journal's 2000-character paging through model output - fenced out by SPEC section 1 and deferred in section 13. Adding any new phase, work type or scheduler - section 1 forbids it.",
+      "Bootstrapping a target repo's test infrastructure as a side effect of shipping - closed by 0117. Mitosis deploys its own gates and authors one receipt inside an EXISTING runner; an unmet floor halts fail-closed and names verify-setup.",
+      "Re-doing MSP-0. It shipped as PR #15 (12053dc): Final review deleted, Shepherd renamed to Resume, phase-parity gate live. Verify it still holds; do not re-implement it.",
+      "The other specs are NOT this thread's work and are consulted only where a precondition genuinely depends on one: quiescent-advance M0-M8 (delivered), run-readiness-repair MSP-0..MSP-10, the two-track invariant plan, b6-harness-liveness.",
+      "The predecessor thread's two open follow-ups belong to it, not here: hardening .claude/hooks/block-destructive-bash.sh, and the settings deny drift per decision 0227."
+    ]
   },
   "created_at": "2026-08-03T20:02:14.276Z",
-  "updated_at": "2026-08-03T20:02:14.276Z"
+  "updated_at": "2026-08-03T20:03:12.211Z"
 }
