@@ -3,7 +3,7 @@
   "id": "01KZ4M2VJHW4W1MNGTM0YGHY98",
   "slug": "mitosis-core-rebuild-implementation",
   "title": "Mitosis core rebuild: complete the SPEC implementation",
-  "status": "active",
+  "status": "paused",
   "parent_id": null,
   "predecessor_id": null,
   "completion_criteria": [
@@ -42,7 +42,7 @@
   "abandoned_reason": null,
   "closure_statement": null,
   "spine": {
-    "status": "active",
+    "status": "paused",
     "active_goal": "Finish implementing docs/superpowers/specs/2026-07-30-mitosis-core-rebuild.md - step 6 of decision 0116's eight-entry landing order: fix pipeline, phase collapse, gate model. MSP-0 shipped as PR #15 (12053dc); MSP-1 through MSP-13 are unstarted. Steps 0-5 are its hard preconditions, have NO spec of their own, and their completion is UNPROVEN - auditing them to completion is inside this thread's scope, not an assumption it inherits.",
     "next_step": "START HERE IN A FRESH SESSION. Do NOT implement first. Follow the dispatch brief in this thread's first session log: (A) audit preconditions 0, 1, 1.5, 2, 3, 4, 5 - one agent per step, parallel, adversarially verified - plus the SPEC re-grounding; (B) research a remedy per gap; (C) land the prerequisite work and re-baselined SPEC, a decision recorded per call; (D) only then implement MSP-1..MSP-13 via a DEDICATED small dynamic Workflow, stacked PRs permitted.",
     "open_risks": [
@@ -73,5 +73,5 @@
     ]
   },
   "created_at": "2026-08-03T20:12:16.337Z",
-  "updated_at": "2026-08-03T20:13:38.719Z"
+  "updated_at": "2026-08-03T20:14:27.239Z"
 }
