@@ -17,6 +17,7 @@ const SLUG_PLACEHOLDER = '<OWNER_REPO>';
 const testPrUrl = (seed) => `https://example.test/${TEST_REPO_SLUG}/pull/${[...String(seed)].reduce((acc, ch) => acc + ch.charCodeAt(0), 0)}`;
 const SLUG_DERIVATION = `$(cd ${TEST_REPO_ROOT} && gh repo view --json nameWithOwner -q .nameWithOwner)`;
 const PR_CREATE_CLI = 'node /Users/satanshumishra/.claude/lib/superpowers-parallel/mitosis-git.mjs pr-create';
+const FOLD_RUN_LOG_CLI = 'node /Users/satanshumishra/.claude/lib/superpowers-parallel/fold-run-log.mjs';
 
 const mitosisBody = readFileSync(MITOSIS_PATH, 'utf8').replace(/^export const meta/m, 'const meta');
 const AsyncFunction = Object.getPrototypeOf(async function () {}).constructor;
@@ -2510,6 +2511,19 @@ test('MSP-2 FIX4: the reconcile prompt attaches the STOP-and-report instruction 
   assert.match(reconcilePrompt, /Return ONLY the structured object: \{ manifestFound, manifestRaw, manifestRawPages.*mergedPRs.*mergedPRsAuthoritative/s, 'the return contract carries the flag');
   const stepSix = reconcilePrompt.slice(reconcilePrompt.indexOf('\n6. '));
   assert.match(stepSix, /STOP-and-report rule from step 2 applies[\s\S]*mergedPRsAuthoritative=false/, 'the open-PR list read carries the same STOP-and-report obligation');
+});
+
+test('INSTALLED-PATH ANCHOR: the reconcile prompt invokes fold-run-log.mjs from the absolute installed lib directory, never an executable sourced from the repository under management', () => {
+  let reconcilePrompt = null;
+  const base = createFakeAgent({ msps: independentMsps() });
+  const agent = async (prompt, opts = {}) => {
+    if ((opts.label || '') === 'reconcile') reconcilePrompt = prompt;
+    return base(prompt, opts);
+  };
+  return invokeMitosis(buildInput(), agent).resultPromise.then(() => {
+    assert.ok(reconcilePrompt.includes(`${FOLD_RUN_LOG_CLI} ${TEST_REPO_ROOT}/.mitosis/run.json`), 'the run-manifest fold must name the installed fold-run-log.mjs path');
+    assert.equal(reconcilePrompt.includes(`${TEST_REPO_ROOT}/.claude/lib`), false, 'no executable the reconcile prompt invokes may be sourced from the repository under management');
+  });
 });
 
 test('T3 reconcile fail-closed: a reconcile that always drops (null) exhausts retries and halts as crashed, never an empty skip-set', async () => {
