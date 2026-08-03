@@ -801,6 +801,10 @@ function parkDelta({ unitId, stage, diagnosis, request, remediation, resumePoint
   };
 }
 
+function ciAttemptDelta({ unitId, fingerprint }) {
+  return { kind: 'ci-attempt', unitId, fingerprint: fingerprint ?? null };
+}
+
 function quiescentExitDelta({ at, outstanding }) {
   return { kind: 'quiescent-exit', at: at ?? null, outstanding: outstanding === true };
 }
@@ -822,8 +826,23 @@ function applyRunDelta(manifest, record) {
       return manifest;
     }
   }
+  if (record.kind === 'ci-attempt') return applyCiAttemptTransition(manifest, record);
   if (record.kind === 'quiescent-exit') return isIsoInstant(record.at) ? { ...manifest, quiescentExitAt: record.at, quiescentExitOutstanding: record.outstanding === true } : manifest;
   return manifest;
+}
+
+function applyCiAttemptTransition(manifest, record) {
+  if (!isValidFingerprint(record.fingerprint)) return manifest;
+  if (!manifest || typeof manifest !== 'object' || !Array.isArray(manifest.msps)) return manifest;
+  if (!manifest.msps.some((m) => m && m.id === record.unitId)) return manifest;
+  return {
+    ...manifest,
+    msps: manifest.msps.map((m) => {
+      if (!m || m.id !== record.unitId) return m;
+      const prior = Array.isArray(m.triedSet) ? m.triedSet : [];
+      return prior.includes(record.fingerprint) ? { ...m, triedSet: [...prior] } : { ...m, triedSet: [...prior, record.fingerprint] };
+    }),
+  };
 }
 
 function foldRunManifest(raw) {
@@ -4452,6 +4471,31 @@ async function parkUnit(msp, stage, outcome, integrationBranch, compensationStac
   }));
   await link;
   return outcome;
+}
+
+async function persistCiAttemptCheckpoint({ unitId, fingerprint }) {
+  try {
+    const deltaJson = JSON.stringify(ciAttemptDelta({ unitId, fingerprint }));
+    const writeRes = await agent(
+      `You are the ci-attempt-checkpoint stage of a mitosis run. You have NO Skill tool; follow these instructions directly.\n\n` +
+      `Durably APPEND one ci-attempt delta record to the run journal BEFORE the attempt it records is dispatched, so a relaunch after a crash still sees what this unit already spent against its published head. Operate in ${repoRoot}:\n` +
+      `1. Create the directory ${repoRoot}/.mitosis/ if it does not already exist.\n` +
+      `2. Ensure .mitosis/ is gitignored: if ${repoRoot}/.gitignore does not already ignore it, append a line \`.mitosis/\` to ${repoRoot}/.gitignore. This file is machine run-state and is never committed.\n` +
+      `3. APPEND the following single line to the END of ${repoRoot}/.mitosis/run.json as a new final line (create the file if it does not exist). Do NOT overwrite, rewrite, or re-read the file, and do NOT alter any existing line. Append it EXACTLY as given, verbatim, as one line:\n\n` +
+      `${deltaJson}\n\n` +
+      `Do NOT commit, push, or run any other git mutation. Return ONLY: { written: <bool>, detail: "<what you did>" }.`,
+      { agentType: 'implementer', label: `ci-attempt-checkpoint:${unitId}`, phase: 'Remediate', model: 'sonnet' }
+    );
+    if (writeRes == null || writeRes.written !== true) {
+      const detail = writeRes && typeof writeRes.detail === 'string' ? ` (${clean(writeRes.detail)})` : '';
+      log(`mitosis[${unitId}]: durable ci-attempt checkpoint did NOT persist (${clean(fingerprint)})${detail}; the ci-to-green loop escalates rather than spending an attempt it could not record`);
+      return false;
+    }
+    return true;
+  } catch (err) {
+    log(`mitosis[${unitId}]: durable ci-attempt checkpoint failed (${clean(err.message)}); the ci-to-green loop escalates rather than spending an attempt it could not record`);
+    return false;
+  }
 }
 
 async function persistParkCheckpoint(record) {

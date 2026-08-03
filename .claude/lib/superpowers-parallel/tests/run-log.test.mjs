@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { foldRunManifest, shipDelta, builtDelta, parkDelta, quiescentExitDelta, isIsoInstant } from '../run-log.mjs';
+import { foldRunManifest, shipDelta, builtDelta, parkDelta, quiescentExitDelta, isIsoInstant, ciAttemptDelta } from '../run-log.mjs';
 import { buildInitialManifest } from '../recovery.mjs';
 import { park } from '../parking.mjs';
 
@@ -71,6 +71,39 @@ test('foldRunManifest folds a park delta and preserves the persisted triedSet fo
   assert.equal(a.status, 'parked');
   assert.deepEqual(a.triedSet, ['worktree:reset-one', 'worktree:reset-clean']);
   assert.equal(a.resumePoint.stage, 'plan');
+});
+
+test('foldRunManifest folds a ci-attempt delta onto triedSet WITHOUT parking the unit, so a run interrupted mid-CI-loop still carries what it already spent', () => {
+  const manifest = genesisManifest(TWO);
+  const log = [
+    JSON.stringify(manifest),
+    JSON.stringify(builtDelta({ unitId: 'a', checkpointRef: 'refs/mitosis/a1b2c3d4/a', sha: 'c'.repeat(40), green: true, builtAgainst: {} })),
+    JSON.stringify(ciAttemptDelta({ unitId: 'a', fingerprint: 'ci-published:pr' })),
+    JSON.stringify(ciAttemptDelta({ unitId: 'a', fingerprint: 'ci-probe:rerun' })),
+    JSON.stringify(ciAttemptDelta({ unitId: 'a', fingerprint: 'ci-probe:rerun' })),
+  ].join('\n');
+  const folded = foldRunManifest(log);
+  const a = folded.msps.find((m) => m.id === 'a');
+  assert.equal(a.status, 'built', 'recording an attempt never parks the unit; only a park does that');
+  assert.deepEqual(a.triedSet, ['ci-published:pr', 'ci-probe:rerun'], 'attempts accumulate and deduplicate');
+  const b = folded.msps.find((m) => m.id === 'b');
+  assert.equal(b.status, 'planned', 'an unaffected sibling is untouched');
+});
+
+test('foldRunManifest ignores a ci-attempt delta that names an unknown unit or a malformed fingerprint, so a forged line cannot seed the resume set', () => {
+  const manifest = genesisManifest(TWO);
+  const folded = foldRunManifest([
+    JSON.stringify(manifest),
+    JSON.stringify(ciAttemptDelta({ unitId: 'a', fingerprint: 'no-colon-here' })),
+    JSON.stringify(ciAttemptDelta({ unitId: 'a', fingerprint: 'ci-fix:has a space' })),
+    JSON.stringify(ciAttemptDelta({ unitId: 'a', fingerprint: 'ci-fix:has/a/slash' })),
+    JSON.stringify(ciAttemptDelta({ unitId: 'a', fingerprint: 42 })),
+    JSON.stringify(ciAttemptDelta({ unitId: 'nonesuch', fingerprint: 'ci-probe:rerun' })),
+    JSON.stringify(ciAttemptDelta({ unitId: 'a', fingerprint: 'ci-fix:abcd1234' })),
+  ].join('\n'));
+  const a = folded.msps.find((m) => m.id === 'a');
+  assert.deepEqual(a.triedSet, ['ci-fix:abcd1234'], 'only the well-formed token survives the fold');
+  assert.equal(folded.msps.length, 2, 'an unknown unit id adds no unit');
 });
 
 test('foldRunManifest is fail-safe: a malformed delta line is skipped, well-formed later deltas still apply', () => {
