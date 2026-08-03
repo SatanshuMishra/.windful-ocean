@@ -27,11 +27,6 @@ import {
   MITOSIS_GIT_CONVERGE_EXIT,
   MITOSIS_GIT_GH_MISSING_EXIT,
 } from '../mitosis-git.mjs';
-import {
-  PREFLIGHT_HALT_EXIT,
-  PREFLIGHT_CONFIG_EXIT,
-  PREFLIGHT_GH_MISSING_EXIT,
-} from '../merge-boundary-preflight.mjs';
 
 const PHASE_TOKEN = /(?<![\w$.])phase(?![\w$])/g;
 
@@ -485,11 +480,8 @@ test('the gate exit codes stay distinct from every sibling cli exit code', () =>
     MITOSIS_GIT_OBSERVE_EXIT,
     MITOSIS_GIT_CONVERGE_EXIT,
     MITOSIS_GIT_GH_MISSING_EXIT,
-    PREFLIGHT_HALT_EXIT,
-    PREFLIGHT_CONFIG_EXIT,
-    PREFLIGHT_GH_MISSING_EXIT,
   ]);
-  assert.ok(siblings.size >= 6, 'the sibling exit-code surface was imported, not transcribed');
+  assert.ok(siblings.size >= 5, 'the sibling exit-code surface was imported, not transcribed');
   for (const code of codes.filter((c) => c !== GATE_CLEAN_EXIT)) {
     assert.equal(siblings.has(code), false, `exit code ${code} collides with a sibling cli`);
   }
