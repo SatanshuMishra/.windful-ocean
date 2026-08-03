@@ -3113,7 +3113,7 @@ function needKeyedParents(manifest, mergedIds) {
 }
 
 async function divergedParents(manifest, mergedIds, mergedShas, ctx) {
-  const { agent, logicalRunId, divergenceCheckPrompt, DIVERGENCE_CHECK_SCHEMA } = ctx && typeof ctx === 'object' ? ctx : {};
+  const { agent, log, logicalRunId, divergenceCheckPrompt, DIVERGENCE_CHECK_SCHEMA } = ctx && typeof ctx === 'object' ? ctx : {};
   const msps = manifest && typeof manifest === 'object' && !Array.isArray(manifest) && Array.isArray(manifest.msps) ? manifest.msps : [];
   const byId = new Map(msps.filter((m) => m && typeof m.id === 'string').map((m) => [m.id, m]));
   const shas = mergedShas && typeof mergedShas === 'object' && !Array.isArray(mergedShas) ? mergedShas : {};
@@ -3149,6 +3149,7 @@ async function divergedParents(manifest, mergedIds, mergedShas, ctx) {
     const envelope = response && typeof response === 'object' && !Array.isArray(response) ? response : null;
     const results = envelope && Array.isArray(envelope.results) ? envelope.results : null;
     const batchFailed = results === null || (typeof envelope.error === 'string' && envelope.error.length > 0);
+    if (batchFailed && typeof log === 'function') log(`mitosis: reconcile — the whole divergence-check batch could not be confirmed; folding all ${targets.length} need-keyed merged parent(s) to diverged so their built descendants park, and continuing the run`);
     for (const target of targets) {
       if (batchFailed) { diverged.add(target.parentId); continue; }
       const matches = results.filter((e) => e && typeof e === 'object' && !Array.isArray(e) && e.parentId === target.parentId);
@@ -3923,7 +3924,7 @@ const runOpenPRs = classifyRunOpenPRs(reusable && recon ? recon.openPRs : [], {
 let relaunchAdvance = null;
 if (isRelaunch && reusable && builtUnits.length > 0) {
   const baseLiveSignals = buildReconcileLiveSignals(recon, reconciledShipped, sourcePrefix, runOpenPRs);
-  const diverged = await divergedParents(reconciledManifest, baseLiveSignals.merged, baseLiveSignals.mergedShas, { agent, logicalRunId, divergenceCheckPrompt, DIVERGENCE_CHECK_SCHEMA });
+  const diverged = await divergedParents(reconciledManifest, baseLiveSignals.merged, baseLiveSignals.mergedShas, { agent, log, logicalRunId, divergenceCheckPrompt, DIVERGENCE_CHECK_SCHEMA });
   const liveSignals = { ...baseLiveSignals, divergedParents: diverged };
   const advance = planReconcile(reconciledManifest, liveSignals);
   relaunchAdvance = advance;

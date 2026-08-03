@@ -753,11 +753,15 @@ test('robustness fix 4: a non-Error throw from the divergence-check dispatch deg
   };
   const probeResult = () => { throw { nonError: true }; };
   const { agent, labels } = multiRelaunchCapturingAgent({ reconcileResult, probeResult });
-  const { resultPromise } = invoke(runOn, buildInput(), agent);
+  const { resultPromise, logLines } = invoke(runOn, buildInput(), agent);
   await resultPromise;
 
   assert.ok(labels.includes('divergence-check'), 'the dispatch is attempted');
   assert.ok(labels.includes('park-checkpoint:cx'), 'the need-keyed parent fail-closes to a durable reset+park of its built descendant when the check dispatch throws a value carrying no message');
+  assert.ok(
+    logLines.some((l) => /whole divergence-check batch/i.test(l) && /\b1\b/.test(l)),
+    'a whole-batch fold names itself and its target count in one operator line, so N targets folding together is distinguishable from N genuine content divergences',
+  );
 });
 
 function spoofFixture(craftedRow) {
