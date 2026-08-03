@@ -1,0 +1,54 @@
+{
+  "schema_version": 1,
+  "id": "01KZ4M2VJHW4W1MNGTM0YGHY98",
+  "slug": "mitosis-core-rebuild-implementation",
+  "title": "Mitosis core rebuild: complete the SPEC implementation",
+  "status": "active",
+  "parent_id": null,
+  "predecessor_id": null,
+  "completion_criteria": [
+    {
+      "text": "Preconditions 0, 1, 1.5, 2, 3, 4 and 5 of decision 0116's eight-entry landing order are each either proven discharged by measurement, or their residual is named and then landed, or explicitly deferred by a recorded decision stating why step 6 may proceed without it. No precondition is assumed discharged.",
+      "done": false
+    },
+    {
+      "text": "MSP-1 through MSP-13 of docs/superpowers/specs/2026-07-30-mitosis-core-rebuild.md are each shipped and merged to main, or explicitly retired by a recorded decision naming the reason. MSP-0 already shipped as PR #15 (12053dc) and is not re-done.",
+      "done": false
+    },
+    {
+      "text": "The engine's declared phase set is exactly the collapsed eight - Probe, Decompose, Prep, Execute, Integrate, Ship, Resume, Remediate - and the phase-parity gate proves declared == phase() calls == opts.phase literals in both directions across all three surfaces.",
+      "done": false
+    },
+    {
+      "text": "SPEC success condition 1: a fix-typed spec ships end to end through the collapsed phase set, and its receipt is observed red on the base and green on the branch by a deterministic verb, never asserted by a model.",
+      "done": false
+    },
+    {
+      "text": "SPEC success condition 3: every Verified: line on a mitosis-opened pull request is composed from a journaled gate manifest entry carrying a recorded exit code; absent and BROKEN gates render as --not-verified with the reason.",
+      "done": false
+    },
+    {
+      "text": "MSP-1's budget gate holds a captured baseline for one real current-engine run, and a post-collapse run is measured against section 6's 3-fixed-plus-9-per-MSP budget, making decision 0115's three falsifiers payable rather than unmeasured.",
+      "done": false
+    },
+    {
+      "text": "The SPEC document itself is re-grounded and committed: every line citation in sections 4, 5, 12 and 14 re-verified against the then-current mitosis.js, each stale anchor corrected, and every validity gap found in the audit closed by a recorded decision.",
+      "done": false
+    }
+  ],
+  "vcs_ref": "main",
+  "external_refs": [],
+  "blocked_by": null,
+  "abandoned_reason": null,
+  "closure_statement": null,
+  "spine": {
+    "status": "active",
+    "active_goal": "",
+    "next_step": "",
+    "open_risks": [],
+    "key_decisions": [],
+    "out_of_scope": []
+  },
+  "created_at": "2026-08-03T20:12:16.337Z",
+  "updated_at": "2026-08-03T20:12:16.337Z"
+}
