@@ -548,7 +548,7 @@ const PUBLISHED_RUN_FIELDS = Object.freeze(['schemaVersion', 'logicalRunId', 'sp
 
 const PUBLISHED_MSP_FIELDS = Object.freeze(['id', 'dependsOn', 'fileScope', 'changeType', 'scope', 'title', 'rationale']);
 
-const IDENTITY_OVERLAY_FIELDS = Object.freeze(['status', 'prUrl', 'mergedAt', 'checkpointRef', 'builtSha', 'green', 'builtAgainst', 'resumePoint', 'triedSet']);
+const IDENTITY_OVERLAY_FIELDS = Object.freeze(['status', 'prUrl', 'mergedAt', 'checkpointRef', 'builtSha', 'green', 'builtAgainst', 'resumePoint', 'triedSet', 'ciAttempts']);
 
 const WINDOWS_DRIVE_PREFIX = /^[A-Za-z]:/;
 
@@ -801,6 +801,10 @@ function parkDelta({ unitId, stage, diagnosis, request, remediation, resumePoint
   };
 }
 
+function ciAttemptDelta({ unitId, fingerprint }) {
+  return { kind: 'ci-attempt', unitId, fingerprint: fingerprint ?? null };
+}
+
 function quiescentExitDelta({ at, outstanding }) {
   return { kind: 'quiescent-exit', at: at ?? null, outstanding: outstanding === true };
 }
@@ -822,8 +826,28 @@ function applyRunDelta(manifest, record) {
       return manifest;
     }
   }
+  if (record.kind === 'ci-attempt') return applyCiAttemptTransition(manifest, record);
   if (record.kind === 'quiescent-exit') return isIsoInstant(record.at) ? { ...manifest, quiescentExitAt: record.at, quiescentExitOutstanding: record.outstanding === true } : manifest;
   return manifest;
+}
+
+function applyCiAttemptTransition(manifest, record) {
+  if (!isValidFingerprint(record.fingerprint)) return manifest;
+  if (!manifest || typeof manifest !== 'object' || !Array.isArray(manifest.msps)) return manifest;
+  if (!manifest.msps.some((m) => m && m.id === record.unitId)) return manifest;
+  return {
+    ...manifest,
+    msps: manifest.msps.map((m) => {
+      if (!m || m.id !== record.unitId) return m;
+      const priorTried = Array.isArray(m.triedSet) ? m.triedSet : [];
+      const priorAttempts = Array.isArray(m.ciAttempts) ? m.ciAttempts : [];
+      return {
+        ...m,
+        triedSet: priorTried.includes(record.fingerprint) ? [...priorTried] : [...priorTried, record.fingerprint],
+        ciAttempts: priorAttempts.includes(record.fingerprint) ? [...priorAttempts] : [...priorAttempts, record.fingerprint],
+      };
+    }),
+  };
 }
 
 function foldRunManifest(raw) {
@@ -1686,11 +1710,13 @@ const DIVERGENCE_CHECK_SCHEMA = {
       type: 'array',
       items: {
         type: 'object',
-        required: ['parentId', 'changedPaths'],
+        required: ['parentId', 'changedPaths', 'checkedBuiltSha', 'checkedMergedSha'],
         additionalProperties: false,
         properties: {
           parentId: { type: 'string' },
           changedPaths: { type: ['array', 'null'], items: { type: 'string' } },
+          checkedBuiltSha: { type: 'string' },
+          checkedMergedSha: { type: 'string' },
           error: { type: ['string', 'null'] },
         },
       },
@@ -1828,6 +1854,46 @@ const SHIP_SCHEMA = {
     prUrl: { type: 'string' },
     receiptsPass: { type: 'boolean' },
     d6Pass: { type: 'boolean' },
+    detail: { type: 'string' },
+    ciRed: { type: 'boolean' },
+    ciConclusion: { type: 'string' },
+    failedChecks: { type: 'array', items: { type: 'string' } },
+    implicatedPaths: { type: 'array', items: { type: 'string' } },
+    failingAssertionFiles: { type: 'array', items: { type: 'string' } },
+    conflictPaths: { type: 'array', items: { type: 'string' } },
+    publishedHeadSha: { type: 'string' },
+  },
+};
+
+const CI_DIFF_SCHEMA = {
+  type: 'object',
+  required: ['changedPaths', 'checkedFromSha', 'checkedToSha'],
+  additionalProperties: false,
+  properties: {
+    changedPaths: { type: 'array', items: { type: 'string' } },
+    checkedFromSha: { type: 'string' },
+    checkedToSha: { type: 'string' },
+  },
+};
+
+const CI_PUBLISH_VERIFY_SCHEMA = {
+  type: 'object',
+  required: ['appendOnly', 'changedPaths', 'checkedFromSha', 'checkedToSha'],
+  additionalProperties: false,
+  properties: {
+    appendOnly: { type: 'boolean' },
+    changedPaths: { type: 'array', items: { type: 'string' } },
+    checkedFromSha: { type: 'string' },
+    checkedToSha: { type: 'string' },
+  },
+};
+
+const CI_FIX_SCHEMA = {
+  type: 'object',
+  required: ['changedPaths', 'detail'],
+  additionalProperties: false,
+  properties: {
+    changedPaths: { type: 'array', items: { type: 'string' } },
     detail: { type: 'string' },
   },
 };
@@ -2237,6 +2303,156 @@ async function runRemediationLoop({ trigger, task, stage }, deps, state0) {
   }
 }
 
+const CI_ATTEMPT_CAP = 3;
+const CI_PUBLISHED_TOKEN = 'ci-published:pr';
+const CI_PROBE_TOKEN = 'ci-probe:rerun';
+const CI_FIX_PREFIX = 'ci-fix:';
+const CI_SHA_PATTERN = /^[0-9a-f]{7,64}$/i;
+const CI_REASON_LIST_CAP = 240;
+const CI_TERMINAL_CONCLUSIONS = Object.freeze(['failure', 'cancelled', 'timed_out', 'action_required', 'stale', 'startup_failure', 'neutral', 'skipped', 'timeout-expired']);
+const CI_ENFORCER_CHECK_TOKENS = Object.freeze(['receipts', 'd6', 'cluster-boundary', 'pr-title-lint', 'invariant-coverage']);
+const CI_SECURITY_CHECK_TOKENS = Object.freeze(['security', 'codeql', 'secret-scan', 'secret scanning', 'dependency-review', 'sast', 'trivy', 'snyk', 'audit', 'scan', 'gitleaks', 'semgrep', 'osv', 'grype', 'bandit', 'trufflehog', 'vuln', 'cve', 'licence', 'license']);
+const CI_ORDINARY_CHECK_TOKENS = Object.freeze(['test', 'spec', 'unit', 'integration', 'e2e', 'build', 'compile', 'typecheck', 'tsc', 'lint', 'format', 'fmt', 'coverage', 'suite', 'jest', 'vitest', 'mocha', 'pytest', 'cargo', 'gradle']);
+
+function ciStringList(value) {
+  return Array.isArray(value) && value.every((v) => typeof v === 'string' && v.length > 0);
+}
+
+function ciNonEmptyStringList(value) {
+  return ciStringList(value) && value.length > 0;
+}
+
+function ciSortedStrings(value) {
+  return Array.isArray(value) ? value.filter((v) => typeof v === 'string').slice().sort() : [];
+}
+
+function ciCheckNameMatches(names, census) {
+  return names.some((name) => {
+    const lowered = name.toLowerCase();
+    return census.some((token) => lowered.includes(token));
+  });
+}
+
+function ciUnclassifiableChecks(names) {
+  return names.filter((name) => {
+    const lowered = name.toLowerCase();
+    const known = [...CI_ORDINARY_CHECK_TOKENS, ...CI_ENFORCER_CHECK_TOKENS, ...CI_SECURITY_CHECK_TOKENS];
+    return !known.some((token) => lowered.includes(token));
+  });
+}
+
+function ciCanonicalPaths(paths) {
+  if (!Array.isArray(paths)) return null;
+  const canonical = [];
+  for (const path of paths) {
+    if (typeof path !== 'string' || path.length === 0) return null;
+    const normalized = normalizePath(path);
+    if (normalized.length === 0 || !isRepoRelativePath(normalized)) return null;
+    canonical.push(normalized);
+  }
+  return canonical;
+}
+
+function ciCleanList(values) {
+  const joined = (Array.isArray(values) ? values : []).map((v) => String(v)).join(', ');
+  const capped = joined.length > CI_REASON_LIST_CAP ? `${joined.slice(0, CI_REASON_LIST_CAP)} ...` : joined;
+  return JSON.stringify(capped).replace(/[\p{Cc}\p{Cf}\p{Zl}\p{Zp}]/gu, ' ');
+}
+
+function ciPathsOutsideScope(declaredScope, paths) {
+  return paths.filter((path) => !declaredScope.some((entry) => scopeCovers(entry, path)));
+}
+
+function ciScopeViolations(declaredScope, paths) {
+  if (!ciNonEmptyStringList(declaredScope)) return { readable: false, foreign: [] };
+  const canonical = ciCanonicalPaths(paths);
+  if (canonical === null || canonical.length === 0) return { readable: false, foreign: [] };
+  try {
+    return { readable: true, foreign: ciPathsOutsideScope(declaredScope, canonical) };
+  } catch {
+    return { readable: false, foreign: [] };
+  }
+}
+
+function ciFailureFingerprint(report) {
+  const r = report && typeof report === 'object' && !Array.isArray(report) ? report : {};
+  const canonical = JSON.stringify([
+    typeof r.ciConclusion === 'string' ? r.ciConclusion : '',
+    ciSortedStrings(r.failedChecks),
+    ciSortedStrings(r.implicatedPaths),
+    ciSortedStrings(r.failingAssertionFiles),
+    ciSortedStrings(r.conflictPaths),
+    r.receiptsPass === true,
+    r.d6Pass === true,
+  ]);
+  let h = 0x811c9dc5;
+  for (let i = 0; i < canonical.length; i += 1) {
+    h = (h ^ canonical.charCodeAt(i)) >>> 0;
+    h = Math.imul(h, 0x01000193) >>> 0;
+  }
+  return `${CI_FIX_PREFIX}${h.toString(16).padStart(8, '0')}`;
+}
+
+function ciAttemptsSpent(triedSet) {
+  if (!Array.isArray(triedSet)) return 0;
+  return triedSet.filter((t) => typeof t === 'string' && (t === CI_PROBE_TOKEN || t.startsWith(CI_FIX_PREFIX))).length;
+}
+
+function ciHeadPublished(triedSet) {
+  return Array.isArray(triedSet) && triedSet.includes(CI_PUBLISHED_TOKEN);
+}
+
+function ciProbeConsumed(triedSet) {
+  return Array.isArray(triedSet) && triedSet.includes(CI_PROBE_TOKEN);
+}
+
+function classifyCiReport(report, declaredScope) {
+  const escalate = (cls, reason) => ({ escalate: true, class: cls, reason });
+  if (!report || typeof report !== 'object' || Array.isArray(report)) return escalate(0, 'the ci report is not a readable object');
+  if (!ciNonEmptyStringList(declaredScope)) return escalate(0, 'the msp declares no usable fileScope, so path containment cannot be confirmed');
+  if (typeof report.ciConclusion !== 'string' || !CI_TERMINAL_CONCLUSIONS.includes(report.ciConclusion)) return escalate(0, 'the reported ci conclusion is outside the closed set of terminal conclusions this loop can classify');
+  if (!ciStringList(report.failedChecks)) return escalate(0, 'failedChecks is absent or is not a list of check names');
+  if (!ciNonEmptyStringList(report.implicatedPaths)) return escalate(0, 'implicatedPaths is empty or unreadable, so scope containment cannot be confirmed');
+  if (!ciNonEmptyStringList(report.failingAssertionFiles)) return escalate(0, 'failingAssertionFiles is empty or unreadable, so the assertion guard cannot be run at all');
+  if (!ciStringList(report.conflictPaths)) return escalate(0, 'conflictPaths is not a readable list of paths');
+  if (typeof report.publishedHeadSha !== 'string' || !CI_SHA_PATTERN.test(report.publishedHeadSha)) return escalate(0, 'publishedHeadSha is absent or malformed, so the diff verifier has no engine-held left endpoint to check against');
+  if (typeof report.receiptsPass !== 'boolean' || typeof report.d6Pass !== 'boolean') return escalate(0, 'receiptsPass and d6Pass are not both booleans');
+  const implicatedPaths = ciCanonicalPaths(report.implicatedPaths);
+  if (implicatedPaths === null) return escalate(0, `implicatedPaths carries an entry that is not a repo-relative path (${ciCleanList(report.implicatedPaths)}), so scope containment would be decided on a spelling git never emits`);
+  const failingAssertionFiles = ciCanonicalPaths(report.failingAssertionFiles);
+  if (failingAssertionFiles === null) return escalate(0, `failingAssertionFiles carries an entry that is not a repo-relative path (${ciCleanList(report.failingAssertionFiles)}), so the assertion guard would compare two different spellings of one file and admit an assertion edit`);
+  const conflictPaths = ciCanonicalPaths(report.conflictPaths);
+  if (conflictPaths === null) return escalate(0, `conflictPaths carries an entry that is not a repo-relative path (${ciCleanList(report.conflictPaths)}), so conflict containment cannot be confirmed`);
+  const unclassifiable = ciUnclassifiableChecks(report.failedChecks);
+  if (unclassifiable.length > 0) return escalate(0, `failing check(s) ${ciCleanList(unclassifiable)} match no ordinary test or build check this loop can classify; an unclassifiable check may be security-classed, so the census halts rather than attempt a fix against it`);
+  try {
+    const foreignPaths = ciPathsOutsideScope(declaredScope, implicatedPaths);
+    if (foreignPaths.length > 0) return escalate(1, `implicated path(s) outside this msp declared fileScope: ${ciCleanList(foreignPaths)}`);
+    if (report.ciConclusion !== 'failure') return escalate(2, `ci reached the terminal conclusion ${report.ciConclusion}, which is a ci infrastructure outcome rather than a test failure a fix could address`);
+    if (report.receiptsPass === false || report.d6Pass === false || ciCheckNameMatches(report.failedChecks, CI_ENFORCER_CHECK_TOKENS)) return escalate(3, 'the receipts / D6 enforcer is red, which is enforcer configuration rather than a defect inside this msp');
+    if (ciCheckNameMatches(report.failedChecks, CI_SECURITY_CHECK_TOKENS) || sensitiveScope(declaredScope)) return escalate(4, 'a security-classed check failed, or this msp declared fileScope is security sensitive');
+    const foreignConflicts = ciPathsOutsideScope(declaredScope, conflictPaths);
+    if (foreignConflicts.length > 0) return escalate(5, `merge conflict touches path(s) outside this msp declared fileScope: ${ciCleanList(foreignConflicts)}`);
+  } catch {
+    return escalate(0, 'a declared fileScope entry could not be evaluated as a path pattern, so containment cannot be confirmed');
+  }
+  return { escalate: false };
+}
+
+function assertionGuardBlocks(changedPaths, failingAssertionFiles) {
+  const failing = ciCanonicalPaths(failingAssertionFiles);
+  if (failing === null || failing.length === 0) return true;
+  const changed = ciCanonicalPaths(changedPaths);
+  if (changed === null || changed.length === 0) return true;
+  const failingSet = new Set(failing);
+  return changed.some((p) => failingSet.has(p));
+}
+
+function sensitivePathsTouched(paths) {
+  const canonical = ciCanonicalPaths(paths);
+  if (canonical === null) return true;
+  return canonical.some((p) => sensitiveScope([p]));
+}
 function makeUnit(spec) {
   if (!spec || typeof spec !== 'object') throw new Error('unit spec must be an object');
   if (!spec.id || typeof spec.id !== 'string') throw new Error('unit spec missing string id');
@@ -3088,12 +3304,16 @@ function divergenceCheckPrompt(targets) {
     `1. Fetch the base branch once so the merged commits resolve locally: \`git -C ${repoRoot} fetch origin ${baseBranch}\`.\n` +
     `2. For EACH target, fetch that target's durable checkpoint ref: \`git -C ${repoRoot} fetch origin <that target's ref>\` (the ref is a single inert argv token).\n` +
     `3. For EACH target, compute the SCOPED content divergence between the tip its children built on and the merged commit, restricted to that target's own file scope: \`git -C ${repoRoot} diff --name-only --end-of-options <that target's builtSha> <that target's mergedSha> -- <that target's fileScope paths>\` (the two shas and every path are separate INERT argv tokens; the two shas sit after --end-of-options so a leading-dash value can never be read as a flag).\n` +
-    `4. Report EXACTLY ONE results entry for EVERY listed target, keyed by its parentId, carrying the changed paths verbatim as changedPaths (an array of the file paths git printed, one per line; an EMPTY array means the squash preserved content within that parent's scope and its children's build is still valid). If either sha or the ref cannot be resolved for a target, or its diff cannot be computed, set that target's changedPaths=null and put the reason in that target's error. A target you omit, or name more than once, is treated as DIVERGED and fails closed — so never drop a target and never repeat one. If the whole check could not run, set the top-level error and every target fails closed.\n\n` +
-    `Return ONLY: { results: [ { parentId: "<target parentId>", changedPaths: [ "<changed path>" ] | null, error: "<reason this target could not be checked, else null>" } ], error: "<reason the whole check could not run, else null>" }.`
+    `4. Report EXACTLY ONE results entry for EVERY listed target, keyed by its parentId, carrying the changed paths verbatim as changedPaths (an array of the file paths git printed, one per line; an EMPTY array means the squash preserved content within that parent's scope and its children's build is still valid). Every entry MUST also echo, verbatim and character-for-character, the TWO sha values you actually passed to that target's git diff: checkedBuiltSha is the builtSha argument and checkedMergedSha is the mergedSha argument, copied from that target exactly as given — never re-cased, never abbreviated, never re-resolved to a different sha. An entry whose echoed pair does not match the pair this stage handed you is treated as DIVERGED and fails closed, because an entry that cannot prove which endpoints it compared cannot confirm anything. If either sha or the ref cannot be resolved for a target, or its diff cannot be computed, set that target's changedPaths=null and put the reason in that target's error. A target you omit, or name more than once, is treated as DIVERGED and fails closed — so never drop a target and never repeat one. If the whole check could not run, set the top-level error and every target fails closed.\n\n` +
+    `Return ONLY: { results: [ { parentId: "<target parentId>", changedPaths: [ "<changed path>" ] | null, checkedBuiltSha: "<the builtSha you diffed, verbatim>", checkedMergedSha: "<the mergedSha you diffed, verbatim>", error: "<reason this target could not be checked, else null>" } ], error: "<reason the whole check could not run, else null>" }.`
   );
 }
 
 const SHA_HEX_PATTERN = /^[0-9a-f]{7,64}$/i;
+
+function divergenceToken(value) {
+  return JSON.stringify(String(value).slice(0, 128)).replace(/[\p{Cc}\p{Cf}\p{Zl}\p{Zp}]/gu, ' ');
+}
 
 function needKeyedParents(manifest, mergedIds) {
   const msps = manifest && typeof manifest === 'object' && !Array.isArray(manifest) && Array.isArray(manifest.msps) ? manifest.msps : [];
@@ -3111,7 +3331,7 @@ function needKeyedParents(manifest, mergedIds) {
 }
 
 async function divergedParents(manifest, mergedIds, mergedShas, ctx) {
-  const { agent, logicalRunId, divergenceCheckPrompt, DIVERGENCE_CHECK_SCHEMA } = ctx && typeof ctx === 'object' ? ctx : {};
+  const { agent, log, logicalRunId, divergenceCheckPrompt, DIVERGENCE_CHECK_SCHEMA } = ctx && typeof ctx === 'object' ? ctx : {};
   const msps = manifest && typeof manifest === 'object' && !Array.isArray(manifest) && Array.isArray(manifest.msps) ? manifest.msps : [];
   const byId = new Map(msps.filter((m) => m && typeof m.id === 'string').map((m) => [m.id, m]));
   const shas = mergedShas && typeof mergedShas === 'object' && !Array.isArray(mergedShas) ? mergedShas : {};
@@ -3129,6 +3349,7 @@ async function divergedParents(manifest, mergedIds, mergedShas, ctx) {
     try {
       ref = checkpointRef(logicalRunId, parentId);
     } catch {
+      if (typeof log === 'function') log(`mitosis: reconcile — no safe durable checkpoint ref could be derived for need-keyed merged parent ${divergenceToken(parentId)}, so it folds to diverged UNPROBED; this is a ref-derivation failure, not observed content divergence`);
       diverged.add(parentId);
       continue;
     }
@@ -3147,12 +3368,14 @@ async function divergedParents(manifest, mergedIds, mergedShas, ctx) {
     const envelope = response && typeof response === 'object' && !Array.isArray(response) ? response : null;
     const results = envelope && Array.isArray(envelope.results) ? envelope.results : null;
     const batchFailed = results === null || (typeof envelope.error === 'string' && envelope.error.length > 0);
+    if (batchFailed && typeof log === 'function') log(`mitosis: reconcile — the whole divergence-check batch could not be confirmed; folding all ${targets.length} need-keyed merged parent(s) to diverged so their built descendants park, and continuing the run`);
     for (const target of targets) {
       if (batchFailed) { diverged.add(target.parentId); continue; }
       const matches = results.filter((e) => e && typeof e === 'object' && !Array.isArray(e) && e.parentId === target.parentId);
       if (matches.length !== 1) { diverged.add(target.parentId); continue; }
       const entry = matches[0];
       if (typeof entry.error === 'string' && entry.error.length > 0) { diverged.add(target.parentId); continue; }
+      if (entry.checkedBuiltSha !== target.builtSha || entry.checkedMergedSha !== target.mergedSha) { diverged.add(target.parentId); continue; }
       if (!Array.isArray(entry.changedPaths) || entry.changedPaths.length > 0) diverged.add(target.parentId);
     }
   }
@@ -3162,7 +3385,8 @@ async function divergedParents(manifest, mergedIds, mergedShas, ctx) {
 function computeParkedStatus({ shipped, parked, halted, crashed, awaitingApproval, total }) {
   const awaitingList = awaitingApproval || [];
   const blockedPendingApprovalCount = parked.filter(isBlockedPendingApproval).length;
-  const genuineParkedCount = parked.length - blockedPendingApprovalCount;
+  const ciRedExhaustedCount = parked.filter(isCiRedExhausted).length;
+  const genuineParkedCount = parked.length - blockedPendingApprovalCount - ciRedExhaustedCount;
   return computeMergePolicyStatus({
     shippedCount: shipped.length,
     awaitingApprovalCount: awaitingList.length,
@@ -3170,6 +3394,7 @@ function computeParkedStatus({ shipped, parked, halted, crashed, awaitingApprova
     genuineParkedCount,
     haltedCount: halted.length,
     crashedCount: crashed.length,
+    ciRedExhaustedCount,
     total,
   });
 }
@@ -3484,6 +3709,10 @@ const MERGE_POLICIES = Object.freeze({
 
 const AWAITING_UPSTREAM_KIND = 'blocked-pending-approval';
 
+const CI_RED_EXHAUSTED_KIND = 'ci-red-exhausted';
+
+const CI_HUMAN_GATE_KIND = 'human-gate-violated';
+
 const BLOCKED_PENDING_APPROVAL_DIAGNOSIS = 'approve + merge the prerequisite PR, then relaunch mitosis to continue';
 
 function normalizeMergePolicy() {
@@ -3496,6 +3725,10 @@ function awaitingApprovalOutcome(mspId, extra = {}) {
 
 function isBlockedPendingApproval(entry) {
   return Boolean(entry) && entry.stage === 'blocked' && Boolean(entry.request) && entry.request.kind === AWAITING_UPSTREAM_KIND;
+}
+
+function isCiRedExhausted(entry) {
+  return Boolean(entry) && entry.stage === 'ship' && Boolean(entry.request) && entry.request.kind === CI_RED_EXHAUSTED_KIND;
 }
 
 function computeMergePolicyStatus({
@@ -3517,8 +3750,8 @@ function computeMergePolicyStatus({
   if (healthy && awaitingTotal > 0) {
     return 'awaiting-approval';
   }
-  if (ciRedExhaustedCount > 0) return 'ci-red-exhausted';
   if (hasFault) return 'blocked';
+  if (ciRedExhaustedCount > 0) return 'ci-red-exhausted';
   return 'partial';
 }
 
@@ -3920,7 +4153,7 @@ const runOpenPRs = classifyRunOpenPRs(reusable && recon ? recon.openPRs : [], {
 let relaunchAdvance = null;
 if (isRelaunch && reusable && builtUnits.length > 0) {
   const baseLiveSignals = buildReconcileLiveSignals(recon, reconciledShipped, sourcePrefix, runOpenPRs);
-  const diverged = await divergedParents(reconciledManifest, baseLiveSignals.merged, baseLiveSignals.mergedShas, { agent, logicalRunId, divergenceCheckPrompt, DIVERGENCE_CHECK_SCHEMA });
+  const diverged = await divergedParents(reconciledManifest, baseLiveSignals.merged, baseLiveSignals.mergedShas, { agent, log, logicalRunId, divergenceCheckPrompt, DIVERGENCE_CHECK_SCHEMA });
   const liveSignals = { ...baseLiveSignals, divergedParents: diverged };
   const advance = planReconcile(reconciledManifest, liveSignals);
   relaunchAdvance = advance;
@@ -4335,6 +4568,31 @@ async function parkUnit(msp, stage, outcome, integrationBranch, compensationStac
   return outcome;
 }
 
+async function persistCiAttemptCheckpoint({ unitId, fingerprint }) {
+  try {
+    const deltaJson = JSON.stringify(ciAttemptDelta({ unitId, fingerprint }));
+    const writeRes = await agent(
+      `You are the ci-attempt-checkpoint stage of a mitosis run. You have NO Skill tool; follow these instructions directly.\n\n` +
+      `Durably APPEND one ci-attempt delta record to the run journal BEFORE the attempt it records is dispatched, so a relaunch after a crash still sees what this unit already spent against its published head. Operate in ${repoRoot}:\n` +
+      `1. Create the directory ${repoRoot}/.mitosis/ if it does not already exist.\n` +
+      `2. Ensure .mitosis/ is gitignored: if ${repoRoot}/.gitignore does not already ignore it, append a line \`.mitosis/\` to ${repoRoot}/.gitignore. This file is machine run-state and is never committed.\n` +
+      `3. APPEND the following single line to the END of ${repoRoot}/.mitosis/run.json as a new final line (create the file if it does not exist). Do NOT overwrite, rewrite, or re-read the file, and do NOT alter any existing line. Append it EXACTLY as given, verbatim, as one line:\n\n` +
+      `${deltaJson}\n\n` +
+      `Do NOT commit, push, or run any other git mutation. Return ONLY: { written: <bool>, detail: "<what you did>" }.`,
+      { agentType: 'implementer', label: `ci-attempt-checkpoint:${unitId}`, phase: 'Remediate', model: 'sonnet' }
+    );
+    if (writeRes == null || writeRes.written !== true) {
+      const detail = writeRes && typeof writeRes.detail === 'string' ? ` (${clean(writeRes.detail)})` : '';
+      log(`mitosis[${unitId}]: durable ci-attempt checkpoint did NOT persist (${clean(fingerprint)})${detail}; the ci-to-green loop escalates rather than spending an attempt it could not record`);
+      return false;
+    }
+    return true;
+  } catch (err) {
+    log(`mitosis[${unitId}]: durable ci-attempt checkpoint failed (${clean(err.message)}); the ci-to-green loop escalates rather than spending an attempt it could not record`);
+    return false;
+  }
+}
+
 async function persistParkCheckpoint(record) {
   try {
     const deltaJson = JSON.stringify(parkDelta({ unitId: record.unitId, stage: record.stage, diagnosis: record.diagnosis, request: record.request, remediation: record.remediation, resumePoint: record.resumePoint, triedSet: record.triedSet }));
@@ -4515,6 +4773,30 @@ async function runUnit(unit) {
     const frontierBuiltEntry = builtInRun.get(msp.id);
     const isFrontierBuiltRedispatch = frontierBuiltEntry !== undefined;
     let aggregatedScope = Array.isArray(msp.fileScope) ? msp.fileScope : [];
+
+    const reconciledEntry = reconciledManifest && Array.isArray(reconciledManifest.msps) ? reconciledManifest.msps.find((m) => m && m.id === msp.id) : null;
+    const shipTriedSeed = [...new Set([
+      ...(resume && Array.isArray(resume.triedSet) ? resume.triedSet : []),
+      ...(reconciledEntry && Array.isArray(reconciledEntry.triedSet) ? reconciledEntry.triedSet : []),
+      ...(reconciledEntry && Array.isArray(reconciledEntry.ciAttempts) ? reconciledEntry.ciAttempts : []),
+    ].filter((t) => isValidFingerprint(t)))];
+
+    if (ciHeadPublished(shipTriedSeed)) {
+      const observedOpenPr = runOpenPRs.accepted.has(msp.id) ? runOpenPRs.accepted.get(msp.id).url : null;
+      const manifestPrUrl = reconciledManifestPrUrlById.get(msp.id) ?? null;
+      const prObservation = observedOpenPr !== null
+        ? `this run observes an open, provenance-verified pull request on it at ${cleanUrl(observedOpenPr)}`
+        : (manifestPrUrl !== null
+          ? `this run observes NO open pull request on it; the last one this run recorded was ${cleanUrl(manifestPrUrl)}, which is now closed, merged elsewhere, or unreadable from the live listing`
+          : 'this run observes NO open pull request on it and holds no recorded url for one');
+      log(`mitosis[${msp.id}]: integration head already PUBLISHED by a prior run; ${prObservation}; not re-entering ship and not re-dispatching any ci attempt`);
+      return parkUnit(msp, 'ship', NeedsHuman({
+        kind: 'approve-decision',
+        what: `${msp.id} has its integration head PUBLISHED by a prior run that entered the ci-to-green loop against it, and ${prObservation}. The engine never re-enters the ship stage for a published head (no re-ship, no rewrite of a reviewed ref), so it stops here rather than guess. DISPOSITION: merging that pull request clears this unit, because a merged unit reconciles as done and is never re-shipped. If instead the head must be rebuilt from scratch, the published-head record is the ciAttempts entry for ${msp.id} in the machine-local journal ${repoRoot}/.mitosis/run.json, and that record is what a human removes to authorise a rebuild; the engine will not remove it on its own.`,
+        remediation: null,
+        resumePoint: { branch: integrationBranch, ref: baseBranch, stage: 'ship' },
+      }, shipTriedSeed), integrationBranch, compensationStack);
+    }
 
     async function restoreIntegrationFromBuiltCheckpoint(builtRef, expectedSha, requireSha) {
       if (builtRef === null || parseCheckpointRef(builtRef, logicalRunId) !== msp.id) {
@@ -4893,6 +5175,200 @@ async function runUnit(unit) {
       };
     }
 
+    async function recordCiAttemptDurably(fingerprint) {
+      const link = (mergeQueue = mergeQueue.then(() => persistCiAttemptCheckpoint({ unitId: msp.id, fingerprint })).catch((err) => {
+        log(`mitosis[${msp.id}]: ci attempt checkpoint chain THREW (${clean(err && err.message)}); treating the attempt as unrecorded so the loop stops rather than spend one a relaunch would not see`);
+        return false;
+      }));
+      return link;
+    }
+
+    function ciReportOf(evidence) {
+      if (evidence && typeof evidence === 'object' && evidence.tag === 'ApproachFixable') return evidence.cause && evidence.cause.report;
+      return evidence;
+    }
+
+    function ciSameChangedSet(left, right) {
+      const a = new Set(left.map((p) => normalizePath(p)));
+      const b = new Set(right.map((p) => normalizePath(p)));
+      return a.size === b.size && [...a].every((p) => b.has(p));
+    }
+
+    async function runCiToGreenLoop(ship) {
+      const declaredScope = Array.isArray(msp.fileScope) ? msp.fileScope : [];
+      const ciEscalationOf = (kind, what) => NeedsHuman({ kind, what: `${what} (pull request ${cleanUrl(ship.prUrl)} stays open with its CI result visible; CI remains the sole authority on whether it passes)` });
+      const ciEscalation = (what) => ciEscalationOf(CI_RED_EXHAUSTED_KIND, what);
+      const ciGateViolation = (what) => ciEscalationOf(CI_HUMAN_GATE_KIND, what);
+      const ciStructuredContract = `Report the SAME structured fields the ship stage reports, as data and never as prose: { merged: false, awaitingApproval: <true only if CI concluded success>, prUrl: ${JSON.stringify(ship.prUrl)}, receiptsPass: <bool>, d6Pass: <bool>, detail: "<failing job/step and first failing assertion>", ciRed: <bool>, ciConclusion: "<raw conclusion token, verbatim; use timeout-expired when the timeout wrapper expired first>", failedChecks: [ "<check name>" ], implicatedPaths: [ "<repo-relative path>" ], failingAssertionFiles: [ "<repo-relative path>" ], conflictPaths: [ "<repo-relative path>" ], publishedHeadSha: "<the sha ${JSON.stringify(integrationBranch)} carries when you finish, read with the READ-ONLY command \`git -C ${repoRoot} rev-parse --end-of-options ${integrationBranch}\`; report the sha you read and NEVER one you were handed>" }. An absent, guessed or unreadable field makes the engine ESCALATE to a human instead of attempting anything, which is the correct outcome, so never invent a value.`;
+      const ciWatchClause = `Resolve the run id for this head and wait for its terminal conclusion with a BACKGROUNDED, timeout-bounded watch, never a foreground log stream: \`runId=$(gh run list -R ${repoSlug} --branch ${integrationBranch} --limit 1 --json databaseId -q '.[0].databaseId'); timeout ${CI_WATCH_MAX_SECONDS} bash -c 'until [ "$(gh run view '"$runId"' -R ${repoSlug} --json status -q .status)" = "completed" ]; do sleep ${CI_WATCH_INTERVAL_SECONDS}; done'\`, then read the conclusion ONCE: \`gh run view "$runId" -R ${repoSlug} --json conclusion -q .conclusion\`.`;
+
+      function ciAfterWatch(result) {
+        if (!result || typeof result !== 'object' || Array.isArray(result)) return ciEscalation(`${msp.id} ci-to-green attempt returned nothing the engine can read`);
+        if (result.merged === true) return ciGateViolation(`${msp.id} ci-to-green attempt reported the pull request MERGED, which this human-gated run never authorises; this is a breach of the human merge gate rather than an ordinary exhausted ci loop`);
+        if (result.awaitingApproval === true) return Done({ mspId: msp.id, prUrl: ship.prUrl, receiptsPass: result.receiptsPass, d6Pass: result.d6Pass });
+        const verdict = classifyCiReport(result, declaredScope);
+        if (verdict.escalate) return ciEscalation(`${msp.id} ci-to-green escalated at class ${verdict.class}: ${verdict.reason}`);
+        return ApproachFixable({ mechanism: ciFailureFingerprint(result), diagnosis: `ci still red on the published head (${clean(result.ciConclusion)})`, report: result });
+      }
+
+      async function ciProbeAttempt() {
+        const probe = await agent(
+          `You are the ci flake-probe step for MSP "${msp.id}" of a mitosis run. You have NO Skill tool.\n\n` +
+          `This step is a NO-CODE-CHANGE rerun of CI on the ALREADY PUBLISHED head ${JSON.stringify(integrationBranch)}. Its ONLY purpose is to establish whether the failure is real or flaky. Alter nothing in the repository, create no file, and issue no git operation beyond the single read-only rev-parse the report contract asks for.\n` +
+          `1. Resolve the run id for this head: \`runId=$(gh run list -R ${repoSlug} --branch ${integrationBranch} --limit 1 --json databaseId -q '.[0].databaseId')\`.\n` +
+          `2. Rerun exactly that run in place: \`gh run rerun "$runId" -R ${repoSlug} --failed\`.\n` +
+          `3. ${ciWatchClause} Treat conclusion=success as CI GREEN and every other terminal conclusion, including the timeout expiring, as CI RED.\n` +
+          `4. ${ciStructuredContract}`,
+          { agentType: 'implementer', schema: SHIP_SCHEMA, label: `ci-probe:${msp.id}`, phase: 'Ship', model: 'sonnet' }
+        ).catch(() => null);
+        return ciAfterWatch(probe);
+      }
+
+      async function ciFixAttempt(report) {
+        const failingAssertionFiles = Array.isArray(report.failingAssertionFiles) ? report.failingAssertionFiles : [];
+        const fromSha = report.publishedHeadSha;
+        const proposal = await agent(
+          `You are the ci fix-forward step for MSP "${msp.id}" of a mitosis run. You have NO Skill tool.\n\n` +
+          `Repo: ${repoRoot}. Branch ${JSON.stringify(integrationBranch)} is ALREADY PUBLISHED with a pull request open on it, so this step ADDS work; it never rewrites history and never publishes anything itself.\n` +
+          `CI is red: conclusion ${JSON.stringify(String(report.ciConclusion))}, failing checks ${JSON.stringify(report.failedChecks)}, implicated paths ${JSON.stringify(report.implicatedPaths)}, first failing assertion ${JSON.stringify(String(report.detail))}.\n` +
+          `HARD FENCE: you may change ONLY paths covered by this MSP declared file scope ${JSON.stringify(declaredScope)}. Editing anything outside it is a hard failure the engine escalates on.\n` +
+          `HARD FENCE: you may NOT change any file that CONTAINS a failing assertion — ${JSON.stringify(failingAssertionFiles)}. Making a failing assertion pass by altering the assertion is the single failure mode this loop exists to prevent; fix the behaviour the assertion is asserting instead. If the only way you can see to make CI pass is to change one of those files, STOP and return an empty changedPaths so a human decides.\n` +
+          `HARD FENCE: do NOT pass CI by suppression: add no new \`eslint-disable\` / \`@ts-ignore\` / \`@ts-expect-error\`, do not loosen eslint or tsconfig rules, do not newly ignore or exclude files, do not weaken or delete a test, and do not make a job non-blocking. A green CI signal bought by silencing the check is the outcome this loop exists to prevent.\n` +
+          `1. Diagnose the failure and make the smallest change that addresses it.\n` +
+          `2. Record the change locally on ${JSON.stringify(integrationBranch)}. Do NOT push, do NOT open or amend a pull request, and do NOT rebase, reset or otherwise rewrite this branch.\n` +
+          `3. Return the repo-relative paths you actually changed, exactly and completely — the engine independently re-derives that set and escalates on ANY disagreement.\n\n` +
+          `Return ONLY: { changedPaths: [ "<repo-relative path>" ], detail: "<what you changed and why it addresses the failing assertion>" }.`,
+          { agentType: 'implementer', schema: CI_FIX_SCHEMA, label: `ci-fix:${msp.id}`, phase: 'Ship', model: 'opus' }
+        ).catch(() => null);
+        if (!proposal || !Array.isArray(proposal.changedPaths) || proposal.changedPaths.length === 0 || !proposal.changedPaths.every((p) => typeof p === 'string' && p.length > 0)) {
+          return ciEscalation(`${msp.id} ci fix proposal was unreadable or changed nothing, so there is nothing this loop can verify or publish`);
+        }
+        const verify = await agent(
+          `You are the ci diff-verify step for MSP "${msp.id}" of a mitosis run. You have NO Skill tool.\n\n` +
+          `This step is STRICTLY READ-ONLY. It exists so the engine never takes the word of the agent that authored a change for what that change touched. Make NO edit, NO commit and NO push.\n` +
+          `Run EXACTLY: \`git -C ${repoRoot} diff --name-only --end-of-options ${JSON.stringify(fromSha)} ${JSON.stringify(integrationBranch)}\` (both endpoints are separate INERT argv tokens and sit after --end-of-options so a leading-dash value can never be read as a flag).\n` +
+          `Echo back, verbatim, the TWO endpoints you actually passed to that command. An echo that does not match the pair this stage handed you fails closed.\n\n` +
+          `Return ONLY: { changedPaths: [ "<path git printed>" ], checkedFromSha: "<the left endpoint you diffed, verbatim>", checkedToSha: "<the right endpoint you diffed, verbatim>" }.`,
+          { agentType: 'implementer', schema: CI_DIFF_SCHEMA, label: `ci-diff:${msp.id}`, phase: 'Ship', model: 'sonnet' }
+        ).catch(() => null);
+        if (!verify || typeof verify.checkedFromSha !== 'string' || !Array.isArray(verify.changedPaths) || !verify.changedPaths.every((p) => typeof p === 'string' && p.length > 0)) {
+          return ciEscalation(`${msp.id} ci diff verification was unreadable, so the engine cannot confirm what the candidate fix touched`);
+        }
+        if (verify.checkedFromSha !== fromSha || verify.checkedToSha !== integrationBranch) {
+          return ciEscalation(`${msp.id} ci diff verification did not diff the pair of endpoints the engine handed it, so its answer describes an unknown pair of endpoints`);
+        }
+        if (!ciSameChangedSet(verify.changedPaths, proposal.changedPaths)) {
+          return ciEscalation(`${msp.id} ci fix author and the independent diff verification disagree about which paths changed, so the engine cannot confirm the candidate`);
+        }
+        if (assertionGuardBlocks(verify.changedPaths, failingAssertionFiles)) {
+          return ciEscalation(`${msp.id} candidate ci fix touches a file that contains a failing assertion, so it is refused before any publish`);
+        }
+        const containment = ciScopeViolations(declaredScope, verify.changedPaths);
+        if (!containment.readable) {
+          return ciEscalation(`${msp.id} candidate ci fix could not be confirmed inside this msp declared fileScope, so the engine refuses it before any publish rather than read an unmeasurable diff as contained`);
+        }
+        if (containment.foreign.length > 0) {
+          return ciEscalation(`${msp.id} candidate ci fix touches path(s) outside this msp declared fileScope: ${ciCleanList(containment.foreign)}, so it is refused before any publish`);
+        }
+        if (sensitivePathsTouched(verify.changedPaths)) {
+          return ciEscalation(`${msp.id} candidate ci fix reaches a security-sensitive path, which no autonomous fix-forward attempt publishes onto a head a human is reviewing`);
+        }
+        const published = await agent(
+          `You are the ci publish step for MSP "${msp.id}" of a mitosis run. You have NO Skill tool.\n\n` +
+          `Repo: ${repoRoot}. Branch ${JSON.stringify(integrationBranch)} is ALREADY PUBLISHED and has an open pull request on it that a human may already be reading. It is therefore APPEND-ONLY: you may only ADD commits to it. Never rewrite, replay, reorder, squash, amend or drop anything already on it, and never pass --force or --force-with-lease to any command.\n` +
+          `ABORT CLAUSE: if what you are about to publish would carry a change to any of ${JSON.stringify(failingAssertionFiles)}, STOP and report merged=false with that in detail rather than publishing it.\n` +
+          `1. Refresh the base: \`git -C ${repoRoot} fetch origin ${baseBranch}\`.\n` +
+          `2. This repository is SHARED with sibling units, so never act on whatever branch it happens to have checked out: make ${JSON.stringify(integrationBranch)} the checked-out branch with \`git -C ${repoRoot} switch ${integrationBranch}\`, then confirm it with \`git -C ${repoRoot} rev-parse --abbrev-ref HEAD\` and STOP, publishing nothing, if that prints anything else.\n` +
+          `3. If the base advanced, take it FORWARD ONLY onto that branch: \`git -C ${repoRoot} merge --no-edit origin/${baseBranch}\`. If that merge conflicts, run \`git -C ${repoRoot} merge --abort\`, publish nothing, and report merged=false naming the conflicting paths.\n` +
+          `4. Publish by fast-forward only: \`git -C ${repoRoot} push origin ${integrationBranch}\`. If that push is rejected as non-fast-forward, STOP and report merged=false; a rejected push on a published head means someone else advanced it and a human must look.\n` +
+          `5. ${ciWatchClause} Treat conclusion=success as CI GREEN and every other terminal conclusion, including the timeout expiring, as CI RED.\n` +
+          `6. This run is HUMAN-GATED: do NOT merge the pull request and perform no merge of it of any kind. Leave it open.\n` +
+          `7. ${ciStructuredContract}`,
+          { agentType: 'implementer', schema: SHIP_SCHEMA, label: `ci-publish:${msp.id}`, phase: 'Ship', model: 'sonnet' }
+        ).catch(() => null);
+        const landed = await agent(
+          `You are the ci publish-verify step for MSP "${msp.id}" of a mitosis run. You have NO Skill tool.\n\n` +
+          `This step is STRICTLY READ-ONLY. It exists so the engine never takes the word of the agent that published for what actually reached the reviewed head. Make NO edit, NO commit and NO push.\n` +
+          `1. Answer whether the head the engine published is STILL an ancestor of the branch — true after a fast-forward or a forward merge, false after any rewrite: run \`git -C ${repoRoot} merge-base --is-ancestor ${JSON.stringify(fromSha)} ${JSON.stringify(integrationBranch)}\` (both refs are separate INERT argv tokens) and report appendOnly=true when it exits 0, appendOnly=false when it exits 1, and appendOnly=false if you cannot run it at all.\n` +
+          `2. Run EXACTLY: \`git -C ${repoRoot} diff --name-only --end-of-options ${JSON.stringify(fromSha)} ${JSON.stringify(integrationBranch)}\`.\n` +
+          `3. Echo back, verbatim, the TWO endpoints you actually passed. An echo that does not match the pair this stage handed you fails closed.\n\n` +
+          `Return ONLY: { appendOnly: <bool>, changedPaths: [ "<path git printed>" ], checkedFromSha: "<the left endpoint you used, verbatim>", checkedToSha: "<the right endpoint you used, verbatim>" }.`,
+          { agentType: 'implementer', schema: CI_PUBLISH_VERIFY_SCHEMA, label: `ci-publish-verify:${msp.id}`, phase: 'Ship', model: 'sonnet' }
+        ).catch(() => null);
+        if (!landed || typeof landed.checkedFromSha !== 'string' || typeof landed.checkedToSha !== 'string' || !Array.isArray(landed.changedPaths)) {
+          return ciEscalation(`${msp.id} the engine could not re-derive what the ci publish step actually landed on the published head, so it cannot confirm the head a human is reviewing was only appended to`);
+        }
+        if (landed.checkedFromSha !== fromSha || landed.checkedToSha !== integrationBranch) {
+          return ciEscalation(`${msp.id} the post-publish re-derivation did not read the pair of endpoints the engine handed it, so its answer describes an unknown pair of endpoints`);
+        }
+        if (landed.appendOnly !== true) {
+          return ciEscalation(`${msp.id} the head the engine published is NO LONGER an ancestor of ${clean(integrationBranch)}, so a rewrite reached a published, human-reviewed ref; the loop stops and pushes nothing further`);
+        }
+        if (assertionGuardBlocks(landed.changedPaths, failingAssertionFiles)) {
+          return ciEscalation(`${msp.id} what the ci publish step landed on the published head touches a file that contains a failing assertion, which the candidate diff did not, so the loop stops rather than let CI turn green on a weakened assertion`);
+        }
+        return ciAfterWatch(published);
+      }
+
+      const entryRecorded = await recordCiAttemptDurably(CI_PUBLISHED_TOKEN);
+      if (!entryRecorded) {
+        return { halted: true, stage: 'ship', mspId: msp.id, ciParkKind: CI_RED_EXHAUSTED_KIND, triedSet: [...shipTriedSeed, CI_PUBLISHED_TOKEN], receiptsPass: ship.receiptsPass, d6Pass: ship.d6Pass,
+          detail: `${msp.id} could not durably record that its head is published, so the ci-to-green loop refuses to start rather than spend attempts a relaunch would not see; the park note carries the published-head marker instead so a relaunch still refuses to re-ship this head` };
+      }
+      log(`mitosis[${msp.id}]: CI RED on the published head ${cleanUrl(ship.prUrl)}; entering the bounded ci-to-green loop (hard cap ${CI_ATTEMPT_CAP} attempts: one no-code-change flake probe plus up to ${CI_ATTEMPT_CAP - 1} fix attempts, each fix requiring a NEW failure fingerprint)`);
+
+      const state0 = makeSupervisorState({ unitId: msp.id, stage: 'ship', budgetRemaining: CI_ATTEMPT_CAP, triedSet: [...shipTriedSeed, CI_PUBLISHED_TOKEN] });
+      const loop = await runRemediationLoop(
+        { trigger: ship, task: `bring CI green on the published head of ${msp.id}`, stage: 'ship' },
+        {
+          runBudget: retryState,
+          diagnose: (input) => {
+            const report = ciReportOf(input.evidence);
+            const verdict = classifyCiReport(report, declaredScope);
+            if (verdict.escalate) {
+              return { verdict: 'needs-human', request: ciEscalation(`${msp.id} ci-to-green escalated at class ${verdict.class}: ${verdict.reason}`).request };
+            }
+            const tried = Array.isArray(input.triedSet) ? input.triedSet : [];
+            return {
+              mechanism: ciProbeConsumed(tried) ? ciFailureFingerprint(report) : CI_PROBE_TOKEN,
+              diagnosis: `ci red on the published head (${clean(report.ciConclusion)}: ${clean(report.failedChecks.join(', '))})`,
+              correctedTask: report,
+            };
+          },
+          redispatch: async ({ correctedTask, mechanism }) => {
+            const recorded = await recordCiAttemptDurably(mechanism);
+            if (!recorded) return ciEscalation(`${msp.id} could not durably record a ci attempt before dispatching it, so the loop stops rather than spend an attempt a relaunch would not see`);
+            return mechanism === CI_PROBE_TOKEN ? ciProbeAttempt() : ciFixAttempt(correctedTask);
+          },
+        },
+        state0,
+      );
+
+      const spentTriedSet = loop.state && loop.state.triedSet ? [...loop.state.triedSet] : shipTriedSeed;
+      if (loop.tag === 'Done') {
+        return { halted: false, awaiting: true, mspId: msp.id, prUrl: loop.value.prUrl, receiptsPass: loop.value.receiptsPass, d6Pass: loop.value.d6Pass };
+      }
+      if (loop.tag === 'NeedsHuman') {
+        const escalatedKind = loop.request && loop.request.kind === CI_HUMAN_GATE_KIND ? CI_HUMAN_GATE_KIND : CI_RED_EXHAUSTED_KIND;
+        return { halted: true, stage: 'ship', mspId: msp.id, ciParkKind: escalatedKind, triedSet: spentTriedSet, receiptsPass: ship.receiptsPass, d6Pass: ship.d6Pass,
+          detail: loop.request && loop.request.what ? loop.request.what : `${msp.id} ci-to-green loop escalated to a human` };
+      }
+      const attemptsSpent = ciAttemptsSpent(spentTriedSet);
+      const neverAttempted = attemptsSpent === 0;
+      return {
+        halted: true,
+        stage: 'ship',
+        mspId: msp.id,
+        ciParkKind: neverAttempted ? 'approve-decision' : CI_RED_EXHAUSTED_KIND,
+        triedSet: spentTriedSet,
+        receiptsPass: ship.receiptsPass,
+        d6Pass: ship.d6Pass,
+        detail: neverAttempted
+          ? `${msp.id} made ZERO ci attempts on ${cleanUrl(ship.prUrl)} before its loop stopped (${loop.reason}); with the shared per-run remediation budget that reason means the budget was drained, possibly entirely by another MSP, so this is not an exhausted ci loop`
+          : `${msp.id} ci-to-green loop stopped after ${attemptsSpent} attempt(s) (${loop.reason}); pull request ${cleanUrl(ship.prUrl)} stays open with its CI result visible and CI remains the sole authority on whether it passes`,
+      };
+    }
+
     async function shipOneMsp() {
       phase('Ship');
       if (!prComposable(msp)) {
@@ -4901,8 +5377,9 @@ async function runUnit(unit) {
       const shipModel = 'opus';
       const revalidateClause = 'before opening the PR';
       const idempotencyScope = 'no duplicate branch, push, or PR';
-      const shipStep7 = `7. This run is HUMAN-GATED: do NOT merge the PR yourself and perform no merge of any kind. Leave the PR open for a human to review and merge. If CI is GREEN, STOP with the PR left open and return { merged: false, awaitingApproval: true, prUrl: "<the pr url>", receiptsPass: true, d6Pass: true, detail: "CI green; PR <url> open and awaiting human approval to merge" }. If CI is RED on the fresh base, return { merged: false, awaitingApproval: false, prUrl: "<the pr url>", receiptsPass: <bool>, d6Pass: <bool>, detail: "<failing job/step and first failing assertion>" }.\n\n`;
-      const shipReturnLine = `Return ONLY: { merged: false, awaitingApproval: <bool>, prUrl: "<url>", receiptsPass: <bool>, d6Pass: <bool>, detail: "<summary>" }.`;
+      const shipStep7 = `7. This run is HUMAN-GATED: do NOT merge the PR yourself and perform no merge of any kind. Leave the PR open for a human to review and merge. If CI is GREEN, STOP with the PR left open and return { merged: false, awaitingApproval: true, prUrl: "<the pr url>", receiptsPass: true, d6Pass: true, detail: "CI green; PR <url> open and awaiting human approval to merge" }. If CI is RED on the fresh base, return { merged: false, awaitingApproval: false, ciRed: true, prUrl: "<the pr url>", receiptsPass: <bool>, d6Pass: <bool>, detail: "<failing job/step and first failing assertion>" } AND populate every structured field of step 8 as well.\n\n`;
+      const shipStep8 = `8. STRUCTURED CI-RED FACTS (only when CI is RED): the engine classifies the failure from these fields alone and NEVER parses detail, so report them as data, never as prose. ciConclusion = the raw conclusion token you read in step 6, verbatim (${JSON.stringify(CI_TERMINAL_CONCLUSIONS.join(' | '))}); report "timeout-expired" when the timeout wrapper expired before the run completed rather than folding that into a generic failure. failedChecks = the exact names of the checks/jobs that did not succeed. implicatedPaths = the repo-relative source paths the failure implicates. failingAssertionFiles = the repo-relative paths of the files that CONTAIN the failing assertions. conflictPaths = the repo-relative paths that conflicted in step 4, or an empty array when nothing conflicted. publishedHeadSha = the sha you published in step 4, read with \`git -C ${repoRoot} rev-parse ${integrationBranch}\` AFTER the push. Report what you observed and nothing more: an absent, guessed or unreadable field makes the engine ESCALATE to a human instead of attempting anything, which is the correct and intended outcome, so never invent a value to fill a field.\n\n`;
+      const shipReturnLine = `Return ONLY: { merged: false, awaitingApproval: <bool>, prUrl: "<url>", receiptsPass: <bool>, d6Pass: <bool>, detail: "<summary>", ciRed: <bool>, ciConclusion: "<raw conclusion token>", failedChecks: [ "<check name>" ], implicatedPaths: [ "<repo-relative path>" ], failingAssertionFiles: [ "<repo-relative path>" ], conflictPaths: [ "<repo-relative path>" ], publishedHeadSha: "<sha>" }.`;
       const ship = await agent(
         `You are the ship stage for MSP "${msp.id}" of a mitosis run. You have NO Skill tool.\n\n` +
         `Repo: ${repoRoot}. The engine has already integrated this MSP's work onto the LOCAL branch ${JSON.stringify(integrationBranch)} (boundary-validated, merged, never pushed). Sibling clusters merge into ${JSON.stringify(baseBranch)} concurrently, so you MUST revalidate on the FRESH combined base ${revalidateClause}.\n` +
@@ -4915,6 +5392,7 @@ async function runUnit(unit) {
         `5. Open ONE pull request by running EXACTLY this one command, substituting ONLY the digits for <N>: \`node ${LIB_DIR}/mitosis-git.mjs pr-create --repo ${repoSlug} --head ${integrationBranch} --base ${baseBranch} --title ${JSON.stringify(prTitleFor(msp))} --origin machine --provenance ${JSON.stringify(prProvenanceFor(`ship:${msp.id}`, shipModel))} --why ${JSON.stringify(msp.rationale)} --what ${JSON.stringify(msp.title)} --not-verified ${JSON.stringify(PR_NOT_VERIFIED_OPEN_CI)}${prDependsFlag(msp.dependsOn)} --changed-lines <N>\`. ${PR_PLACEHOLDER_SENTENCE} ${prChangedLinesClause(repoRoot, baseBranch, integrationBranch)} It opens head ${integrationBranch} onto base ${baseBranch}, stacked bottom-up on the already-merged MSPs (${dependsList}). That command performs the observe step itself and reuses an existing open PR on this head instead of opening a second, so issue no gh command of your own for this step. Exit 0 prints ONE JSON object carrying action and url. Exit 21 is AMBIGUOUS: the create call was reached and the wrapper could not confirm its outcome, so a pull request MAY exist — never report exit 21 as "nothing was opened", never retry it blind, and copy the wrapper stderr VERBATIM into detail so a human reads the repository. Every other non-zero exit means the create call was never reached and nothing was opened. Stop on any non-zero exit.\n` +
         `6. Wait for CI to finish on the FRESH head+base with a BACKGROUNDED, timeout-bounded watch that returns the terminal conclusion - NEVER foreground-stream CI logs by re-invoking a blocking watch that pipes every progress line into context. Resolve the run id for this head, then poll its status in a backgrounded shell bounded by a hard timeout so the wait lives in your shell and never blocks indefinitely. Every run-status read is pinned to the engine-resolved target repo ${JSON.stringify(repoSlug)} (never the ambient cwd): \`runId=$(gh run list -R ${repoSlug} --branch ${integrationBranch} --limit 1 --json databaseId -q '.[0].databaseId'); timeout ${CI_WATCH_MAX_SECONDS} bash -c 'until [ "$(gh run view '"$runId"' -R ${repoSlug} --json status -q .status)" = "completed" ]; do sleep ${CI_WATCH_INTERVAL_SECONDS}; done'\`, then read the terminal conclusion ONCE: \`gh run view "$runId" -R ${repoSlug} --json conclusion -q .conclusion\`. Treat conclusion=success as CI GREEN and any other terminal conclusion (failure/cancelled/timed_out, or the timeout expiring before completion) as CI RED. This CI runs the receipts red->green enforcer + G9 full-suite + the D6 cluster-boundary step. Because the PR base is origin/${baseBranch} (now including every sibling that already merged) and the head is the rebased tip, the D6 step computes NEW base..head dependents over the COMBINED post-rebase state - not this cluster's changes in isolation.\n` +
         shipStep7 +
+        shipStep8 +
         shipReturnLine,
         { agentType: 'implementer', schema: SHIP_SCHEMA, label: `ship:${msp.id}`, phase: 'Ship', model: shipModel }
       );
@@ -4927,6 +5405,9 @@ async function runUnit(unit) {
         return { halted: false, awaiting: true, mspId: msp.id, prUrl: ship.prUrl, receiptsPass: ship.receiptsPass, d6Pass: ship.d6Pass };
       }
       if (ship.merged !== true) {
+        if (ship.ciRed === true && parsePrRef(ship.prUrl) !== null && typeof ship.publishedHeadSha === 'string' && CI_SHA_PATTERN.test(ship.publishedHeadSha)) {
+          return runCiToGreenLoop(ship);
+        }
         log(`mitosis[${msp.id}]: ship BLOCKED (${ship.detail})`);
         return { halted: true, stage: 'ship', mspId: msp.id, detail: ship.detail, receiptsPass: ship.receiptsPass, d6Pass: ship.d6Pass };
       }
@@ -4946,8 +5427,8 @@ async function runUnit(unit) {
       const shipGuard = (err) => ({ halted: true, crashed: true, stage: 'ship', mspId: msp.id, error: `ship threw: ${err.message}` });
       const ship = await shipOneMsp().catch(shipGuard);
       if (ship.halted) {
-        const kind = ship.unknownHandoff ? 'unknown-handoff' : 'approve-decision';
-        return parkUnit(msp, 'ship', NeedsHuman({ kind, what: ship.detail || ship.error || 'ship halted', remediation: null, resumePoint: { branch: integrationBranch, ref: baseBranch, stage: 'ship' } }), integrationBranch, compensationStack);
+        const kind = ship.unknownHandoff ? 'unknown-handoff' : (ship.ciParkKind || 'approve-decision');
+        return parkUnit(msp, 'ship', NeedsHuman({ kind, what: ship.detail || ship.error || 'ship halted', remediation: null, resumePoint: { branch: integrationBranch, ref: baseBranch, stage: 'ship' } }, ship.triedSet), integrationBranch, compensationStack);
       }
       if (ship.awaiting) {
         awaitingApproval.push({ mspId: msp.id, prUrl: ship.prUrl, receiptsPass: ship.receiptsPass, d6Pass: ship.d6Pass, dependsOn: msp.dependsOn || [] });

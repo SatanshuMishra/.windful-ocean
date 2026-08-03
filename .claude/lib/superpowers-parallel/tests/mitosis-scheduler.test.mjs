@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { computeLogicalRunId, buildInitialManifest, applyShipTransition, parseRunManifest } from '../recovery.mjs';
-import { foldRunManifest } from '../run-log.mjs';
+import { foldRunManifest, parkDelta } from '../run-log.mjs';
 import { park, LEGAL_STAGES } from '../parking.mjs';
 import { runEngine } from '../run-engine.mjs';
 import { parseMitosisGitArgv, renderPrCreateBody } from '../mitosis-git.mjs';
@@ -136,7 +136,42 @@ const PROVEN_BOUNDARY = Object.freeze(provenBoundary());
 
 const QUIESCENT_EXIT_FIXTURE_AT = '2026-08-01T12:00:00Z';
 
-function createFakeAgent({ msps, sourcePrefix = SOURCE_PREFIX, baseBranch = TEST_BASE_BRANCH, planGate, shipResult, reconcileResult, planReview, replanResult, mergeWatch, quiescentExit } = {}) {
+const CI_PR_URL = `https://github.com/${TEST_REPO_SLUG}/pull/7`;
+const CI_HEAD_SHA = 'abc1234';
+const CI_TIP_SHA = 'deadbee';
+const CI_BRANCH = `${SOURCE_PREFIX}/m0-integration`;
+const ciEndpoints = (prompt) => {
+  const m = /--end-of-options "([^"]+)" "([^"]+)"/.exec(typeof prompt === 'string' ? prompt : '');
+  return m === null ? { from: CI_HEAD_SHA, to: CI_BRANCH } : { from: m[1], to: m[2] };
+};
+const CI_SCOPE = ['scope/m0/**'];
+const CI_SOURCE_PATH = 'scope/m0/charge.js';
+const CI_ASSERTION_PATH = 'scope/m0/charge.test.js';
+
+function ciRedShip(overrides = {}) {
+  return {
+    merged: false,
+    awaitingApproval: false,
+    prUrl: CI_PR_URL,
+    receiptsPass: true,
+    d6Pass: true,
+    detail: 'test job - expected 1, got 2',
+    ciRed: true,
+    ciConclusion: 'failure',
+    failedChecks: ['test'],
+    implicatedPaths: [CI_SOURCE_PATH],
+    failingAssertionFiles: [CI_ASSERTION_PATH],
+    conflictPaths: [],
+    publishedHeadSha: CI_HEAD_SHA,
+    ...overrides,
+  };
+}
+
+function ciGreenShip() {
+  return { merged: false, awaitingApproval: true, prUrl: CI_PR_URL, receiptsPass: true, d6Pass: true, detail: 'CI green; PR open and awaiting human approval to merge' };
+}
+
+function createFakeAgent({ msps, sourcePrefix = SOURCE_PREFIX, baseBranch = TEST_BASE_BRANCH, planGate, shipResult, reconcileResult, planReview, replanResult, mergeWatch, quiescentExit, ciLoop } = {}) {
   return async function fakeAgent(prompt, opts = {}) {
     const label = opts.label || '';
     const prefix = label.split(':')[0];
@@ -167,6 +202,20 @@ function createFakeAgent({ msps, sourcePrefix = SOURCE_PREFIX, baseBranch = TEST
         );
       case 'checkpoint-init':
         return { written: true, detail: '' };
+      case 'ci-attempt-checkpoint':
+        return ciLoop && ciLoop.checkpoint ? ciLoop.checkpoint() : { written: true, detail: '' };
+      case 'ci-probe':
+        return ciLoop && ciLoop.probe ? ciLoop.probe(prompt) : ciRedShip();
+      case 'ci-fix':
+        return ciLoop && ciLoop.propose ? ciLoop.propose(prompt) : { changedPaths: [CI_SOURCE_PATH], detail: 'adjusted the implementation' };
+      case 'ci-diff':
+        return ciLoop && ciLoop.diff ? ciLoop.diff(prompt) : { changedPaths: [CI_SOURCE_PATH], ...(({ from, to }) => ({ checkedFromSha: from, checkedToSha: to }))(ciEndpoints(prompt)) };
+      case 'ci-publish':
+        return ciLoop && ciLoop.publish ? ciLoop.publish(prompt) : ciRedShip();
+      case 'ci-publish-verify':
+        return ciLoop && ciLoop.publishVerify
+          ? ciLoop.publishVerify(prompt)
+          : { appendOnly: true, changedPaths: [CI_SOURCE_PATH], ...(({ from, to }) => ({ checkedFromSha: from, checkedToSha: to }))(ciEndpoints(prompt)) };
       case 'manifest-publish':
         return { published: false, alreadyPresent: false, ref: null, commit: null, readBackPages: null, detail: 'fixture: no remote' };
       case 'checkpoint-push':
@@ -3392,10 +3441,10 @@ test('EXECUTE-STAGE RESILIENCE: an ApproachFixable fault during Execute dispatch
   assert.equal(result.overallStatus, 'all-shipped');
 });
 
-function makeDurableFakeAgent({ msps, parallelizeFailUnitId, shipResult, repoRoot }) {
+function makeDurableFakeAgent({ msps, parallelizeFailUnitId, shipResult, repoRoot, ciLoop }) {
   const fileMap = new Map();
   const runJsonPath = `${repoRoot}/.mitosis/run.json`;
-  const base = createFakeAgent({ msps, shipResult });
+  const base = createFakeAgent({ msps, shipResult, ciLoop });
   const literalOf = (prompt) => {
     const start = prompt.indexOf('{');
     if (start === -1) return null;
@@ -3433,7 +3482,7 @@ function makeDurableFakeAgent({ msps, parallelizeFailUnitId, shipResult, repoRoo
       if (literal !== null) fileMap.set(runJsonPath, literal);
       return { written: literal !== null, detail: '' };
     }
-    if (prefix === 'park-checkpoint' || prefix === 'built-checkpoint' || prefix === 'ship-checkpoint') {
+    if (prefix === 'park-checkpoint' || prefix === 'built-checkpoint' || prefix === 'ship-checkpoint' || prefix === 'ci-attempt-checkpoint') {
       const literal = literalOf(prompt);
       if (literal !== null) {
         const prior = fileMap.get(runJsonPath);
@@ -4601,4 +4650,648 @@ test('T14(c): a build-ahead unit REDISPATCHED with no recorded builtSha fails CL
   assert.match(parkedC.diagnosis, /ambiguous frontier state/, 'the park diagnosis names the ambiguous-frontier trigger');
   assert.match(parkedC.diagnosis, /no builtSha was recorded/, 'the diagnosis distinguishes the absent-provenance case from a plain sha mismatch');
   assert.deepEqual(result.shipped.map((s) => s.mspId).sort(), ['a', 'b'], 'only the ambiguous frontier redispatch parks; the rest of the chain still ships');
+});
+
+function ciMsps() {
+  return [mspSpec('m0', { fileScope: CI_SCOPE })];
+}
+
+function ciCapture(agent) {
+  const labels = [];
+  const prompts = new Map();
+  const wrapped = async (prompt, opts = {}) => {
+    labels.push(opts.label || '');
+    prompts.set(opts.label || '', prompt);
+    return agent(prompt, opts);
+  };
+  return { agent: wrapped, labels, prompts };
+}
+
+const CI_LOOP_PREFIXES = ['ci-probe', 'ci-fix', 'ci-diff', 'ci-publish', 'ci-publish-verify'];
+const ciLoopLabels = (labels) => labels.filter((l) => CI_LOOP_PREFIXES.includes(l.split(':')[0]));
+const countPrefix = (labels, prefix) => labels.filter((l) => l.split(':')[0] === prefix).length;
+
+test('CI-TRIGGER-NARROW: the ci-to-green loop is entered ONLY on an explicit ciRed with a parseable PR url and a well-formed published head; every other red ship keeps todays terminal park', async () => {
+  const cases = [
+    ['no ciRed field at all (a rebase conflict that published nothing)', { merged: false, awaitingApproval: false, prUrl: '', receiptsPass: false, d6Pass: true, detail: 'replay conflicted on scope/m0/a.js' }],
+    ['ciRed but an unparseable prUrl', ciRedShip({ prUrl: 'not-a-pr-url' })],
+    ['ciRed with a good prUrl but no publishedHeadSha', ciRedShip({ publishedHeadSha: undefined })],
+    ['ciRed with a good prUrl but a malformed publishedHeadSha', ciRedShip({ publishedHeadSha: 'zzz' })],
+  ];
+
+  for (const [label, shipRecord] of cases) {
+    const base = createFakeAgent({ msps: ciMsps(), shipResult: () => shipRecord });
+    const { agent, labels } = ciCapture(base);
+    const { resultPromise } = invokeMitosis(buildInput(), agent);
+    const result = await resultPromise;
+
+    assert.deepEqual(ciLoopLabels(labels), [], `${label}: no ci-loop dispatch happens at all`);
+    assert.equal(result.parked.length, 1, `${label}: parks exactly once`);
+    assert.equal(result.parked[0].stage, 'ship', `${label}: parks at stage ship`);
+    assert.equal(result.parked[0].request.kind, 'approve-decision', `${label}: keeps todays park kind`);
+    assert.equal(result.overallStatus, 'blocked', `${label}: keeps todays overall status`);
+  }
+});
+
+test('CI-CLASS-DENY: each of escalation classes 1-5 parks the unit ci-red-exhausted with ZERO loop dispatches and zero attempts spent', async () => {
+  const cases = [
+    [1, ciRedShip({ implicatedPaths: [CI_SOURCE_PATH, 'scope/other/ledger.js'] })],
+    [2, ciRedShip({ ciConclusion: 'timeout-expired' })],
+    [3, ciRedShip({ receiptsPass: false })],
+    [4, ciRedShip({ failedChecks: ['CodeQL'] })],
+    [5, ciRedShip({ conflictPaths: ['scope/other/ledger.js'] })],
+  ];
+
+  for (const [cls, shipRecord] of cases) {
+    const base = createFakeAgent({ msps: ciMsps(), shipResult: () => shipRecord });
+    const { agent, labels } = ciCapture(base);
+    const { resultPromise } = invokeMitosis(buildInput(), agent);
+    const result = await resultPromise;
+
+    assert.deepEqual(ciLoopLabels(labels), [], `class ${cls}: parks WITHOUT attempting any fix, probe, diff or publish`);
+    assert.equal(result.parked.length, 1, `class ${cls}: parks exactly once`);
+    assert.equal(result.parked[0].request.kind, 'ci-red-exhausted', `class ${cls}: park kind`);
+    assert.equal(result.parked[0].stage, 'ship', `class ${cls}: park stage`);
+    assert.match(result.parked[0].request.what, new RegExp(`class ${cls}`), `class ${cls}: the park names the class that fired`);
+    assert.equal(result.overallStatus, 'ci-red-exhausted', `class ${cls}: overall status`);
+  }
+});
+
+test('CI-CLASS6-DENY: a candidate fix whose verified diff touches a file containing a failing assertion is refused BETWEEN the verify and the publish, so the loop runs but nothing is ever pushed', async () => {
+  const base = createFakeAgent({
+    msps: ciMsps(),
+    shipResult: () => ciRedShip(),
+    ciLoop: {
+      probe: () => ciRedShip({ failedChecks: ['test', 'lint'] }),
+      propose: () => ({ changedPaths: [CI_SOURCE_PATH, CI_ASSERTION_PATH], detail: 'relaxed the failing assertion' }),
+      diff: (prompt) => ({ changedPaths: [CI_SOURCE_PATH, CI_ASSERTION_PATH], checkedFromSha: ciEndpoints(prompt).from, checkedToSha: ciEndpoints(prompt).to }),
+    },
+  });
+  const { agent, labels } = ciCapture(base);
+  const { resultPromise } = invokeMitosis(buildInput(), agent);
+  const result = await resultPromise;
+
+  assert.equal(countPrefix(labels, 'ci-fix'), 1, 'the loop WAS entered and a fix was proposed');
+  assert.equal(countPrefix(labels, 'ci-diff'), 1, 'the proposal WAS independently diff-verified');
+  assert.equal(countPrefix(labels, 'ci-publish'), 0, 'the publish dispatch never runs, so a head carrying a rewritten assertion is never pushed');
+  assert.equal(result.parked[0].request.kind, 'ci-red-exhausted');
+  assert.match(result.parked[0].request.what, /assertion/i, 'the park tells the operator the assertion guard refused the candidate');
+});
+
+test('CI-SCOPE-DENY: a candidate fix the engine verifies as touching a path OUTSIDE the declared fileScope is refused before any publish, however honestly it was reported', async () => {
+  const cases = [
+    ['a CI workflow file, the cheapest route to a green badge', '.github/workflows/receipts.yml'],
+    ['a sibling cluster source file', 'scope/other/ledger.js'],
+    ['the repository test script', 'package.json'],
+  ];
+  for (const [label, foreign] of cases) {
+    const base = createFakeAgent({
+      msps: ciMsps(),
+      shipResult: () => ciRedShip(),
+      ciLoop: {
+        probe: () => ciRedShip({ failedChecks: ['test', 'test-post-probe'] }),
+        propose: () => ({ changedPaths: [foreign], detail: 'made the failing job stop failing' }),
+        diff: (prompt) => ({ changedPaths: [foreign], checkedFromSha: ciEndpoints(prompt).from, checkedToSha: ciEndpoints(prompt).to }),
+        publish: () => ciGreenShip(),
+      },
+    });
+    const { agent, labels } = ciCapture(base);
+    const { resultPromise } = invokeMitosis(buildInput(), agent);
+    const result = await resultPromise;
+
+    assert.equal(countPrefix(labels, 'ci-diff'), 1, `${label}: the candidate WAS independently diff-verified`);
+    assert.equal(countPrefix(labels, 'ci-publish'), 0, `${label}: and nothing was pushed onto the published, human-reviewed head`);
+    assert.equal(result.awaitingApproval.length, 0, `${label}: a green CI signal bought outside the declared scope never reaches a human as ready to merge`);
+    assert.equal(result.parked[0].request.kind, 'ci-red-exhausted');
+    assert.match(result.parked[0].request.what, /outside this msp declared fileScope|security-sensitive/, `${label}: the park names the boundary that refused it`);
+  }
+});
+
+test('CI-SENSITIVE-DENY: a candidate fix that reaches a security-sensitive path is refused even when the declared fileScope covers it', async () => {
+  const SENSITIVE = 'scope/m0/migrations/001.sql';
+  const base = createFakeAgent({
+    msps: ciMsps(),
+    shipResult: () => ciRedShip(),
+    ciLoop: {
+      probe: () => ciRedShip({ failedChecks: ['test', 'test-post-probe'] }),
+      propose: () => ({ changedPaths: [SENSITIVE], detail: 'adjusted the migration' }),
+      diff: (prompt) => ({ changedPaths: [SENSITIVE], checkedFromSha: ciEndpoints(prompt).from, checkedToSha: ciEndpoints(prompt).to }),
+      publish: () => ciGreenShip(),
+    },
+  });
+  const { agent, labels } = ciCapture(base);
+  const { resultPromise } = invokeMitosis(buildInput(), agent);
+  const result = await resultPromise;
+
+  assert.equal(countPrefix(labels, 'ci-publish'), 0, 'nothing is pushed');
+  assert.match(result.parked[0].request.what, /security-sensitive/, 'the park names the sensitive-path refusal');
+});
+
+test('CI-CAP-ADVANCING-HEAD: each attempt is measured from the head the PREVIOUS attempt published, so the cap of three survives consecutive fixes that touch different files', async () => {
+  let proposals = 0;
+  let publishes = 0;
+  const heads = [CI_HEAD_SHA];
+  const addedOnTopOf = [];
+  const changedSince = (from) => {
+    const at = heads.indexOf(from);
+    return at === -1 ? [] : addedOnTopOf.slice(at).filter((p) => typeof p === 'string');
+  };
+  const base = createFakeAgent({
+    msps: ciMsps(),
+    shipResult: () => ciRedShip(),
+    ciLoop: {
+      probe: () => ciRedShip({ failedChecks: ['test', 'test-post-probe'] }),
+      propose: () => {
+        proposals += 1;
+        addedOnTopOf[heads.length - 1] = `scope/m0/f${proposals}.js`;
+        return { changedPaths: [addedOnTopOf[heads.length - 1]], detail: 'fix' };
+      },
+      diff: (prompt) => ({ changedPaths: changedSince(ciEndpoints(prompt).from), checkedFromSha: ciEndpoints(prompt).from, checkedToSha: ciEndpoints(prompt).to }),
+      publishVerify: (prompt) => ({ appendOnly: true, changedPaths: changedSince(ciEndpoints(prompt).from), checkedFromSha: ciEndpoints(prompt).from, checkedToSha: ciEndpoints(prompt).to }),
+      publish: () => {
+        publishes += 1;
+        heads.push(`aaaaaa${publishes}`);
+        return ciRedShip({ failedChecks: ['test', `test-distinct-${publishes}`], publishedHeadSha: heads[heads.length - 1] });
+      },
+    },
+  });
+  const { agent, labels } = ciCapture(base);
+  const { resultPromise } = invokeMitosis(buildInput(), agent);
+  const result = await resultPromise;
+
+  assert.equal(countPrefix(labels, 'ci-probe') + countPrefix(labels, 'ci-fix'), 3, 'the advertised cap of three attempts is actually reachable');
+  assert.equal(countPrefix(labels, 'ci-fix'), 2, 'both fix attempts ran');
+  assert.equal(countPrefix(labels, 'ci-publish'), 2, 'and both were published, rather than the second being refused by a stale left endpoint');
+  assert.ok(!/disagree/.test(result.parked[0].request.what),
+    'the loop never blames the two agents for a disagreement the engine manufactured by comparing incomparable endpoints');
+});
+
+test('CI-PUBLISH-VERIFY: what the publish step actually landed on the reviewed head is re-derived by the engine, and every unconfirmable answer stops the loop', async () => {
+  const cases = [
+    ['the published head is no longer an ancestor, so something rewrote a reviewed ref', (prompt) => ({ appendOnly: false, changedPaths: [CI_SOURCE_PATH], checkedFromSha: ciEndpoints(prompt).from, checkedToSha: ciEndpoints(prompt).to }), /NO LONGER an ancestor/],
+    ['the publish step resolved a conflict by editing a failing-assertion file', (prompt) => ({ appendOnly: true, changedPaths: [CI_SOURCE_PATH, CI_ASSERTION_PATH], checkedFromSha: ciEndpoints(prompt).from, checkedToSha: ciEndpoints(prompt).to }), /failing assertion/],
+    ['the re-derivation read endpoints the engine never handed it', () => ({ appendOnly: true, changedPaths: [CI_SOURCE_PATH], checkedFromSha: 'facade1', checkedToSha: CI_BRANCH }), /unknown pair of endpoints/],
+    ['the re-derivation is unreadable', () => null, /could not re-derive/],
+  ];
+
+  for (const [label, publishVerify, expected] of cases) {
+    const base = createFakeAgent({
+      msps: ciMsps(),
+      shipResult: () => ciRedShip(),
+      ciLoop: { probe: () => ciRedShip({ failedChecks: ['test', 'test-post-probe'] }), publish: () => ciGreenShip(), publishVerify },
+    });
+    const { agent, labels } = ciCapture(base);
+    const { resultPromise } = invokeMitosis(buildInput(), agent);
+    const result = await resultPromise;
+
+    assert.equal(countPrefix(labels, 'ci-publish-verify'), 1, `${label}: the engine re-derived the published head`);
+    assert.equal(result.awaitingApproval.length, 0, `${label}: a CI-green publish the engine cannot vouch for never reaches a human as ready to merge`);
+    assert.equal(result.parked[0].request.kind, 'ci-red-exhausted', `${label}: parks`);
+    assert.match(result.parked[0].request.what, expected, `${label}: the park names what could not be confirmed`);
+  }
+});
+
+test('CI-CAP-ONE-RUN: at most three ci attempts are ever dispatched for one published head in one run, even when every attempt yields a genuinely NEW failure', async () => {
+  let publishes = 0;
+  const base = createFakeAgent({
+    msps: ciMsps(),
+    shipResult: () => ciRedShip(),
+    ciLoop: {
+      probe: () => ciRedShip({ failedChecks: ['test', 'test-probe-differentiator'] }),
+      publish: () => {
+        publishes += 1;
+        return ciRedShip({ failedChecks: ['test', `test-distinct-failure-${publishes}`] });
+      },
+    },
+  });
+  const { agent, labels } = ciCapture(base);
+  const { resultPromise } = invokeMitosis(buildInput(), agent);
+  const result = await resultPromise;
+
+  const attempts = countPrefix(labels, 'ci-probe') + countPrefix(labels, 'ci-fix');
+  assert.equal(attempts, 3, 'exactly the hard cap of three attempts, never a fourth');
+  assert.equal(countPrefix(labels, 'ci-probe'), 1);
+  assert.equal(countPrefix(labels, 'ci-fix'), 2);
+  assert.equal(result.parked[0].request.kind, 'ci-red-exhausted');
+  assert.equal(result.overallStatus, 'ci-red-exhausted');
+});
+
+test('CI-SAME-FAILURE: a failure that recurs IDENTICALLY bars a further fix and exhausts at zero further dispatches, so an identical-failure loop is structurally impossible', async () => {
+  const base = createFakeAgent({
+    msps: ciMsps(),
+    shipResult: () => ciRedShip(),
+    ciLoop: {
+      probe: () => ciRedShip({ failedChecks: ['test', 'test-stable'] }),
+      publish: () => ciRedShip({ failedChecks: ['test', 'test-stable'] }),
+    },
+  });
+  const { agent, labels } = ciCapture(base);
+  const { resultPromise } = invokeMitosis(buildInput(), agent);
+  const result = await resultPromise;
+
+  assert.equal(countPrefix(labels, 'ci-probe'), 1, 'the flake probe runs once');
+  assert.equal(countPrefix(labels, 'ci-fix'), 1, 'exactly one fix is attempted against the post-probe failure');
+  assert.equal(countPrefix(labels, 'ci-publish'), 1, 'that one fix is published once');
+  assert.equal(result.parked[0].request.kind, 'ci-red-exhausted');
+  assert.equal(countPrefix(labels, 'ci-diff'), 1, 'and no SECOND candidate fix is ever proposed, verified or published against the recurrence');
+});
+
+test('CI-FLAKE-PROBE: the no-code-change rerun happens at most once per published head, carries no code-change instruction, and COSTS one of the three attempts', async () => {
+  const base = createFakeAgent({
+    msps: ciMsps(),
+    shipResult: () => ciRedShip(),
+    ciLoop: {
+      probe: () => ciRedShip({ failedChecks: ['test', 'test-post-probe'] }),
+      publish: () => ciRedShip({ failedChecks: ['test', 'test-stable-after-fix'] }),
+    },
+  });
+  const { agent, labels, prompts } = ciCapture(base);
+  const { resultPromise } = invokeMitosis(buildInput(), agent);
+  await resultPromise;
+
+  assert.equal(countPrefix(labels, 'ci-probe'), 1, 'exactly one rerun, never a second');
+  const probePrompt = prompts.get('ci-probe:m0');
+  assert.match(probePrompt, /gh run rerun/, 'the probe reruns CI');
+  assert.match(probePrompt, new RegExp(`-R ${TEST_REPO_SLUG}`), 'every gh read is pinned to the engine-resolved repo');
+  assert.ok(!/commit|push|edit|modify/i.test(probePrompt), 'the probe prompt carries NO code-change instruction of any kind');
+  const attempts = countPrefix(labels, 'ci-probe') + countPrefix(labels, 'ci-fix');
+  assert.equal(attempts, 3, 'the probe consumed one of the three attempts, leaving only two fixes');
+});
+
+test('CI-UNREADABLE-PROPOSAL: a fix proposal that returns null, or throws, escalates and never publishes', async () => {
+  for (const [label, propose] of [
+    ['returns null', () => null],
+    ['throws', () => { throw new Error('proposer died'); }],
+  ]) {
+    const base = createFakeAgent({
+      msps: ciMsps(),
+      shipResult: () => ciRedShip(),
+      ciLoop: { probe: () => ciRedShip({ failedChecks: ['test', 'test-post-probe'] }), propose },
+    });
+    const { agent, labels } = ciCapture(base);
+    const { resultPromise } = invokeMitosis(buildInput(), agent);
+    const result = await resultPromise;
+
+    assert.equal(countPrefix(labels, 'ci-publish'), 0, `${label}: nothing is ever published`);
+    assert.equal(countPrefix(labels, 'ci-diff'), 0, `${label}: an unusable proposal is not even diff-verified`);
+    assert.equal(result.parked[0].request.kind, 'ci-red-exhausted', `${label}: parks ci-red-exhausted`);
+  }
+});
+
+test('CI-DIFF-MISMATCH: the independent verifier must prove it diffed the engine-held endpoints AND agree with the proposer, or the loop escalates without publishing', async () => {
+  const cases = [
+    ['the verifier echoes a left endpoint the engine never asked for', () => ({ changedPaths: [CI_SOURCE_PATH], checkedFromSha: 'facade1', checkedToSha: CI_BRANCH })],
+    ['the verifier echoes a right endpoint the engine never asked for', () => ({ changedPaths: [CI_SOURCE_PATH], checkedFromSha: CI_HEAD_SHA, checkedToSha: CI_TIP_SHA })],
+    ['the verifier disagrees with the proposer about what changed', () => ({ changedPaths: [CI_SOURCE_PATH, 'scope/m0/silently-also-this.js'], checkedFromSha: CI_HEAD_SHA, checkedToSha: CI_BRANCH })],
+    ['the verifier returns null', () => null],
+  ];
+
+  for (const [label, diff] of cases) {
+    const base = createFakeAgent({
+      msps: ciMsps(),
+      shipResult: () => ciRedShip(),
+      ciLoop: { probe: () => ciRedShip({ failedChecks: ['test', 'test-post-probe'] }), diff },
+    });
+    const { agent, labels } = ciCapture(base);
+    const { resultPromise } = invokeMitosis(buildInput(), agent);
+    const result = await resultPromise;
+
+    assert.equal(countPrefix(labels, 'ci-diff'), 1, `${label}: the verifier ran`);
+    assert.equal(countPrefix(labels, 'ci-publish'), 0, `${label}: nothing is published`);
+    assert.equal(result.parked[0].request.kind, 'ci-red-exhausted', `${label}: parks ci-red-exhausted`);
+  }
+});
+
+test('CI-APPEND-ONLY: the loop publish prompt advances a PUBLISHED head append-only - no force of any kind, a forward merge of the base, and an abort clause naming every failing-assertion file', async () => {
+  const base = createFakeAgent({
+    msps: ciMsps(),
+    shipResult: () => ciRedShip(),
+    ciLoop: { probe: () => ciRedShip({ failedChecks: ['test', 'test-post-probe'] }) },
+  });
+  const { agent, prompts } = ciCapture(base);
+  const { resultPromise } = invokeMitosis(buildInput(), agent);
+  await resultPromise;
+
+  const publishPrompt = prompts.get('ci-publish:m0');
+  assert.ok(publishPrompt, 'the loop reached its publish step');
+  assert.ok(!/`[^`]*--force/.test(publishPrompt), 'no command the publish prompt hands the agent carries a force of any kind, lease-guarded or not; this head is already reviewed');
+  assert.match(publishPrompt, /never pass --force or --force-with-lease/, 'and the prohibition is stated in the terms the agent would otherwise reach for');
+  assert.ok(!/\brebase\b/.test(publishPrompt), 'a published head is never rebased');
+  assert.match(publishPrompt, /merge --no-edit origin\/main/, 'the base is taken by a forward merge, which only ever adds commits');
+  assert.match(publishPrompt, new RegExp(CI_ASSERTION_PATH.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')), 'the abort clause names the failing-assertion file the push must not carry');
+  assert.match(publishPrompt, new RegExp(`switch ${CI_BRANCH.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}`),
+    'the branch the base merge lands on is NAMED, so a merge can never act on whatever branch this shared repository happens to have checked out');
+  assert.match(publishPrompt, /rev-parse --abbrev-ref HEAD/, 'and the agent is made to confirm that before it merges anything');
+});
+
+test('CI-FIX-FENCE: the fix prompt fences the candidate to the declared scope, bans touching a failing assertion, and forbids buying a green signal by suppression', async () => {
+  const base = createFakeAgent({
+    msps: ciMsps(),
+    shipResult: () => ciRedShip(),
+    ciLoop: { probe: () => ciRedShip({ failedChecks: ['test', 'test-post-probe'] }) },
+  });
+  const { agent, prompts } = ciCapture(base);
+  const { resultPromise } = invokeMitosis(buildInput(), agent);
+  await resultPromise;
+
+  const fixPrompt = prompts.get('ci-fix:m0');
+  assert.ok(fixPrompt, 'the loop reached its fix step');
+  assert.match(fixPrompt, /scope\/m0/, 'the declared fileScope is stated in the prompt');
+  assert.match(fixPrompt, new RegExp(CI_ASSERTION_PATH.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')), 'every failing-assertion file is named as banned');
+  assert.match(fixPrompt, /eslint-disable/, 'suppression directives are named as banned');
+  assert.match(fixPrompt, /@ts-expect-error/, 'including the type-level ones');
+  assert.match(fixPrompt, /do not make a job non-blocking/, 'and so is the cheapest route of all, turning the failing job off');
+});
+
+test('CI-EXHAUST-REPORT: an exhausted loop leaves the PR open with red CI visible, reports ci-red-exhausted, resumes at ship, and never claims CI is green', async () => {
+  let publishes = 0;
+  const base = createFakeAgent({
+    msps: ciMsps(),
+    shipResult: () => ciRedShip(),
+    ciLoop: {
+      probe: () => ciRedShip({ failedChecks: ['test', 'test-p'] }),
+      publish: () => { publishes += 1; return ciRedShip({ failedChecks: ['test', `test-f${publishes}`] }); },
+    },
+  });
+  const { agent } = ciCapture(base);
+  const { resultPromise } = invokeMitosis(buildInput(), agent);
+  const result = await resultPromise;
+
+  assert.equal(result.overallStatus, 'ci-red-exhausted');
+  const record = result.parked.find((p) => p.mspId === 'm0');
+  assert.equal(record.request.kind, 'ci-red-exhausted');
+  assert.equal(record.stage, 'ship');
+  assert.equal(record.resumePoint.stage, 'ship', 'the resume stage stays inside the legal stage vocabulary');
+  assert.ok(record.request.what.includes(CI_PR_URL), 'the operator is told which PR to go and read');
+  assert.match(record.request.what, /CI remains the sole authority/, 'the park says plainly who decides whether CI passes');
+  assert.ok(!/\b(is|was|now)\s+green\b/i.test(record.request.what), 'the engine never asserts CI is green');
+  assert.ok(!/\bCI (passed|passes|succeeded)\b/i.test(record.request.what), 'nor that CI passed');
+  assert.deepEqual(result.shipped, [], 'nothing is recorded shipped');
+  assert.ok(record.triedSet.includes('ci-published:pr'), 'the park carries the published-head marker forward for the next relaunch');
+});
+
+test('CI-GREEN-AFTER-FIX: a fix that turns CI green routes to the EXISTING awaiting-approval record, never to a merge and never to a green claim of the engines own', async () => {
+  const base = createFakeAgent({
+    msps: ciMsps(),
+    shipResult: () => ciRedShip(),
+    ciLoop: { probe: () => ciRedShip({ failedChecks: ['test', 'test-post-probe'] }), publish: () => ciGreenShip() },
+  });
+  const { agent, labels } = ciCapture(base);
+  const { resultPromise } = invokeMitosis(buildInput(), agent);
+  const result = await resultPromise;
+
+  assert.equal(countPrefix(labels, 'ci-publish'), 1);
+  assert.equal(result.parked.length, 0, 'a unit whose CI went green is not parked');
+  assert.equal(result.awaitingApproval.length, 1);
+  assert.equal(result.awaitingApproval[0].mspId, 'm0');
+  assert.equal(result.awaitingApproval[0].prUrl, CI_PR_URL);
+  assert.equal(result.overallStatus, 'awaiting-approval');
+});
+
+test('CI-RUNBUDGET-NOT-CI: a drained SHARED run budget parks approve-decision, never ci-red-exhausted, because zero CI attempts were made on that PR', async () => {
+  const base = createFakeAgent({ msps: ciMsps(), shipResult: () => ciRedShip() });
+  const { agent, labels } = ciCapture(base);
+  const { resultPromise } = invokeMitosis({ ...buildInput(), retry: { runBudget: 0 } }, agent);
+  const result = await resultPromise;
+
+  assert.deepEqual(ciLoopLabels(labels), [], 'the shared budget was already drained, so no attempt was ever dispatched');
+  assert.equal(result.parked[0].request.kind, 'approve-decision', 'reporting this as an exhausted CI loop would tell the operator the loop gave up on a PR it never touched');
+  assert.notEqual(result.overallStatus, 'ci-red-exhausted');
+  assert.equal(result.overallStatus, 'blocked');
+});
+
+test('CI-RUNBUDGET-MIDLOOP: a shared run budget drained AFTER attempts were dispatched reports the attempts it actually made, never zero', async () => {
+  const base = createFakeAgent({
+    msps: ciMsps(),
+    shipResult: () => ciRedShip(),
+    ciLoop: {
+      probe: () => ciRedShip({ failedChecks: ['test', 'test-post-probe'] }),
+      publish: () => ciRedShip({ failedChecks: ['test', 'test-after-fix'] }),
+    },
+  });
+  const { agent, labels } = ciCapture(base);
+  const { resultPromise } = invokeMitosis({ ...buildInput(), retry: { runBudget: 2 } }, agent);
+  const result = await resultPromise;
+
+  const attempts = countPrefix(labels, 'ci-probe') + countPrefix(labels, 'ci-fix');
+  assert.ok(attempts > 0, 'the loop DID dispatch attempts before the shared budget ran out');
+  assert.equal(countPrefix(labels, 'ci-publish'), 1, 'and one of them was published onto the open pull request');
+  const record = result.parked.find((p) => p.mspId === 'm0');
+  assert.ok(!/[Zz]ero ci attempts/.test(record.request.what),
+    'the park never tells the operator the loop gave up on a pull request it never touched when it published to that pull request');
+  assert.match(record.request.what, new RegExp(`stopped after ${attempts} attempt`),
+    'it reports the number of attempts the engine actually measured');
+  assert.equal(record.request.kind, 'ci-red-exhausted', 'and it is an exhausted ci loop, because attempts were spent on that head');
+  assert.equal(result.overallStatus, 'ci-red-exhausted');
+});
+
+test('CI-MERGED-GATE: a loop agent that reports the pull request MERGED parks under its own kind, never flattened into an ordinary exhausted ci loop', async () => {
+  const base = createFakeAgent({
+    msps: ciMsps(),
+    shipResult: () => ciRedShip(),
+    ciLoop: {
+      probe: () => ciRedShip({ failedChecks: ['test', 'test-post-probe'] }),
+      publish: () => ({ merged: true, awaitingApproval: true, prUrl: CI_PR_URL, receiptsPass: true, d6Pass: true, detail: 'merged' }),
+    },
+  });
+  const { agent } = ciCapture(base);
+  const { resultPromise } = invokeMitosis(buildInput(), agent);
+  const result = await resultPromise;
+
+  const record = result.parked.find((p) => p.mspId === 'm0');
+  assert.equal(result.awaitingApproval.length, 0, 'a breached merge gate is never reported as healthy waiting work');
+  assert.equal(record.request.kind, 'human-gate-violated', 'the worst thing this loop can observe gets its own kind');
+  assert.notEqual(result.overallStatus, 'ci-red-exhausted', 'and is not reported as the ordinary, expected outcome of the loop');
+  assert.match(record.request.what, /human merge gate/, 'the park names the breach');
+});
+
+test('CI-PRURL: the pull request a human is sent to is the engine-validated one, never a url an agent returned', async () => {
+  const base = createFakeAgent({
+    msps: ciMsps(),
+    shipResult: () => ciRedShip(),
+    ciLoop: {
+      probe: () => ciRedShip({ failedChecks: ['test', 'test-post-probe'] }),
+      publish: () => ({ merged: false, awaitingApproval: true, prUrl: 'https://github.com/elsewhere/mirror/pull/1', receiptsPass: true, d6Pass: true, detail: 'CI green' }),
+    },
+  });
+  const { agent } = ciCapture(base);
+  const { resultPromise } = invokeMitosis(buildInput(), agent);
+  const result = await resultPromise;
+
+  assert.equal(result.awaitingApproval.length, 1);
+  assert.equal(result.awaitingApproval[0].prUrl, CI_PR_URL,
+    'the loop operates on one pull request by construction, so a later agent string is a strict downgrade on the url the engine already validated');
+});
+
+test('CI-CAP-PERSIST: the attempt cap SURVIVES a relaunch - a unit whose head is already published spends ZERO further attempts and parks via the published-head guard', async () => {
+  const input = buildInput();
+  const msps = ciMsps();
+  let publishes = 0;
+  const { agent: durable, fileMap, runJsonPath } = makeDurableFakeAgent({
+    msps,
+    repoRoot: input.repoRoot,
+    shipResult: () => ciRedShip(),
+    ciLoop: {
+      probe: () => ciRedShip({ failedChecks: ['test', 'test-p'] }),
+      publish: () => { publishes += 1; return ciRedShip({ failedChecks: ['test', `test-f${publishes}`] }); },
+    },
+  });
+  const { agent, labels } = ciCapture(durable);
+
+  const { resultPromise: first } = invokeMitosis(input, agent);
+  const firstResult = await first;
+  assert.equal(firstResult.parked[0].request.kind, 'ci-red-exhausted', 'run 1 spends the cap and parks');
+  const coldAttempts = countPrefix(labels, 'ci-probe') + countPrefix(labels, 'ci-fix');
+  assert.equal(coldAttempts, 3, 'the cold run is the baseline: it spent the full cap');
+
+  const folded = foldRunManifest(fileMap.get(runJsonPath));
+  const m0 = folded.msps.find((m) => m.id === 'm0');
+  assert.ok(m0.triedSet.includes('ci-published:pr'), 'the durable journal carries the published-head marker');
+  assert.ok(m0.triedSet.some((t) => t.startsWith('ci-fix:')), 'the durable journal carries the ci attempt fingerprints');
+
+  const before = labels.length;
+  const { resultPromise: second } = invokeMitosis(input, agent);
+  const secondResult = await second;
+  const relaunchLabels = labels.slice(before);
+
+  assert.deepEqual(ciLoopLabels(relaunchLabels), [], 'the relaunch spends STRICTLY ZERO further attempts on the already-published head');
+  assert.equal(countPrefix(relaunchLabels, 'ship'), 0, 'and never re-ships it either');
+  const guarded = secondResult.parked.find((p) => p.mspId === 'm0');
+  assert.equal(guarded.stage, 'ship', 'the zero-dispatch outcome came from the published-head guard, not from a reconcile freeze (which parks at stage blocked)');
+  assert.match(guarded.request.what, /published/i, 'the park names the mechanism that stopped the unit');
+  assert.ok(!/with a pull request open on it/.test(guarded.request.what),
+    'the park never asserts an open pull request the engine did not observe: by construction an accepted open PR freezes the unit before this guard is ever reached');
+  assert.match(guarded.request.what, /DISPOSITION/, 'and it tells the operator how the park can be cleared, rather than leaving a permanently re-parking subtree');
+});
+
+test('CI-CAP-CRASH: a run INTERRUPTED mid-loop leaves the unit unparked, yet the write-ahead record still stops the relaunch from re-shipping the published head', async () => {
+  const input = buildInput();
+  const msps = ciMsps();
+  let crashed = false;
+  const { agent: durable, fileMap, runJsonPath } = makeDurableFakeAgent({
+    msps,
+    repoRoot: input.repoRoot,
+    shipResult: () => ciRedShip(),
+    ciLoop: {
+      probe: () => {
+        if (crashed) return ciRedShip({ failedChecks: ['test', 'test-p'] });
+        crashed = true;
+        throw new Error('the run was interrupted mid-loop');
+      },
+    },
+  });
+  const { agent, labels } = ciCapture(durable);
+
+  const { resultPromise: first } = invokeMitosis(input, agent);
+  const firstResult = await first;
+  assert.equal(firstResult.parked.length, 1, 'run 1 ends contained');
+
+  const rawLines = fileMap.get(runJsonPath).split('\n');
+  const records = rawLines.map((l) => JSON.parse(l));
+  const writeAheadIdx = records.findIndex((r) => r.kind === 'ci-attempt' && r.fingerprint === 'ci-published:pr');
+  const parkIdx = records.findIndex((r) => r.kind === 'park');
+  assert.ok(writeAheadIdx > 0, 'a ci-attempt delta carrying the published-head marker was appended in its own right, not merely folded into a park record');
+  assert.ok(parkIdx === -1 || writeAheadIdx < parkIdx, 'and it was appended BEFORE the attempt it records, so it survives an interruption that never reaches a park');
+
+  const beforeAnyPark = rawLines.slice(0, parkIdx === -1 ? rawLines.length : parkIdx).join('\n');
+  const preParkFold = foldRunManifest(beforeAnyPark);
+  const preParkM0 = preParkFold.msps.find((m) => m.id === 'm0');
+  assert.notEqual(preParkM0.status, 'parked', 'at that point the unit is not parked, so selectResumeUnits would skip it entirely');
+  assert.ok(preParkM0.triedSet.includes('ci-published:pr'),
+    'yet the marker is already durable on the unfolded manifest, which is the ONLY thing that can stop a relaunch from re-shipping an already-published head');
+
+  const before = labels.length;
+  const { resultPromise: second } = invokeMitosis(input, agent);
+  const secondResult = await second;
+  const relaunchLabels = labels.slice(before);
+
+  assert.deepEqual(ciLoopLabels(relaunchLabels), [], 'the relaunch attempts nothing');
+  assert.equal(countPrefix(relaunchLabels, 'ship'), 0, 'and re-ships nothing onto the already-published head');
+  const guarded = secondResult.parked.find((p) => p.mspId === 'm0');
+  assert.equal(guarded.stage, 'ship');
+  assert.match(guarded.request.what, /published/i);
+});
+
+test('CI-CAP-PARKERASE: a later park that carries an empty triedSet cannot erase the attempt record, so the relaunch still refuses to re-ship the published head', async () => {
+  const input = buildInput();
+  const msps = ciMsps();
+  let publishes = 0;
+  const { agent: durable, fileMap, runJsonPath } = makeDurableFakeAgent({
+    msps,
+    repoRoot: input.repoRoot,
+    shipResult: () => ciRedShip(),
+    ciLoop: {
+      probe: () => ciRedShip({ failedChecks: ['test', 'test-p'] }),
+      publish: () => { publishes += 1; return ciRedShip({ failedChecks: ['test', `test-f${publishes}`] }); },
+    },
+  });
+  const { agent, labels } = ciCapture(durable);
+
+  const { resultPromise: first } = invokeMitosis(input, agent);
+  await first;
+
+  const reconcileStylePark = JSON.stringify(parkDelta({
+    unitId: 'm0',
+    stage: 'plan',
+    diagnosis: 'm0 was invalidated by a divergent parent merge; its build is reset and it will rebuild from plan',
+    request: { kind: 'approve-decision', what: 'm0 invalidated by a divergent parent merge; rebuild required' },
+    remediation: null,
+    resumePoint: { branch: `${SOURCE_PREFIX}/m0-integration`, ref: TEST_BASE_BRANCH, stage: 'plan' },
+    triedSet: [],
+    dependents: [],
+  }));
+  fileMap.set(runJsonPath, `${fileMap.get(runJsonPath)}\n${reconcileStylePark}`);
+
+  const folded = foldRunManifest(fileMap.get(runJsonPath));
+  const m0 = folded.msps.find((m) => m.id === 'm0');
+  assert.deepEqual(m0.triedSet, [], 'the reconcile-style park replaced triedSet wholesale, which is exactly the erasure this guards against');
+  assert.ok(m0.ciAttempts.includes('ci-published:pr'), 'the attempt record is park-immune and still carries the published-head marker');
+
+  const before = labels.length;
+  const { resultPromise: second } = invokeMitosis(input, agent);
+  const secondResult = await second;
+  const relaunchLabels = labels.slice(before);
+
+  assert.deepEqual(ciLoopLabels(relaunchLabels), [], 'the relaunch spends STRICTLY ZERO further attempts even though triedSet was erased');
+  assert.equal(countPrefix(relaunchLabels, 'ship'), 0, 'and never re-ships the already-published head');
+  const guarded = secondResult.parked.find((p) => p.mspId === 'm0');
+  assert.equal(guarded.stage, 'ship', 'the zero-dispatch outcome came from the published-head guard');
+});
+
+test('CI-WRITEAHEAD-FATAL: an attempt whose durable record cannot be written is never dispatched, because an attempt a relaunch cannot see is an unbounded attempt', async () => {
+  let checkpointCalls = 0;
+  const base = createFakeAgent({
+    msps: ciMsps(),
+    shipResult: () => ciRedShip(),
+    ciLoop: { checkpoint: () => { checkpointCalls += 1; return checkpointCalls === 1 ? { written: false, detail: 'the journal could not be appended' } : { written: true, detail: '' }; } },
+  });
+  const { agent, labels } = ciCapture(base);
+  const { resultPromise } = invokeMitosis(buildInput(), agent);
+  const result = await resultPromise;
+
+  assert.deepEqual(ciLoopLabels(labels), [], 'the loop refuses to start rather than spend an attempt it could not record');
+  assert.equal(result.parked[0].request.kind, 'ci-red-exhausted');
+  assert.match(result.parked[0].request.what, /durably record/, 'the park names the durability failure that stopped it');
+  assert.ok(result.parked[0].triedSet.includes('ci-published:pr'),
+    'and the park note carries the published-head marker itself, because the write that would otherwise have carried it is the one that just failed');
+});
+
+test('CI-WRITEAHEAD-PER-ATTEMPT: the durability guard covers EVERY attempt, not only loop entry, so an attempt whose record fails later is never dispatched either', async () => {
+  let checkpointCalls = 0;
+  const base = createFakeAgent({
+    msps: ciMsps(),
+    shipResult: () => ciRedShip(),
+    ciLoop: {
+      checkpoint: () => { checkpointCalls += 1; return checkpointCalls === 2 ? { written: false, detail: 'the journal could not be appended' } : { written: true, detail: '' }; },
+      probe: () => ciRedShip({ failedChecks: ['test', 'test-post-probe'] }),
+    },
+  });
+  const { agent, labels } = ciCapture(base);
+  const { resultPromise } = invokeMitosis(buildInput(), agent);
+  const result = await resultPromise;
+
+  assert.equal(checkpointCalls >= 2, true, 'loop entry was recorded, and the FIRST attempt then tried to record itself');
+  assert.deepEqual(ciLoopLabels(labels), [], 'the attempt whose record failed is never dispatched, so it can never be an attempt a relaunch cannot see');
+  assert.equal(result.parked[0].request.kind, 'ci-red-exhausted');
+  assert.match(result.parked[0].request.what, /durably record a ci attempt/, 'the park names the per-attempt durability failure, distinctly from the loop-entry one');
 });

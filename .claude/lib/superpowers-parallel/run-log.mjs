@@ -1,5 +1,6 @@
 import { park } from './parking.mjs';
 import { parseRunManifest, applyShipTransition, applyBuiltTransition } from './recovery.mjs';
+import { isValidFingerprint } from './remediation.mjs';
 
 export function shipDelta({ mspId, prUrl, mergedAt, title, rationale }) {
   return { kind: 'ship', mspId, prUrl: prUrl ?? null, mergedAt: mergedAt ?? null, title: title ?? null, rationale: rationale ?? null };
@@ -20,6 +21,10 @@ export function parkDelta({ unitId, stage, diagnosis, request, remediation, resu
     resumePoint: resumePoint ?? null,
     triedSet: Array.isArray(triedSet) ? [...triedSet] : [],
   };
+}
+
+export function ciAttemptDelta({ unitId, fingerprint }) {
+  return { kind: 'ci-attempt', unitId, fingerprint: fingerprint ?? null };
 }
 
 export function quiescentExitDelta({ at, outstanding }) {
@@ -43,8 +48,28 @@ function applyRunDelta(manifest, record) {
       return manifest;
     }
   }
+  if (record.kind === 'ci-attempt') return applyCiAttemptTransition(manifest, record);
   if (record.kind === 'quiescent-exit') return isIsoInstant(record.at) ? { ...manifest, quiescentExitAt: record.at, quiescentExitOutstanding: record.outstanding === true } : manifest;
   return manifest;
+}
+
+function applyCiAttemptTransition(manifest, record) {
+  if (!isValidFingerprint(record.fingerprint)) return manifest;
+  if (!manifest || typeof manifest !== 'object' || !Array.isArray(manifest.msps)) return manifest;
+  if (!manifest.msps.some((m) => m && m.id === record.unitId)) return manifest;
+  return {
+    ...manifest,
+    msps: manifest.msps.map((m) => {
+      if (!m || m.id !== record.unitId) return m;
+      const priorTried = Array.isArray(m.triedSet) ? m.triedSet : [];
+      const priorAttempts = Array.isArray(m.ciAttempts) ? m.ciAttempts : [];
+      return {
+        ...m,
+        triedSet: priorTried.includes(record.fingerprint) ? [...priorTried] : [...priorTried, record.fingerprint],
+        ciAttempts: priorAttempts.includes(record.fingerprint) ? [...priorAttempts] : [...priorAttempts, record.fingerprint],
+      };
+    }),
+  };
 }
 
 export function foldRunManifest(raw) {

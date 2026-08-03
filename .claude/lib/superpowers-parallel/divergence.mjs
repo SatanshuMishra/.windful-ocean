@@ -3,6 +3,10 @@ import { transitiveDependents } from './parking.mjs';
 
 export const SHA_HEX_PATTERN = /^[0-9a-f]{7,64}$/i;
 
+function divergenceToken(value) {
+  return JSON.stringify(String(value).slice(0, 128)).replace(/[\p{Cc}\p{Cf}\p{Zl}\p{Zp}]/gu, ' ');
+}
+
 export function needKeyedParents(manifest, mergedIds) {
   const msps = manifest && typeof manifest === 'object' && !Array.isArray(manifest) && Array.isArray(manifest.msps) ? manifest.msps : [];
   const byId = new Map(msps.filter((m) => m && typeof m.id === 'string').map((m) => [m.id, m]));
@@ -19,7 +23,7 @@ export function needKeyedParents(manifest, mergedIds) {
 }
 
 export async function divergedParents(manifest, mergedIds, mergedShas, ctx) {
-  const { agent, logicalRunId, divergenceCheckPrompt, DIVERGENCE_CHECK_SCHEMA } = ctx && typeof ctx === 'object' ? ctx : {};
+  const { agent, log, logicalRunId, divergenceCheckPrompt, DIVERGENCE_CHECK_SCHEMA } = ctx && typeof ctx === 'object' ? ctx : {};
   const msps = manifest && typeof manifest === 'object' && !Array.isArray(manifest) && Array.isArray(manifest.msps) ? manifest.msps : [];
   const byId = new Map(msps.filter((m) => m && typeof m.id === 'string').map((m) => [m.id, m]));
   const shas = mergedShas && typeof mergedShas === 'object' && !Array.isArray(mergedShas) ? mergedShas : {};
@@ -37,6 +41,7 @@ export async function divergedParents(manifest, mergedIds, mergedShas, ctx) {
     try {
       ref = checkpointRef(logicalRunId, parentId);
     } catch {
+      if (typeof log === 'function') log(`mitosis: reconcile — no safe durable checkpoint ref could be derived for need-keyed merged parent ${divergenceToken(parentId)}, so it folds to diverged UNPROBED; this is a ref-derivation failure, not observed content divergence`);
       diverged.add(parentId);
       continue;
     }
@@ -55,12 +60,14 @@ export async function divergedParents(manifest, mergedIds, mergedShas, ctx) {
     const envelope = response && typeof response === 'object' && !Array.isArray(response) ? response : null;
     const results = envelope && Array.isArray(envelope.results) ? envelope.results : null;
     const batchFailed = results === null || (typeof envelope.error === 'string' && envelope.error.length > 0);
+    if (batchFailed && typeof log === 'function') log(`mitosis: reconcile — the whole divergence-check batch could not be confirmed; folding all ${targets.length} need-keyed merged parent(s) to diverged so their built descendants park, and continuing the run`);
     for (const target of targets) {
       if (batchFailed) { diverged.add(target.parentId); continue; }
       const matches = results.filter((e) => e && typeof e === 'object' && !Array.isArray(e) && e.parentId === target.parentId);
       if (matches.length !== 1) { diverged.add(target.parentId); continue; }
       const entry = matches[0];
       if (typeof entry.error === 'string' && entry.error.length > 0) { diverged.add(target.parentId); continue; }
+      if (entry.checkedBuiltSha !== target.builtSha || entry.checkedMergedSha !== target.mergedSha) { diverged.add(target.parentId); continue; }
       if (!Array.isArray(entry.changedPaths) || entry.changedPaths.length > 0) diverged.add(target.parentId);
     }
   }

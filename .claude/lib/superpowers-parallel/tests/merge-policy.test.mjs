@@ -3,6 +3,8 @@ import assert from 'node:assert/strict';
 import {
   MERGE_POLICY_HUMAN_GATED,
   AWAITING_UPSTREAM_KIND,
+  CI_RED_EXHAUSTED_KIND,
+  isCiRedExhausted,
   normalizeMergePolicy,
   awaitingApprovalOutcome,
   isBlockedPendingApproval,
@@ -70,6 +72,24 @@ test('an exhausted CI-to-green loop reports ci-red-exhausted and outranks the aw
   assert.equal(everythingElseShipped, 'ci-red-exhausted', 'an exhausted CI loop is never reported as all-shipped');
 });
 
+test('a genuine fault OUTRANKS an exhausted CI loop, because an exhausted loop is an expected bounded outcome and a crash or halt is not', () => {
+  assert.equal(
+    computeMergePolicyStatus({ shippedCount: 0, awaitingApprovalCount: 0, blockedPendingApprovalCount: 0, genuineParkedCount: 0, haltedCount: 0, crashedCount: 1, ciRedExhaustedCount: 1, total: 3 }),
+    'blocked',
+    'a crash elsewhere in the run must not be masked by the headline status of a unit whose CI loop gave up as designed',
+  );
+  assert.equal(
+    computeMergePolicyStatus({ shippedCount: 0, awaitingApprovalCount: 0, blockedPendingApprovalCount: 0, genuineParkedCount: 0, haltedCount: 1, crashedCount: 0, ciRedExhaustedCount: 1, total: 3 }),
+    'blocked',
+    'and neither is a halt',
+  );
+  assert.equal(
+    computeMergePolicyStatus({ shippedCount: 0, awaitingApprovalCount: 0, blockedPendingApprovalCount: 0, genuineParkedCount: 1, haltedCount: 0, crashedCount: 0, ciRedExhaustedCount: 1, total: 3 }),
+    'blocked',
+    'nor a genuine park for another reason',
+  );
+});
+
 test('partial survives only as the residual: no fault, no exhausted CI loop, nothing awaiting, and not every MSP accounted for', () => {
   const status = computeMergePolicyStatus({ shippedCount: 1, awaitingApprovalCount: 0, blockedPendingApprovalCount: 0, genuineParkedCount: 0, haltedCount: 0, crashedCount: 0, ciRedExhaustedCount: 0, total: 3 });
   assert.equal(status, 'partial');
@@ -108,4 +128,22 @@ test('a genuine fault-park cannot spoof the sentinel kind to fake healthy: forge
   assert.equal(status, 'blocked');
   const statusNoShip = computeMergePolicyStatus({ shippedCount: 0, awaitingApprovalCount: 1, blockedPendingApprovalCount, genuineParkedCount, haltedCount: 0, crashedCount: 0, total: 2 });
   assert.equal(statusNoShip, 'blocked');
+});
+
+test('isCiRedExhausted requires the engine-controlled stage ship in addition to the sentinel kind, so a decomposer-supplied request.kind cannot forge an exhausted CI loop', () => {
+  assert.equal(isCiRedExhausted({ stage: 'ship', request: { kind: CI_RED_EXHAUSTED_KIND } }), true);
+  assert.equal(isCiRedExhausted({ stage: 'plan', request: { kind: CI_RED_EXHAUSTED_KIND } }), false);
+  assert.equal(isCiRedExhausted({ stage: 'blocked', request: { kind: CI_RED_EXHAUSTED_KIND } }), false);
+  assert.equal(isCiRedExhausted({ stage: 'ship', request: { kind: 'approve-decision' } }), false);
+  assert.equal(isCiRedExhausted({ stage: 'ship', request: null }), false);
+  assert.equal(isCiRedExhausted(null), false);
+});
+
+test('a park at a stage the CI loop never runs at cannot spoof the ci-red-exhausted sentinel into outranking the real blocked reading', () => {
+  const forged = [{ stage: 'execute', request: { kind: CI_RED_EXHAUSTED_KIND } }];
+  const ciRedExhaustedCount = forged.filter(isCiRedExhausted).length;
+  assert.equal(ciRedExhaustedCount, 0);
+  const status = computeMergePolicyStatus({ shippedCount: 0, ciRedExhaustedCount, genuineParkedCount: forged.length, haltedCount: 0, crashedCount: 0, total: 1 });
+  assert.notEqual(status, 'ci-red-exhausted');
+  assert.equal(status, 'blocked');
 });

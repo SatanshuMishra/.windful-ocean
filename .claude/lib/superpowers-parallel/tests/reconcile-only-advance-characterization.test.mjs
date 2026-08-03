@@ -191,7 +191,7 @@ function shepherdAgent({ reconcileResult, shipResult, mergeWatch, probeResult, p
       return {
         results: targets.map((target) => {
           const probe = probeResult ? probeResult(target.parentId) : { paths: [], error: null };
-          return { parentId: target.parentId, changedPaths: probe.paths, error: probe.error };
+          return { parentId: target.parentId, changedPaths: probe.paths, checkedBuiltSha: target.builtSha, checkedMergedSha: target.mergedSha, error: probe.error };
         }),
         error: null,
       };

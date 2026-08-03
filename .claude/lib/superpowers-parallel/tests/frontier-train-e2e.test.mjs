@@ -256,11 +256,31 @@ function divergenceTargetsFromPrompt(prompt) {
   }
 }
 
+function assertObjectSatisfies(value, schema, where) {
+  assert.ok(schema && typeof schema === 'object', `${where}: the engine handed the dispatch no schema to conform to`);
+  const properties = schema.properties || {};
+  for (const key of Object.keys(value)) {
+    assert.ok(
+      Object.prototype.hasOwnProperty.call(properties, key),
+      `${where}: the response carries "${key}", which the schema does not declare; under additionalProperties:false the real agent boundary would REJECT this conforming response`,
+    );
+  }
+  for (const key of schema.required || []) {
+    assert.ok(Object.prototype.hasOwnProperty.call(value, key), `${where}: the schema requires "${key}" and the response omits it`);
+  }
+}
+
+function assertDivergenceResponseFitsSchema(response, schema) {
+  assertObjectSatisfies(response, schema, 'divergence-check response');
+  const items = schema.properties && schema.properties.results ? schema.properties.results.items : null;
+  for (const entry of response.results) assertObjectSatisfies(entry, items, 'divergence-check results entry');
+}
+
 function divergenceCheckResponse(prompt, probeResult) {
   return {
     results: divergenceTargetsFromPrompt(prompt).map((target) => {
       const probe = probeResult ? probeResult(target.parentId) : { paths: [], error: null };
-      return { parentId: target.parentId, changedPaths: probe.paths, error: probe.error };
+      return { parentId: target.parentId, changedPaths: probe.paths, checkedBuiltSha: target.builtSha, checkedMergedSha: target.mergedSha, error: probe.error };
     }),
     error: null,
   };
@@ -291,7 +311,11 @@ function shepherdAgent({ reconcileResult, shipResult, mergeWatch, probeResult } 
         detail: 'fixture: published the run-identity manifest and read it back verbatim',
       };
     }
-    if (prefix === 'divergence-check') return divergenceCheckResponse(prompt, probeResult);
+    if (prefix === 'divergence-check') {
+      const response = divergenceCheckResponse(prompt, probeResult);
+      assertDivergenceResponseFitsSchema(response, opts.schema);
+      return response;
+    }
     if (prefix === 'prepare-probe') return { baseRefResolved: true, baseRefDetail: null, receiptsConfigFound: true, receiptsConfigRaw: '{"gates":{"G10":{"mode":"warn"}}}', receiptsYmlFound: true, d6CheckFound: true, templateConfigRaw: null, templateYmlRaw: null };
     if (prefix === 'prepare-write') return { written: [], skipped: [], detail: '' };
     if (prefix === 'restore') return { restored: true, sha: '', detail: '' };
@@ -742,22 +766,29 @@ test('robustness fix 4: a non-Error throw from the divergence-check dispatch deg
   const msps = [
     manifestMsp('px', { status: 'shipped', builtSha: 'a'.repeat(40), prUrl: 'https://example.test/pr/px', mergedAt: '2026-07-10T00:00:00Z' }),
     manifestMsp('cx', { status: 'built', builtSha: hexSha('cx'), dependsOn: ['px'] }),
+    manifestMsp('py', { status: 'shipped', builtSha: 'c'.repeat(40), prUrl: 'https://example.test/pr/py', mergedAt: '2026-07-10T00:00:00Z' }),
+    manifestMsp('cy', { status: 'built', builtSha: hexSha('cy'), dependsOn: ['py'] }),
   ];
   const reconcileResult = {
     manifestFound: true,
     manifestRaw: frontierManifest({ msps, window: 3 }),
     specContentHash: SPEC_CONTENT_HASH,
-    mergedPRs: [mergedPr('px', { mergedSha: 'b'.repeat(40) })],
+    mergedPRs: [mergedPr('px', { mergedSha: 'b'.repeat(40) }), mergedPr('py', { mergedSha: 'd'.repeat(40) })],
     openPRs: [],
-    checkpointRefPages: checkpointPages(['cx']),
+    checkpointRefPages: checkpointPages(['cx', 'cy']),
   };
   const probeResult = () => { throw { nonError: true }; };
   const { agent, labels } = multiRelaunchCapturingAgent({ reconcileResult, probeResult });
-  const { resultPromise } = invoke(runOn, buildInput(), agent);
+  const { resultPromise, logLines } = invoke(runOn, buildInput(), agent);
   await resultPromise;
 
   assert.ok(labels.includes('divergence-check'), 'the dispatch is attempted');
   assert.ok(labels.includes('park-checkpoint:cx'), 'the need-keyed parent fail-closes to a durable reset+park of its built descendant when the check dispatch throws a value carrying no message');
+  assert.ok(labels.includes('park-checkpoint:cy'), 'and so does the SECOND need-keyed parent, which is what makes the count in the operator line discriminating');
+  assert.ok(
+    logLines.some((l) => /whole divergence-check batch/i.test(l) && /\b2\b/.test(l)),
+    'a whole-batch fold names itself and its REAL target count in one operator line, so N targets folding together is distinguishable from N genuine content divergences',
+  );
 });
 
 function spoofFixture(craftedRow) {
