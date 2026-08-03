@@ -43,10 +43,11 @@
       "The argv enumeration's stage axis is a hand-typed local list. An existing verb carrying a branch at an unlisted stage that returns a computed merge argv passes all 232 tests. Named residual per 0225, deliberately left open.",
       "An unauthorized table-driven refactor of production mitosis-git.mjs appeared in the working tree mid-session and was reverted per 0225. Its patch sits in the session scratchpad and is EPHEMERAL - deliberately declined work, so losing it is intended.",
       "The five out-of-scope dirty paths are STILL uncommitted and must stay out of every future commit: .claude/settings.json, .zshrc, engine-args.mjs.bak-pre-promptsfix-043a2526, .claude/skills/context7-mcp/, mitosis.js.bak-pre-promptsfix-043a2526.",
-      "Local checkout is still on fix/delete-merge-boundary-preflight, which is now merged. Re-derive from origin/main (da0cefd) before starting new work rather than branching off the stale local ref.",
+      "Checkout is now on main at da0cefd, tracking origin/main; fix/delete-merge-boundary-preflight is deleted locally and on origin (tip was 1170d5b, restorable from the reflog or the PR #38 page). Branch from main.",
       "Never compare raw suite totals: 1762 tracked plus 9 from the GITIGNORED .claude/hooks/tests/session-config-drift-check.test.mjs equals the 1771 baseline. Reconcile per file. A prior session raised a false regression alarm on this.",
       "pr-create BLOCKS when a body value carries a literal merge command or REST merge-endpoint string as prose - the gate cannot tell describing from running. Rephrase any prose that names merge tooling.",
-      "The invariant-coverage checker never verifies WHICH coverage file changed (invariant-coverage-check.mjs:161-179), so a future change can still satisfy the gate by touching a historical entry. Repaired by hand in #38 per 0226, not closed."
+      "The invariant-coverage checker never verifies WHICH coverage file changed (invariant-coverage-check.mjs:161-179), so a future change can still satisfy the gate by touching a historical entry. Repaired by hand in #38 per 0226, not closed.",
+      "Branch sprawl: ~40 local branches survive, several tracking already-merged or long-stale remotes, plus 5 live worktrees under .claude/worktrees. Not audited or pruned this session; two are marked behind origin/main by 26-27 commits."
     ],
     "key_decisions": [
       "0136-defer-track-a-until-mitosis-msps-land",
@@ -163,5 +164,5 @@
     ]
   },
   "created_at": "2026-07-29T23:40:17.901Z",
-  "updated_at": "2026-08-03T19:30:00.772Z"
+  "updated_at": "2026-08-03T19:33:17.355Z"
 }
