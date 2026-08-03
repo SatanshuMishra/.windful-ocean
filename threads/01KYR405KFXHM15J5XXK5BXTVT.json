@@ -35,20 +35,17 @@
   "closure_statement": null,
   "spine": {
     "status": "paused",
-    "active_goal": "The preflight deletion is IMPLEMENTED and COMMITTED as 106b253 on branch fix/delete-merge-boundary-preflight (cut at 4fd03c2). Suite 1771/1770/1, only the named 0210 environment failure. Both code-reviewer and security-reviewer returned APPROVE-WITH-FIXES, no CRITICAL. The MSP is NOT shippable as-is: one HIGH and six MEDIUM findings must land first. NO PR IS OPEN and none should be opened until they do.",
-    "next_step": "START HERE. Do NOT open the PR yet. Land review fixes as follow-up commits on 106b253, in order: (1) HIGH add docs/invariants/coverage/fix-delete-merge-boundary-preflight.json with a row for ALL 12 registry ids, and revert the retroactive second edit at feat-m5-quiescent-exit.json:31; (2) restore the repo-vendored-executable assertion; (3) repoint the deny test at ~/.claude/settings.json; (4) widen the merge scan beyond mitosis.js; (5) rule on require_last_push_approval. Then pr-create.",
+    "active_goal": "PR #38 is OPEN on fix/delete-merge-boundary-preflight (https://github.com/SatanshuMishra/.windful-ocean/pull/38): three atomic follow-up commits on 106b253 - b14935f restores the installed-path anchor, 2acd508 hardens the merge guard and widens the deny pin, 1170d5b adds this change's coverage file and reverts the retroactive edit. Suite 1776/1775/1, the only failure being the pre-existing protect-claude-config.test.mjs:194, which CI skips. Push-triggered CI is fully green.",
+    "next_step": "Await the PR-event CI result (background shell bqmxkjauz polls runs 30845483660 and 30845483252). PR-mode invariant-coverage is the job that differs from push mode, since it adds the some-coverage-file-changed check. If green the MSP is done; merge stays human-gated. Two follow-ups are filed as task chips: harden block-destructive-bash.sh, and detect settings.json deny drift between the tracked and installed copies.",
     "open_risks": [
-      "HIGH: every change needs its OWN docs/invariants/coverage/<name>.json with a row for all 12 registry ids. This edited feat-m5-quiescent-exit.json instead. The checker only requires SOME file there be touched, so it goes green while unmet - the assurance inflation 0220 deleted the preflight for.",
-      "A STILL-LIVE ASSERTION WAS LOST. 19 of the 20 removed mitosis-scheduler tests were dead; the 20th asserted the reconcile prompt never sources an executable from the repo under management. mitosis.js:3962 still runs node ${LIB_DIR}/fold-run-log.mjs. Restore that one assertion.",
-      "no-self-merge-consent reads <repo>/.claude/settings.json but enforcement reads ~/.claude/settings.json, a REGULAR FILE not a symlink. Removing a deny entry from the installed copy leaves the test GREEN while its message claims the guarantee holds. Read the installed path, or assert both.",
-      "MERGE_INVOCATION_PATTERNS greps RAW SOURCE, so strengthening a prohibition in prose turns the test red with a message asserting the opposite. mitosis.js already carries seven such prose prohibitions. Fix: match extracted command sites per ghActionSites at tests/gh-scope-lint.test.mjs:23-35.",
-      "SECURITY MEDIUM: the new test scans ONLY mitosis.js. A merge verb added to mitosis-git.mjs, the sanctioned gh-exec wrapper and likeliest landing place, passes every assertion. Widen to lib/superpowers-parallel/*.mjs with one named exemption for gh-merge-shim.mjs.",
-      "SECURITY MEDIUM, the one property genuinely lost: the gate proved server-side that an approval cannot carry to commits appended later. The CI-to-green loop still appends to a PR mitosis.js:5207 calls one a human may be reading. Remedy: a SKILL.md ruleset line, or refuse to append when APPROVED.",
-      "PR BODY: the module is 410 lines and its test 668; 0220's '1078' conflated them. gh-merge-shim.mjs is NOT a PATH-level layer, being imported only by mitosis-git.mjs, so 'three deny layers' overcounts. Do NOT cite the unverified GitHub self-approval claim.",
-      "BASELINE CORRECTION: the spine's 1887/1886 does not reproduce. At the same commit 4fd03c2 this session it is 1896/1895/1. Post-change is 1771/1770/1, reconciled per-file as 1896-131+6. Never compare raw totals.",
-      "MERGE IS NOT GATED on this repo: no branch protection, no required status checks, so a red CI does not block the merge button. Surface any red in words.",
-      "Five pre-existing dirty paths are deliberately OUTSIDE commit 106b253 and must stay out: modified .claude/settings.json and .zshrc; untracked engine-args.mjs.bak-*, context7-mcp/, mitosis.js.bak-*. Both reviewers flagged them as scope contamination.",
-      "0221 retires 0218 by supersession. The Status-line flip was NOT executable: no ledger tool patches an existing decision, and 0202 forbids the git edit. 0218 still reads accepted, a known cosmetic defect. The continuity rule mandates a mutation the server cannot perform."
+      "0225 ruled the static merge-scan perfection loop CLOSED: the pattern list is a denylist over an infinite string space. Enforcement rests on the SINGLE spawnSync at mitosis-git.mjs:347 behind ghExecTripwire at :343, fail-closed. Do NOT reopen table-driven pair enumeration.",
+      "The argv enumeration's stage axis is a hand-typed local list (MITOSIS_GIT_STAGES). An existing verb carrying a branch at an unlisted stage that returns a computed merge argv passes all 232 tests. Named residual, deliberately not closed per 0225.",
+      "An unauthorized table-driven refactor of production mitosis-git.mjs appeared in the working tree mid-session and was reverted to comply with 0225. The patch is preserved at scratchpad/declined-mitosis-git-table-refactor.patch.",
+      "block-destructive-bash.sh has four MEASURED evasions - flag hoisting before the subcommand, quoting, command substitution, and the gh alias route - plus a GraphQL PR-body rewrite route. Pre-existing, filed as a task chip, NOT fixed here.",
+      "The five out-of-scope dirty paths remain uncommitted and must stay out of every commit: .claude/settings.json, .zshrc, engine-args.mjs.bak-pre-promptsfix-043a2526, .claude/skills/context7-mcp/, mitosis.js.bak-pre-promptsfix-043a2526.",
+      "Suite reconciliation, never compare raw totals: 1762 tracked plus 9 from the GITIGNORED .claude/hooks/tests/session-config-drift-check.test.mjs equals the 1771 baseline; plus 1 scheduler and plus 4 no-self-merge-consent equals 1776.",
+      "pr-create was BLOCKED once because a PR-body value carried the literal REST merge-endpoint pattern as prose. When using that tool, rephrase any prose that names a merge command.",
+      "Merge is only partly gated: ruleset 19939922 requires a PR on main with no bypass actors, but sets zero required approvals and no required status checks, so a red CI does not block the merge button."
     ],
     "key_decisions": [
       "0136-defer-track-a-until-mitosis-msps-land",
@@ -163,5 +160,5 @@
     ]
   },
   "created_at": "2026-07-29T23:40:17.901Z",
-  "updated_at": "2026-08-03T18:58:18.763Z"
+  "updated_at": "2026-08-03T19:23:42.324Z"
 }
