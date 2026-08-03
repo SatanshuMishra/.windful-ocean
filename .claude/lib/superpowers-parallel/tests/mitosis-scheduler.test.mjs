@@ -4735,10 +4735,10 @@ test('CI-CAP-ONE-RUN: at most three ci attempts are ever dispatched for one publ
     msps: ciMsps(),
     shipResult: () => ciRedShip(),
     ciLoop: {
-      probe: () => ciRedShip({ failedChecks: ['test', 'probe-differentiator'] }),
+      probe: () => ciRedShip({ failedChecks: ['test', 'test-probe-differentiator'] }),
       publish: () => {
         publishes += 1;
-        return ciRedShip({ failedChecks: ['test', `distinct-failure-${publishes}`] });
+        return ciRedShip({ failedChecks: ['test', `test-distinct-failure-${publishes}`] });
       },
     },
   });
@@ -4759,8 +4759,8 @@ test('CI-SAME-FAILURE: a failure that recurs IDENTICALLY bars a further fix and 
     msps: ciMsps(),
     shipResult: () => ciRedShip(),
     ciLoop: {
-      probe: () => ciRedShip({ failedChecks: ['test', 'stable'] }),
-      publish: () => ciRedShip({ failedChecks: ['test', 'stable'] }),
+      probe: () => ciRedShip({ failedChecks: ['test', 'test-stable'] }),
+      publish: () => ciRedShip({ failedChecks: ['test', 'test-stable'] }),
     },
   });
   const { agent, labels } = ciCapture(base);
@@ -4779,8 +4779,8 @@ test('CI-FLAKE-PROBE: the no-code-change rerun happens at most once per publishe
     msps: ciMsps(),
     shipResult: () => ciRedShip(),
     ciLoop: {
-      probe: () => ciRedShip({ failedChecks: ['test', 'post-probe'] }),
-      publish: () => ciRedShip({ failedChecks: ['test', 'stable-after-fix'] }),
+      probe: () => ciRedShip({ failedChecks: ['test', 'test-post-probe'] }),
+      publish: () => ciRedShip({ failedChecks: ['test', 'test-stable-after-fix'] }),
     },
   });
   const { agent, labels, prompts } = ciCapture(base);
@@ -4804,7 +4804,7 @@ test('CI-UNREADABLE-PROPOSAL: a fix proposal that returns null, or throws, escal
     const base = createFakeAgent({
       msps: ciMsps(),
       shipResult: () => ciRedShip(),
-      ciLoop: { probe: () => ciRedShip({ failedChecks: ['test', 'post-probe'] }), propose },
+      ciLoop: { probe: () => ciRedShip({ failedChecks: ['test', 'test-post-probe'] }), propose },
     });
     const { agent, labels } = ciCapture(base);
     const { resultPromise } = invokeMitosis(buildInput(), agent);
@@ -4827,7 +4827,7 @@ test('CI-DIFF-MISMATCH: the independent verifier must prove it diffed the engine
     const base = createFakeAgent({
       msps: ciMsps(),
       shipResult: () => ciRedShip(),
-      ciLoop: { probe: () => ciRedShip({ failedChecks: ['test', 'post-probe'] }), diff },
+      ciLoop: { probe: () => ciRedShip({ failedChecks: ['test', 'test-post-probe'] }), diff },
     });
     const { agent, labels } = ciCapture(base);
     const { resultPromise } = invokeMitosis(buildInput(), agent);
@@ -4843,7 +4843,7 @@ test('CI-APPEND-ONLY: the loop publish prompt advances a PUBLISHED head append-o
   const base = createFakeAgent({
     msps: ciMsps(),
     shipResult: () => ciRedShip(),
-    ciLoop: { probe: () => ciRedShip({ failedChecks: ['test', 'post-probe'] }) },
+    ciLoop: { probe: () => ciRedShip({ failedChecks: ['test', 'test-post-probe'] }) },
   });
   const { agent, prompts } = ciCapture(base);
   const { resultPromise } = invokeMitosis(buildInput(), agent);
@@ -4864,8 +4864,8 @@ test('CI-EXHAUST-REPORT: an exhausted loop leaves the PR open with red CI visibl
     msps: ciMsps(),
     shipResult: () => ciRedShip(),
     ciLoop: {
-      probe: () => ciRedShip({ failedChecks: ['test', 'p'] }),
-      publish: () => { publishes += 1; return ciRedShip({ failedChecks: ['test', `f${publishes}`] }); },
+      probe: () => ciRedShip({ failedChecks: ['test', 'test-p'] }),
+      publish: () => { publishes += 1; return ciRedShip({ failedChecks: ['test', `test-f${publishes}`] }); },
     },
   });
   const { agent } = ciCapture(base);
@@ -4889,7 +4889,7 @@ test('CI-GREEN-AFTER-FIX: a fix that turns CI green routes to the EXISTING await
   const base = createFakeAgent({
     msps: ciMsps(),
     shipResult: () => ciRedShip(),
-    ciLoop: { probe: () => ciRedShip({ failedChecks: ['test', 'post-probe'] }), publish: () => ciGreenShip() },
+    ciLoop: { probe: () => ciRedShip({ failedChecks: ['test', 'test-post-probe'] }), publish: () => ciGreenShip() },
   });
   const { agent, labels } = ciCapture(base);
   const { resultPromise } = invokeMitosis(buildInput(), agent);
@@ -4924,8 +4924,8 @@ test('CI-CAP-PERSIST: the attempt cap SURVIVES a relaunch - a unit whose head is
     repoRoot: input.repoRoot,
     shipResult: () => ciRedShip(),
     ciLoop: {
-      probe: () => ciRedShip({ failedChecks: ['test', 'p'] }),
-      publish: () => { publishes += 1; return ciRedShip({ failedChecks: ['test', `f${publishes}`] }); },
+      probe: () => ciRedShip({ failedChecks: ['test', 'test-p'] }),
+      publish: () => { publishes += 1; return ciRedShip({ failedChecks: ['test', `test-f${publishes}`] }); },
     },
   });
   const { agent, labels } = ciCapture(durable);
@@ -4963,7 +4963,7 @@ test('CI-CAP-CRASH: a run INTERRUPTED mid-loop leaves the unit unparked, yet the
     shipResult: () => ciRedShip(),
     ciLoop: {
       probe: () => {
-        if (crashed) return ciRedShip({ failedChecks: ['test', 'p'] });
+        if (crashed) return ciRedShip({ failedChecks: ['test', 'test-p'] });
         crashed = true;
         throw new Error('the run was interrupted mid-loop');
       },

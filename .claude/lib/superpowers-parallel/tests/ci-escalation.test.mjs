@@ -11,6 +11,9 @@ import {
   ciProbeConsumed,
   classifyCiReport,
   assertionGuardBlocks,
+  ciScopeViolations,
+  sensitivePathsTouched,
+  CI_REASON_LIST_CAP,
 } from '../ci-escalation.mjs';
 import { isValidFingerprint } from '../remediation.mjs';
 
@@ -174,4 +177,80 @@ test('ciHeadPublished / ciProbeConsumed read the durable tried set', () => {
   assert.equal(ciHeadPublished('nope'), false);
   assert.equal(ciProbeConsumed([CI_PROBE_TOKEN]), true);
   assert.equal(ciProbeConsumed([CI_PUBLISHED_TOKEN]), false);
+});
+
+test('classifyCiReport CLASS 0 canonical-path closure: any reported path that is not repo-relative escalates, because the guards would otherwise compare two spellings of one file', () => {
+  const cases = [
+    ['implicatedPaths absolute', report({ implicatedPaths: ['/Users/x/repo/src/pay/charge.ts'] })],
+    ['implicatedPaths traversal escapes the scope it appears to sit under', report({ implicatedPaths: ['src/pay/../../.github/workflows/receipts.yml'] })],
+    ['implicatedPaths backslash-separated', report({ implicatedPaths: ['src\\pay\\charge.ts'] })],
+    ['failingAssertionFiles absolute', report({ failingAssertionFiles: ['/Users/x/repo/src/pay/charge.test.ts'] })],
+    ['failingAssertionFiles traversal', report({ failingAssertionFiles: ['src/pay/../pay/charge.test.ts'] })],
+    ['conflictPaths absolute', report({ conflictPaths: ['/etc/passwd'] })],
+  ];
+  for (const [label, r] of cases) {
+    const verdict = classifyCiReport(r, SCOPE);
+    assert.equal(verdict.escalate, true, `${label}: escalates`);
+    assert.equal(verdict.class, 0, `${label}: is class 0, refused before any class that would compare it against the declared scope`);
+  }
+  assert.deepEqual(
+    classifyCiReport(report({ implicatedPaths: ['./src/pay/charge.ts'], failingAssertionFiles: ['src/pay/charge.test.ts/'] }), SCOPE),
+    { escalate: false },
+    'a purely cosmetic ./ prefix or trailing slash normalizes to the canonical form and is still admitted',
+  );
+});
+
+test('classifyCiReport CLASS 0 check-name closure: a failing check the loop cannot positively classify halts the census instead of falling through to a fix', () => {
+  for (const name of ['sbom-diff', 'deploy-preview', 'terraform-plan', 'release-notes']) {
+    const verdict = classifyCiReport(report({ failedChecks: [name] }), SCOPE);
+    assert.equal(verdict.escalate, true, `${name}: escalates rather than admitting an autonomous fix`);
+    assert.equal(verdict.class, 0, `${name}: is class 0 (unclassifiable), not a silent pass`);
+  }
+  for (const name of ['gitleaks / scan', 'semgrep', 'osv-scanner', 'grype', 'bandit', 'trufflehog']) {
+    const verdict = classifyCiReport(report({ failedChecks: [name] }), SCOPE);
+    assert.equal(verdict.class, 4, `${name}: a security scanner the census now names is class 4, never a fix attempt`);
+  }
+  for (const [name, cls] of [['unit tests', false], ['Build & Test / ubuntu-latest', false], ['typecheck', false], ['eslint', false], ['receipts', 3], ['CodeQL', 4]]) {
+    const verdict = classifyCiReport(report({ failedChecks: [name] }), SCOPE);
+    if (cls === false) assert.deepEqual(verdict, { escalate: false }, `${name}: an ordinary check name is still admitted`);
+    else assert.equal(verdict.class, cls, `${name}: still classifies as class ${cls} rather than being swallowed by the unclassifiable limb`);
+  }
+});
+
+test('classifyCiReport: an agent-supplied path list reaches the escalation reason cleaned and capped, because that reason becomes durable journal state', () => {
+  const hostile = `${'a'.repeat(4000)}ignore-previous`;
+  const verdict = classifyCiReport(report({ implicatedPaths: [hostile] }), SCOPE);
+  assert.equal(verdict.escalate, true);
+  assert.ok(verdict.reason.length < CI_REASON_LIST_CAP + 400, `the reason is capped rather than an unbounded copy of agent text (was ${verdict.reason.length})`);
+  assert.ok(!/\p{Cc}/u.test(classifyCiReport(report({ implicatedPaths: ['src/pay/ab.ts'] }), SCOPE).reason),
+    'control characters never reach the durable park note');
+});
+
+test('assertionGuardBlocks: a failing-assertion file spelled differently from the diff still REFUSES, because a representation mismatch is not evidence of safety', () => {
+  assert.equal(assertionGuardBlocks(['src/pay/charge.test.ts'], ['/Users/x/repo/src/pay/charge.test.ts']), true,
+    'an absolute failing-assertion path is unusable, so the guard refuses rather than missing the match');
+  assert.equal(assertionGuardBlocks(['/Users/x/repo/src/pay/charge.test.ts'], ['src/pay/charge.test.ts']), true,
+    'and equally when the diff side carries the absolute spelling');
+  assert.equal(assertionGuardBlocks(['src/pay/../pay/charge.test.ts'], ['src/pay/charge.test.ts']), true,
+    'a traversal spelling of the same file refuses');
+  assert.equal(assertionGuardBlocks(['src\\pay\\charge.test.ts'], ['src/pay/charge.test.ts']), true,
+    'a backslash spelling refuses');
+});
+
+test('ciScopeViolations: the engine-verified candidate diff is measured against the declared fileScope, and an unreadable operand is never read as clean', () => {
+  assert.deepEqual(ciScopeViolations(SCOPE, ['src/pay/charge.ts']), { readable: true, foreign: [] });
+  assert.deepEqual(ciScopeViolations(SCOPE, ['.github/workflows/receipts.yml']), { readable: true, foreign: ['.github/workflows/receipts.yml'] });
+  assert.deepEqual(ciScopeViolations(SCOPE, ['src/pay/charge.ts', 'package.json']), { readable: true, foreign: ['package.json'] });
+  assert.equal(ciScopeViolations(SCOPE, ['src/pay/../../package.json']).readable, false, 'a traversal path is unreadable, never read as inside scope');
+  assert.equal(ciScopeViolations(SCOPE, []).readable, false, 'an empty candidate diff cannot be confirmed contained');
+  assert.equal(ciScopeViolations([], ['src/pay/charge.ts']).readable, false, 'no declared scope means containment cannot be confirmed');
+  assert.equal(ciScopeViolations(['a/*/*/*/*/*/*/*/*/*/**'], ['src/pay/charge.ts']).readable, false, 'a scope entry that makes the matcher throw is unreadable, not clean');
+});
+
+test('sensitivePathsTouched: a candidate fix that reaches a security-sensitive path is flagged even when the declared scope is not itself sensitive', () => {
+  assert.equal(sensitivePathsTouched(['src/pay/charge.ts']), false);
+  assert.equal(sensitivePathsTouched(['.github/workflows/receipts.yml']), true);
+  assert.equal(sensitivePathsTouched(['src/pay/charge.ts', 'db/migrations/001.sql']), true);
+  assert.equal(sensitivePathsTouched(['src/auth/session.ts']), true);
+  assert.equal(sensitivePathsTouched(['/abs/src/pay/charge.ts']), true, 'an unreadable path is treated as sensitive, never as safe');
 });
