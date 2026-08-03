@@ -11,7 +11,6 @@ You are the orchestrator's THIN entry point. Mitosis runs as a top-level Dynamic
 
 1. Workflows must be enabled. If `CLAUDE_CODE_DISABLE_WORKFLOWS=1` (or workflows are otherwise disabled), STOP and tell the user: mitosis requires the Workflow engine; re-enable it and retry. Do NOT fall back to running the loop inline.
 2. There must be an APPROVED spec or batch of work. If not approved, route to brainstorming/spec first.
-3. The server-side merge boundary MUST be proven — see the `Prove the merge boundary` section below, which runs AFTER the branch contract is resolved because it gates on the resolved `baseBranch`.
 
 ## Collect inputs (in MAIN, before dispatch)
 
@@ -30,25 +29,7 @@ explicit pass -> declared machine-readable config -> STOP AND ASK the user.
 NEVER derive the base from the platform default branch; NEVER assume the source.
 Set `baseBranch` (resolved base) and `sourcePrefix` (resolved source-branch prefix) from this.
 
-## Prove the merge boundary (AFTER the branch contract, BEFORE dispatch)
-
-The server-side merge boundary MUST be proven in real process space before the Workflow call. Run EXACTLY this, substituting the values you just resolved:
-
-    MITOSIS_BOUNDARY_ORG=<owner of the target repo> MITOSIS_BOUNDARY_REPO=<name of the target repo> MITOSIS_BOUNDARY_BASE_BRANCH=<the resolved baseBranch> MITOSIS_BOUNDARY_MACHINE_USER=<the machine-user handle> node /Users/satanshumishra/.claude/lib/superpowers-parallel/merge-boundary-preflight.mjs
-
-The MAIN thread runs this itself. NEVER delegate it to a subagent — its exit code is the authoritative gate.
-
-The gate binary path above is ABSOLUTE and fixed. NEVER resolve it relative to `repoRoot`, and never run a copy that lives inside the repository being merged into: that would let the repository under management supply the script that authorizes merges into it.
-
-Set the four variables INLINE on that command, from the contract you just resolved — never rely on values exported ambiently in a shell, which go stale across repositories and branches and would prove a boundary that is not this run's. `MITOSIS_BOUNDARY_ORG` and `MITOSIS_BOUNDARY_REPO` are the owner and name of the target repository (`repoRoot`'s remote), and `MITOSIS_BOUNDARY_BASE_BRANCH` is the resolved `baseBranch` verbatim. `MITOSIS_BOUNDARY_MACHINE_USER` is the non-secret handle of the account whose credential the run pushes with: take it from `MITOSIS_BOUNDARY_MACHINE_USER` in the environment if the operator exports it in their shell profile, otherwise STOP AND ASK the user for the handle, exactly as the branch contract does. Do NOT invent another config mechanism, and never guess the handle. If any value is unset or invalid the preflight exits 31 and mitosis STOPS.
-
-Exit 0 means every gated invariant was positively proven. ANY non-zero exit means the server-side merge boundary is NOT in place: the Workflow MUST NOT be dispatched — report the preflight's stderr to the user and STOP.
-
-The engine re-runs this same command from this same absolute path during reconcile, and compares the repository, base branch, and invocation path the re-run attests against the ones this run actually merges into. That second read is defense-in-depth corroboration reported by a subagent, NOT the authoritative gate; this section is.
-
 ## Dispatch notice, then dispatch ONCE
-
-Dispatch ONLY if the merge-boundary preflight exited 0. On any non-zero exit, stop here and dispatch nothing.
 
 Print a one-line notice: mitosis will run as a background workflow that may spawn many agents (multi-agent ~15x chat tokens; engine capped 16 concurrent / 1000 total). Then make exactly ONE call:
 
