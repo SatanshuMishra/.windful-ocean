@@ -1831,6 +1831,24 @@ const SHIP_SCHEMA = {
     receiptsPass: { type: 'boolean' },
     d6Pass: { type: 'boolean' },
     detail: { type: 'string' },
+    ciRed: { type: 'boolean' },
+    ciConclusion: { type: 'string' },
+    failedChecks: { type: 'array', items: { type: 'string' } },
+    implicatedPaths: { type: 'array', items: { type: 'string' } },
+    failingAssertionFiles: { type: 'array', items: { type: 'string' } },
+    conflictPaths: { type: 'array', items: { type: 'string' } },
+    publishedHeadSha: { type: 'string' },
+  },
+};
+
+const CI_DIFF_SCHEMA = {
+  type: 'object',
+  required: ['changedPaths', 'checkedFromSha', 'checkedToSha'],
+  additionalProperties: false,
+  properties: {
+    changedPaths: { type: 'array', items: { type: 'string' } },
+    checkedFromSha: { type: 'string' },
+    checkedToSha: { type: 'string' },
   },
 };
 
@@ -5002,8 +5020,9 @@ async function runUnit(unit) {
       const shipModel = 'opus';
       const revalidateClause = 'before opening the PR';
       const idempotencyScope = 'no duplicate branch, push, or PR';
-      const shipStep7 = `7. This run is HUMAN-GATED: do NOT merge the PR yourself and perform no merge of any kind. Leave the PR open for a human to review and merge. If CI is GREEN, STOP with the PR left open and return { merged: false, awaitingApproval: true, prUrl: "<the pr url>", receiptsPass: true, d6Pass: true, detail: "CI green; PR <url> open and awaiting human approval to merge" }. If CI is RED on the fresh base, return { merged: false, awaitingApproval: false, prUrl: "<the pr url>", receiptsPass: <bool>, d6Pass: <bool>, detail: "<failing job/step and first failing assertion>" }.\n\n`;
-      const shipReturnLine = `Return ONLY: { merged: false, awaitingApproval: <bool>, prUrl: "<url>", receiptsPass: <bool>, d6Pass: <bool>, detail: "<summary>" }.`;
+      const shipStep7 = `7. This run is HUMAN-GATED: do NOT merge the PR yourself and perform no merge of any kind. Leave the PR open for a human to review and merge. If CI is GREEN, STOP with the PR left open and return { merged: false, awaitingApproval: true, prUrl: "<the pr url>", receiptsPass: true, d6Pass: true, detail: "CI green; PR <url> open and awaiting human approval to merge" }. If CI is RED on the fresh base, return { merged: false, awaitingApproval: false, ciRed: true, prUrl: "<the pr url>", receiptsPass: <bool>, d6Pass: <bool>, detail: "<failing job/step and first failing assertion>" } AND populate every structured field of step 8 as well.\n\n`;
+      const shipStep8 = `8. STRUCTURED CI-RED FACTS (only when CI is RED): the engine classifies the failure from these fields alone and NEVER parses detail, so report them as data, never as prose. ciConclusion = the raw conclusion token you read in step 6, verbatim (${JSON.stringify(CI_TERMINAL_CONCLUSIONS.join(' | '))}); report "timeout-expired" when the timeout wrapper expired before the run completed rather than folding that into a generic failure. failedChecks = the exact names of the checks/jobs that did not succeed. implicatedPaths = the repo-relative source paths the failure implicates. failingAssertionFiles = the repo-relative paths of the files that CONTAIN the failing assertions. conflictPaths = the repo-relative paths that conflicted in step 4, or an empty array when nothing conflicted. publishedHeadSha = the sha you published in step 4, read with \`git -C ${repoRoot} rev-parse ${integrationBranch}\` AFTER the push. Report what you observed and nothing more: an absent, guessed or unreadable field makes the engine ESCALATE to a human instead of attempting anything, which is the correct and intended outcome, so never invent a value to fill a field.\n\n`;
+      const shipReturnLine = `Return ONLY: { merged: false, awaitingApproval: <bool>, prUrl: "<url>", receiptsPass: <bool>, d6Pass: <bool>, detail: "<summary>", ciRed: <bool>, ciConclusion: "<raw conclusion token>", failedChecks: [ "<check name>" ], implicatedPaths: [ "<repo-relative path>" ], failingAssertionFiles: [ "<repo-relative path>" ], conflictPaths: [ "<repo-relative path>" ], publishedHeadSha: "<sha>" }.`;
       const ship = await agent(
         `You are the ship stage for MSP "${msp.id}" of a mitosis run. You have NO Skill tool.\n\n` +
         `Repo: ${repoRoot}. The engine has already integrated this MSP's work onto the LOCAL branch ${JSON.stringify(integrationBranch)} (boundary-validated, merged, never pushed). Sibling clusters merge into ${JSON.stringify(baseBranch)} concurrently, so you MUST revalidate on the FRESH combined base ${revalidateClause}.\n` +
@@ -5016,6 +5035,7 @@ async function runUnit(unit) {
         `5. Open ONE pull request by running EXACTLY this one command, substituting ONLY the digits for <N>: \`node ${LIB_DIR}/mitosis-git.mjs pr-create --repo ${repoSlug} --head ${integrationBranch} --base ${baseBranch} --title ${JSON.stringify(prTitleFor(msp))} --origin machine --provenance ${JSON.stringify(prProvenanceFor(`ship:${msp.id}`, shipModel))} --why ${JSON.stringify(msp.rationale)} --what ${JSON.stringify(msp.title)} --not-verified ${JSON.stringify(PR_NOT_VERIFIED_OPEN_CI)}${prDependsFlag(msp.dependsOn)} --changed-lines <N>\`. ${PR_PLACEHOLDER_SENTENCE} ${prChangedLinesClause(repoRoot, baseBranch, integrationBranch)} It opens head ${integrationBranch} onto base ${baseBranch}, stacked bottom-up on the already-merged MSPs (${dependsList}). That command performs the observe step itself and reuses an existing open PR on this head instead of opening a second, so issue no gh command of your own for this step. Exit 0 prints ONE JSON object carrying action and url. Exit 21 is AMBIGUOUS: the create call was reached and the wrapper could not confirm its outcome, so a pull request MAY exist — never report exit 21 as "nothing was opened", never retry it blind, and copy the wrapper stderr VERBATIM into detail so a human reads the repository. Every other non-zero exit means the create call was never reached and nothing was opened. Stop on any non-zero exit.\n` +
         `6. Wait for CI to finish on the FRESH head+base with a BACKGROUNDED, timeout-bounded watch that returns the terminal conclusion - NEVER foreground-stream CI logs by re-invoking a blocking watch that pipes every progress line into context. Resolve the run id for this head, then poll its status in a backgrounded shell bounded by a hard timeout so the wait lives in your shell and never blocks indefinitely. Every run-status read is pinned to the engine-resolved target repo ${JSON.stringify(repoSlug)} (never the ambient cwd): \`runId=$(gh run list -R ${repoSlug} --branch ${integrationBranch} --limit 1 --json databaseId -q '.[0].databaseId'); timeout ${CI_WATCH_MAX_SECONDS} bash -c 'until [ "$(gh run view '"$runId"' -R ${repoSlug} --json status -q .status)" = "completed" ]; do sleep ${CI_WATCH_INTERVAL_SECONDS}; done'\`, then read the terminal conclusion ONCE: \`gh run view "$runId" -R ${repoSlug} --json conclusion -q .conclusion\`. Treat conclusion=success as CI GREEN and any other terminal conclusion (failure/cancelled/timed_out, or the timeout expiring before completion) as CI RED. This CI runs the receipts red->green enforcer + G9 full-suite + the D6 cluster-boundary step. Because the PR base is origin/${baseBranch} (now including every sibling that already merged) and the head is the rebased tip, the D6 step computes NEW base..head dependents over the COMBINED post-rebase state - not this cluster's changes in isolation.\n` +
         shipStep7 +
+        shipStep8 +
         shipReturnLine,
         { agentType: 'implementer', schema: SHIP_SCHEMA, label: `ship:${msp.id}`, phase: 'Ship', model: shipModel }
       );
