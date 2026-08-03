@@ -25,6 +25,7 @@ const MIRROR_CENSUS = Object.freeze({
   'authoritative-constants.mjs': WHOLE,
   'boundary.mjs': WHOLE,
   'checkpoint.mjs': WHOLE,
+  'ci-escalation.mjs': WHOLE,
   'derive-clusters.mjs': WHOLE,
   'divergence.mjs': WHOLE,
   'handoff.mjs': WHOLE,
