@@ -5060,6 +5060,69 @@ test('CI-RUNBUDGET-NOT-CI: a drained SHARED run budget parks approve-decision, n
   assert.equal(result.overallStatus, 'blocked');
 });
 
+test('CI-RUNBUDGET-MIDLOOP: a shared run budget drained AFTER attempts were dispatched reports the attempts it actually made, never zero', async () => {
+  const base = createFakeAgent({
+    msps: ciMsps(),
+    shipResult: () => ciRedShip(),
+    ciLoop: {
+      probe: () => ciRedShip({ failedChecks: ['test', 'test-post-probe'] }),
+      publish: () => ciRedShip({ failedChecks: ['test', 'test-after-fix'] }),
+    },
+  });
+  const { agent, labels } = ciCapture(base);
+  const { resultPromise } = invokeMitosis({ ...buildInput(), retry: { runBudget: 2 } }, agent);
+  const result = await resultPromise;
+
+  const attempts = countPrefix(labels, 'ci-probe') + countPrefix(labels, 'ci-fix');
+  assert.ok(attempts > 0, 'the loop DID dispatch attempts before the shared budget ran out');
+  assert.equal(countPrefix(labels, 'ci-publish'), 1, 'and one of them was published onto the open pull request');
+  const record = result.parked.find((p) => p.mspId === 'm0');
+  assert.ok(!/[Zz]ero ci attempts/.test(record.request.what),
+    'the park never tells the operator the loop gave up on a pull request it never touched when it published to that pull request');
+  assert.match(record.request.what, new RegExp(`stopped after ${attempts} attempt`),
+    'it reports the number of attempts the engine actually measured');
+  assert.equal(record.request.kind, 'ci-red-exhausted', 'and it is an exhausted ci loop, because attempts were spent on that head');
+  assert.equal(result.overallStatus, 'ci-red-exhausted');
+});
+
+test('CI-MERGED-GATE: a loop agent that reports the pull request MERGED parks under its own kind, never flattened into an ordinary exhausted ci loop', async () => {
+  const base = createFakeAgent({
+    msps: ciMsps(),
+    shipResult: () => ciRedShip(),
+    ciLoop: {
+      probe: () => ciRedShip({ failedChecks: ['test', 'test-post-probe'] }),
+      publish: () => ({ merged: true, awaitingApproval: true, prUrl: CI_PR_URL, receiptsPass: true, d6Pass: true, detail: 'merged' }),
+    },
+  });
+  const { agent } = ciCapture(base);
+  const { resultPromise } = invokeMitosis(buildInput(), agent);
+  const result = await resultPromise;
+
+  const record = result.parked.find((p) => p.mspId === 'm0');
+  assert.equal(result.awaitingApproval.length, 0, 'a breached merge gate is never reported as healthy waiting work');
+  assert.equal(record.request.kind, 'human-gate-violated', 'the worst thing this loop can observe gets its own kind');
+  assert.notEqual(result.overallStatus, 'ci-red-exhausted', 'and is not reported as the ordinary, expected outcome of the loop');
+  assert.match(record.request.what, /human merge gate/, 'the park names the breach');
+});
+
+test('CI-PRURL: the pull request a human is sent to is the engine-validated one, never a url an agent returned', async () => {
+  const base = createFakeAgent({
+    msps: ciMsps(),
+    shipResult: () => ciRedShip(),
+    ciLoop: {
+      probe: () => ciRedShip({ failedChecks: ['test', 'test-post-probe'] }),
+      publish: () => ({ merged: false, awaitingApproval: true, prUrl: 'https://github.com/elsewhere/mirror/pull/1', receiptsPass: true, d6Pass: true, detail: 'CI green' }),
+    },
+  });
+  const { agent } = ciCapture(base);
+  const { resultPromise } = invokeMitosis(buildInput(), agent);
+  const result = await resultPromise;
+
+  assert.equal(result.awaitingApproval.length, 1);
+  assert.equal(result.awaitingApproval[0].prUrl, CI_PR_URL,
+    'the loop operates on one pull request by construction, so a later agent string is a strict downgrade on the url the engine already validated');
+});
+
 test('CI-CAP-PERSIST: the attempt cap SURVIVES a relaunch - a unit whose head is already published spends ZERO further attempts and parks via the published-head guard', async () => {
   const input = buildInput();
   const msps = ciMsps();
@@ -5096,6 +5159,9 @@ test('CI-CAP-PERSIST: the attempt cap SURVIVES a relaunch - a unit whose head is
   const guarded = secondResult.parked.find((p) => p.mspId === 'm0');
   assert.equal(guarded.stage, 'ship', 'the zero-dispatch outcome came from the published-head guard, not from a reconcile freeze (which parks at stage blocked)');
   assert.match(guarded.request.what, /published/i, 'the park names the mechanism that stopped the unit');
+  assert.ok(!/with a pull request open on it/.test(guarded.request.what),
+    'the park never asserts an open pull request the engine did not observe: by construction an accepted open PR freezes the unit before this guard is ever reached');
+  assert.match(guarded.request.what, /DISPOSITION/, 'and it tells the operator how the park can be cleared, rather than leaving a permanently re-parking subtree');
 });
 
 test('CI-CAP-CRASH: a run INTERRUPTED mid-loop leaves the unit unparked, yet the write-ahead record still stops the relaunch from re-shipping the published head', async () => {

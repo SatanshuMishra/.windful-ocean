@@ -8,6 +8,8 @@ export const AWAITING_UPSTREAM_KIND = 'blocked-pending-approval';
 
 export const CI_RED_EXHAUSTED_KIND = 'ci-red-exhausted';
 
+export const CI_HUMAN_GATE_KIND = 'human-gate-violated';
+
 export const BLOCKED_PENDING_APPROVAL_DIAGNOSIS = 'approve + merge the prerequisite PR, then relaunch mitosis to continue';
 
 export function normalizeMergePolicy() {
@@ -45,7 +47,7 @@ export function computeMergePolicyStatus({
   if (healthy && awaitingTotal > 0) {
     return 'awaiting-approval';
   }
-  if (ciRedExhaustedCount > 0) return 'ci-red-exhausted';
   if (hasFault) return 'blocked';
+  if (ciRedExhaustedCount > 0) return 'ci-red-exhausted';
   return 'partial';
 }

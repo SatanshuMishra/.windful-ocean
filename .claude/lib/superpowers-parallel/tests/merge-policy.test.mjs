@@ -72,6 +72,24 @@ test('an exhausted CI-to-green loop reports ci-red-exhausted and outranks the aw
   assert.equal(everythingElseShipped, 'ci-red-exhausted', 'an exhausted CI loop is never reported as all-shipped');
 });
 
+test('a genuine fault OUTRANKS an exhausted CI loop, because an exhausted loop is an expected bounded outcome and a crash or halt is not', () => {
+  assert.equal(
+    computeMergePolicyStatus({ shippedCount: 0, awaitingApprovalCount: 0, blockedPendingApprovalCount: 0, genuineParkedCount: 0, haltedCount: 0, crashedCount: 1, ciRedExhaustedCount: 1, total: 3 }),
+    'blocked',
+    'a crash elsewhere in the run must not be masked by the headline status of a unit whose CI loop gave up as designed',
+  );
+  assert.equal(
+    computeMergePolicyStatus({ shippedCount: 0, awaitingApprovalCount: 0, blockedPendingApprovalCount: 0, genuineParkedCount: 0, haltedCount: 1, crashedCount: 0, ciRedExhaustedCount: 1, total: 3 }),
+    'blocked',
+    'and neither is a halt',
+  );
+  assert.equal(
+    computeMergePolicyStatus({ shippedCount: 0, awaitingApprovalCount: 0, blockedPendingApprovalCount: 0, genuineParkedCount: 1, haltedCount: 0, crashedCount: 0, ciRedExhaustedCount: 1, total: 3 }),
+    'blocked',
+    'nor a genuine park for another reason',
+  );
+});
+
 test('partial survives only as the residual: no fault, no exhausted CI loop, nothing awaiting, and not every MSP accounted for', () => {
   const status = computeMergePolicyStatus({ shippedCount: 1, awaitingApprovalCount: 0, blockedPendingApprovalCount: 0, genuineParkedCount: 0, haltedCount: 0, crashedCount: 0, ciRedExhaustedCount: 0, total: 3 });
   assert.equal(status, 'partial');
