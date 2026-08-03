@@ -131,7 +131,8 @@
       "0210-the-m7-green-gate-carves-out-one-named-pre-existing-environment-failure",
       "0211-a-killed-workflow-is-recovered-by-journal-extraction-not-by-resumefromrunid",
       "0212-m7-ships-with-the-batch-keying-residuals-open-and-they-belong-to-m8",
-      "0213-m8-ships-via-a-dedicated-small-dynamic-workflow-in-a-fresh-session"
+      "0213-m8-ships-via-a-dedicated-small-dynamic-workflow-in-a-fresh-session",
+      "0214-inertness-is-proven-per-limb-at-the-call-site-never-per-test"
     ],
     "out_of_scope": [
       "Any change at mitosis.js:4058-4061. H-C is REFUTED by 0159, not deferred - the done-union is correct and narrowing it is a liveness regression. Re-opening needs new evidence of an unconfirmed-ship producer.",
@@ -155,5 +156,5 @@
     ]
   },
   "created_at": "2026-07-29T23:40:17.901Z",
-  "updated_at": "2026-08-02T22:48:23.549Z"
+  "updated_at": "2026-08-03T07:29:03.876Z"
 }
