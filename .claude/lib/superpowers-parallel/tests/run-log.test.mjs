@@ -90,6 +90,32 @@ test('foldRunManifest folds a ci-attempt delta onto triedSet WITHOUT parking the
   assert.equal(b.status, 'planned', 'an unaffected sibling is untouched');
 });
 
+test('foldRunManifest records every ci attempt in a park-immune field, so a LATER park that carries an empty triedSet cannot erase the published-head marker', () => {
+  const manifest = genesisManifest(TWO);
+  const log = [
+    JSON.stringify(manifest),
+    JSON.stringify(builtDelta({ unitId: 'b', checkpointRef: 'refs/mitosis/a1b2c3d4/b', sha: 'c'.repeat(40), green: true, builtAgainst: {} })),
+    JSON.stringify(ciAttemptDelta({ unitId: 'b', fingerprint: 'ci-published:pr' })),
+    JSON.stringify(ciAttemptDelta({ unitId: 'b', fingerprint: 'ci-fix:abcd1234' })),
+    JSON.stringify(parkDelta({
+      unitId: 'b',
+      stage: 'plan',
+      diagnosis: 'b was invalidated by a divergent parent merge',
+      request: { kind: 'approve-decision', what: 'rebuild required' },
+      remediation: null,
+      resumePoint: { branch: 'mit/b-integration', ref: 'main', stage: 'plan' },
+      triedSet: [],
+      dependents: [],
+    })),
+  ].join('\n');
+  const folded = foldRunManifest(log);
+  const b = folded.msps.find((m) => m.id === 'b');
+  assert.equal(b.status, 'parked', 'the divergent-invalidation park lands on the unit that already spent ci attempts');
+  assert.deepEqual(b.triedSet, [], 'park owns triedSet and replaces it wholesale, which is why the marker cannot live there alone');
+  assert.deepEqual(b.ciAttempts, ['ci-published:pr', 'ci-fix:abcd1234'],
+    'the attempt record survives, so a relaunch still sees that this head was published and does not spend a fresh cap on it');
+});
+
 test('foldRunManifest ignores a ci-attempt delta that names an unknown unit or a malformed fingerprint, so a forged line cannot seed the resume set', () => {
   const manifest = genesisManifest(TWO);
   const folded = foldRunManifest([

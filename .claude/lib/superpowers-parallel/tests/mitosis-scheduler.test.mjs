@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { computeLogicalRunId, buildInitialManifest, applyShipTransition, parseRunManifest } from '../recovery.mjs';
-import { foldRunManifest } from '../run-log.mjs';
+import { foldRunManifest, parkDelta } from '../run-log.mjs';
 import { park, LEGAL_STAGES } from '../parking.mjs';
 import { runEngine } from '../run-engine.mjs';
 import { parseMitosisGitArgv, renderPrCreateBody } from '../mitosis-git.mjs';
@@ -5001,6 +5001,52 @@ test('CI-CAP-CRASH: a run INTERRUPTED mid-loop leaves the unit unparked, yet the
   assert.match(guarded.request.what, /published/i);
 });
 
+test('CI-CAP-PARKERASE: a later park that carries an empty triedSet cannot erase the attempt record, so the relaunch still refuses to re-ship the published head', async () => {
+  const input = buildInput();
+  const msps = ciMsps();
+  let publishes = 0;
+  const { agent: durable, fileMap, runJsonPath } = makeDurableFakeAgent({
+    msps,
+    repoRoot: input.repoRoot,
+    shipResult: () => ciRedShip(),
+    ciLoop: {
+      probe: () => ciRedShip({ failedChecks: ['test', 'test-p'] }),
+      publish: () => { publishes += 1; return ciRedShip({ failedChecks: ['test', `test-f${publishes}`] }); },
+    },
+  });
+  const { agent, labels } = ciCapture(durable);
+
+  const { resultPromise: first } = invokeMitosis(input, agent);
+  await first;
+
+  const reconcileStylePark = JSON.stringify(parkDelta({
+    unitId: 'm0',
+    stage: 'plan',
+    diagnosis: 'm0 was invalidated by a divergent parent merge; its build is reset and it will rebuild from plan',
+    request: { kind: 'approve-decision', what: 'm0 invalidated by a divergent parent merge; rebuild required' },
+    remediation: null,
+    resumePoint: { branch: `${SOURCE_PREFIX}/m0-integration`, ref: TEST_BASE_BRANCH, stage: 'plan' },
+    triedSet: [],
+    dependents: [],
+  }));
+  fileMap.set(runJsonPath, `${fileMap.get(runJsonPath)}\n${reconcileStylePark}`);
+
+  const folded = foldRunManifest(fileMap.get(runJsonPath));
+  const m0 = folded.msps.find((m) => m.id === 'm0');
+  assert.deepEqual(m0.triedSet, [], 'the reconcile-style park replaced triedSet wholesale, which is exactly the erasure this guards against');
+  assert.ok(m0.ciAttempts.includes('ci-published:pr'), 'the attempt record is park-immune and still carries the published-head marker');
+
+  const before = labels.length;
+  const { resultPromise: second } = invokeMitosis(input, agent);
+  const secondResult = await second;
+  const relaunchLabels = labels.slice(before);
+
+  assert.deepEqual(ciLoopLabels(relaunchLabels), [], 'the relaunch spends STRICTLY ZERO further attempts even though triedSet was erased');
+  assert.equal(countPrefix(relaunchLabels, 'ship'), 0, 'and never re-ships the already-published head');
+  const guarded = secondResult.parked.find((p) => p.mspId === 'm0');
+  assert.equal(guarded.stage, 'ship', 'the zero-dispatch outcome came from the published-head guard');
+});
+
 test('CI-WRITEAHEAD-FATAL: an attempt whose durable record cannot be written is never dispatched, because an attempt a relaunch cannot see is an unbounded attempt', async () => {
   let checkpointCalls = 0;
   const base = createFakeAgent({
@@ -5015,4 +5061,6 @@ test('CI-WRITEAHEAD-FATAL: an attempt whose durable record cannot be written is 
   assert.deepEqual(ciLoopLabels(labels), [], 'the loop refuses to start rather than spend an attempt it could not record');
   assert.equal(result.parked[0].request.kind, 'ci-red-exhausted');
   assert.match(result.parked[0].request.what, /durably record/, 'the park names the durability failure that stopped it');
+  assert.ok(result.parked[0].triedSet.includes('ci-published:pr'),
+    'and the park note carries the published-head marker itself, because the write that would otherwise have carried it is the one that just failed');
 });

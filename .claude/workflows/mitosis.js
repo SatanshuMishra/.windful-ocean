@@ -548,7 +548,7 @@ const PUBLISHED_RUN_FIELDS = Object.freeze(['schemaVersion', 'logicalRunId', 'sp
 
 const PUBLISHED_MSP_FIELDS = Object.freeze(['id', 'dependsOn', 'fileScope', 'changeType', 'scope', 'title', 'rationale']);
 
-const IDENTITY_OVERLAY_FIELDS = Object.freeze(['status', 'prUrl', 'mergedAt', 'checkpointRef', 'builtSha', 'green', 'builtAgainst', 'resumePoint', 'triedSet']);
+const IDENTITY_OVERLAY_FIELDS = Object.freeze(['status', 'prUrl', 'mergedAt', 'checkpointRef', 'builtSha', 'green', 'builtAgainst', 'resumePoint', 'triedSet', 'ciAttempts']);
 
 const WINDOWS_DRIVE_PREFIX = /^[A-Za-z]:/;
 
@@ -839,8 +839,13 @@ function applyCiAttemptTransition(manifest, record) {
     ...manifest,
     msps: manifest.msps.map((m) => {
       if (!m || m.id !== record.unitId) return m;
-      const prior = Array.isArray(m.triedSet) ? m.triedSet : [];
-      return prior.includes(record.fingerprint) ? { ...m, triedSet: [...prior] } : { ...m, triedSet: [...prior, record.fingerprint] };
+      const priorTried = Array.isArray(m.triedSet) ? m.triedSet : [];
+      const priorAttempts = Array.isArray(m.ciAttempts) ? m.ciAttempts : [];
+      return {
+        ...m,
+        triedSet: priorTried.includes(record.fingerprint) ? [...priorTried] : [...priorTried, record.fingerprint],
+        ciAttempts: priorAttempts.includes(record.fingerprint) ? [...priorAttempts] : [...priorAttempts, record.fingerprint],
+      };
     }),
   };
 }
@@ -4754,6 +4759,7 @@ async function runUnit(unit) {
     const shipTriedSeed = [...new Set([
       ...(resume && Array.isArray(resume.triedSet) ? resume.triedSet : []),
       ...(reconciledEntry && Array.isArray(reconciledEntry.triedSet) ? reconciledEntry.triedSet : []),
+      ...(reconciledEntry && Array.isArray(reconciledEntry.ciAttempts) ? reconciledEntry.ciAttempts : []),
     ].filter((t) => isValidFingerprint(t)))];
 
     if (ciHeadPublished(shipTriedSeed)) {
@@ -5241,8 +5247,8 @@ async function runUnit(unit) {
 
       const entryRecorded = await recordCiAttemptDurably(CI_PUBLISHED_TOKEN);
       if (!entryRecorded) {
-        return { halted: true, stage: 'ship', mspId: msp.id, ciParkKind: CI_RED_EXHAUSTED_KIND, triedSet: shipTriedSeed, receiptsPass: ship.receiptsPass, d6Pass: ship.d6Pass,
-          detail: `${msp.id} could not durably record that its head is published, so the ci-to-green loop refuses to start rather than spend attempts a relaunch would not see` };
+        return { halted: true, stage: 'ship', mspId: msp.id, ciParkKind: CI_RED_EXHAUSTED_KIND, triedSet: [...shipTriedSeed, CI_PUBLISHED_TOKEN], receiptsPass: ship.receiptsPass, d6Pass: ship.d6Pass,
+          detail: `${msp.id} could not durably record that its head is published, so the ci-to-green loop refuses to start rather than spend attempts a relaunch would not see; the park note carries the published-head marker instead so a relaunch still refuses to re-ship this head` };
       }
       log(`mitosis[${msp.id}]: CI RED on the published head ${cleanUrl(ship.prUrl)}; entering the bounded ci-to-green loop (hard cap ${CI_ATTEMPT_CAP} attempts, each requiring a NEW failure fingerprint)`);
 

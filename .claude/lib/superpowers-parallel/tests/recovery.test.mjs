@@ -648,6 +648,20 @@ test('I3 precedence: the published identity table WINS a disagreement with the l
   assert.deepEqual(published.msps[0].fileScope, ['new/**'], 'the published payload is never mutated');
 });
 
+test('I3 continuity: the ci attempt record survives the published-identity overlay, so a relaunch that reads a published manifest still refuses to re-ship an already-published head', () => {
+  const local = localJournalFixture();
+  local.msps[0].ciAttempts = ['ci-published:pr', 'ci-fix:abcd1234'];
+  const published = publishedPayloadObject();
+  const resolved = resolveRunIdentity(published, local, identityCtx({ refPresent: true }));
+
+  assert.equal(resolved.identity, 'published');
+  assert.deepEqual(
+    resolved.manifest.msps[0].ciAttempts,
+    ['ci-published:pr', 'ci-fix:abcd1234'],
+    'ciAttempts is machine-local run state the journal owns; dropping it on the published path would hand the unit a fresh attempt cap on a head that is already published and under human review',
+  );
+});
+
 test('I3 continuity: the recorded quiescent-exit instant survives the published path, so the latency emitter is not dead on every run that published a manifest ref', () => {
   const local = localJournalFixture({ quiescentExitAt: '2026-07-31T10:00:00Z' });
   const published = publishedPayloadObject();

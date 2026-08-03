@@ -61,8 +61,13 @@ function applyCiAttemptTransition(manifest, record) {
     ...manifest,
     msps: manifest.msps.map((m) => {
       if (!m || m.id !== record.unitId) return m;
-      const prior = Array.isArray(m.triedSet) ? m.triedSet : [];
-      return prior.includes(record.fingerprint) ? { ...m, triedSet: [...prior] } : { ...m, triedSet: [...prior, record.fingerprint] };
+      const priorTried = Array.isArray(m.triedSet) ? m.triedSet : [];
+      const priorAttempts = Array.isArray(m.ciAttempts) ? m.ciAttempts : [];
+      return {
+        ...m,
+        triedSet: priorTried.includes(record.fingerprint) ? [...priorTried] : [...priorTried, record.fingerprint],
+        ciAttempts: priorAttempts.includes(record.fingerprint) ? [...priorAttempts] : [...priorAttempts, record.fingerprint],
+      };
     }),
   };
 }

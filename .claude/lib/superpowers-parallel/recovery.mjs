@@ -203,7 +203,7 @@ export const PUBLISHED_RUN_FIELDS = Object.freeze(['schemaVersion', 'logicalRunI
 
 export const PUBLISHED_MSP_FIELDS = Object.freeze(['id', 'dependsOn', 'fileScope', 'changeType', 'scope', 'title', 'rationale']);
 
-const IDENTITY_OVERLAY_FIELDS = Object.freeze(['status', 'prUrl', 'mergedAt', 'checkpointRef', 'builtSha', 'green', 'builtAgainst', 'resumePoint', 'triedSet']);
+const IDENTITY_OVERLAY_FIELDS = Object.freeze(['status', 'prUrl', 'mergedAt', 'checkpointRef', 'builtSha', 'green', 'builtAgainst', 'resumePoint', 'triedSet', 'ciAttempts']);
 
 const WINDOWS_DRIVE_PREFIX = /^[A-Za-z]:/;
 
