@@ -3,6 +3,10 @@ import { transitiveDependents } from './parking.mjs';
 
 export const SHA_HEX_PATTERN = /^[0-9a-f]{7,64}$/i;
 
+function divergenceToken(value) {
+  return JSON.stringify(String(value).slice(0, 128)).replace(/[\p{Cc}\p{Cf}\p{Zl}\p{Zp}]/gu, ' ');
+}
+
 export function needKeyedParents(manifest, mergedIds) {
   const msps = manifest && typeof manifest === 'object' && !Array.isArray(manifest) && Array.isArray(manifest.msps) ? manifest.msps : [];
   const byId = new Map(msps.filter((m) => m && typeof m.id === 'string').map((m) => [m.id, m]));
@@ -37,6 +41,7 @@ export async function divergedParents(manifest, mergedIds, mergedShas, ctx) {
     try {
       ref = checkpointRef(logicalRunId, parentId);
     } catch {
+      if (typeof log === 'function') log(`mitosis: reconcile — no safe durable checkpoint ref could be derived for need-keyed merged parent ${divergenceToken(parentId)}, so it folds to diverged UNPROBED; this is a ref-derivation failure, not observed content divergence`);
       diverged.add(parentId);
       continue;
     }

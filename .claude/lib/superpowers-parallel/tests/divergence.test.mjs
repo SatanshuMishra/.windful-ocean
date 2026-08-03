@@ -11,10 +11,13 @@ const MERGED_SHA_B = '2222bbb';
 function makeCtx(agentResult) {
   const calls = [];
   const dispatched = [];
+  const logLines = [];
   return {
     calls,
     dispatched,
+    logLines,
     ctx: {
+      log: (line) => logLines.push(line),
       agent: async (prompt, opts) => {
         calls.push({ prompt, opts });
         if (typeof agentResult === 'function') return agentResult();
@@ -192,11 +195,11 @@ test('divergedParents: FAIL-CLOSED matrix — every case in which the engine can
     { label: 'entry for a different parent only', agent: confirmedClean('somebody-else'), dispatches: 1 },
     { label: 'duplicate entries for the same parent', agent: { results: [...confirmedClean('a').results, ...confirmedClean('a').results] }, dispatches: 1 },
     { label: 'contradictory duplicate entries', agent: { results: [{ parentId: 'a', changedPaths: [], error: null }, { parentId: 'a', changedPaths: ['x'], error: null }] }, dispatches: 1 },
-    { label: 'entry carries an error string', agent: { results: [{ parentId: 'a', changedPaths: [], error: 'ref unresolved' }] }, dispatches: 1 },
+    { label: 'entry carries an error string', agent: { results: [{ parentId: 'a', changedPaths: [], error: 'ref unresolved', checkedBuiltSha: BUILT_SHA, checkedMergedSha: MERGED_SHA }] }, dispatches: 1 },
     { label: 'entry is a non-object', agent: { results: ['garbage'] }, dispatches: 1 },
-    { label: 'changedPaths null', agent: { results: [{ parentId: 'a', changedPaths: null, error: null }] }, dispatches: 1 },
-    { label: 'changedPaths not an array', agent: { results: [{ parentId: 'a', changedPaths: 'src/a.ts', error: null }] }, dispatches: 1 },
-    { label: 'changedPaths non-empty (a genuine content divergence)', agent: { results: [{ parentId: 'a', changedPaths: ['scope/a/reviewer-amended.txt'], error: null }] }, dispatches: 1 },
+    { label: 'changedPaths null', agent: { results: [{ parentId: 'a', changedPaths: null, error: null, checkedBuiltSha: BUILT_SHA, checkedMergedSha: MERGED_SHA }] }, dispatches: 1 },
+    { label: 'changedPaths not an array', agent: { results: [{ parentId: 'a', changedPaths: 'src/a.ts', error: null, checkedBuiltSha: BUILT_SHA, checkedMergedSha: MERGED_SHA }] }, dispatches: 1 },
+    { label: 'changedPaths non-empty (a genuine content divergence)', agent: { results: [{ parentId: 'a', changedPaths: ['scope/a/reviewer-amended.txt'], error: null, checkedBuiltSha: BUILT_SHA, checkedMergedSha: MERGED_SHA }] }, dispatches: 1 },
     { label: 'entry echoes neither endpoint it diffed', agent: { results: [{ parentId: 'a', changedPaths: [], error: null }] }, dispatches: 1 },
     { label: 'entry echoes only the built endpoint', agent: { results: [{ parentId: 'a', changedPaths: [], error: null, checkedBuiltSha: BUILT_SHA }] }, dispatches: 1 },
     { label: 'entry echoes a built endpoint the engine never asked for', agent: { results: [{ parentId: 'a', changedPaths: [], error: null, checkedBuiltSha: BUILT_SHA_B, checkedMergedSha: MERGED_SHA }] }, dispatches: 1 },
@@ -216,7 +219,7 @@ test('divergedParents: FAIL-CLOSED matrix — every case in which the engine can
 });
 
 test('divergedParents: a parent absent from the manifest, and one whose id cannot compose a safe checkpoint ref, both fold to diverged unprobed', async () => {
-  const { calls, ctx } = makeCtx(confirmedClean('ghost', 'a/../evil'));
+  const { calls, ctx, logLines } = makeCtx(confirmedClean('ghost', 'a/../evil'));
   const manifest = { msps: [
     { id: 'orphan-child', status: 'built', dependsOn: ['ghost'] },
     { id: 'a/../evil', status: 'shipped', builtSha: BUILT_SHA, fileScope: ['scope/e/**'], dependsOn: [] },
@@ -227,6 +230,10 @@ test('divergedParents: a parent absent from the manifest, and one whose id canno
 
   assert.deepEqual(diverged, ['ghost', 'a/../evil']);
   assert.equal(calls.length, 0, 'neither parent can be safely enumerated, so no dispatch happens');
+  assert.ok(
+    logLines.some((l) => /ref-derivation failure/.test(l) && /evil/.test(l)),
+    'the parent whose id cannot compose a checkpoint ref is named in ONE operator line, so a ref-derivation fold is distinguishable from observed content divergence rather than showing the operator the same silent park',
+  );
 });
 
 test('divergedParents: one unusable response folds EVERY dispatched parent, never just the first', async () => {
