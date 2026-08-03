@@ -35,8 +35,8 @@
   "closure_statement": null,
   "spine": {
     "status": "paused",
-    "active_goal": "PR #38 is OPEN on fix/delete-merge-boundary-preflight (https://github.com/SatanshuMishra/.windful-ocean/pull/38): three atomic follow-up commits on 106b253 - b14935f restores the installed-path anchor, 2acd508 hardens the merge guard and widens the deny pin, 1170d5b adds this change's coverage file and reverts the retroactive edit. Suite 1776/1775/1, the only failure being the pre-existing protect-claude-config.test.mjs:194, which CI skips. Push-triggered CI is fully green.",
-    "next_step": "Await the PR-event CI result (background shell bqmxkjauz polls runs 30845483660 and 30845483252). PR-mode invariant-coverage is the job that differs from push mode, since it adds the some-coverage-file-changed check. If green the MSP is done; merge stays human-gated. Two follow-ups are filed as task chips: harden block-destructive-bash.sh, and detect settings.json deny drift between the tracked and installed copies.",
+    "active_goal": "PR #38 is OPEN and FULLY GREEN (https://github.com/SatanshuMishra/.windful-ocean/pull/38). Three atomic commits on 106b253: b14935f restores the installed-path anchor, 2acd508 hardens the merge guard and widens the deny pin, 1170d5b adds the coverage file and reverts the retroactive edit. All 12 CI checks pass on both push-event and PR-event runs, including PR-mode invariant-coverage. Local suite 1776/1775/1, only the pre-existing protect-claude-config.test.mjs:194, which CI skips.",
+    "next_step": "The MSP is COMPLETE and awaits human merge; the agent never merges. Nothing further is owed on this branch. Two follow-ups are filed as task chips and are NOT part of this PR: harden block-destructive-bash.sh against its four measured evasions plus the GraphQL PR-body rewrite route, and detect settings.json deny drift between the tracked repo copy and the installed copy under HOME.",
     "open_risks": [
       "0225 ruled the static merge-scan perfection loop CLOSED: the pattern list is a denylist over an infinite string space. Enforcement rests on the SINGLE spawnSync at mitosis-git.mjs:347 behind ghExecTripwire at :343, fail-closed. Do NOT reopen table-driven pair enumeration.",
       "The argv enumeration's stage axis is a hand-typed local list (MITOSIS_GIT_STAGES). An existing verb carrying a branch at an unlisted stage that returns a computed merge argv passes all 232 tests. Named residual, deliberately not closed per 0225.",
@@ -160,5 +160,5 @@
     ]
   },
   "created_at": "2026-07-29T23:40:17.901Z",
-  "updated_at": "2026-08-03T19:23:42.324Z"
+  "updated_at": "2026-08-03T19:24:43.941Z"
 }
