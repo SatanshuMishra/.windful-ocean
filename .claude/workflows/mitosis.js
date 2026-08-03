@@ -1686,11 +1686,13 @@ const DIVERGENCE_CHECK_SCHEMA = {
       type: 'array',
       items: {
         type: 'object',
-        required: ['parentId', 'changedPaths'],
+        required: ['parentId', 'changedPaths', 'checkedBuiltSha', 'checkedMergedSha'],
         additionalProperties: false,
         properties: {
           parentId: { type: 'string' },
           changedPaths: { type: ['array', 'null'], items: { type: 'string' } },
+          checkedBuiltSha: { type: 'string' },
+          checkedMergedSha: { type: 'string' },
           error: { type: ['string', 'null'] },
         },
       },
@@ -3088,8 +3090,8 @@ function divergenceCheckPrompt(targets) {
     `1. Fetch the base branch once so the merged commits resolve locally: \`git -C ${repoRoot} fetch origin ${baseBranch}\`.\n` +
     `2. For EACH target, fetch that target's durable checkpoint ref: \`git -C ${repoRoot} fetch origin <that target's ref>\` (the ref is a single inert argv token).\n` +
     `3. For EACH target, compute the SCOPED content divergence between the tip its children built on and the merged commit, restricted to that target's own file scope: \`git -C ${repoRoot} diff --name-only --end-of-options <that target's builtSha> <that target's mergedSha> -- <that target's fileScope paths>\` (the two shas and every path are separate INERT argv tokens; the two shas sit after --end-of-options so a leading-dash value can never be read as a flag).\n` +
-    `4. Report EXACTLY ONE results entry for EVERY listed target, keyed by its parentId, carrying the changed paths verbatim as changedPaths (an array of the file paths git printed, one per line; an EMPTY array means the squash preserved content within that parent's scope and its children's build is still valid). If either sha or the ref cannot be resolved for a target, or its diff cannot be computed, set that target's changedPaths=null and put the reason in that target's error. A target you omit, or name more than once, is treated as DIVERGED and fails closed — so never drop a target and never repeat one. If the whole check could not run, set the top-level error and every target fails closed.\n\n` +
-    `Return ONLY: { results: [ { parentId: "<target parentId>", changedPaths: [ "<changed path>" ] | null, error: "<reason this target could not be checked, else null>" } ], error: "<reason the whole check could not run, else null>" }.`
+    `4. Report EXACTLY ONE results entry for EVERY listed target, keyed by its parentId, carrying the changed paths verbatim as changedPaths (an array of the file paths git printed, one per line; an EMPTY array means the squash preserved content within that parent's scope and its children's build is still valid). Every entry MUST also echo, verbatim and character-for-character, the TWO sha values you actually passed to that target's git diff: checkedBuiltSha is the builtSha argument and checkedMergedSha is the mergedSha argument, copied from that target exactly as given — never re-cased, never abbreviated, never re-resolved to a different sha. An entry whose echoed pair does not match the pair this stage handed you is treated as DIVERGED and fails closed, because an entry that cannot prove which endpoints it compared cannot confirm anything. If either sha or the ref cannot be resolved for a target, or its diff cannot be computed, set that target's changedPaths=null and put the reason in that target's error. A target you omit, or name more than once, is treated as DIVERGED and fails closed — so never drop a target and never repeat one. If the whole check could not run, set the top-level error and every target fails closed.\n\n` +
+    `Return ONLY: { results: [ { parentId: "<target parentId>", changedPaths: [ "<changed path>" ] | null, checkedBuiltSha: "<the builtSha you diffed, verbatim>", checkedMergedSha: "<the mergedSha you diffed, verbatim>", error: "<reason this target could not be checked, else null>" } ], error: "<reason the whole check could not run, else null>" }.`
   );
 }
 
@@ -3153,6 +3155,7 @@ async function divergedParents(manifest, mergedIds, mergedShas, ctx) {
       if (matches.length !== 1) { diverged.add(target.parentId); continue; }
       const entry = matches[0];
       if (typeof entry.error === 'string' && entry.error.length > 0) { diverged.add(target.parentId); continue; }
+      if (entry.checkedBuiltSha !== target.builtSha || entry.checkedMergedSha !== target.mergedSha) { diverged.add(target.parentId); continue; }
       if (!Array.isArray(entry.changedPaths) || entry.changedPaths.length > 0) diverged.add(target.parentId);
     }
   }

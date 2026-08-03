@@ -61,6 +61,7 @@ export async function divergedParents(manifest, mergedIds, mergedShas, ctx) {
       if (matches.length !== 1) { diverged.add(target.parentId); continue; }
       const entry = matches[0];
       if (typeof entry.error === 'string' && entry.error.length > 0) { diverged.add(target.parentId); continue; }
+      if (entry.checkedBuiltSha !== target.builtSha || entry.checkedMergedSha !== target.mergedSha) { diverged.add(target.parentId); continue; }
       if (!Array.isArray(entry.changedPaths) || entry.changedPaths.length > 0) diverged.add(target.parentId);
     }
   }
