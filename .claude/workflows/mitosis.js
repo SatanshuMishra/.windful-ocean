@@ -3301,6 +3301,7 @@ function computeParkedStatus({ shipped, parked, halted, crashed, awaitingApprova
   const awaitingList = awaitingApproval || [];
   const blockedPendingApprovalCount = parked.filter(isBlockedPendingApproval).length;
   const genuineParkedCount = parked.length - blockedPendingApprovalCount;
+  const ciRedExhaustedCount = parked.filter(isCiRedExhausted).length;
   return computeMergePolicyStatus({
     shippedCount: shipped.length,
     awaitingApprovalCount: awaitingList.length,
@@ -3308,6 +3309,7 @@ function computeParkedStatus({ shipped, parked, halted, crashed, awaitingApprova
     genuineParkedCount,
     haltedCount: halted.length,
     crashedCount: crashed.length,
+    ciRedExhaustedCount,
     total,
   });
 }
@@ -3622,6 +3624,8 @@ const MERGE_POLICIES = Object.freeze({
 
 const AWAITING_UPSTREAM_KIND = 'blocked-pending-approval';
 
+const CI_RED_EXHAUSTED_KIND = 'ci-red-exhausted';
+
 const BLOCKED_PENDING_APPROVAL_DIAGNOSIS = 'approve + merge the prerequisite PR, then relaunch mitosis to continue';
 
 function normalizeMergePolicy() {
@@ -3634,6 +3638,10 @@ function awaitingApprovalOutcome(mspId, extra = {}) {
 
 function isBlockedPendingApproval(entry) {
   return Boolean(entry) && entry.stage === 'blocked' && Boolean(entry.request) && entry.request.kind === AWAITING_UPSTREAM_KIND;
+}
+
+function isCiRedExhausted(entry) {
+  return Boolean(entry) && entry.stage === 'ship' && Boolean(entry.request) && entry.request.kind === CI_RED_EXHAUSTED_KIND;
 }
 
 function computeMergePolicyStatus({

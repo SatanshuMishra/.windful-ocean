@@ -6,6 +6,8 @@ export const MERGE_POLICIES = Object.freeze({
 
 export const AWAITING_UPSTREAM_KIND = 'blocked-pending-approval';
 
+export const CI_RED_EXHAUSTED_KIND = 'ci-red-exhausted';
+
 export const BLOCKED_PENDING_APPROVAL_DIAGNOSIS = 'approve + merge the prerequisite PR, then relaunch mitosis to continue';
 
 export function normalizeMergePolicy() {
@@ -18,6 +20,10 @@ export function awaitingApprovalOutcome(mspId, extra = {}) {
 
 export function isBlockedPendingApproval(entry) {
   return Boolean(entry) && entry.stage === 'blocked' && Boolean(entry.request) && entry.request.kind === AWAITING_UPSTREAM_KIND;
+}
+
+export function isCiRedExhausted(entry) {
+  return Boolean(entry) && entry.stage === 'ship' && Boolean(entry.request) && entry.request.kind === CI_RED_EXHAUSTED_KIND;
 }
 
 export function computeMergePolicyStatus({
