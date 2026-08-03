@@ -5000,3 +5000,19 @@ test('CI-CAP-CRASH: a run INTERRUPTED mid-loop leaves the unit unparked, yet the
   assert.equal(guarded.stage, 'ship');
   assert.match(guarded.request.what, /published/i);
 });
+
+test('CI-WRITEAHEAD-FATAL: an attempt whose durable record cannot be written is never dispatched, because an attempt a relaunch cannot see is an unbounded attempt', async () => {
+  let checkpointCalls = 0;
+  const base = createFakeAgent({
+    msps: ciMsps(),
+    shipResult: () => ciRedShip(),
+    ciLoop: { checkpoint: () => { checkpointCalls += 1; return checkpointCalls === 1 ? { written: false, detail: 'the journal could not be appended' } : { written: true, detail: '' }; } },
+  });
+  const { agent, labels } = ciCapture(base);
+  const { resultPromise } = invokeMitosis(buildInput(), agent);
+  const result = await resultPromise;
+
+  assert.deepEqual(ciLoopLabels(labels), [], 'the loop refuses to start rather than spend an attempt it could not record');
+  assert.equal(result.parked[0].request.kind, 'ci-red-exhausted');
+  assert.match(result.parked[0].request.what, /durably record/, 'the park names the durability failure that stopped it');
+});
