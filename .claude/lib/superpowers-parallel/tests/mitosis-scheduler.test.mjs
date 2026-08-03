@@ -139,6 +139,11 @@ const QUIESCENT_EXIT_FIXTURE_AT = '2026-08-01T12:00:00Z';
 const CI_PR_URL = `https://github.com/${TEST_REPO_SLUG}/pull/7`;
 const CI_HEAD_SHA = 'abc1234';
 const CI_TIP_SHA = 'deadbee';
+const CI_BRANCH = `${SOURCE_PREFIX}/m0-integration`;
+const ciEndpoints = (prompt) => {
+  const m = /--end-of-options "([^"]+)" "([^"]+)"/.exec(typeof prompt === 'string' ? prompt : '');
+  return m === null ? { from: CI_HEAD_SHA, to: CI_BRANCH } : { from: m[1], to: m[2] };
+};
 const CI_SCOPE = ['scope/m0/**'];
 const CI_SOURCE_PATH = 'scope/m0/charge.js';
 const CI_ASSERTION_PATH = 'scope/m0/charge.test.js';
@@ -204,9 +209,13 @@ function createFakeAgent({ msps, sourcePrefix = SOURCE_PREFIX, baseBranch = TEST
       case 'ci-fix':
         return ciLoop && ciLoop.propose ? ciLoop.propose(prompt) : { changedPaths: [CI_SOURCE_PATH], detail: 'adjusted the implementation' };
       case 'ci-diff':
-        return ciLoop && ciLoop.diff ? ciLoop.diff(prompt) : { changedPaths: [CI_SOURCE_PATH], checkedFromSha: CI_HEAD_SHA, checkedToSha: CI_TIP_SHA };
+        return ciLoop && ciLoop.diff ? ciLoop.diff(prompt) : { changedPaths: [CI_SOURCE_PATH], ...(({ from, to }) => ({ checkedFromSha: from, checkedToSha: to }))(ciEndpoints(prompt)) };
       case 'ci-publish':
         return ciLoop && ciLoop.publish ? ciLoop.publish(prompt) : ciRedShip();
+      case 'ci-publish-verify':
+        return ciLoop && ciLoop.publishVerify
+          ? ciLoop.publishVerify(prompt)
+          : { appendOnly: true, changedPaths: [CI_SOURCE_PATH], ...(({ from, to }) => ({ checkedFromSha: from, checkedToSha: to }))(ciEndpoints(prompt)) };
       case 'manifest-publish':
         return { published: false, alreadyPresent: false, ref: null, commit: null, readBackPages: null, detail: 'fixture: no remote' };
       case 'checkpoint-push':
@@ -4658,7 +4667,7 @@ function ciCapture(agent) {
   return { agent: wrapped, labels, prompts };
 }
 
-const CI_LOOP_PREFIXES = ['ci-probe', 'ci-fix', 'ci-diff', 'ci-publish'];
+const CI_LOOP_PREFIXES = ['ci-probe', 'ci-fix', 'ci-diff', 'ci-publish', 'ci-publish-verify'];
 const ciLoopLabels = (labels) => labels.filter((l) => CI_LOOP_PREFIXES.includes(l.split(':')[0]));
 const countPrefix = (labels, prefix) => labels.filter((l) => l.split(':')[0] === prefix).length;
 
@@ -4715,7 +4724,7 @@ test('CI-CLASS6-DENY: a candidate fix whose verified diff touches a file contain
     ciLoop: {
       probe: () => ciRedShip({ failedChecks: ['test', 'lint'] }),
       propose: () => ({ changedPaths: [CI_SOURCE_PATH, CI_ASSERTION_PATH], detail: 'relaxed the failing assertion' }),
-      diff: () => ({ changedPaths: [CI_SOURCE_PATH, CI_ASSERTION_PATH], checkedFromSha: CI_HEAD_SHA, checkedToSha: CI_TIP_SHA }),
+      diff: (prompt) => ({ changedPaths: [CI_SOURCE_PATH, CI_ASSERTION_PATH], checkedFromSha: ciEndpoints(prompt).from, checkedToSha: ciEndpoints(prompt).to }),
     },
   });
   const { agent, labels } = ciCapture(base);
@@ -4727,6 +4736,119 @@ test('CI-CLASS6-DENY: a candidate fix whose verified diff touches a file contain
   assert.equal(countPrefix(labels, 'ci-publish'), 0, 'the publish dispatch never runs, so a head carrying a rewritten assertion is never pushed');
   assert.equal(result.parked[0].request.kind, 'ci-red-exhausted');
   assert.match(result.parked[0].request.what, /assertion/i, 'the park tells the operator the assertion guard refused the candidate');
+});
+
+test('CI-SCOPE-DENY: a candidate fix the engine verifies as touching a path OUTSIDE the declared fileScope is refused before any publish, however honestly it was reported', async () => {
+  const cases = [
+    ['a CI workflow file, the cheapest route to a green badge', '.github/workflows/receipts.yml'],
+    ['a sibling cluster source file', 'scope/other/ledger.js'],
+    ['the repository test script', 'package.json'],
+  ];
+  for (const [label, foreign] of cases) {
+    const base = createFakeAgent({
+      msps: ciMsps(),
+      shipResult: () => ciRedShip(),
+      ciLoop: {
+        probe: () => ciRedShip({ failedChecks: ['test', 'test-post-probe'] }),
+        propose: () => ({ changedPaths: [foreign], detail: 'made the failing job stop failing' }),
+        diff: (prompt) => ({ changedPaths: [foreign], checkedFromSha: ciEndpoints(prompt).from, checkedToSha: ciEndpoints(prompt).to }),
+        publish: () => ciGreenShip(),
+      },
+    });
+    const { agent, labels } = ciCapture(base);
+    const { resultPromise } = invokeMitosis(buildInput(), agent);
+    const result = await resultPromise;
+
+    assert.equal(countPrefix(labels, 'ci-diff'), 1, `${label}: the candidate WAS independently diff-verified`);
+    assert.equal(countPrefix(labels, 'ci-publish'), 0, `${label}: and nothing was pushed onto the published, human-reviewed head`);
+    assert.equal(result.awaitingApproval.length, 0, `${label}: a green CI signal bought outside the declared scope never reaches a human as ready to merge`);
+    assert.equal(result.parked[0].request.kind, 'ci-red-exhausted');
+    assert.match(result.parked[0].request.what, /outside this msp declared fileScope|security-sensitive/, `${label}: the park names the boundary that refused it`);
+  }
+});
+
+test('CI-SENSITIVE-DENY: a candidate fix that reaches a security-sensitive path is refused even when the declared fileScope covers it', async () => {
+  const SENSITIVE = 'scope/m0/migrations/001.sql';
+  const base = createFakeAgent({
+    msps: ciMsps(),
+    shipResult: () => ciRedShip(),
+    ciLoop: {
+      probe: () => ciRedShip({ failedChecks: ['test', 'test-post-probe'] }),
+      propose: () => ({ changedPaths: [SENSITIVE], detail: 'adjusted the migration' }),
+      diff: (prompt) => ({ changedPaths: [SENSITIVE], checkedFromSha: ciEndpoints(prompt).from, checkedToSha: ciEndpoints(prompt).to }),
+      publish: () => ciGreenShip(),
+    },
+  });
+  const { agent, labels } = ciCapture(base);
+  const { resultPromise } = invokeMitosis(buildInput(), agent);
+  const result = await resultPromise;
+
+  assert.equal(countPrefix(labels, 'ci-publish'), 0, 'nothing is pushed');
+  assert.match(result.parked[0].request.what, /security-sensitive/, 'the park names the sensitive-path refusal');
+});
+
+test('CI-CAP-ADVANCING-HEAD: each attempt is measured from the head the PREVIOUS attempt published, so the cap of three survives consecutive fixes that touch different files', async () => {
+  let proposals = 0;
+  let publishes = 0;
+  const heads = [CI_HEAD_SHA];
+  const addedOnTopOf = [];
+  const changedSince = (from) => {
+    const at = heads.indexOf(from);
+    return at === -1 ? [] : addedOnTopOf.slice(at).filter((p) => typeof p === 'string');
+  };
+  const base = createFakeAgent({
+    msps: ciMsps(),
+    shipResult: () => ciRedShip(),
+    ciLoop: {
+      probe: () => ciRedShip({ failedChecks: ['test', 'test-post-probe'] }),
+      propose: () => {
+        proposals += 1;
+        addedOnTopOf[heads.length - 1] = `scope/m0/f${proposals}.js`;
+        return { changedPaths: [addedOnTopOf[heads.length - 1]], detail: 'fix' };
+      },
+      diff: (prompt) => ({ changedPaths: changedSince(ciEndpoints(prompt).from), checkedFromSha: ciEndpoints(prompt).from, checkedToSha: ciEndpoints(prompt).to }),
+      publishVerify: (prompt) => ({ appendOnly: true, changedPaths: changedSince(ciEndpoints(prompt).from), checkedFromSha: ciEndpoints(prompt).from, checkedToSha: ciEndpoints(prompt).to }),
+      publish: () => {
+        publishes += 1;
+        heads.push(`aaaaaa${publishes}`);
+        return ciRedShip({ failedChecks: ['test', `test-distinct-${publishes}`], publishedHeadSha: heads[heads.length - 1] });
+      },
+    },
+  });
+  const { agent, labels } = ciCapture(base);
+  const { resultPromise } = invokeMitosis(buildInput(), agent);
+  const result = await resultPromise;
+
+  assert.equal(countPrefix(labels, 'ci-probe') + countPrefix(labels, 'ci-fix'), 3, 'the advertised cap of three attempts is actually reachable');
+  assert.equal(countPrefix(labels, 'ci-fix'), 2, 'both fix attempts ran');
+  assert.equal(countPrefix(labels, 'ci-publish'), 2, 'and both were published, rather than the second being refused by a stale left endpoint');
+  assert.ok(!/disagree/.test(result.parked[0].request.what),
+    'the loop never blames the two agents for a disagreement the engine manufactured by comparing incomparable endpoints');
+});
+
+test('CI-PUBLISH-VERIFY: what the publish step actually landed on the reviewed head is re-derived by the engine, and every unconfirmable answer stops the loop', async () => {
+  const cases = [
+    ['the published head is no longer an ancestor, so something rewrote a reviewed ref', (prompt) => ({ appendOnly: false, changedPaths: [CI_SOURCE_PATH], checkedFromSha: ciEndpoints(prompt).from, checkedToSha: ciEndpoints(prompt).to }), /NO LONGER an ancestor/],
+    ['the publish step resolved a conflict by editing a failing-assertion file', (prompt) => ({ appendOnly: true, changedPaths: [CI_SOURCE_PATH, CI_ASSERTION_PATH], checkedFromSha: ciEndpoints(prompt).from, checkedToSha: ciEndpoints(prompt).to }), /failing assertion/],
+    ['the re-derivation read endpoints the engine never handed it', () => ({ appendOnly: true, changedPaths: [CI_SOURCE_PATH], checkedFromSha: 'facade1', checkedToSha: CI_BRANCH }), /unknown pair of endpoints/],
+    ['the re-derivation is unreadable', () => null, /could not re-derive/],
+  ];
+
+  for (const [label, publishVerify, expected] of cases) {
+    const base = createFakeAgent({
+      msps: ciMsps(),
+      shipResult: () => ciRedShip(),
+      ciLoop: { probe: () => ciRedShip({ failedChecks: ['test', 'test-post-probe'] }), publish: () => ciGreenShip(), publishVerify },
+    });
+    const { agent, labels } = ciCapture(base);
+    const { resultPromise } = invokeMitosis(buildInput(), agent);
+    const result = await resultPromise;
+
+    assert.equal(countPrefix(labels, 'ci-publish-verify'), 1, `${label}: the engine re-derived the published head`);
+    assert.equal(result.awaitingApproval.length, 0, `${label}: a CI-green publish the engine cannot vouch for never reaches a human as ready to merge`);
+    assert.equal(result.parked[0].request.kind, 'ci-red-exhausted', `${label}: parks`);
+    assert.match(result.parked[0].request.what, expected, `${label}: the park names what could not be confirmed`);
+  }
 });
 
 test('CI-CAP-ONE-RUN: at most three ci attempts are ever dispatched for one published head in one run, even when every attempt yields a genuinely NEW failure', async () => {
@@ -4818,8 +4940,9 @@ test('CI-UNREADABLE-PROPOSAL: a fix proposal that returns null, or throws, escal
 
 test('CI-DIFF-MISMATCH: the independent verifier must prove it diffed the engine-held endpoints AND agree with the proposer, or the loop escalates without publishing', async () => {
   const cases = [
-    ['the verifier echoes a left endpoint the engine never asked for', () => ({ changedPaths: [CI_SOURCE_PATH], checkedFromSha: 'facade1', checkedToSha: CI_TIP_SHA })],
-    ['the verifier disagrees with the proposer about what changed', () => ({ changedPaths: [CI_SOURCE_PATH, 'scope/m0/silently-also-this.js'], checkedFromSha: CI_HEAD_SHA, checkedToSha: CI_TIP_SHA })],
+    ['the verifier echoes a left endpoint the engine never asked for', () => ({ changedPaths: [CI_SOURCE_PATH], checkedFromSha: 'facade1', checkedToSha: CI_BRANCH })],
+    ['the verifier echoes a right endpoint the engine never asked for', () => ({ changedPaths: [CI_SOURCE_PATH], checkedFromSha: CI_HEAD_SHA, checkedToSha: CI_TIP_SHA })],
+    ['the verifier disagrees with the proposer about what changed', () => ({ changedPaths: [CI_SOURCE_PATH, 'scope/m0/silently-also-this.js'], checkedFromSha: CI_HEAD_SHA, checkedToSha: CI_BRANCH })],
     ['the verifier returns null', () => null],
   ];
 
@@ -4856,6 +4979,28 @@ test('CI-APPEND-ONLY: the loop publish prompt advances a PUBLISHED head append-o
   assert.ok(!/\brebase\b/.test(publishPrompt), 'a published head is never rebased');
   assert.match(publishPrompt, /merge --no-edit origin\/main/, 'the base is taken by a forward merge, which only ever adds commits');
   assert.match(publishPrompt, new RegExp(CI_ASSERTION_PATH.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')), 'the abort clause names the failing-assertion file the push must not carry');
+  assert.match(publishPrompt, new RegExp(`switch ${CI_BRANCH.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}`),
+    'the branch the base merge lands on is NAMED, so a merge can never act on whatever branch this shared repository happens to have checked out');
+  assert.match(publishPrompt, /rev-parse --abbrev-ref HEAD/, 'and the agent is made to confirm that before it merges anything');
+});
+
+test('CI-FIX-FENCE: the fix prompt fences the candidate to the declared scope, bans touching a failing assertion, and forbids buying a green signal by suppression', async () => {
+  const base = createFakeAgent({
+    msps: ciMsps(),
+    shipResult: () => ciRedShip(),
+    ciLoop: { probe: () => ciRedShip({ failedChecks: ['test', 'test-post-probe'] }) },
+  });
+  const { agent, prompts } = ciCapture(base);
+  const { resultPromise } = invokeMitosis(buildInput(), agent);
+  await resultPromise;
+
+  const fixPrompt = prompts.get('ci-fix:m0');
+  assert.ok(fixPrompt, 'the loop reached its fix step');
+  assert.match(fixPrompt, /scope\/m0/, 'the declared fileScope is stated in the prompt');
+  assert.match(fixPrompt, new RegExp(CI_ASSERTION_PATH.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')), 'every failing-assertion file is named as banned');
+  assert.match(fixPrompt, /eslint-disable/, 'suppression directives are named as banned');
+  assert.match(fixPrompt, /@ts-expect-error/, 'including the type-level ones');
+  assert.match(fixPrompt, /do not make a job non-blocking/, 'and so is the cheapest route of all, turning the failing job off');
 });
 
 test('CI-EXHAUST-REPORT: an exhausted loop leaves the PR open with red CI visible, reports ci-red-exhausted, resumes at ship, and never claims CI is green', async () => {

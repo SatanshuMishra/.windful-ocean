@@ -1876,6 +1876,18 @@ const CI_DIFF_SCHEMA = {
   },
 };
 
+const CI_PUBLISH_VERIFY_SCHEMA = {
+  type: 'object',
+  required: ['appendOnly', 'changedPaths', 'checkedFromSha', 'checkedToSha'],
+  additionalProperties: false,
+  properties: {
+    appendOnly: { type: 'boolean' },
+    changedPaths: { type: 'array', items: { type: 'string' } },
+    checkedFromSha: { type: 'string' },
+    checkedToSha: { type: 'string' },
+  },
+};
+
 const CI_FIX_SCHEMA = {
   type: 'object',
   required: ['changedPaths', 'detail'],
@@ -5168,7 +5180,7 @@ async function runUnit(unit) {
     async function runCiToGreenLoop(ship) {
       const declaredScope = Array.isArray(msp.fileScope) ? msp.fileScope : [];
       const ciEscalation = (what) => NeedsHuman({ kind: CI_RED_EXHAUSTED_KIND, what: `${what} (pull request ${cleanUrl(ship.prUrl)} stays open with its CI result visible; CI remains the sole authority on whether it passes)` });
-      const ciStructuredContract = `Report the SAME structured fields the ship stage reports, as data and never as prose: { merged: false, awaitingApproval: <true only if CI concluded success>, prUrl: ${JSON.stringify(ship.prUrl)}, receiptsPass: <bool>, d6Pass: <bool>, detail: "<failing job/step and first failing assertion>", ciRed: <bool>, ciConclusion: "<raw conclusion token, verbatim; use timeout-expired when the timeout wrapper expired first>", failedChecks: [ "<check name>" ], implicatedPaths: [ "<repo-relative path>" ], failingAssertionFiles: [ "<repo-relative path>" ], conflictPaths: [ "<repo-relative path>" ], publishedHeadSha: ${JSON.stringify(ship.publishedHeadSha)} }. An absent, guessed or unreadable field makes the engine ESCALATE to a human instead of attempting anything, which is the correct outcome, so never invent a value.`;
+      const ciStructuredContract = `Report the SAME structured fields the ship stage reports, as data and never as prose: { merged: false, awaitingApproval: <true only if CI concluded success>, prUrl: ${JSON.stringify(ship.prUrl)}, receiptsPass: <bool>, d6Pass: <bool>, detail: "<failing job/step and first failing assertion>", ciRed: <bool>, ciConclusion: "<raw conclusion token, verbatim; use timeout-expired when the timeout wrapper expired first>", failedChecks: [ "<check name>" ], implicatedPaths: [ "<repo-relative path>" ], failingAssertionFiles: [ "<repo-relative path>" ], conflictPaths: [ "<repo-relative path>" ], publishedHeadSha: "<the sha ${JSON.stringify(integrationBranch)} carries when you finish, read with the READ-ONLY command \`git -C ${repoRoot} rev-parse --end-of-options ${integrationBranch}\`; report the sha you read and NEVER one you were handed>" }. An absent, guessed or unreadable field makes the engine ESCALATE to a human instead of attempting anything, which is the correct outcome, so never invent a value.`;
       const ciWatchClause = `Resolve the run id for this head and wait for its terminal conclusion with a BACKGROUNDED, timeout-bounded watch, never a foreground log stream: \`runId=$(gh run list -R ${repoSlug} --branch ${integrationBranch} --limit 1 --json databaseId -q '.[0].databaseId'); timeout ${CI_WATCH_MAX_SECONDS} bash -c 'until [ "$(gh run view '"$runId"' -R ${repoSlug} --json status -q .status)" = "completed" ]; do sleep ${CI_WATCH_INTERVAL_SECONDS}; done'\`, then read the conclusion ONCE: \`gh run view "$runId" -R ${repoSlug} --json conclusion -q .conclusion\`.`;
 
       function ciAfterWatch(result) {
@@ -5183,7 +5195,7 @@ async function runUnit(unit) {
       async function ciProbeAttempt() {
         const probe = await agent(
           `You are the ci flake-probe step for MSP "${msp.id}" of a mitosis run. You have NO Skill tool.\n\n` +
-          `This step is a NO-CODE-CHANGE rerun of CI on the ALREADY PUBLISHED head ${JSON.stringify(integrationBranch)}. Its ONLY purpose is to establish whether the failure is real or flaky. Alter nothing in the repository, create no file, and issue no git operation of any kind.\n` +
+          `This step is a NO-CODE-CHANGE rerun of CI on the ALREADY PUBLISHED head ${JSON.stringify(integrationBranch)}. Its ONLY purpose is to establish whether the failure is real or flaky. Alter nothing in the repository, create no file, and issue no git operation beyond the single read-only rev-parse the report contract asks for.\n` +
           `1. Resolve the run id for this head: \`runId=$(gh run list -R ${repoSlug} --branch ${integrationBranch} --limit 1 --json databaseId -q '.[0].databaseId')\`.\n` +
           `2. Rerun exactly that run in place: \`gh run rerun "$runId" -R ${repoSlug} --failed\`.\n` +
           `3. ${ciWatchClause} Treat conclusion=success as CI GREEN and every other terminal conclusion, including the timeout expiring, as CI RED.\n` +
@@ -5195,12 +5207,14 @@ async function runUnit(unit) {
 
       async function ciFixAttempt(report) {
         const failingAssertionFiles = Array.isArray(report.failingAssertionFiles) ? report.failingAssertionFiles : [];
+        const fromSha = report.publishedHeadSha;
         const proposal = await agent(
           `You are the ci fix-forward step for MSP "${msp.id}" of a mitosis run. You have NO Skill tool.\n\n` +
           `Repo: ${repoRoot}. Branch ${JSON.stringify(integrationBranch)} is ALREADY PUBLISHED with a pull request open on it, so this step ADDS work; it never rewrites history and never publishes anything itself.\n` +
           `CI is red: conclusion ${JSON.stringify(String(report.ciConclusion))}, failing checks ${JSON.stringify(report.failedChecks)}, implicated paths ${JSON.stringify(report.implicatedPaths)}, first failing assertion ${JSON.stringify(String(report.detail))}.\n` +
           `HARD FENCE: you may change ONLY paths covered by this MSP declared file scope ${JSON.stringify(declaredScope)}. Editing anything outside it is a hard failure the engine escalates on.\n` +
           `HARD FENCE: you may NOT change any file that CONTAINS a failing assertion — ${JSON.stringify(failingAssertionFiles)}. Making a failing assertion pass by altering the assertion is the single failure mode this loop exists to prevent; fix the behaviour the assertion is asserting instead. If the only way you can see to make CI pass is to change one of those files, STOP and return an empty changedPaths so a human decides.\n` +
+          `HARD FENCE: do NOT pass CI by suppression: add no new \`eslint-disable\` / \`@ts-ignore\` / \`@ts-expect-error\`, do not loosen eslint or tsconfig rules, do not newly ignore or exclude files, do not weaken or delete a test, and do not make a job non-blocking. A green CI signal bought by silencing the check is the outcome this loop exists to prevent.\n` +
           `1. Diagnose the failure and make the smallest change that addresses it.\n` +
           `2. Record the change locally on ${JSON.stringify(integrationBranch)}. Do NOT push, do NOT open or amend a pull request, and do NOT rebase, reset or otherwise rewrite this branch.\n` +
           `3. Return the repo-relative paths you actually changed, exactly and completely — the engine independently re-derives that set and escalates on ANY disagreement.\n\n` +
@@ -5213,7 +5227,7 @@ async function runUnit(unit) {
         const verify = await agent(
           `You are the ci diff-verify step for MSP "${msp.id}" of a mitosis run. You have NO Skill tool.\n\n` +
           `This step is STRICTLY READ-ONLY. It exists so the engine never takes the word of the agent that authored a change for what that change touched. Make NO edit, NO commit and NO push.\n` +
-          `Run EXACTLY: \`git -C ${repoRoot} diff --name-only --end-of-options ${JSON.stringify(ship.publishedHeadSha)} ${JSON.stringify(integrationBranch)}\` (both endpoints are separate INERT argv tokens and sit after --end-of-options so a leading-dash value can never be read as a flag).\n` +
+          `Run EXACTLY: \`git -C ${repoRoot} diff --name-only --end-of-options ${JSON.stringify(fromSha)} ${JSON.stringify(integrationBranch)}\` (both endpoints are separate INERT argv tokens and sit after --end-of-options so a leading-dash value can never be read as a flag).\n` +
           `Echo back, verbatim, the TWO endpoints you actually passed to that command. An echo that does not match the pair this stage handed you fails closed.\n\n` +
           `Return ONLY: { changedPaths: [ "<path git printed>" ], checkedFromSha: "<the left endpoint you diffed, verbatim>", checkedToSha: "<the right endpoint you diffed, verbatim>" }.`,
           { agentType: 'implementer', schema: CI_DIFF_SCHEMA, label: `ci-diff:${msp.id}`, phase: 'Ship', model: 'sonnet' }
@@ -5221,8 +5235,8 @@ async function runUnit(unit) {
         if (!verify || typeof verify.checkedFromSha !== 'string' || !Array.isArray(verify.changedPaths) || !verify.changedPaths.every((p) => typeof p === 'string' && p.length > 0)) {
           return ciEscalation(`${msp.id} ci diff verification was unreadable, so the engine cannot confirm what the candidate fix touched`);
         }
-        if (verify.checkedFromSha !== ship.publishedHeadSha) {
-          return ciEscalation(`${msp.id} ci diff verification did not diff the published head the engine handed it, so its answer describes an unknown pair of endpoints`);
+        if (verify.checkedFromSha !== fromSha || verify.checkedToSha !== integrationBranch) {
+          return ciEscalation(`${msp.id} ci diff verification did not diff the pair of endpoints the engine handed it, so its answer describes an unknown pair of endpoints`);
         }
         if (!ciSameChangedSet(verify.changedPaths, proposal.changedPaths)) {
           return ciEscalation(`${msp.id} ci fix author and the independent diff verification disagree about which paths changed, so the engine cannot confirm the candidate`);
@@ -5230,18 +5244,50 @@ async function runUnit(unit) {
         if (assertionGuardBlocks(verify.changedPaths, failingAssertionFiles)) {
           return ciEscalation(`${msp.id} candidate ci fix touches a file that contains a failing assertion, so it is refused before any publish`);
         }
+        const containment = ciScopeViolations(declaredScope, verify.changedPaths);
+        if (!containment.readable) {
+          return ciEscalation(`${msp.id} candidate ci fix could not be confirmed inside this msp declared fileScope, so the engine refuses it before any publish rather than read an unmeasurable diff as contained`);
+        }
+        if (containment.foreign.length > 0) {
+          return ciEscalation(`${msp.id} candidate ci fix touches path(s) outside this msp declared fileScope: ${ciCleanList(containment.foreign)}, so it is refused before any publish`);
+        }
+        if (sensitivePathsTouched(verify.changedPaths)) {
+          return ciEscalation(`${msp.id} candidate ci fix reaches a security-sensitive path, which no autonomous fix-forward attempt publishes onto a head a human is reviewing`);
+        }
         const published = await agent(
           `You are the ci publish step for MSP "${msp.id}" of a mitosis run. You have NO Skill tool.\n\n` +
           `Repo: ${repoRoot}. Branch ${JSON.stringify(integrationBranch)} is ALREADY PUBLISHED and has an open pull request on it that a human may already be reading. It is therefore APPEND-ONLY: you may only ADD commits to it. Never rewrite, replay, reorder, squash, amend or drop anything already on it, and never pass --force or --force-with-lease to any command.\n` +
           `ABORT CLAUSE: if what you are about to publish would carry a change to any of ${JSON.stringify(failingAssertionFiles)}, STOP and report merged=false with that in detail rather than publishing it.\n` +
           `1. Refresh the base: \`git -C ${repoRoot} fetch origin ${baseBranch}\`.\n` +
-          `2. If the base advanced, take it FORWARD ONLY: \`git -C ${repoRoot} merge --no-edit origin/${baseBranch}\`. If that merge conflicts, run \`git -C ${repoRoot} merge --abort\`, publish nothing, and report merged=false naming the conflicting paths.\n` +
-          `3. Publish by fast-forward only: \`git -C ${repoRoot} push origin ${integrationBranch}\`. If that push is rejected as non-fast-forward, STOP and report merged=false; a rejected push on a published head means someone else advanced it and a human must look.\n` +
-          `4. ${ciWatchClause} Treat conclusion=success as CI GREEN and every other terminal conclusion, including the timeout expiring, as CI RED.\n` +
-          `5. This run is HUMAN-GATED: do NOT merge the pull request and perform no merge of it of any kind. Leave it open.\n` +
-          `6. ${ciStructuredContract}`,
+          `2. This repository is SHARED with sibling units, so never act on whatever branch it happens to have checked out: make ${JSON.stringify(integrationBranch)} the checked-out branch with \`git -C ${repoRoot} switch ${integrationBranch}\`, then confirm it with \`git -C ${repoRoot} rev-parse --abbrev-ref HEAD\` and STOP, publishing nothing, if that prints anything else.\n` +
+          `3. If the base advanced, take it FORWARD ONLY onto that branch: \`git -C ${repoRoot} merge --no-edit origin/${baseBranch}\`. If that merge conflicts, run \`git -C ${repoRoot} merge --abort\`, publish nothing, and report merged=false naming the conflicting paths.\n` +
+          `4. Publish by fast-forward only: \`git -C ${repoRoot} push origin ${integrationBranch}\`. If that push is rejected as non-fast-forward, STOP and report merged=false; a rejected push on a published head means someone else advanced it and a human must look.\n` +
+          `5. ${ciWatchClause} Treat conclusion=success as CI GREEN and every other terminal conclusion, including the timeout expiring, as CI RED.\n` +
+          `6. This run is HUMAN-GATED: do NOT merge the pull request and perform no merge of it of any kind. Leave it open.\n` +
+          `7. ${ciStructuredContract}`,
           { agentType: 'implementer', schema: SHIP_SCHEMA, label: `ci-publish:${msp.id}`, phase: 'Ship', model: 'sonnet' }
         ).catch(() => null);
+        const landed = await agent(
+          `You are the ci publish-verify step for MSP "${msp.id}" of a mitosis run. You have NO Skill tool.\n\n` +
+          `This step is STRICTLY READ-ONLY. It exists so the engine never takes the word of the agent that published for what actually reached the reviewed head. Make NO edit, NO commit and NO push.\n` +
+          `1. Answer whether the head the engine published is STILL an ancestor of the branch — true after a fast-forward or a forward merge, false after any rewrite: run \`git -C ${repoRoot} merge-base --is-ancestor ${JSON.stringify(fromSha)} ${JSON.stringify(integrationBranch)}\` (both refs are separate INERT argv tokens) and report appendOnly=true when it exits 0, appendOnly=false when it exits 1, and appendOnly=false if you cannot run it at all.\n` +
+          `2. Run EXACTLY: \`git -C ${repoRoot} diff --name-only --end-of-options ${JSON.stringify(fromSha)} ${JSON.stringify(integrationBranch)}\`.\n` +
+          `3. Echo back, verbatim, the TWO endpoints you actually passed. An echo that does not match the pair this stage handed you fails closed.\n\n` +
+          `Return ONLY: { appendOnly: <bool>, changedPaths: [ "<path git printed>" ], checkedFromSha: "<the left endpoint you used, verbatim>", checkedToSha: "<the right endpoint you used, verbatim>" }.`,
+          { agentType: 'implementer', schema: CI_PUBLISH_VERIFY_SCHEMA, label: `ci-publish-verify:${msp.id}`, phase: 'Ship', model: 'sonnet' }
+        ).catch(() => null);
+        if (!landed || typeof landed.checkedFromSha !== 'string' || typeof landed.checkedToSha !== 'string' || !Array.isArray(landed.changedPaths)) {
+          return ciEscalation(`${msp.id} the engine could not re-derive what the ci publish step actually landed on the published head, so it cannot confirm the head a human is reviewing was only appended to`);
+        }
+        if (landed.checkedFromSha !== fromSha || landed.checkedToSha !== integrationBranch) {
+          return ciEscalation(`${msp.id} the post-publish re-derivation did not read the pair of endpoints the engine handed it, so its answer describes an unknown pair of endpoints`);
+        }
+        if (landed.appendOnly !== true) {
+          return ciEscalation(`${msp.id} the head the engine published is NO LONGER an ancestor of ${clean(integrationBranch)}, so a rewrite reached a published, human-reviewed ref; the loop stops and pushes nothing further`);
+        }
+        if (assertionGuardBlocks(landed.changedPaths, failingAssertionFiles)) {
+          return ciEscalation(`${msp.id} what the ci publish step landed on the published head touches a file that contains a failing assertion, which the candidate diff did not, so the loop stops rather than let CI turn green on a weakened assertion`);
+        }
         return ciAfterWatch(published);
       }
 
