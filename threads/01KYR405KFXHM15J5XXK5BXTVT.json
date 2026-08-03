@@ -136,7 +136,8 @@
       "0222-the-replacement-test-ships-two-assertions-not-three",
       "0223-the-msp-is-held-from-pr-until-the-review-fixes-land",
       "0224-the-append-after-approval-property-was-never-live-and-no-control-replaces-it",
-      "0225-stop-the-static-merge-scan-perfection-loop"
+      "0225-stop-the-static-merge-scan-perfection-loop",
+      "0226-coverage-files-are-per-change-write-once-attestations"
     ],
     "out_of_scope": [
       "Any change at mitosis.js:4058-4061. H-C is REFUTED by 0159, not deferred - the done-union is correct and narrowing it is a liveness regression. Re-opening needs new evidence of an unconfirmed-ship producer.",
@@ -160,5 +161,5 @@
     ]
   },
   "created_at": "2026-07-29T23:40:17.901Z",
-  "updated_at": "2026-08-03T19:24:43.941Z"
+  "updated_at": "2026-08-03T19:29:00.106Z"
 }
