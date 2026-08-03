@@ -138,7 +138,8 @@
       "0217-ephemeral-scratchpad-content-is-recovered-from-the-ledger-ref",
       "0218-preflight-invariant-2-cannot-pass-on-an-operator-owned-repo",
       "0219-the-preflight-guards-a-capability-the-engine-does-not-have",
-      "0220-delete-the-preflight-rather-than-neuter-it"
+      "0220-delete-the-preflight-rather-than-neuter-it",
+      "0221-retire-0218-by-superseding-record-not-a-status-edit"
     ],
     "out_of_scope": [
       "Any change at mitosis.js:4058-4061. H-C is REFUTED by 0159, not deferred - the done-union is correct and narrowing it is a liveness regression. Re-opening needs new evidence of an unconfirmed-ship producer.",
@@ -162,5 +163,5 @@
     ]
   },
   "created_at": "2026-07-29T23:40:17.901Z",
-  "updated_at": "2026-08-03T15:36:37.199Z"
+  "updated_at": "2026-08-03T15:46:47.937Z"
 }
