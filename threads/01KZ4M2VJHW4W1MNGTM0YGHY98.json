@@ -142,6 +142,11 @@
         "ref": "0230-fix-rounds-gated-on-invariants-not-defect-lists",
         "title": "Repair rounds are gated on a fixed invariant set, and stop at NOT READY rather than declare a false green",
         "scope": "c1"
+      },
+      {
+        "ref": "0231-all-or-nothing-edit-sets-are-not-started-without-budget-to-finish",
+        "title": "A repair whose edits must land in two documents at once is not started unless the session can finish it",
+        "scope": "c1"
       }
     ],
     "out_of_scope": [
@@ -157,5 +162,5 @@
     "last_session": "2026-08-03: audit, remedy and SPEC re-baseline via two workflows (41 agents, 5.5M tokens). No code change, no commit."
   },
   "created_at": "2026-08-03T20:12:16.337Z",
-  "updated_at": "2026-08-04T06:04:29.148Z"
+  "updated_at": "2026-08-04T14:39:15.677Z"
 }
