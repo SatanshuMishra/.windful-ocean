@@ -112,6 +112,11 @@
         "ref": "0231-all-or-nothing-edit-sets-are-not-started-without-budget-to-finish",
         "title": "A repair whose edits must land in two documents at once is not started unless the session can finish it",
         "scope": "c1"
+      },
+      {
+        "ref": "0232-a-defect-fix-extends-to-every-site-its-planned-fix-would-break",
+        "title": "A defect fix extends beyond its planned site list to every site the planned fix would otherwise break",
+        "scope": "thread"
       }
     ],
     "out_of_scope": [
@@ -127,5 +132,5 @@
     "last_session": "2026-08-04: read phase only. Band 0130-0227 enumerated (98 records), 0130 and 0210 read in full, ROUND-4-PLAN.md written with a 14-site edit list. No edit applied, no commit."
   },
   "created_at": "2026-08-03T20:12:16.337Z",
-  "updated_at": "2026-08-04T14:39:50.340Z"
+  "updated_at": "2026-08-04T14:54:05.562Z"
 }
