@@ -117,6 +117,11 @@
         "ref": "0245-gate-structural-rewrite-over-regex-patching",
         "title": "Rewrite the bash gate to parse-then-decide-per-command rather than patch its regexes",
         "scope": "c4"
+      },
+      {
+        "ref": "0246-merge-branch-selfwrap-asymmetry-is-correct",
+        "title": "Leave the merge deny branch without a selfwrap exemption",
+        "scope": "c5"
       }
     ],
     "out_of_scope": [
@@ -125,5 +130,5 @@
     ]
   },
   "created_at": "2026-08-04T22:28:39.135Z",
-  "updated_at": "2026-08-04T23:31:04.416Z"
+  "updated_at": "2026-08-04T23:31:18.538Z"
 }
