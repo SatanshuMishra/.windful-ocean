@@ -153,6 +153,11 @@
         "ref": "0236-a-round-ends-before-its-gate-rather-than-leaving-an-unrepaired-finding-list",
         "title": "A round ends before running its gate when the gate's repairs cannot land in the same session",
         "scope": "c1"
+      },
+      {
+        "ref": "0237-document-repairs-are-claim-keyed-not-site-keyed",
+        "title": "A repair edits every site of a claim or it does not start, because round 5 proved site-keyed repair half-lands",
+        "scope": "c7"
       }
     ],
     "out_of_scope": [
@@ -168,5 +173,5 @@
     "last_session": "2026-08-04 round 5: band 0130-0227 fully marked (98/98 opened, 63 bearing / 35 non-bearing); the 39 missing records and 10 misstated rows folded in as 91 edits, 27 pairs, 0 half-landed. Gate not run, so NOT READY."
   },
   "created_at": "2026-08-03T20:12:16.337Z",
-  "updated_at": "2026-08-04T16:01:30.180Z"
+  "updated_at": "2026-08-04T18:16:00.403Z"
 }
