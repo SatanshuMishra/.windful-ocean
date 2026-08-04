@@ -83,10 +83,15 @@
         "ref": "0243-pr-tool-neutral-home",
         "title": "Relocate the PR tool to .claude/lib/git/pr.mjs with no shim at the old path",
         "scope": "c2"
+      },
+      {
+        "ref": "0244-pr-guidance-as-skill-not-command",
+        "title": "Teach the PR tool through a global skill and a CLAUDE.md bullet, keeping the gate as backstop",
+        "scope": "c1"
       }
     ],
     "out_of_scope": []
   },
   "created_at": "2026-08-04T22:28:39.135Z",
-  "updated_at": "2026-08-04T22:29:17.130Z"
+  "updated_at": "2026-08-04T22:29:26.739Z"
 }
