@@ -128,6 +128,11 @@
         "ref": "0233-corpus-citations-name-a-bounded-range-and-the-store-read",
         "title": "A decision-corpus citation names a bounded record range and the store it was read in, never an absolute count",
         "scope": "thread"
+      },
+      {
+        "ref": "0234-plugin-store-read-is-authoritative-when-proven-identical-to-ledger-ref",
+        "title": "A plugin-data store may ground a corpus claim once proven byte-identical to the _ledger ref over the cited range",
+        "scope": "c1"
       }
     ],
     "out_of_scope": [
@@ -143,5 +148,5 @@
     "last_session": "2026-08-04: repair round 4. All 8 defects applied across 21 sites (14 planned, 7 forced by consistency) in both documents; two self-created residuals found and closed. Band marking not started, I1-I8 gate not run, NOT READY. No repo file touched."
   },
   "created_at": "2026-08-03T20:12:16.337Z",
-  "updated_at": "2026-08-04T14:55:27.264Z"
+  "updated_at": "2026-08-04T16:00:08.184Z"
 }
