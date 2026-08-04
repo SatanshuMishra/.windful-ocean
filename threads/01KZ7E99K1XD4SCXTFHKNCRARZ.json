@@ -10,21 +10,21 @@
     {
       "id": "c1",
       "text": "MSP-1: models learn the centralized PR tool BEFORE hitting the gate - CLAUDE.md bullet plus a globally-visible self-triggering pr skill",
-      "done": false,
+      "done": true,
       "kind": "planned",
       "struck_by": null
     },
     {
       "id": "c2",
       "text": "MSP-2: PR tool relocated out of the mitosis lib to a neutral path, gate selfwrap updated atomically, no shim at the old path",
-      "done": false,
+      "done": true,
       "kind": "planned",
       "struck_by": null
     },
     {
       "id": "c3",
       "text": "Both MSPs shipped as stacked PRs, each independently correct, CI green, merged",
-      "done": false,
+      "done": true,
       "kind": "planned",
       "struck_by": null
     },
@@ -74,10 +74,34 @@
   "abandoned_reason": null,
   "closure_statement": null,
   "spine": {
-    "active_goal": "",
-    "next_step": "",
-    "last_session": "",
-    "open_risks": [],
+    "active_goal": "Clear the four follow-ups left by the PR-tool relocation: the pre-existing gate bypass, the gate prose false-positive, the deployed-copy question, and the basename-keying test fix.",
+    "next_step": "FRESH SESSION. Both PRs are merged; main is at 27419a4. First confirm the shipped state on main - the tool resolves at .claude/lib/git/pr.mjs, the gate admits it, and no live reference to the old path survives outside .claude/worktrees, .claude/reports and docs. Then take the four follow-ups worst-first, starting with c4, the pre-existing CRITICAL gate bypass. Verify c6's premise BEFORE doing c6; it may be a non-issue.",
+    "last_session": "Diagnosed both defects, shipped them as two stacked PRs (#39, #40) via a 9-agent workflow, fixed the invariant-coverage gap I had missed on #39, and confirmed both merged.",
+    "open_risks": [
+      {
+        "text": "Verify c6's premise before acting on it — the home lib directory is itself a symlink into the repo, so files under it are not separate deployed copies and may need no refresh step at all",
+        "scope": "thread",
+        "refs": [
+          "~/.claude/lib",
+          "MSP-2 ship report"
+        ]
+      },
+      {
+        "text": "Do not attribute the one npm test failure to your own change — it reproduces on pristine main, so it predates this work",
+        "scope": "thread",
+        "refs": [
+          "da0cefd",
+          ".claude/hooks/tests/protect-claude-config.test.mjs:194"
+        ]
+      },
+      {
+        "text": "Confirm the threatened verdicts on #39 are acceptable, or schedule the missing tests — invariants M3 and M4 were recorded threatened rather than clean, and the PR merged that way",
+        "scope": "thread",
+        "refs": [
+          "docs/invariants/coverage/feat-pr-guidance-global.json"
+        ]
+      }
+    ],
     "key_decisions": [
       {
         "ref": "0243-pr-tool-neutral-home",
@@ -90,8 +114,11 @@
         "scope": "c1"
       }
     ],
-    "out_of_scope": []
+    "out_of_scope": [
+      "A Windows-path PreToolUse hook that fails on darwin in a separate private repo - surfaced from the original error output, enforcing nothing there, never in scope for this thread",
+      "Renaming .claude/lib/superpowers-parallel itself - the directory name is still a fossil, but only the PR tool needed to leave it"
+    ]
   },
   "created_at": "2026-08-04T22:28:39.135Z",
-  "updated_at": "2026-08-04T22:29:26.739Z"
+  "updated_at": "2026-08-04T22:30:21.131Z"
 }
