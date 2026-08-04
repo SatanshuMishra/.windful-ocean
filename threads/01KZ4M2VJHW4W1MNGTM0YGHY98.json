@@ -63,69 +63,30 @@
   "abandoned_reason": null,
   "closure_statement": null,
   "spine": {
-    "active_goal": "Verify round 7's repairs with a round 8 gate and obtain the user's rulings on the eleven reserved questions, so the SPEC and its docket can reach READY.",
-    "next_step": "FRESH SESSION. Round 7 landed its repairs but carries NO verdict. Run the round 8 gate: I1-I8 against the repaired documents, one independent verifier per invariant, inheriting no verdict from round 6. In parallel, present artifacts/round7-patches/RESERVED-QUESTIONS-FOR-RULING.md and take rulings on Q1 (where an [RB] note's scope ends) and Q2 (what user-ratified means) first, since they gate the rest. Resolve none of the eleven yourself. Expect fold-time contradictions per 0240.",
+    "active_goal": "CLOSED AS FAILED. The re-baselined SPEC is abandoned as unfixable after eight repair rounds; the rewrite lives in the successor thread.",
+    "next_step": "Nothing. This thread is terminal. Work continues in the successor thread mitosis-spec-rewrite-from-scratch, which re-writes the SPEC from the approved original (386 lines, sha256 0db8fe666b6ca3e8) against a fresh codebase audit. Do NOT reopen this thread to repair the re-baselined documents - decision 0242 closed that path. The round 8 gate report at artifacts/GATE-ROUND8-I1-I8.md is retained as evidence for the rewrite, naming which claim classes decayed and why.",
     "open_risks": [
       {
-        "text": "Run the round 8 gate before treating any round 7 closure as real — 43 of 47 defects are closed on the patches' own accounting and no gate has checked a single one.",
+        "text": "Never lift corrected text out of the re-baselined documents when rewriting — eight rounds left corrections landed at one site and not at its twin, so any passage taken from them may carry a half-landed claim",
         "scope": "thread",
         "refs": [
-          "artifacts/round7-patches/APPLY-REPORT.md",
-          "decision 0230"
+          "decision 0242",
+          "artifacts/GATE-ROUND8-I1-I8.md"
         ]
       },
       {
-        "text": "Expect contradictions that exist only in the fold rather than in any patch — round 7's K5 and K8 were each correct alone and false composed, and only the applier was positioned to see it.",
+        "text": "Treat the abandoned documents' defect count as unknown and higher than 22 — round 8 never ran anchor truth or decision closure, so no claim in them is safe to reuse unverified",
         "scope": "thread",
         "refs": [
-          "decision 0240"
+          "artifacts/GATE-ROUND8-I1-I8.md"
         ]
       },
       {
-        "text": "Enumerate every site of a claim before editing any site — round 7 found nine more unlogged sites of the gate's own claims, each byte-identical to .pre-round5, each having survived a gate that was hunting exactly that shape.",
+        "text": "Re-pin the base commit before any fresh measurement — the repo sits on branch feat/pr-guidance-global at 6957691, not main at da0cefd, after a commit this work did not make landed mid-session",
         "scope": "thread",
         "refs": [
-          "decision 0237",
-          "artifacts/round7-patches/00-COLLISION-REGISTER.md"
-        ]
-      },
-      {
-        "text": "Treat the round 6 gate report as evidence, not scripture — three of its citations proved wrong: 0197 appears nowhere in either document, its corpus figure of 236 was already 238, and its cited DOCKET:146 is an empty line.",
-        "scope": "thread",
-        "refs": [
-          "artifacts/GATE-ROUND6-I1-I8.md",
-          "artifacts/round7-patches/00-COLLISION-REGISTER.md"
-        ]
-      },
-      {
-        "text": "State every corpus figure with its measurement date and the store read, never as an absolute — the count moved through 227, 233, 236, 238 and 240 within days, and it grows every time this thread records a decision.",
-        "scope": "thread",
-        "refs": [
-          "decision 0233",
-          "decision 0234"
-        ]
-      },
-      {
-        "text": "Treat five cited record sets as un-refuted rather than cleared — D-05's 0161/0180/0183/0184/0185, D-16's eight, D-14's 0187/0213/0214, D-13's 0211 and D-11's 0127 were never opened in full by any verifier, and round 7 did not open them either.",
-        "scope": "thread",
-        "refs": [
-          "artifacts/GATE-ROUND6-I1-I8.md"
-        ]
-      },
-      {
-        "text": "Do not perform D-02's reclassification from OPEN to CLOSED without the user — round 7 confirmed the arithmetic fix needed no classification decision, so the reclassification stays proposed and not performed.",
-        "scope": "thread",
-        "refs": [
-          "decision 0129",
-          "artifacts/PATCH-D-method-anchors.md"
-        ]
-      },
-      {
-        "text": "Treat the green-branch invariant at SPEC:497 as honored by discipline, not by the server — ruleset 19939922 requires a PR but sets zero required approvals and no required status checks, and branch protection returns 404.",
-        "scope": "thread",
-        "refs": [
-          "decision 0224",
-          "artifacts/PATCH-E-merge-gating.md"
+          "6957691",
+          "da0cefd"
         ]
       }
     ],
@@ -207,17 +168,12 @@
       }
     ],
     "out_of_scope": [
-      "The feat pipeline - 0110 and 0118 sequence it second, after the fix pipeline proves the effector boundary. Pipelines for refactor, perf, docs or chore - closed by 0118 (limits PIPELINES only, not the PR title type vocabulary).",
-      "Speculation depth above 1 - 0109 requires a restack proven for fix specifically. An off-the-shelf durable-execution runtime - 0108. A webhook, daemon or server for the relaunch trigger - 0119.",
-      "fileScope-only task-edge derivation - rejected by 0116 and 0120. Edges stay LSP-grounded; in-engine overlap survives as a pruning input only, never as the oracle.",
-      "Cluster-aware scheduling, and the journal's 2000-character paging through model output - fenced out by SPEC section 1 and deferred in section 13. Adding any new phase, work type or scheduler - section 1 forbids it.",
-      "Bootstrapping a target repo's test infrastructure as a side effect of shipping - closed by 0117. Mitosis deploys its own gates and authors one receipt inside an EXISTING runner; an unmet floor halts fail-closed and names verify-setup.",
-      "Re-doing MSP-0. It shipped as PR #15 (12053dc): Final review deleted, Shepherd renamed to Resume, phase-parity gate live. Verify it still holds; do not re-implement it.",
-      "Other specs are consulted ONLY as evidence for the steps 0-5 precondition audit. Implementing their unshipped work is out of scope: run-readiness-repair MSP-0..MSP-10, the two-track invariant plan, b6-harness-liveness, quiescent-advance M0-M8 (already delivered).",
-      "The predecessor thread's two open follow-ups belong to it, not here: hardening .claude/hooks/block-destructive-bash.sh, and the settings deny drift per decision 0227."
+      "Repairing the re-baselined SPEC or its decision docket in any further round - closed by 0242.",
+      "Re-running the round 8 I1 and I4 verifiers - the user closed them and completing the measurement would not change the disposition.",
+      "The eleven reserved questions in artifacts/round7-patches/RESERVED-QUESTIONS-FOR-RULING.md - most are questions about the repair apparatus, which the rewrite deletes rather than answers."
     ],
-    "last_session": "2026-08-04 round 7: eleven claim-keyed clusters authored 126 edits read-only, one Opus applier folded them byte-clean; 43 of 47 defects closed but unverified, eleven questions reserved."
+    "last_session": "2026-08-04: ran the round 8 gate (8 independent verifiers, 6 returned - I2 and I6 HOLDS, I3/I5/I7/I8 VIOLATED, 22 defects); user closed I1 and I4 unfinished and abandoned the repair path."
   },
   "created_at": "2026-08-03T20:12:16.337Z",
-  "updated_at": "2026-08-04T21:05:52.570Z"
+  "updated_at": "2026-08-04T21:06:50.875Z"
 }
