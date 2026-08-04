@@ -8,7 +8,7 @@ description: Use when opening or creating a pull request in any repository, or i
 Resolve `OWNER/REPO` (from the git remote), `HEAD-BRANCH` (the current branch) and `BASE-BRANCH` (the branch this targets), then run, quoting every value:
 
 ```
-node ~/.claude/lib/superpowers-parallel/mitosis-git.mjs pr-create \
+node ~/.claude/lib/git/pr.mjs pr-create \
   --repo OWNER/REPO --head HEAD-BRANCH --base BASE-BRANCH \
   --title "type(scope): lowercase imperative summary" \
   --origin human-or-machine [--provenance "agent=LABEL model=MODEL"] \

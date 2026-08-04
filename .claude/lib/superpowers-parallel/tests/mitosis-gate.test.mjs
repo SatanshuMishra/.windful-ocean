@@ -26,7 +26,7 @@ import {
   MITOSIS_GIT_OBSERVE_EXIT,
   MITOSIS_GIT_CONVERGE_EXIT,
   MITOSIS_GIT_GH_MISSING_EXIT,
-} from '../mitosis-git.mjs';
+} from '../../git/pr.mjs';
 
 const PHASE_TOKEN = /(?<![\w$.])phase(?![\w$])/g;
 

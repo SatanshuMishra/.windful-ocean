@@ -3,14 +3,16 @@ import assert from 'node:assert/strict';
 import { readFileSync, readdirSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { basename, join } from 'node:path';
-import { MITOSIS_GIT_VERBS, buildGhArgv } from '../mitosis-git.mjs';
+import { MITOSIS_GIT_VERBS, buildGhArgv } from '../../git/pr.mjs';
 
 const MITOSIS_PATH = fileURLToPath(new URL('../../../workflows/mitosis.js', import.meta.url));
 const SETTINGS_PATH = fileURLToPath(new URL('../../../settings.json', import.meta.url));
 const SETTINGS_LABEL = '.claude/settings.json (the tracked repo copy)';
 const LIB_DIR = fileURLToPath(new URL('../', import.meta.url));
+const GIT_LIB_DIR = fileURLToPath(new URL('../../git/', import.meta.url));
+const SCAN_DIRS = Object.freeze([LIB_DIR, GIT_LIB_DIR]);
 const DENY_CLASSIFIER_SHIM = 'gh-merge-shim.mjs';
-const SCAN_ANCHOR = 'mitosis-git.mjs';
+const SCAN_ANCHOR = 'pr.mjs';
 const ENGINE_BASENAME = 'mitosis.js';
 const ENGINE_NAME = basename(MITOSIS_PATH);
 
@@ -21,16 +23,18 @@ test('the engine never re-introduces self-authored merge consent (shipMergeAutho
 });
 
 function libTopLevelModuleNames() {
-  return readdirSync(LIB_DIR, { withFileTypes: true })
-    .filter((entry) => entry.isFile() && entry.name.endsWith('.mjs'))
-    .map((entry) => entry.name)
+  return SCAN_DIRS
+    .flatMap((dir) => readdirSync(dir, { withFileTypes: true })
+      .filter((entry) => entry.isFile() && entry.name.endsWith('.mjs'))
+      .map((entry) => entry.name))
     .sort();
 }
 
 function mergeScanTargets() {
-  const libModules = readdirSync(LIB_DIR, { withFileTypes: true })
-    .filter((entry) => entry.isFile() && entry.name.endsWith('.mjs') && entry.name !== DENY_CLASSIFIER_SHIM)
-    .map((entry) => [entry.name, join(LIB_DIR, entry.name)]);
+  const libModules = SCAN_DIRS
+    .flatMap((dir) => readdirSync(dir, { withFileTypes: true })
+      .filter((entry) => entry.isFile() && entry.name.endsWith('.mjs') && entry.name !== DENY_CLASSIFIER_SHIM)
+      .map((entry) => [entry.name, join(dir, entry.name)]));
   return [[ENGINE_NAME, MITOSIS_PATH], ...libModules];
 }
 
@@ -110,7 +114,7 @@ const MERGE_ARGV_TOKENS = new Set(['merge', '--merge', '--squash', '--rebase', '
 const MERGE_ARGV_TOKEN_PATTERNS = [/pulls\/[^/]+\/merge/i, /mergePullRequest/i, /enablePullRequestAutoMerge/i];
 
 test('argvs from enumerated verb/stage pairs are merge-free', () => {
-  assert.ok(MITOSIS_GIT_VERBS.length > 0, 'mitosis-git.mjs exports an empty MITOSIS_GIT_VERBS table, so this enumeration has no verb to walk; an empty verb table must fail here rather than report a pass earned over zero verbs and zero argvs');
+  assert.ok(MITOSIS_GIT_VERBS.length > 0, 'pr.mjs exports an empty MITOSIS_GIT_VERBS table, so this enumeration has no verb to walk; an empty verb table must fail here rather than report a pass earned over zero verbs and zero argvs');
   const stagesBuiltByVerb = new Map(MITOSIS_GIT_VERBS.map((verb) => [verb, []]));
   const built = [];
   for (const verb of MITOSIS_GIT_VERBS) {
@@ -126,16 +130,16 @@ test('argvs from enumerated verb/stage pairs are merge-free', () => {
       built.push(`${verb}/${stage}`);
       stagesBuiltByVerb.get(verb).push(stage);
       for (const token of argv) {
-        assert.equal(MERGE_ARGV_TOKENS.has(token), false, `buildGhArgv(${verb}, ${stage}) put the merge token ${JSON.stringify(token)} into the argv it returns. This enumeration reads ONLY the verb/stage PAIRS it names: the verb axis is the exported MITOSIS_GIT_VERBS, but stage is an internal argument mitosis-git.mjs exports nowhere, so MITOSIS_GIT_STAGES here is a local list that nothing keeps in sync with buildGhArgv — an argv the builder composes at a stage this list does not name is never read by this loop, and this assertion makes no claim about it. What enforces merge abstinence at run time is the chokepoint: ghExecTripwire(argv, classifyGhMerge) at mitosis-git.mjs:343 gates the module's single spawnSync at :347 and fails closed, whatever the argv was built from. The source-text ban lives at tests/mitosis-git.test.mjs:969. Merging stays human-gated`);
+        assert.equal(MERGE_ARGV_TOKENS.has(token), false, `buildGhArgv(${verb}, ${stage}) put the merge token ${JSON.stringify(token)} into the argv it returns. This enumeration reads ONLY the verb/stage PAIRS it names: the verb axis is the exported MITOSIS_GIT_VERBS, but stage is an internal argument pr.mjs exports nowhere, so MITOSIS_GIT_STAGES here is a local list that nothing keeps in sync with buildGhArgv — an argv the builder composes at a stage this list does not name is never read by this loop, and this assertion makes no claim about it. What enforces merge abstinence at run time is the chokepoint: ghExecTripwire(argv, classifyGhMerge) at pr.mjs:343 gates the module's single spawnSync at :347 and fails closed, whatever the argv was built from. The source-text ban lives at tests/pr.test.mjs:969. Merging stays human-gated`);
         for (const tokenPattern of MERGE_ARGV_TOKEN_PATTERNS) {
-          assert.equal(tokenPattern.test(token), false, `buildGhArgv(${verb}, ${stage}) put the merge target ${JSON.stringify(token)} into the argv it returns; like the token assertion above, this reads only the enumerated verb/stage pairs and makes no claim about an argv composed at a stage MITOSIS_GIT_STAGES does not name. That the wrapper may read and open pull requests but never merge one is enforced at run time by ghExecTripwire at mitosis-git.mjs:343, in front of the single spawnSync at :347`);
+          assert.equal(tokenPattern.test(token), false, `buildGhArgv(${verb}, ${stage}) put the merge target ${JSON.stringify(token)} into the argv it returns; like the token assertion above, this reads only the enumerated verb/stage pairs and makes no claim about an argv composed at a stage MITOSIS_GIT_STAGES does not name. That the wrapper may read and open pull requests but never merge one is enforced at run time by ghExecTripwire at pr.mjs:343, in front of the single spawnSync at :347`);
         }
       }
     }
   }
   assert.ok(built.length > 0, `the argv scan built no argv at all from ${MITOSIS_GIT_VERBS.length} exported verb(s) across the stages ${MITOSIS_GIT_STAGES.join(', ')}; every pair hit the unknown-pair refusal, so no argv was inspected and a pass here would guard nothing`);
   const unreached = MITOSIS_GIT_VERBS.filter((verb) => stagesBuiltByVerb.get(verb).length === 0);
-  assert.deepEqual(unreached, [], `these exported verbs built no argv at any enumerated stage: ${unreached.join(', ')}. stage is an internal argument of buildGhArgv that mitosis-git.mjs exports nowhere, so MITOSIS_GIT_STAGES here is a local list that nothing keeps in sync with the builder. A verb that builds nothing therefore means either the builder no longer serves that verb, or the verb is reachable only at a stage this list does not name — and in the second case every argv that verb can compose escapes the merge-token assertions above unread. Name the missing stage in MITOSIS_GIT_STAGES`);
+  assert.deepEqual(unreached, [], `these exported verbs built no argv at any enumerated stage: ${unreached.join(', ')}. stage is an internal argument of buildGhArgv that pr.mjs exports nowhere, so MITOSIS_GIT_STAGES here is a local list that nothing keeps in sync with the builder. A verb that builds nothing therefore means either the builder no longer serves that verb, or the verb is reachable only at a stage this list does not name — and in the second case every argv that verb can compose escapes the merge-token assertions above unread. Name the missing stage in MITOSIS_GIT_STAGES`);
 });
 
 const REQUIRED_DENY_ENTRIES = Object.freeze([

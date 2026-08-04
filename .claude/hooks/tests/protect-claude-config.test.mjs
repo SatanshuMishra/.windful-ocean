@@ -17,7 +17,7 @@ const PROBE_FILES = ['CLAUDE.md', 'settings.json', 'keybindings.json'];
 
 const CHECKOUT_FILES = [
   ...PROBE_FILES,
-  'lib/superpowers-parallel/mitosis-git.mjs',
+  'lib/git/pr.mjs',
   'workflows/mitosis.js',
   'rules/common/git/pull-requests.md',
   'hooks/block-destructive-bash.sh',
@@ -74,8 +74,8 @@ describe('the guard contract, on a fixture mirroring the deployed symlink topolo
   after(() => rmSync(FIXTURE, { recursive: true, force: true }));
 
   const GUARDED = [
-    ['the pull-request tool in the repo lib tree', join(REPO_CLAUDE, 'lib/superpowers-parallel/mitosis-git.mjs')],
-    ['the same file addressed through the symlinked home lib path', join(HOME_CLAUDE, 'lib/superpowers-parallel/mitosis-git.mjs')],
+    ['the pull-request tool in the repo lib tree', join(REPO_CLAUDE, 'lib/git/pr.mjs')],
+    ['the same file addressed through the symlinked home lib path', join(HOME_CLAUDE, 'lib/git/pr.mjs')],
     ['the mitosis engine in the repo workflows tree', join(REPO_CLAUDE, 'workflows/mitosis.js')],
     ['the same engine addressed through the symlinked home workflows path', join(HOME_CLAUDE, 'workflows/mitosis.js')],
     ['the bash gate that denies raw pull-request creation', join(HOME_CLAUDE, 'hooks/block-destructive-bash.sh')],

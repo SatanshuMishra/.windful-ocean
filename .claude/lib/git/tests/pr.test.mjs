@@ -5,7 +5,7 @@ import { mkdtempSync, mkdirSync, writeFileSync, chmodSync, readFileSync, existsS
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { classifyGhMerge } from '../gh-merge-shim.mjs';
+import { classifyGhMerge } from '../../superpowers-parallel/gh-merge-shim.mjs';
 import { PR_TITLE_CAP, PR_VALUE_CAP, PR_MULTI_LIMITS, DEPENDS_PREFIX } from '../pr-format.mjs';
 import {
   MITOSIS_GIT_USAGE_EXIT,
@@ -20,9 +20,9 @@ import {
   buildGhArgv,
   ghExecTripwire,
   resolveGhBinary,
-} from '../mitosis-git.mjs';
+} from '../pr.mjs';
 
-const WRAPPER = fileURLToPath(new URL('../mitosis-git.mjs', import.meta.url));
+const WRAPPER = fileURLToPath(new URL('../pr.mjs', import.meta.url));
 
 const REPO = 'acme/widgets';
 const HEAD = 'mitosis/msp-1-integration';
@@ -348,7 +348,7 @@ test('the WIDEST body any caller can compose still fits inside the github pull-r
 test('parse REJECTS a pr-create carrying no verification statement at all', () => {
   const parsed = failParse(prCreateArgvWithout('--not-verified'));
   assert.match(parsed.error, /--verified or --not-verified/);
-  okParse([...prCreateArgvWithout('--not-verified'), '--verified', 'node --test tests/mitosis-git.test.mjs - 0 fail']);
+  okParse([...prCreateArgvWithout('--not-verified'), '--verified', 'node --test tests/pr.test.mjs - 0 fail']);
 });
 
 test('parse REJECTS --origin machine without --provenance, so a machine pull request always names its author', () => {
@@ -683,7 +683,7 @@ for (const argv of MALFORMED_TRIPWIRE_ARGV) {
 }
 
 function makeSandbox(plan) {
-  const root = mkdtempSync(join(tmpdir(), 'mitosis-git-e2e-'));
+  const root = mkdtempSync(join(tmpdir(), 'pr-tool-e2e-'));
   const fakeDir = join(root, 'fakebin');
   mkdirSync(fakeDir, { recursive: true });
   const record = join(root, 'record.jsonl');

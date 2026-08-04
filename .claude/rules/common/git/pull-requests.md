@@ -8,10 +8,10 @@ The GitHub MCP denies are an enumeration of tool names against a remote server w
 
 ## The tool
 
-`node .claude/lib/superpowers-parallel/mitosis-git.mjs pr-create` composes both title and body from field values you supply. Pass every value as ONE inert argv value: never a file path, never an `@`-prefixed value (that is how `gh` reads an argument from a file), never a shell redirection. A `pull/new/<branch>` URL printed by `git push` is not an approved path either.
+`node .claude/lib/git/pr.mjs pr-create` composes both title and body from field values you supply. Pass every value as ONE inert argv value: never a file path, never an `@`-prefixed value (that is how `gh` reads an argument from a file), never a shell redirection. A `pull/new/<branch>` URL printed by `git push` is not an approved path either.
 
 ```
-node .claude/lib/superpowers-parallel/mitosis-git.mjs pr-create \
+node .claude/lib/git/pr.mjs pr-create \
   --repo OWNER/REPO --head HEAD-BRANCH --base BASE-BRANCH \
   --title "type(scope): lowercase imperative summary" \
   --origin human-or-machine [--provenance "agent=LABEL model=MODEL"] \
