@@ -1,0 +1,19 @@
+Session opened as an explanation request ("why does the PR tool live under superpowers-parallel?") and turned into shipping the fix.
+
+DIAGNOSIS. Two defects, both verified against the live config rather than assumed.
+(1) Placement. mitosis-git.mjs sat in .claude/lib/superpowers-parallel/ - a directory named for a superseded system, a filename naming one consumer. Models read that path as not-for-them and reached for `gh pr create`. The 2026-07-27 centralization spec had explicitly re-ratified the location ("generalized in place", non-goal: "no new file location"), so it was a deliberate choice, not an oversight - but the name had outgrown the tool.
+(2) Discoverability. The enforcement was global and the teaching was not. ~/.claude/hooks and ~/.claude/rules are symlinks into this repo, so the gate and the rules prose reach every repo. ~/.claude/commands DOES NOT EXIST - `commands` is the one directory not symlinked - so the /pr command carrying the exact template was invisible outside this repo. ~/.claude/CLAUDE.md, the tiny always-on file, had no git/PR bullet at all while every other hard invariant had one. Net effect: models were guaranteed to be stopped and not guaranteed to be told first.
+
+SHIPPED. Two stacked PRs via a 9-agent dynamic workflow, both merged; main now at 27419a4.
+- #39 feat/pr-guidance-global -> main (36a3e1e). CLAUDE.md bullet + new .claude/skills/pr/SKILL.md. Deliberately still names the OLD tool path so it is correct standalone if #40 never merged. .claude/skills IS symlinked, so the skill is globally visible and self-triggering; it took effect mid-session and appeared in this session's own skill list.
+- #40 refactor/relocate-pr-tool -> #39 (27419a4). git mv to .claude/lib/git/pr.mjs and pr-format.mjs plus both test files; no shim at the old path; three verbs unchanged; relative imports back into ../superpowers-parallel/ for gh-merge-shim, checkpoint, merge-watch (accepted trade). Gate selfwrap re-anchored from the bare filename to the path tail lib/git/pr.mjs - strictly tighter than before, which matched any file of that name anywhere on disk.
+
+THE LOAD-BEARING RISK, CLEARED. The gate is live and global through a symlink, so a rename without the selfwrap moving with it would have made the tool block itself and stopped every PR on the machine. Mitigation was atomicity plus proof: #40's own PR was opened through the relocated tool on the new path and the gate allowed it silently. Hook suite 85/85.
+
+WHAT WENT WRONG, AND IT WAS MINE. I scoped the MSPs without accounting for the invariant-coverage CI gate. #39 shipped with no docs/invariants/coverage/ entry and failed that job deterministically; because #40 stacked on it, neither could land. #40's agent had caught the same gap for itself and correctly refused to fix #39 from a branch it did not own. Fixed after the fact by a follow-up agent: e67d844 adds feat-pr-guidance-global.json, 12 registry verdicts, and #39 went green on all six checks.
+
+VERIFICATION QUALITY, WORTH KEEPING. The coverage agent recorded M3 and M4 as `threatened` rather than clean - no red-on-parent/green-here acceptance test ships for #39, and the range mixes a move with a content rewrite without a characterization test - and said plainly that marking them clean would have been the dishonest option. It also caught a copied-citation trap: the sibling coverage file cites gh-scope-lint.test.mjs:20, but on that branch the symbol is at :17. That is precisely the failure M5 exists to catch.
+
+NOT DONE, DELIBERATELY. Four follow-ups left unfixed and out of scope, now c4-c7. Also unfixed: a Windows-path PreToolUse hook in a separate private repo that fails on darwin and is enforcing nothing there - noticed from the original error output, never in scope here.
+
+BASELINE NOTE. npm test carries one pre-existing failure at protect-claude-config.test.mjs:194, reproduced on pristine main da0cefd in a throwaway worktree. Not caused by this work.
