@@ -78,9 +78,15 @@
     "next_step": "",
     "last_session": "",
     "open_risks": [],
-    "key_decisions": [],
+    "key_decisions": [
+      {
+        "ref": "0243-pr-tool-neutral-home",
+        "title": "Relocate the PR tool to .claude/lib/git/pr.mjs with no shim at the old path",
+        "scope": "c2"
+      }
+    ],
     "out_of_scope": []
   },
   "created_at": "2026-08-04T22:28:39.135Z",
-  "updated_at": "2026-08-04T22:28:39.135Z"
+  "updated_at": "2026-08-04T22:29:17.130Z"
 }
