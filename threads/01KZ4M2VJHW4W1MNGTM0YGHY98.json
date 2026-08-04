@@ -199,6 +199,11 @@
         "ref": "0241-a-repair-round-writes-its-own-round-level-record",
         "title": "A repair round writes its own round-level changelog, and no patch may defer it to another agent",
         "scope": "thread"
+      },
+      {
+        "ref": "0242-rebaselined-spec-abandoned-rewritten-from-scratch",
+        "title": "The re-baselined SPEC is abandoned and re-written from scratch against a fresh audit, not repaired further",
+        "scope": "c1"
       }
     ],
     "out_of_scope": [
@@ -214,5 +219,5 @@
     "last_session": "2026-08-04 round 7: eleven claim-keyed clusters authored 126 edits read-only, one Opus applier folded them byte-clean; 43 of 47 defects closed but unverified, eleven questions reserved."
   },
   "created_at": "2026-08-03T20:12:16.337Z",
-  "updated_at": "2026-08-04T19:41:50.045Z"
+  "updated_at": "2026-08-04T21:05:52.570Z"
 }
