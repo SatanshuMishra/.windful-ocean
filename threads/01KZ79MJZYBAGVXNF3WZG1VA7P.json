@@ -1,0 +1,75 @@
+{
+  "schema_version": 2,
+  "id": "01KZ79MJZYBAGVXNF3WZG1VA7P",
+  "slug": "mitosis-spec-rewrite-from-scratch",
+  "title": "Mitosis core rebuild SPEC: rewrite from scratch",
+  "status": "active",
+  "parent_id": null,
+  "predecessor_id": "01KZ4M2VJHW4W1MNGTM0YGHY98",
+  "completion_criteria": [
+    {
+      "id": "c1",
+      "text": "A fresh audit of the current engine is recorded at a named base commit: phase and opts.phase census, verb surface, gate surface, and preconditions 0-5 status, each re-measured and none carried over.",
+      "done": false,
+      "kind": "planned",
+      "struck_by": null
+    },
+    {
+      "id": "c2",
+      "text": "Every binding decision 0106-0121 and every later record amending them is re-read from refs/heads/_ledger, its current force restated, and any superseded one named as superseded.",
+      "done": false,
+      "kind": "planned",
+      "struck_by": null
+    },
+    {
+      "id": "c3",
+      "text": "External research is done and cited with verifiable URLs or marked [unverified]: durable execution, gate and receipt models, and LSP-grounded dependency derivation.",
+      "done": false,
+      "kind": "planned",
+      "struck_by": null
+    },
+    {
+      "id": "c4",
+      "text": "The new SPEC is authored from the approved original's architecture with every claim grounded at a named anchor at the audit base; no text is lifted from the abandoned re-baselined documents.",
+      "done": false,
+      "kind": "planned",
+      "struck_by": null
+    },
+    {
+      "id": "c5",
+      "text": "The new SPEC carries its own verification contract: every citation re-runnable at its stated base, every count dated with the store it was read in, and one stated correction convention.",
+      "done": false,
+      "kind": "planned",
+      "struck_by": null
+    },
+    {
+      "id": "c6",
+      "text": "The new SPEC passes an independent gate, one fresh verifier per invariant inheriting no verdict, and stops at NOT READY rather than declaring a false green.",
+      "done": false,
+      "kind": "planned",
+      "struck_by": null
+    },
+    {
+      "id": "c7",
+      "text": "The user approves the rewritten SPEC and it is committed to a durable location, replacing the abandoned re-baselined documents as the spec of record.",
+      "done": false,
+      "kind": "planned",
+      "struck_by": null
+    }
+  ],
+  "vcs_ref": null,
+  "external_refs": [],
+  "blocked_by": null,
+  "abandoned_reason": null,
+  "closure_statement": null,
+  "spine": {
+    "active_goal": "",
+    "next_step": "",
+    "last_session": "",
+    "open_risks": [],
+    "key_decisions": [],
+    "out_of_scope": []
+  },
+  "created_at": "2026-08-04T21:07:26.334Z",
+  "updated_at": "2026-08-04T21:07:26.334Z"
+}
