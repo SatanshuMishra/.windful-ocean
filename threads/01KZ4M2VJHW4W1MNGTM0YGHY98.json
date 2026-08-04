@@ -127,6 +127,16 @@
     ],
     "key_decisions": [
       {
+        "ref": "0237-document-repairs-are-claim-keyed-not-site-keyed",
+        "title": "A repair edits every site of a claim or it does not start, because round 5 proved site-keyed repair half-lands",
+        "scope": "c7"
+      },
+      {
+        "ref": "0238-gate-reds-are-reasoned-to-a-non-regressing-solution-before-implementation",
+        "title": "Each gate red is reasoned out with its full surface area by a high-reasoning Fable subagent before any fix is written",
+        "scope": "thread"
+      },
+      {
         "ref": "0228-criteria-texts-compressed-to-satisfy-the-200-char-cap",
         "title": "The seven completion criteria are compressed to fit the 200-char cap, meaning preserved, none struck",
         "scope": "c1"
@@ -147,6 +157,16 @@
         "scope": "c1"
       },
       {
+        "ref": "0232-a-defect-fix-extends-to-every-site-its-planned-fix-would-break",
+        "title": "A defect fix extends beyond its planned site list to every site the planned fix would otherwise break",
+        "scope": "c1"
+      },
+      {
+        "ref": "0233-corpus-citations-name-a-bounded-range-and-the-store-read",
+        "title": "A decision-corpus citation names a bounded record range and the store it was read in, never an absolute count",
+        "scope": "c1"
+      },
+      {
         "ref": "0234-plugin-store-read-is-authoritative-when-proven-identical-to-ledger-ref",
         "title": "A plugin-data store may ground a corpus claim once proven byte-identical to the _ledger ref over the cited range",
         "scope": "c1"
@@ -160,16 +180,6 @@
         "ref": "0236-a-round-ends-before-its-gate-rather-than-leaving-an-unrepaired-finding-list",
         "title": "A round ends before running its gate when the gate's repairs cannot land in the same session",
         "scope": "c1"
-      },
-      {
-        "ref": "0237-document-repairs-are-claim-keyed-not-site-keyed",
-        "title": "A repair edits every site of a claim or it does not start, because round 5 proved site-keyed repair half-lands",
-        "scope": "c7"
-      },
-      {
-        "ref": "0238-gate-reds-are-reasoned-to-a-non-regressing-solution-before-implementation",
-        "title": "Each gate red is reasoned out with its full surface area by a high-reasoning Fable subagent before any fix is written",
-        "scope": "thread"
       }
     ],
     "out_of_scope": [
@@ -185,5 +195,5 @@
     "last_session": "2026-08-04 round 6: ran I1-I8 in full. I1, I2, I6 hold; I3, I4, I5, I7, I8 red; 47 defects. Round 5's 'zero half-landed' proved false in four places. No repair started."
   },
   "created_at": "2026-08-03T20:12:16.337Z",
-  "updated_at": "2026-08-04T18:18:14.504Z"
+  "updated_at": "2026-08-04T18:21:05.111Z"
 }
