@@ -63,13 +63,57 @@
   "abandoned_reason": null,
   "closure_statement": null,
   "spine": {
-    "active_goal": "",
-    "next_step": "",
-    "last_session": "",
-    "open_risks": [],
+    "active_goal": "Re-write the mitosis core-rebuild SPEC from scratch, grounded in a fresh codebase audit and fresh research, replacing the abandoned re-baselined document.",
+    "next_step": "START HERE IN A FRESH SESSION. Read handoff-2026-08-04-mitosis-spec-rewrite/artifacts/SPEC-APPROVED-ORIGINAL-2026-07-30.md (386 lines, sha256 0db8fe666b6ca3e8) - the APPROVED ORIGINAL and the only text input to the rewrite. Then do c1: pin a base commit and re-measure the engine, because the original's anchors were taken on 2026-07-30 against mitosis.js at 4,851 lines and it is now 5,514. Do NOT open the abandoned re-baselined SPEC or docket for content.",
+    "last_session": "2026-08-04: thread opened when the user closed the eight-round repair effort as failed and directed a rewrite from scratch.",
+    "open_risks": [
+      {
+        "text": "Re-measure every anchor in the approved original before reusing it — its citations were taken on 2026-07-30 against mitosis.js at 4,851 lines and the file is now 5,514, so every line number in it is presumed stale",
+        "scope": "thread",
+        "refs": [
+          "SPEC-APPROVED-ORIGINAL-2026-07-30.md",
+          ".claude/workflows/mitosis.js"
+        ]
+      },
+      {
+        "text": "Pin the base commit explicitly and never write a command that floats on HEAD — the previous effort's counts drifted when a commit landed mid-run, and one cited command silently changed its answer",
+        "scope": "thread",
+        "refs": [
+          "6957691",
+          "da0cefd"
+        ]
+      },
+      {
+        "text": "Do not open the abandoned re-baselined SPEC or its docket for content — decision 0242 closed them, and lifting a passage risks importing a half-landed claim that eight rounds failed to clear",
+        "scope": "thread",
+        "refs": [
+          "decision 0242",
+          "handoff-2026-08-03-mitosis-core-rebuild/artifacts/GATE-ROUND8-I1-I8.md"
+        ]
+      },
+      {
+        "text": "State one correction convention in the new SPEC before writing any correction — the abandoned document never defined where a fact-marker's scope ended, and that gap left several findings unjudgeable to the end",
+        "scope": "thread",
+        "refs": [
+          "handoff-2026-08-03-mitosis-core-rebuild/artifacts/GATE-ROUND8-I1-I8.md"
+        ]
+      },
+      {
+        "text": "MSP-0 of the original already shipped as PR #15 — verify it still holds against the audit base rather than re-implementing it, and check whether later commits moved what it established",
+        "scope": "thread",
+        "refs": [
+          "PR #15",
+          "12053dc"
+        ]
+      }
+    ],
     "key_decisions": [],
-    "out_of_scope": []
+    "out_of_scope": [
+      "Repairing the abandoned re-baselined SPEC or its decision docket - closed by 0242; this thread replaces them rather than fixing them.",
+      "The eleven reserved questions in the predecessor's round7-patches/RESERVED-QUESTIONS-FOR-RULING.md - they are questions about the repair apparatus, which the rewrite deletes.",
+      "Implementing the SPEC. This thread produces an approved document; execution is a later thread."
+    ]
   },
   "created_at": "2026-08-04T21:07:26.334Z",
-  "updated_at": "2026-08-04T21:07:26.334Z"
+  "updated_at": "2026-08-04T21:07:56.651Z"
 }
