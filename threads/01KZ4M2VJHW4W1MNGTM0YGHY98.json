@@ -63,32 +63,38 @@
   "abandoned_reason": null,
   "closure_statement": null,
   "spine": {
-    "active_goal": "Bring the re-baselined SPEC and the decision docket to READY by closing all 8 residual defects in one pass, then take the docket to the user for ratification.",
-    "next_step": "Read artifacts/ROUND-4-PLAN.md FIRST, then open at the first EDIT - the read phase is paid for twice already. Apply all 8 defects as ONE set across both documents, and mark each of the 98 enumerated band records bearing or non-bearing. Then re-run the I1-I8 gate and stop at NOT READY if any fails. Do NOT re-run the audit, the anchor derivation, or the band enumeration.",
+    "active_goal": "Bring the re-baselined SPEC and its decision docket to READY, then take the docket to the user for ratification.",
+    "next_step": "FRESH SESSION, user directive: dispatch DEDICATED SUBAGENTS to finish every remaining SPEC change; the SPEC MUST be implementation-ready by session end. Order: (1) mark all 98 band records 0130-0227 bearing/non-bearing, naming the store per 0233; (2) fold each bearing record into SPEC 16 AND the docket as one matched pair; (3) run the I1-I8 gate; (4) close what it reds. Do NOT re-run the audit, anchor derivation or band enumeration. Stop at NOT READY per 0230, never a false green.",
     "open_risks": [
       {
-        "text": "Do not begin the 8-defect edit set without the context budget to finish it — four of the eight need a matched edit in both documents, so a half-applied pass converts a decision-closure defect into an internal-consistency one.",
+        "text": "Mark all 98 band records 0130-0227 before anything else — it is unstarted, and any bearing record found there lands as a new SPEC section 16 row plus a matched docket edit, which is an all-or-nothing pair.",
         "scope": "thread",
         "refs": [
-          "0231-all-or-nothing-edit-sets-are-not-started-without-budget-to-finish",
-          "artifacts/ROUND-4-PLAN.md"
+          "artifacts/ROUND-4-PLAN.md",
+          "decision 0231",
+          "decision 0233"
         ]
       },
       {
-        "text": "State which ledger store any decision recount read — the two plugin worktrees sit at different commits, one holding 227 records and the other 230, so the SPEC's \"full 227-record corpus\" phrasing is a stale absolute.",
+        "text": "Run the I1-I8 gate before trusting either document — it has not run since round 4's edits, and the lighter stale-string check that did run found two live residuals round 4 itself created.",
         "scope": "thread",
         "refs": [
-          "SPEC-2026-07-30-mitosis-core-rebuild.REBASELINED.md:149",
-          "SPEC-2026-07-30-mitosis-core-rebuild.REBASELINED.md:740",
-          "decision 0209"
+          "decision 0230"
         ]
       },
       {
-        "text": "Check only the docket's Section A row 0 for the worktree arithmetic — the handoff says neither document resolves it, but the SPEC's section 2 row 0 already carries the full reconciliation.",
+        "text": "Re-verify against the 2026-08-04 session log's 21 sites rather than ROUND-4-PLAN.md's 14 — round 4 applied 7 sites beyond the plan, so a check keyed to the plan under-covers the diff.",
         "scope": "thread",
         "refs": [
-          "SPEC-2026-07-30-mitosis-core-rebuild.REBASELINED.md:219",
-          "DECISION-DOCKET.md:65"
+          "decision 0232"
+        ]
+      },
+      {
+        "text": "Give each defect's SPEC sites and docket sites to ONE subagent — splitting a matched pair across two agents is how a pair gets half-applied, and that turns a closure defect into a consistency defect.",
+        "scope": "thread",
+        "refs": [
+          "decision 0231",
+          "decision 0232"
         ]
       }
     ],
@@ -134,8 +140,8 @@
       "Other specs are consulted ONLY as evidence for the steps 0-5 precondition audit. Implementing their unshipped work is out of scope: run-readiness-repair MSP-0..MSP-10, the two-track invariant plan, b6-harness-liveness, quiescent-advance M0-M8 (already delivered).",
       "The predecessor thread's two open follow-ups belong to it, not here: hardening .claude/hooks/block-destructive-bash.sh, and the settings deny drift per decision 0227."
     ],
-    "last_session": "2026-08-04: read phase only. Band 0130-0227 enumerated (98 records), 0130 and 0210 read in full, ROUND-4-PLAN.md written with a 14-site edit list. No edit applied, no commit."
+    "last_session": "2026-08-04: repair round 4. All 8 defects applied across 21 sites (14 planned, 7 forced by consistency) in both documents; two self-created residuals found and closed. Band marking not started, I1-I8 gate not run, NOT READY. No repo file touched."
   },
   "created_at": "2026-08-03T20:12:16.337Z",
-  "updated_at": "2026-08-04T14:54:20.091Z"
+  "updated_at": "2026-08-04T14:55:27.264Z"
 }
