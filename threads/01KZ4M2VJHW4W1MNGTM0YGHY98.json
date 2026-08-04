@@ -180,6 +180,11 @@
         "ref": "0236-a-round-ends-before-its-gate-rather-than-leaving-an-unrepaired-finding-list",
         "title": "A round ends before running its gate when the gate's repairs cannot land in the same session",
         "scope": "c1"
+      },
+      {
+        "ref": "0239-round-7-runs-claim-keyed-clusters-authored-parallel-applied-once",
+        "title": "A repair round partitions by claim, authors read-only in parallel, and folds through one applier on a higher tier",
+        "scope": "thread"
       }
     ],
     "out_of_scope": [
@@ -195,5 +200,5 @@
     "last_session": "2026-08-04 round 6: ran I1-I8 in full. I1, I2, I6 hold; I3, I4, I5, I7, I8 red; 47 defects. Round 5's 'zero half-landed' proved false in four places. No repair started."
   },
   "created_at": "2026-08-03T20:12:16.337Z",
-  "updated_at": "2026-08-04T18:21:05.111Z"
+  "updated_at": "2026-08-04T19:36:37.980Z"
 }
