@@ -44,7 +44,7 @@
     },
     {
       "id": "c6",
-      "text": "Add a refresh step for deployed ~/.claude/lib copies, which are regular files unlike the symlinked hook",
+      "text": "Close the deployed-copy premise as falsified, and document the real gap instead: new TOP-LEVEL files under .claude/hooks or .claude/rules stay dark until the Stow installer reruns",
       "done": false,
       "kind": "detour",
       "struck_by": null
@@ -135,5 +135,5 @@
     ]
   },
   "created_at": "2026-08-04T22:28:39.135Z",
-  "updated_at": "2026-08-04T23:31:48.061Z"
+  "updated_at": "2026-08-04T23:32:20.046Z"
 }
