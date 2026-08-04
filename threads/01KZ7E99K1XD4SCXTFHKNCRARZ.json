@@ -45,14 +45,14 @@
     {
       "id": "c6",
       "text": "Close the deployed-copy premise as falsified, and document the real gap instead: new TOP-LEVEL files under .claude/hooks or .claude/rules stay dark until the Stow installer reruns",
-      "done": false,
+      "done": true,
       "kind": "detour",
       "struck_by": null
     },
     {
       "id": "c7",
       "text": "Fix basename-keying in no-self-merge-consent.test.mjs by pairing prefix and dir as the sibling scanners do",
-      "done": false,
+      "done": true,
       "kind": "detour",
       "struck_by": null
     }
@@ -74,20 +74,35 @@
   "abandoned_reason": null,
   "closure_statement": null,
   "spine": {
-    "active_goal": "Clear the four follow-ups left by the PR-tool relocation: the pre-existing gate bypass, the gate prose false-positive, the deployed-copy question, and the basename-keying test fix.",
-    "next_step": "FRESH SESSION. Both PRs are merged; main is at 27419a4. First confirm the shipped state on main - the tool resolves at .claude/lib/git/pr.mjs, the gate admits it, and no live reference to the old path survives outside .claude/worktrees, .claude/reports and docs. Then take the four follow-ups worst-first, starting with c4, the pre-existing CRITICAL gate bypass. Verify c6's premise BEFORE doing c6; it may be a non-issue.",
-    "last_session": "Diagnosed both defects, shipped them as two stacked PRs (#39, #40) via a 9-agent workflow, fixed the invariant-coverage gap I had missed on #39, and confirmed both merged.",
+    "active_goal": "Close the CRITICAL bash-gate bypass via the approved structural rewrite, adversarially verified against the 12 invariants before anything commits.",
+    "next_step": "FRESH SESSION. The rewrite implementer was still running at hand-off; it already swapped the live hook and added .claude/hooks/lib/shell_parse.py and bash_gate.py, uncommitted. Read GATE-INVARIANTS.md first - it is the acceptance contract - then collect the agent report and dispatch a FRESH security-reviewer to re-run every payload in it independently; a self-report is not evidence. Confirm the permissions.allow narrowing landed, then commit atomically and open ONE PR.",
+    "last_session": "Cleared c6 and c7 and committed both; c4 grew into a confirmed CRITICAL plus nine bypass classes, and its user-approved structural rewrite was still in flight at hand-off.",
     "open_risks": [
       {
-        "text": "Verify c6's premise before acting on it — the home lib directory is itself a symlink into the repo, so files under it are not separate deployed copies and may need no refresh step at all",
+        "text": "Verify the rewrite adversarially before trusting it — this hook is the sole gate for gh api and gh pr edit, and an implementer's own report is not evidence for a security control",
         "scope": "thread",
         "refs": [
-          "~/.claude/lib",
-          "MSP-2 ship report"
+          "~/.claude/projects/-Users-satanshumishra-Documents-DevLabs--windful-ocean/handoff-2026-08-04-gate-hardening/artifacts/GATE-INVARIANTS.md"
         ]
       },
       {
-        "text": "Do not attribute the one npm test failure to your own change — it reproduces on pristine main, so it predates this work",
+        "text": "The live hook is already rewritten but uncommitted — a reset or checkout would silently strip a security fix that is protecting this machine right now, and the smoke test showed it working",
+        "scope": "thread",
+        "refs": [
+          ".claude/hooks/block-destructive-bash.sh",
+          ".claude/hooks/lib/shell_parse.py",
+          ".claude/hooks/lib/bash_gate.py"
+        ]
+      },
+      {
+        "text": "Separate the permissions.allow narrowing from the unrelated user edits already dirty in that file before committing — do not sweep someone else's working state into this change",
+        "scope": "thread",
+        "refs": [
+          ".claude/settings.json"
+        ]
+      },
+      {
+        "text": "Do not attribute the one npm test failure to this work — it reproduces on pristine main and is caused by the home settings.json no longer resolving out of the home tree",
         "scope": "thread",
         "refs": [
           "da0cefd",
@@ -131,9 +146,11 @@
     ],
     "out_of_scope": [
       "A Windows-path PreToolUse hook that fails on darwin in a separate private repo - surfaced from the original error output, enforcing nothing there, never in scope for this thread",
-      "Renaming .claude/lib/superpowers-parallel itself - the directory name is still a fossil, but only the PR tool needed to leave it"
+      "Renaming .claude/lib/superpowers-parallel itself - the directory name is still a fossil, but only the PR tool needed to leave it",
+      "The ~/.claude/settings.json symlink drift behind the protect-claude-config failure - it belongs to the permission-config-audit thread, and changing live settings is the user's call",
+      "Stale ground truth in the 2026-07-29 install-pin-safeguards spec (records 10 depth-1 entries, live is 9; ~/.claude/state now exists) - that spec is unimplemented and on another thread"
     ]
   },
   "created_at": "2026-08-04T22:28:39.135Z",
-  "updated_at": "2026-08-04T23:32:20.046Z"
+  "updated_at": "2026-08-04T23:33:02.818Z"
 }
