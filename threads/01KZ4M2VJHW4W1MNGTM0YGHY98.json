@@ -138,6 +138,11 @@
         "ref": "0235-matched-pair-folds-are-authored-in-parallel-and-applied-by-one-agent",
         "title": "A many-record two-document fold is authored in parallel as matched-pair patches and applied by a single agent",
         "scope": "c1"
+      },
+      {
+        "ref": "0236-a-round-ends-before-its-gate-rather-than-leaving-an-unrepaired-finding-list",
+        "title": "A round ends before running its gate when the gate's repairs cannot land in the same session",
+        "scope": "c1"
       }
     ],
     "out_of_scope": [
@@ -153,5 +158,5 @@
     "last_session": "2026-08-04: repair round 4. All 8 defects applied across 21 sites (14 planned, 7 forced by consistency) in both documents; two self-created residuals found and closed. Band marking not started, I1-I8 gate not run, NOT READY. No repo file touched."
   },
   "created_at": "2026-08-03T20:12:16.337Z",
-  "updated_at": "2026-08-04T16:00:23.579Z"
+  "updated_at": "2026-08-04T16:00:37.580Z"
 }
