@@ -63,68 +63,33 @@
   "abandoned_reason": null,
   "closure_statement": null,
   "spine": {
-    "active_goal": "Finish the step-6 SPEC (2026-07-30-mitosis-core-rebuild.md). Audit, remedy and re-baseline DONE; it holds 5 of 8 invariants with 8 residual defects. MSP-1..13 BLOCKED per 0133 until Step 3 lands.",
-    "next_step": "Read handoff-2026-08-03-mitosis-core-rebuild/HANDOFF.md FIRST. Run ONE round closing the 8 residual defects, chiefly adding decisions 0130 and 0210. Do NOT re-run the audit or anchor derivation.",
+    "active_goal": "Bring the re-baselined SPEC and the decision docket to READY by closing all 8 residual defects in one pass, then take the docket to the user for ratification.",
+    "next_step": "Read artifacts/ROUND-4-PLAN.md FIRST, then open at the first EDIT - the read phase is paid for twice already. Apply all 8 defects as ONE set across both documents, and mark each of the 98 enumerated band records bearing or non-bearing. Then re-run the I1-I8 gate and stop at NOT READY if any fails. Do NOT re-run the audit, the anchor derivation, or the band enumeration.",
     "open_risks": [
       {
-        "text": "Enumerate every in-band decision record and mark it bearing or non-bearing — 0130 and 0210 sat inside the searched band and were still missed, a recall failure within declared scope.",
+        "text": "Do not begin the 8-defect edit set without the context budget to finish it — four of the eight need a matched edit in both documents, so a half-applied pass converts a decision-closure defect into an internal-consistency one.",
         "scope": "thread",
-        "refs": []
+        "refs": [
+          "0231-all-or-nothing-edit-sets-are-not-started-without-budget-to-finish",
+          "artifacts/ROUND-4-PLAN.md"
+        ]
       },
       {
-        "text": "Load 0210 before running any test — it defines green as npm test with zero failures other than protect-claude-config.test.mjs, plus phase-parity and mirror-guard passing.",
+        "text": "State which ledger store any decision recount read — the two plugin worktrees sit at different commits, one holding 227 records and the other 230, so the SPEC's \"full 227-record corpus\" phrasing is a stale absolute.",
         "scope": "thread",
-        "refs": []
+        "refs": [
+          "SPEC-2026-07-30-mitosis-core-rebuild.REBASELINED.md:149",
+          "SPEC-2026-07-30-mitosis-core-rebuild.REBASELINED.md:740",
+          "decision 0209"
+        ]
       },
       {
-        "text": "Treat step 1.5 as new construction, not a flag flip — PR #30 deleted runScheduleStreaming and STREAMING_DISPATCH_ENABLED, so nothing survives to flip.",
+        "text": "Check only the docket's Section A row 0 for the worktree arithmetic — the handoff says neither document resolves it, but the SPEC's section 2 row 0 already carries the full reconciliation.",
         "scope": "thread",
-        "refs": []
-      },
-      {
-        "text": "Land step 3 before MSP-1 — run-log.mjs records no dispatch boundary, wall-clock or prompt-hash, so 0115's falsifiers stay unpayable and 0133 blocks MSP-1.",
-        "scope": "thread",
-        "refs": []
-      },
-      {
-        "text": "Recover the steps 4 and 5 verdicts from workflow-output/audit-run.json — they were audited but omitted from the consolidated table, and criterion c1 spans steps 0-5.",
-        "scope": "thread",
-        "refs": []
-      },
-      {
-        "text": "Re-measure the worktree leak count before dispositioning step 0 — 0195 records 13 found, 9 removed and 4 held, while the docket states 12 to 6.",
-        "scope": "thread",
-        "refs": []
-      },
-      {
-        "text": "Re-derive the twin set per MSP from MIRROR_CENSUS — it is now 39 modules with 28 needing byte-identical double edits, up from 0126's 21.",
-        "scope": "thread",
-        "refs": []
-      },
-      {
-        "text": "Read artifacts from the handoff dir, never the scratchpad — scratchpad copies are ephemeral and the SPEC's only committed copy is d444797, unamended.",
-        "scope": "thread",
-        "refs": []
-      },
-      {
-        "text": "Plan for interactive approval on writes under .claude/{hooks,rules,lib,workflows} — the guard is live and every MSP writes there, so unattended fan-out stalls.",
-        "scope": "thread",
-        "refs": []
-      },
-      {
-        "text": "Stage explicit paths only, never git add -A — five pre-existing dirty paths must stay uncommitted, including .claude/settings.json and .zshrc.",
-        "scope": "thread",
-        "refs": []
-      },
-      {
-        "text": "Rephrase PR prose that names merge tooling — pr-create blocks a body value carrying a literal merge command, since the gate cannot tell describing from running.",
-        "scope": "thread",
-        "refs": []
-      },
-      {
-        "text": "Never read the .bak snapshot as the current engine — it carries the pre-MSP-0 phase set (Final review, Shepherd), is inert, and is older than main.",
-        "scope": "thread",
-        "refs": []
+        "refs": [
+          "SPEC-2026-07-30-mitosis-core-rebuild.REBASELINED.md:219",
+          "DECISION-DOCKET.md:65"
+        ]
       }
     ],
     "key_decisions": [
@@ -159,8 +124,8 @@
       "Other specs are consulted ONLY as evidence for the steps 0-5 precondition audit. Implementing their unshipped work is out of scope: run-readiness-repair MSP-0..MSP-10, the two-track invariant plan, b6-harness-liveness, quiescent-advance M0-M8 (already delivered).",
       "The predecessor thread's two open follow-ups belong to it, not here: hardening .claude/hooks/block-destructive-bash.sh, and the settings deny drift per decision 0227."
     ],
-    "last_session": "2026-08-03: audit, remedy and SPEC re-baseline via two workflows (41 agents, 5.5M tokens). No code change, no commit."
+    "last_session": "2026-08-04: read phase only. Band 0130-0227 enumerated (98 records), 0130 and 0210 read in full, ROUND-4-PLAN.md written with a 14-site edit list. No edit applied, no commit."
   },
   "created_at": "2026-08-03T20:12:16.337Z",
-  "updated_at": "2026-08-04T14:39:15.677Z"
+  "updated_at": "2026-08-04T14:39:50.340Z"
 }
