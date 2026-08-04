@@ -63,65 +63,69 @@
   "abandoned_reason": null,
   "closure_statement": null,
   "spine": {
-    "active_goal": "Bring the re-baselined SPEC and its docket to READY, then take the docket to the user for ratification. The gate has run: I1/I2/I6 hold, I3/I4/I5/I7/I8 red, 47 defects. Round 7 repairs them.",
-    "next_step": "FRESH SESSION. Read artifacts/GATE-ROUND6-I1-I8.md first - all 47 defects with line numbers. Then per 0238 dispatch dedicated Fable subagents at high effort, one per issue cluster, to map every affected surface and derive a fix that regresses nothing related or unrelated; implement in full, claim-keyed per 0237. Do NOT re-run the gate, audit, anchor derivation or band enumeration. Surface the ~15 reserved questions; never resolve them.",
+    "active_goal": "Verify round 7's repairs with a round 8 gate and obtain the user's rulings on the eleven reserved questions, so the SPEC and its docket can reach READY.",
+    "next_step": "FRESH SESSION. Round 7 landed its repairs but carries NO verdict. Run the round 8 gate: I1-I8 against the repaired documents, one independent verifier per invariant, inheriting no verdict from round 6. In parallel, present artifacts/round7-patches/RESERVED-QUESTIONS-FOR-RULING.md and take rulings on Q1 (where an [RB] note's scope ends) and Q2 (what user-ratified means) first, since they gate the rest. Resolve none of the eleven yourself. Expect fold-time contradictions per 0240.",
     "open_risks": [
       {
-        "text": "Enumerate every site of a claim before editing any site — round 5's 'zero half-landed' was false in four places, each surfaced by a different verifier that was not looking for the others' findings.",
+        "text": "Run the round 8 gate before treating any round 7 closure as real — 43 of 47 defects are closed on the patches' own accounting and no gate has checked a single one.",
+        "scope": "thread",
+        "refs": [
+          "artifacts/round7-patches/APPLY-REPORT.md",
+          "decision 0230"
+        ]
+      },
+      {
+        "text": "Expect contradictions that exist only in the fold rather than in any patch — round 7's K5 and K8 were each correct alone and false composed, and only the applier was positioned to see it.",
+        "scope": "thread",
+        "refs": [
+          "decision 0240"
+        ]
+      },
+      {
+        "text": "Enumerate every site of a claim before editing any site — round 7 found nine more unlogged sites of the gate's own claims, each byte-identical to .pre-round5, each having survived a gate that was hunting exactly that shape.",
         "scope": "thread",
         "refs": [
           "decision 0237",
-          "artifacts/GATE-ROUND6-I1-I8.md"
+          "artifacts/round7-patches/00-COLLISION-REGISTER.md"
         ]
       },
       {
-        "text": "Justify the corpus band floor before trusting any closure — the docket searched only 0106-0227, leaving 114 of 236 records unread, which misattributed BUILD_AHEAD_CAP = 8 to a record the band files mark non-bearing.",
+        "text": "Treat the round 6 gate report as evidence, not scripture — three of its citations proved wrong: 0197 appears nowhere in either document, its corpus figure of 236 was already 238, and its cited DOCKET:146 is an empty line.",
         "scope": "thread",
         "refs": [
-          "decision 0086",
-          "decision 0197",
-          "artifacts/GATE-ROUND6-I1-I8.md"
+          "artifacts/GATE-ROUND6-I1-I8.md",
+          "artifacts/round7-patches/00-COLLISION-REGISTER.md"
         ]
       },
       {
-        "text": "Restate every corpus citation as a bounded range plus the store read — three counts are live at once, 227, 233 and 236, and 0233 forbids all three by requiring a range and a store, never an absolute count.",
+        "text": "State every corpus figure with its measurement date and the store read, never as an absolute — the count moved through 227, 233, 236, 238 and 240 within days, and it grows every time this thread records a decision.",
         "scope": "thread",
         "refs": [
           "decision 0233",
-          "SPEC:400",
-          "SPEC:617",
-          "SPEC:752"
+          "decision 0234"
         ]
       },
       {
-        "text": "Surface the reserved defects for ruling instead of resolving them — about 15 of the 47 turn on questions only the user can settle, and a subagent that answers one has decided something reserved to them.",
-        "scope": "thread",
-        "refs": [
-          "decision 0238",
-          "artifacts/GATE-ROUND6-I1-I8.md"
-        ]
-      },
-      {
-        "text": "Treat five cited record sets as un-refuted rather than cleared — D-05's 0161/0180/0183/0184/0185, D-16's eight, D-14's 0187/0213/0214, D-13's 0211 and D-11's 0127 were never opened in full by any verifier.",
+        "text": "Treat five cited record sets as un-refuted rather than cleared — D-05's 0161/0180/0183/0184/0185, D-16's eight, D-14's 0187/0213/0214, D-13's 0211 and D-11's 0127 were never opened in full by any verifier, and round 7 did not open them either.",
         "scope": "thread",
         "refs": [
           "artifacts/GATE-ROUND6-I1-I8.md"
         ]
       },
       {
-        "text": "Do not perform D-02's proposed reclassification from OPEN to CLOSED without the user — no record in its set is user-ratified, and adopting a re-derivation cadence for an approved spec is reserved to them.",
+        "text": "Do not perform D-02's reclassification from OPEN to CLOSED without the user — round 7 confirmed the arithmetic fix needed no classification decision, so the reclassification stays proposed and not performed.",
         "scope": "thread",
         "refs": [
           "decision 0129",
-          "PATCH-D-method-anchors.md"
+          "artifacts/PATCH-D-method-anchors.md"
         ]
       },
       {
-        "text": "Treat the green-branch invariant at SPEC :497 as honored by discipline, not by the server — ruleset 19939922 requires a PR but sets 0 required approvals and no required status checks, and branch protection returns 404.",
+        "text": "Treat the green-branch invariant at SPEC:497 as honored by discipline, not by the server — ruleset 19939922 requires a PR but sets zero required approvals and no required status checks, and branch protection returns 404.",
         "scope": "thread",
         "refs": [
           "decision 0224",
-          "PATCH-E-merge-gating.md"
+          "artifacts/PATCH-E-merge-gating.md"
         ]
       }
     ],
@@ -207,8 +211,8 @@
       "Other specs are consulted ONLY as evidence for the steps 0-5 precondition audit. Implementing their unshipped work is out of scope: run-readiness-repair MSP-0..MSP-10, the two-track invariant plan, b6-harness-liveness, quiescent-advance M0-M8 (already delivered).",
       "The predecessor thread's two open follow-ups belong to it, not here: hardening .claude/hooks/block-destructive-bash.sh, and the settings deny drift per decision 0227."
     ],
-    "last_session": "2026-08-04 round 6: ran I1-I8 in full. I1, I2, I6 hold; I3, I4, I5, I7, I8 red; 47 defects. Round 5's 'zero half-landed' proved false in four places. No repair started."
+    "last_session": "2026-08-04 round 7: eleven claim-keyed clusters authored 126 edits read-only, one Opus applier folded them byte-clean; 43 of 47 defects closed but unverified, eleven questions reserved."
   },
   "created_at": "2026-08-03T20:12:16.337Z",
-  "updated_at": "2026-08-04T19:41:02.760Z"
+  "updated_at": "2026-08-04T19:41:50.045Z"
 }
