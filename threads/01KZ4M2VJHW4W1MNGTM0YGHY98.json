@@ -132,6 +132,11 @@
         "ref": "0228-criteria-texts-compressed-to-satisfy-the-200-char-cap",
         "title": "The seven completion criteria are compressed to fit the 200-char cap, meaning preserved, none struck",
         "scope": "c1"
+      },
+      {
+        "ref": "0229-rebaseline-amends-the-spec-document-only-not-live-code",
+        "title": "The re-baseline pass amends the SPEC document only; no live codebase change",
+        "scope": "c1"
       }
     ],
     "out_of_scope": [
@@ -147,5 +152,5 @@
     "last_session": "2026-08-03: audit, remedy and SPEC re-baseline via two workflows (41 agents, 5.5M tokens). No code change, no commit."
   },
   "created_at": "2026-08-03T20:12:16.337Z",
-  "updated_at": "2026-08-04T06:03:59.129Z"
+  "updated_at": "2026-08-04T06:04:15.316Z"
 }
