@@ -3,7 +3,7 @@
   "id": "01KZ79MJZYBAGVXNF3WZG1VA7P",
   "slug": "mitosis-spec-rewrite-from-scratch",
   "title": "Mitosis core rebuild SPEC: rewrite from scratch",
-  "status": "active",
+  "status": "paused",
   "parent_id": null,
   "predecessor_id": "01KZ4M2VJHW4W1MNGTM0YGHY98",
   "completion_criteria": [
@@ -115,5 +115,5 @@
     ]
   },
   "created_at": "2026-08-04T21:07:26.334Z",
-  "updated_at": "2026-08-04T21:07:56.651Z"
+  "updated_at": "2026-08-04T21:09:12.614Z"
 }
