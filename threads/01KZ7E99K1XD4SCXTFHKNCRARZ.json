@@ -3,7 +3,7 @@
   "id": "01KZ7E99K1XD4SCXTFHKNCRARZ",
   "slug": "pr-tool-relocation-and-discoverability",
   "title": "PR tool relocation and global discoverability",
-  "status": "active",
+  "status": "paused",
   "parent_id": null,
   "predecessor_id": null,
   "completion_criteria": [
@@ -120,5 +120,5 @@
     ]
   },
   "created_at": "2026-08-04T22:28:39.135Z",
-  "updated_at": "2026-08-04T22:30:21.131Z"
+  "updated_at": "2026-08-04T22:30:24.777Z"
 }
