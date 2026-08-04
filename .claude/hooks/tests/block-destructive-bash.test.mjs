@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
-import { FLAG_SPEC } from '../../lib/superpowers-parallel/mitosis-git.mjs';
+import { FLAG_SPEC } from '../../lib/git/pr.mjs';
 
 const hookPath = fileURLToPath(new URL('../block-destructive-bash.sh', import.meta.url));
 
@@ -89,7 +89,7 @@ test('the creation deny reason names every required pr-create flag', () => {
   for (const flag of FLAG_SPEC['pr-create'].required) {
     assert.ok(reason.includes(flag), `deny reason omits ${flag}`);
   }
-  assert.match(reason, /mitosis-git\.mjs pr-create/);
+  assert.match(reason, /lib\/git\/pr\.mjs pr-create/);
   assert.match(reason, /NEVER write a --verified line for a check you did not run/);
   assert.match(reason, /pull\/new URL printed by git push is not an approved path/);
 });
@@ -107,13 +107,13 @@ const allowCommands = [
   "gh api graphql -f query='query { viewer { login } }'",
   "echo 'high pr create'",
   'gh pr edit 12 -B main',
-  'node /Users/satanshumishra/.claude/lib/superpowers-parallel/mitosis-git.mjs pr-create --repo o/r --head feature --base main --title "fix(gate): deny raw pull-request creation" --origin machine --provenance "agent=gate model=opus" --why "raw creation bypassed the format" --what "gate denies raw creation" --not-verified "CI - not run"',
-  'node /Users/satanshumishra/.claude/lib/superpowers-parallel/mitosis-git.mjs pr-create --repo o/r --head feature --base main --title "fix(gate): deny raw pull-request creation" --origin human --why "the gh pr create path is blocked at the gate" --what "gate denies raw creation" --not-verified "CI - not run"',
+  'node /Users/satanshumishra/.claude/lib/git/pr.mjs pr-create --repo o/r --head feature --base main --title "fix(gate): deny raw pull-request creation" --origin machine --provenance "agent=gate model=opus" --why "raw creation bypassed the format" --what "gate denies raw creation" --not-verified "CI - not run"',
+  'node /Users/satanshumishra/.claude/lib/git/pr.mjs pr-create --repo o/r --head feature --base main --title "fix(gate): deny raw pull-request creation" --origin human --why "the gh pr create path is blocked at the gate" --what "gate denies raw creation" --not-verified "CI - not run"',
   'git -C /repo status',
   'git -C /repo push --force-with-lease origin main',
   'git -C /repo branch -d feature',
   'echo x > .claude/skills/mitosis/SKILL.md',
-  'cat .claude/lib/superpowers-parallel/mitosis-git.mjs',
+  'cat .claude/lib/git/pr.mjs',
 ];
 
 for (const command of allowCommands) {
@@ -125,7 +125,13 @@ for (const command of allowCommands) {
 }
 
 test('the wrapper loses its own exemption the moment anything is chained onto it', () => {
-  const r = runHook('node /Users/satanshumishra/.claude/lib/superpowers-parallel/mitosis-git.mjs pr-create --repo o/r --head f --base main --title "fix(gate): x" --origin human --why "w" --what "c" --not-verified "n" && gh pr create --fill');
+  const r = runHook('node /Users/satanshumishra/.claude/lib/git/pr.mjs pr-create --repo o/r --head f --base main --title "fix(gate): x" --origin human --why "w" --what "c" --not-verified "n" && gh pr create --fill');
+  assert.match(r.stdout, /"permissionDecision":"deny"/);
+  assert.match(denyReasonOf(r), /opening a pull request is centralized/);
+});
+
+test('the superseded superpowers-parallel path carries no exemption, so exactly one path is canonical', () => {
+  const r = runHook('node /Users/satanshumishra/.claude/lib/superpowers-parallel/mitosis-git.mjs pr-create --repo o/r --head feature --base main --title "fix(gate): deny raw pull-request creation" --origin human --why "the gh pr create path is blocked at the gate" --what "gate denies raw creation" --not-verified "CI - not run"');
   assert.match(r.stdout, /"permissionDecision":"deny"/);
   assert.match(denyReasonOf(r), /opening a pull request is centralized/);
 });
@@ -153,9 +159,9 @@ for (const command of askCommands) {
 }
 
 const guardrailWriteCommands = [
-  'echo x > .claude/lib/superpowers-parallel/mitosis-git.mjs',
+  'echo x > .claude/lib/git/pr.mjs',
   'sed -i "" s/a/b/ .claude/lib/superpowers-parallel/engine-args.mjs',
-  'cp /tmp/patched.mjs .claude/lib/superpowers-parallel/mitosis-git.mjs',
+  'cp /tmp/patched.mjs .claude/lib/git/pr.mjs',
   'echo x > .claude/workflows/mitosis.js',
   'mv /tmp/mitosis.js .claude/workflows/mitosis.js',
   'rm .claude/workflows/mitosis.js',

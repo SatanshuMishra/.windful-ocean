@@ -40,7 +40,7 @@ gqlopaque='((-f|--field|--raw-field)[[:space:]=]+[a-z_]+=@|(^|[[:space:]])--inpu
 ghfileref='(^|[[:space:]])(-f|--field|--raw-field)[[:space:]=]+[a-z_]+=@'
 gqlsub='(\$\(|`)'
 prshortedit='(^|[[:space:]])-(t|b|F)([^a-zA-Z-]|$)'
-selfwrap='^([[:alnum:]_./-]*/)?node[[:space:]]+[^[:space:]]+mitosis-git\.mjs[[:space:]]+pr-create([[:space:]]|$)'
+selfwrap='^([[:alnum:]_./-]*/)?node[[:space:]]+[^[:space:]]*lib/git/pr\.mjs[[:space:]]+pr-create([[:space:]]|$)'
 chained='([;&|`]|\$\()'
 
 if has "${ghtok}pr[[:space:]]+merge([[:space:]]|$)" \
@@ -58,7 +58,7 @@ if ! { has "$selfwrap" && ! has "$chained"; }; then
     || { has "$ghapi" && has "$graphql" && has 'createpullrequest'; } \
     || { has "$ghapi" && has "$graphql" && has "$gqlopaque"; } \
     || { has "$ghapi" && has "$graphql" && has "$gqlsub"; }; then
-    deny 'opening a pull request is centralized: every pull request in this environment is created by one tool, in one format, and its title and body may not be rewritten afterwards. Run this, quoting every value: node "$HOME"/.claude/lib/superpowers-parallel/mitosis-git.mjs pr-create --repo OWNER/REPO --head HEAD-BRANCH --base BASE-BRANCH --title TYPE(SCOPE): LOWERCASE IMPERATIVE SUMMARY --origin machine-or-human --why PROBLEM AND WHY NOW --what BEHAVIORAL CHANGE --not-verified THING YOU DID NOT CHECK - not run. Types: feat fix refactor docs test chore perf ci; title max 72 characters, no trailing period. Add --provenance agent=LABEL model=MODEL when --origin is machine. NEVER write a --verified line for a check you did not run. Pass every value as ONE inert argv value: never a file path, never an at-prefixed value, never a shell redirection, never a gh api field whose value starts with an at-sign. A pull/new URL printed by git push is not an approved path either. Full field set and caps: .claude/rules/common/git/pull-requests.md'
+    deny 'opening a pull request is centralized: every pull request in this environment is created by one tool, in one format, and its title and body may not be rewritten afterwards. Run this, quoting every value: node "$HOME"/.claude/lib/git/pr.mjs pr-create --repo OWNER/REPO --head HEAD-BRANCH --base BASE-BRANCH --title TYPE(SCOPE): LOWERCASE IMPERATIVE SUMMARY --origin machine-or-human --why PROBLEM AND WHY NOW --what BEHAVIORAL CHANGE --not-verified THING YOU DID NOT CHECK - not run. Types: feat fix refactor docs test chore perf ci; title max 72 characters, no trailing period. Add --provenance agent=LABEL model=MODEL when --origin is machine. NEVER write a --verified line for a check you did not run. Pass every value as ONE inert argv value: never a file path, never an at-prefixed value, never a shell redirection, never a gh api field whose value starts with an at-sign. A pull/new URL printed by git push is not an approved path either. Full field set and caps: .claude/rules/common/git/pull-requests.md'
   fi
 fi
 

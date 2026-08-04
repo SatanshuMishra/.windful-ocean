@@ -9,7 +9,7 @@ import {
   inertValue,
   renderPrCreateBody,
 } from '../pr-format.mjs';
-import { parseMitosisGitArgv } from '../mitosis-git.mjs';
+import { parseMitosisGitArgv } from '../pr.mjs';
 
 const BACKTICK = String.fromCharCode(96);
 const FENCE = BACKTICK.repeat(3);

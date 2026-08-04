@@ -5,6 +5,8 @@ import { join } from 'node:path';
 import { scanJsStructure } from '../mitosis-gate.mjs';
 
 const LIB = new URL('..', import.meta.url).pathname;
+const GIT_LIB = new URL('../../git/', import.meta.url).pathname;
+const LIB_TREES = Object.freeze([['', LIB], ['git/', GIT_LIB]]);
 const MITOSIS_PATH = process.env.MITOSIS_PATH || new URL('../../../workflows/mitosis.js', import.meta.url).pathname;
 
 function normalize(src) {
@@ -48,7 +50,7 @@ const MIRROR_CENSUS = Object.freeze({
   'supervisor.mjs': WHOLE,
   'window.mjs': WHOLE,
   'engine-args.mjs': Object.freeze(['validateModelsKnob']),
-  'pr-format.mjs': Object.freeze(['PR_TITLE_TYPES', 'PR_TITLE_PATTERN', 'PR_VALUE_CAP']),
+  'git/pr-format.mjs': Object.freeze(['PR_TITLE_TYPES', 'PR_TITLE_PATTERN', 'PR_VALUE_CAP']),
   'wave-planner.mjs': Object.freeze(['pathsOverlap', 'scopesOverlap']),
   'branch-contract.mjs': STANDALONE,
   'derive-edges.mjs': STANDALONE,
@@ -57,7 +59,7 @@ const MIRROR_CENSUS = Object.freeze({
   'gh-merge-shim.mjs': STANDALONE,
   'ledger-lint.mjs': STANDALONE,
   'mitosis-gate.mjs': STANDALONE,
-  'mitosis-git.mjs': STANDALONE,
+  'git/pr.mjs': STANDALONE,
   'resolve-superpowers.mjs': STANDALONE,
   'route-planner.mjs': STANDALONE,
   'workflow-sandbox.mjs': STANDALONE,
@@ -113,10 +115,16 @@ function unseenExportLines(label, source) {
 }
 
 function libModuleNames() {
-  return readdirSync(LIB, { withFileTypes: true })
-    .filter((entry) => entry.isFile() && entry.name.endsWith('.mjs'))
-    .map((entry) => entry.name)
+  return LIB_TREES
+    .flatMap(([prefix, dir]) => readdirSync(dir, { withFileTypes: true })
+      .filter((entry) => entry.isFile() && entry.name.endsWith('.mjs'))
+      .map((entry) => `${prefix}${entry.name}`))
     .sort();
+}
+
+function modulePath(name) {
+  const tree = LIB_TREES.find(([prefix]) => prefix !== '' && name.startsWith(prefix));
+  return tree ? join(tree[1], name.slice(tree[0].length)) : join(LIB, name);
 }
 
 function censusFailures(name, row, body, blocks, haystack) {
@@ -158,7 +166,7 @@ function censusFailures(name, row, body, blocks, haystack) {
 }
 
 const moduleNames = libModuleNames();
-const moduleSource = new Map(moduleNames.map((name) => [name, readFileSync(join(LIB, name), 'utf8')]));
+const moduleSource = new Map(moduleNames.map((name) => [name, readFileSync(modulePath(name), 'utf8')]));
 const moduleBlocks = new Map(moduleNames.map((name) => [name, exportBlocksOf(name, moduleSource.get(name))]));
 const classified = moduleNames.filter((name) => Object.hasOwn(MIRROR_CENSUS, name));
 
@@ -176,7 +184,7 @@ test('every MIRROR_CENSUS row names a lib module that still exists', () => {
   assert.deepEqual(
     stale,
     [],
-    `these MIRROR_CENSUS rows name files that are no longer in lib/superpowers-parallel: ${stale.join(', ')} — delete the row if the module was deleted, or rename it if the module was renamed.`,
+    `these MIRROR_CENSUS rows name files that are no longer in the scanned lib trees: ${stale.join(', ')} — delete the row if the module was deleted, or rename it if the module was renamed.`,
   );
 });
 
@@ -186,7 +194,7 @@ test('the export-block extractor sees every top-level export (tripwire against a
     'run-engine.mjs::runEngine',
     'msp-file-scope.mjs::aggregateMspFileScope',
     'wave-planner.mjs::pathsOverlap',
-    'pr-format.mjs::PR_VALUE_CAP',
+    'git/pr-format.mjs::PR_VALUE_CAP',
     'engine-args.mjs::validateModelsKnob',
   ]) {
     assert.ok(index.has(anchor), `expected the extractor to enumerate ${anchor}; export-block extraction may be broken`);
@@ -215,7 +223,7 @@ test('classifying a real partial twin as standalone fails', () => {
 });
 
 test('shrinking a partial-twin row to drop an inconvenient export fails', () => {
-  const failures = censusFailures('pr-format.mjs', ['PR_TITLE_TYPES'], normalize(moduleSource.get('pr-format.mjs')), moduleBlocks.get('pr-format.mjs'), mitosis);
+  const failures = censusFailures('git/pr-format.mjs', ['PR_TITLE_TYPES'], normalize(moduleSource.get('git/pr-format.mjs')), moduleBlocks.get('git/pr-format.mjs'), mitosis);
   assert.equal(failures.length, 1);
   assert.match(failures[0], /absent from its MIRROR_CENSUS row: PR_TITLE_PATTERN, PR_VALUE_CAP/);
 });

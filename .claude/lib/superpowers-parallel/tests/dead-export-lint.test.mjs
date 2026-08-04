@@ -5,15 +5,23 @@ import { join } from 'node:path';
 import { scanJsStructure } from '../mitosis-gate.mjs';
 
 const LIB = new URL('..', import.meta.url).pathname;
+const GIT_LIB = new URL('../../git/', import.meta.url).pathname;
+const LIB_TREES = Object.freeze([['', LIB], ['git/', GIT_LIB]]);
 const MITOSIS_PATH = process.env.MITOSIS_PATH || new URL('../../../workflows/mitosis.js', import.meta.url).pathname;
 
 const EXPORT_DECL = /^\s*export\s+(?:async\s+)?(?:function|const|let|var|class)\s+([A-Za-z_$][A-Za-z0-9_$]*)/;
 
 function libModuleNames() {
-  return readdirSync(LIB, { withFileTypes: true })
-    .filter((entry) => entry.isFile() && entry.name.endsWith('.mjs'))
-    .map((entry) => entry.name)
+  return LIB_TREES
+    .flatMap(([prefix, dir]) => readdirSync(dir, { withFileTypes: true })
+      .filter((entry) => entry.isFile() && entry.name.endsWith('.mjs'))
+      .map((entry) => `${prefix}${entry.name}`))
     .sort();
+}
+
+function modulePath(name) {
+  const tree = LIB_TREES.find(([prefix]) => prefix !== '' && name.startsWith(prefix));
+  return tree ? join(tree[1], name.slice(tree[0].length)) : join(LIB, name);
 }
 
 function exportsOf(source) {
@@ -49,7 +57,7 @@ function maskedOrHalt(label, source) {
 }
 
 const moduleNames = libModuleNames();
-const moduleSource = new Map(moduleNames.map((name) => [name, readFileSync(join(LIB, name), 'utf8')]));
+const moduleSource = new Map(moduleNames.map((name) => [name, readFileSync(modulePath(name), 'utf8')]));
 const maskedSource = new Map(moduleNames.map((name) => [name, maskedOrHalt(name, moduleSource.get(name))]));
 const mitosisSource = readFileSync(MITOSIS_PATH, 'utf8');
 
@@ -88,7 +96,7 @@ test('the export scanner parses the known core exports (tripwire against a silen
   assert.ok(allExports.length >= 50, `expected a substantial export surface, found ${allExports.length}`);
 });
 
-test('every named export of lib/superpowers-parallel/*.mjs has a live caller outside its own literal text', () => {
+test('every named export of the scanned lib trees has a live caller outside its own literal text', () => {
   const dead = allExports
     .filter((entry) => liveCallerCount(entry.module, entry.name) === 0)
     .map((entry) => `${entry.module} :: ${entry.name}`);

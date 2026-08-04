@@ -5,7 +5,7 @@ import { computeLogicalRunId, buildInitialManifest, applyShipTransition, parseRu
 import { foldRunManifest, parkDelta } from '../run-log.mjs';
 import { park, LEGAL_STAGES } from '../parking.mjs';
 import { runEngine } from '../run-engine.mjs';
-import { parseMitosisGitArgv, renderPrCreateBody } from '../mitosis-git.mjs';
+import { parseMitosisGitArgv, renderPrCreateBody } from '../../git/pr.mjs';
 
 const MITOSIS_PATH = process.env.MITOSIS_PATH || new URL('../../../workflows/mitosis.js', import.meta.url).pathname;
 const SOURCE_PREFIX = 'mitosis-test';
@@ -16,7 +16,7 @@ const SCOPED = `-R ${TEST_REPO_SLUG}`;
 const SLUG_PLACEHOLDER = '<OWNER_REPO>';
 const testPrUrl = (seed) => `https://example.test/${TEST_REPO_SLUG}/pull/${[...String(seed)].reduce((acc, ch) => acc + ch.charCodeAt(0), 0)}`;
 const SLUG_DERIVATION = `$(cd ${TEST_REPO_ROOT} && gh repo view --json nameWithOwner -q .nameWithOwner)`;
-const PR_CREATE_CLI = 'node /Users/satanshumishra/.claude/lib/superpowers-parallel/mitosis-git.mjs pr-create';
+const PR_CREATE_CLI = 'node /Users/satanshumishra/.claude/lib/git/pr.mjs pr-create';
 const FOLD_RUN_LOG_CLI = 'node /Users/satanshumishra/.claude/lib/superpowers-parallel/fold-run-log.mjs';
 
 const mitosisBody = readFileSync(MITOSIS_PATH, 'utf8').replace(/^export const meta/m, 'const meta');

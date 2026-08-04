@@ -9,7 +9,7 @@
 - NEVER add AI co-author attribution to commits, PRs, or comments.
 - NEVER connect directly to live databases or cloud-admin surfaces. ~/.claude/rules/common/no-direct-db-access.md
 - Destructive shell/git operations require explicit confirmation.
-- Open every pull request through the one centralized tool: node ~/.claude/lib/superpowers-parallel/mitosis-git.mjs pr-create; never ad-hoc gh pr create or the GitHub MCP create tool. ~/.claude/rules/common/git/pull-requests.md
+- Open every pull request through the one centralized tool: node ~/.claude/lib/git/pr.mjs pr-create; never ad-hoc gh pr create or the GitHub MCP create tool. ~/.claude/rules/common/git/pull-requests.md
 - Choose tools by scenario: graphify knowledge-graph to orient/map, Serena for precise & relational symbol nav, native grep/Read for local/quick. ~/.claude/rules/common/tool-routing.md
 - Research follows an always-on standard: delegate to the researcher agent, stay objective/unbiased, verify + cite every claim, never invoke the bundled deep-research workflow, return report-ready findings (rendered into a report only on demand via the report skill / /report). ~/.claude/rules/common/research.md
 - Persistent memory: store only durable, non-derivable facts; verify recalled specifics against code; update or delete stale memories on contact. ~/.claude/rules/common/memory-discipline.md

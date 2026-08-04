@@ -1,8 +1,8 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { MITOSIS_GIT_CONVERGE_EXIT, FLAG_SPEC, parseMitosisGitArgv } from '../mitosis-git.mjs';
-import { PR_TITLE_PATTERN, PR_VALUE_CAP, inertValue } from '../pr-format.mjs';
+import { MITOSIS_GIT_CONVERGE_EXIT, FLAG_SPEC, parseMitosisGitArgv } from '../../git/pr.mjs';
+import { PR_TITLE_PATTERN, PR_VALUE_CAP, inertValue } from '../../git/pr-format.mjs';
 
 const MITOSIS_PATH = process.env.MITOSIS_PATH || new URL('../../../workflows/mitosis.js', import.meta.url).pathname;
 const source = readFileSync(MITOSIS_PATH, 'utf8');
@@ -14,6 +14,9 @@ const PLACEHOLDER = '<OWNER_REPO>';
 const LIB_DIR_NAME = 'LIB_DIR';
 const LIB_DIR_LITERAL = '/Users/satanshumishra/.claude/lib/superpowers-parallel';
 const LIB_DIR_TEMPLATE = '${LIB_DIR}';
+const GIT_LIB_DIR_NAME = 'GIT_LIB_DIR';
+const GIT_LIB_DIR_LITERAL = '/Users/satanshumishra/.claude/lib/git';
+const PR_TOOL_INVOCATION = 'node ${GIT_LIB_DIR}/pr.mjs pr-create';
 const PR_CREATE_SITES = 2;
 const RECONCILE_PLACEHOLDER_SITES = [
   `gh pr list -R ${PLACEHOLDER} --state merged --base `,
@@ -86,14 +89,14 @@ test('D7: no emitted command derives the repo slug through a $( ) subshell or a 
 });
 
 test('MSP-3: every pull-request-CREATION site emits the anchored mitosis-git wrapper, and none of them still hands the agent a free-form open-PR probe', () => {
-  const invocations = source.split(`node ${LIB_DIR_TEMPLATE}/mitosis-git.mjs pr-create`).length - 1;
+  const invocations = source.split(PR_TOOL_INVOCATION).length - 1;
   assert.equal(invocations, PR_CREATE_SITES, `all ${PR_CREATE_SITES} PR-creation sites (supersede, ship) must invoke the wrapper; found ${invocations}`);
   assert.equal(source.includes('gh pr list -R ${repoSlug} --head'), false, 'the --head open-PR probe is the observe step the wrapper now owns; emitting it too restores the free-form surface this increment removes');
   assert.equal(source.includes('--body-line'), false, 'the free-form body-line flag is the ad-hoc surface centralized PR creation removes; the engine composes named fields only');
 });
 
 test('MSP-3 fold: every pr-create site states the wrapper AMBIGUOUS converge exit instead of a flat nothing-was-opened guarantee', () => {
-  const sites = source.split('\n').filter((line) => line.includes(`node ${LIB_DIR_TEMPLATE}/mitosis-git.mjs pr-create`));
+  const sites = source.split('\n').filter((line) => line.includes(PR_TOOL_INVOCATION));
   assert.equal(sites.length, PR_CREATE_SITES, `expected all ${PR_CREATE_SITES} pr-create instruction lines; found ${sites.length}`);
   for (const site of sites) {
     assert.ok(
@@ -150,10 +153,10 @@ function engineExports() {
 }
 
 test('every pr-create site — supersede and ship — emits every flag the tool requires and none it removed', () => {
-  const sites = source.split('\n').filter((line) => line.includes(`node ${LIB_DIR_TEMPLATE}/mitosis-git.mjs pr-create`));
+  const sites = source.split('\n').filter((line) => line.includes(PR_TOOL_INVOCATION));
   assert.equal(sites.length, PR_CREATE_SITES);
   for (const site of sites) {
-    const invocation = site.slice(site.indexOf(`node ${LIB_DIR_TEMPLATE}/mitosis-git.mjs pr-create`));
+    const invocation = site.slice(site.indexOf(PR_TOOL_INVOCATION));
     for (const flag of FLAG_SPEC['pr-create'].required) {
       assert.ok(invocation.includes(`${flag} `), `this pr-create site omits the required flag ${flag}, so every pull request it opens is a usage rejection: ${site.trim().slice(0, 160)}`);
     }
@@ -264,5 +267,6 @@ test('every title the engine composes from a declared MSP passes the receipts.ym
 
 test('MSP-3: the wrapper anchor resolves to one absolute literal a string-matching permission rule can pin, never a tilde', () => {
   assert.ok(source.includes(`const ${LIB_DIR_NAME} = '${LIB_DIR_LITERAL}';`), 'the emitted anchor is the absolute superpowers-parallel path');
+  assert.ok(source.includes(`const ${GIT_LIB_DIR_NAME} = '${GIT_LIB_DIR_LITERAL}';`), 'the pull-request tool anchor is the absolute lib/git path, so a string-matching permission rule can pin it');
   assert.equal(source.includes('~/.claude'), false, 'no emitted command may spell the anchor with a tilde: the permission matcher compares strings, not inodes');
 });
