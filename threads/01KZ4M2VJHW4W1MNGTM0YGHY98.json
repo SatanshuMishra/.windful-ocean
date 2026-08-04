@@ -9,49 +9,49 @@
   "completion_criteria": [
     {
       "id": "c1",
-      "text": "Preconditions 0, 1, 1.5, 2, 3, 4 and 5 of decision 0116's eight-entry landing order are each either proven discharged by measurement, or their residual is named and then landed, or explicitly deferred by a recorded decision stating why step 6 may proceed without it. No precondition is assumed discharged.",
+      "text": "Preconditions 0-5 of 0116's landing order are each proven discharged by measurement, or their residual named and landed, or deferred by a recorded decision. None is assumed discharged.",
       "done": false,
       "kind": "planned",
       "struck_by": null
     },
     {
       "id": "c2",
-      "text": "MSP-1 through MSP-13 of docs/superpowers/specs/2026-07-30-mitosis-core-rebuild.md are each shipped and merged to main, or explicitly retired by a recorded decision naming the reason. MSP-0 already shipped as PR #15 (12053dc) and is not re-done.",
+      "text": "MSP-1..MSP-13 of the core-rebuild SPEC are each shipped and merged to main, or retired by a recorded decision naming the reason. MSP-0 shipped as PR #15 (12053dc) and is not re-done.",
       "done": false,
       "kind": "planned",
       "struck_by": null
     },
     {
       "id": "c3",
-      "text": "The engine's declared phase set is exactly the collapsed eight - Probe, Decompose, Prep, Execute, Integrate, Ship, Resume, Remediate - and the phase-parity gate proves declared == phase() calls == opts.phase literals in both directions across all three surfaces.",
+      "text": "The declared phase set is exactly the collapsed eight (Probe, Decompose, Prep, Execute, Integrate, Ship, Resume, Remediate) and phase-parity proves declared == calls == opts.phase both ways.",
       "done": false,
       "kind": "planned",
       "struck_by": null
     },
     {
       "id": "c4",
-      "text": "SPEC success condition 1: a fix-typed spec ships end to end through the collapsed phase set, and its receipt is observed red on the base and green on the branch by a deterministic verb, never asserted by a model.",
+      "text": "SPEC success 1: a fix-typed spec ships end to end through the collapsed phase set, its receipt observed red on base and green on branch by a deterministic verb, never asserted by a model.",
       "done": false,
       "kind": "planned",
       "struck_by": null
     },
     {
       "id": "c5",
-      "text": "SPEC success condition 3: every Verified: line on a mitosis-opened pull request is composed from a journaled gate manifest entry carrying a recorded exit code; absent and BROKEN gates render as --not-verified with the reason.",
+      "text": "SPEC success 3: every Verified: line on a mitosis-opened PR is composed from a journaled gate manifest entry with a recorded exit code; absent and BROKEN gates render --not-verified with reason.",
       "done": false,
       "kind": "planned",
       "struck_by": null
     },
     {
       "id": "c6",
-      "text": "MSP-1's budget gate holds a captured baseline for one real current-engine run, and a post-collapse run is measured against section 6's 3-fixed-plus-9-per-MSP budget, making decision 0115's three falsifiers payable rather than unmeasured.",
+      "text": "MSP-1's budget gate holds a baseline for one real current-engine run, and a post-collapse run is measured against section 6's 3-fixed-plus-9-per-MSP budget, making 0115's falsifiers payable.",
       "done": false,
       "kind": "planned",
       "struck_by": null
     },
     {
       "id": "c7",
-      "text": "The SPEC document itself is re-grounded and committed: every line citation in sections 4, 5, 12 and 14 re-verified against the then-current mitosis.js, each stale anchor corrected, and every validity gap found in the audit closed by a recorded decision.",
+      "text": "The SPEC is re-grounded and committed: every citation in sections 4, 5, 12, 14 re-verified against current mitosis.js, stale anchors corrected, and every audit validity gap closed by a decision.",
       "done": false,
       "kind": "planned",
       "struck_by": null
@@ -152,5 +152,5 @@
     "last_session": ""
   },
   "created_at": "2026-08-03T20:12:16.337Z",
-  "updated_at": "2026-08-04T06:03:15.506Z"
+  "updated_at": "2026-08-04T06:03:40.308Z"
 }
