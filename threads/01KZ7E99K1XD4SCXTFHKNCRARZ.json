@@ -30,14 +30,14 @@
     },
     {
       "id": "c4",
-      "text": "Review the pre-existing CRITICAL gate bypass in block-destructive-bash.sh that MSP-2 inherited unchanged",
+      "text": "Close the CRITICAL gate bypass by structurally rewriting block-destructive-bash.sh to parse-then-decide-per-command against the 12 invariants; regex patching cannot reach INV-3 or INV-4",
       "done": false,
       "kind": "detour",
       "struck_by": null
     },
     {
       "id": "c5",
-      "text": "Fix the gate false-positive where prose merely naming a denied command is blocked; merge branch has no selfwrap escape hatch",
+      "text": "Fix the boundary-regex false-positive and its twin false-negative uniformly across BOTH deny branches, inside the c4 rewrite; the merge branch stays unexempted per decision 0246",
       "done": false,
       "kind": "detour",
       "struck_by": null
@@ -135,5 +135,5 @@
     ]
   },
   "created_at": "2026-08-04T22:28:39.135Z",
-  "updated_at": "2026-08-04T23:31:32.884Z"
+  "updated_at": "2026-08-04T23:31:48.061Z"
 }
