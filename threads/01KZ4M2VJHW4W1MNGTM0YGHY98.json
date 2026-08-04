@@ -117,6 +117,11 @@
         "ref": "0232-a-defect-fix-extends-to-every-site-its-planned-fix-would-break",
         "title": "A defect fix extends beyond its planned site list to every site the planned fix would otherwise break",
         "scope": "thread"
+      },
+      {
+        "ref": "0233-corpus-citations-name-a-bounded-range-and-the-store-read",
+        "title": "A decision-corpus citation names a bounded record range and the store it was read in, never an absolute count",
+        "scope": "thread"
       }
     ],
     "out_of_scope": [
@@ -132,5 +137,5 @@
     "last_session": "2026-08-04: read phase only. Band 0130-0227 enumerated (98 records), 0130 and 0210 read in full, ROUND-4-PLAN.md written with a 14-site edit list. No edit applied, no commit."
   },
   "created_at": "2026-08-03T20:12:16.337Z",
-  "updated_at": "2026-08-04T14:54:05.562Z"
+  "updated_at": "2026-08-04T14:54:20.091Z"
 }
