@@ -10,14 +10,14 @@
     {
       "id": "c1",
       "text": "STEP 2 FIRST, ratified before any code: docs/security/bash-gate-threat-model.md with scope, assurance level, adversary model, goals G1-G5, reasoned non-goals, definition of done, escalation control",
-      "done": false,
+      "done": true,
       "kind": "planned",
       "struck_by": null
     },
     {
       "id": "c2",
       "text": "Step 2 supports: a 3-5 line pointer in rules/common/security.md and a ~10-line .claude/hooks/CLAUDE.md, tracked past the **/CLAUDE.md ignore; G1-G5 registry append deferred to c7 per 0251",
-      "done": false,
+      "done": true,
       "kind": "planned",
       "struck_by": null
     },
@@ -63,17 +63,52 @@
   "abandoned_reason": null,
   "closure_statement": null,
   "spine": {
-    "active_goal": "Rebuild the bash gate as five per-action controls (~150-250 lines replacing 1438), with the assurance level written down FIRST so a seventh fix round cannot start.",
-    "next_step": "START HERE IN A FRESH SESSION. Read handoff-2026-08-05-bash-gate-redesign/artifacts/RESEARCH-AND-PLAN.md (outside the repo, under ~/.claude/projects/-Users-satanshumishra-Documents-DevLabs--windful-ocean/) - it carries all three research reports with citations, the platform contract, the decomposition table, the step-2 artifact set with a document skeleton, and the anti-patterns already paid for. Then do c1 and c2, the written threat model, and STOP for ratification before writing any gate code.",
-    "last_session": "Ratified the scoped assurance level and per-action decomposition, archived the rejected rewrite and restored HEAD's gate, then established that the sandbox does not close G5 and would break daily work.",
+    "active_goal": "Rebuild the bash gate as five per-action controls, ~150-250 lines replacing 1438, against the now-ratified threat model; c3-c7 build the controls and ship one PR.",
+    "next_step": "START HERE IN A FRESH SESSION with c3, the fail-closed harness. The threat model is ratified and now governs — its definition of done (section 7) and escalation control (section 8). c3 must make no-opinion an EXPLICIT token across all THREE fail-open paths named in its section 6 row 3, not just the swallowed exception. Read RESEARCH-AND-PLAN.md for the platform contract and the anti-patterns already paid for. Nothing is pushed; two commits sit on fix/gate-hardening-followups.",
+    "last_session": "Wrote and ratified the threat model and both pointer artifacts, and found three defects: the plan's fail-open citation was wrong and understated it, the registry append breaks 22 coverage artifacts, and the hooks memory file was silently gitignored.",
     "open_risks": [
       {
-        "text": "Write the threat model BEFORE any gate code — the whole point of this thread is that six rounds escalated because the assurance level was never written down, and code first would repeat it",
+        "text": "The gate has THREE fail-open paths, not one — the case prefilter, the swallowed python3 exception and the intended no-opinion exit all allow identically, so c3 must cover all three or it fixes a third of the problem",
         "scope": "thread",
-        "refs": []
+        "refs": [
+          ".claude/hooks/block-destructive-bash.sh:4-7",
+          ".claude/hooks/block-destructive-bash.sh:9-16",
+          ".claude/hooks/block-destructive-bash.sh:96"
+        ]
       },
       {
-        "text": "The sandbox does NOT close G5 and is NOT cheap — it gates sandboxed Bash only, leaving the Read tool and WebFetch ungated, and enabling it restricts writes to an allowlist that excludes /Users; see this thread's 2026-08-05 correction log",
+        "text": "Appending G1-G5 to registry.json fails all 22 coverage artifacts on push, not only at PR time — c7 must first choose between backfilling 110 rows and making the checker track-aware, and neither is chosen yet",
+        "scope": "thread",
+        "refs": [
+          "scripts/invariant-coverage-check.mjs",
+          "docs/invariants/coverage/",
+          "0251-defer-registry-append-to-c7"
+        ]
+      },
+      {
+        "text": "Any new CLAUDE.md under .claude/ is ignored and git add drops it WITHOUT failing — add a negation line beside the existing ones or the file never reaches a worktree, a clean checkout or the PR diff",
+        "scope": "thread",
+        "refs": [
+          ".gitignore:6-9"
+        ]
+      },
+      {
+        "text": "The hooks CLAUDE.md and the security.md carve-out are deliberately narrow — they forbid hardening BEYOND G1-G5, not hardening itself; do not re-broaden them, because c3 is a hardening task the earlier wording would have read as a stop sign",
+        "scope": "thread",
+        "refs": [
+          ".claude/hooks/CLAUDE.md",
+          ".claude/rules/common/security.md"
+        ]
+      },
+      {
+        "text": "Design-level risks now live in the ratified threat model rather than here — G5's residual parser gap, the five-drift-surface cost of the decomposition and the token-scoping limit on G1 are recorded in its sections 5, 6 and 9; read it before reopening any of them",
+        "scope": "thread",
+        "refs": [
+          "docs/security/bash-gate-threat-model.md"
+        ]
+      },
+      {
+        "text": "The sandbox does NOT close G5 and is NOT cheap — it gates sandboxed Bash only, leaving the Read tool and WebFetch ungated, and enabling it restricts writes to an allowlist that excludes /Users",
         "scope": "thread",
         "refs": []
       },
@@ -89,28 +124,6 @@
           "~/.claude/settings.json",
           ".claude/settings.json"
         ]
-      },
-      {
-        "text": "The gate fails OPEN on its own bugs — only exit code 2 blocks, so a crash, a timeout or malformed output all let the command run; c3 exists because this is the highest-leverage fix available and it is a few lines",
-        "scope": "thread",
-        "refs": [
-          ".claude/hooks/block-destructive-bash.sh"
-        ]
-      },
-      {
-        "text": "The G5 parser still has a differential space — a python3 -c invocation using a built-in HTTP client evades a named-command list, so unrecognized-but-file-reference-shaped input must fail to ask, never to allow",
-        "scope": "thread",
-        "refs": []
-      },
-      {
-        "text": "Five controls means five drift surfaces where the monolith had one — this is the strongest argument against the decomposition and it was accepted knowingly; treat the shape as revisable, not settled",
-        "scope": "thread",
-        "refs": []
-      },
-      {
-        "text": "Token scoping cannot prevent merge — GitHub gates the merge endpoint on the Contents permission, which the agent needs anyway to push branches; server-side branch protection is the only real control for G1",
-        "scope": "thread",
-        "refs": []
       },
       {
         "text": "Never delete branch archive/gate-parser-rewrite-2026-08-05 — commit 21ae349 is the only copy of the rewrite and holds the INV-4 structural fix and expanded tests worth mining for this rebuild",
@@ -153,5 +166,5 @@
     ]
   },
   "created_at": "2026-08-05T15:24:11.663Z",
-  "updated_at": "2026-08-05T21:01:39.020Z"
+  "updated_at": "2026-08-05T21:02:44.267Z"
 }
