@@ -178,6 +178,11 @@
         "ref": "0249-abandon-general-bash-parsing-for-per-action-decomposition",
         "title": "Abandon general bash parsing; decompose the five protections into five per-action controls",
         "scope": "c4"
+      },
+      {
+        "ref": "0250-archive-the-rewrite-and-restore-head-as-the-live-gate",
+        "title": "Archive the rejected rewrite and restore HEAD's regex gate as the live guard",
+        "scope": "c4"
       }
     ],
     "out_of_scope": [
@@ -188,5 +193,5 @@
     ]
   },
   "created_at": "2026-08-04T22:28:39.135Z",
-  "updated_at": "2026-08-05T15:22:30.062Z"
+  "updated_at": "2026-08-05T15:22:40.782Z"
 }
