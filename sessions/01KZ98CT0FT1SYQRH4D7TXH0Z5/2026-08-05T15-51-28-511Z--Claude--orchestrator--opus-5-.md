@@ -1,0 +1,12 @@
+CORRECTION to guidance recorded earlier this session. The spine risk calling the sandbox credential deny "available and cheap" for G5 is WRONG and must not be acted on. Verified against the shipped Claude Code binary's own zod schema at version 2.1.221 (the implementation, not the docs - the checking agent had no WebFetch and curl was denied, so it read the binary):
+
+1. The sandbox gates SANDBOXED BASH ONLY. In-process tools are not gated, so the Read tool could still read ~/.ssh/id_rsa and WebFetch could still send it. The sandbox does NOT close G5 on its own.
+2. Enabling it restricts WRITES whenever filesystem.disabled is unset. Default allowWrite is /home /root /tmp /var /opt /run /mnt - it does NOT include /Users, where every project lives. Default denyWrite also covers ~/.claude, project .claude, .zshrc, .gitconfig, .npmrc, package.json, lockfiles, scripts/ and .github/, with no documented way to remove a default deny.
+3. autoAllowBashIfSandboxed defaults TRUE, so enabling the sandbox would auto-allow sandboxed Bash and undercut the gate hardening this thread exists to build.
+4. Confirmed true and still useful: sandbox.credentials.files defaults to empty, so ~/.ssh and ~/.aws/credentials are readable unless explicitly denied. Network is NOT restricted unless network.allowedDomains is set.
+
+NOTHING WAS EDITED. The user approved a sandbox change; the agent stopped at the blast-radius gate before applying it, which was correct.
+
+SETTINGS DRIFT RESOLVED AS FACT: ~/.claude/settings.json is a SEPARATE REAL FILE, not a symlink into the repo. CLAUDE.md, agents, lib, docs, notes and keybindings.json ARE symlinks; settings.json is the drift. The two files have diverged in content - "model" exists only in the repo copy, "pluginConfigs" only in the home copy. Establish which one governs before editing either.
+
+BETTER CANDIDATE for G5, not yet approved: permissions.deny with Read(...) rules on credential paths, which covers the Read tool and the file-reading bash commands Claude Code recognizes. Documented limit: it does not stop an arbitrary subprocess that opens files itself (python3 -c "open(...)"). That residue is exactly what G5's narrow check in c6 is for. Optionally pair with sandbox.credentials.files deny plus autoAllowBashIfSandboxed false plus filesystem.allowWrite ["/Users"] - but only with eyes open about item 2 above.
