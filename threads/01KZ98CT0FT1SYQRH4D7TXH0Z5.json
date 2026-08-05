@@ -158,6 +158,11 @@
         "ref": "0252-ratify-bash-gate-threat-model",
         "title": "Ratify the bash gate threat model, unblocking gate code from c3 onward",
         "scope": "c1"
+      },
+      {
+        "ref": "0253-gate-runs-set-eu-without-pipefail",
+        "title": "The gate runs set -eu deliberately WITHOUT pipefail",
+        "scope": "c3"
       }
     ],
     "out_of_scope": [
@@ -166,5 +171,5 @@
     ]
   },
   "created_at": "2026-08-05T15:24:11.663Z",
-  "updated_at": "2026-08-05T21:02:44.267Z"
+  "updated_at": "2026-08-05T23:24:38.294Z"
 }
