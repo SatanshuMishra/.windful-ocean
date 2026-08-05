@@ -3,7 +3,7 @@
   "id": "01KZ98CT0FT1SYQRH4D7TXH0Z5",
   "slug": "gate-redesign-per-action-decomposition",
   "title": "Bash gate redesign: per-action decomposition",
-  "status": "active",
+  "status": "paused",
   "parent_id": "01KZ7E99K1XD4SCXTFHKNCRARZ",
   "predecessor_id": null,
   "completion_criteria": [
@@ -132,5 +132,5 @@
     ]
   },
   "created_at": "2026-08-05T15:24:11.663Z",
-  "updated_at": "2026-08-05T15:24:40.843Z"
+  "updated_at": "2026-08-05T15:24:49.759Z"
 }
