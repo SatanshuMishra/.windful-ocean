@@ -1,0 +1,75 @@
+{
+  "schema_version": 2,
+  "id": "01KZ98CT0FT1SYQRH4D7TXH0Z5",
+  "slug": "gate-redesign-per-action-decomposition",
+  "title": "Bash gate redesign: per-action decomposition",
+  "status": "active",
+  "parent_id": "01KZ7E99K1XD4SCXTFHKNCRARZ",
+  "predecessor_id": null,
+  "completion_criteria": [
+    {
+      "id": "c1",
+      "text": "STEP 2 FIRST, ratified before any code: docs/security/bash-gate-threat-model.md with scope, assurance level, adversary model, goals G1-G5, reasoned non-goals, definition of done, escalation control",
+      "done": false,
+      "kind": "planned",
+      "struck_by": null
+    },
+    {
+      "id": "c2",
+      "text": "Step 2 supports: G1-G5 into docs/invariants/registry.json in its existing shape, a 3-5 line pointer in rules/common/security.md, and a ~10-line .claude/hooks/CLAUDE.md",
+      "done": false,
+      "kind": "planned",
+      "struck_by": null
+    },
+    {
+      "id": "c3",
+      "text": "Fail-closed harness: any internal fault forces a blocking verdict rather than trusting the platform, and no-opinion becomes an explicit token so a swallowed exception can never read as allow",
+      "done": false,
+      "kind": "planned",
+      "struck_by": null
+    },
+    {
+      "id": "c4",
+      "text": "G1 merge and G4 guardrail files: server-side branch protection with the hook deny as second layer; path matching against a fixed guardrail list plus chflags uchg friction",
+      "done": false,
+      "kind": "planned",
+      "struck_by": null
+    },
+    {
+      "id": "c5",
+      "text": "G2 and G3: small denylists over the closed enumerable surfaces - gh pr edit, gh api PATCH on pulls, the two GraphQL mutations, MCP update_pull_request, and the PR-create equivalents",
+      "done": false,
+      "kind": "planned",
+      "struck_by": null
+    },
+    {
+      "id": "c6",
+      "text": "G5 exfiltration: narrow parser over named file-reference flags on named network commands, failing to ask on anything unrecognized carrying one; fixes the c5 false positive too",
+      "done": false,
+      "kind": "planned",
+      "struck_by": null
+    },
+    {
+      "id": "c7",
+      "text": "Ship it: invariant-coverage artifact covering every registry id, diff-scoped verification, tests keyed to G1-G5 not to a defect count, one PR via the centralized pr-create tool",
+      "done": false,
+      "kind": "planned",
+      "struck_by": null
+    }
+  ],
+  "vcs_ref": "fix/gate-hardening-followups",
+  "external_refs": [],
+  "blocked_by": null,
+  "abandoned_reason": null,
+  "closure_statement": null,
+  "spine": {
+    "active_goal": "",
+    "next_step": "",
+    "last_session": "",
+    "open_risks": [],
+    "key_decisions": [],
+    "out_of_scope": []
+  },
+  "created_at": "2026-08-05T15:24:11.663Z",
+  "updated_at": "2026-08-05T15:24:11.663Z"
+}
