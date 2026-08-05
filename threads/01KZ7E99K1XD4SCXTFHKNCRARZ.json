@@ -168,6 +168,11 @@
         "ref": "0247-deployed-copy-premise-falsified-real-gap-is-stow-unfolding",
         "title": "Close the deployed-lib-copies follow-up as false and document the Stow unfolding gap instead",
         "scope": "c6"
+      },
+      {
+        "ref": "0248-gate-is-defense-in-depth-not-a-security-boundary",
+        "title": "The bash gate is a defense-in-depth control at a scoped assurance level, not a security boundary",
+        "scope": "c4"
       }
     ],
     "out_of_scope": [
@@ -178,5 +183,5 @@
     ]
   },
   "created_at": "2026-08-04T22:28:39.135Z",
-  "updated_at": "2026-08-05T03:03:59.570Z"
+  "updated_at": "2026-08-05T15:22:14.216Z"
 }
