@@ -74,28 +74,54 @@
   "abandoned_reason": null,
   "closure_statement": null,
   "spine": {
-    "active_goal": "Close the CRITICAL bash-gate bypass via the approved structural rewrite, adversarially verified against the 12 invariants before anything commits.",
-    "next_step": "FRESH SESSION. The rewrite implementer was still running at hand-off; it already swapped the live hook and added .claude/hooks/lib/shell_parse.py and bash_gate.py, uncommitted. Read GATE-INVARIANTS.md first - it is the acceptance contract - then collect the agent report and dispatch a FRESH security-reviewer to re-run every payload in it independently; a self-report is not evidence. Confirm the permissions.allow narrowing landed, then commit atomically and open ONE PR.",
-    "last_session": "Cleared c6 and c7 and committed both; c4 grew into a confirmed CRITICAL plus nine bypass classes, and its user-approved structural rewrite was still in flight at hand-off.",
+    "active_goal": "Get a bash gate that can be trusted. The c4 rewrite failed independent verification with multiple CRITICALs and six regressions against HEAD, so revert, fix forward or redesign must now be decided.",
+    "next_step": "FRESH SESSION. FIRST explain, in plain words for a reader with minimal domain knowledge, what is blocking this thread: what this hook guards, why it was rewritten, what two independent reviewers found, and the central tension - the rewrite is weaker than HEAD on six paths yet closes one CRITICAL that HEAD still has. THEN STOP and WAIT for specific instructions. Do NOT commit, do NOT open the PR, do NOT start a fix round. Full findings are in this thread's latest session log.",
+    "last_session": "Two independent reviewers both returned BLOCK on disjoint evidence, and a direct old-versus-new measurement found six paths where the rewrite is weaker than HEAD.",
     "open_risks": [
       {
-        "text": "Verify the rewrite adversarially before trusting it — this hook is the sole gate for gh api and gh pr edit, and an implementer's own report is not evidence for a security control",
-        "scope": "thread",
-        "refs": [
-          "~/.claude/projects/-Users-satanshumishra-Documents-DevLabs--windful-ocean/handoff-2026-08-04-gate-hardening/artifacts/GATE-INVARIANTS.md"
-        ]
-      },
-      {
-        "text": "The live hook is already rewritten but uncommitted — a reset or checkout would silently strip a security fix that is protecting this machine right now, and the smoke test showed it working",
+        "text": "Do not commit this branch or open its PR until the gate outcome is decided — two independent reviewers returned BLOCK, and the rewritten hook currently allows the merge and file-exfiltration paths it is meant to be the only guard for",
         "scope": "thread",
         "refs": [
           ".claude/hooks/block-destructive-bash.sh",
-          ".claude/hooks/lib/shell_parse.py",
-          ".claude/hooks/lib/bash_gate.py"
+          ".claude/hooks/lib/bash_gate.py",
+          ".claude/hooks/lib/shell_parse.py"
         ]
       },
       {
-        "text": "Separate the permissions.allow narrowing from the unrelated user edits already dirty in that file before committing — do not sweep someone else's working state into this change",
+        "text": "Reverting the working-tree hook to HEAD is a trade, not a free rollback — it restores six denies the rewrite lost but reopens the newline-laundering CRITICAL the rewrite closed, and the hook is live by symlink so the choice takes effect immediately",
+        "scope": "thread",
+        "refs": [
+          ".claude/hooks/block-destructive-bash.sh"
+        ]
+      },
+      {
+        "text": "Do not answer this with a sixth finding-list fix round — five prior rounds each closed a finding and opened a new one, and both reviewers named the same shape again: enumerated token equality where a normalizing decision was needed",
+        "scope": "thread",
+        "refs": []
+      },
+      {
+        "text": "A revert does not close the worst holes, because they predate this branch — attached -f body=@path exfiltration, /graphql endpoints, git checkout of the hook and perl -pi of the hook are allowed by BOTH the old and the new gate, at HEAD and on main",
+        "scope": "thread",
+        "refs": []
+      },
+      {
+        "text": "Add the missing invariant-coverage artifact before any PR from this branch — CI fails every pull request that adds no file under the coverage directory, and each file needs a verdict row for all twelve registry ids",
+        "scope": "thread",
+        "refs": [
+          "docs/invariants/coverage/",
+          "scripts/invariant-coverage-check.mjs",
+          ".github/workflows/test.yml:23"
+        ]
+      },
+      {
+        "text": "The approved permissions.allow narrowing does not achieve what it was for — these are prefix rules, so node --test admits any path, node .claude/ admits traversal, every rule admits an arbitrary suffix, and git checkout of the hook stays ungated end to end",
+        "scope": "thread",
+        "refs": [
+          ".claude/settings.json"
+        ]
+      },
+      {
+        "text": "Stage only the permissions.allow hunk from settings.json — that file also carries unrelated user edits to model, effortLevel and plugin entries that must not be swept into this change; the hunk applies cleanly on its own",
         "scope": "thread",
         "refs": [
           ".claude/settings.json"
@@ -110,7 +136,7 @@
         ]
       },
       {
-        "text": "Confirm the threatened verdicts on #39 are acceptable, or schedule the missing tests — invariants M3 and M4 were recorded threatened rather than clean, and the PR merged that way",
+        "text": "Confirm the threatened M3 and M4 verdicts on PR #39 or schedule the missing tests — nothing asserts that the CLAUDE.md pull-request bullet or the pr skill file exists, so a regression in the guidance steering models to the centralized tool would be silent in CI",
         "scope": "thread",
         "refs": [
           "docs/invariants/coverage/feat-pr-guidance-global.json"
@@ -152,5 +178,5 @@
     ]
   },
   "created_at": "2026-08-04T22:28:39.135Z",
-  "updated_at": "2026-08-04T23:33:02.818Z"
+  "updated_at": "2026-08-05T03:03:59.570Z"
 }
