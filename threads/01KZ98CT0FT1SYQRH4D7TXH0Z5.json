@@ -64,7 +64,7 @@
   "closure_statement": null,
   "spine": {
     "active_goal": "Rebuild the bash gate as five per-action controls, ~150-250 lines replacing 1438, against the now-ratified threat model; c3-c7 build the controls and ship one PR.",
-    "next_step": "c4 - G1 merge and G4 guardrail files. The c3 harness now escalates an unevaluable matcher to ask, so any c4 matcher that cannot run fails closed by construction. Commit 97b3e8b sits unpushed on fix/gate-hardening-followups with two others; c7 still owns the push, because CI fires on bare push and the invariant-coverage debt is unresolved.",
+    "next_step": "c4 NOT started - decided, no code written. G1: amend threat model s4 G1 cell per 0255 (hook deny is sole control), verify merge deny against DoD item 1, add G1-keyed tests, add NO tampering deny. G4: KEEP the verb-denylist shape - chflags uchg at c7 is what closes open-ended write verbs, so do NOT invert to a reader allowlist, which would ask on every `node --test .claude/hooks/tests/` run. Close the 3 named gaps (git checkout, perl -pi, cp into bare .claude/) plus chflags nouchg.",
     "last_session": "Wrote and ratified the threat model and both pointer artifacts, and found three defects: the plan's fail-open citation was wrong and understated it, the registry append breaks 22 coverage artifacts, and the hooks memory file was silently gitignored.",
     "open_risks": [
       {
@@ -196,5 +196,5 @@
     ]
   },
   "created_at": "2026-08-05T15:24:11.663Z",
-  "updated_at": "2026-08-05T23:56:58.661Z"
+  "updated_at": "2026-08-05T23:57:25.481Z"
 }
