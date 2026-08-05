@@ -16,7 +16,7 @@
     },
     {
       "id": "c2",
-      "text": "Step 2 supports: G1-G5 into docs/invariants/registry.json in its existing shape, a 3-5 line pointer in rules/common/security.md, and a ~10-line .claude/hooks/CLAUDE.md",
+      "text": "Step 2 supports: a 3-5 line pointer in rules/common/security.md and a ~10-line .claude/hooks/CLAUDE.md, tracked past the **/CLAUDE.md ignore; G1-G5 registry append deferred to c7 per 0251",
       "done": false,
       "kind": "planned",
       "struck_by": null
@@ -51,7 +51,7 @@
     },
     {
       "id": "c7",
-      "text": "Ship it: invariant-coverage artifact covering every registry id, diff-scoped verification, tests keyed to G1-G5 not to a defect count, one PR via the centralized pr-create tool",
+      "text": "Ship it: append G1-G5 to registry.json and resolve the 22-artifact fallout per 0251, coverage artifact for every id, diff-scoped verification, tests keyed to G1-G5, one PR via pr-create",
       "done": false,
       "kind": "planned",
       "struck_by": null
@@ -153,5 +153,5 @@
     ]
   },
   "created_at": "2026-08-05T15:24:11.663Z",
-  "updated_at": "2026-08-05T21:01:19.389Z"
+  "updated_at": "2026-08-05T21:01:39.020Z"
 }
