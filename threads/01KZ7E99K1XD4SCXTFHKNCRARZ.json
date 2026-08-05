@@ -33,14 +33,14 @@
       "text": "Close the CRITICAL gate bypass by structurally rewriting block-destructive-bash.sh to parse-then-decide-per-command against the 12 invariants; regex patching cannot reach INV-3 or INV-4",
       "done": false,
       "kind": "detour",
-      "struck_by": null
+      "struck_by": "0249-abandon-general-bash-parsing-for-per-action-decomposition"
     },
     {
       "id": "c5",
       "text": "Fix the boundary-regex false-positive and its twin false-negative uniformly across BOTH deny branches, inside the c4 rewrite; the merge branch stays unexempted per decision 0246",
       "done": false,
       "kind": "detour",
-      "struck_by": null
+      "struck_by": "0249-abandon-general-bash-parsing-for-per-action-decomposition"
     },
     {
       "id": "c6",
@@ -193,5 +193,5 @@
     ]
   },
   "created_at": "2026-08-04T22:28:39.135Z",
-  "updated_at": "2026-08-05T15:22:40.782Z"
+  "updated_at": "2026-08-05T15:23:03.121Z"
 }
