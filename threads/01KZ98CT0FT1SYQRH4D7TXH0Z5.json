@@ -163,6 +163,11 @@
         "ref": "0253-gate-runs-set-eu-without-pipefail",
         "title": "The gate runs set -eu deliberately WITHOUT pipefail",
         "scope": "c3"
+      },
+      {
+        "ref": "0254-delete-the-case-prefilter-outright",
+        "title": "Delete the case prefilter outright rather than make it fail-closed",
+        "scope": "c3"
       }
     ],
     "out_of_scope": [
@@ -171,5 +176,5 @@
     ]
   },
   "created_at": "2026-08-05T15:24:11.663Z",
-  "updated_at": "2026-08-05T23:24:38.294Z"
+  "updated_at": "2026-08-05T23:24:52.034Z"
 }
