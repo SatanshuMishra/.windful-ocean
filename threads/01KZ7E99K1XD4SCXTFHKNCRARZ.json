@@ -74,33 +74,49 @@
   "abandoned_reason": null,
   "closure_statement": null,
   "spine": {
-    "active_goal": "Get a bash gate that can be trusted. The c4 rewrite failed independent verification with multiple CRITICALs and six regressions against HEAD, so revert, fix forward or redesign must now be decided.",
-    "next_step": "FRESH SESSION. FIRST explain, in plain words for a reader with minimal domain knowledge, what is blocking this thread: what this hook guards, why it was rewritten, what two independent reviewers found, and the central tension - the rewrite is weaker than HEAD on six paths yet closes one CRITICAL that HEAD still has. THEN STOP and WAIT for specific instructions. Do NOT commit, do NOT open the PR, do NOT start a fix round. Full findings are in this thread's latest session log.",
-    "last_session": "Two independent reviewers both returned BLOCK on disjoint evidence, and a direct old-versus-new measurement found six paths where the rewrite is weaker than HEAD.",
+    "active_goal": "PR tool relocation shipped. The gate work is redesigned and has moved to its own thread; what remains here is CI and verification debt on PRs #39 and #40.",
+    "next_step": "The gate redesign continues on the CHILD thread (gate-redesign-per-action-decomposition), NOT here - resume that one. Its pickup document is handoff-2026-08-05-bash-gate-redesign/artifacts/RESEARCH-AND-PLAN.md, outside the repo. Residual work on THIS thread is only the CI and verification debt in the risks below: the missing invariant-coverage artifact that fails every PR from this branch, and the threatened M3/M4 verdicts on PR #39.",
+    "last_session": "Researched the gate design from scratch, ratified a scoped assurance level and a per-action decomposition, then archived the rejected rewrite and restored HEAD's regex gate as the live guard.",
     "open_risks": [
       {
-        "text": "Do not commit this branch or open its PR until the gate outcome is decided — two independent reviewers returned BLOCK, and the rewritten hook currently allows the merge and file-exfiltration paths it is meant to be the only guard for",
+        "text": "Never delete or prune branch archive/gate-parser-rewrite-2026-08-05 — commit 21ae349 is the ONLY copy of the 1663-line rewrite, it was never pushed, and it holds the INV-4 structural fix, realpath identity work and expanded tests worth mining",
         "scope": "thread",
         "refs": [
-          ".claude/hooks/block-destructive-bash.sh",
-          ".claude/hooks/lib/bash_gate.py",
-          ".claude/hooks/lib/shell_parse.py"
+          "21ae349",
+          "archive/gate-parser-rewrite-2026-08-05"
         ]
       },
       {
-        "text": "Reverting the working-tree hook to HEAD is a trade, not a free rollback — it restores six denies the rewrite lost but reopens the newline-laundering CRITICAL the rewrite closed, and the hook is live by symlink so the choice takes effect immediately",
+        "text": "The revert reopened wrapper-plus-newline laundering — HEAD's gate has that hole and the archived rewrite had closed it; this is the accepted cost of decision 0250 and only the decomposition closes it for good",
         "scope": "thread",
         "refs": [
           ".claude/hooks/block-destructive-bash.sh"
         ]
       },
       {
-        "text": "Do not answer this with a sixth finding-list fix round — five prior rounds each closed a finding and opened a new one, and both reviewers named the same shape again: enumerated token equality where a normalizing decision was needed",
+        "text": "The gate fails OPEN on its own bugs — only exit code 2 blocks, so a crash, a timeout or malformed output all let the command run; the rebuild must force a blocking verdict on any internal fault rather than trusting the platform",
         "scope": "thread",
         "refs": []
       },
       {
-        "text": "A revert does not close the worst holes, because they predate this branch — attached -f body=@path exfiltration, /graphql endpoints, git checkout of the hook and perl -pi of the hook are allowed by BOTH the old and the new gate, at HEAD and on main",
+        "text": "An empty verdict with exit 0 is read as allow — a silently-swallowed exception is indistinguishable from the gate having no opinion; make no-opinion an explicit token in the rebuild",
+        "scope": "thread",
+        "refs": [
+          ".claude/hooks/block-destructive-bash.sh:26-28"
+        ]
+      },
+      {
+        "text": "The boundary false-positive is live and was hit first-hand this session — a command merely CONTAINING the text of a denied action is denied, so normal work will trip it until the decomposition lands",
+        "scope": "thread",
+        "refs": []
+      },
+      {
+        "text": "Do not answer a new finding with another fix round — six rounds each closed one finding and opened another; check every finding against the written goals and non-goals first, and close a non-goal finding as accepted risk",
+        "scope": "thread",
+        "refs": []
+      },
+      {
+        "text": "The worst holes predate this branch — attached -f body=@path exfiltration, /graphql endpoints, git checkout of the hook and perl -pi of the hook are open on HEAD and main alike, and the revert changed none of them",
         "scope": "thread",
         "refs": []
       },
@@ -114,14 +130,14 @@
         ]
       },
       {
-        "text": "The approved permissions.allow narrowing does not achieve what it was for — these are prefix rules, so node --test admits any path, node .claude/ admits traversal, every rule admits an arbitrary suffix, and git checkout of the hook stays ungated end to end",
+        "text": "The approved permissions.allow narrowing still does not achieve what it was for — these are prefix rules, so node --test admits any path, node .claude/ admits traversal, every rule admits an arbitrary suffix, and git checkout of the hook stays ungated",
         "scope": "thread",
         "refs": [
           ".claude/settings.json"
         ]
       },
       {
-        "text": "Stage only the permissions.allow hunk from settings.json — that file also carries unrelated user edits to model, effortLevel and plugin entries that must not be swept into this change; the hunk applies cleanly on its own",
+        "text": "Stage only the permissions.allow hunk from settings.json — that file also carries unrelated user edits to model, effortLevel and plugin entries that must not be swept in; the hunk applies cleanly on its own",
         "scope": "thread",
         "refs": [
           ".claude/settings.json"
@@ -136,7 +152,7 @@
         ]
       },
       {
-        "text": "Confirm the threatened M3 and M4 verdicts on PR #39 or schedule the missing tests — nothing asserts that the CLAUDE.md pull-request bullet or the pr skill file exists, so a regression in the guidance steering models to the centralized tool would be silent in CI",
+        "text": "Confirm the threatened M3 and M4 verdicts on PR #39 or schedule the missing tests — nothing asserts that the CLAUDE.md pull-request bullet or the pr skill file exists, so a regression in that guidance would be silent in CI",
         "scope": "thread",
         "refs": [
           "docs/invariants/coverage/feat-pr-guidance-global.json"
@@ -193,5 +209,5 @@
     ]
   },
   "created_at": "2026-08-04T22:28:39.135Z",
-  "updated_at": "2026-08-05T15:23:03.121Z"
+  "updated_at": "2026-08-05T15:23:41.316Z"
 }
