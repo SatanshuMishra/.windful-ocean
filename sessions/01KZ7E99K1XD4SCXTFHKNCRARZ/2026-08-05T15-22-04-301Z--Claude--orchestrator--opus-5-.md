@@ -1,0 +1,17 @@
+Research-and-decide session. No fix round was started, per the standing instruction.
+
+EXPLAINED THE BLOCKER in plain words, then the user commissioned objective research on how to DESIGN this gate from scratch, explicitly scoping it: personal configuration, not a hostile-multi-tenant deployment; robust+simple preferred over complex+fragile; not required to be exploit-proof.
+
+THREE RESEARCHERS dispatched in parallel (platform contract / design approach / durability of the scoped standard). All three converged independently. Full findings, with citations, written to handoff-2026-08-05-bash-gate-redesign/artifacts/RESEARCH-AND-PLAN.md OUTSIDE the repo. That file is the pickup point; it carries everything and this log does not repeat it.
+
+DECISIVE PLATFORM FACTS. Only exit code 2 blocks a PreToolUse hook; every other outcome including a crash or timeout is documented as "the action proceeds", so the gate currently fails OPEN on its own bugs. A PreToolUse deny overrides even bypassPermissions. Anthropic's own docs warn that argument-constraining permission rules are fragile and recommend a hook for exactly that, while stating their own command-parsing "if" filter is best-effort and fails open. That is the real dilemma the six rounds kept rediscovering: prefix rules are hard-enforced but cannot constrain arguments; hooks can constrain arguments but you own the parsing.
+
+DESIGN VERDICT. Stop parsing bash. Four of the five protections do not need a parser (branch protection for merge; small closed-surface denylists for PR edit and PR create; path matching for guardrail files) and the fifth (exfiltration) needs a narrow parser over named flags on named network commands, not a shell grammar. Roughly 150-250 lines replacing 1438. Recorded with its strongest counter-argument intact: five heterogeneous controls have five drift surfaces, and the G5 parser still has a differential space (python3 -c with urllib evades a named-command list).
+
+CORRECTION MADE MID-SESSION. An earlier suggestion that a GitHub token could be scoped without merge rights is wrong: the merge endpoint is gated by the Contents permission, which the agent needs anyway to push. Branch protection is the control.
+
+STEP 1 EXECUTED AND VERIFIED (the only mutation this session). Archived the rejected rewrite to local branch archive/gate-parser-rewrite-2026-08-05, commit 21ae349, 1663 lines across 4 files - NOT pushed, and the only copy. Then returned to fix/gate-hardening-followups, which restored the working tree to HEAD's 100-line regex gate. Smoke-tested the live hook: a merge payload returns a proper deny verdict, git status returns no objection. settings.json, .zshrc and the sounds files were deliberately left untouched.
+
+TWO DEFECTS OBSERVED FIRST-HAND during that verification, both recorded in the handoff. (1) block-destructive-bash.sh:26-28 treats an empty verdict with exit 0 as allow, so a silently-swallowed exception is indistinguishable from "no opinion". (2) The c5 boundary false-positive is live: my own smoke-test command was denied merely for CONTAINING the string gh pr merge inside a printf.
+
+NOT DONE, deliberately: no commit of the branch, no PR, no settings.json change, no sandbox configuration. The sandbox credential deny that would close exfiltration at OS level is available and flagged as step-3 work, not applied unilaterally.
