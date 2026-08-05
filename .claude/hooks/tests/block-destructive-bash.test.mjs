@@ -2,19 +2,55 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
+import { existsSync, mkdtempSync, rmSync, symlinkSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { basename, join } from 'node:path';
 import { FLAG_SPEC } from '../../lib/git/pr.mjs';
 
 const hookPath = fileURLToPath(new URL('../block-destructive-bash.sh', import.meta.url));
 
-function runHook(command) {
-  const payload = JSON.stringify({ tool_input: { command } });
-  return spawnSync('bash', [hookPath], { input: payload, encoding: 'utf8' });
+function realisticPayload(command) {
+  return JSON.stringify({
+    session_id: '3f7a1c02-5d64-4a11-9b0e-1f2c3d4e5f60',
+    transcript_path:
+      '/Users/tester/.claude/projects/-Users-tester-Documents-project/3f7a1c02-5d64-4a11-9b0e-1f2c3d4e5f60.jsonl',
+    cwd: '/Users/tester/Documents/project',
+    permission_mode: 'auto',
+    hook_event_name: 'PreToolUse',
+    tool_name: 'Bash',
+    tool_input: { command, description: 'a bash call' },
+  });
 }
 
-function denyReasonOf(result) {
-  const parsed = JSON.parse(result.stdout);
-  return parsed.hookSpecificOutput.permissionDecisionReason;
+function runStdin(stdin, options = {}) {
+  return spawnSync('bash', [hookPath], { input: stdin, encoding: 'utf8', ...options });
 }
+
+function runHook(command) {
+  return runStdin(realisticPayload(command));
+}
+
+function runHookMinimalPayload(command) {
+  return runStdin(JSON.stringify({ tool_input: { command } }));
+}
+
+function decisionOf(result) {
+  if (result.stdout === '') return null;
+  return JSON.parse(result.stdout).hookSpecificOutput.permissionDecision;
+}
+
+function reasonOf(result) {
+  return JSON.parse(result.stdout).hookSpecificOutput.permissionDecisionReason;
+}
+
+const MERGE_DENY_REASON =
+  'merging a PR is human-gated: mitosis never merges PRs (gh pr merge and the gh api pulls/*/merge REST endpoint are both blocked); a human merges via the PR after review';
+
+const CREATION_DENY_REASON =
+  'opening a pull request is centralized: every pull request in this environment is created by one tool, in one format, and its title and body may not be rewritten afterwards. Run this, quoting every value: node "$HOME"/.claude/lib/git/pr.mjs pr-create --repo OWNER/REPO --head HEAD-BRANCH --base BASE-BRANCH --title TYPE(SCOPE): LOWERCASE IMPERATIVE SUMMARY --origin machine-or-human --why PROBLEM AND WHY NOW --what BEHAVIORAL CHANGE --not-verified THING YOU DID NOT CHECK - not run. Types: feat fix refactor docs test chore perf ci; title max 72 characters, no trailing period. Add --provenance agent=LABEL model=MODEL when --origin is machine. NEVER write a --verified line for a check you did not run. Pass every value as ONE inert argv value: never a file path, never an at-prefixed value, never a shell redirection, never a gh api field whose value starts with an at-sign. A pull/new URL printed by git push is not an approved path either. Full field set and caps: .claude/rules/common/git/pull-requests.md';
+
+const GUARDRAIL_ASK_REASON =
+  'Destructive command (shell write to Claude Code guardrail file) - confirm before running.';
 
 const mergeDenyCommands = [
   'gh pr merge --squash 12',
@@ -38,8 +74,8 @@ for (const command of mergeDenyCommands) {
   test(`denies merge form: ${command}`, () => {
     const r = runHook(command);
     assert.equal(r.status, 0);
-    assert.match(r.stdout, /"permissionDecision":"deny"/);
-    assert.match(denyReasonOf(r), /merging a PR is human-gated/);
+    assert.equal(decisionOf(r), 'deny');
+    assert.equal(reasonOf(r), MERGE_DENY_REASON);
   });
 }
 
@@ -79,13 +115,13 @@ for (const command of creationDenyCommands) {
   test(`denies raw pull-request creation or mutation: ${command}`, () => {
     const r = runHook(command);
     assert.equal(r.status, 0);
-    assert.match(r.stdout, /"permissionDecision":"deny"/);
-    assert.match(denyReasonOf(r), /opening a pull request is centralized/);
+    assert.equal(decisionOf(r), 'deny');
+    assert.equal(reasonOf(r), CREATION_DENY_REASON);
   });
 }
 
 test('the creation deny reason names every required pr-create flag', () => {
-  const reason = denyReasonOf(runHook('gh pr create --fill'));
+  const reason = reasonOf(runHook('gh pr create --fill'));
   for (const flag of FLAG_SPEC['pr-create'].required) {
     assert.ok(reason.includes(flag), `deny reason omits ${flag}`);
   }
@@ -114,10 +150,12 @@ const allowCommands = [
   'git -C /repo branch -d feature',
   'echo x > .claude/skills/mitosis/SKILL.md',
   'cat .claude/lib/git/pr.mjs',
+  'ls -la',
+  'npm test',
 ];
 
 for (const command of allowCommands) {
-  test(`allows sibling command without deny: ${command}`, () => {
+  test(`holds no opinion on sibling command: ${command}`, () => {
     const r = runHook(command);
     assert.equal(r.status, 0);
     assert.equal(r.stdout, '');
@@ -126,35 +164,36 @@ for (const command of allowCommands) {
 
 test('the wrapper loses its own exemption the moment anything is chained onto it', () => {
   const r = runHook('node /Users/satanshumishra/.claude/lib/git/pr.mjs pr-create --repo o/r --head f --base main --title "fix(gate): x" --origin human --why "w" --what "c" --not-verified "n" && gh pr create --fill');
-  assert.match(r.stdout, /"permissionDecision":"deny"/);
-  assert.match(denyReasonOf(r), /opening a pull request is centralized/);
+  assert.equal(decisionOf(r), 'deny');
+  assert.equal(reasonOf(r), CREATION_DENY_REASON);
 });
 
 test('the superseded superpowers-parallel path carries no exemption, so exactly one path is canonical', () => {
   const r = runHook('node /Users/satanshumishra/.claude/lib/superpowers-parallel/mitosis-git.mjs pr-create --repo o/r --head feature --base main --title "fix(gate): deny raw pull-request creation" --origin human --why "the gh pr create path is blocked at the gate" --what "gate denies raw creation" --not-verified "CI - not run"');
-  assert.match(r.stdout, /"permissionDecision":"deny"/);
-  assert.match(denyReasonOf(r), /opening a pull request is centralized/);
+  assert.equal(decisionOf(r), 'deny');
+  assert.equal(reasonOf(r), CREATION_DENY_REASON);
 });
 
 const askCommands = [
-  'git push --force origin main',
-  'rm -rf /tmp/x',
-  'RM -rf /tmp/x',
-  'GIT push --force origin main',
-  'GIT reset --hard HEAD~5',
-  'git -C /repo push --force origin main',
-  'git -C /repo push -f',
-  'git -C /repo reset --hard HEAD~1',
-  'git -C /repo clean -fd',
-  'git -c core.pager=cat -C /repo push --force',
-  'git -C /repo branch -D feature',
+  ['git push --force origin main', 'git force push'],
+  ['rm -rf /tmp/x', 'recursive force remove (rm -rf)'],
+  ['RM -rf /tmp/x', 'recursive force remove (rm -rf)'],
+  ['GIT push --force origin main', 'git force push'],
+  ['GIT reset --hard HEAD~5', 'git reset --hard'],
+  ['git -C /repo push --force origin main', 'git force push'],
+  ['git -C /repo push -f', 'git force push'],
+  ['git -C /repo reset --hard HEAD~1', 'git reset --hard'],
+  ['git -C /repo clean -fd', 'git clean -f'],
+  ['git -c core.pager=cat -C /repo push --force', 'git force push'],
+  ['git -C /repo branch -D feature', 'git branch force delete (-D)'],
 ];
 
-for (const command of askCommands) {
+for (const [command, label] of askCommands) {
   test(`still asks for existing destructive case: ${command}`, () => {
     const r = runHook(command);
     assert.equal(r.status, 0);
-    assert.match(r.stdout, /"permissionDecision":"ask"/);
+    assert.equal(decisionOf(r), 'ask');
+    assert.equal(reasonOf(r), `Destructive command (${label}) - confirm before running.`);
   });
 }
 
@@ -173,7 +212,163 @@ for (const command of guardrailWriteCommands) {
   test(`asks before a shell write to a guardrail tree: ${command}`, () => {
     const r = runHook(command);
     assert.equal(r.status, 0);
-    assert.match(r.stdout, /"permissionDecision":"ask"/);
-    assert.match(denyReasonOf(r), /shell write to Claude Code guardrail file/);
+    assert.equal(decisionOf(r), 'ask');
+    assert.equal(reasonOf(r), GUARDRAIL_ASK_REASON);
   });
 }
+
+const everyCommand = [
+  ...mergeDenyCommands,
+  ...creationDenyCommands,
+  ...allowCommands,
+  ...askCommands.map(([command]) => command),
+  ...guardrailWriteCommands,
+];
+
+const corpusEmissions = everyCommand.map((command) => ({
+  command,
+  rich: runHook(command),
+  bare: runHookMinimalPayload(command),
+}));
+
+test('the verdict does not depend on which payload fields the caller sends', () => {
+  for (const { command, rich, bare } of corpusEmissions) {
+    assert.equal(bare.stdout, rich.stdout, `payload shape changed the verdict for: ${command}`);
+    assert.equal(bare.status, rich.status, `payload shape changed the exit code for: ${command}`);
+  }
+});
+
+test('a fork bomb carrying none of the retired prefilter substrings is still classified', () => {
+  const command = ': ( ) { : | : ; } ; :';
+  const retiredPrefilterSubstrings = ['rm', 'git', 'gh', 'dd', 'mkfs', ':|:', '/dev/', '.claude'];
+  for (const substring of retiredPrefilterSubstrings) {
+    assert.ok(!command.toLowerCase().includes(substring), `fixture no longer bypasses the prefilter: ${substring}`);
+  }
+  for (const r of [runHook(command), runHookMinimalPayload(command)]) {
+    assert.equal(r.status, 0);
+    assert.equal(decisionOf(r), 'ask');
+    assert.equal(reasonOf(r), 'Destructive command (fork bomb) - confirm before running.');
+  }
+});
+
+const faultInputs = [
+  ['malformed JSON on stdin', 'not json at all'],
+  ['empty stdin', ''],
+  ['truncated JSON', '{"tool_input": {"command": "rm -rf /tmp/x"'],
+  ['a JSON array rather than an object', '[1, 2, 3]'],
+  ['a JSON scalar rather than an object', '"rm -rf /tmp/x"'],
+  ['a non-string command field', '{"tool_input": {"command": 42}}'],
+  ['a non-object tool_input field', '{"tool_input": ["rm -rf /tmp/x"]}'],
+];
+
+for (const [label, stdin] of faultInputs) {
+  test(`an internal fault asks rather than allowing: ${label}`, () => {
+    const r = runStdin(stdin);
+    assert.equal(r.status, 0);
+    assert.equal(decisionOf(r), 'ask', 'a swallowed fault must never read as a silent allow');
+    assert.match(reasonOf(r), /^Bash gate internal fault \(/);
+    assert.doesNotMatch(r.stdout, /"permissionDecision":"allow"/);
+  });
+}
+
+const noOpinionInputs = [
+  ['a valid payload with no command key', JSON.stringify({ ...JSON.parse(realisticPayload('x')), tool_input: {} })],
+  ['a valid payload with an empty command', JSON.stringify({ tool_input: { command: '' } })],
+  ['a valid payload with no tool_input at all', JSON.stringify({ hook_event_name: 'PreToolUse', tool_name: 'Bash' })],
+];
+
+for (const [label, stdin] of noOpinionInputs) {
+  test(`no-opinion stays silent and exits 0: ${label}`, () => {
+    const r = runStdin(stdin);
+    assert.equal(r.status, 0);
+    assert.equal(r.stdout, '');
+  });
+}
+
+function toolPath(name) {
+  const candidates = [`/bin/${name}`, `/usr/bin/${name}`, `/usr/local/bin/${name}`, `/opt/homebrew/bin/${name}`];
+  return candidates.find((candidate) => existsSync(candidate)) ?? null;
+}
+
+test('a missing python3 asks rather than allowing', () => {
+  const required = ['bash', 'cat', 'tr', 'grep'].map((name) => {
+    const resolved = toolPath(name);
+    assert.ok(resolved, `test precondition failed: ${name} not found in any standard location`);
+    return resolved;
+  });
+
+  const binDir = mkdtempSync(join(tmpdir(), 'gate-no-python-'));
+  try {
+    for (const resolved of required) {
+      symlinkSync(resolved, join(binDir, basename(resolved)));
+    }
+    assert.ok(!existsSync(join(binDir, 'python3')), 'test precondition failed: python3 leaked into the restricted PATH');
+
+    for (const command of ['ls -la', 'rm -rf /tmp/x', 'gh pr create --fill']) {
+      const r = runStdin(realisticPayload(command), { env: { PATH: binDir } });
+      assert.equal(r.status, 0);
+      assert.equal(decisionOf(r), 'ask', `python3 was unavailable and the gate allowed: ${command}`);
+      assert.equal(
+        reasonOf(r),
+        'Bash gate internal fault (the payload parser could not be run) - the gate is asking instead of allowing. Confirm before running.',
+      );
+    }
+  } finally {
+    rmSync(binDir, { recursive: true, force: true });
+  }
+});
+
+test('a broken command matcher asks rather than allowing', () => {
+  const required = ['bash', 'cat', 'tr', 'python3'].map((name) => {
+    const resolved = toolPath(name);
+    assert.ok(resolved, `test precondition failed: ${name} not found in any standard location`);
+    return resolved;
+  });
+
+  const binDir = mkdtempSync(join(tmpdir(), 'gate-no-grep-'));
+  try {
+    for (const resolved of required) {
+      symlinkSync(resolved, join(binDir, basename(resolved)));
+    }
+    assert.ok(!existsSync(join(binDir, 'grep')), 'test precondition failed: grep leaked into the restricted PATH');
+
+    for (const command of ['ls -la', 'rm -rf /tmp/x']) {
+      const r = runStdin(realisticPayload(command), { env: { PATH: binDir }, stdio: 'pipe' });
+      assert.equal(r.status, 0);
+      assert.equal(decisionOf(r), 'ask', `the matchers could not run and the gate allowed: ${command}`);
+      assert.equal(
+        reasonOf(r),
+        'Bash gate internal fault (a command matcher could not be evaluated) - the gate is asking instead of allowing. Confirm before running.',
+      );
+    }
+  } finally {
+    rmSync(binDir, { recursive: true, force: true });
+  }
+});
+
+test('the gate never emits an allow decision on any input', () => {
+  const emissions = [
+    ...corpusEmissions.flatMap(({ rich, bare }) => [rich, bare]),
+    ...faultInputs.map(([, stdin]) => runStdin(stdin)),
+    ...noOpinionInputs.map(([, stdin]) => runStdin(stdin)),
+  ];
+  for (const r of emissions) {
+    assert.doesNotMatch(r.stdout, /"permissionDecision":"allow"/);
+    if (r.stdout !== '') {
+      assert.ok(
+        ['ask', 'deny'].includes(decisionOf(r)),
+        `the gate emitted an unexpected decision: ${r.stdout}`,
+      );
+    }
+  }
+});
+
+test('every emission is a single complete JSON document', () => {
+  for (const { rich } of corpusEmissions) {
+    if (rich.stdout === '') continue;
+    const parsed = JSON.parse(rich.stdout);
+    assert.equal(parsed.hookSpecificOutput.hookEventName, 'PreToolUse');
+    assert.equal(typeof parsed.hookSpecificOutput.permissionDecisionReason, 'string');
+    assert.equal(rich.stdout.trimEnd().split('\n').length, 1);
+  }
+});
