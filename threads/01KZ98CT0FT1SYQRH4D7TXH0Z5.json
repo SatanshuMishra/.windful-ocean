@@ -63,13 +63,74 @@
   "abandoned_reason": null,
   "closure_statement": null,
   "spine": {
-    "active_goal": "",
-    "next_step": "",
-    "last_session": "",
-    "open_risks": [],
-    "key_decisions": [],
-    "out_of_scope": []
+    "active_goal": "Rebuild the bash gate as five per-action controls (~150-250 lines replacing 1438), with the assurance level written down FIRST so a seventh fix round cannot start.",
+    "next_step": "START HERE IN A FRESH SESSION. Read handoff-2026-08-05-bash-gate-redesign/artifacts/RESEARCH-AND-PLAN.md (outside the repo, under ~/.claude/projects/-Users-satanshumishra-Documents-DevLabs--windful-ocean/) - it carries all three research reports with citations, the platform contract, the decomposition table, the step-2 artifact set with a document skeleton, and the anti-patterns already paid for. Then do c1 and c2, the written threat model, and STOP for ratification before writing any gate code.",
+    "last_session": "Research and design only. Ratified the scoped assurance level and the per-action decomposition; archived the rejected parser rewrite and restored HEAD's regex gate as the live guard.",
+    "open_risks": [
+      {
+        "text": "Write the threat model BEFORE any gate code — the whole point of this thread is that six rounds escalated because the assurance level was never written down, and code first would repeat it",
+        "scope": "thread",
+        "refs": []
+      },
+      {
+        "text": "The gate fails OPEN on its own bugs — only exit code 2 blocks, so a crash, a timeout or malformed output all let the command run; c3 exists because this is the highest-leverage fix available and it is a few lines",
+        "scope": "thread",
+        "refs": [
+          ".claude/hooks/block-destructive-bash.sh"
+        ]
+      },
+      {
+        "text": "The G5 parser still has a differential space — a python3 -c invocation using a built-in HTTP client evades a named-command list, so unrecognized-but-file-reference-shaped input must fail to ask, never to allow",
+        "scope": "thread",
+        "refs": []
+      },
+      {
+        "text": "Five controls means five drift surfaces where the monolith had one — this is the strongest argument against the decomposition and it was accepted knowingly; treat the shape as revisable, not settled",
+        "scope": "thread",
+        "refs": []
+      },
+      {
+        "text": "Token scoping cannot prevent merge — GitHub gates the merge endpoint on the Contents permission, which the agent needs anyway to push branches; server-side branch protection is the only real control for G1",
+        "scope": "thread",
+        "refs": []
+      },
+      {
+        "text": "Never delete branch archive/gate-parser-rewrite-2026-08-05 — commit 21ae349 is the only copy of the rewrite and holds the INV-4 structural fix and expanded tests worth mining for this rebuild",
+        "scope": "thread",
+        "refs": [
+          "21ae349"
+        ]
+      },
+      {
+        "text": "Changing .claude/settings.json is the user's call — the sandbox credential deny that would close G5 at OS level is available and cheap, but settings drift belongs to the permission-config-audit thread",
+        "scope": "thread",
+        "refs": [
+          ".claude/settings.json"
+        ]
+      }
+    ],
+    "key_decisions": [
+      {
+        "ref": "0248-gate-is-defense-in-depth-not-a-security-boundary",
+        "title": "The bash gate is a defense-in-depth control at a scoped assurance level, not a security boundary",
+        "scope": "thread"
+      },
+      {
+        "ref": "0249-abandon-general-bash-parsing-for-per-action-decomposition",
+        "title": "Abandon general bash parsing; decompose the five protections into five per-action controls",
+        "scope": "thread"
+      },
+      {
+        "ref": "0250-archive-the-rewrite-and-restore-head-as-the-live-gate",
+        "title": "Archive the rejected rewrite and restore HEAD's regex gate as the live guard",
+        "scope": "thread"
+      }
+    ],
+    "out_of_scope": [
+      "Making the gate withstand a determined human attacker - that person is the machine owner with unrestricted shell access outside Claude Code already, so no hook raises their effective privilege bar",
+      "Perfect bash parsing fidelity - the acceptance bar is that uncertainty degrades to ask, never to a silent allow"
+    ]
   },
   "created_at": "2026-08-05T15:24:11.663Z",
-  "updated_at": "2026-08-05T15:24:11.663Z"
+  "updated_at": "2026-08-05T15:24:40.843Z"
 }
