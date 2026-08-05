@@ -24,7 +24,7 @@
     {
       "id": "c3",
       "text": "Fail-closed harness: any internal fault forces a blocking verdict rather than trusting the platform, and no-opinion becomes an explicit token so a swallowed exception can never read as allow",
-      "done": false,
+      "done": true,
       "kind": "planned",
       "struck_by": null
     },
@@ -64,7 +64,7 @@
   "closure_statement": null,
   "spine": {
     "active_goal": "Rebuild the bash gate as five per-action controls, ~150-250 lines replacing 1438, against the now-ratified threat model; c3-c7 build the controls and ship one PR.",
-    "next_step": "START HERE IN A FRESH SESSION with c3, the fail-closed harness. The threat model is ratified and now governs — its definition of done (section 7) and escalation control (section 8). c3 must make no-opinion an EXPLICIT token across all THREE fail-open paths named in its section 6 row 3, not just the swallowed exception. Read RESEARCH-AND-PLAN.md for the platform contract and the anti-patterns already paid for. Nothing is pushed; two commits sit on fix/gate-hardening-followups.",
+    "next_step": "c4 - G1 merge and G4 guardrail files. The c3 harness now escalates an unevaluable matcher to ask, so any c4 matcher that cannot run fails closed by construction. Commit 97b3e8b sits unpushed on fix/gate-hardening-followups with two others; c7 still owns the push, because CI fires on bare push and the invariant-coverage debt is unresolved.",
     "last_session": "Wrote and ratified the threat model and both pointer artifacts, and found three defects: the plan's fail-open citation was wrong and understated it, the registry append breaks 22 coverage artifacts, and the hooks memory file was silently gitignored.",
     "open_risks": [
       {
@@ -176,5 +176,5 @@
     ]
   },
   "created_at": "2026-08-05T15:24:11.663Z",
-  "updated_at": "2026-08-05T23:24:52.034Z"
+  "updated_at": "2026-08-05T23:25:05.451Z"
 }
