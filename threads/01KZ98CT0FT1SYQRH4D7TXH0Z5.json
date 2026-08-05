@@ -131,6 +131,21 @@
         "refs": [
           "21ae349"
         ]
+      },
+      {
+        "text": "G1's branch protection is NOT outside the agent's reach — the gh token has repo scope, i.e. admin on an owned repo, so the agent can delete the protection rule; c4 must deny protection and ruleset tampering or the primary-vs-secondary layering is circular",
+        "scope": "c4",
+        "refs": [
+          "docs/security/bash-gate-threat-model.md section 4 G1",
+          "gh auth status: repo, workflow, delete_repo"
+        ]
+      },
+      {
+        "text": "Applying chflags uchg mid-rebuild would break the rebuild — c5 and c6 both edit block-destructive-bash.sh, and immutable flags also fail git checkout and git pull on those paths; build the nouchg gate in c4, apply the flags no earlier than c7",
+        "scope": "c4",
+        "refs": [
+          "docs/security/bash-gate-threat-model.md section 4 G4"
+        ]
       }
     ],
     "key_decisions": [
@@ -176,5 +191,5 @@
     ]
   },
   "created_at": "2026-08-05T15:24:11.663Z",
-  "updated_at": "2026-08-05T23:25:05.451Z"
+  "updated_at": "2026-08-05T23:47:49.792Z"
 }
