@@ -17,7 +17,7 @@
     {
       "id": "c2",
       "text": "Measure the real cost rather than assert it: what a full coverage entry actually costs on a low-risk change, and how that scales as the registry grows past seventeen ids",
-      "done": false,
+      "done": true,
       "kind": "planned",
       "struck_by": null
     },
@@ -49,8 +49,8 @@
   "abandoned_reason": null,
   "closure_statement": null,
   "spine": {
-    "active_goal": "Decide whether the total-coverage obligation stays as ratified or becomes a machine-proved inert predicate, then ship that choice.",
-    "next_step": "START c2 in a FRESH session. Measure the cost rather than estimate it: time and token cost of one full seventeen-row entry on a low-risk change, and how it scales at 30 ids. Only then ratify or reject the inert-predicate shape in c4. Do NOT skip c2 into implementation - the recommendation currently rests on an estimate, and c2 is what would falsify it.",
+    "active_goal": "Settle c4: choose the resolution on robustness first then simplicity, and name explicitly what it gives up.",
+    "next_step": "AWAIT the user's ratification word on c4. The recommendation is on the table: registry-declared inert predicate, paths-only, with M3/M4/M5 structurally barred from carrying inert_when. Do NOT write the c4 decision record before that word - decision records are write-once and the thread reserves ratification for the user. Once ratified, record it and start c5 (implementation with red-before/green-after receipts, its own coverage entry, one PR via pr-create).",
     "last_session": "Opened the thread, mapped the enforcement chain (c1 done), and drafted c3's answer: a registry-declared, CI-evaluated inert predicate - never a per-change declaration.",
     "open_risks": [
       {
@@ -103,5 +103,5 @@
     ]
   },
   "created_at": "2026-08-06T19:58:48.145Z",
-  "updated_at": "2026-08-06T21:12:13.096Z"
+  "updated_at": "2026-08-06T21:12:19.631Z"
 }
