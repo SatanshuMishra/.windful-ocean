@@ -6,10 +6,14 @@ import { fileURLToPath } from 'node:url';
 
 const REGISTRY_RELPATH = 'docs/invariants/registry.json';
 const COVERAGE_RELPATH = 'docs/invariants/coverage';
+const COVERAGE_PREFIX = `${COVERAGE_RELPATH}/`;
 const ALLOWED_VERDICTS = Object.freeze(['threatened', 'not-threatened']);
 const PULL_REQUEST_EVENTS = Object.freeze(['pull_request', 'pull_request_target']);
 const REGISTRY_FIELDS = Object.freeze(['id', 'statement', 'source']);
 const FLAGS = Object.freeze(['--root', '--event', '--base-ref']);
+const PUSH_BASE_FALLBACKS = Object.freeze(['origin/main', 'main']);
+const ORIGIN_HEAD_REF = 'refs/remotes/origin/HEAD';
+const REMOTE_REF_PREFIX = 'refs/remotes/';
 const EXIT_OK = 0;
 const EXIT_FAIL = 1;
 const EXIT_USAGE = 2;
@@ -116,7 +120,7 @@ function rowErrors(row, index, label) {
   ];
 }
 
-function validateCoverageEntry(path, label, registryIds) {
+function validateCoverageEntry(path, label, registryIds, completeness) {
   const parsed = readJsonFile(path, label);
   if (!parsed.ok) return parsed.errors;
   if (!isPlainObject(parsed.value) || !Array.isArray(parsed.value.rows)) {
@@ -128,7 +132,7 @@ function validateCoverageEntry(path, label, registryIds) {
   const declared = new Set(ids);
   const registered = new Set(registryIds);
   const duplicates = duplicatesOf(ids);
-  const missing = registryIds.filter((id) => !declared.has(id));
+  const missing = completeness ? registryIds.filter((id) => !declared.has(id)) : [];
   const unknown = [...new Set(ids.filter((id) => !registered.has(id)))];
   return [
     ...shapeErrors,
@@ -147,35 +151,92 @@ function runGit(root, args) {
   return { ok: true, stdout: result.stdout };
 }
 
-function resolveBaseCommit(root, baseRef) {
-  const candidates = [`origin/${baseRef}`, baseRef];
-  const resolved = candidates
-    .map((candidate) => runGit(root, ['rev-parse', '--verify', '--quiet', `${candidate}^{commit}`]))
-    .find((result) => result.ok && result.stdout.trim() !== '');
-  if (!resolved) {
-    return { ok: false, error: `base ref ${JSON.stringify(baseRef)} could not be resolved (tried ${candidates.join(', ')}); a pull request run must not fall back to push mode` };
-  }
-  return { ok: true, sha: resolved.stdout.trim() };
+function baseRefCandidates(baseRef) {
+  return [`origin/${baseRef}`, baseRef];
 }
 
-function pullRequestErrors(root, baseRef) {
-  if (!isNonEmptyString(baseRef)) {
-    return ['pull request event carries no base ref; a pull request run must not fall back to push mode'];
+function resolveFirstCommit(root, candidates) {
+  const resolved = candidates
+    .map((ref) => ({ ref, result: runGit(root, ['rev-parse', '--verify', '--quiet', `${ref}^{commit}`]) }))
+    .find(({ result }) => result.ok && result.stdout.trim() !== '');
+  if (!resolved) return { ok: false };
+  return { ok: true, ref: resolved.ref, sha: resolved.result.stdout.trim() };
+}
+
+function resolveBaseCommit(root, baseRef) {
+  const candidates = baseRefCandidates(baseRef);
+  const resolved = resolveFirstCommit(root, candidates);
+  if (!resolved.ok) {
+    return { ok: false, error: `base ref ${JSON.stringify(baseRef)} could not be resolved (tried ${candidates.join(', ')}); a pull request run must not fall back to push mode` };
   }
-  const base = resolveBaseCommit(root, baseRef);
-  if (!base.ok) return [base.error];
-  const mergeBase = runGit(root, ['merge-base', base.sha, 'HEAD']);
-  if (!mergeBase.ok) return [mergeBase.error];
+  return resolved;
+}
+
+function originHeadCandidates(root) {
+  const result = runGit(root, ['symbolic-ref', '--quiet', ORIGIN_HEAD_REF]);
+  if (!result.ok) return [];
+  const target = result.stdout.trim();
+  if (target === '') return [];
+  return [target.startsWith(REMOTE_REF_PREFIX) ? target.slice(REMOTE_REF_PREFIX.length) : target];
+}
+
+function touchedCoverageEntries(root, baseSha) {
+  const mergeBase = runGit(root, ['merge-base', baseSha, 'HEAD']);
+  if (!mergeBase.ok) return { ok: false, error: mergeBase.error };
   const diff = runGit(root, ['diff', '--name-only', '--diff-filter=d', mergeBase.stdout.trim(), 'HEAD']);
-  if (!diff.ok) return [diff.error];
-  const touched = diff.stdout
+  if (!diff.ok) return { ok: false, error: diff.error };
+  const names = diff.stdout
     .split('\n')
     .map((line) => line.trim())
-    .filter((line) => line.startsWith(`${COVERAGE_RELPATH}/`));
-  if (touched.length === 0) {
-    return [`no file under ${COVERAGE_RELPATH}/ was added or modified between ${baseRef} and HEAD; every pull request must record its invariant verdicts`];
+    .filter((line) => line.startsWith(COVERAGE_PREFIX))
+    .map((line) => line.slice(COVERAGE_PREFIX.length));
+  return { ok: true, names };
+}
+
+function unscoped(reason) {
+  return { errors: [], scoped: false, names: [], reason };
+}
+
+function failedScope(error) {
+  return { errors: [error], scoped: false, names: [] };
+}
+
+function pullRequestScope(root, baseRef) {
+  if (!isNonEmptyString(baseRef)) {
+    return failedScope('pull request event carries no base ref; a pull request run must not fall back to push mode');
   }
-  return [];
+  const base = resolveBaseCommit(root, baseRef);
+  if (!base.ok) return failedScope(base.error);
+  const touched = touchedCoverageEntries(root, base.sha);
+  if (!touched.ok) return failedScope(touched.error);
+  if (touched.names.length === 0) {
+    return failedScope(`no file under ${COVERAGE_RELPATH}/ was added or modified between ${baseRef} and HEAD; every pull request must record its invariant verdicts`);
+  }
+  return { errors: [], scoped: true, names: touched.names, base: base.ref };
+}
+
+function pushScope(root, baseRef) {
+  const candidates = [
+    ...(isNonEmptyString(baseRef) ? baseRefCandidates(baseRef) : []),
+    ...originHeadCandidates(root),
+    ...PUSH_BASE_FALLBACKS,
+  ];
+  const base = resolveFirstCommit(root, candidates);
+  if (!base.ok) return unscoped(`no base commit resolved (tried ${candidates.join(', ')})`);
+  const touched = touchedCoverageEntries(root, base.sha);
+  if (!touched.ok) return unscoped(touched.error);
+  return { errors: [], scoped: true, names: touched.names, base: base.ref };
+}
+
+function completenessScope(root, pullRequest, baseRef) {
+  return pullRequest ? pullRequestScope(root, baseRef) : pushScope(root, baseRef);
+}
+
+function describeScope(scope, count) {
+  if (!scope.scoped) {
+    return `  completeness: not scoped, so set-equality with the registry was enforced for no entry (${scope.reason})`;
+  }
+  return `  completeness: scoped to ${count} ${count === 1 ? 'entry' : 'entries'} changed since ${scope.base}`;
 }
 
 function report(lines, stream) {
@@ -200,15 +261,18 @@ function main(argv, env, stdout, stderr) {
   }
 
   const listing = listCoverageEntries(join(root, COVERAGE_RELPATH), COVERAGE_RELPATH);
+  const scope = completenessScope(root, pullRequest, baseRef);
+  const scopedFiles = listing.files.filter((name) => scope.scoped && scope.names.includes(name));
   const entryErrors = listing.files.flatMap((name) => validateCoverageEntry(
     join(root, COVERAGE_RELPATH, name),
     `${COVERAGE_RELPATH}/${name}`,
     registry.ids,
+    scopedFiles.includes(name),
   ));
   const errors = [
     ...listing.errors,
     ...entryErrors,
-    ...(pullRequest ? pullRequestErrors(root, baseRef) : []),
+    ...scope.errors,
   ];
 
   if (errors.length > 0) {
@@ -220,6 +284,7 @@ function main(argv, env, stdout, stderr) {
     'invariant-coverage-check: ok',
     `  mode: ${pullRequest ? `pull request against ${baseRef}` : 'push'}`,
     `  registry: ${REGISTRY_RELPATH} (${registry.ids.join(', ')})`,
+    describeScope(scope, scopedFiles.length),
     ...listing.files.map((name) => `  entry: ${COVERAGE_RELPATH}/${name}`),
   ], stdout);
   return EXIT_OK;
