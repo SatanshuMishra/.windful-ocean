@@ -45,7 +45,7 @@
     {
       "id": "c6",
       "text": "G5 exfiltration: narrow parser over named file-reference flags on named network commands, failing to ask on anything unrecognized carrying one; fixes the c5 false positive too",
-      "done": false,
+      "done": true,
       "kind": "planned",
       "struck_by": null
     },
@@ -63,9 +63,9 @@
   "abandoned_reason": null,
   "closure_statement": null,
   "spine": {
-    "active_goal": "Land the c6 threat-model doc pass, then ship the rebuilt gate in c7.",
-    "next_step": "Finish c6: the threat-model doc pass that c4 and c5 each ended with. In docs/security/bash-gate-threat-model.md, rewrite section 4's G5 row (the at-file-only control it describes was disproved by measurement; it closes under half of what was open), flip section 6 row 2's exfiltration half and row 12 to closed, and add the four new residual rows named in the open risks below. Commit as docs(security). Only then mark c6 done and open c7.",
-    "last_session": "Built and committed G5 in 914bde2: two whole-command ask branches, the gh api file-reference deny scoped to the pull-request surface, the inert pr-create self-exemption deleted. 238/238 gate tests, 72-row probe clean, verified directly. Doc pass not done, so c6 stays open.",
+    "active_goal": "Ship the rebuilt gate in c7: registry append, coverage artifacts, tests keyed to G1-G5, one PR via pr-create.",
+    "next_step": "START c7. Settle two open choices BEFORE any code: (a) registry append vs the 22 coverage artifacts - backfill 110 rows or make scripts/invariant-coverage-check.mjs track-aware, per 0251; (b) whether the new tests encode rows 13-17 as accepted residuals. Then append G1-G5 to the registry, add a coverage artifact per id, write tests keyed to G1-G5 rather than to a defect count, run diff-scoped verification, and open one PR via pr-create.",
+    "last_session": "Closed c6 with the doc pass in 4fddf3b. Re-probed the gate first: 19 shapes, every closure holding, pr-create silent. Rewrote G5's control cell, closed risk rows 2 and 12, added rows 13-17, repaired c5's table break, fixed the stale line count. Gate code untouched; 238/238 pass.",
     "open_risks": [
       {
         "text": "Do NOT add pipefail to the bash gate — grep -q exits early on a match and SIGPIPEs the printf feeding it, which under pipefail reads as a matcher error and quietly downgrades a deny to an ask on large commands",
@@ -183,6 +183,22 @@
           "3f16c18",
           "0257-widen-ghtok-generically-rather-than-enumerating-gh-flags"
         ]
+      },
+      {
+        "text": "Do NOT let c7's tests assert rows 13-17 closed — they are knowingly accepted residuals under 0260 and 0262, and a test demanding them fixed restarts the fix-round cycle the threat model exists to stop",
+        "scope": "c7",
+        "refs": [
+          "docs/security/bash-gate-threat-model.md rows 13-17",
+          "0262-guardrail-exfiltration-requires-the-at-file-shape"
+        ]
+      },
+      {
+        "text": "Row 17 was found this pass, not briefed — a guardrail file on a bare-path upload flag is silent where the credential twin asks; it is logged as accepted, so re-confirm the owner agrees before c7 writes any test around branch B",
+        "scope": "c7",
+        "refs": [
+          "docs/security/bash-gate-threat-model.md row 17",
+          "0262-guardrail-exfiltration-requires-the-at-file-shape"
+        ]
       }
     ],
     "key_decisions": [
@@ -268,5 +284,5 @@
     ]
   },
   "created_at": "2026-08-05T15:24:11.663Z",
-  "updated_at": "2026-08-06T16:47:42.273Z"
+  "updated_at": "2026-08-06T17:29:05.148Z"
 }
