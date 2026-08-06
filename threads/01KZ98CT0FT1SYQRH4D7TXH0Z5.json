@@ -264,6 +264,11 @@
         "ref": "0264-scope-set-equality-to-the-changed-coverage-entry",
         "title": "Resolve the 22-artifact fallout by scoping set-equality to the changed coverage entry, not by backfilling history or by a track-aware checker",
         "scope": "c7"
+      },
+      {
+        "ref": "0266-preserve-backticks-when-lifting-g1-g5-into-the-registry",
+        "title": "Preserve the threat model's backticks when lifting G1-G5 into the registry, accepting divergence from how B and M were lifted",
+        "scope": "c7"
       }
     ],
     "out_of_scope": [
@@ -272,5 +277,5 @@
     ]
   },
   "created_at": "2026-08-05T15:24:11.663Z",
-  "updated_at": "2026-08-06T17:41:52.568Z"
+  "updated_at": "2026-08-06T19:27:48.981Z"
 }
