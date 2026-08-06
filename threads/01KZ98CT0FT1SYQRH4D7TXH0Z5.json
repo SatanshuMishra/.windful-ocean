@@ -189,6 +189,11 @@
         "ref": "0257-widen-ghtok-generically-rather-than-enumerating-gh-flags",
         "title": "Close the gh-adjacency bypass by deriving the flag shape from gh's parser, not by enumerating flags",
         "scope": "c4"
+      },
+      {
+        "ref": "0258-g1-enumeration-gains-enqueuepullrequest",
+        "title": "Extend G1's enumeration to name enqueuePullRequest, rather than reading the enumeration as exhaustive",
+        "scope": "c4"
       }
     ],
     "out_of_scope": [
@@ -197,5 +202,5 @@
     ]
   },
   "created_at": "2026-08-05T15:24:11.663Z",
-  "updated_at": "2026-08-06T05:31:17.994Z"
+  "updated_at": "2026-08-06T05:31:30.883Z"
 }
