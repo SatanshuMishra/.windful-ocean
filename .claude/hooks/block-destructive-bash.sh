@@ -145,7 +145,7 @@ classify() {
   local selfwrap='^([[:alnum:]_./-]*/)?node[[:space:]]+[^[:space:]]*lib/git/pr\.mjs[[:space:]]+pr-create([[:space:]]|$)'
   local chained='([;&|`]|\$\()'
 
-  local guardpath='(\.claude/(settings(\.local)?\.json|CLAUDE\.md|keybindings\.json|hooks/|rules/|lib/|workflows/)|\.claude/?([^[:alnum:]_./-]|$))'
+  local guardpath='(\.claude/(settings(\.local)?\.json|CLAUDE\.md|keybindings\.json|(hooks|rules|lib|workflows)(/|[^[:alnum:]_./-]|$))|\.claude/?([^[:alnum:]_./-]|$))'
   local guardverb="(>|(^|[;&|[:space:]])tee[[:space:]]|(^|[;&|[:space:]])sed[[:space:]].*-i|(^|[;&|[:space:]])mv[[:space:]]|(^|[;&|[:space:]])cp[[:space:]]|(^|[;&|[:space:]])rm[[:space:]]|(^|[;&|[:space:]])chmod[[:space:]]|(^|[;&|[:space:]])truncate[[:space:]]|(^|[;&|[:space:]])perl[[:space:]]+(-[^[:space:]]+[[:space:]]+)*-[0-9aCdDFlnpsSuUwWxX]*i|${gitpre_cs}(checkout|restore)([[:space:]]|$))"
   local guardunlock='(^|[;&|[:space:]])chflags[[:space:]]+(-[^[:space:]]+[[:space:]]+)*[^[:space:]]*nouchg([[:space:]]|$)'
 

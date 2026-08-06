@@ -315,6 +315,24 @@ for (const command of g4ImmutableFlagCommands) {
   });
 }
 
+const g4SubdirectoryCommands = [
+  'mv .claude/hooks /tmp/stash',
+  'rm -r .claude/hooks',
+  'git checkout -- .claude/hooks',
+  'mv .claude/rules /tmp/stash',
+  'rm -r .claude/lib',
+  'rm -r .claude/workflows',
+];
+
+for (const command of g4SubdirectoryCommands) {
+  test(`G4: asks before a guardrail subdirectory named without a trailing slash is written: ${command}`, () => {
+    const r = runHook(command);
+    assert.equal(r.status, 0);
+    assert.equal(decisionOf(r), 'ask');
+    assert.equal(reasonOf(r), GUARDRAIL_ASK_REASON);
+  });
+}
+
 const g4RecursiveRemoveCommands = [['rm -rf .claude', 'recursive force remove (rm -rf)']];
 
 for (const [command, label] of g4RecursiveRemoveCommands) {
@@ -337,6 +355,10 @@ const g4NoOpinionCommands = [
   'cat .claude/settings.json',
   "perl -e 'print 1' .claude/settings.json",
   'chflags uchg .claude/hooks/block-destructive-bash.sh',
+  'echo x > .claude/hooksfoo',
+  'rm -r .claude/libfoo',
+  'mv .claude/rulesbook /tmp/x',
+  'echo x > .claude/workflowsfoo/mitosis.js',
 ];
 
 for (const command of g4NoOpinionCommands) {
@@ -357,6 +379,7 @@ const everyCommand = [
   ...askCommands.map(([command]) => command),
   ...guardrailWriteCommands,
   ...g4GuardrailWriteCommands,
+  ...g4SubdirectoryCommands,
   ...g4ImmutableFlagCommands,
   ...g4RecursiveRemoveCommands.map(([command]) => command),
   ...g4NoOpinionCommands,
