@@ -64,8 +64,8 @@
   "closure_statement": null,
   "spine": {
     "active_goal": "Implement and ship SPEC A (config staging/live promotion) as stacked PRs, landing the invariant inert basis and chore/config-drift ahead of SPEC A's own units.",
-    "next_step": "Land the units in this order: (1) feat/invariant-inert-registry, dispatched 2026-08-06, adds inert_when to docs/invariants/registry.json so later PRs record a machine-checked basis instead of 17 prose verdicts; (2) chore/config-drift as the stack root PR, which makes SPEC A tracked and citable; (3) SPEC A's units per 0275's three bands. Stack with pr.mjs pr-create --base <parent-branch> and retarget each child by hand once its parent merges, since deleteBranchOnMerge is false.",
-    "last_session": "Recon only, no code. Confirmed the live census and found the leak blocker: 5 of the 64 files to be adopted carry the confidential codename and this repo is public. Recorded 0276 and 0277, then dispatched the inert-basis unit.",
+    "next_step": "DO NOT open a PR for feat/invariant-inert-registry as it stands - it adds inert_when data that main's committed checker never reads. First resolve the checker: scripts/invariant-coverage-check.mjs and its test carry UNCOMMITTED, unreviewed edits implementing the inert basis, of unverified provenance. Review them, then ship checker plus registry data as ONE atomic change so the basis is evaluated, not dormant. Then chore/config-drift as stack root, then SPEC A's units per 0275.",
+    "last_session": "Recon plus one dispatched unit. Found the leak blocker and recorded 0276/0277. The inert-basis unit returned branch feat/invariant-inert-registry at 369490f, but verification showed its data is dormant against main's checker.",
     "open_risks": [
       {
         "text": "Serialize every write to a live-linked path, not just the cutover — the graphify hook edits and the converge-hook registration reach running sessions through the 26 hook symlinks, so a half-saved file breaks every session instantly.",
@@ -99,11 +99,26 @@
         ]
       },
       {
-        "text": "An inert_when glob that is too wide silently weakens the gate for every future PR — it would let a change that really does reach an invariant record a machine-checked basis instead of a verdict, so narrow beats convenient.",
+        "text": "A dormant inert basis is worse than none — registry data whose checker never evaluates it lets a later PR write basis inert rows that pass unexamined, silently weakening the gate for every future change.",
         "scope": "c7",
         "refs": [
           "docs/invariants/registry.json",
           "scripts/invariant-coverage-check.mjs"
+        ]
+      },
+      {
+        "text": "The inert checker edits are uncommitted and unreviewed — they appeared during the 2026-08-06 session on a tree that was clean at start, so confirm provenance and review them before committing rather than assuming they are the c5 work.",
+        "scope": "c7",
+        "refs": [
+          "scripts/invariant-coverage-check.mjs",
+          ".claude/lib/superpowers-parallel/tests/invariant-coverage-check.test.mjs"
+        ]
+      },
+      {
+        "text": "npm test shows 1 pre-existing failure identical on main and the branch — protect-claude-config.test.mjs asserts ~/.claude/settings.json is a symlink when it is a regular file; environmental, but it will mask a real regression if left.",
+        "scope": "c7",
+        "refs": [
+          ".claude/hooks/tests/protect-claude-config.test.mjs"
         ]
       }
     ],
@@ -135,5 +150,5 @@
     ]
   },
   "created_at": "2026-08-06T21:18:29.653Z",
-  "updated_at": "2026-08-06T21:49:45.726Z"
+  "updated_at": "2026-08-06T22:35:43.631Z"
 }
