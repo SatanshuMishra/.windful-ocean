@@ -63,13 +63,60 @@
   "abandoned_reason": null,
   "closure_statement": null,
   "spine": {
-    "active_goal": "",
-    "next_step": "",
-    "last_session": "",
-    "open_risks": [],
+    "active_goal": "Fully implement and ship SPEC A (config staging/live promotion) via a dedicated small dynamic workflow, using stacked PRs where changes block each other.",
+    "next_step": "START HERE IN A FRESH SESSION, per explicit user instruction. Read docs/superpowers/specs/2026-08-06-config-staging-live-promotion-SPEC.md, then dispatch a dedicated SMALL dynamic workflow to fully implement and ship it. Parallelize section 7's five preconditions (they are independent); run the cutover serially, alone, LAST. Open stacked PRs manually via pr.mjs pr-create --base <parent-branch> - the engine has no stacking machinery.",
+    "last_session": "Not yet worked. Opened as successor to the re-spec thread once SPEC B was approved and that thread closed at 6 of 6.",
+    "open_risks": [
+      {
+        "text": "Run the cutover serially in a session doing nothing else — it hot-swaps live-linked hooks, lib and workflows, so parallel subagents editing those paths can break every running session including the one doing the work.",
+        "scope": "c5",
+        "refs": [
+          "docs/superpowers/specs/2026-08-06-config-staging-live-promotion-SPEC.md"
+        ]
+      },
+      {
+        "text": "Narrow the unanchored *session* pattern BEFORE adopting hooks/session-config-drift-check.sh — adoption done first appears to succeed and the file still never enters a release, because git archive carries only tracked content.",
+        "scope": "c1",
+        "refs": [
+          ".gitignore:19"
+        ]
+      },
+      {
+        "text": "Open every stacked child manually with pr.mjs pr-create --base <parent-branch> — the engine has no stacking: merge-policy returns HUMAN_GATED unconditionally, every PR opens on baseBranch, and pr.mjs has no retarget verb.",
+        "scope": "c7",
+        "refs": [
+          ".claude/lib/git/pr.mjs",
+          ".claude/lib/superpowers-parallel/merge-policy.mjs"
+        ]
+      },
+      {
+        "text": "Retarget each stacked child explicitly once its parent merges — deleteBranchOnMerge is false on this repo so GitHub's auto-retarget never fires; gh pr edit --base passes the bash gate today, which is the accidental route SPEC B section 5.5 closes.",
+        "scope": "c7",
+        "refs": [
+          ".claude/hooks/block-destructive-bash.sh:134"
+        ]
+      },
+      {
+        "text": "Name the rule divergence at merge time rather than resolving it silently — 0265 merges dependent chains with merge-commit while branching.md still states squash-on-merge as the unqualified default, and that amendment ships with SPEC B Part IV.",
+        "scope": "c7",
+        "refs": [
+          ".claude/rules/common/git/branching.md:5"
+        ]
+      },
+      {
+        "text": "Expect suite totals to shift when the gitignore narrows — npm test globs the filesystem, so the previously hidden session-config-drift-check test starts counting; reconcile per file, never by raw total.",
+        "scope": "c1",
+        "refs": [
+          ".claude/hooks/tests/session-config-drift-check.test.mjs"
+        ]
+      }
+    ],
     "key_decisions": [],
-    "out_of_scope": []
+    "out_of_scope": [
+      "Building SPEC B Part IV's stacked-PR machinery to serve this work - stacking here is manual via the convention, and 0271 orders SPEC A to land before any SPEC B unit",
+      "Editing mitosis.js or the parallel engine, which SPEC B governs"
+    ]
   },
   "created_at": "2026-08-06T21:18:29.653Z",
-  "updated_at": "2026-08-06T21:18:29.653Z"
+  "updated_at": "2026-08-06T21:18:45.836Z"
 }
