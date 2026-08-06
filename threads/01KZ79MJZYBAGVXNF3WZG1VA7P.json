@@ -3,7 +3,7 @@
   "id": "01KZ79MJZYBAGVXNF3WZG1VA7P",
   "slug": "mitosis-spec-rewrite-from-scratch",
   "title": "Mitosis core rebuild SPEC: rewrite from scratch",
-  "status": "paused",
+  "status": "abandoned",
   "parent_id": null,
   "predecessor_id": "01KZ4M2VJHW4W1MNGTM0YGHY98",
   "completion_criteria": [
@@ -60,7 +60,7 @@
   "vcs_ref": null,
   "external_refs": [],
   "blocked_by": null,
-  "abandoned_reason": null,
+  "abandoned_reason": "Closed by explicit user directive on 2026-08-06, independent of completion state. The DoD gate could not pass done: 0 of 7 completion criteria were formally checked, c6 never returned a READY verdict, and c7 (user approval and commit to a durable location) never happened. The rewritten SPEC and all supporting artifacts survive under handoff-2026-08-04-mitosis-spec-rewrite/artifacts/ and are usable; reopening this work means a new thread that references this one.",
   "closure_statement": null,
   "spine": {
     "active_goal": "Re-write the mitosis core-rebuild SPEC from scratch, grounded in a fresh codebase audit and fresh research, replacing the abandoned re-baselined document.",
@@ -115,5 +115,5 @@
     ]
   },
   "created_at": "2026-08-04T21:07:26.334Z",
-  "updated_at": "2026-08-04T21:09:12.614Z"
+  "updated_at": "2026-08-06T17:30:18.979Z"
 }
