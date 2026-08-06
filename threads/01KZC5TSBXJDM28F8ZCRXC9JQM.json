@@ -76,6 +76,34 @@
         "refs": []
       },
       {
+        "text": "Do not re-run the three investigations — the engine map, stacked-PR research and config inventory cost roughly 340k subagent tokens, their transcripts do not survive, and the 2026-08-06T19-31 session event is the only remaining copy.",
+        "scope": "c3",
+        "refs": [
+          "sessions/01KZC5TSBXJDM28F8ZCRXC9JQM/2026-08-06T19-31-27-588Z--claude.md"
+        ]
+      },
+      {
+        "text": "settings.json is a two-way surface — Claude Code writes it itself via permission prompts, model selection and plugin toggles, so a one-way staging-to-live promotion would silently clobber live edits.",
+        "scope": "c3",
+        "refs": [
+          ".claude/settings.json"
+        ]
+      },
+      {
+        "text": "Live settings.json has already diverged from the tracked copy — live permissions are broader than the repo's, so the repo does not currently describe what is actually enforced.",
+        "scope": "c3",
+        "refs": [
+          ".claude/settings.json"
+        ]
+      },
+      {
+        "text": "parallel-plan-execution.js is dead code — its top-level dynamic imports cannot execute in the Workflow runtime, so any design routing work through it builds on a broken entry point.",
+        "scope": "c3",
+        "refs": [
+          "~/.claude/workflows/parallel-plan-execution.js"
+        ]
+      },
+      {
         "text": "settings.json cannot ride inside an immutable release — a symlinked settings.json is followed and written through, so the release is mutated in place and anything written while it is live is stranded there when the pointer swaps",
         "scope": "c3",
         "refs": [
@@ -123,5 +151,5 @@
     ]
   },
   "created_at": "2026-08-06T18:37:07.324Z",
-  "updated_at": "2026-08-06T20:06:26.104Z"
+  "updated_at": "2026-08-06T20:06:53.658Z"
 }
