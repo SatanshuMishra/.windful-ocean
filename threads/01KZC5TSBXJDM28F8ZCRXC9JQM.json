@@ -38,14 +38,14 @@
     {
       "id": "c5",
       "text": "SPEC B (mitosis core: token/latency cost, codegen decomposition, stacked PRs) authored standalone, with the fix pipeline excluded and no citation of the 2026-07-30 document as authority.",
-      "done": false,
+      "done": true,
       "kind": "planned",
       "struck_by": null
     },
     {
       "id": "c6",
       "text": "User reviews SPEC B and approves it.",
-      "done": false,
+      "done": true,
       "kind": "planned",
       "struck_by": null
     }
@@ -56,9 +56,9 @@
   "abandoned_reason": null,
   "closure_statement": null,
   "spine": {
-    "active_goal": "Author SPEC B standalone, covering mitosis core token and latency cost, codegen decomposition and stacked PRs with the fix pipeline excluded, then take it through the user review gate.",
-    "next_step": "FRESH SESSION, per explicit user instruction. Author SPEC B standalone from the 2026-08-06T18-37 and 2026-08-06T19-31 session events plus decision 0271. Lead with the token and tool-call instrument; write every cost target as a falsifiable hypothesis, never a budget. Exclude the fix pipeline. Do not cite the 2026-07-30 document as authority; re-derive every line citation. Write to docs/superpowers/specs/, run the spec self-review, then hand to the user for the c6 gate.",
-    "last_session": "Wrote, self-reviewed and committed SPEC A and the user approved it; re-derivation falsified three items in the earlier config inventory and surfaced a coverage gap that reshaped the migration section. Recorded 0271.",
+    "active_goal": "Complete. Both SPECs authored standalone and approved; implementation moves to the successor thread.",
+    "next_step": "None on this thread - it is complete. SPEC A implementation continues on the successor thread per 0274: a fresh session dispatches a dedicated small dynamic workflow to fully implement and ship SPEC A, parallelizing its five section-7 preconditions and running the cutover serially and alone, with stacked PRs opened manually via pr.mjs pr-create --base <parent-branch> where changes block each other.",
+    "last_session": "Authored, self-reviewed and committed SPEC B; the user approved it, closing c5 and c6. Re-derivation falsified five citations and the self-review caught two defects in the draft.",
     "open_risks": [
       {
         "text": "Instrument per-dispatch context before trusting any collapse win — the 2026-07-30 plan counts dispatches and wall-clock only, so Decompose fusion, Ship 13-to-1, and per-MSP reviews would all score as wins even if cost rose.",
@@ -152,5 +152,5 @@
     ]
   },
   "created_at": "2026-08-06T18:37:07.324Z",
-  "updated_at": "2026-08-06T21:17:49.930Z"
+  "updated_at": "2026-08-06T21:18:08.414Z"
 }
