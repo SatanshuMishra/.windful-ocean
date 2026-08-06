@@ -188,6 +188,11 @@
         "ref": "0255-g1-ships-with-the-hook-deny-as-its-sole-control",
         "title": "G1 ships with the hook deny as its sole control; branch protection is deliberately not deployed",
         "scope": "c4"
+      },
+      {
+        "ref": "0256-keep-the-g4-verb-denylist-do-not-invert-it",
+        "title": "Keep G4's verb denylist; do not invert it to a reader allowlist",
+        "scope": "c4"
       }
     ],
     "out_of_scope": [
@@ -196,5 +201,5 @@
     ]
   },
   "created_at": "2026-08-05T15:24:11.663Z",
-  "updated_at": "2026-08-05T23:57:25.481Z"
+  "updated_at": "2026-08-06T02:12:37.142Z"
 }
