@@ -111,12 +111,18 @@
         ]
       }
     ],
-    "key_decisions": [],
+    "key_decisions": [
+      {
+        "ref": "0275-workflow-fanout-boundary-is-live-linked-writes",
+        "title": "The workflow fan-out boundary is any write to a live-linked path, not the cutover alone",
+        "scope": "thread"
+      }
+    ],
     "out_of_scope": [
       "Building SPEC B Part IV's stacked-PR machinery to serve this work - stacking here is manual via the convention, and 0271 orders SPEC A to land before any SPEC B unit",
       "Editing mitosis.js or the parallel engine, which SPEC B governs"
     ]
   },
   "created_at": "2026-08-06T21:18:29.653Z",
-  "updated_at": "2026-08-06T21:18:51.269Z"
+  "updated_at": "2026-08-06T21:27:48.840Z"
 }
