@@ -23,14 +23,28 @@
     },
     {
       "id": "c3",
-      "text": "New SPEC authored standalone - no inherited decision numbers, no step-N chain, no citation of the 2026-07-30 document as authority.",
+      "text": "SPEC A (config staging/live promotion) authored standalone - no inherited decision numbers, no step-N chain, no citation of the 2026-07-30 document as authority.",
       "done": false,
       "kind": "planned",
       "struck_by": null
     },
     {
       "id": "c4",
-      "text": "User reviews the new SPEC and approves it.",
+      "text": "User reviews SPEC A and approves it, before any SPEC B drafting begins.",
+      "done": false,
+      "kind": "planned",
+      "struck_by": null
+    },
+    {
+      "id": "c5",
+      "text": "SPEC B (mitosis core: token/latency cost, codegen decomposition, stacked PRs) authored standalone, with the fix pipeline excluded and no citation of the 2026-07-30 document as authority.",
+      "done": false,
+      "kind": "planned",
+      "struck_by": null
+    },
+    {
+      "id": "c6",
+      "text": "User reviews SPEC B and approves it.",
       "done": false,
       "kind": "planned",
       "struck_by": null
@@ -86,5 +100,5 @@
     ]
   },
   "created_at": "2026-08-06T18:37:07.324Z",
-  "updated_at": "2026-08-06T19:29:59.254Z"
+  "updated_at": "2026-08-06T19:32:12.192Z"
 }
