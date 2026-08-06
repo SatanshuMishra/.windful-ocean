@@ -9,12 +9,12 @@ FAULT_FALLBACK="the gate could not classify this command"
 verdict=""
 reason_text=""
 fault_detail="no verdict was formed"
-cmd=""
-low=""
-reason=""
-matcher_fault=""
+cmd="" low="" reason="" matcher_fault=""
 seg_verdict="" seg_reason=""
 best_verdict="" best_reason=""
+
+ghwrap='(sudo|env|command|nohup|time|xargs|(ba|z|k)?sh[[:space:]]+-c|[a-z_][a-z0-9_]*=[^[:space:]]*)'
+guardpath='(\.claude/(settings(\.local)?\.json|CLAUDE\.md|keybindings\.json|(hooks|rules|lib|workflows)(/|[^[:alnum:]_./-]|$))|\.claude/?([^[:alnum:]_./-]|$))'
 
 note_fault() {
   fault_detail="$1"
@@ -101,29 +101,25 @@ classify_segment() {
   low="$(printf '%s' "$cmd" | tr '[:upper:]' '[:lower:]')"
   reason=""
 
-  local gitopt='(-c[[:space:]]+[^[:space:]]+|--git-dir[=[:space:]][^[:space:]]+|--work-tree[=[:space:]][^[:space:]]+|--namespace[[:space:]]+[^[:space:]]+|--no-pager|--paginate|-p|--bare|--literal-pathspecs|--no-optional-locks)'
-  local gitpre="(^|[^a-z])git([[:space:]]+${gitopt})*[[:space:]]+"
-  local gitopt_cs='(-C[[:space:]]+[^[:space:]]+|-c[[:space:]]+[^[:space:]]+|--git-dir[=[:space:]][^[:space:]]+|--work-tree[=[:space:]][^[:space:]]+|--namespace[[:space:]]+[^[:space:]]+|--no-pager|--paginate|-p|--bare|--literal-pathspecs|--no-optional-locks)'
-  local gitpre_cs="(^|[^a-zA-Z])git([[:space:]]+${gitopt_cs})*[[:space:]]+"
+  local gitopt='-c[[:space:]]+[^[:space:]]+|--git-dir[=[:space:]][^[:space:]]+|--work-tree[=[:space:]][^[:space:]]+|--namespace[[:space:]]+[^[:space:]]+|--no-pager|--paginate|-p|--bare|--literal-pathspecs|--no-optional-locks'
+  local gitpre="(^|[^a-z])git([[:space:]]+(${gitopt}))*[[:space:]]+"
+  local gitpre_cs="(^|[^a-zA-Z])git([[:space:]]+(-C[[:space:]]+[^[:space:]]+|${gitopt}))*[[:space:]]+"
 
   local ghopt='(-[a-z][[:space:]]*[^[:space:]]+|--[a-z-]+[[:space:]=][^[:space:]]+)'
-  local ghwrap='(sudo|env|command|nohup|time|xargs|(ba|z|k)?sh[[:space:]]+-c|[a-z_][a-z0-9_]*=[^[:space:]]*)'
   local ghpos='(^[[:space:]]*|\$\(|`)'
   local ghtok="${ghpos}(${ghwrap}[[:space:]]+[\"']?[[:space:]]*)*([[:alnum:]_./-]*/)?gh([[:space:]]+${ghopt})*[[:space:]]+"
   local ghapi="${ghtok}api([[:space:]]|$)"
   local graphql='(^|[[:space:]])/?graphql([[:space:]]|$)'
-  local pullsep='repos/[^/[:space:]]+/[^/[:space:]]+/pulls/?([^/[:alnum:]]|$)'
-  local pullnum='repos/[^/[:space:]]+/[^/[:space:]]+/pulls/[0-9]+([^/[:alnum:]]|$)'
+  local pullbase='repos/[^/[:space:]]+/[^/[:space:]]+/pulls'
+  local pullsep="${pullbase}/?([^/[:alnum:]]|$)"
+  local pullnum="${pullbase}/[0-9]+([^/[:alnum:]]|$)"
   local postish='(--method[[:space:]=]+post|-x[[:space:]]*post|(^|[[:space:]])-f[[:space:]=]|--field[[:space:]=]|--raw-field[[:space:]=]|(^|[[:space:]])--input[[:space:]=])'
   local patchish='(--method[[:space:]=]+patch|-x[[:space:]]*patch)'
   local gqlopaque='((-f|--field|--raw-field)[[:space:]=]+[a-z_]+=@|(^|[[:space:]])--input[[:space:]=])'
   local ghfileref='(^|[[:space:]])(-f|--field|--raw-field)[[:space:]=]+[a-z_]+=@'
   local gqlsub='(\$\(|`)'
   local prshortedit='(^|[[:space:]])-(t|b|F)([^a-zA-Z-]|$)'
-  local selfwrap='^([[:alnum:]_./-]*/)?node[[:space:]]+[^[:space:]]*lib/git/pr\.mjs[[:space:]]+pr-create([[:space:]]|$)'
-  local chained='([;&|`]|\$\()'
 
-  local guardpath='(\.claude/(settings(\.local)?\.json|CLAUDE\.md|keybindings\.json|(hooks|rules|lib|workflows)(/|[^[:alnum:]_./-]|$))|\.claude/?([^[:alnum:]_./-]|$))'
   local guardverb="(>|(^|[;&|[:space:]])tee[[:space:]]|(^|[;&|[:space:]])sed[[:space:]].*-i|(^|[;&|[:space:]])mv[[:space:]]|(^|[;&|[:space:]])cp[[:space:]]|(^|[;&|[:space:]])rm[[:space:]]|(^|[;&|[:space:]])chmod[[:space:]]|(^|[;&|[:space:]])truncate[[:space:]]|(^|[;&|[:space:]])perl[[:space:]]+(-[^[:space:]]+[[:space:]]+)*-[0-9aCdDFlnpsSuUwWxX]*i|${gitpre_cs}(checkout|restore)([[:space:]]|$))"
   local guardunlock='(^|[;&|[:space:]])chflags[[:space:]]+(-[^[:space:]]+[[:space:]]+)*[^[:space:]]*nouchg([[:space:]]|$)'
 
@@ -134,18 +130,16 @@ classify_segment() {
     return 0
   fi
 
-  if ! { has "$selfwrap" && ! has "$chained"; }; then
-    if has "${ghtok}pr[[:space:]]+create([[:space:]]|$)" \
-      || { has "${ghtok}pr[[:space:]]+edit([[:space:]]|$)" && { has '(--title|--body|--body-file)([[:space:]=]|$)' || has_cs "$prshortedit"; }; } \
-      || { has "$ghapi" && has "$ghfileref"; } \
-      || { has "$ghapi" && has "$pullsep" && has "$postish"; } \
-      || { has "$ghapi" && has "$pullnum" && has "$patchish"; } \
-      || { has "$ghapi" && has "$graphql" && has '(createpullrequest|updatepullrequest([^a-z]|$))'; } \
-      || { has "$ghapi" && has "$graphql" && has "$gqlopaque"; } \
-      || { has "$ghapi" && has "$graphql" && has "$gqlsub"; }; then
-      set_deny 'opening a pull request is centralized: every pull request in this environment is created by one tool, in one format, and its title and body may not be rewritten afterwards. Run this, quoting every value: node "$HOME"/.claude/lib/git/pr.mjs pr-create --repo OWNER/REPO --head HEAD-BRANCH --base BASE-BRANCH --title TYPE(SCOPE): LOWERCASE IMPERATIVE SUMMARY --origin machine-or-human --why PROBLEM AND WHY NOW --what BEHAVIORAL CHANGE --not-verified THING YOU DID NOT CHECK - not run. Types: feat fix refactor docs test chore perf ci; title max 72 characters, no trailing period. Add --provenance agent=LABEL model=MODEL when --origin is machine. NEVER write a --verified line for a check you did not run. Pass every value as ONE inert argv value: never a file path, never an at-prefixed value, never a shell redirection, never a gh api field whose value starts with an at-sign. A pull/new URL printed by git push is not an approved path either. Full field set and caps: .claude/rules/common/git/pull-requests.md'
-      return 0
-    fi
+  if has "${ghtok}pr[[:space:]]+create([[:space:]]|$)" \
+    || { has "${ghtok}pr[[:space:]]+edit([[:space:]]|$)" && { has '(--title|--body|--body-file)([[:space:]=]|$)' || has_cs "$prshortedit"; }; } \
+    || { has "$ghapi" && has "$pullbase" && has "$ghfileref"; } \
+    || { has "$ghapi" && has "$pullsep" && has "$postish"; } \
+    || { has "$ghapi" && has "$pullnum" && has "$patchish"; } \
+    || { has "$ghapi" && has "$graphql" && has '(createpullrequest|updatepullrequest([^a-z]|$))'; } \
+    || { has "$ghapi" && has "$graphql" && has "$gqlopaque"; } \
+    || { has "$ghapi" && has "$graphql" && has "$gqlsub"; }; then
+    set_deny 'opening a pull request is centralized: every pull request in this environment is created by one tool, in one format, and its title and body may not be rewritten afterwards. Run this, quoting every value: node "$HOME"/.claude/lib/git/pr.mjs pr-create --repo OWNER/REPO --head HEAD-BRANCH --base BASE-BRANCH --title TYPE(SCOPE): LOWERCASE IMPERATIVE SUMMARY --origin machine-or-human --why PROBLEM AND WHY NOW --what BEHAVIORAL CHANGE --not-verified THING YOU DID NOT CHECK - not run. Types: feat fix refactor docs test chore perf ci; title max 72 characters, no trailing period. Add --provenance agent=LABEL model=MODEL when --origin is machine. NEVER write a --verified line for a check you did not run. Pass every value as ONE inert argv value: never a file path, never an at-prefixed value, never a shell redirection, never a gh api field whose value starts with an at-sign. A pull/new URL printed by git push is not an approved path either. Full field set and caps: .claude/rules/common/git/pull-requests.md'
+    return 0
   fi
 
   if has '(^|[^a-z])rm([[:space:]]|$)' && has '(-[a-z]*r|--recursive)' && has '(-[a-z]*f|--force)'; then
@@ -188,6 +182,11 @@ classify_segment() {
 classify() {
   local input="" extracted="" segments="" segment=""
   local forkbomb=':[[:space:]]*\([[:space:]]*\)[[:space:]]*\{[[:space:]]*:[[:space:]]*\|[[:space:]]*:'
+  local secretpath='(\.ssh/|\.aws/credentials|\.netrc|\.git-credentials|id_rsa|id_ed25519|\.npmrc|\.pgpass|\.kube/config|\.docker/config\.json|\.gnupg/|/etc/(passwd|shadow)|\.env(rc|\.local)?([^.[:alnum:]_-]|$))'
+  local netpos='(^|[;&|]|\$\(|`)[[:space:]]*'
+  local netbin="${netpos}(${ghwrap}[[:space:]]+[\"']?[[:space:]]*)*([[:alnum:]_./-]*/)?(curl|wget|nc|ncat|netcat|scp|rsync|sftp|ftp|telnet|openssl|http|httpie|xh)([[:space:]]|$)"
+  local netreach='((https?|ftp)://|@[~/.$])'
+  local atguard="@[^[:space:]]*${guardpath}"
 
   if ! input="$(cat)"; then
     note_fault "the hook payload could not be read"
@@ -219,6 +218,10 @@ classify() {
 
   if has "$forkbomb"; then
     take_verdict "$VERDICT_ASK" "Destructive command (fork bomb) - confirm before running."
+  fi
+
+  if { has "$secretpath" && { has "$netbin" || has "$netreach"; }; } || has_cs "$atguard"; then
+    take_verdict "$VERDICT_ASK" "Destructive command (possible credential or guardrail-file exfiltration) - confirm before running."
   fi
 
   while IFS= read -r segment; do
