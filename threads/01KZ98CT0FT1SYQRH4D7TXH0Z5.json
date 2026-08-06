@@ -259,6 +259,11 @@
         "ref": "0263-bare-path-guardrail-exfiltration-is-accepted-not-a-defect",
         "title": "The bare-path guardrail exfiltration hole is an accepted residual, not a c7 fix target",
         "scope": "c6"
+      },
+      {
+        "ref": "0264-scope-set-equality-to-the-changed-coverage-entry",
+        "title": "Resolve the 22-artifact fallout by scoping set-equality to the changed coverage entry, not by backfilling history or by a track-aware checker",
+        "scope": "c7"
       }
     ],
     "out_of_scope": [
@@ -267,5 +272,5 @@
     ]
   },
   "created_at": "2026-08-05T15:24:11.663Z",
-  "updated_at": "2026-08-06T17:31:49.492Z"
+  "updated_at": "2026-08-06T17:41:52.568Z"
 }
