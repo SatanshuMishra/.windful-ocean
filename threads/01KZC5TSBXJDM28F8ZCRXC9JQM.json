@@ -24,14 +24,14 @@
     {
       "id": "c3",
       "text": "SPEC A (config staging/live promotion) authored standalone - no inherited decision numbers, no step-N chain, no citation of the 2026-07-30 document as authority.",
-      "done": false,
+      "done": true,
       "kind": "planned",
       "struck_by": null
     },
     {
       "id": "c4",
       "text": "User reviews SPEC A and approves it, before any SPEC B drafting begins.",
-      "done": false,
+      "done": true,
       "kind": "planned",
       "struck_by": null
     },
@@ -56,9 +56,9 @@
   "abandoned_reason": null,
   "closure_statement": null,
   "spine": {
-    "active_goal": "Author SPEC A standalone from the approved design: a staging/live config split whose promotion is atomic and whose sync is enforced rather than suggested.",
-    "next_step": "Fresh session: author SPEC A from the approved design in the 2026-08-06T20-17 session event plus decisions 0269 and 0270. The design is APPROVED - do NOT re-brainstorm it. Write it standalone to docs/superpowers/specs/, run the brainstorming spec self-review, then hand it to the user for the c4 review gate. Settle the mid-session swap measurement only if implementation turns out to need it.",
-    "last_session": "Approved approach A, settled the SPEC A design across seven sections, and recorded decisions 0269 and 0270. No spec document written.",
+    "active_goal": "Author SPEC B standalone, covering mitosis core token and latency cost, codegen decomposition and stacked PRs with the fix pipeline excluded, then take it through the user review gate.",
+    "next_step": "FRESH SESSION, per explicit user instruction. Author SPEC B standalone from the 2026-08-06T18-37 and 2026-08-06T19-31 session events plus decision 0271. Lead with the token and tool-call instrument; write every cost target as a falsifiable hypothesis, never a budget. Exclude the fix pipeline. Do not cite the 2026-07-30 document as authority; re-derive every line citation. Write to docs/superpowers/specs/, run the spec self-review, then hand to the user for the c6 gate.",
+    "last_session": "Wrote, self-reviewed and committed SPEC A and the user approved it; re-derivation falsified three items in the earlier config inventory and surfaced a coverage gap that reshaped the migration section. Recorded 0271.",
     "open_risks": [
       {
         "text": "Instrument per-dispatch context before trusting any collapse win — the 2026-07-30 plan counts dispatches and wall-clock only, so Decompose fusion, Ship 13-to-1, and per-MSP reviews would all score as wins even if cost rose.",
@@ -76,47 +76,36 @@
         "refs": []
       },
       {
-        "text": "Do not re-run the three investigations — the engine map, stacked-PR research and config inventory cost roughly 340k subagent tokens, their transcripts do not survive, and the 2026-08-06T19-31 session event is the only remaining copy.",
-        "scope": "c3",
+        "text": "Do not re-run the three investigations — the engine map, stacked-PR research and config inventory cost roughly 340k subagent tokens, their transcripts are gone, and two ledger session events are the only remaining copy.",
+        "scope": "c5",
         "refs": [
-          "sessions/01KZC5TSBXJDM28F8ZCRXC9JQM/2026-08-06T19-31-27-588Z--claude.md"
+          "sessions/01KZC5TSBXJDM28F8ZCRXC9JQM/2026-08-06T19-31-27-588Z--claude.md",
+          "sessions/01KZC5TSBXJDM28F8ZCRXC9JQM/2026-08-06T18-37-46-256Z--claude.md"
         ]
       },
       {
-        "text": "The promote verb and the SessionStart hook must live outside releases/ — a bootstrap self-hosted in the thing it promotes means a bad release breaks the machinery that would roll it back, in every future session. This is the one way the design can brick the environment.",
-        "scope": "c3",
+        "text": "Every cost claim SPEC B makes is unmeasurable today — the engine carries no token or tool-call accounting anywhere, so a target written as a budget rather than as a falsifiable hypothesis cannot be checked against anything.",
+        "scope": "c5",
         "refs": []
       },
       {
-        "text": "Promote only at SessionStart or between MSPs, never mid-MSP — immutable releases stop any single file being read half-old, but a running session can still hold one release's skill roster while reading another's bodies, and retention cannot fix that because reads route through the pointer.",
-        "scope": "c3",
-        "refs": []
-      },
-      {
-        "text": "The swap must be create-then-rename, not ln -sfn — ln -sfn unlinks then symlinks and leaves a window with no pointer, and the live permission set grants Bash(ln -sfn:*), so it currently encodes the wrong form.",
-        "scope": "c3",
-        "refs": []
-      },
-      {
-        "text": "Whether a pointer swap reaches an already-running session is still unmeasured — headless claude cannot authenticate under a scratch config dir, so the promotion-timing contract rests on an untested assumption.",
-        "scope": "c3",
+        "text": "Re-derive every line citation before reusing one — mitosis.js measured 5,515 lines against the old document's cited 4,851, and mitosis-git.mjs has since moved to .claude/lib/git/pr.mjs.",
+        "scope": "c5",
         "refs": [
-          "sessions/01KZC5TSBXJDM28F8ZCRXC9JQM/2026-08-06T20-05-54-286Z--claude.md"
+          ".claude/lib/git/pr.mjs"
         ]
       },
       {
-        "text": "Only one settings.json writer was measured — if in-session /config edits or permission-grant persistence replace the file rather than write through it, the ownership manifest still holds but the file-identity assumption behind it needs re-checking.",
-        "scope": "c3",
-        "refs": [
-          ".claude/settings.json"
-        ]
-      },
-      {
-        "text": "parallel-plan-execution.js is dead code — its top-level dynamic imports cannot execute in the Workflow runtime, so any design routing work through it builds on a broken entry point.",
-        "scope": "c3",
+        "text": "parallel-plan-execution.js is dead code — its top-level dynamic imports cannot execute in the Workflow runtime, so any SPEC B design routing work through it builds on a broken entry point.",
+        "scope": "c5",
         "refs": [
           "~/.claude/workflows/parallel-plan-execution.js"
         ]
+      },
+      {
+        "text": "The Workflow validator is a source-level check — it rejected a script merely for containing the identifiers Date and Math.random inside typeof expressions, so generated engine output must avoid those identifiers textually.",
+        "scope": "c5",
+        "refs": []
       }
     ],
     "key_decisions": [
@@ -153,9 +142,10 @@
     ],
     "out_of_scope": [
       "Implementing any MSP from either SPEC",
-      "Editing mitosis.js, the parallel engine, or any live config path while a SPEC is being authored"
+      "Editing mitosis.js, the parallel engine, or any live config path while a SPEC is being authored",
+      "The fix pipeline, which the user excluded from both SPECs and may brainstorm later as its own thread"
     ]
   },
   "created_at": "2026-08-06T18:37:07.324Z",
-  "updated_at": "2026-08-06T20:36:30.953Z"
+  "updated_at": "2026-08-06T20:37:49.773Z"
 }
