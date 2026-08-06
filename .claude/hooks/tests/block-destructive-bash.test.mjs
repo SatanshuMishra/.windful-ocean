@@ -125,6 +125,8 @@ const creationDenyCommands = [
   'gh api --method PATCH repos/o/r/pulls/12 -f title=x',
   'gh api -XPATCH repos/o/r/pulls/12 -f body=x',
   "gh api graphql -f query='mutation { createPullRequest(input: {}) { clientMutationId } }'",
+  'gh api graphql -f query=\'mutation { updatePullRequest(input: {pullRequestId: "x", title: "y"}) { pullRequest { url } } }\'',
+  'gh api graphql -f query=\'mutation { updatePullRequest(input: {pullRequestId: "x", body: "y"}) { clientMutationId } }\'',
   'gh api graphql -F query=@create-pr.graphql',
   'gh api graphql --input mutation.json',
   'gh api graphql -f query="$(cat mutation.graphql)"',
@@ -195,6 +197,7 @@ const allowCommands = [
   'gh api repos/o/r/pulls/12/comments -f body=x',
   'gh api repos/o/r/pulls/12/reviews -f event=comment',
   "gh api graphql -f query='query { viewer { login } }'",
+  'gh api graphql -f query=\'mutation { updatePullRequestBranch(input: {pullRequestId: "x"}) { clientMutationId } }\'',
   "echo 'high pr create'",
   'gh pr edit 12 -B main',
   'node /Users/satanshumishra/.claude/lib/git/pr.mjs pr-create --repo o/r --head feature --base main --title "fix(gate): deny raw pull-request creation" --origin machine --provenance "agent=gate model=opus" --why "raw creation bypassed the format" --what "gate denies raw creation" --not-verified "CI - not run"',
@@ -223,10 +226,63 @@ test('the wrapper loses its own exemption the moment anything is chained onto it
 });
 
 test('the superseded superpowers-parallel path carries no exemption, so exactly one path is canonical', () => {
-  const r = runHook('node /Users/satanshumishra/.claude/lib/superpowers-parallel/mitosis-git.mjs pr-create --repo o/r --head feature --base main --title "fix(gate): deny raw pull-request creation" --origin human --why "the gh pr create path is blocked at the gate" --what "gate denies raw creation" --not-verified "CI - not run"');
+  const r = runHook('node /Users/satanshumishra/.claude/lib/superpowers-parallel/mitosis-git.mjs pr-create --repo o/r --head feature --base main --title "$(gh pr create --fill)" --origin human --why "w" --what "c" --not-verified "CI - not run"');
   assert.equal(decisionOf(r), 'deny');
   assert.equal(reasonOf(r), CREATION_DENY_REASON);
 });
+
+const commandPositionDenyCommands = [
+  ['sudo gh pr create --fill', CREATION_DENY_REASON],
+  ['xargs gh pr create --title x', CREATION_DENY_REASON],
+  ['env GH_TOKEN=z gh pr create --fill', CREATION_DENY_REASON],
+  ['sh -c "gh pr create --fill"', CREATION_DENY_REASON],
+  ['bash -c "gh pr edit 12 --body x"', CREATION_DENY_REASON],
+  ['nohup gh pr merge 12', MERGE_DENY_REASON],
+  ['time gh pr merge 12', MERGE_DENY_REASON],
+  ['echo "the url is $(gh pr create --fill)"', CREATION_DENY_REASON],
+];
+
+for (const [command, reason] of commandPositionDenyCommands) {
+  test(`G1/G2/G3: denies a gh call reached through a transparent wrapper or a substitution: ${command}`, () => {
+    const r = runHook(command);
+    assert.equal(r.status, 0);
+    assert.equal(decisionOf(r), 'deny');
+    assert.equal(reasonOf(r), reason);
+  });
+}
+
+const multilineDenyCommands = [
+  ['git push -u origin feature\ngh pr create --fill', CREATION_DENY_REASON],
+  ['set -e\n  gh pr merge 12\n', MERGE_DENY_REASON],
+  ['git add -A\ngit commit -m wip\ngh pr edit 12 --body x', CREATION_DENY_REASON],
+  ['cd /repo\ngh api graphql -f query=\'mutation { createPullRequest(input: {}) { url } }\'', CREATION_DENY_REASON],
+];
+
+for (const [command, reason] of multilineDenyCommands) {
+  test(`G1/G2/G3: a newline still separates sub-commands rather than hiding one: ${JSON.stringify(command)}`, () => {
+    const r = runHook(command);
+    assert.equal(r.status, 0);
+    assert.equal(decisionOf(r), 'deny');
+    assert.equal(reasonOf(r), reason);
+  });
+}
+
+const segmentedNoOpinionCommands = [
+  'git commit -m "fix(gate): deny gh pr create forms that flag the subcommand"',
+  'echo "run gh pr merge 12 to land it"',
+  'printf "%s\\n" "gh pr edit --title is denied"',
+  'grep -rn "gh pr create " docs/',
+  'git status && echo "see gh api docs" && ls repos/o/r/pulls/12/merge',
+  'ls -rf /tmp; rm /tmp/one-file.txt',
+];
+
+for (const command of segmentedNoOpinionCommands) {
+  test(`a phrase quoted inside another command is not a command, and a conjunction is not satisfied across sub-commands: ${command}`, () => {
+    const r = runHook(command);
+    assert.equal(r.status, 0);
+    assert.equal(r.stdout, '');
+  });
+}
 
 const askCommands = [
   ['git push --force origin main', 'git force push'],
@@ -374,6 +430,9 @@ const everyCommand = [
   ...g1FlaggedMergeDenyCommands,
   ...creationDenyCommands,
   ...g3FlaggedCreationDenyCommands,
+  ...commandPositionDenyCommands.map(([command]) => command),
+  ...multilineDenyCommands.map(([command]) => command),
+  ...segmentedNoOpinionCommands,
   ...allowCommands,
   ...g1NoOpinionCommands,
   ...askCommands.map(([command]) => command),
