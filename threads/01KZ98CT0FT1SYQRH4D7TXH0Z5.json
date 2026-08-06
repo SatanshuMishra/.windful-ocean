@@ -64,16 +64,15 @@
   "closure_statement": null,
   "spine": {
     "active_goal": "Rebuild the bash gate as five per-action controls, ~150-250 lines replacing 1438, against the now-ratified threat model; c3-c7 build the controls and ship one PR.",
-    "next_step": "c4 NOT started - decided, no code written. G1: amend threat model s4 G1 cell per 0255 (hook deny is sole control), verify merge deny against DoD item 1, add G1-keyed tests, add NO tampering deny. G4: KEEP the verb-denylist shape - chflags uchg at c7 is what closes open-ended write verbs, so do NOT invert to a reader allowlist, which would ask on every `node --test .claude/hooks/tests/` run. Close the 3 named gaps (git checkout, perl -pi, cp into bare .claude/) plus chflags nouchg.",
-    "last_session": "Wrote and ratified the threat model and both pointer artifacts, and found three defects: the plan's fail-open citation was wrong and understated it, the registry append breaks 22 coverage artifacts, and the hooks memory file was silently gitignored.",
+    "next_step": "c4, no code written yet. G1: amend threat model s4 G1 cell per 0255, verify the merge deny against DoD item 1, add G1-keyed tests, add NO tampering deny. G4 per 0256: keep the verb denylist, close the three named gaps (git checkout, perl -pi, cp into bare .claude/), add the chflags nouchg gate, verdict stays ask. Apply no chflags uchg flags before c7.",
+    "last_session": "Shipped c3, the fail-closed harness, as commit 97b3e8b - all three known fail-open paths closed plus a fourth found in an unevaluable-matcher case; then decided c4's two design questions (0255, 0256) and stopped before writing any c4 code.",
     "open_risks": [
       {
-        "text": "The gate has THREE fail-open paths, not one — the case prefilter, the swallowed python3 exception and the intended no-opinion exit all allow identically, so c3 must cover all three or it fixes a third of the problem",
+        "text": "Do NOT add pipefail to the bash gate — grep -q exits early on a match and SIGPIPEs the printf feeding it, which under pipefail reads as a matcher error and quietly downgrades a deny to an ask on large commands",
         "scope": "thread",
         "refs": [
-          ".claude/hooks/block-destructive-bash.sh:4-7",
-          ".claude/hooks/block-destructive-bash.sh:9-16",
-          ".claude/hooks/block-destructive-bash.sh:96"
+          ".claude/hooks/block-destructive-bash.sh:2",
+          "0253-gate-runs-set-eu-without-pipefail"
         ]
       },
       {
@@ -93,7 +92,7 @@
         ]
       },
       {
-        "text": "The hooks CLAUDE.md and the security.md carve-out are deliberately narrow — they forbid hardening BEYOND G1-G5, not hardening itself; do not re-broaden them, because c3 is a hardening task the earlier wording would have read as a stop sign",
+        "text": "Do not re-broaden the hooks CLAUDE.md or the security.md carve-out — they forbid hardening BEYOND G1-G5, not hardening itself, and c4 through c6 are all hardening tasks an over-broad reading would treat as a stop sign",
         "scope": "thread",
         "refs": [
           ".claude/hooks/CLAUDE.md",
@@ -101,7 +100,7 @@
         ]
       },
       {
-        "text": "Design-level risks now live in the ratified threat model rather than here — G5's residual parser gap, the five-drift-surface cost of the decomposition and the token-scoping limit on G1 are recorded in its sections 5, 6 and 9; read it before reopening any of them",
+        "text": "Design-level risks live in the ratified threat model rather than here — G5's residual parser gap, the five-drift-surface cost of the decomposition and the token-scoping limit on G1 are in its sections 5, 6 and 9; read it before reopening any of them",
         "scope": "thread",
         "refs": [
           "docs/security/bash-gate-threat-model.md"
@@ -130,14 +129,6 @@
         "scope": "thread",
         "refs": [
           "21ae349"
-        ]
-      },
-      {
-        "text": "G1's branch protection is NOT outside the agent's reach — the gh token has repo scope, i.e. admin on an owned repo, so the agent can delete the protection rule; c4 must deny protection and ruleset tampering or the primary-vs-secondary layering is circular",
-        "scope": "c4",
-        "refs": [
-          "docs/security/bash-gate-threat-model.md section 4 G1",
-          "gh auth status: repo, workflow, delete_repo"
         ]
       },
       {
@@ -201,5 +192,5 @@
     ]
   },
   "created_at": "2026-08-05T15:24:11.663Z",
-  "updated_at": "2026-08-06T02:13:00.492Z"
+  "updated_at": "2026-08-06T02:13:25.079Z"
 }
