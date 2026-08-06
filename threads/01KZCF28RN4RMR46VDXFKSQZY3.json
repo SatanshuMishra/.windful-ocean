@@ -64,23 +64,9 @@
   "closure_statement": null,
   "spine": {
     "active_goal": "Fully implement and ship SPEC A (config staging/live promotion) via a dedicated small dynamic workflow, using stacked PRs where changes block each other.",
-    "next_step": "START HERE IN A FRESH SESSION, per explicit user instruction. Read docs/superpowers/specs/2026-08-06-config-staging-live-promotion-SPEC.md, then dispatch a dedicated SMALL dynamic workflow to fully implement and ship it. Parallelize section 7's five preconditions (they are independent); run the cutover serially, alone, LAST. Open stacked PRs manually via pr.mjs pr-create --base <parent-branch> - the engine has no stacking machinery.",
-    "last_session": "Not yet worked. Opened as successor to the re-spec thread once SPEC B was approved and that thread closed at 6 of 6.",
+    "next_step": "START HERE IN A FRESH SESSION. Read the SPEC, then dispatch a small dynamic workflow per 0275's three bands. FAN OUT the four units that write no live-linked path: bootstrap under ~/.claude/local/, context7.md adoption, the promote verb, the ownership manifest. SERIALIZE the live-linked writes: graphify relocation, converge-hook registration. Run the cutover serially and ALONE, last. Gitignore plus coverage is ONE unit. Stack blocking PRs via pr.mjs pr-create --base <parent-branch>.",
+    "last_session": "Planning only, no implementation. Recorded 0275 after measurement falsified the claim that the five preconditions parallelize cleanly.",
     "open_risks": [
-      {
-        "text": "Run the cutover serially in a session doing nothing else — it hot-swaps live-linked hooks, lib and workflows, so parallel subagents editing those paths can break every running session including the one doing the work.",
-        "scope": "c5",
-        "refs": [
-          "docs/superpowers/specs/2026-08-06-config-staging-live-promotion-SPEC.md"
-        ]
-      },
-      {
-        "text": "Narrow the unanchored *session* pattern BEFORE adopting hooks/session-config-drift-check.sh — adoption done first appears to succeed and the file still never enters a release, because git archive carries only tracked content.",
-        "scope": "c1",
-        "refs": [
-          ".gitignore:19"
-        ]
-      },
       {
         "text": "Open every stacked child manually with pr.mjs pr-create --base <parent-branch> — the engine has no stacking: merge-policy returns HUMAN_GATED unconditionally, every PR opens on baseBranch, and pr.mjs has no retarget verb.",
         "scope": "c7",
@@ -104,14 +90,43 @@
         ]
       },
       {
+        "text": "Serialize every write to a live-linked path, not just the cutover — the graphify hook edits and the converge-hook registration reach running sessions through the 26 hook symlinks, so a half-saved file breaks every session instantly.",
+        "scope": "thread",
+        "refs": [
+          ".claude/hooks/graphify-refresh.sh",
+          ".claude/hooks/graphify-common.sh",
+          ".claude/hooks/graphify-provision.sh"
+        ]
+      },
+      {
+        "text": "Treat the coverage-gap closure and the *session* narrowing as ONE unit — both edit root .gitignore and conflict if run concurrently; narrow before adopting any path the pattern hides, and preserve what :15-16 already cover.",
+        "scope": "c1",
+        "refs": [
+          ".gitignore:19",
+          ".claude/.gitignore"
+        ]
+      },
+      {
         "text": "Expect suite totals to shift when the gitignore narrows — npm test globs the filesystem, so the previously hidden session-config-drift-check test starts counting; reconcile per file, never by raw total.",
         "scope": "c1",
         "refs": [
           ".claude/hooks/tests/session-config-drift-check.test.mjs"
         ]
+      },
+      {
+        "text": "Run the cutover serially in a session doing nothing else — it hot-swaps live-linked hooks, lib and workflows, so parallel subagents editing those paths can break every running session including the one doing the work.",
+        "scope": "c5",
+        "refs": [
+          "docs/superpowers/specs/2026-08-06-config-staging-live-promotion-SPEC.md"
+        ]
       }
     ],
     "key_decisions": [
+      {
+        "ref": "0274-spec-a-shipped-by-small-dynamic-workflow-with-stacked-prs",
+        "title": "SPEC A is implemented and shipped by a dedicated small dynamic workflow, with stacked PRs for blocking changes",
+        "scope": "thread"
+      },
       {
         "ref": "0275-workflow-fanout-boundary-is-live-linked-writes",
         "title": "The workflow fan-out boundary is any write to a live-linked path, not the cutover alone",
@@ -124,5 +139,5 @@
     ]
   },
   "created_at": "2026-08-06T21:18:29.653Z",
-  "updated_at": "2026-08-06T21:27:48.840Z"
+  "updated_at": "2026-08-06T21:28:36.676Z"
 }
