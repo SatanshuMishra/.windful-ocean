@@ -217,12 +217,92 @@ for (const command of guardrailWriteCommands) {
   });
 }
 
+const GUARDRAIL_IMMUTABLE_ASK_REASON =
+  'Destructive command (chflags nouchg removing immutable-flag protection from a Claude Code guardrail file) - confirm before running.';
+
+const g4GuardrailWriteCommands = [
+  'git checkout -- .claude/hooks/block-destructive-bash.sh',
+  'git checkout HEAD~1 -- .claude/settings.json',
+  'git -C /repo checkout -- .claude/hooks/block-destructive-bash.sh',
+  'git restore --source=HEAD~1 .claude/settings.json',
+  'git -C /repo restore .claude/rules/common/git/pull-requests.md',
+  "perl -pi -e 's/x/y/' .claude/hooks/block-destructive-bash.sh",
+  "perl -i.bak -pe 's/x/y/' .claude/settings.json",
+  "perl -p -i -e 's/x/y/' .claude/hooks/block-destructive-bash.sh",
+  'cp /tmp/settings.json .claude/',
+  'mv /tmp/x .claude/',
+  'cp /tmp/settings.json ~/.claude',
+  'rm -r .claude',
+];
+
+for (const command of g4GuardrailWriteCommands) {
+  test(`G4: asks before a shell write to a guardrail tree: ${command}`, () => {
+    const r = runHook(command);
+    assert.equal(r.status, 0);
+    assert.equal(decisionOf(r), 'ask');
+    assert.equal(reasonOf(r), GUARDRAIL_ASK_REASON);
+  });
+}
+
+const g4ImmutableFlagCommands = [
+  'chflags nouchg .claude/hooks/block-destructive-bash.sh',
+  'chflags -R nouchg .claude',
+  'chflags -R nouchg /Users/tester/.claude',
+  'chflags noschg,nouchg .claude/settings.json',
+  'sudo chflags nouchg /Users/tester/.claude/settings.json',
+];
+
+for (const command of g4ImmutableFlagCommands) {
+  test(`G4: asks before immutable-flag protection is cleared: ${command}`, () => {
+    const r = runHook(command);
+    assert.equal(r.status, 0);
+    assert.equal(decisionOf(r), 'ask');
+    assert.equal(reasonOf(r), GUARDRAIL_IMMUTABLE_ASK_REASON);
+  });
+}
+
+const g4RecursiveRemoveCommands = [['rm -rf .claude', 'recursive force remove (rm -rf)']];
+
+for (const [command, label] of g4RecursiveRemoveCommands) {
+  test(`G4: asks before a bare guardrail directory is removed: ${command}`, () => {
+    const r = runHook(command);
+    assert.equal(r.status, 0);
+    assert.equal(decisionOf(r), 'ask');
+    assert.equal(reasonOf(r), `Destructive command (${label}) - confirm before running.`);
+  });
+}
+
+const g4NoOpinionCommands = [
+  'git checkout main',
+  'git switch -c feature',
+  'git checkout -b feature',
+  'echo x > .claude/skills/mitosis/SKILL.md',
+  'node --test .claude/hooks/tests/block-destructive-bash.test.mjs',
+  'npm test',
+  'ls .claude/',
+  'cat .claude/settings.json',
+  "perl -e 'print 1' .claude/settings.json",
+  'chflags uchg .claude/hooks/block-destructive-bash.sh',
+];
+
+for (const command of g4NoOpinionCommands) {
+  test(`G4: holds no opinion on a read or a non-guardrail write: ${command}`, () => {
+    const r = runHook(command);
+    assert.equal(r.status, 0);
+    assert.equal(r.stdout, '');
+  });
+}
+
 const everyCommand = [
   ...mergeDenyCommands,
   ...creationDenyCommands,
   ...allowCommands,
   ...askCommands.map(([command]) => command),
   ...guardrailWriteCommands,
+  ...g4GuardrailWriteCommands,
+  ...g4ImmutableFlagCommands,
+  ...g4RecursiveRemoveCommands.map(([command]) => command),
+  ...g4NoOpinionCommands,
 ];
 
 const corpusEmissions = everyCommand.map((command) => ({
