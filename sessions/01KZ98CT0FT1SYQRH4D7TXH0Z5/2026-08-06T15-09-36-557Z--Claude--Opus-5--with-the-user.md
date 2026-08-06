@@ -1,0 +1,17 @@
+Shipped c5 (G2 and G3) in two commits, verification-first as the brief directed.
+
+Probe before touching code: 56 phrasings through the live hook. The G2/G3 deny surface was already complete except ONE hole -- the updatePullRequest GraphQL mutation was allowed. Every gh pr edit flag shape, PATCH on pulls/N, the whole create surface, flag-before-subcommand, multi-line and GH_TOKEN= prefix forms all denied. The MCP half needed no work: mcp__github__update_pull_request and its mcp__plugin_github_github__ twin are denied in BOTH .claude/settings.json and the separate real ~/.claude/settings.json.
+
+The same probe measured accepted risk 4 wider than recorded: seven false positives, including `git commit -m "fix(gate): deny gh pr create forms..."` denying, which blocked writing commit messages about this work. It also surfaced an unrecorded instance outside the PR clauses -- `ls -rf /tmp; rm /tmp/one-file.txt` asked, satisfying the rm/-r/-f conjunction from two different sub-commands.
+
+Decision 0259 locked before implementing: segment the command on ; & | and newline, classify every clause per segment, and require the gh token in command position -- but for DENY verdicts only, since a false ask costs one confirmation while a false deny blocks work. A quote-state lexer was rejected as the bash parsing fidelity non-goal 2 rules out. Load-bearing prerequisite found in design: the payload extractor had to stop collapsing newlines into spaces, or anchoring would have silently stopped matching multi-line scripts.
+
+Implementation dispatched to the implementer agent; two judgment calls came back and both were right. (1) The fork bomb spans separators by construction (:(){ :|:; };:) so segmentation destroys it -- hoisted to run once against the full command at ask strength, the only clause in the file whose pattern crosses a separator. (2) An existing test asserted risk 4 itself: its deny came entirely from a --why value quoting a denied phrasing. Refixtured to launder a real substitution, which still denies.
+
+Unplanned win: accepted risk 1 is CLOSED. Wrapper+newline laundering through the pr-create self-exemption worked only because the extractor collapsed newlines, so a command ridden behind the wrapper on line 2 was never a separate command to classify. Five laundering forms measured denying afterward.
+
+Verified: 181/181 gate tests run directly in the main thread after the tripwire correctly refused a commit whose last edit had no test behind it. A second 16-shape probe covering laundering, the self-exemption, the fork bomb and real day-to-day commands returned 0 mismatches. The implementer separately reported the full suite at 1872 pass / 1 fail, the failure pre-existing and unrelated -- a protect-claude-config assertion that ~/.claude/settings.json is a symlink out of the home tree, which it is not on this machine.
+
+Commits: 7005e69 (gate + 21 tests), 5386829 (threat model). Not pushed, no PR.
+
+Left deliberately undone: the pr-create self-exemption is now provably inert -- every clause it guards requires the gh token, which now requires command position. Recorded as threat-model risk row 12 rather than deleted, because deleting it is a behavior-neutral refactor and the change was already large. It is the natural place to free lines for c6.
