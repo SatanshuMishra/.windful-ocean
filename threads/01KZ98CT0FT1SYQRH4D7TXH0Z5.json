@@ -31,7 +31,7 @@
     {
       "id": "c4",
       "text": "G1 merge and G4 guardrail files: the hook deny is G1's sole control per 0255, branch protection deliberately not deployed; path matching against a fixed guardrail list plus the chflags nouchg gate",
-      "done": false,
+      "done": true,
       "kind": "planned",
       "struck_by": null
     },
@@ -63,9 +63,9 @@
   "abandoned_reason": null,
   "closure_statement": null,
   "spine": {
-    "active_goal": "Rebuild the bash gate as five per-action controls, ~150-250 lines replacing 1438, against the now-ratified threat model; c3-c7 build the controls and ship one PR.",
-    "next_step": "c4, no code written yet. G1: amend threat model s4 G1 cell per 0255, verify the merge deny against DoD item 1, add G1-keyed tests, add NO tampering deny. G4 per 0256: keep the verb denylist, close the three named gaps (git checkout, perl -pi, cp into bare .claude/), add the chflags nouchg gate, verdict stays ask. Apply no chflags uchg flags before c7.",
-    "last_session": "Shipped c3, the fail-closed harness, as commit 97b3e8b - all three known fail-open paths closed plus a fourth found in an unevaluable-matcher case; then decided c4's two design questions (0255, 0256) and stopped before writing any c4 code.",
+    "active_goal": "Rebuild the bash gate as five per-action controls against the ratified threat model; c5, c6 and c7 remain.",
+    "next_step": "c5, G2 and G3. Verification-first now: 3f16c18 already closed the flagged-subcommand bypass for gh pr create and gh pr edit, so probe the G2/G3 surface the way c4 probed G1 - gh pr edit --title/--body, gh api PATCH on pulls, the two GraphQL mutations, MCP update_pull_request, the pr-create equivalents - then close only what the probe finds open. Fix accepted risk 4 here: the unanchored substring search denies commands that merely quote a phrasing.",
+    "last_session": "Shipped c4 in four commits (725db81, bd9cbef, 3f16c18, 0640017): five G4 holes closed, and an empirical probe proved G1 open and closed the gh-adjacency bypass that also defeated G2 and G3. Suite 160 pass / 0 fail, verified directly.",
     "open_risks": [
       {
         "text": "Do NOT add pipefail to the bash gate — grep -q exits early on a match and SIGPIPEs the printf feeding it, which under pipefail reads as a matcher error and quietly downgrades a deny to an ask on large commands",
@@ -132,10 +132,26 @@
         ]
       },
       {
-        "text": "Applying chflags uchg mid-rebuild would break the rebuild — c5 and c6 both edit block-destructive-bash.sh, and immutable flags also fail git checkout and git pull on those paths; build the nouchg gate in c4, apply the flags no earlier than c7",
-        "scope": "c4",
+        "text": "Apply no chflags uchg flag before c7 — c5 and c6 both edit the gate file, and an immutable flag also makes git checkout and git pull fail on those paths; the gate that notices the flag being cleared already shipped in c4",
+        "scope": "c5",
         "refs": [
-          "docs/security/bash-gate-threat-model.md section 4 G4"
+          "docs/security/bash-gate-threat-model.md section 4 G4",
+          "725db81"
+        ]
+      },
+      {
+        "text": "Re-probe the boolean-flag premise after any gh upgrade — gh --paginate api pulls/N/merge is left open only because gh itself rejects a boolean flag before the subcommand, which was verified against gh 2.97.0 and nothing later",
+        "scope": "c5",
+        "refs": [
+          "3f16c18",
+          "0257-widen-ghtok-generically-rather-than-enumerating-gh-flags"
+        ]
+      },
+      {
+        "text": "Write any commit message quoting a merge or pull-request phrasing to a file and pass git commit -F that file — a heredoc carrying one trips the gate's own deny, which is exactly the false positive c5 fixes",
+        "scope": "c5",
+        "refs": [
+          "docs/security/bash-gate-threat-model.md section 6 row 4"
         ]
       }
     ],
@@ -202,5 +218,5 @@
     ]
   },
   "created_at": "2026-08-05T15:24:11.663Z",
-  "updated_at": "2026-08-06T05:31:30.883Z"
+  "updated_at": "2026-08-06T13:52:42.946Z"
 }
