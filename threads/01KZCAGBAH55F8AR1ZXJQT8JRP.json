@@ -51,24 +51,31 @@
   "spine": {
     "active_goal": "Implement c5: ship the paths-only inert predicate ratified in 0273, with receipts, its own coverage entry, and one PR.",
     "next_step": "START c5 in a fresh session, implementing 0273. Add inert_when {paths} to registry entries; evaluate it in scripts/invariant-coverage-check.mjs against the diff it already computes; structurally reject inert_when on M3/M4/M5; have the checker write each inert row's check text naming the paths evaluated and the glob matched. Owed: red-before/green-after test, halt-on-unclassifiable test, an inertness mutation, loud failure when no base resolves. Then its own entry and one PR via pr-create.",
-    "last_session": "Measured the tax (0272: 76.3k fixed + 2,298/row, linear, R2 0.995) and ratified the resolution (0273: paths-only inert predicate, M3/M4/M5 structurally barred). c3 settled as the premise of that choice. Only c5 remains.",
+    "last_session": "Ran c2 as a real five-arm experiment and ratified c4. Measured 76.3k fixed plus 2,298 per row (R2 0.995); retired wall-clock as unmeasurable after a replicate landed 2.7x apart. c3 settled as the premise of the c4 choice. Nothing was committed.",
     "open_risks": [
       {
-        "text": "The inert predicate must belong to the INVARIANT in registry.json, never to the change — a per-change declaration is the self-selected allowlist the ratified spec forbids, whatever it is named",
-        "scope": "c4",
-        "refs": [
-          "docs/superpowers/specs/2026-07-30-two-track-invariant-plan.md:121"
-        ]
-      },
-      {
-        "text": "The polarity must stay inert, so an unenumerated path FALSIFIES the basis and forces prose — flip it to positive matching and the gate stops halting on the unclassifiable, which is M2 evaded rather than satisfied",
-        "scope": "c4",
+        "text": "Keep the inert polarity negative, so the basis holds only when every changed path matches a declared glob — flip it to positive matching and the gate stops halting on the unclassifiable, which is the ratified rule evaded rather than satisfied",
+        "scope": "c5",
         "refs": [
           "docs/superpowers/specs/2026-07-30-two-track-invariant-plan.md:117-125"
         ]
       },
       {
-        "text": "An inert basis cannot be evaluated when no base resolves and must then fail loudly — that is a live behavior change from what 0264 shipped for push mode, so it needs a test rather than an argument",
+        "text": "Bar M3, M4 and M5 from carrying inert_when structurally rather than by convention — M4 forcing a look is the only thing that caught the OptionA truncation, and nothing in a solo repo would notice that catch quietly disappearing",
+        "scope": "c5",
+        "refs": [
+          "0273-adopt-paths-only-inert-predicate"
+        ]
+      },
+      {
+        "text": "Write the inert globs narrowly and expect no reviewer to catch a wide one — this is a solo repo, so an over-broad glob silently converts a real check into a proved-inert row",
+        "scope": "c5",
+        "refs": [
+          "docs/invariants/registry.json"
+        ]
+      },
+      {
+        "text": "An inert basis cannot be evaluated when no base commit resolves and must fail loudly there — that is a live behavior change from what 0264 shipped for push mode, so it needs a test rather than an argument",
         "scope": "c5",
         "refs": [
           "scripts/invariant-coverage-check.mjs",
@@ -76,17 +83,10 @@
         ]
       },
       {
-        "text": "The checker is itself a gate, so M2, M3 and M6 apply to any change to it — a halt-on-unclassifiable test, a red-on-parent acceptance test, and a deployed-artifact check are all owed",
+        "text": "The checker is itself a gate, so the halt-on-unclassifiable, red-on-parent and deployed-artifact obligations all apply to changing it — a gate that exempts itself proves nothing",
         "scope": "c5",
         "refs": [
           "scripts/invariant-coverage-check.mjs"
-        ]
-      },
-      {
-        "text": "An over-broad inert_when glob is the primary failure mode, and this is a solo repo where the author is the reviewer — do not rely on PR review to catch a glob that is too wide",
-        "scope": "c4",
-        "refs": [
-          "docs/invariants/registry.json"
         ]
       }
     ],
@@ -108,5 +108,5 @@
     ]
   },
   "created_at": "2026-08-06T19:58:48.145Z",
-  "updated_at": "2026-08-06T21:14:35.403Z"
+  "updated_at": "2026-08-06T21:26:03.888Z"
 }
