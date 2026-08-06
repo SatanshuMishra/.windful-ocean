@@ -49,44 +49,51 @@
   "abandoned_reason": null,
   "closure_statement": null,
   "spine": {
-    "active_goal": "Implement c5: ship the paths-only inert predicate ratified in 0273, with receipts, its own coverage entry, and one PR.",
-    "next_step": "START c5 in a fresh session, implementing 0273. Add inert_when {paths} to registry entries; evaluate it in scripts/invariant-coverage-check.mjs against the diff it already computes; structurally reject inert_when on M3/M4/M5; have the checker write each inert row's check text naming the paths evaluated and the glob matched. Owed: red-before/green-after test, halt-on-unclassifiable test, an inertness mutation, loud failure when no base resolves. Then its own entry and one PR via pr-create.",
-    "last_session": "Ran c2 as a real five-arm experiment and ratified c4. Measured 76.3k fixed plus 2,298 per row (R2 0.995); retired wall-clock as unmeasurable after a replicate landed 2.7x apart. c3 settled as the premise of the c4 choice. Nothing was committed.",
+    "active_goal": "Land 0273's inert basis as one atomic change, but only after 0278's checker-enforced kind rule replaces hand-authored globs.",
+    "next_step": "START HERE FRESH. Read artifacts/2026-08-06-inert-glob-audit-BLOCK.md first. Then: (1) checker fixes - :357 use -z never trim, :362 pin core.quotePath=false, :304 no rewrite on any entry error, bar a universe glob; (2) implement 0278's kind rule with tests; (3) delete inert_when from G1-G5, narrow B1-B6, derived from the rule; (4) rewrite the 8 wrong coverage rows; (5) commit, --write, amend; (6) one PR. Re-run the lost security review first.",
+    "last_session": "Built and receipted the inert-basis evaluator, then review blocked the committed glob data on both tracks; recorded 0278 and shipped nothing.",
     "open_risks": [
       {
-        "text": "Keep the inert polarity negative, so the basis holds only when every changed path matches a declared glob — flip it to positive matching and the gate stops halting on the unclassifiable, which is the ratified rule evaded rather than satisfied",
+        "text": "Ship nothing from feat/invariant-inert-registry until the glob data is fixed — the committed set has two proven routes to a machine-written INERT verdict over a change that falsifies the invariant",
         "scope": "c5",
         "refs": [
-          "docs/superpowers/specs/2026-07-30-two-track-invariant-plan.md:117-125"
+          "369490f",
+          "artifacts/2026-08-06-inert-glob-audit-BLOCK.md"
         ]
       },
       {
-        "text": "Bar M3, M4 and M5 from carrying inert_when structurally rather than by convention — M4 forcing a look is the only thing that caught the OptionA truncation, and nothing in a solo repo would notice that catch quietly disappearing",
-        "scope": "c5",
-        "refs": [
-          "0273-adopt-paths-only-inert-predicate"
-        ]
-      },
-      {
-        "text": "Write the inert globs narrowly and expect no reviewer to catch a wide one — this is a solo repo, so an over-broad glob silently converts a real check into a proved-inert row",
-        "scope": "c5",
-        "refs": [
-          "docs/invariants/registry.json"
-        ]
-      },
-      {
-        "text": "An inert basis cannot be evaluated when no base commit resolves and must fail loudly there — that is a live behavior change from what 0264 shipped for push mode, so it needs a test rather than an argument",
-        "scope": "c5",
-        "refs": [
-          "scripts/invariant-coverage-check.mjs",
-          "0264-scope-set-equality-to-the-changed-coverage-entry"
-        ]
-      },
-      {
-        "text": "The checker is itself a gate, so the halt-on-unclassifiable, red-on-parent and deployed-artifact obligations all apply to changing it — a gate that exempts itself proves nothing",
+        "text": "The checker and the registry data must land as ONE commit range — inert_when data whose committed checker never reads it is a dormant basis a later pull request can lean on",
         "scope": "c5",
         "refs": [
           "scripts/invariant-coverage-check.mjs"
+        ]
+      },
+      {
+        "text": "The evaluator exists only as an uncommitted working tree and a saved patch — a branch switch or a reset by a concurrent session loses it",
+        "scope": "c5",
+        "refs": [
+          "artifacts/2026-08-06-c5-checker-mechanism.patch"
+        ]
+      },
+      {
+        "text": "The security review of the checker never reported — treat the gate as unreviewed for security until that pass is re-run",
+        "scope": "c5",
+        "refs": [
+          "scripts/invariant-coverage-check.mjs"
+        ]
+      },
+      {
+        "text": "A second session works this same repo and switched the shared checkout mid-session — check the branch and working tree before assuming either is where you left it",
+        "scope": "c5",
+        "refs": [
+          "feat/invariant-inert-registry"
+        ]
+      },
+      {
+        "text": "npm test carries one permanently red environmental failure that will mask a real regression — the global settings file is a real file, not a symlink into the repo, so the config-protection guard is inert",
+        "scope": "thread",
+        "refs": [
+          ".claude/hooks/tests/protect-claude-config.test.mjs:194"
         ]
       }
     ],
@@ -113,5 +120,5 @@
     ]
   },
   "created_at": "2026-08-06T19:58:48.145Z",
-  "updated_at": "2026-08-06T23:43:10.437Z"
+  "updated_at": "2026-08-06T23:44:09.251Z"
 }
