@@ -10,7 +10,7 @@
     {
       "id": "c1",
       "text": "Map the enforcement chain end to end and write it down: registry, coverage entry, checker modes, CI wiring, and exactly where the seventeen-row obligation is generated",
-      "done": false,
+      "done": true,
       "kind": "planned",
       "struck_by": null
     },
@@ -49,13 +49,53 @@
   "abandoned_reason": null,
   "closure_statement": null,
   "spine": {
-    "active_goal": "",
-    "next_step": "",
-    "last_session": "",
-    "open_risks": [],
+    "active_goal": "Decide whether the total-coverage obligation stays as ratified or becomes a machine-proved inert predicate, then ship that choice.",
+    "next_step": "START c2 in a FRESH session. Measure the cost rather than estimate it: time and token cost of one full seventeen-row entry on a low-risk change, and how it scales at 30 ids. Only then ratify or reject the inert-predicate shape in c4. Do NOT skip c2 into implementation - the recommendation currently rests on an estimate, and c2 is what would falsify it.",
+    "last_session": "Opened the thread, mapped the enforcement chain (c1 done), and drafted c3's answer: a registry-declared, CI-evaluated inert predicate - never a per-change declaration.",
+    "open_risks": [
+      {
+        "text": "The inert predicate must belong to the INVARIANT in registry.json, never to the change — a per-change declaration is the self-selected allowlist the ratified spec forbids, whatever it is named",
+        "scope": "c4",
+        "refs": [
+          "docs/superpowers/specs/2026-07-30-two-track-invariant-plan.md:121"
+        ]
+      },
+      {
+        "text": "The polarity must stay inert, so an unenumerated path FALSIFIES the basis and forces prose — flip it to positive matching and the gate stops halting on the unclassifiable, which is M2 evaded rather than satisfied",
+        "scope": "c4",
+        "refs": [
+          "docs/superpowers/specs/2026-07-30-two-track-invariant-plan.md:117-125"
+        ]
+      },
+      {
+        "text": "An inert basis cannot be evaluated when no base resolves and must then fail loudly — that is a live behavior change from what 0264 shipped for push mode, so it needs a test rather than an argument",
+        "scope": "c5",
+        "refs": [
+          "scripts/invariant-coverage-check.mjs",
+          "0264-scope-set-equality-to-the-changed-coverage-entry"
+        ]
+      },
+      {
+        "text": "The checker is itself a gate, so M2, M3 and M6 apply to any change to it — a halt-on-unclassifiable test, a red-on-parent acceptance test, and a deployed-artifact check are all owed",
+        "scope": "c5",
+        "refs": [
+          "scripts/invariant-coverage-check.mjs"
+        ]
+      },
+      {
+        "text": "An over-broad inert_when glob is the primary failure mode, and this is a solo repo where the author is the reviewer — do not rely on PR review to catch a glob that is too wide",
+        "scope": "c4",
+        "refs": [
+          "docs/invariants/registry.json"
+        ]
+      }
+    ],
     "key_decisions": [],
-    "out_of_scope": []
+    "out_of_scope": [
+      "Moving the verdict into the PR body - pr-create's flag set is closed and its values cap at 200 characters, which is why M1 puts the verdict in a committed artifact",
+      "Any resolution needing a second reviewer, a bot account, or org-level infrastructure - this is a solo owner-held repo"
+    ]
   },
   "created_at": "2026-08-06T19:58:48.145Z",
-  "updated_at": "2026-08-06T19:58:48.145Z"
+  "updated_at": "2026-08-06T20:03:16.283Z"
 }
