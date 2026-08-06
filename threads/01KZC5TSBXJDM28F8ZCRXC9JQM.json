@@ -56,9 +56,9 @@
   "abandoned_reason": null,
   "closure_statement": null,
   "spine": {
-    "active_goal": "Author two standalone SPECs: SPEC A for config staging/live promotion, then SPEC B for mitosis cost, codegen decomposition and stacked PRs. Neither inherits the 2026-07-30 document.",
-    "next_step": "Fresh session: resume superpowers:brainstorming at step 4 (propose approaches) for SPEC A ONLY. Read this thread's 2026-08-06T19-31 session event FIRST - it holds the engine map, stacked-PR research and config inventory; do NOT re-derive them. Then settle empirically, as the import question was settled, whether Claude Code resolves ~/.claude symlinks by realpath or as-is, since that decides whether an atomic pointer swap works. Present the design in sections for approval before writing SPEC A.",
-    "last_session": "Ran brainstorming steps 1-4: settled scope as two SPECs, settled the merge model, and refuted dynamic import in the Workflow runtime by direct measurement. No SPEC drafted.",
+    "active_goal": "Author SPEC A standalone: a staging/live config split whose promotion is atomic and whose sync is enforced rather than suggested.",
+    "next_step": "Resume superpowers:brainstorming at step 4. Three approaches were put to the user (A release dirs plus an atomic ln -sfn swap, RECOMMENDED; B git worktree per release; C converge in place); the pick is outstanding. Then step 5 design sections: the enforcement convergence check (SessionStart, Stop, mitosis Ship) and the settings.json two-way reconciliation. Read the 2026-08-06T20-05 session event first - it holds the probe measurements.",
+    "last_session": "Measured four facts about Claude Code 2.1.223 config symlink resolution, left the mid-session swap question auth-blocked, and proposed three promotion approaches; no pick made, no spec drafted.",
     "open_risks": [
       {
         "text": "Instrument per-dispatch context before trusting any collapse win — the 2026-07-30 plan counts dispatches and wall-clock only, so Decompose fusion, Ship 13-to-1, and per-MSP reviews would all score as wins even if cost rose.",
@@ -76,38 +76,26 @@
         "refs": []
       },
       {
-        "text": "Do not re-run the three investigations — the engine map, stacked-PR research and config inventory cost roughly 340k subagent tokens, their transcripts do not survive, and the 2026-08-06T19-31 session event is the only remaining copy.",
-        "scope": "c3",
-        "refs": [
-          "sessions/01KZC5TSBXJDM28F8ZCRXC9JQM/2026-08-06T19-31-27-588Z--claude.md"
-        ]
-      },
-      {
-        "text": "Telemetry must count tokens, not dispatches — no token or tool-call accounting exists in the engine today, and a dispatch-only instrument would score a phase collapse as a win even if token cost rose.",
-        "scope": "c3",
-        "refs": []
-      },
-      {
-        "text": "settings.json is a two-way surface — Claude Code writes it itself via permission prompts, model selection and plugin toggles, so a one-way staging-to-live promotion would silently clobber live edits.",
-        "scope": "c3",
-        "refs": []
-      },
-      {
-        "text": "Live settings.json has already diverged from the tracked copy — live permissions are broader than the repo's, so the repo does not currently describe what is actually enforced.",
+        "text": "settings.json cannot ride inside an immutable release — a symlinked settings.json is followed and written through, so the release is mutated in place and anything written while it is live is stranded there when the pointer swaps",
         "scope": "c3",
         "refs": [
           ".claude/settings.json"
         ]
       },
       {
-        "text": "parallel-plan-execution.js is dead code — its top-level dynamic imports cannot execute in the Workflow runtime, so any design routing work through it builds on a broken entry point.",
+        "text": "Only subtrees below the config root can be release-pointed — Claude Code writes .claude.json, backups/, projects/, sessions/ and plugins/ into whatever CLAUDE_CONFIG_DIR names, so the root itself is mutable state",
+        "scope": "c3",
+        "refs": []
+      },
+      {
+        "text": "Whether an ln -sfn swap reaches an already-running session is still unmeasured — headless claude cannot authenticate under a scratch config dir, so the promotion-timing contract rests on an untested assumption",
         "scope": "c3",
         "refs": [
-          "~/.claude/workflows/parallel-plan-execution.js"
+          "sessions/01KZC5TSBXJDM28F8ZCRXC9JQM/2026-08-06T20-05-54-286Z--claude.md"
         ]
       },
       {
-        "text": "Re-derive every line citation from the current tree — mitosis.js is 5,515 lines against the 2026-07-30 document's cited 4,851, phase parity appears landed, and mitosis-git.mjs moved to .claude/lib/git/pr.mjs.",
+        "text": "claude config set does not exist in 2.1.223 — a design step assuming a CLI verb writes settings.json must name a different writer, such as plugin marketplace add",
         "scope": "c3",
         "refs": []
       }
@@ -135,5 +123,5 @@
     ]
   },
   "created_at": "2026-08-06T18:37:07.324Z",
-  "updated_at": "2026-08-06T19:32:40.993Z"
+  "updated_at": "2026-08-06T20:06:26.104Z"
 }
