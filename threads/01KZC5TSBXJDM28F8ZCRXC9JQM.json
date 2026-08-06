@@ -56,9 +56,9 @@
   "abandoned_reason": null,
   "closure_statement": null,
   "spine": {
-    "active_goal": "Author SPEC A standalone: a staging/live config split whose promotion is atomic and whose sync is enforced rather than suggested.",
-    "next_step": "Resume superpowers:brainstorming at step 4. Three approaches were put to the user (A release dirs plus an atomic ln -sfn swap, RECOMMENDED; B git worktree per release; C converge in place); the pick is outstanding. Then step 5 design sections: the enforcement convergence check (SessionStart, Stop, mitosis Ship) and the settings.json two-way reconciliation. Read the 2026-08-06T20-05 session event first - it holds the probe measurements.",
-    "last_session": "Measured four facts about Claude Code 2.1.223 config symlink resolution, left the mid-session swap question auth-blocked, and proposed three promotion approaches; no pick made, no spec drafted.",
+    "active_goal": "Author SPEC A standalone from the approved design: a staging/live config split whose promotion is atomic and whose sync is enforced rather than suggested.",
+    "next_step": "Fresh session: author SPEC A from the approved design in the 2026-08-06T20-17 session event plus decisions 0269 and 0270. The design is APPROVED - do NOT re-brainstorm it. Write it standalone to docs/superpowers/specs/, run the brainstorming spec self-review, then hand it to the user for the c4 review gate. Settle the mid-session swap measurement only if implementation turns out to need it.",
+    "last_session": "Approved approach A, settled the SPEC A design across seven sections, and recorded decisions 0269 and 0270. No spec document written.",
     "open_risks": [
       {
         "text": "Instrument per-dispatch context before trusting any collapse win — the 2026-07-30 plan counts dispatches and wall-clock only, so Decompose fusion, Ship 13-to-1, and per-MSP reviews would all score as wins even if cost rose.",
@@ -83,14 +83,29 @@
         ]
       },
       {
-        "text": "settings.json is a two-way surface — Claude Code writes it itself via permission prompts, model selection and plugin toggles, so a one-way staging-to-live promotion would silently clobber live edits.",
+        "text": "The promote verb and the SessionStart hook must live outside releases/ — a bootstrap self-hosted in the thing it promotes means a bad release breaks the machinery that would roll it back, in every future session. This is the one way the design can brick the environment.",
+        "scope": "c3",
+        "refs": []
+      },
+      {
+        "text": "Promote only at SessionStart or between MSPs, never mid-MSP — immutable releases stop any single file being read half-old, but a running session can still hold one release's skill roster while reading another's bodies, and retention cannot fix that because reads route through the pointer.",
+        "scope": "c3",
+        "refs": []
+      },
+      {
+        "text": "The swap must be create-then-rename, not ln -sfn — ln -sfn unlinks then symlinks and leaves a window with no pointer, and the live permission set grants Bash(ln -sfn:*), so it currently encodes the wrong form.",
+        "scope": "c3",
+        "refs": []
+      },
+      {
+        "text": "Whether a pointer swap reaches an already-running session is still unmeasured — headless claude cannot authenticate under a scratch config dir, so the promotion-timing contract rests on an untested assumption.",
         "scope": "c3",
         "refs": [
-          ".claude/settings.json"
+          "sessions/01KZC5TSBXJDM28F8ZCRXC9JQM/2026-08-06T20-05-54-286Z--claude.md"
         ]
       },
       {
-        "text": "Live settings.json has already diverged from the tracked copy — live permissions are broader than the repo's, so the repo does not currently describe what is actually enforced.",
+        "text": "Only one settings.json writer was measured — if in-session /config edits or permission-grant persistence replace the file rather than write through it, the ownership manifest still holds but the file-identity assumption behind it needs re-checking.",
         "scope": "c3",
         "refs": [
           ".claude/settings.json"
@@ -102,30 +117,6 @@
         "refs": [
           "~/.claude/workflows/parallel-plan-execution.js"
         ]
-      },
-      {
-        "text": "settings.json cannot ride inside an immutable release — a symlinked settings.json is followed and written through, so the release is mutated in place and anything written while it is live is stranded there when the pointer swaps",
-        "scope": "c3",
-        "refs": [
-          ".claude/settings.json"
-        ]
-      },
-      {
-        "text": "Only subtrees below the config root can be release-pointed — Claude Code writes .claude.json, backups/, projects/, sessions/ and plugins/ into whatever CLAUDE_CONFIG_DIR names, so the root itself is mutable state",
-        "scope": "c3",
-        "refs": []
-      },
-      {
-        "text": "Whether an ln -sfn swap reaches an already-running session is still unmeasured — headless claude cannot authenticate under a scratch config dir, so the promotion-timing contract rests on an untested assumption",
-        "scope": "c3",
-        "refs": [
-          "sessions/01KZC5TSBXJDM28F8ZCRXC9JQM/2026-08-06T20-05-54-286Z--claude.md"
-        ]
-      },
-      {
-        "text": "claude config set does not exist in 2.1.223 — a design step assuming a CLI verb writes settings.json must name a different writer, such as plugin marketplace add",
-        "scope": "c3",
-        "refs": []
       }
     ],
     "key_decisions": [
@@ -161,5 +152,5 @@
     ]
   },
   "created_at": "2026-08-06T18:37:07.324Z",
-  "updated_at": "2026-08-06T20:16:55.495Z"
+  "updated_at": "2026-08-06T20:17:56.411Z"
 }
