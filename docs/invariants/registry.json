@@ -3,32 +3,104 @@
     {
       "id": "B1",
       "statement": "The sandbox realm's backing global is a fresh vm realm global (DONT_CONTEXTIFY), never a host-realm object; no identifier resolvable in the workflow body reaches a host-realm intrinsic or host prototype chain.",
-      "source": "docs/superpowers/specs/2026-07-30-two-track-invariant-plan.md"
+      "source": "docs/superpowers/specs/2026-07-30-two-track-invariant-plan.md",
+      "inert_when": {
+        "paths": [
+          ".claude/hooks/block-destructive-bash.sh",
+          ".claude/hooks/tests/block-destructive-bash.test.mjs",
+          ".claude/lib/git/pr.mjs",
+          ".claude/lib/git/pr-format.mjs",
+          ".claude/lib/git/tests/pr.test.mjs",
+          ".claude/lib/git/tests/pr-format.test.mjs",
+          "docs/security/bash-gate-threat-model.md",
+          "docs/invariants/coverage/*.json"
+        ]
+      }
     },
     {
       "id": "B2",
       "statement": "Every denial is observable as a tagged SandboxViolationError; no sandbox mechanism (proxy invariant, ownKeys filter, freeze/seal) raises an untagged host error a workflow could catch as its own.",
-      "source": "docs/superpowers/specs/2026-07-30-two-track-invariant-plan.md"
+      "source": "docs/superpowers/specs/2026-07-30-two-track-invariant-plan.md",
+      "inert_when": {
+        "paths": [
+          ".claude/hooks/block-destructive-bash.sh",
+          ".claude/hooks/tests/block-destructive-bash.test.mjs",
+          ".claude/lib/git/pr.mjs",
+          ".claude/lib/git/pr-format.mjs",
+          ".claude/lib/git/tests/pr.test.mjs",
+          ".claude/lib/git/tests/pr-format.test.mjs",
+          "docs/security/bash-gate-threat-model.md",
+          "docs/invariants/coverage/*.json"
+        ]
+      }
     },
     {
       "id": "B3",
       "statement": "A guarded intrinsic denies exactly its enumerated members and does not raise a sandbox violation on any non-denied member.",
-      "source": "docs/superpowers/specs/2026-07-30-two-track-invariant-plan.md"
+      "source": "docs/superpowers/specs/2026-07-30-two-track-invariant-plan.md",
+      "inert_when": {
+        "paths": [
+          ".claude/hooks/block-destructive-bash.sh",
+          ".claude/hooks/tests/block-destructive-bash.test.mjs",
+          ".claude/lib/git/pr.mjs",
+          ".claude/lib/git/pr-format.mjs",
+          ".claude/lib/git/tests/pr.test.mjs",
+          ".claude/lib/git/tests/pr-format.test.mjs",
+          "docs/security/bash-gate-threat-model.md",
+          "docs/invariants/coverage/*.json"
+        ]
+      }
     },
     {
       "id": "B4",
       "statement": "Every named policy constant (VALUE_GLOBALS, ALWAYS_DENIED, ALLOWED_GLOBALS) is load-bearing: emptying it turns at least one assertion red.",
-      "source": "docs/superpowers/specs/2026-07-30-two-track-invariant-plan.md"
+      "source": "docs/superpowers/specs/2026-07-30-two-track-invariant-plan.md",
+      "inert_when": {
+        "paths": [
+          ".claude/hooks/block-destructive-bash.sh",
+          ".claude/hooks/tests/block-destructive-bash.test.mjs",
+          ".claude/lib/git/pr.mjs",
+          ".claude/lib/git/pr-format.mjs",
+          ".claude/lib/git/tests/pr.test.mjs",
+          ".claude/lib/git/tests/pr-format.test.mjs",
+          "docs/security/bash-gate-threat-model.md",
+          "docs/invariants/coverage/*.json"
+        ]
+      }
     },
     {
       "id": "B5",
       "statement": "The test census of routes into the host is closed: every host-reachable bare identifier and every free identifier the engine source uses in the workflow-body position has an assertion row classifying it allow/deny/value; an unclassified identifier halts.",
-      "source": "docs/superpowers/specs/2026-07-30-two-track-invariant-plan.md"
+      "source": "docs/superpowers/specs/2026-07-30-two-track-invariant-plan.md",
+      "inert_when": {
+        "paths": [
+          ".claude/hooks/block-destructive-bash.sh",
+          ".claude/hooks/tests/block-destructive-bash.test.mjs",
+          ".claude/lib/git/pr.mjs",
+          ".claude/lib/git/pr-format.mjs",
+          ".claude/lib/git/tests/pr.test.mjs",
+          ".claude/lib/git/tests/pr-format.test.mjs",
+          "docs/security/bash-gate-threat-model.md",
+          "docs/invariants/coverage/*.json"
+        ]
+      }
     },
     {
       "id": "B6",
       "statement": "The harness has at least one real production caller and its liveness is proven by that caller, not by self-referential lint artifacts.",
-      "source": "docs/superpowers/specs/2026-07-30-two-track-invariant-plan.md"
+      "source": "docs/superpowers/specs/2026-07-30-two-track-invariant-plan.md",
+      "inert_when": {
+        "paths": [
+          ".claude/hooks/block-destructive-bash.sh",
+          ".claude/hooks/tests/block-destructive-bash.test.mjs",
+          ".claude/lib/git/pr.mjs",
+          ".claude/lib/git/pr-format.mjs",
+          ".claude/lib/git/tests/pr.test.mjs",
+          ".claude/lib/git/tests/pr-format.test.mjs",
+          "docs/security/bash-gate-threat-model.md",
+          "docs/invariants/coverage/*.json"
+        ]
+      }
     },
     {
       "id": "M1",
@@ -63,27 +135,77 @@
     {
       "id": "G1",
       "statement": "No pull request in this environment is merged by an agent-issued command; `gh pr merge`, the `gh api .../pulls/<n>/merge` REST call, and the `mergePullRequest` / `enablePullRequestAutomerge` / `enqueuePullRequest` GraphQL mutations are all denied.",
-      "source": "docs/security/bash-gate-threat-model.md"
+      "source": "docs/security/bash-gate-threat-model.md",
+      "inert_when": {
+        "paths": [
+          ".claude/lib/superpowers-parallel/workflow-sandbox.mjs",
+          ".claude/lib/superpowers-parallel/tests/workflow-sandbox.test.mjs",
+          ".claude/lib/superpowers-parallel/tests/workflow-sandbox-census.test.mjs",
+          ".claude/lib/superpowers-parallel/tests/workflow-sandbox-policy.test.mjs",
+          ".claude/lib/superpowers-parallel/tests/workflow-sandbox-traps.test.mjs",
+          "docs/invariants/coverage/*.json"
+        ]
+      }
     },
     {
       "id": "G2",
       "statement": "A pull request's title and body, once composed by the centralized `pr-create` tool, are never rewritten afterward through Bash or the GitHub MCP tool.",
-      "source": "docs/security/bash-gate-threat-model.md"
+      "source": "docs/security/bash-gate-threat-model.md",
+      "inert_when": {
+        "paths": [
+          ".claude/lib/superpowers-parallel/workflow-sandbox.mjs",
+          ".claude/lib/superpowers-parallel/tests/workflow-sandbox.test.mjs",
+          ".claude/lib/superpowers-parallel/tests/workflow-sandbox-census.test.mjs",
+          ".claude/lib/superpowers-parallel/tests/workflow-sandbox-policy.test.mjs",
+          ".claude/lib/superpowers-parallel/tests/workflow-sandbox-traps.test.mjs",
+          "docs/invariants/coverage/*.json"
+        ]
+      }
     },
     {
       "id": "G3",
       "statement": "Every pull request in this environment is created by the one centralized `pr-create` tool, never by ad-hoc `gh pr create`, raw `gh api` POSTs to the pulls endpoint, or the GitHub MCP `create_pull_request` tool.",
-      "source": "docs/security/bash-gate-threat-model.md"
+      "source": "docs/security/bash-gate-threat-model.md",
+      "inert_when": {
+        "paths": [
+          ".claude/lib/superpowers-parallel/workflow-sandbox.mjs",
+          ".claude/lib/superpowers-parallel/tests/workflow-sandbox.test.mjs",
+          ".claude/lib/superpowers-parallel/tests/workflow-sandbox-census.test.mjs",
+          ".claude/lib/superpowers-parallel/tests/workflow-sandbox-policy.test.mjs",
+          ".claude/lib/superpowers-parallel/tests/workflow-sandbox-traps.test.mjs",
+          "docs/invariants/coverage/*.json"
+        ]
+      }
     },
     {
       "id": "G4",
       "statement": "No agent-issued command removes, overwrites, or relocates a Claude Code guardrail file (a hook, rule, or settings file) without the action being blocked or made deliberately harder.",
-      "source": "docs/security/bash-gate-threat-model.md"
+      "source": "docs/security/bash-gate-threat-model.md",
+      "inert_when": {
+        "paths": [
+          ".claude/lib/superpowers-parallel/workflow-sandbox.mjs",
+          ".claude/lib/superpowers-parallel/tests/workflow-sandbox.test.mjs",
+          ".claude/lib/superpowers-parallel/tests/workflow-sandbox-census.test.mjs",
+          ".claude/lib/superpowers-parallel/tests/workflow-sandbox-policy.test.mjs",
+          ".claude/lib/superpowers-parallel/tests/workflow-sandbox-traps.test.mjs",
+          "docs/invariants/coverage/*.json"
+        ]
+      }
     },
     {
       "id": "G5",
       "statement": "No named network command carries a file-reference-shaped argument pointing at a credential or guardrail-adjacent path without the action escalating to human review; an unrecognized command shape escalates to `ask` rather than passing silently.",
-      "source": "docs/security/bash-gate-threat-model.md"
+      "source": "docs/security/bash-gate-threat-model.md",
+      "inert_when": {
+        "paths": [
+          ".claude/lib/superpowers-parallel/workflow-sandbox.mjs",
+          ".claude/lib/superpowers-parallel/tests/workflow-sandbox.test.mjs",
+          ".claude/lib/superpowers-parallel/tests/workflow-sandbox-census.test.mjs",
+          ".claude/lib/superpowers-parallel/tests/workflow-sandbox-policy.test.mjs",
+          ".claude/lib/superpowers-parallel/tests/workflow-sandbox-traps.test.mjs",
+          "docs/invariants/coverage/*.json"
+        ]
+      }
     }
   ]
 }

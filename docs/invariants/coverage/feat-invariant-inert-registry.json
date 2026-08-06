@@ -1,0 +1,89 @@
+{
+  "rows": [
+    {
+      "id": "B1",
+      "verdict": "not-threatened",
+      "check": "This change is exactly two tracked paths: docs/invariants/registry.json and this coverage entry. No file that constructs the sandbox realm is in the diff, and a content grep of the whole range for `node:vm|createContext|runInContext|DONT_CONTEXTIFY` returns 0 matches, so no realm or backing global is constructed or reconfigured. B1 is nevertheless genuinely engaged in a second sense, because this change declares the path set under which B1 may in future be answered by machine instead of prose, so I verified that set rather than asserting it. B1's declared inert set is the bash-gate/PR-tooling subject plus the coverage record: block-destructive-bash.sh, its test, pr.mjs, pr-format.mjs, their two tests, docs/security/bash-gate-threat-model.md, and docs/invariants/coverage/*.json. I grepped all seven named files for `node:vm|createContext|runInContext|DONT_CONTEXTIFY|SandboxViolationError|workflow-sandbox|mitosis-gate|VALUE_GLOBALS|ALWAYS_DENIED|ALLOWED_GLOBALS` and every one returned 0. None of them imports the sandbox. The set deliberately excludes workflow-sandbox.mjs, mitosis-gate.mjs, workflows/mitosis.js and package.json, so a change to the realm, to its production caller, to the engine source the census reads, or to the npm test globs can never be dismissed as inert."
+    },
+    {
+      "id": "B2",
+      "verdict": "not-threatened",
+      "check": "The diff carries 0 occurrences of SandboxViolationError or SANDBOX_VIOLATION; no proxy invariant, ownKeys filter, freeze or seal is touched, so no denial path changes shape and no tagged violation can degrade into an untagged host error. On the forward-looking half: B2's inert set is the same seven-glob set verified under B1, none of whose members contains a throw site on any sandbox path — pr.mjs and pr-format.mjs are a CLI spawned as its own process and are never evaluated inside the realm, and block-destructive-bash.sh is a shell hook outside the Node process entirely. Declaring them inert for B2 therefore cannot hide a new untagged throw."
+    },
+    {
+      "id": "B3",
+      "verdict": "not-threatened",
+      "check": "Guarded-intrinsic membership is declared entirely inside workflow-sandbox.mjs, which is not in this two-path diff, and the three suites that exercise denial membership (workflow-sandbox-policy, workflow-sandbox-traps, workflow-sandbox) are untouched. Collection is unchanged because package.json is not in the diff; the test script still reads `node --test .claude/lib/superpowers-parallel/tests/*.test.mjs .claude/lib/git/tests/*.test.mjs .claude/hooks/tests/*.test.mjs .claude/skills/impeccable/tests/*.test.mjs`, whose first glob still collects all four workflow-sandbox suites. For the inert set: package.json is deliberately NOT a member of any glob set I declared, precisely so that a de-collection edit can never be recorded as inert for B3."
+    },
+    {
+      "id": "B4",
+      "verdict": "not-threatened",
+      "check": "VALUE_GLOBALS, ALWAYS_DENIED and ALLOWED_GLOBALS are declared in workflow-sandbox.mjs, absent from the diff; no line of the diff mentions any of the three names. Their load-bearing proof lives in workflow-sandbox-policy.test.mjs, also untouched and still collected. The inert set declared for B4 contains no file in which a policy constant is defined or asserted, verified by the 0-match grep recorded under B1, so an emptied policy constant cannot ride in under an inert basis."
+    },
+    {
+      "id": "B5",
+      "verdict": "not-threatened",
+      "check": "Proven by negative control, not by reading. workflow-sandbox-census.test.mjs is not in the diff, so no census row is added, removed or reclassified. B5 is the invariant most exposed to a too-wide glob, because the census reads two sources and a change to either could introduce an unclassified identifier: SANDBOX_MODULE_PATH at workflow-sandbox-census.test.mjs:6 (../workflow-sandbox.mjs) and ENGINE_SOURCE_PATH at workflow-sandbox-census.test.mjs:7 (../../../workflows/mitosis.js). Neither is in B5's inert set. I confirmed that by running the checker in a throwaway git repo: a commit touching only workflows/mitosis.js plus a coverage entry claiming an inert basis for B1-B6 was REJECTED with 'row for B5 declares an inert basis, but 1 changed path(s) match no glob docs/invariants/registry.json declares for B5: workflows/mitosis.js'. The same rejection occurred for a commit touching workflow-sandbox.mjs. The census therefore still halts on the unclassifiable and no path set I declared can bypass it. The throwaway repo was deleted afterwards."
+    },
+    {
+      "id": "B6",
+      "verdict": "not-threatened",
+      "check": "The real production caller is intact and re-derived in the live tree today: mitosis-gate.mjs:1 is `import { compileWorkflow } from './workflow-sandbox.mjs';`. mitosis-gate.mjs is not in this diff, and this change adds no lint artifact and removes no obligation, so sandbox liveness still rests on a genuine production caller. mitosis-gate.mjs is deliberately excluded from B6's inert set, so a change deleting the sole production caller can never be recorded as inert for B6 and must still be answered in prose."
+    },
+    {
+      "id": "M1",
+      "verdict": "not-threatened",
+      "check": "Satisfied by this artifact, and strengthened rather than weakened by the change. This file records a verdict for all 17 registry ids (B1-B6, M1-M6, G1-G5) and is committed to the repository rather than argued in the pull-request body. The change introduces a second admissible verdict form, a machine-proved inert basis, but it does not make any id optional: scripts/invariant-coverage-check.mjs still enforces set-equality against the full registry for every coverage entry in the diff scope, and an inert row must still carry an id, a check and a not-threatened verdict. This entry itself uses prose for all 17 ids and claims no inert basis anywhere, because the diff touches docs/invariants/registry.json, which I deliberately left out of every glob set."
+    },
+    {
+      "id": "M2",
+      "verdict": "not-threatened",
+      "check": "Genuinely engaged and proven by mutation. This change adds a path-classifying allowlist to a gate, which is exactly the shape M2 polices, so the question is whether it is a closed census that halts on the unclassifiable or a sampled allowlist acting as a change-detector. It is the former, and it fails CLOSED: in scripts/invariant-coverage-check.mjs the proof requires EVERY changed path to match a declared glob, and any path matching none is reported by name and turns the run red. The allowlist can therefore only ever shrink what qualifies as inert; it can never let an unclassified path pass silently. I verified this with three negative controls in a throwaway git repo, each of which was correctly REJECTED: touching workflow-sandbox.mjs while claiming inert for B1-B6, touching workflows/mitosis.js while claiming inert for B1-B6, and touching block-destructive-bash.sh while claiming inert for G1-G5. No pinned count is introduced; the glob sets are literal path enumerations, not sampled counts."
+    },
+    {
+      "id": "M3",
+      "verdict": "not-threatened",
+      "check": "The red/green pair was RUN, not asserted, in a throwaway git repo seeded with this registry. RED: with the glob sets as first written, a realistic change confined to a safe path could NOT prove an inert basis, because every pull request must add or modify a file under docs/invariants/coverage/ and that file is itself a changed path; the checker rejected all six rows with 'row for B1 declares an inert basis, but 1 changed path(s) match no glob ... : docs/invariants/coverage/probe.json'. That was a real defect in my data, found by running it rather than by reading it. GREEN: after adding docs/invariants/coverage/*.json to each glob set, the identical probe passed and the checker derived its own check text beginning 'INERT: no changed path can reach B1.' The inertness mutations are the three negative controls recorded under M2: each touches a path deliberately left out of the glob set and each turns the assertion red, so the globs are load-bearing and not vacuously wide. The throwaway repo was deleted and no probe artifact remains in this repository."
+    },
+    {
+      "id": "M4",
+      "verdict": "not-threatened",
+      "check": "No structural refactor shares this reviewable range. The change is purely additive data in one file plus one new file: 11 of the 17 registry entries gain an inert_when key, and nothing is renamed, moved, extracted or re-sequenced. I proved the additive claim programmatically rather than by eyeballing the diff: parsing the registry from main and from this branch and comparing the projection of id, statement and source across all 17 entries reports IDENTICAL. The only lines the diff shows as removed are the 11 source lines that gained a trailing comma to admit the new key. No checker semantics were touched, so no characterization test is owed."
+    },
+    {
+      "id": "M5",
+      "verdict": "not-threatened",
+      "check": "Every path:line citation in this file was re-derived against the live tree at write time, none copied: mitosis-gate.mjs:1 is the compileWorkflow import; workflow-sandbox-census.test.mjs:6 and :7 are SANDBOX_MODULE_PATH and ENGINE_SOURCE_PATH; .github/workflows/test.yml:32 is `- run: node scripts/invariant-coverage-check.mjs`; mitosis-gate.test.mjs:29 is the `} from '../../git/pr.mjs';` import. Every glob string I wrote into the registry was checked against `git ls-files` and resolves to a tracked file, and the two source fields cited by the registry, docs/superpowers/specs/2026-07-30-two-track-invariant-plan.md and docs/security/bash-gate-threat-model.md, were both confirmed tracked with `git ls-files --error-unmatch`. One honest qualification I will not gloss: the constants that define this schema (INERT_BARRED_IDS at scripts/invariant-coverage-check.mjs:24, INERT_WHEN_FIELD at :22, INERT_PATHS_FIELD at :23, INERT_BASIS at :21) are present in the WORKING TREE only and are not committed at this SHA. Those line numbers are true of the tree I read and false of a clean checkout of this branch."
+    },
+    {
+      "id": "M6",
+      "verdict": "not-threatened",
+      "check": "The enforcing artifact was inspected, not assumed. The artifact that enforces this gate is scripts/invariant-coverage-check.mjs, and CI runs it straight from the committed repository at .github/workflows/test.yml:32 (`- run: node scripts/invariant-coverage-check.mjs`), so the enforcing artifact is by construction the committed source at its recorded SHA and there is no separate build to refresh. The data this change adds has no deployed instance at all: I checked for a copy of the registry outside the repository and ~/.claude/docs/invariants/registry.json does not exist, so a hand-patched deployed registry is structurally impossible. The qualification recorded under M5 applies here too and is the honest limit of this row: the checker revision that CONSUMES inert_when is not committed at this SHA, so at merge the registry data is inert in the literal sense, read and shape-validated but never acted upon, until that checker lands."
+    },
+    {
+      "id": "G1",
+      "verdict": "not-threatened",
+      "check": "No agent-issued merge command is added, and no denial is removed: neither .claude/settings.json nor .claude/hooks/block-destructive-bash.sh is in this two-path diff, and the diff contains 0 occurrences of `gh pr merge`, mergePullRequest, enablePullRequestAutomerge or enqueuePullRequest. G1 is genuinely engaged in the forward-looking sense, because this change defines the path set under which G1 may in future be answered without prose, so I verified that set. G1's inert set is workflow-sandbox.mjs plus its four test suites plus docs/invariants/coverage/*.json. I grepped all five named files for `gh |mergePullRequest|enablePullRequestAutomerge|create_pull_request|pr-create|pr.mjs|block-destructive|spawnSync|execFileSync|child_process` and every one returned 0, so none of them can spawn a process at all, let alone gh. That 0-spawn result is what makes the set sound: the bash gate intercepts the Bash tool, not arbitrary child processes of Node scripts, so a file that cannot spawn cannot bypass it."
+    },
+    {
+      "id": "G2",
+      "verdict": "not-threatened",
+      "check": "No title or body rewrite path is touched: pr.mjs and pr-format.mjs are absent from the diff, and the diff contains no `gh pr edit`, no PATCH to a pulls endpoint and no update_pull_request reference. For the inert set, the same five sandbox files verified under G1 apply; none imports or invokes the pr-create tool and none can spawn a process, so declaring them inert for G2 cannot conceal a post-creation rewrite. The tooling that composes and freezes a PR title and body is deliberately excluded from every G glob set."
+    },
+    {
+      "id": "G3",
+      "verdict": "not-threatened",
+      "check": "This change creates no pull request and adds no PR-creation path; the centralized tool is untouched, and per the task instruction the pull request for this branch is opened by the orchestrator through node .claude/lib/git/pr.mjs pr-create rather than by me. The inert set for G3 excludes pr.mjs, pr-format.mjs, their tests, block-destructive-bash.sh and .claude/settings.json, so an ad-hoc creation path added to any of those must still be answered in prose. I confirmed the exclusion is real by negative control: a commit touching block-destructive-bash.sh while claiming an inert basis for G1-G5 was REJECTED by the checker with 'row for G3 declares an inert basis, but 1 changed path(s) match no glob docs/invariants/registry.json declares for G3'."
+    },
+    {
+      "id": "G4",
+      "verdict": "not-threatened",
+      "check": "No guardrail file is removed, overwritten or relocated by this change; it adds one file under docs/invariants/coverage/ and edits docs/invariants/registry.json, and no hook, rule or settings file is in the diff. I can report the gate is live rather than merely present, because it blocked me during this work: two attempts to seed a throwaway test repo with a shell redirect writing to a .claude/lib/git/pr.mjs path were denied by the bash gate, and I completed the setup through a node script instead. The inert set for G4 contains no hook, rule or settings file, so a guardrail deletion can never be recorded as inert."
+    },
+    {
+      "id": "G5",
+      "verdict": "not-threatened",
+      "check": "This change issues no network command and adds no file-reference-shaped argument; the diff is two JSON documents under docs/invariants/ and contains no curl, wget, scp or gh invocation. The escalation logic lives in block-destructive-bash.sh, which is excluded from every G glob set and was shown by negative control to turn an inert claim red. The five files in G5's inert set were verified to contain 0 occurrences of spawnSync, execFileSync or child_process, so none of them can issue a named network command under any edit that stays confined to that set."
+    }
+  ]
+}
