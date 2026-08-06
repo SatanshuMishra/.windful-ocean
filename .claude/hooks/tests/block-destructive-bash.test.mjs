@@ -79,6 +79,28 @@ for (const command of mergeDenyCommands) {
   });
 }
 
+const g1FlaggedMergeDenyCommands = [
+  'gh -R owner/repo pr merge 12',
+  'gh --repo owner/repo pr merge 12',
+  'gh -Rowner/repo pr merge --admin --squash',
+  'gh -Rowner/repo pr merge 12',
+  'gh --repo=owner/repo pr merge --admin',
+  'gh -X PUT api repos/owner/repo/pulls/12/merge',
+  'gh --hostname github.com api -X PUT repos/owner/repo/pulls/12/merge',
+  "gh api /graphql -f query='mutation { mergePullRequest(input: {pullRequestId: \"x\"}) { clientMutationId } }'",
+  "gh api graphql -f query='mutation { enqueuePullRequest(input: {pullRequestId: \"x\"}) { clientMutationId } }'",
+  "gh api /graphql -f query='mutation { enqueuePullRequest(input: {pullRequestId: \"x\"}) { clientMutationId } }'",
+];
+
+for (const command of g1FlaggedMergeDenyCommands) {
+  test(`G1: denies a merge form that flags the gh subcommand: ${command}`, () => {
+    const r = runHook(command);
+    assert.equal(r.status, 0);
+    assert.equal(decisionOf(r), 'deny');
+    assert.equal(reasonOf(r), MERGE_DENY_REASON);
+  });
+}
+
 const creationDenyCommands = [
   'gh pr create --head x --base y',
   'gh pr create --fill',
@@ -117,6 +139,38 @@ for (const command of creationDenyCommands) {
     assert.equal(r.status, 0);
     assert.equal(decisionOf(r), 'deny');
     assert.equal(reasonOf(r), CREATION_DENY_REASON);
+  });
+}
+
+const g3FlaggedCreationDenyCommands = [
+  'gh -R owner/repo pr create --fill',
+  'gh -R owner/repo pr edit 5 --title x',
+];
+
+for (const command of g3FlaggedCreationDenyCommands) {
+  test(`G2/G3: denies a pull-request creation or edit form that flags the gh subcommand: ${command}`, () => {
+    const r = runHook(command);
+    assert.equal(r.status, 0);
+    assert.equal(decisionOf(r), 'deny');
+    assert.equal(reasonOf(r), CREATION_DENY_REASON);
+  });
+}
+
+const g1NoOpinionCommands = [
+  'gh -R owner/repo pr list',
+  'gh -R owner/repo pr view 12',
+  'gh --repo owner/repo pr checks 12',
+  'gh api repos/owner/repo/pulls/12',
+  'gh pr list --json number -q .[].number',
+  'gh workflow run ci.yml -R owner/repo',
+  'gh pr ready 5 -R owner/repo',
+];
+
+for (const command of g1NoOpinionCommands) {
+  test(`G1/G3: holds no opinion on a read-only gh form carrying a pre-subcommand flag: ${command}`, () => {
+    const r = runHook(command);
+    assert.equal(r.status, 0);
+    assert.equal(r.stdout, '');
   });
 }
 
@@ -295,8 +349,11 @@ for (const command of g4NoOpinionCommands) {
 
 const everyCommand = [
   ...mergeDenyCommands,
+  ...g1FlaggedMergeDenyCommands,
   ...creationDenyCommands,
+  ...g3FlaggedCreationDenyCommands,
   ...allowCommands,
+  ...g1NoOpinionCommands,
   ...askCommands.map(([command]) => command),
   ...guardrailWriteCommands,
   ...g4GuardrailWriteCommands,

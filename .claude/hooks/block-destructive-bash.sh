@@ -130,9 +130,10 @@ classify() {
   local gitopt_cs='(-C[[:space:]]+[^[:space:]]+|-c[[:space:]]+[^[:space:]]+|--git-dir[=[:space:]][^[:space:]]+|--work-tree[=[:space:]][^[:space:]]+|--namespace[[:space:]]+[^[:space:]]+|--no-pager|--paginate|-p|--bare|--literal-pathspecs|--no-optional-locks)'
   local gitpre_cs="(^|[^a-zA-Z])git([[:space:]]+${gitopt_cs})*[[:space:]]+"
 
-  local ghtok='(^|[^[:alnum:]_.-])([[:alnum:]_./-]*/)?gh[[:space:]]+'
+  local ghopt='(-[a-z][[:space:]]*[^[:space:]]+|--[a-z-]+[[:space:]=][^[:space:]]+)'
+  local ghtok="(^|[^[:alnum:]_.-])([[:alnum:]_./-]*/)?gh([[:space:]]+${ghopt})*[[:space:]]+"
   local ghapi="${ghtok}api([[:space:]]|$)"
-  local graphql='(^|[[:space:]])graphql([[:space:]]|$)'
+  local graphql='(^|[[:space:]])/?graphql([[:space:]]|$)'
   local pullsep='repos/[^/[:space:]]+/[^/[:space:]]+/pulls/?([^/[:alnum:]]|$)'
   local pullnum='repos/[^/[:space:]]+/[^/[:space:]]+/pulls/[0-9]+([^/[:alnum:]]|$)'
   local postish='(--method[[:space:]=]+post|-x[[:space:]]*post|(^|[[:space:]])-f[[:space:]=]|--field[[:space:]=]|--raw-field[[:space:]=]|(^|[[:space:]])--input[[:space:]=])'
@@ -150,7 +151,7 @@ classify() {
 
   if has "${ghtok}pr[[:space:]]+merge([[:space:]]|$)" \
     || { has "$ghapi" && has 'pulls/[^/[:space:]]+/merge([^[:alnum:]]|$)'; } \
-    || { has "$ghapi" && has "$graphql" && has '(mergepullrequest|enablepullrequestautomerge)'; }; then
+    || { has "$ghapi" && has "$graphql" && has '(mergepullrequest|enablepullrequestautomerge|enqueuepullrequest)'; }; then
     set_deny "merging a PR is human-gated: mitosis never merges PRs (gh pr merge and the gh api pulls/*/merge REST endpoint are both blocked); a human merges via the PR after review"
     return 0
   fi
