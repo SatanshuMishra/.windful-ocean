@@ -38,7 +38,7 @@
     {
       "id": "c5",
       "text": "G2 and G3: small denylists over the closed enumerable surfaces - gh pr edit, gh api PATCH on pulls, the two GraphQL mutations, MCP update_pull_request, and the PR-create equivalents",
-      "done": false,
+      "done": true,
       "kind": "planned",
       "struck_by": null
     },
@@ -63,9 +63,9 @@
   "abandoned_reason": null,
   "closure_statement": null,
   "spine": {
-    "active_goal": "Rebuild the bash gate as five per-action controls against the ratified threat model; c5, c6 and c7 remain.",
-    "next_step": "c5, G2 and G3. Verification-first now: 3f16c18 already closed the flagged-subcommand bypass for gh pr create and gh pr edit, so probe the G2/G3 surface the way c4 probed G1 - gh pr edit --title/--body, gh api PATCH on pulls, the two GraphQL mutations, MCP update_pull_request, the pr-create equivalents - then close only what the probe finds open. Fix accepted risk 4 here: the unanchored substring search denies commands that merely quote a phrasing.",
-    "last_session": "Shipped c4 in four commits (725db81, bd9cbef, 3f16c18, 0640017): five G4 holes closed, and an empirical probe proved G1 open and closed the gh-adjacency bypass that also defeated G2 and G3. Suite 160 pass / 0 fail, verified directly.",
+    "active_goal": "Close G5 exfiltration in c6, then ship the rebuilt gate in c7.",
+    "next_step": "c6, G5 exfiltration. Probe first, the way c4 and c5 did: measure which file-reference shapes (@file, -d @file, --data-binary @file, -F k=@file) reach a credential or guardrail path through curl, wget, gh api and python3 urllib today, then build the narrow parser over named network commands and close only what the probe finds open. Anything unrecognized carrying a file-reference flag must fail to ask, never to allow, or it fails Definition of done item 2. Free lines before starting.",
+    "last_session": "Shipped c5 in 7005e69 and 5386829: closed the one open G2 hole (the updatePullRequest mutation), fixed accepted risk 4 with per-segment command-position deny matching, and closed accepted risk 1 as a side effect. 181/181 gate tests, verified directly.",
     "open_risks": [
       {
         "text": "Do NOT add pipefail to the bash gate — grep -q exits early on a match and SIGPIPEs the printf feeding it, which under pipefail reads as a matcher error and quietly downgrades a deny to an ask on large commands",
@@ -132,8 +132,30 @@
         ]
       },
       {
-        "text": "Apply no chflags uchg flag before c7 — c5 and c6 both edit the gate file, and an immutable flag also makes git checkout and git pull fail on those paths; the gate that notices the flag being cleared already shipped in c4",
-        "scope": "c5",
+        "text": "Free lines in the gate before adding G5 — it now sits at 247 lines against the 250-line ceiling its own scope note sets, and c6 adds a parser to it",
+        "scope": "c6",
+        "refs": [
+          ".claude/hooks/block-destructive-bash.sh",
+          ".claude/hooks/CLAUDE.md"
+        ]
+      },
+      {
+        "text": "Delete or re-derive the pr-create self-exemption in whichever criterion next edits that deny block — it is inert today, but a future clause not keyed to the gh token would be silently exempted for any command starting with the wrapper",
+        "scope": "c6",
+        "refs": [
+          "docs/security/bash-gate-threat-model.md section 6 row 12"
+        ]
+      },
+      {
+        "text": "Do not anchor the ask-family matchers to command position — 0259 scoped anchoring to deny verdicts deliberately, and widening it would trade one confirmation prompt for destructive commands missed in silence",
+        "scope": "c6",
+        "refs": [
+          "0259-deny-requires-command-position-ask-stays-unanchored"
+        ]
+      },
+      {
+        "text": "Apply no chflags uchg flag before c7 — c6 still edits the gate file, and an immutable flag also makes git checkout and git pull fail on those paths",
+        "scope": "c6",
         "refs": [
           "docs/security/bash-gate-threat-model.md section 4 G4",
           "725db81"
@@ -141,17 +163,10 @@
       },
       {
         "text": "Re-probe the boolean-flag premise after any gh upgrade — gh --paginate api pulls/N/merge is left open only because gh itself rejects a boolean flag before the subcommand, which was verified against gh 2.97.0 and nothing later",
-        "scope": "c5",
+        "scope": "c6",
         "refs": [
           "3f16c18",
           "0257-widen-ghtok-generically-rather-than-enumerating-gh-flags"
-        ]
-      },
-      {
-        "text": "Write any commit message quoting a merge or pull-request phrasing to a file and pass git commit -F that file — a heredoc carrying one trips the gate's own deny, which is exactly the false positive c5 fixes",
-        "scope": "c5",
-        "refs": [
-          "docs/security/bash-gate-threat-model.md section 6 row 4"
         ]
       }
     ],
@@ -223,5 +238,5 @@
     ]
   },
   "created_at": "2026-08-05T15:24:11.663Z",
-  "updated_at": "2026-08-06T14:07:19.124Z"
+  "updated_at": "2026-08-06T15:10:13.349Z"
 }
