@@ -131,6 +131,11 @@
         "ref": "0275-workflow-fanout-boundary-is-live-linked-writes",
         "title": "The workflow fan-out boundary is any write to a live-linked path, not the cutover alone",
         "scope": "thread"
+      },
+      {
+        "ref": "0276-notes-are-live-only-and-flagged-plans-are-scrubbed-at-source",
+        "title": "The coverage gap closes by scrubbing three plans at source and reclassifying notes/ as live-only",
+        "scope": "c1"
       }
     ],
     "out_of_scope": [
@@ -139,5 +144,5 @@
     ]
   },
   "created_at": "2026-08-06T21:18:29.653Z",
-  "updated_at": "2026-08-06T21:28:36.676Z"
+  "updated_at": "2026-08-06T21:48:11.902Z"
 }
