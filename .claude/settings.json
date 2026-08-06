@@ -17,8 +17,13 @@
       "Bash(git checkout:*)",
       "Bash(git add:*)",
       "Bash(git commit:*)",
-      "Bash(ln -sfn:*)",
-      "Bash(node:*)",
+      "Bash(node --test:*)",
+      "Bash(node --version)",
+      "Bash(node .claude/:*)",
+      "Bash(node ./.claude/:*)",
+      "Bash(node \"$HOME\"/.claude/:*)",
+      "Bash(node $HOME/.claude/:*)",
+      "Bash(node ~/.claude/:*)",
       "Bash(npx tsc:*)",
       "Bash(jq:*)",
       "Bash(mkdir:*)",
@@ -84,7 +89,7 @@
       "Read(~/Library/Keychains/**)"
     ]
   },
-  "model": "claude-opus-5[1m]",
+  "model": "claude-fable-5[1m]",
   "hooks": {
     "Stop": [
       {
@@ -324,7 +329,8 @@
     "visual-explainer@visual-explainer-marketplace": true,
     "receipts@receipts": true,
     "warp@claude-code-warp": true,
-    "session-continuity@continuity-ledger": true
+    "logbook@continuity-ledger": true,
+    "logbook@logbook": true
   },
   "extraKnownMarketplaces": {
     "claude-code-lsps": {
@@ -359,7 +365,7 @@
     }
   },
   "alwaysThinkingEnabled": true,
-  "effortLevel": "xhigh",
+  "effortLevel": "high",
   "tui": "default",
   "autoMemoryEnabled": true,
   "skipWorkflowUsageWarning": true,
