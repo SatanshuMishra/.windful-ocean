@@ -138,6 +138,11 @@
         "ref": "0271-author-spec-b-next-implement-spec-a-first",
         "title": "SPEC B is authored next in a fresh session, SPEC A is implemented before SPEC B, and SPEC B leads with the cost instrument",
         "scope": "c5"
+      },
+      {
+        "ref": "0274-spec-a-shipped-by-small-dynamic-workflow-with-stacked-prs",
+        "title": "SPEC A is implemented and shipped by a dedicated small dynamic workflow, with stacked PRs for blocking changes",
+        "scope": "c6"
       }
     ],
     "out_of_scope": [
@@ -147,5 +152,5 @@
     ]
   },
   "created_at": "2026-08-06T18:37:07.324Z",
-  "updated_at": "2026-08-06T20:37:49.773Z"
+  "updated_at": "2026-08-06T21:17:49.930Z"
 }
