@@ -1,0 +1,75 @@
+{
+  "schema_version": 2,
+  "id": "01KZCF28RN4RMR46VDXFKSQZY3",
+  "slug": "spec-a-implementation-config-staging-live-promotion",
+  "title": "SPEC A implementation: config staging/live promotion",
+  "status": "active",
+  "parent_id": null,
+  "predecessor_id": "01KZC5TSBXJDM28F8ZCRXC9JQM",
+  "completion_criteria": [
+    {
+      "id": "c1",
+      "text": "SPEC A section 7's five cutover preconditions are all closed and verified, with the *session* gitignore pattern narrowed BEFORE the hook file it hides is adopted.",
+      "done": false,
+      "kind": "planned",
+      "struck_by": null
+    },
+    {
+      "id": "c2",
+      "text": "The promote verb is implemented with pre-swap validation, rollback by rename, and the LIVE receipt, and the bootstrap resolves outside releases/.",
+      "done": false,
+      "kind": "planned",
+      "struck_by": null
+    },
+    {
+      "id": "c3",
+      "text": "SessionStart and Stop converge hooks are registered, and a drift report reaches session context when live differs from main.",
+      "done": false,
+      "kind": "planned",
+      "struck_by": null
+    },
+    {
+      "id": "c4",
+      "text": "The settings.json ownership manifest and the separate capture verb are implemented, with unknown keys defaulting to LIVE WINS and flagged rather than dropped.",
+      "done": false,
+      "kind": "planned",
+      "struck_by": null
+    },
+    {
+      "id": "c5",
+      "text": "The cutover runs serially in a session doing nothing else: the first release is built and validated with zero live change, then every entry link is swapped in one pass.",
+      "done": false,
+      "kind": "planned",
+      "struck_by": null
+    },
+    {
+      "id": "c6",
+      "text": "All 10 of SPEC A's acceptance criteria pass, with criterion 10 verified by diffing the live tree against the release rather than asserted.",
+      "done": false,
+      "kind": "planned",
+      "struck_by": null
+    },
+    {
+      "id": "c7",
+      "text": "Every unit ships through a PR opened by pr.mjs pr-create, stacked with --base <parent-branch> where one change blocks another.",
+      "done": false,
+      "kind": "planned",
+      "struck_by": null
+    }
+  ],
+  "vcs_ref": null,
+  "external_refs": [],
+  "blocked_by": null,
+  "abandoned_reason": null,
+  "closure_statement": null,
+  "spine": {
+    "active_goal": "",
+    "next_step": "",
+    "last_session": "",
+    "open_risks": [],
+    "key_decisions": [],
+    "out_of_scope": []
+  },
+  "created_at": "2026-08-06T21:18:29.653Z",
+  "updated_at": "2026-08-06T21:18:29.653Z"
+}
