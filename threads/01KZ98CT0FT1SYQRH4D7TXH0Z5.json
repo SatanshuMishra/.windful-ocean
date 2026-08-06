@@ -64,7 +64,7 @@
   "closure_statement": null,
   "spine": {
     "active_goal": "Ship the rebuilt gate in c7: registry append, coverage artifacts, tests keyed to G1-G5, one PR via pr-create.",
-    "next_step": "START c7. Settle two open choices BEFORE any code: (a) registry append vs the 22 coverage artifacts - backfill 110 rows or make scripts/invariant-coverage-check.mjs track-aware, per 0251; (b) whether the new tests encode rows 13-17 as accepted residuals. Then append G1-G5 to the registry, add a coverage artifact per id, write tests keyed to G1-G5 rather than to a defect count, run diff-scoped verification, and open one PR via pr-create.",
+    "next_step": "START c7. Settle one choice BEFORE any code: registry append vs the 22 coverage artifacts - backfill 110 rows or make scripts/invariant-coverage-check.mjs track-aware, per 0251. Rows 13-17 are accepted residuals per 0263; tests must not assert them closed. Then append G1-G5 to the registry, add a coverage artifact per id, write tests keyed to G1-G5 not to a defect count, verify diff-scoped, and open one PR via pr-create.",
     "last_session": "Closed c6 with the doc pass in 4fddf3b. Re-probed the gate first: 19 shapes, every closure holding, pr-create silent. Rewrote G5's control cell, closed risk rows 2 and 12, added rows 13-17, repaired c5's table break, fixed the stale line count. Gate code untouched; 238/238 pass.",
     "open_risks": [
       {
@@ -132,45 +132,39 @@
         ]
       },
       {
-        "text": "Fold the c6 probe into the threat model before c6 can close — section 4's G5 row still describes the at-file-only control the probe disproved, and rows 2 and 12 still read as open",
-        "scope": "c6",
+        "text": "Do NOT let c7's tests assert rows 13-17 closed — they are knowingly accepted residuals under 0260, 0262 and 0263, and a test demanding them fixed restarts the fix-round cycle the threat model exists to stop",
+        "scope": "c7",
         "refs": [
-          "docs/security/bash-gate-threat-model.md",
-          "914bde2"
+          "docs/security/bash-gate-threat-model.md rows 13-17",
+          "0263-bare-path-guardrail-exfiltration-is-accepted-not-a-defect"
+        ]
+      },
+      {
+        "text": "Reopening row 17's bare-path guardrail hole is a NEW decision superseding 0262, not a bug fix — branch B must not be widened without re-measuring the pr-create collision it was narrowed to avoid",
+        "scope": "c7",
+        "refs": [
+          "0263-bare-path-guardrail-exfiltration-is-accepted-not-a-defect",
+          "docs/security/bash-gate-threat-model.md row 17"
         ]
       },
       {
         "text": "Free lines before adding any further clause to the gate — it now sits at 250, exactly the ceiling its own scope note sets, and compressing a matcher is not an acceptable way to buy room",
-        "scope": "c6",
+        "scope": "c7",
         "refs": [
           ".claude/hooks/block-destructive-bash.sh",
           ".claude/hooks/CLAUDE.md"
         ]
       },
       {
-        "text": "Record the new G5 false positives as accepted rather than fixing them — whole-command matching asks when a credential path and a URL share a line even across sub-commands, /etc/passwd is unbounded so an at-reference to /etc/passwd.template asks, and .env.example is deliberately excluded",
-        "scope": "c6",
-        "refs": [
-          "0260-g5-evaluates-the-whole-command-not-per-segment"
-        ]
-      },
-      {
-        "text": "Log the interpreter one-liner that builds its URL from a variable as accepted, not as a defect — it still evades G5's credential branch, and section 9 already forecast exactly this residual",
-        "scope": "c6",
-        "refs": [
-          "docs/security/bash-gate-threat-model.md"
-        ]
-      },
-      {
         "text": "Do not anchor the ask-family matchers to command position — 0259 scoped anchoring to deny verdicts deliberately, and widening it would trade one confirmation prompt for destructive commands missed in silence",
-        "scope": "c6",
+        "scope": "c7",
         "refs": [
           "0259-deny-requires-command-position-ask-stays-unanchored"
         ]
       },
       {
         "text": "Apply no chflags uchg flag until the gate stops being edited — an immutable flag also makes git checkout and git pull fail on those paths",
-        "scope": "c6",
+        "scope": "c7",
         "refs": [
           "docs/security/bash-gate-threat-model.md section 4 G4",
           "725db81"
@@ -178,26 +172,10 @@
       },
       {
         "text": "Re-probe the boolean-flag premise after any gh upgrade — gh --paginate api pulls/N/merge is left open only because gh itself rejects a boolean flag before the subcommand, verified against gh 2.97.0 and nothing later",
-        "scope": "c6",
+        "scope": "c7",
         "refs": [
           "3f16c18",
           "0257-widen-ghtok-generically-rather-than-enumerating-gh-flags"
-        ]
-      },
-      {
-        "text": "Do NOT let c7's tests assert rows 13-17 closed — they are knowingly accepted residuals under 0260 and 0262, and a test demanding them fixed restarts the fix-round cycle the threat model exists to stop",
-        "scope": "c7",
-        "refs": [
-          "docs/security/bash-gate-threat-model.md rows 13-17",
-          "0262-guardrail-exfiltration-requires-the-at-file-shape"
-        ]
-      },
-      {
-        "text": "Row 17 was found this pass, not briefed — a guardrail file on a bare-path upload flag is silent where the credential twin asks; it is logged as accepted, so re-confirm the owner agrees before c7 writes any test around branch B",
-        "scope": "c7",
-        "refs": [
-          "docs/security/bash-gate-threat-model.md row 17",
-          "0262-guardrail-exfiltration-requires-the-at-file-shape"
         ]
       }
     ],
@@ -289,5 +267,5 @@
     ]
   },
   "created_at": "2026-08-05T15:24:11.663Z",
-  "updated_at": "2026-08-06T17:31:16.064Z"
+  "updated_at": "2026-08-06T17:31:49.492Z"
 }
