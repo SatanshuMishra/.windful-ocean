@@ -1,0 +1,25 @@
+---
+Status: accepted
+Date: 2026-08-06T20:16:36.142Z
+Thread-Id: 01KZC5TSBXJDM28F8ZCRXC9JQM
+---
+
+# 0269. Config promotion is an immutable release subtree plus an atomic pointer rename, with live pinned to main
+
+## Context
+
+Live global config today is four divergent linkage regimes into the .windful-ocean working tree: whole-directory symlinks for skills, agents, lib, docs, workflows, notes, sounds, CLAUDE.md and keybindings.json; a real hooks directory of 26 per-file symlinks plus 4 live-only files; a real duplicated rules tree holding an untracked live-only rules/context7.md; and settings.json as a real, already-diverged file. Consequences: any edit is live at the next tool call in every running session, a git checkout swaps global config wholesale, and every MSP of the SPEC B engine rebuild writes into .claude/lib, .claude/workflows and .claude/hooks - so rebuilding the engine hot-swaps the engine and its guard hooks underneath the session doing the rebuild. Four facts measured against Claude Code 2.1.223 on 2026-08-06 constrain the fix: a config ROOT can never be immutable, because Claude Code writes .claude.json, backups/, projects/, sessions/ and plugins/ into whatever CLAUDE_CONFIG_DIR names, even on an unauthenticated run; a symlinked settings.json is followed and written through, with the link surviving and keys merging; CLAUDE_CONFIG_DIR may itself be a symlink and nested hops traverse; and `claude config set` does not exist in this version. Whether an atomic swap is visible to an ALREADY-RUNNING session was NOT settled - headless claude cannot authenticate under a scratch config dir - but it does not change the ranking.
+
+## Options
+
+- Immutable release subtrees plus an atomic pointer swap: ~/.claude/current -> releases/<sha> built by git archive, one link per live entry routed through current, so promotion is a single rename. Drift is git diff <live-ref> HEAD -- .claude, giving git-native answers without git-native machinery.
+- A git worktree per release, pointer-swapped: same atomicity, and promotion history as the reflog of refs/config/live. But a worktree materializes the whole repo rather than the .claude subtree, each registers in .git/worktrees needing pruning, and it collides conceptually with the .claude/worktrees/ mitosis already owns. Promoting instead by git -C live reset --hard forfeits atomicity outright.
+- Converge in place into a single live tree: real copies instead of symlinks-into-the-working-tree, promotion an idempotent manifest-driven sync from a pinned ref with a LIVE_REF marker. Simplest model and maximally non-atomic - promotion tears the live tree file by file, which is the hazard rather than a fix for it.
+
+## Outcome
+
+Approved by the user on 2026-08-06: immutable release subtrees plus an atomic pointer swap. Chosen because it buys the property that actually removes the motivating hazard - a promotion that is one atomic rename, so an engine rebuild can never land half-swapped under the session doing the rebuilding - at the lowest structural cost. The ranking survives the unmeasured swap-visibility question: if swaps are invisible mid-session, the two pointer options are clean and converge-in-place is strictly worse; if swaps are live, the pointer options still give file-level consistency where converge-in-place tears mid-file.
+
+Five consequences the SPEC carries. First, the `current` indirection is load-bearing: linking each live entry straight at a release would make promotion N renames instead of one, destroying the atomicity being bought. Second, `ln -sfn` is NOT atomic - it unlinks then symlinks, leaving a window with no pointer - so the swap must be create-then-rename (ln -s to a temp name, then mv, since rename(2) replaces a symlink atomically); the live permission set grants Bash(ln -sfn:*) and therefore encodes the wrong form. Third, the promote verb and the SessionStart hook must live OUTSIDE releases/ at a stable absolute path, because a bootstrap self-hosted in the thing it promotes means a bad release breaks the machinery that would roll it back, in every future session - this is the one way the design can brick the environment. Fourth, the staging boundary is live == main and staging == everything else: branch work never reaches a running agent, and merging IS feature completion, so "sync on feature completion" becomes "converge live to main". Fifth, the 4 live-only hook files and the untracked rules/context7.md are adopted into the repo, with a declared ~/.claude/local/ overlay reserved for genuinely machine-specific files and plugins/ staying live-only forever.
+
+Accepted and unmitigated: cross-file mixing. Immutable releases plus one rename guarantee no FILE is read half-old, but not cross-file consistency - if resolution is live, a session could hold one release's skill roster while reading another's bodies. Retention does not fix it, because reads route through the pointer rather than a pinned release. The mitigation is timing: promote at SessionStart and between MSPs at Ship, never mid-MSP.

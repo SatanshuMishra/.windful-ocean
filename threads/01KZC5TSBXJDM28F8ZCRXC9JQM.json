@@ -143,6 +143,11 @@
         "ref": "0268-two-specs-config-promotion-before-engine",
         "title": "Split the re-spec into two specs, config promotion landing before the mitosis core",
         "scope": "c1"
+      },
+      {
+        "ref": "0269-atomic-release-pointer-for-config-promotion",
+        "title": "Config promotion is an immutable release subtree plus an atomic pointer rename, with live pinned to main",
+        "scope": "c3"
       }
     ],
     "out_of_scope": [
@@ -151,5 +156,5 @@
     ]
   },
   "created_at": "2026-08-06T18:37:07.324Z",
-  "updated_at": "2026-08-06T20:06:53.658Z"
+  "updated_at": "2026-08-06T20:16:36.144Z"
 }
