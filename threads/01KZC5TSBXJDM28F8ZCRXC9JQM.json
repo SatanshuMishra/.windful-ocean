@@ -144,6 +144,11 @@
         "ref": "0270-settings-json-ownership-manifest-not-promotion",
         "title": "settings.json is excluded from releases and reconciled by an ownership manifest, with the leak gate on capture only",
         "scope": "c3"
+      },
+      {
+        "ref": "0271-author-spec-b-next-implement-spec-a-first",
+        "title": "SPEC B is authored next in a fresh session, SPEC A is implemented before SPEC B, and SPEC B leads with the cost instrument",
+        "scope": "c5"
       }
     ],
     "out_of_scope": [
@@ -152,5 +157,5 @@
     ]
   },
   "created_at": "2026-08-06T18:37:07.324Z",
-  "updated_at": "2026-08-06T20:17:56.411Z"
+  "updated_at": "2026-08-06T20:36:30.953Z"
 }
