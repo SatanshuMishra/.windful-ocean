@@ -59,6 +59,31 @@
       "id": "M6",
       "statement": "The artifact that enforces a gate is a versioned build of committed source at its recorded SHA; a hand-patched deployed file is forbidden, and a refresh must reproduce the guard.",
       "source": "docs/superpowers/specs/2026-07-30-two-track-invariant-plan.md"
+    },
+    {
+      "id": "G1",
+      "statement": "No pull request in this environment is merged by an agent-issued command; `gh pr merge`, the `gh api .../pulls/<n>/merge` REST call, and the `mergePullRequest` / `enablePullRequestAutomerge` / `enqueuePullRequest` GraphQL mutations are all denied.",
+      "source": "docs/security/bash-gate-threat-model.md"
+    },
+    {
+      "id": "G2",
+      "statement": "A pull request's title and body, once composed by the centralized `pr-create` tool, are never rewritten afterward through Bash or the GitHub MCP tool.",
+      "source": "docs/security/bash-gate-threat-model.md"
+    },
+    {
+      "id": "G3",
+      "statement": "Every pull request in this environment is created by the one centralized `pr-create` tool, never by ad-hoc `gh pr create`, raw `gh api` POSTs to the pulls endpoint, or the GitHub MCP `create_pull_request` tool.",
+      "source": "docs/security/bash-gate-threat-model.md"
+    },
+    {
+      "id": "G4",
+      "statement": "No agent-issued command removes, overwrites, or relocates a Claude Code guardrail file (a hook, rule, or settings file) without the action being blocked or made deliberately harder.",
+      "source": "docs/security/bash-gate-threat-model.md"
+    },
+    {
+      "id": "G5",
+      "statement": "No named network command carries a file-reference-shaped argument pointing at a credential or guardrail-adjacent path without the action escalating to human review; an unrecognized command shape escalates to `ask` rather than passing silently.",
+      "source": "docs/security/bash-gate-threat-model.md"
     }
   ]
 }
