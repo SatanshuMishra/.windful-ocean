@@ -52,7 +52,7 @@
     {
       "id": "c7",
       "text": "Ship it: append G1-G5 to registry.json and resolve the 22-artifact fallout per 0251, coverage artifact for every id, diff-scoped verification, tests keyed to G1-G5, one PR via pr-create",
-      "done": false,
+      "done": true,
       "kind": "planned",
       "struck_by": null
     }
@@ -63,9 +63,9 @@
   "abandoned_reason": null,
   "closure_statement": null,
   "spine": {
-    "active_goal": "Ship the rebuilt gate in c7: registry append, coverage artifacts, tests keyed to G1-G5, one PR via pr-create.",
-    "next_step": "START c7. Settle one choice BEFORE any code: registry append vs the 22 coverage artifacts - backfill 110 rows or make scripts/invariant-coverage-check.mjs track-aware, per 0251. Rows 13-17 are accepted residuals per 0263; tests must not assert them closed. Then append G1-G5 to the registry, add a coverage artifact per id, write tests keyed to G1-G5 not to a defect count, verify diff-scoped, and open one PR via pr-create.",
-    "last_session": "Closed c6 with the doc pass in 4fddf3b. Re-probed the gate first: 19 shapes, every closure holding, pr-create silent. Rewrote G5's control cell, closed risk rows 2 and 12, added rows 13-17, repaired c5's table break, fixed the stale line count. Gate code untouched; 238/238 pass.",
+    "active_goal": "Closed: the bash gate ships as five per-action controls under a ratified threat model, merged to main as 0451220.",
+    "next_step": "Nothing on this thread - it is closed. Three follow-ups belong to a FRESH session and a NEW thread, worst first: (1) secretpath's /etc/(passwd|shadow) right-hand boundary, deliberately left by c6 and needing its own measurement pass; (2) protect-claude-config.test.mjs:194, which encodes a false premise that ~/.claude/settings.json is a symlink; (3) .claude/hooks/CLAUDE.md has no deployed counterpart under ~/.claude/hooks.",
+    "last_session": "Shipped c7 in four commits and merged PR #42 as 0451220; settled 0251's deferred choice by correcting the coverage checker toward its own ratified oracle rather than backfilling history.",
     "open_risks": [
       {
         "text": "Do NOT add pipefail to the bash gate — grep -q exits early on a match and SIGPIPEs the printf feeding it, which under pipefail reads as a matcher error and quietly downgrades a deny to an ask on large commands",
@@ -76,15 +76,6 @@
         ]
       },
       {
-        "text": "Appending G1-G5 to registry.json fails all 22 coverage artifacts on push, not only at PR time — c7 must first choose between backfilling 110 rows and making the checker track-aware, and neither is chosen yet",
-        "scope": "thread",
-        "refs": [
-          "scripts/invariant-coverage-check.mjs",
-          "docs/invariants/coverage/",
-          "0251-defer-registry-append-to-c7"
-        ]
-      },
-      {
         "text": "Any new CLAUDE.md under .claude/ is ignored and git add drops it WITHOUT failing — add a negation line beside the existing ones or the file never reaches a worktree, a clean checkout or the PR diff",
         "scope": "thread",
         "refs": [
@@ -92,7 +83,7 @@
         ]
       },
       {
-        "text": "Do not re-broaden the hooks CLAUDE.md or the security.md carve-out — they forbid hardening BEYOND G1-G5, not hardening itself, and c4 through c6 are all hardening tasks an over-broad reading would treat as a stop sign",
+        "text": "Do not re-broaden the hooks CLAUDE.md or the security.md carve-out — they forbid hardening BEYOND G1-G5, not hardening itself, and an over-broad reading treats ordinary gate work as a stop sign",
         "scope": "thread",
         "refs": [
           ".claude/hooks/CLAUDE.md",
@@ -112,7 +103,7 @@
         "refs": []
       },
       {
-        "text": "autoAllowBashIfSandboxed defaults TRUE — so enabling the sandbox would auto-allow sandboxed Bash and undercut the very gate hardening this thread exists to build",
+        "text": "autoAllowBashIfSandboxed defaults TRUE — so enabling the sandbox would auto-allow sandboxed Bash and undercut the very gate hardening this thread built",
         "scope": "thread",
         "refs": []
       },
@@ -125,14 +116,37 @@
         ]
       },
       {
-        "text": "Never delete branch archive/gate-parser-rewrite-2026-08-05 — commit 21ae349 is the only copy of the rewrite and holds the INV-4 structural fix and expanded tests worth mining for this rebuild",
+        "text": "Never delete branch archive/gate-parser-rewrite-2026-08-05 — commit 21ae349 is the only copy of the rejected rewrite and holds the INV-4 structural fix and expanded tests worth mining",
         "scope": "thread",
         "refs": [
           "21ae349"
         ]
       },
       {
-        "text": "Do NOT let c7's tests assert rows 13-17 closed — they are knowingly accepted residuals under 0260, 0262 and 0263, and a test demanding them fixed restarts the fix-round cycle the threat model exists to stop",
+        "text": "Every pull request must now add a coverage entry set-equal to all SEVENTEEN registry ids, not twelve — the pull-request run hard-fails a PR that adds none, and an entry missing any id fails by name",
+        "scope": "thread",
+        "refs": [
+          "scripts/invariant-coverage-check.mjs",
+          "docs/invariants/registry.json"
+        ]
+      },
+      {
+        "text": "Editing the registry's G ids now turns the gate suite red until a corpus is keyed to the new id — the goal census asserts set-equality between the registry and the suite's goal map, in both directions",
+        "scope": "thread",
+        "refs": [
+          ".claude/hooks/tests/block-destructive-bash.test.mjs",
+          "docs/invariants/registry.json"
+        ]
+      },
+      {
+        "text": "npm test is not green on this machine — protect-claude-config.test.mjs:194 fails because ~/.claude/settings.json is a real file rather than a symlink, and it fails identically at the parent, so do not read it as a regression",
+        "scope": "thread",
+        "refs": [
+          ".claude/hooks/tests/protect-claude-config.test.mjs:194"
+        ]
+      },
+      {
+        "text": "Do NOT reopen threat-model rows 13-17 as defects — they are knowingly accepted residuals under decisions 0260, 0262 and 0263, and a fix round against them restarts the cycle the threat model exists to stop",
         "scope": "c7",
         "refs": [
           "docs/security/bash-gate-threat-model.md rows 13-17",
@@ -140,7 +154,7 @@
         ]
       },
       {
-        "text": "Reopening row 17's bare-path guardrail hole is a NEW decision superseding 0262, not a bug fix — branch B must not be widened without re-measuring the pr-create collision it was narrowed to avoid",
+        "text": "Widening branch B to bare guardrail paths is a NEW decision superseding 0262, not a bug fix — do not widen it without re-measuring the pr-create collision it was narrowed to avoid",
         "scope": "c7",
         "refs": [
           "0263-bare-path-guardrail-exfiltration-is-accepted-not-a-defect",
@@ -148,7 +162,31 @@
         ]
       },
       {
-        "text": "Free lines before adding any further clause to the gate — it now sits at 250, exactly the ceiling its own scope note sets, and compressing a matcher is not an acceptable way to buy room",
+        "text": "secretpath's /etc/(passwd|shadow) alternative still carries no right-hand boundary — adding one is the small change c6 deliberately left, and it needs its own measurement pass against the sibling paths the unbounded form currently covers",
+        "scope": "c7",
+        "refs": [
+          "docs/security/bash-gate-threat-model.md row 14",
+          ".claude/hooks/block-destructive-bash.sh"
+        ]
+      },
+      {
+        "text": ".claude/hooks/CLAUDE.md has no deployed counterpart — ~/.claude/hooks symlinks each child individually, so the file is live for repo sessions but absent from the home tree",
+        "scope": "c7",
+        "refs": [
+          ".claude/hooks/CLAUDE.md",
+          "docs/TROUBLESHOOTING.md"
+        ]
+      },
+      {
+        "text": "Completeness is unenforced when push mode resolves no base, as on a shallow clone — the run states this in its own output, and the binding check remains the pull-request run, which still hard-fails an unresolvable base",
+        "scope": "c7",
+        "refs": [
+          "scripts/invariant-coverage-check.mjs",
+          "0264-scope-set-equality-to-the-changed-coverage-entry"
+        ]
+      },
+      {
+        "text": "Free lines before adding any further clause to the gate — it sits at 250, exactly the ceiling its own scope note sets, and compressing a matcher is not an acceptable way to buy room",
         "scope": "c7",
         "refs": [
           ".claude/hooks/block-destructive-bash.sh",
@@ -277,5 +315,5 @@
     ]
   },
   "created_at": "2026-08-05T15:24:11.663Z",
-  "updated_at": "2026-08-06T19:27:48.981Z"
+  "updated_at": "2026-08-06T19:28:30.005Z"
 }
