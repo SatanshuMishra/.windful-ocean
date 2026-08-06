@@ -85,11 +85,16 @@ test('a coverage entry whose rows are set-equal to the registry passes', () => {
 });
 
 test('a registry id absent from the entry fails and names that id', () => {
-  const root = makeRoot('inv-missing-');
+  const root = makeGitRoot('inv-missing-');
   writeRegistry(root, FIXTURE_IDS);
-  writeCoverage(root, 'entry.json', rowsFor(['X1', 'X3']));
+  writeCoverage(root, 'entry.json', rowsFor(FIXTURE_IDS));
+  commit(root, ['docs'], 'base');
 
-  const result = run(root);
+  git(root, ['switch', '-q', '-c', 'feature']);
+  writeCoverage(root, 'entry.json', rowsFor(['X1', 'X3']));
+  commit(root, ['docs'], 'an entry that drops an id');
+
+  const result = run(root, ['--event', 'pull_request', '--base-ref', 'main']);
 
   assert.notEqual(result.status, 0, 'expected a non-zero exit for a missing invariant id');
   assert.match(result.stderr, /X2/);
@@ -197,19 +202,79 @@ test('a coverage directory with no entries halts red rather than passing vacuous
   assert.match(result.stderr, /docs\/invariants\/coverage/);
 });
 
-test('adding an id to the registry while every entry stays unchanged turns the check red', () => {
-  const root = makeRoot('inv-falsifier-');
+test('adding an id to the registry turns the check red for the entry the change touches', () => {
+  const root = makeGitRoot('inv-falsifier-');
   writeRegistry(root, FIXTURE_IDS);
   writeCoverage(root, 'entry.json', rowsFor(FIXTURE_IDS));
+  commit(root, ['docs'], 'base');
 
-  const before = run(root);
-  assert.equal(before.status, 0, `expected the unchanged pair to pass first: ${before.stderr}`);
+  git(root, ['switch', '-q', '-c', 'feature']);
+  writeCoverage(root, 'feature.json', rowsFor(FIXTURE_IDS));
+  commit(root, ['docs'], 'a change plus its coverage entry');
+
+  const before = run(root, ['--event', 'pull_request', '--base-ref', 'main']);
+  assert.equal(before.status, 0, `expected the answered pair to pass first: ${before.stderr}`);
 
   writeRegistry(root, [...FIXTURE_IDS, 'X4']);
-  const after = run(root);
+  commit(root, ['docs'], 'the registry grows an id nothing answers');
+  const after = run(root, ['--event', 'pull_request', '--base-ref', 'main']);
 
   assert.notEqual(after.status, 0, 'expected a non-zero exit after the registry grew an unanswered id');
   assert.match(after.stderr, /X4/);
+  assert.match(after.stderr, /feature\.json/);
+});
+
+test('a registry id added alongside a new entry fails that entry without failing an untouched historical one', () => {
+  const root = makeGitRoot('inv-scoped-');
+  writeRegistry(root, FIXTURE_IDS);
+  writeCoverage(root, 'historical.json', rowsFor(FIXTURE_IDS));
+  commit(root, ['docs'], 'base');
+
+  git(root, ['switch', '-q', '-c', 'feature']);
+  writeRegistry(root, [...FIXTURE_IDS, 'X4']);
+  writeCoverage(root, 'feature.json', rowsFor(FIXTURE_IDS));
+  commit(root, ['docs'], 'a new entry that does not answer the new id');
+
+  const unanswered = run(root, ['--event', 'pull_request', '--base-ref', 'main']);
+
+  assert.notEqual(unanswered.status, 0, 'expected a non-zero exit for the entry this change adds');
+  assert.match(unanswered.stderr, /feature\.json: missing invariant id\(s\): X4/);
+  assert.doesNotMatch(unanswered.stderr, /historical\.json/);
+
+  writeCoverage(root, 'feature.json', rowsFor([...FIXTURE_IDS, 'X4']));
+  commit(root, ['docs'], 'the new entry answers the new id');
+
+  const answered = run(root, ['--event', 'pull_request', '--base-ref', 'main']);
+
+  assert.equal(answered.status, 0, `expected the untouched historical entry to stay out of completeness scope: ${answered.stderr}`);
+});
+
+test('push mode reports the base it scoped completeness to and leaves an untouched stale entry alone', () => {
+  const root = makeGitRoot('inv-push-scoped-');
+  writeRegistry(root, FIXTURE_IDS);
+  writeCoverage(root, 'historical.json', rowsFor(FIXTURE_IDS));
+  commit(root, ['docs'], 'base');
+
+  git(root, ['switch', '-q', '-c', 'feature']);
+  writeRegistry(root, [...FIXTURE_IDS, 'X4']);
+  writeCoverage(root, 'feature.json', rowsFor([...FIXTURE_IDS, 'X4']));
+  commit(root, ['docs'], 'a new entry that answers the new id');
+
+  const result = run(root);
+
+  assert.equal(result.status, 0, `expected a scoped push run to pass: ${result.stderr}`);
+  assert.match(result.stdout, /completeness: scoped to 1 entry changed since main/);
+});
+
+test('push mode with no resolvable base passes but states that completeness was not scoped', () => {
+  const root = makeGitRoot('inv-push-nobase-');
+  writeRegistry(root, FIXTURE_IDS);
+  writeCoverage(root, 'entry.json', rowsFor(FIXTURE_IDS));
+
+  const result = run(root);
+
+  assert.equal(result.status, 0, `expected a pass when no base commit exists to scope against: ${result.stderr}`);
+  assert.match(result.stdout, /completeness: not scoped/);
 });
 
 test('pull request mode fails when the diff adds or modifies no coverage entry', () => {

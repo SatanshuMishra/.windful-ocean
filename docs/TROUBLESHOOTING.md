@@ -55,6 +55,20 @@ mv ~/.config/nvim ~/.config-backup-$(date +%Y%m%d)/
 stow . -t ~
 ```
 
+### New Hook or Rule File Doesn't Take Effect
+Problem: A script just added to `.claude/hooks/` doesn't run, or a file just added to `.claude/rules/` is missing from context — no error, it just silently doesn't fire.
+
+Trigger: `~/.claude/hooks` and `~/.claude/rules` are the two exceptions to "everything under `~/.claude` is a live symlink." Both contain files that exist only in the home tree and not in the repo — a `graphify-out/` cache in each, plus `rules/context7.md`. GNU Stow cannot collapse a directory into a single symlink when it has to coexist with content it does not own, so it links each child individually instead. A new top-level file dropped directly into `.claude/hooks/` or `.claude/rules/` therefore has no live symlink until Stow runs again. Files added inside an already-linked subdirectory (`hooks/lib/`, `hooks/tests/`, `rules/common/`, `rules/typescript/`) are unaffected, because those subdirectories are themselves whole-directory symlinks.
+
+Solutions:
+```bash
+# Re-run the installer to link the new file
+./scripts/install_config.sh
+
+# Confirm the symlink now exists
+ls -la ~/.claude/hooks/<new-script>.sh
+```
+
 ---
 
 ## Terminal Issues
