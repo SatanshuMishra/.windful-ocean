@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
-import { existsSync, mkdtempSync, rmSync, symlinkSync } from 'node:fs';
+import { existsSync, mkdtempSync, readFileSync, rmSync, symlinkSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { basename, join } from 'node:path';
 import { FLAG_SPEC } from '../../lib/git/pr.mjs';
@@ -52,6 +52,57 @@ const CREATION_DENY_REASON =
 const GUARDRAIL_ASK_REASON =
   'Destructive command (shell write to Claude Code guardrail file) - confirm before running.';
 
+const corporaByGoal = {
+  G1: [
+    'mergeDenyCommands',
+    'g1FlaggedMergeDenyCommands',
+    'g1NoOpinionCommands',
+    'allowCommands',
+    'commandPositionDenyCommands',
+    'multilineDenyCommands',
+    'segmentedNoOpinionCommands',
+  ],
+  G2: [
+    'creationDenyCommands',
+    'g3FlaggedCreationDenyCommands',
+    'allowCommands',
+    'commandPositionDenyCommands',
+    'multilineDenyCommands',
+    'segmentedNoOpinionCommands',
+  ],
+  G3: [
+    'creationDenyCommands',
+    'g3FlaggedCreationDenyCommands',
+    'g1NoOpinionCommands',
+    'allowCommands',
+    'commandPositionDenyCommands',
+    'multilineDenyCommands',
+    'segmentedNoOpinionCommands',
+    'g5NarrowedFileRefDenyCommands',
+  ],
+  G4: [
+    'guardrailWriteCommands',
+    'g4GuardrailWriteCommands',
+    'g4ImmutableFlagCommands',
+    'g4SubdirectoryCommands',
+    'g4RecursiveRemoveCommands',
+    'g4NoOpinionCommands',
+  ],
+  G5: [
+    'g5CredentialExfiltrationCommands',
+    'g5GuardrailExfiltrationCommands',
+    'g5NoOpinionCommands',
+  ],
+};
+
+const corporaOutsideTheGoalSet = ['askCommands'];
+
+function goalsFor(corpusName) {
+  return Object.keys(corporaByGoal)
+    .filter((goal) => corporaByGoal[goal].includes(corpusName))
+    .join('/');
+}
+
 const mergeDenyCommands = [
   'gh pr merge --squash 12',
   'gh pr merge --admin 12',
@@ -71,7 +122,7 @@ const mergeDenyCommands = [
 ];
 
 for (const command of mergeDenyCommands) {
-  test(`denies merge form: ${command}`, () => {
+  test(`${goalsFor('mergeDenyCommands')}: denies a merge form: ${command}`, () => {
     const r = runHook(command);
     assert.equal(r.status, 0);
     assert.equal(decisionOf(r), 'deny');
@@ -93,7 +144,7 @@ const g1FlaggedMergeDenyCommands = [
 ];
 
 for (const command of g1FlaggedMergeDenyCommands) {
-  test(`G1: denies a merge form that flags the gh subcommand: ${command}`, () => {
+  test(`${goalsFor('g1FlaggedMergeDenyCommands')}: denies a merge form that flags the gh subcommand: ${command}`, () => {
     const r = runHook(command);
     assert.equal(r.status, 0);
     assert.equal(decisionOf(r), 'deny');
@@ -135,7 +186,7 @@ const creationDenyCommands = [
 ];
 
 for (const command of creationDenyCommands) {
-  test(`denies raw pull-request creation or mutation: ${command}`, () => {
+  test(`${goalsFor('creationDenyCommands')}: denies raw pull-request creation or title/body rewriting: ${command}`, () => {
     const r = runHook(command);
     assert.equal(r.status, 0);
     assert.equal(decisionOf(r), 'deny');
@@ -149,7 +200,7 @@ const g3FlaggedCreationDenyCommands = [
 ];
 
 for (const command of g3FlaggedCreationDenyCommands) {
-  test(`G2/G3: denies a pull-request creation or edit form that flags the gh subcommand: ${command}`, () => {
+  test(`${goalsFor('g3FlaggedCreationDenyCommands')}: denies a pull-request creation or edit form that flags the gh subcommand: ${command}`, () => {
     const r = runHook(command);
     assert.equal(r.status, 0);
     assert.equal(decisionOf(r), 'deny');
@@ -168,7 +219,7 @@ const g1NoOpinionCommands = [
 ];
 
 for (const command of g1NoOpinionCommands) {
-  test(`G1/G3: holds no opinion on a read-only gh form carrying a pre-subcommand flag: ${command}`, () => {
+  test(`${goalsFor('g1NoOpinionCommands')}: holds no opinion on a read-only gh form carrying a pre-subcommand flag: ${command}`, () => {
     const r = runHook(command);
     assert.equal(r.status, 0);
     assert.equal(r.stdout, '');
@@ -211,7 +262,7 @@ const allowCommands = [
 ];
 
 for (const command of allowCommands) {
-  test(`holds no opinion on sibling command: ${command}`, () => {
+  test(`${goalsFor('allowCommands')}: holds no opinion on a sibling command the pull-request denies must not reach: ${command}`, () => {
     const r = runHook(command);
     assert.equal(r.status, 0);
     assert.equal(r.stdout, '');
@@ -242,7 +293,7 @@ const commandPositionDenyCommands = [
 ];
 
 for (const [command, reason] of commandPositionDenyCommands) {
-  test(`G1/G2/G3: denies a gh call reached through a transparent wrapper or a substitution: ${command}`, () => {
+  test(`${goalsFor('commandPositionDenyCommands')}: denies a gh call reached through a transparent wrapper or a substitution: ${command}`, () => {
     const r = runHook(command);
     assert.equal(r.status, 0);
     assert.equal(decisionOf(r), 'deny');
@@ -258,7 +309,7 @@ const multilineDenyCommands = [
 ];
 
 for (const [command, reason] of multilineDenyCommands) {
-  test(`G1/G2/G3: a newline still separates sub-commands rather than hiding one: ${JSON.stringify(command)}`, () => {
+  test(`${goalsFor('multilineDenyCommands')}: a newline still separates sub-commands rather than hiding one: ${JSON.stringify(command)}`, () => {
     const r = runHook(command);
     assert.equal(r.status, 0);
     assert.equal(decisionOf(r), 'deny');
@@ -276,7 +327,7 @@ const segmentedNoOpinionCommands = [
 ];
 
 for (const command of segmentedNoOpinionCommands) {
-  test(`a phrase quoted inside another command is not a command, and a conjunction is not satisfied across sub-commands: ${command}`, () => {
+  test(`${goalsFor('segmentedNoOpinionCommands')}: a phrase quoted inside another command is not a command, and a conjunction is not satisfied across sub-commands: ${command}`, () => {
     const r = runHook(command);
     assert.equal(r.status, 0);
     assert.equal(r.stdout, '');
@@ -298,7 +349,7 @@ const askCommands = [
 ];
 
 for (const [command, label] of askCommands) {
-  test(`still asks for existing destructive case: ${command}`, () => {
+  test(`outside the goal set: asks before a destructive command the gate policed before G1-G5: ${command}`, () => {
     const r = runHook(command);
     assert.equal(r.status, 0);
     assert.equal(decisionOf(r), 'ask');
@@ -318,7 +369,7 @@ const guardrailWriteCommands = [
 ];
 
 for (const command of guardrailWriteCommands) {
-  test(`asks before a shell write to a guardrail tree: ${command}`, () => {
+  test(`${goalsFor('guardrailWriteCommands')}: asks before a redirect, an in-place edit, or a copy overwrites a guardrail file: ${command}`, () => {
     const r = runHook(command);
     assert.equal(r.status, 0);
     assert.equal(decisionOf(r), 'ask');
@@ -345,7 +396,7 @@ const g4GuardrailWriteCommands = [
 ];
 
 for (const command of g4GuardrailWriteCommands) {
-  test(`G4: asks before a shell write to a guardrail tree: ${command}`, () => {
+  test(`${goalsFor('g4GuardrailWriteCommands')}: asks before a restore, an in-place patch, or a directory-destination write reaches a guardrail path: ${command}`, () => {
     const r = runHook(command);
     assert.equal(r.status, 0);
     assert.equal(decisionOf(r), 'ask');
@@ -362,7 +413,7 @@ const g4ImmutableFlagCommands = [
 ];
 
 for (const command of g4ImmutableFlagCommands) {
-  test(`G4: asks before immutable-flag protection is cleared: ${command}`, () => {
+  test(`${goalsFor('g4ImmutableFlagCommands')}: asks before immutable-flag protection is cleared: ${command}`, () => {
     const r = runHook(command);
     assert.equal(r.status, 0);
     assert.equal(decisionOf(r), 'ask');
@@ -380,7 +431,7 @@ const g4SubdirectoryCommands = [
 ];
 
 for (const command of g4SubdirectoryCommands) {
-  test(`G4: asks before a guardrail subdirectory named without a trailing slash is written: ${command}`, () => {
+  test(`${goalsFor('g4SubdirectoryCommands')}: asks before a guardrail subdirectory named without a trailing slash is written: ${command}`, () => {
     const r = runHook(command);
     assert.equal(r.status, 0);
     assert.equal(decisionOf(r), 'ask');
@@ -391,7 +442,7 @@ for (const command of g4SubdirectoryCommands) {
 const g4RecursiveRemoveCommands = [['rm -rf .claude', 'recursive force remove (rm -rf)']];
 
 for (const [command, label] of g4RecursiveRemoveCommands) {
-  test(`G4: asks before a bare guardrail directory is removed: ${command}`, () => {
+  test(`${goalsFor('g4RecursiveRemoveCommands')}: asks before a bare guardrail directory is removed: ${command}`, () => {
     const r = runHook(command);
     assert.equal(r.status, 0);
     assert.equal(decisionOf(r), 'ask');
@@ -417,7 +468,7 @@ const g4NoOpinionCommands = [
 ];
 
 for (const command of g4NoOpinionCommands) {
-  test(`G4: holds no opinion on a read or a non-guardrail write: ${command}`, () => {
+  test(`${goalsFor('g4NoOpinionCommands')}: holds no opinion on a read or a non-guardrail write: ${command}`, () => {
     const r = runHook(command);
     assert.equal(r.status, 0);
     assert.equal(r.stdout, '');
@@ -460,7 +511,7 @@ const g5CredentialExfiltrationCommands = [
 ];
 
 for (const command of g5CredentialExfiltrationCommands) {
-  test(`G5: asks before a credential path reaches a network-shaped command: ${command}`, () => {
+  test(`${goalsFor('g5CredentialExfiltrationCommands')}: asks before a credential path reaches a network-shaped command: ${command}`, () => {
     const r = runHook(command);
     assert.equal(r.status, 0);
     assert.equal(decisionOf(r), 'ask');
@@ -481,7 +532,7 @@ const g5GuardrailExfiltrationCommands = [
 ];
 
 for (const command of g5GuardrailExfiltrationCommands) {
-  test(`G5: asks before a guardrail file is passed as an at-prefixed file reference: ${command}`, () => {
+  test(`${goalsFor('g5GuardrailExfiltrationCommands')}: asks before a guardrail file is passed as an at-prefixed file reference: ${command}`, () => {
     const r = runHook(command);
     assert.equal(r.status, 0);
     assert.equal(decisionOf(r), 'ask');
@@ -510,7 +561,7 @@ const g5NoOpinionCommands = [
 ];
 
 for (const command of g5NoOpinionCommands) {
-  test(`G5: holds no opinion on a credential read with no network reach, or a network call with no credential: ${command}`, () => {
+  test(`${goalsFor('g5NoOpinionCommands')}: holds no opinion on a credential read with no network reach, or a network call with no credential: ${command}`, () => {
     const r = runHook(command);
     assert.equal(r.status, 0);
     assert.equal(r.stdout, '');
@@ -524,7 +575,7 @@ const g5NarrowedFileRefDenyCommands = [
 ];
 
 for (const command of g5NarrowedFileRefDenyCommands) {
-  test(`G3: scoping the gh api file-reference clause to the pull-request surface still denies: ${command}`, () => {
+  test(`${goalsFor('g5NarrowedFileRefDenyCommands')}: scoping the gh api file-reference clause to the pull-request surface still denies: ${command}`, () => {
     const r = runHook(command);
     assert.equal(r.status, 0);
     assert.equal(decisionOf(r), 'deny');
@@ -532,28 +583,102 @@ for (const command of g5NarrowedFileRefDenyCommands) {
   });
 }
 
-const everyCommand = [
-  ...mergeDenyCommands,
-  ...g1FlaggedMergeDenyCommands,
-  ...creationDenyCommands,
-  ...g3FlaggedCreationDenyCommands,
-  ...commandPositionDenyCommands.map(([command]) => command),
-  ...multilineDenyCommands.map(([command]) => command),
-  ...segmentedNoOpinionCommands,
-  ...allowCommands,
-  ...g1NoOpinionCommands,
-  ...askCommands.map(([command]) => command),
-  ...guardrailWriteCommands,
-  ...g4GuardrailWriteCommands,
-  ...g4SubdirectoryCommands,
-  ...g4ImmutableFlagCommands,
-  ...g4RecursiveRemoveCommands.map(([command]) => command),
-  ...g4NoOpinionCommands,
-  ...g5CredentialExfiltrationCommands,
-  ...g5GuardrailExfiltrationCommands,
-  ...g5NoOpinionCommands,
-  ...g5NarrowedFileRefDenyCommands,
-];
+const corpusByName = {
+  mergeDenyCommands,
+  g1FlaggedMergeDenyCommands,
+  creationDenyCommands,
+  g3FlaggedCreationDenyCommands,
+  commandPositionDenyCommands,
+  multilineDenyCommands,
+  segmentedNoOpinionCommands,
+  allowCommands,
+  g1NoOpinionCommands,
+  askCommands,
+  guardrailWriteCommands,
+  g4GuardrailWriteCommands,
+  g4SubdirectoryCommands,
+  g4ImmutableFlagCommands,
+  g4RecursiveRemoveCommands,
+  g4NoOpinionCommands,
+  g5CredentialExfiltrationCommands,
+  g5GuardrailExfiltrationCommands,
+  g5NoOpinionCommands,
+  g5NarrowedFileRefDenyCommands,
+};
+
+const registryPath = fileURLToPath(new URL('../../../docs/invariants/registry.json', import.meta.url));
+
+function registeredGoalIds() {
+  let registry;
+  try {
+    registry = JSON.parse(readFileSync(registryPath, 'utf8'));
+  } catch (cause) {
+    throw new Error(`the invariant registry at ${registryPath} could not be read as JSON`, { cause });
+  }
+  assert.ok(
+    Array.isArray(registry?.invariants),
+    `the invariant registry at ${registryPath} carries no invariants array`,
+  );
+  return registry.invariants
+    .map((entry, index) => {
+      assert.equal(typeof entry?.id, 'string', `invariant ${index} in ${registryPath} carries no string id`);
+      return entry.id;
+    })
+    .filter((id) => /^G[0-9]+$/.test(id));
+}
+
+test('the goal map and the invariant registry name the same gate goals', () => {
+  const registered = registeredGoalIds();
+  const keyed = Object.keys(corporaByGoal);
+  for (const goal of registered) {
+    assert.ok(keyed.includes(goal), `the registry carries ${goal}, which no corpus in this suite is keyed to`);
+  }
+  for (const goal of keyed) {
+    assert.ok(registered.includes(goal), `corpora are keyed to ${goal}, which the registry does not carry`);
+  }
+});
+
+test('every gate goal is exercised by at least one case', () => {
+  for (const [goal, names] of Object.entries(corporaByGoal)) {
+    const cases = names.flatMap((name) => corpusByName[name] ?? []);
+    assert.ok(cases.length > 0, `goal ${goal} is exercised by no case`);
+  }
+});
+
+test('every corpus name in the keying tables resolves to a corpus this suite runs', () => {
+  for (const [goal, names] of Object.entries(corporaByGoal)) {
+    for (const name of names) {
+      assert.ok(Object.hasOwn(corpusByName, name), `goal ${goal} names ${name}, which this suite does not run`);
+    }
+  }
+  for (const name of corporaOutsideTheGoalSet) {
+    assert.ok(
+      Object.hasOwn(corpusByName, name),
+      `${name} is recorded as outside the goal set, but this suite does not run it`,
+    );
+  }
+});
+
+test('every corpus this suite runs is classified: keyed to a goal, or recorded as outside the goal set', () => {
+  for (const name of Object.keys(corpusByName)) {
+    const goals = goalsFor(name);
+    const outside = corporaOutsideTheGoalSet.includes(name);
+    assert.ok(
+      goals !== '' || outside,
+      `corpus ${name} is keyed to no goal and is not recorded as outside the goal set`,
+    );
+    assert.ok(
+      goals === '' || !outside,
+      `corpus ${name} is keyed to ${goals} and is also recorded as outside the goal set`,
+    );
+  }
+});
+
+function commandOf(entry) {
+  return Array.isArray(entry) ? entry[0] : entry;
+}
+
+const everyCommand = Object.values(corpusByName).flatMap((corpus) => corpus.map(commandOf));
 
 const corpusEmissions = everyCommand.map((command) => ({
   command,
