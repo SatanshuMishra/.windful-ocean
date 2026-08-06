@@ -42,13 +42,38 @@
   "abandoned_reason": null,
   "closure_statement": null,
   "spine": {
-    "active_goal": "",
-    "next_step": "",
+    "active_goal": "Author a brand-new mitosis core SPEC with modified scope and zero dependency on the 2026-07-30 rebuild document.",
+    "next_step": "WAIT for the user's specific instructions on scope modifications. Do NOT brainstorm, scope, or draft in this session. In the FRESH session: invoke superpowers:brainstorming to plan the new SPEC, after re-reading ~/Downloads/2026-07-30-mitosis-core-rebuild.md and this thread's first session event, which carries the measured baseline and the drift list.",
     "last_session": "",
-    "open_risks": [],
+    "open_risks": [
+      {
+        "text": "Instrument per-dispatch context before trusting any collapse win — the old spec's plan counts dispatches and wall-clock only, so Decompose fusion, Ship 13-to-1, and per-MSP reviews would all score as wins even if cost rose.",
+        "scope": "c1",
+        "refs": []
+      },
+      {
+        "text": "Re-derive every line citation from the current tree — mitosis.js is 5,515 lines against the cited 4,851, MSP-0 appears already landed, and mitosis-git.mjs moved to .claude/lib/git/pr.mjs.",
+        "scope": "c1",
+        "refs": []
+      },
+      {
+        "text": "Decide telemetry before making any cost claim — no token or tool-call accounting exists anywhere in the engine, so every re-exploration claim is unmeasurable today.",
+        "scope": "c1",
+        "refs": []
+      },
+      {
+        "text": "Dispose of the paused parent thread mitosis-architecture-rebuild-exploration — WIP discipline says finish before starting, and its disposition is the user's call.",
+        "scope": "c1",
+        "refs": []
+      }
+    ],
     "key_decisions": [],
-    "out_of_scope": []
+    "out_of_scope": [
+      "Implementing any MSP from the 2026-07-30 document",
+      "Brainstorming or drafting the new SPEC in this session",
+      "Editing mitosis.js or the parallel engine"
+    ]
   },
   "created_at": "2026-08-06T18:37:07.324Z",
-  "updated_at": "2026-08-06T18:37:07.324Z"
+  "updated_at": "2026-08-06T18:38:06.369Z"
 }
