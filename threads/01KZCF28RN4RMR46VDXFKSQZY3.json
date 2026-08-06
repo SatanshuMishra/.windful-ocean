@@ -63,32 +63,10 @@
   "abandoned_reason": null,
   "closure_statement": null,
   "spine": {
-    "active_goal": "Fully implement and ship SPEC A (config staging/live promotion) via a dedicated small dynamic workflow, using stacked PRs where changes block each other.",
-    "next_step": "START HERE IN A FRESH SESSION. Read the SPEC, then dispatch a small dynamic workflow per 0275's three bands. FAN OUT the four units that write no live-linked path: bootstrap under ~/.claude/local/, context7.md adoption, the promote verb, the ownership manifest. SERIALIZE the live-linked writes: graphify relocation, converge-hook registration. Run the cutover serially and ALONE, last. Gitignore plus coverage is ONE unit. Stack blocking PRs via pr.mjs pr-create --base <parent-branch>.",
-    "last_session": "Planning only, no implementation. Recorded 0275 after measurement falsified the claim that the five preconditions parallelize cleanly.",
+    "active_goal": "Implement and ship SPEC A (config staging/live promotion) as stacked PRs, landing the invariant inert basis and chore/config-drift ahead of SPEC A's own units.",
+    "next_step": "Land the units in this order: (1) feat/invariant-inert-registry, dispatched 2026-08-06, adds inert_when to docs/invariants/registry.json so later PRs record a machine-checked basis instead of 17 prose verdicts; (2) chore/config-drift as the stack root PR, which makes SPEC A tracked and citable; (3) SPEC A's units per 0275's three bands. Stack with pr.mjs pr-create --base <parent-branch> and retarget each child by hand once its parent merges, since deleteBranchOnMerge is false.",
+    "last_session": "Recon only, no code. Confirmed the live census and found the leak blocker: 5 of the 64 files to be adopted carry the confidential codename and this repo is public. Recorded 0276 and 0277, then dispatched the inert-basis unit.",
     "open_risks": [
-      {
-        "text": "Open every stacked child manually with pr.mjs pr-create --base <parent-branch> — the engine has no stacking: merge-policy returns HUMAN_GATED unconditionally, every PR opens on baseBranch, and pr.mjs has no retarget verb.",
-        "scope": "c7",
-        "refs": [
-          ".claude/lib/git/pr.mjs",
-          ".claude/lib/superpowers-parallel/merge-policy.mjs"
-        ]
-      },
-      {
-        "text": "Retarget each stacked child explicitly once its parent merges — deleteBranchOnMerge is false on this repo so GitHub's auto-retarget never fires; gh pr edit --base passes the bash gate today, which is the accidental route SPEC B section 5.5 closes.",
-        "scope": "c7",
-        "refs": [
-          ".claude/hooks/block-destructive-bash.sh:134"
-        ]
-      },
-      {
-        "text": "Name the rule divergence at merge time rather than resolving it silently — 0265 merges dependent chains with merge-commit while branching.md still states squash-on-merge as the unqualified default, and that amendment ships with SPEC B Part IV.",
-        "scope": "c7",
-        "refs": [
-          ".claude/rules/common/git/branching.md:5"
-        ]
-      },
       {
         "text": "Serialize every write to a live-linked path, not just the cutover — the graphify hook edits and the converge-hook registration reach running sessions through the 26 hook symlinks, so a half-saved file breaks every session instantly.",
         "scope": "thread",
@@ -99,25 +77,33 @@
         ]
       },
       {
-        "text": "Treat the coverage-gap closure and the *session* narrowing as ONE unit — both edit root .gitignore and conflict if run concurrently; narrow before adopting any path the pattern hides, and preserve what :15-16 already cover.",
-        "scope": "c1",
-        "refs": [
-          ".gitignore:19",
-          ".claude/.gitignore"
-        ]
-      },
-      {
-        "text": "Expect suite totals to shift when the gitignore narrows — npm test globs the filesystem, so the previously hidden session-config-drift-check test starts counting; reconcile per file, never by raw total.",
-        "scope": "c1",
-        "refs": [
-          ".claude/hooks/tests/session-config-drift-check.test.mjs"
-        ]
-      },
-      {
         "text": "Run the cutover serially in a session doing nothing else — it hot-swaps live-linked hooks, lib and workflows, so parallel subagents editing those paths can break every running session including the one doing the work.",
         "scope": "c5",
         "refs": [
           "docs/superpowers/specs/2026-08-06-config-staging-live-promotion-SPEC.md"
+        ]
+      },
+      {
+        "text": "SPEC section 2 is stale against 0276 — it draws eleven entry links and says notes is one of them, but notes is now live-only, so the layout is ten entry links plus one pointer and acceptance criterion 10's diff must exclude local/ or it fails for the wrong reason.",
+        "scope": "c1",
+        "refs": [
+          "docs/superpowers/specs/2026-08-06-config-staging-live-promotion-SPEC.md"
+        ]
+      },
+      {
+        "text": "Adoption is publication and is irreversible — the repo is public, so every coverage-gap commit runs the codename scan before it is pushed, and the 2026-07-19 rejection of committing untracked paths wholesale still stands.",
+        "scope": "c1",
+        "refs": [
+          ".claude/notes",
+          ".claude/docs/superpowers"
+        ]
+      },
+      {
+        "text": "An inert_when glob that is too wide silently weakens the gate for every future PR — it would let a change that really does reach an invariant record a machine-checked basis instead of a verdict, so narrow beats convenient.",
+        "scope": "c7",
+        "refs": [
+          "docs/invariants/registry.json",
+          "scripts/invariant-coverage-check.mjs"
         ]
       }
     ],
@@ -134,7 +120,7 @@
       },
       {
         "ref": "0276-notes-are-live-only-and-flagged-plans-are-scrubbed-at-source",
-        "title": "The coverage gap closes by scrubbing three plans at source and reclassifying notes/ as live-only",
+        "title": "Three plans are scrubbed at source; notes/ is reclassified live-only and never enters a release",
         "scope": "c1"
       },
       {
@@ -149,5 +135,5 @@
     ]
   },
   "created_at": "2026-08-06T21:18:29.653Z",
-  "updated_at": "2026-08-06T21:48:39.794Z"
+  "updated_at": "2026-08-06T21:49:45.726Z"
 }
