@@ -67,6 +67,11 @@
         "ref": "0265-merge-commit-for-dependent-msp-chains",
         "title": "Dependent MSP chains merge with merge-commit; standalone PRs keep squash",
         "scope": "c1"
+      },
+      {
+        "ref": "0267-workflow-runtime-forbids-dynamic-import",
+        "title": "Workflow runtime forbids dynamic import, so codegen is the only path off the twinning tax",
+        "scope": "c1"
       }
     ],
     "out_of_scope": [
@@ -76,5 +81,5 @@
     ]
   },
   "created_at": "2026-08-06T18:37:07.324Z",
-  "updated_at": "2026-08-06T19:16:43.473Z"
+  "updated_at": "2026-08-06T19:29:46.499Z"
 }
