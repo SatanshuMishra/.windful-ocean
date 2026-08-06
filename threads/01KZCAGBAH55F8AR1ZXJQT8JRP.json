@@ -95,6 +95,11 @@
         "ref": "0272-coverage-cost-measured-2298-tokens-per-row",
         "title": "Invariant coverage cost measured: 76.3k fixed plus 2,298 tokens per row, linear and unbounded",
         "scope": "c2"
+      },
+      {
+        "ref": "0273-adopt-paths-only-inert-predicate",
+        "title": "Adopt the registry-declared inert predicate, paths-only, with M3/M4/M5 structurally barred from carrying it",
+        "scope": "c4"
       }
     ],
     "out_of_scope": [
@@ -103,5 +108,5 @@
     ]
   },
   "created_at": "2026-08-06T19:58:48.145Z",
-  "updated_at": "2026-08-06T21:12:19.631Z"
+  "updated_at": "2026-08-06T21:14:15.356Z"
 }
