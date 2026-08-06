@@ -30,7 +30,7 @@
     },
     {
       "id": "c4",
-      "text": "G1 merge and G4 guardrail files: server-side branch protection with the hook deny as second layer; path matching against a fixed guardrail list plus chflags uchg friction",
+      "text": "G1 merge and G4 guardrail files: the hook deny is G1's sole control per 0255, branch protection deliberately not deployed; path matching against a fixed guardrail list plus the chflags nouchg gate",
       "done": false,
       "kind": "planned",
       "struck_by": null
@@ -201,5 +201,5 @@
     ]
   },
   "created_at": "2026-08-05T15:24:11.663Z",
-  "updated_at": "2026-08-06T02:12:37.142Z"
+  "updated_at": "2026-08-06T02:13:00.492Z"
 }
