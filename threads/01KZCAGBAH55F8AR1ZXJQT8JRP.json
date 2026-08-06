@@ -90,12 +90,18 @@
         ]
       }
     ],
-    "key_decisions": [],
+    "key_decisions": [
+      {
+        "ref": "0272-coverage-cost-measured-2298-tokens-per-row",
+        "title": "Invariant coverage cost measured: 76.3k fixed plus 2,298 tokens per row, linear and unbounded",
+        "scope": "c2"
+      }
+    ],
     "out_of_scope": [
       "Moving the verdict into the PR body - pr-create's flag set is closed and its values cap at 200 characters, which is why M1 puts the verdict in a committed artifact",
       "Any resolution needing a second reviewer, a bot account, or org-level infrastructure - this is a solo owner-held repo"
     ]
   },
   "created_at": "2026-08-06T19:58:48.145Z",
-  "updated_at": "2026-08-06T20:03:19.674Z"
+  "updated_at": "2026-08-06T21:12:13.096Z"
 }
