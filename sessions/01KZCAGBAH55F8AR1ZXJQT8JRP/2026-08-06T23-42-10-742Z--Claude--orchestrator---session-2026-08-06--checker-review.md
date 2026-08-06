@@ -1,0 +1,17 @@
+The code-reviewer pass on the uncommitted checker returned APPROVE-WITH-FIXES. All 31 tests pass; findings ordered by false-pass risk, each reproduced against the real script unless marked by inspection.
+
+HIGH, scripts/invariant-coverage-check.mjs:357 - diffLines splits git output on newline, trims each line and drops empties, so a changed path can vanish from the proof set before polarity is ever evaluated. Reproduced: a tracked file named with three spaces disappears, the run exits 0, and the written text says "1 changed path(s)" while the diff holds 2. Second manifestation on the same line: trim proves a path against its trimmed form, so a committed "src/evil.mjs " with a trailing space is absorbed by "src/*.mjs" though the registry never enumerated it. Fix: use -z and split on NUL, never trim, and treat a remaining empty field as an error.
+
+MEDIUM :362-364 - neither git diff pins core.quotePath, so the verdict depends on the runner's git config. Reproduced on one commit: git default C-quotes a non-ASCII path and the run exits 1; core.quotePath=false yields the real path and exits 0. A contributor with quotePath=false writes a proof locally that CI cannot reproduce. Contract asked for environment-independent derived text; the path set it derives FROM was environment-dependent. Same -c core.quotePath=false fix closes it. Note it also affects the pre-existing names query at :368.
+
+MEDIUM :304-306 with call site :464-469 - the rewrite gate tests only proof.errors, ignoring shape, duplicate, missing and unknown errors, so --write mutates an entry the checker is simultaneously rejecting and prints "wrote:" under a FAILED banner. The proof-fails case is already correctly covered by an existing test; the untested break is proof-passes-plus-other-errors.
+
+MEDIUM :46-52 - a glob of "**" alone compiles to a universal matcher, a permanent silent false pass whose machine-written text reads exactly like a real proof. Belongs in the same structurally-barred class as M3/M4/M5. This finding is what generalizes into the kind rule.
+
+LOW - push mode with an empty diff establishes a scope of zero entries so inert rows are neither proved nor flagged, which is the state of the invariant-coverage job on every push to main after a merge; --write cannot bootstrap a row because isProvableRow demands a non-empty check first, an undocumented prerequisite; globs that can never match are accepted silently.
+
+Test gaps to close: the second-write idempotence test passes for an adjacent reason, since the second run writes nothing rather than identical bytes; the closed-shape contract is asserted only for the unknown-key case, leaving empty paths, non-array paths, empty strings and null inert_when unpinned; the structural bar is exercised for M3 only, not M4 or M5; nothing pins the determinism of clause and path ordering, which is the sole reason a local write and a CI verification agree.
+
+Clean per the reviewer: no comments added, no in-place mutation, explicit error handling at every I/O boundary, no injection reachable after the unsupported-syntax filter, and all pre-existing behavior preserved with its 14 tests green.
+
+The security-reviewer pass on the same diff was still in flight at hand-off and its findings are not recorded anywhere. Re-run it next session against the saved patch.
