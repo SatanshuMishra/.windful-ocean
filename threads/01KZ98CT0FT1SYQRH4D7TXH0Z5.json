@@ -3,7 +3,7 @@
   "id": "01KZ98CT0FT1SYQRH4D7TXH0Z5",
   "slug": "gate-redesign-per-action-decomposition",
   "title": "Bash gate redesign: per-action decomposition",
-  "status": "paused",
+  "status": "done",
   "parent_id": "01KZ7E99K1XD4SCXTFHKNCRARZ",
   "predecessor_id": null,
   "completion_criteria": [
@@ -61,7 +61,7 @@
   "external_refs": [],
   "blocked_by": null,
   "abandoned_reason": null,
-  "closure_statement": null,
+  "closure_statement": "The bash gate ships as five per-action controls G1-G5 under a ratified threat model, registered in the invariant registry, covered by a registry-driven census and a seventeen-row coverage artifact, and merged to main as 0451220.",
   "spine": {
     "active_goal": "Closed: the bash gate ships as five per-action controls under a ratified threat model, merged to main as 0451220.",
     "next_step": "Nothing on this thread - it is closed. Three follow-ups belong to a FRESH session and a NEW thread, worst first: (1) secretpath's /etc/(passwd|shadow) right-hand boundary, deliberately left by c6 and needing its own measurement pass; (2) protect-claude-config.test.mjs:194, which encodes a false premise that ~/.claude/settings.json is a symlink; (3) .claude/hooks/CLAUDE.md has no deployed counterpart under ~/.claude/hooks.",
@@ -315,5 +315,5 @@
     ]
   },
   "created_at": "2026-08-05T15:24:11.663Z",
-  "updated_at": "2026-08-06T19:28:30.005Z"
+  "updated_at": "2026-08-06T19:28:41.269Z"
 }
