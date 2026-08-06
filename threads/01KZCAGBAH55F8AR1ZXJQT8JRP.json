@@ -50,15 +50,29 @@
   "closure_statement": null,
   "spine": {
     "active_goal": "Land 0273's inert basis as one atomic change, but only after 0278's checker-enforced kind rule replaces hand-authored globs.",
-    "next_step": "START HERE FRESH. Read artifacts/2026-08-06-inert-glob-audit-BLOCK.md first. Then: (1) checker fixes - :357 use -z never trim, :362 pin core.quotePath=false, :304 no rewrite on any entry error, bar a universe glob; (2) implement 0278's kind rule with tests; (3) delete inert_when from G1-G5, narrow B1-B6, derived from the rule; (4) rewrite the 8 wrong coverage rows; (5) commit, --write, amend; (6) one PR. Re-run the lost security review first.",
-    "last_session": "Built and receipted the inert-basis evaluator, then review blocked the committed glob data on both tracks; recorded 0278 and shipped nothing.",
+    "next_step": "START HERE FRESH. Read artifacts/2026-08-06-inert-glob-audit-BLOCK.md, then 0278, then the two review session logs. BOTH reviews returned BLOCK. Checker fixes first: :357 use git diff -z, split on NUL, never trim; error on a changed coverage path that resolves to no listed entry; :464 write only after the error gate; bar a leading ** and any glob absorbing the registry or checker; block --write under CI. Then 0278's kind rule, drop G1-G5, narrow B1-B6, rewrite 8 rows, one PR.",
+    "last_session": "Built and receipted the evaluator; both reviews returned BLOCK on it and the glob audit blocked the committed data on both tracks. Recorded 0278; shipped nothing.",
     "open_risks": [
       {
-        "text": "Ship nothing from feat/invariant-inert-registry until the glob data is fixed — the committed set has two proven routes to a machine-written INERT verdict over a change that falsifies the invariant",
+        "text": "Ship nothing from feat/invariant-inert-registry until both the glob data and the checker are fixed — the data has two proven routes to a false INERT verdict and the checker has two verified criticals",
         "scope": "c5",
         "refs": [
           "369490f",
           "artifacts/2026-08-06-inert-glob-audit-BLOCK.md"
+        ]
+      },
+      {
+        "text": "A coverage entry whose filename carries a non-ASCII byte is permanently unscoped and its inert rows are never verified — a durable forgery slot, not a one-shot, so fix the path rendering before anything lands",
+        "scope": "c5",
+        "refs": [
+          "scripts/invariant-coverage-check.mjs:368"
+        ]
+      },
+      {
+        "text": "Widening a glob is self-authorizing in one green pull request — any glob broad enough to be worth adding absorbs the registry file itself, so the same change proves its own new basis unless a breadth floor bars it",
+        "scope": "c5",
+        "refs": [
+          "scripts/invariant-coverage-check.mjs:54"
         ]
       },
       {
@@ -73,13 +87,6 @@
         "scope": "c5",
         "refs": [
           "artifacts/2026-08-06-c5-checker-mechanism.patch"
-        ]
-      },
-      {
-        "text": "The security review of the checker never reported — treat the gate as unreviewed for security until that pass is re-run",
-        "scope": "c5",
-        "refs": [
-          "scripts/invariant-coverage-check.mjs"
         ]
       },
       {
@@ -120,5 +127,5 @@
     ]
   },
   "created_at": "2026-08-06T19:58:48.145Z",
-  "updated_at": "2026-08-06T23:44:09.251Z"
+  "updated_at": "2026-08-06T23:52:21.673Z"
 }
