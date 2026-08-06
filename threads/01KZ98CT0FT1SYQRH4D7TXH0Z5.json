@@ -210,6 +210,11 @@
         "ref": "0258-g1-enumeration-gains-enqueuepullrequest",
         "title": "Extend G1's enumeration to name enqueuePullRequest, rather than reading the enumeration as exhaustive",
         "scope": "c4"
+      },
+      {
+        "ref": "0259-deny-requires-command-position-ask-stays-unanchored",
+        "title": "A deny requires the command token in command position within a segment; an ask stays unanchored",
+        "scope": "c5"
       }
     ],
     "out_of_scope": [
@@ -218,5 +223,5 @@
     ]
   },
   "created_at": "2026-08-05T15:24:11.663Z",
-  "updated_at": "2026-08-06T13:52:42.946Z"
+  "updated_at": "2026-08-06T14:07:19.124Z"
 }
