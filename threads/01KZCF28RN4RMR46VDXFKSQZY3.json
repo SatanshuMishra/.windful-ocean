@@ -3,7 +3,7 @@
   "id": "01KZCF28RN4RMR46VDXFKSQZY3",
   "slug": "spec-a-implementation-config-staging-live-promotion",
   "title": "SPEC A implementation: config staging/live promotion",
-  "status": "active",
+  "status": "paused",
   "parent_id": null,
   "predecessor_id": "01KZC5TSBXJDM28F8ZCRXC9JQM",
   "completion_criteria": [
@@ -118,5 +118,5 @@
     ]
   },
   "created_at": "2026-08-06T21:18:29.653Z",
-  "updated_at": "2026-08-06T21:18:45.836Z"
+  "updated_at": "2026-08-06T21:18:51.269Z"
 }
