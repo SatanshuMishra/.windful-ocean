@@ -136,6 +136,11 @@
         "ref": "0276-notes-are-live-only-and-flagged-plans-are-scrubbed-at-source",
         "title": "The coverage gap closes by scrubbing three plans at source and reclassifying notes/ as live-only",
         "scope": "c1"
+      },
+      {
+        "ref": "0277-stack-root-is-config-drift-and-inert-basis-lands-before-spec-a",
+        "title": "chore/config-drift is the stack root and the inert basis lands before SPEC A's units",
+        "scope": "c7"
       }
     ],
     "out_of_scope": [
@@ -144,5 +149,5 @@
     ]
   },
   "created_at": "2026-08-06T21:18:29.653Z",
-  "updated_at": "2026-08-06T21:48:11.902Z"
+  "updated_at": "2026-08-06T21:48:39.794Z"
 }
