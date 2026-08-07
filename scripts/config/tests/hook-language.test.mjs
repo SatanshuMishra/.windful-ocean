@@ -190,6 +190,32 @@ test('a .zsh hook with no shebang is checked as zsh rather than left unchecked',
   }
 });
 
+test('a shebangless hook falls through to its extension, which decides bash or node', () => {
+  const shell = promoteScenario({
+    commands: ['$HOME/.claude/hooks/plain.sh'],
+    mutate: (claude) => writeFile(hookAt(claude, 'plain.sh'), 'if then fi\n', 0o755),
+  });
+  try {
+    const [failure] = assertRejected(shell.run(), 'hook-syntax');
+    assert.match(failure.detail, /as bash/);
+    assertLiveUntouched(shell.configRoot);
+  } finally {
+    shell.dispose();
+  }
+
+  const esm = promoteScenario({
+    commands: ['$HOME/.claude/hooks/plain.mjs'],
+    mutate: (claude) => writeFile(hookAt(claude, 'plain.mjs'), 'const = ;\n', 0o755),
+  });
+  try {
+    const [failure] = assertRejected(esm.run(), 'hook-syntax');
+    assert.match(failure.detail, /as node/);
+    assertLiveUntouched(esm.configRoot);
+  } finally {
+    esm.dispose();
+  }
+});
+
 test('the interpreter named in the command outranks a shebang that disagrees with it', () => {
   const s = promoteScenario({
     commands: ['node $HOME/.claude/hooks/good.sh'],
