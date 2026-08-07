@@ -1,7 +1,7 @@
 import { existsSync, mkdirSync, readdirSync, renameSync, rmSync, statSync } from 'node:fs';
 import { spawnSync } from 'node:child_process';
 import { join } from 'node:path';
-import { ARCHIVE_SUBTREE, SHA_PATTERN, releaseDir, releasesDir } from './paths.mjs';
+import { ARCHIVE_SUBTREE, SETTINGS_FILENAME, SHA_PATTERN, releaseDir, releasesDir } from './paths.mjs';
 
 export function resolveRef(repoRoot, ref) {
   const run = spawnSync('git', ['-C', repoRoot, 'rev-parse', '--verify', `${ref}^{commit}`], {
@@ -50,6 +50,7 @@ export function buildRelease({ configRoot, repoRoot, sha }) {
     if (!existsSync(subtree)) {
       return { ok: false, error: `archive of ${sha} carries no ${ARCHIVE_SUBTREE} subtree` };
     }
+    rmSync(join(subtree, SETTINGS_FILENAME), { force: true });
     renameSync(subtree, target);
     return { ok: true, built: true, dir: target };
   } finally {
