@@ -42,10 +42,29 @@ test('a symlinked directory leaving the candidate is refused, never scanned and 
       'nothing outside the release may be parsed',
     );
 
-    const contained = verdict.failures.filter((failure) => failure.rule === 'json-containment');
+    const contained = verdict.failures.filter((failure) => failure.rule === 'release-containment');
     assert.equal(contained.length, 1, JSON.stringify(verdict.failures, null, 2));
     assert.match(contained[0].detail, /leak/);
     assert.equal(verdict.ok, false);
+  } finally {
+    cleanup(home, outside);
+  }
+});
+
+test('a link out of the release is refused whatever it is named, not only a .json one', () => {
+  const outside = mkdtempSync(join(tmpdir(), 'json-escape-'));
+  const { home, configRoot } = makeHome();
+  try {
+    const candidateDir = candidateIn(configRoot);
+    writeFile(join(outside, 'payload.sh'), '#!/usr/bin/env bash\nexit 0\n', 0o755);
+    mkdirSync(join(candidateDir, 'hooks'), { recursive: true });
+    symlinkSync(join(outside, 'payload.sh'), join(candidateDir, 'hooks', 'unregistered.sh'));
+
+    const failures = jsonParseFailures(candidateDir);
+
+    assert.equal(failures.length, 1, JSON.stringify(failures, null, 2));
+    assert.equal(failures[0].rule, 'release-containment');
+    assert.match(failures[0].detail, /unregistered\.sh/);
   } finally {
     cleanup(home, outside);
   }

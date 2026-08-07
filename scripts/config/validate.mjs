@@ -390,7 +390,7 @@ function escapingLinkFailures(path, root) {
   const real = realpathOrNull(path);
   if (real === null || isInside(root, real)) return [];
   return [failure(
-    'json-containment',
+    'release-containment',
     `${relative(root, path)} links to ${real}, outside the candidate release; `
       + 'validation neither scans nor reads it',
   )];
