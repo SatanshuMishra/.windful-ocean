@@ -142,6 +142,24 @@ test('a stop with live behind main converges and reports on stderr only', () => 
   }
 });
 
+test('a candidate that fails validation is refused loudly and live stays where it was', () => {
+  const s = scenario();
+  try {
+    assert.equal(s.seedLive().status, 'promoted');
+    settingsFor(s.configRoot, [...DEFAULT_HOOK_COMMANDS, '$HOME/.claude/hooks/absent.sh']);
+    commitChange(s.repoRoot, (claude) => writeFile(join(claude, 'docs', 'unreachable.md'), 'unreachable\n'));
+
+    const result = s.cli(['--event', 'Stop', '--config-root', s.configRoot]);
+
+    assert.equal(result.code, 1);
+    assert.match(result.stderr, /FAILED validation/);
+    assert.match(result.stderr, /hook-resolution/);
+    assert.equal(liveSha(s.configRoot), s.sha);
+  } finally {
+    s.dispose();
+  }
+});
+
 test('a session start with live already on main emits nothing at all', () => {
   const s = scenario();
   try {
