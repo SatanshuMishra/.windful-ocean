@@ -3,52 +3,40 @@ import assert from 'node:assert/strict';
 import { chmodSync, existsSync, mkdirSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import {
-  DEFAULT_HOOK_COMMANDS,
   GOOD_SH,
+  assertLiveUntouched,
+  assertRejected,
   cleanup,
   makeHome,
-  makeRepo,
-  settingsFor,
+  promoteScenario as scenario,
   writeFile,
 } from './_fixture.mjs';
-import { liveSha, promote, assertBootstrapOutsideReleases } from '../promote.mjs';
+import { needsInterpreter } from './_interpreters.mjs';
+import { liveSha, assertBootstrapOutsideReleases } from '../promote.mjs';
 import { bootstrapFailures, expectedEntries, jsonParseFailures, validateCandidate } from '../validate.mjs';
 
-const NOW = '2026-08-07T12:00:00.000Z';
-
-function scenario({ mutate, commands = DEFAULT_HOOK_COMMANDS } = {}) {
-  const { repoRoot, sha } = makeRepo({ mutate });
-  const { home, configRoot } = makeHome();
-  const settingsPath = settingsFor(configRoot, commands);
-  return {
-    repoRoot,
-    sha,
-    home,
-    configRoot,
-    run: () => promote({ configRoot, repoRoot, ref: 'main', now: NOW, settingsPath, home }),
-    dispose: () => cleanup(repoRoot, home),
-  };
-}
-
-function assertRejected(result, rule) {
-  assert.equal(result.status, 'rejected', `expected rejection, got ${result.status}`);
-  const rules = result.failures.map((failure) => failure.rule);
-  assert.ok(rules.includes(rule), `expected a ${rule} failure, saw ${JSON.stringify(rules)}`);
-}
-
-function assertLiveUntouched(configRoot) {
-  assert.equal(liveSha(configRoot), null, 'a rejected candidate must not become live');
-  assert.ok(!existsSync(join(configRoot, 'LIVE')), 'a rejected candidate must not write a receipt');
-  assert.ok(!existsSync(join(configRoot, 'current.tmp')), 'a rejected candidate must leave no staging link');
-}
-
 test('a candidate missing an expected entry fails validation and does not swap', () => {
-  const s = scenario({ mutate: (claude) => rmSync(join(claude, 'notes'), { recursive: true, force: true }) });
+  const s = scenario({ mutate: (claude) => rmSync(join(claude, 'skills'), { recursive: true, force: true }) });
   try {
     const result = s.run();
     assertRejected(result, 'coverage');
-    assert.match(result.report, /"notes"/);
+    assert.match(result.report, /"skills"/);
     assertLiveUntouched(s.configRoot);
+  } finally {
+    s.dispose();
+  }
+});
+
+test('a candidate carrying no notes/ still promotes, because notes/ is live-only', () => {
+  const s = scenario();
+  try {
+    const result = s.run();
+    assert.ok(
+      !existsSync(join(s.configRoot, 'releases', s.sha, 'notes')),
+      'the release under test must carry no notes/, the state a gitignored notes/ always produces',
+    );
+    assert.equal(result.status, 'promoted', JSON.stringify(result.failures ?? result.errors ?? {}, null, 2));
+    assert.equal(liveSha(s.configRoot), s.sha);
   } finally {
     s.dispose();
   }
@@ -58,22 +46,40 @@ test('a candidate whose expected entry is present but empty fails validation', (
   const { home, configRoot } = makeHome();
   const candidate = join(configRoot, 'releases', 'a'.repeat(40));
   try {
-    mkdirSync(join(candidate, 'notes'), { recursive: true });
+    mkdirSync(join(candidate, 'skills'), { recursive: true });
     writeFile(join(candidate, 'CLAUDE.md'), '');
     const verdict = validateCandidate({
       configRoot,
       candidateDir: candidate,
       settings: {},
-      entries: ['notes', 'CLAUDE.md'],
+      entries: ['skills', 'CLAUDE.md'],
       bootstrapPaths: [],
       home,
     });
     assert.equal(verdict.ok, false);
     const details = verdict.failures.map((failure) => failure.detail).join('\n');
-    assert.match(details, /"notes" is present but empty/);
+    assert.match(details, /"skills" is present but empty/);
     assert.match(details, /"CLAUDE.md" is present but empty/);
   } finally {
     cleanup(home);
+  }
+});
+
+test('a malformed hook registration is survived by validation, never thrown out of it', () => {
+  const s = scenario();
+  try {
+    const malformed = { hooks: { SessionStart: [{ matcher: '*', hooks: { type: 'command', command: 'x.sh' } }] } };
+    writeFile(s.settingsPath, `${JSON.stringify(malformed, null, 2)}\n`);
+
+    const result = s.run();
+
+    assert.ok(['promoted', 'rejected'].includes(result.status), JSON.stringify(result, null, 2));
+    for (const failure of result.failures ?? []) {
+      assert.equal(typeof failure.rule, 'string');
+      assert.equal(typeof failure.detail, 'string');
+    }
+  } finally {
+    s.dispose();
   }
 });
 
@@ -143,6 +149,49 @@ test('a syntactically invalid registered hook fails validation and does not swap
     assertLiveUntouched(esm.configRoot);
   } finally {
     esm.dispose();
+  }
+});
+
+test('a hook is checked as the interpreter its command names, not as its extension', () => {
+  const s = scenario({
+    commands: ['node $HOME/.claude/hooks/good.sh'],
+    mutate: (claude) => writeFile(join(claude, 'hooks', 'good.sh'), 'const = ;\n', 0o755),
+  });
+  try {
+    assertRejected(s.run(), 'hook-syntax');
+    assertLiveUntouched(s.configRoot);
+  } finally {
+    s.dispose();
+  }
+});
+
+test('a hook whose shebang names python is checked as python, and the check writes nothing', needsInterpreter('python3'), () => {
+  const s = scenario({
+    mutate: (claude) => writeFile(join(claude, 'hooks', 'good.sh'), '#!/usr/bin/env python3\nprint("ok")\n', 0o755),
+  });
+  try {
+    const result = s.run();
+    assert.equal(result.status, 'promoted', JSON.stringify(result.failures ?? result.errors ?? {}, null, 2));
+    assert.ok(
+      !existsSync(join(s.configRoot, 'releases', s.sha, 'hooks', '__pycache__')),
+      'a syntax check must never write into the release it inspects',
+    );
+  } finally {
+    s.dispose();
+  }
+});
+
+test('a python hook with broken syntax is rejected on its extension alone', needsInterpreter('python3'), () => {
+  const s = scenario({
+    commands: ['$HOME/.claude/hooks/scan.py'],
+    mutate: (claude) => writeFile(join(claude, 'hooks', 'scan.py'), 'def (:\n', 0o755),
+  });
+  try {
+    const [failure] = assertRejected(s.run(), 'hook-syntax');
+    assert.match(failure.detail, /as python/);
+    assertLiveUntouched(s.configRoot);
+  } finally {
+    s.dispose();
   }
 });
 
@@ -243,9 +292,10 @@ test('expectedEntries covers the declared set plus any live link routed through 
     const entries = expectedEntries(configRoot);
     assert.ok(entries.includes('extra'));
     assert.ok(!entries.includes('unrelated'));
-    for (const declared of ['skills', 'hooks', 'notes', 'CLAUDE.md', 'keybindings.json']) {
+    for (const declared of ['skills', 'hooks', 'rules', 'CLAUDE.md', 'keybindings.json']) {
       assert.ok(entries.includes(declared), `expected ${declared}`);
     }
+    assert.ok(!entries.includes('notes'), 'notes/ is live-only and is never demanded of a release');
   } finally {
     cleanup(home);
   }

@@ -4,6 +4,7 @@ import { basename, join } from 'node:path';
 import { homedir } from 'node:os';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import {
+  CURRENT_LINK,
   DEFAULT_REF,
   RELEASES_DIRNAME,
   RETAINED_RELEASES,
@@ -16,7 +17,7 @@ import {
   releaseDir,
   releasesDir,
 } from './paths.mjs';
-import { buildRelease, collectGarbage, resolveRef } from './release.mjs';
+import { buildRelease, collectGarbage, resolveRef, stripSettings } from './release.mjs';
 import { buildReceipt, readReceipt, receiptShapeErrors, writeReceipt } from './receipt.mjs';
 import { driftReport, readSettings, validateCandidate } from './validate.mjs';
 
@@ -33,7 +34,16 @@ export function liveSha(configRoot) {
   return SHA_PATTERN.test(sha) ? sha : null;
 }
 
-export function swapPointer(configRoot, sha) {
+const SHADOW_WARNING = 'it will shadow the live settings.json until it is removed by hand';
+
+export function swapPointer(configRoot, sha, { requireStrip = true } = {}) {
+  if (!SHA_PATTERN.test(sha)) {
+    throw new Error(`refusing to point ${CURRENT_LINK} at a non-sha ${JSON.stringify(sha)}`);
+  }
+  const stripped = stripSettings(releaseDir(configRoot, sha));
+  if (!stripped.ok && requireStrip) {
+    throw new Error(`refusing to point ${CURRENT_LINK} at ${sha}: ${stripped.error}`);
+  }
   const staging = currentTmpLink(configRoot);
   const pointer = currentLink(configRoot);
   try {
@@ -43,7 +53,15 @@ export function swapPointer(configRoot, sha) {
   }
   symlinkSync(join(RELEASES_DIRNAME, sha), staging);
   renameSync(staging, pointer);
-  return pointer;
+  return { pointer, warnings: stripped.ok ? [] : [`${stripped.error}; ${SHADOW_WARNING}`] };
+}
+
+function attemptSwap(configRoot, sha, options) {
+  try {
+    return { ok: true, warnings: swapPointer(configRoot, sha, options).warnings };
+  } catch (error) {
+    return { ok: false, error: error.message };
+  }
 }
 
 function builtAtFor(dir, builtNow, now) {
@@ -107,7 +125,8 @@ export function promote({ configRoot, repoRoot, ref = DEFAULT_REF, now, settings
   const receiptErrors = receiptShapeErrors(receipt);
   if (receiptErrors.length > 0) return { status: 'error', sha, previous, errors: receiptErrors };
 
-  swapPointer(configRoot, sha);
+  const swapped = attemptSwap(configRoot, sha);
+  if (!swapped.ok) return { status: 'error', sha, previous, errors: [swapped.error] };
   writeReceipt(configRoot, receipt);
   const { removed } = collectGarbage({
     configRoot,
@@ -143,9 +162,16 @@ export function rollback({ configRoot, now }) {
   const restoredErrors = receiptShapeErrors(restored);
   if (restoredErrors.length > 0) return { status: 'error', errors: restoredErrors };
 
-  swapPointer(configRoot, target);
+  const swapped = attemptSwap(configRoot, target, { requireStrip: false });
+  if (!swapped.ok) return { status: 'error', errors: [swapped.error] };
   writeReceipt(configRoot, restored);
-  return { status: 'rolled-back', sha: target, previous: receipt.sha, receipt: restored };
+  return {
+    status: 'rolled-back',
+    sha: target,
+    previous: receipt.sha,
+    receipt: restored,
+    warnings: swapped.warnings,
+  };
 }
 
 function isMainModule() {
@@ -183,6 +209,15 @@ export function parseArgs(argv) {
   return { ok: true, verb, options: parsed.options };
 }
 
+function guardedBootstrap(configRoot) {
+  try {
+    assertBootstrapOutsideReleases(configRoot, fileURLToPath(import.meta.url));
+    return { ok: true };
+  } catch (error) {
+    return { ok: false, error: error.message };
+  }
+}
+
 function main(argv) {
   const parsed = parseArgs(argv);
   if (!parsed.ok) {
@@ -190,7 +225,8 @@ function main(argv) {
     return EXIT_USAGE;
   }
   const configRoot = parsed.options['--config-root'] ?? process.env.CLAUDE_CONFIG_DIR ?? join(homedir(), '.claude');
-  assertBootstrapOutsideReleases(configRoot, fileURLToPath(import.meta.url));
+  const guarded = guardedBootstrap(configRoot);
+  if (!guarded.ok) return report({ status: 'error', errors: [guarded.error] });
   const now = new Date().toISOString();
   const result = parsed.verb === 'rollback'
     ? rollback({ configRoot, now })
@@ -210,6 +246,7 @@ function report(result) {
     return EXIT_OK;
   }
   if (result.status === 'rolled-back') {
+    for (const warning of result.warnings ?? []) process.stderr.write(`warning: ${warning}\n`);
     process.stdout.write(`rolled back to ${result.sha} (from ${result.previous})\n`);
     return EXIT_OK;
   }
