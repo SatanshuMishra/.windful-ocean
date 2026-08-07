@@ -16,7 +16,9 @@ claude.json
 *claude_session*
 *.tmp
 *.log
-*session*
+sessions/
+session-data/
+session-env/
 .local/
 /graphify-out/
 /.playwright-mcp/
