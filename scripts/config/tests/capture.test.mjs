@@ -8,6 +8,7 @@ import {
   NOTE_ABSENT_FROM_LIVE,
   NOTE_GRANT_ADDED,
   NOTE_GRANT_NOT_ADOPTED,
+  NOTE_GRANT_WITHDRAWN,
   NOTE_LIVE_OWNED_IN_REPO,
   NOTE_UNCLASSIFIED,
   capture,
@@ -169,6 +170,34 @@ test('capture reports a repo-owned key that live no longer holds', () => {
   const proposal = captureProposal({ live: LIVE, repo: REPO });
   assert.equal('statusLine' in proposal.settings, false);
   assert.equal(noteFor(proposal, NOTE_ABSENT_FROM_LIVE).key, 'statusLine');
+});
+
+test('capture reports every declared deny entry that live no longer holds', () => {
+  const repo = { permissions: { allow: [], deny: ['Bash(gh pr create:*)', 'Bash(gh pr merge:*)'] } };
+  const live = { permissions: { allow: [], deny: ['Bash(gh pr merge:*)'] } };
+  const proposal = captureProposal({ live, repo });
+
+  assert.deepEqual(proposal.settings.permissions.deny, ['Bash(gh pr merge:*)']);
+  const withdrawn = proposal.notes.filter((entry) => entry.kind === NOTE_GRANT_WITHDRAWN);
+  assert.equal(withdrawn.length, 1, 'a weakened deny list is the capture change a reviewer most needs to see');
+  assert.equal(withdrawn[0].key, 'permissions.deny');
+  assert.match(withdrawn[0].detail, /Bash\(gh pr create:\*\)/);
+});
+
+test('capture reports no withdrawal when the deny list only gains entries', () => {
+  const repo = { permissions: { allow: [], deny: ['Bash(gh pr merge:*)'] } };
+  const live = { permissions: { allow: [], deny: ['Bash(gh pr create:*)', 'Bash(gh pr merge:*)'] } };
+  const proposal = captureProposal({ live, repo });
+
+  assert.deepEqual(proposal.settings.permissions.deny, ['Bash(gh pr create:*)', 'Bash(gh pr merge:*)']);
+  assert.equal(proposal.notes.some((entry) => entry.kind === NOTE_GRANT_WITHDRAWN), false);
+});
+
+test('capture rejects a non-array permissions section at the boundary', () => {
+  assert.throws(
+    () => captureProposal({ live: { permissions: { deny: 'Bash(gh pr merge:*)' } }, repo: {} }),
+    /must be an array of permission grants/,
+  );
 });
 
 test('an unclassified live key survives capture and is reported for classification', () => {

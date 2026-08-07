@@ -17,6 +17,7 @@ import {
   REPO_OWNED_SECTIONS,
   UNIONED_SECTIONS,
   assertDocument,
+  assertGrantList,
   classify,
   unionGrants,
 } from './manifest.mjs';
@@ -30,6 +31,7 @@ export const NOTE_LIVE_OWNED_IN_REPO = 'live-owned-in-repo';
 export const NOTE_ABSENT_FROM_LIVE = 'repo-owned-absent-from-live';
 export const NOTE_GRANT_ADDED = 'grant-added';
 export const NOTE_GRANT_NOT_ADOPTED = 'grant-not-adopted';
+export const NOTE_GRANT_WITHDRAWN = 'grant-withdrawn';
 
 const note = (kind, key, detail) => Object.freeze({ kind, key, detail });
 
@@ -37,6 +39,23 @@ const sortedUnion = (left, right) => [...new Set([...Object.keys(left), ...Objec
 
 const freezeSorted = (pairs) =>
   Object.freeze(Object.fromEntries([...pairs].sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))));
+
+function captureRepoOwnedSection(name, repo, live) {
+  const declared = assertGrantList(`repo permissions.${name}`, repo[name]);
+  if (!(name in live)) return { pair: [name, declared], notes: [] };
+  const captured = assertGrantList(`live permissions.${name}`, live[name]);
+  const retained = new Set(captured ?? []);
+  const notes = (declared ?? [])
+    .filter((grant) => !retained.has(grant))
+    .map((grant) =>
+      note(
+        NOTE_GRANT_WITHDRAWN,
+        `${PERMISSIONS_KEY}.${name}`,
+        `capture would drop the declared ${name} entry ${grant}, which live no longer holds`,
+      ),
+    );
+  return { pair: [name, captured === undefined ? undefined : Object.freeze([...captured])], notes };
+}
 
 function capturePermissions(repoPermissions, livePermissions) {
   if (repoPermissions === undefined && livePermissions === undefined) return { value: undefined, notes: [] };
@@ -61,9 +80,11 @@ function capturePermissions(repoPermissions, livePermissions) {
   const extras = sortedUnion(repo, live)
     .filter((name) => !known.has(name))
     .map((name) => [name, name in live ? live[name] : repo[name]]);
-  const denies = REPO_OWNED_SECTIONS.map((name) => [name, name in live ? live[name] : repo[name]]);
-  const pairs = [...extras, ...denies, ['allow', Object.freeze(adopted)]].filter(([, value]) => value !== undefined);
-  return { value: freezeSorted(pairs), notes };
+  const repoOwned = REPO_OWNED_SECTIONS.map((name) => captureRepoOwnedSection(name, repo, live));
+  const pairs = [...extras, ...repoOwned.map((entry) => entry.pair), ['allow', Object.freeze(adopted)]].filter(
+    ([, value]) => value !== undefined,
+  );
+  return { value: freezeSorted(pairs), notes: [...notes, ...repoOwned.flatMap((entry) => entry.notes)] };
 }
 
 function captureKey(key, repo, live, permissions) {

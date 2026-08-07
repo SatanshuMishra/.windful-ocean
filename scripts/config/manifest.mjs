@@ -54,18 +54,16 @@ const dropped = (key, reason) => Object.freeze({ key, reason });
 
 const sortedUnion = (left, right) => [...new Set([...Object.keys(left), ...Object.keys(right)])].sort();
 
-function assertGrantList(label, value) {
-  if (value === undefined || Array.isArray(value)) return value ?? [];
+export function assertGrantList(label, value) {
+  if (value === undefined || Array.isArray(value)) return value;
   throw new TypeError(`${label} must be an array of permission grants; received a ${typeof value}`);
 }
 
 export function unionGrants(repoGrants, liveGrants) {
-  const merged = [
-    ...assertGrantList('repo permissions.allow', repoGrants),
-    ...assertGrantList('live permissions.allow', liveGrants),
-  ];
-  if (repoGrants === undefined && liveGrants === undefined) return undefined;
-  return Object.freeze([...new Set(merged)].sort());
+  const repo = assertGrantList('repo permissions.allow', repoGrants);
+  const live = assertGrantList('live permissions.allow', liveGrants);
+  if (repo === undefined && live === undefined) return undefined;
+  return Object.freeze([...new Set([...(repo ?? []), ...(live ?? [])])].sort());
 }
 
 function sectionOwnership(repoPermissions, livePermissions) {
@@ -114,7 +112,10 @@ export function resolvePermissions(repoPermissions, livePermissions) {
   const { carried, flagged, removed } = sectionOwnership(repo, live);
   const pairs = [
     ...carried,
-    ...(REPO_OWNED_SECTIONS.filter((name) => name in repo).map((name) => [name, repo[name]])),
+    ...(REPO_OWNED_SECTIONS.filter((name) => name in repo).map((name) => [
+      name,
+      assertGrantList(`repo permissions.${name}`, repo[name]),
+    ])),
     ['allow', unionGrants(repo.allow, live.allow)],
   ].filter(([, value]) => value !== undefined);
   return { value: freezeSorted(pairs), flagged, removed };
