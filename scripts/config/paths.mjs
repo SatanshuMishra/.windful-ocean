@@ -19,7 +19,6 @@ export const PROMOTED_ENTRIES = Object.freeze([
   'hooks',
   'rules',
   'docs',
-  'notes',
   'sounds',
   'CLAUDE.md',
   'keybindings.json',

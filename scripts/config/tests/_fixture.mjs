@@ -28,7 +28,7 @@ export const GOOD_MJS = "import { sep } from 'node:path';\nexport const ok = sep
 
 function seedClaudeTree(repoRoot) {
   const claude = join(repoRoot, '.claude');
-  for (const dir of ['skills', 'agents', 'lib', 'workflows', 'rules', 'docs', 'notes', 'sounds']) {
+  for (const dir of ['skills', 'agents', 'lib', 'workflows', 'rules', 'docs', 'sounds']) {
     writeFile(join(claude, dir, 'placeholder.txt'), `${dir} content\n`);
   }
   writeFile(join(claude, 'CLAUDE.md'), '# config\n');

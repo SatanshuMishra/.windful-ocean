@@ -43,12 +43,27 @@ function assertLiveUntouched(configRoot) {
 }
 
 test('a candidate missing an expected entry fails validation and does not swap', () => {
-  const s = scenario({ mutate: (claude) => rmSync(join(claude, 'notes'), { recursive: true, force: true }) });
+  const s = scenario({ mutate: (claude) => rmSync(join(claude, 'skills'), { recursive: true, force: true }) });
   try {
     const result = s.run();
     assertRejected(result, 'coverage');
-    assert.match(result.report, /"notes"/);
+    assert.match(result.report, /"skills"/);
     assertLiveUntouched(s.configRoot);
+  } finally {
+    s.dispose();
+  }
+});
+
+test('a candidate carrying no notes/ still promotes, because notes/ is live-only', () => {
+  const s = scenario();
+  try {
+    const result = s.run();
+    assert.ok(
+      !existsSync(join(s.configRoot, 'releases', s.sha, 'notes')),
+      'the release under test must carry no notes/, the state a gitignored notes/ always produces',
+    );
+    assert.equal(result.status, 'promoted', JSON.stringify(result.failures ?? result.errors ?? {}, null, 2));
+    assert.equal(liveSha(s.configRoot), s.sha);
   } finally {
     s.dispose();
   }
@@ -58,19 +73,19 @@ test('a candidate whose expected entry is present but empty fails validation', (
   const { home, configRoot } = makeHome();
   const candidate = join(configRoot, 'releases', 'a'.repeat(40));
   try {
-    mkdirSync(join(candidate, 'notes'), { recursive: true });
+    mkdirSync(join(candidate, 'skills'), { recursive: true });
     writeFile(join(candidate, 'CLAUDE.md'), '');
     const verdict = validateCandidate({
       configRoot,
       candidateDir: candidate,
       settings: {},
-      entries: ['notes', 'CLAUDE.md'],
+      entries: ['skills', 'CLAUDE.md'],
       bootstrapPaths: [],
       home,
     });
     assert.equal(verdict.ok, false);
     const details = verdict.failures.map((failure) => failure.detail).join('\n');
-    assert.match(details, /"notes" is present but empty/);
+    assert.match(details, /"skills" is present but empty/);
     assert.match(details, /"CLAUDE.md" is present but empty/);
   } finally {
     cleanup(home);
@@ -243,9 +258,10 @@ test('expectedEntries covers the declared set plus any live link routed through 
     const entries = expectedEntries(configRoot);
     assert.ok(entries.includes('extra'));
     assert.ok(!entries.includes('unrelated'));
-    for (const declared of ['skills', 'hooks', 'notes', 'CLAUDE.md', 'keybindings.json']) {
+    for (const declared of ['skills', 'hooks', 'rules', 'CLAUDE.md', 'keybindings.json']) {
       assert.ok(entries.includes(declared), `expected ${declared}`);
     }
+    assert.ok(!entries.includes('notes'), 'notes/ is live-only and is never demanded of a release');
   } finally {
     cleanup(home);
   }
