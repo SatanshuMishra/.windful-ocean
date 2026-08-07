@@ -1,6 +1,6 @@
-import { existsSync, readdirSync, readFileSync, readlinkSync, statSync } from 'node:fs';
+import { closeSync, existsSync, openSync, readdirSync, readFileSync, readSync, readlinkSync, statSync } from 'node:fs';
 import { spawnSync } from 'node:child_process';
-import { extname, join, relative, sep } from 'node:path';
+import { basename, extname, join, relative, sep } from 'node:path';
 import {
   CURRENT_LINK,
   INTERPRETERS,
@@ -14,6 +14,17 @@ import {
 
 const NODE_EXTENSIONS = Object.freeze(['.mjs', '.js', '.cjs']);
 const SHELL_EXTENSIONS = Object.freeze(['.sh', '.bash']);
+const PYTHON_EXTENSIONS = Object.freeze(['.py']);
+const NODE_LANGUAGES = Object.freeze(['node', 'nodejs']);
+const PYTHON_LANGUAGES = Object.freeze(['python', 'python3']);
+const SHELL_LANGUAGES = Object.freeze(['bash', 'sh', 'zsh']);
+const SHEBANG_PREFIX = '#!';
+const SHEBANG_READ_BYTES = 512;
+const PYTHON_PARSE_PROGRAM = [
+  'import ast,sys',
+  'try: ast.parse(open(sys.argv[1],"rb").read(), sys.argv[1])',
+  'except SyntaxError as error: sys.stderr.write("%s\\n" % error); sys.exit(1)',
+].join('\n');
 const EXECUTABLE_BITS = 0o111;
 
 const failure = (rule, detail) => Object.freeze({ rule, detail });
@@ -99,11 +110,62 @@ export function mapIntoCandidate({ rawPath, configRoot, candidateDir, home }) {
   return { resolved: join(candidateDir, ...withoutPointer), where: 'candidate' };
 }
 
-export function syntaxCheckFor(target) {
-  const extension = extname(target);
-  if (NODE_EXTENSIONS.includes(extension)) return { command: 'node', args: ['--check', target] };
-  if (SHELL_EXTENSIONS.includes(extension)) return { command: 'bash', args: ['-n', target] };
+function firstLineOf(target) {
+  try {
+    const handle = openSync(target, 'r');
+    try {
+      const buffer = Buffer.alloc(SHEBANG_READ_BYTES);
+      const read = readSync(handle, buffer, 0, SHEBANG_READ_BYTES, 0);
+      return buffer.subarray(0, read).toString('utf8').split('\n')[0];
+    } finally {
+      closeSync(handle);
+    }
+  } catch {
+    return null;
+  }
+}
+
+export function shebangInterpreter(target) {
+  const line = firstLineOf(target);
+  if (line === null || !line.startsWith(SHEBANG_PREFIX)) return null;
+  const meaningful = line
+    .slice(SHEBANG_PREFIX.length)
+    .trim()
+    .split(/\s+/)
+    .filter((token) => token !== '' && !token.startsWith('-'));
+  if (meaningful.length === 0) return null;
+  return basename(meaningful[meaningful.length - 1]);
+}
+
+function canonicalLanguage(name) {
+  if (typeof name !== 'string' || name === '') return null;
+  if (NODE_LANGUAGES.includes(name)) return 'node';
+  if (PYTHON_LANGUAGES.includes(name)) return 'python';
+  if (SHELL_LANGUAGES.includes(name)) return name;
   return null;
+}
+
+function extensionLanguage(target) {
+  const extension = extname(target);
+  if (NODE_EXTENSIONS.includes(extension)) return 'node';
+  if (SHELL_EXTENSIONS.includes(extension)) return 'bash';
+  if (PYTHON_EXTENSIONS.includes(extension)) return 'python';
+  return null;
+}
+
+function checkForLanguage(language, target) {
+  if (language === 'node') return { command: 'node', args: ['--check', target] };
+  if (language === 'python') return { command: 'python3', args: ['-c', PYTHON_PARSE_PROGRAM, target] };
+  if (SHELL_LANGUAGES.includes(language)) return { command: language, args: ['-n', target] };
+  return null;
+}
+
+export function syntaxCheckFor(target, interpreter = null) {
+  const language = canonicalLanguage(interpreter)
+    ?? canonicalLanguage(shebangInterpreter(target))
+    ?? extensionLanguage(target);
+  if (language === null) return null;
+  return checkForLanguage(language, target);
 }
 
 function hookFailuresFor(registration, context) {
@@ -115,7 +177,10 @@ function hookFailuresFor(registration, context) {
   if (!existsSync(resolved)) {
     return [failure('hook-resolution', `${command}: resolves to ${resolved}, which does not exist`)];
   }
-  return [...executabilityFailures(resolved, interpreter, command), ...syntaxFailures(resolved, command)];
+  return [
+    ...executabilityFailures(resolved, interpreter, command),
+    ...syntaxFailures(resolved, interpreter, command),
+  ];
 }
 
 function executabilityFailures(resolved, interpreter, command) {
@@ -125,8 +190,8 @@ function executabilityFailures(resolved, interpreter, command) {
   return [failure('hook-executable', `${command}: ${resolved} is invoked bare but is not executable`)];
 }
 
-function syntaxFailures(resolved, command) {
-  const check = syntaxCheckFor(resolved);
+function syntaxFailures(resolved, interpreter, command) {
+  const check = syntaxCheckFor(resolved, interpreter);
   if (check === null) return [];
   const run = spawnSync(check.command, check.args, { encoding: 'utf8' });
   if (run.error) {

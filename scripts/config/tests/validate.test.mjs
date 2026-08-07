@@ -161,6 +161,48 @@ test('a syntactically invalid registered hook fails validation and does not swap
   }
 });
 
+test('a hook is checked as the interpreter its command names, not as its extension', () => {
+  const s = scenario({
+    commands: ['node $HOME/.claude/hooks/good.sh'],
+    mutate: (claude) => writeFile(join(claude, 'hooks', 'good.sh'), 'const = ;\n', 0o755),
+  });
+  try {
+    assertRejected(s.run(), 'hook-syntax');
+    assertLiveUntouched(s.configRoot);
+  } finally {
+    s.dispose();
+  }
+});
+
+test('a hook whose shebang names python is checked as python, and the check writes nothing', () => {
+  const s = scenario({
+    mutate: (claude) => writeFile(join(claude, 'hooks', 'good.sh'), '#!/usr/bin/env python3\nprint("ok")\n', 0o755),
+  });
+  try {
+    const result = s.run();
+    assert.equal(result.status, 'promoted', JSON.stringify(result.failures ?? result.errors ?? {}, null, 2));
+    assert.ok(
+      !existsSync(join(s.configRoot, 'releases', s.sha, 'hooks', '__pycache__')),
+      'a syntax check must never write into the release it inspects',
+    );
+  } finally {
+    s.dispose();
+  }
+});
+
+test('a python hook with broken syntax is rejected on its extension alone', () => {
+  const s = scenario({
+    commands: ['$HOME/.claude/hooks/scan.py'],
+    mutate: (claude) => writeFile(join(claude, 'hooks', 'scan.py'), 'def (:\n', 0o755),
+  });
+  try {
+    assertRejected(s.run(), 'hook-syntax');
+    assertLiveUntouched(s.configRoot);
+  } finally {
+    s.dispose();
+  }
+});
+
 test('a candidate tree that cannot be scanned is reported, never silently treated as clean JSON', () => {
   const { home, configRoot } = makeHome();
   try {
