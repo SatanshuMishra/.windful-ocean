@@ -3,44 +3,16 @@ import assert from 'node:assert/strict';
 import { chmodSync, existsSync, mkdirSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import {
-  DEFAULT_HOOK_COMMANDS,
   GOOD_SH,
+  assertLiveUntouched,
+  assertRejected,
   cleanup,
   makeHome,
-  makeRepo,
-  settingsFor,
+  promoteScenario as scenario,
   writeFile,
 } from './_fixture.mjs';
-import { liveSha, promote, assertBootstrapOutsideReleases } from '../promote.mjs';
+import { liveSha, assertBootstrapOutsideReleases } from '../promote.mjs';
 import { bootstrapFailures, expectedEntries, jsonParseFailures, validateCandidate } from '../validate.mjs';
-
-const NOW = '2026-08-07T12:00:00.000Z';
-
-function scenario({ mutate, commands = DEFAULT_HOOK_COMMANDS } = {}) {
-  const { repoRoot, sha } = makeRepo({ mutate });
-  const { home, configRoot } = makeHome();
-  const settingsPath = settingsFor(configRoot, commands);
-  return {
-    repoRoot,
-    sha,
-    home,
-    configRoot,
-    run: () => promote({ configRoot, repoRoot, ref: 'main', now: NOW, settingsPath, home }),
-    dispose: () => cleanup(repoRoot, home),
-  };
-}
-
-function assertRejected(result, rule) {
-  assert.equal(result.status, 'rejected', `expected rejection, got ${result.status}`);
-  const rules = result.failures.map((failure) => failure.rule);
-  assert.ok(rules.includes(rule), `expected a ${rule} failure, saw ${JSON.stringify(rules)}`);
-}
-
-function assertLiveUntouched(configRoot) {
-  assert.equal(liveSha(configRoot), null, 'a rejected candidate must not become live');
-  assert.ok(!existsSync(join(configRoot, 'LIVE')), 'a rejected candidate must not write a receipt');
-  assert.ok(!existsSync(join(configRoot, 'current.tmp')), 'a rejected candidate must leave no staging link');
-}
 
 test('a candidate missing an expected entry fails validation and does not swap', () => {
   const s = scenario({ mutate: (claude) => rmSync(join(claude, 'skills'), { recursive: true, force: true }) });

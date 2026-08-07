@@ -1,7 +1,9 @@
-import { chmodSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import assert from 'node:assert/strict';
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { spawnSync } from 'node:child_process';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
+import { liveSha, promote } from '../promote.mjs';
 
 const GIT_IDENTITY = Object.freeze([
   '-c', 'user.email=promote-test@example.invalid',
@@ -79,4 +81,34 @@ export const DEFAULT_HOOK_COMMANDS = Object.freeze([
 
 export function cleanup(...paths) {
   for (const path of paths) rmSync(path, { recursive: true, force: true });
+}
+
+export const DEFAULT_NOW = '2026-08-07T12:00:00.000Z';
+
+export function promoteScenario({ mutate, commands = DEFAULT_HOOK_COMMANDS, now = DEFAULT_NOW } = {}) {
+  const { repoRoot, sha } = makeRepo({ mutate });
+  const { home, configRoot } = makeHome();
+  const settingsPath = settingsFor(configRoot, commands);
+  return {
+    repoRoot,
+    sha,
+    home,
+    configRoot,
+    settingsPath,
+    run: () => promote({ configRoot, repoRoot, ref: 'main', now, settingsPath, home }),
+    dispose: () => cleanup(repoRoot, home),
+  };
+}
+
+export function assertRejected(result, rule) {
+  assert.equal(result.status, 'rejected', `expected rejection, got ${result.status}`);
+  const rules = result.failures.map((failure) => failure.rule);
+  assert.ok(rules.includes(rule), `expected a ${rule} failure, saw ${JSON.stringify(result.failures, null, 2)}`);
+  return result.failures.filter((failure) => failure.rule === rule);
+}
+
+export function assertLiveUntouched(configRoot) {
+  assert.equal(liveSha(configRoot), null, 'a rejected candidate must not become live');
+  assert.ok(!existsSync(join(configRoot, 'LIVE')), 'a rejected candidate must not write a receipt');
+  assert.ok(!existsSync(join(configRoot, 'current.tmp')), 'a rejected candidate must leave no staging link');
 }
