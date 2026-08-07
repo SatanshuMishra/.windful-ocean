@@ -1,0 +1,90 @@
+{
+  "unit": "chore/close-config-coverage-gap",
+  "rows": [
+    {
+      "id": "B1",
+      "verdict": "not-threatened",
+      "check": "`git diff --name-only origin/chore/config-drift...HEAD` outside `.claude/docs/` returns exactly five paths: `.gitignore`, `.claude/.gitignore`, `.claude/hooks/session-config-drift-check.sh`, `.claude/hooks/tests/session-config-drift-check.test.mjs`, and this record at `docs/invariants/coverage/chore-close-config-coverage-gap.json`. Nothing under `.claude/lib/superpowers-parallel/` is added or modified, so no realm construction or DONT_CONTEXTIFY call site is reached."
+    },
+    {
+      "id": "B2",
+      "verdict": "not-threatened",
+      "check": "No sandbox denial mechanism is edited; `.claude/lib/superpowers-parallel/workflow-sandbox.mjs` is absent from this diff. The only executable file added is the bash hook `.claude/hooks/session-config-drift-check.sh`, which runs as a Claude Code hook process and never inside a workflow realm, so it can raise no error a workflow body could catch."
+    },
+    {
+      "id": "B3",
+      "verdict": "not-threatened",
+      "check": "No guarded-intrinsic member list is edited. The intrinsic policy lives under `.claude/lib/superpowers-parallel/`, which this diff does not touch; the only enumerations this unit changes are gitignore path patterns at `.gitignore:18-20`."
+    },
+    {
+      "id": "B4",
+      "verdict": "not-threatened",
+      "check": "VALUE_GLOBALS, ALWAYS_DENIED and ALLOWED_GLOBALS are not referenced anywhere in this diff. The 60 added files are 57 markdown/json documents under `.claude/docs/`, one bash hook and one node test under `.claude/hooks/`, and this coverage record; none declares or consumes a sandbox policy constant."
+    },
+    {
+      "id": "B5",
+      "verdict": "not-threatened",
+      "check": "The added test file `.claude/hooks/tests/session-config-drift-check.test.mjs` does enter the suite through the `.claude/hooks/tests/*.test.mjs` glob at `package.json:7`, but it exercises a bash drift-check hook via child processes; run alone it reports `tests 9 / pass 9 / fail 0`. The host-route census lives in the `.claude/lib/superpowers-parallel/tests/` harness, which this diff does not add to, remove from, or reclassify."
+    },
+    {
+      "id": "B6",
+      "verdict": "not-threatened",
+      "check": "The sandbox harness and its production caller are untouched. The one liveness relationship this unit does change is the reverse of B6's failure mode: `.claude/hooks/tests/session-config-drift-check.test.mjs` was previously hidden by the unanchored `*session*` pattern and so ran only from a dirty local checkout, and it is now tracked and reaches a clean checkout."
+    },
+    {
+      "id": "M1",
+      "verdict": "not-threatened",
+      "check": "This unit records all 17 registry ids from `docs/invariants/registry.json` in this committed artifact under `docs/invariants/coverage/`, not in the PR body. `node scripts/invariant-coverage-check.mjs` was run in this worktree and printed `invariant-coverage-check: ok` with the registry list `B1..G5`; the row shape matches the `rows` array the checker requires at `scripts/invariant-coverage-check.mjs:126`."
+    },
+    {
+      "id": "M2",
+      "verdict": "threatened",
+      "check": "This unit reconciles live-vs-tracked once, by hand, and commits no check that re-derives it: 59 of the 64 untracked live files are adopted, and the residual 5 all sit under `.claude/notes/`, still matched by `.claude/.gitignore:43` and still 0-tracked, so a release keeps delivering an empty `notes/`. Those 5 are deliberately not adopted - two of them carry a confidential cross-project identifier and absolute paths into an unrelated private repository, so publishing them to this public repo is barred and precondition 1's `explicitly reclassify` branch is the only lawful discharge. The replacement at `.gitignore:18-20` is a three-name enumeration (`sessions/`, `session-data/`, `session-env/`) where a fourth session-state directory name would pass unclassified with no halt - gitignore cannot halt by construction. SPEC acceptance criterion 10 asks for exactly the closed live-vs-release diff this unit does not ship."
+    },
+    {
+      "id": "M3",
+      "verdict": "threatened",
+      "check": "The narrowing at `.gitignore:18-20` fixes a real defect (the unanchored pattern hid two live files from `git archive`) and ships no committed acceptance test asserting the symptom. The evidence is a `git check-ignore -v` transcript that is not re-runnable in CI: before, both hook paths reported `.gitignore:19:*session*`; after, both report `::` (unmatched). The only incidental receipt is that `.claude/hooks/tests/session-config-drift-check.test.mjs` now reaches a clean checkout through `package.json:7`, adding 9 passing tests that the parent commit does not run - red-on-parent by presence, but no assertion states the symptom and no inertness mutation exists."
+    },
+    {
+      "id": "M4",
+      "verdict": "not-threatened",
+      "check": "No structural refactor is present: nothing is renamed, moved or re-exported. The two commits are separated by kind - `df107a2` changes only `.gitignore` (the ignore-rule fix), `841f2a9` removes the two exclusions and adds the 59 files they hid. The 59 files are new tracked content copied from the live tree, not relocated repo code; their live originals are left in place and untouched."
+    },
+    {
+      "id": "M5",
+      "verdict": "threatened",
+      "check": "Every citation in this record was re-derived in this worktree (`.gitignore:18-20` and `:14-15` by `cat -n`; `package.json:7`, `scripts/invariant-coverage-check.mjs:126`, `.claude/hooks/tests/protect-claude-config.test.mjs:194,208` and `.claude/hooks/block-destructive-bash.sh:17,123` by Read). The threat is what adoption publishes: 16 of the 57 adopted documents carry `/Users/satanshumishra/.claude/...` absolute-path citations written weeks ago and not re-derived at adoption, so the tracked corpus now offers a copy-source of unverified anchors - the precise 'never copied' failure M5 names."
+    },
+    {
+      "id": "M6",
+      "verdict": "not-threatened",
+      "check": "No gate-enforcing artifact is hand-patched. This unit moves in M6's favoured direction: `.claude/hooks/session-config-drift-check.sh` was live-only and had no committed source at all, so no refresh could reproduce it; it is now tracked at mode 100755 (`git ls-files -s`) and therefore carried by a `git archive`-built release. The bash gate itself is unchanged, and `~/.claude/hooks/block-destructive-bash.sh` remains a symlink onto committed source per `.claude/hooks/CLAUDE.md`."
+    },
+    {
+      "id": "G1",
+      "verdict": "not-threatened",
+      "check": "No merge was issued or attempted by this unit: no `gh pr merge`, no `gh api` call to a pulls merge endpoint, no GraphQL mutation. The gate source `.claude/hooks/block-destructive-bash.sh` and `.claude/settings.json` are both absent from `git diff --name-only origin/chore/config-drift...HEAD`, so no merge deny is weakened."
+    },
+    {
+      "id": "G2",
+      "verdict": "not-threatened",
+      "check": "This unit opens no pull request and edits no title or body; the ship stage composes the PR through the centralized tool. No deny entry is touched - `.claude/settings.json` is not in this diff, and the gate script is unmodified."
+    },
+    {
+      "id": "G3",
+      "verdict": "not-threatened",
+      "check": "No PR-creation path is exercised or altered. `.claude/lib/git/pr.mjs` and its tests under `.claude/lib/git/tests/` are absent from this diff, and the `pr-create` deny set in `.claude/settings.json` is unchanged."
+    },
+    {
+      "id": "G4",
+      "verdict": "threatened",
+      "check": "This unit wrote a file under `.claude/hooks/` through an agent-issued Bash command that the gate never inspected. `guardpath` at `.claude/hooks/block-destructive-bash.sh:17` covers `.claude/hooks/` and `guardverb` at `:123` includes `cp`, which together would raise the `shell write to Claude Code guardrail file` ask at `:172` - but the command run was `bash <scriptpath>`, whose string carries neither token, so the match at `:169-172` never fired. The act here was a create in an isolated worktree, not a remove/overwrite/relocate of a live guardrail, so G4's stated act did not occur; the evasion mechanism it demonstrates is the reason this is recorded as threatened rather than clean."
+    },
+    {
+      "id": "G5",
+      "verdict": "not-threatened",
+      "check": "No named network command appears in this unit; `git fetch origin` was the only remote call and carries no file-reference-shaped argument. The escalation branch at `.claude/hooks/block-destructive-bash.sh:224` and its command census are unmodified by this diff."
+    }
+  ]
+}

@@ -1,0 +1,123 @@
+{
+  "tasks": [
+    {
+      "id": "t1",
+      "title": "Rewrite the continuity-ledger rule",
+      "fullText": "Implement ONLY this task from the approved plan. Open /Users/satanshumishra/.claude/docs/superpowers/plans/2026-06-25-continuity-redesign.md and find the section '### Task 1: Rewrite the continuity-ledger rule'. Execute its steps verbatim: full-replace rules/common/continuity-ledger.md with the exact content in Step 2, then run the Step 1/Step 3 acceptance greps. Honor Global Constraints (no comments, no emojis, no git). Editing rules/* triggers the protect-claude-config approval prompt; that is expected.",
+      "dependsOn": [],
+      "fileScope": ["rules/common/continuity-ledger.md"],
+      "risk": "low",
+      "agentType": "implementer",
+      "validation": "scoped"
+    },
+    {
+      "id": "t2",
+      "title": "Rewrite the resume-project skill",
+      "fullText": "Implement ONLY this task from the approved plan. Open /Users/satanshumishra/.claude/docs/superpowers/plans/2026-06-25-continuity-redesign.md and find the section '### Task 2: Rewrite the resume-project skill'. Full-replace skills/resume-project/SKILL.md with the exact content in Step 2, then run the Step 1/Step 3 acceptance greps (including the two `! grep` forbidden-phrase checks). Honor Global Constraints (no comments, no emojis, no git).",
+      "dependsOn": [],
+      "fileScope": ["skills/resume-project/SKILL.md"],
+      "risk": "low",
+      "agentType": "implementer",
+      "validation": "scoped"
+    },
+    {
+      "id": "t3",
+      "title": "Rewrite the session-handoff skill",
+      "fullText": "Implement ONLY this task from the approved plan. Open /Users/satanshumishra/.claude/docs/superpowers/plans/2026-06-25-continuity-redesign.md and find the section '### Task 3: Rewrite the session-handoff skill'. Full-replace skills/session-handoff/SKILL.md with the exact content in Step 2 (note the outer fenced block uses ```` ```` ); then run the Step 1/Step 3 acceptance greps. This task defines the new threads/<slug>.md template and the PROJECT.md Threads line format consumed by t4. Honor Global Constraints (no comments, no emojis, no git).",
+      "dependsOn": [],
+      "fileScope": ["skills/session-handoff/SKILL.md"],
+      "risk": "low",
+      "agentType": "implementer",
+      "validation": "scoped"
+    },
+    {
+      "id": "t4",
+      "title": "Reconcile the live ledger to the new model",
+      "fullText": "Implement ONLY this task from the approved plan. Open /Users/satanshumishra/.claude/docs/superpowers/plans/2026-06-25-continuity-redesign.md and find the section '### Task 4: Reconcile the live ledger to the new model'. Execute Steps 1-5: remove the two orphan Threads index lines (test-discipline, project-ledger) from the live PROJECT.md, change vibesec-integration status active->paused in both its thread file and the index, update the surviving Threads lines to the new `<slug> — <state> — <one-line summary>` format defined by t3, then run the Step 5 verification. Do NOT modify any thread file other than vibesec-integration.md. The live ledger under projects/* is NOT guarded, so no approval prompt fires.",
+      "dependsOn": ["t3"],
+      "fileScope": [
+        "projects/-Users-satanshumishra--claude/ledger/PROJECT.md",
+        "projects/-Users-satanshumishra--claude/ledger/threads/vibesec-integration.md"
+      ],
+      "risk": "low",
+      "agentType": "implementer",
+      "validation": "scoped"
+    },
+    {
+      "id": "t5",
+      "title": "Shared ledger helper library + test",
+      "fullText": "Implement ONLY this task from the approved plan. Open /Users/satanshumishra/.claude/docs/superpowers/plans/2026-06-25-continuity-redesign.md and find the section '### Task 5: Shared ledger helper library + its test'. Execute Steps 1-5 (TDD): create hooks/tests/ledger-common.test.sh and hooks/tests/_assert.sh, run the test to see it fail, create hooks/lib/ledger-common.sh with the exact content, run the test to PASS. _assert.sh and the lib are shared fixtures consumed by t6-t9. Honor Global Constraints (no comments beyond the shebang, no git). Editing hooks/* triggers the protect-claude-config approval prompt; that is expected.",
+      "dependsOn": [],
+      "fileScope": [
+        "hooks/lib/ledger-common.sh",
+        "hooks/tests/ledger-common.test.sh",
+        "hooks/tests/_assert.sh"
+      ],
+      "risk": "low",
+      "agentType": "implementer",
+      "validation": "scoped"
+    },
+    {
+      "id": "t6",
+      "title": "UserPromptSubmit roster injector + test",
+      "fullText": "Implement ONLY this task from the approved plan. Open /Users/satanshumishra/.claude/docs/superpowers/plans/2026-06-25-continuity-redesign.md and find the section '### Task 6: UserPromptSubmit roster injector + test'. Execute Steps 1-5 (TDD): write the test, see it fail, write hooks/ledger-resume-roster.sh with the exact content, see the test PASS, chmod +x the hook. It sources hooks/lib/ledger-common.sh and hooks/tests/_assert.sh (both created in t5). Do not create or edit _assert.sh or the lib. Honor Global Constraints (shebang only, no git).",
+      "dependsOn": ["t5"],
+      "fileScope": [
+        "hooks/ledger-resume-roster.sh",
+        "hooks/tests/ledger-resume-roster.test.sh"
+      ],
+      "risk": "low",
+      "agentType": "implementer",
+      "validation": "scoped"
+    },
+    {
+      "id": "t7",
+      "title": "SessionStart staleness scan + test",
+      "fullText": "Implement ONLY this task from the approved plan. Open /Users/satanshumishra/.claude/docs/superpowers/plans/2026-06-25-continuity-redesign.md and find the section '### Task 7: SessionStart staleness scan + test'. Execute Steps 1-5 (TDD): write the test, see it fail, write hooks/ledger-staleness-scan.sh with the exact content (note the LEDGER_NOW_EPOCH override for deterministic dates and the BSD/GNU date fallback), see the test PASS, chmod +x. It sources the t5 lib and _assert.sh. Honor Global Constraints (shebang only, no git).",
+      "dependsOn": ["t5"],
+      "fileScope": [
+        "hooks/ledger-staleness-scan.sh",
+        "hooks/tests/ledger-staleness-scan.test.sh"
+      ],
+      "risk": "low",
+      "agentType": "implementer",
+      "validation": "scoped"
+    },
+    {
+      "id": "t8",
+      "title": "PreCompact sentinel writer + test",
+      "fullText": "Implement ONLY this task from the approved plan. Open /Users/satanshumishra/.claude/docs/superpowers/plans/2026-06-25-continuity-redesign.md and find the section '### Task 8: PreCompact sentinel writer + test'. Execute Steps 1-5 (TDD): write the test, see it fail, write hooks/ledger-precompact-checkpoint.sh with the exact content, see the test PASS, chmod +x. CONTRACT: this hook writes <ledger>/.compact-sentinel-<session_id>.json with fields {session_id, thread_slug, transcript_path, trigger, ts}; t9 reads exactly this path and these fields, so do not change the filename pattern or the field names. The hook must NEVER block compaction (always exit 0, no decision). It sources the t5 lib. Honor Global Constraints (shebang only, no git).",
+      "dependsOn": ["t5"],
+      "fileScope": [
+        "hooks/ledger-precompact-checkpoint.sh",
+        "hooks/tests/ledger-precompact-checkpoint.test.sh"
+      ],
+      "risk": "high",
+      "agentType": "implementer",
+      "validation": "scoped"
+    },
+    {
+      "id": "t9",
+      "title": "SessionStart compact re-injector + test",
+      "fullText": "Implement ONLY this task from the approved plan. Open /Users/satanshumishra/.claude/docs/superpowers/plans/2026-06-25-continuity-redesign.md and find the section '### Task 9: SessionStart compact re-injector + test'. Execute Steps 1-5 (TDD): write the test, see it fail, write hooks/ledger-compact-checkpoint.sh with the exact content, see the test PASS, chmod +x. CONTRACT: this hook reads <ledger>/.compact-sentinel-<session_id>.json (written by t8) using fields {thread_slug, transcript_path, trigger}, runs only when source==compact, re-injects a SessionStart additionalContext checkpoint instruction, then deletes the sentinel (consume-once) and reaps sentinels older than 1 day. The filename pattern and field names MUST match t8 exactly. It sources the t5 lib. Honor Global Constraints (shebang only, no git).",
+      "dependsOn": ["t5", "t8"],
+      "fileScope": [
+        "hooks/ledger-compact-checkpoint.sh",
+        "hooks/tests/ledger-compact-checkpoint.test.sh"
+      ],
+      "risk": "high",
+      "agentType": "implementer",
+      "validation": "scoped"
+    },
+    {
+      "id": "t10",
+      "title": "Wire the hooks into settings.json",
+      "fullText": "Implement ONLY this task from the approved plan. Open /Users/satanshumishra/.claude/docs/superpowers/plans/2026-06-25-continuity-redesign.md and find the section '### Task 10: Wire the hooks into settings.json'. Execute Steps 1-5: add the UserPromptSubmit event (ledger-resume-roster.sh), append ledger-staleness-scan.sh and ledger-compact-checkpoint.sh to the existing SessionStart hooks array AFTER graphify-provision.sh, add the PreCompact event (ledger-precompact-checkpoint.sh), all at timeout 10. Then run the Step 5 jq validation. Do NOT touch model, includeCoAuthoredBy, enabledPlugins, extraKnownMarketplaces, permissions, or any version string. The four referenced hook scripts already exist (t6-t9). Editing settings.json triggers the protect-claude-config approval prompt; that is expected.",
+      "dependsOn": ["t6", "t7", "t8", "t9"],
+      "fileScope": ["settings.json"],
+      "risk": "low",
+      "agentType": "implementer",
+      "validation": "scoped"
+    }
+  ]
+}
