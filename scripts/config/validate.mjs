@@ -2,14 +2,17 @@ import {
   closeSync,
   constants,
   existsSync,
+  mkdtempSync,
   openSync,
   readdirSync,
   readFileSync,
   readSync,
   readlinkSync,
+  rmSync,
   statSync,
 } from 'node:fs';
 import { spawnSync } from 'node:child_process';
+import { tmpdir } from 'node:os';
 import { basename, extname, join, relative, sep } from 'node:path';
 import {
   CURRENT_LINK,
@@ -38,11 +41,15 @@ const PYTHON_PARSE_PROGRAM = [
 ].join('\n');
 const LANGUAGE_CHECKERS = Object.freeze([
   Object.freeze({ language: 'node', command: 'node', flags: Object.freeze(['--check']) }),
-  Object.freeze({ language: 'python', command: 'python3', flags: Object.freeze(['-c', PYTHON_PARSE_PROGRAM]) }),
+  Object.freeze({ language: 'python', command: 'python3', flags: Object.freeze(['-I', '-c', PYTHON_PARSE_PROGRAM]) }),
   Object.freeze({ language: 'bash', command: 'bash', flags: Object.freeze(['-n']) }),
   Object.freeze({ language: 'sh', command: 'sh', flags: Object.freeze(['-n']) }),
   Object.freeze({ language: 'zsh', command: 'zsh', flags: Object.freeze(['-f', '-n']) }),
 ]);
+const CHECKER_COMMANDS = Object.freeze(['node', 'python3', 'bash', 'sh', 'zsh']);
+const CHECKER_TIMEOUT_MS = 15000;
+const CHECKER_MAX_BUFFER = 262144;
+const CHECKER_SANDBOX_PREFIX = 'config-syntax-check-';
 const EXECUTABLE_BITS = 0o111;
 const { O_NONBLOCK, O_RDONLY } = constants;
 
@@ -221,7 +228,7 @@ function hookFailuresFor(registration, context) {
   }
   return [
     ...executabilityFailures(resolved, interpreter, command),
-    ...syntaxFailures(resolved, interpreter, command),
+    ...syntaxFailures(resolved, interpreter, command, context.sandboxDir),
   ];
 }
 
@@ -232,24 +239,65 @@ function executabilityFailures(resolved, interpreter, command) {
   return [failure('hook-executable', `${command}: ${resolved} is invoked bare but is not executable`)];
 }
 
-function syntaxFailures(resolved, interpreter, command) {
+export function checkerEnvironment(inherited) {
+  const path = inherited.PATH;
+  return typeof path === 'string' && path !== '' ? Object.freeze({ PATH: path }) : Object.freeze({});
+}
+
+function openSandbox() {
+  try {
+    return { ok: true, dir: mkdtempSync(join(tmpdir(), CHECKER_SANDBOX_PREFIX)) };
+  } catch (error) {
+    return { ok: false, error: `a working directory outside the candidate release could not be opened: ${error.message}` };
+  }
+}
+
+function syntaxFailures(resolved, interpreter, command, sandboxDir) {
   const check = resolveChecker(resolved, interpreter);
   if (!check.ok) {
     return [failure('hook-language', `${command}: ${resolved} cannot be syntax-checked because ${check.reason}`)];
   }
-  const run = spawnSync(check.command, check.args, { encoding: 'utf8' });
+  if (!CHECKER_COMMANDS.includes(check.command)) {
+    return [failure(
+      'hook-language',
+      `${command}: refusing to run ${JSON.stringify(check.command)}; only ${CHECKER_COMMANDS.join(', ')} may check a hook`,
+    )];
+  }
+  const run = spawnSync(check.command, check.args, {
+    encoding: 'utf8',
+    cwd: sandboxDir,
+    env: checkerEnvironment(process.env),
+    shell: false,
+    timeout: CHECKER_TIMEOUT_MS,
+    maxBuffer: CHECKER_MAX_BUFFER,
+    windowsHide: true,
+  });
   if (run.error) {
     return [failure('hook-syntax', `${command}: ${check.command} could not be run: ${run.error.message}`)];
   }
   if (run.status === 0) return [];
+  if (run.status === null) {
+    return [failure(
+      'hook-syntax',
+      `${command}: ${check.command} was killed by ${run.signal ?? 'an unknown signal'} before it could report on ${resolved}`,
+    )];
+  }
   const reason = (run.stderr || run.stdout || '').trim().split('\n')[0] ?? `exit ${run.status}`;
   return [failure('hook-syntax', `${command}: ${check.command} rejected ${resolved} as ${check.language}: ${reason}`)];
 }
 
 export function hookFailures({ settings, configRoot, candidateDir, home }) {
-  return hookRegistrations(settings).flatMap((registration) =>
-    hookFailuresFor(registration, { configRoot, candidateDir, home }),
-  );
+  const registrations = hookRegistrations(settings);
+  if (registrations.length === 0) return [];
+  const sandbox = openSandbox();
+  if (!sandbox.ok) return [failure('hook-syntax', `no hook could be syntax-checked: ${sandbox.error}`)];
+  try {
+    return registrations.flatMap((registration) =>
+      hookFailuresFor(registration, { configRoot, candidateDir, home, sandboxDir: sandbox.dir }),
+    );
+  } finally {
+    rmSync(sandbox.dir, { recursive: true, force: true });
+  }
 }
 
 function jsonFilesUnder(root) {
