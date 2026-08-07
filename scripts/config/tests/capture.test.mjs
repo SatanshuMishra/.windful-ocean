@@ -73,9 +73,14 @@ test('capture refuses a destination that reaches tracked content through a symli
   try {
     const link = join(s.outside, 'shortcut');
     symlinkSync(s.repoRoot, link);
-    const destination = join(link, '.claude', 'settings.json');
-    assert.match(leakGateFailure(destination, s.repoRoot), /refusing to write/);
+    const destination = join(link, 'captured.json');
+    assert.match(
+      leakGateFailure(destination, s.repoRoot) ?? '',
+      /resolves inside the repository worktree/,
+      'the basename is unguarded, so only resolving the symlink can catch this write',
+    );
     assert.throws(() => writeProposal({ destination, repoRoot: s.repoRoot, text: '{}\n' }), /refusing to write/);
+    assert.equal(existsSync(join(s.repoRoot, 'captured.json')), false);
   } finally {
     s.dispose();
   }
