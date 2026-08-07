@@ -1,0 +1,90 @@
+{
+  "unit": "feat/config-converge-hooks",
+  "rows": [
+    {
+      "id": "B1",
+      "verdict": "not-threatened",
+      "check": "`git diff --name-only origin/feat/config-promote-verb...HEAD` returns exactly five paths: .claude/settings.json, docs/invariants/coverage/feat-config-converge-hooks.json, scripts/config/converge.mjs, scripts/config/paths.mjs and scripts/config/tests/converge.test.mjs. No vm realm, no contextify option and no host-realm global is constructed anywhere in them; converge.mjs runs in the ordinary host module scope with explicit node: imports at scripts/config/converge.mjs:2-9. workflow-sandbox.mjs is untouched."
+    },
+    {
+      "id": "B2",
+      "verdict": "not-threatened",
+      "check": "No sandbox denial mechanism is added or edited, and no refusal this unit adds is a throw: each is a returned record, at scripts/config/converge.mjs:42-43 for a non-main ref, :50 for the absent/unreadable-receipt split and :54-60 for an unresolvable repo root. Both throw sites reachable from the CLI are now contained rather than escaping to a caller: assertBootstrapOutsideReleases at :162 inside the try/catch at :161-166, and everything the promote call at :68 can raise inside attemptConverge at :116-127, which the run path enters at :168. The ship stage added that second guard - before it, an fs throw escaped run() as an untagged host error, which I reproduced as EEXIST from mkdirSync."
+    },
+    {
+      "id": "B3",
+      "verdict": "not-threatened",
+      "check": "No guarded intrinsic and no member enumeration on an intrinsic appears in this diff. The nearest shape is the argv classification: CONVERGE_EVENTS at scripts/config/converge.mjs:15 and CLI_FLAGS at :17 enumerate hook event names and CLI flag names, not properties of a JavaScript intrinsic, and neither raises a violation on a non-listed member - an unlisted event is a usage rejection at :152-157, an unlisted flag a parse rejection at :136-138."
+    },
+    {
+      "id": "B4",
+      "verdict": "not-threatened",
+      "check": "VALUE_GLOBALS, ALWAYS_DENIED and ALLOWED_GLOBALS are absent from this diff, so B4's named set is unaffected. I probed both constants this unit adds that carry policy, restoring the file after each: emptying FAILED_PROMOTIONS at scripts/config/converge.mjs:18 left 10 pass 1 fail, reddening exactly the rejected-candidate test at scripts/config/tests/converge.test.mjs:145; emptying CONVERGE_EVENTS at :15 reddened six tests, every one that drives the CLI, beginning with scripts/config/tests/converge.test.mjs:67. CLI_FLAGS at :17 I did not empty; it is exercised by the flag values every test in that file passes."
+    },
+    {
+      "id": "B5",
+      "verdict": "not-threatened",
+      "check": "Nothing in this unit is evaluated in the workflow-body position, so the census of host-reachable bare identifiers is unchanged. converge.mjs is an ESM module the host executes directly, imported by name at scripts/config/tests/converge.test.mjs:17-19 and spawned as a plain node process at :74-77; the engine never evaluates it inside a sandboxed scope."
+    },
+    {
+      "id": "B6",
+      "verdict": "threatened",
+      "check": "The sandbox harness B6 names is untouched, but this unit moves rather than clears the condition B6 forbids. U2 recorded promote.mjs as having no production caller; this unit declares two, at .claude/settings.json:110 and :174. Both address $HOME/.claude/local/converge.mjs, which does not exist on this machine - I ran the exact registered command and got `Error: Cannot find module '/Users/satanshumishra/.claude/local/converge.mjs'` with exit 1, and $HOME/.claude/local is absent. So the caller is declared but inert until cutover installs the bootstrap, and the liveness of both converge.mjs and promote.mjs is still proven only by scripts/config/tests/. Recorded as threatened rather than claimed closed."
+    },
+    {
+      "id": "M1",
+      "verdict": "not-threatened",
+      "check": "This unit satisfies M1 rather than reaching it. All 17 ids read from docs/invariants/registry.json carry a verdict in this committed file and nowhere else; the PR body will carry no verdict table. The shape is the `rows` array the checker requires at scripts/invariant-coverage-check.mjs:126-127, not the `invariants` key the ship-stage brief named, which that checker rejects at the same line. `node scripts/invariant-coverage-check.mjs` exits 0 and lists this entry."
+    },
+    {
+      "id": "M2",
+      "verdict": "not-threatened",
+      "check": "Every gate this unit adds that classifies a token or a ref is closed and halts. The hook event is checked against CONVERGE_EVENTS at scripts/config/converge.mjs:152-157 and an unlisted event returns exit 2 having emitted nothing, asserted at scripts/config/tests/converge.test.mjs:269. The desired ref is checked at :23-27 and anything but main is refused, never promoted, asserted at scripts/config/tests/converge.test.mjs:91. parseFlags at :133-143 rejects an unknown flag rather than ignoring it. One fallthrough I name rather than hide: convergeFailed at :101-104 returns false for any status it does not enumerate, so it is closed only because the producers of that status set are converge() at :41-70 and attemptConverge() at :116-127, both in this file, and the 'error' status the second one emits is enumerated explicitly at :102."
+    },
+    {
+      "id": "M3",
+      "verdict": "not-threatened",
+      "check": "The ship-stage fix ships exactly the test M3 describes. scripts/config/tests/converge.test.mjs:244 was red on the parent commit 191fb4f, failing with the uncaught `EEXIST: file already exists, mkdir` that escaped run() (10 pass, 1 fail), and green on the fix f5ea4ff (33 pass, 0 fail); it asserts the reported symptom on both registrations - exit 1 with the FAILED report on stderr for Stop, exit 0 with the report in additionalContext for SessionStart. Inertness mutation: removing the try/catch from attemptConverge at scripts/config/converge.mjs:116-127 reddens exactly that test (10 pass, 1 fail). I re-probed the two pre-existing behaviors too, restoring the file each time: forcing the emitReport context branch false at :108 reddened scripts/config/tests/converge.test.mjs:67 and :244 (9 pass, 2 fail); making refRefusal return null at :24 reddened :91 and :113 (9 pass, 2 fail)."
+    },
+    {
+      "id": "M4",
+      "verdict": "not-threatened",
+      "check": "No structural refactor shares a reviewable range with the behavior change. `git diff --stat origin/feat/config-promote-verb...HEAD` reports 577 insertions and 1 deletion across five files; two of the five are new files, .claude/settings.json is +10/-0 confined to the hooks block, and the single deletion is the one-line value change at scripts/config/paths.mjs:27 replacing the placeholder bootstrap name with the file this unit creates. No consumer of that constant moved - bootstrapPathsFor at scripts/config/paths.mjs:40-41 is untouched - and the 22 pre-existing tests in scripts/config/tests/promote.test.mjs and validate.test.mjs stayed green, which I re-ran at the final tree (22 tests, 22 pass). The ship-stage fix added one function and repointed one call site; it renamed and moved nothing."
+    },
+    {
+      "id": "M5",
+      "verdict": "not-threatened",
+      "check": "Every path:line here was re-derived by grep against this worktree after the ship-stage commit f5ea4ff, never copied; the anchors this file carried at 191fb4f shifted by twelve lines from exitCodeFor onward and were corrected rather than kept. Confirmed at the committed tree: CONVERGE_EVENTS scripts/config/converge.mjs:15, CLI_FLAGS :17, FAILED_PROMOTIONS :18, refRefusal :23, driftOf :29, converge :41, the receipt-absent split :50, the promote call :68, convergeReport :89, convergeFailed :101, emitReport :106 with the additionalContext payload at :109, attemptConverge :116, exitCodeFor :128, parseFlags :133, run :145, the event check :152, the bootstrap assertion :162, the guarded converge call :168; BOOTSTRAP_ENTRIES scripts/config/paths.mjs:27 and bootstrapPathsFor :40; the two registrations .claude/settings.json:110 and :174; the eleven tests at scripts/config/tests/converge.test.mjs:67, :91, :113, :128, :145, :163, :179, :194, :213, :244, :269; swapPointer scripts/config/promote.mjs:36 with its renameSync at :45; collectGarbage scripts/config/release.mjs:73 with its rmSync at :79; RECEIPT_FIELDS scripts/config/receipt.mjs:4-11; the rows contract scripts/invariant-coverage-check.mjs:126-127."
+    },
+    {
+      "id": "M6",
+      "verdict": "threatened",
+      "check": "U2 recorded the bootstrap half of M6 as threatened; this unit makes that threat harness-driven instead of dormant. The registrations at .claude/settings.json:110 and :174 will run a deployed copy at ~/.claude/local/converge.mjs at every SessionStart and Stop, and nothing records which commit that copy was built from: the LIVE receipt fields fixed at scripts/config/receipt.mjs:4-11 are ref, sha, built_at, promoted_at, previous and repo_root, none of which describes the bootstrap, and invariant 5.3 forbids self-hosting it in the release whose sha the receipt does record. A hand-patched ~/.claude/local/converge.mjs would therefore execute in every session and survive any release refresh undetected."
+    },
+    {
+      "id": "G1",
+      "verdict": "not-threatened",
+      "check": "No merge path is added or weakened. converge.mjs spawns no child process of its own; the only processes reachable through the promote call at scripts/config/converge.mjs:68 are U2's local `git rev-parse` (scripts/config/release.mjs:7), `git archive` (:34-38), `tar -xf` (:44) and `node --check` / `bash -n` (scripts/config/validate.mjs:131). No gh invocation, no REST POST and no GraphQL mutation appears in this diff, and I merge nothing in this unit."
+    },
+    {
+      "id": "G2",
+      "verdict": "not-threatened",
+      "check": "This unit does modify .claude/settings.json, which holds the permissions block G2 leans on, so I checked rather than assumed: `git diff origin/feat/config-promote-verb...HEAD -- .claude/settings.json` grepped for permissions, deny, allow, gh pr and mergePull returns 0 matching added or removed lines, and both added objects sit inside the hooks block that opens at .claude/settings.json:93, at :108-112 and :172-176, well past the permissions block that opens at :7. .claude/lib/git/pr.mjs and .claude/hooks/block-destructive-bash.sh are untouched, and nothing in scripts/config/ reads or composes a pull request title or body."
+    },
+    {
+      "id": "G3",
+      "verdict": "not-threatened",
+      "check": "The centralized creation path is untouched and unbypassed. This unit adds no PR-creating surface; converge.mjs's entire outward effect is a pointer swap and a receipt write inside a config root. The PR for this branch is opened by `node .claude/lib/git/pr.mjs pr-create` with --base feat/config-promote-verb at the ship stage, not by anything introduced here."
+    },
+    {
+      "id": "G4",
+      "verdict": "threatened",
+      "check": "Two distinct exposures, one contained and one not. Contained: this diff edits a guardrail file directly, .claude/settings.json, and the existing guard did fire - piping an Edit payload naming that exact worktree path into .claude/hooks/protect-claude-config.sh returned permissionDecision \"ask\", so G4's \"made deliberately harder\" clause held for my edit. Not contained: the registrations at :110 and :174 wire the pointer swap (scripts/config/promote.mjs:36-47, whose renameSync at :45 relocates hooks/ and rules/ wholesale) and the release delete (scripts/config/release.mjs:79) to hooks the harness runs with no human in the loop. SPEC A section 5.4 records that protect-claude-config.sh covers ~/.claude/hooks/** but not ~/.claude/releases/<sha>/hooks/**, so neither reaches that guard. Mitigating but not disqualifying: converge is a no-op until a LIVE receipt exists (scripts/config/converge.mjs:48-51, asserted at scripts/config/tests/converge.test.mjs:179), so nothing can fire before cutover, and every test drives a mkdtemp sandbox from scripts/config/tests/_fixture.mjs. Recorded rather than excused."
+    },
+    {
+      "id": "G5",
+      "verdict": "not-threatened",
+      "check": "No network command is added or invoked. converge.mjs spawns nothing directly, and the inherited spawns listed under G1 are all local. The near-miss worth naming: --config-root and --repo-root at scripts/config/converge.mjs:17 do carry guardrail-adjacent paths into the process, and the criterion-7 test passes one to a real spawned node at scripts/config/tests/converge.test.mjs:73-76, but no command taking them is network-named and no argument is credential-shaped, so G5's escalation condition is never reached."
+    }
+  ]
+}
