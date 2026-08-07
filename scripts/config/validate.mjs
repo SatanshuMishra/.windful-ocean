@@ -217,26 +217,72 @@ export function resolveChecker(target, interpreter = null) {
   return { ok: true, language: checker.language, command: checker.command, args: [...checker.flags, target] };
 }
 
+function statOrNull(target) {
+  try {
+    return statSync(target);
+  } catch {
+    return null;
+  }
+}
+
+function describeKind(stats) {
+  if (stats.isDirectory()) return 'a directory';
+  if (stats.isFIFO()) return 'a named pipe';
+  if (stats.isSocket()) return 'a socket';
+  if (stats.isCharacterDevice()) return 'a character device';
+  if (stats.isBlockDevice()) return 'a block device';
+  return 'of an unrecognized kind';
+}
+
+function containmentFailures(real, resolved, command, { candidateDir, configRoot }) {
+  const roots = [candidateDir, localDir(configRoot)].map(realpathOrNull).filter((root) => root !== null);
+  if (roots.some((root) => isInside(root, real))) return [];
+  return [failure(
+    'hook-containment',
+    `${command}: ${resolved} resolves to ${real}, outside both the candidate release and local/; `
+      + 'validation inspects only what the release itself carries',
+  )];
+}
+
+function shapeFailures(stats, real, command) {
+  if (stats === null) return [failure('hook-shape', `${command}: ${real} could not be inspected`)];
+  if (stats.isFile()) return [];
+  return [failure(
+    'hook-shape',
+    `${command}: ${real} is not a regular file, it is ${describeKind(stats)}; validation neither reads nor runs it`,
+  )];
+}
+
+function checkedHookFailures(real, stats, registration, context) {
+  const { interpreter, command } = registration;
+  return [
+    ...executabilityFailures(stats, real, interpreter, command),
+    ...syntaxFailures(real, interpreter, command, context.sandboxDir),
+  ];
+}
+
 function hookFailuresFor(registration, context) {
-  const { rawPath, interpreter, command } = registration;
+  const { rawPath, command } = registration;
   const { resolved, where } = mapIntoCandidate({ ...context, rawPath });
   if (resolved === null) {
     return [failure('hook-resolution', `${command}: path ${JSON.stringify(rawPath)} resolves ${where} the candidate release and ${where === 'outside' ? 'outside local/' : 'nowhere usable'}`)];
   }
-  if (!existsSync(resolved)) {
-    return [failure('hook-resolution', `${command}: resolves to ${resolved}, which does not exist`)];
+  const real = realpathOrNull(resolved);
+  if (real === null) {
+    return [failure('hook-resolution', `${command}: resolves to ${resolved}, which does not exist or does not lead to a real path`)];
   }
-  return [
-    ...executabilityFailures(resolved, interpreter, command),
-    ...syntaxFailures(resolved, interpreter, command, context.sandboxDir),
-  ];
+  const escaped = containmentFailures(real, resolved, command, context);
+  if (escaped.length > 0) return escaped;
+  const stats = statOrNull(real);
+  const misshapen = shapeFailures(stats, real, command);
+  if (misshapen.length > 0) return misshapen;
+  return checkedHookFailures(real, stats, registration, context);
 }
 
-function executabilityFailures(resolved, interpreter, command) {
+function executabilityFailures(stats, real, interpreter, command) {
   if (interpreter !== null) return [];
-  const mode = statSync(resolved).mode;
-  if ((mode & EXECUTABLE_BITS) !== 0) return [];
-  return [failure('hook-executable', `${command}: ${resolved} is invoked bare but is not executable`)];
+  if ((stats.mode & EXECUTABLE_BITS) !== 0) return [];
+  return [failure('hook-executable', `${command}: ${real} is invoked bare but is not executable`)];
 }
 
 export function checkerEnvironment(inherited) {
