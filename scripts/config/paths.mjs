@@ -24,7 +24,7 @@ export const PROMOTED_ENTRIES = Object.freeze([
   'keybindings.json',
 ]);
 
-export const BOOTSTRAP_ENTRIES = Object.freeze(['promote.mjs', 'session-config-promote.sh']);
+export const BOOTSTRAP_ENTRIES = Object.freeze(['promote.mjs', 'converge.mjs']);
 
 export const INTERPRETERS = Object.freeze(['node', 'python3', 'python', 'bash', 'sh', 'zsh']);
 
