@@ -12,7 +12,7 @@ import {
   writeFile,
 } from './_fixture.mjs';
 import { liveSha, promote, assertBootstrapOutsideReleases } from '../promote.mjs';
-import { bootstrapFailures, expectedEntries, validateCandidate } from '../validate.mjs';
+import { bootstrapFailures, expectedEntries, jsonParseFailures, validateCandidate } from '../validate.mjs';
 
 const NOW = '2026-08-07T12:00:00.000Z';
 
@@ -143,6 +143,22 @@ test('a syntactically invalid registered hook fails validation and does not swap
     assertLiveUntouched(esm.configRoot);
   } finally {
     esm.dispose();
+  }
+});
+
+test('a candidate tree that cannot be scanned is reported, never silently treated as clean JSON', () => {
+  const { home, configRoot } = makeHome();
+  try {
+    const unscannable = join(configRoot, 'releases', 'not-a-directory');
+    writeFile(unscannable, '{ "unterminated":\n');
+
+    const failures = jsonParseFailures(unscannable);
+
+    assert.equal(failures.length, 1);
+    assert.equal(failures[0].rule, 'json-parse');
+    assert.match(failures[0].detail, /could not be scanned/);
+  } finally {
+    cleanup(home);
   }
 });
 

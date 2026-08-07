@@ -144,17 +144,19 @@ export function hookFailures({ settings, configRoot, candidateDir, home }) {
 }
 
 function jsonFilesUnder(root) {
-  try {
-    return readdirSync(root, { withFileTypes: true, recursive: true })
-      .filter((entry) => entry.isFile() && entry.name.endsWith('.json'))
-      .map((entry) => join(entry.parentPath ?? entry.path, entry.name));
-  } catch {
-    return [];
-  }
+  return readdirSync(root, { withFileTypes: true, recursive: true })
+    .filter((entry) => entry.isFile() && entry.name.endsWith('.json'))
+    .map((entry) => join(entry.parentPath ?? entry.path, entry.name));
 }
 
 export function jsonParseFailures(candidateDir) {
-  return jsonFilesUnder(candidateDir).flatMap((file) => {
+  let files;
+  try {
+    files = jsonFilesUnder(candidateDir);
+  } catch (error) {
+    return [failure('json-parse', `candidate tree at ${candidateDir} could not be scanned for JSON: ${error.message}`)];
+  }
+  return files.flatMap((file) => {
     try {
       JSON.parse(readFileSync(file, 'utf8'));
       return [];

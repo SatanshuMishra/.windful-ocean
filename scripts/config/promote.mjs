@@ -17,7 +17,7 @@ import {
   releasesDir,
 } from './paths.mjs';
 import { buildRelease, collectGarbage, resolveRef } from './release.mjs';
-import { buildReceipt, readReceipt, writeReceipt } from './receipt.mjs';
+import { buildReceipt, readReceipt, receiptShapeErrors, writeReceipt } from './receipt.mjs';
 import { driftReport, readSettings, validateCandidate } from './validate.mjs';
 
 const EXIT_OK = 0;
@@ -96,7 +96,6 @@ export function promote({ configRoot, repoRoot, ref = DEFAULT_REF, now, settings
     return { status: 'rejected', sha, previous, failures: verdict.failures, report: driftReport(verdict.failures) };
   }
 
-  swapPointer(configRoot, sha);
   const receipt = buildReceipt({
     ref,
     sha,
@@ -105,6 +104,10 @@ export function promote({ configRoot, repoRoot, ref = DEFAULT_REF, now, settings
     previous,
     repoRoot,
   });
+  const receiptErrors = receiptShapeErrors(receipt);
+  if (receiptErrors.length > 0) return { status: 'error', sha, previous, errors: receiptErrors };
+
+  swapPointer(configRoot, sha);
   writeReceipt(configRoot, receipt);
   const { removed } = collectGarbage({
     configRoot,
@@ -129,7 +132,6 @@ export function rollback({ configRoot, now }) {
       errors: [`release ${target} is absent at ${dir}; rollback is a rename and never rebuilds`],
     };
   }
-  swapPointer(configRoot, target);
   const restored = buildReceipt({
     ref: null,
     sha: target,
@@ -138,6 +140,10 @@ export function rollback({ configRoot, now }) {
     previous: receipt.sha,
     repoRoot: receipt.repo_root,
   });
+  const restoredErrors = receiptShapeErrors(restored);
+  if (restoredErrors.length > 0) return { status: 'error', errors: restoredErrors };
+
+  swapPointer(configRoot, target);
   writeReceipt(configRoot, restored);
   return { status: 'rolled-back', sha: target, previous: receipt.sha, receipt: restored };
 }

@@ -157,6 +157,24 @@ test('rollback swaps to LIVE.previous without rebuilding, and fails loudly if th
   }
 });
 
+test('an unusable timestamp is refused before the pointer moves, never stranding live without a receipt', () => {
+  const s = scenario();
+  try {
+    const result = s.run({ now: undefined });
+
+    assert.equal(result.status, 'error');
+    assert.ok(
+      result.errors.some((error) => error.includes('promoted_at')),
+      JSON.stringify(result.errors),
+    );
+    assert.equal(liveSha(s.configRoot), null);
+    assert.ok(!existsSync(join(s.configRoot, 'current')), 'a receipt that cannot be written must not move the pointer');
+    assert.ok(!existsSync(join(s.configRoot, 'LIVE')));
+  } finally {
+    s.dispose();
+  }
+});
+
 test('garbage collection retains five releases and spares current and its predecessor', () => {
   const { home, configRoot } = makeHome();
   try {
