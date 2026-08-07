@@ -70,9 +70,9 @@
   "abandoned_reason": null,
   "closure_statement": null,
   "spine": {
-    "active_goal": "Ship SPEC A: get PR #54 green and merged, then cut over to immutable releases behind an atomic pointer.",
-    "next_step": "START HERE FRESH, in a session doing nothing else. 1) Confirm the interpreter-portability fix landed and pushed, then get PR #54's CI green and merge it; merge is human-gated. 2) Fast-forward local main to origin/main. 3) Cut over per SPEC section 7: install the bootstrap in ~/.claude/local/, move notes/ there, delete the legacy graphify-out trees, build and validate the real release with --ref origin/main, and swap the entry links only on explicit user go.",
-    "last_session": "Fixed the three release-rejecting defects, hardened the validator through two reviews including a CRITICAL code-execution path, and opened PR #54; CI is red on one interpreter-portability test.",
+    "active_goal": "Ship SPEC A: merge PR #54, then cut over to immutable releases behind an atomic pointer.",
+    "next_step": "START HERE FRESH, in a session doing nothing else. 1) Merge PR #54 (green and CLEAN at f14fb9d; merge is human-gated). 2) Fast-forward local main to origin/main. 3) Cut over per SPEC section 7: install the bootstrap in ~/.claude/local/, move notes/ there, delete the legacy graphify-out trees, build and validate the real release with --ref origin/main, and swap the entry links only on explicit user go. Rehearse against a scratch config root first per 0281.",
+    "last_session": "Fixed the three release-rejecting defects, hardened the validator through two reviews including a CRITICAL code-execution path, and opened PR #54; it is now green and mergeable at f14fb9d.",
     "open_risks": [
       {
         "text": "Run the cutover serially in a session doing nothing else — it hot-swaps live-linked hooks, lib and workflows, so parallel subagents editing those paths can break every running session including the one doing the work.",
@@ -89,11 +89,24 @@
         ]
       },
       {
-        "text": "Confirm the interpreter-portability fix landed before trusting PR #54 — CI run 31219569440 failed on a .zsh test because the runner has no zsh, and the fix round's result was never read",
-        "scope": "c1",
+        "text": "Never git checkout main in the primary checkout — live global config is 37 symlinks into that working tree, so switching branches hot-swaps every skill and hook under every running session",
+        "scope": "thread",
         "refs": [
-          "https://github.com/SatanshuMishra/.windful-ocean/pull/54",
-          "scripts/config/tests/hook-language.test.mjs:170"
+          "/Users/satanshumishra/Documents/DevLabs/.windful-ocean"
+        ]
+      },
+      {
+        "text": "Serialize every write to a live-linked path, not just the cutover — the converge-hook registration reaches running sessions through the 26 hook symlinks, so a half-saved file breaks every session instantly",
+        "scope": "thread",
+        "refs": [
+          ".claude/hooks/"
+        ]
+      },
+      {
+        "text": "Treat a green suite as no evidence the promote verb works in anger — it still has no production caller and is exercised only by its own tests and scratch rehearsals until the converge hooks land",
+        "scope": "thread",
+        "refs": [
+          "scripts/config/promote.mjs"
         ]
       },
       {
@@ -133,24 +146,10 @@
         ]
       },
       {
-        "text": "Never git checkout main in the primary checkout — live global config is 37 symlinks into that working tree, so switching branches hot-swaps every skill and hook under every running session",
-        "scope": "thread",
+        "text": "Guard any new test that spawns a real interpreter, or assert selection instead — two tests were green with python3 absent because a missing interpreter raises the same rule they asserted, so they proved nothing",
+        "scope": "c1",
         "refs": [
-          "/Users/satanshumishra/Documents/DevLabs/.windful-ocean"
-        ]
-      },
-      {
-        "text": "Serialize every write to a live-linked path, not just the cutover — the converge-hook registration reaches running sessions through the 26 hook symlinks, so a half-saved file breaks every session instantly",
-        "scope": "thread",
-        "refs": [
-          ".claude/hooks/"
-        ]
-      },
-      {
-        "text": "Treat a green suite as no evidence the promote verb works in anger — it still has no production caller and is exercised only by its own tests and scratch rehearsals until the converge hooks land",
-        "scope": "thread",
-        "refs": [
-          "scripts/config/promote.mjs"
+          "scripts/config/tests/_interpreters.mjs"
         ]
       }
     ],
@@ -208,5 +207,5 @@
     ]
   },
   "created_at": "2026-08-06T21:18:29.653Z",
-  "updated_at": "2026-08-07T21:24:33.443Z"
+  "updated_at": "2026-08-07T21:45:04.839Z"
 }
