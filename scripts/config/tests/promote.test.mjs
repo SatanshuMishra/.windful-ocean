@@ -1,6 +1,16 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { existsSync, mkdirSync, readdirSync, readFileSync, readlinkSync, rmSync, statSync, utimesSync } from 'node:fs';
+import {
+  chmodSync,
+  existsSync,
+  mkdirSync,
+  readdirSync,
+  readFileSync,
+  readlinkSync,
+  rmSync,
+  statSync,
+  utimesSync,
+} from 'node:fs';
 import { join } from 'node:path';
 import {
   DEFAULT_HOOK_COMMANDS,
@@ -144,6 +154,45 @@ test('the pointer never comes to rest on a release carrying settings.json, rollb
     assert.equal(rolled.previous, nextSha);
     assert.ok(!existsSync(stale), 'current must never resolve to a release that shadows the live settings.json');
   } finally {
+    s.dispose();
+  }
+});
+
+test('rollback is never blocked by a release whose settings.json cannot be stripped', () => {
+  const s = scenario();
+  const sealed = join(s.configRoot, 'releases', s.sha);
+  try {
+    s.run();
+    const nextSha = commitChange(s.repoRoot, (claude) => writeFile(join(claude, 'docs', 'e.md'), 'e\n'));
+    assert.equal(s.run().status, 'promoted');
+
+    writeFile(join(sealed, 'settings.json'), '{\n  "hooks": {}\n}\n');
+    chmodSync(sealed, 0o555);
+
+    const rolled = rollback({ configRoot: s.configRoot, now: NOW });
+
+    assert.equal(rolled.status, 'rolled-back', JSON.stringify(rolled.errors ?? [], null, 2));
+    assert.equal(liveSha(s.configRoot), s.sha);
+    assert.equal(rolled.previous, nextSha);
+    assert.equal(rolled.warnings.length, 1, JSON.stringify(rolled.warnings ?? []));
+    assert.match(rolled.warnings[0], /settings\.json/);
+  } finally {
+    chmodSync(sealed, 0o755);
+    s.dispose();
+  }
+});
+
+test('promotion still refuses to rest the pointer on a release it could not strip', () => {
+  const s = scenario();
+  const sealed = join(s.configRoot, 'releases', s.sha);
+  try {
+    s.run();
+    writeFile(join(sealed, 'settings.json'), '{\n  "hooks": {}\n}\n');
+    chmodSync(sealed, 0o555);
+
+    assert.throws(() => swapPointer(s.configRoot, s.sha), /settings\.json|could not be removed/);
+  } finally {
+    chmodSync(sealed, 0o755);
     s.dispose();
   }
 });
