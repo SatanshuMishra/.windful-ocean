@@ -1,0 +1,90 @@
+{
+  "unit": "chore/adopt-context7-rule",
+  "rows": [
+    {
+      "id": "B1",
+      "verdict": "not-threatened",
+      "check": "`git diff --cached --name-status origin/chore/config-drift` returns exactly one row, `A .claude/rules/context7.md`, 10 added lines of markdown. The realm is built at .claude/lib/superpowers-parallel/workflow-sandbox.mjs:174 via createContext(constants.DONT_CONTEXTIFY); that file is absent from the diff name list, so no realm construction changes."
+    },
+    {
+      "id": "B2",
+      "verdict": "not-threatened",
+      "check": "No denial mechanism is edited. SandboxViolationError is declared at workflow-sandbox.mjs:7 and thrown at :120, :145, :168 and :269; none of those lines are in the diff, which touches only .claude/rules/context7.md. The added file is markdown loaded as agent instruction text, never compiled into the realm, so it can raise no error at all."
+    },
+    {
+      "id": "B3",
+      "verdict": "not-threatened",
+      "check": "The guarded-intrinsic member check lives at workflow-sandbox.mjs:145, keyed on DETERMINISM_POLICY; that file is unmodified here. The diff enumerates no intrinsic members: .claude/rules/context7.md names only the two context7 MCP calls resolve-library-id and query-docs, at its lines 7 and 9, which are agent-facing prose and reach no intrinsic."
+    },
+    {
+      "id": "B4",
+      "verdict": "not-threatened",
+      "check": "ALLOWED_GLOBALS (workflow-sandbox.mjs:18), VALUE_GLOBALS (:23) and ALWAYS_DENIED (:25) are all unmodified; the file is not in the diff. The near-miss worth naming: this unit does adopt a document that constrains which tool an agent reaches for, but that is instruction prose with no assertion reading it, not a policy constant whose emptying could turn a test red."
+    },
+    {
+      "id": "B5",
+      "verdict": "not-threatened",
+      "check": "The census is asserted by .claude/lib/superpowers-parallel/tests/workflow-sandbox-census.test.mjs, which is not in the diff. This unit adds no identifier into the workflow-body position: the single added file is .claude/rules/context7.md, markdown that is never parsed as source, and .claude/workflows/mitosis.js is untouched, so the engine's free-identifier set is unchanged."
+    },
+    {
+      "id": "B6",
+      "verdict": "not-threatened",
+      "check": "The production caller is .claude/lib/superpowers-parallel/mitosis-gate.mjs:1, importing compileWorkflow from workflow-sandbox.mjs, and CI exercises it at .github/workflows/test.yml:21 (`mitosis-gate.mjs phase-parity`). Neither file appears in this diff, so the liveness proof is untouched."
+    },
+    {
+      "id": "M1",
+      "verdict": "not-threatened",
+      "check": "Satisfied by this artifact: docs/invariants/coverage/chore-adopt-context7-rule.json carries a row for all 17 registry ids read from docs/invariants/registry.json, is committed to the repo rather than written into a PR body, and is validated by the job at .github/workflows/test.yml:23-32 running scripts/invariant-coverage-check.mjs."
+    },
+    {
+      "id": "M2",
+      "verdict": "not-threatened",
+      "check": "The diff adds no gate and modifies none, so no classifier changes. Named honestly: this unit's step D acceptance compared counts (27 tracked against 27 on disk under .claude/rules/), but that was a one-off measurement reported in prose, not committed as an enforcement mechanism; nothing in the diff pins a count or an allowlist that a later change could drift past."
+    },
+    {
+      "id": "M3",
+      "verdict": "not-threatened",
+      "check": "The antecedent does not hold: this unit is not a fix and reports no symptom. It adds one markdown instruction file and introduces no behavior and no code path, which .claude/rules/common/testing.md exempts from the test admission gate as configuration and copy. No acceptance test ships and none is owed; there is nothing an inertness mutation could turn red."
+    },
+    {
+      "id": "M4",
+      "verdict": "not-threatened",
+      "check": "`git diff --cached --name-status origin/chore/config-drift` shows a single `A` and no `R` or `M` row, so the diff is a pure addition with no refactor and no behavior change sharing the range. Conceptually the file moves live-to-repo, but in git terms nothing is relocated: the live copy at ~/.claude/rules/context7.md was only read and is removed at cutover, not here."
+    },
+    {
+      "id": "M5",
+      "verdict": "not-threatened",
+      "check": "Every anchor in this record was re-derived in this worktree during this unit, not copied: workflow-sandbox.mjs:7,18,23,25,145,174 and mitosis-gate.mjs:1 by grep; block-destructive-bash.sh:17,123,127-129,136,141,189,223-225 and protect-claude-config.sh:21,35-43,45-49 by grep and Read; .github/workflows/test.yml:21,23-32 and package.json:7 by full Read."
+    },
+    {
+      "id": "M6",
+      "verdict": "not-threatened",
+      "check": "No gate-enforcing artifact is touched. Verified by `ls -la` that ~/.claude/hooks/block-destructive-bash.sh is a symlink to this repo's .claude/hooks/block-destructive-bash.sh, so the deployed gate already is committed source with no hand-patch step; this unit changes neither the target nor the link, adding only .claude/rules/context7.md."
+    },
+    {
+      "id": "G1",
+      "verdict": "not-threatened",
+      "check": "The merge denial at .claude/hooks/block-destructive-bash.sh:127-129, covering `gh pr merge` and the `pulls/*/merge` REST endpoint, is unmodified; the gate is not in the diff. This unit issues no merge command and its instructions stop before push and PR, so no agent-issued merge path is opened."
+    },
+    {
+      "id": "G2",
+      "verdict": "not-threatened",
+      "check": "The title and body rewrite denial shares the branch at block-destructive-bash.sh:136-141, which is unmodified. No PR is created or edited by this unit, and the added file .claude/rules/context7.md is about routing library-documentation questions to the context7 MCP, so it says nothing that could license a post-creation title or body edit."
+    },
+    {
+      "id": "G3",
+      "verdict": "not-threatened",
+      "check": "The centralized-creation denial at block-destructive-bash.sh:113-114 (pulls endpoint patterns) and :136-141 is unmodified, and .claude/lib/git/pr.mjs is absent from the diff. The adopted document does not compete with .claude/rules/common/git/pull-requests.md: it governs documentation lookups only and names no git or gh command."
+    },
+    {
+      "id": "G4",
+      "verdict": "not-threatened",
+      "check": "The invariant this diff actually contacts. The new path sits inside the protected namespace on both enforcement surfaces: guardpath at block-destructive-bash.sh:17 covers `.claude/(hooks|rules|lib|workflows)/`, and protect-claude-config.sh:21 lists \"rules\" among prefixes with under() at :35-43 matching any path beneath it, emitting the ask() at :45-49. The file therefore inherits protection rather than eroding it; neither pattern is narrowed, no existing guardrail file is removed, overwritten or relocated (single `A` row in name-status), and the live ~/.claude/rules/context7.md was read only."
+    },
+    {
+      "id": "G5",
+      "verdict": "not-threatened",
+      "check": "The escalation is unmodified: atguard at block-destructive-bash.sh:189 composes `@` with guardpath, and :223-225 raises the ask verdict for a file-reference-shaped argument on a network command. Because guardpath:17 already covers `.claude/rules/`, the newly added path is guardrail-adjacent by construction and escalates exactly as .claude/hooks/tests/block-destructive-bash.test.mjs:527 asserts for a sibling rules file. The diff adds no network command and changes no netbin, netreach or atguard pattern."
+    }
+  ]
+}
