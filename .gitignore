@@ -9,7 +9,6 @@ CLAUDE.md
 !/.claude/hooks/CLAUDE.md
 /.claude/settings.local.json
 /.claude/reports/
-/.claude/docs/analysis/
 claude.json
 .claude.json
 *claude-session*
