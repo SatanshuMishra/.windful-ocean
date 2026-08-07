@@ -1,0 +1,90 @@
+{
+  "unit": "fix/config-release-validation",
+  "rows": [
+    {
+      "id": "B1",
+      "verdict": "not-threatened",
+      "check": "`git diff --name-only b24b266..HEAD` returns six paths, all under scripts/config/: paths.mjs, release.mjs, validate.mjs and three files under tests/. workflow-sandbox.mjs is untouched, and no vm realm, DONT_CONTEXTIFY flag or contextify option is constructed anywhere in this unit."
+    },
+    {
+      "id": "B2",
+      "verdict": "not-threatened",
+      "check": "No sandbox denial mechanism is added or edited, and this unit adds no throw at all. Refusal is still signalled by returning frozen {rule, detail} records built at scripts/config/validate.mjs:30 and collected at :255-267. The two new failure paths return rather than raise: firstLineOf at :113-125 catches its own open/read error and returns null, and checkForLanguage at :156-161 returns null for an unrecognized language, so neither can surface an untagged host error a workflow could catch as its own."
+    },
+    {
+      "id": "B3",
+      "verdict": "not-threatened",
+      "check": "No guarded intrinsic and no member enumeration on an intrinsic is touched. The nearest shape is the new language resolution, which classifies an interpreter token taken from a hook command or a file's shebang. It is deliberately built from Array.includes over the frozen lists at scripts/config/validate.mjs:17-20 (canonicalLanguage at :140-146, checkForLanguage at :156-161) rather than an object index keyed by that token, so a shebang naming `constructor` or `__proto__` resolves to null instead of reaching Object.prototype. Nothing here gates on a JavaScript intrinsic or raises on a non-denied member."
+    },
+    {
+      "id": "B4",
+      "verdict": "not-threatened",
+      "check": "Every named constant this unit adds was mutation-probed against the shipped tests, not asserted to be load-bearing. Emptying PYTHON_LANGUAGES (scripts/config/validate.mjs:19), NODE_LANGUAGES (:18), PYTHON_EXTENSIONS (:17) or SHELL_LANGUAGES (:20) each turned exactly one of the 19 assertions in scripts/config/tests/validate.test.mjs red (18 pass, 1 fail in each of the four runs). Emptying PROMOTED_ENTRIES at scripts/config/paths.mjs:14 turned two red. Deleting the settings removal at scripts/config/release.mjs:53 turned scripts/config/tests/release.test.mjs red (1 pass, 1 fail). No constant added here is inert."
+    },
+    {
+      "id": "B5",
+      "verdict": "not-threatened",
+      "check": "No code is added in the workflow-body position, so the census of host-reachable bare identifiers is unchanged. Every module in this unit is an ESM file imported by node directly with explicit `node:` builtin imports (scripts/config/validate.mjs:1-13), executed by the host, never evaluated inside the engine's sandboxed workflow scope."
+    },
+    {
+      "id": "B6",
+      "verdict": "threatened",
+      "check": "The verdict recorded for feat/config-promote-verb still holds and this unit does not clear it. `grep -rn \"config/promote.mjs\"` across the worktree, excluding docs/invariants/, returns no match, so scripts/config/promote.mjs has no production caller and the machinery these three fixes repair is exercised only by scripts/config/tests/. The fixes are what make a candidate release able to pass validation at all, but nothing here installs the verb to ~/.claude/local/ or registers it, so its liveness remains proven only by its own tests."
+    },
+    {
+      "id": "M1",
+      "verdict": "not-threatened",
+      "check": "Verdicts for all 17 registry ids read from docs/invariants/registry.json are recorded in this committed file and nowhere else. The task brief withholds push and PR creation, so no PR body exists to carry a verdict table. The shape is the `rows` array required at scripts/invariant-coverage-check.mjs:126-129, with the id/verdict/check fields its rowErrors check demands at :110-121."
+    },
+    {
+      "id": "M2",
+      "verdict": "threatened",
+      "check": "This is the invariant the second defect lived under, and the unit narrows the hole without closing it. syntaxCheckFor at scripts/config/validate.mjs:163-169 now classifies in three tiers - the interpreter named in the hook command, then the shebang (shebangInterpreter at :128-138), then the extension (extensionLanguage at :148-154) - so the live .claude/hooks/secret-scanner.sh, a python3 file carrying a .sh name, resolves to python instead of being handed to bash -n. Verified by direct probe against that real file: shebangInterpreter returns python3 and the resulting check exits 0. The census is still NOT closed. checkForLanguage at :156-161 returns null for any language outside node/python/bash/sh/zsh, and syntaxFailures at :193-195 skips a null check silently rather than halting on the unclassifiable, so a hook written in ruby or perl would still receive no syntax check and produce no failure row."
+    },
+    {
+      "id": "M3",
+      "verdict": "not-threatened",
+      "check": "Each of the three fixes shipped an acceptance test confirmed red before the fix landed, by running it against the unfixed code. Fix 1: 'a candidate carrying no notes/ still promotes' (scripts/config/tests/validate.test.mjs:57) failed with `entry \"notes\" is absent from the candidate release`, actual 'rejected' expected 'promoted'. Fix 2: three tests at :164, :177 and :193 failed, the middle one reproducing the reported symptom verbatim - `bash -n failed: ...hooks/good.sh: line 2: syntax error near unexpected token`. Fix 3: 'a release carries no settings.json' (scripts/config/tests/release.test.mjs:10) failed on `settings.json is a real live file and must never be shadowed by a release copy`. The inertness mutations required alongside are recorded under B4; all six turned an assertion red."
+    },
+    {
+      "id": "M4",
+      "verdict": "not-threatened",
+      "check": "The second fix does put a structural refactor and a behavior change in one reviewable range: the single function at b24b266:scripts/config/validate.mjs:102 becomes firstLineOf, shebangInterpreter, canonicalLanguage, extensionLanguage, checkForLanguage and syntaxCheckFor at :113-169. M4's escape clause is satisfied rather than dodged - the characterization test pinning the surviving extension behavior, .sh routed to bash and .mjs routed to node, is 'a syntactically invalid registered hook fails validation and does not swap', which predates this unit at b24b266:scripts/config/tests/validate.test.mjs:126 and is carried through unedited (now :141). The first and third fixes are one-line behavior changes at scripts/config/paths.mjs:14 and scripts/config/release.mjs:53 with no refactor beside them."
+    },
+    {
+      "id": "M5",
+      "verdict": "not-threatened",
+      "check": "Every path:line in this record was re-derived by grep against this worktree at HEAD after all three fixes landed, never copied from the feat/config-promote-verb record whose anchors this unit shifted: validate.mjs gained 13 constant lines above its old anchors, moving syntaxCheckFor from 102 to 163 and syntaxFailures from 128 to 193, and release.mjs gained one line moving renameSync from 53 to 54. The four citations that describe the pre-fix tree are prefixed b24b266: and were read with `git show`, not from memory."
+    },
+    {
+      "id": "M6",
+      "verdict": "threatened",
+      "check": "Two reasons, one inherited and one this unit sharpens. Inherited: invariant 5.3 forces the promote verb to be deployed to ~/.claude/local/ outside every release, so its deployed copy's version is recorded nowhere and a hand-patch would survive a refresh undetected. Sharpened: the third fix makes settings.json permanently a live file that no release reproduces (scripts/config/release.mjs:53), which is decision 0270's intent but is exactly M6's hand-patched-deployed-file shape - a refresh cannot regenerate it from committed source at a recorded sha. Corroborating evidence on this machine: .claude/hooks/tests/protect-claude-config.test.mjs:194 fails because ~/.claude/settings.json is a real 0600 file rather than a symlink out of the home tree, while that test's PROBE_FILES list at :16 still names settings.json."
+    },
+    {
+      "id": "G1",
+      "verdict": "not-threatened",
+      "check": "No merge path is added or weakened. The diff issues no `gh`, no `gh api` and no GraphQL call. It adds exactly one new child-process shape, `python3 -c` built at scripts/config/validate.mjs:158 and spawned at :196; the pre-existing spawns are git, tar, node and bash. None reaches a pull request, and this unit opens and merges nothing."
+    },
+    {
+      "id": "G2",
+      "verdict": "not-threatened",
+      "check": "Nothing in this diff touches .claude/lib/git/pr.mjs, .claude/hooks/block-destructive-bash.sh or the permissions block in .claude/settings.json - `git diff --name-only b24b266..HEAD` lists six paths, all under scripts/config/. No pull request title or body is read, composed or rewritten anywhere in the unit."
+    },
+    {
+      "id": "G3",
+      "verdict": "not-threatened",
+      "check": "This unit adds no PR-creating surface, and the task brief withholds both push and PR creation, so no pull request is opened from this branch by any path. The centralized `node .claude/lib/git/pr.mjs pr-create` tool remains the only creation route and is neither bypassed nor modified."
+    },
+    {
+      "id": "G4",
+      "verdict": "threatened",
+      "check": "G4 names a settings file as a guardrail file, and the third fix adds a deletion of one: scripts/config/release.mjs:53 removes settings.json from the extracted subtree before :54 renames it into place. The deletion is bounded and cannot reach the live guardrail - its path is join(staging, '.claude', 'settings.json') where staging is derived at :28 from a sha already validated against SHA_PATTERN at :22, so it can only touch a releases/<sha>.tmp staging tree - and every test drives a mkdtemp sandbox seeded at scripts/config/tests/_fixture.mjs:41 and :57-62, never a real home. The capability is nonetheless introduced here, and is recorded rather than excused, consistent with the swapPointer and collectGarbage entry in the feat/config-promote-verb record."
+    },
+    {
+      "id": "G5",
+      "verdict": "not-threatened",
+      "check": "No network-named command is invoked; every spawn in the unit is local. The near-miss worth naming is the one new spawn shape: `python3 -c` at scripts/config/validate.mjs:158 passes a code-execution flag, but the program is the module constant PYTHON_PARSE_PROGRAM at :23-27 with nothing interpolated from the hook file, and the only variable argument is the target path, which python opens and feeds to ast.parse rather than executing. No argument is credential-shaped or guardrail-adjacent, so G5's escalation condition is not reached."
+    }
+  ]
+}
