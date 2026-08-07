@@ -1,4 +1,14 @@
-import { closeSync, existsSync, openSync, readdirSync, readFileSync, readSync, readlinkSync, statSync } from 'node:fs';
+import {
+  closeSync,
+  constants,
+  existsSync,
+  openSync,
+  readdirSync,
+  readFileSync,
+  readSync,
+  readlinkSync,
+  statSync,
+} from 'node:fs';
 import { spawnSync } from 'node:child_process';
 import { basename, extname, join, relative, sep } from 'node:path';
 import {
@@ -13,7 +23,8 @@ import {
 } from './paths.mjs';
 
 const NODE_EXTENSIONS = Object.freeze(['.mjs', '.js', '.cjs']);
-const SHELL_EXTENSIONS = Object.freeze(['.sh', '.bash']);
+const BASH_EXTENSIONS = Object.freeze(['.sh', '.bash']);
+const ZSH_EXTENSIONS = Object.freeze(['.zsh']);
 const PYTHON_EXTENSIONS = Object.freeze(['.py']);
 const NODE_LANGUAGES = Object.freeze(['node', 'nodejs']);
 const PYTHON_LANGUAGES = Object.freeze(['python', 'python3']);
@@ -25,7 +36,15 @@ const PYTHON_PARSE_PROGRAM = [
   'try: ast.parse(open(sys.argv[1],"rb").read(), sys.argv[1])',
   'except SyntaxError as error: sys.stderr.write("%s\\n" % error); sys.exit(1)',
 ].join('\n');
+const LANGUAGE_CHECKERS = Object.freeze([
+  Object.freeze({ language: 'node', command: 'node', flags: Object.freeze(['--check']) }),
+  Object.freeze({ language: 'python', command: 'python3', flags: Object.freeze(['-c', PYTHON_PARSE_PROGRAM]) }),
+  Object.freeze({ language: 'bash', command: 'bash', flags: Object.freeze(['-n']) }),
+  Object.freeze({ language: 'sh', command: 'sh', flags: Object.freeze(['-n']) }),
+  Object.freeze({ language: 'zsh', command: 'zsh', flags: Object.freeze(['-f', '-n']) }),
+]);
 const EXECUTABLE_BITS = 0o111;
+const { O_NONBLOCK, O_RDONLY } = constants;
 
 const failure = (rule, detail) => Object.freeze({ rule, detail });
 
@@ -110,31 +129,19 @@ export function mapIntoCandidate({ rawPath, configRoot, candidateDir, home }) {
   return { resolved: join(candidateDir, ...withoutPointer), where: 'candidate' };
 }
 
-function firstLineOf(target) {
+export function firstLineOf(target) {
   try {
-    const handle = openSync(target, 'r');
+    const handle = openSync(target, O_RDONLY | O_NONBLOCK);
     try {
       const buffer = Buffer.alloc(SHEBANG_READ_BYTES);
       const read = readSync(handle, buffer, 0, SHEBANG_READ_BYTES, 0);
-      return buffer.subarray(0, read).toString('utf8').split('\n')[0];
+      return { ok: true, line: buffer.subarray(0, read).toString('utf8').split('\n')[0] };
     } finally {
       closeSync(handle);
     }
-  } catch {
-    return null;
+  } catch (error) {
+    return { ok: false, error: error.message };
   }
-}
-
-export function shebangInterpreter(target) {
-  const line = firstLineOf(target);
-  if (line === null || !line.startsWith(SHEBANG_PREFIX)) return null;
-  const meaningful = line
-    .slice(SHEBANG_PREFIX.length)
-    .trim()
-    .split(/\s+/)
-    .filter((token) => token !== '' && !token.startsWith('-'));
-  if (meaningful.length === 0) return null;
-  return basename(meaningful[meaningful.length - 1]);
 }
 
 function canonicalLanguage(name) {
@@ -145,27 +152,62 @@ function canonicalLanguage(name) {
   return null;
 }
 
-function extensionLanguage(target) {
-  const extension = extname(target);
+function extensionLanguage(extension) {
   if (NODE_EXTENSIONS.includes(extension)) return 'node';
-  if (SHELL_EXTENSIONS.includes(extension)) return 'bash';
+  if (BASH_EXTENSIONS.includes(extension)) return 'bash';
+  if (ZSH_EXTENSIONS.includes(extension)) return 'zsh';
   if (PYTHON_EXTENSIONS.includes(extension)) return 'python';
   return null;
 }
 
-function checkForLanguage(language, target) {
-  if (language === 'node') return { command: 'node', args: ['--check', target] };
-  if (language === 'python') return { command: 'python3', args: ['-c', PYTHON_PARSE_PROGRAM, target] };
-  if (SHELL_LANGUAGES.includes(language)) return { command: language, args: ['-n', target] };
-  return null;
+function declaredByCommand(interpreter) {
+  if (interpreter === null || interpreter === undefined) return null;
+  const language = canonicalLanguage(basename(interpreter));
+  if (language !== null) return { ok: true, language };
+  return {
+    ok: false,
+    reason: `its command names interpreter ${JSON.stringify(interpreter)}, which this validator cannot syntax-check`,
+  };
 }
 
-export function syntaxCheckFor(target, interpreter = null) {
-  const language = canonicalLanguage(interpreter)
-    ?? canonicalLanguage(shebangInterpreter(target))
-    ?? extensionLanguage(target);
-  if (language === null) return null;
-  return checkForLanguage(language, target);
+export function shebangLanguage(line) {
+  return line
+    .slice(SHEBANG_PREFIX.length)
+    .trim()
+    .split(/\s+/)
+    .filter((token) => token !== '')
+    .map((token) => canonicalLanguage(basename(token)))
+    .find((language) => language !== null) ?? null;
+}
+
+function declaredByShebang(target) {
+  const read = firstLineOf(target);
+  if (!read.ok) return { ok: false, reason: `its first line could not be read: ${read.error}` };
+  if (!read.line.startsWith(SHEBANG_PREFIX)) return null;
+  const language = shebangLanguage(read.line);
+  if (language !== null) return { ok: true, language };
+  return {
+    ok: false,
+    reason: `its shebang ${JSON.stringify(read.line.trim())} names no interpreter this validator can syntax-check`,
+  };
+}
+
+function declaredByExtension(target) {
+  const extension = extname(target);
+  const language = extensionLanguage(extension);
+  if (language !== null) return { ok: true, language };
+  const carried = extension === '' ? 'it has no file extension' : `its extension ${JSON.stringify(extension)} names no language`;
+  return { ok: false, reason: `its command names no interpreter, it carries no shebang, and ${carried}` };
+}
+
+export function resolveChecker(target, interpreter = null) {
+  const declared = declaredByCommand(interpreter) ?? declaredByShebang(target) ?? declaredByExtension(target);
+  if (!declared.ok) return declared;
+  const checker = LANGUAGE_CHECKERS.find((entry) => entry.language === declared.language);
+  if (checker === undefined) {
+    return { ok: false, reason: `language ${JSON.stringify(declared.language)} has no syntax checker` };
+  }
+  return { ok: true, language: checker.language, command: checker.command, args: [...checker.flags, target] };
 }
 
 function hookFailuresFor(registration, context) {
@@ -191,15 +233,17 @@ function executabilityFailures(resolved, interpreter, command) {
 }
 
 function syntaxFailures(resolved, interpreter, command) {
-  const check = syntaxCheckFor(resolved, interpreter);
-  if (check === null) return [];
+  const check = resolveChecker(resolved, interpreter);
+  if (!check.ok) {
+    return [failure('hook-language', `${command}: ${resolved} cannot be syntax-checked because ${check.reason}`)];
+  }
   const run = spawnSync(check.command, check.args, { encoding: 'utf8' });
   if (run.error) {
     return [failure('hook-syntax', `${command}: ${check.command} could not be run: ${run.error.message}`)];
   }
   if (run.status === 0) return [];
   const reason = (run.stderr || run.stdout || '').trim().split('\n')[0] ?? `exit ${run.status}`;
-  return [failure('hook-syntax', `${command}: ${check.command} ${check.args[0]} failed: ${reason}`)];
+  return [failure('hook-syntax', `${command}: ${check.command} rejected ${resolved} as ${check.language}: ${reason}`)];
 }
 
 export function hookFailures({ settings, configRoot, candidateDir, home }) {

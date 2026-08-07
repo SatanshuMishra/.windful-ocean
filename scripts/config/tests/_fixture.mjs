@@ -63,14 +63,17 @@ export function makeHome() {
   return { home, configRoot };
 }
 
-export function settingsFor(configRoot, commands) {
-  const path = join(configRoot, 'settings.json');
-  const settings = {
+export function hookSettings(commands) {
+  return {
     hooks: {
       SessionStart: [{ matcher: '*', hooks: commands.map((command) => ({ type: 'command', command })) }],
     },
   };
-  writeFile(path, `${JSON.stringify(settings, null, 2)}\n`);
+}
+
+export function settingsFor(configRoot, commands) {
+  const path = join(configRoot, 'settings.json');
+  writeFile(path, `${JSON.stringify(hookSettings(commands), null, 2)}\n`);
   return path;
 }
 
