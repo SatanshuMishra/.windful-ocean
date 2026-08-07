@@ -209,6 +209,15 @@ export function parseArgs(argv) {
   return { ok: true, verb, options: parsed.options };
 }
 
+function guardedBootstrap(configRoot) {
+  try {
+    assertBootstrapOutsideReleases(configRoot, fileURLToPath(import.meta.url));
+    return { ok: true };
+  } catch (error) {
+    return { ok: false, error: error.message };
+  }
+}
+
 function main(argv) {
   const parsed = parseArgs(argv);
   if (!parsed.ok) {
@@ -216,7 +225,8 @@ function main(argv) {
     return EXIT_USAGE;
   }
   const configRoot = parsed.options['--config-root'] ?? process.env.CLAUDE_CONFIG_DIR ?? join(homedir(), '.claude');
-  assertBootstrapOutsideReleases(configRoot, fileURLToPath(import.meta.url));
+  const guarded = guardedBootstrap(configRoot);
+  if (!guarded.ok) return report({ status: 'error', errors: [guarded.error] });
   const now = new Date().toISOString();
   const result = parsed.verb === 'rollback'
     ? rollback({ configRoot, now })
