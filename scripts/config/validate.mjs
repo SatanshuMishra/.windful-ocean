@@ -58,17 +58,24 @@ const CHECKER_MAX_BUFFER = 262144;
 const CHECKER_SANDBOX_PREFIX = 'config-syntax-check-';
 const JSON_EXTENSION = '.json';
 const JSON_POSITION = /at position \d+(?: \(line \d+ column \d+\))?/;
-const CONTROL_CHARACTERS = /[\u0000-\u001f\u007f-\u009f]/g;
+const INERT_CHARACTERS = /[\p{Cc}\p{Cf}\p{Zl}\p{Zp}]/gu;
 const EXECUTABLE_BITS = 0o111;
 const REASON_CAP = 200;
-const TRUNCATION_MARK = ' [truncated]';
+export const DETAIL_CAP = 1000;
+export const TRUNCATION_MARK = ' [truncated]';
 const { O_NONBLOCK, O_RDONLY } = constants;
 
+function capped(text, cap) {
+  if (text.length <= cap) return text;
+  return `${text.slice(0, cap - TRUNCATION_MARK.length).trimEnd()}${TRUNCATION_MARK}`;
+}
+
 export function inertDetail(detail) {
-  return String(detail)
-    .replace(CONTROL_CHARACTERS, ' ')
+  const inert = String(detail)
+    .replace(INERT_CHARACTERS, ' ')
     .replace(/ {2,}/g, ' ')
     .trim();
+  return capped(inert, DETAIL_CAP);
 }
 
 const failure = (rule, detail) => Object.freeze({ rule, detail: inertDetail(detail) });
@@ -320,7 +327,7 @@ function checkerReason(run) {
   const first = (run.stderr || run.stdout || '').split('\n').find((line) => line.trim() !== '') ?? '';
   const inert = inertDetail(first);
   if (inert === '') return `it exited ${run.status} without saying why`;
-  return inert.length <= REASON_CAP ? inert : `${inert.slice(0, REASON_CAP)}${TRUNCATION_MARK}`;
+  return capped(inert, REASON_CAP);
 }
 
 function syntaxFailures(resolved, interpreter, command, sandboxDir) {
