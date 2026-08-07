@@ -41,7 +41,6 @@ __pycache__/
 ledger/
 ledger-archive-v1/
 notes/
-docs/superpowers/
 !skills/session-handoff/
 !docs/session-continuity-redesign/
 !skills/impeccable/scripts/live-browser-session.js

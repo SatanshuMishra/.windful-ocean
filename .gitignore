@@ -9,14 +9,15 @@ CLAUDE.md
 !/.claude/hooks/CLAUDE.md
 /.claude/settings.local.json
 /.claude/reports/
-/.claude/docs/analysis/
 claude.json
 .claude.json
 *claude-session*
 *claude_session*
 *.tmp
 *.log
-*session*
+sessions/
+session-data/
+session-env/
 .local/
 /graphify-out/
 /.playwright-mcp/

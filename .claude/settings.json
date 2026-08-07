@@ -104,6 +104,11 @@
             "type": "command",
             "command": "$HOME/.claude/hooks/graphify-refresh.sh",
             "timeout": 10
+          },
+          {
+            "type": "command",
+            "command": "node $HOME/.claude/local/converge.mjs --event Stop",
+            "timeout": 30
           }
         ]
       }
@@ -163,6 +168,11 @@
             "type": "command",
             "command": "python3 $HOME/.claude/hooks/agent-ledger/roster-index-gen.py",
             "timeout": 10
+          },
+          {
+            "type": "command",
+            "command": "node $HOME/.claude/local/converge.mjs --event SessionStart",
+            "timeout": 30
           }
         ]
       }
