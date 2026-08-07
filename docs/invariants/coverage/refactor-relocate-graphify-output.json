@@ -1,0 +1,90 @@
+{
+  "unit": "refactor/relocate-graphify-output",
+  "rows": [
+    {
+      "id": "B1",
+      "verdict": "not-threatened",
+      "check": "The diff is four files: .claude/hooks/graphify-common.sh, graphify-provision.sh, graphify-refresh.sh and the new .claude/hooks/tests/graphify-out-path.test.mjs. `git diff --name-only origin/chore/config-drift...HEAD` lists no file under .claude/lib/superpowers-parallel/, so workflow-sandbox.mjs and its vm realm construction are untouched; no realm global is created or reassigned here."
+    },
+    {
+      "id": "B2",
+      "verdict": "not-threatened",
+      "check": "No sandbox denial mechanism is edited. The only new failure paths are shell returns: graphify_out returns 1 on an empty root at .claude/hooks/graphify-common.sh:33, graphify_config_dir returns 1 on an unresolvable config dir at :26-27, and graphify_launch returns 1 on a missing argument at :53. These are bash exit statuses in a hook process, not host errors raised inside a workflow realm."
+    },
+    {
+      "id": "B3",
+      "verdict": "not-threatened",
+      "check": "No guarded intrinsic and no member enumeration is touched; the diff adds no JavaScript to the engine, only bash in .claude/hooks/ and a node:test file under .claude/hooks/tests/ that spawns bash and asserts on stdout."
+    },
+    {
+      "id": "B4",
+      "verdict": "not-threatened",
+      "check": "VALUE_GLOBALS, ALWAYS_DENIED and ALLOWED_GLOBALS are not referenced by this diff. The one constant it introduces, GRAPHIFY_OUT_NAME at .claude/hooks/graphify-common.sh:3, is load-bearing on both of its uses: emptying it breaks the fallback at :48 and the refresh prune at .claude/hooks/graphify-refresh.sh:16, and the base-version run of the new test file showed 10 of 11 assertions red once the function was absent."
+    },
+    {
+      "id": "B5",
+      "verdict": "not-threatened",
+      "check": "The identifier census lives in the sandbox test suite and is not extended or narrowed here. The new test file asserts output-path strings returned by graphify_out and the environment of the launched child, so it adds no bare identifier in workflow-body position and removes no census row."
+    },
+    {
+      "id": "B6",
+      "verdict": "not-threatened",
+      "check": "The harness and its production caller are untouched. By the same liveness standard, the new graphify_out is not a lint-only artifact: it has two production callers, .claude/hooks/graphify-provision.sh:8 and .claude/hooks/graphify-refresh.sh:8, both of which are registered hooks at .claude/settings.json:105 and :139."
+    },
+    {
+      "id": "M1",
+      "verdict": "not-threatened",
+      "check": "This file is the committed coverage artifact for the unit and carries a row for all 17 registry ids read from docs/invariants/registry.json. The verdicts live here, not in the PR body; the PR body will carry only the Why/What/Verification fields the pr-create tool composes."
+    },
+    {
+      "id": "M2",
+      "verdict": "not-threatened",
+      "check": "graphify_out classifies a scan root by path and the classification is total, not sampled: the config-tree case at .claude/hooks/graphify-common.sh:44-46 matches \"$config\" or \"$config\"/* and every other root falls through to :48, while the unclassifiable input (an empty root) halts with return 1 at :33. The refresh prune at .claude/hooks/graphify-refresh.sh:16 excludes by the whole path segment named in GRAPHIFY_OUT_NAME rather than by a pinned list of known output trees."
+    },
+    {
+      "id": "M3",
+      "verdict": "not-threatened",
+      "check": ".claude/hooks/tests/graphify-out-path.test.mjs asserts the reported symptom (output landing under a config subtree) at its config-subtree case and at the launch case, which checks that no graphify-out appears under the hooks root. Restoring the parent file with `git checkout HEAD -- .claude/hooks/graphify-common.sh` and re-running gave 11 tests, 1 pass, 10 fail; with the change restored, 11 pass, 0 fail. That parent-file restore is also the inertness mutation: removing graphify_out returns the old $root/graphify-out behavior and turns the assertions red."
+    },
+    {
+      "id": "M4",
+      "verdict": "threatened",
+      "check": "Commit fea9493 carries both a structural change and a behavior change in one reviewable range: graphify_launch's third parameter becomes the output dir and the lock is derived inside it at .claude/hooks/graphify-common.sh:52-54, alongside the behavioral relocation at :44-46 and the GRAPHIFY_OUT export at :66. No characterization test predated the refactor; the test file was written in the same commit. Mitigation, not a cure: that file pins both the surviving per-project behavior and the new config-tree behavior, and was 10-of-11 red on the parent file."
+    },
+    {
+      "id": "M5",
+      "verdict": "not-threatened",
+      "check": "Every path:line anchor in this record was re-derived after the final edit with `grep -n` over the worktree copies of .claude/hooks/graphify-common.sh, graphify-provision.sh and graphify-refresh.sh, and with `grep -n graphify .claude/settings.json` for the :105 and :139 hook registrations, each re-checked at the ship stage against the file rather than carried over. None was copied from another coverage record or from the unit brief."
+    },
+    {
+      "id": "M6",
+      "verdict": "not-threatened",
+      "check": "All three edited hooks are deployed as symlinks into the tracked checkout: `ls -l ~/.claude/hooks/graphify-*.sh` shows graphify-common.sh, graphify-provision.sh and graphify-refresh.sh each resolving to .windful-ocean/.claude/hooks/, so the deployed guard is reproduced from committed source at this SHA with no install step. Nothing was hand-patched in the deployed tree: the edits and the two verification rewrites landed on the worktree copies under .claude/worktrees/wf_f539b84e-78f-4/ only."
+    },
+    {
+      "id": "G1",
+      "verdict": "not-threatened",
+      "check": "No merge command is added or enabled. The diff contains no gh, gh api or GraphQL invocation, and .claude/hooks/block-destructive-bash.sh is not in `git diff --name-only origin/chore/config-drift...HEAD`; the only command the changed code runs is `graphify update` at .claude/hooks/graphify-common.sh:66."
+    },
+    {
+      "id": "G2",
+      "verdict": "not-threatened",
+      "check": "No pull request is created or edited by this unit; per the unit brief the ship stage opens it. Nothing in the diff touches .claude/lib/git/pr.mjs or the deny list in .claude/hooks/block-destructive-bash.sh that forbids a post-creation title or body rewrite."
+    },
+    {
+      "id": "G3",
+      "verdict": "not-threatened",
+      "check": "The centralized creation path is untouched: pr.mjs, its tests under .claude/lib/git/tests/ and the bash gate are all outside this diff, and this unit issues no PR-creating command at all."
+    },
+    {
+      "id": "G4",
+      "verdict": "not-threatened",
+      "check": "This diff edits three hook files but weakens no protection of them: block-destructive-bash.sh and protect-claude-config.sh are unchanged, and no guardrail file is removed or relocated. Stated plainly because it is adjacent: verifying the red state overwrote the worktree copy of graphify-common.sh twice from bash, once with `git checkout HEAD --` and once with `cp` from the scratchpad; both targeted .claude/worktrees/wf_f539b84e-78f-4/, and the deployed symlink target in the main checkout was never written."
+    },
+    {
+      "id": "G5",
+      "verdict": "not-threatened",
+      "check": "No named network command is introduced. graphify_launch runs the local `graphify update` binary at .claude/hooks/graphify-common.sh:66 with the scan root as its only argument; the added GRAPHIFY_OUT=\"$out\" is an environment assignment on that local command, carries an output directory rather than a credential or guardrail path, and reaches no network."
+    }
+  ]
+}
