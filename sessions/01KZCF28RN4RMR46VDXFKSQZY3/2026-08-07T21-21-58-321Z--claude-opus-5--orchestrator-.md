@@ -1,0 +1,28 @@
+Landed the three named fixes, then hardened the validator through two review rounds, and opened PR #54. Nothing live was touched; the pointer swap was never attempted.
+
+WHAT SHIPPED (branch fix/config-release-validation, worktree .claude/worktrees/config-release-fixes cut from origin/main b24b266, 20 commits, 1544 changed lines of which 425 are production):
+- F1: notes dropped from PROMOTED_ENTRIES. It is gitignored, so every candidate shipped it empty and coverage rejected the release.
+- F2: hook syntax check now resolves language by command interpreter, then shebang, then extension, each tier terminal, shebang scanned forward so env / env -S / flag forms all resolve. secret-scanner.sh is python3 with a .sh name, which is what rejected every candidate.
+- F3: settings.json stripped from every release, enforced on the build path, the reuse path and at swapPointer.
+- Hardening: python3 -I, PATH-only env, empty per-validation sandbox cwd, spawn timeout and output caps; realpath containment for hook paths AND for the JSON scan; non-regular files and unreadable files rejected; details stripped of Unicode format/separator categories and capped; no CLI path emits a raw stack trace.
+
+WHAT THE REVIEWS FOUND (both dispatched in parallel after the first implementation):
+- Security review returned BLOCK on a CRITICAL this branch introduced: python3 -c puts the inherited cwd on sys.path, so a repo with a root-level ast.py got that file EXECUTED during validation, and because the shadow parse() returns rather than raising, the python gate silently passed. Proven end-to-end through hookFailures(). Four hooks route to the python checker today. Fixed with -I; closure verified adversarially with a control proving the attack is live on this machine.
+- Code review returned APPROVE-WITH-FIXES on a HIGH: the shebang tier was not terminal, so fish/deno rejected every candidate and perl/ruby passed vacuously.
+- Second security pass CLEARED the BLOCK, no CRITICAL or HIGH in the delta, one MEDIUM (JSON scan followed symlinks out of the release and leaked file-content prefixes into session context) which was then fixed.
+
+WHAT FAILED OR WAS WRONG:
+- Two of my own dispatch premises were falsified by the agents and corrected rather than complied with. (a) I described the control-character vector as bash -n stderr embedding file content; measured, the first stderr line is always a shell operator and the file fragment is on line 2, which the code never reads. The real vector is the committed hook PATH. (b) I deferred hookRegistrations' silent drop on the claim it degrades quietly; a non-array hooks value actually THROWS TypeError through validateCandidate into promote with no try/catch, crashing the verb on a valid-JSON-but-malformed settings.json. Both were fixed at the right layer.
+- The last round caught its own cap test as self-referential (it imported DETAIL_CAP and bounded by it, so raising the constant raised the assertion) via mutation probing rather than trusting green. Two more constants had no real assertion. Fixed the assertions, not the constants.
+- npm test is 2044/2045. The single failure is protect-claude-config.test.mjs:194, pre-existing, byte-identical to base, environment-dependent: it demands live ~/.claude/settings.json be a symlink into the checkout, and it is a real 0600 file. Verified independently, not taken on faith. This is a genuine design contradiction with 0270 and it belongs to the cutover's rework of that guard.
+
+VERIFICATION (all observed, none inferred):
+- Faithful 0281 rehearsal run THREE times against a throwaway config root under an overridden HOME with live settings.json seeded and the bootstrap installed: promoted at b365b76, 5ce5722 and 58a5085. Byte-identical counts across all three: 26 registrations, all resolving inside the candidate, checker split 20 bash / 4 python3 / 2 node, 429-file payload. Counts were stable because git diff --name-status 5ce5722..58a5085 -- .claude is empty; every commit touched scripts/config/, outside the archived subtree.
+- Attack re-probe 17/17 fail closed: shadow ast.py never executes, NODE_OPTIONS preload never fires, fish and perl shebangs rejected, symlink escape rejected, FIFO rejected in 0ms (previously hung forever), U+2028 in a filename forges 0 rows, bootstrap-inside-releases exits 1 with 0 stack frames.
+- Rollback regression introduced by the hardening (swapPointer could refuse, wedging the recovery path) found and fixed: rollback now succeeds with a warning, promote still refuses.
+- Real ~/.claude never written to across every run: entry-name set identical, its own mtime unchanged and predating each run, releases/current/current.tmp/LIVE all absent. Listing deltas were harness bookkeeping (session-env, backups, run sentinels), attributed rather than waved away.
+- invariant-coverage-check exit 0 in push mode and under pull_request against main. The coverage artifact was rewritten twice for honesty: G5's clearance of the python spawn was falsified by the CRITICAL, M2 understated the gap, and B4 called an unreachable drift guard load-bearing.
+
+STILL RUNNING AT HAND-OFF: a backgrounded CI watch on the PR branch, shell id b6gk6b9xi, output at /private/tmp/claude-501/-Users-satanshumishra-Documents-DevLabs--windful-ocean/0f4250f5-60d9-4dc3-bdc9-510d913b3b0e/tasks/b6gk6b9xi.output. Kill with KillShell(b6gk6b9xi) if it is stale. Its result was NOT read before hand-off, so PR #54's CI conclusion is unknown; check it before merging.
+
+NOT DONE: PR #54 is open and unmerged (merge is human-gated). No cutover step was attempted: local main is still stale, the bootstrap is not installed in ~/.claude/local/, notes/ has not moved, the legacy graphify-out trees are not deleted, and no real release exists.
