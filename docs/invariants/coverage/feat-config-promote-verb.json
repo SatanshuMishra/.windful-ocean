@@ -4,12 +4,12 @@
     {
       "id": "B1",
       "verdict": "not-threatened",
-      "check": "The diff is nine files: scripts/config/{paths,promote,receipt,release,validate}.mjs, three files under scripts/config/tests/, and one glob added at package.json:7. `git diff --name-only origin/chore/config-drift -- .claude/` returns 0 paths, so workflow-sandbox.mjs is untouched and no vm realm or contextify option is constructed anywhere in this unit."
+      "check": "The diff is ten files: scripts/config/{paths,promote,receipt,release,validate}.mjs, three files under scripts/config/tests/, this coverage record, and one glob appended at package.json:7. `git diff --name-only origin/chore/config-drift...HEAD -- .claude/` returns 0 paths, so workflow-sandbox.mjs is untouched and no vm realm or contextify option is constructed anywhere in this unit."
     },
     {
       "id": "B2",
       "verdict": "not-threatened",
-      "check": "No sandbox denial mechanism is added or edited. My validator signals refusal by returning frozen {rule, detail} records collected at scripts/config/validate.mjs:188-199, never by throwing into a workflow realm; the single throw I add is at scripts/config/promote.mjs:64-68 and it runs in the host process before any promotion, where no workflow body can catch it."
+      "check": "No sandbox denial mechanism is added or edited. The validator signals refusal by returning frozen {rule, detail} records collected at scripts/config/validate.mjs:190-201, never by throwing into a workflow realm. This unit adds exactly two throws, scripts/config/promote.mjs:64 and scripts/config/receipt.mjs:68; both run in the host process, the first before any promotion and the second only on a receipt already refused by the pre-swap guard at scripts/config/promote.mjs:107-108, so no workflow body can catch either."
     },
     {
       "id": "B3",
@@ -39,22 +39,22 @@
     {
       "id": "M2",
       "verdict": "threatened",
-      "check": "My validator is a gate that classifies paths, and the path census is closed: mapIntoCandidate at scripts/config/validate.mjs:91-100 returns local, candidate, outside or unparsable, and both non-resolving classes become a hook-resolution failure rather than a silent pass. The extension census is NOT closed. syntaxCheckFor at scripts/config/validate.mjs:102-107 returns null for any extension outside .mjs/.js/.cjs and .sh/.bash, and a null check is skipped silently at :129-130. Three hooks registered live are .py files (.claude/settings.json:164, :254, :293), so they resolve, are exempt from the executable bit as interpreter-invoked, and receive no syntax check at all."
+      "check": "The validator is a gate that classifies paths, and the path census is closed: mapIntoCandidate at scripts/config/validate.mjs:91-100 returns local, candidate, outside or unparsable, and both non-resolving classes become a hook-resolution failure rather than a silent pass. The ship stage closed a second hole here: jsonParseFailures at scripts/config/validate.mjs:152-158 previously returned [] when the candidate tree could not be read, vacating validation check 4 silently, and now halts on the unscannable with a json-parse failure. The extension census remains NOT closed. syntaxCheckFor at scripts/config/validate.mjs:102-107 returns null for any extension outside .mjs/.js/.cjs and .sh/.bash, and a null check is skipped silently at :129-130. Three hooks registered live are .py files (.claude/settings.json:164, :254, :293), so they resolve, are exempt from the executable bit as interpreter-invoked, and receive no syntax check at all."
     },
     {
       "id": "M3",
       "verdict": "not-threatened",
-      "check": "Acceptance criteria 2-5 are executable, not asserted, in scripts/config/tests/. I also ran three inertness mutations and read each result: replacing renameSync at scripts/config/promote.mjs:45 with `mv -f` turned 3 tests red; deleting the idempotence guard at :79 turned the re-promote test red; making bootstrapFailures at scripts/config/validate.mjs:167 return [] turned both bootstrap tests red. Each mutation was reverted and the suite reconfirmed at 20/20."
+      "check": "Acceptance criteria 2-5 are executable, not asserted, in scripts/config/tests/, which now runs 22 tests, all passing. Both ship-stage fixes shipped an acceptance test confirmed red against the pre-fix code by direct probe before the fix landed: promote() without a usable timestamp left current pointing at the new release with no LIVE receipt written, now asserted at scripts/config/tests/promote.test.mjs:160-176; and jsonParseFailures over an unreadable tree returned [], now asserted at scripts/config/tests/validate.test.mjs:149-163. The pre-swap receipt guard at scripts/config/promote.mjs:107-108 is inert-testable: deleting it turns the first of those tests red."
     },
     {
       "id": "M4",
       "verdict": "not-threatened",
-      "check": "No structural refactor shares this range with the behavior change. Eight of the nine changed files are new additions, and the ninth is a one-line edit at package.json:7 that appends `scripts/config/tests/*.test.mjs` to the existing glob list without reordering, renaming or moving anything. `git diff --stat origin/chore/config-drift` shows 1202 insertions against 1 deletion, and that single deletion is the replaced glob line."
+      "check": "No structural refactor shares this range with the behavior change. Nine of the ten changed files are new additions, and the tenth is a one-line edit at package.json:7 that appends `scripts/config/tests/*.test.mjs` to the existing glob list without reordering, renaming or moving anything. `git diff --stat origin/chore/config-drift...HEAD` reports exactly one deletion across the whole unit, and that single deletion is the replaced glob line; every other changed line is an addition in a file that did not previously exist."
     },
     {
       "id": "M5",
       "verdict": "not-threatened",
-      "check": "Every path:line in this record was re-derived by grep against this worktree while writing it, not copied. Spot anchors confirmed: swapPointer at scripts/config/promote.mjs:36 with renameSync at :45; assertBootstrapOutsideReleases at :58; rollback's no-rebuild refusal at :129; bootstrapFailures at scripts/config/validate.mjs:167; validateCandidate at :188; collectGarbage's delete at scripts/config/release.mjs:81; the three python3 registrations at .claude/settings.json:164, :254 and :293."
+      "check": "Every path:line in this record was re-derived by grep against this worktree after the ship-stage fixes landed, not copied, because those fixes shifted anchors below scripts/config/promote.mjs:100 and scripts/config/validate.mjs:146. Confirmed at the final tree: swapPointer at scripts/config/promote.mjs:36 with renameSync at :45; assertBootstrapOutsideReleases at :58; the pre-swap receipt guard at :107-108; rollback's no-rebuild refusal at :132; jsonParseFailures at scripts/config/validate.mjs:152; bootstrapFailures at :169; validateCandidate at :190; collectGarbage's delete at scripts/config/release.mjs:79; the rows contract at scripts/invariant-coverage-check.mjs:126-127; the three python3 registrations at .claude/settings.json:164, :254 and :293."
     },
     {
       "id": "M6",
@@ -79,7 +79,7 @@
     {
       "id": "G4",
       "verdict": "threatened",
-      "check": "This unit authors machinery whose whole purpose is to relocate the guardrail surface. swapPointer at scripts/config/promote.mjs:36-47 replaces ~/.claude/current in one rename, which repoints hooks/ and rules/ wholesale, and collectGarbage at scripts/config/release.mjs:73-83 calls rmSync(recursive, force) at :79 on whole release directories that contain hooks and rules. SPEC A section 5.4 records that protect-claude-config.sh covers ~/.claude/hooks/** but not ~/.claude/releases/<sha>/hooks/**, so both the swap and the delete operate outside that guard's reach. Nothing in this diff executes against a live path, and the delete is bounded by the retention and protected-sha arguments at scripts/config/promote.mjs:109-113, but the capability is introduced here and is recorded rather than excused."
+      "check": "This unit authors machinery whose whole purpose is to relocate the guardrail surface. swapPointer at scripts/config/promote.mjs:36-47 replaces ~/.claude/current in one rename, which repoints hooks/ and rules/ wholesale, and collectGarbage at scripts/config/release.mjs:73-83 calls rmSync(recursive, force) at :79 on whole release directories that contain hooks and rules. SPEC A section 5.4 records that protect-claude-config.sh covers ~/.claude/hooks/** but not ~/.claude/releases/<sha>/hooks/**, so both the swap and the delete operate outside that guard's reach. Nothing in this diff executes against a live path, every test drives a mkdtemp sandbox seeded by scripts/config/tests/_fixture.mjs:57-62, and the delete is bounded by the retention and protected-sha arguments at scripts/config/promote.mjs:112-116, but the capability is introduced here and is recorded rather than excused."
     },
     {
       "id": "G5",
