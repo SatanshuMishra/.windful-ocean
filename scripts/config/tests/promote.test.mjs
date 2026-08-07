@@ -126,6 +126,28 @@ test('swapPointer leaves no window without a pointer and overwrites a stale stag
   }
 });
 
+test('the pointer never comes to rest on a release carrying settings.json, rollback included', () => {
+  const s = scenario();
+  try {
+    s.run();
+    const firstSha = s.sha;
+    const nextSha = commitChange(s.repoRoot, (claude) => writeFile(join(claude, 'docs', 'd.md'), 'd\n'));
+    assert.equal(s.run().status, 'promoted');
+
+    const stale = join(s.configRoot, 'releases', firstSha, 'settings.json');
+    writeFile(stale, '{\n  "hooks": {}\n}\n');
+
+    const rolled = rollback({ configRoot: s.configRoot, now: NOW });
+
+    assert.equal(rolled.status, 'rolled-back');
+    assert.equal(liveSha(s.configRoot), firstSha);
+    assert.equal(rolled.previous, nextSha);
+    assert.ok(!existsSync(stale), 'current must never resolve to a release that shadows the live settings.json');
+  } finally {
+    s.dispose();
+  }
+});
+
 test('rollback swaps to LIVE.previous without rebuilding, and fails loudly if that release is gone', () => {
   const s = scenario();
   try {

@@ -1,7 +1,18 @@
 import { existsSync, mkdirSync, readdirSync, renameSync, rmSync, statSync } from 'node:fs';
 import { spawnSync } from 'node:child_process';
 import { join } from 'node:path';
-import { ARCHIVE_SUBTREE, SETTINGS_FILENAME, SHA_PATTERN, releaseDir, releasesDir } from './paths.mjs';
+import { ARCHIVE_SUBTREE, SHA_PATTERN, releaseDir, releasesDir, settingsPathIn } from './paths.mjs';
+
+export function stripSettings(dir) {
+  const path = settingsPathIn(dir);
+  try {
+    rmSync(path, { recursive: true, force: true });
+  } catch (error) {
+    return { ok: false, error: `${path} could not be removed: ${error.message}` };
+  }
+  if (existsSync(path)) return { ok: false, error: `${path} survived removal and would shadow the live settings` };
+  return { ok: true };
+}
 
 export function resolveRef(repoRoot, ref) {
   const run = spawnSync('git', ['-C', repoRoot, 'rev-parse', '--verify', `${ref}^{commit}`], {
@@ -21,7 +32,10 @@ export function resolveRef(repoRoot, ref) {
 export function buildRelease({ configRoot, repoRoot, sha }) {
   if (!SHA_PATTERN.test(sha)) return { ok: false, error: `refusing to build a release for a non-sha ${JSON.stringify(sha)}` };
   const target = releaseDir(configRoot, sha);
-  if (existsSync(target)) return { ok: true, built: false, dir: target };
+  if (existsSync(target)) {
+    const stripped = stripSettings(target);
+    return stripped.ok ? { ok: true, built: false, dir: target } : { ok: false, error: stripped.error };
+  }
 
   const releases = releasesDir(configRoot);
   mkdirSync(releases, { recursive: true });
@@ -50,7 +64,8 @@ export function buildRelease({ configRoot, repoRoot, sha }) {
     if (!existsSync(subtree)) {
       return { ok: false, error: `archive of ${sha} carries no ${ARCHIVE_SUBTREE} subtree` };
     }
-    rmSync(join(subtree, SETTINGS_FILENAME), { force: true });
+    const stripped = stripSettings(subtree);
+    if (!stripped.ok) return { ok: false, error: stripped.error };
     renameSync(subtree, target);
     return { ok: true, built: true, dir: target };
   } finally {
