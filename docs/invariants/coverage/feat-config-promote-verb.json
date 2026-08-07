@@ -1,0 +1,90 @@
+{
+  "unit": "feat/config-promote-verb",
+  "rows": [
+    {
+      "id": "B1",
+      "verdict": "not-threatened",
+      "check": "The diff is nine files: scripts/config/{paths,promote,receipt,release,validate}.mjs, three files under scripts/config/tests/, and one glob added at package.json:7. `git diff --name-only origin/chore/config-drift -- .claude/` returns 0 paths, so workflow-sandbox.mjs is untouched and no vm realm or contextify option is constructed anywhere in this unit."
+    },
+    {
+      "id": "B2",
+      "verdict": "not-threatened",
+      "check": "No sandbox denial mechanism is added or edited. My validator signals refusal by returning frozen {rule, detail} records collected at scripts/config/validate.mjs:188-199, never by throwing into a workflow realm; the single throw I add is at scripts/config/promote.mjs:64-68 and it runs in the host process before any promotion, where no workflow body can catch it."
+    },
+    {
+      "id": "B3",
+      "verdict": "not-threatened",
+      "check": "No guarded intrinsic and no member enumeration on an intrinsic is touched. The nearest shape in my diff is the interpreter list at scripts/config/paths.mjs:29 and the extension lists at scripts/config/validate.mjs:15-16, which classify hook command tokens and filenames; they gate nothing on a JavaScript intrinsic and raise no violation on a non-denied member."
+    },
+    {
+      "id": "B4",
+      "verdict": "not-threatened",
+      "check": "VALUE_GLOBALS, ALWAYS_DENIED and ALLOWED_GLOBALS are not present in this diff. I do add named constants that are load-bearing in the B4 sense: emptying PROMOTED_ENTRIES at scripts/config/paths.mjs:13 turns the 'candidate missing an expected entry' assertion in scripts/config/tests/validate.test.mjs red, because expectedEntries would then demand nothing. They are not sandbox policy constants, so B4's named set is unaffected."
+    },
+    {
+      "id": "B5",
+      "verdict": "not-threatened",
+      "check": "No code is added in the workflow-body position, so the census of host-reachable bare identifiers is unchanged. Every module I add is an ESM file imported by node directly with explicit `node:` builtin imports (scripts/config/promote.mjs:2-21), executed by the host, never evaluated inside the engine's sandboxed workflow scope."
+    },
+    {
+      "id": "B6",
+      "verdict": "threatened",
+      "check": "The sandbox harness B6 literally names is untouched. But this unit reproduces the condition B6 forbids: scripts/config/promote.mjs ships with no production caller, because the task boundary defers installing it to ~/.claude/local/ and registering the SessionStart hook to U6. Its only callers today are scripts/config/tests/promote.test.mjs and validate.test.mjs, so its liveness is currently proven only by its own tests. Recorded as threatened rather than excused on the technicality that B6's subject is the other harness."
+    },
+    {
+      "id": "M1",
+      "verdict": "not-threatened",
+      "check": "This unit satisfies M1 rather than reaching it. Verdicts for all 17 registry ids read from docs/invariants/registry.json are recorded in this committed file and nowhere else; the PR body will carry no verdict table. The shape is the `rows` array required at scripts/invariant-coverage-check.mjs:126-127, not the `invariants` key my task brief named, which that checker rejects."
+    },
+    {
+      "id": "M2",
+      "verdict": "threatened",
+      "check": "My validator is a gate that classifies paths, and the path census is closed: mapIntoCandidate at scripts/config/validate.mjs:91-100 returns local, candidate, outside or unparsable, and both non-resolving classes become a hook-resolution failure rather than a silent pass. The extension census is NOT closed. syntaxCheckFor at scripts/config/validate.mjs:102-107 returns null for any extension outside .mjs/.js/.cjs and .sh/.bash, and a null check is skipped silently at :129-130. Three hooks registered live are .py files (.claude/settings.json:164, :254, :293), so they resolve, are exempt from the executable bit as interpreter-invoked, and receive no syntax check at all."
+    },
+    {
+      "id": "M3",
+      "verdict": "not-threatened",
+      "check": "Acceptance criteria 2-5 are executable, not asserted, in scripts/config/tests/. I also ran three inertness mutations and read each result: replacing renameSync at scripts/config/promote.mjs:45 with `mv -f` turned 3 tests red; deleting the idempotence guard at :79 turned the re-promote test red; making bootstrapFailures at scripts/config/validate.mjs:167 return [] turned both bootstrap tests red. Each mutation was reverted and the suite reconfirmed at 20/20."
+    },
+    {
+      "id": "M4",
+      "verdict": "not-threatened",
+      "check": "No structural refactor shares this range with the behavior change. Eight of the nine changed files are new additions, and the ninth is a one-line edit at package.json:7 that appends `scripts/config/tests/*.test.mjs` to the existing glob list without reordering, renaming or moving anything. `git diff --stat origin/chore/config-drift` shows 1202 insertions against 1 deletion, and that single deletion is the replaced glob line."
+    },
+    {
+      "id": "M5",
+      "verdict": "not-threatened",
+      "check": "Every path:line in this record was re-derived by grep against this worktree while writing it, not copied. Spot anchors confirmed: swapPointer at scripts/config/promote.mjs:36 with renameSync at :45; assertBootstrapOutsideReleases at :58; rollback's no-rebuild refusal at :129; bootstrapFailures at scripts/config/validate.mjs:167; validateCandidate at :188; collectGarbage's delete at scripts/config/release.mjs:81; the three python3 registrations at .claude/settings.json:164, :254 and :293."
+    },
+    {
+      "id": "M6",
+      "verdict": "threatened",
+      "check": "The release half satisfies M6 by construction: buildRelease at scripts/config/release.mjs:23-61 builds only from `git archive` of a resolved commit sha and never edits a release in place, and the sha is recorded in the LIVE receipt whose fields are fixed at scripts/config/receipt.mjs:4-11. The bootstrap half does not. Invariant 5.3 forces the promote verb to live at ~/.claude/local/ outside every release, so it becomes a deployed copy of scripts/config/promote.mjs whose version is recorded nowhere - the receipt has no field for it - and a hand-patched local/promote.mjs would survive any refresh undetected."
+    },
+    {
+      "id": "G1",
+      "verdict": "not-threatened",
+      "check": "No merge path is added or weakened. My diff issues no `gh`, no `gh api`, and no GraphQL call; the only child processes it spawns are git, tar, node and bash at scripts/config/release.mjs:7 and :38, scripts/config/validate.mjs:131, and none of them reaches a pull request. I open no PR in this unit - the ship stage does that after review."
+    },
+    {
+      "id": "G2",
+      "verdict": "not-threatened",
+      "check": "Nothing in this diff touches .claude/lib/git/pr.mjs, .claude/hooks/block-destructive-bash.sh, or the permissions block in .claude/settings.json; `git diff --name-only origin/chore/config-drift -- .claude/` is empty. No title or body of an existing pull request is read, composed or rewritten anywhere in scripts/config/."
+    },
+    {
+      "id": "G3",
+      "verdict": "not-threatened",
+      "check": "The centralized creation path is untouched and unbypassed. My unit adds no PR-creating surface at all, and the PR for this branch will be opened by `node .claude/lib/git/pr.mjs pr-create` with --base chore/config-drift, per the unit instructions, rather than by any code introduced here."
+    },
+    {
+      "id": "G4",
+      "verdict": "threatened",
+      "check": "This unit authors machinery whose whole purpose is to relocate the guardrail surface. swapPointer at scripts/config/promote.mjs:36-47 replaces ~/.claude/current in one rename, which repoints hooks/ and rules/ wholesale, and collectGarbage at scripts/config/release.mjs:75-84 calls rmSync(recursive, force) at :81 on whole release directories that contain hooks and rules. SPEC A section 5.4 records that protect-claude-config.sh covers ~/.claude/hooks/** but not ~/.claude/releases/<sha>/hooks/**, so both the swap and the delete operate outside that guard's reach. Nothing in this diff executes against a live path, and the delete is bounded by the retention and protected-sha arguments at scripts/config/promote.mjs:109-113, but the capability is introduced here and is recorded rather than excused."
+    },
+    {
+      "id": "G5",
+      "verdict": "not-threatened",
+      "check": "No network command is invoked. The spawns I add are `git rev-parse` and `git archive` (scripts/config/release.mjs:7, :38), `tar -xf` (:46) and `node --check` / `bash -n` (scripts/config/validate.mjs:131), all local. The near-miss worth naming: `git archive -o` writes into ~/.claude/releases/ and tar extracts into it, which is guardrail-adjacent, but neither command is network-named and no argument is credential-shaped, so G5's escalation condition is not reached."
+    }
+  ]
+}
