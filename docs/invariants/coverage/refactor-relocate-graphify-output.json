@@ -29,7 +29,7 @@
     {
       "id": "B6",
       "verdict": "not-threatened",
-      "check": "The harness and its production caller are untouched. By the same liveness standard, the new graphify_out is not a lint-only artifact: it has two production callers, .claude/hooks/graphify-provision.sh:8 and .claude/hooks/graphify-refresh.sh:8, both of which are registered hooks at .claude/settings.json:100 and :134."
+      "check": "The harness and its production caller are untouched. By the same liveness standard, the new graphify_out is not a lint-only artifact: it has two production callers, .claude/hooks/graphify-provision.sh:8 and .claude/hooks/graphify-refresh.sh:8, both of which are registered hooks at .claude/settings.json:105 and :139."
     },
     {
       "id": "M1",
@@ -54,7 +54,7 @@
     {
       "id": "M5",
       "verdict": "not-threatened",
-      "check": "Every path:line anchor in this record was re-derived after the final edit with `grep -n` over the worktree copies of .claude/hooks/graphify-common.sh, graphify-provision.sh and graphify-refresh.sh, and with `grep -n graphify .claude/settings.json` for the :100 and :134 hook registrations. None was copied from another coverage record or from the unit brief."
+      "check": "Every path:line anchor in this record was re-derived after the final edit with `grep -n` over the worktree copies of .claude/hooks/graphify-common.sh, graphify-provision.sh and graphify-refresh.sh, and with `grep -n graphify .claude/settings.json` for the :105 and :139 hook registrations, each re-checked at the ship stage against the file rather than carried over. None was copied from another coverage record or from the unit brief."
     },
     {
       "id": "M6",
