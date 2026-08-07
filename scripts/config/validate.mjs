@@ -56,6 +56,8 @@ const CHECKER_COMMANDS = Object.freeze(['node', 'python3', 'bash', 'sh', 'zsh'])
 const CHECKER_TIMEOUT_MS = 15000;
 const CHECKER_MAX_BUFFER = 262144;
 const CHECKER_SANDBOX_PREFIX = 'config-syntax-check-';
+const JSON_EXTENSION = '.json';
+const JSON_POSITION = /at position \d+(?: \(line \d+ column \d+\))?/;
 const CONTROL_CHARACTERS = /[\u0000-\u001f\u007f-\u009f]/g;
 const EXECUTABLE_BITS = 0o111;
 const REASON_CAP = 200;
@@ -371,27 +373,61 @@ export function hookFailures({ settings, configRoot, candidateDir, home }) {
   }
 }
 
-function jsonFilesUnder(root) {
-  return readdirSync(root, { withFileTypes: true, recursive: true })
-    .filter((entry) => entry.isFile() && entry.name.endsWith('.json'))
-    .map((entry) => join(entry.parentPath ?? entry.path, entry.name));
+export function errorTag(error) {
+  const named = error?.code ?? error?.name ?? 'an unnamed error';
+  const position = JSON_POSITION.exec(String(error?.message ?? ''));
+  return position === null ? named : `${named} ${position[0]}`;
+}
+
+function escapingLinkFailures(path, root) {
+  const real = realpathOrNull(path);
+  if (real === null || isInside(root, real)) return [];
+  return [failure(
+    'json-containment',
+    `${relative(root, path)} links to ${real}, outside the candidate release; `
+      + 'validation neither scans nor reads it',
+  )];
+}
+
+function scanJsonTree(dir, root) {
+  let entries;
+  try {
+    entries = readdirSync(dir, { withFileTypes: true });
+  } catch (error) {
+    return {
+      files: [],
+      failures: [failure('json-parse', `candidate tree at ${dir} could not be scanned for JSON: ${errorTag(error)}`)],
+    };
+  }
+  return entries.reduce((found, entry) => {
+    const path = join(dir, entry.name);
+    if (entry.isSymbolicLink()) {
+      return { ...found, failures: [...found.failures, ...escapingLinkFailures(path, root)] };
+    }
+    if (entry.isDirectory()) {
+      const nested = scanJsonTree(path, root);
+      return { files: [...found.files, ...nested.files], failures: [...found.failures, ...nested.failures] };
+    }
+    if (entry.isFile() && entry.name.endsWith(JSON_EXTENSION)) {
+      return { ...found, files: [...found.files, path] };
+    }
+    return found;
+  }, { files: [], failures: [] });
+}
+
+function jsonFileFailures(file, root) {
+  try {
+    JSON.parse(readFileSync(file, 'utf8'));
+    return [];
+  } catch (error) {
+    return [failure('json-parse', `${relative(root, file)}: ${errorTag(error)}`)];
+  }
 }
 
 export function jsonParseFailures(candidateDir) {
-  let files;
-  try {
-    files = jsonFilesUnder(candidateDir);
-  } catch (error) {
-    return [failure('json-parse', `candidate tree at ${candidateDir} could not be scanned for JSON: ${error.message}`)];
-  }
-  return files.flatMap((file) => {
-    try {
-      JSON.parse(readFileSync(file, 'utf8'));
-      return [];
-    } catch (error) {
-      return [failure('json-parse', `${relative(candidateDir, file)}: ${error.message}`)];
-    }
-  });
+  const root = realpathOrNull(candidateDir) ?? candidateDir;
+  const scanned = scanJsonTree(root, root);
+  return [...scanned.failures, ...scanned.files.flatMap((file) => jsonFileFailures(file, root))];
 }
 
 export function bootstrapFailures({ configRoot, bootstrapPaths }) {
