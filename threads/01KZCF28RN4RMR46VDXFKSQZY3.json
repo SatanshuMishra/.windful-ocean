@@ -17,7 +17,7 @@
     {
       "id": "c9",
       "text": "The three release-rejecting defects are fixed and the validator hardened through two reviews, including a CRITICAL code-execution path in the python checker, shipped as merged PR #54.",
-      "done": false,
+      "done": true,
       "kind": "detour",
       "struck_by": null
     },
@@ -31,7 +31,7 @@
     {
       "id": "c2",
       "text": "The promote verb is implemented with pre-swap validation, rollback by rename, and the LIVE receipt, and the bootstrap resolves outside releases/.",
-      "done": false,
+      "done": true,
       "kind": "planned",
       "struck_by": null
     },
@@ -77,9 +77,9 @@
   "abandoned_reason": null,
   "closure_statement": null,
   "spine": {
-    "active_goal": "Ship SPEC A: merge PR #54, then cut over to immutable releases behind an atomic pointer.",
-    "next_step": "START HERE FRESH, in a session doing nothing else. 1) Merge PR #54 (green and CLEAN at f14fb9d; merge is human-gated). 2) Fast-forward local main to origin/main. 3) Cut over per SPEC section 7: install the bootstrap in ~/.claude/local/, move notes/ there, delete the legacy graphify-out trees, build and validate the real release with --ref origin/main, and swap the entry links only on explicit user go. Rehearse against a scratch config root first per 0281.",
-    "last_session": "Fixed the three release-rejecting defects, hardened the validator through two reviews including a CRITICAL code-execution path, and opened PR #54; it is now green and mergeable at f14fb9d.",
+    "active_goal": "Complete SPEC A end to end: close the section-7 preconditions, register the converge hooks, then cut over to immutable releases behind an atomic pointer.",
+    "next_step": "START HERE FRESH, in a session doing nothing else. GOAL: finish SPEC A. 1) Fast-forward local main with `git fetch origin main:main` (never checkout main here). 2) Close c1's five section-7 preconditions. 3) Rehearse per 0281 against the merged sha. 4) Register the converge hooks (c3). 5) Build and validate the real release, then swap every entry link in one pass, on explicit user go (c5). 6) Verify all 10 acceptance criteria (c6).",
+    "last_session": "Fixed the three release-rejecting defects and hardened the validator across two reviews and three fix rounds, closing a CRITICAL code-execution path in the python checker; PR #54 is merged at 1e84dd1.",
     "open_risks": [
       {
         "text": "Run the cutover serially in a session doing nothing else — it hot-swaps live-linked hooks, lib and workflows, so parallel subagents editing those paths can break every running session including the one doing the work.",
@@ -96,28 +96,7 @@
         ]
       },
       {
-        "text": "Never git checkout main in the primary checkout — live global config is 37 symlinks into that working tree, so switching branches hot-swaps every skill and hook under every running session",
-        "scope": "thread",
-        "refs": [
-          "/Users/satanshumishra/Documents/DevLabs/.windful-ocean"
-        ]
-      },
-      {
-        "text": "Serialize every write to a live-linked path, not just the cutover — the converge-hook registration reaches running sessions through the 26 hook symlinks, so a half-saved file breaks every session instantly",
-        "scope": "thread",
-        "refs": [
-          ".claude/hooks/"
-        ]
-      },
-      {
-        "text": "Treat a green suite as no evidence the promote verb works in anger — it still has no production caller and is exercised only by its own tests and scratch rehearsals until the converge hooks land",
-        "scope": "thread",
-        "refs": [
-          "scripts/config/promote.mjs"
-        ]
-      },
-      {
-        "text": "Pass --ref origin/main or fast-forward local main first — local main sits at 0451220 while origin/main is further ahead, so a release built from the default ref ships the wrong tree",
+        "text": "Fast-forward local main with git fetch origin main:main, or pass --ref origin/main — local main is stale at 0451220 against origin/main 1e84dd1, so a release built from the default ref ships the wrong tree",
         "scope": "c1",
         "refs": [
           "scripts/config/promote.mjs"
@@ -138,7 +117,7 @@
         ]
       },
       {
-        "text": "Decide in the cutover whether settings.json is a promoted symlink or a real live file — that guard's test demands the former while decision 0270 mandates the latter, which is why it fails locally and passes on CI where no live config exists",
+        "text": "Decide in the cutover whether settings.json is a promoted symlink or a real live file — that guard's test demands the former while 0270 mandates the latter, which is why it fails locally and passes on CI where no live config exists",
         "scope": "c1",
         "refs": [
           ".claude/hooks/tests/protect-claude-config.test.mjs:194"
@@ -153,10 +132,31 @@
         ]
       },
       {
-        "text": "Guard any new test that spawns a real interpreter, or assert selection instead — two tests were green with python3 absent because a missing interpreter raises the same rule they asserted, so they proved nothing",
-        "scope": "c1",
+        "text": "Never git checkout main in the primary checkout — live global config is 37 symlinks into that working tree, so switching branches hot-swaps every skill and hook under every running session",
+        "scope": "thread",
         "refs": [
-          "scripts/config/tests/_interpreters.mjs"
+          "/Users/satanshumishra/Documents/DevLabs/.windful-ocean"
+        ]
+      },
+      {
+        "text": "Serialize every write to a live-linked path, not just the cutover — the converge-hook registration reaches running sessions through the 26 hook symlinks, so a half-saved file breaks every session instantly",
+        "scope": "thread",
+        "refs": [
+          ".claude/hooks/"
+        ]
+      },
+      {
+        "text": "Treat a green suite as no evidence the promote verb works in anger — it has no production caller until the converge hooks land, so it is exercised only by its own tests and scratch rehearsals",
+        "scope": "thread",
+        "refs": [
+          "scripts/config/promote.mjs"
+        ]
+      },
+      {
+        "text": "Enumerate every code path an invariant covers before dispatching a fix round — the last round satisfied containment for hook paths and missed the JSON scan beside it, which cost a fourth round",
+        "scope": "thread",
+        "refs": [
+          "scripts/config/validate.mjs"
         ]
       }
     ],
@@ -214,10 +214,9 @@
     ],
     "out_of_scope": [
       "Building SPEC B Part IV's stacked-PR machinery to serve this work",
-      "Editing mitosis.js or the parallel engine, which SPEC B governs",
-      "Hardening the three validator residuals disclosed in 0283 during this phase"
+      "Editing mitosis.js or the parallel engine, which SPEC B governs"
     ]
   },
   "created_at": "2026-08-06T21:18:29.653Z",
-  "updated_at": "2026-08-07T23:58:24.053Z"
+  "updated_at": "2026-08-07T23:59:35.845Z"
 }
