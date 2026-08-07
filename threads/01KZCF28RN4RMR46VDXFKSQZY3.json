@@ -184,6 +184,11 @@
         "ref": "0282-validation-fails-closed-on-any-hook-it-cannot-verify",
         "title": "Release validation fails closed on any registered hook it cannot verify",
         "scope": "c1"
+      },
+      {
+        "ref": "0283-residual-validator-risks-are-disclosed-not-fixed",
+        "title": "Three residual validator weaknesses are disclosed in the invariant record rather than fixed",
+        "scope": "c1"
       }
     ],
     "out_of_scope": [
@@ -192,5 +197,5 @@
     ]
   },
   "created_at": "2026-08-06T21:18:29.653Z",
-  "updated_at": "2026-08-07T21:23:40.526Z"
+  "updated_at": "2026-08-07T21:23:57.641Z"
 }
