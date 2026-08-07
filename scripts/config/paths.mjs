@@ -1,5 +1,5 @@
 import { realpathSync } from 'node:fs';
-import { join, resolve, sep } from 'node:path';
+import { basename, dirname, join, resolve, sep } from 'node:path';
 
 export const RELEASES_DIRNAME = 'releases';
 export const CURRENT_LINK = 'current';
@@ -7,6 +7,7 @@ export const CURRENT_TMP_LINK = 'current.tmp';
 export const RECEIPT_FILENAME = 'LIVE';
 export const LOCAL_DIRNAME = 'local';
 export const ARCHIVE_SUBTREE = '.claude';
+export const SETTINGS_FILENAME = 'settings.json';
 export const DEFAULT_REF = 'main';
 export const RETAINED_RELEASES = 5;
 
@@ -24,7 +25,7 @@ export const PROMOTED_ENTRIES = Object.freeze([
   'keybindings.json',
 ]);
 
-export const BOOTSTRAP_ENTRIES = Object.freeze(['promote.mjs', 'session-config-promote.sh']);
+export const BOOTSTRAP_ENTRIES = Object.freeze(['promote.mjs', 'converge.mjs']);
 
 export const INTERPRETERS = Object.freeze(['node', 'python3', 'python', 'bash', 'sh', 'zsh']);
 
@@ -53,6 +54,26 @@ export function realpathOrNull(target) {
   } catch {
     return null;
   }
+}
+
+export function settingsPathIn(dir) {
+  return join(dir, SETTINGS_FILENAME);
+}
+
+export function repoSettingsPath(repoRoot) {
+  return join(repoRoot, ARCHIVE_SUBTREE, SETTINGS_FILENAME);
+}
+
+export function resolveIntent(target) {
+  const absolute = resolve(target);
+  const walk = (candidate, tail) => {
+    const real = realpathOrNull(candidate);
+    if (real !== null) return tail.length === 0 ? real : join(real, ...tail);
+    const parent = dirname(candidate);
+    if (parent === candidate) return absolute;
+    return walk(parent, [basename(candidate), ...tail]);
+  };
+  return walk(absolute, []);
 }
 
 export function expandHome(rawPath, home) {
