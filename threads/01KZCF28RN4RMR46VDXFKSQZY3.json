@@ -70,19 +70,10 @@
   "abandoned_reason": null,
   "closure_statement": null,
   "spine": {
-    "active_goal": "Ship SPEC A: the units are merged to main; what remains is two release-rejecting validation defects and then the cutover to immutable releases behind an atomic pointer.",
-    "next_step": "START HERE FRESH, in a session doing nothing else. 1) Land F1+F2+F3 via pr.mjs: drop notes from PROMOTED_ENTRIES, dispatch the hook syntax check on the shebang not the extension, keep settings.json out of the archive. 2) Re-run the faithful scratch rehearsal per 0281 until it reports promoted. 3) Cut over: fast-forward main, install the bootstrap in ~/.claude/local/, move notes/ there, delete the legacy graphify-out trees, build and validate the real release, swap only on explicit user go.",
-    "last_session": "Shipped seven unit PRs through a 13-agent workflow, repaired the stack's merge topology with two more PRs so all seven reached main at b24b266, then rehearsed the cutover and stopped: validation rejects every candidate on two real defects. Nothing live was touched.",
+    "active_goal": "Ship SPEC A: get PR #54 green and merged, then cut over to immutable releases behind an atomic pointer.",
+    "next_step": "START HERE FRESH, in a session doing nothing else. 1) Confirm the interpreter-portability fix landed and pushed, then get PR #54's CI green and merge it; merge is human-gated. 2) Fast-forward local main to origin/main. 3) Cut over per SPEC section 7: install the bootstrap in ~/.claude/local/, move notes/ there, delete the legacy graphify-out trees, build and validate the real release with --ref origin/main, and swap the entry links only on explicit user go.",
+    "last_session": "Fixed the three release-rejecting defects, hardened the validator through two reviews including a CRITICAL code-execution path, and opened PR #54; CI is red on one interpreter-portability test.",
     "open_risks": [
-      {
-        "text": "Serialize every write to a live-linked path, not just the cutover — the graphify hook edits and the converge-hook registration reach running sessions through the 26 hook symlinks, so a half-saved file breaks every session instantly.",
-        "scope": "thread",
-        "refs": [
-          ".claude/hooks/graphify-refresh.sh",
-          ".claude/hooks/graphify-common.sh",
-          ".claude/hooks/graphify-provision.sh"
-        ]
-      },
       {
         "text": "Run the cutover serially in a session doing nothing else — it hot-swaps live-linked hooks, lib and workflows, so parallel subagents editing those paths can break every running session including the one doing the work.",
         "scope": "c5",
@@ -91,16 +82,50 @@
         ]
       },
       {
-        "text": "Land the two release-rejecting defects before any cutover attempt — PROMOTED_ENTRIES still lists notes and the hook syntax check dispatches on the .sh extension, so validation rejects every candidate release permanently.",
-        "scope": "c1",
+        "text": "The single npm test failure is environmental, not a regression — protect-claude-config.test.mjs asserts ~/.claude/settings.json is a symlink when it is a real file, and it skips on CI runners, so green CI plus this one local failure is the expected reading.",
+        "scope": "c7",
         "refs": [
-          "scripts/config/paths.mjs:14",
-          "scripts/config/validate.mjs:102",
-          ".claude/hooks/secret-scanner.sh"
+          ".claude/hooks/tests/protect-claude-config.test.mjs"
         ]
       },
       {
-        "text": "SPEC section 2 is stale against 0276 and the staleness is now in code — it draws eleven entry links including notes, which is how notes reached PROMOTED_ENTRIES; acceptance criterion 10's diff must also exclude local/ or it fails for the wrong reason.",
+        "text": "Confirm the interpreter-portability fix landed before trusting PR #54 — CI run 31219569440 failed on a .zsh test because the runner has no zsh, and the fix round's result was never read",
+        "scope": "c1",
+        "refs": [
+          "https://github.com/SatanshuMishra/.windful-ocean/pull/54",
+          "scripts/config/tests/hook-language.test.mjs:170"
+        ]
+      },
+      {
+        "text": "Pass --ref origin/main or fast-forward local main first — local main sits at 0451220 while origin/main is further ahead, so a release built from the default ref ships the wrong tree",
+        "scope": "c1",
+        "refs": [
+          "scripts/config/promote.mjs"
+        ]
+      },
+      {
+        "text": "Close every other claude session before the pointer swap — SPEC section 9 records that whether a swap reaches an already-running session is unmeasured, so any open session is an uncontrolled experiment on global config",
+        "scope": "c1",
+        "refs": [
+          "docs/superpowers/specs/2026-08-06-config-staging-live-promotion-SPEC.md"
+        ]
+      },
+      {
+        "text": "Repoint protect-claude-config.sh at the LIVE receipt's repo_root in the cutover change — it finds the checkout by realpath'ing ~/.claude/CLAUDE.md, which after cutover lands in releases/<sha> rather than a git worktree",
+        "scope": "c1",
+        "refs": [
+          ".claude/hooks/protect-claude-config.sh"
+        ]
+      },
+      {
+        "text": "Decide in the cutover whether settings.json is a promoted symlink or a real live file — that guard's test demands the former while decision 0270 mandates the latter, which is why it fails locally and passes on CI where no live config exists",
+        "scope": "c1",
+        "refs": [
+          ".claude/hooks/tests/protect-claude-config.test.mjs:194"
+        ]
+      },
+      {
+        "text": "SPEC section 2 is stale against 0276 — it draws eleven entry links including notes, and acceptance criterion 10's diff must also exclude local/ or it fails for the wrong reason",
         "scope": "c1",
         "refs": [
           "docs/superpowers/specs/2026-08-06-config-staging-live-promotion-SPEC.md",
@@ -108,39 +133,24 @@
         ]
       },
       {
-        "text": "Pass --ref origin/main or fast-forward local main first — local main sits at 0451220 while origin/main is b24b266, so a release built from the default ref ships the wrong tree.",
-        "scope": "c1",
-        "refs": [
-          "scripts/config/promote.mjs"
-        ]
-      },
-      {
-        "text": "Close every other claude session before the pointer swap — SPEC section 9 records that whether a swap reaches an already-running session is unmeasured, so any open session is an uncontrolled experiment on global config.",
-        "scope": "c1",
-        "refs": [
-          "docs/superpowers/specs/2026-08-06-config-staging-live-promotion-SPEC.md"
-        ]
-      },
-      {
-        "text": "Never git checkout main in the primary checkout — live global config is 37 symlinks into that working tree, so switching branches hot-swaps every skill and hook under every running session.",
-        "scope": "c1",
+        "text": "Never git checkout main in the primary checkout — live global config is 37 symlinks into that working tree, so switching branches hot-swaps every skill and hook under every running session",
+        "scope": "thread",
         "refs": [
           "/Users/satanshumishra/Documents/DevLabs/.windful-ocean"
         ]
       },
       {
-        "text": "Repoint protect-claude-config.sh at the LIVE receipt's repo_root in the cutover change — it finds the checkout by realpath'ing ~/.claude/CLAUDE.md, which after cutover lands in releases/<sha>, not a git worktree, so the guard drops to a textual heuristic.",
-        "scope": "c1",
+        "text": "Serialize every write to a live-linked path, not just the cutover — the converge-hook registration reaches running sessions through the 26 hook symlinks, so a half-saved file breaks every session instantly",
+        "scope": "thread",
         "refs": [
-          ".claude/hooks/protect-claude-config.sh",
-          "docs/superpowers/specs/2026-08-06-config-staging-live-promotion-SPEC.md"
+          ".claude/hooks/"
         ]
       },
       {
-        "text": "The single npm test failure is environmental, not a regression — protect-claude-config.test.mjs asserts ~/.claude/settings.json is a symlink when it is a real file, and it skips on CI runners, so green CI plus this one local failure is the expected reading.",
-        "scope": "c7",
+        "text": "Treat a green suite as no evidence the promote verb works in anger — it still has no production caller and is exercised only by its own tests and scratch rehearsals until the converge hooks land",
+        "scope": "thread",
         "refs": [
-          ".claude/hooks/tests/protect-claude-config.test.mjs"
+          "scripts/config/promote.mjs"
         ]
       }
     ],
@@ -192,10 +202,11 @@
       }
     ],
     "out_of_scope": [
-      "Building SPEC B Part IV's stacked-PR machinery to serve this work - stacking here is manual via the convention, and 0271 orders SPEC A to land before any SPEC B unit",
-      "Editing mitosis.js or the parallel engine, which SPEC B governs"
+      "Building SPEC B Part IV's stacked-PR machinery to serve this work",
+      "Editing mitosis.js or the parallel engine, which SPEC B governs",
+      "Hardening the three validator residuals disclosed in 0283 during this phase"
     ]
   },
   "created_at": "2026-08-06T21:18:29.653Z",
-  "updated_at": "2026-08-07T21:23:57.641Z"
+  "updated_at": "2026-08-07T21:24:33.443Z"
 }
