@@ -64,6 +64,24 @@ test('a candidate whose expected entry is present but empty fails validation', (
   }
 });
 
+test('a malformed hook registration is survived by validation, never thrown out of it', () => {
+  const s = scenario();
+  try {
+    const malformed = { hooks: { SessionStart: [{ matcher: '*', hooks: { type: 'command', command: 'x.sh' } }] } };
+    writeFile(s.settingsPath, `${JSON.stringify(malformed, null, 2)}\n`);
+
+    const result = s.run();
+
+    assert.ok(['promoted', 'rejected'].includes(result.status), JSON.stringify(result, null, 2));
+    for (const failure of result.failures ?? []) {
+      assert.equal(typeof failure.rule, 'string');
+      assert.equal(typeof failure.detail, 'string');
+    }
+  } finally {
+    s.dispose();
+  }
+});
+
 test('a registered hook that resolves nowhere in the candidate fails validation and does not swap', () => {
   const s = scenario({ commands: ['$HOME/.claude/hooks/absent.sh'] });
   try {

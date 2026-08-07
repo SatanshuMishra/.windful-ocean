@@ -133,7 +133,7 @@ export function hookRegistrations(settings) {
   const groups = Object.values(settings.hooks ?? {}).filter(Array.isArray);
   return groups.flatMap((group) =>
     group.flatMap((matcher) =>
-      (matcher?.hooks ?? [])
+      (Array.isArray(matcher?.hooks) ? matcher.hooks : [])
         .filter((hook) => typeof hook?.command === 'string' && hook.command.trim() !== '')
         .map((hook) => parseHookCommand(hook.command)),
     ),
