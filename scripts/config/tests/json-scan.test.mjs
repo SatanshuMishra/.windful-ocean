@@ -84,6 +84,22 @@ test('an unparsable json file is reported by name and error class, never by its 
   }
 });
 
+test('a parse error that knows where it failed carries the position, and nothing else', () => {
+  const { home, configRoot } = makeHome();
+  try {
+    const candidateDir = candidateIn(configRoot);
+    writeFile(join(candidateDir, 'settings.json'), `{"token": "${SECRET.trim()}", "list": [1 2]}\n`);
+
+    const failures = jsonParseFailures(candidateDir);
+
+    assert.equal(failures.length, 1, JSON.stringify(failures, null, 2));
+    assert.match(failures[0].detail, /at position \d+/);
+    assert.doesNotMatch(failures[0].detail, /AWS_SECRET/);
+  } finally {
+    cleanup(home);
+  }
+});
+
 test('a json file that cannot be read is reported by its error code, not by a raw message', () => {
   const { home, configRoot } = makeHome();
   try {

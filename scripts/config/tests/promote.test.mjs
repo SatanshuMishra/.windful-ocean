@@ -176,6 +176,7 @@ test('rollback is never blocked by a release whose settings.json cannot be strip
     assert.equal(rolled.previous, nextSha);
     assert.equal(rolled.warnings.length, 1, JSON.stringify(rolled.warnings ?? []));
     assert.match(rolled.warnings[0], /settings\.json/);
+    assert.match(rolled.warnings[0], /shadow the live settings\.json/);
   } finally {
     chmodSync(sealed, 0o755);
     s.dispose();

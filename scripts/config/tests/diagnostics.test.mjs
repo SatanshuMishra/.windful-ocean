@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { join } from 'node:path';
 import { assertRejected, cleanup, hookSettings, makeHome, promoteScenario, writeFile } from './_fixture.mjs';
-import { DETAIL_CAP, TRUNCATION_MARK, driftReport, validateCandidate } from '../validate.mjs';
+import { TRUNCATION_MARK, driftReport, validateCandidate } from '../validate.mjs';
 
 const CANDIDATE_SHA = 'd'.repeat(40);
 const CONTROL_CHARACTERS = /[\u0000-\u001f\u007f-\u009f]/;
@@ -22,6 +22,7 @@ const FORGED_ROW = [
 ].join('');
 const BROKEN_BASH = '#!/usr/bin/env bash\nif then fi\n';
 const NESTED_DIR = 'n'.repeat(200);
+const MAX_DETAIL = 1024;
 
 const occurrences = (haystack, needle) => haystack.split(needle).length - 1;
 
@@ -103,7 +104,7 @@ test('a detail too long to be quoted whole is capped and marked, never shipped i
     const failures = assertRejected(s.run(), 'hook-syntax');
     const detail = failures[0].detail;
 
-    assert.ok(detail.length <= DETAIL_CAP, `an uncapped detail of ${detail.length} characters reached the report`);
+    assert.ok(detail.length <= MAX_DETAIL, `an uncapped detail of ${detail.length} characters reached the report`);
     assert.ok(detail.endsWith(TRUNCATION_MARK), detail.slice(-60));
   } finally {
     s.dispose();
