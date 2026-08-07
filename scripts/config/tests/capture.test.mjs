@@ -80,6 +80,30 @@ test('capture refuses a destination that reaches tracked content through a symli
   }
 });
 
+test('capture refuses to write a live guardrail file even outside the repository', () => {
+  const s = sandbox();
+  try {
+    const liveConfig = join(s.outside, 'home', '.claude');
+    for (const destination of [
+      join(liveConfig, 'settings.json'),
+      join(liveConfig, 'settings.local.json'),
+      join(liveConfig, 'CLAUDE.md'),
+      join(liveConfig, 'keybindings.json'),
+      join(liveConfig, 'hooks', 'anything.sh'),
+    ]) {
+      assert.match(
+        leakGateFailure(destination, s.repoRoot) ?? '',
+        /refusing to write/,
+        `${destination} bypasses protect-claude-config.sh when written by a node script`,
+      );
+      assert.throws(() => writeProposal({ destination, repoRoot: s.repoRoot, text: '{}\n' }), /refusing to write/);
+      assert.equal(existsSync(destination), false);
+    }
+  } finally {
+    s.dispose();
+  }
+});
+
 test('capture writes a destination outside the repository worktree', () => {
   const s = sandbox();
   try {

@@ -1,9 +1,10 @@
 #!/usr/bin/env node
 import { readFileSync, realpathSync, writeFileSync } from 'node:fs';
-import { basename, join, resolve } from 'node:path';
+import { basename, join, resolve, sep } from 'node:path';
 import { homedir } from 'node:os';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import {
+  ARCHIVE_SUBTREE,
   isInside,
   realpathOrNull,
   repoSettingsPath,
@@ -116,6 +117,35 @@ export function renderProposal(proposal) {
   return `${JSON.stringify(proposal.settings, null, 2)}\n`;
 }
 
+export const GUARDED_FILENAMES = Object.freeze([
+  'settings.json',
+  'settings.local.json',
+  'CLAUDE.md',
+  'keybindings.json',
+]);
+
+export const GUARDED_PREFIXES = Object.freeze(['hooks', 'rules', 'lib', 'workflows']);
+
+const APPLY_THROUGH_EDIT =
+  'Capture is the only direction that can leak, so it writes no guardrail file itself; apply the proposal '
+  + 'through Edit/Write so protect-claude-config.sh and secret-scanner.sh see the write.';
+
+function guardedFailure(destination, reached) {
+  const named = reached.find((path) => GUARDED_FILENAMES.includes(basename(path)));
+  if (named !== undefined) {
+    return `refusing to write ${destination}: ${basename(named)} is a guarded Claude Code config file. ${APPLY_THROUGH_EDIT}`;
+  }
+  const under = reached
+    .map((path) => {
+      const segments = path.split(sep);
+      const index = segments.lastIndexOf(ARCHIVE_SUBTREE);
+      return index === -1 ? null : segments[index + 1] ?? null;
+    })
+    .find((prefix) => prefix !== null && GUARDED_PREFIXES.includes(prefix));
+  if (under === undefined) return null;
+  return `refusing to write ${destination}: it lands under ${ARCHIVE_SUBTREE}/${under}, a guarded config subtree. ${APPLY_THROUGH_EDIT}`;
+}
+
 export function leakGateFailure(destination, repoRoot) {
   if (typeof destination !== 'string' || destination.trim() === '') {
     return 'capture destination must be a non-empty path';
@@ -127,12 +157,10 @@ export function leakGateFailure(destination, repoRoot) {
   const realRoot = realpathOrNull(repoRoot) ?? literalRoot;
   const reached = [resolve(destination), resolveIntent(destination)];
   const trapped = reached.some((path) => isInside(literalRoot, path) || isInside(realRoot, path));
-  if (!trapped) return null;
-  return (
-    `refusing to write ${destination}: it resolves inside the repository worktree at ${realRoot}. `
-    + 'Capture is the only direction that can leak, so it never writes tracked content itself; '
-    + 'the proposal must be applied through Edit/Write so protect-claude-config.sh and secret-scanner.sh see it.'
-  );
+  if (trapped) {
+    return `refusing to write ${destination}: it resolves inside the repository worktree at ${realRoot}. ${APPLY_THROUGH_EDIT}`;
+  }
+  return guardedFailure(destination, reached);
 }
 
 export function writeProposal({ destination, repoRoot, text }) {
