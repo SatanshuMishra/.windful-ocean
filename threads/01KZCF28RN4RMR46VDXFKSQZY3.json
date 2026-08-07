@@ -10,7 +10,7 @@
     {
       "id": "c8",
       "text": "The seven unit PRs are all on main: five merged into stack parents rather than main and were re-integrated bottom-up through two further pr.mjs PRs, verified by merge-base ancestry.",
-      "done": false,
+      "done": true,
       "kind": "detour",
       "struck_by": null
     },
@@ -38,7 +38,7 @@
     {
       "id": "c4",
       "text": "The settings.json ownership manifest and the separate capture verb are implemented, with unknown keys defaulting to LIVE WINS and flagged rather than dropped.",
-      "done": false,
+      "done": true,
       "kind": "planned",
       "struck_by": null
     },
@@ -70,9 +70,9 @@
   "abandoned_reason": null,
   "closure_statement": null,
   "spine": {
-    "active_goal": "Implement and ship SPEC A (config staging/live promotion) as stacked PRs, landing the invariant inert basis and chore/config-drift ahead of SPEC A's own units.",
-    "next_step": "Implement 0279. First review the uncommitted inert-checker edits in scripts/invariant-coverage-check.mjs and its test - unattributed, since the tree was clean at session start - and confirm their provenance. Then ship checker plus registry data plus coverage record as ONE atomic change; feat/invariant-inert-registry at 369490f already carries the data. Do NOT open a PR for the data alone. Then chore/config-drift as stack root, then SPEC A's units per 0275's three bands.",
-    "last_session": "Recon and one dispatched unit; nothing reached main. Found the public-repo leak blocker and the invariant tax, recorded 0276/0277, built feat/invariant-inert-registry at 369490f, then verified it must not ship alone and recorded 0279.",
+    "active_goal": "Ship SPEC A: the units are merged to main; what remains is two release-rejecting validation defects and then the cutover to immutable releases behind an atomic pointer.",
+    "next_step": "START HERE FRESH, in a session doing nothing else. 1) Land F1+F2+F3 via pr.mjs: drop notes from PROMOTED_ENTRIES, dispatch the hook syntax check on the shebang not the extension, keep settings.json out of the archive. 2) Re-run the faithful scratch rehearsal per 0281 until it reports promoted. 3) Cut over: fast-forward main, install the bootstrap in ~/.claude/local/, move notes/ there, delete the legacy graphify-out trees, build and validate the real release, swap only on explicit user go.",
+    "last_session": "Shipped seven unit PRs through a 13-agent workflow, repaired the stack's merge topology with two more PRs so all seven reached main at b24b266, then rehearsed the cutover and stopped: validation rejects every candidate on two real defects. Nothing live was touched.",
     "open_risks": [
       {
         "text": "Serialize every write to a live-linked path, not just the cutover — the graphify hook edits and the converge-hook registration reach running sessions through the 26 hook symlinks, so a half-saved file breaks every session instantly.",
@@ -91,38 +91,53 @@
         ]
       },
       {
-        "text": "SPEC section 2 is stale against 0276 — it draws eleven entry links and says notes is one of them, but notes is now live-only, so the layout is ten entry links plus one pointer and acceptance criterion 10's diff must exclude local/ or it fails for the wrong reason.",
+        "text": "Land the two release-rejecting defects before any cutover attempt — PROMOTED_ENTRIES still lists notes and the hook syntax check dispatches on the .sh extension, so validation rejects every candidate release permanently.",
+        "scope": "c1",
+        "refs": [
+          "scripts/config/paths.mjs:14",
+          "scripts/config/validate.mjs:102",
+          ".claude/hooks/secret-scanner.sh"
+        ]
+      },
+      {
+        "text": "SPEC section 2 is stale against 0276 and the staleness is now in code — it draws eleven entry links including notes, which is how notes reached PROMOTED_ENTRIES; acceptance criterion 10's diff must also exclude local/ or it fails for the wrong reason.",
+        "scope": "c1",
+        "refs": [
+          "docs/superpowers/specs/2026-08-06-config-staging-live-promotion-SPEC.md",
+          "scripts/config/paths.mjs"
+        ]
+      },
+      {
+        "text": "Pass --ref origin/main or fast-forward local main first — local main sits at 0451220 while origin/main is b24b266, so a release built from the default ref ships the wrong tree.",
+        "scope": "c1",
+        "refs": [
+          "scripts/config/promote.mjs"
+        ]
+      },
+      {
+        "text": "Close every other claude session before the pointer swap — SPEC section 9 records that whether a swap reaches an already-running session is unmeasured, so any open session is an uncontrolled experiment on global config.",
         "scope": "c1",
         "refs": [
           "docs/superpowers/specs/2026-08-06-config-staging-live-promotion-SPEC.md"
         ]
       },
       {
-        "text": "Adoption is publication and is irreversible — the repo is public, so every coverage-gap commit runs the codename scan before it is pushed, and the 2026-07-19 rejection of committing untracked paths wholesale still stands.",
+        "text": "Never git checkout main in the primary checkout — live global config is 37 symlinks into that working tree, so switching branches hot-swaps every skill and hook under every running session.",
         "scope": "c1",
         "refs": [
-          ".claude/notes",
-          ".claude/docs/superpowers"
+          "/Users/satanshumishra/Documents/DevLabs/.windful-ocean"
         ]
       },
       {
-        "text": "A dormant inert basis is worse than none — registry data whose checker never evaluates it lets a later PR write basis inert rows that pass unexamined, silently weakening the gate for every future change.",
-        "scope": "c7",
+        "text": "Repoint protect-claude-config.sh at the LIVE receipt's repo_root in the cutover change — it finds the checkout by realpath'ing ~/.claude/CLAUDE.md, which after cutover lands in releases/<sha>, not a git worktree, so the guard drops to a textual heuristic.",
+        "scope": "c1",
         "refs": [
-          "docs/invariants/registry.json",
-          "scripts/invariant-coverage-check.mjs"
+          ".claude/hooks/protect-claude-config.sh",
+          "docs/superpowers/specs/2026-08-06-config-staging-live-promotion-SPEC.md"
         ]
       },
       {
-        "text": "The inert checker edits are uncommitted and unreviewed — they appeared during the 2026-08-06 session on a tree that was clean at start, so confirm provenance and review them before committing rather than assuming they are the c5 work.",
-        "scope": "c7",
-        "refs": [
-          "scripts/invariant-coverage-check.mjs",
-          ".claude/lib/superpowers-parallel/tests/invariant-coverage-check.test.mjs"
-        ]
-      },
-      {
-        "text": "npm test shows 1 pre-existing failure identical on main and the branch — protect-claude-config.test.mjs asserts ~/.claude/settings.json is a symlink when it is a regular file; environmental, but it will mask a real regression if left.",
+        "text": "The single npm test failure is environmental, not a regression — protect-claude-config.test.mjs asserts ~/.claude/settings.json is a symlink when it is a real file, and it skips on CI runners, so green CI plus this one local failure is the expected reading.",
         "scope": "c7",
         "refs": [
           ".claude/hooks/tests/protect-claude-config.test.mjs"
@@ -172,5 +187,5 @@
     ]
   },
   "created_at": "2026-08-06T21:18:29.653Z",
-  "updated_at": "2026-08-07T18:26:57.913Z"
+  "updated_at": "2026-08-07T18:27:55.043Z"
 }
