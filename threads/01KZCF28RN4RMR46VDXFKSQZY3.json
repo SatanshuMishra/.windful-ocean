@@ -64,8 +64,8 @@
   "closure_statement": null,
   "spine": {
     "active_goal": "Implement and ship SPEC A (config staging/live promotion) as stacked PRs, landing the invariant inert basis and chore/config-drift ahead of SPEC A's own units.",
-    "next_step": "DO NOT open a PR for feat/invariant-inert-registry as it stands - it adds inert_when data that main's committed checker never reads. First resolve the checker: scripts/invariant-coverage-check.mjs and its test carry UNCOMMITTED, unreviewed edits implementing the inert basis, of unverified provenance. Review them, then ship checker plus registry data as ONE atomic change so the basis is evaluated, not dormant. Then chore/config-drift as stack root, then SPEC A's units per 0275.",
-    "last_session": "Recon plus one dispatched unit. Found the leak blocker and recorded 0276/0277. The inert-basis unit returned branch feat/invariant-inert-registry at 369490f, but verification showed its data is dormant against main's checker.",
+    "next_step": "Implement 0279. First review the uncommitted inert-checker edits in scripts/invariant-coverage-check.mjs and its test - unattributed, since the tree was clean at session start - and confirm their provenance. Then ship checker plus registry data plus coverage record as ONE atomic change; feat/invariant-inert-registry at 369490f already carries the data. Do NOT open a PR for the data alone. Then chore/config-drift as stack root, then SPEC A's units per 0275's three bands.",
+    "last_session": "Recon and one dispatched unit; nothing reached main. Found the public-repo leak blocker and the invariant tax, recorded 0276/0277, built feat/invariant-inert-registry at 369490f, then verified it must not ship alone and recorded 0279.",
     "open_risks": [
       {
         "text": "Serialize every write to a live-linked path, not just the cutover — the graphify hook edits and the converge-hook registration reach running sessions through the 26 hook symlinks, so a half-saved file breaks every session instantly.",
@@ -155,5 +155,5 @@
     ]
   },
   "created_at": "2026-08-06T21:18:29.653Z",
-  "updated_at": "2026-08-07T05:43:13.203Z"
+  "updated_at": "2026-08-07T05:43:29.389Z"
 }
