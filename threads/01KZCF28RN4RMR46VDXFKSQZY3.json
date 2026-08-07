@@ -179,6 +179,11 @@
         "ref": "0281-cutover-rehearses-against-a-scratch-config-root",
         "title": "Every cutover attempt rehearses the real promote verb against a scratch config root before any live write",
         "scope": "c1"
+      },
+      {
+        "ref": "0282-validation-fails-closed-on-any-hook-it-cannot-verify",
+        "title": "Release validation fails closed on any registered hook it cannot verify",
+        "scope": "c1"
       }
     ],
     "out_of_scope": [
@@ -187,5 +192,5 @@
     ]
   },
   "created_at": "2026-08-06T21:18:29.653Z",
-  "updated_at": "2026-08-07T18:27:55.043Z"
+  "updated_at": "2026-08-07T21:23:40.526Z"
 }
