@@ -241,6 +241,31 @@ test('the registered converge commands validate only once the bootstrap sits out
   }
 });
 
+test('an unusable config root is reported through the hook contract instead of crashing it', () => {
+  const s = scenario();
+  try {
+    assert.equal(s.seedLive().status, 'promoted');
+    rmSync(join(s.configRoot, 'releases'), { recursive: true, force: true });
+    writeFile(join(s.configRoot, 'releases'), 'not a directory\n');
+
+    const stop = s.cli(['--event', 'Stop', '--config-root', s.configRoot]);
+
+    assert.equal(stop.code, 1);
+    assert.equal(stop.stdout, '');
+    assert.match(stop.stderr, /Global config convergence: FAILED/);
+
+    const start = s.cli(['--event', 'SessionStart', '--config-root', s.configRoot]);
+
+    assert.equal(start.code, 0, 'a convergence fault must never fail the session it starts');
+    assert.equal(start.stderr, '');
+    const emitted = JSON.parse(start.stdout);
+    assert.equal(emitted.hookSpecificOutput.hookEventName, 'SessionStart');
+    assert.match(emitted.hookSpecificOutput.additionalContext, /Global config convergence: FAILED/);
+  } finally {
+    s.dispose();
+  }
+});
+
 test('an unregistered hook event is a usage rejection, not a silent pass', () => {
   const s = scenario();
   try {

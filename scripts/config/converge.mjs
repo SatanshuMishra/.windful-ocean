@@ -113,6 +113,18 @@ function emitReport({ event, report, stdout, stderr }) {
   stderr.write(`${report}\n`);
 }
 
+function attemptConverge(request) {
+  try {
+    return converge(request);
+  } catch (error) {
+    return {
+      status: 'error',
+      ref: request.ref,
+      errors: [`converge aborted before it could finish: ${error.message}`],
+    };
+  }
+}
+
 function exitCodeFor(event, outcome) {
   if (event === CONTEXT_EVENT) return EXIT_OK;
   return convergeFailed(outcome) ? EXIT_FAIL : EXIT_OK;
@@ -153,7 +165,7 @@ export function run({ argv, env, stdout, stderr, now = new Date().toISOString() 
     return EXIT_FAIL;
   }
 
-  const outcome = converge({
+  const outcome = attemptConverge({
     configRoot,
     ref: parsed.options['--ref'] ?? DEFAULT_REF,
     now,
