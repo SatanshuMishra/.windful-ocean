@@ -152,6 +152,11 @@
         "ref": "0280-inert-basis-leaves-the-spec-a-critical-path",
         "title": "The inert basis leaves this phase's critical path; it buys SPEC A's PRs nothing and is under an open BLOCK",
         "scope": "c1"
+      },
+      {
+        "ref": "0281-cutover-rehearses-against-a-scratch-config-root",
+        "title": "Every cutover attempt rehearses the real promote verb against a scratch config root before any live write",
+        "scope": "c1"
       }
     ],
     "out_of_scope": [
@@ -160,5 +165,5 @@
     ]
   },
   "created_at": "2026-08-06T21:18:29.653Z",
-  "updated_at": "2026-08-07T15:31:19.826Z"
+  "updated_at": "2026-08-07T18:26:53.513Z"
 }
