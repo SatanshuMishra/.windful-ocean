@@ -32,6 +32,10 @@ check_dir_symlink() {
   fi
 
   _expected="$(resolve_path "$_repo")"
+  if [ -z "$_expected" ]; then
+    add_drift "$_name: cannot resolve repo path $_repo (realpath unavailable or failed), so linkage was not compared"
+    return
+  fi
 
   if [ ! -L "$_actual" ]; then
     if [ -e "$_actual" ]; then
@@ -105,8 +109,11 @@ PY
 }
 
 hook_names="$(extract_invoked_hook_names "$CONFIG_DIR/settings.json")"
+extract_status=$?
 
-if [ -n "$hook_names" ]; then
+if [ "$extract_status" -ne 0 ]; then
+  add_drift "hook comparison did not run: neither jq nor python3 is on PATH, so settings.json-invoked hooks were not checked against the repo"
+elif [ -n "$hook_names" ]; then
   while IFS= read -r hook_name; do
     [ -n "$hook_name" ] || continue
     _local="$CONFIG_DIR/hooks/$hook_name"

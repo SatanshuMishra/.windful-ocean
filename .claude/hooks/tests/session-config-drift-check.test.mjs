@@ -39,11 +39,11 @@ function makeIntactConfig(repoRoot) {
   return configDir;
 }
 
-function runHook(configDir, repoRoot, hookOverride) {
-  return spawnSync('bash', [hookOverride ?? hookPath], {
+function runHook(configDir, repoRoot, extraEnv = {}) {
+  return spawnSync('/bin/bash', [hookPath], {
     input: '{}',
     encoding: 'utf8',
-    env: { ...process.env, CLAUDE_CONFIG_DIR: configDir, REPO_ROOT: repoRoot },
+    env: { ...process.env, CLAUDE_CONFIG_DIR: configDir, REPO_ROOT: repoRoot, ...extraEnv },
   });
 }
 
@@ -57,24 +57,6 @@ function withFixture(fn) {
     rmSync(configDir, { recursive: true, force: true });
   }
 }
-
-test('RED without the hook implementation: a no-op stub misses every drift case', () => {
-  const stub = join(tmpdir(), `scdc-stub-${process.pid}.sh`);
-  writeFileSync(stub, '#!/usr/bin/env bash\nexit 0\n', { mode: 0o755 });
-  try {
-    withFixture(({ repoRoot, configDir }) => {
-      rmSync(join(configDir, 'workflows'), { recursive: true, force: true });
-      symlinkSync('/nonexistent/scdc-target', join(configDir, 'workflows'), 'dir');
-      writeFileSync(join(configDir, 'hooks', 'sample-hook.sh'), '#!/usr/bin/env bash\necho DIFFERENT\n');
-
-      const r = runHook(configDir, repoRoot, stub);
-      assert.equal(r.status, 0);
-      assert.equal(r.stdout.trim(), '', 'stub hook must not itself detect drift (proves the fixture needs real logic)');
-    });
-  } finally {
-    rmSync(stub, { force: true });
-  }
-});
 
 test('intact symlinks and byte-identical hooks: stays silent', () => {
   withFixture(({ repoRoot, configDir }) => {
@@ -168,5 +150,18 @@ test('never exits non-zero, even when drift is present', () => {
     rmSync(join(configDir, 'workflows'), { recursive: true, force: true });
     const r = runHook(configDir, repoRoot);
     assert.equal(r.status, 0);
+  });
+});
+
+test('neither jq nor python3 available: says the hook comparison did not run instead of staying silent', () => {
+  withFixture(({ repoRoot, configDir }) => {
+    const emptyBin = mkdtempSync(join(tmpdir(), 'scdc-emptybin-'));
+    try {
+      const r = runHook(configDir, repoRoot, { PATH: emptyBin });
+      assert.equal(r.status, 0);
+      assert.match(r.stdout + r.stderr, /hook comparison did not run/);
+    } finally {
+      rmSync(emptyBin, { recursive: true, force: true });
+    }
   });
 });
