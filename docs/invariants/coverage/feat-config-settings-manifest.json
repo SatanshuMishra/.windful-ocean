@@ -1,0 +1,90 @@
+{
+  "unit": "feat/config-settings-manifest",
+  "rows": [
+    {
+      "id": "B1",
+      "verdict": "not-threatened",
+      "check": "The diff against origin/feat/config-promote-verb is six files: scripts/config/manifest.mjs, scripts/config/capture.mjs, 22 added lines at scripts/config/paths.mjs, two test files under scripts/config/tests/, and this coverage record. `git diff --name-only origin/feat/config-promote-verb...HEAD -- .claude/` returns 0 paths, so no vm realm, no contextify option and no sandbox global is constructed or altered anywhere in this unit."
+    },
+    {
+      "id": "B2",
+      "verdict": "not-threatened",
+      "check": "No sandbox denial mechanism is added. My two refusal surfaces signal differently and both run in the host process: the manifest raises TypeError at its input boundary (scripts/config/manifest.mjs:49 and :59) and the leak gate returns a message string that writeProposal converts to a plain Error (scripts/config/capture.mjs:170, thrown at :189). Neither is reachable from a workflow body, so no untagged host error can be caught there as a workflow's own."
+    },
+    {
+      "id": "B3",
+      "verdict": "not-threatened",
+      "check": "No intrinsic is guarded and no member of one is enumerated. The member-list shapes my diff adds are REPO_OWNED_KEYS (scripts/config/manifest.mjs:1), LIVE_OWNED_KEYS (:9), GUARDED_FILENAMES (scripts/config/capture.mjs:141) and GUARDED_PREFIXES (:148); they classify settings.json object keys and filesystem basenames, never a JavaScript intrinsic, and none raises a violation on a non-listed member."
+    },
+    {
+      "id": "B4",
+      "verdict": "not-threatened",
+      "check": "VALUE_GLOBALS, ALWAYS_DENIED and ALLOWED_GLOBALS appear nowhere in this diff. The named constants I do add are load-bearing in B4's sense and I proved it by mutation rather than inspection, re-run at 1cda758 against the 25 tests in the two new files: emptying NOT_ADOPTED_GRANTS (scripts/config/manifest.mjs:30) turns scripts/config/tests/capture.test.mjs:153 and :159 red (2 failures, 23 passes), and moving 'model' from LIVE_OWNED_KEYS into REPO_OWNED_KEYS turns 3 tests red across both files."
+    },
+    {
+      "id": "B5",
+      "verdict": "not-threatened",
+      "check": "Nothing in this unit is evaluated in the workflow-body position, so the census of host-reachable bare identifiers is unchanged. Both new modules are ESM files node imports directly with explicit node: builtin specifiers (scripts/config/capture.mjs:2-5, its sibling imports ending at :13 and :23; scripts/config/manifest.mjs has no imports at all) and every symbol they use is either such an import or declared in file scope."
+    },
+    {
+      "id": "B6",
+      "verdict": "threatened",
+      "check": "The sandbox harness B6 names is untouched, but this unit reproduces the condition B6 forbids and does so deliberately. scripts/config/manifest.mjs and scripts/config/capture.mjs ship with no production caller: resolveSettings (scripts/config/manifest.mjs:154) is intentionally NOT wired into promote (scripts/config/promote.mjs is unchanged in this diff), and capture.mjs registers no hook, because the task boundary forbids writing live settings or registering anything. Their only callers today are scripts/config/tests/manifest.test.mjs and scripts/config/tests/capture.test.mjs, so liveness is proven by their own tests. Recorded threatened rather than excused because B6's subject is a different harness."
+    },
+    {
+      "id": "M1",
+      "verdict": "not-threatened",
+      "check": "This unit satisfies M1 rather than reaching it. Verdicts for all 17 ids read from docs/invariants/registry.json are recorded in this committed file and will appear in no PR body. The container key is \"rows\", which is what scripts/invariant-coverage-check.mjs:126-127 requires; the \"invariants\" key named in my task brief is rejected by that checker, so I followed the checker and confirmed it with a pull_request-mode run against feat/config-promote-verb."
+    },
+    {
+      "id": "M2",
+      "verdict": "threatened",
+      "check": "The ownership manifest classifies identifiers (settings.json keys) and is by construction NOT a closed census: an unclassified key falls through to LIVE WINS and a flag at scripts/config/manifest.mjs:145-151 instead of halting. SPEC A section 6 mandates exactly this (spec lines 179-181) because promotion runs from unattended SessionStart and Stop hooks where a halt has no one to resolve it, and section 9 already calls the manifest maintenance debt. Two further M2 pressure points in my diff: NOT_ADOPTED_GRANTS (scripts/config/manifest.mjs:30) is a one-entry sampled denylist, and scripts/config/tests/manifest.test.mjs:45 pins the 20 top-level keys I measured live on 2026-08-07, a snapshot that will lag whatever Claude Code adds next."
+    },
+    {
+      "id": "M3",
+      "verdict": "not-threatened",
+      "check": "The two fix commits in this unit each ship a red-then-green acceptance test. a34881a: the deny-withdrawal tests (scripts/config/tests/capture.test.mjs:180, :192, :201) were run red on parent 3a7fc57 and green after. 1cda758 was itself driven by a surviving mutation: deleting the resolveIntent arm at scripts/config/capture.mjs:179 left 0 tests red, because the symlink case ended in settings.json and was caught by the guarded-filename check instead; repointing it at an unguarded basename makes that same mutation turn 1 test red. Full mutation re-run at 1cda758 over the 25 tests in both new files, each reverted: empty NOT_ADOPTED_GRANTS (2 red), drop the repo fallback for unknown keys at scripts/config/manifest.mjs:146 (1 red), delete the resolveIntent arm (1 red), short-circuit the guardedFailure call at scripts/config/capture.mjs:184 to null (1 red), reclassify model as repo-owned (3 red)."
+    },
+    {
+      "id": "M4",
+      "verdict": "not-threatened",
+      "check": "`git diff origin/feat/config-promote-verb...HEAD` reports 912 insertions and 1 deletion; the single deleted line is the node:path import at scripts/config/paths.mjs:2, widened to add basename and dirname for the new resolveIntent helper. Commit a34881a is the one place a refactor and a behavior change share a range: assertGrantList (scripts/config/manifest.mjs:57) stopped coercing undefined to [] so capture could tell an absent deny section from an empty one, which forced the unionGrants rewrite at :62-67 alongside the new withdrawal notes. M4's escape clause is met rather than dodged: manifest.test.mjs's union and boundary-rejection tests predate the refactor, pinned the surviving behavior, and stayed green throughout. No existing symbol was renamed or moved, and promote.mjs, validate.mjs, receipt.mjs and release.mjs are untouched."
+    },
+    {
+      "id": "M5",
+      "verdict": "not-threatened",
+      "check": "Every path:line in this record was re-derived by grep against this worktree at commit 1cda758, after all five commits landed, and none was copied from another coverage record or from SPEC A. The anchors in the three rows written before my ship-stage fixes were re-derived rather than trusted, and several had gone stale by up to 21 lines. The spec line numbers I cite (179-181 for the LIVE WINS rule) were read from docs/superpowers/specs/2026-08-06-config-staging-live-promotion-SPEC.md in this same worktree."
+    },
+    {
+      "id": "M6",
+      "verdict": "not-threatened",
+      "check": "This unit deploys no gate artifact and registers no hook. Nothing in the diff writes to ~/.claude, installs into ~/.claude/local/, or edits .claude/settings.json's hooks block; the two hooks my design leans on, .claude/hooks/protect-claude-config.sh and .claude/hooks/secret-scanner.sh, are read but not modified (0 paths under .claude/ in the diff). There is therefore no deployed copy of my source that could diverge from its recorded SHA."
+    },
+    {
+      "id": "G1",
+      "verdict": "not-threatened",
+      "check": "No merge path is added or widened. The diff contains no gh invocation, no spawnSync or execSync at all, and no network call; the only builtins scripts/config/capture.mjs imports are node:fs, node:path, node:os and node:url (:2-5), the rest being its two sibling modules. The one permission-grant list my code can produce is the union at scripts/config/manifest.mjs:62-67, which only ever unions values already present in the repo or live allow lists and can therefore never introduce a merge grant that neither side held."
+    },
+    {
+      "id": "G2",
+      "verdict": "not-threatened",
+      "check": "Nothing in this unit composes, edits or transports a pull request title or body. The only rendered document my code emits is a settings.json proposal (scripts/config/capture.mjs:137-139), written to stdout or to a gated non-repo destination; the PR for this branch is opened by the centralized tool with fields supplied at creation and never rewritten."
+    },
+    {
+      "id": "G3",
+      "verdict": "not-threatened",
+      "check": "No PR-creation surface is added or bypassed. .claude/lib/git/pr.mjs is not imported, referenced or modified anywhere in the diff, and the unit adds no command that could reach the pulls endpoint. This branch's own PR is opened by `node .claude/lib/git/pr.mjs pr-create` at the ship stage, not by this unit."
+    },
+    {
+      "id": "G4",
+      "verdict": "threatened",
+      "check": "This unit adds a writer that overwrites files by writeFileSync (scripts/config/capture.mjs:190), and settings.json is exactly the guardrail-file class G4 protects. protect-claude-config.sh and secret-scanner.sh are both PreToolUse(Edit|Write) hooks, so neither can see a node script's write. 402a16b fenced the four guarded filenames and four guarded .claude subtrees (scripts/config/capture.mjs:141-148, enforced at :170-192, asserted at scripts/config/tests/capture.test.mjs:89). a34881a closed a second hole of the same class inside the document: capture adopted live's permissions.deny wholesale, so a deny entry the repo declared and live no longer held left the declared config silently while a benign allow addition emitted a note; every withdrawal is now reported (scripts/config/capture.mjs:43-56). The residual that keeps this threatened: the filename block is an in-process textual mirror of the guard's own fallback heuristic, so it inherits its blind spots, and a future caller reaching writeFileSync without going through writeProposal is not stopped by anything the harness enforces."
+    },
+    {
+      "id": "G5",
+      "verdict": "not-threatened",
+      "check": "No named network command is added, so no file-reference-shaped argument can ride one. capture.mjs's CLI does accept path-valued flags (--live-settings, --repo-settings, --out at scripts/config/capture.mjs:223), and two of them point at credential-adjacent config, but the process performs no network I/O and every path is consumed locally: the two input flags are read-only through readDocument (:194-200) and --out is refused outright when it lands on tracked content or a guarded config file."
+    }
+  ]
+}
