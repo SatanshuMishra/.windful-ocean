@@ -59,12 +59,12 @@
     {
       "id": "M6",
       "verdict": "threatened",
-      "check": "The release half satisfies M6 by construction: buildRelease at scripts/config/release.mjs:23-61 builds only from `git archive` of a resolved commit sha and never edits a release in place, and the sha is recorded in the LIVE receipt whose fields are fixed at scripts/config/receipt.mjs:4-11. The bootstrap half does not. Invariant 5.3 forces the promote verb to live at ~/.claude/local/ outside every release, so it becomes a deployed copy of scripts/config/promote.mjs whose version is recorded nowhere - the receipt has no field for it - and a hand-patched local/promote.mjs would survive any refresh undetected."
+      "check": "The release half satisfies M6 by construction: buildRelease at scripts/config/release.mjs:21-59 builds only from `git archive` of a resolved commit sha and never edits a release in place, and the sha is recorded in the LIVE receipt whose fields are fixed at scripts/config/receipt.mjs:4-11. The bootstrap half does not. Invariant 5.3 forces the promote verb to live at ~/.claude/local/ outside every release, so it becomes a deployed copy of scripts/config/promote.mjs whose version is recorded nowhere - the receipt has no field for it - and a hand-patched local/promote.mjs would survive any refresh undetected."
     },
     {
       "id": "G1",
       "verdict": "not-threatened",
-      "check": "No merge path is added or weakened. My diff issues no `gh`, no `gh api`, and no GraphQL call; the only child processes it spawns are git, tar, node and bash at scripts/config/release.mjs:7 and :38, scripts/config/validate.mjs:131, and none of them reaches a pull request. I open no PR in this unit - the ship stage does that after review."
+      "check": "No merge path is added or weakened. My diff issues no `gh`, no `gh api`, and no GraphQL call; the only child processes it spawns are git, tar, node and bash at scripts/config/release.mjs:7 and :36, scripts/config/validate.mjs:131, and none of them reaches a pull request. I open no PR in this unit - the ship stage does that after review."
     },
     {
       "id": "G2",
@@ -79,12 +79,12 @@
     {
       "id": "G4",
       "verdict": "threatened",
-      "check": "This unit authors machinery whose whole purpose is to relocate the guardrail surface. swapPointer at scripts/config/promote.mjs:36-47 replaces ~/.claude/current in one rename, which repoints hooks/ and rules/ wholesale, and collectGarbage at scripts/config/release.mjs:75-84 calls rmSync(recursive, force) at :81 on whole release directories that contain hooks and rules. SPEC A section 5.4 records that protect-claude-config.sh covers ~/.claude/hooks/** but not ~/.claude/releases/<sha>/hooks/**, so both the swap and the delete operate outside that guard's reach. Nothing in this diff executes against a live path, and the delete is bounded by the retention and protected-sha arguments at scripts/config/promote.mjs:109-113, but the capability is introduced here and is recorded rather than excused."
+      "check": "This unit authors machinery whose whole purpose is to relocate the guardrail surface. swapPointer at scripts/config/promote.mjs:36-47 replaces ~/.claude/current in one rename, which repoints hooks/ and rules/ wholesale, and collectGarbage at scripts/config/release.mjs:73-83 calls rmSync(recursive, force) at :79 on whole release directories that contain hooks and rules. SPEC A section 5.4 records that protect-claude-config.sh covers ~/.claude/hooks/** but not ~/.claude/releases/<sha>/hooks/**, so both the swap and the delete operate outside that guard's reach. Nothing in this diff executes against a live path, and the delete is bounded by the retention and protected-sha arguments at scripts/config/promote.mjs:109-113, but the capability is introduced here and is recorded rather than excused."
     },
     {
       "id": "G5",
       "verdict": "not-threatened",
-      "check": "No network command is invoked. The spawns I add are `git rev-parse` and `git archive` (scripts/config/release.mjs:7, :38), `tar -xf` (:46) and `node --check` / `bash -n` (scripts/config/validate.mjs:131), all local. The near-miss worth naming: `git archive -o` writes into ~/.claude/releases/ and tar extracts into it, which is guardrail-adjacent, but neither command is network-named and no argument is credential-shaped, so G5's escalation condition is not reached."
+      "check": "No network command is invoked. The spawns I add are `git rev-parse` and `git archive` (scripts/config/release.mjs:7, :36), `tar -xf` (:44) and `node --check` / `bash -n` (scripts/config/validate.mjs:131), all local. The near-miss worth naming: `git archive -o` writes into ~/.claude/releases/ and tar extracts into it, which is guardrail-adjacent, but neither command is network-named and no argument is credential-shaped, so G5's escalation condition is not reached."
     }
   ]
 }

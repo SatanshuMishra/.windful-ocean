@@ -18,8 +18,6 @@ export function resolveRef(repoRoot, ref) {
   return { ok: true, sha };
 }
 
-export const releaseExists = (configRoot, sha) => existsSync(releaseDir(configRoot, sha));
-
 export function buildRelease({ configRoot, repoRoot, sha }) {
   if (!SHA_PATTERN.test(sha)) return { ok: false, error: `refusing to build a release for a non-sha ${JSON.stringify(sha)}` };
   const target = releaseDir(configRoot, sha);

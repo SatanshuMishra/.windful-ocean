@@ -1,4 +1,4 @@
-import { existsSync, lstatSync, readdirSync, readFileSync, readlinkSync, statSync } from 'node:fs';
+import { existsSync, readdirSync, readFileSync, readlinkSync, statSync } from 'node:fs';
 import { spawnSync } from 'node:child_process';
 import { extname, join, relative, sep } from 'node:path';
 import {
@@ -220,13 +220,5 @@ export function readSettings(path) {
   } catch (error) {
     if (error.code === 'ENOENT') return { ok: true, settings: {} };
     return { ok: false, error: `settings at ${path} could not be read: ${error.message}` };
-  }
-}
-
-export function isSymlink(target) {
-  try {
-    return lstatSync(target).isSymbolicLink();
-  } catch {
-    return false;
   }
 }
