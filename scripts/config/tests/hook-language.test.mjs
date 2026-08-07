@@ -10,10 +10,28 @@ import {
   promoteScenario,
   writeFile,
 } from './_fixture.mjs';
-import { validateCandidate } from '../validate.mjs';
+import { needsInterpreter } from './_interpreters.mjs';
+import { resolveChecker, validateCandidate } from '../validate.mjs';
 
 const hookAt = (claude, ...parts) => join(claude, 'hooks', ...parts);
 const CANDIDATE_SHA = 'a'.repeat(40);
+
+function checkerFor(name, contents) {
+  const { home, configRoot } = makeHome();
+  try {
+    const path = hookAt(configRoot, name);
+    writeFile(path, contents, 0o755);
+    return resolveChecker(path);
+  } finally {
+    cleanup(home);
+  }
+}
+
+function assertSelects(checker, { language, command }) {
+  assert.equal(checker.ok, true, JSON.stringify(checker, null, 2));
+  assert.equal(checker.language, language);
+  assert.equal(checker.command, command);
+}
 
 function failuresFor({ commands, plant }) {
   const { home, configRoot } = makeHome();
@@ -106,74 +124,33 @@ test('a shebang is terminal: an unmodelled one is rejected instead of falling th
 });
 
 test('a shebang resolves forward to the first interpreter it names, not to the last word on the line', () => {
-  const python = promoteScenario({
-    mutate: (claude) => writeFile(
-      hookAt(claude, 'good.sh'),
-      '#!/usr/bin/env -S python3 -X utf8\nprint("ok")\n',
-      0o755,
-    ),
-  });
-  try {
-    promotedBy(python);
-  } finally {
-    python.dispose();
-  }
-
-  const brokenPython = promoteScenario({
-    mutate: (claude) => writeFile(
-      hookAt(claude, 'good.sh'),
-      '#!/usr/bin/env -S python3 -X utf8\ndef (:\n',
-      0o755,
-    ),
-  });
-  try {
-    assertRejected(brokenPython.run(), 'hook-syntax');
-    assertLiveUntouched(brokenPython.configRoot);
-  } finally {
-    brokenPython.dispose();
-  }
-
-  const bash = promoteScenario({
-    mutate: (claude) => writeFile(
-      hookAt(claude, 'good.sh'),
-      '#!/usr/bin/env -S bash -euo pipefail\nexit 0\n',
-      0o755,
-    ),
-  });
-  try {
-    promotedBy(bash);
-  } finally {
-    bash.dispose();
-  }
+  assertSelects(
+    checkerFor('good.sh', '#!/usr/bin/env -S python3 -X utf8\nprint("ok")\n'),
+    { language: 'python', command: 'python3' },
+  );
+  assertSelects(
+    checkerFor('good.mjs', '#!/usr/bin/env -S bash -euo pipefail\nexit 0\n'),
+    { language: 'bash', command: 'bash' },
+  );
 });
 
 test('a bare /bin/sh shebang and a flagged /bin/bash shebang both resolve to their shell', () => {
-  const posix = promoteScenario({
-    mutate: (claude) => writeFile(hookAt(claude, 'good.sh'), '#!/bin/sh\nif then fi\n', 0o755),
-  });
-  try {
-    assertRejected(posix.run(), 'hook-syntax');
-  } finally {
-    posix.dispose();
-  }
-
-  const flagged = promoteScenario({
-    mutate: (claude) => writeFile(hookAt(claude, 'good.sh'), '#!/bin/bash -e\nexit 0\n', 0o755),
-  });
-  try {
-    promotedBy(flagged);
-  } finally {
-    flagged.dispose();
-  }
+  assertSelects(checkerFor('good.sh', '#!/bin/sh\nif then fi\n'), { language: 'sh', command: 'sh' });
+  assertSelects(checkerFor('flagged', '#!/bin/bash -e\nexit 0\n'), { language: 'bash', command: 'bash' });
 });
 
-test('a .zsh hook with no shebang is checked as zsh rather than left unchecked', () => {
+test('a .zsh hook with no shebang selects the zsh checker rather than going unchecked', () => {
+  assertSelects(checkerFor('prompt.zsh', 'print ok\n'), { language: 'zsh', command: 'zsh' });
+});
+
+test('a broken .zsh hook is rejected by the zsh checker the extension selected', needsInterpreter('zsh'), () => {
   const broken = promoteScenario({
     commands: ['$HOME/.claude/hooks/prompt.zsh'],
     mutate: (claude) => writeFile(hookAt(claude, 'prompt.zsh'), 'if then\n', 0o755),
   });
   try {
-    assertRejected(broken.run(), 'hook-syntax');
+    const [failure] = assertRejected(broken.run(), 'hook-syntax');
+    assert.match(failure.detail, /as zsh/);
     assertLiveUntouched(broken.configRoot);
   } finally {
     broken.dispose();

@@ -11,6 +11,7 @@ import {
   promoteScenario as scenario,
   writeFile,
 } from './_fixture.mjs';
+import { needsInterpreter } from './_interpreters.mjs';
 import { liveSha, assertBootstrapOutsideReleases } from '../promote.mjs';
 import { bootstrapFailures, expectedEntries, jsonParseFailures, validateCandidate } from '../validate.mjs';
 
@@ -164,7 +165,7 @@ test('a hook is checked as the interpreter its command names, not as its extensi
   }
 });
 
-test('a hook whose shebang names python is checked as python, and the check writes nothing', () => {
+test('a hook whose shebang names python is checked as python, and the check writes nothing', needsInterpreter('python3'), () => {
   const s = scenario({
     mutate: (claude) => writeFile(join(claude, 'hooks', 'good.sh'), '#!/usr/bin/env python3\nprint("ok")\n', 0o755),
   });
@@ -180,13 +181,14 @@ test('a hook whose shebang names python is checked as python, and the check writ
   }
 });
 
-test('a python hook with broken syntax is rejected on its extension alone', () => {
+test('a python hook with broken syntax is rejected on its extension alone', needsInterpreter('python3'), () => {
   const s = scenario({
     commands: ['$HOME/.claude/hooks/scan.py'],
     mutate: (claude) => writeFile(join(claude, 'hooks', 'scan.py'), 'def (:\n', 0o755),
   });
   try {
-    assertRejected(s.run(), 'hook-syntax');
+    const [failure] = assertRejected(s.run(), 'hook-syntax');
+    assert.match(failure.detail, /as python/);
     assertLiveUntouched(s.configRoot);
   } finally {
     s.dispose();

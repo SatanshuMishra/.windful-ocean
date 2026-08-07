@@ -4,6 +4,7 @@ import { existsSync, mkdtempSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { assertLiveUntouched, assertRejected, cleanup, promoteScenario, writeFile } from './_fixture.mjs';
+import { needsInterpreter } from './_interpreters.mjs';
 
 const SHADOW_AST = [
   'import os',
@@ -16,7 +17,7 @@ const SHADOW_AST = [
 
 const NODE_PRELOAD = "require('node:fs').writeFileSync(__dirname + '/NODE-PRELOAD-RAN', 'ran');\n";
 
-test('a shadow ast module in the working directory neither runs nor rescues a broken python hook', () => {
+test('a shadow ast module in the working directory neither runs nor rescues a broken python hook', needsInterpreter('python3'), () => {
   const poison = mkdtempSync(join(tmpdir(), 'checker-poison-'));
   const origin = process.cwd();
   const s = promoteScenario({
@@ -27,7 +28,8 @@ test('a shadow ast module in the working directory neither runs nor rescues a br
     writeFile(join(poison, 'ast.py'), SHADOW_AST);
     process.chdir(poison);
 
-    assertRejected(s.run(), 'hook-syntax');
+    const [failure] = assertRejected(s.run(), 'hook-syntax');
+    assert.match(failure.detail, /as python/);
 
     assertLiveUntouched(s.configRoot);
     assert.ok(

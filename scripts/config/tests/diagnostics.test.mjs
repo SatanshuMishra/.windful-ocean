@@ -2,6 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { join } from 'node:path';
 import { assertRejected, cleanup, hookSettings, makeHome, promoteScenario, writeFile } from './_fixture.mjs';
+import { needsInterpreter } from './_interpreters.mjs';
 import { TRUNCATION_MARK, driftReport, validateCandidate } from '../validate.mjs';
 
 const CANDIDATE_SHA = 'd'.repeat(40);
@@ -26,7 +27,7 @@ const MAX_DETAIL = 1024;
 
 const occurrences = (haystack, needle) => haystack.split(needle).length - 1;
 
-test('an unreadable python hook is reported by its error, never by a bare traceback header', () => {
+test('an unreadable python hook is reported by its error, never by a bare traceback header', needsInterpreter('python3'), () => {
   const { home, configRoot } = makeHome();
   const candidateDir = join(configRoot, 'releases', CANDIDATE_SHA);
   try {
