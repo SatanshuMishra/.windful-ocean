@@ -1,0 +1,90 @@
+{
+  "unit": "chore/config-drift",
+  "rows": [
+    {
+      "id": "B1",
+      "verdict": "not-threatened",
+      "check": "The changed set is .claude/settings.json, .claude/skills/context7-mcp/SKILL.md, two .mp3 binaries, .zshrc and two SPEC markdown files; `git diff --name-only main...HEAD | grep -c 'workflow-sandbox|mitosis.js|run-engine'` returns 0, so no realm construction is edited. SPEC B section 4.5 only describes a future correction to .claude/lib/superpowers-parallel/workflow-sandbox.mjs:36 and is marked 'designed, not implemented' at its line 3."
+    },
+    {
+      "id": "B2",
+      "verdict": "not-threatened",
+      "check": "No sandbox denial mechanism is touched: workflow-sandbox.mjs is unmodified in this diff. The only executable code added is the zsh function at .zshrc:311-316, which runs in the login shell at init time and never inside the workflow realm, so it can raise no error a workflow body could catch."
+    },
+    {
+      "id": "B3",
+      "verdict": "not-threatened",
+      "check": "No guarded-intrinsic member list is edited. The intrinsic policy lives in .claude/lib/superpowers-parallel/workflow-sandbox.mjs, which this diff does not touch; the allowlist this unit does edit is the Claude Code permission array at .claude/settings.json:20-26, a different surface with no relation to intrinsic member guarding."
+    },
+    {
+      "id": "B4",
+      "verdict": "not-threatened",
+      "check": "VALUE_GLOBALS, ALWAYS_DENIED and ALLOWED_GLOBALS live in workflow-sandbox.mjs and are unmodified here. The near-miss is deliberate to name: this diff does narrow an allowlist, but it is permissions.allow at .claude/settings.json:20-26 (seven node prefix grants replacing `Bash(node:*)` and `Bash(ln -sfn:*)`), not a sandbox policy constant, so no assertion depending on those constants changes."
+    },
+    {
+      "id": "B5",
+      "verdict": "not-threatened",
+      "check": "The census covers identifiers reachable in the workflow-body position. This diff adds no code into that position: the two additions under docs/superpowers/specs/ are markdown, SKILL.md is markdown, and .zshrc:311-316 is zsh executed by the login shell. .claude/workflows/mitosis.js is unmodified (0 hits in the diff name list), so the free-identifier set the engine source uses is unchanged."
+    },
+    {
+      "id": "B6",
+      "verdict": "not-threatened",
+      "check": "No harness or its caller is edited. SPEC B section 4.7 proposes removing .claude/workflows/parallel-plan-execution.js and .claude/hooks/block-inline-engine.mjs, but this diff removes neither: `ls` confirms both files are still present in this worktree, and settings.json's PreToolUse registration for block-inline-engine.mjs is outside every hunk in this diff."
+    },
+    {
+      "id": "M1",
+      "verdict": "not-threatened",
+      "check": "This unit satisfies M1 rather than reaching it: the verdicts are recorded in this committed artifact, docs/invariants/coverage/chore-config-drift.json, carrying a row for all 17 registry ids read from docs/invariants/registry.json. The PR body carries no verdict table. Shape follows scripts/invariant-coverage-check.mjs:126, which requires a `rows` array."
+    },
+    {
+      "id": "M2",
+      "verdict": "not-threatened",
+      "check": "The diff edits a classifier: permissions.allow at .claude/settings.json:20-26 replaces the single glob `Bash(node:*)` with seven narrower prefixes. It is not a change-detector census, because a node command matching none of the seven is not silently admitted; it falls through to the default prompt, which is the halt-on-unclassifiable behavior M2 requires. No pinned count and no sampled allowlist is introduced anywhere in the diff."
+    },
+    {
+      "id": "M3",
+      "verdict": "threatened",
+      "check": "Commit 4e29bee overrides __zoxide_doctor at .zshrc:311-316 so it appends __zoxide_hook to chpwd_functions instead of warning. That is a fix to a real reported symptom - the zoxide doctor warning reproduced in this session's own non-interactive shell output - and it ships no acceptance test and no inertness mutation. package.json:7 globs only .claude/lib/superpowers-parallel/tests, .claude/lib/git/tests, .claude/hooks/tests and .claude/skills/impeccable/tests, so a zsh-init test has no home CI would run. Recorded as threatened rather than exempted."
+    },
+    {
+      "id": "M4",
+      "verdict": "not-threatened",
+      "check": "The diff contains no structural refactor: no file move, no symbol rename, no extraction. Every hunk is an added file (SKILL.md, two SPECs, this record), a binary re-encode of .claude/sounds/OptionA.mp3 and OptionD.mp3, a config value change, or an added zsh function. Commit 652c9af does put two changes in one range - the permission scoping at settings.json:20-26 and the plugin key change at :332-333 - but the key change alters which plugin is enabled, so it is a behavior change, not a behavior-preserving refactor paired with one."
+    },
+    {
+      "id": "M5",
+      "verdict": "not-threatened",
+      "check": "This is the invariant the diff most reaches: it adds two citation-dense SPECs. Both assert re-derivation against this branch on 2026-08-06 (SPEC A:6, SPEC B:6) and SPEC B section 0.6 withdraws five citations that failed that pass, which is evidence the pass ran. I independently re-derived eight load-bearing citations in this worktree and all eight matched: mitosis.js at 5515 lines, merge-policy.mjs:15-17, workflow-sandbox.mjs:36, block-destructive-bash.sh:134, pr.mjs:30, window.mjs:1, mitosis.js:5338 and :1449. The remaining citations were not individually re-checked."
+    },
+    {
+      "id": "M6",
+      "verdict": "threatened",
+      "check": "This diff moves the tracked .claude/settings.json (permissions :20-26, model :92, plugin enablement :332-333, effortLevel :368) while the file that enforces globally, ~/.claude/settings.json, is a separate real file rather than a symlink into this checkout, so no refresh reproduces the deployed guard from this SHA. SPEC A section 0.5 re-measures that divergence and names `model` as repo-only after commit 652c9af, meaning this very unit widened the gap. SPEC A is the designed, unimplemented remedy."
+    },
+    {
+      "id": "G1",
+      "verdict": "not-threatened",
+      "check": "The deny array opens at .claude/settings.json:42 and `Bash(gh pr merge:*)` sits at :58, outside every hunk in this diff (hunks touch new-file lines 17-29, 89-95, 329-336 and 365-371). .claude/hooks/block-destructive-bash.sh is unmodified. The seven grants added at :20-26 are all `node` prefixes rooted at .claude/, so none reaches gh or any merge endpoint."
+    },
+    {
+      "id": "G2",
+      "verdict": "not-threatened",
+      "check": "The gate's title/body matcher at .claude/hooks/block-destructive-bash.sh:134 - which matches `pr edit` only alongside --title, --body or --body-file - is unmodified, and .claude/lib/git/pr.mjs is not in the diff. SPEC B section 5.5 records that `gh pr edit --base` passes that matcher today and proposes a pr-retarget verb plus a matching deny, but it is prose and changes neither the gate nor pr.mjs."
+    },
+    {
+      "id": "G3",
+      "verdict": "not-threatened",
+      "check": "`Bash(gh pr create:*)` remains denied at .claude/settings.json:59, outside every hunk. Worth naming as a real interaction: withdrawing the broad `Bash(node:*)` grant could have cut the reachable path to the centralized tool, and the grant added at :22, `Bash(node .claude/:*)`, is what keeps `node .claude/lib/git/pr.mjs pr-create` invocable. This unit's own PR is opened by that tool."
+    },
+    {
+      "id": "G4",
+      "verdict": "not-threatened",
+      "check": "Strengthened rather than weakened. The diff withdraws `Bash(ln -sfn:*)` and `Bash(node:*)` from permissions.allow - both present on main, both absent from the replacement set at :20-26. `ln -sfn` is exactly the relocate-a-guardrail-symlink primitive and `node:*` was an arbitrary-script path; both shapes now fall through to a prompt instead of being pre-approved. .claude/hooks/protect-claude-config.sh is unmodified."
+    },
+    {
+      "id": "G5",
+      "verdict": "not-threatened",
+      "check": "No network-command grant is added: all seven new entries at .claude/settings.json:20-26 are `node` prefixes, and the `$HOME` and `~` forms at :24-26 are path prefixes for a local interpreter, not a named network command carrying a file-reference argument. .claude/hooks/block-destructive-bash.sh, which owns the escalate-to-ask behavior for unrecognized shapes, is unmodified in this diff."
+    }
+  ]
+}

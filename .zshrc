@@ -308,6 +308,13 @@ eval "$(fzf --zsh)"
 # Zoxide integration (smart cd replacement)
 eval "$(zoxide init --cmd cd zsh)"
 
+if (( ${+functions[__zoxide_doctor]} )) && (( ${+functions[__zoxide_hook]} )); then
+    function __zoxide_doctor() {
+        \builtin typeset -ga chpwd_functions
+        [[ ${chpwd_functions[(Ie)__zoxide_hook]:-0} -ne 0 ]] || chpwd_functions+=(__zoxide_hook)
+    }
+fi
+
 # ============================================================================
 #                           PATH CONFIGURATION
 # ============================================================================
