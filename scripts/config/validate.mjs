@@ -35,9 +35,15 @@ const SHELL_LANGUAGES = Object.freeze(['bash', 'sh', 'zsh']);
 const SHEBANG_PREFIX = '#!';
 const SHEBANG_READ_BYTES = 512;
 const PYTHON_PARSE_PROGRAM = [
-  'import ast,sys',
-  'try: ast.parse(open(sys.argv[1],"rb").read(), sys.argv[1])',
-  'except SyntaxError as error: sys.stderr.write("%s\\n" % error); sys.exit(1)',
+  'import ast, sys',
+  'try:',
+  '    handle = open(sys.argv[1], "rb")',
+  '    source = handle.read()',
+  '    handle.close()',
+  '    ast.parse(source, sys.argv[1])',
+  'except (SyntaxError, ValueError, OSError) as error:',
+  '    sys.stderr.write(str(error) + "\\n")',
+  '    sys.exit(1)',
 ].join('\n');
 const LANGUAGE_CHECKERS = Object.freeze([
   Object.freeze({ language: 'node', command: 'node', flags: Object.freeze(['--check']) }),
@@ -50,10 +56,20 @@ const CHECKER_COMMANDS = Object.freeze(['node', 'python3', 'bash', 'sh', 'zsh'])
 const CHECKER_TIMEOUT_MS = 15000;
 const CHECKER_MAX_BUFFER = 262144;
 const CHECKER_SANDBOX_PREFIX = 'config-syntax-check-';
+const CONTROL_CHARACTERS = /[\u0000-\u001f\u007f-\u009f]/g;
 const EXECUTABLE_BITS = 0o111;
+const REASON_CAP = 200;
+const TRUNCATION_MARK = ' [truncated]';
 const { O_NONBLOCK, O_RDONLY } = constants;
 
-const failure = (rule, detail) => Object.freeze({ rule, detail });
+export function inertDetail(detail) {
+  return String(detail)
+    .replace(CONTROL_CHARACTERS, ' ')
+    .replace(/ {2,}/g, ' ')
+    .trim();
+}
+
+const failure = (rule, detail) => Object.freeze({ rule, detail: inertDetail(detail) });
 
 export function expectedEntries(configRoot) {
   const discovered = (() => {
@@ -298,6 +314,13 @@ function openSandbox() {
   }
 }
 
+function checkerReason(run) {
+  const first = (run.stderr || run.stdout || '').split('\n').find((line) => line.trim() !== '') ?? '';
+  const inert = inertDetail(first);
+  if (inert === '') return `it exited ${run.status} without saying why`;
+  return inert.length <= REASON_CAP ? inert : `${inert.slice(0, REASON_CAP)}${TRUNCATION_MARK}`;
+}
+
 function syntaxFailures(resolved, interpreter, command, sandboxDir) {
   const check = resolveChecker(resolved, interpreter);
   if (!check.ok) {
@@ -328,8 +351,10 @@ function syntaxFailures(resolved, interpreter, command, sandboxDir) {
       `${command}: ${check.command} was killed by ${run.signal ?? 'an unknown signal'} before it could report on ${resolved}`,
     )];
   }
-  const reason = (run.stderr || run.stdout || '').trim().split('\n')[0] ?? `exit ${run.status}`;
-  return [failure('hook-syntax', `${command}: ${check.command} rejected ${resolved} as ${check.language}: ${reason}`)];
+  return [failure(
+    'hook-syntax',
+    `${command}: ${check.command} rejected ${resolved} as ${check.language}: ${checkerReason(run)}`,
+  )];
 }
 
 export function hookFailures({ settings, configRoot, candidateDir, home }) {
