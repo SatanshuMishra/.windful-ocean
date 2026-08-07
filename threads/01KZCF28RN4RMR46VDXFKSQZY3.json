@@ -198,6 +198,11 @@
         "ref": "0283-residual-validator-risks-are-disclosed-not-fixed",
         "title": "Three residual validator weaknesses are disclosed in the invariant record rather than fixed",
         "scope": "c1"
+      },
+      {
+        "ref": "0284-interpreter-spawning-tests-are-guarded-or-converted",
+        "title": "A test that spawns a real interpreter is either availability-guarded or converted to assert checker selection",
+        "scope": "thread"
       }
     ],
     "out_of_scope": [
@@ -207,5 +212,5 @@
     ]
   },
   "created_at": "2026-08-06T21:18:29.653Z",
-  "updated_at": "2026-08-07T21:45:04.839Z"
+  "updated_at": "2026-08-07T23:58:17.078Z"
 }
