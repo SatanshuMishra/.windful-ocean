@@ -147,6 +147,11 @@
         "ref": "0279-inert-basis-ships-as-one-atomic-change-with-its-evaluator",
         "title": "The inert basis ships as one atomic change carrying its evaluator, never as registry data alone",
         "scope": "c7"
+      },
+      {
+        "ref": "0280-inert-basis-leaves-the-spec-a-critical-path",
+        "title": "The inert basis leaves this phase's critical path; it buys SPEC A's PRs nothing and is under an open BLOCK",
+        "scope": "c1"
       }
     ],
     "out_of_scope": [
@@ -155,5 +160,5 @@
     ]
   },
   "created_at": "2026-08-06T21:18:29.653Z",
-  "updated_at": "2026-08-07T05:43:29.389Z"
+  "updated_at": "2026-08-07T15:31:19.826Z"
 }
