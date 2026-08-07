@@ -4,7 +4,7 @@
     {
       "id": "B1",
       "verdict": "not-threatened",
-      "check": "`git diff --name-only origin/chore/config-drift...HEAD` outside `.claude/docs/` returns exactly four paths: `.gitignore`, `.claude/.gitignore`, `.claude/hooks/session-config-drift-check.sh`, `.claude/hooks/tests/session-config-drift-check.test.mjs`. Nothing under `.claude/lib/superpowers-parallel/` is added or modified, so no realm construction or DONT_CONTEXTIFY call site is reached."
+      "check": "`git diff --name-only origin/chore/config-drift...HEAD` outside `.claude/docs/` returns exactly five paths: `.gitignore`, `.claude/.gitignore`, `.claude/hooks/session-config-drift-check.sh`, `.claude/hooks/tests/session-config-drift-check.test.mjs`, and this record at `docs/invariants/coverage/chore-close-config-coverage-gap.json`. Nothing under `.claude/lib/superpowers-parallel/` is added or modified, so no realm construction or DONT_CONTEXTIFY call site is reached."
     },
     {
       "id": "B2",
@@ -19,7 +19,7 @@
     {
       "id": "B4",
       "verdict": "not-threatened",
-      "check": "VALUE_GLOBALS, ALWAYS_DENIED and ALLOWED_GLOBALS are not referenced anywhere in this diff. The 59 added files are 57 markdown/json documents under `.claude/docs/` plus one bash hook and one node test under `.claude/hooks/`; none declares or consumes a sandbox policy constant."
+      "check": "VALUE_GLOBALS, ALWAYS_DENIED and ALLOWED_GLOBALS are not referenced anywhere in this diff. The 60 added files are 57 markdown/json documents under `.claude/docs/`, one bash hook and one node test under `.claude/hooks/`, and this coverage record; none declares or consumes a sandbox policy constant."
     },
     {
       "id": "B5",
@@ -39,7 +39,7 @@
     {
       "id": "M2",
       "verdict": "threatened",
-      "check": "This unit reconciles live-vs-tracked once, by hand (431 on-disk non-generated entry files against 427 tracked, residual 5, all under `.claude/notes/`), and commits no check that re-derives it. The gap being closed was itself caused by silent path misclassification, and the replacement at `.gitignore:18-20` is a three-name enumeration (`sessions/`, `session-data/`, `session-env/`) where a fourth session-state directory name would pass unclassified with no halt - gitignore cannot halt by construction. SPEC acceptance criterion 10 asks for exactly the closed live-vs-release diff this unit does not ship."
+      "check": "This unit reconciles live-vs-tracked once, by hand, and commits no check that re-derives it: 59 of the 64 untracked live files are adopted, and the residual 5 all sit under `.claude/notes/`, still matched by `.claude/.gitignore:43` and still 0-tracked, so a release keeps delivering an empty `notes/`. Those 5 are deliberately not adopted - two of them carry a confidential cross-project identifier and absolute paths into an unrelated private repository, so publishing them to this public repo is barred and precondition 1's `explicitly reclassify` branch is the only lawful discharge. The replacement at `.gitignore:18-20` is a three-name enumeration (`sessions/`, `session-data/`, `session-env/`) where a fourth session-state directory name would pass unclassified with no halt - gitignore cannot halt by construction. SPEC acceptance criterion 10 asks for exactly the closed live-vs-release diff this unit does not ship."
     },
     {
       "id": "M3",
