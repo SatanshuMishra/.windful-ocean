@@ -1,0 +1,15 @@
+Closed c1 and proved the cutover is NOT yet reachable.
+
+Shipped: scripts/config/install-bootstrap.mjs plus tests, opened as PR #55 through pr.mjs pr-create and merged by the user as a302e4c. It derives the promote/converge module closure by following static import edges from BOOTSTRAP_ENTRIES (6 files: converge, paths, promote, receipt, release, validate; capture.mjs and manifest.mjs are correctly unreachable) and installs them as plain files into the config root's local/. Run against live ~/.claude it was provably additive: settings.json sha256 and the sorted symlink path-list hash were identical before and after. 105 scripts/config tests pass; the 7 new tests were written red first.
+
+Verified c1's five section-7 preconditions against main rather than trusting the plan: P1 closed (docs 68 tracked vs 11 in the SPEC census; notes correctly absent from PROMOTED_ENTRIES per 0276), P2 closed (.gitignore now carries *claude-session*, *claude_session*, sessions/, session-data/, session-env/ and both drift-hook files are tracked), P3 closed where it matters (graphify-common.sh:45 routes config paths to $config/graphify-out, a depth-1 writable dir, so no hook writes into a read-only release; the stale hooks/graphify-out and rules/graphify-out dirs are regenerable residue destroyed when those dirs are replaced), P4 closed, P5 closed by this session's work.
+
+Ran the faithful 0281 rehearsal, both halves. A (live settings verbatim) and B (live settings plus the two converge registrations main already declares) each promoted at exit 0 with zero validation failures, idempotent on a second run, rollback refusing cleanly with no previous release. Not a false green: a coverage probe showed 26/26 and 28/28 registrations actually resolved, and negative controls (a registered-but-missing hook, corrupted bash and python inside the built release) each rejected with no swap. B answers c3 ahead of time - registering the converge hooks is safe before live settings.json is touched.
+
+FAILED / not done, and why: no live write was made beyond ~/.claude/local. The converge hooks are still unregistered in live settings.json, and the cutover was not attempted.
+
+The finding that changes the plan: there is NO entry-link swap tooling. symlinkSync appears once in scripts/config outside tests, at promote.mjs:54, creating current.tmp and renaming it to current. PROMOTED_ENTRIES is consumed only by its own definition and by validate.mjs's coverage check. A cutover run today would build, validate, move the pointer and write a LIVE receipt asserting success while all 38 live symlinks kept resolving into the primary checkout - a receipt claiming a swap that did not happen.
+
+Two smaller corrections to recorded facts. The live symlink census is 38, not the 37 in SPEC 0.2, which omits debug/. And ~/.claude/hooks and ~/.claude/rules are real directories holding per-entry symlinks (26 and 2), not top-level links, so the swap must replace two real directories, not retarget two links.
+
+Curation: deleted the memory suite-totals-include-a-gitignored-test-file.md, now false - the unanchored *session* pattern is gone from main and both files it hid are tracked.
