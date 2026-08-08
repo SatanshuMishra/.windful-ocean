@@ -215,6 +215,11 @@
         "ref": "0285-bootstrap-is-a-pinned-copy-of-a-derived-closure",
         "title": "The bootstrap installs as a pinned copy of an import-derived closure, not a symlink or a hardcoded file list",
         "scope": "c1"
+      },
+      {
+        "ref": "0286-entry-link-swap-ships-as-tested-tooling-not-hand-run-commands",
+        "title": "The entry-link swap ships as a tested cutover verb, bundled with the guard fix and the grant correction, before any live write",
+        "scope": "c5"
       }
     ],
     "out_of_scope": [
@@ -223,5 +228,5 @@
     ]
   },
   "created_at": "2026-08-06T21:18:29.653Z",
-  "updated_at": "2026-08-08T02:28:10.949Z"
+  "updated_at": "2026-08-08T02:28:34.262Z"
 }
