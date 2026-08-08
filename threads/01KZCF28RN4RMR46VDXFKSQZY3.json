@@ -77,9 +77,9 @@
   "abandoned_reason": null,
   "closure_statement": null,
   "spine": {
-    "active_goal": "Finish SPEC A: build the missing cutover tooling, then promote global config to immutable releases behind an atomic pointer.",
-    "next_step": "START HERE FRESH, in a session doing nothing else. Read 0286 and 0285 first. Build the cutover unit BEFORE any live write: a tested idempotent reversible cutover verb, the protect-claude-config.sh repo_root fix, and the ln -sfn grant correction, shipped as ONE PR through pr.mjs. Then re-rehearse per 0281 against merged main, register the converge hooks (c3), and swap every entry link in one pass on explicit user go (c5). Then verify all 10 acceptance criteria (c6).",
-    "last_session": "Closed c1 by shipping the bootstrap installer (PR #55, merged a302e4c) and ran the faithful 0281 rehearsal green with negative controls, which exposed that the entry-link swap has no implementation.",
+    "active_goal": "Build the cutover unit, ship it as one PR, then perform the live cutover as the session's last act.",
+    "next_step": "START HERE FRESH per 0289: build first, swap LAST, one session. Read 0286, 0287, 0288, 0289. Build the cutover verb, idempotent and reversible: relink 8 depth-1 entries to current/; collapse hooks/ and rules/ after disposing of the two stale graphify-out dirs and the live context7.md; move notes/ to local/ per 0276. Add the guard repo_root fix, the PROBE_FILES change, the grant withdrawal, an install-bootstrap re-run. ONE PR via pr.mjs. Then rehearse per 0281, register converge, swap.",
+    "last_session": "Measured the swap inventory 0286 called unimplemented; found three live leftovers blocking the hooks and rules collapse, and no disposition for notes/; shipped no code.",
     "open_risks": [
       {
         "text": "The single npm test failure is environmental, not a regression — protect-claude-config.test.mjs asserts ~/.claude/settings.json is a symlink when it is a real file, and it skips on CI runners, so green CI plus this one local failure is the expected reading.",
@@ -146,7 +146,7 @@
         ]
       },
       {
-        "text": "Never git checkout main in the primary checkout — live global config is symlinked into that working tree, so switching branches hot-swaps every skill and hook under every running session",
+        "text": "Never run git checkout main in the primary checkout — live global config is symlinked into that working tree, so switching branches hot-swaps every skill and hook under every running session",
         "scope": "thread",
         "refs": [
           "/Users/satanshumishra/Documents/DevLabs/.windful-ocean"
@@ -160,17 +160,48 @@
         ]
       },
       {
-        "text": "The promote verb still has no production caller until the converge hooks are registered — a faithful scratch rehearsal now exercises it end to end, but nothing runs it in anger",
+        "text": "The promote verb still has no production caller until the converge hooks are registered live — a faithful scratch rehearsal exercises it end to end, but nothing runs it in anger",
         "scope": "thread",
         "refs": [
           "scripts/config/promote.mjs"
         ]
       },
       {
-        "text": "Enumerate every code path an invariant covers before dispatching a fix round — the last round satisfied containment for hook paths and missed the JSON scan beside it, which cost a fourth round",
+        "text": "Enumerate every code path an invariant covers before dispatching a fix round — an earlier round satisfied containment for hook paths and missed the JSON scan beside it, which cost a fourth round",
         "scope": "thread",
         "refs": [
           "scripts/config/validate.mjs"
+        ]
+      },
+      {
+        "text": "Dispose of the two stale graphify-out directories and the live context7.md before collapsing hooks and rules — they are real entries inside directories the cutover turns into symlinks, so the collapse either fails or silently discards them",
+        "scope": "thread",
+        "refs": [
+          "~/.claude/hooks/graphify-out",
+          "~/.claude/rules/graphify-out",
+          "~/.claude/rules/context7.md"
+        ]
+      },
+      {
+        "text": "Move the five files in the checkout's untracked notes directory to live-only local/ before touching the notes symlink — repointing it strands them and deleting it destroys them, and two hold the confidential material 0276 refused to publish",
+        "scope": "thread",
+        "refs": [
+          ".claude/notes/",
+          "~/.claude/notes"
+        ]
+      },
+      {
+        "text": "Expect the cutover to move live content from a branch 64 commits behind main, not merely change a level of indirection — the primary checkout serves live config and sits on another thread's branch with uncommitted edits",
+        "scope": "thread",
+        "refs": [
+          "feat/invariant-inert-registry"
+        ]
+      },
+      {
+        "text": "Get a ruling on the graphify report before the swap — collapsing rules/ stops it being loaded as a global instruction file in every session, and the user has not ruled on that",
+        "scope": "thread",
+        "refs": [
+          "~/.claude/rules/graphify-out/GRAPH_REPORT.md"
         ]
       }
     ],
@@ -257,5 +288,5 @@
     ]
   },
   "created_at": "2026-08-06T21:18:29.653Z",
-  "updated_at": "2026-08-08T03:23:47.179Z"
+  "updated_at": "2026-08-08T03:25:11.357Z"
 }
