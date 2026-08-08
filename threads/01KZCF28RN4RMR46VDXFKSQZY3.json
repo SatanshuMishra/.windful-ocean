@@ -84,9 +84,9 @@
   "abandoned_reason": null,
   "closure_statement": null,
   "spine": {
-    "active_goal": "Land the cutover unit as one PR once an independent review returns SHIP, then rehearse and swap in a dedicated session.",
-    "next_step": "START HERE FRESH. Read artifacts/2026-08-08-cutover-round3-report.md; if absent, round 3 never finished, so re-dispatch from 2026-08-08-cutover-round3-invariants.md beside it. Then re-review the full diff. ONLY on SHIP: commit the worktree .claude/worktrees/spec-a-cutover on branch feat/config-entry-link-cutover, which holds everything uncommitted, open ONE PR via pr.mjs, merge, re-run install-bootstrap, rehearse per 0281, then swap alone per 0292.",
-    "last_session": "Built the entire cutover unit in a worktree and shipped nothing live; two reviews returned BLOCK and a third fix round was still running at hand-off.",
+    "active_goal": "Get an independent SHIP on the cutover unit, land it as one PR, then rehearse and swap in a dedicated session.",
+    "next_step": "START HERE FRESH. Round 3 IS finished; read artifacts/2026-08-08-cutover-round3-report.md, then dispatch an independent review of the FULL diff, which is entirely unreviewed and rewrote containment, rollback and grant reporting. ONLY on SHIP: commit the worktree .claude/worktrees/spec-a-cutover on branch feat/config-entry-link-cutover, all uncommitted, open ONE PR via pr.mjs, merge, re-run install-bootstrap, rehearse per 0281 against merged main, then swap alone per 0292.",
+    "last_session": "Built the cutover unit and drove it through three fix rounds against two BLOCK reviews to 2116 tests green; shipped nothing live and left it uncommitted and unreviewed.",
     "open_risks": [
       {
         "text": "Never run git checkout main in the primary checkout — live global config is symlinked into that working tree, so switching branches hot-swaps every skill and hook under every running session",
@@ -103,7 +103,7 @@
         ]
       },
       {
-        "text": "State an invariant as a property, never as the placement of a check — round 2 proved containment at all six write sites and still failed, because isInside compares lexically with no realpath, so one symlinked local dir defeated every proof",
+        "text": "An invariant can fail by being too strong as well as too weak, so test it against a realistic pre-state — round 2's containment check missed a symlink, and the correction would have refused every legitimate run; see 0293",
         "scope": "thread",
         "refs": [
           "scripts/config/paths.mjs:50-56"
@@ -130,6 +130,20 @@
         "refs": [
           ".claude/notes/",
           "~/.claude/local/notes"
+        ]
+      },
+      {
+        "text": "Review round 3 before trusting any of it — it is the only unreviewed round, it rewrote the containment model, the rollback contract and the grant reporting, and two of the three reviewed rounds returned BLOCK",
+        "scope": "c5",
+        "refs": [
+          "artifacts/2026-08-08-cutover-round3-report.md"
+        ]
+      },
+      {
+        "text": "copyFile keeps a real gap between the containment check and the copy — COPYFILE_EXCL cannot close it without breaking the byte-identical re-apply that makes a second run a no-op, so it was left open deliberately",
+        "scope": "c5",
+        "refs": [
+          "scripts/config/cutover.mjs"
         ]
       },
       {
@@ -272,5 +286,5 @@
     ]
   },
   "created_at": "2026-08-06T21:18:29.653Z",
-  "updated_at": "2026-08-08T07:03:29.272Z"
+  "updated_at": "2026-08-08T07:03:51.445Z"
 }
