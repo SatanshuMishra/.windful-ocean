@@ -239,6 +239,11 @@
         "ref": "0287-settings-json-stays-a-real-live-file",
         "title": "settings.json stays a real live file and the guard's probe test is what changes",
         "scope": "c5"
+      },
+      {
+        "ref": "0288-stale-grants-are-withdrawn-by-promotion-not-only-refused-by-capture",
+        "title": "The stale ln -sfn grant is withdrawn by promotion, not merely refused by capture",
+        "scope": "c5"
       }
     ],
     "out_of_scope": [
@@ -247,5 +252,5 @@
     ]
   },
   "created_at": "2026-08-06T21:18:29.653Z",
-  "updated_at": "2026-08-08T03:23:08.266Z"
+  "updated_at": "2026-08-08T03:23:26.704Z"
 }
