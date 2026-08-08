@@ -273,6 +273,11 @@
         "ref": "0289-one-fresh-session-builds-the-unit-then-performs-the-cutover-last",
         "title": "One fresh session builds the cutover unit and then performs the live cutover as its last act",
         "scope": "c5"
+      },
+      {
+        "ref": "0290-cutover-verb-moves-real-content-aside-and-never-deletes",
+        "title": "The cutover verb moves real content aside instead of deleting it, which defers the graphify-report ruling rather than forcing it",
+        "scope": "c5"
       }
     ],
     "out_of_scope": [
@@ -281,5 +286,5 @@
     ]
   },
   "created_at": "2026-08-06T21:18:29.653Z",
-  "updated_at": "2026-08-08T03:25:44.984Z"
+  "updated_at": "2026-08-08T04:48:25.347Z"
 }
