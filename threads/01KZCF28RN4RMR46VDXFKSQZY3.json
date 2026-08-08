@@ -50,6 +50,13 @@
       "struck_by": null
     },
     {
+      "id": "c10",
+      "text": "The cutover unit is hardened until an independent review returns SHIP; two rounds returned BLOCK and the third was restated at the property level after a containment check proved unsound.",
+      "done": false,
+      "kind": "detour",
+      "struck_by": null
+    },
+    {
       "id": "c5",
       "text": "The cutover runs serially in a session doing nothing else: the first release is built and validated with zero live change, then every entry link is swapped in one pass.",
       "done": false,
@@ -296,5 +303,5 @@
     ]
   },
   "created_at": "2026-08-06T21:18:29.653Z",
-  "updated_at": "2026-08-08T06:33:43.954Z"
+  "updated_at": "2026-08-08T06:33:52.362Z"
 }
