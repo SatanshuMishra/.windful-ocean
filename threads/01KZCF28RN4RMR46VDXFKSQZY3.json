@@ -278,6 +278,11 @@
         "ref": "0293-containment-is-split-by-write-kind-not-uniformly-resolved",
         "title": "Containment is split by write kind, because link writes do not follow the final path component and content writes do",
         "scope": "c5"
+      },
+      {
+        "ref": "0294-round-four-fixes-against-an-invariant-contract-not-a-finding-list",
+        "title": "Round 4 fixes against a stated control-file contract, because four of five blockers share one root cause and a reviewer's own fix was over-strong",
+        "scope": "c10"
       }
     ],
     "out_of_scope": [
@@ -286,5 +291,5 @@
     ]
   },
   "created_at": "2026-08-06T21:18:29.653Z",
-  "updated_at": "2026-08-08T07:03:51.445Z"
+  "updated_at": "2026-08-08T23:22:25.594Z"
 }
