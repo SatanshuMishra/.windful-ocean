@@ -84,54 +84,10 @@
   "abandoned_reason": null,
   "closure_statement": null,
   "spine": {
-    "active_goal": "Get an independent SHIP on the cutover unit, land it as one PR, then rehearse and swap in a dedicated session.",
-    "next_step": "START HERE FRESH. Round 3 IS finished; read artifacts/2026-08-08-cutover-round3-report.md, then dispatch an independent review of the FULL diff, which is entirely unreviewed and rewrote containment, rollback and grant reporting. ONLY on SHIP: commit the worktree .claude/worktrees/spec-a-cutover on branch feat/config-entry-link-cutover, all uncommitted, open ONE PR via pr.mjs, merge, re-run install-bootstrap, rehearse per 0281 against merged main, then swap alone per 0292.",
-    "last_session": "Built the cutover unit and drove it through three fix rounds against two BLOCK reviews to 2116 tests green; shipped nothing live and left it uncommitted and unreviewed.",
+    "active_goal": "Complete every remaining task so the live cutover can be performed: close c10 to SHIP, land the PR, rehearse, then swap.",
+    "next_step": "START HERE FRESH, ZERO ASSUMPTIONS - verify every claim against the code before acting on it. Read artifacts/2026-08-08-cutover-control-file-invariants.md, then 0295 (supersedes 0294), 0296 and 0293. Run its 10-step order; step 1 (the already-linked fix) is a precondition, not optional. Then a FRESH independent review to SHIP, commit, ONE PR via pr.mjs, merge, re-run install-bootstrap, rehearse per 0281 against merged main, register converge live, swap alone per 0292.",
+    "last_session": "Round 4's independent review returned a unanimous BLOCK and falsified both the root-cause framing and the planned fix; replaced the finding list with a stated invariant contract (0295) and shipped the c3 Stop-path fix.",
     "open_risks": [
-      {
-        "text": "Never run git checkout main in the primary checkout — live global config is symlinked into that working tree, so switching branches hot-swaps every skill and hook under every running session",
-        "scope": "thread",
-        "refs": [
-          "/Users/satanshumishra/Documents/DevLabs/.windful-ocean"
-        ]
-      },
-      {
-        "text": "Serialize every write to a live-linked path, not just the cutover — a half-saved file reaches running sessions through the hook symlinks and breaks every one of them instantly",
-        "scope": "thread",
-        "refs": [
-          ".claude/hooks/"
-        ]
-      },
-      {
-        "text": "An invariant can fail by being too strong as well as too weak, so test it against a realistic pre-state — round 2's containment check missed a symlink, and the correction would have refused every legitimate run; see 0293",
-        "scope": "thread",
-        "refs": [
-          "scripts/config/paths.mjs:50-56"
-        ]
-      },
-      {
-        "text": "Expect the cutover to move live content from a branch 64 commits behind main rather than merely change a level of indirection — the primary checkout serves live config and sits on another thread's branch with uncommitted edits",
-        "scope": "thread",
-        "refs": [
-          "feat/invariant-inert-registry"
-        ]
-      },
-      {
-        "text": "Nothing in this unit has a production caller yet — cutover.mjs is invoked by hand, and promote runs only from converge, which the repo registers but live settings.json still does not",
-        "scope": "thread",
-        "refs": [
-          "scripts/config/cutover.mjs",
-          "~/.claude/settings.json"
-        ]
-      },
-      {
-        "text": "Confirm the verb copied the five notes files into local/notes and byte-verified them before it repointed the link — two hold the confidential material 0276 refused to publish, and the sources are deliberately left in the checkout for a human to remove",
-        "scope": "thread",
-        "refs": [
-          ".claude/notes/",
-          "~/.claude/local/notes"
-        ]
-      },
       {
         "text": "Review round 3 before trusting any of it — it is the only unreviewed round, it rewrote the containment model, the rollback contract and the grant reporting, and two of the three reviewed rounds returned BLOCK",
         "scope": "c5",
@@ -180,6 +136,82 @@
         "scope": "c5",
         "refs": [
           "docs/invariants/coverage/feat-config-entry-link-cutover.json"
+        ]
+      },
+      {
+        "text": "Never run git checkout main in the primary checkout — live global config is symlinked into that working tree, so switching branches hot-swaps every skill and hook under every running session",
+        "scope": "thread",
+        "refs": [
+          "/Users/satanshumishra/Documents/DevLabs/.windful-ocean"
+        ]
+      },
+      {
+        "text": "Serialize every write to a live-linked path, not just the cutover — a half-saved file reaches running sessions through the hook symlinks and breaks every one of them instantly",
+        "scope": "thread",
+        "refs": [
+          ".claude/hooks/"
+        ]
+      },
+      {
+        "text": "Give every invariant a stated permit-set and test it against a realistic pre-state — nine of the eleven entries the verb touches are symlinks pointing outside the config root today, and three consecutive rounds proposed checks that would have refused that real state; see 0293 and 0295",
+        "scope": "thread",
+        "refs": [
+          "scripts/config/paths.mjs:50-56",
+          "artifacts/2026-08-08-cutover-control-file-invariants.md"
+        ]
+      },
+      {
+        "text": "Do not implement the round-4 report's remedy for the top finding — deriving created from linkTargetFor makes the ownership test vacuous after a legitimate cutover, so the hooks exploit survives and the fix round would believe it closed",
+        "scope": "thread",
+        "refs": [
+          "scripts/config/cutover.mjs:616",
+          "artifacts/2026-08-08-cutover-control-file-invariants.md"
+        ]
+      },
+      {
+        "text": "Land the already-linked classification fix before or with the contract, never after — under I2 a misclassified entry gets no aside and therefore no rollback authority, making a dangling entry unrecoverable rather than merely wrong",
+        "scope": "thread",
+        "refs": [
+          "scripts/config/cutover.mjs"
+        ]
+      },
+      {
+        "text": "Expect two protect-claude-config tests to invert, and never preserve the defect to keep them green — those two tests encode the exact suppression that the planted-receipt finding exploits",
+        "scope": "thread",
+        "refs": [
+          ".claude/hooks/tests/protect-claude-config.test.mjs:188",
+          ".claude/hooks/tests/protect-claude-config.test.mjs:289"
+        ]
+      },
+      {
+        "text": "Treat the change as larger than git diff shows — cutover.mjs and its test are untracked, so any review scoped to tracked changes covers less than half of it",
+        "scope": "thread",
+        "refs": [
+          "scripts/config/cutover.mjs",
+          "scripts/config/tests/cutover.test.mjs"
+        ]
+      },
+      {
+        "text": "Expect the cutover to move live content from a branch 64 commits behind main rather than merely change a level of indirection — the primary checkout serves live config and sits on another thread's branch with uncommitted edits",
+        "scope": "thread",
+        "refs": [
+          "feat/invariant-inert-registry"
+        ]
+      },
+      {
+        "text": "Nothing in this unit has a production caller yet — cutover.mjs is invoked by hand, and promote runs only from converge, which the repo registers but live settings.json still does not",
+        "scope": "thread",
+        "refs": [
+          "scripts/config/cutover.mjs",
+          "~/.claude/settings.json"
+        ]
+      },
+      {
+        "text": "Confirm the verb copied the five notes files into local/notes and byte-verified them before it repointed the link — two hold the confidential material 0276 refused to publish, and the sources are deliberately left in the checkout for a human to remove",
+        "scope": "thread",
+        "refs": [
+          ".claude/notes/",
+          "~/.claude/local/notes"
         ]
       }
     ],
@@ -301,5 +333,5 @@
     ]
   },
   "created_at": "2026-08-06T21:18:29.653Z",
-  "updated_at": "2026-08-08T23:54:27.831Z"
+  "updated_at": "2026-08-08T23:55:40.174Z"
 }
