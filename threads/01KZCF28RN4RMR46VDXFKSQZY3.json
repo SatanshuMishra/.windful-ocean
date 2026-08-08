@@ -84,17 +84,10 @@
   "abandoned_reason": null,
   "closure_statement": null,
   "spine": {
-    "active_goal": "Build the cutover unit, ship it as one PR, then perform the live cutover as the session's last act.",
-    "next_step": "START HERE FRESH per 0289: build first, swap LAST, one session. Read 0286, 0287, 0288, 0289. Build the cutover verb, idempotent and reversible: relink 8 depth-1 entries to current/; collapse hooks/ and rules/ after disposing of the two stale graphify-out dirs and the live context7.md; move notes/ to local/ per 0276. Add the guard repo_root fix, the PROBE_FILES change, the grant withdrawal, an install-bootstrap re-run. ONE PR via pr.mjs. Then rehearse per 0281, register converge, swap.",
-    "last_session": "Measured the swap inventory 0286 called unimplemented; found three live leftovers blocking the hooks and rules collapse, and no disposition for notes/; shipped no code.",
+    "active_goal": "Land the cutover unit as one PR once an independent review returns SHIP, then rehearse and swap in a dedicated session.",
+    "next_step": "START HERE FRESH. Read artifacts/2026-08-08-cutover-round3-report.md; if absent, round 3 never finished, so re-dispatch from 2026-08-08-cutover-round3-invariants.md beside it. Then re-review the full diff. ONLY on SHIP: commit the worktree .claude/worktrees/spec-a-cutover on branch feat/config-entry-link-cutover, which holds everything uncommitted, open ONE PR via pr.mjs, merge, re-run install-bootstrap, rehearse per 0281, then swap alone per 0292.",
+    "last_session": "Built the entire cutover unit in a worktree and shipped nothing live; two reviews returned BLOCK and a third fix round was still running at hand-off.",
     "open_risks": [
-      {
-        "text": "The single npm test failure is environmental, not a regression — protect-claude-config.test.mjs asserts ~/.claude/settings.json is a symlink when it is a real file, and it skips on CI runners, so green CI plus this one local failure is the expected reading.",
-        "scope": "c7",
-        "refs": [
-          ".claude/hooks/tests/protect-claude-config.test.mjs"
-        ]
-      },
       {
         "text": "Never run git checkout main in the primary checkout — live global config is symlinked into that working tree, so switching branches hot-swaps every skill and hook under every running session",
         "scope": "thread",
@@ -103,88 +96,44 @@
         ]
       },
       {
-        "text": "Serialize every write to a live-linked path, not just the cutover — the converge registration reaches running sessions through the hook symlinks, so a half-saved file breaks every session instantly",
+        "text": "Serialize every write to a live-linked path, not just the cutover — a half-saved file reaches running sessions through the hook symlinks and breaks every one of them instantly",
         "scope": "thread",
         "refs": [
           ".claude/hooks/"
         ]
       },
       {
-        "text": "The promote verb still has no production caller until the converge hooks are registered live — a faithful scratch rehearsal exercises it end to end, but nothing runs it in anger",
+        "text": "State an invariant as a property, never as the placement of a check — round 2 proved containment at all six write sites and still failed, because isInside compares lexically with no realpath, so one symlinked local dir defeated every proof",
         "scope": "thread",
         "refs": [
-          "scripts/config/promote.mjs"
+          "scripts/config/paths.mjs:50-56"
         ]
       },
       {
-        "text": "Enumerate every code path an invariant covers before dispatching a fix round — an earlier round satisfied containment for hook paths and missed the JSON scan beside it, which cost a fourth round",
-        "scope": "thread",
-        "refs": [
-          "scripts/config/validate.mjs"
-        ]
-      },
-      {
-        "text": "Dispose of the two stale graphify-out directories and the live context7.md before collapsing hooks and rules — they are real entries inside directories the cutover turns into symlinks, so the collapse either fails or silently discards them",
-        "scope": "thread",
-        "refs": [
-          "~/.claude/hooks/graphify-out",
-          "~/.claude/rules/graphify-out",
-          "~/.claude/rules/context7.md"
-        ]
-      },
-      {
-        "text": "Move the five files in the checkout's untracked notes directory to live-only local/ before touching the notes symlink — repointing it strands them and deleting it destroys them, and two hold the confidential material 0276 refused to publish",
-        "scope": "thread",
-        "refs": [
-          ".claude/notes/",
-          "~/.claude/notes"
-        ]
-      },
-      {
-        "text": "Expect the cutover to move live content from a branch 64 commits behind main, not merely change a level of indirection — the primary checkout serves live config and sits on another thread's branch with uncommitted edits",
+        "text": "Expect the cutover to move live content from a branch 64 commits behind main rather than merely change a level of indirection — the primary checkout serves live config and sits on another thread's branch with uncommitted edits",
         "scope": "thread",
         "refs": [
           "feat/invariant-inert-registry"
         ]
       },
       {
-        "text": "Get a ruling on the graphify report before the swap — collapsing rules/ stops it being loaded as a global instruction file in every session, and the user has not ruled on that",
+        "text": "Nothing in this unit has a production caller yet — cutover.mjs is invoked by hand, and promote runs only from converge, which the repo registers but live settings.json still does not",
         "scope": "thread",
         "refs": [
-          "~/.claude/rules/graphify-out/GRAPH_REPORT.md"
+          "scripts/config/cutover.mjs",
+          "~/.claude/settings.json"
         ]
       },
       {
-        "text": "Build the entry-link swap before trusting any cutover — promote moves the current pointer but nothing creates the ten entry links, so a run today writes a LIVE receipt claiming a swap that never happened",
-        "scope": "c5",
+        "text": "Confirm the verb copied the five notes files into local/notes and byte-verified them before it repointed the link — two hold the confidential material 0276 refused to publish, and the sources are deliberately left in the checkout for a human to remove",
+        "scope": "thread",
         "refs": [
-          "scripts/config/promote.mjs:54",
-          "scripts/config/paths.mjs:14"
+          ".claude/notes/",
+          "~/.claude/local/notes"
         ]
       },
       {
-        "text": "Re-measure the live symlink census before the swap — an earlier count said 38 including debug/, this session measured 37, and the swap must be driven by a count taken at cutover time rather than either stale figure",
-        "scope": "c5",
-        "refs": [
-          "docs/superpowers/specs/2026-08-06-config-staging-live-promotion-SPEC.md"
-        ]
-      },
-      {
-        "text": "Repoint protect-claude-config.sh at the LIVE receipt's repo_root in the cutover change — it finds the checkout by realpath, which after cutover lands inside a release rather than a git worktree, so the guard drops to a weaker textual match",
-        "scope": "c5",
-        "refs": [
-          ".claude/hooks/protect-claude-config.sh"
-        ]
-      },
-      {
-        "text": "Withdraw the live ln -sfn grant through the mechanism 0288 adopted — permissions.allow is unioned, so without an active subtraction the wrong non-atomic link form survives every future promotion, not just the first",
-        "scope": "c5",
-        "refs": [
-          "scripts/config/manifest.mjs:28"
-        ]
-      },
-      {
-        "text": "Re-run the 0281 rehearsal against merged main before any live write — the green rehearsal validated 1e84dd1, which is no longer the sha that will ship",
+        "text": "Re-run the 0281 rehearsal against merged main before any live write — the green rehearsal validated 1e84dd1 and the unit has moved far past that sha",
         "scope": "c5",
         "refs": [
           "a302e4c"
@@ -202,6 +151,21 @@
         "scope": "c5",
         "refs": [
           "scripts/config/paths.mjs"
+        ]
+      },
+      {
+        "text": "The cutover verb walks past the bash gate by construction — the gate returns ask for a shell mv of the hooks directory but allows the node verb, because it enumerates shell verbs only, and promote's new live settings write has the same gap",
+        "scope": "c5",
+        "refs": [
+          "docs/invariants/coverage/feat-config-entry-link-cutover.json",
+          ".claude/hooks/block-destructive-bash.sh"
+        ]
+      },
+      {
+        "text": "Four constants plus the guard's probe-tuple narrowing are inert — the suite does not fail if any of them is undone, so they are unprotected against a future edit",
+        "scope": "c5",
+        "refs": [
+          "docs/invariants/coverage/feat-config-entry-link-cutover.json"
         ]
       }
     ],
@@ -303,5 +267,5 @@
     ]
   },
   "created_at": "2026-08-06T21:18:29.653Z",
-  "updated_at": "2026-08-08T06:33:52.362Z"
+  "updated_at": "2026-08-08T06:35:34.614Z"
 }
