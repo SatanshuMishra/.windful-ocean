@@ -278,6 +278,11 @@
         "ref": "0290-cutover-verb-moves-real-content-aside-and-never-deletes",
         "title": "The cutover verb moves real content aside instead of deleting it, which defers the graphify-report ruling rather than forcing it",
         "scope": "c5"
+      },
+      {
+        "ref": "0291-promotion-applies-reconciled-settings-or-0288-is-inert",
+        "title": "Promotion applies the reconciled settings.json to live, because the withdrawal set 0288 adopted is inert without it",
+        "scope": "c5"
       }
     ],
     "out_of_scope": [
@@ -286,5 +291,5 @@
     ]
   },
   "created_at": "2026-08-06T21:18:29.653Z",
-  "updated_at": "2026-08-08T04:48:25.347Z"
+  "updated_at": "2026-08-08T04:48:46.229Z"
 }
