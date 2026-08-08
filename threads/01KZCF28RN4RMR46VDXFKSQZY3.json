@@ -24,7 +24,7 @@
     {
       "id": "c1",
       "text": "SPEC A section 7's five cutover preconditions are all closed and verified, with the *session* gitignore pattern narrowed BEFORE the hook file it hides is adopted.",
-      "done": false,
+      "done": true,
       "kind": "planned",
       "struck_by": null
     },
@@ -77,17 +77,10 @@
   "abandoned_reason": null,
   "closure_statement": null,
   "spine": {
-    "active_goal": "Complete SPEC A end to end: close the section-7 preconditions, register the converge hooks, then cut over to immutable releases behind an atomic pointer.",
-    "next_step": "START HERE FRESH, in a session doing nothing else. GOAL: finish SPEC A. 1) Fast-forward local main with `git fetch origin main:main` (never checkout main here). 2) Close c1's five section-7 preconditions. 3) Rehearse per 0281 against the merged sha. 4) Register the converge hooks (c3). 5) Build and validate the real release, then swap every entry link in one pass, on explicit user go (c5). 6) Verify all 10 acceptance criteria (c6).",
-    "last_session": "Fixed the three release-rejecting defects and hardened the validator across two reviews and three fix rounds, closing a CRITICAL code-execution path in the python checker; PR #54 is merged at 1e84dd1.",
+    "active_goal": "Finish SPEC A: build the missing cutover tooling, then promote global config to immutable releases behind an atomic pointer.",
+    "next_step": "START HERE FRESH, in a session doing nothing else. Read 0286 and 0285 first. Build the cutover unit BEFORE any live write: a tested idempotent reversible cutover verb, the protect-claude-config.sh repo_root fix, and the ln -sfn grant correction, shipped as ONE PR through pr.mjs. Then re-rehearse per 0281 against merged main, register the converge hooks (c3), and swap every entry link in one pass on explicit user go (c5). Then verify all 10 acceptance criteria (c6).",
+    "last_session": "Closed c1 by shipping the bootstrap installer (PR #55, merged a302e4c) and ran the faithful 0281 rehearsal green with negative controls, which exposed that the entry-link swap has no implementation.",
     "open_risks": [
-      {
-        "text": "Run the cutover serially in a session doing nothing else — it hot-swaps live-linked hooks, lib and workflows, so parallel subagents editing those paths can break every running session including the one doing the work.",
-        "scope": "c5",
-        "refs": [
-          "docs/superpowers/specs/2026-08-06-config-staging-live-promotion-SPEC.md"
-        ]
-      },
       {
         "text": "The single npm test failure is environmental, not a regression — protect-claude-config.test.mjs asserts ~/.claude/settings.json is a symlink when it is a real file, and it skips on CI runners, so green CI plus this one local failure is the expected reading.",
         "scope": "c7",
@@ -96,57 +89,78 @@
         ]
       },
       {
-        "text": "Fast-forward local main with git fetch origin main:main, or pass --ref origin/main — local main is stale at 0451220 against origin/main 1e84dd1, so a release built from the default ref ships the wrong tree",
-        "scope": "c1",
+        "text": "Build the entry-link swap before trusting any cutover — promote moves the current pointer but nothing creates the ten entry links, so a run today writes a LIVE receipt claiming a swap that never happened",
+        "scope": "c5",
         "refs": [
-          "scripts/config/promote.mjs"
+          "scripts/config/promote.mjs:54",
+          "scripts/config/paths.mjs:14"
         ]
       },
       {
-        "text": "Close every other claude session before the pointer swap — SPEC section 9 records that whether a swap reaches an already-running session is unmeasured, so any open session is an uncontrolled experiment on global config",
-        "scope": "c1",
+        "text": "Treat the live symlink census as 38, not the 37 in SPEC 0.2 — it omits debug/, and hooks/ and rules/ are real directories holding 26 and 2 child links rather than top-level links the swap can simply retarget",
+        "scope": "c5",
         "refs": [
           "docs/superpowers/specs/2026-08-06-config-staging-live-promotion-SPEC.md"
         ]
       },
       {
-        "text": "Repoint protect-claude-config.sh at the LIVE receipt's repo_root in the cutover change — it finds the checkout by realpath'ing ~/.claude/CLAUDE.md, which after cutover lands in releases/<sha> rather than a git worktree",
-        "scope": "c1",
+        "text": "Repoint protect-claude-config.sh at the LIVE receipt's repo_root in the cutover change — it finds the checkout by realpath, which after cutover lands inside a release rather than a git worktree, so the guard drops to a weaker textual match",
+        "scope": "c5",
         "refs": [
           ".claude/hooks/protect-claude-config.sh"
         ]
       },
       {
-        "text": "Decide in the cutover whether settings.json is a promoted symlink or a real live file — that guard's test demands the former while 0270 mandates the latter, which is why it fails locally and passes on CI where no live config exists",
-        "scope": "c1",
+        "text": "Correct the live ln -sfn grant explicitly — permissions.allow is unioned, so promotion preserves the wrong non-atomic link form instead of replacing it with the create-then-rename form",
+        "scope": "c5",
+        "refs": [
+          "scripts/config/manifest.mjs:28"
+        ]
+      },
+      {
+        "text": "Re-run the 0281 rehearsal against merged main before any live write — the green rehearsal validated 1e84dd1, which is no longer the sha that will ship",
+        "scope": "c5",
+        "refs": [
+          "a302e4c"
+        ]
+      },
+      {
+        "text": "Close every other claude session before the pointer swap — SPEC section 9 records that whether a swap reaches an already-running session is unmeasured, so any open session is an uncontrolled experiment on global config",
+        "scope": "c5",
+        "refs": [
+          "docs/superpowers/specs/2026-08-06-config-staging-live-promotion-SPEC.md"
+        ]
+      },
+      {
+        "text": "Decide whether settings.json is a promoted symlink or a real live file — that guard's test demands the former while 0270 mandates the latter, which is why it fails locally and passes on CI where no live config exists",
+        "scope": "c5",
         "refs": [
           ".claude/hooks/tests/protect-claude-config.test.mjs:194"
         ]
       },
       {
-        "text": "SPEC section 2 is stale against 0276 — it draws eleven entry links including notes, and acceptance criterion 10's diff must also exclude local/ or it fails for the wrong reason",
-        "scope": "c1",
+        "text": "Exclude local/ and notes from acceptance criterion 10's diff — SPEC section 2 is stale against 0276 and still draws eleven entry links including notes, so a literal diff fails for the wrong reason",
+        "scope": "c5",
         "refs": [
-          "docs/superpowers/specs/2026-08-06-config-staging-live-promotion-SPEC.md",
           "scripts/config/paths.mjs"
         ]
       },
       {
-        "text": "Never git checkout main in the primary checkout — live global config is 37 symlinks into that working tree, so switching branches hot-swaps every skill and hook under every running session",
+        "text": "Never git checkout main in the primary checkout — live global config is symlinked into that working tree, so switching branches hot-swaps every skill and hook under every running session",
         "scope": "thread",
         "refs": [
           "/Users/satanshumishra/Documents/DevLabs/.windful-ocean"
         ]
       },
       {
-        "text": "Serialize every write to a live-linked path, not just the cutover — the converge-hook registration reaches running sessions through the 26 hook symlinks, so a half-saved file breaks every session instantly",
+        "text": "Serialize every write to a live-linked path, not just the cutover — the converge registration reaches running sessions through the hook symlinks, so a half-saved file breaks every session instantly",
         "scope": "thread",
         "refs": [
           ".claude/hooks/"
         ]
       },
       {
-        "text": "Treat a green suite as no evidence the promote verb works in anger — it has no production caller until the converge hooks land, so it is exercised only by its own tests and scratch rehearsals",
+        "text": "The promote verb still has no production caller until the converge hooks are registered — a faithful scratch rehearsal now exercises it end to end, but nothing runs it in anger",
         "scope": "thread",
         "refs": [
           "scripts/config/promote.mjs"
@@ -228,5 +242,5 @@
     ]
   },
   "created_at": "2026-08-06T21:18:29.653Z",
-  "updated_at": "2026-08-08T02:28:34.262Z"
+  "updated_at": "2026-08-08T02:29:09.750Z"
 }
