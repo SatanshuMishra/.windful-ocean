@@ -288,6 +288,11 @@
         "ref": "0295-rollback-relocates-preserved-state-rather-than-synthesizing-it-from-the-journal",
         "title": "Rollback relocates state preserved on disk rather than synthesizing it from the journal, and authentication is rejected as the wrong axis",
         "scope": "c10"
+      },
+      {
+        "ref": "0296-hook-output-channel-follows-the-exit-code-not-the-event",
+        "title": "A hook's output channel follows its exit code rather than its event, because only the success path was being discarded",
+        "scope": "c3"
       }
     ],
     "out_of_scope": [
@@ -296,5 +301,5 @@
     ]
   },
   "created_at": "2026-08-06T21:18:29.653Z",
-  "updated_at": "2026-08-08T23:38:41.114Z"
+  "updated_at": "2026-08-08T23:54:27.831Z"
 }
