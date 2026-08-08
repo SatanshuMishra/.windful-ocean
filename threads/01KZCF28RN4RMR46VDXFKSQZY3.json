@@ -89,63 +89,6 @@
         ]
       },
       {
-        "text": "Build the entry-link swap before trusting any cutover — promote moves the current pointer but nothing creates the ten entry links, so a run today writes a LIVE receipt claiming a swap that never happened",
-        "scope": "c5",
-        "refs": [
-          "scripts/config/promote.mjs:54",
-          "scripts/config/paths.mjs:14"
-        ]
-      },
-      {
-        "text": "Treat the live symlink census as 38, not the 37 in SPEC 0.2 — it omits debug/, and hooks/ and rules/ are real directories holding 26 and 2 child links rather than top-level links the swap can simply retarget",
-        "scope": "c5",
-        "refs": [
-          "docs/superpowers/specs/2026-08-06-config-staging-live-promotion-SPEC.md"
-        ]
-      },
-      {
-        "text": "Repoint protect-claude-config.sh at the LIVE receipt's repo_root in the cutover change — it finds the checkout by realpath, which after cutover lands inside a release rather than a git worktree, so the guard drops to a weaker textual match",
-        "scope": "c5",
-        "refs": [
-          ".claude/hooks/protect-claude-config.sh"
-        ]
-      },
-      {
-        "text": "Correct the live ln -sfn grant explicitly — permissions.allow is unioned, so promotion preserves the wrong non-atomic link form instead of replacing it with the create-then-rename form",
-        "scope": "c5",
-        "refs": [
-          "scripts/config/manifest.mjs:28"
-        ]
-      },
-      {
-        "text": "Re-run the 0281 rehearsal against merged main before any live write — the green rehearsal validated 1e84dd1, which is no longer the sha that will ship",
-        "scope": "c5",
-        "refs": [
-          "a302e4c"
-        ]
-      },
-      {
-        "text": "Close every other claude session before the pointer swap — SPEC section 9 records that whether a swap reaches an already-running session is unmeasured, so any open session is an uncontrolled experiment on global config",
-        "scope": "c5",
-        "refs": [
-          "docs/superpowers/specs/2026-08-06-config-staging-live-promotion-SPEC.md"
-        ]
-      },
-      {
-        "text": "Decide whether settings.json is a promoted symlink or a real live file — that guard's test demands the former while 0270 mandates the latter, which is why it fails locally and passes on CI where no live config exists",
-        "scope": "c5",
-        "refs": [
-          ".claude/hooks/tests/protect-claude-config.test.mjs:194"
-        ]
-      },
-      {
-        "text": "Exclude local/ and notes from acceptance criterion 10's diff — SPEC section 2 is stale against 0276 and still draws eleven entry links including notes, so a literal diff fails for the wrong reason",
-        "scope": "c5",
-        "refs": [
-          "scripts/config/paths.mjs"
-        ]
-      },
-      {
         "text": "Never run git checkout main in the primary checkout — live global config is symlinked into that working tree, so switching branches hot-swaps every skill and hook under every running session",
         "scope": "thread",
         "refs": [
@@ -202,6 +145,56 @@
         "scope": "thread",
         "refs": [
           "~/.claude/rules/graphify-out/GRAPH_REPORT.md"
+        ]
+      },
+      {
+        "text": "Build the entry-link swap before trusting any cutover — promote moves the current pointer but nothing creates the ten entry links, so a run today writes a LIVE receipt claiming a swap that never happened",
+        "scope": "c5",
+        "refs": [
+          "scripts/config/promote.mjs:54",
+          "scripts/config/paths.mjs:14"
+        ]
+      },
+      {
+        "text": "Re-measure the live symlink census before the swap — an earlier count said 38 including debug/, this session measured 37, and the swap must be driven by a count taken at cutover time rather than either stale figure",
+        "scope": "c5",
+        "refs": [
+          "docs/superpowers/specs/2026-08-06-config-staging-live-promotion-SPEC.md"
+        ]
+      },
+      {
+        "text": "Repoint protect-claude-config.sh at the LIVE receipt's repo_root in the cutover change — it finds the checkout by realpath, which after cutover lands inside a release rather than a git worktree, so the guard drops to a weaker textual match",
+        "scope": "c5",
+        "refs": [
+          ".claude/hooks/protect-claude-config.sh"
+        ]
+      },
+      {
+        "text": "Withdraw the live ln -sfn grant through the mechanism 0288 adopted — permissions.allow is unioned, so without an active subtraction the wrong non-atomic link form survives every future promotion, not just the first",
+        "scope": "c5",
+        "refs": [
+          "scripts/config/manifest.mjs:28"
+        ]
+      },
+      {
+        "text": "Re-run the 0281 rehearsal against merged main before any live write — the green rehearsal validated 1e84dd1, which is no longer the sha that will ship",
+        "scope": "c5",
+        "refs": [
+          "a302e4c"
+        ]
+      },
+      {
+        "text": "Close every other claude session before the pointer swap — SPEC section 9 records that whether a swap reaches an already-running session is unmeasured, so any open session is an uncontrolled experiment on global config",
+        "scope": "c5",
+        "refs": [
+          "docs/superpowers/specs/2026-08-06-config-staging-live-promotion-SPEC.md"
+        ]
+      },
+      {
+        "text": "Exclude local/ and notes from acceptance criterion 10's diff — SPEC section 2 is stale against 0276 and still draws eleven entry links including notes, so a literal diff fails for the wrong reason",
+        "scope": "c5",
+        "refs": [
+          "scripts/config/paths.mjs"
         ]
       }
     ],
@@ -288,5 +281,5 @@
     ]
   },
   "created_at": "2026-08-06T21:18:29.653Z",
-  "updated_at": "2026-08-08T03:25:11.357Z"
+  "updated_at": "2026-08-08T03:25:44.984Z"
 }
