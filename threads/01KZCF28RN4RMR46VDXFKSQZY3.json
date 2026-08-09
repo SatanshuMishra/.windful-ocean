@@ -330,6 +330,11 @@
         "ref": "0297-fsmonitor-hardening-kept-after-measurement",
         "title": "The fsmonitor hardening is kept on all four git sites even though measurement showed none of them invoke it",
         "scope": "c10"
+      },
+      {
+        "ref": "0298-i6-guards-releases-and-current-as-whole-prefixes",
+        "title": "I6 guards releases and current as whole prefixes rather than the contract's narrower per-release subtree list",
+        "scope": "c10"
       }
     ],
     "out_of_scope": [
@@ -338,5 +343,5 @@
     ]
   },
   "created_at": "2026-08-06T21:18:29.653Z",
-  "updated_at": "2026-08-09T01:48:11.078Z"
+  "updated_at": "2026-08-09T01:48:30.910Z"
 }
