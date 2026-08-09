@@ -1,0 +1,22 @@
+Ran the invariant deep-dive the thread's next step demanded (audit, explain, honest verdict), then fanned out three subagent lanes on explicit user instruction to implement every recommendation.
+
+AUDIT (step 1). Opened every load-bearing domain constant cited by the two 2026-08-09 artifacts, across two trees. Roughly 40 citations verified exact. Decision 0302's premise fully confirmed by reading: shortSha is String(sha).slice(0,8) at cutover.mjs:62, SHA_PATTERN is 40 hex at paths.mjs:37, so no total function exists from record.sha to the aside namespace. B4's headline confirmed: POLICY_LISTS at workflow-sandbox.mjs:70 names four, B4 names three, BOUND_DENIALS at :45 is the omitted member. Four findings against the corrective artifacts themselves, written to artifacts/2026-08-10-invariant-deep-dive-audit.md.
+
+F1: I5a's proposed GUARDED_ENTRY_NAMES spreads PROMOTED_ENTRIES (10) where the vocabulary is CUTOVER_ENTRIES (11), so notes gets no lexical floor; also omits CURRENT_TMP_LINK and duplicates two literals already in PROMOTED_ENTRIES.
+F2: LINK_WRITE_KINDS (cutover.mjs:70) hand-lists 3 of the 6 kinds cutoverWritePaths emits (:104-117); containmentFor (:72-73) branches on that membership. Named by neither artifact.
+F3: 0302's correction lived only in the decision record; the contract still carried the uncorrected clause.
+F4: three proposed names for one overlapping guarded-config set, because the two lanes were disjoint.
+
+VERDICT (step 3). Necessary, not sufficient. The shape earned its keep - 0302 is a real catch no prose review made - but it RELOCATES the enumeration into the choice of which constant the domain points at, has no witness of its own, and its corrections leak. Recorded as decision 0303: round 6's exit condition becomes a green witness plus a green meta-witness, with review as a second opinion rather than the oracle. The review-returns-SHIP exit condition IS the loop.
+
+FAN-OUT. Three lanes, partitioned so none could collide on a live-linked path per decision 0275. Lane 1 (artifacts, no repo writes), Lane 2 (isolated cutover worktree), Lane 3 (sole writer of scripts/, docs/invariants/ and the one live test dir). All three completed.
+
+Lane 1 corrected F1 through F4 in both artifacts and found a THIRD site for F3 that the audit missed - the aside-required bullet in I3a carried the identical record.sha derivation. F4 collapsed to one name, GUARDED_CONFIG_ENTRIES, homed in scripts/config/paths.mjs; it honestly flagged as unverified whether M6's set is the same set or a subset.
+
+Lane 2 shipped the CRITICAL fix on feat/config-entry-link-cutover, two commits, not pushed, no PR. Masking test observed RED (rolled-back where error expected) then GREEN. Derivation totality verified end to end: journal.sha gated to 40 hex on every call site, shortSha slices to 8, name gated by isCutoverEntry to eleven literals; old record.sha-keyed recordAside deleted, confirmed by grep. Six mutation probes prove each map load-bearing, including a glob mutant caught by the permit-set half. 168/168 in scripts/config; other four suites explicitly NOT run and not claimed.
+
+Lane 3 shipped the witness field (commit a4f0d41) and the meta-witness (14ffb32). Both acceptance instances RED as required, naming BOUND_DENIALS exactly. Negative control held - 11 deny-case corpora correctly not flagged. It caught its own over-strong first draft (68 candidates including 23 from its own new scripts) and narrowed to comparison-against-production, landing at 52 with zero waivers. All 17 registry ids declared in UNWITNESSED_IDS, which is the honest state. No CI wiring added, so the check is inert and breaks nothing.
+
+THE MEASUREMENT. 17 invariants registered, 0 witnessed, roughly 52 real closed vocabularies across 141 tracked files that a production surface actually compares against. This corrects an estimate I gave the user mid-session of 15-25 real invariants. The registry currently quantifies over none of the vocabularies that exist.
+
+NOT DONE. Step 4 of the plan - registry deletions and relocating the rule-shaped statements into the rule files that own them - was never dispatched: it collided with Lane 3 on registry.json and needed the witness field to land first. That ordering is now satisfied. Nothing pushed, no PR opened, no CI wired.
