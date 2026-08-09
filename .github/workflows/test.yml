@@ -2,6 +2,7 @@ name: test
 
 on:
   push:
+    branches: [main]
   pull_request:
     types:
       - opened
@@ -21,6 +22,7 @@ jobs:
       - run: node .claude/lib/superpowers-parallel/mitosis-gate.mjs phase-parity
 
   invariant-coverage:
+    if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5  # v4.3.1
@@ -29,4 +31,7 @@ jobs:
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020  # v4.4.0
         with:
           node-version: '26.x'
-      - run: node scripts/invariant-coverage-check.mjs
+      - env:
+          EVENT_NAME: ${{ github.event_name }}
+          BASE_REF: ${{ github.base_ref }}
+        run: node scripts/invariant-coverage-check.mjs --event "$EVENT_NAME" --base-ref "$BASE_REF"

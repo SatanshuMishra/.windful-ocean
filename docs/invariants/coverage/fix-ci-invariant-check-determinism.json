@@ -1,0 +1,89 @@
+{
+  "rows": [
+    {
+      "id": "B1",
+      "verdict": "not-threatened",
+      "check": "Checked by running the greps, not asserted. The range a302e4c..7461073 is exactly two paths: `git diff --name-status` returns `A .claude/lib/superpowers-parallel/tests/ci-invariant-wiring.test.mjs` and `M .github/workflows/test.yml`, 205 insertions and 1 deletion. `git diff --name-only a302e4c HEAD | grep -Ei 'sandbox|hooks/|rules/|settings|registry\\.json|invariant-coverage-check|package\\.json|pr\\.mjs|threat-model'` matched nothing, so workflow-sandbox.mjs — the only module that constructs the realm — is absent. A CONTENT grep of the whole diff for `DONT_CONTEXTIFY|createContext|runInContext|node:vm|SandboxViolationError|VALUE_GLOBALS|ALWAYS_DENIED|ALLOWED_GLOBALS` returns 0 matches. The new file's only host access is `readFileSync` of the workflow YAML (ci-invariant-wiring.test.mjs:3, :130); it is a node:test file run as its own process and is never compiled into or evaluated inside the sandbox realm."
+    },
+    {
+      "id": "B2",
+      "verdict": "not-threatened",
+      "check": "Same two-path diff and the same 0-match content grep recorded under B1 cover SandboxViolationError specifically. No proxy trap, ownKeys filter, freeze or seal is touched, so no denial path changes shape and no tagged violation can degrade into an untagged host error a workflow could catch as its own. The added file throws only through node:assert/strict inside its own test process (ci-invariant-wiring.test.mjs:2), and through two explicit `new Error` parse failures at :89 and :125 that are raised at module load in the test process, never on a sandbox path."
+    },
+    {
+      "id": "B3",
+      "verdict": "not-threatened",
+      "check": "Guarded-intrinsic membership lives in workflow-sandbox.mjs, absent from the diff. The real risk here is DE-COLLECTION, not edit, because this change alters WHEN CI runs tests, so I checked both halves. (1) Collection: package.json is not in the diff, and its test script — read live — is `node --test .claude/lib/superpowers-parallel/tests/*.test.mjs .claude/lib/git/tests/*.test.mjs .claude/hooks/tests/*.test.mjs .claude/skills/impeccable/tests/*.test.mjs scripts/config/tests/*.test.mjs`. Expanding the first glob in this tree lists workflow-sandbox.test.mjs, workflow-sandbox-census.test.mjs, workflow-sandbox-policy.test.mjs and workflow-sandbox-traps.test.mjs, so every denial-membership suite is still collected (and the new ci-invariant-wiring.test.mjs is collected by that same glob). (2) Execution: the `test` job at .github/workflows/test.yml:14-22 carries no `if`, so it still runs on every pull_request and on every push to main. What it no longer runs on is a push to a non-main branch, because `on.push` is now filtered at :5 to `branches: [main]`. Stated plainly: a feature-branch push with no open PR no longer runs npm test in CI; every pull_request run and every main push still does, so no commit reaches main without these suites executing."
+    },
+    {
+      "id": "B4",
+      "verdict": "not-threatened",
+      "check": "VALUE_GLOBALS, ALWAYS_DENIED and ALLOWED_GLOBALS are declared in workflow-sandbox.mjs, which is not among the two changed paths, and the diff-content grep recorded under B1 returns 0 occurrences of all three names. Their load-bearing proof is workflow-sandbox-policy.test.mjs, untouched and — per the glob expansion recorded under B3 — still collected by an unmodified package.json test script. Nothing here empties, shrinks or bypasses a policy constant, and the CI trigger narrowing recorded under B3 does not remove that suite from any run that precedes a merge to main."
+    },
+    {
+      "id": "B5",
+      "verdict": "not-threatened",
+      "check": "workflow-sandbox-census.test.mjs is not in the diff, so no census row is added, removed or reclassified and no new host-reachable identifier enters the workflow-body position. The only plausible threat was the census silently ceasing to run, since this change edits CI triggers; I checked that specifically rather than inferring it: package.json is absent from the diff, its first test glob still expands to workflow-sandbox-census.test.mjs in the live tree, and the `test` job that invokes npm test is ungated (.github/workflows/test.yml:14-22) on both surviving triggers. The census still runs on every pull_request and every push to main, and still halts on an unclassified identifier."
+    },
+    {
+      "id": "B6",
+      "verdict": "not-threatened",
+      "check": "The production caller is intact and was read live: mitosis-gate.mjs:1 is `import { compileWorkflow } from './workflow-sandbox.mjs';`. mitosis-gate.mjs is not in the diff. This change adds one test file, and that file imports nothing from the harness — its imports are node:test, node:assert/strict, node:fs and node:url (ci-invariant-wiring.test.mjs:1-4) — so it creates no new lint-artifact reference that could be mistaken for liveness. The phase-parity gate that exercises mitosis-gate.mjs still runs on both surviving triggers (.github/workflows/test.yml:22, in the ungated `test` job)."
+    },
+    {
+      "id": "M1",
+      "verdict": "not-threatened",
+      "check": "Satisfied by this artifact, concretely. This file records a verdict and a check for all 17 ids in docs/invariants/registry.json — B1-B6, M1-M6 and G1-G5 — in a committed in-repo artifact, not in the PR body, which states no invariant verdict. The enforcing line is scripts/invariant-coverage-check.mjs:212-214, which fails any pull-request run where no file under docs/invariants/coverage/ was added or modified between base and HEAD; I ran `node scripts/invariant-coverage-check.mjs --event pull_request --base-ref main` BEFORE writing this file and it exited 1 with exactly that message, so the obligation was real and unmet. Set-equality against the registry is enforced at :135 and :140, gated by the per-entry `completeness` flag computed at :265. Filename follows the branch-derived convention (fix/ci-invariant-check-determinism -> fix-ci-invariant-check-determinism.json), matching the 31 pre-existing entries."
+    },
+    {
+      "id": "M2",
+      "verdict": "threatened",
+      "check": "Engaged and answered in two parts; the second part is why this row is threatened rather than clean. PART ONE, the reachability question: gating the job to pull_request opens no new path to main. A PR merged to main fires pull_request first, where the job runs and completeness IS enforced. A direct push to main was ALREADY completeness-free before this change, which I proved by execution rather than by reading: I checked out origin/main in a throwaway detached worktree and ran the checker against it in push mode, and it exited 0 reporting `completeness: scoped to 0 entries changed since origin/main` (merge-base equals HEAD there, so the touched-entry set at :265 is empty and :135 leaves `missing` empty for every entry). What the push path DOES lose is per-entry shape validation, which previously ran on every push; the always-run `node scripts/invariant-shape-check.mjs` step that would restore it is deliberately deferred, because that script does not exist here or on origin/main (`git ls-tree -r --name-only origin/main | grep -c invariant-shape-check` returned 0; it appears only on the unmerged commit 14ffb32, which `git branch -a --contains` places solely on feat/invariant-inert-registry), so adding the step would red every run. PART TWO, the census question, which is the threat: the new test classifies workflow steps and run-line tokens, so it is itself a gate M2 governs. Its site census is closed and halts correctly — `assert.equal(sites.length, 1, ...)` at ci-invariant-wiring.test.mjs:136 refuses to proceed when the number of checker invocation sites is not exactly one, which makes the guard assertions exhaustive rather than sampled, and I confirmed by grep that .github/workflows/test.yml is the only workflow referencing the checker. But SCOPE_FLAGS at :10 is a hand-maintained `['--event', '--base-ref']`, a restatement of a subset of the checker's own FLAGS at scripts/invariant-coverage-check.mjs:13 (`['--root', '--event', '--base-ref']`) rather than a derivation from it. Today the sample happens to be complete, since --root is not a CI scope input (the checker defaults it at :252) — but nothing halts if the checker grows a fourth scope-bearing input, so the test would silently keep checking two flags. That is the sampled allowlist M2 forbids. Mitigation, not yet applied: derive the checked flag set from the checker's exported FLAGS so an unclassified scope input halts. Named here rather than fixed, because closing it means changing the checker's export surface, which is outside this unit."
+    },
+    {
+      "id": "M3",
+      "verdict": "not-threatened",
+      "check": "The receipt exists and every number below was produced by running it in this worktree, not copied. GREEN HERE: `node --test .claude/lib/superpowers-parallel/tests/ci-invariant-wiring.test.mjs` reports tests 3, pass 3, fail 0. RED ON PARENT: I added a throwaway detached worktree at a302e4c, copied only the test file in, and ran the same command there — tests 3, pass 0, fail 3, all three assertions red; the worktree was then removed and `git worktree list` no longer lists it and the path is gone. INERTNESS, three mutations applied to the live workflow one at a time, each run and then reverted with `git checkout --` and `git status --short` confirmed empty: deleting `branches: [main]` reds test 1 only (2 pass, 1 fail); deleting the job-level `if` at :25 reds test 2 only; collapsing the step `env` back into a `${{ }}` interpolation on the run line reds test 3 only. Each mutation reds exactly the assertion that owns it, so no assertion is inert and none is carrying another's weight. THE LIMITATION, stated rather than glossed: the reported symptom is a GitHub Actions trigger-scheduling property — the same commit being checked twice, as pull_request and as push, on two machines under two diff scopes that can disagree — and no local test can observe GitHub scheduling a run. So this receipt does not assert the symptom directly; it asserts the three committed configuration properties whose absence produced it (push filtered to main at :5, the event_name guard at :25, env-borne scope arguments at :34-37). A reviewer should read it as pinning the fix's mechanism, not as reproducing the outage."
+    },
+    {
+      "id": "M4",
+      "verdict": "not-threatened",
+      "check": "This range mixes nothing. `git diff --name-status a302e4c HEAD` returns one `A` and one `M` and no `R`, so there is no rename, no move and no structural relocation anywhere in the range; the second file is a new test that has no prior version to characterize. The modification is three property changes in one 37-line workflow file (+7/-1 by `git diff --stat`), all of them behavior in the same direction — when and how the coverage gate runs. With no refactor present, M4's precondition for requiring a prior characterization test never arises."
+    },
+    {
+      "id": "M5",
+      "verdict": "not-threatened",
+      "check": "Every path:line in this file was re-derived by reading the live tree while writing it, and none was copied from the task brief or from another coverage entry. Re-derived here today: .github/workflows/test.yml:5 is `branches: [main]`, :14-22 is the ungated `test` job ending in the phase-parity run at :22, :25 is `if: github.event_name == 'pull_request'`, :34-37 is the `env:` block carrying EVENT_NAME and BASE_REF plus the run line that passes them as `\"$EVENT_NAME\"` and `\"$BASE_REF\"`. scripts/invariant-coverage-check.mjs:13 is the FLAGS constant, :135 and :140 are the completeness/missing computation, :212-214 is the no-coverage-file failure, :252-254 are the --root, --event and --base-ref defaults, :265 is the scopedFiles filter. ci-invariant-wiring.test.mjs:1-4 are its four node: imports, :10 is SCOPE_FLAGS, :13 is PULL_REQUEST_GUARD, :89 and :125 are its two `new Error` throws, :130 is the readFileSync call, :136 is the exactly-one-site assertion, :153-157 is the deepEqual on push.branches, :176-180 is the interpolation assertion. mitosis-gate.mjs:1 is the compileWorkflow import."
+    },
+    {
+      "id": "M6",
+      "verdict": "not-threatened",
+      "check": "Inspected, not assumed. The artifact that enforces this gate is .github/workflows/test.yml itself, which GitHub reads from the committed source at the run's SHA; there is no build step, no vendored bundle and no deployed copy between source and enforcement, so a hand-patched deployed file is structurally impossible for it. I checked for a divergent second copy rather than assuming one does not exist: `.github/workflows/` holds exactly labeler.yml, security.yml and test.yml, and a tree-wide grep for `invariant-coverage-check` outside docs/invariants/coverage/ returns only scripts/invariant-coverage-check.mjs, its two test files, one spec under docs/superpowers/specs/, and .github/workflows/test.yml — one workflow, one invocation site, consistent with the exactly-one-site assertion at ci-invariant-wiring.test.mjs:136. The checker the workflow invokes is likewise plain committed source executed by node at the checked-out SHA."
+    },
+    {
+      "id": "G1",
+      "verdict": "not-threatened",
+      "check": "Verified by running the greps over the diff, not by assuming a CI change is inert. `git diff --name-only a302e4c HEAD` returns exactly two paths and matched nothing against `hooks/|rules/|settings|threat-model`, so .claude/hooks/block-destructive-bash.sh, .claude/settings.json and docs/security/bash-gate-threat-model.md are all absent from the range and every merge denial they carry is untouched. A content grep of the whole diff for `\\bgh (pr|api)\\b|curl |wget |mergePullRequest|enablePullRequestAutomerge|create_pull_request|npm publish|ssh ` returns no match, so this change introduces no merge-capable invocation of any kind. The workflow adds no `permissions:` block and no token usage; its one new command is `node scripts/invariant-coverage-check.mjs`, a local read-only script."
+    },
+    {
+      "id": "G2",
+      "verdict": "not-threatened",
+      "check": "Same two-path diff and the same no-match content grep recorded under G1 cover the title/body edit surface: no `gh pr edit`, no `gh api --method PATCH`, no GraphQL mutation and no MCP call appears anywhere in the range, and the deny lists that block them (.claude/hooks/block-destructive-bash.sh, .claude/settings.json) are not in the diff. Nothing in this change reads, composes or rewrites a pull request title or body; the workflow's `pull_request` trigger includes the `edited` type at .github/workflows/test.yml:11, but that only causes the gate to RE-RUN when a title is edited by a human, it performs no edit."
+    },
+    {
+      "id": "G3",
+      "verdict": "not-threatened",
+      "check": "The centralized pr-create path is untouched: .claude/lib/git/pr.mjs is absent from the two-path diff (the `pr\\.mjs` term in the path grep recorded under B1 matched nothing), as are the hook and settings deny lists. The no-match content grep recorded under G1 explicitly covered `gh pr`, `gh api` and `create_pull_request`, so this change introduces no PR-creation route of any kind. This branch's own pull request is not opened by this unit and remains subject to the same gate."
+    },
+    {
+      "id": "G4",
+      "verdict": "not-threatened",
+      "check": "Checked by path, not by intent. No guardrail file is in the range: the path grep over `git diff --name-only a302e4c HEAD` matched nothing for `hooks/`, `rules/`, `settings` or `threat-model`, and both guardrail artifacts are present and unmodified in the live tree (.claude/hooks/block-destructive-bash.sh, 10771 bytes; docs/security/bash-gate-threat-model.md, 28779 bytes). The change removes, overwrites and relocates nothing — it adds one file and edits one workflow. The one deletion in the range is the single `- run:` line the env-borne step replaces, inside .github/workflows/test.yml, which is not a guardrail file."
+    },
+    {
+      "id": "G5",
+      "verdict": "not-threatened",
+      "check": "Engaged rather than waved past, because this change does add a command line with arguments. The added command is `node scripts/invariant-coverage-check.mjs --event \"$EVENT_NAME\" --base-ref \"$BASE_REF\"` at .github/workflows/test.yml:37 — `node` is not a named network command, and neither argument is file-reference-shaped: both are double-quoted shell variables sourced from the step `env` at :35-36, which the test enforces at ci-invariant-wiring.test.mjs:189-197 (the value must match a quoted-shell-variable pattern AND be declared in the step env or be a GITHUB_ built-in, otherwise it expands empty and the check silently falls back to push mode). The no-match content grep recorded under G1 confirms the range introduces no curl, wget, ssh, gh or npm publish invocation. This change moves values OUT of `${{ }}` run-line interpolation into env, which narrows rather than widens the injection surface — the property asserted at ci-invariant-wiring.test.mjs:176-180."
+    }
+  ]
+}
