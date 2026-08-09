@@ -368,6 +368,11 @@
         "ref": "0306-ci-checks-split-by-determinism",
         "title": "The invariant checks split by determinism: the diff-independent check always gates, the diff-dependent one runs only on pull requests",
         "scope": "thread"
+      },
+      {
+        "ref": "0307-three-guard-lists-stay-separate",
+        "title": "The two production guard sets stay separate and the test-local hand-list derives from them; GUARDED_CONFIG_ENTRIES is not implemented",
+        "scope": "c10"
       }
     ],
     "out_of_scope": [
@@ -376,5 +381,5 @@
     ]
   },
   "created_at": "2026-08-06T21:18:29.653Z",
-  "updated_at": "2026-08-09T20:48:00.936Z"
+  "updated_at": "2026-08-09T20:48:17.327Z"
 }
