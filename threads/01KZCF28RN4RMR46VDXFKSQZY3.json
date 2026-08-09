@@ -325,6 +325,11 @@
         "ref": "0296-hook-output-channel-follows-the-exit-code-not-the-event",
         "title": "A hook's output channel follows its exit code rather than its event, because only the success path was being discarded",
         "scope": "c3"
+      },
+      {
+        "ref": "0297-fsmonitor-hardening-kept-after-measurement",
+        "title": "The fsmonitor hardening is kept on all four git sites even though measurement showed none of them invoke it",
+        "scope": "c10"
       }
     ],
     "out_of_scope": [
@@ -333,5 +338,5 @@
     ]
   },
   "created_at": "2026-08-06T21:18:29.653Z",
-  "updated_at": "2026-08-08T23:55:40.174Z"
+  "updated_at": "2026-08-09T01:48:11.078Z"
 }
