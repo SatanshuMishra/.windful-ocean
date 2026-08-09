@@ -353,6 +353,11 @@
         "ref": "0303-round-6-exit-condition-is-a-green-witness-not-a-ship-review",
         "title": "Round 6 exits on a green witness plus a green meta-witness, not on a review returning SHIP",
         "scope": "c10"
+      },
+      {
+        "ref": "0304-census-admission-rule-two-clauses",
+        "title": "A closed vocabulary enters the census only if we own the code and production branches on the value, and an exclusion downgrades rather than deletes",
+        "scope": "thread"
       }
     ],
     "out_of_scope": [
@@ -361,5 +366,5 @@
     ]
   },
   "created_at": "2026-08-06T21:18:29.653Z",
-  "updated_at": "2026-08-09T17:56:55.900Z"
+  "updated_at": "2026-08-09T20:47:18.990Z"
 }
