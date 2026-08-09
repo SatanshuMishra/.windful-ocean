@@ -391,6 +391,11 @@
         "ref": "0299-round5-blocked-by-four-lane-review",
         "title": "Round 5 is BLOCKED, and two of its five blocking findings are regressions the round itself introduced",
         "scope": "c10"
+      },
+      {
+        "ref": "0300-i3-splits-into-symmetric-corroboration-and-a-consumption-gate",
+        "title": "I3 splits into symmetric corroboration plus a derivable-aside consumption gate, and the fourth proposed remedy is rejected as destructive",
+        "scope": "c10"
       }
     ],
     "out_of_scope": [
@@ -399,5 +404,5 @@
     ]
   },
   "created_at": "2026-08-06T21:18:29.653Z",
-  "updated_at": "2026-08-09T02:41:52.122Z"
+  "updated_at": "2026-08-09T03:00:02.157Z"
 }
