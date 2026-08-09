@@ -84,9 +84,9 @@
   "abandoned_reason": null,
   "closure_statement": null,
   "spine": {
-    "active_goal": "Close c10 by getting an independent review to return SHIP on the round-5 implementation, then land the PR, rehearse, and perform the live cutover.",
-    "next_step": "START HERE FRESH. Round 5 is implemented and GREEN (full suite 2159/2159) but UNCOMMITTED in the spec-a-cutover worktree, on a branch still at origin/main. Run the FRESH independent review to SHIP, handing it the ten residuals listed in the 2026-08-09 session log so it does not rediscover them. Then step 10 (re-derive the coverage JSON), commit, ONE PR via pr.mjs, merge, re-run install-bootstrap, rehearse per 0281 against merged main, register converge live, swap alone per 0292.",
-    "last_session": "Implemented contract steps 1 through 9 across three parallel fenced lanes, verified every contract anchor against the tree first, took the full suite to 2159 of 2159, recorded 0297 and 0298; ran no review and committed nothing.",
+    "active_goal": "Close c10 by making the invariants enforceable rather than merely written, then get a review to SHIP on a round-6 fix scoped to the corrected properties.",
+    "next_step": "START HERE FRESH. Invariant deep-dive, in order; do NOT start round 6 before step 3. (1) AUDIT this session's two artifacts dated 2026-08-09 against 0301's four-part shape, verifying EVERY cited domain constant by opening it - 0302 exists because an adopted clause named a derivation that cannot be computed. (2) EXPLAIN every present invariant in plain words. (3) Report HONESTLY whether this is sufficient to stop the verification failures, or only necessary.",
+    "last_session": "Ran the four-lane review, got BLOCK with 1 CRITICAL and 4 HIGH including two regressions round 5 introduced, killed a destructive proposed remedy via a permit-set check, then diagnosed the five-round loop and re-graded every invariant in the system.",
     "open_risks": [
       {
         "text": "Review round 3 before trusting any of it — it is the only unreviewed round, it rewrote the containment model, the rollback contract and the grant reporting, and two of the three reviewed rounds returned BLOCK",
@@ -414,5 +414,5 @@
     ]
   },
   "created_at": "2026-08-06T21:18:29.653Z",
-  "updated_at": "2026-08-09T05:43:05.524Z"
+  "updated_at": "2026-08-09T05:44:01.459Z"
 }
