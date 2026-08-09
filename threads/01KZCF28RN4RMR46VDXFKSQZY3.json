@@ -373,6 +373,11 @@
         "ref": "0307-three-guard-lists-stay-separate",
         "title": "The two production guard sets stay separate and the test-local hand-list derives from them; GUARDED_CONFIG_ENTRIES is not implemented",
         "scope": "c10"
+      },
+      {
+        "ref": "0308-aside-name-carries-its-release",
+        "title": "The aside name carries its release identity, resolving the cross-release case rather than accepting it as a residual",
+        "scope": "c10"
       }
     ],
     "out_of_scope": [
@@ -381,5 +386,5 @@
     ]
   },
   "created_at": "2026-08-06T21:18:29.653Z",
-  "updated_at": "2026-08-09T20:48:17.327Z"
+  "updated_at": "2026-08-09T20:48:32.232Z"
 }
