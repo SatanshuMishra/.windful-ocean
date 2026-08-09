@@ -84,9 +84,9 @@
   "abandoned_reason": null,
   "closure_statement": null,
   "spine": {
-    "active_goal": "Close c10 by making the invariants executable rather than written, then settle five open questions before any further implementation.",
-    "next_step": "START HERE FRESH. Read artifacts/2026-08-10-open-questions-for-round-6.md, then PRESENT all five questions to the user in plain words WITH the recommendation stated for each, and STOP. Do not implement any of them, do not push, do not open a PR. The three fan-out lanes are complete and committed; nothing waits on more code.",
-    "last_session": "Audited the two invariant artifacts against 0301's four-part shape, found four defects inside the cure itself, then fanned out three lanes that landed the CRITICAL fix, the registry witness field and the meta-witness.",
+    "active_goal": "Make the invariant machinery enforce rather than describe, then land the five answered round-6 questions in the recorded order, CI first and witnesses last.",
+    "next_step": "START HERE FRESH. The five round-6 questions are ANSWERED - do not re-present them. Read 0304-0308 first, then execute in order: (0) fix .github/workflows/test.yml per 0306; (1) Q4 deletions, sole writer under .claude/rules/; (2) census admission rule per 0304; (3) wire invariant-shape-check.mjs and ratchet UNWITNESSED_IDS; (4) I3a permit-set as a fixture per 0305; (5) guard-list fix per 0307; (6) aside naming per 0308; (7) witnesses last.",
+    "last_session": "Presented and then re-explained the five round-6 questions from zero; the user answered all five, three follow-ups changed scope, five decisions were recorded and no code was written.",
     "open_risks": [
       {
         "text": "Review round 3 before trusting any of it — it is the only unreviewed round, it rewrote the containment model, the rollback contract and the grant reporting, and two of the three reviewed rounds returned BLOCK",
@@ -136,6 +136,34 @@
         "scope": "c5",
         "refs": [
           "docs/invariants/coverage/feat-config-entry-link-cutover.json"
+        ]
+      },
+      {
+        "text": "Amend the contract to match the code on I3a, never tighten the code — the implementation deliberately allows a missing aside for a run that failed after writing its journal, which is the likeliest real failure, and a review lane reading the stricter sentence will file the gap as a finding",
+        "scope": "c10",
+        "refs": [
+          "artifacts/2026-08-10-open-questions-for-round-6.md"
+        ]
+      },
+      {
+        "text": "Decide the census scope before wiring the new shape check into CI — it reports 52 findings with zero waivers today, so wiring it as-is turns every commit red and the check gets switched off instead of fixed",
+        "scope": "c10",
+        "refs": [
+          "scripts/invariant-shape-check.mjs"
+        ]
+      },
+      {
+        "text": "Build nothing against GUARDED_CONFIG_ENTRIES until its home and its membership are settled — it sits in a file that exists only on the cutover branch while two of its three consumers live on another, and whether all three need the same set is unverified",
+        "scope": "c10",
+        "refs": [
+          "scripts/config/paths.mjs"
+        ]
+      },
+      {
+        "text": "Read every registry green as proving coverage only, never that an invariant holds — all 17 registered ids are declared unwitnessed, so nothing in CI evaluates any invariant property yet",
+        "scope": "c10",
+        "refs": [
+          "scripts/invariant-coverage-check.mjs"
         ]
       },
       {
@@ -215,31 +243,24 @@
         ]
       },
       {
-        "text": "Amend the contract to match the code on I3a, never tighten the code — the implementation deliberately allows a missing aside for a run that failed after writing its journal, which is the likeliest real failure, and a review lane reading the stricter sentence will file the gap as a finding",
-        "scope": "c10",
+        "text": "Treat the round-6 open-questions artifact as superseded, not as instructions — it names a constant GUARDED_CONFIG_ENTRIES that exists nowhere, and its Q3 wording reads as licence to amend the permit-set in prose; 0305 and 0307 govern instead",
+        "scope": "thread",
         "refs": [
           "artifacts/2026-08-10-open-questions-for-round-6.md"
         ]
       },
       {
-        "text": "Decide the census scope before wiring the new shape check into CI — it reports 52 findings with zero waivers today, so wiring it as-is turns every commit red and the check gets switched off instead of fixed",
-        "scope": "c10",
+        "text": "Fix the CI workflow before any other step, per 0306 — it passes no event or base ref and runs every PR commit twice under different diff scopes, so until it is fixed every later change will look intermittently broken for reasons unrelated to it",
+        "scope": "thread",
         "refs": [
-          "scripts/invariant-shape-check.mjs"
+          ".github/workflows/test.yml:32"
         ]
       },
       {
-        "text": "Build nothing against GUARDED_CONFIG_ENTRIES until its home and its membership are settled — it sits in a file that exists only on the cutover branch while two of its three consumers live on another, and whether all three need the same set is unverified",
-        "scope": "c10",
+        "text": "Land the I3a permit-set amendment as a materialized fixture, never as a sentence, per 0305 — a prose permit-set is merely the next drift surface, and amending the wording alone re-runs the loop that consumed five rounds",
+        "scope": "thread",
         "refs": [
-          "scripts/config/paths.mjs"
-        ]
-      },
-      {
-        "text": "Read every registry green as proving coverage only, never that an invariant holds — all 17 registered ids are declared unwitnessed, so nothing in CI evaluates any invariant property yet",
-        "scope": "c10",
-        "refs": [
-          "scripts/invariant-coverage-check.mjs"
+          "artifacts/2026-08-09-cutover-invariants-v2.md"
         ]
       }
     ],
@@ -386,5 +407,5 @@
     ]
   },
   "created_at": "2026-08-06T21:18:29.653Z",
-  "updated_at": "2026-08-09T20:48:32.232Z"
+  "updated_at": "2026-08-09T20:49:44.611Z"
 }
