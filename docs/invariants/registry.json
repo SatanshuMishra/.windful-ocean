@@ -55,6 +55,12 @@
       "id": "B4",
       "statement": "Every named policy constant (VALUE_GLOBALS, ALWAYS_DENIED, ALLOWED_GLOBALS) is load-bearing: emptying it turns at least one assertion red.",
       "source": "docs/superpowers/specs/2026-07-30-two-track-invariant-plan.md",
+      "domain": {
+        "path": ".claude/lib/superpowers-parallel/workflow-sandbox.mjs",
+        "line": 70,
+        "constant": "POLICY_LISTS",
+        "members": ["VALUE_GLOBALS", "ALWAYS_DENIED", "ALLOWED_GLOBALS"]
+      },
       "inert_when": {
         "paths": [
           ".claude/hooks/block-destructive-bash.sh",
