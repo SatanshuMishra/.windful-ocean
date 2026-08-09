@@ -396,6 +396,11 @@
         "ref": "0300-i3-splits-into-symmetric-corroboration-and-a-consumption-gate",
         "title": "I3 splits into symmetric corroboration plus a derivable-aside consumption gate, and the fourth proposed remedy is rejected as destructive",
         "scope": "c10"
+      },
+      {
+        "ref": "0301-an-invariant-is-a-quantifier-over-a-closed-code-constant",
+        "title": "An invariant is a quantifier over a closed code constant with a permit-set and an executable witness; anything else is a rule and leaves the contract",
+        "scope": "thread"
       }
     ],
     "out_of_scope": [
@@ -404,5 +409,5 @@
     ]
   },
   "created_at": "2026-08-06T21:18:29.653Z",
-  "updated_at": "2026-08-09T03:00:02.157Z"
+  "updated_at": "2026-08-09T05:42:46.500Z"
 }
