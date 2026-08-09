@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { mkdtempSync, mkdirSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -19,12 +19,38 @@ function makeRoot(prefix) {
   return root;
 }
 
-function writeRegistry(root, ids) {
-  const invariants = ids.map((id) => ({
-    id,
-    statement: `${id} fixture statement`,
-    source: 'fixture-plan.md',
-  }));
+const WITNESS_RELPATH = 'fixtures/witness.mjs';
+const WITNESS_ENTRY = 'holds';
+const WITNESS_TITLE = 'the fixture witness iterates its domain';
+const FIXTURE_WITNESS = `${WITNESS_RELPATH}#${WITNESS_ENTRY}`;
+
+function writeWitnessModule(root) {
+  writeFileAt(root, WITNESS_RELPATH, [
+    "import { test } from 'node:test';",
+    '',
+    `export function ${WITNESS_ENTRY}() {`,
+    '  return true;',
+    '}',
+    '',
+    `test('${WITNESS_TITLE}', () => {`,
+    `  ${WITNESS_ENTRY}();`,
+    '});',
+    '',
+  ].join('\n'));
+}
+
+function writeRegistry(root, ids, inertWhen = {}, witnesses = {}) {
+  writeWitnessModule(root);
+  const invariants = ids.map((id) => {
+    const witness = witnesses[id] === undefined ? FIXTURE_WITNESS : witnesses[id];
+    return {
+      id,
+      statement: `${id} fixture statement`,
+      source: 'fixture-plan.md',
+      ...(witness === null ? {} : { witness }),
+      ...(inertWhen[id] === undefined ? {} : { inert_when: inertWhen[id] }),
+    };
+  });
   writeFileSync(join(root, REGISTRY_RELPATH), `${JSON.stringify({ invariants }, null, 2)}\n`);
 }
 
@@ -32,9 +58,28 @@ function rowsFor(ids) {
   return ids.map((id) => ({ id, verdict: 'not-threatened', check: `fixture check for ${id}` }));
 }
 
+function inertRow(id, overrides = {}) {
+  return {
+    id,
+    verdict: 'not-threatened',
+    basis: 'inert',
+    check: `placeholder awaiting the machine-written proof for ${id}`,
+    ...overrides,
+  };
+}
+
 function writeCoverage(root, name, rows) {
   const body = typeof rows === 'string' ? rows : `${JSON.stringify({ rows }, null, 2)}\n`;
   writeFileSync(join(root, COVERAGE_RELPATH, name), body);
+}
+
+function readCoverage(root, name) {
+  return readFileSync(join(root, COVERAGE_RELPATH, name), 'utf8');
+}
+
+function writeFileAt(root, relpath, body) {
+  mkdirSync(join(root, ...relpath.split('/').slice(0, -1)), { recursive: true });
+  writeFileSync(join(root, ...relpath.split('/')), body);
 }
 
 function cleanEnv(overrides = {}) {
@@ -319,4 +364,338 @@ test('pull request mode with an unresolvable base ref halts red rather than degr
 
   assert.notEqual(result.status, 0, 'expected a non-zero exit when the base ref cannot be resolved');
   assert.match(result.stderr, /no-such-branch/);
+});
+
+test('a barred id carrying inert_when halts the registry read and names that id', () => {
+  const root = makeRoot('inv-inert-barred-');
+  writeRegistry(root, ['X1', 'M3'], { M3: { paths: ['docs/**'] } });
+  writeCoverage(root, 'entry.json', rowsFor(['X1', 'M3']));
+
+  const result = run(root);
+
+  assert.notEqual(result.status, 0, 'expected a non-zero exit for an inert_when on a structurally barred id');
+  assert.match(result.stderr, /M3/);
+  assert.match(result.stderr, /inert_when/);
+});
+
+test('an inert_when carrying a key other than paths halts and names that key', () => {
+  const root = makeRoot('inv-inert-key-');
+  writeRegistry(root, FIXTURE_IDS, { X1: { paths: ['docs/**'], since: '2026-08-06' } });
+  writeCoverage(root, 'entry.json', rowsFor(FIXTURE_IDS));
+
+  const result = run(root);
+
+  assert.notEqual(result.status, 0, 'expected a non-zero exit for an inert_when with an unknown key');
+  assert.match(result.stderr, /since/);
+  assert.match(result.stderr, /X1/);
+});
+
+test('an inert_when glob using unsupported syntax halts and names that glob', () => {
+  const root = makeRoot('inv-inert-syntax-');
+  writeRegistry(root, FIXTURE_IDS, { X1: { paths: ['docs/{a,b}/**'] } });
+  writeCoverage(root, 'entry.json', rowsFor(FIXTURE_IDS));
+
+  const result = run(root);
+
+  assert.notEqual(result.status, 0, 'expected a non-zero exit for a glob outside the supported subset');
+  assert.match(result.stderr, /docs\/\{a,b\}\/\*\*/);
+});
+
+test('a ** placed beside other characters in a segment halts and names that glob', () => {
+  const root = makeRoot('inv-inert-adjacent-');
+  writeRegistry(root, FIXTURE_IDS, { X1: { paths: ['docs/a**b'] } });
+  writeCoverage(root, 'entry.json', rowsFor(FIXTURE_IDS));
+
+  const result = run(root);
+
+  assert.notEqual(result.status, 0, 'expected a non-zero exit for a ** that is not a whole path segment');
+  assert.match(result.stderr, /docs\/a\*\*b/);
+});
+
+test('a changed path outside every declared glob falsifies the basis and names that path', () => {
+  const root = makeGitRoot('inv-inert-unmatched-');
+  writeRegistry(root, FIXTURE_IDS, { X1: { paths: ['docs/**'] } });
+  writeCoverage(root, 'entry.json', rowsFor(FIXTURE_IDS));
+  commit(root, ['docs'], 'base');
+
+  git(root, ['switch', '-q', '-c', 'feature']);
+  writeCoverage(root, 'feature.json', [...rowsFor(['X2', 'X3']), inertRow('X1')]);
+  writeFileAt(root, 'src/engine.mjs', 'export const engine = () => null;\n');
+  commit(root, ['docs', 'src'], 'a change that reaches outside the declared paths');
+  const before = readCoverage(root, 'feature.json');
+
+  const result = run(root, ['--event', 'pull_request', '--base-ref', 'main']);
+
+  assert.notEqual(result.status, 0, 'expected a non-zero exit for a changed path no declared glob absorbs');
+  assert.match(result.stderr, /X1/);
+  assert.match(result.stderr, /src\/engine\.mjs/);
+
+  const written = run(root, ['--event', 'pull_request', '--base-ref', 'main', '--write']);
+
+  assert.notEqual(written.status, 0, 'expected --write to refuse an unproven basis');
+  assert.match(written.stderr, /src\/engine\.mjs/);
+  assert.equal(readCoverage(root, 'feature.json'), before, 'expected --write to leave the entry untouched when the basis is falsified');
+});
+
+test('a deleted path outside every declared glob falsifies the basis', () => {
+  const root = makeGitRoot('inv-inert-deleted-');
+  writeRegistry(root, FIXTURE_IDS, { X1: { paths: ['docs/**'] } });
+  writeCoverage(root, 'entry.json', rowsFor(FIXTURE_IDS));
+  writeFileAt(root, 'legacy/guard.mjs', 'export const guard = () => true;\n');
+  commit(root, ['docs', 'legacy'], 'base');
+
+  git(root, ['switch', '-q', '-c', 'feature']);
+  writeCoverage(root, 'feature.json', [...rowsFor(['X2', 'X3']), inertRow('X1')]);
+  git(root, ['rm', '-q', '--', 'legacy/guard.mjs']);
+  commit(root, ['docs'], 'a change that deletes a guard outside the declared paths');
+
+  const result = run(root, ['--event', 'pull_request', '--base-ref', 'main']);
+
+  assert.notEqual(result.status, 0, 'expected a non-zero exit for a deletion no declared glob absorbs');
+  assert.match(result.stderr, /legacy\/guard\.mjs/);
+});
+
+test('an inert row whose id declares no inert_when halts and names the id', () => {
+  const root = makeGitRoot('inv-inert-undeclared-');
+  writeRegistry(root, FIXTURE_IDS);
+  writeCoverage(root, 'entry.json', rowsFor(FIXTURE_IDS));
+  commit(root, ['docs'], 'base');
+
+  git(root, ['switch', '-q', '-c', 'feature']);
+  writeCoverage(root, 'feature.json', [...rowsFor(['X2', 'X3']), inertRow('X1')]);
+  commit(root, ['docs'], 'an inert row the registry never authorized');
+
+  const result = run(root, ['--event', 'pull_request', '--base-ref', 'main']);
+
+  assert.notEqual(result.status, 0, 'expected a non-zero exit for an inert row with no registry declaration');
+  assert.match(result.stderr, /X1/);
+  assert.match(result.stderr, /inert_when/);
+});
+
+test('an inert row carrying the threatened verdict halts and names the id', () => {
+  const root = makeGitRoot('inv-inert-threatened-');
+  writeRegistry(root, FIXTURE_IDS, { X1: { paths: ['docs/**'] } });
+  writeCoverage(root, 'entry.json', rowsFor(FIXTURE_IDS));
+  commit(root, ['docs'], 'base');
+
+  git(root, ['switch', '-q', '-c', 'feature']);
+  writeCoverage(root, 'feature.json', [...rowsFor(['X2', 'X3']), inertRow('X1', { verdict: 'threatened' })]);
+  commit(root, ['docs'], 'an inert row that also claims to be threatened');
+
+  const result = run(root, ['--event', 'pull_request', '--base-ref', 'main']);
+
+  assert.notEqual(result.status, 0, 'expected a non-zero exit for an inert basis paired with a threatened verdict');
+  assert.match(result.stderr, /X1/);
+  assert.match(result.stderr, /threatened/);
+});
+
+test('a basis outside the one allowed value halts and names that value', () => {
+  const root = makeRoot('inv-inert-basis-value-');
+  writeRegistry(root, FIXTURE_IDS, { X1: { paths: ['docs/**'] } });
+  writeCoverage(root, 'entry.json', [...rowsFor(['X2', 'X3']), inertRow('X1', { basis: 'obviously-fine' })]);
+
+  const result = run(root);
+
+  assert.notEqual(result.status, 0, 'expected a non-zero exit for a basis outside the allowed value');
+  assert.match(result.stderr, /X1/);
+  assert.match(result.stderr, /obviously-fine/);
+});
+
+test('a hand-edited inert check text halts red and names the entry', () => {
+  const root = makeGitRoot('inv-inert-handedited-');
+  writeRegistry(root, FIXTURE_IDS, { X1: { paths: ['docs/**'] } });
+  writeCoverage(root, 'entry.json', rowsFor(FIXTURE_IDS));
+  commit(root, ['docs'], 'base');
+
+  git(root, ['switch', '-q', '-c', 'feature']);
+  writeCoverage(root, 'feature.json', [...rowsFor(['X2', 'X3']), inertRow('X1')]);
+  commit(root, ['docs'], 'a change plus its coverage entry');
+
+  const proved = run(root, ['--event', 'pull_request', '--base-ref', 'main', '--write']);
+  assert.equal(proved.status, 0, `expected --write to prove the basis first: ${proved.stderr}`);
+
+  const rows = JSON.parse(readCoverage(root, 'feature.json')).rows;
+  writeCoverage(root, 'feature.json', rows.map((row) => (
+    row.id === 'X1' ? { ...row, check: 'INERT: nothing in this diff could possibly matter' } : row
+  )));
+
+  const result = run(root, ['--event', 'pull_request', '--base-ref', 'main']);
+
+  assert.notEqual(result.status, 0, 'expected a non-zero exit for an inert check this checker did not derive');
+  assert.match(result.stderr, /X1/);
+  assert.match(result.stderr, /feature\.json/);
+});
+
+test('--write proves the basis into the entry and a second --write is byte-identical', () => {
+  const root = makeGitRoot('inv-inert-write-');
+  writeRegistry(root, FIXTURE_IDS, { X1: { paths: ['docs/**', 'src/**'] } });
+  writeCoverage(root, 'entry.json', rowsFor(FIXTURE_IDS));
+  commit(root, ['docs'], 'base');
+
+  git(root, ['switch', '-q', '-c', 'feature']);
+  writeCoverage(root, 'feature.json', [...rowsFor(['X2', 'X3']), inertRow('X1')]);
+  writeFileAt(root, 'src/engine.mjs', 'export const engine = () => null;\n');
+  commit(root, ['docs', 'src'], 'a change plus its coverage entry');
+
+  const first = run(root, ['--event', 'pull_request', '--base-ref', 'main', '--write']);
+  assert.equal(first.status, 0, `expected --write to prove the basis: ${first.stderr}`);
+
+  const written = readCoverage(root, 'feature.json');
+  assert.match(written, /INERT: no changed path can reach X1\./);
+  assert.match(written, /docs\/invariants\/coverage\/feature\.json/);
+  assert.match(written, /src\/engine\.mjs/);
+  assert.match(written, /Machine-written/);
+
+  const verified = run(root, ['--event', 'pull_request', '--base-ref', 'main']);
+  assert.equal(verified.status, 0, `expected the written text to pass a plain run: ${verified.stderr}`);
+
+  const second = run(root, ['--event', 'pull_request', '--base-ref', 'main', '--write']);
+  assert.equal(second.status, 0, `expected a second --write to stay green: ${second.stderr}`);
+  assert.equal(readCoverage(root, 'feature.json'), written, 'expected --write to be idempotent');
+});
+
+test('an unscoped historical inert row is not re-derived while a scoped one is proved', () => {
+  const root = makeGitRoot('inv-inert-historical-');
+  writeRegistry(root, FIXTURE_IDS, { X1: { paths: ['docs/**'] } });
+  writeCoverage(root, 'historical.json', [
+    ...rowsFor(['X2', 'X3']),
+    inertRow('X1', { check: 'INERT: proved against this entry\'s own diff, months ago' }),
+  ]);
+  commit(root, ['docs'], 'base');
+  const historical = readCoverage(root, 'historical.json');
+
+  git(root, ['switch', '-q', '-c', 'feature']);
+  writeCoverage(root, 'feature.json', [...rowsFor(['X2', 'X3']), inertRow('X1')]);
+  commit(root, ['docs'], 'a change plus its coverage entry');
+
+  const proved = run(root, ['--event', 'pull_request', '--base-ref', 'main', '--write']);
+
+  assert.equal(proved.status, 0, `expected the scoped entry to be proved: ${proved.stderr}`);
+  assert.equal(readCoverage(root, 'historical.json'), historical, 'expected the untouched historical entry to be left alone');
+  assert.match(readCoverage(root, 'feature.json'), /INERT: no changed path can reach X1\./);
+
+  const result = run(root, ['--event', 'pull_request', '--base-ref', 'main']);
+
+  assert.equal(result.status, 0, `expected the historical inert row to stay out of the proof scope: ${result.stderr}`);
+});
+
+test('no resolvable base with an inert row anywhere fails loudly and names the entry', () => {
+  const root = makeGitRoot('inv-inert-nobase-');
+  writeRegistry(root, FIXTURE_IDS, { X1: { paths: ['docs/**'] } });
+  writeCoverage(root, 'entry.json', [...rowsFor(['X2', 'X3']), inertRow('X1')]);
+
+  const result = run(root);
+
+  assert.notEqual(result.status, 0, 'expected a non-zero exit for an inert basis with no diff to prove it against');
+  assert.match(result.stderr, /entry\.json/);
+  assert.match(result.stderr, /inert/);
+
+  const written = run(root, ['--write']);
+
+  assert.notEqual(written.status, 0, 'expected --write to refuse when no scope is established');
+
+  writeCoverage(root, 'entry.json', rowsFor(FIXTURE_IDS));
+  const prose = run(root);
+
+  assert.equal(prose.status, 0, `expected an entry with no inert row to keep passing unscoped: ${prose.stderr}`);
+  assert.match(prose.stdout, /completeness: not scoped/);
+});
+
+test('an unwaived invariant carrying no witness halts and names the waiver constant', () => {
+  const root = makeRoot('inv-witness-absent-');
+  writeRegistry(root, FIXTURE_IDS, {}, { X2: null });
+  writeCoverage(root, 'entry.json', rowsFor(FIXTURE_IDS));
+
+  const result = run(root);
+
+  assert.notEqual(result.status, 0, 'expected a non-zero exit for an invariant with neither a witness nor a waiver');
+  assert.match(result.stderr, /"witness"/);
+  assert.match(result.stderr, /UNWITNESSED_IDS/);
+});
+
+test('a waived invariant needs no witness and is refused one while the waiver stands', () => {
+  const waived = ['M1', 'X2', 'X3'];
+  const clean = makeRoot('inv-witness-waived-');
+  writeRegistry(clean, waived, {}, { M1: null });
+  writeCoverage(clean, 'entry.json', rowsFor(waived));
+
+  const passing = run(clean);
+
+  assert.equal(passing.status, 0, `expected a waived id to pass without a witness: ${passing.stderr}`);
+
+  const root = makeRoot('inv-witness-waived-carrying-');
+  writeRegistry(root, waived);
+  writeCoverage(root, 'entry.json', rowsFor(waived));
+
+  const result = run(root);
+
+  assert.notEqual(result.status, 0, 'expected a non-zero exit for a waived id that already carries a witness');
+  assert.match(result.stderr, /M1/);
+  assert.match(result.stderr, /UNWITNESSED_IDS/);
+});
+
+test('a witness written as prose halts and names the accepted shape', () => {
+  const root = makeRoot('inv-witness-prose-');
+  writeRegistry(root, FIXTURE_IDS, {}, { X1: 'the policy suite covers this thoroughly' });
+  writeCoverage(root, 'entry.json', rowsFor(FIXTURE_IDS));
+
+  const result = run(root);
+
+  assert.notEqual(result.status, 0, 'expected a non-zero exit for a witness that is prose rather than an entry point');
+  assert.match(result.stderr, /X1/);
+  assert.match(result.stderr, /exportedIdentifier/);
+});
+
+test('a witness naming a file that does not exist halts and names that path', () => {
+  const root = makeRoot('inv-witness-missing-file-');
+  writeRegistry(root, FIXTURE_IDS, {}, { X1: 'fixtures/absent.mjs#holds' });
+  writeCoverage(root, 'entry.json', rowsFor(FIXTURE_IDS));
+
+  const result = run(root);
+
+  assert.notEqual(result.status, 0, 'expected a non-zero exit for a witness naming an absent file');
+  assert.match(result.stderr, /fixtures\/absent\.mjs/);
+});
+
+test('a witness escaping the root with a parent segment halts and names the path', () => {
+  const root = makeRoot('inv-witness-escape-');
+  writeRegistry(root, FIXTURE_IDS, {}, { X1: '../elsewhere/witness.mjs#holds' });
+  writeCoverage(root, 'entry.json', rowsFor(FIXTURE_IDS));
+
+  const result = run(root);
+
+  assert.notEqual(result.status, 0, 'expected a non-zero exit for a witness path that escapes the repository root');
+  assert.match(result.stderr, /elsewhere\/witness\.mjs/);
+});
+
+test('a witness naming an identifier the file never exports halts and names the entry point', () => {
+  const root = makeRoot('inv-witness-unexported-');
+  writeRegistry(root, FIXTURE_IDS, {}, { X1: `${WITNESS_RELPATH}#neverExported` });
+  writeCoverage(root, 'entry.json', rowsFor(FIXTURE_IDS));
+
+  const result = run(root);
+
+  assert.notEqual(result.status, 0, 'expected a non-zero exit for a witness naming an unexported identifier');
+  assert.match(result.stderr, /neverExported/);
+  assert.match(result.stderr, /does not export/);
+});
+
+test('a witness naming a declared test title passes while a title only present as prose halts', () => {
+  const root = makeRoot('inv-witness-title-');
+  writeRegistry(root, FIXTURE_IDS, {}, { X1: `${WITNESS_RELPATH}#test:${WITNESS_TITLE}` });
+  writeCoverage(root, 'entry.json', rowsFor(FIXTURE_IDS));
+
+  const passing = run(root);
+
+  assert.equal(passing.status, 0, `expected a witness naming a declared test title to pass: ${passing.stderr}`);
+
+  const masked = makeRoot('inv-witness-title-masked-');
+  writeFileAt(masked, 'fixtures/prose.mjs', `export const note = 'a census that halts on the unclassifiable';\n`);
+  writeRegistry(masked, FIXTURE_IDS, {}, { X1: 'fixtures/prose.mjs#test:a census that halts on the unclassifiable' });
+  writeCoverage(masked, 'entry.json', rowsFor(FIXTURE_IDS));
+
+  const result = run(masked);
+
+  assert.notEqual(result.status, 0, 'expected a title found only inside a string literal to be refused as a witness');
+  assert.match(result.stderr, /declares no test\(/);
 });
