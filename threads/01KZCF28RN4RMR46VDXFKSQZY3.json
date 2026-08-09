@@ -84,9 +84,9 @@
   "abandoned_reason": null,
   "closure_statement": null,
   "spine": {
-    "active_goal": "Complete every remaining task so the live cutover can be performed: close c10 to SHIP, land the PR, rehearse, then swap.",
-    "next_step": "START HERE FRESH, ZERO ASSUMPTIONS - verify every claim against the code before acting on it. Read artifacts/2026-08-08-cutover-control-file-invariants.md, then 0295 (supersedes 0294), 0296 and 0293. Run its 10-step order; step 1 (the already-linked fix) is a precondition, not optional. Then a FRESH independent review to SHIP, commit, ONE PR via pr.mjs, merge, re-run install-bootstrap, rehearse per 0281 against merged main, register converge live, swap alone per 0292.",
-    "last_session": "Round 4's independent review returned a unanimous BLOCK and falsified both the root-cause framing and the planned fix; replaced the finding list with a stated invariant contract (0295) and shipped the c3 Stop-path fix.",
+    "active_goal": "Close c10 by getting an independent review to return SHIP on the round-5 implementation, then land the PR, rehearse, and perform the live cutover.",
+    "next_step": "START HERE FRESH. Round 5 is implemented and GREEN (full suite 2159/2159) but UNCOMMITTED in the spec-a-cutover worktree, on a branch still at origin/main. Run the FRESH independent review to SHIP, handing it the ten residuals listed in the 2026-08-09 session log so it does not rediscover them. Then step 10 (re-derive the coverage JSON), commit, ONE PR via pr.mjs, merge, re-run install-bootstrap, rehearse per 0281 against merged main, register converge live, swap alone per 0292.",
+    "last_session": "Implemented contract steps 1 through 9 across three parallel fenced lanes, verified every contract anchor against the tree first, took the full suite to 2159 of 2159, recorded 0297 and 0298; ran no review and committed nothing.",
     "open_risks": [
       {
         "text": "Review round 3 before trusting any of it — it is the only unreviewed round, it rewrote the containment model, the rollback contract and the grant reporting, and two of the three reviewed rounds returned BLOCK",
@@ -212,6 +212,57 @@
         "refs": [
           ".claude/notes/",
           "~/.claude/local/notes"
+        ]
+      },
+      {
+        "text": "Adding the link-creating verb to the destructive-bash verb set is the only way to close the current-pointer hole — the gate never examines the command, so guarding the path alone leaves a one-operation swap of the entire live config unremarked",
+        "scope": "c10",
+        "refs": [
+          ".claude/hooks/block-destructive-bash.sh:123"
+        ]
+      },
+      {
+        "text": "Review before commit, and treat the worktree as the only copy — the whole round-5 implementation is uncommitted on a branch that still sits at origin/main, so a stray git operation in that worktree loses the round",
+        "scope": "c10",
+        "refs": [
+          ".claude/worktrees/spec-a-cutover",
+          "feat/config-entry-link-cutover"
+        ]
+      },
+      {
+        "text": "Extract the journal concern into its own module as a separate mechanical commit, never mixed into the contract diff — cutover.mjs is now 836 lines against a house cap of 800, and mixing a move with a behavior change is forbidden",
+        "scope": "c10",
+        "refs": [
+          "scripts/config/cutover.mjs"
+        ]
+      },
+      {
+        "text": "Do not switch classifyNotes to compare literal targets the way classifyEntry now does — a notes symlink pointing at local/notes would route into the copy path with source and destination identical, which truncates the file",
+        "scope": "c10",
+        "refs": [
+          "scripts/config/cutover.mjs"
+        ]
+      },
+      {
+        "text": "Thread configRoot into resolveRef and declaredSettings to finish I7 — without it the not-inside-config-root clause runs only at buildRelease, readReceipt and writeReceipt, so two entry points still accept a planted repo root",
+        "scope": "c10",
+        "refs": [
+          "scripts/config/promote.mjs:259",
+          "scripts/config/converge.mjs:62"
+        ]
+      },
+      {
+        "text": "Re-derive the coverage JSON against the final tree AND the new journal record shape — a record is now name, state, sha and recorded, with notes no longer a journal field, so any coverage derived earlier describes a shape that no longer exists",
+        "scope": "c10",
+        "refs": [
+          "docs/invariants/coverage/feat-config-entry-link-cutover.json"
+        ]
+      },
+      {
+        "text": "Expect git to refuse a checkout owned by another uid that was whitelisted only in the user's global config — neutralizing the ambient gitconfig also discards global safe.directory entries, an axis the contract never called out",
+        "scope": "c10",
+        "refs": [
+          "scripts/config/release.mjs"
         ]
       }
     ],
@@ -343,5 +394,5 @@
     ]
   },
   "created_at": "2026-08-06T21:18:29.653Z",
-  "updated_at": "2026-08-09T01:48:30.910Z"
+  "updated_at": "2026-08-09T01:49:15.672Z"
 }
