@@ -401,6 +401,11 @@
         "ref": "0301-an-invariant-is-a-quantifier-over-a-closed-code-constant",
         "title": "An invariant is a quantifier over a closed code constant with a permit-set and an executable witness; anything else is a rule and leaves the contract",
         "scope": "thread"
+      },
+      {
+        "ref": "0302-i3a-derivation-clause-corrected-sha-width-mismatch",
+        "title": "0300's I3a derivation clause is corrected: an aside cannot be derived at record.sha, because the aside namespace is 8 hex and record.sha is 40",
+        "scope": "c10"
       }
     ],
     "out_of_scope": [
@@ -409,5 +414,5 @@
     ]
   },
   "created_at": "2026-08-06T21:18:29.653Z",
-  "updated_at": "2026-08-09T05:42:46.500Z"
+  "updated_at": "2026-08-09T05:43:05.524Z"
 }
