@@ -338,6 +338,11 @@
         "ref": "0316-finish-the-cutover-unit-rather-than-rebuild-it",
         "title": "The cutover unit is finished from its branch; its one real defect sits on an axis a rebuild would reproduce",
         "scope": "c10"
+      },
+      {
+        "ref": "0319-unrun-rehearsal-is-disclosed-not-reordered",
+        "title": "A check the approved order schedules after the PR is disclosed in the body, never reordered to earn a verified line",
+        "scope": "c3"
       }
     ],
     "out_of_scope": [
@@ -346,5 +351,5 @@
     ]
   },
   "created_at": "2026-08-06T21:18:29.653Z",
-  "updated_at": "2026-08-10T20:23:08.119Z"
+  "updated_at": "2026-08-10T20:35:00.274Z"
 }
