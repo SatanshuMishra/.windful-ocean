@@ -102,12 +102,31 @@ test('the repo-only model key is inert at promotion and flagged rather than appl
 test('permission grants union while the deny list stays repo-declared', () => {
   const result = resolveSettings({ repo: REPO, live: LIVE });
   assert.deepEqual(result.settings.permissions.allow, [
-    'Bash(ln -sfn:*)',
     'Bash(node --test:*)',
     'Bash(node .claude/:*)',
     'Bash(node:*)',
   ]);
   assert.deepEqual(result.settings.permissions.deny, REPO.permissions.deny);
+});
+
+test('a withdrawn grant never survives the union, whichever side holds it', () => {
+  const grant = 'Bash(ln -sfn:*)';
+  const cases = [
+    ['live only', [], [grant, 'Bash(node:*)']],
+    ['repo only', [grant, 'Bash(node:*)'], []],
+    ['both sides', [grant, 'Bash(node:*)'], [grant]],
+  ];
+  for (const [label, repoAllow, liveAllow] of cases) {
+    const result = resolveSettings({
+      repo: { ...REPO, permissions: { allow: repoAllow, deny: [] } },
+      live: { ...LIVE, permissions: { allow: liveAllow, deny: [] } },
+    });
+    assert.deepEqual(
+      result.settings.permissions.allow,
+      ['Bash(node:*)'],
+      `${grant} must be withdrawn and its neighbours kept when it appears on the ${label}`,
+    );
+  }
 });
 
 test('a repo that declares no permissions block preserves live permissions whole', () => {

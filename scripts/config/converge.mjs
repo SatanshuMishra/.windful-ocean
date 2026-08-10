@@ -6,7 +6,7 @@ import { fileURLToPath } from 'node:url';
 import { DEFAULT_REF } from './paths.mjs';
 import { readReceipt } from './receipt.mjs';
 import { resolveRef } from './release.mjs';
-import { assertBootstrapOutsideReleases, liveSha, promote } from './promote.mjs';
+import { assertBootstrapOutsideReleases, liveSha, promote, settingsNotices } from './promote.mjs';
 
 const EXIT_OK = 0;
 const EXIT_FAIL = 1;
@@ -69,7 +69,7 @@ export function converge({ configRoot, ref = DEFAULT_REF, now, repoRoot, setting
   return { status: 'drifted', ref, drift, promotion };
 }
 
-function promotionLines(promotion) {
+function promotionStatusLines(promotion) {
   if (promotion.status === 'promoted') {
     const from = promotion.previous ? ` (was ${promotion.previous})` : '';
     return [`live now resolves to ${promotion.sha}${from}`];
@@ -84,6 +84,14 @@ function promotionLines(promotion) {
     ];
   }
   return ['promotion failed', ...(promotion.errors ?? ['unknown failure'])];
+}
+
+function promotionLines(promotion) {
+  return [
+    ...promotionStatusLines(promotion),
+    ...(promotion.warnings ?? []),
+    ...settingsNotices(promotion.settings),
+  ];
 }
 
 function convergeReport(outcome) {
@@ -103,14 +111,14 @@ function convergeFailed(outcome) {
   return outcome.status === 'drifted' && FAILED_PROMOTIONS.includes(outcome.promotion.status);
 }
 
-function emitReport({ event, report, stdout, stderr }) {
+function emitReport({ event, report, code, stdout, stderr }) {
   if (report === null) return;
-  if (event === CONTEXT_EVENT) {
-    const payload = { hookSpecificOutput: { hookEventName: CONTEXT_EVENT, additionalContext: report } };
-    stdout.write(`${JSON.stringify(payload)}\n`);
+  if (code !== EXIT_OK) {
+    stderr.write(`${report}\n`);
     return;
   }
-  stderr.write(`${report}\n`);
+  const payload = { hookSpecificOutput: { hookEventName: event, additionalContext: report } };
+  stdout.write(`${JSON.stringify(payload)}\n`);
 }
 
 function attemptConverge(request) {
@@ -172,8 +180,9 @@ export function run({ argv, env, stdout, stderr, now = new Date().toISOString() 
     repoRoot: parsed.options['--repo-root'],
     home,
   });
-  emitReport({ event, report: convergeReport(outcome), stdout, stderr });
-  return exitCodeFor(event, outcome);
+  const code = exitCodeFor(event, outcome);
+  emitReport({ event, report: convergeReport(outcome), code, stdout, stderr });
+  return code;
 }
 
 function invokedDirectly(entry) {

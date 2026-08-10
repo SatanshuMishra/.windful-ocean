@@ -1,5 +1,15 @@
 #!/usr/bin/env node
-import { existsSync, realpathSync, renameSync, statSync, symlinkSync, unlinkSync } from 'node:fs';
+import {
+  existsSync,
+  readFileSync,
+  realpathSync,
+  renameSync,
+  rmSync,
+  statSync,
+  symlinkSync,
+  unlinkSync,
+  writeFileSync,
+} from 'node:fs';
 import { basename, join } from 'node:path';
 import { homedir } from 'node:os';
 import { fileURLToPath, pathToFileURL } from 'node:url';
@@ -16,14 +26,17 @@ import {
   realpathOrNull,
   releaseDir,
   releasesDir,
+  settingsPathIn,
 } from './paths.mjs';
-import { buildRelease, collectGarbage, resolveRef, stripSettings } from './release.mjs';
+import { buildRelease, collectGarbage, declaredSettings, resolveRef, stripSettings } from './release.mjs';
+import { resolveSettings } from './manifest.mjs';
 import { buildReceipt, readReceipt, receiptShapeErrors, writeReceipt } from './receipt.mjs';
 import { driftReport, readSettings, validateCandidate } from './validate.mjs';
 
 const EXIT_OK = 0;
 const EXIT_FAIL = 1;
 const EXIT_USAGE = 2;
+const SETTINGS_INDENT = 2;
 
 export function liveSha(configRoot) {
   const resolved = realpathOrNull(currentLink(configRoot));
@@ -35,6 +48,16 @@ export function liveSha(configRoot) {
 }
 
 const SHADOW_WARNING = 'it will shadow the live settings.json until it is removed by hand';
+const UNRECOVERED = 'MANUAL INTERVENTION REQUIRED';
+
+function discard(path) {
+  try {
+    rmSync(path, { force: true });
+    return true;
+  } catch {
+    return false;
+  }
+}
 
 export function swapPointer(configRoot, sha, { requireStrip = true } = {}) {
   if (!SHA_PATTERN.test(sha)) {
@@ -52,7 +75,12 @@ export function swapPointer(configRoot, sha, { requireStrip = true } = {}) {
     if (error.code !== 'ENOENT') throw error;
   }
   symlinkSync(join(RELEASES_DIRNAME, sha), staging);
-  renameSync(staging, pointer);
+  try {
+    renameSync(staging, pointer);
+  } catch (error) {
+    discard(staging);
+    throw error;
+  }
   return { pointer, warnings: stripped.ok ? [] : [`${stripped.error}; ${SHADOW_WARNING}`] };
 }
 
@@ -64,6 +92,20 @@ function attemptSwap(configRoot, sha, options) {
   }
 }
 
+export function revertPointer(configRoot, previous) {
+  if (previous === null || previous === undefined) {
+    const pointer = currentLink(configRoot);
+    try {
+      unlinkSync(pointer);
+      return { ok: true, warnings: [] };
+    } catch (error) {
+      if (error.code === 'ENOENT') return { ok: true, warnings: [] };
+      return { ok: false, error: `${pointer} could not be removed: ${error.message}` };
+    }
+  }
+  return attemptSwap(configRoot, previous, { requireStrip: false });
+}
+
 function builtAtFor(dir, builtNow, now) {
   if (builtNow) return now;
   try {
@@ -71,6 +113,131 @@ function builtAtFor(dir, builtNow, now) {
   } catch {
     return now;
   }
+}
+
+export function reconcileSettings({ declared, live }) {
+  if (declared.absent) {
+    return { ok: true, applies: false, settings: live, flagged: [], removed: [] };
+  }
+  try {
+    const resolved = resolveSettings({ repo: declared.settings, live });
+    return {
+      ok: true,
+      applies: true,
+      settings: resolved.settings,
+      flagged: resolved.flagged,
+      removed: resolved.removed,
+    };
+  } catch (error) {
+    return { ok: false, error: `${declared.source} could not be reconciled with the live settings: ${error.message}` };
+  }
+}
+
+export function renderSettings(settings) {
+  return `${JSON.stringify(settings, null, SETTINGS_INDENT)}\n`;
+}
+
+function readIfPresent(path) {
+  try {
+    return { ok: true, text: readFileSync(path, 'utf8') };
+  } catch (error) {
+    if (error.code === 'ENOENT') return { ok: true, text: null };
+    return { ok: false, error: error.message };
+  }
+}
+
+export function writeSettings(path, settings) {
+  const text = renderSettings(settings);
+  const held = readIfPresent(path);
+  if (!held.ok) {
+    return { written: false, previous: null, error: `live settings at ${path} could not be read back: ${held.error}` };
+  }
+  if (held.text === text) return { written: false, previous: held.text };
+  const staging = `${path}.tmp`;
+  try {
+    writeFileSync(staging, text, 'utf8');
+    renameSync(staging, path);
+  } catch (error) {
+    discard(staging);
+    return {
+      written: false,
+      previous: held.text,
+      error: `live settings at ${path} could not be written: ${error.message}`,
+    };
+  }
+  return { written: true, previous: held.text };
+}
+
+export function restoreSettings(path, previous) {
+  if (previous === null) {
+    return discard(path) ? { ok: true } : { ok: false, error: `live settings at ${path} could not be removed again` };
+  }
+  const staging = `${path}.tmp`;
+  try {
+    writeFileSync(staging, previous, 'utf8');
+    renameSync(staging, path);
+    return { ok: true };
+  } catch (error) {
+    discard(staging);
+    return { ok: false, error: `live settings at ${path} could not be restored: ${error.message}` };
+  }
+}
+
+const settingsRecord = (path, applied, reconciled) => Object.freeze({
+  path,
+  applied,
+  flagged: reconciled.flagged,
+  removed: reconciled.removed,
+});
+
+function applySettings(path, reconciled) {
+  if (!reconciled.applies) {
+    return { ok: true, written: false, previous: null, settings: settingsRecord(path, false, reconciled) };
+  }
+  const outcome = writeSettings(path, reconciled.settings);
+  if (outcome.error !== undefined) {
+    return { ok: false, written: false, previous: outcome.previous, errors: [outcome.error] };
+  }
+  return {
+    ok: true,
+    written: outcome.written,
+    previous: outcome.previous,
+    settings: settingsRecord(path, outcome.written, reconciled),
+  };
+}
+
+function attemptReceipt(configRoot, receipt) {
+  try {
+    return { ok: true, path: writeReceipt(configRoot, receipt) };
+  } catch (error) {
+    return { ok: false, error: `the LIVE receipt could not be written: ${error.message}` };
+  }
+}
+
+function attemptCollect(configRoot, protectedShas) {
+  try {
+    return { removed: collectGarbage({ configRoot, keep: RETAINED_RELEASES, protectedShas }).removed, warnings: [] };
+  } catch (error) {
+    return { removed: [], warnings: [`superseded releases could not be collected: ${error.message}`] };
+  }
+}
+
+function unwind({ configRoot, livePath, applied, pointerTarget, errors }) {
+  const named = pointerTarget ?? 'no release';
+  const settingsBack = applied.written ? restoreSettings(livePath, applied.previous) : { ok: true };
+  const pointerBack = revertPointer(configRoot, pointerTarget);
+  const stranded = [
+    ...(settingsBack.ok ? [] : [`${UNRECOVERED}: ${settingsBack.error}`]),
+    ...(pointerBack.ok
+      ? []
+      : [`${UNRECOVERED}: ${currentLink(configRoot)} could not be returned to ${named}: ${pointerBack.error}`]),
+  ];
+  if (stranded.length > 0) return { errors: [...errors, ...stranded], warnings: [], unrecovered: true };
+  return {
+    errors: [...errors, `it was undone: ${currentLink(configRoot)} names ${named} again and live settings are unchanged`],
+    warnings: pointerBack.warnings ?? [],
+    unrecovered: false,
+  };
 }
 
 export function assertBootstrapOutsideReleases(configRoot, bootstrapPath) {
@@ -99,13 +266,20 @@ export function promote({ configRoot, repoRoot, ref = DEFAULT_REF, now, settings
   const built = buildRelease({ configRoot, repoRoot, sha });
   if (!built.ok) return { status: 'error', sha, errors: [built.error] };
 
-  const settings = readSettings(settingsPath ?? join(configRoot, 'settings.json'));
+  const livePath = settingsPath ?? settingsPathIn(configRoot);
+  const settings = readSettings(livePath);
   if (!settings.ok) return { status: 'error', sha, errors: [settings.error] };
+
+  const declared = declaredSettings(repoRoot, sha);
+  if (!declared.ok) return { status: 'error', sha, previous, errors: [declared.error] };
+
+  const reconciled = reconcileSettings({ declared, live: settings.settings });
+  if (!reconciled.ok) return { status: 'error', sha, previous, errors: [reconciled.error] };
 
   const verdict = validateCandidate({
     configRoot,
     candidateDir: built.dir,
-    settings: settings.settings,
+    settings: reconciled.settings,
     entries,
     bootstrapPaths: bootstrapPathsFor(configRoot),
     home,
@@ -127,16 +301,40 @@ export function promote({ configRoot, repoRoot, ref = DEFAULT_REF, now, settings
 
   const swapped = attemptSwap(configRoot, sha);
   if (!swapped.ok) return { status: 'error', sha, previous, errors: [swapped.error] };
-  writeReceipt(configRoot, receipt);
-  const { removed } = collectGarbage({
-    configRoot,
-    keep: RETAINED_RELEASES,
-    protectedShas: [sha, previous],
-  });
-  return { status: 'promoted', sha, previous, receipt, removed };
+
+  const applied = applySettings(livePath, reconciled);
+  if (!applied.ok) {
+    return {
+      status: 'error',
+      sha,
+      previous,
+      ...unwind({ configRoot, livePath, applied, pointerTarget: previous, errors: applied.errors }),
+    };
+  }
+
+  const written = attemptReceipt(configRoot, receipt);
+  if (!written.ok) {
+    return {
+      status: 'error',
+      sha,
+      previous,
+      ...unwind({ configRoot, livePath, applied, pointerTarget: previous, errors: [written.error] }),
+    };
+  }
+
+  const collected = attemptCollect(configRoot, [sha, previous]);
+  return {
+    status: 'promoted',
+    sha,
+    previous,
+    receipt,
+    removed: collected.removed,
+    settings: applied.settings,
+    warnings: [...swapped.warnings, ...collected.warnings],
+  };
 }
 
-export function rollback({ configRoot, now }) {
+export function rollback({ configRoot, now, settingsPath, entries, home = homedir() }) {
   const stored = readReceipt(configRoot);
   if (!stored.ok) return { status: 'error', errors: stored.errors };
   const { receipt } = stored;
@@ -151,6 +349,44 @@ export function rollback({ configRoot, now }) {
       errors: [`release ${target} is absent at ${dir}; rollback is a rename and never rebuilds`],
     };
   }
+  if (!existsSync(receipt.repo_root)) {
+    return {
+      status: 'error',
+      errors: [
+        `repo root ${receipt.repo_root} named by the LIVE receipt is absent, so the settings ${target} declares `
+          + `cannot be recomputed; moving the pointer without them would leave live settings reconciled for ${receipt.sha}`,
+      ],
+    };
+  }
+
+  const livePath = settingsPath ?? settingsPathIn(configRoot);
+  const settings = readSettings(livePath);
+  if (!settings.ok) return { status: 'error', errors: [settings.error] };
+
+  const declared = declaredSettings(receipt.repo_root, target);
+  if (!declared.ok) return { status: 'error', errors: [declared.error] };
+
+  const reconciled = reconcileSettings({ declared, live: settings.settings });
+  if (!reconciled.ok) return { status: 'error', errors: [reconciled.error] };
+
+  const verdict = validateCandidate({
+    configRoot,
+    candidateDir: dir,
+    settings: reconciled.settings,
+    entries,
+    bootstrapPaths: bootstrapPathsFor(configRoot),
+    home,
+  });
+  if (!verdict.ok) {
+    return {
+      status: 'rejected',
+      sha: target,
+      previous: receipt.sha,
+      failures: verdict.failures,
+      report: driftReport(verdict.failures),
+    };
+  }
+
   const restored = buildReceipt({
     ref: null,
     sha: target,
@@ -164,12 +400,33 @@ export function rollback({ configRoot, now }) {
 
   const swapped = attemptSwap(configRoot, target, { requireStrip: false });
   if (!swapped.ok) return { status: 'error', errors: [swapped.error] };
-  writeReceipt(configRoot, restored);
+
+  const applied = applySettings(livePath, reconciled);
+  if (!applied.ok) {
+    return {
+      status: 'error',
+      sha: target,
+      previous: receipt.sha,
+      ...unwind({ configRoot, livePath, applied, pointerTarget: receipt.sha, errors: applied.errors }),
+    };
+  }
+
+  const written = attemptReceipt(configRoot, restored);
+  if (!written.ok) {
+    return {
+      status: 'error',
+      sha: target,
+      previous: receipt.sha,
+      ...unwind({ configRoot, livePath, applied, pointerTarget: receipt.sha, errors: [written.error] }),
+    };
+  }
+
   return {
     status: 'rolled-back',
     sha: target,
     previous: receipt.sha,
     receipt: restored,
+    settings: applied.settings,
     warnings: swapped.warnings,
   };
 }
@@ -239,14 +496,26 @@ function main(argv) {
   return report(result);
 }
 
+export function settingsNotices(settings) {
+  if (settings === undefined) return [];
+  return [
+    ...(settings.applied ? [`applied the reconciled settings to ${settings.path}`] : []),
+    ...settings.flagged.map((entry) => `flagged ${entry.key} (${entry.kind}): ${entry.reason}`),
+    ...settings.removed.map((entry) => `removed ${entry.key}: ${entry.reason}`),
+  ];
+}
+
 function report(result) {
   if (result.status === 'unchanged') return EXIT_OK;
   if (result.status === 'promoted') {
+    for (const warning of result.warnings ?? []) process.stderr.write(`warning: ${warning}\n`);
+    for (const notice of settingsNotices(result.settings)) process.stderr.write(`${notice}\n`);
     process.stdout.write(`promoted ${result.sha}${result.previous ? ` (was ${result.previous})` : ''}\n`);
     return EXIT_OK;
   }
   if (result.status === 'rolled-back') {
     for (const warning of result.warnings ?? []) process.stderr.write(`warning: ${warning}\n`);
+    for (const notice of settingsNotices(result.settings)) process.stderr.write(`${notice}\n`);
     process.stdout.write(`rolled back to ${result.sha} (from ${result.previous})\n`);
     return EXIT_OK;
   }

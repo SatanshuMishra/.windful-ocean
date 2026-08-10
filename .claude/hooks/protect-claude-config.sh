@@ -17,9 +17,12 @@ fp = ((d.get("tool_input") or {}).get("file_path", "") or "")
 if not fp:
     sys.exit(0)
 
-exact = ("settings.json", "settings.local.json", "CLAUDE.md", "keybindings.json")
-prefixes = ("hooks", "rules", "lib", "workflows")
-probes = ("CLAUDE.md", "settings.json", "keybindings.json")
+exact = ("settings.json", "settings.local.json", "CLAUDE.md", "keybindings.json", "CUTOVER", "LIVE")
+prefixes = ("hooks", "rules", "lib", "workflows", "releases", "current", ".cutover", "local")
+aside_marker = ".pre-cutover-"
+probes = ("CLAUDE.md", "keybindings.json")
+receipt_name = "LIVE"
+receipt_byte_limit = 65536
 
 def resolve(path):
     try:
@@ -32,13 +35,24 @@ resolved_fp = resolve(fp)
 if resolved_fp != fp:
     candidates.append(resolved_fp)
 
+def guarded_tail(parts):
+    if not parts:
+        return False
+    head = parts[0]
+    return head in exact or head in prefixes or aside_marker in head
+
+
 def under(path, base):
-    for name in exact:
-        if path == os.path.join(base, name):
-            return True
-    for name in prefixes:
-        root = os.path.join(base, name)
-        if path == root or path.startswith(root + os.sep):
+    prefix = base.rstrip(os.sep) + os.sep
+    if not path.startswith(prefix):
+        return False
+    return guarded_tail(path[len(prefix):].split(os.sep))
+
+
+def floored(path):
+    parts = path.split(os.sep)
+    for index, part in enumerate(parts):
+        if part == ".claude" and guarded_tail(parts[index + 1:]):
             return True
     return False
 
@@ -52,11 +66,36 @@ home_base = os.path.join(os.path.expanduser("~"), ".claude")
 if any(under(c, home_base) for c in candidates):
     ask()
 
+if any(floored(c) for c in candidates):
+    ask()
+
 repo_dirs = []
 
+def claude_bearing(path):
+    return os.path.isdir(os.path.join(path, ".claude")) or os.path.basename(path) == ".claude"
+
 def note_repo_dir(path):
-    if path and path not in repo_dirs and os.path.isdir(path):
+    if path and path not in repo_dirs and os.path.isdir(path) and claude_bearing(path):
         repo_dirs.append(path)
+
+def receipt_repo_root(base):
+    try:
+        with open(os.path.join(base, receipt_name), "rb") as handle:
+            raw = handle.read(receipt_byte_limit)
+    except Exception:
+        return None
+    try:
+        parsed = json.loads(raw.decode("utf-8", "replace"))
+    except Exception:
+        return None
+    if not isinstance(parsed, dict):
+        return None
+    root = parsed.get("repo_root")
+    if not isinstance(root, str) or not root.strip() or not os.path.isabs(root):
+        return None
+    return root
+
+note_repo_dir(receipt_repo_root(home_base))
 
 resolved_home_base = resolve(home_base)
 if resolved_home_base != home_base:
@@ -70,8 +109,9 @@ for probe in probes:
 def worktree_roots(cwd):
     for flags, sep in ((["--porcelain", "-z"], "\0"), (["--porcelain"], "\n")):
         try:
-            done = subprocess.run(["git", "-C", cwd, "worktree", "list"] + flags,
-                                  stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, timeout=5)
+            done = subprocess.run(["git", "-c", "core.fsmonitor=", "-C", cwd, "worktree", "list"] + flags,
+                                  stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, timeout=5,
+                                  env=dict(os.environ, GIT_CONFIG_NOSYSTEM="1", GIT_CONFIG_GLOBAL="/dev/null"))
         except Exception:
             return None
         if done.returncode != 0:
@@ -85,22 +125,13 @@ def worktree_roots(cwd):
         return roots or None
     return None
 
-derived = False
 for repo_dir in repo_dirs:
     roots = worktree_roots(repo_dir)
     if roots is None:
         continue
-    derived = True
     for root in roots:
         for base in (os.path.join(root, ".claude"), os.path.join(resolve(root), ".claude")):
-            if any(under(c, base) for c in candidates):
-                ask()
-
-if not derived:
-    for candidate in candidates:
-        parts = candidate.split(os.sep)
-        for index, part in enumerate(parts):
-            if part == ".claude" and index + 1 < len(parts) and parts[index + 1] in prefixes + exact:
+            if os.path.isdir(base) and any(under(c, base) for c in candidates):
                 ask()
 
 sys.exit(0)

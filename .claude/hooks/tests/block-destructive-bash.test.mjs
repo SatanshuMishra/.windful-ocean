@@ -86,6 +86,8 @@ const corporaByGoal = {
     'g4ImmutableFlagCommands',
     'g4SubdirectoryCommands',
     'g4RecursiveRemoveCommands',
+    'g4CutoverSteeringCommands',
+    'g4CreationVerbCommands',
     'g4NoOpinionCommands',
   ],
   G5: [
@@ -450,8 +452,70 @@ for (const [command, label] of g4RecursiveRemoveCommands) {
   });
 }
 
+const RELEASE_SHA = '0123456789abcdef0123456789abcdef01234567';
+
+const g4CutoverSteeringCommands = [
+  'rm ~/.claude/CUTOVER',
+  'echo x > .claude/CUTOVER',
+  'mv /tmp/journal.json .claude/CUTOVER',
+  'rm .claude/LIVE',
+  'cp /tmp/receipt.json ~/.claude/LIVE',
+  'mv .claude/hooks.pre-cutover-01234567 /tmp/stash',
+  'rm -r .claude/hooks.pre-cutover-01234567',
+  'echo x > .claude/rules.pre-cutover-01234567/common/git/commits.md',
+  `echo x > .claude/releases/${RELEASE_SHA}/hooks/block-destructive-bash.sh`,
+  `rm -r .claude/releases/${RELEASE_SHA}/rules`,
+  'echo x > .claude/current/hooks/block-destructive-bash.sh',
+  'mv .claude/current /tmp/stash',
+  'echo x > .claude/local/converge.mjs',
+  'mv /tmp/evil.mjs ~/.claude/local/promote.mjs',
+  'rm -r .claude/local',
+  'ln -sfn /tmp/evil ~/.claude/local',
+  'rm -r .claude/.cutover',
+  `mv /tmp/evil .claude/.cutover/${RELEASE_SHA}/hooks`,
+  `echo x > .claude/.cutover/${RELEASE_SHA}/hooks/block-destructive-bash.sh`,
+];
+
+for (const command of g4CutoverSteeringCommands) {
+  test(`${goalsFor('g4CutoverSteeringCommands')}: asks before a write reaches a file that steers which guardrail files run: ${command}`, () => {
+    const r = runHook(command);
+    assert.equal(r.status, 0);
+    assert.equal(decisionOf(r), 'ask');
+    assert.equal(reasonOf(r), GUARDRAIL_ASK_REASON);
+  });
+}
+
+const g4CreationVerbCommands = [
+  'ln -sfn /tmp/evil ~/.claude/hooks',
+  'ln -s /tmp/attacker.json ~/.claude/CUTOVER',
+  'ln -s /tmp/evil ~/.claude/hooks.pre-cutover-deadbeef',
+  'mkdir -p ~/.claude/hooks.pre-cutover-deadbeef',
+  `mkdir -p .claude/.cutover/${RELEASE_SHA}`,
+  `ln -s /tmp/evil .claude/.cutover/${RELEASE_SHA}/hooks`,
+  'ln -s /tmp/evil .claude/rules',
+  'mkdir -p .claude/lib/git',
+];
+
+for (const command of g4CreationVerbCommands) {
+  test(`${goalsFor('g4CreationVerbCommands')}: asks before a link or a directory is created over a guardrail path: ${command}`, () => {
+    const r = runHook(command);
+    assert.equal(r.status, 0);
+    assert.equal(decisionOf(r), 'ask');
+    assert.equal(reasonOf(r), GUARDRAIL_ASK_REASON);
+  });
+}
+
 const g4NoOpinionCommands = [
   'git checkout main',
+  'mkdir -p .claude/skills/mitosis/templates',
+  'ln -s /tmp/x .claude/skills/mitosis/templates/receipts.yml',
+  'mkdir -p .claude/hooksfoo',
+  'ln -s /tmp/x .claude/libfoo',
+  'cat .claude/CUTOVER',
+  'cat ~/.claude/LIVE',
+  'echo x > .claude/currently/notes.md',
+  'echo x > .claude/releasesfoo/notes.md',
+  'echo x > .claude/hooks.pre-cutoverfoo',
   'git switch -c feature',
   'git checkout -b feature',
   'echo x > .claude/skills/mitosis/SKILL.md',
@@ -461,6 +525,7 @@ const g4NoOpinionCommands = [
   'cat .claude/settings.json',
   "perl -e 'print 1' .claude/settings.json",
   'chflags uchg .claude/hooks/block-destructive-bash.sh',
+  'echo x > .claude/localfoo/x.mjs',
   'echo x > .claude/hooksfoo',
   'rm -r .claude/libfoo',
   'mv .claude/rulesbook /tmp/x',
@@ -599,6 +664,8 @@ const corpusByName = {
   g4SubdirectoryCommands,
   g4ImmutableFlagCommands,
   g4RecursiveRemoveCommands,
+  g4CutoverSteeringCommands,
+  g4CreationVerbCommands,
   g4NoOpinionCommands,
   g5CredentialExfiltrationCommands,
   g5GuardrailExfiltrationCommands,

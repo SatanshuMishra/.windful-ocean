@@ -1,14 +1,25 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { existsSync, readFileSync, rmSync } from 'node:fs';
+import {
+  chmodSync,
+  existsSync,
+  lstatSync,
+  readFileSync,
+  readdirSync,
+  readlinkSync,
+  rmSync,
+  utimesSync,
+} from 'node:fs';
 import { spawnSync } from 'node:child_process';
-import { join } from 'node:path';
+import { join, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { RETAINED_RELEASES } from '../paths.mjs';
 import {
   DEFAULT_HOOK_COMMANDS,
   cleanup,
   commitChange,
   git,
+  hookSettings,
   makeHome,
   makeRepo,
   settingsFor,
@@ -32,6 +43,17 @@ function registeredConvergeCommands() {
 function collector() {
   const chunks = [];
   return { chunks, write: (chunk) => chunks.push(chunk), text: () => chunks.join('') };
+}
+
+function treeSnapshot(root) {
+  const walk = (dir) => readdirSync(dir).flatMap((entry) => {
+    const path = join(dir, entry);
+    const stats = lstatSync(path);
+    if (stats.isSymbolicLink()) return [[relative(root, path), `link:${readlinkSync(path)}`]];
+    if (stats.isDirectory()) return [[relative(root, path), 'dir'], ...walk(path)];
+    return [[relative(root, path), `file:${stats.size}:${stats.mtimeMs}`]];
+  });
+  return Object.fromEntries(walk(root).sort(([a], [b]) => a.localeCompare(b)));
 }
 
 function scenario() {
@@ -125,20 +147,63 @@ test('the stop registration reports a refusal on stderr and fails, never into se
   }
 });
 
-test('a stop with live behind main converges and reports on stderr only', () => {
+test('a stop that promotes live surfaces the mutation into context, never only onto a swallowed stderr', () => {
   const s = scenario();
   try {
-    s.seedLive();
+    assert.equal(s.seedLive().status, 'promoted');
     const nextSha = commitChange(s.repoRoot, (claude) => writeFile(join(claude, 'docs', 'later.md'), 'later\n'));
 
-    const result = s.cli(['--event', 'Stop', '--config-root', s.configRoot]);
+    const hook = spawnSync('node', [CONVERGE_CLI, '--event', 'Stop', '--config-root', s.configRoot], {
+      encoding: 'utf8',
+      env: { ...process.env, HOME: s.home, CLAUDE_CONFIG_DIR: s.configRoot },
+    });
 
-    assert.equal(result.code, 0);
-    assert.equal(result.stdout, '');
-    assert.match(result.stderr, /live differed from main/);
+    assert.equal(hook.status, 0, hook.stderr);
+    assert.equal(hook.stderr, '', 'an exit-0 stop hook has its stderr discarded, so nothing may be reported there');
+    const emitted = JSON.parse(hook.stdout);
+    assert.equal(emitted.hookSpecificOutput.hookEventName, 'Stop');
+    const context = emitted.hookSpecificOutput.additionalContext;
+    assert.match(context, /live differed from main/);
+    assert.ok(context.includes(s.sha), `promotion report must name the sha live was on: ${context}`);
+    assert.ok(context.includes(nextSha), `promotion report must name the sha live moved to: ${context}`);
     assert.equal(liveSha(s.configRoot), nextSha);
   } finally {
     s.dispose();
+  }
+});
+
+test('a stop that changes nothing stays silent and writes nothing, converged or uninitialized alike', () => {
+  const converged = scenario();
+  const uninitialized = scenario();
+  try {
+    assert.equal(converged.seedLive().status, 'promoted');
+    assert.equal(converged.converge().status, 'converged');
+    const convergedBefore = treeSnapshot(converged.configRoot);
+
+    const afterConverged = converged.cli(['--event', 'Stop', '--config-root', converged.configRoot]);
+
+    assert.equal(afterConverged.code, 0);
+    assert.equal(afterConverged.stdout, '');
+    assert.equal(afterConverged.stderr, '');
+    assert.deepEqual(treeSnapshot(converged.configRoot), convergedBefore, 'a converged stop must write nothing');
+
+    assert.equal(uninitialized.converge().status, 'uninitialized');
+    const uninitializedBefore = treeSnapshot(uninitialized.configRoot);
+
+    const afterUninitialized = uninitialized.cli(['--event', 'Stop', '--config-root', uninitialized.configRoot]);
+
+    assert.equal(afterUninitialized.code, 0);
+    assert.equal(afterUninitialized.stdout, '');
+    assert.equal(afterUninitialized.stderr, '');
+    assert.equal(liveSha(uninitialized.configRoot), null);
+    assert.deepEqual(
+      treeSnapshot(uninitialized.configRoot),
+      uninitializedBefore,
+      'an uninitialized stop must write nothing',
+    );
+  } finally {
+    converged.dispose();
+    uninitialized.dispose();
   }
 });
 
@@ -156,6 +221,67 @@ test('a candidate that fails validation is refused loudly and live stays where i
     assert.match(result.stderr, /hook-resolution/);
     assert.equal(liveSha(s.configRoot), s.sha);
   } finally {
+    s.dispose();
+  }
+});
+
+const WITHDRAWN = 'Bash(ln -sfn:*)';
+const RECLAIMABLE_RELEASES = RETAINED_RELEASES + 1;
+const OLD_TIME = new Date('2020-01-01T00:00:00.000Z');
+
+function sealSupersededReleases(configRoot) {
+  const sealed = Array.from({ length: RECLAIMABLE_RELEASES }, (unused, index) =>
+    join(configRoot, 'releases', `${'a'.repeat(39)}${index}`));
+  for (const dir of sealed) {
+    writeFile(join(dir, 'placeholder.txt'), 'superseded\n');
+    utimesSync(dir, OLD_TIME, OLD_TIME);
+    chmodSync(dir, 0o555);
+  }
+  return {
+    sealed,
+    unseal: () => {
+      for (const dir of sealed) chmodSync(dir, 0o755);
+    },
+  };
+}
+
+test('a promotion the hook performs carries every notice promote reports into the emitted report', () => {
+  const s = scenario();
+  const sealed = { unseal: () => {} };
+  try {
+    assert.equal(s.seedLive().status, 'promoted');
+    writeFile(
+      join(s.configRoot, 'settings.json'),
+      `${JSON.stringify({ ...hookSettings(DEFAULT_HOOK_COMMANDS), permissions: { allow: [WITHDRAWN], deny: [] } }, null, 2)}\n`,
+    );
+    commitChange(s.repoRoot, (claude) =>
+      writeFile(
+        join(claude, 'settings.json'),
+        `${JSON.stringify({ ...hookSettings(DEFAULT_HOOK_COMMANDS), permissions: { deny: ['Bash(gh pr merge:*)'] } }, null, 2)}\n`,
+      ));
+    Object.assign(sealed, sealSupersededReleases(s.configRoot));
+
+    const result = s.cli(['--event', 'SessionStart', '--config-root', s.configRoot]);
+
+    assert.equal(result.code, 0, result.stderr);
+    const context = JSON.parse(result.stdout).hookSpecificOutput.additionalContext;
+    assert.match(
+      context,
+      /removed permissions\.allow\[Bash\(ln -sfn:\*\)\]: /,
+      `a grant withdrawn from live must reach the hook report: ${context}`,
+    );
+    assert.match(
+      context,
+      /superseded releases could not be collected: /,
+      `a promotion warning must reach the hook report: ${context}`,
+    );
+    assert.deepEqual(
+      JSON.parse(readFileSync(join(s.configRoot, 'settings.json'), 'utf8')).permissions.allow,
+      [],
+      'the report must describe a withdrawal live actually underwent',
+    );
+  } finally {
+    sealed.unseal();
     s.dispose();
   }
 });

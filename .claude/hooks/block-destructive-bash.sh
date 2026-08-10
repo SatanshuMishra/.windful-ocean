@@ -14,7 +14,8 @@ seg_verdict="" seg_reason=""
 best_verdict="" best_reason=""
 
 ghwrap='(sudo|env|command|nohup|time|xargs|(ba|z|k)?sh[[:space:]]+-c|[a-z_][a-z0-9_]*=[^[:space:]]*)'
-guardpath='(\.claude/(settings(\.local)?\.json|CLAUDE\.md|keybindings\.json|(hooks|rules|lib|workflows)(/|[^[:alnum:]_./-]|$))|\.claude/?([^[:alnum:]_./-]|$))'
+guardname='(settings(\.local)?\.json|CLAUDE\.md|keybindings\.json|(hooks|rules|lib|workflows|releases|current|local|CUTOVER|LIVE|\.cutover)(/|[^[:alnum:]_./-]|$)|[^/[:space:]]*\.pre-cutover-[0-9a-f]+)'
+guardpath="(\.claude/${guardname}|\.claude/?([^[:alnum:]_./-]|\$))"
 
 note_fault() {
   fault_detail="$1"
@@ -120,7 +121,7 @@ classify_segment() {
   local gqlsub='(\$\(|`)'
   local prshortedit='(^|[[:space:]])-(t|b|F)([^a-zA-Z-]|$)'
 
-  local guardverb="(>|(^|[;&|[:space:]])tee[[:space:]]|(^|[;&|[:space:]])sed[[:space:]].*-i|(^|[;&|[:space:]])mv[[:space:]]|(^|[;&|[:space:]])cp[[:space:]]|(^|[;&|[:space:]])rm[[:space:]]|(^|[;&|[:space:]])chmod[[:space:]]|(^|[;&|[:space:]])truncate[[:space:]]|(^|[;&|[:space:]])perl[[:space:]]+(-[^[:space:]]+[[:space:]]+)*-[0-9aCdDFlnpsSuUwWxX]*i|${gitpre_cs}(checkout|restore)([[:space:]]|$))"
+  local guardverb="(>|(^|[;&|[:space:]])tee[[:space:]]|(^|[;&|[:space:]])sed[[:space:]].*-i|(^|[;&|[:space:]])mv[[:space:]]|(^|[;&|[:space:]])ln[[:space:]]|(^|[;&|[:space:]])mkdir[[:space:]]|(^|[;&|[:space:]])cp[[:space:]]|(^|[;&|[:space:]])rm[[:space:]]|(^|[;&|[:space:]])chmod[[:space:]]|(^|[;&|[:space:]])truncate[[:space:]]|(^|[;&|[:space:]])perl[[:space:]]+(-[^[:space:]]+[[:space:]]+)*-[0-9aCdDFlnpsSuUwWxX]*i|${gitpre_cs}(checkout|restore)([[:space:]]|$))"
   local guardunlock='(^|[;&|[:space:]])chflags[[:space:]]+(-[^[:space:]]+[[:space:]]+)*[^[:space:]]*nouchg([[:space:]]|$)'
 
   if has "${ghtok}pr[[:space:]]+merge([[:space:]]|$)" \

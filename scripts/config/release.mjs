@@ -1,7 +1,51 @@
 import { existsSync, mkdirSync, readdirSync, renameSync, rmSync, statSync } from 'node:fs';
 import { spawnSync } from 'node:child_process';
 import { join } from 'node:path';
-import { ARCHIVE_SUBTREE, SHA_PATTERN, releaseDir, releasesDir, settingsPathIn } from './paths.mjs';
+import {
+  ARCHIVE_SUBTREE,
+  SETTINGS_FILENAME,
+  SHA_PATTERN,
+  releaseDir,
+  releasesDir,
+  settingsPathIn,
+} from './paths.mjs';
+import { repoRootErrors } from './receipt.mjs';
+
+export const DECLARED_SETTINGS_PATH = `${ARCHIVE_SUBTREE}/${SETTINGS_FILENAME}`;
+
+const GIT_INERT_CONFIG_ARGS = Object.freeze(['-c', 'core.fsmonitor=']);
+
+const GIT_INERT_CONFIG_ENV = Object.freeze({
+  GIT_CONFIG_NOSYSTEM: '1',
+  GIT_CONFIG_GLOBAL: '/dev/null',
+});
+
+function gitEnvironment(inherited) {
+  return Object.freeze({ ...inherited, ...GIT_INERT_CONFIG_ENV });
+}
+
+function runGit(repoRoot, args) {
+  return spawnSync('git', ['-C', repoRoot, ...GIT_INERT_CONFIG_ARGS, ...args], {
+    encoding: 'utf8',
+    env: gitEnvironment(process.env),
+    shell: false,
+    windowsHide: true,
+  });
+}
+
+function repoRootRefusal(repoRoot, configRoot) {
+  const errors = repoRootErrors(repoRoot, { configRoot });
+  if (errors.length === 0) return null;
+  return `refusing to run git against ${JSON.stringify(repoRoot)}: ${errors.join('; ')}`;
+}
+
+function refRefusal(ref) {
+  if (typeof ref !== 'string' || ref.trim() === '') return 'refusing to resolve an empty ref';
+  if (ref.startsWith('-')) {
+    return `refusing to resolve ${JSON.stringify(ref)}: a ref may not begin with "-", where git would read it as an option`;
+  }
+  return null;
+}
 
 export function stripSettings(dir) {
   const path = settingsPathIn(dir);
@@ -15,9 +59,12 @@ export function stripSettings(dir) {
 }
 
 export function resolveRef(repoRoot, ref) {
-  const run = spawnSync('git', ['-C', repoRoot, 'rev-parse', '--verify', `${ref}^{commit}`], {
-    encoding: 'utf8',
-  });
+  const rootRefusal = repoRootRefusal(repoRoot);
+  if (rootRefusal !== null) return { ok: false, error: rootRefusal };
+  const badRef = refRefusal(ref);
+  if (badRef !== null) return { ok: false, error: badRef };
+
+  const run = runGit(repoRoot, ['rev-parse', '--verify', `${ref}^{commit}`]);
   if (run.error) return { ok: false, error: `git could not be run: ${run.error.message}` };
   if (run.status !== 0) {
     return { ok: false, error: `ref ${JSON.stringify(ref)} does not resolve in ${repoRoot}: ${(run.stderr || '').trim()}` };
@@ -29,6 +76,32 @@ export function resolveRef(repoRoot, ref) {
   return { ok: true, sha };
 }
 
+export function declaredSettings(repoRoot, sha) {
+  const rootRefusal = repoRootRefusal(repoRoot);
+  if (rootRefusal !== null) return { ok: false, error: rootRefusal };
+  if (!SHA_PATTERN.test(sha)) {
+    return { ok: false, error: `refusing to read declared settings at a non-sha ${JSON.stringify(sha)}` };
+  }
+  const source = `${sha}:${DECLARED_SETTINGS_PATH}`;
+  const listed = runGit(repoRoot, ['ls-tree', '--name-only', sha, '--', DECLARED_SETTINGS_PATH]);
+  if (listed.error) return { ok: false, error: `git could not be run: ${listed.error.message}` };
+  if (listed.status !== 0) {
+    return { ok: false, error: `${source} could not be looked up: ${(listed.stderr || '').trim()}` };
+  }
+  if ((listed.stdout || '').trim() === '') return { ok: true, absent: true, source };
+
+  const shown = runGit(repoRoot, ['show', source]);
+  if (shown.error) return { ok: false, error: `git could not be run: ${shown.error.message}` };
+  if (shown.status !== 0) {
+    return { ok: false, error: `${source} could not be read: ${(shown.stderr || '').trim()}` };
+  }
+  try {
+    return { ok: true, absent: false, source, settings: JSON.parse(shown.stdout) };
+  } catch (error) {
+    return { ok: false, error: `${source} is not parseable JSON: ${error.message}` };
+  }
+}
+
 export function buildRelease({ configRoot, repoRoot, sha }) {
   if (!SHA_PATTERN.test(sha)) return { ok: false, error: `refusing to build a release for a non-sha ${JSON.stringify(sha)}` };
   const target = releaseDir(configRoot, sha);
@@ -36,6 +109,9 @@ export function buildRelease({ configRoot, repoRoot, sha }) {
     const stripped = stripSettings(target);
     return stripped.ok ? { ok: true, built: false, dir: target } : { ok: false, error: stripped.error };
   }
+
+  const rootRefusal = repoRootRefusal(repoRoot, configRoot);
+  if (rootRefusal !== null) return { ok: false, error: rootRefusal };
 
   const releases = releasesDir(configRoot);
   mkdirSync(releases, { recursive: true });
@@ -45,11 +121,7 @@ export function buildRelease({ configRoot, repoRoot, sha }) {
   rmSync(archive, { force: true });
 
   try {
-    const written = spawnSync(
-      'git',
-      ['-C', repoRoot, 'archive', '--format=tar', '-o', archive, sha, ARCHIVE_SUBTREE],
-      { encoding: 'utf8' },
-    );
+    const written = runGit(repoRoot, ['archive', '--format=tar', '-o', archive, sha, ARCHIVE_SUBTREE]);
     if (written.error) return { ok: false, error: `git archive could not be run: ${written.error.message}` };
     if (written.status !== 0) {
       return { ok: false, error: `git archive failed for ${sha}: ${(written.stderr || '').trim()}` };
