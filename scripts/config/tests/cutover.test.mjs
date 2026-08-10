@@ -22,7 +22,9 @@ import {
   CUTOVER_STAGING_SUFFIX,
   NOTES_DIRNAME,
   PROMOTED_ENTRIES,
+  cutoverAsideRoot,
   releaseDir,
+  releasesDir,
 } from '../paths.mjs';
 import {
   ENTRY_ACTIONS,
@@ -1347,6 +1349,51 @@ test('a rollback whose aside container resolves out of the config root moves not
     assert.match(rolled.errors.join('\n'), /refusing to write outside/);
   } finally {
     scenario.dispose();
+  }
+});
+
+const PLANTED_SHA = 'a'.repeat(40);
+const PLANTED_NAMES = Object.freeze(['hooks', 'rules']);
+
+function seedLiveRelease(configRoot, sha, names) {
+  const release = releaseDir(configRoot, sha);
+  for (const name of names) writeFile(join(release, name, 'payload.txt'), `${name} release\n`);
+  symlinkSync(release, join(configRoot, 'current'));
+  for (const name of names) symlinkSync(derivedTarget(name), join(configRoot, name));
+  rewriteJournal(configRoot, {
+    version: 1,
+    sha,
+    current: realpathSync(release),
+    applied_at: NOW,
+    entries: names.map((name) => ({ name, state: 'real', sha, recorded: 'performed' })),
+  });
+  return release;
+}
+
+test('a rollback whose aside container is a symlink restores nothing from behind it', () => {
+  const { home, configRoot } = makeHome();
+  try {
+    const release = seedLiveRelease(configRoot, PLANTED_SHA, PLANTED_NAMES);
+    symlinkSync(releasesDir(configRoot), cutoverAsideRoot(configRoot));
+
+    const rolled = rollbackCutover({ configRoot });
+
+    assert.equal(rolled.status, 'error', why(rolled));
+    assert.match(rolled.errors.join('\n'), /not a directory this tool could have created/);
+    assert.deepEqual(
+      listing(release),
+      [...PLANTED_NAMES].sort(),
+      'a container that is a symlink must not have what stands behind it renamed onto the live entries',
+    );
+    for (const name of PLANTED_NAMES) {
+      assert.equal(readFileSync(join(release, name, 'payload.txt'), 'utf8'), `${name} release\n`);
+      assert.equal(lstatSync(join(configRoot, name)).isSymbolicLink(), true, `${name}: the live entry is still a link`);
+      assert.equal(readlinkSync(join(configRoot, name)), derivedTarget(name), `${name}: left exactly as it stands`);
+    }
+    assert.equal(realpathSync(join(configRoot, 'current')), realpathSync(release), 'current still resolves');
+    assert.ok(existsSync(join(configRoot, 'CUTOVER')), 'a refused rollback keeps the only record of what it holds');
+  } finally {
+    cleanup(home);
   }
 });
 

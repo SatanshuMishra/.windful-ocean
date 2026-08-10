@@ -328,6 +328,8 @@ function asideNode(aside) {
 
 const nodeKindOf = (stat) => (stat.isSymbolicLink() ? 'symlink' : 'real');
 
+const isRealDirectory = (stat) => stat !== null && stat.isDirectory() && !stat.isSymbolicLink();
+
 export function corroborationVerdict({ configRoot, record }) {
   const owed = ENTRY_CORROBORATION[record.state];
   const path = entryPath(configRoot, record.name);
@@ -585,8 +587,7 @@ function placeLink({ configRoot, name }) {
 }
 
 function adoptAsideContainer({ dir, accounted }) {
-  const stat = lstatOrNull(dir);
-  if (stat === null || !stat.isDirectory() || stat.isSymbolicLink()) {
+  if (!isRealDirectory(lstatOrNull(dir))) {
     return {
       ok: false,
       errors: [`${dir} already exists and is not a directory this tool could have created; refusing to move anything aside into it`],
@@ -918,6 +919,23 @@ function asideContainmentErrors({ configRoot, journal }) {
   ];
 }
 
+function asideContainerKindErrors({ configRoot, journal }) {
+  return [
+    ...new Set([
+      cutoverAsideRoot(configRoot),
+      ...censusDomain(journal).shas.map((sha) => cutoverAsideDir(configRoot, sha)),
+    ]),
+  ].flatMap((dir) => {
+    const node = asideNode(dir);
+    if (node.error !== null) return [node.error];
+    if (node.stat === null || isRealDirectory(node.stat)) return [];
+    return [
+      `${dir} exists and is not a directory this tool could have created; `
+        + 'refusing to restore anything from it, or to reclaim it',
+    ];
+  });
+}
+
 function consumptionErrors({ configRoot, journal, path }) {
   const census = asideCensus(configRoot, journal);
   const named = [
@@ -938,6 +956,8 @@ export function rollbackCutover({ configRoot }) {
   if (!stored.ok) return { status: 'error', errors: stored.errors };
   const contained = asideContainmentErrors({ configRoot, journal: stored.journal });
   if (contained.length > 0) return { status: 'error', errors: contained };
+  const kinds = asideContainerKindErrors({ configRoot, journal: stored.journal });
+  if (kinds.length > 0) return { status: 'error', errors: kinds };
   const records = partitionRecords(stored.journal.entries);
   const acted = [...records.usable].reverse().map((entry) => {
     try {
