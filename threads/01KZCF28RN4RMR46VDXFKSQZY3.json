@@ -84,9 +84,9 @@
   "abandoned_reason": null,
   "closure_statement": null,
   "spine": {
-    "active_goal": "Retire the homegrown invariant system whole per 0313, then cut the live Claude config over to validated releases instead of the raw symlinked checkout.",
-    "next_step": "START HERE FRESH. (1) Review and merge PR #57 then #58 - open, stacked, unmerged; #58 omits D6 and npm ci (no lockfile) and its action SHA is unverified. (2) Cutover is BLOCKED: cutover.mjs exists only on unmerged feat/config-entry-link-cutover, with a symlink-target hole in its ROLLBACK path. Decide: finish+review it, or rebuild against main. (3) Wire resolveSettings into promote - criterion 8 has no code path. (4) Settle notes/. Swap runs in its own session per 0292.",
-    "last_session": "Retired the whole homegrown invariant system per 0313, shipped as stacked PRs #57 (teardown, 41 files, -3259) and #58 (receipts gate), both OPEN and unmerged, verified 2034/1 against baseline 2056/1 with zero new failures. Cutover recon found cutover.mjs absent from main entirely.",
+    "active_goal": "Restore a working fix-verification gate on main, then cut the live Claude config over to validated releases instead of the raw symlinked checkout.",
+    "next_step": "START HERE. (1) Re-integrate the receipts gate: c78c934 merged into its stack parent, not main - open one pr.mjs PR re-basing it onto main, and verify by ancestry not by a MERGED badge. (2) Cutover: cutover.mjs is absent from main, living only on unmerged feat/config-entry-link-cutover with a hole in its ROLLBACK path - decide finish+review vs rebuild fresh. (3) Wire resolveSettings into promote; criterion 8 has no code path. (4) Settle notes/. Swap runs in its own session per 0292.",
+    "last_session": "Verified both PRs. #57's teardown IS on main - zero invariant artifacts survive and the prose rules carried. #58's receipts gate is NOT on main: it merged into its stack parent, leaving the repo ungated.",
     "open_risks": [
       {
         "text": "Review round 3 before trusting any of it — it is the only unreviewed round, it rewrote the containment model, the rollback contract and the grant reporting, and two of the three reviewed rounds returned BLOCK",
@@ -260,21 +260,6 @@
         ]
       },
       {
-        "text": "Remove the coverage checker in the SAME change as the last coverage receipt, never after — the checker treats an empty coverage directory as a hard failure rather than a vacuous pass, so a teardown that deletes receipts first reds CI on the way through",
-        "scope": "c3",
-        "refs": [
-          "scripts/invariant-coverage-check.mjs:213-215",
-          "0313"
-        ]
-      },
-      {
-        "text": "Check converge and its hooks for a dependency on the invariant scripts before the teardown lands — 0313 deletes the whole invariant-*.mjs family, and any converge path that shells out to one breaks silently at the moment of removal",
-        "scope": "c3",
-        "refs": [
-          "0313"
-        ]
-      },
-      {
         "text": "GUARDED_CONFIG_ENTRIES does not exist and must not be built — the claim that three constants were merged into it was verified false, paths.mjs is on main and identical on the cutover branch, and 0307 keeps the two production sets separate",
         "scope": "c10",
         "refs": [
@@ -287,6 +272,23 @@
         "scope": "c10",
         "refs": [
           "0313"
+        ]
+      },
+      {
+        "text": "Re-integrate c78c934 onto main before anything else — the receipts gate merged into its already-merged stack parent, so main has no invariant machinery AND no fix-verification gate, which is the ungated state 0314 existed to prevent",
+        "scope": "c3",
+        "refs": [
+          "ci/deploy-receipts-gate",
+          "c78c934",
+          "0314"
+        ]
+      },
+      {
+        "text": "Never read a MERGED badge as proof the content reached main — a stacked pull request whose parent merges first is left pointing at a dead base and still reports MERGED, which is how this recurred after c8 recorded it once already",
+        "scope": "c3",
+        "refs": [
+          "c8",
+          "0314"
         ]
       }
     ],
@@ -463,5 +465,5 @@
     ]
   },
   "created_at": "2026-08-06T21:18:29.653Z",
-  "updated_at": "2026-08-10T06:16:45.090Z"
+  "updated_at": "2026-08-10T06:17:24.225Z"
 }
