@@ -139,35 +139,6 @@
         ]
       },
       {
-        "text": "Amend the contract on I3a and land it as a fixture per 0305, never tighten the code — the implementation deliberately allows a missing aside for a run that died after writing its journal, the likeliest real failure, and a lane reading the stricter sentence will file it as a finding",
-        "scope": "c10",
-        "refs": [
-          "artifacts/2026-08-09-cutover-invariants-v2.md"
-        ]
-      },
-      {
-        "text": "Implement the census admission rule from 0304 BEFORE wiring the shape check into CI — it reports 52 findings with zero exclusions today, so wiring it first turns every commit red and the check gets switched off instead of fixed",
-        "scope": "c10",
-        "refs": [
-          "scripts/invariant-shape-check.mjs"
-        ]
-      },
-      {
-        "text": "GUARDED_CONFIG_ENTRIES does not exist and must not be built — the claim that three constants were merged into it was verified false, paths.mjs is on main and identical on the cutover branch, and 0307 keeps the two production sets separate",
-        "scope": "c10",
-        "refs": [
-          "scripts/config/paths.mjs:18",
-          "scripts/config/capture.mjs:141"
-        ]
-      },
-      {
-        "text": "Read every registry green as proving coverage only, never that an invariant holds — all 17 registered ids are declared unwitnessed, so nothing in CI evaluates any invariant property yet",
-        "scope": "c10",
-        "refs": [
-          "scripts/invariant-coverage-check.mjs"
-        ]
-      },
-      {
         "text": "Never run git checkout main in the primary checkout — live global config is symlinked into that working tree, so switching branches hot-swaps every skill and hook under every running session",
         "scope": "thread",
         "refs": [
@@ -289,33 +260,33 @@
         ]
       },
       {
-        "text": "Do not re-run the 24-file coverage sweep the first attempt designed — the merged receipts are deleted now per 0312, so any plan that sweeps every entry is written against a tree that no longer exists",
+        "text": "Remove the coverage checker in the SAME change as the last coverage receipt, never after — the checker treats an empty coverage directory as a hard failure rather than a vacuous pass, so a teardown that deletes receipts first reds CI on the way through",
         "scope": "c3",
         "refs": [
-          "docs/invariants/coverage/",
-          "0312"
+          "scripts/invariant-coverage-check.mjs:213-215",
+          "0313"
         ]
       },
       {
-        "text": "Keep at least one coverage entry alive at all times — an empty coverage directory is a hard failure rather than a vacuous pass, so a lane that removes the last surviving entry breaks CI outright",
+        "text": "Check converge and its hooks for a dependency on the invariant scripts before the teardown lands — 0313 deletes the whole invariant-*.mjs family, and any converge path that shells out to one breaks silently at the moment of removal",
         "scope": "c3",
         "refs": [
-          "scripts/invariant-coverage-check.mjs:213-215"
+          "0313"
         ]
       },
       {
-        "text": "Take the green half of a coverage receipt after the commit, never before — scope reads the committed diff, so a working-tree run reports ok on a tree that goes red the instant it is committed",
-        "scope": "c3",
+        "text": "GUARDED_CONFIG_ENTRIES does not exist and must not be built — the claim that three constants were merged into it was verified false, paths.mjs is on main and identical on the cutover branch, and 0307 keeps the two production sets separate",
+        "scope": "c10",
         "refs": [
-          "scripts/invariant-coverage-check.mjs:396-397"
+          "scripts/config/paths.mjs:18",
+          "scripts/config/capture.mjs:141"
         ]
       },
       {
-        "text": "Decide the stale M5 citation in the surviving receipt before any lane touches that file — its M5 row cites four constants at :21-24 as uncommitted when they sit at :28-31 and landed in a4f0d41, a live M5 breach inside the row attesting to M5",
-        "scope": "c3",
+        "text": "c10's review gate SURVIVES 0313 and is now the last gate before a live config swap — the invariant machinery that was meant to discharge it is gone, so the gate reverts to an ordinary independent review of the cutover unit and must not be skipped as collateral",
+        "scope": "c10",
         "refs": [
-          "docs/invariants/coverage/feat-invariant-inert-registry.json",
-          "scripts/invariant-coverage-check.mjs:28-31"
+          "0313"
         ]
       }
     ],
@@ -487,5 +458,5 @@
     ]
   },
   "created_at": "2026-08-06T21:18:29.653Z",
-  "updated_at": "2026-08-10T05:34:39.225Z"
+  "updated_at": "2026-08-10T05:35:15.725Z"
 }
