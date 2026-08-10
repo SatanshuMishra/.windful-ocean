@@ -87,6 +87,7 @@ const corporaByGoal = {
     'g4SubdirectoryCommands',
     'g4RecursiveRemoveCommands',
     'g4CutoverSteeringCommands',
+    'g4CreationVerbCommands',
     'g4NoOpinionCommands',
   ],
   G5: [
@@ -480,8 +481,32 @@ for (const command of g4CutoverSteeringCommands) {
   });
 }
 
+const g4CreationVerbCommands = [
+  'ln -sfn /tmp/evil ~/.claude/hooks',
+  'ln -s /tmp/attacker.json ~/.claude/CUTOVER',
+  'ln -s /tmp/evil ~/.claude/hooks.pre-cutover-deadbeef',
+  'mkdir -p ~/.claude/hooks.pre-cutover-deadbeef',
+  `mkdir -p .claude/.cutover/${RELEASE_SHA}`,
+  `ln -s /tmp/evil .claude/.cutover/${RELEASE_SHA}/hooks`,
+  'ln -s /tmp/evil .claude/rules',
+  'mkdir -p .claude/lib/git',
+];
+
+for (const command of g4CreationVerbCommands) {
+  test(`${goalsFor('g4CreationVerbCommands')}: asks before a link or a directory is created over a guardrail path: ${command}`, () => {
+    const r = runHook(command);
+    assert.equal(r.status, 0);
+    assert.equal(decisionOf(r), 'ask');
+    assert.equal(reasonOf(r), GUARDRAIL_ASK_REASON);
+  });
+}
+
 const g4NoOpinionCommands = [
   'git checkout main',
+  'mkdir -p .claude/skills/mitosis/templates',
+  'ln -s /tmp/x .claude/skills/mitosis/templates/receipts.yml',
+  'mkdir -p .claude/hooksfoo',
+  'ln -s /tmp/x .claude/libfoo',
   'cat .claude/CUTOVER',
   'cat ~/.claude/LIVE',
   'echo x > .claude/currently/notes.md',
@@ -635,6 +660,7 @@ const corpusByName = {
   g4ImmutableFlagCommands,
   g4RecursiveRemoveCommands,
   g4CutoverSteeringCommands,
+  g4CreationVerbCommands,
   g4NoOpinionCommands,
   g5CredentialExfiltrationCommands,
   g5GuardrailExfiltrationCommands,
