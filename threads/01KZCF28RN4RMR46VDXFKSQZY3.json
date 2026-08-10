@@ -38,14 +38,14 @@
     {
       "id": "c11",
       "text": "The stale ccstatusline declaration that would have downgraded live on every promote is fixed and merged as PR #61, caught by diffing the rehearsal's reconciled settings against the live file.",
-      "done": false,
+      "done": true,
       "kind": "detour",
       "struck_by": null
     },
     {
       "id": "c3",
       "text": "SessionStart and Stop converge hooks are registered, and a drift report reaches session context when live differs from main.",
-      "done": false,
+      "done": true,
       "kind": "planned",
       "struck_by": null
     },
@@ -91,9 +91,9 @@
   "abandoned_reason": null,
   "closure_statement": null,
   "spine": {
-    "active_goal": "Rehearse the merged promote verb against a faithful scratch root, then swap every live config entry link onto the release in one serial session.",
-    "next_step": "START HERE IN A FRESH SESSION. PR #60 merged; origin/main carries the cutover unit at bdbb01a. In order: (1) fast-forward local main without checking it out (git fetch origin main:main), since 0281 names stale local main as a trap; (2) run the 0281 faithful rehearsal against a scratch root at bdbb01a - live settings.json copied in, bootstrap in the scratch local/ WITH manifest.mjs, HOME overridden so the config root sits at $HOME/.claude; (3) only then the live swap, alone.",
-    "last_session": "Pushed 700878d, opened PR #60 through pr.mjs pr-create carrying the round-3 disclosures, and the human merged it at bdbb01a.",
+    "active_goal": "Run the c5 entry-link cutover so live skills and hooks resolve through the release, then verify SPEC A's 10 acceptance criteria.",
+    "next_step": "START HERE IN A FRESH SESSION, doing nothing else. The first live promote is DONE: current -> releases/75b90a3..., the LIVE receipt is written, both converge hooks are registered and settings.json is reconciled. Next is c5, the entry-link cutover. Read scripts/config/cutover.mjs at main, then rehearse it against a scratch root with all three 0281 faithfulness parts intact before any live entry link moves. Per 0317 the swap is operated by a dedicated fresh-context agent.",
+    "last_session": "Ran the faithful rehearsal (zero failures), fixed the ccstatusline downgrade as merged PR #61, then completed the live bootstrap reinstall and the first live promote at 75b90a3.",
     "open_risks": [
       {
         "text": "Give every sub-agent dispatch run_in_background false — three orchestration attempts were lost because parent agents ended their turns while believing they were blocking on background children",
@@ -122,20 +122,6 @@
         ]
       },
       {
-        "text": "Re-plan against invariants rather than opening a fourth fix round — all three permitted rounds are spent, and two of this unit's four defects were introduced by a fix round rather than present in the original code",
-        "scope": "c5",
-        "refs": [
-          "artifacts/2026-08-10-round3-review-outcome.md"
-        ]
-      },
-      {
-        "text": "Run the binding 0281 rehearsal against the merged sha with all three faithfulness parts intact — no rehearsal of any kind ran this session, so there is no pre-merge evidence to lean on, and dropping the HOME override buries the real findings under two dozen artifacts",
-        "scope": "c5",
-        "refs": [
-          "0281"
-        ]
-      },
-      {
         "text": "Confirm the five notes files were copied into local/notes and byte-verified before the link is repointed — two hold the confidential material 0276 refused to publish, and the sources are deliberately left in the checkout for a human to remove",
         "scope": "c5",
         "refs": [
@@ -144,7 +130,7 @@
         ]
       },
       {
-        "text": "Expect the swap to change live content rather than merely a level of indirection — live config resolves into the primary checkout on feat/invariant-inert-registry today, while the release is built from origin/main",
+        "text": "Expect the swap to change live content rather than merely a level of indirection — live config resolves into the primary checkout on feat/invariant-inert-registry today, while the release is built from main",
         "scope": "c5",
         "refs": [
           "feat/invariant-inert-registry"
@@ -158,11 +144,18 @@
         ]
       },
       {
-        "text": "Install manifest.mjs into the live local/ bootstrap before the swap — the merged promote.mjs imports it and the bootstrap on disk carries only six modules, so it would throw on its first run",
-        "scope": "c3",
+        "text": "Observe the converge drift report actually firing before treating c3 as proven — registration and a clean exit 0 on both events are verified, but no run has yet produced a real drift report",
+        "scope": "c5",
         "refs": [
-          "~/.claude/local/",
-          "scripts/config/promote.mjs:32"
+          "~/.claude/local/converge.mjs"
+        ]
+      },
+      {
+        "text": "Recover from this release with the settings backup and by removing the current symlink, not with rollback — the first LIVE receipt records previous as null, so rollback has no target at all",
+        "scope": "c5",
+        "refs": [
+          "~/.claude/settings.json.bak-2026-08-10-pre-promote",
+          "~/.claude/LIVE"
         ]
       }
     ],
@@ -365,9 +358,10 @@
     ],
     "out_of_scope": [
       "Building SPEC B Part IV's stacked-PR machinery to serve this work",
-      "Editing mitosis.js or the parallel engine, which SPEC B governs"
+      "Editing mitosis.js or the parallel engine, which SPEC B governs",
+      "Updating the Claude Code plugins through the release mechanism — enabledPlugins, pluginConfigs and extraKnownMarketplaces are live-owned, so promotion never carries them"
     ]
   },
   "created_at": "2026-08-06T21:18:29.653Z",
-  "updated_at": "2026-08-10T21:30:26.136Z"
+  "updated_at": "2026-08-10T21:31:08.026Z"
 }
