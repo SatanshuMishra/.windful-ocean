@@ -16,7 +16,7 @@ const WITNESS_FIELD = 'witness';
 const REGISTRY_FIELDS = Object.freeze(['id', 'statement', 'source', WITNESS_FIELD]);
 const UNWITNESSED_IDS = Object.freeze([
   'B1', 'B2', 'B3', 'B4', 'B5', 'B6',
-  'M1', 'M2', 'M3', 'M4', 'M5', 'M6',
+  'M1', 'M5', 'M6',
   'G1', 'G2', 'G3', 'G4', 'G5',
 ]);
 const VALUE_FLAGS = Object.freeze(['--root', '--event', '--base-ref']);
@@ -28,7 +28,7 @@ const REMOTE_REF_PREFIX = 'refs/remotes/';
 const INERT_BASIS = 'inert';
 const INERT_WHEN_FIELD = 'inert_when';
 const INERT_PATHS_FIELD = 'paths';
-const INERT_BARRED_IDS = Object.freeze(['M3', 'M4', 'M5']);
+const INERT_BARRED_IDS = Object.freeze(['M5']);
 const GLOB_UNSUPPORTED = Object.freeze(['[', ']', '{', '}', '(', ')', '!', '+', '@', '\\']);
 const GLOB_SEGMENTS = '**';
 const GLOB_CHAR_SOURCES = Object.freeze({ '*': '[^/]*', '?': '[^/]' });

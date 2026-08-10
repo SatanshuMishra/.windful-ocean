@@ -368,13 +368,13 @@ test('pull request mode with an unresolvable base ref halts red rather than degr
 
 test('a barred id carrying inert_when halts the registry read and names that id', () => {
   const root = makeRoot('inv-inert-barred-');
-  writeRegistry(root, ['X1', 'M3'], { M3: { paths: ['docs/**'] } });
-  writeCoverage(root, 'entry.json', rowsFor(['X1', 'M3']));
+  writeRegistry(root, ['X1', 'M5'], { M5: { paths: ['docs/**'] } });
+  writeCoverage(root, 'entry.json', rowsFor(['X1', 'M5']));
 
   const result = run(root);
 
   assert.notEqual(result.status, 0, 'expected a non-zero exit for an inert_when on a structurally barred id');
-  assert.match(result.stderr, /M3/);
+  assert.match(result.stderr, /M5/);
   assert.match(result.stderr, /inert_when/);
 });
 

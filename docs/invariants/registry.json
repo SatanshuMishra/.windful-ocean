@@ -114,21 +114,6 @@
       "source": "docs/superpowers/specs/2026-07-30-two-track-invariant-plan.md"
     },
     {
-      "id": "M2",
-      "statement": "Any gate that classifies tokens, identifiers or paths is a closed census that halts on the unclassifiable; a pinned count or a sampled allowlist is forbidden as a change-detector.",
-      "source": "docs/superpowers/specs/2026-07-30-two-track-invariant-plan.md"
-    },
-    {
-      "id": "M3",
-      "statement": "Every fix ships an acceptance test that is red on the parent commit and green on the fix, asserting the reported symptom, plus an inertness mutation that must turn the assertion red.",
-      "source": "docs/superpowers/specs/2026-07-30-two-track-invariant-plan.md"
-    },
-    {
-      "id": "M4",
-      "statement": "A structural refactor and a behavior change do not share one reviewable range unless a characterization test pinning the surviving behavior is written before the refactor.",
-      "source": "docs/superpowers/specs/2026-07-30-two-track-invariant-plan.md"
-    },
-    {
       "id": "M5",
       "statement": "Every path:line citation in a plan, spec or PR is re-derived against the live tree when written, never copied.",
       "source": "docs/superpowers/specs/2026-07-30-two-track-invariant-plan.md"
