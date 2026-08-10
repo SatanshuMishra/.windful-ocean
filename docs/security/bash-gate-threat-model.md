@@ -34,7 +34,7 @@ But the platform's own fail-open default bounds what "strongest" can mean here: 
 
 ## 4. Goals (G1-G5)
 
-Each statement is written as a single sentence so it can be lifted verbatim into `docs/invariants/registry.json`'s `{id, statement, source}` shape.
+Each statement is written as a single sentence.
 
 | ID | Statement | Control |
 |---|---|---|
