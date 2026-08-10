@@ -6,7 +6,7 @@ import { fileURLToPath } from 'node:url';
 import { DEFAULT_REF } from './paths.mjs';
 import { readReceipt } from './receipt.mjs';
 import { resolveRef } from './release.mjs';
-import { assertBootstrapOutsideReleases, liveSha, promote } from './promote.mjs';
+import { assertBootstrapOutsideReleases, liveSha, promote, settingsNotices } from './promote.mjs';
 
 const EXIT_OK = 0;
 const EXIT_FAIL = 1;
@@ -69,7 +69,7 @@ export function converge({ configRoot, ref = DEFAULT_REF, now, repoRoot, setting
   return { status: 'drifted', ref, drift, promotion };
 }
 
-function promotionLines(promotion) {
+function promotionStatusLines(promotion) {
   if (promotion.status === 'promoted') {
     const from = promotion.previous ? ` (was ${promotion.previous})` : '';
     return [`live now resolves to ${promotion.sha}${from}`];
@@ -84,6 +84,14 @@ function promotionLines(promotion) {
     ];
   }
   return ['promotion failed', ...(promotion.errors ?? ['unknown failure'])];
+}
+
+function promotionLines(promotion) {
+  return [
+    ...promotionStatusLines(promotion),
+    ...(promotion.warnings ?? []),
+    ...settingsNotices(promotion.settings),
+  ];
 }
 
 function convergeReport(outcome) {

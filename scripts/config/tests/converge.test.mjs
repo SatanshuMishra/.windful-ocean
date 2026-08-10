@@ -1,14 +1,25 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { existsSync, lstatSync, readFileSync, readdirSync, readlinkSync, rmSync } from 'node:fs';
+import {
+  chmodSync,
+  existsSync,
+  lstatSync,
+  readFileSync,
+  readdirSync,
+  readlinkSync,
+  rmSync,
+  utimesSync,
+} from 'node:fs';
 import { spawnSync } from 'node:child_process';
 import { join, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { RETAINED_RELEASES } from '../paths.mjs';
 import {
   DEFAULT_HOOK_COMMANDS,
   cleanup,
   commitChange,
   git,
+  hookSettings,
   makeHome,
   makeRepo,
   settingsFor,
@@ -210,6 +221,67 @@ test('a candidate that fails validation is refused loudly and live stays where i
     assert.match(result.stderr, /hook-resolution/);
     assert.equal(liveSha(s.configRoot), s.sha);
   } finally {
+    s.dispose();
+  }
+});
+
+const WITHDRAWN = 'Bash(ln -sfn:*)';
+const RECLAIMABLE_RELEASES = RETAINED_RELEASES + 1;
+const OLD_TIME = new Date('2020-01-01T00:00:00.000Z');
+
+function sealSupersededReleases(configRoot) {
+  const sealed = Array.from({ length: RECLAIMABLE_RELEASES }, (unused, index) =>
+    join(configRoot, 'releases', `${'a'.repeat(39)}${index}`));
+  for (const dir of sealed) {
+    writeFile(join(dir, 'placeholder.txt'), 'superseded\n');
+    utimesSync(dir, OLD_TIME, OLD_TIME);
+    chmodSync(dir, 0o555);
+  }
+  return {
+    sealed,
+    unseal: () => {
+      for (const dir of sealed) chmodSync(dir, 0o755);
+    },
+  };
+}
+
+test('a promotion the hook performs carries every notice promote reports into the emitted report', () => {
+  const s = scenario();
+  const sealed = { unseal: () => {} };
+  try {
+    assert.equal(s.seedLive().status, 'promoted');
+    writeFile(
+      join(s.configRoot, 'settings.json'),
+      `${JSON.stringify({ ...hookSettings(DEFAULT_HOOK_COMMANDS), permissions: { allow: [WITHDRAWN], deny: [] } }, null, 2)}\n`,
+    );
+    commitChange(s.repoRoot, (claude) =>
+      writeFile(
+        join(claude, 'settings.json'),
+        `${JSON.stringify({ ...hookSettings(DEFAULT_HOOK_COMMANDS), permissions: { deny: ['Bash(gh pr merge:*)'] } }, null, 2)}\n`,
+      ));
+    Object.assign(sealed, sealSupersededReleases(s.configRoot));
+
+    const result = s.cli(['--event', 'SessionStart', '--config-root', s.configRoot]);
+
+    assert.equal(result.code, 0, result.stderr);
+    const context = JSON.parse(result.stdout).hookSpecificOutput.additionalContext;
+    assert.match(
+      context,
+      /removed permissions\.allow\[Bash\(ln -sfn:\*\)\]: /,
+      `a grant withdrawn from live must reach the hook report: ${context}`,
+    );
+    assert.match(
+      context,
+      /superseded releases could not be collected: /,
+      `a promotion warning must reach the hook report: ${context}`,
+    );
+    assert.deepEqual(
+      JSON.parse(readFileSync(join(s.configRoot, 'settings.json'), 'utf8')).permissions.allow,
+      [],
+      'the report must describe a withdrawal live actually underwent',
+    );
+  } finally {
+    sealed.unseal();
     s.dispose();
   }
 });
