@@ -84,9 +84,9 @@
   "abandoned_reason": null,
   "closure_statement": null,
   "spine": {
-    "active_goal": "Make the invariant machinery enforce rather than describe, then land the five answered round-6 questions in the recorded order, CI first and witnesses last.",
-    "next_step": "START HERE FRESH. The five round-6 questions are ANSWERED - do not re-present them. Read 0304-0308 first, then execute in order: (0) fix .github/workflows/test.yml per 0306; (1) Q4 deletions, sole writer under .claude/rules/; (2) census admission rule per 0304; (3) wire invariant-shape-check.mjs and ratchet UNWITNESSED_IDS; (4) I3a permit-set as a fixture per 0305; (5) guard-list fix per 0307; (6) aside naming per 0308; (7) witnesses last.",
-    "last_session": "Presented and then re-explained the five round-6 questions from zero; the user answered all five, three follow-ups changed scope, five decisions were recorded and no code was written.",
+    "active_goal": "Make the invariant machinery enforce rather than describe, then land the five answered round-6 questions in the recorded order - CI is done, witnesses last.",
+    "next_step": "START HERE FRESH. Step (0) is DONE and merged as 6e5e08e - do not redo it. Resume at (1): the Q4 deletions, sole writer under .claude/rules/. Then (2) census admission per 0304; (3) wire invariant-shape-check.mjs and ratchet UNWITNESSED_IDS - that step must also carry the script onto main per 0309, and is the natural home for the M2 mitigation in 0310; (4) I3a permit-set fixture per 0305; (5) guard-list fix per 0307; (6) aside naming per 0308; (7) witnesses last.",
+    "last_session": "Shipped step 0: the invariant CI checks split by determinism, with a red-on-parent receipt and a 17-row coverage record, merged as PR #56 (6e5e08e).",
     "open_risks": [
       {
         "text": "Review round 3 before trusting any of it — it is the only unreviewed round, it rewrote the containment model, the rollback contract and the grant reporting, and two of the three reviewed rounds returned BLOCK",
@@ -136,6 +136,35 @@
         "scope": "c5",
         "refs": [
           "docs/invariants/coverage/feat-config-entry-link-cutover.json"
+        ]
+      },
+      {
+        "text": "Amend the contract on I3a and land it as a fixture per 0305, never tighten the code — the implementation deliberately allows a missing aside for a run that died after writing its journal, the likeliest real failure, and a lane reading the stricter sentence will file it as a finding",
+        "scope": "c10",
+        "refs": [
+          "artifacts/2026-08-09-cutover-invariants-v2.md"
+        ]
+      },
+      {
+        "text": "Implement the census admission rule from 0304 BEFORE wiring the shape check into CI — it reports 52 findings with zero exclusions today, so wiring it first turns every commit red and the check gets switched off instead of fixed",
+        "scope": "c10",
+        "refs": [
+          "scripts/invariant-shape-check.mjs"
+        ]
+      },
+      {
+        "text": "GUARDED_CONFIG_ENTRIES does not exist and must not be built — the claim that three constants were merged into it was verified false, paths.mjs is on main and identical on the cutover branch, and 0307 keeps the two production sets separate",
+        "scope": "c10",
+        "refs": [
+          "scripts/config/paths.mjs:18",
+          "scripts/config/capture.mjs:141"
+        ]
+      },
+      {
+        "text": "Read every registry green as proving coverage only, never that an invariant holds — all 17 registered ids are declared unwitnessed, so nothing in CI evaluates any invariant property yet",
+        "scope": "c10",
+        "refs": [
+          "scripts/invariant-coverage-check.mjs"
         ]
       },
       {
@@ -222,13 +251,6 @@
         ]
       },
       {
-        "text": "Fix the CI workflow before any other step, per 0306 — it passes no event or base ref and runs every PR commit twice under different diff scopes, so until it is fixed every later change will look intermittently broken for reasons unrelated to it",
-        "scope": "thread",
-        "refs": [
-          ".github/workflows/test.yml:32"
-        ]
-      },
-      {
         "text": "Land the I3a permit-set amendment as a materialized fixture, never as a sentence, per 0305 — a prose permit-set is merely the next drift surface, and amending the wording alone re-runs the loop that consumed five rounds",
         "scope": "thread",
         "refs": [
@@ -236,32 +258,34 @@
         ]
       },
       {
-        "text": "Amend the contract on I3a and land it as a fixture per 0305, never tighten the code — the implementation deliberately allows a missing aside for a run that died after writing its journal, the likeliest real failure, and a lane reading the stricter sentence will file it as a finding",
-        "scope": "c10",
+        "text": "Carry scripts/invariant-shape-check.mjs onto main in the same unit that wires its CI step, per 0309 — it lives only on an unmerged branch, so CI runs no shape check at all today and wiring the step alone would red every run",
+        "scope": "thread",
         "refs": [
-          "artifacts/2026-08-09-cutover-invariants-v2.md"
+          "feat/invariant-inert-registry",
+          ".github/workflows/test.yml"
         ]
       },
       {
-        "text": "Implement the census admission rule from 0304 BEFORE wiring the shape check into CI — it reports 52 findings with zero exclusions today, so wiring it first turns every commit red and the check gets switched off instead of fixed",
-        "scope": "c10",
+        "text": "Fix the receipt's restated scope flags in whichever unit next opens invariant-coverage-check.mjs, per 0310 — main carries a threatened M2 verdict today, and nothing turns red if the checker gains a scope input the workflow does not pass",
+        "scope": "thread",
         "refs": [
-          "scripts/invariant-shape-check.mjs"
-        ]
-      },
-      {
-        "text": "GUARDED_CONFIG_ENTRIES does not exist and must not be built — the claim that three constants were merged into it was verified false, paths.mjs is on main and identical on the cutover branch, and 0307 keeps the two production sets separate",
-        "scope": "c10",
-        "refs": [
-          "scripts/config/paths.mjs:18",
-          "scripts/config/capture.mjs:141"
-        ]
-      },
-      {
-        "text": "Read every registry green as proving coverage only, never that an invariant holds — all 17 registered ids are declared unwitnessed, so nothing in CI evaluates any invariant property yet",
-        "scope": "c10",
-        "refs": [
+          ".claude/lib/superpowers-parallel/tests/ci-invariant-wiring.test.mjs",
           "scripts/invariant-coverage-check.mjs"
+        ]
+      },
+      {
+        "text": "Expect one local npm test failure that CI does not see, and read it as live-config state — ~/.claude/settings.json no longer resolves out of the home tree, so that guard finds no repository base and stops protecting the checkout",
+        "scope": "thread",
+        "refs": [
+          ".claude/hooks/tests/protect-claude-config.test.mjs:194",
+          "~/.claude/settings.json"
+        ]
+      },
+      {
+        "text": "Give security.yml the same push filter when it is next touched — it still triggers on unfiltered push, so its jobs double-run on every pull request commit exactly as test.yml did before 0306",
+        "scope": "thread",
+        "refs": [
+          ".github/workflows/security.yml"
         ]
       }
     ],
@@ -418,5 +442,5 @@
     ]
   },
   "created_at": "2026-08-06T21:18:29.653Z",
-  "updated_at": "2026-08-10T00:42:17.302Z"
+  "updated_at": "2026-08-10T00:43:14.509Z"
 }
