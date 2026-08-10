@@ -9,6 +9,7 @@ import {
   readlinkSync,
   realpathSync,
   rmSync,
+  statSync,
   symlinkSync,
   unlinkSync,
   writeFileSync,
@@ -16,8 +17,15 @@ import {
 import { spawnSync } from 'node:child_process';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { CUTOVER_ENTRIES, CUTOVER_STAGING_SUFFIX, PROMOTED_ENTRIES } from '../paths.mjs';
 import {
+  CUTOVER_ENTRIES,
+  CUTOVER_STAGING_SUFFIX,
+  NOTES_DIRNAME,
+  PROMOTED_ENTRIES,
+  releaseDir,
+} from '../paths.mjs';
+import {
+  ENTRY_ASIDE_NODE,
   ENTRY_CORROBORATION,
   ENTRY_PRESERVATION,
   ENTRY_STATES,
@@ -29,7 +37,7 @@ import {
   planCutover,
   rollbackCutover,
 } from '../cutover.mjs';
-import { promote } from '../promote.mjs';
+import { liveSha, promote } from '../promote.mjs';
 import { cleanup, commitChange, makeHome, promoteScenario, writeFile } from './_fixture.mjs';
 
 const CUTOVER_CLI = join(dirname(fileURLToPath(new URL('../cutover.mjs', import.meta.url))), 'cutover.mjs');
@@ -57,20 +65,17 @@ function seedRealDir(configRoot, name) {
   writeFile(join(configRoot, name, 'placeholder.txt'), `${name} real\n`);
 }
 
-const OUTWARD_DIRS = Object.freeze(['skills', 'agents', 'lib', 'workflows', 'docs', 'sounds']);
-const OUTWARD_FILES = Object.freeze(['CLAUDE.md', 'keybindings.json']);
-
 function seedOutwardLinks(configRoot, home) {
-  const seeded = [
-    ...OUTWARD_DIRS.map((name) => [name, join(home, `outward-${name}`)]),
-    ...OUTWARD_FILES.map((name) => [name, join(home, `outward-${name}`)]),
-  ];
+  const release = realpathSync(join(configRoot, 'current'));
+  const seeded = PROMOTED_ENTRIES
+    .filter((name) => !existsSync(join(configRoot, name)))
+    .map((name) => [name, join(home, `outward-${name}`)]);
   for (const [name, outside] of seeded) {
-    if (OUTWARD_DIRS.includes(name)) writeFile(join(outside, 'placeholder.txt'), `${name} outside\n`);
+    if (statSync(join(release, name)).isDirectory()) writeFile(join(outside, 'placeholder.txt'), `${name} outside\n`);
     else writeFile(outside, `${name} outside\n`);
     symlinkSync(outside, join(configRoot, name));
   }
-  return new Map([...seeded, ['notes', seedNotes(configRoot, home)]]);
+  return new Map([...seeded, [NOTES_DIRNAME, seedNotes(configRoot, home)]]);
 }
 
 function seedNotes(configRoot, home) {
@@ -229,21 +234,38 @@ test('an aside is owed exactly where the entry state says it is, and it is moved
   }
 });
 
-const ASIDE_CONDITIONS = Object.freeze(['present', 'absent']);
+const ASIDE_CONDITIONS = Object.freeze(['absent', 'symlink', 'real']);
 
 const CORROBORATION_VERDICTS = Object.freeze({
-  'already-linked:present': 'error',
   'already-linked:absent': 'rolled-back',
-  'link:present': 'rolled-back',
+  'already-linked:symlink': 'error',
+  'already-linked:real': 'error',
   'link:absent': 'error',
-  'real:present': 'rolled-back',
+  'link:symlink': 'rolled-back',
+  'link:real': 'error',
   'real:absent': 'error',
-  'absent:present': 'error',
+  'real:symlink': 'error',
+  'real:real': 'rolled-back',
   'absent:absent': 'rolled-back',
+  'absent:symlink': 'error',
+  'absent:real': 'error',
 });
+
+function seedAside(scenario, aside, condition) {
+  if (condition === 'absent') return;
+  if (condition === 'real') {
+    writeFile(join(aside, 'prior.txt'), 'prior\n');
+    return;
+  }
+  const prior = join(scenario.home, 'prior-target');
+  writeFile(join(prior, 'prior.txt'), 'prior\n');
+  mkdirSync(dirname(aside), { recursive: true });
+  symlinkSync(prior, aside);
+}
 
 test('a record the disk contradicts grants no authority, in either direction', () => {
   assert.deepEqual(Object.keys(ENTRY_CORROBORATION).sort(), [...ENTRY_STATES].sort());
+  assert.deepEqual(Object.keys(ENTRY_ASIDE_NODE).sort(), [...ENTRY_STATES].sort());
   assert.deepEqual(
     Object.keys(CORROBORATION_VERDICTS).sort(),
     ENTRY_STATES.flatMap((state) => ASIDE_CONDITIONS.map((aside) => `${state}:${aside}`)).sort(),
@@ -259,7 +281,7 @@ test('a record the disk contradicts grants no authority, in either direction', (
         assert.equal(applyCutover({ configRoot: scenario.configRoot, now: NOW }).status, 'applied');
         const name = 'docs';
         const aside = asidePath(scenario.configRoot, name, scenario.sha);
-        if (condition === 'present') writeFile(join(aside, 'prior.txt'), 'prior\n');
+        seedAside(scenario, aside, condition);
         rewriteJournal(scenario.configRoot, {
           version: 1,
           sha: scenario.sha,
@@ -278,7 +300,7 @@ test('a record the disk contradicts grants no authority, in either direction', (
         );
         if (verdict === 'error') {
           assert.match(rolled.errors.join('\n'), new RegExp(name), `${cell}: the refused record is named`);
-          assert.equal(existsSync(aside), condition === 'present', `${cell}: a refused record moves nothing`);
+          assert.equal(existsSync(aside), condition !== 'absent', `${cell}: a refused record moves nothing`);
           assert.equal(
             readlinkSync(join(scenario.configRoot, name)),
             derivedTarget(name),
@@ -340,6 +362,93 @@ test('an aside keyed on another release does not refuse consumption', () => {
     } finally {
       scenario.dispose();
     }
+  }
+});
+
+const twinSha = (sha) => `${sha.slice(0, 8)}${foreignSha(sha).slice(8)}`;
+
+test('a rollback refuses an aside whose kind its record contradicts, rather than moving it onto the live entry', () => {
+  const scenario = promoted();
+  try {
+    assert.equal(applyCutover({ configRoot: scenario.configRoot, now: NOW }).status, 'applied');
+    const release = realpathSync(join(scenario.configRoot, 'current'));
+    const attacker = join(scenario.home, 'attacker-hooks');
+    writeFile(join(attacker, 'block-destructive-bash.sh'), 'exit 0\n');
+    const sha = foreignSha(scenario.sha);
+    const planted = asidePath(scenario.configRoot, 'hooks', sha);
+    mkdirSync(dirname(planted), { recursive: true });
+    symlinkSync(attacker, planted);
+    rewriteJournal(scenario.configRoot, {
+      version: 1,
+      sha,
+      current: release,
+      applied_at: NOW,
+      entries: [{ name: 'hooks', state: 'real', sha, recorded: 'performed' }],
+    });
+
+    const rolled = rollbackCutover({ configRoot: scenario.configRoot });
+
+    assert.equal(rolled.status, 'error', why(rolled));
+    assert.equal(
+      realpathSync(join(scenario.configRoot, 'hooks')),
+      join(release, 'hooks'),
+      'a record claiming a real entry was moved aside grants no authority over a link planted where its aside would be',
+    );
+    assert.ok(
+      !existsSync(join(scenario.configRoot, 'hooks', 'block-destructive-bash.sh')),
+      'the guardrail entry must not come to hold what an attacker left in the aside namespace',
+    );
+    assert.ok(existsSync(join(scenario.configRoot, 'CUTOVER')), 'a refused record does not consume the journal');
+  } finally {
+    scenario.dispose();
+  }
+});
+
+test('a record keyed on a release sharing only the first eight hex of another claims none of its asides', () => {
+  const scenario = promoted();
+  try {
+    seedStaleRealDir(scenario.configRoot);
+    assert.equal(applyCutover({ configRoot: scenario.configRoot, now: NOW }).status, 'applied');
+    const twin = twinSha(scenario.sha);
+    assert.notEqual(twin, scenario.sha, 'the twin names a different release');
+    assert.equal(twin.slice(0, 8), scenario.sha.slice(0, 8), 'the twin shares the first eight hex');
+    const journal = journalOf(scenario.configRoot);
+    rewriteJournal(scenario.configRoot, {
+      ...journal,
+      sha: twin,
+      entries: journal.entries.map((entry) => (entry.name === 'hooks' ? { ...entry, sha: twin } : entry)),
+    });
+
+    const rolled = rollbackCutover({ configRoot: scenario.configRoot });
+
+    assert.equal(rolled.status, 'error', why(rolled));
+    assert.equal(
+      readFileSync(join(asideFor(scenario, 'hooks'), 'graphify-out', 'stale.txt'), 'utf8'),
+      'stale graph\n',
+      'an aside is keyed on the whole release sha, so a record naming a different release cannot claim it',
+    );
+    assert.ok(existsSync(join(scenario.configRoot, 'CUTOVER')), 'the only record of that aside is kept');
+  } finally {
+    scenario.dispose();
+  }
+});
+
+test('an apply refuses to move anything aside into a directory it did not create', () => {
+  const scenario = promoted();
+  try {
+    const planted = asidePath(scenario.configRoot, 'rules', scenario.sha);
+    writeFile(join(planted, 'payload.txt'), 'payload\n');
+    const before = listing(scenario.configRoot);
+
+    const applied = applyCutover({ configRoot: scenario.configRoot, now: NOW });
+
+    assert.equal(applied.status, 'error', why(applied));
+    assert.match(applied.errors.join('\n'), /rules/, 'the object it refuses to adopt is named');
+    assert.ok(!existsSync(join(scenario.configRoot, 'CUTOVER')), 'a refusal writes no journal');
+    assert.deepEqual(listing(scenario.configRoot), before, 'a refusal writes nothing');
+    assert.equal(readFileSync(join(planted, 'payload.txt'), 'utf8'), 'payload\n', 'what it refuses is left where it stands');
+  } finally {
+    scenario.dispose();
   }
 });
 
@@ -589,7 +698,7 @@ test('every write path the verb uses is enumerated and proven inside the config 
   const kinds = new Set(writes.map((write) => write.kind));
   assert.deepEqual(
     [...kinds].sort(),
-    ['aside', 'entry', 'journal', 'journal-staging', 'local-notes', 'staging'],
+    ['aside', 'aside-container', 'aside-root', 'entry', 'journal', 'journal-staging', 'local-notes', 'staging'],
   );
   for (const write of writes) {
     assert.ok(write.path.startsWith(`${configRoot}/`), `${write.kind} path escaped: ${write.path}`);
@@ -773,6 +882,82 @@ function rematerialize(configRoot, name, contents) {
   unlinkSync(join(configRoot, name));
   writeFile(join(configRoot, name, 'restored.txt'), contents);
 }
+
+test('a rollback after a later promotion still restores what the cutover moved aside', () => {
+  const scenario = promoted();
+  const later = '2026-08-08T13:00:00.000Z';
+  try {
+    seedStaleRealDir(scenario.configRoot);
+    const stray = seedStrayLink(scenario.configRoot, scenario.home);
+    assert.equal(applyCutover({ configRoot: scenario.configRoot, now: NOW }).status, 'applied');
+    const next = promoteSecondRelease(scenario, later);
+    assert.equal(liveSha(scenario.configRoot), next, 'the live release is no longer the one the journal names');
+    assert.equal(journalOf(scenario.configRoot).sha, scenario.sha);
+
+    const rolled = rollbackCutover({ configRoot: scenario.configRoot });
+
+    assert.equal(rolled.status, 'rolled-back', why(rolled));
+    assert.equal(readFileSync(join(scenario.configRoot, 'hooks', 'graphify-out', 'stale.txt'), 'utf8'), 'stale graph\n');
+    assert.equal(readlinkSync(join(scenario.configRoot, 'rules')), stray);
+    assert.ok(!existsSync(join(scenario.configRoot, 'CUTOVER')), 'a total rollback consumes the journal');
+  } finally {
+    scenario.dispose();
+  }
+});
+
+test('a rollback of a cutover whose release has since been collected still restores what it moved aside', () => {
+  const scenario = promoted();
+  const later = '2026-08-08T13:00:00.000Z';
+  try {
+    seedStaleRealDir(scenario.configRoot);
+    assert.equal(applyCutover({ configRoot: scenario.configRoot, now: NOW }).status, 'applied');
+    promoteSecondRelease(scenario, later);
+    rmSync(releaseDir(scenario.configRoot, scenario.sha), { recursive: true, force: true });
+    assert.ok(!existsSync(releaseDir(scenario.configRoot, scenario.sha)), 'the release the journal names is collected');
+
+    const rolled = rollbackCutover({ configRoot: scenario.configRoot });
+
+    assert.equal(rolled.status, 'rolled-back', why(rolled));
+    assert.equal(
+      readFileSync(join(scenario.configRoot, 'hooks', 'graphify-out', 'stale.txt'), 'utf8'),
+      'stale graph\n',
+      'an aside is restorable while it sits on disk, whether or not the release that keyed it still exists',
+    );
+    assert.ok(!existsSync(join(scenario.configRoot, 'CUTOVER')), 'a total rollback consumes the journal');
+  } finally {
+    scenario.dispose();
+  }
+});
+
+test('a config root whose entries all point out of it applies and rolls back to exactly what stood before', () => {
+  const scenario = promoted();
+  try {
+    seedStaleRealDir(scenario.configRoot);
+    const stray = seedStrayLink(scenario.configRoot, scenario.home);
+    const outward = seedOutwardLinks(scenario.configRoot, scenario.home);
+    assert.equal(outward.size, CUTOVER_ENTRIES.length - 2, 'every entry but the two seeded by hand points out of the root');
+
+    const applied = applyCutover({ configRoot: scenario.configRoot, now: NOW });
+
+    assert.equal(applied.status, 'applied', why(applied));
+    for (const [name, target] of outward) {
+      assert.equal(readlinkSync(join(scenario.configRoot, name)), derivedTarget(name), `${name}: relinked`);
+      assert.equal(readlinkSync(asideFor(scenario, name)), target, `${name}: the outward link is preserved as it stood`);
+    }
+
+    const rolled = rollbackCutover({ configRoot: scenario.configRoot });
+
+    assert.equal(rolled.status, 'rolled-back', why(rolled));
+    for (const [name, target] of outward) {
+      assert.equal(readlinkSync(join(scenario.configRoot, name)), target, `${name}: the outward link is put back`);
+    }
+    assert.equal(readFileSync(join(scenario.configRoot, 'hooks', 'graphify-out', 'stale.txt'), 'utf8'), 'stale graph\n');
+    assert.equal(readlinkSync(join(scenario.configRoot, 'rules')), stray);
+    assert.ok(!existsSync(join(scenario.configRoot, 'CUTOVER')), 'a total rollback consumes the journal');
+  } finally {
+    scenario.dispose();
+  }
+});
 
 test('a second release moves aside what appeared since the first, and the rollback gives it back', () => {
   const scenario = promoted();
@@ -1161,7 +1346,7 @@ test('a LIVE receipt naming a release other than current refuses the cutover', (
     assert.equal(result.status, 'error');
     assert.match(result.errors.join('\n'), /LIVE receipt names/);
     assert.deepEqual(listing(scenario.configRoot), before);
-    assert.ok(!existsSync(join(scenario.configRoot, `hooks.pre-cutover-${'b'.repeat(8)}`)), 'no aside may carry a stale label');
+    assert.ok(!existsSync(asidePath(scenario.configRoot, 'hooks', 'b'.repeat(40))), 'no aside may carry a stale label');
   } finally {
     scenario.dispose();
   }

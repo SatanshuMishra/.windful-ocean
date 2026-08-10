@@ -466,6 +466,9 @@ const g4CutoverSteeringCommands = [
   `rm -r .claude/releases/${RELEASE_SHA}/rules`,
   'echo x > .claude/current/hooks/block-destructive-bash.sh',
   'mv .claude/current /tmp/stash',
+  'rm -r .claude/.cutover',
+  `mv /tmp/evil .claude/.cutover/${RELEASE_SHA}/hooks`,
+  `echo x > .claude/.cutover/${RELEASE_SHA}/hooks/block-destructive-bash.sh`,
 ];
 
 for (const command of g4CutoverSteeringCommands) {

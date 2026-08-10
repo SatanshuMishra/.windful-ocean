@@ -18,13 +18,16 @@ import { homedir } from 'node:os';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import {
   CURRENT_LINK,
-  CUTOVER_ASIDE_PREFIX,
+  CUTOVER_ASIDE_DIRNAME,
   CUTOVER_ENTRIES,
   CUTOVER_JOURNAL_FILENAME,
   CUTOVER_STAGING_SUFFIX,
   LOCAL_DIRNAME,
   NOTES_DIRNAME,
   PROMOTED_ENTRIES,
+  cutoverAsideDir,
+  cutoverAsidePath,
+  cutoverAsideRoot,
   cutoverJournalPath,
   currentLink,
   isCutoverEntry,
@@ -70,16 +73,20 @@ export const ENTRY_CORROBORATION = Object.freeze({
   absent: 'aside-forbidden',
 });
 
+export const ENTRY_ASIDE_NODE = Object.freeze({
+  'already-linked': null,
+  link: 'symlink',
+  real: 'real',
+  absent: null,
+});
+
 const SETTLED_BY_THE_ENTRY = Object.freeze(['aside-missing']);
 
 const NOTES_LINK_TARGET = join(LOCAL_DIRNAME, NOTES_DIRNAME);
 
-const shortSha = (sha) => String(sha).slice(0, 8);
-
 const entryPath = (configRoot, name) => join(configRoot, name);
 const stagingPath = (configRoot, name) => `${entryPath(configRoot, name)}${CUTOVER_STAGING_SUFFIX}`;
-export const asidePath = (configRoot, name, sha) =>
-  `${entryPath(configRoot, name)}${CUTOVER_ASIDE_PREFIX}${shortSha(sha)}`;
+export const asidePath = (configRoot, name, sha) => cutoverAsidePath(configRoot, name, sha);
 const linkTargetFor = (name) => (name === NOTES_DIRNAME ? NOTES_LINK_TARGET : join(CURRENT_LINK, name));
 
 const LINK_WRITE_KINDS = Object.freeze(['entry', 'staging', 'aside']);
@@ -118,25 +125,28 @@ function unlinkIfPresent(path) {
 
 export function cutoverWritePaths({ configRoot, names = PROMOTED_ENTRIES, sha }) {
   const journal = cutoverJournalPath(configRoot);
+  const asides = cutoverAsideDir(configRoot, sha);
   const perEntry = [...names, NOTES_DIRNAME].flatMap((name) => [
-    { kind: 'entry', name, path: entryPath(configRoot, name) },
-    { kind: 'staging', name, path: stagingPath(configRoot, name) },
-    { kind: 'aside', name, path: asidePath(configRoot, name, sha) },
+    { kind: 'entry', name, within: configRoot, path: entryPath(configRoot, name) },
+    { kind: 'staging', name, within: configRoot, path: stagingPath(configRoot, name) },
+    { kind: 'aside', name, within: asides, path: asidePath(configRoot, name, sha) },
   ]);
   return Object.freeze([
     ...perEntry,
-    { kind: 'journal', name: CUTOVER_JOURNAL_FILENAME, path: journal },
-    { kind: 'journal-staging', name: CUTOVER_JOURNAL_FILENAME, path: `${journal}.tmp` },
-    { kind: 'local-notes', name: NOTES_DIRNAME, path: localNotesDir(configRoot) },
+    { kind: 'aside-root', name: CUTOVER_ASIDE_DIRNAME, within: configRoot, path: cutoverAsideRoot(configRoot) },
+    { kind: 'aside-container', name: String(sha), within: configRoot, path: asides },
+    { kind: 'journal', name: CUTOVER_JOURNAL_FILENAME, within: configRoot, path: journal },
+    { kind: 'journal-staging', name: CUTOVER_JOURNAL_FILENAME, within: configRoot, path: `${journal}.tmp` },
+    { kind: 'local-notes', name: NOTES_DIRNAME, within: configRoot, path: localNotesDir(configRoot) },
   ]);
 }
 
 export function containmentErrors({ configRoot, names = PROMOTED_ENTRIES, sha }) {
   return cutoverWritePaths({ configRoot, names, sha })
-    .filter((write) => !containmentFor(write.kind)(configRoot, write.path))
+    .filter((write) => !containmentFor(write.kind)(write.within, write.path))
     .map(
       (write) =>
-        `refusing to write outside ${configRoot}: the ${write.kind} path for ${JSON.stringify(write.name)} resolves to ${resolveIntent(write.path)}`,
+        `refusing to write outside ${write.within}: the ${write.kind} path for ${JSON.stringify(write.name)} resolves to ${resolveIntent(write.path)}`,
     );
 }
 
@@ -298,13 +308,15 @@ export function journalEntry({ entry, sha }) {
 
 const isUsableRecord = (record) => recordErrors(record, 0).length === 0;
 
-function asidePresence(aside) {
+function asideNode(aside) {
   try {
-    return { present: lstatOrNull(aside) !== null, error: null };
+    return { stat: lstatOrNull(aside), error: null };
   } catch (error) {
-    return { present: null, error: `${aside} could not be examined: ${error.message}` };
+    return { stat: null, error: `${aside} could not be examined: ${error.message}` };
   }
 }
+
+const nodeKindOf = (stat) => (stat.isSymbolicLink() ? 'symlink' : 'real');
 
 export function corroborationVerdict({ configRoot, record }) {
   const owed = ENTRY_CORROBORATION[record.state];
@@ -317,20 +329,28 @@ export function corroborationVerdict({ configRoot, record }) {
     };
   }
   const aside = asidePath(configRoot, record.name, record.sha);
-  const presence = asidePresence(aside);
-  if (presence.error !== null) return { ok: false, reason: 'unreadable', error: presence.error };
-  if (owed === 'aside-required' && !presence.present) {
+  const node = asideNode(aside);
+  if (node.error !== null) return { ok: false, reason: 'unreadable', error: node.error };
+  if (owed === 'aside-required' && node.stat === null) {
     return {
       ok: false,
       reason: 'aside-missing',
       error: `the aside for ${record.name} is absent at ${aside}, while this record claims a ${record.state} entry was moved there`,
     };
   }
-  if (owed === 'aside-forbidden' && presence.present) {
+  if (owed === 'aside-forbidden' && node.stat !== null) {
     return {
       ok: false,
       reason: 'aside-unowed',
       error: `${aside} still holds what a cutover moved aside for ${record.name}, while this record claims ${record.state}, a state that owes no aside; it grants no authority over ${path}`,
+    };
+  }
+  if (node.stat !== null && ENTRY_ASIDE_NODE[record.state] !== nodeKindOf(node.stat)) {
+    return {
+      ok: false,
+      reason: 'aside-kind',
+      error: `${aside} holds a ${nodeKindOf(node.stat)} object, while this record claims a ${record.state} entry was moved there; `
+        + `no cutover of this tool left it there, and it grants no authority over ${path}`,
     };
   }
   return { ok: true, reason: 'corroborated', error: null, aside };
@@ -522,10 +542,70 @@ function placeLink({ configRoot, name }) {
   return path;
 }
 
+function adoptAsideContainer({ dir, accounted }) {
+  const stat = lstatOrNull(dir);
+  if (stat === null || !stat.isDirectory() || stat.isSymbolicLink()) {
+    return {
+      ok: false,
+      errors: [`${dir} already exists and is not a directory this tool could have created; refusing to move anything aside into it`],
+    };
+  }
+  let held;
+  try {
+    held = readdirSync(dir);
+  } catch (error) {
+    return { ok: false, errors: [`${dir} could not be read: ${error.message}`] };
+  }
+  const unaccounted = held.filter((name) => !accounted.has(name)).sort();
+  if (unaccounted.length > 0) {
+    return {
+      ok: false,
+      errors: [
+        `${dir} already holds ${unaccounted.join(', ')}, which no record of an earlier cutover to ${basename(dir)} names; `
+          + 'refusing to move anything aside into a directory this tool did not leave behind',
+      ],
+    };
+  }
+  return { ok: true, dir };
+}
+
+function prepareAsideContainer({ configRoot, sha, accounted }) {
+  const root = cutoverAsideRoot(configRoot);
+  const dir = cutoverAsideDir(configRoot, sha);
+  if (!isInsideResolved(configRoot, root) || !isInsideResolved(configRoot, dir)) {
+    return { ok: false, errors: [`refusing to hold asides outside ${configRoot}: ${resolveIntent(dir)}`] };
+  }
+  try {
+    mkdirSync(root, { recursive: true });
+  } catch (error) {
+    return { ok: false, errors: [`${root} could not be created: ${error.message}`] };
+  }
+  try {
+    mkdirSync(dir, { recursive: false });
+    return { ok: true, dir };
+  } catch (error) {
+    if (error.code !== 'EEXIST') return { ok: false, errors: [`${dir} could not be created: ${error.message}`] };
+  }
+  return adoptAsideContainer({ dir, accounted });
+}
+
+function accountedNames(journal, sha) {
+  const records = Array.isArray(journal?.entries) ? journal.entries : [];
+  return new Set(
+    records
+      .filter((record) => record !== null && typeof record === 'object' && !Array.isArray(record))
+      .filter((record) => record.sha === sha && typeof record.name === 'string')
+      .map((record) => record.name),
+  );
+}
+
 function moveAside({ configRoot, name, sha }) {
   const path = entryPath(configRoot, name);
   const aside = asidePath(configRoot, name, sha);
-  if (!isInsideResolvedContainer(configRoot, path) || !isInsideResolvedContainer(configRoot, aside)) {
+  if (
+    !isInsideResolvedContainer(configRoot, path)
+    || !isInsideResolvedContainer(cutoverAsideDir(configRoot, sha), aside)
+  ) {
     throw new Error(`refusing to move ${path} outside ${configRoot}: ${aside}`);
   }
   if (lstatOrNull(aside) !== null) {
@@ -596,6 +676,14 @@ export function applyCutover({ configRoot, entries = PROMOTED_ENTRIES, now, copy
     },
   });
   if (!merged.ok) return { status: 'error', errors: merged.errors };
+
+  const container = prepareAsideContainer({
+    configRoot,
+    sha: plan.sha,
+    accounted: accountedNames(stored.ok ? stored.journal : null, plan.sha),
+  });
+  if (!container.ok) return { status: 'error', errors: container.errors };
+
   const written = writeJournal(configRoot, merged.journal);
   if (!written.ok) return { status: 'error', errors: written.errors };
 
@@ -640,7 +728,7 @@ function restoreAbsent({ entry, path, held, target, ours }) {
 
 function restorePreserved({ configRoot, entry, path, held, target, ours }) {
   const aside = asidePath(configRoot, entry.name, entry.sha);
-  if (!isInsideResolvedContainer(configRoot, aside)) {
+  if (!isInsideResolvedContainer(cutoverAsideDir(configRoot, entry.sha), aside)) {
     return { ok: false, inPriorState: false, error: `refusing to restore ${entry.name} from outside ${configRoot}: ${resolveIntent(aside)}` };
   }
   if (lstatOrNull(aside) === null) {
@@ -739,9 +827,9 @@ function asideCensus(configRoot, sha) {
   return CUTOVER_ENTRIES.reduce(
     (held, name) => {
       const aside = asidePath(configRoot, name, sha);
-      const presence = asidePresence(aside);
-      if (presence.error !== null) return { ...held, unreadable: [...held.unreadable, presence.error] };
-      return presence.present ? { ...held, surviving: [...held.surviving, { name, aside }] } : held;
+      const node = asideNode(aside);
+      if (node.error !== null) return { ...held, unreadable: [...held.unreadable, node.error] };
+      return node.stat !== null ? { ...held, surviving: [...held.surviving, { name, aside }] } : held;
     },
     { surviving: [], unreadable: [] },
   );

@@ -9,7 +9,7 @@ export const LOCAL_DIRNAME = 'local';
 export const NOTES_DIRNAME = 'notes';
 export const CUTOVER_JOURNAL_FILENAME = 'CUTOVER';
 export const CUTOVER_STAGING_SUFFIX = '.cutover.tmp';
-export const CUTOVER_ASIDE_PREFIX = '.pre-cutover-';
+export const CUTOVER_ASIDE_DIRNAME = '.cutover';
 export const ARCHIVE_SUBTREE = '.claude';
 export const SETTINGS_FILENAME = 'settings.json';
 export const DEFAULT_REF = 'main';
@@ -48,6 +48,9 @@ export const receiptPath = (configRoot) => join(configRoot, RECEIPT_FILENAME);
 export const localDir = (configRoot) => join(configRoot, LOCAL_DIRNAME);
 export const localNotesDir = (configRoot) => join(localDir(configRoot), NOTES_DIRNAME);
 export const cutoverJournalPath = (configRoot) => join(configRoot, CUTOVER_JOURNAL_FILENAME);
+export const cutoverAsideRoot = (configRoot) => join(configRoot, CUTOVER_ASIDE_DIRNAME);
+export const cutoverAsideDir = (configRoot, sha) => join(cutoverAsideRoot(configRoot), String(sha));
+export const cutoverAsidePath = (configRoot, name, sha) => join(cutoverAsideDir(configRoot, sha), String(name));
 
 export const bootstrapPathsFor = (configRoot) =>
   BOOTSTRAP_ENTRIES.map((entry) => join(localDir(configRoot), entry));

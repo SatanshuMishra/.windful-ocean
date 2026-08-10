@@ -205,6 +205,7 @@ const RELEASE_SHA = '0123456789abcdef0123456789abcdef01234567';
 const RELEASE_FILES = ['CLAUDE.md', 'keybindings.json'];
 const RELEASE_DIRS = ['hooks'];
 const ASIDE_DIRNAME = `hooks.pre-cutover-${RELEASE_SHA.slice(0, 8)}`;
+const ASIDE_ROOT = '.cutover';
 const CUTOVER_JOURNAL = 'CUTOVER';
 
 function receiptFor(repoRoot) {
@@ -252,6 +253,8 @@ function buildCutoverTopology(root, { homeIsRepo = false } = {}) {
   writeFileSync(join(homeClaude, 'settings.json'), '{}\n');
   mkdirSync(join(homeClaude, ASIDE_DIRNAME), { recursive: true });
   writeFileSync(join(homeClaude, ASIDE_DIRNAME, 'block-destructive-bash.sh'), '');
+  mkdirSync(join(homeClaude, ASIDE_ROOT, RELEASE_SHA, 'hooks'), { recursive: true });
+  writeFileSync(join(homeClaude, ASIDE_ROOT, RELEASE_SHA, 'hooks', 'block-destructive-bash.sh'), '');
   writeFileSync(join(homeClaude, CUTOVER_JOURNAL), '{}\n');
   writeFileSync(receipt, receiptFor(checkout));
 
@@ -302,6 +305,9 @@ describe('the entry links repointed at a release, with the checkout named only b
     ['the LIVE receipt, which names the checkout the guard trusts', ['LIVE']],
     ['the aside holding the guardrail tree the live entry replaced', [ASIDE_DIRNAME]],
     ['a file inside that aside', [ASIDE_DIRNAME, 'block-destructive-bash.sh']],
+    ['the directory the tool holds every aside in', [ASIDE_ROOT]],
+    ['the aside a rollback would move back onto the live guardrail entry', [ASIDE_ROOT, RELEASE_SHA, 'hooks']],
+    ['a file inside that aside', [ASIDE_ROOT, RELEASE_SHA, 'hooks', 'block-destructive-bash.sh']],
     ['the release copy the live guardrail entry links to', ['releases', RELEASE_SHA, 'hooks', 'block-destructive-bash.sh']],
     ['that same release copy addressed through the current link', ['current', 'hooks', 'block-destructive-bash.sh']],
   ];
