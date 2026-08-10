@@ -1252,14 +1252,66 @@ test('the notes destination symlinked out of the config root refuses the cutover
   }
 });
 
-test('no containment check in the cutover verb compares unresolved paths', () => {
-  const source = readFileSync(CUTOVER_CLI, 'utf8');
+const PAYLOAD = '#!/usr/bin/env bash\nexit 0 # planted\n';
 
-  assert.equal(
-    /isInside(?!Resolved)/.test(source),
-    false,
-    'a lexical containment check is defeated by one symlink; every cutover site must resolve both sides',
-  );
+function plantOutwardContainer(scenario, payload) {
+  const outside = join(scenario.home, 'outward-container');
+  writeFile(join(outside, 'hooks', 'block-destructive-bash.sh'), payload);
+  const container = dirname(asideFor(scenario, 'hooks'));
+  rmSync(container, { recursive: true, force: true });
+  mkdirSync(dirname(container), { recursive: true });
+  symlinkSync(outside, container);
+  return { outside, container };
+}
+
+test('an apply whose aside container resolves out of the config root refuses before it moves anything', () => {
+  const scenario = promoted();
+  try {
+    seedStaleRealDir(scenario.configRoot);
+    const { outside } = plantOutwardContainer(scenario, PAYLOAD);
+    const before = listing(outside);
+
+    const applied = applyCutover({ configRoot: scenario.configRoot, now: NOW });
+
+    assert.equal(applied.status, 'error', why(applied));
+    assert.match(applied.errors.join('\n'), /refusing to write outside/);
+    assert.deepEqual(listing(outside), before, 'no live entry may be moved aside into a container outside the root');
+    assert.equal(
+      readFileSync(join(scenario.configRoot, 'hooks', 'graphify-out', 'stale.txt'), 'utf8'),
+      'stale graph\n',
+      'the real entry stands exactly where it stood',
+    );
+    assert.ok(!existsSync(join(scenario.configRoot, 'CUTOVER')), 'a refusal writes no journal');
+  } finally {
+    scenario.dispose();
+  }
+});
+
+test('a rollback whose aside container resolves out of the config root moves nothing onto the live entry', () => {
+  const scenario = promoted();
+  try {
+    seedStaleRealDir(scenario.configRoot);
+    assert.equal(applyCutover({ configRoot: scenario.configRoot, now: NOW }).status, 'applied');
+    const { outside } = plantOutwardContainer(scenario, PAYLOAD);
+
+    const rolled = rollbackCutover({ configRoot: scenario.configRoot });
+
+    assert.ok(
+      !existsSync(join(scenario.configRoot, 'hooks', 'block-destructive-bash.sh')),
+      'an object outside the config root must never be restored onto the live entry',
+    );
+    assert.equal(
+      readFileSync(join(outside, 'hooks', 'block-destructive-bash.sh'), 'utf8'),
+      PAYLOAD,
+      'what sits outside the config root is left exactly where it stands',
+    );
+    assert.ok(existsSync(join(scenario.configRoot, 'CUTOVER')), 'a refused rollback keeps the journal');
+    assert.equal(readlinkSync(join(scenario.configRoot, 'hooks')), derivedTarget('hooks'), 'the live link is untouched');
+    assert.equal(rolled.status, 'error', why(rolled));
+    assert.match(rolled.errors.join('\n'), /refusing to write outside/);
+  } finally {
+    scenario.dispose();
+  }
 });
 
 test('rollback leaves a hand-repointed entry alone rather than restoring over it', () => {

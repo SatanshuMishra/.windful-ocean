@@ -91,6 +91,8 @@ const linkTargetFor = (name) => (name === NOTES_DIRNAME ? NOTES_LINK_TARGET : jo
 
 const LINK_WRITE_KINDS = Object.freeze(['entry', 'staging', 'aside']);
 
+const ASIDE_CONTAINER_KINDS = Object.freeze(['aside-root', 'aside-container']);
+
 const containmentFor = (kind) =>
   (LINK_WRITE_KINDS.includes(kind) ? isInsideResolvedContainer : isInsideResolved);
 
@@ -141,8 +143,9 @@ export function cutoverWritePaths({ configRoot, names = PROMOTED_ENTRIES, sha })
   ]);
 }
 
-export function containmentErrors({ configRoot, names = PROMOTED_ENTRIES, sha }) {
+export function containmentErrors({ configRoot, names = PROMOTED_ENTRIES, sha, kinds = null }) {
   return cutoverWritePaths({ configRoot, names, sha })
+    .filter((write) => kinds === null || kinds.includes(write.kind))
     .filter((write) => !containmentFor(write.kind)(write.within, write.path))
     .map(
       (write) =>
@@ -885,6 +888,15 @@ function asideCensus(configRoot, journal) {
     );
 }
 
+function asideContainmentErrors({ configRoot, journal }) {
+  return [
+    ...new Set(
+      censusDomain(journal).shas.flatMap((sha) =>
+        containmentErrors({ configRoot, names: [], sha, kinds: ASIDE_CONTAINER_KINDS })),
+    ),
+  ];
+}
+
 function consumptionErrors({ configRoot, journal, path }) {
   const census = asideCensus(configRoot, journal);
   const named = [
@@ -903,6 +915,8 @@ function consumptionErrors({ configRoot, journal, path }) {
 export function rollbackCutover({ configRoot }) {
   const stored = readJournal(configRoot);
   if (!stored.ok) return { status: 'error', errors: stored.errors };
+  const contained = asideContainmentErrors({ configRoot, journal: stored.journal });
+  if (contained.length > 0) return { status: 'error', errors: contained };
   const records = partitionRecords(stored.journal.entries);
   const acted = [...records.usable].reverse().map((entry) => {
     try {
