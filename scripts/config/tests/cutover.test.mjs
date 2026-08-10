@@ -22,6 +22,7 @@ import {
   CUTOVER_STAGING_SUFFIX,
   NOTES_DIRNAME,
   PROMOTED_ENTRIES,
+  cutoverAsideDir,
   cutoverAsideRoot,
   releaseDir,
   releasesDir,
@@ -1384,6 +1385,69 @@ test('a rollback whose aside container is a symlink restores nothing from behind
       listing(release),
       [...PLANTED_NAMES].sort(),
       'a container that is a symlink must not have what stands behind it renamed onto the live entries',
+    );
+    for (const name of PLANTED_NAMES) {
+      assert.equal(readFileSync(join(release, name, 'payload.txt'), 'utf8'), `${name} release\n`);
+      assert.equal(lstatSync(join(configRoot, name)).isSymbolicLink(), true, `${name}: the live entry is still a link`);
+      assert.equal(readlinkSync(join(configRoot, name)), derivedTarget(name), `${name}: left exactly as it stands`);
+    }
+    assert.equal(realpathSync(join(configRoot, 'current')), realpathSync(release), 'current still resolves');
+    assert.ok(existsSync(join(configRoot, 'CUTOVER')), 'a refused rollback keeps the only record of what it holds');
+  } finally {
+    cleanup(home);
+  }
+});
+
+test('a rollback whose per-sha aside container is a symlink restores nothing from behind it', () => {
+  const { home, configRoot } = makeHome();
+  try {
+    const release = seedLiveRelease(configRoot, PLANTED_SHA, PLANTED_NAMES);
+    mkdirSync(cutoverAsideRoot(configRoot));
+    symlinkSync(release, cutoverAsideDir(configRoot, PLANTED_SHA));
+
+    const rolled = rollbackCutover({ configRoot });
+
+    assert.equal(rolled.status, 'error', why(rolled));
+    assert.match(rolled.errors.join('\n'), /not a directory this tool could have created/);
+    assert.deepEqual(
+      listing(release),
+      [...PLANTED_NAMES].sort(),
+      'a per-sha container that is a symlink must not have what stands behind it renamed onto the live entries',
+    );
+    for (const name of PLANTED_NAMES) {
+      assert.equal(readFileSync(join(release, name, 'payload.txt'), 'utf8'), `${name} release\n`);
+      assert.equal(lstatSync(join(configRoot, name)).isSymbolicLink(), true, `${name}: the live entry is still a link`);
+      assert.equal(readlinkSync(join(configRoot, name)), derivedTarget(name), `${name}: left exactly as it stands`);
+    }
+    assert.equal(realpathSync(join(configRoot, 'current')), realpathSync(release), 'current still resolves');
+    assert.ok(existsSync(join(configRoot, 'CUTOVER')), 'a refused rollback keeps the only record of what it holds');
+  } finally {
+    cleanup(home);
+  }
+});
+
+test('a rollback examines a symlinked aside container on a carried sha the journal does not name as its own', () => {
+  const { home, configRoot } = makeHome();
+  const carried = foreignSha(PLANTED_SHA);
+  try {
+    const release = seedLiveRelease(configRoot, PLANTED_SHA, PLANTED_NAMES);
+    const journal = journalOf(configRoot);
+    rewriteJournal(configRoot, {
+      ...journal,
+      entries: journal.entries.map((entry) => ({ ...entry, sha: carried })),
+    });
+    mkdirSync(cutoverAsideRoot(configRoot));
+    symlinkSync(release, cutoverAsideDir(configRoot, carried));
+
+    const rolled = rollbackCutover({ configRoot });
+
+    assert.notEqual(journal.sha, carried, 'the planted container must sit on a sha other than the one the journal names');
+    assert.equal(rolled.status, 'error', why(rolled));
+    assert.match(rolled.errors.join('\n'), /not a directory this tool could have created/);
+    assert.deepEqual(
+      listing(release),
+      [...PLANTED_NAMES].sort(),
+      'every sha a record carries is examined, not only the sha the journal names as its own',
     );
     for (const name of PLANTED_NAMES) {
       assert.equal(readFileSync(join(release, name, 'payload.txt'), 'utf8'), `${name} release\n`);
