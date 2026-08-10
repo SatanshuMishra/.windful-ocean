@@ -457,6 +457,11 @@
         "ref": "0314-this-repo-gets-its-own-receipts-gate",
         "title": "This repo deploys a receipts gate to itself rather than relying on the template it hands to other repos",
         "scope": "thread"
+      },
+      {
+        "ref": "0315-reintegrate-by-hash-identity-not-cherry-pick",
+        "title": "A commit stranded on a merged stack parent is re-landed from its own branch, so ancestry stays an identity proof",
+        "scope": "c7"
       }
     ],
     "out_of_scope": [
@@ -465,5 +470,5 @@
     ]
   },
   "created_at": "2026-08-06T21:18:29.653Z",
-  "updated_at": "2026-08-10T06:17:24.225Z"
+  "updated_at": "2026-08-10T06:24:18.919Z"
 }
