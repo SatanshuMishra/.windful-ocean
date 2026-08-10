@@ -340,6 +340,11 @@
         "ref": "0322-human-operated-the-swap-after-the-agent-dispatch-was-blocked",
         "title": "The human operated the live swap by hand, honoring 0317's hazard after the classifier removed its mechanism",
         "scope": "c5"
+      },
+      {
+        "ref": "0323-rollback-no-rebuild-reads-as-the-release-not-the-repo",
+        "title": "No-rebuild is a claim about the release, so rollback's repo dependency is a risk, not a defect",
+        "scope": "c6"
       }
     ],
     "out_of_scope": [
@@ -349,5 +354,5 @@
     ]
   },
   "created_at": "2026-08-06T21:18:29.653Z",
-  "updated_at": "2026-08-10T22:28:41.571Z"
+  "updated_at": "2026-08-10T22:33:17.032Z"
 }
