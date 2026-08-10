@@ -91,14 +91,15 @@
   "abandoned_reason": null,
   "closure_statement": null,
   "spine": {
-    "active_goal": "Close the PR-discipline criterion now that all 10 of SPEC A's acceptance criteria are verified by observation.",
-    "next_step": "START HERE FRESH. c6 is DONE: all 10 criteria observed passing, criterion 10 re-verified by diff -r against a fresh git archive and the deployed release, and the drift report seen firing for the first time. Only c7 remains: every unit ships through a PR opened by pr.mjs pr-create, stacked with --base <parent-branch> where one change blocks another. Enumerate the PRs this work opened, the #43-#61 range, and check each against that shape - c8 already found five of seven merged into stack parents.",
-    "last_session": "Re-extracted the tooling from main at 75b90a3d and ran all 10 SPEC A acceptance criteria under sandbox config roots across two agents; 10 of 10 pass, suite 188/188, and one subagent FAIL verdict on c4 was overturned against the source.",
+    "active_goal": "Close the PR-discipline criterion, the last one open, now that all 10 of SPEC A's acceptance criteria are verified.",
+    "next_step": "START HERE FRESH. c6 is DONE: all 10 SPEC A criteria observed passing, criterion 10 re-verified by diff -r, and the drift report seen firing for the first time. Only c7 remains: every unit ships through a PR opened by pr.mjs pr-create, stacked with --base <parent-branch> where one change blocks another. Enumerate the #43-#61 PR range and check each against that shape - c8 already found five of seven merged into stack parents, so expect gaps rather than a formality.",
+    "last_session": "Ran all 10 SPEC A acceptance criteria under sandbox config roots across two agents against a fresh main extract; 10 of 10 pass, suite 188/188, and a subagent FAIL on criterion 4 was overturned against the source as 0323.",
     "open_risks": [
       {
         "text": "Rollback cannot run without the repo the LIVE receipt names and a runnable git — settings.json is excluded from releases, so rollback re-derives what the target sha declares and refuses rather than move the pointer alone",
         "scope": "thread",
         "refs": [
+          "0323",
           "scripts/config/promote.mjs",
           "scripts/config/release.mjs"
         ]
@@ -112,9 +113,26 @@
         ]
       },
       {
-        "text": "Give every sub-agent dispatch run_in_background false — three orchestration attempts were lost because parent agents ended their turns while believing they were blocking on background children",
+        "text": "The live settings.json is not restored by a cutover rollback — rollback authority covers only the entries the verb links, so any settings.json edit made during or after the swap has no tool-supported undo",
         "scope": "thread",
-        "refs": []
+        "refs": [
+          "0287"
+        ]
+      },
+      {
+        "text": "Remove the retained copies under local/notes by hand before any second cutover attempt if a note changed after a rollback — the tool refuses to overwrite a note copy whose bytes differ, and the rollback that left them behind says nothing about it",
+        "scope": "thread",
+        "refs": [
+          "~/.claude/local/notes"
+        ]
+      },
+      {
+        "text": "Undo the cutover only with the rollback verb, never by moving the asides by hand — the journal is the only record that names them, and a hand-move strands it",
+        "scope": "thread",
+        "refs": [
+          "~/.claude/CUTOVER",
+          "~/.claude/.cutover/75b90a3d1f6cd4853252d2d797dbd1133bb99cae"
+        ]
       },
       {
         "text": "Switching branches in the primary checkout is safe only while the cutover holds — live entries now resolve into the release, but a cutover rollback repoints them at that working tree and restores the hot-swap hazard",
@@ -132,12 +150,16 @@
         ]
       },
       {
-        "text": "Undo the cutover only with the rollback verb, never by moving the asides by hand — the journal is the only record that names them, and a hand-move strands it",
+        "text": "Extract .claude/settings.json alongside scripts/config when running that suite outside a full checkout — converge.test.mjs reads it three levels above tests/, and without it one case fails on ENOENT and reads as a product defect",
         "scope": "thread",
         "refs": [
-          "~/.claude/CUTOVER",
-          "~/.claude/.cutover/75b90a3d1f6cd4853252d2d797dbd1133bb99cae"
+          "scripts/config/tests/converge.test.mjs"
         ]
+      },
+      {
+        "text": "Give every sub-agent dispatch run_in_background false — three orchestration attempts were lost because parent agents ended their turns while believing they were blocking on background children",
+        "scope": "thread",
+        "refs": []
       }
     ],
     "key_decisions": [
@@ -354,5 +376,5 @@
     ]
   },
   "created_at": "2026-08-06T21:18:29.653Z",
-  "updated_at": "2026-08-10T22:33:17.032Z"
+  "updated_at": "2026-08-10T22:33:49.972Z"
 }
