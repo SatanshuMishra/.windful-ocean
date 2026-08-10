@@ -89,13 +89,6 @@
     "last_session": "Pushed 700878d, opened PR #60 through pr.mjs pr-create carrying the round-3 disclosures, and the human merged it at bdbb01a.",
     "open_risks": [
       {
-        "text": "Carry both disclosed items into the PR body — apply still accepts a planted .cutover symlink and can strand config, and the converge Stop additionalContext path was never exercised",
-        "scope": "c10",
-        "refs": [
-          "artifacts/2026-08-10-round3-review-outcome.md"
-        ]
-      },
-      {
         "text": "Give every sub-agent dispatch run_in_background false — three orchestration attempts were lost because parent agents ended their turns while believing they were blocking on background children",
         "scope": "thread",
         "refs": []
@@ -359,5 +352,5 @@
     ]
   },
   "created_at": "2026-08-06T21:18:29.653Z",
-  "updated_at": "2026-08-10T20:35:21.707Z"
+  "updated_at": "2026-08-10T20:35:33.291Z"
 }
