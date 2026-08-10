@@ -89,6 +89,39 @@
     "last_session": "Closed c10: the unit reached SHIP on all three review lanes after one fix round, suite 2188/2188, branch left PR-ready but deliberately unpushed.",
     "open_risks": [
       {
+        "text": "Carry both disclosed items into the PR body — apply still accepts a planted .cutover symlink and can strand config, and the converge Stop additionalContext path was never exercised",
+        "scope": "c10",
+        "refs": [
+          "artifacts/2026-08-10-round3-review-outcome.md"
+        ]
+      },
+      {
+        "text": "Give every sub-agent dispatch run_in_background false — three orchestration attempts were lost because parent agents ended their turns while believing they were blocking on background children",
+        "scope": "thread",
+        "refs": []
+      },
+      {
+        "text": "Never run git checkout main in the primary checkout — live global config is symlinked into that working tree, so switching branches hot-swaps every skill and hook under every running session",
+        "scope": "thread",
+        "refs": [
+          "/Users/satanshumishra/Documents/DevLabs/.windful-ocean"
+        ]
+      },
+      {
+        "text": "Serialize every write to a live-linked path, not just the cutover — a half-saved file reaches running sessions through the hook symlinks and breaks every one of them instantly",
+        "scope": "thread",
+        "refs": [
+          ".claude/hooks/"
+        ]
+      },
+      {
+        "text": "Treat the round-6 open-questions artifact as superseded rather than as instructions — it names a constant that exists nowhere and reads as licence to amend the permit-set in prose, which 0305 forbids",
+        "scope": "thread",
+        "refs": [
+          "artifacts/2026-08-10-open-questions-for-round-6.md"
+        ]
+      },
+      {
         "text": "Re-plan against invariants rather than opening a fourth fix round — all three permitted rounds are spent, and two of this unit's four defects were introduced by a fix round rather than present in the original code",
         "scope": "c5",
         "refs": [
@@ -121,40 +154,7 @@
         "text": "The live settings.json is not restored by a cutover rollback — rollback authority covers only the entries the verb links, so any settings.json edit made during or after the swap has no tool-supported undo",
         "scope": "c5",
         "refs": [
-          "0318"
-        ]
-      },
-      {
-        "text": "Carry both disclosed items into the PR body — apply still accepts a planted .cutover symlink and can strand config, and the converge Stop additionalContext path was never exercised",
-        "scope": "c10",
-        "refs": [
-          "artifacts/2026-08-10-round3-review-outcome.md"
-        ]
-      },
-      {
-        "text": "Give every sub-agent dispatch run_in_background false — three orchestration attempts were lost because parent agents ended their turns while believing they were blocking on background children",
-        "scope": "thread",
-        "refs": []
-      },
-      {
-        "text": "Never run git checkout main in the primary checkout — live global config is symlinked into that working tree, so switching branches hot-swaps every skill and hook under every running session",
-        "scope": "thread",
-        "refs": [
-          "/Users/satanshumishra/Documents/DevLabs/.windful-ocean"
-        ]
-      },
-      {
-        "text": "Serialize every write to a live-linked path, not just the cutover — a half-saved file reaches running sessions through the hook symlinks and breaks every one of them instantly",
-        "scope": "thread",
-        "refs": [
-          ".claude/hooks/"
-        ]
-      },
-      {
-        "text": "Treat the round-6 open-questions artifact as superseded rather than as instructions — it names a constant that exists nowhere and reads as licence to amend the permit-set in prose, which 0305 forbids",
-        "scope": "thread",
-        "refs": [
-          "artifacts/2026-08-10-open-questions-for-round-6.md"
+          "0287"
         ]
       }
     ],
@@ -346,5 +346,5 @@
     ]
   },
   "created_at": "2026-08-06T21:18:29.653Z",
-  "updated_at": "2026-08-10T20:19:59.257Z"
+  "updated_at": "2026-08-10T20:23:08.119Z"
 }
