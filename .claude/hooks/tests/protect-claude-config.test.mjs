@@ -25,6 +25,8 @@ const CHECKOUT_FILES = [
   'skills/mitosis/templates/receipts.yml',
 ];
 
+const LOCAL_MACHINERY = ['local/converge.mjs', 'local/promote.mjs', 'local/notes/todo.md'];
+
 const HOME_LINKS = [
   ...PROBE_FILES,
   'lib',
@@ -47,6 +49,11 @@ function buildFixture() {
     symlinkSync(join(REPO_CLAUDE, relative), link);
   }
   writeFileSync(join(HOME_CLAUDE, 'settings.json'), '{}\n');
+  for (const relative of LOCAL_MACHINERY) {
+    const path = join(HOME_CLAUDE, relative);
+    mkdirSync(dirname(path), { recursive: true });
+    writeFileSync(path, '');
+  }
 }
 
 function runHook(payload, env = { ...process.env, HOME: FIXTURE_HOME }) {
@@ -102,6 +109,9 @@ describe('the guard contract, on a fixture mirroring the deployed symlink topolo
     ['the bash gate that denies raw pull-request creation', join(HOME_CLAUDE, 'hooks/block-destructive-bash.sh')],
     ['a rules file', join(HOME_CLAUDE, 'rules/common/git/pull-requests.md')],
     ['settings.json itself', join(HOME_CLAUDE, 'settings.json')],
+    ['the converge hook the config root runs at every Stop and SessionStart', join(HOME_CLAUDE, 'local/converge.mjs')],
+    ['the promote tool deliberately kept outside every release', join(HOME_CLAUDE, 'local/promote.mjs')],
+    ['a note under the same durable executable surface', join(HOME_CLAUDE, 'local/notes/todo.md')],
   ];
 
   for (const [label, path] of GUARDED) {

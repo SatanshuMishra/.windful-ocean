@@ -18,7 +18,7 @@ if not fp:
     sys.exit(0)
 
 exact = ("settings.json", "settings.local.json", "CLAUDE.md", "keybindings.json", "CUTOVER", "LIVE")
-prefixes = ("hooks", "rules", "lib", "workflows", "releases", "current", ".cutover")
+prefixes = ("hooks", "rules", "lib", "workflows", "releases", "current", ".cutover", "local")
 aside_marker = ".pre-cutover-"
 probes = ("CLAUDE.md", "keybindings.json")
 receipt_name = "LIVE"
