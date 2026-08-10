@@ -306,7 +306,7 @@ function asidePresence(aside) {
   }
 }
 
-export function corroborationVerdict({ configRoot, record, sha }) {
+export function corroborationVerdict({ configRoot, record }) {
   const owed = ENTRY_CORROBORATION[record.state];
   const path = entryPath(configRoot, record.name);
   if (owed === undefined) {
@@ -316,14 +316,7 @@ export function corroborationVerdict({ configRoot, record, sha }) {
       error: `the record for ${record.name} carries the state ${JSON.stringify(record.state)}, which names no aside this tool could have written; it grants no authority over ${path}`,
     };
   }
-  const aside = asidePath(configRoot, record.name, sha);
-  if (record.sha !== sha) {
-    return {
-      ok: false,
-      reason: 'foreign-release',
-      error: `the record for ${record.name} names release ${record.sha}, but this CUTOVER journal keys its asides on ${sha}; it grants no authority over ${path}`,
-    };
-  }
+  const aside = asidePath(configRoot, record.name, record.sha);
   const presence = asidePresence(aside);
   if (presence.error !== null) return { ok: false, reason: 'unreadable', error: presence.error };
   if (owed === 'aside-required' && !presence.present) {
@@ -350,7 +343,7 @@ export function mergeJournal({ configRoot, existing, next }) {
   if (existing === null) return next;
   const carried = existing.entries
     .filter(isUsableRecord)
-    .filter((record) => corroborationVerdict({ configRoot, record, sha: existing.sha }).ok);
+    .filter((record) => corroborationVerdict({ configRoot, record }).ok);
   return { ...next, entries: firstByName([...carried, ...next.entries]) };
 }
 
@@ -625,8 +618,8 @@ function restoreAbsent({ entry, path, held, target, ours }) {
   return { ok: true, action: 'removed', inPriorState: true };
 }
 
-function restorePreserved({ configRoot, entry, sha, path, held, target, ours }) {
-  const aside = asidePath(configRoot, entry.name, sha);
+function restorePreserved({ configRoot, entry, path, held, target, ours }) {
+  const aside = asidePath(configRoot, entry.name, entry.sha);
   if (!isInsideResolvedContainer(configRoot, aside)) {
     return { ok: false, inPriorState: false, error: `refusing to restore ${entry.name} from outside ${configRoot}: ${resolveIntent(aside)}` };
   }
@@ -668,7 +661,7 @@ function restorePreserved({ configRoot, entry, sha, path, held, target, ours }) 
   };
 }
 
-function restoreEntry({ configRoot, entry, sha }) {
+function restoreEntry({ configRoot, entry }) {
   const path = entryPath(configRoot, entry.name);
   if (!isInsideResolvedContainer(configRoot, path)) {
     return { ok: false, inPriorState: false, error: `refusing to restore outside ${configRoot}: ${path}` };
@@ -678,7 +671,7 @@ function restoreEntry({ configRoot, entry, sha }) {
   const target = readlinkOrNull(path);
   const ours = target !== null && target === linkTargetFor(entry.name);
   if (entry.state === 'absent') return restoreAbsent({ entry, path, held, target, ours });
-  return restorePreserved({ configRoot, entry, sha, path, held, target, ours });
+  return restorePreserved({ configRoot, entry, path, held, target, ours });
 }
 
 function retainedNotes(configRoot) {
@@ -756,11 +749,11 @@ export function rollbackCutover({ configRoot }) {
   const records = partitionRecords(stored.journal.entries);
   const acted = [...records.usable].reverse().map((entry) => {
     try {
-      const verdict = corroborationVerdict({ configRoot, record: entry, sha });
+      const verdict = corroborationVerdict({ configRoot, record: entry });
       if (!verdict.ok && !SETTLED_BY_THE_ENTRY.includes(verdict.reason)) {
         return { ok: false, inPriorState: false, name: entry.name, action: 'refused', error: verdict.error };
       }
-      return { name: entry.name, ...restoreEntry({ configRoot, entry, sha }) };
+      return { name: entry.name, ...restoreEntry({ configRoot, entry }) };
     } catch (error) {
       return { ok: false, inPriorState: false, name: entry.name, error: `${entry.name} could not be restored: ${error.message}` };
     }

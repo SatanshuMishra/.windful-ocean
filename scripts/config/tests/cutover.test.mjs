@@ -29,7 +29,8 @@ import {
   planCutover,
   rollbackCutover,
 } from '../cutover.mjs';
-import { cleanup, makeHome, promoteScenario, writeFile } from './_fixture.mjs';
+import { promote } from '../promote.mjs';
+import { cleanup, commitChange, makeHome, promoteScenario, writeFile } from './_fixture.mjs';
 
 const CUTOVER_CLI = join(dirname(fileURLToPath(new URL('../cutover.mjs', import.meta.url))), 'cutover.mjs');
 const NOW = '2026-08-07T13:00:00.000Z';
@@ -692,6 +693,62 @@ test('a partial apply, then a second apply, still rolls back to the moved-aside 
     assert.equal(readFileSync(join(scenario.configRoot, 'hooks', 'graphify-out', 'stale.txt'), 'utf8'), 'stale graph\n');
     assert.ok(!existsSync(aside), 'the rollback consumes the aside');
     assert.equal(readlinkSync(join(scenario.configRoot, 'rules')), stray);
+  } finally {
+    scenario.dispose();
+  }
+});
+
+test('a cutover to a second release still rolls back what the first release moved aside', () => {
+  const scenario = promoted();
+  const later = '2026-08-08T13:00:00.000Z';
+  try {
+    seedStaleRealDir(scenario.configRoot);
+    const stray = seedStrayLink(scenario.configRoot, scenario.home);
+    const blocker = join(scenario.configRoot, `rules${CUTOVER_STAGING_SUFFIX}`);
+    mkdirSync(blocker, { recursive: true });
+    const hooksAside = asideFor(scenario, 'hooks');
+    const rulesAside = asideFor(scenario, 'rules');
+
+    assert.equal(applyCutover({ configRoot: scenario.configRoot, now: NOW }).status, 'error');
+    assert.ok(existsSync(hooksAside), 'the first release moved the real directory aside before it stopped');
+
+    const next = commitChange(scenario.repoRoot, (claude) => writeFile(join(claude, 'docs', 'second.md'), '# second\n'));
+    assert.notEqual(next, scenario.sha, 'the second cutover must name a different release');
+    const again = promote({
+      configRoot: scenario.configRoot,
+      repoRoot: scenario.repoRoot,
+      ref: 'main',
+      now: later,
+      settingsPath: scenario.settingsPath,
+      home: scenario.home,
+    });
+    assert.equal(again.status, 'promoted', `the second promotion failed: ${JSON.stringify(again)}`);
+
+    rmSync(blocker, { recursive: true, force: true });
+    const second = applyCutover({ configRoot: scenario.configRoot, now: later });
+
+    assert.equal(second.status, 'applied', why(second));
+    assert.equal(journalOf(scenario.configRoot).sha, next, 'the journal names the release this cutover pointed at');
+    assert.equal(
+      recordOf(journalOf(scenario.configRoot), 'hooks').sha,
+      scenario.sha,
+      'the carried record still names the release whose cutover moved it aside',
+    );
+
+    const rolled = rollbackCutover({ configRoot: scenario.configRoot });
+
+    assert.equal(rolled.status, 'rolled-back', why(rolled));
+    assert.deepEqual(rolled.blocked ?? [], [], 'a record keyed on an earlier release is not refused');
+    assert.equal(
+      lstatSync(join(scenario.configRoot, 'hooks')).isDirectory(),
+      true,
+      'the real directory the first release moved aside is put back',
+    );
+    assert.equal(readFileSync(join(scenario.configRoot, 'hooks', 'graphify-out', 'stale.txt'), 'utf8'), 'stale graph\n');
+    assert.equal(readlinkSync(join(scenario.configRoot, 'rules')), stray, 'the prior link is put back as it stood');
+    assert.ok(!existsSync(hooksAside), 'the rollback consumes the aside the first release keyed');
+    assert.ok(!existsSync(rulesAside), 'the rollback consumes every aside the first release keyed');
+    assert.ok(!existsSync(join(scenario.configRoot, 'CUTOVER')), 'a total rollback consumes the journal');
   } finally {
     scenario.dispose();
   }
