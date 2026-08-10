@@ -439,6 +439,11 @@
         "ref": "0311-q4-deletion-lane-is-whole-registry-entries-only",
         "title": "The Q4 deletion lane removes whole registry entries only, and writes the live tree directly under a single serialized writer",
         "scope": "c3"
+      },
+      {
+        "ref": "0312-merged-coverage-receipts-are-removed-not-revalidated",
+        "title": "A coverage receipt is removed once its change merges, because a registry designed to grow cannot keep re-validating history",
+        "scope": "c3"
       }
     ],
     "out_of_scope": [
@@ -447,5 +452,5 @@
     ]
   },
   "created_at": "2026-08-06T21:18:29.653Z",
-  "updated_at": "2026-08-10T00:56:32.326Z"
+  "updated_at": "2026-08-10T03:33:43.887Z"
 }
