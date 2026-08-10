@@ -84,9 +84,9 @@
   "abandoned_reason": null,
   "closure_statement": null,
   "spine": {
-    "active_goal": "Restore a working fix-verification gate on main, then cut the live Claude config over to validated releases instead of the raw symlinked checkout.",
-    "next_step": "START HERE. (1) Re-integrate the receipts gate: c78c934 merged into its stack parent, not main - open one pr.mjs PR re-basing it onto main, and verify by ancestry not by a MERGED badge. (2) Cutover: cutover.mjs is absent from main, living only on unmerged feat/config-entry-link-cutover with a hole in its ROLLBACK path - decide finish+review vs rebuild fresh. (3) Wire resolveSettings into promote; criterion 8 has no code path. (4) Settle notes/. Swap runs in its own session per 0292.",
-    "last_session": "Verified both PRs. #57's teardown IS on main - zero invariant artifacts survive and the prose rules carried. #58's receipts gate is NOT on main: it merged into its stack parent, leaving the repo ungated.",
+    "active_goal": "Land the cutover unit through independent review to SHIP, then run the live config swap in a session that does nothing else.",
+    "next_step": "START HERE IN A FRESH SESSION. On feat/config-entry-link-cutover, in order: (1) commit paths.mjs and the rest of the stranded block as atomic commits - nothing runs or reviews until the branch is coherent; (2) fix the sha-axis rollback defect from a RED test that cuts over to two different releases before rolling back; (3) rebase, 12 behind main; (4) independent review to SHIP, closing c10. Do NOT swap live: 0292 reserves that for its own session.",
+    "last_session": "Re-integrated the receipts gate onto main as PR #59, verified by hash ancestry; then audited the cutover unit and found its branch broken in isolation.",
     "open_risks": [
       {
         "text": "Review round 3 before trusting any of it — it is the only unreviewed round, it rewrote the containment model, the rollback contract and the grant reporting, and two of the three reviewed rounds returned BLOCK",
@@ -260,6 +260,14 @@
         ]
       },
       {
+        "text": "Never read a MERGED badge as proof the content reached main — a stacked pull request whose parent merges first is left pointing at a dead base and still reports MERGED, which is how this recurred after c8 recorded it once already",
+        "scope": "c3",
+        "refs": [
+          "c8",
+          "0314"
+        ]
+      },
+      {
         "text": "GUARDED_CONFIG_ENTRIES does not exist and must not be built — the claim that three constants were merged into it was verified false, paths.mjs is on main and identical on the cutover branch, and 0307 keeps the two production sets separate",
         "scope": "c10",
         "refs": [
@@ -275,20 +283,45 @@
         ]
       },
       {
-        "text": "Re-integrate c78c934 onto main before anything else — the receipts gate merged into its already-merged stack parent, so main has no invariant machinery AND no fix-verification gate, which is the ungated state 0314 existed to prevent",
-        "scope": "c3",
+        "text": "Commit the stranded paths.mjs block before anything else — the committed cutover.mjs imports four symbols that exist only in the uncommitted diff, so the branch throws SyntaxError and can be neither run nor reviewed as it stands",
+        "scope": "c10",
         "refs": [
-          "ci/deploy-receipts-gate",
-          "c78c934",
-          "0314"
+          "scripts/config/cutover.mjs",
+          "scripts/config/paths.mjs",
+          "docs/invariants/coverage/feat-config-entry-link-cutover.json"
         ]
       },
       {
-        "text": "Never read a MERGED badge as proof the content reached main — a stacked pull request whose parent merges first is left pointing at a dead base and still reports MERGED, which is how this recurred after c8 recorded it once already",
-        "scope": "c3",
+        "text": "Fix rollback on the record-sha axis, not the entry-state axis — a journal record carried from an earlier release is refused forever as foreign-release and its aside is never restored, and no existing test cuts over to two releases before rolling back",
+        "scope": "c10",
         "refs": [
-          "c8",
-          "0314"
+          "scripts/config/cutover.mjs:309-344",
+          "scripts/config/cutover.mjs:349-355",
+          "scripts/config/cutover.mjs:752-810"
+        ]
+      },
+      {
+        "text": "Expect a failed rollback to have already mutated the disk — restoreEntry renames same-generation entries in a per-entry map with no short-circuit, so a call returning status error has moved files despite reporting total failure",
+        "scope": "c10",
+        "refs": [
+          "scripts/config/cutover.mjs:752-810"
+        ]
+      },
+      {
+        "text": "Treat the protect-claude-config rewrite as unreviewed surface — the uncommitted diff rewrites that guard and its test by +232 lines, which is why the suite is green in the cutover worktree and red at line 194 elsewhere",
+        "scope": "c10",
+        "refs": [
+          ".claude/hooks/protect-claude-config.sh",
+          ".claude/hooks/tests/protect-claude-config.test.mjs"
+        ]
+      },
+      {
+        "text": "Two thread-scoped risks are now false — cutover.mjs and its test ARE tracked, and the branch is 12 commits behind main rather than 64; verify both against git before acting on them",
+        "scope": "c10",
+        "refs": [
+          "bd63ca2",
+          "ee20348",
+          "feat/config-entry-link-cutover"
         ]
       }
     ],
@@ -475,5 +508,5 @@
     ]
   },
   "created_at": "2026-08-06T21:18:29.653Z",
-  "updated_at": "2026-08-10T06:42:27.136Z"
+  "updated_at": "2026-08-10T06:49:31.525Z"
 }
