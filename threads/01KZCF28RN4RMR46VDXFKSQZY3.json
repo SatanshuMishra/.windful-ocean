@@ -354,6 +354,11 @@
         "ref": "0321-repo-owned-version-pins-must-track-the-live-value",
         "title": "A repo-owned version pin must track the live value, or promotion silently downgrades it",
         "scope": "thread"
+      },
+      {
+        "ref": "0322-human-operated-the-swap-after-the-agent-dispatch-was-blocked",
+        "title": "The human operated the live swap by hand, honoring 0317's hazard after the classifier removed its mechanism",
+        "scope": "c5"
       }
     ],
     "out_of_scope": [
@@ -363,5 +368,5 @@
     ]
   },
   "created_at": "2026-08-06T21:18:29.653Z",
-  "updated_at": "2026-08-10T21:31:32.103Z"
+  "updated_at": "2026-08-10T21:59:09.375Z"
 }
