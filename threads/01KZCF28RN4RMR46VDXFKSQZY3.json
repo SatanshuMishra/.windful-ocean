@@ -405,6 +405,11 @@
         "ref": "0309-step-zero-defers-the-shape-check-and-gates-the-job",
         "title": "Step 0 lands only the workflow properties main can carry, and gates the whole invariant-coverage job",
         "scope": "thread"
+      },
+      {
+        "ref": "0310-receipt-scope-flags-disclosed-as-threatened",
+        "title": "The receipt's restated scope flags are disclosed as a threatened M2 rather than fixed in the same unit",
+        "scope": "thread"
       }
     ],
     "out_of_scope": [
@@ -413,5 +418,5 @@
     ]
   },
   "created_at": "2026-08-06T21:18:29.653Z",
-  "updated_at": "2026-08-10T00:42:04.719Z"
+  "updated_at": "2026-08-10T00:42:17.302Z"
 }
