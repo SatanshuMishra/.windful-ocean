@@ -85,8 +85,8 @@
   "closure_statement": null,
   "spine": {
     "active_goal": "Retire the homegrown invariant system whole per 0313, then cut the live Claude config over to validated releases instead of the raw symlinked checkout.",
-    "next_step": "0313 SUPERSEDES the round-6 plan - old steps (2)-(7) are VOID, do not resume them. Phase 1: tear all invariant machinery out of origin/main via PR (registry, coverage receipts, scripts/invariant-*.mjs, their CI gates, invariant-only tests); receipts becomes sole owner. Keep the relocated prose in testing.md and commits.md, and keep c10's review gate. Phase 2: design, review, then perform the SPEC A cutover. Confirm before the live swap.",
-    "last_session": "Deleted M2, M3 and M4 from the registry, relocated their sentences into testing.md and commits.md, and removed 23 merged coverage receipts per 0312. Four commits on the branch, nothing pushed.",
+    "next_step": "START HERE FRESH. (1) Review and merge PR #57 then #58 - open, stacked, unmerged; #58 omits D6 and npm ci (no lockfile) and its action SHA is unverified. (2) Cutover is BLOCKED: cutover.mjs exists only on unmerged feat/config-entry-link-cutover, with a symlink-target hole in its ROLLBACK path. Decide: finish+review it, or rebuild against main. (3) Wire resolveSettings into promote - criterion 8 has no code path. (4) Settle notes/. Swap runs in its own session per 0292.",
+    "last_session": "Retired the whole homegrown invariant system per 0313, shipped as stacked PRs #57 (teardown, 41 files, -3259) and #58 (receipts gate), both OPEN and unmerged, verified 2034/1 against baseline 2056/1 with zero new failures. Cutover recon found cutover.mjs absent from main entirely.",
     "open_risks": [
       {
         "text": "Review round 3 before trusting any of it — it is the only unreviewed round, it rewrote the containment model, the rollback contract and the grant reporting, and two of the three reviewed rounds returned BLOCK",
@@ -458,5 +458,5 @@
     ]
   },
   "created_at": "2026-08-06T21:18:29.653Z",
-  "updated_at": "2026-08-10T05:35:15.725Z"
+  "updated_at": "2026-08-10T06:11:55.552Z"
 }
