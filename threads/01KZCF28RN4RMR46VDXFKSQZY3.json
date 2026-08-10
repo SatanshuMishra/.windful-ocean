@@ -66,7 +66,7 @@
     {
       "id": "c5",
       "text": "The cutover runs serially in a session doing nothing else: the first release is built and validated with zero live change, then every entry link is swapped in one pass.",
-      "done": false,
+      "done": true,
       "kind": "planned",
       "struck_by": null
     },
@@ -91,27 +91,65 @@
   "abandoned_reason": null,
   "closure_statement": null,
   "spine": {
-    "active_goal": "Run the c5 entry-link cutover so live skills and hooks resolve through the release, then verify SPEC A's 10 acceptance criteria.",
-    "next_step": "START HERE IN A FRESH SESSION, doing nothing else. The first live promote is DONE: current -> releases/75b90a3..., the LIVE receipt is written, both converge hooks are registered and settings.json is reconciled. Next is c5, the entry-link cutover. Read scripts/config/cutover.mjs at main, then rehearse it against a scratch root with all three 0281 faithfulness parts intact before any live entry link moves. Per 0317 the swap is operated by a dedicated fresh-context agent.",
-    "last_session": "Ran the faithful rehearsal (zero failures), fixed the ccstatusline downgrade as merged PR #61, then completed the live bootstrap reinstall and the first live promote at 75b90a3.",
+    "active_goal": "Verify SPEC A's 10 acceptance criteria now that live resolves through the release, then close the PR-discipline criterion.",
+    "next_step": "START HERE FRESH. c5 is DONE: the live cutover is applied and verified on all seven checks, and criterion 10 is already discharged by diffing the release against a git archive of 75b90a3d, clean on all 10 entries. Next is c6: read SPEC A's acceptance criteria, enumerate all 10 and run each one. Re-extract the cutover tooling from main rather than trusting the scratch extract from this session. Then c7, the PR-discipline criterion.",
+    "last_session": "Ran the binding rehearsal (13 assertions, byte-for-byte rollback), traced every live/release difference to main being ahead rather than behind, then the user applied the live cutover by hand after the agent dispatch was blocked; all seven post-swap checks pass.",
     "open_risks": [
+      {
+        "text": "Remove the retained copies under local/notes by hand before any second cutover attempt if a note changed after a rollback — the tool refuses to overwrite a note copy whose bytes differ, and the rollback that left them behind says nothing about it",
+        "scope": "c6",
+        "refs": [
+          "~/.claude/local/notes"
+        ]
+      },
+      {
+        "text": "Undo the cutover only with the rollback verb, never by moving the asides by hand — the journal is the only record that names them, and a hand-move strands it",
+        "scope": "c6",
+        "refs": [
+          "~/.claude/CUTOVER",
+          "~/.claude/.cutover/75b90a3d1f6cd4853252d2d797dbd1133bb99cae"
+        ]
+      },
+      {
+        "text": "The live settings.json is not restored by a cutover rollback — rollback authority covers only the entries the verb links, so any settings.json edit made during or after the swap has no tool-supported undo",
+        "scope": "c6",
+        "refs": [
+          "0287"
+        ]
+      },
+      {
+        "text": "Observe the converge drift report actually firing before treating c3 as proven — registration and a clean exit 0 on both events are verified, but no run has yet produced a real drift report",
+        "scope": "c6",
+        "refs": [
+          "~/.claude/local/converge.mjs"
+        ]
+      },
+      {
+        "text": "Recover from this release with the settings backup and by removing the current symlink, not with promote rollback — the first LIVE receipt records previous as null, so that rollback has no target at all",
+        "scope": "c6",
+        "refs": [
+          "~/.claude/settings.json.bak-2026-08-10-pre-promote",
+          "~/.claude/LIVE"
+        ]
+      },
       {
         "text": "Give every sub-agent dispatch run_in_background false — three orchestration attempts were lost because parent agents ended their turns while believing they were blocking on background children",
         "scope": "thread",
         "refs": []
       },
       {
-        "text": "Never run git checkout main in the primary checkout — live global config is symlinked into that working tree, so switching branches hot-swaps every skill and hook under every running session",
+        "text": "Switching branches in the primary checkout is safe only while the cutover holds — live entries now resolve into the release, but a cutover rollback repoints them at that working tree and restores the hot-swap hazard",
         "scope": "thread",
         "refs": [
-          "/Users/satanshumishra/Documents/DevLabs/.windful-ocean"
+          "/Users/satanshumishra/Documents/DevLabs/.windful-ocean",
+          "~/.claude/.cutover/75b90a3d1f6cd4853252d2d797dbd1133bb99cae"
         ]
       },
       {
         "text": "Serialize every write to a live-linked path, not just the cutover — a half-saved file reaches running sessions through the hook symlinks and breaks every one of them instantly",
         "scope": "thread",
         "refs": [
-          ".claude/hooks/"
+          "~/.claude/current"
         ]
       },
       {
@@ -119,43 +157,6 @@
         "scope": "thread",
         "refs": [
           "artifacts/2026-08-10-open-questions-for-round-6.md"
-        ]
-      },
-      {
-        "text": "Confirm the five notes files were copied into local/notes and byte-verified before the link is repointed — two hold the confidential material 0276 refused to publish, and the sources are deliberately left in the checkout for a human to remove",
-        "scope": "c5",
-        "refs": [
-          ".claude/notes/",
-          "~/.claude/local/notes"
-        ]
-      },
-      {
-        "text": "Expect the swap to change live content rather than merely a level of indirection — live config resolves into the primary checkout on feat/invariant-inert-registry today, while the release is built from main",
-        "scope": "c5",
-        "refs": [
-          "feat/invariant-inert-registry"
-        ]
-      },
-      {
-        "text": "The live settings.json is not restored by a cutover rollback — rollback authority covers only the entries the verb links, so any settings.json edit made during or after the swap has no tool-supported undo",
-        "scope": "c5",
-        "refs": [
-          "0287"
-        ]
-      },
-      {
-        "text": "Observe the converge drift report actually firing before treating c3 as proven — registration and a clean exit 0 on both events are verified, but no run has yet produced a real drift report",
-        "scope": "c5",
-        "refs": [
-          "~/.claude/local/converge.mjs"
-        ]
-      },
-      {
-        "text": "Recover from this release with the settings backup and by removing the current symlink, not with rollback — the first LIVE receipt records previous as null, so rollback has no target at all",
-        "scope": "c5",
-        "refs": [
-          "~/.claude/settings.json.bak-2026-08-10-pre-promote",
-          "~/.claude/LIVE"
         ]
       }
     ],
@@ -368,5 +369,5 @@
     ]
   },
   "created_at": "2026-08-06T21:18:29.653Z",
-  "updated_at": "2026-08-10T21:59:09.375Z"
+  "updated_at": "2026-08-10T22:00:16.795Z"
 }
