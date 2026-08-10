@@ -80,7 +80,7 @@
     {
       "id": "c7",
       "text": "Every unit ships through a PR opened by pr.mjs pr-create, stacked with --base <parent-branch> where one change blocks another.",
-      "done": false,
+      "done": true,
       "kind": "planned",
       "struck_by": null
     }
@@ -91,9 +91,9 @@
   "abandoned_reason": null,
   "closure_statement": null,
   "spine": {
-    "active_goal": "Close the PR-discipline criterion, the last one open, now that all 10 of SPEC A's acceptance criteria are verified.",
-    "next_step": "START HERE FRESH. c6 is DONE: all 10 SPEC A criteria observed passing, criterion 10 re-verified by diff -r, and the drift report seen firing for the first time. Only c7 remains: every unit ships through a PR opened by pr.mjs pr-create, stacked with --base <parent-branch> where one change blocks another. Enumerate the #43-#61 PR range and check each against that shape - c8 already found five of seven merged into stack parents, so expect gaps rather than a formality.",
-    "last_session": "Ran all 10 SPEC A acceptance criteria under sandbox config roots across two agents against a fresh main extract; 10 of 10 pass, suite 188/188, and a subagent FAIL on criterion 4 was overturned against the source as 0323.",
+    "active_goal": "All seven criteria are verified and SPEC A is shipped; the thread awaits its disposition.",
+    "next_step": "c7 is DONE: all 17 PRs in #43-#61 round-trip byte-exact through renderPrCreateBody, titles pass PR_TITLE_PATTERN, every commit on main in the window attributes to a PR, and stacking held wherever a blocker was unlanded (#45-#47, #48-#49, #58). #50/#53 were never PRs. All seven criteria pass; the thread awaits disposition. Outside SPEC A: feat/invariant-inert-registry never had a PR and carries 7 commits not upstream; 0313 likely mooted it and invariant-coverage-tax owns it.",
+    "last_session": "Audited #43-#61 against c7 by re-rendering each PR body through the real renderPrCreateBody and comparing byte-for-byte; 17/17 round-trip, titles pass PR_TITLE_PATTERN, and creation-versus-merge times show stacking was used wherever a blocker was still unlanded.",
     "open_risks": [
       {
         "text": "Rollback cannot run without the repo the LIVE receipt names and a runnable git — settings.json is excluded from releases, so rollback re-derives what the target sha declares and refuses rather than move the pointer alone",
@@ -376,5 +376,5 @@
     ]
   },
   "created_at": "2026-08-06T21:18:29.653Z",
-  "updated_at": "2026-08-10T22:33:49.972Z"
+  "updated_at": "2026-08-10T22:49:38.486Z"
 }
