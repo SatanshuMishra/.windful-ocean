@@ -1,8 +1,8 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { existsSync, readFileSync, rmSync } from 'node:fs';
+import { existsSync, lstatSync, readFileSync, readdirSync, readlinkSync, rmSync } from 'node:fs';
 import { spawnSync } from 'node:child_process';
-import { join } from 'node:path';
+import { join, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import {
   DEFAULT_HOOK_COMMANDS,
@@ -32,6 +32,17 @@ function registeredConvergeCommands() {
 function collector() {
   const chunks = [];
   return { chunks, write: (chunk) => chunks.push(chunk), text: () => chunks.join('') };
+}
+
+function treeSnapshot(root) {
+  const walk = (dir) => readdirSync(dir).flatMap((entry) => {
+    const path = join(dir, entry);
+    const stats = lstatSync(path);
+    if (stats.isSymbolicLink()) return [[relative(root, path), `link:${readlinkSync(path)}`]];
+    if (stats.isDirectory()) return [[relative(root, path), 'dir'], ...walk(path)];
+    return [[relative(root, path), `file:${stats.size}:${stats.mtimeMs}`]];
+  });
+  return Object.fromEntries(walk(root).sort(([a], [b]) => a.localeCompare(b)));
 }
 
 function scenario() {
@@ -125,20 +136,63 @@ test('the stop registration reports a refusal on stderr and fails, never into se
   }
 });
 
-test('a stop with live behind main converges and reports on stderr only', () => {
+test('a stop that promotes live surfaces the mutation into context, never only onto a swallowed stderr', () => {
   const s = scenario();
   try {
-    s.seedLive();
+    assert.equal(s.seedLive().status, 'promoted');
     const nextSha = commitChange(s.repoRoot, (claude) => writeFile(join(claude, 'docs', 'later.md'), 'later\n'));
 
-    const result = s.cli(['--event', 'Stop', '--config-root', s.configRoot]);
+    const hook = spawnSync('node', [CONVERGE_CLI, '--event', 'Stop', '--config-root', s.configRoot], {
+      encoding: 'utf8',
+      env: { ...process.env, HOME: s.home, CLAUDE_CONFIG_DIR: s.configRoot },
+    });
 
-    assert.equal(result.code, 0);
-    assert.equal(result.stdout, '');
-    assert.match(result.stderr, /live differed from main/);
+    assert.equal(hook.status, 0, hook.stderr);
+    assert.equal(hook.stderr, '', 'an exit-0 stop hook has its stderr discarded, so nothing may be reported there');
+    const emitted = JSON.parse(hook.stdout);
+    assert.equal(emitted.hookSpecificOutput.hookEventName, 'Stop');
+    const context = emitted.hookSpecificOutput.additionalContext;
+    assert.match(context, /live differed from main/);
+    assert.ok(context.includes(s.sha), `promotion report must name the sha live was on: ${context}`);
+    assert.ok(context.includes(nextSha), `promotion report must name the sha live moved to: ${context}`);
     assert.equal(liveSha(s.configRoot), nextSha);
   } finally {
     s.dispose();
+  }
+});
+
+test('a stop that changes nothing stays silent and writes nothing, converged or uninitialized alike', () => {
+  const converged = scenario();
+  const uninitialized = scenario();
+  try {
+    assert.equal(converged.seedLive().status, 'promoted');
+    assert.equal(converged.converge().status, 'converged');
+    const convergedBefore = treeSnapshot(converged.configRoot);
+
+    const afterConverged = converged.cli(['--event', 'Stop', '--config-root', converged.configRoot]);
+
+    assert.equal(afterConverged.code, 0);
+    assert.equal(afterConverged.stdout, '');
+    assert.equal(afterConverged.stderr, '');
+    assert.deepEqual(treeSnapshot(converged.configRoot), convergedBefore, 'a converged stop must write nothing');
+
+    assert.equal(uninitialized.converge().status, 'uninitialized');
+    const uninitializedBefore = treeSnapshot(uninitialized.configRoot);
+
+    const afterUninitialized = uninitialized.cli(['--event', 'Stop', '--config-root', uninitialized.configRoot]);
+
+    assert.equal(afterUninitialized.code, 0);
+    assert.equal(afterUninitialized.stdout, '');
+    assert.equal(afterUninitialized.stderr, '');
+    assert.equal(liveSha(uninitialized.configRoot), null);
+    assert.deepEqual(
+      treeSnapshot(uninitialized.configRoot),
+      uninitializedBefore,
+      'an uninitialized stop must write nothing',
+    );
+  } finally {
+    converged.dispose();
+    uninitialized.dispose();
   }
 });
 

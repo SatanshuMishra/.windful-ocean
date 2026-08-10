@@ -103,14 +103,14 @@ function convergeFailed(outcome) {
   return outcome.status === 'drifted' && FAILED_PROMOTIONS.includes(outcome.promotion.status);
 }
 
-function emitReport({ event, report, stdout, stderr }) {
+function emitReport({ event, report, code, stdout, stderr }) {
   if (report === null) return;
-  if (event === CONTEXT_EVENT) {
-    const payload = { hookSpecificOutput: { hookEventName: CONTEXT_EVENT, additionalContext: report } };
-    stdout.write(`${JSON.stringify(payload)}\n`);
+  if (code !== EXIT_OK) {
+    stderr.write(`${report}\n`);
     return;
   }
-  stderr.write(`${report}\n`);
+  const payload = { hookSpecificOutput: { hookEventName: event, additionalContext: report } };
+  stdout.write(`${JSON.stringify(payload)}\n`);
 }
 
 function attemptConverge(request) {
@@ -172,8 +172,9 @@ export function run({ argv, env, stdout, stderr, now = new Date().toISOString() 
     repoRoot: parsed.options['--repo-root'],
     home,
   });
-  emitReport({ event, report: convergeReport(outcome), stdout, stderr });
-  return exitCodeFor(event, outcome);
+  const code = exitCodeFor(event, outcome);
+  emitReport({ event, report: convergeReport(outcome), code, stdout, stderr });
+  return code;
 }
 
 function invokedDirectly(entry) {
