@@ -360,7 +360,7 @@ export function corroborationVerdict({ configRoot, record }) {
       ok: false,
       reason: 'aside-kind',
       error: `${aside} holds a ${nodeKindOf(node.stat)} object, while this record claims a ${record.state} entry was moved there; `
-        + `no cutover of this tool left it there, and it grants no authority over ${path}`,
+        + `only that disagreement of kind was examined, and on it alone this record grants no authority over ${path}`,
     };
   }
   return { ok: true, reason: 'corroborated', error: null, aside };
