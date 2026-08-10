@@ -52,7 +52,7 @@
     {
       "id": "c10",
       "text": "The cutover unit is hardened until an independent review returns SHIP; two rounds returned BLOCK and the third was restated at the property level after a containment check proved unsound.",
-      "done": false,
+      "done": true,
       "kind": "detour",
       "struck_by": null
     },
@@ -84,59 +84,57 @@
   "abandoned_reason": null,
   "closure_statement": null,
   "spine": {
-    "active_goal": "Land the cutover unit through independent review to SHIP, then run the live config swap in a session that does nothing else.",
-    "next_step": "START HERE IN A FRESH SESSION. On feat/config-entry-link-cutover, in order: (1) commit paths.mjs and the rest of the stranded block as atomic commits - nothing runs or reviews until the branch is coherent; (2) fix the sha-axis rollback defect from a RED test that cuts over to two different releases before rolling back; (3) rebase, 12 behind main; (4) independent review to SHIP, closing c10. Do NOT swap live: 0292 reserves that for its own session.",
-    "last_session": "Re-integrated the receipts gate onto main as PR #59, verified by hash ancestry; then audited the cutover unit and found its branch broken in isolation.",
+    "active_goal": "Ship the cutover unit through PR and human merge, then run the binding rehearsal and the live entry-link swap with a fresh operator.",
+    "next_step": "START HERE IN A FRESH SESSION. feat/config-entry-link-cutover is SHIP-approved at 700878d: 22 commits, clean, 0 behind origin/main, unpushed. In order: (1) push and open the PR with node .claude/lib/git/pr.mjs pr-create, carrying the two disclosed items as --risk and --not-verified; (2) run the 0281 rehearsal against a scratch root; (3) STOP for the human merge; (4) after merge, re-run the binding 0281 rehearsal against the merged sha; (5) only then the live swap, alone.",
+    "last_session": "Closed c10: the unit reached SHIP on all three review lanes after one fix round, suite 2188/2188, branch left PR-ready but deliberately unpushed.",
     "open_risks": [
       {
-        "text": "Review round 3 before trusting any of it — it is the only unreviewed round, it rewrote the containment model, the rollback contract and the grant reporting, and two of the three reviewed rounds returned BLOCK",
+        "text": "Re-plan against invariants rather than opening a fourth fix round — all three permitted rounds are spent, and two of this unit's four defects were introduced by a fix round rather than present in the original code",
         "scope": "c5",
         "refs": [
-          "artifacts/2026-08-08-cutover-round3-report.md"
+          "artifacts/2026-08-10-round3-review-outcome.md"
         ]
       },
       {
-        "text": "copyFile keeps a real gap between the containment check and the copy — COPYFILE_EXCL cannot close it without breaking the byte-identical re-apply that makes a second run a no-op, so it was left open deliberately",
+        "text": "Run the binding 0281 rehearsal against the merged sha with all three faithfulness parts intact — no rehearsal of any kind ran this session, so there is no pre-merge evidence to lean on, and dropping the HOME override buries the real findings under two dozen artifacts",
         "scope": "c5",
         "refs": [
-          "scripts/config/cutover.mjs"
+          "0281"
         ]
       },
       {
-        "text": "Re-run the 0281 rehearsal against merged main before any live write — the green rehearsal validated 1e84dd1 and the unit has moved far past that sha",
+        "text": "Confirm the five notes files were copied into local/notes and byte-verified before the link is repointed — two hold the confidential material 0276 refused to publish, and the sources are deliberately left in the checkout for a human to remove",
         "scope": "c5",
         "refs": [
-          "a302e4c"
+          ".claude/notes/",
+          "~/.claude/local/notes"
         ]
       },
       {
-        "text": "Close every other claude session before the pointer swap — SPEC section 9 records that whether a swap reaches an already-running session is unmeasured, so any open session is an uncontrolled experiment on global config",
+        "text": "Expect the swap to change live content rather than merely a level of indirection — live config resolves into the primary checkout on feat/invariant-inert-registry today, while the release is built from origin/main",
         "scope": "c5",
         "refs": [
-          "docs/superpowers/specs/2026-08-06-config-staging-live-promotion-SPEC.md"
+          "feat/invariant-inert-registry"
         ]
       },
       {
-        "text": "Exclude local/ and notes from acceptance criterion 10's diff — SPEC section 2 is stale against 0276 and still draws eleven entry links including notes, so a literal diff fails for the wrong reason",
+        "text": "The live settings.json is not restored by a cutover rollback — rollback authority covers only the entries the verb links, so any settings.json edit made during or after the swap has no tool-supported undo",
         "scope": "c5",
         "refs": [
-          "scripts/config/paths.mjs"
+          "0318"
         ]
       },
       {
-        "text": "The cutover verb walks past the bash gate by construction — the gate returns ask for a shell mv of the hooks directory but allows the node verb, because it enumerates shell verbs only, and promote's new live settings write has the same gap",
-        "scope": "c5",
+        "text": "Carry both disclosed items into the PR body — apply still accepts a planted .cutover symlink and can strand config, and the converge Stop additionalContext path was never exercised",
+        "scope": "c10",
         "refs": [
-          "docs/invariants/coverage/feat-config-entry-link-cutover.json",
-          ".claude/hooks/block-destructive-bash.sh"
+          "artifacts/2026-08-10-round3-review-outcome.md"
         ]
       },
       {
-        "text": "Four constants plus the guard's probe-tuple narrowing are inert — the suite does not fail if any of them is undone, so they are unprotected against a future edit",
-        "scope": "c5",
-        "refs": [
-          "docs/invariants/coverage/feat-config-entry-link-cutover.json"
-        ]
+        "text": "Give every sub-agent dispatch run_in_background false — three orchestration attempts were lost because parent agents ended their turns while believing they were blocking on background children",
+        "scope": "thread",
+        "refs": []
       },
       {
         "text": "Never run git checkout main in the primary checkout — live global config is symlinked into that working tree, so switching branches hot-swaps every skill and hook under every running session",
@@ -153,175 +151,10 @@
         ]
       },
       {
-        "text": "Give every invariant a stated permit-set and test it against a realistic pre-state — nine of the eleven entries the verb touches are symlinks pointing outside the config root today, and three consecutive rounds proposed checks that would have refused that real state; see 0293 and 0295",
-        "scope": "thread",
-        "refs": [
-          "scripts/config/paths.mjs:50-56",
-          "artifacts/2026-08-08-cutover-control-file-invariants.md"
-        ]
-      },
-      {
-        "text": "Do not implement the round-4 report's remedy for the top finding — deriving created from linkTargetFor makes the ownership test vacuous after a legitimate cutover, so the hooks exploit survives and the fix round would believe it closed",
-        "scope": "thread",
-        "refs": [
-          "scripts/config/cutover.mjs:616",
-          "artifacts/2026-08-08-cutover-control-file-invariants.md"
-        ]
-      },
-      {
-        "text": "Land the already-linked classification fix before or with the contract, never after — under I2 a misclassified entry gets no aside and therefore no rollback authority, making a dangling entry unrecoverable rather than merely wrong",
-        "scope": "thread",
-        "refs": [
-          "scripts/config/cutover.mjs"
-        ]
-      },
-      {
-        "text": "Expect two protect-claude-config tests to invert, and never preserve the defect to keep them green — those two tests encode the exact suppression that the planted-receipt finding exploits",
-        "scope": "thread",
-        "refs": [
-          ".claude/hooks/tests/protect-claude-config.test.mjs:188",
-          ".claude/hooks/tests/protect-claude-config.test.mjs:289"
-        ]
-      },
-      {
-        "text": "Treat the change as larger than git diff shows — cutover.mjs and its test are untracked, so any review scoped to tracked changes covers less than half of it",
-        "scope": "thread",
-        "refs": [
-          "scripts/config/cutover.mjs",
-          "scripts/config/tests/cutover.test.mjs"
-        ]
-      },
-      {
-        "text": "Expect the cutover to move live content from a branch 64 commits behind main rather than merely change a level of indirection — the primary checkout serves live config and sits on another thread's branch with uncommitted edits",
-        "scope": "thread",
-        "refs": [
-          "feat/invariant-inert-registry"
-        ]
-      },
-      {
-        "text": "Nothing in this unit has a production caller yet — cutover.mjs is invoked by hand, and promote runs only from converge, which the repo registers but live settings.json still does not",
-        "scope": "thread",
-        "refs": [
-          "scripts/config/cutover.mjs",
-          "~/.claude/settings.json"
-        ]
-      },
-      {
-        "text": "Confirm the verb copied the five notes files into local/notes and byte-verified them before it repointed the link — two hold the confidential material 0276 refused to publish, and the sources are deliberately left in the checkout for a human to remove",
-        "scope": "thread",
-        "refs": [
-          ".claude/notes/",
-          "~/.claude/local/notes"
-        ]
-      },
-      {
-        "text": "Treat the round-6 open-questions artifact as superseded, not as instructions — it names a constant GUARDED_CONFIG_ENTRIES that exists nowhere, and its Q3 wording reads as licence to amend the permit-set in prose; 0305 and 0307 govern instead",
+        "text": "Treat the round-6 open-questions artifact as superseded rather than as instructions — it names a constant that exists nowhere and reads as licence to amend the permit-set in prose, which 0305 forbids",
         "scope": "thread",
         "refs": [
           "artifacts/2026-08-10-open-questions-for-round-6.md"
-        ]
-      },
-      {
-        "text": "Land the I3a permit-set amendment as a materialized fixture, never as a sentence, per 0305 — a prose permit-set is merely the next drift surface, and amending the wording alone re-runs the loop that consumed five rounds",
-        "scope": "thread",
-        "refs": [
-          "artifacts/2026-08-09-cutover-invariants-v2.md"
-        ]
-      },
-      {
-        "text": "Carry scripts/invariant-shape-check.mjs onto main in the same unit that wires its CI step, per 0309 — it lives only on an unmerged branch, so CI runs no shape check at all today and wiring the step alone would red every run",
-        "scope": "thread",
-        "refs": [
-          "feat/invariant-inert-registry",
-          ".github/workflows/test.yml"
-        ]
-      },
-      {
-        "text": "Fix the receipt's restated scope flags in whichever unit next opens invariant-coverage-check.mjs, per 0310 — main carries a threatened M2 verdict today, and nothing turns red if the checker gains a scope input the workflow does not pass",
-        "scope": "thread",
-        "refs": [
-          ".claude/lib/superpowers-parallel/tests/ci-invariant-wiring.test.mjs",
-          "scripts/invariant-coverage-check.mjs"
-        ]
-      },
-      {
-        "text": "Expect one local npm test failure that CI does not see, and read it as live-config state — ~/.claude/settings.json no longer resolves out of the home tree, so that guard finds no repository base and stops protecting the checkout",
-        "scope": "thread",
-        "refs": [
-          ".claude/hooks/tests/protect-claude-config.test.mjs:194",
-          "~/.claude/settings.json"
-        ]
-      },
-      {
-        "text": "Give security.yml the same push filter when it is next touched — it still triggers on unfiltered push, so its jobs double-run on every pull request commit exactly as test.yml did before 0306",
-        "scope": "thread",
-        "refs": [
-          ".github/workflows/security.yml"
-        ]
-      },
-      {
-        "text": "Never read a MERGED badge as proof the content reached main — a stacked pull request whose parent merges first is left pointing at a dead base and still reports MERGED, which is how this recurred after c8 recorded it once already",
-        "scope": "c3",
-        "refs": [
-          "c8",
-          "0314"
-        ]
-      },
-      {
-        "text": "GUARDED_CONFIG_ENTRIES does not exist and must not be built — the claim that three constants were merged into it was verified false, paths.mjs is on main and identical on the cutover branch, and 0307 keeps the two production sets separate",
-        "scope": "c10",
-        "refs": [
-          "scripts/config/paths.mjs:18",
-          "scripts/config/capture.mjs:141"
-        ]
-      },
-      {
-        "text": "c10's review gate SURVIVES 0313 and is now the last gate before a live config swap — the invariant machinery that was meant to discharge it is gone, so the gate reverts to an ordinary independent review of the cutover unit and must not be skipped as collateral",
-        "scope": "c10",
-        "refs": [
-          "0313"
-        ]
-      },
-      {
-        "text": "Commit the stranded paths.mjs block before anything else — the committed cutover.mjs imports four symbols that exist only in the uncommitted diff, so the branch throws SyntaxError and can be neither run nor reviewed as it stands",
-        "scope": "c10",
-        "refs": [
-          "scripts/config/cutover.mjs",
-          "scripts/config/paths.mjs",
-          "docs/invariants/coverage/feat-config-entry-link-cutover.json"
-        ]
-      },
-      {
-        "text": "Fix rollback on the record-sha axis, not the entry-state axis — a journal record carried from an earlier release is refused forever as foreign-release and its aside is never restored, and no existing test cuts over to two releases before rolling back",
-        "scope": "c10",
-        "refs": [
-          "scripts/config/cutover.mjs:309-344",
-          "scripts/config/cutover.mjs:349-355",
-          "scripts/config/cutover.mjs:752-810"
-        ]
-      },
-      {
-        "text": "Expect a failed rollback to have already mutated the disk — restoreEntry renames same-generation entries in a per-entry map with no short-circuit, so a call returning status error has moved files despite reporting total failure",
-        "scope": "c10",
-        "refs": [
-          "scripts/config/cutover.mjs:752-810"
-        ]
-      },
-      {
-        "text": "Treat the protect-claude-config rewrite as unreviewed surface — the uncommitted diff rewrites that guard and its test by +232 lines, which is why the suite is green in the cutover worktree and red at line 194 elsewhere",
-        "scope": "c10",
-        "refs": [
-          ".claude/hooks/protect-claude-config.sh",
-          ".claude/hooks/tests/protect-claude-config.test.mjs"
-        ]
-      },
-      {
-        "text": "Two thread-scoped risks are now false — cutover.mjs and its test ARE tracked, and the branch is 12 commits behind main rather than 64; verify both against git before acting on them",
-        "scope": "c10",
-        "refs": [
-          "bd63ca2",
-          "ee20348",
-          "feat/config-entry-link-cutover"
         ]
       }
     ],
@@ -518,5 +351,5 @@
     ]
   },
   "created_at": "2026-08-06T21:18:29.653Z",
-  "updated_at": "2026-08-10T20:11:38.802Z"
+  "updated_at": "2026-08-10T20:13:00.489Z"
 }
