@@ -86,6 +86,7 @@ const corporaByGoal = {
     'g4ImmutableFlagCommands',
     'g4SubdirectoryCommands',
     'g4RecursiveRemoveCommands',
+    'g4CutoverSteeringCommands',
     'g4NoOpinionCommands',
   ],
   G5: [
@@ -450,8 +451,39 @@ for (const [command, label] of g4RecursiveRemoveCommands) {
   });
 }
 
+const RELEASE_SHA = '0123456789abcdef0123456789abcdef01234567';
+
+const g4CutoverSteeringCommands = [
+  'rm ~/.claude/CUTOVER',
+  'echo x > .claude/CUTOVER',
+  'mv /tmp/journal.json .claude/CUTOVER',
+  'rm .claude/LIVE',
+  'cp /tmp/receipt.json ~/.claude/LIVE',
+  'mv .claude/hooks.pre-cutover-01234567 /tmp/stash',
+  'rm -r .claude/hooks.pre-cutover-01234567',
+  'echo x > .claude/rules.pre-cutover-01234567/common/git/commits.md',
+  `echo x > .claude/releases/${RELEASE_SHA}/hooks/block-destructive-bash.sh`,
+  `rm -r .claude/releases/${RELEASE_SHA}/rules`,
+  'echo x > .claude/current/hooks/block-destructive-bash.sh',
+  'mv .claude/current /tmp/stash',
+];
+
+for (const command of g4CutoverSteeringCommands) {
+  test(`${goalsFor('g4CutoverSteeringCommands')}: asks before a write reaches a file that steers which guardrail files run: ${command}`, () => {
+    const r = runHook(command);
+    assert.equal(r.status, 0);
+    assert.equal(decisionOf(r), 'ask');
+    assert.equal(reasonOf(r), GUARDRAIL_ASK_REASON);
+  });
+}
+
 const g4NoOpinionCommands = [
   'git checkout main',
+  'cat .claude/CUTOVER',
+  'cat ~/.claude/LIVE',
+  'echo x > .claude/currently/notes.md',
+  'echo x > .claude/releasesfoo/notes.md',
+  'echo x > .claude/hooks.pre-cutoverfoo',
   'git switch -c feature',
   'git checkout -b feature',
   'echo x > .claude/skills/mitosis/SKILL.md',
@@ -599,6 +631,7 @@ const corpusByName = {
   g4SubdirectoryCommands,
   g4ImmutableFlagCommands,
   g4RecursiveRemoveCommands,
+  g4CutoverSteeringCommands,
   g4NoOpinionCommands,
   g5CredentialExfiltrationCommands,
   g5GuardrailExfiltrationCommands,

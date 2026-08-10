@@ -14,7 +14,8 @@ seg_verdict="" seg_reason=""
 best_verdict="" best_reason=""
 
 ghwrap='(sudo|env|command|nohup|time|xargs|(ba|z|k)?sh[[:space:]]+-c|[a-z_][a-z0-9_]*=[^[:space:]]*)'
-guardpath='(\.claude/(settings(\.local)?\.json|CLAUDE\.md|keybindings\.json|(hooks|rules|lib|workflows)(/|[^[:alnum:]_./-]|$))|\.claude/?([^[:alnum:]_./-]|$))'
+guardname='(settings(\.local)?\.json|CLAUDE\.md|keybindings\.json|(hooks|rules|lib|workflows|releases|current|CUTOVER|LIVE)(/|[^[:alnum:]_./-]|$)|[^/[:space:]]*\.pre-cutover-[0-9a-f]+)'
+guardpath="(\.claude/${guardname}|\.claude/?([^[:alnum:]_./-]|\$))"
 
 note_fault() {
   fault_detail="$1"
