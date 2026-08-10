@@ -336,15 +336,34 @@ export function corroborationVerdict({ configRoot, record }) {
   return { ok: true, reason: 'corroborated', error: null, aside };
 }
 
-const firstByName = (records) =>
-  records.reduce((held, record) => (held.some((one) => one.name === record.name) ? held : [...held, record]), []);
+const preserves = (record) => ENTRY_PRESERVATION[record.state] === true;
+
+const canonicalByName = (records) =>
+  records.reduce((held, record) => {
+    const at = held.findIndex((one) => one.name === record.name);
+    if (at < 0) return [...held, record];
+    if (!preserves(record) || preserves(held[at])) return held;
+    return held.map((one, index) => (index === at ? record : one));
+  }, []);
 
 export function mergeJournal({ configRoot, existing, next }) {
-  if (existing === null) return next;
+  if (existing === null) return { ok: true, journal: next };
   const carried = existing.entries
     .filter(isUsableRecord)
     .filter((record) => corroborationVerdict({ configRoot, record }).ok);
-  return { ...next, entries: firstByName([...carried, ...next.entries]) };
+  const contested = carried
+    .filter(preserves)
+    .filter((record) => next.entries.some((one) => one.name === record.name && preserves(one)));
+  if (contested.length > 0) {
+    return {
+      ok: false,
+      errors: contested.map(
+        (record) =>
+          `${asidePath(configRoot, record.name, record.sha)} still holds what the cutover to ${record.sha} moved aside for ${record.name}; roll back that cutover first, so its prior state goes back where it belongs`,
+      ),
+    };
+  }
+  return { ok: true, journal: { ...next, entries: canonicalByName([...carried, ...next.entries]) } };
 }
 
 export function markPerformed(journal, name) {
@@ -565,7 +584,7 @@ export function applyCutover({ configRoot, entries = PROMOTED_ENTRIES, now, copy
     : notesPlan({ configRoot, notes: plan.notes });
   if (!notes.ok) return { status: 'error', errors: notes.errors };
 
-  const journal = mergeJournal({
+  const merged = mergeJournal({
     configRoot,
     existing: stored.ok ? stored.journal : null,
     next: {
@@ -576,7 +595,8 @@ export function applyCutover({ configRoot, entries = PROMOTED_ENTRIES, now, copy
       entries: plan.actions.map((entry) => journalEntry({ entry, sha: plan.sha })),
     },
   });
-  const written = writeJournal(configRoot, journal);
+  if (!merged.ok) return { status: 'error', errors: merged.errors };
+  const written = writeJournal(configRoot, merged.journal);
   if (!written.ok) return { status: 'error', errors: written.errors };
 
   if (plan.notes.state !== 'already-linked') {
@@ -584,7 +604,7 @@ export function applyCutover({ configRoot, entries = PROMOTED_ENTRIES, now, copy
     if (!copied.ok) return { status: 'error', errors: copied.errors, journal: written.path };
   }
 
-  const applied = relink({ configRoot, plan, journal });
+  const applied = relink({ configRoot, plan, journal: merged.journal });
   if (!applied.ok) {
     return { status: 'error', errors: applied.errors, journal: written.path, performed: applied.performed };
   }

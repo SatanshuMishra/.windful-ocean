@@ -754,6 +754,96 @@ test('a cutover to a second release still rolls back what the first release move
   }
 });
 
+function promoteSecondRelease(scenario, now) {
+  const next = commitChange(scenario.repoRoot, (claude) => writeFile(join(claude, 'docs', 'second.md'), '# second\n'));
+  assert.notEqual(next, scenario.sha, 'the second cutover must name a different release');
+  const again = promote({
+    configRoot: scenario.configRoot,
+    repoRoot: scenario.repoRoot,
+    ref: 'main',
+    now,
+    settingsPath: scenario.settingsPath,
+    home: scenario.home,
+  });
+  assert.equal(again.status, 'promoted', `the second promotion failed: ${JSON.stringify(again)}`);
+  return next;
+}
+
+function rematerialize(configRoot, name, contents) {
+  unlinkSync(join(configRoot, name));
+  writeFile(join(configRoot, name, 'restored.txt'), contents);
+}
+
+test('a second release moves aside what appeared since the first, and the rollback gives it back', () => {
+  const scenario = promoted();
+  const later = '2026-08-08T13:00:00.000Z';
+  try {
+    assert.equal(applyCutover({ configRoot: scenario.configRoot, now: NOW }).status, 'applied');
+    const next = promoteSecondRelease(scenario, later);
+    rematerialize(scenario.configRoot, 'rules', 'restored by hand\n');
+
+    const second = applyCutover({ configRoot: scenario.configRoot, now: later });
+
+    assert.equal(second.status, 'applied', why(second));
+    const aside = asidePath(scenario.configRoot, 'rules', next);
+    assert.equal(readFileSync(join(aside, 'restored.txt'), 'utf8'), 'restored by hand\n', 'the second release preserves it');
+
+    const rolled = rollbackCutover({ configRoot: scenario.configRoot });
+
+    assert.equal(rolled.status, 'rolled-back', why(rolled));
+    assert.deepEqual(
+      rolled.restored.filter((one) => one.name === 'rules').map((one) => one.action),
+      ['restored'],
+      'the aside the second release keyed is named by the journal and put back',
+    );
+    assert.equal(
+      readFileSync(join(scenario.configRoot, 'rules', 'restored.txt'), 'utf8'),
+      'restored by hand\n',
+      'what was there before the second cutover is what stands after the rollback',
+    );
+    assert.ok(!existsSync(aside), 'no aside is left behind for a journal that no longer exists');
+    assert.ok(!existsSync(join(scenario.configRoot, 'CUTOVER')), 'a total rollback consumes the journal');
+
+    const again = rollbackCutover({ configRoot: scenario.configRoot });
+    assert.match(again.errors.join('\n'), /no CUTOVER journal/, 'nothing is left owing a further rollback');
+  } finally {
+    scenario.dispose();
+  }
+});
+
+test('a second cutover is refused where it would move aside what an earlier release still holds', () => {
+  const scenario = promoted();
+  const later = '2026-08-08T13:00:00.000Z';
+  try {
+    seedStaleRealDir(scenario.configRoot);
+    assert.equal(applyCutover({ configRoot: scenario.configRoot, now: NOW }).status, 'applied');
+    const next = promoteSecondRelease(scenario, later);
+    rematerialize(scenario.configRoot, 'hooks', 'restored by hand\n');
+    const before = listing(scenario.configRoot);
+    const journal = readFileSync(join(scenario.configRoot, 'CUTOVER'), 'utf8');
+
+    const second = applyCutover({ configRoot: scenario.configRoot, now: later });
+
+    assert.equal(second.status, 'error', 'a release cannot preserve a second state for an entry');
+    assert.match(second.errors.join('\n'), /roll back/);
+    assert.deepEqual(listing(scenario.configRoot), before, 'a refusal writes nothing');
+    assert.equal(readFileSync(join(scenario.configRoot, 'CUTOVER'), 'utf8'), journal, 'the journal is left as it stands');
+    assert.ok(!existsSync(asidePath(scenario.configRoot, 'hooks', next)), 'no aside is created that no record could name');
+    assert.equal(
+      readFileSync(join(asideFor(scenario, 'hooks'), 'graphify-out', 'stale.txt'), 'utf8'),
+      'stale graph\n',
+      'the aside the first release keyed is still the only copy of what it preserved',
+    );
+    assert.equal(
+      readFileSync(join(scenario.configRoot, 'hooks', 'restored.txt'), 'utf8'),
+      'restored by hand\n',
+      'what appeared since the first cutover is left exactly where it stands',
+    );
+  } finally {
+    scenario.dispose();
+  }
+});
+
 test('a rollback whose aside was removed by hand keeps the live entry and keeps its journal', () => {
   const scenario = promoted();
   try {
@@ -1036,12 +1126,16 @@ test('a planted record for a state that owes no aside cannot mask the record tha
 
     const rolled = rollbackCutover({ configRoot: scenario.configRoot });
 
-    assert.equal(rolled.status, 'error', 'a record the disk contradicts must not be honoured');
-    assert.match(rolled.errors.join('\n'), /hooks/);
-    assert.ok(existsSync(aside), 'the only copy of the prior state must not be stranded');
+    assert.equal(rolled.status, 'rolled-back', why(rolled));
+    assert.equal(
+      readFileSync(join(scenario.configRoot, 'hooks', 'graphify-out', 'stale.txt'), 'utf8'),
+      'stale graph\n',
+      'a record the disk contradicts is not honoured, and the state the disk corroborates goes back',
+    );
+    assert.ok(!existsSync(aside), 'the only copy of the prior state is neither stranded nor left behind');
     assert.ok(
-      existsSync(join(scenario.configRoot, 'CUTOVER')),
-      'the journal is the only record naming that aside; a masked record must not consume it',
+      !existsSync(join(scenario.configRoot, 'CUTOVER')),
+      'a journal that named every aside it left is consumed',
     );
     assert.deepEqual(listing(planted), ['payload.txt'], 'a journal-named aside must never be relocated onto an entry');
     assert.deepEqual(listing(hostile), ['payload.txt'], 'a journal-named target must never reach a syscall');
