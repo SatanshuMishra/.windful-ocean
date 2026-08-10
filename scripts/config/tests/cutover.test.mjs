@@ -514,6 +514,42 @@ test('an apply refuses to move anything aside into a directory it did not create
   }
 });
 
+const asideRootOf = (scenario) => dirname(dirname(asideFor(scenario, 'hooks')));
+
+test('an apply that moves nothing aside leaves no container behind', () => {
+  const scenario = promoted();
+  try {
+    const applied = applyCutover({ configRoot: scenario.configRoot, now: NOW });
+
+    assert.equal(applied.status, 'applied', why(applied));
+    assert.deepEqual(
+      applied.performed.filter((one) => one.aside !== null),
+      [],
+      'the fixture must cut over a root where nothing is owed an aside',
+    );
+    assert.ok(!existsSync(asideRootOf(scenario)), 'a container that never held an aside must not outlive the apply');
+  } finally {
+    scenario.dispose();
+  }
+});
+
+test('a rollback that consumes every aside reclaims the container that held them', () => {
+  const scenario = promoted();
+  try {
+    seedStaleRealDir(scenario.configRoot);
+    seedStrayLink(scenario.configRoot, scenario.home);
+    assert.equal(applyCutover({ configRoot: scenario.configRoot, now: NOW }).status, 'applied');
+    assert.ok(existsSync(asideFor(scenario, 'hooks')), 'the container is kept while it still holds an aside');
+
+    const rolled = rollbackCutover({ configRoot: scenario.configRoot });
+
+    assert.equal(rolled.status, 'rolled-back', why(rolled));
+    assert.ok(!existsSync(asideRootOf(scenario)), 'an emptied container must not outlive the rollback that emptied it');
+  } finally {
+    scenario.dispose();
+  }
+});
+
 test('a second apply performs no action and leaves the links untouched', () => {
   const scenario = promoted();
   try {

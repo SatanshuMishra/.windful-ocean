@@ -9,6 +9,7 @@ import {
   readlinkSync,
   realpathSync,
   renameSync,
+  rmdirSync,
   symlinkSync,
   unlinkSync,
   writeFileSync,
@@ -92,6 +93,8 @@ const linkTargetFor = (name) => (name === NOTES_DIRNAME ? NOTES_LINK_TARGET : jo
 const LINK_WRITE_KINDS = Object.freeze(['entry', 'staging', 'aside']);
 
 const ASIDE_CONTAINER_KINDS = Object.freeze(['aside-root', 'aside-container']);
+
+const OCCUPIED_CODES = Object.freeze(['ENOTEMPTY', 'ENOENT']);
 
 const containmentFor = (kind) =>
   (LINK_WRITE_KINDS.includes(kind) ? isInsideResolvedContainer : isInsideResolved);
@@ -628,6 +631,23 @@ function prepareAsideContainer({ configRoot, sha, accounted }) {
   return adoptAsideContainer({ dir, accounted });
 }
 
+function reclaimAsideContainers({ configRoot, shas }) {
+  const errors = [...shas.map((sha) => cutoverAsideDir(configRoot, sha)), cutoverAsideRoot(configRoot)].reduce(
+    (held, dir) => {
+      try {
+        rmdirSync(dir);
+        return held;
+      } catch (error) {
+        return OCCUPIED_CODES.includes(error.code)
+          ? held
+          : [...held, `${dir} could not be reclaimed once it held nothing: ${error.message}`];
+      }
+    },
+    [],
+  );
+  return errors.length === 0 ? null : errors.join('\n');
+}
+
 function accountedNames(journal, sha) {
   const records = Array.isArray(journal?.entries) ? journal.entries : [];
   return new Set(
@@ -741,6 +761,7 @@ export function applyCutover({ configRoot, entries = PROMOTED_ENTRIES, now, copy
     journal: written.path,
     performed: applied.performed,
     notesSource: plan.notes.source,
+    reclaimError: reclaimAsideContainers({ configRoot, shas: [plan.sha] }),
   };
 }
 
@@ -970,7 +991,14 @@ export function rollbackCutover({ configRoot }) {
       retainedError: kept.error,
     };
   }
-  return { status: 'rolled-back', sha: stored.journal.sha, restored, retained, retainedError: kept.error };
+  return {
+    status: 'rolled-back',
+    sha: stored.journal.sha,
+    restored,
+    retained,
+    retainedError: kept.error,
+    reclaimError: reclaimAsideContainers({ configRoot, shas: censusDomain(stored.journal).shas }),
+  };
 }
 
 function isMainModule() {
@@ -1046,6 +1074,7 @@ function describeRetained(retained) {
 function report(result) {
   process.stdout.write(describeRetained(result.retained));
   if (result.retainedError) process.stderr.write(`${result.retainedError}\n`);
+  if (result.reclaimError) process.stderr.write(`${result.reclaimError}\n`);
   if (result.status === 'planned') {
     process.stdout.write(`${describePlan(result.plan)}\ncutover plan only; rerun with --apply to write\n`);
     return EXIT_OK;
