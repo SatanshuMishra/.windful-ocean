@@ -1,0 +1,15 @@
+Fast-forwarded local main, ran the 0281 faithful rehearsal, then completed the first live promote.
+
+REHEARSAL (c5 precondition). Scratch root with live settings.json copied in, bootstrap installed in its local/, HOME overridden so the config root sat at $HOME/.claude. Candidate at bdbb01a ACCEPTED with ZERO validation failures, against 2 on 2026-08-07. Both 0281 defects confirmed fixed: PROMOTED_ENTRIES no longer lists notes, and the hook checker now dispatches on shebang so secret-scanner.sh is no longer handed to bash -n. All 26 hook registrations resolved and syntax-checked. Swap, receipt, settings-strip and GC all exercised.
+
+UNPLANNED FIND (detour). statusLine is REPO_OWNED; main declared ccstatusline 2.2.22 while live ran 2.2.27, so any promote would have silently downgraded the status line. Validation cannot catch this - the candidate is well-formed. It surfaced only because the reconciled settings were diffed against live. Fixed on a worktree branch off main (never the primary checkout), receipt red on parent bdbb01a and green on the fix, shipped as PR #61 through pr.mjs pr-create, merged by the human at 75b90a3 with all 10 checks green.
+
+SCOPED OUT, not deferred. The 15 Claude Code plugins: enabledPlugins, pluginConfigs and extraKnownMarketplaces are LIVE_OWNED_KEYS, so promotion never carries them; claude plugin list and the SessionStart cache both reported no updates available. There is no work item here.
+
+STEP 3, live bootstrap. Installed the 7-module closure into ~/.claude/local/ from a temporary detached worktree at main (install-bootstrap reads scripts/config from disk, which the primary checkout's branch does not carry). manifest.mjs created, 5 modules updated. This cleared the briefing's blocking watch-out; without it promote.mjs would have thrown on its first live run.
+
+STEP 4, first live promote. promoted 75b90a3d1f6cd4853252d2d797dbd1133bb99cae, exit 0, zero validation failures. Live now carries current -> releases/75b90a3..., the release (10 entries, settings.json stripped) and the LIVE receipt. Every effect matched the rehearsal prediction exactly: statusLine 2.2.27 with no downgrade, 2 converge hooks registered (closes c3), Bash(ln -sfn:*) withdrawn per the manifest, and live-owned keys (model, theme, enabledPlugins) preserved. converge.mjs was verified exit 0 on both events BEFORE promote registered them, and again after.
+
+NOT DONE. The entry-link cutover (c5) has not started. Live skills, agents, lib, workflows, docs, sounds, CLAUDE.md and keybindings.json still symlink to the primary working tree on feat/invariant-inert-registry, and hooks and rules are still real directories. This promote therefore delivered settings.json only.
+
+SAFETY. Backup at ~/.claude/settings.json.bak-2026-08-10-pre-promote. Two scratch worktrees created and removed; the primary checkout was never switched.
