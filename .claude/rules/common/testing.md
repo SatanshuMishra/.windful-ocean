@@ -20,6 +20,8 @@ Styling and visual tweaks, copy/text changes, configuration, generated code, pur
 
 For changes that pass the admission gate: write the test first, watch it fail (RED), implement, watch it pass (GREEN). Bug fixes always start with a red test reproducing the bug. A test that has never failed proves nothing.
 
+Every fix ships an acceptance test that is red on the PARENT COMMIT and green on the fix, and that asserts the reported symptom rather than a proxy for it. It ships alongside an inertness mutation: revert or empty the thing the fix added, and the assertion must turn red. A test that survives that mutation is not testing the fix.
+
 ## Placement and Consolidation
 
 - Place each test at the lowest layer that can express the behavior (unit before integration before E2E).
@@ -30,6 +32,7 @@ For changes that pass the admission gate: write the test first, watch it fail (R
 
 - Maximum 1–2 test doubles per test; never mock types you don't own unless a contract or integration test covers that boundary elsewhere.
 - No change-detector tests (tests that fail on refactors that preserve behavior).
+- Any gate that classifies tokens, identifiers or paths is a closed census that halts on the unclassifiable. A pinned count or a sampled allowlist is forbidden — both are change-detectors wearing a census costume.
 - No assertion-weak tests: snapshot-everything, assert-not-null-only, expected values copied from actual output.
 - Deterministic: no sleeps, no real network, no shared mutable state between tests.
 
