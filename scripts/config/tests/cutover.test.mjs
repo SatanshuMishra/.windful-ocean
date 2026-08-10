@@ -343,6 +343,67 @@ test('an aside this journal keys refuses to let it be consumed, and names itself
   }
 });
 
+const STRANDING_VARIANTS = Object.freeze([
+  ['a name outside the vocabulary this tool cuts over', (scenario) => ({ name: 'retired-entry', sha: scenario.sha })],
+  ['a release other than the one the journal names', (scenario) => ({ name: 'docs', sha: foreignSha(scenario.sha) })],
+]);
+
+test('an aside a record of this journal names refuses to let the journal be consumed', () => {
+  for (const [label, keyed] of STRANDING_VARIANTS) {
+    const scenario = promoted();
+    try {
+      assert.equal(applyCutover({ configRoot: scenario.configRoot, now: NOW }).status, 'applied');
+      const { name, sha } = keyed(scenario);
+      const stranded = asidePath(scenario.configRoot, name, sha);
+      writeFile(join(stranded, 'prior.txt'), 'prior\n');
+      const journal = journalOf(scenario.configRoot);
+      rewriteJournal(scenario.configRoot, {
+        ...journal,
+        entries: [...journal.entries, { name, state: 'real', sha, recorded: 'performed' }],
+      });
+
+      const rolled = rollbackCutover({ configRoot: scenario.configRoot });
+
+      assert.equal(rolled.status, 'error', `${label}: ${why(rolled)}`);
+      assert.match(rolled.errors.join('\n'), new RegExp(escaped(stranded)), `${label}: the surviving aside is named`);
+      assert.ok(existsSync(join(scenario.configRoot, 'CUTOVER')), `${label}: the only record naming it must survive`);
+      assert.equal(readFileSync(join(stranded, 'prior.txt'), 'utf8'), 'prior\n', `${label}: it is left where it stands`);
+    } finally {
+      scenario.dispose();
+    }
+  }
+});
+
+test('an apply refuses to drop a record while the aside it names is still on disk', () => {
+  const scenario = promoted();
+  try {
+    seedStaleRealDir(scenario.configRoot);
+    assert.equal(applyCutover({ configRoot: scenario.configRoot, now: NOW }).status, 'applied');
+    const stranded = asidePath(scenario.configRoot, 'retired-entry', scenario.sha);
+    writeFile(join(stranded, 'prior.txt'), 'prior\n');
+    const journal = journalOf(scenario.configRoot);
+    rewriteJournal(scenario.configRoot, {
+      ...journal,
+      entries: [...journal.entries, { name: 'retired-entry', state: 'real', sha: scenario.sha, recorded: 'performed' }],
+    });
+    rematerialize(scenario.configRoot, 'rules', 'restored by hand\n');
+    const before = readFileSync(join(scenario.configRoot, 'CUTOVER'), 'utf8');
+
+    const second = applyCutover({ configRoot: scenario.configRoot, now: NOW });
+
+    assert.equal(second.status, 'error', why(second));
+    assert.match(second.errors.join('\n'), new RegExp(escaped(stranded)), 'the aside the dropped record names is reported');
+    assert.equal(
+      readFileSync(join(scenario.configRoot, 'CUTOVER'), 'utf8'),
+      before,
+      'the only record naming that aside is not dropped out of the journal',
+    );
+    assert.equal(readFileSync(join(stranded, 'prior.txt'), 'utf8'), 'prior\n', 'it is left exactly where it stands');
+  } finally {
+    scenario.dispose();
+  }
+});
+
 test('an aside keyed on another release does not refuse consumption', () => {
   for (const name of CUTOVER_ENTRIES) {
     const scenario = promoted();

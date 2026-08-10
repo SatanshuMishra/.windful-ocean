@@ -308,6 +308,10 @@ export function journalEntry({ entry, sha }) {
 
 const isUsableRecord = (record) => recordErrors(record, 0).length === 0;
 
+const journalRecords = (journal) =>
+  (Array.isArray(journal?.entries) ? journal.entries : [])
+    .filter((record) => record !== null && typeof record === 'object' && !Array.isArray(record));
+
 function asideNode(aside) {
   try {
     return { stat: lstatOrNull(aside), error: null };
@@ -366,11 +370,42 @@ const canonicalByName = (records) =>
     return held.map((one, index) => (index === at ? record : one));
   }, []);
 
+function dropReason({ configRoot, record }) {
+  const errors = recordErrors(record, 0);
+  if (errors.length > 0) return errors.join('; ');
+  return corroborationVerdict({ configRoot, record }).error ?? 'this apply does not carry it forward';
+}
+
+function strandedAside({ configRoot, record }) {
+  if (record === null || typeof record !== 'object' || Array.isArray(record)) return null;
+  if (typeof record.name !== 'string' || !isSha(record.sha)) return null;
+  const aside = asidePath(configRoot, record.name, record.sha);
+  if (!isInsideResolvedContainer(cutoverAsideDir(configRoot, record.sha), aside)) return null;
+  const node = asideNode(aside);
+  if (node.error !== null) return { name: record.name, aside, reason: node.error };
+  if (node.stat === null) return null;
+  return { name: record.name, aside, reason: dropReason({ configRoot, record }) };
+}
+
 export function mergeJournal({ configRoot, existing, next }) {
   if (existing === null) return { ok: true, journal: next };
   const carried = existing.entries
     .filter(isUsableRecord)
     .filter((record) => corroborationVerdict({ configRoot, record }).ok);
+  const stranded = existing.entries
+    .filter((record) => !carried.includes(record))
+    .map((record) => strandedAside({ configRoot, record }))
+    .filter((one) => one !== null);
+  if (stranded.length > 0) {
+    return {
+      ok: false,
+      errors: stranded.map(
+        (one) =>
+          `${one.aside} still holds what a cutover moved aside for ${one.name}, while the only record naming it is one this apply would drop (${one.reason}); `
+            + `roll back that cutover first, or move ${one.aside} out of the way by hand`,
+      ),
+    };
+  }
   const contested = carried
     .filter(preserves)
     .filter((record) => next.entries.some((one) => one.name === record.name && preserves(one)));
@@ -823,23 +858,37 @@ const ignoredOutcome = (one) => ({
   note: `this record grants no authority and was not acted on: ${one.reason}`,
 });
 
-function asideCensus(configRoot, sha) {
-  return CUTOVER_ENTRIES.reduce(
-    (held, name) => {
-      const aside = asidePath(configRoot, name, sha);
-      const node = asideNode(aside);
-      if (node.error !== null) return { ...held, unreadable: [...held.unreadable, node.error] };
-      return node.stat !== null ? { ...held, surviving: [...held.surviving, { name, aside }] } : held;
-    },
-    { surviving: [], unreadable: [] },
-  );
+function censusDomain(journal) {
+  const named = journalRecords(journal);
+  return {
+    names: [...new Set([
+      ...CUTOVER_ENTRIES,
+      ...named.map((record) => record.name).filter((name) => typeof name === 'string'),
+    ])].sort(),
+    shas: [...new Set([journal.sha, ...named.map((record) => record.sha)])].filter(isSha).sort(),
+  };
 }
 
-function consumptionErrors({ configRoot, sha, path }) {
-  const census = asideCensus(configRoot, sha);
+function asideCensus(configRoot, journal) {
+  const { names, shas } = censusDomain(journal);
+  return shas
+    .flatMap((sha) => names.map((name) => ({ name, sha, aside: asidePath(configRoot, name, sha) })))
+    .filter((one) => isInsideResolvedContainer(cutoverAsideDir(configRoot, one.sha), one.aside))
+    .reduce(
+      (held, one) => {
+        const node = asideNode(one.aside);
+        if (node.error !== null) return { ...held, unreadable: [...held.unreadable, node.error] };
+        return node.stat !== null ? { ...held, surviving: [...held.surviving, one] } : held;
+      },
+      { surviving: [], unreadable: [] },
+    );
+}
+
+function consumptionErrors({ configRoot, journal, path }) {
+  const census = asideCensus(configRoot, journal);
   const named = [
     ...census.surviving.map(
-      (one) => `${one.aside} still holds what this cutover moved aside for ${one.name}`,
+      (one) => `${one.aside} still holds what the cutover to ${one.sha} moved aside for ${one.name}`,
     ),
     ...census.unreadable,
   ];
@@ -853,7 +902,6 @@ function consumptionErrors({ configRoot, sha, path }) {
 export function rollbackCutover({ configRoot }) {
   const stored = readJournal(configRoot);
   if (!stored.ok) return { status: 'error', errors: stored.errors };
-  const sha = stored.journal.sha;
   const records = partitionRecords(stored.journal.entries);
   const acted = [...records.usable].reverse().map((entry) => {
     try {
@@ -893,7 +941,7 @@ export function rollbackCutover({ configRoot }) {
       retainedError: kept.error,
     };
   }
-  const unconsumed = consumptionErrors({ configRoot, sha, path: stored.path });
+  const unconsumed = consumptionErrors({ configRoot, journal: stored.journal, path: stored.path });
   if (unconsumed.length > 0) {
     return { status: 'error', errors: unconsumed, restored, retained, retainedError: kept.error };
   }
