@@ -33,7 +33,7 @@
     {
       "id": "M1",
       "verdict": "not-threatened",
-      "check": "Satisfied by this artifact, and strengthened rather than weakened by the change. This file records a verdict for all 17 registry ids (B1-B6, M1-M6, G1-G5) and is committed to the repository rather than argued in the pull-request body. The change introduces a second admissible verdict form, a machine-proved inert basis, but it does not make any id optional: scripts/invariant-coverage-check.mjs still enforces set-equality against the full registry for every coverage entry in the diff scope, and an inert row must still carry an id, a check and a not-threatened verdict. This entry itself uses prose for all 17 ids and claims no inert basis anywhere, because the diff touches docs/invariants/registry.json, which I deliberately left out of every glob set."
+      "check": "Satisfied by this artifact, and strengthened rather than weakened by the change. This file records a verdict for all 14 registry ids (B1-B6, M1, M5, M6, G1-G5) and is committed to the repository rather than argued in the pull-request body; it carried 17 until M2, M3 and M4 were retired from the registry in this same branch, and the three rows left with them. The change introduces a second admissible verdict form, a machine-proved inert basis, but it does not make any id optional: scripts/invariant-coverage-check.mjs still enforces set-equality against the full registry for every coverage entry in the diff scope, and an inert row must still carry an id, a check and a not-threatened verdict. This entry itself uses prose for all 14 ids and claims no inert basis anywhere, because the diff touches docs/invariants/registry.json, which I deliberately left out of every glob set."
     },
     {
       "id": "M5",
