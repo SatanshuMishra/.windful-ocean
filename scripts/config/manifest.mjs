@@ -29,6 +29,8 @@ export const UNIONED_SECTIONS = Object.freeze(['allow']);
 
 export const NOT_ADOPTED_GRANTS = Object.freeze(['Bash(ln -sfn:*)']);
 
+export const WITHDRAWN_GRANTS = Object.freeze(['Bash(ln -sfn:*)']);
+
 export const FLAG_UNCLASSIFIED = 'unclassified';
 export const FLAG_PERMISSIONS_UNDECLARED = 'permissions-undeclared';
 export const FLAG_INERT_REPO_DECLARATION = 'inert-repo-declaration';
@@ -57,6 +59,23 @@ const sortedUnion = (left, right) => [...new Set([...Object.keys(left), ...Objec
 export function assertGrantList(label, value) {
   if (value === undefined || Array.isArray(value)) return value;
   throw new TypeError(`${label} must be an array of permission grants; received a ${typeof value}`);
+}
+
+export function withdrawGrants(grants, liveGrants) {
+  if (grants === undefined) return { value: undefined, removed: [] };
+  const live = assertGrantList('live permissions.allow', liveGrants) ?? [];
+  const withdrawn = grants.filter((grant) => WITHDRAWN_GRANTS.includes(grant));
+  return {
+    value: Object.freeze(grants.filter((grant) => !WITHDRAWN_GRANTS.includes(grant))),
+    removed: withdrawn
+      .filter((grant) => live.includes(grant))
+      .map((grant) =>
+        dropped(
+          `${PERMISSIONS_KEY}.allow[${grant}]`,
+          'the manifest withdraws this grant, so promotion removes it from the live allow list',
+        ),
+      ),
+  };
 }
 
 export function unionGrants(repoGrants, liveGrants) {
@@ -110,15 +129,16 @@ export function resolvePermissions(repoPermissions, livePermissions) {
   const repo = assertDocument('repo permissions', repoPermissions);
   const live = livePermissions === undefined ? {} : assertDocument('live permissions', livePermissions);
   const { carried, flagged, removed } = sectionOwnership(repo, live);
+  const allow = withdrawGrants(unionGrants(repo.allow, live.allow), live.allow);
   const pairs = [
     ...carried,
     ...(REPO_OWNED_SECTIONS.filter((name) => name in repo).map((name) => [
       name,
       assertGrantList(`repo permissions.${name}`, repo[name]),
     ])),
-    ['allow', unionGrants(repo.allow, live.allow)],
+    ['allow', allow.value],
   ].filter(([, value]) => value !== undefined);
-  return { value: freezeSorted(pairs), flagged, removed };
+  return { value: freezeSorted(pairs), flagged, removed: [...removed, ...allow.removed] };
 }
 
 function freezeSorted(pairs) {
