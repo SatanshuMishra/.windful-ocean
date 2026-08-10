@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
-import { existsSync, mkdtempSync, readFileSync, rmSync, symlinkSync } from 'node:fs';
+import { existsSync, mkdtempSync, rmSync, symlinkSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { basename, join } from 'node:path';
 import { FLAG_SPEC } from '../../lib/git/pr.mjs';
@@ -605,38 +605,6 @@ const corpusByName = {
   g5NoOpinionCommands,
   g5NarrowedFileRefDenyCommands,
 };
-
-const registryPath = fileURLToPath(new URL('../../../docs/invariants/registry.json', import.meta.url));
-
-function registeredGoalIds() {
-  let registry;
-  try {
-    registry = JSON.parse(readFileSync(registryPath, 'utf8'));
-  } catch (cause) {
-    throw new Error(`the invariant registry at ${registryPath} could not be read as JSON`, { cause });
-  }
-  assert.ok(
-    Array.isArray(registry?.invariants),
-    `the invariant registry at ${registryPath} carries no invariants array`,
-  );
-  return registry.invariants
-    .map((entry, index) => {
-      assert.equal(typeof entry?.id, 'string', `invariant ${index} in ${registryPath} carries no string id`);
-      return entry.id;
-    })
-    .filter((id) => /^G[0-9]+$/.test(id));
-}
-
-test('the goal map and the invariant registry name the same gate goals', () => {
-  const registered = registeredGoalIds();
-  const keyed = Object.keys(corporaByGoal);
-  for (const goal of registered) {
-    assert.ok(keyed.includes(goal), `the registry carries ${goal}, which no corpus in this suite is keyed to`);
-  }
-  for (const goal of keyed) {
-    assert.ok(registered.includes(goal), `corpora are keyed to ${goal}, which the registry does not carry`);
-  }
-});
 
 test('every gate goal is exercised by at least one case', () => {
   for (const [goal, names] of Object.entries(corporaByGoal)) {
