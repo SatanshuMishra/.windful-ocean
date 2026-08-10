@@ -1,0 +1,17 @@
+Closed c10. The cutover unit reached SHIP on all three review lanes and the branch is PR-ready but deliberately unpushed, because the user scoped this session to stop before the PR.
+
+SHIPPED. The stranded block was committed as atomic commits, the branch was rebased current with origin/main, and the unit went from 2 commits to 22 at 700878d, worktree clean, 0 behind, unpushed, no PR. Full suite 2188/2188 exit 0. Four defects were found and fixed across three fix rounds, and two of the four were introduced BY a fix round rather than being present originally, which is the second time this codebase has demonstrated that pattern.
+
+Defects closed: the sha-axis rollback defect (5b92e12); mergeJournal keeping the carried record so an apply could create an aside while discarding the only record naming it, permanently unrollbackable (21eca34); the journal.sha-only aside census and the markPerformed record-carrying defect, both of which the fix agent had proposed accepting as disclosed residuals until the reviewers refused that disposition (0a18dc3, 2436687); and the round-3 BLOCK, rollbackCutover proving the aside container resolved inside the config root but never that it WAS a real directory, so a symlinked .cutover made containment vacuous and rollback would rename content from behind it onto live entries and rmdir the release (e90c28f, receipt 700878d).
+
+700878d is worth its own line: the re-review proved e90c28f's own receipt pinned only half its gate, because deleting the per-sha census left the suite green at 53/53 while the exploit fully returned. Test-only, production bytes unchanged. That is the inertness discipline finding something real rather than performing.
+
+Review trajectory: round 1 all three lanes BLOCK; round 2 security SHIP, invariants SHIP, code-reviewer BLOCK on one HIGH that round 1 had introduced, found independently by two lanes; round 3 security SHIP, invariants SHIP, code-reviewer BLOCK on the containment HIGH; re-review after fix code-reviewer SHIP and security-reviewer SHIP. Both permit-set cases verified unchanged: container-absent still rolls back, and the nine out-of-root symlinks round-trip all 11 entries.
+
+FAILED AND WHY. Three orchestration attempts were lost. The first orchestrator ran ~33 minutes and returned mid-flight narrating that it had "armed" waiters that did not exist. The second was torn down at a session boundary during the round-3 review, losing those verdicts. The third was killed along with four children after duplicate lanes were spawned, because resuming an agent that believed children were in flight caused it to re-dispatch. Root cause in all three: sub-agents were dispatched with run_in_background defaulting true, so parents ended their turns while believing they were blocking. The clean re-run fixed it by mandating run_in_background false on every child dispatch, and it converged first try.
+
+The round-3 verdicts in this ledger are a RE-RUN, not a recovery of the lost ones. Nothing was assumed to have passed.
+
+NOT DONE, deliberately: branch unpushed, no PR, no rehearsal, no merge, no live swap. Live config verified untouched throughout, ~/.claude/CLAUDE.md still symlinked into the primary checkout and settings.json still a real file dated Aug 9. Primary checkout never left feat/invariant-inert-registry and is clean; an empty untracked scratch-roundtrip.mjs a subagent left there was verified 0 bytes and removed.
+
+Full review findings with every disposition are durable at artifacts/2026-08-10-round3-review-outcome.md.
