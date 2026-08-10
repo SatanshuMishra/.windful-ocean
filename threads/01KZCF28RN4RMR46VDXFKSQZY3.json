@@ -349,6 +349,11 @@
         "ref": "0320-live-promote-records-the-durable-checkout-as-repo-root",
         "title": "The LIVE receipt records the primary checkout as repo_root, never a disposable worktree",
         "scope": "thread"
+      },
+      {
+        "ref": "0321-repo-owned-version-pins-must-track-the-live-value",
+        "title": "A repo-owned version pin must track the live value, or promotion silently downgrades it",
+        "scope": "thread"
       }
     ],
     "out_of_scope": [
@@ -357,5 +362,5 @@
     ]
   },
   "created_at": "2026-08-06T21:18:29.653Z",
-  "updated_at": "2026-08-10T21:30:07.277Z"
+  "updated_at": "2026-08-10T21:30:21.264Z"
 }
