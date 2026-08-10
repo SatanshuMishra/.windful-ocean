@@ -344,6 +344,11 @@
         "ref": "0319-unrun-rehearsal-is-disclosed-not-reordered",
         "title": "A check the approved order schedules after the PR is disclosed in the body, never reordered to earn a verified line",
         "scope": "c3"
+      },
+      {
+        "ref": "0320-live-promote-records-the-durable-checkout-as-repo-root",
+        "title": "The LIVE receipt records the primary checkout as repo_root, never a disposable worktree",
+        "scope": "thread"
       }
     ],
     "out_of_scope": [
@@ -352,5 +357,5 @@
     ]
   },
   "created_at": "2026-08-06T21:18:29.653Z",
-  "updated_at": "2026-08-10T20:35:33.291Z"
+  "updated_at": "2026-08-10T21:30:07.277Z"
 }
