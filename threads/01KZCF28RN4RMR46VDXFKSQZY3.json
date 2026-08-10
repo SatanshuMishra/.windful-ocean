@@ -84,9 +84,9 @@
   "abandoned_reason": null,
   "closure_statement": null,
   "spine": {
-    "active_goal": "Ship the cutover unit through PR and human merge, then run the binding rehearsal and the live entry-link swap with a fresh operator.",
-    "next_step": "START HERE IN A FRESH SESSION. feat/config-entry-link-cutover is SHIP-approved at 700878d: 22 commits, clean, 0 behind origin/main, unpushed. In order: (1) push and open the PR with node .claude/lib/git/pr.mjs pr-create, carrying the two disclosed items as --risk and --not-verified; (2) run the 0281 rehearsal against a scratch root; (3) STOP for the human merge; (4) after merge, re-run the binding 0281 rehearsal against the merged sha; (5) only then the live swap, alone.",
-    "last_session": "Closed c10: the unit reached SHIP on all three review lanes after one fix round, suite 2188/2188, branch left PR-ready but deliberately unpushed.",
+    "active_goal": "Rehearse the merged promote verb against a faithful scratch root, then swap every live config entry link onto the release in one serial session.",
+    "next_step": "START HERE IN A FRESH SESSION. PR #60 merged; origin/main carries the cutover unit at bdbb01a. In order: (1) fast-forward local main without checking it out (git fetch origin main:main), since 0281 names stale local main as a trap; (2) run the 0281 faithful rehearsal against a scratch root at bdbb01a - live settings.json copied in, bootstrap in the scratch local/ WITH manifest.mjs, HOME overridden so the config root sits at $HOME/.claude; (3) only then the live swap, alone.",
+    "last_session": "Pushed 700878d, opened PR #60 through pr.mjs pr-create carrying the round-3 disclosures, and the human merged it at bdbb01a.",
     "open_risks": [
       {
         "text": "Carry both disclosed items into the PR body — apply still accepts a planted .cutover symlink and can strand config, and the converge Stop additionalContext path was never exercised",
@@ -155,6 +155,14 @@
         "scope": "c5",
         "refs": [
           "0287"
+        ]
+      },
+      {
+        "text": "Install manifest.mjs into the live local/ bootstrap before the swap — the merged promote.mjs imports it and the bootstrap on disk carries only six modules, so it would throw on its first run",
+        "scope": "c3",
+        "refs": [
+          "~/.claude/local/",
+          "scripts/config/promote.mjs:32"
         ]
       }
     ],
@@ -351,5 +359,5 @@
     ]
   },
   "created_at": "2026-08-06T21:18:29.653Z",
-  "updated_at": "2026-08-10T20:35:00.274Z"
+  "updated_at": "2026-08-10T20:35:21.707Z"
 }
