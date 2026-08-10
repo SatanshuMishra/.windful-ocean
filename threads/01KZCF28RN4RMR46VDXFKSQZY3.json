@@ -84,8 +84,8 @@
   "abandoned_reason": null,
   "closure_statement": null,
   "spine": {
-    "active_goal": "Land the round-6 invariant machinery in the recorded order so the invariants enforce rather than describe; step 1 of 7 is done, witnesses last.",
-    "next_step": "START HERE FRESH. Steps (0) and (1) are DONE - do not redo them. Resume at (2): census admission per 0304. Then (3) wire invariant-shape-check.mjs and ratchet UNWITNESSED_IDS, carrying the script onto main per 0309 and folding in the M2 mitigation from 0310; (4) I3a permit-set fixture per 0305; (5) guard-list fix per 0307; (6) aside naming per 0308; (7) witnesses last.",
+    "active_goal": "Retire the homegrown invariant system whole per 0313, then cut the live Claude config over to validated releases instead of the raw symlinked checkout.",
+    "next_step": "0313 SUPERSEDES the round-6 plan - old steps (2)-(7) are VOID, do not resume them. Phase 1: tear all invariant machinery out of origin/main via PR (registry, coverage receipts, scripts/invariant-*.mjs, their CI gates, invariant-only tests); receipts becomes sole owner. Keep the relocated prose in testing.md and commits.md, and keep c10's review gate. Phase 2: design, review, then perform the SPEC A cutover. Confirm before the live swap.",
     "last_session": "Deleted M2, M3 and M4 from the registry, relocated their sentences into testing.md and commits.md, and removed 23 merged coverage receipts per 0312. Four commits on the branch, nothing pushed.",
     "open_risks": [
       {
@@ -487,5 +487,5 @@
     ]
   },
   "created_at": "2026-08-06T21:18:29.653Z",
-  "updated_at": "2026-08-10T05:34:07.877Z"
+  "updated_at": "2026-08-10T05:34:39.225Z"
 }
