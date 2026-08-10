@@ -25,6 +25,7 @@ import {
   releaseDir,
 } from '../paths.mjs';
 import {
+  ENTRY_ACTIONS,
   ENTRY_ASIDE_NODE,
   ENTRY_CORROBORATION,
   ENTRY_PRESERVATION,
@@ -584,6 +585,40 @@ test('a journal record with no aside on disk is dropped by an apply and moves no
   } finally {
     scenario.dispose();
   }
+});
+
+test('an apply carries a record forward by the four fields it writes, never the fields it did not', () => {
+  const scenario = promoted();
+  try {
+    seedStaleRealDir(scenario.configRoot);
+    assert.equal(applyCutover({ configRoot: scenario.configRoot, now: NOW }).status, 'applied');
+    const hostile = join(scenario.home, 'hostile-target');
+    writeFile(join(hostile, 'payload.txt'), 'payload\n');
+    const journal = journalOf(scenario.configRoot);
+    rewriteJournal(scenario.configRoot, {
+      ...journal,
+      entries: journal.entries.map((entry) => (entry.name === 'hooks'
+        ? { ...entry, aside: hostile, target: hostile, created: hostile }
+        : entry)),
+    });
+    rematerialize(scenario.configRoot, 'rules', 'restored by hand\n');
+
+    const second = applyCutover({ configRoot: scenario.configRoot, now: NOW });
+
+    assert.equal(second.status, 'applied', why(second));
+    assert.deepEqual(
+      recordOf(journalOf(scenario.configRoot), 'hooks'),
+      { name: 'hooks', state: 'real', sha: scenario.sha, recorded: 'performed' },
+      'a field this tool never writes is not laundered into a journal this tool writes',
+    );
+    assert.deepEqual(listing(hostile), ['payload.txt'], 'a journal-supplied path never reaches a syscall');
+  } finally {
+    scenario.dispose();
+  }
+});
+
+test('every entry state names an action', () => {
+  assert.deepEqual(Object.keys(ENTRY_ACTIONS).sort(), [...ENTRY_STATES].sort());
 });
 
 test('a journal this tool could not have written is refused whole, field by field', () => {

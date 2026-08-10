@@ -52,7 +52,7 @@ export const ENTRY_STATES = Object.freeze(['already-linked', 'link', 'real', 'ab
 
 export const ENTRY_RECORDS = Object.freeze(['intended', 'performed']);
 
-const ENTRY_ACTIONS = Object.freeze({
+export const ENTRY_ACTIONS = Object.freeze({
   'already-linked': 'skip',
   link: 'move-aside-and-link',
   real: 'move-aside-and-link',
@@ -389,11 +389,12 @@ function strandedAside({ configRoot, record }) {
 
 export function mergeJournal({ configRoot, existing, next }) {
   if (existing === null) return { ok: true, journal: next };
-  const carried = existing.entries
+  const kept = existing.entries
     .filter(isUsableRecord)
     .filter((record) => corroborationVerdict({ configRoot, record }).ok);
+  const carried = kept.map(({ name, state, sha, recorded }) => ({ name, state, sha, recorded }));
   const stranded = existing.entries
-    .filter((record) => !carried.includes(record))
+    .filter((record) => !kept.includes(record))
     .map((record) => strandedAside({ configRoot, record }))
     .filter((one) => one !== null);
   if (stranded.length > 0) {
@@ -422,7 +423,7 @@ export function mergeJournal({ configRoot, existing, next }) {
 }
 
 export function markPerformed(journal, name) {
-  const at = journal.entries.reduce((held, entry, index) => (entry.name === name ? index : held), -1);
+  const at = journal.entries.findIndex((entry) => entry.name === name);
   if (at < 0) return journal;
   return {
     ...journal,
