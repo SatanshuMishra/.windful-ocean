@@ -306,25 +306,24 @@
   },
   "statusLine": {
     "type": "command",
-    "command": "npx -y ccstatusline@2.2.22",
+    "command": "npx -y ccstatusline@2.2.27",
     "padding": 0
   },
   "enabledPlugins": {
     "typescript-lsp@claude-plugins-official": true,
     "rust-analyzer-lsp@claude-plugins-official": true,
-    "superpowers@claude-plugins-official": true,
     "code-simplifier@claude-plugins-official": true,
-    "context7@claude-plugins-official": true,
     "code-review@claude-plugins-official": true,
     "security-guidance@claude-plugins-official": true,
     "commit-commands@claude-plugins-official": true,
-    "claude-code-setup@claude-plugins-official": true,
     "serena@claude-plugins-official": true,
     "vscode-langservers@claude-code-lsps": true,
     "visual-explainer@visual-explainer-marketplace": true,
-    "receipts@receipts": true,
     "warp@claude-code-warp": true,
-    "session-continuity@continuity-ledger": true
+    "receipts@receipts": true,
+    "superpowers@claude-plugins-official": true,
+    "context7@claude-plugins-official": true,
+    "claude-code-setup@claude-plugins-official": true
   },
   "extraKnownMarketplaces": {
     "claude-code-lsps": {
@@ -349,12 +348,6 @@
       "source": {
         "source": "github",
         "repo": "warpdotdev/claude-code-warp"
-      }
-    },
-    "continuity-ledger": {
-      "source": {
-        "source": "github",
-        "repo": "SatanshuMishra/continuity-ledger-plugin"
       }
     }
   },
