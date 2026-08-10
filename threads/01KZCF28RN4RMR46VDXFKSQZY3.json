@@ -505,6 +505,11 @@
         "ref": "0317-swap-operator-is-a-fresh-agent-not-a-fresh-session",
         "title": "The swap is operated by a dedicated fresh-context agent, honoring 0292's hazard rather than its session count",
         "scope": "c5"
+      },
+      {
+        "ref": "0318-settings-json-stays-a-real-live-file",
+        "title": "settings.json stays a real live file rather than a promoted symlink, resolving 0286's internal conflict for 0270",
+        "scope": "c10"
       }
     ],
     "out_of_scope": [
@@ -513,5 +518,5 @@
     ]
   },
   "created_at": "2026-08-06T21:18:29.653Z",
-  "updated_at": "2026-08-10T16:02:34.037Z"
+  "updated_at": "2026-08-10T20:11:38.802Z"
 }
