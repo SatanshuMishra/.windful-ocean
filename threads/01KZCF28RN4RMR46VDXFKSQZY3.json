@@ -84,9 +84,9 @@
   "abandoned_reason": null,
   "closure_statement": null,
   "spine": {
-    "active_goal": "Make the invariant machinery enforce rather than describe, then land the five answered round-6 questions in the recorded order - CI is done, witnesses last.",
-    "next_step": "START HERE FRESH. Step (0) is DONE and merged as 6e5e08e - do not redo it. Resume at (1): the Q4 deletions, sole writer under .claude/rules/. Then (2) census admission per 0304; (3) wire invariant-shape-check.mjs and ratchet UNWITNESSED_IDS - that step must also carry the script onto main per 0309, and is the natural home for the M2 mitigation in 0310; (4) I3a permit-set fixture per 0305; (5) guard-list fix per 0307; (6) aside naming per 0308; (7) witnesses last.",
-    "last_session": "Shipped step 0: the invariant CI checks split by determinism, with a red-on-parent receipt and a 17-row coverage record, merged as PR #56 (6e5e08e).",
+    "active_goal": "Land the round-6 invariant machinery in the recorded order so the invariants enforce rather than describe; step 1 of 7 is done, witnesses last.",
+    "next_step": "START HERE FRESH. Steps (0) and (1) are DONE - do not redo them. Resume at (2): census admission per 0304. Then (3) wire invariant-shape-check.mjs and ratchet UNWITNESSED_IDS, carrying the script onto main per 0309 and folding in the M2 mitigation from 0310; (4) I3a permit-set fixture per 0305; (5) guard-list fix per 0307; (6) aside naming per 0308; (7) witnesses last.",
+    "last_session": "Deleted M2, M3 and M4 from the registry, relocated their sentences into testing.md and commits.md, and removed 23 merged coverage receipts per 0312. Four commits on the branch, nothing pushed.",
     "open_risks": [
       {
         "text": "Review round 3 before trusting any of it — it is the only unreviewed round, it rewrote the containment model, the rollback contract and the grant reporting, and two of the three reviewed rounds returned BLOCK",
@@ -287,6 +287,36 @@
         "refs": [
           ".github/workflows/security.yml"
         ]
+      },
+      {
+        "text": "Do not re-run the 24-file coverage sweep the first attempt designed — the merged receipts are deleted now per 0312, so any plan that sweeps every entry is written against a tree that no longer exists",
+        "scope": "c3",
+        "refs": [
+          "docs/invariants/coverage/",
+          "0312"
+        ]
+      },
+      {
+        "text": "Keep at least one coverage entry alive at all times — an empty coverage directory is a hard failure rather than a vacuous pass, so a lane that removes the last surviving entry breaks CI outright",
+        "scope": "c3",
+        "refs": [
+          "scripts/invariant-coverage-check.mjs:213-215"
+        ]
+      },
+      {
+        "text": "Take the green half of a coverage receipt after the commit, never before — scope reads the committed diff, so a working-tree run reports ok on a tree that goes red the instant it is committed",
+        "scope": "c3",
+        "refs": [
+          "scripts/invariant-coverage-check.mjs:396-397"
+        ]
+      },
+      {
+        "text": "Decide the stale M5 citation in the surviving receipt before any lane touches that file — its M5 row cites four constants at :21-24 as uncommitted when they sit at :28-31 and landed in a4f0d41, a live M5 breach inside the row attesting to M5",
+        "scope": "c3",
+        "refs": [
+          "docs/invariants/coverage/feat-invariant-inert-registry.json",
+          "scripts/invariant-coverage-check.mjs:28-31"
+        ]
       }
     ],
     "key_decisions": [
@@ -452,5 +482,5 @@
     ]
   },
   "created_at": "2026-08-06T21:18:29.653Z",
-  "updated_at": "2026-08-10T03:33:43.887Z"
+  "updated_at": "2026-08-10T04:10:21.149Z"
 }
