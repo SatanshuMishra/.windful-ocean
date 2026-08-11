@@ -10,7 +10,7 @@
     {
       "id": "c6",
       "text": "The .claude directory organisation is audited and a target layout decided, with the rename's blast radius enumerated and its execution scoped to a branch outside this thread.",
-      "done": false,
+      "done": true,
       "kind": "detour",
       "struck_by": null
     },
@@ -57,78 +57,9 @@
   "closure_statement": null,
   "spine": {
     "active_goal": "Keep understanding and modifying the architecture page until the user is satisfied with it, then write the SPEC that supersedes SPEC B.",
-    "next_step": "START HERE FRESH, THEN WAIT. The user directed at hand-off that this session waits for SPECIFIC instructions before touching anything. The goal is to continue understanding and modifying ~/.agent/diagrams/mitosis-rearchitecture-2026-08-11.html; the SPEC is NOT to be started until the page is settled and reviewed. Do not assume the 2026-08-11 rewrite is correct: it has never been rendered in a browser, and its two new mermaid diagrams are unverified.",
-    "last_session": "Rewrote the diagram page against 0336/0337/0338: added phase-anatomy (tree), autonomy-boundary (sequence) and two-scripts sections; corrected rotation to 200K three-field and constraint-pinning to 0-59% pooled 30%; refreshed the decisions table and footer. Never rendered.",
+    "next_step": "Two forks before any SPEC text. (1) Probe the Agent SDK session/resume contract empirically - literature is closed as saturated, this must be measured. (2) Design-pass the hold-less alternative: if the orchestrator routes rather than knows it may never reach 200K and rotation becomes unnecessary. Then make Tier 2 emission structural, not voluntary. Still open: render the diagram page, and SPEC B section 2.2's instrument source.",
+    "last_session": "Audited .claude organisation and researched the rotation handoff. Rejected logbook's spine as summarizer, adopted a four-tier split by author-trust, made omission-marking an invariant, recorded the lib/mitosis rename. Verified arXiv:2606.22528 exactly. Nothing implemented.",
     "open_risks": [
-      {
-        "text": "Render the rewritten page in a real browser before trusting any of it — two new mermaid diagrams were added and never displayed, and a syntax error fails silently to an empty box rather than to an error",
-        "scope": "thread",
-        "refs": [
-          "~/.agent/diagrams/mitosis-rearchitecture-2026-08-11.html"
-        ]
-      },
-      {
-        "text": "Rename the escalate verb or redefine its mapping in the SPEC — the existing supervisor maps escalate to status parked, so if the new host inherits that vocabulary every fallthrough escalation shelves the MSP instead of reaching a human",
-        "scope": "thread",
-        "refs": [
-          ".claude/lib/superpowers-parallel/supervisor.mjs:11",
-          "0337"
-        ]
-      },
-      {
-        "text": "Pick a launcher filename other than supervisor.mjs before any file is written — that name is already taken in this repo by an unrelated parallel-execution helper, and two files sharing one name cannot be grepped apart",
-        "scope": "thread",
-        "refs": [
-          ".claude/lib/superpowers-parallel/supervisor.mjs"
-        ]
-      },
-      {
-        "text": "Re-derive every unverified figure before the SPEC cites it — the phase-literal count came back 48 from one audit and 50 from another, the prompt-byte figures were never re-derived, and the mitosis.js line citations were carried forward unconfirmed",
-        "scope": "thread",
-        "refs": [
-          ".claude/workflows/mitosis.js",
-          ":1191",
-          ":1503-1531",
-          ":4817"
-        ]
-      },
-      {
-        "text": "Re-adopt the eight-phase model explicitly in the SPEC rather than citing the 2026-07-30 document — SPEC B's preamble disclaims all citation authority from that document, so a citation to it carries nothing",
-        "scope": "thread",
-        "refs": [
-          "0338"
-        ]
-      },
-      {
-        "text": "Read the phase design with git show on branch docs/mitosis-core-rebuild-spec — it was never merged to main, so a working-tree search misses it and wrongly concludes no phase model exists",
-        "scope": "thread",
-        "refs": [
-          "docs/superpowers/specs/2026-07-30-mitosis-core-rebuild.md",
-          "0338"
-        ]
-      },
-      {
-        "text": "Probe the harness facts the SPEC would rest on before it commits to them — the journal structure, the transcript directory layout and the agent-resumption contract all came back undocumented",
-        "scope": "thread",
-        "refs": [
-          "0325"
-        ]
-      },
-      {
-        "text": "Keep implementation out of this thread entirely — its criteria are research, artifact and writing only, and a successor thread owns every code change the SPEC calls for",
-        "scope": "thread",
-        "refs": [
-          "0324"
-        ]
-      },
-      {
-        "text": "Do not switch branches in the primary checkout — live config entries resolve into the release rather than the working tree, so read other branches with git show instead",
-        "scope": "thread",
-        "refs": [
-          "~/.claude/CUTOVER",
-          "~/.claude/LIVE"
-        ]
-      },
       {
         "text": "Engineer the escalation step into the phase contract rather than instructing the orchestrator to raise concerns — agents guess instead of stopping in 55.8-67.8% of runs and refuse in at most 2.5%, so a prompt asking for escalation is not a control",
         "scope": "c2",
@@ -192,6 +123,90 @@
         "scope": "c5",
         "refs": [
           ".claude/lib/superpowers-parallel/supervisor.mjs:11"
+        ]
+      },
+      {
+        "text": "Render the rewritten page in a real browser before trusting any of it — two new mermaid diagrams were added and never displayed, and a syntax error fails silently to an empty box rather than to an error",
+        "scope": "thread",
+        "refs": [
+          "~/.agent/diagrams/mitosis-rearchitecture-2026-08-11.html"
+        ]
+      },
+      {
+        "text": "Rename the escalate verb or redefine its mapping in the SPEC — the existing supervisor maps escalate to status parked, so if the new host inherits that vocabulary every fallthrough escalation shelves the MSP instead of reaching a human",
+        "scope": "thread",
+        "refs": [
+          ".claude/lib/superpowers-parallel/supervisor.mjs:11",
+          "0337"
+        ]
+      },
+      {
+        "text": "Pick a launcher filename other than supervisor.mjs before any file is written — that name belongs to the mitosis fault-recovery supervisor itself, so the collision would be inside the same system rather than with a stranger, which is worse than previously recorded",
+        "scope": "thread",
+        "refs": [
+          ".claude/lib/superpowers-parallel/supervisor.mjs:11",
+          ".claude/workflows/mitosis.js:2107-2165"
+        ]
+      },
+      {
+        "text": "Re-derive every unverified figure before the SPEC cites it — the phase-literal count came back 48 from one audit and 50 from another, the prompt-byte figures were never re-derived, and the mitosis.js line citations were carried forward unconfirmed",
+        "scope": "thread",
+        "refs": [
+          ".claude/workflows/mitosis.js",
+          ":1191",
+          ":1503-1531",
+          ":4817"
+        ]
+      },
+      {
+        "text": "Re-adopt the eight-phase model explicitly in the SPEC rather than citing the 2026-07-30 document — SPEC B's preamble disclaims all citation authority from that document, so a citation to it carries nothing",
+        "scope": "thread",
+        "refs": [
+          "0338"
+        ]
+      },
+      {
+        "text": "Read the phase design with git show on branch docs/mitosis-core-rebuild-spec — it was never merged to main, so a working-tree search misses it and wrongly concludes no phase model exists",
+        "scope": "thread",
+        "refs": [
+          "docs/superpowers/specs/2026-07-30-mitosis-core-rebuild.md",
+          "0338"
+        ]
+      },
+      {
+        "text": "Probe the Agent SDK session and resume contract by RUNNING it, not by reading — literature research is closed as saturated, the transcript layout is now confirmed on disk, and this is the one harness fact still needing an empirical probe",
+        "scope": "thread",
+        "refs": [
+          "0325"
+        ]
+      },
+      {
+        "text": "Make Tier 2 record emission structural rather than voluntary — the design still asks the orchestrator to CHOOSE to emit a typed record, which is the same class of soft judgment as the summarizer it replaces",
+        "scope": "thread",
+        "refs": [
+          "0342"
+        ]
+      },
+      {
+        "text": "Design-pass the hold-less alternative before committing to rotation — if the orchestrator routes rather than knows it may never reach 200K, which would make this whole mechanism unnecessary",
+        "scope": "thread",
+        "refs": [
+          "https://cognition.com/blog/dont-build-multi-agents"
+        ]
+      },
+      {
+        "text": "Keep implementation out of this thread entirely — its criteria are research, artifact and writing only, and a successor thread owns every code change the SPEC calls for",
+        "scope": "thread",
+        "refs": [
+          "0324"
+        ]
+      },
+      {
+        "text": "Do not switch branches in the primary checkout — live config entries resolve into the release rather than the working tree, so read other branches with git show instead",
+        "scope": "thread",
+        "refs": [
+          "~/.claude/CUTOVER",
+          "~/.claude/LIVE"
         ]
       }
     ],
@@ -284,5 +299,5 @@
     ]
   },
   "created_at": "2026-08-11T00:08:10.978Z",
-  "updated_at": "2026-08-11T18:54:09.454Z"
+  "updated_at": "2026-08-11T18:54:58.865Z"
 }
