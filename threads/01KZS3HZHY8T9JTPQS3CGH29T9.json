@@ -1,0 +1,68 @@
+{
+  "schema_version": 2,
+  "id": "01KZS3HZHY8T9JTPQS3CGH29T9",
+  "slug": "directory-reorganization-lib-mitosis-rename",
+  "title": "Directory reorganization: lib/mitosis rename and docs merge",
+  "status": "active",
+  "parent_id": "01KZQ2BVF2386ATV5YFD43NQVX",
+  "predecessor_id": null,
+  "completion_criteria": [
+    {
+      "id": "c1",
+      "text": "The blast radius is re-derived as a closed census over the CURRENT tree that halts on anything unclassifiable, and every difference from 0340's 17-site count is explained rather than absorbed.",
+      "done": false,
+      "kind": "planned",
+      "struck_by": null
+    },
+    {
+      "id": "c2",
+      "text": "lib/superpowers-parallel becomes lib/mitosis and resolve-superpowers.mjs becomes superpowers-prompts.mjs, every load-bearing path string changing in the SAME commit.",
+      "done": false,
+      "kind": "planned",
+      "struck_by": null
+    },
+    {
+      "id": "c3",
+      "text": "docs/superpowers/{specs,plans} merge into the existing docs/{specs,plans}, and workflows/parallel-plan-execution.js becomes mitosis-execute.js together with its meta.name.",
+      "done": false,
+      "kind": "planned",
+      "struck_by": null
+    },
+    {
+      "id": "c4",
+      "text": "The dead .gitignore line is deleted rather than renamed, since it names a path nothing writes.",
+      "done": false,
+      "kind": "planned",
+      "struck_by": null
+    },
+    {
+      "id": "c5",
+      "text": "Behaviour-neutrality is proven by execution not inspection: drift-check hook, CI phase-parity, npm test glob, pr.mjs imports and mitosis.js LIB_DIR all resolve after the move.",
+      "done": false,
+      "kind": "planned",
+      "struck_by": null
+    },
+    {
+      "id": "c6",
+      "text": "A PR is opened through the centralized pr-create tool from a worktree branch, the primary checkout never leaves main, and phase 2 subdivision is left undone.",
+      "done": false,
+      "kind": "planned",
+      "struck_by": null
+    }
+  ],
+  "vcs_ref": null,
+  "external_refs": [],
+  "blocked_by": null,
+  "abandoned_reason": null,
+  "closure_statement": null,
+  "spine": {
+    "active_goal": "",
+    "next_step": "",
+    "last_session": "",
+    "open_risks": [],
+    "key_decisions": [],
+    "out_of_scope": []
+  },
+  "created_at": "2026-08-11T19:07:29.214Z",
+  "updated_at": "2026-08-11T19:07:29.214Z"
+}
