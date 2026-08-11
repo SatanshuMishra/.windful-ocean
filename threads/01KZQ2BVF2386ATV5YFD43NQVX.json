@@ -360,6 +360,11 @@
         "ref": "0356-spec-claims-a-gated-guarantee-not-tool-absence",
         "title": "The SPEC claims a gated dispatch guarantee and names the residual, never tool absence",
         "scope": "thread"
+      },
+      {
+        "ref": "0357-spawn-depth-closed-from-existing-artifacts",
+        "title": "Spawn depth is closed from existing artifacts: depth 3 is reachable and the new chain is shorter",
+        "scope": "thread"
       }
     ],
     "out_of_scope": [
@@ -369,5 +374,5 @@
     ]
   },
   "created_at": "2026-08-11T00:08:10.978Z",
-  "updated_at": "2026-08-11T23:53:49.239Z"
+  "updated_at": "2026-08-11T23:53:59.051Z"
 }
