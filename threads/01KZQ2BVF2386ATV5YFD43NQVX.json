@@ -54,78 +54,6 @@
     "last_session": "Rewrote the diagram page against 0336/0337/0338: added phase-anatomy (tree), autonomy-boundary (sequence) and two-scripts sections; corrected rotation to 200K three-field and constraint-pinning to 0-59% pooled 30%; refreshed the decisions table and footer. Never rendered.",
     "open_risks": [
       {
-        "text": "Engineer the escalation step into the phase contract rather than instructing the orchestrator to raise concerns — agents guess instead of stopping in 55.8-67.8% of runs and refuse in at most 2.5%, so a prompt asking for escalation is not a control",
-        "scope": "c2",
-        "refs": [
-          "https://arxiv.org/abs/2607.02294"
-        ]
-      },
-      {
-        "text": "Copy decisions, constraints and failures VERBATIM into the rotation brief, never through a summarizer — passing them through one drops constraints 30-59% of the time, while verbatim pinning restores 0% at under 0.5% of context",
-        "scope": "c2",
-        "refs": [
-          "https://arxiv.org/abs/2606.22528"
-        ]
-      },
-      {
-        "text": "Treat the mid-flight rotation story as designed but unproven — the in-flight registry and idempotency keys on run id plus step id are what stop an orphaned child or a second pull request for a step that already completed",
-        "scope": "c2",
-        "refs": [
-          "artifacts/DIAGRAMS-mitosis-rearchitecture.html"
-        ]
-      },
-      {
-        "text": "Expect a newly named MCP tool to escape the deny list — the repository's origin-agnostic bash-text gate cannot back that list up, because an SDK MCP call carries no shell text to match against",
-        "scope": "c2",
-        "refs": [
-          "artifacts/RESEARCH-enforcement-surface.md"
-        ]
-      },
-      {
-        "text": "Reject bypassPermissions at supervisor startup rather than discouraging it — it propagates to every subagent, cannot be overridden per agent, and erases every enforcement layer below hooks and deny rules",
-        "scope": "c2",
-        "refs": [
-          "https://code.claude.com/docs/en/agent-sdk/permissions"
-        ]
-      },
-      {
-        "text": "Deny the shell and the agent-spawn tool by BARE NAME and never by scoped pattern — a bare name removes the tool from the model's visible list, while a scoped pattern leaves it visible and filters only the argument shapes someone thought of",
-        "scope": "c2",
-        "refs": [
-          "artifacts/RESEARCH-enforcement-surface.md"
-        ]
-      },
-      {
-        "text": "Pin the subagent spawn depth explicitly if the topology is meant to be flat — the default permits workers to spawn their own workers",
-        "scope": "c2",
-        "refs": [
-          "CLAUDE_CODE_MAX_SUBAGENT_SPAWN_DEPTH"
-        ]
-      },
-      {
-        "text": "Correct the constraint-pinning figure wherever it appears — the page says 30-59% of runs, but the paper measured 0-59% across seven models with a 30% pooled average",
-        "scope": "c5",
-        "refs": [
-          "0336",
-          "~/.agent/diagrams/mitosis-rearchitecture-2026-08-11.html"
-        ]
-      },
-      {
-        "text": "Read run-engine.mjs facts as describing a fork the engine never executes — mitosis.js defines its own runEngine that has diverged about 77 lines from it",
-        "scope": "c5",
-        "refs": [
-          ".claude/workflows/mitosis.js:1272",
-          ".claude/lib/superpowers-parallel/run-engine.mjs:296"
-        ]
-      },
-      {
-        "text": "Never claim mitosis asks a human today — the escalate verb parks the unit and surfaces only in the report a human reads after the run returns",
-        "scope": "c5",
-        "refs": [
-          ".claude/lib/superpowers-parallel/supervisor.mjs:11"
-        ]
-      },
-      {
         "text": "Render the rewritten page in a real browser before trusting any of it — two new mermaid diagrams were added and never displayed, and a syntax error fails silently to an empty box rather than to an error",
         "scope": "thread",
         "refs": [
@@ -192,6 +120,71 @@
         "refs": [
           "~/.claude/CUTOVER",
           "~/.claude/LIVE"
+        ]
+      },
+      {
+        "text": "Engineer the escalation step into the phase contract rather than instructing the orchestrator to raise concerns — agents guess instead of stopping in 55.8-67.8% of runs and refuse in at most 2.5%, so a prompt asking for escalation is not a control",
+        "scope": "c2",
+        "refs": [
+          "https://arxiv.org/abs/2607.02294"
+        ]
+      },
+      {
+        "text": "Copy decisions, constraints and failures VERBATIM into the rotation brief, never through a summarizer — passing them through one drops constraints across a 0-59% range over seven models with a 30% pooled average, while verbatim pinning restores 0% at roughly 47 tokens",
+        "scope": "c2",
+        "refs": [
+          "https://arxiv.org/abs/2606.22528",
+          "0336"
+        ]
+      },
+      {
+        "text": "Treat the mid-flight rotation story as designed but unproven — the in-flight registry and idempotency keys on run id plus step id are what stop an orphaned child or a second pull request for a step that already completed",
+        "scope": "c2",
+        "refs": [
+          "artifacts/DIAGRAMS-mitosis-rearchitecture.html"
+        ]
+      },
+      {
+        "text": "Expect a newly named MCP tool to escape the deny list — the repository's origin-agnostic bash-text gate cannot back that list up, because an SDK MCP call carries no shell text to match against",
+        "scope": "c2",
+        "refs": [
+          "artifacts/RESEARCH-enforcement-surface.md"
+        ]
+      },
+      {
+        "text": "Reject bypassPermissions at supervisor startup rather than discouraging it — it propagates to every subagent, cannot be overridden per agent, and erases every enforcement layer below hooks and deny rules",
+        "scope": "c2",
+        "refs": [
+          "https://code.claude.com/docs/en/agent-sdk/permissions"
+        ]
+      },
+      {
+        "text": "Deny the shell and the agent-spawn tool by BARE NAME and never by scoped pattern — a bare name removes the tool from the model's visible list, while a scoped pattern leaves it visible and filters only the argument shapes someone thought of",
+        "scope": "c2",
+        "refs": [
+          "artifacts/RESEARCH-enforcement-surface.md"
+        ]
+      },
+      {
+        "text": "Pin the subagent spawn depth explicitly if the topology is meant to be flat — the default permits workers to spawn their own workers",
+        "scope": "c2",
+        "refs": [
+          "CLAUDE_CODE_MAX_SUBAGENT_SPAWN_DEPTH"
+        ]
+      },
+      {
+        "text": "Read run-engine.mjs facts as describing a fork the engine never executes — mitosis.js defines its own runEngine that has diverged about 77 lines from it",
+        "scope": "c5",
+        "refs": [
+          ".claude/workflows/mitosis.js:1272",
+          ".claude/lib/superpowers-parallel/run-engine.mjs:296"
+        ]
+      },
+      {
+        "text": "Never claim mitosis asks a human today — the escalate verb parks the unit and surfaces only in the report a human reads after the run returns",
+        "scope": "c5",
+        "refs": [
+          ".claude/lib/superpowers-parallel/supervisor.mjs:11"
         ]
       }
     ],
@@ -264,5 +257,5 @@
     ]
   },
   "created_at": "2026-08-11T00:08:10.978Z",
-  "updated_at": "2026-08-11T17:00:54.297Z"
+  "updated_at": "2026-08-11T17:01:24.663Z"
 }
