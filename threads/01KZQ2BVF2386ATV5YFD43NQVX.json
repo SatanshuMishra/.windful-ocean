@@ -263,6 +263,11 @@
         "ref": "0342-cross-rotation-state-is-tiered-by-author-trust-not-by-size",
         "title": "Cross-rotation state is tiered by who can be trusted to author it, not by size",
         "scope": "c2"
+      },
+      {
+        "ref": "0343-no-mechanism-may-drop-content-without-leaving-a-marker",
+        "title": "No mechanism may drop content without leaving a marker that content was dropped",
+        "scope": "thread"
       }
     ],
     "out_of_scope": [
@@ -272,5 +277,5 @@
     ]
   },
   "created_at": "2026-08-11T00:08:10.978Z",
-  "updated_at": "2026-08-11T18:53:49.593Z"
+  "updated_at": "2026-08-11T18:53:59.206Z"
 }
