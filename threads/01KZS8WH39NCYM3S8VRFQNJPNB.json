@@ -3,7 +3,7 @@
   "id": "01KZS8WH39NCYM3S8VRFQNJPNB",
   "slug": "cutover-unguarded-rollback-affordance",
   "title": "CUTOVER journal: an unguarded rollback affordance that decays",
-  "status": "paused",
+  "status": "done",
   "parent_id": "01KZS3HZHY8T9JTPQS3CGH29T9",
   "predecessor_id": null,
   "completion_criteria": [
@@ -54,7 +54,7 @@
   "external_refs": [],
   "blocked_by": null,
   "abandoned_reason": null,
-  "closure_statement": null,
+  "closure_statement": "The cutover is complete: the asides and then the journal were retired with all ten live entries verified still pointing at current/<name> under releases/1ecacc7, the code needed no change because the liveSha guard c3 asked for is design-refused and its decay premise had no referent, and the gate's no-opinion result is logged as accepted risk 18 in PR #65.",
   "spine": {
     "active_goal": "Complete the cutover by retiring the journal and its asides, after establishing that the code needs no guard and the gate finding is an accepted risk.",
     "next_step": "Nothing remains on this thread. PR #65 carries the threat-model row and stays human-gated for merge. Return to parent thread 01KZQ2BVF2386ATV5YFD43NQVX for SPEC B scoping.",
@@ -97,5 +97,5 @@
     ]
   },
   "created_at": "2026-08-11T20:40:37.737Z",
-  "updated_at": "2026-08-11T20:58:33.625Z"
+  "updated_at": "2026-08-11T20:58:40.337Z"
 }
