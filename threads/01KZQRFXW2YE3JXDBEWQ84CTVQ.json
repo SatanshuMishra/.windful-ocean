@@ -85,10 +85,15 @@
         "ref": "0332-polyform-noncommercial-over-osi-open-source",
         "title": "Trade the OSI open-source label for the noncommercial restriction",
         "scope": "c2"
+      },
+      {
+        "ref": "0333-layered-tdm-reservation-over-license-clause-alone",
+        "title": "Express the AI-training refusal in machine-readable form, not license prose alone",
+        "scope": "c4"
       }
     ],
     "out_of_scope": []
   },
   "created_at": "2026-08-11T06:34:53.185Z",
-  "updated_at": "2026-08-11T06:35:37.766Z"
+  "updated_at": "2026-08-11T06:35:52.651Z"
 }
