@@ -31,7 +31,7 @@
     {
       "id": "c2",
       "text": "The questions SPEC B leaves open are brainstormed to a decision, above all the instrument source in section 2.2 that section 8 names the single largest open question.",
-      "done": false,
+      "done": true,
       "kind": "planned",
       "struck_by": null
     },
@@ -64,59 +64,9 @@
   "closure_statement": null,
   "spine": {
     "active_goal": "Clarify the requirements for the narrower main-thread-as-orchestrator scope, then rewrite SPEC B against them.",
-    "next_step": "CLARIFY REQUIREMENTS FOR THE NARROWER SCOPE FIRST - the user's stated focus, not the citation census. Open the new page and confirm its five diagrams render before relying on it. Then work the questions 0352 left open: where the engine RUNS as distinct from who orchestrates, what happens when the main thread's window fills, and what enforcement guarantee is honestly claimable. Re-cut c2 and c5 with the user - both still name rotation and cost research that 0352 deferred.",
-    "last_session": "Cut the supervisor and dispatched orchestrator from scope (0352). Copied and rewrote the re-architecture page to the narrower scope, but never render-verified it. T3 probe died before firing; the citation census was stopped again and produced nothing.",
+    "next_step": "START FRESH WITH NO OPEN QUESTIONS - 0353 to 0358 closed all six. Continue clarifying the narrower main-thread-as-orchestrator scope by working c1: the line-by-line citation census SPEC B still needs. Named targets are the *_SCHEMA count, the phase-literal count that came back 48 from one audit and 50 from another, the prompt-byte figures and the mitosis.js line citations - no committed script reproduces any of them. Then c5's report, then c3's rewrite.",
+    "last_session": "Closed all six open questions as 0353-0358: engine stays in the Workflow sandbox (Part III live again), transcripts are the instrument (four token classes), context is disposable, gated guarantee not tool absence, spawn depth fits, residuals re-cut. All five diagrams render-verified.",
     "open_risks": [
-      {
-        "text": "Engineer the escalation step into the phase contract rather than instructing the orchestrator to raise concerns — agents guess instead of stopping in 55.8-67.8% of runs and refuse in at most 2.5%, so a prompt asking for escalation is not a control",
-        "scope": "c2",
-        "refs": [
-          "https://arxiv.org/abs/2607.02294"
-        ]
-      },
-      {
-        "text": "Copy decisions, constraints and failures VERBATIM into the rotation brief, never through a summarizer — passing them through one drops constraints across a 0-59% range over seven models with a 30% pooled average, while verbatim pinning restores 0% at roughly 47 tokens",
-        "scope": "c2",
-        "refs": [
-          "https://arxiv.org/abs/2606.22528",
-          "0336"
-        ]
-      },
-      {
-        "text": "Treat the mid-flight rotation story as designed but unproven — the in-flight registry and idempotency keys on run id plus step id are what stop an orphaned child or a second pull request for a step that already completed",
-        "scope": "c2",
-        "refs": [
-          "artifacts/DIAGRAMS-mitosis-rearchitecture.html"
-        ]
-      },
-      {
-        "text": "Expect a newly named MCP tool to escape the deny list — the repository's origin-agnostic bash-text gate cannot back that list up, because an SDK MCP call carries no shell text to match against",
-        "scope": "c2",
-        "refs": [
-          "artifacts/RESEARCH-enforcement-surface.md"
-        ]
-      },
-      {
-        "text": "Reject bypassPermissions at supervisor startup rather than discouraging it — it propagates to every subagent, cannot be overridden per agent, and erases every enforcement layer below hooks and deny rules",
-        "scope": "c2",
-        "refs": [
-          "https://code.claude.com/docs/en/agent-sdk/permissions"
-        ]
-      },
-      {
-        "text": "Deny the shell and the agent-spawn tool by BARE NAME and never by scoped pattern — a bare name removes the tool from the model's visible list, while a scoped pattern leaves it visible and filters only the argument shapes someone thought of",
-        "scope": "c2",
-        "refs": [
-          "artifacts/RESEARCH-enforcement-surface.md"
-        ]
-      },
-      {
-        "text": "Pin the subagent spawn depth explicitly if the topology is meant to be flat — the default permits workers to spawn their own workers",
-        "scope": "c2",
-        "refs": [
-          "CLAUDE_CODE_MAX_SUBAGENT_SPAWN_DEPTH"
-        ]
-      },
       {
         "text": "Read run-engine.mjs facts as describing a fork the engine never executes — mitosis.js defines its own runEngine that has diverged about 77 lines from it",
         "scope": "c5",
@@ -130,52 +80,6 @@
         "scope": "c5",
         "refs": [
           ".claude/lib/superpowers-parallel/supervisor.mjs:11"
-        ]
-      },
-      {
-        "text": "Open the new page and check all five mermaid diagrams render — it was never displayed this session, and three constructs were rewritten defensively to proven syntax without being seen",
-        "scope": "c1",
-        "refs": [
-          "~/.agent/diagrams/mitosis-rearchitecture-main-thread-2026-08-11.html"
-        ]
-      },
-      {
-        "text": "Decide where the engine RUNS as a separate question from who orchestrates — 0352 cut the orchestrator agent, which withdrew the justification for dropping codegen decomposition, leaving ~25 inline module twins undecided",
-        "scope": "c1",
-        "refs": [
-          "0352",
-          "0325"
-        ]
-      },
-      {
-        "text": "Re-derive the supervisor.mjs escalate-to-parked hazard before citing it — it still bites if the engine reuses that verb vocabulary, and the cited path predates the lib/mitosis rename",
-        "scope": "c1",
-        "refs": [
-          "0340",
-          "supervisor.mjs:11 - stale path"
-        ]
-      },
-      {
-        "text": "Claim only the weaker enforcement guarantee in the SPEC — a main-thread orchestrator cannot have Agent and Bash denied by bare name, so dispatch-only discipline rests on hooks and deny rules, not tool absence",
-        "scope": "c1",
-        "refs": [
-          "0326",
-          "0352"
-        ]
-      },
-      {
-        "text": "Say what happens when the main thread's window fills — with no rotation in scope, harness auto-compaction becomes an undesigned summarizer acting on constraints the prior design pinned verbatim",
-        "scope": "c1",
-        "refs": [
-          "0343",
-          "0350"
-        ]
-      },
-      {
-        "text": "Re-derive CLAUDE_CODE_MAX_SUBAGENT_SPAWN_DEPTH for the main-thread-to-phase-to-worker chain — the new topology depends on it fitting and it was never verified",
-        "scope": "c1",
-        "refs": [
-          "0352"
         ]
       },
       {
@@ -232,6 +136,30 @@
         "refs": [
           "~/.claude/CUTOVER",
           "~/.claude/LIVE"
+        ]
+      },
+      {
+        "text": "Run the citation census before writing anything — it is the last unfinished input to the report, and no committed script reproduces the *_SCHEMA count, the 48-versus-50 phase-literal count or the prompt-byte figures",
+        "scope": "c1",
+        "refs": [
+          ".claude/workflows/mitosis.js",
+          "0338"
+        ]
+      },
+      {
+        "text": "Re-cite every engine path against lib/mitosis before quoting it — the workflow-sandbox, run-engine and supervisor citations all predate the rename, and .claude/lib/superpowers-parallel survives as an untracked leftover that still answers a grep",
+        "scope": "c1",
+        "refs": [
+          "0340",
+          "0353",
+          ".claude/lib/mitosis/workflow-sandbox.mjs:36"
+        ]
+      },
+      {
+        "text": "Pair every Part II hypothesis with a fixed quality assertion — the instrument counts tokens and cannot see whether a fused Decompose cuts worse, so a token win carrying a quality regression will read as a success",
+        "scope": "c2",
+        "refs": [
+          "0358"
         ]
       }
     ],
@@ -379,5 +307,5 @@
     ]
   },
   "created_at": "2026-08-11T00:08:10.978Z",
-  "updated_at": "2026-08-11T23:54:39.732Z"
+  "updated_at": "2026-08-11T23:55:32.304Z"
 }
