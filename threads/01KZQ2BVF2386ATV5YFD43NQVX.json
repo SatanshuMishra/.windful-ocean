@@ -42,9 +42,9 @@
   "abandoned_reason": null,
   "closure_statement": null,
   "spine": {
-    "active_goal": "Review, correct and rewrite SPEC B so it is approved and ready to implement, deciding the instrument source before any implementation thread opens.",
-    "next_step": "START HERE FRESH. Read docs/superpowers/specs/2026-08-06-mitosis-core-cost-decomposition-stacking-SPEC.md on main (copy at scratchpad/SPEC-B.md, 340 lines) and open the visual explanation at ~/.agent/diagrams/spec-b-mitosis-core-cost-decomposition-stacking.html, which pairs before/after across all four parts. Then begin c1, reviewing the document against the repo, starting with the two known defects: the *_SCHEMA count (26 claimed, 25 by grep) and the figures no committed script reproduces.",
-    "last_session": "Located SPEC B on main, read all 340 lines, produced a paired before/after visual explanation of all four parts, and found two accuracy defects in the document; opened this thread to fix and rewrite it before any implementation.",
+    "active_goal": "Design and write a new SPEC superseding SPEC B: mitosis re-architected around an Agent SDK supervisor process, an orchestrator agent, human-in-the-loop, and context rotation.",
+    "next_step": "START HERE FRESH. Two research questions run BEFORE any SPEC is written. (1) Context usage versus accuracy scaled to WINDOW SIZE - re-derive the 20-30% figure so a 250K and a 1M window get different thresholds, then re-ask the rotation trigger. (2) Re-ask orchestrator authority under 0326's framing - enforced channels, not output determinism. Then diagram with visual-explainer (tree plus sequence, orchestration through fan-out), then write the superseding SPEC.",
+    "last_session": "Six parallel agents established engine and harness ground truth plus industry evidence. Three blockers found; substrate, variance framing and SPEC scope decided (0325-0327). Two research questions deferred to the next session.",
     "open_risks": [
       {
         "text": "Re-derive every figure the rewrite keeps, or mark it carried-and-unverified — a SPEC arguing that nothing may be tuned before it is measured cannot itself rest on numbers no committed script reproduces",
@@ -81,6 +81,47 @@
         "text": "Give every sub-agent dispatch run_in_background false — parent agents end their turns believing they are blocking on background children, and the dispatched work is silently lost",
         "scope": "thread",
         "refs": []
+      },
+      {
+        "text": "A Workflow cannot ask a human mid-run and resumes same-session only — human-in-the-loop is impossible inside the Workflow runtime, which is one of the three reasons orchestration moved to an SDK supervisor",
+        "scope": "c2",
+        "refs": [
+          "0325",
+          "https://code.claude.com/docs/en/workflows"
+        ]
+      },
+      {
+        "text": "Nothing inside Claude Code reads a spawned subagent's context fill — the rotation trigger has no sensor unless the supervisor hosts the orchestrator itself and reads ResultMessage.usage",
+        "scope": "c2",
+        "refs": [
+          "0325"
+        ]
+      },
+      {
+        "text": "Agents guess instead of escalating in 55.8-67.8% of runs, with explicit refusals at or below 2.5% — trusting the SPEC requires an engineered uncertainty-detection step, never a prompt instruction telling the implementer to raise concerns",
+        "scope": "c2",
+        "refs": [
+          "https://arxiv.org/html/2607.02294"
+        ]
+      },
+      {
+        "text": "Naive compaction drops constraints 30-59% of the time while verbatim pinning restores 0% at under 0.5% of context — decisions, constraints and failures must be append-only and never pass through a summarizer on rotation",
+        "scope": "c2",
+        "refs": [
+          "https://arxiv.org/abs/2606.22528"
+        ]
+      },
+      {
+        "text": "The 20-25% context premise is a practitioner heuristic, not a finding — RULER measured effective context at 16-100% of claimed window and degradation tracks absolute tokens, so any threshold must be re-derived per window size",
+        "scope": "c2",
+        "refs": [
+          "0325"
+        ]
+      },
+      {
+        "text": "Rotation mid-flight has no story yet — orphaned child agents, in-flight dispatches and duplicated side effects such as a double PR need an in_flight registry plus idempotency keys on (run_id, step_id)",
+        "scope": "c2",
+        "refs": []
       }
     ],
     "key_decisions": [
@@ -112,5 +153,5 @@
     ]
   },
   "created_at": "2026-08-11T00:08:10.978Z",
-  "updated_at": "2026-08-11T05:32:48.418Z"
+  "updated_at": "2026-08-11T05:33:36.284Z"
 }
