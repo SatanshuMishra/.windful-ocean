@@ -290,6 +290,11 @@
         "ref": "0343-no-mechanism-may-drop-content-without-leaving-a-marker",
         "title": "No mechanism may drop content without leaving a marker that content was dropped",
         "scope": "thread"
+      },
+      {
+        "ref": "0348-sdk-host-keeps-native-resume-fork-rewind-and-fill-sensor",
+        "title": "0325's accepted cost is retracted: the SDK host keeps native resume, fork, rewind and a fill sensor",
+        "scope": "thread"
       }
     ],
     "out_of_scope": [
@@ -299,5 +304,5 @@
     ]
   },
   "created_at": "2026-08-11T00:08:10.978Z",
-  "updated_at": "2026-08-11T18:54:58.865Z"
+  "updated_at": "2026-08-11T21:33:25.979Z"
 }
