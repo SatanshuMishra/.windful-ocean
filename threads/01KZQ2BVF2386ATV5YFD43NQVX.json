@@ -57,8 +57,8 @@
   "closure_statement": null,
   "spine": {
     "active_goal": "Keep understanding and modifying the architecture page until the user is satisfied with it, then write the SPEC that supersedes SPEC B.",
-    "next_step": "Design-pass the hold-less alternative (orchestrator routes rather than knows), then design-pass resumeSessionAt against 0342's four tiers per 0349 - and run the two probes that block it: forkSession combined with resumeSessionAt, and resume cost after prompt-cache expiry. Then render the diagram page and settle SPEC B section 2.2's instrument source.",
-    "last_session": "Probed the Agent SDK session/resume contract by RUNNING it (SDK 0.3.228, claude 2.1.228, ~$0.42, 10/10 probes). Overturned 0325's cost clause, split 0342, found host auto-compaction ON by default at 167,000. Recorded 0348, 0349, 0350. No SPEC text written.",
+    "next_step": "Start the cache-expiry probe FIRST because it is clock-bound, not effort-bound: create a session, wait past the one-hour cache window, resume, read the cost. While it waits, measure the orchestrator's real context curve to settle the hold-less question - if fill never approaches the limit, rotation is moot. Only if it does, design-pass resumeSessionAt against 0342's four tiers, which needs forkSession and resumeSessionAt measured together. c1's figure re-derivation is delegable in parallel.",
+    "last_session": "Probed the Agent SDK session/resume contract by RUNNING it (SDK 0.3.228, claude 2.1.228, ~$0.42, 10/10). Overturned 0325's cost clause, split 0342, found host auto-compaction ON at 167,000. Recorded 0348-0350; artifact and probe harness preserved outside the scratchpad. No SPEC text.",
     "open_risks": [
       {
         "text": "Engineer the escalation step into the phase contract rather than instructing the orchestrator to raise concerns — agents guess instead of stopping in 55.8-67.8% of runs and refuse in at most 2.5%, so a prompt asking for escalation is not a control",
@@ -126,6 +126,51 @@
         ]
       },
       {
+        "text": "Measure the orchestrator's real context curve before committing to rotation — the fill sensor now exists and works, so whether a routing orchestrator ever approaches the limit is measurable rather than arguable, and a low curve makes the rotation mechanism unnecessary",
+        "scope": "thread",
+        "refs": [
+          "https://cognition.com/blog/dont-build-multi-agents",
+          "0348"
+        ]
+      },
+      {
+        "text": "Price a resume AFTER the prompt cache expires before any cost figure enters the SPEC — the cheap rehydration that was measured ran inside the one-hour cache window, and the full-rate case is the number cost planning actually needs",
+        "scope": "thread",
+        "refs": [
+          "0348",
+          "artifacts/2026-08-11-agent-sdk-session-resume-probe.md"
+        ]
+      },
+      {
+        "text": "Run forkSession together with resumeSessionAt before the rotation design pass concludes — branching a rotation is the one combination never measured, and 0349's evaluation depends on it",
+        "scope": "thread",
+        "refs": [
+          "0349",
+          "artifacts/2026-08-11-sdk-probe-harness/"
+        ]
+      },
+      {
+        "text": "Re-supply the orchestrator's system prompt on every resume — it is not saved with the session, so a resumed orchestrator silently loses its instructions unless the host passes them again",
+        "scope": "thread",
+        "refs": [
+          "0348"
+        ]
+      },
+      {
+        "text": "Run the orchestrator in streaming-input mode — the context-fill sensor is unreachable in single-shot mode, where it throws instead of returning a reading",
+        "scope": "thread",
+        "refs": [
+          "0348"
+        ]
+      },
+      {
+        "text": "Re-derive the 167,000 auto-compaction threshold for the model the orchestrator actually runs — it and the 200,000 window were measured on Haiku 4.5 only",
+        "scope": "thread",
+        "refs": [
+          "0350"
+        ]
+      },
+      {
         "text": "Render the rewritten page in a real browser before trusting any of it — two new mermaid diagrams were added and never displayed, and a syntax error fails silently to an empty box rather than to an error",
         "scope": "thread",
         "refs": [
@@ -174,24 +219,10 @@
         ]
       },
       {
-        "text": "Probe the Agent SDK session and resume contract by RUNNING it, not by reading — literature research is closed as saturated, the transcript layout is now confirmed on disk, and this is the one harness fact still needing an empirical probe",
-        "scope": "thread",
-        "refs": [
-          "0325"
-        ]
-      },
-      {
         "text": "Make Tier 2 record emission structural rather than voluntary — the design still asks the orchestrator to CHOOSE to emit a typed record, which is the same class of soft judgment as the summarizer it replaces",
         "scope": "thread",
         "refs": [
           "0342"
-        ]
-      },
-      {
-        "text": "Design-pass the hold-less alternative before committing to rotation — if the orchestrator routes rather than knows it may never reach 200K, which would make this whole mechanism unnecessary",
-        "scope": "thread",
-        "refs": [
-          "https://cognition.com/blog/dont-build-multi-agents"
         ]
       },
       {
@@ -314,5 +345,5 @@
     ]
   },
   "created_at": "2026-08-11T00:08:10.978Z",
-  "updated_at": "2026-08-11T21:34:27.431Z"
+  "updated_at": "2026-08-11T21:40:27.079Z"
 }
