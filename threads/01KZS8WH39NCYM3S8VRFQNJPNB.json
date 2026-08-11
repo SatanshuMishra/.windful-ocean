@@ -98,6 +98,11 @@
         "ref": "0346-cutover-defect-is-an-unguarded-restore-not-a-wrong-value",
         "title": "The CUTOVER defect is an unguarded restore path, not a wrong value in a file",
         "scope": "thread"
+      },
+      {
+        "ref": "0347-livesha-guard-design-rejected-cutover-completes-by-retirement",
+        "title": "The liveSha guard is design-rejected, so the cutover completes by retirement rather than a new guard",
+        "scope": "thread"
       }
     ],
     "out_of_scope": [
@@ -107,5 +112,5 @@
     ]
   },
   "created_at": "2026-08-11T20:40:37.737Z",
-  "updated_at": "2026-08-11T20:42:12.601Z"
+  "updated_at": "2026-08-11T20:54:46.597Z"
 }
