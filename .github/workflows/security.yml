@@ -19,9 +19,50 @@ jobs:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5  # v4.3.1
         with:
           fetch-depth: 0
-      - uses: gitleaks/gitleaks-action@ff98106e4c7b2bc287b24eaf42907196329070c7
+      - name: Resolve diff baseline
+        id: baseline
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          EVENT_NAME: ${{ github.event_name }}
+          PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          PUSH_BEFORE_SHA: ${{ github.event.before }}
+        run: |
+          if [ "$EVENT_NAME" = "pull_request" ]; then
+            ref="$PR_BASE_SHA"
+          elif [ "$EVENT_NAME" = "push" ] && [ "$PUSH_BEFORE_SHA" != "0000000000000000000000000000000000000000" ]; then
+            ref="$PUSH_BEFORE_SHA"
+          else
+            ref=""
+          fi
+          if [ -n "$ref" ] && ! git cat-file -e "${ref}^{commit}" 2>/dev/null; then
+            ref=""
+          fi
+          echo "ref=$ref" >> "$GITHUB_OUTPUT"
+      - name: Fetch and verify gitleaks binary
+        run: |
+          curl -sSfLo /tmp/gitleaks.tar.gz https://github.com/gitleaks/gitleaks/releases/download/v8.30.1/gitleaks_8.30.1_linux_x64.tar.gz
+          actual_sha256="$(sha256sum /tmp/gitleaks.tar.gz | awk '{print $1}')"
+          expected_sha256="551f6fc83ea457d62a0d98237cbad105af8d557003051f41f3e7ca7b3f2470eb"
+          if [ "$actual_sha256" != "$expected_sha256" ]; then
+            echo "gitleaks release tarball checksum mismatch against the pinned version."
+            echo "expected: $expected_sha256"
+            echo "actual:   $actual_sha256"
+            exit 1
+          fi
+          tar -xzf /tmp/gitleaks.tar.gz -C /tmp gitleaks
+          chmod +x /tmp/gitleaks
+      - name: gitleaks scan
+        env:
+          BASELINE_REF: ${{ steps.baseline.outputs.ref }}
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+        run: |
+          if [ -n "$BASELINE_REF" ]; then
+            /tmp/gitleaks git -v --redact --log-opts="${BASELINE_REF}..HEAD" .
+          elif git rev-parse --verify --quiet "refs/remotes/origin/${DEFAULT_BRANCH}^{commit}" >/dev/null \
+            && [ "$(git rev-parse HEAD)" != "$(git rev-parse "refs/remotes/origin/${DEFAULT_BRANCH}")" ]; then
+            /tmp/gitleaks git -v --redact --log-opts="refs/remotes/origin/${DEFAULT_BRANCH}..HEAD" .
+          else
+            /tmp/gitleaks git -v --redact .
+          fi
 
   sast:
     runs-on: ubuntu-latest
