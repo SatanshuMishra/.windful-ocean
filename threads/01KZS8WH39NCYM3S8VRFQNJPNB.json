@@ -60,9 +60,15 @@
     "next_step": "",
     "last_session": "",
     "open_risks": [],
-    "key_decisions": [],
+    "key_decisions": [
+      {
+        "ref": "0346-cutover-defect-is-an-unguarded-restore-not-a-wrong-value",
+        "title": "The CUTOVER defect is an unguarded restore path, not a wrong value in a file",
+        "scope": "thread"
+      }
+    ],
     "out_of_scope": []
   },
   "created_at": "2026-08-11T20:40:37.737Z",
-  "updated_at": "2026-08-11T20:40:37.737Z"
+  "updated_at": "2026-08-11T20:40:55.035Z"
 }
