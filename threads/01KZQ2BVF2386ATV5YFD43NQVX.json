@@ -49,68 +49,76 @@
   "abandoned_reason": null,
   "closure_statement": null,
   "spine": {
-    "active_goal": "Design and write a new SPEC superseding SPEC B: mitosis re-architected around an Agent SDK supervisor process, an orchestrator agent, human-in-the-loop, and context rotation.",
-    "next_step": "START HERE FRESH. 0328 fixes the order: research, REPORT, user review, then SPEC. (1) Run both open research passes - context usage versus accuracy scaled to WINDOW SIZE, so 250K and 1M get different thresholds; and the enforcement surface that makes instructions binding per 0326. (2) Re-ask the rotation trigger and orchestrator authority with those findings. (3) Produce the report via /report with tree and sequence diagrams. Do NOT write the SPEC until the user has reviewed the report.",
-    "last_session": "Six parallel agents established engine, harness and industry ground truth. Three blockers found; SPEC B Part III deleted by 0325. User corrected the variance requirement. Decisions 0325-0328 recorded and c5 inserted. Research, diagrams, report and SPEC all deferred at 104% context.",
+    "active_goal": "Get the proposed architecture reviewed by the user, absorb whatever changes they direct, then write the SPEC that supersedes SPEC B.",
+    "next_step": "START HERE FRESH. Open the diagram page, then WAIT for the user's SPECIFIC instructions: they may direct improvements or changes to the proposed architecture rather than approval. Do NOT auto-proceed to the SPEC, since c5 gates c3 on the user having reviewed this artifact. If changes are directed, revise the page first and re-present it, and write the SPEC only once the user says the architecture is settled.",
+    "last_session": "Both research passes ran and are persisted. Window scaling withdrawn on the evidence (0329); orchestrator authority narrowed to inside-a-phase (0330); the report flow was stopped by the user and replaced with a five-diagram visual-explainer page (0331).",
     "open_risks": [
       {
-        "text": "A Workflow cannot ask a human mid-run and resumes same-session only — human-in-the-loop is impossible inside the Workflow runtime, which is one of the three reasons orchestration moved to an SDK supervisor",
+        "text": "Engineer the escalation step into the phase contract rather than instructing the orchestrator to raise concerns — agents guess instead of stopping in 55.8-67.8% of runs and refuse in at most 2.5%, so a prompt asking for escalation is not a control",
         "scope": "c2",
         "refs": [
-          "0325",
-          "https://code.claude.com/docs/en/workflows"
+          "https://arxiv.org/abs/2607.02294"
         ]
       },
       {
-        "text": "Nothing inside Claude Code reads a spawned subagent's context fill — the rotation trigger has no sensor unless the supervisor hosts the orchestrator itself and reads ResultMessage.usage",
-        "scope": "c2",
-        "refs": [
-          "0325"
-        ]
-      },
-      {
-        "text": "Agents guess instead of escalating in 55.8-67.8% of runs, with explicit refusals at or below 2.5% — trusting the SPEC requires an engineered uncertainty-detection step, never a prompt instruction telling the implementer to raise concerns",
-        "scope": "c2",
-        "refs": [
-          "https://arxiv.org/html/2607.02294"
-        ]
-      },
-      {
-        "text": "Naive compaction drops constraints 30-59% of the time while verbatim pinning restores 0% at under 0.5% of context — decisions, constraints and failures must be append-only and never pass through a summarizer on rotation",
+        "text": "Copy decisions, constraints and failures VERBATIM into the rotation brief, never through a summarizer — passing them through one drops constraints 30-59% of the time, while verbatim pinning restores 0% at under 0.5% of context",
         "scope": "c2",
         "refs": [
           "https://arxiv.org/abs/2606.22528"
         ]
       },
       {
-        "text": "The 20-25% context premise is a practitioner heuristic, not a finding — RULER measured effective context at 16-100% of claimed window and degradation tracks absolute tokens, so any threshold must be re-derived per window size",
+        "text": "Treat the mid-flight rotation story as designed but unproven — the in-flight registry and idempotency keys on run id plus step id are what stop an orphaned child or a second pull request for a step that already completed",
         "scope": "c2",
         "refs": [
-          "0325"
+          "artifacts/DIAGRAMS-mitosis-rearchitecture.html"
         ]
       },
       {
-        "text": "Rotation mid-flight has no story yet — orphaned child agents, in-flight dispatches and duplicated side effects such as a double PR need an in_flight registry plus idempotency keys on (run_id, step_id)",
+        "text": "Expect a newly named MCP tool to escape the deny list — the repository's origin-agnostic bash-text gate cannot back that list up, because an SDK MCP call carries no shell text to match against",
         "scope": "c2",
-        "refs": []
+        "refs": [
+          "artifacts/RESEARCH-enforcement-surface.md"
+        ]
       },
       {
-        "text": "Re-derive every figure the rewrite keeps, or mark it carried-and-unverified — a SPEC arguing that nothing may be tuned before it is measured cannot itself rest on numbers no committed script reproduces",
+        "text": "Reject bypassPermissions at supervisor startup rather than discouraging it — it propagates to every subagent, cannot be overridden per agent, and erases every enforcement layer below hooks and deny rules",
+        "scope": "c2",
+        "refs": [
+          "https://code.claude.com/docs/en/agent-sdk/permissions"
+        ]
+      },
+      {
+        "text": "Deny the shell and the agent-spawn tool by BARE NAME and never by scoped pattern — a bare name removes the tool from the model's visible list, while a scoped pattern leaves it visible and filters only the argument shapes someone thought of",
+        "scope": "c2",
+        "refs": [
+          "artifacts/RESEARCH-enforcement-surface.md"
+        ]
+      },
+      {
+        "text": "Pin the subagent spawn depth explicitly if the topology is meant to be flat — the default permits workers to spawn their own workers",
+        "scope": "c2",
+        "refs": [
+          "CLAUDE_CODE_MAX_SUBAGENT_SPAWN_DEPTH"
+        ]
+      },
+      {
+        "text": "Re-derive or explicitly mark as carried every engine census figure the rewrite keeps — the verification pass covering them was dispatched and rejected mid-flight, so line counts, dispatch-site counts and halt-site line numbers remain unchecked",
         "scope": "thread",
         "refs": [
           "0324",
-          "docs/superpowers/specs/2026-08-06-mitosis-core-cost-decomposition-stacking-SPEC.md"
+          "artifacts/DIAGRAMS-mitosis-rearchitecture.html"
         ]
       },
       {
-        "text": "Keep implementation out of this thread entirely — its criteria are research, report and writing only, and a successor thread owns every code change the SPEC calls for",
+        "text": "Keep implementation out of this thread entirely — its criteria are research, artifact and writing only, and a successor thread owns every code change the SPEC calls for",
         "scope": "thread",
         "refs": [
           "0324"
         ]
       },
       {
-        "text": "Do not switch branches in the primary checkout if the cutover is ever rolled back — live config entries resolve into the release today, but a rollback repoints them at the working tree and restores the hot-swap hazard",
+        "text": "Do not switch branches in the primary checkout — it sits on chore/licensing-polyform-noncommercial with a clean tree, and live config entries resolve into the release rather than the working tree",
         "scope": "thread",
         "refs": [
           "~/.claude/CUTOVER",
@@ -123,7 +131,14 @@
         "refs": []
       },
       {
-        "text": "Several harness facts came back UNDOCUMENTED and may need zero-agent probes before the SPEC commits to them — the budget global's shape, the journal.jsonl structure, the transcript directory layout, and the agent-resumption contract",
+        "text": "Treat the diagram page as never seen rendered — it lives outside the project folder, so the preview pane shows only a static snapshot and the browser tools cannot read its console or check its layout",
+        "scope": "thread",
+        "refs": [
+          "~/.agent/diagrams/mitosis-rearchitecture-2026-08-11.html"
+        ]
+      },
+      {
+        "text": "Probe the harness facts the SPEC would rest on before it commits to them — the journal structure, the transcript directory layout and the agent-resumption contract all came back undocumented",
         "scope": "thread",
         "refs": [
           "0325"
@@ -179,5 +194,5 @@
     ]
   },
   "created_at": "2026-08-11T00:08:10.978Z",
-  "updated_at": "2026-08-11T06:30:02.678Z"
+  "updated_at": "2026-08-11T06:31:12.962Z"
 }
