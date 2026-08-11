@@ -248,6 +248,11 @@
         "ref": "0338-eight-phase-collapse-re-adopted-with-four-amendments",
         "title": "The eight-phase collapse is re-adopted, re-derived against today's engine, with four amendments",
         "scope": "c1"
+      },
+      {
+        "ref": "0340-superpowers-parallel-renamed-to-lib-mitosis-as-a-pure-move",
+        "title": "The stale superpowers-parallel tree is renamed to lib/mitosis as a pure move before the SPEC",
+        "scope": "thread"
       }
     ],
     "out_of_scope": [
@@ -257,5 +262,5 @@
     ]
   },
   "created_at": "2026-08-11T00:08:10.978Z",
-  "updated_at": "2026-08-11T17:01:24.663Z"
+  "updated_at": "2026-08-11T18:53:21.338Z"
 }
