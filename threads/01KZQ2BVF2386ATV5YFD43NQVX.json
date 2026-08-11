@@ -56,9 +56,9 @@
   "abandoned_reason": null,
   "closure_statement": null,
   "spine": {
-    "active_goal": "Finish c1: correct SPEC B's wrong and unreproducible citations, with every cost figure derived cold and every repo citation re-derived against the current tree.",
-    "next_step": "FETCH THE T3 ROW FIRST - it lands unwatched at 17:07:24 MDT 2026-08-11 from detached PID 99761; read cache_read with cacheWindowLapsed, and read totalCostUsd not the usage block. Then RE-RUN the SPEC B citation census from scratch on a fresh context window (the prior agent died mid-run, no artifacts): *_SCHEMA count, the 48-vs-50 phase-literal split, the four mitosis.js line citations, supervisor.mjs escalate->parked, prompt-byte figures.",
-    "last_session": "Resolved the T1-vs-T2 tenfold cache-read gap (0351): not an accounting artifact but a real second request - a fresh session auto-titles by re-sending the whole first prompt uncached, 90.4% of T1's cost. T3 had not fired. The SPEC B citation census died mid-run and produced nothing.",
+    "active_goal": "Rewrite SPEC B against the reduced scope: no supervisor, no dispatched orchestrator, main thread orchestrates, mitosis JS still fans out.",
+    "next_step": "OPEN THE NEW PAGE IN A BROWSER AND LOOK AT ALL 5 DIAGRAMS FIRST - it was written but never render-verified this session (preview pane static-snapshots file:// URLs, and a local http server was denied), and a mermaid syntax error fails silently to an empty box. Then decide the engine runtime, which 0352 deliberately left open: cutting the SDK host withdrew the reason for dropping codegen decomposition, so the ~25 inline module twins are in limbo. The citation census still has not run.",
+    "last_session": "User stopped all agents and cut the supervisor + dispatched orchestrator from scope (0352). Copied the re-architecture page to mitosis-rearchitecture-main-thread-2026-08-11.html and rewrote it to the new scope. T3 probe died before firing; cost work is now out of scope.",
     "open_risks": [
       {
         "text": "Engineer the escalation step into the phase contract rather than instructing the orchestrator to raise concerns — agents guess instead of stopping in 55.8-67.8% of runs and refuse in at most 2.5%, so a prompt asking for escalation is not a control",
@@ -241,43 +241,49 @@
         ]
       },
       {
-        "text": "Read cache_read together with cacheWindowLapsed on the T3 row, and fetch that row deliberately — the detached driver outlived this session and wrote it unwatched, and a warm read otherwise looks like an expiry price",
+        "text": "Open the new page and check all five mermaid diagrams render — it was never displayed this session, and three constructs were rewritten defensively to proven syntax without being seen",
         "scope": "c1",
         "refs": [
-          "artifacts/2026-08-11-sdk-probe-harness/q11-results.jsonl",
-          "detached PID 99761",
-          "fires 2026-08-11T23:07:24Z"
+          "~/.agent/diagrams/mitosis-rearchitecture-main-thread-2026-08-11.html"
         ]
       },
       {
-        "text": "Read totalCostUsd and never the turn's API usage block alone for a fresh-session cost figure — the usage block omits the auto-title request and under-reported T1 by about tenfold",
+        "text": "Decide where the engine RUNS as a separate question from who orchestrates — 0352 cut the orchestrator agent, which withdrew the justification for dropping codegen decomposition, leaving ~25 inline module twins undecided",
         "scope": "c1",
         "refs": [
-          "0351",
-          "artifacts/2026-08-11-sdk-probe-harness/q11-results.jsonl"
+          "0352",
+          "0325"
         ]
       },
       {
-        "text": "Budget a full context window before starting the SPEC B citation census — c1 wants a closed census, so a run that dies partway yields nothing reusable, which is exactly how this session lost one",
+        "text": "Re-derive the supervisor.mjs escalate-to-parked hazard before citing it — it still bites if the engine reuses that verb vocabulary, and the cited path predates the lib/mitosis rename",
         "scope": "c1",
         "refs": [
-          "read-only agent died 2026-08-11, no artifacts on disk"
+          "0340",
+          "supervisor.mjs:11 - stale path"
         ]
       },
       {
-        "text": "Re-probe the title tax on a payload never sent before — T1's main turn read warm from an earlier run, so only the title half of that measurement was genuinely cold",
+        "text": "Claim only the weaker enforcement guarantee in the SPEC — a main-thread orchestrator cannot have Agent and Bash denied by bare name, so dispatch-only discipline rests on hooks and deny rules, not tool absence",
         "scope": "c1",
         "refs": [
-          "0351",
-          "artifacts/2026-08-11-sdk-probe-harness/q11-results.jsonl"
+          "0326",
+          "0352"
         ]
       },
       {
-        "text": "Run a probe before trusting CLAUDE_CODE_DISABLE_TERMINAL_TITLE as the title-tax suppressor — it was read off a guard expression in the SDK binary and never executed",
+        "text": "Say what happens when the main thread's window fills — with no rotation in scope, harness auto-compaction becomes an undesigned summarizer acting on constraints the prior design pinned verbatim",
         "scope": "c1",
         "refs": [
-          "0351",
-          "node_modules/@anthropic-ai/claude-agent-sdk-darwin-arm64/claude"
+          "0343",
+          "0350"
+        ]
+      },
+      {
+        "text": "Re-derive CLAUDE_CODE_MAX_SUBAGENT_SPAWN_DEPTH for the main-thread-to-phase-to-worker chain — the new topology depends on it fitting and it was never verified",
+        "scope": "c1",
+        "refs": [
+          "0352"
         ]
       }
     ],
@@ -395,5 +401,5 @@
     ]
   },
   "created_at": "2026-08-11T00:08:10.978Z",
-  "updated_at": "2026-08-11T23:19:04.537Z"
+  "updated_at": "2026-08-11T23:27:56.958Z"
 }
