@@ -185,6 +185,11 @@
         "ref": "0331-architecture-artifact-is-a-diagram-page-not-a-report-deliverable",
         "title": "The architecture artifact is a visual-explainer diagram page, not a report-skill deliverable",
         "scope": "c5"
+      },
+      {
+        "ref": "0334-rotation-threshold-is-200k-absolute-input-tokens",
+        "title": "The rotation threshold is 200K absolute tokens, and the counting field is the open question",
+        "scope": "c5"
       }
     ],
     "out_of_scope": [
@@ -194,5 +199,5 @@
     ]
   },
   "created_at": "2026-08-11T00:08:10.978Z",
-  "updated_at": "2026-08-11T06:31:12.962Z"
+  "updated_at": "2026-08-11T07:00:42.370Z"
 }
