@@ -37,7 +37,7 @@
     },
     {
       "id": "c5",
-      "text": "The two open research passes complete, and a cited report carrying the corrected architecture, the tree and sequence diagrams, and the gap analysis is produced and REVIEWED by the user.",
+      "text": "A cited report carrying the corrected architecture, the five render-verified diagrams and the re-cut gap analysis is produced and REVIEWED by the user, with deferred research left out.",
       "done": false,
       "kind": "planned",
       "struck_by": null
@@ -379,5 +379,5 @@
     ]
   },
   "created_at": "2026-08-11T00:08:10.978Z",
-  "updated_at": "2026-08-11T23:54:05.869Z"
+  "updated_at": "2026-08-11T23:54:39.732Z"
 }
