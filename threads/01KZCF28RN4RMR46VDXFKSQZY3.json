@@ -3,7 +3,7 @@
   "id": "01KZCF28RN4RMR46VDXFKSQZY3",
   "slug": "spec-a-implementation-config-staging-live-promotion",
   "title": "SPEC A implementation: config staging/live promotion",
-  "status": "paused",
+  "status": "done",
   "parent_id": null,
   "predecessor_id": "01KZC5TSBXJDM28F8ZCRXC9JQM",
   "completion_criteria": [
@@ -89,7 +89,7 @@
   "external_refs": [],
   "blocked_by": null,
   "abandoned_reason": null,
-  "closure_statement": null,
+  "closure_statement": "SPEC A is implemented, cut over to live, and verified end to end: all 10 of its acceptance criteria pass, and every unit shipped through a pr.mjs pr-create PR correctly stacked where a change blocked another, audited across the whole #43-#61 range.",
   "spine": {
     "active_goal": "SPEC A is implemented and verified end to end; this thread closes and hands SPEC B to its successor.",
     "next_step": "This thread is closed. SPEC B continues on the successor: review and modify SPEC B first, then brainstorm and rewrite it. Artifacts: docs/superpowers/specs/2026-08-06-mitosis-core-cost-decomposition-stacking-SPEC.md on main, a copy at scratchpad/SPEC-B.md, and the visual explanation at ~/.agent/diagrams/spec-b-mitosis-core-cost-decomposition-stacking.html. Two accuracy findings to act on there: the *_SCHEMA count 26 versus 25, and the figures no committed script reproduces.",
@@ -376,5 +376,5 @@
     ]
   },
   "created_at": "2026-08-06T21:18:29.653Z",
-  "updated_at": "2026-08-11T00:07:52.389Z"
+  "updated_at": "2026-08-11T00:07:58.916Z"
 }
