@@ -345,6 +345,11 @@
         "ref": "0353-engine-stays-in-the-workflow-sandbox",
         "title": "The engine stays in the Workflow sandbox, so Part III codegen decomposition is live again",
         "scope": "thread"
+      },
+      {
+        "ref": "0354-workflow-transcripts-are-the-instrument",
+        "title": "Source B is the instrument, it counts four token classes, and attribution is the real gap",
+        "scope": "c2"
       }
     ],
     "out_of_scope": [
@@ -354,5 +359,5 @@
     ]
   },
   "created_at": "2026-08-11T00:08:10.978Z",
-  "updated_at": "2026-08-11T23:53:14.851Z"
+  "updated_at": "2026-08-11T23:53:37.398Z"
 }
