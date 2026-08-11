@@ -213,7 +213,13 @@ Found a bug or have a suggestion? I'd love to hear from you! Please open an issu
 
 ## License
 
-MIT License - feel free to use my configurations for your own setup!
+This project is source-available under the [PolyForm Noncommercial License 1.0.0](LICENSE) - this is not an OSI-approved open-source license.
+
+- Free to use, modify and share for any noncommercial purpose: personal study, hobby projects, experimentation, research, and use by charities, schools, public research organizations and government bodies regardless of funding.
+- Commercial use is not granted and requires separate written permission. Reach out via [github.com/SatanshuMishra](https://github.com/SatanshuMishra) to discuss.
+- Attribution is required: if you redistribute this project, pass along the LICENSE file and all `Required Notice:` lines.
+- No AI/ML training. Text and data mining rights are expressly reserved under Article 4(3) of Directive (EU) 2019/790 - see [NOTICE](NOTICE) and [`/.well-known/tdmrep.json`](.well-known/tdmrep.json).
+- The Neovim configuration under `.config/nvim/` derives from kickstart.nvim and remains available under the MIT License; see `.config/nvim/LICENSE.md`, which stays in place.
 
 ---
 
