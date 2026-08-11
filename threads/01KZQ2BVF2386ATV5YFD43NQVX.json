@@ -50,45 +50,9 @@
   "closure_statement": null,
   "spine": {
     "active_goal": "Design and write a new SPEC superseding SPEC B: mitosis re-architected around an Agent SDK supervisor process, an orchestrator agent, human-in-the-loop, and context rotation.",
-    "next_step": "START HERE FRESH. Two research questions run BEFORE any SPEC is written. (1) Context usage versus accuracy scaled to WINDOW SIZE - re-derive the 20-30% figure so a 250K and a 1M window get different thresholds, then re-ask the rotation trigger. (2) Re-ask orchestrator authority under 0326's framing - enforced channels, not output determinism. Then diagram with visual-explainer (tree plus sequence, orchestration through fan-out), then write the superseding SPEC.",
-    "last_session": "Six parallel agents established engine and harness ground truth plus industry evidence. Three blockers found; substrate, variance framing and SPEC scope decided (0325-0327). Two research questions deferred to the next session.",
+    "next_step": "START HERE FRESH. 0328 fixes the order: research, REPORT, user review, then SPEC. (1) Run both open research passes - context usage versus accuracy scaled to WINDOW SIZE, so 250K and 1M get different thresholds; and the enforcement surface that makes instructions binding per 0326. (2) Re-ask the rotation trigger and orchestrator authority with those findings. (3) Produce the report via /report with tree and sequence diagrams. Do NOT write the SPEC until the user has reviewed the report.",
+    "last_session": "Six parallel agents established engine, harness and industry ground truth. Three blockers found; SPEC B Part III deleted by 0325. User corrected the variance requirement. Decisions 0325-0328 recorded and c5 inserted. Research, diagrams, report and SPEC all deferred at 104% context.",
     "open_risks": [
-      {
-        "text": "Re-derive every figure the rewrite keeps, or mark it carried-and-unverified — a SPEC arguing that nothing may be tuned before it is measured cannot itself rest on numbers no committed script reproduces",
-        "scope": "thread",
-        "refs": [
-          "0324",
-          "docs/superpowers/specs/2026-08-06-mitosis-core-cost-decomposition-stacking-SPEC.md"
-        ]
-      },
-      {
-        "text": "Do not build on the in-sandbox budget global before a zero-agent probe confirms it — the 2026-08-06 probe never tested budget, and section 2.2 warns the question is open rather than settled",
-        "scope": "thread",
-        "refs": [
-          "0267",
-          ".claude/lib/superpowers-parallel/workflow-sandbox.mjs"
-        ]
-      },
-      {
-        "text": "Keep implementation out of this thread entirely — its criteria are brainstorming and writing only, and a successor thread owns every code change SPEC B calls for",
-        "scope": "thread",
-        "refs": [
-          "0324"
-        ]
-      },
-      {
-        "text": "Do not switch branches in the primary checkout if the cutover is ever rolled back — live config entries resolve into the release today, but a rollback repoints them at the working tree and restores the hot-swap hazard",
-        "scope": "thread",
-        "refs": [
-          "~/.claude/CUTOVER",
-          "~/.claude/LIVE"
-        ]
-      },
-      {
-        "text": "Give every sub-agent dispatch run_in_background false — parent agents end their turns believing they are blocking on background children, and the dispatched work is silently lost",
-        "scope": "thread",
-        "refs": []
-      },
       {
         "text": "A Workflow cannot ask a human mid-run and resumes same-session only — human-in-the-loop is impossible inside the Workflow runtime, which is one of the three reasons orchestration moved to an SDK supervisor",
         "scope": "c2",
@@ -129,6 +93,41 @@
         "text": "Rotation mid-flight has no story yet — orphaned child agents, in-flight dispatches and duplicated side effects such as a double PR need an in_flight registry plus idempotency keys on (run_id, step_id)",
         "scope": "c2",
         "refs": []
+      },
+      {
+        "text": "Re-derive every figure the rewrite keeps, or mark it carried-and-unverified — a SPEC arguing that nothing may be tuned before it is measured cannot itself rest on numbers no committed script reproduces",
+        "scope": "thread",
+        "refs": [
+          "0324",
+          "docs/superpowers/specs/2026-08-06-mitosis-core-cost-decomposition-stacking-SPEC.md"
+        ]
+      },
+      {
+        "text": "Keep implementation out of this thread entirely — its criteria are research, report and writing only, and a successor thread owns every code change the SPEC calls for",
+        "scope": "thread",
+        "refs": [
+          "0324"
+        ]
+      },
+      {
+        "text": "Do not switch branches in the primary checkout if the cutover is ever rolled back — live config entries resolve into the release today, but a rollback repoints them at the working tree and restores the hot-swap hazard",
+        "scope": "thread",
+        "refs": [
+          "~/.claude/CUTOVER",
+          "~/.claude/LIVE"
+        ]
+      },
+      {
+        "text": "Give every sub-agent dispatch run_in_background false — parent agents end their turns believing they are blocking on background children, and the dispatched work is silently lost",
+        "scope": "thread",
+        "refs": []
+      },
+      {
+        "text": "Several harness facts came back UNDOCUMENTED and may need zero-agent probes before the SPEC commits to them — the budget global's shape, the journal.jsonl structure, the transcript directory layout, and the agent-resumption contract",
+        "scope": "thread",
+        "refs": [
+          "0325"
+        ]
       }
     ],
     "key_decisions": [
@@ -165,5 +164,5 @@
     ]
   },
   "created_at": "2026-08-11T00:08:10.978Z",
-  "updated_at": "2026-08-11T05:36:50.613Z"
+  "updated_at": "2026-08-11T05:38:23.715Z"
 }
