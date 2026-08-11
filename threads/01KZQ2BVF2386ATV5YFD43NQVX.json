@@ -22,6 +22,13 @@
       "struck_by": null
     },
     {
+      "id": "c5",
+      "text": "The two open research passes complete, and a cited report carrying the corrected architecture, the tree and sequence diagrams, and the gap analysis is produced and REVIEWED by the user.",
+      "done": false,
+      "kind": "planned",
+      "struck_by": null
+    },
+    {
       "id": "c3",
       "text": "The revised SPEC B is written and approved by the user, superseding the 2026-08-06 document, with every changed claim carrying a citation re-derived at the time of writing.",
       "done": false,
@@ -158,5 +165,5 @@
     ]
   },
   "created_at": "2026-08-11T00:08:10.978Z",
-  "updated_at": "2026-08-11T05:36:37.858Z"
+  "updated_at": "2026-08-11T05:36:50.613Z"
 }
