@@ -350,6 +350,11 @@
         "ref": "0354-workflow-transcripts-are-the-instrument",
         "title": "Source B is the instrument, it counts four token classes, and attribution is the real gap",
         "scope": "c2"
+      },
+      {
+        "ref": "0355-main-thread-context-is-disposable",
+        "title": "The window-fill question is answered at the artifact layer, not the context layer",
+        "scope": "thread"
       }
     ],
     "out_of_scope": [
@@ -359,5 +364,5 @@
     ]
   },
   "created_at": "2026-08-11T00:08:10.978Z",
-  "updated_at": "2026-08-11T23:53:37.398Z"
+  "updated_at": "2026-08-11T23:53:43.782Z"
 }
