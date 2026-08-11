@@ -115,6 +115,11 @@
         "ref": "0344-rename-executes-in-a-worktree-with-the-census-re-derived",
         "title": "The rename executes in a worktree with the blast radius re-derived rather than trusted",
         "scope": "thread"
+      },
+      {
+        "ref": "0345-merging-the-rename-and-running-the-cutover-are-one-operation",
+        "title": "Merging the rename and running the cutover are one operation, not two",
+        "scope": "c6"
       }
     ],
     "out_of_scope": [
@@ -125,5 +130,5 @@
     ]
   },
   "created_at": "2026-08-11T19:07:29.214Z",
-  "updated_at": "2026-08-11T19:09:09.820Z"
+  "updated_at": "2026-08-11T19:50:43.471Z"
 }
