@@ -103,44 +103,6 @@
         ]
       },
       {
-        "text": "Hold the page rewrite until the user answers the two open questions — the 0330 amendment and the counter field both change what the new sections say",
-        "scope": "c5",
-        "refs": [
-          "0330",
-          "0334"
-        ]
-      },
-      {
-        "text": "Settle the rotation counter field before the supervisor is designed — usage.input_tokens omits cache reads, which for an orchestrator is most of its context, so the trigger fires late or never",
-        "scope": "c5",
-        "refs": [
-          "0334"
-        ]
-      },
-      {
-        "text": "Correct the constraint-pinning figure wherever it appears — the page says 30-59% of runs, but the paper measured 0-59% across seven models with a 30% pooled average",
-        "scope": "c5",
-        "refs": [
-          "0334",
-          "~/.agent/diagrams/mitosis-rearchitecture-2026-08-11.html"
-        ]
-      },
-      {
-        "text": "Read run-engine.mjs facts as describing a fork the engine never executes — mitosis.js defines its own runEngine that has diverged about 77 lines from it",
-        "scope": "c5",
-        "refs": [
-          ".claude/workflows/mitosis.js:1272",
-          ".claude/lib/superpowers-parallel/run-engine.mjs:296"
-        ]
-      },
-      {
-        "text": "Never claim mitosis asks a human today — the escalate verb parks the unit and surfaces only in the report a human reads after the run returns",
-        "scope": "c5",
-        "refs": [
-          ".claude/lib/superpowers-parallel/supervisor.mjs:11"
-        ]
-      },
-      {
         "text": "Read the phase design through git show on branch docs/mitosis-core-rebuild-spec — it was never merged to main, so a working-tree search misses it and wrongly concludes no phase model exists",
         "scope": "thread",
         "refs": [
@@ -187,6 +149,29 @@
         "scope": "thread",
         "refs": [
           "0325"
+        ]
+      },
+      {
+        "text": "Correct the constraint-pinning figure wherever it appears — the page says 30-59% of runs, but the paper measured 0-59% across seven models with a 30% pooled average",
+        "scope": "c5",
+        "refs": [
+          "0336",
+          "~/.agent/diagrams/mitosis-rearchitecture-2026-08-11.html"
+        ]
+      },
+      {
+        "text": "Read run-engine.mjs facts as describing a fork the engine never executes — mitosis.js defines its own runEngine that has diverged about 77 lines from it",
+        "scope": "c5",
+        "refs": [
+          ".claude/workflows/mitosis.js:1272",
+          ".claude/lib/superpowers-parallel/run-engine.mjs:296"
+        ]
+      },
+      {
+        "text": "Never claim mitosis asks a human today — the escalate verb parks the unit and surfaces only in the report a human reads after the run returns",
+        "scope": "c5",
+        "refs": [
+          ".claude/lib/superpowers-parallel/supervisor.mjs:11"
         ]
       }
     ],
@@ -259,5 +244,5 @@
     ]
   },
   "created_at": "2026-08-11T00:08:10.978Z",
-  "updated_at": "2026-08-11T16:30:36.717Z"
+  "updated_at": "2026-08-11T16:31:06.235Z"
 }
