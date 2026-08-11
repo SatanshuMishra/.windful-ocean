@@ -3,7 +3,7 @@
   "id": "01KZS8WH39NCYM3S8VRFQNJPNB",
   "slug": "cutover-unguarded-rollback-affordance",
   "title": "CUTOVER journal: an unguarded rollback affordance that decays",
-  "status": "active",
+  "status": "paused",
   "parent_id": "01KZS3HZHY8T9JTPQS3CGH29T9",
   "predecessor_id": null,
   "completion_criteria": [
@@ -107,5 +107,5 @@
     ]
   },
   "created_at": "2026-08-11T20:40:37.737Z",
-  "updated_at": "2026-08-11T20:41:36.776Z"
+  "updated_at": "2026-08-11T20:42:12.601Z"
 }
