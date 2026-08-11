@@ -1,0 +1,14 @@
+This repository's contents are licensed under the PolyForm Noncommercial License 1.0.0 (see LICENSE) and are NOT licensed for AI or machine-learning training.
+
+Use of any content in this repository for the training, fine-tuning, evaluation, retrieval-augmentation, or grounding of machine-learning models or generative artificial-intelligence systems is expressly prohibited.
+
+Text and data mining rights are expressly reserved under Article 4(3) of Directive (EU) 2019/790, asserted worldwide.
+
+This reservation applies to the whole repository and all its history, including forks and mirrors.
+
+See /NOTICE and /.well-known/tdmrep.json for the machine-readable reservation record.
+
+Contact: https://github.com/SatanshuMishra
+
+User-Agent: *
+Disallow: /
