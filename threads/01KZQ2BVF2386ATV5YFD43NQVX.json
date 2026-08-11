@@ -42,10 +42,47 @@
   "abandoned_reason": null,
   "closure_statement": null,
   "spine": {
-    "active_goal": "",
-    "next_step": "",
-    "last_session": "",
-    "open_risks": [],
+    "active_goal": "Review, correct and rewrite SPEC B so it is approved and ready to implement, deciding the instrument source before any implementation thread opens.",
+    "next_step": "START HERE FRESH. Read docs/superpowers/specs/2026-08-06-mitosis-core-cost-decomposition-stacking-SPEC.md on main (copy at scratchpad/SPEC-B.md, 340 lines) and open the visual explanation at ~/.agent/diagrams/spec-b-mitosis-core-cost-decomposition-stacking.html, which pairs before/after across all four parts. Then begin c1, reviewing the document against the repo, starting with the two known defects: the *_SCHEMA count (26 claimed, 25 by grep) and the figures no committed script reproduces.",
+    "last_session": "Located SPEC B on main, read all 340 lines, produced a paired before/after visual explanation of all four parts, and found two accuracy defects in the document; opened this thread to fix and rewrite it before any implementation.",
+    "open_risks": [
+      {
+        "text": "Re-derive every figure the rewrite keeps, or mark it carried-and-unverified — a SPEC arguing that nothing may be tuned before it is measured cannot itself rest on numbers no committed script reproduces",
+        "scope": "thread",
+        "refs": [
+          "0324",
+          "docs/superpowers/specs/2026-08-06-mitosis-core-cost-decomposition-stacking-SPEC.md"
+        ]
+      },
+      {
+        "text": "Do not build on the in-sandbox budget global before a zero-agent probe confirms it — the 2026-08-06 probe never tested budget, and section 2.2 warns the question is open rather than settled",
+        "scope": "thread",
+        "refs": [
+          "0267",
+          ".claude/lib/superpowers-parallel/workflow-sandbox.mjs"
+        ]
+      },
+      {
+        "text": "Keep implementation out of this thread entirely — its criteria are brainstorming and writing only, and a successor thread owns every code change SPEC B calls for",
+        "scope": "thread",
+        "refs": [
+          "0324"
+        ]
+      },
+      {
+        "text": "Do not switch branches in the primary checkout if the cutover is ever rolled back — live config entries resolve into the release today, but a rollback repoints them at the working tree and restores the hot-swap hazard",
+        "scope": "thread",
+        "refs": [
+          "~/.claude/CUTOVER",
+          "~/.claude/LIVE"
+        ]
+      },
+      {
+        "text": "Give every sub-agent dispatch run_in_background false — parent agents end their turns believing they are blocking on background children, and the dispatched work is silently lost",
+        "scope": "thread",
+        "refs": []
+      }
+    ],
     "key_decisions": [
       {
         "ref": "0324-spec-b-rewritten-before-implementation",
@@ -53,8 +90,12 @@
         "scope": "thread"
       }
     ],
-    "out_of_scope": []
+    "out_of_scope": [
+      "Implementing any part of SPEC B, which a successor thread owns",
+      "Editing SPEC A or the config staging and promotion machinery it shipped",
+      "The fix pipeline, excluded by the user from both SPECs"
+    ]
   },
   "created_at": "2026-08-11T00:08:10.978Z",
-  "updated_at": "2026-08-11T00:08:42.615Z"
+  "updated_at": "2026-08-11T00:09:12.488Z"
 }
