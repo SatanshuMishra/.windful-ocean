@@ -49,13 +49,33 @@
   "abandoned_reason": null,
   "closure_statement": null,
   "spine": {
-    "active_goal": "",
-    "next_step": "",
-    "last_session": "",
-    "open_risks": [],
+    "active_goal": "Make the AI-training reservation actually operative, rather than merely committed to the repo, by serving it from a domain we control - or establish on evidence that this is not worth doing.",
+    "next_step": "Start at c1 and do not skip it: the mirror is the assumed answer, not a verified one. Establish what Art. 4(3) requires of a machine-readable reservation, whether a self-hosted copy satisfies it, and whether major crawlers honour ai.txt and tdmrep.json at all in practice. Only then price the domain, host and sync. If c1 shows the mechanism does not deliver, closing this thread as abandoned with that finding is a legitimate outcome and better than building an inert mirror.",
+    "last_session": "Opened as successor to repo-licensing-polyform-noncommercial, which put the license and the machine-readable reservation on main but left them inert. No mirror work has been started.",
+    "open_risks": [
+      {
+        "text": "do not present the committed opt-out files as active protection — while the project is GitHub-hosted, crawlers fetch github.com/robots.txt and never the repository's copy, which is the entire reason this thread exists",
+        "scope": "thread",
+        "refs": [
+          "robots.txt",
+          "ai.txt",
+          ".well-known/tdmrep.json"
+        ]
+      },
+      {
+        "text": "do not let the mirror silently diverge from the repo — a mirror serving stale terms is worse than none, because it looks like a reservation while asserting the wrong thing",
+        "scope": "thread",
+        "refs": [
+          ".well-known/tdmrep.json"
+        ]
+      }
+    ],
     "key_decisions": [],
-    "out_of_scope": []
+    "out_of_scope": [
+      "Obtaining legal counsel or a legal opinion on whether the reservation binds a given crawler - this thread reports what the published rules and the observed crawler behavior say, and is not legal advice.",
+      "Revisiting the choice of PolyForm Noncommercial itself - that was settled on the predecessor thread and its rationale lives in decision 0332."
+    ]
   },
   "created_at": "2026-08-11T17:44:32.029Z",
-  "updated_at": "2026-08-11T17:44:32.029Z"
+  "updated_at": "2026-08-11T17:44:43.675Z"
 }
