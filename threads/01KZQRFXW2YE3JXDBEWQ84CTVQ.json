@@ -3,7 +3,7 @@
   "id": "01KZQRFXW2YE3JXDBEWQ84CTVQ",
   "slug": "repo-licensing-polyform-noncommercial",
   "title": "Repository licensing: PolyForm Noncommercial and AI-training reservation",
-  "status": "paused",
+  "status": "done",
   "parent_id": null,
   "predecessor_id": null,
   "completion_criteria": [
@@ -81,7 +81,7 @@
   ],
   "blocked_by": null,
   "abandoned_reason": null,
-  "closure_statement": null,
+  "closure_statement": "The PolyForm Noncommercial license and the machine-readable AI-training reservation are in effect on main, and the secret-scan gate guarding the repo no longer fails on a network call unrelated to secrets; activating that reservation by mirroring to an owned domain carries to the successor thread, and was never a criterion here.",
   "spine": {
     "active_goal": "The license and the machine-readable reservation are in effect on main; what remains is deciding whether to mirror to an owned domain, the step that actually activates the EU reservation.",
     "next_step": "Settle the disposition first: all nine criteria are met, but the active goal's mirror half is untouched, so either close this thread and open a successor for the mirror, or reopen it with a mirror criterion. Then take the mirror on real numbers - domain, host, sync mechanism, cost. Branch housekeeping is done. vcs_ref names a deleted branch on purpose: it is history, not a pointer, and by-branch.json is empty, so nothing dereferences it. Filed, unrelated: task_9ce31094.",
@@ -151,5 +151,5 @@
     ]
   },
   "created_at": "2026-08-11T06:34:53.185Z",
-  "updated_at": "2026-08-11T17:40:01.454Z"
+  "updated_at": "2026-08-11T17:44:07.327Z"
 }
