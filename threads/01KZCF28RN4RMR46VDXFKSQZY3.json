@@ -91,9 +91,9 @@
   "abandoned_reason": null,
   "closure_statement": null,
   "spine": {
-    "active_goal": "All seven criteria are verified and SPEC A is shipped; the thread awaits its disposition.",
-    "next_step": "c7 is DONE: all 17 PRs in #43-#61 round-trip byte-exact through renderPrCreateBody, titles pass PR_TITLE_PATTERN, every commit on main in the window attributes to a PR, and stacking held wherever a blocker was unlanded (#45-#47, #48-#49, #58). #50/#53 were never PRs. All seven criteria pass; the thread awaits disposition. Outside SPEC A: feat/invariant-inert-registry never had a PR and carries 7 commits not upstream; 0313 likely mooted it and invariant-coverage-tax owns it.",
-    "last_session": "Audited #43-#61 against c7 by re-rendering each PR body through the real renderPrCreateBody and comparing byte-for-byte; 17/17 round-trip, titles pass PR_TITLE_PATTERN, and creation-versus-merge times show stacking was used wherever a blocker was still unlanded.",
+    "active_goal": "SPEC A is implemented and verified end to end; this thread closes and hands SPEC B to its successor.",
+    "next_step": "This thread is closed. SPEC B continues on the successor: review and modify SPEC B first, then brainstorm and rewrite it. Artifacts: docs/superpowers/specs/2026-08-06-mitosis-core-cost-decomposition-stacking-SPEC.md on main, a copy at scratchpad/SPEC-B.md, and the visual explanation at ~/.agent/diagrams/spec-b-mitosis-core-cost-decomposition-stacking.html. Two accuracy findings to act on there: the *_SCHEMA count 26 versus 25, and the figures no committed script reproduces.",
+    "last_session": "Closed c7 by round-trip-auditing all 17 PRs in #43-#61, then located SPEC B on main, opened it, and produced a paired before/after visual explanation; surfaced two accuracy findings in SPEC B itself.",
     "open_risks": [
       {
         "text": "Rollback cannot run without the repo the LIVE receipt names and a runnable git — settings.json is excluded from releases, so rollback re-derives what the target sha declares and refuses rather than move the pointer alone",
@@ -376,5 +376,5 @@
     ]
   },
   "created_at": "2026-08-06T21:18:29.653Z",
-  "updated_at": "2026-08-10T22:49:38.486Z"
+  "updated_at": "2026-08-11T00:07:52.389Z"
 }
