@@ -17,7 +17,7 @@
     {
       "id": "c7",
       "text": "The re-architecture page is copied and rewritten to the narrower main-thread-as-orchestrator scope, with the removed supervisor and orchestrator layer marked as deferred rather than deleted silently.",
-      "done": false,
+      "done": true,
       "kind": "detour",
       "struck_by": null
     },
@@ -63,9 +63,9 @@
   "abandoned_reason": null,
   "closure_statement": null,
   "spine": {
-    "active_goal": "Rewrite SPEC B against the reduced scope: no supervisor, no dispatched orchestrator, main thread orchestrates, mitosis JS still fans out.",
-    "next_step": "OPEN THE NEW PAGE IN A BROWSER AND LOOK AT ALL 5 DIAGRAMS FIRST - it was written but never render-verified this session (preview pane static-snapshots file:// URLs, and a local http server was denied), and a mermaid syntax error fails silently to an empty box. Then decide the engine runtime, which 0352 deliberately left open: cutting the SDK host withdrew the reason for dropping codegen decomposition, so the ~25 inline module twins are in limbo. The citation census still has not run.",
-    "last_session": "User stopped all agents and cut the supervisor + dispatched orchestrator from scope (0352). Copied the re-architecture page to mitosis-rearchitecture-main-thread-2026-08-11.html and rewrote it to the new scope. T3 probe died before firing; cost work is now out of scope.",
+    "active_goal": "Clarify the requirements for the narrower main-thread-as-orchestrator scope, then rewrite SPEC B against them.",
+    "next_step": "CLARIFY REQUIREMENTS FOR THE NARROWER SCOPE FIRST - the user's stated focus, not the citation census. Open the new page and confirm its five diagrams render before relying on it. Then work the questions 0352 left open: where the engine RUNS as distinct from who orchestrates, what happens when the main thread's window fills, and what enforcement guarantee is honestly claimable. Re-cut c2 and c5 with the user - both still name rotation and cost research that 0352 deferred.",
+    "last_session": "Cut the supervisor and dispatched orchestrator from scope (0352). Copied and rewrote the re-architecture page to the narrower scope, but never render-verified it. T3 probe died before firing; the citation census was stopped again and produced nothing.",
     "open_risks": [
       {
         "text": "Engineer the escalation step into the phase contract rather than instructing the orchestrator to raise concerns — agents guess instead of stopping in 55.8-67.8% of runs and refuse in at most 2.5%, so a prompt asking for escalation is not a control",
@@ -133,121 +133,6 @@
         ]
       },
       {
-        "text": "Never benchmark a cost figure on a payload an earlier run already sent — the prefix cache is keyed by content, not by session, so an identical payload reads warm from the earlier entry and under-reports creation cost by about an order of magnitude",
-        "scope": "thread",
-        "refs": [
-          "artifacts/2026-08-11-sdk-probe-harness/q11-results.jsonl",
-          "artifacts/2026-08-11-agent-sdk-session-resume-probe.md"
-        ]
-      },
-      {
-        "text": "Measure the orchestrator's real context curve before committing to rotation — the fill sensor now exists and works, so whether a routing orchestrator ever approaches the limit is measurable rather than arguable, and a low curve makes the rotation mechanism unnecessary",
-        "scope": "thread",
-        "refs": [
-          "https://cognition.com/blog/dont-build-multi-agents",
-          "0348"
-        ]
-      },
-      {
-        "text": "Run forkSession together with resumeSessionAt before the rotation design pass concludes — branching a rotation is the one combination never measured, and 0349's evaluation depends on it",
-        "scope": "thread",
-        "refs": [
-          "0349",
-          "artifacts/2026-08-11-sdk-probe-harness/"
-        ]
-      },
-      {
-        "text": "Re-supply the orchestrator's system prompt on every resume — it is not saved with the session, so a resumed orchestrator silently loses its instructions unless the host passes them again",
-        "scope": "thread",
-        "refs": [
-          "0348"
-        ]
-      },
-      {
-        "text": "Run the orchestrator in streaming-input mode — the context-fill sensor is unreachable in single-shot mode, where it throws instead of returning a reading",
-        "scope": "thread",
-        "refs": [
-          "0348"
-        ]
-      },
-      {
-        "text": "Re-derive the 167,000 auto-compaction threshold for the model the orchestrator actually runs — it and the 200,000 window were measured on Haiku 4.5 only, and this session's probe ran Haiku 4.5 again",
-        "scope": "thread",
-        "refs": [
-          "0350"
-        ]
-      },
-      {
-        "text": "Render the rewritten page in a real browser before trusting any of it — two new mermaid diagrams were added and never displayed, and a syntax error fails silently to an empty box rather than to an error",
-        "scope": "thread",
-        "refs": [
-          "~/.agent/diagrams/mitosis-rearchitecture-2026-08-11.html"
-        ]
-      },
-      {
-        "text": "Rename the escalate verb or redefine its mapping in the SPEC — the existing supervisor maps escalate to status parked, so if the new host inherits that vocabulary every fallthrough escalation shelves the MSP instead of reaching a human",
-        "scope": "thread",
-        "refs": [
-          "supervisor.mjs:11 - path predates the lib/mitosis rename, re-check",
-          "0337"
-        ]
-      },
-      {
-        "text": "Pick a launcher filename other than supervisor.mjs before any file is written — that name belongs to the mitosis fault-recovery supervisor itself, so the collision would be inside the same system rather than with a stranger",
-        "scope": "thread",
-        "refs": [
-          "supervisor.mjs:11 - path predates the lib/mitosis rename, re-check",
-          ".claude/workflows/mitosis.js:2107-2165"
-        ]
-      },
-      {
-        "text": "Re-derive every unverified figure before the SPEC cites it — the phase-literal count came back 48 from one audit and 50 from another, the prompt-byte figures were never re-derived, and the mitosis.js line citations were carried forward unconfirmed",
-        "scope": "thread",
-        "refs": [
-          ".claude/workflows/mitosis.js",
-          ":1191",
-          ":1503-1531",
-          ":4817"
-        ]
-      },
-      {
-        "text": "Re-adopt the eight-phase model explicitly in the SPEC rather than citing the 2026-07-30 document — SPEC B's preamble disclaims all citation authority from that document, so a citation to it carries nothing",
-        "scope": "thread",
-        "refs": [
-          "0338"
-        ]
-      },
-      {
-        "text": "Read the phase design with git show on branch docs/mitosis-core-rebuild-spec — it was never merged to main, so a working-tree search misses it and wrongly concludes no phase model exists",
-        "scope": "thread",
-        "refs": [
-          "docs/superpowers/specs/2026-07-30-mitosis-core-rebuild.md",
-          "0338"
-        ]
-      },
-      {
-        "text": "Make Tier 2 record emission structural rather than voluntary — the design still asks the orchestrator to CHOOSE to emit a typed record, which is the same class of soft judgment as the summarizer it replaces",
-        "scope": "thread",
-        "refs": [
-          "0342"
-        ]
-      },
-      {
-        "text": "Keep implementation out of this thread entirely — its criteria are research, artifact and writing only, and a successor thread owns every code change the SPEC calls for",
-        "scope": "thread",
-        "refs": [
-          "0324"
-        ]
-      },
-      {
-        "text": "Do not switch branches in the primary checkout — live config entries resolve into the release rather than the working tree, so read other branches with git show instead",
-        "scope": "thread",
-        "refs": [
-          "~/.claude/CUTOVER",
-          "~/.claude/LIVE"
-        ]
-      },
-      {
         "text": "Open the new page and check all five mermaid diagrams render — it was never displayed this session, and three constructs were rewritten defensively to proven syntax without being seen",
         "scope": "c1",
         "refs": [
@@ -291,6 +176,62 @@
         "scope": "c1",
         "refs": [
           "0352"
+        ]
+      },
+      {
+        "text": "Treat the supervisor, rotation and spawn-cost research as deferred rather than deleted — decisions 0348 to 0351 and section 07 of the new page hold it, and it returns only after the engine update",
+        "scope": "thread",
+        "refs": [
+          "0352",
+          "~/.agent/diagrams/mitosis-rearchitecture-main-thread-2026-08-11.html"
+        ]
+      },
+      {
+        "text": "Re-derive every unverified figure before the SPEC cites it — the phase-literal count came back 48 from one audit and 50 from another, the prompt-byte figures were never re-derived, and the mitosis.js line citations were carried forward unconfirmed",
+        "scope": "thread",
+        "refs": [
+          ".claude/workflows/mitosis.js",
+          ":1191",
+          ":1503-1531",
+          ":4817"
+        ]
+      },
+      {
+        "text": "Re-adopt the eight-phase model explicitly in the SPEC rather than citing the 2026-07-30 document — SPEC B's preamble disclaims all citation authority from that document, so a citation to it carries nothing",
+        "scope": "thread",
+        "refs": [
+          "0338"
+        ]
+      },
+      {
+        "text": "Read the phase design with git show on branch docs/mitosis-core-rebuild-spec — it was never merged to main, so a working-tree search misses it and wrongly concludes no phase model exists",
+        "scope": "thread",
+        "refs": [
+          "docs/superpowers/specs/2026-07-30-mitosis-core-rebuild.md",
+          "0338"
+        ]
+      },
+      {
+        "text": "Have the ENGINE emit the typed record structurally rather than asking any orchestrator to choose to — with the middle layer gone the main thread is the only judge left, which is exactly the soft judgment 0342 refuses to rely on",
+        "scope": "thread",
+        "refs": [
+          "0342",
+          "0352"
+        ]
+      },
+      {
+        "text": "Keep implementation out of this thread entirely — its criteria are research, artifact and writing only, and a successor thread owns every code change the SPEC calls for",
+        "scope": "thread",
+        "refs": [
+          "0324"
+        ]
+      },
+      {
+        "text": "Do not switch branches in the primary checkout — live config entries resolve into the release rather than the working tree, so read other branches with git show instead",
+        "scope": "thread",
+        "refs": [
+          "~/.claude/CUTOVER",
+          "~/.claude/LIVE"
         ]
       }
     ],
@@ -408,5 +349,5 @@
     ]
   },
   "created_at": "2026-08-11T00:08:10.978Z",
-  "updated_at": "2026-08-11T23:31:25.213Z"
+  "updated_at": "2026-08-11T23:32:10.356Z"
 }
