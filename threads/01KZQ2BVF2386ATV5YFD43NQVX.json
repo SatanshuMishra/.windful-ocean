@@ -1,0 +1,54 @@
+{
+  "schema_version": 2,
+  "id": "01KZQ2BVF2386ATV5YFD43NQVX",
+  "slug": "spec-b-review-and-rewrite-cost-decomposition-stacked-prs",
+  "title": "SPEC B review and rewrite: cost, decomposition, stacked PRs",
+  "status": "active",
+  "parent_id": null,
+  "predecessor_id": "01KZCF28RN4RMR46VDXFKSQZY3",
+  "completion_criteria": [
+    {
+      "id": "c1",
+      "text": "SPEC B is reviewed line by line against the repository and its wrong or unreproducible citations are corrected, starting with the *_SCHEMA count and the figures no committed script reproduces.",
+      "done": false,
+      "kind": "planned",
+      "struck_by": null
+    },
+    {
+      "id": "c2",
+      "text": "The questions SPEC B leaves open are brainstormed to a decision, above all the instrument source in section 2.2 that section 8 names the single largest open question.",
+      "done": false,
+      "kind": "planned",
+      "struck_by": null
+    },
+    {
+      "id": "c3",
+      "text": "The revised SPEC B is written and approved by the user, superseding the 2026-08-06 document, with every changed claim carrying a citation re-derived at the time of writing.",
+      "done": false,
+      "kind": "planned",
+      "struck_by": null
+    },
+    {
+      "id": "c4",
+      "text": "A successor thread is opened for SPEC B implementation, and this thread closes with no implementation work started.",
+      "done": false,
+      "kind": "planned",
+      "struck_by": null
+    }
+  ],
+  "vcs_ref": null,
+  "external_refs": [],
+  "blocked_by": null,
+  "abandoned_reason": null,
+  "closure_statement": null,
+  "spine": {
+    "active_goal": "",
+    "next_step": "",
+    "last_session": "",
+    "open_risks": [],
+    "key_decisions": [],
+    "out_of_scope": []
+  },
+  "created_at": "2026-08-11T00:08:10.978Z",
+  "updated_at": "2026-08-11T00:08:10.978Z"
+}
