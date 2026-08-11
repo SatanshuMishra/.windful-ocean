@@ -62,6 +62,13 @@
       "done": true,
       "kind": "detour",
       "struck_by": null
+    },
+    {
+      "id": "c9",
+      "text": "Replace gitleaks-action with a pinned, checksum-verified direct binary invocation so the api.github.com dependency is unreachable, keeping the gate red on real findings",
+      "done": false,
+      "kind": "planned",
+      "struck_by": null
     }
   ],
   "vcs_ref": "chore/licensing-polyform-noncommercial",
@@ -135,5 +142,5 @@
     ]
   },
   "created_at": "2026-08-11T06:34:53.185Z",
-  "updated_at": "2026-08-11T07:01:32.655Z"
+  "updated_at": "2026-08-11T07:06:36.996Z"
 }
