@@ -1,0 +1,9 @@
+SESSION WRAP. The user reviewed the diagram page and returned four gaps rather than approval, so c5's user-review gate is NOT satisfied and the page still needs a rewrite before the SPEC may begin.
+
+WHAT SHIPPED: four research passes (rotation threshold, orchestrator autonomy, phase anatomy, the two scripts) plus two re-audit passes over the eight-phase collapse. Three decisions recorded and ratified by the user - 0336 rotation at 200K of true context occupancy, 0337 orchestrator autonomy gated on evidence class with 0330 amended, 0338 the eight-phase collapse re-adopted with four amendments.
+
+WHAT DID NOT SHIP: the page rewrite itself. Six sections are specified and approved but unwritten - rotation corrected to 200K three-field, a new autonomy-boundary section with a sequence diagram, a new phase-anatomy section built on the eight-phase model, a new two-scripts section, the decisions table, and the footer. I stopped at roughly 95% context rather than start a rewrite I would truncate.
+
+MY OWN ERROR, recorded so it is not repeated: I asserted the new phase sequence did not exist as a written artifact. It did. My searches covered the working tree and main only, and the design sits on the unmerged branch docs/mitosis-core-rebuild-spec. The user overrode me and directed a git-history search, which found it immediately. Treat "not found" as "not found where I looked" whenever a repository has unmerged doc branches.
+
+CARRIED, unverified: SPEC B section 0.4's prompt-byte figures (Ship 26,354 bytes and the rest) were never re-derived this session. The phase call sites, schema count, halt sites, opus pins and loop bounds WERE re-derived and are recorded in the two audit events above.
