@@ -56,10 +56,43 @@
   "abandoned_reason": null,
   "closure_statement": null,
   "spine": {
-    "active_goal": "",
-    "next_step": "",
-    "last_session": "",
-    "open_risks": [],
+    "active_goal": "Make the cutover rollback affordance safe: it must refuse when its asides no longer match live state, and its lifecycle must be decided rather than left to decay.",
+    "next_step": "START AT c1 AND c2, BEFORE ANY CODE CHANGE. Settle what the journal's sha field means against the design intent (SPEC A and the cutover design docs), then judge whether the inherited 'CUTOVER is WRONG' framing survives it. 0346 argues the file accurately records the one cutover performed and that the real defect is the missing liveness guard - but that reads code, not intent, which is what c1 checks. Only then write the c3 guard test.",
+    "last_session": "Opened from the rename thread's final gating question. A read-only trace answered it: cutover.mjs rollback reads CUTOVER exclusively and restores the 2026-08-10 asides with no comparison to live state; promote.mjs rollback reads LIVE only and is unaffected. Nothing was changed.",
+    "open_risks": [
+      {
+        "text": "Do not rewrite ~/.claude/CUTOVER to name 1ecacc7 as an opening move — its sha keys the aside container .cutover/<sha>/, so renaming it points corroboration at a directory that does not exist and destroys the restore path while appearing to fix the file",
+        "scope": "thread",
+        "refs": [
+          "~/.claude/CUTOVER",
+          "scripts/config/cutover.mjs",
+          "0346"
+        ]
+      },
+      {
+        "text": "Treat node scripts/config/cutover.mjs rollback as a live-config-destroying command until c6 says otherwise — it unlinks every ~/.claude entry and restores the 2026-08-10 asides, and the bash gate matches CUTOVER and .cutover as path segments, which this command string may not contain",
+        "scope": "thread",
+        "refs": [
+          "scripts/config/cutover.mjs",
+          ".claude/hooks/block-destructive-bash.sh"
+        ]
+      },
+      {
+        "text": "Expect the forward path to perpetuate the staleness rather than heal it — applyCutover reads the journal and mergeJournal carries still-corroborated records onward with no live-sha comparison, so a stale journal survives every subsequent apply",
+        "scope": "thread",
+        "refs": [
+          "scripts/config/cutover.mjs"
+        ]
+      },
+      {
+        "text": "Do not expect promote or converge to keep CUTOVER current — neither imports cutover.mjs, so every promotion since 2026-08-10 moved current and LIVE while leaving the journal untouched, which is why it reads as old",
+        "scope": "thread",
+        "refs": [
+          "scripts/config/converge.mjs",
+          "scripts/config/promote.mjs"
+        ]
+      }
+    ],
     "key_decisions": [
       {
         "ref": "0346-cutover-defect-is-an-unguarded-restore-not-a-wrong-value",
@@ -67,8 +100,12 @@
         "scope": "thread"
       }
     ],
-    "out_of_scope": []
+    "out_of_scope": [
+      "Anything in promote.mjs rollback, which reads LIVE only and is governed by 0323",
+      "The stale merged worktree .claude/worktrees/spec-a-cutover, which diffs to zero against main",
+      "SPEC B scoping, which continues on thread 01KZQ2BVF2386ATV5YFD43NQVX"
+    ]
   },
   "created_at": "2026-08-11T20:40:37.737Z",
-  "updated_at": "2026-08-11T20:40:55.035Z"
+  "updated_at": "2026-08-11T20:41:36.776Z"
 }
