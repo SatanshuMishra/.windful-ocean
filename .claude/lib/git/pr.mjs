@@ -1,9 +1,9 @@
 import { spawnSync } from 'node:child_process';
 import { realpathSync, accessSync, statSync, constants } from 'node:fs';
 import { fileURLToPath } from 'node:url';
-import { classifyGhMerge, resolveRealGh, DEFAULT_FALLBACKS, MERGE_DENY_EXIT, REAL_GH_MISSING_EXIT } from '../superpowers-parallel/gh-merge-shim.mjs';
-import { validateRefToken } from '../superpowers-parallel/checkpoint.mjs';
-import { validateRepoIdentity, parsePrRef } from '../superpowers-parallel/merge-watch.mjs';
+import { classifyGhMerge, resolveRealGh, DEFAULT_FALLBACKS, MERGE_DENY_EXIT, REAL_GH_MISSING_EXIT } from '../mitosis/gh-merge-shim.mjs';
+import { validateRefToken } from '../mitosis/checkpoint.mjs';
+import { validateRepoIdentity, parsePrRef } from '../mitosis/merge-watch.mjs';
 import {
   inertValue,
   carriesToolTrailer,

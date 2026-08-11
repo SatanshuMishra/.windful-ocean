@@ -31,4 +31,3 @@ session-env/
 /.config/psysh/
 /.config/uv/
 /.config/zed/
-/.claude/lib/superpowers-parallel/.drift-state.json

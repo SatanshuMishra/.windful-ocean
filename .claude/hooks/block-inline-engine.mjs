@@ -2,7 +2,7 @@ import { realpathSync, writeSync } from 'node:fs';
 import { basename } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
-const ENGINE_NAME = 'parallel-plan-execution';
+const ENGINE_NAME = 'mitosis-execute';
 
 export function decide(payload) {
   if (!payload || payload.tool_name !== 'Workflow') {
@@ -10,11 +10,11 @@ export function decide(payload) {
   }
   const input = payload.tool_input || {};
   const byName = String(input.name || '').trim().toLowerCase() === ENGINE_NAME;
-  const byPath = /(^|[\\/])parallel-plan-execution\.[mc]?js$/.test(String(input.scriptPath || '').trim().toLowerCase());
+  const byPath = /(^|[\\/])mitosis-execute\.[mc]?js$/.test(String(input.scriptPath || '').trim().toLowerCase());
   if (byName || byPath) {
     return {
       block: true,
-      reason: 'The parallel-plan-execution engine must be invoked only by workflows/mitosis.js via the in-script workflow() hook, never directly through the Workflow tool. Run /mitosis instead.',
+      reason: 'The mitosis-execute engine must be invoked only by workflows/mitosis.js via the in-script workflow() hook, never directly through the Workflow tool. Run /mitosis instead.',
     };
   }
   return { block: false, reason: '' };

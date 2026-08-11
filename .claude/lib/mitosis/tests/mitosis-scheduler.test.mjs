@@ -17,7 +17,7 @@ const SLUG_PLACEHOLDER = '<OWNER_REPO>';
 const testPrUrl = (seed) => `https://example.test/${TEST_REPO_SLUG}/pull/${[...String(seed)].reduce((acc, ch) => acc + ch.charCodeAt(0), 0)}`;
 const SLUG_DERIVATION = `$(cd ${TEST_REPO_ROOT} && gh repo view --json nameWithOwner -q .nameWithOwner)`;
 const PR_CREATE_CLI = 'node /Users/satanshumishra/.claude/lib/git/pr.mjs pr-create';
-const FOLD_RUN_LOG_CLI = 'node /Users/satanshumishra/.claude/lib/superpowers-parallel/fold-run-log.mjs';
+const FOLD_RUN_LOG_CLI = 'node /Users/satanshumishra/.claude/lib/mitosis/fold-run-log.mjs';
 
 const mitosisBody = readFileSync(MITOSIS_PATH, 'utf8').replace(/^export const meta/m, 'const meta');
 const AsyncFunction = Object.getPrototypeOf(async function () {}).constructor;

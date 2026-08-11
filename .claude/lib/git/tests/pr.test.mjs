@@ -5,7 +5,7 @@ import { mkdtempSync, mkdirSync, writeFileSync, chmodSync, readFileSync, existsS
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { classifyGhMerge } from '../../superpowers-parallel/gh-merge-shim.mjs';
+import { classifyGhMerge } from '../../mitosis/gh-merge-shim.mjs';
 import { PR_TITLE_CAP, PR_VALUE_CAP, PR_MULTI_LIMITS, DEPENDS_PREFIX } from '../pr-format.mjs';
 import {
   MITOSIS_GIT_USAGE_EXIT,

@@ -26,12 +26,12 @@ function runHook(stdin) {
 }
 
 test('blocks Workflow tool invoking the engine by name', () => {
-  const r = decide({ tool_name: 'Workflow', tool_input: { name: 'parallel-plan-execution' } });
+  const r = decide({ tool_name: 'Workflow', tool_input: { name: 'mitosis-execute' } });
   assert.equal(r.block, true);
 });
 
 test('blocks Workflow tool invoking the engine by scriptPath', () => {
-  const r = decide({ tool_name: 'Workflow', tool_input: { scriptPath: '/Users/x/.claude/workflows/parallel-plan-execution.js' } });
+  const r = decide({ tool_name: 'Workflow', tool_input: { scriptPath: '/Users/x/.claude/workflows/mitosis-execute.js' } });
   assert.equal(r.block, true);
 });
 
@@ -41,7 +41,7 @@ test('allows Workflow tool invoking mitosis.js', () => {
 });
 
 test('allows non-Workflow tools', () => {
-  assert.equal(decide({ tool_name: 'Bash', tool_input: { command: 'node parallel-plan-execution.js' } }).block, false);
+  assert.equal(decide({ tool_name: 'Bash', tool_input: { command: 'node mitosis-execute.js' } }).block, false);
 });
 
 test('allows a Workflow call with neither engine name nor engine scriptPath', () => {
@@ -49,42 +49,42 @@ test('allows a Workflow call with neither engine name nor engine scriptPath', ()
 });
 
 test('blocks a case-variant engine scriptPath', () => {
-  const r = decide({ tool_name: 'Workflow', tool_input: { scriptPath: '/x/PARALLEL-PLAN-EXECUTION.js' } });
+  const r = decide({ tool_name: 'Workflow', tool_input: { scriptPath: '/x/MITOSIS-EXECUTE.js' } });
   assert.equal(r.block, true);
 });
 
 test('blocks a case-variant engine name', () => {
-  const r = decide({ tool_name: 'Workflow', tool_input: { name: 'Parallel-Plan-Execution' } });
+  const r = decide({ tool_name: 'Workflow', tool_input: { name: 'Mitosis-Execute' } });
   assert.equal(r.block, true);
 });
 
 test('blocks an .mjs engine scriptPath', () => {
-  const r = decide({ tool_name: 'Workflow', tool_input: { scriptPath: '/x/parallel-plan-execution.mjs' } });
+  const r = decide({ tool_name: 'Workflow', tool_input: { scriptPath: '/x/mitosis-execute.mjs' } });
   assert.equal(r.block, true);
 });
 
 test('blocks a .cjs engine scriptPath', () => {
-  const r = decide({ tool_name: 'Workflow', tool_input: { scriptPath: '/x/parallel-plan-execution.cjs' } });
+  const r = decide({ tool_name: 'Workflow', tool_input: { scriptPath: '/x/mitosis-execute.cjs' } });
   assert.equal(r.block, true);
 });
 
 test('blocks a backslash-separated engine scriptPath', () => {
-  const r = decide({ tool_name: 'Workflow', tool_input: { scriptPath: 'C:\\x\\parallel-plan-execution.js' } });
+  const r = decide({ tool_name: 'Workflow', tool_input: { scriptPath: 'C:\\x\\mitosis-execute.js' } });
   assert.equal(r.block, true);
 });
 
 test('blocks an engine scriptPath with surrounding whitespace', () => {
-  const r = decide({ tool_name: 'Workflow', tool_input: { scriptPath: '  /x/parallel-plan-execution.js  ' } });
+  const r = decide({ tool_name: 'Workflow', tool_input: { scriptPath: '  /x/mitosis-execute.js  ' } });
   assert.equal(r.block, true);
 });
 
 test('blocks an engine name with surrounding whitespace', () => {
-  const r = decide({ tool_name: 'Workflow', tool_input: { name: ' parallel-plan-execution ' } });
+  const r = decide({ tool_name: 'Workflow', tool_input: { name: ' mitosis-execute ' } });
   assert.equal(r.block, true);
 });
 
 test('spawned through a symlink, blocks the engine with exit 2 and a reason on stderr', () => {
-  const r = runHook(JSON.stringify({ tool_name: 'Workflow', tool_input: { name: 'parallel-plan-execution' } }));
+  const r = runHook(JSON.stringify({ tool_name: 'Workflow', tool_input: { name: 'mitosis-execute' } }));
   assert.equal(r.status, 2);
   assert.match(r.stderr, /mitosis/);
 });
@@ -125,7 +125,7 @@ test('exits 2 on a JSON string payload', () => {
 });
 
 test('spawned through a symlink, blocks a case-variant engine scriptPath', () => {
-  const r = runHook(JSON.stringify({ tool_name: 'Workflow', tool_input: { scriptPath: '/x/PARALLEL-PLAN-EXECUTION.js' } }));
+  const r = runHook(JSON.stringify({ tool_name: 'Workflow', tool_input: { scriptPath: '/x/MITOSIS-EXECUTE.js' } }));
   assert.equal(r.status, 2);
   assert.match(r.stderr, /mitosis/);
 });

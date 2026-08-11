@@ -3,14 +3,14 @@ set -euo pipefail
 
 STATE_DIR="$HOME/.claude/state"
 STATE="$STATE_DIR/superpowers-drift-state.json"
-RESOLVER="$HOME/.claude/lib/superpowers-parallel/resolve-superpowers.mjs"
+RESOLVER="$HOME/.claude/lib/mitosis/superpowers-prompts.mjs"
 
 fail() {
   printf 'superpowers-drift-check: %s\n' "$1" >&2
   exit 1
 }
 
-[ -f "$RESOLVER" ] || fail "resolver missing at $RESOLVER; drift cannot be checked - the superpowers-parallel install is broken or was removed without deregistering this hook"
+[ -f "$RESOLVER" ] || fail "resolver missing at $RESOLVER; drift cannot be checked - the mitosis install is broken or was removed without deregistering this hook"
 
 mkdir -p "$STATE_DIR" || fail "cannot create $STATE_DIR; drift state has nowhere to live"
 

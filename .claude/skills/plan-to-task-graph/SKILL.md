@@ -30,12 +30,12 @@ The decomposer is fallible: AI judgment over a large plan can drop a real depend
 
 1. Semantic discovery (you run this): for each task's `fileScope` symbols, query the native LSP call hierarchy (the dependency ORACLE per rules/common/tool-routing.md) for caller/callee edges that cross task boundaries; query the Graphify map for file / import / inheritance edges. Corroborate the seams the oracle cannot see (dynamic dispatch, DI, FFI, SQL, codegen) with targeted reads. Emit each cross-task edge as `{ "from": "<dependent task id>", "to": "<prerequisite task id>", "reason": "lsp-call" | "graphify-import" | "contract-pair" }` into a discovered-edges JSON array.
 2. Hardening (deterministic, automated, no human): run
-   `node ~/.claude/lib/superpowers-parallel/derive-edges.mjs <plan>.graph.json <plan>.discovered-edges.json --out <plan>.graph.json --audit <plan>.edges-audit.json`
+   `node ~/.claude/lib/mitosis/derive-edges.mjs <plan>.graph.json <plan>.discovered-edges.json --out <plan>.graph.json --audit <plan>.edges-audit.json`
    `derive-edges` unions the declared edges with the discovered edges AND with pure fileScope-overlap edges it computes itself. It ADDS any edge you missed (logged to the audit file) and NEVER removes a declared edge.
 3. The ONLY halt is a contradiction the monotonic add cannot resolve — a newly-implied dependency cycle, meaning the decomposition itself is wrong. `derive-edges` throws `dependency cycle detected among: ...` and exits non-zero, mirroring the wave planner. Fix the plan's task boundaries and re-run. No human approves the lint; the run proceeds automatically on the safer graph whenever no cycle exists.
 
 ## Output and preview
 
 Write the hardened graph to `<plan>.graph.json` (in place, v2 contract) and the audit to `<plan>.edges-audit.json`. Preview the wave layout with:
-`node ~/.claude/lib/superpowers-parallel/wave-planner.mjs <plan>.graph.json`
+`node ~/.claude/lib/mitosis/wave-planner.mjs <plan>.graph.json`
 A clean run proves the graph is acyclic and that no two fileScope-overlapping tasks share a wave. Return the hardened graph path and the audit to the calling mitosis flow.

@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { loadPrompts, sanityWarnings, PROMPT_FILES } from '../resolve-superpowers.mjs';
+import { loadPrompts, sanityWarnings, PROMPT_FILES } from '../superpowers-prompts.mjs';
 
 const SNAPSHOT_DIR = new URL('../prompt-snapshots', import.meta.url).pathname;
 
