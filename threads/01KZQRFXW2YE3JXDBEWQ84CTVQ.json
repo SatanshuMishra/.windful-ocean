@@ -10,42 +10,42 @@
     {
       "id": "c1",
       "text": "Establish the actual licensing state of the repo and what third parties may and may not do with it",
-      "done": false,
+      "done": true,
       "kind": "planned",
       "struck_by": null
     },
     {
       "id": "c2",
       "text": "Choose a license satisfying attribution and noncommercial restriction, with the open-source trade-off made explicitly",
-      "done": false,
+      "done": true,
       "kind": "planned",
       "struck_by": null
     },
     {
       "id": "c3",
       "text": "Add LICENSE and NOTICE carrying the PolyForm terms, the TDM reservation, and the kickstart.nvim MIT carve-out",
-      "done": false,
+      "done": true,
       "kind": "planned",
       "struck_by": null
     },
     {
       "id": "c4",
       "text": "Express the AI-training reservation in machine-readable form (robots.txt, ai.txt, tdmrep.json)",
-      "done": false,
+      "done": true,
       "kind": "planned",
       "struck_by": null
     },
     {
       "id": "c5",
       "text": "Remove the false MIT claim from README and declare the license in package.json",
-      "done": false,
+      "done": true,
       "kind": "planned",
       "struck_by": null
     },
     {
       "id": "c6",
       "text": "Open a PR to main and drive all CI checks green",
-      "done": false,
+      "done": true,
       "kind": "planned",
       "struck_by": null
     },
@@ -76,10 +76,45 @@
   "abandoned_reason": null,
   "closure_statement": null,
   "spine": {
-    "active_goal": "",
-    "next_step": "",
-    "last_session": "",
-    "open_risks": [],
+    "active_goal": "Put the PolyForm Noncommercial license and the AI-training reservation into effect on main, then activate the EU reservation by mirroring to an owned domain.",
+    "next_step": "Merge PR #62, a human action since agents are denied merge at the bash gate by design. After merge, decide whether to pursue the self-hosted mirror, which is the step that actually activates the EU Art. 4(3) mechanism; the committed robots.txt, ai.txt and tdmrep.json are inert while the project is GitHub-hosted.",
+    "last_session": "Established the repo was public with no license at all, chose PolyForm Noncommercial over AGPL, and shipped LICENSE/NOTICE plus the machine-readable TDM trio and the README/package.json corrections in 3 atomic commits. PR #62 is green on all 7 checks, awaiting a human merge.",
+    "open_risks": [
+      {
+        "text": "treat the license as not yet in effect until PR #62 is merged — until then main is still the unlicensed all-rights-reserved state this work set out to fix",
+        "scope": "c7",
+        "refs": [
+          "https://github.com/SatanshuMishra/.windful-ocean/pull/62",
+          "chore/licensing-polyform-noncommercial"
+        ]
+      },
+      {
+        "text": "re-verify branch-local facts after any checkout — this session asserted a CI gate that exists only on an unmerged branch and nearly shipped an orphan receipt, because a file read is only true of the tree it came from",
+        "scope": "thread",
+        "refs": [
+          "scripts/invariant-coverage-check.mjs",
+          "docs/invariants/registry.json",
+          "feat/invariant-inert-registry"
+        ]
+      },
+      {
+        "text": "do not present the machine-readable opt-out files as active protection while the repo is GitHub-hosted — crawlers fetch github.com/robots.txt rather than the repository's copy",
+        "scope": "thread",
+        "refs": [
+          "robots.txt",
+          "ai.txt",
+          ".well-known/tdmrep.json"
+        ]
+      },
+      {
+        "text": "read the secret-scan log before hunting for a leak — the gitleaks action calls api.github.com to classify the account and fails closed when that call breaks, so it can go red with no secret present",
+        "scope": "c8",
+        "refs": [
+          ".github/workflows/security.yml",
+          "run 31465362753 failed and run 31465330001 passed on the same commit"
+        ]
+      }
+    ],
     "key_decisions": [
       {
         "ref": "0332-polyform-noncommercial-over-osi-open-source",
@@ -92,8 +127,12 @@
         "scope": "c4"
       }
     ],
-    "out_of_scope": []
+    "out_of_scope": [
+      "Formal copyright registration or obtaining legal counsel - this work is a factual read of the repository's licensing state and the options available, not legal advice.",
+      "Relicensing the kickstart.nvim-derived material under .config/nvim/ - that upstream MIT grant runs directly from its own authors and cannot be revoked or narrowed from this repository; .config/nvim/LICENSE.md must stay in place.",
+      "Changing the terms that apply to forks taken before this change - the relicense governs forward only."
+    ]
   },
   "created_at": "2026-08-11T06:34:53.185Z",
-  "updated_at": "2026-08-11T06:35:52.651Z"
+  "updated_at": "2026-08-11T06:36:44.476Z"
 }
