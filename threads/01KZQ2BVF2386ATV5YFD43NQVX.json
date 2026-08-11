@@ -57,8 +57,8 @@
   "closure_statement": null,
   "spine": {
     "active_goal": "Keep understanding and modifying the architecture page until the user is satisfied with it, then write the SPEC that supersedes SPEC B.",
-    "next_step": "Start the cache-expiry probe FIRST because it is clock-bound, not effort-bound: create a session, wait past the one-hour cache window, resume, read the cost. While it waits, measure the orchestrator's real context curve to settle the hold-less question - if fill never approaches the limit, rotation is moot. Only if it does, design-pass resumeSessionAt against 0342's four tiers, which needs forkSession and resumeSessionAt measured together. c1's figure re-derivation is delegable in parallel.",
-    "last_session": "Probed the Agent SDK session/resume contract by RUNNING it (SDK 0.3.228, claude 2.1.228, ~$0.42, 10/10). Overturned 0325's cost clause, split 0342, found host auto-compaction ON at 167,000. Recorded 0348-0350; artifact and probe harness preserved outside the scratchpad. No SPEC text.",
+    "next_step": "START by reading the T3 post-expiry row in q11-results.jsonl (fired 17:07:24 MDT 2026-08-11, detached PID 99761); read cache_read together with cacheWindowLapsed before calling it an expiry price. Then resolve the T1-vs-T2 tenfold gap on an identical 70,368-token cache read. Then re-derive c1's figures COLD, since content-keyed caching makes any repeat-payload benchmark read warm. The orchestrator context-curve measurement is still unstarted and still gates the rotation question.",
+    "last_session": "Launched the clock-bound cache-expiry probe: T1 and T2 recorded, T3 detached to 17:07:24 MDT. Confirmed the SDK requests the 1-hour TTL. Found the prefix cache is content-keyed, not session-keyed, plus an unexplained tenfold cost gap between two identical cache reads. No SPEC text.",
     "open_risks": [
       {
         "text": "Engineer the escalation step into the phase contract rather than instructing the orchestrator to raise concerns — agents guess instead of stopping in 55.8-67.8% of runs and refuse in at most 2.5%, so a prompt asking for escalation is not a control",
@@ -126,19 +126,34 @@
         ]
       },
       {
+        "text": "Read the T3 post-expiry row before any cost figure enters the SPEC — it lands on disk after the session that launched it ended, so it is invisible unless deliberately fetched, and cache_read must be read together with cacheWindowLapsed or a warm read looks like an expiry price",
+        "scope": "thread",
+        "refs": [
+          "artifacts/2026-08-11-sdk-probe-harness/q11-results.jsonl",
+          "detached PID 99761, deadline 2026-08-11T23:07:24Z"
+        ]
+      },
+      {
+        "text": "Never benchmark a cost figure on a payload an earlier run already sent — the prefix cache is keyed by content, not by session, so an identical payload reads warm from the earlier entry and under-reports creation cost by about an order of magnitude",
+        "scope": "thread",
+        "refs": [
+          "artifacts/2026-08-11-sdk-probe-harness/q11-results.jsonl",
+          "artifacts/2026-08-11-agent-sdk-session-resume-probe.md"
+        ]
+      },
+      {
+        "text": "Resolve the tenfold gap between two identical cache reads before quoting any cache-read price — T1 billed $0.0783 and T2 $0.0075 for the same 70,368 cache_read tokens, and the usage fields as reported do not account for the difference",
+        "scope": "thread",
+        "refs": [
+          "artifacts/2026-08-11-sdk-probe-harness/q11-results.jsonl"
+        ]
+      },
+      {
         "text": "Measure the orchestrator's real context curve before committing to rotation — the fill sensor now exists and works, so whether a routing orchestrator ever approaches the limit is measurable rather than arguable, and a low curve makes the rotation mechanism unnecessary",
         "scope": "thread",
         "refs": [
           "https://cognition.com/blog/dont-build-multi-agents",
           "0348"
-        ]
-      },
-      {
-        "text": "Price a resume AFTER the prompt cache expires before any cost figure enters the SPEC — the cheap rehydration that was measured ran inside the one-hour cache window, and the full-rate case is the number cost planning actually needs",
-        "scope": "thread",
-        "refs": [
-          "0348",
-          "artifacts/2026-08-11-agent-sdk-session-resume-probe.md"
         ]
       },
       {
@@ -164,7 +179,7 @@
         ]
       },
       {
-        "text": "Re-derive the 167,000 auto-compaction threshold for the model the orchestrator actually runs — it and the 200,000 window were measured on Haiku 4.5 only",
+        "text": "Re-derive the 167,000 auto-compaction threshold for the model the orchestrator actually runs — it and the 200,000 window were measured on Haiku 4.5 only, and this session's probe ran Haiku 4.5 again",
         "scope": "thread",
         "refs": [
           "0350"
@@ -181,15 +196,15 @@
         "text": "Rename the escalate verb or redefine its mapping in the SPEC — the existing supervisor maps escalate to status parked, so if the new host inherits that vocabulary every fallthrough escalation shelves the MSP instead of reaching a human",
         "scope": "thread",
         "refs": [
-          ".claude/lib/superpowers-parallel/supervisor.mjs:11",
+          "supervisor.mjs:11 - path predates the lib/mitosis rename, re-check",
           "0337"
         ]
       },
       {
-        "text": "Pick a launcher filename other than supervisor.mjs before any file is written — that name belongs to the mitosis fault-recovery supervisor itself, so the collision would be inside the same system rather than with a stranger, which is worse than previously recorded",
+        "text": "Pick a launcher filename other than supervisor.mjs before any file is written — that name belongs to the mitosis fault-recovery supervisor itself, so the collision would be inside the same system rather than with a stranger",
         "scope": "thread",
         "refs": [
-          ".claude/lib/superpowers-parallel/supervisor.mjs:11",
+          "supervisor.mjs:11 - path predates the lib/mitosis rename, re-check",
           ".claude/workflows/mitosis.js:2107-2165"
         ]
       },
@@ -345,5 +360,5 @@
     ]
   },
   "created_at": "2026-08-11T00:08:10.978Z",
-  "updated_at": "2026-08-11T21:40:27.079Z"
+  "updated_at": "2026-08-11T22:07:41.781Z"
 }
