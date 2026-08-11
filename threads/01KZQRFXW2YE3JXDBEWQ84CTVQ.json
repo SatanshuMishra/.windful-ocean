@@ -1,0 +1,88 @@
+{
+  "schema_version": 2,
+  "id": "01KZQRFXW2YE3JXDBEWQ84CTVQ",
+  "slug": "repo-licensing-polyform-noncommercial",
+  "title": "Repository licensing: PolyForm Noncommercial and AI-training reservation",
+  "status": "active",
+  "parent_id": null,
+  "predecessor_id": null,
+  "completion_criteria": [
+    {
+      "id": "c1",
+      "text": "Establish the actual licensing state of the repo and what third parties may and may not do with it",
+      "done": false,
+      "kind": "planned",
+      "struck_by": null
+    },
+    {
+      "id": "c2",
+      "text": "Choose a license satisfying attribution and noncommercial restriction, with the open-source trade-off made explicitly",
+      "done": false,
+      "kind": "planned",
+      "struck_by": null
+    },
+    {
+      "id": "c3",
+      "text": "Add LICENSE and NOTICE carrying the PolyForm terms, the TDM reservation, and the kickstart.nvim MIT carve-out",
+      "done": false,
+      "kind": "planned",
+      "struck_by": null
+    },
+    {
+      "id": "c4",
+      "text": "Express the AI-training reservation in machine-readable form (robots.txt, ai.txt, tdmrep.json)",
+      "done": false,
+      "kind": "planned",
+      "struck_by": null
+    },
+    {
+      "id": "c5",
+      "text": "Remove the false MIT claim from README and declare the license in package.json",
+      "done": false,
+      "kind": "planned",
+      "struck_by": null
+    },
+    {
+      "id": "c6",
+      "text": "Open a PR to main and drive all CI checks green",
+      "done": false,
+      "kind": "planned",
+      "struck_by": null
+    },
+    {
+      "id": "c7",
+      "text": "Merge the PR to main so the license is in effect on the default branch",
+      "done": false,
+      "kind": "planned",
+      "struck_by": null
+    },
+    {
+      "id": "c8",
+      "text": "Diagnose the nondeterministic secret-scan CI failure rather than accepting a re-run as the fix",
+      "done": false,
+      "kind": "detour",
+      "struck_by": null
+    }
+  ],
+  "vcs_ref": "chore/licensing-polyform-noncommercial",
+  "external_refs": [
+    {
+      "system": "github",
+      "id": "PR-62",
+      "url": "https://github.com/SatanshuMishra/.windful-ocean/pull/62"
+    }
+  ],
+  "blocked_by": null,
+  "abandoned_reason": null,
+  "closure_statement": null,
+  "spine": {
+    "active_goal": "",
+    "next_step": "",
+    "last_session": "",
+    "open_risks": [],
+    "key_decisions": [],
+    "out_of_scope": []
+  },
+  "created_at": "2026-08-11T06:34:53.185Z",
+  "updated_at": "2026-08-11T06:34:53.185Z"
+}
