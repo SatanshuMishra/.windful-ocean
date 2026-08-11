@@ -228,6 +228,11 @@
         "ref": "0334-rotation-threshold-is-200k-absolute-input-tokens",
         "title": "The rotation threshold is 200K absolute tokens, and the counting field is the open question",
         "scope": "c5"
+      },
+      {
+        "ref": "0336-rotation-fires-at-200k-of-true-context-occupancy",
+        "title": "Rotation fires at 200,000 tokens of true context occupancy, not input_tokens alone",
+        "scope": "c2"
       }
     ],
     "out_of_scope": [
@@ -237,5 +242,5 @@
     ]
   },
   "created_at": "2026-08-11T00:08:10.978Z",
-  "updated_at": "2026-08-11T07:01:27.747Z"
+  "updated_at": "2026-08-11T16:28:28.900Z"
 }
