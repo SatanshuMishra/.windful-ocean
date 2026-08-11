@@ -49,9 +49,9 @@
   "abandoned_reason": null,
   "closure_statement": null,
   "spine": {
-    "active_goal": "Plug four gaps in the architecture diagram page - rotation threshold, orchestrator autonomy, per-phase anatomy, and the two scripts - then get it approved so the SPEC can be written.",
-    "next_step": "Answer pending, then rewrite the page. Two questions gate it: whether to amend 0330 to permit cross-phase re-entry for one MSP under a typed conflict class with a hard attempt budget, and whether the 200K counter reads three-field occupancy or literal input_tokens. Then edit ~/.agent/diagrams/mitosis-rearchitecture-2026-08-11.html - rewrite section 05 to 200K, add three sections (autonomy boundary, phase anatomy, the two scripts), extend the decisions table, restate the footer as re-derived.",
-    "last_session": "Four research passes completed and were presented inline; the page itself is unchanged. 200K threshold recorded as 0334 with its counting field left open, and the run-engine.mjs fork correction surfaced.",
+    "active_goal": "Rewrite the architecture diagram page with the four approved gaps closed, get it reviewed by the user, then write the SPEC that supersedes SPEC B.",
+    "next_step": "START HERE FRESH. Rewrite ~/.agent/diagrams/mitosis-rearchitecture-2026-08-11.html through visual-explainer: add a phase-anatomy section on the eight-phase model of 0338 as a tree diagram; add a two-scripts section on supervisor.mjs versus mitosis.js with the escalate-parks finding and the name collision; add an autonomy-boundary section per 0337 as a sequence diagram; correct rotation to 200K three-field per 0336; refresh the decisions table and footer. Do NOT begin the SPEC.",
+    "last_session": "Researched all four gaps the user raised and re-audited the eight-phase collapse against today's 5,515-line engine. User ratified three decisions: 0336, 0337, 0338. The page rewrite itself was specified but not written - stopped at the context ceiling.",
     "open_risks": [
       {
         "text": "Engineer the escalation step into the phase contract rather than instructing the orchestrator to raise concerns — agents guess instead of stopping in 55.8-67.8% of runs and refuse in at most 2.5%, so a prompt asking for escalation is not a control",
@@ -103,48 +103,6 @@
         ]
       },
       {
-        "text": "Re-derive or explicitly mark as carried every engine census figure the rewrite keeps — the verification pass covering them was dispatched and rejected mid-flight, so line counts, dispatch-site counts and halt-site line numbers remain unchecked",
-        "scope": "thread",
-        "refs": [
-          "0324",
-          "artifacts/DIAGRAMS-mitosis-rearchitecture.html"
-        ]
-      },
-      {
-        "text": "Keep implementation out of this thread entirely — its criteria are research, artifact and writing only, and a successor thread owns every code change the SPEC calls for",
-        "scope": "thread",
-        "refs": [
-          "0324"
-        ]
-      },
-      {
-        "text": "Do not switch branches in the primary checkout — it sits on chore/licensing-polyform-noncommercial with a clean tree, and live config entries resolve into the release rather than the working tree",
-        "scope": "thread",
-        "refs": [
-          "~/.claude/CUTOVER",
-          "~/.claude/LIVE"
-        ]
-      },
-      {
-        "text": "Give every sub-agent dispatch run_in_background false — parent agents end their turns believing they are blocking on background children, and the dispatched work is silently lost",
-        "scope": "thread",
-        "refs": []
-      },
-      {
-        "text": "Treat the diagram page as never seen rendered — it lives outside the project folder, so the preview pane shows only a static snapshot and the browser tools cannot read its console or check its layout",
-        "scope": "thread",
-        "refs": [
-          "~/.agent/diagrams/mitosis-rearchitecture-2026-08-11.html"
-        ]
-      },
-      {
-        "text": "Probe the harness facts the SPEC would rest on before it commits to them — the journal structure, the transcript directory layout and the agent-resumption contract all came back undocumented",
-        "scope": "thread",
-        "refs": [
-          "0325"
-        ]
-      },
-      {
         "text": "Hold the page rewrite until the user answers the two open questions — the 0330 amendment and the counter field both change what the new sections say",
         "scope": "c5",
         "refs": [
@@ -180,6 +138,55 @@
         "scope": "c5",
         "refs": [
           ".claude/lib/superpowers-parallel/supervisor.mjs:11"
+        ]
+      },
+      {
+        "text": "Read the phase design through git show on branch docs/mitosis-core-rebuild-spec — it was never merged to main, so a working-tree search misses it and wrongly concludes no phase model exists",
+        "scope": "thread",
+        "refs": [
+          "docs/superpowers/specs/2026-07-30-mitosis-core-rebuild.md",
+          "0338"
+        ]
+      },
+      {
+        "text": "Keep implementation out of this thread entirely — its criteria are research, artifact and writing only, and a successor thread owns every code change the SPEC calls for",
+        "scope": "thread",
+        "refs": [
+          "0324"
+        ]
+      },
+      {
+        "text": "Do not switch branches in the primary checkout — live config entries resolve into the release rather than the working tree, so read other branches with git show instead",
+        "scope": "thread",
+        "refs": [
+          "~/.claude/CUTOVER",
+          "~/.claude/LIVE"
+        ]
+      },
+      {
+        "text": "Give every sub-agent dispatch run_in_background false — parent agents end their turns believing they are blocking on background children, and the dispatched work is silently lost",
+        "scope": "thread",
+        "refs": []
+      },
+      {
+        "text": "Treat the diagram page as never seen rendered — it lives outside the project folder, so the preview pane shows only a static snapshot and the browser tools cannot check its layout",
+        "scope": "thread",
+        "refs": [
+          "~/.agent/diagrams/mitosis-rearchitecture-2026-08-11.html"
+        ]
+      },
+      {
+        "text": "Re-count the phase-literal figure and re-derive SPEC B section 0.4's prompt-byte figures before publishing either — two audits returned 48 and 50 for the literal count and the byte figures were never re-derived",
+        "scope": "thread",
+        "refs": [
+          ".claude/workflows/mitosis.js"
+        ]
+      },
+      {
+        "text": "Probe the harness facts the SPEC would rest on before it commits to them — the journal structure, the transcript directory layout and the agent-resumption contract all came back undocumented",
+        "scope": "thread",
+        "refs": [
+          "0325"
         ]
       }
     ],
@@ -252,5 +259,5 @@
     ]
   },
   "created_at": "2026-08-11T00:08:10.978Z",
-  "updated_at": "2026-08-11T16:29:00.201Z"
+  "updated_at": "2026-08-11T16:30:36.717Z"
 }
