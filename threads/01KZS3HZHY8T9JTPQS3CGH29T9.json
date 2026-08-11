@@ -38,7 +38,7 @@
     {
       "id": "c5",
       "text": "Behaviour-neutrality is proven by execution not inspection: drift-check hook, CI phase-parity, npm test glob, pr.mjs imports and mitosis.js LIB_DIR all resolve after the move.",
-      "done": false,
+      "done": true,
       "kind": "planned",
       "struck_by": null
     },
@@ -56,23 +56,30 @@
   "abandoned_reason": null,
   "closure_statement": null,
   "spine": {
-    "active_goal": "Land the decided rename as a pure move and leave the deploy sequence safe. Both commits and the PR are done; only the live-resolution proof remains.",
-    "next_step": "Merge PR #64 and run the cutover as ONE operation, with no session started between them, then confirm a fresh session starts clean and flip c5 to done. Only after that does the thread close. Then return to the parent thread spec-b-review-and-rewrite-cost-decomposition-stacked-prs (01KZQ2BVF2386ATV5YFD43NQVX) and resume scoping the SPEC before any SPEC text is written.",
-    "last_session": "Dispatched an orchestrator subagent that landed both commits and opened PR #64 unmerged. The re-derived census came back 31 load-bearing lines across 18 files, not 17 across 12. Verified its claims independently and caught one misstated diffstat.",
+    "active_goal": "The rename is merged, promoted and verified live. Only the stale CUTOVER journal entry remains before this thread can close.",
+    "next_step": "Approve one command and run it: `node scripts/config/cutover.mjs apply` from the repo root. The auto-mode classifier denied it, so it needs a Bash permission rule or a one-time approval. Per the plan output it is a NO-OP that only refreshes the CUTOVER journal, which still records 75b90a3 while LIVE and current correctly record 1ecacc7. Then close this thread and return to the parent, spec-b-review-and-rewrite-cost-decomposition-stacked-prs (01KZQ2BVF2386ATV5YFD43NQVX).",
+    "last_session": "PR #64 merged. converge.mjs auto-promoted on the fast-forward, so the pointer move was the whole cutover. Verified live: current is 1ecacc7, the new resolver exists, the old dir is gone, and the drift-check hook exits 0. The dedicated operator was blocked on cutover apply and correctly stopped.",
     "open_risks": [
       {
-        "text": "Merge PR #64 and run the cutover as ONE operation — in the window between them the drift-check hook hard-fails on an empty SessionStart matcher, so every new session errors, and no test catches it because the suite resolves against the worktree",
+        "text": "Do not run cutover apply by rewording or by another route — the auto-mode classifier denied it and 0322 rules that a blocked dispatch is a stop-and-ask, so it needs a real permission grant from the human, not a workaround",
         "scope": "c5",
         "refs": [
-          "0345",
-          "https://github.com/SatanshuMishra/.windful-ocean/pull/64"
+          "0322"
         ]
       },
       {
-        "text": "Give CI on the branch and an end-to-end engine run no evidentiary weight — both are disclosed as not run on the PR, so neither supports any claim about the move",
+        "text": "Read the CUTOVER journal as stale rather than as the live state — it still records 75b90a3 while current and LIVE record 1ecacc7, so anything trusting that file to describe the live shape will be wrong until apply runs",
         "scope": "c5",
         "refs": [
-          "https://github.com/SatanshuMishra/.windful-ocean/pull/64"
+          "~/.claude/CUTOVER",
+          "~/.claude/LIVE"
+        ]
+      },
+      {
+        "text": "Expect converge.mjs to promote on its own whenever the checkout drifts from main — it is registered on SessionStart and Stop, so a merge promotes without anyone running promote, which is what closed this hazard before the operator reached the apply step",
+        "scope": "thread",
+        "refs": [
+          "scripts/config/converge.mjs"
         ]
       },
       {
@@ -82,13 +89,6 @@
           "0340",
           "0344",
           ".claude/hooks/block-inline-engine.mjs:5"
-        ]
-      },
-      {
-        "text": "Do not rename the superpowers-parallel string in block-destructive-bash.test.mjs — it deliberately pins a superseded path to assert that path carries no exemption, so changing it would turn a dead-path regression test into a claim about the live directory",
-        "scope": "thread",
-        "refs": [
-          ".claude/hooks/tests/block-destructive-bash.test.mjs:280"
         ]
       }
     ],
@@ -116,5 +116,5 @@
     ]
   },
   "created_at": "2026-08-11T19:07:29.214Z",
-  "updated_at": "2026-08-11T19:53:15.421Z"
+  "updated_at": "2026-08-11T20:07:11.589Z"
 }
