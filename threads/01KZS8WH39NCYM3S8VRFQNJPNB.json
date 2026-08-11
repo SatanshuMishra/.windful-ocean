@@ -10,14 +10,14 @@
     {
       "id": "c1",
       "text": "What CUTOVER's sha field means is settled against the design intent rather than inferred from code alone: the cutover event's release, or a claim about which release is currently live.",
-      "done": false,
+      "done": true,
       "kind": "planned",
       "struck_by": null
     },
     {
       "id": "c2",
       "text": "The inherited 'CUTOVER is WRONG' framing is confirmed or corrected on evidence, since the journal may be an accurate record of the one cutover actually performed.",
-      "done": false,
+      "done": true,
       "kind": "planned",
       "struck_by": null
     },
@@ -31,21 +31,21 @@
     {
       "id": "c4",
       "text": "applyCutover's silent carry-forward of a stale journal through mergeJournal is either guarded on the same liveness test or explicitly accepted with a stated reason.",
-      "done": false,
+      "done": true,
       "kind": "planned",
       "struck_by": null
     },
     {
       "id": "c5",
       "text": "The retained-affordance lifecycle is decided: a journal either expires once a later promotion supersedes it, or is retained deliberately with the decay hazard documented.",
-      "done": false,
+      "done": true,
       "kind": "planned",
       "struck_by": null
     },
     {
       "id": "c6",
       "text": "Whether node scripts/config/cutover.mjs rollback is caught by the bash gate is answered by running the gate's own decision function on that command, checked against its threat model.",
-      "done": false,
+      "done": true,
       "kind": "planned",
       "struck_by": null
     }
@@ -56,40 +56,25 @@
   "abandoned_reason": null,
   "closure_statement": null,
   "spine": {
-    "active_goal": "Make the cutover rollback affordance safe: it must refuse when its asides no longer match live state, and its lifecycle must be decided rather than left to decay.",
-    "next_step": "START AT c1 AND c2, BEFORE ANY CODE CHANGE. Settle what the journal's sha field means against the design intent (SPEC A and the cutover design docs), then judge whether the inherited 'CUTOVER is WRONG' framing survives it. 0346 argues the file accurately records the one cutover performed and that the real defect is the missing liveness guard - but that reads code, not intent, which is what c1 checks. Only then write the c3 guard test.",
-    "last_session": "Opened from the rename thread's final gating question. A read-only trace answered it: cutover.mjs rollback reads CUTOVER exclusively and restores the 2026-08-10 asides with no comparison to live state; promote.mjs rollback reads LIVE only and is unaffected. Nothing was changed.",
+    "active_goal": "Complete the cutover by retiring the journal and its asides, after establishing that the code needs no guard and the gate finding is an accepted risk.",
+    "next_step": "Nothing remains on this thread. PR #65 carries the threat-model row and stays human-gated for merge. Return to parent thread 01KZQ2BVF2386ATV5YFD43NQVX for SPEC B scoping.",
+    "last_session": "Design intent settled c1 and c2 against the invariant record; c3 struck by 0347 as design-refused; c4 and c5 accepted as designed; c6 answered by execution and logged as accepted risk 18. Retired the asides then CUTOVER; all 10 live entries verified still pointing at current/<name>.",
     "open_risks": [
       {
-        "text": "Do not rewrite ~/.claude/CUTOVER to name 1ecacc7 as an opening move — its sha keys the aside container .cutover/<sha>/, so renaming it points corroboration at a directory that does not exist and destroys the restore path while appearing to fix the file",
+        "text": "Never bind cutover rollback to journal.sha === liveSha — the invariant record refuses it twice as the over-strength trap that caught fix rounds 2, 3 and 4, since it would reject every legitimate rollback after any promote",
         "scope": "thread",
         "refs": [
-          "~/.claude/CUTOVER",
-          "scripts/config/cutover.mjs",
-          "0346"
+          "2026-08-08-cutover-control-file-invariants.md:132-133",
+          "2026-08-09-cutover-invariants-v2.md:243",
+          "0347"
         ]
       },
       {
-        "text": "Treat node scripts/config/cutover.mjs rollback as a live-config-destroying command until c6 says otherwise — it unlinks every ~/.claude entry and restores the 2026-08-10 asides, and the bash gate matches CUTOVER and .cutover as path segments, which this command string may not contain",
+        "text": "Treat the config scripts as ungated — the gate returns no opinion on cutover.mjs and promote.mjs invocations because guardpath needs a literal .claude substring, logged as accepted risk 18 under Non-goal 3 rather than fixed",
         "scope": "thread",
         "refs": [
-          "scripts/config/cutover.mjs",
-          ".claude/hooks/block-destructive-bash.sh"
-        ]
-      },
-      {
-        "text": "Expect the forward path to perpetuate the staleness rather than heal it — applyCutover reads the journal and mergeJournal carries still-corroborated records onward with no live-sha comparison, so a stale journal survives every subsequent apply",
-        "scope": "thread",
-        "refs": [
-          "scripts/config/cutover.mjs"
-        ]
-      },
-      {
-        "text": "Do not expect promote or converge to keep CUTOVER current — neither imports cutover.mjs, so every promotion since 2026-08-10 moved current and LIVE while leaving the journal untouched, which is why it reads as old",
-        "scope": "thread",
-        "refs": [
-          "scripts/config/converge.mjs",
-          "scripts/config/promote.mjs"
+          ".claude/hooks/block-destructive-bash.sh:18",
+          "docs/security/bash-gate-threat-model.md:81"
         ]
       }
     ],
@@ -112,5 +97,5 @@
     ]
   },
   "created_at": "2026-08-11T20:40:37.737Z",
-  "updated_at": "2026-08-11T20:57:11.142Z"
+  "updated_at": "2026-08-11T20:58:33.625Z"
 }
