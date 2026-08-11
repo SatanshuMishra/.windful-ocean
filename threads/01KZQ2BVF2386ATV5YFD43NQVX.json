@@ -233,6 +233,11 @@
         "ref": "0336-rotation-fires-at-200k-of-true-context-occupancy",
         "title": "Rotation fires at 200,000 tokens of true context occupancy, not input_tokens alone",
         "scope": "c2"
+      },
+      {
+        "ref": "0337-orchestrator-autonomy-gated-on-evidence-class-not-confidence",
+        "title": "Orchestrator autonomy is gated on evidence class, and 0330 is amended to permit typed cross-phase re-entry",
+        "scope": "c2"
       }
     ],
     "out_of_scope": [
@@ -242,5 +247,5 @@
     ]
   },
   "created_at": "2026-08-11T00:08:10.978Z",
-  "updated_at": "2026-08-11T16:28:28.900Z"
+  "updated_at": "2026-08-11T16:28:41.270Z"
 }
