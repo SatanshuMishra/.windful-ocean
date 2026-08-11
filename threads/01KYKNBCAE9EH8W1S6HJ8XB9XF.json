@@ -1,74 +1,191 @@
 {
-  "schema_version": 1,
+  "schema_version": 2,
   "id": "01KYKNBCAE9EH8W1S6HJ8XB9XF",
   "slug": "mitosis-nonstop-shipping-architecture",
   "title": "Mitosis non-stop shipping architecture (CI-to-green + blocked-MSP continuation)",
-  "status": "paused",
+  "status": "done",
   "parent_id": null,
   "predecessor_id": null,
   "completion_criteria": [
     {
+      "id": "c1",
       "text": "A dedicated Fable audit returns a flaw inventory of the current mitosis merge/PR-open gating with file:line citations, confirming or refuting the 7 findings from the 2026-07-27 review",
-      "done": true
+      "done": true,
+      "kind": "planned",
+      "struck_by": null
     },
     {
+      "id": "c2",
       "text": "Industry-standard research (merge queues, stacked PRs, CI auto-remediation, build-ahead schedulers) returns cited, verified findings",
-      "done": true
+      "done": true,
+      "kind": "planned",
+      "struck_by": null
     },
     {
+      "id": "c3",
       "text": "An improved architecture is specified that resolves the stop conditions and is demonstrably SIMPLER and MORE ROBUST than the current design, not merely more capable",
-      "done": true
+      "done": true,
+      "kind": "planned",
+      "struck_by": null
     },
     {
+      "id": "c4",
       "text": "The architecture specifies how mitosis drives a shipped MSP's CI/CD to green automatically (detect red, diagnose, fix, re-push, re-verify) with a bounded, non-looping failure path",
-      "done": true
+      "done": true,
+      "kind": "planned",
+      "struck_by": null
     },
     {
+      "id": "c5",
       "text": "The architecture specifies how mitosis continues into blocked MSPs while a parent PR is open for human review, without terminating the run",
-      "done": true
+      "done": true,
+      "kind": "planned",
+      "struck_by": null
     },
     {
+      "id": "c6",
       "text": "The user explicitly approves the architecture spec before any implementation begins",
-      "done": true
+      "done": true,
+      "kind": "planned",
+      "struck_by": null
     }
   ],
   "vcs_ref": "feat/centralized-pr-creation",
   "external_refs": [],
   "blocked_by": null,
   "abandoned_reason": null,
-  "closure_statement": null,
+  "closure_statement": "The quiescent-advance architecture is specified and user-approved across all six criteria - Fable audit, cited industry research, a simpler-and-more-robust spec, the CI-to-green path, blocked-MSP continuation, and explicit approval - while the M0-M8 implementation program, the non-hermetic suite that makes green unverifiable, and the stale section 11 baseline and line cites all sit downstream of this thread's specify-and-approve scope and carry forward to a successor.",
   "spine": {
-    "status": "paused",
     "active_goal": "Implement the APPROVED quiescent-advance architecture (docs/superpowers/specs/2026-07-28-mitosis-quiescent-advance.md, the authority). A run must never stop dead at a human review boundary, must drive a shipped MSP's red CI back to green within a bounded path, and must resume from ANY clone via one idempotent command. Preflight on 2026-07-28 found four blockers that must clear before dispatch.",
     "next_step": "Asks (a)/(b)/(c) CLOSED by 0085/0086/0087, so M0/M4/M8 are now IN SCOPE; landing order is M0 -> M1 -> M2 -> M6 -> M3 -> M5 -> M4 -> M7 -> M8. Sequence still HERMETICITY -> GUARD -> RE-GROUND -> DISPATCH. (1) Hermeticity, owned by the merge-boundary thread: main is 1520/1540 and a worktree fails 2 more at the SAME commit. (2) Guard fix on fix/guard-any-claude-root (cut at beca874, no commits). (3) Re-run the cite mapping, correct §11's stale baseline, COMMIT the untracked spec. (4) Dispatch.",
     "open_risks": [
-      "NEW/BLOCKING: the suite is not hermetic - it resolves against the ambient ~/.claude install and its own checkout path. Proven: protect-claude-config.test.mjs passes 9/9 canonical, fails 2/9 in a worktree at the SAME commit. Mitosis verifies in worktrees, so green is unverifiable.",
-      "Spec §11's baseline is wrong. Measured origin/main @ beca874 = 1540 tests / 1520 pass / 20 fail, not '1415 pass / 0 fail'. Correct it during re-grounding; do not carry the old figure forward.",
-      "EVERY :line cite is stale: grounded at 450804e (4847 lines), origin/main is 4920. Mapping NOT produced this session. M3/M5 are deletion MSPs under the mirror-guard byte-identity rule, so a wrong cite deletes the wrong block twice.",
-      "mitosis.js INLINES lib copies (window.mjs, reconcile.mjs). Every M3/M4/M7 deletion must land TWICE in one commit. Guard is tests/mirror-guard.test.mjs, NOT .drift-state.json (a SessionStart cache that never runs in CI).",
-      "Section 8's count is -8, not -9, deliberately; the reconciliation note in §8 explains why and must survive edits. Do not 'correct' it back.",
-      "M6 publishes refs/mitosis/RUNID/manifest. Its identity-only, write-once rule is the invariant behind 3.1's single authority. Smuggling status into that ref regresses to the four-disagreeing-reconstructions problem.",
-      "M0 is now AUTHORIZED by 0085 but still UNFIXED: applyBuiltTransition never clears resumePoint, so a rebuilt plan-parked unit keeps stage:'plan' and the guard blocks the git-ref rescue. Red test first. Sits behind hermeticity, since red-then-green needs a trustworthy signal.",
-      "K=8 is CONFIRMED by 0086, but the instrumentation debt is NOT discharged: M4 still owes the per-run divergence and rebuild-unit counts. If that number is material, K becomes adaptive again - with data next time.",
-      "Class 6 is CONFIRMED file-level by 0087, stricter than 0067's line-level. 0067 is NOT superseded; it is implemented more conservatively. Do not silently relax it back to line granularity later.",
-      "Fact derivation puts the forge on the hot path. An outage must degrade to 'cannot advance, exit quiescent, say why', never to a wrong 'failed'. The manifest ref shares this exposure and degrades to identity: local-only.",
-      "Section 12 risk 1 is the honest weak point: a quiescent run advances only when a human next acts. M5 owes the wall-clock instrumentation so it is measured, not assumed.",
-      "§13 of the spec still reads asks (a)/(b)/(c) as OPEN. The spec file is stale against 0085/0086/0087 and must be updated in the same pass that re-grounds the cites."
+      {
+        "text": "NEW/BLOCKING: the suite is not hermetic - it resolves against the ambient ~/.claude install and its own checkout path. Proven: protect-claude-config.test.mjs passes 9/9 canonical, fails 2/9 in a worktree at the SAME commit. Mitosis verifies in worktrees, so green is unverifiable.",
+        "scope": "thread",
+        "refs": []
+      },
+      {
+        "text": "Spec §11's baseline is wrong. Measured origin/main @ beca874 = 1540 tests / 1520 pass / 20 fail, not '1415 pass / 0 fail'. Correct it during re-grounding; do not carry the old figure forward.",
+        "scope": "thread",
+        "refs": []
+      },
+      {
+        "text": "EVERY :line cite is stale: grounded at 450804e (4847 lines), origin/main is 4920. Mapping NOT produced this session. M3/M5 are deletion MSPs under the mirror-guard byte-identity rule, so a wrong cite deletes the wrong block twice.",
+        "scope": "thread",
+        "refs": []
+      },
+      {
+        "text": "mitosis.js INLINES lib copies (window.mjs, reconcile.mjs). Every M3/M4/M7 deletion must land TWICE in one commit. Guard is tests/mirror-guard.test.mjs, NOT .drift-state.json (a SessionStart cache that never runs in CI).",
+        "scope": "thread",
+        "refs": []
+      },
+      {
+        "text": "Section 8's count is -8, not -9, deliberately; the reconciliation note in §8 explains why and must survive edits. Do not 'correct' it back.",
+        "scope": "thread",
+        "refs": []
+      },
+      {
+        "text": "M6 publishes refs/mitosis/RUNID/manifest. Its identity-only, write-once rule is the invariant behind 3.1's single authority. Smuggling status into that ref regresses to the four-disagreeing-reconstructions problem.",
+        "scope": "thread",
+        "refs": []
+      },
+      {
+        "text": "M0 is now AUTHORIZED by 0085 but still UNFIXED: applyBuiltTransition never clears resumePoint, so a rebuilt plan-parked unit keeps stage:'plan' and the guard blocks the git-ref rescue. Red test first. Sits behind hermeticity, since red-then-green needs a trustworthy signal.",
+        "scope": "thread",
+        "refs": []
+      },
+      {
+        "text": "K=8 is CONFIRMED by 0086, but the instrumentation debt is NOT discharged: M4 still owes the per-run divergence and rebuild-unit counts. If that number is material, K becomes adaptive again - with data next time.",
+        "scope": "thread",
+        "refs": []
+      },
+      {
+        "text": "Class 6 is CONFIRMED file-level by 0087, stricter than 0067's line-level. 0067 is NOT superseded; it is implemented more conservatively. Do not silently relax it back to line granularity later.",
+        "scope": "thread",
+        "refs": []
+      },
+      {
+        "text": "Fact derivation puts the forge on the hot path. An outage must degrade to 'cannot advance, exit quiescent, say why', never to a wrong 'failed'. The manifest ref shares this exposure and degrades to identity: local-only.",
+        "scope": "thread",
+        "refs": []
+      },
+      {
+        "text": "Section 12 risk 1 is the honest weak point: a quiescent run advances only when a human next acts. M5 owes the wall-clock instrumentation so it is measured, not assumed.",
+        "scope": "thread",
+        "refs": []
+      },
+      {
+        "text": "§13 of the spec still reads asks (a)/(b)/(c) as OPEN. The spec file is stale against 0085/0086/0087 and must be updated in the same pass that re-grounds the cites.",
+        "scope": "thread",
+        "refs": []
+      }
     ],
     "key_decisions": [
-      "0065-mitosis-redesign-via-fable-fanout",
-      "0066-pr-open-policy-stays-deferral",
-      "0067-ci-to-green-loop-bounded-plus-assertion-guard",
-      "0069-advance-is-a-command-not-a-resident-watcher",
-      "0075-quiescent-advance-architecture-approved",
-      "0076-invoker-is-one-command-three-callers",
-      "0077-durable-run-identity-published-manifest",
-      "0080-base-origin-main-with-spec-regrounding-first",
-      "0081-close-worktree-guard-hole-before-the-run",
-      "0082-leave-duplicate-decision-0074-in-place",
-      "0085-m0-resumepoint-fix-authorized-as-standalone-commit",
-      "0086-build-ahead-cap-confirmed-at-eight",
-      "0087-ci-loop-class-six-guard-stays-file-level"
+      {
+        "ref": "0065-mitosis-redesign-via-fable-fanout",
+        "title": "Mitosis redesign via fable fanout",
+        "scope": "legacy"
+      },
+      {
+        "ref": "0066-pr-open-policy-stays-deferral",
+        "title": "Pr open policy stays deferral",
+        "scope": "legacy"
+      },
+      {
+        "ref": "0067-ci-to-green-loop-bounded-plus-assertion-guard",
+        "title": "Ci to green loop bounded plus assertion guard",
+        "scope": "legacy"
+      },
+      {
+        "ref": "0069-advance-is-a-command-not-a-resident-watcher",
+        "title": "Advance is a command not a resident watcher",
+        "scope": "legacy"
+      },
+      {
+        "ref": "0075-quiescent-advance-architecture-approved",
+        "title": "Quiescent advance architecture approved",
+        "scope": "legacy"
+      },
+      {
+        "ref": "0076-invoker-is-one-command-three-callers",
+        "title": "Invoker is one command three callers",
+        "scope": "legacy"
+      },
+      {
+        "ref": "0077-durable-run-identity-published-manifest",
+        "title": "Durable run identity published manifest",
+        "scope": "legacy"
+      },
+      {
+        "ref": "0080-base-origin-main-with-spec-regrounding-first",
+        "title": "Base origin main with spec regrounding first",
+        "scope": "legacy"
+      },
+      {
+        "ref": "0081-close-worktree-guard-hole-before-the-run",
+        "title": "Close worktree guard hole before the run",
+        "scope": "legacy"
+      },
+      {
+        "ref": "0082-leave-duplicate-decision-0074-in-place",
+        "title": "Leave duplicate decision 0074 in place",
+        "scope": "legacy"
+      },
+      {
+        "ref": "0085-m0-resumepoint-fix-authorized-as-standalone-commit",
+        "title": "M0 resumepoint fix authorized as standalone commit",
+        "scope": "legacy"
+      },
+      {
+        "ref": "0086-build-ahead-cap-confirmed-at-eight",
+        "title": "Build ahead cap confirmed at eight",
+        "scope": "legacy"
+      },
+      {
+        "ref": "0087-ci-loop-class-six-guard-stays-file-level",
+        "title": "Ci loop class six guard stays file level",
+        "scope": "legacy"
+      }
     ],
     "out_of_scope": [
       "Any out-of-process or forge-side invoker. Ruled CLOSED by 0076 at user instruction - not deferred, not future work. Do not reintroduce it.",
@@ -79,8 +196,9 @@
       "The other mitosis threads (frontier-default, preflight-hardening, resilience-implementation) - do not fold their work in here.",
       "CAVEAT: the hermeticity blocker OVERLAPS guard-hardening-residuals' open 'hermetic tests' item. The user has NOT ruled whether it is taken on here or routed there - get that ruling first.",
       "decisions/0074 - ruling given, closed by 0082. Leave the file alone."
-    ]
+    ],
+    "last_session": ""
   },
   "created_at": "2026-07-28T06:07:18.861Z",
-  "updated_at": "2026-07-28T20:01:39.889Z"
+  "updated_at": "2026-08-11T21:03:29.093Z"
 }
