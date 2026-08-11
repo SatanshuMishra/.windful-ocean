@@ -83,9 +83,9 @@
   "abandoned_reason": null,
   "closure_statement": null,
   "spine": {
-    "active_goal": "Put the PolyForm Noncommercial license and the AI-training reservation into effect on main, then activate the EU reservation by mirroring to an owned domain.",
-    "next_step": "Pick the c8 remediation, then decide the mirror. Ranked: (1) drop the action and call the gitleaks binary directly, making the failure unreachable, but confirm gitleaks core versus action licensing first since that was NOT verified; (2) set any non-empty GITLEAKS_LICENSE, one line, working only because upstream key validation is commented out and so breaking if they re-enable it; (3) retry wrapper, symptom only. continue-on-error is rejected because it disables secret scanning.",
-    "last_session": "Verified PR #62 merged 2026-08-11T06:34:16Z as merge commit c7ecacb with the three atomic commits intact; LICENSE, NOTICE, robots.txt, ai.txt and .well-known/tdmrep.json confirmed on origin/main. c7 closed and its all-rights-reserved risk retired.",
+    "active_goal": "The license and the machine-readable reservation are in effect on main; what remains is deciding whether to mirror to an owned domain, the step that actually activates the EU reservation.",
+    "next_step": "Settle the disposition first: all nine criteria are met, but the active goal's mirror half is untouched, so either close this thread and open a successor scoped to the mirror, or reopen it with a mirror criterion. Then take the mirror on real numbers - domain, host, sync mechanism, cost. Needing a human: both merged branches still exist locally and on the remote, and vcs_ref names the stale one. Filed, unrelated: task_9ce31094.",
+    "last_session": "Merged PR #62, putting the license in effect on main, then diagnosed the secret-scan flake to its root cause and shipped PR #63 replacing gitleaks-action with a pinned checksum-verified binary. Both merges verified against origin/main; the new gate is green on both CI paths on real runners.",
     "open_risks": [
       {
         "text": "re-verify branch-local facts after any checkout — this session asserted a CI gate that exists only on an unmerged branch and nearly shipped an orphan receipt, because a file read is only true of the tree it came from",
@@ -106,20 +106,19 @@
         ]
       },
       {
-        "text": "do not trust the secret gate to fail open on infrastructure trouble — gitleaks-action clears its license flag only on the success branch of a GET to api.github.com, so a TLS error or a 429 exits the job before the scanner ever runs",
-        "scope": "c8",
-        "refs": [
-          "gitleaks-action ff98106e src/index.js:73-117",
-          ".github/workflows/security.yml",
-          "run 31465362753 attempt 1 vs attempt 2"
-        ]
-      },
-      {
         "text": "do not treat CI as a full-history secret gate — it scans only the pushed commit range, and the one real credential found sits at .config/github-copilot/apps.json kept out of the repo by gitignore alone",
-        "scope": "c8",
+        "scope": "thread",
         "refs": [
           ".config/github-copilot/apps.json",
           ".gitignore"
+        ]
+      },
+      {
+        "text": "do not collapse the three-arm gitleaks fallback into a single tip-only scan — a tip-only scan was demonstrated exiting zero on a secret committed earlier in the same push, so the gate went green on a real leak",
+        "scope": "thread",
+        "refs": [
+          ".github/workflows/security.yml",
+          "decisions/0339-gitleaks-scan-scope-and-fallback.md"
         ]
       }
     ],
@@ -152,5 +151,5 @@
     ]
   },
   "created_at": "2026-08-11T06:34:53.185Z",
-  "updated_at": "2026-08-11T16:39:09.471Z"
+  "updated_at": "2026-08-11T16:39:43.014Z"
 }
