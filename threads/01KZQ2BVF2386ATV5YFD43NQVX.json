@@ -253,6 +253,11 @@
         "ref": "0340-superpowers-parallel-renamed-to-lib-mitosis-as-a-pure-move",
         "title": "The stale superpowers-parallel tree is renamed to lib/mitosis as a pure move before the SPEC",
         "scope": "thread"
+      },
+      {
+        "ref": "0341-logbook-spine-rejected-as-the-rotation-summarizer",
+        "title": "Logbook's progressive-summary spine is rejected as the rotation summarizer",
+        "scope": "c2"
       }
     ],
     "out_of_scope": [
@@ -262,5 +267,5 @@
     ]
   },
   "created_at": "2026-08-11T00:08:10.978Z",
-  "updated_at": "2026-08-11T18:53:21.338Z"
+  "updated_at": "2026-08-11T18:53:34.141Z"
 }
