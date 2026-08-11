@@ -88,6 +88,11 @@
         "ref": "0324-spec-b-rewritten-before-implementation",
         "title": "SPEC B is reviewed and rewritten in its own thread before any implementation thread opens",
         "scope": "thread"
+      },
+      {
+        "ref": "0325-orchestration-moves-to-agent-sdk-supervisor-process",
+        "title": "Orchestration leaves the Workflow sandbox for an Agent SDK supervisor process",
+        "scope": "c2"
       }
     ],
     "out_of_scope": [
@@ -97,5 +102,5 @@
     ]
   },
   "created_at": "2026-08-11T00:08:10.978Z",
-  "updated_at": "2026-08-11T00:09:47.077Z"
+  "updated_at": "2026-08-11T05:32:31.268Z"
 }
