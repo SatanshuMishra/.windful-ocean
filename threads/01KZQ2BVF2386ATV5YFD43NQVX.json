@@ -351,6 +351,11 @@
         "ref": "0350-supervisor-disables-host-auto-compaction-and-owns-rotation",
         "title": "The supervisor disables host auto-compaction and owns rotation below the 167,000-token threshold",
         "scope": "thread"
+      },
+      {
+        "ref": "0351-title-generation-tax-is-a-real-per-spawn-cost",
+        "title": "The fresh-session title tax is a real per-spawn charge to model, not an accounting artifact",
+        "scope": "c1"
       }
     ],
     "out_of_scope": [
@@ -360,5 +365,5 @@
     ]
   },
   "created_at": "2026-08-11T00:08:10.978Z",
-  "updated_at": "2026-08-11T22:07:41.781Z"
+  "updated_at": "2026-08-11T22:59:55.149Z"
 }
