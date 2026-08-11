@@ -361,7 +361,7 @@ for (const [command, label] of askCommands) {
 
 const guardrailWriteCommands = [
   'echo x > .claude/lib/git/pr.mjs',
-  'sed -i "" s/a/b/ .claude/lib/superpowers-parallel/engine-args.mjs',
+  'sed -i "" s/a/b/ .claude/lib/mitosis/engine-args.mjs',
   'cp /tmp/patched.mjs .claude/lib/git/pr.mjs',
   'echo x > .claude/workflows/mitosis.js',
   'mv /tmp/mitosis.js .claude/workflows/mitosis.js',

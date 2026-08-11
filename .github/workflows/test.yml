@@ -19,4 +19,4 @@ jobs:
         with:
           node-version: '26.x'
       - run: npm test
-      - run: node .claude/lib/superpowers-parallel/mitosis-gate.mjs phase-parity
+      - run: node .claude/lib/mitosis/mitosis-gate.mjs phase-parity

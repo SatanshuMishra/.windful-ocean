@@ -18,9 +18,9 @@ export const meta = {
   ],
 };
 
-const ENGINE_PATH = '/Users/satanshumishra/.claude/workflows/parallel-plan-execution.js';
+const ENGINE_PATH = '/Users/satanshumishra/.claude/workflows/mitosis-execute.js';
 const GRAPH_SKILL = '/Users/satanshumishra/.claude/skills/plan-to-task-graph/SKILL.md';
-const LIB_DIR = '/Users/satanshumishra/.claude/lib/superpowers-parallel';
+const LIB_DIR = '/Users/satanshumishra/.claude/lib/mitosis';
 const GIT_LIB_DIR = '/Users/satanshumishra/.claude/lib/git';
 const TEMPLATES_DIR = '/Users/satanshumishra/.claude/skills/mitosis/templates';
 
@@ -4825,7 +4825,7 @@ async function runUnit(unit) {
       const planOutcome = await supervisedDispatch(
         (attemptNo, preamble) => agent(
           `You are the planning stage for MSP "${msp.id}" (${msp.title}) of a mitosis run. You have NO Skill tool.\n\n` +
-          `Locate the superpowers writing-plans skill WITHOUT hardcoding its version: run \`node ${LIB_DIR}/resolve-superpowers.mjs\` if it prints a skillsDir, otherwise glob \`/Users/satanshumishra/.claude/plugins/cache/claude-plugins-official/superpowers/*/skills/writing-plans/SKILL.md\`. Read that SKILL.md and follow it exactly.\n\n` +
+          `Locate the superpowers writing-plans skill WITHOUT hardcoding its version: run \`node ${LIB_DIR}/superpowers-prompts.mjs\` if it prints a skillsDir, otherwise glob \`/Users/satanshumishra/.claude/plugins/cache/claude-plugins-official/superpowers/*/skills/writing-plans/SKILL.md\`. Read that SKILL.md and follow it exactly.\n\n` +
           `Scope: produce an implementation plan for ONLY this MSP: ${msp.rationale}\n` +
           `Target repo: ${repoRoot}. Earlier MSPs in this cluster's chain (already planned/merged) you may depend on: ${dependsList}.\n\n` +
           `${planGroundTruthSeed({ specPath: spec, fileScope: msp.fileScope, unitId: msp.id })}\n\n` +
@@ -4899,7 +4899,7 @@ async function runUnit(unit) {
         `2. Compute waves and route via Node (one-off script using the repo's installed modules):\n` +
         `   - import { validateGraph } from '${LIB_DIR}/generate-run-script.mjs' and call it on the parsed graph to get { waves }.\n` +
         `   - import { planRoute } from '${LIB_DIR}/route-planner.mjs'; gather the runtime signals from the repo at ${repoRoot} (T = task count, W = wave count, D = max wave width, S = total file scopes, GIT = is the repo a git repo, WF = workflows enabled, cleanTree = git status clean, plus exploratory/consentRecorded/wallClockOver30m/topTierSession as false unless you can determine otherwise) and call planRoute to get { rule, lane, isolation, N, notes }.\n` +
-        `   - import { resolveAll } from '${LIB_DIR}/resolve-superpowers.mjs' and call it to get resolved.prompts, an object shaped { key: { text, source, path } }. Flatten it to a plain string map BEFORE passing it anywhere: prompts = Object.fromEntries(Object.entries(resolved.prompts).map(([k, v]) => [k, v.text])). Do NOT pass resolved.prompts itself.\n` +
+        `   - import { resolveAll } from '${LIB_DIR}/superpowers-prompts.mjs' and call it to get resolved.prompts, an object shaped { key: { text, source, path } }. Flatten it to a plain string map BEFORE passing it anywhere: prompts = Object.fromEntries(Object.entries(resolved.prompts).map(([k, v]) => [k, v.text])). Do NOT pass resolved.prompts itself.\n` +
         `   - Determine runArtifacts: read ${ENGINE_PATH}, find every use of \`runArtifacts\`, and construct an object that satisfies those reads (include the plan path ${planned.planPath} and the graph path).\n\n` +
         `3. Assemble the engine args with the pure helper, passing the orchestration context so all 14 keys are present:\n` +
         `   First build the id-keyed tasks map (the engine indexes tasks by id, NOT by array position): tasks = Object.fromEntries(graph.tasks.map((t) => [t.id, { id: t.id, title: t.title, fullText: t.fullText, fileScope: t.fileScope, risk: t.risk, agentType: t.agentType || 'implementer', validation: t.validation, dependentCount: t.dependentCount, edgeReasons: t.edgeReasons }])). The dependentCount AND edgeReasons pair is derived by derive-edges.mjs and MUST be carried through together - they drive the engine model policy; dropping either one fails the parallelize invariant below. Do NOT pass the raw graph.tasks array as tasks.\n` +

@@ -12,7 +12,7 @@ const SCOPE_TOKENS = [' -R ', '${repoSlug}'];
 const CODE_SPAN_CLOSE = '\\`';
 const PLACEHOLDER = '<OWNER_REPO>';
 const LIB_DIR_NAME = 'LIB_DIR';
-const LIB_DIR_LITERAL = '/Users/satanshumishra/.claude/lib/superpowers-parallel';
+const LIB_DIR_LITERAL = '/Users/satanshumishra/.claude/lib/mitosis';
 const LIB_DIR_TEMPLATE = '${LIB_DIR}';
 const GIT_LIB_DIR_NAME = 'GIT_LIB_DIR';
 const GIT_LIB_DIR_LITERAL = '/Users/satanshumishra/.claude/lib/git';
@@ -266,7 +266,7 @@ test('every title the engine composes from a declared MSP passes the receipts.ym
 });
 
 test('MSP-3: the wrapper anchor resolves to one absolute literal a string-matching permission rule can pin, never a tilde', () => {
-  assert.ok(source.includes(`const ${LIB_DIR_NAME} = '${LIB_DIR_LITERAL}';`), 'the emitted anchor is the absolute superpowers-parallel path');
+  assert.ok(source.includes(`const ${LIB_DIR_NAME} = '${LIB_DIR_LITERAL}';`), 'the emitted anchor is the absolute mitosis path');
   assert.ok(source.includes(`const ${GIT_LIB_DIR_NAME} = '${GIT_LIB_DIR_LITERAL}';`), 'the pull-request tool anchor is the absolute lib/git path, so a string-matching permission rule can pin it');
   assert.equal(source.includes('~/.claude'), false, 'no emitted command may spell the anchor with a tilde: the permission matcher compares strings, not inodes');
 });

@@ -16,7 +16,7 @@ const FAKE_ENGINE = [
 ].join('\n');
 
 const SCRIPT = fileURLToPath(new URL('../generate-run-script.mjs', import.meta.url));
-const ENGINE_PATH = fileURLToPath(new URL('../../../workflows/parallel-plan-execution.js', import.meta.url));
+const ENGINE_PATH = fileURLToPath(new URL('../../../workflows/mitosis-execute.js', import.meta.url));
 const SNAPSHOT_PATH = fileURLToPath(new URL('../prompt-snapshots', import.meta.url));
 
 const FIXTURE_SUPERPOWERS_VERSION = '6.1.1';
@@ -33,11 +33,11 @@ function makeFixtureHome() {
     },
   }));
 
-  mkdirSync(join(claude, 'lib/superpowers-parallel'), { recursive: true });
-  cpSync(SNAPSHOT_PATH, join(claude, 'lib/superpowers-parallel/prompt-snapshots'), { recursive: true });
+  mkdirSync(join(claude, 'lib/mitosis'), { recursive: true });
+  cpSync(SNAPSHOT_PATH, join(claude, 'lib/mitosis/prompt-snapshots'), { recursive: true });
 
   mkdirSync(join(claude, 'workflows'), { recursive: true });
-  copyFileSync(ENGINE_PATH, join(claude, 'workflows/parallel-plan-execution.js'));
+  copyFileSync(ENGINE_PATH, join(claude, 'workflows/mitosis-execute.js'));
 
   return home;
 }

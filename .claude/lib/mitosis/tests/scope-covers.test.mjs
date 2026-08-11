@@ -32,7 +32,7 @@ test('globMatches: caps are roomy enough for every real glob shape in this repo'
   assert.ok(longestRealPathGlob.length <= GLOB_MAX_LENGTH);
   assert.equal(globMatches(longestRealPathGlob, `${deepDir}/nested/deeper/case.test.mjs`), true);
   assert.equal(globMatches(longestRealPathGlob, `${deepDir}/nested/deeper/case.test.js`), false);
-  assert.equal(scopeCovers('.claude/lib/superpowers-parallel/tests/**/*.test.mjs', '.claude/lib/superpowers-parallel/tests/a/b.test.mjs'), true);
+  assert.equal(scopeCovers('.claude/lib/mitosis/tests/**/*.test.mjs', '.claude/lib/mitosis/tests/a/b.test.mjs'), true);
 });
 
 test('globMatches: wildcard-dense glob resolves in linear time instead of backtracking exponentially', () => {

@@ -4,10 +4,10 @@ import { join, dirname, basename, relative, resolve } from 'node:path';
 import { homedir, tmpdir } from 'node:os';
 import { pathToFileURL } from 'node:url';
 import { planWaves } from './wave-planner.mjs';
-import { resolveAll } from './resolve-superpowers.mjs';
+import { resolveAll } from './superpowers-prompts.mjs';
 import { resolveBranch } from './branch-contract.mjs';
 
-const ENGINE_PATH = join(homedir(), '.claude/workflows/parallel-plan-execution.js');
+const ENGINE_PATH = join(homedir(), '.claude/workflows/mitosis-execute.js');
 const ARG_LINE = /^const (\w+) = args\.\w+.*;$/;
 
 export const ENGINE_ARG_NAMES = [

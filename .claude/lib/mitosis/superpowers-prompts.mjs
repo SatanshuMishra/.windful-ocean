@@ -76,7 +76,7 @@ export function sanityWarnings(prompts) {
 const HOME = homedir();
 const MANIFEST = join(HOME, '.claude/plugins/installed_plugins.json');
 const CACHE = join(HOME, '.claude/plugins/cache/claude-plugins-official/superpowers');
-const SNAPSHOT = join(HOME, '.claude/lib/superpowers-parallel/prompt-snapshots');
+const SNAPSHOT = join(HOME, '.claude/lib/mitosis/prompt-snapshots');
 
 export function resolveAll() {
   const r = resolveSkillsDir({ manifestPath: MANIFEST, cacheGlobBase: CACHE });
@@ -93,7 +93,7 @@ function main() {
   try {
     all = resolveAll();
   } catch (e) {
-    process.stderr.write('resolve-superpowers error: ' + e.message + '\n');
+    process.stderr.write('superpowers-prompts error: ' + e.message + '\n');
     process.exit(1);
   }
   if (mode === '--prompts') {

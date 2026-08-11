@@ -67,7 +67,7 @@ test('the merge scan reads every engine and lib top-level source, never a test f
     assert.ok(!path.includes('/tests/'), `the merge scan must not recurse into tests/: ${name} at ${path} would make fixture strings, including this file's own MERGE_INVOCATION_PATTERNS, read as violations`);
   }
   const present = libTopLevelModuleNames();
-  assert.ok(present.includes(DENY_CLASSIFIER_SHIM), `the scanned lib trees carry ${present.length} top-level .mjs file(s) and none of them keys as ${DENY_CLASSIFIER_SHIM}, the tree-qualified key that names the ${LIB_DIR} copy specifically, so that directory is not lib/superpowers-parallel; every coverage claim below would be measured against the wrong surface`);
+  assert.ok(present.includes(DENY_CLASSIFIER_SHIM), `the scanned lib trees carry ${present.length} top-level .mjs file(s) and none of them keys as ${DENY_CLASSIFIER_SHIM}, the tree-qualified key that names the ${LIB_DIR} copy specifically, so that directory is not lib/mitosis; every coverage claim below would be measured against the wrong surface`);
   const expected = present.filter((name) => name !== DENY_CLASSIFIER_SHIM);
   const scanned = names.filter((name) => name !== ENGINE_NAME).sort();
   assert.ok(scanned.includes(SCAN_ANCHOR), `the merge scan does not cover ${SCAN_ANCHOR}, the module this file imports buildGhArgv and MITOSIS_GIT_VERBS from; a scan that drops the one lib module whose argv builder it also enumerates is not reading the lib surface at all`);
