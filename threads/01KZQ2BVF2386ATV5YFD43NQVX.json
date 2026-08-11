@@ -300,6 +300,11 @@
         "ref": "0349-plain-resume-is-not-a-rotation-but-resumesessionat-reduces-fill",
         "title": "Plain resume is not a rotation, but resumeSessionAt is a measured fill-reducing primitive",
         "scope": "thread"
+      },
+      {
+        "ref": "0350-supervisor-disables-host-auto-compaction-and-owns-rotation",
+        "title": "The supervisor disables host auto-compaction and owns rotation below the 167,000-token threshold",
+        "scope": "thread"
       }
     ],
     "out_of_scope": [
@@ -309,5 +314,5 @@
     ]
   },
   "created_at": "2026-08-11T00:08:10.978Z",
-  "updated_at": "2026-08-11T21:33:44.084Z"
+  "updated_at": "2026-08-11T21:34:02.966Z"
 }
