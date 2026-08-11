@@ -56,9 +56,9 @@
   "abandoned_reason": null,
   "closure_statement": null,
   "spine": {
-    "active_goal": "Keep understanding and modifying the architecture page until the user is satisfied with it, then write the SPEC that supersedes SPEC B.",
-    "next_step": "START by reading the T3 post-expiry row in q11-results.jsonl (fired 17:07:24 MDT 2026-08-11, detached PID 99761); read cache_read together with cacheWindowLapsed before calling it an expiry price. Then resolve the T1-vs-T2 tenfold gap on an identical 70,368-token cache read. Then re-derive c1's figures COLD, since content-keyed caching makes any repeat-payload benchmark read warm. The orchestrator context-curve measurement is still unstarted and still gates the rotation question.",
-    "last_session": "Launched the clock-bound cache-expiry probe: T1 and T2 recorded, T3 detached to 17:07:24 MDT. Confirmed the SDK requests the 1-hour TTL. Found the prefix cache is content-keyed, not session-keyed, plus an unexplained tenfold cost gap between two identical cache reads. No SPEC text.",
+    "active_goal": "Finish c1: correct SPEC B's wrong and unreproducible citations, with every cost figure derived cold and every repo citation re-derived against the current tree.",
+    "next_step": "FETCH THE T3 ROW FIRST - it lands unwatched at 17:07:24 MDT 2026-08-11 from detached PID 99761; read cache_read with cacheWindowLapsed, and read totalCostUsd not the usage block. Then RE-RUN the SPEC B citation census from scratch on a fresh context window (the prior agent died mid-run, no artifacts): *_SCHEMA count, the 48-vs-50 phase-literal split, the four mitosis.js line citations, supervisor.mjs escalate->parked, prompt-byte figures.",
+    "last_session": "Resolved the T1-vs-T2 tenfold cache-read gap (0351): not an accounting artifact but a real second request - a fresh session auto-titles by re-sending the whole first prompt uncached, 90.4% of T1's cost. T3 had not fired. The SPEC B citation census died mid-run and produced nothing.",
     "open_risks": [
       {
         "text": "Engineer the escalation step into the phase contract rather than instructing the orchestrator to raise concerns — agents guess instead of stopping in 55.8-67.8% of runs and refuse in at most 2.5%, so a prompt asking for escalation is not a control",
@@ -254,6 +254,53 @@
           "~/.claude/CUTOVER",
           "~/.claude/LIVE"
         ]
+      },
+      {
+        "text": "Read cache_read together with cacheWindowLapsed on the T3 row, and fetch that row deliberately — the detached driver outlived this session and wrote it unwatched, and a warm read otherwise looks like an expiry price",
+        "scope": "c1",
+        "refs": [
+          "artifacts/2026-08-11-sdk-probe-harness/q11-results.jsonl",
+          "detached PID 99761",
+          "fires 2026-08-11T23:07:24Z"
+        ]
+      },
+      {
+        "text": "Read totalCostUsd and never the turn's API usage block alone for a fresh-session cost figure — the usage block omits the auto-title request and under-reported T1 by about tenfold",
+        "scope": "c1",
+        "refs": [
+          "0351",
+          "artifacts/2026-08-11-sdk-probe-harness/q11-results.jsonl"
+        ]
+      },
+      {
+        "text": "Never benchmark a cost figure on a payload an earlier run already sent — the prefix cache is keyed by content, not by session, so an identical payload reads warm and under-reports creation cost",
+        "scope": "c1",
+        "refs": [
+          "artifacts/2026-08-11-sdk-probe-harness/q11-results.jsonl"
+        ]
+      },
+      {
+        "text": "Budget a full context window before starting the SPEC B citation census — c1 wants a closed census, so a run that dies partway yields nothing reusable, which is exactly how this session lost one",
+        "scope": "c1",
+        "refs": [
+          "read-only agent died 2026-08-11, no artifacts on disk"
+        ]
+      },
+      {
+        "text": "Re-probe the title tax on a payload never sent before — T1's main turn read warm from an earlier run, so only the title half of that measurement was genuinely cold",
+        "scope": "c1",
+        "refs": [
+          "0351",
+          "artifacts/2026-08-11-sdk-probe-harness/q11-results.jsonl"
+        ]
+      },
+      {
+        "text": "Run a probe before trusting CLAUDE_CODE_DISABLE_TERMINAL_TITLE as the title-tax suppressor — it was read off a guard expression in the SDK binary and never executed",
+        "scope": "c1",
+        "refs": [
+          "0351",
+          "node_modules/@anthropic-ai/claude-agent-sdk-darwin-arm64/claude"
+        ]
       }
     ],
     "key_decisions": [
@@ -365,5 +412,5 @@
     ]
   },
   "created_at": "2026-08-11T00:08:10.978Z",
-  "updated_at": "2026-08-11T22:59:55.149Z"
+  "updated_at": "2026-08-11T23:00:32.794Z"
 }
