@@ -1,0 +1,68 @@
+{
+  "schema_version": 2,
+  "id": "01KZS8WH39NCYM3S8VRFQNJPNB",
+  "slug": "cutover-unguarded-rollback-affordance",
+  "title": "CUTOVER journal: an unguarded rollback affordance that decays",
+  "status": "active",
+  "parent_id": "01KZS3HZHY8T9JTPQS3CGH29T9",
+  "predecessor_id": null,
+  "completion_criteria": [
+    {
+      "id": "c1",
+      "text": "What CUTOVER's sha field means is settled against the design intent rather than inferred from code alone: the cutover event's release, or a claim about which release is currently live.",
+      "done": false,
+      "kind": "planned",
+      "struck_by": null
+    },
+    {
+      "id": "c2",
+      "text": "The inherited 'CUTOVER is WRONG' framing is confirmed or corrected on evidence, since the journal may be an accurate record of the one cutover actually performed.",
+      "done": false,
+      "kind": "planned",
+      "struck_by": null
+    },
+    {
+      "id": "c3",
+      "text": "cutover.mjs rollback refuses, or demands an explicit override, when its asides no longer correspond to live state - proven by a test red before the guard and green after.",
+      "done": false,
+      "kind": "planned",
+      "struck_by": null
+    },
+    {
+      "id": "c4",
+      "text": "applyCutover's silent carry-forward of a stale journal through mergeJournal is either guarded on the same liveness test or explicitly accepted with a stated reason.",
+      "done": false,
+      "kind": "planned",
+      "struck_by": null
+    },
+    {
+      "id": "c5",
+      "text": "The retained-affordance lifecycle is decided: a journal either expires once a later promotion supersedes it, or is retained deliberately with the decay hazard documented.",
+      "done": false,
+      "kind": "planned",
+      "struck_by": null
+    },
+    {
+      "id": "c6",
+      "text": "Whether node scripts/config/cutover.mjs rollback is caught by the bash gate is answered by running the gate's own decision function on that command, checked against its threat model.",
+      "done": false,
+      "kind": "planned",
+      "struck_by": null
+    }
+  ],
+  "vcs_ref": null,
+  "external_refs": [],
+  "blocked_by": null,
+  "abandoned_reason": null,
+  "closure_statement": null,
+  "spine": {
+    "active_goal": "",
+    "next_step": "",
+    "last_session": "",
+    "open_risks": [],
+    "key_decisions": [],
+    "out_of_scope": []
+  },
+  "created_at": "2026-08-11T20:40:37.737Z",
+  "updated_at": "2026-08-11T20:40:37.737Z"
+}
