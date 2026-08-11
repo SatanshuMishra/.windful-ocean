@@ -3,7 +3,7 @@
   "id": "01KZQ2BVF2386ATV5YFD43NQVX",
   "slug": "spec-b-review-and-rewrite-cost-decomposition-stacked-prs",
   "title": "SPEC B review and rewrite: cost, decomposition, stacked PRs",
-  "status": "active",
+  "status": "paused",
   "parent_id": null,
   "predecessor_id": "01KZCF28RN4RMR46VDXFKSQZY3",
   "completion_criteria": [
@@ -97,5 +97,5 @@
     ]
   },
   "created_at": "2026-08-11T00:08:10.978Z",
-  "updated_at": "2026-08-11T00:09:12.488Z"
+  "updated_at": "2026-08-11T00:09:47.077Z"
 }
