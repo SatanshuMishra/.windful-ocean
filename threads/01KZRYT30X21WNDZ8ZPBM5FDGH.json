@@ -1,0 +1,61 @@
+{
+  "schema_version": 2,
+  "id": "01KZRYT30X21WNDZ8ZPBM5FDGH",
+  "slug": "activate-the-eu-tdm-reservation-by-mirroring-to-an-owned-domain",
+  "title": "Activate the EU TDM reservation by mirroring to an owned domain",
+  "status": "active",
+  "parent_id": null,
+  "predecessor_id": "01KZQRFXW2YE3JXDBEWQ84CTVQ",
+  "completion_criteria": [
+    {
+      "id": "c1",
+      "text": "Establish what a valid EU Art. 4(3) machine-readable reservation actually requires, and whether self-hosting satisfies it, rather than assuming a mirror is the answer",
+      "done": false,
+      "kind": "planned",
+      "struck_by": null
+    },
+    {
+      "id": "c2",
+      "text": "Decide domain, host and sync mechanism on real numbers - one-off and recurring cost, effort, failure modes - with doing nothing costed honestly as a live option",
+      "done": false,
+      "kind": "planned",
+      "struck_by": null
+    },
+    {
+      "id": "c3",
+      "text": "Serve robots.txt, ai.txt and /.well-known/tdmrep.json from the owned domain, each verified by fetching it over the public internet at its expected path",
+      "done": false,
+      "kind": "planned",
+      "struck_by": null
+    },
+    {
+      "id": "c4",
+      "text": "Keep the mirror from drifting from the repo, with a sync that fails loudly rather than silently serving stale terms",
+      "done": false,
+      "kind": "planned",
+      "struck_by": null
+    },
+    {
+      "id": "c5",
+      "text": "Confirm the reservation is machine-discoverable: correct content types, tdmrep.json valid against its schema, and the canonical location declared from the repo",
+      "done": false,
+      "kind": "planned",
+      "struck_by": null
+    }
+  ],
+  "vcs_ref": null,
+  "external_refs": [],
+  "blocked_by": null,
+  "abandoned_reason": null,
+  "closure_statement": null,
+  "spine": {
+    "active_goal": "",
+    "next_step": "",
+    "last_session": "",
+    "open_risks": [],
+    "key_decisions": [],
+    "out_of_scope": []
+  },
+  "created_at": "2026-08-11T17:44:32.029Z",
+  "updated_at": "2026-08-11T17:44:32.029Z"
+}
