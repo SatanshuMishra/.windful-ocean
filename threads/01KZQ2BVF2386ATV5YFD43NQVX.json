@@ -144,6 +144,11 @@
         "ref": "0327-new-spec-supersedes-spec-b-rather-than-amending-it",
         "title": "A new SPEC supersedes SPEC B rather than amending it in place",
         "scope": "c3"
+      },
+      {
+        "ref": "0328-report-is-produced-and-reviewed-before-the-spec-is-written",
+        "title": "The architecture report is produced and reviewed before the superseding SPEC is written",
+        "scope": "c3"
       }
     ],
     "out_of_scope": [
@@ -153,5 +158,5 @@
     ]
   },
   "created_at": "2026-08-11T00:08:10.978Z",
-  "updated_at": "2026-08-11T05:33:36.284Z"
+  "updated_at": "2026-08-11T05:36:37.858Z"
 }
