@@ -138,6 +138,11 @@
         "ref": "0335-gitleaks-binary-over-action-wrapper",
         "title": "Invoke the gitleaks binary directly rather than the Action wrapper",
         "scope": "c9"
+      },
+      {
+        "ref": "0339-gitleaks-scan-scope-and-fallback",
+        "title": "Keep the secret scan diff-scoped, and prefer a bounded full scan over a silent green",
+        "scope": "c9"
       }
     ],
     "out_of_scope": [
@@ -147,5 +152,5 @@
     ]
   },
   "created_at": "2026-08-11T06:34:53.185Z",
-  "updated_at": "2026-08-11T16:37:49.521Z"
+  "updated_at": "2026-08-11T16:39:09.471Z"
 }
