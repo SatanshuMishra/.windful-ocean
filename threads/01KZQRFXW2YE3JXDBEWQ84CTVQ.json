@@ -3,7 +3,7 @@
   "id": "01KZQRFXW2YE3JXDBEWQ84CTVQ",
   "slug": "repo-licensing-polyform-noncommercial",
   "title": "Repository licensing: PolyForm Noncommercial and AI-training reservation",
-  "status": "active",
+  "status": "paused",
   "parent_id": null,
   "predecessor_id": null,
   "completion_criteria": [
@@ -134,5 +134,5 @@
     ]
   },
   "created_at": "2026-08-11T06:34:53.185Z",
-  "updated_at": "2026-08-11T06:36:44.476Z"
+  "updated_at": "2026-08-11T06:36:48.700Z"
 }
