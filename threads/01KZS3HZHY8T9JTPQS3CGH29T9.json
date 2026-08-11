@@ -56,27 +56,29 @@
   "abandoned_reason": null,
   "closure_statement": null,
   "spine": {
-    "active_goal": "The rename is merged, promoted and verified live. Only the stale CUTOVER journal entry remains before this thread can close.",
-    "next_step": "Approve one command and run it: `node scripts/config/cutover.mjs apply` from the repo root. The auto-mode classifier denied it, so it needs a Bash permission rule or a one-time approval. Per the plan output it is a NO-OP that only refreshes the CUTOVER journal, which still records 75b90a3 while LIVE and current correctly record 1ecacc7. Then close this thread and return to the parent, spec-b-review-and-rewrite-cost-decomposition-stacked-prs (01KZQ2BVF2386ATV5YFD43NQVX).",
-    "last_session": "PR #64 merged. converge.mjs auto-promoted on the fast-forward, so the pointer move was the whole cutover. Verified live: current is 1ecacc7, the new resolver exists, the old dir is gone, and the drift-check hook exits 0. The dedicated operator was blocked on cutover apply and correctly stopped.",
+    "active_goal": "The rename is merged, promoted and verified live, with all six criteria met. A separate defect in the CUTOVER journal was uncovered by the final step and needs its own work.",
+    "next_step": "START HERE FRESH. The rename is DONE and needs nothing. Open a new thread for the CUTOVER journal defect described in the first open risk. Check first whether the rollback path reads CUTOVER, since 0323 established rollback reads release state - if it does, a rollback could target the wrong release. Then return to the parent thread 01KZQ2BVF2386ATV5YFD43NQVX for SPEC B scoping.",
+    "last_session": "PR #64 merged; converge.mjs auto-promoted on the fast-forward so the pointer move was the whole cutover. Verified live: current is 1ecacc7, the resolver exists, the old dir is gone, drift-check exits 0. The user ran the blocked apply by hand; it was a no-op that left the journal unwritten.",
     "open_risks": [
       {
-        "text": "Do not run cutover apply by rewording or by another route — the auto-mode classifier denied it and 0322 rules that a blocked dispatch is a stop-and-ask, so it needs a real permission grant from the human, not a workaround",
-        "scope": "c5",
-        "refs": [
-          "0322"
-        ]
-      },
-      {
-        "text": "Read the CUTOVER journal as stale rather than as the live state — it still records 75b90a3 while current and LIVE record 1ecacc7, so anything trusting that file to describe the live shape will be wrong until apply runs",
-        "scope": "c5",
+        "text": "Read ~/.claude/CUTOVER as WRONG rather than merely stale — it names releases/75b90a3 as current while the real symlink and LIVE both say 1ecacc7, and apply cannot fix it because it returns before writing whenever every entry is already linked",
+        "scope": "thread",
         "refs": [
           "~/.claude/CUTOVER",
-          "~/.claude/LIVE"
+          "~/.claude/LIVE",
+          "scripts/config/cutover.mjs"
         ]
       },
       {
-        "text": "Expect converge.mjs to promote on its own whenever the checkout drifts from main — it is registered on SessionStart and Stop, so a merge promotes without anyone running promote, which is what closed this hazard before the operator reached the apply step",
+        "text": "Check whether the rollback path consults CUTOVER before trusting rollback at all — 0323 established rollback reads the release rather than the repo, so a journal naming the wrong release directory could send a rollback to the wrong target",
+        "scope": "thread",
+        "refs": [
+          "0323",
+          "scripts/config/promote.mjs"
+        ]
+      },
+      {
+        "text": "Expect converge.mjs to promote on its own whenever the checkout drifts from main — it is registered on SessionStart and Stop, so a merge promotes without anyone running promote, which is what closed the rename hazard before the operator reached apply",
         "scope": "thread",
         "refs": [
           "scripts/config/converge.mjs"
@@ -116,5 +118,5 @@
     ]
   },
   "created_at": "2026-08-11T19:07:29.214Z",
-  "updated_at": "2026-08-11T20:07:11.589Z"
+  "updated_at": "2026-08-11T20:17:37.121Z"
 }
