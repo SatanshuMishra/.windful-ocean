@@ -1,0 +1,32 @@
+Copyright (c) 2023-2026 Satanshu Mishra
+
+This work is licensed under the PolyForm Noncommercial License 1.0.0. See LICENSE for the full terms.
+
+Permitted use
+-------------
+
+You are free to use, modify, and share this work for any noncommercial purpose. This explicitly includes personal study, hobby projects, experimentation, and research, as well as use by charitable organizations, educational institutions, public research organizations, and government bodies, regardless of the source of their funding. Commercial use is not granted by this license and requires separate written permission from the copyright holder.
+
+Attribution
+-----------
+
+Anyone redistributing any part of this work, whether modified or unmodified, must include a copy of LICENSE (or its URL) and all `Required Notice:` lines carried in that file.
+
+Reservation of Text and Data Mining Rights
+-------------------------------------------
+
+The copyright holder expressly reserves all rights to use of this work for text and data mining, including reproduction, extraction, or ingestion for the training, fine-tuning, evaluation, retrieval-augmentation, or grounding of machine-learning models or generative artificial-intelligence systems.
+
+This reservation is made pursuant to Article 4(3) of Directive (EU) 2019/790 and is asserted worldwide. It is additionally expressed in machine-readable form in `/.well-known/tdmrep.json`, `/robots.txt`, and `/ai.txt`. No license for such use is granted, and none may be inferred from the work's public availability or from the absence of a technical access restriction.
+
+Third-Party Components
+-----------------------
+
+Files under `.config/nvim/` are derived from kickstart.nvim (https://github.com/nvim-lua/kickstart.nvim), which is distributed under the MIT License. The upstream MIT grant is made by its own authors directly and is not revoked or narrowed by this repository's license. `.config/nvim/LICENSE.md` is retained to satisfy the MIT notice condition and must not be removed. Modifications and original configuration authored in this repository are licensed under the PolyForm terms.
+
+`.config/nvim/lazy-lock.json` only pins upstream plugin versions and does not vendor their source, so those plugins' licenses do not attach to this repository.
+
+Commercial licensing
+---------------------
+
+For commercial licensing enquiries, contact the copyright holder via https://github.com/SatanshuMishra.
