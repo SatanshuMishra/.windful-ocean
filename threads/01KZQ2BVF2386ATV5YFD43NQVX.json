@@ -340,6 +340,11 @@
         "ref": "0352-main-thread-is-the-orchestrator",
         "title": "The supervisor and dispatched orchestrator are cut from scope; the main thread is the orchestrator",
         "scope": "c1"
+      },
+      {
+        "ref": "0353-engine-stays-in-the-workflow-sandbox",
+        "title": "The engine stays in the Workflow sandbox, so Part III codegen decomposition is live again",
+        "scope": "thread"
       }
     ],
     "out_of_scope": [
@@ -349,5 +354,5 @@
     ]
   },
   "created_at": "2026-08-11T00:08:10.978Z",
-  "updated_at": "2026-08-11T23:32:10.356Z"
+  "updated_at": "2026-08-11T23:53:14.851Z"
 }
