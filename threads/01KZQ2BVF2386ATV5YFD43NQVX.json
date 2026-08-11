@@ -57,8 +57,8 @@
   "closure_statement": null,
   "spine": {
     "active_goal": "Keep understanding and modifying the architecture page until the user is satisfied with it, then write the SPEC that supersedes SPEC B.",
-    "next_step": "Two forks before any SPEC text. (1) Probe the Agent SDK session/resume contract empirically - literature is closed as saturated, this must be measured. (2) Design-pass the hold-less alternative: if the orchestrator routes rather than knows it may never reach 200K and rotation becomes unnecessary. Then make Tier 2 emission structural, not voluntary. Still open: render the diagram page, and SPEC B section 2.2's instrument source.",
-    "last_session": "Audited .claude organisation and researched the rotation handoff. Rejected logbook's spine as summarizer, adopted a four-tier split by author-trust, made omission-marking an invariant, recorded the lib/mitosis rename. Verified arXiv:2606.22528 exactly. Nothing implemented.",
+    "next_step": "Design-pass the hold-less alternative (orchestrator routes rather than knows), then design-pass resumeSessionAt against 0342's four tiers per 0349 - and run the two probes that block it: forkSession combined with resumeSessionAt, and resume cost after prompt-cache expiry. Then render the diagram page and settle SPEC B section 2.2's instrument source.",
+    "last_session": "Probed the Agent SDK session/resume contract by RUNNING it (SDK 0.3.228, claude 2.1.228, ~$0.42, 10/10 probes). Overturned 0325's cost clause, split 0342, found host auto-compaction ON by default at 167,000. Recorded 0348, 0349, 0350. No SPEC text written.",
     "open_risks": [
       {
         "text": "Engineer the escalation step into the phase contract rather than instructing the orchestrator to raise concerns — agents guess instead of stopping in 55.8-67.8% of runs and refuse in at most 2.5%, so a prompt asking for escalation is not a control",
@@ -314,5 +314,5 @@
     ]
   },
   "created_at": "2026-08-11T00:08:10.978Z",
-  "updated_at": "2026-08-11T21:34:02.966Z"
+  "updated_at": "2026-08-11T21:34:27.431Z"
 }
