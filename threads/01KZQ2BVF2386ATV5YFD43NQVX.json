@@ -8,6 +8,13 @@
   "predecessor_id": "01KZCF28RN4RMR46VDXFKSQZY3",
   "completion_criteria": [
     {
+      "id": "c6",
+      "text": "The .claude directory organisation is audited and a target layout decided, with the rename's blast radius enumerated and its execution scoped to a branch outside this thread.",
+      "done": false,
+      "kind": "detour",
+      "struck_by": null
+    },
+    {
       "id": "c1",
       "text": "SPEC B is reviewed line by line against the repository and its wrong or unreproducible citations are corrected, starting with the *_SCHEMA count and the figures no committed script reproduces.",
       "done": false,
@@ -277,5 +284,5 @@
     ]
   },
   "created_at": "2026-08-11T00:08:10.978Z",
-  "updated_at": "2026-08-11T18:53:59.206Z"
+  "updated_at": "2026-08-11T18:54:09.454Z"
 }
