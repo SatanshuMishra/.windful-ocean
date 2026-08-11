@@ -52,7 +52,7 @@
     {
       "id": "c7",
       "text": "Merge the PR to main so the license is in effect on the default branch",
-      "done": false,
+      "done": true,
       "kind": "planned",
       "struck_by": null
     },
@@ -77,17 +77,9 @@
   "closure_statement": null,
   "spine": {
     "active_goal": "Put the PolyForm Noncommercial license and the AI-training reservation into effect on main, then activate the EU reservation by mirroring to an owned domain.",
-    "next_step": "Merge PR #62, a human action since agents are denied merge at the bash gate by design. After merge, decide whether to pursue the self-hosted mirror, which is the step that actually activates the EU Art. 4(3) mechanism; the committed robots.txt, ai.txt and tdmrep.json are inert while the project is GitHub-hosted.",
-    "last_session": "Established the repo was public with no license at all, chose PolyForm Noncommercial over AGPL, and shipped LICENSE/NOTICE plus the machine-readable TDM trio and the README/package.json corrections in 3 atomic commits. PR #62 is green on all 7 checks, awaiting a human merge.",
+    "next_step": "PR #62 merged as c7ecacb; the license is live on main. Two open items, user's pick: (a) the c8 detour - diagnose the nondeterministic gitleaks failure in .github/workflows/security.yml, which fails closed when its api.github.com classification call breaks; (b) decide whether to self-host a mirror on an owned domain, the only step that actually activates the EU Art. 4(3) reservation the committed robots.txt, ai.txt and tdmrep.json cannot activate from GitHub.",
+    "last_session": "Verified PR #62 merged 2026-08-11T06:34:16Z as merge commit c7ecacb with the three atomic commits intact; LICENSE, NOTICE, robots.txt, ai.txt and .well-known/tdmrep.json confirmed on origin/main. c7 closed and its all-rights-reserved risk retired.",
     "open_risks": [
-      {
-        "text": "treat the license as not yet in effect until PR #62 is merged — until then main is still the unlicensed all-rights-reserved state this work set out to fix",
-        "scope": "c7",
-        "refs": [
-          "https://github.com/SatanshuMishra/.windful-ocean/pull/62",
-          "chore/licensing-polyform-noncommercial"
-        ]
-      },
       {
         "text": "re-verify branch-local facts after any checkout — this session asserted a CI gate that exists only on an unmerged branch and nearly shipped an orphan receipt, because a file read is only true of the tree it came from",
         "scope": "thread",
@@ -134,5 +126,5 @@
     ]
   },
   "created_at": "2026-08-11T06:34:53.185Z",
-  "updated_at": "2026-08-11T06:39:24.494Z"
+  "updated_at": "2026-08-11T06:39:45.708Z"
 }
