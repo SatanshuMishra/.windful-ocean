@@ -49,9 +49,9 @@
   "abandoned_reason": null,
   "closure_statement": null,
   "spine": {
-    "active_goal": "Get the proposed architecture reviewed by the user, absorb whatever changes they direct, then write the SPEC that supersedes SPEC B.",
-    "next_step": "START HERE FRESH. Open the diagram page, then WAIT for the user's SPECIFIC instructions: they may direct improvements or changes to the proposed architecture rather than approval. Do NOT auto-proceed to the SPEC, since c5 gates c3 on the user having reviewed this artifact. If changes are directed, revise the page first and re-present it, and write the SPEC only once the user says the architecture is settled.",
-    "last_session": "Both research passes ran and are persisted. Window scaling withdrawn on the evidence (0329); orchestrator authority narrowed to inside-a-phase (0330); the report flow was stopped by the user and replaced with a five-diagram visual-explainer page (0331).",
+    "active_goal": "Plug four gaps in the architecture diagram page - rotation threshold, orchestrator autonomy, per-phase anatomy, and the two scripts - then get it approved so the SPEC can be written.",
+    "next_step": "Answer pending, then rewrite the page. Two questions gate it: whether to amend 0330 to permit cross-phase re-entry for one MSP under a typed conflict class with a hard attempt budget, and whether the 200K counter reads three-field occupancy or literal input_tokens. Then edit ~/.agent/diagrams/mitosis-rearchitecture-2026-08-11.html - rewrite section 05 to 200K, add three sections (autonomy boundary, phase anatomy, the two scripts), extend the decisions table, restate the footer as re-derived.",
+    "last_session": "Four research passes completed and were presented inline; the page itself is unchanged. 200K threshold recorded as 0334 with its counting field left open, and the run-engine.mjs fork correction surfaced.",
     "open_risks": [
       {
         "text": "Engineer the escalation step into the phase contract rather than instructing the orchestrator to raise concerns — agents guess instead of stopping in 55.8-67.8% of runs and refuse in at most 2.5%, so a prompt asking for escalation is not a control",
@@ -143,6 +143,44 @@
         "refs": [
           "0325"
         ]
+      },
+      {
+        "text": "Hold the page rewrite until the user answers the two open questions — the 0330 amendment and the counter field both change what the new sections say",
+        "scope": "c5",
+        "refs": [
+          "0330",
+          "0334"
+        ]
+      },
+      {
+        "text": "Settle the rotation counter field before the supervisor is designed — usage.input_tokens omits cache reads, which for an orchestrator is most of its context, so the trigger fires late or never",
+        "scope": "c5",
+        "refs": [
+          "0334"
+        ]
+      },
+      {
+        "text": "Correct the constraint-pinning figure wherever it appears — the page says 30-59% of runs, but the paper measured 0-59% across seven models with a 30% pooled average",
+        "scope": "c5",
+        "refs": [
+          "0334",
+          "~/.agent/diagrams/mitosis-rearchitecture-2026-08-11.html"
+        ]
+      },
+      {
+        "text": "Read run-engine.mjs facts as describing a fork the engine never executes — mitosis.js defines its own runEngine that has diverged about 77 lines from it",
+        "scope": "c5",
+        "refs": [
+          ".claude/workflows/mitosis.js:1272",
+          ".claude/lib/superpowers-parallel/run-engine.mjs:296"
+        ]
+      },
+      {
+        "text": "Never claim mitosis asks a human today — the escalate verb parks the unit and surfaces only in the report a human reads after the run returns",
+        "scope": "c5",
+        "refs": [
+          ".claude/lib/superpowers-parallel/supervisor.mjs:11"
+        ]
       }
     ],
     "key_decisions": [
@@ -199,5 +237,5 @@
     ]
   },
   "created_at": "2026-08-11T00:08:10.978Z",
-  "updated_at": "2026-08-11T07:00:42.370Z"
+  "updated_at": "2026-08-11T07:01:27.747Z"
 }
