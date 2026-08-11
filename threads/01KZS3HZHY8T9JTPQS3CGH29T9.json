@@ -3,7 +3,7 @@
   "id": "01KZS3HZHY8T9JTPQS3CGH29T9",
   "slug": "directory-reorganization-lib-mitosis-rename",
   "title": "Directory reorganization: lib/mitosis rename and docs merge",
-  "status": "active",
+  "status": "paused",
   "parent_id": "01KZQ2BVF2386ATV5YFD43NQVX",
   "predecessor_id": null,
   "completion_criteria": [
@@ -116,5 +116,5 @@
     ]
   },
   "created_at": "2026-08-11T19:07:29.214Z",
-  "updated_at": "2026-08-11T19:53:08.516Z"
+  "updated_at": "2026-08-11T19:53:15.421Z"
 }
