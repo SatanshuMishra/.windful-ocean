@@ -441,6 +441,11 @@
         "ref": "0371-msp-means-reviewable-and-green-not-usable",
         "title": "MSP means independently reviewable and green, not independently usable; the stack releases as one",
         "scope": "thread"
+      },
+      {
+        "ref": "0372-dispatch-is-claude-p-subprocesses",
+        "title": "The process dispatches with claude -p subprocesses; StructuredOutput allowlists are a precondition",
+        "scope": "thread"
       }
     ],
     "out_of_scope": [
@@ -451,5 +456,5 @@
     ]
   },
   "created_at": "2026-08-11T00:08:10.978Z",
-  "updated_at": "2026-08-12T06:08:32.662Z"
+  "updated_at": "2026-08-12T06:08:40.367Z"
 }
