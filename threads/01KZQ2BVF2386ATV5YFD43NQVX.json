@@ -63,9 +63,9 @@
   "abandoned_reason": null,
   "closure_statement": null,
   "spine": {
-    "active_goal": "Write the revised SPEC B: the OS-process re-architecture decomposed into the approved A0-D3 stack, superseding the 2026-08-06 document.",
-    "next_step": "START HERE. The design is APPROVED and locked in 0370-0374 — do NOT re-litigate it, and do not re-read fanout. Write the SPEC to docs/superpowers/specs/2026-08-12-mitosis-os-process-rearchitecture-design.md with per-MSP acceptance criteria for all 18 MSPs (A0-D3), the release gate, and every citation re-derived at time of writing per c3. Then the brainstorming spec self-review, then the user review gate, then writing-plans. The c5 report render check is still unrun.",
-    "last_session": "Read fanout in full and censused mitosis's 38 dispatch sites. Closed 0369's blocking question: claude -p reproduces the whole hook surface. User corrected the MSP premise to stacked-PRs-released-as-one and approved the 18-MSP stack. Five decisions recorded; the SPEC itself is not yet written.",
+    "active_goal": "Get the written OS-process SPEC reviewed and approved by the user. c3 closes only on their approval, not on the file existing.",
+    "next_step": "WAIT for the user's SPECIFIC instructions before doing anything. Do NOT auto-start writing-plans, do NOT re-litigate the design (locked in 0370-0374), do NOT re-read fanout. The SPEC is written and committed at .claude/docs/specs/2026-08-12-mitosis-os-process-rearchitecture-design.md on branch docs/mitosis-os-process-spec (05f1523) and is AWAITING the user's review. Three flagged deviations are unresolved: the file path, the A4 fold, and the citation re-verification pass.",
+    "last_session": "Read fanout in full and censused mitosis's 38 dispatch sites. Closed 0369's dispatch question against claude -p on v2.1.228. User corrected the MSP premise to stacked-PRs-released-as-one. Recorded 0370-0374 and wrote the 584-line SPEC. Not yet reviewed.",
     "open_risks": [
       {
         "text": "Pair every Part II hypothesis with a fixed quality assertion — the instrument counts tokens and cannot see whether a fused Decompose cuts worse, so a token win carrying a quality regression will read as a success",
@@ -237,7 +237,7 @@
         ]
       },
       {
-        "text": "Check whether the Workflow agent({schema, agentType}) path shares the StructuredOutput allowlist trap — if it does, schema enforcement is already void today on every allowlisted agent, making it a live defect rather than a cutover item",
+        "text": "Check whether the Workflow agent({schema, agentType}) path shares the StructuredOutput allowlist trap — if it does, schema enforcement is already void today on every allowlisted agent, making it a live defect on main rather than a cutover item",
         "scope": "c3",
         "refs": [
           "0372",
@@ -245,18 +245,24 @@
         ]
       },
       {
-        "text": "Do not copy fanout source into this repo — PolyForm Noncommercial 1.0.0 permits adopting the architecture but makes a verbatim lift into a public repo a licensing decision",
+        "text": "Do not copy fanout source into this repo — PolyForm Noncommercial permits adopting the architecture but makes a verbatim lift into a public repo a licensing decision",
         "scope": "c3",
         "refs": [
           "0373"
         ]
       },
       {
-        "text": "A0 must land before any scheduling change — wave-planner enforces the no-same-wave-file-overlap rule and has no test file of its own, so switching to a ready_after DAG above it risks silently breaking parallel-safety",
+        "text": "Run the citation re-verification pass before the SPEC is admitted — its ~60 line references came from this session's three audits rather than a personal re-open at write time, and line numbers drift",
         "scope": "c3",
         "refs": [
-          "0374",
-          ".claude/lib/mitosis/wave-planner.mjs:50"
+          ".claude/docs/specs/2026-08-12-mitosis-os-process-rearchitecture-design.md"
+        ]
+      },
+      {
+        "text": "Confirm the SPEC's location with the user before anything cites it — it went to .claude/docs/specs/ rather than the docs/superpowers/specs/ the spine named, following the merge in commit 693d54c",
+        "scope": "c3",
+        "refs": [
+          "693d54c"
         ]
       }
     ],
@@ -480,5 +486,5 @@
     ]
   },
   "created_at": "2026-08-11T00:08:10.978Z",
-  "updated_at": "2026-08-12T06:09:33.273Z"
+  "updated_at": "2026-08-12T06:19:13.782Z"
 }
