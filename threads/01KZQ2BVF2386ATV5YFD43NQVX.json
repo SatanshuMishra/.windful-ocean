@@ -376,6 +376,11 @@
         "ref": "0365-graphify-alone-determines-parallelizability",
         "title": "Graphify alone determines parallelizability; the confirm-cuts oracle pass is cut",
         "scope": "c1"
+      },
+      {
+        "ref": "0366-phase-list-stays-the-eight-phase-model",
+        "title": "The phase list stays the re-adopted eight-phase model, not the directive's five-step sketch",
+        "scope": "c3"
       }
     ],
     "out_of_scope": [
@@ -385,5 +390,5 @@
     ]
   },
   "created_at": "2026-08-11T00:08:10.978Z",
-  "updated_at": "2026-08-12T04:18:11.897Z"
+  "updated_at": "2026-08-12T04:18:27.104Z"
 }
