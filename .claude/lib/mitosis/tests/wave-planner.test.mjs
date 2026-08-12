@@ -1,0 +1,270 @@
+import { test } from 'node:test';
+import assert from 'node:assert/strict';
+import { pathsOverlap, scopesOverlap, planWaves } from '../wave-planner.mjs';
+
+function planOutcome(spec) {
+  try {
+    return { refused: false, waves: planWaves(spec).waves };
+  } catch (err) {
+    return { refused: true, message: err.message };
+  }
+}
+
+test('pathsOverlap treats normalized-equal paths as overlapping, ignoring a leading ./ or trailing /', () => {
+  assert.equal(pathsOverlap('src/a.js', 'src/a.js'), true);
+  assert.equal(pathsOverlap('./src/a.js', 'src/a.js/'), true);
+});
+
+test('pathsOverlap treats a glob prefix as overlapping the directory and files it covers, from either side', () => {
+  assert.equal(pathsOverlap('src/*.js', 'src/a.js'), true);
+  assert.equal(pathsOverlap('src/*.js', 'src'), true);
+  assert.equal(pathsOverlap('src/a.js', 'src/*.js'), true);
+  assert.equal(pathsOverlap('src', 'src/*.js'), true);
+});
+
+test('pathsOverlap treats a bare directory as overlapping anything nested under it, from either side', () => {
+  assert.equal(pathsOverlap('src', 'src/a.js'), true);
+  assert.equal(pathsOverlap('src/a.js', 'src'), true);
+  assert.equal(pathsOverlap('src/sub', 'src/sub/deep/file.js'), true);
+});
+
+test('pathsOverlap returns false for genuinely disjoint paths, including a directory-name near-miss', () => {
+  assert.equal(pathsOverlap('src/a.js', 'lib/b.js'), false);
+  assert.equal(pathsOverlap('src', 'src2/b.js'), false);
+  assert.equal(pathsOverlap('src/a.js', 'src/b.js'), false);
+});
+
+test(
+  'pathsOverlap should detect a root-level glob and a star landing mid-segment',
+  { todo: 'LIVE parallel-safety fail-open, not a stylistic gap: both glob branches at wave-planner.mjs:19,21 force a / after the prefix (nb === pa || nb.startsWith(pa + "/")), so a star landing mid-segment never matches, and a root-level glob makes globPrefix at wave-planner.mjs:8-12 return the empty prefix, which matches nothing. planWaves therefore co-schedules genuinely colliding tasks into one wave. Fixing the matching is a separate change, mirrored into workflows/mitosis.js, pending a scope decision.' },
+  () => {
+    assert.equal(pathsOverlap('*.js', 'a.js'), true);
+    assert.equal(pathsOverlap('src/a*.js', 'src/abc.js'), true);
+  },
+);
+
+test('pathsOverlap treats a ? wildcard the same as a * when computing the glob prefix', () => {
+  assert.equal(pathsOverlap('src/?.js', 'src/a.js'), true);
+});
+
+test('scopesOverlap is true only when some pair across the two scope lists overlaps, and false when either list is empty', () => {
+  assert.equal(scopesOverlap(['lib/one.js'], ['src/a.js', 'lib/one.js']), true);
+  assert.equal(scopesOverlap(['lib/one.js'], ['src/a.js', 'src/b.js']), false);
+  assert.equal(scopesOverlap([], ['src/a.js']), false);
+  assert.equal(scopesOverlap(['lib/one.js'], []), false);
+});
+
+test('planWaves throws when spec.tasks is missing or not an array', () => {
+  assert.throws(() => planWaves({}), /spec\.tasks must be an array/);
+  assert.throws(() => planWaves({ tasks: 'nope' }), /spec\.tasks must be an array/);
+  assert.throws(() => planWaves(null), /spec\.tasks must be an array/);
+});
+
+test('planWaves throws on a task with no id, including an empty-string id', () => {
+  assert.throws(() => planWaves({ tasks: [{ dependsOn: [], fileScope: [] }] }), /task missing id/);
+  assert.throws(() => planWaves({ tasks: [{ id: '', dependsOn: [], fileScope: [] }] }), /task missing id/);
+});
+
+test(
+  'planWaves should refuse a null task element with a validated error naming the task problem',
+  { todo: 'planWaves has no task-shape validation: the loop at wave-planner.mjs:38-46 reaches straight for !t.id, so a null element throws a raw TypeError ("Cannot read properties of null") carrying no diagnosis of which input was malformed. Asserting the TypeError class instead would be a change-detector that reddens on the obvious improvement.' },
+  () => {
+    assert.throws(() => planWaves({ tasks: [null] }), /task/);
+  },
+);
+
+test('planWaves throws on two tasks sharing an id, naming the duplicated id', () => {
+  assert.throws(
+    () => planWaves({ tasks: [{ id: 'dup', dependsOn: [], fileScope: [] }, { id: 'dup', dependsOn: [], fileScope: [] }] }),
+    /duplicate task id: dup/,
+  );
+});
+
+test('planWaves throws naming the missing dependency when a task depends on an id that was never declared', () => {
+  assert.throws(
+    () => planWaves({ tasks: [{ id: 'a', dependsOn: ['ghost'], fileScope: [] }] }),
+    /task a depends on unknown task ghost/,
+  );
+});
+
+test('planWaves reports every task still blocked in a cycle error, including a bystander that depends on the cycle without being part of it', () => {
+  assert.throws(
+    () => planWaves({
+      tasks: [
+        { id: 'a', dependsOn: ['b'], fileScope: [] },
+        { id: 'b', dependsOn: ['a'], fileScope: [] },
+        { id: 'z', dependsOn: ['a'], fileScope: [] },
+      ],
+    }),
+    (err) => {
+      assert.match(err.message, /^dependency cycle detected among: /);
+      assert.match(err.message, /\ba\b/);
+      assert.match(err.message, /\bb\b/);
+      assert.match(err.message, /\bz\b/);
+      return true;
+    },
+  );
+});
+
+test('planWaves throws when two tasks with no dependency between them would land in the same wave with overlapping fileScope', () => {
+  assert.throws(
+    () => planWaves({
+      tasks: [
+        { id: 'a', dependsOn: [], fileScope: ['src/shared.js'] },
+        { id: 'b', dependsOn: [], fileScope: ['src/shared.js'] },
+      ],
+    }),
+    /fileScope overlap in same wave between a and b/,
+  );
+});
+
+test('planWaves throws on a directory-prefix fileScope overlap between same-wave tasks, not only when scopes are byte-identical', () => {
+  assert.throws(
+    () => planWaves({
+      tasks: [
+        { id: 'a', dependsOn: [], fileScope: ['src'] },
+        { id: 'b', dependsOn: [], fileScope: ['src/a.js'] },
+      ],
+    }),
+    /fileScope overlap in same wave between a and b/,
+  );
+});
+
+test('planWaves throws on a glob fileScope overlap between same-wave tasks, not only when scopes are byte-identical', () => {
+  assert.throws(
+    () => planWaves({
+      tasks: [
+        { id: 'a', dependsOn: [], fileScope: ['src/*.js'] },
+        { id: 'b', dependsOn: [], fileScope: ['src/a.js'] },
+      ],
+    }),
+    /fileScope overlap in same wave between a and b/,
+  );
+});
+
+test('planWaves throws on a fileScope overlap between two tasks that only land in the same wave after a shared dependency clears in an earlier wave', () => {
+  assert.throws(
+    () => planWaves({
+      tasks: [
+        { id: 'c', dependsOn: [], fileScope: ['other/file.js'] },
+        { id: 'a', dependsOn: ['c'], fileScope: ['src/shared.js'] },
+        { id: 'b', dependsOn: ['c'], fileScope: ['src/shared.js'] },
+      ],
+    }),
+    /fileScope overlap in same wave between a and b/,
+  );
+});
+
+test('planWaves throws on a non-array fileScope instead of letting it silently escape overlap detection, naming the offending task', () => {
+  assert.throws(
+    () => planWaves({
+      tasks: [
+        { id: 'a', fileScope: 'src/a.js' },
+        { id: 'b', fileScope: ['src/a.js'] },
+      ],
+    }),
+    (err) => {
+      assert.match(err.message, /fileScope must be an array/);
+      assert.match(err.message, /\btask a\b/);
+      return true;
+    },
+  );
+});
+
+test('planWaves refuses a scalar fileScope on a task that overlaps nothing, since a scalar is never a valid scope', () => {
+  assert.throws(
+    () => planWaves({ tasks: [{ id: 'lonely', fileScope: 'src/lonely.js' }] }),
+    /task lonely fileScope must be an array/,
+  );
+});
+
+test('planWaves treats an explicit null fileScope as no declared scope, exactly as an absent one', () => {
+  const result = planWaves({ tasks: [{ id: 'solo', fileScope: null }] });
+  assert.deepEqual(result.waves, [['solo']]);
+});
+
+test('planWaves refuses to co-schedule two genuinely overlapping tasks when one declares its fileScope as a scalar string', () => {
+  const outcome = planOutcome({
+    tasks: [
+      { id: 'writer', dependsOn: [], fileScope: 'src/shared.js' },
+      { id: 'reader', dependsOn: [], fileScope: ['src/shared.js'] },
+    ],
+  });
+  assert.equal(outcome.refused, true, `expected a refusal; instead the two overlapping tasks were scheduled as ${JSON.stringify(outcome.waves)}`);
+  assert.match(outcome.message, /fileScope must be an array/);
+});
+
+test('scopesOverlap throws on a scalar scope in either argument position rather than walking it character by character', () => {
+  assert.throws(() => scopesOverlap('src/a.js', ['src/a.js']), /fileScope must be an array/);
+  assert.throws(() => scopesOverlap(['src/a.js'], 'src/a.js'), /fileScope must be an array/);
+});
+
+test('planWaves refuses a fileScope entry that is not a string, naming the offending task, rather than narrowing the declared scope to nothing', () => {
+  for (const entry of [123, null, {}, ['src/nested.js']]) {
+    const outcome = planOutcome({ tasks: [{ id: 'a', fileScope: [entry] }] });
+    assert.equal(outcome.refused, true, `expected a refusal for fileScope entry ${JSON.stringify(entry)}; instead the task was scheduled as ${JSON.stringify(outcome.waves)}`);
+    assert.match(outcome.message, /task a fileScope entries must be non-empty strings/);
+  }
+});
+
+test('planWaves refuses an empty-string fileScope entry rather than accepting an entry that overlaps nothing, naming the offending task', () => {
+  const outcome = planOutcome({ tasks: [{ id: 'a', fileScope: [''] }] });
+  assert.equal(outcome.refused, true, `expected a refusal; instead the task was scheduled as ${JSON.stringify(outcome.waves)}`);
+  assert.match(outcome.message, /task a fileScope entries must be non-empty strings/);
+});
+
+test('scopesOverlap refuses a non-string or empty-string entry in either argument position, so a caller that never reaches planWaves still fails closed', () => {
+  assert.throws(() => scopesOverlap([123], ['src/a.js']), /fileScope entries must be non-empty strings/);
+  assert.throws(() => scopesOverlap(['src/a.js'], [123]), /fileScope entries must be non-empty strings/);
+  assert.throws(() => scopesOverlap([''], ['src/a.js']), /fileScope entries must be non-empty strings/);
+  assert.throws(() => scopesOverlap(['src/a.js'], ['']), /fileScope entries must be non-empty strings/);
+});
+
+test('planWaves on a single task with no declared dependsOn or fileScope defaults both to empty and returns one wave of one', () => {
+  const result = planWaves({ tasks: [{ id: 'solo' }] });
+  assert.deepEqual(result, {
+    waves: [['solo']],
+    diagnostics: { taskCount: 1, waveCount: 1, maxWidth: 1 },
+  });
+});
+
+test('planWaves returns {waves, diagnostics:{taskCount, waveCount, maxWidth}}, with each wave a sorted array of ids', () => {
+  const result = planWaves({
+    tasks: [
+      { id: 'task-c', dependsOn: [], fileScope: ['pkg-c/file.js'] },
+      { id: 'task-a', dependsOn: [], fileScope: ['pkg-a/file.js'] },
+      { id: 'task-b', dependsOn: ['task-a', 'task-c'], fileScope: ['pkg-b/file.js'] },
+    ],
+  });
+  assert.deepEqual(result, {
+    waves: [['task-a', 'task-c'], ['task-b']],
+    diagnostics: { taskCount: 3, waveCount: 2, maxWidth: 2 },
+  });
+});
+
+test('planWaves resolves a 3-deep dependency chain into 3 waves with the widest wave in the middle, not first', () => {
+  const result = planWaves({
+    tasks: [
+      { id: 'root', dependsOn: [], fileScope: ['root.js'] },
+      { id: 'mid-1', dependsOn: ['root'], fileScope: ['mid1.js'] },
+      { id: 'mid-2', dependsOn: ['root'], fileScope: ['mid2.js'] },
+      { id: 'leaf', dependsOn: ['mid-1', 'mid-2'], fileScope: ['leaf.js'] },
+    ],
+  });
+  assert.deepEqual(result, {
+    waves: [['root'], ['mid-1', 'mid-2'], ['leaf']],
+    diagnostics: { taskCount: 4, waveCount: 3, maxWidth: 2 },
+  });
+});
+
+test('planWaves leaves the input spec object structurally unchanged after planning', () => {
+  const spec = {
+    tasks: [
+      { id: 'b', dependsOn: ['a'], fileScope: ['src/b.js'] },
+      { id: 'a', dependsOn: [], fileScope: ['src/a.js'] },
+    ],
+  };
+  const before = structuredClone(spec);
+  planWaves(spec);
+  assert.deepEqual(spec, before);
+});
