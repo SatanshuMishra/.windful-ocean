@@ -303,6 +303,11 @@
         "ref": "0359-spec-is-trusted-by-provenance-not-verification",
         "title": "The SPEC is trusted by provenance, and the codebase is not queried before the implementer phase",
         "scope": "c1"
+      },
+      {
+        "ref": "0360-graphify-is-structurally-required-and-its-subgraphs-carry-forward",
+        "title": "Graphify is structurally required in Decompose and its per-cluster subgraphs are passed forward as JSON",
+        "scope": "c1"
       }
     ],
     "out_of_scope": [
@@ -312,5 +317,5 @@
     ]
   },
   "created_at": "2026-08-11T00:08:10.978Z",
-  "updated_at": "2026-08-12T01:05:24.029Z"
+  "updated_at": "2026-08-12T01:05:42.397Z"
 }
