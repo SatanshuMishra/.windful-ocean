@@ -332,6 +332,11 @@
         "ref": "0362-spec-trust-needs-a-commit-binding-and-an-admitted-artifact",
         "title": "Provenance trust is operationalized by a commit binding plus an admitted-SPEC artifact",
         "scope": "thread"
+      },
+      {
+        "ref": "0363-graph-slice-is-computed-from-graph-json-and-supplied-as-input",
+        "title": "The graph slice is computed from graph.json and supplied to the decomposer as input",
+        "scope": "thread"
       }
     ],
     "out_of_scope": [
@@ -341,5 +346,5 @@
     ]
   },
   "created_at": "2026-08-11T00:08:10.978Z",
-  "updated_at": "2026-08-12T01:38:57.523Z"
+  "updated_at": "2026-08-12T01:39:06.612Z"
 }
