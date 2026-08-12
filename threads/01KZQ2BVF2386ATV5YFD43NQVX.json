@@ -322,6 +322,11 @@
         "ref": "0360-graphify-is-structurally-required-and-its-subgraphs-carry-forward",
         "title": "Graphify is structurally required in Decompose and its per-cluster subgraphs are passed forward as JSON",
         "scope": "c1"
+      },
+      {
+        "ref": "0361-pillars-stays-principle-only-no-measurements",
+        "title": "pillars.md stays a guiding-principles document and carries no measurements",
+        "scope": "thread"
       }
     ],
     "out_of_scope": [
@@ -331,5 +336,5 @@
     ]
   },
   "created_at": "2026-08-11T00:08:10.978Z",
-  "updated_at": "2026-08-12T01:07:12.759Z"
+  "updated_at": "2026-08-12T01:38:48.321Z"
 }
