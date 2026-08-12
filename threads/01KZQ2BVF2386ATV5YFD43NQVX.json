@@ -63,39 +63,15 @@
   "abandoned_reason": null,
   "closure_statement": null,
   "spine": {
-    "active_goal": "Render-verify the corrected report and get it reviewed by the user (c5), then write the revised SPEC B around provenance-trusted SPECs.",
-    "next_step": "Serve the report over HTTP and confirm all ten diagrams actually draw — two were edited by text only and mermaid's parser has never run on them. Fix anything that fails, then put the report to the user for the c5 review. Only after c5 is met, start the SPEC rewrite on the eight-phase model of 0338 and 0366, and name which graphify relation types count as dependency edges before specifying the slice function.",
-    "last_session": "The user ruled on all seven open questions; recorded 0365 to 0368 and superseded 0364. Corrected the report to graphify-alone: every trace of the confirmation pass removed, pipeline renumbered S0-S5, figures renumbered to a contiguous 1 to 10. Render verification not run.",
+    "active_goal": "Evaluate mitosis as an OS process owning the control loop and calling agents downward, against the sandboxed-Workflow toolbox, before any of the revised SPEC B is written.",
+    "next_step": "Open the OS-process approach per 0369. Establish in order: how an OS process would dispatch agents at all, since agent() and parallel() are Workflow hooks it would not have; what else the sandbox provides that it loses; and what it gains, measured against the four toolbox costs this session named. Do NOT resume the section 14 toolbox design or start the SPEC rewrite until that comparison exists. The c5 report render check is still unrun.",
+    "last_session": "Architecture review in chat only - no files changed and the report render check was not run. Explained the engine and the toolbox, corrected two wrong framings under user challenge, compared against the fanout project, and the user pivoted the thread to the OS-process approach.",
     "open_risks": [
       {
         "text": "Pair every Part II hypothesis with a fixed quality assertion — the instrument counts tokens and cannot see whether a fused Decompose cuts worse, so a token win carrying a quality regression will read as a success",
         "scope": "c2",
         "refs": [
           "0358"
-        ]
-      },
-      {
-        "text": "Cite mitosis.js for behaviour, never lib/mitosis/*.mjs — mitosis.js has zero imports and calls its own inlined twins, so a run-engine.mjs citation describes a mirror rather than the path that executes",
-        "scope": "c1",
-        "refs": [
-          ".claude/workflows/mitosis.js:5040",
-          ".claude/lib/mitosis/tests/mirror-guard.test.mjs:26"
-        ]
-      },
-      {
-        "text": "Treat any .claude/lib/superpowers-parallel hit as noise — confirmed this session as untracked and gitignored, so it still answers a grep but describes nothing that runs",
-        "scope": "c1",
-        "refs": [
-          "0340",
-          "0353"
-        ]
-      },
-      {
-        "text": "Audit plan-to-task-graph's SKILL.md before trusting the pre-implementer census — mitosis.js tells the Parallelize phase to read and follow it, so a codebase-read instruction the census never saw could still be hiding there",
-        "scope": "c1",
-        "refs": [
-          ".claude/workflows/mitosis.js:4894",
-          ".claude/skills/plan-to-task-graph/SKILL.md"
         ]
       },
       {
@@ -197,6 +173,76 @@
         "scope": "c5",
         "refs": [
           "scratchpad/report-backup-pre-0365.html"
+        ]
+      },
+      {
+        "text": "Cite mitosis.js for behaviour, never lib/mitosis/*.mjs — mitosis.js has zero imports and calls its own inlined twins, so a run-engine.mjs citation describes a mirror rather than the path that executes",
+        "scope": "c1",
+        "refs": [
+          ".claude/workflows/mitosis.js:5040",
+          ".claude/lib/mitosis/tests/mirror-guard.test.mjs:26"
+        ]
+      },
+      {
+        "text": "Treat any .claude/lib/superpowers-parallel hit as noise — confirmed untracked and gitignored, so it still answers a grep but describes nothing that runs",
+        "scope": "c1",
+        "refs": [
+          "0340",
+          "0353"
+        ]
+      },
+      {
+        "text": "Audit plan-to-task-graph's SKILL.md before trusting the pre-implementer census — mitosis.js tells the Parallelize phase to read and follow it, so a codebase-read instruction the census never saw could still be hiding there",
+        "scope": "c1",
+        "refs": [
+          ".claude/workflows/mitosis.js:4894",
+          ".claude/skills/plan-to-task-graph/SKILL.md"
+        ]
+      },
+      {
+        "text": "Say the workflow JS is sandboxed, never that a subagent is — dispatched agents hold full Bash, Read and Edit, and only the orchestration JS is capability-stripped; the report's wording produced exactly that wrong conclusion this session",
+        "scope": "c1",
+        "refs": [
+          ".claude/lib/mitosis/workflow-sandbox.mjs:38"
+        ]
+      },
+      {
+        "text": "Price the rehydration tax on both sides before recommending either architecture — the sandbox cannot read a file, so each fresh invocation pays an agent dispatch just to load state, and the seven Workflow hooks belong to Anthropic and cannot be widened",
+        "scope": "c1",
+        "refs": [
+          ".claude/lib/mitosis/workflow-sandbox.mjs:38",
+          ".claude/workflows/mitosis.js:3961"
+        ]
+      },
+      {
+        "text": "Start the OS-process comparison from the planners mitosis already owns — derive-edges, wave-planner, derive-clusters and route-planner are deterministic CLIs reached sideways via an agent shelling out, and removing that indirection is the whole gain",
+        "scope": "c1",
+        "refs": [
+          ".claude/workflows/mitosis.js:4897",
+          ".claude/lib/mitosis/derive-edges.mjs"
+        ]
+      },
+      {
+        "text": "Answer how an OS process dispatches agents before adopting one — agent() and parallel() are Workflow hooks, and a process outside the sandbox has no equivalent primitive on hand",
+        "scope": "c1",
+        "refs": [
+          ".claude/lib/mitosis/workflow-sandbox.mjs:38",
+          "0369"
+        ]
+      },
+      {
+        "text": "Treat refs/mitosis/* and refs/mitosis-manifest/* as permanent remote junk until a retire step exists — nothing found deletes them, and the manifest ref is content-keyed so every spec edit mints another one",
+        "scope": "c1",
+        "refs": [
+          ".claude/workflows/mitosis.js:4301",
+          ".claude/workflows/mitosis.js:3967"
+        ]
+      },
+      {
+        "text": "A new run overwrites .mitosis/run.json at genesis rather than rotating it — prior-run history is destroyed, so the journal is a durable state channel within a run and not across runs",
+        "scope": "c1",
+        "refs": [
+          ".claude/workflows/mitosis.js:4268"
         ]
       }
     ],
@@ -395,5 +441,5 @@
     ]
   },
   "created_at": "2026-08-11T00:08:10.978Z",
-  "updated_at": "2026-08-12T05:10:03.227Z"
+  "updated_at": "2026-08-12T05:11:03.120Z"
 }
