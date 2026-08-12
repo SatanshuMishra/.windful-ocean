@@ -63,9 +63,9 @@
   "abandoned_reason": null,
   "closure_statement": null,
   "spine": {
-    "active_goal": "Clarify the requirements for the narrower main-thread-as-orchestrator scope, then rewrite SPEC B against them.",
-    "next_step": "START FRESH WITH NO OPEN QUESTIONS - 0353 to 0358 closed all six. Continue clarifying the narrower main-thread-as-orchestrator scope by working c1: the line-by-line citation census SPEC B still needs. Named targets are the *_SCHEMA count, the phase-literal count that came back 48 from one audit and 50 from another, the prompt-byte figures and the mitosis.js line citations - no committed script reproduces any of them. Then c5's report, then c3's rewrite.",
-    "last_session": "Closed all six open questions as 0353-0358: engine stays in the Workflow sandbox (Part III live again), transcripts are the instrument (four token classes), context is disposable, gated guarantee not tool absence, spawn depth fits, residuals re-cut. All five diagrams render-verified.",
+    "active_goal": "Rewrite SPEC B's architecture around provenance-trusted SPECs and structurally-required graphify, then produce the report for user review.",
+    "next_step": "FIRST TASK, nothing before it: read artifacts/2026-08-11-DIRECTIVE-spec-trust-and-graphify.md IN FULL. It holds the user's verbatim directive and invalidates report sections 11 and 12. Then work its seven items, worst first: rewrite s11 for provenance-based trust, rewrite s12 around the five-step Decompose flow with per-cluster subgraph passing, make graphify schema-enforced on DECOMPOSE_SCHEMA. Raise pillars.md with the user, never edit it silently.",
+    "last_session": "Closed the c1 census: phase counts 12/48/50 reconciled as different surfaces, *_SCHEMA=25, three line citations confirmed, prompt-bytes proven underivable. Extended the report to 116,736 bytes with sections 11-17. A user directive at session end invalidated sections 11 and 12.",
     "open_risks": [
       {
         "text": "Read run-engine.mjs facts as describing a fork the engine never executes — mitosis.js defines its own runEngine that has diverged about 77 lines from it",
@@ -83,21 +83,42 @@
         ]
       },
       {
-        "text": "Treat the supervisor, rotation and spawn-cost research as deferred rather than deleted — decisions 0348 to 0351 and section 07 of the new page hold it, and it returns only after the engine update",
+        "text": "Pair every Part II hypothesis with a fixed quality assertion — the instrument counts tokens and cannot see whether a fused Decompose cuts worse, so a token win carrying a quality regression will read as a success",
+        "scope": "c2",
+        "refs": [
+          "0358"
+        ]
+      },
+      {
+        "text": "Read the 2026-08-11 directive in full before touching the report — it is the user's explicit first task for the next session, and editing from the current page reintroduces the SPEC-verification model they rejected",
         "scope": "thread",
         "refs": [
-          "0352",
+          "~/.claude/projects/-Users-satanshumishra-Documents-DevLabs--windful-ocean/artifacts/2026-08-11-DIRECTIVE-spec-trust-and-graphify.md",
+          "0359",
+          "0360"
+        ]
+      },
+      {
+        "text": "The report's ten diagrams have never been render-verified — files outside the project folder open as static snapshots so mermaid never executes, and c5 requires render-verified diagrams",
+        "scope": "thread",
+        "refs": [
           "~/.agent/diagrams/mitosis-rearchitecture-main-thread-2026-08-11.html"
         ]
       },
       {
-        "text": "Re-derive every unverified figure before the SPEC cites it — the phase-literal count came back 48 from one audit and 50 from another, the prompt-byte figures were never re-derived, and the mitosis.js line citations were carried forward unconfirmed",
+        "text": "Prompt-byte figures cannot be derived from any artifact on disk — nothing captures a composed dispatch prompt, so the SPEC must instrument for them or drop them; the phase and schema counts are now closed",
         "scope": "thread",
         "refs": [
-          ".claude/workflows/mitosis.js",
-          ":1191",
-          ":1503-1531",
-          ":4817"
+          ".claude/lib/mitosis/prompt-snapshots/",
+          "0359"
+        ]
+      },
+      {
+        "text": "Treat the supervisor, rotation and spawn-cost research as deferred rather than deleted — decisions 0348 to 0351 and section 07 of the page hold it, and it returns only after the engine update",
+        "scope": "thread",
+        "refs": [
+          "0352",
+          "~/.agent/diagrams/mitosis-rearchitecture-main-thread-2026-08-11.html"
         ]
       },
       {
@@ -139,11 +160,11 @@
         ]
       },
       {
-        "text": "Run the citation census before writing anything — it is the last unfinished input to the report, and no committed script reproduces the *_SCHEMA count, the 48-versus-50 phase-literal count or the prompt-byte figures",
+        "text": "Cite mitosis.js for behaviour, never lib/mitosis/*.mjs — mitosis.js has zero imports and calls its own inlined twins, so a run-engine.mjs citation describes a mirror rather than the path that executes",
         "scope": "c1",
         "refs": [
-          ".claude/workflows/mitosis.js",
-          "0338"
+          ".claude/workflows/mitosis.js:5040",
+          ".claude/lib/mitosis/tests/mirror-guard.test.mjs:26"
         ]
       },
       {
@@ -153,13 +174,6 @@
           "0340",
           "0353",
           ".claude/lib/mitosis/workflow-sandbox.mjs:36"
-        ]
-      },
-      {
-        "text": "Pair every Part II hypothesis with a fixed quality assertion — the instrument counts tokens and cannot see whether a fused Decompose cuts worse, so a token win carrying a quality regression will read as a success",
-        "scope": "c2",
-        "refs": [
-          "0358"
         ]
       }
     ],
@@ -317,5 +331,5 @@
     ]
   },
   "created_at": "2026-08-11T00:08:10.978Z",
-  "updated_at": "2026-08-12T01:05:42.397Z"
+  "updated_at": "2026-08-12T01:07:12.759Z"
 }
