@@ -68,21 +68,6 @@
     "last_session": "Rewrote report sections 11 and 12 for provenance trust and the graphify slice design, re-cut section 17 to 22 gaps, render-verified all ten diagrams, recorded 0361-0364. Caught and corrected a false 'no recall figure exists in-repo' claim I had propagated.",
     "open_risks": [
       {
-        "text": "Read run-engine.mjs facts as describing a fork the engine never executes — mitosis.js defines its own runEngine that has diverged about 77 lines from it",
-        "scope": "c5",
-        "refs": [
-          ".claude/workflows/mitosis.js:1272",
-          ".claude/lib/superpowers-parallel/run-engine.mjs:296"
-        ]
-      },
-      {
-        "text": "Never claim mitosis asks a human today — the escalate verb parks the unit and surfaces only in the report a human reads after the run returns",
-        "scope": "c5",
-        "refs": [
-          ".claude/lib/superpowers-parallel/supervisor.mjs:11"
-        ]
-      },
-      {
         "text": "Pair every Part II hypothesis with a fixed quality assertion — the instrument counts tokens and cannot see whether a fused Decompose cuts worse, so a token win carrying a quality regression will read as a success",
         "scope": "c2",
         "refs": [
@@ -187,6 +172,13 @@
         "refs": [
           "~/.claude/CUTOVER",
           "~/.claude/LIVE"
+        ]
+      },
+      {
+        "text": "Never claim mitosis asks a human mid-run — there is no blocking-question primitive in the sandbox, so an escalation parks the unit and surfaces only in the report a human reads after the run returns",
+        "scope": "c5",
+        "refs": [
+          ".claude/workflows/mitosis.js:4497-4514"
         ]
       }
     ],
@@ -364,5 +356,5 @@
     ]
   },
   "created_at": "2026-08-11T00:08:10.978Z",
-  "updated_at": "2026-08-12T02:09:12.949Z"
+  "updated_at": "2026-08-12T02:09:28.022Z"
 }
