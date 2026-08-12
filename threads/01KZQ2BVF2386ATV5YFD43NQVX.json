@@ -63,9 +63,9 @@
   "abandoned_reason": null,
   "closure_statement": null,
   "spine": {
-    "active_goal": "Get the rewritten report reviewed by the user (c5), then write the revised SPEC B around provenance-trusted SPECs and structurally-required graphify.",
-    "next_step": "Read the rewritten report FIRST — it is the only artifact carrying the corrected account; the directive, the design brief and SPEC B all disagree with it now. Serve it over HTTP or the diagrams are blank. Then work the OPEN QUESTIONS AND FLAGS list in the latest session log, worst first, starting with Q1: does 0364's authority split stand, or does graphify determine parallelizability outright as the directive instructed? Q1 gates the whole Decompose design. c5's user review is still unmet.",
-    "last_session": "Rewrote report sections 11, 12 and 17, render-verified all ten diagrams, recorded 0361-0364, and corrected a false 'no recall figure exists in-repo' claim I had propagated. Closed by recording seven open questions and eight flags for the fresh session.",
+    "active_goal": "Correct the report to graphify-alone decomposition, get it reviewed by the user (c5), then write the revised SPEC B around provenance-trusted SPECs.",
+    "next_step": "Correct the report to 0365 FIRST — cut the S4 CONFIRM CUTS stage and the bounded-oracle argument at report lines 885, 897, 951, 1053 and 1603 so graphify alone determines parallelizability. Then renumber the figures 1 to 10 and resolve the dangling Figure 6 prose reference. Then serve it over HTTP and put it to the user for the c5 review. Do not start the SPEC rewrite until c5 is met.",
+    "last_session": "The user ruled on all seven open questions. Recorded 0365 to 0368: graphify alone determines parallelizability with 0364 superseded, the eight-phase model stands, the directive and brief are demoted, the report ships CDN-loaded. Amended c5 to drop its diagram count.",
     "open_risks": [
       {
         "text": "Pair every Part II hypothesis with a fixed quality assertion — the instrument counts tokens and cannot see whether a fused Decompose cuts worse, so a token win carrying a quality regression will read as a success",
@@ -75,33 +75,50 @@
         ]
       },
       {
-        "text": "Do not trust the 2026-08-11 directive or the design brief on graphify recall — both assert no numeric figure exists in-repo, which is false, and only the report now carries the corrected account",
+        "text": "Cite mitosis.js for behaviour, never lib/mitosis/*.mjs — mitosis.js has zero imports and calls its own inlined twins, so a run-engine.mjs citation describes a mirror rather than the path that executes",
+        "scope": "c1",
+        "refs": [
+          ".claude/workflows/mitosis.js:5040",
+          ".claude/lib/mitosis/tests/mirror-guard.test.mjs:26"
+        ]
+      },
+      {
+        "text": "Treat any .claude/lib/superpowers-parallel hit as noise — confirmed this session as untracked and gitignored, so it still answers a grep but describes nothing that runs",
+        "scope": "c1",
+        "refs": [
+          "0340",
+          "0353"
+        ]
+      },
+      {
+        "text": "Audit plan-to-task-graph's SKILL.md before trusting the pre-implementer census — mitosis.js tells the Parallelize phase to read and follow it, so a codebase-read instruction the census never saw could still be hiding there",
+        "scope": "c1",
+        "refs": [
+          ".claude/workflows/mitosis.js:4894",
+          ".claude/skills/plan-to-task-graph/SKILL.md"
+        ]
+      },
+      {
+        "text": "Treat the 2026-08-11 directive and the design brief as non-authoritative — the user demoted both as outdated, so requirements come from this thread's decision records and a citation to either carries nothing",
         "scope": "thread",
         "refs": [
-          "artifacts/2026-08-11-DIRECTIVE-spec-trust-and-graphify.md",
-          ".claude/docs/specs/2026-06-29-mitosis-design.md:60",
-          "0361"
+          "0367"
         ]
       },
       {
         "text": "Serve the report over HTTP with network access before reviewing it — it loads mermaid from jsdelivr and fonts from Google, so opened as a plain file it shows ten empty diagram frames and looks broken",
         "scope": "thread",
         "refs": [
-          "~/.agent/diagrams/mitosis-rearchitecture-main-thread-2026-08-11.html"
+          "~/.agent/diagrams/mitosis-rearchitecture-main-thread-2026-08-11.html",
+          "0368"
         ]
       },
       {
-        "text": "Get the user's step 5 before writing the SPEC's phase list — the directive's five-step flow stops at the implementer and trails off, and review then integrate then ship is an assumption I made rather than an instruction",
+        "text": "Renumber the report's figures and fix the dangling Figure 6 prose reference — captions run 1, 2, 3, 4, 7, 8, 9, 10, 11, 12 and prose still cites a Figure 6 that no caption defines",
         "scope": "thread",
         "refs": [
-          "artifacts/2026-08-11-DIRECTIVE-spec-trust-and-graphify.md"
-        ]
-      },
-      {
-        "text": "Renumber the report's figures before the user reviews it — captions run 1, 2, 3, 4, 7, 8, 9, 10, 11, 12 because deleted figures 5 and 6 were never backfilled, so a reader hits an unexplained jump",
-        "scope": "thread",
-        "refs": [
-          "~/.agent/diagrams/mitosis-rearchitecture-main-thread-2026-08-11.html"
+          "~/.agent/diagrams/mitosis-rearchitecture-main-thread-2026-08-11.html",
+          "0368"
         ]
       },
       {
@@ -123,7 +140,8 @@
         "text": "Re-adopt the eight-phase model explicitly in the SPEC rather than citing the 2026-07-30 document — SPEC B's preamble disclaims all citation authority from that document, so a citation to it carries nothing",
         "scope": "thread",
         "refs": [
-          "0338"
+          "0338",
+          "0366"
         ]
       },
       {
@@ -159,6 +177,15 @@
         ]
       },
       {
+        "text": "Name which relation types count as dependency edges before the slice function is specified — contains is 9,380 of 13,689 links and is containment rather than a dependency, and 0365 leaves the relation set as the sole determinant of parallel-safety",
+        "scope": "c3",
+        "refs": [
+          "graphify-out/graph.json",
+          "0363",
+          "0365"
+        ]
+      },
+      {
         "text": "Never claim mitosis asks a human mid-run — there is no blocking-question primitive in the sandbox, so an escalation parks the unit and surfaces only in the report a human reads after the run returns",
         "scope": "c5",
         "refs": [
@@ -166,43 +193,11 @@
         ]
       },
       {
-        "text": "Cite mitosis.js for behaviour, never lib/mitosis/*.mjs — mitosis.js has zero imports and calls its own inlined twins, so a run-engine.mjs citation describes a mirror rather than the path that executes",
-        "scope": "c1",
+        "text": "Correct the report's Decompose section before the c5 review — it argues the overturned authority split in five places including the S4 CONFIRM CUTS stage drawn inside Figure 9, so today it would put an overruled design to the user",
+        "scope": "c5",
         "refs": [
-          ".claude/workflows/mitosis.js:5040",
-          ".claude/lib/mitosis/tests/mirror-guard.test.mjs:26"
-        ]
-      },
-      {
-        "text": "Treat any .claude/lib/superpowers-parallel hit as noise — confirmed this session as untracked and gitignored, so it still answers a grep but describes nothing that runs",
-        "scope": "c1",
-        "refs": [
-          "0340",
-          "0353"
-        ]
-      },
-      {
-        "text": "Audit plan-to-task-graph's SKILL.md before trusting the pre-implementer census — mitosis.js tells the Parallelize phase to read and follow it, so a codebase-read instruction the census never saw could still be hiding there",
-        "scope": "c1",
-        "refs": [
-          ".claude/workflows/mitosis.js:4894",
-          ".claude/skills/plan-to-task-graph/SKILL.md"
-        ]
-      },
-      {
-        "text": "Name which relation types count as dependency edges before the slice function is specified — contains is 9,380 of 13,689 links and is file-to-symbol containment rather than a dependency, so counting every crossing link as a cut edge would swamp the oracle",
-        "scope": "c3",
-        "refs": [
-          "graphify-out/graph.json",
-          "0363"
-        ]
-      },
-      {
-        "text": "Treat 0364's authority split as my recommendation rather than a ratified answer — the directive asked for graphify to determine parallelizability outright, and the counter-evidence is one measurement of a four-version-old build on another language",
-        "scope": "c3",
-        "refs": [
-          "0364",
-          ".claude/docs/specs/2026-06-29-mitosis-design.md:60"
+          "0365",
+          "~/.agent/diagrams/mitosis-rearchitecture-main-thread-2026-08-11.html"
         ]
       }
     ],
@@ -396,9 +391,10 @@
     "out_of_scope": [
       "Implementing any part of SPEC B, which a successor thread owns",
       "Editing SPEC A or the config staging and promotion machinery it shipped",
-      "The fix pipeline, excluded by the user from both SPECs"
+      "The fix pipeline, excluded by the user from both SPECs",
+      "Editing pillars.md at all, including the narrower point-at-tool-routing edit, deferred by the user"
     ]
   },
   "created_at": "2026-08-11T00:08:10.978Z",
-  "updated_at": "2026-08-12T04:18:50.998Z"
+  "updated_at": "2026-08-12T04:19:34.113Z"
 }
