@@ -220,6 +220,11 @@
         "ref": "0381-scalar-filescope-fail-open-fixed-on-main",
         "title": "Scalar fileScope fail-open is fixed on main as a standalone PR, not inserted into the stack",
         "scope": "thread"
+      },
+      {
+        "ref": "0382-pathsoverlap-over-reports-never-under-reports",
+        "title": "pathsOverlap may over-report overlap and must never under-report",
+        "scope": "c8"
       }
     ],
     "out_of_scope": [
@@ -231,5 +236,5 @@
     ]
   },
   "created_at": "2026-08-12T07:37:41.077Z",
-  "updated_at": "2026-08-12T17:38:19.444Z"
+  "updated_at": "2026-08-12T22:24:51.117Z"
 }
