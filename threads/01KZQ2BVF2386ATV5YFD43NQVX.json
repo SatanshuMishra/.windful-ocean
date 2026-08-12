@@ -476,6 +476,11 @@
         "ref": "0374-approved-msp-stack-a0-through-d3",
         "title": "The SPEC absorbs re-architecture, Part III and the phase collapse, decomposed into stack A0 through D3",
         "scope": "c3"
+      },
+      {
+        "ref": "0375-dispatch-census-is-a-full-walk-not-arithmetic",
+        "title": "The dispatch census is corrected to 27 by a full walk, and future edits must re-walk rather than re-derive",
+        "scope": "c1"
       }
     ],
     "out_of_scope": [
@@ -486,5 +491,5 @@
     ]
   },
   "created_at": "2026-08-11T00:08:10.978Z",
-  "updated_at": "2026-08-12T06:19:13.782Z"
+  "updated_at": "2026-08-12T07:31:40.062Z"
 }
