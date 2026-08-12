@@ -63,9 +63,9 @@
   "abandoned_reason": null,
   "closure_statement": null,
   "spine": {
-    "active_goal": "Correct the report to graphify-alone decomposition, get it reviewed by the user (c5), then write the revised SPEC B around provenance-trusted SPECs.",
-    "next_step": "Correct the report to 0365 FIRST — cut the S4 CONFIRM CUTS stage and the bounded-oracle argument at report lines 885, 897, 951, 1053 and 1603 so graphify alone determines parallelizability. Then renumber the figures 1 to 10 and resolve the dangling Figure 6 prose reference. Then serve it over HTTP and put it to the user for the c5 review. Do not start the SPEC rewrite until c5 is met.",
-    "last_session": "The user ruled on all seven open questions. Recorded 0365 to 0368: graphify alone determines parallelizability with 0364 superseded, the eight-phase model stands, the directive and brief are demoted, the report ships CDN-loaded. Amended c5 to drop its diagram count.",
+    "active_goal": "Render-verify the corrected report and get it reviewed by the user (c5), then write the revised SPEC B around provenance-trusted SPECs.",
+    "next_step": "Serve the report over HTTP and confirm all ten diagrams actually draw — two were edited by text only and mermaid's parser has never run on them. Fix anything that fails, then put the report to the user for the c5 review. Only after c5 is met, start the SPEC rewrite on the eight-phase model of 0338 and 0366, and name which graphify relation types count as dependency edges before specifying the slice function.",
+    "last_session": "The user ruled on all seven open questions; recorded 0365 to 0368 and superseded 0364. Corrected the report to graphify-alone: every trace of the confirmation pass removed, pipeline renumbered S0-S5, figures renumbered to a contiguous 1 to 10. Render verification not run.",
     "open_risks": [
       {
         "text": "Pair every Part II hypothesis with a fixed quality assertion — the instrument counts tokens and cannot see whether a fused Decompose cuts worse, so a token win carrying a quality regression will read as a success",
@@ -99,6 +99,15 @@
         ]
       },
       {
+        "text": "Name which relation types count as dependency edges before the slice function is specified — contains is 9,380 of 13,689 links and is containment rather than a dependency, and 0365 leaves the relation set as the sole determinant of parallel-safety",
+        "scope": "c3",
+        "refs": [
+          "graphify-out/graph.json",
+          "0363",
+          "0365"
+        ]
+      },
+      {
         "text": "Treat the 2026-08-11 directive and the design brief as non-authoritative — the user demoted both as outdated, so requirements come from this thread's decision records and a citation to either carries nothing",
         "scope": "thread",
         "refs": [
@@ -107,14 +116,6 @@
       },
       {
         "text": "Serve the report over HTTP with network access before reviewing it — it loads mermaid from jsdelivr and fonts from Google, so opened as a plain file it shows ten empty diagram frames and looks broken",
-        "scope": "thread",
-        "refs": [
-          "~/.agent/diagrams/mitosis-rearchitecture-main-thread-2026-08-11.html",
-          "0368"
-        ]
-      },
-      {
-        "text": "Renumber the report's figures and fix the dangling Figure 6 prose reference — captions run 1, 2, 3, 4, 7, 8, 9, 10, 11, 12 and prose still cites a Figure 6 that no caption defines",
         "scope": "thread",
         "refs": [
           "~/.agent/diagrams/mitosis-rearchitecture-main-thread-2026-08-11.html",
@@ -177,15 +178,6 @@
         ]
       },
       {
-        "text": "Name which relation types count as dependency edges before the slice function is specified — contains is 9,380 of 13,689 links and is containment rather than a dependency, and 0365 leaves the relation set as the sole determinant of parallel-safety",
-        "scope": "c3",
-        "refs": [
-          "graphify-out/graph.json",
-          "0363",
-          "0365"
-        ]
-      },
-      {
         "text": "Never claim mitosis asks a human mid-run — there is no blocking-question primitive in the sandbox, so an escalation parks the unit and surfaces only in the report a human reads after the run returns",
         "scope": "c5",
         "refs": [
@@ -193,11 +185,18 @@
         ]
       },
       {
-        "text": "Correct the report's Decompose section before the c5 review — it argues the overturned authority split in five places including the S4 CONFIRM CUTS stage drawn inside Figure 9, so today it would put an overruled design to the user",
+        "text": "Render-verify the pipeline flowchart and the partition sequence diagram before the c5 review — both were edited as text only, and the checks that passed were greps and a tag-nesting parse, never mermaid's own parser",
         "scope": "c5",
         "refs": [
-          "0365",
-          "~/.agent/diagrams/mitosis-rearchitecture-main-thread-2026-08-11.html"
+          "~/.agent/diagrams/mitosis-rearchitecture-main-thread-2026-08-11.html",
+          "0365"
+        ]
+      },
+      {
+        "text": "Restore from the backup rather than re-editing if a diagram is broken — the pre-correction report is the only copy of the superseded version and the scratchpad it sits in is session-scoped",
+        "scope": "c5",
+        "refs": [
+          "scratchpad/report-backup-pre-0365.html"
         ]
       }
     ],
@@ -391,5 +390,5 @@
     ]
   },
   "created_at": "2026-08-11T00:08:10.978Z",
-  "updated_at": "2026-08-12T04:20:24.402Z"
+  "updated_at": "2026-08-12T04:32:10.488Z"
 }
