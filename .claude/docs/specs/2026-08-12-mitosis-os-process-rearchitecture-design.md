@@ -151,7 +151,7 @@ Establishing this was a precondition of the move. None of it is sandbox-coupled.
 | MSP decomposition, green-branch invariant | prompt text, `mitosis.js:4175-4181` | unchanged |
 | Graphify / LSP parallel-safety | prompt + `derive-edges.mjs:78` | **improves** — a process can spawn a language server; the sandbox cannot |
 | Receipts CI, `pr-title-lint`, d6 | `.claude/skills/mitosis/templates/receipts.yml`, tokens at `mitosis.js:2264` | unchanged, runs in GitHub Actions |
-| Human-gated merge | `merge-policy.mjs:17-19`, `gh-merge-shim.mjs:6,:17` | unchanged, already an OS process |
+| Human-gated merge | `merge-policy.mjs:1,15-17`, `gh-merge-shim.mjs:6,:17` | unchanged, already an OS process |
 | Risk-scaled review | `mitosis.js:1093-1421` | unchanged |
 | Provenance / commit binding | `mitosis.js:3182-3230`, `.claude/lib/git/pr.mjs` | unchanged |
 | Gates | `mitosis-gate.mjs:12` | already a CLI |
@@ -258,7 +258,7 @@ Eighteen MSPs in four clusters, in dependency order.
 **Files.** `.claude/lib/mitosis/tests/wave-planner.test.mjs` (new).
 
 **Acceptance.**
-1. A test per throw path: missing id (`:37`), duplicate id (`:37`), unknown dependency (`:42`), cycle (`:49`), same-wave `fileScope` overlap (`:53`).
+1. A test per throw path: missing id (`:36`), duplicate id (`:37`), unknown dependency (`:42`), cycle (`:49`), same-wave `fileScope` overlap (`:53`).
 2. A test pinning the success shape `{waves, diagnostics:{taskCount, waveCount, maxWidth}}` (`:59`).
 3. **Inertness mutation, per test:** deleting the guard under test turns that test red. A test that survives deletion of its guard is not testing it.
 
