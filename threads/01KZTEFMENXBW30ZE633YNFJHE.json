@@ -24,7 +24,7 @@
     {
       "id": "c8",
       "text": "The scalar fileScope fail-open ships to main as a standalone PR, with planWaves and derive-edges both proven to fail closed and an acceptance test red on the parent commit.",
-      "done": false,
+      "done": true,
       "kind": "detour",
       "struck_by": null
     },
@@ -70,9 +70,9 @@
   "abandoned_reason": null,
   "closure_statement": null,
   "spine": {
-    "active_goal": "Ship the OS-process re-architecture as eighteen stacked PRs, then let D3's measured falsifier decide whether the base branch merges to main.",
-    "next_step": "FIRST ACTION, before any code: brief the user on the pathsOverlap fail-open in plain language, assuming no domain knowledge. Cover what breaks, whether it can be deferred or must be fixed, and answer their question of why fileScope overlap uses wildcard prefix matching at all rather than real path canonicalization, which they suspect is fragile. Their ruling is PENDING and A1 does NOT start until it lands. Detail: docket (283 lines) and the 2026-08-12 addendum session log.",
-    "last_session": "Shipped c8 as PR #70 (open, base main): fileScope fails closed at both guards, element-level too. Found a second, broader fail-open in the same module - path canonicalization, not just globs - proven end-to-end. Stopped before A1 per user instruction, pending a briefing on deferrability.",
+    "active_goal": "Land the eighteen MSPs as stacked PRs on feat/mitosis-os-process, then let D3's measured falsifier decide whether the base merges to main.",
+    "next_step": "Merge PR #72 (A1), then start A2 and A3 — both depend only on A1 and unblock together. B1 depends only on A0 and is already unblocked, so it can run alongside. Before cutting A2, check its ready_after readiness path for a termination guarantee that is not a single validation throw. The user rejected a nested orchestrator subagent that fans out across MSPs; drive workers directly from the main thread.",
+    "last_session": "Merges of #69 and #70 diverged the branches. Shipped the pathsOverlap glob and canonicalization fix as PR #71, reconciled the stack base with main at aff3314, and completed A1 as PR #72 from the user's own in-progress work. A G11 gate bypass was accepted, recorded and filed upstream.",
     "open_risks": [
       {
         "text": "Dispatch every child with run_in_background false and re-verify against git when it returns — a background child returns only an id, so a dispatching agent ends its turn narrating that it is holding while nothing ran",
@@ -159,29 +159,36 @@
         ]
       },
       {
-        "text": "fileScope overlap compares raw strings instead of canonical paths — normalize strips only one leading ./ and trailing slashes, so src/./shared.js, src//shared.js, a trailing space, or **/*.js each defeat the check and co-schedule two tasks writing the same file",
-        "scope": "c8",
+        "text": "Leave the committed RECEIPTS_ACK in A1's test file alone — removing it would exercise the exact old_string hole reported upstream, turning a disclosed escape back into a silent one",
+        "scope": "c3",
         "refs": [
-          ".claude/lib/mitosis/wave-planner.mjs:4-6",
-          ".claude/lib/mitosis/wave-planner.mjs:8-12",
-          "PR #70"
+          ".claude/lib/mitosis/tests/dispatch.test.mjs:535",
+          "shaheershoaib/receipts#49",
+          "0383"
         ]
       },
       {
-        "text": "Reconcile PR #70 against PR #69 by taking main's copy, a strict superset — A0's file on the stack still pins the fail-open green at lines 31 and 57, while PR #70's copies are todo tests stating the desired contract",
-        "scope": "c8",
+        "text": "Clear A1's two deferred style violations in their own commit before the stack grows — runChild is 185 lines with six nesting levels and holds every termination invariant, and dispatch.test.mjs is 838 lines against an 800 cap",
+        "scope": "c3",
         "refs": [
-          "PR #69",
-          "PR #70",
-          "docket"
+          "0384",
+          ".claude/lib/mitosis/dispatch.mjs",
+          ".claude/lib/mitosis/tests/dispatch.test.mjs"
         ]
       },
       {
-        "text": "Mirror any wave-planner change into .claude/workflows/mitosis.js in the same commit — mirror-guard compares normalized source text and reddens at :214 on a one-sided edit; scopesOverlap has four consumers and three live paths",
-        "scope": "c8",
+        "text": "Treat A1's twelve inertness mutations as unproven — they are author-reported and were never independently re-run, unlike the suite and gate results which were",
+        "scope": "c3",
+        "refs": [
+          "PR #72"
+        ]
+      },
+      {
+        "text": "Mirror any change to a twinned lib module into the workflows copy in the same commit — mirror-guard compares normalized source text and reddens on a one-sided edit",
+        "scope": "c3",
         "refs": [
           ".claude/lib/mitosis/tests/mirror-guard.test.mjs:214",
-          ".claude/workflows/mitosis.js:935"
+          ".claude/workflows/mitosis.js"
         ]
       }
     ],
@@ -246,5 +253,5 @@
     ]
   },
   "created_at": "2026-08-12T07:37:41.077Z",
-  "updated_at": "2026-08-12T22:25:08.388Z"
+  "updated_at": "2026-08-12T22:26:09.606Z"
 }
