@@ -1,0 +1,15 @@
+Ran the OS-process SPEC implementation as a dedicated orchestrator subagent dispatching workers, per explicit user instruction, rather than through the mitosis skill.
+
+SHIPPED. Phase 0 admission gate cleared: every in-repo path:line citation re-verified with ZERO broken claims; two line-number drifts corrected in 60af0bb (merge-policy.mjs:17-19 -> :1,15-17; A0 missing-id :37 -> :36). PR #68 opened and merged by the user, so the SPEC is canonical on main at f52ed9e. Section 1.1 census independently re-walked and matches exactly (38 sites / 27 mechanical / b1-b2-b3 = 6-18-3 / 10 judgment + redispatch). C1 phase-parity defect confirmed real: Resume declared in meta.phases with no phase('Resume') call site among all 12. The 32 external fanout citations were deliberately NOT verified (external repo, not cloned) — the gate covered in-repo only.
+
+c2 settled by a measured two-agent Workflow probe run from the main thread: code-reviewer (declares no StructuredOutput, restricted tool list) returned a validated object, as did the general-purpose control. The Workflow path auto-grants; no live defect on main; SPEC residual 4's contingency did not fire.
+
+A0 shipped as PR #69 (test/a0-wave-planner-tests at 9d95065, +201 lines, 22 tests = 21 pass + 1 todo, wave-planner.mjs byte-identical to base). It cost two extra rounds: code-reviewer passed it on the SPEC's five named throw paths, the orchestrator overruled that, and two HIGH depth gaps were closed — overlap pinned only for byte-identical scope strings, and refusal exercised only in wave 1.
+
+FOUND AND ESCALATED. planWaves fails OPEN on a scalar fileScope, and derive-edges.mjs:78 imports the same scopesOverlap from wave-planner.mjs, so both detection layers share one defect and nothing catches it.
+
+DID NOT HAPPEN. A1 through D3 not started; 1 of 18 MSPs shipped. Nothing from the stack reached main. Stack base feat/mitosis-os-process is still at 482dc7d with PR #69 open and unmerged against it.
+
+RUNNING AT HAND-OFF. A fresh orchestrator subagent was dispatched to open the main-branch fail-open fix PR and then continue at A1. It is in-session background work and will not survive the session; a future session resumes from the docket at ~/.claude/projects/-Users-satanshumishra-Documents-DevLabs--windful-ocean/handoff-2026-08-12-mitosis-os-process/DOCKET.md, never from that agent.
+
+CORRECTIONS LOGGED. Cycle-guard OOM measures ~0.53s, not the ~24s first estimated. SPEC beats the dispatch brief on MSP contents: C3 is SIX journal dispatches (the sixth hides behind the appendRunJournal helper), C4 is EIGHTEEN transcription dispatches. D2's "35 tests" acceptance figure is wrong under every counting convention (51 test declarations, 175 runtime cases) and must be recomputed with the counting unit stated before D2 is cut. Node v26.4.0 with no timeout/gtimeout on this machine; a failing todo does not fail the suite but the reporter still prints the literal "failing tests:", which a CI wrapper grepping that string would misread.
