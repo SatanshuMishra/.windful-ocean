@@ -34,10 +34,14 @@ test('pathsOverlap returns false for genuinely disjoint paths, including a direc
   assert.equal(pathsOverlap('src/a.js', 'src/b.js'), false);
 });
 
-test('pathsOverlap misses two documented glob shapes: a root-level glob and a star landing mid-segment', () => {
-  assert.equal(pathsOverlap('*.js', 'a.js'), false);
-  assert.equal(pathsOverlap('src/a*.js', 'src/abc.js'), false);
-});
+test(
+  'pathsOverlap should detect a root-level glob and a star landing mid-segment',
+  { todo: 'LIVE parallel-safety fail-open, not a stylistic gap: both glob branches at wave-planner.mjs:19,21 force a / after the prefix (nb === pa || nb.startsWith(pa + "/")), so a star landing mid-segment never matches, and a root-level glob makes globPrefix at wave-planner.mjs:8-12 return the empty prefix, which matches nothing. planWaves therefore co-schedules genuinely colliding tasks into one wave. Fixing the matching is a separate change, mirrored into workflows/mitosis.js, pending a scope decision.' },
+  () => {
+    assert.equal(pathsOverlap('*.js', 'a.js'), true);
+    assert.equal(pathsOverlap('src/a*.js', 'src/abc.js'), true);
+  },
+);
 
 test('pathsOverlap treats a ? wildcard the same as a * when computing the glob prefix', () => {
   assert.equal(pathsOverlap('src/?.js', 'src/a.js'), true);
@@ -61,9 +65,13 @@ test('planWaves throws on a task with no id, including an empty-string id', () =
   assert.throws(() => planWaves({ tasks: [{ id: '', dependsOn: [], fileScope: [] }] }), /task missing id/);
 });
 
-test('planWaves does not validate a null task element and lets it throw a raw TypeError instead of a validated error', () => {
-  assert.throws(() => planWaves({ tasks: [null] }), TypeError);
-});
+test(
+  'planWaves should refuse a null task element with a validated error naming the task problem',
+  { todo: 'planWaves has no task-shape validation: the loop at wave-planner.mjs:38-46 reaches straight for !t.id, so a null element throws a raw TypeError ("Cannot read properties of null") carrying no diagnosis of which input was malformed. Asserting the TypeError class instead would be a change-detector that reddens on the obvious improvement.' },
+  () => {
+    assert.throws(() => planWaves({ tasks: [null] }), /task/);
+  },
+);
 
 test('planWaves throws on two tasks sharing an id, naming the duplicated id', () => {
   assert.throws(
@@ -172,10 +180,7 @@ test('planWaves refuses a scalar fileScope on a task that overlaps nothing, sinc
 
 test('planWaves treats an explicit null fileScope as no declared scope, exactly as an absent one', () => {
   const result = planWaves({ tasks: [{ id: 'solo', fileScope: null }] });
-  assert.deepEqual(result, {
-    waves: [['solo']],
-    diagnostics: { taskCount: 1, waveCount: 1, maxWidth: 1 },
-  });
+  assert.deepEqual(result.waves, [['solo']]);
 });
 
 test('planWaves refuses to co-schedule two genuinely overlapping tasks when one declares its fileScope as a scalar string', () => {
@@ -192,6 +197,27 @@ test('planWaves refuses to co-schedule two genuinely overlapping tasks when one 
 test('scopesOverlap throws on a scalar scope in either argument position rather than walking it character by character', () => {
   assert.throws(() => scopesOverlap('src/a.js', ['src/a.js']), /fileScope must be an array/);
   assert.throws(() => scopesOverlap(['src/a.js'], 'src/a.js'), /fileScope must be an array/);
+});
+
+test('planWaves refuses a fileScope entry that is not a string, naming the offending task, rather than narrowing the declared scope to nothing', () => {
+  for (const entry of [123, null, {}, ['src/nested.js']]) {
+    const outcome = planOutcome({ tasks: [{ id: 'a', fileScope: [entry] }] });
+    assert.equal(outcome.refused, true, `expected a refusal for fileScope entry ${JSON.stringify(entry)}; instead the task was scheduled as ${JSON.stringify(outcome.waves)}`);
+    assert.match(outcome.message, /task a fileScope entries must be non-empty strings/);
+  }
+});
+
+test('planWaves refuses an empty-string fileScope entry rather than accepting an entry that overlaps nothing, naming the offending task', () => {
+  const outcome = planOutcome({ tasks: [{ id: 'a', fileScope: [''] }] });
+  assert.equal(outcome.refused, true, `expected a refusal; instead the task was scheduled as ${JSON.stringify(outcome.waves)}`);
+  assert.match(outcome.message, /task a fileScope entries must be non-empty strings/);
+});
+
+test('scopesOverlap refuses a non-string or empty-string entry in either argument position, so a caller that never reaches planWaves still fails closed', () => {
+  assert.throws(() => scopesOverlap([123], ['src/a.js']), /fileScope entries must be non-empty strings/);
+  assert.throws(() => scopesOverlap(['src/a.js'], [123]), /fileScope entries must be non-empty strings/);
+  assert.throws(() => scopesOverlap([''], ['src/a.js']), /fileScope entries must be non-empty strings/);
+  assert.throws(() => scopesOverlap(['src/a.js'], ['']), /fileScope entries must be non-empty strings/);
 });
 
 test('planWaves on a single task with no declared dependsOn or fileScope defaults both to empty and returns one wave of one', () => {

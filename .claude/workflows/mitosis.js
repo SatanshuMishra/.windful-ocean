@@ -63,6 +63,8 @@ function pathsOverlap(a, b) {
 
 function scopesOverlap(aScopes, bScopes) {
   if (!Array.isArray(aScopes) || !Array.isArray(bScopes)) throw new Error('fileScope must be an array');
+  for (const p of [...aScopes, ...bScopes])
+    if (typeof p !== 'string' || p.length === 0) throw new Error('fileScope entries must be non-empty strings');
   for (const a of aScopes) for (const b of bScopes) if (pathsOverlap(a, b)) return true;
   return false;
 }
