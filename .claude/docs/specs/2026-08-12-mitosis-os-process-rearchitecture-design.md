@@ -21,6 +21,7 @@ Every citation in this document was derived on 2026-08-12 by one of three audits
 - **Audit A** — a full read of `github.com/shaheershoaib/fanout` at commit `06ae1921`, cloned to a scratchpad. All `fanout.py:*`, `tests/test_fanout.py:*`, `README.md:*`, `adapters/claude-code/SKILL.md:*` and `LICENSE.md:*` citations.
 - **Audit B** — a read of this repository. All `.claude/**` citations.
 - **Audit C** — live verification against Claude Code v2.1.228, including four real `claude -p` invocations. All CLI-capability claims.
+- **Audit D** — a full walk of every dispatch construction site in `mitosis.js`, run 2026-08-12 after initial authoring. Source of the section 1.1 census: the 38 total, the 27 mechanical, the b1/b2/b3 membership lists, and residuals 7 through 9. It supersedes the partial enumeration the first draft of that table carried.
 
 `mitosis.js:NNNN` means `.claude/workflows/mitosis.js`. Behaviour is cited to that file and never to `.claude/lib/mitosis/*.mjs`, because `mitosis.js` has zero imports and calls its own inlined twins, so a `lib` citation would describe a mirror rather than the path that executes. The standalone CLIs are the exception and are cited directly.
 
@@ -42,15 +43,19 @@ Mitosis's control loop is already code. The defect is one layer beneath it: **th
 
 The engine runs inside the Claude Code Workflow tool's capability-stripped JS sandbox. `HOOK_NAMES` is frozen at seven entries — `args, agent, parallel, pipeline, log, phase, workflow` (`.claude/lib/mitosis/workflow-sandbox.mjs:36`) — of which the engine uses five. The sandbox retains fifteen constructors and three value globals (`:18-23`) and denies everything else, including `process`, `require`, `eval`, static and dynamic `import`, the whole `Date` constructor, and `Math.random` (`:25-34`, `:39-50`). It cannot read a file. It cannot run a command.
 
-The consequence is measurable. Of 38 dispatch construction sites in `mitosis.js`, **24 (~63%) exist only because the sandbox lacks filesystem and exec access:**
+The consequence is measurable. The dispatch surface is 38 construction sites: 30 direct `agent(...)` calls plus 8 through the `guard.dispatch` model-policy wrapper (`:1257-1270`), excluding that wrapper's own generic pass-through at `:1267`. Of those 38, **27 (~71%) exist only because the sandbox lacks filesystem and exec access:**
 
 | Class | Count | What the model is actually asked to do |
 |---|---|---|
-| b1 — journal I/O | 5 | `mkdir`, append one line to `.gitignore`, append one JSON line **the engine already holds and interpolates into the prompt** (`mitosis.js:4269`). Sites: `:4263`, `:4520`, `:4545`, `:4604`, `:4626` |
-| b2 — shell-out-and-transcribe | 13 | Run a fixed command, return stdout through a schema. `manifest-publish` is a ten-step git recipe in prose (`:4297-4312`) |
-| b3 — programs written in English | 2 | `parallelize` (`:4892-4908`) tells a model to write a script making seven library calls and to reverse-engineer a data shape by reading `mitosis-execute.js` (`:4903`); `boundary` (`:1508-1530`) specifies a diff-scoped lint gate as a 23-line algorithm including multiset comparison |
+| b1 — journal I/O | 6 | `mkdir`, append one line to `.gitignore`, append one JSON line **the engine already holds and interpolates into the prompt** (`mitosis.js:4269`). Sites: `:4263`, `:4520`, `:4545`, `:4604`, `:4626`, and `:5402` via the `appendRunJournal` helper (`:5390-5411`) |
+| b2 — shell-out-and-transcribe | 18 | Run a fixed command, return stdout through a schema. `manifest-publish` is a ten-step git recipe in prose (`:4297-4312`). Sites: `reconcile`, `manifest-publish`, `prepare-probe` (`:4357`), `fence`, `integrate`, `checkpoint-push`, `ship-verify` (`:5103`), `ci-probe`, `ci-diff` (`:5192`), `ci-publish-verify` (`:5235`), `divergence-check`, `plan-probe`, `restore`, `supersede` (`:4580`), `branch-compose` (`:4989`), `branch-prep` (`:5020`), `ci-publish` (`:5222`), `ship` (`:5329`) |
+| b3 — programs written in English | 3 | `parallelize` (`:4892-4908`) tells a model to write a script making seven library calls and to reverse-engineer a data shape by reading `mitosis-execute.js` (`:4903`); `boundary` (`:1508-1530`) specifies a diff-scoped lint gate as a 23-line algorithm including multiset comparison, and is dispatched twice against that same prose program — first pass (`:1534`) and recheck (`:1544`) |
 
-Four of the b2 dispatches exist explicitly so the engine never takes another agent's word for what a change touched (`mitosis.js:5192`). In a process they are `spawnSync` calls, and the trust problem they solve disappears with them.
+The other 11 sites are ten judgment dispatch sites realizing the nine kinds of section 2.3 — `decompose` (`:4171`), `plan` (`:4826`), `plan-review` (`:4854`), `replan` (`:4875`), `review` (`:1376`), `fix` (`:1385`), `implement` (`:1402`), `boundary-fix` (`:1541`), `ci-fix` (`:5176`), `diagnose` (`:3556`) — plus `redispatch` (`:3569`), which resists classification at the call site and is governed by residual 7. Kinds and sites are not one-to-one: `fix` and `boundary-fix` are one kind at two sites.
+
+Four of the b2 dispatches exist explicitly so the engine never takes another agent's word for what a change touched: `ci-diff` (`:5192`), `ci-publish-verify` (`:5235`), `ship-verify` (`:5103`) and `prepare-probe` (`:4357`). They are a **subset of the 18, never an addition to it** — the arithmetic trap that produced this section's earlier 24/63% figure. In a process they are `spawnSync` calls, and the trust problem they solve disappears with them.
+
+Three b2 sites carry a bounded interpretive step inside an otherwise deterministic script, and are flagged rather than assumed pure: `supersede` (`:4580`) composes a one-line interdiff summary; `ci-publish` (`:5222`) and `ship` (`:5329`) extract structured facts from raw CI log output under a report-what-you-observed constraint. Residual 8 governs them.
 
 A second cost rides along. Because the sandbox refuses `import`, `mitosis.js` inlines byte-identical twins of 25 library modules: **2,932 of its 5,515 lines (53%) are duplicated code**, policed by a mirror-guard test that exists only to keep the duplication honest.
 
@@ -442,11 +447,13 @@ A `subtype: "success"` carrying no `structured_output` after a schema request is
 
 ---
 
-#### C3 — convert the five journal dispatches
+#### C3 — convert the six journal dispatches
 
-**Files.** engine call sites for `checkpoint-init`, `ci-attempt-checkpoint`, `park-checkpoint`, `built-checkpoint`, `ship-checkpoint` (`mitosis.js:4263`, `:4520`, `:4545`, `:4604`, `:4626`), now calling `run-store` directly.
+**Files.** engine call sites for `checkpoint-init`, `ci-attempt-checkpoint`, `park-checkpoint`, `built-checkpoint`, `ship-checkpoint` (`mitosis.js:4263`, `:4520`, `:4545`, `:4604`, `:4626`), and `quiescent-exit-checkpoint` (`:5402`, reached through the `appendRunJournal` helper at `:5390-5411`), now calling `run-store` directly.
 
-**Change.** Five dispatches become `appendFile`. These are the purest case in the census: the engine already holds the exact bytes and interpolates them into the prompt (`mitosis.js:4269`), so the model returns no information at all.
+**Change.** Six dispatches become `appendFile`. These are the purest case in the census: the engine already holds the exact bytes and interpolates them into the prompt (`mitosis.js:4269`), so the model returns no information at all.
+
+**Note on the sixth.** `quiescent-exit-checkpoint` reaches `agent()` through a one-caller helper rather than inline, which is why an earlier pass missed it. Converting the helper converts the site; the helper itself is then deleted rather than left as a wrapper around `appendFile`.
 
 **Genesis.** No longer overwrites; A3's content-keyed attempt directory replaces it.
 
@@ -456,17 +463,19 @@ A `subtype: "success"` carrying no `structured_output` after a schema request is
 
 ---
 
-#### C4 — convert the thirteen transcription dispatches
+#### C4 — convert the eighteen transcription dispatches
 
-**Files.** engine call sites for `reconcile`, `manifest-publish`, `prepare-probe`, `fence`, `integrate`, `checkpoint-push`, `ship-verify`, `ci-probe`, `ci-diff`, `ci-publish-verify`, `divergence-check`, `plan-probe`, `restore`.
+**Files.** engine call sites for `reconcile`, `manifest-publish`, `prepare-probe`, `fence`, `integrate`, `checkpoint-push`, `ship-verify`, `ci-probe`, `ci-diff`, `ci-publish-verify`, `divergence-check`, `plan-probe`, `restore`, `supersede` (`:4580`), `branch-compose` (`:4989`), `branch-prep` (`:5020`), `ci-publish` (`:5222`), `ship` (`:5329`).
 
 **Change.** Each becomes a `spawnSync` through `exec-policy`. `manifest-publish`'s ten-step git recipe (`:4297-4312`) becomes ten calls.
+
+**The three hybrids.** `supersede`, `ci-publish` and `ship` are not pure transcription: each ends in a small interpretive step (an interdiff summary line; extracting `implicatedPaths` and `failingAssertionFiles` from raw CI log text). The command half converts to `spawnSync` here. The interpretive half either resolves to a deterministic parse over structured CI output — the preferred outcome, since the data is machine-readable at source — or is retained as a narrow judgment dispatch and **added to section 2.3's table**, which would make it ten kinds rather than nine. This MSP must decide which, per site, and record the decision in its PR body. It may not leave the question open.
 
 **Preserved invariant.** The manifest ref stays write-once and forward-only; `--force` and `--force-with-lease` remain banned (`mitosis.js:4308`), now enforced by `exec-policy` rather than by asking a model not to.
 
 **Note.** The four trust-motivated dispatches — `ci-diff`, `ci-publish-verify`, `ship-verify`, `prepare-probe` — exist so the engine never takes another agent's word (`:5192`). They lose their reason to exist: the engine now reads the exit code itself.
 
-**Acceptance.** Per call site, a test asserting command shape and parse; a test asserting a merge-shaped argv is refused before spawn; zero model invocations across all thirteen.
+**Acceptance.** Per call site, a test asserting command shape and parse; a test asserting a merge-shaped argv is refused before spawn; zero model invocations across all eighteen, save any hybrid this MSP explicitly promotes to a judgment kind, which is then counted in section 2.3 rather than here.
 
 **Depends on.** A4, C3.
 
@@ -495,6 +504,8 @@ A `subtype: "success"` carrying no `structured_output` after a schema request is
 **Files.** `.claude/lib/mitosis/boundary-gate.mjs`, tests.
 
 **Change.** The 23-line English algorithm (`mitosis.js:1508-1530`) becomes code: base worktree materialization, the symlink-versus-install `node_modules` strategy, per-tool expectation logic, machine-readable collection, the structural-identity tuple with `line:col` stripped, multiset count comparison, the added-suppression scan, the resolved-config strictness diff, and teardown. The cached-base variant (`:1521-1530`) becomes a branch.
+
+**Two call sites, one program.** That prose algorithm is dispatched twice — first pass (`:1534`) and recheck (`:1544`) — so this MSP removes two of the census's 27 mechanical dispatches, not one. Both call sites must land on the same module; a recheck that diverges from the first pass is the defect this consolidation exists to prevent.
 
 **Acceptance.** A known-red diff is caught; a benign diff passes; an added suppression is caught; a strictness downgrade in resolved config is caught; identical input yields identical output across runs.
 
@@ -574,6 +585,9 @@ Named rather than hidden.
 4. **The Workflow-path schema question** (A4) may reveal a live defect on `main`. If it does, it is fixed before the stack proceeds.
 5. **Quality blindness.** The instrument counts tokens and cannot see whether a re-architected Decompose cuts worse. Every cost hypothesis must be paired with a fixed quality assertion, or a token win carrying a quality regression will read as a success (0358).
 6. **Cross-machine journal locality.** The journal is machine-local; only `refs/mitosis-manifest/*` is durable across machines, and it carries identity only, no status. Unchanged by this SPEC.
+7. **One dispatch site resists classification.** `redispatch` (`mitosis.js:3569`) is the shared corrective wrapper `makeRemediation` reuses after ANY stage fails — mechanical or judgment. Its nature is fixed by the stage that triggered it, not by the call site, so it belongs to neither column of the section 1.1 census. C7 must give it a determinate home: either the retry becomes a property of each converted stage, or it survives as an eleventh judgment kind. **It may not be left as an unclassified dispatch**, which is exactly the unclassifiable that a closed census is required to halt on.
+8. **Three b2 sites are hybrids, and the census rounds them toward mechanical.** `supersede`, `ci-publish` and `ship` each end in a bounded interpretive step. Counting them as fully mechanical slightly overstates the 27; counting them as judgment slightly understates it. C4 decides per site. Until it does, **27 is an upper bound on eliminable dispatches and 24 is the floor** — and the falsifier in D3 is measured against actual runs, not against either figure, so the ambiguity cannot leak into the pass/fail decision.
+9. **The section 1.1 census is now a full walk, and earlier figures were not.** The published 24/63% was 20 (the then-enumerated table) plus the same four trust dispatches counted twice. A full walk of all 38 sites found 27. Any future edit to that table must re-walk the file rather than adjust the arithmetic — the failure mode being corrected here is precisely a total that was reasoned about instead of counted.
 
 ## 7. Out of scope
 
