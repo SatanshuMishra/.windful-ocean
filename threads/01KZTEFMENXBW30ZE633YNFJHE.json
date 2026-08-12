@@ -169,6 +169,11 @@
         "ref": "0376-unclassifiable-dispatches-get-a-forced-home",
         "title": "The two unclassifiable dispatch sites are forced to a decision in their own MSP",
         "scope": "c5"
+      },
+      {
+        "ref": "0378-mitosis-may-not-implement-its-own-replacement",
+        "title": "Mitosis is prohibited as the engine of its own replacement; the stack ships by plain subagent dispatch",
+        "scope": "thread"
       }
     ],
     "out_of_scope": [
@@ -180,5 +185,5 @@
     ]
   },
   "created_at": "2026-08-12T07:37:41.077Z",
-  "updated_at": "2026-08-12T07:38:35.360Z"
+  "updated_at": "2026-08-12T16:36:36.501Z"
 }
