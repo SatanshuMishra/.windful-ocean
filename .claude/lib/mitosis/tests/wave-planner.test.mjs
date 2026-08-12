@@ -139,17 +139,16 @@ test('planWaves throws on a fileScope overlap between two tasks that only land i
   );
 });
 
-test('planWaves does not validate a non-array fileScope, so it silently escapes overlap detection: a known fail-open pinned here, not endorsed', () => {
-  const result = planWaves({
-    tasks: [
-      { id: 'a', fileScope: 'src/a.js' },
-      { id: 'b', fileScope: ['src/a.js'] },
-    ],
-  });
-  assert.deepEqual(result, {
-    waves: [['a', 'b']],
-    diagnostics: { taskCount: 2, waveCount: 1, maxWidth: 2 },
-  });
+test('planWaves throws on a non-array fileScope instead of letting it silently escape overlap detection', { todo: 'wave-planner.mjs needs an Array.isArray(fileScope) guard matching generate-run-script.mjs:55; until then main() (wave-planner.mjs:62-72) feeds unvalidated JSON.parse output straight into planWaves' }, () => {
+  assert.throws(
+    () => planWaves({
+      tasks: [
+        { id: 'a', fileScope: 'src/a.js' },
+        { id: 'b', fileScope: ['src/a.js'] },
+      ],
+    }),
+    /fileScope must be an array/,
+  );
 });
 
 test('planWaves on a single task with no declared dependsOn or fileScope defaults both to empty and returns one wave of one', () => {
