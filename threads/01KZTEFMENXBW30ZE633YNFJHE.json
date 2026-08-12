@@ -31,7 +31,7 @@
     {
       "id": "c9",
       "text": "The pathsOverlap glob and canonicalization fail-open ships to main as its own PR, with an acceptance test red on the parent commit and the fix mirrored into the workflows copy in the same commit.",
-      "done": false,
+      "done": true,
       "kind": "detour",
       "struck_by": null
     },
@@ -260,5 +260,5 @@
     ]
   },
   "created_at": "2026-08-12T07:37:41.077Z",
-  "updated_at": "2026-08-12T22:26:20.761Z"
+  "updated_at": "2026-08-12T22:26:32.859Z"
 }
