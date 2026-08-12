@@ -249,6 +249,11 @@
         "ref": "0384-a1-truncated-payload-fails-closed",
         "title": "A truncated dispatch payload fails closed, and runChild's refactor is deferred",
         "scope": "c3"
+      },
+      {
+        "ref": "0385-workflow-tool-drives-the-stack-not-a-nested-orchestrator",
+        "title": "A deterministic Workflow script drives each MSP lane, replacing the nested orchestrator subagent",
+        "scope": "c3"
       }
     ],
     "out_of_scope": [
@@ -260,5 +265,5 @@
     ]
   },
   "created_at": "2026-08-12T07:37:41.077Z",
-  "updated_at": "2026-08-12T22:26:32.859Z"
+  "updated_at": "2026-08-12T23:16:30.142Z"
 }
