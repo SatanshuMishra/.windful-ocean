@@ -380,6 +380,11 @@
         "ref": "0367-directive-and-design-brief-are-non-authoritative",
         "title": "The 2026-08-11 directive and the design brief are demoted; current decision records govern",
         "scope": "thread"
+      },
+      {
+        "ref": "0369-os-process-control-loop-supersedes-sandboxed-toolbox-as-focus",
+        "title": "Focus shifts to an OS-process control loop; the sandboxed toolbox is no longer the presumed design",
+        "scope": "thread"
       }
     ],
     "out_of_scope": [
@@ -390,5 +395,5 @@
     ]
   },
   "created_at": "2026-08-11T00:08:10.978Z",
-  "updated_at": "2026-08-12T04:32:10.488Z"
+  "updated_at": "2026-08-12T05:10:03.227Z"
 }
