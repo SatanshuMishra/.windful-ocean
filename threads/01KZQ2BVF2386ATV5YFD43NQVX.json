@@ -436,6 +436,11 @@
         "ref": "0370-engine-leaves-the-sandbox-adopting-the-fanout-thesis",
         "title": "The engine leaves the Workflow sandbox; fanout's thesis is adopted, its topology is not",
         "scope": "thread"
+      },
+      {
+        "ref": "0371-msp-means-reviewable-and-green-not-usable",
+        "title": "MSP means independently reviewable and green, not independently usable; the stack releases as one",
+        "scope": "thread"
       }
     ],
     "out_of_scope": [
@@ -446,5 +451,5 @@
     ]
   },
   "created_at": "2026-08-11T00:08:10.978Z",
-  "updated_at": "2026-08-12T06:08:24.906Z"
+  "updated_at": "2026-08-12T06:08:32.662Z"
 }
