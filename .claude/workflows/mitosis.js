@@ -39,25 +39,31 @@ function cleanUrl(v) {
   return typeof v === 'string' ? clean(v.slice(0, MAX_LOGGED_TOKEN_LEN)) : clean(v);
 }
 
-function normalize(p) {
-  return p.replace(/^\.\//, '').replace(/\/+$/, '');
+function canonicalPath(p) {
+  return p
+    .trim()
+    .split('/')
+    .filter((segment) => segment !== '' && segment !== '.')
+    .reduce((segments, segment) => (segment === '..' ? segments.slice(0, -1) : [...segments, segment]), [])
+    .join('/')
+    .toLowerCase();
 }
 
 function globPrefix(glob) {
-  const star = glob.search(/[*?]/);
-  if (star === -1) return null;
-  return normalize(glob.slice(0, star));
+  const wildcard = glob.search(/[*?{[]/);
+  if (wildcard === -1) return null;
+  return canonicalPath(glob.slice(0, wildcard));
 }
 
 function pathsOverlap(a, b) {
-  const na = normalize(a);
-  const nb = normalize(b);
-  if (na === nb) return true;
+  const ca = canonicalPath(a);
+  const cb = canonicalPath(b);
+  if (ca === '' || cb === '' || ca === cb) return true;
+  if (cb.startsWith(ca + '/') || ca.startsWith(cb + '/')) return true;
   const pa = globPrefix(a);
-  if (pa !== null && (nb === pa || nb.startsWith(pa + '/'))) return true;
+  if (pa !== null && (cb.startsWith(pa) || pa.startsWith(cb))) return true;
   const pb = globPrefix(b);
-  if (pb !== null && (na === pb || na.startsWith(pb + '/'))) return true;
-  if (nb.startsWith(na + '/') || na.startsWith(nb + '/')) return true;
+  if (pb !== null && (ca.startsWith(pb) || pb.startsWith(ca))) return true;
   return false;
 }
 
