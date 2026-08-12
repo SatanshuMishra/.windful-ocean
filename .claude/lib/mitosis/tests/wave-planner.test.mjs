@@ -2,6 +2,14 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { pathsOverlap, scopesOverlap, planWaves } from '../wave-planner.mjs';
 
+function planOutcome(spec) {
+  try {
+    return { refused: false, waves: planWaves(spec).waves };
+  } catch (err) {
+    return { refused: true, message: err.message };
+  }
+}
+
 test('pathsOverlap treats normalized-equal paths as overlapping, ignoring a leading ./ or trailing /', () => {
   assert.equal(pathsOverlap('src/a.js', 'src/a.js'), true);
   assert.equal(pathsOverlap('./src/a.js', 'src/a.js/'), true);
@@ -139,7 +147,7 @@ test('planWaves throws on a fileScope overlap between two tasks that only land i
   );
 });
 
-test('planWaves throws on a non-array fileScope instead of letting it silently escape overlap detection', { todo: 'wave-planner.mjs needs an Array.isArray(fileScope) guard matching generate-run-script.mjs:55; until then main() (wave-planner.mjs:62-72) feeds unvalidated JSON.parse output straight into planWaves' }, () => {
+test('planWaves throws on a non-array fileScope instead of letting it silently escape overlap detection, naming the offending task', () => {
   assert.throws(
     () => planWaves({
       tasks: [
@@ -147,8 +155,43 @@ test('planWaves throws on a non-array fileScope instead of letting it silently e
         { id: 'b', fileScope: ['src/a.js'] },
       ],
     }),
-    /fileScope must be an array/,
+    (err) => {
+      assert.match(err.message, /fileScope must be an array/);
+      assert.match(err.message, /\btask a\b/);
+      return true;
+    },
   );
+});
+
+test('planWaves refuses a scalar fileScope on a task that overlaps nothing, since a scalar is never a valid scope', () => {
+  assert.throws(
+    () => planWaves({ tasks: [{ id: 'lonely', fileScope: 'src/lonely.js' }] }),
+    /task lonely fileScope must be an array/,
+  );
+});
+
+test('planWaves treats an explicit null fileScope as no declared scope, exactly as an absent one', () => {
+  const result = planWaves({ tasks: [{ id: 'solo', fileScope: null }] });
+  assert.deepEqual(result, {
+    waves: [['solo']],
+    diagnostics: { taskCount: 1, waveCount: 1, maxWidth: 1 },
+  });
+});
+
+test('planWaves refuses to co-schedule two genuinely overlapping tasks when one declares its fileScope as a scalar string', () => {
+  const outcome = planOutcome({
+    tasks: [
+      { id: 'writer', dependsOn: [], fileScope: 'src/shared.js' },
+      { id: 'reader', dependsOn: [], fileScope: ['src/shared.js'] },
+    ],
+  });
+  assert.equal(outcome.refused, true, `expected a refusal; instead the two overlapping tasks were scheduled as ${JSON.stringify(outcome.waves)}`);
+  assert.match(outcome.message, /fileScope must be an array/);
+});
+
+test('scopesOverlap throws on a scalar scope in either argument position rather than walking it character by character', () => {
+  assert.throws(() => scopesOverlap('src/a.js', ['src/a.js']), /fileScope must be an array/);
+  assert.throws(() => scopesOverlap(['src/a.js'], 'src/a.js'), /fileScope must be an array/);
 });
 
 test('planWaves on a single task with no declared dependsOn or fileScope defaults both to empty and returns one wave of one', () => {

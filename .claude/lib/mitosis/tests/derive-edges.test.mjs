@@ -6,6 +6,14 @@ function graphOf(...tasks) {
   return { tasks: tasks.map((t) => ({ dependsOn: [], fileScope: [], ...t })) };
 }
 
+function deriveOutcome(graph) {
+  try {
+    return { refused: false, added: deriveEdges(graph, []).added };
+  } catch (err) {
+    return { refused: true, message: err.message };
+  }
+}
+
 test('clean graph: all dependencies declared, nothing added', () => {
   const g = graphOf(
     { id: 't1', fileScope: ['lib/a.js'] },
@@ -40,6 +48,15 @@ test('fileScope overlap already serialized either direction adds no edge', () =>
     { id: 't2', fileScope: ['lib/shared.js'] },
   );
   assert.equal(deriveEdges(reverse, []).added.length, 0);
+});
+
+test('a scalar fileScope is refused instead of silently skipping the serializing overlap edge', () => {
+  const outcome = deriveOutcome(graphOf(
+    { id: 't1', fileScope: 'lib/shared.js' },
+    { id: 't2', fileScope: ['lib/shared.js'] },
+  ));
+  assert.equal(outcome.refused, true, `expected a refusal; instead the two overlapping tasks were hardened with added edges ${JSON.stringify(outcome.added)}`);
+  assert.match(outcome.message, /fileScope must be an array/);
 });
 
 test('discovered semantic edge not declared is auto-added with its reason', () => {

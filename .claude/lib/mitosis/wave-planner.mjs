@@ -24,6 +24,7 @@ export function pathsOverlap(a, b) {
 }
 
 export function scopesOverlap(aScopes, bScopes) {
+  if (!Array.isArray(aScopes) || !Array.isArray(bScopes)) throw new Error('fileScope must be an array');
   for (const a of aScopes) for (const b of bScopes) if (pathsOverlap(a, b)) return true;
   return false;
 }
@@ -35,6 +36,8 @@ export function planWaves(spec) {
   for (const t of tasks) {
     if (!t.id) throw new Error('task missing id');
     if (byId.has(t.id)) throw new Error(`duplicate task id: ${t.id}`);
+    if (t.fileScope !== undefined && t.fileScope !== null && !Array.isArray(t.fileScope))
+      throw new Error(`task ${t.id} fileScope must be an array`);
     byId.set(t.id, { id: t.id, dependsOn: t.dependsOn || [], fileScope: t.fileScope || [] });
   }
   for (const t of byId.values())
