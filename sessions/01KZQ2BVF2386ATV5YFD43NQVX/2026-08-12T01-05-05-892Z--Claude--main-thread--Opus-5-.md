@@ -1,0 +1,21 @@
+Ran the c1 citation census to completion via four parallel codebase-analyst agents, then extended the re-architecture page with seven new sections — and closed the session with a user directive that invalidates two of them.
+
+CENSUS CLOSED (c1's named targets, all reproducible):
+- phase counts: `grep -c "phase("` = 12, `grep -c "phase: '"` = 48, `grep -c "phase:"` = 50. The 48-vs-50 dispute is NOT a contradiction: 48 = literal `phase:` keys, 50 = all keys including two non-literal ones (mitosis.js:3547 destructured param, :3571 forwarded pass-through, both in makeRemediation). Neither audit counted `phase(` calls. Structure-aware ground truth from `node mitosis-gate.mjs phase-parity`: tokens 64, keys 50, calls 12, bare 2, literal 48, dead 0. 13 declared titles.
+- *_SCHEMA = 25 via `grep -c "_SCHEMA = "`. PUBLISHED_SCHEMA_VERSION (mitosis.js:510) is the false-positive trap that yields 26 on a loose grep. One agent asserted 29 in prose but enumerated 25 in its own table; 25 stands.
+- :1191 resolvePlanReview CONFIRMED (called :4861; auto-approve fires only after TWO consecutive ambiguous verdicts, bounded by MAX_PLAN_REVIEW_ITERATIONS=3). :1508/:1521 firstPassGate/recheckGate CONFIRMED. :4817 plan-artifact-missing park CONFIRMED. Final review CONFIRMED gone (commit 12053dc).
+- PROMPT-BYTE FIGURES: NOT derivable and never will be from artifacts. prompt-snapshots/*.md are generic role preambles (8,246 bytes total) with zero run-specific content; nothing on disk captures a composed dispatch prompt. Needs instrumentation or must be dropped from the SPEC.
+
+FOUR ARCHITECTURAL FINDINGS:
+1. Graphify is NOT integrated. Zero matches in any engine .mjs. All four references are prompt prose (mitosis.js:4175, :4181, :4896; plan-to-task-graph/SKILL.md:31). The nearest shape check (:4949-4955) passes on an empty discovered-edges file.
+2. The decomposer certifies its own parallel-safety. DECOMPOSE_SCHEMA checks shape only; the lease scheduler (:5469, :2451-2458) treats the model's self-declared dependsOn/fileScope as authority, with pure string/glob overlap (:52-67).
+3. The zero-context problem is 0342's Tier 2, never re-aimed. 0355 re-aimed Tiers 0 and 1 at the main thread and stopped. Also: 0342 dismissed two Tier-2 gaps as dissolved by 0325's Node host — 0353 killed that host, so O_APPEND atomicity and the cross-machine channel are back.
+4. The sandbox determines the toolbox design. No fs/git/network/clock/dynamic-import (workflow-sandbox.mjs:25-34,45-51), and NO mid-run human primitive — NeedsHuman becomes a non-blocking park (:4497-4514), never a question. So "toolbox" means N Workflow invocations, one per verb, each rehydrating from the journal. That overturns the in-process-sharing reading (:5040-5043): it holds only for today's monolith.
+
+SHIPPED: report extended 48,468 -> 116,736 bytes with sections 11-17 (SPEC trust gate, graphify pipeline, carry-forward, toolbox, review/planning census, one-MSP integration, 18-gap register). Footer caveats corrected for the closed census.
+
+FAILED / NOT DONE:
+- Diagrams were statically audited, NEVER render-verified. Files outside the project folder open as static snapshots so mermaid never executes; the local-server workaround was denied by the permission gate. c5 requires render-verified diagrams.
+- Section 03's "one count is still open" callout now contradicts the closed census. Left untouched (it is carried-verbatim text) with a footer line marking it superseded.
+
+END-OF-SESSION DIRECTIVE (invalidates work just shipped): the user rejected the SPEC-verification model in section 11 and the graphify-vs-pillars framing in section 12. SPEC is to be trusted by PROVENANCE, not verification; the codebase must NOT be queried before the implementer phase; graphify is reliable and must be structurally required, with per-cluster subgraphs emitted as JSON and passed forward so fresh subagents never repeat the work. Preserved verbatim, with the correction analysis and seven scoped work items, at ~/.claude/projects/-Users-satanshumishra-Documents-DevLabs--windful-ocean/artifacts/2026-08-11-DIRECTIVE-spec-trust-and-graphify.md. Full design brief with all four census results copied alongside it as 2026-08-11-design-brief-new-phases.md (39,830 bytes). No agents left running.
