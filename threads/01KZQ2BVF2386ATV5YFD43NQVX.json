@@ -63,9 +63,9 @@
   "abandoned_reason": null,
   "closure_statement": null,
   "spine": {
-    "active_goal": "Rewrite SPEC B's architecture around provenance-trusted SPECs and structurally-required graphify, then produce the report for user review.",
-    "next_step": "FIRST TASK, nothing before it: read artifacts/2026-08-11-DIRECTIVE-spec-trust-and-graphify.md IN FULL. It holds the user's verbatim directive and invalidates report sections 11 and 12. Then work its seven items, worst first: rewrite s11 for provenance-based trust, rewrite s12 around the five-step Decompose flow with per-cluster subgraph passing, make graphify schema-enforced on DECOMPOSE_SCHEMA. Raise pillars.md with the user, never edit it silently.",
-    "last_session": "Closed the c1 census: phase counts 12/48/50 reconciled as different surfaces, *_SCHEMA=25, three line citations confirmed, prompt-bytes proven underivable. Extended the report to 116,736 bytes with sections 11-17. A user directive at session end invalidated sections 11 and 12.",
+    "active_goal": "Get the rewritten report reviewed by the user (c5), then write the revised SPEC B around provenance-trusted SPECs and structurally-required graphify.",
+    "next_step": "Present the rewritten report for the c5 user review: sections 11, 12 and 17 plus all ten render-verified diagrams. Serve it over HTTP first; opened as a plain file the diagrams are blank. Before or during that review get three answers: the user's step 5 of the five-step flow; whether to inline mermaid so the artifact survives offline; and whether c5's 'five render-verified diagrams' should be amended to ten. Only after the review does c3, writing the revised SPEC B, begin.",
+    "last_session": "Rewrote report sections 11 and 12 for provenance trust and the graphify slice design, re-cut section 17 to 22 gaps, render-verified all ten diagrams, recorded 0361-0364. Caught and corrected a false 'no recall figure exists in-repo' claim I had propagated.",
     "open_risks": [
       {
         "text": "Read run-engine.mjs facts as describing a fork the engine never executes — mitosis.js defines its own runEngine that has diverged about 77 lines from it",
@@ -90,23 +90,53 @@
         ]
       },
       {
-        "text": "Read the 2026-08-11 directive in full before touching the report — it is the user's explicit first task for the next session, and editing from the current page reintroduces the SPEC-verification model they rejected",
-        "scope": "thread",
+        "text": "Cite mitosis.js for behaviour, never lib/mitosis/*.mjs — mitosis.js has zero imports and calls its own inlined twins, so a run-engine.mjs citation describes a mirror rather than the path that executes",
+        "scope": "c1",
         "refs": [
-          "~/.claude/projects/-Users-satanshumishra-Documents-DevLabs--windful-ocean/artifacts/2026-08-11-DIRECTIVE-spec-trust-and-graphify.md",
-          "0359",
-          "0360"
+          ".claude/workflows/mitosis.js:5040",
+          ".claude/lib/mitosis/tests/mirror-guard.test.mjs:26"
         ]
       },
       {
-        "text": "The report's ten diagrams have never been render-verified — files outside the project folder open as static snapshots so mermaid never executes, and c5 requires render-verified diagrams",
+        "text": "Treat any .claude/lib/superpowers-parallel hit as noise — confirmed this session as untracked and gitignored, so it still answers a grep but describes nothing that runs",
+        "scope": "c1",
+        "refs": [
+          "0340",
+          "0353"
+        ]
+      },
+      {
+        "text": "Do not trust the 2026-08-11 directive or the design brief on graphify recall — both assert no numeric figure exists in-repo, which is false, and only the report now carries the corrected account",
+        "scope": "thread",
+        "refs": [
+          "artifacts/2026-08-11-DIRECTIVE-spec-trust-and-graphify.md",
+          ".claude/docs/specs/2026-06-29-mitosis-design.md:60",
+          "0361"
+        ]
+      },
+      {
+        "text": "Serve the report over HTTP with network access before reviewing it — it loads mermaid from jsdelivr and fonts from Google, so opened as a plain file it shows ten empty diagram frames and looks broken",
         "scope": "thread",
         "refs": [
           "~/.agent/diagrams/mitosis-rearchitecture-main-thread-2026-08-11.html"
         ]
       },
       {
-        "text": "Prompt-byte figures cannot be derived from any artifact on disk — nothing captures a composed dispatch prompt, so the SPEC must instrument for them or drop them; the phase and schema counts are now closed",
+        "text": "Get the user's step 5 before writing the SPEC's phase list — the directive's five-step flow stops at the implementer and trails off, and review then integrate then ship is an assumption I made rather than an instruction",
+        "scope": "thread",
+        "refs": [
+          "artifacts/2026-08-11-DIRECTIVE-spec-trust-and-graphify.md"
+        ]
+      },
+      {
+        "text": "Renumber the report's figures before the user reviews it — captions run 1, 2, 3, 4, 7, 8, 9, 10, 11, 12 because deleted figures 5 and 6 were never backfilled, so a reader hits an unexplained jump",
+        "scope": "thread",
+        "refs": [
+          "~/.agent/diagrams/mitosis-rearchitecture-main-thread-2026-08-11.html"
+        ]
+      },
+      {
+        "text": "Instrument for prompt-byte figures or drop them from the SPEC — nothing on disk captures a composed dispatch prompt, so they cannot be derived; the phase and schema counts are now closed",
         "scope": "thread",
         "refs": [
           ".claude/lib/mitosis/prompt-snapshots/",
@@ -114,11 +144,10 @@
         ]
       },
       {
-        "text": "Treat the supervisor, rotation and spawn-cost research as deferred rather than deleted — decisions 0348 to 0351 and section 07 of the page hold it, and it returns only after the engine update",
+        "text": "Treat the supervisor, rotation and spawn-cost research as deferred rather than deleted — decisions 0348 to 0351 and section 07 of the report hold it, and it returns only after the engine update",
         "scope": "thread",
         "refs": [
-          "0352",
-          "~/.agent/diagrams/mitosis-rearchitecture-main-thread-2026-08-11.html"
+          "0352"
         ]
       },
       {
@@ -137,7 +166,7 @@
         ]
       },
       {
-        "text": "Have the ENGINE emit the typed record structurally rather than asking any orchestrator to choose to — with the middle layer gone the main thread is the only judge left, which is exactly the soft judgment 0342 refuses to rely on",
+        "text": "Have the ENGINE emit the typed record structurally rather than asking any orchestrator to choose to — with the middle layer gone the main thread is the only judge left, which is the soft judgment 0342 refuses to rely on",
         "scope": "thread",
         "refs": [
           "0342",
@@ -145,10 +174,11 @@
         ]
       },
       {
-        "text": "Keep implementation out of this thread entirely — its criteria are research, artifact and writing only, and a successor thread owns every code change the SPEC calls for",
+        "text": "Keep implementation out of this thread entirely — its criteria are research, artifact and writing only, and a successor thread owns DECOMPOSE_SCHEMA, the slice function and deleting planGroundTruthSeed",
         "scope": "thread",
         "refs": [
-          "0324"
+          "0324",
+          "0363"
         ]
       },
       {
@@ -157,23 +187,6 @@
         "refs": [
           "~/.claude/CUTOVER",
           "~/.claude/LIVE"
-        ]
-      },
-      {
-        "text": "Cite mitosis.js for behaviour, never lib/mitosis/*.mjs — mitosis.js has zero imports and calls its own inlined twins, so a run-engine.mjs citation describes a mirror rather than the path that executes",
-        "scope": "c1",
-        "refs": [
-          ".claude/workflows/mitosis.js:5040",
-          ".claude/lib/mitosis/tests/mirror-guard.test.mjs:26"
-        ]
-      },
-      {
-        "text": "Re-cite every engine path against lib/mitosis before quoting it — the workflow-sandbox, run-engine and supervisor citations all predate the rename, and .claude/lib/superpowers-parallel survives as an untracked leftover that still answers a grep",
-        "scope": "c1",
-        "refs": [
-          "0340",
-          "0353",
-          ".claude/lib/mitosis/workflow-sandbox.mjs:36"
         ]
       }
     ],
@@ -351,5 +364,5 @@
     ]
   },
   "created_at": "2026-08-11T00:08:10.978Z",
-  "updated_at": "2026-08-12T01:39:15.679Z"
+  "updated_at": "2026-08-12T02:09:12.949Z"
 }
