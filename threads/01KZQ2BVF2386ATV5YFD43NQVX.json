@@ -63,9 +63,9 @@
   "abandoned_reason": null,
   "closure_statement": null,
   "spine": {
-    "active_goal": "Get the written OS-process SPEC reviewed and approved by the user. c3 closes only on their approval, not on the file existing.",
-    "next_step": "WAIT for the user's SPECIFIC instructions before doing anything. Do NOT auto-start writing-plans, do NOT re-litigate the design (locked in 0370-0374), do NOT re-read fanout. The SPEC is written and committed at .claude/docs/specs/2026-08-12-mitosis-os-process-rearchitecture-design.md on branch docs/mitosis-os-process-spec (05f1523) and is AWAITING the user's review. Three flagged deviations are unresolved: the file path, the A4 fold, and the citation re-verification pass.",
-    "last_session": "Read fanout in full and censused mitosis's 38 dispatch sites. Closed 0369's dispatch question against claude -p on v2.1.228. User corrected the MSP premise to stacked-PRs-released-as-one. Recorded 0370-0374 and wrote the 584-line SPEC. Not yet reviewed.",
+    "active_goal": "Get the OS-process SPEC approved, then hand implementation to a successor thread driven by a dedicated orchestrator subagent.",
+    "next_step": "START HERE. User's instruction: dispatch a DEDICATED orchestrator subagent that itself dispatches workers (sequential, parallel where safe) to fully plan, implement and ship the SPEC. Settle three things FIRST: (1) the SPEC is still unapproved, c1 and c3 open; (2) implementation belongs on a SUCCESSOR thread per c4, so open it before any code; (3) decide whether mitosis implements its own replacement, since D2 deletes mitosis.js.",
+    "last_session": "Built a zero-knowledge visual explainer of the SPEC. It surfaced a census defect: the headline 24 of 38 contradicted its own table. A full walk of all 38 sites found 27 mechanical, not 20 and not 24. Corrected and pushed as 894837f.",
     "open_risks": [
       {
         "text": "Pair every Part II hypothesis with a fixed quality assertion — the instrument counts tokens and cannot see whether a fused Decompose cuts worse, so a token win carrying a quality regression will read as a success",
@@ -167,76 +167,6 @@
         ]
       },
       {
-        "text": "Cite mitosis.js for behaviour, never lib/mitosis/*.mjs — mitosis.js has zero imports and calls its own inlined twins, so a run-engine.mjs citation describes a mirror rather than the path that executes",
-        "scope": "c1",
-        "refs": [
-          ".claude/workflows/mitosis.js:5040",
-          ".claude/lib/mitosis/tests/mirror-guard.test.mjs:26"
-        ]
-      },
-      {
-        "text": "Treat any .claude/lib/superpowers-parallel hit as noise — confirmed untracked and gitignored, so it still answers a grep but describes nothing that runs",
-        "scope": "c1",
-        "refs": [
-          "0340",
-          "0353"
-        ]
-      },
-      {
-        "text": "Audit plan-to-task-graph's SKILL.md before trusting the pre-implementer census — mitosis.js tells the Parallelize phase to read and follow it, so a codebase-read instruction the census never saw could still be hiding there",
-        "scope": "c1",
-        "refs": [
-          ".claude/workflows/mitosis.js:4894",
-          ".claude/skills/plan-to-task-graph/SKILL.md"
-        ]
-      },
-      {
-        "text": "Say the workflow JS is sandboxed, never that a subagent is — dispatched agents hold full Bash, Read and Edit, and only the orchestration JS is capability-stripped; the report's wording produced exactly that wrong conclusion this session",
-        "scope": "c1",
-        "refs": [
-          ".claude/lib/mitosis/workflow-sandbox.mjs:38"
-        ]
-      },
-      {
-        "text": "Price the rehydration tax on both sides before recommending either architecture — the sandbox cannot read a file, so each fresh invocation pays an agent dispatch just to load state, and the seven Workflow hooks belong to Anthropic and cannot be widened",
-        "scope": "c1",
-        "refs": [
-          ".claude/lib/mitosis/workflow-sandbox.mjs:38",
-          ".claude/workflows/mitosis.js:3961"
-        ]
-      },
-      {
-        "text": "Start the OS-process comparison from the planners mitosis already owns — derive-edges, wave-planner, derive-clusters and route-planner are deterministic CLIs reached sideways via an agent shelling out, and removing that indirection is the whole gain",
-        "scope": "c1",
-        "refs": [
-          ".claude/workflows/mitosis.js:4897",
-          ".claude/lib/mitosis/derive-edges.mjs"
-        ]
-      },
-      {
-        "text": "Answer how an OS process dispatches agents before adopting one — agent() and parallel() are Workflow hooks, and a process outside the sandbox has no equivalent primitive on hand",
-        "scope": "c1",
-        "refs": [
-          ".claude/lib/mitosis/workflow-sandbox.mjs:38",
-          "0369"
-        ]
-      },
-      {
-        "text": "Treat refs/mitosis/* and refs/mitosis-manifest/* as permanent remote junk until a retire step exists — nothing found deletes them, and the manifest ref is content-keyed so every spec edit mints another one",
-        "scope": "c1",
-        "refs": [
-          ".claude/workflows/mitosis.js:4301",
-          ".claude/workflows/mitosis.js:3967"
-        ]
-      },
-      {
-        "text": "A new run overwrites .mitosis/run.json at genesis rather than rotating it — prior-run history is destroyed, so the journal is a durable state channel within a run and not across runs",
-        "scope": "c1",
-        "refs": [
-          ".claude/workflows/mitosis.js:4268"
-        ]
-      },
-      {
         "text": "Check whether the Workflow agent({schema, agentType}) path shares the StructuredOutput allowlist trap — if it does, schema enforcement is already void today on every allowlisted agent, making it a live defect on main rather than a cutover item",
         "scope": "c3",
         "refs": [
@@ -263,6 +193,70 @@
         "scope": "c3",
         "refs": [
           "693d54c"
+        ]
+      },
+      {
+        "text": "Dispatch the orchestrator on the SUCCESSOR thread, never this one — this thread's criteria are research, artifact and writing only, and it closes with no implementation started",
+        "scope": "c1",
+        "refs": [
+          "c4",
+          "0324"
+        ]
+      },
+      {
+        "text": "Force a git re-verify after the orchestrator returns — a dispatching agent ends its turn narrating that it is holding, when in fact nothing ran and no child was ever spawned",
+        "scope": "c1",
+        "refs": [
+          "memory: dispatching-agents-return-believing-they-wait"
+        ]
+      },
+      {
+        "text": "Decide whether mitosis is allowed to implement its own replacement before dispatching anything — D2 deletes mitosis.js, the engine that would be running the work, so the run would saw off the branch it sits on",
+        "scope": "c1",
+        "refs": [
+          ".claude/docs/specs/2026-08-12-mitosis-os-process-rearchitecture-design.md D2"
+        ]
+      },
+      {
+        "text": "Get the user's explicit approval on the SPEC before implementation, or get their explicit waiver — c3 closes on their approval, not on the file existing, and the whole thread exists to be that gate",
+        "scope": "c1",
+        "refs": [
+          "c1",
+          "c3"
+        ]
+      },
+      {
+        "text": "Cite mitosis.js for behaviour, never lib/mitosis/*.mjs — mitosis.js has zero imports and calls its own inlined twins, so a run-engine.mjs citation describes a mirror rather than the path that executes",
+        "scope": "c1",
+        "refs": [
+          ".claude/workflows/mitosis.js:5040",
+          ".claude/lib/mitosis/tests/mirror-guard.test.mjs:26"
+        ]
+      },
+      {
+        "text": "Say the workflow JS is sandboxed, never that a subagent is — dispatched agents hold full Bash, Read and Edit, and only the orchestration JS is capability-stripped",
+        "scope": "c1",
+        "refs": [
+          ".claude/lib/mitosis/workflow-sandbox.mjs:38"
+        ]
+      },
+      {
+        "text": "Use git -C rather than a leading cd in a compound Bash command — zoxide intercepts the cd, prints that you are already there, and silently swallows the rest, so a commit reports nothing and never runs",
+        "scope": "c1",
+        "refs": []
+      },
+      {
+        "text": "Reuse or remove the .claude/worktrees/os-process-spec worktree — it holds the spec branch, while the primary checkout sits on chore/remove-context-wrapup-nudge carrying uncommitted work that is not ours",
+        "scope": "c1",
+        "refs": [
+          ".claude/worktrees/os-process-spec"
+        ]
+      },
+      {
+        "text": "Serve the explainer over HTTP before reviewing it — it loads Mermaid from jsdelivr, so opened as a plain file it shows empty diagram frames; its rendering was never confirmed this session",
+        "scope": "c1",
+        "refs": [
+          "~/.agent/diagrams/mitosis-os-process-spec-explained-2026-08-12.html"
         ]
       }
     ],
@@ -318,11 +312,6 @@
         "scope": "c2"
       },
       {
-        "ref": "0338-eight-phase-collapse-re-adopted-with-four-amendments",
-        "title": "The eight-phase collapse is re-adopted, re-derived against today's engine, with four amendments",
-        "scope": "c1"
-      },
-      {
         "ref": "0341-logbook-spine-rejected-as-the-rotation-summarizer",
         "title": "Logbook's progressive-summary spine is rejected as the rotation summarizer",
         "scope": "c2"
@@ -333,16 +322,6 @@
         "scope": "c2"
       },
       {
-        "ref": "0351-title-generation-tax-is-a-real-per-spawn-cost",
-        "title": "The fresh-session title tax is a real per-spawn charge to model, not an accounting artifact",
-        "scope": "c1"
-      },
-      {
-        "ref": "0352-main-thread-is-the-orchestrator",
-        "title": "The supervisor and dispatched orchestrator are cut from scope; the main thread is the orchestrator",
-        "scope": "c1"
-      },
-      {
         "ref": "0354-workflow-transcripts-are-the-instrument",
         "title": "Source B is the instrument, it counts four token classes, and attribution is the real gap",
         "scope": "c2"
@@ -351,21 +330,6 @@
         "ref": "0358-residual-register-re-cut",
         "title": "SPEC B's residual register is re-cut: only the quality-blindness residual stays open",
         "scope": "c2"
-      },
-      {
-        "ref": "0359-spec-is-trusted-by-provenance-not-verification",
-        "title": "The SPEC is trusted by provenance, and the codebase is not queried before the implementer phase",
-        "scope": "c1"
-      },
-      {
-        "ref": "0360-graphify-is-structurally-required-and-its-subgraphs-carry-forward",
-        "title": "Graphify is structurally required in Decompose and its per-cluster subgraphs are passed forward as JSON",
-        "scope": "c1"
-      },
-      {
-        "ref": "0365-graphify-alone-determines-parallelizability",
-        "title": "Graphify alone determines parallelizability; the confirm-cuts oracle pass is cut",
-        "scope": "c1"
       },
       {
         "ref": "0366-phase-list-stays-the-eight-phase-model",
@@ -484,7 +448,7 @@
       },
       {
         "ref": "0376-unclassifiable-dispatches-get-a-forced-home",
-        "title": "The two dispatch sites the census could not classify are forced to a decision in their own MSP rather than left open",
+        "title": "The two dispatch sites the census could not classify are forced to a decision in their own MSP",
         "scope": "c1"
       }
     ],
@@ -496,5 +460,5 @@
     ]
   },
   "created_at": "2026-08-11T00:08:10.978Z",
-  "updated_at": "2026-08-12T07:31:50.657Z"
+  "updated_at": "2026-08-12T07:32:58.536Z"
 }
