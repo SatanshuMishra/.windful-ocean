@@ -446,6 +446,11 @@
         "ref": "0372-dispatch-is-claude-p-subprocesses",
         "title": "The process dispatches with claude -p subprocesses; StructuredOutput allowlists are a precondition",
         "scope": "thread"
+      },
+      {
+        "ref": "0373-fanout-wins-every-conflict-six-resolutions",
+        "title": "Where mitosis conflicts with fanout the conflicting element changes; six resolutions are binding",
+        "scope": "thread"
       }
     ],
     "out_of_scope": [
@@ -456,5 +461,5 @@
     ]
   },
   "created_at": "2026-08-11T00:08:10.978Z",
-  "updated_at": "2026-08-12T06:08:40.367Z"
+  "updated_at": "2026-08-12T06:08:54.857Z"
 }
