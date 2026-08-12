@@ -71,8 +71,8 @@
   "closure_statement": null,
   "spine": {
     "active_goal": "Ship the OS-process re-architecture as eighteen stacked PRs, then let D3's measured falsifier decide whether the base branch merges to main.",
-    "next_step": "Resume or re-dispatch the orchestrator subagent pointed at the docket. Its queue: open the standalone main-branch PR for the scalar fileScope fail-open (c8), then cut A1 from A0's head 9d95065 and continue the stack. The docket is the state of record: ~/.claude/projects/-Users-satanshumishra-Documents-DevLabs--windful-ocean/handoff-2026-08-12-mitosis-os-process/DOCKET.md. Never try to resume the in-session agent; it does not survive the session.",
-    "last_session": "Phase 0 cleared, PR #68 merged, SPEC now canonical on main. c2 settled by measured probe: no live defect. A0 shipped as PR #69 after two extra rounds closing two HIGH depth gaps. Found a live parallel-safety fail-open on scalar fileScope; user ruled it fixed on main outside the stack.",
+    "next_step": "FIRST ACTION, before any code: brief the user on the pathsOverlap fail-open in plain language, assuming no domain knowledge. Cover what breaks, whether it can be deferred or must be fixed, and answer their question of why fileScope overlap uses wildcard prefix matching at all rather than real path canonicalization, which they suspect is fragile. Their ruling is PENDING and A1 does NOT start until it lands. Detail: docket (283 lines) and the 2026-08-12 addendum session log.",
+    "last_session": "Shipped c8 as PR #70 (open, base main): fileScope fails closed at both guards, element-level too. Found a second, broader fail-open in the same module - path canonicalization, not just globs - proven end-to-end. Stopped before A1 per user instruction, pending a briefing on deferrability.",
     "open_risks": [
       {
         "text": "Dispatch every child with run_in_background false and re-verify against git when it returns — a background child returns only an id, so a dispatching agent ends its turn narrating that it is holding while nothing ran",
@@ -159,11 +159,29 @@
         ]
       },
       {
-        "text": "Plan the reconciliation before the release gate — the main-branch fix's wave-planner test file collides with the one A0 creates, and A0's todo test only flips green if the guard's message matches /fileScope must be an array/",
+        "text": "fileScope overlap compares raw strings instead of canonical paths — normalize strips only one leading ./ and trailing slashes, so src/./shared.js, src//shared.js, a trailing space, or **/*.js each defeat the check and co-schedule two tasks writing the same file",
         "scope": "c8",
         "refs": [
-          "0381",
-          "PR #69"
+          ".claude/lib/mitosis/wave-planner.mjs:4-6",
+          ".claude/lib/mitosis/wave-planner.mjs:8-12",
+          "PR #70"
+        ]
+      },
+      {
+        "text": "Reconcile PR #70 against PR #69 by taking main's copy, a strict superset — A0's file on the stack still pins the fail-open green at lines 31 and 57, while PR #70's copies are todo tests stating the desired contract",
+        "scope": "c8",
+        "refs": [
+          "PR #69",
+          "PR #70",
+          "docket"
+        ]
+      },
+      {
+        "text": "Mirror any wave-planner change into .claude/workflows/mitosis.js in the same commit — mirror-guard compares normalized source text and reddens at :214 on a one-sided edit; scopesOverlap has four consumers and three live paths",
+        "scope": "c8",
+        "refs": [
+          ".claude/lib/mitosis/tests/mirror-guard.test.mjs:214",
+          ".claude/workflows/mitosis.js:935"
         ]
       }
     ],
@@ -213,5 +231,5 @@
     ]
   },
   "created_at": "2026-08-12T07:37:41.077Z",
-  "updated_at": "2026-08-12T16:39:04.764Z"
+  "updated_at": "2026-08-12T17:38:19.444Z"
 }
