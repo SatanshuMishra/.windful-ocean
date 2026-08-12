@@ -371,6 +371,11 @@
         "ref": "0364-graphify-owns-scopes-and-a-bounded-oracle-confirms-cut-edges",
         "title": "Graphify owns surfaces and file scopes; a bounded oracle confirms cut edges inside Decompose",
         "scope": "thread"
+      },
+      {
+        "ref": "0365-graphify-alone-determines-parallelizability",
+        "title": "Graphify alone determines parallelizability; the confirm-cuts oracle pass is cut",
+        "scope": "c1"
       }
     ],
     "out_of_scope": [
@@ -380,5 +385,5 @@
     ]
   },
   "created_at": "2026-08-11T00:08:10.978Z",
-  "updated_at": "2026-08-12T04:01:28.785Z"
+  "updated_at": "2026-08-12T04:18:11.897Z"
 }
