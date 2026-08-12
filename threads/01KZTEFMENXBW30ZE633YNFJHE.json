@@ -22,6 +22,13 @@
       "struck_by": null
     },
     {
+      "id": "c8",
+      "text": "The scalar fileScope fail-open ships to main as a standalone PR, with planWaves and derive-edges both proven to fail closed and an acceptance test red on the parent commit.",
+      "done": false,
+      "kind": "detour",
+      "struck_by": null
+    },
+    {
       "id": "c3",
       "text": "All eighteen MSPs land as stacked PRs on base feat/mitosis-os-process, each independently green (node --test, lints, every gate verb at that commit), with nothing merged to main.",
       "done": false,
@@ -200,5 +207,5 @@
     ]
   },
   "created_at": "2026-08-12T07:37:41.077Z",
-  "updated_at": "2026-08-12T16:37:48.954Z"
+  "updated_at": "2026-08-12T16:37:55.270Z"
 }
