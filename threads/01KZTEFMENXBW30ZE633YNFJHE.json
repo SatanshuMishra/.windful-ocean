@@ -225,6 +225,11 @@
         "ref": "0382-pathsoverlap-over-reports-never-under-reports",
         "title": "pathsOverlap may over-report overlap and must never under-report",
         "scope": "c8"
+      },
+      {
+        "ref": "0383-g11-ack-erasure-accepted-recorded-filed",
+        "title": "The G11 ack erasure is accepted, recorded in two places, and filed upstream",
+        "scope": "thread"
       }
     ],
     "out_of_scope": [
@@ -236,5 +241,5 @@
     ]
   },
   "created_at": "2026-08-12T07:37:41.077Z",
-  "updated_at": "2026-08-12T22:24:51.117Z"
+  "updated_at": "2026-08-12T22:25:00.180Z"
 }
