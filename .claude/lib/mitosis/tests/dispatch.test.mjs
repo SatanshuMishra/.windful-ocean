@@ -37,6 +37,7 @@ function stubEnv(body) {
 }
 
 const PENDING = Symbol('pending');
+const CONTROL_PROBE = new RegExp(`[${String.fromCharCode(0)}-${String.fromCharCode(31)}${String.fromCharCode(127)}-${String.fromCharCode(159)}]`);
 
 async function settledWithin(promise, ms, label) {
   let timer = null;
@@ -136,6 +137,18 @@ function envelopeText(extra) {
   });
 }
 
+function emitsEnvelope(extra, exitCode = 0) {
+  return () => {
+    const child = fakeChild(undefined);
+    setImmediate(() => {
+      child.stdout.end(envelopeText(extra));
+      child.stderr.end();
+      child.emit('exit', exitCode, null);
+    });
+    return child;
+  };
+}
+
 const STRUCTURED_BODY = emit("{ ...base, structured_output: { status: 'done', argv } }");
 const ARGV_ECHO_BODY = emit("{ ...base, structured_output: { argv, cwd: process.cwd() } }");
 const NO_STRUCTURED_BODY = emit('{ ...base }');
@@ -163,19 +176,20 @@ const LOUD_STDERR_BODY = [
 
 function grandchildSource(pidFile, deaf) {
   return [
-    `require('node:fs').writeFileSync(${JSON.stringify(pidFile)}, String(process.pid));`,
     deaf ? "process.on('SIGTERM', () => {});" : '',
+    `require('node:fs').writeFileSync(${JSON.stringify(pidFile)}, String(process.pid));`,
     'setInterval(() => {}, 3600000);',
   ].filter((line) => line !== '').join('\n');
 }
 
-function spawnsGrandchild({ pidFile, grandchildStdio, deafGrandchild, childBody }) {
+function spawnsGrandchild({ pidFile, grandchildStdio, deafGrandchild, childBody, readyFile }) {
   return [
     "const { spawn } = require('node:child_process');",
     `const source = ${JSON.stringify(grandchildSource(pidFile, deafGrandchild))};`,
     `spawn(process.execPath, ['-e', source], { stdio: ${JSON.stringify(grandchildStdio)} }).unref();`,
     childBody,
-  ].join('\n');
+    readyFile === undefined ? '' : `require('node:fs').writeFileSync(${JSON.stringify(readyFile)}, 'armed');`,
+  ].filter((line) => line !== '').join('\n');
 }
 
 test('a schema-backed run that returns structured_output succeeds and captures the whole envelope', async () => {
@@ -192,6 +206,7 @@ test('a schema-backed run that returns structured_output succeeds and captures t
   assert.equal(result.result, null);
   assert.equal(result.resultTruncated, false);
   assert.deepEqual(result.envelope, EXPECTED_ENVELOPE);
+  assert.equal(result.envelopeTruncated, false, 'an envelope carried whole must not raise the truncation marker');
 });
 
 test('a run with no schema succeeds and retains the free-text result instead of a structured payload', async () => {
@@ -238,6 +253,7 @@ test('a non-zero exit is a FAILURE even when stdout carries a clean success enve
   assert.equal(result.outcome, 'exit-nonzero');
   assert.equal(result.exitCode, 2);
   assert.equal(result.envelope.session_id, 'sess-abc123');
+  assert.equal(result.structured, null, 'a failed run must hand back no structured payload at all');
 });
 
 test('malformed JSON on stdout is a FAILURE that names the parse problem', async () => {
@@ -307,6 +323,63 @@ test('a non-string envelope result is a distinguishable failure, never a silent 
   assert.equal(result.outcome, 'malformed-result');
   assert.match(result.error, /result/);
   assert.equal(result.result, null);
+});
+
+test('an envelope field past its cap is dropped behind an explicit marker instead of returned unbounded', async () => {
+  const fat = 'F'.repeat(400000);
+  const result = await dispatch({ prompt: 'telemetry' }, {
+    spawn: emitsEnvelope({
+      modelUsage: { blob: fat },
+      permission_denials: [fat],
+      session_id: fat,
+      usage: { input_tokens: fat, output_tokens: 22, cache_creation_input_tokens: 33, cache_read_input_tokens: 44 },
+    }),
+  });
+  assert.equal(result.ok, true, `expected ok, got ${result.outcome}: ${result.error}`);
+  assert.equal(result.envelopeTruncated, true, 'an envelope the adapter could not carry whole must say so, never silently');
+  assert.equal(result.envelope.modelUsage, null);
+  assert.equal(result.envelope.permission_denials, null);
+  assert.equal(result.envelope.session_id, null);
+  assert.equal(result.envelope.usage.input_tokens, null, 'a token count that is not a finite number must never pass through as arbitrary JSON');
+  assert.equal(result.envelope.usage.output_tokens, 22, 'the counters that were sound must survive the ones that were not');
+  const size = JSON.stringify(result.envelope).length;
+  assert.equal(size < 4096, true, `the captured envelope must stay bounded, it was ${size} chars`);
+});
+
+test('a hostile is_error value cannot size the error message it lands in', async () => {
+  const result = await dispatch({ prompt: 'shout' }, { spawn: emitsEnvelope({ is_error: 'F'.repeat(400000) }) });
+  assert.equal(result.ok, false);
+  assert.equal(result.outcome, 'engine-error');
+  assert.equal(result.error.length < 1024, true, `a child-controlled field must not size the error, which was ${result.error.length} chars`);
+  assert.match(result.error, /tail elided/, 'a clipped fragment must say it was clipped');
+});
+
+test('a hostile subtype cannot size the missing-structured-output error it lands in', async () => {
+  const result = await dispatch({ prompt: 'shout', schema: { type: 'object' } }, { spawn: emitsEnvelope({ subtype: 'S'.repeat(400000) }) });
+  assert.equal(result.ok, false);
+  assert.equal(result.outcome, 'missing-structured-output');
+  assert.equal(result.error.length < 1024, true, `a child-controlled field must not size the error, which was ${result.error.length} chars`);
+  assert.match(result.error, /tail elided/, 'a clipped fragment must say it was clipped');
+});
+
+test('control characters in the stderr tail are stripped so a child cannot forge a line inside the error', async () => {
+  const esc = String.fromCharCode(27);
+  const bell = String.fromCharCode(7);
+  const forged = `${esc}[2J${esc}]0;PWNED${bell}\nSUCCESS: all checks passed`;
+  const spawnForger = () => {
+    const child = fakeChild(undefined);
+    setImmediate(() => {
+      child.stdout.end(envelopeText({}));
+      child.stderr.end(forged);
+      child.emit('exit', 3, null);
+    });
+    return child;
+  };
+  const result = await dispatch({ prompt: 'forge' }, { spawn: spawnForger });
+  assert.equal(result.outcome, 'exit-nonzero');
+  assert.equal(CONTROL_PROBE.test(result.error), false, 'no C0 or C1 character may reach the error a human reads');
+  assert.equal(result.error.split('\n').length, 1, 'a child must not be able to open a new line inside the error');
+  assert.equal(result.error.includes('PWNED'), true, 'the stderr tail must still be reported, only defanged');
 });
 
 test('argv carries the base flags, every requested option, and the prompt as one shielded positional', async () => {
@@ -449,17 +522,23 @@ test('a child that exits while a grandchild holds its stdio pipes still settles'
 test('a SIGTERM-deaf child whose grandchild holds the pipes still settles after the SIGKILL escalation', async () => {
   const probe = scratch();
   const pidFile = join(probe, 'grandchild.pid');
+  const readyFile = join(probe, 'child.armed');
   const env = stubEnv(spawnsGrandchild({
     pidFile,
+    readyFile,
     grandchildStdio: ['ignore', 'inherit', 'inherit'],
     deafGrandchild: true,
     childBody: SIGTERM_DEAF_BODY,
   }));
-  const pending = dispatch({ prompt: 'hold everything', timeoutMs: 300 }, { env, killGraceMs: 200, stdioDrainMs: 400 });
+  const controller = new AbortController();
+  const pending = dispatch({ prompt: 'hold everything', signal: controller.signal, timeoutMs: 60000 }, { env, killGraceMs: 200, stdioDrainMs: 400 });
+  await waitForFile(readyFile, 10000, 'RECEIPTS_ACK: the child never armed its SIGTERM handler, the unsound premise this gate replaces');
+  await waitForFile(pidFile, 10000, 'the grandchild never recorded its pid');
+  controller.abort();
   const result = await settledWithin(pending, 10000, 'a deaf child plus a pipe-holding grandchild must never leave dispatch pending');
   assert.equal(result.ok, false);
-  assert.equal(result.outcome, 'timeout');
-  assert.equal(result.escalated, true);
+  assert.equal(result.outcome, 'aborted');
+  assert.equal(result.escalated, true, 'a child that ignored SIGTERM must be reported as escalated');
 });
 
 test('escalation kills the whole process group the dispatch created, not only the direct child', async () => {
@@ -482,6 +561,41 @@ test('escalation kills the whole process group the dispatch created, not only th
   await waitUntilDead(pid, 10000, 'the grandchild survived the SIGTERM/SIGKILL escalation');
 });
 
+test('a termination request that lands after the child exited signals nothing at the reaped pid', async () => {
+  let child = null;
+  let exited = false;
+  const spawnEarlyExit = () => {
+    child = fakeChild(undefined);
+    setImmediate(() => {
+      child.emit('exit', 0, null);
+      exited = true;
+    });
+    return child;
+  };
+  const controller = new AbortController();
+  const pending = dispatch({ prompt: 'already done', signal: controller.signal, timeoutMs: 60000 }, { spawn: spawnEarlyExit, killGraceMs: 30, stdioDrainMs: 200 });
+  await waitUntil(() => exited, 8000, 'the child never reported its exit');
+  controller.abort();
+  const result = await settledWithin(pending, 8000, 'the dispatch must settle once the drain window closes');
+  assert.equal(result.exitCode, 0, 'the child had already exited cleanly before the termination request landed');
+  assert.equal(result.escalated, false, 'a child the runtime already reaped must never be escalated to a group SIGKILL');
+  assert.equal(child.signals.includes('SIGTERM'), false, 'no signal may be aimed at a pid whose group may already have been recycled');
+});
+
+test('a child that exposes no way to signal it is reported, never silently left unkilled', async () => {
+  const spawnUnkillable = () => {
+    const child = fakeChild(undefined);
+    child.kill = undefined;
+    return child;
+  };
+  const controller = new AbortController();
+  const pending = dispatch({ prompt: 'unkillable', signal: controller.signal, timeoutMs: 60000 }, { spawn: spawnUnkillable, killGraceMs: 30, stdioDrainMs: 30 });
+  controller.abort();
+  const result = await settledWithin(pending, 8000, 'an unsignalable child must still settle the dispatch');
+  assert.equal(result.outcome, 'aborted');
+  assert.match(result.error, /could not be delivered/, 'a signal that could not be delivered must never be swallowed');
+});
+
 test('a multi-byte payload spanning read-chunk boundaries survives byte-for-byte', async () => {
   const env = stubEnv(MULTIBYTE_BODY);
   const result = await dispatch({ prompt: 'unicode', schema: { type: 'object' } }, { env, payloadCapChars: 262144 });
@@ -494,7 +608,7 @@ test('a multi-byte payload spanning read-chunk boundaries survives byte-for-byte
 test('stdout beyond the ingest cap terminates the child and is its own outcome, never a clean success', async () => {
   const env = stubEnv(FLOOD_BODY);
   const result = await settledWithin(
-    dispatch({ prompt: 'flood', timeoutMs: 60000 }, { env, ingestCapChars: 4096, payloadCapChars: 512, resultTailCapChars: 256, stderrTailCapChars: 128, killGraceMs: 200 }),
+    dispatch({ prompt: 'flood', timeoutMs: 60000 }, { env, ingestCapChars: 4096, payloadCapChars: 512, resultTailCapChars: 256, stderrTailCapChars: 128, envelopeFieldCapChars: 512, killGraceMs: 200 }),
     10000,
     'an ingest-cap breach must terminate the child and settle',
   );
@@ -510,6 +624,8 @@ test('a __proto__ key in the envelope never pollutes the parent and is reported,
   assert.equal(result.ok, false, 'a tampered envelope must never read as a clean success');
   assert.equal(result.outcome, 'unsafe-payload');
   assert.match(result.error, /__proto__/);
+  assert.equal(result.structured, null, 'a key-stripped payload must never be handed back as though it were intact');
+  assert.equal(result.structuredText, null);
   assert.equal(Object.getPrototypeOf(result.envelope === null ? {} : result.envelope), Object.prototype);
 });
 
@@ -551,6 +667,26 @@ test('a run that completes as its deadline lands is classified on its merits, no
   assert.equal(result.ok, true, `a timer that lost the race must not discard completed work, got ${result.outcome}: ${result.error}`);
   assert.equal(result.outcome, 'success');
   assert.equal(result.structured.status, 'done');
+});
+
+test('a child that self-exits at its deadline reporting an engine error is judged on the error, not the timer', async () => {
+  const spawnLateFailure = () => {
+    const child = fakeChild(undefined);
+    setTimeout(() => {
+      child.stdout.end(envelopeText({ subtype: 'error_during_execution', is_error: true, api_error_status: 429 }));
+      child.stderr.end();
+      child.emit('exit', 0, null);
+    }, 40);
+    return child;
+  };
+  const result = await settledWithin(
+    dispatch({ prompt: 'fail as the clock runs out', timeoutMs: 5 }, { spawn: spawnLateFailure, killGraceMs: 5000 }),
+    8000,
+    'a self-exited child must settle rather than wait out the kill grace',
+  );
+  assert.equal(result.ok, false);
+  assert.equal(result.outcome, 'engine-error', 'a child that exited on its own must be judged on what it reported, not on the timer that lost the race');
+  assert.equal(result.envelope.api_error_status, 429, 'the real cause must survive for failure propagation');
 });
 
 test('a stream error after a live spawn is not reported as a failure to run claude', async () => {
@@ -654,12 +790,20 @@ const INVALID_REQUESTS = [
   ['a dash-leading model', { prompt: 'x', model: '--plugin-url' }, /model/],
   ['a dash-leading effort', { prompt: 'x', effort: '-w' }, /effort/],
   ['a dash-leading worktree', { prompt: 'x', worktree: '--dangerously-skip-permissions' }, /worktree/],
-  ['a path-shaped worktree the real CLI rejects', { prompt: 'x', worktree: '/tmp/wt-a1' }, /worktree/],
+  ['a path-shaped worktree, where -w takes a name', { prompt: 'x', worktree: '/tmp/wt-a1' }, /worktree/],
   ['a worktree with an empty segment', { prompt: 'x', worktree: 'a//b' }, /worktree/],
   ['a worktree carrying a space', { prompt: 'x', worktree: 'wt a1' }, /worktree/],
+  ['a worktree that IS the parent directory', { prompt: 'x', worktree: '..' }, /worktree/],
+  ['a worktree that IS the current directory', { prompt: 'x', worktree: '.' }, /worktree/],
+  ['a worktree climbing out through a .. segment', { prompt: 'x', worktree: 'wt/../../.ssh' }, /worktree/],
+  ['a worktree climbing to the filesystem root', { prompt: 'x', worktree: 'a/../../../../../../etc' }, /worktree/],
+  ['a worktree nested past the segment ceiling', { prompt: 'x', worktree: 'a/b/c/d/e' }, /worktree/],
+  ['an agentType climbing out through a .. segment', { prompt: 'x', agentType: 'a/../../../../tmp/evil' }, /agentType/],
+  ['an agentType carrying a path separator', { prompt: 'x', agentType: 'agents/implementer' }, /agentType/],
   ['a shell-metacharacter model', { prompt: 'x', model: 'opus;id' }, /model/],
   ['a relative cwd', { prompt: 'x', cwd: 'relative/dir' }, /cwd/],
   ['an empty cwd', { prompt: 'x', cwd: '' }, /cwd/],
+  ['a cwd climbing out through a .. segment', { prompt: 'x', cwd: '/repo/../../../etc' }, /cwd/],
   ['a signal missing removeEventListener', { prompt: 'x', signal: { aborted: false, addEventListener() {} } }, /signal/],
   ['a signal missing aborted', { prompt: 'x', signal: { addEventListener() {}, removeEventListener() {} } }, /signal/],
 ];
@@ -682,6 +826,7 @@ const INVALID_DEPS = [
   ['an unbounded payload cap', { payloadCapChars: 1073741824 }, /payloadCapChars/],
   ['an unbounded result tail cap', { resultTailCapChars: 1073741824 }, /resultTailCapChars/],
   ['an unbounded stderr tail cap', { stderrTailCapChars: 1073741824 }, /stderrTailCapChars/],
+  ['an unbounded envelope field cap', { envelopeFieldCapChars: 1073741824 }, /envelopeFieldCapChars/],
   ['an ingest cap below the payload cap', { ingestCapChars: 64, payloadCapChars: 128 }, /ingestCapChars/],
   ['a non-boolean exposeArgv', { exposeArgv: 'yes' }, /exposeArgv/],
 ];

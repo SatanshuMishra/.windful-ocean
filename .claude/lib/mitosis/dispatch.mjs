@@ -11,18 +11,29 @@ const DEFAULT_STDIO_DRAIN_MS = 2000;
 const DEFAULT_PAYLOAD_CAP_CHARS = 262144;
 const DEFAULT_RESULT_TAIL_CAP_CHARS = 8192;
 const DEFAULT_STDERR_TAIL_CAP_CHARS = 512;
+const DEFAULT_ENVELOPE_FIELD_CAP_CHARS = 2048;
 const DEFAULT_INGEST_CAP_CHARS = 8388608;
+const ERROR_FRAGMENT_CAP_CHARS = 256;
 const MAX_TIMER_MS = 2147483647;
 const MAX_CAP_CHARS = 134217728;
+const MAX_WORKTREE_SEGMENTS = 4;
 const SIGNAL_EXIT_BASE = 128;
 const NUL = String.fromCharCode(0);
 const HEAD_ELISION = '[head elided]';
+const TAIL_ELISION = '[tail elided]';
 const TOKEN_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._:@+/-]*$/;
+const AGENT_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._-]*$/;
 const WORKTREE_SEGMENT_PATTERN = /^[A-Za-z0-9._-]+$/;
+const PATH_SEPARATOR = /[/\\]/;
+const CONTROL_RANGE = `${String.fromCharCode(0)}-${String.fromCharCode(31)}${String.fromCharCode(127)}-${String.fromCharCode(159)}`;
+const CONTROL_CHARACTERS = new RegExp(`[${CONTROL_RANGE}]`, 'g');
+const RELATIVE_SEGMENTS = Object.freeze(['.', '..']);
 const UNSAFE_KEYS = Object.freeze(['__proto__', 'constructor', 'prototype']);
-const TOKEN_FIELDS = Object.freeze(['agentType', 'model', 'effort']);
+const TOKEN_FIELDS = Object.freeze(['model', 'effort']);
+const PAYLOAD_BEARING_OUTCOMES = Object.freeze(['success', 'payload-truncated']);
 const EMPTY_PAYLOAD = Object.freeze({ structured: null, structuredText: null, truncated: false });
 const EMPTY_TEXT = Object.freeze({ result: null, resultTruncated: false, malformed: false });
+const EMPTY_FIELD = Object.freeze({ value: null, truncated: false });
 
 const liveGroups = new Set();
 let exitHookInstalled = false;
@@ -33,7 +44,17 @@ function describeError(error) {
   return String(error);
 }
 
+function groupIsLive(groupPid) {
+  try {
+    process.kill(-groupPid, 0);
+    return true;
+  } catch (error) {
+    return error === null || error === undefined || error.code !== 'ESRCH';
+  }
+}
+
 function killGroup(groupPid, signal) {
+  if (!groupIsLive(groupPid)) return null;
   try {
     process.kill(-groupPid, signal);
     return null;
@@ -73,13 +94,13 @@ function requireCleanString(value, field) {
   return value;
 }
 
-function requireArgvToken(value, field) {
+function requireArgvToken(value, field, pattern) {
   const text = requireCleanString(value, field);
   if (text.startsWith('-')) {
     throw new TypeError(`dispatch: ${field} must not begin with "-", which the CLI would parse as an option rather than a value`);
   }
-  if (!TOKEN_PATTERN.test(text)) {
-    throw new TypeError(`dispatch: ${field} must match ${TOKEN_PATTERN.source}, received ${JSON.stringify(text)}`);
+  if (!pattern.test(text)) {
+    throw new TypeError(`dispatch: ${field} must match ${pattern.source}, received ${JSON.stringify(text)}`);
   }
   return text;
 }
@@ -89,9 +110,10 @@ function requireWorktreeName(value) {
   if (text.startsWith('-')) {
     throw new TypeError('dispatch: worktree must not begin with "-", which the CLI would parse as an option rather than a value');
   }
-  const malformed = text.split('/').filter((segment) => !WORKTREE_SEGMENT_PATTERN.test(segment));
-  if (malformed.length > 0) {
-    throw new TypeError(`dispatch: worktree must be a name whose "/"-separated segments are non-empty and carry only letters, digits, dots, underscores and dashes, received ${JSON.stringify(text)}`);
+  const segments = text.split('/');
+  const shaped = segments.every((segment) => WORKTREE_SEGMENT_PATTERN.test(segment) && !RELATIVE_SEGMENTS.includes(segment));
+  if (!shaped || segments.length > MAX_WORKTREE_SEGMENTS) {
+    throw new TypeError(`dispatch: worktree must be a name of at most ${MAX_WORKTREE_SEGMENTS} "/"-separated segments, each one non-empty, carrying only letters, digits, dots, underscores and dashes, and never "." or ".." which would walk the created worktree out of its root, received ${JSON.stringify(text)}`);
   }
   return text;
 }
@@ -100,6 +122,9 @@ function requireAbsoluteCwd(value) {
   const text = requireCleanString(value, 'cwd');
   if (!isAbsolute(text)) {
     throw new TypeError(`dispatch: cwd must be an absolute path, received ${JSON.stringify(text)}`);
+  }
+  if (text.split(PATH_SEPARATOR).some((segment) => segment === '..')) {
+    throw new TypeError(`dispatch: cwd must not carry a ".." segment, which would walk the child out of the directory whose .claude configuration is meant to govern it, received ${JSON.stringify(text)}`);
   }
   return text;
 }
@@ -157,11 +182,11 @@ function validateRequest(request) {
   const prompt = requireCleanString(request.prompt, 'prompt');
   const tokens = {};
   for (const field of TOKEN_FIELDS) {
-    tokens[field] = request[field] === undefined ? undefined : requireArgvToken(request[field], field);
+    tokens[field] = request[field] === undefined ? undefined : requireArgvToken(request[field], field, TOKEN_PATTERN);
   }
   return {
     prompt,
-    agentType: tokens.agentType,
+    agentType: request.agentType === undefined ? undefined : requireArgvToken(request.agentType, 'agentType', AGENT_PATTERN),
     model: tokens.model,
     effort: tokens.effort,
     schemaText: serializeSchema(request.schema),
@@ -184,8 +209,9 @@ function resolveDeps(deps) {
   const payloadCapChars = requireBoundedInteger(deps.payloadCapChars, DEFAULT_PAYLOAD_CAP_CHARS, 'deps.payloadCapChars', MAX_CAP_CHARS);
   const resultTailCapChars = requireBoundedInteger(deps.resultTailCapChars, DEFAULT_RESULT_TAIL_CAP_CHARS, 'deps.resultTailCapChars', MAX_CAP_CHARS);
   const stderrTailCapChars = requireBoundedInteger(deps.stderrTailCapChars, DEFAULT_STDERR_TAIL_CAP_CHARS, 'deps.stderrTailCapChars', MAX_CAP_CHARS);
+  const envelopeFieldCapChars = requireBoundedInteger(deps.envelopeFieldCapChars, DEFAULT_ENVELOPE_FIELD_CAP_CHARS, 'deps.envelopeFieldCapChars', MAX_CAP_CHARS);
   const ingestCapChars = requireBoundedInteger(deps.ingestCapChars, DEFAULT_INGEST_CAP_CHARS, 'deps.ingestCapChars', MAX_CAP_CHARS);
-  const largestPresentation = Math.max(payloadCapChars, resultTailCapChars, stderrTailCapChars);
+  const largestPresentation = Math.max(payloadCapChars, resultTailCapChars, stderrTailCapChars, envelopeFieldCapChars);
   if (ingestCapChars <= largestPresentation) {
     throw new TypeError(`dispatch: deps.ingestCapChars must exceed every presentation cap (${largestPresentation}), received ${ingestCapChars}`);
   }
@@ -198,6 +224,7 @@ function resolveDeps(deps) {
     payloadCapChars,
     resultTailCapChars,
     stderrTailCapChars,
+    envelopeFieldCapChars,
     ingestCapChars,
   };
 }
@@ -300,7 +327,10 @@ function runChild(argv, request, settings) {
         noteKillFailure(killGroup(groupPid, signal));
         return;
       }
-      if (typeof child.kill !== 'function') return;
+      if (typeof child.kill !== 'function') {
+        noteKillFailure(`no process group and no kill method, so ${signal} could not be delivered at all`);
+        return;
+      }
       try {
         child.kill(signal);
       } catch (error) {
@@ -339,6 +369,7 @@ function runChild(argv, request, settings) {
       if (state.terminationCause === null) state.terminationCause = cause;
       if (state.terminating || state.settled) return;
       state.terminating = true;
+      if (state.exited) return;
       signalTree('SIGTERM');
       arm(() => {
         state.escalated = true;
@@ -432,6 +463,25 @@ function runChild(argv, request, settings) {
   });
 }
 
+function scrub(text) {
+  return text.replace(CONTROL_CHARACTERS, ' ');
+}
+
+function note(text) {
+  const safe = scrub(text);
+  return safe.length <= ERROR_FRAGMENT_CAP_CHARS ? safe : `${safe.slice(0, ERROR_FRAGMENT_CAP_CHARS)}${TAIL_ELISION}`;
+}
+
+function fragment(value) {
+  let text = null;
+  try {
+    text = JSON.stringify(value === undefined ? null : value);
+  } catch (error) {
+    text = null;
+  }
+  return note(typeof text === 'string' ? text : String(value));
+}
+
 function parseEnvelope(stdout) {
   const trimmed = stdout.trim();
   const stripped = [];
@@ -446,7 +496,7 @@ function parseEnvelope(stdout) {
       return undefined;
     });
   } catch (error) {
-    return { ok: false, stripped, error: `the child stdout is not valid JSON: ${describeError(error)}` };
+    return { ok: false, stripped, error: `the child stdout is not valid JSON: ${note(describeError(error))}` };
   }
   if (value === null || typeof value !== 'object' || Array.isArray(value)) {
     return { ok: false, stripped, error: 'the child stdout is JSON but not an envelope object' };
@@ -458,21 +508,44 @@ function orNull(value) {
   return value === undefined ? null : value;
 }
 
-function captureEnvelope(value) {
-  const usage = value.usage !== null && typeof value.usage === 'object' && !Array.isArray(value.usage) ? value.usage : {};
+function finiteOrNull(value) {
+  return typeof value === 'number' && Number.isFinite(value) ? value : null;
+}
+
+function boundField(value, cap) {
+  if (value === undefined || value === null) return EMPTY_FIELD;
+  let text = null;
+  try {
+    text = JSON.stringify(value);
+  } catch (error) {
+    return { value: null, truncated: true };
+  }
+  if (typeof text !== 'string' || text.length > cap) return { value: null, truncated: true };
+  return { value, truncated: false };
+}
+
+function captureEnvelope(raw, cap) {
+  const source = raw.usage !== null && typeof raw.usage === 'object' && !Array.isArray(raw.usage) ? raw.usage : {};
+  const modelUsage = boundField(raw.modelUsage, cap);
+  const sessionId = boundField(typeof raw.session_id === 'string' ? raw.session_id : null, cap);
+  const denials = boundField(raw.permission_denials, cap);
+  const apiErrorStatus = boundField(raw.api_error_status, cap);
   return {
-    usage: {
-      input_tokens: orNull(usage.input_tokens),
-      output_tokens: orNull(usage.output_tokens),
-      cache_creation_input_tokens: orNull(usage.cache_creation_input_tokens),
-      cache_read_input_tokens: orNull(usage.cache_read_input_tokens),
+    truncated: modelUsage.truncated || sessionId.truncated || denials.truncated || apiErrorStatus.truncated,
+    envelope: {
+      usage: {
+        input_tokens: finiteOrNull(source.input_tokens),
+        output_tokens: finiteOrNull(source.output_tokens),
+        cache_creation_input_tokens: finiteOrNull(source.cache_creation_input_tokens),
+        cache_read_input_tokens: finiteOrNull(source.cache_read_input_tokens),
+      },
+      total_cost_usd: finiteOrNull(raw.total_cost_usd),
+      modelUsage: modelUsage.value,
+      session_id: sessionId.value,
+      num_turns: finiteOrNull(raw.num_turns),
+      permission_denials: denials.value,
+      api_error_status: apiErrorStatus.value,
     },
-    total_cost_usd: orNull(value.total_cost_usd),
-    modelUsage: orNull(value.modelUsage),
-    session_id: orNull(value.session_id),
-    num_turns: orNull(value.num_turns),
-    permission_denials: orNull(value.permission_denials),
-    api_error_status: orNull(value.api_error_status),
   };
 }
 
@@ -492,7 +565,7 @@ function boundText(text, cap) {
 }
 
 function withStderr(message, stderr, cap) {
-  const trimmed = stderr.trim();
+  const trimmed = scrub(stderr).trim();
   if (trimmed === '') return message;
   const tail = trimmed.length <= cap ? trimmed : `${HEAD_ELISION}${trimmed.slice(trimmed.length - cap)}`;
   return `${message}; stderr: ${tail}`;
@@ -515,7 +588,7 @@ function classify(run, request, parsed, bounded, text) {
     return { outcome: 'spawn-failed', error: `dispatch: could not run ${CLI_COMMAND}: ${run.spawnError}` };
   }
   const timerLostTheRace = run.terminationCause === 'timeout'
-    && run.exitCode === 0 && run.signal === null && parsed.ok && parsed.value.is_error === false;
+    && run.signal === null && typeof run.exitCode === 'number';
   if (run.terminationCause !== null && !timerLostTheRace) {
     return terminationVerdict(run, request);
   }
@@ -532,10 +605,10 @@ function classify(run, request, parsed, bounded, text) {
     return { outcome: 'unsafe-payload', error: `dispatch: the envelope carries the prototype-poisoning key(s) ${parsed.stripped.join(', ')}, which were stripped before the payload was read` };
   }
   if (parsed.value.is_error !== false) {
-    return { outcome: 'engine-error', error: `dispatch: the envelope reports is_error ${JSON.stringify(orNull(parsed.value.is_error))}, which is not the false a successful run must carry` };
+    return { outcome: 'engine-error', error: `dispatch: the envelope reports is_error ${fragment(parsed.value.is_error)}, which is not the false a successful run must carry` };
   }
   if (request.schemaText !== null && orNull(parsed.value.structured_output) === null) {
-    return { outcome: 'missing-structured-output', error: `dispatch: a schema was requested but the envelope carries no structured_output, so subtype ${JSON.stringify(orNull(parsed.value.subtype))} does not make the run a success` };
+    return { outcome: 'missing-structured-output', error: `dispatch: a schema was requested but the envelope carries no structured_output, so subtype ${fragment(parsed.value.subtype)} does not make the run a success` };
   }
   if (bounded.truncated) {
     return { outcome: 'payload-truncated', error: 'dispatch: the structured payload outgrew its cap, so only its serialized head is available and no whole object can be handed back' };
@@ -564,6 +637,7 @@ export async function dispatch(request, deps = {}) {
       result: null,
       resultTruncated: false,
       envelope: null,
+      envelopeTruncated: false,
       error: 'dispatch: the request was aborted before the child was spawned',
     };
   }
@@ -571,11 +645,12 @@ export async function dispatch(request, deps = {}) {
   const argv = composeArgv(validated, false);
   const run = await runChild(argv, validated, settings);
   const parsed = parseEnvelope(run.stdout);
-  const envelope = parsed.ok ? captureEnvelope(parsed.value) : null;
+  const captured = parsed.ok ? captureEnvelope(parsed.value, settings.envelopeFieldCapChars) : null;
   const payload = parsed.ok ? orNull(parsed.value.structured_output) : null;
   const bounded = payload === null ? EMPTY_PAYLOAD : boundPayload(payload, settings.payloadCapChars);
   const text = payload === null && parsed.ok ? boundText(parsed.value.result, settings.resultTailCapChars) : EMPTY_TEXT;
   const verdict = classify({ ...run, ingestCapChars: settings.ingestCapChars }, validated, parsed, bounded, text);
+  const retained = PAYLOAD_BEARING_OUTCOMES.includes(verdict.outcome) ? bounded : EMPTY_PAYLOAD;
 
   return {
     ok: verdict.outcome === 'success',
@@ -584,12 +659,13 @@ export async function dispatch(request, deps = {}) {
     signal: run.signal,
     escalated: run.escalated,
     argv: settings.exposeArgv ? argv : composeArgv(validated, true),
-    structured: bounded.structured,
-    structuredText: bounded.structuredText,
-    truncated: bounded.truncated,
+    structured: retained.structured,
+    structuredText: retained.structuredText,
+    truncated: retained.truncated,
     result: text.result,
     resultTruncated: text.resultTruncated,
-    envelope,
+    envelope: captured === null ? null : captured.envelope,
+    envelopeTruncated: captured !== null && captured.truncated,
     error: verdict.error === null ? null : withStderr(verdict.error, run.stderr, settings.stderrTailCapChars),
   };
 }
