@@ -203,11 +203,6 @@
     ],
     "key_decisions": [
       {
-        "ref": "0324-spec-b-rewritten-before-implementation",
-        "title": "SPEC B is reviewed and rewritten in its own thread before any implementation thread opens",
-        "scope": "thread"
-      },
-      {
         "ref": "0325-orchestration-moves-to-agent-sdk-supervisor-process",
         "title": "Orchestration leaves the Workflow sandbox for an Agent SDK supervisor process",
         "scope": "c2"
@@ -263,11 +258,6 @@
         "scope": "c1"
       },
       {
-        "ref": "0340-superpowers-parallel-renamed-to-lib-mitosis-as-a-pure-move",
-        "title": "The stale superpowers-parallel tree is renamed to lib/mitosis as a pure move before the SPEC",
-        "scope": "thread"
-      },
-      {
         "ref": "0341-logbook-spine-rejected-as-the-rotation-summarizer",
         "title": "Logbook's progressive-summary spine is rejected as the rotation summarizer",
         "scope": "c2"
@@ -276,6 +266,61 @@
         "ref": "0342-cross-rotation-state-is-tiered-by-author-trust-not-by-size",
         "title": "Cross-rotation state is tiered by who can be trusted to author it, not by size",
         "scope": "c2"
+      },
+      {
+        "ref": "0351-title-generation-tax-is-a-real-per-spawn-cost",
+        "title": "The fresh-session title tax is a real per-spawn charge to model, not an accounting artifact",
+        "scope": "c1"
+      },
+      {
+        "ref": "0352-main-thread-is-the-orchestrator",
+        "title": "The supervisor and dispatched orchestrator are cut from scope; the main thread is the orchestrator",
+        "scope": "c1"
+      },
+      {
+        "ref": "0354-workflow-transcripts-are-the-instrument",
+        "title": "Source B is the instrument, it counts four token classes, and attribution is the real gap",
+        "scope": "c2"
+      },
+      {
+        "ref": "0358-residual-register-re-cut",
+        "title": "SPEC B's residual register is re-cut: only the quality-blindness residual stays open",
+        "scope": "c2"
+      },
+      {
+        "ref": "0359-spec-is-trusted-by-provenance-not-verification",
+        "title": "The SPEC is trusted by provenance, and the codebase is not queried before the implementer phase",
+        "scope": "c1"
+      },
+      {
+        "ref": "0360-graphify-is-structurally-required-and-its-subgraphs-carry-forward",
+        "title": "Graphify is structurally required in Decompose and its per-cluster subgraphs are passed forward as JSON",
+        "scope": "c1"
+      },
+      {
+        "ref": "0365-graphify-alone-determines-parallelizability",
+        "title": "Graphify alone determines parallelizability; the confirm-cuts oracle pass is cut",
+        "scope": "c1"
+      },
+      {
+        "ref": "0366-phase-list-stays-the-eight-phase-model",
+        "title": "The phase list stays the re-adopted eight-phase model, not the directive's five-step sketch",
+        "scope": "c3"
+      },
+      {
+        "ref": "0368-report-ships-cdn-loaded-and-renumbered",
+        "title": "The report ships CDN-loaded and renumbered, and c5 drops its diagram count",
+        "scope": "c5"
+      },
+      {
+        "ref": "0324-spec-b-rewritten-before-implementation",
+        "title": "SPEC B is reviewed and rewritten in its own thread before any implementation thread opens",
+        "scope": "thread"
+      },
+      {
+        "ref": "0340-superpowers-parallel-renamed-to-lib-mitosis-as-a-pure-move",
+        "title": "The stale superpowers-parallel tree is renamed to lib/mitosis as a pure move before the SPEC",
+        "scope": "thread"
       },
       {
         "ref": "0343-no-mechanism-may-drop-content-without-leaving-a-marker",
@@ -298,24 +343,9 @@
         "scope": "thread"
       },
       {
-        "ref": "0351-title-generation-tax-is-a-real-per-spawn-cost",
-        "title": "The fresh-session title tax is a real per-spawn charge to model, not an accounting artifact",
-        "scope": "c1"
-      },
-      {
-        "ref": "0352-main-thread-is-the-orchestrator",
-        "title": "The supervisor and dispatched orchestrator are cut from scope; the main thread is the orchestrator",
-        "scope": "c1"
-      },
-      {
         "ref": "0353-engine-stays-in-the-workflow-sandbox",
         "title": "The engine stays in the Workflow sandbox, so Part III codegen decomposition is live again",
         "scope": "thread"
-      },
-      {
-        "ref": "0354-workflow-transcripts-are-the-instrument",
-        "title": "Source B is the instrument, it counts four token classes, and attribution is the real gap",
-        "scope": "c2"
       },
       {
         "ref": "0355-main-thread-context-is-disposable",
@@ -333,21 +363,6 @@
         "scope": "thread"
       },
       {
-        "ref": "0358-residual-register-re-cut",
-        "title": "SPEC B's residual register is re-cut: only the quality-blindness residual stays open",
-        "scope": "c2"
-      },
-      {
-        "ref": "0359-spec-is-trusted-by-provenance-not-verification",
-        "title": "The SPEC is trusted by provenance, and the codebase is not queried before the implementer phase",
-        "scope": "c1"
-      },
-      {
-        "ref": "0360-graphify-is-structurally-required-and-its-subgraphs-carry-forward",
-        "title": "Graphify is structurally required in Decompose and its per-cluster subgraphs are passed forward as JSON",
-        "scope": "c1"
-      },
-      {
         "ref": "0361-pillars-stays-principle-only-no-measurements",
         "title": "pillars.md stays a guiding-principles document and carries no measurements",
         "scope": "thread"
@@ -363,29 +378,9 @@
         "scope": "thread"
       },
       {
-        "ref": "0364-graphify-owns-scopes-and-a-bounded-oracle-confirms-cut-edges",
-        "title": "Graphify owns surfaces and file scopes; a bounded oracle confirms cut edges inside Decompose",
-        "scope": "thread"
-      },
-      {
-        "ref": "0365-graphify-alone-determines-parallelizability",
-        "title": "Graphify alone determines parallelizability; the confirm-cuts oracle pass is cut",
-        "scope": "c1"
-      },
-      {
-        "ref": "0366-phase-list-stays-the-eight-phase-model",
-        "title": "The phase list stays the re-adopted eight-phase model, not the directive's five-step sketch",
-        "scope": "c3"
-      },
-      {
         "ref": "0367-directive-and-design-brief-are-non-authoritative",
         "title": "The 2026-08-11 directive and the design brief are demoted; current decision records govern",
         "scope": "thread"
-      },
-      {
-        "ref": "0368-report-ships-cdn-loaded-and-renumbered",
-        "title": "The report ships CDN-loaded and renumbered, and c5 drops its diagram count",
-        "scope": "c5"
       }
     ],
     "out_of_scope": [
@@ -396,5 +391,5 @@
     ]
   },
   "created_at": "2026-08-11T00:08:10.978Z",
-  "updated_at": "2026-08-12T04:19:34.113Z"
+  "updated_at": "2026-08-12T04:20:24.402Z"
 }
