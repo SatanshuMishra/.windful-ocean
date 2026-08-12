@@ -10,14 +10,14 @@
     {
       "id": "c1",
       "text": "The SPEC's admission gate is green before any MSP is cut: every path:line citation in it re-verified against the current tree, with drift corrected.",
-      "done": false,
+      "done": true,
       "kind": "planned",
       "struck_by": null
     },
     {
       "id": "c2",
       "text": "The A4 Workflow schema question is answered against the live tool path, and if schema enforcement proves already void on main, that defect is fixed and shipped before the rest of the stack.",
-      "done": false,
+      "done": true,
       "kind": "planned",
       "struck_by": null
     },
@@ -71,44 +71,35 @@
   "closure_statement": null,
   "spine": {
     "active_goal": "Ship the OS-process re-architecture as eighteen stacked PRs, then let D3's measured falsifier decide whether the base branch merges to main.",
-    "next_step": "START HERE. Dispatch a DEDICATED orchestrator subagent that itself dispatches workers (sequential, parallel where the DAG allows) to plan, implement and ship the stack. Before it dispatches anything: run c1's admission pass, then answer c2's schema question, since a live defect on main outranks the stack. SPEC: .claude/docs/specs/2026-08-12-mitosis-os-process-rearchitecture-design.md on docs/mitosis-os-process-spec (894837f). Cut feat/mitosis-os-process from main first.",
-    "last_session": "Thread opened from the user-approved SPEC. No implementation work started. Criteria fixed at creation; the admission gate is c1 by design so it cannot be skipped.",
+    "next_step": "Resume or re-dispatch the orchestrator subagent pointed at the docket. Its queue: open the standalone main-branch PR for the scalar fileScope fail-open (c8), then cut A1 from A0's head 9d95065 and continue the stack. The docket is the state of record: ~/.claude/projects/-Users-satanshumishra-Documents-DevLabs--windful-ocean/handoff-2026-08-12-mitosis-os-process/DOCKET.md. Never try to resume the in-session agent; it does not survive the session.",
+    "last_session": "Phase 0 cleared, PR #68 merged, SPEC now canonical on main. c2 settled by measured probe: no live defect. A0 shipped as PR #69 after two extra rounds closing two HIGH depth gaps. Found a live parallel-safety fail-open on scalar fileScope; user ruled it fixed on main outside the stack.",
     "open_risks": [
       {
-        "text": "Run the admission pass before cutting any MSP — the SPEC's ~60 line references came from three audits at authoring time, not a re-open at write time, and line numbers drift while the claims stay load-bearing",
-        "scope": "c1",
-        "refs": [
-          ".claude/docs/specs/2026-08-12-mitosis-os-process-rearchitecture-design.md"
-        ]
-      },
-      {
-        "text": "Answer the Workflow schema question before the stack proceeds — if that path shares the allowlist trap, schema enforcement is already void on main for every allowlisted agent, which is a live defect outranking the whole re-architecture",
-        "scope": "c2",
-        "refs": [
-          "0372",
-          "~/.claude/agents/code-reviewer.md:4"
-        ]
-      },
-      {
-        "text": "Force a git re-verify after the orchestrator subagent returns — a dispatching agent characteristically ends its turn narrating that it is holding, when nothing ran and no child was ever spawned",
+        "text": "Dispatch every child with run_in_background false and re-verify against git when it returns — a background child returns only an id, so a dispatching agent ends its turn narrating that it is holding while nothing ran",
         "scope": "thread",
         "refs": [
           "memory: dispatching-agents-return-believing-they-wait"
         ]
       },
       {
-        "text": "Decide whether mitosis may implement its own replacement before dispatching — D2 deletes mitosis.js, the engine that would be running the work, so a mitosis-driven run saws off the branch it sits on",
+        "text": "Mutate by simulating the plausible unsafe rewrite, never by deleting a guard — generic deletion passed A0's two depth fixes while proving nothing, whereas the rewrite simulation reddened exactly the right tests and nothing else",
         "scope": "thread",
         "refs": [
-          "SPEC D2",
-          "0374"
+          "0380"
         ]
       },
       {
-        "text": "Do not defer A0 — wave-planner enforces same-wave fileScope refusal, has no dedicated test file, and B and C change scheduling above it; a DAG built on untested parallel-safety is the one move here that breaks safety silently",
+        "text": "Recompute D2's test-count acceptance figure and state the counting unit before D2 is cut — the SPEC claims 35, but the files carry 51 test declarations and 175 runtime cases, so no convention yields 35",
         "scope": "thread",
         "refs": [
-          ".claude/lib/mitosis/wave-planner.mjs:53"
+          "SPEC D2"
+        ]
+      },
+      {
+        "text": "Check A2's ready_after readiness path for a termination guarantee that is not a single validation throw — remove wave-planner's cycle throw and its loop spins unbounded, and A2 adds a second readiness predicate over the same problem",
+        "scope": "thread",
+        "refs": [
+          ".claude/lib/mitosis/wave-planner.mjs:46-57"
         ]
       },
       {
@@ -157,7 +148,22 @@
         "refs": [
           "~/.claude/CUTOVER",
           "~/.claude/LIVE",
-          ".claude/worktrees/os-process-spec"
+          ".claude/worktrees/mitosis-os-process"
+        ]
+      },
+      {
+        "text": "Build A4's red case through the claude -p CLI path and assert the SILENT failure — the Workflow agent path auto-grants StructuredOutput, so a red case dispatched through it passes unconditionally and is a guarantee that cannot fail",
+        "scope": "c4",
+        "refs": [
+          "0379"
+        ]
+      },
+      {
+        "text": "Plan the reconciliation before the release gate — the main-branch fix's wave-planner test file collides with the one A0 creates, and A0's todo test only flips green if the guard's message matches /fileScope must be an array/",
+        "scope": "c8",
+        "refs": [
+          "0381",
+          "PR #69"
         ]
       }
     ],
@@ -207,5 +213,5 @@
     ]
   },
   "created_at": "2026-08-12T07:37:41.077Z",
-  "updated_at": "2026-08-12T16:37:55.270Z"
+  "updated_at": "2026-08-12T16:39:04.764Z"
 }
