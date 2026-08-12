@@ -64,30 +64,14 @@
   "closure_statement": null,
   "spine": {
     "active_goal": "Get the rewritten report reviewed by the user (c5), then write the revised SPEC B around provenance-trusted SPECs and structurally-required graphify.",
-    "next_step": "Present the rewritten report for the c5 user review: sections 11, 12 and 17 plus all ten render-verified diagrams. Serve it over HTTP first; opened as a plain file the diagrams are blank. Before or during that review get three answers: the user's step 5 of the five-step flow; whether to inline mermaid so the artifact survives offline; and whether c5's 'five render-verified diagrams' should be amended to ten. Only after the review does c3, writing the revised SPEC B, begin.",
-    "last_session": "Rewrote report sections 11 and 12 for provenance trust and the graphify slice design, re-cut section 17 to 22 gaps, render-verified all ten diagrams, recorded 0361-0364. Caught and corrected a false 'no recall figure exists in-repo' claim I had propagated.",
+    "next_step": "Read the rewritten report FIRST — it is the only artifact carrying the corrected account; the directive, the design brief and SPEC B all disagree with it now. Serve it over HTTP or the diagrams are blank. Then work the OPEN QUESTIONS AND FLAGS list in the latest session log, worst first, starting with Q1: does 0364's authority split stand, or does graphify determine parallelizability outright as the directive instructed? Q1 gates the whole Decompose design. c5's user review is still unmet.",
+    "last_session": "Rewrote report sections 11, 12 and 17, render-verified all ten diagrams, recorded 0361-0364, and corrected a false 'no recall figure exists in-repo' claim I had propagated. Closed by recording seven open questions and eight flags for the fresh session.",
     "open_risks": [
       {
         "text": "Pair every Part II hypothesis with a fixed quality assertion — the instrument counts tokens and cannot see whether a fused Decompose cuts worse, so a token win carrying a quality regression will read as a success",
         "scope": "c2",
         "refs": [
           "0358"
-        ]
-      },
-      {
-        "text": "Cite mitosis.js for behaviour, never lib/mitosis/*.mjs — mitosis.js has zero imports and calls its own inlined twins, so a run-engine.mjs citation describes a mirror rather than the path that executes",
-        "scope": "c1",
-        "refs": [
-          ".claude/workflows/mitosis.js:5040",
-          ".claude/lib/mitosis/tests/mirror-guard.test.mjs:26"
-        ]
-      },
-      {
-        "text": "Treat any .claude/lib/superpowers-parallel hit as noise — confirmed this session as untracked and gitignored, so it still answers a grep but describes nothing that runs",
-        "scope": "c1",
-        "refs": [
-          "0340",
-          "0353"
         ]
       },
       {
@@ -179,6 +163,46 @@
         "scope": "c5",
         "refs": [
           ".claude/workflows/mitosis.js:4497-4514"
+        ]
+      },
+      {
+        "text": "Cite mitosis.js for behaviour, never lib/mitosis/*.mjs — mitosis.js has zero imports and calls its own inlined twins, so a run-engine.mjs citation describes a mirror rather than the path that executes",
+        "scope": "c1",
+        "refs": [
+          ".claude/workflows/mitosis.js:5040",
+          ".claude/lib/mitosis/tests/mirror-guard.test.mjs:26"
+        ]
+      },
+      {
+        "text": "Treat any .claude/lib/superpowers-parallel hit as noise — confirmed this session as untracked and gitignored, so it still answers a grep but describes nothing that runs",
+        "scope": "c1",
+        "refs": [
+          "0340",
+          "0353"
+        ]
+      },
+      {
+        "text": "Audit plan-to-task-graph's SKILL.md before trusting the pre-implementer census — mitosis.js tells the Parallelize phase to read and follow it, so a codebase-read instruction the census never saw could still be hiding there",
+        "scope": "c1",
+        "refs": [
+          ".claude/workflows/mitosis.js:4894",
+          ".claude/skills/plan-to-task-graph/SKILL.md"
+        ]
+      },
+      {
+        "text": "Name which relation types count as dependency edges before the slice function is specified — contains is 9,380 of 13,689 links and is file-to-symbol containment rather than a dependency, so counting every crossing link as a cut edge would swamp the oracle",
+        "scope": "c3",
+        "refs": [
+          "graphify-out/graph.json",
+          "0363"
+        ]
+      },
+      {
+        "text": "Treat 0364's authority split as my recommendation rather than a ratified answer — the directive asked for graphify to determine parallelizability outright, and the counter-evidence is one measurement of a four-version-old build on another language",
+        "scope": "c3",
+        "refs": [
+          "0364",
+          ".claude/docs/specs/2026-06-29-mitosis-design.md:60"
         ]
       }
     ],
@@ -356,5 +380,5 @@
     ]
   },
   "created_at": "2026-08-11T00:08:10.978Z",
-  "updated_at": "2026-08-12T02:09:28.022Z"
+  "updated_at": "2026-08-12T04:01:28.785Z"
 }
