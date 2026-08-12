@@ -63,13 +63,122 @@
   "abandoned_reason": null,
   "closure_statement": null,
   "spine": {
-    "active_goal": "",
-    "next_step": "",
-    "last_session": "",
-    "open_risks": [],
-    "key_decisions": [],
-    "out_of_scope": []
+    "active_goal": "Ship the OS-process re-architecture as eighteen stacked PRs, then let D3's measured falsifier decide whether the base branch merges to main.",
+    "next_step": "START HERE. Dispatch a DEDICATED orchestrator subagent that itself dispatches workers (sequential, parallel where the DAG allows) to plan, implement and ship the stack. Before it dispatches anything: run c1's admission pass, then answer c2's schema question, since a live defect on main outranks the stack. SPEC: .claude/docs/specs/2026-08-12-mitosis-os-process-rearchitecture-design.md on docs/mitosis-os-process-spec (894837f). Cut feat/mitosis-os-process from main first.",
+    "last_session": "Thread opened from the user-approved SPEC. No implementation work started. Criteria fixed at creation; the admission gate is c1 by design so it cannot be skipped.",
+    "open_risks": [
+      {
+        "text": "Run the admission pass before cutting any MSP — the SPEC's ~60 line references came from three audits at authoring time, not a re-open at write time, and line numbers drift while the claims stay load-bearing",
+        "scope": "c1",
+        "refs": [
+          ".claude/docs/specs/2026-08-12-mitosis-os-process-rearchitecture-design.md"
+        ]
+      },
+      {
+        "text": "Answer the Workflow schema question before the stack proceeds — if that path shares the allowlist trap, schema enforcement is already void on main for every allowlisted agent, which is a live defect outranking the whole re-architecture",
+        "scope": "c2",
+        "refs": [
+          "0372",
+          "~/.claude/agents/code-reviewer.md:4"
+        ]
+      },
+      {
+        "text": "Force a git re-verify after the orchestrator subagent returns — a dispatching agent characteristically ends its turn narrating that it is holding, when nothing ran and no child was ever spawned",
+        "scope": "thread",
+        "refs": [
+          "memory: dispatching-agents-return-believing-they-wait"
+        ]
+      },
+      {
+        "text": "Decide whether mitosis may implement its own replacement before dispatching — D2 deletes mitosis.js, the engine that would be running the work, so a mitosis-driven run saws off the branch it sits on",
+        "scope": "thread",
+        "refs": [
+          "SPEC D2",
+          "0374"
+        ]
+      },
+      {
+        "text": "Do not defer A0 — wave-planner enforces same-wave fileScope refusal, has no dedicated test file, and B and C change scheduling above it; a DAG built on untested parallel-safety is the one move here that breaks safety silently",
+        "scope": "thread",
+        "refs": [
+          ".claude/lib/mitosis/wave-planner.mjs:53"
+        ]
+      },
+      {
+        "text": "Cite mitosis.js for behaviour, never lib/mitosis/*.mjs — mitosis.js has zero imports and calls its own inlined twins, so a lib citation describes a mirror rather than the path that executes",
+        "scope": "thread",
+        "refs": [
+          ".claude/workflows/mitosis.js:5040",
+          ".claude/lib/mitosis/tests/mirror-guard.test.mjs:26"
+        ]
+      },
+      {
+        "text": "Pair every cost hypothesis with a fixed quality assertion — the instrument counts tokens and cannot see whether a re-architected Decompose cuts worse, so a token win carrying a quality regression will read as a success",
+        "scope": "thread",
+        "refs": [
+          "SPEC residual 5",
+          "0358"
+        ]
+      },
+      {
+        "text": "Re-cut any MSP that cannot be proven by its own tests — eighteen PRs where nothing runs end to end until C7 is a big-bang in disguise unless each one is genuinely green alone",
+        "scope": "thread",
+        "refs": [
+          "SPEC 4.1",
+          "SPEC residual 2"
+        ]
+      },
+      {
+        "text": "Expect C7 to exceed the review-size target and budget for it — the tick loop is one unit and cannot be split; this is a named exception in the SPEC, not an oversight to be fixed by splitting it anyway",
+        "scope": "thread",
+        "refs": [
+          "SPEC C7",
+          "SPEC residual 1"
+        ]
+      },
+      {
+        "text": "Copy no fanout source into this repo — it is PolyForm Noncommercial, so the architecture may be adopted and cited as prior art but a verbatim lift is a licensing decision, not a coding one",
+        "scope": "thread",
+        "refs": [
+          "0373",
+          "SPEC 3.6"
+        ]
+      },
+      {
+        "text": "Work in a worktree under .claude/worktrees/ rather than switching the primary checkout — live config entries resolve into the release rather than the working tree; read other branches with git show",
+        "scope": "thread",
+        "refs": [
+          "~/.claude/CUTOVER",
+          "~/.claude/LIVE",
+          ".claude/worktrees/os-process-spec"
+        ]
+      }
+    ],
+    "key_decisions": [
+      {
+        "ref": "0374-approved-msp-stack-a0-through-d3",
+        "title": "The approved MSP stack, A0 through D3",
+        "scope": "thread"
+      },
+      {
+        "ref": "0377-spec-approved-and-successor-thread-opened",
+        "title": "The SPEC is approved and implementation moves to this thread",
+        "scope": "thread"
+      },
+      {
+        "ref": "0376-unclassifiable-dispatches-get-a-forced-home",
+        "title": "The two unclassifiable dispatch sites are forced to a decision in their own MSP",
+        "scope": "c5"
+      }
+    ],
+    "out_of_scope": [
+      "Re-litigating the SPEC's design, which the predecessor thread locked; requirements come from the SPEC and its decision records",
+      "SPEC A and the config staging and promotion machinery it shipped",
+      "The fix pipeline, excluded by the user from both SPECs",
+      "pillars.md, which stays a guiding-principles document carrying no measurements",
+      "The deferred supervisor, rotation and spawn-cost research, which returns only after the engine update"
+    ]
   },
   "created_at": "2026-08-12T07:37:41.077Z",
-  "updated_at": "2026-08-12T07:37:41.077Z"
+  "updated_at": "2026-08-12T07:38:31.988Z"
 }
