@@ -327,6 +327,11 @@
         "ref": "0361-pillars-stays-principle-only-no-measurements",
         "title": "pillars.md stays a guiding-principles document and carries no measurements",
         "scope": "thread"
+      },
+      {
+        "ref": "0362-spec-trust-needs-a-commit-binding-and-an-admitted-artifact",
+        "title": "Provenance trust is operationalized by a commit binding plus an admitted-SPEC artifact",
+        "scope": "thread"
       }
     ],
     "out_of_scope": [
@@ -336,5 +341,5 @@
     ]
   },
   "created_at": "2026-08-11T00:08:10.978Z",
-  "updated_at": "2026-08-12T01:38:48.321Z"
+  "updated_at": "2026-08-12T01:38:57.523Z"
 }
