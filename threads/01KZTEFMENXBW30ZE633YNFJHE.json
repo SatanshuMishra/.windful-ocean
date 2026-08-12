@@ -179,6 +179,11 @@
         "ref": "0379-c2-workflow-autogrants-cli-stays-silent",
         "title": "c2 settled by probe: Workflow auto-grants, so A4 defends a migration hazard not a live defect",
         "scope": "c2"
+      },
+      {
+        "ref": "0380-acceptance-is-a-floor-mutate-the-unsafe-rewrite",
+        "title": "SPEC acceptance lists are a floor, and inertness mutations simulate the unsafe rewrite",
+        "scope": "thread"
       }
     ],
     "out_of_scope": [
@@ -190,5 +195,5 @@
     ]
   },
   "created_at": "2026-08-12T07:37:41.077Z",
-  "updated_at": "2026-08-12T16:37:07.899Z"
+  "updated_at": "2026-08-12T16:37:23.156Z"
 }
