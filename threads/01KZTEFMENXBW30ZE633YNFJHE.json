@@ -3,7 +3,7 @@
   "id": "01KZTEFMENXBW30ZE633YNFJHE",
   "slug": "mitosis-os-process-implementation",
   "title": "Mitosis OS-process SPEC implementation: the eighteen-MSP stack",
-  "status": "active",
+  "status": "paused",
   "parent_id": null,
   "predecessor_id": "01KZQ2BVF2386ATV5YFD43NQVX",
   "completion_criteria": [
@@ -180,5 +180,5 @@
     ]
   },
   "created_at": "2026-08-12T07:37:41.077Z",
-  "updated_at": "2026-08-12T07:38:31.988Z"
+  "updated_at": "2026-08-12T07:38:35.360Z"
 }
