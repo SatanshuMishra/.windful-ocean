@@ -386,6 +386,11 @@
         "ref": "0367-directive-and-design-brief-are-non-authoritative",
         "title": "The 2026-08-11 directive and the design brief are demoted; current decision records govern",
         "scope": "thread"
+      },
+      {
+        "ref": "0368-report-ships-cdn-loaded-and-renumbered",
+        "title": "The report ships CDN-loaded and renumbered, and c5 drops its diagram count",
+        "scope": "c5"
       }
     ],
     "out_of_scope": [
@@ -395,5 +400,5 @@
     ]
   },
   "created_at": "2026-08-11T00:08:10.978Z",
-  "updated_at": "2026-08-12T04:18:36.844Z"
+  "updated_at": "2026-08-12T04:18:47.721Z"
 }
