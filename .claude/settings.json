@@ -216,6 +216,21 @@
             "type": "command",
             "command": "$HOME/.claude/hooks/pre-commit-scoped-verify.sh",
             "timeout": 60
+          },
+          {
+            "type": "command",
+            "command": "node $HOME/.claude/hooks/trash-rm.mjs",
+            "timeout": 5
+          }
+        ]
+      },
+      {
+        "matcher": "Edit|Write|NotebookEdit|Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node $HOME/.claude/hooks/checkpoint-worktree.mjs",
+            "timeout": 15
           }
         ]
       },

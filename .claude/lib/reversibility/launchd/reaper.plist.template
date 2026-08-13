@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>Label</key>
+	<string>{{LABEL}}</string>
+	<key>ProgramArguments</key>
+	<array>
+		<string>{{NODE_BIN}}</string>
+		<string>{{REAPER_PATH}}</string>
+		<string>--repo</string>
+		<string>{{REPO_ROOT}}</string>
+	</array>
+	<key>EnvironmentVariables</key>
+	<dict>
+		<key>REVERSIBILITY_WINDOW_HOURS</key>
+		<string>{{WINDOW_HOURS}}</string>
+	</dict>
+	<key>StartInterval</key>
+	<integer>{{REAPER_INTERVAL_SECONDS}}</integer>
+	<key>RunAtLoad</key>
+	<false/>
+	<key>ProcessType</key>
+	<string>Background</string>
+	<key>LowPriorityIO</key>
+	<true/>
+	<key>StandardOutPath</key>
+	<string>{{STDOUT_PATH}}</string>
+	<key>StandardErrorPath</key>
+	<string>{{STDERR_PATH}}</string>
+</dict>
+</plist>
