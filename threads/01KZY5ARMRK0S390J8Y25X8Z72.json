@@ -253,6 +253,11 @@
         "ref": "0404-trash-rm-runs-ahead-of-the-bash-gate",
         "title": "trash-rm registers ahead of the bash gate so the gate judges the rewritten command",
         "scope": "c5"
+      },
+      {
+        "ref": "0405-main-is-published-only-through-a-pull-request",
+        "title": "main is published only through a pull request, never a direct push",
+        "scope": "thread"
       }
     ],
     "out_of_scope": [
@@ -261,5 +266,5 @@
     ]
   },
   "created_at": "2026-08-13T18:14:42.072Z",
-  "updated_at": "2026-08-13T22:18:21.454Z"
+  "updated_at": "2026-08-13T22:59:18.231Z"
 }
