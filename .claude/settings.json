@@ -213,7 +213,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "$HOME/.claude/hooks/block-destructive-bash.sh",
+            "command": "node $HOME/.claude/hooks/permission-gate.mjs",
             "timeout": 5
           }
         ]

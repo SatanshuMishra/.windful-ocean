@@ -30,7 +30,7 @@ If security issue found:
 
 ## Bash Gate Exception
 
-- This machine's bash gate (`.claude/hooks/block-destructive-bash.sh`) is governed by `docs/security/bash-gate-threat-model.md`.
+- This machine's permission gate (`.claude/hooks/permission-gate.mjs` and `.claude/lib/permission-gate/`) is governed by `docs/security/bash-gate-threat-model.md`.
 - That document overrides only the Security Response Protocol's escalation ordering for gate findings — steps 1 ("STOP immediately") and 3 ("fix CRITICAL issues before continuing") above. It does NOT exempt the gate from Mandatory Security Checks, Secret Management, or the Response Protocol's remaining steps.
 - Before starting a fix round on a finding against the gate, check it against that document's stated goals and non-goals.
 - A finding against a stated non-goal is logged there as an accepted risk, not fixed — do not restart the fix-round cycle that document exists to stop.
