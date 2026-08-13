@@ -2,9 +2,10 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import {
-  FLAG_UNCLASSIFIED,
   LIVE_OWNED_KEYS,
+  PromotionRefusal,
   REPO_OWNED_KEYS,
+  REQUIRED_DENY_RULES,
   classify,
   resolveSettings,
 } from '../manifest.mjs';
@@ -23,10 +24,11 @@ const REPO = Object.freeze({
     SessionStart: [
       { matcher: '', hooks: [{ type: 'command', command: 'node $HOME/.claude/local/converge.mjs --event SessionStart' }] },
     ],
+    PreToolUse: [{ matcher: '', hooks: [{ type: 'command', command: '$HOME/.claude/hooks/gate.sh' }] }],
   },
   includeCoAuthoredBy: false,
   sandbox: VERIFIED_SANDBOX,
-  permissions: { allow: ['Bash(node --test:*)'], deny: ['Bash(gh pr merge:*)'] },
+  permissions: { allow: ['Bash(node --test:*)'], deny: [...REQUIRED_DENY_RULES] },
 });
 
 const LIVE = Object.freeze({
@@ -39,7 +41,6 @@ const LIVE = Object.freeze({
 });
 
 const flagFor = (result, key) => result.flagged.find((entry) => entry.key === key);
-const removedFor = (result, key) => result.removed.find((entry) => entry.key === key);
 
 const shippedSettings = () =>
   JSON.parse(readFileSync(new URL('../../../.claude/settings.json', import.meta.url), 'utf8'));
@@ -77,23 +78,16 @@ test('a repo revision to a sandbox value reaches live instead of freezing behind
   assert.equal(flagFor(result, 'sandbox'), undefined);
 });
 
-test('an unclassified sandbox would freeze, which is why classification is load-bearing', () => {
-  const result = resolveSettings({
-    repo: { ...REPO, someKeyClaudeCodeAddsLater: 'from-repo' },
-    live: { ...LIVE, someKeyClaudeCodeAddsLater: 'from-live' },
-  });
-
-  assert.equal(result.settings.someKeyClaudeCodeAddsLater, 'from-live');
-  assert.equal(flagFor(result, 'someKeyClaudeCodeAddsLater').kind, FLAG_UNCLASSIFIED);
-});
-
-test('a repo that stops declaring sandbox has it removed from live and reported', () => {
+test('a repo that stops declaring sandbox refuses promotion rather than uncontaining live', () => {
   const { sandbox, ...repoWithoutSandbox } = REPO;
-  const result = resolveSettings({ repo: repoWithoutSandbox, live: { ...LIVE, sandbox: VERIFIED_SANDBOX } });
+  const live = Object.freeze({ ...LIVE, sandbox: VERIFIED_SANDBOX });
 
-  assert.equal('sandbox' in result.settings, false, 'a repo-owned key absent from the repo does not survive promotion');
-  assert.match(removedFor(result, 'sandbox').reason, /repo declares no value/);
-  assert.equal(flagFor(result, 'sandbox'), undefined, 'an absent repo-owned key is reported as removed, never flagged');
+  assert.throws(
+    () => resolveSettings({ repo: repoWithoutSandbox, live }),
+    (error) => error instanceof PromotionRefusal && /sandbox/.test(error.message),
+    'containment is a safety boundary, so its absence refuses instead of deleting and reporting',
+  );
+  assert.deepEqual(live.sandbox, VERIFIED_SANDBOX, 'a refusal mutates nothing, so live keeps the block it had');
 });
 
 test('promotion of the sandbox block is idempotent so an unattended hook converges', () => {

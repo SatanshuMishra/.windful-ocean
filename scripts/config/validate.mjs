@@ -16,7 +16,6 @@ import { tmpdir } from 'node:os';
 import { basename, extname, join, relative, sep } from 'node:path';
 import {
   CURRENT_LINK,
-  INTERPRETERS,
   PROMOTED_ENTRIES,
   expandHome,
   isInside,
@@ -24,6 +23,7 @@ import {
   realpathOrNull,
   releasesDir,
 } from './paths.mjs';
+import { executableRegistrations, parseInvocation } from './registrations.mjs';
 
 const NODE_EXTENSIONS = Object.freeze(['.mjs', '.js', '.cjs']);
 const BASH_EXTENSIONS = Object.freeze(['.sh', '.bash']);
@@ -130,24 +130,11 @@ export function coverageFailures(candidateDir, entries) {
 
 export function hookRegistrations(settings) {
   if (settings === null || typeof settings !== 'object') return [];
-  const groups = Object.values(settings.hooks ?? {}).filter(Array.isArray);
-  return groups.flatMap((group) =>
-    group.flatMap((matcher) =>
-      (Array.isArray(matcher?.hooks) ? matcher.hooks : [])
-        .filter((hook) => typeof hook?.command === 'string' && hook.command.trim() !== '')
-        .map((hook) => parseHookCommand(hook.command)),
-    ),
-  );
+  return executableRegistrations(settings.hooks).map((registration) => parseHookCommand(registration.command));
 }
 
 export function parseHookCommand(command) {
-  const tokens = command.trim().split(/\s+/);
-  const hasInterpreter = INTERPRETERS.includes(tokens[0]);
-  return Object.freeze({
-    command,
-    interpreter: hasInterpreter ? tokens[0] : null,
-    rawPath: hasInterpreter ? (tokens[1] ?? '') : tokens[0],
-  });
+  return parseInvocation(command);
 }
 
 export function mapIntoCandidate({ rawPath, configRoot, candidateDir, home }) {

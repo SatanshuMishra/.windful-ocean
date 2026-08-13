@@ -16,6 +16,7 @@ import {
   leakGateFailure,
   writeProposal,
 } from '../capture.mjs';
+import { assertClassified } from '../manifest.mjs';
 
 const LIVE = Object.freeze({
   $schema: 'https://json.schemastore.org/claude-code-settings.json',
@@ -205,8 +206,42 @@ test('capture rejects a non-array permissions section at the boundary', () => {
   );
 });
 
-test('an unclassified live key survives capture and is reported for classification', () => {
+test('an unclassified live key is dropped from the proposal and reported for classification', () => {
   const proposal = captureProposal({ live: { ...LIVE, sonnetBudgetTokens: 4096 }, repo: REPO });
-  assert.equal(proposal.settings.sonnetBudgetTokens, 4096);
+  assert.equal(
+    'sonnetBudgetTokens' in proposal.settings,
+    false,
+    'a key the repo cannot promote must never be proposed into the repo',
+  );
   assert.equal(noteFor(proposal, NOTE_UNCLASSIFIED).key, 'sonnetBudgetTokens');
+});
+
+test('an unclassified key the repo already declares is dropped rather than carried forward', () => {
+  const proposal = captureProposal({ live: LIVE, repo: { ...REPO, legacyUnknownKey: 'declared' } });
+  assert.equal('legacyUnknownKey' in proposal.settings, false);
+  assert.equal(noteFor(proposal, NOTE_UNCLASSIFIED).key, 'legacyUnknownKey');
+});
+
+test('an unclassified permissions section is dropped from the proposal and reported', () => {
+  const proposal = captureProposal({
+    live: { ...LIVE, permissions: { ...LIVE.permissions, additionalDirectories: ['/tmp'] } },
+    repo: REPO,
+  });
+  assert.equal(
+    'additionalDirectories' in proposal.settings.permissions,
+    false,
+    'a section the repo cannot promote must never be proposed into the repo',
+  );
+  assert.equal(noteFor(proposal, NOTE_UNCLASSIFIED).key, 'permissions.additionalDirectories');
+});
+
+test('a proposal can never halt promotion, whatever key a client release adds to live', () => {
+  const proposal = captureProposal({
+    live: { ...LIVE, sonnetBudgetTokens: 4096, someKeyClaudeCodeAddsLater: { nested: true } },
+    repo: REPO,
+  });
+  assert.doesNotThrow(
+    () => assertClassified(proposal.settings),
+    'capture must not hand the repo a key that refuses every later promotion',
+  );
 });

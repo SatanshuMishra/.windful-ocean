@@ -19,6 +19,10 @@ import {
   assertRejected,
   cleanup,
   commitChange,
+  CONVERGE_COMMAND,
+  declaredHookSettings,
+  FLOOR_DENY,
+  FLOOR_SANDBOX,
   hookSettings,
   makeHome,
   makeRepo,
@@ -62,8 +66,9 @@ const render = (document) => `${JSON.stringify(document, null, 2)}\n`;
 const declaredSettings = (commands = DEFAULT_HOOK_COMMANDS) => ({
   $schema: 'https://json.schemastore.org/claude-code-settings.json',
   includeCoAuthoredBy: false,
-  ...hookSettings(commands),
-  permissions: { allow: ['Bash(node --test:*)'], deny: ['Bash(gh pr merge:*)'] },
+  ...declaredHookSettings(commands),
+  sandbox: { ...FLOOR_SANDBOX },
+  permissions: { allow: ['Bash(node --test:*)'], deny: [...FLOOR_DENY] },
 });
 
 const liveSettings = (extra = {}) => ({
@@ -161,6 +166,27 @@ test('a repo revision that drops permissions.deny errors out and leaves the live
     assert.match(result.errors.join('\n'), /permissions\.deny/, 'the refusal must name the key that is missing');
     assert.equal(s.text(), before, 'a refused candidate must not rewrite the live settings');
     assert.deepEqual(s.applied().permissions.deny, ['Bash(gh pr merge:*)'], 'live must keep the deny list it had');
+    assertLiveUntouched(s.configRoot);
+  } finally {
+    s.dispose();
+  }
+});
+
+test('a repo revision that drops sandbox errors out and leaves live contained', () => {
+  const { sandbox, ...declaredWithoutSandbox } = declaredSettings();
+  const s = settingsScenario({
+    declared: declaredWithoutSandbox,
+    live: liveSettings({ sandbox: { ...FLOOR_SANDBOX } }),
+  });
+  try {
+    const before = s.text();
+
+    const result = s.run();
+
+    assert.equal(result.status, 'error', JSON.stringify(result.failures ?? result.settings ?? {}, null, 2));
+    assert.match(result.errors.join('\n'), /sandbox/, 'the refusal must name the key that is missing');
+    assert.equal(s.text(), before, 'a refused candidate must not rewrite the live settings');
+    assert.deepEqual(s.applied().sandbox, { ...FLOOR_SANDBOX }, 'live must keep the containment block it had');
     assertLiveUntouched(s.configRoot);
   } finally {
     s.dispose();
@@ -297,7 +323,7 @@ test('rollback applies the settings the release it rolls back to declares', () =
     const firstText = s.text();
     declareSecondHook(s.repoRoot);
     assert.equal(s.run().status, 'promoted');
-    assert.deepEqual(hookCommands(s.applied()), [SECOND_HOOK]);
+    assert.deepEqual(hookCommands(s.applied()), [SECOND_HOOK, CONVERGE_COMMAND]);
 
     const rolled = rollback({ configRoot: s.configRoot, now: NOW, home: s.home });
 
@@ -305,7 +331,7 @@ test('rollback applies the settings the release it rolls back to declares', () =
     assert.equal(liveSha(s.configRoot), firstSha);
     assert.equal(s.text(), firstText, 'live settings must be the document the restored release declares');
     const restored = join(s.configRoot, 'releases', firstSha);
-    assert.deepEqual(hookCommands(s.applied()), [...DEFAULT_HOOK_COMMANDS]);
+    assert.deepEqual(hookCommands(s.applied()), [...DEFAULT_HOOK_COMMANDS, CONVERGE_COMMAND]);
     assert.ok(existsSync(join(restored, 'hooks', 'good.sh')), 'the restored registration resolves inside the restored release');
     assert.ok(!existsSync(join(restored, 'hooks', 'second.sh')), 'the abandoned registration never resolved there');
   } finally {
