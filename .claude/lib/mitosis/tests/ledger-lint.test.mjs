@@ -15,10 +15,14 @@ import {
 } from '../ledger-lint.mjs';
 
 const DAY_MS = 86400000;
-const NOW = new Date('2026-07-18T00:00:00Z');
+const NOW = new Date('2026-07-18T00:00:00Z').getTime();
 
 function daysAgo(n) {
-  return new Date(NOW.getTime() - n * DAY_MS);
+  return NOW - n * DAY_MS;
+}
+
+function daysAgoStamp(n) {
+  return new Date(daysAgo(n));
 }
 
 function makeFixture() {
@@ -46,27 +50,27 @@ function makeFixture() {
     stalePath,
     "const PAYMENTS_V2_ENABLED = false;\nexport function pay() {\n  if (PAYMENTS_V2_ENABLED) return 'new';\n  return 'old';\n}\n",
   );
-  utimesSync(stalePath, daysAgo(100), daysAgo(100));
+  utimesSync(stalePath, daysAgoStamp(100), daysAgoStamp(100));
 
   const enablePath = join(src, 'search.mjs');
   writeFileSync(
     enablePath,
     "const SEARCH_V2_ENABLED = false;\nexport function search() {\n  return SEARCH_V2_ENABLED || process.env.SEARCH_V2_ENABLED === '1';\n}\n",
   );
-  utimesSync(enablePath, daysAgo(100), daysAgo(100));
+  utimesSync(enablePath, daysAgoStamp(100), daysAgoStamp(100));
 
   const freshPath = join(src, 'beta.mjs');
   writeFileSync(
     freshPath,
     "const BETA_ENABLED = false;\nexport function beta() {\n  return BETA_ENABLED;\n}\n",
   );
-  utimesSync(freshPath, daysAgo(2), daysAgo(2));
+  utimesSync(freshPath, daysAgoStamp(2), daysAgoStamp(2));
 
   return { root, decisions, src, cleanup: () => rmSync(root, { recursive: true, force: true }) };
 }
 
-function isoDate(d) {
-  return d.toISOString().slice(0, 10);
+function isoDate(ms) {
+  return new Date(ms).toISOString().slice(0, 10);
 }
 
 test('DEFAULT_MAX_AGE_DAYS is a sane operator default', () => {
@@ -78,7 +82,7 @@ test('parseDecisionRecord extracts date from filename, status, and any landing c
   const accepted = parseDecisionRecord('Status: accepted-direction\n', '2026-06-01-foo.md');
   assert.equal(accepted.status, 'accepted-direction');
   assert.equal(accepted.landedCommit, null);
-  assert.equal(accepted.date.toISOString().slice(0, 10), '2026-06-01');
+  assert.equal(accepted.date, Date.UTC(2026, 5, 1));
 
   const landed = parseDecisionRecord('Status: landed:deadbeef123\n', '2026-06-02-bar.md');
   assert.equal(landed.landedCommit, 'deadbeef123');
@@ -228,4 +232,22 @@ test('lintLedger over synthetic fixture dirs flags exactly the stale accepted de
 test('lintLedger validates its input and fails fast on a missing ledger directory', () => {
   assert.throws(() => lintLedger({ ledgerDir: join(tmpdir(), 'does-not-exist-xyz-123'), now: NOW }), /ledger/i);
   assert.throws(() => lintLedger({ now: NOW }), /ledgerDir/i);
+});
+
+test('every age lint refuses a missing now rather than defaulting to the wall clock', () => {
+  const records = [parseDecisionRecord('Status: accepted-direction\n', '2020-01-01-stale.md')];
+  const files = [{ path: 'a.mjs', text: 'const A_ENABLED = false;\nif (A_ENABLED) {}\n', mtime: daysAgo(100) }];
+  assert.throws(() => lintDecisions(records, { maxAgeDays: DEFAULT_MAX_AGE_DAYS }), /lintDecisions requires options\.now/);
+  assert.throws(() => lintFlags(files, { maxAgeDays: DEFAULT_MAX_AGE_DAYS }), /lintFlags requires options\.now/);
+  const fx = makeFixture();
+  try {
+    assert.throws(() => lintLedger({ ledgerDir: fx.root, sourceDir: fx.src }), /lintLedger requires options\.now/);
+  } finally {
+    fx.cleanup();
+  }
+});
+
+test('a decision filename naming a day its month does not have yields no date rather than a rolled-over one', () => {
+  assert.equal(parseDecisionRecord('Status: accepted-direction\n', '2026-02-30-impossible.md').date, null);
+  assert.equal(parseDecisionRecord('Status: accepted-direction\n', '2024-02-29-leap.md').date, Date.UTC(2024, 1, 29));
 });
