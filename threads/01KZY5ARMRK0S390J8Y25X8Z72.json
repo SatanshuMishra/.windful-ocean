@@ -30,14 +30,14 @@
     },
     {
       "id": "c4",
-      "text": "Steps 3-4 shipped: broad Bash allow plus mcp__* coverage; settings.local.json truncated to reusable prefix rules and accumulation stopped at source",
+      "text": "Steps 3-4 shipped: allow rules enumerate narrow command prefixes plus mcp__* coverage; settings.local.json truncated to reusable prefix rules and accumulation stopped at source",
       "done": false,
       "kind": "planned",
       "struck_by": null
     },
     {
       "id": "c5",
-      "text": "Layer 1 shipped whole: temp-index checkpoint, rm-to-trash rewrite, hourly APFS snapshot, and the D2 age-based reaper in the same change",
+      "text": "Layer 1 shipped whole: per-worktree temp-index checkpoint using --force, rm-to-trash rewrite, hourly APFS snapshot, and the D2 age-based reaper in the same change",
       "done": false,
       "kind": "planned",
       "struck_by": null
@@ -58,7 +58,7 @@
     },
     {
       "id": "c8",
-      "text": "Layer 0 shipped: sandbox enabled with failIfUnavailable, gated on the U3 result",
+      "text": "Layer 0 shipped: sandbox with allowLocalBinding, allowUnsandboxedCommands false and failIfUnavailable true, keeping filesystem containment with working localhost",
       "done": false,
       "kind": "planned",
       "struck_by": null
@@ -201,5 +201,5 @@
     "out_of_scope": []
   },
   "created_at": "2026-08-13T18:14:42.072Z",
-  "updated_at": "2026-08-13T19:19:23.010Z"
+  "updated_at": "2026-08-13T19:19:43.611Z"
 }
