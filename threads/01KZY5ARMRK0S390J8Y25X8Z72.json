@@ -96,28 +96,7 @@
     "last_session": "Ran Wave 0 to completion across seven experiments plus three follow-up probes. Layer 0 was refuted then rescued by one key; D6's mechanism was replaced with a per-worktree form; Step 3 was inverted. Dispatched the SPEC amendment. Nothing implemented.",
     "open_risks": [
       {
-        "text": "Layer 0 is refuted — the sandbox blocks loopback and no allowlist can reach it, while on defaults a denied command is silently re-run unsandboxed and reported as succeeded, so containment is illusory exactly where it matters",
-        "scope": "c1",
-        "refs": [
-          "docs/superpowers/specs/2026-08-13-maximum-autonomy-permission-architecture-SPEC.md"
-        ]
-      },
-      {
-        "text": "A broad Bash(*) allow is silently discarded in auto mode and the command falls through to the classifier — Step 3 as written yields strictly less autonomy than enumerated narrow prefixes, and the rejection is visible only at debug level",
-        "scope": "c1",
-        "refs": [
-          "docs/superpowers/specs/2026-08-13-maximum-autonomy-permission-architecture-SPEC.md"
-        ]
-      },
-      {
-        "text": "The temp-index checkpoint captures nested repos as empty gitlinks — the eight worktrees holding agent work are captured not at all, and plain add -A silently drops tracked-but-ignored files so --force is a correctness requirement",
-        "scope": "c1",
-        "refs": [
-          ".claude/worktrees"
-        ]
-      },
-      {
-        "text": "Rollback undoes itself — converge promotes whenever live differs from local main, so a rolled-back release is re-promoted at the next session start or stop unless a human also moves the main pointer back",
+        "text": "Rollback undoes itself — converge promotes whenever live differs from local main, so a rolled-back release is re-promoted at the next session start or stop unless a human also moves the main pointer back; live and unmitigated today",
         "scope": "c1",
         "refs": [
           "~/.claude/local/converge.mjs:29-39",
@@ -133,10 +112,38 @@
         ]
       },
       {
-        "text": "Unclassified settings keys land once then freeze — sandbox, defaultMode and permissions.ask ship on first introduction, after which live wins permanently and every later repo revision is silently inert",
+        "text": "validate.mjs is a syntax gate only and never executes hook logic — a behaviorally wrong permission gate promotes to live cleanly, so Layer 3 needs real behavioral tests before it merges; the pipeline will not catch a logic error",
+        "scope": "c1",
+        "refs": [
+          "~/.claude/local/validate.mjs:461-473"
+        ]
+      },
+      {
+        "text": "--settings accepts inline JSON, not only a file path — everything this architecture governs is file contents, so argv is an unreviewed permission-injection channel outranking project and local settings",
+        "scope": "c1",
+        "refs": [
+          "docs/superpowers/specs/2026-08-13-maximum-autonomy-permission-architecture-SPEC.md"
+        ]
+      },
+      {
+        "text": "The default sandbox configuration reports success while abandoning the sandbox — allowUnsandboxedCommands false and failIfUnavailable true are mandatory, not hardening; without them containment is illusory exactly where it matters",
+        "scope": "c1",
+        "refs": [
+          "0397-layer-zero-survives-with-allow-local-binding"
+        ]
+      },
+      {
+        "text": "Unclassified settings keys land once then freeze — permissions.ask still has this shape, so introducing it even as an empty array would bind live permanently and every later repo revision would be silently inert",
         "scope": "c1",
         "refs": [
           "~/.claude/local/manifest.mjs:165-171"
+        ]
+      },
+      {
+        "text": "A merged PR does not reach live until a human advances local refs/heads/main — nothing fetches, and local main is 10 behind origin, so that advance would also drag in unrelated commits",
+        "scope": "c1",
+        "refs": [
+          "~/.claude/local/release.mjs:61-77"
         ]
       }
     ],
@@ -170,5 +177,5 @@
     "out_of_scope": []
   },
   "created_at": "2026-08-13T18:14:42.072Z",
-  "updated_at": "2026-08-13T18:51:41.071Z"
+  "updated_at": "2026-08-13T18:52:05.102Z"
 }
