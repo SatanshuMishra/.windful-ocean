@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
-import { scanJsStructure } from '../mitosis-gate.mjs';
+import { scanJsStructure } from '../js-scan.mjs';
 
 const LIB = new URL('..', import.meta.url).pathname;
 const GIT_LIB = new URL('../../git/', import.meta.url).pathname;

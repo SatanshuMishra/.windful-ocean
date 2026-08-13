@@ -1,6 +1,20 @@
 import { compileWorkflow } from './workflow-sandbox.mjs';
 import { readFileSync, realpathSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
+import {
+  IDENT_PART,
+  at,
+  halt,
+  nextCodeIndex,
+  previousCodeIndex,
+  readIdentifier,
+  scanJsStructure,
+  wordEndingAt,
+} from './js-scan.mjs';
+import { censusEngineDeterminism, engineSourceRoots, realSourceIo } from './determinism-lint.mjs';
+import { EXEC_ALLOWLIST, assertSpawnAllowed, resolveSpawn } from './exec-policy.mjs';
+import { MERGE_REFUSAL_SPECIMENS } from './gh-merge-shim.mjs';
+import { REQUIRED_TOOL, agentDefinitionDir, censusAgentSchemaCapability } from './agent-schema-lint.mjs';
 
 export const GATE_CLEAN_EXIT = 0;
 export const GATE_USAGE_EXIT = 40;
@@ -9,198 +23,48 @@ export const GATE_UNRESOLVABLE_EXIT = 42;
 export const GATE_READ_EXIT = 43;
 export const GATE_COMPILE_EXIT = 44;
 
-export const MITOSIS_GATE_VERBS = Object.freeze(['phase-parity']);
+export const MITOSIS_GATE_VERBS = Object.freeze(['determinism', 'dispatchable-agent-schema-capable', 'exec-allowlist', 'phase-parity']);
 
 export const DEFAULT_PHASE_PARITY_TARGET = fileURLToPath(new URL('../../workflows/mitosis.js', import.meta.url));
+export const DEFAULT_DETERMINISM_TARGET = fileURLToPath(new URL('./', import.meta.url));
+export const DEFAULT_AGENT_TREE_TARGET = agentDefinitionDir();
+
+const SPAWNABLE_BINARIES = Object.freeze(['claude', 'gh', 'git', 'graphify', 'node']);
+const UNLISTED_PROBE_BINARY = 'bash';
+const ROUTED_PROBE_ARGV = Object.freeze(['pr', 'view', '7']);
+const SHIM_BASENAME = 'gh-merge-shim.mjs';
+const REFUSAL_KIND_RE = /\[([a-z-]+)\]/;
+
+const EXEC_ALLOWLIST_ATTESTS = Object.freeze([
+  'the spawn allowlist is exactly the five binaries the guarantee names',
+  'an unlisted binary throws instead of spawning, so the policy is deny-by-default rather than deny-a-blocklist',
+  'every merge argv the guarantee names is refused in-process by its own refusal reason, before any child starts',
+  'an ordinary gh argv resolves through the merge shim rather than straight to the real gh binary',
+]);
+
+const EXEC_ALLOWLIST_NOT_ATTESTED = Object.freeze([
+  'that engine source reaches processes only through this policy: every live spawn site imports node:child_process directly, and no verb censuses those call sites',
+  'argv-level containment for claude, git, node and graphify: an allowlisted binary still reaches arbitrary work through its own argv, which no layer inspects',
+  'that a gh alias defined before the run is refused: the classifier reads alias definitions, not the alias table already in effect',
+]);
+
+const TARGETLESS_VERBS = Object.freeze(new Set(['exec-allowlist']));
+
+const VERB_DEFAULT_TARGETS = Object.freeze({
+  determinism: DEFAULT_DETERMINISM_TARGET,
+  'dispatchable-agent-schema-capable': DEFAULT_AGENT_TREE_TARGET,
+  'exec-allowlist': null,
+  'phase-parity': DEFAULT_PHASE_PARITY_TARGET,
+});
 
 const PHASE_TOKEN_TEXT = 'phase';
 const ESM_EXPORT_PREFIX = /^export /gm;
-const IDENT_START = /[A-Za-z_$]/;
-const IDENT_PART = /[\w$]/;
 const FUNCTION_NAME_PATTERN = /^[A-Za-z_$][\w$]*$/;
 const NON_NAME_WORDS = Object.freeze(new Set(['function', 'if', 'for', 'while', 'switch', 'catch', 'return', 'typeof', 'await', 'new']));
 const KEY_PREFIX_CHARS = Object.freeze(new Set(['{', ',']));
 const BARE_TERMINATOR_CHARS = Object.freeze(new Set([',', '}', ')', ']', ';']));
 const COMPOUND_ASSIGN_CHARS = Object.freeze(new Set(['=', '!', '<', '>', '+', '-', '*', '/', '%', '&', '|', '^']));
 const CALLEE_TAIL_CHARS = Object.freeze(new Set([')', ']']));
-const REGEX_PRECEDERS = Object.freeze(new Set([
-  '', '(', ',', '=', ':', '[', '!', '&', '|', '?', '{', '}', ';', '+', '-', '*', '%', '~', '^', '<', '>',
-  'return', 'typeof', 'case', 'in', 'of', 'do', 'else', 'yield', 'await', 'new', 'delete', 'void', 'instanceof',
-]));
-
-function halt(message) {
-  return Object.freeze({ ok: false, error: message });
-}
-
-function lineOf(source, index) {
-  let line = 1;
-  for (let k = 0; k < index && k < source.length; k += 1) {
-    if (source[k] === '\n') line += 1;
-  }
-  return line;
-}
-
-function at(source, index) {
-  return `line ${lineOf(source, index)}`;
-}
-
-export function scanJsStructure(source) {
-  if (typeof source !== 'string') return halt('the source to scan must be a string');
-  const n = source.length;
-  const masked = source.split('');
-  const stringSpans = new Map();
-  const braceByOpen = new Map();
-  const bracePairs = [];
-  const openBraces = [];
-  const templateFrames = [];
-  const blank = (from, to) => { for (let k = Math.max(from, 0); k < Math.min(to, n); k += 1) masked[k] = ' '; };
-  let i = 0;
-  let lastToken = '';
-  let inTemplateText = false;
-
-  while (i < n) {
-    if (inTemplateText) {
-      let k = i;
-      let stop = -1;
-      let interpolated = false;
-      while (k < n) {
-        const t = source[k];
-        if (t === '\\') { blank(k, k + 2); k += 2; continue; }
-        if (t === '`') { stop = k; break; }
-        if (t === '$' && source[k + 1] === '{') { stop = k; interpolated = true; break; }
-        masked[k] = ' ';
-        k += 1;
-      }
-      if (stop === -1) return halt(`an unterminated template literal begins at ${at(source, i)}`);
-      if (!interpolated) {
-        masked[stop] = ' ';
-        inTemplateText = false;
-        i = stop + 1;
-        lastToken = 'value';
-        continue;
-      }
-      templateFrames.push(openBraces.length);
-      blank(stop, stop + 2);
-      inTemplateText = false;
-      i = stop + 2;
-      lastToken = '(';
-      continue;
-    }
-
-    const c = source[i];
-    const next = source[i + 1];
-
-    if (c === '/' && next === '/') {
-      const nl = source.indexOf('\n', i);
-      const stop = nl === -1 ? n : nl;
-      blank(i, stop);
-      i = stop;
-      continue;
-    }
-    if (c === '/' && next === '*') {
-      const end = source.indexOf('*/', i + 2);
-      if (end === -1) return halt(`an unterminated block comment begins at ${at(source, i)}`);
-      blank(i, end + 2);
-      i = end + 2;
-      continue;
-    }
-    if (c === "'" || c === '"') {
-      let k = i + 1;
-      let closed = -1;
-      while (k < n) {
-        const t = source[k];
-        if (t === '\\') { k += 2; continue; }
-        if (t === c) { closed = k; break; }
-        if (t === '\n') break;
-        k += 1;
-      }
-      if (closed === -1) return halt(`an unterminated string literal begins at ${at(source, i)}`);
-      blank(i + 1, closed);
-      stringSpans.set(i, closed);
-      i = closed + 1;
-      lastToken = 'value';
-      continue;
-    }
-    if (c === '`') {
-      masked[i] = ' ';
-      inTemplateText = true;
-      i += 1;
-      continue;
-    }
-    if (c === '{') {
-      openBraces.push(i);
-      i += 1;
-      lastToken = '{';
-      continue;
-    }
-    if (c === '}') {
-      if (templateFrames.length > 0 && templateFrames[templateFrames.length - 1] === openBraces.length) {
-        templateFrames.pop();
-        masked[i] = ' ';
-        inTemplateText = true;
-        i += 1;
-        continue;
-      }
-      const open = openBraces.pop();
-      if (open === undefined) return halt(`an unbalanced closing brace sits at ${at(source, i)}`);
-      braceByOpen.set(open, i);
-      bracePairs.push({ open, close: i });
-      i += 1;
-      lastToken = '}';
-      continue;
-    }
-    if (c === '/' && REGEX_PRECEDERS.has(lastToken)) {
-      let k = i + 1;
-      let inClass = false;
-      let closed = -1;
-      while (k < n) {
-        const t = source[k];
-        if (t === '\\') { k += 2; continue; }
-        if (t === '\n') break;
-        if (t === '[') inClass = true;
-        else if (t === ']') inClass = false;
-        else if (t === '/' && !inClass) { closed = k; break; }
-        k += 1;
-      }
-      if (closed === -1) return halt(`an unterminated regular expression begins at ${at(source, i)}`);
-      let flagsEnd = closed + 1;
-      while (flagsEnd < n && /[a-z]/.test(source[flagsEnd])) flagsEnd += 1;
-      blank(i, flagsEnd);
-      i = flagsEnd;
-      lastToken = 'value';
-      continue;
-    }
-    if (IDENT_START.test(c)) {
-      let k = i;
-      while (k < n && IDENT_PART.test(source[k])) k += 1;
-      lastToken = source.slice(i, k);
-      i = k;
-      continue;
-    }
-    if (/\s/.test(c)) { i += 1; continue; }
-    lastToken = c;
-    i += 1;
-  }
-
-  if (inTemplateText) return halt('the source ends inside a template literal');
-  if (templateFrames.length > 0) return halt('the source ends inside a template interpolation');
-  if (openBraces.length > 0) return halt(`the source ends with ${openBraces.length} unclosed brace(s)`);
-
-  bracePairs.sort((a, b) => a.open - b.open);
-  return Object.freeze({ ok: true, masked: masked.join(''), stringSpans, braceByOpen, bracePairs });
-}
-
-function nextCodeIndex(masked, from) {
-  let k = Math.max(from, 0);
-  while (k < masked.length && /\s/.test(masked[k])) k += 1;
-  return k;
-}
-
-function previousCodeIndex(masked, from) {
-  let k = Math.min(from, masked.length - 1);
-  while (k >= 0 && /\s/.test(masked[k])) k -= 1;
-  return k;
-}
 
 function readStringLiteral(source, stringSpans, index) {
   const quote = source[index];
@@ -210,20 +74,6 @@ function readStringLiteral(source, stringSpans, index) {
   const raw = source.slice(index + 1, close);
   if (raw.includes('\\') || raw.trim().length === 0) return null;
   return raw;
-}
-
-function readIdentifier(masked, index) {
-  if (index < 0 || index >= masked.length || !IDENT_START.test(masked[index])) return null;
-  let k = index;
-  while (k < masked.length && IDENT_PART.test(masked[k])) k += 1;
-  return masked.slice(index, k);
-}
-
-function wordEndingAt(masked, index) {
-  if (index < 0 || !IDENT_PART.test(masked[index])) return '';
-  let start = index;
-  while (start >= 0 && IDENT_PART.test(masked[start])) start -= 1;
-  return masked.slice(start + 1, index + 1);
 }
 
 function innermostBrace(bracePairs, position) {
@@ -657,6 +507,9 @@ export function parseMitosisGateArgv(argv) {
     if (rest[k] !== '--target') {
       return { ok: false, error: `mitosis-gate: unknown flag ${JSON.stringify(rest[k])}; the only flag is --target` };
     }
+    if (TARGETLESS_VERBS.has(verb)) {
+      return { ok: false, error: `mitosis-gate: the ${verb} verb takes no --target; it probes the spawn policy module it imports and opens no path of its own` };
+    }
     if (target !== null) {
       return { ok: false, error: 'mitosis-gate: --target was supplied more than once; pass it exactly once' };
     }
@@ -667,8 +520,184 @@ export function parseMitosisGateArgv(argv) {
     target = value;
     k += 1;
   }
-  return { ok: true, verb, target: target === null ? DEFAULT_PHASE_PARITY_TARGET : target };
+  return { ok: true, verb, target: target === null ? VERB_DEFAULT_TARGETS[verb] : target };
 }
+
+function runPhaseParityGate(target, out, readSource) {
+  let source;
+  try {
+    source = readSource(target);
+  } catch (err) {
+    out.err(`mitosis-gate: could not read ${target}: ${err && err.message ? err.message : 'unknown read failure'}\n`);
+    return GATE_READ_EXIT;
+  }
+  if (typeof source !== 'string' || source.length === 0) {
+    out.err(`mitosis-gate: ${target} carried no readable source\n`);
+    return GATE_READ_EXIT;
+  }
+  const compiled = compileUnderSandbox(source);
+  if (!compiled.ok) {
+    out.err(`mitosis-gate: ${target} does not compile under the workflow sandbox: ${compiled.error}\n`);
+    return GATE_COMPILE_EXIT;
+  }
+  const extracted = extractPhaseSurfaces(source);
+  if (!extracted.ok) {
+    out.err(`mitosis-gate: phase-parity halted on ${target}: ${extracted.error}\n`);
+    return GATE_UNRESOLVABLE_EXIT;
+  }
+  let verdict;
+  try {
+    verdict = checkPhaseParity(extracted.surfaces);
+  } catch (err) {
+    out.err(`mitosis-gate: phase-parity could not evaluate ${target}: ${err && err.message ? err.message : 'unknown failure'}\n`);
+    return GATE_UNRESOLVABLE_EXIT;
+  }
+  if (!verdict.ok) {
+    if (verdict.declaredNeverUsed.length > 0) {
+      out.err(`mitosis-gate: ${target} declares phases that are never used: ${verdict.declaredNeverUsed.join(', ')}\n`);
+    }
+    if (verdict.usedNeverDeclared.length > 0) {
+      out.err(`mitosis-gate: ${target} uses phases that are never declared: ${verdict.usedNeverDeclared.join(', ')}\n`);
+    }
+    return GATE_VIOLATION_EXIT;
+  }
+  out.log(`${JSON.stringify({ verb: 'phase-parity', target, ok: true, phases: verdict.declared, counts: extracted.counts })}\n`);
+  return GATE_CLEAN_EXIT;
+}
+
+function runDeterminismGate(target, out, readSource) {
+  const roots = [{ kind: 'directory', path: target }, engineSourceRoots()[1]];
+  const result = censusEngineDeterminism(roots, { ...realSourceIo, readSource });
+  if (!result.ok) {
+    out.err(`mitosis-gate: determinism ${result.kind === 'read' ? 'could not read' : 'halted on'} its engine source: ${result.error}\n`);
+    return result.kind === 'read' ? GATE_READ_EXIT : GATE_UNRESOLVABLE_EXIT;
+  }
+  if (result.violations.length > 0) {
+    for (const violation of result.violations) {
+      out.err(`mitosis-gate: ${violation.path}:${violation.line} reads ${violation.identifier} as a ${violation.surface}; engine source takes entropy through args only\n`);
+    }
+    return GATE_VIOLATION_EXIT;
+  }
+  out.log(`${JSON.stringify({ verb: 'determinism', target, ok: true, fileCount: result.files.length })}\n`);
+  return GATE_CLEAN_EXIT;
+}
+
+function refusesToSpawn(binary, argv) {
+  try {
+    assertSpawnAllowed(binary, argv);
+  } catch {
+    return true;
+  }
+  return false;
+}
+
+function refusalKind(binary, argv) {
+  try {
+    assertSpawnAllowed(binary, argv);
+  } catch (error) {
+    const message = error && error.message ? error.message : 'unknown failure';
+    const matched = REFUSAL_KIND_RE.exec(message);
+    return matched === null ? `untagged refusal (${message})` : matched[1];
+  }
+  return null;
+}
+
+export function execAllowlistFailures(policy) {
+  const failures = [];
+  const allowlist = policy.allowlist;
+  if (!Array.isArray(allowlist) || allowlist.some((entry) => typeof entry !== 'string')) {
+    failures.push(`the spawn allowlist is ${JSON.stringify(allowlist) ?? String(allowlist)}, which is not a readable list of binary names; the guarantee names exactly ${JSON.stringify([...SPAWNABLE_BINARIES])}`);
+  } else if (JSON.stringify([...allowlist]) !== JSON.stringify([...SPAWNABLE_BINARIES])) {
+    failures.push(`the spawn allowlist is ${JSON.stringify([...allowlist])} but the guarantee names exactly ${JSON.stringify([...SPAWNABLE_BINARIES])}; widening it takes two deliberate edits, never one`);
+  }
+  if (!policy.refusesUnlisted) {
+    failures.push(`${JSON.stringify(UNLISTED_PROBE_BINARY)} is not on the allowlist yet the policy let it through; the policy is deny-by-default and an unlisted binary must throw`);
+  }
+  const refusals = policy.refusals !== null && typeof policy.refusals === 'object' ? policy.refusals : {};
+  for (const probe of MERGE_REFUSAL_SPECIMENS) {
+    const observed = refusals[probe.label];
+    if (observed === probe.kind) continue;
+    if (observed === null || observed === undefined) {
+      failures.push(`the pre-spawn merge refusal is gone: 'gh ${probe.label}' was accepted instead of being refused in-process as ${probe.kind} before any child started`);
+      continue;
+    }
+    failures.push(`'gh ${probe.label}' is refused as ${JSON.stringify(observed)} rather than ${JSON.stringify(probe.kind)}; the reason is the guarantee, and a refusal that lands by accident does not prove the merge classification survives`);
+  }
+  if (!policy.routesThroughShim) {
+    failures.push(`an ordinary gh argv no longer resolves through ${SHIM_BASENAME}, so the shim's own refusals would be bypassed at run time`);
+  }
+  return failures;
+}
+
+export function probeExecPolicy() {
+  let routed = null;
+  try {
+    routed = resolveSpawn('gh', [...ROUTED_PROBE_ARGV]);
+  } catch {
+    routed = null;
+  }
+  const refusals = {};
+  for (const probe of MERGE_REFUSAL_SPECIMENS) {
+    refusals[probe.label] = refusalKind('gh', [...probe.argv]);
+  }
+  return {
+    allowlist: EXEC_ALLOWLIST,
+    refusesUnlisted: refusesToSpawn(UNLISTED_PROBE_BINARY, []),
+    refusals,
+    routesThroughShim: routed !== null
+      && EXEC_ALLOWLIST.includes(routed.command)
+      && typeof routed.args[0] === 'string'
+      && routed.args[0].endsWith(SHIM_BASENAME),
+  };
+}
+
+function runExecAllowlistGate(_target, out) {
+  let policy;
+  let failures;
+  try {
+    policy = probeExecPolicy();
+    failures = execAllowlistFailures(policy);
+  } catch (err) {
+    out.err(`mitosis-gate: exec-allowlist could not probe the spawn policy: ${err && err.message ? err.message : 'unknown failure'}\n`);
+    return GATE_UNRESOLVABLE_EXIT;
+  }
+  if (failures.length > 0) {
+    for (const failure of failures) out.err(`mitosis-gate: ${failure}\n`);
+    return GATE_VIOLATION_EXIT;
+  }
+  out.log(`${JSON.stringify({
+    verb: 'exec-allowlist',
+    ok: true,
+    allowlist: [...policy.allowlist],
+    refusals: policy.refusals,
+    attests: [...EXEC_ALLOWLIST_ATTESTS],
+    notAttested: [...EXEC_ALLOWLIST_NOT_ATTESTED],
+  })}\n`);
+  return GATE_CLEAN_EXIT;
+}
+
+function runAgentSchemaGate(target, out, readSource) {
+  const result = censusAgentSchemaCapability(engineSourceRoots(), target, { ...realSourceIo, readSource });
+  if (!result.ok) {
+    out.err(`mitosis-gate: dispatchable-agent-schema-capable ${result.kind === 'read' ? 'could not read' : 'halted on'} its census: ${result.error}\n`);
+    return result.kind === 'read' ? GATE_READ_EXIT : GATE_UNRESOLVABLE_EXIT;
+  }
+  if (result.violations.length > 0) {
+    for (const violation of result.violations) {
+      out.err(`mitosis-gate: ${violation.path} is dispatched by engine source but omits ${REQUIRED_TOOL} from its tools: line, so a schema request to it degrades to prose without failing\n`);
+    }
+    return GATE_VIOLATION_EXIT;
+  }
+  out.log(`${JSON.stringify({ verb: 'dispatchable-agent-schema-capable', target, ok: true, dispatchable: [...result.dispatchable], definitionCount: result.definitionCount })}\n`);
+  return GATE_CLEAN_EXIT;
+}
+
+const VERB_RUNNERS = Object.freeze({
+  determinism: runDeterminismGate,
+  'dispatchable-agent-schema-capable': runAgentSchemaGate,
+  'exec-allowlist': runExecAllowlistGate,
+  'phase-parity': runPhaseParityGate,
+});
 
 export function runMitosisGate(argv, out, readSource) {
   const parsed = parseMitosisGateArgv(argv);
@@ -676,45 +705,7 @@ export function runMitosisGate(argv, out, readSource) {
     out.err(`${parsed.error}\n`);
     return GATE_USAGE_EXIT;
   }
-  let source;
-  try {
-    source = readSource(parsed.target);
-  } catch (err) {
-    out.err(`mitosis-gate: could not read ${parsed.target}: ${err && err.message ? err.message : 'unknown read failure'}\n`);
-    return GATE_READ_EXIT;
-  }
-  if (typeof source !== 'string' || source.length === 0) {
-    out.err(`mitosis-gate: ${parsed.target} carried no readable source\n`);
-    return GATE_READ_EXIT;
-  }
-  const compiled = compileUnderSandbox(source);
-  if (!compiled.ok) {
-    out.err(`mitosis-gate: ${parsed.target} does not compile under the workflow sandbox: ${compiled.error}\n`);
-    return GATE_COMPILE_EXIT;
-  }
-  const extracted = extractPhaseSurfaces(source);
-  if (!extracted.ok) {
-    out.err(`mitosis-gate: phase-parity halted on ${parsed.target}: ${extracted.error}\n`);
-    return GATE_UNRESOLVABLE_EXIT;
-  }
-  let verdict;
-  try {
-    verdict = checkPhaseParity(extracted.surfaces);
-  } catch (err) {
-    out.err(`mitosis-gate: phase-parity could not evaluate ${parsed.target}: ${err && err.message ? err.message : 'unknown failure'}\n`);
-    return GATE_UNRESOLVABLE_EXIT;
-  }
-  if (!verdict.ok) {
-    if (verdict.declaredNeverUsed.length > 0) {
-      out.err(`mitosis-gate: ${parsed.target} declares phases that are never used: ${verdict.declaredNeverUsed.join(', ')}\n`);
-    }
-    if (verdict.usedNeverDeclared.length > 0) {
-      out.err(`mitosis-gate: ${parsed.target} uses phases that are never declared: ${verdict.usedNeverDeclared.join(', ')}\n`);
-    }
-    return GATE_VIOLATION_EXIT;
-  }
-  out.log(`${JSON.stringify({ verb: parsed.verb, target: parsed.target, ok: true, phases: verdict.declared, counts: extracted.counts })}\n`);
-  return GATE_CLEAN_EXIT;
+  return VERB_RUNNERS[parsed.verb](parsed.target, out, readSource);
 }
 
 export function mitosisGateMain() {

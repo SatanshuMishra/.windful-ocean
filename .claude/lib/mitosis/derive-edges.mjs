@@ -191,9 +191,10 @@ function optionValue(argv, index, flag) {
 
 function parseArgs(argv) {
   const positional = [];
-  const opts = { out: null, audit: null, verdicts: null };
+  const opts = { out: null, audit: null, verdicts: null, at: null };
   for (let i = 0; i < argv.length; i++) {
     if (argv[i] === '--out') opts.out = optionValue(argv, ++i, '--out');
+    else if (argv[i] === '--at') opts.at = optionValue(argv, ++i, '--at');
     else if (argv[i] === '--audit') opts.audit = optionValue(argv, ++i, '--audit');
     else if (argv[i] === '--verdicts') {
       const supplied = optionValue(argv, ++i, '--verdicts');
@@ -209,7 +210,10 @@ function parseArgs(argv) {
 function cli(argv) {
   const { positional, opts } = parseArgs(argv);
   const [declaredPath, discoveredPath] = positional;
-  if (!declaredPath) throw new Error('usage: derive-edges <declared.graph.json> [discovered-edges.json] [--out p] [--audit p] [--verdicts p]');
+  if (!declaredPath) throw new Error('usage: derive-edges <declared.graph.json> [discovered-edges.json] --at <iso> [--out p] [--audit p] [--verdicts p]');
+  if (opts.at === null) {
+    throw new Error('--at <iso> is required; the audit stamp is entropy and enters through args only, and minting one from the wall clock here would make an identical graph produce a different audit on every run');
+  }
   const graph = JSON.parse(_read(declaredPath, 'utf8'));
   const discovered = discoveredPath ? JSON.parse(_read(discoveredPath, 'utf8')) : [];
   const result = deriveEdges(graph, discovered);
@@ -217,7 +221,7 @@ function cli(argv) {
   const outPath = opts.out || declaredPath.replace(/\.graph\.json$/, '.hardened.graph.json');
   const auditPath = opts.audit || declaredPath.replace(/\.graph\.json$/, '.edges-audit.json');
   _write(outPath, JSON.stringify(result.graph, null, 2) + '\n');
-  _write(auditPath, JSON.stringify({ ...result.audit, at: new Date().toISOString() }, null, 2) + '\n');
+  _write(auditPath, JSON.stringify({ ...result.audit, at: opts.at }, null, 2) + '\n');
   process.stdout.write(JSON.stringify({ outPath, auditPath, addedEdgeCount: result.audit.addedEdgeCount, couplingPairCount: result.coupling.length }) + '\n');
 }
 

@@ -194,8 +194,10 @@ import { fileURLToPath } from 'node:url';
 
 const CLI = fileURLToPath(new URL('../derive-edges.mjs', import.meta.url));
 
+const CLI_AT = '2026-08-12T09:30:00.000Z';
+
 function runCli(args, cwd) {
-  return execFileSync('node', [CLI, ...args], { cwd, encoding: 'utf8' });
+  return execFileSync('node', [CLI, ...args, '--at', CLI_AT], { cwd, encoding: 'utf8' });
 }
 
 test('CLI writes a hardened graph and an audit file with a timestamp', () => {
@@ -214,7 +216,28 @@ test('CLI writes a hardened graph and an audit file with a timestamp', () => {
   assert.deepEqual(out.tasks.find((t) => t.id === 't2').dependsOn, ['t1']);
   const audit = JSON.parse(readFileSync(join(dir, 'plan.edges-audit.json'), 'utf8'));
   assert.equal(audit.addedEdgeCount, 1);
-  assert.match(audit.at, /^\d{4}-\d{2}-\d{2}T/);
+  assert.equal(audit.at, CLI_AT);
+});
+
+test('CLI refuses to mint the audit timestamp itself when --at is absent', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'derive-cli-at-'));
+  const declared = join(dir, 'plan.graph.json');
+  writeFileSync(declared, JSON.stringify({
+    tasks: [
+      { id: 't1', title: 'a', fullText: 'A', fileScope: ['lib/shared.js'], dependsOn: [], risk: 'low', validation: 'scoped' },
+    ],
+  }));
+  let stderr = '';
+  let status = 0;
+  try {
+    execFileSync('node', [CLI, declared], { cwd: dir, encoding: 'utf8', stdio: 'pipe' });
+  } catch (err) {
+    status = err.status;
+    stderr = String(err.stderr);
+  }
+  assert.notEqual(status, 0);
+  assert.match(stderr, /--at/);
+  assert.equal(existsSync(join(dir, 'plan.edges-audit.json')), false);
 });
 
 test('CLI exits non-zero and prints derive-edges error on a cycle', () => {
@@ -230,7 +253,7 @@ test('CLI exits non-zero and prints derive-edges error on a cycle', () => {
   writeFileSync(discovered, JSON.stringify([{ from: 't2', to: 't1', reason: 'lsp-call' }]));
   let failed = false;
   try {
-    execFileSync('node', [CLI, declared, discovered], { cwd: dir, encoding: 'utf8', stdio: 'pipe' });
+    execFileSync('node', [CLI, declared, discovered, '--at', CLI_AT], { cwd: dir, encoding: 'utf8', stdio: 'pipe' });
   } catch (err) {
     failed = true;
     assert.match(String(err.stderr), /derive-edges error: dependency cycle detected among:/);
@@ -370,7 +393,7 @@ test('T24d: the CLI refuses to harden a graph whose verdicts miss an emitted pai
   writeFileSync(verdicts, JSON.stringify([{ pair: ['t1', 't2'], decision: 'serialize', rationale: null }]));
   let failed = false;
   try {
-    execFileSync('node', [CLI, declared, '--verdicts', verdicts], { cwd: dir, encoding: 'utf8', stdio: 'pipe' });
+    execFileSync('node', [CLI, declared, '--verdicts', verdicts, '--at', CLI_AT], { cwd: dir, encoding: 'utf8', stdio: 'pipe' });
   } catch (err) {
     failed = true;
     assert.equal(err.status, 1, `expected the validation exit code 1, received ${err.status}`);
@@ -391,7 +414,7 @@ test('T24e: the CLI refuses a serialize default overridden to parallel with no r
   ]));
   let failed = false;
   try {
-    execFileSync('node', [CLI, declared, '--verdicts', verdicts], { cwd: dir, encoding: 'utf8', stdio: 'pipe' });
+    execFileSync('node', [CLI, declared, '--verdicts', verdicts, '--at', CLI_AT], { cwd: dir, encoding: 'utf8', stdio: 'pipe' });
   } catch (err) {
     failed = true;
     assert.match(String(err.stderr), /t1\/t2 defaults to serialize and is overridden to parallel with no rationale/);
@@ -425,7 +448,7 @@ test('T24g: the CLI refuses a repeated --verdicts flag rather than honouring onl
   ]));
   let failed = false;
   try {
-    execFileSync('node', [CLI, declared, '--verdicts', first, '--verdicts', second], { cwd: dir, encoding: 'utf8', stdio: 'pipe' });
+    execFileSync('node', [CLI, declared, '--verdicts', first, '--verdicts', second, '--at', CLI_AT], { cwd: dir, encoding: 'utf8', stdio: 'pipe' });
   } catch (err) {
     failed = true;
     assert.match(String(err.stderr), /derive-edges error: --verdicts was supplied twice/);
