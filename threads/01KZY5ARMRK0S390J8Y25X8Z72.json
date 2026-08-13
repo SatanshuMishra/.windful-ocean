@@ -92,51 +92,51 @@
   "closure_statement": null,
   "spine": {
     "active_goal": "Implement the ratified maximum-autonomy permission architecture end to end: experiments first, then the ordered change set, one PR per MSP.",
-    "next_step": "Wave 0 is running: four parallel agents covering U1/U2/U6 (permission-mode semantics), U3/U4/U5 plus the temp-index checkpoint re-measurement, the promotion pipeline and U7, and the hook/deny-list current-state map. On their return, resolve the Step 0 narrowing-target question, then decompose into MSPs and ship through mitosis. No implementation may start before the experiment each step depends on has run.",
-    "last_session": "Read the SPEC, opened this child build thread, established config ground truth, and dispatched Wave 0 measurement agents. Nothing implemented.",
+    "next_step": "Wave 0 is complete; two follow-ups pending (whether the sandbox can contain the filesystem without the network, and whether --settings merges or replaces). When they land, bring the user the full amendment set with evidence per item and get a ruling BEFORE any implementation. The SPEC cannot be implemented as written: Layer 0, Step 3 and D6's mechanism are all refuted or damaged. Steps 1, 2, 4, 8 and the hook work are unaffected and shippable.",
+    "last_session": "Ran Wave 0. U4 and U5 verified; U1, U2 and U6 verified with surprises; U3 refuted Layer 0. Mapped the promotion pipeline, the settings-ownership model, every registered hook and all 47 deny entries. Nothing implemented.",
     "open_risks": [
       {
-        "text": "Unclassified settings keys land once then freeze — sandbox, defaultMode and permissions.ask ship on the promotion that first introduces them, after which live wins permanently and every repo-side revision is silently inert",
+        "text": "Layer 0 is refuted — the sandbox blocks loopback and no allowlist can reach it, while on defaults a denied command is silently re-run unsandboxed and reported as succeeded, so containment is illusory exactly where it matters",
+        "scope": "c1",
+        "refs": [
+          "docs/superpowers/specs/2026-08-13-maximum-autonomy-permission-architecture-SPEC.md"
+        ]
+      },
+      {
+        "text": "A broad Bash(*) allow is silently discarded in auto mode and the command falls through to the classifier — Step 3 as written yields strictly less autonomy than enumerated narrow prefixes, and the rejection is visible only at debug level",
+        "scope": "c1",
+        "refs": [
+          "docs/superpowers/specs/2026-08-13-maximum-autonomy-permission-architecture-SPEC.md"
+        ]
+      },
+      {
+        "text": "The temp-index checkpoint captures nested repos as empty gitlinks — the eight worktrees holding agent work are captured not at all, and plain add -A silently drops tracked-but-ignored files so --force is a correctness requirement",
+        "scope": "c1",
+        "refs": [
+          ".claude/worktrees"
+        ]
+      },
+      {
+        "text": "Rollback undoes itself — converge promotes whenever live differs from local main, so a rolled-back release is re-promoted at the next session start or stop unless a human also moves the main pointer back",
+        "scope": "c1",
+        "refs": [
+          "~/.claude/local/converge.mjs:29-39",
+          "~/.claude/local/promote.mjs:337-397"
+        ]
+      },
+      {
+        "text": "A PR that omits the hooks key strips every hook from live and passes validation — repo-owned absence means deletion, converge itself is removed, and permissions.deny has the identical shape, which Step 1 edits directly",
+        "scope": "c1",
+        "refs": [
+          "~/.claude/local/manifest.mjs:153-157",
+          "~/.claude/local/validate.mjs:369-371"
+        ]
+      },
+      {
+        "text": "Unclassified settings keys land once then freeze — sandbox, defaultMode and permissions.ask ship on first introduction, after which live wins permanently and every later repo revision is silently inert",
         "scope": "c1",
         "refs": [
           "~/.claude/local/manifest.mjs:165-171"
-        ]
-      },
-      {
-        "text": "permissions.allow only ever grows through promotion — the sole retraction channel is a frozen hardcoded array in the unversioned manifest.mjs, so no PR can remove an allow grant and the existing Bash(node:*) drift is permanent",
-        "scope": "c1",
-        "refs": [
-          "~/.claude/local/manifest.mjs:32",
-          "~/.claude/local/manifest.mjs:132"
-        ]
-      },
-      {
-        "text": "validate.mjs is a syntax gate only — it never executes hook logic, so a behaviorally wrong permission gate passes validation and promotes to live unnoticed; only runtime testing catches it",
-        "scope": "c1",
-        "refs": [
-          "~/.claude/local/validate.mjs:461-473"
-        ]
-      },
-      {
-        "text": "promote.mjs's CLI accepts an arbitrary ref with no main-only restriction — that guard lives only in converge.mjs, so a manual promote could put a half-built feature branch live",
-        "scope": "c1",
-        "refs": [
-          "~/.claude/local/promote.mjs:255",
-          "~/.claude/local/converge.mjs:23-27"
-        ]
-      },
-      {
-        "text": "Local main is 10 behind origin/main and nothing fetches — a merged PR reaches live only after a human advances local refs/heads/main, and that advance would also drag in 10 unrelated commits",
-        "scope": "c1",
-        "refs": [
-          "~/.claude/local/release.mjs:61-77"
-        ]
-      },
-      {
-        "text": "protect-claude-config.sh discovers the repo's .claude via the LIVE receipt repo_root, symlink probes and git worktree list — narrowing it to live-only must remove that discovery, not just edit the path list",
-        "scope": "c1",
-        "refs": [
-          "~/.claude/current/hooks/protect-claude-config.sh:81-135"
         ]
       }
     ],
@@ -150,5 +150,5 @@
     "out_of_scope": []
   },
   "created_at": "2026-08-13T18:14:42.072Z",
-  "updated_at": "2026-08-13T18:34:24.236Z"
+  "updated_at": "2026-08-13T18:41:35.342Z"
 }
