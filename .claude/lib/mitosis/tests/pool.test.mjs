@@ -1,11 +1,12 @@
 import { after, test } from 'node:test';
 import assert from 'node:assert/strict';
 import { execFile } from 'node:child_process';
-import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { chmodSync, existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { delimiter, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { runGraph } from '../pool.mjs';
+import { dispatch } from '../dispatch.mjs';
 
 const POOL_CLI = fileURLToPath(new URL('../pool.mjs', import.meta.url));
 const NOOP_DISPATCH = async () => ({ ok: true, outcome: 'success' });
@@ -79,6 +80,41 @@ function gatedDispatcher(verdicts) {
 }
 
 const ALWAYS_OK = () => ({ ok: true, outcome: 'success' });
+
+function stubEnv(body) {
+  const dir = scratch();
+  const stub = join(dir, 'claude');
+  writeFileSync(stub, `#!/usr/bin/env node\n${body}\n`, { mode: 0o755 });
+  chmodSync(stub, 0o755);
+  return { ...process.env, PATH: `${dir}${delimiter}${process.env.PATH}` };
+}
+
+function pidRecordingStub(pidDir) {
+  return stubEnv([
+    "const { writeFileSync } = require('node:fs');",
+    `writeFileSync(require('node:path').join(${JSON.stringify(pidDir)}, process.argv[process.argv.length - 1]), String(process.pid));`,
+    'setInterval(() => {}, 3600000);',
+  ].join('\n'));
+}
+
+async function waitUntil(predicate, ms, label) {
+  const deadline = Date.now() + ms;
+  while (Date.now() < deadline) {
+    if (predicate()) return;
+    await new Promise((resolve) => { setTimeout(resolve, 10); });
+  }
+  assert.fail(`${label} within ${ms}ms`);
+}
+
+function alive(pid) {
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch (error) {
+    if (error.code === 'ESRCH') return false;
+    throw error;
+  }
+}
 
 test('a graph with no readyAfter is refused rather than run as if it had no edges', async () => {
   await assert.rejects(
@@ -360,4 +396,117 @@ test('a slow node does not block an unrelated satisfied branch, and the wave dia
   assert.ok(started.indexOf('after-fast') > started.indexOf('slow'), 'slow must already be in flight when after-fast starts');
   assert.deepEqual(result.diagnostics.waves, [['fast', 'slow'], ['after-fast']]);
   assert.deepEqual(result.diagnostics.unlayered, []);
+});
+
+test('a record is emitted at dispatch start, before the node settles', async () => {
+  const seen = [];
+  const gate = deferred();
+  const dispatchFn = async (node) => {
+    if (node.id === 'held') {
+      assert.deepEqual(seen.map((record) => `${record.id}:${record.state}`), ['held:running'], 'the start record must exist before the node settles, so a crash mid-flight still leaves a record');
+      await gate.promise;
+    }
+    return { ok: true, outcome: 'success' };
+  };
+  const pending = runGraph({ nodes: [{ id: 'held' }], readyAfter: {} }, dispatchFn, {
+    concurrency: 1,
+    onRecord: (record) => { seen.push(record); },
+  });
+  gate.resolve();
+  const result = await pending;
+  assert.deepEqual(seen.map((record) => `${record.id}:${record.state}`), ['held:running', 'held:ok']);
+  assert.deepEqual(seen.map((record) => record.sequence), [0, 1]);
+  assert.equal(result.records[0].state, 'ok');
+  assert.equal(Object.isFrozen(seen[0]), true, 'an emitted record must be frozen so a consumer cannot rewrite history');
+});
+
+test('an abort terminates every in-flight child for real and records both the in-flight and the never-dispatched nodes', async () => {
+  const pidDir = scratch();
+  const env = pidRecordingStub(pidDir);
+  const controller = new AbortController();
+  const started = [];
+  const dispatchFn = (node, context) => {
+    started.push(node.id);
+    return dispatch({ prompt: node.id, timeoutMs: 60000, signal: context.signal }, { env, killGraceMs: 200 });
+  };
+  const pending = runGraph(
+    { nodes: [{ id: 'alpha' }, { id: 'bravo' }, { id: 'charlie' }, { id: 'delta' }], readyAfter: {} },
+    dispatchFn,
+    { concurrency: 2, signal: controller.signal },
+  );
+  await waitUntil(() => existsSync(join(pidDir, 'alpha')) && existsSync(join(pidDir, 'bravo')), 10000, 'the two in-flight children never started');
+  const pids = ['alpha', 'bravo'].map((id) => Number(readFileSync(join(pidDir, id), 'utf8')));
+  controller.abort();
+  const result = await settledWithin(pending, 15000, 'an aborted run must settle rather than wait on children it has terminated');
+  const records = byId(result.records);
+  assert.equal(result.ok, false);
+  assert.deepEqual([...started].sort(), ['alpha', 'bravo'], 'the cap admits the first two node ids in sorted order and no others may ever be dispatched');
+  for (const id of ['alpha', 'bravo']) {
+    assert.equal(records.get(id).state, 'cancelled');
+    assert.equal(records.get(id).reason, 'aborted-in-flight');
+  }
+  for (const id of ['charlie', 'delta']) {
+    assert.equal(records.get(id).state, 'cancelled', `${id} was never dispatched and must still leave a record`);
+    assert.equal(records.get(id).reason, 'aborted-before-dispatch');
+  }
+  for (const pid of pids) await waitUntil(() => !alive(pid), 10000, `the child ${pid} survived the abort`);
+});
+
+test('a node that resolves ok inside the abort window keeps its ok record', async () => {
+  const controller = new AbortController();
+  const gate = deferred();
+  const dispatchFn = async (node) => {
+    if (node.id === 'quick') {
+      await gate.promise;
+      return { ok: true, outcome: 'success' };
+    }
+    await new Promise((resolve) => { controller.signal.addEventListener('abort', resolve, { once: true }); });
+    return { ok: false, outcome: 'aborted' };
+  };
+  const pending = runGraph(
+    { nodes: [{ id: 'quick' }, { id: 'stuck' }], readyAfter: {} },
+    dispatchFn,
+    { concurrency: 2, signal: controller.signal },
+  );
+  controller.abort();
+  gate.resolve();
+  const result = await settledWithin(pending, 5000, 'the aborted run must settle');
+  const records = byId(result.records);
+  assert.equal(records.get('quick').state, 'ok', 'a genuine success inside the abort window is a result, not a casualty');
+  assert.equal(records.get('stuck').state, 'cancelled');
+  assert.equal(records.get('stuck').reason, 'aborted-in-flight');
+});
+
+test('an onRecord that throws aborts the run, terminates the in-flight child and rethrows', async () => {
+  const pidDir = scratch();
+  const env = pidRecordingStub(pidDir);
+  const seen = [];
+  const dispatchFn = async (node, context) => {
+    if (node.id === 'child') {
+      return dispatch({ prompt: node.id, timeoutMs: 60000, signal: context.signal }, { env, killGraceMs: 200 });
+    }
+    await waitUntil(() => existsSync(join(pidDir, 'child')), 10000, 'the real child never started');
+    return { ok: true, outcome: 'success' };
+  };
+  const failure = await settledWithin(
+    runGraph(
+      { nodes: [{ id: 'child' }, { id: 'trigger' }], readyAfter: {} },
+      dispatchFn,
+      {
+        concurrency: 2,
+        onRecord: (record) => {
+          seen.push(`${record.id}:${record.state}`);
+          if (record.state === 'ok') throw new Error('the observer could not persist the record');
+        },
+      },
+    ),
+    20000,
+    'an observer failure must abort and settle, never hang',
+  );
+  assert.ok(failure instanceof Error, 'runGraph must reject rather than resolve when its observer throws');
+  assert.match(failure.message, /options\.onRecord threw while the run was recording a node/);
+  assert.match(failure.message, /the observer could not persist the record/);
+  assert.deepEqual(seen.slice(0, 3), ['child:running', 'trigger:running', 'trigger:ok']);
+  const pid = Number(readFileSync(join(pidDir, 'child'), 'utf8'));
+  await waitUntil(() => !alive(pid), 10000, 'the observer failure orphaned the child instead of terminating it');
 });
