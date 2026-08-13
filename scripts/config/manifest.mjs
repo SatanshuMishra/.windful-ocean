@@ -23,8 +23,10 @@ export const LIVE_OWNED_KEYS = Object.freeze([
   'voiceEnabled',
 ]);
 
+export const HOOKS_KEY = 'hooks';
 export const PERMISSIONS_KEY = 'permissions';
-export const REPO_OWNED_SECTIONS = Object.freeze(['deny']);
+export const DENY_SECTION = 'deny';
+export const REPO_OWNED_SECTIONS = Object.freeze([DENY_SECTION]);
 export const UNIONED_SECTIONS = Object.freeze(['allow']);
 
 export const NOT_ADOPTED_GRANTS = Object.freeze(['Bash(ln -sfn:*)']);
@@ -32,8 +34,14 @@ export const NOT_ADOPTED_GRANTS = Object.freeze(['Bash(ln -sfn:*)']);
 export const WITHDRAWN_GRANTS = Object.freeze(['Bash(ln -sfn:*)']);
 
 export const FLAG_UNCLASSIFIED = 'unclassified';
-export const FLAG_PERMISSIONS_UNDECLARED = 'permissions-undeclared';
 export const FLAG_INERT_REPO_DECLARATION = 'inert-repo-declaration';
+
+export class PromotionRefusal extends Error {
+  constructor(message) {
+    super(`REFUSING PROMOTION: ${message}`);
+    this.name = 'PromotionRefusal';
+  }
+}
 
 export const isPlainObject = (value) =>
   value !== null && typeof value === 'object' && !Array.isArray(value);
@@ -45,10 +53,65 @@ export function classify(key) {
   return 'unknown';
 }
 
+const describeShape = (value) =>
+  Array.isArray(value) ? 'an array' : `a ${value === null ? 'null' : typeof value}`;
+
 export function assertDocument(label, value) {
   if (isPlainObject(value)) return value;
-  const shown = Array.isArray(value) ? 'an array' : `a ${value === null ? 'null' : typeof value}`;
-  throw new TypeError(`${label} settings must be a JSON object; received ${shown}`);
+  throw new TypeError(`${label} settings must be a JSON object; received ${describeShape(value)}`);
+}
+
+const refuse = (message) => {
+  throw new PromotionRefusal(message);
+};
+
+const hookRegistrationCount = (hooks) =>
+  Object.values(hooks)
+    .filter((registrations) => Array.isArray(registrations))
+    .flat()
+    .filter((registration) => isPlainObject(registration))
+    .reduce((total, { hooks: commands }) => total + (Array.isArray(commands) ? commands.length : 0), 0);
+
+export function assertHooksDeclared(repo) {
+  const declared = repo[HOOKS_KEY];
+  const consequence = 'promotion would leave live with no hook registrations at all, the converge hook that performs promotion included';
+  if (!(HOOKS_KEY in repo)) {
+    refuse(`the repo settings declare no "${HOOKS_KEY}" key, and ${consequence}`);
+  }
+  if (!isPlainObject(declared)) {
+    refuse(`the repo settings declare "${HOOKS_KEY}" as ${describeShape(declared)} rather than an object, and ${consequence}`);
+  }
+  if (hookRegistrationCount(declared) === 0) {
+    refuse(`the repo settings declare a "${HOOKS_KEY}" object that registers no hook, and ${consequence}`);
+  }
+  return declared;
+}
+
+export function assertDenyDeclared(repoPermissions) {
+  const key = `${PERMISSIONS_KEY}.${DENY_SECTION}`;
+  const consequence = `promotion would leave live with no "${key}" list, so every guarded catastrophe would become reachable`;
+  if (repoPermissions === undefined) {
+    refuse(`the repo settings declare no "${PERMISSIONS_KEY}" block, so "${key}" is absent, and ${consequence}`);
+  }
+  const deny = repoPermissions[DENY_SECTION];
+  if (deny === undefined) {
+    refuse(`the repo settings declare no "${key}" list, and ${consequence}`);
+  }
+  if (!Array.isArray(deny)) {
+    refuse(`the repo settings declare "${key}" as ${describeShape(deny)} rather than an array, and ${consequence}`);
+  }
+  if (deny.length === 0) {
+    refuse(`the repo settings declare an empty "${key}" list, and ${consequence}`);
+  }
+  return deny;
+}
+
+export function assertClassified(repo) {
+  const unclassified = Object.keys(repo).filter((key) => classify(key) === 'unknown');
+  if (unclassified.length === 0) return repo;
+  refuse(
+    `the repo settings declare ${unclassified.map((key) => JSON.stringify(key)).join(', ')}, which the manifest classifies no owner for; a repo declaration of an unclassified key lands once and is inert for every revision after it, so classify each key as repo-owned or live-owned before promoting it`,
+  );
 }
 
 const flag = (key, kind, reason) => Object.freeze({ key, kind, reason });
@@ -88,15 +151,18 @@ export function unionGrants(repoGrants, liveGrants) {
 function sectionOwnership(repoPermissions, livePermissions) {
   const known = new Set([...REPO_OWNED_SECTIONS, ...UNIONED_SECTIONS]);
   const extras = sortedUnion(repoPermissions, livePermissions).filter((name) => !known.has(name));
-  const carried = extras.map((name) => [
-    name,
-    name in livePermissions ? livePermissions[name] : repoPermissions[name],
-  ]);
+  const declaredByRepo = extras.filter((name) => name in repoPermissions);
+  if (declaredByRepo.length > 0) {
+    refuse(
+      `the repo settings declare ${declaredByRepo.map((name) => JSON.stringify(`${PERMISSIONS_KEY}.${name}`)).join(', ')}, which the manifest classifies no owner for; a repo declaration of an unclassified permissions section lands once and is inert for every revision after it, so classify each section as repo-owned or unioned before promoting it`,
+    );
+  }
+  const carried = extras.map((name) => [name, livePermissions[name]]);
   const flagged = extras.map((name) =>
     flag(
       `${PERMISSIONS_KEY}.${name}`,
       FLAG_UNCLASSIFIED,
-      'the manifest classifies no owner for this permissions section, so live wins and it is held for classification',
+      'the manifest classifies no owner for this permissions section and only live declares it, so live keeps it and it is held for classification',
     ),
   );
   const removed = REPO_OWNED_SECTIONS.filter((name) => !(name in repoPermissions) && name in livePermissions).map(
@@ -110,23 +176,8 @@ function sectionOwnership(repoPermissions, livePermissions) {
 }
 
 export function resolvePermissions(repoPermissions, livePermissions) {
-  if (repoPermissions === undefined && livePermissions === undefined) {
-    return { value: undefined, flagged: [], removed: [] };
-  }
-  if (repoPermissions === undefined) {
-    return {
-      value: assertDocument('live permissions', livePermissions),
-      flagged: [
-        flag(
-          PERMISSIONS_KEY,
-          FLAG_PERMISSIONS_UNDECLARED,
-          'the repo declares no permissions block, so live permissions are preserved whole rather than stripped',
-        ),
-      ],
-      removed: [],
-    };
-  }
-  const repo = assertDocument('repo permissions', repoPermissions);
+  const repo = repoPermissions === undefined ? undefined : assertDocument('repo permissions', repoPermissions);
+  assertDenyDeclared(repo);
   const live = livePermissions === undefined ? {} : assertDocument('live permissions', livePermissions);
   const { carried, flagged, removed } = sectionOwnership(repo, live);
   const allow = withdrawGrants(unionGrants(repo.allow, live.allow), live.allow);
@@ -163,9 +214,13 @@ function resolveKey(key, repo, live, permissions) {
     return { value: key in live ? live[key] : undefined, flagged: inert, removed: [] };
   }
   return {
-    value: key in live ? live[key] : repo[key],
+    value: live[key],
     flagged: [
-      flag(key, FLAG_UNCLASSIFIED, 'the manifest classifies no owner for this key, so live wins and it is held for classification'),
+      flag(
+        key,
+        FLAG_UNCLASSIFIED,
+        'the manifest classifies no owner for this key and only live declares it, so live keeps it and it is held for classification',
+      ),
     ],
     removed: [],
   };
@@ -174,6 +229,8 @@ function resolveKey(key, repo, live, permissions) {
 export function resolveSettings({ repo, live }) {
   const repoDocument = assertDocument('repo', repo);
   const liveDocument = assertDocument('live', live);
+  assertClassified(repoDocument);
+  assertHooksDeclared(repoDocument);
   const permissions = resolvePermissions(repoDocument[PERMISSIONS_KEY], liveDocument[PERMISSIONS_KEY]);
   const resolved = sortedUnion(repoDocument, liveDocument).map((key) => ({
     key,

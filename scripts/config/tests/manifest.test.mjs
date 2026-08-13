@@ -2,9 +2,9 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
   FLAG_INERT_REPO_DECLARATION,
-  FLAG_PERMISSIONS_UNDECLARED,
   FLAG_UNCLASSIFIED,
   LIVE_OWNED_KEYS,
+  PromotionRefusal,
   REPO_OWNED_KEYS,
   classify,
   resolveSettings,
@@ -72,25 +72,20 @@ test('a live-only key the repo has never seen survives promotion untouched', () 
   assert.equal(flagFor(result, 'pluginConfigs'), undefined, 'a classified live-owned key needs no flag');
 });
 
-test('an unrecognized key survives and is flagged, whichever side holds it', () => {
+test('an unrecognized key only live holds survives and is flagged, so a client upgrade never blocks promotion', () => {
   const live = { ...LIVE, sonnetBudgetTokens: 4096 };
-  const repo = { ...REPO, experimentalRepoOnlyKey: 'declared' };
-  const result = resolveSettings({ repo, live });
+  const result = resolveSettings({ repo: REPO, live });
 
   assert.equal(result.settings.sonnetBudgetTokens, 4096, 'a newly-appearing live key is never silently dropped');
   assert.equal(flagFor(result, 'sonnetBudgetTokens').kind, FLAG_UNCLASSIFIED);
-
-  assert.equal(result.settings.experimentalRepoOnlyKey, 'declared', 'an unknown repo key is never silently dropped');
-  assert.equal(flagFor(result, 'experimentalRepoOnlyKey').kind, FLAG_UNCLASSIFIED);
 });
 
-test('an unrecognized key present on both sides resolves LIVE WINS', () => {
-  const result = resolveSettings({
-    repo: { ...REPO, futureKey: 'from-repo' },
-    live: { ...LIVE, futureKey: 'from-live' },
-  });
-  assert.equal(result.settings.futureKey, 'from-live');
-  assert.equal(flagFor(result, 'futureKey').kind, FLAG_UNCLASSIFIED);
+test('an unrecognized permissions section only live holds survives and is flagged', () => {
+  const live = { ...LIVE, permissions: { ...LIVE.permissions, additionalDirectories: ['/tmp'] } };
+  const result = resolveSettings({ repo: REPO, live });
+
+  assert.deepEqual(result.settings.permissions.additionalDirectories, ['/tmp']);
+  assert.equal(flagFor(result, 'permissions.additionalDirectories').kind, FLAG_UNCLASSIFIED);
 });
 
 test('the repo-only model key is inert at promotion and flagged rather than applied', () => {
@@ -118,7 +113,7 @@ test('a withdrawn grant never survives the union, whichever side holds it', () =
   ];
   for (const [label, repoAllow, liveAllow] of cases) {
     const result = resolveSettings({
-      repo: { ...REPO, permissions: { allow: repoAllow, deny: [] } },
+      repo: { ...REPO, permissions: { allow: repoAllow, deny: ['Bash(npm publish:*)'] } },
       live: { ...LIVE, permissions: { allow: liveAllow, deny: [] } },
     });
     assert.deepEqual(
@@ -129,18 +124,106 @@ test('a withdrawn grant never survives the union, whichever side holds it', () =
   }
 });
 
-test('a repo that declares no permissions block preserves live permissions whole', () => {
-  const { permissions, ...repoWithoutPermissions } = REPO;
-  const result = resolveSettings({ repo: repoWithoutPermissions, live: LIVE });
-  assert.deepEqual(result.settings.permissions, LIVE.permissions);
-  assert.equal(flagFor(result, 'permissions').kind, FLAG_PERMISSIONS_UNDECLARED);
+test('a repo-owned key the repo stops declaring is removed from live and reported', () => {
+  const { env, ...repoWithoutEnv } = REPO;
+  const result = resolveSettings({ repo: repoWithoutEnv, live: LIVE });
+  assert.equal('env' in result.settings, false);
+  assert.match(removedFor(result, 'env').reason, /repo declares no value/);
 });
 
-test('a repo-owned key the repo stops declaring is removed from live and reported', () => {
-  const { hooks, ...repoWithoutHooks } = REPO;
-  const result = resolveSettings({ repo: repoWithoutHooks, live: LIVE });
-  assert.equal('hooks' in result.settings, false);
-  assert.match(removedFor(result, 'hooks').reason, /repo declares no value/);
+const withoutKey = (document, key) => {
+  const { [key]: _dropped, ...rest } = document;
+  return rest;
+};
+
+const withPermissions = (permissions) => ({ ...REPO, permissions });
+
+const D1_TO_D5_DENY = Object.freeze([
+  'Bash(gh repo edit:*)',
+  'Bash(git reflog expire:*)',
+  'Bash(npm publish:*)',
+  'Bash(supabase db push:*)',
+  'Read(//Users/**/.aws/credentials)',
+]);
+
+test('a repo that declares no hooks refuses promotion rather than stripping live of every hook', () => {
+  assert.throws(
+    () => resolveSettings({ repo: withoutKey(REPO, 'hooks'), live: LIVE }),
+    (error) => error instanceof PromotionRefusal && /hooks/.test(error.message),
+  );
+});
+
+test('a repo whose hooks registers nothing refuses promotion, whatever shape the emptiness takes', () => {
+  const empty = [
+    ['an empty object', {}],
+    ['an event holding no matchers', { SessionStart: [] }],
+    ['a matcher holding no commands', { SessionStart: [{ matcher: '*', hooks: [] }] }],
+  ];
+  for (const [label, hooks] of empty) {
+    assert.throws(
+      () => resolveSettings({ repo: { ...REPO, hooks }, live: LIVE }),
+      (error) => error instanceof PromotionRefusal && /hooks/.test(error.message),
+      `${label} registers no hook and must refuse promotion`,
+    );
+  }
+});
+
+test('a repo whose hooks is not an object refuses promotion rather than landing a broken value', () => {
+  assert.throws(
+    () => resolveSettings({ repo: { ...REPO, hooks: [] }, live: LIVE }),
+    (error) => error instanceof PromotionRefusal && /hooks/.test(error.message),
+  );
+});
+
+test('a repo that declares no permissions.deny refuses promotion, block absent or section absent', () => {
+  const cases = [
+    ['no permissions block at all', withoutKey(REPO, 'permissions')],
+    ['a permissions block holding only allow', withPermissions({ allow: REPO.permissions.allow })],
+  ];
+  for (const [label, repo] of cases) {
+    assert.throws(
+      () => resolveSettings({ repo, live: LIVE }),
+      (error) => error instanceof PromotionRefusal && /permissions\.deny/.test(error.message),
+      `${label} must refuse promotion`,
+    );
+  }
+});
+
+test('a repo that declares an empty permissions.deny refuses promotion', () => {
+  assert.throws(
+    () => resolveSettings({ repo: withPermissions({ allow: [], deny: [] }), live: LIVE }),
+    (error) => error instanceof PromotionRefusal && /permissions\.deny/.test(error.message),
+  );
+});
+
+test('the pruned D1-D5 deny list promotes intact', () => {
+  const result = resolveSettings({
+    repo: withPermissions({ allow: REPO.permissions.allow, deny: [...D1_TO_D5_DENY] }),
+    live: { ...LIVE, permissions: { allow: ['Bash(node:*)'], deny: ['Bash(rm -rf:*)'] } },
+  });
+  assert.deepEqual(result.settings.permissions.deny, [...D1_TO_D5_DENY]);
+  assert.equal(result.removed.length, 0, 'a well-formed candidate removes nothing from live');
+});
+
+test('a repo-declared unclassified key refuses promotion rather than landing once and freezing', () => {
+  const cases = [
+    ['a key only the repo holds', { repo: { ...REPO, experimentalRepoOnlyKey: 'declared' }, live: LIVE }],
+    ['a key both sides hold', { repo: { ...REPO, futureKey: 'from-repo' }, live: { ...LIVE, futureKey: 'from-live' } }],
+  ];
+  for (const [label, documents] of cases) {
+    assert.throws(
+      () => resolveSettings(documents),
+      (error) => error instanceof PromotionRefusal && /experimentalRepoOnlyKey|futureKey/.test(error.message),
+      `${label} must be classified before it can promote`,
+    );
+  }
+});
+
+test('a repo-declared unclassified permissions section refuses promotion', () => {
+  assert.throws(
+    () => resolveSettings({ repo: withPermissions({ ...REPO.permissions, ask: [] }), live: LIVE }),
+    (error) => error instanceof PromotionRefusal && /permissions\.ask/.test(error.message),
+  );
 });
 
 test('resolution is idempotent, so an unattended hook converges rather than oscillates', () => {
@@ -153,7 +236,7 @@ test('a settings document that is not a JSON object is rejected at the boundary'
   assert.throws(() => resolveSettings({ repo: REPO, live: [] }), /live settings must be a JSON object/);
   assert.throws(() => resolveSettings({ repo: null, live: LIVE }), /repo settings must be a JSON object/);
   assert.throws(
-    () => resolveSettings({ repo: { permissions: { allow: 'Bash(node:*)' } }, live: LIVE }),
+    () => resolveSettings({ repo: withPermissions({ allow: 'Bash(node:*)', deny: REPO.permissions.deny }), live: LIVE }),
     /must be an array of permission grants/,
   );
 });
