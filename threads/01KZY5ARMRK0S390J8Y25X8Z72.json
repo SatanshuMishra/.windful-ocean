@@ -24,7 +24,7 @@
     {
       "id": "c12",
       "text": "Promotion manifest hardened first: hooks and permissions.deny reclassified so absence refuses promotion rather than deleting from live, and undeclared keys are refused instead of freezing",
-      "done": false,
+      "done": true,
       "kind": "planned",
       "struck_by": null
     },
@@ -80,7 +80,7 @@
     {
       "id": "c10",
       "text": "R3 rule change landed: the standing --dangerously-skip-permissions prohibition replaced by a rule requiring layers 0, 1 and 4 live first",
-      "done": false,
+      "done": true,
       "kind": "planned",
       "struck_by": null
     },
@@ -112,74 +112,43 @@
   "abandoned_reason": null,
   "closure_statement": null,
   "spine": {
-    "active_goal": "Implement the amended maximum-autonomy permission architecture end to end, one PR per MSP, holding the oversight-reducing pieces for confirmation.",
-    "next_step": "START HERE. Wave 0 is COMPLETE - never re-run an experiment; read docs/superpowers/specs/2026-08-13-maximum-autonomy-U1-U7-findings.md instead. PR 85 carrying the amended SPEC is MERGED. Fan out implementation via mitosis in this order: c2, then c12 (harden the promotion manifest - it MUST land before c3 edits permissions.deny), then c3, c4, c5, c6, c7, c8, c9's deletions, c13. HOLD c14 and c9's plugin disable pending direct user confirmation.",
-    "last_session": "Ran Wave 0 in full: seven experiments plus three probes. Layer 0 was refuted then rescued, D6 re-mechanized, Step 3 inverted. Amended the SPEC, wrote the findings doc, opened PR 85 which the user merged. Nothing implemented.",
+    "active_goal": "Ship the amended maximum-autonomy permission architecture one PR per MSP onto docs/max-autonomy-permission-spec, holding the two oversight-reducing pieces for direct user confirmation.",
+    "next_step": "Manual fan-out, NOT mitosis (user directive). Order comes from decision 0401, not SPEC section 6. Merged into base: 86 (c10), 87 (c12). Open: 88 (c13), 89 (c2). In flight at context end: c5 Layer 1, c8 Layer 0, c9 deletions, security review of 87. When c5 lands, dispatch c6 (gate) and c7 (Layer 4) using c5's real checkpoint ref namespace. Only then c3, then c4. HOLD c14 and the logbook plugin disable - no user decision on 0398 yet.",
+    "last_session": "Corrected the ship order after reading the real 47 deny entries: the prune is a reclassification, not a deletion, so gate and checkpoint precede it (0401). Fanned out manually; four units shipped, two merged. Base was 12 commits behind main and missing the actions/checkout fix.",
     "open_risks": [
       {
-        "text": "The promotion manifest must be hardened before any change edits permissions.deny — a repo-owned key absent from the repo is deleted from live, so a PR omitting hooks or deny strips them from live, removes converge itself, and passes validation cleanly",
+        "text": "The base branch moves under in-flight worktrees — origin advanced through three tips during one agent's run, and a PR cut from a stale base appears to revert files it never touched; every worker must rebase onto the current origin tip before opening its PR",
         "scope": "thread",
         "refs": [
-          "~/.claude/local/manifest.mjs:153-157",
-          "~/.claude/local/validate.mjs:369-371"
+          "origin/docs/max-autonomy-permission-spec"
         ]
       },
       {
-        "text": "Layer 3 needs real behavioral tests before it merges — validation is a syntax gate that never executes hook logic, so a permission gate that parses cleanly but decides wrongly promotes to live with no complaint",
+        "text": "c8 cannot promote unless it classifies sandbox as repo-owned — the key is in neither ownership list, so after 87 merged a repo declaration of it is refused outright rather than landing",
         "scope": "thread",
         "refs": [
-          "~/.claude/local/validate.mjs:461-473"
+          "scripts/config/manifest.mjs:1-24"
         ]
       },
       {
-        "text": "Rollback undoes itself — converge promotes whenever live differs from local main, so a rolled-back release is re-promoted at the next session start or stop unless a human also moves the main pointer back; live and unmitigated today",
+        "text": "The new verify verb reports drift on every run until Python bytecode writes into the live release dir stop — a control that always cries wolf gets ignored; fix is PYTHONDONTWRITEBYTECODE in the repo-owned env block, and the stray pyc needs human deletion under D2",
         "scope": "thread",
         "refs": [
-          "~/.claude/local/converge.mjs:29-39",
-          "~/.claude/local/promote.mjs:337-397"
+          "scripts/config/verify.mjs"
         ]
       },
       {
-        "text": "Nothing fetches, so a merged PR does not reach live until a human runs git fetch origin main:main — PR 85 is merged to origin but local main still sits at the old commit, and advancing it also drags in unrelated commits",
+        "text": "M40 and M41 remain open and were deliberately not fixed — a rolled-back release still re-promotes itself at the next SessionStart or Stop, and promote.mjs still accepts an arbitrary --ref with no main-only guard",
         "scope": "thread",
         "refs": [
-          "~/.claude/local/release.mjs:61-77"
+          "scripts/config/converge.mjs",
+          "scripts/config/promote.mjs"
         ]
       },
       {
-        "text": "The sandbox needs allowUnsandboxedCommands false and failIfUnavailable true — these are mandatory, not hardening: on defaults a denied command is silently re-run unsandboxed and reported as succeeded",
+        "text": "The auto-mode classifier blocked the c2 dispatch on first attempt, reading it as weakening a security control — a fourth gate above the three the SPEC accounts for; the retry succeeded only because the user asked to be prompted",
         "scope": "thread",
-        "refs": [
-          "0397-layer-zero-survives-with-allow-local-binding"
-        ]
-      },
-      {
-        "text": "Never introduce permissions.ask, even as an empty array — unclassified keys bind live permanently on first landing, after which every repo-side revision is silently inert",
-        "scope": "thread",
-        "refs": [
-          "~/.claude/local/manifest.mjs:165-171"
-        ]
-      },
-      {
-        "text": "The --settings flag accepts inline JSON, so argv is an ungoverned permission-injection channel outranking project and local settings — governing the profile file does not govern pointing at one",
-        "scope": "thread",
-        "refs": [
-          "docs/superpowers/specs/2026-08-13-maximum-autonomy-permission-architecture-SPEC.md"
-        ]
-      },
-      {
-        "text": "M7 and section 10's first row still say converge promotes repo HEAD — it resolves the main ref and never reads HEAD, so the two coincide only when main is checked out; the amendment left this alone as outside its brief",
-        "scope": "thread",
-        "refs": [
-          "~/.claude/local/release.mjs:67"
-        ]
-      },
-      {
-        "text": "R3 names --dangerously-skip-permissions while section 5 now names --permission-mode bypassPermissions — whether these are one mechanism or two was never established, and c10's rule change depends on the answer",
-        "scope": "thread",
-        "refs": [
-          "docs/security/bash-gate-threat-model.md:18"
-        ]
+        "refs": []
       }
     ],
     "key_decisions": [
@@ -230,5 +199,5 @@
     ]
   },
   "created_at": "2026-08-13T18:14:42.072Z",
-  "updated_at": "2026-08-13T19:53:54.131Z"
+  "updated_at": "2026-08-13T20:03:54.931Z"
 }
