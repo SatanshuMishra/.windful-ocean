@@ -1,8 +1,18 @@
 import assert from 'node:assert/strict';
-import { chmodSync, existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import {
+  chmodSync,
+  existsSync,
+  lstatSync,
+  mkdirSync,
+  mkdtempSync,
+  readdirSync,
+  readlinkSync,
+  rmSync,
+  writeFileSync,
+} from 'node:fs';
 import { spawnSync } from 'node:child_process';
 import { tmpdir } from 'node:os';
-import { dirname, join } from 'node:path';
+import { dirname, join, relative } from 'node:path';
 import { liveSha, promote } from '../promote.mjs';
 
 const GIT_IDENTITY = Object.freeze([
@@ -84,6 +94,22 @@ export const DEFAULT_HOOK_COMMANDS = Object.freeze([
 
 export function cleanup(...paths) {
   for (const path of paths) rmSync(path, { recursive: true, force: true });
+}
+
+export function treeSnapshot(root) {
+  const walk = (dir) => readdirSync(dir).flatMap((entry) => {
+    const path = join(dir, entry);
+    const stats = lstatSync(path);
+    if (stats.isSymbolicLink()) return [[relative(root, path), `link:${readlinkSync(path)}`]];
+    if (stats.isDirectory()) return [[relative(root, path), 'dir'], ...walk(path)];
+    return [[relative(root, path), `file:${stats.size}:${stats.mtimeMs}`]];
+  });
+  return Object.fromEntries(walk(root).sort(([a], [b]) => a.localeCompare(b)));
+}
+
+export function collector() {
+  const chunks = [];
+  return { chunks, write: (chunk) => chunks.push(chunk), text: () => chunks.join('') };
 }
 
 export const DEFAULT_NOW = '2026-08-07T12:00:00.000Z';
