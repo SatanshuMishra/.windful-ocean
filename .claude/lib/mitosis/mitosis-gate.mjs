@@ -13,6 +13,7 @@ import {
 } from './js-scan.mjs';
 import { censusEngineDeterminism, engineSourceRoots, realSourceIo } from './determinism-lint.mjs';
 import { EXEC_ALLOWLIST, assertSpawnAllowed, resolveSpawn } from './exec-policy.mjs';
+import { MERGE_REFUSAL_SPECIMENS } from './gh-merge-shim.mjs';
 import { REQUIRED_TOOL, agentDefinitionDir, censusAgentSchemaCapability } from './agent-schema-lint.mjs';
 
 export const GATE_CLEAN_EXIT = 0;
@@ -26,19 +27,33 @@ export const MITOSIS_GATE_VERBS = Object.freeze(['determinism', 'dispatchable-ag
 
 export const DEFAULT_PHASE_PARITY_TARGET = fileURLToPath(new URL('../../workflows/mitosis.js', import.meta.url));
 export const DEFAULT_DETERMINISM_TARGET = fileURLToPath(new URL('./', import.meta.url));
-export const DEFAULT_EXEC_POLICY_TARGET = fileURLToPath(new URL('./exec-policy.mjs', import.meta.url));
 export const DEFAULT_AGENT_TREE_TARGET = agentDefinitionDir();
 
 const SPAWNABLE_BINARIES = Object.freeze(['claude', 'gh', 'git', 'graphify', 'node']);
 const UNLISTED_PROBE_BINARY = 'bash';
-const FAIL_CLOSED_PROBE_ARGV = Object.freeze(['api', 'graphql', '--input', '-']);
 const ROUTED_PROBE_ARGV = Object.freeze(['pr', 'view', '7']);
 const SHIM_BASENAME = 'gh-merge-shim.mjs';
+const REFUSAL_KIND_RE = /\[([a-z-]+)\]/;
+
+const EXEC_ALLOWLIST_ATTESTS = Object.freeze([
+  'the spawn allowlist is exactly the five binaries the guarantee names',
+  'an unlisted binary throws instead of spawning, so the policy is deny-by-default rather than deny-a-blocklist',
+  'every merge argv the guarantee names is refused in-process by its own refusal reason, before any child starts',
+  'an ordinary gh argv resolves through the merge shim rather than straight to the real gh binary',
+]);
+
+const EXEC_ALLOWLIST_NOT_ATTESTED = Object.freeze([
+  'that engine source reaches processes only through this policy: every live spawn site imports node:child_process directly, and no verb censuses those call sites',
+  'argv-level containment for claude, git, node and graphify: an allowlisted binary still reaches arbitrary work through its own argv, which no layer inspects',
+  'that a gh alias defined before the run is refused: the classifier reads alias definitions, not the alias table already in effect',
+]);
+
+const TARGETLESS_VERBS = Object.freeze(new Set(['exec-allowlist']));
 
 const VERB_DEFAULT_TARGETS = Object.freeze({
   determinism: DEFAULT_DETERMINISM_TARGET,
   'dispatchable-agent-schema-capable': DEFAULT_AGENT_TREE_TARGET,
-  'exec-allowlist': DEFAULT_EXEC_POLICY_TARGET,
+  'exec-allowlist': null,
   'phase-parity': DEFAULT_PHASE_PARITY_TARGET,
 });
 
@@ -492,6 +507,9 @@ export function parseMitosisGateArgv(argv) {
     if (rest[k] !== '--target') {
       return { ok: false, error: `mitosis-gate: unknown flag ${JSON.stringify(rest[k])}; the only flag is --target` };
     }
+    if (TARGETLESS_VERBS.has(verb)) {
+      return { ok: false, error: `mitosis-gate: the ${verb} verb takes no --target; it probes the spawn policy module it imports and opens no path of its own` };
+    }
     if (target !== null) {
       return { ok: false, error: 'mitosis-gate: --target was supplied more than once; pass it exactly once' };
     }
@@ -573,16 +591,37 @@ function refusesToSpawn(binary, argv) {
   return false;
 }
 
-function execAllowlistFailures(policy) {
+function refusalKind(binary, argv) {
+  try {
+    assertSpawnAllowed(binary, argv);
+  } catch (error) {
+    const message = error && error.message ? error.message : 'unknown failure';
+    const matched = REFUSAL_KIND_RE.exec(message);
+    return matched === null ? `untagged refusal (${message})` : matched[1];
+  }
+  return null;
+}
+
+export function execAllowlistFailures(policy) {
   const failures = [];
-  if (JSON.stringify([...policy.allowlist]) !== JSON.stringify([...SPAWNABLE_BINARIES])) {
-    failures.push(`the spawn allowlist is ${JSON.stringify([...policy.allowlist])} but the guarantee names exactly ${JSON.stringify([...SPAWNABLE_BINARIES])}; widening it takes two deliberate edits, never one`);
+  const allowlist = policy.allowlist;
+  if (!Array.isArray(allowlist) || allowlist.some((entry) => typeof entry !== 'string')) {
+    failures.push(`the spawn allowlist is ${JSON.stringify(allowlist) ?? String(allowlist)}, which is not a readable list of binary names; the guarantee names exactly ${JSON.stringify([...SPAWNABLE_BINARIES])}`);
+  } else if (JSON.stringify([...allowlist]) !== JSON.stringify([...SPAWNABLE_BINARIES])) {
+    failures.push(`the spawn allowlist is ${JSON.stringify([...allowlist])} but the guarantee names exactly ${JSON.stringify([...SPAWNABLE_BINARIES])}; widening it takes two deliberate edits, never one`);
   }
   if (!policy.refusesUnlisted) {
     failures.push(`${JSON.stringify(UNLISTED_PROBE_BINARY)} is not on the allowlist yet the policy let it through; the policy is deny-by-default and an unlisted binary must throw`);
   }
-  if (!policy.refusesPreSpawn) {
-    failures.push('the pre-spawn refusal is gone: an argv the deny classifier cannot clear was accepted instead of being refused in-process before any child started');
+  const refusals = policy.refusals !== null && typeof policy.refusals === 'object' ? policy.refusals : {};
+  for (const probe of MERGE_REFUSAL_SPECIMENS) {
+    const observed = refusals[probe.label];
+    if (observed === probe.kind) continue;
+    if (observed === null || observed === undefined) {
+      failures.push(`the pre-spawn merge refusal is gone: 'gh ${probe.label}' was accepted instead of being refused in-process as ${probe.kind} before any child started`);
+      continue;
+    }
+    failures.push(`'gh ${probe.label}' is refused as ${JSON.stringify(observed)} rather than ${JSON.stringify(probe.kind)}; the reason is the guarantee, and a refusal that lands by accident does not prove the merge classification survives`);
   }
   if (!policy.routesThroughShim) {
     failures.push(`an ordinary gh argv no longer resolves through ${SHIM_BASENAME}, so the shim's own refusals would be bypassed at run time`);
@@ -590,17 +629,21 @@ function execAllowlistFailures(policy) {
   return failures;
 }
 
-function probeExecPolicy() {
+export function probeExecPolicy() {
   let routed = null;
   try {
     routed = resolveSpawn('gh', [...ROUTED_PROBE_ARGV]);
   } catch {
     routed = null;
   }
+  const refusals = {};
+  for (const probe of MERGE_REFUSAL_SPECIMENS) {
+    refusals[probe.label] = refusalKind('gh', [...probe.argv]);
+  }
   return {
     allowlist: EXEC_ALLOWLIST,
     refusesUnlisted: refusesToSpawn(UNLISTED_PROBE_BINARY, []),
-    refusesPreSpawn: refusesToSpawn('gh', [...FAIL_CLOSED_PROBE_ARGV]),
+    refusals,
     routesThroughShim: routed !== null
       && EXEC_ALLOWLIST.includes(routed.command)
       && typeof routed.args[0] === 'string'
@@ -608,20 +651,28 @@ function probeExecPolicy() {
   };
 }
 
-function runExecAllowlistGate(target, out) {
+function runExecAllowlistGate(_target, out) {
   let policy;
+  let failures;
   try {
     policy = probeExecPolicy();
+    failures = execAllowlistFailures(policy);
   } catch (err) {
-    out.err(`mitosis-gate: exec-allowlist could not probe ${target}: ${err && err.message ? err.message : 'unknown failure'}\n`);
+    out.err(`mitosis-gate: exec-allowlist could not probe the spawn policy: ${err && err.message ? err.message : 'unknown failure'}\n`);
     return GATE_UNRESOLVABLE_EXIT;
   }
-  const failures = execAllowlistFailures(policy);
   if (failures.length > 0) {
     for (const failure of failures) out.err(`mitosis-gate: ${failure}\n`);
     return GATE_VIOLATION_EXIT;
   }
-  out.log(`${JSON.stringify({ verb: 'exec-allowlist', probed: target, ok: true, allowlist: [...policy.allowlist] })}\n`);
+  out.log(`${JSON.stringify({
+    verb: 'exec-allowlist',
+    ok: true,
+    allowlist: [...policy.allowlist],
+    refusals: policy.refusals,
+    attests: [...EXEC_ALLOWLIST_ATTESTS],
+    notAttested: [...EXEC_ALLOWLIST_NOT_ATTESTED],
+  })}\n`);
   return GATE_CLEAN_EXIT;
 }
 

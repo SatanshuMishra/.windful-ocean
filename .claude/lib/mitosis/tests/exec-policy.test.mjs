@@ -47,12 +47,39 @@ test('a pull-request merge subcommand is refused in-process before any child sta
   );
 });
 
-test('both graphql merge mutations are refused', () => {
-  for (const mutation of ['mergePullRequest', 'enablePullRequestAutoMerge']) {
+test('every graphql merge mutation the bash gate denies is refused here too', () => {
+  for (const mutation of ['mergePullRequest', 'enablePullRequestAutoMerge', 'enqueuePullRequest']) {
     assert.throws(
       () => assertSpawnAllowed('gh', ['api', 'graphql', '-f', `query=mutation { ${mutation}(input: {}) { clientMutationId } }`], REFUSING_IO),
       /refused in-process before any child started/,
       mutation,
+    );
+  }
+});
+
+test('a merge mutation reaches the graphql endpoint under every spelling gh accepts for it', () => {
+  const query = 'query=mutation { mergePullRequest(input: {pullRequestId: "PR_x"}) { clientMutationId } }';
+  for (const endpoint of ['graphql', '/graphql', 'graphql?', '/graphql?foo=bar', 'https://api.github.com/graphql', 'HTTPS://API.GITHUB.COM/GraphQL', '/graphql/']) {
+    assert.throws(
+      () => assertSpawnAllowed('gh', ['api', endpoint, '-f', query], REFUSING_IO),
+      /refused in-process before any child started/,
+      `gh api ${endpoint} carrying a merge mutation must be refused`,
+    );
+  }
+});
+
+test('an endpoint spelling this classifier does not recognise still cannot carry a merge mutation', () => {
+  assert.throws(
+    () => assertSpawnAllowed('gh', ['api', '--hostname', 'ghe.acme.dev', 'some/unrecognised/path', '-f', 'query=mutation { mergePullRequest(input: {}) { clientMutationId } }'], REFUSING_IO),
+    /refused in-process before any child started/,
+  );
+});
+
+test('an ordinary graphql read is allowed under the same endpoint spellings', () => {
+  for (const endpoint of ['graphql', '/graphql', 'https://api.github.com/graphql']) {
+    assert.doesNotThrow(
+      () => assertSpawnAllowed('gh', ['api', endpoint, '-f', 'query=query { viewer { login } }'], REFUSING_IO),
+      endpoint,
     );
   }
 });
