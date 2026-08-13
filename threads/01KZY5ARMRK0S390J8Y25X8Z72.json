@@ -145,10 +145,15 @@
         "ref": "0392-d2-guards-live-copy-not-source",
         "title": "D2 guards the live installed copy, not version-controlled source",
         "scope": "thread"
+      },
+      {
+        "ref": "0395-checkpoint-at-worktree-root-with-force",
+        "title": "The D6 checkpoint runs at the worktree root and requires --force",
+        "scope": "c5"
       }
     ],
     "out_of_scope": []
   },
   "created_at": "2026-08-13T18:14:42.072Z",
-  "updated_at": "2026-08-13T18:41:35.342Z"
+  "updated_at": "2026-08-13T18:47:49.232Z"
 }
