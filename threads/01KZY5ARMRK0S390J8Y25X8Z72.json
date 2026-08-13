@@ -210,6 +210,11 @@
         "ref": "0402-https-and-gh-token-are-the-delivery-path-under-layer-zero",
         "title": "HTTPS and GH_TOKEN are the delivery path under Layer 0",
         "scope": "thread"
+      },
+      {
+        "ref": "0403-gh-token-moves-to-file-storage-for-sandbox-reach",
+        "title": "The gh token moves from Keychain to file storage so the sandbox can read it",
+        "scope": "c15"
       }
     ],
     "out_of_scope": [
@@ -218,5 +223,5 @@
     ]
   },
   "created_at": "2026-08-13T18:14:42.072Z",
-  "updated_at": "2026-08-13T21:24:33.713Z"
+  "updated_at": "2026-08-13T22:15:49.373Z"
 }
