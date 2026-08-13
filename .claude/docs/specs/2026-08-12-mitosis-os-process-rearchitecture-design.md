@@ -268,7 +268,7 @@ Eighteen MSPs in four clusters, in dependency order.
 
 #### A1 — dispatch adapter
 
-**Files.** `.claude/lib/mitosis/dispatch.mjs`, `tests/dispatch.test.mjs`.
+**Files.** `.claude/lib/mitosis/dispatch.mjs`, `tests/dispatch-boundary.test.mjs`, `tests/dispatch-invocation.test.mjs`, `tests/dispatch-outcome.test.mjs`, `tests/dispatch-payload.test.mjs`, `tests/dispatch-termination.test.mjs`, `tests/dispatch-fixtures.mjs`.
 
 **Surface.** `dispatch(request, deps) -> DispatchResult`, where `request` is `{prompt, agentType, model, effort, schema, worktree, cwd, timeoutMs, signal}`.
 

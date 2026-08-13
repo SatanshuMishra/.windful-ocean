@@ -273,193 +273,230 @@ function groupPidOf(child) {
   return pid;
 }
 
-function runChild(argv, request, settings) {
-  return new Promise((resolve) => {
-    let child = null;
+function newRunState() {
+  return {
+    stdout: '',
+    stderr: '',
+    terminationCause: null,
+    escalated: false,
+    spawnError: null,
+    streamError: null,
+    killError: null,
+    exitCode: null,
+    exitSignal: null,
+    exited: false,
+    settled: false,
+    spawned: false,
+    terminating: false,
+    openStreams: 0,
+    timers: [],
+    onAbort: null,
+  };
+}
+
+function spawnChild(argv, request, settings) {
+  try {
+    const child = settings.spawn(CLI_COMMAND, argv, {
+      cwd: request.cwd,
+      env: settings.env,
+      shell: false,
+      detached: true,
+      stdio: ['ignore', 'pipe', 'pipe'],
+    });
+    return { child, spawnError: null };
+  } catch (error) {
+    return { child: null, spawnError: describeError(error) };
+  }
+}
+
+function arm(control, fn, ms) {
+  const timer = setTimeout(fn, ms);
+  control.state.timers.push(timer);
+  return timer;
+}
+
+function noteKillFailure(state, failure) {
+  if (failure !== null && state.killError === null) state.killError = failure;
+}
+
+function signalTree(control, signal) {
+  if (control.groupPid !== null) {
+    noteKillFailure(control.state, killGroup(control.groupPid, signal));
+    return;
+  }
+  if (typeof control.child.kill !== 'function') {
+    noteKillFailure(control.state, `no process group and no kill method, so ${signal} could not be delivered at all`);
+    return;
+  }
+  try {
+    control.child.kill(signal);
+  } catch (error) {
+    noteKillFailure(control.state, describeError(error));
+  }
+}
+
+function destroyStreams(control) {
+  for (const stream of [control.child.stdout, control.child.stderr]) {
+    if (stream === null || stream === undefined || typeof stream.destroy !== 'function') continue;
     try {
-      child = settings.spawn(CLI_COMMAND, argv, {
-        cwd: request.cwd,
-        env: settings.env,
-        shell: false,
-        detached: true,
-        stdio: ['ignore', 'pipe', 'pipe'],
-      });
+      stream.destroy();
     } catch (error) {
-      resolve(emptyRun({ spawnError: describeError(error) }));
+      if (control.state.streamError === null) control.state.streamError = describeError(error);
+    }
+  }
+}
+
+function finalRun(state) {
+  return {
+    stdout: state.stdout,
+    stderr: state.stderr,
+    exitCode: normalizeExit(state.exitCode, state.exitSignal),
+    signal: state.exitSignal,
+    terminationCause: state.terminationCause,
+    escalated: state.escalated,
+    spawnError: state.spawnError,
+    streamError: state.streamError,
+    killError: state.killError,
+  };
+}
+
+function settle(control) {
+  if (control.state.settled) return;
+  control.state.settled = true;
+  for (const timer of control.state.timers) clearTimeout(timer);
+  if (control.groupPid !== null) liveGroups.delete(control.groupPid);
+  if (control.state.onAbort !== null) control.request.signal.removeEventListener('abort', control.state.onAbort);
+  control.resolve(finalRun(control.state));
+}
+
+function escalate(control) {
+  control.state.escalated = true;
+  signalTree(control, 'SIGKILL');
+  destroyStreams(control);
+  arm(control, () => settle(control), control.settings.stdioDrainMs);
+}
+
+function terminate(control, cause) {
+  if (control.state.terminationCause === null) control.state.terminationCause = cause;
+  if (control.state.terminating || control.state.settled) return;
+  control.state.terminating = true;
+  if (control.state.exited) return;
+  signalTree(control, 'SIGTERM');
+  arm(control, () => escalate(control), control.settings.killGraceMs);
+}
+
+function maybeSettle(control) {
+  if (control.state.exited && control.state.openStreams === 0) settle(control);
+}
+
+function closeStream(control, reader, sink) {
+  if (reader.closed) return;
+  reader.closed = true;
+  const tail = reader.decoder.end();
+  if (tail !== '') control.state[sink] += tail;
+  control.state.openStreams -= 1;
+  maybeSettle(control);
+}
+
+function ingestChunk(control, reader, sink, chunk) {
+  try {
+    const text = typeof chunk === 'string' ? chunk : reader.decoder.write(chunk);
+    const room = control.settings.ingestCapChars - control.state[sink].length;
+    if (text.length <= room) {
+      control.state[sink] += text;
       return;
     }
+    if (room > 0) control.state[sink] += text.slice(0, room);
+    terminate(control, 'ingest-cap');
+  } catch (error) {
+    if (control.state.streamError === null) control.state.streamError = describeError(error);
+    closeStream(control, reader, sink);
+  }
+}
+
+function watchStream(control, stream, sink) {
+  if (stream === null || stream === undefined || typeof stream.on !== 'function') return;
+  control.state.openStreams += 1;
+  const reader = { closed: false, decoder: new StringDecoder('utf8') };
+  if (typeof stream.setEncoding === 'function') stream.setEncoding('utf8');
+  stream.on('data', (chunk) => ingestChunk(control, reader, sink, chunk));
+  stream.on('error', (error) => {
+    if (control.state.streamError === null) control.state.streamError = describeError(error);
+    closeStream(control, reader, sink);
+  });
+  stream.on('end', () => closeStream(control, reader, sink));
+  stream.on('close', () => closeStream(control, reader, sink));
+}
+
+function recordExit(state, code, signal) {
+  if (state.exited) return;
+  state.exited = true;
+  state.exitCode = typeof code === 'number' ? code : null;
+  state.exitSignal = typeof signal === 'string' ? signal : null;
+}
+
+function handleChildError(control, error) {
+  if (control.state.spawned || control.state.exited) {
+    if (control.state.streamError === null) control.state.streamError = describeError(error);
+    return;
+  }
+  control.state.spawnError = describeError(error);
+  settle(control);
+}
+
+function killAndSettle(control) {
+  signalTree(control, 'SIGKILL');
+  destroyStreams(control);
+  settle(control);
+}
+
+function handleExit(control, code, signal) {
+  recordExit(control.state, code, signal);
+  if (control.state.openStreams === 0) {
+    settle(control);
+    return;
+  }
+  arm(control, () => killAndSettle(control), control.settings.stdioDrainMs);
+}
+
+function handleClose(control, code, signal) {
+  recordExit(control.state, code, signal);
+  control.state.openStreams = 0;
+  settle(control);
+}
+
+function observeChild(control) {
+  control.child.on('spawn', () => { control.state.spawned = true; });
+  control.child.on('error', (error) => handleChildError(control, error));
+  control.child.on('exit', (code, signal) => handleExit(control, code, signal));
+  control.child.on('close', (code, signal) => handleClose(control, code, signal));
+}
+
+function armAbort(control) {
+  if (control.request.signal === null) return;
+  control.state.onAbort = () => terminate(control, 'aborted');
+  control.request.signal.addEventListener('abort', control.state.onAbort, { once: true });
+}
+
+function runChild(argv, request, settings) {
+  return new Promise((resolve) => {
+    const spawned = spawnChild(argv, request, settings);
+    if (spawned.spawnError !== null) {
+      resolve(emptyRun({ spawnError: spawned.spawnError }));
+      return;
+    }
+    const child = spawned.child;
     if (child === null || typeof child !== 'object' || typeof child.on !== 'function') {
       resolve(emptyRun({ spawnError: 'deps.spawn returned something that is not a child process' }));
       return;
     }
-
-    const state = {
-      stdout: '',
-      stderr: '',
-      terminationCause: null,
-      escalated: false,
-      spawnError: null,
-      streamError: null,
-      killError: null,
-      exitCode: null,
-      exitSignal: null,
-      exited: false,
-      settled: false,
-      spawned: false,
-      terminating: false,
-      openStreams: 0,
-      timers: [],
-      onAbort: null,
-    };
-    const groupPid = groupPidOf(child);
-    trackGroup(groupPid);
-
-    const arm = (fn, ms) => {
-      const timer = setTimeout(fn, ms);
-      state.timers.push(timer);
-      return timer;
-    };
-    const noteKillFailure = (failure) => {
-      if (failure !== null && state.killError === null) state.killError = failure;
-    };
-    const signalTree = (signal) => {
-      if (groupPid !== null) {
-        noteKillFailure(killGroup(groupPid, signal));
-        return;
-      }
-      if (typeof child.kill !== 'function') {
-        noteKillFailure(`no process group and no kill method, so ${signal} could not be delivered at all`);
-        return;
-      }
-      try {
-        child.kill(signal);
-      } catch (error) {
-        noteKillFailure(describeError(error));
-      }
-    };
-    const destroyStreams = () => {
-      for (const stream of [child.stdout, child.stderr]) {
-        if (stream === null || stream === undefined || typeof stream.destroy !== 'function') continue;
-        try {
-          stream.destroy();
-        } catch (error) {
-          if (state.streamError === null) state.streamError = describeError(error);
-        }
-      }
-    };
-    const settle = () => {
-      if (state.settled) return;
-      state.settled = true;
-      for (const timer of state.timers) clearTimeout(timer);
-      if (groupPid !== null) liveGroups.delete(groupPid);
-      if (state.onAbort !== null) request.signal.removeEventListener('abort', state.onAbort);
-      resolve({
-        stdout: state.stdout,
-        stderr: state.stderr,
-        exitCode: normalizeExit(state.exitCode, state.exitSignal),
-        signal: state.exitSignal,
-        terminationCause: state.terminationCause,
-        escalated: state.escalated,
-        spawnError: state.spawnError,
-        streamError: state.streamError,
-        killError: state.killError,
-      });
-    };
-    const terminate = (cause) => {
-      if (state.terminationCause === null) state.terminationCause = cause;
-      if (state.terminating || state.settled) return;
-      state.terminating = true;
-      if (state.exited) return;
-      signalTree('SIGTERM');
-      arm(() => {
-        state.escalated = true;
-        signalTree('SIGKILL');
-        destroyStreams();
-        arm(settle, settings.stdioDrainMs);
-      }, settings.killGraceMs);
-    };
-    const maybeSettle = () => {
-      if (state.exited && state.openStreams === 0) settle();
-    };
-
-    const watch = (stream, sink) => {
-      if (stream === null || stream === undefined || typeof stream.on !== 'function') return;
-      state.openStreams += 1;
-      let closed = false;
-      const decoder = new StringDecoder('utf8');
-      const finish = () => {
-        if (closed) return;
-        closed = true;
-        const tail = decoder.end();
-        if (tail !== '') state[sink] += tail;
-        state.openStreams -= 1;
-        maybeSettle();
-      };
-      if (typeof stream.setEncoding === 'function') stream.setEncoding('utf8');
-      stream.on('data', (chunk) => {
-        try {
-          const text = typeof chunk === 'string' ? chunk : decoder.write(chunk);
-          const room = settings.ingestCapChars - state[sink].length;
-          if (text.length <= room) {
-            state[sink] += text;
-            return;
-          }
-          if (room > 0) state[sink] += text.slice(0, room);
-          terminate('ingest-cap');
-        } catch (error) {
-          if (state.streamError === null) state.streamError = describeError(error);
-          finish();
-        }
-      });
-      stream.on('error', (error) => {
-        if (state.streamError === null) state.streamError = describeError(error);
-        finish();
-      });
-      stream.on('end', finish);
-      stream.on('close', finish);
-    };
-    watch(child.stdout, 'stdout');
-    watch(child.stderr, 'stderr');
-
-    const recordExit = (code, signal) => {
-      if (state.exited) return;
-      state.exited = true;
-      state.exitCode = typeof code === 'number' ? code : null;
-      state.exitSignal = typeof signal === 'string' ? signal : null;
-    };
-    child.on('spawn', () => { state.spawned = true; });
-    child.on('error', (error) => {
-      if (state.spawned || state.exited) {
-        if (state.streamError === null) state.streamError = describeError(error);
-        return;
-      }
-      state.spawnError = describeError(error);
-      settle();
-    });
-    child.on('exit', (code, signal) => {
-      recordExit(code, signal);
-      if (state.openStreams === 0) {
-        settle();
-        return;
-      }
-      arm(() => {
-        signalTree('SIGKILL');
-        destroyStreams();
-        settle();
-      }, settings.stdioDrainMs);
-    });
-    child.on('close', (code, signal) => {
-      recordExit(code, signal);
-      state.openStreams = 0;
-      settle();
-    });
-
-    arm(() => terminate('timeout'), request.timeoutMs);
-
-    if (request.signal !== null) {
-      state.onAbort = () => terminate('aborted');
-      request.signal.addEventListener('abort', state.onAbort, { once: true });
-    }
+    const control = { child, request, settings, resolve, groupPid: groupPidOf(child), state: newRunState() };
+    trackGroup(control.groupPid);
+    watchStream(control, child.stdout, 'stdout');
+    watchStream(control, child.stderr, 'stderr');
+    observeChild(control);
+    arm(control, () => terminate(control, 'timeout'), request.timeoutMs);
+    armAbort(control);
   });
 }
 
@@ -619,27 +656,31 @@ function classify(run, request, parsed, bounded, text) {
   return { outcome: 'success', error: null };
 }
 
+function abortedBeforeSpawn() {
+  return {
+    ok: false,
+    outcome: 'aborted',
+    exitCode: null,
+    signal: null,
+    escalated: false,
+    argv: [],
+    structured: null,
+    structuredText: null,
+    truncated: false,
+    result: null,
+    resultTruncated: false,
+    envelope: null,
+    envelopeTruncated: false,
+    error: 'dispatch: the request was aborted before the child was spawned',
+  };
+}
+
 export async function dispatch(request, deps = {}) {
   const validated = validateRequest(request);
   const settings = resolveDeps(deps);
 
   if (validated.signal !== null && validated.signal.aborted) {
-    return {
-      ok: false,
-      outcome: 'aborted',
-      exitCode: null,
-      signal: null,
-      escalated: false,
-      argv: [],
-      structured: null,
-      structuredText: null,
-      truncated: false,
-      result: null,
-      resultTruncated: false,
-      envelope: null,
-      envelopeTruncated: false,
-      error: 'dispatch: the request was aborted before the child was spawned',
-    };
+    return abortedBeforeSpawn();
   }
 
   const argv = composeArgv(validated, false);
