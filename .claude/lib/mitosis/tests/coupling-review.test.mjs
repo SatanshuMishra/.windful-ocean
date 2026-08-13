@@ -48,6 +48,43 @@ test('T2: shared-risk-marker fires once per marker present in BOTH scopes, sorte
   assert.equal(byPair['t3|t4'], undefined, 'a marker present in only one scope must not fire');
 });
 
+test('T2b: a risk marker matches at a path-segment start only, case-insensitively, and never as a pattern', () => {
+  const atStart = reviewCoupling([candidate(side('t1', 'auth/login.ts'), side('t2', 'auth.config.ts'))]);
+  assert.deepEqual(
+    atStart[0].signals,
+    ['shared-risk-marker:auth'],
+    'a marker opening the path must fire, not only one that follows a slash',
+  );
+
+  const midSegment = reviewCoupling([candidate(side('t1', 'srv/oauth/login.ts'), side('t2', 'web/oauth/form.tsx'))]);
+  assert.deepEqual(midSegment, [], 'a marker buried inside a segment must not fire');
+
+  const mixedCase = reviewCoupling([candidate(side('t1', 'SRV/Auth/Login.ts'), side('t2', 'web/AUTH/form.tsx'))]);
+  assert.deepEqual(mixedCase[0].signals, ['shared-risk-marker:auth'], 'marker matching ignores case on both sides');
+
+  const literal = reviewCoupling(
+    [candidate(side('t1', 'a.b/x.ts'), side('t2', 'pkg/a.b/y.ts'))],
+    { riskMarkers: ['a.b'] },
+  );
+  assert.deepEqual(literal[0].signals, ['shared-risk-marker:a.b'], 'a marker matches its own characters literally');
+
+  const notAWildcard = reviewCoupling(
+    [candidate(side('t1', 'axb/x.ts'), side('t2', 'pkg/axb/y.ts'))],
+    { riskMarkers: ['a.b'] },
+  );
+  assert.deepEqual(notAWildcard, [], 'marker punctuation must never be read as a pattern metacharacter');
+
+  const multiSegment = reviewCoupling(
+    [candidate(side('t1', 'src/auth/a.ts'), side('t2', 'pkg/src/auth/b.ts'))],
+    { riskMarkers: ['src/auth'] },
+  );
+  assert.deepEqual(
+    multiSegment[0].signals,
+    ['shared-risk-marker:src/auth'],
+    'a marker spanning a slash matches across the segment it names',
+  );
+});
+
 test('T3: regression-history matches the recorded pair regardless of the order it was written', () => {
   const emitted = reviewCoupling(
     [candidate(side('t1', 'lib/a.js'), side('t2', 'lib/b.js'))],
