@@ -1,6 +1,7 @@
 # Maximum-autonomy permission architecture
 
-Status: designed, not implemented, not ratified. Authored 2026-08-13.
+Status: RATIFIED 2026-08-13, not implemented. Authored 2026-08-13.
+R1 through R6 were ratified by the user on 2026-08-13, and the three guard amendments from the section 11 pressure test (D1, D2, D4) plus the D6 mechanism correction were applied at the same time. Sections 2 and 4 below carry the amended text; section 11 preserves the pre-amendment reasoning.
 Supersedes the operative goal of the 2026-08-01 permission config audit, which assessed the configuration against Anthropic's published recommendations. That alignment is deliberately traded away here.
 
 This SPEC is standalone. Every fact in section 0 was measured on 2026-08-13 or quote-grounded in official documentation on the same date. Provenance is marked per fact: `[orchestrator]` means confirmed directly in this session, `[agent]` means produced by a dispatched research agent with the cited source.
@@ -65,19 +66,25 @@ The corollary that does the most work: **a prompt is not the only control.** Whe
 
 Each is stated as a decision the user accepts or rejects independently.
 
-### D1. Secrets leaving the machine — GUARD
+### D1. Secrets leaving the machine — GUARD (amended 2026-08-13)
 
-Any operation that moves credential-shaped data to an external surface: a push containing a secret, a credential echoed into a third-party request, a token written into content that is later published.
+The guarded surface is OUTBOUND MOVEMENT, not authorship. Two paths compose it: a read of a credential-shaped file, and network egress carrying credential-shaped data off the machine.
 
-Rationale: this is the only genuinely one-way door. Rotation prevents future misuse; it cannot undo past use, and the number of parties who already copied the value is unknowable. Both GitHub's and AWS's own guidance converge independently on "rotate, do not attempt cleanup".
+The write-side secret scanner is retained, but as separate hygiene under its own justification. It is NOT D1's implementation and must not be counted as satisfying D1.
 
-Cost to autonomy: near zero. Ordinary development does not move credentials outbound.
+Rationale for the amendment: D1 exists because disclosure is the one genuinely one-way door — rotation prevents future misuse, cannot undo past use, and the number of parties who already copied the value is unknowable. A guard on writing a secret does not address that; a secret can be written and never disclosed, or disclosed without ever being written to a file. Gating the write is gating a proxy. Both GitHub's and AWS's own guidance converge independently on "rotate, do not attempt cleanup", which is a statement about disclosure, not about authorship.
 
-### D2. The recovery layer itself — GUARD
+Cost to autonomy: near zero. Ordinary development does not move credentials outbound. The false-positive cost that does exist — a token-shaped string in a test fixture — now lands on the hygiene scanner rather than on the catastrophe gate, where a false positive costs one blocked write the agent can route around rather than an aborted task.
+
+### D2. The recovery layer itself — GUARD, with a mandatory maintenance path (amended 2026-08-13)
 
 `git reflog expire`, `git gc --prune=now`, `tmutil deletelocalsnapshots`, deletion of checkpoint refs, emptying the Trash, deletion of cloud backups or snapshots, and edits to the gate implementation or the deny list.
 
 Rationale: this is the meta-catastrophe. It does no damage alone. It silently converts every adjacent mistake, past and future, from recoverable into permanent. A control the agent can disarm is not a control.
+
+**Mandatory companion — an age-based reaper outside the agent's reach.** Because the agent may not prune the recovery layer, the recovery layer has no maintenance path unless one is built deliberately. Checkpoint refs accumulate per mutating tool call and snapshots accumulate hourly; a heavy week produces thousands of refs and tens of gigabytes. The reaper expires checkpoint refs and local snapshots older than a fixed window, runs on a scheduler rather than by agent invocation, and is never reachable from a tool call.
+
+Shipping D2 without this reaper is a defect, not an omission: layer 1 fills the disk, macOS begins thinning snapshots silently under pressure, and the result is failure mode one in section 10 — the reversibility layer dying quietly while continuing to look present.
 
 Cost to autonomy: near zero. These commands have no role in ordinary development.
 
@@ -87,15 +94,19 @@ Remote database verbs, deploys, infrastructure destruction, and anything reachin
 
 Rationale: off this machine, so no local snapshot or checkpoint reaches it. M22 makes this concrete for this stack specifically — the default Supabase tier has no backups at all.
 
+**Scope limit the gate must honor.** The guard covers REMOTE targets only. The carve-out ratified 2026-07-06 permitting local disposable containers for tests — `supabase start`, `supabase db reset`, pgTAP against a throwaway local container seeded with synthetic data — is explicitly outside D3 and must not be matched by the gate. Without this limit the agent writes a migration it cannot validate, and the overnight run completes with its riskiest artifact untested, which is exactly the silent-incompleteness failure this design exists to prevent.
+
 Cost to autonomy: zero. This is the existing no-direct-DB-access rule, already ruled to keep unchanged on 2026-08-13. Authoring migration SQL for a human to apply is unaffected.
 
-### D4. Irreversible outbound actions — GUARD
+### D4. Irreversible outbound actions — GUARD, narrowed (amended 2026-08-13)
 
-Sending email, posting publicly, publishing a package, calling a non-idempotent third-party API that performs a real-world action.
+Guarded: actions with NO retraction mechanism that reach parties outside the user's own accounts. Sending email, publishing a package, making a payment, calling a non-idempotent third-party API that performs a real-world action.
 
-Rationale: no undo exists at the transport layer. The receiving party has a copy, and a retraction is a new event rather than an undo.
+Explicitly NOT guarded: issue and pull-request comments, reviews, and similar collaboration actions on repositories the user owns. These are deletable, they are routine workflow, and gating them would block a large fraction of ordinary work every night.
 
-Cost to autonomy: near zero for a coding agent.
+Rationale for the narrowing: the original wording said "posting publicly", which over-matches. Deletability is the discriminator that matters, not audience. A comment on one's own repository has a retraction mechanism and reaches no party outside the user's own account; an email has neither property. The test is whether a retraction exists, not whether the action is visible to someone.
+
+Cost to autonomy: near zero once narrowed. As originally stated it was materially non-zero, which is what the pressure test surfaced.
 
 ### D5. Making private state public — GUARD
 
@@ -109,7 +120,11 @@ Cost to autonomy: zero.
 
 `git reset --hard`, `git checkout -- .`, `git restore .`, `git clean -fd`, `git stash drop`, `rm -rf` inside the repository and its worktrees, force-delete of a branch.
 
-Rationale: M23 establishes that uncommitted and untracked work has no recovery window, which makes this the most probable real loss a coding agent causes. But M12 establishes that a full checkpoint costs 19 ms. The correct response is therefore to snapshot and proceed, not to stop and ask. The checkpoint is pinned under a dedicated ref namespace so garbage collection cannot reap it, and the operation runs.
+Rationale: M23 establishes that uncommitted and untracked work has no recovery window, which makes this the most probable real loss a coding agent causes. Because a checkpoint is cheap and a prompt at 3am is an abort, the correct response is to snapshot and proceed rather than to stop and ask. The checkpoint is pinned under a dedicated ref namespace so garbage collection cannot reap it, and the operation runs.
+
+**Mechanism correction, 2026-08-13.** `git stash create` is REJECTED as the checkpoint mechanism. It cannot capture untracked files, and untracked files are precisely the class D6 exists to protect (M23). A checkpoint that omits them fails at exactly the case that justifies it. The required mechanism instead stages everything into a temporary index and writes a commit object from it — temp-index `add -A`, `write-tree`, `commit-tree`, pin the ref — so that untracked and ignored content is captured alongside tracked content.
+
+The M12 measurement of 19 ms belongs to the rejected mechanism and does NOT carry over. The latency budget in section 4 must be re-measured against the temp-index form before it is relied upon; it will be higher, and it scales with working-tree size rather than with diff size.
 
 This is the single reclassification that converts the largest number of current stalls into proceeds.
 
@@ -148,9 +163,10 @@ What it does not cover: the Read, Edit and Write tools, which are governed by th
 
 Three mechanisms, in descending order of value:
 
-1. A checkpoint commit pinned under a dedicated ref namespace before any mutating tool call. 19 ms. Covers every tracked file, at per-action granularity. Does not cover untracked or ignored files.
-2. `rm` rewritten to `/usr/bin/trash` through the hook's input-rewriting facility. Closes exactly the untracked and ignored gap the checkpoint leaves — `node_modules`, build output, `.env`.
+1. A temp-index checkpoint commit pinned under a dedicated ref namespace before any mutating tool call, capturing untracked and ignored content as well as tracked (see D6's mechanism correction). Per-action granularity. Latency to be re-measured; it scales with working-tree size.
+2. `rm` rewritten to `/usr/bin/trash` through the hook's input-rewriting facility. A second line of defence over the same untracked and ignored content — `node_modules`, build output, `.env` — and the only one of the three that survives a checkpoint hook failing open.
 3. An hourly APFS local snapshot via launchd. The whole-volume backstop for anything the first two missed, including files outside any repository.
+4. An age-based reaper for items 1 and 3, running on a scheduler and never reachable from a tool call (required by D2). Without it this layer grows without bound and then fails silently under disk pressure.
 
 ### Layer 2 — Rules
 
@@ -219,16 +235,22 @@ Step zero is not optional and is not intuitive.
 
 **Step 9 — resolve the third-party fail-closed risk.** The logbook plugin's guard denies the entire Bash, Write, Edit, MultiEdit and NotebookEdit surface on any internal exception, with no circuit breaker. This is the worst overnight-freeze risk identified and it lives in a plugin rather than in this configuration.
 
-## 7. Decisions requiring ratification
+## 7. Ratified decisions
 
-| # | Decision | Default proposed |
+All six were ratified by the user on 2026-08-13.
+
+| # | Decision | Status |
 |---|---|---|
-| R1 | The guard set is exactly D1-D5, with D6 as checkpoint | Accept |
-| R2 | Run mode is `bypassPermissions`, accepting the loss of the classifier | Accept |
-| R3 | Lift the standing prohibition on `--dangerously-skip-permissions`, replacing it with a rule requiring layers 0, 1 and 4 to be live first | Accept |
-| R4 | `ask` rules are prohibited in the unattended configuration | Accept |
-| R5 | Force-push to a branch another party consumes is guarded; to a personal branch it is not | Accept |
-| R6 | The logbook plugin guard is disabled or patched before the first unattended run | Accept |
+| R1 | The guard set is exactly D1-D5, with D6 as checkpoint | RATIFIED 2026-08-13 |
+| R2 | Run mode is `bypassPermissions`, accepting the loss of the classifier | RATIFIED 2026-08-13 |
+| R3 | Lift the standing prohibition on `--dangerously-skip-permissions`, replacing it with a rule requiring layers 0, 1 and 4 to be live first | RATIFIED 2026-08-13 |
+| R4 | `ask` rules are prohibited in the unattended configuration | RATIFIED 2026-08-13 |
+| R5 | Force-push to a branch another party consumes is guarded; to a personal branch it is not | RATIFIED 2026-08-13 |
+| R6 | The logbook plugin guard is disabled or patched before the first unattended run | RATIFIED 2026-08-13 |
+
+R3 carries a precondition that is part of the ratification, not advice: the prohibition is lifted only for a configuration in which layers 0, 1 and 4 are live and the layer 4 heartbeat asserts them at session start. `bypassPermissions` without the reversibility layer beneath it is not the design ratified here.
+
+R1 is ratified as amended. The guard set is unchanged in membership; D1, D2 and D4 carry the section 11 amendments, and D6 carries the mechanism correction.
 
 Rules ruled on 2026-08-13 and not reopened here: no-direct-DB-access keeps unchanged; centralized PR creation keeps unchanged; destructive-git confirmation narrows to D2 and D6.
 
