@@ -1,11 +1,12 @@
 import { readFileSync, realpathSync } from 'node:fs';
 import { pathToFileURL } from 'node:url';
 
+const DECISIONS = Object.freeze(['parallel', 'serialize']);
 const DEFAULT_RISK_MARKERS = Object.freeze(['auth', 'security', 'secret', 'payment', 'crypto', 'migrations', 'infra', 'deploy']);
 const MIGRATION_SEGMENT = 'migrations/';
 const ROOT_MIGRATION_DIR = '<root>';
 const PAIR_KEY_SEPARATOR = ' ';
-const USAGE = 'usage: coupling-review.mjs <candidates.json>';
+const USAGE = 'usage: coupling-review.mjs <candidates.json> [--verdicts <verdicts.json>]';
 
 function requireNonEmptyString(value, field) {
   if (typeof value !== 'string' || value.trim().length === 0) {
@@ -169,17 +170,101 @@ export function reviewCoupling(pairs, context) {
   return Object.freeze(emitted);
 }
 
+function requirePairKey(pair, field) {
+  if (!Array.isArray(pair) || pair.length !== 2) {
+    throw new TypeError(`coupling-review: ${field} must carry a two-element pair array, because a record that cannot be keyed would be skipped by the coverage check and its pair would ship with no verdict at all; received ${JSON.stringify(pair)}`);
+  }
+  return canonicalPair(requireNonEmptyString(pair[0], `${field}[0]`), requireNonEmptyString(pair[1], `${field}[1]`));
+}
+
+function requireEmission(emitted) {
+  if (!Array.isArray(emitted)) {
+    throw new TypeError(`coupling-review: emitted must be the array reviewCoupling returned, because the coverage check has nothing to measure the verdicts against otherwise and would report full coverage of nothing; received ${JSON.stringify(emitted)}`);
+  }
+  return emitted.map((record, index) => {
+    if (record === null || typeof record !== 'object' || Array.isArray(record)) {
+      throw new TypeError(`coupling-review: emitted[${index}] must be a { pair, signals, default } record, because a record with no shape cannot be matched to a verdict and would drop out of the coverage check unnoticed; received ${JSON.stringify(record)}`);
+    }
+    if (!DECISIONS.includes(record.default)) {
+      throw new TypeError(`coupling-review: emitted[${index}].default must be one of ${DECISIONS.join(', ')}, because the skeptical-default rule cannot decide whether an override owes a rationale otherwise; received ${JSON.stringify(record.default)}`);
+    }
+    const pair = requirePairKey(record.pair, `emitted[${index}].pair`);
+    return { key: pairKey(pair), label: pair.join('/'), fallback: record.default };
+  });
+}
+
+function requireVerdicts(verdicts) {
+  if (!Array.isArray(verdicts)) {
+    throw new TypeError(`coupling-review: verdicts must be an array of { pair, decision, rationale } records, because a plan carrying no verdicts array has rendered no coupling decision at all and must not read as a covered plan; received ${JSON.stringify(verdicts)}`);
+  }
+  return verdicts.map((verdict, index) => {
+    if (verdict === null || typeof verdict !== 'object' || Array.isArray(verdict)) {
+      throw new TypeError(`coupling-review: verdicts[${index}] must be a { pair, decision, rationale } record, because a shapeless entry answers no emitted pair and would leave that pair silently uncovered; received ${JSON.stringify(verdict)}`);
+    }
+    if (!DECISIONS.includes(verdict.decision)) {
+      throw new TypeError(`coupling-review: verdicts[${index}].decision must be one of ${DECISIONS.join(', ')}, because an unrecognised decision cannot be compared against the emitted default and would pass review meaning nothing; received ${JSON.stringify(verdict.decision)}`);
+    }
+    if (verdict.rationale !== undefined && verdict.rationale !== null && typeof verdict.rationale !== 'string') {
+      throw new TypeError(`coupling-review: verdicts[${index}].rationale must be a string, null or absent, because a non-string rationale would satisfy the skeptical-default override check while carrying no reason a reviewer can read; received ${JSON.stringify(verdict.rationale)}`);
+    }
+    const pair = requirePairKey(verdict.pair, `verdicts[${index}].pair`);
+    const rationale = typeof verdict.rationale === 'string' && verdict.rationale.trim().length > 0 ? verdict.rationale : null;
+    return { key: pairKey(pair), label: pair.join('/'), decision: verdict.decision, rationale };
+  });
+}
+
+function coverageProblems(records, rendered) {
+  const byKey = new Map(records.map((record) => [record.key, record]));
+  const counts = new Map();
+  for (const verdict of rendered) counts.set(verdict.key, (counts.get(verdict.key) || 0) + 1);
+  const problems = [];
+  for (const record of records) {
+    const count = counts.get(record.key) || 0;
+    if (count === 0) problems.push(`${record.label} was emitted for review and no verdict answers it; the plan must render a decision for every emitted pair`);
+    else if (count > 1) problems.push(`${record.label} carries ${count} verdicts; every emitted pair belongs in exactly one verdict bucket`);
+  }
+  for (const verdict of rendered) {
+    const record = byKey.get(verdict.key);
+    if (record === undefined) {
+      problems.push(`${verdict.label} carries a verdict but was never emitted for review; a verdict on an unemitted pair means the plan was rendered against a different graph`);
+      continue;
+    }
+    if (record.fallback === 'serialize' && verdict.decision === 'parallel' && verdict.rationale === null) {
+      problems.push(`${verdict.label} defaults to serialize and is overridden to parallel with no rationale; the skeptical default stays serialized unless an explicit rationale is supplied`);
+    }
+  }
+  return problems;
+}
+
+export function assertVerdictsCoverPairs(emitted, verdicts) {
+  const problems = coverageProblems(requireEmission(emitted), requireVerdicts(verdicts));
+  if (problems.length === 0) return;
+  throw new Error(`coupling-review: the plan does not render every coupling decision (${problems.length} problem(s)); an unanswered or unanswerable verdict is a hard stop rather than a warning:\n- ${problems.join('\n- ')}`);
+}
+
 function usageExit(problem) {
   process.stderr.write(`coupling-review: ${problem}\n${USAGE}\n`);
   process.exit(2);
 }
 
 function main() {
-  const positional = process.argv.slice(2);
+  const argv = process.argv.slice(2);
+  const positional = [];
+  let verdictsPath = null;
+  for (let index = 0; index < argv.length; index += 1) {
+    if (argv[index] !== '--verdicts') {
+      positional.push(argv[index]);
+      continue;
+    }
+    verdictsPath = argv[index + 1];
+    index += 1;
+    if (verdictsPath === undefined || verdictsPath.startsWith('--')) usageExit('--verdicts needs a path to a verdicts JSON file');
+  }
   if (positional.length !== 1) usageExit(`expected exactly one candidates JSON path, received ${positional.length}`);
   try {
     const document = JSON.parse(readFileSync(positional[0], 'utf8'));
     const emitted = reviewCoupling(document.pairs, document.context);
+    if (verdictsPath !== null) assertVerdictsCoverPairs(emitted, JSON.parse(readFileSync(verdictsPath, 'utf8')));
     process.stdout.write(JSON.stringify(emitted) + '\n');
   } catch (error) {
     process.stderr.write(`coupling-review error: ${error.message}\n`);

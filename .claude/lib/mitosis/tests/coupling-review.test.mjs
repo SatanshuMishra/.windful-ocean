@@ -5,7 +5,7 @@ import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { reviewCoupling } from '../coupling-review.mjs';
+import { assertVerdictsCoverPairs, reviewCoupling } from '../coupling-review.mjs';
 
 const scratchDirs = [];
 
@@ -168,4 +168,135 @@ test('T18: the CLI prints its usage to stderr and exits 2 when the candidates pa
     assert.match(String(err.stderr), /usage: coupling-review\.mjs <candidates\.json>/);
   }
   assert.ok(failed, 'the CLI should exit non-zero with no arguments');
+});
+
+function emissionOf(...records) {
+  return records.map(([pair, signals, fallback]) => ({ pair, signals, default: fallback }));
+}
+
+test('T10: an emitted pair with no verdict is a hard stop naming that pair', () => {
+  const emitted = emissionOf(
+    [['t1', 't2'], ['shared-risk-marker:auth'], 'serialize'],
+    [['t3', 't4'], ['import-adjacent'], 'parallel'],
+  );
+  assert.throws(
+    () => assertVerdictsCoverPairs(emitted, [{ pair: ['t1', 't2'], decision: 'serialize', rationale: null }]),
+    (error) => {
+      assert.match(error.message, /t3\/t4 was emitted for review and no verdict answers it/);
+      assert.match(error.message, /hard stop/);
+      return true;
+    },
+  );
+});
+
+test('T11: a verdict naming a pair that was never emitted is a hard stop', () => {
+  const emitted = emissionOf([['t1', 't2'], ['shared-risk-marker:auth'], 'serialize']);
+  assert.throws(
+    () => assertVerdictsCoverPairs(emitted, [
+      { pair: ['t1', 't2'], decision: 'serialize', rationale: null },
+      { pair: ['t9', 't8'], decision: 'parallel', rationale: 'unrelated' },
+    ]),
+    /t8\/t9 carries a verdict but was never emitted for review/,
+  );
+});
+
+test('T12: two verdicts on one emitted pair is a hard stop, so a pair sits in exactly one bucket', () => {
+  const emitted = emissionOf([['t1', 't2'], ['shared-risk-marker:auth'], 'serialize']);
+  assert.throws(
+    () => assertVerdictsCoverPairs(emitted, [
+      { pair: ['t1', 't2'], decision: 'serialize', rationale: null },
+      { pair: ['t2', 't1'], decision: 'parallel', rationale: 'second opinion' },
+    ]),
+    /t1\/t2 carries 2 verdicts; every emitted pair belongs in exactly one verdict bucket/,
+  );
+});
+
+test('T13: overriding a serialize default to parallel with no rationale is a hard stop', () => {
+  const emitted = emissionOf([['t1', 't2'], ['shared-risk-marker:auth'], 'serialize']);
+  for (const rationale of [null, undefined, '', '   ']) {
+    assert.throws(
+      () => assertVerdictsCoverPairs(emitted, [{ pair: ['t1', 't2'], decision: 'parallel', rationale }]),
+      /defaults to serialize and is overridden to parallel with no rationale/,
+      `a rationale of ${JSON.stringify(rationale)} must not satisfy the skeptical default`,
+    );
+  }
+});
+
+test('T14: a serialize default overridden to parallel WITH a rationale is accepted', () => {
+  const emitted = emissionOf([['t1', 't2'], ['shared-risk-marker:auth'], 'serialize']);
+  assert.doesNotThrow(() => assertVerdictsCoverPairs(emitted, [
+    { pair: ['t1', 't2'], decision: 'parallel', rationale: 'the two auth files sit on opposite sides of the boundary and share no symbol' },
+  ]));
+  assert.doesNotThrow(() => assertVerdictsCoverPairs(emitted, [
+    { pair: ['t1', 't2'], decision: 'serialize', rationale: null },
+  ]));
+});
+
+test('T15: a verdict written with the pair reversed answers the same emitted pair', () => {
+  const emitted = emissionOf([['t1', 't2'], ['import-adjacent'], 'parallel']);
+  assert.doesNotThrow(() => assertVerdictsCoverPairs(emitted, [{ pair: ['t2', 't1'], decision: 'parallel', rationale: null }]));
+});
+
+test('T9b: a malformed emission record or verdict is refused rather than skipped', () => {
+  assert.throws(
+    () => assertVerdictsCoverPairs([{ pair: ['t1'], signals: [], default: 'serialize' }], []),
+    /must carry a two-element pair array/,
+  );
+  assert.throws(
+    () => assertVerdictsCoverPairs(emissionOf([['t1', 't2'], [], 'maybe']), []),
+    /default must be one of parallel, serialize/,
+  );
+  assert.throws(
+    () => assertVerdictsCoverPairs(emissionOf([['t1', 't2'], [], 'serialize']), [{ pair: ['t1', 't2'], decision: 'later', rationale: null }]),
+    /decision must be one of parallel, serialize/,
+  );
+});
+
+test('T17: the CLI exits 1 and prints coupling-review error when a verdict is missing', () => {
+  const dir = scratch('coupling-cli-gap-');
+  const candidates = join(dir, 'candidates.json');
+  const verdicts = join(dir, 'verdicts.json');
+  writeFileSync(candidates, JSON.stringify({
+    pairs: [
+      { a: { id: 't1', fileScope: ['srv/auth/a.ts'] }, b: { id: 't2', fileScope: ['web/auth/b.tsx'] } },
+      { a: { id: 't3', fileScope: ['srv/crypto/c.ts'] }, b: { id: 't4', fileScope: ['web/crypto/d.tsx'] } },
+    ],
+  }));
+  writeFileSync(verdicts, JSON.stringify([{ pair: ['t1', 't2'], decision: 'serialize', rationale: null }]));
+  let failed = false;
+  try {
+    execFileSync('node', [CLI, candidates, '--verdicts', verdicts], { cwd: dir, encoding: 'utf8', stdio: 'pipe' });
+  } catch (err) {
+    failed = true;
+    assert.equal(err.status, 1, `expected the validation exit code 1, received ${err.status}`);
+    assert.match(String(err.stderr), /coupling-review error: [\s\S]*t3\/t4 was emitted for review and no verdict answers it/);
+  }
+  assert.ok(failed, 'the CLI should exit non-zero when the plan does not cover every emitted pair');
+});
+
+test('T17b: the CLI exits 0 when every emitted pair carries a verdict', () => {
+  const dir = scratch('coupling-cli-covered-');
+  const candidates = join(dir, 'candidates.json');
+  const verdicts = join(dir, 'verdicts.json');
+  writeFileSync(candidates, JSON.stringify({
+    pairs: [{ a: { id: 't1', fileScope: ['srv/auth/a.ts'] }, b: { id: 't2', fileScope: ['web/auth/b.tsx'] } }],
+  }));
+  writeFileSync(verdicts, JSON.stringify([{ pair: ['t1', 't2'], decision: 'serialize', rationale: null }]));
+  const stdout = execFileSync('node', [CLI, candidates, '--verdicts', verdicts], { cwd: dir, encoding: 'utf8' });
+  assert.deepEqual(JSON.parse(stdout)[0].pair, ['t1', 't2']);
+});
+
+test('T18b: the CLI rejects a --verdicts flag with no path and exits 2', () => {
+  const dir = scratch('coupling-cli-noverdict-');
+  const candidates = join(dir, 'candidates.json');
+  writeFileSync(candidates, JSON.stringify({ pairs: [] }));
+  let failed = false;
+  try {
+    execFileSync('node', [CLI, candidates, '--verdicts'], { cwd: dir, encoding: 'utf8', stdio: 'pipe' });
+  } catch (err) {
+    failed = true;
+    assert.equal(err.status, 2, `expected the usage exit code 2, received ${err.status}`);
+    assert.match(String(err.stderr), /--verdicts needs a path/);
+  }
+  assert.ok(failed, 'a --verdicts flag with no path must not fall through to an unvalidated run');
 });
