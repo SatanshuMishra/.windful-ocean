@@ -1,144 +1,68 @@
 import { test, describe, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { execFileSync, spawnSync } from 'node:child_process';
-import { chmodSync, lstatSync, mkdirSync, mkdtempSync, realpathSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
+import { lstatSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { homedir, tmpdir } from 'node:os';
-import { basename, dirname, join } from 'node:path';
+import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const HOOK = fileURLToPath(new URL('../protect-claude-config.sh', import.meta.url));
 
-const FIXTURE = realpathSync(mkdtempSync(join(realpathSync(tmpdir()), 'protect-claude-config-')));
-const FIXTURE_HOME = join(FIXTURE, 'home');
-const HOME_CLAUDE = join(FIXTURE_HOME, '.claude');
-const REPO_CLAUDE = join(FIXTURE, 'checkout', '.claude');
+const RELEASE_SHA = '0123456789abcdef0123456789abcdef01234567';
+const ASIDE_DIRNAME = `hooks.pre-cutover-${RELEASE_SHA.slice(0, 8)}`;
 
-const PROBE_FILES = ['CLAUDE.md', 'keybindings.json'];
-const ENTRY_FILES = [...PROBE_FILES, 'settings.json'];
-
-const CHECKOUT_FILES = [
-  ...ENTRY_FILES,
-  'lib/git/pr.mjs',
-  'workflows/mitosis.js',
-  'rules/common/git/pull-requests.md',
+const RELEASE_TREE = [
   'hooks/block-destructive-bash.sh',
+  'hooks/protect-claude-config.sh',
+  'hooks/lib/classify.sh',
+  'lib/git/pr.mjs',
+  'rules/common/git/pull-requests.md',
+  'workflows/mitosis.js',
+  'CLAUDE.md',
+  'keybindings.json',
+];
+
+const RELEASE_ENTRY_LINKS = ['hooks', 'lib', 'rules', 'workflows', 'CLAUDE.md', 'keybindings.json'];
+
+const HOME_ONLY_FILES = [
+  'settings.json',
+  'settings.local.json',
+  'LIVE',
+  'CUTOVER',
+  'local/converge.mjs',
+  'local/promote.mjs',
+  'local/notes/todo.md',
+  `${ASIDE_DIRNAME}/block-destructive-bash.sh`,
+  `.cutover/${RELEASE_SHA}/hooks/block-destructive-bash.sh`,
+];
+
+const HOME_UNGUARDED_FILES = [
+  'projects/a-project/memory/MEMORY.md',
+  'agent-ledger/events.jsonl',
+  'telemetry/usage.jsonl',
+  'plugins/config.json',
+];
+
+const CHECKOUT_TREE = [
+  'hooks/protect-claude-config.sh',
+  'hooks/block-destructive-bash.sh',
+  'hooks/tests/protect-claude-config.test.mjs',
+  'lib/git/pr.mjs',
+  'rules/common/git/pull-requests.md',
+  'workflows/mitosis.js',
+  'settings.json',
+  'settings.local.json',
+  'CLAUDE.md',
+  'keybindings.json',
+  'LIVE',
+  'local/converge.mjs',
   'skills/mitosis/templates/receipts.yml',
 ];
 
-const LOCAL_MACHINERY = ['local/converge.mjs', 'local/promote.mjs', 'local/notes/todo.md'];
-
-const HOME_LINKS = [
-  ...PROBE_FILES,
-  'lib',
-  'workflows',
-  'skills',
-  'rules/common',
-  'hooks/block-destructive-bash.sh',
-];
-
-function buildFixture() {
-  for (const relative of CHECKOUT_FILES) {
-    const target = join(REPO_CLAUDE, relative);
-    mkdirSync(dirname(target), { recursive: true });
-    writeFileSync(target, '');
-  }
-  mkdirSync(HOME_CLAUDE, { recursive: true });
-  for (const relative of HOME_LINKS) {
-    const link = join(HOME_CLAUDE, relative);
-    mkdirSync(dirname(link), { recursive: true });
-    symlinkSync(join(REPO_CLAUDE, relative), link);
-  }
-  writeFileSync(join(HOME_CLAUDE, 'settings.json'), '{}\n');
-  for (const relative of LOCAL_MACHINERY) {
-    const path = join(HOME_CLAUDE, relative);
-    mkdirSync(dirname(path), { recursive: true });
-    writeFileSync(path, '');
-  }
+function touch(path) {
+  mkdirSync(dirname(path), { recursive: true });
+  writeFileSync(path, '');
 }
-
-function runHook(payload, env = { ...process.env, HOME: FIXTURE_HOME }) {
-  try {
-    return execFileSync(HOOK, {
-      input: JSON.stringify(payload),
-      encoding: 'utf8',
-      env,
-    });
-  } catch (error) {
-    throw new Error(`${HOOK} failed on ${JSON.stringify(payload)}: ${error.message}`, { cause: error });
-  }
-}
-
-function decide(filePath, env) {
-  const out = runHook({ tool_name: 'Edit', tool_input: { file_path: filePath } }, env);
-  if (out.trim() === '') return null;
-  try {
-    return JSON.parse(out).hookSpecificOutput.permissionDecision;
-  } catch (error) {
-    throw new Error(`${HOOK} emitted unparseable output for ${filePath}: ${out}`, { cause: error });
-  }
-}
-
-function outcome(filePath, env) {
-  const done = spawnSync(HOOK, {
-    input: JSON.stringify({ tool_name: 'Edit', tool_input: { file_path: filePath } }),
-    encoding: 'utf8',
-    env,
-  });
-  const stdout = done.stdout ?? '';
-  if (stdout.trim() === '') return { status: done.status, stderr: done.stderr ?? '', decision: null };
-  try {
-    return {
-      status: done.status,
-      stderr: done.stderr ?? '',
-      decision: JSON.parse(stdout).hookSpecificOutput.permissionDecision,
-    };
-  } catch (error) {
-    throw new Error(`${HOOK} emitted unparseable output for ${filePath}: ${stdout}`, { cause: error });
-  }
-}
-
-describe('the guard contract, on a fixture mirroring the deployed symlink topology', () => {
-  before(buildFixture);
-  after(() => rmSync(FIXTURE, { recursive: true, force: true }));
-
-  const GUARDED = [
-    ['the pull-request tool in the repo lib tree', join(REPO_CLAUDE, 'lib/git/pr.mjs')],
-    ['the same file addressed through the symlinked home lib path', join(HOME_CLAUDE, 'lib/git/pr.mjs')],
-    ['the mitosis engine in the repo workflows tree', join(REPO_CLAUDE, 'workflows/mitosis.js')],
-    ['the same engine addressed through the symlinked home workflows path', join(HOME_CLAUDE, 'workflows/mitosis.js')],
-    ['the bash gate that denies raw pull-request creation', join(HOME_CLAUDE, 'hooks/block-destructive-bash.sh')],
-    ['a rules file', join(HOME_CLAUDE, 'rules/common/git/pull-requests.md')],
-    ['settings.json itself', join(HOME_CLAUDE, 'settings.json')],
-    ['the converge hook the config root runs at every Stop and SessionStart', join(HOME_CLAUDE, 'local/converge.mjs')],
-    ['the promote tool deliberately kept outside every release', join(HOME_CLAUDE, 'local/promote.mjs')],
-    ['a note under the same durable executable surface', join(HOME_CLAUDE, 'local/notes/todo.md')],
-  ];
-
-  for (const [label, path] of GUARDED) {
-    test(`a write to ${label} is held for human confirmation`, () => {
-      assert.equal(decide(path), 'ask', `${path} is a guardrail surface and must not be editable without a human seeing it`);
-    });
-  }
-
-  test('a file outside the guarded prefixes is not held, so the guard stays a perimeter and not a blanket', () => {
-    assert.equal(decide(join(REPO_CLAUDE, 'skills/mitosis/templates/receipts.yml')), null);
-  });
-
-  test('a payload carrying no file path is ignored rather than guessed at', () => {
-    assert.equal(runHook({ tool_input: {} }).trim(), '');
-  });
-});
-
-const WT = realpathSync(mkdtempSync(join(realpathSync(tmpdir()), 'protect-claude-config-worktree-')));
-const WT_HOME = join(WT, 'home');
-const WT_HOME_CLAUDE = join(WT_HOME, '.claude');
-const PRIMARY_CLAUDE = join(WT, 'checkout', '.claude');
-const LINKED_WORKTREE_CLAUDE = join(PRIMARY_CLAUDE, 'worktrees', 'feature', '.claude');
-const OUTSIDE_CLAUDE = join(WT, 'elsewhere', '.claude');
-const BIN_WITHOUT_GIT = join(WT, 'bin-without-git');
-
-const GIT_ENV = { ...process.env, HOME: WT_HOME };
-const NO_GIT_ENV = { HOME: WT_HOME, PATH: BIN_WITHOUT_GIT };
 
 function git(args, cwd) {
   execFileSync('git', args, {
@@ -156,291 +80,242 @@ function git(args, cwd) {
   });
 }
 
-function seedClaudeTree(base) {
-  mkdirSync(join(base, 'hooks'), { recursive: true });
-  writeFileSync(join(base, 'hooks/block-destructive-bash.sh'), '');
-  for (const entry of ENTRY_FILES) writeFileSync(join(base, entry), '');
-}
-
-function buildWorktreeFixture() {
-  const checkout = dirname(PRIMARY_CLAUDE);
-  seedClaudeTree(PRIMARY_CLAUDE);
-  git(['init', '-b', 'main'], checkout);
-  git(['add', '-A'], checkout);
-  git(['commit', '-m', 'seed'], checkout);
-  git(['worktree', 'add', '-b', 'feature', dirname(LINKED_WORKTREE_CLAUDE)], checkout);
-
-  mkdirSync(WT_HOME_CLAUDE, { recursive: true });
-  for (const probe of PROBE_FILES) symlinkSync(join(PRIMARY_CLAUDE, probe), join(WT_HOME_CLAUDE, probe));
-
-  seedClaudeTree(OUTSIDE_CLAUDE);
-
-  mkdirSync(BIN_WITHOUT_GIT, { recursive: true });
-  for (const tool of ['bash', 'python3', 'cat']) {
-    const resolved = execFileSync('/bin/sh', ['-c', `command -v ${tool}`], { encoding: 'utf8' }).trim();
-    symlinkSync(resolved, join(BIN_WITHOUT_GIT, tool));
-  }
-}
-
-describe('every git worktree of the repository behind ~/.claude, not only the primary checkout', () => {
-  before(buildWorktreeFixture);
-  after(() => rmSync(WT, { recursive: true, force: true }));
-
-  test('a write to a guardrail file inside a linked worktree is held for human confirmation', () => {
-    const path = join(LINKED_WORKTREE_CLAUDE, 'hooks/block-destructive-bash.sh');
-    assert.equal(decide(path, GIT_ENV), 'ask', `${path} is a guardrail surface in a worktree of the same repository and must not be editable without a human seeing it`);
-  });
-
-  test('a write to the same guardrail file in the primary checkout is still held', () => {
-    assert.equal(decide(join(PRIMARY_CLAUDE, 'hooks/block-destructive-bash.sh'), GIT_ENV), 'ask');
-  });
-
-  test('a .claude tree belonging to no worktree of the repository is held all the same, because discovery may only add roots and never subtract one', () => {
-    const path = join(OUTSIDE_CLAUDE, 'hooks/block-destructive-bash.sh');
-    assert.equal(decide(path, GIT_ENV), 'ask', `${path} carries a guarded .claude segment, and a derivable worktree set may never take a path out of the ask set`);
-  });
-
-  test('with git off the PATH the guard asks on any .claude guardrail segment rather than falling silent', () => {
-    const path = join(OUTSIDE_CLAUDE, 'hooks/block-destructive-bash.sh');
-    assert.equal(decide(path, NO_GIT_ENV), 'ask', `${path} must fail closed: an underivable worktree set may never downgrade to no protection`);
-  });
-
-  test('with git off the PATH a write to an exact guardrail filename directly under .claude is still held', () => {
-    const path = join(PRIMARY_CLAUDE, 'settings.json');
-    assert.equal(decide(path, NO_GIT_ENV), 'ask', `${path} must fail closed: the exact guardrail filenames are protected surfaces even when the worktree set is underivable`);
-  });
-});
-
-const RELEASE_SHA = '0123456789abcdef0123456789abcdef01234567';
-const RELEASE_FILES = ['CLAUDE.md', 'keybindings.json'];
-const RELEASE_DIRS = ['hooks'];
-const ASIDE_DIRNAME = `hooks.pre-cutover-${RELEASE_SHA.slice(0, 8)}`;
-const ASIDE_ROOT = '.cutover';
-const CUTOVER_JOURNAL = 'CUTOVER';
-
-function receiptFor(repoRoot) {
-  return `${JSON.stringify(
-    {
-      ref: 'main',
-      sha: RELEASE_SHA,
-      built_at: '2026-08-07T00:00:00.000Z',
-      promoted_at: '2026-08-07T00:00:01.000Z',
-      previous: null,
-      repo_root: repoRoot,
-    },
-    null,
-    2,
-  )}\n`;
-}
-
-function buildCutoverTopology(root, { homeIsRepo = false } = {}) {
+function buildTopology(root) {
   const home = join(root, 'home');
   const homeClaude = join(home, '.claude');
+  const release = join(homeClaude, 'releases', RELEASE_SHA);
   const checkout = join(root, 'checkout');
   const checkoutClaude = join(checkout, '.claude');
-  const worktree = join(root, 'feature');
-  const outsideClaude = join(root, 'elsewhere', '.claude');
-  const release = join(homeClaude, 'releases', RELEASE_SHA);
-  const receipt = join(homeClaude, 'LIVE');
+  const worktree = join(checkout, '.claude', 'worktrees', 'feature');
 
-  seedClaudeTree(checkoutClaude);
+  for (const relative of RELEASE_TREE) touch(join(release, relative));
+  mkdirSync(homeClaude, { recursive: true });
+  symlinkSync(join('releases', RELEASE_SHA), join(homeClaude, 'current'));
+  for (const name of RELEASE_ENTRY_LINKS) symlinkSync(join('current', name), join(homeClaude, name));
+  for (const relative of [...HOME_ONLY_FILES, ...HOME_UNGUARDED_FILES]) touch(join(homeClaude, relative));
+
+  for (const relative of CHECKOUT_TREE) touch(join(checkoutClaude, relative));
   git(['init', '-b', 'main'], checkout);
   git(['add', '-A'], checkout);
   git(['commit', '-m', 'seed'], checkout);
   git(['worktree', 'add', '-b', 'feature', worktree], checkout);
 
-  mkdirSync(release, { recursive: true });
-  for (const name of RELEASE_FILES) writeFileSync(join(release, name), '');
-  for (const name of RELEASE_DIRS) {
-    mkdirSync(join(release, name), { recursive: true });
-    writeFileSync(join(release, name, 'block-destructive-bash.sh'), '');
-  }
-  mkdirSync(homeClaude, { recursive: true });
-  symlinkSync(join('releases', RELEASE_SHA), join(homeClaude, 'current'));
-  for (const name of [...RELEASE_FILES, ...RELEASE_DIRS]) {
-    symlinkSync(join('current', name), join(homeClaude, name));
-  }
-  writeFileSync(join(homeClaude, 'settings.json'), '{}\n');
-  mkdirSync(join(homeClaude, ASIDE_DIRNAME), { recursive: true });
-  writeFileSync(join(homeClaude, ASIDE_DIRNAME, 'block-destructive-bash.sh'), '');
-  mkdirSync(join(homeClaude, ASIDE_ROOT, RELEASE_SHA, 'hooks'), { recursive: true });
-  writeFileSync(join(homeClaude, ASIDE_ROOT, RELEASE_SHA, 'hooks', 'block-destructive-bash.sh'), '');
-  writeFileSync(join(homeClaude, CUTOVER_JOURNAL), '{}\n');
-  writeFileSync(receipt, receiptFor(checkout));
-
-  seedClaudeTree(outsideClaude);
-  if (homeIsRepo) git(['init', '-b', 'main'], home);
-
   return {
     env: { ...process.env, HOME: home },
+    home,
     homeClaude,
+    release,
     checkoutClaude,
     worktreeClaude: join(worktree, '.claude'),
-    outsideClaude,
-    release,
-    receipt,
   };
 }
 
-const CUTOVER = realpathSync(mkdtempSync(join(realpathSync(tmpdir()), 'protect-claude-config-cutover-')));
+function outcome(filePath, env, toolName = 'Edit') {
+  const done = spawnSync(HOOK, {
+    input: JSON.stringify({ tool_name: toolName, tool_input: { file_path: filePath } }),
+    encoding: 'utf8',
+    env,
+  });
+  const stdout = done.stdout ?? '';
+  if (stdout.trim() === '') return { status: done.status, stderr: done.stderr ?? '', decision: null };
+  let parsed;
+  try {
+    parsed = JSON.parse(stdout);
+  } catch (error) {
+    throw new Error(`${HOOK} emitted unparseable output for ${filePath}: ${stdout}`, { cause: error });
+  }
+  return { status: done.status, stderr: done.stderr ?? '', decision: parsed.hookSpecificOutput.permissionDecision };
+}
 
-describe('the entry links repointed at a release, with the checkout named only by the LIVE receipt', () => {
+const ROOT = realpathSync(mkdtempSync(join(realpathSync(tmpdir()), 'protect-claude-config-')));
+
+describe('the live installed copy is the guarded surface', () => {
   let live;
   before(() => {
-    live = buildCutoverTopology(CUTOVER);
+    live = buildTopology(ROOT);
   });
-  after(() => rmSync(CUTOVER, { recursive: true, force: true }));
+  after(() => rmSync(ROOT, { recursive: true, force: true }));
 
-  test('the probe resolves into the release rather than the checkout, which is the topology under test', () => {
-    assert.equal(realpathSync(join(live.homeClaude, 'CLAUDE.md')), join(live.release, 'CLAUDE.md'));
-  });
-
-  test('a write to a guardrail file in the checkout the receipt names is held for human confirmation', () => {
-    const path = join(live.checkoutClaude, 'hooks/x.sh');
-    assert.equal(decide(path, live.env), 'ask', `${path} is a guardrail surface in the checkout the LIVE receipt names and must not be editable without a human seeing it`);
+  test('the entry link resolves into the release, which is the deployed topology under test', () => {
+    assert.equal(
+      realpathSync(join(live.homeClaude, 'hooks/block-destructive-bash.sh')),
+      join(live.release, 'hooks/block-destructive-bash.sh'),
+    );
   });
 
-  test('a write to a guardrail file in a sibling worktree of the receipt-named checkout is held', () => {
-    const path = join(live.worktreeClaude, 'hooks/block-destructive-bash.sh');
-    assert.equal(decide(path, live.env), 'ask', `${path} is a guardrail surface in a worktree of the receipt-named repository and must not be editable without a human seeing it`);
-  });
-
-  test('a .claude tree belonging to no worktree of the receipt-named repository is held all the same, because a receipt may only add roots and never subtract one', () => {
-    const path = join(live.outsideClaude, 'hooks/block-destructive-bash.sh');
-    assert.equal(decide(path, live.env), 'ask', `${path} carries a guarded .claude segment, and a usable receipt may never take a path out of the ask set`);
-  });
-
-  const STEERING = [
-    ['the cutover journal, which names what a rollback puts back', [CUTOVER_JOURNAL]],
-    ['the LIVE receipt, which names the checkout the guard trusts', ['LIVE']],
-    ['the aside holding the guardrail tree the live entry replaced', [ASIDE_DIRNAME]],
-    ['a file inside that aside', [ASIDE_DIRNAME, 'block-destructive-bash.sh']],
-    ['the directory the tool holds every aside in', [ASIDE_ROOT]],
-    ['the aside a rollback would move back onto the live guardrail entry', [ASIDE_ROOT, RELEASE_SHA, 'hooks']],
-    ['a file inside that aside', [ASIDE_ROOT, RELEASE_SHA, 'hooks', 'block-destructive-bash.sh']],
-    ['the release copy the live guardrail entry links to', ['releases', RELEASE_SHA, 'hooks', 'block-destructive-bash.sh']],
-    ['that same release copy addressed through the current link', ['current', 'hooks', 'block-destructive-bash.sh']],
+  const DENIED = [
+    ['the gate inside the live release snapshot', () => join(live.release, 'hooks/block-destructive-bash.sh')],
+    ['a gate helper inside the live release snapshot', () => join(live.release, 'hooks/lib/classify.sh')],
+    ['the same gate reached through the current link', () => join(live.homeClaude, 'current/hooks/block-destructive-bash.sh')],
+    ['the same gate reached through the hooks entry symlink', () => join(live.homeClaude, 'hooks/block-destructive-bash.sh')],
+    ['this guard itself in the live tree', () => join(live.homeClaude, 'hooks/protect-claude-config.sh')],
+    ['the live settings file that carries the deny list', () => join(live.homeClaude, 'settings.json')],
+    ['the live local settings file', () => join(live.homeClaude, 'settings.local.json')],
+    ['the live pull-request tool reached through the lib entry link', () => join(live.homeClaude, 'lib/git/pr.mjs')],
+    ['the live mitosis engine reached through the workflows entry link', () => join(live.homeClaude, 'workflows/mitosis.js')],
+    ['a live rules file reached through the rules entry link', () => join(live.homeClaude, 'rules/common/git/pull-requests.md')],
+    ['the converge tool that promotes releases, which no pull request reviews', () => join(live.homeClaude, 'local/converge.mjs')],
+    ['the promote tool deliberately kept outside every release', () => join(live.homeClaude, 'local/promote.mjs')],
+    ['a note under the same live-only executable surface', () => join(live.homeClaude, 'local/notes/todo.md')],
+    ['the LIVE receipt that names which release is running', () => join(live.homeClaude, 'LIVE')],
+    ['the cutover journal that names what a rollback puts back', () => join(live.homeClaude, 'CUTOVER')],
+    ['the aside holding the guardrail tree the live entry replaced', () => join(live.homeClaude, ASIDE_DIRNAME, 'block-destructive-bash.sh')],
+    ['the aside a rollback would move back onto the live guardrail entry', () => join(live.homeClaude, '.cutover', RELEASE_SHA, 'hooks/block-destructive-bash.sh')],
   ];
 
-  for (const [label, segments] of STEERING) {
-    test(`a write to ${label} is held, because a steering file is gated at least as strongly as the effect it steers`, () => {
-      const path = join(live.homeClaude, ...segments);
-      assert.equal(decide(path, live.env), 'ask', `${path} steers which guardrail files run and must not be writable without a human seeing it`);
+  for (const [label, path] of DENIED) {
+    test(`a write to ${label} is denied deterministically, never prompted`, () => {
+      const held = outcome(path(), live.env);
+      assert.equal(held.decision, 'deny', `${path()} changes what runs live and must be blocked outright`);
+      assert.equal(held.status, 2, `${path()} must block through the exit code that holds in every permission mode`);
+      assert.match(held.stderr, /\S/, 'a block must state its reason on stderr, which is what reaches the model on exit 2');
     });
   }
 
-  test('a write to settings.json in the home tree is still held now that it is no longer a discovery probe', () => {
-    assert.equal(decide(join(live.homeClaude, 'settings.json'), live.env), 'ask');
-  });
-
-  test('a write to settings.json in the receipt-named checkout is still held now that it is no longer a discovery probe', () => {
-    assert.equal(decide(join(live.checkoutClaude, 'settings.json'), live.env), 'ask');
-  });
-});
-
-const NESTED = realpathSync(mkdtempSync(join(realpathSync(tmpdir()), 'protect-claude-config-nested-')));
-
-describe('a release directory that git resolves into an unrelated repository', () => {
-  let live;
-  before(() => {
-    live = buildCutoverTopology(NESTED, { homeIsRepo: true });
-  });
-  after(() => rmSync(NESTED, { recursive: true, force: true }));
-
-  test('a write to a guardrail file in the receipt-named checkout is held, and is not lost to the unrelated repository the probe now lands in', () => {
-    const path = join(live.checkoutClaude, 'hooks/x.sh');
-    assert.equal(decide(path, live.env), 'ask', `${path} must stay protected: the probe resolving into a release inside an unrelated repository may never silently discard the checkout`);
-  });
-});
-
-const UNTRUSTED = realpathSync(mkdtempSync(join(realpathSync(tmpdir()), 'protect-claude-config-untrusted-')));
-
-describe('a LIVE receipt the guard cannot trust leaves it exactly as it behaves with no receipt at all', () => {
-  let live;
-  before(() => {
-    live = buildCutoverTopology(UNTRUSTED);
-  });
-  after(() => rmSync(UNTRUSTED, { recursive: true, force: true }));
-
-  const write = (contents) => (path) => writeFileSync(path, contents);
-
-  const UNUSABLE = [
-    ['an absent receipt', (path) => rmSync(path, { force: true })],
-    ['an empty file', write('')],
-    ['a truncated document', write('{"ref": "main", "sha": "0123456789abcdef0123456789abcde')],
-    ['bytes that are not JSON at all', write('not json at all')],
-    ['bytes that are not valid utf-8', write(Buffer.from([0xff, 0xfe, 0x00, 0x7b]))],
-    ['a JSON array rather than an object', write('[]')],
-    ['a JSON scalar rather than an object', write('"repo_root"')],
-    ['an object with no repo_root', write('{"ref": "main", "sha": "abc"}')],
-    ['a repo_root that is not a string', write('{"repo_root": 42}')],
-    ['a repo_root that is empty', write('{"repo_root": "   "}')],
-    ['a relative repo_root', write('{"repo_root": "checkout"}')],
-    ['a repo_root naming nothing on disk', write('{"repo_root": "/nonexistent-checkout-2f9c"}')],
-    [
-      'a receipt that cannot be read',
-      (path) => {
-        writeFileSync(path, '{"repo_root": "/nonexistent-unreadable-6b1"}');
-        chmodSync(path, 0o000);
-      },
-    ],
-    ['a directory where the receipt belongs', (path) => mkdirSync(path)],
+  const ALLOWED = [
+    ['a hook in the repository checkout, which is this redesign own implementation surface', () => join(live.checkoutClaude, 'hooks/protect-claude-config.sh')],
+    ['the bash gate source in the repository checkout', () => join(live.checkoutClaude, 'hooks/block-destructive-bash.sh')],
+    ['a hook test in the repository checkout', () => join(live.checkoutClaude, 'hooks/tests/protect-claude-config.test.mjs')],
+    ['the pull-request tool source in the repository checkout', () => join(live.checkoutClaude, 'lib/git/pr.mjs')],
+    ['a rules file in the repository checkout', () => join(live.checkoutClaude, 'rules/common/git/pull-requests.md')],
+    ['the mitosis engine source in the repository checkout', () => join(live.checkoutClaude, 'workflows/mitosis.js')],
+    ['the settings source in the repository checkout', () => join(live.checkoutClaude, 'settings.json')],
+    ['the local settings source in the repository checkout', () => join(live.checkoutClaude, 'settings.local.json')],
+    ['the CLAUDE.md source in the repository checkout', () => join(live.checkoutClaude, 'CLAUDE.md')],
+    ['a LIVE-named file that is only repository source', () => join(live.checkoutClaude, 'LIVE')],
+    ['converge machinery mirrored into the repository checkout', () => join(live.checkoutClaude, 'local/converge.mjs')],
+    ['a hook inside a linked worktree of the checkout', () => join(live.worktreeClaude, 'hooks/block-destructive-bash.sh')],
+    ['a memory file under the live tree that steers nothing that runs', () => join(live.homeClaude, 'projects/a-project/memory/MEMORY.md')],
+    ['the agent ledger under the live tree', () => join(live.homeClaude, 'agent-ledger/events.jsonl')],
+    ['telemetry under the live tree', () => join(live.homeClaude, 'telemetry/usage.jsonl')],
+    ['plugin state under the live tree', () => join(live.homeClaude, 'plugins/config.json')],
   ];
 
-  for (const [label, seed] of UNUSABLE) {
-    test(`${label} neither crashes the hook nor lets a guarded home-tree write through`, () => {
-      rmSync(live.receipt, { recursive: true, force: true });
-      seed(live.receipt);
-      const held = outcome(join(live.homeClaude, 'hooks/block-destructive-bash.sh'), live.env);
-      assert.equal(held.status, 0, `the hook exited ${held.status} on a LIVE receipt that is ${label}: ${held.stderr}`);
-      assert.equal(held.decision, 'ask', 'a guarded home-tree path must still be held when the receipt is unusable');
-      const settings = outcome(join(live.homeClaude, 'settings.json'), live.env);
-      assert.equal(settings.status, 0, `the hook exited ${settings.status} on a LIVE receipt that is ${label}: ${settings.stderr}`);
-      assert.equal(settings.decision, 'ask');
-      const checkout = outcome(join(live.checkoutClaude, 'hooks/x.sh'), live.env);
-      assert.equal(checkout.status, 0, `the hook exited ${checkout.status} on a LIVE receipt that is ${label}: ${checkout.stderr}`);
-      assert.equal(checkout.decision, 'ask', 'an unusable receipt must fail closed onto the textual fallback, not onto silence');
+  for (const [label, path] of ALLOWED) {
+    test(`a write to ${label} carries no opinion, so the guard stays a perimeter and not a blanket`, () => {
+      const held = outcome(path(), live.env);
+      assert.equal(held.decision, null, `${path()} is not the live installed copy and must stay freely editable`);
+      assert.equal(held.status, 0, `${path()} must not block: ${held.stderr}`);
+    });
+  }
+
+  test('a Write to a repository hook is allowed just as an Edit is', () => {
+    const held = outcome(join(live.checkoutClaude, 'hooks/new-guard.sh'), live.env, 'Write');
+    assert.equal(held.decision, null);
+    assert.equal(held.status, 0);
+  });
+
+  test('a Write to the live release snapshot is denied just as an Edit is', () => {
+    const held = outcome(join(live.release, 'hooks/new-guard.sh'), live.env, 'Write');
+    assert.equal(held.decision, 'deny');
+    assert.equal(held.status, 2);
+  });
+
+  test('no path in the whole corpus reaches an ask decision, which R4 prohibits and which stalls every mode', () => {
+    const corpus = [...DENIED, ...ALLOWED].map(([, path]) => path());
+    const asked = corpus.filter((path) => outcome(path, live.env).decision === 'ask');
+    assert.deepEqual(asked, [], 'an ask decision prompts in every permission mode and turns an unattended run into a stall');
+  });
+
+  test('a payload carrying no file path is ignored rather than guessed at', () => {
+    const done = spawnSync(HOOK, { input: JSON.stringify({ tool_input: {} }), encoding: 'utf8', env: live.env });
+    assert.equal(done.stdout.trim(), '');
+    assert.equal(done.status, 0);
+  });
+
+  const MALFORMED = [
+    ['bytes that are not JSON at all', 'not json at all .claude'],
+    ['a JSON array rather than an object', '[".claude"]'],
+    ['a JSON scalar rather than an object', '".claude"'],
+    ['a truncated document', '{"tool_input": {"file_path": "/x/.claude/hooks'],
+    ['a file_path that is not a string', '{"tool_input": {"file_path": 42}, "note": ".claude"}'],
+  ];
+
+  for (const [label, payload] of MALFORMED) {
+    test(`${label} neither crashes the guard nor blocks a call it cannot classify`, () => {
+      const done = spawnSync(HOOK, { input: payload, encoding: 'utf8', env: live.env });
+      assert.equal(done.status, 0, `the guard exited ${done.status} on ${label}: ${done.stderr}`);
+      assert.equal(done.stdout.trim(), '');
     });
   }
 });
 
-describe('the installed ~/.claude topology the guard discovers its repository base from', () => {
+const LINKED = realpathSync(mkdtempSync(join(realpathSync(tmpdir()), 'protect-claude-config-linked-home-')));
+
+describe('a home directory reached through a symlink, where the live tree has two spellings', () => {
+  let live;
+  let linkedEnv;
+  before(() => {
+    live = buildTopology(LINKED);
+    const alias = join(LINKED, 'home-alias');
+    symlinkSync(live.home, alias);
+    linkedEnv = { ...process.env, HOME: alias };
+  });
+  after(() => rmSync(LINKED, { recursive: true, force: true }));
+
+  test('the live gate addressed by its resolved spelling is denied even though HOME names the alias', () => {
+    const held = outcome(join(live.release, 'hooks/block-destructive-bash.sh'), linkedEnv);
+    assert.equal(held.decision, 'deny', 'a second spelling of the live tree must not be a way around the guard');
+    assert.equal(held.status, 2);
+  });
+
+  test('the live gate addressed through the alias is denied', () => {
+    const held = outcome(join(LINKED, 'home-alias', '.claude', 'hooks/block-destructive-bash.sh'), linkedEnv);
+    assert.equal(held.decision, 'deny');
+    assert.equal(held.status, 2);
+  });
+
+  test('the repository checkout stays editable under the aliased home', () => {
+    const held = outcome(join(live.checkoutClaude, 'hooks/block-destructive-bash.sh'), linkedEnv);
+    assert.equal(held.decision, null);
+    assert.equal(held.status, 0);
+  });
+});
+
+describe('the guard source itself', () => {
+  const source = readFileSync(HOOK, 'utf8');
+
+  test('declares no ask decision anywhere, so no code path can emit one', () => {
+    const matches = source.match(/(["'])ask\1/g) ?? [];
+    assert.deepEqual(matches, [], 'R4 prohibits ask in this configuration and M14 makes any surviving ask an unconditional stall');
+  });
+
+  test('registers no permissions.ask key, which would bind live permanently on first landing', () => {
+    assert.equal(source.includes('permissions.ask'), false);
+  });
+});
+
+describe('the installed ~/.claude topology this guard protects', () => {
   const INSTALLED = join(homedir(), '.claude');
 
-  function isPresent(probe) {
+  function present(relative) {
     try {
-      lstatSync(join(INSTALLED, probe));
-      return true;
+      return lstatSync(join(INSTALLED, relative));
     } catch {
-      return false;
+      return null;
     }
   }
 
-  test('each installed probe file still resolves out of the home tree under its own name', (t) => {
-    const present = PROBE_FILES.filter(isPresent);
-    if (present.length === 0) {
-      t.skip(`no probe files under ${INSTALLED}; there is no installed deployment to check on this machine`);
+  test('the installed settings.json is a real file rather than a link into a release', (t) => {
+    const stat = present('settings.json');
+    if (!stat) {
+      t.skip(`${join(INSTALLED, 'settings.json')} is absent; there is no installed deployment to check on this machine`);
       return;
     }
-    for (const probe of present) {
-      const literal = join(INSTALLED, probe);
-      let resolved;
-      try {
-        resolved = realpathSync(literal);
-      } catch (error) {
-        assert.fail(`${literal} does not resolve (${error.message}), so the guard cannot discover the repository base from it`);
-      }
-      assert.notEqual(resolved, literal, `${literal} no longer points out of the home tree, so the guard discovers no repository base and stops protecting the checkout`);
-      assert.equal(basename(resolved), probe, `${literal} resolves to ${resolved}, which carries a different name, so the guard rejects it when discovering the repository base`);
-    }
+    assert.equal(stat.isSymbolicLink(), false, 'a release owning the one entry that must stay a real live file would move the deny list out of live');
   });
 
-  test('the installed settings.json is a real file rather than a link into a release', (t) => {
-    const literal = join(INSTALLED, 'settings.json');
-    if (!isPresent('settings.json')) {
-      t.skip(`${literal} is absent; there is no installed deployment to check on this machine`);
+  test('the installed hooks entry resolves inside the live tree rather than into a working checkout', (t) => {
+    const stat = present('hooks');
+    if (!stat) {
+      t.skip(`${join(INSTALLED, 'hooks')} is absent; there is no installed deployment to check on this machine`);
       return;
     }
-    assert.equal(lstatSync(literal).isSymbolicLink(), false, `${literal} is a symlink, so a release now owns the one entry that must stay a real live file`);
+    const resolved = realpathSync(join(INSTALLED, 'hooks'));
+    assert.equal(
+      resolved.startsWith(`${realpathSync(INSTALLED)}/`),
+      true,
+      `${resolved} sits outside the live tree, so a guard scoped to the live tree no longer covers the running hooks`,
+    );
   });
 });
