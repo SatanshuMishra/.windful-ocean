@@ -1,4 +1,5 @@
 import { scopesOverlap } from './wave-planner.mjs';
+import { assertVerdictsCoverPairs, reviewCoupling } from './coupling-review.mjs';
 
 function indexTasks(graph) {
   if (!graph || !Array.isArray(graph.tasks)) throw new Error('graph.tasks must be an array');
@@ -41,8 +42,57 @@ function detectCycle(byId, deps) {
   }
 }
 
-export function deriveEdges(graph, discoveredEdges = []) {
-  const byId = indexTasks(graph);
+function directDependentsOf(byId, deps) {
+  const directDependents = new Map();
+  for (const id of byId.keys()) directDependents.set(id, new Set());
+  for (const [dependent, depSet] of deps) for (const dep of depSet) if (directDependents.has(dep)) directDependents.get(dep).add(dependent);
+  return directDependents;
+}
+
+function transitiveDependentsOf(byId, directDependents) {
+  const transitive = new Map();
+  for (const id of byId.keys()) {
+    const seen = new Set();
+    const stack = [...directDependents.get(id)];
+    while (stack.length) {
+      const cur = stack.pop();
+      if (cur === id || seen.has(cur)) continue;
+      seen.add(cur);
+      for (const next of directDependents.get(cur)) stack.push(next);
+    }
+    transitive.set(id, seen);
+  }
+  return transitive;
+}
+
+function edgeReasonsOf(byId, added) {
+  const edgeReasonsById = new Map();
+  for (const id of byId.keys()) edgeReasonsById.set(id, new Set());
+  for (const e of added) {
+    if (typeof e.reason !== 'string') continue;
+    if (edgeReasonsById.has(e.from)) edgeReasonsById.get(e.from).add(e.reason);
+    if (edgeReasonsById.has(e.to)) edgeReasonsById.get(e.to).add(e.reason);
+  }
+  return edgeReasonsById;
+}
+
+function couplingCandidates(byId, ids, ordered) {
+  const candidates = [];
+  for (let i = 0; i < ids.length; i++) {
+    for (let j = i + 1; j < ids.length; j++) {
+      const a = byId.get(ids[i]);
+      const b = byId.get(ids[j]);
+      if (ordered.get(a.id).has(b.id) || ordered.get(b.id).has(a.id)) continue;
+      candidates.push({
+        a: { id: a.id, fileScope: [...(a.fileScope || [])] },
+        b: { id: b.id, fileScope: [...(b.fileScope || [])] },
+      });
+    }
+  }
+  return candidates;
+}
+
+function declaredDependenciesOf(byId) {
   const deps = new Map();
   let declaredEdgeCount = 0;
   for (const id of byId.keys()) {
@@ -55,6 +105,24 @@ export function deriveEdges(graph, discoveredEdges = []) {
     }
     deps.set(id, set);
   }
+  return { deps, declaredEdgeCount };
+}
+
+function addFileScopeOverlapEdges(byId, ids, have, addEdge) {
+  for (let i = 0; i < ids.length; i++) {
+    for (let j = i + 1; j < ids.length; j++) {
+      const a = byId.get(ids[i]);
+      const b = byId.get(ids[j]);
+      if (!scopesOverlap(a.fileScope || [], b.fileScope || [])) continue;
+      if (have(b.id, a.id) || have(a.id, b.id)) continue;
+      addEdge(b.id, a.id, 'fileScope-overlap');
+    }
+  }
+}
+
+export function deriveEdges(graph, discoveredEdges = []) {
+  const byId = indexTasks(graph);
+  const { deps, declaredEdgeCount } = declaredDependenciesOf(byId);
 
   const added = [];
   const have = (from, to) => deps.get(from).has(to);
@@ -71,56 +139,29 @@ export function deriveEdges(graph, discoveredEdges = []) {
   }
 
   const ids = [...byId.keys()];
-  for (let i = 0; i < ids.length; i++) {
-    for (let j = i + 1; j < ids.length; j++) {
-      const a = byId.get(ids[i]);
-      const b = byId.get(ids[j]);
-      if (!scopesOverlap(a.fileScope || [], b.fileScope || [])) continue;
-      if (have(b.id, a.id) || have(a.id, b.id)) continue;
-      addEdge(b.id, a.id, 'fileScope-overlap');
-    }
-  }
-
+  addFileScopeOverlapEdges(byId, ids, have, addEdge);
   detectCycle(byId, deps);
 
-  const directDependents = new Map();
-  for (const id of byId.keys()) directDependents.set(id, new Set());
-  for (const [dependent, depSet] of deps) for (const dep of depSet) if (directDependents.has(dep)) directDependents.get(dep).add(dependent);
-  const dependentCounts = new Map();
-  for (const id of byId.keys()) {
-    const seen = new Set();
-    const stack = [...directDependents.get(id)];
-    while (stack.length) {
-      const cur = stack.pop();
-      if (cur === id || seen.has(cur)) continue;
-      seen.add(cur);
-      for (const next of directDependents.get(cur)) stack.push(next);
-    }
-    dependentCounts.set(id, seen.size);
-  }
-
-  const edgeReasonsById = new Map();
-  for (const id of byId.keys()) edgeReasonsById.set(id, new Set());
-  for (const e of added) {
-    if (typeof e.reason !== 'string') continue;
-    if (edgeReasonsById.has(e.from)) edgeReasonsById.get(e.from).add(e.reason);
-    if (edgeReasonsById.has(e.to)) edgeReasonsById.get(e.to).add(e.reason);
-  }
+  const transitiveDependents = transitiveDependentsOf(byId, directDependentsOf(byId, deps));
+  const edgeReasonsById = edgeReasonsOf(byId, added);
+  const coupling = reviewCoupling(couplingCandidates(byId, ids, transitiveDependents), graph.couplingContext);
 
   const tasks = graph.tasks.map((t) => ({
     ...t,
     dependsOn: [...deps.get(t.id)].sort(),
-    dependentCount: dependentCounts.get(t.id),
+    dependentCount: transitiveDependents.get(t.id).size,
     edgeReasons: [...edgeReasonsById.get(t.id)].sort(),
   }));
 
   return {
-    graph: { ...graph, tasks },
+    graph: { ...graph, tasks, coupling },
     added,
+    coupling,
     audit: {
       declaredEdgeCount,
       addedEdgeCount: added.length,
       added: added.map((e) => ({ ...e })),
+      coupling,
     },
   };
 }
@@ -128,24 +169,44 @@ export function deriveEdges(graph, discoveredEdges = []) {
 import { readFileSync as _read, writeFileSync as _write, realpathSync as _realpath } from 'node:fs';
 import { fileURLToPath as _toPath } from 'node:url';
 
-function cli(argv) {
-  const positional = [];
-  const opts = {};
-  for (let i = 0; i < argv.length; i++) {
-    if (argv[i] === '--out') opts.out = argv[++i];
-    else if (argv[i] === '--audit') opts.audit = argv[++i];
-    else positional.push(argv[i]);
+function optionValue(argv, index, flag) {
+  const value = argv[index];
+  if (value === undefined || value.startsWith('--')) {
+    throw new Error(`${flag} needs a path; left without one it swallows the next flag or nothing at all, and the run would harden a different graph than the operator named`);
   }
+  return value;
+}
+
+function parseArgs(argv) {
+  const positional = [];
+  const opts = { out: null, audit: null, verdicts: null };
+  for (let i = 0; i < argv.length; i++) {
+    if (argv[i] === '--out') opts.out = optionValue(argv, ++i, '--out');
+    else if (argv[i] === '--audit') opts.audit = optionValue(argv, ++i, '--audit');
+    else if (argv[i] === '--verdicts') {
+      const supplied = optionValue(argv, ++i, '--verdicts');
+      if (opts.verdicts !== null) {
+        throw new Error(`--verdicts was supplied twice (${opts.verdicts} then ${supplied}); honouring only the last one would harden the graph against half the coupling decisions the operator asked to check while never reading the first file`);
+      }
+      opts.verdicts = supplied;
+    } else positional.push(argv[i]);
+  }
+  return Object.freeze({ positional, opts: Object.freeze(opts) });
+}
+
+function cli(argv) {
+  const { positional, opts } = parseArgs(argv);
   const [declaredPath, discoveredPath] = positional;
-  if (!declaredPath) throw new Error('usage: derive-edges <declared.graph.json> [discovered-edges.json] [--out p] [--audit p]');
+  if (!declaredPath) throw new Error('usage: derive-edges <declared.graph.json> [discovered-edges.json] [--out p] [--audit p] [--verdicts p]');
   const graph = JSON.parse(_read(declaredPath, 'utf8'));
   const discovered = discoveredPath ? JSON.parse(_read(discoveredPath, 'utf8')) : [];
   const result = deriveEdges(graph, discovered);
+  if (opts.verdicts !== null) assertVerdictsCoverPairs(result.coupling, JSON.parse(_read(opts.verdicts, 'utf8')));
   const outPath = opts.out || declaredPath.replace(/\.graph\.json$/, '.hardened.graph.json');
   const auditPath = opts.audit || declaredPath.replace(/\.graph\.json$/, '.edges-audit.json');
   _write(outPath, JSON.stringify(result.graph, null, 2) + '\n');
   _write(auditPath, JSON.stringify({ ...result.audit, at: new Date().toISOString() }, null, 2) + '\n');
-  process.stdout.write(JSON.stringify({ outPath, auditPath, addedEdgeCount: result.audit.addedEdgeCount }) + '\n');
+  process.stdout.write(JSON.stringify({ outPath, auditPath, addedEdgeCount: result.audit.addedEdgeCount, couplingPairCount: result.coupling.length }) + '\n');
 }
 
 if (process.argv[1] && _toPath(import.meta.url) === _realpath(process.argv[1])) {
