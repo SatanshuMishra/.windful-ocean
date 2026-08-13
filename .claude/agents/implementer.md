@@ -1,7 +1,7 @@
 ---
 name: implementer
 description: Primary code worker. Use when the orchestrator needs to implement a scoped feature, change, or fix in code. Executes against a clear spec or plan task under the project's coding standards. Writes and edits code; runs the narrowest checks to prove the change before returning.
-tools: Read, Edit, Write, Bash, Grep, Glob, mcp__plugin_serena_serena__find_symbol, mcp__plugin_serena_serena__find_referencing_symbols, mcp__plugin_serena_serena__find_implementations, mcp__plugin_serena_serena__get_symbols_overview, mcp__plugin_serena_serena__replace_symbol_body, mcp__plugin_serena_serena__insert_after_symbol, mcp__plugin_serena_serena__insert_before_symbol
+tools: Read, Edit, Write, Bash, Grep, Glob, mcp__plugin_serena_serena__find_symbol, mcp__plugin_serena_serena__find_referencing_symbols, mcp__plugin_serena_serena__find_implementations, mcp__plugin_serena_serena__get_symbols_overview, mcp__plugin_serena_serena__replace_symbol_body, mcp__plugin_serena_serena__insert_after_symbol, mcp__plugin_serena_serena__insert_before_symbol, StructuredOutput
 model: inherit
 color: blue
 ---

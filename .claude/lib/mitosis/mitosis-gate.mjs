@@ -13,6 +13,7 @@ import {
 } from './js-scan.mjs';
 import { censusEngineDeterminism, engineSourceRoots, realSourceIo } from './determinism-lint.mjs';
 import { EXEC_ALLOWLIST, assertSpawnAllowed, resolveSpawn } from './exec-policy.mjs';
+import { REQUIRED_TOOL, agentDefinitionDir, censusAgentSchemaCapability } from './agent-schema-lint.mjs';
 
 export const GATE_CLEAN_EXIT = 0;
 export const GATE_USAGE_EXIT = 40;
@@ -21,11 +22,12 @@ export const GATE_UNRESOLVABLE_EXIT = 42;
 export const GATE_READ_EXIT = 43;
 export const GATE_COMPILE_EXIT = 44;
 
-export const MITOSIS_GATE_VERBS = Object.freeze(['determinism', 'exec-allowlist', 'phase-parity']);
+export const MITOSIS_GATE_VERBS = Object.freeze(['determinism', 'dispatchable-agent-schema-capable', 'exec-allowlist', 'phase-parity']);
 
 export const DEFAULT_PHASE_PARITY_TARGET = fileURLToPath(new URL('../../workflows/mitosis.js', import.meta.url));
 export const DEFAULT_DETERMINISM_TARGET = fileURLToPath(new URL('./', import.meta.url));
 export const DEFAULT_EXEC_POLICY_TARGET = fileURLToPath(new URL('./exec-policy.mjs', import.meta.url));
+export const DEFAULT_AGENT_TREE_TARGET = agentDefinitionDir();
 
 const SPAWNABLE_BINARIES = Object.freeze(['claude', 'gh', 'git', 'graphify', 'node']);
 const UNLISTED_PROBE_BINARY = 'bash';
@@ -35,6 +37,7 @@ const SHIM_BASENAME = 'gh-merge-shim.mjs';
 
 const VERB_DEFAULT_TARGETS = Object.freeze({
   determinism: DEFAULT_DETERMINISM_TARGET,
+  'dispatchable-agent-schema-capable': DEFAULT_AGENT_TREE_TARGET,
   'exec-allowlist': DEFAULT_EXEC_POLICY_TARGET,
   'phase-parity': DEFAULT_PHASE_PARITY_TARGET,
 });
@@ -622,8 +625,25 @@ function runExecAllowlistGate(target, out) {
   return GATE_CLEAN_EXIT;
 }
 
+function runAgentSchemaGate(target, out, readSource) {
+  const result = censusAgentSchemaCapability(engineSourceRoots(), target, { ...realSourceIo, readSource });
+  if (!result.ok) {
+    out.err(`mitosis-gate: dispatchable-agent-schema-capable ${result.kind === 'read' ? 'could not read' : 'halted on'} its census: ${result.error}\n`);
+    return result.kind === 'read' ? GATE_READ_EXIT : GATE_UNRESOLVABLE_EXIT;
+  }
+  if (result.violations.length > 0) {
+    for (const violation of result.violations) {
+      out.err(`mitosis-gate: ${violation.path} is dispatched by engine source but omits ${REQUIRED_TOOL} from its tools: line, so a schema request to it degrades to prose without failing\n`);
+    }
+    return GATE_VIOLATION_EXIT;
+  }
+  out.log(`${JSON.stringify({ verb: 'dispatchable-agent-schema-capable', target, ok: true, dispatchable: [...result.dispatchable], definitionCount: result.definitionCount })}\n`);
+  return GATE_CLEAN_EXIT;
+}
+
 const VERB_RUNNERS = Object.freeze({
   determinism: runDeterminismGate,
+  'dispatchable-agent-schema-capable': runAgentSchemaGate,
   'exec-allowlist': runExecAllowlistGate,
   'phase-parity': runPhaseParityGate,
 });

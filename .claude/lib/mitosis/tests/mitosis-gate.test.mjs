@@ -12,6 +12,7 @@ import {
   DEFAULT_PHASE_PARITY_TARGET,
   DEFAULT_DETERMINISM_TARGET,
   DEFAULT_EXEC_POLICY_TARGET,
+  DEFAULT_AGENT_TREE_TARGET,
   checkPhaseParity,
   compileUnderSandbox,
   extractDeclaredPhases,
@@ -409,8 +410,28 @@ test('the argv parser accepts every verb and defaults each to its own target', (
   assert.deepEqual(parseMitosisGateArgv(['phase-parity']), { ok: true, verb: 'phase-parity', target: DEFAULT_PHASE_PARITY_TARGET });
   assert.deepEqual(parseMitosisGateArgv(['determinism']), { ok: true, verb: 'determinism', target: DEFAULT_DETERMINISM_TARGET });
   assert.deepEqual(parseMitosisGateArgv(['exec-allowlist']), { ok: true, verb: 'exec-allowlist', target: DEFAULT_EXEC_POLICY_TARGET });
-  assert.deepEqual([...MITOSIS_GATE_VERBS], ['determinism', 'exec-allowlist', 'phase-parity']);
+  assert.deepEqual(parseMitosisGateArgv(['dispatchable-agent-schema-capable']), { ok: true, verb: 'dispatchable-agent-schema-capable', target: DEFAULT_AGENT_TREE_TARGET });
+  assert.deepEqual([...MITOSIS_GATE_VERBS], ['determinism', 'dispatchable-agent-schema-capable', 'exec-allowlist', 'phase-parity']);
   assert.notEqual(DEFAULT_DETERMINISM_TARGET, DEFAULT_PHASE_PARITY_TARGET);
+});
+
+test('the schema verb exits clean over the real agent tree and names the derived dispatch table', () => {
+  const { out, stdout, stderr } = capture();
+  const code = runMitosisGate(['dispatchable-agent-schema-capable'], out, (path) => readFileSync(path, 'utf8'));
+  assert.deepEqual(stderr, []);
+  assert.equal(code, GATE_CLEAN_EXIT);
+  const verdict = JSON.parse(stdout.join(''));
+  assert.deepEqual(verdict.dispatchable, [
+    'code-reviewer', 'codebase-analyst', 'debugger', 'implementer',
+    'security-reviewer', 'solution-architect', 'test-engineer',
+  ]);
+});
+
+test('the schema verb exits on the read code when the agent tree cannot be read', () => {
+  const { out, stderr } = capture();
+  const code = runMitosisGate(['dispatchable-agent-schema-capable', '--target', '/nonexistent-agent-tree-xyz/'], out, (path) => readFileSync(path, 'utf8'));
+  assert.equal(code, GATE_READ_EXIT);
+  assert.match(stderr.join(''), /nonexistent-agent-tree-xyz/);
 });
 
 test('the exec-allowlist verb exits clean against the real policy module', () => {

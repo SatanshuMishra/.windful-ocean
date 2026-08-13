@@ -52,6 +52,7 @@ const MIRROR_CENSUS = Object.freeze({
   'engine-args.mjs': Object.freeze(['validateModelsKnob']),
   'git/pr-format.mjs': Object.freeze(['PR_TITLE_TYPES', 'PR_TITLE_PATTERN', 'PR_VALUE_CAP']),
   'wave-planner.mjs': Object.freeze(['canonicalPath', 'globPrefix', 'pathsOverlap', 'scopesOverlap']),
+  'agent-schema-lint.mjs': STANDALONE,
   'branch-contract.mjs': STANDALONE,
   'coupling-review.mjs': STANDALONE,
   'derive-edges.mjs': STANDALONE,
