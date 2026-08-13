@@ -114,3 +114,31 @@ test('the shipped repo settings never reintroduce a permission prompt surface', 
   const settings = shippedSettings();
   assert.equal('ask' in settings.permissions, false, 'an unattended run has nobody to answer an ask rule');
 });
+
+const preToolUseCommandsFor = (toolName) =>
+  (shippedSettings().hooks.PreToolUse ?? [])
+    .filter((entry) => new RegExp(`^(?:${entry.matcher})$`).test(toolName))
+    .flatMap((entry) => entry.hooks ?? [])
+    .map((registration) => registration.command);
+
+test('Layer 1 checkpointing is registered on every tool surface that can mutate the tree', () => {
+  for (const tool of ['Edit', 'Write', 'Bash']) {
+    assert.equal(
+      preToolUseCommandsFor(tool).some((command) => command.includes('checkpoint-worktree.mjs')),
+      true,
+      `${tool} mutates the tree, and an unregistered checkpoint hook leaves the gate no recovery copy to find`,
+    );
+  }
+});
+
+test('Layer 1 rm rewriting runs before the Bash gate that judges the command', () => {
+  const commands = preToolUseCommandsFor('Bash');
+  const trash = commands.findIndex((command) => command.includes('trash-rm.mjs'));
+  const gate = commands.findIndex(
+    (command) => command.includes('block-destructive-bash.sh') || command.includes('permission-gate.mjs'),
+  );
+
+  assert.notEqual(trash, -1, 'rm stays irreversible for as long as the rewrite hook is unregistered');
+  assert.notEqual(gate, -1, 'the Bash surface must always carry a gate');
+  assert.equal(trash < gate, true, 'the gate must judge the rewritten command, not the original rm');
+});

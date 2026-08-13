@@ -89,14 +89,19 @@
       "Read(~/Library/Keychains/**)"
     ]
   },
-  "sandbox": {
-    "enabled": true,
-    "allowUnsandboxedCommands": false,
-    "failIfUnavailable": true,
-    "network": {
-      "allowLocalBinding": true
-    }
+"sandbox": {
+  "enabled": true,
+  "allowUnsandboxedCommands": false,
+  "failIfUnavailable": true,
+  "network": {
+    "allowLocalBinding": true,
+    "allowedDomains": ["github.com", "api.github.com"]
   },
+  "filesystem": {
+    "allowRead": ["~/.ssh", "~/.config/gh"],
+    "allowWrite": ["~/.Trash"]
+  }
+},
   "model": "claude-fable-5[1m]",
   "hooks": {
     "Stop": [
@@ -209,8 +214,23 @@
         ]
       },
       {
+        "matcher": "Edit|Write|NotebookEdit|Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node $HOME/.claude/hooks/checkpoint-worktree.mjs",
+            "timeout": 10
+          }
+        ]
+      },
+      {
         "matcher": "Bash",
         "hooks": [
+          {
+            "type": "command",
+            "command": "node $HOME/.claude/hooks/trash-rm.mjs",
+            "timeout": 5
+          },
           {
             "type": "command",
             "command": "$HOME/.claude/hooks/block-destructive-bash.sh",
