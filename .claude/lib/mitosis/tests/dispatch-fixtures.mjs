@@ -64,12 +64,13 @@ export async function waitForFile(path, ms, label) {
   return readFileSync(path, 'utf8');
 }
 
-function alive(pid) {
+export function alive(pid) {
   try {
     process.kill(pid, 0);
     return true;
   } catch (error) {
     if (error.code === 'ESRCH') return false;
+    if (error.code === 'EPERM') return true;
     throw error;
   }
 }
