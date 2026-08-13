@@ -1,4 +1,5 @@
 import { scopesOverlap } from './wave-planner.mjs';
+import { emptyFileScopePack, requireFileScopePack } from './msp-file-scope.mjs';
 import { BUILD_AHEAD_CAP } from './window.mjs';
 
 export function makeUnit(spec) {
@@ -6,13 +7,14 @@ export function makeUnit(spec) {
   if (!spec.id || typeof spec.id !== 'string') throw new Error('unit spec missing string id');
   const prereqs = spec.prereqs === undefined ? [] : spec.prereqs;
   if (!Array.isArray(prereqs)) throw new Error(`unit ${spec.id} prereqs must be an array`);
-  const fileScope = spec.fileScope === undefined ? [] : spec.fileScope;
-  if (!Array.isArray(fileScope)) throw new Error(`unit ${spec.id} fileScope must be an array`);
+  const fileScope = spec.fileScope === undefined || spec.fileScope === null
+    ? emptyFileScopePack()
+    : requireFileScopePack(spec.fileScope, `unit ${spec.id} fileScope`);
   return Object.freeze({
     id: spec.id,
     state: spec.state || 'planned',
     prereqs: Object.freeze([...prereqs]),
-    fileScope: Object.freeze([...fileScope]),
+    fileScope,
     leaseHeld: false,
   });
 }
@@ -51,7 +53,7 @@ export function isDispatchable(unit, unitsById, leases) {
     const prereq = unitsById.get(pid);
     if (!prereq || prereq.state !== 'done') return false;
   }
-  return overlapHolder(leases, unit.fileScope, unit.id) === null;
+  return overlapHolder(leases, unit.fileScope.edit, unit.id) === null;
 }
 
 export function isBuildable(unit, unitsById, leases, window) {
@@ -60,7 +62,7 @@ export function isBuildable(unit, unitsById, leases, window) {
     const prereq = unitsById.get(pid);
     if (!prereq || (prereq.state !== 'built' && prereq.state !== 'awaiting' && prereq.state !== 'done')) return false;
   }
-  if (overlapHolder(leases, unit.fileScope, unit.id) !== null) return false;
+  if (overlapHolder(leases, unit.fileScope.edit, unit.id) !== null) return false;
   if (!window || !Number.isInteger(window.size)) return false;
   if (!Number.isInteger(window.builtUnmergedCount)) return false;
   return window.builtUnmergedCount < window.size;
@@ -68,7 +70,7 @@ export function isBuildable(unit, unitsById, leases, window) {
 
 export function acquire(leases, unit) {
   const next = new Map(leases);
-  for (const path of unit.fileScope) next.set(path, unit.id);
+  for (const path of unit.fileScope.edit) next.set(path, unit.id);
   return next;
 }
 

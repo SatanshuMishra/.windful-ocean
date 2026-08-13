@@ -2,6 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { computeLogicalRunId } from '../recovery.mjs';
+import { pack } from './file-scope-fixtures.mjs';
 
 const MITOSIS_PATH = process.env.MITOSIS_PATH || new URL('../../../workflows/mitosis.js', import.meta.url).pathname;
 const SOURCE_PREFIX = 'mitosis-test';
@@ -71,7 +72,7 @@ function manifestMsp(id, overrides = {}) {
     scope: 'msp',
     status: 'built',
     dependsOn: [],
-    fileScope: [`scope/${id}/**`],
+    fileScope: pack([`scope/${id}/**`]),
     integrationBranch: `${SOURCE_PREFIX}/${id}-integration`,
     prUrl: null,
     mergedAt: null,

@@ -1,6 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { pathsOverlap, scopesOverlap, planWaves } from '../wave-planner.mjs';
+import { pack } from './file-scope-fixtures.mjs';
 
 const CANONICAL_FILE = 'src/shared.js';
 
@@ -33,8 +34,8 @@ function planOutcome(spec) {
 function coScheduleOutcome(scope) {
   return planOutcome({
     tasks: [
-      { id: 'a', dependsOn: [], fileScope: [scope] },
-      { id: 'b', dependsOn: [], fileScope: [CANONICAL_FILE] },
+      { id: 'a', dependsOn: [], fileScope: pack([scope]) },
+      { id: 'b', dependsOn: [], fileScope: pack([CANONICAL_FILE]) },
     ],
   });
 }
@@ -129,8 +130,8 @@ test('planWaves throws when spec.tasks is missing or not an array', () => {
 });
 
 test('planWaves throws on a task with no id, including an empty-string id', () => {
-  assert.throws(() => planWaves({ tasks: [{ dependsOn: [], fileScope: [] }] }), /task missing id/);
-  assert.throws(() => planWaves({ tasks: [{ id: '', dependsOn: [], fileScope: [] }] }), /task missing id/);
+  assert.throws(() => planWaves({ tasks: [{ dependsOn: [], fileScope: pack([]) }] }), /task missing id/);
+  assert.throws(() => planWaves({ tasks: [{ id: '', dependsOn: [], fileScope: pack([]) }] }), /task missing id/);
 });
 
 test(
@@ -143,14 +144,14 @@ test(
 
 test('planWaves throws on two tasks sharing an id, naming the duplicated id', () => {
   assert.throws(
-    () => planWaves({ tasks: [{ id: 'dup', dependsOn: [], fileScope: [] }, { id: 'dup', dependsOn: [], fileScope: [] }] }),
+    () => planWaves({ tasks: [{ id: 'dup', dependsOn: [], fileScope: pack([]) }, { id: 'dup', dependsOn: [], fileScope: pack([]) }] }),
     /duplicate task id: dup/,
   );
 });
 
 test('planWaves throws naming the missing dependency when a task depends on an id that was never declared', () => {
   assert.throws(
-    () => planWaves({ tasks: [{ id: 'a', dependsOn: ['ghost'], fileScope: [] }] }),
+    () => planWaves({ tasks: [{ id: 'a', dependsOn: ['ghost'], fileScope: pack([]) }] }),
     /task a depends on unknown task ghost/,
   );
 });
@@ -159,9 +160,9 @@ test('planWaves reports every task still blocked in a cycle error, including a b
   assert.throws(
     () => planWaves({
       tasks: [
-        { id: 'a', dependsOn: ['b'], fileScope: [] },
-        { id: 'b', dependsOn: ['a'], fileScope: [] },
-        { id: 'z', dependsOn: ['a'], fileScope: [] },
+        { id: 'a', dependsOn: ['b'], fileScope: pack([]) },
+        { id: 'b', dependsOn: ['a'], fileScope: pack([]) },
+        { id: 'z', dependsOn: ['a'], fileScope: pack([]) },
       ],
     }),
     (err) => {
@@ -178,8 +179,8 @@ test('planWaves throws when two tasks with no dependency between them would land
   assert.throws(
     () => planWaves({
       tasks: [
-        { id: 'a', dependsOn: [], fileScope: ['src/shared.js'] },
-        { id: 'b', dependsOn: [], fileScope: ['src/shared.js'] },
+        { id: 'a', dependsOn: [], fileScope: pack(['src/shared.js']) },
+        { id: 'b', dependsOn: [], fileScope: pack(['src/shared.js']) },
       ],
     }),
     /fileScope overlap in same wave between a and b/,
@@ -190,8 +191,8 @@ test('planWaves throws on a directory-prefix fileScope overlap between same-wave
   assert.throws(
     () => planWaves({
       tasks: [
-        { id: 'a', dependsOn: [], fileScope: ['src'] },
-        { id: 'b', dependsOn: [], fileScope: ['src/a.js'] },
+        { id: 'a', dependsOn: [], fileScope: pack(['src']) },
+        { id: 'b', dependsOn: [], fileScope: pack(['src/a.js']) },
       ],
     }),
     /fileScope overlap in same wave between a and b/,
@@ -202,8 +203,8 @@ test('planWaves throws on a glob fileScope overlap between same-wave tasks, not 
   assert.throws(
     () => planWaves({
       tasks: [
-        { id: 'a', dependsOn: [], fileScope: ['src/*.js'] },
-        { id: 'b', dependsOn: [], fileScope: ['src/a.js'] },
+        { id: 'a', dependsOn: [], fileScope: pack(['src/*.js']) },
+        { id: 'b', dependsOn: [], fileScope: pack(['src/a.js']) },
       ],
     }),
     /fileScope overlap in same wave between a and b/,
@@ -237,9 +238,9 @@ test('planWaves never co-schedules a task whose glob reaches a file another task
 test('planWaves still parallelizes tasks whose scopes are genuinely disjoint, so refusing overlaps has not degenerated into serializing everything', () => {
   const result = planWaves({
     tasks: [
-      { id: 'a', dependsOn: [], fileScope: ['src/a.js'] },
-      { id: 'b', dependsOn: [], fileScope: ['lib/b.js'] },
-      { id: 'c', dependsOn: [], fileScope: ['docs/c.md'] },
+      { id: 'a', dependsOn: [], fileScope: pack(['src/a.js']) },
+      { id: 'b', dependsOn: [], fileScope: pack(['lib/b.js']) },
+      { id: 'c', dependsOn: [], fileScope: pack(['docs/c.md']) },
     ],
   });
   assert.deepEqual(result.waves, [['a', 'b', 'c']]);
@@ -249,9 +250,9 @@ test('planWaves throws on a fileScope overlap between two tasks that only land i
   assert.throws(
     () => planWaves({
       tasks: [
-        { id: 'c', dependsOn: [], fileScope: ['other/file.js'] },
-        { id: 'a', dependsOn: ['c'], fileScope: ['src/shared.js'] },
-        { id: 'b', dependsOn: ['c'], fileScope: ['src/shared.js'] },
+        { id: 'c', dependsOn: [], fileScope: pack(['other/file.js']) },
+        { id: 'a', dependsOn: ['c'], fileScope: pack(['src/shared.js']) },
+        { id: 'b', dependsOn: ['c'], fileScope: pack(['src/shared.js']) },
       ],
     }),
     /fileScope overlap in same wave between a and b/,
@@ -263,11 +264,11 @@ test('planWaves throws on a non-array fileScope instead of letting it silently e
     () => planWaves({
       tasks: [
         { id: 'a', fileScope: 'src/a.js' },
-        { id: 'b', fileScope: ['src/a.js'] },
+        { id: 'b', fileScope: pack(['src/a.js']) },
       ],
     }),
     (err) => {
-      assert.match(err.message, /fileScope must be an array/);
+      assert.match(err.message, /fileScope must be a context pack object/);
       assert.match(err.message, /\btask a\b/);
       return true;
     },
@@ -277,7 +278,7 @@ test('planWaves throws on a non-array fileScope instead of letting it silently e
 test('planWaves refuses a scalar fileScope on a task that overlaps nothing, since a scalar is never a valid scope', () => {
   assert.throws(
     () => planWaves({ tasks: [{ id: 'lonely', fileScope: 'src/lonely.js' }] }),
-    /task lonely fileScope must be an array/,
+    /task lonely fileScope must be a context pack object/,
   );
 });
 
@@ -290,11 +291,11 @@ test('planWaves refuses to co-schedule two genuinely overlapping tasks when one 
   const outcome = planOutcome({
     tasks: [
       { id: 'writer', dependsOn: [], fileScope: 'src/shared.js' },
-      { id: 'reader', dependsOn: [], fileScope: ['src/shared.js'] },
+      { id: 'reader', dependsOn: [], fileScope: pack(['src/shared.js']) },
     ],
   });
   assert.equal(outcome.refused, true, `expected a refusal; instead the two overlapping tasks were scheduled as ${JSON.stringify(outcome.waves)}`);
-  assert.match(outcome.message, /fileScope must be an array/);
+  assert.match(outcome.message, /fileScope must be a context pack object/);
 });
 
 test('scopesOverlap throws on a scalar scope in either argument position rather than walking it character by character', () => {
@@ -304,16 +305,16 @@ test('scopesOverlap throws on a scalar scope in either argument position rather 
 
 test('planWaves refuses a fileScope entry that is not a string, naming the offending task, rather than narrowing the declared scope to nothing', () => {
   for (const entry of [123, null, {}, ['src/nested.js']]) {
-    const outcome = planOutcome({ tasks: [{ id: 'a', fileScope: [entry] }] });
+    const outcome = planOutcome({ tasks: [{ id: 'a', fileScope: pack([entry]) }] });
     assert.equal(outcome.refused, true, `expected a refusal for fileScope entry ${JSON.stringify(entry)}; instead the task was scheduled as ${JSON.stringify(outcome.waves)}`);
-    assert.match(outcome.message, /task a fileScope entries must be non-empty strings/);
+    assert.match(outcome.message, /task a fileScope\.edit entries must be non-empty strings/);
   }
 });
 
 test('planWaves refuses an empty-string fileScope entry rather than accepting an entry that overlaps nothing, naming the offending task', () => {
-  const outcome = planOutcome({ tasks: [{ id: 'a', fileScope: [''] }] });
+  const outcome = planOutcome({ tasks: [{ id: 'a', fileScope: pack(['']) }] });
   assert.equal(outcome.refused, true, `expected a refusal; instead the task was scheduled as ${JSON.stringify(outcome.waves)}`);
-  assert.match(outcome.message, /task a fileScope entries must be non-empty strings/);
+  assert.match(outcome.message, /task a fileScope\.edit entries must be non-empty strings/);
 });
 
 test('scopesOverlap refuses a non-string or empty-string entry in either argument position, so a caller that never reaches planWaves still fails closed', () => {
@@ -334,9 +335,9 @@ test('planWaves on a single task with no declared dependsOn or fileScope default
 test('planWaves returns {waves, diagnostics:{taskCount, waveCount, maxWidth}}, with each wave a sorted array of ids', () => {
   const result = planWaves({
     tasks: [
-      { id: 'task-c', dependsOn: [], fileScope: ['pkg-c/file.js'] },
-      { id: 'task-a', dependsOn: [], fileScope: ['pkg-a/file.js'] },
-      { id: 'task-b', dependsOn: ['task-a', 'task-c'], fileScope: ['pkg-b/file.js'] },
+      { id: 'task-c', dependsOn: [], fileScope: pack(['pkg-c/file.js']) },
+      { id: 'task-a', dependsOn: [], fileScope: pack(['pkg-a/file.js']) },
+      { id: 'task-b', dependsOn: ['task-a', 'task-c'], fileScope: pack(['pkg-b/file.js']) },
     ],
   });
   assert.deepEqual(result, {
@@ -348,10 +349,10 @@ test('planWaves returns {waves, diagnostics:{taskCount, waveCount, maxWidth}}, w
 test('planWaves resolves a 3-deep dependency chain into 3 waves with the widest wave in the middle, not first', () => {
   const result = planWaves({
     tasks: [
-      { id: 'root', dependsOn: [], fileScope: ['root.js'] },
-      { id: 'mid-1', dependsOn: ['root'], fileScope: ['mid1.js'] },
-      { id: 'mid-2', dependsOn: ['root'], fileScope: ['mid2.js'] },
-      { id: 'leaf', dependsOn: ['mid-1', 'mid-2'], fileScope: ['leaf.js'] },
+      { id: 'root', dependsOn: [], fileScope: pack(['root.js']) },
+      { id: 'mid-1', dependsOn: ['root'], fileScope: pack(['mid1.js']) },
+      { id: 'mid-2', dependsOn: ['root'], fileScope: pack(['mid2.js']) },
+      { id: 'leaf', dependsOn: ['mid-1', 'mid-2'], fileScope: pack(['leaf.js']) },
     ],
   });
   assert.deepEqual(result, {
@@ -363,11 +364,44 @@ test('planWaves resolves a 3-deep dependency chain into 3 waves with the widest 
 test('planWaves leaves the input spec object structurally unchanged after planning', () => {
   const spec = {
     tasks: [
-      { id: 'b', dependsOn: ['a'], fileScope: ['src/b.js'] },
-      { id: 'a', dependsOn: [], fileScope: ['src/a.js'] },
+      { id: 'b', dependsOn: ['a'], fileScope: pack(['src/b.js']) },
+      { id: 'a', dependsOn: [], fileScope: pack(['src/a.js']) },
     ],
   };
   const before = structuredClone(spec);
   planWaves(spec);
   assert.deepEqual(spec, before);
+});
+
+test('planWaves refuses to co-schedule two tasks whose EDIT sets overlap', () => {
+  const outcome = planOutcome({
+    tasks: [
+      { id: 'writer', dependsOn: [], fileScope: pack(['src/shared.js'], ['docs/a.md']) },
+      { id: 'other', dependsOn: [], fileScope: pack(['src/shared.js'], ['docs/b.md']) },
+    ],
+  });
+  assert.equal(outcome.refused, true, `expected a refusal; instead the two overlapping edit sets were scheduled as ${JSON.stringify(outcome.waves)}`);
+  assert.match(outcome.message, /fileScope overlap in same wave between other and writer/);
+});
+
+test('planWaves co-schedules two tasks whose READ sets overlap while their EDIT sets are disjoint', () => {
+  const result = planWaves({
+    tasks: [
+      { id: 'a', dependsOn: [], fileScope: pack(['src/a.js'], ['src/shared.js', 'docs/common.md']) },
+      { id: 'b', dependsOn: [], fileScope: pack(['src/b.js'], ['src/shared.js', 'docs/common.md']) },
+    ],
+  });
+  assert.deepEqual(result.waves, [['a', 'b']], 'a shared read set is context and must never serialize two tasks');
+});
+
+test('planWaves refuses a task whose fileScope is still a bare path list, naming the task', () => {
+  const outcome = planOutcome({ tasks: [{ id: 'legacy', fileScope: ['src/a.js'] }] });
+  assert.equal(outcome.refused, true, `expected a refusal; instead the task was scheduled as ${JSON.stringify(outcome.waves)}`);
+  assert.match(outcome.message, /task legacy fileScope must be a context pack object/);
+});
+
+test('planWaves refuses a task pack that omits the truncated key, naming the task', () => {
+  const outcome = planOutcome({ tasks: [{ id: 'lossy', fileScope: { edit: ['src/a.js'], read: [] } }] });
+  assert.equal(outcome.refused, true, `expected a refusal; instead the task was scheduled as ${JSON.stringify(outcome.waves)}`);
+  assert.match(outcome.message, /task lossy fileScope omits the required truncated key/);
 });

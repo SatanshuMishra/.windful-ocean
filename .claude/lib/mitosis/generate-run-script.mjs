@@ -4,6 +4,7 @@ import { join, dirname, basename, relative, resolve } from 'node:path';
 import { homedir, tmpdir } from 'node:os';
 import { pathToFileURL } from 'node:url';
 import { planWaves } from './wave-planner.mjs';
+import { requireFileScopePack } from './msp-file-scope.mjs';
 import { resolveAll } from './superpowers-prompts.mjs';
 import { resolveBranch } from './branch-contract.mjs';
 
@@ -52,7 +53,8 @@ export function validateGraph(graph) {
     if (!t.id) throw new Error('task missing id');
     if (!t.title) throw new Error(`task ${t.id} missing title`);
     if (!t.fullText) throw new Error(`task ${t.id} missing fullText`);
-    if (!Array.isArray(t.fileScope) || t.fileScope.length === 0) throw new Error(`task ${t.id} missing or empty fileScope`);
+    const declaredScope = requireFileScopePack(t.fileScope, `task ${t.id} fileScope`);
+    if (declaredScope.edit.length === 0) throw new Error(`task ${t.id} missing or empty fileScope edit set`);
     if (t.risk !== 'low' && t.risk !== 'high') throw new Error(`task ${t.id} risk must be 'low' or 'high'`);
   }
   return planWaves(graph);

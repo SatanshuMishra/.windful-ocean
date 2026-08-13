@@ -1,6 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
+import { pack } from './file-scope-fixtures.mjs';
 import { computeLogicalRunId } from '../recovery.mjs';
 
 const MITOSIS_PATH = process.env.MITOSIS_PATH || new URL('../../../workflows/mitosis.js', import.meta.url).pathname;
@@ -67,7 +68,7 @@ function buildInput(overrides = {}) {
 function buildEngineArgs(mspId, taskId = 't0') {
   const branchPrefix = `${SOURCE_PREFIX}/${mspId}`;
   return {
-    tasks: { [taskId]: { id: taskId, title: 'task', fullText: '', fileScope: [], risk: 'low', agentType: 'implementer', validation: null, dependentCount: 0, edgeReasons: [] } },
+    tasks: { [taskId]: { id: taskId, title: 'task', fullText: '', fileScope: pack([]), risk: 'low', agentType: 'implementer', validation: null, dependentCount: 0, edgeReasons: [] } },
     waves: [[taskId]],
     branchPrefix,
     baseBranch: `${branchPrefix}-integration`,
@@ -85,7 +86,7 @@ function buildEngineArgs(mspId, taskId = 't0') {
 }
 
 function mspSpec(id, overrides = {}) {
-  return { id, title: `update ${id}`, rationale: `rationale for ${id}`, changeType: 'chore', scope: 'msp', dependsOn: [], fileScope: [`scope/${id}/**`], ...overrides };
+  return { id, title: `update ${id}`, rationale: `rationale for ${id}`, changeType: 'chore', scope: 'msp', dependsOn: [], fileScope: pack([`scope/${id}/**`]), ...overrides };
 }
 
 function manifestMsp(id, overrides = {}) {
@@ -97,7 +98,7 @@ function manifestMsp(id, overrides = {}) {
     scope: 'msp',
     status: 'built',
     dependsOn: [],
-    fileScope: [`scope/${id}/**`],
+    fileScope: pack([`scope/${id}/**`]),
     integrationBranch: `${SOURCE_PREFIX}/${id}-integration`,
     prUrl: null,
     mergedAt: null,
@@ -733,7 +734,7 @@ test('security fix 1: a merged parent whose builtSha or mergedSha is a leading-d
 
 test('security fix 2: a merged parent whose fileScope carries a pathspec-magic entry emits NO trusting clean probe and fail-closes to a PARK of its built descendants', async () => {
   const msps = [
-    manifestMsp('pm', { status: 'shipped', builtSha: 'a'.repeat(40), fileScope: [':(exclude)*'], prUrl: 'https://example.test/pr/pm', mergedAt: '2026-07-10T00:00:00Z' }),
+    manifestMsp('pm', { status: 'shipped', builtSha: 'a'.repeat(40), fileScope: pack([':(exclude)*']), prUrl: 'https://example.test/pr/pm', mergedAt: '2026-07-10T00:00:00Z' }),
     manifestMsp('cm', { status: 'built', builtSha: hexSha('cm'), dependsOn: ['pm'] }),
   ];
   const reconcileResult = {

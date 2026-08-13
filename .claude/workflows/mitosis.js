@@ -75,17 +75,113 @@ function scopesOverlap(aScopes, bScopes) {
   return false;
 }
 
+const FILE_SCOPE_EDIT_MAX = 1024;
+const FILE_SCOPE_READ_MAX = 256;
+
+function fileScopePathList(value, label) {
+  if (!Array.isArray(value)) {
+    throw new Error(`${label} must be an array of repository paths; the edit set is the collision fence that decides which units may run concurrently and the read set is prompt context, so a non-array is refused rather than coerced; received ${JSON.stringify(value)}`);
+  }
+  for (const path of value) {
+    if (typeof path !== 'string' || path.length === 0) {
+      throw new Error(`${label} entries must be non-empty strings; an unusable entry is skipped by the overlap oracle, which silently widens the fence it was declared to close; received ${JSON.stringify(path)}`);
+    }
+  }
+  return [...new Set(value)].sort();
+}
+
+function fileScopeTruncation(value, label) {
+  if (value === null) return null;
+  if (typeof value !== 'object' || Array.isArray(value)) {
+    throw new Error(`${label} must be null or a truncation marker { dropped, reason }; law 3.3 forbids dropping content without a marker, so an unreadable marker is refused rather than treated as no drop; received ${JSON.stringify(value)}`);
+  }
+  if (!Number.isInteger(value.dropped) || value.dropped <= 0) {
+    throw new Error(`${label}.dropped must be a positive integer counting the entries that were dropped; a marker that cannot say how much was lost reports a drop as if nothing was lost; received ${JSON.stringify(value.dropped)}`);
+  }
+  if (typeof value.reason !== 'string' || value.reason.length === 0) {
+    throw new Error(`${label}.reason must be a non-empty string naming why content was dropped, so a reader of the pack can tell a capped set from a complete one; received ${JSON.stringify(value.reason)}`);
+  }
+  return Object.freeze({ dropped: value.dropped, reason: value.reason });
+}
+
+function foldTruncation(carried, added) {
+  if (carried === null) return added;
+  if (added === null) return carried;
+  const reasons = carried.reason === added.reason ? carried.reason : `${carried.reason}; ${added.reason}`;
+  return Object.freeze({ dropped: carried.dropped + added.dropped, reason: reasons });
+}
+
+function makeFileScopePack(spec) {
+  const source = spec === undefined || spec === null ? {} : spec;
+  if (typeof source !== 'object' || Array.isArray(source)) {
+    throw new Error(`makeFileScopePack: spec must be an object carrying { edit, read }; received ${JSON.stringify(spec)}`);
+  }
+  const edit = fileScopePathList(source.edit === undefined ? [] : source.edit, 'fileScope.edit');
+  if (edit.length > FILE_SCOPE_EDIT_MAX) {
+    throw new Error(`fileScope.edit declares ${edit.length} paths, above the supported maximum of ${FILE_SCOPE_EDIT_MAX}; the edit set is the collision fence and is refused rather than shortened, because dropping a fence entry is not a loss of context, it is a licence for two units to write one file`);
+  }
+  const editSet = new Set(edit);
+  const candidates = fileScopePathList(source.read === undefined ? [] : source.read, 'fileScope.read').filter((path) => !editSet.has(path));
+  const read = candidates.slice(0, FILE_SCOPE_READ_MAX);
+  const dropped = candidates.length - read.length;
+  const capped = dropped > 0
+    ? { dropped, reason: `read set exceeded FILE_SCOPE_READ_MAX=${FILE_SCOPE_READ_MAX}` }
+    : null;
+  const carried = fileScopeTruncation(source.truncated === undefined ? null : source.truncated, 'fileScope.truncated');
+  return Object.freeze({
+    edit: Object.freeze(edit),
+    read: Object.freeze(read),
+    truncated: foldTruncation(carried, fileScopeTruncation(capped, 'fileScope.truncated')),
+  });
+}
+
+function emptyFileScopePack() {
+  return makeFileScopePack({});
+}
+
+function requireFileScopePack(value, label) {
+  const where = typeof label === 'string' && label.length > 0 ? label : 'fileScope';
+  if (value === null || typeof value !== 'object' || Array.isArray(value)) {
+    throw new Error(`${where} must be a context pack object { edit, read, truncated }, never a bare path list; the edit set fences concurrent writes and the read set is context, and collapsing them back into one list either needlessly serializes units or licenses two units to write one file; received ${JSON.stringify(value)}`);
+  }
+  for (const key of ['edit', 'read']) {
+    if (!Object.hasOwn(value, key)) {
+      throw new Error(`${where} omits the required ${key} key; both sets are required so a pack always states its fence and its context explicitly, because an absent edit set reads as an empty fence and an absent read set reads as absent context`);
+    }
+  }
+  if (!Object.hasOwn(value, 'truncated')) {
+    throw new Error(`${where} omits the required truncated key; the key is required and nullable, so a pack that dropped content says so and a pack that dropped nothing carries an explicit null - defaulting an absent key to null would make a silent drop indistinguishable from a complete pack`);
+  }
+  const edit = fileScopePathList(value.edit, `${where}.edit`);
+  if (edit.length > FILE_SCOPE_EDIT_MAX) {
+    throw new Error(`${where}.edit declares ${edit.length} paths, above the supported maximum of ${FILE_SCOPE_EDIT_MAX}; the edit set is the collision fence and is refused rather than shortened`);
+  }
+  const editSet = new Set(edit);
+  const read = fileScopePathList(value.read, `${where}.read`).filter((path) => !editSet.has(path));
+  return Object.freeze({
+    edit: Object.freeze(edit),
+    read: Object.freeze(read),
+    truncated: fileScopeTruncation(value.truncated, `${where}.truncated`),
+  });
+}
+
 function aggregateMspFileScope(tasksMap) {
   if (tasksMap === null || typeof tasksMap !== 'object' || Array.isArray(tasksMap)) {
     throw new Error('aggregateMspFileScope: tasksMap must be a non-null, non-array object keyed by task id');
   }
-  const union = new Set();
-  for (const task of Object.values(tasksMap)) {
-    for (const path of (task && task.fileScope) || []) {
-      union.add(path);
-    }
+  const edit = new Set();
+  const read = new Set();
+  let carried = null;
+  for (const [id, task] of Object.entries(tasksMap)) {
+    const declared = task === null || task === undefined ? undefined : task.fileScope;
+    const unit = declared === undefined || declared === null
+      ? emptyFileScopePack()
+      : requireFileScopePack(declared, `task ${id} fileScope`);
+    for (const path of unit.edit) edit.add(path);
+    for (const path of unit.read) read.add(path);
+    carried = foldTruncation(carried, unit.truncated);
   }
-  return [...union].sort();
+  return makeFileScopePack({ edit: [...edit], read: [...read], truncated: carried });
 }
 
 function shippedOutcome(mspId, extra = {}) {
@@ -409,8 +505,11 @@ function mspContentHash(msp) {
   const changeType = typeof source.changeType === 'string' ? source.changeType : '';
   const scope = typeof source.scope === 'string' ? source.scope : '';
   const dependsOn = Array.isArray(source.dependsOn) ? source.dependsOn.filter((d) => typeof d === 'string') : [];
-  const fileScope = Array.isArray(source.fileScope) ? source.fileScope.filter((f) => typeof f === 'string') : [];
-  const canonical = JSON.stringify([id, title, rationale, changeType, scope, dependsOn, fileScope]);
+  const declared = source.fileScope !== null && typeof source.fileScope === 'object' && !Array.isArray(source.fileScope) ? source.fileScope : {};
+  const editScope = Array.isArray(declared.edit) ? declared.edit.filter((f) => typeof f === 'string') : [];
+  const readScope = Array.isArray(declared.read) ? declared.read.filter((f) => typeof f === 'string') : [];
+  const truncated = declared.truncated === undefined ? null : declared.truncated;
+  const canonical = JSON.stringify([id, title, rationale, changeType, scope, dependsOn, editScope, readScope, truncated]);
   let h = 0x811c9dc5;
   for (let i = 0; i < canonical.length; i += 1) {
     h = (h ^ canonical.charCodeAt(i)) >>> 0;
@@ -467,7 +566,7 @@ function applyShipTransition(manifest, { mspId, prUrl, mergedAt, title, rational
           prUrl,
           mergedAt,
           dependsOn: [],
-          fileScope: [],
+          fileScope: emptyFileScopePack(),
         },
       ];
   return { ...manifest, msps };
@@ -510,7 +609,7 @@ function applyBuiltTransition(manifest, { unitId, checkpointRef, sha, green, bui
           green: green ?? false,
           builtAgainst: builtAgainst ?? {},
           dependsOn: [],
-          fileScope: [],
+          fileScope: emptyFileScopePack(),
         },
       ];
   return { ...manifest, msps };
@@ -606,8 +705,11 @@ function parsePublishedManifest(raw) {
     for (const field of ['title', 'rationale', 'changeType', 'scope']) {
       if (typeof msp[field] !== 'string') return null;
     }
-    for (const field of ['dependsOn', 'fileScope']) {
-      if (!Array.isArray(msp[field]) || !msp[field].every((entry) => typeof entry === 'string')) return null;
+    if (!Array.isArray(msp.dependsOn) || !msp.dependsOn.every((entry) => typeof entry === 'string')) return null;
+    try {
+      requireFileScopePack(msp.fileScope, `published msp ${msp.id} fileScope`);
+    } catch {
+      return null;
     }
   }
   return parsed;
@@ -850,7 +952,10 @@ function indexMsps(msps) {
   msps.forEach((m, index) => {
     if (!m.id) throw new Error('msp missing id');
     if (byId.has(m.id)) throw new Error(`duplicate task id: ${m.id}`);
-    byId.set(m.id, { id: m.id, dependsOn: m.dependsOn || [], fileScope: m.fileScope || [], index });
+    const fileScope = m.fileScope === undefined || m.fileScope === null
+      ? emptyFileScopePack()
+      : requireFileScopePack(m.fileScope, `msp ${m.id} fileScope`);
+    byId.set(m.id, { id: m.id, dependsOn: m.dependsOn || [], fileScope, index });
   });
   return byId;
 }
@@ -941,7 +1046,7 @@ function deriveClusters(msps, discoveredEdges = []) {
     for (let j = i + 1; j < ids.length; j++) {
       const a = byId.get(ids[i]);
       const b = byId.get(ids[j]);
-      if (!scopesOverlap(a.fileScope, b.fileScope)) continue;
+      if (!scopesOverlap(a.fileScope.edit, b.fileScope.edit)) continue;
       if (connectedDirect(a.id, b.id)) continue;
       link(b.id, a.id);
       added.push({ from: b.id, to: a.id, reason: 'fileScope-overlap' });
@@ -1062,9 +1167,54 @@ function namedFilesInText(text) {
   }
   return [...out];
 }
+function isFileScopePack(value) {
+  return value !== null
+    && typeof value === 'object'
+    && !Array.isArray(value)
+    && Array.isArray(value.edit) && value.edit.every((p) => typeof p === 'string')
+    && Array.isArray(value.read) && value.read.every((p) => typeof p === 'string')
+    && Object.hasOwn(value, 'truncated');
+}
+
+function fileScopeEdit(fileScope) {
+  return isFileScopePack(fileScope) ? fileScope.edit : [];
+}
+
+function readContextClause(fileScope) {
+  if (!isFileScopePack(fileScope)) return '';
+  const context = fileScope.read.length > 0
+    ? ` You MAY read these files for context but must NOT edit them: ${JSON.stringify(fileScope.read)}.`
+    : '';
+  const marker = fileScope.truncated;
+  const dropped = marker === null || marker === undefined
+    ? ''
+    : ` The read-context list is INCOMPLETE: ${marker.dropped} path(s) were dropped (${marker.reason}); treat it as a partial view and verify against the live tree.`;
+  return `${context}${dropped}`;
+}
+
+function ingestTaskFileScopes(tasks) {
+  if (!tasks || typeof tasks !== 'object' || Array.isArray(tasks)) return { tasks, error: null };
+  const out = {};
+  for (const [id, task] of Object.entries(tasks)) {
+    if (!task || typeof task !== 'object' || Array.isArray(task)) { out[id] = task; continue; }
+    const declared = task.fileScope;
+    try {
+      out[id] = {
+        ...task,
+        fileScope: declared === undefined || declared === null
+          ? emptyFileScopePack()
+          : requireFileScopePack(declared, `task ${id} fileScope`),
+      };
+    } catch (err) {
+      return { tasks, error: err.message };
+    }
+  }
+  return { tasks: out, error: null };
+}
+
 function lintCoarseScope(task, opts) {
   const threshold = opts && Number.isInteger(opts.fileThreshold) ? opts.fileThreshold : COARSE_SCOPE_FILE_THRESHOLD;
-  const fileScope = task && Array.isArray(task.fileScope) ? task.fileScope : [];
+  const fileScope = fileScopeEdit(task && task.fileScope);
   const named = namedFilesInText([task && task.fullText, task && task.title, task && task.rationale].filter((t) => typeof t === 'string').join('\n'));
   const flags = [];
   for (const raw of fileScope) {
@@ -1141,8 +1291,8 @@ function securityReviewRequired(task, k) {
   return (
     policySignalAmbiguous(task) ||
     task.risk === 'high' ||
-    sensitiveScope(task.fileScope) ||
-    irreversible(task.fileScope, task.fullText) ||
+    sensitiveScope(fileScopeEdit(task.fileScope)) ||
+    irreversible(fileScopeEdit(task.fileScope), task.fullText) ||
     blastRadius(task) >= threshold
   );
 }
@@ -1152,7 +1302,7 @@ function isImplementationRole(task) {
 }
 
 function policySignalAmbiguous(task) {
-  if (!Array.isArray(task.fileScope) || task.fileScope.some((p) => typeof p !== 'string')) return true;
+  if (!isFileScopePack(task.fileScope)) return true;
   if (typeof task.fullText !== 'string') return true;
   if (task.risk !== undefined && task.risk !== null && !POLICY_VALID_RISK.has(task.risk)) return true;
   if (!Number.isInteger(task.dependentCount) || task.dependentCount < 0) return true;
@@ -1166,8 +1316,8 @@ function policyModelFor(task, opts) {
   if (!isImplementationRole(task)) return 'opus';
   if (policySignalAmbiguous(task)) return 'opus';
   if (
-    sensitiveScope(task.fileScope) ||
-    irreversible(task.fileScope, task.fullText) ||
+    sensitiveScope(fileScopeEdit(task.fileScope)) ||
+    irreversible(fileScopeEdit(task.fileScope), task.fullText) ||
     breakingContract(task) ||
     blastRadius(task) >= BLAST_RADIUS_K ||
     task.risk === 'high'
@@ -1179,8 +1329,8 @@ function policyModelFor(task, opts) {
 function planReviewModelFor(msp, opts) {
   const layer3Sonnet = opts && typeof opts.layer3Sonnet === 'boolean' ? opts.layer3Sonnet : LAYER3_SONNET_ENABLED;
   if (!msp || typeof msp !== 'object') return 'opus';
-  const fileScope = msp.fileScope;
-  if (!Array.isArray(fileScope) || fileScope.some((p) => typeof p !== 'string')) return 'opus';
+  if (!isFileScopePack(msp.fileScope)) return 'opus';
+  const fileScope = msp.fileScope.edit;
   if (fileScope.length !== 1 || !scopeIsSpecificFile(fileScope[0])) return 'opus';
   if (sensitiveScope(fileScope)) return 'opus';
   if (irreversible(fileScope, typeof msp.rationale === 'string' ? msp.rationale : '')) return 'opus';
@@ -1210,9 +1360,11 @@ function resolvePlanReview(review, opts) {
 }
 
 function planGroundTruthSeed({ specPath, fileScope, unitId }) {
-  const scope = Array.isArray(fileScope) ? fileScope.filter((p) => typeof p === 'string') : [];
+  const scope = fileScopeEdit(fileScope);
+  const readScope = isFileScopePack(fileScope) ? fileScope.read : [];
+  const readList = readScope.length > 0 ? readScope.map((p) => JSON.stringify(p)).join(", ") : "(none declared)";
   const scopeList = scope.length > 0 ? scope.map((p) => JSON.stringify(p)).join(', ') : '(none declared)';
-  return `Ground truth for MSP "${unitId}" (a hint to VERIFY against the live code, NOT a trust boundary): the approved spec lives at ${specPath} — read it to confirm this MSP's decomposition still holds against the current tree. This MSP's declared fileScope is [${scopeList}]; keep the plan STRICTLY within that slice. Do NOT expand into sibling-MSP territory or files outside this fileScope: sibling MSPs own their own slices and run in other waves, and an over-reaching plan collides on shared files (a collision surfaces as a merge conflict / CI failure / park, never a silent bad merge). If reading the spec reveals the decomposition itself is wrong (this MSP's slice is mis-cut), STOP and report that this MSP must be re-decomposed rather than planning around it.`;
+  return `Ground truth for MSP "${unitId}" (a hint to VERIFY against the live code, NOT a trust boundary): the approved spec lives at ${specPath} — read it to confirm this MSP's decomposition still holds against the current tree. This MSP's declared fileScope is [${scopeList}]; keep the plan STRICTLY within that slice. Do NOT expand into sibling-MSP territory or files outside this fileScope: sibling MSPs own their own slices and run in other waves, and an over-reaching plan collides on shared files (a collision surfaces as a merge conflict / CI failure / park, never a silent bad merge). If reading the spec reveals the decomposition itself is wrong (this MSP's slice is mis-cut), STOP and report that this MSP must be re-decomposed rather than planning around it. Read-only context for this MSP is [${readList}]: read those files to understand the seam, but do NOT plan edits to them - they belong to sibling MSPs.`;
 }
 
 function authorTaskModels(tasks, opts) {
@@ -1283,7 +1435,8 @@ async function runEngine(engineArgs, ctx) {
 
   const modelPolicyOpts = { layer3Sonnet: engineArgs.layer3Sonnet };
   const reviewBlastRadiusK = Number.isInteger(engineArgs.reviewBlastRadiusK) && engineArgs.reviewBlastRadiusK > 0 ? engineArgs.reviewBlastRadiusK : BLAST_RADIUS_K;
-  const tasks = authorTaskModels(engineArgs.tasks, modelPolicyOpts);
+  const scopeIngest = ingestTaskFileScopes(engineArgs.tasks);
+  const tasks = authorTaskModels(scopeIngest.tasks, modelPolicyOpts);
   const routing = routingTelemetry(tasks, modelPolicyOpts);
   log(routing.line);
   if (routing.warning) log(routing.warning);
@@ -1317,7 +1470,7 @@ async function runEngine(engineArgs, ctx) {
     if (isolation === 'scope-fence') {
       return `${prompts.implementer}\n\n--- THIS TASK ---\n${escalationContext}` +
         `Work directly in the main repository working tree at ${repoRoot}. Do NOT create a worktree or a branch.\n` +
-        `1. Edit ONLY files within this task's declared scope: ${JSON.stringify(task.fileScope)}. Creating or editing anything outside this scope is a hard failure.\n` +
+        `1. Edit ONLY files within this task's declared scope: ${JSON.stringify(task.fileScope.edit)}. Creating or editing anything outside this scope is a hard failure.${readContextClause(task.fileScope)}\n` +
         `2. Do NOT run any git mutation (no add, no commit, no branch, no checkout, no stash). Leave all changes uncommitted.\n` +
         `3. Follow TDD as the instructions above require.\n` +
         `4. For verification run ONLY the scoped check, never a full build/suite: \`${scopedCheckCmd}\`\n\n` +
@@ -1340,7 +1493,7 @@ async function runEngine(engineArgs, ctx) {
   function reviewTarget(task, branch) {
     if (isolation === 'scope-fence') {
       return `Do NOT enter any worktree and do NOT mutate anything. From the main repo at ${repoRoot}, inspect READ-ONLY:\n` +
-        `\`git diff ${launchCommit} -- ${task.fileScope.join(' ')}\` plus \`git status --porcelain -- ${task.fileScope.join(' ')}\`; read any untracked files the latter lists.`;
+        `\`git diff ${launchCommit} -- ${task.fileScope.edit.join(' ')}\` plus \`git status --porcelain -- ${task.fileScope.edit.join(' ')}\`; read any untracked files the latter lists.`;
     }
     return `Do NOT create or enter a worktree. From the main repo at ${repoRoot}, inspect the change READ-ONLY:\n` +
       `\`git diff ${baseBranch}..${branch}\` and \`git diff --stat ${baseBranch}..${branch}\`.`;
@@ -1349,7 +1502,7 @@ async function runEngine(engineArgs, ctx) {
   function mergedReviewPrompt(task, branch) {
     return `${prompts.specReviewer}\n\n${prompts.qualityReviewer}\n\n--- WHAT TO REVIEW ---\n${reviewTarget(task, branch)}\n\n` +
       `Spec for this task:\n${task.fullText}\n\n` +
-      `File scope for THIS task: ${JSON.stringify(task.fileScope)}\n` +
+      `File scope for THIS task: ${JSON.stringify(task.fileScope.edit)}${readContextClause(task.fileScope)}\n` +
       `Judge ONLY the files in this task's fileScope. Files outside it belong to SIBLING TASKS in the same MSP that are built in other waves and are correctly absent from this branch - do NOT flag them as missing or incomplete. Do NOT open .mitosis/*.plan.md or *.graph.json to assess completeness; the task body above is the complete and authoritative scope for THIS task.\n\n` +
       `${ciEnforcedScoping}\n\n` +
       `--- TIER-1 SECURITY CHECKLIST (lightweight, every task) ---\n` +
@@ -1359,14 +1512,14 @@ async function runEngine(engineArgs, ctx) {
   function securityReviewPrompt(task, branch) {
     return `--- SECURITY REVIEW TARGET ---\n${reviewTarget(task, branch)}\n\n` +
       `Task id: ${task.id}\nTitle: ${task.title}\n\n${task.fullText}\n\n` +
-      `File scope: ${JSON.stringify(task.fileScope)}\n\n` +
+      `File scope: ${JSON.stringify(task.fileScope.edit)}${readContextClause(task.fileScope)}\n\n` +
       `${ciEnforcedScoping}\n\n` +
       `Return verdict 'pass' if no security issues are found, else 'fail' with specific issues (file:line).`;
   }
   function fixPrompt(task, branch, wt, issues) {
     if (isolation === 'scope-fence') {
       return `Apply fixes in the MAIN repository working tree at ${repoRoot} (no worktree, no branch, no git mutations; leave changes uncommitted).\n` +
-        `Edit ONLY within this task's declared scope: ${JSON.stringify(task.fileScope)}.\n` +
+        `Edit ONLY within this task's declared scope: ${JSON.stringify(task.fileScope.edit)}.${readContextClause(task.fileScope)}\n` +
         `1. Fix these issues:\n- ${(issues || []).join('\n- ')}\n` +
         `2. Re-run the scoped check: \`${scopedCheckCmd}\`\n\nTask context:\n${task.fullText}`;
     }
@@ -1450,6 +1603,10 @@ async function runEngine(engineArgs, ctx) {
     result.halted = true;
     result.haltReason = { stage: 'config', detail: 'scope-fence isolation requires launchCommit' };
   }
+  if (!result.halted && scopeIngest.error !== null) {
+    result.halted = true;
+    result.haltReason = { stage: 'config', detail: scopeIngest.error };
+  }
 
   for (let w = 0; w < waves.length && !result.halted; w++) {
     const waveIds = waves[w];
@@ -1469,7 +1626,7 @@ async function runEngine(engineArgs, ctx) {
       const fence = await guard.dispatch(
         `From the main repo at ${repoRoot}, run \`git status --porcelain=v1 -uall\` and return EVERY path it reports as a JSON array of repo-relative paths. For rename lines include both the old and the new path. Do not mutate anything.`,
         { label: `fence:wave-${w}`, phase: 'Integrate', schema: FENCE_SCHEMA }, { kind: 'engine', task: null });
-      const declared = waveIds.flatMap((id) => tasks[id].fileScope);
+      const declared = waveIds.flatMap((id) => tasks[id].fileScope.edit);
       const exempt = runArtifacts || [];
       const undeclared = ((fence && fence.paths) || []).filter((p) => !exempt.includes(normalizePath(p)) && !declared.some((s) => scopeCovers(s, p)));
       result.waves.push({ wave: w, outcomes, fence: { paths: (fence && fence.paths) || [], undeclared } });
@@ -1587,7 +1744,16 @@ const DECOMPOSE_SCHEMA = {
           changeType: { type: 'string', enum: ['feat', 'fix', 'refactor', 'docs', 'test', 'chore', 'perf', 'ci'] },
           scope: { type: 'string', pattern: '^[a-z0-9][a-z0-9-]{0,15}$' },
           dependsOn: { type: 'array', items: { type: 'string' } },
-          fileScope: { type: 'array', items: { type: 'string' } },
+          fileScope: {
+            type: 'object',
+            required: ['edit', 'read', 'truncated'],
+            additionalProperties: false,
+            properties: {
+              edit: { type: 'array', items: { type: 'string' } },
+              read: { type: 'array', items: { type: 'string' } },
+              truncated: { type: ['object', 'null'] },
+            },
+          },
         },
       },
     },
@@ -1962,10 +2128,13 @@ function evaluateManifestReuse(priorManifest, observedSpecHash) {
     if (m.dependsOn.length > MAX_MSP_DEPENDS_ON) {
       return { reusable: false, reason: `manifest msp ${m.id} dependsOn entry count exceeds the supported maximum` };
     }
-    if (!Array.isArray(m.fileScope) || !m.fileScope.every((f) => typeof f === 'string')) {
-      return { reusable: false, reason: `manifest msp ${m.id} fileScope is not an array of strings` };
+    let manifestFileScope;
+    try {
+      manifestFileScope = requireFileScopePack(m.fileScope, `manifest msp ${m.id} fileScope`);
+    } catch (err) {
+      return { reusable: false, reason: err.message };
     }
-    totalFileScope += m.fileScope.length;
+    totalFileScope += manifestFileScope.edit.length + manifestFileScope.read.length;
     if (totalFileScope > MAX_MANIFEST_FILE_SCOPE) {
       return { reusable: false, reason: 'manifest aggregate fileScope entry count exceeds the supported maximum' };
     }
@@ -1977,7 +2146,7 @@ function evaluateManifestReuse(priorManifest, observedSpecHash) {
       changeType: m.changeType,
       scope: m.scope,
       dependsOn: m.dependsOn.slice(),
-      fileScope: m.fileScope.slice(),
+      fileScope: manifestFileScope,
     };
     if (typeof m.status === 'string') {
       entry.status = m.status;
@@ -2418,13 +2587,14 @@ function makeUnit(spec) {
   if (!spec.id || typeof spec.id !== 'string') throw new Error('unit spec missing string id');
   const prereqs = spec.prereqs === undefined ? [] : spec.prereqs;
   if (!Array.isArray(prereqs)) throw new Error(`unit ${spec.id} prereqs must be an array`);
-  const fileScope = spec.fileScope === undefined ? [] : spec.fileScope;
-  if (!Array.isArray(fileScope)) throw new Error(`unit ${spec.id} fileScope must be an array`);
+  const fileScope = spec.fileScope === undefined || spec.fileScope === null
+    ? emptyFileScopePack()
+    : requireFileScopePack(spec.fileScope, `unit ${spec.id} fileScope`);
   return Object.freeze({
     id: spec.id,
     state: spec.state || 'planned',
     prereqs: Object.freeze([...prereqs]),
-    fileScope: Object.freeze([...fileScope]),
+    fileScope,
     leaseHeld: false,
   });
 }
@@ -2463,7 +2633,7 @@ function isDispatchable(unit, unitsById, leases) {
     const prereq = unitsById.get(pid);
     if (!prereq || prereq.state !== 'done') return false;
   }
-  return overlapHolder(leases, unit.fileScope, unit.id) === null;
+  return overlapHolder(leases, unit.fileScope.edit, unit.id) === null;
 }
 
 function isBuildable(unit, unitsById, leases, window) {
@@ -2472,7 +2642,7 @@ function isBuildable(unit, unitsById, leases, window) {
     const prereq = unitsById.get(pid);
     if (!prereq || (prereq.state !== 'built' && prereq.state !== 'awaiting' && prereq.state !== 'done')) return false;
   }
-  if (overlapHolder(leases, unit.fileScope, unit.id) !== null) return false;
+  if (overlapHolder(leases, unit.fileScope.edit, unit.id) !== null) return false;
   if (!window || !Number.isInteger(window.size)) return false;
   if (!Number.isInteger(window.builtUnmergedCount)) return false;
   return window.builtUnmergedCount < window.size;
@@ -2480,7 +2650,7 @@ function isBuildable(unit, unitsById, leases, window) {
 
 function acquire(leases, unit) {
   const next = new Map(leases);
-  for (const path of unit.fileScope) next.set(path, unit.id);
+  for (const path of unit.fileScope.edit) next.set(path, unit.id);
   return next;
 }
 
@@ -3302,7 +3472,8 @@ async function divergedParents(manifest, mergedIds, mergedShas, ctx) {
     const parent = byId.get(parentId);
     const builtSha = parent && typeof parent.builtSha === 'string' && SHA_HEX_PATTERN.test(parent.builtSha) ? parent.builtSha : null;
     const mergedSha = typeof shas[parentId] === 'string' && SHA_HEX_PATTERN.test(shas[parentId]) ? shas[parentId] : null;
-    const fileScope = parent && Array.isArray(parent.fileScope) ? parent.fileScope.filter((p) => typeof p === 'string' && p.length > 0) : [];
+    const declared = parent && parent.fileScope && Array.isArray(parent.fileScope.edit) ? parent.fileScope.edit : [];
+    const fileScope = declared.filter((p) => typeof p === 'string' && p.length > 0);
     const fileScopeSafe = fileScope.length > 0 && fileScope.every((p) => !p.startsWith(':'));
     if (builtSha === null || mergedSha === null || !fileScopeSafe) { diverged.add(parentId); continue; }
     let ref;
@@ -4187,8 +4358,8 @@ if (reusable) {
         `title is a lowercase imperative summary of 40 characters or fewer, printable ASCII only, with no trailing period — it becomes the Conventional-Commits summary of this MSP's pull-request title and therefore its squash commit subject.\n` +
         `rationale is one sentence of 200 characters or fewer, printable ASCII only, starting with a letter or digit — it becomes the Why line of this MSP's pull-request body.\n` +
         `Neither title nor rationale may contain a dollar sign, a backtick, a backslash, or an HTML tag opener: both are emitted as inert argv values into an engine-composed command, and a run whose MSP fields do not compose a valid pull-request title and body HALTS for a human rather than guessing a change type.\n\n` +
-        `For each MSP, declare its fileScope: the NARROWEST CORRECT set of repository paths and globs that still covers EVERYTHING that MSP writes or owns. When a change is file-local, name the EXACT files (e.g. "lib/config.ts", "src/auth/login.ts"), NOT their parent directory; reserve a directory glob (e.g. "src/auth/**") for an MSP that genuinely owns the whole directory. Ground fileScope in the SAME D1 code-intelligence stack you used above (the Graphify map for orientation, Serena / native LSP for the symbols each MSP touches, targeted Read/Grep for the seams the oracle cannot see). Completeness is non-negotiable: omitting a path an MSP writes lets two MSPs collide on the same file, so declare every surface you touch — but no MORE. Over-broad scope needlessly serializes MSPs that could run in parallel (fileScope overlap is what clusters MSPs that must not co-run); a deterministic post-derivation lint flags suspiciously coarse scopes (a bare top-level directory, or a directory covering files the task text names specifically) for reviewer attention.\n\n` +
-        `Return ONLY the structured object: { msps: [ { id, title, rationale, changeType, scope, dependsOn, fileScope } ] }, ordered bottom-up.`,
+        `For each MSP, declare its fileScope: the NARROWEST CORRECT set of repository paths and globs that still covers EVERYTHING that MSP writes or owns. When a change is file-local, name the EXACT files (e.g. "lib/config.ts", "src/auth/login.ts"), NOT their parent directory; reserve a directory glob (e.g. "src/auth/**") for an MSP that genuinely owns the whole directory. Ground fileScope in the SAME D1 code-intelligence stack you used above (the Graphify map for orientation, Serena / native LSP for the symbols each MSP touches, targeted Read/Grep for the seams the oracle cannot see). Completeness is non-negotiable: omitting a path an MSP writes lets two MSPs collide on the same file, so declare every surface you touch — but no MORE. Over-broad scope needlessly serializes MSPs that could run in parallel (fileScope overlap is what clusters MSPs that must not co-run); a deterministic post-derivation lint flags suspiciously coarse scopes (a bare top-level directory, or a directory covering files the task text names specifically) for reviewer attention. Declare fileScope as a context pack { edit, read, truncated }: edit is the set this MSP WRITES and is the collision fence; read is the set it must READ for context but must never write, and it serializes nothing; truncated is required and is null unless you dropped entries, in which case it is { dropped, reason }. A path in edit must never be repeated in read.\n\n` +
+        `Return ONLY the structured object: { msps: [ { id, title, rationale, changeType, scope, dependsOn, fileScope: { edit, read, truncated } } ] }, ordered bottom-up.`,
         { agentType: 'codebase-analyst', schema: DECOMPOSE_SCHEMA, label: 'decompose', phase: 'Decompose', model: models.decomposer || 'opus' }
       ),
       { unitId: 'decompose', stage: 'decompose', resetRef: null, worktree: null, task: 'decompose the approved spec into clusters of MSPs', ...makeRemediation({ unitId: 'decompose', stage: 'decompose', task: 'decompose the approved spec into clusters of MSPs', schema: DECOMPOSE_SCHEMA, agentType: 'codebase-analyst', phase: 'Decompose' }) },
@@ -4727,7 +4898,7 @@ async function runUnit(unit) {
     const isBuiltResume = Boolean(resume) && resume.built === true && resume.stage === 'ship';
     const frontierBuiltEntry = builtInRun.get(msp.id);
     const isFrontierBuiltRedispatch = frontierBuiltEntry !== undefined;
-    let aggregatedScope = Array.isArray(msp.fileScope) ? msp.fileScope : [];
+    let aggregatedScope = requireFileScopePack(msp.fileScope, `msp ${msp.id} fileScope`);
 
     const reconciledEntry = reconciledManifest && Array.isArray(reconciledManifest.msps) ? reconciledManifest.msps.find((m) => m && m.id === msp.id) : null;
     const shipTriedSeed = [...new Set([
@@ -4912,7 +5083,7 @@ async function runUnit(unit) {
         `   - import { resolveAll } from '${LIB_DIR}/superpowers-prompts.mjs' and call it to get resolved.prompts, an object shaped { key: { text, source, path } }. Flatten it to a plain string map BEFORE passing it anywhere: prompts = Object.fromEntries(Object.entries(resolved.prompts).map(([k, v]) => [k, v.text])). Do NOT pass resolved.prompts itself.\n` +
         `   - Determine runArtifacts: read ${ENGINE_PATH}, find every use of \`runArtifacts\`, and construct an object that satisfies those reads (include the plan path ${planned.planPath} and the graph path).\n\n` +
         `3. Assemble the engine args with the pure helper, passing the orchestration context so all 14 keys are present:\n` +
-        `   First build the id-keyed tasks map (the engine indexes tasks by id, NOT by array position): tasks = Object.fromEntries(graph.tasks.map((t) => [t.id, { id: t.id, title: t.title, fullText: t.fullText, fileScope: t.fileScope, risk: t.risk, agentType: t.agentType || 'implementer', validation: t.validation, dependentCount: t.dependentCount, edgeReasons: t.edgeReasons }])). The dependentCount AND edgeReasons pair is derived by derive-edges.mjs and MUST be carried through together - they drive the engine model policy; dropping either one fails the parallelize invariant below. Do NOT pass the raw graph.tasks array as tasks.\n` +
+        `   First build the id-keyed tasks map (the engine indexes tasks by id, NOT by array position): tasks = Object.fromEntries(graph.tasks.map((t) => [t.id, { id: t.id, title: t.title, fullText: t.fullText, fileScope: t.fileScope, risk: t.risk, agentType: t.agentType || 'implementer', validation: t.validation, dependentCount: t.dependentCount, edgeReasons: t.edgeReasons }])). The dependentCount AND edgeReasons pair is derived by derive-edges.mjs and MUST be carried through together - they drive the engine model policy; dropping either one fails the parallelize invariant below. Do NOT pass the raw graph.tasks array as tasks. Each t.fileScope is a context pack { edit, read, truncated }: carry all three keys through unchanged, because the engine refuses a task whose fileScope is a bare path list or whose truncated key is absent.\n` +
         `   import { buildEngineArgs } from '${LIB_DIR}/engine-args.mjs' and call buildEngineArgs({ tasks, waves, branchPrefix: ${JSON.stringify(branchPrefix)}, baseBranch: ${JSON.stringify(integrationBranch)}, worktreeRoot: ${JSON.stringify(worktreeRoot)}, repoRoot: ${JSON.stringify(repoRoot)}, scopedCheckCmd: ${JSON.stringify(verify.scopedCheckCmd || '')}, fullValidationCmd: ${JSON.stringify(verify.fullValidationCmd || '')}, prompts, fixLoopMax: ${fixLoopMax}, isolation: 'worktree', launchCommit: null, runArtifacts, models: ${JSON.stringify(models)} }). It throws if any required key is missing.\n\n` +
         `Return ONLY: { engineArgs: <the 14-key object>, route: { rule, lane, isolation, N, notes } }.`,
         { agentType: 'implementer', schema: PARALLELIZE_SCHEMA, label: `parallelize:${msp.id}`, phase: 'Parallelize' }
@@ -4963,6 +5134,11 @@ async function runUnit(unit) {
       if (!Array.isArray(task.edgeReasons)) {
         return parkUnit(msp, 'parallelize', NeedsHuman({ kind: 'approve-decision', what: `engineArgs.tasks[${taskId}] is missing the derive-edges routing signal edgeReasons (got ${JSON.stringify(task.edgeReasons)}); the task-map builder dropped a required field — dependentCount and edgeReasons must be threaded together or the model policy cannot classify this task`, remediation: null, resumePoint: null }), integrationBranch);
       }
+      try {
+        requireFileScopePack(task.fileScope, `engineArgs.tasks[${taskId}].fileScope`);
+      } catch (err) {
+        return parkUnit(msp, 'parallelize', NeedsHuman({ kind: 'approve-decision', what: err.message, remediation: null, resumePoint: null }), integrationBranch);
+      }
       const policyModel = policyModelFor(task);
       if (policyModel !== 'opus' && policyModel !== 'sonnet') {
         return parkUnit(msp, 'parallelize', NeedsHuman({ kind: 'approve-decision', what: `engineArgs.tasks[${taskId}] resolved a non-whitelisted policy model ${JSON.stringify(policyModel)}; only {opus, sonnet} are representable`, remediation: null, resumePoint: null }), integrationBranch);
@@ -4981,7 +5157,7 @@ async function runUnit(unit) {
     const reconciledEngineArgs = constantReconcile.engineArgs;
 
     aggregatedScope = aggregateMspFileScope(reconciledEngineArgs.tasks);
-    log(`mitosis[${msp.id}]: aggregated write-set = ${aggregatedScope.length} path(s)`);
+    log(`mitosis[${msp.id}]: aggregated write-set = ${aggregatedScope.edit.length} edit path(s), ${aggregatedScope.read.length} read path(s)${aggregatedScope.truncated === null ? '' : `, ${aggregatedScope.truncated.dropped} dropped (${aggregatedScope.truncated.reason})`}`);
 
     phase('Branch');
     const parentIds = Array.isArray(msp.dependsOn) ? msp.dependsOn : [];
@@ -5151,7 +5327,7 @@ async function runUnit(unit) {
     }
 
     async function runCiToGreenLoop(ship) {
-      const declaredScope = Array.isArray(msp.fileScope) ? msp.fileScope : [];
+      const declaredScope = msp.fileScope && Array.isArray(msp.fileScope.edit) ? msp.fileScope.edit : [];
       const ciEscalationOf = (kind, what) => NeedsHuman({ kind, what: `${what} (pull request ${cleanUrl(ship.prUrl)} stays open with its CI result visible; CI remains the sole authority on whether it passes)` });
       const ciEscalation = (what) => ciEscalationOf(CI_RED_EXHAUSTED_KIND, what);
       const ciGateViolation = (what) => ciEscalationOf(CI_HUMAN_GATE_KIND, what);
@@ -5476,7 +5652,7 @@ let scheduleResult;
 try {
   scheduleResult = await runSchedule(
     msps.map((m) => {
-      const base = { id: m.id, prereqs: m.dependsOn || [], fileScope: m.fileScope || [] };
+      const base = { id: m.id, prereqs: m.dependsOn || [], fileScope: m.fileScope || emptyFileScopePack() };
       const relaunchState = relaunchStateFor(m.id);
       return relaunchState ? { ...base, state: relaunchState } : base;
     }),

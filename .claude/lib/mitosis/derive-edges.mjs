@@ -1,4 +1,5 @@
 import { scopesOverlap } from './wave-planner.mjs';
+import { emptyFileScopePack, requireFileScopePack } from './msp-file-scope.mjs';
 import { assertVerdictsCoverPairs, reviewCoupling } from './coupling-review.mjs';
 
 function indexTasks(graph) {
@@ -7,7 +8,10 @@ function indexTasks(graph) {
   for (const t of graph.tasks) {
     if (!t.id) throw new Error('task missing id');
     if (byId.has(t.id)) throw new Error(`duplicate task id: ${t.id}`);
-    byId.set(t.id, t);
+    const fileScope = t.fileScope === undefined || t.fileScope === null
+      ? emptyFileScopePack()
+      : requireFileScopePack(t.fileScope, `task ${t.id} fileScope`);
+    byId.set(t.id, { ...t, fileScope });
   }
   return byId;
 }
@@ -91,8 +95,8 @@ function couplingCandidates(byId, ids, ordered) {
       const b = byId.get(ids[j]);
       if (ordered.get(a.id).has(b.id) || ordered.get(b.id).has(a.id)) continue;
       candidates.push({
-        a: { id: a.id, fileScope: [...(a.fileScope || [])] },
-        b: { id: b.id, fileScope: [...(b.fileScope || [])] },
+        a: { id: a.id, fileScope: a.fileScope },
+        b: { id: b.id, fileScope: b.fileScope },
       });
     }
   }
@@ -121,7 +125,7 @@ function fileScopeOverlapAssertions(byId, ids) {
     for (let j = i + 1; j < ids.length; j++) {
       const a = byId.get(ids[i]);
       const b = byId.get(ids[j]);
-      if (!scopesOverlap(a.fileScope || [], b.fileScope || [])) continue;
+      if (!scopesOverlap(a.fileScope.edit, b.fileScope.edit)) continue;
       assertions.push({ from: b.id, to: a.id, reason: 'fileScope-overlap' });
     }
   }
