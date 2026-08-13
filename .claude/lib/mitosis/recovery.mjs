@@ -1,3 +1,5 @@
+import { emptyFileScopePack, requireFileScopePack } from './msp-file-scope.mjs';
+
 const MAX_TITLE_LEN = 200;
 const MAX_RATIONALE_LEN = 1000;
 
@@ -90,8 +92,11 @@ export function mspContentHash(msp) {
   const changeType = typeof source.changeType === 'string' ? source.changeType : '';
   const scope = typeof source.scope === 'string' ? source.scope : '';
   const dependsOn = Array.isArray(source.dependsOn) ? source.dependsOn.filter((d) => typeof d === 'string') : [];
-  const fileScope = Array.isArray(source.fileScope) ? source.fileScope.filter((f) => typeof f === 'string') : [];
-  const canonical = JSON.stringify([id, title, rationale, changeType, scope, dependsOn, fileScope]);
+  const declared = source.fileScope !== null && typeof source.fileScope === 'object' && !Array.isArray(source.fileScope) ? source.fileScope : {};
+  const editScope = Array.isArray(declared.edit) ? declared.edit.filter((f) => typeof f === 'string') : [];
+  const readScope = Array.isArray(declared.read) ? declared.read.filter((f) => typeof f === 'string') : [];
+  const truncated = declared.truncated === undefined ? null : declared.truncated;
+  const canonical = JSON.stringify([id, title, rationale, changeType, scope, dependsOn, editScope, readScope, truncated]);
   let h = 0x811c9dc5;
   for (let i = 0; i < canonical.length; i += 1) {
     h = (h ^ canonical.charCodeAt(i)) >>> 0;
@@ -148,7 +153,7 @@ export function applyShipTransition(manifest, { mspId, prUrl, mergedAt, title, r
           prUrl,
           mergedAt,
           dependsOn: [],
-          fileScope: [],
+          fileScope: emptyFileScopePack(),
         },
       ];
   return { ...manifest, msps };
@@ -191,7 +196,7 @@ export function applyBuiltTransition(manifest, { unitId, checkpointRef, sha, gre
           green: green ?? false,
           builtAgainst: builtAgainst ?? {},
           dependsOn: [],
-          fileScope: [],
+          fileScope: emptyFileScopePack(),
         },
       ];
   return { ...manifest, msps };
@@ -287,8 +292,11 @@ export function parsePublishedManifest(raw) {
     for (const field of ['title', 'rationale', 'changeType', 'scope']) {
       if (typeof msp[field] !== 'string') return null;
     }
-    for (const field of ['dependsOn', 'fileScope']) {
-      if (!Array.isArray(msp[field]) || !msp[field].every((entry) => typeof entry === 'string')) return null;
+    if (!Array.isArray(msp.dependsOn) || !msp.dependsOn.every((entry) => typeof entry === 'string')) return null;
+    try {
+      requireFileScopePack(msp.fileScope, `published msp ${msp.id} fileScope`);
+    } catch {
+      return null;
     }
   }
   return parsed;

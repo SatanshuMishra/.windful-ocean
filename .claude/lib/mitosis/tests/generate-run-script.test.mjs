@@ -6,6 +6,7 @@ import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { fileURLToPath } from 'node:url';
 import { buildRunScript, validateGraph, ENGINE_ARG_NAMES } from '../generate-run-script.mjs';
+import { pack } from './file-scope-fixtures.mjs';
 
 const FAKE_ENGINE = [
   'export const meta = { name: "x" };',
@@ -80,8 +81,8 @@ test('buildRunScript throws on generated values with no engine arg line', () => 
 
 const VALID_GRAPH = {
   tasks: [
-    { id: 't1', title: 'one', fullText: 'body1', dependsOn: [], fileScope: ['lib/one.js'], risk: 'low', validation: 'scoped' },
-    { id: 't2', title: 'two', fullText: 'body2', dependsOn: [], fileScope: ['lib/two.js'], risk: 'high', validation: 'scoped' },
+    { id: 't1', title: 'one', fullText: 'body1', dependsOn: [], fileScope: pack(['lib/one.js']), risk: 'low', validation: 'scoped' },
+    { id: 't2', title: 'two', fullText: 'body2', dependsOn: [], fileScope: pack(['lib/two.js']), risk: 'high', validation: 'scoped' },
   ],
 };
 
@@ -168,7 +169,7 @@ test('agentType is preserved when set on a task', () => {
   const { dir, sh } = makeGitDir('gen-at-set-');
   const graph = {
     tasks: [
-      { id: 't1', title: 'one', fullText: 'body1', dependsOn: [], fileScope: ['lib/one.js'], risk: 'low', agentType: 'test-engineer', validation: 'scoped' },
+      { id: 't1', title: 'one', fullText: 'body1', dependsOn: [], fileScope: pack(['lib/one.js']), risk: 'low', agentType: 'test-engineer', validation: 'scoped' },
     ],
   };
   writeFileSync(join(dir, 'p.graph.json'), JSON.stringify(graph));
@@ -181,7 +182,7 @@ test('agentType defaults to implementer when absent from a task', () => {
   const { dir, sh } = makeGitDir('gen-at-default-');
   const graph = {
     tasks: [
-      { id: 't1', title: 'one', fullText: 'body1', dependsOn: [], fileScope: ['lib/one.js'], risk: 'low', validation: 'scoped' },
+      { id: 't1', title: 'one', fullText: 'body1', dependsOn: [], fileScope: pack(['lib/one.js']), risk: 'low', validation: 'scoped' },
     ],
   };
   writeFileSync(join(dir, 'p.graph.json'), JSON.stringify(graph));
@@ -212,7 +213,7 @@ const GEN_CLI = fileURLToPath(new URL('../generate-run-script.mjs', import.meta.
 function writeValidGraph(dir) {
   const p = join(dir, 'plan.graph.json');
   writeFileSync(p, JSON.stringify({
-    tasks: [{ id: 't1', title: 'one', fullText: 'b', dependsOn: [], fileScope: ['lib/one.js'], risk: 'low', validation: 'scoped' }],
+    tasks: [{ id: 't1', title: 'one', fullText: 'b', dependsOn: [], fileScope: pack(['lib/one.js']), risk: 'low', validation: 'scoped' }],
   }));
   return p;
 }
