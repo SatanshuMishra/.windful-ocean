@@ -4,6 +4,8 @@ import { pathToFileURL } from 'node:url';
 const DECISIONS = Object.freeze(['parallel', 'serialize']);
 const DEFAULT_RISK_MARKERS = Object.freeze(['auth', 'security', 'secret', 'payment', 'crypto', 'migrations', 'infra', 'deploy']);
 const MIGRATION_SEGMENT = 'migrations/';
+const SEGMENT_SEPARATOR = '/';
+const ASCII_LIMIT = 128;
 const ROOT_MIGRATION_DIR = '<root>';
 const PAIR_KEY_SEPARATOR = ' ';
 const USAGE = 'usage: coupling-review.mjs <candidates.json> [--verdicts <verdicts.json>]';
@@ -114,8 +116,22 @@ function requireContext(value) {
   });
 }
 
-function markerMatcher(marker) {
-  return new RegExp(`(^|/)${marker.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}`, 'i');
+function foldCase(value) {
+  let folded = '';
+  for (let index = 0; index < value.length; index += 1) {
+    const unit = value[index];
+    const upper = unit.toUpperCase();
+    const foldable = upper.length === 1 && !(unit.charCodeAt(0) >= ASCII_LIMIT && upper.charCodeAt(0) < ASCII_LIMIT);
+    folded += foldable ? upper : unit;
+  }
+  return folded;
+}
+
+function hasSegmentStartingWith(foldedFile, foldedMarker) {
+  for (let at = foldedFile.indexOf(foldedMarker); at !== -1; at = foldedFile.indexOf(foldedMarker, at + 1)) {
+    if (at === 0 || foldedFile[at - 1] === SEGMENT_SEPARATOR) return true;
+  }
+  return false;
 }
 
 function importAdjacentSignals(a, b, adjacency) {
@@ -125,9 +141,12 @@ function importAdjacentSignals(a, b, adjacency) {
 }
 
 function sharedRiskMarkerSignals(a, b, riskMarkers) {
+  const foldedA = a.fileScope.map(foldCase);
+  const foldedB = b.fileScope.map(foldCase);
   const shared = riskMarkers.filter((marker) => {
-    const matches = markerMatcher(marker);
-    return a.fileScope.some((file) => matches.test(file)) && b.fileScope.some((file) => matches.test(file));
+    const folded = foldCase(marker);
+    return foldedA.some((file) => hasSegmentStartingWith(file, folded))
+      && foldedB.some((file) => hasSegmentStartingWith(file, folded));
   });
   return [...new Set(shared)].sort().map((marker) => `shared-risk-marker:${marker}`);
 }
