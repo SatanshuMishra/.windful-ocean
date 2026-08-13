@@ -148,6 +148,13 @@ test('CLI rejects a non-integer fix-loop-max loudly', () => {
   assert.match(r.stderr, /fix-loop-max/);
 });
 
+test('CLI refuses to mint the branch prefix itself when --branch-prefix is absent', () => {
+  const r = cliFails(['x.graph.json', '--base-branch', 'b', '--scoped-check', 'y', '--full-validation', 'z']);
+  assert.notEqual(r, null);
+  assert.notEqual(r.status, 0);
+  assert.match(r.stderr, /--branch-prefix/);
+});
+
 test('CLI rejects models keys other than reviewer and fixer', () => {
   const r = cliFails(['x.graph.json', '--base-branch', 'b', '--scoped-check', 'y', '--full-validation', 'z', '--models', '{"implementer":"haiku"}']);
   assert.notEqual(r, null);
@@ -172,7 +179,7 @@ test('agentType is preserved when set on a task', () => {
     ],
   };
   writeFileSync(join(dir, 'p.graph.json'), JSON.stringify(graph));
-  sh('node', [SCRIPT, 'p.graph.json', '--base-branch', 'integration', '--scoped-check', 'x', '--full-validation', 'y', '--isolation', 'scope-fence']);
+  sh('node', [SCRIPT, 'p.graph.json', '--base-branch', 'integration', '--scoped-check', 'x', '--full-validation', 'y', '--isolation', 'scope-fence', '--branch-prefix', 'wf-fixture']);
   const run = readFileSync(join(dir, 'p.run.js'), 'utf8');
   assert.match(run, /"agentType":"test-engineer"/);
 });
@@ -185,7 +192,7 @@ test('agentType defaults to implementer when absent from a task', () => {
     ],
   };
   writeFileSync(join(dir, 'p.graph.json'), JSON.stringify(graph));
-  sh('node', [SCRIPT, 'p.graph.json', '--base-branch', 'integration', '--scoped-check', 'x', '--full-validation', 'y', '--isolation', 'scope-fence']);
+  sh('node', [SCRIPT, 'p.graph.json', '--base-branch', 'integration', '--scoped-check', 'x', '--full-validation', 'y', '--isolation', 'scope-fence', '--branch-prefix', 'wf-fixture']);
   const run = readFileSync(join(dir, 'p.run.js'), 'utf8');
   assert.match(run, /"agentType":"implementer"/);
 });
@@ -198,10 +205,11 @@ test('scope-fence generation exempts its own artifacts and still rejects stray f
   sh('git', ['add', '-A']);
   sh('git', ['commit', '-qm', 'init']);
   writeFileSync(join(dir, 'p.graph.json'), JSON.stringify(VALID_GRAPH));
-  const cliArgs = [SCRIPT, 'p.graph.json', '--base-branch', 'integration', '--scoped-check', 'x', '--full-validation', 'y', '--isolation', 'scope-fence'];
+  const cliArgs = [SCRIPT, 'p.graph.json', '--base-branch', 'integration', '--scoped-check', 'x', '--full-validation', 'y', '--isolation', 'scope-fence', '--branch-prefix', 'wf-fixture'];
   const out = sh('node', cliArgs);
   assert.match(out, /"isolation": "scope-fence"/);
   const run = readFileSync(join(dir, 'p.run.js'), 'utf8');
+  assert.match(run, /const branchPrefix = "wf-fixture";/);
   assert.match(run, /const runArtifacts = \["p","p\.graph\.json","p\.run\.js"\];/);
   writeFileSync(join(dir, 'stray.txt'), 'x\n');
   assert.throws(() => sh('node', cliArgs), /clean working tree/);
