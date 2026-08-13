@@ -26,6 +26,11 @@ function normalizeFilePath(path) {
   return path.replace(/\\/g, '/');
 }
 
+function byCodeUnit(left, right) {
+  if (left === right) return 0;
+  return left < right ? -1 : 1;
+}
+
 function canonicalPair(a, b) {
   return [a, b].sort();
 }
@@ -166,7 +171,7 @@ export function reviewCoupling(pairs, context) {
       default: forced ? 'serialize' : 'parallel',
     }));
   }
-  emitted.sort((x, y) => (x.pair[0] === y.pair[0] ? x.pair[1].localeCompare(y.pair[1]) : x.pair[0].localeCompare(y.pair[0])));
+  emitted.sort((x, y) => (x.pair[0] === y.pair[0] ? byCodeUnit(x.pair[1], y.pair[1]) : byCodeUnit(x.pair[0], y.pair[0])));
   return Object.freeze(emitted);
 }
 
@@ -181,6 +186,7 @@ function requireEmission(emitted) {
   if (!Array.isArray(emitted)) {
     throw new TypeError(`coupling-review: emitted must be the array reviewCoupling returned, because the coverage check has nothing to measure the verdicts against otherwise and would report full coverage of nothing; received ${JSON.stringify(emitted)}`);
   }
+  const seen = new Set();
   return emitted.map((record, index) => {
     if (record === null || typeof record !== 'object' || Array.isArray(record)) {
       throw new TypeError(`coupling-review: emitted[${index}] must be a { pair, signals, default } record, because a record with no shape cannot be matched to a verdict and would drop out of the coverage check unnoticed; received ${JSON.stringify(record)}`);
@@ -188,8 +194,14 @@ function requireEmission(emitted) {
     if (!DECISIONS.includes(record.default)) {
       throw new TypeError(`coupling-review: emitted[${index}].default must be one of ${DECISIONS.join(', ')}, because the skeptical-default rule cannot decide whether an override owes a rationale otherwise; received ${JSON.stringify(record.default)}`);
     }
+    requireStringArray(record.signals, `emitted[${index}].signals`);
     const pair = requirePairKey(record.pair, `emitted[${index}].pair`);
-    return { key: pairKey(pair), label: pair.join('/'), fallback: record.default };
+    const key = pairKey(pair);
+    if (seen.has(key)) {
+      throw new Error(`coupling-review: emitted[${index}] repeats the emitted pair ${pair.join('/')}; two records for one pair make the verdict-coverage check ambiguous about which record a verdict answers, so a skeptical serialize default could be overridden by a verdict answering the other record`);
+    }
+    seen.add(key);
+    return { key, label: pair.join('/'), fallback: record.default };
   });
 }
 
@@ -256,9 +268,11 @@ function main() {
       positional.push(argv[index]);
       continue;
     }
-    verdictsPath = argv[index + 1];
+    const supplied = argv[index + 1];
     index += 1;
-    if (verdictsPath === undefined || verdictsPath.startsWith('--')) usageExit('--verdicts needs a path to a verdicts JSON file');
+    if (supplied === undefined || supplied.startsWith('--')) usageExit('--verdicts needs a path to a verdicts JSON file');
+    if (verdictsPath !== null) usageExit(`--verdicts was supplied twice (${verdictsPath} then ${supplied}); honouring only the last one would report a covered plan while never reading the first file`);
+    verdictsPath = supplied;
   }
   if (positional.length !== 1) usageExit(`expected exactly one candidates JSON path, received ${positional.length}`);
   try {

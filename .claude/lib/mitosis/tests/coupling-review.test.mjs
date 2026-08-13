@@ -286,6 +286,64 @@ test('T17b: the CLI exits 0 when every emitted pair carries a verdict', () => {
   assert.deepEqual(JSON.parse(stdout)[0].pair, ['t1', 't2']);
 });
 
+test('T24: an emission repeating one pair is refused, so a duplicate cannot absorb the coverage check', () => {
+  assert.throws(
+    () => assertVerdictsCoverPairs(
+      emissionOf(
+        [['t1', 't2'], ['shared-risk-marker:auth'], 'serialize'],
+        [['t2', 't1'], ['import-adjacent'], 'parallel'],
+      ),
+      [{ pair: ['t1', 't2'], decision: 'parallel', rationale: null }],
+    ),
+    /repeats the emitted pair t1\/t2/,
+  );
+});
+
+test('T25: an emission record carrying no signals array is refused rather than read as reviewed', () => {
+  assert.throws(
+    () => assertVerdictsCoverPairs([{ pair: ['t1', 't2'], default: 'serialize' }], [{ pair: ['t1', 't2'], decision: 'serialize' }]),
+    /emitted\[0\]\.signals must be an array of non-empty strings/,
+  );
+  assert.throws(
+    () => assertVerdictsCoverPairs([{ pair: ['t1', 't2'], signals: ['ok', ''], default: 'serialize' }], []),
+    /emitted\[0\]\.signals\[1\] must be a non-empty string/,
+  );
+});
+
+test('T26: the emission orders pairs by code unit, so a mixed-case graph does not depend on the host locale', () => {
+  const emitted = reviewCoupling([
+    candidate(side('B1', 'srv/auth/a.ts'), side('zz', 'web/auth/b.tsx')),
+    candidate(side('a1', 'srv/crypto/c.ts'), side('yy', 'web/crypto/d.tsx')),
+  ]);
+  assert.deepEqual(
+    emitted.map((e) => e.pair),
+    [['B1', 'zz'], ['a1', 'yy']],
+    'uppercase sorts before lowercase by code unit, matching canonicalPair and the dependsOn ordering derive-edges writes',
+  );
+});
+
+test('T27: the CLI refuses a repeated --verdicts flag rather than validating against the last one', () => {
+  const dir = scratch('coupling-cli-doubleverdict-');
+  const candidates = join(dir, 'candidates.json');
+  const first = join(dir, 'first.json');
+  const second = join(dir, 'second.json');
+  writeFileSync(candidates, JSON.stringify({
+    pairs: [{ a: { id: 't1', fileScope: ['srv/auth/a.ts'] }, b: { id: 't2', fileScope: ['web/auth/b.tsx'] } }],
+  }));
+  writeFileSync(first, JSON.stringify([]));
+  writeFileSync(second, JSON.stringify([{ pair: ['t1', 't2'], decision: 'serialize', rationale: null }]));
+  let failed = false;
+  try {
+    execFileSync('node', [CLI, candidates, '--verdicts', first, '--verdicts', second], { cwd: dir, encoding: 'utf8', stdio: 'pipe' });
+  } catch (err) {
+    failed = true;
+    assert.equal(err.status, 2, `expected the usage exit code 2, received ${err.status}`);
+    assert.match(String(err.stderr), /--verdicts was supplied twice/);
+    assert.match(String(err.stderr), /first\.json/);
+  }
+  assert.ok(failed, 'a second --verdicts must not silently discard the first path');
+});
+
 test('T18b: the CLI rejects a --verdicts flag with no path and exits 2', () => {
   const dir = scratch('coupling-cli-noverdict-');
   const candidates = join(dir, 'candidates.json');
