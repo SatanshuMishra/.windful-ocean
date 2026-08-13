@@ -946,7 +946,10 @@ function indexMsps(msps) {
   msps.forEach((m, index) => {
     if (!m.id) throw new Error('msp missing id');
     if (byId.has(m.id)) throw new Error(`duplicate task id: ${m.id}`);
-    byId.set(m.id, { id: m.id, dependsOn: m.dependsOn || [], fileScope: m.fileScope || [], index });
+    const fileScope = m.fileScope === undefined || m.fileScope === null
+      ? emptyFileScopePack()
+      : requireFileScopePack(m.fileScope, `msp ${m.id} fileScope`);
+    byId.set(m.id, { id: m.id, dependsOn: m.dependsOn || [], fileScope, index });
   });
   return byId;
 }
@@ -1037,7 +1040,7 @@ function deriveClusters(msps, discoveredEdges = []) {
     for (let j = i + 1; j < ids.length; j++) {
       const a = byId.get(ids[i]);
       const b = byId.get(ids[j]);
-      if (!scopesOverlap(a.fileScope, b.fileScope)) continue;
+      if (!scopesOverlap(a.fileScope.edit, b.fileScope.edit)) continue;
       if (connectedDirect(a.id, b.id)) continue;
       link(b.id, a.id);
       added.push({ from: b.id, to: a.id, reason: 'fileScope-overlap' });
@@ -2514,13 +2517,14 @@ function makeUnit(spec) {
   if (!spec.id || typeof spec.id !== 'string') throw new Error('unit spec missing string id');
   const prereqs = spec.prereqs === undefined ? [] : spec.prereqs;
   if (!Array.isArray(prereqs)) throw new Error(`unit ${spec.id} prereqs must be an array`);
-  const fileScope = spec.fileScope === undefined ? [] : spec.fileScope;
-  if (!Array.isArray(fileScope)) throw new Error(`unit ${spec.id} fileScope must be an array`);
+  const fileScope = spec.fileScope === undefined || spec.fileScope === null
+    ? emptyFileScopePack()
+    : requireFileScopePack(spec.fileScope, `unit ${spec.id} fileScope`);
   return Object.freeze({
     id: spec.id,
     state: spec.state || 'planned',
     prereqs: Object.freeze([...prereqs]),
-    fileScope: Object.freeze([...fileScope]),
+    fileScope,
     leaseHeld: false,
   });
 }
@@ -2559,7 +2563,7 @@ function isDispatchable(unit, unitsById, leases) {
     const prereq = unitsById.get(pid);
     if (!prereq || prereq.state !== 'done') return false;
   }
-  return overlapHolder(leases, unit.fileScope, unit.id) === null;
+  return overlapHolder(leases, unit.fileScope.edit, unit.id) === null;
 }
 
 function isBuildable(unit, unitsById, leases, window) {
@@ -2568,7 +2572,7 @@ function isBuildable(unit, unitsById, leases, window) {
     const prereq = unitsById.get(pid);
     if (!prereq || (prereq.state !== 'built' && prereq.state !== 'awaiting' && prereq.state !== 'done')) return false;
   }
-  if (overlapHolder(leases, unit.fileScope, unit.id) !== null) return false;
+  if (overlapHolder(leases, unit.fileScope.edit, unit.id) !== null) return false;
   if (!window || !Number.isInteger(window.size)) return false;
   if (!Number.isInteger(window.builtUnmergedCount)) return false;
   return window.builtUnmergedCount < window.size;
@@ -2576,7 +2580,7 @@ function isBuildable(unit, unitsById, leases, window) {
 
 function acquire(leases, unit) {
   const next = new Map(leases);
-  for (const path of unit.fileScope) next.set(path, unit.id);
+  for (const path of unit.fileScope.edit) next.set(path, unit.id);
   return next;
 }
 

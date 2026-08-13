@@ -1,5 +1,6 @@
 import { readFileSync, realpathSync } from 'node:fs';
 import { pathToFileURL } from 'node:url';
+import { makeFileScopePack, requireFileScopePack } from './msp-file-scope.mjs';
 
 const DECISIONS = Object.freeze(['parallel', 'serialize']);
 const DEFAULT_RISK_MARKERS = Object.freeze(['auth', 'security', 'secret', 'payment', 'crypto', 'migrations', 'infra', 'deploy']);
@@ -28,6 +29,14 @@ function normalizeFilePath(path) {
   return path.replace(/\\/g, '/');
 }
 
+function normalizeScopePack(scope) {
+  return makeFileScopePack({
+    edit: scope.edit.map(normalizeFilePath),
+    read: scope.read.map(normalizeFilePath),
+    truncated: scope.truncated,
+  });
+}
+
 function byCodeUnit(left, right) {
   if (left === right) return 0;
   return left < right ? -1 : 1;
@@ -47,7 +56,7 @@ function requireSide(value, field) {
   }
   return Object.freeze({
     id: requireNonEmptyString(value.id, `${field}.id`),
-    fileScope: Object.freeze(requireStringArray(value.fileScope, `${field}.fileScope`).map(normalizeFilePath)),
+    fileScope: normalizeScopePack(requireFileScopePack(value.fileScope, `coupling-review: ${field}.fileScope`)),
   });
 }
 
@@ -136,13 +145,13 @@ function hasSegmentStartingWith(foldedFile, foldedMarker) {
 
 function importAdjacentSignals(a, b, adjacency) {
   const neighbours = (file) => adjacency[file] || [];
-  const linked = a.fileScope.some((fa) => b.fileScope.some((fb) => neighbours(fa).includes(fb) || neighbours(fb).includes(fa)));
+  const linked = a.fileScope.edit.some((fa) => b.fileScope.edit.some((fb) => neighbours(fa).includes(fb) || neighbours(fb).includes(fa)));
   return linked ? ['import-adjacent'] : [];
 }
 
 function sharedRiskMarkerSignals(a, b, riskMarkers) {
-  const foldedA = a.fileScope.map(foldCase);
-  const foldedB = b.fileScope.map(foldCase);
+  const foldedA = a.fileScope.edit.map(foldCase);
+  const foldedB = b.fileScope.edit.map(foldCase);
   const shared = riskMarkers.filter((marker) => {
     const folded = foldCase(marker);
     return foldedA.some((file) => hasSegmentStartingWith(file, folded))
@@ -168,8 +177,8 @@ function migrationDirs(fileScope) {
 }
 
 function sameMigrationDirSignals(a, b) {
-  const other = migrationDirs(b.fileScope);
-  return [...migrationDirs(a.fileScope)].filter((dir) => other.has(dir)).sort().map((dir) => `same-migration-dir:${dir}`);
+  const other = migrationDirs(b.fileScope.edit);
+  return [...migrationDirs(a.fileScope.edit)].filter((dir) => other.has(dir)).sort().map((dir) => `same-migration-dir:${dir}`);
 }
 
 export function reviewCoupling(pairs, context) {

@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { deriveEdges } from '../derive-edges.mjs';
 
 function graphOf(...tasks) {
-  return { tasks: tasks.map((t) => ({ dependsOn: [], fileScope: [], ...t })) };
+  return { tasks: tasks.map((t) => ({ dependsOn: [], fileScope: pack([]), ...t })) };
 }
 
 function deriveOutcome(graph) {
@@ -16,8 +16,8 @@ function deriveOutcome(graph) {
 
 test('clean graph: all dependencies declared, nothing added', () => {
   const g = graphOf(
-    { id: 't1', fileScope: ['lib/a.js'] },
-    { id: 't2', fileScope: ['lib/b.js'], dependsOn: ['t1'] },
+    { id: 't1', fileScope: pack(['lib/a.js']) },
+    { id: 't2', fileScope: pack(['lib/b.js']), dependsOn: ['t1'] },
   );
   const { graph, added, audit } = deriveEdges(g, []);
   assert.equal(added.length, 0);
@@ -27,8 +27,8 @@ test('clean graph: all dependencies declared, nothing added', () => {
 
 test('fileScope overlap with no declared edge is auto-added later->earlier', () => {
   const g = graphOf(
-    { id: 't1', fileScope: ['lib/shared.js'] },
-    { id: 't2', fileScope: ['lib/shared.js'] },
+    { id: 't1', fileScope: pack(['lib/shared.js']) },
+    { id: 't2', fileScope: pack(['lib/shared.js']) },
   );
   const { graph, added, audit } = deriveEdges(g, []);
   assert.equal(added.length, 1);
@@ -39,13 +39,13 @@ test('fileScope overlap with no declared edge is auto-added later->earlier', () 
 
 test('fileScope overlap already serialized either direction adds no edge', () => {
   const forward = graphOf(
-    { id: 't1', fileScope: ['lib/shared.js'] },
-    { id: 't2', fileScope: ['lib/shared.js'], dependsOn: ['t1'] },
+    { id: 't1', fileScope: pack(['lib/shared.js']) },
+    { id: 't2', fileScope: pack(['lib/shared.js']), dependsOn: ['t1'] },
   );
   assert.equal(deriveEdges(forward, []).added.length, 0);
   const reverse = graphOf(
-    { id: 't1', fileScope: ['lib/shared.js'], dependsOn: ['t2'] },
-    { id: 't2', fileScope: ['lib/shared.js'] },
+    { id: 't1', fileScope: pack(['lib/shared.js']), dependsOn: ['t2'] },
+    { id: 't2', fileScope: pack(['lib/shared.js']) },
   );
   assert.equal(deriveEdges(reverse, []).added.length, 0);
 });
@@ -53,34 +53,34 @@ test('fileScope overlap already serialized either direction adds no edge', () =>
 test('a scalar fileScope is refused instead of silently skipping the serializing overlap edge', () => {
   const outcome = deriveOutcome(graphOf(
     { id: 't1', fileScope: 'lib/shared.js' },
-    { id: 't2', fileScope: ['lib/shared.js'] },
+    { id: 't2', fileScope: pack(['lib/shared.js']) },
   ));
   assert.equal(outcome.refused, true, `expected a refusal; instead the two overlapping tasks were hardened with added edges ${JSON.stringify(outcome.added)}`);
-  assert.match(outcome.message, /fileScope must be an array/);
+  assert.match(outcome.message, /fileScope must be a context pack object/);
 });
 
 test('a non-string fileScope entry is refused instead of being narrowed away into a scope that serializes nothing', () => {
   const outcome = deriveOutcome(graphOf(
-    { id: 't1', fileScope: [123] },
-    { id: 't2', fileScope: ['lib/shared.js'] },
+    { id: 't1', fileScope: pack([123]) },
+    { id: 't2', fileScope: pack(['lib/shared.js']) },
   ));
   assert.equal(outcome.refused, true, `expected a refusal; instead the graph was hardened with added edges ${JSON.stringify(outcome.added)}`);
-  assert.match(outcome.message, /fileScope entries must be non-empty strings/);
+  assert.match(outcome.message, /fileScope.edit entries must be non-empty strings/);
 });
 
 test('an empty-string fileScope entry is refused instead of standing as an entry that overlaps nothing', () => {
   const outcome = deriveOutcome(graphOf(
-    { id: 't1', fileScope: [''] },
-    { id: 't2', fileScope: ['lib/shared.js'] },
+    { id: 't1', fileScope: pack(['']) },
+    { id: 't2', fileScope: pack(['lib/shared.js']) },
   ));
   assert.equal(outcome.refused, true, `expected a refusal; instead the graph was hardened with added edges ${JSON.stringify(outcome.added)}`);
-  assert.match(outcome.message, /fileScope entries must be non-empty strings/);
+  assert.match(outcome.message, /fileScope.edit entries must be non-empty strings/);
 });
 
 test('discovered semantic edge not declared is auto-added with its reason', () => {
   const g = graphOf(
-    { id: 't1', fileScope: ['lib/a.js'] },
-    { id: 't2', fileScope: ['lib/b.js'] },
+    { id: 't1', fileScope: pack(['lib/a.js']) },
+    { id: 't2', fileScope: pack(['lib/b.js']) },
   );
   const { graph, added } = deriveEdges(g, [{ from: 't2', to: 't1', reason: 'lsp-call' }]);
   assert.deepEqual(added, [{ from: 't2', to: 't1', reason: 'lsp-call' }]);
@@ -89,8 +89,8 @@ test('discovered semantic edge not declared is auto-added with its reason', () =
 
 test('monotonic: a declared edge is never removed', () => {
   const g = graphOf(
-    { id: 't1', fileScope: ['lib/a.js'] },
-    { id: 't2', fileScope: ['lib/b.js'], dependsOn: ['t1'] },
+    { id: 't1', fileScope: pack(['lib/a.js']) },
+    { id: 't2', fileScope: pack(['lib/b.js']), dependsOn: ['t1'] },
   );
   const { graph } = deriveEdges(g, []);
   assert.ok(graph.tasks.find((t) => t.id === 't2').dependsOn.includes('t1'));
@@ -98,8 +98,8 @@ test('monotonic: a declared edge is never removed', () => {
 
 test('discovered edge contradicting a declared edge halts with the wave-planner cycle string', () => {
   const g = graphOf(
-    { id: 't1', fileScope: ['lib/a.js'], dependsOn: ['t2'] },
-    { id: 't2', fileScope: ['lib/b.js'] },
+    { id: 't1', fileScope: pack(['lib/a.js']), dependsOn: ['t2'] },
+    { id: 't2', fileScope: pack(['lib/b.js']) },
   );
   assert.throws(
     () => deriveEdges(g, [{ from: 't2', to: 't1', reason: 'lsp-call' }]),
@@ -108,7 +108,7 @@ test('discovered edge contradicting a declared edge halts with the wave-planner 
 });
 
 test('discovered edge to an unknown task throws', () => {
-  const g = graphOf({ id: 't1', fileScope: ['lib/a.js'] });
+  const g = graphOf({ id: 't1', fileScope: pack(['lib/a.js']) });
   assert.throws(
     () => deriveEdges(g, [{ from: 't1', to: 'tX', reason: 'lsp-call' }]),
     /unknown task/,
@@ -116,23 +116,23 @@ test('discovered edge to an unknown task throws', () => {
 });
 
 test('declared dependency on an unknown task throws (mirrors wave-planner)', () => {
-  const g = graphOf({ id: 't1', fileScope: ['lib/a.js'], dependsOn: ['tZ'] });
+  const g = graphOf({ id: 't1', fileScope: pack(['lib/a.js']), dependsOn: ['tZ'] });
   assert.throws(() => deriveEdges(g, []), /unknown task/);
 });
 
 test('duplicate task id throws', () => {
   const g = graphOf(
-    { id: 't1', fileScope: ['lib/a.js'] },
-    { id: 't1', fileScope: ['lib/b.js'] },
+    { id: 't1', fileScope: pack(['lib/a.js']) },
+    { id: 't1', fileScope: pack(['lib/b.js']) },
   );
   assert.throws(() => deriveEdges(g, []), /duplicate task id/);
 });
 
 test('hardened dependsOn is sorted and deduplicated', () => {
   const g = graphOf(
-    { id: 't1', fileScope: ['lib/a.js'] },
-    { id: 't2', fileScope: ['lib/a.js'] },
-    { id: 't3', fileScope: ['lib/a.js'], dependsOn: ['t2', 't1', 't2'] },
+    { id: 't1', fileScope: pack(['lib/a.js']) },
+    { id: 't2', fileScope: pack(['lib/a.js']) },
+    { id: 't3', fileScope: pack(['lib/a.js']), dependsOn: ['t2', 't1', 't2'] },
   );
   const { graph } = deriveEdges(g, []);
   assert.deepEqual(graph.tasks.find((t) => t.id === 't3').dependsOn, ['t1', 't2']);
@@ -140,10 +140,10 @@ test('hardened dependsOn is sorted and deduplicated', () => {
 
 test('exposes reverse-transitive-dependent counts on each hardened task', () => {
   const g = graphOf(
-    { id: 't1', fileScope: ['lib/a.js'] },
-    { id: 't2', fileScope: ['lib/b.js'], dependsOn: ['t1'] },
-    { id: 't3', fileScope: ['lib/c.js'], dependsOn: ['t2'] },
-    { id: 't4', fileScope: ['lib/d.js'], dependsOn: ['t2'] },
+    { id: 't1', fileScope: pack(['lib/a.js']) },
+    { id: 't2', fileScope: pack(['lib/b.js']), dependsOn: ['t1'] },
+    { id: 't3', fileScope: pack(['lib/c.js']), dependsOn: ['t2'] },
+    { id: 't4', fileScope: pack(['lib/d.js']), dependsOn: ['t2'] },
   );
   const { graph } = deriveEdges(g, []);
   const byId = Object.fromEntries(graph.tasks.map((t) => [t.id, t]));
@@ -155,8 +155,8 @@ test('exposes reverse-transitive-dependent counts on each hardened task', () => 
 
 test('reverse-transitive-dependent count includes auto-added overlap edges', () => {
   const g = graphOf(
-    { id: 't1', fileScope: ['lib/shared.js'] },
-    { id: 't2', fileScope: ['lib/shared.js'] },
+    { id: 't1', fileScope: pack(['lib/shared.js']) },
+    { id: 't2', fileScope: pack(['lib/shared.js']) },
   );
   const { graph } = deriveEdges(g, []);
   const byId = Object.fromEntries(graph.tasks.map((t) => [t.id, t]));
@@ -166,8 +166,8 @@ test('reverse-transitive-dependent count includes auto-added overlap edges', () 
 
 test('exposes edgeReasons for tasks participating in derived edges', () => {
   const g = graphOf(
-    { id: 't1', fileScope: ['lib/a.js'] },
-    { id: 't2', fileScope: ['lib/b.js'] },
+    { id: 't1', fileScope: pack(['lib/a.js']) },
+    { id: 't2', fileScope: pack(['lib/b.js']) },
   );
   const { graph } = deriveEdges(g, [{ from: 't2', to: 't1', reason: 'api-contract' }]);
   const byId = Object.fromEntries(graph.tasks.map((t) => [t.id, t]));
@@ -177,8 +177,8 @@ test('exposes edgeReasons for tasks participating in derived edges', () => {
 
 test('tasks with no derived edges expose an empty edgeReasons array', () => {
   const g = graphOf(
-    { id: 't1', fileScope: ['lib/a.js'] },
-    { id: 't2', fileScope: ['lib/b.js'], dependsOn: ['t1'] },
+    { id: 't1', fileScope: pack(['lib/a.js']) },
+    { id: 't2', fileScope: pack(['lib/b.js']), dependsOn: ['t1'] },
   );
   const { graph } = deriveEdges(g, []);
   const byId = Object.fromEntries(graph.tasks.map((t) => [t.id, t]));
@@ -191,6 +191,7 @@ import { mkdtempSync, writeFileSync, readFileSync, existsSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { pack } from './file-scope-fixtures.mjs';
 
 const CLI = fileURLToPath(new URL('../derive-edges.mjs', import.meta.url));
 
@@ -204,8 +205,8 @@ test('CLI writes a hardened graph and an audit file with a timestamp', () => {
   const discovered = join(dir, 'edges.json');
   writeFileSync(declared, JSON.stringify({
     tasks: [
-      { id: 't1', title: 'a', fullText: 'A', fileScope: ['lib/shared.js'], dependsOn: [], risk: 'low', validation: 'scoped' },
-      { id: 't2', title: 'b', fullText: 'B', fileScope: ['lib/shared.js'], dependsOn: [], risk: 'low', validation: 'scoped' },
+      { id: 't1', title: 'a', fullText: 'A', fileScope: pack(['lib/shared.js']), dependsOn: [], risk: 'low', validation: 'scoped' },
+      { id: 't2', title: 'b', fullText: 'B', fileScope: pack(['lib/shared.js']), dependsOn: [], risk: 'low', validation: 'scoped' },
     ],
   }));
   writeFileSync(discovered, JSON.stringify([]));
@@ -223,8 +224,8 @@ test('CLI exits non-zero and prints derive-edges error on a cycle', () => {
   const discovered = join(dir, 'edges.json');
   writeFileSync(declared, JSON.stringify({
     tasks: [
-      { id: 't1', title: 'a', fullText: 'A', fileScope: ['lib/a.js'], dependsOn: ['t2'], risk: 'low', validation: 'scoped' },
-      { id: 't2', title: 'b', fullText: 'B', fileScope: ['lib/b.js'], dependsOn: [], risk: 'low', validation: 'scoped' },
+      { id: 't1', title: 'a', fullText: 'A', fileScope: pack(['lib/a.js']), dependsOn: ['t2'], risk: 'low', validation: 'scoped' },
+      { id: 't2', title: 'b', fullText: 'B', fileScope: pack(['lib/b.js']), dependsOn: [], risk: 'low', validation: 'scoped' },
     ],
   }));
   writeFileSync(discovered, JSON.stringify([{ from: 't2', to: 't1', reason: 'lsp-call' }]));
@@ -241,10 +242,10 @@ test('CLI exits non-zero and prints derive-edges error on a cycle', () => {
 
 test('T22: a discovered edge lands in dependentCount and in edgeReasons on both endpoints', () => {
   const g = graphOf(
-    { id: 't1', fileScope: ['lib/a.js'] },
-    { id: 't2', fileScope: ['lib/b.js'], dependsOn: ['t1'] },
-    { id: 't3', fileScope: ['lib/c.js'], dependsOn: ['t2'] },
-    { id: 't4', fileScope: ['lib/d.js'] },
+    { id: 't1', fileScope: pack(['lib/a.js']) },
+    { id: 't2', fileScope: pack(['lib/b.js']), dependsOn: ['t1'] },
+    { id: 't3', fileScope: pack(['lib/c.js']), dependsOn: ['t2'] },
+    { id: 't4', fileScope: pack(['lib/d.js']) },
   );
   const { graph } = deriveEdges(g, [{ from: 't4', to: 't1', reason: 'api-contract' }]);
   const byId = Object.fromEntries(graph.tasks.map((t) => [t.id, t]));
@@ -263,8 +264,8 @@ test('T23: the CLI hardened graph carries dependentCount and edgeReasons on ever
   const declared = join(dir, 'plan.graph.json');
   writeFileSync(declared, JSON.stringify({
     tasks: [
-      { id: 't1', title: 'a', fullText: 'A', fileScope: ['lib/a.js'], dependsOn: [], risk: 'low', validation: 'scoped' },
-      { id: 't2', title: 'b', fullText: 'B', fileScope: ['lib/b.js'], dependsOn: ['t1'], risk: 'low', validation: 'scoped' },
+      { id: 't1', title: 'a', fullText: 'A', fileScope: pack(['lib/a.js']), dependsOn: [], risk: 'low', validation: 'scoped' },
+      { id: 't2', title: 'b', fullText: 'B', fileScope: pack(['lib/b.js']), dependsOn: ['t1'], risk: 'low', validation: 'scoped' },
     ],
   }));
   const stdout = runCli([declared], dir);
@@ -287,8 +288,8 @@ test('T23: the CLI hardened graph carries dependentCount and edgeReasons on ever
 
 test('T19: a file-disjoint pair carrying a signal is emitted for coupling review', () => {
   const g = graphOf(
-    { id: 't1', fileScope: ['srv/auth/login.ts'] },
-    { id: 't2', fileScope: ['web/auth/form.tsx'] },
+    { id: 't1', fileScope: pack(['srv/auth/login.ts']) },
+    { id: 't2', fileScope: pack(['web/auth/form.tsx']) },
   );
   const { graph, added, coupling } = deriveEdges(g, []);
   assert.equal(added.length, 0, 'a file-disjoint pair is still not serialized by an added edge');
@@ -298,8 +299,8 @@ test('T19: a file-disjoint pair carrying a signal is emitted for coupling review
 
 test('T20: a pair whose fileScope overlaps is not emitted, because the added edge already serializes it', () => {
   const g = graphOf(
-    { id: 't1', fileScope: ['srv/auth/login.ts'] },
-    { id: 't2', fileScope: ['srv/auth/login.ts'] },
+    { id: 't1', fileScope: pack(['srv/auth/login.ts']) },
+    { id: 't2', fileScope: pack(['srv/auth/login.ts']) },
   );
   const { added, coupling } = deriveEdges(g, []);
   assert.equal(added.length, 1);
@@ -308,9 +309,9 @@ test('T20: a pair whose fileScope overlaps is not emitted, because the added edg
 
 test('T21: a pair already ordered through an intermediate dependency is not emitted', () => {
   const g = graphOf(
-    { id: 't1', fileScope: ['srv/auth/login.ts'] },
-    { id: 't2', fileScope: ['lib/mid.ts'], dependsOn: ['t1'] },
-    { id: 't3', fileScope: ['web/auth/form.tsx'], dependsOn: ['t2'] },
+    { id: 't1', fileScope: pack(['srv/auth/login.ts']) },
+    { id: 't2', fileScope: pack(['lib/mid.ts']), dependsOn: ['t1'] },
+    { id: 't3', fileScope: pack(['web/auth/form.tsx']), dependsOn: ['t2'] },
   );
   const { coupling } = deriveEdges(g, []);
   assert.deepEqual(coupling, [], 't1 and t3 are already ordered transitively through t2');
@@ -319,8 +320,8 @@ test('T21: a pair already ordered through an intermediate dependency is not emit
 test('T19b: coupling context supplied on the graph reaches the detectors', () => {
   const g = {
     tasks: [
-      { id: 't1', fileScope: ['lib/a.js'], dependsOn: [] },
-      { id: 't2', fileScope: ['lib/b.js'], dependsOn: [] },
+      { id: 't1', fileScope: pack(['lib/a.js']), dependsOn: [] },
+      { id: 't2', fileScope: pack(['lib/b.js']), dependsOn: [] },
     ],
     couplingContext: { importAdjacency: { 'lib/a.js': ['lib/b.js'] } },
   };
@@ -333,8 +334,8 @@ test('T19c: the CLI carries the coupling emission into the hardened graph withou
   const declared = join(dir, 'plan.graph.json');
   writeFileSync(declared, JSON.stringify({
     tasks: [
-      { id: 't1', title: 'a', fullText: 'A', fileScope: ['srv/auth/login.ts'], dependsOn: [], risk: 'low', validation: 'scoped' },
-      { id: 't2', title: 'b', fullText: 'B', fileScope: ['web/auth/form.tsx'], dependsOn: [], risk: 'low', validation: 'scoped' },
+      { id: 't1', title: 'a', fullText: 'A', fileScope: pack(['srv/auth/login.ts']), dependsOn: [], risk: 'low', validation: 'scoped' },
+      { id: 't2', title: 'b', fullText: 'B', fileScope: pack(['web/auth/form.tsx']), dependsOn: [], risk: 'low', validation: 'scoped' },
     ],
   }));
   const stdout = JSON.parse(runCli([declared], dir));
@@ -354,10 +355,10 @@ function couplingGraphFile(dir) {
   const declared = join(dir, 'plan.graph.json');
   writeFileSync(declared, JSON.stringify({
     tasks: [
-      { id: 't1', title: 'a', fullText: 'A', fileScope: ['srv/auth/login.ts'], dependsOn: [], risk: 'low', validation: 'scoped' },
-      { id: 't2', title: 'b', fullText: 'B', fileScope: ['web/auth/form.tsx'], dependsOn: [], risk: 'low', validation: 'scoped' },
-      { id: 't3', title: 'c', fullText: 'C', fileScope: ['srv/crypto/seal.ts'], dependsOn: [], risk: 'low', validation: 'scoped' },
-      { id: 't4', title: 'd', fullText: 'D', fileScope: ['web/crypto/open.tsx'], dependsOn: [], risk: 'low', validation: 'scoped' },
+      { id: 't1', title: 'a', fullText: 'A', fileScope: pack(['srv/auth/login.ts']), dependsOn: [], risk: 'low', validation: 'scoped' },
+      { id: 't2', title: 'b', fullText: 'B', fileScope: pack(['web/auth/form.tsx']), dependsOn: [], risk: 'low', validation: 'scoped' },
+      { id: 't3', title: 'c', fullText: 'C', fileScope: pack(['srv/crypto/seal.ts']), dependsOn: [], risk: 'low', validation: 'scoped' },
+      { id: 't4', title: 'd', fullText: 'D', fileScope: pack(['web/crypto/open.tsx']), dependsOn: [], risk: 'low', validation: 'scoped' },
     ],
   }));
   return declared;
@@ -468,8 +469,8 @@ test('T28: re-running the CLI over the graph it rewrote in place keeps the disco
   const { first, second } = inPlaceRun(
     dir,
     [
-      { id: 't1', title: 'a', fullText: 'A', fileScope: ['lib/a.js'], dependsOn: [], risk: 'low', validation: 'scoped' },
-      { id: 't2', title: 'b', fullText: 'B', fileScope: ['lib/b.js'], dependsOn: [], risk: 'low', validation: 'scoped' },
+      { id: 't1', title: 'a', fullText: 'A', fileScope: pack(['lib/a.js']), dependsOn: [], risk: 'low', validation: 'scoped' },
+      { id: 't2', title: 'b', fullText: 'B', fileScope: pack(['lib/b.js']), dependsOn: [], risk: 'low', validation: 'scoped' },
     ],
     [{ from: 't2', to: 't1', reason: 'api-contract' }],
   );
@@ -490,8 +491,8 @@ test('T28b: re-running the CLI in place keeps the fileScope-overlap reason on th
   const { first, second } = inPlaceRun(
     dir,
     [
-      { id: 't1', title: 'a', fullText: 'A', fileScope: ['lib/shared.js'], dependsOn: [], risk: 'low', validation: 'scoped' },
-      { id: 't2', title: 'b', fullText: 'B', fileScope: ['lib/shared.js'], dependsOn: [], risk: 'low', validation: 'scoped' },
+      { id: 't1', title: 'a', fullText: 'A', fileScope: pack(['lib/shared.js']), dependsOn: [], risk: 'low', validation: 'scoped' },
+      { id: 't2', title: 'b', fullText: 'B', fileScope: pack(['lib/shared.js']), dependsOn: [], risk: 'low', validation: 'scoped' },
     ],
     null,
   );
@@ -514,8 +515,8 @@ test('T28c: a reason whose discovered edge is withdrawn does not survive the nex
   const audit = join(dir, 'plan.edges-audit.json');
   writeFileSync(declared, JSON.stringify({
     tasks: [
-      { id: 't1', title: 'a', fullText: 'A', fileScope: ['lib/a.js'], dependsOn: [], risk: 'low', validation: 'scoped' },
-      { id: 't2', title: 'b', fullText: 'B', fileScope: ['lib/b.js'], dependsOn: [], risk: 'low', validation: 'scoped' },
+      { id: 't1', title: 'a', fullText: 'A', fileScope: pack(['lib/a.js']), dependsOn: [], risk: 'low', validation: 'scoped' },
+      { id: 't2', title: 'b', fullText: 'B', fileScope: pack(['lib/b.js']), dependsOn: [], risk: 'low', validation: 'scoped' },
     ],
   }));
   writeFileSync(discovered, JSON.stringify([{ from: 't2', to: 't1', reason: 'api-contract' }]));

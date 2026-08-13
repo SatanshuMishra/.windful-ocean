@@ -6,6 +6,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { assertVerdictsCoverPairs, reviewCoupling } from '../coupling-review.mjs';
+import { pack } from './file-scope-fixtures.mjs';
 
 const scratchDirs = [];
 
@@ -20,7 +21,7 @@ function scratch(prefix) {
 }
 
 function side(id, ...fileScope) {
-  return { id, fileScope };
+  return { id, fileScope: pack(fileScope) };
 }
 
 function candidate(a, b) {
@@ -164,10 +165,10 @@ test('T8: the emission and every record inside it is frozen', () => {
 test('T9: a malformed candidate is refused rather than skipped, so no pair is silently dropped', () => {
   assert.throws(
     () => reviewCoupling([candidate(side('t1', 'lib/a.js'), { id: 't2', fileScope: 'lib/b.js' })]),
-    /fileScope must be an array of non-empty strings/,
+    /fileScope must be a context pack object/,
   );
   assert.throws(
-    () => reviewCoupling([candidate(side('t1', 'lib/a.js'), { id: '', fileScope: ['lib/b.js'] })]),
+    () => reviewCoupling([candidate(side('t1', 'lib/a.js'), { id: '', fileScope: pack(['lib/b.js']) })]),
     /must be a non-empty string/,
   );
   assert.throws(
@@ -189,7 +190,7 @@ test('T16: the CLI prints the emission as JSON on stdout and exits 0', () => {
   const dir = scratch('coupling-cli-ok-');
   const candidates = join(dir, 'candidates.json');
   writeFileSync(candidates, JSON.stringify({
-    pairs: [{ a: { id: 't1', fileScope: ['srv/auth/a.ts'] }, b: { id: 't2', fileScope: ['web/auth/b.tsx'] } }],
+    pairs: [{ a: { id: 't1', fileScope: pack(['srv/auth/a.ts']) }, b: { id: 't2', fileScope: pack(['web/auth/b.tsx']) } }],
   }));
   const stdout = execFileSync('node', [CLI, candidates], { cwd: dir, encoding: 'utf8' });
   assert.deepEqual(JSON.parse(stdout), [{ pair: ['t1', 't2'], signals: ['shared-risk-marker:auth'], default: 'serialize' }]);
@@ -295,8 +296,8 @@ test('T17: the CLI exits 1 and prints coupling-review error when a verdict is mi
   const verdicts = join(dir, 'verdicts.json');
   writeFileSync(candidates, JSON.stringify({
     pairs: [
-      { a: { id: 't1', fileScope: ['srv/auth/a.ts'] }, b: { id: 't2', fileScope: ['web/auth/b.tsx'] } },
-      { a: { id: 't3', fileScope: ['srv/crypto/c.ts'] }, b: { id: 't4', fileScope: ['web/crypto/d.tsx'] } },
+      { a: { id: 't1', fileScope: pack(['srv/auth/a.ts']) }, b: { id: 't2', fileScope: pack(['web/auth/b.tsx']) } },
+      { a: { id: 't3', fileScope: pack(['srv/crypto/c.ts']) }, b: { id: 't4', fileScope: pack(['web/crypto/d.tsx']) } },
     ],
   }));
   writeFileSync(verdicts, JSON.stringify([{ pair: ['t1', 't2'], decision: 'serialize', rationale: null }]));
@@ -316,7 +317,7 @@ test('T17b: the CLI exits 0 when every emitted pair carries a verdict', () => {
   const candidates = join(dir, 'candidates.json');
   const verdicts = join(dir, 'verdicts.json');
   writeFileSync(candidates, JSON.stringify({
-    pairs: [{ a: { id: 't1', fileScope: ['srv/auth/a.ts'] }, b: { id: 't2', fileScope: ['web/auth/b.tsx'] } }],
+    pairs: [{ a: { id: 't1', fileScope: pack(['srv/auth/a.ts']) }, b: { id: 't2', fileScope: pack(['web/auth/b.tsx']) } }],
   }));
   writeFileSync(verdicts, JSON.stringify([{ pair: ['t1', 't2'], decision: 'serialize', rationale: null }]));
   const stdout = execFileSync('node', [CLI, candidates, '--verdicts', verdicts], { cwd: dir, encoding: 'utf8' });
@@ -365,7 +366,7 @@ test('T27: the CLI refuses a repeated --verdicts flag rather than validating aga
   const first = join(dir, 'first.json');
   const second = join(dir, 'second.json');
   writeFileSync(candidates, JSON.stringify({
-    pairs: [{ a: { id: 't1', fileScope: ['srv/auth/a.ts'] }, b: { id: 't2', fileScope: ['web/auth/b.tsx'] } }],
+    pairs: [{ a: { id: 't1', fileScope: pack(['srv/auth/a.ts']) }, b: { id: 't2', fileScope: pack(['web/auth/b.tsx']) } }],
   }));
   writeFileSync(first, JSON.stringify([]));
   writeFileSync(second, JSON.stringify([{ pair: ['t1', 't2'], decision: 'serialize', rationale: null }]));
