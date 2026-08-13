@@ -331,4 +331,74 @@ test('attempt numbering skips gaps rather than reusing a retired number', () => 
   assert.equal(handle.attempt, 8);
 });
 
+test('recordStart writes the in-flight marker before any output exists', () => {
+  const handle = openRun(openArgs());
+  const path = handle.recordStart('a3-run-store', { phase: 'dispatched' });
+  assert.equal(path, join(handle.itemsDir, 'a3-run-store.out'));
+  const written = JSON.parse(readFileSync(path, 'utf8'));
+  assert.equal(written.phase, 'dispatched');
+  assert.equal(written.unitId, 'a3-run-store');
+  assert.equal(written.attempt, handle.attempt);
+});
+
+test('recordStart refuses a unit id absent from the run declared list', () => {
+  const handle = openRun(openArgs());
+  for (const bad of ['a3-absent', '../../evil', 'A3', 'a3/b', '', null]) {
+    assert.throws(() => handle.recordStart(bad, { phase: 'dispatched' }), /unit/i, `expected ${JSON.stringify(bad)} to be refused`);
+  }
+  assert.deepEqual(readdirSync(handle.itemsDir), []);
+  assert.equal(existsSync(join(handle.dir, '..', '..', 'evil.out')), false);
+});
+
+test('recordStart refuses a second start for the same unit in one attempt', () => {
+  const handle = openRun(openArgs());
+  handle.recordStart('a3-run-store', { phase: 'dispatched' });
+  assert.throws(() => handle.recordStart('a3-run-store', { phase: 'dispatched-again' }), /in flight|already/i);
+  assert.match(readFileSync(join(handle.itemsDir, 'a3-run-store.out'), 'utf8'), /"phase":"dispatched"/);
+});
+
+test('recordOutput refuses a unit that never recorded a start', () => {
+  const handle = openRun(openArgs());
+  assert.throws(() => handle.recordOutput('a3-run-store', { phase: 'reaped', ok: true }), /start/i);
+  assert.deepEqual(readdirSync(handle.itemsDir), []);
+});
+
+test('recordOutput replaces the marker atomically once a start exists', () => {
+  const handle = openRun(openArgs());
+  handle.recordStart('a3-run-store', { phase: 'dispatched' });
+  handle.recordOutput('a3-run-store', { phase: 'reaped', ok: true });
+  const written = JSON.parse(readFileSync(join(handle.itemsDir, 'a3-run-store.out'), 'utf8'));
+  assert.equal(written.phase, 'reaped');
+  assert.equal(written.ok, true);
+  assert.deepEqual(readdirSync(handle.itemsDir), ['a3-run-store.out']);
+});
+
+test('state.json survives a crash-shaped leftover temp file', () => {
+  const handle = openRun(openArgs());
+  handle.commitState({ phase: 'one' });
+  writeFileSync(`${join(handle.dir, 'state.json')}.tmp`, 'HALF-WRITTEN BYTES FROM A CRASHED RUN');
+  assert.deepEqual(JSON.parse(readFileSync(join(handle.dir, 'state.json'), 'utf8')), { phase: 'one' });
+  handle.commitState({ phase: 'two' });
+  const written = readFileSync(join(handle.dir, 'state.json'), 'utf8');
+  assert.deepEqual(JSON.parse(written), { phase: 'two' });
+  assert.equal(written.includes('HALF-WRITTEN'), false);
+});
+
+test('a failed state write leaves the previous state.json whole', () => {
+  const handle = openRun(openArgs());
+  handle.commitState({ phase: 'one' });
+  mkdirSync(`${join(handle.dir, 'state.json')}.tmp`);
+  assert.throws(() => handle.commitState({ phase: 'two' }), /run-store|EISDIR/);
+  assert.deepEqual(JSON.parse(readFileSync(join(handle.dir, 'state.json'), 'utf8')), { phase: 'one' });
+});
+
+test('handle writes are refused after release', () => {
+  const handle = openRun(openArgs());
+  handle.recordStart('a3-run-store', { phase: 'dispatched' });
+  handle.release();
+  assert.throws(() => handle.recordStart('a3-tests', { phase: 'dispatched' }), /release/i);
+  assert.throws(() => handle.recordOutput('a3-run-store', { phase: 'reaped' }), /release/i);
+  assert.throws(() => handle.commitState({ phase: 'late' }), /release/i);
+});
+
 after(cleanupScratch);

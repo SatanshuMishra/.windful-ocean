@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto';
-import { closeSync, mkdirSync, openSync, readdirSync, readFileSync, realpathSync, unlinkSync, writeFileSync } from 'node:fs';
+import { closeSync, existsSync, mkdirSync, openSync, readdirSync, readFileSync, realpathSync, renameSync, unlinkSync, writeFileSync } from 'node:fs';
 import { isAbsolute, join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { isIsoInstant } from './run-log.mjs';
@@ -145,6 +145,20 @@ function allocateAttempt(runDir) {
   throw new Error(`run-store: could not allocate a fresh attempt directory under ${runDir} after ${MAX_ATTEMPT_COLLISIONS} tries; every candidate already existed, so something else is writing attempts into this run and no attempt is safely ours to use`);
 }
 
+function writeAtomic(path, text) {
+  const temporary = `${path}.tmp`;
+  writeFileSync(temporary, text);
+  renameSync(temporary, path);
+  return path;
+}
+
+function requireRecord(value, field) {
+  if (!isPlainObject(value)) {
+    throw new TypeError(`run-store: ${field} must be a plain object, because it is serialized verbatim into the run's durable record, received ${value === null ? 'null' : Array.isArray(value) ? 'an array' : typeof value}`);
+  }
+  return value;
+}
+
 function describeLockHolder(lockPath) {
   let held = null;
   try {
@@ -186,6 +200,70 @@ function releaseLock(lockPath, lockRecord) {
   unlinkSync(lockPath);
 }
 
+function unitOutputPath(context, unitId, operation) {
+  if (!context.unitIds.includes(unitId)) {
+    throw new Error(`run-store: ${operation} names the unit ${JSON.stringify(unitId)}, which is not one of the unit ids this run was opened for (${context.unitIds.join(', ')}); a unit outside that list has no output file here, and composing one from an unvetted id is how a path escapes the items directory`);
+  }
+  return join(context.dir, 'items', `${unitId}.out`);
+}
+
+function attemptWriters(context, requireOpen) {
+  const envelope = (record, unitId) => `${JSON.stringify({ ...record, unitId, attempt: context.attempt })}\n`;
+  const recordStart = (unitId, record) => {
+    requireOpen('recordStart');
+    const path = unitOutputPath(context, unitId, 'recordStart');
+    requireRecord(record, 'record');
+    try {
+      writeFileSync(path, envelope(record, unitId), { flag: 'wx' });
+    } catch (error) {
+      if (error.code !== 'EEXIST') throw error;
+      throw new Error(`run-store: the unit ${unitId} already has an in-flight record in attempt ${context.attempt}; that record is what tells a crashed run which units were mid-edit, so it is never overwritten - open a new attempt instead`);
+    }
+    return path;
+  };
+  const recordOutput = (unitId, record) => {
+    requireOpen('recordOutput');
+    const path = unitOutputPath(context, unitId, 'recordOutput');
+    requireRecord(record, 'record');
+    if (!existsSync(path)) {
+      throw new Error(`run-store: the unit ${unitId} has no in-flight record from a recordStart in attempt ${context.attempt}, so there is nothing this output can be the result of; recordStart must run before the unit is dispatched, which is what makes a crash mid-flight visible afterwards`);
+    }
+    return writeAtomic(path, envelope(record, unitId));
+  };
+  const commitState = (state) => {
+    requireOpen('commitState');
+    requireRecord(state, 'state');
+    return writeAtomic(join(context.dir, 'state.json'), `${JSON.stringify(state)}\n`);
+  };
+  return { recordStart, recordOutput, commitState };
+}
+
+function attemptHandle(context) {
+  let held = true;
+  const requireOpen = (operation) => {
+    if (!held) {
+      throw new Error(`run-store: ${operation} was called after release for attempt ${context.attempt} of ${context.runKey}; this run no longer holds the lock, so writing into its directory could race the run that does`);
+    }
+  };
+  const release = () => {
+    if (!held) {
+      throw new Error(`run-store: release was already called for attempt ${context.attempt} of ${context.runKey}; a second release would unlink whatever lock now sits at ${context.lockPath}, which may belong to a later run`);
+    }
+    releaseLock(context.lockPath, context.lockRecord);
+    held = false;
+  };
+  return Object.freeze({
+    runKey: context.runKey,
+    attempt: context.attempt,
+    dir: context.dir,
+    itemsDir: join(context.dir, 'items'),
+    lockPath: context.lockPath,
+    unitIds: context.unitIds,
+    ...attemptWriters(context, requireOpen),
+    release,
+  });
+}
+
 export function openRun(request) {
   if (!isPlainObject(request)) {
     throw new TypeError(`run-store: openRun takes one plain object carrying root, runKey, unitIds, plan, startedAt and an optional pid, received ${request === null ? 'null' : Array.isArray(request) ? 'an array' : typeof request}`);
@@ -215,24 +293,7 @@ export function openRun(request) {
     throw error;
   }
 
-  let held = true;
-  const release = () => {
-    if (!held) {
-      throw new Error(`run-store: release was already called for attempt ${allocated.attempt} of ${runKey}; a second release would unlink whatever lock now sits at ${lockPath}, which may belong to a later run`);
-    }
-    releaseLock(lockPath, lockRecord);
-    held = false;
-  };
-
-  return Object.freeze({
-    runKey,
-    attempt: allocated.attempt,
-    dir: allocated.dir,
-    itemsDir: join(allocated.dir, 'items'),
-    lockPath,
-    unitIds,
-    release,
-  });
+  return attemptHandle({ runKey, attempt: allocated.attempt, dir: allocated.dir, lockPath, lockRecord, unitIds });
 }
 
 function readJsonFile(path, label) {
