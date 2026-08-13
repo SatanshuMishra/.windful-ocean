@@ -22,6 +22,13 @@
       "struck_by": null
     },
     {
+      "id": "c12",
+      "text": "Promotion manifest hardened first: hooks and permissions.deny reclassified so absence refuses promotion rather than deleting from live, and undeclared keys are refused instead of freezing",
+      "done": false,
+      "kind": "planned",
+      "struck_by": null
+    },
+    {
       "id": "c3",
       "text": "Steps 1-2 shipped: deny pruned to D1-D5 only; all ask rules retired and hook ask branches converted to checkpoint-and-allow or block",
       "done": false,
@@ -201,5 +208,5 @@
     "out_of_scope": []
   },
   "created_at": "2026-08-13T18:14:42.072Z",
-  "updated_at": "2026-08-13T19:19:43.611Z"
+  "updated_at": "2026-08-13T19:19:53.935Z"
 }
