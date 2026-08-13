@@ -96,40 +96,46 @@
     "last_session": "Read the SPEC, opened this child build thread, established config ground truth, and dispatched Wave 0 measurement agents. Nothing implemented.",
     "open_risks": [
       {
-        "text": "Step 0's narrowing target is ambiguous — clamping repo paths to the gate implementation would deny building the gate itself, so the guard must almost certainly clamp the live copy under ~/.claude rather than version-controlled source",
+        "text": "validate.mjs is a syntax gate only — it never executes hook logic, so a behaviorally wrong permission gate passes validation and promotes to live unnoticed; only runtime testing catches it",
         "scope": "c1",
         "refs": [
-          ".claude/hooks/protect-claude-config.sh",
-          "docs/superpowers/specs/2026-08-13-maximum-autonomy-permission-architecture-SPEC.md"
+          "~/.claude/local/validate.mjs:461-473"
         ]
       },
       {
-        "text": "Live is pinned at release 482dc7d while repo HEAD is 31bdd62 — three commits never promoted, so a config change may silently no-op until the promotion pipeline is understood",
+        "text": "permissions.allow is unioned at promotion and never shrinks — live's allow set only grows, retractable only through a hardcoded list in the unversioned ~/.claude/local, so the allow-side cleanup may be unable to remove anything",
         "scope": "c1",
         "refs": [
-          "~/.claude/current",
-          "~/.claude/LIVE"
+          "~/.claude/local/manifest.mjs"
         ]
       },
       {
-        "text": "converge.mjs runs on Stop — any committed hook change can auto-promote at the end of a turn, putting a half-built gate live mid-build",
+        "text": "sandbox and defaultMode are unclassified in the ownership manifest — if unclassified keys are dropped at reconciliation, Layer 0 and the run mode cannot ship through the repo and need a different delivery mechanism",
         "scope": "c1",
         "refs": [
-          ".claude/settings.json:110"
+          "~/.claude/local/manifest.mjs"
         ]
       },
       {
-        "text": "The promotion source is unestablished for git worktrees — mitosis fan-out shares one git dir, so a worktree HEAD could become the promoted release",
+        "text": "promote.mjs's CLI accepts an arbitrary ref with no main-only restriction — that guard lives only in converge.mjs, so a manual promote could put a half-built feature branch live",
         "scope": "c1",
         "refs": [
-          "~/.claude/local/converge.mjs"
+          "~/.claude/local/promote.mjs:255",
+          "~/.claude/local/converge.mjs:23-27"
         ]
       },
       {
-        "text": "settings.local.json holds 202 allow rules and grew during the SPEC-authoring session — the accumulation source must be stopped, not just the file truncated",
+        "text": "Local main is 10 commits behind origin/main and converge never fetches — a PR merged on GitHub does not become live until someone advances local refs/heads/main by hand, so the release step is manual today",
         "scope": "c1",
         "refs": [
-          ".claude/settings.local.json"
+          "~/.claude/local/release.mjs:61-77"
+        ]
+      },
+      {
+        "text": "protect-claude-config.sh discovers the repo's .claude via the LIVE receipt repo_root, symlink probes and git worktree list — narrowing it to live-only must remove that discovery, not just edit the path list",
+        "scope": "c1",
+        "refs": [
+          "~/.claude/current/hooks/protect-claude-config.sh:81-135"
         ]
       }
     ],
@@ -143,5 +149,5 @@
     "out_of_scope": []
   },
   "created_at": "2026-08-13T18:14:42.072Z",
-  "updated_at": "2026-08-13T18:20:35.579Z"
+  "updated_at": "2026-08-13T18:28:40.155Z"
 }
