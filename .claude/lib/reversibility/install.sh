@@ -37,7 +37,11 @@ if ! git -C "$repo_root" rev-parse --git-dir >/dev/null 2>&1; then
   exit 1
 fi
 
-mkdir -p "$HOME/.claude/logs"
+log_dir="$HOME/.claude/logs"
+log_dir_ready=1
+if ! mkdir -p "$log_dir" 2>/dev/null; then
+  log_dir_ready=0
+fi
 
 written=()
 while IFS= read -r line; do
@@ -48,6 +52,10 @@ printf 'Rendered %d launchd job(s):\n' "${#written[@]}"
 for path in "${written[@]}"; do
   printf '  %s\n' "$path"
 done
+
+if [ "$log_dir_ready" -eq 0 ]; then
+  printf '\nCould not create %s, which both jobs write their logs to. Create it before loading them:\n\n  mkdir -p %s\n' "$log_dir" "$log_dir"
+fi
 
 printf '\nNothing was loaded or started. To install them, run:\n\n'
 for path in "${written[@]}"; do

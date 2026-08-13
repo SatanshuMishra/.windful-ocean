@@ -22,7 +22,7 @@ process.on('exit', () => {
 });
 
 function git(args, cwd, env = {}) {
-  const result = spawnSync('git', ['-c', 'core.hooksPath=/nonexistent-hooks', ...args], {
+  const result = spawnSync('git', ['-c', 'core.hooksPath=/nonexistent-hooks', '-c', 'commit.gpgsign=false', ...args], {
     cwd,
     encoding: 'utf8',
     env: { ...process.env, ...env },

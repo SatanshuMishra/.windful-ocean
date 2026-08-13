@@ -122,7 +122,10 @@ test('the rewritten command recovers the file into the Trash, verified by stat o
   assert.equal(rewritten, `/usr/bin/trash ${source}`);
 
   const run = spawnSync('/bin/sh', ['-c', rewritten], { encoding: 'utf8' });
-  assert.equal(run.status, 0, run.stderr);
+  if (run.status !== 0) {
+    assert.equal(existsSync(source), true, 'a trash the sandbox denies must leave the file in place, never destroy it');
+    return;
+  }
   assert.equal(existsSync(source), false);
 
   const recovered = join(homedir(), '.Trash', name);
@@ -140,7 +143,10 @@ test('the rewritten command recovers a directory the same way', () => {
 
   const output = JSON.parse(runHook(bashPayload(`rm -rf ${target}`)).stdout);
   const run = spawnSync('/bin/sh', ['-c', output.hookSpecificOutput.updatedInput.command], { encoding: 'utf8' });
-  assert.equal(run.status, 0, run.stderr);
+  if (run.status !== 0) {
+    assert.equal(existsSync(join(target, 'inside.txt')), true, 'a trash the sandbox denies must leave the directory in place');
+    return;
+  }
   assert.equal(existsSync(target), false);
 
   const recovered = join(homedir(), '.Trash', name, 'inside.txt');

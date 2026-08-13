@@ -34,7 +34,7 @@ const HOUR = 3600 * 1000;
 const config = loadConfig({ ...process.env, REVERSIBILITY_WINDOW_HOURS: '48' });
 
 function git(args, cwd, env = {}) {
-  return spawnSync('git', ['-c', 'core.hooksPath=/nonexistent-hooks', ...args], {
+  return spawnSync('git', ['-c', 'core.hooksPath=/nonexistent-hooks', '-c', 'commit.gpgsign=false', ...args], {
     cwd,
     encoding: 'utf8',
     env: { ...process.env, ...env },
