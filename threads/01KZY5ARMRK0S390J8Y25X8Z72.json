@@ -10,7 +10,7 @@
     {
       "id": "c1",
       "text": "U1-U7 experiments run and recorded in a companion findings doc; each claim marked verified or refuted with evidence, before any step that depends on it",
-      "done": false,
+      "done": true,
       "kind": "planned",
       "struck_by": null
     },
@@ -145,6 +145,20 @@
         "refs": [
           "~/.claude/local/release.mjs:61-77"
         ]
+      },
+      {
+        "text": "M7 and section 10's first row still say converge promotes repo HEAD — it actually resolves the main ref and never reads HEAD, so the two coincide only when main is checked out; the amendment left this pre-existing fact alone as outside its brief",
+        "scope": "thread",
+        "refs": [
+          "~/.claude/local/release.mjs:67"
+        ]
+      },
+      {
+        "text": "R3 names --dangerously-skip-permissions while section 5 now names --permission-mode bypassPermissions — whether these are one mechanism or two was never established, and the c10 rule change depends on that answer",
+        "scope": "thread",
+        "refs": [
+          "docs/security/bash-gate-threat-model.md:18"
+        ]
       }
     ],
     "key_decisions": [
@@ -177,5 +191,5 @@
     "out_of_scope": []
   },
   "created_at": "2026-08-13T18:14:42.072Z",
-  "updated_at": "2026-08-13T18:52:05.102Z"
+  "updated_at": "2026-08-13T19:18:20.737Z"
 }
