@@ -131,103 +131,6 @@
     "last_session": "Disproved the builder diagnosis. Shipped the bytecode fix as 8377436, verified and already live. Found the live config self-destructing on agent spawn from a non-repo actor, and caused five recursive symlinks inside the release with a non-idempotent recreate command.",
     "open_risks": [
       {
-        "text": "Fix the release builder before trusting any promotion receipt — a file tracked in main's tree never reaches the built release, so config verify exits 1 and the rule it ships has never actually been live",
-        "scope": "thread",
-        "refs": [
-          "rules/context7.md",
-          "scripts/config/verify.mjs"
-        ]
-      },
-      {
-        "text": "Stop runtime bytecode landing inside the promoted release tree — a python hook writes a compiled file into it at promotion time, so verify goes red after every promotion until that path is excluded or the write is prevented",
-        "scope": "thread",
-        "refs": [
-          "hooks/agent-ledger/__pycache__/_ledger.cpython-314.pyc"
-        ]
-      },
-      {
-        "text": "Edit anything under the hooks directory from a scratch worktree — Layer 0 denies writes there, including to its own tests, so a cherry-pick touching them half-applies and leaves the tree dirty",
-        "scope": "thread",
-        "refs": [
-          ".claude/hooks/tests"
-        ]
-      },
-      {
-        "text": "promote.mjs with no --ref exits 0 having done nothing — no install, no refusal, no output, so it reads as success; it left Layer 1 uninstalled across three verification rounds",
-        "scope": "thread",
-        "refs": [
-          "scripts/config/promote.mjs"
-        ]
-      },
-      {
-        "text": "Never read a piped exit code as a verification receipt — running verify through tail reports tail's status, which showed 0 while verify was actually exiting 1",
-        "scope": "thread",
-        "refs": [
-          "scripts/config/verify.mjs"
-        ]
-      },
-      {
-        "text": "A sandboxed session cannot promote at all — every path in the live install is write-denied, so the Stop hook's convergence is the only thing that installs a release, and it only ever converges to main",
-        "scope": "thread",
-        "refs": [
-          "~/.claude/local/converge.mjs"
-        ]
-      },
-      {
-        "text": "gh's API is unreachable under Layer 0 — TLS verification fails through macOS securityd and SSL_CERT_FILE does not bypass it, so pr-create cannot open a PR from inside the sandbox; a human runs it unsandboxed",
-        "scope": "thread",
-        "refs": [
-          "0403-gh-token-moves-to-file-storage-for-sandbox-reach"
-        ]
-      },
-      {
-        "text": "gh auth status calling the token invalid is a false diagnosis — it cannot complete TLS to check, so the token is fine; do not re-run gh auth refresh or re-login on account of that message",
-        "scope": "thread",
-        "refs": []
-      },
-      {
-        "text": "Commit signing fails under the sandbox — the key is passphrase-protected and ssh-agent is unreachable, and git -c is denied at the gate, so an agent cannot sign; 67495e3 landed unsigned",
-        "scope": "thread",
-        "refs": [
-          "~/.ssh/id_ed25519"
-        ]
-      },
-      {
-        "text": "Rebase feat/layer3-gate and feat/layer4-observability onto main before opening any PR — both sit on a base older than the landed release, and an in-session task list once wrongly marked them rebased",
-        "scope": "thread",
-        "refs": [
-          "476ec59d"
-        ]
-      },
-      {
-        "text": "Anything merged that touches the sandbox block goes live IMMEDIATELY — Claude Code honors sandbox settings from the project file, so it needs no promotion and no restart",
-        "scope": "thread",
-        "refs": [
-          ".claude/settings.json"
-        ]
-      },
-      {
-        "text": "Never use git stash while sibling agents run — the stack is shared across all worktrees, and one agent popped another's entry mid-session",
-        "scope": "thread",
-        "refs": [
-          "git stash"
-        ]
-      },
-      {
-        "text": "The deny entry for supabase db reset defeats the ratified local-container carve-out — the agent cannot validate migrations it writes, and the Layer 3 gate already discriminates local from remote, so it must go when c3 runs",
-        "scope": "thread",
-        "refs": [
-          ".claude/settings.json"
-        ]
-      },
-      {
-        "text": "Run the full suite at the merge boundary, not just per-branch — three PRs each genuinely green alone reddened the base once composed",
-        "scope": "thread",
-        "refs": [
-          "npm test"
-        ]
-      },
-      {
         "text": "Delete the five recursive symlinks inside the live release before anything else — they make the tree infinitely deep and account for five of verify's seven findings",
         "scope": "c15",
         "refs": [
@@ -289,6 +192,96 @@
         "scope": "c15",
         "refs": [
           "8377436"
+        ]
+      },
+      {
+        "text": "Edit anything under the hooks directory from a scratch worktree — Layer 0 denies writes there, including to its own tests, so a cherry-pick touching them half-applies and leaves the tree dirty",
+        "scope": "thread",
+        "refs": [
+          ".claude/hooks/tests"
+        ]
+      },
+      {
+        "text": "promote.mjs with no --ref exits 0 having done nothing — no install, no refusal, no output, so it reads as success; it left Layer 1 uninstalled across three verification rounds",
+        "scope": "thread",
+        "refs": [
+          "scripts/config/promote.mjs"
+        ]
+      },
+      {
+        "text": "Never read a piped exit code as a verification receipt — running verify through tail reports tail's status, which showed 0 while verify was actually exiting 1",
+        "scope": "thread",
+        "refs": [
+          "scripts/config/verify.mjs"
+        ]
+      },
+      {
+        "text": "A sandboxed session cannot promote at all — every path in the live install is write-denied, so the Stop hook's convergence is the only thing that installs a release, and it only ever converges to main",
+        "scope": "thread",
+        "refs": [
+          "~/.claude/local/converge.mjs"
+        ]
+      },
+      {
+        "text": "gh's API is unreachable under Layer 0 — TLS verification fails through macOS securityd and SSL_CERT_FILE does not bypass it, so pr-create cannot open a PR from inside the sandbox; a human runs it unsandboxed",
+        "scope": "thread",
+        "refs": [
+          "0403-gh-token-moves-to-file-storage-for-sandbox-reach"
+        ]
+      },
+      {
+        "text": "gh auth status calling the token invalid is a false diagnosis — it cannot complete TLS to check, so the token is fine; do not re-run gh auth refresh or re-login on account of that message",
+        "scope": "thread",
+        "refs": []
+      },
+      {
+        "text": "Commit signing fails under the sandbox — the key is passphrase-protected and ssh-agent is unreachable, and git -c is denied at the gate, so an agent must pass --no-gpg-sign",
+        "scope": "thread",
+        "refs": [
+          "~/.ssh/id_ed25519"
+        ]
+      },
+      {
+        "text": "Rebase feat/layer3-gate and feat/layer4-observability onto main before opening any PR — both sit on a base older than the landed release, and an in-session task list once wrongly marked them rebased",
+        "scope": "thread",
+        "refs": [
+          "476ec59d"
+        ]
+      },
+      {
+        "text": "Anything merged that touches the sandbox block goes live IMMEDIATELY — Claude Code honors sandbox settings from the project file, so it needs no promotion and no restart; the env block behaves the same way",
+        "scope": "thread",
+        "refs": [
+          ".claude/settings.json"
+        ]
+      },
+      {
+        "text": "Never use git stash while sibling agents run — the stack is shared across all worktrees, and one agent popped another's entry mid-session",
+        "scope": "thread",
+        "refs": [
+          "git stash"
+        ]
+      },
+      {
+        "text": "The deny entry for supabase db reset defeats the ratified local-container carve-out — the agent cannot validate migrations it writes, and the Layer 3 gate already discriminates local from remote, so it must go when c3 runs",
+        "scope": "thread",
+        "refs": [
+          ".claude/settings.json"
+        ]
+      },
+      {
+        "text": "Run the full suite at the merge boundary, not just per-branch — three PRs each genuinely green alone reddened the base once composed",
+        "scope": "thread",
+        "refs": [
+          "npm test"
+        ]
+      },
+      {
+        "text": "Spawning a subagent can destroy six promoted entries in the live config — hooks, rules, skills, agents, workflows and CLAUDE.md vanish, and every registered gate then fails open silently with no error",
+        "scope": "thread",
+        "refs": [
+          "~/.claude/hooks",
+          "block-destructive-bash.sh"
         ]
       }
     ],
@@ -365,5 +358,5 @@
     ]
   },
   "created_at": "2026-08-13T18:14:42.072Z",
-  "updated_at": "2026-08-13T23:29:19.653Z"
+  "updated_at": "2026-08-13T23:29:53.337Z"
 }
