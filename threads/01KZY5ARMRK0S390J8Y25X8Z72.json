@@ -52,7 +52,7 @@
     {
       "id": "c5",
       "text": "Layer 1 shipped whole: per-worktree temp-index checkpoint using --force, rm-to-trash rewrite, hourly APFS snapshot, and the D2 age-based reaper in the same change",
-      "done": false,
+      "done": true,
       "kind": "planned",
       "struck_by": null
     },
@@ -120,31 +120,47 @@
   "closure_statement": null,
   "spine": {
     "active_goal": "Ship the amended maximum-autonomy permission architecture one PR per MSP onto docs/max-autonomy-permission-spec, holding the two oversight-reducing pieces for direct user confirmation.",
-    "next_step": "Base is GREEN after PR 93 merged (248 config tests, 0 fail, verified on 9dea58b). Awaiting c6 (Layer 3 gate) and c7 (Layer 4), both still running. Neither can push - gh cannot read its config from any agent process - so relay each one's branch, verification output and a ready-to-run pr-create for the user's terminal. PR 92 (Layer 1) still open. Then c3 then c4, gated behind the gate landing per 0401. c14 and the plugin disable stay HELD; no decision on 0398.",
-    "last_session": "Ten units built, seven merged. The composed base went red on 11 stale-fixture tests and was repaired by PR 93, which also closed two proven HIGH findings from the security review. Network egress to GitHub died mid-session; the user pushed and opened PR 93 by hand.",
+    "next_step": "START HERE. Export GH_TOKEN and confirm gh auth status passes BEFORE dispatching any agent - without it nothing can push (c15). Transport is HTTPS, never SSH; port 22 is structurally unreachable, see 0402. Then rebase feat/layer3-gate and feat/layer4-observability onto 9a168c7, resolve c6's conflict in the PreToolUse Bash matcher where Layer 1's checkpoint-worktree.mjs and trash-rm.mjs now sit, push both, open both PRs. Then c3, then c4, per 0401. HOLD c14 and the logbook plugin disable.",
+    "last_session": "Ten units built, eight merged. Three composition defects surfaced, none catchable by any single PR: parallel PRs reddened the base, a security review proved the new promotion guard bypassable, and Layer 0 blocked both Layer 1's trash rewrite and its own delivery path.",
     "open_risks": [
       {
-        "text": "No agent process can reach GitHub — ssh fails at nc negotiation, https gets CONNECT 403, and gh cannot read its own config; every remaining PR must be pushed and opened from the user's terminal, so hand over a ready-to-run pr-create rather than attempting it",
+        "text": "Export GH_TOKEN before dispatching anything — gh keeps its token in the macOS Keychain, which the sandbox blocks, so agents authenticate only from the environment; without it every push and every pr-create fails and the work silently queues up unshipped",
+        "scope": "thread",
+        "refs": [
+          "0402-https-and-gh-token-are-the-delivery-path-under-layer-zero"
+        ]
+      },
+      {
+        "text": "Anything merged to this branch that touches the sandbox block goes live IMMEDIATELY — Claude Code honors sandbox.enabled from project settings, so it needs no promotion and no restart; the SPEC's framing as a user-settings change is wrong and the orchestrator asserted otherwise all session",
+        "scope": "thread",
+        "refs": [
+          ".claude/settings.json"
+        ]
+      },
+      {
+        "text": "Never use git stash while sibling agents run — the stack is shared across all worktrees, and one agent popped another's entry mid-session; it was caught and restored, but nothing would have flagged it if it had not been",
         "scope": "thread",
         "refs": []
       },
       {
-        "text": "Parallel authoring against a moving base is what reddened the branch — each PR was genuinely green alone; any future fan-out must rebase workers onto the current tip and run the full suite at the merge boundary, not only per-branch",
+        "text": "The deny entry for supabase db reset defeats the ratified 2026-07-06 local-container carve-out — the agent cannot validate migrations it writes, and the Layer 3 gate already discriminates local from remote correctly, so this entry must go when c3 runs",
+        "scope": "thread",
+        "refs": [
+          ".claude/settings.json"
+        ]
+      },
+      {
+        "text": "Run the full suite at the merge boundary, not just per-branch — three PRs each genuinely green alone reddened the base once composed, because they were authored against bases lacking each other; rebase every worker onto the current tip before it opens a PR",
         "scope": "thread",
         "refs": []
       },
       {
-        "text": "Commits produced while network-blocked are unsigned because gnupg is unreadable from the agent sandbox — if the repo or CI ever requires signatures these need amending with git commit --amend -S",
+        "text": "The cutover to main lands everything at once on the working machine — sandbox containment, the config guard flipping ask to deny, three hooks gone, per-action checkpointing at 122 ms; each piece is verified individually and the simultaneity is the risk",
         "scope": "thread",
         "refs": []
       },
       {
-        "text": "The cutover to main lands everything at once on the working machine — sandbox on with failIfUnavailable true, config guard flipping ask to deny, three hooks gone, per-action checkpointing at 122 ms; it deserves a planned cutover, not a casual merge",
-        "scope": "thread",
-        "refs": []
-      },
-      {
-        "text": "Eleven agent worktrees have accumulated under .claude/worktrees/agent-* with two still in use by running agents — worth one deliberate sweep after everything lands, never while agents are live in them",
+        "text": "Twelve agent worktrees have accumulated under .claude/worktrees/agent-* — worth one deliberate sweep once the branches land, and never while any agent is live inside one",
         "scope": "thread",
         "refs": []
       }
@@ -202,5 +218,5 @@
     ]
   },
   "created_at": "2026-08-13T18:14:42.072Z",
-  "updated_at": "2026-08-13T21:23:59.754Z"
+  "updated_at": "2026-08-13T21:24:33.713Z"
 }
