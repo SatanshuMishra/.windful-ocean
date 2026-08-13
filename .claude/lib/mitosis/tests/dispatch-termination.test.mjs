@@ -1,11 +1,16 @@
 import { test, after } from 'node:test';
 import assert from 'node:assert/strict';
+import { execFileSync } from 'node:child_process';
+import { readFileSync } from 'node:fs';
+import { getEventListeners } from 'node:events';
 import { join } from 'node:path';
+import { pathToFileURL } from 'node:url';
 import { dispatch } from '../dispatch.mjs';
 import {
   BLOCKING_BODY,
   FLOOD_BODY,
   SIGTERM_DEAF_BODY,
+  alive,
   createScratch,
   emit,
   envelopeText,
@@ -19,6 +24,16 @@ import {
 } from './dispatch-fixtures.mjs';
 
 const { makeScratchDir: scratch, cleanup } = createScratch();
+
+function readAnchorPid(path) {
+  try {
+    const raw = readFileSync(path, 'utf8').trim();
+    const pid = Number(raw);
+    return Number.isInteger(pid) && pid > 0 ? pid : undefined;
+  } catch {
+    return undefined;
+  }
+}
 
 test('a run that outruns its timeout is SIGTERMed and reported as a timeout carrying exit 143', async () => {
   const env = stubEnv(BLOCKING_BODY, scratch);
@@ -242,6 +257,80 @@ test('a stream error during a timeout does not mask the timeout', async () => {
   );
   assert.equal(result.outcome, 'timeout', 'a stream fault must rank below the deadline that actually terminated the run');
   assert.equal(result.escalated, true);
+});
+
+test('two dispatches sharing one AbortController leave no dangling abort listener on the shared signal', async () => {
+  const env = stubEnv(emit('{ ...base }'), scratch);
+  const controller = new AbortController();
+  const baseline = getEventListeners(controller.signal, 'abort').length;
+  const first = await dispatch({ prompt: 'first run', signal: controller.signal, timeoutMs: 60000 }, { env });
+  assert.equal(first.ok, true, `expected ok, got ${first.outcome}: ${first.error}`);
+  assert.equal(getEventListeners(controller.signal, 'abort').length, baseline, 'a settled dispatch must remove its own abort listener from a signal the caller may reuse');
+  const second = await dispatch({ prompt: 'second run', signal: controller.signal, timeoutMs: 60000 }, { env });
+  assert.equal(second.ok, true, `expected ok, got ${second.outcome}: ${second.error}`);
+  assert.equal(getEventListeners(controller.signal, 'abort').length, baseline, 'a second dispatch on the same signal must not accumulate a dangling listener on top of the first');
+});
+
+test('a stdio-drain timer that loses the race to a natural stream close never re-fires after the dispatch already resolved', async (t) => {
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  let child = null;
+  const spawnLateDrain = () => {
+    child = fakeChild(undefined);
+    setImmediate(() => {
+      child.emit('exit', 0, null);
+      child.stdout.end();
+      child.stderr.end();
+    });
+    return child;
+  };
+  const result = await dispatch({ prompt: 'drains just in time', timeoutMs: 60000 }, { spawn: spawnLateDrain, stdioDrainMs: 500 });
+  assert.equal(result.escalated, false, 'a stream that drains before the timer fires must settle cleanly, not through escalation');
+  assert.deepEqual(child.signals, [], 'the caller must already have its answer with no signal sent to the child');
+  t.mock.timers.tick(600);
+  assert.deepEqual(child.signals, [], 'a drain timer that lost the race must never re-fire and signal a child after the dispatch already resolved');
+});
+
+test('a dispatch that settles cleanly forgets its process group, so the at-exit sweep never touches a member that outlives it', async () => {
+  const dispatchUrl = pathToFileURL(join(import.meta.dirname, '../dispatch.mjs')).href;
+  const fixturesUrl = pathToFileURL(join(import.meta.dirname, './dispatch-fixtures.mjs')).href;
+  const probe = scratch();
+  const anchorPidFile = join(probe, 'anchor.pid');
+  const ANCHOR_LIFETIME_MS = 60000;
+  const HARNESS_TIMEOUT_MS = 15000;
+  const harness = [
+    "import { spawn } from 'node:child_process';",
+    "import { writeFileSync } from 'node:fs';",
+    `import { dispatch } from ${JSON.stringify(dispatchUrl)};`,
+    `import { fakeChild } from ${JSON.stringify(fixturesUrl)};`,
+    `const anchor = spawn(process.execPath, ['-e', 'setTimeout(() => {}, ${ANCHOR_LIFETIME_MS});'], { detached: true, stdio: 'ignore' });`,
+    `writeFileSync(${JSON.stringify(anchorPidFile)}, String(anchor.pid));`,
+    'anchor.unref();',
+    "const pending = dispatch({ prompt: 'outlives its own dispatch', timeoutMs: 60000 }, {",
+    '  spawn: () => {',
+    '    const child = fakeChild(anchor.pid);',
+    '    setImmediate(() => {',
+    '      child.stdout.end();',
+    '      child.stderr.end();',
+    "      child.emit('exit', 0, null);",
+    '    });',
+    '    return child;',
+    '  },',
+    '});',
+    'const result = await pending;',
+    'process.stdout.write(JSON.stringify({ anchorPid: anchor.pid, outcome: result.outcome, escalated: result.escalated }));',
+  ].join('\n');
+  try {
+    const stdout = execFileSync(process.execPath, ['--input-type=module', '-e', harness], { encoding: 'utf8', stdio: 'pipe', timeout: HARNESS_TIMEOUT_MS });
+    const { anchorPid, outcome, escalated } = JSON.parse(stdout);
+    assert.equal(escalated, false, 'the probe must reach a clean settle rather than an escalation, or it is not exercising the invariant this test targets');
+    assert.equal(outcome, 'malformed-output', 'the probe writes no stdout by design; a different outcome means the scenario drifted off the clean-settle path');
+    assert.equal(alive(anchorPid), true, 'a dispatch that already settled cleanly must never SIGKILL that process group afterwards, by any route');
+  } finally {
+    const survivorPid = readAnchorPid(anchorPidFile);
+    if (survivorPid !== undefined) {
+      try { process.kill(survivorPid, 'SIGKILL'); } catch {}
+    }
+  }
 });
 
 after(cleanup);
