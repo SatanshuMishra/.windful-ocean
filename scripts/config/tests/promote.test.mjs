@@ -19,6 +19,9 @@ import {
   assertRejected,
   cleanup,
   commitChange,
+  CONVERGE_COMMAND,
+  declaredHookSettings,
+  FLOOR_DENY,
   hookSettings,
   makeHome,
   makeRepo,
@@ -62,8 +65,8 @@ const render = (document) => `${JSON.stringify(document, null, 2)}\n`;
 const declaredSettings = (commands = DEFAULT_HOOK_COMMANDS) => ({
   $schema: 'https://json.schemastore.org/claude-code-settings.json',
   includeCoAuthoredBy: false,
-  ...hookSettings(commands),
-  permissions: { allow: ['Bash(node --test:*)'], deny: ['Bash(gh pr merge:*)'] },
+  ...declaredHookSettings(commands),
+  permissions: { allow: ['Bash(node --test:*)'], deny: [...FLOOR_DENY] },
 });
 
 const liveSettings = (extra = {}) => ({
@@ -297,7 +300,7 @@ test('rollback applies the settings the release it rolls back to declares', () =
     const firstText = s.text();
     declareSecondHook(s.repoRoot);
     assert.equal(s.run().status, 'promoted');
-    assert.deepEqual(hookCommands(s.applied()), [SECOND_HOOK]);
+    assert.deepEqual(hookCommands(s.applied()), [SECOND_HOOK, CONVERGE_COMMAND]);
 
     const rolled = rollback({ configRoot: s.configRoot, now: NOW, home: s.home });
 
@@ -305,7 +308,7 @@ test('rollback applies the settings the release it rolls back to declares', () =
     assert.equal(liveSha(s.configRoot), firstSha);
     assert.equal(s.text(), firstText, 'live settings must be the document the restored release declares');
     const restored = join(s.configRoot, 'releases', firstSha);
-    assert.deepEqual(hookCommands(s.applied()), [...DEFAULT_HOOK_COMMANDS]);
+    assert.deepEqual(hookCommands(s.applied()), [...DEFAULT_HOOK_COMMANDS, CONVERGE_COMMAND]);
     assert.ok(existsSync(join(restored, 'hooks', 'good.sh')), 'the restored registration resolves inside the restored release');
     assert.ok(!existsSync(join(restored, 'hooks', 'second.sh')), 'the abandoned registration never resolved there');
   } finally {

@@ -7,9 +7,11 @@ import { fileURLToPath } from 'node:url';
 import { RETAINED_RELEASES } from '../paths.mjs';
 import {
   DEFAULT_HOOK_COMMANDS,
+  FLOOR_DENY,
   cleanup,
   collector,
   commitChange,
+  declaredHookSettings,
   git,
   hookSettings,
   makeHome,
@@ -234,7 +236,7 @@ test('a promotion the hook performs carries every notice promote reports into th
     commitChange(s.repoRoot, (claude) =>
       writeFile(
         join(claude, 'settings.json'),
-        `${JSON.stringify({ ...hookSettings(DEFAULT_HOOK_COMMANDS), permissions: { deny: ['Bash(gh pr merge:*)'] } }, null, 2)}\n`,
+        `${JSON.stringify({ ...declaredHookSettings(), permissions: { deny: [...FLOOR_DENY] } }, null, 2)}\n`,
       ));
     Object.assign(sealed, sealSupersededReleases(s.configRoot));
 
@@ -315,7 +317,7 @@ test('a malformed LIVE receipt is reported rather than treated as an absent one'
 
 test('the registered converge commands validate only once the bootstrap sits outside every release', () => {
   const { repoRoot, sha } = makeRepo();
-  const { home, configRoot } = makeHome();
+  const { home, configRoot } = makeHome({ bootstrap: false });
   try {
     const commands = registeredConvergeCommands();
     assert.equal(commands.length, 2, `expected a SessionStart and a Stop registration, got ${commands.length}`);

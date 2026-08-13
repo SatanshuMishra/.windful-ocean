@@ -77,14 +77,23 @@ function capturePermissions(repoPermissions, livePermissions) {
     ),
   ];
   const known = new Set([...REPO_OWNED_SECTIONS, ...UNIONED_SECTIONS]);
-  const extras = sortedUnion(repo, live)
-    .filter((name) => !known.has(name))
-    .map((name) => [name, name in live ? live[name] : repo[name]]);
+  const extras = sortedUnion(repo, live).filter((name) => !known.has(name));
+  const extraNotes = extras.map((name) =>
+    note(
+      NOTE_UNCLASSIFIED,
+      `${PERMISSIONS_KEY}.${name}`,
+      'the manifest classifies no owner for this permissions section; capture drops it from the declared config, '
+        + 'because a repo that declared it would refuse every later promotion until it is classified',
+    ),
+  );
   const repoOwned = REPO_OWNED_SECTIONS.map((name) => captureRepoOwnedSection(name, repo, live));
-  const pairs = [...extras, ...repoOwned.map((entry) => entry.pair), ['allow', Object.freeze(adopted)]].filter(
+  const pairs = [...repoOwned.map((entry) => entry.pair), ['allow', Object.freeze(adopted)]].filter(
     ([, value]) => value !== undefined,
   );
-  return { value: freezeSorted(pairs), notes: [...notes, ...repoOwned.flatMap((entry) => entry.notes)] };
+  return {
+    value: freezeSorted(pairs),
+    notes: [...notes, ...extraNotes, ...repoOwned.flatMap((entry) => entry.notes)],
+  };
 }
 
 function captureKey(key, repo, live, permissions) {
@@ -113,9 +122,14 @@ function captureKey(key, repo, live, permissions) {
     };
   }
   return {
-    value: key in live ? live[key] : repo[key],
+    value: undefined,
     notes: [
-      note(NOTE_UNCLASSIFIED, key, 'the manifest classifies no owner for this key; it survives capture and needs classification'),
+      note(
+        NOTE_UNCLASSIFIED,
+        key,
+        'the manifest classifies no owner for this key; capture drops it from the declared config, because a repo '
+          + 'that declared it would refuse every later promotion until it is classified',
+      ),
     ],
   };
 }

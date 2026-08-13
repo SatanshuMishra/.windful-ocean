@@ -1,3 +1,6 @@
+import { CONVERGE_ENTRY } from './paths.mjs';
+import { HOOK_EVENTS, executableRegistrations, isHookEvent, namesModule } from './registrations.mjs';
+
 export const REPO_OWNED_KEYS = Object.freeze([
   '$schema',
   'env',
@@ -66,45 +69,144 @@ const refuse = (message) => {
   throw new PromotionRefusal(message);
 };
 
-const hookRegistrationCount = (hooks) =>
-  Object.values(hooks)
-    .filter((registrations) => Array.isArray(registrations))
-    .flat()
-    .filter((registration) => isPlainObject(registration))
-    .reduce((total, { hooks: commands }) => total + (Array.isArray(commands) ? commands.length : 0), 0);
+export const DENY_KEY = `${PERMISSIONS_KEY}.${DENY_SECTION}`;
 
-export function assertHooksDeclared(repo) {
-  const declared = repo[HOOKS_KEY];
-  const consequence = 'promotion would leave live with no hook registrations at all, the converge hook that performs promotion included';
-  if (!(HOOKS_KEY in repo)) {
-    refuse(`the repo settings declare no "${HOOKS_KEY}" key, and ${consequence}`);
+export const REQUIRED_HOOK_MODULES = Object.freeze([CONVERGE_ENTRY]);
+
+export const REQUIRED_HOOK_EVENTS = Object.freeze(['PreToolUse']);
+
+export const REQUIRED_DENY_RULES = Object.freeze([
+  'Bash(git -c:*)',
+  'Bash(git --config-env:*)',
+  'Bash(gh pr merge:*)',
+]);
+
+const quoted = (values) => values.map((value) => JSON.stringify(value)).join(', ');
+
+function assertHookFloor(declared, consequence) {
+  const invented = Object.keys(declared).filter((event) => !isHookEvent(event));
+  if (invented.length > 0) {
+    refuse(
+      `the repo settings key "${HOOKS_KEY}" carries ${quoted(invented)}, which names no event Claude Code fires, so `
+        + `every command registered under it is dead on arrival; the events it fires are ${HOOK_EVENTS.join(', ')}`,
+    );
   }
-  if (!isPlainObject(declared)) {
-    refuse(`the repo settings declare "${HOOKS_KEY}" as ${describeShape(declared)} rather than an object, and ${consequence}`);
+  const registrations = executableRegistrations(declared);
+  if (registrations.length === 0) {
+    refuse(
+      `the repo settings declare a "${HOOKS_KEY}" object in which no registration carries a runnable command, `
+        + `and ${consequence}`,
+    );
   }
-  if (hookRegistrationCount(declared) === 0) {
-    refuse(`the repo settings declare a "${HOOKS_KEY}" object that registers no hook, and ${consequence}`);
+  const missingModules = REQUIRED_HOOK_MODULES.filter(
+    (entry) => !registrations.some((registration) => namesModule(registration.command, entry)),
+  );
+  if (missingModules.length > 0) {
+    refuse(
+      `the repo settings declare a "${HOOKS_KEY}" object that registers no ${quoted(missingModules)}, so promotion `
+        + 'would leave live unable to promote its own repair, and every later revision unreachable',
+    );
   }
-  return declared;
+  const missingEvents = REQUIRED_HOOK_EVENTS.filter(
+    (event) => !registrations.some((registration) => registration.event === event),
+  );
+  if (missingEvents.length > 0) {
+    refuse(
+      `the repo settings declare a "${HOOKS_KEY}" object that registers no runnable command for ${quoted(missingEvents)}, `
+        + 'so promotion would leave live with no gate on the tool calls that event guards',
+    );
+  }
 }
 
-export function assertDenyDeclared(repoPermissions) {
-  const key = `${PERMISSIONS_KEY}.${DENY_SECTION}`;
-  const consequence = `promotion would leave live with no "${key}" list, so every guarded catastrophe would become reachable`;
-  if (repoPermissions === undefined) {
-    refuse(`the repo settings declare no "${PERMISSIONS_KEY}" block, so "${key}" is absent, and ${consequence}`);
+function assertDenyFloor(deny) {
+  const inert = deny.filter((rule) => typeof rule !== 'string' || rule.trim() === '');
+  if (inert.length > 0) {
+    refuse(
+      `the repo settings declare ${quoted(inert)} in "${DENY_KEY}", and an entry that is not a non-blank string denies `
+        + 'nothing while making the list look populated',
+    );
   }
-  const deny = repoPermissions[DENY_SECTION];
-  if (deny === undefined) {
-    refuse(`the repo settings declare no "${key}" list, and ${consequence}`);
+  const held = new Set(deny.map((rule) => rule.trim()));
+  const missing = REQUIRED_DENY_RULES.filter((rule) => !held.has(rule));
+  if (missing.length > 0) {
+    refuse(
+      `the repo settings declare a "${DENY_KEY}" list holding no ${quoted(missing)}; promotion replaces the live deny `
+        + 'list wholesale, so a list without these rules leaves the hook gate bypassable and the merge gate open',
+    );
   }
-  if (!Array.isArray(deny)) {
-    refuse(`the repo settings declare "${key}" as ${describeShape(deny)} rather than an array, and ${consequence}`);
+}
+
+const locateHooks = (repo) => ({
+  present: HOOKS_KEY in repo,
+  value: repo[HOOKS_KEY],
+  absence: `the repo settings declare no "${HOOKS_KEY}" key`,
+});
+
+function locateDeny(repo) {
+  const permissions = repo[PERMISSIONS_KEY];
+  if (permissions === undefined) {
+    return {
+      present: false,
+      value: undefined,
+      absence: `the repo settings declare no "${PERMISSIONS_KEY}" block, so "${DENY_KEY}" is absent`,
+    };
   }
-  if (deny.length === 0) {
-    refuse(`the repo settings declare an empty "${key}" list, and ${consequence}`);
+  const block = assertDocument('repo permissions', permissions);
+  return {
+    present: DENY_SECTION in block,
+    value: block[DENY_SECTION],
+    absence: `the repo settings declare no "${DENY_KEY}" list`,
+  };
+}
+
+const SAFETY_BOUNDARIES = Object.freeze([
+  Object.freeze({
+    key: HOOKS_KEY,
+    shape: 'an object',
+    holds: isPlainObject,
+    locate: locateHooks,
+    assertFloor: assertHookFloor,
+    consequence:
+      'promotion would leave live with no hook registrations at all, the converge hook that performs promotion included',
+  }),
+  Object.freeze({
+    key: DENY_KEY,
+    shape: 'an array',
+    holds: Array.isArray,
+    locate: locateDeny,
+    assertFloor: assertDenyFloor,
+    consequence: `promotion would leave live with no "${DENY_KEY}" list, so every guarded catastrophe would become reachable`,
+  }),
+]);
+
+export const SAFETY_BOUNDARY_KEYS = Object.freeze(SAFETY_BOUNDARIES.map((boundary) => boundary.key));
+
+function assertBoundary(boundary, repo) {
+  const found = boundary.locate(repo);
+  if (!found.present) {
+    refuse(`${found.absence}, and ${boundary.consequence}`);
   }
-  return deny;
+  if (!boundary.holds(found.value)) {
+    refuse(
+      `the repo settings declare "${boundary.key}" as ${describeShape(found.value)} rather than ${boundary.shape}, `
+        + `and ${boundary.consequence}`,
+    );
+  }
+  boundary.assertFloor(found.value, boundary.consequence);
+  return found.value;
+}
+
+export function assertSafetyBoundary(key, repo) {
+  const boundary = SAFETY_BOUNDARIES.find((candidate) => candidate.key === key);
+  if (boundary === undefined) {
+    throw new TypeError(`no safety boundary is declared for ${JSON.stringify(key)}`);
+  }
+  return assertBoundary(boundary, repo);
+}
+
+export function assertSafetyBoundaries(repo) {
+  for (const boundary of SAFETY_BOUNDARIES) assertBoundary(boundary, repo);
+  return repo;
 }
 
 export function assertClassified(repo) {
@@ -178,7 +280,7 @@ function sectionOwnership(repoPermissions, livePermissions) {
 
 export function resolvePermissions(repoPermissions, livePermissions) {
   const repo = repoPermissions === undefined ? undefined : assertDocument('repo permissions', repoPermissions);
-  assertDenyDeclared(repo);
+  assertSafetyBoundary(DENY_KEY, { [PERMISSIONS_KEY]: repo });
   const live = livePermissions === undefined ? {} : assertDocument('live permissions', livePermissions);
   const { carried, flagged, removed } = sectionOwnership(repo, live);
   const allow = withdrawGrants(unionGrants(repo.allow, live.allow), live.allow);
@@ -231,7 +333,7 @@ export function resolveSettings({ repo, live }) {
   const repoDocument = assertDocument('repo', repo);
   const liveDocument = assertDocument('live', live);
   assertClassified(repoDocument);
-  assertHooksDeclared(repoDocument);
+  assertSafetyBoundaries(repoDocument);
   const permissions = resolvePermissions(repoDocument[PERMISSIONS_KEY], liveDocument[PERMISSIONS_KEY]);
   const resolved = sortedUnion(repoDocument, liveDocument).map((key) => ({
     key,

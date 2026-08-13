@@ -14,6 +14,8 @@ import { spawnSync } from 'node:child_process';
 import { tmpdir } from 'node:os';
 import { dirname, join, relative } from 'node:path';
 import { liveSha, promote } from '../promote.mjs';
+import { CONVERGE_ENTRY, LOCAL_DIRNAME } from '../paths.mjs';
+import { REQUIRED_DENY_RULES } from '../manifest.mjs';
 
 const GIT_IDENTITY = Object.freeze([
   '-c', 'user.email=promote-test@example.invalid',
@@ -66,17 +68,36 @@ export function commitChange(repoRoot, mutate) {
   return git(repoRoot, ['rev-parse', 'HEAD']);
 }
 
-export function makeHome() {
+export function makeHome({ bootstrap = true } = {}) {
   const home = mkdtempSync(join(tmpdir(), 'promote-home-'));
   const configRoot = join(home, '.claude');
   mkdirSync(join(configRoot, 'releases'), { recursive: true });
+  if (bootstrap) writeFile(join(configRoot, LOCAL_DIRNAME, CONVERGE_ENTRY), GOOD_MJS);
   return { home, configRoot };
 }
+
+export const CONVERGE_COMMAND = `node $HOME/.claude/${LOCAL_DIRNAME}/${CONVERGE_ENTRY} --event SessionStart`;
+
+export const GATE_COMMAND = '$HOME/.claude/hooks/good.sh';
+
+export const FLOOR_DENY = Object.freeze([...REQUIRED_DENY_RULES]);
 
 export function hookSettings(commands) {
   return {
     hooks: {
       SessionStart: [{ matcher: '*', hooks: commands.map((command) => ({ type: 'command', command })) }],
+    },
+  };
+}
+
+export function declaredHookSettings(commands = DEFAULT_HOOK_COMMANDS) {
+  return {
+    hooks: {
+      SessionStart: [{
+        matcher: '*',
+        hooks: [...commands, CONVERGE_COMMAND].map((command) => ({ type: 'command', command })),
+      }],
+      PreToolUse: [{ matcher: '*', hooks: [{ type: 'command', command: GATE_COMMAND }] }],
     },
   };
 }
