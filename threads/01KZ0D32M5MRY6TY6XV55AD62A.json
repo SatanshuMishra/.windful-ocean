@@ -17,7 +17,7 @@
     {
       "id": "c9",
       "text": "Maximum-autonomy permission architecture specified, pressure-tested and ratified: guard set D1-D5 plus D6 checkpoint, five-layer design, run mode, ordered change set (R1-R6 ratified 2026-08-13)",
-      "done": false,
+      "done": true,
       "kind": "detour",
       "struck_by": null
     },
@@ -31,7 +31,7 @@
     {
       "id": "c3",
       "text": "The gating principle (recovery-path + blast-radius, not command name) either ratified or rejected by the user, with a decision record written",
-      "done": false,
+      "done": true,
       "kind": "planned",
       "struck_by": null
     },
@@ -66,7 +66,7 @@
     {
       "id": "c8",
       "text": "Hook trust boundary reviewed: the nine hook scripts treated as trusted code on the same tier as permission rules",
-      "done": false,
+      "done": true,
       "kind": "planned",
       "struck_by": null
     }
@@ -77,45 +77,58 @@
   "abandoned_reason": null,
   "closure_statement": null,
   "spine": {
-    "active_goal": "Free auto-mode operation with a hard human gate on catastrophic, irreversible actions. Audit complete and now PRESENTED to the user; nothing implemented, nothing ratified.",
-    "next_step": "AWAIT SPECIFIC USER INSTRUCTION - explicit user directive at close. The findings were presented in full on 2026-08-13; do NOT re-present them, do NOT implement anything, do NOT pick a starting point. The user names the target. If they say only 'go', ASK which of the five presented items they mean: (1) the gating principle, (2) the four P0 bugs, (3) the MITOSIS_PATH prompt cause, (4) the cp friction, (5) the two proposals. Highest-value uninvestigated item on the evidence: why cp prompts at all.",
+    "active_goal": "Implement the ratified maximum-autonomy permission architecture: guards only on D1-D5, destructive local work checkpointed, unattended overnight runs that finish every task.",
+    "next_step": "START HERE. Run the U1-U7 experiments in SPEC section 8 BEFORE implementing any step that depends on one - the SPEC forbids it. Highest value first: U1 (does a hook allow suppress the classifier) and U4 (does tmutil localsnapshot work with no Time Machine destination configured). Then section 6 step 0: narrow protect-claude-config.sh, or the implementation stalls on itself. Open a CHILD thread for the build - this thread carries the ratified design, not the implementation.",
     "open_risks": [
-      {
-        "text": "NOTHING RATIFIED. No config file modified. Every recommendation is still a proposal.",
-        "scope": "thread",
-        "refs": []
-      },
-      {
-        "text": "Do NOT implement test-hook design B as written: it rejects leading VAR= and rejects globs, which are exactly the two shapes that actually prompt. Needs a directory arg and a NAMED assignment allowlist (MITOSIS_PATH yes; NODE_OPTIONS/NODE_PATH/LD_PRELOAD never).",
-        "scope": "thread",
-        "refs": []
-      },
-      {
-        "text": "Several claims are [unverified] and need empirical tests first: does Bash(node --test:*) survive auto mode; drop scope across settings files; hook cwd vs tool cwd; multi-hook precedence; sandbox localhost.",
-        "scope": "thread",
-        "refs": []
-      },
-      {
-        "text": "Network relaxation contradicts official Anthropic guidance and is defensible ONLY with sandbox + autoMode.environment controls, which are ignored from project settings and must live in ~/.claude/settings.json.",
-        "scope": "thread",
-        "refs": []
-      },
-      {
-        "text": "Hooks bypass the permission system entirely, so rule hardening does nothing for the 9 hook scripts; 2 are network-capable. Treat hooks as trusted code.",
-        "scope": "thread",
-        "refs": []
-      },
-      {
-        "text": "3 of 8 subagents tripped auto-mode bypass warnings reading public docs. False positives. Fence future agents off the Claude Code bundle.",
-        "scope": "thread",
-        "refs": []
-      },
       {
         "text": "Re-check every line number in the audit report before acting on it — one cite already drifted, so the files have moved under the report and its other line cites may be stale too",
         "scope": "c2",
         "refs": [
           ".claude/reports/2026-08-01-permission-config-audit.md",
           ".claude/hooks/block-env-edits.sh:26"
+        ]
+      },
+      {
+        "text": "Run the seven U1-U7 experiments before implementing any dependent step — the latency budget, the snapshot layer and the gate design all rest on claims the documentation does not settle",
+        "scope": "thread",
+        "refs": [
+          "docs/superpowers/specs/2026-08-13-maximum-autonomy-permission-architecture-SPEC.md"
+        ]
+      },
+      {
+        "text": "Narrow protect-claude-config.sh before touching anything else — it asks on edits under .claude/{hooks,rules,lib,workflows}, which is the entire surface of this implementation, so the work stalls on itself",
+        "scope": "thread",
+        "refs": [
+          ".claude/hooks/protect-claude-config.sh"
+        ]
+      },
+      {
+        "text": "Disable or patch the logbook plugin guard before the first unattended run — any internal exception in it denies the whole Bash/Write/Edit/MultiEdit/NotebookEdit surface with no circuit breaker, freezing the night",
+        "scope": "thread",
+        "refs": [
+          "~/.claude/plugins/cache/logbook/logbook/0.2.4/hooks/lib/hook-io.mjs"
+        ]
+      },
+      {
+        "text": "Do not reuse the 19ms checkpoint figure — it belongs to git stash create, which was rejected because it cannot capture untracked files; the temp-index replacement is slower and must be re-measured",
+        "scope": "thread",
+        "refs": [
+          "0390-guard-set-five-plus-checkpoint"
+        ]
+      },
+      {
+        "text": "Ship D2's age-based reaper together with D2 — the agent may not prune the recovery layer, so without a scheduler-run reaper the checkpoint refs and snapshots grow unbounded until macOS thins snapshots silently",
+        "scope": "thread",
+        "refs": [
+          "0390-guard-set-five-plus-checkpoint"
+        ]
+      },
+      {
+        "text": "Verify every config edit actually went live — converge.mjs auto-promotes on drift but validate.mjs can reject a candidate and leave live pinned to the last-good release with no loud failure",
+        "scope": "thread",
+        "refs": [
+          "~/.claude/LIVE",
+          "~/.claude/local/validate.mjs"
         ]
       }
     ],
@@ -137,12 +150,12 @@
       }
     ],
     "out_of_scope": [
-      "Implementing any config change - deferred on explicit user instruction; the user names the target.",
-      "The other paused threads on the roster (12 as of 2026-08-13). An earlier session incidentally cleared the mitosis-resilience-implementation blocker - .claude/reports/ is gitignored (.gitignore:11) and untracked, verified 2026-08-13.",
-      "Auditing the CONTENTS of the nine hook scripts. The boundary was mapped; the code was not reviewed."
+      "Implementing the architecture on THIS thread. The design is ratified here; the build belongs to a child thread with its own completion criteria.",
+      "The four original P0 bug fixes as separately-scoped work (c2). Three are absorbed into the SPEC's section 6 change set; block-env-edits.sh is slated for deletion rather than repair since it is inert.",
+      "The other paused threads on the roster (12 as of 2026-08-13)."
     ],
-    "last_session": "Presented the 518-line audit report in the mandated format after re-verifying its load-bearing citations live. cp=23 and 58 allow rules re-confirmed; the inert .env guard is at block-env-edits.sh:26, not :27. No config changed, nothing ratified."
+    "last_session": "Pivoted the goal to unattended autonomy, dispatched five research agents, then authored, pressure-tested and ratified the architecture SPEC (three commits on docs/max-autonomy-permission-spec). The pressure test amended D1, D2, D4 and rejected D6's mechanism. Nothing implemented."
   },
   "created_at": "2026-08-02T04:53:05.796Z",
-  "updated_at": "2026-08-13T18:06:49.556Z"
+  "updated_at": "2026-08-13T18:07:54.560Z"
 }
