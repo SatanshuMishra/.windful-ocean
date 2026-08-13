@@ -510,3 +510,39 @@ test('an onRecord that throws aborts the run, terminates the in-flight child and
   const pid = Number(readFileSync(join(pidDir, 'child'), 'utf8'));
   await waitUntil(() => !alive(pid), 10000, 'the observer failure orphaned the child instead of terminating it');
 });
+
+test('the CLI runs a real graph end to end through the dispatch adapter and prints its records with exit 0', async () => {
+  const env = stubEnv([
+    'const prompt = process.argv[process.argv.length - 1];',
+    "process.stdout.write(JSON.stringify({ type: 'result', subtype: 'success', is_error: false, result: `ran ${prompt}`, usage: {}, total_cost_usd: 0 }));",
+  ].join('\n'));
+  const graphPath = fixture('graph.json', {
+    nodes: [
+      { id: 'root', request: { prompt: 'do the root' } },
+      { id: 'leaf', request: { prompt: 'do the leaf' } },
+    ],
+    readyAfter: { leaf: ['root'] },
+  });
+  const run = await runCli([graphPath, '--concurrency', '2'], env);
+  assert.equal(run.code, 0, `the CLI failed: ${run.stderr}`);
+  const printed = JSON.parse(run.stdout);
+  assert.equal(printed.ok, true);
+  assert.deepEqual(printed.records.map((record) => record.id), ['leaf', 'root']);
+  assert.deepEqual(printed.records.map((record) => record.state), ['ok', 'ok']);
+  assert.equal(printed.diagnostics.concurrency, 2);
+  assert.deepEqual(printed.diagnostics.waves, [['root'], ['leaf']]);
+});
+
+test('the CLI exits 3 when the run completes with a node that is not ok', async () => {
+  const env = stubEnv('process.exit(7);');
+  const graphPath = fixture('failing-graph.json', {
+    nodes: [{ id: 'root', request: { prompt: 'fail me' } }, { id: 'leaf', request: { prompt: 'never' } }],
+    readyAfter: { leaf: ['root'] },
+  });
+  const run = await runCli([graphPath], env);
+  assert.equal(run.code, 3, `expected the completed-with-failures exit, got ${run.code}: ${run.stderr}`);
+  const printed = JSON.parse(run.stdout);
+  assert.equal(printed.ok, false);
+  assert.equal(printed.records.find((record) => record.id === 'root').state, 'failed');
+  assert.equal(printed.records.find((record) => record.id === 'leaf').state, 'blocked');
+});
