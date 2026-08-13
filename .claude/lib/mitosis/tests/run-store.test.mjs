@@ -1,11 +1,11 @@
 import { test, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
-import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, unlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { computeRunKey } from '../run-store.mjs';
+import { computeRunKey, openRun } from '../run-store.mjs';
 
 const CLI = fileURLToPath(new URL('../run-store.mjs', import.meta.url));
 const scratchDirs = [];
@@ -120,6 +120,102 @@ test('CLI exits 1 with a run-store error line when a verb throws', () => {
   const failed = failCli(['key', specPath]);
   assert.equal(failed.status, 1);
   assert.match(failed.stderr, /^run-store error: /m);
+});
+
+const VALID_KEY = 'a'.repeat(64);
+
+function openArgs(overrides = {}) {
+  return {
+    root: scratch('run-store-open-'),
+    runKey: VALID_KEY,
+    unitIds: ['a3-run-store', 'a3-tests'],
+    plan: { title: 'a3', units: ['a3-run-store', 'a3-tests'] },
+    startedAt: '2026-08-12T09:00:00Z',
+    pid: 4242,
+    ...overrides,
+  };
+}
+
+test('openRun rejects an invalid unit id rather than mangling it', () => {
+  for (const bad of ['A1', '-a', 'a/b', 'a_b', 'a b', '', '..', '.', 'a..b', 'a/../b', 3, null]) {
+    const args = openArgs({ unitIds: [bad] });
+    assert.throws(() => openRun(args), /run-store/, `expected unit id ${JSON.stringify(bad)} to be refused`);
+    assert.equal(existsSync(join(args.root, '.mitosis')), false, `refusing ${JSON.stringify(bad)} must create nothing`);
+  }
+  assert.throws(() => openRun(openArgs({ unitIds: ['a/b', 'a_b'] })), /run-store/);
+  assert.throws(() => openRun(openArgs({ unitIds: ['a3', 'a3'] })), /duplicate/i);
+  assert.throws(() => openRun(openArgs({ unitIds: [] })), /run-store/);
+});
+
+test('openRun rejects a runKey that is not a 64-character hex digest', () => {
+  for (const bad of ['A'.repeat(64), 'g'.repeat(64), 'a'.repeat(63), 'a'.repeat(65), '../../etc', 'aa/bb', '', null]) {
+    const args = openArgs({ runKey: bad });
+    assert.throws(() => openRun(args), /run-store/, `expected runKey ${JSON.stringify(bad)} to be refused`);
+    assert.equal(existsSync(join(args.root, '.mitosis')), false);
+    assert.equal(existsSync(join(args.root, '..', 'pwned')), false);
+  }
+});
+
+test('openRun rejects a root that is not an absolute traversal-free path', () => {
+  for (const bad of ['relative/root', '/tmp/../tmp/escape', `/tmp/${String.fromCharCode(0)}x`, '', null, 7]) {
+    assert.throws(() => openRun(openArgs({ root: bad })), /run-store/, `expected root ${JSON.stringify(bad)} to be refused`);
+  }
+});
+
+test('openRun rejects a startedAt that is not an ISO instant', () => {
+  for (const bad of ['now', '2026-13-01T00:00:00Z', '2026-08-12', 1786000000000, null, undefined]) {
+    const args = openArgs({ startedAt: bad });
+    assert.throws(() => openRun(args), /startedAt/, `expected startedAt ${JSON.stringify(bad)} to be refused`);
+    assert.equal(existsSync(join(args.root, '.mitosis')), false);
+  }
+});
+
+test('openRun rejects a plan that is not a plain object and a pid that is not a positive integer', () => {
+  assert.throws(() => openRun(openArgs({ plan: [1, 2] })), /plan/);
+  assert.throws(() => openRun(openArgs({ plan: null })), /plan/);
+  for (const bad of [0, -1, 1.5, 'x']) assert.throws(() => openRun(openArgs({ pid: bad })), /pid/);
+});
+
+test('openRun lays out the run directory the SPEC names and freezes its handle', () => {
+  const args = openArgs();
+  const handle = openRun(args);
+  assert.equal(Object.isFrozen(handle), true);
+  assert.equal(handle.runKey, VALID_KEY);
+  assert.equal(handle.attempt, 1);
+  assert.equal(handle.dir, join(args.root, '.mitosis', 'runs', VALID_KEY, 'attempt-1'));
+  assert.equal(handle.itemsDir, join(handle.dir, 'items'));
+  assert.deepEqual([...handle.unitIds], args.unitIds);
+  assert.equal(Object.isFrozen(handle.unitIds), true);
+  assert.deepEqual(readdirSync(handle.itemsDir), []);
+  assert.deepEqual(JSON.parse(readFileSync(join(handle.dir, 'plan.json'), 'utf8')).plan, args.plan);
+});
+
+test('CLI open verb creates the attempt and prints where it landed', () => {
+  const dir = scratch('run-store-cli-open-');
+  const root = scratch('run-store-cli-open-root-');
+  const specPath = join(dir, 'spec.json');
+  const spec = sampleSpec();
+  writeFileSync(specPath, JSON.stringify(spec));
+  const stdout = runCli(['open', specPath, '--root', root, '--started-at', '2026-08-12T09:00:00Z', '--unit', 'a3-run-store']);
+  const report = JSON.parse(stdout);
+  assert.equal(report.runKey, computeRunKey(spec));
+  assert.equal(report.attempt, 1);
+  assert.equal(existsSync(join(report.dir, 'plan.json')), true);
+});
+
+test('CLI open verb exits 2 when a required flag is missing', () => {
+  const dir = scratch('run-store-cli-open-misuse-');
+  const specPath = join(dir, 'spec.json');
+  writeFileSync(specPath, JSON.stringify(sampleSpec()));
+  for (const args of [
+    ['open', specPath],
+    ['open', specPath, '--root', dir],
+    ['open', specPath, '--root', dir, '--started-at', '2026-08-12T09:00:00Z'],
+  ]) {
+    const failed = failCli(args);
+    assert.equal(failed.status, 2, `expected exit 2 for ${JSON.stringify(args)}`);
+    assert.match(failed.stderr, /usage:/);
+  }
 });
 
 after(cleanupScratch);
