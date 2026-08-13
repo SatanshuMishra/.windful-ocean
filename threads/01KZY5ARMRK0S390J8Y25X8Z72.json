@@ -215,6 +215,11 @@
         "ref": "0403-gh-token-moves-to-file-storage-for-sandbox-reach",
         "title": "The gh token moves from Keychain to file storage so the sandbox can read it",
         "scope": "c15"
+      },
+      {
+        "ref": "0404-trash-rm-runs-ahead-of-the-bash-gate",
+        "title": "trash-rm registers ahead of the bash gate so the gate judges the rewritten command",
+        "scope": "c5"
       }
     ],
     "out_of_scope": [
@@ -223,5 +228,5 @@
     ]
   },
   "created_at": "2026-08-13T18:14:42.072Z",
-  "updated_at": "2026-08-13T22:15:49.373Z"
+  "updated_at": "2026-08-13T22:15:56.772Z"
 }
