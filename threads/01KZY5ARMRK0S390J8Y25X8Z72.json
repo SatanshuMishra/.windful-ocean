@@ -92,8 +92,8 @@
   "closure_statement": null,
   "spine": {
     "active_goal": "Implement the ratified maximum-autonomy permission architecture end to end: experiments first, then the ordered change set, one PR per MSP.",
-    "next_step": "Wave 0 is complete; two follow-ups pending (whether the sandbox can contain the filesystem without the network, and whether --settings merges or replaces). When they land, bring the user the full amendment set with evidence per item and get a ruling BEFORE any implementation. The SPEC cannot be implemented as written: Layer 0, Step 3 and D6's mechanism are all refuted or damaged. Steps 1, 2, 4, 8 and the hook work are unaffected and shippable.",
-    "last_session": "Ran Wave 0. U4 and U5 verified; U1, U2 and U6 verified with surprises; U3 refuted Layer 0. Mapped the promotion pipeline, the settings-ownership model, every registered hook and all 47 deny entries. Nothing implemented.",
+    "next_step": "The SPEC amendment plus U1-U7 findings doc is in flight. When it lands, ship in this order: Step 0 (narrow protect-claude-config.sh to live paths only), then the manifest classification fix (which MUST precede any edit to permissions.deny), then Steps 1-2, Steps 3-4, Layer 1, Layer 3, Layer 4, Layer 0, Steps 8-9. HOLD the unattended launcher and the plugin disable pending direct user confirmation. One PR per MSP through the centralized pr-create tool.",
+    "last_session": "Ran Wave 0 to completion across seven experiments plus three follow-up probes. Layer 0 was refuted then rescued by one key; D6's mechanism was replaced with a per-worktree form; Step 3 was inverted. Dispatched the SPEC amendment. Nothing implemented.",
     "open_risks": [
       {
         "text": "Layer 0 is refuted — the sandbox blocks loopback and no allowlist can reach it, while on defaults a denied command is silently re-run unsandboxed and reported as succeeded, so containment is illusory exactly where it matters",
@@ -170,5 +170,5 @@
     "out_of_scope": []
   },
   "created_at": "2026-08-13T18:14:42.072Z",
-  "updated_at": "2026-08-13T18:51:37.320Z"
+  "updated_at": "2026-08-13T18:51:41.071Z"
 }
