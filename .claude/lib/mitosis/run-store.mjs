@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto';
-import { mkdirSync, readdirSync, readFileSync, realpathSync, writeFileSync } from 'node:fs';
+import { closeSync, mkdirSync, openSync, readdirSync, readFileSync, realpathSync, unlinkSync, writeFileSync } from 'node:fs';
 import { isAbsolute, join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { isIsoInstant } from './run-log.mjs';
@@ -145,6 +145,47 @@ function allocateAttempt(runDir) {
   throw new Error(`run-store: could not allocate a fresh attempt directory under ${runDir} after ${MAX_ATTEMPT_COLLISIONS} tries; every candidate already existed, so something else is writing attempts into this run and no attempt is safely ours to use`);
 }
 
+function describeLockHolder(lockPath) {
+  let held = null;
+  try {
+    held = JSON.parse(readFileSync(lockPath, 'utf8'));
+  } catch (error) {
+    return `its contents could not be read as a lock record: ${error.message}`;
+  }
+  if (!isPlainObject(held)) return 'its contents are not a lock record';
+  return `pid ${JSON.stringify(held.pid)}, started at ${JSON.stringify(held.startedAt)}`;
+}
+
+function acquireLock(runDir, lockRecord) {
+  const lockPath = join(runDir, 'lock');
+  let descriptor = null;
+  try {
+    descriptor = openSync(lockPath, 'wx', 0o600);
+  } catch (error) {
+    if (error.code !== 'EEXIST') throw error;
+    throw new Error(`run-store: the run lock at ${lockPath} is already held (${describeLockHolder(lockPath)}); a second run on the same key would interleave its writes with the first and lose updates, so this run refuses. The lock is never broken automatically, not even when the recorded process is gone - retire the run deliberately once you know the holder is dead`);
+  }
+  try {
+    writeFileSync(descriptor, `${JSON.stringify(lockRecord)}\n`);
+  } finally {
+    closeSync(descriptor);
+  }
+  return lockPath;
+}
+
+function releaseLock(lockPath, lockRecord) {
+  let held = null;
+  try {
+    held = JSON.parse(readFileSync(lockPath, 'utf8'));
+  } catch (error) {
+    throw new Error(`run-store: cannot release the lock at ${lockPath} because it no longer reads as the record this run wrote (${error.message}); releasing it anyway could unlink a lock another run now owns`);
+  }
+  if (!isPlainObject(held) || held.pid !== lockRecord.pid || held.startedAt !== lockRecord.startedAt || held.runKey !== lockRecord.runKey) {
+    throw new Error(`run-store: the lock at ${lockPath} no longer carries this run's record (expected pid ${lockRecord.pid} started at ${lockRecord.startedAt}, found ${JSON.stringify(held)}); another run owns it now, so this run refuses to unlink it`);
+  }
+  unlinkSync(lockPath);
+}
+
 export function openRun(request) {
   if (!isPlainObject(request)) {
     throw new TypeError(`run-store: openRun takes one plain object carrying root, runKey, unitIds, plan, startedAt and an optional pid, received ${request === null ? 'null' : Array.isArray(request) ? 'an array' : typeof request}`);
@@ -158,21 +199,39 @@ export function openRun(request) {
 
   const runDir = join(root, ...RUNS_SEGMENTS, runKey);
   mkdirSync(runDir, { recursive: true });
-  const allocated = allocateAttempt(runDir);
-  mkdirSync(join(allocated.dir, 'items'));
-  writeFileSync(
-    join(allocated.dir, 'plan.json'),
-    `${JSON.stringify({ runKey, attempt: allocated.attempt, startedAt, pid, unitIds: [...unitIds], plan })}\n`,
-    { flag: 'wx' },
-  );
+  const lockRecord = Object.freeze({ pid, startedAt, runKey });
+  const lockPath = acquireLock(runDir, lockRecord);
+  let allocated = null;
+  try {
+    allocated = allocateAttempt(runDir);
+    mkdirSync(join(allocated.dir, 'items'));
+    writeFileSync(
+      join(allocated.dir, 'plan.json'),
+      `${JSON.stringify({ runKey, attempt: allocated.attempt, startedAt, pid, unitIds: [...unitIds], plan })}\n`,
+      { flag: 'wx' },
+    );
+  } catch (error) {
+    unlinkSync(lockPath);
+    throw error;
+  }
+
+  let held = true;
+  const release = () => {
+    if (!held) {
+      throw new Error(`run-store: release was already called for attempt ${allocated.attempt} of ${runKey}; a second release would unlink whatever lock now sits at ${lockPath}, which may belong to a later run`);
+    }
+    releaseLock(lockPath, lockRecord);
+    held = false;
+  };
 
   return Object.freeze({
     runKey,
     attempt: allocated.attempt,
     dir: allocated.dir,
     itemsDir: join(allocated.dir, 'items'),
-    lockPath: join(runDir, 'lock'),
+    lockPath,
     unitIds,
+    release,
   });
 }
 

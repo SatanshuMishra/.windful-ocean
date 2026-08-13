@@ -218,4 +218,77 @@ test('CLI open verb exits 2 when a required flag is missing', () => {
   }
 });
 
+test('openRun refuses a second run while the lock is held', () => {
+  const args = openArgs();
+  const first = openRun(args);
+  assert.throws(() => openRun({ ...args, startedAt: '2026-08-12T10:00:00Z' }), (error) => {
+    assert.match(error.message, /lock/i);
+    assert.match(error.message, /4242/);
+    assert.match(error.message, /2026-08-12T09:00:00Z/);
+    return true;
+  });
+  assert.equal(existsSync(join(first.dir, 'plan.json')), true);
+  assert.deepEqual(readdirSync(join(args.root, '.mitosis', 'runs', VALID_KEY)).sort(), ['attempt-1', 'lock']);
+});
+
+test('a lock taken by a real second process still refuses', () => {
+  const dir = scratch('run-store-lock-proc-');
+  const root = scratch('run-store-lock-proc-root-');
+  const specPath = join(dir, 'spec.json');
+  writeFileSync(specPath, JSON.stringify(sampleSpec()));
+  runCli(['open', specPath, '--root', root, '--started-at', '2026-08-12T09:00:00Z', '--unit', 'a3-run-store']);
+  const failed = failCli(['open', specPath, '--root', root, '--started-at', '2026-08-12T10:00:00Z', '--unit', 'a3-run-store']);
+  assert.equal(failed.status, 1);
+  assert.match(failed.stderr, /^run-store error: .*lock/mi);
+});
+
+test('openRun never breaks a lock whose recorded pid is not alive', () => {
+  const args = openArgs();
+  const runDir = join(args.root, '.mitosis', 'runs', VALID_KEY);
+  mkdirSync(runDir, { recursive: true });
+  writeFileSync(join(runDir, 'lock'), `${JSON.stringify({ pid: 2, startedAt: '2020-01-01T00:00:00Z', runKey: VALID_KEY })}\n`, { flag: 'wx' });
+  assert.throws(() => openRun(args), /lock/i);
+  assert.equal(existsSync(join(runDir, 'attempt-1')), false);
+  assert.equal(existsSync(join(runDir, 'lock')), true);
+});
+
+test('openRun refuses a lock file it cannot read as a record, and still refuses to break it', () => {
+  const args = openArgs();
+  const runDir = join(args.root, '.mitosis', 'runs', VALID_KEY);
+  mkdirSync(runDir, { recursive: true });
+  writeFileSync(join(runDir, 'lock'), 'not json at all\n', { flag: 'wx' });
+  assert.throws(() => openRun(args), /lock/i);
+  assert.equal(existsSync(join(runDir, 'lock')), true);
+});
+
+test('openRun leaves no lock behind when a later step fails', () => {
+  const args = openArgs();
+  const runDir = join(args.root, '.mitosis', 'runs', VALID_KEY);
+  mkdirSync(runDir, { recursive: true });
+  const blockers = Array.from({ length: 64 }, (unused, index) => join(runDir, `attempt-${index + 1}`));
+  for (const blocker of blockers) writeFileSync(blocker, 'a file where an attempt directory must go\n');
+  assert.throws(() => openRun(args), /run-store/);
+  assert.equal(existsSync(join(runDir, 'lock')), false);
+  for (const blocker of blockers) unlinkSync(blocker);
+  const handle = openRun(args);
+  assert.equal(handle.attempt, 1);
+});
+
+test('release drops the lock and a second release refuses', () => {
+  const args = openArgs();
+  const handle = openRun(args);
+  handle.release();
+  assert.equal(existsSync(handle.lockPath), false);
+  assert.throws(() => handle.release(), /release/i);
+  const reopened = openRun({ ...args, startedAt: '2026-08-12T11:00:00Z' });
+  assert.equal(reopened.attempt, 2);
+});
+
+test('release refuses to unlink a lock it does not own', () => {
+  const handle = openRun(openArgs());
+  writeFileSync(handle.lockPath, `${JSON.stringify({ pid: 999999, startedAt: '2026-08-12T09:00:00Z', runKey: VALID_KEY })}\n`);
+  assert.throws(() => handle.release(), /lock/i);
+  assert.equal(existsSync(handle.lockPath), true);
+});
+
 after(cleanupScratch);
