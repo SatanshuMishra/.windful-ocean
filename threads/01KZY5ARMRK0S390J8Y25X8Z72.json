@@ -126,74 +126,10 @@
   "abandoned_reason": null,
   "closure_statement": null,
   "spine": {
-    "active_goal": "Get config verify green durably: stop every post-build mutation of the release tree, make the builder self-heal, then rebuild and promote.",
-    "next_step": "START HERE. Verify reports 7 findings, up from 2: five are recursive symlinks a non-idempotent ln -s loop wrote inside the live release (hooks/hooks, rules/rules, skills/skills, agents/agents, workflows/workflows). Delete those five, re-run verify, expect 2. The deleter of the six promoted entries is NOT repo code; naming it needs fs_usage as root outside the sandbox. Repo work left: read-only release tree, verify asserting all ten entries resolve, buildRelease not trusting an existing dir.",
-    "last_session": "Disproved the builder diagnosis. Shipped the bytecode fix as 8377436, verified and already live. Found the live config self-destructing on agent spawn from a non-repo actor, and caused five recursive symlinks inside the release with a non-idempotent recreate command.",
+    "active_goal": "Strip the containment architecture entirely and reduce this thread to permissions only: prune deny to genuine catastrophes, retire ask rules, widen allow.",
+    "next_step": "START HERE. Apply the generated global settings (scratchpad/settings.global.new.json over ~/.claude/settings.json, back it up first) and RESTART the session. The sandbox lives in GLOBAL settings and is self-protecting, so nothing else proceeds until it is off. Then delete scripts/config/, .claude/lib/reversibility/, the three hook files and their tests; re-point the ten ~/.claude entries straight at the repo; remove releases/, current, LIVE and local/. Then do the actual goal, c3 and c4.",
+    "last_session": "User rejected the thread premise as over-engineering. Recorded 0407. Stripped the Layer 0 sandbox and all five architecture hook registrations from tracked settings in 687c07e, keeping every unrelated hook.",
     "open_risks": [
-      {
-        "text": "Delete the five recursive symlinks inside the live release before anything else — they make the tree infinitely deep and account for five of verify's seven findings",
-        "scope": "c15",
-        "refs": [
-          "~/.claude/releases/476ec59d10fe685d02fa3af92e838fb3f6f880e3",
-          "hooks/hooks"
-        ]
-      },
-      {
-        "text": "Use ln -sfn, never bare ln -s, when recreating a promoted entry — bare ln -s descends into an existing directory and writes the link inside it instead of replacing it",
-        "scope": "c15",
-        "refs": [
-          "~/.claude/hooks"
-        ]
-      },
-      {
-        "text": "The process deleting the six promoted entries is not in this repo — every repo-side candidate is eliminated with evidence, so naming it needs fs_usage or opensnoop run as root outside the sandbox",
-        "scope": "c15",
-        "refs": [
-          "~/.claude/hooks",
-          "~/.claude/skills"
-        ]
-      },
-      {
-        "text": "Do not treat spawning an agent as the only trigger — the first incident has no Agent dispatch anywhere in the transcripts, so the deleter also fires on some other event",
-        "scope": "c15",
-        "refs": []
-      },
-      {
-        "text": "Do not cite an empty ~/.Trash as evidence for anything — the sandbox returns Operation not permitted for it under macOS privacy control, which some tools report as empty",
-        "scope": "c15",
-        "refs": [
-          "~/.Trash"
-        ]
-      },
-      {
-        "text": "Treat the old builder diagnosis as disproven — git archive and buildRelease both emit rules/context7.md, so any fix aimed at the archive step is aimed at nothing",
-        "scope": "c15",
-        "refs": [
-          "scripts/config/release.mjs:120",
-          "rules/context7.md"
-        ]
-      },
-      {
-        "text": "buildRelease reuses any release directory that already exists — a drifted release is therefore permanent, because no promotion ever rebuilds it",
-        "scope": "c15",
-        "refs": [
-          "scripts/config/release.mjs:123"
-        ]
-      },
-      {
-        "text": "promote returns unchanged before it ever builds when live already equals main — so a self-healing builder is unreachable in exactly the state that needs it",
-        "scope": "c15",
-        "refs": [
-          "scripts/config/promote.mjs:264"
-        ]
-      },
-      {
-        "text": "Commit with --no-gpg-sign inside the sandbox — ssh-agent is unreachable and a plain commit aborts on a passphrase prompt",
-        "scope": "c15",
-        "refs": [
-          "8377436"
-        ]
-      },
       {
         "text": "Edit anything under the hooks directory from a scratch worktree — Layer 0 denies writes there, including to its own tests, so a cherry-pick touching them half-applies and leaves the tree dirty",
         "scope": "thread",
@@ -283,6 +219,49 @@
           "~/.claude/hooks",
           "block-destructive-bash.sh"
         ]
+      },
+      {
+        "text": "The sandbox is defined in global settings and is self-protecting — lifting it means writing the one file it denies, so only a human outside the sandbox can do it",
+        "scope": "c15",
+        "refs": [
+          "~/.claude/settings.json"
+        ]
+      },
+      {
+        "text": "~/.claude/settings.json is a real file written by promote, not a symlink — a hook removed only from the repo still fires globally, so both files must be edited",
+        "scope": "c15",
+        "refs": [
+          "~/.claude/settings.json",
+          ".claude/settings.json"
+        ]
+      },
+      {
+        "text": "Unregister a hook before deleting its file, never the reverse — deleting first is exactly what silently killed every gate earlier in this thread",
+        "scope": "c15",
+        "refs": [
+          ".claude/hooks"
+        ]
+      },
+      {
+        "text": "Do not strip the merge gates — gh pr merge and merge_pull_request stay denied by deliberate user choice, and pr-create centralization stays too",
+        "scope": "c15",
+        "refs": [
+          ".claude/settings.json"
+        ]
+      },
+      {
+        "text": "Decision 0396 (narrow allow prefixes only) conflicts with the new direction — broad Bash(git:*) and Bash(gh:*) allows with deny taking precedence is the shape that fits, and it needs user confirmation before c4",
+        "scope": "c15",
+        "refs": [
+          "0396-allow-rules-use-narrow-prefixes-not-bash-star"
+        ]
+      },
+      {
+        "text": "Deleting the release topology moots the five recursive symlinks and the context7.md drift — do not spend time repairing a tree that is being removed",
+        "scope": "c15",
+        "refs": [
+          "~/.claude/releases"
+        ]
       }
     ],
     "key_decisions": [
@@ -363,5 +342,5 @@
     ]
   },
   "created_at": "2026-08-13T18:14:42.072Z",
-  "updated_at": "2026-08-13T23:56:56.967Z"
+  "updated_at": "2026-08-13T23:57:22.304Z"
 }
