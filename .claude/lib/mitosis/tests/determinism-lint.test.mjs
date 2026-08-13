@@ -46,31 +46,66 @@ test('the enumerated file set equals an independent directory read of the same r
   assert.ok(enumerated.files.length > 30, `expected the whole engine directory, found ${enumerated.files.length}`);
 });
 
-test('subdirectories of the engine directory are not descended', () => {
+function entry(name, kind) {
+  return { name, isFile: () => kind === 'file', isDirectory: () => kind === 'dir' };
+}
+
+function enumerateFixture(entries) {
+  return engineSourceFiles([{ kind: 'directory', path: '/fixture' }], {
+    readDir: () => entries,
+    exists: () => true,
+    readSource: () => '',
+  });
+}
+
+test('the declared excluded subdirectories are not descended', () => {
   const enumerated = engineSourceFiles(engineSourceRoots(), realSourceIo);
   assert.equal(enumerated.ok, true, enumerated.error);
   const descended = enumerated.files.filter((path) => path.includes('/tests/') || path.includes('/prompt-snapshots/'));
   assert.deepEqual(descended, [], `the census descended into a subdirectory: ${descended.join(', ')}`);
-  const fixture = engineSourceFiles([{ kind: 'directory', path: '/fixture' }], {
-    readDir: () => [
-      { name: 'top.mjs', isFile: () => true },
-      { name: 'tests', isFile: () => false },
-      { name: 'notes.md', isFile: () => true },
-    ],
-    exists: () => true,
-    readSource: () => '',
-  });
+  const fixture = enumerateFixture([
+    entry('top.mjs', 'file'),
+    entry('tests', 'dir'),
+    entry('prompt-snapshots', 'dir'),
+    entry('notes.md', 'file'),
+  ]);
+  assert.equal(fixture.ok, true, fixture.error);
   assert.deepEqual(fixture.files, ['/fixture/top.mjs']);
 });
 
-test('an engine file root that no longer exists drops out rather than halting', () => {
+test('an undeclared subdirectory halts rather than narrowing the census that names the whole engine', () => {
+  const fixture = enumerateFixture([entry('top.mjs', 'file'), entry('engine', 'dir')]);
+  assert.equal(fixture.ok, false, 'moving engine modules into a subdirectory must not void the guarantee in silence');
+  assert.match(fixture.error, /engine/);
+});
+
+test('a script sibling this census does not scan halts, while a data file does not', () => {
+  for (const name of ['clock.js', 'clock.cjs', 'clock.ts', 'clock.mts', 'clock.cts', 'clock.jsx', 'clock.tsx']) {
+    const fixture = enumerateFixture([entry('top.mjs', 'file'), entry(name, 'file')]);
+    assert.equal(fixture.ok, false, `${name} can carry engine source and is not scanned, so it must halt`);
+    assert.match(fixture.error, new RegExp(name.replace('.', '\\.')));
+  }
+  for (const name of ['notes.md', 'data.json', 'run.yml', '.DS_Store']) {
+    const fixture = enumerateFixture([entry('top.mjs', 'file'), entry(name, 'file')]);
+    assert.equal(fixture.ok, true, `${name} cannot carry an engine module and must not halt: ${fixture.error}`);
+    assert.deepEqual(fixture.files, ['/fixture/top.mjs']);
+  }
+});
+
+test('a directory entry that is neither a file nor a directory halts rather than being skipped', () => {
+  const fixture = enumerateFixture([entry('top.mjs', 'file'), entry('link', 'other')]);
+  assert.equal(fixture.ok, false);
+  assert.match(fixture.error, /link/);
+});
+
+test('an engine file root that no longer exists halts rather than censusing a narrower scope', () => {
   const io = { readDir: () => [], exists: (path) => path !== '/gone/mitosis.js', readSource: () => '' };
   const enumerated = engineSourceFiles(
     [{ kind: 'directory', path: '/fixture' }, { kind: 'file', path: '/gone/mitosis.js' }],
     io,
   );
-  assert.equal(enumerated.ok, true, enumerated.error);
-  assert.deepEqual(enumerated.files, []);
+  assert.equal(enumerated.ok, false, 'a declared root that vanished silently narrows both censuses that share this enumeration');
+  assert.match(enumerated.error, /\/gone\/mitosis\.js/);
 });
 
 test('a directory root that cannot be read halts rather than reporting an empty census', () => {

@@ -27,7 +27,7 @@ export function engineStringLiterals(source, scan) {
 
 export function collectEngineLiterals(roots, io) {
   const enumerated = engineSourceFiles(roots, io);
-  if (!enumerated.ok) return Object.freeze({ ok: false, kind: 'read', error: enumerated.error });
+  if (!enumerated.ok) return Object.freeze({ ok: false, kind: enumerated.kind, error: enumerated.error });
   const literals = new Set();
   for (const path of enumerated.files) {
     let source;

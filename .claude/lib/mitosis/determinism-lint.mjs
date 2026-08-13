@@ -21,6 +21,8 @@ const BANNED_SURFACES = Object.freeze([
 const GLOBAL_RECEIVERS = Object.freeze(new Set(['global', 'globalThis', 'self', 'window']));
 const KEY_PREFIX_CHARS = Object.freeze(new Set(['{', ',']));
 const SOURCE_EXTENSION = '.mjs';
+const EXCLUDED_SUBDIRECTORIES = Object.freeze(new Set(['prompt-snapshots', 'tests']));
+const UNSCANNED_SCRIPT_EXTENSIONS = Object.freeze(['.cjs', '.cts', '.js', '.jsx', '.mts', '.ts', '.tsx']);
 
 export const realSourceIo = Object.freeze({
   readDir: (path) => readdirSync(path, { withFileTypes: true }),
@@ -35,6 +37,10 @@ export function engineSourceRoots() {
   ]);
 }
 
+function enumerationFailure(kind, message) {
+  return Object.freeze({ ok: false, kind, error: message });
+}
+
 export function engineSourceFiles(roots, io) {
   const files = [];
   for (const root of roots) {
@@ -43,24 +49,41 @@ export function engineSourceFiles(roots, io) {
       try {
         present = io.exists(root.path);
       } catch (error) {
-        return halt(`the engine source root ${root.path} could not be probed: ${error && error.message ? error.message : 'unknown failure'}`);
+        return enumerationFailure('read', `the engine source root ${root.path} could not be probed: ${error && error.message ? error.message : 'unknown failure'}`);
       }
-      if (present) files.push(root.path);
+      if (!present) {
+        return enumerationFailure('halt', `the engine source root ${root.path} is declared but absent; refusing to census a narrower scope than the guarantee names`);
+      }
+      files.push(root.path);
       continue;
     }
     if (root.kind !== 'directory') {
-      return halt(`the engine source root ${JSON.stringify(root)} is neither a directory nor a file; refusing to guess what it enumerates`);
+      return enumerationFailure('halt', `the engine source root ${JSON.stringify(root)} is neither a directory nor a file; refusing to guess what it enumerates`);
     }
     let entries;
     try {
       entries = io.readDir(root.path);
     } catch (error) {
-      return halt(`the engine source root ${root.path} could not be read: ${error && error.message ? error.message : 'unknown failure'}`);
+      return enumerationFailure('read', `the engine source root ${root.path} could not be read: ${error && error.message ? error.message : 'unknown failure'}`);
     }
-    const named = entries
-      .filter((entry) => entry.isFile() && entry.name.endsWith(SOURCE_EXTENSION))
-      .map((entry) => join(root.path, entry.name))
-      .sort();
+    const named = [];
+    for (const entry of entries) {
+      if (entry.isDirectory()) {
+        if (EXCLUDED_SUBDIRECTORIES.has(entry.name)) continue;
+        return enumerationFailure('halt', `the engine source root ${root.path} contains the subdirectory ${entry.name}, which this census neither scans nor rules out; refusing to guess whether engine source moved into it`);
+      }
+      if (!entry.isFile()) {
+        return enumerationFailure('halt', `the engine source root ${root.path} contains ${entry.name}, which is neither a file nor a directory; refusing to guess what it resolves to`);
+      }
+      if (entry.name.endsWith(SOURCE_EXTENSION)) {
+        named.push(join(root.path, entry.name));
+        continue;
+      }
+      if (UNSCANNED_SCRIPT_EXTENSIONS.some((extension) => entry.name.endsWith(extension))) {
+        return enumerationFailure('halt', `the engine source root ${root.path} contains ${entry.name}, which can carry engine source yet is not scanned by a census over ${SOURCE_EXTENSION} files; refusing to guess`);
+      }
+    }
+    named.sort();
     files.push(...named);
   }
   return Object.freeze({ ok: true, files: Object.freeze(files) });
@@ -133,7 +156,7 @@ export function censusDeterminism(source, scan) {
 
 export function censusEngineDeterminism(roots, io) {
   const enumerated = engineSourceFiles(roots, io);
-  if (!enumerated.ok) return Object.freeze({ ok: false, kind: 'read', error: enumerated.error });
+  if (!enumerated.ok) return Object.freeze({ ok: false, kind: enumerated.kind, error: enumerated.error });
   const violations = [];
   for (const path of enumerated.files) {
     let source;
