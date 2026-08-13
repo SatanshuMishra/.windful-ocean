@@ -225,7 +225,7 @@ test('CLI refuses to mint the audit timestamp itself when --at is absent', () =>
   const declared = join(dir, 'plan.graph.json');
   writeFileSync(declared, JSON.stringify({
     tasks: [
-      { id: 't1', title: 'a', fullText: 'A', fileScope: ['lib/shared.js'], dependsOn: [], risk: 'low', validation: 'scoped' },
+      { id: 't1', title: 'a', fullText: 'A', fileScope: pack(['lib/shared.js']), dependsOn: [], risk: 'low', validation: 'scoped' },
     ],
   }));
   let stderr = '';
