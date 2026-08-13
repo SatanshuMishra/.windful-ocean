@@ -262,3 +262,16 @@ test('a cycle downstream of a healthy branch is settled blocked with unsatisfiab
   assert.deepEqual(result.diagnostics.waves, [['healthy']]);
   assert.deepEqual(result.diagnostics.unlayered, ['loop-a', 'loop-b', 'tail']);
 });
+
+test('observed concurrency never exceeds the cap', async () => {
+  const runner = gatedDispatcher(ALWAYS_OK);
+  const nodes = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j'].map((id) => ({ id }));
+  for (const node of nodes) runner.gates.set(node.id, deferred());
+  const pending = runGraph({ nodes, readyAfter: {} }, runner.dispatchFn, { concurrency: 3 });
+  for (const node of nodes) runner.gates.get(node.id).resolve();
+  const result = await pending;
+  assert.equal(result.ok, true);
+  assert.equal(runner.live.peak, 3, 'the pool must admit exactly the cap and never one more');
+  assert.equal(result.diagnostics.peakConcurrency, 3, 'the pool must report the same peak it enforced');
+  assert.equal(result.records.length, 10);
+});
