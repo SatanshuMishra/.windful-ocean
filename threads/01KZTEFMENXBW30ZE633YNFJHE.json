@@ -38,7 +38,7 @@
     {
       "id": "c10",
       "text": "The pre-existing derive-edges defect that wipes edgeReasons on an in-place re-run is fixed and lands on the stack base, with an acceptance test red on the parent commit.",
-      "done": false,
+      "done": true,
       "kind": "detour",
       "struck_by": null
     },
@@ -84,10 +84,75 @@
   "abandoned_reason": null,
   "closure_statement": null,
   "spine": {
-    "active_goal": "Land the eighteen MSPs as stacked PRs on feat/mitosis-os-process, then let D3's measured falsifier decide whether the base merges to main.",
-    "next_step": "Merge PR #72 (A1), then start A2 and A3 — both depend only on A1 and unblock together. B1 depends only on A0 and is already unblocked, so it can run alongside. Before cutting A2, check its ready_after readiness path for a termination guarantee that is not a single validation throw. The user rejected a nested orchestrator subagent that fans out across MSPs; drive workers directly from the main thread.",
-    "last_session": "Merges of #69 and #70 diverged the branches. Shipped the pathsOverlap glob and canonicalization fix as PR #71, reconciled the stack base with main at aff3314, and completed A1 as PR #72 from the user's own in-progress work. A G11 gate bypass was accepted, recorded and filed upstream.",
+    "active_goal": "Land the eighteen MSPs as stacked PRs on feat/mitosis-os-process; A0, A1, A2, A3 and B1 are in, and A4 and B2 are the next unblocked pair.",
+    "next_step": "QUICKLY verify, then STOP and answer in 1-2 sentences. Verify: base origin/feat/mitosis-os-process is 0a0f0e3, zero PRs open, and pool.mjs, run-store.mjs and coupling-review.mjs are present on it. The answer: A4 (depends on A3, met) and B2 (depends on B1, met) are both unblocked and mutually independent, so they are the next parallel pair, while B3 waits on B2. Do first: delete the five merged MSP branches, and clear A1's style debt per 0384.",
+    "last_session": "Shipped A2, A3 and B1 via a Workflow script (PRs #74, #75, #73), fixed #73's Semgrep failure, split the 844-line run-store suite, and re-landed the derive-edges fix as #77 after #76 silently merged into an already-merged base.",
     "open_risks": [
+      {
+        "text": "Build A4's red case through the claude -p CLI path and assert the SILENT failure — the Workflow agent path auto-grants StructuredOutput, so a red case dispatched through it passes unconditionally and is a guarantee that cannot fail",
+        "scope": "c4",
+        "refs": [
+          "0379"
+        ]
+      },
+      {
+        "text": "Delete the five merged MSP branches before cutting new work, and never merge feat/b1-coupling-review — GitHub retargets a stacked PR only when its base branch is deleted, and that surviving branch also duplicates the payload PR #77 already landed",
+        "scope": "c3",
+        "refs": [
+          "memory: stacked-pr-merges-into-a-live-base-branch",
+          "feat/b1-coupling-review",
+          "fix/derive-edges-reasons-carryforward"
+        ]
+      },
+      {
+        "text": "Clear A1's deferred style debt in its own commit — runChild is 185 lines with six nesting levels and holds every termination invariant, and the debt has since grown, with run-store.mjs at 625 lines and pool.test.mjs at 749",
+        "scope": "c3",
+        "refs": [
+          "0384",
+          ".claude/lib/mitosis/dispatch.mjs",
+          ".claude/lib/mitosis/tests/dispatch.test.mjs"
+        ]
+      },
+      {
+        "text": "B1's verdict gate is armed at the derive-edges entrypoint but not end to end — mitosis.js Parallelize builds its task map from graph.tasks and never reads graph.coupling, so a real run still co-schedules a serialize-defaulted pair with no verdict rendered",
+        "scope": "c3",
+        "refs": [
+          "PR #73",
+          ".claude/workflows/mitosis.js:4914"
+        ]
+      },
+      {
+        "text": "The pool refuses per-node cwd and worktree outright rather than confining them — a later MSP that needs genuine per-node working directories has to build that confinement check then, because the allowlist defers the problem rather than solving it",
+        "scope": "c3",
+        "refs": [
+          "PR #74",
+          ".claude/lib/mitosis/pool.mjs"
+        ]
+      },
+      {
+        "text": "SPEC line 328 still names tests/run-store.test.mjs, which no longer exists — the suite split into four files plus a fixtures module, so A3's Files line is stale prose that no gate reads and no grep will find",
+        "scope": "c3",
+        "refs": [
+          "SPEC A3",
+          ".claude/lib/mitosis/tests/"
+        ]
+      },
+      {
+        "text": "Leave the committed RECEIPTS_ACK in A1's test file alone — removing it would exercise the exact old_string hole reported upstream, turning a disclosed escape back into a silent one",
+        "scope": "c3",
+        "refs": [
+          ".claude/lib/mitosis/tests/dispatch.test.mjs:535",
+          "shaheershoaib/receipts#49",
+          "0383"
+        ]
+      },
+      {
+        "text": "Treat A1's twelve inertness mutations as unproven — they are author-reported and were never independently re-run, unlike the suite and gate results which were",
+        "scope": "c3",
+        "refs": [
+          "PR #72"
+        ]
+      },
       {
         "text": "Dispatch every child with run_in_background false and re-verify against git when it returns — a background child returns only an id, so a dispatching agent ends its turn narrating that it is holding while nothing ran",
         "scope": "thread",
@@ -103,17 +168,27 @@
         ]
       },
       {
+        "text": "Every new lib module needs a MIRROR_CENSUS row and a live caller per 0386 — parallel MSPs adding rows always conflict on that one literal, and the resolution is to keep both rows in sorted order, never to drop one",
+        "scope": "thread",
+        "refs": [
+          "0386",
+          ".claude/lib/mitosis/tests/mirror-guard.test.mjs",
+          ".claude/lib/mitosis/tests/dead-export-lint.test.mjs"
+        ]
+      },
+      {
+        "text": "Mirror any change to a twinned lib module into the workflows copy in the same commit — mirror-guard compares normalized source text and reddens on a one-sided edit",
+        "scope": "thread",
+        "refs": [
+          ".claude/lib/mitosis/tests/mirror-guard.test.mjs:214",
+          ".claude/workflows/mitosis.js"
+        ]
+      },
+      {
         "text": "Recompute D2's test-count acceptance figure and state the counting unit before D2 is cut — the SPEC claims 35, but the files carry 51 test declarations and 175 runtime cases, so no convention yields 35",
         "scope": "thread",
         "refs": [
           "SPEC D2"
-        ]
-      },
-      {
-        "text": "Check A2's ready_after readiness path for a termination guarantee that is not a single validation throw — remove wave-planner's cycle throw and its loop spins unbounded, and A2 adds a second readiness predicate over the same problem",
-        "scope": "thread",
-        "refs": [
-          ".claude/lib/mitosis/wave-planner.mjs:46-57"
         ]
       },
       {
@@ -162,47 +237,7 @@
         "refs": [
           "~/.claude/CUTOVER",
           "~/.claude/LIVE",
-          ".claude/worktrees/mitosis-os-process"
-        ]
-      },
-      {
-        "text": "Build A4's red case through the claude -p CLI path and assert the SILENT failure — the Workflow agent path auto-grants StructuredOutput, so a red case dispatched through it passes unconditionally and is a guarantee that cannot fail",
-        "scope": "c4",
-        "refs": [
-          "0379"
-        ]
-      },
-      {
-        "text": "Leave the committed RECEIPTS_ACK in A1's test file alone — removing it would exercise the exact old_string hole reported upstream, turning a disclosed escape back into a silent one",
-        "scope": "c3",
-        "refs": [
-          ".claude/lib/mitosis/tests/dispatch.test.mjs:535",
-          "shaheershoaib/receipts#49",
-          "0383"
-        ]
-      },
-      {
-        "text": "Clear A1's two deferred style violations in their own commit before the stack grows — runChild is 185 lines with six nesting levels and holds every termination invariant, and dispatch.test.mjs is 838 lines against an 800 cap",
-        "scope": "c3",
-        "refs": [
-          "0384",
-          ".claude/lib/mitosis/dispatch.mjs",
-          ".claude/lib/mitosis/tests/dispatch.test.mjs"
-        ]
-      },
-      {
-        "text": "Treat A1's twelve inertness mutations as unproven — they are author-reported and were never independently re-run, unlike the suite and gate results which were",
-        "scope": "c3",
-        "refs": [
-          "PR #72"
-        ]
-      },
-      {
-        "text": "Mirror any change to a twinned lib module into the workflows copy in the same commit — mirror-guard compares normalized source text and reddens on a one-sided edit",
-        "scope": "c3",
-        "refs": [
-          ".claude/lib/mitosis/tests/mirror-guard.test.mjs:214",
-          ".claude/workflows/mitosis.js"
+          ".claude/worktrees/"
         ]
       }
     ],
@@ -277,5 +312,5 @@
     ]
   },
   "created_at": "2026-08-12T07:37:41.077Z",
-  "updated_at": "2026-08-13T04:05:09.192Z"
+  "updated_at": "2026-08-13T04:06:00.003Z"
 }
