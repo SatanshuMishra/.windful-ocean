@@ -3,6 +3,7 @@ export const REPO_OWNED_KEYS = Object.freeze([
   'env',
   'hooks',
   'includeCoAuthoredBy',
+  'sandbox',
   'statusLine',
 ]);
 
