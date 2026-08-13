@@ -18,9 +18,17 @@ const REASON_ABORTED_IN_FLIGHT = 'aborted-in-flight';
 const REASON_ABORTED_BEFORE_DISPATCH = 'aborted-before-dispatch';
 const OUTCOME_THREW = 'dispatch-threw';
 const OUTCOME_CONTRACT_VIOLATION = 'dispatch-contract-violation';
+const OUTCOME_ABORTED = 'aborted';
 const NO_IDS = Object.freeze([]);
 const USAGE = 'usage: pool.mjs <graph.json> [--concurrency N]';
 const CONCURRENCY_FLAG = '--concurrency';
+const CONCURRENCY_TOKEN_PATTERN = /^[1-9][0-9]*$/;
+const INTERRUPT_SIGNALS = Object.freeze(['SIGINT', 'SIGTERM']);
+const NODE_REQUEST_FIELDS = Object.freeze(['prompt', 'agentType', 'model', 'effort', 'schema', 'timeoutMs']);
+const NODE_TIMEOUT_CAP_MS = 3600000;
+const MESSAGE_CAP_CHARS = 1024;
+const TAIL_ELISION = '[tail elided]';
+const CONTROL_CHARACTERS = new RegExp(`[${String.fromCharCode(0)}-${String.fromCharCode(31)}${String.fromCharCode(127)}-${String.fromCharCode(159)}]`, 'g');
 const EXIT_ERROR = 1;
 const EXIT_USAGE = 2;
 const EXIT_INCOMPLETE = 3;
@@ -29,6 +37,11 @@ function describeError(error) {
   if (error === null || error === undefined) return 'unknown failure';
   if (typeof error.message === 'string' && error.message !== '') return error.message;
   return String(error);
+}
+
+function note(text) {
+  const safe = text.replace(CONTROL_CHARACTERS, ' ');
+  return safe.length <= MESSAGE_CAP_CHARS ? safe : `${safe.slice(0, MESSAGE_CAP_CHARS)}${TAIL_ELISION}`;
 }
 
 function requirePlainObject(value, field) {
@@ -209,8 +222,10 @@ function finish(plan, ledger, aborted, id, ok, outcome, reason) {
     ledger.settle(id, STATE_OK, outcome, NO_IDS, null);
     return;
   }
-  const state = aborted ? STATE_CANCELLED : STATE_FAILED;
-  ledger.settle(id, state, outcome, NO_IDS, aborted ? REASON_ABORTED_IN_FLIGHT : reason);
+  const cancelled = outcome === OUTCOME_ABORTED;
+  const state = cancelled ? STATE_CANCELLED : STATE_FAILED;
+  ledger.settle(id, state, outcome, NO_IDS, cancelled ? REASON_ABORTED_IN_FLIGHT : reason);
+  if (aborted) return;
   propagateBlock(plan, ledger, id, state);
 }
 
@@ -219,7 +234,7 @@ async function invoke(plan, ledger, signal, dispatchFn, id) {
   try {
     verdict = await dispatchFn(plan.byId.get(id), { signal });
   } catch (error) {
-    finish(plan, ledger, signal.aborted, id, false, OUTCOME_THREW, describeError(error));
+    finish(plan, ledger, signal.aborted, id, false, OUTCOME_THREW, note(describeError(error)));
     return;
   }
   if (!isVerdict(verdict)) {
@@ -308,13 +323,32 @@ function parseArgs(argv) {
   if (file === undefined || file.startsWith('-')) return null;
   if (rest.length === 0) return Object.freeze({ file, concurrency: undefined });
   if (rest.length !== 2 || rest[0] !== CONCURRENCY_FLAG) return null;
-  const concurrency = Number(rest[1]);
-  if (!Number.isInteger(concurrency)) return null;
-  return Object.freeze({ file, concurrency });
+  if (!CONCURRENCY_TOKEN_PATTERN.test(rest[1])) return null;
+  return Object.freeze({ file, concurrency: Number(rest[1]) });
+}
+
+function requireNodeTimeout(value, id) {
+  if (value === undefined) return undefined;
+  if (!Number.isInteger(value) || value < 1 || value > NODE_TIMEOUT_CAP_MS) {
+    throw new RangeError(`pool: node ${JSON.stringify(id)} asks for a timeoutMs of ${JSON.stringify(value)}, but a graph file may only choose an integer in 1..${NODE_TIMEOUT_CAP_MS}: a child allowed to outlive the pool by days keeps writing to the shared tree long after the operator believes the run stopped`);
+  }
+  return value;
+}
+
+function nodeRequest(node) {
+  const request = requirePlainObject(node.request, `node ${JSON.stringify(node.id)}.request`);
+  const picked = {};
+  for (const key of Object.keys(request)) {
+    if (!NODE_REQUEST_FIELDS.includes(key)) {
+      throw new TypeError(`pool: node ${JSON.stringify(node.id)} carries the request field ${JSON.stringify(key)}, which the pool refuses to forward: a graph file may only choose ${NODE_REQUEST_FIELDS.join(', ')}, never where its child runs, because a cwd or a worktree read from the file roots the spawned agent outside the tree the operator invoked the pool in`);
+    }
+    picked[key] = request[key];
+  }
+  return Object.freeze({ ...picked, timeoutMs: requireNodeTimeout(picked.timeoutMs, node.id) });
 }
 
 function dispatchNode(node, context) {
-  return dispatch({ ...node.request, signal: context.signal });
+  return dispatch({ ...nodeRequest(node), signal: context.signal });
 }
 
 async function main() {
@@ -324,13 +358,19 @@ async function main() {
     process.exitCode = EXIT_USAGE;
     return;
   }
+  const controller = new AbortController();
+  const interrupt = () => controller.abort();
+  for (const name of INTERRUPT_SIGNALS) process.on(name, interrupt);
   try {
-    const result = await runGraph(JSON.parse(readFileSync(args.file, 'utf8')), dispatchNode, { concurrency: args.concurrency });
+    const graph = JSON.parse(readFileSync(args.file, 'utf8'));
+    const result = await runGraph(graph, dispatchNode, { concurrency: args.concurrency, signal: controller.signal });
     process.stdout.write(`${JSON.stringify(result, null, 2)}\n`);
     if (!result.ok) process.exitCode = EXIT_INCOMPLETE;
   } catch (error) {
-    process.stderr.write(`pool error: ${describeError(error)}\n`);
+    process.stderr.write(`pool error: ${note(describeError(error))}\n`);
     process.exitCode = EXIT_ERROR;
+  } finally {
+    for (const name of INTERRUPT_SIGNALS) process.off(name, interrupt);
   }
 }
 

@@ -11,9 +11,16 @@ import { dispatch } from '../dispatch.mjs';
 const POOL_CLI = fileURLToPath(new URL('../pool.mjs', import.meta.url));
 const NOOP_DISPATCH = async () => ({ ok: true, outcome: 'success' });
 const PENDING = Symbol('pending');
+const ESCAPE = String.fromCharCode(27);
+const BELL = String.fromCharCode(7);
+const CONTROL_BYTE = new RegExp(`[${String.fromCharCode(0)}-${String.fromCharCode(31)}${String.fromCharCode(127)}-${String.fromCharCode(159)}]`);
 const scratchDirs = [];
+const strayPids = [];
 
 after(() => {
+  for (const pid of strayPids) {
+    if (alive(pid)) process.kill(pid, 'SIGKILL');
+  }
   for (const dir of scratchDirs) rmSync(dir, { recursive: true, force: true });
 });
 
@@ -90,11 +97,37 @@ function stubEnv(body) {
 }
 
 function pidRecordingStub(pidDir) {
+  const dir = JSON.stringify(pidDir);
   return stubEnv([
     "const { writeFileSync } = require('node:fs');",
-    `writeFileSync(require('node:path').join(${JSON.stringify(pidDir)}, process.argv[process.argv.length - 1]), String(process.pid));`,
-    'setInterval(() => {}, 3600000);',
+    "const { join } = require('node:path');",
+    'const id = process.argv[process.argv.length - 1];',
+    'const timer = setInterval(() => {}, 3600000);',
+    "process.on('SIGTERM', () => {",
+    `  writeFileSync(join(${dir}, \`\${id}.sigterm\`), 'received');`,
+    '  clearInterval(timer);',
+    '  process.exit(0);',
+    '});',
+    `writeFileSync(join(${dir}, id), String(process.pid));`,
   ].join('\n'));
+}
+
+function spawnRecordingStub(markerDir) {
+  return stubEnv([
+    "const { writeFileSync } = require('node:fs');",
+    `writeFileSync(require('node:path').join(${JSON.stringify(markerDir)}, 'spawned'), process.cwd());`,
+    "process.stdout.write(JSON.stringify({ type: 'result', subtype: 'success', is_error: false, result: 'done', usage: {}, total_cost_usd: 0 }));",
+  ].join('\n'));
+}
+
+function startCli(args, env) {
+  let child = null;
+  const done = new Promise((resolve) => {
+    child = execFile(process.execPath, [POOL_CLI, ...args], { env }, (error, stdout, stderr) => {
+      resolve({ code: error === null ? 0 : error.code, stdout, stderr });
+    });
+  });
+  return { child, done };
 }
 
 async function waitUntil(predicate, ms, label) {
@@ -427,7 +460,7 @@ test('an abort terminates every in-flight child for real and records both the in
   const started = [];
   const dispatchFn = (node, context) => {
     started.push(node.id);
-    return dispatch({ prompt: node.id, timeoutMs: 60000, signal: context.signal }, { env, killGraceMs: 200 });
+    return dispatch({ prompt: node.id, timeoutMs: 60000, signal: context.signal }, { env, killGraceMs: 30000 });
   };
   const pending = runGraph(
     { nodes: [{ id: 'alpha' }, { id: 'bravo' }, { id: 'charlie' }, { id: 'delta' }], readyAfter: {} },
@@ -450,6 +483,13 @@ test('an abort terminates every in-flight child for real and records both the in
     assert.equal(records.get(id).reason, 'aborted-before-dispatch');
   }
   for (const pid of pids) await waitUntil(() => !alive(pid), 10000, `the child ${pid} survived the abort`);
+  for (const id of ['alpha', 'bravo']) {
+    assert.equal(
+      existsSync(join(pidDir, `${id}.sigterm`)),
+      true,
+      `${id} was never sent SIGTERM: the kill grace is 30s here, so a child that died inside the assertion window died of a signal it could not trap, and an agent killed mid-write leaves a partial edit and a corrupt index on the shared tree`,
+    );
+  }
 });
 
 test('a node that resolves ok inside the abort window keeps its ok record', async () => {
@@ -531,6 +571,167 @@ test('the CLI runs a real graph end to end through the dispatch adapter and prin
   assert.deepEqual(printed.records.map((record) => record.state), ['ok', 'ok']);
   assert.equal(printed.diagnostics.concurrency, 2);
   assert.deepEqual(printed.diagnostics.waves, [['root'], ['leaf']]);
+});
+
+test('the abort census is identical whichever in-flight child settles first', async () => {
+  const graph = {
+    nodes: [{ id: 'alpha' }, { id: 'bravo' }, { id: 'x' }, { id: 'y' }],
+    readyAfter: { x: ['alpha'], y: ['bravo'] },
+  };
+  async function runReleasing(first) {
+    const controller = new AbortController();
+    const gates = new Map([['alpha', deferred()], ['bravo', deferred()]]);
+    const running = new Set();
+    const dispatchFn = async (node) => {
+      running.add(node.id);
+      await gates.get(node.id).promise;
+      return { ok: false, outcome: 'aborted' };
+    };
+    const pending = runGraph(graph, dispatchFn, { concurrency: 2, signal: controller.signal });
+    await waitUntil(() => running.size === 2, 5000, 'both roots never reached the dispatcher');
+    controller.abort();
+    gates.get(first).resolve();
+    await new Promise((resolve) => { setImmediate(resolve); });
+    gates.get(first === 'alpha' ? 'bravo' : 'alpha').resolve();
+    return settledWithin(pending, 5000, 'the aborted run must settle');
+  }
+  const alphaFirst = await runReleasing('alpha');
+  const bravoFirst = await runReleasing('bravo');
+  assert.deepEqual(
+    bravoFirst.records,
+    alphaFirst.records,
+    'the terminal classification of a never-dispatched node must not depend on which dying child settles first: a resume keyed on these records would re-dispatch a different node on each identical run',
+  );
+  for (const result of [alphaFirst, bravoFirst]) {
+    const records = byId(result.records);
+    for (const id of ['x', 'y']) {
+      assert.equal(records.get(id).state, 'cancelled');
+      assert.equal(records.get(id).reason, 'aborted-before-dispatch');
+    }
+    for (const id of ['alpha', 'bravo']) {
+      assert.equal(records.get(id).state, 'cancelled');
+      assert.equal(records.get(id).reason, 'aborted-in-flight');
+    }
+  }
+});
+
+test('a node that fails on its own verdict inside the abort window is recorded failed rather than cancelled', async () => {
+  const controller = new AbortController();
+  const gate = deferred();
+  const dispatchFn = async (node) => {
+    if (node.id === 'genuine') {
+      await gate.promise;
+      return { ok: false, outcome: 'exit-nonzero' };
+    }
+    await new Promise((resolve) => { controller.signal.addEventListener('abort', resolve, { once: true }); });
+    return { ok: false, outcome: 'aborted' };
+  };
+  const pending = runGraph(
+    { nodes: [{ id: 'genuine' }, { id: 'killed' }], readyAfter: {} },
+    dispatchFn,
+    { concurrency: 2, signal: controller.signal },
+  );
+  controller.abort();
+  gate.resolve();
+  const result = await settledWithin(pending, 5000, 'the aborted run must settle');
+  const records = byId(result.records);
+  assert.equal(
+    records.get('genuine').state,
+    'failed',
+    'a node the pool never killed must keep the dispatcher verdict: relabelling it cancelled invites a resume to re-run a node that deterministically failed, over a tree already holding its partial edits',
+  );
+  assert.equal(records.get('genuine').outcome, 'exit-nonzero');
+  assert.equal(records.get('genuine').reason, null);
+  assert.equal(records.get('killed').state, 'cancelled');
+  assert.equal(records.get('killed').outcome, 'aborted');
+  assert.equal(records.get('killed').reason, 'aborted-in-flight');
+});
+
+test('a graph node that chooses where its child runs is refused before any child is spawned', async () => {
+  const markerDir = scratch();
+  const env = spawnRecordingStub(markerDir);
+  const graphPath = fixture('escape.json', {
+    nodes: [{ id: 'escape', request: { prompt: 'exfil', cwd: scratch() } }],
+    readyAfter: {},
+  });
+  const run = await runCli([graphPath], env);
+  assert.equal(run.code, 3, `expected the completed-with-failures exit, got ${run.code}: ${run.stderr}`);
+  const record = JSON.parse(run.stdout).records[0];
+  assert.equal(record.state, 'failed');
+  assert.equal(record.outcome, 'dispatch-threw');
+  assert.match(record.reason, /which the pool refuses to forward/);
+  assert.equal(
+    existsSync(join(markerDir, 'spawned')),
+    false,
+    'the graph file chose the working directory of a spawned agent, so a file built from untrusted prose can root an agent anywhere on the machine and escape the worktree isolation the pool exists to hold',
+  );
+});
+
+test('a graph node that asks to outlive the pool ceiling is refused before any child is spawned', async () => {
+  const markerDir = scratch();
+  const env = spawnRecordingStub(markerDir);
+  const graphPath = fixture('forever.json', {
+    nodes: [{ id: 'forever', request: { prompt: 'wait', timeoutMs: 2147483647 } }],
+    readyAfter: {},
+  });
+  const run = await runCli([graphPath], env);
+  assert.equal(run.code, 3, `expected the completed-with-failures exit, got ${run.code}: ${run.stderr}`);
+  const record = JSON.parse(run.stdout).records[0];
+  assert.equal(record.state, 'failed');
+  assert.match(record.reason, /may only choose an integer in 1\.\.3600000/);
+  assert.equal(existsSync(join(markerDir, 'spawned')), false, 'a child that outlives the pool keeps writing to the shared tree long after the operator believes the run stopped');
+});
+
+test('an interrupted CLI terminates its in-flight child and still records the run', async () => {
+  const pidDir = scratch();
+  const env = pidRecordingStub(pidDir);
+  const graphPath = fixture('long.json', { nodes: [{ id: 'long', request: { prompt: 'long' } }], readyAfter: {} });
+  const started = startCli([graphPath], env);
+  await waitUntil(() => existsSync(join(pidDir, 'long')), 15000, 'the child never started');
+  const pid = Number(readFileSync(join(pidDir, 'long'), 'utf8'));
+  strayPids.push(pid);
+  started.child.kill('SIGINT');
+  const run = await started.done;
+  await waitUntil(() => !alive(pid), 15000, `the interrupted pool orphaned the agent child ${pid}, which keeps writing to the shared tree after the operator believes the run stopped`);
+  assert.equal(run.code, 3, `expected the completed-with-failures exit, got ${run.code}: ${run.stderr}`);
+  const printed = JSON.parse(run.stdout);
+  assert.equal(printed.ok, false);
+  assert.equal(printed.records[0].state, 'cancelled');
+  assert.equal(printed.records[0].reason, 'aborted-in-flight');
+});
+
+test('the CLI never writes a control byte read from the graph file to the operator terminal', async () => {
+  const path = join(scratch(), 'hostile.json');
+  writeFileSync(path, `${ESCAPE}]0;PWNED${BELL}{"nodes":`);
+  const run = await runCli([path], process.env);
+  assert.equal(run.code, 1);
+  assert.match(run.stderr, /^pool error: /);
+  assert.match(run.stderr, /PWNED/, 'the parser fragment must still reach the operator, or this assertion passes for the wrong reason');
+  assert.equal(
+    CONTROL_BYTE.test(run.stderr.replace(/\n$/, '')),
+    false,
+    'a control byte from the graph file reached the terminal, where an OSC sequence rewrites the window title and an erase sequence overwrites the line above it',
+  );
+});
+
+test('a dispatcher failure message is stripped and bounded before it becomes a record', async () => {
+  const dispatchFn = async () => { throw new Error(`start${BELL}${'x'.repeat(8192)}`); };
+  const result = await runGraph({ nodes: [{ id: 'one' }], readyAfter: {} }, dispatchFn, {});
+  const reason = result.records[0].reason;
+  assert.equal(CONTROL_BYTE.test(reason), false, 'a control byte from the dispatcher reached the record verbatim');
+  assert.ok(reason.length < 1100, `an unbounded dispatcher message became the record body at ${reason.length} characters`);
+  assert.match(reason, /^start /);
+});
+
+test('a concurrency token that is not a plain decimal is a usage error rather than a silently different cap', async () => {
+  const env = stubEnv('process.exit(9);');
+  const graphPath = fixture('one.json', { nodes: [{ id: 'a', request: { prompt: 'a' } }], readyAfter: {} });
+  for (const token of ['0x8', '', '1e1', '2.0', ' 3', '+3']) {
+    const run = await runCli([graphPath, '--concurrency', token], env);
+    assert.equal(run.code, 2, `--concurrency ${JSON.stringify(token)} must land on the usage exit, got ${run.code}: ${run.stderr}`);
+    assert.match(run.stderr, /usage: pool\.mjs/);
+    assert.equal(run.stdout, '');
+  }
 });
 
 test('the CLI exits 3 when the run completes with a node that is not ok', async () => {
