@@ -1,7 +1,8 @@
 # Maximum-autonomy permission architecture
 
-Status: RATIFIED 2026-08-13, not implemented. Authored 2026-08-13.
+Status: RATIFIED 2026-08-13, not implemented. Authored 2026-08-13. Amended 2026-08-13 (Wave 0).
 R1 through R6 were ratified by the user on 2026-08-13, and the three guard amendments from the section 11 pressure test (D1, D2, D4) plus the D6 mechanism correction were applied at the same time. Sections 2 and 4 below carry the amended text; section 11 preserves the pre-amendment reasoning.
+Wave 0 — the experiment wave that settled U1 through U7, re-measured D6's mechanism a second time, and surfaced a settings-promotion pipeline this SPEC did not originally know about — ran later the same day against Claude Code 2.1.231 on macOS 26.5.1. It refuted U2's and M17's assumptions, refuted then resolved U3's, disqualified the D6 mechanism this SPEC had just adopted, and found two silent self-destruct paths and a rollback hazard in the pipeline that carries this SPEC's own guard set into effect. Sections 0.6 through 0.8 record the new facts; sections 2, 4, 5, 6, 7 and 10 carry the resulting amendments; section 8 replaces its open-question table with verdicts. Section 11 is untouched — it is pre-amendment history and stays that way. `2026-08-13-maximum-autonomy-U1-U7-findings.md`, beside this file, is the full evidence record.
 Supersedes the operative goal of the 2026-08-01 permission config audit, which assessed the configuration against Anthropic's published recommendations. That alignment is deliberately traded away here.
 
 This SPEC is standalone. Every fact in section 0 was measured on 2026-08-13 or quote-grounded in official documentation on the same date. Provenance is marked per fact: `[orchestrator]` means confirmed directly in this session, `[agent]` means produced by a dispatched research agent with the cited source.
@@ -37,7 +38,7 @@ Goal, in one sentence: let a task be started and left unattended overnight, and 
 - **M14. `deny` and explicit `ask` rules survive every mode, including `bypassPermissions`; `allow` rules are inert there.** — [permission-modes](https://code.claude.com/docs/en/permission-modes). `[agent]`
 - **M15. A PreToolUse hook exit code 2 blocks in every mode**, firing before any permission-mode check — [hooks-guide](https://code.claude.com/docs/en/hooks-guide). `[agent]`
 - **M16. In a non-interactive run, auto mode does not stall — it silently skips.** "The action doesn't run and Claude keeps working... Claude Code doesn't stop the run" — [permission-modes](https://code.claude.com/docs/en/permission-modes). Interactive auto mode instead resumes prompting after 3 consecutive or 20 total classifier blocks, thresholds documented as not configurable. `[agent]`
-- **M17. `bypassPermissions` requires a one-time interactive acceptance dialog on the machine**, and a background session is refused until that dialog has been accepted in a prior interactive session. It also refuses to start as root outside a recognized sandbox. `[agent]`
+- **M17. `bypassPermissions` requires a one-time interactive acceptance dialog on the machine**, and a background session is refused until that dialog has been accepted in a prior interactive session. It also refuses to start as root outside a recognized sandbox. `[agent]` **REFUTED 2026-08-13 for the non-interactive `-p --permission-mode` argv path — see M32 (section 0.6) and section 5. Not tested for interactive TTY, `--bg`, or cloud sessions; the refutation does not extend to them, and this claim stands unrefuted there.**
 - **M18. Protected paths (`.git`, `.claude`, `.env`-adjacent) are never auto-approved by allow rules in any mode except `bypassPermissions`.** The list is hardcoded, not configurable. `[agent]`
 - **M19. `auto` mode, the `autoMode` block and `sandbox.network.strictAllowlist` are ignored when set in project or local settings.** They are honored only from `~/.claude/settings.json`, managed settings, or `--settings`. `[agent]`
 
@@ -47,6 +48,36 @@ Goal, in one sentence: let a task be started and left unattended overnight, and 
 - **M21. Git reflog defaults are 90 days reachable, 30 days unreachable, 2 weeks prune grace** — [git-gc](https://git-scm.com/docs/git-gc). `[agent]`
 - **M22. Supabase's free tier ships with no automatic backups at all** — [supabase.com](https://supabase.com/docs/guides/platform/backups). A destructive query there has no undo. `[agent]`
 - **M23. Uncommitted and untracked work has a zero-length recovery window.** `git reset --hard` and `git clean -fdx` destroy state that was never a git object, and M2 establishes there is no snapshot underneath. `[agent]`
+
+### 0.6 U1 through U7, resolved, and one existing fact overturned (Wave 0, 2026-08-13)
+
+- **M24. A PreToolUse hook returning `allow` suppresses the auto-mode classifier itself, not merely the interactive prompt.** Verified by paired control: the same `chmod 777` command, the same auto mode, differing only by the hook's presence. Without it the file was unchanged and the debug log recorded a classifier block; with it the file changed and the classifier was never invoked. `[agent]` — resolves U1.
+- **M25. A broad `Bash(*)` allow rule is silently discarded in auto mode.** The debug log records `Ignoring dangerous permission Bash(*) ... (bypasses classifier)`, and the command then falls through to the classifier and is blocked — a rejection visible only at debug level, never in the transcript. A narrow rule such as `Bash(chmod:*)` both executes and skips the classifier entirely. `default` mode honors `Bash(*)` normally; this is specific to `auto` mode. `[agent]` — resolves U2, and inverts section 6 step 3 and section 4 Layer 2.
+- **M26. The sandbox blocks loopback by default.** `NO_PROXY` contains `localhost,127.0.0.1,::1`, so loopback traffic bypasses the proxy that implements the domain allowlist and is denied at the network layer with EPERM. Adding `localhost` to `allowedDomains` does not help — the allowlist is structurally unreachable for loopback. Separately, under the default `sandbox.allowUnsandboxedCommands`, a command the sandbox denies is silently re-run fully unsandboxed and reported as succeeded. `[agent]` — resolves U3's first half; refutes the assumption that enabling the sandbox alone, as Layer 0 originally read, is sufficient.
+- **M27. The fix for M26 is one documented key set, verified together:** `sandbox.enabled: true`, `sandbox.allowUnsandboxedCommands: false`, `sandbox.failIfUnavailable: true`, `sandbox.network.allowLocalBinding: true`. Under it: loopback connects and returns 200; writes inside cwd succeed; writes to `$HOME` and into the repository are denied with EPERM; `~/.ssh` reads are denied; external HTTPS still returns 403 from the allowlist proxy; the process carries `SANDBOX_RUNTIME=1`. `allowLocalBinding` was isolated as the single causal key that unblocks loopback. The full schema the installed build accepts is `sandbox.filesystem.{disabled, allowRead, denyRead, allowWrite, denyWrite, readOnly}` and `sandbox.network.{allowedDomains, deniedDomains, allowLocalBinding, allowUnixSockets, allowAllUnixSockets, allowMachLookup, excludedCommands}` — there is no `network.disabled`. `[agent]` — resolves U3's second half; Layer 0 is amended, not dropped.
+- **M28. `tmutil localsnapshot` succeeds with no Time Machine destination configured:** exit 0 in 0.322 s, no privilege prompt. macOS warns that local snapshots are purgeable and may be removed at any time. `[agent]` — resolves U4.
+- **M29. The PreToolUse `updatedInput` rewriting facility works in the installed version.** A hook rewrote `rm <file>` to `/usr/bin/trash <file>`; the file was recovered intact from the Trash, and the same command without the hook destroyed it. `~/.Trash` is TCC-protected, so listing the directory fails while `stat` on the exact recovered path succeeds — verification must stat the exact path, never list the directory. `[agent]` — resolves U5.
+- **M30. `defaultMode: "bypassPermissions"` is honored from project settings; it does not share `auto`'s restriction to user settings, managed settings or `--settings` (M19).** It is superseded in practice by a CLI flag: `claude --help` documents `--permission-mode <mode>` as a first-class flag accepting `bypassPermissions`. `[agent]` — resolves U6; section 5 adopts the flag over the settings key.
+- **M31. `validate.mjs` rejects on ten distinct checks:** missing or empty expected entries, hook path resolution failure, hook containment escape, non-regular hook target, non-executable hook invoked bare, undeterminable hook language, hook syntax check failure, unparseable JSON anywhere in the tree, symlink escape from the release, and bootstrap tools resolving inside `releases/`. It is a SYNTAX gate only — it never executes hook logic, so a behaviorally wrong permission gate passes validation and promotes to live. `[agent]` — resolves U7; see section 0.8 and section 10.
+- **M32. M17 is REFUTED for the non-interactive argv path.** `claude -p --permission-mode bypassPermissions` in a scratch directory reported `init.permissionMode: bypassPermissions`; performed a write outside the working directory — one `default` mode blocks at the workspace write boundary — that succeeded; recorded `permission_denials: 0`; exited 0 with empty stderr; showed no acceptance dialog; and needed no `--allow-dangerously-skip-permissions`, the mode flag alone sufficing. Scope: only the non-interactive `-p` argv path was tested. An interactive TTY session, a `--bg` session, and a cloud session were NOT tested, and this refutation must not be generalized to them. `[agent]` — see M17 above and section 5.
+
+### 0.7 The D6 mechanism, re-measured (Wave 0, 2026-08-13)
+
+- **M33. Run at the SUPERREPO root, the temp-index checkpoint captures nested repositories as empty gitlinks.** The eight worktrees under `.claude/worktrees/`, holding the actual parallel agent work D6 exists to protect, are captured NOT AT ALL. Median 795 ms. `[agent]` — the superrepo variant is disqualified.
+- **M34. Run at the WORKTREE root, the same mechanism captures that worktree's real content:** 1,731 blobs, 31.3 MiB, zero gitlinks. Median 259 ms. `[agent]` — this is the required form; D6's checkpoint must run per-worktree, never at the superrepo root.
+- **M35. Plain `git add -A` against a fresh temporary index silently drops tracked files that match `.gitignore`,** because every path looks new to a fresh index and ignore rules apply to new paths. `--force` is therefore a correctness requirement for capturing ignored content, not an option. Reproduced on a controlled scratch repository; untracked-file capture was confirmed on the same repository. `[agent]`
+- **M36. Of the 259 ms median in M34, roughly 220-250 ms is attributable to this repository's own no-op `core.hooksPath` shim chain,** which fires `reference-transaction` and `post-index-change` hooks on every index write — not to the checkpoint mechanism itself. `[agent]` — the mechanism's cost in a repository without this repo's hook chain is unmeasured and is likely much closer to the low tens of milliseconds.
+
+### 0.8 The settings-promotion pipeline — a constraint this SPEC did not originally know about (Wave 0, 2026-08-13)
+
+- **M37. Promotion reconciles repository settings into live settings through an ownership model (`manifest.mjs`).** Repo-owned keys, which the repo fully replaces on every promotion: `$schema`, `env`, `hooks`, `includeCoAuthoredBy`, `statusLine`, and `permissions.deny`. Live-owned keys, which the repo's declaration is ignored for: `model`, `theme`, `enabledPlugins`, `effortLevel`, `tui`, and nine others (fourteen total). `permissions.allow` is UNIONED and only ever grows; the sole retraction channel is a frozen, hardcoded array. Any unclassified key resolves live-wins-if-live-already-has-it, else-repo's-value-lands — meaning it ships once and then freezes permanently, with every later repo revision to that key silently inert. `[agent]` — the constraint section 2 D2 and section 4 Layer 4 did not originally account for.
+- **M38. Two self-destruct paths follow directly from M37, both live and unmitigated.** A repo-owned key ABSENT from the repo is DELETED from live. A pull request that omits the `hooks` key strips every hook from live, including the converge tool itself, and passes validation cleanly, because the syntax gate (M31) returns no failures when there are no hook registrations to check. `permissions.deny` has the identical shape — section 6 step 1 edits exactly that key. `[agent]`
+- **M39. `converge.mjs` runs on `SessionStart` and `Stop`, compares live against LOCAL `refs/heads/main` resolved from the git object database, and promotes on drift.** It refuses any ref but `main`, never reads `HEAD`, and never reads the working tree or fetches. Consequence: parallel worktree development is safe, since only advancing local `main` triggers a release; a pull request merged on GitHub does NOT become live until a human separately advances local `main`. `[agent]`
+- **M40. Rollback undoes itself.** Because convergence promotes whenever live differs from local `main`, a rolled-back release is re-promoted at the next `SessionStart` or `Stop` unless a human also moves the `main` pointer back at the same time. This is a live hazard today, not a hypothetical one. `[agent]`
+- **M41. `promote.mjs`'s own CLI accepts an arbitrary `--ref` with no main-only restriction;** the main-only guard exists only in `converge.mjs`, not in the lower-level tool. `[agent]`
+- **M42. `--settings` accepts inline JSON, not only a file path.** Nothing this architecture governs — pull request, review, merge, `validate.mjs`, `promote.mjs` — governs argv. A caller can inject permission rules at command-line precedence, outranking project and local settings. `[agent]`
+- **M43. `--settings` performs a deep merge, not a wholesale key replacement.** A profile containing only `{"env":{"PROBE":"1"}}` produced a shell environment carrying BOTH the injected key and the other scope's existing `env` entries, and an unrelated project-scope `permissions.deny` rule still fired. Object-valued keys merge per inner key rather than being replaced wholesale — the natural reading of the documentation is wrong. `[agent]`
+- **M44. A `--settings` profile can disable a single plugin without restating the rest.** `{"enabledPlugins":{"logbook@logbook":false}}` dropped the plugin count from 15 to 14, removed only that plugin's MCP server, left the other six plugins untouched, and reduced hook counts by exactly one on every event. Because `enabledPlugins` is live-owned (M37), a repository declaration of it is never applied — the repository's own second alias, `logbook@continuity-ledger`, is inert for exactly this reason, and live carries one alias. `[agent]` — the mechanism section 6 step 9 and R6 rely on.
 
 ## 1. The principle
 
@@ -85,6 +116,8 @@ Rationale: this is the meta-catastrophe. It does no damage alone. It silently co
 **Mandatory companion — an age-based reaper outside the agent's reach.** Because the agent may not prune the recovery layer, the recovery layer has no maintenance path unless one is built deliberately. Checkpoint refs accumulate per mutating tool call and snapshots accumulate hourly; a heavy week produces thousands of refs and tens of gigabytes. The reaper expires checkpoint refs and local snapshots older than a fixed window, runs on a scheduler rather than by agent invocation, and is never reachable from a tool call.
 
 Shipping D2 without this reaper is a defect, not an omission: layer 1 fills the disk, macOS begins thinning snapshots silently under pressure, and the result is failure mode one in section 10 — the reversibility layer dying quietly while continuing to look present.
+
+**Related hazard found 2026-08-13, outside D2's original scope.** D2 guards the agent from disarming the recovery layer or the gate. The settings-promotion pipeline can produce the identical outcome — the gate and its deny list silently absent from live — without any agent action at all: `hooks` and `permissions.deny` are repo-owned keys in the promotion manifest (M37), so a pull request that merely omits one deletes it from live on the next promotion, passing validation cleanly because the syntax gate finds nothing to reject when there are no registrations (M38). This is not a D2 violation — no agent touched the recovery layer — but it defeats D2's purpose through a different door. See section 0.8, section 4 Layer 4, and section 10.
 
 Cost to autonomy: near zero. These commands have no role in ordinary development.
 
@@ -126,6 +159,8 @@ Rationale: M23 establishes that uncommitted and untracked work has no recovery w
 
 The M12 measurement of 19 ms belongs to the rejected mechanism and does NOT carry over. The latency budget in section 4 must be re-measured against the temp-index form before it is relied upon; it will be higher, and it scales with working-tree size rather than with diff size.
 
+**Re-measurement, 2026-08-13 (Wave 0).** The temp-index form above was measured, and one of its two possible variants is itself disqualified. Run at the SUPERREPO root it captures the eight worktrees under `.claude/worktrees/` — the actual parallel agent work D6 exists to protect — as empty gitlinks, missing their content entirely (M33, median 795 ms). Run at each WORKTREE's own root it captures that worktree's real content with zero gitlinks (M34, median 259 ms). The required mechanism is therefore per-worktree, never per-superrepo. Separately, `git add -A` against the fresh temporary index must pass `--force`, or gitignored-but-tracked content is silently dropped because every path looks new to a fresh index (M35) — this is a correctness requirement, not a tuning choice. Of the 259 ms median, roughly 220-250 ms is this repository's own `core.hooksPath` shim overhead rather than the mechanism itself (M36), so the re-measured latency budget in section 4 should be read as an upper bound measured under local conditions, not a mechanism-intrinsic cost. The 19 ms figure and the superrepo variant are both dead; the per-worktree, `--force`d, temp-index checkpoint at roughly 259 ms median is what section 4 Layer 1 now specifies.
+
 This is the single reclassification that converts the largest number of current stalls into proceeds.
 
 ## 3. Deliberately ungated
@@ -151,28 +186,38 @@ Force-push to a *shared* branch is the one row here carrying residual doubt: no 
 
 Ordered by dependency. Each layer's absence is a hole in the one above it.
 
-### Layer 0 — Isolation
+### Layer 0 — Isolation (amended 2026-08-13)
 
-Enable the sandbox in `~/.claude/settings.json`, with `failIfUnavailable` set so a sandbox that cannot start is a loud failure rather than a silent downgrade to unsandboxed execution.
+Enable the sandbox in `~/.claude/settings.json` with the full verified key set below, not `sandbox.enabled` and `failIfUnavailable` alone as originally specified. M26 found the default configuration's containment illusory in two compounding ways: the sandbox blocks loopback by default (`NO_PROXY` contains `localhost,127.0.0.1,::1`, so loopback bypasses the allowlist proxy and is denied at the network layer with EPERM, and adding `localhost` to `allowedDomains` cannot fix this because the allowlist is structurally unreachable for loopback traffic); and under the default `sandbox.allowUnsandboxedCommands`, a command the sandbox denies is silently re-run fully unsandboxed and reported as succeeded — the opposite of what `failIfUnavailable` was meant to buy.
+
+The verified configuration (M27): `sandbox.enabled: true`, `sandbox.allowUnsandboxedCommands: false`, `sandbox.failIfUnavailable: true`, `sandbox.network.allowLocalBinding: true`. Under it, loopback connects and returns 200, writes inside cwd succeed, writes to `$HOME` and into the repository are denied with EPERM, `~/.ssh` reads are denied, external HTTPS still returns 403 from the allowlist proxy, and the sandboxed process carries `SANDBOX_RUNTIME=1`. `allowLocalBinding` is the single causal key that unblocks loopback without opening anything else.
+
+The full schema the installed build accepts is `sandbox.filesystem.{disabled, allowRead, denyRead, allowWrite, denyWrite, readOnly}` and `sandbox.network.{allowedDomains, deniedDomains, allowLocalBinding, allowUnixSockets, allowAllUnixSockets, allowMachLookup, excludedCommands}`. There is no `network.disabled` key.
 
 What it buys: writes outside the working directory become impossible at the OS level, enforced on child processes, rather than being merely disallowed by a rule that sees only a command string. An impossible action needs no gate.
 
 What it does not cover: the Read, Edit and Write tools, which are governed by the permission system rather than the sandbox; and hooks and MCP servers, which run unconstrained on the host.
 
-### Layer 1 — Reversibility
+**The default configuration must be documented as unsafe.** `sandbox.enabled: true` alone — the shape this section originally specified — leaves `allowUnsandboxedCommands` at its permissive default and leaves loopback unreachable, so a locally running dev server cannot be probed, and a denied command silently escapes containment while reporting success. Layer 0 is not dropped; it is amended with the key set above, and shipping the default instead of it is a defect, not a simplification.
+
+### Layer 1 — Reversibility (amended 2026-08-13)
 
 Three mechanisms, in descending order of value:
 
-1. A temp-index checkpoint commit pinned under a dedicated ref namespace before any mutating tool call, capturing untracked and ignored content as well as tracked (see D6's mechanism correction). Per-action granularity. Latency to be re-measured; it scales with working-tree size.
-2. `rm` rewritten to `/usr/bin/trash` through the hook's input-rewriting facility. A second line of defence over the same untracked and ignored content — `node_modules`, build output, `.env` — and the only one of the three that survives a checkpoint hook failing open.
-3. An hourly APFS local snapshot via launchd. The whole-volume backstop for anything the first two missed, including files outside any repository.
+1. A per-worktree temp-index checkpoint commit pinned under a dedicated ref namespace before any mutating tool call, capturing untracked and ignored content as well as tracked (see D6's mechanism correction and re-measurement). Per-action granularity. **Re-measured (M33-M36):** run at the affected worktree's own root, median 259 ms with occasional multi-hundred-millisecond spikes, of which roughly 220-250 ms is local `core.hooksPath` overhead rather than the mechanism itself; it scales with working-tree size, not diff size. Must run at each worktree's root, never at the superrepo root — the superrepo variant captures worktrees as empty gitlinks and misses their content entirely. `git add -A` against the fresh temporary index requires `--force`, or gitignored-but-tracked content is silently dropped because every path looks new to a fresh index.
+2. `rm` rewritten to `/usr/bin/trash` through the hook's input-rewriting facility. A second line of defence over the same untracked and ignored content — `node_modules`, build output, `.env` — and the only one of the three that survives a checkpoint hook failing open. **Verified working (M29):** a hook-rewritten `rm` recovered the file intact from the Trash; the same command without the hook destroyed it. Because `~/.Trash` is TCC-protected, verification must `stat` the exact recovered path — listing the directory fails even when the file is there.
+3. An hourly APFS local snapshot via launchd. The whole-volume backstop for anything the first two missed, including files outside any repository. **Verified working (M28):** `tmutil localsnapshot` succeeds with no Time Machine destination configured, no privilege prompt, in well under a second. macOS reports these snapshots as purgeable and subject to removal under disk pressure at any time — this layer is a best-effort backstop, not a guarantee.
 4. An age-based reaper for items 1 and 3, running on a scheduler and never reachable from a tool call (required by D2). Without it this layer grows without bound and then fails silently under disk pressure.
 
-### Layer 2 — Rules
+**Precondition, made explicit 2026-08-13.** Layer 1 as a whole assumes free disk headroom; M4 established 982 GiB free at authoring time, but nothing in the design enforces a floor. A snapshot that cannot be created is indistinguishable from one that was silently thinned, so free space is a precondition this layer depends on, not a detail underneath it — the layer 4 heartbeat is amended below to assert it.
 
-A broad `Bash` allow rule, plus a `deny` list holding only D1 through D5.
+### Layer 2 — Rules (amended 2026-08-13)
 
-This ordering is not a preference. M13 establishes that a hook's `allow` cannot override a deny rule, so any deny entry that is not a catastrophe stalls the run no matter how good the gate is. The documentation prescribes exactly this shape: add `Bash` to the allow list and register a PreToolUse hook that rejects the specific commands you want blocked.
+Enumerated narrow `Bash` allow prefixes, not a single broad rule, plus a `deny` list holding only D1 through D5.
+
+This ordering is not a preference. M13 establishes that a hook's `allow` cannot override a deny rule, so any deny entry that is not a catastrophe stalls the run no matter how good the gate is. The documentation prescribes exactly this shape: add `Bash` to the allow list and register a PreToolUse hook that rejects the specific commands you want blocked — a single broad rule is not required to satisfy that shape, and M25 shows it is actively worse in `auto` mode.
+
+**Amended 2026-08-13.** This section originally specified a single broad `Bash` allow rule. M25 found that a broad `Bash(*)` allow is silently discarded in `auto` mode — falling through to the classifier it was meant to bypass — while narrow prefixes such as `Bash(chmod:*)` both execute and skip the classifier. Under `bypassPermissions` (section 5) allow rules are inert either way (M14), so this distinction has no effect on the unattended run itself; it matters because the same settings file also governs interactive sessions on the machine, which run in `auto` by default (M19), and a broad rule actively degrades those. Narrow enumeration is neutral where broad would be inert, and strictly better where broad would be harmful — it is the mode-robust choice.
 
 `ask` rules are removed entirely from the unattended configuration. M14 establishes that an explicit `ask` prompts in every mode including `bypassPermissions`, which makes any surviving `ask` rule an unconditional overnight stall.
 
@@ -196,18 +241,23 @@ P0 through P3 clear more than 95 percent of calls in about 2 ms, against the 145
 
 **Consolidation.** One gate, not several. The predicates share expensive state (repository root, worktree set, dirty status) that separate processes would each recompute; every additional script pays 22 to 32 ms of interpreter startup on every matching call; and the checkpoint-versus-block precedence must be decided in one place. Observer hooks that only log or annotate stay separate and must never gate.
 
-### Layer 4 — Observability
+### Layer 4 — Observability (amended 2026-08-13)
 
-Two obligations, both non-optional:
+Three obligations, all non-optional:
 
 1. An append-only audit log of every tool call, so that damage is diagnosable in the morning even where it was not preventable.
-2. A `SessionStart` heartbeat that asserts layers 0 and 1 are alive — sandbox actually active, newest snapshot within the expected window, newest checkpoint ref within the session, promotion pointer current — and refuses to begin an unattended run if any assertion is stale.
+2. A `SessionStart` heartbeat that asserts layers 0 and 1 are alive — sandbox actually active, newest snapshot within the expected window, newest checkpoint ref within the session, promotion pointer current, and free disk headroom above a floor (added 2026-08-13; a snapshot that cannot be created is indistinguishable from one that was thinned) — and refuses to begin an unattended run if any assertion is stale.
+3. **Added 2026-08-13.** A convergence assertion, distinct from the promotion-pointer check above: that live's `hooks` and `permissions.deny` are actually present and non-empty, and that live is converged with LOCAL `refs/heads/main` (M39) rather than merely with whatever `main` was at the last promotion. Neither self-destruct path in section 0.8 raises an error anywhere in the pipeline — `validate.mjs` finds no registrations to reject, so a `hooks`-stripped or `deny`-stripped release is syntactically valid and promotes cleanly (M31, M38). Only an assertion that checks for the keys' presence and non-emptiness, run as part of this heartbeat, catches it. This does not extend to whether the gate's logic is correct: M31 established that no stage of this pipeline executes hook logic, syntax-checking is the ceiling, and a behaviorally wrong gate that is present passes both validation and this heartbeat.
 
-The second exists because a reversibility layer that silently stops is worse than none: it manufactures confidence. macOS thins APFS snapshots under disk pressure without notification, and a broken checkpoint hook fails open by design.
+The heartbeat obligations exist because a reversibility or gating layer that silently stops, or silently empties, is worse than none: it manufactures confidence. macOS thins APFS snapshots under disk pressure without notification, a broken checkpoint hook fails open by design, and a config-pipeline promotion can delete the gate itself while reporting success (section 0.8, section 10).
 
-## 5. Run mode
+## 5. Run mode (amended 2026-08-13)
 
-Adopt `bypassPermissions`, with the one-time acceptance dialog completed in an interactive session in advance (M17).
+Adopt `bypassPermissions` as an argv flag on the unattended invocation — `--permission-mode bypassPermissions` — never as a settings key.
+
+M30 found that `defaultMode: "bypassPermissions"` in project settings IS honored, unlike `auto`, which M19 restricts to user settings, managed settings or `--settings`. That would have worked. It is superseded anyway: `claude --help` documents `--permission-mode <mode>` as a first-class flag accepting `bypassPermissions`, and argv is the correct delivery mechanism because a settings-file mode applies to every session on the machine, including interactive ones, while an argv flag applies to exactly one invocation and cannot leak beyond it. A settings key would make every interactive session on the machine run under `bypassPermissions` by default; the flag confines the loss of the classifier to the sessions that are actually unattended.
+
+**M17 is refuted for this delivery path.** The original claim — that `bypassPermissions` requires a one-time interactive acceptance dialog, and that a background session is refused until that dialog is accepted in a prior interactive session — does not hold for `claude -p --permission-mode bypassPermissions`. Measured 2026-08-13 (M32): `init.permissionMode` reported `bypassPermissions`; a write outside the working directory, one `default` mode blocks at the workspace write boundary, succeeded; `permission_denials` was 0; exit code 0; stderr empty; no acceptance dialog appeared; and `--allow-dangerously-skip-permissions` was not required — the mode flag alone sufficed. This was measured only on the non-interactive `-p` argv path; an interactive TTY session, a `--bg` session, and a cloud session were not tested, and the refutation must not be generalized to them.
 
 The reasoning is not that it is safest. It is that M16 makes auto mode incompatible with the stated goal: in a non-interactive run, auto mode does not stall — it silently drops the blocked action and reports a completed run. The requirement is not "no stalls", it is "all tasks complete", and a silent skip fails that requirement invisibly, which is strictly worse than a visible stall.
 
@@ -221,11 +271,11 @@ Step zero is not optional and is not intuitive.
 
 **Step 0 — clear the guard that blocks this work.** `protect-claude-config.sh` asks on any edit under `.claude/{hooks,rules,lib,workflows}`. Those paths are the entire content of this repository and the entire surface of this SPEC's implementation. The redesign stalls on itself unless this is narrowed first, to the gate implementation and the deny list only, and converted from `ask` to `deny` (a narrow deterministic block, not a prompt).
 
-**Step 1 — prune `deny`.** Remove every entry that is not D1 through D5. Deny survives every mode and every hook decision, so this is the highest-leverage single change.
+**Step 1 — prune `deny`.** Remove every entry that is not D1 through D5. Deny survives every mode and every hook decision, so this is the highest-leverage single change. **Caution added 2026-08-13:** `permissions.deny` is a repo-owned key in the promotion manifest (M37) — the repo's declared list fully replaces live's on every promotion, and an omission of the key entirely, in some later revision, deletes it from live rather than leaving it unchanged (M38). Pruning `deny` down to D1-D5 now is exactly the edit this pipeline is built to carry correctly; the hazard is a later change that drops the key by accident, not this step.
 
 **Step 2 — retire `ask`.** Remove `ask` rules from the unattended configuration and convert the existing hook `ask` branches to checkpoint-and-allow (D6) or block (D1-D5).
 
-**Step 3 — broad `Bash` allow**, plus `mcp__*` coverage. M10 shows MCP calls currently have no allow headroom at all.
+**Step 3 — enumerated narrow `Bash` prefixes**, plus `mcp__*` coverage. M10 shows MCP calls currently have no allow headroom at all. **Inverted 2026-08-13.** M25 found that a broad `Bash(*)` allow rule is silently discarded in `auto` mode — the debug log records `Ignoring dangerous permission Bash(*) ... (bypasses classifier)`, and the command falls through to the classifier and is blocked, with the rejection visible only at debug level, never in the transcript. A narrow rule such as `Bash(chmod:*)` both executes and skips the classifier entirely. This step is therefore enumerated narrow prefixes, not a single broad rule; section 4 Layer 2 is amended to match.
 
 **Step 4 — reset `settings.local.json`.** M9 shows it is a friction log that never reduces future friction. Truncate to the reusable prefix rules and stop the accumulation at its source.
 
@@ -234,6 +284,8 @@ Step zero is not optional and is not intuitive.
 **Step 8 — delete what is inert or harmful.** `block-env-edits.sh` (exits 1, non-blocking, therefore inert while printing "BLOCKED"); `pre-commit-scoped-verify.sh` (blocks commits, and a commit is the recovery mechanism); `ui-ux-audit-on-edit.sh` (unbounded `npx` network fetch on every UI edit). `session-config-drift-check.sh` is registered to no event and is dead code; either wire it into the layer 4 heartbeat or remove it.
 
 **Step 9 — resolve the third-party fail-closed risk.** The logbook plugin's guard denies the entire Bash, Write, Edit, MultiEdit and NotebookEdit surface on any internal exception, with no circuit breaker. This is the worst overnight-freeze risk identified and it lives in a plugin rather than in this configuration.
+
+**Mechanism found 2026-08-13 (M42-M44).** A `--settings` profile scoped to the unattended invocation — `{"enabledPlugins":{"logbook@logbook":false}}` — disables exactly this plugin: verified, plugin count 15 to 14, its MCP server gone, hook counts down by exactly one on every event, the other six plugins and their hooks otherwise untouched. This is a session-scoped disable, not a global one, which matters because a global disable was never acceptable given the plugin's active interactive use for continuity-ledger work. `enabledPlugins` is live-owned in the promotion manifest (M37), so a repository declaration of it — including the repository's own second alias, `logbook@continuity-ledger` — is never applied; only this argv-delivered, session-scoped override reaches live. This is the second reliance this SPEC now has on the `--settings`/`--permission-mode` argv channel (section 5); M42 and M43 in section 0.8 cover what does, and does not, govern that channel.
 
 ## 7. Ratified decisions
 
@@ -252,21 +304,27 @@ R3 carries a precondition that is part of the ratification, not advice: the proh
 
 R1 is ratified as amended. The guard set is unchanged in membership; D1, D2 and D4 carry the section 11 amendments, and D6 carries the mechanism correction.
 
+R2 is ratified as implemented via argv, not a settings key. The mode ratified — `bypassPermissions`, accepting the loss of the classifier — is unchanged; section 5 now delivers it as `--permission-mode bypassPermissions` on the unattended invocation rather than a `defaultMode` settings entry, because M30 and M32 (section 0.6) show argv is both sufficient and scoped to one invocation where a settings key would apply machine-wide.
+
+R6 is ratified as implemented via a mechanism found 2026-08-13, not as originally scoped. A `--settings` profile disabling only `logbook@logbook` for the unattended invocation — `{"enabledPlugins":{"logbook@logbook":false}}` — satisfies R6 without a global disable, which was never acceptable given the plugin's active use for continuity-ledger work in interactive sessions (M44, section 6 step 9). The ratification is unchanged; the mechanism is now argv-scoped rather than machine-wide.
+
 Rules ruled on 2026-08-13 and not reopened here: no-direct-DB-access keeps unchanged; centralized PR creation keeps unchanged; destructive-git confirmation narrows to D2 and D6.
 
-## 8. Unverified, with the experiment that settles each
+## 8. Resolved, 2026-08-13 (Wave 0)
 
-No step in section 6 that depends on one of these may be implemented before the corresponding test is run.
+Every claim below has been settled by the experiment that was going to settle it. None remains a precondition on section 6; each verdict is now load-bearing in the section named in the right-hand column.
 
-| # | Claim | Test |
-|---|---|---|
-| U1 | Whether a hook's `allow` suppresses the auto-mode classifier, as distinct from the interactive prompt | In auto mode, register a hook returning `allow` for a command the classifier blocks by default; observe whether it executes |
-| U2 | Whether a dropped auto-mode allow rule becomes a block or falls through to the classifier | Configure only a broad `Bash(*)` allow, enter auto mode, run a non-read-only command, observe the path taken |
-| U3 | Whether the sandbox permits localhost by default | Enable the sandbox with no allowed domains; probe a local dev server |
-| U4 | Whether `tmutil localsnapshot` succeeds with no Time Machine destination configured, and without a privilege prompt | Run it; check `listlocalsnapshotdates` for a dated entry |
-| U5 | Whether the hook input-rewriting facility actually rewrites a Bash command in the installed version | Rewrite `rm x` to `trash x`; confirm the file lands in the Trash |
-| U6 | Whether `bypassPermissions` is honored from project settings, or ignored the way `auto` explicitly is | Set it in a scratch repository's project settings; observe the effective mode |
-| U7 | `validate.mjs`'s rejection criteria, since a rejected promotion silently no-ops a config change (M7) | Read it, or make an intentionally invalid change and observe the next promotion |
+| # | Claim | Verdict | Where it landed |
+|---|---|---|---|
+| U1 | Whether a hook's `allow` suppresses the auto-mode classifier, as distinct from the interactive prompt | VERIFIED. It suppresses the classifier itself, confirmed by paired control (M24) | Layer 3's gate design depends on this |
+| U2 | Whether a dropped auto-mode allow rule becomes a block or falls through to the classifier | REFUTED the assumption of no penalty. A broad rule is silently discarded and falls through to the classifier; a narrow rule both executes and skips it (M25) | Section 6 step 3; section 4 Layer 2 |
+| U3 | Whether the sandbox permits localhost by default | REFUTED, then RESOLVED. Loopback is blocked by default; the fix is a specific key set, not a single flag (M26-M27) | Section 4 Layer 0 |
+| U4 | Whether `tmutil localsnapshot` succeeds with no Time Machine destination configured, and without a privilege prompt | VERIFIED (M28) | Section 4 Layer 1 |
+| U5 | Whether the hook input-rewriting facility actually rewrites a Bash command in the installed version | VERIFIED, with a verification-method trap (M29) | Section 4 Layer 1 |
+| U6 | Whether `bypassPermissions` is honored from project settings, or ignored the way `auto` explicitly is | VERIFIED honored, then SUPERSEDED by a better mechanism (M30) | Section 5 |
+| U7 | `validate.mjs`'s rejection criteria, since a rejected promotion silently no-ops a config change (M7) | ANSWERED: ten distinct syntax-level checks; it never executes hook logic (M31) | Section 0.8; section 4 Layer 4; section 10 |
+
+Two further findings arrived in the same wave, outside this table because neither was one of U1-U7. M17 (section 0.4) is REFUTED for the non-interactive `-p --permission-mode` argv path (M32; section 5). The D6 checkpoint mechanism this SPEC had already corrected once required a second correction after measurement — the superrepo variant is disqualified and the per-worktree, `--force`d form is what section 2 and section 4 Layer 1 now specify (M33-M36).
 
 ## 9. Non-goals
 
@@ -285,6 +343,13 @@ No step in section 6 that depends on one of these may be implemented before the 
 | A config change never goes live | A rejected promotion leaves the last-good release in place (M7) | Heartbeat compares the promotion pointer against HEAD |
 | The gate blocks something ordinary | Under fail-open it will not; under the fail-closed subset it will abort the task | Audit log, reviewed the next morning |
 | The classifier's absence lets an intent-level mistake through | Nothing detects it at the time | Accepted risk of R2. This is the design's known weak point |
+| A pull request that omits `hooks` or `permissions.deny` strips it from live, including the gate itself | Both are repo-owned keys (M37); an absent key is deleted from live (M38), and `validate.mjs` finds nothing to reject when there are no registrations (M31) | The Layer 4 convergence assertion checks presence and non-emptiness (section 4 Layer 4) |
+| Sandboxed loopback is denied and silently re-run unsandboxed | `allowUnsandboxedCommands` defaults to permitting the fallback, and the fallback reports success (M26) | `allowUnsandboxedCommands: false` plus `failIfUnavailable: true` (section 4 Layer 0, M27) |
+| A merged pull request never reaches the running agent | `converge.mjs` reconciles only against LOCAL `refs/heads/main`; a GitHub merge does not by itself advance the local pointer (M39) | A human must advance local `main`; nothing today surfaces the gap on its own |
+| A rolled-back release reappears | `converge.mjs` promotes whenever live differs from local `main`; a pointer rollback that does not also move the `main` ref is re-promoted at the next `SessionStart` or `Stop` (M40) | A human must move the `main` pointer back at the same time as the pointer rollback; nothing currently enforces this |
+| A syntactically valid but behaviorally wrong gate goes live | `validate.mjs` is a syntax gate only; it never executes hook logic (M31) | None today; accepted risk alongside the classifier's absence above |
+| `--settings` injects or overrides permission rules outside the promotion pipeline | Nothing in the pipeline — PR, review, merge, validate, promote — governs argv, and `--settings` deep-merges rather than replacing, so an injected profile composes silently with whatever else is already in force (M42-M43) | The unattended launcher itself must be the governed artifact; not yet built |
+| A direct `promote.mjs` invocation puts a non-`main` ref live | The main-only refusal is enforced by `converge.mjs`'s wrapper logic, not by `promote.mjs` itself — its CLI accepts an arbitrary `--ref` with no restriction (M41) | Nothing today; any direct caller of `promote.mjs` must be trusted to pass `main` |
 
 ## 11. Pressure test, 2026-08-13
 
