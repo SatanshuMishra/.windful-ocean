@@ -1744,7 +1744,16 @@ const DECOMPOSE_SCHEMA = {
           changeType: { type: 'string', enum: ['feat', 'fix', 'refactor', 'docs', 'test', 'chore', 'perf', 'ci'] },
           scope: { type: 'string', pattern: '^[a-z0-9][a-z0-9-]{0,15}$' },
           dependsOn: { type: 'array', items: { type: 'string' } },
-          fileScope: { type: 'array', items: { type: 'string' } },
+          fileScope: {
+            type: 'object',
+            required: ['edit', 'read', 'truncated'],
+            additionalProperties: false,
+            properties: {
+              edit: { type: 'array', items: { type: 'string' } },
+              read: { type: 'array', items: { type: 'string' } },
+              truncated: { type: ['object', 'null'] },
+            },
+          },
         },
       },
     },
@@ -2119,10 +2128,13 @@ function evaluateManifestReuse(priorManifest, observedSpecHash) {
     if (m.dependsOn.length > MAX_MSP_DEPENDS_ON) {
       return { reusable: false, reason: `manifest msp ${m.id} dependsOn entry count exceeds the supported maximum` };
     }
-    if (!Array.isArray(m.fileScope) || !m.fileScope.every((f) => typeof f === 'string')) {
-      return { reusable: false, reason: `manifest msp ${m.id} fileScope is not an array of strings` };
+    let manifestFileScope;
+    try {
+      manifestFileScope = requireFileScopePack(m.fileScope, `manifest msp ${m.id} fileScope`);
+    } catch (err) {
+      return { reusable: false, reason: err.message };
     }
-    totalFileScope += m.fileScope.length;
+    totalFileScope += manifestFileScope.edit.length + manifestFileScope.read.length;
     if (totalFileScope > MAX_MANIFEST_FILE_SCOPE) {
       return { reusable: false, reason: 'manifest aggregate fileScope entry count exceeds the supported maximum' };
     }
@@ -2134,7 +2146,7 @@ function evaluateManifestReuse(priorManifest, observedSpecHash) {
       changeType: m.changeType,
       scope: m.scope,
       dependsOn: m.dependsOn.slice(),
-      fileScope: m.fileScope.slice(),
+      fileScope: manifestFileScope,
     };
     if (typeof m.status === 'string') {
       entry.status = m.status;
@@ -4346,8 +4358,8 @@ if (reusable) {
         `title is a lowercase imperative summary of 40 characters or fewer, printable ASCII only, with no trailing period — it becomes the Conventional-Commits summary of this MSP's pull-request title and therefore its squash commit subject.\n` +
         `rationale is one sentence of 200 characters or fewer, printable ASCII only, starting with a letter or digit — it becomes the Why line of this MSP's pull-request body.\n` +
         `Neither title nor rationale may contain a dollar sign, a backtick, a backslash, or an HTML tag opener: both are emitted as inert argv values into an engine-composed command, and a run whose MSP fields do not compose a valid pull-request title and body HALTS for a human rather than guessing a change type.\n\n` +
-        `For each MSP, declare its fileScope: the NARROWEST CORRECT set of repository paths and globs that still covers EVERYTHING that MSP writes or owns. When a change is file-local, name the EXACT files (e.g. "lib/config.ts", "src/auth/login.ts"), NOT their parent directory; reserve a directory glob (e.g. "src/auth/**") for an MSP that genuinely owns the whole directory. Ground fileScope in the SAME D1 code-intelligence stack you used above (the Graphify map for orientation, Serena / native LSP for the symbols each MSP touches, targeted Read/Grep for the seams the oracle cannot see). Completeness is non-negotiable: omitting a path an MSP writes lets two MSPs collide on the same file, so declare every surface you touch — but no MORE. Over-broad scope needlessly serializes MSPs that could run in parallel (fileScope overlap is what clusters MSPs that must not co-run); a deterministic post-derivation lint flags suspiciously coarse scopes (a bare top-level directory, or a directory covering files the task text names specifically) for reviewer attention.\n\n` +
-        `Return ONLY the structured object: { msps: [ { id, title, rationale, changeType, scope, dependsOn, fileScope } ] }, ordered bottom-up.`,
+        `For each MSP, declare its fileScope: the NARROWEST CORRECT set of repository paths and globs that still covers EVERYTHING that MSP writes or owns. When a change is file-local, name the EXACT files (e.g. "lib/config.ts", "src/auth/login.ts"), NOT their parent directory; reserve a directory glob (e.g. "src/auth/**") for an MSP that genuinely owns the whole directory. Ground fileScope in the SAME D1 code-intelligence stack you used above (the Graphify map for orientation, Serena / native LSP for the symbols each MSP touches, targeted Read/Grep for the seams the oracle cannot see). Completeness is non-negotiable: omitting a path an MSP writes lets two MSPs collide on the same file, so declare every surface you touch — but no MORE. Over-broad scope needlessly serializes MSPs that could run in parallel (fileScope overlap is what clusters MSPs that must not co-run); a deterministic post-derivation lint flags suspiciously coarse scopes (a bare top-level directory, or a directory covering files the task text names specifically) for reviewer attention. Declare fileScope as a context pack { edit, read, truncated }: edit is the set this MSP WRITES and is the collision fence; read is the set it must READ for context but must never write, and it serializes nothing; truncated is required and is null unless you dropped entries, in which case it is { dropped, reason }. A path in edit must never be repeated in read.\n\n` +
+        `Return ONLY the structured object: { msps: [ { id, title, rationale, changeType, scope, dependsOn, fileScope: { edit, read, truncated } } ] }, ordered bottom-up.`,
         { agentType: 'codebase-analyst', schema: DECOMPOSE_SCHEMA, label: 'decompose', phase: 'Decompose', model: models.decomposer || 'opus' }
       ),
       { unitId: 'decompose', stage: 'decompose', resetRef: null, worktree: null, task: 'decompose the approved spec into clusters of MSPs', ...makeRemediation({ unitId: 'decompose', stage: 'decompose', task: 'decompose the approved spec into clusters of MSPs', schema: DECOMPOSE_SCHEMA, agentType: 'codebase-analyst', phase: 'Decompose' }) },
@@ -5070,7 +5082,7 @@ async function runUnit(unit) {
         `   - import { resolveAll } from '${LIB_DIR}/superpowers-prompts.mjs' and call it to get resolved.prompts, an object shaped { key: { text, source, path } }. Flatten it to a plain string map BEFORE passing it anywhere: prompts = Object.fromEntries(Object.entries(resolved.prompts).map(([k, v]) => [k, v.text])). Do NOT pass resolved.prompts itself.\n` +
         `   - Determine runArtifacts: read ${ENGINE_PATH}, find every use of \`runArtifacts\`, and construct an object that satisfies those reads (include the plan path ${planned.planPath} and the graph path).\n\n` +
         `3. Assemble the engine args with the pure helper, passing the orchestration context so all 14 keys are present:\n` +
-        `   First build the id-keyed tasks map (the engine indexes tasks by id, NOT by array position): tasks = Object.fromEntries(graph.tasks.map((t) => [t.id, { id: t.id, title: t.title, fullText: t.fullText, fileScope: t.fileScope, risk: t.risk, agentType: t.agentType || 'implementer', validation: t.validation, dependentCount: t.dependentCount, edgeReasons: t.edgeReasons }])). The dependentCount AND edgeReasons pair is derived by derive-edges.mjs and MUST be carried through together - they drive the engine model policy; dropping either one fails the parallelize invariant below. Do NOT pass the raw graph.tasks array as tasks.\n` +
+        `   First build the id-keyed tasks map (the engine indexes tasks by id, NOT by array position): tasks = Object.fromEntries(graph.tasks.map((t) => [t.id, { id: t.id, title: t.title, fullText: t.fullText, fileScope: t.fileScope, risk: t.risk, agentType: t.agentType || 'implementer', validation: t.validation, dependentCount: t.dependentCount, edgeReasons: t.edgeReasons }])). The dependentCount AND edgeReasons pair is derived by derive-edges.mjs and MUST be carried through together - they drive the engine model policy; dropping either one fails the parallelize invariant below. Do NOT pass the raw graph.tasks array as tasks. Each t.fileScope is a context pack { edit, read, truncated }: carry all three keys through unchanged, because the engine refuses a task whose fileScope is a bare path list or whose truncated key is absent.\n` +
         `   import { buildEngineArgs } from '${LIB_DIR}/engine-args.mjs' and call buildEngineArgs({ tasks, waves, branchPrefix: ${JSON.stringify(branchPrefix)}, baseBranch: ${JSON.stringify(integrationBranch)}, worktreeRoot: ${JSON.stringify(worktreeRoot)}, repoRoot: ${JSON.stringify(repoRoot)}, scopedCheckCmd: ${JSON.stringify(verify.scopedCheckCmd || '')}, fullValidationCmd: ${JSON.stringify(verify.fullValidationCmd || '')}, prompts, fixLoopMax: ${fixLoopMax}, isolation: 'worktree', launchCommit: null, runArtifacts, models: ${JSON.stringify(models)} }). It throws if any required key is missing.\n\n` +
         `Return ONLY: { engineArgs: <the 14-key object>, route: { rule, lane, isolation, N, notes } }.`,
         { agentType: 'implementer', schema: PARALLELIZE_SCHEMA, label: `parallelize:${msp.id}`, phase: 'Parallelize' }
@@ -5120,6 +5132,11 @@ async function runUnit(unit) {
       }
       if (!Array.isArray(task.edgeReasons)) {
         return parkUnit(msp, 'parallelize', NeedsHuman({ kind: 'approve-decision', what: `engineArgs.tasks[${taskId}] is missing the derive-edges routing signal edgeReasons (got ${JSON.stringify(task.edgeReasons)}); the task-map builder dropped a required field — dependentCount and edgeReasons must be threaded together or the model policy cannot classify this task`, remediation: null, resumePoint: null }), integrationBranch);
+      }
+      try {
+        requireFileScopePack(task.fileScope, `engineArgs.tasks[${taskId}].fileScope`);
+      } catch (err) {
+        return parkUnit(msp, 'parallelize', NeedsHuman({ kind: 'approve-decision', what: err.message, remediation: null, resumePoint: null }), integrationBranch);
       }
       const policyModel = policyModelFor(task);
       if (policyModel !== 'opus' && policyModel !== 'sonnet') {
@@ -5309,7 +5326,7 @@ async function runUnit(unit) {
     }
 
     async function runCiToGreenLoop(ship) {
-      const declaredScope = Array.isArray(msp.fileScope) ? msp.fileScope : [];
+      const declaredScope = msp.fileScope && Array.isArray(msp.fileScope.edit) ? msp.fileScope.edit : [];
       const ciEscalationOf = (kind, what) => NeedsHuman({ kind, what: `${what} (pull request ${cleanUrl(ship.prUrl)} stays open with its CI result visible; CI remains the sole authority on whether it passes)` });
       const ciEscalation = (what) => ciEscalationOf(CI_RED_EXHAUSTED_KIND, what);
       const ciGateViolation = (what) => ciEscalationOf(CI_HUMAN_GATE_KIND, what);
@@ -5634,7 +5651,7 @@ let scheduleResult;
 try {
   scheduleResult = await runSchedule(
     msps.map((m) => {
-      const base = { id: m.id, prereqs: m.dependsOn || [], fileScope: m.fileScope || [] };
+      const base = { id: m.id, prereqs: m.dependsOn || [], fileScope: m.fileScope || emptyFileScopePack() };
       const relaunchState = relaunchStateFor(m.id);
       return relaunchState ? { ...base, state: relaunchState } : base;
     }),

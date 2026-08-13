@@ -1,6 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
+import { pack } from './file-scope-fixtures.mjs';
 import { computeLogicalRunId, buildInitialManifest, applyShipTransition, parseRunManifest } from '../recovery.mjs';
 import { foldRunManifest, parkDelta } from '../run-log.mjs';
 import { park, LEGAL_STAGES } from '../parking.mjs';
@@ -78,7 +79,7 @@ function buildEngineArgs({ sourcePrefix, mspId, taskId = 't0' }) {
   const baseBranch = `${branchPrefix}-integration`;
   return {
     tasks: {
-      [taskId]: { id: taskId, title: 'task', fullText: '', fileScope: [], risk: 'low', agentType: 'implementer', validation: null, dependentCount: 0, edgeReasons: [] },
+      [taskId]: { id: taskId, title: 'task', fullText: '', fileScope: pack([]), risk: 'low', agentType: 'implementer', validation: null, dependentCount: 0, edgeReasons: [] },
     },
     waves: [[taskId]],
     branchPrefix,
@@ -114,7 +115,7 @@ function prCreateArgvFromPrompt(prompt, changedLines = '512') {
 }
 
 function mspSpec(id, overrides = {}) {
-  return { id, title: `update ${id}`, rationale: `rationale for ${id}`, changeType: 'chore', scope: 'msp', dependsOn: [], fileScope: [], ...overrides };
+  return { id, title: `update ${id}`, rationale: `rationale for ${id}`, changeType: 'chore', scope: 'msp', dependsOn: [], fileScope: pack([]), ...overrides };
 }
 
 const TEST_BASE_BRANCH = 'main';
@@ -129,7 +130,7 @@ const ciEndpoints = (prompt) => {
   const m = /--end-of-options "([^"]+)" "([^"]+)"/.exec(typeof prompt === 'string' ? prompt : '');
   return m === null ? { from: CI_HEAD_SHA, to: CI_BRANCH } : { from: m[1], to: m[2] };
 };
-const CI_SCOPE = ['scope/m0/**'];
+const CI_SCOPE = pack(['scope/m0/**']);
 const CI_SOURCE_PATH = 'scope/m0/charge.js';
 const CI_ASSERTION_PATH = 'scope/m0/charge.test.js';
 
@@ -286,39 +287,39 @@ function trackLabelOverlap(agent, labelPrefix) {
 
 function linearChainMsps() {
   return [
-    mspSpec('m0', { fileScope: ['scope/m0/**'] }),
-    mspSpec('m1', { dependsOn: ['m0'], fileScope: ['scope/m1/**'] }),
-    mspSpec('m2', { dependsOn: ['m1'], fileScope: ['scope/m2/**'] }),
+    mspSpec('m0', { fileScope: pack(['scope/m0/**']) }),
+    mspSpec('m1', { dependsOn: ['m0'], fileScope: pack(['scope/m1/**']) }),
+    mspSpec('m2', { dependsOn: ['m1'], fileScope: pack(['scope/m2/**']) }),
   ];
 }
 
 function independentMsps() {
   return [
-    mspSpec('alpha', { fileScope: ['scope/alpha/**'] }),
-    mspSpec('bravo', { fileScope: ['scope/bravo/**'] }),
-    mspSpec('charlie', { fileScope: ['scope/charlie/**'] }),
+    mspSpec('alpha', { fileScope: pack(['scope/alpha/**']) }),
+    mspSpec('bravo', { fileScope: pack(['scope/bravo/**']) }),
+    mspSpec('charlie', { fileScope: pack(['scope/charlie/**']) }),
   ];
 }
 
 function overlappingMsps() {
   return [
-    mspSpec('m0', { fileScope: ['shared/**'] }),
-    mspSpec('m1', { fileScope: ['shared/**'] }),
-    mspSpec('m2', { fileScope: ['shared/**'] }),
+    mspSpec('m0', { fileScope: pack(['shared/**']) }),
+    mspSpec('m1', { fileScope: pack(['shared/**']) }),
+    mspSpec('m2', { fileScope: pack(['shared/**']) }),
   ];
 }
 
 function twoIndependentMsps() {
   return [
-    mspSpec('a', { fileScope: ['scope/a/**'] }),
-    mspSpec('b', { fileScope: ['scope/b/**'] }),
+    mspSpec('a', { fileScope: pack(['scope/a/**']) }),
+    mspSpec('b', { fileScope: pack(['scope/b/**']) }),
   ];
 }
 
 function misorderedChainMsps() {
   return [
-    mspSpec('b', { dependsOn: ['a'], fileScope: ['scope/b/**'] }),
-    mspSpec('a', { fileScope: ['scope/a/**'] }),
+    mspSpec('b', { dependsOn: ['a'], fileScope: pack(['scope/b/**']) }),
+    mspSpec('a', { fileScope: pack(['scope/a/**']) }),
   ];
 }
 
@@ -466,7 +467,7 @@ test('autonomous is fully removed: an explicit mergePolicy:"autonomous" fail-clo
 });
 
 test('D1 CI wait is a backgrounded, timeout-bounded watch returning the terminal conclusion, not a foreground gh run watch stream', async () => {
-  const msps = [mspSpec('a', { fileScope: ['scope/a/**'] })];
+  const msps = [mspSpec('a', { fileScope: pack(['scope/a/**']) })];
   const shipPrompts = new Map();
   const base = createFakeAgent({
     msps,
@@ -546,7 +547,7 @@ test('N1: a Ship-stage failure on a dependent MSP parks it (Tier 2) with stage s
 });
 
 test('a decomposition whose dependsOn references an id not among the declared MSP ids is rejected at the decompose stage before clustering', async () => {
-  const msps = [mspSpec('m0', { dependsOn: ['ghost'], fileScope: ['scope/m0/**'] })];
+  const msps = [mspSpec('m0', { dependsOn: ['ghost'], fileScope: pack(['scope/m0/**']) })];
   const agent = createFakeAgent({ msps });
   const { resultPromise } = invokeMitosis(buildInput(), agent);
   const result = await resultPromise;
@@ -561,8 +562,8 @@ test('a decomposition whose dependsOn references an id not among the declared MS
 
 test('N2: a genuine dependsOn cycle passes the decompose unknown-id pre-check (all ids known) and halts at the cluster stage via deriveClusters.detectCycle', async () => {
   const msps = [
-    mspSpec('m0', { dependsOn: ['m1'], fileScope: ['scope/m0/**'] }),
-    mspSpec('m1', { dependsOn: ['m0'], fileScope: ['scope/m1/**'] }),
+    mspSpec('m0', { dependsOn: ['m1'], fileScope: pack(['scope/m0/**']) }),
+    mspSpec('m1', { dependsOn: ['m0'], fileScope: pack(['scope/m1/**']) }),
   ];
   const agent = createFakeAgent({ msps });
   const { resultPromise } = invokeMitosis(buildInput(), agent);
@@ -718,7 +719,7 @@ test('MSP-1d WS-1.5: the redundant ship-checkpoint delta-append stays CUT while 
 
 test('MSP-1d WS-1.5: persistParkCheckpoint is KEPT — a parked unit still durably appends exactly one park delta that folds to status:parked', async () => {
   const input = buildInput();
-  const msps = [mspSpec('solo', { fileScope: ['scope/solo/**'] })];
+  const msps = [mspSpec('solo', { fileScope: pack(['scope/solo/**']) })];
   const { agent: durableAgent, fileMap, runJsonPath } = makeDurableFakeAgent({ msps, parallelizeFailUnitId: 'solo', repoRoot: input.repoRoot });
   const parkCheckpoints = [];
   const agent = async (prompt, opts = {}) => {
@@ -737,8 +738,8 @@ test('MSP-1d WS-1.5: persistParkCheckpoint is KEPT — a parked unit still durab
 
 test('human-gated default: a foundational MSP awaiting approval yields overallStatus awaiting-approval, a distinct awaitingApproval category, a blocked-pending-approval dependent, and a ship prompt that never merges', async () => {
   const msps = [
-    mspSpec('a', { fileScope: ['scope/a/**'] }),
-    mspSpec('b', { dependsOn: ['a'], fileScope: ['scope/b/**'] }),
+    mspSpec('a', { fileScope: pack(['scope/a/**']) }),
+    mspSpec('b', { dependsOn: ['a'], fileScope: pack(['scope/b/**']) }),
   ];
   const shipPrompts = new Map();
   const base = createFakeAgent({
@@ -780,8 +781,8 @@ test('human-gated default: a foundational MSP awaiting approval yields overallSt
 
 test('QUIESCENT EXIT: a run that stops with work outstanding returns a continuation block naming its status, what it waits on, the command that resumes it, and the identity that says whether that command works from another clone', async () => {
   const msps = [
-    mspSpec('a', { fileScope: ['scope/a/**'] }),
-    mspSpec('b', { dependsOn: ['a'], fileScope: ['scope/b/**'] }),
+    mspSpec('a', { fileScope: pack(['scope/a/**']) }),
+    mspSpec('b', { dependsOn: ['a'], fileScope: pack(['scope/b/**']) }),
   ];
   const agent = createFakeAgent({
     msps,
@@ -954,8 +955,8 @@ test('QUIESCENT EXIT: a journal agent that appends the placeholder verbatim is n
 
 test('B3 in-run merge poll fail-safe (human-gated): when the merge-watch never confirms a merge, the awaiting root and its dependent park exactly as today (no regression)', async () => {
   const msps = [
-    mspSpec('a', { fileScope: ['scope/a/**'] }),
-    mspSpec('b', { dependsOn: ['a'], fileScope: ['scope/b/**'] }),
+    mspSpec('a', { fileScope: pack(['scope/a/**']) }),
+    mspSpec('b', { dependsOn: ['a'], fileScope: pack(['scope/b/**']) }),
   ];
   const agent = createFakeAgent({
     msps,
@@ -982,8 +983,8 @@ test('T4b relaunch story: a reusable manifest bearing prior ship-transitions is 
   const input = buildInput();
   const logicalRunId = computeLogicalRunId(input.spec, input.baseBranch);
   const reusedMsps = [
-    { id: 'a', title: 'update a', rationale: 'r-a', changeType: 'chore', scope: 'msp', status: 'shipped', integrationBranch: `${SOURCE_PREFIX}/a-integration`, prUrl: testPrUrl('a'), mergedAt: '2026-07-08T00:00:00Z', dependsOn: [], fileScope: ['scope/a/**'] },
-    { id: 'b', title: 'update b', rationale: 'r-b', changeType: 'chore', scope: 'msp', status: 'planned', integrationBranch: `${SOURCE_PREFIX}/b-integration`, prUrl: null, mergedAt: null, dependsOn: [], fileScope: ['scope/b/**'] },
+    { id: 'a', title: 'update a', rationale: 'r-a', changeType: 'chore', scope: 'msp', status: 'shipped', integrationBranch: `${SOURCE_PREFIX}/a-integration`, prUrl: testPrUrl('a'), mergedAt: '2026-07-08T00:00:00Z', dependsOn: [], fileScope: pack(['scope/a/**']) },
+    { id: 'b', title: 'update b', rationale: 'r-b', changeType: 'chore', scope: 'msp', status: 'planned', integrationBranch: `${SOURCE_PREFIX}/b-integration`, prUrl: null, mergedAt: null, dependsOn: [], fileScope: pack(['scope/b/**']) },
   ];
   const manifestRaw = JSON.stringify({ logicalRunId, specContentHash: SPEC_CONTENT_HASH, clusters: [['a'], ['b']], msps: reusedMsps }, null, 2);
   assert.ok(parseRunManifest(manifestRaw), 'the accumulated single-object manifest is read back as a valid hint');
@@ -1023,8 +1024,8 @@ test('MSP-1c migration: a RELAUNCH whose persisted run.json is reused but whose 
   const input = buildInput({ models: { implementer: 'sonnet' } });
   const logicalRunId = computeLogicalRunId(input.spec, input.baseBranch);
   const decomposeMsps = [
-    mspSpec('a', { fileScope: ['scope/a/**'] }),
-    mspSpec('b', { dependsOn: ['a'], fileScope: ['scope/b/**'] }),
+    mspSpec('a', { fileScope: pack(['scope/a/**']) }),
+    mspSpec('b', { dependsOn: ['a'], fileScope: pack(['scope/b/**']) }),
   ];
   const manifest = buildInitialManifest({
     logicalRunId, harnessRunId: null, spec: input.spec, repoRoot: input.repoRoot,
@@ -1050,8 +1051,8 @@ test('RT-1 round-trip: a manifest produced by the REAL buildInitialManifest (no 
   const input = buildInput();
   const logicalRunId = computeLogicalRunId(input.spec, input.baseBranch);
   const decomposeMsps = [
-    mspSpec('a', { fileScope: ['scope/a/**'] }),
-    mspSpec('b', { dependsOn: ['a'], fileScope: ['scope/b/**'] }),
+    mspSpec('a', { fileScope: pack(['scope/a/**']) }),
+    mspSpec('b', { dependsOn: ['a'], fileScope: pack(['scope/b/**']) }),
   ];
   const manifest = buildInitialManifest({
     logicalRunId, harnessRunId: null, spec: input.spec, repoRoot: input.repoRoot,
@@ -1076,8 +1077,8 @@ test('RT-2 round-trip: a manifest carried through the REAL applyShipTransition d
   const input = buildInput();
   const logicalRunId = computeLogicalRunId(input.spec, input.baseBranch);
   const decomposeMsps = [
-    mspSpec('a', { fileScope: ['scope/a/**'] }),
-    mspSpec('b', { fileScope: ['scope/b/**'] }),
+    mspSpec('a', { fileScope: pack(['scope/a/**']) }),
+    mspSpec('b', { fileScope: pack(['scope/b/**']) }),
   ];
   const built = buildInitialManifest({
     logicalRunId, harnessRunId: null, spec: input.spec, repoRoot: input.repoRoot,
@@ -1110,8 +1111,8 @@ test('RT-2 round-trip: a manifest carried through the REAL applyShipTransition d
 test('T4b skip: a reconciled already-merged MSP is skipped at ship (shipped state derived from gh, no fresh ship stage and no ship-checkpoint write), while the sibling ships fresh', async () => {
   const input = buildInput();
   const msps = [
-    mspSpec('a', { fileScope: ['scope/a/**'] }),
-    mspSpec('b', { fileScope: ['scope/b/**'] }),
+    mspSpec('a', { fileScope: pack(['scope/a/**']) }),
+    mspSpec('b', { fileScope: pack(['scope/b/**']) }),
   ];
   const reconcileResult = { manifestFound: false, manifestRaw: null, mergedPRs: [mergedPr('a', testPrUrl('merged-a'))] };
   const shipDispatchIds = [];
@@ -1149,7 +1150,7 @@ function transientImplAgent(msps, blipMspTaskLabelPrefix = 'impl:') {
 }
 
 test('P2 headline: a transient implementer drop re-dispatches with a worktree reset and the MSP still ships', async () => {
-  const msps = [mspSpec('solo', { fileScope: ['scope/solo/**'] })];
+  const msps = [mspSpec('solo', { fileScope: pack(['scope/solo/**']) })];
   const { agent, calls, prompts } = transientImplAgent(msps);
   const { resultPromise } = invokeMitosis(buildInput(), agent);
   const result = await resultPromise;
@@ -1163,7 +1164,7 @@ test('P2 headline: a transient implementer drop re-dispatches with a worktree re
 });
 
 test('P2 no-amplification: an always-null implementer is bounded to the initial dispatch plus one Unknown probe, independent of retry.maxAttempts', async () => {
-  const msps = [mspSpec('solo', { fileScope: ['scope/solo/**'] })];
+  const msps = [mspSpec('solo', { fileScope: pack(['scope/solo/**']) })];
   let implCalls = 0;
   const base = createFakeAgent({ msps });
   const agent = async (prompt, opts = {}) => {
@@ -1202,7 +1203,7 @@ function approachFixableRemediationAgent(msps) {
 }
 
 test('honest maxAttempts: operator maxAttempts bounds remediation redispatch attempts in supervisedEngineDispatch (not the hardcoded REMEDIATION_BUDGET)', async () => {
-  const msps = [mspSpec('solo', { fileScope: ['scope/solo/**'] })];
+  const msps = [mspSpec('solo', { fileScope: pack(['scope/solo/**']) })];
   const { agent, redispatches } = approachFixableRemediationAgent(msps);
   const { resultPromise } = invokeMitosis({ ...buildInput(), retry: { maxAttempts: 2, runBudget: 20 } }, agent);
   const result = await resultPromise;
@@ -1214,7 +1215,7 @@ test('honest maxAttempts: operator maxAttempts bounds remediation redispatch att
 });
 
 test('honest maxAttempts: raising maxAttempts raises the remediation redispatch bound (proves the operator knob is live, not ignored)', async () => {
-  const msps = [mspSpec('solo', { fileScope: ['scope/solo/**'] })];
+  const msps = [mspSpec('solo', { fileScope: pack(['scope/solo/**']) })];
   const { agent, redispatches } = approachFixableRemediationAgent(msps);
   const { resultPromise } = invokeMitosis({ ...buildInput(), retry: { maxAttempts: 5, runBudget: 20 } }, agent);
   await resultPromise;
@@ -1267,7 +1268,7 @@ test('LOW-1 contract: the harness parallel maps a rejected thunk to null (the in
 });
 
 test('P2 shared-fate: a single transient decompose drop retries then the run proceeds to all-shipped', async () => {
-  const msps = [mspSpec('solo', { fileScope: ['scope/solo/**'] })];
+  const msps = [mspSpec('solo', { fileScope: pack(['scope/solo/**']) })];
   const base = createFakeAgent({ msps });
   let decomposeCalls = 0;
   const agent = async (prompt, opts = {}) => {
@@ -1449,7 +1450,7 @@ test('D6.1: no prepare-stage prompt instructs a base-branch checkout, commit, or
 });
 
 test('P4 §8.1 done-oracle-first: the ship prompt makes its FIRST action a merged-PR check that skips and reports shipped', async () => {
-  const msps = [mspSpec('solo', { fileScope: ['scope/solo/**'] })];
+  const msps = [mspSpec('solo', { fileScope: pack(['scope/solo/**']) })];
   const captured = [];
   const base = createFakeAgent({ msps });
   const agent = async (prompt, opts = {}) => {
@@ -1470,7 +1471,7 @@ test('P4 §8.1 done-oracle-first: the ship prompt makes its FIRST action a merge
 });
 
 test('P4 §8.2 ship push is observe-then-converge and forward-only (checks origin ref before push, force only via --force-with-lease)', async () => {
-  const msps = [mspSpec('solo', { fileScope: ['scope/solo/**'] })];
+  const msps = [mspSpec('solo', { fileScope: pack(['scope/solo/**']) })];
   const captured = [];
   const base = createFakeAgent({ msps });
   const agent = async (prompt, opts = {}) => {
@@ -1488,7 +1489,7 @@ test('P4 §8.2 ship push is observe-then-converge and forward-only (checks origi
 });
 
 test('P4 §8.2 ship PR-open is ONE literal wrapper invocation that carries observe-then-converge itself (no free-form gh pr list)', async () => {
-  const msps = [mspSpec('solo', { fileScope: ['scope/solo/**'] })];
+  const msps = [mspSpec('solo', { fileScope: pack(['scope/solo/**']) })];
   const captured = [];
   const base = createFakeAgent({ msps });
   const agent = async (prompt, opts = {}) => {
@@ -1511,8 +1512,8 @@ test('P4 §8.2 ship PR-open is ONE literal wrapper invocation that carries obser
 
 test('P4 §8.2 the ship PR-open emits an argv the mitosis-git wrapper actually accepts, carrying the stacked MSPs as --depends', async () => {
   const msps = [
-    mspSpec('a', { fileScope: ['scope/a/**'] }),
-    mspSpec('b', { dependsOn: ['a'], fileScope: ['scope/b/**'] }),
+    mspSpec('a', { fileScope: pack(['scope/a/**']) }),
+    mspSpec('b', { dependsOn: ['a'], fileScope: pack(['scope/b/**']) }),
   ];
   const captured = new Map();
   const base = createFakeAgent({ msps });
@@ -1560,7 +1561,7 @@ test('every decomposer-authored value the ship PR-open emits is inert argv text 
 });
 
 async function shipPromptFor(mspOverrides) {
-  const msps = [mspSpec('solo', { fileScope: ['scope/solo/**'], ...mspOverrides })];
+  const msps = [mspSpec('solo', { fileScope: pack(['scope/solo/**']), ...mspOverrides })];
   const captured = [];
   const base = createFakeAgent({ msps });
   const agent = async (prompt, opts = {}) => {
@@ -1588,7 +1589,7 @@ test('MSP-3 fold: the ship PR-open hands the wrapper the MSP title and rationale
 
 test('MSP-3 fold: decomposer-authored MSP prose carrying live shell syntax HALTS the run at decomposition and never reaches an emitted command', async () => {
   const hostile = 'ship $(id) and `whoami` now';
-  const msps = [mspSpec('solo', { fileScope: ['scope/solo/**'], title: hostile })];
+  const msps = [mspSpec('solo', { fileScope: pack(['scope/solo/**']), title: hostile })];
   const captured = [];
   const base = createFakeAgent({ msps });
   const agent = async (prompt, opts = {}) => {
@@ -1605,7 +1606,7 @@ test('MSP-3 fold: decomposer-authored MSP prose carrying live shell syntax HALTS
 });
 
 test('D7 gh-scope: the ship CI-wait scopes every gh run to the engine-resolved LITERAL slug — no subshell, no shell variable, no cd', async () => {
-  const msps = [mspSpec('solo', { fileScope: ['scope/solo/**'] })];
+  const msps = [mspSpec('solo', { fileScope: pack(['scope/solo/**']) })];
   const captured = [];
   const base = createFakeAgent({ msps });
   const agent = async (prompt, opts = {}) => {
@@ -1671,7 +1672,7 @@ test('MSP-2 FIX1 deny-case: an unsafe baseBranch or sourcePrefix HALTS at the in
 
 test('MSP-2 FIX1 allow-case: a conservative ref token passes the gate — the guard rejects unsafe shapes without over-tightening legitimate branch names', async () => {
   for (const baseBranch of ['main', 'master', 'release/2026-07', 'v1.2.3', 'develop']) {
-    const msps = [mspSpec('solo', { fileScope: ['scope/solo/**'] })];
+    const msps = [mspSpec('solo', { fileScope: pack(['scope/solo/**']) })];
     const agent = createFakeAgent({ msps });
     const { resultPromise } = invokeMitosis(buildInput({ baseBranch }), agent);
     const result = await resultPromise;
@@ -1679,7 +1680,7 @@ test('MSP-2 FIX1 allow-case: a conservative ref token passes the gate — the gu
     assert.equal(result.overallStatus, 'all-shipped', `baseBranch ${JSON.stringify(baseBranch)} must still drive a full green run`);
   }
   for (const sourcePrefix of ['mitosis-test', 'feat/mitosis', 'team.a/mitosis-run']) {
-    const msps = [mspSpec('solo', { fileScope: ['scope/solo/**'] })];
+    const msps = [mspSpec('solo', { fileScope: pack(['scope/solo/**']) })];
     const agent = createFakeAgent({ msps, sourcePrefix });
     const { resultPromise } = invokeMitosis(buildInput({ sourcePrefix }), agent);
     const result = await resultPromise;
@@ -1732,7 +1733,7 @@ test('MSP-2 R1 deny-case: an unsafe spec, repoRoot or worktreeRoot HALTS at the 
 });
 
 test('MSP-2 R1 allow-case: legitimate absolute run paths (including dot-directories) pass the gate and still drive a full green run', async () => {
-  const msps = [mspSpec('solo', { fileScope: ['scope/solo/**'] })];
+  const msps = [mspSpec('solo', { fileScope: pack(['scope/solo/**']) })];
   const paths = {
     spec: '/Users/dev/Documents/.windful-ocean/docs/spec.md',
     repoRoot: '/Users/dev/Documents/.windful-ocean',
@@ -1796,7 +1797,7 @@ test('D7 log hygiene: the fatal detail for a rejected slug strips Unicode format
 });
 
 test('D7: a valid slug is threaded as a literal into every consumer prompt (ship, ship-verify, reconcile)', async () => {
-  const msps = [mspSpec('solo', { fileScope: ['scope/solo/**'] })];
+  const msps = [mspSpec('solo', { fileScope: pack(['scope/solo/**']) })];
   const captured = new Map();
   const base = createFakeAgent({ msps });
   const agent = async (prompt, opts = {}) => {
@@ -1817,7 +1818,7 @@ test('D7: a valid slug is threaded as a literal into every consumer prompt (ship
 });
 
 test('MSP-2 FIX2: the ship-verify SECURITY preamble states only the guarantee the engine actually provides — it never claims the interpolated refs are unreachable by an agent or by run input', async () => {
-  const msps = [mspSpec('solo', { fileScope: ['scope/solo/**'] })];
+  const msps = [mspSpec('solo', { fileScope: pack(['scope/solo/**']) })];
   let verifyPrompt = null;
   const base = createFakeAgent({ msps });
   const agent = async (prompt, opts = {}) => {
@@ -1844,7 +1845,7 @@ test('MSP-2 FIX2: the ship-verify SECURITY preamble states only the guarantee th
 
 test('MSP-2 R2: the MSP-id gate the ship-verify preamble leans on is in force — a decomposed id outside the kebab pattern HALTS before any integration ref is composed', async () => {
   for (const badId of ['Solo', 'solo_unit', 'solo unit', 'solo/x', '-solo', 'solo;id', 'solo..x']) {
-    const msps = [mspSpec(badId, { fileScope: ['scope/solo/**'] })];
+    const msps = [mspSpec(badId, { fileScope: pack(['scope/solo/**']) })];
     const agent = createFakeAgent({ msps });
     const { resultPromise } = invokeMitosis(buildInput(), agent);
     const result = await resultPromise;
@@ -1858,7 +1859,7 @@ test('MSP-2 R2: the MSP-id gate the ship-verify preamble leans on is in force �
 test('MSP-2 R2: an integration ref the composition pushes past the ref-token bound PARKS the unit rather than reaching a prompt that asserts it was ref-token-validated', async () => {
   const sourcePrefix = `mitosis-${'a'.repeat(245)}`;
   assert.equal(sourcePrefix.length, 253, 'the prefix itself is a legal ref token; only the composed integration ref exceeds the bound');
-  const msps = [mspSpec('solo', { fileScope: ['scope/solo/**'] })];
+  const msps = [mspSpec('solo', { fileScope: pack(['scope/solo/**']) })];
   const labels = [];
   const base = createFakeAgent({ msps, sourcePrefix });
   const agent = async (prompt, opts = {}) => {
@@ -1876,7 +1877,7 @@ test('MSP-2 R2: an integration ref the composition pushes past the ref-token bou
 });
 
 test('MINOR-2: a ship agent that returns null is parked (Tier 2, aligned with branch-null), never a top-level crashed entry', async () => {
-  const msps = [mspSpec('solo', { fileScope: ['scope/solo/**'] })];
+  const msps = [mspSpec('solo', { fileScope: pack(['scope/solo/**']) })];
   const base = createFakeAgent({ msps });
   const agent = async (prompt, opts = {}) => {
     if ((opts.label || '') === 'ship:solo') return null;
@@ -1893,7 +1894,7 @@ test('MINOR-2: a ship agent that returns null is parked (Tier 2, aligned with br
 });
 
 test('R1 verify-handoff: the main thread independently reads back the CLAIMED merge (gh pr view state,mergedAt + base...head compare) via inert argv before recording shipped', async () => {
-  const msps = [mspSpec('solo', { fileScope: ['scope/solo/**'] })];
+  const msps = [mspSpec('solo', { fileScope: pack(['scope/solo/**']) })];
   const captured = [];
   const base = createFakeAgent({ msps });
   const agent = async (prompt, opts = {}) => {
@@ -1915,7 +1916,7 @@ test('R1 verify-handoff: the main thread independently reads back the CLAIMED me
 });
 
 test('R1 verify-handoff: a ship that CLAIMS merged but whose independent read-back is AMBIGUOUS is parked kind unknown-handoff and never recorded shipped (no blind accept, never retry-merge)', async () => {
-  const msps = [mspSpec('solo', { fileScope: ['scope/solo/**'] })];
+  const msps = [mspSpec('solo', { fileScope: pack(['scope/solo/**']) })];
   let shipCalls = 0;
   const base = createFakeAgent({ msps });
   const agent = async (prompt, opts = {}) => {
@@ -1937,7 +1938,7 @@ test('R1 verify-handoff: a ship that CLAIMS merged but whose independent read-ba
 });
 
 test('R1 verify-handoff: a ship that CLAIMS merged but whose independent read-back CONTRADICTS the claim (head still introduces commits) is parked and never recorded shipped', async () => {
-  const msps = [mspSpec('solo', { fileScope: ['scope/solo/**'] })];
+  const msps = [mspSpec('solo', { fileScope: pack(['scope/solo/**']) })];
   const base = createFakeAgent({ msps });
   const agent = async (prompt, opts = {}) => {
     if ((opts.label || '').startsWith('ship-verify:')) return { merged: false, compare: { ahead_by: 3, status: 'ahead' }, readError: null };
@@ -1954,7 +1955,7 @@ test('R1 verify-handoff: a ship that CLAIMS merged but whose independent read-ba
 });
 
 test('R1 verify-handoff: a read-back that ERRORS (read tier unavailable) is treated as unknown -> parked unknown-handoff, never a blind accept', async () => {
-  const msps = [mspSpec('solo', { fileScope: ['scope/solo/**'] })];
+  const msps = [mspSpec('solo', { fileScope: pack(['scope/solo/**']) })];
   const base = createFakeAgent({ msps });
   const agent = async (prompt, opts = {}) => {
     if ((opts.label || '').startsWith('ship-verify:')) return { merged: undefined, compare: undefined, readError: 'gh api compare returned http 502' };
@@ -1971,7 +1972,7 @@ test('R1 verify-handoff: a read-back that ERRORS (read tier unavailable) is trea
 });
 
 test('P4 §8.2 branch-force is observe-then-converge: the branch prompt skips the ref move when it already matches the pushed base', async () => {
-  const msps = [mspSpec('solo', { fileScope: ['scope/solo/**'] })];
+  const msps = [mspSpec('solo', { fileScope: pack(['scope/solo/**']) })];
   const captured = [];
   const base = createFakeAgent({ msps });
   const agent = async (prompt, opts = {}) => {
@@ -1989,7 +1990,7 @@ test('P4 §8.2 branch-force is observe-then-converge: the branch prompt skips th
 });
 
 test('G8 fingerprint gate SEMANTIC hardening: the boundary gate prompt fails closed (incl. zero-file/config-mismatch), count-diffs a multiset, blocks new suppressions and strictness-reducing config, and installs base deps store-safely', async () => {
-  const msps = [mspSpec('solo', { fileScope: ['scope/solo/**'] })];
+  const msps = [mspSpec('solo', { fileScope: pack(['scope/solo/**']) })];
   const captured = [];
   const base = createFakeAgent({ msps });
   const agent = async (prompt, opts = {}) => {
@@ -2035,7 +2036,7 @@ test('G8 fingerprint gate SEMANTIC hardening: the boundary gate prompt fails clo
 });
 
 test('G8 fingerprint gate MED-3 fixer: the boundary-fix prompt forbids passing the gate by suppression', async () => {
-  const msps = [mspSpec('solo', { fileScope: ['scope/solo/**'] })];
+  const msps = [mspSpec('solo', { fileScope: pack(['scope/solo/**']) })];
   const captured = [];
   const base = createFakeAgent({ msps });
   const agent = async (prompt, opts = {}) => {
@@ -2054,7 +2055,7 @@ test('G8 fingerprint gate MED-3 fixer: the boundary-fix prompt forbids passing t
 });
 
 test('T3 reconcile prompt-contract: read-only inspection of run.json and the merged-PR list, no manifest mutation', async () => {
-  const msps = [mspSpec('solo', { fileScope: ['scope/solo/**'] })];
+  const msps = [mspSpec('solo', { fileScope: pack(['scope/solo/**']) })];
   const captured = [];
   const base = createFakeAgent({ msps });
   const agent = async (prompt, opts = {}) => {
@@ -2100,8 +2101,8 @@ test('T3 Decompose-reuse: a manifest whose logicalRunId matches the run reuses i
   const input = buildInput();
   const logicalRunId = computeLogicalRunId(input.spec, input.baseBranch);
   const reusedMsps = [
-    { id: 'a', title: 'update a', rationale: 'r-a', changeType: 'chore', scope: 'msp', dependsOn: [], fileScope: ['scope/a/**'] },
-    { id: 'b', title: 'update b', rationale: 'r-b', changeType: 'chore', scope: 'msp', dependsOn: [], fileScope: ['scope/b/**'] },
+    { id: 'a', title: 'update a', rationale: 'r-a', changeType: 'chore', scope: 'msp', dependsOn: [], fileScope: pack(['scope/a/**']) },
+    { id: 'b', title: 'update b', rationale: 'r-b', changeType: 'chore', scope: 'msp', dependsOn: [], fileScope: pack(['scope/b/**']) },
   ];
   const manifestRaw = JSON.stringify({ logicalRunId, specContentHash: SPEC_CONTENT_HASH, clusters: [['a'], ['b']], msps: reusedMsps });
   const reconcileResult = { manifestFound: true, manifestRaw, mergedPRs: [], specContentHash: SPEC_CONTENT_HASH };
@@ -2125,8 +2126,8 @@ test('LOW-N1 reuse gate: a manifest specContentHash equal to the freshly observe
   const logicalRunId = computeLogicalRunId(input.spec, input.baseBranch);
   const observed = 'a'.repeat(64);
   const reusedMsps = [
-    { id: 'a', title: 'update a', rationale: 'r-a', changeType: 'chore', scope: 'msp', dependsOn: [], fileScope: ['scope/a/**'] },
-    { id: 'b', title: 'update b', rationale: 'r-b', changeType: 'chore', scope: 'msp', dependsOn: [], fileScope: ['scope/b/**'] },
+    { id: 'a', title: 'update a', rationale: 'r-a', changeType: 'chore', scope: 'msp', dependsOn: [], fileScope: pack(['scope/a/**']) },
+    { id: 'b', title: 'update b', rationale: 'r-b', changeType: 'chore', scope: 'msp', dependsOn: [], fileScope: pack(['scope/b/**']) },
   ];
   const manifestRaw = JSON.stringify({ logicalRunId, specContentHash: observed, clusters: [['a'], ['b']], msps: reusedMsps });
   const reconcileResult = { manifestFound: true, manifestRaw, mergedPRs: [], specContentHash: observed };
@@ -2150,8 +2151,8 @@ test('LOW-N1 reuse gate: reuse is refused and the run re-decomposes when the man
   const hashA = 'a'.repeat(64);
   const hashB = 'b'.repeat(64);
   const manifestMsps = [
-    { id: 'a', title: 'update a', rationale: 'r-a', changeType: 'chore', scope: 'msp', dependsOn: [], fileScope: ['scope/a/**'] },
-    { id: 'b', title: 'update b', rationale: 'r-b', changeType: 'chore', scope: 'msp', dependsOn: [], fileScope: ['scope/b/**'] },
+    { id: 'a', title: 'update a', rationale: 'r-a', changeType: 'chore', scope: 'msp', dependsOn: [], fileScope: pack(['scope/a/**']) },
+    { id: 'b', title: 'update b', rationale: 'r-b', changeType: 'chore', scope: 'msp', dependsOn: [], fileScope: pack(['scope/b/**']) },
   ];
   const cases = [
     { name: 'absent manifest hash', manifestHash: undefined, observed: hashA },
@@ -2190,7 +2191,7 @@ test('T3 stale manifest: a manifest whose logicalRunId does not match falls back
   const staleRaw = JSON.stringify({
     logicalRunId: 'deadbeef',
     clusters: [['zzz']],
-    msps: [{ id: 'zzz', title: 'update z', rationale: 'r-z', changeType: 'chore', scope: 'msp', dependsOn: [], fileScope: [] }],
+    msps: [{ id: 'zzz', title: 'update z', rationale: 'r-z', changeType: 'chore', scope: 'msp', dependsOn: [], fileScope: pack([]) }],
   });
   const reconcileResult = { manifestFound: true, manifestRaw: staleRaw, mergedPRs: [] };
   let decomposeCalls = 0;
@@ -2228,8 +2229,8 @@ test('T3 manifest integrity: a relaunch manifest whose corrupt clusters omit an 
   const input = buildInput();
   const logicalRunId = computeLogicalRunId(input.spec, input.baseBranch);
   const manifestMsps = [
-    { id: 'a', title: 'update a', rationale: 'r-a', changeType: 'chore', scope: 'msp', dependsOn: [], fileScope: ['scope/a/**'] },
-    { id: 'b', title: 'update b', rationale: 'r-b', changeType: 'chore', scope: 'msp', dependsOn: [], fileScope: ['scope/b/**'] },
+    { id: 'a', title: 'update a', rationale: 'r-a', changeType: 'chore', scope: 'msp', dependsOn: [], fileScope: pack(['scope/a/**']) },
+    { id: 'b', title: 'update b', rationale: 'r-b', changeType: 'chore', scope: 'msp', dependsOn: [], fileScope: pack(['scope/b/**']) },
   ];
   const corruptRaw = JSON.stringify({ logicalRunId, specContentHash: SPEC_CONTENT_HASH, clusters: [['a']], msps: manifestMsps });
   const reconcileResult = { manifestFound: true, manifestRaw: corruptRaw, mergedPRs: [], specContentHash: SPEC_CONTENT_HASH };
@@ -2252,8 +2253,8 @@ test('T3 manifest integrity: a relaunch manifest whose corrupt clusters name an 
   const input = buildInput();
   const logicalRunId = computeLogicalRunId(input.spec, input.baseBranch);
   const manifestMsps = [
-    { id: 'a', title: 'update a', rationale: 'r-a', changeType: 'chore', scope: 'msp', dependsOn: [], fileScope: ['scope/a/**'] },
-    { id: 'b', title: 'update b', rationale: 'r-b', changeType: 'chore', scope: 'msp', dependsOn: [], fileScope: ['scope/b/**'] },
+    { id: 'a', title: 'update a', rationale: 'r-a', changeType: 'chore', scope: 'msp', dependsOn: [], fileScope: pack(['scope/a/**']) },
+    { id: 'b', title: 'update b', rationale: 'r-b', changeType: 'chore', scope: 'msp', dependsOn: [], fileScope: pack(['scope/b/**']) },
   ];
   const corruptRaw = JSON.stringify({ logicalRunId, specContentHash: SPEC_CONTENT_HASH, clusters: [['a'], ['ghost']], msps: manifestMsps });
   const reconcileResult = { manifestFound: true, manifestRaw: corruptRaw, mergedPRs: [], specContentHash: SPEC_CONTENT_HASH };
@@ -2282,8 +2283,8 @@ test('T3 manifest reuse HIGH-repro: a relaunch manifest with a non-array depends
     specContentHash: SPEC_CONTENT_HASH,
     clusters: [['a'], ['b']],
     msps: [
-      { id: 'a', title: 'update a', rationale: 'r-a', changeType: 'chore', scope: 'msp', dependsOn: 'nope', fileScope: ['scope/a/**'] },
-      { id: 'b', title: 'update b', rationale: 'r-b', changeType: 'chore', scope: 'msp', dependsOn: [], fileScope: ['scope/b/**'] },
+      { id: 'a', title: 'update a', rationale: 'r-a', changeType: 'chore', scope: 'msp', dependsOn: 'nope', fileScope: pack(['scope/a/**']) },
+      { id: 'b', title: 'update b', rationale: 'r-b', changeType: 'chore', scope: 'msp', dependsOn: [], fileScope: pack(['scope/b/**']) },
     ],
   });
   let stringDecomposeCalls = 0;
@@ -2302,8 +2303,8 @@ test('T3 manifest reuse HIGH-repro: a relaunch manifest with a non-array depends
     specContentHash: SPEC_CONTENT_HASH,
     clusters: [['a'], ['b']],
     msps: [
-      { id: 'a', title: 'update a', rationale: 'r-a', changeType: 'chore', scope: 'msp', dependsOn: {}, fileScope: ['scope/a/**'] },
-      { id: 'b', title: 'update b', rationale: 'r-b', changeType: 'chore', scope: 'msp', dependsOn: [], fileScope: ['scope/b/**'] },
+      { id: 'a', title: 'update a', rationale: 'r-a', changeType: 'chore', scope: 'msp', dependsOn: {}, fileScope: pack(['scope/a/**']) },
+      { id: 'b', title: 'update b', rationale: 'r-b', changeType: 'chore', scope: 'msp', dependsOn: [], fileScope: pack(['scope/b/**']) },
     ],
   });
   let objectDecomposeCalls = 0;
@@ -2324,16 +2325,16 @@ test('T3 manifest reuse: bad-charset, duplicate, and unknown-dependsOn ids each 
 
   const cases = [
     { label: 'bad-charset id', clusters: [['Bad_Id'], ['b']], manifestMsps: [
-      { id: 'Bad_Id', title: 'update a', rationale: 'r-a', changeType: 'chore', scope: 'msp', dependsOn: [], fileScope: ['scope/a/**'] },
-      { id: 'b', title: 'update b', rationale: 'r-b', changeType: 'chore', scope: 'msp', dependsOn: [], fileScope: ['scope/b/**'] },
+      { id: 'Bad_Id', title: 'update a', rationale: 'r-a', changeType: 'chore', scope: 'msp', dependsOn: [], fileScope: pack(['scope/a/**']) },
+      { id: 'b', title: 'update b', rationale: 'r-b', changeType: 'chore', scope: 'msp', dependsOn: [], fileScope: pack(['scope/b/**']) },
     ] },
     { label: 'duplicate id', clusters: [['a']], manifestMsps: [
-      { id: 'a', title: 'update a', rationale: 'r-a', changeType: 'chore', scope: 'msp', dependsOn: [], fileScope: ['scope/a/**'] },
-      { id: 'a', title: 'update a2', rationale: 'r-a2', changeType: 'chore', scope: 'msp', dependsOn: [], fileScope: ['scope/a2/**'] },
+      { id: 'a', title: 'update a', rationale: 'r-a', changeType: 'chore', scope: 'msp', dependsOn: [], fileScope: pack(['scope/a/**']) },
+      { id: 'a', title: 'update a2', rationale: 'r-a2', changeType: 'chore', scope: 'msp', dependsOn: [], fileScope: pack(['scope/a2/**']) },
     ] },
     { label: 'unknown dependsOn id', clusters: [['a'], ['b']], manifestMsps: [
-      { id: 'a', title: 'update a', rationale: 'r-a', changeType: 'chore', scope: 'msp', dependsOn: ['ghost'], fileScope: ['scope/a/**'] },
-      { id: 'b', title: 'update b', rationale: 'r-b', changeType: 'chore', scope: 'msp', dependsOn: [], fileScope: ['scope/b/**'] },
+      { id: 'a', title: 'update a', rationale: 'r-a', changeType: 'chore', scope: 'msp', dependsOn: ['ghost'], fileScope: pack(['scope/a/**']) },
+      { id: 'b', title: 'update b', rationale: 'r-b', changeType: 'chore', scope: 'msp', dependsOn: [], fileScope: pack(['scope/b/**']) },
     ] },
   ];
 
@@ -2362,8 +2363,8 @@ test('T3 manifest reuse: a cyclic dependsOn degrades to a fresh Decompose (the t
     specContentHash: SPEC_CONTENT_HASH,
     clusters: [['a', 'b']],
     msps: [
-      { id: 'a', title: 'update a', rationale: 'r-a', changeType: 'chore', scope: 'msp', dependsOn: ['b'], fileScope: ['scope/a/**'] },
-      { id: 'b', title: 'update b', rationale: 'r-b', changeType: 'chore', scope: 'msp', dependsOn: ['a'], fileScope: ['scope/b/**'] },
+      { id: 'a', title: 'update a', rationale: 'r-a', changeType: 'chore', scope: 'msp', dependsOn: ['b'], fileScope: pack(['scope/a/**']) },
+      { id: 'b', title: 'update b', rationale: 'r-b', changeType: 'chore', scope: 'msp', dependsOn: ['a'], fileScope: pack(['scope/b/**']) },
     ],
   });
   let decomposeCalls = 0;
@@ -2386,20 +2387,20 @@ test('T3 manifest reuse: non-string title/rationale and non-array-of-strings fil
 
   const cases = [
     { label: 'numeric title', manifestMsps: [
-      { id: 'a', title: 42, rationale: 'r', dependsOn: [], fileScope: ['scope/a/**'] },
-      { id: 'b', title: 'update b', rationale: 'r-b', changeType: 'chore', scope: 'msp', dependsOn: [], fileScope: ['scope/b/**'] },
+      { id: 'a', title: 42, rationale: 'r', dependsOn: [], fileScope: pack(['scope/a/**']) },
+      { id: 'b', title: 'update b', rationale: 'r-b', changeType: 'chore', scope: 'msp', dependsOn: [], fileScope: pack(['scope/b/**']) },
     ] },
     { label: 'null rationale', manifestMsps: [
-      { id: 'a', title: 'a', rationale: null, dependsOn: [], fileScope: ['scope/a/**'] },
-      { id: 'b', title: 'update b', rationale: 'r-b', changeType: 'chore', scope: 'msp', dependsOn: [], fileScope: ['scope/b/**'] },
+      { id: 'a', title: 'a', rationale: null, dependsOn: [], fileScope: pack(['scope/a/**']) },
+      { id: 'b', title: 'update b', rationale: 'r-b', changeType: 'chore', scope: 'msp', dependsOn: [], fileScope: pack(['scope/b/**']) },
     ] },
     { label: 'non-array fileScope', manifestMsps: [
       { id: 'a', title: 'update a', rationale: 'r-a', changeType: 'chore', scope: 'msp', dependsOn: [], fileScope: 'scope/a/**' },
-      { id: 'b', title: 'update b', rationale: 'r-b', changeType: 'chore', scope: 'msp', dependsOn: [], fileScope: ['scope/b/**'] },
+      { id: 'b', title: 'update b', rationale: 'r-b', changeType: 'chore', scope: 'msp', dependsOn: [], fileScope: pack(['scope/b/**']) },
     ] },
     { label: 'fileScope of non-strings', manifestMsps: [
-      { id: 'a', title: 'update a', rationale: 'r-a', changeType: 'chore', scope: 'msp', dependsOn: [], fileScope: [1, 2] },
-      { id: 'b', title: 'update b', rationale: 'r-b', changeType: 'chore', scope: 'msp', dependsOn: [], fileScope: ['scope/b/**'] },
+      { id: 'a', title: 'update a', rationale: 'r-a', changeType: 'chore', scope: 'msp', dependsOn: [], fileScope: pack([1, 2]) },
+      { id: 'b', title: 'update b', rationale: 'r-b', changeType: 'chore', scope: 'msp', dependsOn: [], fileScope: pack(['scope/b/**']) },
     ] },
   ];
 
@@ -2488,7 +2489,7 @@ test('MSP-2 FIX4 allow-case: mergedPRsAuthoritative===true lets the reconciled m
 });
 
 test('MSP-2 FIX4: the reconcile prompt attaches the STOP-and-report instruction to BOTH gh pr list commands and defines mergedPRsAuthoritative in terms of them', async () => {
-  const msps = [mspSpec('solo', { fileScope: ['scope/solo/**'] })];
+  const msps = [mspSpec('solo', { fileScope: pack(['scope/solo/**']) })];
   let reconcilePrompt = null;
   const base = createFakeAgent({ msps });
   const agent = async (prompt, opts = {}) => {
@@ -2550,8 +2551,8 @@ function mergedPr(id, url, mergedAt = '2026-07-08T00:00:00Z') {
 test('T4a skip: a reconciled already-merged MSP is skipped in-chain (never planned or shipped) while its dependent sibling plans and ships, with honest null checks and an audit log line', async () => {
   const input = buildInput();
   const msps = [
-    mspSpec('a', { fileScope: ['scope/a/**'] }),
-    mspSpec('b', { dependsOn: ['a'], fileScope: ['scope/b/**'] }),
+    mspSpec('a', { fileScope: pack(['scope/a/**']) }),
+    mspSpec('b', { dependsOn: ['a'], fileScope: pack(['scope/b/**']) }),
   ];
   const reconcileResult = { manifestFound: false, manifestRaw: null, mergedPRs: [mergedPr('a', testPrUrl('merged-a'))] };
   const labels = [];
@@ -2743,7 +2744,7 @@ test('MSP-2 R3: a reconcile that claims an authoritative read must still carry a
 });
 
 test('MSP-2 R3: the reconcile prompt tells the agent exactly what to return when the slug read fails, and that is the shape the schema admits', async () => {
-  const msps = [mspSpec('solo', { fileScope: ['scope/solo/**'] })];
+  const msps = [mspSpec('solo', { fileScope: pack(['scope/solo/**']) })];
   let reconcilePrompt = null;
   const base = createFakeAgent({ msps });
   const agent = async (prompt, opts = {}) => {
@@ -2763,9 +2764,9 @@ test('MSP-2 R3: the reconcile prompt tells the agent exactly what to return when
 test('T4c host+slug skip-set wiring: recon.ownerRepo/repoHost gate the reconciled skip set end-to-end — a matching host+slug is skipped, a same-slug wrong-host is rejected (built), and a wrong-slug is rejected (built)', async () => {
   const input = buildInput();
   const msps = [
-    mspSpec('a', { fileScope: ['scope/a/**'] }),
-    mspSpec('b', { fileScope: ['scope/b/**'] }),
-    mspSpec('c', { fileScope: ['scope/c/**'] }),
+    mspSpec('a', { fileScope: pack(['scope/a/**']) }),
+    mspSpec('b', { fileScope: pack(['scope/b/**']) }),
+    mspSpec('c', { fileScope: pack(['scope/c/**']) }),
   ];
   const reconcileResult = {
     manifestFound: false,
@@ -2834,8 +2835,8 @@ test('T4a checkpoint: the reuse path writes no initial-manifest checkpoint (the 
   const input = buildInput();
   const logicalRunId = computeLogicalRunId(input.spec, input.baseBranch);
   const reusedMsps = [
-    { id: 'a', title: 'update a', rationale: 'r-a', changeType: 'chore', scope: 'msp', dependsOn: [], fileScope: ['scope/a/**'] },
-    { id: 'b', title: 'update b', rationale: 'r-b', changeType: 'chore', scope: 'msp', dependsOn: [], fileScope: ['scope/b/**'] },
+    { id: 'a', title: 'update a', rationale: 'r-a', changeType: 'chore', scope: 'msp', dependsOn: [], fileScope: pack(['scope/a/**']) },
+    { id: 'b', title: 'update b', rationale: 'r-b', changeType: 'chore', scope: 'msp', dependsOn: [], fileScope: pack(['scope/b/**']) },
   ];
   const manifestRaw = JSON.stringify({ logicalRunId, specContentHash: SPEC_CONTENT_HASH, clusters: [['a'], ['b']], msps: reusedMsps });
   const reconcileResult = { manifestFound: true, manifestRaw, mergedPRs: [], specContentHash: SPEC_CONTENT_HASH };
@@ -2893,8 +2894,8 @@ test('T4a checkpoint Case-C: a relaunch whose manifest matches the logicalRunId 
     specContentHash: SPEC_CONTENT_HASH,
     clusters: [['a'], ['b']],
     msps: [
-      { id: 'a', title: 'update a', rationale: 'r-a', changeType: 'chore', scope: 'msp', dependsOn: ['b'], fileScope: ['scope/a/**'] },
-      { id: 'b', title: 'update b', rationale: 'r-b', changeType: 'chore', scope: 'msp', dependsOn: ['a'], fileScope: ['scope/b/**'] },
+      { id: 'a', title: 'update a', rationale: 'r-a', changeType: 'chore', scope: 'msp', dependsOn: ['b'], fileScope: pack(['scope/a/**']) },
+      { id: 'b', title: 'update b', rationale: 'r-b', changeType: 'chore', scope: 'msp', dependsOn: ['a'], fileScope: pack(['scope/b/**']) },
     ],
   });
   const reconcileResult = { manifestFound: true, manifestRaw: corruptRaw, mergedPRs: [], specContentHash: SPEC_CONTENT_HASH };
@@ -2923,7 +2924,7 @@ test('F1 log-forge: an unknown dependsOn id carrying a newline cannot forge a ru
   const NL = String.fromCharCode(10);
   const evilDep = `ghost${NL}mitosis: FORGED all-clear`;
   const manifestMsps = [
-    { id: 'm0', title: 'm0', rationale: 'r', dependsOn: [evilDep], fileScope: ['scope/m0/**'] },
+    { id: 'm0', title: 'm0', rationale: 'r', dependsOn: [evilDep], fileScope: pack(['scope/m0/**']) },
   ];
   const manifestRaw = JSON.stringify({ logicalRunId, specContentHash: SPEC_CONTENT_HASH, clusters: [['m0']], msps: manifestMsps });
   const reconcileResult = { manifestFound: true, manifestRaw, mergedPRs: [], specContentHash: SPEC_CONTENT_HASH };
@@ -2971,7 +2972,7 @@ test('F3 DoS bound: a manifest whose msps count exceeds the supported maximum re
       title: `t${i}`,
       rationale: 'r',
       dependsOn: [`m${(i + 1) % N}`],
-      fileScope: [`scope/m${i}/**`],
+      fileScope: pack([`scope/m${i}/**`]),
     });
   }
   const manifestRaw = JSON.stringify({ logicalRunId, specContentHash: SPEC_CONTENT_HASH, clusters: [['m0']], msps: oversized });
@@ -3003,7 +3004,7 @@ test('F4 DoS bound: an otherwise-reusable, within-count manifest whose AGGREGATE
   for (let i = 0; i < FILESCOPE_BLOAT_MSPS; i += 1) {
     const fileScope = [];
     for (let j = 0; j < FILESCOPE_BLOAT_PER_MSP; j += 1) fileScope.push(`scope/m${i}/f${j}/**`);
-    bloated.push({ id: `m${i}`, title: `t${i}`, rationale: 'r', dependsOn: [], fileScope });
+    bloated.push({ id: `m${i}`, title: `t${i}`, rationale: 'r', dependsOn: [], fileScope: pack(fileScope) });
   }
   const manifestRaw = JSON.stringify({ logicalRunId, specContentHash: SPEC_CONTENT_HASH, clusters: [['m0']], msps: bloated });
   const reconcileResult = { manifestFound: true, manifestRaw, mergedPRs: [], specContentHash: SPEC_CONTENT_HASH };
@@ -3029,8 +3030,8 @@ test('F4 DoS bound: an otherwise-reusable manifest whose msp dependsOn entry cou
   const heavyDeps = [];
   for (let i = 0; i < DEPENDS_ON_BLOAT; i += 1) heavyDeps.push('b');
   const manifestMsps = [
-    { id: 'a', title: 'update a', rationale: 'r-a', changeType: 'chore', scope: 'msp', dependsOn: heavyDeps, fileScope: ['scope/a/**'] },
-    { id: 'b', title: 'update b', rationale: 'r-b', changeType: 'chore', scope: 'msp', dependsOn: [], fileScope: ['scope/b/**'] },
+    { id: 'a', title: 'update a', rationale: 'r-a', changeType: 'chore', scope: 'msp', dependsOn: heavyDeps, fileScope: pack(['scope/a/**']) },
+    { id: 'b', title: 'update b', rationale: 'r-b', changeType: 'chore', scope: 'msp', dependsOn: [], fileScope: pack(['scope/b/**']) },
   ];
   const manifestRaw = JSON.stringify({ logicalRunId, specContentHash: SPEC_CONTENT_HASH, clusters: [['a', 'b']], msps: manifestMsps });
   const reconcileResult = { manifestFound: true, manifestRaw, mergedPRs: [], specContentHash: SPEC_CONTENT_HASH };
@@ -3056,7 +3057,7 @@ test('F6 log-forge: a manifest msp id failing the kebab regex and carrying a new
   const PS = String.fromCodePoint(0x2029);
   const evilId = `Bad${NL}mitosis: FORGED all-clear${LS}${PS}id`;
   const manifestMsps = [
-    { id: evilId, title: 'm0', rationale: 'r', dependsOn: [], fileScope: ['scope/m0/**'] },
+    { id: evilId, title: 'm0', rationale: 'r', dependsOn: [], fileScope: pack(['scope/m0/**']) },
   ];
   const manifestRaw = JSON.stringify({ logicalRunId, specContentHash: SPEC_CONTENT_HASH, clusters: [[evilId]], msps: manifestMsps });
   const reconcileResult = { manifestFound: true, manifestRaw, mergedPRs: [], specContentHash: SPEC_CONTENT_HASH };
@@ -3078,8 +3079,8 @@ test('F7 log-forge: a fresh Decompose returning an MSP id carrying a newline and
   const PS = String.fromCodePoint(0x2029);
   const evilId = `bad${NL}mitosis: FORGED all-clear${LS}${PS}id`;
   const decomposeMsps = [
-    { id: evilId, title: 't', rationale: 'r', dependsOn: [], fileScope: ['scope/a/**'] },
-    mspSpec('b', { fileScope: ['scope/b/**'] }),
+    { id: evilId, title: 't', rationale: 'r', dependsOn: [], fileScope: pack(['scope/a/**']) },
+    mspSpec('b', { fileScope: pack(['scope/b/**']) }),
   ];
   const base = createFakeAgent({ msps: decomposeMsps });
   const { resultPromise, logLines } = invokeMitosis(buildInput(), base);
@@ -3094,7 +3095,7 @@ test('F7 log-forge: a fresh Decompose returning an MSP id carrying a newline and
 });
 
 test('FLAGSHIP obligation-3.5/3.6: a null return no longer causes unbounded identical retry — it is classified Unknown and bounded to the initial dispatch plus exactly one probe before the unit parks', async () => {
-  const msps = [mspSpec('solo', { fileScope: ['scope/solo/**'] })];
+  const msps = [mspSpec('solo', { fileScope: pack(['scope/solo/**']) })];
   let planCalls = 0;
   const base = createFakeAgent({ msps });
   const agent = async (prompt, opts = {}) => {
@@ -3134,10 +3135,10 @@ test('FLAGSHIP obligation-4: a raw throw from the Branch stage is caught and pro
 
 test('FLAGSHIP obligation Tier-2 park: an exhausted unit parks only itself and its transitive dependents while independent MSPs still ship — the blocked verdict scopes to the fault, never to the whole run', async () => {
   const msps = [
-    mspSpec('m0', { fileScope: ['scope/m0/**'] }),
-    mspSpec('m1', { dependsOn: ['m0'], fileScope: ['scope/m1/**'] }),
-    mspSpec('m2', { dependsOn: ['m1'], fileScope: ['scope/m2/**'] }),
-    mspSpec('m3', { fileScope: ['scope/m3/**'] }),
+    mspSpec('m0', { fileScope: pack(['scope/m0/**']) }),
+    mspSpec('m1', { dependsOn: ['m0'], fileScope: pack(['scope/m1/**']) }),
+    mspSpec('m2', { dependsOn: ['m1'], fileScope: pack(['scope/m2/**']) }),
+    mspSpec('m3', { fileScope: pack(['scope/m3/**']) }),
   ];
   const base = createFakeAgent({ msps });
   const labels = [];
@@ -3170,9 +3171,9 @@ test('FLAGSHIP obligation Tier-2 park: an exhausted unit parks only itself and i
 
 test('FLAGSHIP obligation-4.3.3(a): run-away is structurally impossible — every unit that never succeeds is bounded to its own per-unit dispatch budget, independent of how many other units are simultaneously failing', async () => {
   const msps = [
-    mspSpec('p', { fileScope: ['scope/p/**'] }),
-    mspSpec('h', { fileScope: ['scope/h/**'] }),
-    mspSpec('x', { fileScope: ['scope/x/**'] }),
+    mspSpec('p', { fileScope: pack(['scope/p/**']) }),
+    mspSpec('h', { fileScope: pack(['scope/h/**']) }),
+    mspSpec('x', { fileScope: pack(['scope/x/**']) }),
   ];
   const base = createFakeAgent({ msps });
   let totalCalls = 0;
@@ -3197,7 +3198,7 @@ test('FLAGSHIP obligation-4.3.3(a): run-away is structurally impossible — ever
 });
 
 test('RESILIENCE-A: an ApproachFixable plan outcome dispatches an in-run diagnostician and redispatch, and a successful correction ships the unit instead of parking it', async () => {
-  const msps = [mspSpec('solo', { fileScope: ['scope/solo/**'] })];
+  const msps = [mspSpec('solo', { fileScope: pack(['scope/solo/**']) })];
   const base = createFakeAgent({ msps });
   let diagnoseCalls = 0;
   let redispatchCalls = 0;
@@ -3232,7 +3233,7 @@ test('RESILIENCE-A: an ApproachFixable plan outcome dispatches an in-run diagnos
 });
 
 test('EXECUTE-STAGE RESILIENCE: an ApproachFixable fault during Execute dispatches the in-run diagnostician and redispatch under the task\'s own id, instead of falling through to the no-in-run-diagnostician-wired stub', async () => {
-  const msps = [mspSpec('solo', { fileScope: ['scope/solo/**'] })];
+  const msps = [mspSpec('solo', { fileScope: pack(['scope/solo/**']) })];
   const base = createFakeAgent({ msps });
   const diagnoseLabels = [];
   let diagnoseCalls = 0;
@@ -3326,7 +3327,7 @@ function makeDurableFakeAgent({ msps, parallelizeFailUnitId, shipResult, repoRoo
 
 test('PARK-PERSIST round-trip: a park durably writes run.json via an agent-mediated checkpoint, and a relaunch resumes from the manifest the ENGINE itself produced', async () => {
   const input = buildInput();
-  const msps = [mspSpec('solo', { fileScope: ['scope/solo/**'] })];
+  const msps = [mspSpec('solo', { fileScope: pack(['scope/solo/**']) })];
   const { agent: durableAgent, fileMap, runJsonPath } = makeDurableFakeAgent({ msps, parallelizeFailUnitId: 'solo', repoRoot: input.repoRoot });
   const labels = [];
   const agent = async (prompt, opts = {}) => {
@@ -3356,7 +3357,7 @@ test('PARK-PERSIST round-trip: a park durably writes run.json via an agent-media
 });
 
 test('RESILIENCE-C: a park after local branch/worktree effects have been created surfaces a saga-computed compensation (undo) plan on the ParkRecord', async () => {
-  const msps = [mspSpec('solo', { fileScope: ['scope/solo/**'] })];
+  const msps = [mspSpec('solo', { fileScope: pack(['scope/solo/**']) })];
   const base = createFakeAgent({ msps });
   const agent = async (prompt, opts = {}) => {
     const label = opts.label || '';
@@ -3378,7 +3379,7 @@ test('RESILIENCE-C: a park after local branch/worktree effects have been created
 test('R2 durable checkpoint: a built unit publishes its integration tip to refs/mitosis/<runId>/<unitId> before it ships', async () => {
   const input = buildInput();
   const runId = computeLogicalRunId(input.spec, input.baseBranch);
-  const msps = [mspSpec('solo', { fileScope: ['scope/solo/**'] })];
+  const msps = [mspSpec('solo', { fileScope: pack(['scope/solo/**']) })];
   const dispatch = [];
   const base = createFakeAgent({ msps });
   const agent = async (prompt, opts = {}) => {
@@ -3403,7 +3404,7 @@ test('R2 durable checkpoint: a built unit publishes its integration tip to refs/
 test('R2 forward-only: a park after the durable checkpoint push has fired never schedules a delete of the checkpoint ref', async () => {
   const input = buildInput();
   const runId = computeLogicalRunId(input.spec, input.baseBranch);
-  const msps = [mspSpec('solo', { fileScope: ['scope/solo/**'] })];
+  const msps = [mspSpec('solo', { fileScope: pack(['scope/solo/**']) })];
   const pushes = [];
   const base = createFakeAgent({
     msps,
@@ -3432,8 +3433,8 @@ test('R3 SPEC-R3(d): a human-gated unit awaiting approval has its built state pr
   const input = buildInput({ mergePolicy: undefined });
   const runId = computeLogicalRunId(input.spec, input.baseBranch);
   const msps = [
-    mspSpec('a', { fileScope: ['scope/a/**'] }),
-    mspSpec('b', { dependsOn: ['a'], fileScope: ['scope/b/**'] }),
+    mspSpec('a', { fileScope: pack(['scope/a/**']) }),
+    mspSpec('b', { dependsOn: ['a'], fileScope: pack(['scope/b/**']) }),
   ];
   const shipResult = (mspId) => (mspId === 'a'
     ? { merged: false, awaitingApproval: true, prUrl: testPrUrl('a'), receiptsPass: true, d6Pass: true, detail: 'CI green; PR open and awaiting human approval to merge' }
@@ -3468,7 +3469,7 @@ test('R3 SPEC-R3(d): a human-gated unit awaiting approval has its built state pr
 test('T3 builtSha: the ship-time built-persist threads the real checkpoint-push tip sha, never the hardcoded null', async () => {
   const input = buildInput();
   const runId = computeLogicalRunId(input.spec, input.baseBranch);
-  const msps = [mspSpec('solo', { fileScope: ['scope/solo/**'] })];
+  const msps = [mspSpec('solo', { fileScope: pack(['scope/solo/**']) })];
   const FAKE_TIP_SHA = 'deadbeef'.repeat(5);
   const { agent: durableAgent, fileMap, runJsonPath } = makeDurableFakeAgent({ msps, repoRoot: input.repoRoot });
   const agent = async (prompt, opts = {}) => {
@@ -3490,7 +3491,7 @@ test('T3 builtSha: the ship-time built-persist threads the real checkpoint-push 
 });
 
 test('SECURITY deny-case: a NeedsHuman-supplied resumePoint.stage outside the known stage vocabulary must not be surfaced raw on the public ParkRecord', async () => {
-  const msps = [mspSpec('solo', { fileScope: ['scope/solo/**'] })];
+  const msps = [mspSpec('solo', { fileScope: pack(['scope/solo/**']) })];
   const base = createFakeAgent({ msps });
   const injectedStage = 'parallelize\ninjected-log-line: ADMIN GRANTED';
   const agent = async (prompt, opts = {}) => {
@@ -3520,7 +3521,7 @@ test('SECURITY deny-case: a NeedsHuman-supplied resumePoint.stage outside the kn
 test('SECURITY deny-case: a resumed triedSet entry that fails the fingerprint format must be filtered out of the in-run diagnostician prompt', async () => {
   const input = buildInput();
   const logicalRunId = computeLogicalRunId(input.spec, input.baseBranch);
-  const msps = [mspSpec('solo', { fileScope: ['scope/solo/**'] })];
+  const msps = [mspSpec('solo', { fileScope: pack(['scope/solo/**']) })];
   const initialManifest = buildInitialManifest({
     logicalRunId,
     harnessRunId: null,
@@ -3576,7 +3577,7 @@ test('SECURITY deny-case: a resumed triedSet entry that fails the fingerprint fo
 
 test('TRIEDSET-PERSIST round-trip: a remediation-exhaustion park persists the accumulated triedSet, and a relaunch feeds those exhausted mechanisms into the resumed unit\'s diagnostician exclusion list', async () => {
   const input = buildInput();
-  const msps = [mspSpec('solo', { fileScope: ['scope/solo/**'] })];
+  const msps = [mspSpec('solo', { fileScope: pack(['scope/solo/**']) })];
   const { agent: durableAgent, fileMap, runJsonPath } = makeDurableFakeAgent({ msps, repoRoot: input.repoRoot });
 
   const planFaults = [
@@ -3657,9 +3658,9 @@ test('E3t granular resume: a spec edit that changes ONE MSP slice re-decomposes,
   const input = buildInput();
   const logicalRunId = computeLogicalRunId(input.spec, input.baseBranch);
   const genesisMsps = [
-    mspSpec('a', { fileScope: ['scope/a/**'] }),
-    mspSpec('b', { fileScope: ['scope/b/**'] }),
-    mspSpec('c', { fileScope: ['scope/c/**'] }),
+    mspSpec('a', { fileScope: pack(['scope/a/**']) }),
+    mspSpec('b', { fileScope: pack(['scope/b/**']) }),
+    mspSpec('c', { fileScope: pack(['scope/c/**']) }),
   ];
   const genesisManifest = buildInitialManifest({
     logicalRunId, harnessRunId: null, spec: input.spec, repoRoot: input.repoRoot,
@@ -3669,9 +3670,9 @@ test('E3t granular resume: a spec edit that changes ONE MSP slice re-decomposes,
   });
   const manifestRaw = JSON.stringify(genesisManifest);
   const freshMsps = [
-    mspSpec('a', { fileScope: ['scope/a/**'] }),
-    mspSpec('b', { title: 'b-EDITED', fileScope: ['scope/b/**'] }),
-    mspSpec('c', { fileScope: ['scope/c/**'] }),
+    mspSpec('a', { fileScope: pack(['scope/a/**']) }),
+    mspSpec('b', { title: 'b-EDITED', fileScope: pack(['scope/b/**']) }),
+    mspSpec('c', { fileScope: pack(['scope/c/**']) }),
   ];
   const reconcileResult = {
     manifestFound: true,
@@ -3719,9 +3720,9 @@ test('E3t granular resume: a malformed per-MSP content hash degrades ONLY that M
   const input = buildInput();
   const logicalRunId = computeLogicalRunId(input.spec, input.baseBranch);
   const genesisMsps = [
-    mspSpec('a', { fileScope: ['scope/a/**'] }),
-    mspSpec('b', { fileScope: ['scope/b/**'] }),
-    mspSpec('c', { fileScope: ['scope/c/**'] }),
+    mspSpec('a', { fileScope: pack(['scope/a/**']) }),
+    mspSpec('b', { fileScope: pack(['scope/b/**']) }),
+    mspSpec('c', { fileScope: pack(['scope/c/**']) }),
   ];
   const genesisManifest = buildInitialManifest({
     logicalRunId, harnessRunId: null, spec: input.spec, repoRoot: input.repoRoot,
@@ -3733,9 +3734,9 @@ test('E3t granular resume: a malformed per-MSP content hash degrades ONLY that M
   corrupted.msps.find((m) => m.id === 'b').contentHash = '!!!malformed-per-msp-hash!!!';
   const manifestRaw = JSON.stringify(corrupted);
   const freshMsps = [
-    mspSpec('a', { fileScope: ['scope/a/**'] }),
-    mspSpec('b', { fileScope: ['scope/b/**'] }),
-    mspSpec('c', { fileScope: ['scope/c/**'] }),
+    mspSpec('a', { fileScope: pack(['scope/a/**']) }),
+    mspSpec('b', { fileScope: pack(['scope/b/**']) }),
+    mspSpec('c', { fileScope: pack(['scope/c/**']) }),
   ];
   const reconcileResult = {
     manifestFound: true,
@@ -3788,8 +3789,8 @@ test('R4 resume-target: a resume of a KNOWN runId resolves through resolveResume
   const logicalRunId = computeLogicalRunId(input.spec, input.baseBranch);
   const resumeInput = buildInput({ verb: 'resume', runId: logicalRunId });
   const reusedMsps = [
-    { id: 'a', title: 'update a', rationale: 'r-a', changeType: 'chore', scope: 'msp', status: 'planned', integrationBranch: `${SOURCE_PREFIX}/a-integration`, prUrl: null, mergedAt: null, dependsOn: [], fileScope: ['scope/a/**'] },
-    { id: 'b', title: 'update b', rationale: 'r-b', changeType: 'chore', scope: 'msp', status: 'planned', integrationBranch: `${SOURCE_PREFIX}/b-integration`, prUrl: null, mergedAt: null, dependsOn: [], fileScope: ['scope/b/**'] },
+    { id: 'a', title: 'update a', rationale: 'r-a', changeType: 'chore', scope: 'msp', status: 'planned', integrationBranch: `${SOURCE_PREFIX}/a-integration`, prUrl: null, mergedAt: null, dependsOn: [], fileScope: pack(['scope/a/**']) },
+    { id: 'b', title: 'update b', rationale: 'r-b', changeType: 'chore', scope: 'msp', status: 'planned', integrationBranch: `${SOURCE_PREFIX}/b-integration`, prUrl: null, mergedAt: null, dependsOn: [], fileScope: pack(['scope/b/**']) },
   ];
   const manifestRaw = JSON.stringify({ logicalRunId, specContentHash: SPEC_CONTENT_HASH, clusters: [['a'], ['b']], msps: reusedMsps }, null, 2);
   const reconcileResult = { manifestFound: true, manifestRaw, mergedPRs: [], specContentHash: SPEC_CONTENT_HASH, checkpointRefPages: [] };
@@ -3806,7 +3807,7 @@ test('SECURITY HIGH-1 deny: a non-reusable relaunch (spec content hash changed) 
   const logicalRunId = computeLogicalRunId(input.spec, input.baseBranch);
   const attackerRef = 'refs/heads/attacker-controlled;curl evil';
   const priorMsps = [
-    { id: 'a', title: 'update a', rationale: 'r-a', changeType: 'chore', scope: 'msp', status: 'built', integrationBranch: `${SOURCE_PREFIX}/a-integration`, checkpointRef: attackerRef, builtSha: null, prUrl: null, mergedAt: null, dependsOn: [], fileScope: ['scope/a/**'] },
+    { id: 'a', title: 'update a', rationale: 'r-a', changeType: 'chore', scope: 'msp', status: 'built', integrationBranch: `${SOURCE_PREFIX}/a-integration`, checkpointRef: attackerRef, builtSha: null, prUrl: null, mergedAt: null, dependsOn: [], fileScope: pack(['scope/a/**']) },
   ];
   const manifestRaw = JSON.stringify({ logicalRunId, specContentHash: SPEC_CONTENT_HASH, clusters: [['a']], msps: priorMsps }, null, 2);
   assert.ok(parseRunManifest(manifestRaw), 'the prior built-bearing manifest parses back as a valid hint');
@@ -3818,8 +3819,8 @@ test('SECURITY HIGH-1 deny: a non-reusable relaunch (spec content hash changed) 
     checkpointRefPages: [],
   };
   const freshMsps = [
-    mspSpec('a', { fileScope: ['scope/a/**'] }),
-    mspSpec('c', { fileScope: ['scope/c/**'] }),
+    mspSpec('a', { fileScope: pack(['scope/a/**']) }),
+    mspSpec('c', { fileScope: pack(['scope/c/**']) }),
   ];
   const labels = [];
   const prompts = [];
@@ -3840,8 +3841,8 @@ test('SECURITY HIGH-1 deny: a non-reusable relaunch (spec content hash changed) 
 test('SECURITY HIGH-2 deny: a fresh Decompose returning an injection / non-kebab MSP id fatal-reports at the decompose stage and NEVER weaves that id into a branch/execute/ship prompt', async () => {
   const injectionId = 'a; rm -rf ~ #';
   const decomposeMsps = [
-    { id: injectionId, title: 't', rationale: 'r', dependsOn: [], fileScope: ['scope/a/**'] },
-    mspSpec('b', { fileScope: ['scope/b/**'] }),
+    { id: injectionId, title: 't', rationale: 'r', dependsOn: [], fileScope: pack(['scope/a/**']) },
+    mspSpec('b', { fileScope: pack(['scope/b/**']) }),
   ];
   const labels = [];
   const prompts = [];
@@ -3859,7 +3860,7 @@ test('SECURITY HIGH-2 deny: a fresh Decompose returning an injection / non-kebab
 });
 
 test('PLAN-REVIEW convergence: a first-pass needs-changes drives one adversarial re-plan then a fresh reviewer approves, and the unit proceeds through Parallelize to ship', async () => {
-  const msps = [mspSpec('solo', { fileScope: ['scope/solo/**'] })];
+  const msps = [mspSpec('solo', { fileScope: pack(['scope/solo/**']) })];
   let reviewCalls = 0;
   const base = createFakeAgent({
     msps,
@@ -3887,7 +3888,7 @@ test('PLAN-REVIEW convergence: a first-pass needs-changes drives one adversarial
 });
 
 test('PLAN-REVIEW fail-closed: a persistently unsatisfied reviewer parks the unit at plan-review after MAX iterations rather than shipping an unapproved plan', async () => {
-  const msps = [mspSpec('solo', { fileScope: ['scope/solo/**'] })];
+  const msps = [mspSpec('solo', { fileScope: pack(['scope/solo/**']) })];
   let reviewCalls = 0;
   const base = createFakeAgent({
     msps,
@@ -3917,7 +3918,7 @@ test('PLAN-REVIEW fail-closed: a persistently unsatisfied reviewer parks the uni
 test('PLAN-REVIEW resume: a relaunch of a unit parked at plan-review skips Plan and re-runs the adversarial review loop from scratch', async () => {
   const input = buildInput();
   const logicalRunId = computeLogicalRunId(input.spec, input.baseBranch);
-  const msps = [mspSpec('solo', { fileScope: ['scope/solo/**'] })];
+  const msps = [mspSpec('solo', { fileScope: pack(['scope/solo/**']) })];
   const initialManifest = buildInitialManifest({
     logicalRunId,
     harnessRunId: null,
@@ -3955,7 +3956,7 @@ test('PLAN-REVIEW resume: a relaunch of a unit parked at plan-review skips Plan 
 test('PLAN-REVIEW skip-forward: a relaunch of a unit parked past plan-review (at parallelize) skips Plan AND does NOT re-dispatch the plan-review reviewer, proceeding straight to Parallelize', async () => {
   const input = buildInput();
   const logicalRunId = computeLogicalRunId(input.spec, input.baseBranch);
-  const msps = [mspSpec('solo', { fileScope: ['scope/solo/**'] })];
+  const msps = [mspSpec('solo', { fileScope: pack(['scope/solo/**']) })];
   const initialManifest = buildInitialManifest({
     logicalRunId,
     harnessRunId: null,
@@ -3994,7 +3995,7 @@ test('PLAN-REVIEW skip-forward: a relaunch of a unit parked past plan-review (at
 test('PLAN-ARTIFACT guard: a relaunch resuming past Plan whose local plan artifact did not survive parks the unit fail-closed instead of proceeding to Parallelize', async () => {
   const input = buildInput();
   const logicalRunId = computeLogicalRunId(input.spec, input.baseBranch);
-  const msps = [mspSpec('solo', { fileScope: ['scope/solo/**'] })];
+  const msps = [mspSpec('solo', { fileScope: pack(['scope/solo/**']) })];
   const initialManifest = buildInitialManifest({
     logicalRunId,
     harnessRunId: null,
@@ -4038,7 +4039,7 @@ test('PLAN-ARTIFACT guard: a relaunch resuming past Plan whose local plan artifa
 });
 
 test('PLAN-REVIEW infra fail-closed: an unreachable reviewer parks the unit at plan-review (kind grant) without burning review iterations or reaching Parallelize', async () => {
-  const msps = [mspSpec('solo', { fileScope: ['scope/solo/**'] })];
+  const msps = [mspSpec('solo', { fileScope: pack(['scope/solo/**']) })];
   const base = createFakeAgent({ msps });
   const labels = [];
   const agent = async (prompt, opts = {}) => {
@@ -4076,7 +4077,7 @@ function overrideParallelize(base, targetMspId, mutateEngineArgs) {
 }
 
 test('WS-1.6 authoritative-substitute: a per-task model echoed disagreeing with policy is overwritten by the engine-authored model, fires a logged drift canary, and still ships (no park on non-safety transcription drift)', async () => {
-  const msps = [mspSpec('solo', { fileScope: ['scope/solo/**'] })];
+  const msps = [mspSpec('solo', { fileScope: pack(['scope/solo/**']) })];
   const base = createFakeAgent({ msps });
   const agent = overrideParallelize(base, 'solo', (ea) => ({
     ...ea,
@@ -4092,7 +4093,7 @@ test('WS-1.6 authoritative-substitute: a per-task model echoed disagreeing with 
 });
 
 test('WS-1.6 authoritative-substitute: an echoed per-task model outside {opus,sonnet} (e.g. haiku) is overwritten by the engine-authored model and fires a drift canary rather than ever dispatching haiku', async () => {
-  const msps = [mspSpec('solo', { fileScope: ['scope/solo/**'] })];
+  const msps = [mspSpec('solo', { fileScope: pack(['scope/solo/**']) })];
   const base = createFakeAgent({ msps });
   const agent = overrideParallelize(base, 'solo', (ea) => ({
     ...ea,
@@ -4108,7 +4109,7 @@ test('WS-1.6 authoritative-substitute: an echoed per-task model outside {opus,so
 });
 
 test('WS-1.6 authoritative-substitute: a parallelize round-trip whose engineArgs.models drifts from the operator input is overwritten with the operator-authoritative map, fires a drift canary, and still ships', async () => {
-  const msps = [mspSpec('solo', { fileScope: ['scope/solo/**'] })];
+  const msps = [mspSpec('solo', { fileScope: pack(['scope/solo/**']) })];
   const base = createFakeAgent({ msps });
   const agent = overrideParallelize(base, 'solo', (ea) => ({
     ...ea,
@@ -4124,7 +4125,7 @@ test('WS-1.6 authoritative-substitute: a parallelize round-trip whose engineArgs
 });
 
 test('A3 E2 model invariant: an engine-authored model matching policy and an operator models map echoed unchanged pass the invariant and ship (no over-parking)', async () => {
-  const msps = [mspSpec('solo', { fileScope: ['scope/solo/**'] })];
+  const msps = [mspSpec('solo', { fileScope: pack(['scope/solo/**']) })];
   const base = createFakeAgent({ msps });
   const agent = overrideParallelize(base, 'solo', (ea) => ({
     ...ea,
@@ -4174,8 +4175,8 @@ test('A5 E5 knob hardening: a non-review models key outside the whitelist (recon
 
 test('A5 E4 risk-scaled plan-review model: a coarse directory-glob MSP reviews on opus while a trivial specific-file low-blast MSP reviews on sonnet', async () => {
   const msps = [
-    mspSpec('coarse', { fileScope: ['scope/coarse/**'] }),
-    mspSpec('trivial', { fileScope: ['scope/trivial/widget.mjs'] }),
+    mspSpec('coarse', { fileScope: pack(['scope/coarse/**']) }),
+    mspSpec('trivial', { fileScope: pack(['scope/trivial/widget.mjs']) }),
   ];
   const base = createFakeAgent({ msps });
   const captured = {};
@@ -4203,7 +4204,7 @@ function captureStageModels(base, prefixes) {
 }
 
 test('A5b model tiers: decompose and ship stay opus-pinned; plan is risk-scaled and stays opus for this coarse-scope MSP', async () => {
-  const msps = [mspSpec('solo', { fileScope: ['scope/solo/**'] })];
+  const msps = [mspSpec('solo', { fileScope: pack(['scope/solo/**']) })];
   const base = createFakeAgent({ msps });
   const { agent, models } = captureStageModels(base, ['decompose', 'plan', 'ship']);
   const { resultPromise } = invokeMitosis(buildInput(), agent);
@@ -4216,7 +4217,7 @@ test('A5b model tiers: decompose and ship stay opus-pinned; plan is risk-scaled 
 });
 
 test('A5b tier match: the plan-review re-plan (replan) dispatch shares the plan tier, so a coarse-scope MSP re-plans on opus (verifier >= generator)', async () => {
-  const msps = [mspSpec('solo', { fileScope: ['scope/solo/**'] })];
+  const msps = [mspSpec('solo', { fileScope: pack(['scope/solo/**']) })];
   let reviewCalls = 0;
   const base = createFakeAgent({
     msps,
@@ -4272,7 +4273,7 @@ test('A5b knob hardening: a mistyped models key (Reviewer) is rejected fail-clos
 });
 
 test('A6/E6 the remediation redispatch carries an explicit model instead of dropping it to a session inherit', async () => {
-  const msps = [mspSpec('m0', { fileScope: ['scope/m0/**'] })];
+  const msps = [mspSpec('m0', { fileScope: pack(['scope/m0/**']) })];
   const base = createFakeAgent({ msps });
   const redispatchCalls = [];
   let planCalls = 0;
@@ -4305,7 +4306,7 @@ test('A6/E6 the remediation redispatch carries an explicit model instead of drop
 });
 
 test('A7 the in-run diagnostician dispatch pins opus and re-points off the phantom agentType (analysis lens never dispatches below opus)', async () => {
-  const msps = [mspSpec('m0', { fileScope: ['scope/m0/**'] })];
+  const msps = [mspSpec('m0', { fileScope: pack(['scope/m0/**']) })];
   const base = createFakeAgent({ msps });
   const diagnoseCalls = [];
   let planCalls = 0;
@@ -4367,7 +4368,7 @@ test('MSP-5a WS-5.1: worktree read-only probe + checkpoint clerical dispatches r
 
 test('MSP-5a WS-5.1: the park-checkpoint journal append runs Sonnet', async () => {
   const input = buildInput();
-  const msps = [mspSpec('solo', { fileScope: ['scope/solo/**'] })];
+  const msps = [mspSpec('solo', { fileScope: pack(['scope/solo/**']) })];
   const { agent: durableAgent } = makeDurableFakeAgent({ msps, parallelizeFailUnitId: 'solo', repoRoot: input.repoRoot });
   const { agent, models } = captureModels(durableAgent);
   const { resultPromise } = invokeMitosis(input, agent);
@@ -4379,7 +4380,7 @@ test('MSP-5a WS-5.1: the park-checkpoint journal append runs Sonnet', async () =
 
 test('MSP-5a WS-5.1: the resumed-run plan-artifact probe (plan-probe) runs Sonnet', async () => {
   const input = buildInput();
-  const msps = [mspSpec('solo', { fileScope: ['scope/solo/**'] })];
+  const msps = [mspSpec('solo', { fileScope: pack(['scope/solo/**']) })];
   const { agent: durableAgent } = makeDurableFakeAgent({ msps, parallelizeFailUnitId: 'solo', repoRoot: input.repoRoot });
   const { agent, models } = captureModels(durableAgent);
   await invokeMitosis(input, agent).resultPromise;
@@ -4420,9 +4421,9 @@ function frontierRedispatchRelaunch({ checkpointPushSha } = {}) {
   const input = buildInput({ mergePolicy: undefined, repoIdentity: TEST_REPO_SLUG });
   const logicalRunId = computeLogicalRunId(input.spec, input.baseBranch);
   const msps = [
-    mspSpec('a', { fileScope: ['scope/a/**'] }),
-    mspSpec('b', { dependsOn: ['a'], fileScope: ['scope/b/**'] }),
-    mspSpec('c', { dependsOn: ['b'], fileScope: ['scope/c/**'] }),
+    mspSpec('a', { fileScope: pack(['scope/a/**']) }),
+    mspSpec('b', { dependsOn: ['a'], fileScope: pack(['scope/b/**']) }),
+    mspSpec('c', { dependsOn: ['b'], fileScope: pack(['scope/c/**']) }),
   ];
   const manifestMsps = msps.map((m) => ({
     ...m,
