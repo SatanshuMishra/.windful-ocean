@@ -113,24 +113,13 @@
   "closure_statement": null,
   "spine": {
     "active_goal": "Ship the amended maximum-autonomy permission architecture one PR per MSP onto docs/max-autonomy-permission-spec, holding the two oversight-reducing pieces for direct user confirmation.",
-    "next_step": "BLOCKED ON NETWORK. Push and PR fail for the main thread and every subagent (ssh nc negotiation failed; https CONNECT 403; gh cannot read its config). Origin base f8c8085 is RED - 11 failing config tests. Two unpushed local fix branches OVERLAP: fix/manifest-identity-guards (2740f7d + 9dea58b, 248 pass) SUPERSEDES fix/compose-config-suite (3fb90a2, 225 pass) - push only the former. All commits unsigned, gnupg unreadable. c6 and c7 still running, same wall ahead.",
-    "last_session": "Ten units built. Six merged, then the composed base went red on 11 tests: PRs 87, 88 and 90 were authored against bases lacking each other. Cause was orchestration, not workers - all failures were stale fixtures, zero production regressions. Network egress died mid-session.",
+    "next_step": "Base is GREEN after PR 93 merged (248 config tests, 0 fail, verified on 9dea58b). Awaiting c6 (Layer 3 gate) and c7 (Layer 4), both still running. Neither can push - gh cannot read its config from any agent process - so relay each one's branch, verification output and a ready-to-run pr-create for the user's terminal. PR 92 (Layer 1) still open. Then c3 then c4, gated behind the gate landing per 0401. c14 and the plugin disable stay HELD; no decision on 0398.",
+    "last_session": "Ten units built, seven merged. The composed base went red on 11 stale-fixture tests and was repaired by PR 93, which also closed two proven HIGH findings from the security review. Network egress to GitHub died mid-session; the user pushed and opened PR 93 by hand.",
     "open_risks": [
       {
-        "text": "Origin base f8c8085 is RED with 11 failing config tests, which blocks every subsequent PR's CI — the fix is written and verified locally but cannot be pushed, so the branch stays red until network egress returns",
+        "text": "No agent process can reach GitHub — ssh fails at nc negotiation, https gets CONNECT 403, and gh cannot read its own config; every remaining PR must be pushed and opened from the user's terminal, so hand over a ready-to-run pr-create rather than attempting it",
         "scope": "thread",
-        "refs": [
-          "scripts/config/tests/verify.test.mjs",
-          "scripts/config/tests/sandbox-classification.test.mjs"
-        ]
-      },
-      {
-        "text": "Two unpushed fix branches overlap and conflict on the same two test files — fix/manifest-identity-guards subsumes fix/compose-config-suite, so pushing both creates a conflict; push the identity-guards branch alone and drop the other",
-        "scope": "thread",
-        "refs": [
-          "fix/manifest-identity-guards",
-          "fix/compose-config-suite"
-        ]
+        "refs": []
       },
       {
         "text": "Parallel authoring against a moving base is what reddened the branch — each PR was genuinely green alone; any future fan-out must rebase workers onto the current tip and run the full suite at the merge boundary, not only per-branch",
@@ -138,12 +127,17 @@
         "refs": []
       },
       {
-        "text": "Every commit produced while blocked is unsigned because gnupg is unreadable from the agent sandbox — if the repo or CI requires signatures these need amending with git commit --amend -S before they will pass",
+        "text": "Commits produced while network-blocked are unsigned because gnupg is unreadable from the agent sandbox — if the repo or CI ever requires signatures these need amending with git commit --amend -S",
         "scope": "thread",
         "refs": []
       },
       {
         "text": "The cutover to main lands everything at once on the working machine — sandbox on with failIfUnavailable true, config guard flipping ask to deny, three hooks gone, per-action checkpointing at 122 ms; it deserves a planned cutover, not a casual merge",
+        "scope": "thread",
+        "refs": []
+      },
+      {
+        "text": "Eleven agent worktrees have accumulated under .claude/worktrees/agent-* with two still in use by running agents — worth one deliberate sweep after everything lands, never while agents are live in them",
         "scope": "thread",
         "refs": []
       }
@@ -196,5 +190,5 @@
     ]
   },
   "created_at": "2026-08-13T18:14:42.072Z",
-  "updated_at": "2026-08-13T20:39:07.681Z"
+  "updated_at": "2026-08-13T20:52:14.007Z"
 }
