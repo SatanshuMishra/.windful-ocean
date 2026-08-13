@@ -45,7 +45,7 @@
     {
       "id": "c11",
       "text": "A1's deferred style debt clears in its own commit: runChild under 50 lines and 4 nesting, dispatch.test.mjs under the 800-line cap, suite green and no production behavior changed.",
-      "done": false,
+      "done": true,
       "kind": "detour",
       "struck_by": null
     },
@@ -329,5 +329,5 @@
     ]
   },
   "created_at": "2026-08-12T07:37:41.077Z",
-  "updated_at": "2026-08-13T16:10:07.139Z"
+  "updated_at": "2026-08-13T16:10:18.883Z"
 }
