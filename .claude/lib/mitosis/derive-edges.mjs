@@ -1,5 +1,5 @@
 import { scopesOverlap } from './wave-planner.mjs';
-import { reviewCoupling } from './coupling-review.mjs';
+import { assertVerdictsCoverPairs, reviewCoupling } from './coupling-review.mjs';
 
 function indexTasks(graph) {
   if (!graph || !Array.isArray(graph.tasks)) throw new Error('graph.tasks must be an array');
@@ -161,19 +161,39 @@ export function deriveEdges(graph, discoveredEdges = []) {
 import { readFileSync as _read, writeFileSync as _write, realpathSync as _realpath } from 'node:fs';
 import { fileURLToPath as _toPath } from 'node:url';
 
-function cli(argv) {
-  const positional = [];
-  const opts = {};
-  for (let i = 0; i < argv.length; i++) {
-    if (argv[i] === '--out') opts.out = argv[++i];
-    else if (argv[i] === '--audit') opts.audit = argv[++i];
-    else positional.push(argv[i]);
+function optionValue(argv, index, flag) {
+  const value = argv[index];
+  if (value === undefined || value.startsWith('--')) {
+    throw new Error(`${flag} needs a path; left without one it swallows the next flag or nothing at all, and the run would harden a different graph than the operator named`);
   }
+  return value;
+}
+
+function parseArgs(argv) {
+  const positional = [];
+  const opts = { out: null, audit: null, verdicts: null };
+  for (let i = 0; i < argv.length; i++) {
+    if (argv[i] === '--out') opts.out = optionValue(argv, ++i, '--out');
+    else if (argv[i] === '--audit') opts.audit = optionValue(argv, ++i, '--audit');
+    else if (argv[i] === '--verdicts') {
+      const supplied = optionValue(argv, ++i, '--verdicts');
+      if (opts.verdicts !== null) {
+        throw new Error(`--verdicts was supplied twice (${opts.verdicts} then ${supplied}); honouring only the last one would harden the graph against half the coupling decisions the operator asked to check while never reading the first file`);
+      }
+      opts.verdicts = supplied;
+    } else positional.push(argv[i]);
+  }
+  return Object.freeze({ positional, opts: Object.freeze(opts) });
+}
+
+function cli(argv) {
+  const { positional, opts } = parseArgs(argv);
   const [declaredPath, discoveredPath] = positional;
-  if (!declaredPath) throw new Error('usage: derive-edges <declared.graph.json> [discovered-edges.json] [--out p] [--audit p]');
+  if (!declaredPath) throw new Error('usage: derive-edges <declared.graph.json> [discovered-edges.json] [--out p] [--audit p] [--verdicts p]');
   const graph = JSON.parse(_read(declaredPath, 'utf8'));
   const discovered = discoveredPath ? JSON.parse(_read(discoveredPath, 'utf8')) : [];
   const result = deriveEdges(graph, discovered);
+  if (opts.verdicts !== null) assertVerdictsCoverPairs(result.coupling, JSON.parse(_read(opts.verdicts, 'utf8')));
   const outPath = opts.out || declaredPath.replace(/\.graph\.json$/, '.hardened.graph.json');
   const auditPath = opts.audit || declaredPath.replace(/\.graph\.json$/, '.edges-audit.json');
   _write(outPath, JSON.stringify(result.graph, null, 2) + '\n');

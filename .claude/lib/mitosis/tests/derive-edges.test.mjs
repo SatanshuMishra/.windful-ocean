@@ -349,3 +349,96 @@ test('T19c: the CLI carries the coupling emission into the hardened graph withou
     assert.deepEqual(task.edgeReasons, [], 'coupling signals must never leak into edgeReasons, which mitosis.js:1130 regex-matches for opus escalation');
   }
 });
+
+function couplingGraphFile(dir) {
+  const declared = join(dir, 'plan.graph.json');
+  writeFileSync(declared, JSON.stringify({
+    tasks: [
+      { id: 't1', title: 'a', fullText: 'A', fileScope: ['srv/auth/login.ts'], dependsOn: [], risk: 'low', validation: 'scoped' },
+      { id: 't2', title: 'b', fullText: 'B', fileScope: ['web/auth/form.tsx'], dependsOn: [], risk: 'low', validation: 'scoped' },
+      { id: 't3', title: 'c', fullText: 'C', fileScope: ['srv/crypto/seal.ts'], dependsOn: [], risk: 'low', validation: 'scoped' },
+      { id: 't4', title: 'd', fullText: 'D', fileScope: ['web/crypto/open.tsx'], dependsOn: [], risk: 'low', validation: 'scoped' },
+    ],
+  }));
+  return declared;
+}
+
+test('T24d: the CLI refuses to harden a graph whose verdicts miss an emitted pair, and writes nothing', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'derive-cli-verdict-gap-'));
+  const declared = couplingGraphFile(dir);
+  const verdicts = join(dir, 'verdicts.json');
+  writeFileSync(verdicts, JSON.stringify([{ pair: ['t1', 't2'], decision: 'serialize', rationale: null }]));
+  let failed = false;
+  try {
+    execFileSync('node', [CLI, declared, '--verdicts', verdicts], { cwd: dir, encoding: 'utf8', stdio: 'pipe' });
+  } catch (err) {
+    failed = true;
+    assert.equal(err.status, 1, `expected the validation exit code 1, received ${err.status}`);
+    assert.match(String(err.stderr), /derive-edges error: [\s\S]*t3\/t4 was emitted for review and no verdict answers it/);
+  }
+  assert.ok(failed, 'a hardened graph must not be produced from a plan that leaves an emitted pair unreviewed');
+  assert.equal(existsSync(join(dir, 'plan.hardened.graph.json')), false);
+  assert.equal(existsSync(join(dir, 'plan.edges-audit.json')), false);
+});
+
+test('T24e: the CLI refuses a serialize default overridden to parallel with no rationale', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'derive-cli-verdict-override-'));
+  const declared = couplingGraphFile(dir);
+  const verdicts = join(dir, 'verdicts.json');
+  writeFileSync(verdicts, JSON.stringify([
+    { pair: ['t1', 't2'], decision: 'parallel', rationale: null },
+    { pair: ['t3', 't4'], decision: 'serialize', rationale: null },
+  ]));
+  let failed = false;
+  try {
+    execFileSync('node', [CLI, declared, '--verdicts', verdicts], { cwd: dir, encoding: 'utf8', stdio: 'pipe' });
+  } catch (err) {
+    failed = true;
+    assert.match(String(err.stderr), /t1\/t2 defaults to serialize and is overridden to parallel with no rationale/);
+  }
+  assert.ok(failed, 'the skeptical default must survive the derive-edges entrypoint, not only the coupling-review one');
+});
+
+test('T24f: the CLI hardens the graph when every emitted pair carries a verdict', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'derive-cli-verdict-ok-'));
+  const declared = couplingGraphFile(dir);
+  const verdicts = join(dir, 'verdicts.json');
+  writeFileSync(verdicts, JSON.stringify([
+    { pair: ['t1', 't2'], decision: 'serialize', rationale: null },
+    { pair: ['t4', 't3'], decision: 'parallel', rationale: 'the two crypto files share no symbol and sit either side of the boundary' },
+  ]));
+  const stdout = JSON.parse(runCli([declared, '--verdicts', verdicts], dir));
+  assert.equal(stdout.couplingPairCount, 2);
+  const out = JSON.parse(readFileSync(join(dir, 'plan.hardened.graph.json'), 'utf8'));
+  assert.deepEqual(out.coupling.map((c) => c.pair), [['t1', 't2'], ['t3', 't4']]);
+});
+
+test('T24g: the CLI refuses a repeated --verdicts flag rather than honouring only the last one', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'derive-cli-verdict-twice-'));
+  const declared = couplingGraphFile(dir);
+  const first = join(dir, 'first.json');
+  const second = join(dir, 'second.json');
+  writeFileSync(first, JSON.stringify([]));
+  writeFileSync(second, JSON.stringify([
+    { pair: ['t1', 't2'], decision: 'serialize', rationale: null },
+    { pair: ['t3', 't4'], decision: 'serialize', rationale: null },
+  ]));
+  let failed = false;
+  try {
+    execFileSync('node', [CLI, declared, '--verdicts', first, '--verdicts', second], { cwd: dir, encoding: 'utf8', stdio: 'pipe' });
+  } catch (err) {
+    failed = true;
+    assert.match(String(err.stderr), /derive-edges error: --verdicts was supplied twice/);
+  }
+  assert.ok(failed, 'a second --verdicts must not silently discard the first path');
+  assert.equal(existsSync(join(dir, 'plan.hardened.graph.json')), false);
+});
+
+test('T24h: a graph with no --verdicts hardens exactly as before, so an existing plan stays green', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'derive-cli-verdict-absent-'));
+  const declared = couplingGraphFile(dir);
+  const stdout = JSON.parse(runCli([declared], dir));
+  assert.equal(stdout.couplingPairCount, 2);
+  const out = JSON.parse(readFileSync(join(dir, 'plan.hardened.graph.json'), 'utf8'));
+  assert.equal(out.tasks.length, 4);
+});
