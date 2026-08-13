@@ -112,7 +112,13 @@
         ]
       }
     ],
-    "key_decisions": [],
+    "key_decisions": [
+      {
+        "ref": "0389-max-autonomy-supersedes-anthropic-defaults",
+        "title": "Unattended autonomy supersedes alignment with Anthropic's recommended permission defaults",
+        "scope": "thread"
+      }
+    ],
     "out_of_scope": [
       "Implementing any config change - deferred on explicit user instruction; the user names the target.",
       "The other paused threads on the roster (12 as of 2026-08-13). An earlier session incidentally cleared the mitosis-resilience-implementation blocker - .claude/reports/ is gitignored (.gitignore:11) and untracked, verified 2026-08-13.",
@@ -121,5 +127,5 @@
     "last_session": "Presented the 518-line audit report in the mandated format after re-verifying its load-bearing citations live. cp=23 and 58 allow rules re-confirmed; the inert .env guard is at block-env-edits.sh:26, not :27. No config changed, nothing ratified."
   },
   "created_at": "2026-08-02T04:53:05.796Z",
-  "updated_at": "2026-08-13T17:20:39.076Z"
+  "updated_at": "2026-08-13T18:06:13.979Z"
 }
