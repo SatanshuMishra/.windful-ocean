@@ -52,7 +52,7 @@
     {
       "id": "c12",
       "text": "The three termination invariants 0387 filed are guarded on the stack base: liveGroups release, abort-listener removal and drain-timer registration, each independently proven red under mutation.",
-      "done": false,
+      "done": true,
       "kind": "detour",
       "struck_by": null
     },
@@ -98,73 +98,15 @@
   "abandoned_reason": null,
   "closure_statement": null,
   "spine": {
-    "active_goal": "Land the eighteen MSPs as stacked PRs on feat/mitosis-os-process; A0, A1, A2, A3 and B1 are in, and A4 and B2 are the next unblocked pair.",
-    "next_step": "QUICKLY verify, then STOP and answer in 1-2 sentences. Verify: base origin/feat/mitosis-os-process is 0a0f0e3, zero PRs open, and pool.mjs, run-store.mjs and coupling-review.mjs are present on it. The answer: A4 (depends on A3, met) and B2 (depends on B1, met) are both unblocked and mutually independent, so they are the next parallel pair, while B3 waits on B2. Do first: delete the five merged MSP branches, and clear A1's style debt per 0384.",
-    "last_session": "Shipped A2, A3 and B1 via a Workflow script (PRs #74, #75, #73), fixed #73's Semgrep failure, split the 844-line run-store suite, and re-landed the derive-edges fix as #77 after #76 silently merged into an already-merged base.",
+    "active_goal": "Land the eighteen MSPs as stacked PRs on feat/mitosis-os-process; A0-A3 and B1 are in and the pre-MSP debt is cleared, so A4 and B2 are the next parallel pair.",
+    "next_step": "Ship A4 and B2, per explicit user directive: dispatch ONE dedicated SMALL dynamic Workflow that plans, implements and ships BOTH MSPs end to end, fast but robust. A4 depends on A3 and B2 on B1, both met, and the two are mutually independent; B3 waits on B2. Base is 7d6fb4e with zero open PRs. Before merging either PR remove its worktree so --delete-branch succeeds, then verify the payload landed by CONTENT, never by ancestry.",
+    "last_session": "Cleared A1's style debt (#78) and closed the three termination holes 0387 filed (#79, re-landed as #80 after it merged into a live dead base). Deleted 17 merged branches. Base is 7d6fb4e, 99 dispatch tests green, zero open PRs.",
     "open_risks": [
       {
         "text": "Build A4's red case through the claude -p CLI path and assert the SILENT failure — the Workflow agent path auto-grants StructuredOutput, so a red case dispatched through it passes unconditionally and is a guarantee that cannot fail",
         "scope": "c4",
         "refs": [
           "0379"
-        ]
-      },
-      {
-        "text": "Delete the five merged MSP branches before cutting new work, and never merge feat/b1-coupling-review — GitHub retargets a stacked PR only when its base branch is deleted, and that surviving branch also duplicates the payload PR #77 already landed",
-        "scope": "c3",
-        "refs": [
-          "memory: stacked-pr-merges-into-a-live-base-branch",
-          "feat/b1-coupling-review",
-          "fix/derive-edges-reasons-carryforward"
-        ]
-      },
-      {
-        "text": "Clear A1's deferred style debt in its own commit — runChild is 185 lines with six nesting levels and holds every termination invariant, and the debt has since grown, with run-store.mjs at 625 lines and pool.test.mjs at 749",
-        "scope": "c3",
-        "refs": [
-          "0384",
-          ".claude/lib/mitosis/dispatch.mjs",
-          ".claude/lib/mitosis/tests/dispatch.test.mjs"
-        ]
-      },
-      {
-        "text": "B1's verdict gate is armed at the derive-edges entrypoint but not end to end — mitosis.js Parallelize builds its task map from graph.tasks and never reads graph.coupling, so a real run still co-schedules a serialize-defaulted pair with no verdict rendered",
-        "scope": "c3",
-        "refs": [
-          "PR #73",
-          ".claude/workflows/mitosis.js:4914"
-        ]
-      },
-      {
-        "text": "The pool refuses per-node cwd and worktree outright rather than confining them — a later MSP that needs genuine per-node working directories has to build that confinement check then, because the allowlist defers the problem rather than solving it",
-        "scope": "c3",
-        "refs": [
-          "PR #74",
-          ".claude/lib/mitosis/pool.mjs"
-        ]
-      },
-      {
-        "text": "SPEC line 328 still names tests/run-store.test.mjs, which no longer exists — the suite split into four files plus a fixtures module, so A3's Files line is stale prose that no gate reads and no grep will find",
-        "scope": "c3",
-        "refs": [
-          "SPEC A3",
-          ".claude/lib/mitosis/tests/"
-        ]
-      },
-      {
-        "text": "Leave the committed RECEIPTS_ACK in A1's test file alone — removing it would exercise the exact old_string hole reported upstream, turning a disclosed escape back into a silent one",
-        "scope": "c3",
-        "refs": [
-          ".claude/lib/mitosis/tests/dispatch.test.mjs:535",
-          "shaheershoaib/receipts#49",
-          "0383"
-        ]
-      },
-      {
-        "text": "Treat A1's twelve inertness mutations as unproven — they are author-reported and were never independently re-run, unlike the suite and gate results which were",
-        "scope": "c3",
-        "refs": [
-          "PR #72"
         ]
       },
       {
@@ -253,6 +195,62 @@
           "~/.claude/LIVE",
           ".claude/worktrees/"
         ]
+      },
+      {
+        "text": "Remove a PR's worktree before merging it, then confirm the ref is actually gone — every branch here is worktree-held, gh refuses to delete those, and when the local delete fails the remote survives too, which is exactly how PR #79's payload was stranded",
+        "scope": "c3",
+        "refs": [
+          "0388",
+          "memory: stacked-pr-merges-into-a-live-base-branch"
+        ]
+      },
+      {
+        "text": "B1's verdict gate is armed at the derive-edges entrypoint but not end to end — mitosis.js Parallelize builds its task map from graph.tasks and never reads graph.coupling, so a real run still co-schedules a serialize-defaulted pair with no verdict rendered",
+        "scope": "c3",
+        "refs": [
+          "PR #73",
+          ".claude/workflows/mitosis.js:4914"
+        ]
+      },
+      {
+        "text": "The pool refuses per-node cwd and worktree outright rather than confining them — a later MSP that needs genuine per-node working directories has to build that confinement check then, because the allowlist defers the problem rather than solving it",
+        "scope": "c3",
+        "refs": [
+          "PR #74",
+          ".claude/lib/mitosis/pool.mjs"
+        ]
+      },
+      {
+        "text": "SPEC line 328 still names tests/run-store.test.mjs, which no longer exists — the suite split into four files plus a fixtures module, so A3's Files line is stale prose that no gate reads and no grep will find",
+        "scope": "c3",
+        "refs": [
+          "SPEC A3",
+          ".claude/lib/mitosis/tests/"
+        ]
+      },
+      {
+        "text": "Leave the committed RECEIPTS_ACK in A1's tests alone — removing it would exercise the exact old_string hole reported upstream, turning a disclosed escape back into a silent one; #78 split that file, so it now sits in one of the dispatch-*.test.mjs files",
+        "scope": "c3",
+        "refs": [
+          ".claude/lib/mitosis/tests/",
+          "shaheershoaib/receipts#49",
+          "0383"
+        ]
+      },
+      {
+        "text": "The liveGroups guard spawns a real detached process and asserts liveness by pid — it is the most environment-coupled test in the suite, was measured on macOS only, and a recycled pid yields a spurious green rather than a failure",
+        "scope": "c3",
+        "refs": [
+          ".claude/lib/mitosis/tests/dispatch-termination.test.mjs",
+          "PR #80"
+        ]
+      },
+      {
+        "text": "Three grandchild-spawning tests leak setInterval processes and never assert the grandchild dies — they pass while leaving OS processes behind, so a real termination regression on that path would go unnoticed",
+        "scope": "c3",
+        "refs": [
+          ".claude/lib/mitosis/tests/dispatch-termination.test.mjs"
+        ]
       }
     ],
     "key_decisions": [
@@ -336,5 +334,5 @@
     ]
   },
   "created_at": "2026-08-12T07:37:41.077Z",
-  "updated_at": "2026-08-13T16:10:26.601Z"
+  "updated_at": "2026-08-13T16:11:25.074Z"
 }
