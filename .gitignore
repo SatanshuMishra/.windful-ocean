@@ -29,5 +29,7 @@ session-env/
 /.config/github-copilot/
 /.config/gtk-2.0/
 /.config/psysh/
+/.config/tmux/plugins/
 /.config/uv/
 /.config/zed/
+/.tmux/plugins/
