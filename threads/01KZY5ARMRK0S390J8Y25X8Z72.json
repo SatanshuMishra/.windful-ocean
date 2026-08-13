@@ -38,7 +38,7 @@
     {
       "id": "c16",
       "text": "Layer 1 made operational: the two PreToolUse hooks registered in tracked settings and promoted to the live install, so checkpointing and rm-to-trash can fire at all",
-      "done": false,
+      "done": true,
       "kind": "planned",
       "struck_by": null
     },
@@ -127,18 +127,49 @@
   "closure_statement": null,
   "spine": {
     "active_goal": "Ship the amended maximum-autonomy permission architecture one PR per MSP onto docs/max-autonomy-permission-spec, holding the two oversight-reducing pieces for direct user confirmation.",
-    "next_step": "START HERE. Export GH_TOKEN and confirm gh auth status passes BEFORE dispatching any agent - without it nothing can push (c15). Transport is HTTPS, never SSH; port 22 is structurally unreachable, see 0402. Then rebase feat/layer3-gate and feat/layer4-observability onto 9a168c7, resolve c6's conflict in the PreToolUse Bash matcher where Layer 1's checkpoint-worktree.mjs and trash-rm.mjs now sit, push both, open both PRs. Then c3, then c4, per 0401. HOLD c14 and the logbook plugin disable.",
-    "last_session": "Ten units built, eight merged. Three composition defects surfaced, none catchable by any single PR: parallel PRs reddened the base, a security review proved the new promotion guard bypassable, and Layer 0 blocked both Layer 1's trash rewrite and its own delivery path.",
+    "next_step": "START HERE. Restart, make one ordinary edit, confirm a checkpoint ref newer than the 14:13 measure-shimmed burst - the ONLY proof Layer 1 fires, and c10 gates bypassPermissions on it. Then c6/c7: rebase feat/layer3-gate and feat/layer4-observability onto 59fc308 (both on an OLDER base; verify with merge-base, do not trust a task list), push from the agent shell, have a human run pr-create unsandboxed. Then c3, c4 per 0401. HOLD c14.",
+    "last_session": "Found Layer 1 inert - registered in no settings file at all - then wired, merged (PR #94) and promoted it to the live install at 59fc308. git push now authenticates; gh's API stays dead under the sandbox, so a human opens PRs.",
     "open_risks": [
       {
-        "text": "Export GH_TOKEN before dispatching anything — gh keeps its token in the macOS Keychain, which the sandbox blocks, so agents authenticate only from the environment; without it every push and every pr-create fails and the work silently queues up unshipped",
+        "text": "Layer 1 is installed but has never once fired — the newest checkpoint ref is still the 14:13 measure-shimmed burst; restart, make one ordinary edit and confirm a newer ref before treating reversibility as live or unlocking anything that rests on it",
         "scope": "thread",
         "refs": [
-          "0402-https-and-gh-token-are-the-delivery-path-under-layer-zero"
+          "refs/reversibility/checkpoint"
         ]
       },
       {
-        "text": "Anything merged to this branch that touches the sandbox block goes live IMMEDIATELY — Claude Code honors sandbox.enabled from project settings, so it needs no promotion and no restart; the SPEC's framing as a user-settings change is wrong and the orchestrator asserted otherwise all session",
+        "text": "promote.mjs with no --ref exits 0 having done nothing — no install, no refusal, no output, so it reads as success; it left Layer 1 uninstalled across three verification rounds and defeats the c12 hardening meant to refuse rather than half-install",
+        "scope": "thread",
+        "refs": [
+          "scripts/config/promote.mjs"
+        ]
+      },
+      {
+        "text": "gh's API is unreachable under Layer 0 — TLS verification fails through macOS securityd and SSL_CERT_FILE does not bypass it, so pr-create, which shells out to gh, cannot open a PR from inside the sandbox; a human runs it from an unsandboxed shell",
+        "scope": "thread",
+        "refs": [
+          "0403-gh-token-moves-to-file-storage-for-sandbox-reach"
+        ]
+      },
+      {
+        "text": "gh auth status calling the token invalid is a false diagnosis — it cannot complete TLS to check, so the token is fine; do not re-run gh auth refresh or re-login on account of that message",
+        "scope": "thread",
+        "refs": []
+      },
+      {
+        "text": "Commit signing fails under the sandbox — id_ed25519 is passphrase-protected and ssh-agent is unreachable, so an agent cannot produce the signed commits c15 requires; a dedicated passphrase-less signing key is the likely fix and a human must create and register it",
+        "scope": "thread",
+        "refs": [
+          "~/.ssh/id_ed25519"
+        ]
+      },
+      {
+        "text": "feat/layer3-gate and feat/layer4-observability sit on a base older than 9a168c7 — an in-session task list wrongly marked them rebased; verify with git merge-base before trusting any status, and rebase both onto 59fc308 before opening PRs",
+        "scope": "thread",
+        "refs": []
+      },
+      {
+        "text": "Anything merged to this branch that touches the sandbox block goes live IMMEDIATELY — Claude Code honors sandbox.enabled from project settings, so it needs no promotion and no restart",
         "scope": "thread",
         "refs": [
           ".claude/settings.json"
@@ -150,24 +181,19 @@
         "refs": []
       },
       {
-        "text": "The deny entry for supabase db reset defeats the ratified 2026-07-06 local-container carve-out — the agent cannot validate migrations it writes, and the Layer 3 gate already discriminates local from remote correctly, so this entry must go when c3 runs",
+        "text": "The deny entry for supabase db reset defeats the ratified 2026-07-06 local-container carve-out — the agent cannot validate migrations it writes, and the Layer 3 gate already discriminates local from remote, so this entry must go when c3 runs",
         "scope": "thread",
         "refs": [
           ".claude/settings.json"
         ]
       },
       {
-        "text": "Run the full suite at the merge boundary, not just per-branch — three PRs each genuinely green alone reddened the base once composed, because they were authored against bases lacking each other; rebase every worker onto the current tip before it opens a PR",
+        "text": "Run the full suite at the merge boundary, not just per-branch — three PRs each genuinely green alone reddened the base once composed; rebase every worker onto the current tip before it opens a PR",
         "scope": "thread",
         "refs": []
       },
       {
-        "text": "The cutover to main lands everything at once on the working machine — sandbox containment, the config guard flipping ask to deny, three hooks gone, per-action checkpointing at 122 ms; each piece is verified individually and the simultaneity is the risk",
-        "scope": "thread",
-        "refs": []
-      },
-      {
-        "text": "Twelve agent worktrees have accumulated under .claude/worktrees/agent-* — worth one deliberate sweep once the branches land, and never while any agent is live inside one",
+        "text": "The cutover to main still lands everything at once — sandbox containment, the config guard flipping ask to deny, hooks removed, per-action checkpointing; each piece is verified alone and the simultaneity is the risk",
         "scope": "thread",
         "refs": []
       }
@@ -235,5 +261,5 @@
     ]
   },
   "created_at": "2026-08-13T18:14:42.072Z",
-  "updated_at": "2026-08-13T22:16:05.267Z"
+  "updated_at": "2026-08-13T22:16:55.366Z"
 }
