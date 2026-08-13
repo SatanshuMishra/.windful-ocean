@@ -85,6 +85,20 @@
       "struck_by": null
     },
     {
+      "id": "c13",
+      "text": "Release path closed: a staleness heartbeat reports when local main is behind the remote without applying, and a verify verb asserts installed machinery matches its tracked source",
+      "done": false,
+      "kind": "planned",
+      "struck_by": null
+    },
+    {
+      "id": "c14",
+      "text": "Governed unattended launcher: a version-controlled script is the sole entry point, hardcodes the permission mode, and passes through no caller settings, closing the inline-JSON argv channel",
+      "done": false,
+      "kind": "planned",
+      "struck_by": null
+    },
+    {
       "id": "c11",
       "text": "One PR per MSP opened through the centralized pr-create tool, each leaving its base branch green",
       "done": false,
@@ -208,5 +222,5 @@
     "out_of_scope": []
   },
   "created_at": "2026-08-13T18:14:42.072Z",
-  "updated_at": "2026-08-13T19:19:53.935Z"
+  "updated_at": "2026-08-13T19:20:04.924Z"
 }
