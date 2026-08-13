@@ -65,15 +65,22 @@ function transitiveDependentsOf(byId, directDependents) {
   return transitive;
 }
 
-function edgeReasonsOf(byId, added) {
+function edgeReasonsOf(byId, assertions) {
   const edgeReasonsById = new Map();
   for (const id of byId.keys()) edgeReasonsById.set(id, new Set());
-  for (const e of added) {
+  for (const e of assertions) {
     if (typeof e.reason !== 'string') continue;
     if (edgeReasonsById.has(e.from)) edgeReasonsById.get(e.from).add(e.reason);
     if (edgeReasonsById.has(e.to)) edgeReasonsById.get(e.to).add(e.reason);
   }
   return edgeReasonsById;
+}
+
+function presentReasonAssertions(discoveredEdges, overlapAssertions, have) {
+  return [
+    ...discoveredEdges.filter((e) => have(e.from, e.to)),
+    ...overlapAssertions.filter((e) => have(e.from, e.to) || have(e.to, e.from)),
+  ];
 }
 
 function couplingCandidates(byId, ids, ordered) {
@@ -108,16 +115,17 @@ function declaredDependenciesOf(byId) {
   return { deps, declaredEdgeCount };
 }
 
-function addFileScopeOverlapEdges(byId, ids, have, addEdge) {
+function fileScopeOverlapAssertions(byId, ids) {
+  const assertions = [];
   for (let i = 0; i < ids.length; i++) {
     for (let j = i + 1; j < ids.length; j++) {
       const a = byId.get(ids[i]);
       const b = byId.get(ids[j]);
       if (!scopesOverlap(a.fileScope || [], b.fileScope || [])) continue;
-      if (have(b.id, a.id) || have(a.id, b.id)) continue;
-      addEdge(b.id, a.id, 'fileScope-overlap');
+      assertions.push({ from: b.id, to: a.id, reason: 'fileScope-overlap' });
     }
   }
+  return assertions;
 }
 
 export function deriveEdges(graph, discoveredEdges = []) {
@@ -139,11 +147,15 @@ export function deriveEdges(graph, discoveredEdges = []) {
   }
 
   const ids = [...byId.keys()];
-  addFileScopeOverlapEdges(byId, ids, have, addEdge);
+  const overlapAssertions = fileScopeOverlapAssertions(byId, ids);
+  for (const e of overlapAssertions) {
+    if (have(e.from, e.to) || have(e.to, e.from)) continue;
+    addEdge(e.from, e.to, e.reason);
+  }
   detectCycle(byId, deps);
 
   const transitiveDependents = transitiveDependentsOf(byId, directDependentsOf(byId, deps));
-  const edgeReasonsById = edgeReasonsOf(byId, added);
+  const edgeReasonsById = edgeReasonsOf(byId, presentReasonAssertions(discoveredEdges, overlapAssertions, have));
   const coupling = reviewCoupling(couplingCandidates(byId, ids, transitiveDependents), graph.couplingContext);
 
   const tasks = graph.tasks.map((t) => ({
