@@ -18,6 +18,23 @@ jobs:
 
       - uses: shaheershoaib/receipts/enforcer@c6127ba55f9a5669a95614639b08f5d49c3f228b
 
+  mitosis-gate:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        verb: [exec-allowlist, determinism, dispatchable-agent-schema-capable]
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5  # v4.3.1
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020  # v4.4.0
+        with:
+          node-version: '26.x'
+      - name: ${{ matrix.verb }}
+        run: |
+          [ -f .claude/lib/mitosis/mitosis-gate.mjs ] \
+            || { echo "no mitosis engine source in this repository; nothing for the ${{ matrix.verb }} census to read"; exit 0; }
+          node .claude/lib/mitosis/mitosis-gate.mjs ${{ matrix.verb }}
+
   pr-title-lint:
     runs-on: ubuntu-latest
     steps:
