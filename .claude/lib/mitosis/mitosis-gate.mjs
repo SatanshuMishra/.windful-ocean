@@ -12,6 +12,7 @@ import {
   wordEndingAt,
 } from './js-scan.mjs';
 import { censusEngineDeterminism, engineSourceRoots, realSourceIo } from './determinism-lint.mjs';
+import { EXEC_ALLOWLIST, assertSpawnAllowed, resolveSpawn } from './exec-policy.mjs';
 
 export const GATE_CLEAN_EXIT = 0;
 export const GATE_USAGE_EXIT = 40;
@@ -20,13 +21,21 @@ export const GATE_UNRESOLVABLE_EXIT = 42;
 export const GATE_READ_EXIT = 43;
 export const GATE_COMPILE_EXIT = 44;
 
-export const MITOSIS_GATE_VERBS = Object.freeze(['determinism', 'phase-parity']);
+export const MITOSIS_GATE_VERBS = Object.freeze(['determinism', 'exec-allowlist', 'phase-parity']);
 
 export const DEFAULT_PHASE_PARITY_TARGET = fileURLToPath(new URL('../../workflows/mitosis.js', import.meta.url));
 export const DEFAULT_DETERMINISM_TARGET = fileURLToPath(new URL('./', import.meta.url));
+export const DEFAULT_EXEC_POLICY_TARGET = fileURLToPath(new URL('./exec-policy.mjs', import.meta.url));
+
+const SPAWNABLE_BINARIES = Object.freeze(['claude', 'gh', 'git', 'graphify', 'node']);
+const UNLISTED_PROBE_BINARY = 'bash';
+const FAIL_CLOSED_PROBE_ARGV = Object.freeze(['api', 'graphql', '--input', '-']);
+const ROUTED_PROBE_ARGV = Object.freeze(['pr', 'view', '7']);
+const SHIM_BASENAME = 'gh-merge-shim.mjs';
 
 const VERB_DEFAULT_TARGETS = Object.freeze({
   determinism: DEFAULT_DETERMINISM_TARGET,
+  'exec-allowlist': DEFAULT_EXEC_POLICY_TARGET,
   'phase-parity': DEFAULT_PHASE_PARITY_TARGET,
 });
 
@@ -552,8 +561,70 @@ function runDeterminismGate(target, out, readSource) {
   return GATE_CLEAN_EXIT;
 }
 
+function refusesToSpawn(binary, argv) {
+  try {
+    assertSpawnAllowed(binary, argv);
+  } catch {
+    return true;
+  }
+  return false;
+}
+
+function execAllowlistFailures(policy) {
+  const failures = [];
+  if (JSON.stringify([...policy.allowlist]) !== JSON.stringify([...SPAWNABLE_BINARIES])) {
+    failures.push(`the spawn allowlist is ${JSON.stringify([...policy.allowlist])} but the guarantee names exactly ${JSON.stringify([...SPAWNABLE_BINARIES])}; widening it takes two deliberate edits, never one`);
+  }
+  if (!policy.refusesUnlisted) {
+    failures.push(`${JSON.stringify(UNLISTED_PROBE_BINARY)} is not on the allowlist yet the policy let it through; the policy is deny-by-default and an unlisted binary must throw`);
+  }
+  if (!policy.refusesPreSpawn) {
+    failures.push('the pre-spawn refusal is gone: an argv the deny classifier cannot clear was accepted instead of being refused in-process before any child started');
+  }
+  if (!policy.routesThroughShim) {
+    failures.push(`an ordinary gh argv no longer resolves through ${SHIM_BASENAME}, so the shim's own refusals would be bypassed at run time`);
+  }
+  return failures;
+}
+
+function probeExecPolicy() {
+  let routed = null;
+  try {
+    routed = resolveSpawn('gh', [...ROUTED_PROBE_ARGV]);
+  } catch {
+    routed = null;
+  }
+  return {
+    allowlist: EXEC_ALLOWLIST,
+    refusesUnlisted: refusesToSpawn(UNLISTED_PROBE_BINARY, []),
+    refusesPreSpawn: refusesToSpawn('gh', [...FAIL_CLOSED_PROBE_ARGV]),
+    routesThroughShim: routed !== null
+      && EXEC_ALLOWLIST.includes(routed.command)
+      && typeof routed.args[0] === 'string'
+      && routed.args[0].endsWith(SHIM_BASENAME),
+  };
+}
+
+function runExecAllowlistGate(target, out) {
+  let policy;
+  try {
+    policy = probeExecPolicy();
+  } catch (err) {
+    out.err(`mitosis-gate: exec-allowlist could not probe ${target}: ${err && err.message ? err.message : 'unknown failure'}\n`);
+    return GATE_UNRESOLVABLE_EXIT;
+  }
+  const failures = execAllowlistFailures(policy);
+  if (failures.length > 0) {
+    for (const failure of failures) out.err(`mitosis-gate: ${failure}\n`);
+    return GATE_VIOLATION_EXIT;
+  }
+  out.log(`${JSON.stringify({ verb: 'exec-allowlist', probed: target, ok: true, allowlist: [...policy.allowlist] })}\n`);
+  return GATE_CLEAN_EXIT;
+}
+
 const VERB_RUNNERS = Object.freeze({
   determinism: runDeterminismGate,
+  'exec-allowlist': runExecAllowlistGate,
   'phase-parity': runPhaseParityGate,
 });
 

@@ -11,6 +11,7 @@ import {
   MITOSIS_GATE_VERBS,
   DEFAULT_PHASE_PARITY_TARGET,
   DEFAULT_DETERMINISM_TARGET,
+  DEFAULT_EXEC_POLICY_TARGET,
   checkPhaseParity,
   compileUnderSandbox,
   extractDeclaredPhases,
@@ -407,8 +408,18 @@ test('the gate catches the declared-but-unused and used-but-undeclared pair in o
 test('the argv parser accepts every verb and defaults each to its own target', () => {
   assert.deepEqual(parseMitosisGateArgv(['phase-parity']), { ok: true, verb: 'phase-parity', target: DEFAULT_PHASE_PARITY_TARGET });
   assert.deepEqual(parseMitosisGateArgv(['determinism']), { ok: true, verb: 'determinism', target: DEFAULT_DETERMINISM_TARGET });
-  assert.deepEqual([...MITOSIS_GATE_VERBS], ['determinism', 'phase-parity']);
+  assert.deepEqual(parseMitosisGateArgv(['exec-allowlist']), { ok: true, verb: 'exec-allowlist', target: DEFAULT_EXEC_POLICY_TARGET });
+  assert.deepEqual([...MITOSIS_GATE_VERBS], ['determinism', 'exec-allowlist', 'phase-parity']);
   assert.notEqual(DEFAULT_DETERMINISM_TARGET, DEFAULT_PHASE_PARITY_TARGET);
+});
+
+test('the exec-allowlist verb exits clean against the real policy module', () => {
+  const { out, stdout, stderr } = capture();
+  const code = runMitosisGate(['exec-allowlist'], out, () => '');
+  assert.deepEqual(stderr, []);
+  assert.equal(code, GATE_CLEAN_EXIT);
+  const verdict = JSON.parse(stdout.join(''));
+  assert.deepEqual(verdict.allowlist, ['claude', 'gh', 'git', 'graphify', 'node']);
 });
 
 test('the determinism verb exits clean over the real engine source', () => {
