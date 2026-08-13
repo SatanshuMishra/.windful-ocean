@@ -1,6 +1,6 @@
 import { execFileSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
-import { closeSync, existsSync, mkdirSync, openSync, readdirSync, readFileSync, realpathSync, renameSync, rmSync, statSync, unlinkSync, writeFileSync } from 'node:fs';
+import { closeSync, constants, existsSync, lstatSync, mkdirSync, openSync, readdirSync, readFileSync, realpathSync, renameSync, rmSync, statSync, unlinkSync, writeFileSync } from 'node:fs';
 import { isAbsolute, join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { CHECKPOINT_REF_PREFIX, MANIFEST_REF_PREFIX, validateRefToken } from './checkpoint.mjs';
@@ -16,10 +16,20 @@ const NUL = String.fromCharCode(0);
 const MAX_ATTEMPT_COLLISIONS = 64;
 const RUN_ID_PATTERN = /^[a-f0-9]{8}$/;
 const GIT_TIMEOUT_MS = 10000;
+const GIT_MAX_BUFFER_BYTES = 64 * 1024 * 1024;
+const GIT_REDIRECTING_VARIABLES = Object.freeze([
+  'GIT_DIR',
+  'GIT_WORK_TREE',
+  'GIT_COMMON_DIR',
+  'GIT_INDEX_FILE',
+  'GIT_OBJECT_DIRECTORY',
+  'GIT_ALTERNATE_OBJECT_DIRECTORIES',
+  'GIT_NAMESPACE',
+]);
 const USAGE = [
   'usage: run-store.mjs key <spec.json>',
-  '       run-store.mjs open <spec.json> --root <dir> --started-at <iso8601> --unit <id> [--unit <id> ...] [--pid <n>]',
-  '       run-store.mjs retire [--root <dir> --run-key <64 hex>] [--repo <dir> --run-id <8 hex>]',
+  '       run-store.mjs open <spec.json> --root <dir> --started-at <iso8601> --unit <id> [--unit <id> ...] [--pid <n>] [--run-id <8 hex>]',
+  '       run-store.mjs retire [--root <dir> --run-key <64 hex>] [--repo <dir> --run-id <8 hex>] [--force]',
 ].join('\n');
 
 function usageError(message) {
@@ -83,6 +93,30 @@ function requireAbsoluteDir(value, field) {
     throw new TypeError(`run-store: ${field} must not carry a ".." segment, which would let a run write outside the tree it was pointed at, received ${JSON.stringify(value)}`);
   }
   return value;
+}
+
+function runDirectoryPath(root, runKey) {
+  let walked = root;
+  for (const segment of [...RUNS_SEGMENTS, runKey]) {
+    walked = join(walked, segment);
+    let entry = null;
+    try {
+      entry = lstatSync(walked);
+    } catch (error) {
+      if (error.code === 'ENOENT') return join(root, ...RUNS_SEGMENTS, runKey);
+      throw error;
+    }
+    if (entry.isSymbolicLink()) {
+      throw new Error(`run-store: ${walked} is a symbolic link, and every run path is composed from ${root} on the promise that it stays inside that tree; following the link would write a run - or delete one - somewhere this call never named, and the traversal check on root cannot see a link planted after it, so the link is refused rather than followed`);
+    }
+  }
+  return walked;
+}
+
+function prepareRunDirectory(root, runKey) {
+  const path = runDirectoryPath(root, runKey);
+  mkdirSync(path, { recursive: true });
+  return runDirectoryPath(root, runKey);
 }
 
 function requireRunKey(value) {
@@ -151,7 +185,12 @@ function allocateAttempt(runDir) {
 
 function writeAtomic(path, text) {
   const temporary = `${path}.tmp`;
-  writeFileSync(temporary, text);
+  const descriptor = openSync(temporary, constants.O_WRONLY | constants.O_CREAT | constants.O_TRUNC | constants.O_NOFOLLOW, 0o600);
+  try {
+    writeFileSync(descriptor, text);
+  } finally {
+    closeSync(descriptor);
+  }
   renameSync(temporary, path);
   return path;
 }
@@ -258,6 +297,7 @@ function attemptHandle(context) {
   };
   return Object.freeze({
     runKey: context.runKey,
+    runId: context.runId,
     attempt: context.attempt,
     dir: context.dir,
     itemsDir: join(context.dir, 'items'),
@@ -268,9 +308,18 @@ function attemptHandle(context) {
   });
 }
 
+function rollbackLock(lockPath, lockRecord, cause) {
+  try {
+    releaseLock(lockPath, lockRecord);
+  } catch (error) {
+    throw new Error(`${cause.message}; the run lock at ${lockPath} could not be released afterwards (${error.message}), so it is still in place and every later run on this key will refuse until an operator clears it deliberately`, { cause });
+  }
+  throw cause;
+}
+
 export function openRun(request) {
   if (!isPlainObject(request)) {
-    throw new TypeError(`run-store: openRun takes one plain object carrying root, runKey, unitIds, plan, startedAt and an optional pid, received ${request === null ? 'null' : Array.isArray(request) ? 'an array' : typeof request}`);
+    throw new TypeError(`run-store: openRun takes one plain object carrying root, runKey, unitIds, plan, startedAt and an optional pid and runId, received ${request === null ? 'null' : Array.isArray(request) ? 'an array' : typeof request}`);
   }
   const root = requireAbsoluteDir(request.root, 'root');
   const runKey = requireRunKey(request.runKey);
@@ -278,9 +327,9 @@ export function openRun(request) {
   const plan = requirePlan(request.plan);
   const startedAt = requireStartedAt(request.startedAt);
   const pid = requirePid(request.pid);
+  const runId = request.runId === undefined ? null : requireRunId(request.runId);
 
-  const runDir = join(root, ...RUNS_SEGMENTS, runKey);
-  mkdirSync(runDir, { recursive: true });
+  const runDir = prepareRunDirectory(root, runKey);
   const lockRecord = Object.freeze({ pid, startedAt, runKey });
   const lockPath = acquireLock(runDir, lockRecord);
   let allocated = null;
@@ -289,19 +338,46 @@ export function openRun(request) {
     mkdirSync(join(allocated.dir, 'items'));
     writeFileSync(
       join(allocated.dir, 'plan.json'),
-      `${JSON.stringify({ runKey, attempt: allocated.attempt, startedAt, pid, unitIds: [...unitIds], plan })}\n`,
+      `${JSON.stringify({ runKey, runId, attempt: allocated.attempt, startedAt, pid, unitIds: [...unitIds], plan })}\n`,
       { flag: 'wx' },
     );
   } catch (error) {
-    unlinkSync(lockPath);
-    throw error;
+    rollbackLock(lockPath, lockRecord, error);
   }
 
-  return attemptHandle({ runKey, attempt: allocated.attempt, dir: allocated.dir, lockPath, lockRecord, unitIds });
+  return attemptHandle({ runKey, runId, attempt: allocated.attempt, dir: allocated.dir, lockPath, lockRecord, unitIds });
+}
+
+function gitEnvironment() {
+  return Object.fromEntries(Object.entries(process.env).filter(([name]) => !GIT_REDIRECTING_VARIABLES.includes(name)));
 }
 
 function defaultExec(argv, cwd) {
-  return execFileSync('git', argv, { encoding: 'utf8', timeout: GIT_TIMEOUT_MS, cwd });
+  return execFileSync('git', argv, {
+    encoding: 'utf8',
+    timeout: GIT_TIMEOUT_MS,
+    maxBuffer: GIT_MAX_BUFFER_BYTES,
+    cwd,
+    env: gitEnvironment(),
+  });
+}
+
+function requireRepositoryRoot(repoRoot, exec) {
+  const reported = exec(['rev-parse', '--show-toplevel'], repoRoot).trim();
+  if (reported === '') {
+    throw new Error(`run-store: git reported no repository root for ${repoRoot}, so there is no repository whose refs this call could be scoped to; it refuses rather than deleting against whatever repository a lookup might otherwise find`);
+  }
+  let resolvedReport = null;
+  let resolvedTarget = null;
+  try {
+    resolvedReport = realpathSync(reported);
+    resolvedTarget = realpathSync(repoRoot);
+  } catch (error) {
+    throw new Error(`run-store: could not resolve ${JSON.stringify(reported)} and ${JSON.stringify(repoRoot)} to compare them (${error.message}); without that comparison this call cannot tell which repository it would delete refs from, so it refuses`);
+  }
+  if (resolvedReport !== resolvedTarget) {
+    throw new Error(`run-store: ${repoRoot} is not the repository root git resolves for it - git reports ${reported}; deleting there would retire the refs of a repository this call never named, so it refuses. Give the repository root itself, and clear any GIT_DIR or GIT_WORK_TREE that redirects git away from it`);
+  }
 }
 
 function requireRunId(value) {
@@ -348,24 +424,26 @@ function deleteRefs(selected, repoRoot, runId, exec) {
 }
 
 function retireRefs(repoRoot, runId, exec) {
+  requireRepositoryRoot(repoRoot, exec);
   const entries = parseRefListing(exec(
-    ['for-each-ref', '--format=%(objectname) %(refname)', `${CHECKPOINT_REF_PREFIX}/`, `${MANIFEST_REF_PREFIX}/`],
+    ['for-each-ref', '--format=%(objectname) %(refname)', `${CHECKPOINT_REF_PREFIX}/${runId}`, `${MANIFEST_REF_PREFIX}/${runId}`],
     repoRoot,
   ));
   const selected = selectedRefs(entries, runId).sort((a, b) => a.ref.localeCompare(b.ref));
+  const selectedNames = new Set(selected.map(({ ref }) => ref));
+  const foreign = entries.filter(({ ref }) => !selectedNames.has(ref));
+  if (foreign.length > 0) {
+    throw new Error(`run-store: the ref query scoped to ${runId} also listed ${foreign.map(({ ref }) => JSON.stringify(ref)).join(', ')}, which this module does not read as belonging to that run; it refuses to delete anything from a listing it cannot account for in full, because a ref it misclassifies is one it would either delete blind or drop silently`);
+  }
   const unsafe = selected.filter(({ ref }) => !validateRefToken(ref));
   if (unsafe.length > 0) {
     throw new Error(`run-store: refusing to retire ${unsafe.map(({ ref }) => JSON.stringify(ref)).join(', ')}; a ref name of that shape could be read by git as an option rather than as a ref, so it is reported here rather than passed to a delete`);
   }
-  const selectedNames = new Set(selected.map(({ ref }) => ref));
-  return {
-    deletedRefs: Object.freeze(deleteRefs(selected, repoRoot, runId, exec)),
-    keptRefs: Object.freeze(entries.map(({ ref }) => ref).filter((ref) => !selectedNames.has(ref)).sort()),
-  };
+  return Object.freeze(deleteRefs(selected, repoRoot, runId, exec));
 }
 
-function retireDirectory(root, runKey) {
-  const path = join(root, ...RUNS_SEGMENTS, runKey);
+function retireDirectory(root, runKey, force) {
+  const path = runDirectoryPath(root, runKey);
   let present = false;
   try {
     statSync(path);
@@ -373,8 +451,28 @@ function retireDirectory(root, runKey) {
   } catch (error) {
     if (error.code !== 'ENOENT') throw error;
   }
-  if (present) rmSync(path, { recursive: true });
-  return Object.freeze({ path, removed: present });
+  if (!present) return Object.freeze({ path, removed: false, lockWasHeld: false });
+  const lockPath = join(path, 'lock');
+  const lockWasHeld = existsSync(lockPath);
+  if (lockWasHeld && !force) {
+    throw new Error(`run-store: refusing to retire ${path} because its lock is still held (${describeLockHolder(lockPath)}); removing it would let a second run take this key and interleave its writes with the run that holds it now, whose next write would then fail with a raw filesystem error. Retire it with force once you know the holder is dead`);
+  }
+  rmSync(path, { recursive: true });
+  return Object.freeze({ path, removed: true, lockWasHeld });
+}
+
+function requireForce(value) {
+  if (value === undefined) return false;
+  if (typeof value !== 'boolean') {
+    throw new TypeError(`run-store: force must be a boolean, because it is the deliberate act of destroying a run another process still holds and no other value can express that intent unambiguously, received ${JSON.stringify(value)}`);
+  }
+  return value;
+}
+
+function partialRetirement(cause, runDir) {
+  const annotated = new Error(`${cause.message}; before this failure the run directory ${runDir.path} was ${runDir.removed ? 'removed' : 'already absent'}, so this retirement is partial rather than the no-op a bare validation failure would suggest`, { cause });
+  annotated.runDir = runDir;
+  return annotated;
 }
 
 export function retire(target) {
@@ -390,13 +488,18 @@ export function retire(target) {
   if (typeof exec !== 'function') {
     throw new TypeError(`run-store: exec must be a function taking an argv array and a working directory, received ${typeof target.exec}`);
   }
-  const runDir = wantsDirectory
-    ? retireDirectory(requireAbsoluteDir(target.root, 'root'), requireRunKey(target.runKey))
-    : null;
-  const refs = wantsRefs
-    ? retireRefs(requireAbsoluteDir(target.repoRoot, 'repoRoot'), requireRunId(target.runId), exec)
-    : { deletedRefs: Object.freeze([]), keptRefs: Object.freeze([]) };
-  return Object.freeze({ runDir, deletedRefs: refs.deletedRefs, keptRefs: refs.keptRefs });
+  const directory = wantsDirectory ? { root: requireAbsoluteDir(target.root, 'root'), runKey: requireRunKey(target.runKey) } : null;
+  const namespaces = wantsRefs ? { repoRoot: requireAbsoluteDir(target.repoRoot, 'repoRoot'), runId: requireRunId(target.runId) } : null;
+  const force = requireForce(target.force);
+
+  const runDir = directory === null ? null : retireDirectory(directory.root, directory.runKey, force);
+  let deletedRefs = Object.freeze([]);
+  try {
+    if (namespaces !== null) deletedRefs = retireRefs(namespaces.repoRoot, namespaces.runId, exec);
+  } catch (error) {
+    throw runDir === null ? error : partialRetirement(error, runDir);
+  }
+  return Object.freeze({ runDir, deletedRefs });
 }
 
 function readJsonFile(path, label) {
@@ -419,7 +522,7 @@ function keyVerb(rest) {
   return { runKey: computeRunKey(readJsonFile(specPath, 'spec')) };
 }
 
-function parseFlags(rest, repeatable) {
+function parseFlags(rest, repeatable, standalone = []) {
   const positional = [];
   const flags = {};
   for (let index = 0; index < rest.length; index += 1) {
@@ -429,6 +532,11 @@ function parseFlags(rest, repeatable) {
       continue;
     }
     const name = token.slice(2);
+    if (standalone.includes(name)) {
+      if (Object.hasOwn(flags, name)) throw usageError(`run-store: the flag ${token} was given more than once`);
+      flags[name] = true;
+      continue;
+    }
     const value = rest[index + 1];
     if (value === undefined || value.startsWith('--')) throw usageError(`run-store: the flag ${token} needs a value`);
     if (repeatable.includes(name)) flags[name] = [...(flags[name] || []), value];
@@ -456,21 +564,36 @@ function openVerb(rest) {
     plan: spec,
     startedAt: requireFlag(flags, 'started-at'),
     pid: Object.hasOwn(flags, 'pid') ? Number(flags.pid) : undefined,
+    runId: Object.hasOwn(flags, 'run-id') ? flags['run-id'] : undefined,
   });
-  return { runKey: handle.runKey, attempt: handle.attempt, dir: handle.dir, lockPath: handle.lockPath };
+  return { runKey: handle.runKey, runId: handle.runId, attempt: handle.attempt, dir: handle.dir, lockPath: handle.lockPath };
+}
+
+function requirePair(flags, present, absent, purpose) {
+  if (Object.hasOwn(flags, absent)) return;
+  throw usageError(`run-store: retiring ${purpose} needs both --${present} and --${absent}; naming one without the other names no run, and retire never guesses the half it was not given`);
 }
 
 function retireVerb(rest) {
-  const { flags } = parseFlags(rest, []);
-  const target = {};
-  if (Object.hasOwn(flags, 'root')) target.root = flags.root;
-  if (Object.hasOwn(flags, 'run-key')) target.runKey = flags['run-key'];
-  if (Object.hasOwn(flags, 'repo')) target.repoRoot = flags.repo;
-  if (Object.hasOwn(flags, 'run-id')) target.runId = flags['run-id'];
-  if (Object.keys(target).length === 0) {
+  const { flags } = parseFlags(rest, [], ['force']);
+  const wantsDirectory = Object.hasOwn(flags, 'root') || Object.hasOwn(flags, 'run-key');
+  const wantsRefs = Object.hasOwn(flags, 'repo') || Object.hasOwn(flags, 'run-id');
+  if (!wantsDirectory && !wantsRefs) {
     throw usageError('run-store: the retire verb needs --root with --run-key, or --repo with --run-id, or both pairs');
   }
-  return retire(target);
+  if (wantsDirectory) {
+    requirePair(flags, 'root', 'run-key', 'a run directory');
+    requirePair(flags, 'run-key', 'root', 'a run directory');
+  }
+  if (wantsRefs) {
+    requirePair(flags, 'repo', 'run-id', 'a ref namespace');
+    requirePair(flags, 'run-id', 'repo', 'a ref namespace');
+  }
+  return retire({
+    force: Object.hasOwn(flags, 'force'),
+    ...(wantsDirectory ? { root: flags.root, runKey: flags['run-key'] } : {}),
+    ...(wantsRefs ? { repoRoot: flags.repo, runId: flags['run-id'] } : {}),
+  });
 }
 
 function main() {

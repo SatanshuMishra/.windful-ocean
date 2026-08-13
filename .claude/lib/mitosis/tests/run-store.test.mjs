@@ -148,6 +148,41 @@ test('openRun rejects an invalid unit id rather than mangling it', () => {
   assert.throws(() => openRun(openArgs({ unitIds: [] })), /run-store/);
 });
 
+test('openRun and checkpointRef agree on which unit ids exist', () => {
+  const candidates = ['a3-run-store', 'a', 'a0', 'a-b-c', 'A3', 'a_b', 'a/b', '', '-a', '..', 'a.b', 'a b', 'a3.1'];
+  for (const candidate of candidates) {
+    let mintable = true;
+    try {
+      checkpointRef('aaaaaaaa', candidate);
+    } catch {
+      mintable = false;
+    }
+    let openable = true;
+    try {
+      openRun(openArgs({ unitIds: [candidate] })).release();
+    } catch (error) {
+      if (!/unit id/.test(error.message)) throw error;
+      openable = false;
+    }
+    assert.equal(openable, mintable, `checkpointRef and openRun disagree about unit id ${JSON.stringify(candidate)}`);
+  }
+});
+
+test('openRun refuses to write a run through a symbolic link planted on its path', () => {
+  for (const planted of [['.mitosis'], ['.mitosis', 'runs'], ['.mitosis', 'runs', VALID_KEY]]) {
+    const root = scratch('run-store-planted-');
+    const outside = scratch('run-store-planted-outside-');
+    mkdirSync(join(root, ...planted.slice(0, -1)), { recursive: true });
+    symlinkSync(outside, join(root, ...planted));
+    assert.throws(
+      () => openRun(openArgs({ root })),
+      /symbolic link/i,
+      `expected a link at ${planted.join('/')} to be refused`,
+    );
+    assert.deepEqual(readdirSync(outside), [], `a link at ${planted.join('/')} was written through`);
+  }
+});
+
 test('openRun rejects a runKey that is not a 64-character hex digest', () => {
   for (const bad of ['A'.repeat(64), 'g'.repeat(64), 'a'.repeat(63), 'a'.repeat(65), '../../etc', 'aa/bb', '', null]) {
     const args = openArgs({ runKey: bad });
@@ -189,6 +224,40 @@ test('openRun lays out the run directory the SPEC names and freezes its handle',
   assert.equal(Object.isFrozen(handle.unitIds), true);
   assert.deepEqual(readdirSync(handle.itemsDir), []);
   assert.deepEqual(JSON.parse(readFileSync(join(handle.dir, 'plan.json'), 'utf8')).plan, args.plan);
+});
+
+test('openRun records the runId whose ref namespaces belong to this run', () => {
+  const args = openArgs({ runId: 'aaaaaaaa' });
+  const handle = openRun(args);
+  assert.equal(handle.runId, 'aaaaaaaa');
+  const recorded = JSON.parse(readFileSync(join(handle.dir, 'plan.json'), 'utf8'));
+  assert.equal(recorded.runId, 'aaaaaaaa');
+  const repo = seedRepo([checkpointRef(recorded.runId, 'a3-run-store'), 'refs/heads/main']);
+  const report = retire({ repoRoot: repo, runId: recorded.runId });
+  assert.deepEqual([...report.deletedRefs], [checkpointRef('aaaaaaaa', 'a3-run-store')]);
+  assert.deepEqual(listRefs(repo), ['refs/heads/main']);
+});
+
+test('openRun records a null runId when none was supplied and refuses a malformed one', () => {
+  const handle = openRun(openArgs());
+  assert.equal(handle.runId, null);
+  assert.equal(JSON.parse(readFileSync(join(handle.dir, 'plan.json'), 'utf8')).runId, null);
+  for (const bad of ['AAAAAAAA', 'aaaaaaa', 'aaaaaaaaa', 'aaaa/aaa', '../../etc', '', null, 7]) {
+    const args = openArgs({ runId: bad });
+    assert.throws(() => openRun(args), /runId/, `expected runId ${JSON.stringify(bad)} to be refused`);
+    assert.equal(existsSync(join(args.root, '.mitosis')), false);
+  }
+});
+
+test('CLI open verb records the runId it was given', () => {
+  const dir = scratch('run-store-cli-runid-');
+  const root = scratch('run-store-cli-runid-root-');
+  const specPath = join(dir, 'spec.json');
+  writeFileSync(specPath, JSON.stringify(sampleSpec()));
+  const stdout = runCli(['open', specPath, '--root', root, '--started-at', '2026-08-12T09:00:00Z', '--unit', 'a3-run-store', '--run-id', 'aaaaaaaa']);
+  const report = JSON.parse(stdout);
+  assert.equal(report.runId, 'aaaaaaaa');
+  assert.equal(JSON.parse(readFileSync(join(report.dir, 'plan.json'), 'utf8')).runId, 'aaaaaaaa');
 });
 
 test('CLI open verb creates the attempt and prints where it landed', () => {
@@ -393,6 +462,20 @@ test('a failed state write leaves the previous state.json whole', () => {
   assert.deepEqual(JSON.parse(readFileSync(join(handle.dir, 'state.json'), 'utf8')), { phase: 'one' });
 });
 
+test('an atomic write never follows a symbolic link planted at its temp path', () => {
+  const handle = openRun(openArgs());
+  const outside = scratch('run-store-tmp-victim-');
+  const victim = join(outside, 'secret.txt');
+  writeFileSync(victim, 'ORIGINAL SECRET CONTENT');
+  symlinkSync(victim, `${join(handle.dir, 'state.json')}.tmp`);
+  assert.throws(() => handle.commitState({ phase: 'one' }), /ELOOP|run-store/);
+  assert.equal(readFileSync(victim, 'utf8'), 'ORIGINAL SECRET CONTENT');
+  handle.recordStart('a3-run-store', { phase: 'dispatched' });
+  symlinkSync(victim, `${join(handle.itemsDir, 'a3-run-store.out')}.tmp`);
+  assert.throws(() => handle.recordOutput('a3-run-store', { phase: 'reaped' }), /ELOOP|run-store/);
+  assert.equal(readFileSync(victim, 'utf8'), 'ORIGINAL SECRET CONTENT');
+});
+
 test('handle writes are refused after release', () => {
   const handle = openRun(openArgs());
   handle.recordStart('a3-run-store', { phase: 'dispatched' });
@@ -432,6 +515,16 @@ function listRefs(repo) {
 const HASH_A = 'a'.repeat(64);
 const HASH_B = 'b'.repeat(64);
 
+function stubGit(answer) {
+  const issued = [];
+  const exec = (argv, cwd) => {
+    issued.push(argv);
+    if (argv[0] === 'rev-parse') return `${cwd}\n`;
+    return answer(argv, cwd);
+  };
+  return { issued, exec };
+}
+
 test('retire removes only the run directory it targets', () => {
   const args = openArgs();
   const keep = 'c'.repeat(64);
@@ -459,6 +552,76 @@ test('retire does not follow a symlink planted inside the run directory', () => 
   retire({ root: args.root, runKey: VALID_KEY });
   assert.equal(existsSync(join(args.root, '.mitosis', 'runs', VALID_KEY)), false);
   assert.equal(readFileSync(join(outside, 'sentinel'), 'utf8'), 'must survive\n');
+});
+
+test('retire refuses a run directory whose lock is still held, and names the holder', () => {
+  const args = openArgs();
+  const handle = openRun(args);
+  handle.recordStart('a3-run-store', { phase: 'dispatched' });
+  assert.throws(() => retire({ root: args.root, runKey: VALID_KEY }), (error) => {
+    assert.match(error.message, /lock/i);
+    assert.match(error.message, /4242/);
+    assert.match(error.message, /2026-08-12T09:00:00Z/);
+    return true;
+  });
+  assert.equal(readFileSync(join(handle.itemsDir, 'a3-run-store.out'), 'utf8').includes('dispatched'), true);
+  const forced = retire({ root: args.root, runKey: VALID_KEY, force: true });
+  assert.equal(forced.runDir.removed, true);
+  assert.equal(forced.runDir.lockWasHeld, true);
+  assert.equal(existsSync(join(args.root, '.mitosis', 'runs', VALID_KEY)), false);
+});
+
+test('retire reports that no lock was held when the run had released it', () => {
+  const args = openArgs();
+  openRun(args).release();
+  const report = retire({ root: args.root, runKey: VALID_KEY });
+  assert.equal(report.runDir.removed, true);
+  assert.equal(report.runDir.lockWasHeld, false);
+  for (const bad of ['yes', 1, null]) {
+    assert.throws(() => retire({ root: args.root, runKey: VALID_KEY, force: bad }), /force/);
+  }
+});
+
+test('retire refuses to delete a run through a symbolic link planted on its path', () => {
+  const root = scratch('run-store-retire-link-');
+  const shared = scratch('run-store-retire-shared-');
+  mkdirSync(join(shared, 'runs', VALID_KEY), { recursive: true });
+  writeFileSync(join(shared, 'runs', VALID_KEY, 'sentinel'), 'must survive\n');
+  symlinkSync(shared, join(root, '.mitosis'));
+  assert.throws(() => retire({ root, runKey: VALID_KEY }), /symbolic link/i);
+  assert.equal(readFileSync(join(shared, 'runs', VALID_KEY, 'sentinel'), 'utf8'), 'must survive\n');
+});
+
+test('retire validates the whole target before it destroys any part of it', () => {
+  const args = openArgs();
+  openRun(args).release();
+  const runDir = join(args.root, '.mitosis', 'runs', VALID_KEY);
+  assert.throws(() => retire({ root: args.root, runKey: VALID_KEY, repoRoot: '/tmp' }), /runId/);
+  assert.equal(existsSync(runDir), true, 'a missing runId must be refused before the directory is removed');
+  assert.throws(() => retire({ root: args.root, runKey: VALID_KEY, repoRoot: 'relative', runId: 'aaaaaaaa' }), /repoRoot/);
+  assert.equal(existsSync(runDir), true, 'a malformed repoRoot must be refused before the directory is removed');
+  assert.throws(() => retire({ root: args.root, runKey: VALID_KEY, repoRoot: '/tmp', runId: 'aaaaaaaa', exec: 'not a function' }), /exec/);
+  assert.equal(existsSync(runDir), true, 'a malformed exec must be refused before the directory is removed');
+});
+
+test('a ref deletion failure reports the run directory it had already removed', () => {
+  const args = openArgs();
+  openRun(args).release();
+  const { exec } = stubGit((argv) => {
+    if (argv[0] === 'for-each-ref') return 'cafebabe refs/mitosis/aaaaaaaa/unit-one\n';
+    throw new Error('the ref moved under us');
+  });
+  const runDir = join(args.root, '.mitosis', 'runs', VALID_KEY);
+  assert.throws(
+    () => retire({ root: args.root, runKey: VALID_KEY, repoRoot: '/tmp', runId: 'aaaaaaaa', exec }),
+    (error) => {
+      assert.match(error.message, new RegExp(runDir.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
+      assert.equal(error.runDir.removed, true);
+      assert.equal(error.runDir.path, runDir);
+      return true;
+    },
+  );
+  assert.equal(existsSync(runDir), false);
 });
 
 test('retire reports a run directory that was already gone rather than throwing', () => {
@@ -493,7 +656,6 @@ test('retire deletes only the ref namespaces of the run id it targets', () => {
   const report = retire({ repoRoot: repo, runId: target });
   assert.deepEqual([...report.deletedRefs], [...doomed].sort());
   assert.deepEqual(listRefs(repo), [...survivors].sort());
-  assert.deepEqual([...report.keptRefs], [...neighbouring].sort());
   assert.equal(report.runDir, null);
 });
 
@@ -519,22 +681,19 @@ test('retire and checkpointRef agree on which run ids exist', () => {
 });
 
 test('retire refuses a ref name git could read as an option', () => {
-  const issued = [];
-  const exec = (argv) => {
-    issued.push(argv);
-    if (argv[0] === 'for-each-ref') return 'deadbeef refs/mitosis/aaaaaaaa/-evil\ndeadbeef refs/mitosis/aaaaaaaa/unit-one\n';
-    return '';
-  };
+  const { issued, exec } = stubGit((argv) => (
+    argv[0] === 'for-each-ref' ? 'deadbeef refs/mitosis/aaaaaaaa/-evil\ndeadbeef refs/mitosis/aaaaaaaa/unit-one\n' : ''
+  ));
   assert.throws(() => retire({ repoRoot: '/tmp', runId: 'aaaaaaaa', exec }), /-evil/);
   assert.deepEqual(issued.filter((argv) => argv[0] === 'update-ref'), []);
 });
 
 test('retire reports a failed ref deletion instead of dropping it', () => {
-  const exec = (argv) => {
+  const { exec } = stubGit((argv) => {
     if (argv[0] === 'for-each-ref') return 'deadbeef refs/mitosis/aaaaaaaa/unit-one\ndeadbeef refs/mitosis/aaaaaaaa/unit-two\n';
     if (argv[2] === 'refs/mitosis/aaaaaaaa/unit-two') throw new Error('the ref moved under us');
     return '';
-  };
+  });
   assert.throws(() => retire({ repoRoot: '/tmp', runId: 'aaaaaaaa', exec }), (error) => {
     assert.match(error.message, /refs\/mitosis\/aaaaaaaa\/unit-two/);
     assert.match(error.message, /refs\/mitosis\/aaaaaaaa\/unit-one/);
@@ -543,14 +702,43 @@ test('retire reports a failed ref deletion instead of dropping it', () => {
 });
 
 test('retire deletes each ref against the object it enumerated', () => {
-  const issued = [];
-  const exec = (argv) => {
-    issued.push(argv);
-    if (argv[0] === 'for-each-ref') return 'cafebabe refs/mitosis/aaaaaaaa/unit-one\n';
-    return '';
-  };
+  const { issued, exec } = stubGit((argv) => (argv[0] === 'for-each-ref' ? 'cafebabe refs/mitosis/aaaaaaaa/unit-one\n' : ''));
   retire({ repoRoot: '/tmp', runId: 'aaaaaaaa', exec });
-  assert.deepEqual(issued[1], ['update-ref', '-d', 'refs/mitosis/aaaaaaaa/unit-one', 'cafebabe']);
+  assert.deepEqual(
+    issued.filter((argv) => argv[0] === 'update-ref'),
+    [['update-ref', '-d', 'refs/mitosis/aaaaaaaa/unit-one', 'cafebabe']],
+  );
+});
+
+test('retire deletes refs in the repository it names, not the one the environment points at', () => {
+  const target = seedRepo(['refs/mitosis/aaaaaaaa/unit-one', 'refs/heads/main']);
+  const ambient = seedRepo(['refs/mitosis/aaaaaaaa/unit-one', 'refs/heads/main']);
+  runCli(['retire', '--repo', target, '--run-id', 'aaaaaaaa'], { env: { ...process.env, GIT_DIR: join(ambient, '.git') } });
+  assert.deepEqual(listRefs(target), ['refs/heads/main']);
+  assert.deepEqual(listRefs(ambient), ['refs/heads/main', 'refs/mitosis/aaaaaaaa/unit-one']);
+});
+
+test('retire refuses a repoRoot that is not the root of the repository it would delete from', () => {
+  const repo = seedRepo(['refs/mitosis/aaaaaaaa/unit-one', 'refs/heads/main']);
+  const nested = join(repo, 'deep', 'nested');
+  mkdirSync(nested, { recursive: true });
+  assert.throws(() => retire({ repoRoot: nested, runId: 'aaaaaaaa' }), /repository root/i);
+  assert.deepEqual(listRefs(repo), ['refs/heads/main', 'refs/mitosis/aaaaaaaa/unit-one']);
+});
+
+test('retire asks git only for the refs of the run it targets', () => {
+  const { issued, exec } = stubGit((argv) => (argv[0] === 'for-each-ref' ? 'cafebabe refs/mitosis/aaaaaaaa/unit-one\n' : ''));
+  retire({ repoRoot: '/tmp', runId: 'aaaaaaaa', exec });
+  const query = issued.find((argv) => argv[0] === 'for-each-ref');
+  assert.deepEqual(query.slice(2), ['refs/mitosis/aaaaaaaa', 'refs/mitosis-manifest/aaaaaaaa']);
+});
+
+test('retire halts on a listed ref it cannot account for rather than skipping it', () => {
+  const { issued, exec } = stubGit((argv) => (
+    argv[0] === 'for-each-ref' ? 'cafebabe refs/mitosis/aaaaaaaa/unit-one\ncafebabe refs/mitosis/bbbbbbbb/unit-one\n' : ''
+  ));
+  assert.throws(() => retire({ repoRoot: '/tmp', runId: 'aaaaaaaa', exec }), /refs\/mitosis\/bbbbbbbb\/unit-one/);
+  assert.deepEqual(issued.filter((argv) => argv[0] === 'update-ref'), []);
 });
 
 test('retire requires at least one target', () => {
@@ -582,10 +770,35 @@ test('CLI retire verb removes the targeted run directory and prints its report',
   assert.equal(existsSync(join(args.root, '.mitosis', 'runs', VALID_KEY)), false);
 });
 
-test('CLI retire verb exits 2 when it is given no target', () => {
-  const failed = failCli(['retire']);
-  assert.equal(failed.status, 2);
-  assert.match(failed.stderr, /usage:/);
+test('CLI retire verb exits 2 when it is given no target or only half of one', () => {
+  const dir = scratch('run-store-cli-half-');
+  for (const args of [
+    ['retire'],
+    ['retire', '--root', dir],
+    ['retire', '--run-key', VALID_KEY],
+    ['retire', '--repo', dir],
+    ['retire', '--run-id', 'aaaaaaaa'],
+    ['retire', '--root', dir, '--run-key', VALID_KEY, '--repo', dir],
+  ]) {
+    const failed = failCli(args);
+    assert.equal(failed.status, 2, `expected exit 2 for ${JSON.stringify(args)}`);
+    assert.match(failed.stderr, /usage:/);
+  }
+});
+
+test('CLI retire verb refuses a held lock until --force is given', () => {
+  const dir = scratch('run-store-cli-force-');
+  const root = scratch('run-store-cli-force-root-');
+  const specPath = join(dir, 'spec.json');
+  const spec = sampleSpec();
+  writeFileSync(specPath, JSON.stringify(spec));
+  const opened = JSON.parse(runCli(['open', specPath, '--root', root, '--started-at', '2026-08-12T09:00:00Z', '--unit', 'a3-run-store']));
+  const failed = failCli(['retire', '--root', root, '--run-key', opened.runKey]);
+  assert.equal(failed.status, 1);
+  assert.match(failed.stderr, /^run-store error: .*lock/mi);
+  const report = JSON.parse(runCli(['retire', '--root', root, '--run-key', opened.runKey, '--force']));
+  assert.equal(report.runDir.removed, true);
+  assert.equal(report.runDir.lockWasHeld, true);
 });
 
 test('CLI writes nothing to stdout on any failure path', () => {
