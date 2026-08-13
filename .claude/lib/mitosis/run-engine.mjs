@@ -1,3 +1,4 @@
+import { emptyFileScopePack, requireFileScopePack } from './msp-file-scope.mjs';
 const STATUS_SCHEMA = { type: 'object', properties: { status: { enum: ['DONE', 'DONE_WITH_CONCERNS', 'BLOCKED', 'NEEDS_CONTEXT'] }, summary: { type: 'string' } }, required: ['status'] };
 const REVIEW_SCHEMA = { type: 'object', properties: { verdict: { enum: ['pass', 'fail'] }, issues: { type: 'array', items: { type: 'string' } } }, required: ['verdict'] };
 const MERGE_SCHEMA = { type: 'object', properties: { merged: { type: 'array', items: { type: 'string' } }, conflict: { type: 'boolean' }, conflictDetail: { type: 'string' } }, required: ['merged', 'conflict'] };
@@ -77,9 +78,54 @@ export function namedFilesInText(text) {
   }
   return [...out];
 }
+function isFileScopePack(value) {
+  return value !== null
+    && typeof value === 'object'
+    && !Array.isArray(value)
+    && Array.isArray(value.edit) && value.edit.every((p) => typeof p === 'string')
+    && Array.isArray(value.read) && value.read.every((p) => typeof p === 'string')
+    && Object.hasOwn(value, 'truncated');
+}
+
+function fileScopeEdit(fileScope) {
+  return isFileScopePack(fileScope) ? fileScope.edit : [];
+}
+
+function readContextClause(fileScope) {
+  if (!isFileScopePack(fileScope)) return '';
+  const context = fileScope.read.length > 0
+    ? ` You MAY read these files for context but must NOT edit them: ${JSON.stringify(fileScope.read)}.`
+    : '';
+  const marker = fileScope.truncated;
+  const dropped = marker === null || marker === undefined
+    ? ''
+    : ` The read-context list is INCOMPLETE: ${marker.dropped} path(s) were dropped (${marker.reason}); treat it as a partial view and verify against the live tree.`;
+  return `${context}${dropped}`;
+}
+
+export function ingestTaskFileScopes(tasks) {
+  if (!tasks || typeof tasks !== 'object' || Array.isArray(tasks)) return { tasks, error: null };
+  const out = {};
+  for (const [id, task] of Object.entries(tasks)) {
+    if (!task || typeof task !== 'object' || Array.isArray(task)) { out[id] = task; continue; }
+    const declared = task.fileScope;
+    try {
+      out[id] = {
+        ...task,
+        fileScope: declared === undefined || declared === null
+          ? emptyFileScopePack()
+          : requireFileScopePack(declared, `task ${id} fileScope`),
+      };
+    } catch (err) {
+      return { tasks, error: err.message };
+    }
+  }
+  return { tasks: out, error: null };
+}
+
 export function lintCoarseScope(task, opts) {
   const threshold = opts && Number.isInteger(opts.fileThreshold) ? opts.fileThreshold : COARSE_SCOPE_FILE_THRESHOLD;
-  const fileScope = task && Array.isArray(task.fileScope) ? task.fileScope : [];
+  const fileScope = fileScopeEdit(task && task.fileScope);
   const named = namedFilesInText([task && task.fullText, task && task.title, task && task.rationale].filter((t) => typeof t === 'string').join('\n'));
   const flags = [];
   for (const raw of fileScope) {
@@ -156,8 +202,8 @@ export function securityReviewRequired(task, k) {
   return (
     policySignalAmbiguous(task) ||
     task.risk === 'high' ||
-    sensitiveScope(task.fileScope) ||
-    irreversible(task.fileScope, task.fullText) ||
+    sensitiveScope(fileScopeEdit(task.fileScope)) ||
+    irreversible(fileScopeEdit(task.fileScope), task.fullText) ||
     blastRadius(task) >= threshold
   );
 }
@@ -167,7 +213,7 @@ function isImplementationRole(task) {
 }
 
 function policySignalAmbiguous(task) {
-  if (!Array.isArray(task.fileScope) || task.fileScope.some((p) => typeof p !== 'string')) return true;
+  if (!isFileScopePack(task.fileScope)) return true;
   if (typeof task.fullText !== 'string') return true;
   if (task.risk !== undefined && task.risk !== null && !POLICY_VALID_RISK.has(task.risk)) return true;
   if (!Number.isInteger(task.dependentCount) || task.dependentCount < 0) return true;
@@ -181,8 +227,8 @@ export function policyModelFor(task, opts) {
   if (!isImplementationRole(task)) return 'opus';
   if (policySignalAmbiguous(task)) return 'opus';
   if (
-    sensitiveScope(task.fileScope) ||
-    irreversible(task.fileScope, task.fullText) ||
+    sensitiveScope(fileScopeEdit(task.fileScope)) ||
+    irreversible(fileScopeEdit(task.fileScope), task.fullText) ||
     breakingContract(task) ||
     blastRadius(task) >= BLAST_RADIUS_K ||
     task.risk === 'high'
@@ -194,8 +240,8 @@ export function policyModelFor(task, opts) {
 export function planReviewModelFor(msp, opts) {
   const layer3Sonnet = opts && typeof opts.layer3Sonnet === 'boolean' ? opts.layer3Sonnet : LAYER3_SONNET_ENABLED;
   if (!msp || typeof msp !== 'object') return 'opus';
-  const fileScope = msp.fileScope;
-  if (!Array.isArray(fileScope) || fileScope.some((p) => typeof p !== 'string')) return 'opus';
+  if (!isFileScopePack(msp.fileScope)) return 'opus';
+  const fileScope = msp.fileScope.edit;
   if (fileScope.length !== 1 || !scopeIsSpecificFile(fileScope[0])) return 'opus';
   if (sensitiveScope(fileScope)) return 'opus';
   if (irreversible(fileScope, typeof msp.rationale === 'string' ? msp.rationale : '')) return 'opus';
@@ -225,9 +271,11 @@ export function resolvePlanReview(review, opts) {
 }
 
 export function planGroundTruthSeed({ specPath, fileScope, unitId }) {
-  const scope = Array.isArray(fileScope) ? fileScope.filter((p) => typeof p === 'string') : [];
+  const scope = fileScopeEdit(fileScope);
+  const readScope = isFileScopePack(fileScope) ? fileScope.read : [];
+  const readList = readScope.length > 0 ? readScope.map((p) => JSON.stringify(p)).join(", ") : "(none declared)";
   const scopeList = scope.length > 0 ? scope.map((p) => JSON.stringify(p)).join(', ') : '(none declared)';
-  return `Ground truth for MSP "${unitId}" (a hint to VERIFY against the live code, NOT a trust boundary): the approved spec lives at ${specPath} — read it to confirm this MSP's decomposition still holds against the current tree. This MSP's declared fileScope is [${scopeList}]; keep the plan STRICTLY within that slice. Do NOT expand into sibling-MSP territory or files outside this fileScope: sibling MSPs own their own slices and run in other waves, and an over-reaching plan collides on shared files (a collision surfaces as a merge conflict / CI failure / park, never a silent bad merge). If reading the spec reveals the decomposition itself is wrong (this MSP's slice is mis-cut), STOP and report that this MSP must be re-decomposed rather than planning around it.`;
+  return `Ground truth for MSP "${unitId}" (a hint to VERIFY against the live code, NOT a trust boundary): the approved spec lives at ${specPath} — read it to confirm this MSP's decomposition still holds against the current tree. This MSP's declared fileScope is [${scopeList}]; keep the plan STRICTLY within that slice. Do NOT expand into sibling-MSP territory or files outside this fileScope: sibling MSPs own their own slices and run in other waves, and an over-reaching plan collides on shared files (a collision surfaces as a merge conflict / CI failure / park, never a silent bad merge). If reading the spec reveals the decomposition itself is wrong (this MSP's slice is mis-cut), STOP and report that this MSP must be re-decomposed rather than planning around it. Read-only context for this MSP is [${readList}]: read those files to understand the seam, but do NOT plan edits to them - they belong to sibling MSPs.`;
 }
 
 export function authorTaskModels(tasks, opts) {
@@ -298,7 +346,8 @@ export async function runEngine(engineArgs, ctx) {
 
   const modelPolicyOpts = { layer3Sonnet: engineArgs.layer3Sonnet };
   const reviewBlastRadiusK = Number.isInteger(engineArgs.reviewBlastRadiusK) && engineArgs.reviewBlastRadiusK > 0 ? engineArgs.reviewBlastRadiusK : BLAST_RADIUS_K;
-  const tasks = authorTaskModels(engineArgs.tasks, modelPolicyOpts);
+  const scopeIngest = ingestTaskFileScopes(engineArgs.tasks);
+  const tasks = authorTaskModels(scopeIngest.tasks, modelPolicyOpts);
   const routing = routingTelemetry(tasks, modelPolicyOpts);
   log(routing.line);
   if (routing.warning) log(routing.warning);
@@ -332,7 +381,7 @@ export async function runEngine(engineArgs, ctx) {
     if (isolation === 'scope-fence') {
       return `${prompts.implementer}\n\n--- THIS TASK ---\n${escalationContext}` +
         `Work directly in the main repository working tree at ${repoRoot}. Do NOT create a worktree or a branch.\n` +
-        `1. Edit ONLY files within this task's declared scope: ${JSON.stringify(task.fileScope)}. Creating or editing anything outside this scope is a hard failure.\n` +
+        `1. Edit ONLY files within this task's declared scope: ${JSON.stringify(task.fileScope.edit)}. Creating or editing anything outside this scope is a hard failure.${readContextClause(task.fileScope)}\n` +
         `2. Do NOT run any git mutation (no add, no commit, no branch, no checkout, no stash). Leave all changes uncommitted.\n` +
         `3. Follow TDD as the instructions above require.\n` +
         `4. For verification run ONLY the scoped check, never a full build/suite: \`${scopedCheckCmd}\`\n\n` +
@@ -355,7 +404,7 @@ export async function runEngine(engineArgs, ctx) {
   function reviewTarget(task, branch) {
     if (isolation === 'scope-fence') {
       return `Do NOT enter any worktree and do NOT mutate anything. From the main repo at ${repoRoot}, inspect READ-ONLY:\n` +
-        `\`git diff ${launchCommit} -- ${task.fileScope.join(' ')}\` plus \`git status --porcelain -- ${task.fileScope.join(' ')}\`; read any untracked files the latter lists.`;
+        `\`git diff ${launchCommit} -- ${task.fileScope.edit.join(' ')}\` plus \`git status --porcelain -- ${task.fileScope.edit.join(' ')}\`; read any untracked files the latter lists.`;
     }
     return `Do NOT create or enter a worktree. From the main repo at ${repoRoot}, inspect the change READ-ONLY:\n` +
       `\`git diff ${baseBranch}..${branch}\` and \`git diff --stat ${baseBranch}..${branch}\`.`;
@@ -364,7 +413,7 @@ export async function runEngine(engineArgs, ctx) {
   function mergedReviewPrompt(task, branch) {
     return `${prompts.specReviewer}\n\n${prompts.qualityReviewer}\n\n--- WHAT TO REVIEW ---\n${reviewTarget(task, branch)}\n\n` +
       `Spec for this task:\n${task.fullText}\n\n` +
-      `File scope for THIS task: ${JSON.stringify(task.fileScope)}\n` +
+      `File scope for THIS task: ${JSON.stringify(task.fileScope.edit)}${readContextClause(task.fileScope)}\n` +
       `Judge ONLY the files in this task's fileScope. Files outside it belong to SIBLING TASKS in the same MSP that are built in other waves and are correctly absent from this branch - do NOT flag them as missing or incomplete. Do NOT open .mitosis/*.plan.md or *.graph.json to assess completeness; the task body above is the complete and authoritative scope for THIS task.\n\n` +
       `${ciEnforcedScoping}\n\n` +
       `--- TIER-1 SECURITY CHECKLIST (lightweight, every task) ---\n` +
@@ -374,14 +423,14 @@ export async function runEngine(engineArgs, ctx) {
   function securityReviewPrompt(task, branch) {
     return `--- SECURITY REVIEW TARGET ---\n${reviewTarget(task, branch)}\n\n` +
       `Task id: ${task.id}\nTitle: ${task.title}\n\n${task.fullText}\n\n` +
-      `File scope: ${JSON.stringify(task.fileScope)}\n\n` +
+      `File scope: ${JSON.stringify(task.fileScope.edit)}${readContextClause(task.fileScope)}\n\n` +
       `${ciEnforcedScoping}\n\n` +
       `Return verdict 'pass' if no security issues are found, else 'fail' with specific issues (file:line).`;
   }
   function fixPrompt(task, branch, wt, issues) {
     if (isolation === 'scope-fence') {
       return `Apply fixes in the MAIN repository working tree at ${repoRoot} (no worktree, no branch, no git mutations; leave changes uncommitted).\n` +
-        `Edit ONLY within this task's declared scope: ${JSON.stringify(task.fileScope)}.\n` +
+        `Edit ONLY within this task's declared scope: ${JSON.stringify(task.fileScope.edit)}.${readContextClause(task.fileScope)}\n` +
         `1. Fix these issues:\n- ${(issues || []).join('\n- ')}\n` +
         `2. Re-run the scoped check: \`${scopedCheckCmd}\`\n\nTask context:\n${task.fullText}`;
     }
@@ -465,6 +514,10 @@ export async function runEngine(engineArgs, ctx) {
     result.halted = true;
     result.haltReason = { stage: 'config', detail: 'scope-fence isolation requires launchCommit' };
   }
+  if (!result.halted && scopeIngest.error !== null) {
+    result.halted = true;
+    result.haltReason = { stage: 'config', detail: scopeIngest.error };
+  }
 
   for (let w = 0; w < waves.length && !result.halted; w++) {
     const waveIds = waves[w];
@@ -484,7 +537,7 @@ export async function runEngine(engineArgs, ctx) {
       const fence = await guard.dispatch(
         `From the main repo at ${repoRoot}, run \`git status --porcelain=v1 -uall\` and return EVERY path it reports as a JSON array of repo-relative paths. For rename lines include both the old and the new path. Do not mutate anything.`,
         { label: `fence:wave-${w}`, phase: 'Integrate', schema: FENCE_SCHEMA }, { kind: 'engine', task: null });
-      const declared = waveIds.flatMap((id) => tasks[id].fileScope);
+      const declared = waveIds.flatMap((id) => tasks[id].fileScope.edit);
       const exempt = runArtifacts || [];
       const undeclared = ((fence && fence.paths) || []).filter((p) => !exempt.includes(normalizePath(p)) && !declared.some((s) => scopeCovers(s, p)));
       result.waves.push({ wave: w, outcomes, fence: { paths: (fence && fence.paths) || [], undeclared } });

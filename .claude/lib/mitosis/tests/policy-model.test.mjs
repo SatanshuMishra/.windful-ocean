@@ -1,5 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import { pack } from './file-scope-fixtures.mjs';
 import {
   policyModelFor,
   sensitiveScope,
@@ -14,7 +15,7 @@ const CLEAR = {
   id: 't1',
   title: 'add slugify helper',
   agentType: 'implementer',
-  fileScope: ['src/slugify.mjs', 'tests/slugify.test.mjs'],
+  fileScope: pack(['src/slugify.mjs', 'tests/slugify.test.mjs']),
   fullText: 'RED: assert slugify throws on non-string input.\nGREEN: implement slugify in src/slugify.mjs.',
   risk: 'low',
   dependentCount: 0,
@@ -44,7 +45,7 @@ for (const at of ['implementer', 'test-engineer', 'general-purpose']) {
 }
 
 test('post-A8 default gate: the Pillar-1 floor holds without opts (categorical + fail-safe still opus)', () => {
-  assert.equal(policyModelFor(clear({ fileScope: ['src/auth/login.ts'] })), 'opus');
+  assert.equal(policyModelFor(clear({ fileScope: pack(['src/auth/login.ts']) })), 'opus');
   assert.equal(policyModelFor(clear({ dependentCount: BLAST_RADIUS_K })), 'opus');
   assert.equal(policyModelFor(clear({ risk: 'high' })), 'opus');
   assert.equal(policyModelFor(clear({ agentType: 'wizard' })), 'opus');
@@ -53,12 +54,12 @@ test('post-A8 default gate: the Pillar-1 floor holds without opts (categorical +
 });
 
 const LAYER1 = [
-  ['sensitiveScope: auth path', clear({ fileScope: ['src/auth/login.ts'] })],
-  ['sensitiveScope: migrations glob', clear({ fileScope: ['supabase/migrations/001_init.sql'] })],
-  ['sensitiveScope: infra path', clear({ fileScope: ['infra/main.tf'] })],
-  ['sensitiveScope: deploy path', clear({ fileScope: ['deploy/prod.yaml'] })],
-  ['sensitiveScope: workflows', clear({ fileScope: ['.github/workflows/ci.yml'] })],
-  ['irreversible: bare .sql scope', clear({ fileScope: ['db/schema.sql'] })],
+  ['sensitiveScope: auth path', clear({ fileScope: pack(['src/auth/login.ts']) })],
+  ['sensitiveScope: migrations glob', clear({ fileScope: pack(['supabase/migrations/001_init.sql']) })],
+  ['sensitiveScope: infra path', clear({ fileScope: pack(['infra/main.tf']) })],
+  ['sensitiveScope: deploy path', clear({ fileScope: pack(['deploy/prod.yaml']) })],
+  ['sensitiveScope: workflows', clear({ fileScope: pack(['.github/workflows/ci.yml']) })],
+  ['irreversible: bare .sql scope', clear({ fileScope: pack(['db/schema.sql']) })],
   ['irreversible: destructive op in fullText', clear({ fullText: 'GREEN: run DROP TABLE sessions then rebuild the index.' })],
   ['breakingContract: api reason edge', clear({ edgeReasons: ['public-api-contract'] })],
   ['breakingContract: schema reason edge', clear({ edgeReasons: ['shared schema change'] })],
@@ -80,7 +81,7 @@ const LAYER2 = [
   ['planIncomplete: bare ellipsis', clear({ fullText: 'GREEN: build it ...' })],
   ['fileScope missing', clear({ fileScope: undefined })],
   ['fileScope not an array', clear({ fileScope: 'src/x.ts' })],
-  ['fileScope has a non-string element', clear({ fileScope: ['src/x.ts', 42] })],
+  ['fileScope has a non-string element', clear({ fileScope: pack(['src/x.ts', 42]) })],
   ['fullText missing', clear({ fullText: undefined })],
   ['risk unknown value', clear({ risk: 'catastrophic' })],
   ['dependentCount missing', clear({ dependentCount: undefined })],
