@@ -128,6 +128,45 @@ test('promotion applies the repo-owned settings keys to live and preserves the l
   }
 });
 
+test('a repo revision that drops hooks errors out and leaves the live hook registrations intact', () => {
+  const { hooks, ...declaredWithoutHooks } = declaredSettings();
+  const s = settingsScenario({ declared: declaredWithoutHooks });
+  try {
+    const before = s.text();
+
+    const result = s.run();
+
+    assert.equal(result.status, 'error', JSON.stringify(result.failures ?? result.settings ?? {}, null, 2));
+    assert.match(result.errors.join('\n'), /hooks/, 'the refusal must name the key that is missing');
+    assert.equal(s.text(), before, 'a refused candidate must not rewrite the live settings');
+    assert.deepEqual(s.applied().hooks, s.live.hooks, 'live must keep every hook registration it had');
+    assertLiveUntouched(s.configRoot);
+  } finally {
+    s.dispose();
+  }
+});
+
+test('a repo revision that drops permissions.deny errors out and leaves the live deny list intact', () => {
+  const { permissions, ...rest } = declaredSettings();
+  const s = settingsScenario({
+    declared: { ...rest, permissions: { allow: permissions.allow } },
+    live: liveSettings({ permissions: { allow: ['Bash(node:*)'], deny: ['Bash(gh pr merge:*)'] } }),
+  });
+  try {
+    const before = s.text();
+
+    const result = s.run();
+
+    assert.equal(result.status, 'error', JSON.stringify(result.failures ?? result.settings ?? {}, null, 2));
+    assert.match(result.errors.join('\n'), /permissions\.deny/, 'the refusal must name the key that is missing');
+    assert.equal(s.text(), before, 'a refused candidate must not rewrite the live settings');
+    assert.deepEqual(s.applied().permissions.deny, ['Bash(gh pr merge:*)'], 'live must keep the deny list it had');
+    assertLiveUntouched(s.configRoot);
+  } finally {
+    s.dispose();
+  }
+});
+
 test('promotion withdraws a stale grant from live while the surrounding grants survive', () => {
   const s = settingsScenario();
   try {

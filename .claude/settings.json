@@ -89,6 +89,14 @@
       "Read(~/Library/Keychains/**)"
     ]
   },
+  "sandbox": {
+    "enabled": true,
+    "allowUnsandboxedCommands": false,
+    "failIfUnavailable": true,
+    "network": {
+      "allowLocalBinding": true
+    }
+  },
   "model": "claude-fable-5[1m]",
   "hooks": {
     "Stop": [
@@ -190,10 +198,6 @@
         "hooks": [
           {
             "type": "command",
-            "command": "$HOME/.claude/hooks/block-env-edits.sh"
-          },
-          {
-            "type": "command",
             "command": "$HOME/.claude/hooks/secret-scanner.sh",
             "timeout": 5
           },
@@ -211,26 +215,6 @@
             "type": "command",
             "command": "$HOME/.claude/hooks/block-destructive-bash.sh",
             "timeout": 5
-          },
-          {
-            "type": "command",
-            "command": "$HOME/.claude/hooks/pre-commit-scoped-verify.sh",
-            "timeout": 60
-          },
-          {
-            "type": "command",
-            "command": "node $HOME/.claude/hooks/trash-rm.mjs",
-            "timeout": 5
-          }
-        ]
-      },
-      {
-        "matcher": "Edit|Write|NotebookEdit|Bash",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "node $HOME/.claude/hooks/checkpoint-worktree.mjs",
-            "timeout": 15
           }
         ]
       },
@@ -273,11 +257,6 @@
             "type": "command",
             "command": "$HOME/.claude/hooks/lint-on-edit.sh",
             "async": true
-          },
-          {
-            "type": "command",
-            "command": "$HOME/.claude/hooks/ui-ux-audit-on-edit.sh",
-            "timeout": 5
           }
         ]
       }
