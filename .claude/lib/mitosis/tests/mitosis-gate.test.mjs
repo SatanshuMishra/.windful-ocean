@@ -10,7 +10,6 @@ import {
   GATE_COMPILE_EXIT,
   MITOSIS_GATE_VERBS,
   DEFAULT_PHASE_PARITY_TARGET,
-  scanJsStructure,
   checkPhaseParity,
   compileUnderSandbox,
   extractDeclaredPhases,
@@ -20,6 +19,7 @@ import {
   parseMitosisGateArgv,
   runMitosisGate,
 } from '../mitosis-gate.mjs';
+import { scanJsStructure } from '../js-scan.mjs';
 import {
   MITOSIS_GIT_USAGE_EXIT,
   MITOSIS_GIT_TRIPWIRE_EXIT,

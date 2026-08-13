@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
-import { scanJsStructure } from '../mitosis-gate.mjs';
+import { scanJsStructure } from '../js-scan.mjs';
 
 const LIB = new URL('..', import.meta.url).pathname;
 const GIT_LIB = new URL('../../git/', import.meta.url).pathname;
@@ -59,6 +59,7 @@ const MIRROR_CENSUS = Object.freeze({
   'fold-run-log.mjs': STANDALONE,
   'generate-run-script.mjs': STANDALONE,
   'gh-merge-shim.mjs': STANDALONE,
+  'js-scan.mjs': STANDALONE,
   'ledger-lint.mjs': STANDALONE,
   'mitosis-gate.mjs': STANDALONE,
   'pool.mjs': STANDALONE,
