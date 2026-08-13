@@ -29,6 +29,13 @@
       "struck_by": null
     },
     {
+      "id": "c15",
+      "text": "Delivery path restored under Layer 0: GH_TOKEN exported so gh and git authenticate over HTTPS, and an agent pushes a branch and opens a PR with signed commits and no human hands",
+      "done": false,
+      "kind": "detour",
+      "struck_by": null
+    },
+    {
       "id": "c3",
       "text": "Steps 1-2 shipped: deny pruned to D1-D5 only; all ask rules retired and hook ask branches converted to checkpoint-and-allow or block",
       "done": false,
@@ -195,5 +202,5 @@
     ]
   },
   "created_at": "2026-08-13T18:14:42.072Z",
-  "updated_at": "2026-08-13T21:23:44.532Z"
+  "updated_at": "2026-08-13T21:23:59.754Z"
 }
