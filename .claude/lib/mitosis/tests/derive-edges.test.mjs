@@ -284,3 +284,68 @@ test('T23: the CLI hardened graph carries dependentCount and edgeReasons on ever
   assert.equal(out.tasks.find((t) => t.id === 't1').dependentCount, 1);
   assert.deepEqual(out.tasks.find((t) => t.id === 't2').edgeReasons, []);
 });
+
+test('T19: a file-disjoint pair carrying a signal is emitted for coupling review', () => {
+  const g = graphOf(
+    { id: 't1', fileScope: ['srv/auth/login.ts'] },
+    { id: 't2', fileScope: ['web/auth/form.tsx'] },
+  );
+  const { graph, added, coupling } = deriveEdges(g, []);
+  assert.equal(added.length, 0, 'a file-disjoint pair is still not serialized by an added edge');
+  assert.deepEqual(coupling, [{ pair: ['t1', 't2'], signals: ['shared-risk-marker:auth'], default: 'serialize' }]);
+  assert.deepEqual(graph.coupling, coupling);
+});
+
+test('T20: a pair whose fileScope overlaps is not emitted, because the added edge already serializes it', () => {
+  const g = graphOf(
+    { id: 't1', fileScope: ['srv/auth/login.ts'] },
+    { id: 't2', fileScope: ['srv/auth/login.ts'] },
+  );
+  const { added, coupling } = deriveEdges(g, []);
+  assert.equal(added.length, 1);
+  assert.deepEqual(coupling, []);
+});
+
+test('T21: a pair already ordered through an intermediate dependency is not emitted', () => {
+  const g = graphOf(
+    { id: 't1', fileScope: ['srv/auth/login.ts'] },
+    { id: 't2', fileScope: ['lib/mid.ts'], dependsOn: ['t1'] },
+    { id: 't3', fileScope: ['web/auth/form.tsx'], dependsOn: ['t2'] },
+  );
+  const { coupling } = deriveEdges(g, []);
+  assert.deepEqual(coupling, [], 't1 and t3 are already ordered transitively through t2');
+});
+
+test('T19b: coupling context supplied on the graph reaches the detectors', () => {
+  const g = {
+    tasks: [
+      { id: 't1', fileScope: ['lib/a.js'], dependsOn: [] },
+      { id: 't2', fileScope: ['lib/b.js'], dependsOn: [] },
+    ],
+    couplingContext: { importAdjacency: { 'lib/a.js': ['lib/b.js'] } },
+  };
+  const { coupling } = deriveEdges(g, []);
+  assert.deepEqual(coupling, [{ pair: ['t1', 't2'], signals: ['import-adjacent'], default: 'parallel' }]);
+});
+
+test('T19c: the CLI carries the coupling emission into the hardened graph without disturbing edgeReasons', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'derive-cli-coupling-'));
+  const declared = join(dir, 'plan.graph.json');
+  writeFileSync(declared, JSON.stringify({
+    tasks: [
+      { id: 't1', title: 'a', fullText: 'A', fileScope: ['srv/auth/login.ts'], dependsOn: [], risk: 'low', validation: 'scoped' },
+      { id: 't2', title: 'b', fullText: 'B', fileScope: ['web/auth/form.tsx'], dependsOn: [], risk: 'low', validation: 'scoped' },
+    ],
+  }));
+  const stdout = JSON.parse(runCli([declared], dir));
+  assert.equal(stdout.couplingPairCount, 1);
+  const out = JSON.parse(readFileSync(join(dir, 'plan.hardened.graph.json'), 'utf8'));
+  assert.deepEqual(out.coupling, [{ pair: ['t1', 't2'], signals: ['shared-risk-marker:auth'], default: 'serialize' }]);
+  const audit = JSON.parse(readFileSync(join(dir, 'plan.edges-audit.json'), 'utf8'));
+  assert.deepEqual(audit.coupling, out.coupling);
+  for (const task of out.tasks) {
+    assert.ok(Number.isInteger(task.dependentCount), `task ${task.id} lost dependentCount; mitosis.js:4959 parks the unit`);
+    assert.ok(Array.isArray(task.edgeReasons), `task ${task.id} lost edgeReasons; mitosis.js:4962 parks the unit`);
+    assert.deepEqual(task.edgeReasons, [], 'coupling signals must never leak into edgeReasons, which mitosis.js:1130 regex-matches for opus escalation');
+  }
+});

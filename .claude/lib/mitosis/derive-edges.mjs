@@ -1,4 +1,5 @@
 import { scopesOverlap } from './wave-planner.mjs';
+import { reviewCoupling } from './coupling-review.mjs';
 
 function indexTasks(graph) {
   if (!graph || !Array.isArray(graph.tasks)) throw new Error('graph.tasks must be an array');
@@ -75,6 +76,22 @@ function edgeReasonsOf(byId, added) {
   return edgeReasonsById;
 }
 
+function couplingCandidates(byId, ids, ordered) {
+  const candidates = [];
+  for (let i = 0; i < ids.length; i++) {
+    for (let j = i + 1; j < ids.length; j++) {
+      const a = byId.get(ids[i]);
+      const b = byId.get(ids[j]);
+      if (ordered.get(a.id).has(b.id) || ordered.get(b.id).has(a.id)) continue;
+      candidates.push({
+        a: { id: a.id, fileScope: [...(a.fileScope || [])] },
+        b: { id: b.id, fileScope: [...(b.fileScope || [])] },
+      });
+    }
+  }
+  return candidates;
+}
+
 export function deriveEdges(graph, discoveredEdges = []) {
   const byId = indexTasks(graph);
   const deps = new Map();
@@ -119,6 +136,7 @@ export function deriveEdges(graph, discoveredEdges = []) {
 
   const transitiveDependents = transitiveDependentsOf(byId, directDependentsOf(byId, deps));
   const edgeReasonsById = edgeReasonsOf(byId, added);
+  const coupling = reviewCoupling(couplingCandidates(byId, ids, transitiveDependents), graph.couplingContext);
 
   const tasks = graph.tasks.map((t) => ({
     ...t,
@@ -128,12 +146,14 @@ export function deriveEdges(graph, discoveredEdges = []) {
   }));
 
   return {
-    graph: { ...graph, tasks },
+    graph: { ...graph, tasks, coupling },
     added,
+    coupling,
     audit: {
       declaredEdgeCount,
       addedEdgeCount: added.length,
       added: added.map((e) => ({ ...e })),
+      coupling,
     },
   };
 }
@@ -158,7 +178,7 @@ function cli(argv) {
   const auditPath = opts.audit || declaredPath.replace(/\.graph\.json$/, '.edges-audit.json');
   _write(outPath, JSON.stringify(result.graph, null, 2) + '\n');
   _write(auditPath, JSON.stringify({ ...result.audit, at: new Date().toISOString() }, null, 2) + '\n');
-  process.stdout.write(JSON.stringify({ outPath, auditPath, addedEdgeCount: result.audit.addedEdgeCount }) + '\n');
+  process.stdout.write(JSON.stringify({ outPath, auditPath, addedEdgeCount: result.audit.addedEdgeCount, couplingPairCount: result.coupling.length }) + '\n');
 }
 
 if (process.argv[1] && _toPath(import.meta.url) === _realpath(process.argv[1])) {
