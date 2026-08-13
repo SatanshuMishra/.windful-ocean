@@ -92,8 +92,7 @@ function couplingCandidates(byId, ids, ordered) {
   return candidates;
 }
 
-export function deriveEdges(graph, discoveredEdges = []) {
-  const byId = indexTasks(graph);
+function declaredDependenciesOf(byId) {
   const deps = new Map();
   let declaredEdgeCount = 0;
   for (const id of byId.keys()) {
@@ -106,6 +105,24 @@ export function deriveEdges(graph, discoveredEdges = []) {
     }
     deps.set(id, set);
   }
+  return { deps, declaredEdgeCount };
+}
+
+function addFileScopeOverlapEdges(byId, ids, have, addEdge) {
+  for (let i = 0; i < ids.length; i++) {
+    for (let j = i + 1; j < ids.length; j++) {
+      const a = byId.get(ids[i]);
+      const b = byId.get(ids[j]);
+      if (!scopesOverlap(a.fileScope || [], b.fileScope || [])) continue;
+      if (have(b.id, a.id) || have(a.id, b.id)) continue;
+      addEdge(b.id, a.id, 'fileScope-overlap');
+    }
+  }
+}
+
+export function deriveEdges(graph, discoveredEdges = []) {
+  const byId = indexTasks(graph);
+  const { deps, declaredEdgeCount } = declaredDependenciesOf(byId);
 
   const added = [];
   const have = (from, to) => deps.get(from).has(to);
@@ -122,16 +139,7 @@ export function deriveEdges(graph, discoveredEdges = []) {
   }
 
   const ids = [...byId.keys()];
-  for (let i = 0; i < ids.length; i++) {
-    for (let j = i + 1; j < ids.length; j++) {
-      const a = byId.get(ids[i]);
-      const b = byId.get(ids[j]);
-      if (!scopesOverlap(a.fileScope || [], b.fileScope || [])) continue;
-      if (have(b.id, a.id) || have(a.id, b.id)) continue;
-      addEdge(b.id, a.id, 'fileScope-overlap');
-    }
-  }
-
+  addFileScopeOverlapEdges(byId, ids, have, addEdge);
   detectCycle(byId, deps);
 
   const transitiveDependents = transitiveDependentsOf(byId, directDependentsOf(byId, deps));
