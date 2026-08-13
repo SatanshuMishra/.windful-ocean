@@ -10,8 +10,11 @@ import {
   GATE_COMPILE_EXIT,
   MITOSIS_GATE_VERBS,
   DEFAULT_PHASE_PARITY_TARGET,
-  scanJsStructure,
+  DEFAULT_DETERMINISM_TARGET,
+  DEFAULT_AGENT_TREE_TARGET,
   checkPhaseParity,
+  execAllowlistFailures,
+  probeExecPolicy,
   compileUnderSandbox,
   extractDeclaredPhases,
   extractCalledPhases,
@@ -20,6 +23,7 @@ import {
   parseMitosisGateArgv,
   runMitosisGate,
 } from '../mitosis-gate.mjs';
+import { scanJsStructure } from '../js-scan.mjs';
 import {
   MITOSIS_GIT_USAGE_EXIT,
   MITOSIS_GIT_TRIPWIRE_EXIT,
@@ -403,15 +407,152 @@ test('the gate catches the declared-but-unused and used-but-undeclared pair in o
   assert.deepEqual(verdict.usedNeverDeclared, ['Shepherd']);
 });
 
-test('the argv parser accepts the phase-parity verb and defaults its target', () => {
-  const parsed = parseMitosisGateArgv(['phase-parity']);
-  assert.deepEqual(parsed, { ok: true, verb: 'phase-parity', target: DEFAULT_PHASE_PARITY_TARGET });
-  assert.deepEqual([...MITOSIS_GATE_VERBS], ['phase-parity']);
+test('the argv parser accepts every verb and defaults each to its own target', () => {
+  assert.deepEqual(parseMitosisGateArgv(['phase-parity']), { ok: true, verb: 'phase-parity', target: DEFAULT_PHASE_PARITY_TARGET });
+  assert.deepEqual(parseMitosisGateArgv(['determinism']), { ok: true, verb: 'determinism', target: DEFAULT_DETERMINISM_TARGET });
+  assert.deepEqual(parseMitosisGateArgv(['exec-allowlist']), { ok: true, verb: 'exec-allowlist', target: null });
+  assert.deepEqual(parseMitosisGateArgv(['dispatchable-agent-schema-capable']), { ok: true, verb: 'dispatchable-agent-schema-capable', target: DEFAULT_AGENT_TREE_TARGET });
+  assert.deepEqual([...MITOSIS_GATE_VERBS], ['determinism', 'dispatchable-agent-schema-capable', 'exec-allowlist', 'phase-parity']);
+  assert.notEqual(DEFAULT_DETERMINISM_TARGET, DEFAULT_PHASE_PARITY_TARGET);
+});
+
+test('the schema verb exits clean over the real agent tree and names the derived dispatch table', () => {
+  const { out, stdout, stderr } = capture();
+  const code = runMitosisGate(['dispatchable-agent-schema-capable'], out, (path) => readFileSync(path, 'utf8'));
+  assert.deepEqual(stderr, []);
+  assert.equal(code, GATE_CLEAN_EXIT);
+  const verdict = JSON.parse(stdout.join(''));
+  assert.deepEqual(verdict.dispatchable, [
+    'code-reviewer', 'codebase-analyst', 'debugger', 'implementer',
+    'security-reviewer', 'solution-architect', 'test-engineer',
+  ]);
+});
+
+test('the schema verb exits on the read code when the agent tree cannot be read', () => {
+  const { out, stderr } = capture();
+  const code = runMitosisGate(['dispatchable-agent-schema-capable', '--target', '/nonexistent-agent-tree-xyz/'], out, (path) => readFileSync(path, 'utf8'));
+  assert.equal(code, GATE_READ_EXIT);
+  assert.match(stderr.join(''), /nonexistent-agent-tree-xyz/);
+});
+
+test('the exec-allowlist verb exits clean against the real policy module', () => {
+  const { out, stdout, stderr } = capture();
+  const code = runMitosisGate(['exec-allowlist'], out, () => '');
+  assert.deepEqual(stderr, []);
+  assert.equal(code, GATE_CLEAN_EXIT);
+  const verdict = JSON.parse(stdout.join(''));
+  assert.deepEqual(verdict.allowlist, ['claude', 'gh', 'git', 'graphify', 'node']);
+});
+
+test('the exec-allowlist verb probes every merge argv the no-merge guarantee names, by refusal reason', () => {
+  const { out, stdout } = capture();
+  runMitosisGate(['exec-allowlist'], out, () => '');
+  const verdict = JSON.parse(stdout.join(''));
+  assert.deepEqual(verdict.refusals, {
+    'pr merge': 'pr-merge',
+    'api graphql mergePullRequest': 'graphql-mutation',
+    'api graphql enablePullRequestAutoMerge': 'graphql-mutation',
+    'api graphql enqueuePullRequest': 'graphql-mutation',
+    'api /graphql mergePullRequest': 'graphql-mutation',
+    'api PUT pulls/N/merge': 'api-merge-endpoint',
+    'api graphql unreadable body': 'graphql-fail-closed',
+  });
+});
+
+test('a merge argv that stops being refused is a failure naming the argv, not a silent pass', () => {
+  const labels = Object.keys(probeExecPolicy().refusals);
+  assert.ok(labels.length > 0, 'the verb probes no merge argv at all, so this relation asserts nothing');
+  for (const label of labels) {
+    const policy = probeExecPolicy();
+    const failures = execAllowlistFailures({
+      ...policy,
+      refusals: { ...policy.refusals, [label]: null },
+    });
+    assert.equal(failures.length, 1, `dropping the refusal of ${label} must produce exactly one failure`);
+    assert.match(failures[0], new RegExp(label.replace(/[/\\^$*+?.()|[\]{}]/g, '\\$&')));
+  }
+});
+
+test('a merge argv refused for a different reason is a failure, because the reason is the guarantee', () => {
+  const policy = probeExecPolicy();
+  const failures = execAllowlistFailures({
+    ...policy,
+    refusals: { ...policy.refusals, 'pr merge': 'graphql-fail-closed' },
+  });
+  assert.equal(failures.length, 1);
+  assert.match(failures[0], /pr-merge/);
+  assert.match(failures[0], /graphql-fail-closed/);
+});
+
+test('an allowlist that is not a readable list is reported as a failure rather than crashing the verb', () => {
+  for (const allowlist of [undefined, null, 'claude,gh', 42]) {
+    const failures = execAllowlistFailures({ ...probeExecPolicy(), allowlist });
+    assert.ok(failures.length >= 1, JSON.stringify(allowlist));
+    assert.match(failures[0], /allowlist/);
+  }
+});
+
+test('the exec-allowlist verdict declares what it attests and refuses to imply the rest', () => {
+  const { out, stdout } = capture();
+  runMitosisGate(['exec-allowlist'], out, () => '');
+  const verdict = JSON.parse(stdout.join(''));
+  assert.equal(verdict.probed, undefined, 'the verb opens no path, so it must not report one as probed');
+  assert.ok(Array.isArray(verdict.attests) && verdict.attests.length > 0);
+  assert.ok(Array.isArray(verdict.notAttested) && verdict.notAttested.length > 0);
+  assert.ok(
+    verdict.notAttested.some((claim) => /spawn site/.test(claim)),
+    'every live spawn site still calls child_process directly, so the verdict must not read as process containment',
+  );
+  assert.ok(
+    verdict.notAttested.some((claim) => /argv/.test(claim)),
+    'node, git and claude reach arbitrary work through argv with no policy, so the verdict must say so',
+  );
+});
+
+test('the exec-allowlist verb rejects a target, because it probes an imported module and opens no path', () => {
+  const parsed = parseMitosisGateArgv(['exec-allowlist', '--target', '/etc/passwd']);
+  assert.equal(parsed.ok, false);
+  assert.match(parsed.error, /exec-allowlist/);
+  const { out, stderr } = capture();
+  assert.equal(runMitosisGate(['exec-allowlist', '--target', '/etc/passwd'], out, () => ''), GATE_USAGE_EXIT);
+  assert.match(stderr.join(''), /exec-allowlist/);
+});
+
+test('the determinism verb exits clean over the real engine source', () => {
+  const { out, stdout, stderr } = capture();
+  const code = runMitosisGate(['determinism'], out, (path) => readFileSync(path, 'utf8'));
+  assert.deepEqual(stderr, []);
+  assert.equal(code, GATE_CLEAN_EXIT);
+  const verdict = JSON.parse(stdout.join(''));
+  assert.equal(verdict.verb, 'determinism');
+  assert.ok(verdict.fileCount > 30, `expected the whole engine directory, found ${verdict.fileCount}`);
+});
+
+test('the determinism verb exits on the violation code and names the file, line and identifier', () => {
+  const { out, stdout, stderr } = capture();
+  const code = runMitosisGate(['determinism'], out, () => 'const stamp = Date.now();\n');
+  assert.equal(code, GATE_VIOLATION_EXIT);
+  assert.deepEqual(stdout, []);
+  assert.match(stderr.join(''), /mitosis-gate\.mjs:1 reads Date as a bare read/);
+});
+
+test('the determinism verb halts rather than guessing at a receiver it cannot read', () => {
+  const { out } = capture();
+  const code = runMitosisGate(['determinism'], out, () => 'const stamp = (receiver).Date;\n');
+  assert.equal(code, GATE_UNRESOLVABLE_EXIT);
+});
+
+test('the determinism verb exits on the read code when a root cannot be enumerated', () => {
+  const { out, stderr } = capture();
+  const code = runMitosisGate(['determinism', '--target', '/nonexistent-engine-dir-xyz/'], out, () => '');
+  assert.equal(code, GATE_READ_EXIT);
+  assert.match(stderr.join(''), /nonexistent-engine-dir-xyz/);
 });
 
 test('the argv parser rejects an unknown verb, an unknown flag and a missing target value', () => {
   assert.equal(parseMitosisGateArgv([]).ok, false);
   assert.equal(parseMitosisGateArgv(['audit']).ok, false);
+  assert.match(parseMitosisGateArgv(['audit']).error, new RegExp(MITOSIS_GATE_VERBS.join(', ')));
   assert.equal(parseMitosisGateArgv(['phase-parity', '--file', 'x.js']).ok, false);
   assert.equal(parseMitosisGateArgv(['phase-parity', '--target']).ok, false);
   assert.equal(parseMitosisGateArgv(['phase-parity', '--target', '--other']).ok, false);

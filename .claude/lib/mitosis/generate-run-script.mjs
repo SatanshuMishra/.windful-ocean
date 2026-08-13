@@ -62,7 +62,7 @@ export function validateGraph(graph) {
 
 function parseArgs(argv) {
   const [graphPath, ...rest] = argv;
-  if (!graphPath) throw new Error('usage: generate-run-script.mjs <plan>.graph.json --base-branch <b> --scoped-check <cmd> --full-validation <cmd> [--isolation worktree|scope-fence] [--fix-loop-max 3] [--models <json>]');
+  if (!graphPath) throw new Error('usage: generate-run-script.mjs <plan>.graph.json --base-branch <b> --scoped-check <cmd> --full-validation <cmd> --branch-prefix <p> [--isolation worktree|scope-fence] [--fix-loop-max 3] [--models <json>]');
   const BOOLEAN_FLAGS = new Set(['allow-platform-default']);
   const flags = {};
   for (let i = 0; i < rest.length;) {
@@ -107,6 +107,9 @@ function run() {
   const models = flags.models ? JSON.parse(flags.models) : {};
   const badModelKeys = Object.keys(models).filter((k) => k !== 'reviewer' && k !== 'fixer');
   if (badModelKeys.length > 0) throw new Error(`--models keys must be reviewer or fixer; got: ${badModelKeys.join(', ')}`);
+  if (!flags['branch-prefix']) {
+    throw new Error('missing required flag --branch-prefix; the prefix is entropy and enters through args only, and minting one from the wall clock here would give two runs of the same graph two different branch namespaces');
+  }
   const outPath = graphPath.replace(/\.graph\.json$/, '.run.js');
   if (outPath === graphPath) throw new Error('graph path must end in .graph.json');
 
@@ -135,7 +138,7 @@ function run() {
   const values = {
     tasks: buildEngineTasks(graph.tasks),
     waves,
-    branchPrefix: `wf-${new Date().toISOString().replace(/\D/g, '').slice(0, 14)}`,
+    branchPrefix: flags['branch-prefix'],
     baseBranch,
     worktreeRoot: mkdtempSync(join(tmpdir(), 'sp-wt-')),
     repoRoot,

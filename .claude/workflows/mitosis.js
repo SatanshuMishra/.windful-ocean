@@ -2439,7 +2439,7 @@ const CI_FIX_PREFIX = 'ci-fix:';
 const CI_SHA_PATTERN = /^[0-9a-f]{7,64}$/i;
 const CI_REASON_LIST_CAP = 240;
 const CI_TERMINAL_CONCLUSIONS = Object.freeze(['failure', 'cancelled', 'timed_out', 'action_required', 'stale', 'startup_failure', 'neutral', 'skipped', 'timeout-expired']);
-const CI_ENFORCER_CHECK_TOKENS = Object.freeze(['receipts', 'd6', 'cluster-boundary', 'pr-title-lint', 'invariant-coverage']);
+const CI_ENFORCER_CHECK_TOKENS = Object.freeze(['receipts', 'd6', 'cluster-boundary', 'pr-title-lint', 'invariant-coverage', 'determinism', 'exec-allowlist', 'dispatchable-agent-schema-capable']);
 const CI_SECURITY_CHECK_TOKENS = Object.freeze(['security', 'codeql', 'secret-scan', 'secret scanning', 'dependency-review', 'sast', 'trivy', 'snyk', 'audit', 'scan', 'gitleaks', 'semgrep', 'osv', 'grype', 'bandit', 'trufflehog', 'vuln', 'cve', 'licence', 'license']);
 const CI_ORDINARY_CHECK_TOKENS = Object.freeze(['test', 'spec', 'unit', 'integration', 'e2e', 'build', 'compile', 'typecheck', 'tsc', 'lint', 'format', 'fmt', 'coverage', 'suite', 'jest', 'vitest', 'mocha', 'pytest', 'cargo', 'gradle']);
 
@@ -5074,7 +5074,8 @@ async function runUnit(unit) {
         `Read and follow: ${GRAPH_SKILL}\n` +
         `Input plan: ${planned.planPath}\n\n` +
         `1. Follow plan-to-task-graph to author the intent layer and run semantic discovery (native LSP call hierarchy + Graphify), writing the discovered-edges JSON, then run the deterministic parallelizer exactly:\n` +
-        `   node ${LIB_DIR}/derive-edges.mjs ${planned.planPath.replace(/\.md$/, '.graph.json')} ${planned.planPath.replace(/\.md$/, '.discovered-edges.json')} --out ${planned.planPath.replace(/\.md$/, '.graph.json')} --audit ${planned.planPath.replace(/\.md$/, '.edges-audit.json')}\n` +
+        `   node ${LIB_DIR}/derive-edges.mjs ${planned.planPath.replace(/\.md$/, '.graph.json')} ${planned.planPath.replace(/\.md$/, '.discovered-edges.json')} --out ${planned.planPath.replace(/\.md$/, '.graph.json')} --audit ${planned.planPath.replace(/\.md$/, '.edges-audit.json')} --at <iso>\n` +
+        `   --at is REQUIRED and takes an ISO-8601 UTC timestamp you supply for the audit record; the tool reads no clock of its own, so omitting it is a hard error rather than a silently omitted field.\n` +
         `   If it exits non-zero (dependency cycle), STOP and return an engineArgs/route that you could not build is NOT acceptable — instead fix the plan's dependsOn and re-run; a cycle is a hard error.\n\n` +
         `2. Compute waves and route via Node (one-off script using the repo's installed modules):\n` +
         `   - import { validateGraph } from '${LIB_DIR}/generate-run-script.mjs' and call it on the parsed graph to get { waves }.\n` +

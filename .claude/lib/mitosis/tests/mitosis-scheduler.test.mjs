@@ -4104,7 +4104,7 @@ test('WS-1.6 authoritative-substitute: an echoed per-task model outside {opus,so
 
   assert.equal(result.parked.find((p) => p.mspId === 'solo'), undefined, 'a haiku echo is authoritatively substituted, not parked');
   assert.deepEqual(result.shipped.map((s) => s.mspId), ['solo']);
-  const canary = logLines.find((l) => /DRIFT CANARY/.test(l) && /tasks\.t0\.model/.test(l) && /"haiku"/.test(l));
+  const canary = logLines.find((l) => /DRIFT CANARY/.test(l) && /tasks\.t0\.model/.test(l) && /"haiku\x22/.test(l));
   assert.ok(canary, `a haiku echo must remain observable via a logged drift canary while the engine overwrites it; got:\n${logLines.join('\n')}`);
 });
 

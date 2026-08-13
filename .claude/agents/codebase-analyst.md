@@ -1,7 +1,7 @@
 ---
 name: codebase-analyst
 description: Read-only relational and architectural mapping plus primary code location. Use proactively before planning or implementing, to find where something lives, and to map how modules, symbols, and data flow connect. The primary locator - prefer it over the built-in Explore. Returns a distilled map, not file dumps. Never edits.
-tools: Read, Grep, Glob, Bash, mcp__plugin_serena_serena__find_symbol, mcp__plugin_serena_serena__find_referencing_symbols, mcp__plugin_serena_serena__find_implementations, mcp__plugin_serena_serena__get_symbols_overview, mcp__plugin_serena_serena__search_for_pattern, mcp__plugin_serena_serena__find_file, mcp__plugin_serena_serena__list_dir
+tools: Read, Grep, Glob, Bash, mcp__plugin_serena_serena__find_symbol, mcp__plugin_serena_serena__find_referencing_symbols, mcp__plugin_serena_serena__find_implementations, mcp__plugin_serena_serena__get_symbols_overview, mcp__plugin_serena_serena__search_for_pattern, mcp__plugin_serena_serena__find_file, mcp__plugin_serena_serena__list_dir, StructuredOutput
 model: sonnet
 color: purple
 ---
