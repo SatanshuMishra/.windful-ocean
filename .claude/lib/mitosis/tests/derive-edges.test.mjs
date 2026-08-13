@@ -238,3 +238,49 @@ test('CLI exits non-zero and prints derive-edges error on a cycle', () => {
   assert.ok(failed, 'CLI should exit non-zero on a cycle');
   assert.equal(existsSync(join(dir, 'plan.hardened.graph.json')), false);
 });
+
+test('T22: a discovered edge lands in dependentCount and in edgeReasons on both endpoints', () => {
+  const g = graphOf(
+    { id: 't1', fileScope: ['lib/a.js'] },
+    { id: 't2', fileScope: ['lib/b.js'], dependsOn: ['t1'] },
+    { id: 't3', fileScope: ['lib/c.js'], dependsOn: ['t2'] },
+    { id: 't4', fileScope: ['lib/d.js'] },
+  );
+  const { graph } = deriveEdges(g, [{ from: 't4', to: 't1', reason: 'api-contract' }]);
+  const byId = Object.fromEntries(graph.tasks.map((t) => [t.id, t]));
+  assert.equal(byId.t1.dependentCount, 3);
+  assert.equal(byId.t2.dependentCount, 1);
+  assert.equal(byId.t3.dependentCount, 0);
+  assert.equal(byId.t4.dependentCount, 0);
+  assert.deepEqual(byId.t1.edgeReasons, ['api-contract']);
+  assert.deepEqual(byId.t4.edgeReasons, ['api-contract']);
+  assert.deepEqual(byId.t2.edgeReasons, []);
+  assert.deepEqual(byId.t3.edgeReasons, []);
+});
+
+test('T23: the CLI hardened graph carries dependentCount and edgeReasons on every task', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'derive-cli-contract-'));
+  const declared = join(dir, 'plan.graph.json');
+  writeFileSync(declared, JSON.stringify({
+    tasks: [
+      { id: 't1', title: 'a', fullText: 'A', fileScope: ['lib/a.js'], dependsOn: [], risk: 'low', validation: 'scoped' },
+      { id: 't2', title: 'b', fullText: 'B', fileScope: ['lib/b.js'], dependsOn: ['t1'], risk: 'low', validation: 'scoped' },
+    ],
+  }));
+  const stdout = runCli([declared], dir);
+  assert.match(stdout, /"outPath"/);
+  const out = JSON.parse(readFileSync(join(dir, 'plan.hardened.graph.json'), 'utf8'));
+  for (const task of out.tasks) {
+    assert.ok(
+      Number.isInteger(task.dependentCount) && task.dependentCount >= 0,
+      `task ${task.id} lost dependentCount; mitosis.js:4959 parks the unit when this field is not a non-negative integer`,
+    );
+    assert.ok(
+      Array.isArray(task.edgeReasons),
+      `task ${task.id} lost edgeReasons; mitosis.js:4962 parks the unit when this field is not an array`,
+    );
+    for (const reason of task.edgeReasons) assert.equal(typeof reason, 'string');
+  }
+  assert.equal(out.tasks.find((t) => t.id === 't1').dependentCount, 1);
+  assert.deepEqual(out.tasks.find((t) => t.id === 't2').edgeReasons, []);
+});
