@@ -1,0 +1,103 @@
+{
+  "schema_version": 2,
+  "id": "01KZY5ARMRK0S390J8Y25X8Z72",
+  "slug": "max-autonomy-permission-build",
+  "title": "Maximum-autonomy permission architecture: build",
+  "status": "active",
+  "parent_id": "01KZ0D32M5MRY6TY6XV55AD62A",
+  "predecessor_id": null,
+  "completion_criteria": [
+    {
+      "id": "c1",
+      "text": "U1-U7 experiments run and recorded in a companion findings doc; each claim marked verified or refuted with evidence, before any step that depends on it",
+      "done": false,
+      "kind": "planned",
+      "struck_by": null
+    },
+    {
+      "id": "c2",
+      "text": "Step 0 shipped: protect-claude-config.sh narrowed to the gate implementation and deny list only, ask converted to deny, confirmed live",
+      "done": false,
+      "kind": "planned",
+      "struck_by": null
+    },
+    {
+      "id": "c3",
+      "text": "Steps 1-2 shipped: deny pruned to D1-D5 only; all ask rules retired and hook ask branches converted to checkpoint-and-allow or block",
+      "done": false,
+      "kind": "planned",
+      "struck_by": null
+    },
+    {
+      "id": "c4",
+      "text": "Steps 3-4 shipped: broad Bash allow plus mcp__* coverage; settings.local.json truncated to reusable prefix rules and accumulation stopped at source",
+      "done": false,
+      "kind": "planned",
+      "struck_by": null
+    },
+    {
+      "id": "c5",
+      "text": "Layer 1 shipped whole: temp-index checkpoint, rm-to-trash rewrite, hourly APFS snapshot, and the D2 age-based reaper in the same change",
+      "done": false,
+      "kind": "planned",
+      "struck_by": null
+    },
+    {
+      "id": "c6",
+      "text": "Layer 3 shipped: one PreToolUse gate, P0-P6 in order, allow/block only, fail-open except P1/P2/P5, honoring the D3 local-container carve-out",
+      "done": false,
+      "kind": "planned",
+      "struck_by": null
+    },
+    {
+      "id": "c7",
+      "text": "Layer 4 shipped: append-only tool-call audit log plus a SessionStart heartbeat asserting layers 0 and 1 and the promotion pointer",
+      "done": false,
+      "kind": "planned",
+      "struck_by": null
+    },
+    {
+      "id": "c8",
+      "text": "Layer 0 shipped: sandbox enabled with failIfUnavailable, gated on the U3 result",
+      "done": false,
+      "kind": "planned",
+      "struck_by": null
+    },
+    {
+      "id": "c9",
+      "text": "Steps 8-9 shipped: inert and harmful hooks deleted; logbook plugin fail-closed guard disabled or patched (R6)",
+      "done": false,
+      "kind": "planned",
+      "struck_by": null
+    },
+    {
+      "id": "c10",
+      "text": "R3 rule change landed: the standing --dangerously-skip-permissions prohibition replaced by a rule requiring layers 0, 1 and 4 live first",
+      "done": false,
+      "kind": "planned",
+      "struck_by": null
+    },
+    {
+      "id": "c11",
+      "text": "One PR per MSP opened through the centralized pr-create tool, each leaving its base branch green",
+      "done": false,
+      "kind": "planned",
+      "struck_by": null
+    }
+  ],
+  "vcs_ref": "docs/max-autonomy-permission-spec",
+  "external_refs": [],
+  "blocked_by": null,
+  "abandoned_reason": null,
+  "closure_statement": null,
+  "spine": {
+    "active_goal": "",
+    "next_step": "",
+    "last_session": "",
+    "open_risks": [],
+    "key_decisions": [],
+    "out_of_scope": []
+  },
+  "created_at": "2026-08-13T18:14:42.072Z",
+  "updated_at": "2026-08-13T18:14:42.072Z"
+}
