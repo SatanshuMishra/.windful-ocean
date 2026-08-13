@@ -39,12 +39,27 @@ function repoRootRefusal(repoRoot, configRoot) {
   return `refusing to run git against ${JSON.stringify(repoRoot)}: ${errors.join('; ')}`;
 }
 
-function refRefusal(ref) {
+export function refRefusal(ref) {
   if (typeof ref !== 'string' || ref.trim() === '') return 'refusing to resolve an empty ref';
   if (ref.startsWith('-')) {
     return `refusing to resolve ${JSON.stringify(ref)}: a ref may not begin with "-", where git would read it as an option`;
   }
   return null;
+}
+
+export function gitOutput(repoRoot, args) {
+  const rootRefusal = repoRootRefusal(repoRoot);
+  if (rootRefusal !== null) return { ok: false, status: null, error: rootRefusal };
+  const run = runGit(repoRoot, args);
+  if (run.error) return { ok: false, status: null, error: `git could not be run: ${run.error.message}` };
+  if (run.status !== 0) {
+    return {
+      ok: false,
+      status: run.status,
+      error: `git ${args[0]} failed in ${repoRoot}: ${(run.stderr || '').trim()}`,
+    };
+  }
+  return { ok: true, status: 0, stdout: run.stdout ?? '' };
 }
 
 export function stripSettings(dir) {

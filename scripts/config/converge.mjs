@@ -6,6 +6,7 @@ import { fileURLToPath } from 'node:url';
 import { DEFAULT_REF } from './paths.mjs';
 import { readReceipt } from './receipt.mjs';
 import { resolveRef } from './release.mjs';
+import { observeStaleness, stalenessReport } from './staleness.mjs';
 import { assertBootstrapOutsideReleases, liveSha, promote, settingsNotices } from './promote.mjs';
 
 const EXIT_OK = 0;
@@ -62,11 +63,13 @@ export function converge({ configRoot, ref = DEFAULT_REF, now, repoRoot, setting
   const desired = resolveRef(root, ref);
   if (!desired.ok) return { status: 'error', ref, errors: [desired.error] };
 
+  const staleness = observeStaleness({ repoRoot: root, ref });
+
   const drift = driftOf({ desired: desired.sha, live: liveSha(configRoot), recorded: stored.receipt.sha });
-  if (drift === null) return { status: 'converged', ref, sha: desired.sha };
+  if (drift === null) return { status: 'converged', ref, sha: desired.sha, staleness };
 
   const promotion = promote({ configRoot, repoRoot: root, ref, now, settingsPath, home });
-  return { status: 'drifted', ref, drift, promotion };
+  return { status: 'drifted', ref, drift, promotion, staleness };
 }
 
 function promotionStatusLines(promotion) {
@@ -94,7 +97,7 @@ function promotionLines(promotion) {
   ];
 }
 
-function convergeReport(outcome) {
+function convergenceBlock(outcome) {
   if (outcome.status === 'converged' || outcome.status === 'uninitialized') return null;
   if (outcome.status === 'drifted') {
     return [
@@ -104,6 +107,12 @@ function convergeReport(outcome) {
     ].join('\n');
   }
   return [`${HEADLINE}: FAILED.`, ...(outcome.errors ?? ['unknown failure']).map(indent)].join('\n');
+}
+
+function convergeReport(outcome) {
+  const blocks = [convergenceBlock(outcome), stalenessReport(outcome.staleness)];
+  const reported = blocks.filter((block) => block !== null);
+  return reported.length === 0 ? null : reported.join('\n');
 }
 
 function convergeFailed(outcome) {
