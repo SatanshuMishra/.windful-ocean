@@ -91,13 +91,51 @@
   "abandoned_reason": null,
   "closure_statement": null,
   "spine": {
-    "active_goal": "",
-    "next_step": "",
-    "last_session": "",
-    "open_risks": [],
+    "active_goal": "Implement the ratified maximum-autonomy permission architecture end to end: experiments first, then the ordered change set, one PR per MSP.",
+    "next_step": "Wave 0 is running: four parallel agents covering U1/U2/U6 (permission-mode semantics), U3/U4/U5 plus the temp-index checkpoint re-measurement, the promotion pipeline and U7, and the hook/deny-list current-state map. On their return, resolve the Step 0 narrowing-target question, then decompose into MSPs and ship through mitosis. No implementation may start before the experiment each step depends on has run.",
+    "last_session": "Read the SPEC, opened this child build thread, established config ground truth, and dispatched Wave 0 measurement agents. Nothing implemented.",
+    "open_risks": [
+      {
+        "text": "Step 0's narrowing target is ambiguous — clamping repo paths to the gate implementation would deny building the gate itself, so the guard must almost certainly clamp the live copy under ~/.claude rather than version-controlled source",
+        "scope": "c1",
+        "refs": [
+          ".claude/hooks/protect-claude-config.sh",
+          "docs/superpowers/specs/2026-08-13-maximum-autonomy-permission-architecture-SPEC.md"
+        ]
+      },
+      {
+        "text": "Live is pinned at release 482dc7d while repo HEAD is 31bdd62 — three commits never promoted, so a config change may silently no-op until the promotion pipeline is understood",
+        "scope": "c1",
+        "refs": [
+          "~/.claude/current",
+          "~/.claude/LIVE"
+        ]
+      },
+      {
+        "text": "converge.mjs runs on Stop — any committed hook change can auto-promote at the end of a turn, putting a half-built gate live mid-build",
+        "scope": "c1",
+        "refs": [
+          ".claude/settings.json:110"
+        ]
+      },
+      {
+        "text": "The promotion source is unestablished for git worktrees — mitosis fan-out shares one git dir, so a worktree HEAD could become the promoted release",
+        "scope": "c1",
+        "refs": [
+          "~/.claude/local/converge.mjs"
+        ]
+      },
+      {
+        "text": "settings.local.json holds 202 allow rules and grew during the SPEC-authoring session — the accumulation source must be stopped, not just the file truncated",
+        "scope": "c1",
+        "refs": [
+          ".claude/settings.local.json"
+        ]
+      }
+    ],
     "key_decisions": [],
     "out_of_scope": []
   },
   "created_at": "2026-08-13T18:14:42.072Z",
-  "updated_at": "2026-08-13T18:14:42.072Z"
+  "updated_at": "2026-08-13T18:18:17.449Z"
 }
