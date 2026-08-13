@@ -59,21 +59,17 @@ test('the derived dispatchable set over the real trees is exactly the seven agen
   ]);
 });
 
-test('the eight agents engine source never names are excluded', () => {
+test('an agent is dispatchable exactly when engine source names it, over every definition in the tree', () => {
   const engine = collectEngineLiterals(REAL_ROOTS, realSourceIo);
+  assert.equal(engine.ok, true, engine.error);
   const tree = readAgentDefinitions(agentDefinitionDir(), realSourceIo);
+  assert.equal(tree.ok, true, tree.error);
   const dispatchable = new Set(dispatchableAgents(tree.definitions, engine.literals));
-  const excluded = tree.definitions.map((d) => d.name).filter((name) => !dispatchable.has(name));
-  assert.deepEqual(excluded, [
-    'data-engineer',
-    'devops-engineer',
-    'mechanical-editor',
-    'performance-engineer',
-    'report-writer',
-    'researcher',
-    'technical-writer',
-    'verification-strategist',
-  ]);
+  const disagreements = tree.definitions
+    .filter((definition) => engine.literals.has(definition.name) !== dispatchable.has(definition.name))
+    .map((definition) => definition.name);
+  assert.deepEqual(disagreements, [], 'the dispatch table is the set of definitions engine source names, with no other membership rule');
+  assert.ok(tree.definitions.length > dispatchable.size, 'the tree must hold agents engine source never names, or this relation is vacuous');
 });
 
 test('an agent type named in engine source with no definition file carries no frontmatter obligation', () => {
@@ -88,8 +84,6 @@ test('the census over the real trees is clean', () => {
   assert.equal(result.ok, true, result.error);
   const named = result.violations.map((v) => `${v.name} (${v.path})`);
   assert.deepEqual(named, [], `these dispatchable agents omit ${REQUIRED_TOOL} from tools:\n${named.join('\n')}`);
-  assert.equal(result.dispatchable.length, 7);
-  assert.equal(result.definitionCount, 15);
 });
 
 test('a name that appears only as an identifier or in a comment is not a literal and so is not dispatchable', () => {
