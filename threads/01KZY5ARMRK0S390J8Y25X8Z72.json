@@ -112,70 +112,70 @@
   "abandoned_reason": null,
   "closure_statement": null,
   "spine": {
-    "active_goal": "Implement the ratified maximum-autonomy permission architecture end to end: experiments first, then the ordered change set, one PR per MSP.",
-    "next_step": "The SPEC amendment plus U1-U7 findings doc is in flight. When it lands, ship in this order: Step 0 (narrow protect-claude-config.sh to live paths only), then the manifest classification fix (which MUST precede any edit to permissions.deny), then Steps 1-2, Steps 3-4, Layer 1, Layer 3, Layer 4, Layer 0, Steps 8-9. HOLD the unattended launcher and the plugin disable pending direct user confirmation. One PR per MSP through the centralized pr-create tool.",
-    "last_session": "Ran Wave 0 to completion across seven experiments plus three follow-up probes. Layer 0 was refuted then rescued by one key; D6's mechanism was replaced with a per-worktree form; Step 3 was inverted. Dispatched the SPEC amendment. Nothing implemented.",
+    "active_goal": "Implement the amended maximum-autonomy permission architecture end to end, one PR per MSP, holding the oversight-reducing pieces for confirmation.",
+    "next_step": "START HERE. Wave 0 is COMPLETE - never re-run an experiment; read docs/superpowers/specs/2026-08-13-maximum-autonomy-U1-U7-findings.md instead. PR 85 carrying the amended SPEC is MERGED. Fan out implementation via mitosis in this order: c2, then c12 (harden the promotion manifest - it MUST land before c3 edits permissions.deny), then c3, c4, c5, c6, c7, c8, c9's deletions, c13. HOLD c14 and c9's plugin disable pending direct user confirmation.",
+    "last_session": "Ran Wave 0 in full: seven experiments plus three probes. Layer 0 was refuted then rescued, D6 re-mechanized, Step 3 inverted. Amended the SPEC, wrote the findings doc, opened PR 85 which the user merged. Nothing implemented.",
     "open_risks": [
       {
-        "text": "Rollback undoes itself — converge promotes whenever live differs from local main, so a rolled-back release is re-promoted at the next session start or stop unless a human also moves the main pointer back; live and unmitigated today",
-        "scope": "c1",
-        "refs": [
-          "~/.claude/local/converge.mjs:29-39",
-          "~/.claude/local/promote.mjs:337-397"
-        ]
-      },
-      {
-        "text": "A PR that omits the hooks key strips every hook from live and passes validation — repo-owned absence means deletion, converge itself is removed, and permissions.deny has the identical shape, which Step 1 edits directly",
-        "scope": "c1",
+        "text": "The promotion manifest must be hardened before any change edits permissions.deny — a repo-owned key absent from the repo is deleted from live, so a PR omitting hooks or deny strips them from live, removes converge itself, and passes validation cleanly",
+        "scope": "thread",
         "refs": [
           "~/.claude/local/manifest.mjs:153-157",
           "~/.claude/local/validate.mjs:369-371"
         ]
       },
       {
-        "text": "validate.mjs is a syntax gate only and never executes hook logic — a behaviorally wrong permission gate promotes to live cleanly, so Layer 3 needs real behavioral tests before it merges; the pipeline will not catch a logic error",
-        "scope": "c1",
+        "text": "Layer 3 needs real behavioral tests before it merges — validation is a syntax gate that never executes hook logic, so a permission gate that parses cleanly but decides wrongly promotes to live with no complaint",
+        "scope": "thread",
         "refs": [
           "~/.claude/local/validate.mjs:461-473"
         ]
       },
       {
-        "text": "--settings accepts inline JSON, not only a file path — everything this architecture governs is file contents, so argv is an unreviewed permission-injection channel outranking project and local settings",
-        "scope": "c1",
+        "text": "Rollback undoes itself — converge promotes whenever live differs from local main, so a rolled-back release is re-promoted at the next session start or stop unless a human also moves the main pointer back; live and unmitigated today",
+        "scope": "thread",
         "refs": [
-          "docs/superpowers/specs/2026-08-13-maximum-autonomy-permission-architecture-SPEC.md"
+          "~/.claude/local/converge.mjs:29-39",
+          "~/.claude/local/promote.mjs:337-397"
         ]
       },
       {
-        "text": "The default sandbox configuration reports success while abandoning the sandbox — allowUnsandboxedCommands false and failIfUnavailable true are mandatory, not hardening; without them containment is illusory exactly where it matters",
-        "scope": "c1",
-        "refs": [
-          "0397-layer-zero-survives-with-allow-local-binding"
-        ]
-      },
-      {
-        "text": "Unclassified settings keys land once then freeze — permissions.ask still has this shape, so introducing it even as an empty array would bind live permanently and every later repo revision would be silently inert",
-        "scope": "c1",
-        "refs": [
-          "~/.claude/local/manifest.mjs:165-171"
-        ]
-      },
-      {
-        "text": "A merged PR does not reach live until a human advances local refs/heads/main — nothing fetches, and local main is 10 behind origin, so that advance would also drag in unrelated commits",
-        "scope": "c1",
+        "text": "Nothing fetches, so a merged PR does not reach live until a human runs git fetch origin main:main — PR 85 is merged to origin but local main still sits at the old commit, and advancing it also drags in unrelated commits",
+        "scope": "thread",
         "refs": [
           "~/.claude/local/release.mjs:61-77"
         ]
       },
       {
-        "text": "M7 and section 10's first row still say converge promotes repo HEAD — it actually resolves the main ref and never reads HEAD, so the two coincide only when main is checked out; the amendment left this pre-existing fact alone as outside its brief",
+        "text": "The sandbox needs allowUnsandboxedCommands false and failIfUnavailable true — these are mandatory, not hardening: on defaults a denied command is silently re-run unsandboxed and reported as succeeded",
+        "scope": "thread",
+        "refs": [
+          "0397-layer-zero-survives-with-allow-local-binding"
+        ]
+      },
+      {
+        "text": "Never introduce permissions.ask, even as an empty array — unclassified keys bind live permanently on first landing, after which every repo-side revision is silently inert",
+        "scope": "thread",
+        "refs": [
+          "~/.claude/local/manifest.mjs:165-171"
+        ]
+      },
+      {
+        "text": "The --settings flag accepts inline JSON, so argv is an ungoverned permission-injection channel outranking project and local settings — governing the profile file does not govern pointing at one",
+        "scope": "thread",
+        "refs": [
+          "docs/superpowers/specs/2026-08-13-maximum-autonomy-permission-architecture-SPEC.md"
+        ]
+      },
+      {
+        "text": "M7 and section 10's first row still say converge promotes repo HEAD — it resolves the main ref and never reads HEAD, so the two coincide only when main is checked out; the amendment left this alone as outside its brief",
         "scope": "thread",
         "refs": [
           "~/.claude/local/release.mjs:67"
         ]
       },
       {
-        "text": "R3 names --dangerously-skip-permissions while section 5 now names --permission-mode bypassPermissions — whether these are one mechanism or two was never established, and the c10 rule change depends on that answer",
+        "text": "R3 names --dangerously-skip-permissions while section 5 now names --permission-mode bypassPermissions — whether these are one mechanism or two was never established, and c10's rule change depends on the answer",
         "scope": "thread",
         "refs": [
           "docs/security/bash-gate-threat-model.md:18"
@@ -219,8 +219,11 @@
         "scope": "c7"
       }
     ],
-    "out_of_scope": []
+    "out_of_scope": [
+      "Re-running any U1-U7 experiment - all seven are resolved with evidence in the findings doc, and re-running them costs hours and risks tripping the security flags that already fired twice",
+      "Pruning the 58 refs left under refs/checkpoint-experiment/ - deleting refs is trivial but reclaiming the roughly 9 MB needs gc --prune, which is guarded under D2 and is a human act"
+    ]
   },
   "created_at": "2026-08-13T18:14:42.072Z",
-  "updated_at": "2026-08-13T19:20:04.924Z"
+  "updated_at": "2026-08-13T19:21:09.184Z"
 }
