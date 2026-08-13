@@ -10,6 +10,7 @@ import {
   GATE_COMPILE_EXIT,
   MITOSIS_GATE_VERBS,
   DEFAULT_PHASE_PARITY_TARGET,
+  DEFAULT_DETERMINISM_TARGET,
   checkPhaseParity,
   compileUnderSandbox,
   extractDeclaredPhases,
@@ -403,15 +404,48 @@ test('the gate catches the declared-but-unused and used-but-undeclared pair in o
   assert.deepEqual(verdict.usedNeverDeclared, ['Shepherd']);
 });
 
-test('the argv parser accepts the phase-parity verb and defaults its target', () => {
-  const parsed = parseMitosisGateArgv(['phase-parity']);
-  assert.deepEqual(parsed, { ok: true, verb: 'phase-parity', target: DEFAULT_PHASE_PARITY_TARGET });
-  assert.deepEqual([...MITOSIS_GATE_VERBS], ['phase-parity']);
+test('the argv parser accepts every verb and defaults each to its own target', () => {
+  assert.deepEqual(parseMitosisGateArgv(['phase-parity']), { ok: true, verb: 'phase-parity', target: DEFAULT_PHASE_PARITY_TARGET });
+  assert.deepEqual(parseMitosisGateArgv(['determinism']), { ok: true, verb: 'determinism', target: DEFAULT_DETERMINISM_TARGET });
+  assert.deepEqual([...MITOSIS_GATE_VERBS], ['determinism', 'phase-parity']);
+  assert.notEqual(DEFAULT_DETERMINISM_TARGET, DEFAULT_PHASE_PARITY_TARGET);
+});
+
+test('the determinism verb exits clean over the real engine source', () => {
+  const { out, stdout, stderr } = capture();
+  const code = runMitosisGate(['determinism'], out, (path) => readFileSync(path, 'utf8'));
+  assert.deepEqual(stderr, []);
+  assert.equal(code, GATE_CLEAN_EXIT);
+  const verdict = JSON.parse(stdout.join(''));
+  assert.equal(verdict.verb, 'determinism');
+  assert.ok(verdict.fileCount > 30, `expected the whole engine directory, found ${verdict.fileCount}`);
+});
+
+test('the determinism verb exits on the violation code and names the file, line and identifier', () => {
+  const { out, stdout, stderr } = capture();
+  const code = runMitosisGate(['determinism'], out, () => 'const stamp = Date.now();\n');
+  assert.equal(code, GATE_VIOLATION_EXIT);
+  assert.deepEqual(stdout, []);
+  assert.match(stderr.join(''), /mitosis-gate\.mjs:1 reads Date as a bare read/);
+});
+
+test('the determinism verb halts rather than guessing at a receiver it cannot read', () => {
+  const { out } = capture();
+  const code = runMitosisGate(['determinism'], out, () => 'const stamp = (receiver).Date;\n');
+  assert.equal(code, GATE_UNRESOLVABLE_EXIT);
+});
+
+test('the determinism verb exits on the read code when a root cannot be enumerated', () => {
+  const { out, stderr } = capture();
+  const code = runMitosisGate(['determinism', '--target', '/nonexistent-engine-dir-xyz/'], out, () => '');
+  assert.equal(code, GATE_READ_EXIT);
+  assert.match(stderr.join(''), /nonexistent-engine-dir-xyz/);
 });
 
 test('the argv parser rejects an unknown verb, an unknown flag and a missing target value', () => {
   assert.equal(parseMitosisGateArgv([]).ok, false);
   assert.equal(parseMitosisGateArgv(['audit']).ok, false);
+  assert.match(parseMitosisGateArgv(['audit']).error, new RegExp(MITOSIS_GATE_VERBS.join(', ')));
   assert.equal(parseMitosisGateArgv(['phase-parity', '--file', 'x.js']).ok, false);
   assert.equal(parseMitosisGateArgv(['phase-parity', '--target']).ok, false);
   assert.equal(parseMitosisGateArgv(['phase-parity', '--target', '--other']).ok, false);

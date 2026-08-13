@@ -11,6 +11,7 @@ import {
   scanJsStructure,
   wordEndingAt,
 } from './js-scan.mjs';
+import { censusEngineDeterminism, engineSourceRoots, realSourceIo } from './determinism-lint.mjs';
 
 export const GATE_CLEAN_EXIT = 0;
 export const GATE_USAGE_EXIT = 40;
@@ -19,9 +20,15 @@ export const GATE_UNRESOLVABLE_EXIT = 42;
 export const GATE_READ_EXIT = 43;
 export const GATE_COMPILE_EXIT = 44;
 
-export const MITOSIS_GATE_VERBS = Object.freeze(['phase-parity']);
+export const MITOSIS_GATE_VERBS = Object.freeze(['determinism', 'phase-parity']);
 
 export const DEFAULT_PHASE_PARITY_TARGET = fileURLToPath(new URL('../../workflows/mitosis.js', import.meta.url));
+export const DEFAULT_DETERMINISM_TARGET = fileURLToPath(new URL('./', import.meta.url));
+
+const VERB_DEFAULT_TARGETS = Object.freeze({
+  determinism: DEFAULT_DETERMINISM_TARGET,
+  'phase-parity': DEFAULT_PHASE_PARITY_TARGET,
+});
 
 const PHASE_TOKEN_TEXT = 'phase';
 const ESM_EXPORT_PREFIX = /^export /gm;
@@ -483,8 +490,72 @@ export function parseMitosisGateArgv(argv) {
     target = value;
     k += 1;
   }
-  return { ok: true, verb, target: target === null ? DEFAULT_PHASE_PARITY_TARGET : target };
+  return { ok: true, verb, target: target === null ? VERB_DEFAULT_TARGETS[verb] : target };
 }
+
+function runPhaseParityGate(target, out, readSource) {
+  let source;
+  try {
+    source = readSource(target);
+  } catch (err) {
+    out.err(`mitosis-gate: could not read ${target}: ${err && err.message ? err.message : 'unknown read failure'}\n`);
+    return GATE_READ_EXIT;
+  }
+  if (typeof source !== 'string' || source.length === 0) {
+    out.err(`mitosis-gate: ${target} carried no readable source\n`);
+    return GATE_READ_EXIT;
+  }
+  const compiled = compileUnderSandbox(source);
+  if (!compiled.ok) {
+    out.err(`mitosis-gate: ${target} does not compile under the workflow sandbox: ${compiled.error}\n`);
+    return GATE_COMPILE_EXIT;
+  }
+  const extracted = extractPhaseSurfaces(source);
+  if (!extracted.ok) {
+    out.err(`mitosis-gate: phase-parity halted on ${target}: ${extracted.error}\n`);
+    return GATE_UNRESOLVABLE_EXIT;
+  }
+  let verdict;
+  try {
+    verdict = checkPhaseParity(extracted.surfaces);
+  } catch (err) {
+    out.err(`mitosis-gate: phase-parity could not evaluate ${target}: ${err && err.message ? err.message : 'unknown failure'}\n`);
+    return GATE_UNRESOLVABLE_EXIT;
+  }
+  if (!verdict.ok) {
+    if (verdict.declaredNeverUsed.length > 0) {
+      out.err(`mitosis-gate: ${target} declares phases that are never used: ${verdict.declaredNeverUsed.join(', ')}\n`);
+    }
+    if (verdict.usedNeverDeclared.length > 0) {
+      out.err(`mitosis-gate: ${target} uses phases that are never declared: ${verdict.usedNeverDeclared.join(', ')}\n`);
+    }
+    return GATE_VIOLATION_EXIT;
+  }
+  out.log(`${JSON.stringify({ verb: 'phase-parity', target, ok: true, phases: verdict.declared, counts: extracted.counts })}\n`);
+  return GATE_CLEAN_EXIT;
+}
+
+function runDeterminismGate(target, out, readSource) {
+  const roots = [{ kind: 'directory', path: target }, engineSourceRoots()[1]];
+  const result = censusEngineDeterminism(roots, { ...realSourceIo, readSource });
+  if (!result.ok) {
+    out.err(`mitosis-gate: determinism ${result.kind === 'read' ? 'could not read' : 'halted on'} its engine source: ${result.error}\n`);
+    return result.kind === 'read' ? GATE_READ_EXIT : GATE_UNRESOLVABLE_EXIT;
+  }
+  if (result.violations.length > 0) {
+    for (const violation of result.violations) {
+      out.err(`mitosis-gate: ${violation.path}:${violation.line} reads ${violation.identifier} as a ${violation.surface}; engine source takes entropy through args only\n`);
+    }
+    return GATE_VIOLATION_EXIT;
+  }
+  out.log(`${JSON.stringify({ verb: 'determinism', target, ok: true, fileCount: result.files.length })}\n`);
+  return GATE_CLEAN_EXIT;
+}
+
+const VERB_RUNNERS = Object.freeze({
+  determinism: runDeterminismGate,
+  'phase-parity': runPhaseParityGate,
+});
 
 export function runMitosisGate(argv, out, readSource) {
   const parsed = parseMitosisGateArgv(argv);
@@ -492,45 +563,7 @@ export function runMitosisGate(argv, out, readSource) {
     out.err(`${parsed.error}\n`);
     return GATE_USAGE_EXIT;
   }
-  let source;
-  try {
-    source = readSource(parsed.target);
-  } catch (err) {
-    out.err(`mitosis-gate: could not read ${parsed.target}: ${err && err.message ? err.message : 'unknown read failure'}\n`);
-    return GATE_READ_EXIT;
-  }
-  if (typeof source !== 'string' || source.length === 0) {
-    out.err(`mitosis-gate: ${parsed.target} carried no readable source\n`);
-    return GATE_READ_EXIT;
-  }
-  const compiled = compileUnderSandbox(source);
-  if (!compiled.ok) {
-    out.err(`mitosis-gate: ${parsed.target} does not compile under the workflow sandbox: ${compiled.error}\n`);
-    return GATE_COMPILE_EXIT;
-  }
-  const extracted = extractPhaseSurfaces(source);
-  if (!extracted.ok) {
-    out.err(`mitosis-gate: phase-parity halted on ${parsed.target}: ${extracted.error}\n`);
-    return GATE_UNRESOLVABLE_EXIT;
-  }
-  let verdict;
-  try {
-    verdict = checkPhaseParity(extracted.surfaces);
-  } catch (err) {
-    out.err(`mitosis-gate: phase-parity could not evaluate ${parsed.target}: ${err && err.message ? err.message : 'unknown failure'}\n`);
-    return GATE_UNRESOLVABLE_EXIT;
-  }
-  if (!verdict.ok) {
-    if (verdict.declaredNeverUsed.length > 0) {
-      out.err(`mitosis-gate: ${parsed.target} declares phases that are never used: ${verdict.declaredNeverUsed.join(', ')}\n`);
-    }
-    if (verdict.usedNeverDeclared.length > 0) {
-      out.err(`mitosis-gate: ${parsed.target} uses phases that are never declared: ${verdict.usedNeverDeclared.join(', ')}\n`);
-    }
-    return GATE_VIOLATION_EXIT;
-  }
-  out.log(`${JSON.stringify({ verb: parsed.verb, target: parsed.target, ok: true, phases: verdict.declared, counts: extracted.counts })}\n`);
-  return GATE_CLEAN_EXIT;
+  return VERB_RUNNERS[parsed.verb](parsed.target, out, readSource);
 }
 
 export function mitosisGateMain() {

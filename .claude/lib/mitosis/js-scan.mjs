@@ -9,7 +9,7 @@ export function halt(message) {
   return Object.freeze({ ok: false, error: message });
 }
 
-function lineOf(source, index) {
+export function lineOf(source, index) {
   let line = 1;
   for (let k = 0; k < index && k < source.length; k += 1) {
     if (source[k] === '\n') line += 1;
