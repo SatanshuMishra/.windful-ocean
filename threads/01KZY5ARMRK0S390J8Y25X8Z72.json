@@ -150,10 +150,15 @@
         "ref": "0395-checkpoint-at-worktree-root-with-force",
         "title": "The D6 checkpoint runs at the worktree root and requires --force",
         "scope": "c5"
+      },
+      {
+        "ref": "0396-allow-rules-use-narrow-prefixes-not-bash-star",
+        "title": "Allow rules enumerate narrow prefixes; a broad Bash star rule is counterproductive",
+        "scope": "c4"
       }
     ],
     "out_of_scope": []
   },
   "created_at": "2026-08-13T18:14:42.072Z",
-  "updated_at": "2026-08-13T18:47:49.232Z"
+  "updated_at": "2026-08-13T18:47:55.742Z"
 }
