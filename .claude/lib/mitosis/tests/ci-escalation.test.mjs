@@ -59,6 +59,13 @@ test('classifyCiReport CLASS 3 deny-case: a red receipts or D6 enforcer, by flag
   assert.equal(classifyCiReport(report({ failedChecks: ['receipts'] }), SCOPE).class, 3);
   assert.equal(classifyCiReport(report({ failedChecks: ['D6 cluster-boundary interaction tests'] }), SCOPE).class, 3);
   assert.equal(classifyCiReport(report({ failedChecks: ['pr-title-lint'] }), SCOPE).class, 3);
+  for (const verb of ['determinism', 'dispatchable-agent-schema-capable', 'exec-allowlist']) {
+    assert.equal(
+      classifyCiReport(report({ failedChecks: [`mitosis-gate (${verb})`] }), SCOPE).class,
+      3,
+      `a red mitosis-gate leg named ${verb} is enforcer configuration, not a defect inside this msp`,
+    );
+  }
 });
 
 test('classifyCiReport CLASS 4 deny-case: a security-classed failing check, or a security-sensitive declared scope, parks', () => {

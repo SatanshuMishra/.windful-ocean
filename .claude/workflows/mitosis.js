@@ -2270,7 +2270,7 @@ const CI_FIX_PREFIX = 'ci-fix:';
 const CI_SHA_PATTERN = /^[0-9a-f]{7,64}$/i;
 const CI_REASON_LIST_CAP = 240;
 const CI_TERMINAL_CONCLUSIONS = Object.freeze(['failure', 'cancelled', 'timed_out', 'action_required', 'stale', 'startup_failure', 'neutral', 'skipped', 'timeout-expired']);
-const CI_ENFORCER_CHECK_TOKENS = Object.freeze(['receipts', 'd6', 'cluster-boundary', 'pr-title-lint', 'invariant-coverage']);
+const CI_ENFORCER_CHECK_TOKENS = Object.freeze(['receipts', 'd6', 'cluster-boundary', 'pr-title-lint', 'invariant-coverage', 'determinism', 'exec-allowlist', 'dispatchable-agent-schema-capable']);
 const CI_SECURITY_CHECK_TOKENS = Object.freeze(['security', 'codeql', 'secret-scan', 'secret scanning', 'dependency-review', 'sast', 'trivy', 'snyk', 'audit', 'scan', 'gitleaks', 'semgrep', 'osv', 'grype', 'bandit', 'trufflehog', 'vuln', 'cve', 'licence', 'license']);
 const CI_ORDINARY_CHECK_TOKENS = Object.freeze(['test', 'spec', 'unit', 'integration', 'e2e', 'build', 'compile', 'typecheck', 'tsc', 'lint', 'format', 'fmt', 'coverage', 'suite', 'jest', 'vitest', 'mocha', 'pytest', 'cargo', 'gradle']);
 
