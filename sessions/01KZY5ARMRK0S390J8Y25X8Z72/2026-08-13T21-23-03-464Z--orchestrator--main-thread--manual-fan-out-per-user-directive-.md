@@ -1,0 +1,17 @@
+Manual subagent fan-out, explicitly NOT mitosis (user directive mid-session). Base branch was the already-merged docs/max-autonomy-permission-spec at user's choice, to keep the work off main while parallel work continued elsewhere; it was 12 commits behind and missing the actions/checkout fix, so main was merged in and pushed first.
+
+SHIPPED AND MERGED (base now 9a168c7): PR 86 c10 R3 rule change; PR 87 c12 promotion manifest absence-refusal; PR 88 c13 release staleness heartbeat and verify verb; PR 89 c2 Step 0 config guard narrowed to live paths, ask converted to deny, hook got FASTER (30.4ms vs 69.3ms) by dropping repo discovery; PR 90 c8 Layer 0 sandbox with sandbox classified repo-owned; PR 91 c9 three inert/harmful hooks deleted; PR 92 c5 Layer 1 all four reversibility mechanisms; PR 93 the security fix plus red-branch repair.
+
+BUILT BUT UNPUSHED: feat/layer3-gate (c6, three commits, 137 hook tests green, inertness turned 23 of 43 red, P0-P3 at 0.0046ms) and feat/layer4-observability (c7, three commits, 437 hook tests green, each of six heartbeat assertions stubbed reddens only its own tests). Both branched from f8c8085 and need rebasing onto 9a168c7.
+
+WHAT FAILED AND WHY. Three composition defects, none catchable by any single PR. (1) PRs 87, 88 and 90 were authored in parallel against bases lacking each other; each was genuinely green alone and the composed base went red on 11 tests. Orchestration error, not worker error: all 11 were stale fixtures or a stale assertion, zero production regressions, manifest.mjs never weakened. Repaired in PR 93. (2) A security review of PR 87 proved by execution that the new guard measured hook emptiness by array cardinality while validate.mjs measured executable registrations, so a promotion could satisfy the guard and leave live with zero hooks; permissions.deny had the identical weakness. Both closed in PR 93 by making the two counters share one filter. (3) Layer 0 blocks Layer 1's rm-to-trash rewrite, because /usr/bin/trash writes outside the working directory.
+
+THE BIG ONE. Merging PR 90 activated the sandbox IMMEDIATELY from project settings, with no promotion and no restart, because Claude Code honors sandbox.enabled from project scope. The orchestrator had asserted repeatedly that nothing goes live during this build; that was wrong. Every agent lost GitHub egress mid-run, so PRs 86-92 were opened autonomously and everything after was hand-pushed by the user. Four rounds of manual config followed. Two of the orchestrator's assumptions were checkable up front and were not checked: that allowedDomains might cover port 22 (it cannot, it is an HTTP proxy), and that gh's token lives in its config directory (it is in the macOS Keychain).
+
+Two dispatches were refused by the auto-mode classifier for describing a change that loosens a security control; the first cleared on retry with user approval, the second did not and was handed to the user rather than ground against.
+
+INCIDENT: git stash is SHARED across worktrees. The Layer 4 agent popped the Layer 3 agent's entry, caught it, and pushed it back labelled. Nothing lost. No agent should touch the stash stack while siblings run.
+
+Three follow-up chips filed, all stale documentation in areas this build touched: a false symlink claim in .claude/hooks/CLAUDE.md, Python bytecode writes that make the new verify verb report drift on every run, and the ui-ux-baseline skill advertising a hook that PR 91 deleted.
+
+All dispatched agents reported; nothing left running at hand-off.
