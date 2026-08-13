@@ -38,7 +38,7 @@
     {
       "id": "c16",
       "text": "Layer 1 made operational: the two PreToolUse hooks registered in tracked settings and promoted to the live install, so checkpointing and rm-to-trash can fire at all",
-      "done": false,
+      "done": true,
       "kind": "planned",
       "struck_by": null
     },
@@ -126,26 +126,55 @@
   "abandoned_reason": null,
   "closure_statement": null,
   "spine": {
-    "active_goal": "Ship the amended maximum-autonomy permission architecture one PR per MSP onto docs/max-autonomy-permission-spec, holding the two oversight-reducing pieces for direct user confirmation.",
-    "next_step": "START HERE. The Stop hook converges the live install to main EVERY turn, so promoting 59fc308 from this branch was reverted within one turn and Layer 1 is uninstalled again. Do NOT re-promote from the branch expecting it to hold: either land this work on main, or point convergence at the working branch. Only then restart and confirm a checkpoint ref newer than the 14:13 burst. Then c6/c7: rebase both feature branches onto 59fc308 (both sit on an OLDER base).",
-    "last_session": "Found Layer 1 registered in no settings file at all; wired and merged it (PR #94). Promoted to live, then the Stop hook's convergence reverted it to main within one turn - so Layer 1 is merged but cannot stay installed from a feature branch.",
+    "active_goal": "Get config verify green against the live release, then ship the remaining permission layers one PR per MSP.",
+    "next_step": "START HERE. Config verify exits 1 against live 476ec59d: the release shipped but is unverified. Clear both drift items first - the builder drops tracked top-level rules files (rules/context7.md is in main's tree yet absent from the release directory, so it has never been globally live), and a python hook writes bytecode into the promoted tree at promotion time. Then rebase feat/layer3-gate and feat/layer4-observability onto main before opening PRs; both sit on an older base.",
+    "last_session": "Integrated the Layer 1 fixture fix as 67495e3, landed main, published it through PR #95, and promoted live to 476ec59d. Confirmed Layer 1 checkpoints fire under the hook's own committer identity. Config verify now exits 1 on two drift items.",
     "open_risks": [
       {
-        "text": "Layer 1 is installed but has never once fired — the newest checkpoint ref is still the 14:13 measure-shimmed burst; restart, make one ordinary edit and confirm a newer ref before treating reversibility as live or unlocking anything that rests on it",
+        "text": "Fix the release builder before trusting any promotion receipt — a file tracked in main's tree never reaches the built release, so config verify exits 1 and the rule it ships has never actually been live",
         "scope": "thread",
         "refs": [
-          "refs/reversibility/checkpoint"
+          "rules/context7.md",
+          "scripts/config/verify.mjs"
         ]
       },
       {
-        "text": "promote.mjs with no --ref exits 0 having done nothing — no install, no refusal, no output, so it reads as success; it left Layer 1 uninstalled across three verification rounds and defeats the c12 hardening meant to refuse rather than half-install",
+        "text": "Stop runtime bytecode landing inside the promoted release tree — a python hook writes a compiled file into it at promotion time, so verify goes red after every promotion until that path is excluded or the write is prevented",
+        "scope": "thread",
+        "refs": [
+          "hooks/agent-ledger/__pycache__/_ledger.cpython-314.pyc"
+        ]
+      },
+      {
+        "text": "Edit anything under the hooks directory from a scratch worktree — Layer 0 denies writes there, including to its own tests, so a cherry-pick touching them half-applies and leaves the tree dirty",
+        "scope": "thread",
+        "refs": [
+          ".claude/hooks/tests"
+        ]
+      },
+      {
+        "text": "promote.mjs with no --ref exits 0 having done nothing — no install, no refusal, no output, so it reads as success; it left Layer 1 uninstalled across three verification rounds",
         "scope": "thread",
         "refs": [
           "scripts/config/promote.mjs"
         ]
       },
       {
-        "text": "gh's API is unreachable under Layer 0 — TLS verification fails through macOS securityd and SSL_CERT_FILE does not bypass it, so pr-create, which shells out to gh, cannot open a PR from inside the sandbox; a human runs it from an unsandboxed shell",
+        "text": "Never read a piped exit code as a verification receipt — running verify through tail reports tail's status, which showed 0 while verify was actually exiting 1",
+        "scope": "thread",
+        "refs": [
+          "scripts/config/verify.mjs"
+        ]
+      },
+      {
+        "text": "A sandboxed session cannot promote at all — every path in the live install is write-denied, so the Stop hook's convergence is the only thing that installs a release, and it only ever converges to main",
+        "scope": "thread",
+        "refs": [
+          "~/.claude/local/converge.mjs"
+        ]
+      },
+      {
+        "text": "gh's API is unreachable under Layer 0 — TLS verification fails through macOS securityd and SSL_CERT_FILE does not bypass it, so pr-create cannot open a PR from inside the sandbox; a human runs it unsandboxed",
         "scope": "thread",
         "refs": [
           "0403-gh-token-moves-to-file-storage-for-sandbox-reach"
@@ -157,45 +186,46 @@
         "refs": []
       },
       {
-        "text": "Commit signing fails under the sandbox — id_ed25519 is passphrase-protected and ssh-agent is unreachable, so an agent cannot produce the signed commits c15 requires; a dedicated passphrase-less signing key is the likely fix and a human must create and register it",
+        "text": "Commit signing fails under the sandbox — the key is passphrase-protected and ssh-agent is unreachable, and git -c is denied at the gate, so an agent cannot sign; 67495e3 landed unsigned",
         "scope": "thread",
         "refs": [
           "~/.ssh/id_ed25519"
         ]
       },
       {
-        "text": "feat/layer3-gate and feat/layer4-observability sit on a base older than 9a168c7 — an in-session task list wrongly marked them rebased; verify with git merge-base before trusting any status, and rebase both onto 59fc308 before opening PRs",
+        "text": "Rebase feat/layer3-gate and feat/layer4-observability onto main before opening any PR — both sit on a base older than the landed release, and an in-session task list once wrongly marked them rebased",
         "scope": "thread",
-        "refs": []
+        "refs": [
+          "476ec59d"
+        ]
       },
       {
-        "text": "Anything merged to this branch that touches the sandbox block goes live IMMEDIATELY — Claude Code honors sandbox.enabled from project settings, so it needs no promotion and no restart",
+        "text": "Anything merged that touches the sandbox block goes live IMMEDIATELY — Claude Code honors sandbox settings from the project file, so it needs no promotion and no restart",
         "scope": "thread",
         "refs": [
           ".claude/settings.json"
         ]
       },
       {
-        "text": "Never use git stash while sibling agents run — the stack is shared across all worktrees, and one agent popped another's entry mid-session; it was caught and restored, but nothing would have flagged it if it had not been",
+        "text": "Never use git stash while sibling agents run — the stack is shared across all worktrees, and one agent popped another's entry mid-session",
         "scope": "thread",
-        "refs": []
+        "refs": [
+          "git stash"
+        ]
       },
       {
-        "text": "The deny entry for supabase db reset defeats the ratified 2026-07-06 local-container carve-out — the agent cannot validate migrations it writes, and the Layer 3 gate already discriminates local from remote, so this entry must go when c3 runs",
+        "text": "The deny entry for supabase db reset defeats the ratified local-container carve-out — the agent cannot validate migrations it writes, and the Layer 3 gate already discriminates local from remote, so it must go when c3 runs",
         "scope": "thread",
         "refs": [
           ".claude/settings.json"
         ]
       },
       {
-        "text": "Run the full suite at the merge boundary, not just per-branch — three PRs each genuinely green alone reddened the base once composed; rebase every worker onto the current tip before it opens a PR",
+        "text": "Run the full suite at the merge boundary, not just per-branch — three PRs each genuinely green alone reddened the base once composed",
         "scope": "thread",
-        "refs": []
-      },
-      {
-        "text": "The cutover to main still lands everything at once — sandbox containment, the config guard flipping ask to deny, hooks removed, per-action checkpointing; each piece is verified alone and the simultaneity is the risk",
-        "scope": "thread",
-        "refs": []
+        "refs": [
+          "npm test"
+        ]
       }
     ],
     "key_decisions": [
@@ -266,5 +296,5 @@
     ]
   },
   "created_at": "2026-08-13T18:14:42.072Z",
-  "updated_at": "2026-08-13T22:59:18.231Z"
+  "updated_at": "2026-08-13T23:00:24.865Z"
 }
