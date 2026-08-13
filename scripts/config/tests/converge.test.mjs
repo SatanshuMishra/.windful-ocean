@@ -1,28 +1,21 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import {
-  chmodSync,
-  existsSync,
-  lstatSync,
-  readFileSync,
-  readdirSync,
-  readlinkSync,
-  rmSync,
-  utimesSync,
-} from 'node:fs';
+import { chmodSync, existsSync, readFileSync, rmSync, utimesSync } from 'node:fs';
 import { spawnSync } from 'node:child_process';
-import { join, relative } from 'node:path';
+import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { RETAINED_RELEASES } from '../paths.mjs';
 import {
   DEFAULT_HOOK_COMMANDS,
   cleanup,
+  collector,
   commitChange,
   git,
   hookSettings,
   makeHome,
   makeRepo,
   settingsFor,
+  treeSnapshot,
   writeFile,
 } from './_fixture.mjs';
 import { converge, run } from '../converge.mjs';
@@ -38,22 +31,6 @@ function registeredConvergeCommands() {
   return hookRegistrations(settings)
     .filter((registration) => registration.rawPath.endsWith('converge.mjs'))
     .map((registration) => registration.command);
-}
-
-function collector() {
-  const chunks = [];
-  return { chunks, write: (chunk) => chunks.push(chunk), text: () => chunks.join('') };
-}
-
-function treeSnapshot(root) {
-  const walk = (dir) => readdirSync(dir).flatMap((entry) => {
-    const path = join(dir, entry);
-    const stats = lstatSync(path);
-    if (stats.isSymbolicLink()) return [[relative(root, path), `link:${readlinkSync(path)}`]];
-    if (stats.isDirectory()) return [[relative(root, path), 'dir'], ...walk(path)];
-    return [[relative(root, path), `file:${stats.size}:${stats.mtimeMs}`]];
-  });
-  return Object.fromEntries(walk(root).sort(([a], [b]) => a.localeCompare(b)));
 }
 
 function scenario() {
