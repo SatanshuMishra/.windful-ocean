@@ -291,4 +291,44 @@ test('release refuses to unlink a lock it does not own', () => {
   assert.equal(existsSync(handle.lockPath), true);
 });
 
+test('a second attempt leaves the first attempt byte-identical', () => {
+  const args = openArgs();
+  const first = openRun(args);
+  writeFileSync(join(first.dir, 'state.json'), `${JSON.stringify({ phase: 'first' })}\n`);
+  writeFileSync(join(first.itemsDir, 'a3-run-store.out'), 'first attempt output\n');
+  const firstPlan = readFileSync(join(first.dir, 'plan.json'), 'utf8');
+  const firstState = readFileSync(join(first.dir, 'state.json'), 'utf8');
+  first.release();
+
+  const second = openRun({ ...args, startedAt: '2026-08-12T12:00:00Z' });
+  assert.equal(second.attempt, 2);
+  assert.notEqual(second.dir, first.dir);
+  assert.deepEqual(readdirSync(second.itemsDir), []);
+  assert.equal(readFileSync(join(first.dir, 'plan.json'), 'utf8'), firstPlan);
+  assert.equal(readFileSync(join(first.dir, 'state.json'), 'utf8'), firstState);
+  assert.equal(readFileSync(join(first.itemsDir, 'a3-run-store.out'), 'utf8'), 'first attempt output\n');
+  assert.deepEqual(
+    readdirSync(join(args.root, '.mitosis', 'runs', VALID_KEY)).sort(),
+    ['attempt-1', 'attempt-2', 'lock'],
+  );
+});
+
+test('openRun never writes into an existing attempt directory', () => {
+  const args = openArgs();
+  const runDir = join(args.root, '.mitosis', 'runs', VALID_KEY);
+  mkdirSync(join(runDir, 'attempt-1'), { recursive: true });
+  writeFileSync(join(runDir, 'attempt-1', 'plan.json'), 'SENTINEL FROM A PRIOR RUN\n');
+  const handle = openRun(args);
+  assert.equal(handle.attempt, 2);
+  assert.equal(readFileSync(join(runDir, 'attempt-1', 'plan.json'), 'utf8'), 'SENTINEL FROM A PRIOR RUN\n');
+});
+
+test('attempt numbering skips gaps rather than reusing a retired number', () => {
+  const args = openArgs();
+  const runDir = join(args.root, '.mitosis', 'runs', VALID_KEY);
+  mkdirSync(join(runDir, 'attempt-7'), { recursive: true });
+  const handle = openRun(args);
+  assert.equal(handle.attempt, 8);
+});
+
 after(cleanupScratch);
