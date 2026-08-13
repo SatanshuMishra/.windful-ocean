@@ -275,3 +275,62 @@ test('observed concurrency never exceeds the cap', async () => {
   assert.equal(result.diagnostics.peakConcurrency, 3, 'the pool must report the same peak it enforced');
   assert.equal(result.records.length, 10);
 });
+
+test('a failed node blocks its transitive dependents with a named cause and leaves independent branches untouched', async () => {
+  const runner = gatedDispatcher((id) => (id === 'root' ? { ok: false, outcome: 'exit-nonzero' } : { ok: true, outcome: 'success' }));
+  const result = await runGraph(
+    {
+      nodes: [{ id: 'root' }, { id: 'child' }, { id: 'grandchild' }, { id: 'other' }, { id: 'other-child' }],
+      readyAfter: { child: ['root'], grandchild: ['child'], 'other-child': ['other'] },
+    },
+    runner.dispatchFn,
+    {},
+  );
+  const records = byId(result.records);
+  assert.equal(result.ok, false);
+  assert.equal(records.get('root').state, 'failed');
+  assert.equal(records.get('root').outcome, 'exit-nonzero');
+  assert.equal(records.get('child').state, 'blocked');
+  assert.equal(records.get('child').reason, 'dependency-failed');
+  assert.deepEqual(records.get('child').blockedBy, ['root']);
+  assert.equal(records.get('grandchild').state, 'blocked');
+  assert.equal(records.get('grandchild').reason, 'dependency-blocked');
+  assert.deepEqual(records.get('grandchild').blockedBy, ['child']);
+  assert.equal(records.get('other').state, 'ok');
+  assert.equal(records.get('other-child').state, 'ok');
+  assert.ok(runner.started.includes('other-child'), 'an independent branch must still run after an unrelated failure');
+  assert.ok(!runner.started.includes('child'), 'a blocked node is never dispatched');
+});
+
+test('a dispatchFn that throws is recorded as a failed node and its dependents are blocked', async () => {
+  const dispatchFn = async (node) => {
+    if (node.id === 'boom') throw new Error('the adapter exploded');
+    return { ok: true, outcome: 'success' };
+  };
+  const result = await runGraph(
+    { nodes: [{ id: 'boom' }, { id: 'after' }, { id: 'apart' }], readyAfter: { after: ['boom'] } },
+    dispatchFn,
+    {},
+  );
+  const records = byId(result.records);
+  assert.equal(records.get('boom').state, 'failed');
+  assert.equal(records.get('boom').outcome, 'dispatch-threw');
+  assert.match(records.get('boom').reason, /the adapter exploded/);
+  assert.equal(records.get('after').state, 'blocked');
+  assert.equal(records.get('apart').state, 'ok');
+});
+
+test('a dispatchFn result that carries no boolean ok is recorded as a contract violation rather than believed', async () => {
+  for (const verdict of [{}, null, undefined, 'ok', ['ok'], { ok: 'true' }]) {
+    const result = await runGraph(
+      { nodes: [{ id: 'one' }, { id: 'after' }], readyAfter: { after: ['one'] } },
+      async () => verdict,
+      {},
+    );
+    const records = byId(result.records);
+    assert.equal(records.get('one').state, 'failed', `verdict ${JSON.stringify(verdict)} must not read as success`);
+    assert.equal(records.get('one').outcome, 'dispatch-contract-violation');
+    assert.match(records.get('one').reason, /rather than a verdict carrying a boolean ok/);
+    assert.equal(records.get('after').state, 'blocked');
+  }
+});
