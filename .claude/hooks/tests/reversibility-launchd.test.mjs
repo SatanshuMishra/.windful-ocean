@@ -65,14 +65,26 @@ test('the reaper job invokes the reaper script and never a hook', () => {
   assert.ok(!reaper.contents.includes('/hooks/'));
 });
 
-function runInstaller(outDir, recorder) {
+function runInstaller(outDir, recorder, extraArgs = []) {
   const fakeBin = disposable('reversibility-fakebin-');
   writeFileSync(join(fakeBin, 'launchctl'), `#!/bin/sh\necho "$@" >> ${recorder}\nexit 0\n`, { mode: 0o755 });
-  return spawnSync('/bin/bash', [installScript, '--out-dir', outDir], {
+  return spawnSync('/bin/bash', [installScript, '--out-dir', outDir, ...extraArgs], {
     encoding: 'utf8',
     env: { ...process.env, PATH: `${fakeBin}:${process.env.PATH}` },
   });
 }
+
+test('the installer refuses a repo that is not a git repository', () => {
+  const outDir = disposable('reversibility-launchagents-');
+  const recorder = join(disposable('reversibility-recorder-'), 'launchctl-calls.txt');
+  const notARepo = disposable('reversibility-notarepo-');
+
+  const result = runInstaller(outDir, recorder, ['--repo', notARepo]);
+
+  assert.notEqual(result.status, 0);
+  assert.match(result.stderr, /not a git repository/);
+  assert.deepEqual(readdirSync(outDir), []);
+});
 
 test('the installer writes both plists and never invokes launchctl itself', () => {
   const outDir = disposable('reversibility-launchagents-');
