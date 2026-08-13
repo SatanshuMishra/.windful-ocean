@@ -10,6 +10,7 @@ import {
   REPO_OWNED_KEYS,
   REQUIRED_DENY_RULES,
   REQUIRED_HOOK_EVENTS,
+  REQUIRED_SANDBOX_SETTINGS,
   SAFETY_BOUNDARY_KEYS,
   classify,
   resolveSettings,
@@ -17,6 +18,7 @@ import {
 
 const CONVERGE_COMMAND = 'node $HOME/.claude/local/converge.mjs --event SessionStart';
 const FLOOR_DENY = Object.freeze([...REQUIRED_DENY_RULES]);
+const FLOOR_SANDBOX = Object.freeze({ ...REQUIRED_SANDBOX_SETTINGS, network: { allowLocalBinding: true } });
 
 const REPO = Object.freeze({
   $schema: 'https://json.schemastore.org/claude-code-settings.json',
@@ -38,6 +40,7 @@ const REPO = Object.freeze({
     allow: ['Bash(node .claude/:*)', 'Bash(node --test:*)'],
     deny: [...FLOOR_DENY],
   },
+  sandbox: { ...FLOOR_SANDBOX },
   theme: 'dark',
 });
 
@@ -267,14 +270,45 @@ test('the hooks floor names no individual gate script, so gates may be consolida
   assert.deepEqual(result.settings.hooks, consolidated);
 });
 
-test('every safety boundary is asserted from one named list rather than a bespoke check each', () => {
-  assert.deepEqual([...SAFETY_BOUNDARY_KEYS], ['hooks', 'permissions.deny']);
+test('a sandbox block that is present but uncontaining refuses promotion', () => {
+  const hollow = [
+    ['an empty block', {}],
+    ['containment switched off', { ...FLOOR_SANDBOX, enabled: false }],
+    ['unsandboxed fallback allowed', { ...FLOOR_SANDBOX, allowUnsandboxedCommands: true }],
+    ['an unavailable sandbox tolerated', { ...FLOOR_SANDBOX, failIfUnavailable: false }],
+    ['a required key merely absent', { enabled: true, network: { allowLocalBinding: true } }],
+  ];
+  for (const [label, sandbox] of hollow) {
+    refusesNaming(
+      { repo: { ...REPO, sandbox }, live: LIVE },
+      /sandbox/,
+      `${label} leaves live uncontained and must refuse promotion`,
+    );
+  }
+});
+
+test('a sandbox block carrying the floor promotes with whatever else it declares', () => {
+  const sandbox = {
+    ...FLOOR_SANDBOX,
+    network: { allowLocalBinding: true, allowedDomains: ['registry.npmjs.org'] },
+    filesystem: { allowWrite: ['/tmp'] },
+  };
+  const result = resolveSettings({ repo: { ...REPO, sandbox }, live: LIVE });
+  assert.deepEqual(result.settings.sandbox, sandbox, 'the floor must constrain containment only, never the whole block');
+});
+
+test('every safety boundary refuses on absence, from one named list rather than a bespoke check each', () => {
+  assert.deepEqual([...SAFETY_BOUNDARY_KEYS], ['hooks', 'permissions.deny', 'sandbox']);
   for (const key of SAFETY_BOUNDARY_KEYS) {
     const segments = key.split('.');
     const repo = segments.length === 1
       ? withoutKey(REPO, key)
       : { ...REPO, [segments[0]]: withoutKey(REPO[segments[0]], segments[1]) };
-    refusesNaming({ repo, live: LIVE }, new RegExp(key.replace('.', '\\.')), `${key} must refuse on absence`);
+    refusesNaming(
+      { repo, live: LIVE },
+      new RegExp(`declare no "${key.replace('.', '\\.')}"`),
+      `${key} must refuse on absence and report the absence, never delete it from live and report that`,
+    );
   }
 });
 

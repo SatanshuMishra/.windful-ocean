@@ -28,6 +28,7 @@ export const LIVE_OWNED_KEYS = Object.freeze([
 ]);
 
 export const HOOKS_KEY = 'hooks';
+export const SANDBOX_KEY = 'sandbox';
 export const PERMISSIONS_KEY = 'permissions';
 export const DENY_SECTION = 'deny';
 export const REPO_OWNED_SECTIONS = Object.freeze([DENY_SECTION]);
@@ -80,6 +81,12 @@ export const REQUIRED_DENY_RULES = Object.freeze([
   'Bash(git --config-env:*)',
   'Bash(gh pr merge:*)',
 ]);
+
+export const REQUIRED_SANDBOX_SETTINGS = Object.freeze({
+  enabled: true,
+  allowUnsandboxedCommands: false,
+  failIfUnavailable: true,
+});
 
 const quoted = (values) => values.map((value) => JSON.stringify(value)).join(', ');
 
@@ -136,10 +143,27 @@ function assertDenyFloor(deny) {
   }
 }
 
+function assertSandboxFloor(declared) {
+  const uncontaining = Object.entries(REQUIRED_SANDBOX_SETTINGS).filter(([key, value]) => declared[key] !== value);
+  if (uncontaining.length > 0) {
+    refuse(
+      `the repo settings declare a "${SANDBOX_KEY}" block that does not set `
+        + `${uncontaining.map(([key, value]) => `"${key}" to ${JSON.stringify(value)}`).join(', ')}; promotion replaces `
+        + 'the live block wholesale, so a block missing these leaves live uncontained while still looking configured',
+    );
+  }
+}
+
 const locateHooks = (repo) => ({
   present: HOOKS_KEY in repo,
   value: repo[HOOKS_KEY],
   absence: `the repo settings declare no "${HOOKS_KEY}" key`,
+});
+
+const locateSandbox = (repo) => ({
+  present: SANDBOX_KEY in repo,
+  value: repo[SANDBOX_KEY],
+  absence: `the repo settings declare no "${SANDBOX_KEY}" key`,
 });
 
 function locateDeny(repo) {
@@ -176,6 +200,16 @@ const SAFETY_BOUNDARIES = Object.freeze([
     locate: locateDeny,
     assertFloor: assertDenyFloor,
     consequence: `promotion would leave live with no "${DENY_KEY}" list, so every guarded catastrophe would become reachable`,
+  }),
+  Object.freeze({
+    key: SANDBOX_KEY,
+    shape: 'an object',
+    holds: isPlainObject,
+    locate: locateSandbox,
+    assertFloor: assertSandboxFloor,
+    consequence:
+      'promotion would leave live with no sandbox at all, and a Stop-time promotion leaves it that way until the next '
+        + 'session, so every write outside the working directory becomes possible again for the whole interval',
   }),
 ]);
 

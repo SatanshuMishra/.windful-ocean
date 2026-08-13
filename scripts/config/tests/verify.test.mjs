@@ -6,10 +6,12 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import {
   DEFAULT_HOOK_COMMANDS,
+  FLOOR_DENY,
+  FLOOR_SANDBOX,
   cleanup,
   commitChange,
+  declaredHookSettings,
   git,
-  hookSettings,
   makeHome,
   makeRepo,
   settingsFor,
@@ -24,8 +26,14 @@ const VERIFY_CLI = fileURLToPath(new URL('../verify.mjs', import.meta.url));
 const STACK_FRAME = /^\s+at /m;
 const NODE_BANNER = /Node\.js v/;
 
+const DECLARED_SETTINGS = Object.freeze({
+  ...declaredHookSettings(),
+  sandbox: { ...FLOOR_SANDBOX },
+  permissions: { allow: ['Bash(node --test:*)'], deny: [...FLOOR_DENY] },
+});
+
 function withDeclaredSettings(claude) {
-  writeFile(join(claude, 'settings.json'), `${JSON.stringify(hookSettings(DEFAULT_HOOK_COMMANDS), null, 2)}\n`);
+  writeFile(join(claude, 'settings.json'), `${JSON.stringify(DECLARED_SETTINGS, null, 2)}\n`);
 }
 
 function scenario({ mutate = withDeclaredSettings } = {}) {

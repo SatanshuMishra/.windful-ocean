@@ -8,6 +8,7 @@ import { RETAINED_RELEASES } from '../paths.mjs';
 import {
   DEFAULT_HOOK_COMMANDS,
   FLOOR_DENY,
+  FLOOR_SANDBOX,
   cleanup,
   collector,
   commitChange,
@@ -236,7 +237,7 @@ test('a promotion the hook performs carries every notice promote reports into th
     commitChange(s.repoRoot, (claude) =>
       writeFile(
         join(claude, 'settings.json'),
-        `${JSON.stringify({ ...declaredHookSettings(), permissions: { deny: [...FLOOR_DENY] } }, null, 2)}\n`,
+        `${JSON.stringify({ ...declaredHookSettings(), sandbox: { ...FLOOR_SANDBOX }, permissions: { deny: [...FLOOR_DENY] } }, null, 2)}\n`,
       ));
     Object.assign(sealed, sealSupersededReleases(s.configRoot));
 

@@ -22,6 +22,7 @@ import {
   CONVERGE_COMMAND,
   declaredHookSettings,
   FLOOR_DENY,
+  FLOOR_SANDBOX,
   hookSettings,
   makeHome,
   makeRepo,
@@ -66,6 +67,7 @@ const declaredSettings = (commands = DEFAULT_HOOK_COMMANDS) => ({
   $schema: 'https://json.schemastore.org/claude-code-settings.json',
   includeCoAuthoredBy: false,
   ...declaredHookSettings(commands),
+  sandbox: { ...FLOOR_SANDBOX },
   permissions: { allow: ['Bash(node --test:*)'], deny: [...FLOOR_DENY] },
 });
 
@@ -164,6 +166,27 @@ test('a repo revision that drops permissions.deny errors out and leaves the live
     assert.match(result.errors.join('\n'), /permissions\.deny/, 'the refusal must name the key that is missing');
     assert.equal(s.text(), before, 'a refused candidate must not rewrite the live settings');
     assert.deepEqual(s.applied().permissions.deny, ['Bash(gh pr merge:*)'], 'live must keep the deny list it had');
+    assertLiveUntouched(s.configRoot);
+  } finally {
+    s.dispose();
+  }
+});
+
+test('a repo revision that drops sandbox errors out and leaves live contained', () => {
+  const { sandbox, ...declaredWithoutSandbox } = declaredSettings();
+  const s = settingsScenario({
+    declared: declaredWithoutSandbox,
+    live: liveSettings({ sandbox: { ...FLOOR_SANDBOX } }),
+  });
+  try {
+    const before = s.text();
+
+    const result = s.run();
+
+    assert.equal(result.status, 'error', JSON.stringify(result.failures ?? result.settings ?? {}, null, 2));
+    assert.match(result.errors.join('\n'), /sandbox/, 'the refusal must name the key that is missing');
+    assert.equal(s.text(), before, 'a refused candidate must not rewrite the live settings');
+    assert.deepEqual(s.applied().sandbox, { ...FLOOR_SANDBOX }, 'live must keep the containment block it had');
     assertLiveUntouched(s.configRoot);
   } finally {
     s.dispose();

@@ -15,7 +15,7 @@ import { tmpdir } from 'node:os';
 import { dirname, join, relative } from 'node:path';
 import { liveSha, promote } from '../promote.mjs';
 import { CONVERGE_ENTRY, LOCAL_DIRNAME } from '../paths.mjs';
-import { REQUIRED_DENY_RULES } from '../manifest.mjs';
+import { REQUIRED_DENY_RULES, REQUIRED_SANDBOX_SETTINGS } from '../manifest.mjs';
 
 const GIT_IDENTITY = Object.freeze([
   '-c', 'user.email=promote-test@example.invalid',
@@ -81,6 +81,11 @@ export const CONVERGE_COMMAND = `node $HOME/.claude/${LOCAL_DIRNAME}/${CONVERGE_
 export const GATE_COMMAND = '$HOME/.claude/hooks/good.sh';
 
 export const FLOOR_DENY = Object.freeze([...REQUIRED_DENY_RULES]);
+
+export const FLOOR_SANDBOX = Object.freeze({
+  ...REQUIRED_SANDBOX_SETTINGS,
+  network: { allowLocalBinding: true },
+});
 
 export function hookSettings(commands) {
   return {
