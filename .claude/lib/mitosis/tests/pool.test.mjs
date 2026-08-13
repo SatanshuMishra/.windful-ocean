@@ -334,3 +334,30 @@ test('a dispatchFn result that carries no boolean ok is recorded as a contract v
     assert.equal(records.get('after').state, 'blocked');
   }
 });
+
+test('a slow node does not block an unrelated satisfied branch, and the wave diagnostic that would have gated it drives nothing', async () => {
+  const slowGate = deferred();
+  const started = [];
+  const dispatchFn = async (node) => {
+    started.push(node.id);
+    if (node.id === 'slow') await slowGate.promise;
+    if (node.id === 'after-fast') slowGate.resolve();
+    return { ok: true, outcome: 'success' };
+  };
+  const result = await settledWithin(
+    runGraph(
+      {
+        nodes: [{ id: 'after-fast' }, { id: 'fast' }, { id: 'slow' }],
+        readyAfter: { 'after-fast': ['fast'] },
+      },
+      dispatchFn,
+      { concurrency: 8 },
+    ),
+    5000,
+    'a barrier scheduler deadlocks here: after-fast can only start while slow is still in flight, and slow is only released by after-fast',
+  );
+  assert.equal(result.ok, true);
+  assert.ok(started.indexOf('after-fast') > started.indexOf('slow'), 'slow must already be in flight when after-fast starts');
+  assert.deepEqual(result.diagnostics.waves, [['fast', 'slow'], ['after-fast']]);
+  assert.deepEqual(result.diagnostics.unlayered, []);
+});
