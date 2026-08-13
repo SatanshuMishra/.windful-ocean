@@ -442,3 +442,95 @@ test('T24h: a graph with no --verdicts hardens exactly as before, so an existing
   const out = JSON.parse(readFileSync(join(dir, 'plan.hardened.graph.json'), 'utf8'));
   assert.equal(out.tasks.length, 4);
 });
+
+function inPlaceRun(dir, tasks, discoveredEdges) {
+  const declared = join(dir, 'plan.graph.json');
+  const audit = join(dir, 'plan.edges-audit.json');
+  writeFileSync(declared, JSON.stringify({ tasks }));
+  const args = [declared, '--out', declared, '--audit', audit];
+  if (discoveredEdges !== null) {
+    const discovered = join(dir, 'plan.discovered-edges.json');
+    writeFileSync(discovered, JSON.stringify(discoveredEdges));
+    args.splice(1, 0, discovered);
+  }
+  runCli(args, dir);
+  const first = JSON.parse(readFileSync(declared, 'utf8'));
+  runCli(args, dir);
+  return { first, second: JSON.parse(readFileSync(declared, 'utf8')) };
+}
+
+function reasonsOf(graph, id) {
+  return graph.tasks.find((t) => t.id === id).edgeReasons;
+}
+
+test('T28: re-running the CLI over the graph it rewrote in place keeps the discovered edge reason', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'derive-cli-rerun-discovered-'));
+  const { first, second } = inPlaceRun(
+    dir,
+    [
+      { id: 't1', title: 'a', fullText: 'A', fileScope: ['lib/a.js'], dependsOn: [], risk: 'low', validation: 'scoped' },
+      { id: 't2', title: 'b', fullText: 'B', fileScope: ['lib/b.js'], dependsOn: [], risk: 'low', validation: 'scoped' },
+    ],
+    [{ from: 't2', to: 't1', reason: 'api-contract' }],
+  );
+  assert.deepEqual(reasonsOf(first, 't1'), ['api-contract']);
+  assert.deepEqual(reasonsOf(first, 't2'), ['api-contract']);
+  for (const id of ['t1', 't2']) {
+    assert.deepEqual(
+      reasonsOf(second, id),
+      ['api-contract'],
+      `the second in-place run erased ${id}.edgeReasons; mitosis.js:1130 regex-matches this list to force opus on a contract-breaking task, so an emptied list silently downgrades the task on every replan`,
+    );
+  }
+  assert.deepEqual(second, first, 'derive-edges is run with --out equal to its input at mitosis.js:4906, so a re-run must be a fixed point');
+});
+
+test('T28b: re-running the CLI in place keeps the fileScope-overlap reason on the pair it serialized', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'derive-cli-rerun-overlap-'));
+  const { first, second } = inPlaceRun(
+    dir,
+    [
+      { id: 't1', title: 'a', fullText: 'A', fileScope: ['lib/shared.js'], dependsOn: [], risk: 'low', validation: 'scoped' },
+      { id: 't2', title: 'b', fullText: 'B', fileScope: ['lib/shared.js'], dependsOn: [], risk: 'low', validation: 'scoped' },
+    ],
+    null,
+  );
+  assert.deepEqual(reasonsOf(first, 't1'), ['fileScope-overlap']);
+  assert.deepEqual(reasonsOf(first, 't2'), ['fileScope-overlap']);
+  for (const id of ['t1', 't2']) {
+    assert.deepEqual(
+      reasonsOf(second, id),
+      ['fileScope-overlap'],
+      `the second in-place run erased ${id}.edgeReasons; the overlap edge it justifies is still present in dependsOn, so the reason must survive with it`,
+    );
+  }
+  assert.deepEqual(second, first, 'derive-edges is run with --out equal to its input at mitosis.js:4906, so a re-run must be a fixed point');
+});
+
+test('T28c: a reason whose discovered edge is withdrawn does not survive the next run', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'derive-cli-rerun-stale-'));
+  const declared = join(dir, 'plan.graph.json');
+  const discovered = join(dir, 'plan.discovered-edges.json');
+  const audit = join(dir, 'plan.edges-audit.json');
+  writeFileSync(declared, JSON.stringify({
+    tasks: [
+      { id: 't1', title: 'a', fullText: 'A', fileScope: ['lib/a.js'], dependsOn: [], risk: 'low', validation: 'scoped' },
+      { id: 't2', title: 'b', fullText: 'B', fileScope: ['lib/b.js'], dependsOn: [], risk: 'low', validation: 'scoped' },
+    ],
+  }));
+  writeFileSync(discovered, JSON.stringify([{ from: 't2', to: 't1', reason: 'api-contract' }]));
+  const args = [declared, discovered, '--out', declared, '--audit', audit];
+  runCli(args, dir);
+  assert.deepEqual(reasonsOf(JSON.parse(readFileSync(declared, 'utf8')), 't1'), ['api-contract']);
+  writeFileSync(discovered, JSON.stringify([]));
+  runCli(args, dir);
+  const after = JSON.parse(readFileSync(declared, 'utf8'));
+  for (const id of ['t1', 't2']) {
+    assert.deepEqual(
+      reasonsOf(after, id),
+      [],
+      `${id} kept a reason after the discovery pass withdrew it; reasons are a function of the asserted edges, so carrying one forward unconditionally would pin the task to opus forever`,
+    );
+  }
+  assert.deepEqual(after.tasks.find((t) => t.id === 't2').dependsOn, ['t1'], 'the serializing edge itself stays, because dependsOn is monotonic');
+});
