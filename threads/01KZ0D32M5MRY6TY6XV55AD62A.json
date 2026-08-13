@@ -15,6 +15,13 @@
       "struck_by": null
     },
     {
+      "id": "c9",
+      "text": "Maximum-autonomy permission architecture specified, pressure-tested and ratified: guard set D1-D5 plus D6 checkpoint, five-layer design, run mode, ordered change set (R1-R6 ratified 2026-08-13)",
+      "done": false,
+      "kind": "detour",
+      "struck_by": null
+    },
+    {
       "id": "c2",
       "text": "Four P0 bugs fixed and verified: block-env-edits.sh exit code, default-branch push prefix gap, supabase db reset contradiction, orphan gh pr review deny",
       "done": false,
@@ -137,5 +144,5 @@
     "last_session": "Presented the 518-line audit report in the mandated format after re-verifying its load-bearing citations live. cp=23 and 58 allow rules re-confirmed; the inert .env guard is at block-env-edits.sh:26, not :27. No config changed, nothing ratified."
   },
   "created_at": "2026-08-02T04:53:05.796Z",
-  "updated_at": "2026-08-13T18:06:38.419Z"
+  "updated_at": "2026-08-13T18:06:49.556Z"
 }
