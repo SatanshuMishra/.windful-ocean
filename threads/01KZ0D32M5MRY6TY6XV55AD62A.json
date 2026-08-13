@@ -1,5 +1,5 @@
 {
-  "schema_version": 1,
+  "schema_version": 2,
   "id": "01KZ0D32M5MRY6TY6XV55AD62A",
   "slug": "permission-config-audit",
   "title": "Permission config audit (auto mode)",
@@ -8,36 +8,60 @@
   "predecessor_id": null,
   "completion_criteria": [
     {
+      "id": "c1",
       "text": "Audit complete: deny-side and allow-side of .claude/settings.json + settings.local.json assessed under auto mode, findings persisted durably",
-      "done": true
+      "done": true,
+      "kind": "planned",
+      "struck_by": null
     },
     {
+      "id": "c2",
       "text": "Four P0 bugs fixed and verified: block-env-edits.sh exit code, default-branch push prefix gap, supabase db reset contradiction, orphan gh pr review deny",
-      "done": false
+      "done": false,
+      "kind": "planned",
+      "struck_by": null
     },
     {
+      "id": "c3",
       "text": "The gating principle (recovery-path + blast-radius, not command name) either ratified or rejected by the user, with a decision record written",
-      "done": false
+      "done": false,
+      "kind": "planned",
+      "struck_by": null
     },
     {
+      "id": "c4",
       "text": "The confirmed manual-approval cause (MITOSIS_PATH= env prefix defeating Bash(node:*)) resolved",
-      "done": false
+      "done": false,
+      "kind": "planned",
+      "struck_by": null
     },
     {
+      "id": "c5",
       "text": "The cp friction (23 accumulated approvals, largest measured) investigated and addressed",
-      "done": false
+      "done": false,
+      "kind": "planned",
+      "struck_by": null
     },
     {
+      "id": "c6",
       "text": "settings.local.json single-use rule accumulation addressed (was 15 -> 58 rules in one session)",
-      "done": false
+      "done": false,
+      "kind": "planned",
+      "struck_by": null
     },
     {
+      "id": "c7",
       "text": "Network deny relaxation (curl/wget/http/xh) explicitly adopted with compensating sandbox controls, or explicitly rejected",
-      "done": false
+      "done": false,
+      "kind": "planned",
+      "struck_by": null
     },
     {
+      "id": "c8",
       "text": "Hook trust boundary reviewed: the nine hook scripts treated as trusted code on the same tier as permission rules",
-      "done": false
+      "done": false,
+      "kind": "planned",
+      "struck_by": null
     }
   ],
   "vcs_ref": "feat/m4-fixed-build-ahead-cap",
@@ -46,27 +70,56 @@
   "abandoned_reason": null,
   "closure_statement": null,
   "spine": {
-    "status": "paused",
-    "active_goal": "Let Claude work as freely as possible in auto mode while keeping a hard human gate on catastrophic, irreversible actions. Audit COMPLETE; nothing implemented, nothing ratified.",
-    "next_step": "START HERE, FRESH SESSION. Read .claude/reports/2026-08-01-permission-config-audit.md, then PRESENT and STOP. Format is a USER DIRECTIVE: concise but well explained, assume MINIMAL domain knowledge, define terms, SMALL paragraphs not walls. Order: (1) principle - gate on recoverability + blast radius, not command name; (2) 4 P0 bugs; (3) why prompts fire: MITOSIS_PATH prefix defeats Bash(node:*); (4) cp = top friction, uninvestigated; (5) 2 unapproved proposals. Then WAIT. Do NOT implement.",
+    "active_goal": "Free auto-mode operation with a hard human gate on catastrophic, irreversible actions. Audit complete and now PRESENTED to the user; nothing implemented, nothing ratified.",
+    "next_step": "AWAIT SPECIFIC USER INSTRUCTION - explicit user directive at close. The findings were presented in full on 2026-08-13; do NOT re-present them, do NOT implement anything, do NOT pick a starting point. The user names the target. If they say only 'go', ASK which of the five presented items they mean: (1) the gating principle, (2) the four P0 bugs, (3) the MITOSIS_PATH prompt cause, (4) the cp friction, (5) the two proposals. Highest-value uninvestigated item on the evidence: why cp prompts at all.",
     "open_risks": [
-      "NOTHING RATIFIED. No config file modified. Every recommendation is still a proposal.",
-      "Do NOT implement test-hook design B as written: it rejects leading VAR= and rejects globs, which are exactly the two shapes that actually prompt. Needs a directory arg and a NAMED assignment allowlist (MITOSIS_PATH yes; NODE_OPTIONS/NODE_PATH/LD_PRELOAD never).",
-      "Several claims are [unverified] and need empirical tests first: does Bash(node --test:*) survive auto mode; drop scope across settings files; hook cwd vs tool cwd; multi-hook precedence; sandbox localhost.",
-      "Network relaxation contradicts official Anthropic guidance and is defensible ONLY with sandbox + autoMode.environment controls, which are ignored from project settings and must live in ~/.claude/settings.json.",
-      "Hooks bypass the permission system entirely, so rule hardening does nothing for the 9 hook scripts; 2 are network-capable. Treat hooks as trusted code.",
-      "3 of 8 subagents tripped auto-mode bypass warnings reading public docs. False positives. Fence future agents off the Claude Code bundle."
+      {
+        "text": "NOTHING RATIFIED. No config file modified. Every recommendation is still a proposal.",
+        "scope": "thread",
+        "refs": []
+      },
+      {
+        "text": "Do NOT implement test-hook design B as written: it rejects leading VAR= and rejects globs, which are exactly the two shapes that actually prompt. Needs a directory arg and a NAMED assignment allowlist (MITOSIS_PATH yes; NODE_OPTIONS/NODE_PATH/LD_PRELOAD never).",
+        "scope": "thread",
+        "refs": []
+      },
+      {
+        "text": "Several claims are [unverified] and need empirical tests first: does Bash(node --test:*) survive auto mode; drop scope across settings files; hook cwd vs tool cwd; multi-hook precedence; sandbox localhost.",
+        "scope": "thread",
+        "refs": []
+      },
+      {
+        "text": "Network relaxation contradicts official Anthropic guidance and is defensible ONLY with sandbox + autoMode.environment controls, which are ignored from project settings and must live in ~/.claude/settings.json.",
+        "scope": "thread",
+        "refs": []
+      },
+      {
+        "text": "Hooks bypass the permission system entirely, so rule hardening does nothing for the 9 hook scripts; 2 are network-capable. Treat hooks as trusted code.",
+        "scope": "thread",
+        "refs": []
+      },
+      {
+        "text": "3 of 8 subagents tripped auto-mode bypass warnings reading public docs. False positives. Fence future agents off the Claude Code bundle.",
+        "scope": "thread",
+        "refs": []
+      },
+      {
+        "text": "Re-check every line number in the audit report before acting on it — one cite already drifted, so the files have moved under the report and its other line cites may be stale too",
+        "scope": "c2",
+        "refs": [
+          ".claude/reports/2026-08-01-permission-config-audit.md",
+          ".claude/hooks/block-env-edits.sh:26"
+        ]
+      }
     ],
-    "key_decisions": [
-      "NO decision records written - the user ratified nothing this session.",
-      "Findings + citations: .claude/reports/2026-08-01-permission-config-audit.md"
-    ],
+    "key_decisions": [],
     "out_of_scope": [
-      "Implementing any config change - deferred on user instruction.",
-      "The 8 other paused mitosis threads. NOTE: this session incidentally cleared the mitosis-resilience-implementation blocker - .claude/reports/ is now gitignored (.gitignore:10).",
-      "Auditing the CONTENTS of the 9 hook scripts. The boundary was mapped; the code was not reviewed."
-    ]
+      "Implementing any config change - deferred on explicit user instruction; the user names the target.",
+      "The other paused threads on the roster (12 as of 2026-08-13). An earlier session incidentally cleared the mitosis-resilience-implementation blocker - .claude/reports/ is gitignored (.gitignore:11) and untracked, verified 2026-08-13.",
+      "Auditing the CONTENTS of the nine hook scripts. The boundary was mapped; the code was not reviewed."
+    ],
+    "last_session": "Presented the 518-line audit report in the mandated format after re-verifying its load-bearing citations live. cp=23 and 58 allow rules re-confirmed; the inert .env guard is at block-env-edits.sh:26, not :27. No config changed, nothing ratified."
   },
   "created_at": "2026-08-02T04:53:05.796Z",
-  "updated_at": "2026-08-02T04:55:02.196Z"
+  "updated_at": "2026-08-13T17:20:39.076Z"
 }
