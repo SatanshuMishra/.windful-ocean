@@ -288,6 +288,11 @@
         "ref": "0405-main-is-published-only-through-a-pull-request",
         "title": "main is published only through a pull request, never a direct push",
         "scope": "thread"
+      },
+      {
+        "ref": "0406-release-drift-is-prevented-not-excused",
+        "title": "Release-tree drift is prevented at its source, never excused by verify",
+        "scope": "thread"
       }
     ],
     "out_of_scope": [
@@ -296,5 +301,5 @@
     ]
   },
   "created_at": "2026-08-13T18:14:42.072Z",
-  "updated_at": "2026-08-13T23:00:24.865Z"
+  "updated_at": "2026-08-13T23:27:53.121Z"
 }
