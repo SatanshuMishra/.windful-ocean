@@ -28,7 +28,10 @@ export const PROMOTED_ENTRIES = Object.freeze([
   'keybindings.json',
 ]);
 
-export const BOOTSTRAP_ENTRIES = Object.freeze(['promote.mjs', 'converge.mjs']);
+export const PROMOTE_ENTRY = 'promote.mjs';
+export const CONVERGE_ENTRY = 'converge.mjs';
+
+export const BOOTSTRAP_ENTRIES = Object.freeze([PROMOTE_ENTRY, CONVERGE_ENTRY]);
 
 export const CUTOVER_ENTRIES = Object.freeze([...PROMOTED_ENTRIES, NOTES_DIRNAME]);
 

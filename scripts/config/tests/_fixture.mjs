@@ -1,9 +1,21 @@
 import assert from 'node:assert/strict';
-import { chmodSync, existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import {
+  chmodSync,
+  existsSync,
+  lstatSync,
+  mkdirSync,
+  mkdtempSync,
+  readdirSync,
+  readlinkSync,
+  rmSync,
+  writeFileSync,
+} from 'node:fs';
 import { spawnSync } from 'node:child_process';
 import { tmpdir } from 'node:os';
-import { dirname, join } from 'node:path';
+import { dirname, join, relative } from 'node:path';
 import { liveSha, promote } from '../promote.mjs';
+import { CONVERGE_ENTRY, LOCAL_DIRNAME } from '../paths.mjs';
+import { REQUIRED_DENY_RULES, REQUIRED_SANDBOX_SETTINGS } from '../manifest.mjs';
 
 const GIT_IDENTITY = Object.freeze([
   '-c', 'user.email=promote-test@example.invalid',
@@ -56,17 +68,41 @@ export function commitChange(repoRoot, mutate) {
   return git(repoRoot, ['rev-parse', 'HEAD']);
 }
 
-export function makeHome() {
+export function makeHome({ bootstrap = true } = {}) {
   const home = mkdtempSync(join(tmpdir(), 'promote-home-'));
   const configRoot = join(home, '.claude');
   mkdirSync(join(configRoot, 'releases'), { recursive: true });
+  if (bootstrap) writeFile(join(configRoot, LOCAL_DIRNAME, CONVERGE_ENTRY), GOOD_MJS);
   return { home, configRoot };
 }
+
+export const CONVERGE_COMMAND = `node $HOME/.claude/${LOCAL_DIRNAME}/${CONVERGE_ENTRY} --event SessionStart`;
+
+export const GATE_COMMAND = '$HOME/.claude/hooks/good.sh';
+
+export const FLOOR_DENY = Object.freeze([...REQUIRED_DENY_RULES]);
+
+export const FLOOR_SANDBOX = Object.freeze({
+  ...REQUIRED_SANDBOX_SETTINGS,
+  network: { allowLocalBinding: true },
+});
 
 export function hookSettings(commands) {
   return {
     hooks: {
       SessionStart: [{ matcher: '*', hooks: commands.map((command) => ({ type: 'command', command })) }],
+    },
+  };
+}
+
+export function declaredHookSettings(commands = DEFAULT_HOOK_COMMANDS) {
+  return {
+    hooks: {
+      SessionStart: [{
+        matcher: '*',
+        hooks: [...commands, CONVERGE_COMMAND].map((command) => ({ type: 'command', command })),
+      }],
+      PreToolUse: [{ matcher: '*', hooks: [{ type: 'command', command: GATE_COMMAND }] }],
     },
   };
 }
@@ -84,6 +120,22 @@ export const DEFAULT_HOOK_COMMANDS = Object.freeze([
 
 export function cleanup(...paths) {
   for (const path of paths) rmSync(path, { recursive: true, force: true });
+}
+
+export function treeSnapshot(root) {
+  const walk = (dir) => readdirSync(dir).flatMap((entry) => {
+    const path = join(dir, entry);
+    const stats = lstatSync(path);
+    if (stats.isSymbolicLink()) return [[relative(root, path), `link:${readlinkSync(path)}`]];
+    if (stats.isDirectory()) return [[relative(root, path), 'dir'], ...walk(path)];
+    return [[relative(root, path), `file:${stats.size}:${stats.mtimeMs}`]];
+  });
+  return Object.fromEntries(walk(root).sort(([a], [b]) => a.localeCompare(b)));
+}
+
+export function collector() {
+  const chunks = [];
+  return { chunks, write: (chunk) => chunks.push(chunk), text: () => chunks.join('') };
 }
 
 export const DEFAULT_NOW = '2026-08-07T12:00:00.000Z';
