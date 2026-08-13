@@ -1,7 +1,9 @@
+import { execFileSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
-import { closeSync, existsSync, mkdirSync, openSync, readdirSync, readFileSync, realpathSync, renameSync, unlinkSync, writeFileSync } from 'node:fs';
+import { closeSync, existsSync, mkdirSync, openSync, readdirSync, readFileSync, realpathSync, renameSync, rmSync, statSync, unlinkSync, writeFileSync } from 'node:fs';
 import { isAbsolute, join } from 'node:path';
 import { pathToFileURL } from 'node:url';
+import { CHECKPOINT_REF_PREFIX, MANIFEST_REF_PREFIX, validateRefToken } from './checkpoint.mjs';
 import { isIsoInstant } from './run-log.mjs';
 
 const RUN_KEY_DOMAIN = 'mitosis-run-key/1\n';
@@ -12,6 +14,8 @@ const RUNS_SEGMENTS = Object.freeze(['.mitosis', 'runs']);
 const PATH_SEPARATOR = /[/\\]/;
 const NUL = String.fromCharCode(0);
 const MAX_ATTEMPT_COLLISIONS = 64;
+const RUN_ID_PATTERN = /^[a-f0-9]{8}$/;
+const GIT_TIMEOUT_MS = 10000;
 const USAGE = [
   'usage: run-store.mjs key <spec.json>',
   '       run-store.mjs open <spec.json> --root <dir> --started-at <iso8601> --unit <id> [--unit <id> ...] [--pid <n>]',
@@ -296,6 +300,105 @@ export function openRun(request) {
   return attemptHandle({ runKey, attempt: allocated.attempt, dir: allocated.dir, lockPath, lockRecord, unitIds });
 }
 
+function defaultExec(argv, cwd) {
+  return execFileSync('git', argv, { encoding: 'utf8', timeout: GIT_TIMEOUT_MS, cwd });
+}
+
+function requireRunId(value) {
+  if (typeof value !== 'string' || !RUN_ID_PATTERN.test(value)) {
+    throw new TypeError(`run-store: runId must be the 8-character lowercase hexadecimal run id the checkpoint refs are minted under, because retirement is scoped to exactly one run's ref namespaces and any other shape names refs no run owns, received ${JSON.stringify(value)}`);
+  }
+  return value;
+}
+
+function parseRefListing(listing) {
+  return listing
+    .split('\n')
+    .map((line) => line.trim())
+    .filter((line) => line !== '')
+    .map((line) => {
+      const separator = line.indexOf(' ');
+      if (separator <= 0) {
+        throw new Error(`run-store: could not read ${JSON.stringify(line)} as an object name followed by a ref name; refusing to delete anything from a listing this module cannot parse in full, because a line it misreads is a ref it would either skip silently or delete blind`);
+      }
+      return { object: line.slice(0, separator), ref: line.slice(separator + 1) };
+    });
+}
+
+function selectedRefs(entries, runId) {
+  const bases = [`${CHECKPOINT_REF_PREFIX}/${runId}`, `${MANIFEST_REF_PREFIX}/${runId}`];
+  return entries.filter(({ ref }) => bases.some((base) => ref === base || ref.startsWith(`${base}/`)));
+}
+
+function deleteRefs(selected, repoRoot, runId, exec) {
+  const deleted = [];
+  const failures = [];
+  for (const { ref, object } of selected) {
+    try {
+      exec(['update-ref', '-d', ref, object], repoRoot);
+      deleted.push(ref);
+    } catch (error) {
+      failures.push(`${ref} (${error.message})`);
+    }
+  }
+  if (failures.length > 0) {
+    throw new Error(`run-store: retiring ${runId} deleted ${deleted.length === 0 ? 'no refs' : deleted.join(', ')} but could not delete ${failures.join('; ')}; the run is now partly retired, and the surviving refs are named here rather than dropped, because a ref nobody knows survived is a ref nobody will ever clean up`);
+  }
+  return deleted;
+}
+
+function retireRefs(repoRoot, runId, exec) {
+  const entries = parseRefListing(exec(
+    ['for-each-ref', '--format=%(objectname) %(refname)', `${CHECKPOINT_REF_PREFIX}/`, `${MANIFEST_REF_PREFIX}/`],
+    repoRoot,
+  ));
+  const selected = selectedRefs(entries, runId).sort((a, b) => a.ref.localeCompare(b.ref));
+  const unsafe = selected.filter(({ ref }) => !validateRefToken(ref));
+  if (unsafe.length > 0) {
+    throw new Error(`run-store: refusing to retire ${unsafe.map(({ ref }) => JSON.stringify(ref)).join(', ')}; a ref name of that shape could be read by git as an option rather than as a ref, so it is reported here rather than passed to a delete`);
+  }
+  const selectedNames = new Set(selected.map(({ ref }) => ref));
+  return {
+    deletedRefs: Object.freeze(deleteRefs(selected, repoRoot, runId, exec)),
+    keptRefs: Object.freeze(entries.map(({ ref }) => ref).filter((ref) => !selectedNames.has(ref)).sort()),
+  };
+}
+
+function retireDirectory(root, runKey) {
+  const path = join(root, ...RUNS_SEGMENTS, runKey);
+  let present = false;
+  try {
+    statSync(path);
+    present = true;
+  } catch (error) {
+    if (error.code !== 'ENOENT') throw error;
+  }
+  if (present) rmSync(path, { recursive: true });
+  return Object.freeze({ path, removed: present });
+}
+
+export function retire(target) {
+  if (!isPlainObject(target)) {
+    throw new TypeError(`run-store: retire takes one plain object naming what to retire: a run directory as root plus runKey, a ref namespace as repoRoot plus runId, or both; received ${target === null ? 'null' : Array.isArray(target) ? 'an array' : typeof target}`);
+  }
+  const wantsDirectory = target.root !== undefined || target.runKey !== undefined;
+  const wantsRefs = target.repoRoot !== undefined || target.runId !== undefined;
+  if (!wantsDirectory && !wantsRefs) {
+    throw new TypeError('run-store: retire needs at least one target; give root and runKey to remove a run directory, or repoRoot and runId to remove that run\'s refs. It never guesses a target, because a guessed one would delete a run nobody asked about');
+  }
+  const exec = target.exec === undefined ? defaultExec : target.exec;
+  if (typeof exec !== 'function') {
+    throw new TypeError(`run-store: exec must be a function taking an argv array and a working directory, received ${typeof target.exec}`);
+  }
+  const runDir = wantsDirectory
+    ? retireDirectory(requireAbsoluteDir(target.root, 'root'), requireRunKey(target.runKey))
+    : null;
+  const refs = wantsRefs
+    ? retireRefs(requireAbsoluteDir(target.repoRoot, 'repoRoot'), requireRunId(target.runId), exec)
+    : { deletedRefs: Object.freeze([]), keptRefs: Object.freeze([]) };
+  return Object.freeze({ runDir, deletedRefs: refs.deletedRefs, keptRefs: refs.keptRefs });
+}
+
 function readJsonFile(path, label) {
   let text = null;
   try {
@@ -357,6 +460,19 @@ function openVerb(rest) {
   return { runKey: handle.runKey, attempt: handle.attempt, dir: handle.dir, lockPath: handle.lockPath };
 }
 
+function retireVerb(rest) {
+  const { flags } = parseFlags(rest, []);
+  const target = {};
+  if (Object.hasOwn(flags, 'root')) target.root = flags.root;
+  if (Object.hasOwn(flags, 'run-key')) target.runKey = flags['run-key'];
+  if (Object.hasOwn(flags, 'repo')) target.repoRoot = flags.repo;
+  if (Object.hasOwn(flags, 'run-id')) target.runId = flags['run-id'];
+  if (Object.keys(target).length === 0) {
+    throw usageError('run-store: the retire verb needs --root with --run-key, or --repo with --run-id, or both pairs');
+  }
+  return retire(target);
+}
+
 function main() {
   const [verb, ...rest] = process.argv.slice(2);
   try {
@@ -366,6 +482,10 @@ function main() {
     }
     if (verb === 'open') {
       process.stdout.write(`${JSON.stringify(openVerb(rest))}\n`);
+      return;
+    }
+    if (verb === 'retire') {
+      process.stdout.write(`${JSON.stringify(retireVerb(rest))}\n`);
       return;
     }
     throw usageError(`run-store: ${verb === undefined ? 'no verb was given' : `${JSON.stringify(verb)} is not a verb this tool knows`}`);

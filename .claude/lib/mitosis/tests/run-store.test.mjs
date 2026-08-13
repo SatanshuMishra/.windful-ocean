@@ -1,11 +1,12 @@
 import { test, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
-import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, unlinkSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, symlinkSync, unlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { computeRunKey, openRun } from '../run-store.mjs';
+import { checkpointRef } from '../checkpoint.mjs';
+import { computeRunKey, openRun, retire } from '../run-store.mjs';
 
 const CLI = fileURLToPath(new URL('../run-store.mjs', import.meta.url));
 const scratchDirs = [];
@@ -399,6 +400,192 @@ test('handle writes are refused after release', () => {
   assert.throws(() => handle.recordStart('a3-tests', { phase: 'dispatched' }), /release/i);
   assert.throws(() => handle.recordOutput('a3-run-store', { phase: 'reaped' }), /release/i);
   assert.throws(() => handle.commitState({ phase: 'late' }), /release/i);
+});
+
+const GIT_IDENTITY = Object.freeze({
+  GIT_AUTHOR_NAME: 'run-store test',
+  GIT_AUTHOR_EMAIL: 'run-store@test.invalid',
+  GIT_COMMITTER_NAME: 'run-store test',
+  GIT_COMMITTER_EMAIL: 'run-store@test.invalid',
+  GIT_AUTHOR_DATE: '2026-08-12T09:00:00Z',
+  GIT_COMMITTER_DATE: '2026-08-12T09:00:00Z',
+});
+
+function git(cwd, args, input) {
+  return execFileSync('git', args, { cwd, encoding: 'utf8', input, stdio: 'pipe', env: { ...process.env, ...GIT_IDENTITY } }).trim();
+}
+
+function seedRepo(refs) {
+  const repo = scratch('run-store-repo-');
+  git(repo, ['init', '-q', '-b', 'main']);
+  const tree = git(repo, ['mktree'], '');
+  const commit = git(repo, ['commit-tree', tree, '-m', 'seed']);
+  for (const ref of refs) git(repo, ['update-ref', ref, commit]);
+  return repo;
+}
+
+function listRefs(repo) {
+  const out = git(repo, ['for-each-ref', '--format=%(refname)']);
+  return out === '' ? [] : out.split('\n').sort();
+}
+
+const HASH_A = 'a'.repeat(64);
+const HASH_B = 'b'.repeat(64);
+
+test('retire removes only the run directory it targets', () => {
+  const args = openArgs();
+  const keep = 'c'.repeat(64);
+  openRun(args).release();
+  openRun(openArgs({ root: args.root, runKey: keep })).release();
+  const runsDir = join(args.root, '.mitosis', 'runs');
+  writeFileSync(join(args.root, 'sentinel'), 'must survive\n');
+  const report = retire({ root: args.root, runKey: VALID_KEY });
+  assert.equal(report.runDir.removed, true);
+  assert.equal(report.runDir.path, join(runsDir, VALID_KEY));
+  assert.equal(existsSync(join(runsDir, VALID_KEY)), false);
+  assert.equal(existsSync(join(runsDir, keep, 'attempt-1', 'plan.json')), true);
+  assert.deepEqual(readdirSync(runsDir), [keep]);
+  assert.equal(readFileSync(join(args.root, 'sentinel'), 'utf8'), 'must survive\n');
+  assert.equal(Object.isFrozen(report), true);
+});
+
+test('retire does not follow a symlink planted inside the run directory', () => {
+  const args = openArgs();
+  const outside = scratch('run-store-outside-');
+  writeFileSync(join(outside, 'sentinel'), 'must survive\n');
+  const handle = openRun(args);
+  handle.release();
+  symlinkSync(outside, join(handle.dir, 'escape'));
+  retire({ root: args.root, runKey: VALID_KEY });
+  assert.equal(existsSync(join(args.root, '.mitosis', 'runs', VALID_KEY)), false);
+  assert.equal(readFileSync(join(outside, 'sentinel'), 'utf8'), 'must survive\n');
+});
+
+test('retire reports a run directory that was already gone rather than throwing', () => {
+  const root = scratch('run-store-retire-absent-');
+  const report = retire({ root, runKey: VALID_KEY });
+  assert.equal(report.runDir.removed, false);
+  assert.deepEqual([...report.deletedRefs], []);
+});
+
+test('retire deletes only the ref namespaces of the run id it targets', () => {
+  const target = 'aaaaaaaa';
+  const other = 'bbbbbbbb';
+  const doomed = [
+    `refs/mitosis/${target}/unit-one`,
+    `refs/mitosis/${target}/unit-two`,
+    `refs/mitosis-manifest/${target}/${HASH_A}`,
+  ];
+  const extending = `${target}b`;
+  const neighbouring = [
+    `refs/mitosis/${other}/unit-one`,
+    `refs/mitosis-manifest/${other}/${HASH_B}`,
+    `refs/mitosis/${extending}/unit-one`,
+    `refs/mitosis-manifest/${extending}/${HASH_B}`,
+  ];
+  const survivors = [
+    ...neighbouring,
+    'refs/heads/main',
+    `refs/mitosisx/${target}/decoy`,
+    `refs/mitosis-manifestx/${target}/decoy`,
+  ];
+  const repo = seedRepo([...doomed, ...survivors]);
+  const report = retire({ repoRoot: repo, runId: target });
+  assert.deepEqual([...report.deletedRefs], [...doomed].sort());
+  assert.deepEqual(listRefs(repo), [...survivors].sort());
+  assert.deepEqual([...report.keptRefs], [...neighbouring].sort());
+  assert.equal(report.runDir, null);
+});
+
+test('retire and checkpointRef agree on which run ids exist', () => {
+  const repo = seedRepo(['refs/mitosis/aaaaaaaa/unit-one']);
+  const candidates = ['aaaaaaaa', '0123abcd', 'AAAAAAAA', 'aaaaaaa', 'aaaaaaaaa', 'aaaa/aaaa', '..', '-aaaaaaa', ''];
+  for (const candidate of candidates) {
+    let mintable = true;
+    try {
+      checkpointRef(candidate, 'unit-one');
+    } catch {
+      mintable = false;
+    }
+    let retirable = true;
+    try {
+      retire({ repoRoot: repo, runId: candidate });
+    } catch (error) {
+      if (!/runId/.test(error.message)) throw error;
+      retirable = false;
+    }
+    assert.equal(retirable, mintable, `checkpointRef and retire disagree about run id ${JSON.stringify(candidate)}`);
+  }
+});
+
+test('retire refuses a ref name git could read as an option', () => {
+  const issued = [];
+  const exec = (argv) => {
+    issued.push(argv);
+    if (argv[0] === 'for-each-ref') return 'deadbeef refs/mitosis/aaaaaaaa/-evil\ndeadbeef refs/mitosis/aaaaaaaa/unit-one\n';
+    return '';
+  };
+  assert.throws(() => retire({ repoRoot: '/tmp', runId: 'aaaaaaaa', exec }), /-evil/);
+  assert.deepEqual(issued.filter((argv) => argv[0] === 'update-ref'), []);
+});
+
+test('retire reports a failed ref deletion instead of dropping it', () => {
+  const exec = (argv) => {
+    if (argv[0] === 'for-each-ref') return 'deadbeef refs/mitosis/aaaaaaaa/unit-one\ndeadbeef refs/mitosis/aaaaaaaa/unit-two\n';
+    if (argv[2] === 'refs/mitosis/aaaaaaaa/unit-two') throw new Error('the ref moved under us');
+    return '';
+  };
+  assert.throws(() => retire({ repoRoot: '/tmp', runId: 'aaaaaaaa', exec }), (error) => {
+    assert.match(error.message, /refs\/mitosis\/aaaaaaaa\/unit-two/);
+    assert.match(error.message, /refs\/mitosis\/aaaaaaaa\/unit-one/);
+    return true;
+  });
+});
+
+test('retire deletes each ref against the object it enumerated', () => {
+  const issued = [];
+  const exec = (argv) => {
+    issued.push(argv);
+    if (argv[0] === 'for-each-ref') return 'cafebabe refs/mitosis/aaaaaaaa/unit-one\n';
+    return '';
+  };
+  retire({ repoRoot: '/tmp', runId: 'aaaaaaaa', exec });
+  assert.deepEqual(issued[1], ['update-ref', '-d', 'refs/mitosis/aaaaaaaa/unit-one', 'cafebabe']);
+});
+
+test('retire requires at least one target', () => {
+  for (const target of [{}, { exec: () => '' }]) {
+    assert.throws(() => retire(target), /run-store/, `expected ${JSON.stringify(Object.keys(target))} to be refused`);
+  }
+  for (const bad of [null, undefined, [], 'x']) assert.throws(() => retire(bad), /run-store/);
+  for (const partial of [{ root: '/tmp' }, { repoRoot: '/tmp' }, { runKey: VALID_KEY }, { runId: 'aaaaaaaa' }]) {
+    assert.throws(() => retire(partial), /run-store/, `expected the half-named target ${JSON.stringify(Object.keys(partial))} to be refused`);
+  }
+});
+
+test('retire refuses a runKey containing a path traversal', () => {
+  const root = scratch('run-store-retire-traversal-');
+  mkdirSync(join(root, '.mitosis', 'runs'), { recursive: true });
+  writeFileSync(join(root, 'sentinel'), 'must survive\n');
+  for (const bad of ['../../..', `../../${VALID_KEY}`, 'A'.repeat(64)]) {
+    assert.throws(() => retire({ root, runKey: bad }), /runKey/);
+  }
+  assert.equal(readFileSync(join(root, 'sentinel'), 'utf8'), 'must survive\n');
+  assert.equal(existsSync(join(root, '.mitosis', 'runs')), true);
+});
+
+test('CLI retire verb removes the targeted run directory and prints its report', () => {
+  const args = openArgs();
+  openRun(args).release();
+  const stdout = runCli(['retire', '--root', args.root, '--run-key', VALID_KEY]);
+  assert.equal(JSON.parse(stdout).runDir.removed, true);
+  assert.equal(existsSync(join(args.root, '.mitosis', 'runs', VALID_KEY)), false);
+});
+
+test('CLI retire verb exits 2 when it is given no target', () => {
+  const failed = failCli(['retire']);
+  assert.equal(failed.status, 2);
+  assert.match(failed.stderr, /usage:/);
 });
 
 after(cleanupScratch);
