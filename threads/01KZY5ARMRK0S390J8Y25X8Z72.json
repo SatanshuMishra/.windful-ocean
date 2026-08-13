@@ -133,9 +133,15 @@
         ]
       }
     ],
-    "key_decisions": [],
+    "key_decisions": [
+      {
+        "ref": "0392-d2-guards-live-copy-not-source",
+        "title": "D2 guards the live installed copy, not version-controlled source",
+        "scope": "thread"
+      }
+    ],
     "out_of_scope": []
   },
   "created_at": "2026-08-13T18:14:42.072Z",
-  "updated_at": "2026-08-13T18:18:17.449Z"
+  "updated_at": "2026-08-13T18:20:35.579Z"
 }
