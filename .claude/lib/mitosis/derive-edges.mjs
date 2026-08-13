@@ -41,6 +41,40 @@ function detectCycle(byId, deps) {
   }
 }
 
+function directDependentsOf(byId, deps) {
+  const directDependents = new Map();
+  for (const id of byId.keys()) directDependents.set(id, new Set());
+  for (const [dependent, depSet] of deps) for (const dep of depSet) if (directDependents.has(dep)) directDependents.get(dep).add(dependent);
+  return directDependents;
+}
+
+function transitiveDependentsOf(byId, directDependents) {
+  const transitive = new Map();
+  for (const id of byId.keys()) {
+    const seen = new Set();
+    const stack = [...directDependents.get(id)];
+    while (stack.length) {
+      const cur = stack.pop();
+      if (cur === id || seen.has(cur)) continue;
+      seen.add(cur);
+      for (const next of directDependents.get(cur)) stack.push(next);
+    }
+    transitive.set(id, seen);
+  }
+  return transitive;
+}
+
+function edgeReasonsOf(byId, added) {
+  const edgeReasonsById = new Map();
+  for (const id of byId.keys()) edgeReasonsById.set(id, new Set());
+  for (const e of added) {
+    if (typeof e.reason !== 'string') continue;
+    if (edgeReasonsById.has(e.from)) edgeReasonsById.get(e.from).add(e.reason);
+    if (edgeReasonsById.has(e.to)) edgeReasonsById.get(e.to).add(e.reason);
+  }
+  return edgeReasonsById;
+}
+
 export function deriveEdges(graph, discoveredEdges = []) {
   const byId = indexTasks(graph);
   const deps = new Map();
@@ -83,34 +117,13 @@ export function deriveEdges(graph, discoveredEdges = []) {
 
   detectCycle(byId, deps);
 
-  const directDependents = new Map();
-  for (const id of byId.keys()) directDependents.set(id, new Set());
-  for (const [dependent, depSet] of deps) for (const dep of depSet) if (directDependents.has(dep)) directDependents.get(dep).add(dependent);
-  const dependentCounts = new Map();
-  for (const id of byId.keys()) {
-    const seen = new Set();
-    const stack = [...directDependents.get(id)];
-    while (stack.length) {
-      const cur = stack.pop();
-      if (cur === id || seen.has(cur)) continue;
-      seen.add(cur);
-      for (const next of directDependents.get(cur)) stack.push(next);
-    }
-    dependentCounts.set(id, seen.size);
-  }
-
-  const edgeReasonsById = new Map();
-  for (const id of byId.keys()) edgeReasonsById.set(id, new Set());
-  for (const e of added) {
-    if (typeof e.reason !== 'string') continue;
-    if (edgeReasonsById.has(e.from)) edgeReasonsById.get(e.from).add(e.reason);
-    if (edgeReasonsById.has(e.to)) edgeReasonsById.get(e.to).add(e.reason);
-  }
+  const transitiveDependents = transitiveDependentsOf(byId, directDependentsOf(byId, deps));
+  const edgeReasonsById = edgeReasonsOf(byId, added);
 
   const tasks = graph.tasks.map((t) => ({
     ...t,
     dependsOn: [...deps.get(t.id)].sort(),
-    dependentCount: dependentCounts.get(t.id),
+    dependentCount: transitiveDependents.get(t.id).size,
     edgeReasons: [...edgeReasonsById.get(t.id)].sort(),
   }));
 
