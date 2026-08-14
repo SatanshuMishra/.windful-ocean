@@ -1,0 +1,61 @@
+{
+  "schema_version": 2,
+  "id": "01KZZDZ15E6308G0V1TQ9GH0BD",
+  "slug": "permission-architecture-the-unverified-controls-and-the-self-modification-exposure",
+  "title": "Permission architecture: the unverified controls and the self-modification exposure",
+  "status": "active",
+  "parent_id": "01KZ0D32M5MRY6TY6XV55AD62A",
+  "predecessor_id": "01KZY5ARMRK0S390J8Y25X8Z72",
+  "completion_criteria": [
+    {
+      "id": "c1",
+      "text": "Establish whether the R3 bypassPermissions precondition is enforced or is prose only - nothing enforcing it means the mode is reachable today, which is what makes the deny question load-bearing",
+      "done": false,
+      "kind": "planned",
+      "struck_by": null
+    },
+    {
+      "id": "c2",
+      "text": "Measured with evidence: whether a permissions.deny rule and a PreToolUse deny both hold under bypassPermissions, with the SPEC's claim at line 274 marked verified or refuted",
+      "done": false,
+      "kind": "planned",
+      "struck_by": null
+    },
+    {
+      "id": "c3",
+      "text": "Measured with a paired control: which decision wins when allow-write-tools.sh and secret-scanner.sh both fire on one Edit, and the secret deny confirmed to hold or the registration fixed so it does",
+      "done": false,
+      "kind": "planned",
+      "struck_by": null
+    },
+    {
+      "id": "c4",
+      "text": "A recorded decision on the self-modification exposure: accept it as the price of unattended autonomy, or ship a report that surfaces a changed gate or settings file after the fact",
+      "done": false,
+      "kind": "planned",
+      "struck_by": null
+    },
+    {
+      "id": "c5",
+      "text": "If that decision calls for machinery it ships and is proven: the report fires on a real gate edit, stays silent otherwise, and never blocks, since prevention was deliberately removed",
+      "done": false,
+      "kind": "planned",
+      "struck_by": null
+    }
+  ],
+  "vcs_ref": null,
+  "external_refs": [],
+  "blocked_by": null,
+  "abandoned_reason": null,
+  "closure_statement": null,
+  "spine": {
+    "active_goal": "",
+    "next_step": "",
+    "last_session": "",
+    "open_risks": [],
+    "key_decisions": [],
+    "out_of_scope": []
+  },
+  "created_at": "2026-08-14T06:04:49.198Z",
+  "updated_at": "2026-08-14T06:04:49.198Z"
+}
