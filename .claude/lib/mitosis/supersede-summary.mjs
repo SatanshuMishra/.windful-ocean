@@ -1,6 +1,6 @@
 import { EXEC_COMPLETED } from './exec-run.mjs';
 import { readQuotedPath } from './transcription-parsers.mjs';
-import { PR_VALUE_CAP } from '../git/pr-format.mjs';
+import { PR_VALUE_CAP, inertValue } from '../git/pr-format.mjs';
 
 const MODULE = 'supersede-summary';
 const FIELD_SEPARATOR = '\t';
@@ -85,20 +85,35 @@ function plural(count, noun) {
   return `${count} ${noun}${count === 1 ? '' : 's'}`;
 }
 
+function nameable(path) {
+  return inertValue(path, SUPERSEDE_SUMMARY_CAP) === path;
+}
+
+function refusedSummary(error) {
+  return Object.freeze({ ok: false, summary: null, bounded: false, error: `${MODULE}: ${error}` });
+}
+
 export function composeSupersedeSummary(read) {
   if (read === null || typeof read !== 'object' || read.ok !== true) {
-    return Object.freeze({
-      ok: false,
-      summary: null,
-      bounded: false,
-      error: `${MODULE}: no interdiff was read, so this stage composes no summary rather than a summary of an interdiff nobody measured`,
-    });
+    return refusedSummary('no interdiff was read, so this stage composes no summary rather than a summary of an interdiff nobody measured');
   }
   const binary = read.binaryCount > 0 ? `, ${plural(read.binaryCount, 'binary file')}` : '';
-  const named = read.files.map((file) => file.path).join(', ');
-  const composed = `${plural(read.fileCount, 'file')} changed, +${read.added}/-${read.deleted} since the superseded head${binary}${named.length === 0 ? '' : `: ${named}`}`;
-  const { summary, bounded } = bound(composed.split('\n').join(' '));
-  return Object.freeze({ ok: true, summary, bounded, composedLength: composed.length });
+  const paths = read.files.map((file) => file.path);
+  const named = paths.filter((path) => nameable(path));
+  const unnameable = paths.length - named.length;
+  const omitted = unnameable === 0 ? '' : `, ${plural(unnameable, 'path')} not nameable in a pull-request body`;
+  const listed = named.length === 0 ? '' : `: ${named.join(', ')}`;
+  const head = `${plural(read.fileCount, 'file')} changed, +${read.added}/-${read.deleted} since the superseded head${binary}${omitted}`;
+  const { summary, bounded } = bound(`${head}${listed}`.split('\n').join(' '));
+  const inert = inertValue(summary, SUPERSEDE_SUMMARY_CAP);
+  if (inert === summary) {
+    return Object.freeze({ ok: true, summary, bounded, unnameablePathCount: unnameable, composedLength: `${head}${listed}`.length });
+  }
+  const aggregate = inertValue(head, SUPERSEDE_SUMMARY_CAP);
+  if (aggregate !== head) {
+    return refusedSummary(`the composed summary ${JSON.stringify(head)} is not a value the pull-request tool would carry unchanged, and this stage publishes the branch before it opens the pull request, so it refuses here rather than composing a value that invocation rejects`);
+  }
+  return Object.freeze({ ok: true, summary: head, bounded: true, unnameablePathCount: unnameable, composedLength: `${head}${listed}`.length });
 }
 
 function ran(status, stdout) {
@@ -115,7 +130,8 @@ export function supersedeSummaryProbes() {
   const empty = composeSupersedeSummary(parseNumstat(ran(0, '')));
   const long = composeSupersedeSummary(parseNumstat(ran(0, `${LONG_INTERDIFF}\n`)));
   const refusedRead = parseNumstat(ran(0, 'not a numstat line\n'));
-  const refusedSummary = composeSupersedeSummary(refusedRead);
+  const refused = composeSupersedeSummary(refusedRead);
+  const nonAscii = composeSupersedeSummary(parseNumstat(ran(0, `1\t1\t"src/caf\\303\\251.txt"\n2\t0\tsrc/a.ts\n`)));
   return Object.freeze([
     Object.freeze({
       name: 'an ordinary interdiff composes the counts it measured',
@@ -134,8 +150,16 @@ export function supersedeSummaryProbes() {
     }),
     Object.freeze({
       name: 'an interdiff line the reader cannot split composes no summary',
-      ok: refusedRead.ok === false && refusedSummary.ok === false && refusedSummary.summary === null,
+      ok: refusedRead.ok === false && refused.ok === false && refused.summary === null,
       detail: refusedRead.ok === false ? refusedRead.error : 'a line this reader cannot split was summarised anyway',
+    }),
+    Object.freeze({
+      name: 'a path the pull-request tool cannot carry is counted rather than named, and the summary stays a value that tool accepts',
+      ok: nonAscii.ok === true
+        && nonAscii.unnameablePathCount === 1
+        && inertValue(nonAscii.summary, SUPERSEDE_SUMMARY_CAP) === nonAscii.summary
+        && !nonAscii.summary.includes('src/caf'),
+      detail: nonAscii.ok === true ? nonAscii.summary : nonAscii.error,
     }),
   ]);
 }
