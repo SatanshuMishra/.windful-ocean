@@ -25,6 +25,7 @@ import {
   gitCommandFixtureCensus,
   parserProbes,
 } from './transcription-conversions.mjs';
+import { SEPARATION_EXCEPTIONS, censusPositionalSeparation, refusedValueProbes } from './git-command-separation.mjs';
 import { manifestPublishProbe } from './manifest-publish.mjs';
 
 const MANIFEST_PUBLISH_SPAWNS = 9;
@@ -55,6 +56,8 @@ export const TRANSCRIPTION_PARITY_ATTESTS = Object.freeze([
   'the bytes a converted step hands a child on stdin are pinned to the incumbent that composed them, so a payload name that drifts by one word halts here rather than publishing an identity a later run cannot read back',
   'the manifest publish stage is run here against a recording repository on every invocation, and its step-3 filesystem write, its stdin-only payload, its unforced identity push and its write-once replay are each measured rather than declared',
   'a transcribed command carrying a value full of shell metacharacters is spawned here through the chokepoint on every invocation, and the value is measured arriving as exactly one argument with the child spawned directly rather than through a shell',
+  'every caller value every transcribed command carries is classified here as separated from the option parser by --end-of-options or --, as the value of a flag that consumes it, as text a literal prefix keeps off the front of its argument, or as a named exception carrying a stated reason; a value reaching none of the four halts, so a command that hands git a bare caller value where git reads options cannot ship',
+  'every builder is offered a caller value spelled as a git option here on every invocation, at each of the seven fetch fields a value was proven to execute through and at a path field and a manifest ref, and each is measured refused before any command exists rather than assumed well-formed of the caller',
 ]);
 
 export const TRANSCRIPTION_PARITY_NOT_ATTESTED = Object.freeze([
@@ -65,6 +68,10 @@ export const TRANSCRIPTION_PARITY_NOT_ATTESTED = Object.freeze([
   'that a dispatch outside the two declared engine trees would be seen: the census reads .claude/lib/mitosis and .claude/workflows/mitosis.js, so a dispatch added under .claude/hooks, or anywhere else in the repository, is unscanned',
   'that a dispatch composed without a label property would be seen: the census resolves a site through its label, so a call that names its site some other way is enumerated by its argument shape or halts',
   'that the kinds an enumerated parameterized label can carry are the kinds its callers actually pass: the enumeration records them with a reason, and no extractor follows the argument to its call sites',
+  'that the value the argv inertness probe carries would be refused: it is a path-shaped value carrying shell metacharacters, and it deliberately contains no leading dash, no newline and no parent traversal, because a value carrying any of those is refused at the builder and the probe would measure the refusal rather than the inertness it exists to measure',
+  'that --end-of-options is understood by the git a run reaches: it was added in git 2.24, the census asserts only that the separator precedes every caller positional in the argument vector, and no probe here runs git to confirm the running binary honours it',
+  'that a path-shaped caller value is confined: repoRoot, integrationWt and worktreePath are refused only when empty, when carrying a NUL byte or when beginning with a dash, so a path carrying a parent traversal or shell metacharacters is still carried, inertly, as exactly one argument',
+  'that the three steps carrying a separation exception are safe for a reason other than the ref token bound: git rev-parse without --verify echoes the separator into its own output and git commit-tree refuses it outright, so those three caller values are held by the builder validation alone and by no argument vector separator',
   ...EXEC_RUN_NOT_ATTESTED,
   ...MANIFEST_REF_NOT_ATTESTED,
 ]);
@@ -374,6 +381,56 @@ export function transcriptionCensusProbes() {
   }));
 }
 
+const SEPARATION_CONTROLS = Object.freeze([
+  Object.freeze({
+    name: 'a caller value left where git reads options with no stated reason halts',
+    expect: 'no stated reason says why it cannot carry one',
+    present: () => Object.hasOwn(SEPARATION_EXCEPTIONS, 'manifest-publish/commit-tree'),
+    missing: 'manifest-publish/commit-tree declares no separation exception, so dropping one perturbs nothing',
+    perturb: (exceptions) => Object.fromEntries(Object.entries(exceptions).filter(([at]) => at !== 'manifest-publish/commit-tree')),
+  }),
+  Object.freeze({
+    name: 'a separation exception excusing a value that is already separated halts',
+    expect: 'yet carries a separation exception',
+    present: () => !Object.hasOwn(SEPARATION_EXCEPTIONS, 'restore/fetch-checkpoint'),
+    missing: 'restore/fetch-checkpoint already declares a separation exception, so adding one perturbs nothing',
+    perturb: (exceptions) => ({ ...exceptions, 'restore/fetch-checkpoint': { builtRef: 'a reason for a value that is already separated' } }),
+  }),
+  Object.freeze({
+    name: 'a separation exception naming a field its step never binds halts',
+    expect: 'excuse a caller value that is not exposed',
+    present: () => Object.hasOwn(SEPARATION_EXCEPTIONS, 'manifest-publish/commit-tree'),
+    missing: 'manifest-publish/commit-tree declares no separation exception, so widening one perturbs nothing',
+    perturb: (exceptions) => ({
+      ...exceptions,
+      'manifest-publish/commit-tree': { ...exceptions['manifest-publish/commit-tree'], nowhereBound: 'a reason for a field this step never binds' },
+    }),
+  }),
+  Object.freeze({
+    name: 'a separation exception naming a step no builder declares halts',
+    expect: 'name a step no builder declares',
+    present: () => !Object.hasOwn(SEPARATION_EXCEPTIONS, 'harvest/notes'),
+    missing: 'harvest/notes already declares a separation exception, so adding one perturbs nothing',
+    perturb: (exceptions) => ({ ...exceptions, 'harvest/notes': { ref: 'a reason for a step no builder declares' } }),
+  }),
+]);
+
+export function separationControlProbes() {
+  return Object.freeze(SEPARATION_CONTROLS.map((control) => {
+    if (!control.present()) {
+      return Object.freeze({ name: control.name, halted: false, named: false, anchorPresent: false, detail: control.missing });
+    }
+    const measured = censusPositionalSeparation(GIT_COMMAND_FIXTURES, control.perturb(SEPARATION_EXCEPTIONS));
+    return Object.freeze({
+      name: control.name,
+      halted: measured.ok !== true,
+      named: measured.ok !== true && typeof measured.error === 'string' && measured.error.includes(control.expect),
+      anchorPresent: true,
+      detail: measured.ok === true ? 'the census accepted it' : measured.error,
+    });
+  }));
+}
+
 export function probeTranscriptionSubstrate() {
   const target = readConversionTargetSource();
   const source = target.error === undefined ? target.source : '';
@@ -396,6 +453,9 @@ export function probeTranscriptionSubstrate() {
       ? Object.freeze([...conversionControlProbes(source), ...registryControlProbes(source)])
       : Object.freeze([]),
     parsers: parserProbes(),
+    separation: censusPositionalSeparation(),
+    separationControls: separationControlProbes(),
+    valueRefusals: refusedValueProbes(),
     manifestPublish: manifestPublishProbe(),
     conversionStateControls: engine.error === undefined
       ? Object.freeze([...conversionStateProbes(engine.sources), ...registeredSiteProbes(engine.sources)])
@@ -495,6 +555,32 @@ function parserFailures(substrate) {
   return failures;
 }
 
+function separationFailures(substrate) {
+  const failures = [];
+  if (substrate.separation.ok !== true) {
+    failures.push(`a transcribed command hands git a caller value where git reads options: ${substrate.separation.error}`);
+  }
+  const admitted = substrate.valueRefusals.filter((probe) => !probe.refused);
+  if (admitted.length > 0) {
+    failures.push(`these builders accepted a caller value that git would read as an option rather than as the value it was passed as: ${admitted.map((probe) => `${probe.name} (${probe.detail})`).join('; ')}; the bound is structural at the builder rather than assumed of the caller, because buildGitCommand is a reusable entry point`);
+  }
+  if (substrate.valueRefusals.length === 0) {
+    failures.push('no builder was offered a hostile caller value at all, so nothing here would notice the structural bound going away');
+  }
+  const missingAnchor = substrate.separationControls.filter((control) => !control.anchorPresent);
+  if (missingAnchor.length > 0) {
+    failures.push(`these separation controls perturb a declaration that is not there, so they perturbed nothing: ${missingAnchor.map((control) => `${control.name} (${control.detail})`).join('; ')}`);
+  }
+  const inert = substrate.separationControls.filter((control) => control.anchorPresent && (!control.halted || !control.named));
+  if (inert.length > 0) {
+    failures.push(`these separation controls no longer halt on the thing they name, so a caller value left next to git option parser would pass: ${inert.map((control) => `${control.name} (${control.detail})`).join('; ')}`);
+  }
+  if (substrate.separationControls.length === 0) {
+    failures.push('the separation census ran no negative control at all, so nothing here would notice it going inert');
+  }
+  return failures;
+}
+
 function manifestPublishFailures(substrate) {
   const failures = [];
   const manifest = substrate.manifestPublish;
@@ -555,6 +641,7 @@ export function transcriptionParityFailures(substrate) {
     ...pollFailures(substrate),
     ...conversionFailures(substrate),
     ...parserFailures(substrate),
+    ...separationFailures(substrate),
     ...manifestPublishFailures(substrate),
     ...conversionStateFailures(substrate),
     ...argvInertnessFailures(substrate),
@@ -613,6 +700,14 @@ function parityPayload(census, substrate) {
     nonSpawnSteps: [...substrate.conversions.nonSpawnSteps],
     siteParsers: [...substrate.conversions.parsers],
     parserProbes: substrate.parsers.map((probe) => `${probe.name}: ${probe.reads && probe.failsClosed ? 'reads and fails closed' : 'INERT'}`),
+    separationValueCount: substrate.separation.valueCount,
+    separationSeparated: substrate.separation.separatedCount,
+    separationFlagValues: substrate.separation.flagValueCount,
+    separationPrefixed: substrate.separation.prefixedCount,
+    separationExceptions: [...substrate.separation.exceptions],
+    separationClassifications: [...substrate.separation.classifications],
+    separationControls: substrate.separationControls.map((control) => `${control.name}: ${control.anchorPresent && control.halted && control.named ? 'halted and named' : 'INERT'}`),
+    valueRefusalProbes: substrate.valueRefusals.map((probe) => `${probe.name}: ${probe.refused ? 'refused' : 'ADMITTED'}`),
     manifestPublishSpawns: substrate.manifestPublish.spawnCount,
     manifestPublishWrites: substrate.manifestPublish.writeCount,
     manifestPublishReplaySpawns: substrate.manifestPublish.replaySpawnCount,

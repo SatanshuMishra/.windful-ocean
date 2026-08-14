@@ -4,6 +4,7 @@ import {
   GIT_COMMAND_FIXTURES,
   MANIFEST_WRITE_FIXTURE,
   PLAN_PROBE_FIXTURE,
+  builderInputs,
 } from './git-command-fixtures.mjs';
 import { EXEC_ALLOWLIST } from './exec-policy.mjs';
 import { EXEC_COMPLETED, EXEC_TIMEOUT_EXPIRED, run } from './exec-run.mjs';
@@ -224,13 +225,6 @@ export function expandedArgv(fixture) {
   });
 }
 
-function builderInputs(fixture) {
-  return Object.values(fixture.placeholders).reduce(
-    (carried, binding) => ({ ...carried, [binding.field]: binding.value }),
-    {},
-  );
-}
-
 export function anchorOccurrences(source, anchor) {
   return source.split(anchor).length - 1;
 }
@@ -398,9 +392,9 @@ export function gitCommandFixtureCensus(source) {
   return censusGitCommandFixtures(GIT_COMMAND_FIXTURES, source);
 }
 
-const HOSTILE_VALUE = 'refs/heads/$(touch /tmp/pwn); rm -rf ~ && echo `id` | sh > /tmp/out';
-const INERTNESS_SITE = 'restore';
-const INERTNESS_STEP = 'fetch-checkpoint';
+const HOSTILE_VALUE = '/wt/$(touch /tmp/pwn); rm -rf ~ && echo `id` | sh > /tmp/out';
+const INERTNESS_SITE = 'integrate';
+const INERTNESS_STEP = 'worktree-remove';
 const INERTNESS_ROOT = '/repo';
 
 export function argvInertnessProbe() {
@@ -413,7 +407,7 @@ export function argvInertnessProbe() {
   });
   let argv;
   try {
-    argv = buildGitCommand(INERTNESS_SITE, INERTNESS_STEP, { repoRoot: INERTNESS_ROOT, builtRef: HOSTILE_VALUE });
+    argv = buildGitCommand(INERTNESS_SITE, INERTNESS_STEP, { repoRoot: INERTNESS_ROOT, worktreePath: HOSTILE_VALUE });
   } catch (error) {
     return Object.freeze({ built: false, detail: error && error.message ? error.message : 'unknown throw', carriedWhole: false, unsplit: false, shellRefused: false });
   }

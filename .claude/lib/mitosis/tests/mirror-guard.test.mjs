@@ -68,6 +68,7 @@ const MIRROR_CENSUS = Object.freeze({
   'generate-run-script.mjs': STANDALONE,
   'gh-merge-shim.mjs': STANDALONE,
   'git-command-fixtures.mjs': STANDALONE,
+  'git-command-separation.mjs': STANDALONE,
   'git-commands.mjs': STANDALONE,
   'journal-census.mjs': STANDALONE,
   'journal-specimens.mjs': STANDALONE,
