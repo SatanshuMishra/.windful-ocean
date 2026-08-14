@@ -57,6 +57,7 @@ export const TRANSCRIPTION_PARITY_ATTESTS = Object.freeze([
   'the one converted site that replaces a shell builtin rather than a spawn ships the observation it was justified by: its filesystem observation is produced in process here on every invocation, against a path that exists and against one that does not, and handed to the classifier that consumes it, so a converted site shipping only a classifier with nothing producing its input is caught here',
   'the bytes a converted step hands a child on stdin are pinned to the incumbent that composed them, so a payload name that drifts by one word halts here rather than publishing an identity a later run cannot read back',
   'the manifest publish stage is run here against a recording repository on every invocation, and its step-3 filesystem write, its stdin-only payload, its unforced identity push and its write-once replay are each measured rather than declared',
+  'the manifest publish stage is offered a run identity outside the published-manifest namespace here on every invocation, spelled as a branch, a tag, a namespace that merely extends the real one, a traversal, a dash-led segment and an unqualified name, and each is measured refused with no child started and nothing written',
   'a transcribed command carrying a value full of shell metacharacters is spawned here through the chokepoint on every invocation, and the value is measured arriving as exactly one argument with the child spawned directly rather than through a shell',
   'every caller value every transcribed command carries is classified here as separated from the option parser by --end-of-options or --, as the value of a flag that consumes it, as text a literal prefix keeps off the front of its argument, or as a named exception carrying a stated reason; a value reaching none of the four halts, so a command that hands git a bare caller value where git reads options cannot ship',
   'every builder is offered a caller value spelled as a git option here on every invocation, at each of the seven fetch fields a value was proven to execute through and at a path field and a manifest ref, and each is measured refused before any command exists rather than assumed well-formed of the caller',
@@ -604,6 +605,13 @@ function manifestPublishFailures(substrate) {
   if (!manifest.unforced) {
     failures.push('the manifest identity push carries a force spelling; the published-manifest ref is write once and forward only, and the adjacent checkpoint stage force retry must not be copied here');
   }
+  const unconfined = manifest.confinement.filter((probe) => !probe.refused);
+  if (unconfined.length > 0) {
+    failures.push(`the manifest publish stage accepted a run identity outside the namespace it names: ${unconfined.map((probe) => `${probe.name} (${probe.detail})`).join('; ')}; this stage pushes the ref it is handed, so a ref named anywhere else creates that ref on the remote from caller-chosen bytes`);
+  }
+  if (manifest.confinement.length === 0) {
+    failures.push('the manifest publish stage was offered no run identity outside its namespace at all, so nothing here would notice the confinement going away');
+  }
   if (!manifest.replayAlreadyPresent || manifest.replaySpawnCount !== 2 || manifest.replayWriteCount !== 0) {
     failures.push(`a replay against an already published identity ran ${manifest.replaySpawnCount} spawn(s) and ${manifest.replayWriteCount} write(s) and reported alreadyPresent=${manifest.replayAlreadyPresent}; write once and forward only means the second attempt observes the ref and stops, writing nothing and pushing nothing`);
   }
@@ -716,6 +724,7 @@ function parityPayload(census, substrate) {
     manifestPublishSpawns: substrate.manifestPublish.spawnCount,
     manifestPublishWrites: substrate.manifestPublish.writeCount,
     manifestPublishReplaySpawns: substrate.manifestPublish.replaySpawnCount,
+    manifestPublishConfinement: substrate.manifestPublish.confinement.map((probe) => `${probe.name}: ${probe.refused ? 'refused' : 'ACCEPTED'}`),
     argvInertness: `${substrate.argvInertness.carriedWhole && substrate.argvInertness.unsplit ? 'one argument' : 'SPLIT'}, ${substrate.argvInertness.shellRefused ? 'no shell' : 'SHELL'}`,
     derivedArguments: [...substrate.conversions.derivedArguments],
     stdinSteps: [...substrate.conversions.stdinSteps],
