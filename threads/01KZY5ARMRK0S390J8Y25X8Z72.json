@@ -89,7 +89,7 @@
       "text": "Layer 0 shipped: sandbox with allowLocalBinding, allowUnsandboxedCommands false and failIfUnavailable true, keeping filesystem containment with working localhost",
       "done": true,
       "kind": "planned",
-      "struck_by": null
+      "struck_by": "0407-containment-architecture-is-removed-for-permissions-only"
     },
     {
       "id": "c9",
@@ -257,5 +257,5 @@
     ]
   },
   "created_at": "2026-08-13T18:14:42.072Z",
-  "updated_at": "2026-08-14T03:31:25.328Z"
+  "updated_at": "2026-08-14T03:31:32.967Z"
 }
