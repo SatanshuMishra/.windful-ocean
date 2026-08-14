@@ -52,13 +52,13 @@ test('the shipped fixtures census cleanly against the incumbent engine source', 
   assert.equal(measured.binary, 'git');
 });
 
-test('the twelve sites this msp converts are the eleven git sites plus the plan artifact probe', () => {
+test('the sites this msp converts are the eleven git sites plus the plan artifact probe, named rather than counted', () => {
   const measured = gitCommandFixtureCensus(INCUMBENT);
   assert.deepEqual([...measured.sites], [
     'branch-compose', 'branch-prep', 'checkpoint-push', 'ci-diff', 'ci-publish-verify', 'divergence-check',
     'fence', 'integrate', 'manifest-publish', 'plan-probe', 'prepare-probe', 'restore',
   ]);
-  assert.equal(measured.siteCount, 12);
+  assert.equal(measured.siteCount, measured.sites.length);
 });
 
 test('a non-spawn site whose anchor drifted halts', () => {

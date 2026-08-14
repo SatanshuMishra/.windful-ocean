@@ -17,7 +17,7 @@ test('every declared site names at least one command builder', () => {
   }
 });
 
-test('the twelve declared sites are exactly the sites the census flips', () => {
+test('the eleven declared git sites are named here, so one added or dropped is stated rather than counted', () => {
   assert.deepEqual([...GIT_SITES].sort(), [
     'branch-compose',
     'branch-prep',
