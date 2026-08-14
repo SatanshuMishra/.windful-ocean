@@ -3,7 +3,7 @@
   "id": "01KZY5ARMRK0S390J8Y25X8Z72",
   "slug": "max-autonomy-permission-build",
   "title": "Maximum-autonomy permission architecture: build",
-  "status": "paused",
+  "status": "active",
   "parent_id": "01KZ0D32M5MRY6TY6XV55AD62A",
   "predecessor_id": null,
   "completion_criteria": [
@@ -292,5 +292,5 @@
     ]
   },
   "created_at": "2026-08-13T18:14:42.072Z",
-  "updated_at": "2026-08-14T04:53:49.629Z"
+  "updated_at": "2026-08-14T05:13:48.659Z"
 }
