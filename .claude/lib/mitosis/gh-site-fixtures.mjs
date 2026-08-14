@@ -567,7 +567,7 @@ const WATCH_SHARED_REASON = 'the incumbent composes this wait once and interpola
 
 const CI_PUBLISH_WATCH_ANCHOR = '5. ${ciWatchClause} Treat conclusion=success as CI GREEN';
 const CI_PUBLISH_CONTRACT_ANCHOR = '7. ${ciStructuredContract}';
-const SHIP_WATCH_ANCHOR = 'Every run-status read is pinned to the engine-resolved target repo ${JSON.stringify(repoSlug)} (never the ambient cwd)';
+const SHIP_WATCH_ANCHOR = 'Every run-status read is pinned to the engine-resolved target repo ${JSON.stringify(repoSlug)} (never the ambient cwd): \\`runId=$(gh run list -R ${repoSlug} --branch ${integrationBranch} --limit 1 --json databaseId -q \'.[0].databaseId\'); timeout ${CI_WATCH_MAX_SECONDS} bash -c \'until [ "$(gh run view \'"$runId"\' -R ${repoSlug} --json status -q .status)" = "completed" ]; do sleep ${CI_WATCH_INTERVAL_SECONDS}; done\'\\`, then read the terminal conclusion ONCE: \\`gh run view "$runId" -R ${repoSlug} --json conclusion -q .conclusion\\`';
 
 export const SHARED_COMMAND_STEPS = Object.freeze([
   Object.freeze({ binary: GH_COMMAND_BINARY, site: 'ci-publish', step: 'resolve-run', sharesWith: 'ci-probe', anchor: CI_PUBLISH_WATCH_ANCHOR, reason: WATCH_SHARED_REASON }),
