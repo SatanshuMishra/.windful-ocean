@@ -13,9 +13,22 @@ import {
   wordEndingAt,
 } from './js-scan.mjs';
 
+const CRYPTO_ENTROPY_MEMBERS = Object.freeze([
+  'randomUUID',
+  'randomBytes',
+  'randomInt',
+  'randomFillSync',
+  'getRandomValues',
+  'webcrypto',
+]);
+
 const BANNED_SURFACES = Object.freeze([
   Object.freeze({ identifier: 'Date', member: null }),
   Object.freeze({ identifier: 'Math', member: 'random' }),
+  Object.freeze({ identifier: 'performance', member: null }),
+  Object.freeze({ identifier: 'process', member: 'hrtime' }),
+  ...CRYPTO_ENTROPY_MEMBERS.map((member) => Object.freeze({ identifier: 'crypto', member })),
+  ...CRYPTO_ENTROPY_MEMBERS.map((identifier) => Object.freeze({ identifier, member: null })),
 ]);
 
 const GLOBAL_RECEIVERS = Object.freeze(new Set(['global', 'globalThis', 'self', 'window']));

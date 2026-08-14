@@ -23,10 +23,13 @@ import {
   extractAssignedPhases,
   extractPhaseSurfaces,
   parseMitosisGateArgv,
+  promptRegistryExitCode,
   runMitosisGate,
 } from '../mitosis-gate.mjs';
 import { scanJsStructure } from '../js-scan.mjs';
 import { PHASE_TITLES } from '../phases.mjs';
+import { PROMPT_KINDS } from '../prompt-contract.mjs';
+import { PROMPT_PROBE_CASES, censusPromptRegistry } from '../prompt-registry.mjs';
 import {
   MITOSIS_GIT_USAGE_EXIT,
   MITOSIS_GIT_TRIPWIRE_EXIT,
@@ -522,8 +525,9 @@ test('the argv parser accepts every verb and defaults each to its own target', (
   assert.deepEqual(parseMitosisGateArgv(['phase-parity']), { ok: true, verb: 'phase-parity', target: DEFAULT_PHASE_PARITY_TARGET });
   assert.deepEqual(parseMitosisGateArgv(['determinism']), { ok: true, verb: 'determinism', target: DEFAULT_DETERMINISM_TARGET });
   assert.deepEqual(parseMitosisGateArgv(['exec-allowlist']), { ok: true, verb: 'exec-allowlist', target: null });
+  assert.deepEqual(parseMitosisGateArgv(['prompt-registry']), { ok: true, verb: 'prompt-registry', target: null });
   assert.deepEqual(parseMitosisGateArgv(['dispatchable-agent-schema-capable']), { ok: true, verb: 'dispatchable-agent-schema-capable', target: DEFAULT_AGENT_TREE_TARGET });
-  assert.deepEqual([...MITOSIS_GATE_VERBS], ['determinism', 'dispatchable-agent-schema-capable', 'exec-allowlist', 'phase-parity']);
+  assert.deepEqual([...MITOSIS_GATE_VERBS], ['determinism', 'dispatchable-agent-schema-capable', 'exec-allowlist', 'phase-parity', 'prompt-registry']);
   assert.notEqual(DEFAULT_DETERMINISM_TARGET, DEFAULT_PHASE_PARITY_TARGET);
 });
 
@@ -627,6 +631,51 @@ test('the exec-allowlist verb rejects a target, because it probes an imported mo
   const { out, stderr } = capture();
   assert.equal(runMitosisGate(['exec-allowlist', '--target', '/etc/passwd'], out, () => ''), GATE_USAGE_EXIT);
   assert.match(stderr.join(''), /exec-allowlist/);
+});
+
+test('the prompt-registry verb exits clean over the real registry and reports what it measured', () => {
+  const { out, stdout, stderr } = capture();
+  const code = runMitosisGate(['prompt-registry'], out, () => '');
+  assert.deepEqual(stderr, []);
+  assert.equal(code, GATE_CLEAN_EXIT);
+  const verdict = JSON.parse(stdout.join(''));
+  assert.equal(verdict.verb, 'prompt-registry');
+  assert.equal(verdict.ok, true);
+  assert.equal(verdict.kindCount, PROMPT_KINDS.length);
+  assert.equal(verdict.caseCount, PROMPT_PROBE_CASES.length);
+  assert.ok(verdict.fieldCount >= verdict.caseCount, 'a verdict that classified fewer fields than cases measured nothing per case');
+  assert.equal(verdict.target, undefined, 'the verb opens no path, so it must not report one as a target');
+});
+
+test('the prompt-registry verdict declares what it attests and refuses to imply the rest', () => {
+  const { out, stdout } = capture();
+  runMitosisGate(['prompt-registry'], out, () => '');
+  const verdict = JSON.parse(stdout.join(''));
+  assert.ok(Array.isArray(verdict.attests) && verdict.attests.length > 0);
+  assert.ok(Array.isArray(verdict.notAttested) && verdict.notAttested.length > 0);
+  assert.ok(
+    verdict.notAttested.some((claim) => /mitosis\.js/.test(claim)),
+    'the prose still lives in the engine as well as the registry, so the verdict must not read as an anti-drift guarantee',
+  );
+});
+
+test('the prompt-registry verb rejects a target, because it probes an imported module and opens no path', () => {
+  const parsed = parseMitosisGateArgv(['prompt-registry', '--target', '/etc/passwd']);
+  assert.equal(parsed.ok, false);
+  assert.match(parsed.error, /prompt-registry/);
+  const { out, stderr } = capture();
+  assert.equal(runMitosisGate(['prompt-registry', '--target', '/etc/passwd'], out, () => ''), GATE_USAGE_EXIT);
+  assert.match(stderr.join(''), /prompt-registry/);
+});
+
+test('a registry census halt exits unresolvable and a measured violation exits violation, never clean', () => {
+  assert.equal(promptRegistryExitCode({ ok: true }), GATE_CLEAN_EXIT);
+  assert.equal(promptRegistryExitCode({ ok: false, kind: 'halt', error: 'x' }), GATE_UNRESOLVABLE_EXIT);
+  assert.equal(promptRegistryExitCode({ ok: false, kind: 'violation', error: 'x' }), GATE_VIOLATION_EXIT);
+
+  const inert = censusPromptRegistry(PROMPT_PROBE_CASES, () => 'a constant prompt');
+  assert.equal(inert.ok, false);
+  assert.equal(promptRegistryExitCode(inert), GATE_UNRESOLVABLE_EXIT);
 });
 
 test('the determinism verb exits clean over the real engine source', () => {

@@ -186,6 +186,88 @@ test('a bare Math that is not a member read halts rather than guessing', () => {
   assert.match(result.error, /refusing to guess/);
 });
 
+test('a member read of every banned clock and entropy surface is a violation, and the deterministic neighbours on the same receivers are not', () => {
+  const source = [
+    'const a = performance.now();',
+    'const b = crypto.randomUUID();',
+    'const c = crypto.randomBytes(8);',
+    'const d = crypto.randomInt(4);',
+    'const e = crypto.randomFillSync(buffer);',
+    'const f = crypto.getRandomValues(buffer);',
+    'const g = crypto.webcrypto.subtle;',
+    'const h = process.hrtime.bigint();',
+    "const i = crypto.createHash('sha256');",
+    'const j = process.env.HOME;',
+    'const k = process.argv[2];',
+    'const l = performanceBudget.now();',
+    '',
+  ].join('\n');
+  assert.deepEqual(
+    violationsOf(source).map((v) => [v.line, v.identifier, v.surface]),
+    [
+      [1, 'performance', 'bare read'],
+      [2, 'crypto', 'bare read'],
+      [3, 'crypto', 'bare read'],
+      [4, 'crypto', 'bare read'],
+      [5, 'crypto', 'bare read'],
+      [6, 'crypto', 'bare read'],
+      [7, 'crypto', 'bare read'],
+      [8, 'process', 'bare read'],
+    ],
+    'createHash, process.env, process.argv and an identifier merely prefixed with performance are deterministic and must stay allowed',
+  );
+});
+
+test('a destructured entropy import is a violation on the binding itself, so importing round the member ban does not work', () => {
+  const source = [
+    "import { randomUUID, randomBytes, randomInt, randomFillSync, getRandomValues, webcrypto } from 'node:crypto';",
+    'const id = randomUUID();',
+    "import { createHash } from 'node:crypto';",
+    'const digest = createHash;',
+    'const keyed = { getRandomValues: null };',
+    '',
+  ].join('\n');
+  assert.deepEqual(
+    violationsOf(source).map((v) => [v.line, v.identifier]),
+    [
+      [1, 'getRandomValues'],
+      [1, 'randomBytes'],
+      [1, 'randomFillSync'],
+      [1, 'randomInt'],
+      [1, 'randomUUID'],
+      [1, 'webcrypto'],
+      [2, 'randomUUID'],
+    ],
+    'createHash is deterministic and an object key spelled like an entropy member is not a read',
+  );
+});
+
+function distinctViolations(source) {
+  return [...new Set(violationsOf(source).map((v) => `${v.line} ${v.identifier} ${v.surface}`))].sort();
+}
+
+test('a global receiver reaching an entropy member is a violation rather than a benign member access', () => {
+  assert.deepEqual(distinctViolations('const id = globalThis.crypto.randomUUID();\n'), ['1 crypto global-receiver member']);
+  assert.deepEqual(distinctViolations('const t = globalThis.performance.now();\n'), ['1 performance global-receiver member']);
+  assert.deepEqual(distinctViolations('const w = window.crypto.getRandomValues(buffer);\n'), ['1 crypto global-receiver member']);
+  assert.deepEqual(distinctViolations('const s = subtle.crypto;\n'), []);
+});
+
+test('an entropy receiver this census cannot read halts rather than being classified either way', () => {
+  const unreadable = census('const id = (receiver).crypto;\n');
+  assert.equal(unreadable.ok, false);
+  assert.match(unreadable.error, /crypto member access at line 1/);
+  assert.match(unreadable.error, /refusing to guess/);
+
+  const bare = census('const alias = crypto;\n');
+  assert.equal(bare.ok, false);
+  assert.match(bare.error, /refusing to guess/);
+
+  const bareProcess = census('const alias = process;\n');
+  assert.equal(bareProcess.ok, false);
+  assert.match(bareProcess.error, /refusing to guess/);
+});
+
 test('the census over the real engine-source roots reports zero violations', () => {
   const result = censusEngineDeterminism(engineSourceRoots(), realSourceIo);
   assert.equal(result.ok, true, result.error);
