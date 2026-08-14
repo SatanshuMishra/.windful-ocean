@@ -401,6 +401,11 @@ function censusOneSource(source) {
   };
 }
 
+export function unreachedArgvComposers(sources) {
+  const paths = sources.map((source) => (source === null || typeof source !== 'object' ? '' : String(source.path)));
+  return Object.freeze(Object.keys(JOURNAL_ARGV_COMPOSERS).filter((suffix) => !paths.some((path) => path.endsWith(suffix))));
+}
+
 export function censusJournalDispatches(sources) {
   if (!Array.isArray(sources) || sources.length === 0) {
     return halt('journal-census: the census was handed no source, so it would attest a conversion list it never measured');
@@ -424,11 +429,6 @@ export function censusJournalDispatches(sources) {
     if (measured.dispatchOnly !== null) dispatchOnly.push(measured.dispatchOnly);
     if (measured.argvComposer !== null) argvComposers.push(measured.argvComposer);
     argvCount += measured.argvCount;
-  }
-  const unreachedComposers = Object.keys(JOURNAL_ARGV_COMPOSERS)
-    .filter((suffix) => !argvComposers.some((path) => path.endsWith(suffix)));
-  if (unreachedComposers.length > 0) {
-    return halt(`journal-census: these sources are declared as composing the run journal path into an argument vector but were never read: ${unreachedComposers.join(', ')}; a declaration no scanned source matches excuses a composition this census would never see`);
   }
   if (sites.length !== gitignoreClauseCount) {
     return halt(`journal-census: the extractor resolved ${sites.length} journal write site(s) while the independently counted "${GITIGNORE_CLAUSE}" clause appears ${gitignoreClauseCount} time(s); the two disagree, so one of the two extractors is reading a subset and neither figure can be trusted`);

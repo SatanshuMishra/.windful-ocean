@@ -1,6 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { PROMPT_KINDS } from '../prompt-contract.mjs';
+import { PENDING_JUDGMENT_KINDS } from '../transcription-census.mjs';
 import { JOURNAL_KINDS } from '../journal-store.mjs';
 import {
   CONVERSION_SITE_NAMES,
@@ -51,7 +52,7 @@ function engineFixture(extra = '', declared = TRANSCRIPTION_KINDS) {
     ...declared.map((kind) => dispatch(`'${kind.name}'`)),
     ...Object.keys(JOURNAL_LABEL_KINDS).filter((name) => name !== 'quiescent-exit-checkpoint').map((name) => dispatch(`'${name}'`)),
     ...PROGRAM_LABELS.map((program) => dispatch(`'${program.name}'`)),
-    ...PROMPT_KINDS.map((kind) => dispatch(`'${kind}'`)),
+    ...PROMPT_KINDS.filter((kind) => !PENDING_JUDGMENT_KINDS.some((pending) => pending.name === kind)).map((kind) => dispatch(`'${kind}'`)),
     PARAMETERIZED_BLOCK,
     extra,
   ];
@@ -73,10 +74,8 @@ test('the shipped census classifies every dispatch and reports the conversion ta
   assert.equal(census.convertedSiteCount + census.unconvertedSiteCount, census.conversionTargetSiteCount);
   assert.equal(census.unconvertedSiteCount, census.unconvertedSites.length);
   assert.equal(census.convertedKindCount + census.unconvertedKindCount, TRANSCRIPTION_KINDS.length);
-  assert.deepEqual(
-    census.unconvertedSites.map((site) => site.name).sort(),
-    ['ci-probe', 'ci-publish', 'reconcile', 'ship', 'ship-verify', 'supersede'],
-  );
+  assert.deepEqual(census.unconvertedSites.map((site) => site.name).sort(), []);
+  assert.equal(census.convertedSiteCount, census.conversionTargetSiteCount);
 });
 
 test('the converted count is measured from the declaration, never pinned to a total', () => {
@@ -87,8 +86,9 @@ test('the converted count is measured from the declaration, never pinned to a to
 });
 
 test('a replacement registered for a site whose kind is declared unconverted halts rather than being filtered away', () => {
-  assert.ok(!CONVERTED_TRANSCRIPTION_SITES.includes('ship-verify'), 'ship-verify already registers a replacement, so this perturbation proves nothing');
-  const census = censusTranscriptionSources(engineFixture(), TRANSCRIPTION_KINDS, [...CONVERTED_TRANSCRIPTION_SITES, 'ship-verify']);
+  assert.ok(CONVERTED_TRANSCRIPTION_SITES.includes('ship-verify'), 'ship-verify registers no replacement, so this perturbation proves nothing');
+  const declared = TRANSCRIPTION_KINDS.map((kind) => (kind.name === 'ship-verify' ? { ...kind, converted: false } : kind));
+  const census = censusTranscriptionSources(engineFixture(), declared);
   assert.equal(census.ok, false);
   assert.match(census.error, /is served by ship-verify/);
 });
@@ -195,8 +195,9 @@ test('a declared kind that dispatches nowhere halts whether it is counted conver
 });
 
 test('a kind counted converted with no registered replacement halts, so the count cannot run ahead of the code', () => {
-  const declared = TRANSCRIPTION_KINDS.map((kind) => (kind.name === 'reconcile' ? { ...kind, converted: true } : kind));
-  const census = censusTranscriptionSources(engineFixture('', TRANSCRIPTION_KINDS), declared);
+  assert.ok(CONVERTED_TRANSCRIPTION_SITES.includes('reconcile'), 'reconcile registers no replacement, so this perturbation withdraws nothing');
+  const withdrawn = CONVERTED_TRANSCRIPTION_SITES.filter((site) => site !== 'reconcile');
+  const census = censusTranscriptionSources(engineFixture('', TRANSCRIPTION_KINDS), TRANSCRIPTION_KINDS, withdrawn);
   assert.equal(census.ok, false);
   assert.match(census.error, /reconcile needs reconcile/);
 });
@@ -273,7 +274,14 @@ test('every judgment kind the prompt authority declares is reachable from some m
   const census = transcriptionCensus();
   assert.equal(census.ok, true, census.error);
   const reached = new Set(census.judgmentKindsReached);
-  for (const kind of PROMPT_KINDS) assert.ok(reached.has(kind), `${kind} is declared but no dispatch label resolves to it`);
+  const pending = new Set(PENDING_JUDGMENT_KINDS.map((entry) => entry.name));
+  for (const kind of PROMPT_KINDS) {
+    if (pending.has(kind)) {
+      assert.ok(!reached.has(kind), `${kind} is declared as awaiting a dispatch yet one already reaches it, so the declaration excuses a kind the census can see`);
+      continue;
+    }
+    assert.ok(reached.has(kind), `${kind} is declared but no dispatch label resolves to it`);
+  }
 });
 
 test('every declared program-in-English label has a measured site', () => {
