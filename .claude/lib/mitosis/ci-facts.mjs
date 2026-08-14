@@ -98,13 +98,29 @@ export function parseConflictPaths(result) {
 export function parsePublishedHeadSha(result) {
   const read = parseSha(result);
   if (read.ok !== true) return Object.freeze({ ok: false, error: read.error, publishedHeadSha: null });
-  if (!CI_SHA_PATTERN.test(read.sha)) {
-    return Object.freeze({
-      ...failed(`the published head read resolved ${JSON.stringify(read.sha)}, which the engine sha gate rejects; a head this reader admits and that gate refuses would leave the loop with no left endpoint and no stated reason`),
-      publishedHeadSha: null,
-    });
-  }
   return Object.freeze({ ok: true, publishedHeadSha: read.sha });
+}
+
+const SHA_AGREEMENT_SPECIMENS = Object.freeze([
+  '4444444444444444444444444444444444444444',
+  '4444444',
+  '0123456789abcdef0123456789abcdef01234567',
+  'zzzzzzz',
+  'ABCDEF0123456789abcdef0123456789abcdef01',
+  '444444444444444444444444444444444444444444444444444444444444444444444444',
+]);
+
+export function shaReaderAgreementProbe() {
+  const disagreements = SHA_AGREEMENT_SPECIMENS
+    .map((printed) => ({ printed, read: parsePublishedHeadSha(ran(0, `${printed}\n`)) }))
+    .filter((entry) => entry.read.ok === true && !CI_SHA_PATTERN.test(entry.read.publishedHeadSha));
+  return Object.freeze({
+    name: 'the object-name reader admits only object names the engine sha gate also admits',
+    ok: disagreements.length === 0,
+    detail: disagreements.length === 0
+      ? `${SHA_AGREEMENT_SPECIMENS.length} object name(s) this reader admits are all admitted by the engine gate, so no head reaches the loop that the gate would then reject with no fact left to report`
+      : `these object names pass this reader and fail the engine gate: ${disagreements.map((entry) => entry.printed).join(', ')}`,
+  });
 }
 
 function ran(status, stdout = '') {
@@ -189,5 +205,6 @@ export function ciFactProbes() {
     probe('conflictPaths refuses a read that failed', unreadableConflicts.ok === false, unreadableConflicts.ok === false ? unreadableConflicts.error : 'a failed read was counted as no conflict'),
     probe('publishedHeadSha is the object name git resolved', head.ok === true && head.publishedHeadSha === PROBE_SHA, JSON.stringify(head)),
     probe('publishedHeadSha refuses an unresolved ref name', echoed.ok === false && echoed.publishedHeadSha === null, echoed.ok === false ? echoed.error : 'a ref name was recorded as the sha it should have resolved to'),
+    shaReaderAgreementProbe(),
   ]);
 }
