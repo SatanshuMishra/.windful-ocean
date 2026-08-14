@@ -4272,54 +4272,56 @@ const runOpenPRs = classifyRunOpenPRs(reusable && recon ? recon.openPRs : [], {
   targetRepoHost,
 });
 let relaunchAdvance = null;
-if (isRelaunch && reusable && builtUnits.length > 0) {
+if (isRelaunch && reusable) {
   phase('Resume');
-  const baseLiveSignals = buildReconcileLiveSignals(recon, reconciledShipped, sourcePrefix, runOpenPRs);
-  const diverged = await divergedParents(reconciledManifest, baseLiveSignals.merged, baseLiveSignals.mergedShas, { agent, log, logicalRunId, divergenceCheckPrompt, DIVERGENCE_CHECK_SCHEMA });
-  const liveSignals = { ...baseLiveSignals, divergedParents: diverged };
-  const advance = planReconcile(reconciledManifest, liveSignals);
-  relaunchAdvance = advance;
-  for (const id of advance.toParkSubtree) {
-    const parkRecord = ParkRecord({
-      unitId: id,
-      stage: 'plan',
-      diagnosis: `${id} was invalidated by a divergent parent merge (the parent merged with content that differs from the tip its subtree built on); its build is reset and it will rebuild from plan`,
-      request: { kind: 'approve-decision', what: `${id} invalidated by a divergent parent merge; rebuild required` },
-      remediation: null,
-      resumePoint: { branch: `${sourcePrefix}/${id}-integration`, ref: baseBranch, stage: 'plan' },
-      triedSet: [],
-      dependents: transitiveDependents(reconciledManifest.msps, id),
-    });
-    try {
-      await persistParkCheckpoint(parkRecord);
-    } catch (err) {
-      log(`mitosis[${id}]: reconcile — durable park checkpoint threw (${clean(err.message)}); continuing so one failed write never crashes the run`);
+  if (builtUnits.length > 0) {
+    const baseLiveSignals = buildReconcileLiveSignals(recon, reconciledShipped, sourcePrefix, runOpenPRs);
+    const diverged = await divergedParents(reconciledManifest, baseLiveSignals.merged, baseLiveSignals.mergedShas, { agent, log, logicalRunId, divergenceCheckPrompt, DIVERGENCE_CHECK_SCHEMA });
+    const liveSignals = { ...baseLiveSignals, divergedParents: diverged };
+    const advance = planReconcile(reconciledManifest, liveSignals);
+    relaunchAdvance = advance;
+    for (const id of advance.toParkSubtree) {
+      const parkRecord = ParkRecord({
+        unitId: id,
+        stage: 'plan',
+        diagnosis: `${id} was invalidated by a divergent parent merge (the parent merged with content that differs from the tip its subtree built on); its build is reset and it will rebuild from plan`,
+        request: { kind: 'approve-decision', what: `${id} invalidated by a divergent parent merge; rebuild required` },
+        remediation: null,
+        resumePoint: { branch: `${sourcePrefix}/${id}-integration`, ref: baseBranch, stage: 'plan' },
+        triedSet: [],
+        dependents: transitiveDependents(reconciledManifest.msps, id),
+      });
+      try {
+        await persistParkCheckpoint(parkRecord);
+      } catch (err) {
+        log(`mitosis[${id}]: reconcile — durable park checkpoint threw (${clean(err.message)}); continuing so one failed write never crashes the run`);
+      }
+      log(`mitosis[${id}]: reconcile — RESET by divergent-invalidation; checkpoint provenance dropped, will rebuild from plan`);
+      log(vetoLogLine(id, VETO_CONDEMNED, 'awaiting'));
     }
-    log(`mitosis[${id}]: reconcile — RESET by divergent-invalidation; checkpoint provenance dropped, will rebuild from plan`);
-    log(vetoLogLine(id, VETO_CONDEMNED, 'awaiting'));
-  }
-  const reconcileMspById = new Map((Array.isArray(reconciledManifest.msps) ? reconciledManifest.msps : []).map((m) => [m.id, m]));
-  for (const id of (Array.isArray(newlyMergedIds) ? newlyMergedIds : [])) {
-    const meta = reconciledShippedMeta ? reconciledShippedMeta.get(id) : null;
-    const msp = reconcileMspById.get(id);
-    try {
-      await persistShipCheckpoint({ unitId: id, prUrl: meta ? meta.prUrl : null, mergedAt: meta ? meta.mergedAt : null, title: msp ? msp.title : null, rationale: msp ? msp.rationale : null });
-      log(`mitosis[${id}]: reconcile — memoized the newly-merged parent's ship delta so a later relaunch folds it shipped without re-folding`);
-    } catch (err) {
-      log(`mitosis[${id}]: reconcile — ship-checkpoint memo threw (${clean(err.message)}); continuing so one failed write never crashes the run`);
+    const reconcileMspById = new Map((Array.isArray(reconciledManifest.msps) ? reconciledManifest.msps : []).map((m) => [m.id, m]));
+    for (const id of (Array.isArray(newlyMergedIds) ? newlyMergedIds : [])) {
+      const meta = reconciledShippedMeta ? reconciledShippedMeta.get(id) : null;
+      const msp = reconcileMspById.get(id);
+      try {
+        await persistShipCheckpoint({ unitId: id, prUrl: meta ? meta.prUrl : null, mergedAt: meta ? meta.mergedAt : null, title: msp ? msp.title : null, rationale: msp ? msp.rationale : null });
+        log(`mitosis[${id}]: reconcile — memoized the newly-merged parent's ship delta so a later relaunch folds it shipped without re-folding`);
+      } catch (err) {
+        log(`mitosis[${id}]: reconcile — ship-checkpoint memo threw (${clean(err.message)}); continuing so one failed write never crashes the run`);
+      }
     }
+    const parkSubtreeSet = new Set(advance.toParkSubtree);
+    if (parkSubtreeSet.size > 0) {
+      reconciledManifest = {
+        ...reconciledManifest,
+        msps: reconciledManifest.msps.map((m) => (parkSubtreeSet.has(m.id)
+          ? { ...m, status: 'parked', resumePoint: { branch: `${sourcePrefix}/${m.id}-integration`, ref: baseBranch, stage: 'plan' } }
+          : m)),
+      };
+    }
+    log(`mitosis: reconcile — merge-frontier advance: ${advance.toOpen.length} PR(s) to open (${advance.toOpen.join(', ') || 'none'}), ${advance.toRestack.length} built branch(es) to restack (${advance.toRestack.join(', ') || 'none'}), ${advance.toParkSubtree.length} unit(s) reset on divergent-invalidation (${advance.toParkSubtree.join(', ') || 'none'})${advance.buildRunNeeded ? ' — BUILD RUN NEEDED' : ''}`);
+    log(`mitosis: reconcile — per-run divergence count: ${advance.invalidatingParents} merged parent(s) fired subtree invalidation this run (counts every merged parent that gates built work and could NOT be confirmed content-preserving, since the check has two states and every cannot-tell folds to diverged)`);
   }
-  const parkSubtreeSet = new Set(advance.toParkSubtree);
-  if (parkSubtreeSet.size > 0) {
-    reconciledManifest = {
-      ...reconciledManifest,
-      msps: reconciledManifest.msps.map((m) => (parkSubtreeSet.has(m.id)
-        ? { ...m, status: 'parked', resumePoint: { branch: `${sourcePrefix}/${m.id}-integration`, ref: baseBranch, stage: 'plan' } }
-        : m)),
-    };
-  }
-  log(`mitosis: reconcile — merge-frontier advance: ${advance.toOpen.length} PR(s) to open (${advance.toOpen.join(', ') || 'none'}), ${advance.toRestack.length} built branch(es) to restack (${advance.toRestack.join(', ') || 'none'}), ${advance.toParkSubtree.length} unit(s) reset on divergent-invalidation (${advance.toParkSubtree.join(', ') || 'none'})${advance.buildRunNeeded ? ' — BUILD RUN NEEDED' : ''}`);
-  log(`mitosis: reconcile — per-run divergence count: ${advance.invalidatingParents} merged parent(s) fired subtree invalidation this run (counts every merged parent that gates built work and could NOT be confirmed content-preserving, since the check has two states and every cannot-tell folds to diverged)`);
 }
 const resumeMap = new Map();
 if (reusable) {
