@@ -89,18 +89,16 @@ function indexDependencies(readyAfter, byId) {
   return deps;
 }
 
-function dependentsOf(order, deps) {
-  const dependents = new Map(order.map((id) => [id, []]));
+function dependentCounts(order, deps) {
+  const counts = new Map(order.map((id) => [id, 0]));
   for (const id of order) {
-    for (const dep of deps.get(id)) dependents.get(dep).push(id);
+    for (const dep of deps.get(id)) counts.set(dep, counts.get(dep) + 1);
   }
-  for (const id of order) dependents.set(id, Object.freeze(dependents.get(id)));
-  return dependents;
+  return counts;
 }
 
 function criticalPathHeights(order, deps) {
-  const dependents = dependentsOf(order, deps);
-  const outstanding = new Map(order.map((id) => [id, dependents.get(id).length]));
+  const outstanding = dependentCounts(order, deps);
   const accumulated = new Map();
   const settled = [];
   for (const id of order) {
@@ -111,7 +109,7 @@ function criticalPathHeights(order, deps) {
   for (let cursor = 0; cursor < settled.length; cursor += 1) {
     const id = settled[cursor];
     for (const dep of deps.get(id)) {
-      accumulated.set(dep, Math.max(accumulated.get(dep) ?? UNREACHABLE_HEIGHT, accumulated.get(id) + 1));
+      accumulated.set(dep, Math.max(accumulated.get(dep) ?? SINK_HEIGHT, accumulated.get(id) + 1));
       const remaining = outstanding.get(dep) - 1;
       outstanding.set(dep, remaining);
       if (remaining === 0) settled.push(dep);
@@ -123,9 +121,13 @@ function criticalPathHeights(order, deps) {
 
 function priorityOrder(order, heights) {
   return Object.freeze([...order].sort((left, right) => {
-    const byHeight = heights.get(right) - heights.get(left);
+    const leftHeight = heights.get(left);
+    const rightHeight = heights.get(right);
+    if (leftHeight === undefined || rightHeight === undefined) {
+      throw new Error(`pool: the ordering pass carries no height for ${JSON.stringify(leftHeight === undefined ? left : right)}, so the two ids it was asked to compare cannot be ranked; a comparator that subtracts a missing height returns NaN, which sort reads as "these two are equal", and the whole priority collapses back to input order with nothing thrown and nothing logged`);
+    }
+    const byHeight = rightHeight - leftHeight;
     if (byHeight !== 0) return byHeight;
-    if (left === right) return 0;
     return left < right ? -1 : 1;
   }));
 }
