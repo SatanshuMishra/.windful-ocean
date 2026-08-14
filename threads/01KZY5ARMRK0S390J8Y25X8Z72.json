@@ -133,10 +133,27 @@
   "abandoned_reason": null,
   "closure_statement": null,
   "spine": {
-    "active_goal": "All thirteen live criteria are met. PR #96 is open against main and awaits the human merge, which stays deliberately gated.",
-    "next_step": "Nothing is blocking. The human merges PR #96 when ready - gh pr merge stays denied by deliberate choice. After the merge, delete the remote branch and confirm the ten symlinked entries still resolve. Four follow-ups outlive this thread and are listed in open risks; the logbook fail-closed guard is the only one that can freeze an unattended run and it is handed to the plugin repo.",
-    "last_session": "Shipped c3, c4 and c9, struck c14, moved R6 to the logbook plugin repo. Renamed the branch to feat/permissions-only-autonomy, merged origin/main without resurrecting the deleted machinery, ran the full suite at the merge boundary (1959 pass, 0 fail), pushed, and opened PR #96 through pr-create.",
+    "active_goal": "The permission rebuild is shipped and merged into main. The thread stays open for further tasks the user wants to explore.",
+    "next_step": "AWAIT the user's further tasks - they have more to explore, so do NOT close this thread. Housekeeping outstanding: delete the merged remote branch feat/permissions-only-autonomy and move off it, local main is current at 3e1d267. Follow-ups worst first: the logbook fail-closed guard, handed to the plugin repo and the only one that can freeze an overnight run; then measure whether deny survives bypassPermissions; then the default-branch push holes.",
+    "last_session": "Shipped c3, c4, c9, c11 and c15; struck c14; moved R6 to the logbook plugin repo. PR #96 merged. Found and fixed a live hazard: local main was 8 commits behind and the symlinks resolve through the working tree, so a checkout would have reverted the live config.",
     "open_risks": [
+      {
+        "text": "Do not strip the merge gates or the pr-create centralization — they survive by the owner's deliberate choice rather than by the catastrophe test, so a future pruning pass will examine them and conclude wrongly",
+        "scope": "thread",
+        "refs": [
+          ".claude/settings.json",
+          "0409"
+        ]
+      },
+      {
+        "text": "Check which branch is checked out before trusting the live config — the ten entries symlink into the working tree, so the checked-out branch IS the live global configuration, and checking out an older one silently restores its hooks and permission rules",
+        "scope": "thread",
+        "refs": [
+          "~/.claude/hooks",
+          "0410",
+          "3e1d267"
+        ]
+      },
       {
         "text": "The logbook PreToolUse guard still fails closed and will freeze an unattended run — the wrapper turns any internal exception into a deny across Bash, Write, Edit, MultiEdit and NotebookEdit, hooks run in every permission mode, and dev 0.2.5 is byte-identical to the installed 0.2.4 on that file",
         "scope": "thread",
@@ -146,7 +163,7 @@
         ]
       },
       {
-        "text": "Whether a deny rule survives the bypassPermissions mode is UNVERIFIED — the SPEC asserts it, the docs are ambiguous and no experiment covers it, so \"the merge gates hold in an unattended run\" is an assumption not a property, and PR #96 says so in its own Not verified list",
+        "text": "Measure whether a deny rule survives the bypassPermissions mode before trusting an unattended run — the SPEC asserts it, the documentation is ambiguous and no experiment covers it, so \"the merge gates hold when nobody is watching\" is an assumption",
         "scope": "thread",
         "refs": [
           "docs/superpowers/specs/2026-08-13-maximum-autonomy-permission-architecture-SPEC.md:274",
@@ -154,31 +171,25 @@
         ]
       },
       {
-        "text": "Default-branch push denies are prefix-literal and the gate has no push clause at all — git push -u origin main, git push origin HEAD:main and a bare git push with upstream set all reach main untouched, so 0405 is thinner than it reads",
+        "text": "The default-branch push denies match a literal prefix and the gate has no push clause at all — git push -u origin main, git push origin HEAD:main and a bare git push with upstream set all reach main untouched, so the publish-only-through-a-PR rule is thinner than it reads",
         "scope": "thread",
         "refs": [
           ".claude/settings.json",
+          ".claude/hooks/block-destructive-bash.sh",
           "0405"
         ]
       },
       {
-        "text": "The tracked and live settings.json are two independent real files with no propagation path left — every permission edit must be applied to both by hand or it is inert, and PR #96 covers only the tracked one",
+        "text": "Apply every permission edit to BOTH the tracked and the live settings.json by hand — they are independent real files with no propagation path left, so an edit to one alone is inert; the reasoning for keeping them separate is in the decision record",
         "scope": "thread",
         "refs": [
           ".claude/settings.json",
-          "~/.claude/settings.json"
+          "~/.claude/settings.json",
+          "0414"
         ]
       },
       {
-        "text": "The permission mode is session-selected and nothing in the repo asserts it — defaultMode is null in all three settings files, so selecting auto mode again silently disables the nine broad allow entries with only a debug-level log",
-        "scope": "thread",
-        "refs": [
-          ".claude/settings.json",
-          "0412"
-        ]
-      },
-      {
-        "text": "The 20 MCP allow rules are an enumeration with gaps by construction — an allow rule cannot use mcp__*, so every newly added MCP server prompts until a line is added by hand",
+        "text": "The permission mode is session-selected and nothing in the repository asserts it — defaultMode is null in all three settings files, so selecting auto mode again silently disables the nine broad allow entries with only a debug-level log to show for it",
         "scope": "thread",
         "refs": [
           ".claude/settings.json",
@@ -186,7 +197,15 @@
         ]
       },
       {
-        "text": "Fix or retire scripts/install_config.sh before anyone runs it by reflex — running it would undo c17 and move the live global settings.json into a backup dir, replacing it with a repo symlink",
+        "text": "Add a line to the MCP allow rules whenever an MCP server is added — an allow rule cannot use a bare mcp__* wildcard, so the twenty per-server entries are an enumeration with gaps by construction and a new server prompts until it is listed",
+        "scope": "thread",
+        "refs": [
+          ".claude/settings.json",
+          "0412"
+        ]
+      },
+      {
+        "text": "Fix or retire scripts/install_config.sh before anyone runs it by reflex — running it would undo the symlink topology and move the live global settings.json into a backup directory, replacing it with a repo symlink",
         "scope": "thread",
         "refs": [
           "scripts/install_config.sh:127",
@@ -195,7 +214,7 @@
         ]
       },
       {
-        "text": "Two SPEC docs still name session-config-drift-check.sh, deleted in 5ae9c24 — historical records left deliberately, but they will read as live machinery to a fresh session",
+        "text": "Two SPEC documents still name session-config-drift-check.sh, deleted in 5ae9c24 — they were left as historical records, but a fresh session reading them will take the hook for live machinery",
         "scope": "thread",
         "refs": [
           "docs/superpowers/specs/2026-08-06-config-staging-live-promotion-SPEC.md",
@@ -203,7 +222,7 @@
         ]
       },
       {
-        "text": "Spawning a subagent can still destroy the promoted entries — the cause is unidentified, but recovery is now one ln -sfn loop because they are plain symlinks rather than copied trees",
+        "text": "Re-check the ten symlinks after heavy subagent use — spawning subagents has destroyed the promoted entries before and the cause was never found; it did NOT recur across four subagents this session, and recovery is one ln -sfn loop since they are plain symlinks",
         "scope": "thread",
         "refs": [
           "~/.claude/hooks"
@@ -269,9 +288,9 @@
     ],
     "out_of_scope": [
       "Re-running any U1-U7 experiment - all seven are resolved with evidence in the findings doc, and re-running them costs hours and risks tripping the security flags that already fired twice",
-      "Pruning the 58 refs left under refs/checkpoint-experiment/ - deleting refs is trivial but reclaiming the roughly 9 MB needs gc --prune, which is guarded under D2 and is a human act"
+      "Pruning the refs under refs/checkpoint-experiment/ - deleting the refs is trivial, but reclaiming the space needs git gc --prune, which is irreversible and stays a human act"
     ]
   },
   "created_at": "2026-08-13T18:14:42.072Z",
-  "updated_at": "2026-08-14T04:52:45.015Z"
+  "updated_at": "2026-08-14T04:53:49.629Z"
 }
