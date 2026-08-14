@@ -499,6 +499,21 @@ export function readEngineSources() {
   return { sources: enumerated.files.map((path) => Object.freeze({ path, source: readFileSync(path, 'utf8') })) };
 }
 
+export function readConversionTargetSource() {
+  let read;
+  try {
+    read = readEngineSources();
+  } catch (error) {
+    return { error: `transcription-census: the conversion target could not be read: ${error && error.message ? error.message : 'unknown read failure'}` };
+  }
+  if (read.error !== undefined) return { error: read.error };
+  const found = read.sources.find((entry) => entry.path.endsWith(CONVERSION_TARGET_SUFFIX));
+  if (found === undefined) {
+    return { error: `transcription-census: no enumerated engine source ends with ${CONVERSION_TARGET_SUFFIX}, so the incumbent commands the fixtures are pinned to cannot be read at all` };
+  }
+  return { source: found.source, path: found.path };
+}
+
 export function transcriptionCensus() {
   let read;
   try {

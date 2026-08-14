@@ -8,7 +8,14 @@ import {
   execRunRefusalProbes,
 } from './exec-run.mjs';
 import { MANIFEST_REF_NOT_ATTESTED, manifestRefPolicyProbes } from './manifest-ref-policy.mjs';
-import { TRANSCRIPTION_C7_OBLIGATIONS, censusTranscriptionSources, transcriptionCensus } from './transcription-census.mjs';
+import {
+  TRANSCRIPTION_C7_OBLIGATIONS,
+  censusTranscriptionSources,
+  readConversionTargetSource,
+  transcriptionCensus,
+} from './transcription-census.mjs';
+import { GIT_COMMAND_FIXTURES } from './git-command-fixtures.mjs';
+import { censusGitCommandFixtures, gitCommandFixtureCensus } from './transcription-conversions.mjs';
 
 export const TRANSCRIPTION_PARITY_ATTESTS = Object.freeze([
   'every dispatch call node in both declared engine trees is resolved to exactly one declared name - transcription, judgment, journal or program-in-English - by exact identity or by an enumerated prefix alias, so a label none of them covers halts with its site named rather than being absorbed by a name it merely extends',
@@ -23,10 +30,15 @@ export const TRANSCRIPTION_PARITY_ATTESTS = Object.freeze([
   'a bounded poll reports an expired deadline as its own outcome, distinct from the outcome it reports when its predicate is satisfied',
   'a bounded poll hands each attempt the remaining budget as that attempt spawn bound, and terminates on its own iteration bound even when the injected clock never advances',
   'every outcome the substrate declares is produced by a specimen and every outcome a specimen produces is declared, so a declared outcome with no behavior behind it halts',
+  'every transcribed argument vector is pinned to the incumbent command text it was transcribed from: each argument resolves, through its declared placeholders, to text that appears verbatim in that command, and an argument that does not is admitted only as a named derivation carrying a stated reason',
+  'every command builder carries exactly one fixture and every fixture names a declared builder, in both directions, so a builder can be neither dropped from the pinning nor pinned twice',
+  'a fixture repaired against the builder rather than against the incumbent halts, and that halt is exercised here on mutated copies of the shipped fixtures every time this verb runs, each control asserting the fixture it mutates is present before its result is trusted',
 ]);
 
 export const TRANSCRIPTION_PARITY_NOT_ATTESTED = Object.freeze([
-  'that any of the eighteen sites is converted: all eighteen still dispatch a language model until C4b and C4c port them onto the substrate, and this verb measures the conversion list rather than the conversion',
+  'that any of the eighteen sites has stopped dispatching a language model: all eighteen still dispatch until C7 wires the engine onto this substrate, so a converted site here means a deterministic replacement exists and is pinned to the incumbent command, never that the incumbent dispatch is gone',
+  'that a transcribed command produces the effect the incumbent produced: the pinning compares argument vectors against the command text, and no probe in this verb runs any of them against a repository',
+  'that the incumbent command text a fixture is pinned to is itself correct: the anchors are transcribed from the engine source at the parent commit, so a command the engine has always spelled wrongly is transcribed just as wrongly',
   'that the engine reaches processes only through exec-run: five live spawn sites still import node:child_process directly, and no verb censuses those call sites',
   'that a dispatch outside the two declared engine trees would be seen: the census reads .claude/lib/mitosis and .claude/workflows/mitosis.js, so a dispatch added under .claude/hooks, or anywhere else in the repository, is unscanned',
   'that a dispatch composed without a label property would be seen: the census resolves a site through its label, so a call that names its site some other way is enumerated by its argument shape or halts',
@@ -64,6 +76,78 @@ const CENSUS_CONTROLS = Object.freeze([
   }),
 ]);
 
+function replaceFixture(replacement) {
+  return GIT_COMMAND_FIXTURES.map((entry) => (
+    entry.site === replacement.site && entry.step === replacement.step ? Object.freeze(replacement) : entry
+  ));
+}
+
+function fixtureFor(site, step) {
+  return GIT_COMMAND_FIXTURES.find((entry) => entry.site === site && entry.step === step);
+}
+
+const CONVERSION_CONTROLS = Object.freeze([
+  Object.freeze({
+    name: 'an argument the incumbent never spelled halts',
+    expect: '"--force"',
+    anchoredOn: Object.freeze({ site: 'checkpoint-push', step: 'push' }),
+    mutate: (fixture) => ({ ...fixture, argv: Object.freeze(['-C', '<repoRoot>', 'push', '--force', 'origin', '<integrationBranch>:<durableCheckpointRef>']) }),
+  }),
+  Object.freeze({
+    name: 'an anchor that no longer appears in the incumbent halts',
+    expect: 'no longer appears verbatim',
+    anchoredOn: Object.freeze({ site: 'ci-diff', step: 'changed-paths' }),
+    mutate: (fixture) => ({ ...fixture, anchor: 'git -C ${repoRoot} diff --stat' }),
+  }),
+  Object.freeze({
+    name: 'a placeholder standing for text the incumbent never spells halts',
+    expect: 'could stand for anything',
+    anchoredOn: Object.freeze({ site: 'restore', step: 'move-branch' }),
+    mutate: (fixture) => ({
+      ...fixture,
+      placeholders: Object.freeze({ ...fixture.placeholders, '<integrationBranch>': Object.freeze({ incumbent: '--exec=sh', field: 'integrationBranch', value: 'mitosis/x' }) }),
+    }),
+  }),
+  Object.freeze({
+    name: 'a builder that has drifted from its transcribed vector halts',
+    expect: 'have diverged',
+    anchoredOn: Object.freeze({ site: 'branch-prep', step: 'fetch-base' }),
+    mutate: (fixture) => ({ ...fixture, argv: Object.freeze(['-C', '<repoRoot>', 'fetch', 'origin']) }),
+  }),
+]);
+
+export function conversionControlProbes(source) {
+  const dropped = censusGitCommandFixtures(GIT_COMMAND_FIXTURES.filter((entry) => entry.step !== 'status'), source);
+  const unpinned = Object.freeze({
+    name: 'a command builder carrying no fixture halts',
+    halted: dropped.ok !== true,
+    named: dropped.ok !== true && typeof dropped.error === 'string' && dropped.error.includes('fence/status'),
+    anchorPresent: true,
+    detail: dropped.ok === true ? 'the census accepted it' : dropped.error,
+  });
+  const mutated = CONVERSION_CONTROLS.map((control) => {
+    const anchored = fixtureFor(control.anchoredOn.site, control.anchoredOn.step);
+    if (anchored === undefined) {
+      return Object.freeze({
+        name: control.name,
+        halted: false,
+        named: false,
+        anchorPresent: false,
+        detail: `the fixture ${control.anchoredOn.site}/${control.anchoredOn.step} this control mutates is absent, so nothing was mutated and the control proves nothing`,
+      });
+    }
+    const measured = censusGitCommandFixtures(replaceFixture(control.mutate(anchored)), source);
+    return Object.freeze({
+      name: control.name,
+      halted: measured.ok !== true,
+      named: measured.ok !== true && typeof measured.error === 'string' && measured.error.includes(control.expect),
+      anchorPresent: true,
+      detail: measured.ok === true ? 'the census accepted it' : measured.error,
+    });
+  });
+  return Object.freeze([unpinned, ...mutated]);
+}
+
 export function transcriptionCensusProbes() {
   return Object.freeze(CENSUS_CONTROLS.map((control) => {
     let measured;
@@ -83,6 +167,8 @@ export function transcriptionCensusProbes() {
 }
 
 export function probeTranscriptionSubstrate() {
+  const target = readConversionTargetSource();
+  const source = target.error === undefined ? target.source : '';
   return Object.freeze({
     refusals: execRunRefusalProbes(),
     allowances: execRunAllowProbes(),
@@ -90,6 +176,9 @@ export function probeTranscriptionSubstrate() {
     deadline: execRunDeadlineProbe(),
     outcomes: execRunOutcomeProbe(),
     censusControls: transcriptionCensusProbes(),
+    conversionTargetError: target.error === undefined ? null : target.error,
+    conversions: target.error === undefined ? gitCommandFixtureCensus(source) : { ok: false, error: target.error },
+    conversionControls: target.error === undefined ? conversionControlProbes(source) : Object.freeze([]),
   });
 }
 
@@ -138,6 +227,23 @@ export function transcriptionParityFailures(substrate) {
   if (inertControls.length > 0) {
     failures.push(`these census controls no longer halt on the thing they name, so the census would classify it silently: ${inertControls.map((control) => `${control.name} (${control.detail})`).join('; ')}`);
   }
+  if (substrate.conversionTargetError !== null) {
+    failures.push(`the incumbent commands the transcribed fixtures are pinned to could not be read, so no argument vector was checked against the command it was transcribed from: ${substrate.conversionTargetError}`);
+  }
+  if (substrate.conversions.ok !== true) {
+    failures.push(`the transcribed command fixtures no longer census cleanly against the incumbent: ${substrate.conversions.error}`);
+  }
+  const missingAnchor = substrate.conversionControls.filter((control) => !control.anchorPresent);
+  if (missingAnchor.length > 0) {
+    failures.push(`these conversion controls mutate a fixture that is absent, so they mutated nothing and their result is meaningless: ${missingAnchor.map((control) => `${control.name} (${control.detail})`).join('; ')}`);
+  }
+  const inertConversionControls = substrate.conversionControls.filter((control) => control.anchorPresent && (!control.halted || !control.named));
+  if (inertConversionControls.length > 0) {
+    failures.push(`these conversion controls no longer halt on the thing they name, so a fixture repaired against the builder rather than against the incumbent would pass: ${inertConversionControls.map((control) => `${control.name} (${control.detail})`).join('; ')}`);
+  }
+  if (substrate.conversionControls.length === 0) {
+    failures.push('the conversion guard ran no negative control at all, so nothing here would notice it going inert');
+  }
   return failures;
 }
 
@@ -180,6 +286,15 @@ export function transcriptionParityVerdict() {
       twinSites: census.twinSites.map((site) => `${site.name} ${site.path}:${site.line}`),
       inertSources: [...census.inertSources],
       censusControls: substrate.censusControls.map((control) => `${control.name}: ${control.halted && control.named ? 'halted and named' : 'INERT'}`),
+      commandFixtureParentSha: substrate.conversions.parentSha,
+      commandFixtureBinary: substrate.conversions.binary,
+      commandFixtureCount: substrate.conversions.fixtureCount,
+      commandFixtureSiteCount: substrate.conversions.siteCount,
+      commandFixtureSites: [...substrate.conversions.sites],
+      nonSpawnSteps: [...substrate.conversions.nonSpawnSteps],
+      derivedArguments: [...substrate.conversions.derivedArguments],
+      stdinSteps: [...substrate.conversions.stdinSteps],
+      conversionControls: substrate.conversionControls.map((control) => `${control.name}: ${control.anchorPresent && control.halted && control.named ? 'halted and named' : 'INERT'}`),
       refusalProbes: substrate.refusals.probes.map((probe) => `${probe.name}: ${probe.refused ? 'refused' : 'ADMITTED'}`),
       childrenStartedWhileRefusing: substrate.refusals.childrenStarted,
       allowProbes: substrate.allowances.map((probe) => `${probe.name}: ${probe.allowed ? 'allowed' : 'REFUSED'}`),

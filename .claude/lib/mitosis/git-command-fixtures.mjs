@@ -1,0 +1,431 @@
+export const FIXTURE_PARENT_SHA = '4656b8ad';
+
+const REPO = Object.freeze({ field: 'repoRoot', value: '/repo' });
+const BASE = Object.freeze({ field: 'baseBranch', value: 'main' });
+const INTEGRATION_BRANCH = Object.freeze({ field: 'integrationBranch', value: 'mitosis/c4b-git-sites' });
+const INTEGRATION_WT = Object.freeze({ field: 'integrationWt', value: '/wt/c4b' });
+const TASK_BRANCH = Object.freeze({ field: 'branch', value: 'mitosis/c4b-task-1' });
+const WORKTREE_PATH = Object.freeze({ field: 'worktreePath', value: '/wt/task-1' });
+const CHECKPOINT_REF = Object.freeze({ field: 'ref', value: 'refs/mitosis/aaaa1111/c4a' });
+const BUILT_REF = Object.freeze({ field: 'builtRef', value: 'refs/mitosis/aaaa1111/c4b' });
+const DURABLE_REF = Object.freeze({ field: 'durableCheckpointRef', value: 'refs/mitosis/aaaa1111/c4b' });
+const MANIFEST_REF = Object.freeze({ field: 'manifestRef', value: 'refs/mitosis-manifest/aaaa1111/0123456789abcdef' });
+const BUILT_SHA = Object.freeze({ field: 'builtSha', value: '1111111111111111111111111111111111111111' });
+const MERGED_SHA = Object.freeze({ field: 'mergedSha', value: '2222222222222222222222222222222222222222' });
+const PARENT_TIP = Object.freeze({ field: 'parentTip', value: '3333333333333333333333333333333333333333' });
+const FROM_SHA = Object.freeze({ field: 'fromSha', value: '4444444444444444444444444444444444444444' });
+const FILE_SCOPE = Object.freeze({ field: 'fileScope', value: Object.freeze(['src/a.ts', 'src/b.ts']) });
+const TREE = Object.freeze({ field: 'tree', value: '5555555555555555555555555555555555555555' });
+const COMMIT = Object.freeze({ field: 'commit', value: '6666666666666666666666666666666666666666' });
+const RUN_ID = Object.freeze({ field: 'logicalRunId', value: 'aaaa1111' });
+
+const REPO_PLACEHOLDER = Object.freeze({ '<repoRoot>': Object.freeze({ incumbent: '${repoRoot}', ...REPO }) });
+const BASE_PLACEHOLDER = Object.freeze({ '<baseBranch>': Object.freeze({ incumbent: '${baseBranch}', ...BASE }) });
+const WT_PLACEHOLDER = Object.freeze({ '<integrationWt>': Object.freeze({ incumbent: '${integrationWt}', ...INTEGRATION_WT }) });
+const IB_PLACEHOLDER = Object.freeze({ '<integrationBranch>': Object.freeze({ incumbent: '${integrationBranch}', ...INTEGRATION_BRANCH }) });
+const MANIFEST_PLACEHOLDER = Object.freeze({ '<manifestRef>': Object.freeze({ incumbent: '${manifestRef}', ...MANIFEST_REF }) });
+
+const DERIVED_C = Object.freeze({
+  '-C': 'the incumbent enters the tree with a shell cd, which is not a spawnable binary; -C is git own equivalent and keeps the path an inert argument vector element rather than a word a shell would split',
+});
+
+const DERIVED_REPO_SCOPE = Object.freeze({
+  '-C': 'the incumbent spells this one command without the repository prefix every other command in the same stage carries, and the stage prose scopes the whole stage to the main repo, so the prefix is restored rather than left to whatever directory the process happens to be in',
+  '<repoRoot>': 'the same restored repository prefix; the stage prose names the main repo as the tree every command in it operates against',
+});
+
+function fixture(entry) {
+  return Object.freeze({
+    site: entry.site,
+    step: entry.step,
+    anchor: entry.anchor,
+    argv: Object.freeze([...entry.argv]),
+    placeholders: Object.freeze({ ...(entry.placeholders || {}) }),
+    derived: Object.freeze({ ...(entry.derived || {}) }),
+    cwd: entry.cwd === undefined ? null : entry.cwd,
+    stdin: entry.stdin === undefined ? null : entry.stdin,
+  });
+}
+
+export const GIT_COMMAND_FIXTURES = Object.freeze([
+  fixture({
+    site: 'fence',
+    step: 'status',
+    anchor: 'run \\`git status --porcelain=v1 -uall\\` and return EVERY path it reports',
+    argv: ['status', '--porcelain=v1', '-uall'],
+    cwd: '<repoRoot>',
+  }),
+
+  fixture({
+    site: 'integrate',
+    step: 'worktree-add',
+    anchor: '\\`git -C ${repoRoot} worktree add ${integrationWt} ${baseBranch}\\`',
+    argv: ['-C', '<repoRoot>', 'worktree', 'add', '<integrationWt>', '<baseBranch>'],
+    placeholders: { ...REPO_PLACEHOLDER, ...WT_PLACEHOLDER, ...BASE_PLACEHOLDER },
+  }),
+  fixture({
+    site: 'integrate',
+    step: 'checkout',
+    anchor: '\\`cd ${integrationWt} && git checkout ${baseBranch}\\`',
+    argv: ['-C', '<integrationWt>', 'checkout', '<baseBranch>'],
+    placeholders: { ...WT_PLACEHOLDER, ...BASE_PLACEHOLDER },
+    derived: DERIVED_C,
+  }),
+  fixture({
+    site: 'integrate',
+    step: 'merge-base',
+    anchor: '\\`git -C ${integrationWt} merge-base --is-ancestor <branch> HEAD\\`',
+    argv: ['-C', '<integrationWt>', 'merge-base', '--is-ancestor', '<branch>', 'HEAD'],
+    placeholders: { ...WT_PLACEHOLDER, '<branch>': { incumbent: '<branch>', ...TASK_BRANCH } },
+  }),
+  fixture({
+    site: 'integrate',
+    step: 'merge',
+    anchor: '\\`git -C ${integrationWt} merge --no-ff <branch>\\`',
+    argv: ['-C', '<integrationWt>', 'merge', '--no-ff', '<branch>'],
+    placeholders: { ...WT_PLACEHOLDER, '<branch>': { incumbent: '<branch>', ...TASK_BRANCH } },
+  }),
+  fixture({
+    site: 'integrate',
+    step: 'merge-abort',
+    anchor: 'run \\`git -C ${integrationWt} merge --abort\\`',
+    argv: ['-C', '<integrationWt>', 'merge', '--abort'],
+    placeholders: { ...WT_PLACEHOLDER },
+  }),
+  fixture({
+    site: 'integrate',
+    step: 'worktree-remove',
+    anchor: 'run \\`git -C ${repoRoot} worktree remove --force <path>\\`',
+    argv: ['-C', '<repoRoot>', 'worktree', 'remove', '--force', '<path>'],
+    placeholders: { ...REPO_PLACEHOLDER, '<path>': { incumbent: '<path>', ...WORKTREE_PATH } },
+  }),
+
+  fixture({
+    site: 'divergence-check',
+    step: 'fetch-base',
+    anchor: '\\`git -C ${repoRoot} fetch origin ${baseBranch}\\`.\\n',
+    argv: ['-C', '<repoRoot>', 'fetch', 'origin', '<baseBranch>'],
+    placeholders: { ...REPO_PLACEHOLDER, ...BASE_PLACEHOLDER },
+  }),
+  fixture({
+    site: 'divergence-check',
+    step: 'fetch-checkpoint',
+    anchor: "\\`git -C ${repoRoot} fetch origin <that target's ref>\\`",
+    argv: ['-C', '<repoRoot>', 'fetch', 'origin', '<ref>'],
+    placeholders: { ...REPO_PLACEHOLDER, '<ref>': { incumbent: '<that target\'s ref>', ...CHECKPOINT_REF } },
+  }),
+  fixture({
+    site: 'divergence-check',
+    step: 'scoped-diff',
+    anchor: "\\`git -C ${repoRoot} diff --name-only --end-of-options <that target's builtSha> <that target's mergedSha> -- <that target's fileScope paths>\\`",
+    argv: ['-C', '<repoRoot>', 'diff', '--name-only', '--end-of-options', '<builtSha>', '<mergedSha>', '--', '<fileScope>'],
+    placeholders: {
+      ...REPO_PLACEHOLDER,
+      '<builtSha>': { incumbent: '<that target\'s builtSha>', ...BUILT_SHA },
+      '<mergedSha>': { incumbent: '<that target\'s mergedSha>', ...MERGED_SHA },
+      '<fileScope>': { incumbent: '<that target\'s fileScope paths>', ...FILE_SCOPE },
+    },
+  }),
+
+  fixture({
+    site: 'prepare-probe',
+    step: 'fetch-base',
+    anchor: 'run \\`git -C ${repoRoot} fetch origin ${baseBranch}\\`',
+    argv: ['-C', '<repoRoot>', 'fetch', 'origin', '<baseBranch>'],
+    placeholders: { ...REPO_PLACEHOLDER, ...BASE_PLACEHOLDER },
+  }),
+  fixture({
+    site: 'prepare-probe',
+    step: 'resolve-base',
+    anchor: '\\`git -C ${repoRoot} rev-parse --verify origin/${baseBranch}\\`',
+    argv: ['-C', '<repoRoot>', 'rev-parse', '--verify', 'origin/<baseBranch>'],
+    placeholders: { ...REPO_PLACEHOLDER, ...BASE_PLACEHOLDER },
+  }),
+  fixture({
+    site: 'prepare-probe',
+    step: 'config-present',
+    anchor: '\\`git -C ${repoRoot} cat-file -e origin/${baseBranch}:receipts.config.json\\`',
+    argv: ['-C', '<repoRoot>', 'cat-file', '-e', 'origin/<baseBranch>:receipts.config.json'],
+    placeholders: { ...REPO_PLACEHOLDER, ...BASE_PLACEHOLDER },
+  }),
+  fixture({
+    site: 'prepare-probe',
+    step: 'config-bytes',
+    anchor: '\\`git -C ${repoRoot} show origin/${baseBranch}:receipts.config.json\\`',
+    argv: ['-C', '<repoRoot>', 'show', 'origin/<baseBranch>:receipts.config.json'],
+    placeholders: { ...REPO_PLACEHOLDER, ...BASE_PLACEHOLDER },
+  }),
+  fixture({
+    site: 'prepare-probe',
+    step: 'workflow-present',
+    anchor: '\\`git -C ${repoRoot} cat-file -e origin/${baseBranch}:.github/workflows/receipts.yml\\`',
+    argv: ['-C', '<repoRoot>', 'cat-file', '-e', 'origin/<baseBranch>:.github/workflows/receipts.yml'],
+    placeholders: { ...REPO_PLACEHOLDER, ...BASE_PLACEHOLDER },
+  }),
+  fixture({
+    site: 'prepare-probe',
+    step: 'd6-present',
+    anchor: '\\`git -C ${repoRoot} cat-file -e origin/${baseBranch}:scripts/d6-check.cjs\\`',
+    argv: ['-C', '<repoRoot>', 'cat-file', '-e', 'origin/<baseBranch>:scripts/d6-check.cjs'],
+    placeholders: { ...REPO_PLACEHOLDER, ...BASE_PLACEHOLDER },
+  }),
+
+  fixture({
+    site: 'restore',
+    step: 'fetch-checkpoint',
+    anchor: '\\`git -C ${repoRoot} fetch origin ${JSON.stringify(builtRef)}\\`',
+    argv: ['-C', '<repoRoot>', 'fetch', 'origin', '<builtRef>'],
+    placeholders: { ...REPO_PLACEHOLDER, '<builtRef>': { incumbent: '${JSON.stringify(builtRef)}', ...BUILT_REF } },
+  }),
+  fixture({
+    site: 'restore',
+    step: 'resolve-fetch-head',
+    anchor: '\\`git -C ${repoRoot} rev-parse FETCH_HEAD\\`',
+    argv: ['-C', '<repoRoot>', 'rev-parse', 'FETCH_HEAD'],
+    placeholders: { ...REPO_PLACEHOLDER },
+  }),
+  fixture({
+    site: 'restore',
+    step: 'move-branch',
+    anchor: '\\`git -C ${repoRoot} branch -f ${integrationBranch} FETCH_HEAD\\`',
+    argv: ['-C', '<repoRoot>', 'branch', '-f', '<integrationBranch>', 'FETCH_HEAD'],
+    placeholders: { ...REPO_PLACEHOLDER, ...IB_PLACEHOLDER },
+  }),
+
+  fixture({
+    site: 'branch-compose',
+    step: 'fetch-base',
+    anchor: '\\`git -C ${repoRoot} fetch origin ${baseBranch}\\`, then fetch each parent checkpoint ref',
+    argv: ['-C', '<repoRoot>', 'fetch', 'origin', '<baseBranch>'],
+    placeholders: { ...REPO_PLACEHOLDER, ...BASE_PLACEHOLDER },
+  }),
+  fixture({
+    site: 'branch-compose',
+    step: 'fetch-parent',
+    anchor: 'run \\`git -C ${repoRoot} fetch origin <ref>\\` (each ref a single inert argv token)',
+    argv: ['-C', '<repoRoot>', 'fetch', 'origin', '<ref>'],
+    placeholders: { ...REPO_PLACEHOLDER, '<ref>': { incumbent: '<ref>', ...CHECKPOINT_REF } },
+  }),
+  fixture({
+    site: 'branch-compose',
+    step: 'move-branch',
+    anchor: '\\`git -C ${repoRoot} branch -f ${integrationBranch} origin/${baseBranch}\\` (this ref is local and never-pushed here, so a destructive branch move is safe forward compensation).\\n',
+    argv: ['-C', '<repoRoot>', 'branch', '-f', '<integrationBranch>', 'origin/<baseBranch>'],
+    placeholders: { ...REPO_PLACEHOLDER, ...IB_PLACEHOLDER, ...BASE_PLACEHOLDER },
+  }),
+  fixture({
+    site: 'branch-compose',
+    step: 'resolve-parent',
+    anchor: '\\`git -C ${repoRoot} rev-parse <ref>\\` and record it as builtAgainst[unitId]',
+    argv: ['-C', '<repoRoot>', 'rev-parse', '<ref>'],
+    placeholders: { ...REPO_PLACEHOLDER, '<ref>': { incumbent: '<ref>', ...CHECKPOINT_REF } },
+  }),
+  fixture({
+    site: 'branch-compose',
+    step: 'parent-contained',
+    anchor: '\\`git -C ${repoRoot} merge-base --is-ancestor <parent tip> ${integrationBranch}\\`',
+    argv: ['-C', '<repoRoot>', 'merge-base', '--is-ancestor', '<parentTip>', '<integrationBranch>'],
+    placeholders: { ...REPO_PLACEHOLDER, ...IB_PLACEHOLDER, '<parentTip>': { incumbent: '<parent tip>', ...PARENT_TIP } },
+  }),
+  fixture({
+    site: 'branch-compose',
+    step: 'restack-parent',
+    anchor: '(rebase --onto ${integrationBranch} origin/${baseBranch} <parent tip>, or an equivalent cherry-pick',
+    argv: ['-C', '<repoRoot>', 'rebase', '--onto', '<integrationBranch>', 'origin/<baseBranch>', '<parentTip>'],
+    placeholders: { ...IB_PLACEHOLDER, ...BASE_PLACEHOLDER, '<parentTip>': { incumbent: '<parent tip>', ...PARENT_TIP }, ...REPO_PLACEHOLDER },
+    derived: DERIVED_REPO_SCOPE,
+  }),
+  fixture({
+    site: 'branch-compose',
+    step: 'rebase-abort',
+    anchor: 'abort it (\\`git -C ${repoRoot} rebase --abort\\`',
+    argv: ['-C', '<repoRoot>', 'rebase', '--abort'],
+    placeholders: { ...REPO_PLACEHOLDER },
+  }),
+  fixture({
+    site: 'branch-compose',
+    step: 'cherry-pick-abort',
+    anchor: '\\`git -C ${repoRoot} cherry-pick --abort\\`)',
+    argv: ['-C', '<repoRoot>', 'cherry-pick', '--abort'],
+    placeholders: { ...REPO_PLACEHOLDER },
+  }),
+
+  fixture({
+    site: 'branch-prep',
+    step: 'fetch-base',
+    anchor: '1. \\`git -C ${repoRoot} fetch origin ${baseBranch}\\`\\n',
+    argv: ['-C', '<repoRoot>', 'fetch', 'origin', '<baseBranch>'],
+    placeholders: { ...REPO_PLACEHOLDER, ...BASE_PLACEHOLDER },
+  }),
+  fixture({
+    site: 'branch-prep',
+    step: 'resolve-branch',
+    anchor: '\\`git -C ${repoRoot} rev-parse --verify --quiet ${integrationBranch}\\`',
+    argv: ['-C', '<repoRoot>', 'rev-parse', '--verify', '--quiet', '<integrationBranch>'],
+    placeholders: { ...REPO_PLACEHOLDER, ...IB_PLACEHOLDER },
+  }),
+  fixture({
+    site: 'branch-prep',
+    step: 'resolve-base',
+    anchor: 'compared to \\`git -C ${repoRoot} rev-parse origin/${baseBranch}\\`',
+    argv: ['-C', '<repoRoot>', 'rev-parse', 'origin/<baseBranch>'],
+    placeholders: { ...REPO_PLACEHOLDER, ...BASE_PLACEHOLDER },
+  }),
+  fixture({
+    site: 'branch-prep',
+    step: 'move-branch',
+    anchor: 'move it FRESH onto the pushed base: \\`git -C ${repoRoot} branch -f ${integrationBranch} origin/${baseBranch}\\`',
+    argv: ['-C', '<repoRoot>', 'branch', '-f', '<integrationBranch>', 'origin/<baseBranch>'],
+    placeholders: { ...REPO_PLACEHOLDER, ...IB_PLACEHOLDER, ...BASE_PLACEHOLDER },
+  }),
+
+  fixture({
+    site: 'checkpoint-push',
+    step: 'resolve-tip',
+    anchor: '\\`git -C ${repoRoot} rev-parse ${integrationBranch}\\`',
+    argv: ['-C', '<repoRoot>', 'rev-parse', '<integrationBranch>'],
+    placeholders: { ...REPO_PLACEHOLDER, ...IB_PLACEHOLDER },
+  }),
+  fixture({
+    site: 'checkpoint-push',
+    step: 'read-remote',
+    anchor: '\\`git -C ${repoRoot} ls-remote origin ${durableCheckpointRef}\\`',
+    argv: ['-C', '<repoRoot>', 'ls-remote', 'origin', '<durableCheckpointRef>'],
+    placeholders: { ...REPO_PLACEHOLDER, '<durableCheckpointRef>': { incumbent: '${durableCheckpointRef}', ...DURABLE_REF } },
+  }),
+  fixture({
+    site: 'checkpoint-push',
+    step: 'push',
+    anchor: '\\`git -C ${repoRoot} push origin ${integrationBranch}:${durableCheckpointRef}\\`',
+    argv: ['-C', '<repoRoot>', 'push', 'origin', '<integrationBranch>:<durableCheckpointRef>'],
+    placeholders: { ...REPO_PLACEHOLDER, ...IB_PLACEHOLDER, '<durableCheckpointRef>': { incumbent: '${durableCheckpointRef}', ...DURABLE_REF } },
+  }),
+  fixture({
+    site: 'checkpoint-push',
+    step: 'force-retry',
+    anchor: 'retry once with \\`git -C ${repoRoot} push --force-with-lease origin ${integrationBranch}:${durableCheckpointRef}\\`',
+    argv: ['-C', '<repoRoot>', 'push', '--force-with-lease', 'origin', '<integrationBranch>:<durableCheckpointRef>'],
+    placeholders: { ...REPO_PLACEHOLDER, ...IB_PLACEHOLDER, '<durableCheckpointRef>': { incumbent: '${durableCheckpointRef}', ...DURABLE_REF } },
+  }),
+
+  fixture({
+    site: 'ci-diff',
+    step: 'changed-paths',
+    anchor: 'Run EXACTLY: \\`git -C ${repoRoot} diff --name-only --end-of-options ${JSON.stringify(fromSha)} ${JSON.stringify(integrationBranch)}\\` (both endpoints are separate INERT argv tokens',
+    argv: ['-C', '<repoRoot>', 'diff', '--name-only', '--end-of-options', '<fromSha>', '<integrationBranch>'],
+    placeholders: {
+      ...REPO_PLACEHOLDER,
+      '<fromSha>': { incumbent: '${JSON.stringify(fromSha)}', ...FROM_SHA },
+      '<integrationBranch>': { incumbent: '${JSON.stringify(integrationBranch)}', ...INTEGRATION_BRANCH },
+    },
+  }),
+
+  fixture({
+    site: 'ci-publish-verify',
+    step: 'append-only',
+    anchor: 'run \\`git -C ${repoRoot} merge-base --is-ancestor ${JSON.stringify(fromSha)} ${JSON.stringify(integrationBranch)}\\` (both refs are separate INERT argv tokens)',
+    argv: ['-C', '<repoRoot>', 'merge-base', '--is-ancestor', '<fromSha>', '<integrationBranch>'],
+    placeholders: {
+      ...REPO_PLACEHOLDER,
+      '<fromSha>': { incumbent: '${JSON.stringify(fromSha)}', ...FROM_SHA },
+      '<integrationBranch>': { incumbent: '${JSON.stringify(integrationBranch)}', ...INTEGRATION_BRANCH },
+    },
+  }),
+  fixture({
+    site: 'ci-publish-verify',
+    step: 'changed-paths',
+    anchor: '2. Run EXACTLY: \\`git -C ${repoRoot} diff --name-only --end-of-options ${JSON.stringify(fromSha)} ${JSON.stringify(integrationBranch)}\\`.\\n',
+    argv: ['-C', '<repoRoot>', 'diff', '--name-only', '--end-of-options', '<fromSha>', '<integrationBranch>'],
+    placeholders: {
+      ...REPO_PLACEHOLDER,
+      '<fromSha>': { incumbent: '${JSON.stringify(fromSha)}', ...FROM_SHA },
+      '<integrationBranch>': { incumbent: '${JSON.stringify(integrationBranch)}', ...INTEGRATION_BRANCH },
+    },
+  }),
+
+  fixture({
+    site: 'manifest-publish',
+    step: 'git-dir',
+    anchor: 'run \\`git -C ${repoRoot} rev-parse --git-dir\\`',
+    argv: ['-C', '<repoRoot>', 'rev-parse', '--git-dir'],
+    placeholders: { ...REPO_PLACEHOLDER },
+  }),
+  fixture({
+    site: 'manifest-publish',
+    step: 'read-remote',
+    anchor: 'already published: run \\`git -C ${repoRoot} ls-remote origin ${manifestRef}\\`',
+    argv: ['-C', '<repoRoot>', 'ls-remote', 'origin', '<manifestRef>'],
+    placeholders: { ...REPO_PLACEHOLDER, ...MANIFEST_PLACEHOLDER },
+  }),
+  fixture({
+    site: 'manifest-publish',
+    step: 'hash-object',
+    anchor: '\\`BLOB=$(git -C ${repoRoot} hash-object -w --stdin < ${repoRoot}/.mitosis/published-manifest.json)\\`',
+    argv: ['-C', '<repoRoot>', 'hash-object', '-w', '--stdin'],
+    placeholders: { ...REPO_PLACEHOLDER },
+    stdin: 'the bytes of the manifest file written in step 3; the incumbent redirects that file into the child, and a redirect is a shell construction rather than an argument vector element',
+  }),
+  fixture({
+    site: 'manifest-publish',
+    step: 'mktree',
+    anchor: "\\`TREE=$(printf '100644 blob %s\\\\tmanifest.json\\\\n' \"$BLOB\" | git -C ${repoRoot} mktree)\\`",
+    argv: ['-C', '<repoRoot>', 'mktree'],
+    placeholders: { ...REPO_PLACEHOLDER },
+    stdin: 'the one-entry tree line the incumbent composes with printf and pipes in; printf is a shell builtin rather than a spawnable binary, so the bytes are composed in process and handed to the child as stdin',
+  }),
+  fixture({
+    site: 'manifest-publish',
+    step: 'commit-tree',
+    anchor: '\\`COMMIT=$(git -C ${repoRoot} -c user.name=mitosis -c user.email=mitosis@localhost commit-tree "$TREE" -m "mitosis run manifest ${logicalRunId}")\\`',
+    argv: ['-C', '<repoRoot>', '-c', 'user.name=mitosis', '-c', 'user.email=mitosis@localhost', 'commit-tree', '<tree>', '-m', 'mitosis run manifest <logicalRunId>'],
+    placeholders: {
+      ...REPO_PLACEHOLDER,
+      '<tree>': { incumbent: '"$TREE"', ...TREE },
+      '<logicalRunId>': { incumbent: '${logicalRunId}', ...RUN_ID },
+    },
+  }),
+  fixture({
+    site: 'manifest-publish',
+    step: 'update-ref',
+    anchor: '\\`git -C ${repoRoot} update-ref ${manifestRef} "$COMMIT"\\`',
+    argv: ['-C', '<repoRoot>', 'update-ref', '<manifestRef>', '<commit>'],
+    placeholders: { ...REPO_PLACEHOLDER, ...MANIFEST_PLACEHOLDER, '<commit>': { incumbent: '"$COMMIT"', ...COMMIT } },
+  }),
+  fixture({
+    site: 'manifest-publish',
+    step: 'push',
+    anchor: 'Publish it: \\`git -C ${repoRoot} push origin ${manifestRef}:${manifestRef}\\`',
+    argv: ['-C', '<repoRoot>', 'push', 'origin', '<manifestRef>:<manifestRef>'],
+    placeholders: { ...REPO_PLACEHOLDER, ...MANIFEST_PLACEHOLDER },
+  }),
+  fixture({
+    site: 'manifest-publish',
+    step: 'verify-remote',
+    anchor: 'run \\`git -C ${repoRoot} ls-remote origin ${manifestRef}\\` and confirm the sha it prints equals $COMMIT',
+    argv: ['-C', '<repoRoot>', 'ls-remote', 'origin', '<manifestRef>'],
+    placeholders: { ...REPO_PLACEHOLDER, ...MANIFEST_PLACEHOLDER },
+  }),
+  fixture({
+    site: 'manifest-publish',
+    step: 'read-back',
+    anchor: 'run \\`git -C ${repoRoot} cat-file -p ${manifestRef}:manifest.json\\`',
+    argv: ['-C', '<repoRoot>', 'cat-file', '-p', '<manifestRef>:manifest.json'],
+    placeholders: { ...REPO_PLACEHOLDER, ...MANIFEST_PLACEHOLDER },
+  }),
+]);
+
+export const MANIFEST_WRITE_FIXTURE = Object.freeze({
+  site: 'manifest-publish',
+  step: 'write-payload',
+  anchor: 'Create ${repoRoot}/.mitosis/ if it does not already exist, then write the following to ${repoRoot}/.mitosis/published-manifest.json',
+  directory: '.mitosis',
+  file: 'published-manifest.json',
+});
+
+export const PLAN_PROBE_FIXTURE = Object.freeze({
+  site: 'plan-probe',
+  step: 'artifact-present',
+  anchor: 'Check the plan artifact: \\`test -f ${planned.planPath} && test -s ${planned.planPath}\\`',
+  refusedBinary: 'test',
+  reason: 'test is a shell builtin rather than one of the spawnable binaries, so the incumbent check cannot be transcribed as a spawn at all; it becomes an in process filesystem observation of the same two facts, that the path is a regular file and that it holds bytes',
+});
