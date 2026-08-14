@@ -129,7 +129,7 @@
     {
       "id": "c18",
       "text": "Gate rewritten to allow by default so unattended runs stop prompting: catastrophe branches and both PR denies kept, a hosted-Supabase deny added, Edit/Write/NotebookEdit given an allow hook",
-      "done": false,
+      "done": true,
       "kind": "detour",
       "struck_by": null
     }
@@ -140,25 +140,26 @@
   "abandoned_reason": null,
   "closure_statement": null,
   "spine": {
-    "active_goal": "The permission rebuild is shipped and merged into main. The thread stays open for further tasks the user wants to explore.",
-    "next_step": "AWAIT the user's further tasks - they have more to explore, so do NOT close this thread. Housekeeping outstanding: delete the merged remote branch feat/permissions-only-autonomy and move off it, local main is current at 3e1d267. Follow-ups worst first: the logbook fail-closed guard, handed to the plugin repo and the only one that can freeze an overnight run; then measure whether deny survives bypassPermissions; then the default-branch push holes.",
-    "last_session": "Shipped c3, c4, c9, c11 and c15; struck c14; moved R6 to the logbook plugin repo. PR #96 merged. Found and fixed a live hazard: local main was 8 commits behind and the symlinks resolve through the working tree, so a checkout would have reverted the live config.",
+    "active_goal": "Closed. The permission architecture is shipped, merged and live; the bash gate allows by default and only catastrophe, PR and Supabase branches remain.",
+    "next_step": "Thread closed - no next step. If the work is reopened, worst first: the logbook fail-closed guard in the plugin repo, the only outstanding item that can freeze an overnight run; then measure whether a deny rule survives bypassPermissions, now the only control left on the PR and Supabase surfaces; then read the two dirty worktrees and decide what to keep.",
+    "last_session": "Rewrote the bash gate to allow by default (PR #99, main at 8ed7ed45), added a hosted-Supabase deny and a write-tool allow hook, retired G4 in full, then swept 13 branches and 7 worktrees. Gate suite 267 pass. The mitosis-os-process worktree was verified intact.",
     "open_risks": [
       {
         "text": "Do not strip the merge gates or the pr-create centralization — they survive by the owner's deliberate choice rather than by the catastrophe test, so a future pruning pass will examine them and conclude wrongly",
         "scope": "thread",
         "refs": [
           ".claude/settings.json",
-          "0409"
+          "0409",
+          "0417"
         ]
       },
       {
-        "text": "Check which branch is checked out before trusting the live config — the ten entries symlink into the working tree, so the checked-out branch IS the live global configuration, and checking out an older one silently restores its hooks and permission rules",
+        "text": "An agent can rewrite or delete the gate that judges it, in one unattended command — G4 is retired in full, so every guardrail-file write allows; git is the only recovery and nothing reports the change until a human looks",
         "scope": "thread",
         "refs": [
-          "~/.claude/hooks",
-          "0410",
-          "3e1d267"
+          ".claude/hooks/block-destructive-bash.sh",
+          "0417",
+          "0418"
         ]
       },
       {
@@ -170,20 +171,29 @@
         ]
       },
       {
-        "text": "Measure whether a deny rule survives the bypassPermissions mode before trusting an unattended run — the SPEC asserts it, the documentation is ambiguous and no experiment covers it, so \"the merge gates hold when nobody is watching\" is an assumption",
+        "text": "Measure whether a deny rule survives the bypassPermissions mode before trusting an unattended run — deny is now the only control left on the PR and Supabase surfaces, and no experiment covers whether it holds in that mode",
         "scope": "thread",
         "refs": [
           "docs/superpowers/specs/2026-08-13-maximum-autonomy-permission-architecture-SPEC.md:274",
-          "0408"
+          "0408",
+          "0417"
         ]
       },
       {
-        "text": "The default-branch push denies match a literal prefix and the gate has no push clause at all — git push -u origin main, git push origin HEAD:main and a bare git push with upstream set all reach main untouched, so the publish-only-through-a-PR rule is thinner than it reads",
+        "text": "Nothing prevents a direct push to main any more — the literal-prefix denies were deleted and the gate never had a push clause, so publish-only-through-a-PR is a convention the tooling no longer enforces",
         "scope": "thread",
         "refs": [
           ".claude/settings.json",
-          ".claude/hooks/block-destructive-bash.sh",
-          "0405"
+          "0405",
+          "0417"
+        ]
+      },
+      {
+        "text": "Measure whether allow-write-tools.sh and secret-scanner.sh conflict on Edit and Write — both are PreToolUse hooks that return a decision, and deny beating allow is inference here rather than something this session measured",
+        "scope": "thread",
+        "refs": [
+          ".claude/hooks/allow-write-tools.sh",
+          ".claude/settings.json"
         ]
       },
       {
@@ -196,7 +206,16 @@
         ]
       },
       {
-        "text": "The permission mode is session-selected and nothing in the repository asserts it — defaultMode is null in all three settings files, so selecting auto mode again silently disables the nine broad allow entries with only a debug-level log to show for it",
+        "text": "Check which branch is checked out before trusting the live config — the ten entries symlink into the working tree, so the checked-out branch IS the live global configuration, and checking out an older one silently restores its hooks and permission rules",
+        "scope": "thread",
+        "refs": [
+          "~/.claude/hooks",
+          "0410",
+          "8ed7ed45"
+        ]
+      },
+      {
+        "text": "The permission mode is session-selected and nothing in the repository asserts it — defaultMode is null in all three settings files, so auto mode can be reselected silently; hooks now cover Bash and the write tools, but the MCP and read-tool allow entries stay exposed to the discard",
         "scope": "thread",
         "refs": [
           ".claude/settings.json",
@@ -209,6 +228,21 @@
         "refs": [
           ".claude/settings.json",
           "0412"
+        ]
+      },
+      {
+        "text": "The ledger server cannot run git, so reconcile fails with spawn git ENOENT — branch and binding drift is never folded, and every preflight since has briefed from unreconciled state",
+        "scope": "thread",
+        "refs": [
+          "mcp__ledger__reconcile"
+        ]
+      },
+      {
+        "text": "Two merged worktrees hold uncommitted work that exists nowhere else — fervent-cerf-833733 has five modified files and hermetic-guard-test has one, and neither diff was read before they were deliberately left standing",
+        "scope": "thread",
+        "refs": [
+          ".claude/worktrees/fervent-cerf-833733",
+          ".claude/worktrees/hermetic-guard-test"
         ]
       },
       {
@@ -229,7 +263,7 @@
         ]
       },
       {
-        "text": "Re-check the ten symlinks after heavy subagent use — spawning subagents has destroyed the promoted entries before and the cause was never found; it did NOT recur across four subagents this session, and recovery is one ln -sfn loop since they are plain symlinks",
+        "text": "Re-check the ten symlinks after heavy subagent use — spawning subagents has destroyed the promoted entries before and the cause was never found; recovery is one ln -sfn loop since they are plain symlinks",
         "scope": "thread",
         "refs": [
           "~/.claude/hooks"
@@ -309,5 +343,5 @@
     ]
   },
   "created_at": "2026-08-13T18:14:42.072Z",
-  "updated_at": "2026-08-14T05:57:49.721Z"
+  "updated_at": "2026-08-14T05:58:52.475Z"
 }
