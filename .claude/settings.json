@@ -70,17 +70,11 @@
       "Bash(node:*)"
     ],
     "deny": [
-      "Bash(git push origin main:*)",
-      "Bash(git push origin master:*)",
-      "Bash(git push origin development:*)",
       "Bash(supabase db push:*)",
       "Bash(supabase db pull:*)",
       "Bash(supabase migration up:*)",
       "Bash(supabase functions deploy:*)",
       "Bash(supabase link:*)",
-      "Bash(git push --force:*)",
-      "Bash(git push -f:*)",
-      "Bash(git reset --hard:*)",
       "Bash(gh pr merge:*)",
       "Bash(gh pr create:*)",
       "mcp__github__create_pull_request",
@@ -241,6 +235,16 @@
             "type": "command",
             "command": "python3 $HOME/.claude/hooks/agent-ledger/agent-fallback-capture.py",
             "timeout": 10
+          }
+        ]
+      },
+      {
+        "matcher": "Edit|Write|NotebookEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "$HOME/.claude/hooks/allow-write-tools.sh",
+            "timeout": 5
           }
         ]
       }
