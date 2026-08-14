@@ -1,8 +1,21 @@
-import { closeSync, constants, mkdirSync, openSync, readFileSync, writeSync } from 'node:fs';
-import { dirname, isAbsolute } from 'node:path';
+import { closeSync, constants, openSync } from 'node:fs';
+import { dirname, join } from 'node:path';
 import { builtDelta, ciAttemptDelta, isIsoInstant, parkDelta, quiescentExitDelta, shipDelta } from './run-log.mjs';
 import { parseRunManifest } from './recovery.mjs';
 import { JOURNAL_SPECIMENS } from './journal-specimens.mjs';
+import {
+  OWNER_ONLY_MODE,
+  createDirectoryChain,
+  holdExclusiveLock,
+  isPlainObject,
+  readCappedFile,
+  releaseExclusiveLock,
+  replaceFileAtomically,
+  requireConfinedPath,
+  requireExistingDirectory,
+  requireGuardedPath,
+  writeAllSync,
+} from './fs-writer.mjs';
 
 export const JOURNAL_KINDS = Object.freeze(['genesis', 'ship', 'built', 'park', 'ci-attempt', 'quiescent-exit']);
 
@@ -31,9 +44,41 @@ const IDENTITY_FIELDS = Object.freeze({
   'ci-attempt': 'unitId',
 });
 
+export const JOURNAL_WRITER_PRECONDITIONS = Object.freeze([
+  'the append path relies on O_APPEND placing each write at the current end of file atomically, which POSIX guarantees on a local filesystem and NFS and SMB do not; on a network-mounted repository two concurrent appends may interleave and neither this module nor the fold reader can tell afterwards',
+  'the symlink walk inspects each path segment before the next is opened, so a link planted between the inspection and the open is still followed; the window is narrowed rather than closed, because Node exposes no openat-relative open',
+  'the mode this module creates files with governs creation only: a journal or ignore file that already exists keeps whatever mode it was given, and this module never narrows one it did not create',
+]);
+
+export const JOURNAL_WRITER_DIVERGENCES = Object.freeze([
+  Object.freeze({
+    property: 'exclusive run lock around the whole operation',
+    reason: 'run-store holds one lock for the lifetime of an attempt because it writes many files; the journal writer takes a lock only around the read-then-append of the ignore file, which is its one read-modify-write, and appends are serialised by O_APPEND rather than by a lock',
+  }),
+  Object.freeze({
+    property: 'refuse-rather-than-create on a missing parent directory',
+    reason: 'run-store creates the run directory it owns; the journal writer creates the .mitosis directory of the journal path for the same reason, but refuses a missing repoRoot outright, because a repository root that does not exist is a caller mistake rather than a tree this module may bring into being',
+  }),
+  Object.freeze({
+    property: 'the caller-declared base is itself refused when it is a symbolic link',
+    reason: 'run-store never inspects the root it is handed and guards only the segments it composes below it, because that root arrives from an operator on a command line; repoRoot here arrives from the run manifest, which a language model writes at all six sites until C7 converts them, so a link at the base is refused rather than trusted. An operator whose repository genuinely sits behind a link passes the resolved path',
+  }),
+  Object.freeze({
+    property: 'atomic replace on the append path',
+    reason: 'run-store replaces whole files, so every write is a temp-and-rename; the journal append must add one line without rewriting the ones before it, so it is a single O_APPEND write whose all-or-nothing property comes from the write loop rather than from a rename',
+  }),
+]);
+
 const GENESIS_KIND = 'genesis';
-const NUL = String.fromCharCode(0);
-const PATH_SEPARATOR = /[/\\]/;
+const MODULE = 'journal-store';
+const GITIGNORE_BASENAME = '.gitignore';
+const MAX_IGNORE_ENTRY_LENGTH = 200;
+const MAX_IGNORE_FILE_BYTES = 1024 * 1024;
+const IGNORE_LOCK_SUFFIX = '.journal-lock';
+const IGNORE_LOCK_ATTEMPTS = 50;
+const IGNORE_LOCK_WAIT_MS = 20;
+const IGNORE_ENTRY_PATTERN = /^\/?[A-Za-z0-9_.-]+(?:\/[A-Za-z0-9_.-]+)*\/?$/;
+const PROTOTYPE_KEYS = Object.freeze(['__proto__', 'constructor', 'prototype']);
 const INSTANT_PARTS = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})(?:\.(\d{1,9}))?(Z|[+-]\d{2}:\d{2})$/;
 const NANOS_PER_SECOND = 1000000000;
 const SECONDS_PER_DAY = 86400;
@@ -46,33 +91,17 @@ const ELAPSED_UNITS = Object.freeze([
   Object.freeze({ suffix: 's', size: 1 }),
 ]);
 
-function isPlainObject(value) {
-  if (value === null || typeof value !== 'object' || Array.isArray(value)) return false;
-  const proto = Object.getPrototypeOf(value);
-  return proto === Object.prototype || proto === null;
+function requireJournalTarget(request) {
+  const repoRoot = requireGuardedPath(MODULE, 'repoRoot', request.repoRoot, 'the repository root the journal is written inside').value;
+  requireExistingDirectory(MODULE, 'repoRoot', repoRoot);
+  const confined = requireConfinedPath(MODULE, 'path', repoRoot, request.path, 'the journal file');
+  if (confined.below[confined.below.length - 1] === '') {
+    throw new TypeError(`journal-store: path must name a file rather than a directory, received ${JSON.stringify(request.path)}`);
+  }
+  return Object.freeze({ repoRoot, path: confined.value, below: confined.below });
 }
 
-function requireJournalPath(value) {
-  if (typeof value !== 'string' || value === '') {
-    throw new TypeError(`journal-store: path must be a non-empty string naming the journal file, received ${value === null ? 'null' : typeof value}`);
-  }
-  if (value.includes(NUL)) {
-    throw new TypeError(`journal-store: path must not contain a NUL byte, which no filesystem path can carry, received ${JSON.stringify(value)}`);
-  }
-  if (!isAbsolute(value)) {
-    throw new TypeError(`journal-store: path must be absolute, because a relative journal path resolves against whatever directory the process happens to be in and would scatter one run's journal across several files, received ${JSON.stringify(value)}`);
-  }
-  const segments = value.split(PATH_SEPARATOR);
-  if (segments.some((segment) => segment === '..')) {
-    throw new TypeError(`journal-store: path must not carry a ".." segment, which would let a journal write outside the tree it was pointed at, received ${JSON.stringify(value)}`);
-  }
-  if (segments[segments.length - 1] === '') {
-    throw new TypeError(`journal-store: path must name a file rather than a directory, received ${JSON.stringify(value)}`);
-  }
-  return value;
-}
-
-function unencodable(value, path, seen, found) {
+function unencodable(value, path, seen, found, poisoned) {
   const type = typeof value;
   if (value === null || type === 'string' || type === 'boolean') return;
   if (type === 'number') {
@@ -89,16 +118,23 @@ function unencodable(value, path, seen, found) {
   }
   seen.add(value);
   if (Array.isArray(value)) {
-    value.forEach((entry, index) => unencodable(entry, `${path}[${index}]`, seen, found));
+    value.forEach((entry, index) => unencodable(entry, `${path}[${index}]`, seen, found, poisoned));
   } else {
-    for (const key of Object.keys(value)) unencodable(value[key], `${path}.${key}`, seen, found);
+    for (const key of Object.keys(value)) {
+      if (PROTOTYPE_KEYS.includes(key)) poisoned.push(`${path}.${key}`);
+      else unencodable(value[key], `${path}.${key}`, seen, found, poisoned);
+    }
   }
   seen.delete(value);
 }
 
 function serializeRecord(kind, record) {
   const found = [];
-  unencodable(record, kind, new Set(), found);
+  const poisoned = [];
+  unencodable(record, kind, new Set(), found, poisoned);
+  if (poisoned.length > 0) {
+    throw new TypeError(`journal-store: the ${kind} record carries the prototype-bearing key(s) ${poisoned.join(', ')}; JSON.parse revives such a key as an own property, and a later spread or merge of the folded manifest would write it onto Object.prototype, so the line is refused here rather than written and revived on every read`);
+  }
   if (found.length > 0) {
     throw new TypeError(`journal-store: the ${kind} record carries values JSON cannot represent at ${found.join(', ')}; JSON.stringify would drop or corrupt them and the fold reader skips a malformed line in silence, so the line is refused here rather than written and lost later`);
   }
@@ -154,24 +190,27 @@ function writeFailure(action, path, error) {
   return new Error(`journal-store: could not ${action} ${path}: ${error.message}. The fold reader skips an unparseable or missing line in silence, so a write that did not land is invisible for the life of the journal and is raised here instead`, { cause: error });
 }
 
-function ensureDirectory(directory, action, path) {
+function ensureDirectory(target, action) {
   try {
-    mkdirSync(directory, { recursive: true });
+    createDirectoryChain(MODULE, target.repoRoot, target.below.slice(0, -1));
   } catch (error) {
-    throw writeFailure(`${action} into ${directory} for`, path, error);
+    if (/symbolic link|not a directory/.test(error.message)) throw error;
+    throw writeFailure(`${action} into ${dirname(target.path)} for`, target.path, error);
   }
 }
 
-function writeLine(path, line, modeFlag, action) {
-  ensureDirectory(dirname(path), action, path);
+function appendLine(target, line, action) {
+  const path = target.path;
+  ensureDirectory(target, action);
   let descriptor;
   try {
-    descriptor = openSync(path, constants.O_WRONLY | constants.O_CREAT | constants.O_NOFOLLOW | modeFlag);
+    const flags = constants.O_WRONLY | constants.O_CREAT | constants.O_NOFOLLOW | constants.O_APPEND;
+    descriptor = openSync(path, flags, OWNER_ONLY_MODE);
   } catch (error) {
     throw writeFailure(action, path, error);
   }
   try {
-    writeSync(descriptor, line);
+    writeAllSync(MODULE, descriptor, line, path);
   } catch (error) {
     const failure = writeFailure(action, path, error);
     try {
@@ -191,23 +230,30 @@ function writeLine(path, line, modeFlag, action) {
 
 export function writeGenesis(request) {
   if (!isPlainObject(request)) {
-    throw new TypeError(`journal-store: writeGenesis takes one plain object carrying path and manifest, received ${request === null ? 'null' : typeof request}`);
+    throw new TypeError(`journal-store: writeGenesis takes one plain object carrying repoRoot, path and manifest, received ${request === null ? 'null' : typeof request}`);
   }
-  const path = requireJournalPath(request.path);
+  const target = requireJournalTarget(request);
   const line = composeJournalLine(GENESIS_KIND, { manifest: request.manifest });
-  return writeLine(path, line, constants.O_TRUNC, 'truncate the run journal at');
+  const action = 'replace the run journal at';
+  ensureDirectory(target, action);
+  try {
+    replaceFileAtomically(MODULE, target.path, line, OWNER_ONLY_MODE);
+  } catch (error) {
+    throw writeFailure(action, target.path, error);
+  }
+  return Object.freeze({ path: target.path, line });
 }
 
 export function appendJournalLine(request) {
   if (!isPlainObject(request)) {
-    throw new TypeError(`journal-store: appendJournalLine takes one plain object carrying path and line, received ${request === null ? 'null' : typeof request}`);
+    throw new TypeError(`journal-store: appendJournalLine takes one plain object carrying repoRoot, path and line, received ${request === null ? 'null' : typeof request}`);
   }
-  const path = requireJournalPath(request.path);
+  const target = requireJournalTarget(request);
   const line = request.line;
   if (typeof line !== 'string' || line.length < 2 || !line.endsWith('\n') || line.slice(0, -1).includes('\n')) {
     throw new TypeError(`journal-store: line must be exactly one non-empty record terminated by a single newline, because the journal is newline-delimited and a line carrying none or several breaks the record framing, received ${JSON.stringify(line)}`);
   }
-  return writeLine(path, line, constants.O_APPEND, 'append one record to the run journal at');
+  return appendLine(target, line, 'append one record to the run journal at');
 }
 
 function daysFromCivil(year, month, day) {
@@ -217,6 +263,27 @@ function daysFromCivil(year, month, day) {
   const dayOfYear = Math.floor((153 * (month + (month > 2 ? -3 : 9)) + 2) / 5) + day - 1;
   const dayOfEra = yearOfEra * 365 + Math.floor(yearOfEra / 4) - Math.floor(yearOfEra / 100) + dayOfYear;
   return era * 146097 + dayOfEra - 719468;
+}
+
+function civilFromDays(days) {
+  const shifted = days + 719468;
+  const era = Math.floor(shifted / 146097);
+  const dayOfEra = shifted - era * 146097;
+  const yearOfEra = Math.floor((dayOfEra - Math.floor(dayOfEra / 1460) + Math.floor(dayOfEra / 36524) - Math.floor(dayOfEra / 146096)) / 365);
+  const dayOfYear = dayOfEra - (365 * yearOfEra + Math.floor(yearOfEra / 4) - Math.floor(yearOfEra / 100));
+  const monthPrime = Math.floor((5 * dayOfYear + 2) / 153);
+  const day = dayOfYear - Math.floor((153 * monthPrime + 2) / 5) + 1;
+  const month = monthPrime + (monthPrime < 10 ? 3 : -9);
+  return { year: yearOfEra + era * 400 + (month <= 2 ? 1 : 0), month, day };
+}
+
+function requireRealCivilDay(value, field, year, month, day) {
+  const days = daysFromCivil(year, month, day);
+  const civil = civilFromDays(days);
+  if (civil.year !== year || civil.month !== month || civil.day !== day) {
+    throw new TypeError(`journal-store: ${field} names ${value}, whose day does not exist in that month; the instant check accepts a 31st in every month, and a gap measured from a day the calendar does not carry is reported with the same confidence as a real one, so no gap is computed from it`);
+  }
+  return days;
 }
 
 function instantToParts(value, field) {
@@ -231,7 +298,7 @@ function instantToParts(value, field) {
   const offsetMinutes = zone === 'Z'
     ? 0
     : (zone.startsWith('-') ? -1 : 1) * (Number(zone.slice(1, 3)) * 60 + Number(zone.slice(4, 6)));
-  const seconds = daysFromCivil(Number(year), Number(month), Number(day)) * SECONDS_PER_DAY
+  const seconds = requireRealCivilDay(value, field, Number(year), Number(month), Number(day)) * SECONDS_PER_DAY
     + Number(hour) * SECONDS_PER_HOUR
     + Number(minute) * SECONDS_PER_MINUTE
     + Number(second)
@@ -269,37 +336,76 @@ export function elapsedBetween(priorAt, at) {
   return magnitude === 0 ? '0s' : `-${renderElapsed(magnitude)}`;
 }
 
+function trimSlashes(value) {
+  let start = 0;
+  let end = value.length;
+  while (start < end && value[start] === '/') start += 1;
+  while (end > start && value[end - 1] === '/') end -= 1;
+  return value.slice(start, end);
+}
+
 function gitignoreEquivalents(entry) {
-  const bare = entry.replace(/^\/+/, '').replace(/\/+$/, '');
+  const bare = trimSlashes(entry);
   return Object.freeze(new Set([bare, `${bare}/`, `/${bare}`, `/${bare}/`]));
+}
+
+function requireIgnoreEntry(value) {
+  if (typeof value !== 'string' || value.length === 0) {
+    throw new TypeError(`journal-store: entry must be a non-empty string carrying one gitignore line, received ${value === null ? 'null' : typeof value}`);
+  }
+  if (value.length > MAX_IGNORE_ENTRY_LENGTH) {
+    throw new TypeError(`journal-store: entry is ${value.length} characters, past the ${MAX_IGNORE_ENTRY_LENGTH}-character ceiling a single ignore line is accepted at; a longer one is refused rather than appended to a file the repository reads on every git command`);
+  }
+  if (!IGNORE_ENTRY_PATTERN.test(value)) {
+    throw new TypeError(`journal-store: entry ${JSON.stringify(value)} is not a literal gitignore path pattern of the form dir/ or /dir/name; a wildcard, a negation, a carriage return or any other character is refused rather than appended, because "*" written into a repository's ignore file hides its whole tree from git and nothing in the file would say which call put it there`);
+  }
+  if (trimSlashes(value).split('/').some((segment) => segment === '.' || segment === '..')) {
+    throw new TypeError(`journal-store: entry ${JSON.stringify(value)} carries a "." or ".." segment, which names no path git would ignore`);
+  }
+  return value;
+}
+
+function pause(milliseconds) {
+  Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, milliseconds);
+}
+
+function acquireIgnoreLock(path) {
+  const lockPath = `${path}${IGNORE_LOCK_SUFFIX}`;
+  for (let attempt = 0; attempt < IGNORE_LOCK_ATTEMPTS; attempt += 1) {
+    const descriptor = holdExclusiveLock(MODULE, lockPath);
+    if (descriptor !== null) return Object.freeze({ lockPath, descriptor });
+    pause(IGNORE_LOCK_WAIT_MS);
+  }
+  throw new Error(`journal-store: the ignore lock at ${lockPath} was still held after ${IGNORE_LOCK_ATTEMPTS} attempts; the entry is read and appended under it so it lands at most once, and appending without it would either repeat the entry or splice onto a line another writer is part way through. The lock is never broken automatically - remove it once you know the holder is gone`);
+}
+
+function appendIgnoreEntry(target, entry) {
+  const path = target.path;
+  const body = readCappedFile(MODULE, path, MAX_IGNORE_FILE_BYTES);
+  const created = body === null;
+  const equivalents = gitignoreEquivalents(entry);
+  if (!created && body.split('\n').some((line) => equivalents.has(line.trim()))) {
+    return Object.freeze({ path, entry, appended: false, created: false });
+  }
+  const separator = !created && body.length > 0 && !body.endsWith('\n') ? '\n' : '';
+  appendLine(target, `${separator}${entry}\n`, 'append the ignore entry to');
+  return Object.freeze({ path, entry, appended: true, created });
 }
 
 export function ensureGitignored(request) {
   if (!isPlainObject(request)) {
-    throw new TypeError(`journal-store: ensureGitignored takes one plain object carrying path and entry, received ${request === null ? 'null' : typeof request}`);
+    throw new TypeError(`journal-store: ensureGitignored takes one plain object carrying repoRoot and entry, received ${request === null ? 'null' : typeof request}`);
   }
-  const path = requireJournalPath(request.path);
-  const entry = request.entry;
-  if (typeof entry !== 'string' || entry.trim().length === 0 || entry.includes('\n')) {
-    throw new TypeError(`journal-store: entry must be a single non-empty gitignore line carrying no newline, because appending several lines under one idempotence check would repeat every later call, received ${JSON.stringify(entry)}`);
-  }
-  let body = '';
-  let created = false;
+  const repoRoot = requireGuardedPath(MODULE, 'repoRoot', request.repoRoot, 'the repository root whose ignore file is updated').value;
+  requireExistingDirectory(MODULE, 'repoRoot', repoRoot);
+  const entry = requireIgnoreEntry(request.entry);
+  const target = Object.freeze({ repoRoot, path: join(repoRoot, GITIGNORE_BASENAME), below: Object.freeze([GITIGNORE_BASENAME]) });
+  const lock = acquireIgnoreLock(target.path);
   try {
-    body = readFileSync(path, 'utf8');
-  } catch (error) {
-    if (error.code !== 'ENOENT') {
-      throw new Error(`journal-store: could not read the ignore file at ${path}: ${error.message}. It is read before appending so the entry is added at most once, and a read this call cannot complete would make that guarantee a guess`, { cause: error });
-    }
-    created = true;
+    return appendIgnoreEntry(target, entry);
+  } finally {
+    releaseExclusiveLock(MODULE, lock.lockPath, lock.descriptor);
   }
-  const equivalents = gitignoreEquivalents(entry);
-  if (body.split('\n').some((line) => equivalents.has(line.trim()))) {
-    return Object.freeze({ path, entry, appended: false, created: false });
-  }
-  const separator = body.length > 0 && !body.endsWith('\n') ? '\n' : '';
-  writeLine(path, `${separator}${entry}\n`, constants.O_APPEND, 'append the ignore entry to');
-  return Object.freeze({ path, entry, appended: true, created });
 }
 
 export function censusJournalSpecimens(specimens) {
