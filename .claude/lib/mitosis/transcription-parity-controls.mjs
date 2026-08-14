@@ -7,6 +7,7 @@ import {
   CONVERTED_TRANSCRIPTION_SITES,
   DEFAULT_CONVERSION_REGISTRY,
   TRANSCRIBED_COMMAND_FIXTURES as GIT_COMMAND_FIXTURES,
+  binaryOf,
   censusGitCommandFixtures,
 } from './transcription-conversions.mjs';
 const CONVERSION_TARGET = '/engine/.claude/workflows/mitosis.js';
@@ -262,6 +263,29 @@ const SHARED_STEP_CONTROLS = Object.freeze([
         build: (site, step, values) => {
           const built = [...table.build(site, step, values)];
           if (site !== entry.site || step !== entry.step) return Object.freeze(built);
+          return Object.freeze(built.map((token, index) => (index === built.length - 1 ? DRIFTED_TOKEN : token)));
+        },
+      };
+      return { ...registry, binaries: { ...COMMAND_BINARIES, [entry.binary]: drifted } };
+    },
+  }),
+  Object.freeze({
+    name: 'a shared step whose builder drifts at both sites halts against the frozen fixture',
+    expect: 'a sharing claim is compared against the frozen fixture',
+    present: (registry) => registry.shared.length > 0 && GIT_COMMAND_FIXTURES.some((fixture) => (
+      fixture.site === registry.shared[0].sharesWith
+      && fixture.step === registry.shared[0].step
+      && binaryOf(fixture) === registry.shared[0].binary
+    )),
+    missing: 'no step is declared as sharing a command whose twin site carries a fixture, so a builder drifted at both sites would have no frozen vector to disagree with and the perturbation would prove nothing',
+    perturb: (registry) => {
+      const entry = registry.shared[0];
+      const table = COMMAND_BINARIES[entry.binary];
+      const drifted = {
+        ...table,
+        build: (site, step, values) => {
+          const built = [...table.build(site, step, values)];
+          if (step !== entry.step) return Object.freeze(built);
           return Object.freeze(built.map((token, index) => (index === built.length - 1 ? DRIFTED_TOKEN : token)));
         },
       };
