@@ -116,9 +116,7 @@ const SITE_PARSERS = Object.freeze({
   ]),
 });
 
-export const CONVERTED_TRANSCRIPTION_SITES = Object.freeze(
-  Object.keys(SITE_PARSERS).filter((site) => GIT_SITES.includes(site) || NON_SPAWN_SITES.some((entry) => entry.site === site)).sort(),
-);
+export const CONVERTED_TRANSCRIPTION_SITES = Object.freeze(Object.keys(SITE_PARSERS).sort());
 
 export function parserProbes() {
   return Object.freeze(Object.entries(SITE_PARSERS).flatMap(([site, parsers]) => parsers.map((entry) => {
@@ -300,6 +298,12 @@ function registryFailure(registry) {
   if (registry.parsers === null || typeof registry.parsers !== 'object' || Array.isArray(registry.parsers) || Object.keys(registry.parsers).length === 0) {
     return 'the conversion registry names no site parser, so every site would be counted converted with nothing reading its output';
   }
+  const unclassified = Object.keys(registry.parsers)
+    .filter((site) => !GIT_SITES.includes(site) && !registry.nonSpawn.some((entry) => entry.site === site))
+    .sort();
+  if (unclassified.length > 0) {
+    return `these sites register a parser that neither a declared command builder nor a declared non-spawn step accounts for: ${unclassified.join(', ')}; a registry admits only what it can classify, because a parser registered under a name this module cannot place would be dropped from every count instead of halting, and a replacement pinned to nothing is invisible to every direction of this census`;
+  }
   return null;
 }
 
@@ -342,10 +346,6 @@ export function censusGitCommandFixtures(fixtures, source, registry = DEFAULT_CO
   const unparsed = sites.filter((site) => !Object.hasOwn(registry.parsers, site) || registry.parsers[site].length === 0);
   if (unparsed.length > 0) {
     return halt(`${MODULE}: these sites are transcribed but name no parser, so the engine would run their commands and have nothing to read the output with: ${unparsed.join(', ')}`);
-  }
-  const uncommanded = CONVERTED_TRANSCRIPTION_SITES.filter((site) => !sites.includes(site));
-  if (uncommanded.length > 0) {
-    return halt(`${MODULE}: these sites name a parser but are pinned to no incumbent command, so nothing says what their parser is reading: ${uncommanded.join(', ')}`);
   }
   return Object.freeze({
     ok: true,

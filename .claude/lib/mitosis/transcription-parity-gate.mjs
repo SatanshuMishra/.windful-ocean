@@ -18,6 +18,7 @@ import {
 } from './transcription-census.mjs';
 import { GIT_COMMAND_FIXTURES } from './git-command-fixtures.mjs';
 import {
+  CONVERTED_TRANSCRIPTION_SITES,
   DEFAULT_CONVERSION_REGISTRY,
   argvInertnessProbe,
   censusGitCommandFixtures,
@@ -48,7 +49,8 @@ export const TRANSCRIPTION_PARITY_ATTESTS = Object.freeze([
   'every anchor identifies exactly one incumbent command: an anchor the engine source spells more than once halts, so a fixture cannot stay pinned to a sibling command that survives the deletion of its own',
   'every command builder carries exactly one fixture and every fixture names a declared builder, in both directions, so a builder can be neither dropped from the pinning nor pinned twice',
   'a fixture repaired against the builder rather than against the incumbent halts, and that halt is exercised here on mutated copies of the shipped fixtures every time this verb runs, each control asserting the fixture it mutates is present before its result is trusted',
-  'every transcribed site names a parser and every named parser is pinned to a transcribed command, in both directions, so a site cannot be counted converted while nothing reads what its commands print',
+  'every transcribed site names a parser and every registered parser names a site a declared command builder or a declared non-spawn step accounts for, in both directions, so a site cannot be counted converted while nothing reads what its commands print, and a parser registered under a name this substrate cannot place halts rather than being filtered out of every count',
+  'a replacement registered for a site whose kind the declaration counts unconverted, and a replacement registered under a name no declared kind reaches, each halt; both halts are exercised here on the shipped declaration every time this verb runs',
   'every site parser is run here against the output it is declared to read and against the same output relabelled as a run that never completed, so a parser that has gone blind and a parser that reads a fact out of an interrupted run are both caught by this verb rather than only by the suite',
   'the bytes a converted step hands a child on stdin are pinned to the incumbent that composed them, so a payload name that drifts by one word halts here rather than publishing an identity a later run cannot read back',
   'the manifest publish stage is run here against a recording repository on every invocation, and its step-3 filesystem write, its stdin-only payload, its unforced identity push and its write-once replay are each measured rather than declared',
@@ -178,6 +180,9 @@ const CONVERSION_CONTROLS = Object.freeze([
   }),
 ]);
 
+const UNDECLARED_SITE = 'fence-extra';
+const UNCONVERTED_KIND_SITE = 'ship-verify';
+
 const REGISTRY_CONTROLS = Object.freeze([
   Object.freeze({
     name: 'a site that replaces no spawn and lost its incumbent anchor halts',
@@ -207,6 +212,16 @@ const REGISTRY_CONTROLS = Object.freeze([
     perturb: (registry) => ({
       ...registry,
       parsers: Object.fromEntries(Object.entries(registry.parsers).map(([site, entries]) => [site, site === 'fence' ? [] : entries])),
+    }),
+  }),
+  Object.freeze({
+    name: 'a parser registered under a site no builder and no non-spawn step declares halts',
+    expect: 'neither a declared command builder nor a declared non-spawn step accounts for',
+    present: (registry) => Object.hasOwn(registry.parsers, 'fence') && !Object.hasOwn(registry.parsers, UNDECLARED_SITE),
+    missing: `the parser table already names ${UNDECLARED_SITE}, so registering it perturbs nothing`,
+    perturb: (registry) => ({
+      ...registry,
+      parsers: { ...registry.parsers, [UNDECLARED_SITE]: registry.parsers.fence },
     }),
   }),
 ]);
@@ -265,16 +280,55 @@ const CONVERSION_STATE_CONTROLS = Object.freeze([
     kind: 'reconcile',
     was: false,
     becomes: true,
-    expect: 'reconcile',
+    expect: 'needs reconcile',
   }),
   Object.freeze({
     name: 'a kind whose replacement is registered but declared unconverted halts',
     kind: 'fence',
     was: true,
     becomes: false,
-    expect: 'fence',
+    expect: 'is served by fence',
   }),
 ]);
+
+const REGISTERED_SITE_CONTROLS = Object.freeze([
+  Object.freeze({
+    name: 'a replacement registered for a site whose kind the declaration counts unconverted halts',
+    site: UNCONVERTED_KIND_SITE,
+    expect: `is served by ${UNCONVERTED_KIND_SITE}`,
+  }),
+  Object.freeze({
+    name: 'a replacement registered under a name no declared kind reaches halts',
+    site: UNDECLARED_SITE,
+    expect: 'serve no declared kind',
+  }),
+]);
+
+export function registeredSiteProbes(sources) {
+  return Object.freeze(REGISTERED_SITE_CONTROLS.map((control) => {
+    if (CONVERTED_TRANSCRIPTION_SITES.includes(control.site)) {
+      return Object.freeze({
+        name: control.name,
+        halted: false,
+        named: false,
+        anchorPresent: false,
+        detail: `${control.site} already carries a registered replacement, so this control registered nothing and proves nothing`,
+      });
+    }
+    const measured = censusTranscriptionSources(
+      sources.map((entry) => ({ ...entry })),
+      TRANSCRIPTION_KINDS,
+      [...CONVERTED_TRANSCRIPTION_SITES, control.site],
+    );
+    return Object.freeze({
+      name: control.name,
+      halted: measured.ok !== true,
+      named: measured.ok !== true && typeof measured.error === 'string' && measured.error.includes(control.expect),
+      anchorPresent: true,
+      detail: measured.ok === true ? 'the census accepted it' : measured.error,
+    });
+  }));
+}
 
 export function conversionStateProbes(sources) {
   return Object.freeze(CONVERSION_STATE_CONTROLS.map((control) => {
@@ -343,7 +397,9 @@ export function probeTranscriptionSubstrate() {
       : Object.freeze([]),
     parsers: parserProbes(),
     manifestPublish: manifestPublishProbe(),
-    conversionStateControls: engine.error === undefined ? conversionStateProbes(engine.sources) : Object.freeze([]),
+    conversionStateControls: engine.error === undefined
+      ? Object.freeze([...conversionStateProbes(engine.sources), ...registeredSiteProbes(engine.sources)])
+      : Object.freeze([]),
     argvInertness: argvInertnessProbe(),
   });
 }

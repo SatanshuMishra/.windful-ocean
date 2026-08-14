@@ -87,6 +87,20 @@ test('the converted count is measured from the declaration, never pinned to a to
   assert.match(census.error, /fence is served by fence/);
 });
 
+test('a replacement registered for a site whose kind is declared unconverted halts rather than being filtered away', () => {
+  assert.ok(!CONVERTED_TRANSCRIPTION_SITES.includes('ship-verify'), 'ship-verify already registers a replacement, so this perturbation proves nothing');
+  const census = censusTranscriptionSources(engineFixture(), TRANSCRIPTION_KINDS, [...CONVERTED_TRANSCRIPTION_SITES, 'ship-verify']);
+  assert.equal(census.ok, false);
+  assert.match(census.error, /is served by ship-verify/);
+});
+
+test('a replacement registered under a name no declared kind reaches halts rather than being filtered away', () => {
+  assert.ok(!CONVERTED_TRANSCRIPTION_SITES.includes('fence-extra'), 'fence-extra already registers a replacement, so this perturbation proves nothing');
+  const census = censusTranscriptionSources(engineFixture(), TRANSCRIPTION_KINDS, [...CONVERTED_TRANSCRIPTION_SITES, 'fence-extra']);
+  assert.equal(census.ok, false);
+  assert.match(census.error, /serve no declared kind/);
+});
+
 test('the census measures its own extractors rather than reporting a declared total', () => {
   const census = transcriptionCensus();
   assert.equal(census.ok, true, census.error);

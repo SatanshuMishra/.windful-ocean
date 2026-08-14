@@ -368,7 +368,7 @@ export function conversionSitesOf(name) {
   return Object.hasOwn(CONVERSION_SITE_NAMES, name) ? CONVERSION_SITE_NAMES[name] : Object.freeze([name]);
 }
 
-function conversionStateFailure(declared) {
+function conversionStateFailure(declared, registered) {
   const declaredNames = new Set(declared.map((kind) => kind.name));
   const staleAlias = Object.keys(CONVERSION_SITE_NAMES).filter((name) => !declaredNames.has(name));
   if (staleAlias.length > 0) {
@@ -377,19 +377,19 @@ function conversionStateFailure(declared) {
   const claimed = declared
     .filter((kind) => kind.converted)
     .flatMap((kind) => conversionSitesOf(kind.name).map((site) => ({ kind: kind.name, site })))
-    .filter((entry) => !CONVERTED_TRANSCRIPTION_SITES.includes(entry.site));
+    .filter((entry) => !registered.includes(entry.site));
   if (claimed.length > 0) {
     return `transcription-census: these kinds are declared converted yet no deterministic replacement is registered for them: ${claimed.map((entry) => `${entry.kind} needs ${entry.site}`).join(', ')}; a declaration that runs ahead of the code it names is the overclaim this census exists to stop`;
   }
   const unclaimed = declared
     .filter((kind) => !kind.converted)
     .flatMap((kind) => conversionSitesOf(kind.name).map((site) => ({ kind: kind.name, site })))
-    .filter((entry) => CONVERTED_TRANSCRIPTION_SITES.includes(entry.site));
+    .filter((entry) => registered.includes(entry.site));
   if (unclaimed.length > 0) {
     return `transcription-census: these kinds are declared unconverted yet a deterministic replacement is registered for them: ${unclaimed.map((entry) => `${entry.kind} is served by ${entry.site}`).join(', ')}; a conversion the declaration does not count is a conversion this census reports as still outstanding`;
   }
   const reachable = new Set(declared.flatMap((kind) => conversionSitesOf(kind.name)));
-  const orphaned = CONVERTED_TRANSCRIPTION_SITES.filter((site) => !reachable.has(site));
+  const orphaned = registered.filter((site) => !reachable.has(site));
   if (orphaned.length > 0) {
     return `transcription-census: these deterministic replacements serve no declared kind: ${orphaned.join(', ')}; a replacement no site name reaches is one this census can neither count nor hold to the incumbent it was transcribed from`;
   }
@@ -405,7 +405,7 @@ function reachedIncludingParameterized(sites) {
   return [...named];
 }
 
-export function censusTranscriptionSources(sources, declared = TRANSCRIPTION_KINDS) {
+export function censusTranscriptionSources(sources, declared = TRANSCRIPTION_KINDS, registered = CONVERTED_TRANSCRIPTION_SITES) {
   if (!Array.isArray(sources) || sources.length === 0) {
     return halt('transcription-census: the census was handed no source, so it would attest a conversion list it never measured');
   }
@@ -476,7 +476,7 @@ export function censusTranscriptionSources(sources, declared = TRANSCRIPTION_KIN
   if (vanished.length > 0) {
     return halt(`transcription-census: these kinds are declared yet dispatch nowhere: ${vanished.map((kind) => kind.name).join(', ')}; every declared kind still dispatches until C7 wires the engine onto the converted substrate, so a site that vanished was removed without its wiring landing and the engine no longer performs it at all`);
   }
-  const conversionStateHalt = conversionStateFailure(declared);
+  const conversionStateHalt = conversionStateFailure(declared, registered);
   if (conversionStateHalt !== null) return halt(conversionStateHalt);
   const convertedKindNames = new Set(declared.filter((kind) => kind.converted).map((kind) => kind.name));
   const convertedSites = conversionTargetSites.filter((site) => convertedKindNames.has(site.name));
