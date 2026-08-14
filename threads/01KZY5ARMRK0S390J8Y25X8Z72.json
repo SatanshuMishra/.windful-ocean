@@ -59,7 +59,7 @@
     {
       "id": "c4",
       "text": "Allow widened per 0408 so ordinary work never prompts: broad tool-level allow plus mcp__* coverage, and settings.local.json truncated so one-off rules stop accumulating at source",
-      "done": false,
+      "done": true,
       "kind": "planned",
       "struck_by": null
     },
@@ -133,9 +133,9 @@
   "abandoned_reason": null,
   "closure_statement": null,
   "spine": {
-    "active_goal": "Permissions only: deny is pruned to genuine catastrophes; what remains is widening allow so ordinary work never prompts, then the PR.",
-    "next_step": "c4 next: widen allow per 0408 (broad tool-level allow plus mcp__* coverage) and truncate settings.local.json, applying every edit to BOTH .claude/settings.json and ~/.claude/settings.json since no propagation path remains. Then c9 (gate dead tokens, 0398-gated; nested settings.local.json) and c11 (the PR). Separately worth doing: close the default-branch push hole, which is widening not pruning so it stayed out of c3.",
-    "last_session": "Struck c14 as unenforceable ceremony (0411) and shipped c3: deny pruned 47 to 36 in both the tracked and live settings.json, committed as 15d8dca. Verified deny survives bypassPermissions, that the gate does not blanket-block curl, and that ssh commit signing works.",
+    "active_goal": "Permissions only: deny is pruned and allow is widened; what remains is c9 cleanup and opening the PR.",
+    "next_step": "c9 next: delete the gate's dead release-tree tokens (0398-gated, needs direct user confirmation) and the dead nested ~/.claude/.claude/settings.local.json. Then c11, the PR through pr-create - note the branch is named fix/release-tree-immutability but carries the whole permissions rebuild, so rename it before opening. Verify first that settings.local.json stopped regrowing, which is the only proof c4 stopped accumulation at source.",
+    "last_session": "Struck c14 (0411), shipped c3 (deny 47 to 36, commit 15d8dca) and c4 (allow 32 to 62 in both files, settings.local.json 213 to 0, commit 510b58a). Found mid-flight that the session ran in auto mode, which discards broad allow rules; user moved off it and both rule shapes are now written (0412).",
     "open_risks": [
       {
         "text": "Prune the gate tokens that guard the deleted release tree — guardname still lists releases, current, local, LIVE, CUTOVER and .cutover, which now match nothing, and 0398 gates the change on direct user confirmation",
@@ -161,6 +161,30 @@
         ]
       },
       {
+        "text": "Whether a deny rule survives --permission-mode bypassPermissions is UNVERIFIED — the SPEC asserts it, the docs are ambiguous and no U1-U7 experiment covers it, so \"the merge gates hold in an unattended run\" is an assumption not a property",
+        "scope": "thread",
+        "refs": [
+          "docs/superpowers/specs/2026-08-13-maximum-autonomy-permission-architecture-SPEC.md:274",
+          "0408"
+        ]
+      },
+      {
+        "text": "The permission mode is session-selected and nothing in the repo asserts it — defaultMode is null in all three settings files, so selecting auto mode again silently disables the nine broad allow entries with only a debug-level log",
+        "scope": "thread",
+        "refs": [
+          ".claude/settings.json",
+          "0412"
+        ]
+      },
+      {
+        "text": "The 20 MCP allow rules are an enumeration with gaps by construction — an allow rule cannot use mcp__*, so every newly added MCP server prompts until a line is added by hand",
+        "scope": "thread",
+        "refs": [
+          ".claude/settings.json",
+          "0412"
+        ]
+      },
+      {
         "text": "Default-branch push denies are prefix-literal and the gate has no push clause at all — git push -u origin main, git push origin HEAD:main and a bare git push with upstream set all reach main untouched, so 0405 is thinner than it reads",
         "scope": "thread",
         "refs": [
@@ -182,13 +206,6 @@
         "scope": "thread",
         "refs": [
           "~/.claude/hooks"
-        ]
-      },
-      {
-        "text": "gpg.ssh.allowedSignersFile is unset, so git log --show-signature errors and reports No signature on commits that ARE signed — read the raw gpgsig header before concluding a commit is unsigned",
-        "scope": "thread",
-        "refs": [
-          "~/.gitconfig"
         ]
       },
       {
@@ -261,5 +278,5 @@
     ]
   },
   "created_at": "2026-08-13T18:14:42.072Z",
-  "updated_at": "2026-08-14T04:13:12.738Z"
+  "updated_at": "2026-08-14T04:17:41.932Z"
 }
