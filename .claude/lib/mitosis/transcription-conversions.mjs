@@ -72,16 +72,29 @@ function ran(status, stdout = '') {
   return Object.freeze({ outcome: EXEC_COMPLETED, status, stdout, stderr: '', signal: null, error: null });
 }
 
+const QUOTED_SPECIMEN_PATH = 'src/café.txt';
+const QUOTED_SPECIMEN_LINE = '"src/caf\\303\\251.txt"';
+
 const SITE_PARSERS = Object.freeze({
   fence: Object.freeze([
-    Object.freeze({ name: 'parseStatusPaths', parse: parseStatusPaths, specimen: ran(0, ' M src/a.ts\nR  src/o.ts -> src/n.ts\n'), reads: (read) => read.paths.length === 3 }),
+    Object.freeze({
+      name: 'parseStatusPaths',
+      parse: parseStatusPaths,
+      specimen: ran(0, ` M ${QUOTED_SPECIMEN_LINE}\nR  src/o.ts -> src/n.ts\n`),
+      reads: (read) => read.paths.length === 3 && read.paths[0] === QUOTED_SPECIMEN_PATH,
+    }),
   ]),
   integrate: Object.freeze([
     Object.freeze({ name: 'parseMerge', parse: parseMerge, specimen: ran(1, 'CONFLICT (content): Merge conflict in src/a.ts\n'), reads: (read) => read.conflict === true && read.conflictPaths.length === 1 }),
     Object.freeze({ name: 'parseAncestry', parse: parseAncestry, specimen: ran(1), reads: (read) => read.ancestor === false }),
   ]),
   'divergence-check': Object.freeze([
-    Object.freeze({ name: 'parseNameOnlyPaths', parse: parseNameOnlyPaths, specimen: ran(0, 'src/a.ts\n'), reads: (read) => read.paths.length === 1 }),
+    Object.freeze({
+      name: 'parseNameOnlyPaths',
+      parse: parseNameOnlyPaths,
+      specimen: ran(0, `${QUOTED_SPECIMEN_LINE}\n`),
+      reads: (read) => read.paths.length === 1 && read.paths[0] === QUOTED_SPECIMEN_PATH,
+    }),
   ]),
   'prepare-probe': Object.freeze([
     Object.freeze({ name: 'parsePresence', parse: parsePresence, specimen: ran(1), reads: (read) => read.present === false }),
@@ -113,11 +126,21 @@ const SITE_PARSERS = Object.freeze({
     Object.freeze({ name: 'parseLsRemote', parse: parseLsRemote, specimen: ran(0, ''), reads: (read) => read.present === false }),
   ]),
   'ci-diff': Object.freeze([
-    Object.freeze({ name: 'parseNameOnlyPaths', parse: parseNameOnlyPaths, specimen: ran(0, 'src/a.ts\nsrc/b.ts\n'), reads: (read) => read.paths.length === 2 }),
+    Object.freeze({
+      name: 'parseNameOnlyPaths',
+      parse: parseNameOnlyPaths,
+      specimen: ran(0, `${QUOTED_SPECIMEN_LINE}\nsrc/b.ts\n`),
+      reads: (read) => read.paths.length === 2 && read.paths[0] === QUOTED_SPECIMEN_PATH,
+    }),
   ]),
   'ci-publish-verify': Object.freeze([
     Object.freeze({ name: 'parseAncestry', parse: parseAncestry, specimen: ran(0), reads: (read) => read.ancestor === true }),
-    Object.freeze({ name: 'parseNameOnlyPaths', parse: parseNameOnlyPaths, specimen: ran(0, 'src/a.ts\n'), reads: (read) => read.paths.length === 1 }),
+    Object.freeze({
+      name: 'parseNameOnlyPaths',
+      parse: parseNameOnlyPaths,
+      specimen: ran(0, `${QUOTED_SPECIMEN_LINE}\n`),
+      reads: (read) => read.paths.length === 1 && read.paths[0] === QUOTED_SPECIMEN_PATH,
+    }),
   ]),
   'manifest-publish': Object.freeze([
     Object.freeze({ name: 'parseLsRemote', parse: parseLsRemote, specimen: ran(0, `${SPECIMEN_SHA}\trefs/mitosis-manifest/a/b\n`), reads: (read) => read.sha === SPECIMEN_SHA }),
