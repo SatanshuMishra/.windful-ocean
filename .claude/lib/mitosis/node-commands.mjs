@@ -13,8 +13,6 @@ import {
 
 export const NODE_COMMAND_BINARY = 'node';
 export const NODE_END_OF_OPTIONS = '--';
-export const NODE_PR_VALUE_CAP = PR_VALUE_CAP;
-export const NODE_PR_TITLE_CAP = PR_TITLE_CAP;
 export const NODE_SUPERSEDES_CAP = PR_VALUE_CAP - SUPERSEDES_PREFIX.length;
 export const RUN_JOURNAL_PATH = '.mitosis/run.json';
 
@@ -211,12 +209,6 @@ export const NODE_SITE_COMMANDS = Object.freeze({
 });
 
 export const NODE_SITES = Object.freeze(Object.keys(NODE_SITE_COMMANDS));
-
-export const NODE_PROGRAM_PATHS = Object.freeze({
-  'reconcile/fold-run-log': FOLD_TOOL_PATH,
-  'supersede/open-pr': PR_TOOL_PATH,
-  'ship/open-pr': PR_TOOL_PATH,
-});
 
 export function buildNodeCommand(site, step, values) {
   const steps = NODE_SITE_COMMANDS[site];
