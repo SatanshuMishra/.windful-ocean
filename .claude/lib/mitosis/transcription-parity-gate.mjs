@@ -310,7 +310,7 @@ export function probeTranscriptionSubstrate() {
   });
 }
 
-export function transcriptionParityFailures(substrate) {
+function execRunFailures(substrate) {
   const failures = [];
   const refusals = substrate.refusals;
   const admitted = refusals.probes.filter((probe) => !probe.refused);
@@ -328,6 +328,11 @@ export function transcriptionParityFailures(substrate) {
   if (wrongRefVerdicts.length > 0) {
     failures.push(`the manifest ref policy disagrees with its own probes: ${wrongRefVerdicts.map((probe) => `${probe.name} expected ${probe.expected} but was ${probe.observed}`).join('; ')}`);
   }
+  return failures;
+}
+
+function pollFailures(substrate) {
+  const failures = [];
   const deadline = substrate.deadline;
   if (deadline.expiredOutcome !== EXEC_TIMEOUT_EXPIRED) {
     failures.push(`a bounded poll whose deadline passed reported ${JSON.stringify(deadline.expiredOutcome)} rather than ${JSON.stringify(EXEC_TIMEOUT_EXPIRED)}; the incumbent watch demands that token, and a deadline folded into a generic failure cannot be told from a command that simply failed`);
@@ -351,6 +356,11 @@ export function transcriptionParityFailures(substrate) {
   if (outcomes.mismatched.length > 0 || outcomes.unreached.length > 0 || outcomes.undeclared.length > 0) {
     failures.push(`the declared outcome set is not a closed census: mismatched ${JSON.stringify([...outcomes.mismatched])}, declared but unreachable ${JSON.stringify([...outcomes.unreached])}, produced but undeclared ${JSON.stringify([...outcomes.undeclared])}`);
   }
+  return failures;
+}
+
+function conversionFailures(substrate) {
+  const failures = [];
   const inertControls = substrate.censusControls.filter((control) => !control.halted || !control.named);
   if (inertControls.length > 0) {
     failures.push(`these census controls no longer halt on the thing they name, so the census would classify it silently: ${inertControls.map((control) => `${control.name} (${control.detail})`).join('; ')}`);
@@ -372,6 +382,11 @@ export function transcriptionParityFailures(substrate) {
   if (substrate.conversionControls.length === 0) {
     failures.push('the conversion guard ran no negative control at all, so nothing here would notice it going inert');
   }
+  return failures;
+}
+
+function parserFailures(substrate) {
+  const failures = [];
   const blindParsers = substrate.parsers.filter((probe) => !probe.reads);
   if (blindParsers.length > 0) {
     failures.push(`these site parsers no longer read the output they are declared to read: ${blindParsers.map((probe) => `${probe.name} (${probe.detail})`).join('; ')}`);
@@ -383,6 +398,11 @@ export function transcriptionParityFailures(substrate) {
   if (substrate.parsers.length === 0) {
     failures.push('no site parser was probed at all, so nothing here would notice one going blind');
   }
+  return failures;
+}
+
+function manifestPublishFailures(substrate) {
+  const failures = [];
   const manifest = substrate.manifestPublish;
   if (!manifest.published) {
     failures.push(`the manifest publish stage did not publish against a repository that answered every step cleanly: ${manifest.detail}`);
@@ -402,6 +422,11 @@ export function transcriptionParityFailures(substrate) {
   if (!manifest.replayAlreadyPresent || manifest.replaySpawnCount !== 2 || manifest.replayWriteCount !== 0) {
     failures.push(`a replay against an already published identity ran ${manifest.replaySpawnCount} spawn(s) and ${manifest.replayWriteCount} write(s) and reported alreadyPresent=${manifest.replayAlreadyPresent}; write once and forward only means the second attempt observes the ref and stops, writing nothing and pushing nothing`);
   }
+  return failures;
+}
+
+function conversionStateFailures(substrate) {
+  const failures = [];
   const unflipped = substrate.conversionStateControls.filter((control) => !control.anchorPresent);
   if (unflipped.length > 0) {
     failures.push(`these conversion state controls flip a declaration that is not there, so they flipped nothing and their result is meaningless: ${unflipped.map((control) => `${control.name} (${control.detail})`).join('; ')}`);
@@ -413,6 +438,11 @@ export function transcriptionParityFailures(substrate) {
   if (substrate.conversionStateControls.length === 0) {
     failures.push('the conversion count ran no negative control at all, so nothing here would notice the count drifting from the replacements it counts');
   }
+  return failures;
+}
+
+function argvInertnessFailures(substrate) {
+  const failures = [];
   const inert = substrate.argvInertness;
   if (!inert.built) {
     failures.push(`a transcribed command could not be built from a value carrying shell metacharacters, so nothing here measures whether such a value stays inert: ${inert.detail}`);
@@ -423,6 +453,18 @@ export function transcriptionParityFailures(substrate) {
     failures.push(`the chokepoint handed the child a shell rather than spawning it directly: ${inert.detail}; with a shell every transcribed value becomes a word the shell may expand, which is the whole harm the argument vector exists to prevent`);
   }
   return failures;
+}
+
+export function transcriptionParityFailures(substrate) {
+  return [
+    ...execRunFailures(substrate),
+    ...pollFailures(substrate),
+    ...conversionFailures(substrate),
+    ...parserFailures(substrate),
+    ...manifestPublishFailures(substrate),
+    ...conversionStateFailures(substrate),
+    ...argvInertnessFailures(substrate),
+  ];
 }
 
 export function transcriptionParityVerdict() {
@@ -438,64 +480,65 @@ export function transcriptionParityVerdict() {
   }
   if (!census.ok) return Object.freeze({ kind: 'halt', error: `halted on the dispatch census: ${census.error}` });
   if (failures.length > 0) return Object.freeze({ kind: 'violation', failures: Object.freeze(failures) });
+  return Object.freeze({ kind: 'clean', payload: parityPayload(census, substrate) });
+}
+
+function parityPayload(census, substrate) {
   return Object.freeze({
-    kind: 'clean',
-    payload: Object.freeze({
-      verb: 'transcription-parity',
-      ok: true,
-      sourceCount: census.sourceCount,
-      dispatchNodeCount: census.dispatchNodeCount,
-      labelTokenCount: census.labelTokenCount,
-      dispatchLabelCount: census.dispatchLabelCount,
-      passThroughCount: census.passThroughCount,
-      helperArgumentCount: census.helperArgumentCount,
-      inertLabelCount: census.inertLabelCount,
-      conversionTargetSiteCount: census.conversionTargetSiteCount,
-      observedTranscriptionNameCount: census.observedTranscriptionNameCount,
-      convertedKindCount: census.convertedKindCount,
-      unconvertedKindCount: census.unconvertedKindCount,
-      unconvertedSiteCount: census.unconvertedSiteCount,
-      convertedKinds: [...census.convertedKinds],
-      judgmentSiteCount: census.judgmentSiteCount,
-      journalSiteCount: census.journalSiteCount,
-      programSiteCount: census.programSiteCount,
-      parameterizedSiteCount: census.parameterizedSiteCount,
-      convertedSiteCount: census.convertedSiteCount,
-      convertedSites: census.convertedSites.map((site) => `${site.name} ${site.path}:${site.line}`),
-      unconvertedSites: census.unconvertedSites.map((site) => `${site.name} ${site.path}:${site.line}`),
-      twinSites: census.twinSites.map((site) => `${site.name} ${site.path}:${site.line}`),
-      inertSources: [...census.inertSources],
-      censusControls: substrate.censusControls.map((control) => `${control.name}: ${control.halted && control.named ? 'halted and named' : 'INERT'}`),
-      conversionStateControls: substrate.conversionStateControls.map((control) => `${control.name}: ${control.anchorPresent && control.halted && control.named ? 'halted and named' : 'INERT'}`),
-      commandFixtureParentSha: substrate.conversions.parentSha,
-      commandFixtureBinary: substrate.conversions.binary,
-      commandFixtureCount: substrate.conversions.fixtureCount,
-      commandFixtureSiteCount: substrate.conversions.siteCount,
-      commandFixtureSites: [...substrate.conversions.sites],
-      nonSpawnSteps: [...substrate.conversions.nonSpawnSteps],
-      siteParsers: [...substrate.conversions.parsers],
-      parserProbes: substrate.parsers.map((probe) => `${probe.name}: ${probe.reads && probe.failsClosed ? 'reads and fails closed' : 'INERT'}`),
-      manifestPublishSpawns: substrate.manifestPublish.spawnCount,
-      manifestPublishWrites: substrate.manifestPublish.writeCount,
-      manifestPublishReplaySpawns: substrate.manifestPublish.replaySpawnCount,
-      argvInertness: `${substrate.argvInertness.carriedWhole && substrate.argvInertness.unsplit ? 'one argument' : 'SPLIT'}, ${substrate.argvInertness.shellRefused ? 'no shell' : 'SHELL'}`,
-      derivedArguments: [...substrate.conversions.derivedArguments],
-      stdinSteps: [...substrate.conversions.stdinSteps],
-      conversionControls: substrate.conversionControls.map((control) => `${control.name}: ${control.anchorPresent && control.halted && control.named ? 'halted and named' : 'INERT'}`),
-      refusalProbes: substrate.refusals.probes.map((probe) => `${probe.name}: ${probe.refused ? 'refused' : 'ADMITTED'}`),
-      childrenStartedWhileRefusing: substrate.refusals.childrenStarted,
-      allowProbes: substrate.allowances.map((probe) => `${probe.name}: ${probe.allowed ? 'allowed' : 'REFUSED'}`),
-      manifestRefProbes: substrate.manifestRef.map((probe) => `${probe.name}: ${probe.observed}`),
-      pollOutcomes: [...substrate.deadline.outcomes],
-      pollDeadlineOutcome: substrate.deadline.expiredOutcome,
-      pollSatisfiedOutcome: substrate.deadline.satisfiedOutcome,
-      pollAttemptsBeforeDeadline: substrate.deadline.attemptsBeforeDeadline,
-      pollAttemptDeadlinesMs: [...substrate.deadline.attemptDeadlinesMs],
-      pollFrozenClockOutcome: substrate.deadline.frozenClockOutcome,
-      pollHungChildOutcome: substrate.deadline.hungChildOutcome,
-      attests: [...TRANSCRIPTION_PARITY_ATTESTS],
-      notAttested: [...TRANSCRIPTION_PARITY_NOT_ATTESTED],
-      c7Obligations: [...TRANSCRIPTION_C7_OBLIGATIONS],
-    }),
+    verb: 'transcription-parity',
+    ok: true,
+    sourceCount: census.sourceCount,
+    dispatchNodeCount: census.dispatchNodeCount,
+    labelTokenCount: census.labelTokenCount,
+    dispatchLabelCount: census.dispatchLabelCount,
+    passThroughCount: census.passThroughCount,
+    helperArgumentCount: census.helperArgumentCount,
+    inertLabelCount: census.inertLabelCount,
+    conversionTargetSiteCount: census.conversionTargetSiteCount,
+    observedTranscriptionNameCount: census.observedTranscriptionNameCount,
+    convertedKindCount: census.convertedKindCount,
+    unconvertedKindCount: census.unconvertedKindCount,
+    unconvertedSiteCount: census.unconvertedSiteCount,
+    convertedKinds: [...census.convertedKinds],
+    judgmentSiteCount: census.judgmentSiteCount,
+    journalSiteCount: census.journalSiteCount,
+    programSiteCount: census.programSiteCount,
+    parameterizedSiteCount: census.parameterizedSiteCount,
+    convertedSiteCount: census.convertedSiteCount,
+    convertedSites: census.convertedSites.map((site) => `${site.name} ${site.path}:${site.line}`),
+    unconvertedSites: census.unconvertedSites.map((site) => `${site.name} ${site.path}:${site.line}`),
+    twinSites: census.twinSites.map((site) => `${site.name} ${site.path}:${site.line}`),
+    inertSources: [...census.inertSources],
+    censusControls: substrate.censusControls.map((control) => `${control.name}: ${control.halted && control.named ? 'halted and named' : 'INERT'}`),
+    conversionStateControls: substrate.conversionStateControls.map((control) => `${control.name}: ${control.anchorPresent && control.halted && control.named ? 'halted and named' : 'INERT'}`),
+    commandFixtureParentSha: substrate.conversions.parentSha,
+    commandFixtureBinary: substrate.conversions.binary,
+    commandFixtureCount: substrate.conversions.fixtureCount,
+    commandFixtureSiteCount: substrate.conversions.siteCount,
+    commandFixtureSites: [...substrate.conversions.sites],
+    nonSpawnSteps: [...substrate.conversions.nonSpawnSteps],
+    siteParsers: [...substrate.conversions.parsers],
+    parserProbes: substrate.parsers.map((probe) => `${probe.name}: ${probe.reads && probe.failsClosed ? 'reads and fails closed' : 'INERT'}`),
+    manifestPublishSpawns: substrate.manifestPublish.spawnCount,
+    manifestPublishWrites: substrate.manifestPublish.writeCount,
+    manifestPublishReplaySpawns: substrate.manifestPublish.replaySpawnCount,
+    argvInertness: `${substrate.argvInertness.carriedWhole && substrate.argvInertness.unsplit ? 'one argument' : 'SPLIT'}, ${substrate.argvInertness.shellRefused ? 'no shell' : 'SHELL'}`,
+    derivedArguments: [...substrate.conversions.derivedArguments],
+    stdinSteps: [...substrate.conversions.stdinSteps],
+    conversionControls: substrate.conversionControls.map((control) => `${control.name}: ${control.anchorPresent && control.halted && control.named ? 'halted and named' : 'INERT'}`),
+    refusalProbes: substrate.refusals.probes.map((probe) => `${probe.name}: ${probe.refused ? 'refused' : 'ADMITTED'}`),
+    childrenStartedWhileRefusing: substrate.refusals.childrenStarted,
+    allowProbes: substrate.allowances.map((probe) => `${probe.name}: ${probe.allowed ? 'allowed' : 'REFUSED'}`),
+    manifestRefProbes: substrate.manifestRef.map((probe) => `${probe.name}: ${probe.observed}`),
+    pollOutcomes: [...substrate.deadline.outcomes],
+    pollDeadlineOutcome: substrate.deadline.expiredOutcome,
+    pollSatisfiedOutcome: substrate.deadline.satisfiedOutcome,
+    pollAttemptsBeforeDeadline: substrate.deadline.attemptsBeforeDeadline,
+    pollAttemptDeadlinesMs: [...substrate.deadline.attemptDeadlinesMs],
+    pollFrozenClockOutcome: substrate.deadline.frozenClockOutcome,
+    pollHungChildOutcome: substrate.deadline.hungChildOutcome,
+    attests: [...TRANSCRIPTION_PARITY_ATTESTS],
+    notAttested: [...TRANSCRIPTION_PARITY_NOT_ATTESTED],
+    c7Obligations: [...TRANSCRIPTION_C7_OBLIGATIONS],
   });
 }
