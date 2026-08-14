@@ -19,9 +19,47 @@ import {
   parseStatusPaths,
 } from './transcription-parsers.mjs';
 
+import { composeTreeEntry } from './manifest-publish.mjs';
+
 const MODULE = 'transcription-conversions';
 const REPOSITORY_FLAG = '-C';
 const SPECIMEN_SHA = '0123456789abcdef0123456789abcdef01234567';
+const FORMAT_TOKEN = '%s';
+
+export const STDIN_COMPOSITIONS = Object.freeze([
+  Object.freeze({
+    site: 'manifest-publish',
+    step: 'mktree',
+    compose: composeTreeEntry,
+    reads: 'the one-entry tree line the incumbent hands to printf',
+  }),
+]);
+
+function engineSourceForm(text) {
+  return text.split('\t').join('\\\\t').split('\n').join('\\\\n');
+}
+
+export function compositionFailures(fixtures, source) {
+  const failures = [];
+  for (const entry of STDIN_COMPOSITIONS) {
+    const at = `${entry.site}/${entry.step}`;
+    const fixture = fixtures.find((candidate) => candidate.site === entry.site && candidate.step === entry.step);
+    if (fixture === undefined) {
+      failures.push(`${MODULE}: ${at} composes bytes for a step that carries no fixture, so the composition is pinned to nothing`);
+      continue;
+    }
+    if (fixture.stdin === null) {
+      failures.push(`${MODULE}: ${at} composes bytes but its fixture does not record that the step receives any, so the two disagree about how the child is fed`);
+      continue;
+    }
+    if (!source.includes(fixture.anchor)) continue;
+    const composed = engineSourceForm(entry.compose(FORMAT_TOKEN));
+    if (!fixture.anchor.includes(composed)) {
+      failures.push(`${MODULE}: ${at} composes ${JSON.stringify(composed)}, which appears nowhere in the incumbent command it replaces; bytes handed to a child are pinned to the incumbent exactly as arguments are, because a name that differs by one word publishes something a later run cannot read back`);
+    }
+  }
+  return failures;
+}
 
 export const NON_SPAWN_SITES = Object.freeze([MANIFEST_WRITE_FIXTURE, PLAN_PROBE_FIXTURE]);
 
@@ -207,6 +245,7 @@ export function censusGitCommandFixtures(fixtures, source) {
   const failures = [
     ...fixtures.flatMap((fixture) => fixtureFailures(fixture, source)),
     ...nonSpawnFailures(source),
+    ...compositionFailures(fixtures, source),
   ];
   if (failures.length > 0) {
     return halt(`${MODULE}: ${failures.join(' | ')}`);
