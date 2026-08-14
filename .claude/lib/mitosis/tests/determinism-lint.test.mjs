@@ -5,6 +5,8 @@ import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { scanJsStructure } from '../js-scan.mjs';
 import {
+  BANNED_SURFACES,
+  ENTROPY_MODULES,
   censusDeterminism,
   censusEngineDeterminism,
   engineSourceFiles,
@@ -206,13 +208,13 @@ test('a member read of every banned clock and entropy surface is a violation, an
     violationsOf(source).map((v) => [v.line, v.identifier, v.surface]),
     [
       [1, 'performance', 'bare read'],
-      [2, 'crypto', 'bare read'],
-      [3, 'crypto', 'bare read'],
-      [4, 'crypto', 'bare read'],
-      [5, 'crypto', 'bare read'],
-      [6, 'crypto', 'bare read'],
-      [7, 'crypto', 'bare read'],
-      [8, 'process', 'bare read'],
+      [2, 'crypto', 'crypto.randomUUID'],
+      [3, 'crypto', 'crypto.randomBytes'],
+      [4, 'crypto', 'crypto.randomInt'],
+      [5, 'crypto', 'crypto.randomFillSync'],
+      [6, 'crypto', 'crypto.getRandomValues'],
+      [7, 'crypto', 'crypto.webcrypto'],
+      [8, 'process', 'process.hrtime'],
     ],
     'createHash, process.env, process.argv and an identifier merely prefixed with performance are deterministic and must stay allowed',
   );
@@ -247,10 +249,12 @@ function distinctViolations(source) {
 }
 
 test('a global receiver reaching an entropy member is a violation rather than a benign member access', () => {
-  assert.deepEqual(distinctViolations('const id = globalThis.crypto.randomUUID();\n'), ['1 crypto global-receiver member']);
+  assert.deepEqual(distinctViolations('const id = globalThis.crypto.randomUUID();\n'), ['1 crypto global-receiver randomUUID']);
   assert.deepEqual(distinctViolations('const t = globalThis.performance.now();\n'), ['1 performance global-receiver member']);
-  assert.deepEqual(distinctViolations('const w = window.crypto.getRandomValues(buffer);\n'), ['1 crypto global-receiver member']);
+  assert.deepEqual(distinctViolations('const w = window.crypto.getRandomValues(buffer);\n'), ['1 crypto global-receiver getRandomValues']);
   assert.deepEqual(distinctViolations('const s = subtle.crypto;\n'), []);
+  assert.deepEqual(distinctViolations("const h = globalThis.crypto.createHash('sha256');\n"), [], 'createHash stays allowed on a global receiver, and the verdict must name the member it read rather than the receiver');
+  assert.equal(census('const c = globalThis.crypto;\n').ok, false, 'a global-receiver entropy object read without a member cannot be told from a denied one');
 });
 
 test('an entropy receiver this census cannot read halts rather than being classified either way', () => {
@@ -311,4 +315,82 @@ test('the real engine directory is scanned through the same reader the gate uses
   for (const path of enumerated.files) {
     assert.equal(realSourceIo.readSource(path), readFileSync(path, 'utf8'));
   }
+});
+
+const IDIOMATIC_SPELLINGS = Object.freeze([
+  ['namespace import of node:crypto reaching an entropy member', "import * as ns from 'node:crypto';\nexport const a = () => ns.randomUUID();\n", 'flag'],
+  ['default import of node:crypto reaching an entropy member', "import nc from 'node:crypto';\nexport const a = () => nc.randomUUID();\n", 'flag'],
+  ['dynamic import of node:crypto reaching an entropy member', "const m = await import('node:crypto');\nexport const a = () => m.randomUUID();\n", 'flag'],
+  ['require of node:crypto reaching an entropy member', "const m = require('node:crypto');\nexport const a = () => m.randomUUID();\n", 'flag'],
+  ['createRequire reaching an entropy member', "import { createRequire } from 'node:module';\nconst r = createRequire(import.meta.url);\nconst m = r('node:crypto');\nexport const a = () => m.randomUUID();\n", 'flag'],
+  ['aliased entropy binding through an import rename', "import { randomUUID as uuid } from 'node:crypto';\nexport const a = () => uuid();\n", 'flag'],
+  ['destructured require of an entropy member', "const { randomUUID } = require('node:crypto');\nexport const a = () => randomUUID();\n", 'flag'],
+  ['namespace import of node:perf_hooks reaching the clock', "import * as ph from 'node:perf_hooks';\nexport const a = () => ph.performance.now();\n", 'flag'],
+  ['bare crypto specifier, namespace import', "import * as ns from 'crypto';\nexport const a = () => ns.randomBytes(4);\n", 'flag'],
+  ['bare perf_hooks specifier, namespace import', "import * as ph from 'perf_hooks';\nexport const a = () => ph.performance.now();\n", 'flag'],
+  ['aliased Date', 'const d = Date;\nexport const a = () => d.now();\n', 'flag'],
+  ['global receiver reaching an entropy member', 'export const a = () => globalThis.crypto.randomUUID();\n', 'flag'],
+  ['computed member access on an entropy receiver', "import crypto from 'node:crypto';\nexport const a = () => crypto['randomUUID']();\n", 'halt'],
+  ['module specifier held in a variable', "const spec = 'node:crypto';\nconst m = await import(spec);\nexport const a = () => m.randomUUID();\n", 'halt'],
+  ['module load that is not assigned to a readable binding', "export const a = (await import('node:crypto')).randomUUID();\n", 'halt'],
+  ['local shadow named like an entropy receiver', "export const a = (crypto) => crypto.createHash('sha256');\n", 'halt'],
+  ['side-effect-only import of an entropy module', "import 'node:crypto';\nexport const a = () => 1;\n", 'clean'],
+  ['default import used only for createHash', "import nc from 'node:crypto';\nexport const a = () => nc.createHash('sha256');\n", 'clean'],
+  ['namespace import used only for createHash', "import * as ns from 'node:crypto';\nexport const a = () => ns.createHash('sha256');\n", 'clean'],
+  ['named import of createHash', "import { createHash } from 'node:crypto';\nexport const a = () => createHash('sha256');\n", 'clean'],
+  ['global receiver reaching createHash', "export const a = () => globalThis.crypto.createHash('sha256');\n", 'clean'],
+  ['an entropy module name used as an object key', "export const table = { 'node:crypto': 1, 'node:perf_hooks': 2 };\n", 'clean'],
+]);
+
+function verdictOf(source) {
+  const scan = scanJsStructure(source);
+  if (!scan.ok) return 'scan-failed';
+  const result = censusDeterminism(source, scan);
+  if (!result.ok) return 'halt';
+  return result.violations.length > 0 ? 'flag' : 'clean';
+}
+
+function derivedSurfaceSpellings() {
+  return BANNED_SURFACES.flatMap((surface) => (surface.member === null
+    ? [[`bare read of ${surface.identifier}`, `export const a = ${surface.identifier};\n`, 'flag']]
+    : [
+      [`${surface.identifier}.${surface.member}`, `export const a = ${surface.identifier}.${surface.member};\n`, 'flag'],
+      [`${surface.identifier} reaching a deterministic neighbour`, `export const a = ${surface.identifier}.aDeterministicNeighbour;\n`, 'clean'],
+    ]));
+}
+
+function derivedModuleSpellings() {
+  return Object.entries(ENTROPY_MODULES).flatMap(([specifier, members]) => [
+    ...members.map((member) => [
+      `namespace import of ${specifier} reaching ${member}`,
+      `import * as ns from '${specifier}';\nexport const a = ns.${member};\n`,
+      'flag',
+    ]),
+    [
+      `namespace import of ${specifier} reaching a deterministic neighbour`,
+      `import * as ns from '${specifier}';\nexport const a = ns.aDeterministicNeighbour;\n`,
+      'clean',
+    ],
+  ]);
+}
+
+test('every banned surface and every entropy module the guard declares is measured, and none of the measured spellings survives', () => {
+  const spellings = [...derivedSurfaceSpellings(), ...derivedModuleSpellings(), ...IDIOMATIC_SPELLINGS];
+  const survivors = spellings
+    .map(([name, source, want]) => ({ name, want, got: verdictOf(source) }))
+    .filter((row) => row.got !== row.want)
+    .map((row) => `${row.name}: wanted ${row.want}, measured ${row.got}`);
+  assert.deepEqual(
+    survivors,
+    [],
+    `these spellings are not classified the way the guard claims; a spelling measured 'clean' when it should flag is a live bypass:\n${survivors.join('\n')}`,
+  );
+  const exercisedIdentifiers = new Set(BANNED_SURFACES.map((surface) => surface.identifier));
+  const exercisedModules = new Set(Object.keys(ENTROPY_MODULES));
+  const namedSurface = new Set(spellings.map(([name]) => name));
+  const unmeasured = [
+    ...[...exercisedIdentifiers].filter((identifier) => ![...namedSurface].some((name) => name.includes(identifier))),
+    ...[...exercisedModules].filter((specifier) => ![...namedSurface].some((name) => name.includes(specifier))),
+  ];
+  assert.deepEqual(unmeasured, [], `these declared surfaces are named by no spelling, so this table measures a subset of the guard: ${unmeasured.join(', ')}`);
 });
