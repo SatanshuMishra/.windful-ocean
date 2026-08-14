@@ -261,6 +261,14 @@ function importsAnything(masked) {
   return /^[ \t]*import\s/m.test(masked) || /(?<![\w$])require\s*\(/.test(masked) || /(?<![\w$])import\s*\(/.test(masked);
 }
 
+export const JOURNAL_ARGV_COMPOSERS = Object.freeze({
+  'lib/mitosis/node-commands.mjs': 'the transcribed argument vector for the deterministic fold CLI: the reconcile stage runs fold-run-log.mjs against the journal, which READS it, so this source composes the path as one inert argument vector element and hands it to no filesystem call; the writer check above this classification still refuses a path handed to any writer here',
+});
+
+function declaredArgvComposer(path) {
+  return Object.keys(JOURNAL_ARGV_COMPOSERS).find((suffix) => path.endsWith(suffix));
+}
+
 function namedAsProseWord(raw, index) {
   const start = index - QUALIFIER.length - 1;
   return start >= 0 && PROSE_LEAD.test(raw[start]);
@@ -301,6 +309,7 @@ function classifySite(context, index) {
   }
   if (!insideDispatch(context, index)) {
     if (context.dispatchOnly || namedAsProseWord(context.raw, index)) return { role: 'mention' };
+    if (declaredArgvComposer(context.path) !== undefined) return { role: 'argv' };
     return { error: `${context.path}:${lineOf(context.raw, index)} composes the run journal path as a path expression outside any dispatch, in a source that imports and can therefore write. The journal is written through journal-store.mjs, whose path is an argument; the one inert form this census enumerates for an importing source is the basename named as a word in prose, so a path built here is refused rather than counted as an unread mention` };
   }
   const directive = directiveAt(context.raw, index);
@@ -369,15 +378,23 @@ function censusOneSource(source) {
   if (basenames.unknown.length > 0) return { error: `journal-census: ${basenames.unknown.join('; ')}` };
   const sites = [];
   let mentionCount = 0;
+  let argvCount = 0;
   for (const index of basenames.qualified) {
     const classified = classifySite(context, index);
     if (classified.error !== undefined) return { error: `journal-census: ${classified.error}` };
     if (classified.role === 'write') sites.push(classified.site);
+    else if (classified.role === 'argv') argvCount += 1;
     else mentionCount += 1;
+  }
+  const composer = declaredArgvComposer(context.path);
+  if (composer !== undefined && argvCount === 0) {
+    return { error: `journal-census: ${context.path} is declared as composing the run journal path into an argument vector, yet it composes no such path; a declaration nothing matches keeps a source excused after the composition that justified it is gone` };
   }
   return {
     sites,
     mentionCount,
+    argvCount,
+    argvComposer: composer === undefined ? null : context.path,
     artifactCount: artifacts.counted,
     gitignoreClauseCount: occurrencesOf(context.raw, GITIGNORE_CLAUSE).length,
     dispatchOnly: context.dispatchOnly ? context.path : null,
@@ -392,6 +409,8 @@ export function censusJournalDispatches(sources) {
   if (drift !== null) return halt(drift);
   const sites = [];
   const dispatchOnly = [];
+  const argvComposers = [];
+  let argvCount = 0;
   let artifactCount = 0;
   let gitignoreClauseCount = 0;
   let mentionCount = 0;
@@ -403,6 +422,13 @@ export function censusJournalDispatches(sources) {
     artifactCount += measured.artifactCount;
     gitignoreClauseCount += measured.gitignoreClauseCount;
     if (measured.dispatchOnly !== null) dispatchOnly.push(measured.dispatchOnly);
+    if (measured.argvComposer !== null) argvComposers.push(measured.argvComposer);
+    argvCount += measured.argvCount;
+  }
+  const unreachedComposers = Object.keys(JOURNAL_ARGV_COMPOSERS)
+    .filter((suffix) => !argvComposers.some((path) => path.endsWith(suffix)));
+  if (unreachedComposers.length > 0) {
+    return halt(`journal-census: these sources are declared as composing the run journal path into an argument vector but were never read: ${unreachedComposers.join(', ')}; a declaration no scanned source matches excuses a composition this census would never see`);
   }
   if (sites.length !== gitignoreClauseCount) {
     return halt(`journal-census: the extractor resolved ${sites.length} journal write site(s) while the independently counted "${GITIGNORE_CLAUSE}" clause appears ${gitignoreClauseCount} time(s); the two disagree, so one of the two extractors is reading a subset and neither figure can be trusted`);
@@ -423,6 +449,9 @@ export function censusJournalDispatches(sources) {
     siteCount: sites.length,
     kindCount: kinds.length,
     artifactCount,
+    argvComposerCount: argvComposers.length,
+    argvComposedPathCount: argvCount,
+    argvComposers: Object.freeze(Object.entries(JOURNAL_ARGV_COMPOSERS).map(([name, reason]) => `${name}: ${reason}`)),
     gitignoreClauseCount,
     mentionCount,
     sourceCount: sources.length,

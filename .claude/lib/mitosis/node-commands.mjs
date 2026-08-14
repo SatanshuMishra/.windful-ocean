@@ -14,7 +14,7 @@ const PR_ORIGIN_MACHINE = 'machine';
 const PR_CREATE = 'pr-create';
 const PR_TOOL = 'pr.mjs';
 const FOLD_TOOL = 'fold-run-log.mjs';
-const RUN_JOURNAL = '.mitosis/run.json';
+export const RUN_JOURNAL_PATH = '.mitosis/run.json';
 const DEPENDS_SEPARATOR = ',';
 const UNIT_ID_PATTERN = /^[a-z0-9][a-z0-9-]*$/;
 const CHANGED_LINES_PATTERN = /^(0|[1-9][0-9]{0,6})$/;
@@ -95,7 +95,7 @@ function changedLinesIn(where, field, value) {
 }
 
 const RECONCILE = Object.freeze({
-  'fold-run-log': (v, t) => [NODE_END_OF_OPTIONS, `${t.path('libDir', v.libDir)}/${FOLD_TOOL}`, `${t.path('repoRoot', v.repoRoot)}/${RUN_JOURNAL}`],
+  'fold-run-log': (v, t) => [NODE_END_OF_OPTIONS, `${t.path('libDir', v.libDir)}/${FOLD_TOOL}`, `${t.path('repoRoot', v.repoRoot)}/${RUN_JOURNAL_PATH}`],
 });
 
 const SUPERSEDE = Object.freeze({
