@@ -15,6 +15,7 @@ import { censusEngineDeterminism, engineSourceRoots, realSourceIo } from './dete
 import { EXEC_ALLOWLIST, assertSpawnAllowed, resolveSpawn } from './exec-policy.mjs';
 import { MERGE_REFUSAL_SPECIMENS } from './gh-merge-shim.mjs';
 import { REQUIRED_TOOL, agentDefinitionDir, censusAgentSchemaCapability } from './agent-schema-lint.mjs';
+import { PHASE_TITLES } from './phases.mjs';
 
 export const GATE_CLEAN_EXIT = 0;
 export const GATE_USAGE_EXIT = 40;
@@ -58,6 +59,9 @@ const VERB_DEFAULT_TARGETS = Object.freeze({
 });
 
 const PHASE_TOKEN_TEXT = 'phase';
+const PHASE_AUTHORITY_KEY = 'the phase authority';
+const PHASE_PARITY_CALLER = 'checkPhaseParity';
+const PHASE_AUTHORITY_CALLER = 'checkPhaseAuthority';
 const ESM_EXPORT_PREFIX = /^export /gm;
 const FUNCTION_NAME_PATTERN = /^[A-Za-z_$][\w$]*$/;
 const NON_NAME_WORDS = Object.freeze(new Set(['function', 'if', 'for', 'while', 'switch', 'catch', 'return', 'typeof', 'await', 'new']));
@@ -460,19 +464,34 @@ export function extractPhaseSurfaces(source) {
   });
 }
 
-function requireTitleList(surfaces, key) {
-  if (surfaces === null || typeof surfaces !== 'object' || Array.isArray(surfaces)) {
-    throw new TypeError('checkPhaseParity expects an object carrying declared, called and assigned');
-  }
-  const value = surfaces[key];
-  if (!Array.isArray(value)) throw new TypeError(`checkPhaseParity expects ${key} to be an array of phase titles`);
-  if (value.length === 0) throw new TypeError(`checkPhaseParity expects ${key} to carry at least one phase title`);
+function requireTitleArray(value, key, caller) {
+  if (!Array.isArray(value)) throw new TypeError(`${caller} expects ${key} to be an array of phase titles`);
+  if (value.length === 0) throw new TypeError(`${caller} expects ${key} to carry at least one phase title`);
   for (const title of value) {
     if (typeof title !== 'string' || title.trim().length === 0) {
-      throw new TypeError(`checkPhaseParity expects every ${key} entry to be a non-empty string`);
+      throw new TypeError(`${caller} expects every ${key} entry to be a non-empty string`);
     }
   }
   return value;
+}
+
+function requireTitleList(surfaces, key) {
+  if (surfaces === null || typeof surfaces !== 'object' || Array.isArray(surfaces)) {
+    throw new TypeError(`${PHASE_PARITY_CALLER} expects an object carrying declared, called and assigned`);
+  }
+  return requireTitleArray(surfaces[key], key, PHASE_PARITY_CALLER);
+}
+
+function requireAuthoritySet(authority) {
+  const titles = requireTitleArray(authority, PHASE_AUTHORITY_KEY, PHASE_AUTHORITY_CALLER);
+  const named = new Set();
+  for (const title of titles) {
+    if (named.has(title)) {
+      throw new TypeError(`${PHASE_AUTHORITY_CALLER} expects ${PHASE_AUTHORITY_KEY} to name every phase title once, and ${JSON.stringify(title)} is named twice; an authority this census cannot read as a set is unclassifiable, so it halts rather than letting the duplicate take part in the comparison`);
+    }
+    named.add(title);
+  }
+  return named;
 }
 
 export function checkPhaseParity(surfaces) {
@@ -480,16 +499,29 @@ export function checkPhaseParity(surfaces) {
   const called = requireTitleList(surfaces, 'called');
   const assigned = requireTitleList(surfaces, 'assigned');
   const declaredSet = new Set(declared);
+  const calledSet = new Set(called);
   const usedSet = new Set([...called, ...assigned]);
-  const declaredNeverUsed = [...declaredSet].filter((title) => !usedSet.has(title)).sort();
+  const declaredNeverCalled = [...declaredSet].filter((title) => !calledSet.has(title)).sort();
   const usedNeverDeclared = [...usedSet].filter((title) => !declaredSet.has(title)).sort();
   return Object.freeze({
-    ok: declaredNeverUsed.length === 0 && usedNeverDeclared.length === 0,
-    declaredNeverUsed: Object.freeze(declaredNeverUsed),
+    ok: declaredNeverCalled.length === 0 && usedNeverDeclared.length === 0,
+    declaredNeverCalled: Object.freeze(declaredNeverCalled),
     usedNeverDeclared: Object.freeze(usedNeverDeclared),
     declared: Object.freeze([...declaredSet].sort()),
-    called: Object.freeze([...new Set(called)].sort()),
+    called: Object.freeze([...calledSet].sort()),
     assigned: Object.freeze([...new Set(assigned)].sort()),
+  });
+}
+
+export function checkPhaseAuthority(declared, authority) {
+  const declaredSet = new Set(requireTitleArray(declared, 'declared', PHASE_AUTHORITY_CALLER));
+  const authoritySet = requireAuthoritySet(authority);
+  const declaredNotInAuthority = [...declaredSet].filter((title) => !authoritySet.has(title)).sort();
+  const authorityNotDeclared = [...authoritySet].filter((title) => !declaredSet.has(title)).sort();
+  return Object.freeze({
+    ok: declaredNotInAuthority.length === 0 && authorityNotDeclared.length === 0,
+    declaredNotInAuthority: Object.freeze(declaredNotInAuthority),
+    authorityNotDeclared: Object.freeze(authorityNotDeclared),
   });
 }
 
@@ -546,18 +578,26 @@ function runPhaseParityGate(target, out, readSource) {
     return GATE_UNRESOLVABLE_EXIT;
   }
   let verdict;
+  let agreement;
   try {
     verdict = checkPhaseParity(extracted.surfaces);
+    agreement = checkPhaseAuthority(extracted.surfaces.declared, PHASE_TITLES);
   } catch (err) {
     out.err(`mitosis-gate: phase-parity could not evaluate ${target}: ${err && err.message ? err.message : 'unknown failure'}\n`);
     return GATE_UNRESOLVABLE_EXIT;
   }
-  if (!verdict.ok) {
-    if (verdict.declaredNeverUsed.length > 0) {
-      out.err(`mitosis-gate: ${target} declares phases that are never used: ${verdict.declaredNeverUsed.join(', ')}\n`);
+  if (!verdict.ok || !agreement.ok) {
+    if (verdict.declaredNeverCalled.length > 0) {
+      out.err(`mitosis-gate: ${target} declares phases that are never called: ${verdict.declaredNeverCalled.join(', ')}\n`);
     }
     if (verdict.usedNeverDeclared.length > 0) {
       out.err(`mitosis-gate: ${target} uses phases that are never declared: ${verdict.usedNeverDeclared.join(', ')}\n`);
+    }
+    if (agreement.declaredNotInAuthority.length > 0) {
+      out.err(`mitosis-gate: ${target} declares phases the phase authority does not name: ${agreement.declaredNotInAuthority.join(', ')}\n`);
+    }
+    if (agreement.authorityNotDeclared.length > 0) {
+      out.err(`mitosis-gate: the phase authority names phases ${target} never declares: ${agreement.authorityNotDeclared.join(', ')}\n`);
     }
     return GATE_VIOLATION_EXIT;
   }

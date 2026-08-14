@@ -4273,6 +4273,7 @@ const runOpenPRs = classifyRunOpenPRs(reusable && recon ? recon.openPRs : [], {
 });
 let relaunchAdvance = null;
 if (isRelaunch && reusable && builtUnits.length > 0) {
+  phase('Resume');
   const baseLiveSignals = buildReconcileLiveSignals(recon, reconciledShipped, sourcePrefix, runOpenPRs);
   const diverged = await divergedParents(reconciledManifest, baseLiveSignals.merged, baseLiveSignals.mergedShas, { agent, log, logicalRunId, divergenceCheckPrompt, DIVERGENCE_CHECK_SCHEMA });
   const liveSignals = { ...baseLiveSignals, divergedParents: diverged };

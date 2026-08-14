@@ -65,6 +65,7 @@ const MIRROR_CENSUS = Object.freeze({
   'js-scan.mjs': STANDALONE,
   'ledger-lint.mjs': STANDALONE,
   'mitosis-gate.mjs': STANDALONE,
+  'phases.mjs': STANDALONE,
   'pool.mjs': STANDALONE,
   'run-store.mjs': STANDALONE,
   'git/pr.mjs': STANDALONE,
