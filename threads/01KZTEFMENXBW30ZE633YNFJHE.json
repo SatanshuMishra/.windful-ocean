@@ -66,7 +66,7 @@
     {
       "id": "c14",
       "text": "The receipts enforcer ReDoS is diagnosed to its regex and its trigger escaped on the stack base, with the receipts job proven green on a real runner in 11 seconds.",
-      "done": false,
+      "done": true,
       "kind": "detour",
       "struck_by": null
     },
@@ -410,5 +410,5 @@
     ]
   },
   "created_at": "2026-08-12T07:37:41.077Z",
-  "updated_at": "2026-08-14T05:09:01.929Z"
+  "updated_at": "2026-08-14T05:09:39.502Z"
 }
