@@ -1,4 +1,5 @@
 import { test } from 'node:test';
+import { MANIFEST_REF_NAMESPACE } from '../manifest-ref-policy.mjs';
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
 import { mkdtempSync, readFileSync, rmSync, statSync } from 'node:fs';
@@ -180,6 +181,31 @@ test('a request missing any field it needs is refused before any child starts', 
     assert.equal(result.published, false, `${field} was accepted as empty`);
     assert.equal(io.spawns.length, 0, `${field} was accepted and a child started`);
   }
+});
+
+test('a run identity outside the published-manifest namespace is refused before any child starts', () => {
+  const outside = [
+    'refs/heads/brandnew',
+    'refs/tags/v1',
+    'refs/mitosis-manifestation/aaaa1111/0123456789abcdef',
+    'mitosis-manifest/aaaa1111/0123456789abcdef',
+    `${MANIFEST_REF_NAMESPACE}../heads/main`,
+    `${MANIFEST_REF_NAMESPACE}-upload-pack`,
+  ];
+  for (const manifestRef of outside) {
+    const io = recorder(HAPPY);
+    const result = publishManifest(request({ manifestRef }), io);
+    assert.equal(result.published, false, `${manifestRef} was published`);
+    assert.equal(result.alreadyPresent, false, `${manifestRef} was reported as an existing identity`);
+    assert.equal(io.spawns.length, 0, `${manifestRef} started a child before it was refused`);
+    assert.equal(io.writes.length, 0, `${manifestRef} wrote a payload before it was refused`);
+  }
+});
+
+test('a run identity inside the namespace is still accepted, so the confinement is not wider than the namespace it names', () => {
+  const io = recorder(HAPPY);
+  const result = publishManifest(request({ manifestRef: `${MANIFEST_REF_NAMESPACE}bbbb2222/fedcba9876543210` }), io);
+  assert.equal(result.published, true, result.detail);
 });
 
 test('the composed identity round-trips through real git, tree entry and all', () => {

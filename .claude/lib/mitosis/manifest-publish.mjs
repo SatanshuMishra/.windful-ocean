@@ -1,4 +1,6 @@
 import { join } from 'node:path';
+import { validateRefToken } from './checkpoint.mjs';
+import { MANIFEST_REF_NAMESPACE } from './manifest-ref-policy.mjs';
 import { GIT_COMMAND_BINARY, buildGitCommand } from './git-commands.mjs';
 import { run } from './exec-run.mjs';
 import { OWNER_ONLY_MODE, createDirectoryChain, replaceFileAtomically, requireConfinedPath } from './fs-writer.mjs';
@@ -39,6 +41,12 @@ function requestOf(request) {
   const missing = REQUIRED_FIELDS.filter((field) => typeof request[field] !== 'string' || request[field].length === 0);
   if (missing.length > 0) {
     return { error: `${MODULE}: the publish request carries no ${missing.join(', ')}; a run identity composed from a value the caller never supplied would publish under a name nothing can recover it by` };
+  }
+  if (!request.manifestRef.startsWith(MANIFEST_REF_NAMESPACE)) {
+    return { error: `${MODULE}: ${JSON.stringify(request.manifestRef)} does not sit under the published-manifest namespace ${MANIFEST_REF_NAMESPACE}; this stage pushes the ref it is handed to origin, so a ref named anywhere else would create that ref on the remote from caller-chosen bytes, and a pushed refs/heads/ ref alone can trigger branch-push CI or a branch-based deploy` };
+  }
+  if (!validateRefToken(request.manifestRef)) {
+    return { error: `${MODULE}: ${JSON.stringify(request.manifestRef)} is not a well-formed ref token; the namespace prefix alone does not make the rest of the name one git would resolve to the identity this run published` };
   }
   return { value: Object.freeze({ ...request }) };
 }
@@ -170,6 +178,27 @@ const PRESENT_RESPONSES = Object.freeze([
   { status: 0, stdout: `${PROBE_COMMIT}\t${PROBE_REF}\n` },
 ]);
 
+const UNCONFINED_REFS = Object.freeze([
+  'refs/heads/brandnew',
+  'refs/tags/v1',
+  'refs/mitosis-manifestation/aaaa1111/0123456789abcdef',
+  `${MANIFEST_REF_NAMESPACE}../heads/main`,
+  `${MANIFEST_REF_NAMESPACE}-upload-pack`,
+  'mitosis-manifest/aaaa1111/0123456789abcdef',
+]);
+
+function confinementProbes() {
+  return Object.freeze(UNCONFINED_REFS.map((manifestRef) => {
+    const io = recordingIo(CLEAN_RESPONSES);
+    const attempted = publishManifest({ repoRoot: PROBE_REPO, manifestRef, logicalRunId: PROBE_RUN, payload: PROBE_PAYLOAD }, io);
+    return Object.freeze({
+      name: manifestRef,
+      refused: attempted.published === false && attempted.alreadyPresent === false && io.spawns.length === 0 && io.writes.length === 0,
+      detail: `${attempted.detail} (${io.spawns.length} spawn(s), ${io.writes.length} write(s))`,
+    });
+  }));
+}
+
 export function manifestPublishProbe() {
   const clean = recordingIo(CLEAN_RESPONSES);
   const published = publishManifest({ repoRoot: PROBE_REPO, manifestRef: PROBE_REF, logicalRunId: PROBE_RUN, payload: PROBE_PAYLOAD }, clean);
@@ -190,5 +219,6 @@ export function manifestPublishProbe() {
     replayAlreadyPresent: skipped.alreadyPresent === true && skipped.published === false,
     replaySpawnCount: replayed.spawns.length,
     replayWriteCount: replayed.writes.length,
+    confinement: confinementProbes(),
   });
 }
