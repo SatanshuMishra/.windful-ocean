@@ -145,7 +145,12 @@ export function supersedeSummaryProbes() {
     }),
     Object.freeze({
       name: `a summary past the pr-create value cap is cut here to ${SUPERSEDE_SUMMARY_CAP}`,
-      ok: long.ok === true && long.summary.length <= SUPERSEDE_SUMMARY_CAP && long.summary.startsWith('400 files changed'),
+      ok: long.ok === true
+        && long.summary.length <= SUPERSEDE_SUMMARY_CAP
+        && long.summary.startsWith('400 files changed')
+        && long.bounded === true
+        && long.summary.includes(': src/')
+        && inertValue(long.summary, SUPERSEDE_SUMMARY_CAP) === long.summary,
       detail: long.ok === true ? `${long.summary.length} character(s) from a composition of ${long.composedLength}` : long.error,
     }),
     Object.freeze({

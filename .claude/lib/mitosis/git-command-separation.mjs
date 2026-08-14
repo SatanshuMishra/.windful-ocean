@@ -150,8 +150,8 @@ export const PR_URL_SHAPED = 'pr-url';
 export const DATA_PATH_SHAPED = 'data-path';
 
 const HOSTILE_VALUES = Object.freeze([
-  Object.freeze({ name: 'an upload-pack option spelled as a value', value: '--upload-pack=touch /tmp/mitosis-pwned;true', refusedFor: Object.freeze([REF_SHAPED, PATH_SHAPED]) }),
-  Object.freeze({ name: 'a bare short option', value: '-x', refusedFor: Object.freeze([REF_SHAPED, PATH_SHAPED]) }),
+  Object.freeze({ name: 'an upload-pack option spelled as a value', value: '--upload-pack=touch /tmp/mitosis-pwned;true', refusedFor: Object.freeze([REF_SHAPED, PATH_SHAPED, PR_VALUE_SHAPED, PR_TITLE_SHAPED, PR_PROVENANCE_SHAPED, PR_URL_SHAPED]) }),
+  Object.freeze({ name: 'a bare short option', value: '-x', refusedFor: Object.freeze([REF_SHAPED, PATH_SHAPED, PR_VALUE_SHAPED, PR_TITLE_SHAPED, PR_PROVENANCE_SHAPED, PR_URL_SHAPED]) }),
   Object.freeze({ name: 'a ref carrying a parent traversal', value: 'refs/../../etc/passwd', refusedFor: Object.freeze([REF_SHAPED]) }),
   Object.freeze({ name: 'a ref carrying shell metacharacters', value: 'refs/heads/$(touch /tmp/mitosis-pwned)', refusedFor: Object.freeze([REF_SHAPED]) }),
   Object.freeze({ name: 'a value carrying a NUL byte', value: `refs/heads/main${String.fromCharCode(0)}x`, refusedFor: Object.freeze([REF_SHAPED, PATH_SHAPED]) }),
