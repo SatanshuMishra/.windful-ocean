@@ -763,24 +763,27 @@ test('the transcription-parity verb exits clean over the real engine and reports
   assert.equal(verdict.ok, true);
   assert.equal(verdict.target, undefined, 'the verb opens no path of its own, so it must not report one as a target');
   assert.equal(verdict.dispatchNodeCount, verdict.dispatchLabelCount + verdict.passThroughCount);
-  assert.equal(verdict.unconvertedSites.length, verdict.conversionTargetSiteCount);
-  assert.equal(verdict.unconvertedSiteCount, verdict.conversionTargetSiteCount);
+  assert.equal(verdict.unconvertedSites.length, verdict.unconvertedSiteCount);
+  assert.equal(verdict.convertedSites.length, verdict.convertedSiteCount);
+  assert.equal(verdict.convertedSiteCount + verdict.unconvertedSiteCount, verdict.conversionTargetSiteCount);
+  assert.ok(verdict.convertedSiteCount > 0 && verdict.unconvertedSiteCount > 0, 'both halves of the conversion are counted from the measured sites, so neither may be empty while the other is the whole');
   assert.equal(verdict.childrenStartedWhileRefusing, 0);
   assert.ok(verdict.refusalProbes.every((probe) => probe.endsWith(': refused')), verdict.refusalProbes.join('; '));
   assert.ok(verdict.allowProbes.every((probe) => probe.endsWith(': allowed')), verdict.allowProbes.join('; '));
   assert.ok(verdict.twinSites.length > 0, 'the live-path twins must be named rather than assumed absent');
 });
 
-test('the transcription-parity verdict states plainly that none of the eighteen is converted yet', () => {
+test('the transcription-parity verdict states plainly that every one of the eighteen still dispatches', () => {
   const { out, stdout } = capture();
   runMitosisGate(['transcription-parity'], out, () => '');
   const verdict = JSON.parse(stdout.join(''));
-  assert.equal(verdict.convertedKindCount, 0);
+  assert.equal(verdict.convertedKindCount + verdict.unconvertedKindCount, verdict.observedTranscriptionNameCount);
+  assert.ok(verdict.convertedKindCount > 0, 'the verb reports no converted kind at all, so the conversion it measures is invisible');
   assert.ok(Array.isArray(verdict.attests) && verdict.attests.length > 0);
   assert.ok(Array.isArray(verdict.notAttested) && verdict.notAttested.length > 0);
   assert.ok(
     verdict.notAttested.some((claim) => /still dispatch/.test(claim)),
-    'the eighteen sites still dispatch a model until C4b and C4c, so the verdict must not read as a conversion guarantee',
+    'every one of the eighteen still dispatches a model until C7 wires the engine, so the verdict must not read as a conversion guarantee',
   );
   assert.ok(
     verdict.notAttested.some((claim) => /node:child_process/.test(claim)),

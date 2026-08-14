@@ -113,7 +113,9 @@ const SITE_PARSERS = Object.freeze({
   ]),
 });
 
-export const CONVERTED_TRANSCRIPTION_SITES = Object.freeze(Object.keys(SITE_PARSERS).sort());
+export const CONVERTED_TRANSCRIPTION_SITES = Object.freeze(
+  Object.keys(SITE_PARSERS).filter((site) => GIT_SITES.includes(site) || NON_SPAWN_SITES.some((entry) => entry.site === site)).sort(),
+);
 
 export function parserProbes() {
   return Object.freeze(Object.entries(SITE_PARSERS).flatMap(([site, parsers]) => parsers.map((entry) => {

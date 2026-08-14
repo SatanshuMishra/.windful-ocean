@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { PROMPT_KINDS } from '../prompt-contract.mjs';
 import { JOURNAL_KINDS } from '../journal-store.mjs';
 import {
+  CONVERSION_SITE_NAMES,
   JOURNAL_LABEL_KINDS,
   NON_DISPATCH_LABEL_SOURCES,
   PREFIX_ALIASES,
@@ -10,8 +11,10 @@ import {
   TRANSCRIPTION_C7_OBLIGATIONS,
   TRANSCRIPTION_KINDS,
   censusTranscriptionSources,
+  conversionSitesOf,
   transcriptionCensus,
 } from '../transcription-census.mjs';
+import { CONVERTED_TRANSCRIPTION_SITES } from '../transcription-conversions.mjs';
 
 const TARGET = '/repo/.claude/workflows/mitosis.js';
 const CLAUDE = '/repo/.claude';
@@ -45,7 +48,7 @@ const PARAMETERIZED_BLOCK = [
 
 function engineFixture(extra = '', declared = TRANSCRIPTION_KINDS) {
   const lines = [
-    ...declared.filter((kind) => !kind.converted).map((kind) => dispatch(`'${kind.name}'`)),
+    ...declared.map((kind) => dispatch(`'${kind.name}'`)),
     ...Object.keys(JOURNAL_LABEL_KINDS).filter((name) => name !== 'quiescent-exit-checkpoint').map((name) => dispatch(`'${name}'`)),
     ...PROGRAM_LABELS.map((program) => dispatch(`'${program.name}'`)),
     ...PROMPT_KINDS.map((kind) => dispatch(`'${kind}'`)),
@@ -67,8 +70,21 @@ test('the shipped census classifies every dispatch and reports the conversion ta
   const census = transcriptionCensus();
   assert.equal(census.ok, true, census.error);
   assert.equal(census.conversionTargetSiteCount, 18);
-  assert.equal(census.unconvertedSiteCount, 18);
-  assert.equal(census.convertedKindCount, 0);
+  assert.equal(census.convertedSiteCount + census.unconvertedSiteCount, census.conversionTargetSiteCount);
+  assert.equal(census.convertedSiteCount, 12);
+  assert.equal(census.unconvertedSiteCount, 6);
+  assert.equal(census.convertedKindCount + census.unconvertedKindCount, TRANSCRIPTION_KINDS.length);
+  assert.deepEqual(
+    census.unconvertedSites.map((site) => site.name).sort(),
+    ['ci-probe', 'ci-publish', 'reconcile', 'ship', 'ship-verify', 'supersede'],
+  );
+});
+
+test('the converted count is measured from the declaration, never pinned to a total', () => {
+  const declared = TRANSCRIPTION_KINDS.map((kind) => (kind.name === 'fence' ? { ...kind, converted: false } : kind));
+  const census = censusTranscriptionSources(engineFixture(), declared);
+  assert.equal(census.ok, false, 'a declaration that disagrees with the registered replacements was accepted');
+  assert.match(census.error, /fence is served by fence/);
 });
 
 test('the census measures its own extractors rather than reporting a declared total', () => {
@@ -156,27 +172,43 @@ test('a source whose two extractors disagree halts, because one of them is then 
   assert.match(census.error, /disagree|subset/i);
 });
 
-test('a declared kind that still dispatches while marked converted halts', () => {
-  const declared = TRANSCRIPTION_KINDS.map((kind) => (kind.name === 'fence' ? { ...kind, converted: true } : kind));
-  const census = censusTranscriptionSources(engineFixture('', TRANSCRIPTION_KINDS), declared);
-  assert.equal(census.ok, false);
-  assert.match(census.error, /fence/);
-  assert.match(census.error, /converted/);
+test('a declared kind that dispatches nowhere halts whether it is counted converted or not', () => {
+  for (const converted of [true, false]) {
+    const declared = [...TRANSCRIPTION_KINDS, { name: 'reharvest', converted }];
+    const census = censusTranscriptionSources(engineFixture('', TRANSCRIPTION_KINDS), declared);
+    assert.equal(census.ok, false, `a kind declared converted=${converted} with no dispatch was accepted, so a site removed before its wiring landed would read as progress`);
+    assert.match(census.error, /reharvest/);
+  }
 });
 
-test('a declared kind that is marked unconverted yet dispatches nowhere halts', () => {
-  const declared = [...TRANSCRIPTION_KINDS, { name: 'reharvest', converted: false }];
+test('a kind counted converted with no registered replacement halts, so the count cannot run ahead of the code', () => {
+  const declared = TRANSCRIPTION_KINDS.map((kind) => (kind.name === 'reconcile' ? { ...kind, converted: true } : kind));
   const census = censusTranscriptionSources(engineFixture('', TRANSCRIPTION_KINDS), declared);
   assert.equal(census.ok, false);
-  assert.match(census.error, /reharvest/);
+  assert.match(census.error, /reconcile needs reconcile/);
 });
 
-test('a declared kind marked converted and dispatching nowhere is counted as converted rather than halting', () => {
-  const declared = [...TRANSCRIPTION_KINDS, { name: 'reharvest', converted: true }];
+test('a kind whose replacement is registered but counted unconverted halts, so a conversion cannot go uncounted', () => {
+  const declared = TRANSCRIPTION_KINDS.map((kind) => (kind.name === 'checkpoint-push' ? { ...kind, converted: false } : kind));
   const census = censusTranscriptionSources(engineFixture('', TRANSCRIPTION_KINDS), declared);
-  assert.equal(census.ok, true, census.error);
-  assert.equal(census.convertedKindCount, 1);
-  assert.equal(census.unconvertedSiteCount, TRANSCRIPTION_KINDS.length);
+  assert.equal(census.ok, false);
+  assert.match(census.error, /checkpoint-push is served by checkpoint-push/);
+});
+
+test('the one kind whose name covers two sites is counted converted only when both replacements are registered', () => {
+  assert.deepEqual(conversionSitesOf('branch'), ['branch-compose', 'branch-prep']);
+  assert.deepEqual(conversionSitesOf('fence'), ['fence']);
+  for (const site of conversionSitesOf('branch')) {
+    assert.ok(CONVERTED_TRANSCRIPTION_SITES.includes(site), `${site} is not registered, so branch cannot be counted converted`);
+  }
+  const branch = TRANSCRIPTION_KINDS.find((kind) => kind.name === 'branch');
+  assert.equal(branch.converted, true);
+});
+
+test('every alias in the conversion site table names a kind that is still declared', () => {
+  for (const name of Object.keys(CONVERSION_SITE_NAMES)) {
+    assert.ok(TRANSCRIPTION_KINDS.some((kind) => kind.name === name), `${name} is given a conversion site list but is declared nowhere`);
+  }
 });
 
 test('a dispatch node carrying no label halts unless its shape is enumerated with a reason', () => {
