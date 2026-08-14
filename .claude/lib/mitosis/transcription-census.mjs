@@ -376,18 +376,18 @@ export const PENDING_JUDGMENT_KINDS = Object.freeze([
   }),
 ]);
 
-function pendingJudgmentFailure(reached) {
-  const undeclared = PENDING_JUDGMENT_KINDS.filter((pending) => !PROMPT_KINDS.includes(pending.name));
+function pendingJudgmentFailure(reached, pending) {
+  const undeclared = pending.filter((pending) => !PROMPT_KINDS.includes(pending.name));
   if (undeclared.length > 0) {
-    return `transcription-census: these kinds are declared as awaiting a dispatch yet the prompt authority names none of them: ${undeclared.map((pending) => pending.name).join(', ')}; a pending declaration that matches no registered kind excuses a dispatch nothing would have looked for`;
+    return `transcription-census: these kinds are declared as awaiting a dispatch yet the prompt authority names none of them: ${undeclared.map((entry) => entry.name).join(', ')}; a pending declaration that matches no registered kind excuses a dispatch nothing would have looked for`;
   }
-  const arrived = PENDING_JUDGMENT_KINDS.filter((pending) => reached.includes(pending.name));
+  const arrived = pending.filter((entry) => reached.includes(entry.name));
   if (arrived.length > 0) {
-    return `transcription-census: these kinds are declared as awaiting a dispatch yet a measured dispatch label already reaches them: ${arrived.map((pending) => pending.name).join(', ')}; the declaration outlived the wiring it was waiting for and now excuses a kind this census can already see`;
+    return `transcription-census: these kinds are declared as awaiting a dispatch yet a measured dispatch label already reaches them: ${arrived.map((entry) => entry.name).join(', ')}; the declaration outlived the wiring it was waiting for and now excuses a kind this census can already see`;
   }
-  const unreasoned = PENDING_JUDGMENT_KINDS.filter((pending) => typeof pending.reason !== 'string' || pending.reason.length === 0);
+  const unreasoned = pending.filter((entry) => typeof entry.reason !== 'string' || entry.reason.length === 0);
   if (unreasoned.length > 0) {
-    return `transcription-census: these kinds are declared as awaiting a dispatch with no stated reason: ${unreasoned.map((pending) => pending.name).join(', ')}`;
+    return `transcription-census: these kinds are declared as awaiting a dispatch with no stated reason: ${unreasoned.map((entry) => entry.name).join(', ')}`;
   }
   return null;
 }
@@ -429,7 +429,7 @@ function reachedIncludingParameterized(sites) {
   return [...named];
 }
 
-export function censusTranscriptionSources(sources, declared = TRANSCRIPTION_KINDS, registered = CONVERTED_TRANSCRIPTION_SITES) {
+export function censusTranscriptionSources(sources, declared = TRANSCRIPTION_KINDS, registered = CONVERTED_TRANSCRIPTION_SITES, pending = PENDING_JUDGMENT_KINDS) {
   if (!Array.isArray(sources) || sources.length === 0) {
     return halt('transcription-census: the census was handed no source, so it would attest a conversion list it never measured');
   }
@@ -507,11 +507,11 @@ export function censusTranscriptionSources(sources, declared = TRANSCRIPTION_KIN
   const unconvertedSites = conversionTargetSites.filter((site) => !convertedKindNames.has(site.name));
 
   const judgmentKindsReached = reachedIncludingParameterized(allSites).filter((kind) => PROMPT_KINDS.includes(kind));
-  const pendingHalt = pendingJudgmentFailure(judgmentKindsReached);
+  const pendingHalt = pendingJudgmentFailure(judgmentKindsReached, pending);
   if (pendingHalt !== null) return halt(pendingHalt);
   const unreachedJudgment = PROMPT_KINDS
     .filter((kind) => !judgmentKindsReached.includes(kind))
-    .filter((kind) => !PENDING_JUDGMENT_KINDS.some((pending) => pending.name === kind));
+    .filter((kind) => !pending.some((entry) => entry.name === kind));
   if (unreachedJudgment.length > 0) {
     return halt(`transcription-census: these judgment kinds the prompt authority declares are reached by no measured dispatch label: ${unreachedJudgment.join(', ')}`);
   }
@@ -554,7 +554,7 @@ export function censusTranscriptionSources(sources, declared = TRANSCRIPTION_KIN
     programSiteCount: sites.filter((site) => site.category === PROGRAM).length,
     parameterizedSiteCount: sites.filter((site) => site.category === null).length,
     judgmentKindsReached: Object.freeze(judgmentKindsReached.sort()),
-    pendingJudgmentKinds: Object.freeze(PENDING_JUDGMENT_KINDS.map((pending) => `${pending.name}: ${pending.reason}`)),
+    pendingJudgmentKinds: Object.freeze(pending.map((entry) => `${entry.name}: ${entry.reason}`)),
     journalKindsReached: Object.freeze(journalKindsReached.sort()),
     programKindsReached: Object.freeze(programKindsReached.sort()),
     declaredNames: Object.freeze([...table.keys()]),

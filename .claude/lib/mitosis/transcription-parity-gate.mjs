@@ -225,42 +225,59 @@ const DERIVED_FACT_CONTROLS = Object.freeze([
   Object.freeze({
     name: 'a derived ci fact that stopped holding is reported',
     expect: 'ci fact probes no longer hold',
+    present: (substrate) => substrate.ciFacts.length > 0 && substrate.ciFacts.every((probe) => probe.ok === true),
+    missing: 'the ci fact probes are empty or already failing, so flipping one perturbs nothing',
     perturb: (substrate) => ({ ...substrate, ciFacts: substrate.ciFacts.map((probe, index) => (index === 0 ? { ...probe, ok: false } : probe)) }),
   }),
   Object.freeze({
     name: 'a spec fingerprint that stopped matching its transcribed digest is reported',
     expect: 'spec fingerprint probes no longer hold',
+    present: (substrate) => substrate.specHash.length > 0 && substrate.specHash.every((probe) => probe.ok === true),
+    missing: 'the spec fingerprint probes are empty or already failing, so flipping one perturbs nothing',
     perturb: (substrate) => ({ ...substrate, specHash: substrate.specHash.map((probe, index) => (index === 0 ? { ...probe, ok: false } : probe)) }),
   }),
   Object.freeze({
     name: 'a supersede summary that stopped holding its bound is reported',
     expect: 'supersede summary probes no longer hold',
+    present: (substrate) => substrate.supersedeSummary.length > 0 && substrate.supersedeSummary.every((probe) => probe.ok === true),
+    missing: 'the supersede summary probes are empty or already failing, so flipping one perturbs nothing',
     perturb: (substrate) => ({ ...substrate, supersedeSummary: substrate.supersedeSummary.map((probe, index) => (index === 0 ? { ...probe, ok: false } : probe)) }),
   }),
   Object.freeze({
     name: 'a gh command that stopped resolving through the merge shim is reported',
     expect: 'no longer resolves through the merge shim',
+    present: (substrate) => substrate.ghShimRouting.routed === true,
+    missing: 'the shim routing probe already reports unrouted, so clearing it perturbs nothing',
     perturb: (substrate) => ({ ...substrate, ghShimRouting: { ...substrate.ghShimRouting, routed: false } }),
   }),
   Object.freeze({
     name: 'a merge specimen the same resolution stopped refusing is reported',
     expect: 'was NOT refused',
+    present: (substrate) => substrate.ghShimRouting.refusedMerge === true,
+    missing: 'the shim routing probe already reports the specimen admitted, so clearing it perturbs nothing',
     perturb: (substrate) => ({ ...substrate, ghShimRouting: { ...substrate.ghShimRouting, refusedMerge: false } }),
   }),
   Object.freeze({
     name: 'two fixture modules pinning to two different parent commits is reported',
     expect: 'two different parent commits',
+    present: (substrate) => substrate.ghFixtureParentSha === substrate.conversions.parentSha,
+    missing: 'the two fixture modules already pin to different commits, so drifting one perturbs nothing',
     perturb: (substrate) => ({ ...substrate, ghFixtureParentSha: 'deadbeef' }),
   }),
   Object.freeze({
     name: 'a ci report field claimed as both derived and model-read is reported',
     expect: 'claimed as both derived and model-read',
+    present: () => CI_FACT_FIELDS.every((field) => !CI_MODEL_FIELDS.includes(field)),
+    missing: 'the two field lists already overlap, so claiming an overlap perturbs nothing',
     perturb: (substrate) => ({ ...substrate, ciReportFieldOverlap: [...CI_MODEL_FIELDS] }),
   }),
 ]);
 
 export function derivedFactControlProbes(substrate) {
   return Object.freeze(DERIVED_FACT_CONTROLS.map((control) => {
+    if (!control.present(substrate)) {
+      return Object.freeze({ name: control.name, halted: false, named: false, anchorPresent: false, detail: control.missing });
+    }
     const measured = derivedFactFailures(control.perturb(substrate));
     const named = measured.some((failure) => failure.includes(control.expect));
     return Object.freeze({
