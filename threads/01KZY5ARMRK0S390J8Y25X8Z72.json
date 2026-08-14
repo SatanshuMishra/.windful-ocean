@@ -133,16 +133,37 @@
   "abandoned_reason": null,
   "closure_statement": null,
   "spine": {
-    "active_goal": "Strip the containment architecture entirely and reduce this thread to permissions only: prune deny to genuine catastrophes, retire ask rules, widen allow.",
-    "next_step": "Re-point the ten ~/.claude entries straight at the repo (scripts/install_config.sh is the stow-based installer that predates the release model), then remove releases/, current, LIVE and local/. Then get a user ruling on 0396 and 0401, which both block the actual goal, and do c3 and c4: prune deny to genuine catastrophes, retire ask rules, widen allow with mcp__* coverage.",
-    "last_session": "Deleted scripts/config, .claude/lib/reversibility and the three architecture hooks with their tests in c8a1b9a; 51 files, suite green. Applied 0407's supersession to the decision index and rewrote the standing risks that described deleted code.",
+    "active_goal": "Permissions only: return the install topology to direct repo symlinks, then prune deny to genuine catastrophes and widen allow so ordinary work never prompts.",
+    "next_step": "START HERE with c17, in this exact order: (1) re-point the ten ~/.claude entries at the repo using scripts/install_config.sh, verifying each one resolves; (2) only then remove releases/, current, LIVE and local/. Reversing that order leaves the global config with nothing in it. Then c3 (prune deny per 0409) and c4 (widen allow per 0408), one change each, verifying the exact permission-rule spelling against live behaviour instead of assuming it. The session log carries the full ordered step list.",
+    "last_session": "Overturned 0396 and 0401 as 0408 and 0409. Struck c6 and c7, rewrote c3, c4 and c15, inserted c17 for the topology repair. Deleted 51 files of installer and reversibility machinery in c8a1b9a with the suite green.",
     "open_risks": [
       {
-        "text": "Decisions 0396 and 0401 are unresolved against the new direction — 0396 forbids the broad allow rules that would actually kill the prompts, and 0401 demands a replacement gate that no longer exists; both need a user ruling before c3 and c4",
+        "text": "Re-point the ten ~/.claude entries at the repo BEFORE deleting releases/ and current — deleting first leaves the global config with no skills, agents, hooks or rules at all",
+        "scope": "c15",
+        "refs": [
+          "~/.claude/current",
+          "scripts/install_config.sh"
+        ]
+      },
+      {
+        "text": "Do not strip the merge gates — gh pr merge and merge_pull_request stay denied by deliberate user choice, and pr-create centralization stays too",
+        "scope": "c15",
+        "refs": [
+          ".claude/settings.json"
+        ]
+      },
+      {
+        "text": "Deleting the release topology moots the five recursive symlinks and the context7.md drift — do not spend time repairing a tree that is being removed",
+        "scope": "c15",
+        "refs": [
+          "~/.claude/releases"
+        ]
+      },
+      {
+        "text": "c14 was left unstruck and needs a ruling — a governed launcher that hardcodes the permission mode is containment-model governance, so it may belong with the struck c6 and c7",
         "scope": "thread",
         "refs": [
-          "0396-allow-rules-use-narrow-prefixes-not-bash-star",
-          "0401-no-deny-entry-removed-before-its-replacement"
+          "c14"
         ]
       },
       {
@@ -179,7 +200,7 @@
         ]
       },
       {
-        "text": "The deny entry for supabase db reset defeats the ratified local-container carve-out — the agent cannot validate migrations it writes, so it must go when c3 runs",
+        "text": "The deny entry for supabase db reset defeats the ratified local-container carve-out — the agent cannot validate migrations it writes, and 0409 now clears it for removal in c3",
         "scope": "thread",
         "refs": [
           ".claude/settings.json"
@@ -191,36 +212,9 @@
         "refs": [
           "npm test"
         ]
-      },
-      {
-        "text": "Re-point the ten ~/.claude entries at the repo BEFORE deleting releases/ and current — deleting first leaves the global config with no skills, agents, hooks or rules at all",
-        "scope": "c15",
-        "refs": [
-          "~/.claude/current",
-          "scripts/install_config.sh"
-        ]
-      },
-      {
-        "text": "Do not strip the merge gates — gh pr merge and merge_pull_request stay denied by deliberate user choice, and pr-create centralization stays too",
-        "scope": "c15",
-        "refs": [
-          ".claude/settings.json"
-        ]
-      },
-      {
-        "text": "Deleting the release topology moots the five recursive symlinks and the context7.md drift — do not spend time repairing a tree that is being removed",
-        "scope": "c15",
-        "refs": [
-          "~/.claude/releases"
-        ]
       }
     ],
     "key_decisions": [
-      {
-        "ref": "0396-allow-rules-use-narrow-prefixes-not-bash-star",
-        "title": "Allow rules enumerate narrow prefixes; a broad Bash star rule is counterproductive",
-        "scope": "c4"
-      },
       {
         "ref": "0399-default-branch-push-denies-stay-as-contract",
         "title": "Default-branch push denies stay, reclassified as delivery contract not catastrophe",
@@ -229,11 +223,6 @@
       {
         "ref": "0398-oversight-reducing-changes-need-direct-confirmation",
         "title": "Oversight-reducing changes wait for direct user confirmation",
-        "scope": "thread"
-      },
-      {
-        "ref": "0401-no-deny-entry-removed-before-its-replacement",
-        "title": "No deny entry is removed until its replacement exists",
         "scope": "thread"
       },
       {
@@ -247,14 +236,14 @@
         "scope": "thread"
       },
       {
-        "ref": "0408-allow-is-broad-and-deny-is-the-only-narrow-list",
-        "title": "Allow is broad by default; deny is the only narrow list (supersedes 0396)",
-        "scope": "c4"
+        "ref": "0409-a-deny-entry-needs-no-replacement-to-be-removed",
+        "title": "A deny entry is removed when it guards no catastrophe; no replacement is required",
+        "scope": "thread"
       },
       {
-        "ref": "0409-a-deny-entry-needs-no-replacement-to-be-removed",
-        "title": "A deny entry is removed when it guards no catastrophe; no replacement is required (supersedes 0401)",
-        "scope": "thread"
+        "ref": "0408-allow-is-broad-and-deny-is-the-only-narrow-list",
+        "title": "Allow is broad by default; deny is the only narrow list",
+        "scope": "c4"
       }
     ],
     "out_of_scope": [
@@ -263,5 +252,5 @@
     ]
   },
   "created_at": "2026-08-13T18:14:42.072Z",
-  "updated_at": "2026-08-14T00:15:36.995Z"
+  "updated_at": "2026-08-14T00:16:05.915Z"
 }
