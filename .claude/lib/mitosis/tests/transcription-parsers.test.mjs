@@ -5,6 +5,7 @@ import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { EXEC_COMPLETED, EXEC_SPAWN_FAILED, EXEC_TIMEOUT_EXPIRED } from '../exec-run.mjs';
+import { observePlanArtifact, planArtifactAbsentSpecimen, planArtifactSpecimen } from '../plan-artifact.mjs';
 import {
   classifyPlanArtifact,
   parseAncestry,
@@ -151,6 +152,48 @@ test('the plan artifact probe demands a regular file that holds bytes, matching 
   for (const absent of [{ exists: true, isFile: true, size: 0 }, null]) {
     assert.ok(classifyPlanArtifact(absent).detail.length > 0, 'an absent artifact reports no reason');
   }
+});
+
+test('the plan artifact classifier is fed by an observation this substrate actually produces', () => {
+  const root = mkdtempSync(join(tmpdir(), 'mitosis-c4b-plan-'));
+  try {
+    const planned = join(root, 'plan.json');
+    writeFileSync(planned, '{"msps":[]}');
+    const present = observePlanArtifact(root, planned);
+    assert.deepEqual(
+      { exists: present.exists, isFile: present.isFile, size: present.size },
+      { exists: true, isFile: true, size: 11 },
+    );
+    assert.equal(classifyPlanArtifact(present).planFound, true);
+
+    const empty = join(root, 'empty.json');
+    writeFileSync(empty, '');
+    assert.equal(classifyPlanArtifact(observePlanArtifact(root, empty)).planFound, false);
+
+    const missing = observePlanArtifact(root, join(root, 'absent.json'));
+    assert.equal(missing.exists, false);
+    assert.equal(classifyPlanArtifact(missing).planFound, false);
+
+    mkdirSync(join(root, 'directory-plan'));
+    assert.equal(classifyPlanArtifact(observePlanArtifact(root, join(root, 'directory-plan'))).planFound, false);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('the plan artifact observation refuses a path outside the workspace it was handed', () => {
+  const root = mkdtempSync(join(tmpdir(), 'mitosis-c4b-confine-'));
+  try {
+    assert.throws(() => observePlanArtifact(root, join(root, '..', 'escaped.json')), /does not sit beneath/);
+    assert.throws(() => observePlanArtifact('', join(root, 'plan.json')), /non-empty path/);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('the shipped specimens the verb probes with are real observations of a present and an absent path', () => {
+  assert.equal(classifyPlanArtifact(planArtifactSpecimen()).planFound, true);
+  assert.equal(classifyPlanArtifact(planArtifactAbsentSpecimen()).planFound, false);
 });
 
 test('the fence parse reads what real git actually prints, not what this test imagines it prints', () => {

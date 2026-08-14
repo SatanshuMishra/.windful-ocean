@@ -512,5 +512,5 @@ export const PLAN_PROBE_FIXTURE = Object.freeze({
   step: 'artifact-present',
   anchor: 'Check the plan artifact: \\`test -f ${planned.planPath} && test -s ${planned.planPath}\\`',
   refusedBinary: 'test',
-  reason: 'test is a shell builtin rather than one of the spawnable binaries, so the incumbent check cannot be transcribed as a spawn at all; it becomes an in process filesystem observation of the same two facts, that the path is a regular file and that it holds bytes',
+  reason: 'test is a shell builtin rather than one of the spawnable binaries, so the incumbent check cannot be transcribed as a spawn at all; it becomes an in process filesystem observation of the same two facts, that the path is a regular file and that it holds bytes, produced by observePlanArtifact against a path confined to the workspace and read by classifyPlanArtifact, which the verb runs against a present and an absent path on every invocation',
 });
