@@ -1,3 +1,4 @@
+import { CI_LOG_EXCERPT_CAP } from './prompt-ci-facts.mjs';
 function probeCase(id, kind, input, changed, refused = []) {
   return Object.freeze({
     id,
@@ -181,6 +182,15 @@ export const PROMPT_PROBE_CASES = Object.freeze([
     failedChecks: ['unit'],
     declaredScope: ['pb/one.mjs'],
     logExcerpt: 'pb failing job output',
+  }, ['unitId', 'repoRoot', 'integrationBranch', 'ciConclusion', 'failedChecks', 'declaredScope', 'logExcerpt']),
+  probeCase('ci-fact-extract-truncated', 'ci-fact-extract', {
+    unitId: 'pb-unit',
+    repoRoot: '/pb/repo',
+    integrationBranch: 'pb/integration',
+    ciConclusion: 'failure',
+    failedChecks: ['unit'],
+    declaredScope: ['pb/one.mjs'],
+    logExcerpt: `pb failing job output ${'x'.repeat(CI_LOG_EXCERPT_CAP)}`,
   }, ['unitId', 'repoRoot', 'integrationBranch', 'ciConclusion', 'failedChecks', 'declaredScope', 'logExcerpt']),
   probeCase('redispatch', 'redispatch', {
     ...PB_DIAGNOSE,
