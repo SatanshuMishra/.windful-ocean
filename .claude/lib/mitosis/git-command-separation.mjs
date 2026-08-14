@@ -1,7 +1,7 @@
 import { END_OF_OPTIONS, PATH_SEPARATOR_ARGUMENT } from './git-commands.mjs';
 import { GIT_COMMAND_FIXTURES, builderInputs } from './git-command-fixtures.mjs';
 import { binaryOf, buildTranscribedCommand, builderFor } from './transcription-conversions.mjs';
-import { PR_VALUE_CAP } from '../git/pr-format.mjs';
+import { PR_TITLE_CAP, PR_VALUE_CAP } from '../git/pr-format.mjs';
 
 const MODULE = 'git-command-separation';
 const VALUE_FLAGS = Object.freeze([
@@ -143,6 +143,11 @@ export function censusPositionalSeparation(fixtures = GIT_COMMAND_FIXTURES, exce
 export const REF_SHAPED = 'ref';
 export const PATH_SHAPED = 'path';
 export const PR_VALUE_SHAPED = 'pr-value';
+export const PROGRAM_PATH_SHAPED = 'program-path';
+export const PR_TITLE_SHAPED = 'pr-title';
+export const PR_PROVENANCE_SHAPED = 'pr-provenance';
+export const PR_URL_SHAPED = 'pr-url';
+export const DATA_PATH_SHAPED = 'data-path';
 
 const HOSTILE_VALUES = Object.freeze([
   Object.freeze({ name: 'an upload-pack option spelled as a value', value: '--upload-pack=touch /tmp/mitosis-pwned;true', refusedFor: Object.freeze([REF_SHAPED, PATH_SHAPED]) }),
@@ -154,6 +159,15 @@ const HOSTILE_VALUES = Object.freeze([
   Object.freeze({ name: 'a body value past the pull-request value cap', value: 'x'.repeat(PR_VALUE_CAP + 1), refusedFor: Object.freeze([PR_VALUE_SHAPED]) }),
   Object.freeze({ name: 'a body value read from a file rather than given', value: '@/etc/passwd', refusedFor: Object.freeze([PR_VALUE_SHAPED]) }),
   Object.freeze({ name: 'a body value carrying a newline', value: 'first line\nsecond line', refusedFor: Object.freeze([PR_VALUE_SHAPED]) }),
+  Object.freeze({ name: 'a directory naming another program of the same basename', value: '/tmp/attacker', refusedFor: Object.freeze([PROGRAM_PATH_SHAPED]) }),
+  Object.freeze({ name: 'a directory reached by a parent traversal', value: '/repo/lib/../../tmp', refusedFor: Object.freeze([PROGRAM_PATH_SHAPED, DATA_PATH_SHAPED]) }),
+  Object.freeze({ name: 'a directory carrying a shell metacharacter', value: '/repo/lib; touch /tmp/mitosis-pwned', refusedFor: Object.freeze([PROGRAM_PATH_SHAPED, DATA_PATH_SHAPED]) }),
+  Object.freeze({ name: 'a relative directory', value: 'lib', refusedFor: Object.freeze([PROGRAM_PATH_SHAPED, DATA_PATH_SHAPED]) }),
+  Object.freeze({ name: 'a title that is not conventional commits', value: 'Ship the unit.', refusedFor: Object.freeze([PR_TITLE_SHAPED]) }),
+  Object.freeze({ name: 'a title past the squash subject cap', value: `fix(scope): ${'x'.repeat(PR_TITLE_CAP)}`, refusedFor: Object.freeze([PR_TITLE_SHAPED]) }),
+  Object.freeze({ name: 'a provenance naming no agent and model', value: 'composed by a machine', refusedFor: Object.freeze([PR_PROVENANCE_SHAPED]) }),
+  Object.freeze({ name: 'a pull-request url on a lookalike host', value: 'https://github.com.attacker.io/acme/widgets/pull/7', refusedFor: Object.freeze([PR_URL_SHAPED]) }),
+  Object.freeze({ name: 'a pull-request url that is not a pull request', value: 'https://github.com/acme/widgets/issues/7', refusedFor: Object.freeze([PR_URL_SHAPED]) }),
 ]);
 
 export const FETCH_VALUE_SITES = Object.freeze([
@@ -176,9 +190,15 @@ export const FETCH_VALUE_SITES = Object.freeze([
   Object.freeze({ binary: 'gh', site: 'ci-probe', step: 'rerun', field: 'runId', shape: REF_SHAPED }),
   Object.freeze({ binary: 'gh', site: 'reconcile', step: 'merged-prs', field: 'baseBranch', shape: REF_SHAPED }),
   Object.freeze({ binary: 'gh', site: 'ship', step: 'done-oracle', field: 'integrationBranch', shape: REF_SHAPED }),
-  Object.freeze({ binary: 'node', site: 'reconcile', step: 'fold-run-log', field: 'repoRoot', shape: PATH_SHAPED }),
+  Object.freeze({ binary: 'node', site: 'reconcile', step: 'fold-run-log', field: 'repoRoot', shape: DATA_PATH_SHAPED }),
+  Object.freeze({ binary: 'node', site: 'reconcile', step: 'fold-run-log', field: 'libDir', shape: PROGRAM_PATH_SHAPED }),
+  Object.freeze({ binary: 'node', site: 'supersede', step: 'open-pr', field: 'gitLibDir', shape: PROGRAM_PATH_SHAPED }),
+  Object.freeze({ binary: 'node', site: 'ship', step: 'open-pr', field: 'gitLibDir', shape: PROGRAM_PATH_SHAPED }),
   Object.freeze({ binary: 'node', site: 'supersede', step: 'open-pr', field: 'summary', shape: PR_VALUE_SHAPED }),
-  Object.freeze({ binary: 'node', site: 'ship', step: 'open-pr', field: 'title', shape: PR_VALUE_SHAPED }),
+  Object.freeze({ binary: 'node', site: 'ship', step: 'open-pr', field: 'title', shape: PR_TITLE_SHAPED }),
+  Object.freeze({ binary: 'node', site: 'ship', step: 'open-pr', field: 'provenance', shape: PR_PROVENANCE_SHAPED }),
+  Object.freeze({ binary: 'node', site: 'supersede', step: 'open-pr', field: 'title', shape: PR_TITLE_SHAPED }),
+  Object.freeze({ binary: 'node', site: 'supersede', step: 'open-pr', field: 'supersedes', shape: PR_URL_SHAPED }),
   Object.freeze({ binary: 'node', site: 'ship', step: 'open-pr', field: 'integrationBranch', shape: REF_SHAPED }),
 ]);
 
