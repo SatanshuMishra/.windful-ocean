@@ -60,6 +60,7 @@ const MIRROR_CENSUS = Object.freeze({
   'dispatch.mjs': STANDALONE,
   'exec-policy.mjs': STANDALONE,
   'fold-run-log.mjs': STANDALONE,
+  'fs-writer.mjs': STANDALONE,
   'generate-run-script.mjs': STANDALONE,
   'gh-merge-shim.mjs': STANDALONE,
   'journal-census.mjs': STANDALONE,
