@@ -1,7 +1,7 @@
 import { test, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
-import { chmodSync, closeSync, constants, mkdirSync, mkdtempSync, openSync, readSync, readdirSync, readFileSync, rmSync, statSync, symlinkSync } from 'node:fs';
+import { chmodSync, closeSync, constants, existsSync, mkdirSync, mkdtempSync, openSync, readSync, readdirSync, readFileSync, rmSync, statSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import {
@@ -98,6 +98,59 @@ test('a linked GRANDPARENT is refused too, so the walk covers every segment rath
     /symbolic link/i,
   );
   assert.deepEqual(readdirSync(join(victim, 'nested')), [], 'a file materialised two levels behind the link');
+});
+
+test('a path that starts inside the repository root and climbs back out of it is refused rather than followed out', () => {
+  const outer = scratch('journal-traversal-');
+  const root = join(outer, 'repo');
+  mkdirSync(root);
+  const appended = `${root}/.mitosis/../../appended.json`;
+  const replaced = `${root}/.mitosis/../../replaced.json`;
+  assert.throws(
+    () => appendJournalLine({ repoRoot: root, path: appended, line: LINE }),
+    /path/,
+    'a path whose segments open with the repository root but climb back out of it was accepted; the confinement check compares segments and cannot see where they resolve to',
+  );
+  assert.throws(
+    () => writeGenesis({ repoRoot: root, path: replaced, manifest: GENESIS_MANIFEST_AT_FB195E47 }),
+    /path/,
+    'the genesis writer accepted a path that climbs back out of the repository root it was confined to',
+  );
+  assert.deepEqual(
+    [existsSync(join(outer, 'appended.json')), existsSync(join(outer, 'replaced.json'))],
+    [false, false],
+    'a record landed outside the repository root the caller declared, which is the one tree these writers are allowed to touch',
+  );
+});
+
+test('a replacement that cannot be committed leaves nothing of itself beside the journal', () => {
+  const dir = scratch('journal-commit-debris-');
+  const holder = join(dir, '.mitosis');
+  const occupied = join(holder, 'run.json');
+  mkdirSync(occupied, { recursive: true });
+  const before = readdirSync(holder).sort();
+  assert.throws(
+    () => writeGenesis({ repoRoot: dir, path: occupied, manifest: GENESIS_MANIFEST_AT_FB195E47 }),
+    /journal-store/,
+  );
+  assert.deepEqual(
+    readdirSync(holder).sort(),
+    before,
+    'a replacement that could not be committed left its staged copy behind, and enough of those leave every later genesis write unable to find a free name to stage under',
+  );
+});
+
+test('an ignore file that is a symbolic link is refused rather than read through', () => {
+  const dir = scratch('journal-ignore-link-');
+  const outside = join(dir, 'elsewhere');
+  writeFileSync(outside, '.mitosis/\n');
+  symlinkSync(outside, join(dir, '.gitignore'));
+  assert.throws(
+    () => ensureGitignored({ repoRoot: dir, entry: '.mitosis/' }),
+    /journal-store/,
+    'the ignore file was read through a link the writer refuses to write through, so a link planted at .gitignore decides whether the entry is reported already ignored',
+  );
+  assert.equal(readFileSync(outside, 'utf8'), '.mitosis/\n', 'the link target was written through');
 });
 
 test('every file the journal writer creates is owner-only, because the journal carries repo paths and park diagnoses', () => {
