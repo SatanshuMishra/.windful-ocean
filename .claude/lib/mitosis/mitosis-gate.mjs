@@ -1,5 +1,6 @@
 import { compileWorkflow } from './workflow-sandbox.mjs';
 import { readFileSync, realpathSync } from 'node:fs';
+import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import {
   IDENT_PART,
@@ -57,6 +58,9 @@ const VERB_DEFAULT_TARGETS = Object.freeze({
   'exec-allowlist': null,
   'phase-parity': DEFAULT_PHASE_PARITY_TARGET,
 });
+
+const PHASE_AUTHORITY_BY_TARGET = Object.freeze({ [DEFAULT_PHASE_PARITY_TARGET]: PHASE_TITLES });
+const PHASE_AUTHORITY_TARGETS = Object.freeze(Object.keys(PHASE_AUTHORITY_BY_TARGET));
 
 const PHASE_TOKEN_TEXT = 'phase';
 const PHASE_AUTHORITY_KEY = 'the phase authority';
@@ -482,12 +486,11 @@ function requireTitleList(surfaces, key) {
   return requireTitleArray(surfaces[key], key, PHASE_PARITY_CALLER);
 }
 
-function requireAuthoritySet(authority) {
-  const titles = requireTitleArray(authority, PHASE_AUTHORITY_KEY, PHASE_AUTHORITY_CALLER);
+function requireTitleSet(value, key, caller) {
   const named = new Set();
-  for (const title of titles) {
+  for (const title of requireTitleArray(value, key, caller)) {
     if (named.has(title)) {
-      throw new TypeError(`${PHASE_AUTHORITY_CALLER} expects ${PHASE_AUTHORITY_KEY} to name every phase title once, and ${JSON.stringify(title)} is named twice; an authority this census cannot read as a set is unclassifiable, so it halts rather than letting the duplicate take part in the comparison`);
+      throw new TypeError(`${caller} expects ${key} to name every phase title once, and ${JSON.stringify(title)} is named twice; a title list this census cannot read as a set is unclassifiable, so it halts rather than letting the duplicate take part in the comparison`);
     }
     named.add(title);
   }
@@ -495,10 +498,9 @@ function requireAuthoritySet(authority) {
 }
 
 export function checkPhaseParity(surfaces) {
-  const declared = requireTitleList(surfaces, 'declared');
+  const declaredSet = requireTitleSet(requireTitleList(surfaces, 'declared'), 'declared', PHASE_PARITY_CALLER);
   const called = requireTitleList(surfaces, 'called');
   const assigned = requireTitleList(surfaces, 'assigned');
-  const declaredSet = new Set(declared);
   const calledSet = new Set(called);
   const usedSet = new Set([...called, ...assigned]);
   const declaredNeverCalled = [...declaredSet].filter((title) => !calledSet.has(title)).sort();
@@ -514,8 +516,8 @@ export function checkPhaseParity(surfaces) {
 }
 
 export function checkPhaseAuthority(declared, authority) {
-  const declaredSet = new Set(requireTitleArray(declared, 'declared', PHASE_AUTHORITY_CALLER));
-  const authoritySet = requireAuthoritySet(authority);
+  const declaredSet = requireTitleSet(declared, 'declared', PHASE_AUTHORITY_CALLER);
+  const authoritySet = requireTitleSet(authority, PHASE_AUTHORITY_KEY, PHASE_AUTHORITY_CALLER);
   const declaredNotInAuthority = [...declaredSet].filter((title) => !authoritySet.has(title)).sort();
   const authorityNotDeclared = [...authoritySet].filter((title) => !declaredSet.has(title)).sort();
   return Object.freeze({
@@ -555,7 +557,17 @@ export function parseMitosisGateArgv(argv) {
   return { ok: true, verb, target: target === null ? VERB_DEFAULT_TARGETS[verb] : target };
 }
 
+function phaseAuthorityFor(target) {
+  const resolved = resolve(target);
+  return Object.hasOwn(PHASE_AUTHORITY_BY_TARGET, resolved) ? PHASE_AUTHORITY_BY_TARGET[resolved] : null;
+}
+
 function runPhaseParityGate(target, out, readSource) {
+  const authority = phaseAuthorityFor(target);
+  if (authority === null) {
+    out.err(`mitosis-gate: phase-parity holds no phase authority for ${target}; the phase model is owned per target and the mapped target(s) are ${PHASE_AUTHORITY_TARGETS.join(', ')}, so an unmapped target halts rather than being judged against a model it never owned\n`);
+    return GATE_UNRESOLVABLE_EXIT;
+  }
   let source;
   try {
     source = readSource(target);
@@ -581,7 +593,7 @@ function runPhaseParityGate(target, out, readSource) {
   let agreement;
   try {
     verdict = checkPhaseParity(extracted.surfaces);
-    agreement = checkPhaseAuthority(extracted.surfaces.declared, PHASE_TITLES);
+    agreement = checkPhaseAuthority(extracted.surfaces.declared, authority);
   } catch (err) {
     out.err(`mitosis-gate: phase-parity could not evaluate ${target}: ${err && err.message ? err.message : 'unknown failure'}\n`);
     return GATE_UNRESOLVABLE_EXIT;

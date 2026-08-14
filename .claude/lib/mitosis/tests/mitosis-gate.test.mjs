@@ -1,6 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
+import { relative } from 'node:path';
 import {
   GATE_CLEAN_EXIT,
   GATE_USAGE_EXIT,
@@ -76,6 +77,31 @@ export function run() {
 ${PHASE_TITLES.map((title) => `  phase('${title}');\n  agent(prompt, { label: 'step', phase: '${title}' });`).join('\n')}
 }
 `;
+
+const FOREIGN_MODEL_TARGET = '/nonexistent-workflow-tree-xyz/other-workflow.js';
+
+const FOREIGN_MODEL_SOURCE = `
+export const meta = {
+  phases: [
+    { title: 'Execute' },
+    { title: 'Integrate' },
+    { title: 'Final review' },
+  ],
+};
+
+export function run() {
+  phase('Execute');
+  agent(prompt, { label: 'step', phase: 'Execute' });
+  phase('Integrate');
+  agent(prompt, { label: 'step', phase: 'Integrate' });
+  phase('Final review');
+  agent(prompt, { label: 'step', phase: 'Final review' });
+}
+`;
+
+function withDuplicateDeclaration(title) {
+  return AUTHORITATIVE_SOURCE.replace(`    { title: '${title}' },`, `    { title: '${title}' },\n    { title: '${title}' },`);
+}
 
 function withCallSite(callSiteArgs) {
   return `
@@ -192,6 +218,22 @@ test('the authority check halts on an authority it cannot read as a set of title
       `the authority ${JSON.stringify(malformed)} cannot be read as a set of phase titles, and a membership test over it would let the unreadable entry take part in the comparison instead of halting the census`,
     );
   }
+});
+
+test('the parity checker halts on a declared surface that names one title twice, because the target is the side the gate exists to police', () => {
+  assert.throws(
+    () => checkPhaseParity({ ...BALANCED, declared: ['Plan', 'Ship', 'Ship'] }),
+    TypeError,
+    'a repeated declared title is silently collapsed the moment the surface becomes a set, and no reported count carries declared cardinality, so the duplicate can never be read back out of a green verdict; halting on the authority while collapsing the target guards the in-repo constant nobody attacks and lets the --target file through',
+  );
+});
+
+test('the authority check halts on a declared surface that names one title twice, on the same argument that halts on a repeated authority title', () => {
+  assert.throws(
+    () => checkPhaseAuthority(['Probe', 'Ship', 'Ship'], ['Probe', 'Ship']),
+    TypeError,
+    'the declared surface and the authority are compared as two sets, so a declared list this census cannot read as a set is unclassifiable on exactly the argument that already halts the authority',
+  );
 });
 
 test('the authority check rejects a declared surface that is not an array of non-empty strings', () => {
@@ -635,7 +677,7 @@ test('the argv parser rejects a repeated target instead of silently taking the l
 
 test('the cli exits clean and prints the verdict for a target that both agrees with the authority and calls every phase it declares', () => {
   const { out, stdout, stderr } = capture();
-  const code = runMitosisGate(['phase-parity', '--target', 'fixture.js'], out, () => AUTHORITATIVE_SOURCE);
+  const code = runMitosisGate(['phase-parity', '--target', DEFAULT_PHASE_PARITY_TARGET], out, () => AUTHORITATIVE_SOURCE);
   assert.deepEqual(stderr, []);
   assert.equal(code, GATE_CLEAN_EXIT);
   assert.deepEqual(
@@ -650,7 +692,7 @@ test('the cli exits on the violation code and names both parity directions', () 
     .replace("  phase('Resume');\n", '')
     .replace("  phase('Probe');", "  phase('Shepherd');\n  phase('Probe');");
   const { out, stdout, stderr } = capture();
-  const code = runMitosisGate(['phase-parity', '--target', 'fixture.js'], out, () => source);
+  const code = runMitosisGate(['phase-parity', '--target', DEFAULT_PHASE_PARITY_TARGET], out, () => source);
   assert.equal(code, GATE_VIOLATION_EXIT);
   assert.deepEqual(stdout, []);
   assert.match(
@@ -664,7 +706,7 @@ test('the cli exits on the violation code and names both parity directions', () 
 test('the cli exits on the violation code and names both authority directions', () => {
   const source = AUTHORITATIVE_SOURCE.split("'Ship'").join("'Shipp'");
   const { out, stdout, stderr } = capture();
-  const code = runMitosisGate(['phase-parity', '--target', 'fixture.js'], out, () => source);
+  const code = runMitosisGate(['phase-parity', '--target', DEFAULT_PHASE_PARITY_TARGET], out, () => source);
   assert.equal(
     code,
     GATE_VIOLATION_EXIT,
@@ -672,15 +714,53 @@ test('the cli exits on the violation code and names both authority directions', 
   );
   assert.deepEqual(stdout, []);
   assert.match(stderr.join(''), /declares phases the phase authority does not name: Shipp/);
-  assert.match(stderr.join(''), /the phase authority names phases fixture\.js never declares: Ship/);
+  assert.ok(stderr.join('').includes(`the phase authority names phases ${DEFAULT_PHASE_PARITY_TARGET} never declares: Ship`));
 });
 
 test('the cli exits on the unresolvable code rather than reporting a false clean', () => {
   const { out, stdout, stderr } = capture();
-  const code = runMitosisGate(['phase-parity', '--target', 'fixture.js'], out, () => withCallSite('{ phase: chosenPhase }'));
+  const code = runMitosisGate(['phase-parity', '--target', DEFAULT_PHASE_PARITY_TARGET], out, () => withCallSite('{ phase: chosenPhase }'));
   assert.equal(code, GATE_UNRESOLVABLE_EXIT);
   assert.deepEqual(stdout, []);
-  assert.match(stderr.join(''), /phase-parity halted on fixture\.js/);
+  assert.ok(stderr.join('').includes(`phase-parity halted on ${DEFAULT_PHASE_PARITY_TARGET}`));
+});
+
+test('the cli routes a target that declares one title twice to the unresolvable exit instead of a receipt that collapses the duplicate', () => {
+  const { out, stdout, stderr } = capture();
+  const code = runMitosisGate(['phase-parity', '--target', DEFAULT_PHASE_PARITY_TARGET], out, () => withDuplicateDeclaration('Ship'));
+  assert.equal(
+    code,
+    GATE_UNRESOLVABLE_EXIT,
+    'this target declares nine entries naming eight titles and is otherwise in parity, so collapsing the declared surface into a set exits clean and prints a receipt naming eight — a green verdict over a declaration the census never actually read',
+  );
+  assert.deepEqual(stdout, [], 'a halted census prints no receipt, because a receipt is the assurance the halt exists to withhold');
+  assert.match(stderr.join(''), /"Ship" is named twice/);
+});
+
+test('the phase-parity verb halts on a target it holds no phase authority for, rather than judging it against a model it never owned', () => {
+  const { out, stdout, stderr } = capture();
+  const code = runMitosisGate(['phase-parity', '--target', FOREIGN_MODEL_TARGET], out, () => FOREIGN_MODEL_SOURCE);
+  assert.equal(
+    code,
+    GATE_UNRESOLVABLE_EXIT,
+    'the verb advertises --target, so binding one global authority to every target reports a spurious authority break for any workflow that legitimately owns a different phase model',
+  );
+  assert.deepEqual(stdout, []);
+  assert.ok(stderr.join('').includes(FOREIGN_MODEL_TARGET), 'the halt names the target it cannot judge');
+  assert.equal(
+    stderr.join('').includes('declares phases the phase authority does not name'),
+    false,
+    'an unmapped target is unclassifiable, not in breach; reporting a break would tell the operator to rename a model that is not governed by this authority',
+  );
+});
+
+test('the phase authority is keyed to the resolved target, so the default target reached by a relative path is still the mapped one', () => {
+  const relativeTarget = relative(process.cwd(), DEFAULT_PHASE_PARITY_TARGET);
+  const { out, stdout, stderr } = capture();
+  const code = runMitosisGate(['phase-parity', '--target', relativeTarget], out, () => AUTHORITATIVE_SOURCE);
+  assert.deepEqual(stderr, []);
+  assert.equal(code, GATE_CLEAN_EXIT, 'keying the authority on the raw argument string would leave the same file mapped or unmapped depending on how the operator spelled the path');
+  assert.deepEqual(JSON.parse(stdout.join('')).phases, [...PHASE_TITLES].sort());
 });
 
 test('the cli exits on the usage code for a rejected argument vector', () => {
@@ -692,14 +772,14 @@ test('the cli exits on the usage code for a rejected argument vector', () => {
 
 test('the cli exits on the read code when the target cannot be read', () => {
   const thrown = capture();
-  const thrownCode = runMitosisGate(['phase-parity', '--target', 'missing.js'], thrown.out, () => {
+  const thrownCode = runMitosisGate(['phase-parity', '--target', DEFAULT_PHASE_PARITY_TARGET], thrown.out, () => {
     throw new Error('ENOENT: no such file');
   });
   assert.equal(thrownCode, GATE_READ_EXIT);
-  assert.match(thrown.stderr.join(''), /could not read missing\.js: ENOENT/);
+  assert.ok(thrown.stderr.join('').includes(`could not read ${DEFAULT_PHASE_PARITY_TARGET}: ENOENT`));
 
   const empty = capture();
-  assert.equal(runMitosisGate(['phase-parity', '--target', 'empty.js'], empty.out, () => ''), GATE_READ_EXIT);
+  assert.equal(runMitosisGate(['phase-parity', '--target', DEFAULT_PHASE_PARITY_TARGET], empty.out, () => ''), GATE_READ_EXIT);
   assert.match(empty.stderr.join(''), /carried no readable source/);
 });
 
@@ -734,10 +814,10 @@ test('the sandbox compile halts fail-closed on a target that is not a compilable
 test('the cli exits on the compile code when the target does not compile under the sandbox', () => {
   const { out, stderr } = capture();
   const code = runMitosisGate(
-    ['phase-parity', '--target', 'broken.js'],
+    ['phase-parity', '--target', DEFAULT_PHASE_PARITY_TARGET],
     out,
     () => "export const meta = { phases: [{ title: 'Plan' }] };\nfunction (\n",
   );
   assert.equal(code, GATE_COMPILE_EXIT);
-  assert.match(stderr.join(''), /broken\.js does not compile under the workflow sandbox/);
+  assert.ok(stderr.join('').includes(`${DEFAULT_PHASE_PARITY_TARGET} does not compile under the workflow sandbox`));
 });
