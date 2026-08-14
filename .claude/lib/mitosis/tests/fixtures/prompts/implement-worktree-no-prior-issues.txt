@@ -1,0 +1,18 @@
+FX IMPLEMENTER PREAMBLE
+second preamble line
+
+--- THIS TASK ---
+Set up an isolated workspace, then implement.
+1. Create a dedicated worktree (observe-then-converge; idempotent under replay). FIRST check whether it already exists: `git -C /fx/repo worktree list --porcelain` and `git -C /fx/repo rev-parse --verify --quiet fx/task-7`. If a worktree at /fx/wt/task-7 is already checked out on fx/task-7, REUSE it (skip the add). If fx/task-7 exists but no worktree is attached, attach without -b: `git -C /fx/repo worktree add /fx/wt/task-7 fx/task-7`. Otherwise create it fresh (retry once if git reports a lock):
+   `git -C /fx/repo worktree add -b fx/task-7 /fx/wt/task-7 fx-base`
+2. `cd /fx/wt/task-7` and do ALL work there. Follow TDD as the instructions above require.
+3. Bootstrap dependencies before any check (idempotent): `ln -sfn /fx/repo/node_modules node_modules`
+4. For verification run ONLY the scoped check, never a full build/suite: `npm run fx-check`
+5. Commit your work to `fx/task-7` (one or more commits). Do NOT remove the worktree.
+
+Task: fx task title
+
+fx task full text line one
+fx task full text line two
+
+Report status as exactly one of DONE / DONE_WITH_CONCERNS / BLOCKED / NEEDS_CONTEXT.

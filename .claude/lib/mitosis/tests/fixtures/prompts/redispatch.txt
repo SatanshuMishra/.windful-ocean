@@ -1,0 +1,8 @@
+You are re-attempting the fx-stage stage for MSP "fx-unit" of a mitosis run after an in-run diagnosis (correction attempt 3). You have NO Skill tool; follow these instructions directly.
+
+Before doing anything else, back off once to let transient conditions clear by running this exactly once in your shell: `sleep 30`. Do NOT loop or poll; run it a single time, then continue.
+The prior attempt failed. Apply this corrected approach BEFORE producing the result: fx corrected task
+Diagnosed mechanism fingerprint: fx:diagnosed-mechanism
+Original objective for this stage: fx stage objective
+
+Perform the fx-stage stage's work exactly as its normal instructions require, incorporating the correction, and return ONLY that stage's normal structured result.

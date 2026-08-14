@@ -17,6 +17,7 @@ import { EXEC_ALLOWLIST, assertSpawnAllowed, resolveSpawn } from './exec-policy.
 import { MERGE_REFUSAL_SPECIMENS } from './gh-merge-shim.mjs';
 import { REQUIRED_TOOL, agentDefinitionDir, censusAgentSchemaCapability } from './agent-schema-lint.mjs';
 import { PHASE_TITLES } from './phases.mjs';
+import { PROMPT_C7_OBLIGATIONS, PROMPT_PROBE_CASES, censusPromptRegistry } from './prompt-registry.mjs';
 
 export const GATE_CLEAN_EXIT = 0;
 export const GATE_USAGE_EXIT = 40;
@@ -25,7 +26,7 @@ export const GATE_UNRESOLVABLE_EXIT = 42;
 export const GATE_READ_EXIT = 43;
 export const GATE_COMPILE_EXIT = 44;
 
-export const MITOSIS_GATE_VERBS = Object.freeze(['determinism', 'dispatchable-agent-schema-capable', 'exec-allowlist', 'phase-parity']);
+export const MITOSIS_GATE_VERBS = Object.freeze(['determinism', 'dispatchable-agent-schema-capable', 'exec-allowlist', 'phase-parity', 'prompt-registry']);
 
 export const DEFAULT_PHASE_PARITY_TARGET = fileURLToPath(new URL('../../workflows/mitosis.js', import.meta.url));
 export const DEFAULT_DETERMINISM_TARGET = fileURLToPath(new URL('./', import.meta.url));
@@ -50,13 +51,28 @@ const EXEC_ALLOWLIST_NOT_ATTESTED = Object.freeze([
   'that a gh alias defined before the run is refused: the classifier reads alias definitions, not the alias table already in effect',
 ]);
 
-const TARGETLESS_VERBS = Object.freeze(new Set(['exec-allowlist']));
+const PROMPT_REGISTRY_ATTESTS = Object.freeze([
+  'every prompt kind the authority names has a composer, every composer entry names a kind the authority names, and every kind was handed at least one probe case, so the reported kind count is a measurement rather than the length of the authority list',
+  'each kind composes byte-identical text when composed twice from one frozen input',
+  'every declared input path of every probe case changes the composed bytes when perturbed on its own, down to each leaf of a compound field, so a field rendered at one leaf and ignored at another cannot pass as measured',
+  'every path a probe case leaves undeclared leaves the composed bytes unchanged, so an unaudited live field halts rather than passing',
+  'every path a probe case declares refused is refused by the contract, so a declared guard that is not there halts rather than being credited',
+]);
+
+const PROMPT_REGISTRY_NOT_ATTESTED = Object.freeze([
+  'that the registry prose still matches the copies inlined in mitosis.js and run-engine.mjs: the two live side by side until the engine is ported onto the registry, and the anchor guard that measures it is a suite test rather than this verb',
+  'that a composed prompt is the right instruction for the agent that receives it; only its determinism and its input sensitivity are measured',
+  'the byte fixtures transcribed from the engine, and the per-branch arm census that pins them, which are both held by the test suite rather than by this verb',
+]);
+
+const TARGETLESS_VERBS = Object.freeze(new Set(['exec-allowlist', 'prompt-registry']));
 
 const VERB_DEFAULT_TARGETS = Object.freeze({
   determinism: DEFAULT_DETERMINISM_TARGET,
   'dispatchable-agent-schema-capable': DEFAULT_AGENT_TREE_TARGET,
   'exec-allowlist': null,
   'phase-parity': DEFAULT_PHASE_PARITY_TARGET,
+  'prompt-registry': null,
 });
 
 const PHASE_AUTHORITY_BY_TARGET = Object.freeze({ [DEFAULT_PHASE_PARITY_TARGET]: PHASE_TITLES });
@@ -744,11 +760,42 @@ function runAgentSchemaGate(target, out, readSource) {
   return GATE_CLEAN_EXIT;
 }
 
+export function promptRegistryExitCode(result) {
+  if (result.ok) return GATE_CLEAN_EXIT;
+  return result.kind === 'violation' ? GATE_VIOLATION_EXIT : GATE_UNRESOLVABLE_EXIT;
+}
+
+function runPromptRegistryGate(_target, out) {
+  let result;
+  try {
+    result = censusPromptRegistry(PROMPT_PROBE_CASES);
+  } catch (err) {
+    out.err(`mitosis-gate: prompt-registry could not census the registry: ${err && err.message ? err.message : 'unknown failure'}\n`);
+    return GATE_UNRESOLVABLE_EXIT;
+  }
+  if (!result.ok) {
+    out.err(`mitosis-gate: prompt-registry ${result.kind === 'violation' ? 'measured a violation' : 'halted'}: ${result.error}\n`);
+    return promptRegistryExitCode(result);
+  }
+  out.log(`${JSON.stringify({
+    verb: 'prompt-registry',
+    ok: true,
+    kindCount: result.kindCount,
+    caseCount: result.caseCount,
+    fieldCount: result.fieldCount,
+    attests: [...PROMPT_REGISTRY_ATTESTS],
+    notAttested: [...PROMPT_REGISTRY_NOT_ATTESTED],
+    c7Obligations: [...PROMPT_C7_OBLIGATIONS],
+  })}\n`);
+  return promptRegistryExitCode(result);
+}
+
 const VERB_RUNNERS = Object.freeze({
   determinism: runDeterminismGate,
   'dispatchable-agent-schema-capable': runAgentSchemaGate,
   'exec-allowlist': runExecAllowlistGate,
   'phase-parity': runPhaseParityGate,
+  'prompt-registry': runPromptRegistryGate,
 });
 
 export function runMitosisGate(argv, out, readSource) {

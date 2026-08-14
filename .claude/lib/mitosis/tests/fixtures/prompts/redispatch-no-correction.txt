@@ -1,0 +1,7 @@
+You are re-attempting the fx-stage stage for MSP "fx-unit" of a mitosis run after an in-run diagnosis (correction attempt 3). You have NO Skill tool; follow these instructions directly.
+
+The prior attempt failed. Apply this corrected approach BEFORE producing the result: fx:diagnosed-mechanism
+Diagnosed mechanism fingerprint: fx:diagnosed-mechanism
+Original objective for this stage: fx stage objective
+
+Perform the fx-stage stage's work exactly as its normal instructions require, incorporating the correction, and return ONLY that stage's normal structured result.

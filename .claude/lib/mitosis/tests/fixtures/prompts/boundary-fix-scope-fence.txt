@@ -1,0 +1,3 @@
+The diff-scoped gate found NEW lint/type errors this MSP introduced. Fix the integrated code in the main repo working tree at /fx/repo; stay within the union of the declared task scopes and leave changes uncommitted by CORRECTING the root cause - do NOT pass the gate by suppression: add no new `eslint-disable` / `@ts-ignore` / `@ts-expect-error`, and do not loosen eslint or tsconfig rules or newly ignore or exclude files; new suppression directives and strictness-reducing config changes are themselves blocked by the gate. Failing output:
+fx gate output line one
+fx gate output line two
