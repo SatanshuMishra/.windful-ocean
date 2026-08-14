@@ -49,13 +49,44 @@
   "abandoned_reason": null,
   "closure_statement": null,
   "spine": {
-    "active_goal": "",
-    "next_step": "",
-    "last_session": "",
-    "open_risks": [],
+    "active_goal": "Close the two unverified controls left by the permission rebuild, and rule on the self-modification exposure it deliberately created.",
+    "next_step": "START HERE. Take c1 before c2: if nothing enforces the R3 precondition then bypassPermissions is reachable today and the deny experiment is load-bearing; if something does enforce it, c2 may be re-scoped or struck. Do NOT enter bypassPermissions to run c2 without ruling on that first - 0398 requires direct user confirmation for an oversight-reducing change.",
+    "last_session": "Opened as the successor to max-autonomy-permission-build, carrying the three risks the owner selected at its close. No work done on it yet.",
+    "open_risks": [
+      {
+        "text": "Measure whether a deny rule survives bypassPermissions before trusting any unattended run — deny is the only control left on the PR-creation, PR-merge and hosted-Supabase surfaces, and no experiment has ever covered that mode",
+        "scope": "c2",
+        "refs": [
+          "docs/superpowers/specs/2026-08-13-maximum-autonomy-permission-architecture-SPEC.md:274",
+          "0408",
+          "0417"
+        ]
+      },
+      {
+        "text": "Measure which decision wins when allow-write-tools.sh and secret-scanner.sh both fire on one Edit — deny beating allow is inference, and if it is wrong the secret scanner is silently dead on every write",
+        "scope": "c3",
+        "refs": [
+          ".claude/hooks/allow-write-tools.sh",
+          ".claude/hooks/secret-scanner.sh",
+          ".claude/settings.json"
+        ]
+      },
+      {
+        "text": "An agent can rewrite or delete the gate that judges it in one unattended command — G4 is retired in full so every guardrail-file write allows; git is the only recovery and nothing reports the change until a human looks",
+        "scope": "c4",
+        "refs": [
+          ".claude/hooks/block-destructive-bash.sh",
+          "0417",
+          "0418"
+        ]
+      }
+    ],
     "key_decisions": [],
-    "out_of_scope": []
+    "out_of_scope": [
+      "The logbook fail-closed PreToolUse guard - it belongs to the logbook plugin repository rather than this one, per its decision record",
+      "Reinstating any G4 guardrail-write control - two decision records retired it, and c4 rules on detection after the fact, never on prevention"
+    ]
   },
   "created_at": "2026-08-14T06:04:49.198Z",
-  "updated_at": "2026-08-14T06:04:49.198Z"
+  "updated_at": "2026-08-14T06:04:59.611Z"
 }
