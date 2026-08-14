@@ -1,6 +1,8 @@
-import { test } from 'node:test';
+import { test, after } from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import {
   JOURNAL_ARTIFACT_KINDS,
   JOURNAL_CENSUS_SELF,
@@ -12,6 +14,13 @@ import {
 import { JOURNAL_KINDS } from '../journal-store.mjs';
 
 const BACKTICK = String.fromCharCode(96);
+
+const scratchDirs = [];
+
+after(() => {
+  for (const dir of scratchDirs) rmSync(dir, { recursive: true, force: true });
+  scratchDirs.length = 0;
+});
 
 function tpl(lines) {
   return lines.join('\n').replaceAll('~', BACKTICK).replaceAll('@', '$');
@@ -216,6 +225,108 @@ test('exactly one file is withheld from the scan, and it is the census module it
   assert.equal(enumerateJournalSources(journalCensusRoots()).some((path) => withheld.has(path)), false);
   const selfSource = readFileSync(JOURNAL_CENSUS_SELF[0], 'utf8');
   assert.equal(censusJournalDispatches([{ path: JOURNAL_CENSUS_SELF[0], source: selfSource }]).ok, false, 'the census module passes its own census, so the exclusion is hiding nothing and should be removed');
+});
+
+const EVASIONS = Object.freeze({
+  execSync: [
+    "import { execSync } from 'node:child_process';",
+    'function persistStray(repoRoot) {',
+    '  execSync(~echo x >> @{repoRoot}/.mitosis/run.json~);',
+    '}',
+  ],
+  writevSync: [
+    "import { writevSync } from 'node:fs';",
+    'function persistStray(descriptor, repoRoot) {',
+    '  const journal = ~@{repoRoot}/.mitosis/run.json~;',
+    '  writevSync(descriptor, [Buffer.from(journal)]);',
+    '}',
+  ],
+  cpSync: [
+    "import { cpSync } from 'node:fs';",
+    'function persistStray(source, repoRoot) {',
+    '  cpSync(source, ~@{repoRoot}/.mitosis/run.json~);',
+    '}',
+  ],
+  bareConstant: [
+    "import { helper } from './fx.mjs';",
+    'function persistStray(repoRoot) {',
+    '  const JOURNAL = ~@{repoRoot}/.mitosis/run.json~;',
+    '  return helper(JOURNAL);',
+    '}',
+  ],
+});
+
+for (const [name, lines] of Object.entries(EVASIONS)) {
+  test(`a journal path composed through ${name} in an importing source halts rather than counting as a mention`, () => {
+    const source = `${syntheticEngine(JOURNAL_KINDS)}\n${tpl(lines)}`;
+    const result = censusJournalDispatches(syntheticSources(source, '/fx/engine/importing.mjs'));
+    assert.equal(result.ok, false, `the ${name} evasion passed silently into the unobserved mention bucket`);
+    assert.match(result.error, /run\.json|journal/i);
+  });
+}
+
+test('the basename named as a word in prose stays inert, so the closure refuses paths rather than mentions', () => {
+  const prose = [
+    "import { helper } from './fx.mjs';",
+    "export const NOTE = 'the fold reads .mitosis/run.json as line one of the journal';",
+    'export const used = helper(NOTE);',
+  ];
+  const source = `${syntheticEngine(JOURNAL_KINDS)}\n${tpl(prose)}`;
+  const result = censusJournalDispatches(syntheticSources(source, '/fx/engine/importing.mjs'));
+  assert.equal(result.ok, true, result.ok ? '' : result.error);
+  assert.ok(result.mentionCount > 0, 'the inert prose form was not counted as a mention');
+});
+
+function rootWith(prefix, names) {
+  const dir = mkdtempSync(join(tmpdir(), prefix));
+  scratchDirs.push(dir);
+  for (const name of names) writeFileSync(join(dir, name), 'const x = 1;\n');
+  return { kind: 'directory', path: dir, excluded: [], excludedFiles: [] };
+}
+
+test('the enumeration halts on a file extension it neither scans nor enumerates as inert', () => {
+  for (const name of ['writer.sh', 'notes.md', 'data.json', 'Makefile']) {
+    const root = rootWith('journal-census-extension-', [name]);
+    assert.throws(
+      () => enumerateJournalSources([root]),
+      new RegExp(name.replace('.', '\\.')),
+      `${name} was dropped from the census without a word`,
+    );
+  }
+});
+
+test('a file enumerated as inert by name is skipped, and one that is not is refused', () => {
+  const root = rootWith('journal-census-inert-', ['notes.md']);
+  assert.deepEqual(enumerateJournalSources([{ ...root, inertFiles: ['notes.md'] }]), []);
+  assert.throws(() => enumerateJournalSources([{ ...root, inertFiles: ['other.md'] }]), /notes\.md/);
+});
+
+test('every excluded sibling directory carries a recorded reason, so the exclusion list cannot grow silently', () => {
+  for (const root of journalCensusRoots()) {
+    for (const excluded of root.excluded) {
+      assert.ok(typeof excluded.name === 'string' && excluded.name.length > 0, 'an exclusion names no directory');
+      assert.ok(
+        typeof excluded.reason === 'string' && excluded.reason.length > 20,
+        `the exclusion of ${excluded.name} carries no recorded reason, so it reads as an oversight rather than a decision`,
+      );
+    }
+  }
+  const root = journalCensusRoots()[0];
+  assert.throws(
+    () => enumerateJournalSources([{ ...root, excluded: ['tests'] }]),
+    /names no directory/i,
+    'a bare string was accepted as an exclusion',
+  );
+  assert.throws(
+    () => enumerateJournalSources([{ ...root, excluded: [{ name: 'tests' }] }]),
+    /reason/i,
+    'a named directory was excluded without a recorded reason',
+  );
+  assert.throws(
+    () => enumerateJournalSources([{ ...root, excluded: [{ name: 'tests', reason: '   ' }] }]),
+    /reason/i,
+    'a blank reason was accepted as a recorded one',
+  );
 });
 
 test('the enumeration halts on a root it cannot read rather than censusing a narrower scope', () => {

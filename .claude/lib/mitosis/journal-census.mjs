@@ -15,6 +15,7 @@ const FILESYSTEM_WRITERS = Object.freeze(new Set([
   'rename', 'renameSync', 'truncate', 'truncateSync', 'write', 'writeFile', 'writeFileSync', 'writeSync',
 ]));
 const PATH_CHARACTER = /[A-Za-z0-9_.\-/$*{}]/;
+const PROSE_LEAD = /[ \t]/;
 const IDENTIFIER_CHARACTER = /[\w$]/;
 const FUNCTION_HEADER = /(?:async\s+)?function\s+([A-Za-z_$][\w$]*)\s*\([^()]*\)\s*$/;
 const HEADER_WINDOW = 400;
@@ -57,16 +58,40 @@ export function journalCensusRoots() {
     Object.freeze({
       kind: 'directory',
       path: fileURLToPath(new URL('./', import.meta.url)),
-      excluded: Object.freeze(['prompt-snapshots', 'tests']),
+      excluded: Object.freeze([
+        Object.freeze({
+          name: 'prompt-snapshots',
+          reason: 'pinned prompt text, never loaded as source; a journal path there is a transcript of a dispatch this census already reads at its site in the engine',
+        }),
+        Object.freeze({
+          name: 'tests',
+          reason: 'test sources compose journal paths deliberately as fixtures, so censusing them would halt on every synthetic writer the suite builds to prove this census halts',
+        }),
+      ]),
       excludedFiles: JOURNAL_CENSUS_SELF,
+      inertFiles: Object.freeze([]),
     }),
     Object.freeze({
       kind: 'directory',
       path: fileURLToPath(new URL('../../workflows/', import.meta.url)),
       excluded: Object.freeze([]),
       excludedFiles: Object.freeze([]),
+      inertFiles: Object.freeze([]),
     }),
   ]);
+}
+
+function requireExclusions(root) {
+  const excluded = Array.isArray(root.excluded) ? root.excluded : [];
+  for (const entry of excluded) {
+    if (entry === null || typeof entry !== 'object' || typeof entry.name !== 'string' || entry.name.length === 0) {
+      throw new TypeError(`journal-census: the source root ${root.path} excludes ${JSON.stringify(entry)}, which names no directory; an exclusion is a decision and carries the directory it withholds`);
+    }
+    if (typeof entry.reason !== 'string' || entry.reason.trim().length === 0) {
+      throw new TypeError(`journal-census: the source root ${root.path} excludes ${entry.name} without a recorded reason; an unscanned directory is a hole in the guarantee this census makes, so the reason it is inert is required rather than assumed`);
+    }
+  }
+  return excluded.map((entry) => entry.name);
 }
 
 export function enumerateJournalSources(roots) {
@@ -78,8 +103,9 @@ export function enumerateJournalSources(roots) {
     if (root === null || typeof root !== 'object' || root.kind !== 'directory' || typeof root.path !== 'string') {
       throw new TypeError(`journal-census: the source root ${JSON.stringify(root)} is neither a directory nor anything this census reads; refusing to guess what it enumerates`);
     }
-    const excluded = Array.isArray(root.excluded) ? root.excluded : [];
+    const excluded = requireExclusions(root);
     const excludedFiles = Array.isArray(root.excludedFiles) ? root.excludedFiles : [];
+    const inertFiles = Array.isArray(root.inertFiles) ? root.inertFiles : [];
     let entries;
     try {
       entries = readdirSync(root.path, { withFileTypes: true });
@@ -101,6 +127,9 @@ export function enumerateJournalSources(roots) {
       }
       if (UNSCANNED_EXTENSIONS.some((extension) => entry.name.endsWith(extension))) {
         throw new Error(`journal-census: the source root ${root.path} contains ${entry.name}, which can carry a journal write yet is not scanned by a census over ${SOURCE_EXTENSIONS.join(' and ')} files; refusing to guess`);
+      }
+      if (!inertFiles.includes(entry.name)) {
+        throw new Error(`journal-census: the source root ${root.path} contains ${entry.name}, whose extension is outside the scanned ${SOURCE_EXTENSIONS.join(' and ')} set and which is not enumerated as inert; a shell script, a makefile or a document can carry a journal write just as a module can, so it is refused rather than skipped in silence`);
       }
     }
   }
@@ -229,7 +258,12 @@ function directiveAt(raw, index) {
 }
 
 function importsAnything(masked) {
-  return /(^|\n)\s*import\s/.test(masked) || /(?<![\w$])require\s*\(/.test(masked) || /(?<![\w$])import\s*\(/.test(masked);
+  return /^[ \t]*import\s/m.test(masked) || /(?<![\w$])require\s*\(/.test(masked) || /(?<![\w$])import\s*\(/.test(masked);
+}
+
+function namedAsProseWord(raw, index) {
+  const start = index - QUALIFIER.length - 1;
+  return start >= 0 && PROSE_LEAD.test(raw[start]);
 }
 
 function auditArtifacts(context) {
@@ -266,7 +300,8 @@ function classifySite(context, index) {
     return { error: `${context.path}:${lineOf(context.raw, index)} passes the run journal path straight to ${writer}; the journal is written through journal-store.mjs, whose path is an argument, so a literal journal path inside a filesystem call is a second writer this census would otherwise never see` };
   }
   if (!insideDispatch(context, index)) {
-    return { role: 'prose' };
+    if (context.dispatchOnly || namedAsProseWord(context.raw, index)) return { role: 'mention' };
+    return { error: `${context.path}:${lineOf(context.raw, index)} composes the run journal path as a path expression outside any dispatch, in a source that imports and can therefore write. The journal is written through journal-store.mjs, whose path is an argument; the one inert form this census enumerates for an importing source is the basename named as a word in prose, so a path built here is refused rather than counted as an unread mention` };
   }
   const directive = directiveAt(context.raw, index);
   if (directive === null) {
@@ -300,6 +335,7 @@ function contextFor(source) {
       masked: scan.masked,
       braces: scan.bracePairs,
       parens: parenPairs(scan.masked),
+      dispatchOnly: !importsAnything(scan.masked),
     },
   };
 }
@@ -318,6 +354,36 @@ function builderMismatch() {
   return null;
 }
 
+function censusOneSource(source) {
+  if (source === null || typeof source !== 'object' || typeof source.source !== 'string' || typeof source.path !== 'string') {
+    return { error: `journal-census: ${JSON.stringify(source)} is not a source carrying a path and its text` };
+  }
+  const prepared = contextFor(source);
+  if (prepared.error !== undefined) return { error: prepared.error };
+  const context = prepared.context;
+  const artifacts = auditArtifacts(context);
+  if (artifacts.unknown.length > 0) {
+    return { error: `journal-census: these ${DIRECTORY_TOKEN} artifacts are not one of ${JOURNAL_ARTIFACT_KINDS.join(', ')}, and an unclassified one may be a run journal under another name: ${artifacts.unknown.join('; ')}` };
+  }
+  const basenames = auditBasenames(context);
+  if (basenames.unknown.length > 0) return { error: `journal-census: ${basenames.unknown.join('; ')}` };
+  const sites = [];
+  let mentionCount = 0;
+  for (const index of basenames.qualified) {
+    const classified = classifySite(context, index);
+    if (classified.error !== undefined) return { error: `journal-census: ${classified.error}` };
+    if (classified.role === 'write') sites.push(classified.site);
+    else mentionCount += 1;
+  }
+  return {
+    sites,
+    mentionCount,
+    artifactCount: artifacts.counted,
+    gitignoreClauseCount: occurrencesOf(context.raw, GITIGNORE_CLAUSE).length,
+    dispatchOnly: context.dispatchOnly ? context.path : null,
+  };
+}
+
 export function censusJournalDispatches(sources) {
   if (!Array.isArray(sources) || sources.length === 0) {
     return halt('journal-census: the census was handed no source, so it would attest a conversion list it never measured');
@@ -330,29 +396,13 @@ export function censusJournalDispatches(sources) {
   let gitignoreClauseCount = 0;
   let mentionCount = 0;
   for (const source of sources) {
-    if (source === null || typeof source !== 'object' || typeof source.source !== 'string' || typeof source.path !== 'string') {
-      return halt(`journal-census: ${JSON.stringify(source)} is not a source carrying a path and its text`);
-    }
-    const prepared = contextFor(source);
-    if (prepared.error !== undefined) return halt(prepared.error);
-    const context = prepared.context;
-    const artifacts = auditArtifacts(context);
-    if (artifacts.unknown.length > 0) {
-      return halt(`journal-census: these ${DIRECTORY_TOKEN} artifacts are not one of ${JOURNAL_ARTIFACT_KINDS.join(', ')}, and an unclassified one may be a run journal under another name: ${artifacts.unknown.join('; ')}`);
-    }
-    artifactCount += artifacts.counted;
-    const basenames = auditBasenames(context);
-    if (basenames.unknown.length > 0) {
-      return halt(`journal-census: ${basenames.unknown.join('; ')}`);
-    }
-    if (!importsAnything(context.masked)) dispatchOnly.push(context.path);
-    gitignoreClauseCount += occurrencesOf(context.raw, GITIGNORE_CLAUSE).length;
-    for (const index of basenames.qualified) {
-      const classified = classifySite(context, index);
-      if (classified.error !== undefined) return halt(`journal-census: ${classified.error}`);
-      if (classified.role === 'write') sites.push(classified.site);
-      else mentionCount += 1;
-    }
+    const measured = censusOneSource(source);
+    if (measured.error !== undefined) return halt(measured.error);
+    sites.push(...measured.sites);
+    mentionCount += measured.mentionCount;
+    artifactCount += measured.artifactCount;
+    gitignoreClauseCount += measured.gitignoreClauseCount;
+    if (measured.dispatchOnly !== null) dispatchOnly.push(measured.dispatchOnly);
   }
   if (sites.length !== gitignoreClauseCount) {
     return halt(`journal-census: the extractor resolved ${sites.length} journal write site(s) while the independently counted "${GITIGNORE_CLAUSE}" clause appears ${gitignoreClauseCount} time(s); the two disagree, so one of the two extractors is reading a subset and neither figure can be trusted`);
@@ -381,11 +431,15 @@ export function censusJournalDispatches(sources) {
 }
 
 export function journalDispatchCensus() {
+  const roots = journalCensusRoots();
   let sources;
   try {
-    sources = readJournalSources(enumerateJournalSources(journalCensusRoots()));
+    sources = readJournalSources(enumerateJournalSources(roots));
   } catch (error) {
     return halt(`journal-census: the engine sources could not be enumerated: ${error.message}`);
   }
-  return censusJournalDispatches(sources);
+  const measured = censusJournalDispatches(sources);
+  if (!measured.ok) return measured;
+  const excludedDirectories = roots.flatMap((root) => root.excluded.map((entry) => `${entry.name}: ${entry.reason}`));
+  return Object.freeze({ ...measured, excludedDirectories: Object.freeze(excludedDirectories) });
 }
