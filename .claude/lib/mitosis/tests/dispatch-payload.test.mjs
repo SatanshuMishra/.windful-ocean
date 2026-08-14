@@ -28,7 +28,7 @@ test('an over-cap structured payload is truncated behind a marker and never pass
   assert.equal(result.truncated, true, 'an over-cap payload must carry the truncation marker');
   assert.equal(result.structured, null, 'a truncated payload must not be handed back as a whole object');
   assert.equal(result.structuredText.length, cap);
-  assert.match(result.structuredText, /^\{"status":"done","blob":"x+$/);
+  assert.match(result.structuredText, /^\{"status":"done","blob":\x22x+$/);
 });
 
 test('an under-cap structured payload is retained whole with the truncation marker clear', async () => {
