@@ -20,7 +20,7 @@ import {
   parseStatusPaths,
 } from './transcription-parsers.mjs';
 
-import { planArtifactAbsentSpecimen, planArtifactSpecimen } from './plan-artifact.mjs';
+import { planArtifactAbsentSpecimen, planArtifactRefusalProbes, planArtifactSpecimen } from './plan-artifact.mjs';
 import { composeTreeEntry } from './manifest-publish.mjs';
 
 const MODULE = 'transcription-conversions';
@@ -72,7 +72,7 @@ function ran(status, stdout = '') {
   return Object.freeze({ outcome: EXEC_COMPLETED, status, stdout, stderr: '', signal: null, error: null });
 }
 
-const QUOTED_SPECIMEN_PATH = 'src/café.txt';
+const QUOTED_SPECIMEN_PATH = 'src/caf\u00e9.txt';
 const QUOTED_SPECIMEN_LINE = '"src/caf\\303\\251.txt"';
 
 const SITE_PARSERS = Object.freeze({
@@ -110,6 +110,7 @@ const SITE_PARSERS = Object.freeze({
       specimen: null,
       observe: planArtifactSpecimen,
       refuses: planArtifactAbsentSpecimen,
+      confines: planArtifactRefusalProbes,
       reads: (read) => read.planFound === true,
       local: true,
     }),
@@ -165,11 +166,14 @@ export function parserProbes() {
     const reads = read.ok === true && entry.reads(read) === true;
     if (entry.local === true) {
       const refused = classifyPlanArtifact(entry.refuses());
+      const admitted = entry.confines().filter((probe) => !probe.refused);
       return Object.freeze({
         name: at,
         reads,
-        failsClosed: refused.planFound === false,
-        detail: reads ? `reads an observation this substrate produced (${specimen.detail}) and refuses one it could not (${refused.detail})` : `it did not read the observation this substrate produced: ${JSON.stringify(read)}`,
+        failsClosed: refused.planFound === false && admitted.length === 0,
+        detail: reads
+          ? `reads an observation this substrate produced (${specimen.detail}), refuses one it could not (${refused.detail}) and refuses ${admitted.length === 0 ? 'every path outside the workspace it was handed' : `all but ${admitted.map((probe) => probe.name).join(', ')}`}`
+          : `it did not read the observation this substrate produced: ${JSON.stringify(read)}`,
       });
     }
     const interrupted = entry.parse(Object.freeze({ ...specimen, outcome: EXEC_TIMEOUT_EXPIRED }));
@@ -238,7 +242,7 @@ export function anchoredArgv(fixture) {
   const at = `${fixture.site}/${fixture.step}`;
   const residue = anchorResidue(fixture);
   if (residue.unordered !== undefined) {
-    return [`${at} transcribes ${JSON.stringify(residue.unordered)}, which the incumbent command ${JSON.stringify(residue.command)} spells only before an argument this vector already consumed; the vector and the command it was transcribed from no longer read in the same order, so which incumbent word each argument stands for is decided by whichever match is found first`];
+    return [`${at} transcribes ${JSON.stringify(residue.unordered)}, which the incumbent command ${JSON.stringify(residue.command)} spells only before an argument this vector already consumed; the vector and the incumbent no longer read in the same order, so which incumbent word each argument stands for is decided by whichever match is found first`];
   }
   const failures = [];
   const unaccounted = residue.tokens.filter((token) => token !== GIT_COMMAND_BINARY && !Object.hasOwn(fixture.omitted, token));

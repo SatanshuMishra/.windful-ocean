@@ -45,3 +45,22 @@ export function planArtifactSpecimen(io = DEFAULT_IO) {
 export function planArtifactAbsentSpecimen(io = DEFAULT_IO) {
   return observePlanArtifact(moduleDirectory(), join(moduleDirectory(), SPECIMEN_ABSENT), io);
 }
+
+function refuses(observe) {
+  try {
+    observe();
+    return false;
+  } catch {
+    return true;
+  }
+}
+
+export function planArtifactRefusalProbes(io = DEFAULT_IO) {
+  const root = moduleDirectory();
+  return Object.freeze([
+    Object.freeze({ name: 'a plan observed against no workspace at all', refused: refuses(() => observePlanArtifact('', join(root, SPECIMEN_ABSENT), io)) }),
+    Object.freeze({ name: 'a plan path that climbs out of the workspace', refused: refuses(() => observePlanArtifact(root, join(root, '..', SPECIMEN_ABSENT), io)) }),
+    Object.freeze({ name: 'a plan path that is the workspace itself', refused: refuses(() => observePlanArtifact(root, root, io)) }),
+    Object.freeze({ name: 'a plan path spelled relative rather than absolute', refused: refuses(() => observePlanArtifact(root, SPECIMEN_ABSENT, io)) }),
+  ]);
+}
