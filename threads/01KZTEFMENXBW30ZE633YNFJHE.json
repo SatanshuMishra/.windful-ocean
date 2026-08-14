@@ -396,6 +396,11 @@
         "ref": "0428-a-verified-plans-claims-are-still-claims",
         "title": "A verified plan's claims are still claims and get re-checked at implementation",
         "scope": "c3"
+      },
+      {
+        "ref": "0429-c4b-redefines-converted-and-widens-the-vanished-kind-halt",
+        "title": "C4b redefines converted and widens the vanished-kind halt, filing C7-T4 in place of the impossible T13",
+        "scope": "c3"
       }
     ],
     "out_of_scope": [
@@ -407,5 +412,5 @@
     ]
   },
   "created_at": "2026-08-12T07:37:41.077Z",
-  "updated_at": "2026-08-14T20:40:56.695Z"
+  "updated_at": "2026-08-14T20:41:04.042Z"
 }
