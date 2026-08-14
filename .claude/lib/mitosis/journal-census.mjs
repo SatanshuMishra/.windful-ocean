@@ -265,8 +265,8 @@ export const JOURNAL_ARGV_COMPOSERS = Object.freeze({
   'lib/mitosis/node-commands.mjs': 'the transcribed argument vector for the deterministic fold CLI: the reconcile stage runs fold-run-log.mjs against the journal, which READS it, so this source composes the path as one inert argument vector element and hands it to no filesystem call; the writer check above this classification still refuses a path handed to any writer here',
 });
 
-function declaredArgvComposer(path) {
-  return Object.keys(JOURNAL_ARGV_COMPOSERS).find((suffix) => path.endsWith(suffix));
+function declaredArgvComposer(path, composers) {
+  return Object.keys(composers).find((suffix) => path.endsWith(suffix));
 }
 
 function namedAsProseWord(raw, index) {
@@ -309,7 +309,7 @@ function classifySite(context, index) {
   }
   if (!insideDispatch(context, index)) {
     if (context.dispatchOnly || namedAsProseWord(context.raw, index)) return { role: 'mention' };
-    if (declaredArgvComposer(context.path) !== undefined) return { role: 'argv' };
+    if (declaredArgvComposer(context.path, context.composers) !== undefined) return { role: 'argv' };
     return { error: `${context.path}:${lineOf(context.raw, index)} composes the run journal path as a path expression outside any dispatch, in a source that imports and can therefore write. The journal is written through journal-store.mjs, whose path is an argument; the one inert form this census enumerates for an importing source is the basename named as a word in prose, so a path built here is refused rather than counted as an unread mention` };
   }
   const directive = directiveAt(context.raw, index);
@@ -363,13 +363,13 @@ function builderMismatch() {
   return null;
 }
 
-function censusOneSource(source) {
+function censusOneSource(source, composers) {
   if (source === null || typeof source !== 'object' || typeof source.source !== 'string' || typeof source.path !== 'string') {
     return { error: `journal-census: ${JSON.stringify(source)} is not a source carrying a path and its text` };
   }
   const prepared = contextFor(source);
   if (prepared.error !== undefined) return { error: prepared.error };
-  const context = prepared.context;
+  const context = { ...prepared.context, composers };
   const artifacts = auditArtifacts(context);
   if (artifacts.unknown.length > 0) {
     return { error: `journal-census: these ${DIRECTORY_TOKEN} artifacts are not one of ${JOURNAL_ARTIFACT_KINDS.join(', ')}, and an unclassified one may be a run journal under another name: ${artifacts.unknown.join('; ')}` };
@@ -386,7 +386,7 @@ function censusOneSource(source) {
     else if (classified.role === 'argv') argvCount += 1;
     else mentionCount += 1;
   }
-  const composer = declaredArgvComposer(context.path);
+  const composer = declaredArgvComposer(context.path, context.composers);
   if (composer !== undefined && argvCount === 0) {
     return { error: `journal-census: ${context.path} is declared as composing the run journal path into an argument vector, yet it composes no such path; a declaration nothing matches keeps a source excused after the composition that justified it is gone` };
   }
@@ -401,12 +401,12 @@ function censusOneSource(source) {
   };
 }
 
-export function unreachedArgvComposers(sources) {
+export function unreachedArgvComposers(sources, composers = JOURNAL_ARGV_COMPOSERS) {
   const paths = sources.map((source) => (source === null || typeof source !== 'object' ? '' : String(source.path)));
-  return Object.freeze(Object.keys(JOURNAL_ARGV_COMPOSERS).filter((suffix) => !paths.some((path) => path.endsWith(suffix))));
+  return Object.freeze(Object.keys(composers).filter((suffix) => !paths.some((path) => path.endsWith(suffix))));
 }
 
-export function censusJournalDispatches(sources) {
+export function censusJournalDispatches(sources, composers = JOURNAL_ARGV_COMPOSERS) {
   if (!Array.isArray(sources) || sources.length === 0) {
     return halt('journal-census: the census was handed no source, so it would attest a conversion list it never measured');
   }
@@ -420,7 +420,7 @@ export function censusJournalDispatches(sources) {
   let gitignoreClauseCount = 0;
   let mentionCount = 0;
   for (const source of sources) {
-    const measured = censusOneSource(source);
+    const measured = censusOneSource(source, composers);
     if (measured.error !== undefined) return halt(measured.error);
     sites.push(...measured.sites);
     mentionCount += measured.mentionCount;
@@ -451,12 +451,58 @@ export function censusJournalDispatches(sources) {
     artifactCount,
     argvComposerCount: argvComposers.length,
     argvComposedPathCount: argvCount,
-    argvComposers: Object.freeze(Object.entries(JOURNAL_ARGV_COMPOSERS).map(([name, reason]) => `${name}: ${reason}`)),
+    argvComposers: Object.freeze(Object.entries(composers).map(([name, reason]) => `${name}: ${reason}`)),
     gitignoreClauseCount,
     mentionCount,
     sourceCount: sources.length,
     dispatchOnlySources: Object.freeze(dispatchOnly),
   });
+}
+
+const ABSENT_COMPOSER = 'lib/mitosis/a-source-that-composes-no-journal-path.mjs';
+const SCANNED_NON_COMPOSER = 'lib/mitosis/gh-commands.mjs';
+
+export function journalArgvComposerProbes(sources) {
+  const declared = Object.keys(JOURNAL_ARGV_COMPOSERS);
+  if (declared.length === 0) {
+    return Object.freeze([Object.freeze({ name: 'the journal argv composer controls', halted: false, named: false, anchorPresent: false, detail: 'no source is declared as composing the journal path, so nothing was perturbed' })]);
+  }
+  const withoutComposer = sources.filter((source) => !declared.some((suffix) => String(source.path).endsWith(suffix)));
+  const narrowed = unreachedArgvComposers(withoutComposer);
+  const scannedNonComposer = sources.some((source) => String(source.path).endsWith(SCANNED_NON_COMPOSER));
+  const invented = scannedNonComposer
+    ? censusJournalDispatches(
+      sources.map((source) => ({ ...source })),
+      { ...JOURNAL_ARGV_COMPOSERS, [SCANNED_NON_COMPOSER]: 'a scanned source declared as composing the journal path that composes none' },
+    )
+    : { ok: true };
+  const unreached = unreachedArgvComposers(sources, { ...JOURNAL_ARGV_COMPOSERS, [ABSENT_COMPOSER]: 'declared but never scanned' });
+  const withdrawn = censusJournalDispatches(sources.map((source) => ({ ...source })), {});
+  return Object.freeze([
+    Object.freeze({
+      name: 'a declared journal argv composer that no scanned source matches is reported',
+      halted: narrowed.length > 0 && unreached.length > 0,
+      named: unreached.includes(ABSENT_COMPOSER) && narrowed.every((suffix) => declared.includes(suffix)),
+      anchorPresent: true,
+      detail: `omitting the declared sources leaves ${JSON.stringify([...narrowed])} unreached and an invented declaration leaves ${JSON.stringify([...unreached])}`,
+    }),
+    Object.freeze({
+      name: 'a scanned source declared as composing the journal path that composes none halts',
+      halted: invented.ok !== true,
+      named: invented.ok !== true && typeof invented.error === 'string' && invented.error.includes('composes no such path'),
+      anchorPresent: scannedNonComposer,
+      detail: scannedNonComposer
+        ? (invented.ok === true ? 'the census accepted it' : invented.error)
+        : `${SCANNED_NON_COMPOSER} is not among the scanned sources, so declaring it perturbs nothing`,
+    }),
+    Object.freeze({
+      name: 'withdrawing the declaration makes the composed journal path halt again',
+      halted: withdrawn.ok !== true,
+      named: withdrawn.ok !== true && typeof withdrawn.error === 'string' && withdrawn.error.includes('composes the run journal path as a path expression outside any dispatch'),
+      anchorPresent: true,
+      detail: withdrawn.ok === true ? 'the census accepted the composition with no declaration excusing it' : withdrawn.error,
+    }),
+  ]);
 }
 
 export function journalDispatchCensus() {
@@ -473,6 +519,15 @@ export function journalDispatchCensus() {
   }
   const measured = censusJournalDispatches(sources);
   if (!measured.ok) return measured;
+  const composerControls = journalArgvComposerProbes(sources);
+  const inertControls = composerControls.filter((control) => !(control.anchorPresent && control.halted && control.named));
+  if (inertControls.length > 0) {
+    return halt(`journal-census: these journal argv composer controls no longer halt on the thing they name, so a source declared as composing the journal path would be excused with nothing measuring the excuse: ${inertControls.map((control) => `${control.name} (${control.detail})`).join('; ')}`);
+  }
   const excludedDirectories = roots.flatMap((root) => root.excluded.map((entry) => `${entry.name}: ${entry.reason}`));
-  return Object.freeze({ ...measured, excludedDirectories: Object.freeze(excludedDirectories) });
+  return Object.freeze({
+    ...measured,
+    excludedDirectories: Object.freeze(excludedDirectories),
+    argvComposerControls: Object.freeze(composerControls.map((control) => `${control.name}: ${control.anchorPresent && control.halted && control.named ? 'halted and named' : 'INERT'}`)),
+  });
 }
