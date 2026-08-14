@@ -9,6 +9,11 @@ import { runGraph } from '../pool.mjs';
 import { dispatch } from '../dispatch.mjs';
 
 const POOL_CLI = fileURLToPath(new URL('../pool.mjs', import.meta.url));
+const STACK_PROBE = fileURLToPath(new URL('./pool-stack-probe.mjs', import.meta.url));
+const STACK_PROBE_KB = 150;
+const STACK_PROBE_FLAG = `--stack-size=${STACK_PROBE_KB}`;
+const STACK_PROBE_BUDGET_MS = 30000;
+const STACK_PROBE_ENV = Object.freeze({});
 const NOOP_DISPATCH = async () => ({ ok: true, outcome: 'success' });
 const PENDING = Symbol('pending');
 const ESCAPE = String.fromCharCode(27);
@@ -30,17 +35,36 @@ function scratch() {
   return dir;
 }
 
-function runCli(args, env, options = {}) {
-  return new Promise((resolve) => {
-    execFile(process.execPath, [POOL_CLI, ...args], { env, ...options }, (error, stdout, stderr) => {
+function startNode(args, options = {}) {
+  let child = null;
+  const done = new Promise((resolve) => {
+    child = execFile(process.execPath, args, options, (error, stdout, stderr) => {
       resolve({
         code: error === null ? 0 : error.code,
+        signal: error === null ? null : error.signal ?? null,
         killed: error !== null && error.killed === true,
         stdout,
         stderr,
       });
     });
   });
+  return { child, done };
+}
+
+function runNode(args, options = {}) {
+  return startNode(args, options).done;
+}
+
+function runCli(args, env, options = {}) {
+  return runNode([POOL_CLI, ...args], { env, ...options });
+}
+
+function probeReport(stdout) {
+  try {
+    return JSON.parse(stdout);
+  } catch (error) {
+    assert.fail(`the depth probe must print exactly one JSON line for the assertions below to read, and this run printed ${JSON.stringify(stdout)} instead, so a probe that died before it measured anything would otherwise pass as a silent success: ${error.message}`);
+  }
 }
 
 function fixture(name, contents) {
@@ -87,6 +111,23 @@ function gatedDispatcher(verdicts) {
 }
 
 const ALWAYS_OK = () => ({ ok: true, outcome: 'success' });
+
+const CRITICAL_PATH_IDS = Object.freeze(['alpha-hub', 'w1', 'w2', 'w3', 'w4', 'w5', 'zeta-head', 'zeta-1', 'zeta-2', 'zeta-3']);
+const CRITICAL_PATH_CENSUS = Object.freeze([...CRITICAL_PATH_IDS].sort());
+const CRITICAL_PATH_EDGES = Object.freeze({
+  w1: Object.freeze(['alpha-hub']),
+  w2: Object.freeze(['alpha-hub']),
+  w3: Object.freeze(['alpha-hub']),
+  w4: Object.freeze(['alpha-hub']),
+  w5: Object.freeze(['alpha-hub']),
+  'zeta-1': Object.freeze(['zeta-head']),
+  'zeta-2': Object.freeze(['zeta-1']),
+  'zeta-3': Object.freeze(['zeta-2']),
+});
+
+function criticalPathGraph(ids) {
+  return { nodes: ids.map((id) => ({ id })), readyAfter: CRITICAL_PATH_EDGES };
+}
 
 function stubEnv(body) {
   const dir = scratch();
@@ -284,6 +325,124 @@ test('ready siblings are admitted in node-id order when the cap forces a choice'
   assert.deepEqual(result.records.map((record) => record.id), ['a', 'b', 'c']);
 });
 
+test('a long pole is dispatched before a wider branch carrying more dependents', async () => {
+  const runner = gatedDispatcher(ALWAYS_OK);
+  const result = await runGraph(criticalPathGraph(CRITICAL_PATH_IDS), runner.dispatchFn, { concurrency: 1 });
+  assert.equal(result.ok, true);
+  assert.equal(
+    runner.started[0],
+    'zeta-head',
+    'the pool dispatched the fan-out hub first because it counts five dependents against the chain head\'s three, but those five become ready together and queue on the one semaphore, while the chain is the long pole every later node waits behind: ordering on raw item count spends the whole run on the branch that was never the constraint',
+  );
+  assert.deepEqual(
+    result.records.map((record) => record.id),
+    CRITICAL_PATH_CENSUS,
+    'the returned census must stay in node-id order whatever the dispatch policy decides, or a resume keyed on record position re-dispatches a different node on an unchanged graph',
+  );
+  assert.notDeepEqual(
+    runner.started,
+    CRITICAL_PATH_CENSUS,
+    'dispatch order never diverged from the census order on this graph, so the ordering assertion above could pass on a policy that reordered nothing',
+  );
+});
+
+test('the dispatch order of one graph is the same whichever order its nodes were declared in', async () => {
+  async function runDeclaredAs(ids) {
+    const runner = gatedDispatcher(ALWAYS_OK);
+    const result = await runGraph(criticalPathGraph(ids), runner.dispatchFn, { concurrency: 1 });
+    return { started: runner.started, records: result.records };
+  }
+  const declared = await runDeclaredAs(CRITICAL_PATH_IDS);
+  const reversed = await runDeclaredAs([...CRITICAL_PATH_IDS].reverse());
+  assert.equal(declared.started.length, CRITICAL_PATH_IDS.length, 'every node must have been dispatched, or the comparison below holds two empty runs against each other');
+  assert.deepEqual(
+    reversed.started,
+    declared.started,
+    'the same graph dispatched in two different orders because its nodes arrived in a different order: an ordering pass that walks the declaration array rather than the sorted ids makes a rerun of an unchanged plan dispatch a different node first',
+  );
+  assert.deepEqual(reversed.records, declared.records, 'the record census must be identical across the two declarations, or a resume keyed on it cannot be trusted');
+});
+
+test('the ordering pass reads only the edges and writes nothing onto the nodes it hands the dispatcher', async () => {
+  const graph = {
+    nodes: CRITICAL_PATH_IDS.map((id) => ({ id, request: { model: `model-for-${id}` } })),
+    readyAfter: CRITICAL_PATH_EDGES,
+  };
+  const before = structuredClone(graph);
+  const seen = [];
+  const dispatchFn = async (node) => {
+    seen.push(Object.freeze({ id: node.id, model: node.request.model, keys: Object.freeze(Object.keys(node).sort()) }));
+    return { ok: true, outcome: 'success' };
+  };
+  const result = await runGraph(graph, dispatchFn, { concurrency: 1 });
+  assert.equal(result.ok, true);
+  assert.deepEqual(
+    graph,
+    before,
+    'the ordering pass wrote back into the graph the caller still holds, so a second run over the same object would order on values the first run planted rather than on the edges the caller declared',
+  );
+  assert.deepEqual(seen.map((entry) => entry.id).sort(), [...CRITICAL_PATH_CENSUS], 'every node must reach the dispatcher exactly once');
+  for (const entry of seen) {
+    assert.equal(entry.model, `model-for-${entry.id}`, `node ${entry.id} reached the dispatcher carrying a model the ordering pass had rewritten, and the model is what the policy layer downstream picks a tier from`);
+    assert.deepEqual(
+      entry.keys,
+      ['id', 'request'],
+      `node ${entry.id} reached the dispatcher carrying a field the graph never declared: memoizing a height onto the node plants a count under a name the tiering layer already consumes, so an ordering detail silently becomes a model decision`,
+    );
+  }
+});
+
+test('a chain at the depth a recursive longest-path walk fails on is ordered and dispatched in full', async () => {
+  const startedAt = Date.now();
+  const started = startNode([STACK_PROBE_FLAG, STACK_PROBE], { env: STACK_PROBE_ENV, timeout: STACK_PROBE_BUDGET_MS });
+  strayPids.push(started.child.pid);
+  const probe = await started.done;
+  assert.equal(
+    probe.killed,
+    false,
+    `the depth probe was killed at its ${STACK_PROBE_BUDGET_MS}ms budget after ${Date.now() - startedAt}ms: the probe measures a recursion limit in work linear in that depth and then dispatches a chain it caps, so what it runs is bounded whatever ${STACK_PROBE_FLAG} binds to, and a kill here means this runner could not finish that bounded work rather than that the probe chose a depth too large to dispatch`,
+  );
+  assert.equal(
+    probe.code,
+    0,
+    `the depth probe exited ${probe.code} on signal ${probe.signal} instead of reporting a measurement, so nothing below was checked against anything: a signal here is a crash the probe never chose, and Node reports killed false for it because it was not the killer: ${probe.stderr}`,
+  );
+  const measured = probeReport(probe.stdout);
+  assert.equal(
+    Number.isInteger(measured.recursionLimit) && measured.recursionLimit > 0,
+    true,
+    `the depth probe reported ${JSON.stringify(measured.recursionLimit)} rather than a depth it measured under a constrained stack, and a guard that cannot name the depth it ran at pins nothing on any machine`,
+  );
+  assert.equal(
+    measured.recursiveThrew,
+    true,
+    `a memoized recursive walk with a cycle guard completed the same ${measured.recursionLimit}-node chain instead of exhausting the stack, so this run compared the pool against a reference that never failed and would stay green on the recursive ordering pass it exists to reject`,
+  );
+  assert.equal(
+    measured.recursionLimit <= measured.dispatchCap,
+    true,
+    `${STACK_PROBE_FLAG} did not bind in the probe child: the recursive walk survived to ${measured.recursionLimit} frames, past the ${measured.dispatchCap} this guard caps its dispatched chain at, so no chain was dispatched at all. --stack-size is a V8 hint honoured differently across platforms and Node builds, and the pool's drive loop is quadratic in node count, so a guard that dispatched whatever depth the default stack reaches would spend minutes here and then be read as an ordering pass that hangs`,
+  );
+  assert.equal(
+    measured.dispatchedDepth,
+    measured.recursionLimit,
+    `the probe dispatched a ${measured.dispatchedDepth}-node chain while the reference recursion only failed at ${measured.recursionLimit}, so the pool was never handed the depth that reference could not walk and the two assertions below are about a shallower graph than the one this guard is named for`,
+  );
+  const failure = measured.poolFailure === null || measured.poolFailure === undefined
+    ? 'the run left a node that never settled ok'
+    : measured.poolFailure;
+  assert.equal(
+    measured.poolOk,
+    true,
+    `the pool did not complete the ${measured.dispatchedDepth}-node chain the reference recursion could not walk: ${failure}. The depth was measured in that same constrained process rather than written down here, so this is the stack limit of the machine running the suite, not a constant that drifted away from one`,
+  );
+  assert.equal(
+    measured.orderMatched,
+    true,
+    `the ${measured.dispatchedDepth}-node chain reached the dispatcher out of dependency order: a chain admits exactly one node at a time, in dependency order, however deep it runs`,
+  );
+});
+
 test('the record census is identical across two runs whose completion order is reversed', async () => {
   const graph = {
     nodes: [{ id: 'a' }, { id: 'b' }, { id: 'c' }, { id: 'd' }],
@@ -330,6 +489,73 @@ test('a cycle downstream of a healthy branch is settled blocked with unsatisfiab
   assert.equal(result.ok, false);
   assert.deepEqual(result.diagnostics.waves, [['healthy']]);
   assert.deepEqual(result.diagnostics.unlayered, ['loop-a', 'loop-b', 'tail']);
+});
+
+test('a source feeding only into a cycle is still dispatched while the cycle settles unsatisfiable', async () => {
+  const runner = gatedDispatcher(ALWAYS_OK);
+  const result = await settledWithin(
+    runGraph(
+      {
+        nodes: [{ id: 'source' }, { id: 'loop-a' }, { id: 'loop-b' }],
+        readyAfter: { 'loop-a': ['loop-b', 'source'], 'loop-b': ['loop-a'] },
+      },
+      runner.dispatchFn,
+      {},
+    ),
+    5000,
+    'no node here sits below a cycle, so a longest-path walk resolves nothing and an ordering pass that waits on a length it can never compute hangs on a graph whose source was dispatchable from the first iteration',
+  );
+  const records = byId(result.records);
+  assert.deepEqual(
+    runner.started,
+    ['source'],
+    'a node with an empty dependency list is dispatchable whatever its dependents do, and dropping it because it sits above a cycle silently discards work the caller asked for',
+  );
+  assert.equal(records.get('source').state, 'ok');
+  for (const id of ['loop-a', 'loop-b']) {
+    assert.equal(records.get(id).state, 'blocked', `${id} must be blocked, never dropped`);
+    assert.equal(records.get(id).reason, 'unsatisfiable');
+  }
+  assert.deepEqual(records.get('loop-a').blockedBy, ['loop-b'], 'the satisfied dependency must not be named as the reason the node is stuck');
+  assert.deepEqual(records.get('loop-b').blockedBy, ['loop-a']);
+  assert.equal(result.ok, false);
+});
+
+test('an id whose longest path never resolves is ordered on the sentinel, not on the part of the walk that did resolve', async () => {
+  const graph = {
+    nodes: [
+      { id: 'chain-head' },
+      { id: 'chain-mid' },
+      { id: 'chain-tail' },
+      { id: 'doomed-tail' },
+      { id: 'loop-a' },
+      { id: 'loop-b' },
+      { id: 'solo' },
+    ],
+    readyAfter: {
+      'chain-mid': ['chain-head'],
+      'chain-tail': ['chain-mid'],
+      'loop-a': ['loop-b', 'chain-head'],
+      'loop-b': ['loop-a'],
+      'doomed-tail': ['loop-a'],
+    },
+  };
+  const runner = gatedDispatcher(ALWAYS_OK);
+  const result = await settledWithin(
+    runGraph(graph, runner.dispatchFn, { concurrency: 1 }),
+    5000,
+    'a graph carrying a cycle must still terminate, or the order it dispatched in cannot be read at all',
+  );
+  assert.deepEqual(
+    runner.started,
+    ['solo', 'chain-head', 'chain-mid', 'chain-tail'],
+    'chain-head has a dependent on the cycle, so its longest downstream path is never computed, yet it was dispatched ahead of solo on a length relaxed in from the one dependent that did resolve: an unreachable marker that doubles as the identity element of the relaxation makes a half-walked length indistinguishable from a measured one, so an id the pass never finished outranks an id it did',
+  );
+  assert.equal(
+    result.ok,
+    false,
+    'this graph is unsatisfiable by construction, so the order asserted above is the order of the branch that can run, never a claim that a height predicts whether a node runs at all',
+  );
 });
 
 test('observed concurrency never exceeds the cap', async () => {

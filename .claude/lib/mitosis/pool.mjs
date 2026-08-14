@@ -4,6 +4,8 @@ import { dispatch } from './dispatch.mjs';
 import { BUILD_AHEAD_CAP } from './window.mjs';
 
 const NODE_ID_PATTERN = /^[a-z0-9][a-z0-9-]*$/;
+const SINK_HEIGHT = 1;
+const UNREACHABLE_HEIGHT = 0;
 const STATE_PENDING = 'pending';
 const STATE_RUNNING = 'running';
 const STATE_OK = 'ok';
@@ -87,6 +89,49 @@ function indexDependencies(readyAfter, byId) {
   return deps;
 }
 
+function dependentCounts(order, deps) {
+  const counts = new Map(order.map((id) => [id, 0]));
+  for (const id of order) {
+    for (const dep of deps.get(id)) counts.set(dep, counts.get(dep) + 1);
+  }
+  return counts;
+}
+
+function criticalPathHeights(order, deps) {
+  const outstanding = dependentCounts(order, deps);
+  const accumulated = new Map();
+  const settled = [];
+  for (const id of order) {
+    if (outstanding.get(id) !== 0) continue;
+    accumulated.set(id, SINK_HEIGHT);
+    settled.push(id);
+  }
+  for (let cursor = 0; cursor < settled.length; cursor += 1) {
+    const id = settled[cursor];
+    for (const dep of deps.get(id)) {
+      accumulated.set(dep, Math.max(accumulated.get(dep) ?? SINK_HEIGHT, accumulated.get(id) + 1));
+      const remaining = outstanding.get(dep) - 1;
+      outstanding.set(dep, remaining);
+      if (remaining === 0) settled.push(dep);
+    }
+  }
+  const resolved = new Set(settled);
+  return new Map(order.map((id) => [id, resolved.has(id) ? accumulated.get(id) : UNREACHABLE_HEIGHT]));
+}
+
+function priorityOrder(order, heights) {
+  return Object.freeze([...order].sort((left, right) => {
+    const leftHeight = heights.get(left);
+    const rightHeight = heights.get(right);
+    if (leftHeight === undefined || rightHeight === undefined) {
+      throw new Error(`pool: the ordering pass carries no height for ${JSON.stringify(leftHeight === undefined ? left : right)}, so the two ids it was asked to compare cannot be ranked; a comparator that subtracts a missing height returns NaN, which sort reads as "these two are equal", and the whole priority collapses back to input order with nothing thrown and nothing logged`);
+    }
+    const byHeight = rightHeight - leftHeight;
+    if (byHeight !== 0) return byHeight;
+    return left < right ? -1 : 1;
+  }));
+}
+
 function validateGraph(graph) {
   requirePlainObject(graph, 'graph');
   if (!Array.isArray(graph.nodes) || graph.nodes.length === 0) {
@@ -94,7 +139,8 @@ function validateGraph(graph) {
   }
   const byId = indexNodes(graph.nodes);
   const deps = indexDependencies(graph.readyAfter, byId);
-  return Object.freeze({ order: Object.freeze([...byId.keys()].sort()), byId, deps });
+  const order = Object.freeze([...byId.keys()].sort());
+  return Object.freeze({ order, priority: priorityOrder(order, criticalPathHeights(order, deps)), byId, deps });
 }
 
 function requireAbortSignal(signal) {
@@ -165,7 +211,7 @@ function makeLedger(plan, onRecord, onEmitFailure) {
 }
 
 function readyIds(plan, ledger) {
-  return plan.order.filter((id) => ledger.states.get(id) === STATE_PENDING
+  return plan.priority.filter((id) => ledger.states.get(id) === STATE_PENDING
     && plan.deps.get(id).every((dep) => ledger.states.get(dep) === STATE_OK));
 }
 
