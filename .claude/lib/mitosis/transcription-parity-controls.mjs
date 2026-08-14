@@ -1,7 +1,7 @@
 
 import { END_OF_OPTIONS } from './git-commands.mjs';
 import { SEPARATION_EXCEPTIONS, censusPositionalSeparation } from './git-command-separation.mjs';
-import { TRANSCRIPTION_KINDS, censusTranscriptionSources } from './transcription-census.mjs';
+import { PENDING_JUDGMENT_KINDS, TRANSCRIPTION_KINDS, censusTranscriptionSources } from './transcription-census.mjs';
 import {
   COMMAND_BINARIES,
   CONVERTED_TRANSCRIPTION_SITES,
@@ -393,6 +393,23 @@ const REGISTERED_SITE_CONTROLS = Object.freeze([
     expect: 'serve no declared kind',
   }),
 ]);
+
+export function pendingJudgmentProbes(sources) {
+  return Object.freeze(PENDING_JUDGMENT_KINDS.map((pending) => {
+    const reached = [
+      ...sources.map((entry) => ({ ...entry })),
+      { path: CONVERSION_TARGET, source: `await agent(prompt, { agentType: 'implementer', label: '${pending.name}', phase: 'Ship' });` },
+    ];
+    const measured = censusTranscriptionSources(reached);
+    return Object.freeze({
+      name: `a dispatch that reaches the pending kind ${pending.name} halts rather than being excused`,
+      halted: measured.ok !== true,
+      named: measured.ok !== true && typeof measured.error === 'string' && measured.error.includes('the declaration outlived the wiring it was waiting for'),
+      anchorPresent: true,
+      detail: measured.ok === true ? 'the census accepted it' : measured.error,
+    });
+  }));
+}
 
 export function registeredSiteProbes(sources) {
   return Object.freeze(REGISTERED_SITE_CONTROLS.map((control) => {
