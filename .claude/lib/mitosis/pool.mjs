@@ -4,6 +4,8 @@ import { dispatch } from './dispatch.mjs';
 import { BUILD_AHEAD_CAP } from './window.mjs';
 
 const NODE_ID_PATTERN = /^[a-z0-9][a-z0-9-]*$/;
+const SINK_HEIGHT = 1;
+const UNREACHABLE_HEIGHT = 0;
 const STATE_PENDING = 'pending';
 const STATE_RUNNING = 'running';
 const STATE_OK = 'ok';
@@ -87,6 +89,46 @@ function indexDependencies(readyAfter, byId) {
   return deps;
 }
 
+function dependentsOf(order, deps) {
+  const dependents = new Map(order.map((id) => [id, []]));
+  for (const id of order) {
+    for (const dep of deps.get(id)) dependents.get(dep).push(id);
+  }
+  for (const id of order) dependents.set(id, Object.freeze(dependents.get(id)));
+  return dependents;
+}
+
+function criticalPathHeights(order, deps) {
+  const dependents = dependentsOf(order, deps);
+  const outstanding = new Map(order.map((id) => [id, dependents.get(id).length]));
+  const heights = new Map();
+  const settled = [];
+  for (const id of order) {
+    if (outstanding.get(id) !== 0) continue;
+    heights.set(id, SINK_HEIGHT);
+    settled.push(id);
+  }
+  for (let cursor = 0; cursor < settled.length; cursor += 1) {
+    const id = settled[cursor];
+    for (const dep of deps.get(id)) {
+      heights.set(dep, Math.max(heights.get(dep) ?? UNREACHABLE_HEIGHT, heights.get(id) + 1));
+      const remaining = outstanding.get(dep) - 1;
+      outstanding.set(dep, remaining);
+      if (remaining === 0) settled.push(dep);
+    }
+  }
+  return new Map(order.map((id) => [id, heights.get(id) ?? UNREACHABLE_HEIGHT]));
+}
+
+function priorityOrder(order, heights) {
+  return Object.freeze([...order].sort((left, right) => {
+    const byHeight = heights.get(right) - heights.get(left);
+    if (byHeight !== 0) return byHeight;
+    if (left === right) return 0;
+    return left < right ? -1 : 1;
+  }));
+}
+
 function validateGraph(graph) {
   requirePlainObject(graph, 'graph');
   if (!Array.isArray(graph.nodes) || graph.nodes.length === 0) {
@@ -94,7 +136,8 @@ function validateGraph(graph) {
   }
   const byId = indexNodes(graph.nodes);
   const deps = indexDependencies(graph.readyAfter, byId);
-  return Object.freeze({ order: Object.freeze([...byId.keys()].sort()), byId, deps });
+  const order = Object.freeze([...byId.keys()].sort());
+  return Object.freeze({ order, priority: priorityOrder(order, criticalPathHeights(order, deps)), byId, deps });
 }
 
 function requireAbortSignal(signal) {
@@ -165,7 +208,7 @@ function makeLedger(plan, onRecord, onEmitFailure) {
 }
 
 function readyIds(plan, ledger) {
-  return plan.order.filter((id) => ledger.states.get(id) === STATE_PENDING
+  return plan.priority.filter((id) => ledger.states.get(id) === STATE_PENDING
     && plan.deps.get(id).every((dep) => ledger.states.get(dep) === STATE_OK));
 }
 

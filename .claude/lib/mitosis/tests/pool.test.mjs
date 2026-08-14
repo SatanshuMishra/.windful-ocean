@@ -88,6 +88,23 @@ function gatedDispatcher(verdicts) {
 
 const ALWAYS_OK = () => ({ ok: true, outcome: 'success' });
 
+const CRITICAL_PATH_IDS = Object.freeze(['alpha-hub', 'w1', 'w2', 'w3', 'w4', 'w5', 'zeta-head', 'zeta-1', 'zeta-2', 'zeta-3']);
+const CRITICAL_PATH_CENSUS = Object.freeze([...CRITICAL_PATH_IDS].sort());
+const CRITICAL_PATH_EDGES = Object.freeze({
+  w1: Object.freeze(['alpha-hub']),
+  w2: Object.freeze(['alpha-hub']),
+  w3: Object.freeze(['alpha-hub']),
+  w4: Object.freeze(['alpha-hub']),
+  w5: Object.freeze(['alpha-hub']),
+  'zeta-1': Object.freeze(['zeta-head']),
+  'zeta-2': Object.freeze(['zeta-1']),
+  'zeta-3': Object.freeze(['zeta-2']),
+});
+
+function criticalPathGraph(ids) {
+  return { nodes: ids.map((id) => ({ id })), readyAfter: CRITICAL_PATH_EDGES };
+}
+
 function stubEnv(body) {
   const dir = scratch();
   const stub = join(dir, 'claude');
@@ -284,6 +301,96 @@ test('ready siblings are admitted in node-id order when the cap forces a choice'
   assert.deepEqual(result.records.map((record) => record.id), ['a', 'b', 'c']);
 });
 
+test('a long pole is dispatched before a wider branch carrying more dependents', async () => {
+  const runner = gatedDispatcher(ALWAYS_OK);
+  const result = await runGraph(criticalPathGraph(CRITICAL_PATH_IDS), runner.dispatchFn, { concurrency: 1 });
+  assert.equal(result.ok, true);
+  assert.equal(
+    runner.started[0],
+    'zeta-head',
+    'the pool dispatched the fan-out hub first because it counts five dependents against the chain head\'s three, but those five become ready together and queue on the one semaphore, while the chain is the long pole every later node waits behind: ordering on raw item count spends the whole run on the branch that was never the constraint',
+  );
+  assert.deepEqual(
+    result.records.map((record) => record.id),
+    CRITICAL_PATH_CENSUS,
+    'the returned census must stay in node-id order whatever the dispatch policy decides, or a resume keyed on record position re-dispatches a different node on an unchanged graph',
+  );
+  assert.notDeepEqual(
+    runner.started,
+    CRITICAL_PATH_CENSUS,
+    'dispatch order never diverged from the census order on this graph, so the ordering assertion above could pass on a policy that reordered nothing',
+  );
+});
+
+test('the dispatch order of one graph is the same whichever order its nodes were declared in', async () => {
+  async function runDeclaredAs(ids) {
+    const runner = gatedDispatcher(ALWAYS_OK);
+    const result = await runGraph(criticalPathGraph(ids), runner.dispatchFn, { concurrency: 1 });
+    return { started: runner.started, records: result.records };
+  }
+  const declared = await runDeclaredAs(CRITICAL_PATH_IDS);
+  const reversed = await runDeclaredAs([...CRITICAL_PATH_IDS].reverse());
+  assert.equal(declared.started.length, CRITICAL_PATH_IDS.length, 'every node must have been dispatched, or the comparison below holds two empty runs against each other');
+  assert.deepEqual(
+    reversed.started,
+    declared.started,
+    'the same graph dispatched in two different orders because its nodes arrived in a different order: an ordering pass that walks the declaration array rather than the sorted ids makes a rerun of an unchanged plan dispatch a different node first',
+  );
+  assert.deepEqual(reversed.records, declared.records, 'the record census must be identical across the two declarations, or a resume keyed on it cannot be trusted');
+});
+
+test('the ordering pass reads only the edges and writes nothing onto the nodes it hands the dispatcher', async () => {
+  const graph = {
+    nodes: CRITICAL_PATH_IDS.map((id) => ({ id, request: { model: `model-for-${id}` } })),
+    readyAfter: CRITICAL_PATH_EDGES,
+  };
+  const before = structuredClone(graph);
+  const seen = [];
+  const dispatchFn = async (node) => {
+    seen.push(Object.freeze({ id: node.id, model: node.request.model, keys: Object.freeze(Object.keys(node).sort()) }));
+    return { ok: true, outcome: 'success' };
+  };
+  const result = await runGraph(graph, dispatchFn, { concurrency: 1 });
+  assert.equal(result.ok, true);
+  assert.deepEqual(
+    graph,
+    before,
+    'the ordering pass wrote back into the graph the caller still holds, so a second run over the same object would order on values the first run planted rather than on the edges the caller declared',
+  );
+  assert.deepEqual(seen.map((entry) => entry.id).sort(), [...CRITICAL_PATH_CENSUS], 'every node must reach the dispatcher exactly once');
+  for (const entry of seen) {
+    assert.equal(entry.model, `model-for-${entry.id}`, `node ${entry.id} reached the dispatcher carrying a model the ordering pass had rewritten, and the model is what the policy layer downstream picks a tier from`);
+    assert.deepEqual(
+      entry.keys,
+      ['id', 'request'],
+      `node ${entry.id} reached the dispatcher carrying a field the graph never declared: memoizing a height onto the node plants a count under a name the tiering layer already consumes, so an ordering detail silently becomes a model decision`,
+    );
+  }
+});
+
+test('a deep chain is ordered and dispatched in full without exhausting the call stack', async () => {
+  const depth = 2000;
+  const ids = Object.freeze(Array.from({ length: depth }, (ignored, index) => `n${String(index).padStart(4, '0')}`));
+  const readyAfter = Object.fromEntries(ids.slice(1).map((id, index) => [id, [ids[index]]]));
+  const started = [];
+  const dispatchFn = async (node) => {
+    started.push(node.id);
+    return { ok: true, outcome: 'success' };
+  };
+  const outcome = await settledWithin(
+    runGraph({ nodes: ids.map((id) => ({ id })), readyAfter }, dispatchFn, {}),
+    30000,
+    `a ${depth}-node chain must settle rather than spin: the ordering pass walks every edge once and a graph this deep is an ordinary plan, not a pathological one`,
+  );
+  assert.equal(
+    outcome instanceof Error,
+    false,
+    `the run threw on a ${depth}-node chain instead of completing, which is what a recursive longest-path walk does once the chain outgrows the call stack: ${outcome instanceof Error ? outcome.message : ''}`,
+  );
+  assert.equal(outcome.ok, true);
+  assert.deepEqual(started, [...ids], 'a chain admits exactly one node at a time, in dependency order, however deep it runs');
+});
+
 test('the record census is identical across two runs whose completion order is reversed', async () => {
   const graph = {
     nodes: [{ id: 'a' }, { id: 'b' }, { id: 'c' }, { id: 'd' }],
@@ -330,6 +437,36 @@ test('a cycle downstream of a healthy branch is settled blocked with unsatisfiab
   assert.equal(result.ok, false);
   assert.deepEqual(result.diagnostics.waves, [['healthy']]);
   assert.deepEqual(result.diagnostics.unlayered, ['loop-a', 'loop-b', 'tail']);
+});
+
+test('a source feeding only into a cycle is still dispatched while the cycle settles unsatisfiable', async () => {
+  const runner = gatedDispatcher(ALWAYS_OK);
+  const result = await settledWithin(
+    runGraph(
+      {
+        nodes: [{ id: 'source' }, { id: 'loop-a' }, { id: 'loop-b' }],
+        readyAfter: { 'loop-a': ['loop-b', 'source'], 'loop-b': ['loop-a'] },
+      },
+      runner.dispatchFn,
+      {},
+    ),
+    5000,
+    'no node here sits below a cycle, so a longest-path walk resolves nothing and an ordering pass that waits on a length it can never compute hangs on a graph whose source was dispatchable from the first iteration',
+  );
+  const records = byId(result.records);
+  assert.deepEqual(
+    runner.started,
+    ['source'],
+    'a node with an empty dependency list is dispatchable whatever its dependents do, and dropping it because it sits above a cycle silently discards work the caller asked for',
+  );
+  assert.equal(records.get('source').state, 'ok');
+  for (const id of ['loop-a', 'loop-b']) {
+    assert.equal(records.get(id).state, 'blocked', `${id} must be blocked, never dropped`);
+    assert.equal(records.get(id).reason, 'unsatisfiable');
+  }
+  assert.deepEqual(records.get('loop-a').blockedBy, ['loop-b'], 'the satisfied dependency must not be named as the reason the node is stuck');
+  assert.deepEqual(records.get('loop-b').blockedBy, ['loop-a']);
+  assert.equal(result.ok, false);
 });
 
 test('observed concurrency never exceeds the cap', async () => {
