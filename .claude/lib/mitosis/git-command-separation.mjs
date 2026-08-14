@@ -1,6 +1,7 @@
 import { END_OF_OPTIONS, PATH_SEPARATOR_ARGUMENT } from './git-commands.mjs';
 import { GIT_COMMAND_FIXTURES, builderInputs } from './git-command-fixtures.mjs';
 import { binaryOf, buildTranscribedCommand, builderFor } from './transcription-conversions.mjs';
+import { PR_VALUE_CAP } from '../git/pr-format.mjs';
 
 const MODULE = 'git-command-separation';
 const VALUE_FLAGS = Object.freeze([
@@ -141,6 +142,7 @@ export function censusPositionalSeparation(fixtures = GIT_COMMAND_FIXTURES, exce
 
 export const REF_SHAPED = 'ref';
 export const PATH_SHAPED = 'path';
+export const PR_VALUE_SHAPED = 'pr-value';
 
 const HOSTILE_VALUES = Object.freeze([
   Object.freeze({ name: 'an upload-pack option spelled as a value', value: '--upload-pack=touch /tmp/mitosis-pwned;true', refusedFor: Object.freeze([REF_SHAPED, PATH_SHAPED]) }),
@@ -148,7 +150,10 @@ const HOSTILE_VALUES = Object.freeze([
   Object.freeze({ name: 'a ref carrying a parent traversal', value: 'refs/../../etc/passwd', refusedFor: Object.freeze([REF_SHAPED]) }),
   Object.freeze({ name: 'a ref carrying shell metacharacters', value: 'refs/heads/$(touch /tmp/mitosis-pwned)', refusedFor: Object.freeze([REF_SHAPED]) }),
   Object.freeze({ name: 'a value carrying a NUL byte', value: `refs/heads/main${String.fromCharCode(0)}x`, refusedFor: Object.freeze([REF_SHAPED, PATH_SHAPED]) }),
-  Object.freeze({ name: 'a value that is not a string at all', value: null, refusedFor: Object.freeze([REF_SHAPED, PATH_SHAPED]) }),
+  Object.freeze({ name: 'a value that is not a string at all', value: null, refusedFor: Object.freeze([REF_SHAPED, PATH_SHAPED, PR_VALUE_SHAPED]) }),
+  Object.freeze({ name: 'a body value past the pull-request value cap', value: 'x'.repeat(PR_VALUE_CAP + 1), refusedFor: Object.freeze([PR_VALUE_SHAPED]) }),
+  Object.freeze({ name: 'a body value read from a file rather than given', value: '@/etc/passwd', refusedFor: Object.freeze([PR_VALUE_SHAPED]) }),
+  Object.freeze({ name: 'a body value carrying a newline', value: 'first line\nsecond line', refusedFor: Object.freeze([PR_VALUE_SHAPED]) }),
 ]);
 
 export const FETCH_VALUE_SITES = Object.freeze([
@@ -172,7 +177,8 @@ export const FETCH_VALUE_SITES = Object.freeze([
   Object.freeze({ binary: 'gh', site: 'reconcile', step: 'merged-prs', field: 'baseBranch', shape: REF_SHAPED }),
   Object.freeze({ binary: 'gh', site: 'ship', step: 'done-oracle', field: 'integrationBranch', shape: REF_SHAPED }),
   Object.freeze({ binary: 'node', site: 'reconcile', step: 'fold-run-log', field: 'repoRoot', shape: PATH_SHAPED }),
-  Object.freeze({ binary: 'node', site: 'supersede', step: 'open-pr', field: 'summary', shape: PATH_SHAPED }),
+  Object.freeze({ binary: 'node', site: 'supersede', step: 'open-pr', field: 'summary', shape: PR_VALUE_SHAPED }),
+  Object.freeze({ binary: 'node', site: 'ship', step: 'open-pr', field: 'title', shape: PR_VALUE_SHAPED }),
   Object.freeze({ binary: 'node', site: 'ship', step: 'open-pr', field: 'integrationBranch', shape: REF_SHAPED }),
 ]);
 
