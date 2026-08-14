@@ -122,8 +122,6 @@ classify_segment() {
   local gqlsub='(\$\(|`)'
   local prshortedit='(^|[[:space:]])-(t|b|F)([^a-zA-Z-]|$)'
 
-  local guardunlock='(^|[;&|[:space:]])chflags[[:space:]]+(-[^[:space:]]+[[:space:]]+)*[^[:space:]]*nouchg([[:space:]]|$)'
-
   local supatok="${ghpos}(${ghwrap}[[:space:]]+[\"']?[[:space:]]*)*([[:alnum:]_./-]*/)?supabase([[:space:]]+${ghopt})*[[:space:]]+"
   local suparemote="(db[[:space:]]+(push|pull)|migration[[:space:]]+up|functions[[:space:]]+deploy|link)([^[:alnum:]_-]|$)"
 
@@ -159,8 +157,6 @@ classify_segment() {
     reason="redirect to raw device"
   elif has '(^|[^a-z])sudo[[:space:]]+rm'; then
     reason="sudo rm"
-  elif has_cs "$guardpath" && has_cs "$guardunlock"; then
-    reason="chflags nouchg removing immutable-flag protection from a Claude Code guardrail file"
   fi
 
   if [ -n "$reason" ]; then

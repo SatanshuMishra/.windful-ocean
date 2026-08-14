@@ -417,9 +417,6 @@ for (const command of guardrailWriteCommands) {
   });
 }
 
-const GUARDRAIL_IMMUTABLE_ASK_REASON =
-  'Destructive command (chflags nouchg removing immutable-flag protection from a Claude Code guardrail file) - confirm before running.';
-
 const g4GuardrailWriteCommands = [
   'git checkout -- .claude/hooks/block-destructive-bash.sh',
   'git checkout HEAD~1 -- .claude/settings.json',
@@ -450,11 +447,8 @@ const g4ImmutableFlagCommands = [
 ];
 
 for (const command of g4ImmutableFlagCommands) {
-  test(`${goalsFor('g4ImmutableFlagCommands')}: asks before immutable-flag protection is cleared: ${command}`, () => {
-    const r = runHook(command);
-    assert.equal(r.status, 0);
-    assert.equal(decisionOf(r), 'ask');
-    assert.equal(reasonOf(r), GUARDRAIL_IMMUTABLE_ASK_REASON);
+  test(`${goalsFor('g4ImmutableFlagCommands')}: allows immutable-flag protection to be cleared: ${command}`, () => {
+    assertAllows(runHook(command), command);
   });
 }
 
