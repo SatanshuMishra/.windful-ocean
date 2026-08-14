@@ -1,6 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
+import { relative } from 'node:path';
 import {
   GATE_CLEAN_EXIT,
   GATE_USAGE_EXIT,
@@ -12,6 +13,7 @@ import {
   DEFAULT_PHASE_PARITY_TARGET,
   DEFAULT_DETERMINISM_TARGET,
   DEFAULT_AGENT_TREE_TARGET,
+  checkPhaseAuthority,
   checkPhaseParity,
   execAllowlistFailures,
   probeExecPolicy,
@@ -24,6 +26,7 @@ import {
   runMitosisGate,
 } from '../mitosis-gate.mjs';
 import { scanJsStructure } from '../js-scan.mjs';
+import { PHASE_TITLES } from '../phases.mjs';
 import {
   MITOSIS_GIT_USAGE_EXIT,
   MITOSIS_GIT_TRIPWIRE_EXIT,
@@ -62,6 +65,43 @@ export function run() {
   return makeRemediation({ unitId: 'x', phase: 'Ship', model: 'sonnet' });
 }
 `;
+
+const AUTHORITATIVE_SOURCE = `
+export const meta = {
+  phases: [
+${PHASE_TITLES.map((title) => `    { title: '${title}' },`).join('\n')}
+  ],
+};
+
+export function run() {
+${PHASE_TITLES.map((title) => `  phase('${title}');\n  agent(prompt, { label: 'step', phase: '${title}' });`).join('\n')}
+}
+`;
+
+const FOREIGN_MODEL_TARGET = '/nonexistent-workflow-tree-xyz/other-workflow.js';
+
+const FOREIGN_MODEL_SOURCE = `
+export const meta = {
+  phases: [
+    { title: 'Execute' },
+    { title: 'Integrate' },
+    { title: 'Final review' },
+  ],
+};
+
+export function run() {
+  phase('Execute');
+  agent(prompt, { label: 'step', phase: 'Execute' });
+  phase('Integrate');
+  agent(prompt, { label: 'step', phase: 'Integrate' });
+  phase('Final review');
+  agent(prompt, { label: 'step', phase: 'Final review' });
+}
+`;
+
+function withDuplicateDeclaration(title) {
+  return AUTHORITATIVE_SOURCE.replace(`    { title: '${title}' },`, `    { title: '${title}' },\n    { title: '${title}' },`);
+}
 
 function withCallSite(callSiteArgs) {
   return `
@@ -104,44 +144,111 @@ function capture() {
   };
 }
 
-test('the pure checker flags a phase that is declared but never used', () => {
+test('the pure checker flags a phase that is declared but never reached at all', () => {
   const verdict = checkPhaseParity({ ...BALANCED, declared: [...BALANCED.declared, 'Final review'] });
   assert.equal(verdict.ok, false);
-  assert.deepEqual(verdict.declaredNeverUsed, ['Final review']);
+  assert.deepEqual(verdict.declaredNeverCalled, ['Final review']);
   assert.deepEqual(verdict.usedNeverDeclared, []);
+});
+
+test('the pure checker flags a phase that is declared and assigned but never called', () => {
+  const verdict = checkPhaseParity({ declared: ['Plan', 'Resume'], called: ['Plan'], assigned: ['Plan', 'Resume'] });
+  assert.equal(
+    verdict.ok,
+    false,
+    'a declared title carried only by an assigned {phase: ...} key has no call site, so the workflow never announces entering it; treating an assignment as entry is what let a declared-but-unentered phase sit in the model unnoticed',
+  );
+  assert.deepEqual(verdict.declaredNeverCalled, ['Resume']);
+  assert.deepEqual(verdict.usedNeverDeclared, [], 'the assigned key is still a legitimate use of a declared title, so it must not be reported as undeclared');
 });
 
 test('the pure checker flags a phase that is used but never declared', () => {
   const verdict = checkPhaseParity({ ...BALANCED, called: [...BALANCED.called, 'Shepherd'] });
   assert.equal(verdict.ok, false);
   assert.deepEqual(verdict.usedNeverDeclared, ['Shepherd']);
-  assert.deepEqual(verdict.declaredNeverUsed, []);
+  assert.deepEqual(verdict.declaredNeverCalled, []);
 });
 
-test('the pure checker flags an assigned phase that is never declared', () => {
-  const verdict = checkPhaseParity({ ...BALANCED, assigned: [...BALANCED.assigned, 'Shepherd'] });
-  assert.equal(verdict.ok, false);
-  assert.deepEqual(verdict.usedNeverDeclared, ['Shepherd']);
+test('the pure checker still flags an assigned phase that is never declared, so tightening the call-site direction does not blind it to a typo', () => {
+  const verdict = checkPhaseParity({ ...BALANCED, assigned: [...BALANCED.assigned, 'Shipp'] });
+  assert.equal(
+    verdict.ok,
+    false,
+    'dropping the assigned surface while tightening the declared-versus-called direction would make a misspelled {phase: ...} key invisible, since no phase() call carries it',
+  );
+  assert.deepEqual(verdict.usedNeverDeclared, ['Shipp']);
+  assert.deepEqual(verdict.declaredNeverCalled, []);
 });
 
 test('the pure checker reports both directions at once', () => {
   const verdict = checkPhaseParity({ declared: ['Plan', 'Final review'], called: ['Plan'], assigned: ['Shepherd'] });
   assert.equal(verdict.ok, false);
-  assert.deepEqual(verdict.declaredNeverUsed, ['Final review']);
+  assert.deepEqual(verdict.declaredNeverCalled, ['Final review']);
   assert.deepEqual(verdict.usedNeverDeclared, ['Shepherd']);
 });
 
 test('the pure checker returns clean when the three surfaces agree', () => {
   const verdict = checkPhaseParity(BALANCED);
   assert.equal(verdict.ok, true);
-  assert.deepEqual(verdict.declaredNeverUsed, []);
+  assert.deepEqual(verdict.declaredNeverCalled, []);
   assert.deepEqual(verdict.usedNeverDeclared, []);
   assert.deepEqual(verdict.declared, ['Plan', 'Ship']);
 });
 
-test('the pure checker treats a phase used only through assignment as used', () => {
-  const verdict = checkPhaseParity({ declared: ['Plan', 'Remediate'], called: ['Plan'], assigned: ['Remediate'] });
-  assert.equal(verdict.ok, true);
+test('the authority check reddens in both directions, so neither copy of the phase model can drift alone', () => {
+  const dropped = checkPhaseAuthority(['Probe'], ['Probe', 'Ship']);
+  assert.equal(dropped.ok, false, 'a workflow that quietly drops a declared title still agrees with itself, so only the authority can catch the drop');
+  assert.deepEqual(dropped.authorityNotDeclared, ['Ship']);
+  assert.deepEqual(dropped.declaredNotInAuthority, []);
+
+  const invented = checkPhaseAuthority(['Probe', 'Ship'], ['Probe']);
+  assert.equal(invented.ok, false, 'a workflow that declares a title the authority never names is the same drift seen from the other side');
+  assert.deepEqual(invented.declaredNotInAuthority, ['Ship']);
+  assert.deepEqual(invented.authorityNotDeclared, []);
+
+  const agreed = checkPhaseAuthority(['Ship', 'Probe'], ['Probe', 'Ship']);
+  assert.equal(agreed.ok, true, 'the two copies name the same set, and order is not what the agreement is about');
+});
+
+test('the authority check halts on an authority it cannot read as a set of titles rather than letting the entry participate', () => {
+  for (const malformed of [['Probe', 42], ['Probe', null], ['Probe', 'Probe'], ['Probe', ''], ['Probe', '   '], [], 'Probe', null]) {
+    assert.throws(
+      () => checkPhaseAuthority(['Probe'], malformed),
+      TypeError,
+      `the authority ${JSON.stringify(malformed)} cannot be read as a set of phase titles, and a membership test over it would let the unreadable entry take part in the comparison instead of halting the census`,
+    );
+  }
+});
+
+test('the parity checker halts on a declared surface that names one title twice, because the target is the side the gate exists to police', () => {
+  assert.throws(
+    () => checkPhaseParity({ ...BALANCED, declared: ['Plan', 'Ship', 'Ship'] }),
+    TypeError,
+    'a repeated declared title is silently collapsed the moment the surface becomes a set, and no reported count carries declared cardinality, so the duplicate can never be read back out of a green verdict; halting on the authority while collapsing the target guards the in-repo constant nobody attacks and lets the --target file through',
+  );
+});
+
+test('the authority check halts on a declared surface that names one title twice, on the same argument that halts on a repeated authority title', () => {
+  assert.throws(
+    () => checkPhaseAuthority(['Probe', 'Ship', 'Ship'], ['Probe', 'Ship']),
+    TypeError,
+    'the declared surface and the authority are compared as two sets, so a declared list this census cannot read as a set is unclassifiable on exactly the argument that already halts the authority',
+  );
+});
+
+test('the authority check rejects a declared surface that is not an array of non-empty strings', () => {
+  assert.throws(() => checkPhaseAuthority('Probe', ['Probe']), TypeError);
+  assert.throws(() => checkPhaseAuthority([], ['Probe']), TypeError);
+  assert.throws(() => checkPhaseAuthority(['Probe', '  '], ['Probe']), TypeError);
+});
+
+test('the authority check leaves its inputs unmutated and freezes its verdict', () => {
+  const declared = ['Ship', 'Probe'];
+  const authority = ['Probe', 'Ship'];
+  const verdict = checkPhaseAuthority(declared, authority);
+  assert.deepEqual(declared, ['Ship', 'Probe']);
+  assert.deepEqual(authority, ['Probe', 'Ship']);
+  assert.equal(Object.isFrozen(verdict), true);
 });
 
 test('the pure checker leaves its inputs unmutated and freezes its verdict', () => {
@@ -217,9 +324,12 @@ test('the gate returns clean against the live mitosis workflow', () => {
   const extracted = extractPhaseSurfaces(liveSource());
   assert.equal(extracted.ok, true, extracted.error);
   const verdict = checkPhaseParity(extracted.surfaces);
-  assert.deepEqual(verdict.declaredNeverUsed, [], 'the live workflow declares no unused phase');
+  assert.deepEqual(verdict.declaredNeverCalled, [], 'the live workflow declares no phase it never calls');
   assert.deepEqual(verdict.usedNeverDeclared, [], 'the live workflow uses no undeclared phase');
   assert.equal(verdict.ok, true);
+  const agreement = checkPhaseAuthority(extracted.surfaces.declared, PHASE_TITLES);
+  assert.deepEqual(agreement.declaredNotInAuthority, [], 'the live workflow declares no phase the authority never names');
+  assert.deepEqual(agreement.authorityNotDeclared, [], 'the authority names no phase the live workflow never declares');
 });
 
 test('the census halts on a quoted phase key rather than missing it', () => {
@@ -270,29 +380,30 @@ test('a phase literal reachable only from an unreferenced binding does not mark 
   ));
   assert.equal(extracted.ok, true, extracted.error);
   assert.equal(extracted.counts.dead, 1);
+  assert.deepEqual([...extracted.surfaces.assigned], ['Plan'], 'a literal only a dead binding carries is not an assignment the run can reach');
   const verdict = checkPhaseParity(extracted.surfaces);
   assert.equal(verdict.ok, false);
-  assert.deepEqual(verdict.declaredNeverUsed, ['Final review']);
+  assert.deepEqual(verdict.declaredNeverCalled, ['Final review']);
 });
 
-test('a phase literal in a referenced binding still marks the title used', () => {
+test('a phase literal in a referenced binding is collected as a reachable assignment', () => {
   const extracted = extractPhaseSurfaces(withBody(
     "  const base = { label: 'b', phase: 'Ship' };\n  agent(p, { ...base });",
     "{ title: 'Plan' }, { title: 'Ship' }",
   ));
   assert.equal(extracted.ok, true, extracted.error);
   assert.equal(extracted.counts.dead, 0);
-  assert.equal(checkPhaseParity(extracted.surfaces).ok, true);
+  assert.deepEqual([...extracted.surfaces.assigned].sort(), ['Plan', 'Ship']);
 });
 
-test('a phase literal in a returned object still marks the title used', () => {
+test('a phase literal in a returned object is collected as a reachable assignment', () => {
   const extracted = extractPhaseSurfaces(withBody(
     "  return { label: 'b', phase: 'Ship' };",
     "{ title: 'Plan' }, { title: 'Ship' }",
   ));
   assert.equal(extracted.ok, true, extracted.error);
   assert.equal(extracted.counts.dead, 0);
-  assert.equal(checkPhaseParity(extracted.surfaces).ok, true);
+  assert.deepEqual([...extracted.surfaces.assigned].sort(), ['Plan', 'Ship']);
 });
 
 test('the declaration extractor halts when the target carries more than one phases array', () => {
@@ -395,15 +506,15 @@ test('the declaration extractor halts fail-closed when no phases array exists', 
   assert.match(declared.error, /no meta\.phases array/);
 });
 
-test('the gate catches the declared-but-unused and used-but-undeclared pair in one pass', () => {
+test('the gate catches the declared-but-uncalled and used-but-undeclared pair in one pass', () => {
   const source = FORWARDING_SOURCE
     .replace("{ title: 'Ship' },", "{ title: 'Ship' },\n    { title: 'Final review' },")
-    .replace("phase('Plan');", "phase('Shepherd');");
+    .replace("phase('Plan');", "phase('Plan');\n  phase('Shepherd');");
   const extracted = extractPhaseSurfaces(source);
   assert.equal(extracted.ok, true, extracted.error);
   const verdict = checkPhaseParity(extracted.surfaces);
   assert.equal(verdict.ok, false);
-  assert.deepEqual(verdict.declaredNeverUsed, ['Final review']);
+  assert.deepEqual(verdict.declaredNeverCalled, ['Final review']);
   assert.deepEqual(verdict.usedNeverDeclared, ['Shepherd']);
 });
 
@@ -564,32 +675,92 @@ test('the argv parser rejects a repeated target instead of silently taking the l
   assert.match(parsed.error, /--target was supplied more than once/);
 });
 
-test('the cli exits clean and prints the verdict for a balanced target', () => {
+test('the cli exits clean and prints the verdict for a target that both agrees with the authority and calls every phase it declares', () => {
   const { out, stdout, stderr } = capture();
-  const code = runMitosisGate(['phase-parity', '--target', 'fixture.js'], out, () => FORWARDING_SOURCE);
-  assert.equal(code, GATE_CLEAN_EXIT);
+  const code = runMitosisGate(['phase-parity', '--target', DEFAULT_PHASE_PARITY_TARGET], out, () => AUTHORITATIVE_SOURCE);
   assert.deepEqual(stderr, []);
-  assert.deepEqual(JSON.parse(stdout.join('')).phases, ['Plan', 'Ship']);
+  assert.equal(code, GATE_CLEAN_EXIT);
+  assert.deepEqual(
+    JSON.parse(stdout.join('')).phases,
+    ['Decompose', 'Execute', 'Integrate', 'Prep', 'Probe', 'Remediate', 'Resume', 'Ship'],
+    'the verdict reports the phases it checked, so a reader can see which model went green rather than only that something did',
+  );
 });
 
-test('the cli exits on the violation code and names both directions', () => {
-  const source = FORWARDING_SOURCE
-    .replace("{ title: 'Ship' },", "{ title: 'Ship' },\n    { title: 'Final review' },")
-    .replace("phase('Plan');", "phase('Shepherd');");
+test('the cli exits on the violation code and names both parity directions', () => {
+  const source = AUTHORITATIVE_SOURCE
+    .replace("  phase('Resume');\n", '')
+    .replace("  phase('Probe');", "  phase('Shepherd');\n  phase('Probe');");
   const { out, stdout, stderr } = capture();
-  const code = runMitosisGate(['phase-parity', '--target', 'fixture.js'], out, () => source);
+  const code = runMitosisGate(['phase-parity', '--target', DEFAULT_PHASE_PARITY_TARGET], out, () => source);
   assert.equal(code, GATE_VIOLATION_EXIT);
   assert.deepEqual(stdout, []);
-  assert.match(stderr.join(''), /declares phases that are never used: Final review/);
+  assert.match(
+    stderr.join(''),
+    /declares phases that are never called: Resume/,
+    'Resume is still declared and still carried by an assigned {phase: ...} key here; only the call site is gone, which is the exact shape of the defect this verb exists to catch',
+  );
   assert.match(stderr.join(''), /uses phases that are never declared: Shepherd/);
+});
+
+test('the cli exits on the violation code and names both authority directions', () => {
+  const source = AUTHORITATIVE_SOURCE.split("'Ship'").join("'Shipp'");
+  const { out, stdout, stderr } = capture();
+  const code = runMitosisGate(['phase-parity', '--target', DEFAULT_PHASE_PARITY_TARGET], out, () => source);
+  assert.equal(
+    code,
+    GATE_VIOLATION_EXIT,
+    'the renamed target is internally consistent — it declares, calls and assigns Shipp — so only a comparison against the authority can catch that the model was renamed in one copy',
+  );
+  assert.deepEqual(stdout, []);
+  assert.match(stderr.join(''), /declares phases the phase authority does not name: Shipp/);
+  assert.ok(stderr.join('').includes(`the phase authority names phases ${DEFAULT_PHASE_PARITY_TARGET} never declares: Ship`));
 });
 
 test('the cli exits on the unresolvable code rather than reporting a false clean', () => {
   const { out, stdout, stderr } = capture();
-  const code = runMitosisGate(['phase-parity', '--target', 'fixture.js'], out, () => withCallSite('{ phase: chosenPhase }'));
+  const code = runMitosisGate(['phase-parity', '--target', DEFAULT_PHASE_PARITY_TARGET], out, () => withCallSite('{ phase: chosenPhase }'));
   assert.equal(code, GATE_UNRESOLVABLE_EXIT);
   assert.deepEqual(stdout, []);
-  assert.match(stderr.join(''), /phase-parity halted on fixture\.js/);
+  assert.ok(stderr.join('').includes(`phase-parity halted on ${DEFAULT_PHASE_PARITY_TARGET}`));
+});
+
+test('the cli routes a target that declares one title twice to the unresolvable exit instead of a receipt that collapses the duplicate', () => {
+  const { out, stdout, stderr } = capture();
+  const code = runMitosisGate(['phase-parity', '--target', DEFAULT_PHASE_PARITY_TARGET], out, () => withDuplicateDeclaration('Ship'));
+  assert.equal(
+    code,
+    GATE_UNRESOLVABLE_EXIT,
+    'this target declares nine entries naming eight titles and is otherwise in parity, so collapsing the declared surface into a set exits clean and prints a receipt naming eight — a green verdict over a declaration the census never actually read',
+  );
+  assert.deepEqual(stdout, [], 'a halted census prints no receipt, because a receipt is the assurance the halt exists to withhold');
+  assert.match(stderr.join(''), /"Ship" is named twice/);
+});
+
+test('the phase-parity verb halts on a target it holds no phase authority for, rather than judging it against a model it never owned', () => {
+  const { out, stdout, stderr } = capture();
+  const code = runMitosisGate(['phase-parity', '--target', FOREIGN_MODEL_TARGET], out, () => FOREIGN_MODEL_SOURCE);
+  assert.equal(
+    code,
+    GATE_UNRESOLVABLE_EXIT,
+    'the verb advertises --target, so binding one global authority to every target reports a spurious authority break for any workflow that legitimately owns a different phase model',
+  );
+  assert.deepEqual(stdout, []);
+  assert.ok(stderr.join('').includes(FOREIGN_MODEL_TARGET), 'the halt names the target it cannot judge');
+  assert.equal(
+    stderr.join('').includes('declares phases the phase authority does not name'),
+    false,
+    'an unmapped target is unclassifiable, not in breach; reporting a break would tell the operator to rename a model that is not governed by this authority',
+  );
+});
+
+test('the phase authority is keyed to the resolved target, so the default target reached by a relative path is still the mapped one', () => {
+  const relativeTarget = relative(process.cwd(), DEFAULT_PHASE_PARITY_TARGET);
+  const { out, stdout, stderr } = capture();
+  const code = runMitosisGate(['phase-parity', '--target', relativeTarget], out, () => AUTHORITATIVE_SOURCE);
+  assert.deepEqual(stderr, []);
+  assert.equal(code, GATE_CLEAN_EXIT, 'keying the authority on the raw argument string would leave the same file mapped or unmapped depending on how the operator spelled the path');
+  assert.deepEqual(JSON.parse(stdout.join('')).phases, [...PHASE_TITLES].sort());
 });
 
 test('the cli exits on the usage code for a rejected argument vector', () => {
@@ -601,14 +772,14 @@ test('the cli exits on the usage code for a rejected argument vector', () => {
 
 test('the cli exits on the read code when the target cannot be read', () => {
   const thrown = capture();
-  const thrownCode = runMitosisGate(['phase-parity', '--target', 'missing.js'], thrown.out, () => {
+  const thrownCode = runMitosisGate(['phase-parity', '--target', DEFAULT_PHASE_PARITY_TARGET], thrown.out, () => {
     throw new Error('ENOENT: no such file');
   });
   assert.equal(thrownCode, GATE_READ_EXIT);
-  assert.match(thrown.stderr.join(''), /could not read missing\.js: ENOENT/);
+  assert.ok(thrown.stderr.join('').includes(`could not read ${DEFAULT_PHASE_PARITY_TARGET}: ENOENT`));
 
   const empty = capture();
-  assert.equal(runMitosisGate(['phase-parity', '--target', 'empty.js'], empty.out, () => ''), GATE_READ_EXIT);
+  assert.equal(runMitosisGate(['phase-parity', '--target', DEFAULT_PHASE_PARITY_TARGET], empty.out, () => ''), GATE_READ_EXIT);
   assert.match(empty.stderr.join(''), /carried no readable source/);
 });
 
@@ -643,10 +814,10 @@ test('the sandbox compile halts fail-closed on a target that is not a compilable
 test('the cli exits on the compile code when the target does not compile under the sandbox', () => {
   const { out, stderr } = capture();
   const code = runMitosisGate(
-    ['phase-parity', '--target', 'broken.js'],
+    ['phase-parity', '--target', DEFAULT_PHASE_PARITY_TARGET],
     out,
     () => "export const meta = { phases: [{ title: 'Plan' }] };\nfunction (\n",
   );
   assert.equal(code, GATE_COMPILE_EXIT);
-  assert.match(stderr.join(''), /broken\.js does not compile under the workflow sandbox/);
+  assert.ok(stderr.join('').includes(`${DEFAULT_PHASE_PARITY_TARGET} does not compile under the workflow sandbox`));
 });

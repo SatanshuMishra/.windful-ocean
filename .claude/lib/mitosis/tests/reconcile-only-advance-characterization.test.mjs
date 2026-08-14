@@ -316,6 +316,31 @@ test('T4: a quiescent relaunch advances nothing — an all-shipped manifest disp
   assert.deepEqual(result.awaitingApproval, [], 'a quiescent relaunch surfaces nothing awaiting a human');
 });
 
+test('T4b: a relaunch that reuses its manifest with no durable checkpoint ref still reports Resume, because skipping a fresh decomposition is what resuming is', async () => {
+  const msps = [
+    manifestMsp('s1', { status: 'shipped', builtSha: hexSha('s1'), prUrl: 'https://example.test/pr/s1', mergedAt: '2026-07-10T00:00:00Z' }),
+    manifestMsp('s2', { status: 'shipped', builtSha: hexSha('s2'), prUrl: 'https://example.test/pr/s2', mergedAt: '2026-07-10T00:00:00Z' }),
+  ];
+  const reconcileResult = {
+    manifestFound: true,
+    manifestRaw: frontierManifest({ msps, window: 3 }),
+    specContentHash: SPEC_CONTENT_HASH,
+    mergedPRs: [],
+    openPRs: [],
+    checkpointRefPages: checkpointPages([]),
+  };
+  const { agent, labels } = shepherdAgent({ reconcileResult });
+  const { resultPromise, phaseLines } = invoke(runOn, buildInput(), agent);
+  const result = await resultPromise;
+
+  assert.ok(!labels.includes('decompose'), 'entry guard: this relaunch reused the prior manifest instead of decomposing fresh, so it is the resume path and not a first run');
+  assert.ok(
+    phaseLines.includes('Resume'),
+    `the phase trace reads ${JSON.stringify(phaseLines)}; a relaunch that reuses its manifest is resuming whether or not any unit carries a durable checkpoint ref, and gating the report on built work leaves this run tracing Probe then Prep for a run that plainly resumed`,
+  );
+  assert.equal(result.overallStatus, 'all-shipped', 'reporting the phase it entered changes nothing about what the reconcile-only relaunch concludes');
+});
+
 test('T5: a relaunch that halts in Prepare still reports every unit the reconcile already proved merged, with its repo-pinned PR url', async () => {
   const msps = [
     manifestMsp('s1', { status: 'shipped', builtSha: hexSha('s1'), prUrl: targetPrUrl('s1'), mergedAt: '2026-07-10T00:00:00Z' }),

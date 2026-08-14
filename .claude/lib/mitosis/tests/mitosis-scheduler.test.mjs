@@ -3859,7 +3859,7 @@ test('SECURITY HIGH-2 deny: a fresh Decompose returning an injection / non-kebab
   assert.ok(!prompts.some((p) => p.includes(injectionId)), 'the injection id is never woven into a branch/execute/ship prompt');
 });
 
-test('PLAN-REVIEW convergence: a first-pass needs-changes drives one adversarial re-plan then a fresh reviewer approves, and the unit proceeds through Parallelize to ship', async () => {
+test('PLAN-REVIEW convergence: a first-pass needs-changes drives one adversarial re-plan then a fresh reviewer approves, and the unit proceeds through the parallelize stage to ship', async () => {
   const msps = [mspSpec('solo', { fileScope: pack(['scope/solo/**']) })];
   let reviewCalls = 0;
   const base = createFakeAgent({
@@ -3882,9 +3882,9 @@ test('PLAN-REVIEW convergence: a first-pass needs-changes drives one adversarial
   assert.equal(labels.filter((l) => l === 'plan-review:solo').length, 2, 'exactly two adversarial review dispatches');
   assert.equal(labels.filter((l) => l === 'replan:solo').length, 1, 'exactly one auto-remediation re-plan between the two reviews');
   assert.ok(labels.indexOf('replan:solo') > labels.indexOf('plan-review:solo'), 'the re-plan follows the first needs-changes review');
-  assert.ok(labels.includes('parallelize:solo'), 'a converged plan proceeds to Parallelize');
-  assert.ok(phaseLines.includes('Plan review'), 'the Plan review phase is surfaced');
-  assert.ok(phaseLines.includes('Parallelize'), 'the run advances past Plan review into Parallelize');
+  assert.ok(labels.includes('parallelize:solo'), 'a converged plan proceeds to the parallelize stage');
+  assert.ok(labels.indexOf('parallelize:solo') > labels.lastIndexOf('plan-review:solo'), 'the run advances past the last adversarial review into the parallelize stage');
+  assert.ok(phaseLines.includes('Prep'), 'the per-MSP preparation phase that carries plan, plan review, parallelize and branch is surfaced');
 });
 
 test('PLAN-REVIEW fail-closed: a persistently unsatisfied reviewer parks the unit at plan-review after MAX iterations rather than shipping an unapproved plan', async () => {
