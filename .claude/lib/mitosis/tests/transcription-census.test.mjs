@@ -71,8 +71,7 @@ test('the shipped census classifies every dispatch and reports the conversion ta
   assert.equal(census.ok, true, census.error);
   assert.equal(census.conversionTargetSiteCount, 18);
   assert.equal(census.convertedSiteCount + census.unconvertedSiteCount, census.conversionTargetSiteCount);
-  assert.equal(census.convertedSiteCount, 12);
-  assert.equal(census.unconvertedSiteCount, 6);
+  assert.equal(census.unconvertedSiteCount, census.unconvertedSites.length);
   assert.equal(census.convertedKindCount + census.unconvertedKindCount, TRANSCRIPTION_KINDS.length);
   assert.deepEqual(
     census.unconvertedSites.map((site) => site.name).sort(),

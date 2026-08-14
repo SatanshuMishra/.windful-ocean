@@ -17,9 +17,11 @@ import {
   transcriptionCensus,
 } from './transcription-census.mjs';
 import { GIT_COMMAND_FIXTURES } from './git-command-fixtures.mjs';
+import { GIT_SITE_COMMANDS } from './git-commands.mjs';
 import {
   CONVERTED_TRANSCRIPTION_SITES,
   DEFAULT_CONVERSION_REGISTRY,
+  NON_SPAWN_SITES,
   argvInertnessProbe,
   censusGitCommandFixtures,
   gitCommandFixtureCensus,
@@ -28,8 +30,9 @@ import {
 import { SEPARATION_EXCEPTIONS, censusPositionalSeparation, refusedValueProbes } from './git-command-separation.mjs';
 import { manifestPublishProbe } from './manifest-publish.mjs';
 
-const MANIFEST_PUBLISH_SPAWNS = 9;
-const MANIFEST_PUBLISH_WRITES = 1;
+const MANIFEST_PUBLISH_SITE = 'manifest-publish';
+const MANIFEST_PUBLISH_SPAWNS = Object.keys(GIT_SITE_COMMANDS[MANIFEST_PUBLISH_SITE]).length;
+const MANIFEST_PUBLISH_WRITES = NON_SPAWN_SITES.filter((entry) => entry.site === MANIFEST_PUBLISH_SITE).length;
 
 export const TRANSCRIPTION_PARITY_ATTESTS = Object.freeze([
   'every dispatch call node in both declared engine trees is resolved to exactly one declared name - transcription, judgment, journal or program-in-English - by exact identity or by an enumerated prefix alias, so a label none of them covers halts with its site named rather than being absorbed by a name it merely extends',
