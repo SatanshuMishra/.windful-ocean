@@ -444,7 +444,7 @@ export async function runEngine(engineArgs, ctx) {
   async function reviewLoop(task, branch, wt, makePrompt, label, agentType) {
     let loops = 0;
     while (true) {
-      const base = { label: `${label}:${task.id}`, phase: 'Waves', schema: REVIEW_SCHEMA, model: 'opus' };
+      const base = { label: `${label}:${task.id}`, phase: 'Execute', schema: REVIEW_SCHEMA, model: 'opus' };
       const opts = agentType ? { ...base, agentType } : base;
       const r = await guard.dispatch(makePrompt(task, branch), opts, { kind: 'review', task });
       if (guard.getHalt()) return { ok: false, reason: 'model-policy' };
@@ -455,7 +455,7 @@ export async function runEngine(engineArgs, ctx) {
       const budgeted = budget && Number.isInteger(budget.max) && budget.max > 0 && Number.isInteger(budget.used);
       if (budgeted && loops > 1 && budget.used >= budget.max) return { ok: false, reason: `${label}-budget-exhausted`, issues: r && r.issues };
       if (budgeted) budget.used += 1;
-      await guard.dispatch(fixPrompt(task, branch, wt, r && r.issues), { label: `fix-${label}:${task.id}`, phase: 'Waves' }, { kind: 'fix', task });
+      await guard.dispatch(fixPrompt(task, branch, wt, r && r.issues), { label: `fix-${label}:${task.id}`, phase: 'Execute' }, { kind: 'fix', task });
       if (guard.getHalt()) return { ok: false, reason: 'model-policy' };
     }
   }
@@ -472,8 +472,8 @@ export async function runEngine(engineArgs, ctx) {
       const remediationModel = escalated ? 'opus' : task.model;
       const escalationIssues = escalated ? priorIssues : null;
       const status = await ctx.dispatchWithRetry(
-        (attemptNo, preamble) => guard.dispatch(preamble + implementerPrompt(task, branch, wt, escalationIssues), { label: implLabel, phase: 'Waves', schema: STATUS_SCHEMA, agentType: resolvedAgentType }, { kind: dispatchKind, task }),
-        { state: retry.state, budget: retry.maxAttempts, resetRef: baseBranch, worktree: wt, unitId: taskId, task: task.fullText, ...(typeof ctx.makeRemediation === 'function' ? ctx.makeRemediation({ unitId: taskId, stage: 'execute', task: task.fullText, schema: STATUS_SCHEMA, agentType: resolvedAgentType, phase: 'Waves', model: remediationModel }) : {}) },
+        (attemptNo, preamble) => guard.dispatch(preamble + implementerPrompt(task, branch, wt, escalationIssues), { label: implLabel, phase: 'Execute', schema: STATUS_SCHEMA, agentType: resolvedAgentType }, { kind: dispatchKind, task }),
+        { state: retry.state, budget: retry.maxAttempts, resetRef: baseBranch, worktree: wt, unitId: taskId, task: task.fullText, ...(typeof ctx.makeRemediation === 'function' ? ctx.makeRemediation({ unitId: taskId, stage: 'execute', task: task.fullText, schema: STATUS_SCHEMA, agentType: resolvedAgentType, phase: 'Execute', model: remediationModel }) : {}) },
       );
       if (guard.getHalt()) return { gate: 'halt' };
       if (status && status.__quarantined) {
@@ -522,7 +522,7 @@ export async function runEngine(engineArgs, ctx) {
   for (let w = 0; w < waves.length && !result.halted; w++) {
     const waveIds = waves[w];
     log(`Wave ${w + 1}/${waves.length}: ${waveIds.length} task(s) [${waveIds.join(', ')}] [${isolation}]`);
-    phase('Waves');
+    phase('Execute');
     const outcomes = await parallel(waveIds.map((id) => () => runTask(id)));
     if (guard.getHalt()) { result.halted = true; result.haltReason = guard.getHalt(); break; }
     const failed = outcomes.filter((o) => !o || !o.ok);
@@ -607,20 +607,20 @@ export async function runEngine(engineArgs, ctx) {
       `Report pass=true iff BOTH: the blocking set is empty across all EXPECTED tools, AND the HEAD side was collected cleanly. If EVERY tool is NOT-EXPECTED, the lint/type dimension is legitimately empty and pass=true - the full test suite remains gated separately at ship (G9). Echo the unchanged cached census back as \`baseCensus\`, and list the blocking identities (or a short summary) plus any tool judged NOT-EXPECTED in output.`;
     const gatePrompt = (rerun, cachedBaseCensus) =>
       cachedBaseCensus ? recheckGate(cachedBaseCensus) : firstPassGate(rerun);
-    phase('Boundary');
+    phase('Integrate');
     let boundary = await guard.dispatch(
       gatePrompt(false, null),
-      { label: 'boundary', phase: 'Boundary', schema: BOUNDARY_SCHEMA }, { kind: 'engine', task: null });
+      { label: 'boundary', phase: 'Integrate', schema: BOUNDARY_SCHEMA }, { kind: 'engine', task: null });
     if (boundary && !boundary.pass) {
       const fixWhere = isolation === 'scope-fence'
         ? `in the main repo working tree at ${repoRoot}; stay within the union of the declared task scopes and leave changes uncommitted`
         : `on \`${baseBranch}\` inside the integration worktree at ${integrationWt} so it passes, then commit`;
       await guard.dispatch(
         `The diff-scoped gate found NEW lint/type errors this MSP introduced. Fix the integrated code ${fixWhere} by CORRECTING the root cause - do NOT pass the gate by suppression: add no new \`eslint-disable\` / \`@ts-ignore\` / \`@ts-expect-error\`, and do not loosen eslint or tsconfig rules or newly ignore or exclude files; new suppression directives and strictness-reducing config changes are themselves blocked by the gate. Failing output:\n${boundary.output}`,
-        { label: 'boundary-fix', phase: 'Boundary' }, { kind: 'engine', task: null });
+        { label: 'boundary-fix', phase: 'Integrate' }, { kind: 'engine', task: null });
       boundary = await guard.dispatch(
         gatePrompt(true, boundary.baseCensus || null),
-        { label: 'boundary-recheck', phase: 'Boundary', schema: BOUNDARY_SCHEMA }, { kind: 'engine', task: null });
+        { label: 'boundary-recheck', phase: 'Integrate', schema: BOUNDARY_SCHEMA }, { kind: 'engine', task: null });
     }
     result.boundary = boundary;
     if (!boundary || !boundary.pass) {

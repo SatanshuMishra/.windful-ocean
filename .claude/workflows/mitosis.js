@@ -2,18 +2,13 @@ export const meta = {
   name: 'mitosis',
   description: 'Orchestrate an approved spec/batch into clusters of MSPs: decompose, then per MSP plan + parallelize + execute via the parallel engine + ship, serializing merges so every shared branch stays green.',
   phases: [
-    { title: 'Reconcile' },
+    { title: 'Probe' },
     { title: 'Decompose' },
-    { title: 'Prepare' },
-    { title: 'Plan' },
-    { title: 'Plan review' },
-    { title: 'Parallelize' },
-    { title: 'Branch' },
-    { title: 'Waves' },
+    { title: 'Prep' },
+    { title: 'Execute' },
     { title: 'Integrate' },
-    { title: 'Boundary' },
-    { title: 'Resume' },
     { title: 'Ship' },
+    { title: 'Resume' },
     { title: 'Remediate' },
   ],
 };
@@ -1533,7 +1528,7 @@ async function runEngine(engineArgs, ctx) {
   async function reviewLoop(task, branch, wt, makePrompt, label, agentType) {
     let loops = 0;
     while (true) {
-      const base = { label: `${label}:${task.id}`, phase: 'Waves', schema: REVIEW_SCHEMA, model: 'opus' };
+      const base = { label: `${label}:${task.id}`, phase: 'Execute', schema: REVIEW_SCHEMA, model: 'opus' };
       const opts = agentType ? { ...base, agentType } : base;
       const r = await guard.dispatch(makePrompt(task, branch), opts, { kind: 'review', task });
       if (guard.getHalt()) return { ok: false, reason: 'model-policy' };
@@ -1544,7 +1539,7 @@ async function runEngine(engineArgs, ctx) {
       const budgeted = budget && Number.isInteger(budget.max) && budget.max > 0 && Number.isInteger(budget.used);
       if (budgeted && loops > 1 && budget.used >= budget.max) return { ok: false, reason: `${label}-budget-exhausted`, issues: r && r.issues };
       if (budgeted) budget.used += 1;
-      await guard.dispatch(fixPrompt(task, branch, wt, r && r.issues), { label: `fix-${label}:${task.id}`, phase: 'Waves' }, { kind: 'fix', task });
+      await guard.dispatch(fixPrompt(task, branch, wt, r && r.issues), { label: `fix-${label}:${task.id}`, phase: 'Execute' }, { kind: 'fix', task });
       if (guard.getHalt()) return { ok: false, reason: 'model-policy' };
     }
   }
@@ -1561,8 +1556,8 @@ async function runEngine(engineArgs, ctx) {
       const remediationModel = escalated ? 'opus' : task.model;
       const escalationIssues = escalated ? priorIssues : null;
       const status = await ctx.dispatchWithRetry(
-        (attemptNo, preamble) => guard.dispatch(preamble + implementerPrompt(task, branch, wt, escalationIssues), { label: implLabel, phase: 'Waves', schema: STATUS_SCHEMA, agentType: resolvedAgentType }, { kind: dispatchKind, task }),
-        { state: retry.state, budget: retry.maxAttempts, resetRef: baseBranch, worktree: wt, unitId: taskId, task: task.fullText, ...(typeof ctx.makeRemediation === 'function' ? ctx.makeRemediation({ unitId: taskId, stage: 'execute', task: task.fullText, schema: STATUS_SCHEMA, agentType: resolvedAgentType, phase: 'Waves', model: remediationModel }) : {}) },
+        (attemptNo, preamble) => guard.dispatch(preamble + implementerPrompt(task, branch, wt, escalationIssues), { label: implLabel, phase: 'Execute', schema: STATUS_SCHEMA, agentType: resolvedAgentType }, { kind: dispatchKind, task }),
+        { state: retry.state, budget: retry.maxAttempts, resetRef: baseBranch, worktree: wt, unitId: taskId, task: task.fullText, ...(typeof ctx.makeRemediation === 'function' ? ctx.makeRemediation({ unitId: taskId, stage: 'execute', task: task.fullText, schema: STATUS_SCHEMA, agentType: resolvedAgentType, phase: 'Execute', model: remediationModel }) : {}) },
       );
       if (guard.getHalt()) return { gate: 'halt' };
       if (status && status.__quarantined) {
@@ -1611,7 +1606,7 @@ async function runEngine(engineArgs, ctx) {
   for (let w = 0; w < waves.length && !result.halted; w++) {
     const waveIds = waves[w];
     log(`Wave ${w + 1}/${waves.length}: ${waveIds.length} task(s) [${waveIds.join(', ')}] [${isolation}]`);
-    phase('Waves');
+    phase('Execute');
     const outcomes = await parallel(waveIds.map((id) => () => runTask(id)));
     if (guard.getHalt()) { result.halted = true; result.haltReason = guard.getHalt(); break; }
     const failed = outcomes.filter((o) => !o || !o.ok);
@@ -1696,20 +1691,20 @@ async function runEngine(engineArgs, ctx) {
       `Report pass=true iff BOTH: the blocking set is empty across all EXPECTED tools, AND the HEAD side was collected cleanly. If EVERY tool is NOT-EXPECTED, the lint/type dimension is legitimately empty and pass=true - the full test suite remains gated separately at ship (G9). Echo the unchanged cached census back as \`baseCensus\`, and list the blocking identities (or a short summary) plus any tool judged NOT-EXPECTED in output.`;
     const gatePrompt = (rerun, cachedBaseCensus) =>
       cachedBaseCensus ? recheckGate(cachedBaseCensus) : firstPassGate(rerun);
-    phase('Boundary');
+    phase('Integrate');
     let boundary = await guard.dispatch(
       gatePrompt(false, null),
-      { label: 'boundary', phase: 'Boundary', schema: BOUNDARY_SCHEMA }, { kind: 'engine', task: null });
+      { label: 'boundary', phase: 'Integrate', schema: BOUNDARY_SCHEMA }, { kind: 'engine', task: null });
     if (boundary && !boundary.pass) {
       const fixWhere = isolation === 'scope-fence'
         ? `in the main repo working tree at ${repoRoot}; stay within the union of the declared task scopes and leave changes uncommitted`
         : `on \`${baseBranch}\` inside the integration worktree at ${integrationWt} so it passes, then commit`;
       await guard.dispatch(
         `The diff-scoped gate found NEW lint/type errors this MSP introduced. Fix the integrated code ${fixWhere} by CORRECTING the root cause - do NOT pass the gate by suppression: add no new \`eslint-disable\` / \`@ts-ignore\` / \`@ts-expect-error\`, and do not loosen eslint or tsconfig rules or newly ignore or exclude files; new suppression directives and strictness-reducing config changes are themselves blocked by the gate. Failing output:\n${boundary.output}`,
-        { label: 'boundary-fix', phase: 'Boundary' }, { kind: 'engine', task: null });
+        { label: 'boundary-fix', phase: 'Integrate' }, { kind: 'engine', task: null });
       boundary = await guard.dispatch(
         gatePrompt(true, boundary.baseCensus || null),
-        { label: 'boundary-recheck', phase: 'Boundary', schema: BOUNDARY_SCHEMA }, { kind: 'engine', task: null });
+        { label: 'boundary-recheck', phase: 'Integrate', schema: BOUNDARY_SCHEMA }, { kind: 'engine', task: null });
     }
     result.boundary = boundary;
     if (!boundary || !boundary.pass) {
@@ -4132,7 +4127,7 @@ try {
   log(`mitosis: run identity — refusing to compose a published-manifest ref prefix for this run (${err.message}); the run is resumable ONLY from the local .mitosis/ journal on this machine`);
 }
 let manifestRef = null;
-phase('Reconcile');
+phase('Probe');
 let recon;
 let targetOwnerRepo = null;
 try {
@@ -4151,9 +4146,9 @@ try {
         : `7. Read the DURABLE published run-identity manifest so the engine can recover the MSP table even in a workspace that has no .mitosis/ directory. This ref is CONTENT-KEYED: compose it by placing the 64-character specContentHash you computed in step 4 directly after the prefix ${manifestRefPrefix} (that prefix already ends in a slash), and report the exact string you composed as publishedManifestRefProbed. Below, REF means that exact composed string and nothing else. If step 4 could not read the spec there is no hash and therefore NO ref name exists: set publishedManifestRefProbed=null, publishedManifestFound=false and publishedManifestProbeFailed=true, run NO command in this step, and never probe the prefix alone, never invent, pad, truncate or re-case a hash. The engine RE-DERIVES this ref from its own copy of the hash and compares it character-for-character against what you report, and treats any difference as a FAILED probe rather than as an answer, so reporting the ref you actually probed is what makes the read count at all.\n` +
           `   Run \`git -C ${repoRoot} ls-remote origin REF\`. That command answering is what separates "the ref is absent" from "nobody looked", and the engine acts on the difference, so report which one you observed. If it RAN and exited 0 and printed NOTHING, that is a definite absence: set publishedManifestFound=false, publishedManifestProbeFailed=false and publishedManifestRawPages=null. If it printed a line, set publishedManifestFound=true and publishedManifestProbeFailed=false, then run \`git -C ${repoRoot} fetch --no-tags origin +REF:REF\` and then \`git -C ${repoRoot} cat-file -p REF:manifest.json\`, returning that stdout COMPLETELY with NO TRUNCATION as publishedManifestRawPages: an array of string chunks of at most 2000 characters that concatenate in order, with no separator and no bytes added or dropped, back to the exact stdout. If the ls-remote ERRORS, exits non-zero, there is no origin remote, or you could not run it at all, you observed NO absence: set publishedManifestFound=false AND publishedManifestProbeFailed=true — never report a read that did not run as a definite absence, because the engine halts fail-closed on an undetermined probe rather than re-decomposing a fresh MSP table over a ref that may already own one. If the ls-remote printed a line but the fetch or the cat-file fails, KEEP publishedManifestFound=true and set publishedManifestRawPages=null — the engine reports that distinct case rather than inferring absence. Do NOT parse, repair, reformat or alter the bytes; the engine re-validates them and treats anything it cannot validate as absent. NEVER pass --depth to that fetch (it would mark the operator repository shallow) and NEVER pass --force to any command in this step.\n`) +
       `Return ONLY the structured object: { manifestFound, manifestRaw, manifestRawPages: [ "<chunk>" ], mergedPRs: [ { headRefName, url, mergedAt, mergedSha } ], mergedPRsAuthoritative, specContentHash, checkpointRefPages: [ [ "<sha>\\t<ref>" ] ], publishedManifestFound, publishedManifestProbeFailed, publishedManifestRefProbed, publishedManifestRawPages: [ "<chunk>" ], openPRs: [ { headRefName, reviewDecision, url, isCrossRepository, headRepositoryOwner, headRepository } ], ownerRepo, repoHost }.`,
-      { agentType: 'implementer', schema: RECONCILE_SCHEMA, label: 'reconcile', phase: 'Reconcile', model: models.reconciler || models.shipper || 'sonnet' }
+      { agentType: 'implementer', schema: RECONCILE_SCHEMA, label: 'reconcile', phase: 'Probe', model: models.reconciler || models.shipper || 'sonnet' }
     ),
-    { unitId: 'reconcile', stage: 'reconcile', resetRef: null, worktree: null, task: 'inspect durable run state and the already-merged set', ...makeRemediation({ unitId: 'reconcile', stage: 'reconcile', task: 'inspect durable run state and the already-merged set', schema: RECONCILE_SCHEMA, agentType: 'implementer', phase: 'Reconcile' }) },
+    { unitId: 'reconcile', stage: 'reconcile', resetRef: null, worktree: null, task: 'inspect durable run state and the already-merged set', ...makeRemediation({ unitId: 'reconcile', stage: 'reconcile', task: 'inspect durable run state and the already-merged set', schema: RECONCILE_SCHEMA, agentType: 'implementer', phase: 'Probe' }) },
   );
   recon = reconOutcome.tag === 'Done' ? reconOutcome.value : null;
   if (reconOutcome.tag !== 'Done') {
@@ -4448,7 +4443,7 @@ if (!reusable) {
       `3. Write the following to ${repoRoot}/.mitosis/run.json, overwriting any existing contents. It is a single, complete JSON object on ONE line — the genesis record of a newline-delimited run journal; write it EXACTLY as given, verbatim, as the entire file body:\n\n` +
       `${initialManifestJson}\n\n` +
       `Do NOT commit, push, or run any other git mutation. Return ONLY: { written: <bool>, detail: "<what you did>" }.`,
-      { agentType: 'implementer', label: 'checkpoint-init', phase: 'Reconcile', model: 'sonnet' }
+      { agentType: 'implementer', label: 'checkpoint-init', phase: 'Probe', model: 'sonnet' }
     );
     if (checkpointRes == null || checkpointRes.written === false) {
       const detail = checkpointRes && typeof checkpointRes.detail === 'string' ? ` (${clean(checkpointRes.detail)})` : '';
@@ -4489,7 +4484,7 @@ if (identityPublishable) {
       `9. Verify the remote actually landed it: run \`git -C ${repoRoot} ls-remote origin ${manifestRef}\` and confirm the sha it prints equals $COMMIT. Report that sha as commit and ${manifestRef} as ref.\n` +
       `10. Verify the payload round-tripped: run \`git -C ${repoRoot} cat-file -p ${manifestRef}:manifest.json\` and return that stdout COMPLETELY with NO TRUNCATION as readBackPages: an array of string chunks of at most 2000 characters that rejoin, in order with no separator and no bytes added or dropped, to the exact stdout. Do NOT reformat, pretty-print or repair it — the engine re-validates what you return through its own reader and compares it field-for-field against the payload it composed, reporting a published identity ONLY when both hold, so any alteration of the content is reported as a failed publish.\n\n` +
       `Return ONLY: { published: <bool>, alreadyPresent: <bool>, ref: "<ref or null>", commit: "<sha or null>", readBackPages: [ "<chunk>" ] | null, detail: "<what you did>" }.`,
-      { agentType: 'implementer', schema: MANIFEST_PUBLISH_SCHEMA, label: 'manifest-publish', phase: 'Reconcile', model: 'sonnet' }
+      { agentType: 'implementer', schema: MANIFEST_PUBLISH_SCHEMA, label: 'manifest-publish', phase: 'Probe', model: 'sonnet' }
     );
     const readBack = publishRes && Array.isArray(publishRes.readBackPages)
       ? publishRes.readBackPages.filter((chunk) => typeof chunk === 'string').join('')
@@ -4529,7 +4524,7 @@ function prepareHaltReport(detail, opts) {
   return fatalReportShipped('prepare', detail, msps.length, reconciledShippedSoFar(), opts);
 }
 
-phase('Prepare');
+phase('Prep');
 const humanPrerequisiteDetail = (paths) =>
   `HUMAN PREREQUISITE — mitosis does not install receipts configuration and writes nothing to ${baseBranch}. These required artifact(s) are absent from origin/${baseBranch}: ${paths.map((p) => clean(p)).join(', ')}. A human must add ${paths.length === 1 ? 'this file' : 'these files'} to ${baseBranch} and push ${paths.length === 1 ? 'it' : 'them'} to origin/${baseBranch}, then re-run. Templates to copy from: ${TEMPLATES_DIR}/receipts.config.json, ${TEMPLATES_DIR}/receipts.yml, and the spec at ${TEMPLATES_DIR}/d6-check.md.`;
 let probe;
@@ -4544,7 +4539,7 @@ try {
     `4. D6 presence: run \`git -C ${repoRoot} cat-file -e origin/${baseBranch}:scripts/d6-check.cjs\`. Exit 0 -> d6CheckFound=true, non-zero -> false.\n` +
     `Read NO template file and produce NO bootstrap content: receipts configuration is a human prerequisite on origin/${baseBranch}, so an absent artifact halts the run rather than being installed from a template.\n\n` +
     `Return ONLY: { baseRefResolved, baseRefDetail, receiptsConfigFound, receiptsConfigRaw, receiptsYmlFound, d6CheckFound }.`,
-    { agentType: 'implementer', schema: PROBE_SCHEMA, label: 'prepare-probe', phase: 'Prepare', model: 'sonnet' }
+    { agentType: 'implementer', schema: PROBE_SCHEMA, label: 'prepare-probe', phase: 'Prep', model: 'sonnet' }
   );
 } catch (err) {
   return prepareHaltReport(`prepare probe agent threw before fan-out: ${err.message}`, { crashed: true });
@@ -4987,7 +4982,7 @@ async function runUnit(unit) {
           `This stage is STRICTLY READ-ONLY: it verifies that the locally persisted plan artifact survived into this workspace before the resumed run skips the Plan stage. It makes NO commits and mutates NO files whatsoever.\n\n` +
           `Check the plan artifact: \`test -f ${planned.planPath} && test -s ${planned.planPath}\`. Set planFound=true ONLY if the file exists and is non-empty; otherwise set planFound=false.\n\n` +
           `Return ONLY: { planFound: <bool> }.`,
-          { agentType: 'implementer', schema: PLAN_PROBE_SCHEMA, label: `plan-probe:${msp.id}`, phase: 'Plan', model: 'sonnet' }
+          { agentType: 'implementer', schema: PLAN_PROBE_SCHEMA, label: `plan-probe:${msp.id}`, phase: 'Prep', model: 'sonnet' }
         ),
         { unitId: msp.id, stage: resume.stage, resetRef: null, worktree: null, task: `verify the plan artifact for ${msp.id} at ${planned.planPath}` },
       );
@@ -4998,7 +4993,7 @@ async function runUnit(unit) {
       }
       log(`mitosis[${msp.id}]: resuming at ${clean(resume.stage)} (skipping Plan) — plan artifact verified present at ${planned.planPath}`);
     } else {
-      phase('Plan');
+      phase('Prep');
       if (!mspTierModel.ok) {
         return parkUnit(msp, 'plan', NeedsHuman({ kind: 'approve-decision', what: `plan-stage model policy violation: ${mspTierModel.reason}; the plan and its adversarial review share one risk-scaled tier (verifier >= generator) and park rather than dispatching an unwhitelisted model`, remediation: null, resumePoint: { branch: integrationBranch, ref: baseBranch, stage: 'plan' } }), integrationBranch, compensationStack);
       }
@@ -5011,9 +5006,9 @@ async function runUnit(unit) {
           `${planGroundTruthSeed({ specPath: spec, fileScope: msp.fileScope, unitId: msp.id })}\n\n` +
           `Write the plan to: ${repoRoot}/.mitosis/${msp.id}.plan.md (create the .mitosis directory if absent).\n\n` +
           `Return ONLY: { planPath: "<absolute path to the plan you wrote>", summary: "<one sentence>" }.`,
-          { agentType: 'implementer', schema: PLAN_SCHEMA, label: `plan:${msp.id}`, phase: 'Plan', model: mspTierModel.model }
+          { agentType: 'implementer', schema: PLAN_SCHEMA, label: `plan:${msp.id}`, phase: 'Prep', model: mspTierModel.model }
         ),
-        { unitId: msp.id, stage: 'plan', resetRef: baseBranch, worktree: null, task: msp.rationale, triedSet: planTriedSeed, ...makeRemediation({ unitId: msp.id, stage: 'plan', task: msp.rationale, schema: PLAN_SCHEMA, agentType: 'implementer', phase: 'Plan' }), runBudget: retryState },
+        { unitId: msp.id, stage: 'plan', resetRef: baseBranch, worktree: null, task: msp.rationale, triedSet: planTriedSeed, ...makeRemediation({ unitId: msp.id, stage: 'plan', task: msp.rationale, schema: PLAN_SCHEMA, agentType: 'implementer', phase: 'Prep' }), runBudget: retryState },
       );
       if (planOutcome.tag !== 'Done') return parkUnit(msp, 'plan', planOutcome, integrationBranch, compensationStack);
       planned = planOutcome.value;
@@ -5022,7 +5017,7 @@ async function runUnit(unit) {
 
     const skipPlanReview = resumeStartIdx > RESUME_STAGE_ORDER.indexOf('plan-review');
     if (!skipPlanReview) {
-      phase('Plan review');
+      phase('Prep');
       const planReviewModel = mspTierModel;
       if (!planReviewModel.ok) {
         return parkUnit(msp, 'plan-review', NeedsHuman({ kind: 'approve-decision', what: `plan-review model policy violation: ${planReviewModel.reason}; the risk-scaled plan-review lens must match the plan tier (verifier >= generator) and parks rather than silently reviewing below that tier`, remediation: null, resumePoint: { branch: integrationBranch, ref: baseBranch, stage: 'plan-review' } }), integrationBranch, compensationStack);
@@ -5033,7 +5028,7 @@ async function runUnit(unit) {
         const reviewOutcome = await supervisedDispatch(
           (attemptNo, preamble) => agent(
             planReviewPrompt({ unitId: msp.id, title: msp.title, planPath: planned.planPath, rationale: msp.rationale, dependsList, iteration: reviewIter }),
-            { agentType: 'solution-architect', schema: PLAN_REVIEW_SCHEMA, label: `plan-review:${msp.id}`, phase: 'Plan review', model: planReviewModel.model },
+            { agentType: 'solution-architect', schema: PLAN_REVIEW_SCHEMA, label: `plan-review:${msp.id}`, phase: 'Prep', model: planReviewModel.model },
           ),
           { unitId: msp.id, stage: 'plan-review', resetRef: baseBranch, worktree: null, task: `adversarial review of the plan for ${msp.id}` },
         );
@@ -5054,9 +5049,9 @@ async function runUnit(unit) {
         const replanOutcome = await supervisedDispatch(
           (attemptNo, preamble) => agent(
             replanPrompt({ unitId: msp.id, title: msp.title, planPath: planned.planPath, rationale: msp.rationale, dependsList, findings: resolution.findings }),
-            { agentType: 'implementer', schema: PLAN_SCHEMA, label: `replan:${msp.id}`, phase: 'Plan review', model: planReviewModel.model }
+            { agentType: 'implementer', schema: PLAN_SCHEMA, label: `replan:${msp.id}`, phase: 'Prep', model: planReviewModel.model }
           ),
-          { unitId: msp.id, stage: 'plan-review', resetRef: baseBranch, worktree: null, task: `revise the plan for ${msp.id} to satisfy adversarial review`, ...makeRemediation({ unitId: msp.id, stage: 'plan-review', task: `revise the plan for ${msp.id} to satisfy adversarial review`, schema: PLAN_SCHEMA, agentType: 'implementer', phase: 'Plan review' }), runBudget: retryState },
+          { unitId: msp.id, stage: 'plan-review', resetRef: baseBranch, worktree: null, task: `revise the plan for ${msp.id} to satisfy adversarial review`, ...makeRemediation({ unitId: msp.id, stage: 'plan-review', task: `revise the plan for ${msp.id} to satisfy adversarial review`, schema: PLAN_SCHEMA, agentType: 'implementer', phase: 'Prep' }), runBudget: retryState },
         );
         if (replanOutcome.tag !== 'Done') return parkUnit(msp, 'plan-review', replanOutcome, integrationBranch, compensationStack);
         planned = replanOutcome.value;
@@ -5067,7 +5062,7 @@ async function runUnit(unit) {
       }
     }
 
-    phase('Parallelize');
+    phase('Prep');
     const parallelizeOutcome = await supervisedDispatch(
       (attemptNo, preamble) => agent(
         `You are the parallelize+route stage for MSP "${msp.id}" of a mitosis run. You have NO Skill tool.\n\n` +
@@ -5086,9 +5081,9 @@ async function runUnit(unit) {
         `   First build the id-keyed tasks map (the engine indexes tasks by id, NOT by array position): tasks = Object.fromEntries(graph.tasks.map((t) => [t.id, { id: t.id, title: t.title, fullText: t.fullText, fileScope: t.fileScope, risk: t.risk, agentType: t.agentType || 'implementer', validation: t.validation, dependentCount: t.dependentCount, edgeReasons: t.edgeReasons }])). The dependentCount AND edgeReasons pair is derived by derive-edges.mjs and MUST be carried through together - they drive the engine model policy; dropping either one fails the parallelize invariant below. Do NOT pass the raw graph.tasks array as tasks. Each t.fileScope is a context pack { edit, read, truncated }: carry all three keys through unchanged, because the engine refuses a task whose fileScope is a bare path list or whose truncated key is absent.\n` +
         `   import { buildEngineArgs } from '${LIB_DIR}/engine-args.mjs' and call buildEngineArgs({ tasks, waves, branchPrefix: ${JSON.stringify(branchPrefix)}, baseBranch: ${JSON.stringify(integrationBranch)}, worktreeRoot: ${JSON.stringify(worktreeRoot)}, repoRoot: ${JSON.stringify(repoRoot)}, scopedCheckCmd: ${JSON.stringify(verify.scopedCheckCmd || '')}, fullValidationCmd: ${JSON.stringify(verify.fullValidationCmd || '')}, prompts, fixLoopMax: ${fixLoopMax}, isolation: 'worktree', launchCommit: null, runArtifacts, models: ${JSON.stringify(models)} }). It throws if any required key is missing.\n\n` +
         `Return ONLY: { engineArgs: <the 14-key object>, route: { rule, lane, isolation, N, notes } }.`,
-        { agentType: 'implementer', schema: PARALLELIZE_SCHEMA, label: `parallelize:${msp.id}`, phase: 'Parallelize' }
+        { agentType: 'implementer', schema: PARALLELIZE_SCHEMA, label: `parallelize:${msp.id}`, phase: 'Prep' }
       ),
-      { unitId: msp.id, stage: 'parallelize', resetRef: baseBranch, worktree: null, task: `parallelize and route ${msp.id}`, triedSet: parallelizeTriedSeed, ...makeRemediation({ unitId: msp.id, stage: 'parallelize', task: `parallelize and route ${msp.id}`, schema: PARALLELIZE_SCHEMA, agentType: 'implementer', phase: 'Parallelize' }), runBudget: retryState },
+      { unitId: msp.id, stage: 'parallelize', resetRef: baseBranch, worktree: null, task: `parallelize and route ${msp.id}`, triedSet: parallelizeTriedSeed, ...makeRemediation({ unitId: msp.id, stage: 'parallelize', task: `parallelize and route ${msp.id}`, schema: PARALLELIZE_SCHEMA, agentType: 'implementer', phase: 'Prep' }), runBudget: retryState },
     );
     if (parallelizeOutcome.tag !== 'Done') return parkUnit(msp, 'parallelize', parallelizeOutcome, integrationBranch, compensationStack);
     const parallelized = parallelizeOutcome.value;
@@ -5159,7 +5154,7 @@ async function runUnit(unit) {
     aggregatedScope = aggregateMspFileScope(reconciledEngineArgs.tasks);
     log(`mitosis[${msp.id}]: aggregated write-set = ${aggregatedScope.edit.length} edit path(s), ${aggregatedScope.read.length} read path(s)${aggregatedScope.truncated === null ? '' : `, ${aggregatedScope.truncated.dropped} dropped (${aggregatedScope.truncated.reason})`}`);
 
-    phase('Branch');
+    phase('Prep');
     const parentIds = Array.isArray(msp.dependsOn) ? msp.dependsOn : [];
     const doneAtCompose = new Set([...reconciledDoneIds, ...shipped.map((s) => s.mspId)]);
     const unmergedParentIds = parentIds.filter((p) => !doneAtCompose.has(p));
@@ -5183,9 +5178,9 @@ async function runUnit(unit) {
           `4. If ANY restack reports a conflict: abort it (\`git -C ${repoRoot} rebase --abort\` or \`git -C ${repoRoot} cherry-pick --abort\`), set conflict=true and ready=false, record the conflicting files and the parent unitId in detail, and STOP (do not stack the remaining parents).\n\n` +
           `If every parent stacked cleanly (or was already contained), set ready=true and conflict=false. If the fetch or a base move fails (no remote, missing base or checkpoint ref), set ready=false, conflict=false, and explain in detail.\n\n` +
           `Return ONLY: { ready: <bool>, conflict: <bool>, builtAgainst: { "<parent unitId>": "<that parent's tip sha>" }, detail: "<what happened>" }.`,
-          { agentType: 'implementer', schema: FRONTIER_BRANCH_SCHEMA, label: `branch:${msp.id}`, phase: 'Branch', model: 'opus' }
+          { agentType: 'implementer', schema: FRONTIER_BRANCH_SCHEMA, label: `branch:${msp.id}`, phase: 'Prep', model: 'opus' }
         ),
-        { unitId: msp.id, stage: 'branch', resetRef: baseBranch, worktree: null, task: `frontier-compose ${msp.id} on parents ${parentIds.join(', ')}`, ...makeRemediation({ unitId: msp.id, stage: 'branch', task: `frontier-compose ${msp.id} on parents ${parentIds.join(', ')}`, schema: FRONTIER_BRANCH_SCHEMA, agentType: 'implementer', phase: 'Branch' }), runBudget: retryState, compensate: makeCompensate(null, baseBranch) },
+        { unitId: msp.id, stage: 'branch', resetRef: baseBranch, worktree: null, task: `frontier-compose ${msp.id} on parents ${parentIds.join(', ')}`, ...makeRemediation({ unitId: msp.id, stage: 'branch', task: `frontier-compose ${msp.id} on parents ${parentIds.join(', ')}`, schema: FRONTIER_BRANCH_SCHEMA, agentType: 'implementer', phase: 'Prep' }), runBudget: retryState, compensate: makeCompensate(null, baseBranch) },
       );
       if (composeOutcome.tag !== 'Done') return parkUnit(msp, 'branch', composeOutcome, integrationBranch, compensationStack);
       const composed = composeOutcome.value;
@@ -5210,9 +5205,9 @@ async function runUnit(unit) {
           `2. Observe-then-converge the integration ref (idempotent under replay): check whether ${integrationBranch} already points at origin/${baseBranch} - \`git -C ${repoRoot} rev-parse --verify --quiet ${integrationBranch}\` compared to \`git -C ${repoRoot} rev-parse origin/${baseBranch}\`. If they already match, the ref is already positioned - SKIP the update. Otherwise move it FRESH onto the pushed base: \`git -C ${repoRoot} branch -f ${integrationBranch} origin/${baseBranch}\` (this ref is local and never-pushed here, so a destructive branch move is safe forward compensation).\n\n` +
           `If both succeed, set ready=true. If the fetch or branch update fails (no remote, missing base), set ready=false and explain in detail.\n\n` +
           `Return ONLY: { ready: <bool>, detail: "<what happened>" }.`,
-          { agentType: 'implementer', schema: BRANCH_SCHEMA, label: `branch:${msp.id}`, phase: 'Branch', model: 'opus' }
+          { agentType: 'implementer', schema: BRANCH_SCHEMA, label: `branch:${msp.id}`, phase: 'Prep', model: 'opus' }
         ),
-        { unitId: msp.id, stage: 'branch', resetRef: baseBranch, worktree: null, task: `branch-prep ${msp.id} onto ${baseBranch}`, ...makeRemediation({ unitId: msp.id, stage: 'branch', task: `branch-prep ${msp.id} onto ${baseBranch}`, schema: BRANCH_SCHEMA, agentType: 'implementer', phase: 'Branch' }), runBudget: retryState, compensate: makeCompensate(null, baseBranch) },
+        { unitId: msp.id, stage: 'branch', resetRef: baseBranch, worktree: null, task: `branch-prep ${msp.id} onto ${baseBranch}`, ...makeRemediation({ unitId: msp.id, stage: 'branch', task: `branch-prep ${msp.id} onto ${baseBranch}`, schema: BRANCH_SCHEMA, agentType: 'implementer', phase: 'Prep' }), runBudget: retryState, compensate: makeCompensate(null, baseBranch) },
       );
       if (branchOutcome.tag !== 'Done') return parkUnit(msp, 'branch', branchOutcome, integrationBranch, compensationStack);
       const branched = branchOutcome.value;

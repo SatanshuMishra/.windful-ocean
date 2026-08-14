@@ -11,7 +11,7 @@ function manifestOf(msps) {
     baseBranch: 'main',
     sourcePrefix: SOURCE_PREFIX,
     specContentHash: null,
-    phase: 'Waves',
+    phase: 'Execute',
     clusters: [],
     msps,
   };
