@@ -421,6 +421,11 @@
         "ref": "0421-phase-authority-is-keyed-to-its-target",
         "title": "The phase authority is keyed to its target, and an unmapped target halts",
         "scope": "c3"
+      },
+      {
+        "ref": "0422-long-pole-test-stays-at-the-discriminating-assertion",
+        "title": "B3's long-pole test stays at the discriminating assertion rather than a full-sequence one",
+        "scope": "c3"
       }
     ],
     "out_of_scope": [
@@ -432,5 +437,5 @@
     ]
   },
   "created_at": "2026-08-12T07:37:41.077Z",
-  "updated_at": "2026-08-14T09:01:27.795Z"
+  "updated_at": "2026-08-14T09:01:34.665Z"
 }
