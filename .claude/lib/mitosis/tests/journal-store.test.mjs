@@ -6,14 +6,15 @@ import { join } from 'node:path';
 import {
   JOURNAL_C7_OBLIGATIONS,
   JOURNAL_KINDS,
-  JOURNAL_SPECIMENS,
   appendJournalLine,
   censusJournalSpecimens,
   composeJournalLine,
   elapsedBetween,
   ensureGitignored,
+  journalSpecimenCensus,
   writeGenesis,
 } from '../journal-store.mjs';
+import { JOURNAL_SPECIMENS } from '../journal-specimens.mjs';
 import { foldRunManifest } from '../run-log.mjs';
 import { GENESIS_MANIFEST_AT_FB195E47, JOURNAL_BYTE_CASES_AT_FB195E47 } from './journal-fixtures.mjs';
 
@@ -57,7 +58,7 @@ test('every shipped specimen carries the same bytes as the independently transcr
 });
 
 test('the specimen census measures every declared kind and reports it', () => {
-  const result = censusJournalSpecimens(JOURNAL_SPECIMENS);
+  const result = journalSpecimenCensus();
   assert.equal(result.ok, true, result.ok ? '' : result.error);
   assert.equal(result.kindCount, JOURNAL_KINDS.length);
   assert.equal(result.specimenCount, JOURNAL_SPECIMENS.length);
@@ -159,7 +160,8 @@ test('a genesis line followed by appended deltas folds back through the incumben
   assert.equal(folded.logicalRunId, 'fx01run7');
   assert.equal(folded.quiescentExitAt, '2026-08-12T09:00:00Z');
   assert.equal(folded.quiescentExitOutstanding, true);
-  assert.equal(folded.msps[0].sha, 'fx00000000000000000000000000000000000001');
+  assert.equal(folded.msps[0].builtSha, 'fx00000000000000000000000000000000000001');
+  assert.equal(folded.msps[0].status, 'built');
 });
 
 test('appendJournalLine adds one line per call and never rewrites what is already there', () => {
@@ -223,9 +225,16 @@ test('elapsedBetween computes the gap from two instants without reading a clock'
   assert.equal(elapsedBetween('2026-08-12T09:00:00Z', '2026-08-12T09:07:05Z'), '7m 5s');
   assert.equal(elapsedBetween('2026-08-12T09:00:00Z', '2026-08-12T11:30:00Z'), '2h 30m');
   assert.equal(elapsedBetween('2026-08-12T09:00:00Z', '2026-08-15T10:00:00Z'), '3d 1h');
-  assert.equal(elapsedBetween('2026-02-28T23:00:00Z', '2026-03-01T00:00:00Z'), '1d 1h');
-  assert.equal(elapsedBetween('2024-02-28T23:00:00Z', '2024-03-01T00:00:00Z'), '2d 1h');
   assert.equal(elapsedBetween('2026-12-31T23:59:59Z', '2027-01-01T00:00:00Z'), '1s');
+});
+
+test('elapsedBetween counts the leap day in a leap year and does not invent one otherwise', () => {
+  assert.equal(elapsedBetween('2026-02-28T00:00:00Z', '2026-03-01T00:00:00Z'), '1d');
+  assert.equal(elapsedBetween('2024-02-28T00:00:00Z', '2024-03-01T00:00:00Z'), '2d');
+  assert.equal(elapsedBetween('2026-02-28T23:00:00Z', '2026-03-01T00:00:00Z'), '1h');
+  assert.equal(elapsedBetween('2024-02-28T23:00:00Z', '2024-03-01T00:00:00Z'), '1d 1h');
+  assert.equal(elapsedBetween('1900-02-28T00:00:00Z', '1900-03-01T00:00:00Z'), '1d');
+  assert.equal(elapsedBetween('2000-02-28T00:00:00Z', '2000-03-01T00:00:00Z'), '2d');
 });
 
 test('elapsedBetween reads the offset rather than assuming every instant is UTC', () => {
