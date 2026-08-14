@@ -406,6 +406,11 @@
         "ref": "0416-skill-md-scope-settled-by-coexistence",
         "title": "The SKILL.md scope conflict resolves by coexistence, not by a ruling",
         "scope": "c3"
+      },
+      {
+        "ref": "0419-thirteen-phase-titles-fold-into-eight",
+        "title": "The thirteen phase titles fold into eight, and Prepare joins Prep rather than Probe",
+        "scope": "c3"
       }
     ],
     "out_of_scope": [
@@ -417,5 +422,5 @@
     ]
   },
   "created_at": "2026-08-12T07:37:41.077Z",
-  "updated_at": "2026-08-14T05:14:42.996Z"
+  "updated_at": "2026-08-14T09:01:11.492Z"
 }
