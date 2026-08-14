@@ -93,7 +93,7 @@
     },
     {
       "id": "c9",
-      "text": "Steps 8-9 shipped: inert and harmful hooks deleted; logbook plugin fail-closed guard disabled or patched (R6)",
+      "text": "Step 8 shipped: the inert and harmful hooks deleted, the gate's dead release-tree tokens pruned with the suite green, and the dead nested settings.local.json removed",
       "done": false,
       "kind": "planned",
       "struck_by": null
@@ -283,5 +283,5 @@
     ]
   },
   "created_at": "2026-08-13T18:14:42.072Z",
-  "updated_at": "2026-08-14T04:33:16.521Z"
+  "updated_at": "2026-08-14T04:33:42.209Z"
 }
