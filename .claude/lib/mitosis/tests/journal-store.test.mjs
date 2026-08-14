@@ -15,7 +15,7 @@ import {
   writeGenesis,
 } from '../journal-store.mjs';
 import { JOURNAL_SPECIMENS } from '../journal-specimens.mjs';
-import { foldRunManifest } from '../run-log.mjs';
+import { builtDelta, ciAttemptDelta, foldRunManifest, parkDelta, quiescentExitDelta, shipDelta } from '../run-log.mjs';
 import { GENESIS_MANIFEST_AT_FB195E47, JOURNAL_BYTE_CASES_AT_FB195E47 } from './journal-fixtures.mjs';
 
 const scratchDirs = [];
@@ -36,6 +36,25 @@ for (const byteCase of JOURNAL_BYTE_CASES_AT_FB195E47) {
     assert.equal(composeJournalLine(byteCase.kind, byteCase.fields), byteCase.line);
   });
 }
+
+test('composeJournalLine delegates every delta shape to run-log rather than restating it', () => {
+  const builders = Object.freeze({
+    ship: shipDelta,
+    built: builtDelta,
+    park: parkDelta,
+    'ci-attempt': ciAttemptDelta,
+    'quiescent-exit': quiescentExitDelta,
+  });
+  const delegated = JOURNAL_BYTE_CASES_AT_FB195E47.filter((byteCase) => byteCase.kind !== 'genesis');
+  assert.ok(delegated.length > 0);
+  for (const byteCase of delegated) {
+    assert.equal(
+      composeJournalLine(byteCase.kind, byteCase.fields),
+      `${JSON.stringify(builders[byteCase.kind](byteCase.fields))}\n`,
+      `the ${byteCase.id} case no longer matches what run-log's own builder produces, so the journal store is restating a shape it must delegate`,
+    );
+  }
+});
 
 test('the transcribed byte cases cover every declared journal kind', () => {
   const covered = new Set(JOURNAL_BYTE_CASES_AT_FB195E47.map((byteCase) => byteCase.kind));
