@@ -5,6 +5,7 @@ import { JOURNAL_KINDS } from '../journal-store.mjs';
 import {
   JOURNAL_LABEL_KINDS,
   NON_DISPATCH_LABEL_SOURCES,
+  PREFIX_ALIASES,
   PROGRAM_LABELS,
   TRANSCRIPTION_C7_OBLIGATIONS,
   TRANSCRIPTION_KINDS,
@@ -13,7 +14,7 @@ import {
 } from '../transcription-census.mjs';
 
 const TARGET = '/repo/.claude/workflows/mitosis.js';
-const LIB = '/repo/.claude/lib/mitosis';
+const CLAUDE = '/repo/.claude';
 
 function source(path, text) {
   return { path, source: text };
@@ -53,7 +54,7 @@ function engineFixture(extra = '', declared = TRANSCRIPTION_KINDS) {
   ];
   return [
     source(TARGET, lines.join('\n')),
-    ...Object.keys(NON_DISPATCH_LABEL_SOURCES).map((name) => source(`${LIB}/${name}`, `const x = { label: 'not a dispatch' };`)),
+    ...Object.keys(NON_DISPATCH_LABEL_SOURCES).map((key) => source(`${CLAUDE}/${key}`, `const x = { label: 'not a dispatch' };`)),
   ];
 }
 
@@ -104,6 +105,49 @@ test('a label no declared name covers halts and names the site, with no catch-al
   assert.equal(census.ok, false);
   assert.match(census.error, /harvest-notes/);
   assert.match(census.error, /mitosis\.js/);
+});
+
+test('a label that merely EXTENDS a declared name with a hyphen halts rather than being absorbed by it', () => {
+  const absorbers = [
+    ['plan-publish', 'plan'],
+    ['implement-manifest', 'implement'],
+    ['fix-refs', 'fix'],
+    ['ship-manifest', 'ship'],
+    ['boundary-sweep', 'boundary'],
+    ['reconcile-again', 'reconcile'],
+  ];
+  for (const [spelling, absorbedBy] of absorbers) {
+    const census = censusTranscriptionSources(engineFixture(dispatch(`'${spelling}'`)));
+    assert.equal(census.ok, false, `${spelling} was silently booked against ${absorbedBy} instead of halting`);
+    assert.match(census.error, new RegExp(spelling));
+  }
+});
+
+test('an extending label is not merely misfiled: the site count it would have joined never moves', () => {
+  const clean = censusTranscriptionSources(engineFixture());
+  assert.equal(clean.ok, true, clean.error);
+  const absorbed = censusTranscriptionSources(engineFixture(dispatch("'plan-publish'")));
+  assert.equal(absorbed.ok, false);
+  assert.match(absorbed.error, /catch-all|no declared/i);
+});
+
+test('the one declared prefix alias resolves its own spelling and nothing wider', () => {
+  assert.deepEqual(PREFIX_ALIASES.map((entry) => entry.prefix), ['fix-']);
+  for (const alias of PREFIX_ALIASES) {
+    assert.ok(typeof alias.reason === 'string' && alias.reason.trim().length > 0);
+    assert.ok(PROMPT_KINDS.includes(alias.name) || TRANSCRIPTION_KINDS.some((kind) => kind.name === alias.name));
+  }
+  const census = transcriptionCensus();
+  assert.equal(census.ok, true, census.error);
+});
+
+test('a declared prefix alias that matches nothing halts, so a stale alias cannot keep a spelling admitted', () => {
+  const withoutFix = engineFixture().map((entry) => (entry.path === TARGET
+    ? source(entry.path, entry.source.replace('label: `fix-${label}:${task.id}`', 'label: `fix:${task.id}`'))
+    : entry));
+  const census = censusTranscriptionSources(withoutFix);
+  assert.equal(census.ok, false);
+  assert.match(census.error, /fix-/);
 });
 
 test('a source whose two extractors disagree halts, because one of them is then reading a subset', () => {

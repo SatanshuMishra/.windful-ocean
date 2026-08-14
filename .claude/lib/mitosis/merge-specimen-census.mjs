@@ -74,12 +74,63 @@ export function shimRefusalKinds(source) {
   return Object.freeze({ ok: true, kinds: Object.freeze(kinds.sort()) });
 }
 
+function innermostBrace(source, index) {
+  const opens = [];
+  for (let cursor = 0; cursor < index; cursor += 1) {
+    if (source[cursor] === '{') opens.push(cursor);
+    else if (source[cursor] === '}') opens.pop();
+  }
+  if (opens.length === 0) return null;
+  const open = opens[opens.length - 1];
+  let depth = 0;
+  for (let cursor = open; cursor < source.length; cursor += 1) {
+    if (source[cursor] === '{') depth += 1;
+    else if (source[cursor] === '}') {
+      depth -= 1;
+      if (depth === 0) return { open, close: cursor };
+    }
+  }
+  return null;
+}
+
+export function refusalReturnAudit(source) {
+  const scan = scanJsStructure(source);
+  if (!scan.ok) {
+    return halt(`merge-specimen-census: the shim source could not be scanned, so its refusal returns could not be read: ${scan.error}`);
+  }
+  const unrouted = [];
+  let counted = 0;
+  const pattern = /refuse\s*:\s*true/g;
+  for (;;) {
+    const match = pattern.exec(scan.masked);
+    if (match === null) break;
+    counted += 1;
+    const enclosing = innermostBrace(scan.masked, match.index);
+    if (enclosing === null) {
+      unrouted.push(`line ${lineOf(source, match.index)} returns a refusal outside any object literal`);
+      continue;
+    }
+    if (!scan.masked.slice(enclosing.open, enclosing.close + 1).includes(`${REASON_BUILDER}(`)) {
+      unrouted.push(`line ${lineOf(source, match.index)} refuses without routing its reason through ${REASON_BUILDER}()`);
+    }
+  }
+  if (counted === 0) {
+    return halt('merge-specimen-census: the shim source carries no refusal at all, so the classifier this census measures refuses nothing');
+  }
+  if (unrouted.length > 0) {
+    return halt(`merge-specimen-census: these refusals do not route through ${REASON_BUILDER}(), so the kind they carry is invisible to a census that reads ${REASON_BUILDER}() call sites: ${unrouted.join('; ')}`);
+  }
+  return Object.freeze({ ok: true, refusalCount: counted });
+}
+
 export function censusMergeSpecimens(specimens = MERGE_REFUSAL_SPECIMENS, source = readMergeShimSource()) {
   const measured = shimRefusalKinds(source);
   if (!measured.ok) return measured;
   if (measured.kinds.length === 0) {
     return halt('merge-specimen-census: the shim source yielded no refusal reason at all; an extractor that matches nothing would report every reason covered by any specimen set, including an empty one');
   }
+  const routed = refusalReturnAudit(source);
+  if (!routed.ok) return routed;
   if (!Array.isArray(specimens) || specimens.length === 0) {
     return halt('merge-specimen-census: the specimen set is empty, so no merge argv is probed and the refusal it guards is unmeasured');
   }
@@ -103,6 +154,7 @@ export function censusMergeSpecimens(specimens = MERGE_REFUSAL_SPECIMENS, source
   return Object.freeze({
     ok: true,
     reasonKinds: measured.kinds,
+    refusalReturnCount: routed.refusalCount,
     specimenKinds: Object.freeze(specimenKinds),
     reasonKindCount: measured.kinds.length,
     specimenKindCount: specimenKinds.length,

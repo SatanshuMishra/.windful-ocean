@@ -5,15 +5,20 @@ import { MERGE_REFUSAL_SPECIMENS } from '../gh-merge-shim.mjs';
 import {
   EXEC_COMPLETED,
   EXEC_OUTCOMES,
+  EXEC_OUTPUT_TRUNCATED,
+  EXEC_SIGNALLED,
   EXEC_SPAWN_FAILED,
   EXEC_TIMEOUT_EXPIRED,
+  POLL_ITERATION_SLACK,
   execRunDeadlineProbe,
+  execRunOutcomeProbe,
   execRunRefusalProbes,
   pollUntil,
   run,
 } from '../exec-run.mjs';
 
 const METACHARACTER_REF = 'refs/heads/a b;c|d&e$(f)`g`*h?i>j<k';
+const MANIFEST_REF = 'refs/mitosis-manifest/aaaa1111/0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef';
 
 function countingIo(reply = {}) {
   const calls = [];
@@ -186,6 +191,113 @@ test('the deadline outcome is a declared member of the outcome set and distinct 
 
 test('exec-run widens nothing: the spawn allowlist is still exactly the five declared binaries', () => {
   assert.deepEqual([...EXEC_ALLOWLIST], ['claude', 'gh', 'git', 'graphify', 'node']);
+});
+
+test('a forced push onto the published-manifest ref is refused by the chokepoint and no child process starts', () => {
+  const io = countingIo();
+  assert.throws(
+    () => run('git', ['push', '--force', 'origin', `integration:${MANIFEST_REF}`], {}, io),
+    /manifest-ref-policy: refused in-process before any child started/,
+  );
+  assert.equal(io.calls.length, 0);
+});
+
+test('deleting the published-manifest ref is refused by the chokepoint and no child process starts', () => {
+  const io = countingIo();
+  assert.throws(() => run('git', ['push', '--delete', 'origin', MANIFEST_REF], {}, io), /manifest-ref-policy/);
+  assert.throws(() => run('git', ['push', 'origin', `:${MANIFEST_REF}`], {}, io), /manifest-ref-policy/);
+  assert.equal(io.calls.length, 0);
+});
+
+test('a manifest refspec smuggled through -c config is refused by the chokepoint', () => {
+  const io = countingIo();
+  assert.throws(
+    () => run('git', ['-c', `remote.origin.push=+HEAD:${MANIFEST_REF}`, 'push', 'origin'], {}, io),
+    /manifest-ref-policy/,
+  );
+  assert.equal(io.calls.length, 0);
+});
+
+test('the chokepoint still permits the pushes checkpoint-push, ship and manifest-publish legitimately run', () => {
+  const io = countingIo();
+  const permitted = [
+    ['push', '--force-with-lease', 'origin', 'integration:refs/mitosis/aaaa1111/msp'],
+    ['push', '--force-with-lease', '-u', 'origin', 'mitosis/msp-c4a'],
+    ['push', 'origin', `${MANIFEST_REF}:${MANIFEST_REF}`],
+    ['push', '--delete', 'origin', 'refs/heads/scratch'],
+  ];
+  for (const argv of permitted) {
+    const result = run('git', argv, {}, io);
+    assert.equal(result.outcome, EXEC_COMPLETED, argv.join(' '));
+  }
+  assert.equal(io.calls.length, permitted.length);
+});
+
+test('a poll whose injected clock never advances is still bounded, and reports the deadline outcome', () => {
+  const io = countingIo();
+  const result = pollUntil(
+    'gh',
+    ['run', 'view', '77', '--json', 'status'],
+    { deadlineMs: 800, intervalMs: 100, satisfied: () => false },
+    { ...io, now: () => 0, wait: (ms) => ms },
+  );
+  assert.equal(result.outcome, EXEC_TIMEOUT_EXPIRED);
+  assert.equal(result.iterationsExhausted, true);
+  assert.ok(io.calls.length > 0);
+  assert.ok(io.calls.length <= Math.ceil(800 / 100) + POLL_ITERATION_SLACK, `a frozen clock ran ${io.calls.length} attempts`);
+});
+
+test('every poll attempt carries the remaining budget as its own spawn bound, so a hung child cannot outlive the deadline', () => {
+  const bounds = [];
+  let elapsed = 0;
+  const io = {
+    spawn: (command, args, options) => {
+      bounds.push(options.timeout);
+      elapsed += options.timeout;
+      return { status: 0, stdout: Buffer.from('in_progress'), stderr: Buffer.from(''), error: null };
+    },
+    now: () => elapsed,
+    wait: (ms) => ms,
+  };
+  const result = pollUntil('gh', ['run', 'view', '77'], { deadlineMs: 800, intervalMs: 100, satisfied: () => false }, io);
+  assert.equal(result.outcome, EXEC_TIMEOUT_EXPIRED);
+  assert.ok(bounds.length > 0);
+  assert.deepEqual(bounds.filter((bound) => !Number.isInteger(bound) || bound <= 0), []);
+  assert.ok(bounds.every((bound) => bound <= 800), bounds.join(','));
+});
+
+test('a child that overflows the capture buffer is not reported as a child that never started', () => {
+  const overflow = new Error('spawnSync maxBuffer exceeded');
+  overflow.code = 'ENOBUFS';
+  const io = countingIo({ error: overflow, status: 0 });
+  const result = run('git', ['cat-file', '-p', 'HEAD'], {}, io);
+  assert.equal(result.outcome, EXEC_OUTPUT_TRUNCATED);
+  assert.notEqual(result.outcome, EXEC_SPAWN_FAILED);
+  assert.notEqual(result.outcome, EXEC_COMPLETED);
+});
+
+test('a child killed by a signal is reported as signalled rather than completed', () => {
+  const io = countingIo({ status: null, signal: 'SIGKILL' });
+  const result = run('git', ['fetch', 'origin'], {}, io);
+  assert.equal(result.outcome, EXEC_SIGNALLED);
+  assert.equal(result.signal, 'SIGKILL');
+});
+
+test('every declared outcome is produced by a specimen and every produced outcome is declared', () => {
+  const probe = execRunOutcomeProbe();
+  assert.deepEqual([...probe.mismatched], []);
+  assert.deepEqual([...probe.unreached], [], 'an outcome the substrate declares but nothing can produce is a promise with no behavior behind it');
+  assert.deepEqual([...probe.undeclared], []);
+  assert.deepEqual([...probe.declared], [...EXEC_OUTCOMES]);
+});
+
+test('an indirect graphql merge body is refused at the chokepoint under its own reason when the reader is supplied', () => {
+  const io = {
+    ...countingIo(),
+    readFile: () => 'mutation { mergePullRequest(input: {pullRequestId: "PR_x"}) { clientMutationId } }',
+    readStdin: () => null,
+  };
+  assert.throws(() => run('gh', ['api', 'graphql', '--input', 'body.graphql'], {}, io), /\[graphql-mutation-indirect\]/);
 });
 
 test('the shipped deadline probe keeps the two poll outcomes apart and reaches no real process', () => {

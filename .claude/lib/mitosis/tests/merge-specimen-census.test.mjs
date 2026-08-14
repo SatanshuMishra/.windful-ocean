@@ -2,17 +2,35 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { MERGE_REFUSAL_SPECIMENS, classifyGhMerge } from '../gh-merge-shim.mjs';
-import { censusMergeSpecimens, readMergeShimSource, shimRefusalKinds } from '../merge-specimen-census.mjs';
+import { censusMergeSpecimens, readMergeShimSource, refusalReturnAudit, shimRefusalKinds } from '../merge-specimen-census.mjs';
 
 const SHIM_PATH = new URL('../gh-merge-shim.mjs', import.meta.url).pathname;
 
 test('the classifier reason kinds are read from the shim source rather than remembered', () => {
-  const measured = shimRefusalKinds(readFileSync(SHIM_PATH, 'utf8'));
+  const source = readFileSync(SHIM_PATH, 'utf8');
+  const measured = shimRefusalKinds(source);
   assert.equal(measured.ok, true, measured.error);
-  assert.ok(measured.kinds.length >= 7, `measured ${measured.kinds.join(', ')}`);
   for (const kind of measured.kinds) {
-    assert.ok(readFileSync(SHIM_PATH, 'utf8').includes(`'${kind}'`), `${kind} was not read from the shim source`);
+    assert.ok(source.includes(`'${kind}'`), `${kind} was not read from the shim source`);
   }
+  const synthetic = shimRefusalKinds("function reason(kind, detail) { return kind; }\nexport function c() { return { refuse: true, reason: reason('synthetic-kind', 'x') }; }");
+  assert.deepEqual([...synthetic.kinds], ['synthetic-kind'], 'the extractor reads whatever the source declares rather than a remembered list');
+  assert.deepEqual([...shimRefusalKinds('export const x = 1;').kinds], [], 'a source declaring no refusal must yield no kind, so a constant list cannot pass as an extraction');
+});
+
+test('a refusal that spells its kind inline rather than through the reason builder halts', () => {
+  const inline = "function reason(kind, detail) { return `${kind} ${detail}`; }\nexport function c() { return { refuse: true, reason: 'inline [zz-kind]' }; }";
+  const audit = refusalReturnAudit(inline);
+  assert.equal(audit.ok, false);
+  assert.match(audit.error, /reason\(\)/);
+  const census = censusMergeSpecimens(MERGE_REFUSAL_SPECIMENS, inline);
+  assert.equal(census.ok, false);
+});
+
+test('every refusal the shipped classifier returns routes its kind through the reason builder', () => {
+  const audit = refusalReturnAudit(readFileSync(SHIM_PATH, 'utf8'));
+  assert.equal(audit.ok, true, audit.error);
+  assert.equal(audit.refusalCount, censusMergeSpecimens().reasonKindCount);
 });
 
 test('the shipped specimen set covers every refusal reason the classifier can emit', () => {

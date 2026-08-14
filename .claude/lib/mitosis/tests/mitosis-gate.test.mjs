@@ -23,11 +23,10 @@ import {
   extractAssignedPhases,
   extractPhaseSurfaces,
   parseMitosisGateArgv,
-  probeTranscriptionSubstrate,
   promptRegistryExitCode,
   runMitosisGate,
-  transcriptionParityFailures,
 } from '../mitosis-gate.mjs';
+import { probeTranscriptionSubstrate, transcriptionParityFailures } from '../transcription-parity-gate.mjs';
 import { scanJsStructure } from '../js-scan.mjs';
 import { MERGE_REFUSAL_SPECIMENS } from '../gh-merge-shim.mjs';
 import { censusMergeSpecimens } from '../merge-specimen-census.mjs';
@@ -788,8 +787,16 @@ test('the transcription-parity verdict states plainly that none of the eighteen 
     'the verdict does not record that live spawn sites still bypass the chokepoint',
   );
   assert.ok(
-    verdict.notAttested.some((claim) => /--mirror|--delete/.test(claim)),
-    'the verdict does not record which destructive spellings the manifest ref policy leaves unexamined',
+    verdict.notAttested.some((claim) => /remote\.\*\.push/.test(claim)),
+    'the verdict does not record that a push refspec the argument vector never spells is unexamined',
+  );
+  assert.ok(
+    verdict.notAttested.some((claim) => /alias\.name=!command/.test(claim)),
+    'the verdict emits the exec-run refusal attests without recording that an allowlisted binary still reaches a shell through its own argv',
+  );
+  assert.ok(
+    verdict.notAttested.some((claim) => /in flight/.test(claim)),
+    'the verdict does not record that the deadline outcome does not mean the work stopped',
   );
   assert.ok(Array.isArray(verdict.c7Obligations) && verdict.c7Obligations.length > 0);
   assert.ok(verdict.c7Obligations.some((claim) => /run-engine\.mjs/.test(claim)));
@@ -839,6 +846,67 @@ test('a substrate that refuses argv the engine legitimately runs is a failure, s
     assert.match(failures[0], /over-broad/);
     assert.match(failures[0], new RegExp(substrate.allowances[index].name.replace(/[/\\^$*+?.()|[\]{}]/g, '\\$&')));
   }
+});
+
+test('a census control that stops halting is a transcription-parity failure naming the control', () => {
+  const substrate = probeTranscriptionSubstrate();
+  assert.ok(substrate.censusControls.length >= 3, 'the verb ships no gate-time negative control for its census half');
+  for (let index = 0; index < substrate.censusControls.length; index += 1) {
+    for (const broken of [{ halted: false }, { named: false }]) {
+      const failures = transcriptionParityFailures({
+        ...substrate,
+        censusControls: substrate.censusControls.map((control, position) => (position === index ? { ...control, ...broken } : control)),
+      });
+      assert.equal(failures.length, 1, `${substrate.censusControls[index].name} ${JSON.stringify(broken)}`);
+      assert.match(failures[0], new RegExp(substrate.censusControls[index].name.replace(/[/\\^$*+?.()|[\]{}]/g, '\\$&')));
+    }
+  }
+});
+
+test('every shipped census control halts AND names the thing it exists to catch', () => {
+  const controls = probeTranscriptionSubstrate().censusControls;
+  assert.deepEqual(controls.filter((control) => !control.halted || !control.named), []);
+});
+
+test('a poll attempt handed no spawn bound of its own is a transcription-parity failure', () => {
+  const substrate = probeTranscriptionSubstrate();
+  const failures = transcriptionParityFailures({
+    ...substrate,
+    deadline: { ...substrate.deadline, everyAttemptBounded: false, attemptDeadlinesMs: [undefined] },
+  });
+  assert.equal(failures.length, 1);
+  assert.match(failures[0], /outlives the deadline/);
+});
+
+test('a poll that a frozen clock leaves unbounded is a transcription-parity failure', () => {
+  const substrate = probeTranscriptionSubstrate();
+  for (const broken of [{ frozenClockOutcome: 'completed' }, { frozenClockBoundedByIterations: false }]) {
+    const failures = transcriptionParityFailures({ ...substrate, deadline: { ...substrate.deadline, ...broken } });
+    assert.equal(failures.length, 1, JSON.stringify(broken));
+    assert.match(failures[0], /no bound at all/);
+  }
+});
+
+test('a declared outcome that no specimen can produce is a transcription-parity failure', () => {
+  const substrate = probeTranscriptionSubstrate();
+  const failures = transcriptionParityFailures({
+    ...substrate,
+    outcomes: { ...substrate.outcomes, unreached: ['signalled'] },
+  });
+  assert.equal(failures.length, 1);
+  assert.match(failures[0], /closed census/);
+});
+
+test('retiring a classifier branch together with its specimen is still an exec-allowlist failure', () => {
+  const policy = probeExecPolicy();
+  const trimmed = censusMergeSpecimens();
+  const lockstep = {
+    ...trimmed,
+    reasonKinds: trimmed.reasonKinds.filter((kind) => kind !== 'pr-merge'),
+    specimenKinds: trimmed.specimenKinds.filter((kind) => kind !== 'pr-merge'),
+  };
+  const failures = execAllowlistFailures({ ...policy, specimenCensus: lockstep });
+  assert.ok(failures.some((failure) => /two deliberate edits/.test(failure)), failures.join(' | '));
 });
 
 test('a bounded poll whose deadline outcome collapses into another outcome is a transcription-parity failure', () => {
