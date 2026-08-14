@@ -376,6 +376,11 @@
         "ref": "0424-an-incremental-porting-msp-precedes-c7",
         "title": "An incremental porting MSP is inserted before C7 to drain its accumulated obligations",
         "scope": "c3"
+      },
+      {
+        "ref": "0425-ci-fact-extract-lands-in-c4c-not-by-amending-c2",
+        "title": "ci-fact-extract lands in C4c rather than by amending C2's shipped branch",
+        "scope": "c3"
       }
     ],
     "out_of_scope": [
@@ -387,5 +392,5 @@
     ]
   },
   "created_at": "2026-08-12T07:37:41.077Z",
-  "updated_at": "2026-08-14T18:04:28.807Z"
+  "updated_at": "2026-08-14T18:56:59.025Z"
 }
