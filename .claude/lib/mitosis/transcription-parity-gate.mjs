@@ -18,17 +18,21 @@ import { GIT_SITE_COMMANDS } from './git-commands.mjs';
 import { GH_SITE_FIXTURE_PARENT_SHA } from './gh-site-fixtures.mjs';
 import { ghSpawnRequest } from './gh-commands.mjs';
 import { MERGE_REFUSAL_SPECIMENS } from './gh-merge-shim.mjs';
-import { CI_FACT_FIELDS, CI_MODEL_FIELDS, ciFactProbes } from './ci-facts.mjs';
+import { GH_SITE_COMMANDS } from './gh-commands.mjs';
+import { PENDING_JUDGMENT_KINDS } from './transcription-census.mjs';
+import { classifyCiReport } from './ci-escalation.mjs';
+import { CI_FACT_FIELDS, CI_MODEL_FIELDS, ciEscalationProbes, ciFactProbes } from './ci-facts.mjs';
 import { specHashProbes } from './spec-hash.mjs';
 import { supersedeSummaryProbes } from './supersede-summary.mjs';
 import {
   NON_SPAWN_SITES,
+  TRANSCRIBED_BINARIES,
   TRANSCRIBED_COMMAND_FIXTURES,
   argvInertnessProbe,
   gitCommandFixtureCensus,
   parserProbes,
 } from './transcription-conversions.mjs';
-import { FETCH_VALUE_SITES, censusPositionalSeparation, refusedValueProbes } from './git-command-separation.mjs';
+import { FETCH_VALUE_SITES, SEPARATION_EXCEPTIONS, censusPositionalSeparation, refusedValueProbes } from './git-command-separation.mjs';
 import {
   conversionControlProbes,
   conversionStateProbes,
@@ -45,13 +49,25 @@ const MANIFEST_PUBLISH_SITE = 'manifest-publish';
 const MANIFEST_PUBLISH_SPAWNS = Object.keys(GIT_SITE_COMMANDS[MANIFEST_PUBLISH_SITE]).length;
 const MANIFEST_PUBLISH_WRITES = NON_SPAWN_SITES.filter((entry) => entry.site === MANIFEST_PUBLISH_SITE).length;
 
+function ghCommandStepStrings() {
+  return Object.keys(GH_SITE_COMMANDS).flatMap((site) => Object.keys(GH_SITE_COMMANDS[site]).map((step) => `${site}/${step}`));
+}
+
+function ghCommandStepCount() {
+  return ghCommandStepStrings().length;
+}
+
+function separationExceptionCount(prefix) {
+  return Object.keys(SEPARATION_EXCEPTIONS).filter((key) => key.startsWith(prefix)).length;
+}
+
 export const TRANSCRIPTION_PARITY_ATTESTS = Object.freeze([
-  'every transcribed command is built for one of three declared binaries - git, gh and node - and a fixture naming any other binary halts, so a command reaching a process through a builder this census cannot place is refused rather than counted',
+  `every transcribed command is built for one of the ${TRANSCRIBED_BINARIES.length} declared binaries - ${TRANSCRIBED_BINARIES.join(', ')} - and a fixture naming any other binary halts, so a command reaching a process through a builder this census cannot place is refused rather than counted`,
   'a step one site is declared to share with another is BUILT on both sides and the two argument vectors compared, so a sharing claim that is not an equivalence halts rather than borrowing a pin it does not satisfy',
   'a command the incumbent demands a fact from but spells no command for is admitted only as an enumerated derived command carrying the incumbent clause that demands the fact, that clause spelled exactly once, and a stated reason',
   'a judgment kind the prompt authority declares that no dispatch reaches is admitted only as an enumerated pending kind with a stated reason, and a dispatch that later reaches one halts rather than being excused',
-  'every gh command this substrate builds resolves through the merge shim, and the classifier own refusal specimen routed through that same resolution is refused, so the shim is both in the path and in force',
-  'the four ci report fields the engine derives are read from what gh and git printed, are disjoint from the two a model reports, and a run that did not complete is reported as its own conclusion token rather than folded into a failure',
+  `every one of the ${ghCommandStepCount()} gh commands this substrate builds resolves through the merge shim, and the classifier own refusal specimen routed through that same resolution is refused, so the shim is both in the path and in force`,
+  `the ${CI_FACT_FIELDS.length} ci report fields the engine derives are read from what gh and git printed, are disjoint from the ${CI_MODEL_FIELDS.length} a model reports, and a run that did not complete is reported as its own conclusion token rather than folded into a failure`,
   'the spec fingerprint matches digests transcribed from the same binary the incumbent invokes, and it reports no fingerprint at all for a spec it could not read',
   'the superseding pull-request summary is composed from a machine-readable interdiff and cut to the value cap pull-request creation enforces, at this composer rather than at its caller',
   'both fixture modules pin to one parent commit, so no fixture can be repaired against whichever commit still spells it',
@@ -89,7 +105,7 @@ export const TRANSCRIPTION_PARITY_ATTESTS = Object.freeze([
 
 export const TRANSCRIPTION_PARITY_NOT_ATTESTED = Object.freeze([
   'that the two path lists the ci report still asks a model for could be derived instead: the runner this engine deploys emits no structured test report, so implicatedPaths and failingAssertionFiles remain a judgment dispatch and this verb measures only that the dispatch is registered and that an empty extraction escalates',
-  'that gh honours the option separator at the sites that carry no separator: the three gh reads and the two rev-parse reads that hand a value positionally are bounded by the builder validators alone, each recorded as a separation exception with the measured reason it cannot carry one',
+  `that gh honours the option separator at the sites that carry no separator: the ${separationExceptionCount('gh ')} gh reads and the ${Object.keys(SEPARATION_EXCEPTIONS).length - separationExceptionCount('gh ')} git reads that hand a value positionally are bounded by the builder validators alone, each recorded as a separation exception with the measured reason it cannot carry one`,
   'that the transcribed gh reads return what a live GitHub returns: every gh probe here is offered captured output, and no probe in this verb reaches a network',
   'that the ci-fact-extract prose is pinned to an incumbent: the kind is new, no engine source spells it, and its byte fixture is therefore composed from the registry rather than transcribed - the untwinned declaration in the suite asserts that neither engine spells it, in both directions',
   'that any of the eighteen sites has stopped dispatching a language model: all eighteen still dispatch until C7 wires the engine onto this substrate, so a converted site here means a deterministic replacement exists and is pinned to the incumbent command, never that the incumbent dispatch is gone',
@@ -105,7 +121,7 @@ export const TRANSCRIPTION_PARITY_NOT_ATTESTED = Object.freeze([
   'that a path carrying a byte sequence that is not valid utf-8 is recovered: both path readers refuse such a line rather than reporting a repaired spelling, so a run against a repository holding one halts instead of naming the wrong file',
   'that the plan artifact observation resolves a symbolic link the way the incumbent does: it inspects the path without following a link, so a plan reached through a symlink is reported as not a regular file where the incumbent test -f would have followed it and found one; the deviation fails closed, towards planning again rather than skipping it',
   'that every path-shaped caller value is confined: the git builders refuse repoRoot, integrationWt and worktreePath only when empty, when carrying a NUL byte or when beginning with a dash, so a path carrying a parent traversal or shell metacharacters is still carried, inertly, as exactly one argument of a git command. That inertness argument does NOT extend to a value that names a program rather than data: the three node steps compose libDir and gitLibDir into the script path node executes, and those two are confined to the directory this substrate resolves the tool from rather than merely being carried whole',
-  'that the three steps carrying a separation exception are safe for a reason other than the ref token bound: git rev-parse without --verify echoes the separator into its own output and git commit-tree refuses it outright, so those three caller values are held by the builder validation alone and by no argument vector separator',
+  `that the ${Object.keys(SEPARATION_EXCEPTIONS).length} steps carrying a separation exception are safe for a reason other than the ref token bound: git rev-parse without --verify echoes the separator into its own output and git commit-tree refuses it outright, so those caller values are held by the builder validation alone and by no argument vector separator`,
   ...EXEC_RUN_NOT_ATTESTED,
   ...MANIFEST_REF_NOT_ATTESTED,
 ]);
@@ -141,6 +157,7 @@ export function probeTranscriptionSubstrate() {
       : Object.freeze([]),
     argvInertness: argvInertnessProbe(),
     ciFacts: ciFactProbes(),
+    ciEscalation: ciEscalationProbes(),
     specHash: specHashProbes(),
     supersedeSummary: supersedeSummaryProbes(),
     ghShimRouting: ghShimRoutingProbe(),
@@ -148,16 +165,24 @@ export function probeTranscriptionSubstrate() {
   });
 }
 
-const SHIM_PROBE_VALUES = Object.freeze({ repoSlug: 'acme/widgets', integrationBranch: 'mitosis/probe' });
+const SHIM_PROBE_VALUES = Object.freeze({ repoSlug: 'acme/widgets', ownerRepo: 'acme/widgets', integrationBranch: 'mitosis/probe', baseBranch: 'main', runId: '77' });
 const SHIM_BASENAME = 'gh-merge-shim.mjs';
 const SHIM_REFUSED_SPECIMEN = MERGE_REFUSAL_SPECIMENS[0];
 
 function ghShimRoutingProbe() {
-  let routed;
-  try {
-    routed = ghSpawnRequest('ship-verify', 'pr-state', SHIM_PROBE_VALUES);
-  } catch (error) {
-    return Object.freeze({ routed: false, refusedMerge: false, detail: `an ordinary gh read was refused: ${error && error.message ? error.message : 'unknown refusal'}` });
+  const unrouted = [];
+  for (const at of ghCommandStepStrings()) {
+    const [site, step] = at.split('/');
+    let resolved;
+    try {
+      resolved = ghSpawnRequest(site, step, SHIM_PROBE_VALUES);
+    } catch (error) {
+      unrouted.push(`${at} was refused before a request existed: ${error && error.message ? error.message : 'unknown refusal'}`);
+      continue;
+    }
+    if (resolved.command !== 'node' || resolved.args.length === 0 || !resolved.args[0].endsWith(SHIM_BASENAME)) {
+      unrouted.push(`${at} resolved to ${resolved.command} ${JSON.stringify([...resolved.args].slice(0, 2))}`);
+    }
   }
   let refusedMerge = false;
   try {
@@ -166,9 +191,12 @@ function ghShimRoutingProbe() {
     refusedMerge = true;
   }
   return Object.freeze({
-    routed: routed.command === 'node' && routed.args.length > 0 && routed.args[0].endsWith(SHIM_BASENAME),
+    routed: unrouted.length === 0,
+    routedCount: ghCommandStepCount() - unrouted.length,
     refusedMerge,
-    detail: `${routed.command} ${JSON.stringify([...routed.args])}`,
+    detail: unrouted.length === 0
+      ? `all ${ghCommandStepCount()} gh commands resolve through ${SHIM_BASENAME}`
+      : unrouted.join('; '),
   });
 }
 
@@ -222,6 +250,13 @@ function pollFailures(substrate) {
 }
 
 const DERIVED_FACT_CONTROLS = Object.freeze([
+  Object.freeze({
+    name: 'an empty extraction that stopped escalating is reported',
+    expect: 'ci escalation probes no longer hold',
+    present: (substrate) => substrate.ciEscalation.length > 0 && substrate.ciEscalation.every((probe) => probe.ok === true),
+    missing: 'the ci escalation probes are empty or already failing, so flipping one perturbs nothing',
+    perturb: (substrate) => ({ ...substrate, ciEscalation: substrate.ciEscalation.map((probe, index) => (index === 1 ? { ...probe, ok: false } : probe)) }),
+  }),
   Object.freeze({
     name: 'a derived ci fact that stopped holding is reported',
     expect: 'ci fact probes no longer hold',
@@ -292,7 +327,7 @@ export function derivedFactControlProbes(substrate) {
 
 function derivedFactFailures(substrate) {
   const failures = [];
-  for (const [name, probes] of [['ci fact', substrate.ciFacts], ['spec fingerprint', substrate.specHash], ['supersede summary', substrate.supersedeSummary]]) {
+  for (const [name, probes] of [['ci fact', substrate.ciFacts], ['ci escalation', substrate.ciEscalation], ['spec fingerprint', substrate.specHash], ['supersede summary', substrate.supersedeSummary]]) {
     const broken = probes.filter((probe) => probe.ok !== true);
     if (broken.length > 0) {
       failures.push(`these ${name} probes no longer hold: ${broken.map((probe) => `${probe.name} (${probe.detail})`).join('; ')}`);
@@ -527,6 +562,7 @@ function substratePayload(substrate) {
     sharedCommandSteps: [...substrate.conversions.sharedSteps],
     derivedCommandSteps: [...substrate.conversions.derivedCommands],
     ciFactProbes: substrate.ciFacts.map((probe) => `${probe.name}: ${probe.ok ? 'holds' : 'INERT'}`),
+    ciEscalationProbes: substrate.ciEscalation.map((probe) => `${probe.name}: ${probe.ok ? 'holds' : 'INERT'}`),
     specHashProbes: substrate.specHash.map((probe) => `${probe.name}: ${probe.ok ? 'holds' : 'INERT'}`),
     supersedeSummaryProbes: substrate.supersedeSummary.map((probe) => `${probe.name}: ${probe.ok ? 'holds' : 'INERT'}`),
     ghShimRouting: `${substrate.ghShimRouting.routed ? 'routed through the merge shim' : 'NOT ROUTED'}, ${substrate.ghShimRouting.refusedMerge ? 'the classifier own specimen refused' : 'SPECIMEN ADMITTED'}`,
