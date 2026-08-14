@@ -119,9 +119,9 @@
   "abandoned_reason": null,
   "closure_statement": null,
   "spine": {
-    "active_goal": "Land the eighteen MSPs as stacked PRs on feat/mitosis-os-process. A0-A3 and B1 are merged; A4 and B2 are open PRs awaiting human merge, after which B3 unblocks.",
-    "next_step": "Rule on the SKILL.md scope question FIRST: both PRs edit .claude/skills/plan-to-task-graph/SKILL.md, which the SPEC schedules for C5, and it is the ONLY file that conflicts between them, so one ruling settles both. Then merge #82 and #81 in either order: remove that PR's worktree before merging so --delete-branch succeeds, verify by content not ancestry, and after the second one takes the base in re-run npm test and mirror-guard. B3 unblocks after B2.",
-    "last_session": "Shipped A4 and B2 through one dynamic Workflow (11 agents, 894 tool calls, 2.81M tokens, ~2h). Plan, implement, split-role review, one fix round on A4's five HIGHs, independent verifier per lane. PRs #82 and #81 open, base unmoved at 7d6fb4e, both suites green.",
+    "active_goal": "Land the eighteen MSPs as stacked PRs on feat/mitosis-os-process. A0-A4, B1 and B2 are merged; PRs #97 and #98 are open and green; B3 unblocks next.",
+    "next_step": "Merge PRs #97 and #98, both fully green including receipts at 11s and all three mitosis-gate legs at 12s. Then fix the second ReDoS orphan at dispatch-payload.test.mjs:164 before it ever acquires a backslash-dense tail, and report the stripStrings ReDoS upstream. Then cut B3, which B2 unblocked; 7 of 18 MSPs are on the base.",
+    "last_session": "Unblocked both stalled PRs. Orphaned gitlinks broke actions/checkout under persist-credentials false; a ReDoS in the pinned receipts enforcer hung #81 twice. Both root causes fixed and proven green on real runners. Found and repaired two merge casualties; opened #97 and #98.",
     "open_risks": [
       {
         "text": "Build A4's red case through the claude -p CLI path and assert the SILENT failure — the Workflow agent path auto-grants StructuredOutput, so a red case dispatched through it passes unconditionally and is a guarantee that cannot fail",
@@ -218,20 +218,45 @@
         ]
       },
       {
-        "text": "Rule on the SKILL.md edit before merging either PR — both change the plan-to-task-graph skill doc that the SPEC schedules for C5, and it is the only file that conflicts between them",
-        "scope": "c3",
+        "text": "Merge PRs #97 and #98 before cutting B3 — #97 repairs a self-contradiction in the skill doc that mitosis.js hands the Parallelize agent as live prompt text, so leaving it open keeps a wrong instruction in circulation",
+        "scope": "c15",
         "refs": [
-          ".claude/skills/plan-to-task-graph/SKILL.md",
-          "PR #82",
-          "PR #81"
+          "PR #97",
+          "PR #98",
+          ".claude/skills/plan-to-task-graph/SKILL.md:35"
         ]
       },
       {
-        "text": "Re-run npm test and mirror-guard after the second PR takes the base in — git auto-merges mitosis.js and its twinned lib modules independently while mirror-guard compares the pair, so a clean auto-merge is not proof the mirror survived",
+        "text": "Fix the second unterminated delimiter at dispatch-payload.test.mjs:164 — a backtick orphan cascading from a lone quote in a regex literal at line 31, harmless only because its tail carries zero backslashes today",
+        "scope": "c15",
+        "refs": [
+          ".claude/lib/mitosis/tests/dispatch-payload.test.mjs:164",
+          "0415"
+        ]
+      },
+      {
+        "text": "Report the stripStrings ReDoS upstream — the escape on the base is a workaround, and the real remedy is a linear alternation plus a time budget on the static gates, which only the action owner can ship",
+        "scope": "c15",
+        "refs": [
+          "shaheershoaib/receipts",
+          "enforcer/g11.js:51",
+          "0415"
+        ]
+      },
+      {
+        "text": "Verify every stacked merge by change-line-set equality against each PR's own diff — the #82 and #81 merge silently reverted one of B2's lines while keeping its siblings, and a clean auto-merge plus a MERGED status hid it completely",
         "scope": "c3",
         "refs": [
-          ".claude/lib/mitosis/tests/mirror-guard.test.mjs",
-          ".claude/workflows/mitosis.js"
+          "0388",
+          "0416",
+          ".claude/skills/plan-to-task-graph/SKILL.md:35"
+        ]
+      },
+      {
+        "text": "A rerun never picks up a moved base — gh run rerun replays the pinned event payload, so attempt 3 of #82 still checked out the merge ref built against the old base; a fresh pull_request event is the only way",
+        "scope": "c3",
+        "refs": [
+          "PR #82 run 31730890263"
         ]
       },
       {
@@ -244,23 +269,7 @@
         ]
       },
       {
-        "text": "Receipts CI has never run on a real runner for either branch — A4 adds three new gate legs to the deployed receipts template and they were exercised only locally, so the first real CI run is the first honest test",
-        "scope": "c3",
-        "refs": [
-          ".claude/skills/mitosis/templates/receipts.yml",
-          "PR #82"
-        ]
-      },
-      {
-        "text": "Both PRs run roughly three times the review-size target and neither was split — splitting is a decomposition change that belongs to the user under the 0381 precedent, so it was reported rather than decided",
-        "scope": "c3",
-        "refs": [
-          "PR #82 31 files +1744/-264",
-          "PR #81 33 files +1281/-633"
-        ]
-      },
-      {
-        "text": "Remove a PR's worktree before merging it, then confirm the ref is actually gone — every branch here is worktree-held, gh refuses to delete those, and when the local delete fails the remote survives too, which is how PR #79's payload was stranded",
+        "text": "Remove a PR's worktree before merging it, then confirm the ref is actually gone — every branch here is worktree-held, gh refuses to delete those, and when the local delete fails the remote survives too",
         "scope": "c3",
         "refs": [
           "0388",
@@ -268,15 +277,15 @@
         ]
       },
       {
-        "text": "B1's verdict gate is armed at the derive-edges entrypoint but not end to end — mitosis.js Parallelize builds its task map from graph.tasks and never reads graph.coupling, so a real run still co-schedules a serialize-defaulted pair with no verdict rendered",
+        "text": "B1's verdict gate is armed at the derive-edges entrypoint but not end to end — mitosis.js Parallelize builds its task map from graph.tasks and never reads graph.coupling, so a real run still co-schedules a serialize-defaulted pair with no verdict",
         "scope": "c3",
         "refs": [
           "PR #73",
-          ".claude/workflows/mitosis.js:4914"
+          ".claude/workflows/mitosis.js:5086"
         ]
       },
       {
-        "text": "The pool refuses per-node cwd and worktree outright rather than confining them — a later MSP needing genuine per-node working directories has to build that confinement check then, because the allowlist defers the problem rather than solving it",
+        "text": "The pool refuses per-node cwd and worktree outright rather than confining them — a later MSP needing genuine per-node working directories has to build that confinement check then, because the allowlist defers the problem",
         "scope": "c3",
         "refs": [
           "PR #74",
@@ -292,7 +301,7 @@
         ]
       },
       {
-        "text": "Leave the committed RECEIPTS_ACK in A1's tests alone — removing it would exercise the exact old_string hole reported upstream, turning a disclosed escape back into a silent one, and #78 split that file across the dispatch tests",
+        "text": "Leave the committed RECEIPTS_ACK in A1's tests alone — removing it would exercise the exact old_string hole reported upstream, turning a disclosed escape back into a silent one",
         "scope": "c3",
         "refs": [
           ".claude/lib/mitosis/tests/",
@@ -417,5 +426,5 @@
     ]
   },
   "created_at": "2026-08-12T07:37:41.077Z",
-  "updated_at": "2026-08-14T05:09:48.986Z"
+  "updated_at": "2026-08-14T05:10:16.557Z"
 }
