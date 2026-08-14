@@ -565,16 +565,21 @@ export const GH_SITE_FIXTURES = Object.freeze([
 
 const WATCH_SHARED_REASON = 'the incumbent composes this wait once and interpolates the same clause into both stages, so the two run one command rather than two spellings of one; the fixture that pins it lives with the stage the clause is anchored to';
 
+const CI_PUBLISH_WATCH_ANCHOR = '5. ${ciWatchClause} Treat conclusion=success as CI GREEN';
+const CI_PUBLISH_CONTRACT_ANCHOR = '7. ${ciStructuredContract}';
+const SHIP_WATCH_ANCHOR = 'Every run-status read is pinned to the engine-resolved target repo ${JSON.stringify(repoSlug)} (never the ambient cwd)';
+
 export const SHARED_COMMAND_STEPS = Object.freeze([
-  Object.freeze({ binary: GH_COMMAND_BINARY, site: 'ci-publish', step: 'resolve-run', sharesWith: 'ci-probe', reason: WATCH_SHARED_REASON }),
-  Object.freeze({ binary: GH_COMMAND_BINARY, site: 'ci-publish', step: 'watch-status', sharesWith: 'ci-probe', reason: WATCH_SHARED_REASON }),
-  Object.freeze({ binary: GH_COMMAND_BINARY, site: 'ci-publish', step: 'read-conclusion', sharesWith: 'ci-probe', reason: WATCH_SHARED_REASON }),
-  Object.freeze({ binary: GIT_COMMAND_BINARY, site: 'ci-publish', step: 'published-head', sharesWith: 'ci-probe', reason: WATCH_SHARED_REASON }),
+  Object.freeze({ binary: GH_COMMAND_BINARY, site: 'ci-publish', step: 'resolve-run', sharesWith: 'ci-probe', anchor: CI_PUBLISH_WATCH_ANCHOR, reason: WATCH_SHARED_REASON }),
+  Object.freeze({ binary: GH_COMMAND_BINARY, site: 'ci-publish', step: 'watch-status', sharesWith: 'ci-probe', anchor: CI_PUBLISH_WATCH_ANCHOR, reason: WATCH_SHARED_REASON }),
+  Object.freeze({ binary: GH_COMMAND_BINARY, site: 'ci-publish', step: 'read-conclusion', sharesWith: 'ci-probe', anchor: CI_PUBLISH_WATCH_ANCHOR, reason: WATCH_SHARED_REASON }),
+  Object.freeze({ binary: GIT_COMMAND_BINARY, site: 'ci-publish', step: 'published-head', sharesWith: 'ci-probe', anchor: CI_PUBLISH_CONTRACT_ANCHOR, reason: WATCH_SHARED_REASON }),
   Object.freeze({
     binary: GH_COMMAND_BINARY,
     site: 'ship',
     step: 'resolve-run',
     sharesWith: 'ci-probe',
+    anchor: SHIP_WATCH_ANCHOR,
     reason: 'the ship stage spells the same wait inline rather than through the shared clause, and the two spellings differ only in the prose around them, so one command is pinned once and this stage is held to producing the same argument vector',
   }),
   Object.freeze({
@@ -582,6 +587,7 @@ export const SHARED_COMMAND_STEPS = Object.freeze([
     site: 'ship',
     step: 'watch-status',
     sharesWith: 'ci-probe',
+    anchor: SHIP_WATCH_ANCHOR,
     reason: 'the ship stage spells the same wait inline rather than through the shared clause, and the two spellings differ only in the prose around them, so one command is pinned once and this stage is held to producing the same argument vector',
   }),
   Object.freeze({
@@ -589,11 +595,15 @@ export const SHARED_COMMAND_STEPS = Object.freeze([
     site: 'ship',
     step: 'read-conclusion',
     sharesWith: 'ci-probe',
+    anchor: SHIP_WATCH_ANCHOR,
     reason: 'the ship stage spells the same wait inline rather than through the shared clause, and the two spellings differ only in the prose around them, so one command is pinned once and this stage is held to producing the same argument vector',
   }),
 ]);
 
 const CONFLICT_PATHS_REASON = 'the incumbent names the conflicting paths as a field it demands and spells no command that produces them, so this vector is derived rather than transcribed; --diff-filter=U asks git for exactly the unmerged entries the aborted merge or rebase left, which is the fact the field asks a model to report from a diff it read by eye';
+
+const CONFLICT_PATHS_VALUES = Object.freeze({ repoRoot: REPO.value });
+const CONFLICT_PATHS_ARGV = Object.freeze(['-C', REPO.value, 'diff', '--name-only', '--diff-filter=U']);
 
 export const DERIVED_COMMAND_SITES = Object.freeze([
   Object.freeze({
@@ -602,6 +612,8 @@ export const DERIVED_COMMAND_SITES = Object.freeze([
     step: 'conflict-paths',
     field: 'conflictPaths',
     anchor: 'conflictPaths: [ "<repo-relative path>" ], publishedHeadSha: "<the sha ',
+    values: CONFLICT_PATHS_VALUES,
+    argv: CONFLICT_PATHS_ARGV,
     reason: CONFLICT_PATHS_REASON,
   }),
   Object.freeze({
@@ -610,6 +622,8 @@ export const DERIVED_COMMAND_SITES = Object.freeze([
     step: 'conflict-paths',
     field: 'conflictPaths',
     anchor: 'conflictPaths = the repo-relative paths that conflicted in step 4',
+    values: CONFLICT_PATHS_VALUES,
+    argv: CONFLICT_PATHS_ARGV,
     reason: CONFLICT_PATHS_REASON,
   }),
 ]);
