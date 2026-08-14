@@ -401,6 +401,12 @@ export function conversionControlProbes(source) {
     fixtureListProbe('a command builder carrying no fixture halts', 'fence/status', GIT_COMMAND_FIXTURES.filter((entry) => entry.step !== 'status'), source),
     fixtureListProbe('one builder carrying two fixtures halts', 'more than one fixture', [...GIT_COMMAND_FIXTURES, seed], source),
     fixtureListProbe('a fixture naming a builder no site declares halts', 'measures nothing', [...GIT_COMMAND_FIXTURES, { ...seed, step: 'harvest' }], source),
+    fixtureListProbe(
+      'a fixture naming a binary no builder is declared for halts',
+      'for which no builder is declared',
+      GIT_COMMAND_FIXTURES.map((entry) => (entry.site === seed.site && entry.step === seed.step ? { ...entry, binary: 'awk' } : entry)),
+      source,
+    ),
   ];
   const unpinned = seed === undefined
     ? Object.freeze({ name: 'a command builder carrying no fixture halts', halted: false, named: false, anchorPresent: false, detail: 'the fence/status fixture these controls perturb is absent, so they perturbed nothing' })

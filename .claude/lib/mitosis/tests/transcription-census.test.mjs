@@ -310,3 +310,18 @@ test('every enumerated inert source and helper carries a recorded reason', () =>
     assert.ok(typeof program.reason === 'string' && program.reason.trim().length > 0, `${program.name} is declared without a reason`);
   }
 });
+
+test('the remaining-invocation count tracks the dispatches the census saw, never the conversion declaration', () => {
+  const declared = TRANSCRIPTION_KINDS.map((kind) => (kind.name === 'fence' ? { ...kind, converted: false } : kind));
+  const withdrawn = CONVERTED_TRANSCRIPTION_SITES.filter((site) => site !== 'fence');
+  const baseline = censusTranscriptionSources(engineFixture());
+  const flipped = censusTranscriptionSources(engineFixture(), declared, withdrawn);
+  assert.equal(baseline.ok, true, baseline.error);
+  assert.equal(flipped.ok, true, flipped.error);
+  assert.notEqual(flipped.convertedSiteCount, baseline.convertedSiteCount, 'flipping a kind changed no converted count, so this control distinguishes nothing');
+  assert.equal(
+    flipped.conversionTargetSiteCount,
+    baseline.conversionTargetSiteCount,
+    'the target-site count moved when a conversion declaration changed, so a receipt derived from it would report the declaration rather than the dispatches that remain',
+  );
+});
