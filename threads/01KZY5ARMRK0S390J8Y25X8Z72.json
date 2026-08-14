@@ -3,7 +3,7 @@
   "id": "01KZY5ARMRK0S390J8Y25X8Z72",
   "slug": "max-autonomy-permission-build",
   "title": "Maximum-autonomy permission architecture: build",
-  "status": "paused",
+  "status": "done",
   "parent_id": "01KZ0D32M5MRY6TY6XV55AD62A",
   "predecessor_id": null,
   "completion_criteria": [
@@ -138,7 +138,7 @@
   "external_refs": [],
   "blocked_by": null,
   "abandoned_reason": null,
-  "closure_statement": null,
+  "closure_statement": "The maximum-autonomy permission architecture is built, merged and live: the bash gate now allows by default and guards only device destruction, privileged delete, exfiltration, pull-request creation and merge, and hosted Supabase, with every criterion either satisfied or struck by a recorded decision.",
   "spine": {
     "active_goal": "Closed. The permission architecture is shipped, merged and live; the bash gate allows by default and only catastrophe, PR and Supabase branches remain.",
     "next_step": "Thread closed - no next step. If the work is reopened, worst first: the logbook fail-closed guard in the plugin repo, the only outstanding item that can freeze an overnight run; then measure whether a deny rule survives bypassPermissions, now the only control left on the PR and Supabase surfaces; then read the two dirty worktrees and decide what to keep.",
@@ -343,5 +343,5 @@
     ]
   },
   "created_at": "2026-08-13T18:14:42.072Z",
-  "updated_at": "2026-08-14T05:58:52.475Z"
+  "updated_at": "2026-08-14T05:58:57.734Z"
 }
