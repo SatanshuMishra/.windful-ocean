@@ -16,6 +16,10 @@ import {
 } from './transcription-census.mjs';
 import { GIT_COMMAND_FIXTURES } from './git-command-fixtures.mjs';
 import { censusGitCommandFixtures, gitCommandFixtureCensus, parserProbes } from './transcription-conversions.mjs';
+import { manifestPublishProbe } from './manifest-publish.mjs';
+
+const MANIFEST_PUBLISH_SPAWNS = 9;
+const MANIFEST_PUBLISH_WRITES = 1;
 
 export const TRANSCRIPTION_PARITY_ATTESTS = Object.freeze([
   'every dispatch call node in both declared engine trees is resolved to exactly one declared name - transcription, judgment, journal or program-in-English - by exact identity or by an enumerated prefix alias, so a label none of them covers halts with its site named rather than being absorbed by a name it merely extends',
@@ -35,6 +39,8 @@ export const TRANSCRIPTION_PARITY_ATTESTS = Object.freeze([
   'a fixture repaired against the builder rather than against the incumbent halts, and that halt is exercised here on mutated copies of the shipped fixtures every time this verb runs, each control asserting the fixture it mutates is present before its result is trusted',
   'every transcribed site names a parser and every named parser is pinned to a transcribed command, in both directions, so a site cannot be counted converted while nothing reads what its commands print',
   'every site parser is run here against the output it is declared to read and against the same output relabelled as a run that never completed, so a parser that has gone blind and a parser that reads a fact out of an interrupted run are both caught by this verb rather than only by the suite',
+  'the bytes a converted step hands a child on stdin are pinned to the incumbent that composed them, so a payload name that drifts by one word halts here rather than publishing an identity a later run cannot read back',
+  'the manifest publish stage is run here against a recording repository on every invocation, and its step-3 filesystem write, its stdin-only payload, its unforced identity push and its write-once replay are each measured rather than declared',
 ]);
 
 export const TRANSCRIPTION_PARITY_NOT_ATTESTED = Object.freeze([
@@ -182,6 +188,7 @@ export function probeTranscriptionSubstrate() {
     conversions: target.error === undefined ? gitCommandFixtureCensus(source) : { ok: false, error: target.error },
     conversionControls: target.error === undefined ? conversionControlProbes(source) : Object.freeze([]),
     parsers: parserProbes(),
+    manifestPublish: manifestPublishProbe(),
   });
 }
 
@@ -258,6 +265,25 @@ export function transcriptionParityFailures(substrate) {
   if (substrate.parsers.length === 0) {
     failures.push('no site parser was probed at all, so nothing here would notice one going blind');
   }
+  const manifest = substrate.manifestPublish;
+  if (!manifest.published) {
+    failures.push(`the manifest publish stage did not publish against a repository that answered every step cleanly: ${manifest.detail}`);
+  }
+  if (manifest.spawnCount !== MANIFEST_PUBLISH_SPAWNS || manifest.writeCount !== MANIFEST_PUBLISH_WRITES) {
+    failures.push(`the manifest publish stage ran ${manifest.spawnCount} spawn(s) and ${manifest.writeCount} filesystem write(s) where the incumbent recipe is ${MANIFEST_PUBLISH_SPAWNS} and ${MANIFEST_PUBLISH_WRITES}; a step that became a spawn or stopped being one has changed what this stage does to the repository`);
+  }
+  if (!manifest.payloadOnlyOnStdin) {
+    failures.push('the manifest payload reached a child as an argument rather than only on stdin; the incumbent redirects a file into the child precisely so no run identity is ever shell-quoted');
+  }
+  if (!manifest.treeComposedOnStdin) {
+    failures.push('the one-entry tree line no longer reaches mktree on stdin; the incumbent pipes it in, and an argument vector cannot carry a pipe');
+  }
+  if (!manifest.unforced) {
+    failures.push('the manifest identity push carries a force spelling; the published-manifest ref is write once and forward only, and the adjacent checkpoint stage force retry must not be copied here');
+  }
+  if (!manifest.replayAlreadyPresent || manifest.replaySpawnCount !== 2 || manifest.replayWriteCount !== 0) {
+    failures.push(`a replay against an already published identity ran ${manifest.replaySpawnCount} spawn(s) and ${manifest.replayWriteCount} write(s) and reported alreadyPresent=${manifest.replayAlreadyPresent}; write once and forward only means the second attempt observes the ref and stops, writing nothing and pushing nothing`);
+  }
   return failures;
 }
 
@@ -308,6 +334,9 @@ export function transcriptionParityVerdict() {
       nonSpawnSteps: [...substrate.conversions.nonSpawnSteps],
       siteParsers: [...substrate.conversions.parsers],
       parserProbes: substrate.parsers.map((probe) => `${probe.name}: ${probe.reads && probe.failsClosed ? 'reads and fails closed' : 'INERT'}`),
+      manifestPublishSpawns: substrate.manifestPublish.spawnCount,
+      manifestPublishWrites: substrate.manifestPublish.writeCount,
+      manifestPublishReplaySpawns: substrate.manifestPublish.replaySpawnCount,
       derivedArguments: [...substrate.conversions.derivedArguments],
       stdinSteps: [...substrate.conversions.stdinSteps],
       conversionControls: substrate.conversionControls.map((control) => `${control.name}: ${control.anchorPresent && control.halted && control.named ? 'halted and named' : 'INERT'}`),
