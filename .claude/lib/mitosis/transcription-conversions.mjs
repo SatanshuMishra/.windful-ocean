@@ -635,12 +635,18 @@ export function nonSpawnFailures(source, sites = NON_SPAWN_SITES) {
         failures.push(`${at} names the ${field} ${JSON.stringify(value)}, which the incumbent step it replaces never spells`);
       }
     }
-    if (entry.refusedBinary === undefined) continue;
-    if (!entry.anchor.includes(entry.refusedBinary)) {
-      failures.push(`${at} names ${JSON.stringify(entry.refusedBinary)} as the binary the incumbent invokes, but the incumbent command does not spell it`);
-    }
-    if (EXEC_ALLOWLIST.includes(entry.refusedBinary)) {
-      failures.push(`${at} says ${JSON.stringify(entry.refusedBinary)} cannot be spawned, yet the spawn policy now allows it; the reason this site is not transcribed as a spawn no longer holds, so it should be transcribed as one`);
+    const refused = entry.refusedBinary === undefined ? [] : [entry.refusedBinary, ...(entry.alsoRefusedBinaries || [])];
+    if (refused.length === 0) continue;
+    for (const binary of refused) {
+      if (!entry.anchor.includes(binary)) {
+        failures.push(`${at} names ${JSON.stringify(binary)} as a binary the incumbent invokes, but the incumbent command does not spell it`);
+      }
+      if (EXEC_ALLOWLIST.includes(binary)) {
+        failures.push(`${at} says ${JSON.stringify(binary)} cannot be spawned, yet the spawn policy now allows it; the reason this site is not transcribed as a spawn no longer holds, so it should be transcribed as one`);
+      }
+      if (!entry.reason.includes(binary)) {
+        failures.push(`${at} names ${JSON.stringify(binary)} as a refused binary yet its stated reason never mentions it, so the reason describes a different departure from the one this site declares`);
+      }
     }
     if (typeof entry.reason !== 'string' || entry.reason.length === 0) {
       failures.push(`${at} departs from the incumbent with no stated reason; a site that performs no spawn is admitted only by a stated reason, never by silence`);

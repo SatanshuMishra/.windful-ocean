@@ -159,6 +159,30 @@ const REGISTRY_CONTROLS = Object.freeze([
     }),
   }),
   Object.freeze({
+    name: 'a site declaring a refused binary its incumbent command never spells halts',
+    expect: 'the incumbent command does not spell it',
+    present: (registry) => registry.nonSpawn.some((entry) => entry.refusedBinary !== undefined),
+    missing: 'no non-spawn site records a refused binary, so nothing was perturbed',
+    perturb: (registry) => ({
+      ...registry,
+      nonSpawn: registry.nonSpawn.map((entry) => (entry.refusedBinary === undefined
+        ? entry
+        : { ...entry, refusedBinary: 'awk', alsoRefusedBinaries: [], reason: `${entry.reason} awk` })),
+    }),
+  }),
+  Object.freeze({
+    name: 'a site whose stated reason never names a binary it declares refused halts',
+    expect: 'its stated reason never mentions it',
+    present: (registry) => registry.nonSpawn.some((entry) => entry.refusedBinary !== undefined),
+    missing: 'no non-spawn site records a refused binary, so nothing was perturbed',
+    perturb: (registry) => ({
+      ...registry,
+      nonSpawn: registry.nonSpawn.map((entry) => (entry.refusedBinary === undefined
+        ? entry
+        : { ...entry, reason: entry.reason.split(entry.refusedBinary).join('the wrapper') })),
+    }),
+  }),
+  Object.freeze({
     name: 'a site that says it cannot spawn a binary the policy now allows halts',
     expect: 'the spawn policy now allows it',
     present: (registry) => registry.nonSpawn.some((entry) => entry.refusedBinary !== undefined),

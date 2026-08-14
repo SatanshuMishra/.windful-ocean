@@ -641,5 +641,6 @@ export const CI_WATCH_FIXTURE = Object.freeze({
   step: 'bounded-wait',
   anchor: WATCH_ANCHOR,
   refusedBinary: 'timeout',
-  reason: `the incumbent bounds the wait with timeout, bash and sleep, none of which is a spawnable binary and none of which is installed on this machine, so the wait cannot be transcribed as a spawn at all; it becomes the in-process bounded poll this substrate already ships, whose expiry is reported as ${EXEC_TIMEOUT_EXPIRED} rather than folded into a generic failure, and whose repeated read is the ordinary allowlisted gh run view this site also transcribes`,
+  alsoRefusedBinaries: Object.freeze(['bash', 'sleep']),
+  reason: `the incumbent bounds the wait with timeout, bash and sleep, none of which is a spawnable binary, so the wait cannot be transcribed as a spawn at all; it becomes the in-process bounded poll this substrate already ships, whose expiry is reported as ${EXEC_TIMEOUT_EXPIRED} rather than folded into a generic failure, and whose repeated read is the ordinary allowlisted gh run view this site also transcribes`,
 });
