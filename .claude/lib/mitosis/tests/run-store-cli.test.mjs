@@ -60,10 +60,10 @@ test('the journal verb writes genesis, appends a delta, and folds back through t
   const recordPath = join(dir, 'record.json');
   writeFileSync(manifestPath, JSON.stringify(GENESIS_MANIFEST_AT_FB195E47));
   writeFileSync(recordPath, JSON.stringify({ unitId: 'fx-unit', fingerprint: 'ci-fix:fx000001' }));
-  const genesis = JSON.parse(runCli(['journal', 'genesis', '--path', journal, '--manifest', manifestPath]));
+  const genesis = JSON.parse(runCli(['journal', 'genesis', '--repo-root', dir, '--path', journal, '--manifest', manifestPath]));
   assert.equal(genesis.action, 'genesis');
   assert.equal(genesis.path, journal);
-  runCli(['journal', 'append', '--path', journal, '--kind', 'ci-attempt', '--record', recordPath]);
+  runCli(['journal', 'append', '--repo-root', dir, '--path', journal, '--kind', 'ci-attempt', '--record', recordPath]);
   const folded = foldRunManifest(readFileSync(journal, 'utf8'));
   assert.equal(folded.logicalRunId, 'fx01run7');
   assert.deepEqual(folded.msps[0].ciAttempts, ['ci-fix:fx000001']);
@@ -77,13 +77,13 @@ test('the journal verb refuses an unknown action and an unknown kind', () => {
   const noAction = failCli(['journal']);
   assert.equal(noAction.status, 2);
   assert.match(noAction.stderr, /needs an action/);
-  const badAction = failCli(['journal', 'rewrite', '--path', journal]);
+  const badAction = failCli(['journal', 'rewrite', '--repo-root', dir, '--path', journal]);
   assert.equal(badAction.status, 2);
   assert.match(badAction.stderr, /not a journal action/);
-  const badKind = failCli(['journal', 'append', '--path', journal, '--kind', 'resume', '--record', recordPath]);
+  const badKind = failCli(['journal', 'append', '--repo-root', dir, '--path', journal, '--kind', 'resume', '--record', recordPath]);
   assert.equal(badKind.status, 1);
   assert.match(badKind.stderr, /not a journal kind/);
-  const missingFlag = failCli(['journal', 'append', '--path', journal, '--kind', 'ci-attempt']);
+  const missingFlag = failCli(['journal', 'append', '--repo-root', dir, '--path', journal, '--kind', 'ci-attempt']);
   assert.equal(missingFlag.status, 2);
   assert.match(missingFlag.stderr, /--record/);
 });
@@ -93,7 +93,7 @@ test('the journal verb refuses a quiescent-exit whose at the caller did not read
   const journal = join(dir, 'run.json');
   const recordPath = join(dir, 'record.json');
   writeFileSync(recordPath, JSON.stringify({ at: 'yesterday', outstanding: true }));
-  const refused = failCli(['journal', 'append', '--path', journal, '--kind', 'quiescent-exit', '--record', recordPath]);
+  const refused = failCli(['journal', 'append', '--repo-root', dir, '--path', journal, '--kind', 'quiescent-exit', '--record', recordPath]);
   assert.equal(refused.status, 1);
   assert.match(refused.stderr, /ISO 8601 instant/);
   assert.equal(existsSync(journal), false, 'a refused record must leave no journal behind it');
@@ -112,9 +112,9 @@ test('the journal elapsed action computes a gap and reports none when there is n
 test('the journal gitignore action appends the entry once and reports the second call inert', () => {
   const dir = scratch('run-store-cli-journal-ignore-');
   const path = join(dir, '.gitignore');
-  const first = JSON.parse(runCli(['journal', 'gitignore', '--path', path, '--entry', '.mitosis/']));
+  const first = JSON.parse(runCli(['journal', 'gitignore', '--repo-root', dir, '--entry', '.mitosis/']));
   assert.equal(first.appended, true);
-  const second = JSON.parse(runCli(['journal', 'gitignore', '--path', path, '--entry', '.mitosis/']));
+  const second = JSON.parse(runCli(['journal', 'gitignore', '--repo-root', dir, '--entry', '.mitosis/']));
   assert.equal(second.appended, false);
   assert.equal(readFileSync(path, 'utf8'), '.mitosis/\n');
 });
