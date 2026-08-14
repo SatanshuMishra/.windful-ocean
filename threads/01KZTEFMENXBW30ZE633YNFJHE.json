@@ -120,8 +120,8 @@
   "closure_statement": null,
   "spine": {
     "active_goal": "Ship the remaining MSPs as stacked PRs on feat/mitosis-os-process via a dedicated orchestrator subagent that fans out to workers.",
-    "next_step": "START HERE IN A FRESH SESSION. Dispatch ONE dedicated orchestrator subagent (general-purpose, opus, backgrounded) at ORCHESTRATOR-BRIEF.md + STACK-STATE.md in the handoff dir; never drive workers from the main thread, never use the mitosis skill. Resume at C4c: cut from 6acc7171, branch feat/c4c-gh-sites, PR base feat/c4b-git-sites, tasks T15-T21. Then C5 and C6 as parallel lanes, then PORT as a hard barrier. Re-verify every orchestrator claim against git before reporting.",
-    "last_session": "Dispatched five successive orchestrators; shipped B3, C1, C2, C3, C4a and C4b as PRs #100-#103, #105 and #107, chain verified linear end to end. Run 1 died to a host process exit. Stopped at C4b on the user's instruction to hand off.",
+    "next_step": "START HERE. C5 and C6 need three user rulings before either lane is cut: whether C5 adds an eighth gate verb, whether C6 extends the CI verb matrix, and whether .claude/skills/ loses the byte-cleanliness held from C1 through C4c. The SPEC says no, no, and hold to D1, with C5's verb as C5b the one departure worth making. Then cut both lanes from the RESTACKED C4c head 3ff7c990, never from a pre-restack head.",
+    "last_session": "Run 6 shipped C4c as PR #108 and restacked the C4 chain onto the merged base after the user merged #100-#103 mid-run; #105 flipped to MERGEABLE. Review-size rule corrected as PR #109.",
     "open_risks": [
       {
         "text": "Build A4's red case through the claude -p CLI path and assert the SILENT failure — the Workflow agent path auto-grants StructuredOutput, so a red case dispatched through it passes unconditionally and is a guarantee that cannot fail",
@@ -444,5 +444,5 @@
     ]
   },
   "created_at": "2026-08-12T07:37:41.077Z",
-  "updated_at": "2026-08-14T23:48:01.667Z"
+  "updated_at": "2026-08-14T23:48:28.468Z"
 }
