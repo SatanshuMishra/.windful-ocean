@@ -377,7 +377,7 @@ export const PENDING_JUDGMENT_KINDS = Object.freeze([
 ]);
 
 function pendingJudgmentFailure(reached, pending) {
-  const undeclared = pending.filter((pending) => !PROMPT_KINDS.includes(pending.name));
+  const undeclared = pending.filter((entry) => !PROMPT_KINDS.includes(entry.name));
   if (undeclared.length > 0) {
     return `transcription-census: these kinds are declared as awaiting a dispatch yet the prompt authority names none of them: ${undeclared.map((entry) => entry.name).join(', ')}; a pending declaration that matches no registered kind excuses a dispatch nothing would have looked for`;
   }
