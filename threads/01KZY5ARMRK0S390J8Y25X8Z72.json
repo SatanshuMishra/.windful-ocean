@@ -243,6 +243,11 @@
         "ref": "0408-allow-is-broad-and-deny-is-the-only-narrow-list",
         "title": "Allow is broad by default; deny is the only narrow list (supersedes 0396)",
         "scope": "c4"
+      },
+      {
+        "ref": "0409-a-deny-entry-needs-no-replacement-to-be-removed",
+        "title": "A deny entry is removed when it guards no catastrophe; no replacement is required (supersedes 0401)",
+        "scope": "thread"
       }
     ],
     "out_of_scope": [
@@ -251,5 +256,5 @@
     ]
   },
   "created_at": "2026-08-13T18:14:42.072Z",
-  "updated_at": "2026-08-14T00:14:59.110Z"
+  "updated_at": "2026-08-14T00:15:10.447Z"
 }
