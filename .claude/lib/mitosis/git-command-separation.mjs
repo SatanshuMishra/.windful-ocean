@@ -58,6 +58,26 @@ function fixtureClassifications(fixture) {
   return { rows };
 }
 
+function reconcileExceptions(rows, exceptions) {
+  const excused = new Set();
+  const exposed = [];
+  for (const row of rows) {
+    const reason = Object.hasOwn(exceptions, row.at) ? exceptions[row.at][row.field] : undefined;
+    if (row.verdict !== UNSEPARATED) {
+      if (typeof reason === 'string') {
+        exposed.push(`${row.at} ${row.field} is already ${row.verdict} yet carries a separation exception`);
+      }
+      continue;
+    }
+    if (typeof reason !== 'string' || reason.length === 0) {
+      exposed.push(`${row.at} ${row.field} reaches git as a positional argument with no ${END_OF_OPTIONS} and no ${PATH_SEPARATOR_ARGUMENT} before it, and no stated reason says why it cannot carry one`);
+      continue;
+    }
+    excused.add(`${row.at} ${row.field}`);
+  }
+  return { excused, exposed };
+}
+
 export function censusPositionalSeparation(fixtures = GIT_COMMAND_FIXTURES, exceptions = SEPARATION_EXCEPTIONS) {
   if (!Array.isArray(fixtures) || fixtures.length === 0) {
     return halt('the separation census was handed no command to classify, so it would attest a bound it never measured');
@@ -81,22 +101,7 @@ export function censusPositionalSeparation(fixtures = GIT_COMMAND_FIXTURES, exce
     if (measured.error !== undefined) return halt(measured.error);
     rows.push(...measured.rows);
   }
-  const excused = new Set();
-  const exposed = [];
-  for (const row of rows) {
-    const reason = Object.hasOwn(exceptions, row.at) ? exceptions[row.at][row.field] : undefined;
-    if (row.verdict !== UNSEPARATED) {
-      if (typeof reason === 'string') {
-        exposed.push(`${row.at} ${row.field} is already ${row.verdict} yet carries a separation exception`);
-      }
-      continue;
-    }
-    if (typeof reason !== 'string' || reason.length === 0) {
-      exposed.push(`${row.at} ${row.field} reaches git as a positional argument with no ${END_OF_OPTIONS} and no ${PATH_SEPARATOR_ARGUMENT} before it, and no stated reason says why it cannot carry one`);
-      continue;
-    }
-    excused.add(`${row.at} ${row.field}`);
-  }
+  const { excused, exposed } = reconcileExceptions(rows, exceptions);
   if (exposed.length > 0) {
     return halt(`${exposed.join(' | ')}; a caller value that lands where git reads options is separated from them or carries a stated reason why it cannot be, never neither`);
   }

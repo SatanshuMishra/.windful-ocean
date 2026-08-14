@@ -70,6 +70,45 @@ function writePayload(repoRoot, payload, io) {
   return confined.value;
 }
 
+function composeIdentity(values, payload, io) {
+  const written = writePayload(values.repoRoot, payload, io);
+
+  const blob = parseSha(spawnStep('hash-object', values, Object.freeze({ stdin: payload }), io));
+  if (!blob.ok) return { error: `${MODULE}: the payload at ${written} could not be hashed into the object store: ${blob.error}` };
+
+  const tree = parseSha(spawnStep('mktree', values, Object.freeze({ stdin: composeTreeEntry(blob.sha) }), io));
+  if (!tree.ok) return { error: `${MODULE}: the one-entry tree could not be built: ${tree.error}` };
+
+  const commit = parseSha(spawnStep('commit-tree', { ...values, tree: tree.sha }, undefined, io));
+  if (!commit.ok) return { error: `${MODULE}: the identity commit could not be composed: ${commit.error}` };
+
+  return { commit };
+}
+
+function confirmPublished(values, payload, commit, io) {
+  const { manifestRef } = values;
+  const landed = parseLsRemote(spawnStep('verify-remote', values, undefined, io));
+  if (!landed.ok) return outcome(false, false, `${MODULE}: the remote could not be re-read after the push, so nothing confirms what landed: ${landed.error}`);
+  if (!landed.present || landed.sha !== commit.sha) {
+    return outcome(false, false, `${MODULE}: the remote carries ${landed.present ? landed.sha : 'nothing'} at ${manifestRef} rather than the ${commit.sha} this stage composed, so the identity a later run would recover is not the one published here`);
+  }
+
+  const readBack = parseBytes(spawnStep('read-back', values, undefined, io));
+  if (!readBack.ok) return outcome(false, false, `${MODULE}: the published payload could not be read back: ${readBack.error}`);
+  if (readBack.bytes !== payload) {
+    return outcome(false, false, `${MODULE}: the published payload did not round-trip: ${readBack.bytes.length} byte(s) came back where ${payload.length} went out, so what a later run would recover is not what this run composed`);
+  }
+
+  return Object.freeze({
+    published: true,
+    alreadyPresent: false,
+    ref: manifestRef,
+    commit: commit.sha,
+    readBack: readBack.bytes,
+    detail: `${MODULE}: published ${manifestRef} as ${commit.sha} and read the payload back unchanged`,
+  });
+}
+
 export function publishManifest(request, io = DEFAULT_IO) {
   const read = requestOf(request);
   if (read.error !== undefined) return outcome(false, false, read.error);
@@ -88,16 +127,9 @@ export function publishManifest(request, io = DEFAULT_IO) {
       return outcome(false, true, `${MODULE}: the run identity is already published at ${manifestRef} as ${before.sha}; the identity ref is write once and forward only, so nothing was written and nothing was pushed`);
     }
 
-    const written = writePayload(repoRoot, payload, io);
-
-    const blob = parseSha(spawnStep('hash-object', values, Object.freeze({ stdin: payload }), io));
-    if (!blob.ok) return outcome(false, false, `${MODULE}: the payload at ${written} could not be hashed into the object store: ${blob.error}`);
-
-    const tree = parseSha(spawnStep('mktree', values, Object.freeze({ stdin: composeTreeEntry(blob.sha) }), io));
-    if (!tree.ok) return outcome(false, false, `${MODULE}: the one-entry tree could not be built: ${tree.error}`);
-
-    const commit = parseSha(spawnStep('commit-tree', { ...values, tree: tree.sha }, undefined, io));
-    if (!commit.ok) return outcome(false, false, `${MODULE}: the identity commit could not be composed: ${commit.error}`);
+    const composed = composeIdentity(values, payload, io);
+    if (composed.error !== undefined) return outcome(false, false, composed.error);
+    const commit = composed.commit;
 
     const updated = spawnStep('update-ref', { ...values, commit: commit.sha }, undefined, io);
     if (updated.outcome !== 'completed' || updated.status !== 0) {
@@ -109,26 +141,7 @@ export function publishManifest(request, io = DEFAULT_IO) {
       return outcome(false, false, `${MODULE}: publishing ${manifestRef} was refused, and this stage never retries an identity push with force: ${(pushed.stderr || pushed.stdout || pushed.outcome).trim()}`);
     }
 
-    const landed = parseLsRemote(spawnStep('verify-remote', values, undefined, io));
-    if (!landed.ok) return outcome(false, false, `${MODULE}: the remote could not be re-read after the push, so nothing confirms what landed: ${landed.error}`);
-    if (!landed.present || landed.sha !== commit.sha) {
-      return outcome(false, false, `${MODULE}: the remote carries ${landed.present ? landed.sha : 'nothing'} at ${manifestRef} rather than the ${commit.sha} this stage composed, so the identity a later run would recover is not the one published here`);
-    }
-
-    const readBack = parseBytes(spawnStep('read-back', values, undefined, io));
-    if (!readBack.ok) return outcome(false, false, `${MODULE}: the published payload could not be read back: ${readBack.error}`);
-    if (readBack.bytes !== payload) {
-      return outcome(false, false, `${MODULE}: the published payload did not round-trip: ${readBack.bytes.length} byte(s) came back where ${payload.length} went out, so what a later run would recover is not what this run composed`);
-    }
-
-    return Object.freeze({
-      published: true,
-      alreadyPresent: false,
-      ref: manifestRef,
-      commit: commit.sha,
-      readBack: readBack.bytes,
-      detail: `${MODULE}: published ${manifestRef} as ${commit.sha} and read the payload back unchanged`,
-    });
+    return confirmPublished(values, payload, commit, io);
   } catch (error) {
     return outcome(false, false, `${MODULE}: the publish stopped rather than continuing past a step it could not complete: ${error && error.message ? error.message : 'unknown failure'}`);
   }

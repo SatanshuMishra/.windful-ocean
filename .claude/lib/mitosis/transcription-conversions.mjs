@@ -344,6 +344,28 @@ function registryFailure(registry) {
   return null;
 }
 
+function fixturePairingFailure(fixtures) {
+  const seen = new Set();
+  for (const fixture of fixtures) {
+    const key = `${fixture.site}/${fixture.step}`;
+    if (seen.has(key)) {
+      return `${key} carries more than one fixture, so which one the builder is checked against depends on iteration order`;
+    }
+    seen.add(key);
+    const steps = GIT_SITE_COMMANDS[fixture.site];
+    if (steps === undefined || typeof steps[fixture.step] !== 'function') {
+      return `${key} is transcribed by a fixture but no builder declares it; a fixture with no builder measures nothing`;
+    }
+  }
+  const unfixtured = GIT_SITES.flatMap((site) => Object.keys(GIT_SITE_COMMANDS[site])
+    .filter((step) => !seen.has(`${site}/${step}`))
+    .map((step) => `${site}/${step}`));
+  if (unfixtured.length > 0) {
+    return `these command builders carry no transcribed fixture, so nothing pins them to the incumbent command: ${unfixtured.join(', ')}`;
+  }
+  return null;
+}
+
 export function censusGitCommandFixtures(fixtures, source, registry = DEFAULT_CONVERSION_REGISTRY) {
   if (!Array.isArray(fixtures) || fixtures.length === 0) {
     return halt(`${MODULE}: the fixture census was handed no fixture, so it would attest a transcription it never measured`);
@@ -353,24 +375,8 @@ export function censusGitCommandFixtures(fixtures, source, registry = DEFAULT_CO
   }
   const registryHalt = registryFailure(registry);
   if (registryHalt !== null) return halt(`${MODULE}: ${registryHalt}`);
-  const seen = new Map();
-  for (const fixture of fixtures) {
-    const key = `${fixture.site}/${fixture.step}`;
-    if (seen.has(key)) {
-      return halt(`${MODULE}: ${key} carries more than one fixture, so which one the builder is checked against depends on iteration order`);
-    }
-    seen.set(key, fixture);
-    const steps = GIT_SITE_COMMANDS[fixture.site];
-    if (steps === undefined || typeof steps[fixture.step] !== 'function') {
-      return halt(`${MODULE}: ${key} is transcribed by a fixture but no builder declares it; a fixture with no builder measures nothing`);
-    }
-  }
-  const unfixtured = GIT_SITES.flatMap((site) => Object.keys(GIT_SITE_COMMANDS[site])
-    .filter((step) => !seen.has(`${site}/${step}`))
-    .map((step) => `${site}/${step}`));
-  if (unfixtured.length > 0) {
-    return halt(`${MODULE}: these command builders carry no transcribed fixture, so nothing pins them to the incumbent command: ${unfixtured.join(', ')}`);
-  }
+  const pairing = fixturePairingFailure(fixtures);
+  if (pairing !== null) return halt(`${MODULE}: ${pairing}`);
   const failures = [
     ...fixtures.flatMap((fixture) => fixtureFailures(fixture, source)),
     ...nonSpawnFailures(source, registry.nonSpawn),
