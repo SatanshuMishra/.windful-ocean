@@ -44,6 +44,8 @@ export const TRANSCRIPTION_PARITY_ATTESTS = Object.freeze([
   'a bounded poll hands each attempt the remaining budget as that attempt spawn bound, and terminates on its own iteration bound even when the injected clock never advances',
   'every outcome the substrate declares is produced by a specimen and every outcome a specimen produces is declared, so a declared outcome with no behavior behind it halts',
   'every transcribed argument vector is pinned to the incumbent command text it was transcribed from: each argument resolves, through its declared placeholders, to text that appears verbatim in that command, and an argument that does not is admitted only as a named derivation carrying a stated reason',
+  'that pinning is an equivalence rather than a containment: every word of the incumbent command is accounted for in the transcribed order by an argument that resolves to it, by the binary itself, or by a named omission carrying a stated reason, so dropping an argument from a builder and its fixture together halts here rather than passing unseen',
+  'every anchor identifies exactly one incumbent command: an anchor the engine source spells more than once halts, so a fixture cannot stay pinned to a sibling command that survives the deletion of its own',
   'every command builder carries exactly one fixture and every fixture names a declared builder, in both directions, so a builder can be neither dropped from the pinning nor pinned twice',
   'a fixture repaired against the builder rather than against the incumbent halts, and that halt is exercised here on mutated copies of the shipped fixtures every time this verb runs, each control asserting the fixture it mutates is present before its result is trusted',
   'every transcribed site names a parser and every named parser is pinned to a transcribed command, in both directions, so a site cannot be counted converted while nothing reads what its commands print',
@@ -137,6 +139,42 @@ const CONVERSION_CONTROLS = Object.freeze([
     expect: 'have diverged',
     anchoredOn: Object.freeze({ site: 'branch-prep', step: 'fetch-base' }),
     mutate: (fixture) => ({ ...fixture, argv: Object.freeze(['-C', '<repoRoot>', 'fetch', 'origin']) }),
+  }),
+  Object.freeze({
+    name: 'an argument the incumbent spells that the vector no longer carries halts',
+    expect: 'carries no transcribed argument for',
+    anchoredOn: Object.freeze({ site: 'integrate', step: 'merge' }),
+    mutate: (fixture) => ({ ...fixture, argv: Object.freeze(['-C', '<integrationWt>', 'merge', '<branch>']) }),
+  }),
+  Object.freeze({
+    name: 'an omission the incumbent command does not leave over halts',
+    expect: 'omission nothing matches',
+    anchoredOn: Object.freeze({ site: 'integrate', step: 'checkout' }),
+    mutate: (fixture) => ({ ...fixture, omitted: Object.freeze({ ...fixture.omitted, '--end-of-options': 'a word the incumbent never left over' }) }),
+  }),
+  Object.freeze({
+    name: 'an omission carrying no stated reason halts',
+    expect: 'the omitted word "cd" with no reason',
+    anchoredOn: Object.freeze({ site: 'integrate', step: 'checkout' }),
+    mutate: (fixture) => ({ ...fixture, omitted: Object.freeze({ ...fixture.omitted, cd: '' }) }),
+  }),
+  Object.freeze({
+    name: 'an anchor the incumbent spells more than once halts',
+    expect: 'identifies no single command',
+    anchoredOn: Object.freeze({ site: 'checkpoint-push', step: 'resolve-tip' }),
+    mutate: (fixture) => ({ ...fixture, anchor: '\\`git -C ${repoRoot} rev-parse ${integrationBranch}\\`' }),
+  }),
+  Object.freeze({
+    name: 'a placeholder no argument uses halts',
+    expect: 'placeholder nothing matches',
+    anchoredOn: Object.freeze({ site: 'fence', step: 'status' }),
+    mutate: (fixture) => ({ ...fixture, placeholders: Object.freeze({ '<gone>': Object.freeze({ incumbent: 'git status', field: 'gone', value: 'x' }) }) }),
+  }),
+  Object.freeze({
+    name: 'a step naming neither the repository flag nor a working directory halts',
+    expect: 'whatever directory the process happens to be in',
+    anchoredOn: Object.freeze({ site: 'fence', step: 'status' }),
+    mutate: (fixture) => ({ ...fixture, cwd: null }),
   }),
 ]);
 

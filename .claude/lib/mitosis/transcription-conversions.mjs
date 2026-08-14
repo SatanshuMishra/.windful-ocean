@@ -52,7 +52,10 @@ export function compositionFailures(fixtures, source, compositions = STDIN_COMPO
       failures.push(`${MODULE}: ${at} composes bytes but its fixture does not record that the step receives any, so the two disagree about how the child is fed`);
       continue;
     }
-    if (!source.includes(fixture.anchor)) continue;
+    if (!source.includes(fixture.anchor)) {
+      failures.push(`${MODULE}: ${at} composes bytes against an anchor that no longer appears verbatim in the incumbent engine source, so the composition is pinned to text the incumbent no longer carries and nothing here compares the two`);
+      continue;
+    }
     const composed = engineSourceForm(entry.compose(FORMAT_TOKEN));
     if (!fixture.anchor.includes(composed)) {
       failures.push(`${MODULE}: ${at} composes ${JSON.stringify(composed)}, which appears nowhere in the incumbent command it replaces; bytes handed to a child are pinned to the incumbent exactly as arguments are, because a name that differs by one word publishes something a later run cannot read back`);
@@ -164,6 +167,57 @@ export function groundedArgv(fixture) {
   return failures;
 }
 
+const ANCHOR_FENCE = '\\`';
+const WHITESPACE = /\s+/;
+
+function anchorCommand(anchor) {
+  const open = anchor.indexOf(ANCHOR_FENCE);
+  if (open === -1) return anchor;
+  const close = anchor.indexOf(ANCHOR_FENCE, open + ANCHOR_FENCE.length);
+  return close === -1 ? anchor : anchor.slice(open + ANCHOR_FENCE.length, close);
+}
+
+function anchorResidue(fixture) {
+  const command = anchorCommand(fixture.anchor);
+  const gaps = [];
+  let cursor = 0;
+  for (const token of fixture.argv) {
+    if (Object.hasOwn(fixture.derived, token)) continue;
+    const grounded = substitute(token, fixture.placeholders, (binding) => binding.incumbent);
+    const at = command.indexOf(grounded, cursor);
+    if (at === -1) return Object.freeze({ command, unordered: grounded });
+    gaps.push(command.slice(cursor, at));
+    cursor = at + grounded.length;
+  }
+  gaps.push(command.slice(cursor));
+  return Object.freeze({
+    command,
+    tokens: Object.freeze(gaps.flatMap((gap) => gap.split(WHITESPACE)).filter((token) => token.length > 0)),
+  });
+}
+
+export function anchoredArgv(fixture) {
+  const at = `${fixture.site}/${fixture.step}`;
+  const residue = anchorResidue(fixture);
+  if (residue.unordered !== undefined) {
+    return [`${at} transcribes ${JSON.stringify(residue.unordered)}, which the incumbent command ${JSON.stringify(residue.command)} spells only before an argument this vector already consumed; the vector and the command it was transcribed from no longer read in the same order, so which incumbent word each argument stands for is decided by whichever match is found first`];
+  }
+  const failures = [];
+  const unaccounted = residue.tokens.filter((token) => token !== GIT_COMMAND_BINARY && !Object.hasOwn(fixture.omitted, token));
+  if (unaccounted.length > 0) {
+    failures.push(`${at} carries no transcribed argument for ${JSON.stringify(unaccounted)}, which the incumbent command ${JSON.stringify(residue.command)} spells; a pin is an equivalence rather than a containment, so a word the incumbent spells and this vector drops is admitted only as a named omission carrying a stated reason, never by dropping the word from the fixture alongside the builder`);
+  }
+  for (const [token, reason] of Object.entries(fixture.omitted)) {
+    if (!residue.tokens.includes(token)) {
+      failures.push(`${at} declares the omitted word ${JSON.stringify(token)} that the incumbent command leaves over nowhere; an omission nothing matches keeps a word admitted after the command that justified it stopped spelling it`);
+    }
+    if (typeof reason !== 'string' || reason.length === 0) {
+      failures.push(`${at} declares the omitted word ${JSON.stringify(token)} with no reason; a word the incumbent spells and this vector drops is admitted only by a stated reason, never by silence`);
+    }
+  }
+  return failures;
+}
+
 export function expandedArgv(fixture) {
   return fixture.argv.flatMap((token) => {
     const binding = fixture.placeholders[token];
@@ -179,12 +233,20 @@ function builderInputs(fixture) {
   );
 }
 
+export function anchorOccurrences(source, anchor) {
+  return source.split(anchor).length - 1;
+}
+
 export function fixtureFailures(fixture, source) {
   const at = `${fixture.site}/${fixture.step}`;
-  if (!source.includes(fixture.anchor)) {
+  const occurrences = anchorOccurrences(source, fixture.anchor);
+  if (occurrences === 0) {
     return [`${at} carries an anchor that no longer appears verbatim in the incumbent engine source: ${JSON.stringify(fixture.anchor)}; the transcription is pinned to text the new code cannot change, so an anchor that vanished means the fixture was repaired against the builder rather than against the command it transcribes`];
   }
-  const failures = [...groundedArgv(fixture)];
+  if (occurrences > 1) {
+    return [`${at} carries an anchor the incumbent engine source spells ${occurrences} times: ${JSON.stringify(fixture.anchor)}; an anchor that identifies no single command stays found verbatim after this site own copy is deleted, so it pins this fixture to whichever sibling command happens to survive`];
+  }
+  const failures = [...groundedArgv(fixture), ...anchoredArgv(fixture)];
   for (const [name, binding] of Object.entries(fixture.placeholders)) {
     if (!fixture.argv.some((token) => token.includes(name))) {
       failures.push(`${at} declares the placeholder ${JSON.stringify(name)} that no argument uses; a placeholder nothing matches keeps a substitution admitted after the argument that justified it is gone`);
@@ -303,8 +365,13 @@ export function nonSpawnFailures(source, sites = NON_SPAWN_SITES) {
   const failures = [];
   for (const entry of sites) {
     const at = `${entry.site}/${entry.step}`;
-    if (!source.includes(entry.anchor)) {
+    const occurrences = anchorOccurrences(source, entry.anchor);
+    if (occurrences === 0) {
       failures.push(`${at} carries an anchor that no longer appears verbatim in the incumbent engine source: ${JSON.stringify(entry.anchor)}; this site performs no spawn, so the anchor is the only thing pinning what it replaces`);
+      continue;
+    }
+    if (occurrences > 1) {
+      failures.push(`${at} carries an anchor the incumbent engine source spells ${occurrences} times: ${JSON.stringify(entry.anchor)}; an anchor that identifies no single step stays found verbatim after this step own copy is deleted`);
       continue;
     }
     for (const field of ['directory', 'file']) {
