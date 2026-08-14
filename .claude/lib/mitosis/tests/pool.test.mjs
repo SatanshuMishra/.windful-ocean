@@ -390,7 +390,7 @@ test('a chain at the depth a recursive longest-path walk fails on is ordered and
   assert.equal(
     probe.killed,
     false,
-    `the depth probe was killed at its ${STACK_PROBE_BUDGET_MS}ms budget after ${Date.now() - startedAt}ms: an ordering pass that spins rather than settling on a deep chain hangs here instead of throwing, and that hang is the failure mode this guard exists to name`,
+    `the depth probe was killed at its ${STACK_PROBE_BUDGET_MS}ms budget after ${Date.now() - startedAt}ms: the probe measures a recursion limit in work linear in that depth and then dispatches a chain it caps, so what it runs is bounded whatever ${STACK_PROBE_FLAG} binds to, and a kill here means this runner could not finish that bounded work rather than that the probe chose a depth too large to dispatch`,
   );
   assert.equal(
     probe.code,
@@ -399,14 +399,24 @@ test('a chain at the depth a recursive longest-path walk fails on is ordered and
   );
   const measured = probeReport(probe.stdout);
   assert.equal(
-    Number.isInteger(measured.depth) && measured.depth > 0,
+    Number.isInteger(measured.recursionLimit) && measured.recursionLimit > 0,
     true,
-    `the depth probe reported ${JSON.stringify(measured.depth)} rather than a depth it measured under a constrained stack, and a guard that cannot name the depth it ran at pins nothing on any machine`,
+    `the depth probe reported ${JSON.stringify(measured.recursionLimit)} rather than a depth it measured under a constrained stack, and a guard that cannot name the depth it ran at pins nothing on any machine`,
   );
   assert.equal(
     measured.recursiveThrew,
     true,
-    `a memoized recursive walk with a cycle guard completed the same ${measured.depth}-node chain instead of exhausting the stack, so this run compared the pool against a reference that never failed and would stay green on the recursive ordering pass it exists to reject`,
+    `a memoized recursive walk with a cycle guard completed the same ${measured.recursionLimit}-node chain instead of exhausting the stack, so this run compared the pool against a reference that never failed and would stay green on the recursive ordering pass it exists to reject`,
+  );
+  assert.equal(
+    measured.recursionLimit <= measured.dispatchCap,
+    true,
+    `${STACK_PROBE_FLAG} did not bind in the probe child: the recursive walk survived to ${measured.recursionLimit} frames, past the ${measured.dispatchCap} this guard caps its dispatched chain at, so no chain was dispatched at all. --stack-size is a V8 hint honoured differently across platforms and Node builds, and the pool's drive loop is quadratic in node count, so a guard that dispatched whatever depth the default stack reaches would spend minutes here and then be read as an ordering pass that hangs`,
+  );
+  assert.equal(
+    measured.dispatchedDepth,
+    measured.recursionLimit,
+    `the probe dispatched a ${measured.dispatchedDepth}-node chain while the reference recursion only failed at ${measured.recursionLimit}, so the pool was never handed the depth that reference could not walk and the two assertions below are about a shallower graph than the one this guard is named for`,
   );
   const failure = measured.poolFailure === null || measured.poolFailure === undefined
     ? 'the run left a node that never settled ok'
@@ -414,12 +424,12 @@ test('a chain at the depth a recursive longest-path walk fails on is ordered and
   assert.equal(
     measured.poolOk,
     true,
-    `the pool did not complete the ${measured.depth}-node chain the reference recursion could not walk: ${failure}. The depth was measured in that same constrained process rather than written down here, so this is the stack limit of the machine running the suite, not a constant that drifted away from one`,
+    `the pool did not complete the ${measured.dispatchedDepth}-node chain the reference recursion could not walk: ${failure}. The depth was measured in that same constrained process rather than written down here, so this is the stack limit of the machine running the suite, not a constant that drifted away from one`,
   );
   assert.equal(
     measured.orderMatched,
     true,
-    `the ${measured.depth}-node chain reached the dispatcher out of dependency order: a chain admits exactly one node at a time, in dependency order, however deep it runs`,
+    `the ${measured.dispatchedDepth}-node chain reached the dispatcher out of dependency order: a chain admits exactly one node at a time, in dependency order, however deep it runs`,
   );
 });
 

@@ -5,6 +5,8 @@ const UNREACHABLE_HEIGHT = 0;
 const PROBE_SEED_DEPTH = 64;
 const PROBE_CEILING_DEPTH = 262144;
 const PROBE_GROWTH = 2;
+const DISPATCH_DEPTH_CAP = 4096;
+const NOT_DISPATCHED = 0;
 const ID_PREFIX = 'n';
 const ID_PAD = '0';
 const OK_VERDICT = Object.freeze({ ok: true, outcome: 'success' });
@@ -70,6 +72,8 @@ function probeRecursionLimit() {
   }
 }
 
+const NOT_RUN = Object.freeze({ ok: false, failure: NO_FAILURE, orderMatched: false });
+
 async function dispatchChain(ids) {
   const started = [];
   try {
@@ -81,10 +85,14 @@ async function dispatchChain(ids) {
       },
       {},
     );
-    return Object.freeze({ ok: result.ok === true, failure: NO_FAILURE, started });
+    return Object.freeze({
+      ok: result.ok === true,
+      failure: NO_FAILURE,
+      orderMatched: started.length === ids.length && started.every((id, index) => id === ids[index]),
+    });
   } catch (error) {
     const message = error === null || error === undefined ? UNKNOWN_FAILURE : String(error.message ?? error);
-    return Object.freeze({ ok: false, failure: message, started });
+    return Object.freeze({ ok: false, failure: message, orderMatched: false });
   }
 }
 
@@ -93,22 +101,14 @@ function report(fields) {
 }
 
 const probe = probeRecursionLimit();
-if (probe.threw) {
-  const ids = chainIds(probe.depth);
-  const run = await dispatchChain(ids);
-  report({
-    depth: probe.depth,
-    recursiveThrew: true,
-    poolOk: run.ok,
-    poolFailure: run.failure,
-    orderMatched: run.started.length === ids.length && run.started.every((id, index) => id === ids[index]),
-  });
-} else {
-  report({
-    depth: probe.depth,
-    recursiveThrew: false,
-    poolOk: false,
-    poolFailure: NO_FAILURE,
-    orderMatched: false,
-  });
-}
+const dispatchable = probe.threw && probe.depth <= DISPATCH_DEPTH_CAP;
+const run = dispatchable ? await dispatchChain(chainIds(probe.depth)) : NOT_RUN;
+report({
+  recursionLimit: probe.depth,
+  recursiveThrew: probe.threw,
+  dispatchCap: DISPATCH_DEPTH_CAP,
+  dispatchedDepth: dispatchable ? probe.depth : NOT_DISPATCHED,
+  poolOk: run.ok,
+  poolFailure: run.failure,
+  orderMatched: run.orderMatched,
+});
