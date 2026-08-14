@@ -7,6 +7,8 @@ const PORCELAIN_PREFIX = 3;
 const CONFLICT_MARKER = /^CONFLICT \([^)]*\): Merge conflict in (.+)$/;
 const OCTAL_ESCAPE = /^[0-7]{3}$/;
 const SIMPLE_ESCAPES = Object.freeze({ n: '\n', t: '\t', r: '\r', '"': '"', '\\': '\\' });
+const ENCODER = new TextEncoder();
+const DECODER = new TextDecoder('utf-8', { fatal: true });
 
 function failed(error) {
   return Object.freeze({ ok: false, error: `${MODULE}: ${error}` });
@@ -42,21 +44,41 @@ function lines(text) {
   return text.split('\n').filter((line) => line.length > 0);
 }
 
+function decodeBytes(bytes) {
+  try {
+    return { value: DECODER.decode(new Uint8Array(bytes)) };
+  } catch {
+    return { error: 'escapes a byte sequence that is not valid utf-8, so the path it names cannot be recovered as the identity git reported' };
+  }
+}
+
 function unquote(token) {
   if (!token.startsWith('"')) return { value: token };
-  let out = '';
+  const bytes = [];
   let index = 1;
   while (index < token.length) {
     const character = token[index];
-    if (character === '"') return { value: out, consumed: index + 1 };
-    if (character !== '\\') { out += character; index += 1; continue; }
+    if (character === '"') {
+      const decoded = decodeBytes(bytes);
+      return decoded.error === undefined ? { value: decoded.value, consumed: index + 1 } : decoded;
+    }
+    if (character !== '\\') { bytes.push(...ENCODER.encode(character)); index += 1; continue; }
     const escape = token.slice(index + 1, index + 2);
-    if (Object.hasOwn(SIMPLE_ESCAPES, escape)) { out += SIMPLE_ESCAPES[escape]; index += 2; continue; }
+    if (Object.hasOwn(SIMPLE_ESCAPES, escape)) { bytes.push(...ENCODER.encode(SIMPLE_ESCAPES[escape])); index += 2; continue; }
     const octal = token.slice(index + 1, index + 4);
-    if (OCTAL_ESCAPE.test(octal)) { out += String.fromCharCode(parseInt(octal, 8)); index += 4; continue; }
+    if (OCTAL_ESCAPE.test(octal)) { bytes.push(parseInt(octal, 8)); index += 4; continue; }
     return { error: `carries the escape ${JSON.stringify(`\\${escape}`)}, which this reader does not know how to resolve` };
   }
   return { error: 'opens a quoted path that never closes' };
+}
+
+function quotedPathLine(line, what) {
+  const read = unquote(line);
+  if (read.error !== undefined) return { error: `the ${what} ${JSON.stringify(line)} ${read.error}` };
+  if (read.consumed !== undefined && read.consumed !== line.length) {
+    return { error: `the ${what} ${JSON.stringify(line)} carries text after the quoted path it names, so which of the two is the path cannot be told` };
+  }
+  return { value: read.value };
 }
 
 function porcelainPaths(line) {
@@ -100,7 +122,13 @@ export function parseNameOnlyPaths(result) {
   const refusal = completedRun(result, 'the changed-path read');
   if (refusal !== null) return refusal;
   if (result.status !== 0) return refused('the changed-path read', result);
-  return Object.freeze({ ok: true, paths: Object.freeze(lines(stdoutOf(result))) });
+  const paths = [];
+  for (const line of lines(stdoutOf(result))) {
+    const read = quotedPathLine(line, 'changed-path line');
+    if (read.error !== undefined) return failed(read.error);
+    paths.push(read.value);
+  }
+  return Object.freeze({ ok: true, paths: Object.freeze(paths) });
 }
 
 export function parsePresence(result) {

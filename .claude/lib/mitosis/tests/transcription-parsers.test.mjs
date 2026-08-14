@@ -220,6 +220,45 @@ test('the fence parse reads what real git actually prints, not what this test im
   }
 });
 
+test('every reader of a git path reports the identity real git reported for a path git had to quote', () => {
+  const root = mkdtempSync(join(tmpdir(), 'mitosis-c4b-quoted-'));
+  const quoted = 'src/café.txt';
+  try {
+    const git = (...argv) => execFileSync('git', ['-C', root, '-c', 'user.name=mitosis', '-c', 'user.email=mitosis@localhost', ...argv], { encoding: 'utf8' });
+    git('init', '-q', '-b', 'main');
+    mkdirSync(join(root, 'src'));
+    writeFileSync(join(root, quoted), 'one\n');
+    git('add', '-A');
+    git('commit', '-q', '-m', 'first');
+    const first = parseSha(completed(0, git('rev-parse', 'HEAD'))).sha;
+    writeFileSync(join(root, quoted), 'two\n');
+    git('commit', '-q', '-a', '-m', 'second');
+    const second = parseSha(completed(0, git('rev-parse', 'HEAD'))).sha;
+
+    const raw = git('diff', '--name-only', '--end-of-options', first, second);
+    assert.ok(raw.startsWith('"'), `git no longer quotes a non-ascii path in diff --name-only (${JSON.stringify(raw)}), so this test proves nothing`);
+    const changed = parseNameOnlyPaths(completed(0, raw));
+    assert.equal(changed.ok, true, changed.error);
+    assert.deepEqual([...changed.paths], [quoted]);
+
+    writeFileSync(join(root, quoted), 'three\n');
+    const status = git('status', '--porcelain=v1', '-uall');
+    assert.ok(status.includes('"'), 'git no longer quotes a non-ascii path in the porcelain, so this test proves nothing');
+    assert.deepEqual([...parseStatusPaths(completed(0, status)).paths], [quoted]);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('a changed-path line carrying an escape this reader cannot resolve fails closed rather than reporting the escape', () => {
+  for (const line of ['"src/a\\q.ts"', '"src/unterminated.ts', '"src/\\377.ts"']) {
+    const measured = parseNameOnlyPaths(completed(0, `${line}\n`));
+    assert.equal(measured.ok, false, `${line} was reported as a path rather than refused`);
+  }
+  const trailing = parseNameOnlyPaths(completed(0, '"src/a.ts" and more\n'));
+  assert.equal(trailing.ok, false, 'a line carrying text after the quoted path was read as a path');
+});
+
 test('the sha and ancestry parses read what real git actually returns', () => {
   const root = mkdtempSync(join(tmpdir(), 'mitosis-c4b-'));
   try {
