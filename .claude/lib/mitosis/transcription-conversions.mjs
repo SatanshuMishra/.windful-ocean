@@ -20,6 +20,7 @@ import {
   parseStatusPaths,
 } from './transcription-parsers.mjs';
 
+import { planArtifactAbsentSpecimen, planArtifactSpecimen } from './plan-artifact.mjs';
 import { composeTreeEntry } from './manifest-publish.mjs';
 
 const MODULE = 'transcription-conversions';
@@ -90,7 +91,15 @@ const SITE_PARSERS = Object.freeze({
     Object.freeze({ name: 'parseSha', parse: parseSha, specimen: ran(0, `${SPECIMEN_SHA}\n`), reads: (read) => read.sha === SPECIMEN_SHA }),
   ]),
   'plan-probe': Object.freeze([
-    Object.freeze({ name: 'classifyPlanArtifact', parse: (observed) => Object.freeze({ ok: true, ...classifyPlanArtifact(observed) }), specimen: Object.freeze({ exists: true, isFile: true, size: 9 }), reads: (read) => read.planFound === true, local: true }),
+    Object.freeze({
+      name: 'classifyPlanArtifact',
+      parse: (observed) => Object.freeze({ ok: true, ...classifyPlanArtifact(observed) }),
+      specimen: null,
+      observe: planArtifactSpecimen,
+      refuses: planArtifactAbsentSpecimen,
+      reads: (read) => read.planFound === true,
+      local: true,
+    }),
   ]),
   'branch-compose': Object.freeze([
     Object.freeze({ name: 'parseSha', parse: parseSha, specimen: ran(0, `${SPECIMEN_SHA}\n`), reads: (read) => read.sha === SPECIMEN_SHA }),
@@ -122,18 +131,25 @@ export const CONVERTED_TRANSCRIPTION_SITES = Object.freeze(Object.keys(SITE_PARS
 export function parserProbes() {
   return Object.freeze(Object.entries(SITE_PARSERS).flatMap(([site, parsers]) => parsers.map((entry) => {
     const at = `${site} ${entry.name}`;
+    let specimen;
     let read;
     try {
-      read = entry.parse(entry.specimen);
+      specimen = entry.local === true ? entry.observe() : entry.specimen;
+      read = entry.parse(specimen);
     } catch (error) {
       return Object.freeze({ name: at, reads: false, failsClosed: false, detail: `it threw on the output it is meant to read: ${error && error.message ? error.message : 'unknown throw'}` });
     }
     const reads = read.ok === true && entry.reads(read) === true;
     if (entry.local === true) {
-      const refused = classifyPlanArtifact(null);
-      return Object.freeze({ name: at, reads, failsClosed: refused.planFound === false, detail: reads ? 'reads its specimen and refuses an unobservable one' : `it did not read its specimen: ${JSON.stringify(read)}` });
+      const refused = classifyPlanArtifact(entry.refuses());
+      return Object.freeze({
+        name: at,
+        reads,
+        failsClosed: refused.planFound === false,
+        detail: reads ? `reads an observation this substrate produced (${specimen.detail}) and refuses one it could not (${refused.detail})` : `it did not read the observation this substrate produced: ${JSON.stringify(read)}`,
+      });
     }
-    const interrupted = entry.parse(Object.freeze({ ...entry.specimen, outcome: EXEC_TIMEOUT_EXPIRED }));
+    const interrupted = entry.parse(Object.freeze({ ...specimen, outcome: EXEC_TIMEOUT_EXPIRED }));
     return Object.freeze({
       name: at,
       reads,
