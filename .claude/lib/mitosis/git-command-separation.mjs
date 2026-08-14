@@ -1,8 +1,14 @@
-import { END_OF_OPTIONS, GIT_SITE_COMMANDS, PATH_SEPARATOR_ARGUMENT, buildGitCommand } from './git-commands.mjs';
+import { END_OF_OPTIONS, PATH_SEPARATOR_ARGUMENT } from './git-commands.mjs';
 import { GIT_COMMAND_FIXTURES, builderInputs } from './git-command-fixtures.mjs';
+import { binaryOf, buildTranscribedCommand, builderFor } from './transcription-conversions.mjs';
 
 const MODULE = 'git-command-separation';
-const VALUE_FLAGS = Object.freeze(['-C', '-c', '-m', '--onto']);
+const VALUE_FLAGS = Object.freeze([
+  '-C', '-c', '-m', '--onto',
+  '-R', '-q', '--json', '--base', '--branch', '--limit', '--state',
+  '--repo', '--head', '--title', '--origin', '--provenance', '--why', '--what',
+  '--not-verified', '--supersedes', '--depends', '--changed-lines',
+]);
 
 export const SEPARATED = 'separated';
 export const FLAG_VALUE = 'flag-value';
@@ -11,12 +17,21 @@ export const UNSEPARATED = 'unseparated';
 
 const REV_PARSE_ECHO = 'git rev-parse without --verify echoes an argument it does not recognise back on stdout, so the separator itself would be printed as part of the object name this step reads and the sha reader would refuse it; the value is bounded structurally instead, by the ref token this builder validates before the command exists';
 
+const GH_POSITIONAL_ORDER = 'gh honours the double dash as the end of its own flags, measured against gh 2.97.0, but the incumbent spells this positional value ahead of the flags that follow it, and everything after the separator is read as a positional, so adding it here would move those flags in front of the value and the transcription would no longer read in the order the incumbent spells; the value is bounded structurally instead, at the builder, before the command exists';
+
 export const SEPARATION_EXCEPTIONS = Object.freeze({
   'branch-compose/resolve-parent': Object.freeze({ ref: REV_PARSE_ECHO }),
   'checkpoint-push/resolve-tip': Object.freeze({ integrationBranch: REV_PARSE_ECHO }),
+  'ship/resolve-tip': Object.freeze({ integrationBranch: REV_PARSE_ECHO }),
+  'ship/published-head': Object.freeze({ integrationBranch: REV_PARSE_ECHO }),
   'manifest-publish/commit-tree': Object.freeze({
     tree: 'git commit-tree does not accept --end-of-options and exits 128 with must give exactly one tree when it is passed, so the separator cannot be added to this command at all; the value is bounded structurally instead, by the ref token this builder validates before the command exists',
   }),
+  'gh ship-verify/pr-state': Object.freeze({ integrationBranch: GH_POSITIONAL_ORDER }),
+  'gh ship/done-oracle': Object.freeze({ integrationBranch: GH_POSITIONAL_ORDER }),
+  'gh ci-probe/rerun': Object.freeze({ runId: GH_POSITIONAL_ORDER }),
+  'gh ci-probe/watch-status': Object.freeze({ runId: GH_POSITIONAL_ORDER }),
+  'gh ci-probe/read-conclusion': Object.freeze({ runId: GH_POSITIONAL_ORDER }),
 });
 
 function halt(error) {
@@ -40,8 +55,9 @@ function classifyValue(argv, value) {
 }
 
 function fixtureClassifications(fixture) {
-  const at = `${fixture.site}/${fixture.step}`;
-  const argv = [...buildGitCommand(fixture.site, fixture.step, builderInputs(fixture))];
+  const binary = binaryOf(fixture);
+  const at = binary === 'git' ? `${fixture.site}/${fixture.step}` : `${binary} ${fixture.site}/${fixture.step}`;
+  const argv = [...buildTranscribedCommand(binaryOf(fixture), fixture.site, fixture.step, builderInputs(fixture))];
   const rows = [];
   for (const binding of Object.values(fixture.placeholders)) {
     const values = Array.isArray(binding.value) ? binding.value : [binding.value];
@@ -83,9 +99,10 @@ export function censusPositionalSeparation(fixtures = GIT_COMMAND_FIXTURES, exce
     return halt('the separation census was handed no command to classify, so it would attest a bound it never measured');
   }
   const declared = Object.keys(exceptions).filter((key) => {
-    const [site, step] = key.split('/');
-    const steps = GIT_SITE_COMMANDS[site];
-    return steps === undefined || typeof steps[step] !== 'function';
+    const [binary, at] = key.includes(' ') ? key.split(' ') : ['git', key];
+    const [site, step] = at.split('/');
+    const table = builderFor(binary);
+    return table === undefined || table.steps[site] === undefined || typeof table.steps[site][step] !== 'function';
   });
   if (declared.length > 0) {
     return halt(`these separation exceptions name a step no builder declares: ${declared.join(', ')}; an exception nothing matches keeps a caller value admitted next to git option parser after the command that justified it is gone`);
@@ -144,12 +161,26 @@ export const FETCH_VALUE_SITES = Object.freeze([
   Object.freeze({ site: 'branch-prep', step: 'fetch-base', field: 'baseBranch', shape: REF_SHAPED }),
   Object.freeze({ site: 'integrate', step: 'worktree-remove', field: 'worktreePath', shape: PATH_SHAPED }),
   Object.freeze({ site: 'manifest-publish', step: 'push', field: 'manifestRef', shape: REF_SHAPED }),
+  Object.freeze({ site: 'reconcile', step: 'manifest-fetch', field: 'manifestRef', shape: REF_SHAPED }),
+  Object.freeze({ site: 'supersede', step: 'publish-branch', field: 'supersedeBranch', shape: REF_SHAPED }),
+  Object.freeze({ site: 'ci-publish', step: 'switch-branch', field: 'integrationBranch', shape: REF_SHAPED }),
+  Object.freeze({ site: 'ship', step: 'rebase', field: 'baseBranch', shape: REF_SHAPED }),
+  Object.freeze({ site: 'ship', step: 'force-retry', field: 'integrationBranch', shape: REF_SHAPED }),
+  Object.freeze({ binary: 'gh', site: 'ship-verify', step: 'pr-state', field: 'integrationBranch', shape: REF_SHAPED }),
+  Object.freeze({ binary: 'gh', site: 'ship-verify', step: 'compare', field: 'repoSlug', shape: REF_SHAPED }),
+  Object.freeze({ binary: 'gh', site: 'ci-probe', step: 'rerun', field: 'runId', shape: REF_SHAPED }),
+  Object.freeze({ binary: 'gh', site: 'reconcile', step: 'merged-prs', field: 'baseBranch', shape: REF_SHAPED }),
+  Object.freeze({ binary: 'gh', site: 'ship', step: 'done-oracle', field: 'integrationBranch', shape: REF_SHAPED }),
+  Object.freeze({ binary: 'node', site: 'reconcile', step: 'fold-run-log', field: 'repoRoot', shape: PATH_SHAPED }),
+  Object.freeze({ binary: 'node', site: 'supersede', step: 'open-pr', field: 'summary', shape: PATH_SHAPED }),
+  Object.freeze({ binary: 'node', site: 'ship', step: 'open-pr', field: 'integrationBranch', shape: REF_SHAPED }),
 ]);
 
 export function refusedValueProbes(sites = FETCH_VALUE_SITES, fixtures = GIT_COMMAND_FIXTURES) {
   return Object.freeze(sites.flatMap((entry) => {
-    const at = `${entry.site}/${entry.step}`;
-    const fixture = fixtures.find((candidate) => candidate.site === entry.site && candidate.step === entry.step);
+    const binary = entry.binary === undefined ? 'git' : entry.binary;
+    const at = `${binary} ${entry.site}/${entry.step}`;
+    const fixture = fixtures.find((candidate) => candidate.site === entry.site && candidate.step === entry.step && binaryOf(candidate) === binary);
     if (fixture === undefined) {
       return [Object.freeze({ name: `${at} ${entry.field}`, refused: false, detail: 'no fixture binds this step, so no value was offered to the builder and this probe proves nothing' })];
     }
@@ -160,7 +191,7 @@ export function refusedValueProbes(sites = FETCH_VALUE_SITES, fixtures = GIT_COM
     return HOSTILE_VALUES.filter((hostile) => hostile.refusedFor.includes(entry.shape)).map((hostile) => {
       let built = null;
       try {
-        built = [...buildGitCommand(entry.site, entry.step, { ...inputs, [entry.field]: hostile.value })];
+        built = [...buildTranscribedCommand(binary, entry.site, entry.step, { ...inputs, [entry.field]: hostile.value })];
       } catch {
         return Object.freeze({ name: `${at} ${entry.field}: ${hostile.name}`, refused: true, detail: 'refused before any command existed' });
       }

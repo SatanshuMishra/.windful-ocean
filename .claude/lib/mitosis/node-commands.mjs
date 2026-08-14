@@ -2,6 +2,7 @@ import { validateRefToken } from './checkpoint.mjs';
 import { PR_VALUE_CAP } from '../git/pr-format.mjs';
 
 export const NODE_COMMAND_BINARY = 'node';
+export const NODE_END_OF_OPTIONS = '--';
 export const NODE_PR_VALUE_CAP = PR_VALUE_CAP;
 
 const MODULE = 'node-commands';
@@ -94,12 +95,12 @@ function changedLinesIn(where, field, value) {
 }
 
 const RECONCILE = Object.freeze({
-  'fold-run-log': (v, t) => [`${t.path('libDir', v.libDir)}/${FOLD_TOOL}`, `${t.path('repoRoot', v.repoRoot)}/${RUN_JOURNAL}`],
+  'fold-run-log': (v, t) => [NODE_END_OF_OPTIONS, `${t.path('libDir', v.libDir)}/${FOLD_TOOL}`, `${t.path('repoRoot', v.repoRoot)}/${RUN_JOURNAL}`],
 });
 
 const SUPERSEDE = Object.freeze({
   'open-pr': (v, t) => [
-    `${t.path('gitLibDir', v.gitLibDir)}/${PR_TOOL}`, PR_CREATE,
+    NODE_END_OF_OPTIONS, `${t.path('gitLibDir', v.gitLibDir)}/${PR_TOOL}`, PR_CREATE,
     '--repo', t.prValue('repoSlug', v.repoSlug),
     '--head', t.ref('supersedeBranch', v.supersedeBranch),
     '--base', t.ref('baseBranch', v.baseBranch),
@@ -120,7 +121,7 @@ const SHIP = Object.freeze({
     const depends = t.depends('dependsIds', v.dependsIds);
     const changedLines = t.changedLines('changedLines', v.changedLines);
     return [
-      `${t.path('gitLibDir', v.gitLibDir)}/${PR_TOOL}`, PR_CREATE,
+      NODE_END_OF_OPTIONS, `${t.path('gitLibDir', v.gitLibDir)}/${PR_TOOL}`, PR_CREATE,
       '--repo', t.prValue('repoSlug', v.repoSlug),
       '--head', t.ref('integrationBranch', v.integrationBranch),
       '--base', t.ref('baseBranch', v.baseBranch),

@@ -34,6 +34,7 @@ export const PROMPT_KINDS = Object.freeze([
   'ci-fix',
   'diagnose',
   'redispatch',
+  'ci-fact-extract',
 ]);
 
 export const ISOLATION_MODES = Object.freeze(['worktree', 'scope-fence']);
@@ -221,6 +222,15 @@ export const PROMPT_INPUT_SPECS = Object.freeze({
     evidence: 'record',
     triedSet: 'textList',
     rejectedMechanism: 'optionalText',
+  }),
+  'ci-fact-extract': spec({
+    unitId: 'slug',
+    repoRoot: 'path',
+    integrationBranch: 'ref',
+    ciConclusion: 'text',
+    failedChecks: 'textList',
+    declaredScope: 'pathspecList',
+    logExcerpt: 'text',
   }),
   redispatch: spec({
     unitId: 'slug',

@@ -17,11 +17,12 @@ import {
 import { GIT_SITE_COMMANDS } from './git-commands.mjs';
 import {
   NON_SPAWN_SITES,
+  TRANSCRIBED_COMMAND_FIXTURES,
   argvInertnessProbe,
   gitCommandFixtureCensus,
   parserProbes,
 } from './transcription-conversions.mjs';
-import { censusPositionalSeparation, refusedValueProbes } from './git-command-separation.mjs';
+import { FETCH_VALUE_SITES, censusPositionalSeparation, refusedValueProbes } from './git-command-separation.mjs';
 import {
   conversionControlProbes,
   conversionStateProbes,
@@ -110,9 +111,9 @@ export function probeTranscriptionSubstrate() {
       ? Object.freeze([...conversionControlProbes(source), ...registryControlProbes(source)])
       : Object.freeze([]),
     parsers: parserProbes(),
-    separation: censusPositionalSeparation(),
+    separation: censusPositionalSeparation(TRANSCRIBED_COMMAND_FIXTURES),
     separationControls: separationControlProbes(),
-    valueRefusals: refusedValueProbes(),
+    valueRefusals: refusedValueProbes(FETCH_VALUE_SITES, TRANSCRIBED_COMMAND_FIXTURES),
     manifestPublish: manifestPublishProbe(),
     conversionStateControls: engine.error === undefined
       ? Object.freeze([...conversionStateProbes(engine.sources), ...registeredSiteProbes(engine.sources)])
