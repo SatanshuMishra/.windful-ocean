@@ -34,6 +34,7 @@ import {
   conversionStateProbes,
   registeredSiteProbes,
   registryControlProbes,
+  sharedStepControlProbes,
   separationControlProbes,
   transcriptionCensusProbes,
 } from './transcription-parity-controls.mjs';
@@ -114,7 +115,7 @@ export function probeTranscriptionSubstrate() {
     conversionTargetError: target.error === undefined ? null : target.error,
     conversions: target.error === undefined ? gitCommandFixtureCensus(source) : { ok: false, error: target.error },
     conversionControls: target.error === undefined
-      ? Object.freeze([...conversionControlProbes(source), ...registryControlProbes(source)])
+      ? Object.freeze([...conversionControlProbes(source), ...registryControlProbes(source), ...sharedStepControlProbes(source)])
       : Object.freeze([]),
     parsers: parserProbes(),
     separation: censusPositionalSeparation(TRANSCRIBED_COMMAND_FIXTURES),

@@ -3,6 +3,7 @@ import { END_OF_OPTIONS } from './git-commands.mjs';
 import { SEPARATION_EXCEPTIONS, censusPositionalSeparation } from './git-command-separation.mjs';
 import { TRANSCRIPTION_KINDS, censusTranscriptionSources } from './transcription-census.mjs';
 import {
+  COMMAND_BINARIES,
   CONVERTED_TRANSCRIPTION_SITES,
   DEFAULT_CONVERSION_REGISTRY,
   TRANSCRIBED_COMMAND_FIXTURES as GIT_COMMAND_FIXTURES,
@@ -220,6 +221,92 @@ const REGISTRY_CONTROLS = Object.freeze([
     }),
   }),
 ]);
+
+const SHARED_STEP_CONTROLS = Object.freeze([
+  Object.freeze({
+    name: 'a shared step that does not build the same command as the site it shares with halts',
+    expect: 'a sharing claim that is not an equivalence',
+    present: (registry) => registry.shared.length > 0,
+    missing: 'no step is declared as sharing a command, so nothing was perturbed',
+    perturb: (registry) => {
+      const entry = registry.shared[0];
+      const table = COMMAND_BINARIES[entry.binary];
+      const drifted = {
+        ...table,
+        build: (site, step, values) => (site === entry.site && step === entry.step
+          ? Object.freeze([...table.build(site, step, values), '--drifted'])
+          : table.build(site, step, values)),
+      };
+      return { ...registry, binaries: { ...COMMAND_BINARIES, [entry.binary]: drifted } };
+    },
+  }),
+  Object.freeze({
+    name: 'a shared step naming a site that declares no such step halts',
+    expect: 'no builder declares it',
+    present: (registry) => registry.shared.length > 0,
+    missing: 'no step is declared as sharing a command, so nothing was perturbed',
+    perturb: (registry) => ({
+      ...registry,
+      shared: [...registry.shared, { ...registry.shared[0], site: 'reconcile', step: 'watch-status' }],
+    }),
+  }),
+  Object.freeze({
+    name: 'a shared step declared with no stated reason halts',
+    expect: 'declares no reason for sharing a fixture',
+    present: (registry) => registry.shared.length > 0,
+    missing: 'no step is declared as sharing a command, so nothing was perturbed',
+    perturb: (registry) => ({
+      ...registry,
+      shared: registry.shared.map((entry, index) => (index === 0 ? { ...entry, reason: '' } : entry)),
+    }),
+  }),
+  Object.freeze({
+    name: 'a derived command anchored to text the incumbent no longer spells halts',
+    expect: 'a derived command is admitted only against the one incumbent clause',
+    present: (registry) => registry.derivedCommands.length > 0,
+    missing: 'no command is declared derived, so nothing was perturbed',
+    perturb: (registry) => ({
+      ...registry,
+      derivedCommands: registry.derivedCommands.map((entry, index) => (index === 0 ? { ...entry, anchor: 'conflictPaths' } : entry)),
+    }),
+  }),
+  Object.freeze({
+    name: 'a derived command whose anchor never names the field it produces halts',
+    expect: 'never names',
+    present: (registry) => registry.derivedCommands.length > 0,
+    missing: 'no command is declared derived, so nothing was perturbed',
+    perturb: (registry) => ({
+      ...registry,
+      derivedCommands: registry.derivedCommands.map((entry, index) => (index === 0 ? { ...entry, field: 'unmergedPaths' } : entry)),
+    }),
+  }),
+  Object.freeze({
+    name: 'a derived command declared with no stated reason halts',
+    expect: 'states no reason for departing from the incumbent',
+    present: (registry) => registry.derivedCommands.length > 0,
+    missing: 'no command is declared derived, so nothing was perturbed',
+    perturb: (registry) => ({
+      ...registry,
+      derivedCommands: registry.derivedCommands.map((entry, index) => (index === 0 ? { ...entry, reason: '' } : entry)),
+    }),
+  }),
+]);
+
+export function sharedStepControlProbes(source) {
+  return Object.freeze(SHARED_STEP_CONTROLS.map((control) => {
+    if (!control.present(DEFAULT_CONVERSION_REGISTRY)) {
+      return Object.freeze({ name: control.name, halted: false, named: false, anchorPresent: false, detail: control.missing });
+    }
+    const measured = censusGitCommandFixtures(GIT_COMMAND_FIXTURES, source, control.perturb(DEFAULT_CONVERSION_REGISTRY));
+    return Object.freeze({
+      name: control.name,
+      halted: measured.ok !== true,
+      named: measured.ok !== true && typeof measured.error === 'string' && measured.error.includes(control.expect),
+      anchorPresent: true,
+      detail: measured.ok === true ? 'the census accepted it' : measured.error,
+    });
+  }));
+}
 
 export function registryControlProbes(source) {
   return Object.freeze(REGISTRY_CONTROLS.map((control) => {
