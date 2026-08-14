@@ -46,6 +46,15 @@ const MANIFEST_PUBLISH_SPAWNS = Object.keys(GIT_SITE_COMMANDS[MANIFEST_PUBLISH_S
 const MANIFEST_PUBLISH_WRITES = NON_SPAWN_SITES.filter((entry) => entry.site === MANIFEST_PUBLISH_SITE).length;
 
 export const TRANSCRIPTION_PARITY_ATTESTS = Object.freeze([
+  'every transcribed command is built for one of three declared binaries - git, gh and node - and a fixture naming any other binary halts, so a command reaching a process through a builder this census cannot place is refused rather than counted',
+  'a step one site is declared to share with another is BUILT on both sides and the two argument vectors compared, so a sharing claim that is not an equivalence halts rather than borrowing a pin it does not satisfy',
+  'a command the incumbent demands a fact from but spells no command for is admitted only as an enumerated derived command carrying the incumbent clause that demands the fact, that clause spelled exactly once, and a stated reason',
+  'a judgment kind the prompt authority declares that no dispatch reaches is admitted only as an enumerated pending kind with a stated reason, and a dispatch that later reaches one halts rather than being excused',
+  'every gh command this substrate builds resolves through the merge shim, and the classifier own refusal specimen routed through that same resolution is refused, so the shim is both in the path and in force',
+  'the four ci report fields the engine derives are read from what gh and git printed, are disjoint from the two a model reports, and a run that did not complete is reported as its own conclusion token rather than folded into a failure',
+  'the spec fingerprint matches digests transcribed from the same binary the incumbent invokes, and it reports no fingerprint at all for a spec it could not read',
+  'the superseding pull-request summary is composed from a machine-readable interdiff and cut to the value cap pull-request creation enforces, at this composer rather than at its caller',
+  'both fixture modules pin to one parent commit, so no fixture can be repaired against whichever commit still spells it',
   'every dispatch call node in both declared engine trees is resolved to exactly one declared name - transcription, judgment, journal or program-in-English - by exact identity or by an enumerated prefix alias, so a label none of them covers halts with its site named rather than being absorbed by a name it merely extends',
   'the resolved dispatch labels are cross-checked, per source, against the independently paired dispatch call nodes, so an extractor reading a subset halts rather than reporting the rest converted',
   'every label token counted across the scanned sources is accounted for as a dispatch label, a helper argument or an enumerated inert label, so a label reaching none of the three halts rather than going uncounted',
@@ -79,6 +88,10 @@ export const TRANSCRIPTION_PARITY_ATTESTS = Object.freeze([
 ]);
 
 export const TRANSCRIPTION_PARITY_NOT_ATTESTED = Object.freeze([
+  'that the two path lists the ci report still asks a model for could be derived instead: the runner this engine deploys emits no structured test report, so implicatedPaths and failingAssertionFiles remain a judgment dispatch and this verb measures only that the dispatch is registered and that an empty extraction escalates',
+  'that gh honours the option separator at the sites that carry no separator: the three gh reads and the two rev-parse reads that hand a value positionally are bounded by the builder validators alone, each recorded as a separation exception with the measured reason it cannot carry one',
+  'that the transcribed gh reads return what a live GitHub returns: every gh probe here is offered captured output, and no probe in this verb reaches a network',
+  'that the ci-fact-extract prose is pinned to an incumbent: the kind is new, no engine source spells it, and its byte fixture is therefore composed from the registry rather than transcribed - the untwinned declaration in the suite asserts that neither engine spells it, in both directions',
   'that any of the eighteen sites has stopped dispatching a language model: all eighteen still dispatch until C7 wires the engine onto this substrate, so a converted site here means a deterministic replacement exists and is pinned to the incumbent command, never that the incumbent dispatch is gone',
   'that a transcribed command produces the effect the incumbent produced: the pinning compares argument vectors against the command text, and no probe in this verb runs any of them against a repository',
   'that the incumbent command text a fixture is pinned to is itself correct: the anchors are transcribed from the engine source at the parent commit, so a command the engine has always spelled wrongly is transcribed just as wrongly',
