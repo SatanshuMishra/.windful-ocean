@@ -1,4 +1,4 @@
-import { CI_SHA_PATTERN, CI_TERMINAL_CONCLUSIONS } from './ci-escalation.mjs';
+import { CI_SHA_PATTERN, CI_TERMINAL_CONCLUSIONS, classifyCiReport } from './ci-escalation.mjs';
 import { EXEC_COMPLETED, EXEC_TIMEOUT_EXPIRED } from './exec-run.mjs';
 import { parseNameOnlyPaths, parseSha } from './transcription-parsers.mjs';
 
@@ -118,6 +118,51 @@ const PENDING_JOBS = JSON.stringify({ jobs: [{ name: 'unit', conclusion: null }]
 
 function probe(name, ok, detail) {
   return Object.freeze({ name, ok, detail });
+}
+
+const ESCALATION_SCOPE = Object.freeze(['src/**']);
+
+function reportWith(overrides) {
+  return {
+    ciConclusion: 'failure',
+    failedChecks: ['unit'],
+    conflictPaths: [],
+    publishedHeadSha: PROBE_SHA,
+    implicatedPaths: ['src/a.ts'],
+    failingAssertionFiles: ['src/a.test.ts'],
+    receiptsPass: true,
+    d6Pass: true,
+    ...overrides,
+  };
+}
+
+export function ciEscalationProbes() {
+  const complete = classifyCiReport(reportWith({}), ESCALATION_SCOPE);
+  const emptyImplicated = classifyCiReport(reportWith({ implicatedPaths: [] }), ESCALATION_SCOPE);
+  const emptyAssertions = classifyCiReport(reportWith({ failingAssertionFiles: [] }), ESCALATION_SCOPE);
+  const substituted = classifyCiReport(reportWith({ implicatedPaths: ['src/a.ts', 'src/b.ts', 'src/c.ts'] }), ESCALATION_SCOPE);
+  return Object.freeze([
+    probe(
+      'a report carrying both model-read lists is accepted rather than escalated',
+      complete.escalate === false,
+      JSON.stringify(complete),
+    ),
+    probe(
+      `an empty ${CI_MODEL_FIELDS[0]} escalates rather than being read as nothing to fix`,
+      emptyImplicated.escalate === true && emptyImplicated.class === 0,
+      JSON.stringify(emptyImplicated),
+    ),
+    probe(
+      `an empty ${CI_MODEL_FIELDS[1]} escalates rather than leaving the assertion guard unrunnable`,
+      emptyAssertions.escalate === true && emptyAssertions.class === 0,
+      JSON.stringify(emptyAssertions),
+    ),
+    probe(
+      'a changed-file list substituted for an extraction is not what makes the difference: the escalation turns on the list being empty, never on its length',
+      substituted.escalate === false && emptyImplicated.escalate === true,
+      `${JSON.stringify(substituted)} against ${JSON.stringify(emptyImplicated)}`,
+    ),
+  ]);
 }
 
 export function ciFactProbes() {
