@@ -17,7 +17,8 @@ import {
 import { GIT_SITE_COMMANDS } from './git-commands.mjs';
 import { GH_SITE_FIXTURE_PARENT_SHA } from './gh-site-fixtures.mjs';
 import { ghSpawnRequest } from './gh-commands.mjs';
-import { ciFactProbes } from './ci-facts.mjs';
+import { MERGE_REFUSAL_SPECIMENS } from './gh-merge-shim.mjs';
+import { CI_FACT_FIELDS, CI_MODEL_FIELDS, ciFactProbes } from './ci-facts.mjs';
 import { specHashProbes } from './spec-hash.mjs';
 import { supersedeSummaryProbes } from './supersede-summary.mjs';
 import {
@@ -134,7 +135,7 @@ export function probeTranscriptionSubstrate() {
 
 const SHIM_PROBE_VALUES = Object.freeze({ repoSlug: 'acme/widgets', integrationBranch: 'mitosis/probe' });
 const SHIM_BASENAME = 'gh-merge-shim.mjs';
-const SHIM_MERGE_ARGV = Object.freeze(['pr', 'merge', '7']);
+const SHIM_REFUSED_SPECIMEN = MERGE_REFUSAL_SPECIMENS[0];
 
 function ghShimRoutingProbe() {
   let routed;
@@ -145,7 +146,7 @@ function ghShimRoutingProbe() {
   }
   let refusedMerge = false;
   try {
-    ghSpawnRequest('ship-verify', 'pr-state', SHIM_PROBE_VALUES, undefined, SHIM_MERGE_ARGV);
+    ghSpawnRequest('ship-verify', 'pr-state', SHIM_PROBE_VALUES, SHIM_REFUSED_SPECIMEN.io, [...SHIM_REFUSED_SPECIMEN.argv]);
   } catch {
     refusedMerge = true;
   }
@@ -218,7 +219,11 @@ function derivedFactFailures(substrate) {
     failures.push(`a transcribed gh command no longer resolves through the merge shim (${shim.detail}); a gh argv that reaches the binary without the shim is one no layer classifies`);
   }
   if (!shim.refusedMerge) {
-    failures.push('a merge-shaped gh argv routed through the same resolution was NOT refused, so the shim is in the path without being in force');
+    failures.push(`the classifier own specimen ${SHIM_REFUSED_SPECIMEN.label} routed through the same resolution was NOT refused, so the shim is in the path without being in force`);
+  }
+  const overlap = CI_FACT_FIELDS.filter((field) => CI_MODEL_FIELDS.includes(field));
+  if (overlap.length > 0) {
+    failures.push(`these ci report fields are claimed as both derived and model-read: ${overlap.join(', ')}; a field on both lists would be reported twice and compared against itself`);
   }
   if (substrate.ghFixtureParentSha !== substrate.conversions.parentSha) {
     failures.push(`the fixtures pin to two different parent commits (${substrate.conversions.parentSha} and ${substrate.ghFixtureParentSha}); one incumbent is the incumbent, and two would let a fixture be repaired against whichever commit still spells it`);
@@ -432,7 +437,9 @@ function substratePayload(substrate) {
     ciFactProbes: substrate.ciFacts.map((probe) => `${probe.name}: ${probe.ok ? 'holds' : 'INERT'}`),
     specHashProbes: substrate.specHash.map((probe) => `${probe.name}: ${probe.ok ? 'holds' : 'INERT'}`),
     supersedeSummaryProbes: substrate.supersedeSummary.map((probe) => `${probe.name}: ${probe.ok ? 'holds' : 'INERT'}`),
-    ghShimRouting: `${substrate.ghShimRouting.routed ? 'routed through the merge shim' : 'NOT ROUTED'}, ${substrate.ghShimRouting.refusedMerge ? 'merge argv refused' : 'MERGE ADMITTED'}`,
+    ghShimRouting: `${substrate.ghShimRouting.routed ? 'routed through the merge shim' : 'NOT ROUTED'}, ${substrate.ghShimRouting.refusedMerge ? 'the classifier own specimen refused' : 'SPECIMEN ADMITTED'}`,
+    ciDerivedFields: [...CI_FACT_FIELDS],
+    ciModelReadFields: [...CI_MODEL_FIELDS],
     commandFixtureBinary: substrate.conversions.binary,
     commandFixtureCount: substrate.conversions.fixtureCount,
     commandFixtureSiteCount: substrate.conversions.siteCount,

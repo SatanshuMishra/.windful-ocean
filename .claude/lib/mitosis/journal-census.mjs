@@ -467,6 +467,10 @@ export function journalDispatchCensus() {
   } catch (error) {
     return halt(`journal-census: the engine sources could not be enumerated: ${error.message}`);
   }
+  const unreached = unreachedArgvComposers(sources);
+  if (unreached.length > 0) {
+    return halt(`journal-census: these sources are declared as composing the run journal path into an argument vector but no scanned source matches them: ${unreached.join(', ')}; a declaration nothing matches excuses a composition this census would never see`);
+  }
   const measured = censusJournalDispatches(sources);
   if (!measured.ok) return measured;
   const excludedDirectories = roots.flatMap((root) => root.excluded.map((entry) => `${entry.name}: ${entry.reason}`));
