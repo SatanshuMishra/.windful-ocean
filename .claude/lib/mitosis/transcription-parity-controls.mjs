@@ -222,10 +222,12 @@ const REGISTRY_CONTROLS = Object.freeze([
   }),
 ]);
 
+const DRIFTED_TOKEN = '--drifted';
+
 const SHARED_STEP_CONTROLS = Object.freeze([
   Object.freeze({
-    name: 'a shared step that does not build the same command as the site it shares with halts',
-    expect: 'a sharing claim that is not an equivalence',
+    name: 'a shared step that does not build the transcribed command halts',
+    expect: 'a sharing claim is compared against the frozen fixture',
     present: (registry) => registry.shared.length > 0,
     missing: 'no step is declared as sharing a command, so nothing was perturbed',
     perturb: (registry) => {
@@ -233,12 +235,46 @@ const SHARED_STEP_CONTROLS = Object.freeze([
       const table = COMMAND_BINARIES[entry.binary];
       const drifted = {
         ...table,
-        build: (site, step, values) => (site === entry.site && step === entry.step
-          ? Object.freeze([...table.build(site, step, values), '--drifted'])
-          : table.build(site, step, values)),
+        build: (site, step, values) => {
+          const built = [...table.build(site, step, values)];
+          if (site !== entry.site || step !== entry.step) return Object.freeze(built);
+          return Object.freeze(built.map((token, index) => (index === built.length - 1 ? DRIFTED_TOKEN : token)));
+        },
       };
       return { ...registry, binaries: { ...COMMAND_BINARIES, [entry.binary]: drifted } };
     },
+  }),
+  Object.freeze({
+    name: 'a shared step whose own incumbent clause vanished halts',
+    expect: 'its own incumbent clause is the only thing tying this site to the command',
+    present: (registry) => registry.shared.length > 0,
+    missing: 'no step is declared as sharing a command, so nothing was perturbed',
+    perturb: (registry) => ({
+      ...registry,
+      shared: registry.shared.map((entry, index) => (index === 0 ? { ...entry, anchor: `${entry.anchor} ${DRIFTED_TOKEN}` } : entry)),
+    }),
+  }),
+  Object.freeze({
+    name: 'a derived command whose builder drifts from the vector it freezes halts',
+    expect: 'the frozen vector is its whole pin',
+    present: (registry) => registry.derivedCommands.length > 0,
+    missing: 'no command is declared derived, so nothing was perturbed',
+    perturb: (registry) => ({
+      ...registry,
+      derivedCommands: registry.derivedCommands.map((entry, index) => (index === 0
+        ? { ...entry, argv: entry.argv.map((token, at) => (at === entry.argv.length - 1 ? DRIFTED_TOKEN : token)) }
+        : entry)),
+    }),
+  }),
+  Object.freeze({
+    name: 'a derived command declaring no frozen vector halts',
+    expect: 'declares no transcribed argument vector',
+    present: (registry) => registry.derivedCommands.length > 0,
+    missing: 'no command is declared derived, so nothing was perturbed',
+    perturb: (registry) => ({
+      ...registry,
+      derivedCommands: registry.derivedCommands.map((entry, index) => (index === 0 ? { ...entry, argv: [] } : entry)),
+    }),
   }),
   Object.freeze({
     name: 'a shared step naming a site that declares no such step halts',

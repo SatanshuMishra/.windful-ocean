@@ -454,7 +454,7 @@ function registryFailure(registry) {
   return null;
 }
 
-function sharedStepFailure(shared, fixtures, binaries = COMMAND_BINARIES) {
+function sharedStepFailure(shared, fixtures, source_, binaries = COMMAND_BINARIES) {
   const failures = [];
   for (const entry of shared) {
     const at = `${entry.binary} ${entry.site}/${entry.step}`;
@@ -463,8 +463,8 @@ function sharedStepFailure(shared, fixtures, binaries = COMMAND_BINARIES) {
       failures.push(`${at} is declared as sharing a command with ${entry.sharesWith} but no builder declares it`);
       continue;
     }
-    const source = table.steps[entry.sharesWith];
-    if (source === undefined || typeof source[entry.step] !== 'function') {
+    const sharedSteps = table.steps[entry.sharesWith];
+    if (sharedSteps === undefined || typeof sharedSteps[entry.step] !== 'function') {
       failures.push(`${at} is declared as sharing ${entry.step} with ${entry.sharesWith}, which declares no such step`);
       continue;
     }
@@ -473,18 +473,22 @@ function sharedStepFailure(shared, fixtures, binaries = COMMAND_BINARIES) {
       failures.push(`${at} is declared as sharing ${entry.step} with ${entry.sharesWith}, which carries no fixture for it, so the shared command is pinned to nothing`);
       continue;
     }
+    const occurrences = anchorOccurrences(source_, entry.anchor);
+    if (occurrences !== 1) {
+      failures.push(`${at} carries an anchor the incumbent engine source spells ${occurrences} time(s): ${JSON.stringify(entry.anchor)}; a step pinned through another site borrows that site fixture, so its own incumbent clause is the only thing tying this site to the command, and an anchor that identifies no single clause ties it to nothing`);
+      continue;
+    }
     const inputs = builderInputs(twin);
     let mine;
-    let theirs;
     try {
       mine = [...buildTranscribedCommand(entry.binary, entry.site, entry.step, inputs, binaries)];
-      theirs = [...buildTranscribedCommand(entry.binary, entry.sharesWith, entry.step, inputs, binaries)];
     } catch (error) {
       failures.push(`${at} could not be built from the values its shared fixture binds: ${error && error.message ? error.message : 'unknown failure'}`);
       continue;
     }
-    if (mine.length !== theirs.length || mine.some((token, index) => token !== theirs[index])) {
-      failures.push(`${at} claims to run the same command as ${entry.sharesWith}/${entry.step} yet builds ${JSON.stringify(mine)} against ${JSON.stringify(theirs)}; a sharing claim that is not an equivalence borrows a pin it does not satisfy`);
+    const expected = expandedArgv(twin);
+    if (mine.length !== expected.length || mine.some((token, index) => token !== expected[index])) {
+      failures.push(`${at} claims to run the same command as ${entry.sharesWith}/${entry.step} yet builds ${JSON.stringify(mine)} against the transcribed vector ${JSON.stringify(expected)}; a sharing claim is compared against the frozen fixture rather than against the other builder, because two sites may name one function and a comparison between a function and itself is an equivalence that cannot fail`);
     }
     if (typeof entry.reason !== 'string' || entry.reason.length === 0) {
       failures.push(`${at} declares no reason for sharing a fixture, and a step pinned through another site is admitted only by a stated reason`);
@@ -522,7 +526,7 @@ function fixturePairingFailure(fixtures, shared) {
   return null;
 }
 
-export function derivedCommandFailures(source, commands) {
+export function derivedCommandFailures(source, commands, binaries = COMMAND_BINARIES) {
   const failures = [];
   for (const entry of commands) {
     const at = `${entry.binary} ${entry.site}/${entry.step}`;
@@ -541,6 +545,20 @@ export function derivedCommandFailures(source, commands) {
     }
     if (typeof entry.reason !== 'string' || entry.reason.length === 0) {
       failures.push(`${at} states no reason for departing from the incumbent, which spells no command for this fact at all`);
+    }
+    if (!Array.isArray(entry.argv) || entry.argv.length === 0) {
+      failures.push(`${at} declares no transcribed argument vector; the incumbent spells no command here, so the frozen vector is the ONLY thing that says what this step runs, and without it the builder answers to nothing`);
+      continue;
+    }
+    let built;
+    try {
+      built = [...buildTranscribedCommand(entry.binary, entry.site, entry.step, entry.values, binaries)];
+    } catch (error) {
+      failures.push(`${at} could not be built from the values it declares: ${error && error.message ? error.message : 'unknown failure'}`);
+      continue;
+    }
+    if (built.length !== entry.argv.length || built.some((token, index) => token !== entry.argv[index])) {
+      failures.push(`${at} builds ${JSON.stringify(built)} while the vector this declaration freezes is ${JSON.stringify([...entry.argv])}; a derived command has no incumbent to be pinned to, so the frozen vector is its whole pin and a builder that drifts from it changes what the step runs with nothing to notice`);
     }
   }
   return failures;
@@ -565,8 +583,8 @@ export function censusGitCommandFixtures(fixtures, source, registry = DEFAULT_CO
     ...fixtures.flatMap((fixture) => fixtureFailures(fixture, source)),
     ...nonSpawnFailures(source, registry.nonSpawn),
     ...compositionFailures(fixtures, source, registry.compositions),
-    ...sharedStepFailure(shared, fixtures, binaries),
-    ...derivedCommandFailures(source, derivedCommands),
+    ...sharedStepFailure(shared, fixtures, source, binaries),
+    ...derivedCommandFailures(source, derivedCommands, binaries),
   ];
   if (failures.length > 0) {
     return halt(`${MODULE}: ${failures.join(' | ')}`);
