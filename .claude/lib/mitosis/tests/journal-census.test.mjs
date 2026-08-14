@@ -1,7 +1,9 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import {
   JOURNAL_ARTIFACT_KINDS,
+  JOURNAL_CENSUS_SELF,
   censusJournalDispatches,
   enumerateJournalSources,
   journalCensusRoots,
@@ -157,11 +159,30 @@ test('a metavariable spelling of the basename is classified rather than halting 
   assert.equal(result.ok, true, result.ok ? '' : result.error);
 });
 
-test('a journal write in a source that CAN import halts, because there the model is not the only writer', () => {
-  const source = `import { readFileSync } from 'node:fs';\n${syntheticEngine(JOURNAL_KINDS)}`;
-  const result = censusJournalDispatches(syntheticSources(source, '/fx/engine/importing.mjs'));
+test('a journal path handed straight to a filesystem write halts, naming the writer', () => {
+  const direct = tpl([
+    "import { writeFileSync } from 'node:fs';",
+    'function persistDirect(record) {',
+    '  const deltaJson = JSON.stringify(builtDelta({ unitId: record.unitId }));',
+    '  writeFileSync(~@{repoRoot}/.mitosis/run.json~, deltaJson);',
+    '}',
+  ]);
+  const result = censusJournalDispatches(syntheticSources(`${syntheticEngine(JOURNAL_KINDS)}\n${direct}`, '/fx/engine/importing.mjs'));
   assert.equal(result.ok, false);
-  assert.match(result.error, /import/i);
+  assert.match(result.error, /writeFileSync/);
+});
+
+test('a dispatch site is censused wherever it lives, including a source that can import', () => {
+  const source = `import { agentOf } from './fx.mjs';\n${syntheticEngine(JOURNAL_KINDS)}`;
+  const result = censusJournalDispatches(syntheticSources(source, '/fx/engine/importing.mjs'));
+  assert.equal(result.ok, true, result.ok ? '' : result.error);
+  assert.equal(result.siteCount, JOURNAL_KINDS.length);
+  assert.deepEqual(result.dispatchOnlySources, [], 'an importing source must not be reported as structurally unable to write');
+});
+
+test('the census reports which censused sources structurally cannot write a file at all', () => {
+  assert.ok(REAL.dispatchOnlySources.some((path) => path.endsWith('/mitosis.js')), 'the engine is no longer measured as dispatch-only, so the claim that only a model writes its journal is unproven');
+  assert.equal(REAL.dispatchOnlySources.some((path) => path.endsWith('/run-engine.mjs')), false);
 });
 
 test('the census halts on a source it cannot scan rather than measuring a subset of it', () => {
@@ -186,6 +207,15 @@ test('the source enumeration reaches both engine trees and refuses a subdirector
     () => enumerateJournalSources([{ kind: 'directory', path: journalCensusRoots()[0].path, excluded: [] }]),
     /subdirector|neither/i,
   );
+});
+
+test('exactly one file is withheld from the scan, and it is the census module itself', () => {
+  assert.equal(JOURNAL_CENSUS_SELF.length, 1, 'the self-exclusion grew past the one file that names the census tokens; it is a carve-out for self-reference, never an allowlist');
+  assert.ok(JOURNAL_CENSUS_SELF[0].endsWith('/journal-census.mjs'), `the withheld file is ${JOURNAL_CENSUS_SELF[0]}, which is not the census itself`);
+  const withheld = new Set(JOURNAL_CENSUS_SELF);
+  assert.equal(enumerateJournalSources(journalCensusRoots()).some((path) => withheld.has(path)), false);
+  const selfSource = readFileSync(JOURNAL_CENSUS_SELF[0], 'utf8');
+  assert.equal(censusJournalDispatches([{ path: JOURNAL_CENSUS_SELF[0], source: selfSource }]).ok, false, 'the census module passes its own census, so the exclusion is hiding nothing and should be removed');
 });
 
 test('the enumeration halts on a root it cannot read rather than censusing a narrower scope', () => {
