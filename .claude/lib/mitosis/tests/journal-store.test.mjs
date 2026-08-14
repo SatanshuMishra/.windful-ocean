@@ -1,6 +1,6 @@
 import { test, after } from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import {
@@ -15,8 +15,9 @@ import {
   writeGenesis,
 } from '../journal-store.mjs';
 import { JOURNAL_SPECIMENS } from '../journal-specimens.mjs';
+import { buildInitialManifest } from '../recovery.mjs';
 import { builtDelta, ciAttemptDelta, foldRunManifest, parkDelta, quiescentExitDelta, shipDelta } from '../run-log.mjs';
-import { GENESIS_MANIFEST_AT_FB195E47, JOURNAL_BYTE_CASES_AT_FB195E47 } from './journal-fixtures.mjs';
+import { GENESIS_INPUTS_AT_FB195E47, GENESIS_LINE_AT_FB195E47, GENESIS_MANIFEST_AT_FB195E47, JOURNAL_BYTE_CASES_AT_FB195E47 } from './journal-fixtures.mjs';
 
 const scratchDirs = [];
 
@@ -153,8 +154,8 @@ test('every composed line terminates in exactly one newline and carries no inter
 test('writeGenesis truncates to exactly one line, so a second genesis never appends a second manifest', () => {
   const dir = scratch('journal-genesis-');
   const path = join(dir, '.mitosis', 'run.json');
-  writeGenesis({ path, manifest: GENESIS_MANIFEST_AT_FB195E47 });
-  writeGenesis({ path, manifest: GENESIS_MANIFEST_AT_FB195E47 });
+  writeGenesis({ repoRoot: dir, path, manifest: GENESIS_MANIFEST_AT_FB195E47 });
+  writeGenesis({ repoRoot: dir, path, manifest: GENESIS_MANIFEST_AT_FB195E47 });
   const body = readFileSync(path, 'utf8');
   assert.equal(body, composeJournalLine('genesis', { manifest: GENESIS_MANIFEST_AT_FB195E47 }));
   assert.equal(body.split('\n').filter((line) => line.length > 0).length, 1);
@@ -163,18 +164,18 @@ test('writeGenesis truncates to exactly one line, so a second genesis never appe
 test('writeGenesis truncates a longer prior journal rather than leaving stale deltas behind it', () => {
   const dir = scratch('journal-genesis-truncate-');
   const path = join(dir, '.mitosis', 'run.json');
-  writeGenesis({ path, manifest: GENESIS_MANIFEST_AT_FB195E47 });
-  appendJournalLine({ path, line: composeJournalLine('ci-attempt', { unitId: 'fx-unit', fingerprint: 'fx-fingerprint-one' }) });
-  writeGenesis({ path, manifest: GENESIS_MANIFEST_AT_FB195E47 });
+  writeGenesis({ repoRoot: dir, path, manifest: GENESIS_MANIFEST_AT_FB195E47 });
+  appendJournalLine({ repoRoot: dir, path, line: composeJournalLine('ci-attempt', { unitId: 'fx-unit', fingerprint: 'fx-fingerprint-one' }) });
+  writeGenesis({ repoRoot: dir, path, manifest: GENESIS_MANIFEST_AT_FB195E47 });
   assert.equal(readFileSync(path, 'utf8').split('\n').filter((line) => line.length > 0).length, 1);
 });
 
 test('a genesis line followed by appended deltas folds back through the incumbent reader', () => {
   const dir = scratch('journal-fold-');
   const path = join(dir, '.mitosis', 'run.json');
-  writeGenesis({ path, manifest: GENESIS_MANIFEST_AT_FB195E47 });
-  appendJournalLine({ path, line: composeJournalLine('built', { unitId: 'fx-unit', sha: 'fx00000000000000000000000000000000000001' }) });
-  appendJournalLine({ path, line: composeJournalLine('quiescent-exit', { at: '2026-08-12T09:00:00Z', outstanding: true }) });
+  writeGenesis({ repoRoot: dir, path, manifest: GENESIS_MANIFEST_AT_FB195E47 });
+  appendJournalLine({ repoRoot: dir, path, line: composeJournalLine('built', { unitId: 'fx-unit', sha: 'fx00000000000000000000000000000000000001' }) });
+  appendJournalLine({ repoRoot: dir, path, line: composeJournalLine('quiescent-exit', { at: '2026-08-12T09:00:00Z', outstanding: true }) });
   const folded = foldRunManifest(readFileSync(path, 'utf8'));
   assert.equal(folded.logicalRunId, 'fx01run7');
   assert.equal(folded.quiescentExitAt, '2026-08-12T09:00:00Z');
@@ -186,11 +187,11 @@ test('a genesis line followed by appended deltas folds back through the incumben
 test('appendJournalLine adds one line per call and never rewrites what is already there', () => {
   const dir = scratch('journal-append-');
   const path = join(dir, '.mitosis', 'run.json');
-  writeGenesis({ path, manifest: GENESIS_MANIFEST_AT_FB195E47 });
+  writeGenesis({ repoRoot: dir, path, manifest: GENESIS_MANIFEST_AT_FB195E47 });
   const first = composeJournalLine('ci-attempt', { unitId: 'fx-unit', fingerprint: 'fx-fingerprint-one' });
   const second = composeJournalLine('ci-attempt', { unitId: 'fx-unit', fingerprint: 'fx-fingerprint-two' });
-  appendJournalLine({ path, line: first });
-  appendJournalLine({ path, line: second });
+  appendJournalLine({ repoRoot: dir, path, line: first });
+  appendJournalLine({ repoRoot: dir, path, line: second });
   const lines = readFileSync(path, 'utf8').split('\n').filter((line) => line.length > 0);
   assert.equal(lines.length, 3);
   assert.equal(`${lines[1]}\n`, first);
@@ -202,10 +203,10 @@ test('appendJournalLine THROWS when the write cannot land, because the fold skip
   const line = composeJournalLine('ci-attempt', { unitId: 'fx-unit', fingerprint: 'fx-fingerprint-one' });
   const blocked = join(dir, 'blocked');
   writeFileSync(blocked, 'fx');
-  assert.throws(() => appendJournalLine({ path: join(blocked, 'run.json'), line }), /journal-store/);
+  assert.throws(() => appendJournalLine({ repoRoot: dir, path: join(blocked, 'run.json'), line }), /journal-store/);
   const linked = join(dir, 'linked.json');
   symlinkSync(join(dir, 'elsewhere.json'), linked);
-  assert.throws(() => appendJournalLine({ path: linked, line }), /journal-store/);
+  assert.throws(() => appendJournalLine({ repoRoot: dir, path: linked, line }), /journal-store/);
 });
 
 test('writeGenesis THROWS when the write cannot land', () => {
@@ -213,16 +214,35 @@ test('writeGenesis THROWS when the write cannot land', () => {
   const blocked = join(dir, 'blocked');
   writeFileSync(blocked, 'fx');
   assert.throws(
-    () => writeGenesis({ path: join(blocked, 'run.json'), manifest: GENESIS_MANIFEST_AT_FB195E47 }),
+    () => writeGenesis({ repoRoot: dir, path: join(blocked, 'run.json'), manifest: GENESIS_MANIFEST_AT_FB195E47 }),
     /journal-store/,
   );
 });
 
 test('both writers refuse a path that is relative, traversing, or carries a NUL', () => {
+  const dir = scratch('journal-path-shape-');
   const line = composeJournalLine('ci-attempt', { unitId: 'fx-unit', fingerprint: 'fx-fingerprint-one' });
   for (const path of ['.mitosis/run.json', '/fx/../etc/run.json', `/fx/run.json${String.fromCharCode(0)}`, '', null]) {
-    assert.throws(() => appendJournalLine({ path, line }), /path/, `appendJournalLine accepted ${JSON.stringify(path)}`);
-    assert.throws(() => writeGenesis({ path, manifest: GENESIS_MANIFEST_AT_FB195E47 }), /path/, `writeGenesis accepted ${JSON.stringify(path)}`);
+    assert.throws(() => appendJournalLine({ repoRoot: dir, path, line }), /path/, `appendJournalLine accepted ${JSON.stringify(path)}`);
+    assert.throws(() => writeGenesis({ repoRoot: dir, path, manifest: GENESIS_MANIFEST_AT_FB195E47 }), /path/, `writeGenesis accepted ${JSON.stringify(path)}`);
+  }
+});
+
+test('both writers refuse a journal path that sits outside the repository root they were given', () => {
+  const dir = scratch('journal-confine-');
+  const outside = scratch('journal-confine-outside-');
+  const line = composeJournalLine('ci-attempt', { unitId: 'fx-unit', fingerprint: 'fx-fingerprint-one' });
+  for (const path of [join(outside, 'run.json'), `${dir}-sibling/run.json`, dir]) {
+    assert.throws(() => appendJournalLine({ repoRoot: dir, path, line }), /path/, `appendJournalLine accepted ${JSON.stringify(path)}`);
+    assert.throws(() => writeGenesis({ repoRoot: dir, path, manifest: GENESIS_MANIFEST_AT_FB195E47 }), /path/, `writeGenesis accepted ${JSON.stringify(path)}`);
+  }
+  assert.equal(existsSync(join(outside, 'run.json')), false);
+  for (const repoRoot of ['relative/root', `${dir}/../etc`, '', null, join(dir, 'absent')]) {
+    assert.throws(
+      () => appendJournalLine({ repoRoot, path: join(dir, '.mitosis', 'run.json'), line }),
+      /repoRoot/,
+      `appendJournalLine accepted the repoRoot ${JSON.stringify(repoRoot)}`,
+    );
   }
 });
 
@@ -230,7 +250,7 @@ test('appendJournalLine refuses a line that is not exactly one newline-terminate
   const dir = scratch('journal-line-shape-');
   const path = join(dir, '.mitosis', 'run.json');
   for (const line of ['', '\n', '{"kind":"ship"}', '{"a":1}\n{"b":2}\n', 42]) {
-    assert.throws(() => appendJournalLine({ path, line }), /line/, `appendJournalLine accepted ${JSON.stringify(line)}`);
+    assert.throws(() => appendJournalLine({ repoRoot: dir, path, line }), /line/, `appendJournalLine accepted ${JSON.stringify(line)}`);
   }
 });
 
@@ -274,48 +294,117 @@ test('elapsedBetween throws on any value that is not an ISO instant', () => {
 });
 
 test('ensureGitignored appends the entry once and is inert on every later call', () => {
-  const dir = scratch('journal-gitignore-');
-  const path = join(dir, '.gitignore');
-  const created = ensureGitignored({ path, entry: '.mitosis/' });
+  const repoRoot = scratch('journal-gitignore-');
+  const path = join(repoRoot, '.gitignore');
+  const created = ensureGitignored({ repoRoot, entry: '.mitosis/' });
   assert.equal(created.appended, true);
+  assert.equal(created.path, path);
   assert.equal(readFileSync(path, 'utf8'), '.mitosis/\n');
-  const repeated = ensureGitignored({ path, entry: '.mitosis/' });
+  const repeated = ensureGitignored({ repoRoot, entry: '.mitosis/' });
   assert.equal(repeated.appended, false);
   assert.equal(readFileSync(path, 'utf8'), '.mitosis/\n');
 });
 
 test('ensureGitignored never joins onto a partial final line', () => {
-  const dir = scratch('journal-gitignore-partial-');
-  const path = join(dir, '.gitignore');
+  const repoRoot = scratch('journal-gitignore-partial-');
+  const path = join(repoRoot, '.gitignore');
   writeFileSync(path, 'node_modules/\ndist');
-  ensureGitignored({ path, entry: '.mitosis/' });
+  ensureGitignored({ repoRoot, entry: '.mitosis/' });
   assert.equal(readFileSync(path, 'utf8'), 'node_modules/\ndist\n.mitosis/\n');
 });
 
 test('ensureGitignored recognises the equivalent spellings an operator may already have written', () => {
   for (const existing of ['.mitosis/', '.mitosis', '/.mitosis/', '/.mitosis']) {
-    const dir = scratch('journal-gitignore-spelling-');
-    const path = join(dir, '.gitignore');
+    const repoRoot = scratch('journal-gitignore-spelling-');
+    const path = join(repoRoot, '.gitignore');
     writeFileSync(path, `node_modules/\n${existing}\n`);
-    const result = ensureGitignored({ path, entry: '.mitosis/' });
+    const result = ensureGitignored({ repoRoot, entry: '.mitosis/' });
     assert.equal(result.appended, false, `${existing} was not recognised as already ignoring the journal directory`);
     assert.equal(readFileSync(path, 'utf8'), `node_modules/\n${existing}\n`);
   }
 });
 
 test('ensureGitignored refuses an entry that is not a single non-empty line', () => {
-  const dir = scratch('journal-gitignore-entry-');
-  const path = join(dir, '.gitignore');
+  const repoRoot = scratch('journal-gitignore-entry-');
   for (const entry of ['', '\n', '.mitosis/\n.git/', 7, null]) {
-    assert.throws(() => ensureGitignored({ path, entry }), /entry/, `ensureGitignored accepted ${JSON.stringify(entry)}`);
+    assert.throws(() => ensureGitignored({ repoRoot, entry }), /entry/, `ensureGitignored accepted ${JSON.stringify(entry)}`);
   }
 });
 
+test('ensureGitignored refuses an entry that is not a literal path pattern', () => {
+  const repoRoot = scratch('journal-gitignore-pattern-');
+  const wild = ['*', '**', '!.mitosis/', '.mitosis/*', `a${String.fromCharCode(13)}b`, `a${String.fromCharCode(0)}b`, '/', '.', '..', 'a/../b', 'x'.repeat(201)];
+  for (const entry of wild) {
+    assert.throws(() => ensureGitignored({ repoRoot, entry }), /entry/, `ensureGitignored accepted ${JSON.stringify(entry)}`);
+  }
+  assert.equal(existsSync(join(repoRoot, '.gitignore')), false, 'a refused entry created an ignore file anyway');
+});
+
+test('ensureGitignored composes the ignore path from repoRoot, so no caller names the file it writes', () => {
+  const repoRoot = scratch('journal-gitignore-confined-');
+  const outside = scratch('journal-gitignore-outside-');
+  assert.throws(() => ensureGitignored({ repoRoot: join(outside, 'passwd'), entry: '.mitosis/' }), /repoRoot/);
+  assert.throws(() => ensureGitignored({ repoRoot: 'relative/root', entry: '.mitosis/' }), /repoRoot/);
+  assert.throws(() => ensureGitignored({ repoRoot: `${repoRoot}/../etc`, entry: '.mitosis/' }), /repoRoot/);
+  assert.throws(() => ensureGitignored({ repoRoot: null, entry: '.mitosis/' }), /repoRoot/);
+  assert.equal(ensureGitignored({ repoRoot, entry: '.mitosis/' }).path, join(repoRoot, '.gitignore'));
+  assert.equal(existsSync(join(outside, 'passwd')), false);
+});
+
+test('ensureGitignored refuses an ignore file too large to hold in memory rather than reading it whole', () => {
+  const repoRoot = scratch('journal-gitignore-huge-');
+  writeFileSync(join(repoRoot, '.gitignore'), 'x'.repeat(1024 * 1024 + 1));
+  assert.throws(() => ensureGitignored({ repoRoot, entry: '.mitosis/' }), /journal-store/);
+});
+
 test('ensureGitignored THROWS when the file cannot be read or written', () => {
-  const dir = scratch('journal-gitignore-unwritable-');
-  const asDirectory = join(dir, '.gitignore');
-  mkdirSync(asDirectory);
-  assert.throws(() => ensureGitignored({ path: asDirectory, entry: '.mitosis/' }), /journal-store/);
+  const repoRoot = scratch('journal-gitignore-unwritable-');
+  mkdirSync(join(repoRoot, '.gitignore'));
+  assert.throws(() => ensureGitignored({ repoRoot, entry: '.mitosis/' }), /journal-store/);
+});
+
+test('the genesis manifest, which passes through verbatim, refuses a prototype-bearing key', () => {
+  const nested = JSON.parse('{"logicalRunId":"fx01run7","clusters":[],"msps":[{"id":"fx-unit","__proto__":{"polluted":true}}]}');
+  assert.throws(() => composeJournalLine('genesis', { manifest: nested }), /__proto__/);
+  const top = JSON.parse('{"logicalRunId":"fx01run7","clusters":[],"msps":[{"id":"fx-unit"}],"constructor":{"polluted":true}}');
+  assert.throws(() => composeJournalLine('genesis', { manifest: top }), /constructor/);
+  assert.equal({}.polluted, undefined);
+});
+
+test('a delta record cannot carry a prototype-bearing key into the journal, because run-log rebuilds it from named fields', () => {
+  const poisoned = JSON.parse('{"unitId":"fx-unit","__proto__":{"polluted":true}}');
+  const line = composeJournalLine('ci-attempt', poisoned);
+  assert.equal(line.includes('__proto__'), false, 'a delta line carried a prototype-bearing key through to the journal');
+  assert.equal(line, '{"kind":"ci-attempt","unitId":"fx-unit","fingerprint":null}\n');
+  assert.equal({}.polluted, undefined);
+});
+
+test('elapsedBetween refuses a day the calendar does not carry rather than reporting a confident wrong gap', () => {
+  assert.throws(() => elapsedBetween('2026-02-31T00:00:00Z', '2026-03-01T00:00:00Z'), /2026-02-31/);
+  assert.throws(() => elapsedBetween('2026-08-12T09:00:00Z', '2026-04-31T00:00:00Z'), /2026-04-31/);
+  assert.throws(() => elapsedBetween('2026-02-29T00:00:00Z', '2026-03-01T00:00:00Z'), /2026-02-29/);
+  assert.equal(elapsedBetween('2024-02-29T00:00:00Z', '2024-03-01T00:00:00Z'), '1d');
+  assert.equal(elapsedBetween('2026-01-31T00:00:00Z', '2026-02-01T00:00:00Z'), '1d');
+});
+
+test('the genesis fixture is what buildInitialManifest produces, so a key-order change reddens it', () => {
+  const built = { ...buildInitialManifest(GENESIS_INPUTS_AT_FB195E47), parked: [] };
+  assert.deepEqual(built, GENESIS_MANIFEST_AT_FB195E47, 'the transcribed genesis manifest is no longer what the incumbent builder produces');
+  assert.equal(
+    composeJournalLine('genesis', { manifest: built }),
+    GENESIS_LINE_AT_FB195E47,
+    'the genesis bytes composed from the real builder no longer match the line transcribed from fb195e47',
+  );
+});
+
+test('the shipped genesis specimen routes through the real builder rather than a hand-made object', () => {
+  const specimen = JOURNAL_SPECIMENS.find((entry) => entry.kind === 'genesis');
+  const built = { ...buildInitialManifest(GENESIS_INPUTS_AT_FB195E47), parked: [] };
+  assert.deepEqual(
+    specimen.fields.manifest,
+    built,
+    'the genesis specimen is a hand-made object no buildInitialManifest call can produce, so its byte case can never redden',
+  );
 });
 
 test('the module names its C7 obligations, including the three the SPEC never carried', () => {

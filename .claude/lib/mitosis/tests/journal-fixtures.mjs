@@ -65,6 +65,26 @@ export const QUIESCENT_EXIT_SETTLED_FIELDS_AT_FB195E47 = Object.freeze({ at: '20
 
 export const QUIESCENT_EXIT_SETTLED_LINE_AT_FB195E47 = '{"kind":"quiescent-exit","at":"2026-08-12T09:00:00Z","outstanding":false}\n';
 
+export const GENESIS_INPUTS_AT_FB195E47 = Object.freeze({
+  logicalRunId: 'fx01run7',
+  harnessRunId: null,
+  spec: '/fx/repo/spec.md',
+  repoRoot: '/fx/repo',
+  baseBranch: 'fx-base',
+  sourcePrefix: 'fx',
+  specContentHash: 'fx00spec',
+  clusters: Object.freeze([Object.freeze(['fx-unit'])]),
+  msps: Object.freeze([Object.freeze({
+    id: 'fx-unit',
+    title: 'fx unit title',
+    rationale: 'fx unit rationale',
+    changeType: 'feat',
+    scope: 'fx',
+    dependsOn: Object.freeze([]),
+    fileScope: Object.freeze({ edit: Object.freeze(['fx/alpha.mjs']), read: Object.freeze([]), truncated: null }),
+  })]),
+});
+
 export const GENESIS_MANIFEST_AT_FB195E47 = Object.freeze({
   logicalRunId: 'fx01run7',
   harnessRunId: null,
@@ -87,12 +107,12 @@ export const GENESIS_MANIFEST_AT_FB195E47 = Object.freeze({
     mergedAt: null,
     dependsOn: Object.freeze([]),
     fileScope: Object.freeze({ edit: Object.freeze(['fx/alpha.mjs']), read: Object.freeze([]), truncated: null }),
-    contentHash: 'fx00cafe',
+    contentHash: '1d8ede95',
   })]),
   parked: Object.freeze([]),
 });
 
-export const GENESIS_LINE_AT_FB195E47 = '{"logicalRunId":"fx01run7","harnessRunId":null,"spec":"/fx/repo/spec.md","repoRoot":"/fx/repo","baseBranch":"fx-base","sourcePrefix":"fx","specContentHash":"fx00spec","phase":"Decompose","clusters":[["fx-unit"]],"msps":[{"id":"fx-unit","title":"fx unit title","rationale":"fx unit rationale","changeType":"feat","scope":"fx","status":"planned","integrationBranch":"fx/fx-unit-integration","prUrl":null,"mergedAt":null,"dependsOn":[],"fileScope":{"edit":["fx/alpha.mjs"],"read":[],"truncated":null},"contentHash":"fx00cafe"}],"parked":[]}\n';
+export const GENESIS_LINE_AT_FB195E47 = '{"logicalRunId":"fx01run7","harnessRunId":null,"spec":"/fx/repo/spec.md","repoRoot":"/fx/repo","baseBranch":"fx-base","sourcePrefix":"fx","specContentHash":"fx00spec","phase":"Decompose","clusters":[["fx-unit"]],"msps":[{"id":"fx-unit","title":"fx unit title","rationale":"fx unit rationale","changeType":"feat","scope":"fx","status":"planned","integrationBranch":"fx/fx-unit-integration","prUrl":null,"mergedAt":null,"dependsOn":[],"fileScope":{"edit":["fx/alpha.mjs"],"read":[],"truncated":null},"contentHash":"1d8ede95"}],"parked":[]}\n';
 
 export const JOURNAL_BYTE_CASES_AT_FB195E47 = Object.freeze([
   Object.freeze({ id: 'ship-full', kind: 'ship', fields: SHIP_FIELDS_AT_FB195E47, line: SHIP_LINE_AT_FB195E47 }),

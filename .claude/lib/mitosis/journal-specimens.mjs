@@ -1,3 +1,25 @@
+import { buildInitialManifest } from './recovery.mjs';
+
+export const GENESIS_SPECIMEN_INPUTS = Object.freeze({
+  logicalRunId: 'fx01run7',
+  harnessRunId: null,
+  spec: '/fx/repo/spec.md',
+  repoRoot: '/fx/repo',
+  baseBranch: 'fx-base',
+  sourcePrefix: 'fx',
+  specContentHash: 'fx00spec',
+  clusters: Object.freeze([Object.freeze(['fx-unit'])]),
+  msps: Object.freeze([Object.freeze({
+    id: 'fx-unit',
+    title: 'fx unit title',
+    rationale: 'fx unit rationale',
+    changeType: 'feat',
+    scope: 'fx',
+    dependsOn: Object.freeze([]),
+    fileScope: Object.freeze({ edit: Object.freeze(['fx/alpha.mjs']), read: Object.freeze([]), truncated: null }),
+  })]),
+});
+
 export const JOURNAL_SPECIMENS = Object.freeze([
   Object.freeze({
     id: 'ship-full',
@@ -88,33 +110,8 @@ export const JOURNAL_SPECIMENS = Object.freeze([
     id: 'genesis',
     kind: 'genesis',
     fields: Object.freeze({
-      manifest: Object.freeze({
-        logicalRunId: 'fx01run7',
-        harnessRunId: null,
-        spec: '/fx/repo/spec.md',
-        repoRoot: '/fx/repo',
-        baseBranch: 'fx-base',
-        sourcePrefix: 'fx',
-        specContentHash: 'fx00spec',
-        phase: 'Decompose',
-        clusters: Object.freeze([Object.freeze(['fx-unit'])]),
-        msps: Object.freeze([Object.freeze({
-          id: 'fx-unit',
-          title: 'fx unit title',
-          rationale: 'fx unit rationale',
-          changeType: 'feat',
-          scope: 'fx',
-          status: 'planned',
-          integrationBranch: 'fx/fx-unit-integration',
-          prUrl: null,
-          mergedAt: null,
-          dependsOn: Object.freeze([]),
-          fileScope: Object.freeze({ edit: Object.freeze(['fx/alpha.mjs']), read: Object.freeze([]), truncated: null }),
-          contentHash: 'fx00cafe',
-        })]),
-        parked: Object.freeze([]),
-      }),
+      manifest: Object.freeze({ ...buildInitialManifest(GENESIS_SPECIMEN_INPUTS), parked: Object.freeze([]) }),
     }),
-    line: '{"logicalRunId":"fx01run7","harnessRunId":null,"spec":"/fx/repo/spec.md","repoRoot":"/fx/repo","baseBranch":"fx-base","sourcePrefix":"fx","specContentHash":"fx00spec","phase":"Decompose","clusters":[["fx-unit"]],"msps":[{"id":"fx-unit","title":"fx unit title","rationale":"fx unit rationale","changeType":"feat","scope":"fx","status":"planned","integrationBranch":"fx/fx-unit-integration","prUrl":null,"mergedAt":null,"dependsOn":[],"fileScope":{"edit":["fx/alpha.mjs"],"read":[],"truncated":null},"contentHash":"fx00cafe"}],"parked":[]}\n',
+    line: '{"logicalRunId":"fx01run7","harnessRunId":null,"spec":"/fx/repo/spec.md","repoRoot":"/fx/repo","baseBranch":"fx-base","sourcePrefix":"fx","specContentHash":"fx00spec","phase":"Decompose","clusters":[["fx-unit"]],"msps":[{"id":"fx-unit","title":"fx unit title","rationale":"fx unit rationale","changeType":"feat","scope":"fx","status":"planned","integrationBranch":"fx/fx-unit-integration","prUrl":null,"mergedAt":null,"dependsOn":[],"fileScope":{"edit":["fx/alpha.mjs"],"read":[],"truncated":null},"contentHash":"1d8ede95"}],"parked":[]}\n',
   }),
 ]);
