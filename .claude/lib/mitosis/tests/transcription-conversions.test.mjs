@@ -3,7 +3,17 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { GIT_SITES, GIT_SITE_COMMANDS } from '../git-commands.mjs';
 import { GIT_COMMAND_FIXTURES, MANIFEST_WRITE_FIXTURE, PLAN_PROBE_FIXTURE } from '../git-command-fixtures.mjs';
-import { NON_SPAWN_SITES, anchorOccurrences, argvInertnessProbe, censusGitCommandFixtures, expandedArgv, gitCommandFixtureCensus, nonSpawnFailures } from '../transcription-conversions.mjs';
+import {
+  CONVERTED_TRANSCRIPTION_SITES,
+  DEFAULT_CONVERSION_REGISTRY,
+  NON_SPAWN_SITES,
+  anchorOccurrences,
+  argvInertnessProbe,
+  censusGitCommandFixtures,
+  expandedArgv,
+  gitCommandFixtureCensus,
+  nonSpawnFailures,
+} from '../transcription-conversions.mjs';
 
 const INCUMBENT = readFileSync(new URL('../../../workflows/mitosis.js', import.meta.url), 'utf8');
 
@@ -259,6 +269,25 @@ test('a transcribed value full of shell metacharacters reaches the child whole, 
   assert.equal(measured.carriedWhole, true, `the hostile value did not arrive as exactly one argument: ${measured.detail}`);
   assert.equal(measured.unsplit, true, `the argument vector changed length on the way to the child: ${measured.detail}`);
   assert.equal(measured.shellRefused, true, `the child was spawned through a shell, so every transcribed value is a word the shell may expand: ${measured.detail}`);
+});
+
+test('a parser registered under a site no builder and no non-spawn step declares halts', () => {
+  const registry = {
+    ...DEFAULT_CONVERSION_REGISTRY,
+    parsers: { ...DEFAULT_CONVERSION_REGISTRY.parsers, 'fence-extra': DEFAULT_CONVERSION_REGISTRY.parsers.fence },
+  };
+  const measured = censusGitCommandFixtures(GIT_COMMAND_FIXTURES, INCUMBENT, registry);
+  assert.equal(measured.ok, false);
+  assert.match(measured.error, /fence-extra/);
+  assert.match(measured.error, /neither a declared command builder nor a declared non-spawn step accounts for/);
+});
+
+test('every registered parser site is a declared builder site or a declared non-spawn site', () => {
+  const declared = new Set([...GIT_SITES, ...NON_SPAWN_SITES.map((entry) => entry.site)]);
+  for (const site of Object.keys(DEFAULT_CONVERSION_REGISTRY.parsers)) {
+    assert.ok(declared.has(site), `${site} registers a parser that no builder and no non-spawn step accounts for`);
+  }
+  assert.deepEqual([...CONVERTED_TRANSCRIPTION_SITES], Object.keys(DEFAULT_CONVERSION_REGISTRY.parsers).sort());
 });
 
 test('the census refuses to attest anything when handed no fixture or no incumbent source', () => {
