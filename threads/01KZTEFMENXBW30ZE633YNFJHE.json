@@ -386,6 +386,11 @@
         "ref": "0426-a-guard-that-relocates-harm-is-not-a-residual",
         "title": "--mirror and --delete were overruled out of accepted-residual status",
         "scope": "c3"
+      },
+      {
+        "ref": "0427-three-legacy-twins-stay-unconverted-as-c7-obligations",
+        "title": "The three legacy twins stay unconverted as named C7 obligations",
+        "scope": "c3"
       }
     ],
     "out_of_scope": [
@@ -397,5 +402,5 @@
     ]
   },
   "created_at": "2026-08-12T07:37:41.077Z",
-  "updated_at": "2026-08-14T18:57:06.846Z"
+  "updated_at": "2026-08-14T18:57:14.555Z"
 }
