@@ -416,6 +416,11 @@
         "ref": "0420-phases-module-is-standalone-not-a-whole-twin",
         "title": "phases.mjs is STANDALONE in the mirror census, not a WHOLE twin",
         "scope": "c3"
+      },
+      {
+        "ref": "0421-phase-authority-is-keyed-to-its-target",
+        "title": "The phase authority is keyed to its target, and an unmapped target halts",
+        "scope": "c3"
       }
     ],
     "out_of_scope": [
@@ -427,5 +432,5 @@
     ]
   },
   "created_at": "2026-08-12T07:37:41.077Z",
-  "updated_at": "2026-08-14T09:01:19.742Z"
+  "updated_at": "2026-08-14T09:01:27.795Z"
 }
