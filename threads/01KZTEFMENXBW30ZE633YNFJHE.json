@@ -428,6 +428,11 @@
         "ref": "0430-restack-c4-chain-onto-the-merged-base",
         "title": "The C4 chain is restacked onto the merged base rather than conflict-resolved at merge",
         "scope": "c3"
+      },
+      {
+        "ref": "0431-review-size-rule-corrected-against-its-sources",
+        "title": "The 200-400 review-size rule is tightened and one of its three citations retired",
+        "scope": "thread"
       }
     ],
     "out_of_scope": [
@@ -439,5 +444,5 @@
     ]
   },
   "created_at": "2026-08-12T07:37:41.077Z",
-  "updated_at": "2026-08-14T23:47:45.968Z"
+  "updated_at": "2026-08-14T23:48:01.667Z"
 }
