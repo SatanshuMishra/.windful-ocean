@@ -52,7 +52,7 @@
     {
       "id": "c3",
       "text": "Deny pruned to genuine catastrophes per 0409 and every ask rule retired: entries that are speed bumps or routing preferences removed, user-affirmed gates and secret guards kept",
-      "done": false,
+      "done": true,
       "kind": "planned",
       "struck_by": null
     },
@@ -133,61 +133,10 @@
   "abandoned_reason": null,
   "closure_statement": null,
   "spine": {
-    "active_goal": "Permissions only: with the install topology back on direct repo symlinks, prune deny to genuine catastrophes and widen allow so ordinary work never prompts.",
-    "next_step": "START HERE: present the open items and the recommended order CONCISELY, then STOP for the user's pick - do not begin work. Items: rule on c14; c3 prune deny per 0409; c4 widen allow per 0408 and truncate settings.local.json; c9 the gate's dead tokens (0398-gated) plus the dead nested settings.local.json; fix or retire install_config.sh. Recommended: c14 ruling first, then c3, then c4, one change each, verifying permission-rule spelling against live behaviour rather than assuming it.",
-    "last_session": "Shipped c17: the ten entries created as absolute repo symlinks per 0410 (not install_config.sh - the dry run showed it would clobber global settings.json), notes re-pointed, releases/, current, LIVE and local/ removed. Verified the sandbox gone on seven surfaces; struck c8.",
+    "active_goal": "Permissions only: deny is pruned to genuine catastrophes; what remains is widening allow so ordinary work never prompts, then the PR.",
+    "next_step": "c4 next: widen allow per 0408 (broad tool-level allow plus mcp__* coverage) and truncate settings.local.json, applying every edit to BOTH .claude/settings.json and ~/.claude/settings.json since no propagation path remains. Then c9 (gate dead tokens, 0398-gated; nested settings.local.json) and c11 (the PR). Separately worth doing: close the default-branch push hole, which is widening not pruning so it stayed out of c3.",
+    "last_session": "Struck c14 as unenforceable ceremony (0411) and shipped c3: deny pruned 47 to 36 in both the tracked and live settings.json, committed as 15d8dca. Verified deny survives bypassPermissions, that the gate does not blanket-block curl, and that ssh commit signing works.",
     "open_risks": [
-      {
-        "text": "Do not strip the merge gates — gh pr merge and merge_pull_request stay denied by deliberate user choice, and pr-create centralization stays too",
-        "scope": "thread",
-        "refs": [
-          ".claude/settings.json"
-        ]
-      },
-      {
-        "text": "c14 needs a ruling before c3 — a governed launcher that hardcodes the permission mode is containment-model governance, so it may belong struck alongside c6, c7 and c8",
-        "scope": "thread",
-        "refs": [
-          "c14"
-        ]
-      },
-      {
-        "text": "Spawning a subagent can still destroy the promoted entries — the cause is unidentified, but recovery is now one ln -sfn loop because they are plain symlinks rather than copied trees",
-        "scope": "thread",
-        "refs": [
-          "~/.claude/hooks"
-        ]
-      },
-      {
-        "text": "Drop the no-gpg-sign flag on the next real commit and confirm signing works — ssh-agent is reachable now that the sandbox is gone, and an unreachable ssh-agent was the only reason signing ever failed",
-        "scope": "thread",
-        "refs": [
-          "~/.ssh/id_ed25519"
-        ]
-      },
-      {
-        "text": "Fix or retire scripts/install_config.sh before anyone runs it by reflex — running it would undo c17 and move the live global settings.json into a backup dir, replacing it with a repo symlink",
-        "scope": "thread",
-        "refs": [
-          "scripts/install_config.sh:127",
-          "scripts/install_config.sh:159",
-          "0410"
-        ]
-      },
-      {
-        "text": "The deny entry for supabase db reset defeats the ratified local-container carve-out — the agent cannot validate migrations it writes, and 0409 now clears it for removal in c3",
-        "scope": "thread",
-        "refs": [
-          ".claude/settings.json"
-        ]
-      },
-      {
-        "text": "Run the full suite at the merge boundary, not just per-branch — three PRs each genuinely green alone reddened the base once composed",
-        "scope": "thread",
-        "refs": [
-          "npm test"
-        ]
-      },
       {
         "text": "Prune the gate tokens that guard the deleted release tree — guardname still lists releases, current, local, LIVE, CUTOVER and .cutover, which now match nothing, and 0398 gates the change on direct user confirmation",
         "scope": "c9",
@@ -202,6 +151,60 @@
         "scope": "c9",
         "refs": [
           "~/.claude/.claude/settings.local.json"
+        ]
+      },
+      {
+        "text": "Do not strip the merge gates — gh pr merge and merge_pull_request stay denied by deliberate user choice, and pr-create centralization stays too",
+        "scope": "thread",
+        "refs": [
+          ".claude/settings.json"
+        ]
+      },
+      {
+        "text": "Default-branch push denies are prefix-literal and the gate has no push clause at all — git push -u origin main, git push origin HEAD:main and a bare git push with upstream set all reach main untouched, so 0405 is thinner than it reads",
+        "scope": "thread",
+        "refs": [
+          ".claude/settings.json",
+          ".claude/hooks/block-destructive-bash.sh:148",
+          "0405"
+        ]
+      },
+      {
+        "text": "The tracked and live settings.json are two independent real files with no propagation path left after the installer was deleted — every permission edit must be applied to both by hand or it is inert",
+        "scope": "thread",
+        "refs": [
+          ".claude/settings.json",
+          "~/.claude/settings.json"
+        ]
+      },
+      {
+        "text": "Spawning a subagent can still destroy the promoted entries — the cause is unidentified, but recovery is now one ln -sfn loop because they are plain symlinks rather than copied trees",
+        "scope": "thread",
+        "refs": [
+          "~/.claude/hooks"
+        ]
+      },
+      {
+        "text": "gpg.ssh.allowedSignersFile is unset, so git log --show-signature errors and reports No signature on commits that ARE signed — read the raw gpgsig header before concluding a commit is unsigned",
+        "scope": "thread",
+        "refs": [
+          "~/.gitconfig"
+        ]
+      },
+      {
+        "text": "Fix or retire scripts/install_config.sh before anyone runs it by reflex — running it would undo c17 and move the live global settings.json into a backup dir, replacing it with a repo symlink",
+        "scope": "thread",
+        "refs": [
+          "scripts/install_config.sh:127",
+          "scripts/install_config.sh:159",
+          "0410"
+        ]
+      },
+      {
+        "text": "Run the full suite at the merge boundary, not just per-branch — three PRs each genuinely green alone reddened the base once composed",
+        "scope": "thread",
+        "refs": [
+          "npm test"
         ]
       }
     ],
@@ -253,5 +256,5 @@
     ]
   },
   "created_at": "2026-08-13T18:14:42.072Z",
-  "updated_at": "2026-08-14T03:41:19.101Z"
+  "updated_at": "2026-08-14T03:52:42.220Z"
 }
