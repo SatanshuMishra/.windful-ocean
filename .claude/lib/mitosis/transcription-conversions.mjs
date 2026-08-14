@@ -50,14 +50,14 @@ export function binaryOf(fixture) {
   return fixture.binary === undefined ? GIT_COMMAND_BINARY : fixture.binary;
 }
 
-export function builderFor(binary) {
-  return Object.hasOwn(COMMAND_BINARIES, binary) ? COMMAND_BINARIES[binary] : undefined;
+export function builderFor(binary, binaries = COMMAND_BINARIES) {
+  return Object.hasOwn(binaries, binary) ? binaries[binary] : undefined;
 }
 
-export function buildTranscribedCommand(binary, site, step, values) {
-  const table = builderFor(binary);
+export function buildTranscribedCommand(binary, site, step, values, binaries = COMMAND_BINARIES) {
+  const table = builderFor(binary, binaries);
   if (table === undefined) {
-    throw new TypeError(`${MODULE}: ${JSON.stringify(binary)} names no transcribed command builder; the binaries this census builds for are ${TRANSCRIBED_BINARIES.join(', ')}`);
+    throw new TypeError(`${MODULE}: ${JSON.stringify(binary)} names no transcribed command builder; the binaries this census builds for are ${Object.keys(binaries).join(', ')}`);
   }
   return table.build(site, step, values);
 }
@@ -454,11 +454,11 @@ function registryFailure(registry) {
   return null;
 }
 
-function sharedStepFailure(shared, fixtures) {
+function sharedStepFailure(shared, fixtures, binaries = COMMAND_BINARIES) {
   const failures = [];
   for (const entry of shared) {
     const at = `${entry.binary} ${entry.site}/${entry.step}`;
-    const table = builderFor(entry.binary);
+    const table = builderFor(entry.binary, binaries);
     if (table === undefined || table.steps[entry.site] === undefined || typeof table.steps[entry.site][entry.step] !== 'function') {
       failures.push(`${at} is declared as sharing a command with ${entry.sharesWith} but no builder declares it`);
       continue;
@@ -477,8 +477,8 @@ function sharedStepFailure(shared, fixtures) {
     let mine;
     let theirs;
     try {
-      mine = [...buildTranscribedCommand(entry.binary, entry.site, entry.step, inputs)];
-      theirs = [...buildTranscribedCommand(entry.binary, entry.sharesWith, entry.step, inputs)];
+      mine = [...buildTranscribedCommand(entry.binary, entry.site, entry.step, inputs, binaries)];
+      theirs = [...buildTranscribedCommand(entry.binary, entry.sharesWith, entry.step, inputs, binaries)];
     } catch (error) {
       failures.push(`${at} could not be built from the values its shared fixture binds: ${error && error.message ? error.message : 'unknown failure'}`);
       continue;
@@ -555,6 +555,7 @@ export function censusGitCommandFixtures(fixtures, source, registry = DEFAULT_CO
   }
   const registryHalt = registryFailure(registry);
   if (registryHalt !== null) return halt(`${MODULE}: ${registryHalt}`);
+  const binaries = registry.binaries === undefined ? COMMAND_BINARIES : registry.binaries;
   const shared = Array.isArray(registry.shared) ? registry.shared : [];
   const derivedCommands = Array.isArray(registry.derivedCommands) ? registry.derivedCommands : [];
   const accounted = [...shared, ...derivedCommands];
@@ -564,7 +565,7 @@ export function censusGitCommandFixtures(fixtures, source, registry = DEFAULT_CO
     ...fixtures.flatMap((fixture) => fixtureFailures(fixture, source)),
     ...nonSpawnFailures(source, registry.nonSpawn),
     ...compositionFailures(fixtures, source, registry.compositions),
-    ...sharedStepFailure(shared, fixtures),
+    ...sharedStepFailure(shared, fixtures, binaries),
     ...derivedCommandFailures(source, derivedCommands),
   ];
   if (failures.length > 0) {
