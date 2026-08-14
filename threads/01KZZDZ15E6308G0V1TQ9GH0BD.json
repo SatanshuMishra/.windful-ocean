@@ -10,7 +10,7 @@
     {
       "id": "c1",
       "text": "Establish whether the R3 bypassPermissions precondition is enforced or is prose only - nothing enforcing it means the mode is reachable today, which is what makes the deny question load-bearing",
-      "done": false,
+      "done": true,
       "kind": "planned",
       "struck_by": null
     },
@@ -50,7 +50,7 @@
   "closure_statement": null,
   "spine": {
     "active_goal": "Close the two unverified controls left by the permission rebuild, and rule on the self-modification exposure it deliberately created.",
-    "next_step": "START HERE. Take c1 before c2: if nothing enforces the R3 precondition then bypassPermissions is reachable today and the deny experiment is load-bearing; if something does enforce it, c2 may be re-scoped or struck. Do NOT enter bypassPermissions to run c2 without ruling on that first - 0398 requires direct user confirmation for an oversight-reducing change.",
+    "next_step": "c1 ANSWERED: PROSE ONLY, and the precondition is also UNMET - no layer 0 sandbox key, no layer 4 heartbeat, layer 1 exists only as a mitosis-run-scoped checkpoint. So bypassPermissions sits outside the ratified design today, not merely ungated. AWAIT the user's ruling on c2's route. Before proposing any probe, read the SPEC's M14 and M15 records: if either was measured under bypassPermissions, line 274 verifies from evidence already held and no new run is needed.",
     "last_session": "Opened as the successor to max-autonomy-permission-build, carrying the three risks the owner selected at its close. No work done on it yet.",
     "open_risks": [
       {
@@ -88,5 +88,5 @@
     ]
   },
   "created_at": "2026-08-14T06:04:49.198Z",
-  "updated_at": "2026-08-14T06:05:02.950Z"
+  "updated_at": "2026-08-14T06:15:50.645Z"
 }
