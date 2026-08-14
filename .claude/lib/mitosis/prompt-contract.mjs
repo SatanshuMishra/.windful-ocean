@@ -1,4 +1,25 @@
-const NUL = String.fromCharCode(0);
+import {
+  TRUNCATED_EDIT,
+  TRUNCATED_LISTS,
+  TRUNCATED_READ,
+  describe,
+  ownValue,
+  requireNonNegativePromptCount,
+  requireOptionalPromptText,
+  requireOptionalPromptTextList,
+  requirePromptCommand,
+  requirePromptCount,
+  requirePromptGlob,
+  requirePromptPath,
+  requirePromptPathspecList,
+  requirePromptRecord,
+  requirePromptRef,
+  requirePromptSlug,
+  requirePromptText,
+  requirePromptTextList,
+} from './prompt-values.mjs';
+
+export { PROMPT_SECTIONS, TRUNCATED_EDIT, TRUNCATED_LISTS, TRUNCATED_READ, promptSection, sectionDelimiterIn } from './prompt-values.mjs';
 
 export const PROMPT_KINDS = Object.freeze([
   'decompose',
@@ -17,50 +38,10 @@ export const PROMPT_KINDS = Object.freeze([
 
 export const ISOLATION_MODES = Object.freeze(['worktree', 'scope-fence']);
 
+export const REVIEW_KINDS = Object.freeze(['review', 'security']);
+
 export function cleanPromptValue(value) {
   return JSON.stringify(value).replace(/[\p{Cc}\p{Cf}\p{Zl}\p{Zp}]/gu, ' ');
-}
-
-function describe(value) {
-  if (value === null) return 'null';
-  if (value === undefined) return 'undefined';
-  if (Array.isArray(value)) return 'an array';
-  return typeof value;
-}
-
-function requirePromptText(value, field) {
-  if (typeof value !== 'string') {
-    throw new TypeError(`prompt-contract: ${field} must be a string, received ${describe(value)}`);
-  }
-  if (value.includes(NUL)) {
-    throw new TypeError(`prompt-contract: ${field} must not contain a NUL byte, which no dispatched prompt can carry`);
-  }
-  if (value.trim() === '') {
-    throw new TypeError(`prompt-contract: ${field} must be a non-empty string, received ${JSON.stringify(value)}`);
-  }
-  return value;
-}
-
-function requireOptionalPromptText(value, field) {
-  return value === null ? null : requirePromptText(value, field);
-}
-
-function requirePromptCount(value, field) {
-  if (typeof value !== 'number' || !Number.isInteger(value) || value <= 0) {
-    throw new TypeError(`prompt-contract: ${field} must be a positive integer, received ${describe(value)}`);
-  }
-  return value;
-}
-
-function requireOptionalPromptCount(value, field) {
-  return value === null ? null : requirePromptCount(value, field);
-}
-
-function requirePromptTextList(value, field) {
-  if (!Array.isArray(value)) {
-    throw new TypeError(`prompt-contract: ${field} must be an array of non-empty strings, received ${describe(value)}`);
-  }
-  return Object.freeze(value.map((entry, index) => requirePromptText(entry, `${field}[${index}]`)));
 }
 
 function requireIsolationMode(value, field) {
@@ -71,19 +52,23 @@ function requireIsolationMode(value, field) {
   return text;
 }
 
-function requirePromptRecord(value, field) {
-  if (value === null || typeof value !== 'object' || Array.isArray(value)) {
-    throw new TypeError(`prompt-contract: ${field} must be a non-null, non-array object, received ${describe(value)}`);
+function requireTruncatedList(value, field) {
+  const text = requirePromptText(value, field);
+  if (!TRUNCATED_LISTS.includes(text)) {
+    throw new TypeError(`prompt-contract: ${field} must be one of ${TRUNCATED_LISTS.join(', ')}, received ${JSON.stringify(text)}; the marker must name which of the two lists lost entries, because a truncated edit list narrows a write fence and a truncated read list narrows context`);
   }
-  return value;
+  return text;
 }
 
 function requireTruncationMarker(value, field) {
-  if (value === null) return null;
+  if (value === null || value === undefined) return null;
   requirePromptRecord(value, field);
-  requirePromptCount(value.dropped, `${field}.dropped`);
-  requirePromptText(value.reason, `${field}.reason`);
-  return Object.freeze({ dropped: value.dropped, reason: value.reason });
+  const declared = ownValue(value, 'list');
+  return Object.freeze({
+    dropped: requirePromptCount(ownValue(value, 'dropped'), `${field}.dropped`),
+    reason: requirePromptText(ownValue(value, 'reason'), `${field}.reason`),
+    list: declared === undefined ? TRUNCATED_READ : requireTruncatedList(declared, `${field}.list`),
+  });
 }
 
 function requireFileScope(value, field) {
@@ -92,18 +77,18 @@ function requireFileScope(value, field) {
     throw new TypeError(`prompt-contract: ${field} must declare truncated, which is null unless entries were dropped`);
   }
   return Object.freeze({
-    edit: requirePromptTextList(value.edit, `${field}.edit`),
-    read: requirePromptTextList(value.read, `${field}.read`),
-    truncated: requireTruncationMarker(value.truncated, `${field}.truncated`),
+    edit: requirePromptPathspecList(ownValue(value, 'edit'), `${field}.edit`),
+    read: requirePromptPathspecList(ownValue(value, 'read'), `${field}.read`),
+    truncated: requireTruncationMarker(ownValue(value, 'truncated'), `${field}.truncated`),
   });
 }
 
 function requireFinding(value, field) {
   requirePromptRecord(value, field);
   return Object.freeze({
-    axis: requirePromptText(value.axis, `${field}.axis`),
-    severity: requirePromptText(value.severity, `${field}.severity`),
-    detail: requirePromptText(value.detail, `${field}.detail`),
+    axis: requirePromptText(ownValue(value, 'axis'), `${field}.axis`),
+    severity: requirePromptText(ownValue(value, 'severity'), `${field}.severity`),
+    detail: requirePromptText(ownValue(value, 'detail'), `${field}.detail`),
   });
 }
 
@@ -118,84 +103,142 @@ const FIELD_VALIDATORS = Object.freeze({
   text: requirePromptText,
   optionalText: requireOptionalPromptText,
   count: requirePromptCount,
-  optionalCount: requireOptionalPromptCount,
+  nonNegativeCount: requireNonNegativePromptCount,
   textList: requirePromptTextList,
+  optionalTextList: requireOptionalPromptTextList,
+  pathspecList: requirePromptPathspecList,
+  path: requirePromptPath,
+  glob: requirePromptGlob,
+  ref: requirePromptRef,
+  slug: requirePromptSlug,
+  command: requirePromptCommand,
   isolation: requireIsolationMode,
   fileScope: requireFileScope,
   findingList: requireFindingList,
   record: requirePromptRecord,
 });
 
-function field(name, type) {
-  return Object.freeze({ name, type });
-}
-
-function texts(...names) {
-  return names.map((name) => field(name, 'text'));
+function spec(shape) {
+  return Object.freeze(Object.entries(shape).map(([name, type]) => Object.freeze({ name, type })));
 }
 
 export const PROMPT_INPUT_SPECS = Object.freeze({
-  decompose: Object.freeze([
-    ...texts('specPath', 'repoRoot'),
-    field('changeTypes', 'textList'),
-  ]),
-  plan: Object.freeze([
-    ...texts('unitId', 'title', 'libDir', 'writingPlansGlob', 'rationale', 'repoRoot', 'dependsList', 'specPath'),
-    field('fileScope', 'fileScope'),
-  ]),
-  'plan-review': Object.freeze([
-    ...texts('unitId', 'title', 'planPath', 'rationale', 'dependsList'),
-    field('iteration', 'count'),
-  ]),
-  replan: Object.freeze([
-    ...texts('unitId', 'title', 'planPath', 'rationale', 'dependsList'),
-    field('findings', 'findingList'),
-  ]),
-  implement: Object.freeze([
-    ...texts('implementerPreamble', 'repoRoot', 'branch', 'worktree', 'baseBranch', 'scopedCheckCmd', 'taskTitle', 'taskFullText'),
-    field('priorIssues', 'textList'),
-    field('isolation', 'isolation'),
-    field('fileScope', 'fileScope'),
-  ]),
-  review: Object.freeze([
-    ...texts('specReviewerPreamble', 'qualityReviewerPreamble', 'repoRoot', 'baseBranch', 'branch', 'launchCommit', 'taskFullText'),
-    field('isolation', 'isolation'),
-    field('fileScope', 'fileScope'),
-  ]),
-  security: Object.freeze([
-    ...texts('repoRoot', 'baseBranch', 'branch', 'launchCommit', 'taskId', 'taskTitle', 'taskFullText'),
-    field('isolation', 'isolation'),
-    field('fileScope', 'fileScope'),
-  ]),
-  fix: Object.freeze([
-    ...texts('repoRoot', 'scopedCheckCmd', 'taskFullText', 'worktree', 'branch'),
-    field('isolation', 'isolation'),
-    field('fileScope', 'fileScope'),
-    field('issues', 'textList'),
-  ]),
-  'boundary-fix': Object.freeze([
-    ...texts('repoRoot', 'baseBranch', 'integrationWorktree', 'gateOutput'),
-    field('isolation', 'isolation'),
-  ]),
-  'ci-fix': Object.freeze([
-    ...texts('unitId', 'repoRoot', 'integrationBranch', 'ciConclusion', 'detail'),
-    field('failedChecks', 'textList'),
-    field('implicatedPaths', 'textList'),
-    field('declaredScope', 'textList'),
-    field('failingAssertionFiles', 'textList'),
-  ]),
-  diagnose: Object.freeze([
-    ...texts('unitId', 'stage', 'task'),
-    field('evidence', 'record'),
-    field('triedSet', 'textList'),
-    field('rejectedMechanism', 'optionalText'),
-  ]),
-  redispatch: Object.freeze([
-    ...texts('unitId', 'stage', 'task', 'correctedTask', 'mechanism'),
-    field('attempt', 'count'),
-    field('backoffSeconds', 'optionalCount'),
-  ]),
+  decompose: spec({ specPath: 'path', repoRoot: 'path', changeTypes: 'textList' }),
+  plan: spec({
+    unitId: 'slug',
+    title: 'text',
+    libDir: 'path',
+    writingPlansGlob: 'glob',
+    rationale: 'text',
+    repoRoot: 'path',
+    dependsList: 'text',
+    specPath: 'path',
+    fileScope: 'fileScope',
+  }),
+  'plan-review': spec({
+    unitId: 'slug',
+    title: 'text',
+    planPath: 'path',
+    rationale: 'text',
+    dependsList: 'text',
+    iteration: 'count',
+  }),
+  replan: spec({
+    unitId: 'slug',
+    title: 'text',
+    planPath: 'path',
+    rationale: 'text',
+    dependsList: 'text',
+    findings: 'findingList',
+  }),
+  implement: spec({
+    implementerPreamble: 'text',
+    repoRoot: 'path',
+    branch: 'ref',
+    worktree: 'path',
+    baseBranch: 'ref',
+    scopedCheckCmd: 'command',
+    taskTitle: 'text',
+    taskFullText: 'text',
+    priorIssues: 'optionalTextList',
+    isolation: 'isolation',
+    fileScope: 'fileScope',
+  }),
+  review: spec({
+    specReviewerPreamble: 'text',
+    qualityReviewerPreamble: 'text',
+    repoRoot: 'path',
+    baseBranch: 'ref',
+    branch: 'ref',
+    launchCommit: 'ref',
+    taskFullText: 'text',
+    isolation: 'isolation',
+    fileScope: 'fileScope',
+  }),
+  security: spec({
+    repoRoot: 'path',
+    baseBranch: 'ref',
+    branch: 'ref',
+    launchCommit: 'ref',
+    taskId: 'text',
+    taskTitle: 'text',
+    taskFullText: 'text',
+    isolation: 'isolation',
+    fileScope: 'fileScope',
+  }),
+  fix: spec({
+    repoRoot: 'path',
+    scopedCheckCmd: 'command',
+    taskFullText: 'text',
+    worktree: 'path',
+    branch: 'ref',
+    isolation: 'isolation',
+    fileScope: 'fileScope',
+    issues: 'textList',
+  }),
+  'boundary-fix': spec({
+    repoRoot: 'path',
+    baseBranch: 'ref',
+    integrationWorktree: 'path',
+    gateOutput: 'text',
+    isolation: 'isolation',
+  }),
+  'ci-fix': spec({
+    unitId: 'slug',
+    repoRoot: 'path',
+    integrationBranch: 'ref',
+    ciConclusion: 'text',
+    detail: 'text',
+    failedChecks: 'textList',
+    implicatedPaths: 'textList',
+    declaredScope: 'pathspecList',
+    failingAssertionFiles: 'textList',
+  }),
+  diagnose: spec({
+    unitId: 'slug',
+    stage: 'text',
+    task: 'text',
+    evidence: 'record',
+    triedSet: 'textList',
+    rejectedMechanism: 'optionalText',
+  }),
+  redispatch: spec({
+    unitId: 'slug',
+    stage: 'text',
+    task: 'text',
+    correctedTask: 'optionalText',
+    mechanism: 'text',
+    attempt: 'count',
+    backoffSeconds: 'nonNegativeCount',
+  }),
 });
+
+function refuseTruncatedReviewTarget(kind, validated) {
+  if (!REVIEW_KINDS.includes(kind)) return;
+  const marker = validated.fileScope.truncated;
+  if (marker === null || marker.list !== TRUNCATED_EDIT) return;
+  throw new TypeError(`prompt-contract: the ${kind} input declares fileScope.truncated.list "edit", so the edit list this dispatch reviews is a strict subset of what was written; a review composed over a knowingly-partial target returns a verdict on code it never saw, and the prompt also tells the reviewer not to flag files outside the scope as missing, so the omission would be invisible in the verdict as well as in the diff`);
+}
 
 export function validatePromptInput(kind, input) {
   if (!Object.hasOwn(PROMPT_INPUT_SPECS, kind)) {
@@ -205,12 +248,12 @@ export function validatePromptInput(kind, input) {
     throw new TypeError(`prompt-contract: the ${kind} input must be a non-null, non-array object, received ${describe(input)}`);
   }
   const validated = {};
-  for (const spec of PROMPT_INPUT_SPECS[kind]) {
-    const validate = FIELD_VALIDATORS[spec.type];
-    if (validate === undefined) {
-      throw new TypeError(`prompt-contract: the ${kind} field ${spec.name} declares the type ${JSON.stringify(spec.type)}, which this contract cannot validate`);
+  for (const declared of PROMPT_INPUT_SPECS[kind]) {
+    if (!Object.hasOwn(FIELD_VALIDATORS, declared.type)) {
+      throw new TypeError(`prompt-contract: the ${kind} field ${declared.name} declares the type ${JSON.stringify(declared.type)}, which this contract cannot validate`);
     }
-    validated[spec.name] = validate(input[spec.name], spec.name);
+    validated[declared.name] = FIELD_VALIDATORS[declared.type](ownValue(input, declared.name), declared.name);
   }
+  refuseTruncatedReviewTarget(kind, validated);
   return Object.freeze(validated);
 }

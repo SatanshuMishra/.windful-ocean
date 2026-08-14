@@ -1,4 +1,5 @@
 import { cleanPromptValue, validatePromptInput } from './prompt-contract.mjs';
+import { ownValue } from './prompt-values.mjs';
 
 const SCOPE_FENCE = 'scope-fence';
 
@@ -29,33 +30,53 @@ export function composeCiFixPrompt(input) {
     `Return ONLY: { changedPaths: [ "<repo-relative path>" ], detail: "<what you changed and why it addresses the failing assertion>" }.`;
 }
 
-export function composeDiagnosePrompt(input) {
-  const { unitId, stage, task, evidence, triedSet, rejectedMechanism } = validatePromptInput('diagnose', input);
-  const cause = evidence.cause ? { mechanism: evidence.cause.mechanism, diagnosis: evidence.cause.diagnosis } : evidence;
-  const excluded = rejectedMechanism === null || triedSet.includes(rejectedMechanism)
-    ? [...triedSet]
-    : [...triedSet, rejectedMechanism];
-  const tried = excluded.length > 0 ? excluded.join(', ') : '(none)';
-  const rejectedLine = rejectedMechanism === null
+function diagnoseCause(evidence) {
+  const cause = ownValue(evidence, 'cause');
+  return cause ? { mechanism: ownValue(cause, 'mechanism'), diagnosis: ownValue(cause, 'diagnosis') } : evidence;
+}
+
+function excludedMechanisms(triedSet, rejectedMechanism) {
+  if (rejectedMechanism === null) return [...triedSet];
+  return triedSet.includes(rejectedMechanism) ? [...triedSet] : [...triedSet, rejectedMechanism];
+}
+
+function triedListing(excluded) {
+  return excluded.length > 0 ? excluded.join(', ') : '(none)';
+}
+
+function rejectedProposalLine(rejectedMechanism) {
+  return rejectedMechanism === null
     ? ''
     : `Your immediately-previous within-cycle proposal "${rejectedMechanism}" was already attempted and rejected this cycle; propose a genuinely different, untried mechanism, or return verdict "needs-human" if no untried mechanism exists.\n`;
+}
+
+export function composeDiagnosePrompt(input) {
+  const { unitId, stage, task, evidence, triedSet, rejectedMechanism } = validatePromptInput('diagnose', input);
+  const tried = triedListing(excludedMechanisms(triedSet, rejectedMechanism));
   return `You are the in-run diagnostician for MSP "${unitId}" at the ${stage} stage of a mitosis run. You have NO Skill tool; follow these instructions directly.\n\n` +
-    `A prior attempt at this stage failed with an approach-fixable fault. Failure evidence: ${cleanPromptValue(cause)}\n` +
+    `A prior attempt at this stage failed with an approach-fixable fault. Failure evidence: ${cleanPromptValue(diagnoseCause(evidence))}\n` +
     `Mechanisms already tried and excluded (do NOT repeat any of these): ${tried}\n` +
-    rejectedLine +
+    rejectedProposalLine(rejectedMechanism) +
     `Original objective for this stage: ${task}\n\n` +
     `Diagnose the root cause and propose ONE untried, concrete corrective mechanism as a "<category>:<mechanism>" fingerprint (lowercase, e.g. "worktree:reset-clean"), plus a correctedTask describing exactly what to do differently. If no mechanical correction is possible and a human must decide, return verdict "needs-human" with a request describing what you need.\n\n` +
     `Return ONLY: { verdict: "remediable" | "needs-human", mechanism?: "<category>:<mechanism>", correctedTask?: "<what to do differently>", diagnosis?: "<root cause>", request?: { kind, what } }.`;
 }
 
-export function composeRedispatchPrompt(input) {
-  const { unitId, stage, task, correctedTask, mechanism, attempt, backoffSeconds } = validatePromptInput('redispatch', input);
-  const backoff = backoffSeconds === null
+function backoffClause(backoffSeconds) {
+  return backoffSeconds === 0
     ? ''
     : `Before doing anything else, back off once to let transient conditions clear by running this exactly once in your shell: \`sleep ${backoffSeconds}\`. Do NOT loop or poll; run it a single time, then continue.\n`;
+}
+
+function correctionDirective(correctedTask, mechanism) {
+  return correctedTask === null ? mechanism : correctedTask;
+}
+
+export function composeRedispatchPrompt(input) {
+  const { unitId, stage, task, correctedTask, mechanism, attempt, backoffSeconds } = validatePromptInput('redispatch', input);
   return `You are re-attempting the ${stage} stage for MSP "${unitId}" of a mitosis run after an in-run diagnosis (correction attempt ${attempt}). You have NO Skill tool; follow these instructions directly.\n\n` +
-    backoff +
-    `The prior attempt failed. Apply this corrected approach BEFORE producing the result: ${correctedTask || mechanism}\n` +
+    backoffClause(backoffSeconds) +
+    `The prior attempt failed. Apply this corrected approach BEFORE producing the result: ${correctionDirective(correctedTask, mechanism)}\n` +
     `Diagnosed mechanism fingerprint: ${mechanism}\n` +
     `Original objective for this stage: ${task}\n\n` +
     `Perform the ${stage} stage's work exactly as its normal instructions require, incorporating the correction, and return ONLY that stage's normal structured result.`;

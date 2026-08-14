@@ -52,16 +52,17 @@ const EXEC_ALLOWLIST_NOT_ATTESTED = Object.freeze([
 ]);
 
 const PROMPT_REGISTRY_ATTESTS = Object.freeze([
-  'every prompt kind the authority names has a composer, and every composer entry names a kind the authority names',
+  'every prompt kind the authority names has a composer, every composer entry names a kind the authority names, and every kind was handed at least one probe case, so the reported kind count is a measurement rather than the length of the authority list',
   'each kind composes byte-identical text when composed twice from one frozen input',
-  'every declared input field of every probe case changes the composed bytes when perturbed on its own',
-  'every field a probe case leaves undeclared leaves the composed bytes unchanged, so an unaudited live field halts rather than passing',
+  'every declared input path of every probe case changes the composed bytes when perturbed on its own, down to each leaf of a compound field, so a field rendered at one leaf and ignored at another cannot pass as measured',
+  'every path a probe case leaves undeclared leaves the composed bytes unchanged, so an unaudited live field halts rather than passing',
+  'every path a probe case declares refused is refused by the contract, so a declared guard that is not there halts rather than being credited',
 ]);
 
 const PROMPT_REGISTRY_NOT_ATTESTED = Object.freeze([
-  'that the registry prose still matches the copies inlined in mitosis.js and run-engine.mjs: the two live side by side until the engine is ported onto the registry',
+  'that the registry prose still matches the copies inlined in mitosis.js and run-engine.mjs: the two live side by side until the engine is ported onto the registry, and the anchor guard that measures it is a suite test rather than this verb',
   'that a composed prompt is the right instruction for the agent that receives it; only its determinism and its input sensitivity are measured',
-  'the byte fixtures transcribed from the engine, which are pinned by the test suite rather than by this verb',
+  'the byte fixtures transcribed from the engine, and the per-branch arm census that pins them, which are both held by the test suite rather than by this verb',
 ]);
 
 const TARGETLESS_VERBS = Object.freeze(new Set(['exec-allowlist', 'prompt-registry']));

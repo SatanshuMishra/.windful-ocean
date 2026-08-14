@@ -30,6 +30,18 @@ const BARE_FILE_SCOPE = Object.freeze({
   truncated: null,
 });
 
+const BARE_CONTEXT_FILE_SCOPE = Object.freeze({
+  edit: Object.freeze(['fx/alpha.mjs', 'fx/beta.mjs']),
+  read: Object.freeze([]),
+  truncated: null,
+});
+
+const EDIT_TRUNCATED_FILE_SCOPE = Object.freeze({
+  edit: Object.freeze(['fx/alpha.mjs', 'fx/beta.mjs']),
+  read: Object.freeze(['fx/gamma.mjs']),
+  truncated: Object.freeze({ dropped: 4, reason: 'fx edit truncation reason', list: 'edit' }),
+});
+
 const CHANGE_TYPES = Object.freeze(['feat', 'fix', 'refactor', 'docs', 'test', 'chore', 'perf', 'ci']);
 const PRIOR_ISSUES = Object.freeze(['fx prior issue one', 'fx prior issue two']);
 const FIX_ISSUES = Object.freeze(['fx fix issue one', 'fx fix issue two']);
@@ -115,6 +127,19 @@ export const PROMPT_FIXTURE_CASES = Object.freeze([
     taskFullText: TASK_FULL_TEXT,
     fileScope: RICH_FILE_SCOPE,
   }),
+  freezeCase('implement-worktree-no-prior-issues', 'implement', {
+    implementerPreamble: IMPLEMENTER_PREAMBLE,
+    priorIssues: null,
+    isolation: 'worktree',
+    repoRoot: REPO_ROOT,
+    branch: BRANCH,
+    worktree: WORKTREE,
+    baseBranch: BASE_BRANCH,
+    scopedCheckCmd: SCOPED_CHECK_CMD,
+    taskTitle: TASK_TITLE,
+    taskFullText: TASK_FULL_TEXT,
+    fileScope: RICH_FILE_SCOPE,
+  }),
   freezeCase('implement-scope-fence', 'implement', {
     implementerPreamble: IMPLEMENTER_PREAMBLE,
     priorIssues: PRIOR_ISSUES,
@@ -127,6 +152,19 @@ export const PROMPT_FIXTURE_CASES = Object.freeze([
     taskTitle: TASK_TITLE,
     taskFullText: TASK_FULL_TEXT,
     fileScope: RICH_FILE_SCOPE,
+  }),
+  freezeCase('implement-scope-fence-bare-context', 'implement', {
+    implementerPreamble: IMPLEMENTER_PREAMBLE,
+    priorIssues: PRIOR_ISSUES,
+    isolation: 'scope-fence',
+    repoRoot: REPO_ROOT,
+    branch: BRANCH,
+    worktree: WORKTREE,
+    baseBranch: BASE_BRANCH,
+    scopedCheckCmd: SCOPED_CHECK_CMD,
+    taskTitle: TASK_TITLE,
+    taskFullText: TASK_FULL_TEXT,
+    fileScope: BARE_CONTEXT_FILE_SCOPE,
   }),
   freezeCase('review-worktree', 'review', {
     specReviewerPreamble: SPEC_REVIEWER_PREAMBLE,
@@ -192,6 +230,16 @@ export const PROMPT_FIXTURE_CASES = Object.freeze([
     worktree: WORKTREE,
     branch: BRANCH,
   }),
+  freezeCase('fix-scope-fence-edit-truncated', 'fix', {
+    isolation: 'scope-fence',
+    repoRoot: REPO_ROOT,
+    fileScope: EDIT_TRUNCATED_FILE_SCOPE,
+    issues: FIX_ISSUES,
+    scopedCheckCmd: SCOPED_CHECK_CMD,
+    taskFullText: TASK_FULL_TEXT,
+    worktree: WORKTREE,
+    branch: BRANCH,
+  }),
   freezeCase('boundary-fix-worktree', 'boundary-fix', {
     isolation: 'worktree',
     repoRoot: REPO_ROOT,
@@ -225,6 +273,22 @@ export const PROMPT_FIXTURE_CASES = Object.freeze([
     triedSet: Object.freeze(['fx:tried-one', 'fx:tried-two']),
     rejectedMechanism: 'fx:rejected-mechanism',
   }),
+  freezeCase('diagnose-no-rejection', 'diagnose', {
+    unitId: UNIT_ID,
+    stage: 'fx-stage',
+    task: 'fx stage objective',
+    evidence: Object.freeze({ signal: 'fx transient signal' }),
+    triedSet: Object.freeze([]),
+    rejectedMechanism: null,
+  }),
+  freezeCase('diagnose-already-tried', 'diagnose', {
+    unitId: UNIT_ID,
+    stage: 'fx-stage',
+    task: 'fx stage objective',
+    evidence: EVIDENCE,
+    triedSet: Object.freeze(['fx:tried-one', 'fx:rejected-mechanism']),
+    rejectedMechanism: 'fx:rejected-mechanism',
+  }),
   freezeCase('redispatch', 'redispatch', {
     unitId: UNIT_ID,
     stage: 'fx-stage',
@@ -233,6 +297,15 @@ export const PROMPT_FIXTURE_CASES = Object.freeze([
     mechanism: 'fx:diagnosed-mechanism',
     attempt: 3,
     backoffSeconds: 30,
+  }),
+  freezeCase('redispatch-no-correction', 'redispatch', {
+    unitId: UNIT_ID,
+    stage: 'fx-stage',
+    task: 'fx stage objective',
+    correctedTask: null,
+    mechanism: 'fx:diagnosed-mechanism',
+    attempt: 3,
+    backoffSeconds: 0,
   }),
 ]);
 
