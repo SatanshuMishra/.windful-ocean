@@ -4,6 +4,7 @@ import { closeSync, constants, existsSync, lstatSync, mkdirSync, openSync, readd
 import { isAbsolute, join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { CHECKPOINT_REF_PREFIX, MANIFEST_REF_PREFIX, validateRefToken } from './checkpoint.mjs';
+import { appendJournalLine, composeJournalLine, elapsedBetween, ensureGitignored, writeGenesis } from './journal-store.mjs';
 import { isIsoInstant } from './run-log.mjs';
 
 const RUN_KEY_DOMAIN = 'mitosis-run-key/1\n';
@@ -30,6 +31,10 @@ const USAGE = [
   'usage: run-store.mjs key <spec.json>',
   '       run-store.mjs open <spec.json> --root <dir> --started-at <iso8601> --unit <id> [--unit <id> ...] [--pid <n>] [--run-id <8 hex>]',
   '       run-store.mjs retire [--root <dir> --run-key <64 hex>] [--repo <dir> --run-id <8 hex>] [--force]',
+  '       run-store.mjs journal genesis --path <journal> --manifest <manifest.json>',
+  '       run-store.mjs journal append --path <journal> --kind <kind> --record <record.json>',
+  '       run-store.mjs journal gitignore --path <.gitignore> --entry <line>',
+  '       run-store.mjs journal elapsed --at <iso8601> [--prior-at <iso8601>]',
 ].join('\n');
 
 function usageError(message) {
@@ -596,6 +601,48 @@ function retireVerb(rest) {
   });
 }
 
+function requireJournalFlag(flags, name, action) {
+  if (!Object.hasOwn(flags, name)) throw usageError(`run-store: the journal ${action} verb needs --${name}`);
+  return flags[name];
+}
+
+const JOURNAL_ACTIONS = Object.freeze({
+  genesis: (flags) => writeGenesis({
+    path: requireJournalFlag(flags, 'path', 'genesis'),
+    manifest: readJsonFile(requireJournalFlag(flags, 'manifest', 'genesis'), 'genesis manifest'),
+  }),
+  append: (flags) => appendJournalLine({
+    path: requireJournalFlag(flags, 'path', 'append'),
+    line: composeJournalLine(
+      requireJournalFlag(flags, 'kind', 'append'),
+      readJsonFile(requireJournalFlag(flags, 'record', 'append'), 'journal record'),
+    ),
+  }),
+  gitignore: (flags) => ensureGitignored({
+    path: requireJournalFlag(flags, 'path', 'gitignore'),
+    entry: requireJournalFlag(flags, 'entry', 'gitignore'),
+  }),
+  elapsed: (flags) => ({
+    elapsed: elapsedBetween(
+      Object.hasOwn(flags, 'prior-at') ? flags['prior-at'] : null,
+      requireJournalFlag(flags, 'at', 'elapsed'),
+    ),
+  }),
+});
+
+function journalVerb(rest) {
+  const { positional, flags } = parseFlags(rest, []);
+  const [action] = positional;
+  if (!action) {
+    throw usageError(`run-store: the journal verb needs an action; the actions are ${Object.keys(JOURNAL_ACTIONS).join(', ')}`);
+  }
+  if (!Object.hasOwn(JOURNAL_ACTIONS, action)) {
+    throw usageError(`run-store: ${JSON.stringify(action)} is not a journal action; the actions are ${Object.keys(JOURNAL_ACTIONS).join(', ')}`);
+  }
+  const result = JOURNAL_ACTIONS[action](flags);
+  return { action, ...result };
+}
+
 function main() {
   const [verb, ...rest] = process.argv.slice(2);
   try {
@@ -609,6 +656,10 @@ function main() {
     }
     if (verb === 'retire') {
       process.stdout.write(`${JSON.stringify(retireVerb(rest))}\n`);
+      return;
+    }
+    if (verb === 'journal') {
+      process.stdout.write(`${JSON.stringify(journalVerb(rest))}\n`);
       return;
     }
     throw usageError(`run-store: ${verb === undefined ? 'no verb was given' : `${JSON.stringify(verb)} is not a verb this tool knows`}`);
