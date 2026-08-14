@@ -306,7 +306,6 @@
     "visual-explainer@visual-explainer-marketplace": true,
     "receipts@receipts": true,
     "warp@claude-code-warp": true,
-    "logbook@continuity-ledger": true,
     "logbook@logbook": true
   },
   "extraKnownMarketplaces": {
@@ -332,12 +331,6 @@
       "source": {
         "source": "github",
         "repo": "warpdotdev/claude-code-warp"
-      }
-    },
-    "continuity-ledger": {
-      "source": {
-        "source": "github",
-        "repo": "SatanshuMishra/continuity-ledger-plugin"
       }
     }
   },
