@@ -77,7 +77,7 @@ test('a job carrying no name, a null conclusion or an unreadable body fails clos
 test('the conflicting paths are the unmerged entries git named', () => {
   const read = parseConflictPaths(ran(0, 'src/a.ts\n"src/caf\\303\\251.txt"\n'));
   assert.equal(read.ok, true, JSON.stringify(read));
-  assert.deepEqual([...read.conflictPaths], ['src/a.ts', 'src/café.txt']);
+  assert.deepEqual([...read.conflictPaths], ['src/a.ts', 'src/caf\u00e9.txt']);
 });
 
 test('an aborted merge with nothing unmerged reports an empty conflict list', () => {

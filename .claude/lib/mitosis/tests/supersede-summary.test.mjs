@@ -38,7 +38,7 @@ test('a binary file numstat line reports no line counts rather than counting a d
 test('a rename path git c-quotes is reported as the identity git named, not as its escaped spelling', () => {
   const read = parseNumstat(ran(0, '1\t1\t"src/caf\\303\\251.txt"\n'));
   assert.equal(read.ok, true, JSON.stringify(read));
-  assert.equal(read.files[0].path, 'src/café.txt');
+  assert.equal(read.files[0].path, 'src/caf\u00e9.txt');
 });
 
 test('a numstat line this reader cannot split fails closed rather than being counted as zero', () => {
