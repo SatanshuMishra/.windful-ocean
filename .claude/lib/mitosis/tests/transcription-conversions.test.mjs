@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { GIT_SITES, GIT_SITE_COMMANDS } from '../git-commands.mjs';
 import { GIT_COMMAND_FIXTURES, MANIFEST_WRITE_FIXTURE, PLAN_PROBE_FIXTURE } from '../git-command-fixtures.mjs';
-import { NON_SPAWN_SITES, censusGitCommandFixtures, expandedArgv, gitCommandFixtureCensus, nonSpawnFailures } from '../transcription-conversions.mjs';
+import { NON_SPAWN_SITES, argvInertnessProbe, censusGitCommandFixtures, expandedArgv, gitCommandFixtureCensus, nonSpawnFailures } from '../transcription-conversions.mjs';
 
 const INCUMBENT = readFileSync(new URL('../../../workflows/mitosis.js', import.meta.url), 'utf8');
 
@@ -179,6 +179,14 @@ test('the filesystem write and the plan artifact probe are anchored to the incum
   assert.ok(INCUMBENT.includes(MANIFEST_WRITE_FIXTURE.anchor));
   assert.ok(INCUMBENT.includes(PLAN_PROBE_FIXTURE.anchor));
   assert.equal(PLAN_PROBE_FIXTURE.refusedBinary, 'test');
+});
+
+test('a transcribed value full of shell metacharacters reaches the child whole, with no shell between', () => {
+  const measured = argvInertnessProbe();
+  assert.equal(measured.built, true, measured.detail);
+  assert.equal(measured.carriedWhole, true, `the hostile value did not arrive as exactly one argument: ${measured.detail}`);
+  assert.equal(measured.unsplit, true, `the argument vector changed length on the way to the child: ${measured.detail}`);
+  assert.equal(measured.shellRefused, true, `the child was spawned through a shell, so every transcribed value is a word the shell may expand: ${measured.detail}`);
 });
 
 test('the census refuses to attest anything when handed no fixture or no incumbent source', () => {

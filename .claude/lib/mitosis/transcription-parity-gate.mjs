@@ -17,7 +17,7 @@ import {
   transcriptionCensus,
 } from './transcription-census.mjs';
 import { GIT_COMMAND_FIXTURES } from './git-command-fixtures.mjs';
-import { censusGitCommandFixtures, gitCommandFixtureCensus, parserProbes } from './transcription-conversions.mjs';
+import { argvInertnessProbe, censusGitCommandFixtures, gitCommandFixtureCensus, parserProbes } from './transcription-conversions.mjs';
 import { manifestPublishProbe } from './manifest-publish.mjs';
 
 const MANIFEST_PUBLISH_SPAWNS = 9;
@@ -44,6 +44,7 @@ export const TRANSCRIPTION_PARITY_ATTESTS = Object.freeze([
   'every site parser is run here against the output it is declared to read and against the same output relabelled as a run that never completed, so a parser that has gone blind and a parser that reads a fact out of an interrupted run are both caught by this verb rather than only by the suite',
   'the bytes a converted step hands a child on stdin are pinned to the incumbent that composed them, so a payload name that drifts by one word halts here rather than publishing an identity a later run cannot read back',
   'the manifest publish stage is run here against a recording repository on every invocation, and its step-3 filesystem write, its stdin-only payload, its unforced identity push and its write-once replay are each measured rather than declared',
+  'a transcribed command carrying a value full of shell metacharacters is spawned here through the chokepoint on every invocation, and the value is measured arriving as exactly one argument with the child spawned directly rather than through a shell',
 ]);
 
 export const TRANSCRIPTION_PARITY_NOT_ATTESTED = Object.freeze([
@@ -100,9 +101,15 @@ function fixtureFor(site, step) {
 const CONVERSION_CONTROLS = Object.freeze([
   Object.freeze({
     name: 'an argument the incumbent never spelled halts',
-    expect: '"--force"',
+    expect: 'was transcribed from',
     anchoredOn: Object.freeze({ site: 'checkpoint-push', step: 'push' }),
     mutate: (fixture) => ({ ...fixture, argv: Object.freeze(['-C', '<repoRoot>', 'push', '--force', 'origin', '<integrationBranch>:<durableCheckpointRef>']) }),
+  }),
+  Object.freeze({
+    name: 'an argument that departs from the incumbent with no stated reason halts',
+    expect: 'with no reason',
+    anchoredOn: Object.freeze({ site: 'integrate', step: 'checkout' }),
+    mutate: (fixture) => ({ ...fixture, derived: Object.freeze({ '-C': '' }) }),
   }),
   Object.freeze({
     name: 'an anchor that no longer appears in the incumbent halts',
@@ -242,6 +249,7 @@ export function probeTranscriptionSubstrate() {
     parsers: parserProbes(),
     manifestPublish: manifestPublishProbe(),
     conversionStateControls: engine.error === undefined ? conversionStateProbes(engine.sources) : Object.freeze([]),
+    argvInertness: argvInertnessProbe(),
   });
 }
 
@@ -348,6 +356,15 @@ export function transcriptionParityFailures(substrate) {
   if (substrate.conversionStateControls.length === 0) {
     failures.push('the conversion count ran no negative control at all, so nothing here would notice the count drifting from the replacements it counts');
   }
+  const inert = substrate.argvInertness;
+  if (!inert.built) {
+    failures.push(`a transcribed command could not be built from a value carrying shell metacharacters, so nothing here measures whether such a value stays inert: ${inert.detail}`);
+  } else if (!inert.carriedWhole || !inert.unsplit) {
+    failures.push(`a value carrying shell metacharacters did not reach the child as exactly one argument: ${inert.detail}; transcribing these sites into argument vectors buys nothing if the value is split or duplicated on the way`);
+  }
+  if (!inert.shellRefused) {
+    failures.push(`the chokepoint handed the child a shell rather than spawning it directly: ${inert.detail}; with a shell every transcribed value becomes a word the shell may expand, which is the whole harm the argument vector exists to prevent`);
+  }
   return failures;
 }
 
@@ -404,6 +421,7 @@ export function transcriptionParityVerdict() {
       manifestPublishSpawns: substrate.manifestPublish.spawnCount,
       manifestPublishWrites: substrate.manifestPublish.writeCount,
       manifestPublishReplaySpawns: substrate.manifestPublish.replaySpawnCount,
+      argvInertness: `${substrate.argvInertness.carriedWhole && substrate.argvInertness.unsplit ? 'one argument' : 'SPLIT'}, ${substrate.argvInertness.shellRefused ? 'no shell' : 'SHELL'}`,
       derivedArguments: [...substrate.conversions.derivedArguments],
       stdinSteps: [...substrate.conversions.stdinSteps],
       conversionControls: substrate.conversionControls.map((control) => `${control.name}: ${control.anchorPresent && control.halted && control.named ? 'halted and named' : 'INERT'}`),
