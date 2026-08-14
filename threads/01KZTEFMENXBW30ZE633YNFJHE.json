@@ -59,7 +59,7 @@
     {
       "id": "c13",
       "text": "The orphaned tmux gitlinks that fail actions/checkout under persist-credentials false are untracked and guarded by a closed census, with the three mitosis-gate legs proven green on a real runner.",
-      "done": false,
+      "done": true,
       "kind": "detour",
       "struck_by": null
     },
@@ -403,5 +403,5 @@
     ]
   },
   "created_at": "2026-08-12T07:37:41.077Z",
-  "updated_at": "2026-08-14T05:08:50.015Z"
+  "updated_at": "2026-08-14T05:08:55.539Z"
 }
