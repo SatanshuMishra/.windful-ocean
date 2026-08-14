@@ -430,20 +430,70 @@ const REGISTERED_SITE_CONTROLS = Object.freeze([
   }),
 ]);
 
+const UNDECLARED_PENDING_KIND = 'ci-fact-extract-extra';
+
+function pendingProbe(name, expect, sources, pending) {
+  const measured = censusTranscriptionSources(
+    sources.map((entry) => ({ ...entry })),
+    TRANSCRIPTION_KINDS,
+    CONVERTED_TRANSCRIPTION_SITES,
+    pending,
+  );
+  return Object.freeze({
+    name,
+    halted: measured.ok !== true,
+    named: measured.ok !== true && typeof measured.error === 'string' && measured.error.includes(expect),
+    anchorPresent: true,
+    detail: measured.ok === true ? 'the census accepted it' : measured.error,
+  });
+}
+
 export function pendingJudgmentProbes(sources) {
-  return Object.freeze(PENDING_JUDGMENT_KINDS.map((pending) => {
-    const reached = [
-      ...sources.map((entry) => ({ ...entry })),
+  const baseline = censusTranscriptionSources(sources.map((entry) => ({ ...entry })));
+  if (baseline.ok !== true) {
+    return Object.freeze([Object.freeze({
+      name: 'the pending-kind controls',
+      halted: false,
+      named: false,
+      anchorPresent: false,
+      detail: `the unperturbed census already halts, so no pending-kind perturbation proves anything: ${baseline.error}`,
+    })]);
+  }
+  const reachedNow = new Set(baseline.judgmentKindsReached);
+  return Object.freeze(PENDING_JUDGMENT_KINDS.flatMap((pending) => {
+    if (reachedNow.has(pending.name)) {
+      return [Object.freeze({
+        name: `the pending kind ${pending.name} controls`,
+        halted: false,
+        named: false,
+        anchorPresent: false,
+        detail: `${pending.name} is already reached by a measured dispatch, so declaring it pending perturbs nothing`,
+      })];
+    }
+    const dispatched = [
+      ...sources,
       { path: CONVERSION_TARGET, source: `await agent(prompt, { agentType: 'implementer', label: '${pending.name}', phase: 'Ship' });` },
     ];
-    const measured = censusTranscriptionSources(reached);
-    return Object.freeze({
-      name: `a dispatch that reaches the pending kind ${pending.name} halts rather than being excused`,
-      halted: measured.ok !== true,
-      named: measured.ok !== true && typeof measured.error === 'string' && measured.error.includes('the declaration outlived the wiring it was waiting for'),
-      anchorPresent: true,
-      detail: measured.ok === true ? 'the census accepted it' : measured.error,
-    });
+    return [
+      pendingProbe(
+        `a dispatch that reaches the pending kind ${pending.name} halts rather than being excused`,
+        'the declaration outlived the wiring it was waiting for',
+        dispatched,
+        PENDING_JUDGMENT_KINDS,
+      ),
+      pendingProbe(
+        `a pending kind the prompt authority does not name halts`,
+        'the prompt authority names none of them',
+        sources,
+        [...PENDING_JUDGMENT_KINDS, { name: UNDECLARED_PENDING_KIND, reason: pending.reason }],
+      ),
+      pendingProbe(
+        `a pending kind parked with no stated reason halts`,
+        'awaiting a dispatch with no stated reason',
+        sources,
+        PENDING_JUDGMENT_KINDS.map((entry) => ({ ...entry, reason: '' })),
+      ),
+    ];
   }));
 }
 
