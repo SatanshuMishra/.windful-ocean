@@ -18,6 +18,14 @@ import { MERGE_REFUSAL_SPECIMENS } from './gh-merge-shim.mjs';
 import { REQUIRED_TOOL, agentDefinitionDir, censusAgentSchemaCapability } from './agent-schema-lint.mjs';
 import { PHASE_TITLES } from './phases.mjs';
 import { PROMPT_C7_OBLIGATIONS, PROMPT_PROBE_CASES, censusPromptRegistry } from './prompt-registry.mjs';
+import { journalDispatchCensus } from './journal-census.mjs';
+import {
+  JOURNAL_C7_OBLIGATIONS,
+  JOURNAL_KINDS,
+  JOURNAL_WRITER_DIVERGENCES,
+  JOURNAL_WRITER_PRECONDITIONS,
+  journalSpecimenCensus,
+} from './journal-store.mjs';
 
 export const GATE_CLEAN_EXIT = 0;
 export const GATE_USAGE_EXIT = 40;
@@ -26,7 +34,7 @@ export const GATE_UNRESOLVABLE_EXIT = 42;
 export const GATE_READ_EXIT = 43;
 export const GATE_COMPILE_EXIT = 44;
 
-export const MITOSIS_GATE_VERBS = Object.freeze(['determinism', 'dispatchable-agent-schema-capable', 'exec-allowlist', 'phase-parity', 'prompt-registry']);
+export const MITOSIS_GATE_VERBS = Object.freeze(['determinism', 'dispatchable-agent-schema-capable', 'exec-allowlist', 'journal-parity', 'phase-parity', 'prompt-registry']);
 
 export const DEFAULT_PHASE_PARITY_TARGET = fileURLToPath(new URL('../../workflows/mitosis.js', import.meta.url));
 export const DEFAULT_DETERMINISM_TARGET = fileURLToPath(new URL('./', import.meta.url));
@@ -65,12 +73,35 @@ const PROMPT_REGISTRY_NOT_ATTESTED = Object.freeze([
   'the byte fixtures transcribed from the engine, and the per-branch arm census that pins them, which are both held by the test suite rather than by this verb',
 ]);
 
-const TARGETLESS_VERBS = Object.freeze(new Set(['exec-allowlist', 'prompt-registry']));
+const JOURNAL_PARITY_ATTESTS = Object.freeze([
+  'every journal write site the engine still dispatches is resolved to exactly one delta kind, through the helper indirection where one exists, so the conversion list C7 works from is measured rather than remembered',
+  'every kind the journal store declares has a resolved site, and every resolved site carries a kind the store declares, so a site that vanished and a site that appeared both halt',
+  'the resolved site count is cross-checked against the independently counted gitignore clause, so an extractor that silently matches nothing halts rather than reporting every kind converted',
+  'every .mitosis artifact and every .mitosis/run.json basename in every scanned source of both declared engine trees is classified, so a journal renamed or moved under another spelling halts rather than passing unseen',
+  'in a source that imports, a qualified .mitosis/run.json literal outside a dispatch halts unless it is the one enumerated inert form - the basename named as a word in prose - so a path composed for any writer, named or not, halts by default',
+  'every file in both declared trees is either scanned, or enumerated as inert by name, or halts the enumeration, so a shell script or a document added beside the engine cannot be skipped in silence',
+  'every excluded sibling directory carries a recorded reason, so the exclusion list cannot grow without one',
+  'every declared journal kind composes bytes identical to the line transcribed from the incumbent builders, including the built record whose omitted green coalesces to false and the genesis manifest composed by buildInitialManifest itself',
+]);
+
+const JOURNAL_PARITY_NOT_ATTESTED = Object.freeze([
+  'that the engine performs any journal write deterministically: all six sites still dispatch a language model until C7 ports them onto journal-store.mjs, and this verb measures the conversion list rather than the conversion',
+  'that a journal path carrying no .mitosis/run.json literal would be seen: the census classifies the qualified basename, so a module that composes the directory and the filename separately, or reads either from configuration, is outside what it measures',
+  'that a journal writer outside the two declared trees would be seen: the census reads .claude/lib/mitosis and .claude/workflows, so one added under .claude/hooks, or anywhere else in the repository, is unscanned',
+  'that the directories excluded from those trees hold no journal writer: prompt-snapshots and tests are withheld with a recorded reason and are never read',
+  'that a dispatch-only source carries no journal writer beyond the ones classified: such a source imports nothing and so cannot reach a filesystem call, which is the ground for admitting its prose rather than a measurement of it',
+  'that the bytes a model actually appended match the bytes the engine composed; only what the deterministic writer composes is measured',
+  'that a journal append is atomic on a network filesystem: the writer relies on O_APPEND placing each write at the end of file, which POSIX guarantees locally and NFS and SMB do not',
+  'the genesis store migration: .mitosis/run.json remains the fold base, and openRun still writes a disjoint attempt directory that no reader consults',
+]);
+
+const TARGETLESS_VERBS = Object.freeze(new Set(['exec-allowlist', 'journal-parity', 'prompt-registry']));
 
 const VERB_DEFAULT_TARGETS = Object.freeze({
   determinism: DEFAULT_DETERMINISM_TARGET,
   'dispatchable-agent-schema-capable': DEFAULT_AGENT_TREE_TARGET,
   'exec-allowlist': null,
+  'journal-parity': null,
   'phase-parity': DEFAULT_PHASE_PARITY_TARGET,
   'prompt-registry': null,
 });
@@ -790,10 +821,51 @@ function runPromptRegistryGate(_target, out) {
   return promptRegistryExitCode(result);
 }
 
+function runJournalParityGate(_target, out) {
+  let dispatches;
+  let specimens;
+  try {
+    dispatches = journalDispatchCensus();
+    specimens = journalSpecimenCensus();
+  } catch (err) {
+    out.err(`mitosis-gate: journal-parity could not census the journal surface: ${err && err.message ? err.message : 'unknown failure'}\n`);
+    return GATE_UNRESOLVABLE_EXIT;
+  }
+  if (!dispatches.ok) {
+    out.err(`mitosis-gate: journal-parity halted on the dispatch census: ${dispatches.error}\n`);
+    return GATE_UNRESOLVABLE_EXIT;
+  }
+  if (!specimens.ok) {
+    out.err(`mitosis-gate: journal-parity measured a byte violation: ${specimens.error}\n`);
+    return GATE_VIOLATION_EXIT;
+  }
+  out.log(`${JSON.stringify({
+    verb: 'journal-parity',
+    ok: true,
+    siteCount: dispatches.siteCount,
+    kindCount: dispatches.kindCount,
+    byteCaseCount: specimens.specimenCount,
+    artifactCount: dispatches.artifactCount,
+    gitignoreClauseCount: dispatches.gitignoreClauseCount,
+    mentionCount: dispatches.mentionCount,
+    sourceCount: dispatches.sourceCount,
+    excludedDirectories: [...dispatches.excludedDirectories],
+    kinds: [...JOURNAL_KINDS],
+    sites: dispatches.sites.map((site) => `${site.kind} ${site.mode} ${site.path}:${site.line} via ${site.resolvedBy}`),
+    attests: [...JOURNAL_PARITY_ATTESTS],
+    notAttested: [...JOURNAL_PARITY_NOT_ATTESTED],
+    writerPreconditions: [...JOURNAL_WRITER_PRECONDITIONS],
+    writerDivergences: JOURNAL_WRITER_DIVERGENCES.map((entry) => `${entry.property}: ${entry.reason}`),
+    c7Obligations: [...JOURNAL_C7_OBLIGATIONS],
+  })}\n`);
+  return GATE_CLEAN_EXIT;
+}
+
 const VERB_RUNNERS = Object.freeze({
   determinism: runDeterminismGate,
   'dispatchable-agent-schema-capable': runAgentSchemaGate,
   'exec-allowlist': runExecAllowlistGate,
+  'journal-parity': runJournalParityGate,
   'phase-parity': runPhaseParityGate,
   'prompt-registry': runPromptRegistryGate,
 });

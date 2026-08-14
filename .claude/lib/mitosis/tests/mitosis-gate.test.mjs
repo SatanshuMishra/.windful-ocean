@@ -30,6 +30,7 @@ import { scanJsStructure } from '../js-scan.mjs';
 import { PHASE_TITLES } from '../phases.mjs';
 import { PROMPT_KINDS } from '../prompt-contract.mjs';
 import { PROMPT_PROBE_CASES, censusPromptRegistry } from '../prompt-registry.mjs';
+import { JOURNAL_KINDS } from '../journal-store.mjs';
 import {
   MITOSIS_GIT_USAGE_EXIT,
   MITOSIS_GIT_TRIPWIRE_EXIT,
@@ -526,8 +527,9 @@ test('the argv parser accepts every verb and defaults each to its own target', (
   assert.deepEqual(parseMitosisGateArgv(['determinism']), { ok: true, verb: 'determinism', target: DEFAULT_DETERMINISM_TARGET });
   assert.deepEqual(parseMitosisGateArgv(['exec-allowlist']), { ok: true, verb: 'exec-allowlist', target: null });
   assert.deepEqual(parseMitosisGateArgv(['prompt-registry']), { ok: true, verb: 'prompt-registry', target: null });
+  assert.deepEqual(parseMitosisGateArgv(['journal-parity']), { ok: true, verb: 'journal-parity', target: null });
   assert.deepEqual(parseMitosisGateArgv(['dispatchable-agent-schema-capable']), { ok: true, verb: 'dispatchable-agent-schema-capable', target: DEFAULT_AGENT_TREE_TARGET });
-  assert.deepEqual([...MITOSIS_GATE_VERBS], ['determinism', 'dispatchable-agent-schema-capable', 'exec-allowlist', 'phase-parity', 'prompt-registry']);
+  assert.deepEqual([...MITOSIS_GATE_VERBS], ['determinism', 'dispatchable-agent-schema-capable', 'exec-allowlist', 'journal-parity', 'phase-parity', 'prompt-registry']);
   assert.notEqual(DEFAULT_DETERMINISM_TARGET, DEFAULT_PHASE_PARITY_TARGET);
 });
 
@@ -666,6 +668,75 @@ test('the prompt-registry verb rejects a target, because it probes an imported m
   const { out, stderr } = capture();
   assert.equal(runMitosisGate(['prompt-registry', '--target', '/etc/passwd'], out, () => ''), GATE_USAGE_EXIT);
   assert.match(stderr.join(''), /prompt-registry/);
+});
+
+test('the journal-parity verb exits clean over the real engine and reports what it measured', () => {
+  const { out, stdout, stderr } = capture();
+  const code = runMitosisGate(['journal-parity'], out, () => '');
+  assert.deepEqual(stderr, []);
+  assert.equal(code, GATE_CLEAN_EXIT);
+  const verdict = JSON.parse(stdout.join(''));
+  assert.equal(verdict.verb, 'journal-parity');
+  assert.equal(verdict.ok, true);
+  assert.equal(verdict.kindCount, JOURNAL_KINDS.length);
+  assert.equal(verdict.siteCount, JOURNAL_KINDS.length);
+  assert.equal(verdict.gitignoreClauseCount, verdict.siteCount, 'the tripwire figure must be reported, not merely checked');
+  assert.ok(verdict.byteCaseCount >= verdict.kindCount, 'a verdict with fewer byte cases than kinds measured no bytes for some kind');
+  assert.ok(verdict.sourceCount > 1, 'the census must report scanning more than one pinned path');
+  assert.equal(verdict.target, undefined, 'the verb opens no path of its own, so it must not report one as a target');
+  for (const kind of JOURNAL_KINDS) {
+    assert.ok(verdict.sites.some((site) => site.startsWith(`${kind} `)), `the verdict names no site for ${kind}`);
+  }
+});
+
+test('the journal-parity verdict states plainly that the engine still dispatches all six writes', () => {
+  const { out, stdout } = capture();
+  runMitosisGate(['journal-parity'], out, () => '');
+  const verdict = JSON.parse(stdout.join(''));
+  assert.ok(Array.isArray(verdict.attests) && verdict.attests.length > 0);
+  assert.ok(Array.isArray(verdict.notAttested) && verdict.notAttested.length > 0);
+  assert.ok(
+    verdict.notAttested.some((claim) => /still dispatch/.test(claim)),
+    'the six sites still dispatch a model until C7, so the verdict must not read as a determinism guarantee',
+  );
+  assert.ok(Array.isArray(verdict.c7Obligations) && verdict.c7Obligations.length >= 6);
+  assert.ok(verdict.c7Obligations.some((claim) => /written !== true/.test(claim)), 'site 2\'s escalation asymmetry is not carried into the verdict');
+});
+
+test('the journal-parity verdict does not attest a scope the census never reads', () => {
+  const { out, stdout } = capture();
+  runMitosisGate(['journal-parity'], out, () => '');
+  const verdict = JSON.parse(stdout.join(''));
+  assert.equal(
+    verdict.attests.some((claim) => /second writer outside journal-store\.mjs cannot appear unnoticed/.test(claim) && !/enumerated|literal|prose/.test(claim)),
+    false,
+    'the verdict still attests an unqualified no-second-writer guarantee while the census only classifies enumerated forms',
+  );
+  assert.ok(
+    verdict.notAttested.some((claim) => /hooks|declared director|outside (the|these) (two )?(declared )?tree/i.test(claim)),
+    'the verdict does not record that a journal writer outside the two declared trees is unseen',
+  );
+  assert.ok(
+    verdict.notAttested.some((claim) => /prompt-snapshots|excluded/i.test(claim)),
+    'the verdict does not record that the excluded sibling directories are unscanned',
+  );
+  assert.ok(
+    verdict.notAttested.some((claim) => /O_APPEND|NFS|SMB/.test(claim)),
+    'the verdict does not record the append atomicity the writer depends on',
+  );
+  assert.ok(Array.isArray(verdict.excludedDirectories) && verdict.excludedDirectories.length > 0);
+  for (const excluded of verdict.excludedDirectories) {
+    assert.match(excluded, /:/, `the excluded directory ${excluded} is reported without its recorded reason`);
+  }
+});
+
+test('the journal-parity verb rejects a target, because it censuses the engine trees it enumerates itself', () => {
+  const parsed = parseMitosisGateArgv(['journal-parity', '--target', '/etc/passwd']);
+  assert.equal(parsed.ok, false);
+  assert.match(parsed.error, /journal-parity/);
+  const { out, stderr } = capture();
+  assert.equal(runMitosisGate(['journal-parity', '--target', '/etc/passwd'], out, () => ''), GATE_USAGE_EXIT);
+  assert.match(stderr.join(''), /journal-parity/);
 });
 
 test('a registry census halt exits unresolvable and a measured violation exits violation, never clean', () => {
