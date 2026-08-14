@@ -17,7 +17,13 @@ import {
   transcriptionCensus,
 } from './transcription-census.mjs';
 import { GIT_COMMAND_FIXTURES } from './git-command-fixtures.mjs';
-import { argvInertnessProbe, censusGitCommandFixtures, gitCommandFixtureCensus, parserProbes } from './transcription-conversions.mjs';
+import {
+  DEFAULT_CONVERSION_REGISTRY,
+  argvInertnessProbe,
+  censusGitCommandFixtures,
+  gitCommandFixtureCensus,
+  parserProbes,
+} from './transcription-conversions.mjs';
 import { manifestPublishProbe } from './manifest-publish.mjs';
 
 const MANIFEST_PUBLISH_SPAWNS = 9;
@@ -134,6 +140,55 @@ const CONVERSION_CONTROLS = Object.freeze([
   }),
 ]);
 
+const REGISTRY_CONTROLS = Object.freeze([
+  Object.freeze({
+    name: 'a site that replaces no spawn and lost its incumbent anchor halts',
+    expect: 'the only thing pinning what it replaces',
+    present: (registry) => registry.nonSpawn.length > 0,
+    missing: 'the non-spawn site list is empty, so nothing was perturbed',
+    perturb: (registry) => ({
+      ...registry,
+      nonSpawn: [{ ...registry.nonSpawn[0], anchor: 'a command the engine never carried' }, ...registry.nonSpawn.slice(1)],
+    }),
+  }),
+  Object.freeze({
+    name: 'bytes composed for a child that the incumbent never composed halt',
+    expect: 'bytes handed to a child are pinned',
+    present: (registry) => registry.compositions.length > 0,
+    missing: 'the stdin composition list is empty, so nothing was perturbed',
+    perturb: (registry) => ({
+      ...registry,
+      compositions: [{ ...registry.compositions[0], compose: (token) => `100755 blob ${token}\tsomething-else.json\n` }, ...registry.compositions.slice(1)],
+    }),
+  }),
+  Object.freeze({
+    name: 'a transcribed site left with no parser halts',
+    expect: 'name no parser',
+    present: (registry) => Object.hasOwn(registry.parsers, 'fence'),
+    missing: 'the parser table names no fence site, so nothing was perturbed',
+    perturb: (registry) => ({
+      ...registry,
+      parsers: Object.fromEntries(Object.entries(registry.parsers).map(([site, entries]) => [site, site === 'fence' ? [] : entries])),
+    }),
+  }),
+]);
+
+export function registryControlProbes(source) {
+  return Object.freeze(REGISTRY_CONTROLS.map((control) => {
+    if (!control.present(DEFAULT_CONVERSION_REGISTRY)) {
+      return Object.freeze({ name: control.name, halted: false, named: false, anchorPresent: false, detail: control.missing });
+    }
+    const measured = censusGitCommandFixtures(GIT_COMMAND_FIXTURES, source, control.perturb(DEFAULT_CONVERSION_REGISTRY));
+    return Object.freeze({
+      name: control.name,
+      halted: measured.ok !== true,
+      named: measured.ok !== true && typeof measured.error === 'string' && measured.error.includes(control.expect),
+      anchorPresent: true,
+      detail: measured.ok === true ? 'the census accepted it' : measured.error,
+    });
+  }));
+}
+
 export function conversionControlProbes(source) {
   const dropped = censusGitCommandFixtures(GIT_COMMAND_FIXTURES.filter((entry) => entry.step !== 'status'), source);
   const unpinned = Object.freeze({
@@ -245,7 +300,9 @@ export function probeTranscriptionSubstrate() {
     censusControls: transcriptionCensusProbes(),
     conversionTargetError: target.error === undefined ? null : target.error,
     conversions: target.error === undefined ? gitCommandFixtureCensus(source) : { ok: false, error: target.error },
-    conversionControls: target.error === undefined ? conversionControlProbes(source) : Object.freeze([]),
+    conversionControls: target.error === undefined
+      ? Object.freeze([...conversionControlProbes(source), ...registryControlProbes(source)])
+      : Object.freeze([]),
     parsers: parserProbes(),
     manifestPublish: manifestPublishProbe(),
     conversionStateControls: engine.error === undefined ? conversionStateProbes(engine.sources) : Object.freeze([]),

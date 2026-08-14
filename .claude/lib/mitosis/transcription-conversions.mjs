@@ -39,9 +39,9 @@ function engineSourceForm(text) {
   return text.split('\t').join('\\\\t').split('\n').join('\\\\n');
 }
 
-export function compositionFailures(fixtures, source) {
+export function compositionFailures(fixtures, source, compositions = STDIN_COMPOSITIONS) {
   const failures = [];
-  for (const entry of STDIN_COMPOSITIONS) {
+  for (const entry of compositions) {
     const at = `${entry.site}/${entry.step}`;
     const fixture = fixtures.find((candidate) => candidate.site === entry.site && candidate.step === entry.step);
     if (fixture === undefined) {
@@ -219,13 +219,37 @@ export function fixtureFailures(fixture, source) {
   return failures;
 }
 
-export function censusGitCommandFixtures(fixtures, source) {
+export const DEFAULT_CONVERSION_REGISTRY = Object.freeze({
+  nonSpawn: NON_SPAWN_SITES,
+  compositions: STDIN_COMPOSITIONS,
+  parsers: SITE_PARSERS,
+});
+
+function registryFailure(registry) {
+  if (registry === null || typeof registry !== 'object' || Array.isArray(registry)) {
+    return 'the conversion registry is not an object naming the non-spawn sites, the stdin compositions and the site parsers';
+  }
+  if (!Array.isArray(registry.nonSpawn) || registry.nonSpawn.length === 0) {
+    return 'the conversion registry names no non-spawn site, so the two sites that replace no spawn would go unpinned';
+  }
+  if (!Array.isArray(registry.compositions) || registry.compositions.length === 0) {
+    return 'the conversion registry names no stdin composition, so bytes handed to a child would go unpinned';
+  }
+  if (registry.parsers === null || typeof registry.parsers !== 'object' || Array.isArray(registry.parsers) || Object.keys(registry.parsers).length === 0) {
+    return 'the conversion registry names no site parser, so every site would be counted converted with nothing reading its output';
+  }
+  return null;
+}
+
+export function censusGitCommandFixtures(fixtures, source, registry = DEFAULT_CONVERSION_REGISTRY) {
   if (!Array.isArray(fixtures) || fixtures.length === 0) {
     return halt(`${MODULE}: the fixture census was handed no fixture, so it would attest a transcription it never measured`);
   }
   if (typeof source !== 'string' || source.length === 0) {
     return halt(`${MODULE}: the fixture census was handed no incumbent source, so no anchor could be checked against the command it was transcribed from`);
   }
+  const registryHalt = registryFailure(registry);
+  if (registryHalt !== null) return halt(`${MODULE}: ${registryHalt}`);
   const seen = new Map();
   for (const fixture of fixtures) {
     const key = `${fixture.site}/${fixture.step}`;
@@ -246,14 +270,14 @@ export function censusGitCommandFixtures(fixtures, source) {
   }
   const failures = [
     ...fixtures.flatMap((fixture) => fixtureFailures(fixture, source)),
-    ...nonSpawnFailures(source),
-    ...compositionFailures(fixtures, source),
+    ...nonSpawnFailures(source, registry.nonSpawn),
+    ...compositionFailures(fixtures, source, registry.compositions),
   ];
   if (failures.length > 0) {
     return halt(`${MODULE}: ${failures.join(' | ')}`);
   }
-  const sites = [...new Set([...fixtures.map((fixture) => fixture.site), ...NON_SPAWN_SITES.map((entry) => entry.site)])].sort();
-  const unparsed = sites.filter((site) => !Object.hasOwn(SITE_PARSERS, site) || SITE_PARSERS[site].length === 0);
+  const sites = [...new Set([...fixtures.map((fixture) => fixture.site), ...registry.nonSpawn.map((entry) => entry.site)])].sort();
+  const unparsed = sites.filter((site) => !Object.hasOwn(registry.parsers, site) || registry.parsers[site].length === 0);
   if (unparsed.length > 0) {
     return halt(`${MODULE}: these sites are transcribed but name no parser, so the engine would run their commands and have nothing to read the output with: ${unparsed.join(', ')}`);
   }
@@ -268,16 +292,16 @@ export function censusGitCommandFixtures(fixtures, source) {
     fixtureCount: fixtures.length,
     siteCount: sites.length,
     sites: Object.freeze(sites),
-    nonSpawnSteps: Object.freeze(NON_SPAWN_SITES.map((entry) => `${entry.site}/${entry.step}`)),
-    parsers: Object.freeze(sites.map((site) => `${site}: ${SITE_PARSERS[site].map((entry) => entry.name).join(', ')}`)),
+    nonSpawnSteps: Object.freeze(registry.nonSpawn.map((entry) => `${entry.site}/${entry.step}`)),
+    parsers: Object.freeze(sites.map((site) => `${site}: ${registry.parsers[site].map((entry) => entry.name).join(', ')}`)),
     derivedArguments: Object.freeze(fixtures.flatMap((fixture) => Object.keys(fixture.derived).map((token) => `${fixture.site}/${fixture.step} ${token}`))),
     stdinSteps: Object.freeze(fixtures.filter((fixture) => fixture.stdin !== null).map((fixture) => `${fixture.site}/${fixture.step}`)),
   });
 }
 
-export function nonSpawnFailures(source) {
+export function nonSpawnFailures(source, sites = NON_SPAWN_SITES) {
   const failures = [];
-  for (const entry of NON_SPAWN_SITES) {
+  for (const entry of sites) {
     const at = `${entry.site}/${entry.step}`;
     if (!source.includes(entry.anchor)) {
       failures.push(`${at} carries an anchor that no longer appears verbatim in the incumbent engine source: ${JSON.stringify(entry.anchor)}; this site performs no spawn, so the anchor is the only thing pinning what it replaces`);
