@@ -6,7 +6,7 @@ import {
   PLAN_PROBE_FIXTURE,
 } from './git-command-fixtures.mjs';
 import { EXEC_ALLOWLIST } from './exec-policy.mjs';
-import { EXEC_COMPLETED, EXEC_TIMEOUT_EXPIRED } from './exec-run.mjs';
+import { EXEC_COMPLETED, EXEC_TIMEOUT_EXPIRED, run } from './exec-run.mjs';
 import {
   classifyPlanArtifact,
   parseAncestry,
@@ -305,4 +305,38 @@ export function nonSpawnFailures(source) {
 
 export function gitCommandFixtureCensus(source) {
   return censusGitCommandFixtures(GIT_COMMAND_FIXTURES, source);
+}
+
+const HOSTILE_VALUE = 'refs/heads/$(touch /tmp/pwn); rm -rf ~ && echo `id` | sh > /tmp/out';
+const INERTNESS_SITE = 'restore';
+const INERTNESS_STEP = 'fetch-checkpoint';
+const INERTNESS_ROOT = '/repo';
+
+export function argvInertnessProbe() {
+  const seen = [];
+  const io = Object.freeze({
+    spawn: (command, args, options) => {
+      seen.push(Object.freeze({ command, args: Object.freeze([...args]), options }));
+      return { status: 0, stdout: Buffer.from(''), stderr: Buffer.from(''), error: null };
+    },
+  });
+  let argv;
+  try {
+    argv = buildGitCommand(INERTNESS_SITE, INERTNESS_STEP, { repoRoot: INERTNESS_ROOT, builtRef: HOSTILE_VALUE });
+  } catch (error) {
+    return Object.freeze({ built: false, detail: error && error.message ? error.message : 'unknown throw', carriedWhole: false, unsplit: false, shellRefused: false });
+  }
+  run(GIT_COMMAND_BINARY, [...argv], Object.freeze({ cwd: INERTNESS_ROOT }), io);
+  const call = seen[0];
+  if (seen.length !== 1 || call === undefined) {
+    return Object.freeze({ built: true, detail: `the chokepoint started ${seen.length} child process(es) for one command`, carriedWhole: false, unsplit: false, shellRefused: false });
+  }
+  const options = call.options === null || call.options === undefined ? {} : call.options;
+  return Object.freeze({
+    built: true,
+    detail: `${call.command} ${JSON.stringify([...call.args])}`,
+    carriedWhole: call.args.filter((token) => token === HOSTILE_VALUE).length === 1,
+    unsplit: call.args.length === argv.length,
+    shellRefused: options.shell === false,
+  });
 }
