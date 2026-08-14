@@ -31,7 +31,7 @@
     {
       "id": "c15",
       "text": "Delivery path proven without the sandbox: an agent pushes a branch and opens a PR through the centralized pr-create tool with no human hands",
-      "done": false,
+      "done": true,
       "kind": "detour",
       "struck_by": null
     },
@@ -122,7 +122,7 @@
     {
       "id": "c11",
       "text": "One PR per MSP opened through the centralized pr-create tool, each leaving its base branch green",
-      "done": false,
+      "done": true,
       "kind": "planned",
       "struck_by": null
     }
@@ -133,17 +133,10 @@
   "abandoned_reason": null,
   "closure_statement": null,
   "spine": {
-    "active_goal": "Permissions only: deny pruned, allow widened, dead config removed. All that remains is opening the PR.",
-    "next_step": "c11 is the only open criterion: open the PR through pr-create. Rename the branch first - fix/release-tree-immutability now carries the whole permissions rebuild across four commits. Run the full suite at the merge boundary before opening. c15, the detour proving an agent can push and open a PR unaided, is still open and this PR is the natural place to settle it.",
-    "last_session": "Struck c14. Shipped c3 (deny 47 to 36, 15d8dca), c4 (allow 32 to 62 both files, settings.local.json 213 to 0, 510b58a) and c9 (dead gate tokens and drift hook gone, suite 248 of 248, 5ae9c24). Session was in auto mode, which discards broad allow rules. R6 moved to the logbook plugin repo.",
+    "active_goal": "All thirteen live criteria are met. PR #96 is open against main and awaits the human merge, which stays deliberately gated.",
+    "next_step": "Nothing is blocking. The human merges PR #96 when ready - gh pr merge stays denied by deliberate choice. After the merge, delete the remote branch and confirm the ten symlinked entries still resolve. Four follow-ups outlive this thread and are listed in open risks; the logbook fail-closed guard is the only one that can freeze an unattended run and it is handed to the plugin repo.",
+    "last_session": "Shipped c3, c4 and c9, struck c14, moved R6 to the logbook plugin repo. Renamed the branch to feat/permissions-only-autonomy, merged origin/main without resurrecting the deleted machinery, ran the full suite at the merge boundary (1959 pass, 0 fail), pushed, and opened PR #96 through pr-create.",
     "open_risks": [
-      {
-        "text": "Do not strip the merge gates — gh pr merge and merge_pull_request stay denied by deliberate user choice, and pr-create centralization stays too",
-        "scope": "thread",
-        "refs": [
-          ".claude/settings.json"
-        ]
-      },
       {
         "text": "The logbook PreToolUse guard still fails closed and will freeze an unattended run — the wrapper turns any internal exception into a deny across Bash, Write, Edit, MultiEdit and NotebookEdit, hooks run in every permission mode, and dev 0.2.5 is byte-identical to the installed 0.2.4 on that file",
         "scope": "thread",
@@ -153,11 +146,27 @@
         ]
       },
       {
-        "text": "Whether a deny rule survives --permission-mode bypassPermissions is UNVERIFIED — the SPEC asserts it, the docs are ambiguous and no U1-U7 experiment covers it, so \"the merge gates hold in an unattended run\" is an assumption not a property",
+        "text": "Whether a deny rule survives the bypassPermissions mode is UNVERIFIED — the SPEC asserts it, the docs are ambiguous and no experiment covers it, so \"the merge gates hold in an unattended run\" is an assumption not a property, and PR #96 says so in its own Not verified list",
         "scope": "thread",
         "refs": [
           "docs/superpowers/specs/2026-08-13-maximum-autonomy-permission-architecture-SPEC.md:274",
           "0408"
+        ]
+      },
+      {
+        "text": "Default-branch push denies are prefix-literal and the gate has no push clause at all — git push -u origin main, git push origin HEAD:main and a bare git push with upstream set all reach main untouched, so 0405 is thinner than it reads",
+        "scope": "thread",
+        "refs": [
+          ".claude/settings.json",
+          "0405"
+        ]
+      },
+      {
+        "text": "The tracked and live settings.json are two independent real files with no propagation path left — every permission edit must be applied to both by hand or it is inert, and PR #96 covers only the tracked one",
+        "scope": "thread",
+        "refs": [
+          ".claude/settings.json",
+          "~/.claude/settings.json"
         ]
       },
       {
@@ -177,19 +186,12 @@
         ]
       },
       {
-        "text": "Default-branch push denies are prefix-literal and the gate has no push clause at all — git push -u origin main, git push origin HEAD:main and a bare git push with upstream set all reach main untouched, so 0405 is thinner than it reads",
+        "text": "Fix or retire scripts/install_config.sh before anyone runs it by reflex — running it would undo c17 and move the live global settings.json into a backup dir, replacing it with a repo symlink",
         "scope": "thread",
         "refs": [
-          ".claude/settings.json",
-          "0405"
-        ]
-      },
-      {
-        "text": "The tracked and live settings.json are two independent real files with no propagation path left after the installer was deleted — every permission edit must be applied to both by hand or it is inert",
-        "scope": "thread",
-        "refs": [
-          ".claude/settings.json",
-          "~/.claude/settings.json"
+          "scripts/install_config.sh:127",
+          "scripts/install_config.sh:159",
+          "0410"
         ]
       },
       {
@@ -205,22 +207,6 @@
         "scope": "thread",
         "refs": [
           "~/.claude/hooks"
-        ]
-      },
-      {
-        "text": "Fix or retire scripts/install_config.sh before anyone runs it by reflex — running it would undo c17 and move the live global settings.json into a backup dir, replacing it with a repo symlink",
-        "scope": "thread",
-        "refs": [
-          "scripts/install_config.sh:127",
-          "scripts/install_config.sh:159",
-          "0410"
-        ]
-      },
-      {
-        "text": "Run the full suite at the merge boundary, not just per-branch — three PRs each genuinely green alone reddened the base once composed",
-        "scope": "thread",
-        "refs": [
-          "npm test"
         ]
       }
     ],
@@ -282,5 +268,5 @@
     ]
   },
   "created_at": "2026-08-13T18:14:42.072Z",
-  "updated_at": "2026-08-14T04:34:39.544Z"
+  "updated_at": "2026-08-14T04:42:14.529Z"
 }
