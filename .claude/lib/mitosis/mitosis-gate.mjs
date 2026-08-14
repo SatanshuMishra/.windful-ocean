@@ -16,6 +16,9 @@ import { censusEngineDeterminism, engineSourceRoots, realSourceIo } from './dete
 import { EXEC_ALLOWLIST, assertSpawnAllowed, resolveSpawn } from './exec-policy.mjs';
 import { MERGE_REFUSAL_SPECIMENS } from './gh-merge-shim.mjs';
 import { censusMergeSpecimens } from './merge-specimen-census.mjs';
+import { execRunAllowProbes, execRunRefusalProbes } from './exec-run.mjs';
+import { MANIFEST_REF_NOT_ATTESTED, manifestRefPolicyProbes } from './manifest-ref-policy.mjs';
+import { TRANSCRIPTION_C7_OBLIGATIONS, transcriptionCensus } from './transcription-census.mjs';
 import { REQUIRED_TOOL, agentDefinitionDir, censusAgentSchemaCapability } from './agent-schema-lint.mjs';
 import { PHASE_TITLES } from './phases.mjs';
 import { PROMPT_C7_OBLIGATIONS, PROMPT_PROBE_CASES, censusPromptRegistry } from './prompt-registry.mjs';
@@ -35,7 +38,7 @@ export const GATE_UNRESOLVABLE_EXIT = 42;
 export const GATE_READ_EXIT = 43;
 export const GATE_COMPILE_EXIT = 44;
 
-export const MITOSIS_GATE_VERBS = Object.freeze(['determinism', 'dispatchable-agent-schema-capable', 'exec-allowlist', 'journal-parity', 'phase-parity', 'prompt-registry']);
+export const MITOSIS_GATE_VERBS = Object.freeze(['determinism', 'dispatchable-agent-schema-capable', 'exec-allowlist', 'journal-parity', 'phase-parity', 'prompt-registry', 'transcription-parity']);
 
 export const DEFAULT_PHASE_PARITY_TARGET = fileURLToPath(new URL('../../workflows/mitosis.js', import.meta.url));
 export const DEFAULT_DETERMINISM_TARGET = fileURLToPath(new URL('./', import.meta.url));
@@ -97,7 +100,28 @@ const JOURNAL_PARITY_NOT_ATTESTED = Object.freeze([
   'the genesis store migration: .mitosis/run.json remains the fold base, and openRun still writes a disjoint attempt directory that no reader consults',
 ]);
 
-const TARGETLESS_VERBS = Object.freeze(new Set(['exec-allowlist', 'journal-parity', 'prompt-registry']));
+const TRANSCRIPTION_PARITY_ATTESTS = Object.freeze([
+  'every dispatch call node in both declared engine trees is resolved to exactly one declared name - transcription, judgment, journal or program-in-English - so a label none of the four covers halts with its site named rather than falling into a catch-all bucket',
+  'the resolved dispatch labels are cross-checked, per source, against the independently paired dispatch call nodes, so an extractor reading a subset halts rather than reporting the rest converted',
+  'every kind declared unconverted has a measured site and every kind declared converted has none, so a site that vanished and a declaration that ran ahead of its conversion both halt',
+  'the reported converted and unconverted figures are counted from the measured sites rather than from the length of the declaration',
+  'every transcription site outside the declared conversion target is named as a twin, so the live-path divergence is measured rather than assumed',
+  'exec-run refuses an unlisted binary, a merge-shaped gh argv, an argv spelled as a command string and a non-string argv element, and starts no child process while doing so',
+  'exec-run permits git merge --no-ff and a force-with-lease onto a checkpoint ref, so the merge refusal is scoped to the gh pull-request family rather than to the word merge',
+  'the manifest ref policy refuses each force spelling onto the published-manifest namespace, including the plus-prefixed refspec that carries no flag, and permits the same spellings onto every other ref',
+]);
+
+const TRANSCRIPTION_PARITY_NOT_ATTESTED = Object.freeze([
+  'that any of the eighteen sites is converted: all eighteen still dispatch a language model until C4b and C4c port them onto the substrate, and this verb measures the conversion list rather than the conversion',
+  'that the engine reaches processes only through exec-run: five live spawn sites still import node:child_process directly, and no verb censuses those call sites',
+  'that a dispatch outside the two declared engine trees would be seen: the census reads .claude/lib/mitosis and .claude/workflows/mitosis.js, so a dispatch added under .claude/hooks, or anywhere else in the repository, is unscanned',
+  'that a dispatch composed without a label property would be seen: the census resolves a site through its label, so a call that names its site some other way is enumerated by its argument shape or halts',
+  'that the kinds an enumerated parameterized label can carry are the kinds its callers actually pass: the enumeration records them with a reason, and no extractor follows the argument to its call sites',
+  'that exec-run captures binary stdout faithfully: stdout and stderr are decoded as utf8 text, so a byte sequence that is not valid utf8 is reported lossily even though stdin is handed to the child unchanged',
+  ...MANIFEST_REF_NOT_ATTESTED,
+]);
+
+const TARGETLESS_VERBS = Object.freeze(new Set(['exec-allowlist', 'journal-parity', 'prompt-registry', 'transcription-parity']));
 
 const VERB_DEFAULT_TARGETS = Object.freeze({
   determinism: DEFAULT_DETERMINISM_TARGET,
@@ -106,6 +130,7 @@ const VERB_DEFAULT_TARGETS = Object.freeze({
   'journal-parity': null,
   'phase-parity': DEFAULT_PHASE_PARITY_TARGET,
   'prompt-registry': null,
+  'transcription-parity': null,
 });
 
 const PHASE_AUTHORITY_BY_TARGET = Object.freeze({ [DEFAULT_PHASE_PARITY_TARGET]: PHASE_TITLES });
@@ -869,6 +894,87 @@ function runJournalParityGate(_target, out) {
   return GATE_CLEAN_EXIT;
 }
 
+export function probeTranscriptionSubstrate() {
+  return Object.freeze({
+    refusals: execRunRefusalProbes(),
+    allowances: execRunAllowProbes(),
+    manifestRef: manifestRefPolicyProbes(),
+  });
+}
+
+export function transcriptionParityFailures(substrate) {
+  const failures = [];
+  const refusals = substrate.refusals;
+  const admitted = refusals.probes.filter((probe) => !probe.refused);
+  if (admitted.length > 0) {
+    failures.push(`exec-run admitted argv the substrate refuses: ${admitted.map((probe) => probe.name).join(', ')}; the chokepoint is deny-by-default and each of these must throw`);
+  }
+  if (refusals.childrenStarted !== 0) {
+    failures.push(`exec-run started ${refusals.childrenStarted} child process(es) while refusing; the guarantee is that the policy runs BEFORE the spawn, which a refusal thrown afterwards does not give`);
+  }
+  const blocked = substrate.allowances.filter((probe) => !probe.allowed);
+  if (blocked.length > 0) {
+    failures.push(`exec-run refused argv the engine legitimately runs: ${blocked.map((probe) => probe.name).join(', ')}; a guard that refuses these is over-broad and would break the sites it is meant to protect`);
+  }
+  const wrongRefVerdicts = substrate.manifestRef.filter((probe) => probe.expected !== probe.observed);
+  if (wrongRefVerdicts.length > 0) {
+    failures.push(`the manifest ref policy disagrees with its own probes: ${wrongRefVerdicts.map((probe) => `${probe.name} expected ${probe.expected} but was ${probe.observed}`).join('; ')}`);
+  }
+  return failures;
+}
+
+function runTranscriptionParityGate(_target, out) {
+  let census;
+  let substrate;
+  let failures;
+  try {
+    census = transcriptionCensus();
+    substrate = probeTranscriptionSubstrate();
+    failures = transcriptionParityFailures(substrate);
+  } catch (err) {
+    out.err(`mitosis-gate: transcription-parity could not census the dispatch surface: ${err && err.message ? err.message : 'unknown failure'}\n`);
+    return GATE_UNRESOLVABLE_EXIT;
+  }
+  if (!census.ok) {
+    out.err(`mitosis-gate: transcription-parity halted on the dispatch census: ${census.error}\n`);
+    return GATE_UNRESOLVABLE_EXIT;
+  }
+  if (failures.length > 0) {
+    for (const failure of failures) out.err(`mitosis-gate: ${failure}\n`);
+    return GATE_VIOLATION_EXIT;
+  }
+  out.log(`${JSON.stringify({
+    verb: 'transcription-parity',
+    ok: true,
+    sourceCount: census.sourceCount,
+    dispatchNodeCount: census.dispatchNodeCount,
+    labelTokenCount: census.labelTokenCount,
+    dispatchLabelCount: census.dispatchLabelCount,
+    passThroughCount: census.passThroughCount,
+    helperArgumentCount: census.helperArgumentCount,
+    conversionTargetSiteCount: census.conversionTargetSiteCount,
+    convertedKindCount: census.convertedKindCount,
+    unconvertedKindCount: census.unconvertedKindCount,
+    unconvertedSiteCount: census.unconvertedSiteCount,
+    convertedKinds: [...census.convertedKinds],
+    judgmentSiteCount: census.judgmentSiteCount,
+    journalSiteCount: census.journalSiteCount,
+    programSiteCount: census.programSiteCount,
+    parameterizedSiteCount: census.parameterizedSiteCount,
+    unconvertedSites: census.conversionTargetSites.map((site) => `${site.name} ${site.path}:${site.line}`),
+    twinSites: census.twinSites.map((site) => `${site.name} ${site.path}:${site.line}`),
+    inertSources: [...census.inertSources],
+    refusalProbes: substrate.refusals.probes.map((probe) => `${probe.name}: ${probe.refused ? 'refused' : 'ADMITTED'}`),
+    childrenStartedWhileRefusing: substrate.refusals.childrenStarted,
+    allowProbes: substrate.allowances.map((probe) => `${probe.name}: ${probe.allowed ? 'allowed' : 'REFUSED'}`),
+    manifestRefProbes: substrate.manifestRef.map((probe) => `${probe.name}: ${probe.observed}`),
+    attests: [...TRANSCRIPTION_PARITY_ATTESTS],
+    notAttested: [...TRANSCRIPTION_PARITY_NOT_ATTESTED],
+    c7Obligations: [...TRANSCRIPTION_C7_OBLIGATIONS],
+  })}\n`);
+  return GATE_CLEAN_EXIT;
+}
+
 const VERB_RUNNERS = Object.freeze({
   determinism: runDeterminismGate,
   'dispatchable-agent-schema-capable': runAgentSchemaGate,
@@ -876,6 +982,7 @@ const VERB_RUNNERS = Object.freeze({
   'journal-parity': runJournalParityGate,
   'phase-parity': runPhaseParityGate,
   'prompt-registry': runPromptRegistryGate,
+  'transcription-parity': runTranscriptionParityGate,
 });
 
 export function runMitosisGate(argv, out, readSource) {

@@ -1,0 +1,215 @@
+import { test } from 'node:test';
+import assert from 'node:assert/strict';
+import { PROMPT_KINDS } from '../prompt-contract.mjs';
+import { JOURNAL_KINDS } from '../journal-store.mjs';
+import {
+  JOURNAL_LABEL_KINDS,
+  NON_DISPATCH_LABEL_SOURCES,
+  PROGRAM_LABELS,
+  TRANSCRIPTION_C7_OBLIGATIONS,
+  TRANSCRIPTION_KINDS,
+  censusTranscriptionSources,
+  transcriptionCensus,
+} from '../transcription-census.mjs';
+
+const TARGET = '/repo/.claude/workflows/mitosis.js';
+const LIB = '/repo/.claude/lib/mitosis';
+
+function source(path, text) {
+  return { path, source: text };
+}
+
+function dispatch(labelExpression) {
+  return `await agent(prompt, { agentType: 'implementer', label: ${labelExpression}, phase: 'Ship' });`;
+}
+
+const PARAMETERIZED_BLOCK = [
+  'async function reviewLoop(task, branch, wt, makePrompt, label, agentType) {',
+  '  const base = { label: `${label}:${task.id}`, phase: \'Execute\' };',
+  '  const opts = agentType ? { ...base, agentType } : base;',
+  '  const r = await guard.dispatch(makePrompt(task, branch), opts, { kind: \'review\', task });',
+  '  await guard.dispatch(fixPrompt(task, branch, wt, r), { label: `fix-${label}:${task.id}`, phase: \'Execute\' });',
+  '  await guard.dispatch(implementerPrompt(task), { label: implLabel, phase: \'Execute\' });',
+  '}',
+  'async function appendRunJournal({ label, unitId }) {',
+  '  await agent(prompt, { agentType: \'implementer\', label: `${label}:${unitId}`, phase: \'Ship\' });',
+  '}',
+  'async function persistQuiescentExitCheckpoint() {',
+  '  await appendRunJournal({ label: \'quiescent-exit-checkpoint\', unitId: \'run\' });',
+  '}',
+  'function makeModelGuard(agent, decision, opts, prompt) {',
+  '  return agent(prompt, { ...(opts || {}), model: decision.model });',
+  '}',
+].join('\n');
+
+function engineFixture(extra = '', declared = TRANSCRIPTION_KINDS) {
+  const lines = [
+    ...declared.filter((kind) => !kind.converted).map((kind) => dispatch(`'${kind.name}'`)),
+    ...Object.keys(JOURNAL_LABEL_KINDS).filter((name) => name !== 'quiescent-exit-checkpoint').map((name) => dispatch(`'${name}'`)),
+    ...PROGRAM_LABELS.map((program) => dispatch(`'${program.name}'`)),
+    ...PROMPT_KINDS.map((kind) => dispatch(`'${kind}'`)),
+    PARAMETERIZED_BLOCK,
+    extra,
+  ];
+  return [
+    source(TARGET, lines.join('\n')),
+    ...Object.keys(NON_DISPATCH_LABEL_SOURCES).map((name) => source(`${LIB}/${name}`, `const x = { label: 'not a dispatch' };`)),
+  ];
+}
+
+test('the fixture that stands in for the engine is itself a clean census, so every perturbation below is the only change', () => {
+  const census = censusTranscriptionSources(engineFixture());
+  assert.equal(census.ok, true, census.error);
+});
+
+test('the shipped census classifies every dispatch and reports the conversion target site count as a measurement', () => {
+  const census = transcriptionCensus();
+  assert.equal(census.ok, true, census.error);
+  assert.equal(census.conversionTargetSiteCount, 18);
+  assert.equal(census.unconvertedSiteCount, 18);
+  assert.equal(census.convertedKindCount, 0);
+});
+
+test('the census measures its own extractors rather than reporting a declared total', () => {
+  const census = transcriptionCensus();
+  assert.equal(census.ok, true, census.error);
+  assert.equal(census.dispatchNodeCount, census.siteCount + census.passThroughCount);
+  assert.equal(census.dispatchLabelCount, census.siteCount);
+  assert.ok(census.sourceCount > 1);
+  assert.equal(census.transcriptionSiteCount, census.conversionTargetSiteCount + census.twinSites.length);
+});
+
+test('the census names the live twins that dispatch outside the conversion target', () => {
+  const census = transcriptionCensus();
+  assert.equal(census.ok, true, census.error);
+  const named = census.twinSites.map((site) => `${site.name} ${site.path.split('/').slice(-2).join('/')}`);
+  assert.ok(named.includes('fence mitosis/run-engine.mjs'), named.join('; '));
+  assert.ok(named.includes('integrate mitosis/run-engine.mjs'), named.join('; '));
+  assert.ok(named.includes('divergence-check mitosis/divergence.mjs'), named.join('; '));
+  for (const site of census.twinSites) assert.ok(Number.isInteger(site.line) && site.line > 0);
+});
+
+test('the C7 obligations name every twin the census measures, so the divergence is recorded rather than assumed', () => {
+  const census = transcriptionCensus();
+  const joined = TRANSCRIPTION_C7_OBLIGATIONS.join('\n');
+  assert.ok(TRANSCRIPTION_C7_OBLIGATIONS.length > 0);
+  assert.ok(census.twinSites.length > 0);
+  for (const site of census.twinSites) {
+    assert.ok(joined.includes(site.path.split('/').pop()), `${site.path} is measured as a twin but named in no C7 obligation`);
+  }
+});
+
+test('a label no declared name covers halts and names the site, with no catch-all bucket', () => {
+  const census = censusTranscriptionSources(engineFixture(dispatch("'harvest-notes'")));
+  assert.equal(census.ok, false);
+  assert.match(census.error, /harvest-notes/);
+  assert.match(census.error, /mitosis\.js/);
+});
+
+test('a source whose two extractors disagree halts, because one of them is then reading a subset', () => {
+  const census = censusTranscriptionSources(engineFixture("const stray = { label: 'fence' };"));
+  assert.equal(census.ok, false);
+  assert.match(census.error, /disagree|subset/i);
+});
+
+test('a declared kind that still dispatches while marked converted halts', () => {
+  const declared = TRANSCRIPTION_KINDS.map((kind) => (kind.name === 'fence' ? { ...kind, converted: true } : kind));
+  const census = censusTranscriptionSources(engineFixture('', TRANSCRIPTION_KINDS), declared);
+  assert.equal(census.ok, false);
+  assert.match(census.error, /fence/);
+  assert.match(census.error, /converted/);
+});
+
+test('a declared kind that is marked unconverted yet dispatches nowhere halts', () => {
+  const declared = [...TRANSCRIPTION_KINDS, { name: 'reharvest', converted: false }];
+  const census = censusTranscriptionSources(engineFixture('', TRANSCRIPTION_KINDS), declared);
+  assert.equal(census.ok, false);
+  assert.match(census.error, /reharvest/);
+});
+
+test('a declared kind marked converted and dispatching nowhere is counted as converted rather than halting', () => {
+  const declared = [...TRANSCRIPTION_KINDS, { name: 'reharvest', converted: true }];
+  const census = censusTranscriptionSources(engineFixture('', TRANSCRIPTION_KINDS), declared);
+  assert.equal(census.ok, true, census.error);
+  assert.equal(census.convertedKindCount, 1);
+  assert.equal(census.unconvertedSiteCount, TRANSCRIPTION_KINDS.length);
+});
+
+test('a dispatch node carrying no label halts unless its shape is enumerated with a reason', () => {
+  const census = censusTranscriptionSources(engineFixture('await agent(prompt, { phase: 20 });'));
+  assert.equal(census.ok, false);
+  assert.match(census.error, /carries no label/i);
+});
+
+test('a parameterized label the census cannot resolve halts rather than being skipped', () => {
+  const census = censusTranscriptionSources(engineFixture(dispatch('chosenLabel')));
+  assert.equal(census.ok, false);
+  assert.match(census.error, /chosenLabel/);
+});
+
+test('a source declared free of dispatch labels halts once it acquires a dispatch', () => {
+  const sources = engineFixture();
+  const infected = sources.map((entry) => (entry.path.endsWith('gh-merge-shim.mjs')
+    ? source(entry.path, `${entry.source}\n${dispatch("'fence'")}`)
+    : entry));
+  const census = censusTranscriptionSources(infected);
+  assert.equal(census.ok, false);
+  assert.match(census.error, /gh-merge-shim/);
+});
+
+test('a source declared free of dispatch labels halts once it stops carrying any label at all', () => {
+  const sources = engineFixture();
+  const emptied = sources.map((entry) => (entry.path.endsWith('gh-merge-shim.mjs')
+    ? source(entry.path, 'export const x = 1;')
+    : entry));
+  const census = censusTranscriptionSources(emptied);
+  assert.equal(census.ok, false);
+  assert.match(census.error, /gh-merge-shim/);
+});
+
+test('an enumerated labelless dispatch shape that vanishes halts, so a stale enumeration cannot sit unread', () => {
+  const sources = engineFixture().map((entry) => (entry.path === TARGET
+    ? source(entry.path, entry.source.replace('return agent(prompt, { ...(opts || {}), model: decision.model });', 'return null;'))
+    : entry));
+  const census = censusTranscriptionSources(sources);
+  assert.equal(census.ok, false);
+  assert.match(census.error, /decision\.model|enumerat/i);
+});
+
+test('the journal label map resolves exactly the kinds the journal store declares, in both directions', () => {
+  assert.deepEqual([...new Set(Object.values(JOURNAL_LABEL_KINDS))].sort(), [...JOURNAL_KINDS].sort());
+});
+
+test('every judgment kind the prompt authority declares is reachable from some measured dispatch label', () => {
+  const census = transcriptionCensus();
+  assert.equal(census.ok, true, census.error);
+  const reached = new Set(census.judgmentKindsReached);
+  for (const kind of PROMPT_KINDS) assert.ok(reached.has(kind), `${kind} is declared but no dispatch label resolves to it`);
+});
+
+test('every declared program-in-English label has a measured site', () => {
+  const census = transcriptionCensus();
+  const reached = new Set(census.programKindsReached);
+  for (const program of PROGRAM_LABELS) assert.ok(reached.has(program.name), `${program.name} has no site`);
+});
+
+test('the declared name sets are disjoint, so no label resolves to two categories', () => {
+  const census = transcriptionCensus();
+  assert.equal(census.ok, true, census.error);
+  assert.equal(new Set(census.declaredNames).size, census.declaredNames.length);
+});
+
+test('a census handed no source halts rather than attesting a scope it never read', () => {
+  const census = censusTranscriptionSources([]);
+  assert.equal(census.ok, false);
+  assert.match(census.error, /no source/i);
+});
+
+test('every enumerated inert source and helper carries a recorded reason', () => {
+  for (const [name, reason] of Object.entries(NON_DISPATCH_LABEL_SOURCES)) {
+    assert.ok(typeof reason === 'string' && reason.trim().length > 0, `${name} is withheld without a reason`);
+  }
+  for (const program of PROGRAM_LABELS) {
+    assert.ok(typeof program.reason === 'string' && program.reason.trim().length > 0, `${program.name} is declared without a reason`);
+  }
+});

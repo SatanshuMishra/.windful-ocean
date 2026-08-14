@@ -23,8 +23,10 @@ import {
   extractAssignedPhases,
   extractPhaseSurfaces,
   parseMitosisGateArgv,
+  probeTranscriptionSubstrate,
   promptRegistryExitCode,
   runMitosisGate,
+  transcriptionParityFailures,
 } from '../mitosis-gate.mjs';
 import { scanJsStructure } from '../js-scan.mjs';
 import { MERGE_REFUSAL_SPECIMENS } from '../gh-merge-shim.mjs';
@@ -531,7 +533,8 @@ test('the argv parser accepts every verb and defaults each to its own target', (
   assert.deepEqual(parseMitosisGateArgv(['prompt-registry']), { ok: true, verb: 'prompt-registry', target: null });
   assert.deepEqual(parseMitosisGateArgv(['journal-parity']), { ok: true, verb: 'journal-parity', target: null });
   assert.deepEqual(parseMitosisGateArgv(['dispatchable-agent-schema-capable']), { ok: true, verb: 'dispatchable-agent-schema-capable', target: DEFAULT_AGENT_TREE_TARGET });
-  assert.deepEqual([...MITOSIS_GATE_VERBS], ['determinism', 'dispatchable-agent-schema-capable', 'exec-allowlist', 'journal-parity', 'phase-parity', 'prompt-registry']);
+  assert.deepEqual(parseMitosisGateArgv(['transcription-parity']), { ok: true, verb: 'transcription-parity', target: null });
+  assert.deepEqual([...MITOSIS_GATE_VERBS], ['determinism', 'dispatchable-agent-schema-capable', 'exec-allowlist', 'journal-parity', 'phase-parity', 'prompt-registry', 'transcription-parity']);
   assert.notEqual(DEFAULT_DETERMINISM_TARGET, DEFAULT_PHASE_PARITY_TARGET);
 });
 
@@ -749,6 +752,105 @@ test('the journal-parity verb rejects a target, because it censuses the engine t
   const { out, stderr } = capture();
   assert.equal(runMitosisGate(['journal-parity', '--target', '/etc/passwd'], out, () => ''), GATE_USAGE_EXIT);
   assert.match(stderr.join(''), /journal-parity/);
+});
+
+test('the transcription-parity verb exits clean over the real engine and reports what it measured', () => {
+  const { out, stdout, stderr } = capture();
+  const code = runMitosisGate(['transcription-parity'], out, () => '');
+  assert.deepEqual(stderr, []);
+  assert.equal(code, GATE_CLEAN_EXIT);
+  const verdict = JSON.parse(stdout.join(''));
+  assert.equal(verdict.verb, 'transcription-parity');
+  assert.equal(verdict.ok, true);
+  assert.equal(verdict.target, undefined, 'the verb opens no path of its own, so it must not report one as a target');
+  assert.equal(verdict.dispatchNodeCount, verdict.dispatchLabelCount + verdict.passThroughCount);
+  assert.equal(verdict.unconvertedSites.length, verdict.conversionTargetSiteCount);
+  assert.equal(verdict.unconvertedSiteCount, verdict.conversionTargetSiteCount);
+  assert.equal(verdict.childrenStartedWhileRefusing, 0);
+  assert.ok(verdict.refusalProbes.every((probe) => probe.endsWith(': refused')), verdict.refusalProbes.join('; '));
+  assert.ok(verdict.allowProbes.every((probe) => probe.endsWith(': allowed')), verdict.allowProbes.join('; '));
+  assert.ok(verdict.twinSites.length > 0, 'the live-path twins must be named rather than assumed absent');
+});
+
+test('the transcription-parity verdict states plainly that none of the eighteen is converted yet', () => {
+  const { out, stdout } = capture();
+  runMitosisGate(['transcription-parity'], out, () => '');
+  const verdict = JSON.parse(stdout.join(''));
+  assert.equal(verdict.convertedKindCount, 0);
+  assert.ok(Array.isArray(verdict.attests) && verdict.attests.length > 0);
+  assert.ok(Array.isArray(verdict.notAttested) && verdict.notAttested.length > 0);
+  assert.ok(
+    verdict.notAttested.some((claim) => /still dispatch/.test(claim)),
+    'the eighteen sites still dispatch a model until C4b and C4c, so the verdict must not read as a conversion guarantee',
+  );
+  assert.ok(
+    verdict.notAttested.some((claim) => /node:child_process/.test(claim)),
+    'the verdict does not record that live spawn sites still bypass the chokepoint',
+  );
+  assert.ok(
+    verdict.notAttested.some((claim) => /--mirror|--delete/.test(claim)),
+    'the verdict does not record which destructive spellings the manifest ref policy leaves unexamined',
+  );
+  assert.ok(Array.isArray(verdict.c7Obligations) && verdict.c7Obligations.length > 0);
+  assert.ok(verdict.c7Obligations.some((claim) => /run-engine\.mjs/.test(claim)));
+  assert.ok(verdict.c7Obligations.some((claim) => /divergence\.mjs/.test(claim)));
+});
+
+test('the transcription-parity verb rejects a target, because it censuses the engine trees it enumerates itself', () => {
+  const parsed = parseMitosisGateArgv(['transcription-parity', '--target', '/etc/passwd']);
+  assert.equal(parsed.ok, false);
+  assert.match(parsed.error, /transcription-parity/);
+  const { out, stderr } = capture();
+  assert.equal(runMitosisGate(['transcription-parity', '--target', '/etc/passwd'], out, () => ''), GATE_USAGE_EXIT);
+  assert.match(stderr.join(''), /transcription-parity/);
+});
+
+test('a substrate that admits a refused argv is a transcription-parity failure naming the probe', () => {
+  const substrate = probeTranscriptionSubstrate();
+  const failures = transcriptionParityFailures({
+    ...substrate,
+    refusals: {
+      ...substrate.refusals,
+      probes: substrate.refusals.probes.map((probe, index) => (index === 0 ? { ...probe, refused: false } : probe)),
+    },
+  });
+  assert.equal(failures.length, 1);
+  assert.match(failures[0], new RegExp(substrate.refusals.probes[0].name));
+});
+
+test('a substrate that starts a child while refusing is a failure, because before-the-spawn is the guarantee', () => {
+  const substrate = probeTranscriptionSubstrate();
+  const failures = transcriptionParityFailures({
+    ...substrate,
+    refusals: { ...substrate.refusals, childrenStarted: 1 },
+  });
+  assert.equal(failures.length, 1);
+  assert.match(failures[0], /BEFORE the spawn/);
+});
+
+test('a substrate that refuses argv the engine legitimately runs is a failure, so an over-broad guard cannot pass', () => {
+  const substrate = probeTranscriptionSubstrate();
+  for (let index = 0; index < substrate.allowances.length; index += 1) {
+    const failures = transcriptionParityFailures({
+      ...substrate,
+      allowances: substrate.allowances.map((probe, position) => (position === index ? { ...probe, allowed: false } : probe)),
+    });
+    assert.equal(failures.length, 1, substrate.allowances[index].name);
+    assert.match(failures[0], /over-broad/);
+    assert.match(failures[0], new RegExp(substrate.allowances[index].name.replace(/[/\\^$*+?.()|[\]{}]/g, '\\$&')));
+  }
+});
+
+test('a manifest ref probe whose verdict flips is a failure, in both directions', () => {
+  const substrate = probeTranscriptionSubstrate();
+  for (let index = 0; index < substrate.manifestRef.length; index += 1) {
+    const flipped = substrate.manifestRef.map((probe, position) => (position === index
+      ? { ...probe, observed: probe.observed === 'refused' ? 'permitted' : 'refused' }
+      : probe));
+    const failures = transcriptionParityFailures({ ...substrate, manifestRef: flipped });
+    assert.equal(failures.length, 1, substrate.manifestRef[index].name);
+    assert.match(failures[0], new RegExp(substrate.manifestRef[index].name.replace(/[/\\^$*+?.()|[\]{}]/g, '\\$&')));
+  }
 });
 
 test('a registry census halt exits unresolvable and a measured violation exits violation, never clean', () => {

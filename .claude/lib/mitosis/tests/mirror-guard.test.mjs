@@ -85,6 +85,7 @@ const MIRROR_CENSUS = Object.freeze({
   'run-store.mjs': STANDALONE,
   'git/pr.mjs': STANDALONE,
   'superpowers-prompts.mjs': STANDALONE,
+  'transcription-census.mjs': STANDALONE,
   'route-planner.mjs': STANDALONE,
   'workflow-sandbox.mjs': STANDALONE,
 });
