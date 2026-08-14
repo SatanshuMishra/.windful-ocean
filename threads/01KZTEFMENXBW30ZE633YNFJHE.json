@@ -71,6 +71,13 @@
       "struck_by": null
     },
     {
+      "id": "c15",
+      "text": "The two merge non-reconciliations are repaired and merged: SKILL.md:35 restored to B2's pack wording, the --at fixture wrapped in pack, and a delimiter census guarding the ReDoS recurrence.",
+      "done": false,
+      "kind": "detour",
+      "struck_by": null
+    },
+    {
       "id": "c3",
       "text": "All eighteen MSPs land as stacked PRs on base feat/mitosis-os-process, each independently green (node --test, lints, every gate verb at that commit), with nothing merged to main.",
       "done": false,
@@ -410,5 +417,5 @@
     ]
   },
   "created_at": "2026-08-12T07:37:41.077Z",
-  "updated_at": "2026-08-14T05:09:39.502Z"
+  "updated_at": "2026-08-14T05:09:48.986Z"
 }
