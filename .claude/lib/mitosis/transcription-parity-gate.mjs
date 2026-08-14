@@ -32,6 +32,7 @@ import { FETCH_VALUE_SITES, censusPositionalSeparation, refusedValueProbes } fro
 import {
   conversionControlProbes,
   conversionStateProbes,
+  pendingJudgmentProbes,
   registeredSiteProbes,
   registryControlProbes,
   sharedStepControlProbes,
@@ -123,7 +124,7 @@ export function probeTranscriptionSubstrate() {
     valueRefusals: refusedValueProbes(FETCH_VALUE_SITES, TRANSCRIBED_COMMAND_FIXTURES),
     manifestPublish: manifestPublishProbe(),
     conversionStateControls: engine.error === undefined
-      ? Object.freeze([...conversionStateProbes(engine.sources), ...registeredSiteProbes(engine.sources)])
+      ? Object.freeze([...conversionStateProbes(engine.sources), ...registeredSiteProbes(engine.sources), ...pendingJudgmentProbes(engine.sources)])
       : Object.freeze([]),
     argvInertness: argvInertnessProbe(),
     ciFacts: ciFactProbes(),
@@ -207,6 +208,58 @@ function pollFailures(substrate) {
   return failures;
 }
 
+const DERIVED_FACT_CONTROLS = Object.freeze([
+  Object.freeze({
+    name: 'a derived ci fact that stopped holding is reported',
+    expect: 'ci fact probes no longer hold',
+    perturb: (substrate) => ({ ...substrate, ciFacts: substrate.ciFacts.map((probe, index) => (index === 0 ? { ...probe, ok: false } : probe)) }),
+  }),
+  Object.freeze({
+    name: 'a spec fingerprint that stopped matching its transcribed digest is reported',
+    expect: 'spec fingerprint probes no longer hold',
+    perturb: (substrate) => ({ ...substrate, specHash: substrate.specHash.map((probe, index) => (index === 0 ? { ...probe, ok: false } : probe)) }),
+  }),
+  Object.freeze({
+    name: 'a supersede summary that stopped holding its bound is reported',
+    expect: 'supersede summary probes no longer hold',
+    perturb: (substrate) => ({ ...substrate, supersedeSummary: substrate.supersedeSummary.map((probe, index) => (index === 0 ? { ...probe, ok: false } : probe)) }),
+  }),
+  Object.freeze({
+    name: 'a gh command that stopped resolving through the merge shim is reported',
+    expect: 'no longer resolves through the merge shim',
+    perturb: (substrate) => ({ ...substrate, ghShimRouting: { ...substrate.ghShimRouting, routed: false } }),
+  }),
+  Object.freeze({
+    name: 'a merge specimen the same resolution stopped refusing is reported',
+    expect: 'was NOT refused',
+    perturb: (substrate) => ({ ...substrate, ghShimRouting: { ...substrate.ghShimRouting, refusedMerge: false } }),
+  }),
+  Object.freeze({
+    name: 'two fixture modules pinning to two different parent commits is reported',
+    expect: 'two different parent commits',
+    perturb: (substrate) => ({ ...substrate, ghFixtureParentSha: 'deadbeef' }),
+  }),
+  Object.freeze({
+    name: 'a ci report field claimed as both derived and model-read is reported',
+    expect: 'claimed as both derived and model-read',
+    perturb: (substrate) => ({ ...substrate, ciReportFieldOverlap: [...CI_MODEL_FIELDS] }),
+  }),
+]);
+
+export function derivedFactControlProbes(substrate) {
+  return Object.freeze(DERIVED_FACT_CONTROLS.map((control) => {
+    const measured = derivedFactFailures(control.perturb(substrate));
+    const named = measured.some((failure) => failure.includes(control.expect));
+    return Object.freeze({
+      name: control.name,
+      halted: measured.length > 0,
+      named,
+      anchorPresent: true,
+      detail: measured.length === 0 ? 'the aggregation accepted it' : measured.join(' | '),
+    });
+  }));
+}
+
 function derivedFactFailures(substrate) {
   const failures = [];
   for (const [name, probes] of [['ci fact', substrate.ciFacts], ['spec fingerprint', substrate.specHash], ['supersede summary', substrate.supersedeSummary]]) {
@@ -222,7 +275,8 @@ function derivedFactFailures(substrate) {
   if (!shim.refusedMerge) {
     failures.push(`the classifier own specimen ${SHIM_REFUSED_SPECIMEN.label} routed through the same resolution was NOT refused, so the shim is in the path without being in force`);
   }
-  const overlap = CI_FACT_FIELDS.filter((field) => CI_MODEL_FIELDS.includes(field));
+  const claimed = substrate.ciReportFieldOverlap === undefined ? CI_FACT_FIELDS : substrate.ciReportFieldOverlap;
+  const overlap = claimed.filter((field) => CI_MODEL_FIELDS.includes(field));
   if (overlap.length > 0) {
     failures.push(`these ci report fields are claimed as both derived and model-read: ${overlap.join(', ')}; a field on both lists would be reported twice and compared against itself`);
   }
@@ -372,7 +426,14 @@ export function transcriptionParityFailures(substrate) {
     ...conversionStateFailures(substrate),
     ...argvInertnessFailures(substrate),
     ...derivedFactFailures(substrate),
+    ...inertControlFailures('derived fact', derivedFactControlProbes(substrate)),
   ];
+}
+
+function inertControlFailures(what, controls) {
+  const inert = controls.filter((control) => !(control.anchorPresent && control.halted && control.named));
+  if (inert.length === 0) return [];
+  return [`these ${what} controls no longer report the thing they name, so the verb would stay green while the check it attests was gone: ${inert.map((control) => `${control.name} (${control.detail})`).join('; ')}`];
 }
 
 export function transcriptionParityVerdict() {
@@ -439,6 +500,7 @@ function substratePayload(substrate) {
     specHashProbes: substrate.specHash.map((probe) => `${probe.name}: ${probe.ok ? 'holds' : 'INERT'}`),
     supersedeSummaryProbes: substrate.supersedeSummary.map((probe) => `${probe.name}: ${probe.ok ? 'holds' : 'INERT'}`),
     ghShimRouting: `${substrate.ghShimRouting.routed ? 'routed through the merge shim' : 'NOT ROUTED'}, ${substrate.ghShimRouting.refusedMerge ? 'the classifier own specimen refused' : 'SPECIMEN ADMITTED'}`,
+    derivedFactControls: derivedFactControlProbes(substrate).map((control) => `${control.name}: ${control.halted && control.named ? 'halted and named' : 'INERT'}`),
     ciDerivedFields: [...CI_FACT_FIELDS],
     ciModelReadFields: [...CI_MODEL_FIELDS],
     commandFixtureBinary: substrate.conversions.binary,
