@@ -15,7 +15,7 @@ import {
   transcriptionCensus,
 } from './transcription-census.mjs';
 import { GIT_COMMAND_FIXTURES } from './git-command-fixtures.mjs';
-import { censusGitCommandFixtures, gitCommandFixtureCensus } from './transcription-conversions.mjs';
+import { censusGitCommandFixtures, gitCommandFixtureCensus, parserProbes } from './transcription-conversions.mjs';
 
 export const TRANSCRIPTION_PARITY_ATTESTS = Object.freeze([
   'every dispatch call node in both declared engine trees is resolved to exactly one declared name - transcription, judgment, journal or program-in-English - by exact identity or by an enumerated prefix alias, so a label none of them covers halts with its site named rather than being absorbed by a name it merely extends',
@@ -33,6 +33,8 @@ export const TRANSCRIPTION_PARITY_ATTESTS = Object.freeze([
   'every transcribed argument vector is pinned to the incumbent command text it was transcribed from: each argument resolves, through its declared placeholders, to text that appears verbatim in that command, and an argument that does not is admitted only as a named derivation carrying a stated reason',
   'every command builder carries exactly one fixture and every fixture names a declared builder, in both directions, so a builder can be neither dropped from the pinning nor pinned twice',
   'a fixture repaired against the builder rather than against the incumbent halts, and that halt is exercised here on mutated copies of the shipped fixtures every time this verb runs, each control asserting the fixture it mutates is present before its result is trusted',
+  'every transcribed site names a parser and every named parser is pinned to a transcribed command, in both directions, so a site cannot be counted converted while nothing reads what its commands print',
+  'every site parser is run here against the output it is declared to read and against the same output relabelled as a run that never completed, so a parser that has gone blind and a parser that reads a fact out of an interrupted run are both caught by this verb rather than only by the suite',
 ]);
 
 export const TRANSCRIPTION_PARITY_NOT_ATTESTED = Object.freeze([
@@ -179,6 +181,7 @@ export function probeTranscriptionSubstrate() {
     conversionTargetError: target.error === undefined ? null : target.error,
     conversions: target.error === undefined ? gitCommandFixtureCensus(source) : { ok: false, error: target.error },
     conversionControls: target.error === undefined ? conversionControlProbes(source) : Object.freeze([]),
+    parsers: parserProbes(),
   });
 }
 
@@ -244,6 +247,17 @@ export function transcriptionParityFailures(substrate) {
   if (substrate.conversionControls.length === 0) {
     failures.push('the conversion guard ran no negative control at all, so nothing here would notice it going inert');
   }
+  const blindParsers = substrate.parsers.filter((probe) => !probe.reads);
+  if (blindParsers.length > 0) {
+    failures.push(`these site parsers no longer read the output they are declared to read: ${blindParsers.map((probe) => `${probe.name} (${probe.detail})`).join('; ')}`);
+  }
+  const openParsers = substrate.parsers.filter((probe) => probe.reads && !probe.failsClosed);
+  if (openParsers.length > 0) {
+    failures.push(`these site parsers read a fact out of an observation that never completed: ${openParsers.map((probe) => probe.name).join(', ')}; a command that did not finish answers for nothing, and folding it into a readable result is the silent wrong success these probes replace`);
+  }
+  if (substrate.parsers.length === 0) {
+    failures.push('no site parser was probed at all, so nothing here would notice one going blind');
+  }
   return failures;
 }
 
@@ -292,6 +306,8 @@ export function transcriptionParityVerdict() {
       commandFixtureSiteCount: substrate.conversions.siteCount,
       commandFixtureSites: [...substrate.conversions.sites],
       nonSpawnSteps: [...substrate.conversions.nonSpawnSteps],
+      siteParsers: [...substrate.conversions.parsers],
+      parserProbes: substrate.parsers.map((probe) => `${probe.name}: ${probe.reads && probe.failsClosed ? 'reads and fails closed' : 'INERT'}`),
       derivedArguments: [...substrate.conversions.derivedArguments],
       stdinSteps: [...substrate.conversions.stdinSteps],
       conversionControls: substrate.conversionControls.map((control) => `${control.name}: ${control.anchorPresent && control.halted && control.named ? 'halted and named' : 'INERT'}`),

@@ -6,11 +6,100 @@ import {
   PLAN_PROBE_FIXTURE,
 } from './git-command-fixtures.mjs';
 import { EXEC_ALLOWLIST } from './exec-policy.mjs';
+import { EXEC_COMPLETED, EXEC_TIMEOUT_EXPIRED } from './exec-run.mjs';
+import {
+  classifyPlanArtifact,
+  parseAncestry,
+  parseBytes,
+  parseLsRemote,
+  parseMerge,
+  parseNameOnlyPaths,
+  parsePresence,
+  parseSha,
+  parseStatusPaths,
+} from './transcription-parsers.mjs';
 
 const MODULE = 'transcription-conversions';
 const REPOSITORY_FLAG = '-C';
+const SPECIMEN_SHA = '0123456789abcdef0123456789abcdef01234567';
 
 export const NON_SPAWN_SITES = Object.freeze([MANIFEST_WRITE_FIXTURE, PLAN_PROBE_FIXTURE]);
+
+function ran(status, stdout = '') {
+  return Object.freeze({ outcome: EXEC_COMPLETED, status, stdout, stderr: '', signal: null, error: null });
+}
+
+const SITE_PARSERS = Object.freeze({
+  fence: Object.freeze([
+    Object.freeze({ name: 'parseStatusPaths', parse: parseStatusPaths, specimen: ran(0, ' M src/a.ts\nR  src/o.ts -> src/n.ts\n'), reads: (read) => read.paths.length === 3 }),
+  ]),
+  integrate: Object.freeze([
+    Object.freeze({ name: 'parseMerge', parse: parseMerge, specimen: ran(1, 'CONFLICT (content): Merge conflict in src/a.ts\n'), reads: (read) => read.conflict === true && read.conflictPaths.length === 1 }),
+    Object.freeze({ name: 'parseAncestry', parse: parseAncestry, specimen: ran(1), reads: (read) => read.ancestor === false }),
+  ]),
+  'divergence-check': Object.freeze([
+    Object.freeze({ name: 'parseNameOnlyPaths', parse: parseNameOnlyPaths, specimen: ran(0, 'src/a.ts\n'), reads: (read) => read.paths.length === 1 }),
+  ]),
+  'prepare-probe': Object.freeze([
+    Object.freeze({ name: 'parsePresence', parse: parsePresence, specimen: ran(1), reads: (read) => read.present === false }),
+    Object.freeze({ name: 'parseBytes', parse: parseBytes, specimen: ran(0, '{"d6":true}\n'), reads: (read) => read.bytes === '{"d6":true}\n' }),
+  ]),
+  restore: Object.freeze([
+    Object.freeze({ name: 'parseSha', parse: parseSha, specimen: ran(0, `${SPECIMEN_SHA}\n`), reads: (read) => read.sha === SPECIMEN_SHA }),
+  ]),
+  'plan-probe': Object.freeze([
+    Object.freeze({ name: 'classifyPlanArtifact', parse: (observed) => Object.freeze({ ok: true, ...classifyPlanArtifact(observed) }), specimen: Object.freeze({ exists: true, isFile: true, size: 9 }), reads: (read) => read.planFound === true, local: true }),
+  ]),
+  'branch-compose': Object.freeze([
+    Object.freeze({ name: 'parseSha', parse: parseSha, specimen: ran(0, `${SPECIMEN_SHA}\n`), reads: (read) => read.sha === SPECIMEN_SHA }),
+    Object.freeze({ name: 'parseAncestry', parse: parseAncestry, specimen: ran(0), reads: (read) => read.ancestor === true }),
+  ]),
+  'branch-prep': Object.freeze([
+    Object.freeze({ name: 'parseSha', parse: parseSha, specimen: ran(0, `${SPECIMEN_SHA}\n`), reads: (read) => read.sha === SPECIMEN_SHA }),
+  ]),
+  'checkpoint-push': Object.freeze([
+    Object.freeze({ name: 'parseSha', parse: parseSha, specimen: ran(0, `${SPECIMEN_SHA}\n`), reads: (read) => read.sha === SPECIMEN_SHA }),
+    Object.freeze({ name: 'parseLsRemote', parse: parseLsRemote, specimen: ran(0, ''), reads: (read) => read.present === false }),
+  ]),
+  'ci-diff': Object.freeze([
+    Object.freeze({ name: 'parseNameOnlyPaths', parse: parseNameOnlyPaths, specimen: ran(0, 'src/a.ts\nsrc/b.ts\n'), reads: (read) => read.paths.length === 2 }),
+  ]),
+  'ci-publish-verify': Object.freeze([
+    Object.freeze({ name: 'parseAncestry', parse: parseAncestry, specimen: ran(0), reads: (read) => read.ancestor === true }),
+    Object.freeze({ name: 'parseNameOnlyPaths', parse: parseNameOnlyPaths, specimen: ran(0, 'src/a.ts\n'), reads: (read) => read.paths.length === 1 }),
+  ]),
+  'manifest-publish': Object.freeze([
+    Object.freeze({ name: 'parseLsRemote', parse: parseLsRemote, specimen: ran(0, `${SPECIMEN_SHA}\trefs/mitosis-manifest/a/b\n`), reads: (read) => read.sha === SPECIMEN_SHA }),
+    Object.freeze({ name: 'parseSha', parse: parseSha, specimen: ran(0, `${SPECIMEN_SHA}\n`), reads: (read) => read.sha === SPECIMEN_SHA }),
+    Object.freeze({ name: 'parseBytes', parse: parseBytes, specimen: ran(0, '{"msps":[]}'), reads: (read) => read.bytes === '{"msps":[]}' }),
+  ]),
+});
+
+export const CONVERTED_TRANSCRIPTION_SITES = Object.freeze(Object.keys(SITE_PARSERS).sort());
+
+export function parserProbes() {
+  return Object.freeze(Object.entries(SITE_PARSERS).flatMap(([site, parsers]) => parsers.map((entry) => {
+    const at = `${site} ${entry.name}`;
+    let read;
+    try {
+      read = entry.parse(entry.specimen);
+    } catch (error) {
+      return Object.freeze({ name: at, reads: false, failsClosed: false, detail: `it threw on the output it is meant to read: ${error && error.message ? error.message : 'unknown throw'}` });
+    }
+    const reads = read.ok === true && entry.reads(read) === true;
+    if (entry.local === true) {
+      const refused = classifyPlanArtifact(null);
+      return Object.freeze({ name: at, reads, failsClosed: refused.planFound === false, detail: reads ? 'reads its specimen and refuses an unobservable one' : `it did not read its specimen: ${JSON.stringify(read)}` });
+    }
+    const interrupted = entry.parse(Object.freeze({ ...entry.specimen, outcome: EXEC_TIMEOUT_EXPIRED }));
+    return Object.freeze({
+      name: at,
+      reads,
+      failsClosed: interrupted.ok === false,
+      detail: reads ? 'reads its specimen and refuses a run that did not complete' : `it did not read its specimen: ${JSON.stringify(read)}`,
+    });
+  })));
+}
 
 function halt(error) {
   return Object.freeze({ ok: false, error });
@@ -123,6 +212,14 @@ export function censusGitCommandFixtures(fixtures, source) {
     return halt(`${MODULE}: ${failures.join(' | ')}`);
   }
   const sites = [...new Set([...fixtures.map((fixture) => fixture.site), ...NON_SPAWN_SITES.map((entry) => entry.site)])].sort();
+  const unparsed = sites.filter((site) => !Object.hasOwn(SITE_PARSERS, site) || SITE_PARSERS[site].length === 0);
+  if (unparsed.length > 0) {
+    return halt(`${MODULE}: these sites are transcribed but name no parser, so the engine would run their commands and have nothing to read the output with: ${unparsed.join(', ')}`);
+  }
+  const uncommanded = CONVERTED_TRANSCRIPTION_SITES.filter((site) => !sites.includes(site));
+  if (uncommanded.length > 0) {
+    return halt(`${MODULE}: these sites name a parser but are pinned to no incumbent command, so nothing says what their parser is reading: ${uncommanded.join(', ')}`);
+  }
   return Object.freeze({
     ok: true,
     parentSha: FIXTURE_PARENT_SHA,
@@ -131,6 +228,7 @@ export function censusGitCommandFixtures(fixtures, source) {
     siteCount: sites.length,
     sites: Object.freeze(sites),
     nonSpawnSteps: Object.freeze(NON_SPAWN_SITES.map((entry) => `${entry.site}/${entry.step}`)),
+    parsers: Object.freeze(sites.map((site) => `${site}: ${SITE_PARSERS[site].map((entry) => entry.name).join(', ')}`)),
     derivedArguments: Object.freeze(fixtures.flatMap((fixture) => Object.keys(fixture.derived).map((token) => `${fixture.site}/${fixture.step} ${token}`))),
     stdinSteps: Object.freeze(fixtures.filter((fixture) => fixture.stdin !== null).map((fixture) => `${fixture.site}/${fixture.step}`)),
   });
