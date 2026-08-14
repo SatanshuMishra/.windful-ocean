@@ -94,7 +94,7 @@
     {
       "id": "c9",
       "text": "Step 8 shipped: the inert and harmful hooks deleted, the gate's dead release-tree tokens pruned with the suite green, and the dead nested settings.local.json removed",
-      "done": false,
+      "done": true,
       "kind": "planned",
       "struck_by": null
     },
@@ -133,31 +133,23 @@
   "abandoned_reason": null,
   "closure_statement": null,
   "spine": {
-    "active_goal": "Permissions only: deny is pruned and allow is widened; what remains is c9 cleanup and opening the PR.",
-    "next_step": "c9 next: delete the gate's dead release-tree tokens (0398-gated, needs direct user confirmation) and the dead nested ~/.claude/.claude/settings.local.json. Then c11, the PR through pr-create - note the branch is named fix/release-tree-immutability but carries the whole permissions rebuild, so rename it before opening. Verify first that settings.local.json stopped regrowing, which is the only proof c4 stopped accumulation at source.",
-    "last_session": "Struck c14 (0411), shipped c3 (deny 47 to 36, commit 15d8dca) and c4 (allow 32 to 62 in both files, settings.local.json 213 to 0, commit 510b58a). Found mid-flight that the session ran in auto mode, which discards broad allow rules; user moved off it and both rule shapes are now written (0412).",
+    "active_goal": "Permissions only: deny pruned, allow widened, dead config removed. All that remains is opening the PR.",
+    "next_step": "c11 is the only open criterion: open the PR through pr-create. Rename the branch first - fix/release-tree-immutability now carries the whole permissions rebuild across four commits. Run the full suite at the merge boundary before opening. c15, the detour proving an agent can push and open a PR unaided, is still open and this PR is the natural place to settle it.",
+    "last_session": "Struck c14. Shipped c3 (deny 47 to 36, 15d8dca), c4 (allow 32 to 62 both files, settings.local.json 213 to 0, 510b58a) and c9 (dead gate tokens and drift hook gone, suite 248 of 248, 5ae9c24). Session was in auto mode, which discards broad allow rules. R6 moved to the logbook plugin repo.",
     "open_risks": [
-      {
-        "text": "Prune the gate tokens that guard the deleted release tree — guardname still lists releases, current, local, LIVE, CUTOVER and .cutover, which now match nothing, and 0398 gates the change on direct user confirmation",
-        "scope": "c9",
-        "refs": [
-          ".claude/hooks/block-destructive-bash.sh:17",
-          ".claude/hooks/tests/block-destructive-bash.test.mjs:461-473",
-          "0398"
-        ]
-      },
-      {
-        "text": "Delete the nested ~/.claude/.claude/settings.local.json — it still allows protect-claude-config.sh, deleted in c8a1b9a, from a path Claude Code does not read as a settings surface",
-        "scope": "c9",
-        "refs": [
-          "~/.claude/.claude/settings.local.json"
-        ]
-      },
       {
         "text": "Do not strip the merge gates — gh pr merge and merge_pull_request stay denied by deliberate user choice, and pr-create centralization stays too",
         "scope": "thread",
         "refs": [
           ".claude/settings.json"
+        ]
+      },
+      {
+        "text": "The logbook PreToolUse guard still fails closed and will freeze an unattended run — the wrapper turns any internal exception into a deny across Bash, Write, Edit, MultiEdit and NotebookEdit, hooks run in every permission mode, and dev 0.2.5 is byte-identical to the installed 0.2.4 on that file",
+        "scope": "thread",
+        "refs": [
+          "~/.claude/plugins/cache/logbook/logbook/0.2.4/hooks/lib/hook-io.mjs:107-138",
+          "0413"
         ]
       },
       {
@@ -189,7 +181,6 @@
         "scope": "thread",
         "refs": [
           ".claude/settings.json",
-          ".claude/hooks/block-destructive-bash.sh:148",
           "0405"
         ]
       },
@@ -199,6 +190,14 @@
         "refs": [
           ".claude/settings.json",
           "~/.claude/settings.json"
+        ]
+      },
+      {
+        "text": "Two SPEC docs still name session-config-drift-check.sh, deleted in 5ae9c24 — historical records left deliberately, but they will read as live machinery to a fresh session",
+        "scope": "thread",
+        "refs": [
+          "docs/superpowers/specs/2026-08-06-config-staging-live-promotion-SPEC.md",
+          "docs/superpowers/specs/2026-08-13-maximum-autonomy-permission-architecture-SPEC.md"
         ]
       },
       {
@@ -283,5 +282,5 @@
     ]
   },
   "created_at": "2026-08-13T18:14:42.072Z",
-  "updated_at": "2026-08-14T04:33:42.209Z"
+  "updated_at": "2026-08-14T04:34:39.544Z"
 }
