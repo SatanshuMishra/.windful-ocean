@@ -73,7 +73,7 @@
     {
       "id": "c15",
       "text": "The two merge non-reconciliations are repaired and merged: SKILL.md:35 restored to B2's pack wording, the --at fixture wrapped in pack, and a delimiter census guarding the ReDoS recurrence.",
-      "done": false,
+      "done": true,
       "kind": "detour",
       "struck_by": null
     },
@@ -119,9 +119,9 @@
   "abandoned_reason": null,
   "closure_statement": null,
   "spine": {
-    "active_goal": "Land the eighteen MSPs as stacked PRs on feat/mitosis-os-process. A0-A4, B1 and B2 are merged; PRs #97 and #98 are open and green; B3 unblocks next.",
-    "next_step": "Merge PRs #97 and #98, both fully green including receipts at 11s and all three mitosis-gate legs at 12s. Then fix the second ReDoS orphan at dispatch-payload.test.mjs:164 before it ever acquires a backslash-dense tail, and report the stripStrings ReDoS upstream. Then cut B3, which B2 unblocked; 7 of 18 MSPs are on the base.",
-    "last_session": "Unblocked both stalled PRs. Orphaned gitlinks broke actions/checkout under persist-credentials false; a ReDoS in the pinned receipts enforcer hung #81 twice. Both root causes fixed and proven green on real runners. Found and repaired two merge casualties; opened #97 and #98.",
+    "active_goal": "Land the eighteen MSPs as stacked PRs on feat/mitosis-os-process. A0-A4, B1 and B2 are merged and the base is clean at f252fef7; B3 is next.",
+    "next_step": "Cut B3, which B2 unblocked; 7 of 18 MSPs are on the base. Before or alongside it, clear two carried items: fix the second ReDoS orphan at dispatch-payload.test.mjs:164 while its tail is still harmless, and report the stripStrings ReDoS upstream to shaheershoaib/receipts.",
+    "last_session": "Unblocked both stalled PRs. Orphaned gitlinks broke actions/checkout under persist-credentials false; a ReDoS in the pinned receipts enforcer hung #81 twice. Fixed both, repaired two merge casualties via #97 and #98, and verified all four merges by content. Base at f252fef7.",
     "open_risks": [
       {
         "text": "Build A4's red case through the claude -p CLI path and assert the SILENT failure — the Workflow agent path auto-grants StructuredOutput, so a red case dispatched through it passes unconditionally and is a guarantee that cannot fail",
@@ -218,17 +218,8 @@
         ]
       },
       {
-        "text": "Merge PRs #97 and #98 before cutting B3 — #97 repairs a self-contradiction in the skill doc that mitosis.js hands the Parallelize agent as live prompt text, so leaving it open keeps a wrong instruction in circulation",
-        "scope": "c15",
-        "refs": [
-          "PR #97",
-          "PR #98",
-          ".claude/skills/plan-to-task-graph/SKILL.md:35"
-        ]
-      },
-      {
         "text": "Fix the second unterminated delimiter at dispatch-payload.test.mjs:164 — a backtick orphan cascading from a lone quote in a regex literal at line 31, harmless only because its tail carries zero backslashes today",
-        "scope": "c15",
+        "scope": "c3",
         "refs": [
           ".claude/lib/mitosis/tests/dispatch-payload.test.mjs:164",
           "0415"
@@ -236,7 +227,7 @@
       },
       {
         "text": "Report the stripStrings ReDoS upstream — the escape on the base is a workaround, and the real remedy is a linear alternation plus a time budget on the static gates, which only the action owner can ship",
-        "scope": "c15",
+        "scope": "c3",
         "refs": [
           "shaheershoaib/receipts",
           "enforcer/g11.js:51",
@@ -426,5 +417,5 @@
     ]
   },
   "created_at": "2026-08-12T07:37:41.077Z",
-  "updated_at": "2026-08-14T05:10:16.557Z"
+  "updated_at": "2026-08-14T05:14:42.996Z"
 }
