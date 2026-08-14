@@ -101,23 +101,24 @@ function dependentsOf(order, deps) {
 function criticalPathHeights(order, deps) {
   const dependents = dependentsOf(order, deps);
   const outstanding = new Map(order.map((id) => [id, dependents.get(id).length]));
-  const heights = new Map();
+  const accumulated = new Map();
   const settled = [];
   for (const id of order) {
     if (outstanding.get(id) !== 0) continue;
-    heights.set(id, SINK_HEIGHT);
+    accumulated.set(id, SINK_HEIGHT);
     settled.push(id);
   }
   for (let cursor = 0; cursor < settled.length; cursor += 1) {
     const id = settled[cursor];
     for (const dep of deps.get(id)) {
-      heights.set(dep, Math.max(heights.get(dep) ?? UNREACHABLE_HEIGHT, heights.get(id) + 1));
+      accumulated.set(dep, Math.max(accumulated.get(dep) ?? UNREACHABLE_HEIGHT, accumulated.get(id) + 1));
       const remaining = outstanding.get(dep) - 1;
       outstanding.set(dep, remaining);
       if (remaining === 0) settled.push(dep);
     }
   }
-  return new Map(order.map((id) => [id, heights.get(id) ?? UNREACHABLE_HEIGHT]));
+  const resolved = new Set(settled);
+  return new Map(order.map((id) => [id, resolved.has(id) ? accumulated.get(id) : UNREACHABLE_HEIGHT]));
 }
 
 function priorityOrder(order, heights) {
