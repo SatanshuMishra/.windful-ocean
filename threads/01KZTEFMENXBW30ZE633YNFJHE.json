@@ -375,6 +375,11 @@
         "ref": "0394-exec-allowlist-attests-only-what-it-measures",
         "title": "exec-allowlist declines the child_process census and names in the verdict what it does not attest",
         "scope": "c3"
+      },
+      {
+        "ref": "0415-redos-deadlock-broken-by-direct-push-to-base",
+        "title": "The enforcer ReDoS deadlock is broken by a direct push to the stack base",
+        "scope": "c3"
       }
     ],
     "out_of_scope": [
@@ -386,5 +391,5 @@
     ]
   },
   "created_at": "2026-08-12T07:37:41.077Z",
-  "updated_at": "2026-08-13T18:37:25.580Z"
+  "updated_at": "2026-08-14T05:08:14.528Z"
 }
