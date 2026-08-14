@@ -15,6 +15,7 @@ import {
 import { censusEngineDeterminism, engineSourceRoots, realSourceIo } from './determinism-lint.mjs';
 import { EXEC_ALLOWLIST, assertSpawnAllowed, resolveSpawn } from './exec-policy.mjs';
 import { MERGE_REFUSAL_SPECIMENS } from './gh-merge-shim.mjs';
+import { censusMergeSpecimens } from './merge-specimen-census.mjs';
 import { REQUIRED_TOOL, agentDefinitionDir, censusAgentSchemaCapability } from './agent-schema-lint.mjs';
 import { PHASE_TITLES } from './phases.mjs';
 import { PROMPT_C7_OBLIGATIONS, PROMPT_PROBE_CASES, censusPromptRegistry } from './prompt-registry.mjs';
@@ -51,6 +52,7 @@ const EXEC_ALLOWLIST_ATTESTS = Object.freeze([
   'an unlisted binary throws instead of spawning, so the policy is deny-by-default rather than deny-a-blocklist',
   'every merge argv the guarantee names is refused in-process by its own refusal reason, before any child starts',
   'an ordinary gh argv resolves through the merge shim rather than straight to the real gh binary',
+  'the specimen set is a closed census of the refusal reasons read out of the classifier source itself, so narrowing it below what the classifier can emit halts rather than passing with fewer probes',
 ]);
 
 const EXEC_ALLOWLIST_NOT_ATTESTED = Object.freeze([
@@ -690,9 +692,9 @@ function refusesToSpawn(binary, argv) {
   return false;
 }
 
-function refusalKind(binary, argv) {
+function refusalKind(binary, argv, io) {
   try {
-    assertSpawnAllowed(binary, argv);
+    assertSpawnAllowed(binary, argv, io);
   } catch (error) {
     const message = error && error.message ? error.message : 'unknown failure';
     const matched = REFUSAL_KIND_RE.exec(message);
@@ -725,6 +727,11 @@ export function execAllowlistFailures(policy) {
   if (!policy.routesThroughShim) {
     failures.push(`an ordinary gh argv no longer resolves through ${SHIM_BASENAME}, so the shim's own refusals would be bypassed at run time`);
   }
+  const census = policy.specimenCensus;
+  if (census === null || typeof census !== 'object' || census.ok !== true) {
+    const detail = census !== null && typeof census === 'object' && typeof census.error === 'string' ? census.error : JSON.stringify(census);
+    failures.push(`the merge specimen set is no longer a closed census of the refusal reasons the classifier can emit: ${detail}`);
+  }
   return failures;
 }
 
@@ -737,12 +744,13 @@ export function probeExecPolicy() {
   }
   const refusals = {};
   for (const probe of MERGE_REFUSAL_SPECIMENS) {
-    refusals[probe.label] = refusalKind('gh', [...probe.argv]);
+    refusals[probe.label] = refusalKind('gh', [...probe.argv], probe.io);
   }
   return {
     allowlist: EXEC_ALLOWLIST,
     refusesUnlisted: refusesToSpawn(UNLISTED_PROBE_BINARY, []),
     refusals,
+    specimenCensus: censusMergeSpecimens(),
     routesThroughShim: routed !== null
       && EXEC_ALLOWLIST.includes(routed.command)
       && typeof routed.args[0] === 'string'

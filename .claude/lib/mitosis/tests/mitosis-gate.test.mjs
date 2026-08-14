@@ -27,6 +27,8 @@ import {
   runMitosisGate,
 } from '../mitosis-gate.mjs';
 import { scanJsStructure } from '../js-scan.mjs';
+import { MERGE_REFUSAL_SPECIMENS } from '../gh-merge-shim.mjs';
+import { censusMergeSpecimens } from '../merge-specimen-census.mjs';
 import { PHASE_TITLES } from '../phases.mjs';
 import { PROMPT_KINDS } from '../prompt-contract.mjs';
 import { PROMPT_PROBE_CASES, censusPromptRegistry } from '../prompt-registry.mjs';
@@ -565,15 +567,25 @@ test('the exec-allowlist verb probes every merge argv the no-merge guarantee nam
   const { out, stdout } = capture();
   runMitosisGate(['exec-allowlist'], out, () => '');
   const verdict = JSON.parse(stdout.join(''));
-  assert.deepEqual(verdict.refusals, {
-    'pr merge': 'pr-merge',
-    'api graphql mergePullRequest': 'graphql-mutation',
-    'api graphql enablePullRequestAutoMerge': 'graphql-mutation',
-    'api graphql enqueuePullRequest': 'graphql-mutation',
-    'api /graphql mergePullRequest': 'graphql-mutation',
-    'api PUT pulls/N/merge': 'api-merge-endpoint',
-    'api graphql unreadable body': 'graphql-fail-closed',
+  const declared = Object.fromEntries(MERGE_REFUSAL_SPECIMENS.map((specimen) => [specimen.label, specimen.kind]));
+  assert.deepEqual(verdict.refusals, declared);
+  const census = censusMergeSpecimens();
+  assert.equal(census.ok, true, census.error);
+  assert.deepEqual(
+    [...new Set(Object.values(verdict.refusals))].sort(),
+    [...census.reasonKinds],
+    'the reported refusal reasons must be exactly the reasons the classifier source can emit, so a narrowed probe set cannot pass with fewer',
+  );
+});
+
+test('narrowing the merge specimen set below what the classifier can emit is an exec-allowlist failure', () => {
+  const policy = probeExecPolicy();
+  const failures = execAllowlistFailures({
+    ...policy,
+    specimenCensus: censusMergeSpecimens([MERGE_REFUSAL_SPECIMENS[0]]),
   });
+  assert.ok(failures.length >= 1);
+  assert.ok(failures.some((failure) => /closed census/.test(failure)), failures.join(' | '));
 });
 
 test('a merge argv that stops being refused is a failure naming the argv, not a silent pass', () => {
