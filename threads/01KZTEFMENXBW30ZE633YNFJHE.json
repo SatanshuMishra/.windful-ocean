@@ -119,9 +119,9 @@
   "abandoned_reason": null,
   "closure_statement": null,
   "spine": {
-    "active_goal": "Land the eighteen MSPs as stacked PRs on feat/mitosis-os-process. A0-A4, B1 and B2 are merged and the base is clean at f252fef7; B3 is next.",
-    "next_step": "Cut B3, which B2 unblocked; 7 of 18 MSPs are on the base. Before or alongside it, clear two carried items: fix the second ReDoS orphan at dispatch-payload.test.mjs:164 while its tail is still harmless, and report the stripStrings ReDoS upstream to shaheershoaib/receipts.",
-    "last_session": "Unblocked both stalled PRs. Orphaned gitlinks broke actions/checkout under persist-credentials false; a ReDoS in the pinned receipts enforcer hung #81 twice. Fixed both, repaired two merge casualties via #97 and #98, and verified all four merges by content. Base at f252fef7.",
+    "active_goal": "Ship the remaining MSPs as stacked PRs on feat/mitosis-os-process, driven by a dedicated orchestrator subagent per the user's instruction.",
+    "next_step": "Run 4 is live and mid-C4a. Do not touch .claude/worktrees/c4-transcription while it runs. When it returns, re-verify its claims against git (PR bases, local==origin, each head an ancestor of the next) before reporting. Remaining after C4a: C4b, C4c, C5, C6, the porting MSP, C7, D1, D2, D3. Merging is human-gated and stays the user's; the ReDoS draft comes back as text, unfiled.",
+    "last_session": "Dispatched a dedicated orchestrator; four runs so far. B3, C1, C2 and C3 shipped as PRs #100-#103, chain verified linear by the main thread. User ruled C4 splits into three and a porting MSP precedes C7. Run 4 in flight on C4a.",
     "open_risks": [
       {
         "text": "Build A4's red case through the claude -p CLI path and assert the SILENT failure — the Workflow agent path auto-grants StructuredOutput, so a red case dispatched through it passes unconditionally and is a guarantee that cannot fail",
@@ -218,101 +218,41 @@
         ]
       },
       {
-        "text": "Fix the second unterminated delimiter at dispatch-payload.test.mjs:164 — a backtick orphan cascading from a lone quote in a regex literal at line 31, harmless only because its tail carries zero backslashes today",
+        "text": "Verify every SPEC claim against a running command before planning against it — the SPEC is four-for-four on false premises, including claiming the engine could be rewired when mitosis.js has zero imports",
         "scope": "c3",
         "refs": [
-          ".claude/lib/mitosis/tests/dispatch-payload.test.mjs:164",
-          "0415"
+          "SPEC C1-C4",
+          "ORCHESTRATOR-BRIEF.md"
         ]
       },
       {
-        "text": "Report the stripStrings ReDoS upstream — the escape on the base is a workaround, and the real remedy is a linear alternation plus a time budget on the static gates, which only the action owner can ship",
+        "text": "Never read a deadline expiry as proof the work stopped — spawnSync signals only the immediate child and cannot kill a process group, so a grandchild keeps running while the substrate reports completion",
         "scope": "c3",
         "refs": [
-          "shaheershoaib/receipts",
-          "enforcer/g11.js:51",
-          "0415"
+          "EXEC_RUN_NOT_ATTESTED",
+          "C4a residual 1"
         ]
       },
       {
-        "text": "Verify every stacked merge by change-line-set equality against each PR's own diff — the #82 and #81 merge silently reverted one of B2's lines while keeping its siblings, and a clean auto-merge plus a MERGED status hid it completely",
+        "text": "Mutate every new guard before trusting it — two C3 guards shipped inert and were indistinguishable from their absence until mutation, having already passed review",
         "scope": "c3",
         "refs": [
-          "0388",
-          "0416",
-          ".claude/skills/plan-to-task-graph/SKILL.md:35"
+          "C3-SHIPPED.md"
         ]
       },
       {
-        "text": "A rerun never picks up a moved base — gh run rerun replays the pinned event payload, so attempt 3 of #82 still checked out the merge ref built against the old base; a fresh pull_request event is the only way",
+        "text": "Commit before running any mutation round — a worker ran git checkout on a file holding uncommitted hardening and destroyed it, caught only by chance",
         "scope": "c3",
         "refs": [
-          "PR #82 run 31730890263"
+          "C4a residual 7"
         ]
       },
       {
-        "text": "exec-allowlist stays green when its merge-probe list is narrowed from seven specimens to one — the verb asserts each probe is refused but never that the probe set is complete, so a later edit can hollow it out",
+        "text": "Leave the remaining mitosis-gate.mjs extraction alone — it stands at 945 lines against the 800 cap but 901 is pre-existing, and a pure move of a verb this stack did not author is how defects enter on unnamed paths",
         "scope": "c3",
         "refs": [
-          "0394",
-          "PR #82",
-          ".claude/lib/mitosis/mitosis-gate.mjs"
-        ]
-      },
-      {
-        "text": "Remove a PR's worktree before merging it, then confirm the ref is actually gone — every branch here is worktree-held, gh refuses to delete those, and when the local delete fails the remote survives too",
-        "scope": "c3",
-        "refs": [
-          "0388",
-          "memory: stacked-pr-merges-into-a-live-base-branch"
-        ]
-      },
-      {
-        "text": "B1's verdict gate is armed at the derive-edges entrypoint but not end to end — mitosis.js Parallelize builds its task map from graph.tasks and never reads graph.coupling, so a real run still co-schedules a serialize-defaulted pair with no verdict",
-        "scope": "c3",
-        "refs": [
-          "PR #73",
-          ".claude/workflows/mitosis.js:5086"
-        ]
-      },
-      {
-        "text": "The pool refuses per-node cwd and worktree outright rather than confining them — a later MSP needing genuine per-node working directories has to build that confinement check then, because the allowlist defers the problem",
-        "scope": "c3",
-        "refs": [
-          "PR #74",
-          ".claude/lib/mitosis/pool.mjs"
-        ]
-      },
-      {
-        "text": "SPEC line 328 still names tests/run-store.test.mjs, which no longer exists — the suite split into four files plus a fixtures module, so A3's Files line is stale prose that no gate reads and no grep will find",
-        "scope": "c3",
-        "refs": [
-          "SPEC A3",
-          ".claude/lib/mitosis/tests/"
-        ]
-      },
-      {
-        "text": "Leave the committed RECEIPTS_ACK in A1's tests alone — removing it would exercise the exact old_string hole reported upstream, turning a disclosed escape back into a silent one",
-        "scope": "c3",
-        "refs": [
-          ".claude/lib/mitosis/tests/",
-          "shaheershoaib/receipts#49",
-          "0383"
-        ]
-      },
-      {
-        "text": "The liveGroups guard spawns a real detached process and asserts liveness by pid — it is the most environment-coupled test in the suite, was measured on macOS only, and a recycled pid yields a spurious green rather than a failure",
-        "scope": "c3",
-        "refs": [
-          ".claude/lib/mitosis/tests/dispatch-termination.test.mjs",
-          "PR #80"
-        ]
-      },
-      {
-        "text": "Three grandchild-spawning tests leak setInterval processes and never assert the grandchild dies — they pass while leaving OS processes behind, so a real termination regression on that path would go unnoticed",
-        "scope": "c3",
-        "refs": [
-          ".claude/lib/mitosis/tests/dispatch-termination.test.mjs"
+          ".claude/lib/mitosis/mitosis-gate.mjs",
+          "C4a residual 2"
         ]
       }
     ],
@@ -447,5 +387,5 @@
     ]
   },
   "created_at": "2026-08-12T07:37:41.077Z",
-  "updated_at": "2026-08-14T16:22:45.725Z"
+  "updated_at": "2026-08-14T18:04:28.807Z"
 }
