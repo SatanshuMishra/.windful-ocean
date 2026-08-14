@@ -1,6 +1,7 @@
 import { test, after } from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, statSync, symlinkSync } from 'node:fs';
+import { execFileSync } from 'node:child_process';
+import { chmodSync, closeSync, constants, mkdirSync, mkdtempSync, openSync, readSync, readdirSync, readFileSync, rmSync, statSync, symlinkSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import {
@@ -11,6 +12,8 @@ import {
   ensureGitignored,
   writeGenesis,
 } from '../journal-store.mjs';
+import { writeAllSync } from '../fs-writer.mjs';
+import { foldRunManifest } from '../run-log.mjs';
 import { GENESIS_MANIFEST_AT_FB195E47 } from './journal-fixtures.mjs';
 
 const LIB = new URL('..', import.meta.url).pathname;
@@ -25,11 +28,34 @@ const SHARED_GUARDS = Object.freeze([
 ]);
 
 const scratchDirs = [];
+const SHORT_WRITE_PAYLOAD_BYTES = 4 * 1024 * 1024;
+const DRAIN_CHUNK_BYTES = 64 * 1024;
 
 function scratch(prefix) {
   const dir = mkdtempSync(join(tmpdir(), prefix));
   scratchDirs.push(dir);
   return dir;
+}
+
+function openShortWritingSink(dir) {
+  const sink = join(dir, 'sink');
+  execFileSync('mkfifo', [sink]);
+  return Object.freeze({ sink, descriptor: openSync(sink, constants.O_RDWR | constants.O_NONBLOCK) });
+}
+
+function drain(descriptor) {
+  const chunk = Buffer.allocUnsafe(DRAIN_CHUNK_BYTES);
+  let drained = 0;
+  for (;;) {
+    let advanced = 0;
+    try {
+      advanced = readSync(descriptor, chunk, 0, chunk.length, null);
+    } catch {
+      return drained;
+    }
+    if (advanced <= 0) return drained;
+    drained += advanced;
+  }
 }
 
 after(() => {
@@ -86,7 +112,7 @@ test('every file the journal writer creates is owner-only, because the journal c
   assert.equal(statSync(join(repo, '.gitignore')).mode & 0o777, 0o600, 'the ignore file is readable beyond its owner');
 });
 
-test('a genesis write that cannot land leaves the previous journal whole rather than truncated', () => {
+test('a manifest the fold reader would reject is refused before the journal is opened at all', () => {
   const dir = scratch('journal-atomic-');
   const journal = join(dir, '.mitosis', 'run.json');
   writeGenesis({ repoRoot: dir, path: journal, manifest: GENESIS_MANIFEST_AT_FB195E47 });
@@ -97,6 +123,32 @@ test('a genesis write that cannot land leaves the previous journal whole rather 
     /journal-store/,
   );
   assert.equal(readFileSync(journal, 'utf8'), before, 'a refused genesis truncated the journal it could not replace');
+});
+
+test('a genesis replacement that cannot be staged leaves the prior journal whole and foldable rather than emptying it in place', () => {
+  const dir = scratch('journal-staged-replace-');
+  const holder = join(dir, '.mitosis');
+  const journal = join(holder, 'run.json');
+  writeGenesis({ repoRoot: dir, path: journal, manifest: GENESIS_MANIFEST_AT_FB195E47 });
+  appendJournalLine({ repoRoot: dir, path: journal, line: LINE });
+  const before = readFileSync(journal, 'utf8');
+  chmodSync(holder, 0o500);
+  try {
+    assert.throws(
+      () => writeGenesis({ repoRoot: dir, path: journal, manifest: { ...GENESIS_MANIFEST_AT_FB195E47, logicalRunId: 'fx02run8' } }),
+      /journal-store/,
+      'the replacement went into the journal itself rather than beside it, so the only thing standing between an interrupted write and an unrecoverable run is the write finishing',
+    );
+    assert.equal(readFileSync(journal, 'utf8'), before, 'a replacement that never landed took the journal down with it');
+    const recovered = foldRunManifest(readFileSync(journal, 'utf8'));
+    assert.equal(
+      recovered === null ? null : recovered.logicalRunId,
+      GENESIS_MANIFEST_AT_FB195E47.logicalRunId,
+      'the journal no longer folds back to the run it recorded, which is every relaunch unable to recover that run',
+    );
+  } finally {
+    chmodSync(holder, 0o700);
+  }
 });
 
 test('the genesis write leaves no temporary file behind once it lands', () => {
@@ -120,6 +172,25 @@ test('a line far larger than one write syscall lands whole, so no half-record jo
   assert.equal(`${lines[2]}\n`, LINE);
   for (const line of lines) {
     assert.doesNotThrow(() => JSON.parse(line), `a record did not survive as parseable JSON: ${line.slice(0, 60)}`);
+  }
+});
+
+test('a descriptor that places fewer bytes than it was asked for makes the write throw rather than report the bytes it never wrote', () => {
+  const { sink, descriptor } = openShortWritingSink(scratch('journal-short-write-'));
+  const payload = 'p'.repeat(SHORT_WRITE_PAYLOAD_BYTES);
+  try {
+    assert.throws(
+      () => writeAllSync('fx-writer', descriptor, payload, sink),
+      Error,
+      'the write returned as though the whole record had landed; the bytes it never placed leave a half-line that the next append concatenates onto, and the fold reader skips both records in silence',
+    );
+    const placed = drain(descriptor);
+    assert.ok(
+      placed > 0 && placed < SHORT_WRITE_PAYLOAD_BYTES,
+      `no short write was injected: ${placed} of ${SHORT_WRITE_PAYLOAD_BYTES} bytes were placed, so this case attests nothing about a write that lands short`,
+    );
+  } finally {
+    closeSync(descriptor);
   }
 });
 
