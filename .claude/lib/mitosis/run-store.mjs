@@ -1,10 +1,11 @@
 import { execFileSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { closeSync, constants, existsSync, lstatSync, mkdirSync, openSync, readdirSync, readFileSync, realpathSync, renameSync, rmSync, statSync, unlinkSync, writeFileSync } from 'node:fs';
-import { isAbsolute, join } from 'node:path';
+import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { CHECKPOINT_REF_PREFIX, MANIFEST_REF_PREFIX, validateRefToken } from './checkpoint.mjs';
 import { appendJournalLine, composeJournalLine, elapsedBetween, ensureGitignored, writeGenesis } from './journal-store.mjs';
+import { isPlainObject, requireGuardedPath } from './fs-writer.mjs';
 import { isIsoInstant } from './run-log.mjs';
 
 const RUN_KEY_DOMAIN = 'mitosis-run-key/1\n';
@@ -12,8 +13,7 @@ const RUN_KEY_PATTERN = /^[a-f0-9]{64}$/;
 const UNIT_ID_PATTERN = /^[a-z0-9][a-z0-9-]*$/;
 const ATTEMPT_PATTERN = /^attempt-([1-9][0-9]*)$/;
 const RUNS_SEGMENTS = Object.freeze(['.mitosis', 'runs']);
-const PATH_SEPARATOR = /[/\\]/;
-const NUL = String.fromCharCode(0);
+const JSON_ERROR_POSITION = /position (\d+)/;
 const MAX_ATTEMPT_COLLISIONS = 64;
 const RUN_ID_PATTERN = /^[a-f0-9]{8}$/;
 const GIT_TIMEOUT_MS = 10000;
@@ -31,9 +31,9 @@ const USAGE = [
   'usage: run-store.mjs key <spec.json>',
   '       run-store.mjs open <spec.json> --root <dir> --started-at <iso8601> --unit <id> [--unit <id> ...] [--pid <n>] [--run-id <8 hex>]',
   '       run-store.mjs retire [--root <dir> --run-key <64 hex>] [--repo <dir> --run-id <8 hex>] [--force]',
-  '       run-store.mjs journal genesis --path <journal> --manifest <manifest.json>',
-  '       run-store.mjs journal append --path <journal> --kind <kind> --record <record.json>',
-  '       run-store.mjs journal gitignore --path <.gitignore> --entry <line>',
+  '       run-store.mjs journal genesis --repo-root <dir> --path <journal> --manifest <manifest.json>',
+  '       run-store.mjs journal append --repo-root <dir> --path <journal> --kind <kind> --record <record.json>',
+  '       run-store.mjs journal gitignore --repo-root <dir> --entry <line>',
   '       run-store.mjs journal elapsed --at <iso8601> [--prior-at <iso8601>]',
 ].join('\n');
 
@@ -41,12 +41,6 @@ function usageError(message) {
   const error = new Error(message);
   error.usage = true;
   return error;
-}
-
-function isPlainObject(value) {
-  if (value === null || typeof value !== 'object' || Array.isArray(value)) return false;
-  const proto = Object.getPrototypeOf(value);
-  return proto === Object.prototype || proto === null;
 }
 
 function canonicalize(value, path, seen) {
@@ -85,19 +79,7 @@ export function computeRunKey(spec) {
 }
 
 function requireAbsoluteDir(value, field) {
-  if (typeof value !== 'string' || value === '') {
-    throw new TypeError(`run-store: ${field} must be a non-empty string naming an absolute directory, received ${value === null ? 'null' : typeof value}`);
-  }
-  if (value.includes(NUL)) {
-    throw new TypeError(`run-store: ${field} must not contain a NUL byte, which no filesystem path can carry, received ${JSON.stringify(value)}`);
-  }
-  if (!isAbsolute(value)) {
-    throw new TypeError(`run-store: ${field} must be an absolute path, because every run path is composed from it and a relative base would resolve against whatever directory the process happens to be in, received ${JSON.stringify(value)}`);
-  }
-  if (value.split(PATH_SEPARATOR).some((segment) => segment === '..')) {
-    throw new TypeError(`run-store: ${field} must not carry a ".." segment, which would let a run write outside the tree it was pointed at, received ${JSON.stringify(value)}`);
-  }
-  return value;
+  return requireGuardedPath('run-store', field, value, 'an absolute directory every run path is composed from').value;
 }
 
 function runDirectoryPath(root, runKey) {
@@ -517,7 +499,9 @@ function readJsonFile(path, label) {
   try {
     return JSON.parse(text);
   } catch (error) {
-    throw new Error(`run-store: the ${label} at ${path} is not valid JSON: ${error.message}`);
+    const located = JSON_ERROR_POSITION.exec(error.message);
+    const where = located === null ? 'a position the parser did not report' : `character ${located[1]}`;
+    throw new Error(`run-store: the ${label} at ${path} is not valid JSON; parsing stopped at ${where} of ${text.length}. The parser's own message is withheld because it quotes the file's contents back into this error, and this file may hold a spec or a manifest the caller did not mean to print`);
   }
 }
 
@@ -608,10 +592,12 @@ function requireJournalFlag(flags, name, action) {
 
 const JOURNAL_ACTIONS = Object.freeze({
   genesis: (flags) => writeGenesis({
+    repoRoot: requireJournalFlag(flags, 'repo-root', 'genesis'),
     path: requireJournalFlag(flags, 'path', 'genesis'),
     manifest: readJsonFile(requireJournalFlag(flags, 'manifest', 'genesis'), 'genesis manifest'),
   }),
   append: (flags) => appendJournalLine({
+    repoRoot: requireJournalFlag(flags, 'repo-root', 'append'),
     path: requireJournalFlag(flags, 'path', 'append'),
     line: composeJournalLine(
       requireJournalFlag(flags, 'kind', 'append'),
@@ -619,7 +605,7 @@ const JOURNAL_ACTIONS = Object.freeze({
     ),
   }),
   gitignore: (flags) => ensureGitignored({
-    path: requireJournalFlag(flags, 'path', 'gitignore'),
+    repoRoot: requireJournalFlag(flags, 'repo-root', 'gitignore'),
     entry: requireJournalFlag(flags, 'entry', 'gitignore'),
   }),
   elapsed: (flags) => ({

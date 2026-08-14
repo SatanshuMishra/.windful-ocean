@@ -703,6 +703,33 @@ test('the journal-parity verdict states plainly that the engine still dispatches
   assert.ok(verdict.c7Obligations.some((claim) => /written !== true/.test(claim)), 'site 2\'s escalation asymmetry is not carried into the verdict');
 });
 
+test('the journal-parity verdict does not attest a scope the census never reads', () => {
+  const { out, stdout } = capture();
+  runMitosisGate(['journal-parity'], out, () => '');
+  const verdict = JSON.parse(stdout.join(''));
+  assert.equal(
+    verdict.attests.some((claim) => /second writer outside journal-store\.mjs cannot appear unnoticed/.test(claim) && !/enumerated|literal|prose/.test(claim)),
+    false,
+    'the verdict still attests an unqualified no-second-writer guarantee while the census only classifies enumerated forms',
+  );
+  assert.ok(
+    verdict.notAttested.some((claim) => /hooks|declared director|outside (the|these) (two )?(declared )?tree/i.test(claim)),
+    'the verdict does not record that a journal writer outside the two declared trees is unseen',
+  );
+  assert.ok(
+    verdict.notAttested.some((claim) => /prompt-snapshots|excluded/i.test(claim)),
+    'the verdict does not record that the excluded sibling directories are unscanned',
+  );
+  assert.ok(
+    verdict.notAttested.some((claim) => /O_APPEND|NFS|SMB/.test(claim)),
+    'the verdict does not record the append atomicity the writer depends on',
+  );
+  assert.ok(Array.isArray(verdict.excludedDirectories) && verdict.excludedDirectories.length > 0);
+  for (const excluded of verdict.excludedDirectories) {
+    assert.match(excluded, /:/, `the excluded directory ${excluded} is reported without its recorded reason`);
+  }
+});
+
 test('the journal-parity verb rejects a target, because it censuses the engine trees it enumerates itself', () => {
   const parsed = parseMitosisGateArgv(['journal-parity', '--target', '/etc/passwd']);
   assert.equal(parsed.ok, false);
