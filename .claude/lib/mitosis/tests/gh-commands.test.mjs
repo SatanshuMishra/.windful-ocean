@@ -14,7 +14,8 @@ import {
   buildNodeCommand,
 } from '../node-commands.mjs';
 import { EXEC_ALLOWLIST } from '../exec-policy.mjs';
-import { PR_VALUE_CAP } from '../../git/pr-format.mjs';
+import { PR_TITLE_CAP, PR_VALUE_CAP } from '../../git/pr-format.mjs';
+import { FOLD_TOOL_DIRECTORY, PR_TOOL_DIRECTORY } from '../node-commands.mjs';
 
 const SLUG = 'acme/widgets';
 const BASE = 'main';
@@ -90,7 +91,7 @@ test('every builder returns a frozen vector, so no caller can rewrite a command 
 
 test('the pr-create value cap is the one pr-create enforces and is applied at this builder', () => {
   const values = {
-    gitLibDir: '/lib/git',
+    gitLibDir: PR_TOOL_DIRECTORY,
     repoSlug: SLUG,
     supersedeBranch: `${IB}-supersede-aaaa1111`,
     baseBranch: BASE,
@@ -104,12 +105,15 @@ test('the pr-create value cap is the one pr-create enforces and is applied at th
     supersedes: 'https://github.com/acme/widgets/pull/7',
   };
   assert.ok(buildNodeCommand('supersede', 'open-pr', values).includes('x'.repeat(PR_VALUE_CAP)));
-  assert.throws(() => buildNodeCommand('supersede', 'open-pr', { ...values, summary: 'x'.repeat(PR_VALUE_CAP + 1) }), /longer than/);
+  assert.throws(() => buildNodeCommand('supersede', 'open-pr', { ...values, summary: 'x'.repeat(PR_VALUE_CAP + 1) }), /refuses as a body value/);
+  assert.throws(() => buildNodeCommand('supersede', 'open-pr', { ...values, title: `fix(scope): ${'x'.repeat(PR_TITLE_CAP)}` }), /refuses as a body value/);
+  assert.throws(() => buildNodeCommand('supersede', 'open-pr', { ...values, title: 'Ship the unit.' }), /conventional-commits/);
+  assert.throws(() => buildNodeCommand('supersede', 'open-pr', { ...values, summary: 'src/caf\u00e9.txt changed' }), /refuses as a body value/);
 });
 
 test('a pr-create value that pr-create would read as a file or a flag is refused at the builder', () => {
   const values = {
-    gitLibDir: '/lib/git',
+    gitLibDir: PR_TOOL_DIRECTORY,
     repoSlug: SLUG,
     supersedeBranch: `${IB}-supersede-aaaa1111`,
     baseBranch: BASE,
@@ -122,14 +126,14 @@ test('a pr-create value that pr-create would read as a file or a flag is refused
     notVerified: 'ci on the superseding head - not run',
     supersedes: 'https://github.com/acme/widgets/pull/7',
   };
-  for (const hostile of ['@/etc/passwd', '--why', 'two\nlines']) {
-    assert.throws(() => buildNodeCommand('supersede', 'open-pr', { ...values, summary: hostile }), /pr-create|beginning with|newline/, `${JSON.stringify(hostile)} reached a pr-create value position`);
+  for (const hostile of ['@/etc/passwd', '--why', 'two\nlines', '<img src=x>', '# heading', 'SUPERSEDES https://x', 'Verified: nothing']) {
+    assert.throws(() => buildNodeCommand('supersede', 'open-pr', { ...values, summary: hostile }), /refuses as a body value|would rewrite before using|beginning with/, `${JSON.stringify(hostile)} reached a pr-create value position`);
   }
 });
 
 test('the ship pull request omits the depends flag when no parent id is declared and carries it when one is', () => {
   const values = {
-    gitLibDir: '/lib/git',
+    gitLibDir: PR_TOOL_DIRECTORY,
     repoSlug: SLUG,
     integrationBranch: IB,
     baseBranch: BASE,
@@ -148,6 +152,6 @@ test('the ship pull request omits the depends flag when no parent id is declared
 });
 
 test('the fold-run-log invocation names the deterministic cli and the journal it reads', () => {
-  const argv = [...buildNodeCommand('reconcile', 'fold-run-log', { libDir: '/lib', repoRoot: '/repo' })];
-  assert.deepEqual(argv, ['--', '/lib/fold-run-log.mjs', '/repo/.mitosis/run.json']);
+  const argv = [...buildNodeCommand('reconcile', 'fold-run-log', { libDir: FOLD_TOOL_DIRECTORY, repoRoot: '/repo' })];
+  assert.deepEqual(argv, ['--', `${FOLD_TOOL_DIRECTORY}/fold-run-log.mjs`, '/repo/.mitosis/run.json']);
 });

@@ -1,5 +1,10 @@
 import { GH_COMMAND_BINARY } from './gh-commands.mjs';
-import { NODE_COMMAND_BINARY, RUN_JOURNAL_PATH } from './node-commands.mjs';
+import {
+  FOLD_TOOL_DIRECTORY,
+  NODE_COMMAND_BINARY,
+  PR_TOOL_DIRECTORY,
+  RUN_JOURNAL_PATH,
+} from './node-commands.mjs';
 import { GIT_COMMAND_BINARY } from './git-commands.mjs';
 import { EXEC_TIMEOUT_EXPIRED } from './exec-run.mjs';
 import { SPEC_HASH_INCUMBENT_COMMAND } from './spec-hash.mjs';
@@ -14,8 +19,8 @@ const MANIFEST_REF = Object.freeze({ field: 'manifestRef', value: 'refs/mitosis-
 const SLUG = Object.freeze({ field: 'repoSlug', value: 'acme/widgets' });
 const OWNER_REPO = Object.freeze({ field: 'ownerRepo', value: 'acme/widgets' });
 const RUN = Object.freeze({ field: 'runId', value: '77' });
-const LIB_DIR = Object.freeze({ field: 'libDir', value: '/lib' });
-const GIT_LIB_DIR = Object.freeze({ field: 'gitLibDir', value: '/lib/git' });
+const LIB_DIR = Object.freeze({ field: 'libDir', value: FOLD_TOOL_DIRECTORY });
+const GIT_LIB_DIR = Object.freeze({ field: 'gitLibDir', value: PR_TOOL_DIRECTORY });
 
 const REPO_PLACEHOLDER = Object.freeze({ '<repoRoot>': Object.freeze({ incumbent: '${repoRoot}', ...REPO }) });
 const BASE_PLACEHOLDER = Object.freeze({ '<baseBranch>': Object.freeze({ incumbent: '${baseBranch}', ...BASE }) });

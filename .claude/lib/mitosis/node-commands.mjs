@@ -1,24 +1,49 @@
+import { fileURLToPath } from 'node:url';
 import { validateRefToken } from './checkpoint.mjs';
-import { PR_VALUE_CAP } from '../git/pr-format.mjs';
+import {
+  PR_CHANGED_LINES_PATTERN,
+  PR_ORIGINS,
+  PR_PROVENANCE_PATTERN,
+  PR_TITLE_CAP,
+  PR_TITLE_PATTERN,
+  PR_VALUE_CAP,
+  SUPERSEDES_PREFIX,
+  inertValue,
+} from '../git/pr-format.mjs';
 
 export const NODE_COMMAND_BINARY = 'node';
 export const NODE_END_OF_OPTIONS = '--';
 export const NODE_PR_VALUE_CAP = PR_VALUE_CAP;
+export const NODE_PR_TITLE_CAP = PR_TITLE_CAP;
+export const NODE_SUPERSEDES_CAP = PR_VALUE_CAP - SUPERSEDES_PREFIX.length;
+export const RUN_JOURNAL_PATH = '.mitosis/run.json';
 
 const MODULE = 'node-commands';
 const NUL = String.fromCharCode(0);
 const OPTION_LEAD = '-';
-const FIELD_INDIRECTION_SIGIL = '@';
-const NEWLINE = /[\r\n]/;
-const PR_ORIGIN_MACHINE = 'machine';
 const PR_CREATE = 'pr-create';
-const PR_TOOL = 'pr.mjs';
-const FOLD_TOOL = 'fold-run-log.mjs';
-export const RUN_JOURNAL_PATH = '.mitosis/run.json';
+const PR_ORIGIN_MACHINE = PR_ORIGINS[0];
 const DEPENDS_SEPARATOR = ',';
 const UNIT_ID_PATTERN = /^[a-z0-9][a-z0-9-]*$/;
-const CHANGED_LINES_PATTERN = /^(0|[1-9][0-9]{0,6})$/;
-const HTTPS_PR_URL = /^https:\/\/[A-Za-z0-9.-]+\/[A-Za-z0-9][A-Za-z0-9._-]*\/[A-Za-z0-9][A-Za-z0-9._-]*\/pull\/[1-9][0-9]*$/;
+const PATH_SEPARATOR = '/';
+const PARENT_SEGMENT = '..';
+const PATH_METACHARACTER = /[\s;&|<>$`'"()*?![\]{}\\]/;
+const PR_URL_HOST = 'github.com';
+const HTTPS_PR_URL = new RegExp(`^https://${PR_URL_HOST.split('.').join('\\.')}/[A-Za-z0-9][A-Za-z0-9._-]*/[A-Za-z0-9][A-Za-z0-9._-]*/pull/[1-9][0-9]*$`);
+
+export const FOLD_TOOL_PATH = fileURLToPath(new URL('./fold-run-log.mjs', import.meta.url));
+export const PR_TOOL_PATH = fileURLToPath(new URL('../git/pr.mjs', import.meta.url));
+
+function directoryOf(toolPath) {
+  return toolPath.slice(0, toolPath.lastIndexOf(PATH_SEPARATOR));
+}
+
+function basenameOf(toolPath) {
+  return toolPath.slice(toolPath.lastIndexOf(PATH_SEPARATOR) + 1);
+}
+
+export const FOLD_TOOL_DIRECTORY = directoryOf(FOLD_TOOL_PATH);
+export const PR_TOOL_DIRECTORY = directoryOf(PR_TOOL_PATH);
 
 function refuse(where, message) {
   throw new TypeError(`${MODULE}: ${where} ${message}`);
@@ -37,8 +62,34 @@ function textIn(where, field, value) {
   return value;
 }
 
-function pathIn(where, field, value) {
-  return textIn(where, field, value);
+function pathShapeIn(where, field, value) {
+  const text = textIn(where, field, value);
+  if (!text.startsWith(PATH_SEPARATOR)) {
+    refuse(where, `was handed a ${field} that is not an absolute path: ${JSON.stringify(text)}; a relative path resolves against whatever directory the process happens to be in`);
+  }
+  if (text.split(PATH_SEPARATOR).includes(PARENT_SEGMENT)) {
+    refuse(where, `was handed a ${field} carrying a parent traversal: ${JSON.stringify(text)}; a traversal walks out of the directory the caller named and reaches a file this command was never pointed at`);
+  }
+  if (PATH_METACHARACTER.test(text)) {
+    refuse(where, `was handed a ${field} carrying a shell metacharacter or whitespace: ${JSON.stringify(text)}`);
+  }
+  if (text.endsWith(PATH_SEPARATOR)) {
+    refuse(where, `was handed a ${field} ending in ${JSON.stringify(PATH_SEPARATOR)}: ${JSON.stringify(text)}; the composed path would carry an empty segment`);
+  }
+  return text;
+}
+
+function scriptPathIn(where, field, value, toolPath) {
+  const text = pathShapeIn(where, field, value);
+  const composed = `${text}${PATH_SEPARATOR}${basenameOf(toolPath)}`;
+  if (composed !== toolPath) {
+    refuse(where, `was handed a ${field} that composes the program path ${JSON.stringify(composed)} rather than ${JSON.stringify(toolPath)}; this element names the program node executes rather than data it reads, and no option separator makes a program name inert, so the directory is confined to the one this module resolves the tool from`);
+  }
+  return text;
+}
+
+function dataPathIn(where, field, value) {
+  return pathShapeIn(where, field, value);
 }
 
 function refIn(where, field, value) {
@@ -49,24 +100,38 @@ function refIn(where, field, value) {
   return text;
 }
 
-function prValueIn(where, field, value) {
-  const text = textIn(where, field, value);
-  if (text.length > NODE_PR_VALUE_CAP) {
-    refuse(where, `was handed a ${field} of ${text.length} characters, longer than the ${NODE_PR_VALUE_CAP} pr-create accepts; the bound is applied here so no caller can compose a value the tool would reject after the branch was already published`);
+function prValueIn(where, field, value, cap = PR_VALUE_CAP) {
+  textIn(where, field, value);
+  const inert = inertValue(value, cap);
+  if (inert === null) {
+    refuse(where, `was handed a ${field} the pull-request tool refuses as a body value: ${JSON.stringify(value)}; that tool caps the value at ${cap} characters and rejects an at-prefixed value, a byte outside printable ascii, a tag or block opener, a setext underline and a reserved field or structure prefix, and it rejects the whole invocation rather than the one field, so the bound is applied here against that same reader rather than restated as a second, narrower copy of it`);
   }
-  if (text.startsWith(FIELD_INDIRECTION_SIGIL)) {
-    refuse(where, `was handed a ${field} beginning with ${JSON.stringify(FIELD_INDIRECTION_SIGIL)}: ${JSON.stringify(text)}; pr-create reads an at-prefixed value as a file to read the field from rather than as the field itself`);
+  if (inert !== value) {
+    refuse(where, `was handed a ${field} the pull-request tool would rewrite before using: ${JSON.stringify(value)} becomes ${JSON.stringify(inert)}; a value that is not already inert would reach the body in a spelling the caller never composed`);
   }
-  if (NEWLINE.test(text)) {
-    refuse(where, `was handed a ${field} carrying a newline: ${JSON.stringify(text)}; pr-create renders each value as one body line, so a newline would compose structure the caller never declared`);
+  return inert;
+}
+
+function prTitleIn(where, field, value) {
+  const text = prValueIn(where, field, value, PR_TITLE_CAP);
+  if (!PR_TITLE_PATTERN.test(text)) {
+    refuse(where, `was handed a ${field} that is not a conventional-commits pull-request title: ${JSON.stringify(text)}; the pull-request tool composes the squash commit subject from it and rejects the invocation otherwise`);
+  }
+  return text;
+}
+
+function prProvenanceIn(where, field, value) {
+  const text = prValueIn(where, field, value);
+  if (!PR_PROVENANCE_PATTERN.test(text)) {
+    refuse(where, `was handed a ${field} that is not an agent and model provenance token: ${JSON.stringify(text)}`);
   }
   return text;
 }
 
 function prUrlIn(where, field, value) {
-  const text = textIn(where, field, value);
+  const text = prValueIn(where, field, value, NODE_SUPERSEDES_CAP);
   if (!HTTPS_PR_URL.test(text)) {
-    refuse(where, `was handed a ${field} that is not a canonical pull-request url: ${JSON.stringify(text)}`);
+    refuse(where, `was handed a ${field} that is not a canonical ${PR_URL_HOST} pull-request url: ${JSON.stringify(text)}; the pull-request tool canonicalises this value against that same host, so a url this builder admits and that tool rewrites would name a different pull request`);
   }
   return text;
 }
@@ -75,38 +140,42 @@ function dependsIn(where, field, value) {
   if (!Array.isArray(value)) {
     refuse(where, `needs ${field} as an array of unit ids, received ${JSON.stringify(value)}; the incumbent emits the flag only when the unit declares parents, and a value that is not a list cannot say whether it does`);
   }
-  const ids = value.map((entry, index) => {
+  return value.map((entry, index) => {
     const text = textIn(where, `${field}[${index}]`, entry);
     if (!UNIT_ID_PATTERN.test(text)) {
       refuse(where, `was handed a ${field}[${index}] that is not a unit id: ${JSON.stringify(text)}`);
     }
     return text;
   });
-  return ids;
 }
 
 function changedLinesIn(where, field, value) {
   if (value === null || value === undefined) return null;
   const text = textIn(where, field, value);
-  if (!CHANGED_LINES_PATTERN.test(text)) {
-    refuse(where, `was handed a ${field} that is not the changed-lines integer pr-create accepts: ${JSON.stringify(text)}; the incumbent tells the caller to delete both tokens rather than estimate one, so an unreadable count omits the flag instead of guessing it`);
+  if (!PR_CHANGED_LINES_PATTERN.test(text)) {
+    refuse(where, `was handed a ${field} that is not the changed-lines integer the pull-request tool accepts: ${JSON.stringify(text)}; the incumbent tells the caller to delete both tokens rather than estimate one, so an unreadable count omits the flag instead of guessing it`);
   }
   return text;
 }
 
 const RECONCILE = Object.freeze({
-  'fold-run-log': (v, t) => [NODE_END_OF_OPTIONS, `${t.path('libDir', v.libDir)}/${FOLD_TOOL}`, `${t.path('repoRoot', v.repoRoot)}/${RUN_JOURNAL_PATH}`],
+  'fold-run-log': (v, t) => [
+    NODE_END_OF_OPTIONS,
+    `${t.script('libDir', v.libDir, FOLD_TOOL_PATH)}${PATH_SEPARATOR}${basenameOf(FOLD_TOOL_PATH)}`,
+    `${t.dataPath('repoRoot', v.repoRoot)}${PATH_SEPARATOR}${RUN_JOURNAL_PATH}`,
+  ],
 });
 
 const SUPERSEDE = Object.freeze({
   'open-pr': (v, t) => [
-    NODE_END_OF_OPTIONS, `${t.path('gitLibDir', v.gitLibDir)}/${PR_TOOL}`, PR_CREATE,
+    NODE_END_OF_OPTIONS,
+    `${t.script('gitLibDir', v.gitLibDir, PR_TOOL_PATH)}${PATH_SEPARATOR}${basenameOf(PR_TOOL_PATH)}`, PR_CREATE,
     '--repo', t.prValue('repoSlug', v.repoSlug),
     '--head', t.ref('supersedeBranch', v.supersedeBranch),
     '--base', t.ref('baseBranch', v.baseBranch),
-    '--title', t.prValue('title', v.title),
+    '--title', t.prTitle('title', v.title),
     '--origin', PR_ORIGIN_MACHINE,
-    '--provenance', t.prValue('provenance', v.provenance),
+    '--provenance', t.prProvenance('provenance', v.provenance),
     '--why', t.prValue('why', v.why),
     '--why', t.prValue('rationale', v.rationale),
     '--what', t.prValue('what', v.what),
@@ -121,13 +190,14 @@ const SHIP = Object.freeze({
     const depends = t.depends('dependsIds', v.dependsIds);
     const changedLines = t.changedLines('changedLines', v.changedLines);
     return [
-      NODE_END_OF_OPTIONS, `${t.path('gitLibDir', v.gitLibDir)}/${PR_TOOL}`, PR_CREATE,
+      NODE_END_OF_OPTIONS,
+      `${t.script('gitLibDir', v.gitLibDir, PR_TOOL_PATH)}${PATH_SEPARATOR}${basenameOf(PR_TOOL_PATH)}`, PR_CREATE,
       '--repo', t.prValue('repoSlug', v.repoSlug),
       '--head', t.ref('integrationBranch', v.integrationBranch),
       '--base', t.ref('baseBranch', v.baseBranch),
-      '--title', t.prValue('title', v.title),
+      '--title', t.prTitle('title', v.title),
       '--origin', PR_ORIGIN_MACHINE,
-      '--provenance', t.prValue('provenance', v.provenance),
+      '--provenance', t.prProvenance('provenance', v.provenance),
       '--why', t.prValue('why', v.why),
       '--what', t.prValue('what', v.what),
       '--not-verified', t.prValue('notVerified', v.notVerified),
@@ -145,6 +215,12 @@ export const NODE_SITE_COMMANDS = Object.freeze({
 
 export const NODE_SITES = Object.freeze(Object.keys(NODE_SITE_COMMANDS));
 
+export const NODE_PROGRAM_PATHS = Object.freeze({
+  'reconcile/fold-run-log': FOLD_TOOL_PATH,
+  'supersede/open-pr': PR_TOOL_PATH,
+  'ship/open-pr': PR_TOOL_PATH,
+});
+
 export function buildNodeCommand(site, step, values) {
   const steps = NODE_SITE_COMMANDS[site];
   if (steps === undefined) {
@@ -160,9 +236,12 @@ export function buildNodeCommand(site, step, values) {
   const where = `${site}/${step}`;
   const validator = Object.freeze({
     text: (field, value) => textIn(where, field, value),
-    path: (field, value) => pathIn(where, field, value),
+    script: (field, value, toolPath) => scriptPathIn(where, field, value, toolPath),
+    dataPath: (field, value) => dataPathIn(where, field, value),
     ref: (field, value) => refIn(where, field, value),
     prValue: (field, value) => prValueIn(where, field, value),
+    prTitle: (field, value) => prTitleIn(where, field, value),
+    prProvenance: (field, value) => prProvenanceIn(where, field, value),
     prUrl: (field, value) => prUrlIn(where, field, value),
     depends: (field, value) => dependsIn(where, field, value),
     changedLines: (field, value) => changedLinesIn(where, field, value),
