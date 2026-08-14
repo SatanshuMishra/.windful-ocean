@@ -16,7 +16,7 @@ import { censusEngineDeterminism, engineSourceRoots, realSourceIo } from './dete
 import { EXEC_ALLOWLIST, assertSpawnAllowed, resolveSpawn } from './exec-policy.mjs';
 import { MERGE_REFUSAL_SPECIMENS } from './gh-merge-shim.mjs';
 import { censusMergeSpecimens } from './merge-specimen-census.mjs';
-import { execRunAllowProbes, execRunRefusalProbes } from './exec-run.mjs';
+import { EXEC_COMPLETED, EXEC_TIMEOUT_EXPIRED, execRunAllowProbes, execRunDeadlineProbe, execRunRefusalProbes } from './exec-run.mjs';
 import { MANIFEST_REF_NOT_ATTESTED, manifestRefPolicyProbes } from './manifest-ref-policy.mjs';
 import { TRANSCRIPTION_C7_OBLIGATIONS, transcriptionCensus } from './transcription-census.mjs';
 import { REQUIRED_TOOL, agentDefinitionDir, censusAgentSchemaCapability } from './agent-schema-lint.mjs';
@@ -109,6 +109,7 @@ const TRANSCRIPTION_PARITY_ATTESTS = Object.freeze([
   'exec-run refuses an unlisted binary, a merge-shaped gh argv, an argv spelled as a command string and a non-string argv element, and starts no child process while doing so',
   'exec-run permits git merge --no-ff and a force-with-lease onto a checkpoint ref, so the merge refusal is scoped to the gh pull-request family rather than to the word merge',
   'the manifest ref policy refuses each force spelling onto the published-manifest namespace, including the plus-prefixed refspec that carries no flag, and permits the same spellings onto every other ref',
+  'a bounded poll reports an expired deadline as its own outcome, distinct from the outcome it reports when its predicate is satisfied, so the token the incumbent watch demands cannot collapse into a generic failure',
 ]);
 
 const TRANSCRIPTION_PARITY_NOT_ATTESTED = Object.freeze([
@@ -899,6 +900,7 @@ export function probeTranscriptionSubstrate() {
     refusals: execRunRefusalProbes(),
     allowances: execRunAllowProbes(),
     manifestRef: manifestRefPolicyProbes(),
+    deadline: execRunDeadlineProbe(),
   });
 }
 
@@ -919,6 +921,16 @@ export function transcriptionParityFailures(substrate) {
   const wrongRefVerdicts = substrate.manifestRef.filter((probe) => probe.expected !== probe.observed);
   if (wrongRefVerdicts.length > 0) {
     failures.push(`the manifest ref policy disagrees with its own probes: ${wrongRefVerdicts.map((probe) => `${probe.name} expected ${probe.expected} but was ${probe.observed}`).join('; ')}`);
+  }
+  const deadline = substrate.deadline;
+  if (deadline.expiredOutcome !== EXEC_TIMEOUT_EXPIRED) {
+    failures.push(`a bounded poll whose deadline passed reported ${JSON.stringify(deadline.expiredOutcome)} rather than ${JSON.stringify(EXEC_TIMEOUT_EXPIRED)}; the incumbent watch demands that token, and a deadline folded into a generic failure cannot be told from a command that simply failed`);
+  }
+  if (deadline.satisfiedOutcome !== EXEC_COMPLETED) {
+    failures.push(`a bounded poll whose predicate was satisfied reported ${JSON.stringify(deadline.satisfiedOutcome)} rather than ${JSON.stringify(EXEC_COMPLETED)}`);
+  }
+  if (!deadline.distinct) {
+    failures.push(`a bounded poll reports ${JSON.stringify(deadline.expiredOutcome)} whether its deadline passed or its predicate was satisfied; the two outcomes have collapsed into one and the deadline is no longer observable`);
   }
   return failures;
 }
@@ -968,6 +980,10 @@ function runTranscriptionParityGate(_target, out) {
     childrenStartedWhileRefusing: substrate.refusals.childrenStarted,
     allowProbes: substrate.allowances.map((probe) => `${probe.name}: ${probe.allowed ? 'allowed' : 'REFUSED'}`),
     manifestRefProbes: substrate.manifestRef.map((probe) => `${probe.name}: ${probe.observed}`),
+    pollOutcomes: [...substrate.deadline.outcomes],
+    pollDeadlineOutcome: substrate.deadline.expiredOutcome,
+    pollSatisfiedOutcome: substrate.deadline.satisfiedOutcome,
+    pollAttemptsBeforeDeadline: substrate.deadline.attemptsBeforeDeadline,
     attests: [...TRANSCRIPTION_PARITY_ATTESTS],
     notAttested: [...TRANSCRIPTION_PARITY_NOT_ATTESTED],
     c7Obligations: [...TRANSCRIPTION_C7_OBLIGATIONS],

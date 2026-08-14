@@ -124,7 +124,7 @@ export function classifyManifestRefPush(binary, argv) {
 export function assertManifestRefPushAllowed(binary, argv) {
   const verdict = classifyManifestRefPush(binary, argv);
   if (verdict.refuse) {
-    throw new Error(`manifest-ref-policy: refused in-process before any child started — ${verdict.reason}`);
+    throw new Error(`manifest-ref-policy: refused in-process before any child started - ${verdict.reason}`);
   }
   return verdict;
 }

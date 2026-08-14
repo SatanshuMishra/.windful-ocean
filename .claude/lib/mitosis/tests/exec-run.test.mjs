@@ -1,11 +1,14 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { EXEC_ALLOWLIST } from '../exec-policy.mjs';
+import { MERGE_REFUSAL_SPECIMENS } from '../gh-merge-shim.mjs';
 import {
   EXEC_COMPLETED,
   EXEC_OUTCOMES,
   EXEC_SPAWN_FAILED,
   EXEC_TIMEOUT_EXPIRED,
+  execRunDeadlineProbe,
+  execRunRefusalProbes,
   pollUntil,
   run,
 } from '../exec-run.mjs';
@@ -183,4 +186,23 @@ test('the deadline outcome is a declared member of the outcome set and distinct 
 
 test('exec-run widens nothing: the spawn allowlist is still exactly the five declared binaries', () => {
   assert.deepEqual([...EXEC_ALLOWLIST], ['claude', 'gh', 'git', 'graphify', 'node']);
+});
+
+test('the shipped deadline probe keeps the two poll outcomes apart and reaches no real process', () => {
+  const probe = execRunDeadlineProbe();
+  assert.equal(probe.expiredOutcome, EXEC_TIMEOUT_EXPIRED);
+  assert.equal(probe.satisfiedOutcome, EXEC_COMPLETED);
+  assert.equal(probe.distinct, true);
+  assert.equal(probe.lastAttemptOutcome, EXEC_COMPLETED, 'the deadline outcome must not be the outcome of the last attempt');
+  assert.ok(probe.attemptsBeforeDeadline > 1, 'a poll that never repeats is not a poll');
+  assert.deepEqual([...probe.outcomes], [...EXEC_OUTCOMES]);
+});
+
+test('the shipped refusal probes cover every merge argv the classifier declares and start no child', () => {
+  const probe = execRunRefusalProbes();
+  assert.equal(probe.childrenStarted, 0);
+  assert.deepEqual(probe.probes.filter((entry) => !entry.refused), []);
+  for (const specimen of MERGE_REFUSAL_SPECIMENS) {
+    assert.ok(probe.probes.some((entry) => entry.name === `gh ${specimen.label}`), `${specimen.label} is not probed by the chokepoint`);
+  }
 });

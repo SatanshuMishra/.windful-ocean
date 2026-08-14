@@ -1,5 +1,6 @@
 import { spawnSync } from 'node:child_process';
 import { resolveSpawn } from './exec-policy.mjs';
+import { MERGE_REFUSAL_SPECIMENS } from './gh-merge-shim.mjs';
 
 export const EXEC_COMPLETED = 'completed';
 export const EXEC_TIMEOUT_EXPIRED = 'timeout-expired';
@@ -12,6 +13,12 @@ export const MAX_CAPTURE_BYTES = 16 * 1024 * 1024;
 
 const TIMEOUT_ERROR_CODE = 'ETIMEDOUT';
 const DEFAULT_IO = Object.freeze({ spawn: spawnSync });
+const GH_BINARY = 'gh';
+const WATCH_PROBE_ARGV = Object.freeze(['run', 'view', '77', '-R', 'acme/widgets', '--json', 'status', '-q', '.status']);
+const WATCH_PROBE_DEADLINE_MS = 80;
+const WATCH_PROBE_INTERVAL_MS = 10;
+const WATCH_PROBE_CLOCK_STEPS = Object.freeze([0, 0, 40, 90]);
+const WATCH_PROBE_TERMINAL_STATUS = 'completed';
 
 function requireSpawn(io) {
   if (io === null || typeof io !== 'object' || typeof io.spawn !== 'function') {
@@ -151,13 +158,25 @@ export function pollUntil(binary, argv, options, io = DEFAULT_IO) {
 }
 
 export function execRunRefusalProbes() {
+  const merges = MERGE_REFUSAL_SPECIMENS.map((specimen) => Object.freeze({
+    name: `gh ${specimen.label}`,
+    binary: GH_BINARY,
+    argv: Object.freeze([...specimen.argv]),
+    options: undefined,
+  }));
   const probes = [
     Object.freeze({ name: 'unlisted binary', binary: 'bash', argv: Object.freeze(['-c', 'true']), options: undefined }),
-    Object.freeze({ name: 'gh pull-request merge', binary: 'gh', argv: Object.freeze(['pr', 'merge', '7']), options: undefined }),
+    ...merges,
     Object.freeze({ name: 'argv spelled as a command string', binary: 'git', argv: 'status --porcelain', options: undefined }),
     Object.freeze({ name: 'argv element that is not a string', binary: 'git', argv: Object.freeze(['log', 7]), options: undefined }),
     Object.freeze({ name: 'stdin that is neither string nor bytes', binary: 'git', argv: Object.freeze(['mktree']), options: Object.freeze({ stdin: 7 }) }),
   ];
+  if (merges.length === 0) {
+    return Object.freeze({
+      probes: Object.freeze([Object.freeze({ name: 'the merge argv corpus', refused: false, message: 'the classifier declares no merge specimen, so this chokepoint probes no merge argv at all' })]),
+      childrenStarted: 0,
+    });
+  }
   const spawns = [];
   const io = Object.freeze({ spawn: (command, args) => { spawns.push({ command, args }); return { status: 0 }; } });
   const refused = probes.map((probe) => {
@@ -169,6 +188,42 @@ export function execRunRefusalProbes() {
     }
   });
   return Object.freeze({ probes: Object.freeze(refused), childrenStarted: spawns.length });
+}
+
+function steppedWatchIo(status) {
+  const waits = [];
+  let step = 0;
+  return {
+    waits,
+    spawn: () => ({ status: 0, stdout: Buffer.from(status), stderr: Buffer.from(''), error: null }),
+    now: () => {
+      const value = WATCH_PROBE_CLOCK_STEPS[Math.min(step, WATCH_PROBE_CLOCK_STEPS.length - 1)];
+      step += 1;
+      return value;
+    },
+    wait: (ms) => { waits.push(ms); return ms; },
+  };
+}
+
+export function execRunDeadlineProbe() {
+  const plan = Object.freeze({
+    deadlineMs: WATCH_PROBE_DEADLINE_MS,
+    intervalMs: WATCH_PROBE_INTERVAL_MS,
+    satisfied: (attempt) => attempt.stdout === WATCH_PROBE_TERMINAL_STATUS,
+  });
+  const pending = steppedWatchIo('in_progress');
+  const expired = pollUntil(GH_BINARY, [...WATCH_PROBE_ARGV], plan, pending);
+  const terminal = steppedWatchIo(WATCH_PROBE_TERMINAL_STATUS);
+  const satisfied = pollUntil(GH_BINARY, [...WATCH_PROBE_ARGV], plan, terminal);
+  return Object.freeze({
+    outcomes: EXEC_OUTCOMES,
+    expiredOutcome: expired.outcome,
+    satisfiedOutcome: satisfied.outcome,
+    distinct: expired.outcome !== satisfied.outcome,
+    attemptsBeforeDeadline: expired.attempts,
+    waitsBeforeDeadline: pending.waits.length,
+    lastAttemptOutcome: expired.last.outcome,
+  });
 }
 
 export function execRunAllowProbes() {

@@ -841,6 +841,31 @@ test('a substrate that refuses argv the engine legitimately runs is a failure, s
   }
 });
 
+test('a bounded poll whose deadline outcome collapses into another outcome is a transcription-parity failure', () => {
+  const substrate = probeTranscriptionSubstrate();
+  const collapsed = transcriptionParityFailures({
+    ...substrate,
+    deadline: { ...substrate.deadline, expiredOutcome: substrate.deadline.satisfiedOutcome, distinct: false },
+  });
+  assert.ok(collapsed.length >= 1);
+  assert.ok(collapsed.some((failure) => /collapsed into one/.test(failure)), collapsed.join(' | '));
+  const generic = transcriptionParityFailures({
+    ...substrate,
+    deadline: { ...substrate.deadline, expiredOutcome: 'spawn-failed' },
+  });
+  assert.ok(generic.some((failure) => /timeout-expired/.test(failure)), generic.join(' | '));
+});
+
+test('the transcription-parity verdict reports the poll outcomes it measured', () => {
+  const { out, stdout } = capture();
+  runMitosisGate(['transcription-parity'], out, () => '');
+  const verdict = JSON.parse(stdout.join(''));
+  assert.equal(verdict.pollDeadlineOutcome, 'timeout-expired');
+  assert.equal(verdict.pollSatisfiedOutcome, 'completed');
+  assert.ok(verdict.pollOutcomes.includes('timeout-expired'));
+  assert.ok(verdict.pollAttemptsBeforeDeadline > 1);
+});
+
 test('a manifest ref probe whose verdict flips is a failure, in both directions', () => {
   const substrate = probeTranscriptionSubstrate();
   for (let index = 0; index < substrate.manifestRef.length; index += 1) {
