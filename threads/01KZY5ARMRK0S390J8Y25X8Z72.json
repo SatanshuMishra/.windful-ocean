@@ -248,6 +248,11 @@
         "ref": "0411-governed-launcher-struck-for-a-convenience-wrapper",
         "title": "The governed unattended launcher is struck; only a convenience wrapper survives",
         "scope": "c14"
+      },
+      {
+        "ref": "0412-auto-mode-off-and-allow-carries-both-shapes",
+        "title": "Auto mode is off, and allow deliberately carries both the broad and the narrow shape",
+        "scope": "c4"
       }
     ],
     "out_of_scope": [
@@ -256,5 +261,5 @@
     ]
   },
   "created_at": "2026-08-13T18:14:42.072Z",
-  "updated_at": "2026-08-14T03:52:42.220Z"
+  "updated_at": "2026-08-14T04:13:12.738Z"
 }
