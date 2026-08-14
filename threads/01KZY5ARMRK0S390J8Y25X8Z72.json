@@ -30,7 +30,7 @@
     },
     {
       "id": "c15",
-      "text": "Delivery path restored under Layer 0: GH_TOKEN exported so gh and git authenticate over HTTPS, and an agent pushes a branch and opens a PR with signed commits and no human hands",
+      "text": "Delivery path proven without the sandbox: an agent pushes a branch and opens a PR through the centralized pr-create tool with no human hands",
       "done": false,
       "kind": "detour",
       "struck_by": null
@@ -39,6 +39,13 @@
       "id": "c16",
       "text": "Layer 1 made operational: the two PreToolUse hooks registered in tracked settings and promoted to the live install, so checkpointing and rm-to-trash can fire at all",
       "done": true,
+      "kind": "planned",
+      "struck_by": null
+    },
+    {
+      "id": "c17",
+      "text": "Install topology returned to direct repo symlinks: the ten ~/.claude entries point straight at the repo, and releases/, current, LIVE and local/ are removed",
+      "done": false,
       "kind": "planned",
       "struck_by": null
     },
@@ -68,14 +75,14 @@
       "text": "Layer 3 shipped: one PreToolUse gate, P0-P6 in order, allow/block only, fail-open except P1/P2/P5, honoring the D3 local-container carve-out",
       "done": false,
       "kind": "planned",
-      "struck_by": null
+      "struck_by": "0407-containment-architecture-is-removed-for-permissions-only"
     },
     {
       "id": "c7",
       "text": "Layer 4 shipped: append-only tool-call audit log plus a SessionStart heartbeat asserting layers 0 and 1 and the promotion pointer",
       "done": false,
       "kind": "planned",
-      "struck_by": null
+      "struck_by": "0407-containment-architecture-is-removed-for-permissions-only"
     },
     {
       "id": "c8",
@@ -256,5 +263,5 @@
     ]
   },
   "created_at": "2026-08-13T18:14:42.072Z",
-  "updated_at": "2026-08-14T00:15:10.447Z"
+  "updated_at": "2026-08-14T00:15:23.045Z"
 }
