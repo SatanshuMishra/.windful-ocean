@@ -127,69 +127,42 @@
   "closure_statement": null,
   "spine": {
     "active_goal": "Strip the containment architecture entirely and reduce this thread to permissions only: prune deny to genuine catastrophes, retire ask rules, widen allow.",
-    "next_step": "START HERE. Apply the generated global settings (scratchpad/settings.global.new.json over ~/.claude/settings.json, back it up first) and RESTART the session. The sandbox lives in GLOBAL settings and is self-protecting, so nothing else proceeds until it is off. Then delete scripts/config/, .claude/lib/reversibility/, the three hook files and their tests; re-point the ten ~/.claude entries straight at the repo; remove releases/, current, LIVE and local/. Then do the actual goal, c3 and c4.",
-    "last_session": "User rejected the thread premise as over-engineering. Recorded 0407. Stripped the Layer 0 sandbox and all five architecture hook registrations from tracked settings in 687c07e, keeping every unrelated hook.",
+    "next_step": "Re-point the ten ~/.claude entries straight at the repo (scripts/install_config.sh is the stow-based installer that predates the release model), then remove releases/, current, LIVE and local/. Then get a user ruling on 0396 and 0401, which both block the actual goal, and do c3 and c4: prune deny to genuine catastrophes, retire ask rules, widen allow with mcp__* coverage.",
+    "last_session": "Deleted scripts/config, .claude/lib/reversibility and the three architecture hooks with their tests in c8a1b9a; 51 files, suite green. Applied 0407's supersession to the decision index and rewrote the standing risks that described deleted code.",
     "open_risks": [
       {
-        "text": "Edit anything under the hooks directory from a scratch worktree — Layer 0 denies writes there, including to its own tests, so a cherry-pick touching them half-applies and leaves the tree dirty",
+        "text": "Decisions 0396 and 0401 are unresolved against the new direction — 0396 forbids the broad allow rules that would actually kill the prompts, and 0401 demands a replacement gate that no longer exists; both need a user ruling before c3 and c4",
         "scope": "thread",
         "refs": [
-          ".claude/hooks/tests"
+          "0396-allow-rules-use-narrow-prefixes-not-bash-star",
+          "0401-no-deny-entry-removed-before-its-replacement"
         ]
       },
       {
-        "text": "promote.mjs with no --ref exits 0 having done nothing — no install, no refusal, no output, so it reads as success; it left Layer 1 uninstalled across three verification rounds",
+        "text": "Sandbox settings do not go live from the project file — the sandbox binds from global settings at session start, so changing it needs a global edit and a restart; the old ledger note claiming otherwise was false and cost a detour",
         "scope": "thread",
         "refs": [
-          "scripts/config/promote.mjs"
+          "~/.claude/settings.json"
         ]
       },
       {
-        "text": "Never read a piped exit code as a verification receipt — running verify through tail reports tail's status, which showed 0 while verify was actually exiting 1",
+        "text": "Spawning a subagent can destroy six promoted entries in the live config — hooks, rules, skills, agents, workflows and CLAUDE.md vanish and every gate then fails open silently; the cause is outside this repo and still unidentified",
         "scope": "thread",
         "refs": [
-          "scripts/config/verify.mjs"
+          "~/.claude/hooks"
         ]
       },
       {
-        "text": "A sandboxed session cannot promote at all — every path in the live install is write-denied, so the Stop hook's convergence is the only thing that installs a release, and it only ever converges to main",
-        "scope": "thread",
-        "refs": [
-          "~/.claude/local/converge.mjs"
-        ]
-      },
-      {
-        "text": "gh's API is unreachable under Layer 0 — TLS verification fails through macOS securityd and SSL_CERT_FILE does not bypass it, so pr-create cannot open a PR from inside the sandbox; a human runs it unsandboxed",
-        "scope": "thread",
-        "refs": [
-          "0403-gh-token-moves-to-file-storage-for-sandbox-reach"
-        ]
-      },
-      {
-        "text": "gh auth status calling the token invalid is a false diagnosis — it cannot complete TLS to check, so the token is fine; do not re-run gh auth refresh or re-login on account of that message",
-        "scope": "thread",
-        "refs": []
-      },
-      {
-        "text": "Commit signing fails under the sandbox — the key is passphrase-protected and ssh-agent is unreachable, and git -c is denied at the gate, so an agent must pass --no-gpg-sign",
+        "text": "Retest whether an agent can sign a commit now that the sandbox is gone — signing failed only because ssh-agent was unreachable inside it, so do not assume --no-gpg-sign is still required",
         "scope": "thread",
         "refs": [
           "~/.ssh/id_ed25519"
         ]
       },
       {
-        "text": "Rebase feat/layer3-gate and feat/layer4-observability onto main before opening any PR — both sit on a base older than the landed release, and an in-session task list once wrongly marked them rebased",
+        "text": "Never read a piped exit code as a verification receipt — a command run through tail reports tail's status, which once showed 0 while the real command was exiting 1",
         "scope": "thread",
-        "refs": [
-          "476ec59d"
-        ]
-      },
-      {
-        "text": "Anything merged that touches the sandbox block goes live IMMEDIATELY — Claude Code honors sandbox settings from the project file, so it needs no promotion and no restart; the env block behaves the same way",
-        "scope": "thread",
-        "refs": [
-          ".claude/settings.json"
-        ]
+        "refs": []
       },
       {
         "text": "Never use git stash while sibling agents run — the stack is shared across all worktrees, and one agent popped another's entry mid-session",
@@ -199,7 +172,7 @@
         ]
       },
       {
-        "text": "The deny entry for supabase db reset defeats the ratified local-container carve-out — the agent cannot validate migrations it writes, and the Layer 3 gate already discriminates local from remote, so it must go when c3 runs",
+        "text": "The deny entry for supabase db reset defeats the ratified local-container carve-out — the agent cannot validate migrations it writes, so it must go when c3 runs",
         "scope": "thread",
         "refs": [
           ".claude/settings.json"
@@ -213,33 +186,11 @@
         ]
       },
       {
-        "text": "Spawning a subagent can destroy six promoted entries in the live config — hooks, rules, skills, agents, workflows and CLAUDE.md vanish, and every registered gate then fails open silently with no error",
-        "scope": "thread",
-        "refs": [
-          "~/.claude/hooks",
-          "block-destructive-bash.sh"
-        ]
-      },
-      {
-        "text": "The sandbox is defined in global settings and is self-protecting — lifting it means writing the one file it denies, so only a human outside the sandbox can do it",
+        "text": "Re-point the ten ~/.claude entries at the repo BEFORE deleting releases/ and current — deleting first leaves the global config with no skills, agents, hooks or rules at all",
         "scope": "c15",
         "refs": [
-          "~/.claude/settings.json"
-        ]
-      },
-      {
-        "text": "~/.claude/settings.json is a real file written by promote, not a symlink — a hook removed only from the repo still fires globally, so both files must be edited",
-        "scope": "c15",
-        "refs": [
-          "~/.claude/settings.json",
-          ".claude/settings.json"
-        ]
-      },
-      {
-        "text": "Unregister a hook before deleting its file, never the reverse — deleting first is exactly what silently killed every gate earlier in this thread",
-        "scope": "c15",
-        "refs": [
-          ".claude/hooks"
+          "~/.claude/current",
+          "scripts/install_config.sh"
         ]
       },
       {
@@ -247,13 +198,6 @@
         "scope": "c15",
         "refs": [
           ".claude/settings.json"
-        ]
-      },
-      {
-        "text": "Decision 0396 (narrow allow prefixes only) conflicts with the new direction — broad Bash(git:*) and Bash(gh:*) allows with deny taking precedence is the shape that fits, and it needs user confirmation before c4",
-        "scope": "c15",
-        "refs": [
-          "0396-allow-rules-use-narrow-prefixes-not-bash-star"
         ]
       },
       {
@@ -266,29 +210,9 @@
     ],
     "key_decisions": [
       {
-        "ref": "0392-d2-guards-live-copy-not-source",
-        "title": "D2 guards the live installed copy, not version-controlled source",
-        "scope": "thread"
-      },
-      {
-        "ref": "0395-checkpoint-at-worktree-root-with-force",
-        "title": "The D6 checkpoint runs at the worktree root and requires --force",
-        "scope": "c5"
-      },
-      {
         "ref": "0396-allow-rules-use-narrow-prefixes-not-bash-star",
         "title": "Allow rules enumerate narrow prefixes; a broad Bash star rule is counterproductive",
         "scope": "c4"
-      },
-      {
-        "ref": "0397-layer-zero-survives-with-allow-local-binding",
-        "title": "Layer 0 survives on one key; the default sandbox configuration is unsafe",
-        "scope": "c8"
-      },
-      {
-        "ref": "0398-oversight-reducing-changes-need-direct-confirmation",
-        "title": "Oversight-reducing changes wait for direct user confirmation",
-        "scope": "thread"
       },
       {
         "ref": "0399-default-branch-push-denies-stay-as-contract",
@@ -296,9 +220,9 @@
         "scope": "c3"
       },
       {
-        "ref": "0400-merge-to-live-stays-an-explicit-human-act",
-        "title": "Merging to live stays an explicit human act with loud staleness reporting",
-        "scope": "c7"
+        "ref": "0398-oversight-reducing-changes-need-direct-confirmation",
+        "title": "Oversight-reducing changes wait for direct user confirmation",
+        "scope": "thread"
       },
       {
         "ref": "0401-no-deny-entry-removed-before-its-replacement",
@@ -306,28 +230,8 @@
         "scope": "thread"
       },
       {
-        "ref": "0402-https-and-gh-token-are-the-delivery-path-under-layer-zero",
-        "title": "HTTPS and GH_TOKEN are the delivery path under Layer 0",
-        "scope": "thread"
-      },
-      {
-        "ref": "0403-gh-token-moves-to-file-storage-for-sandbox-reach",
-        "title": "The gh token moves from Keychain to file storage so the sandbox can read it",
-        "scope": "c15"
-      },
-      {
-        "ref": "0404-trash-rm-runs-ahead-of-the-bash-gate",
-        "title": "trash-rm registers ahead of the bash gate so the gate judges the rewritten command",
-        "scope": "c5"
-      },
-      {
         "ref": "0405-main-is-published-only-through-a-pull-request",
         "title": "main is published only through a pull request, never a direct push",
-        "scope": "thread"
-      },
-      {
-        "ref": "0406-release-drift-is-prevented-not-excused",
-        "title": "Release-tree drift is prevented at its source, never excused by verify",
         "scope": "thread"
       },
       {
@@ -342,5 +246,5 @@
     ]
   },
   "created_at": "2026-08-13T18:14:42.072Z",
-  "updated_at": "2026-08-13T23:57:22.304Z"
+  "updated_at": "2026-08-14T00:10:27.114Z"
 }
