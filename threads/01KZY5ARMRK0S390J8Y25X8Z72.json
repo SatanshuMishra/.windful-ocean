@@ -45,7 +45,7 @@
     {
       "id": "c17",
       "text": "Install topology returned to direct repo symlinks: the ten ~/.claude entries point straight at the repo, and releases/, current, LIVE and local/ are removed",
-      "done": false,
+      "done": true,
       "kind": "planned",
       "struck_by": null
     },
@@ -133,70 +133,45 @@
   "abandoned_reason": null,
   "closure_statement": null,
   "spine": {
-    "active_goal": "Permissions only: return the install topology to direct repo symlinks, then prune deny to genuine catastrophes and widen allow so ordinary work never prompts.",
-    "next_step": "START HERE with c17, in this exact order: (1) re-point the ten ~/.claude entries at the repo using scripts/install_config.sh, verifying each one resolves; (2) only then remove releases/, current, LIVE and local/. Reversing that order leaves the global config with nothing in it. Then c3 (prune deny per 0409) and c4 (widen allow per 0408), one change each, verifying the exact permission-rule spelling against live behaviour instead of assuming it. The session log carries the full ordered step list.",
-    "last_session": "Overturned 0396 and 0401 as 0408 and 0409. Struck c6 and c7, rewrote c3, c4 and c15, inserted c17 for the topology repair. Deleted 51 files of installer and reversibility machinery in c8a1b9a with the suite green.",
+    "active_goal": "Permissions only: with the install topology back on direct repo symlinks, prune deny to genuine catastrophes and widen allow so ordinary work never prompts.",
+    "next_step": "START HERE: present the open items and the recommended order CONCISELY, then STOP for the user's pick - do not begin work. Items: rule on c14; c3 prune deny per 0409; c4 widen allow per 0408 and truncate settings.local.json; c9 the gate's dead tokens (0398-gated) plus the dead nested settings.local.json; fix or retire install_config.sh. Recommended: c14 ruling first, then c3, then c4, one change each, verifying permission-rule spelling against live behaviour rather than assuming it.",
+    "last_session": "Shipped c17: the ten entries created as absolute repo symlinks per 0410 (not install_config.sh - the dry run showed it would clobber global settings.json), notes re-pointed, releases/, current, LIVE and local/ removed. Verified the sandbox gone on seven surfaces; struck c8.",
     "open_risks": [
       {
-        "text": "Re-point the ten ~/.claude entries at the repo BEFORE deleting releases/ and current — deleting first leaves the global config with no skills, agents, hooks or rules at all",
-        "scope": "c15",
-        "refs": [
-          "~/.claude/current",
-          "scripts/install_config.sh"
-        ]
-      },
-      {
         "text": "Do not strip the merge gates — gh pr merge and merge_pull_request stay denied by deliberate user choice, and pr-create centralization stays too",
-        "scope": "c15",
+        "scope": "thread",
         "refs": [
           ".claude/settings.json"
         ]
       },
       {
-        "text": "Deleting the release topology moots the five recursive symlinks and the context7.md drift — do not spend time repairing a tree that is being removed",
-        "scope": "c15",
-        "refs": [
-          "~/.claude/releases"
-        ]
-      },
-      {
-        "text": "c14 was left unstruck and needs a ruling — a governed launcher that hardcodes the permission mode is containment-model governance, so it may belong with the struck c6 and c7",
+        "text": "c14 needs a ruling before c3 — a governed launcher that hardcodes the permission mode is containment-model governance, so it may belong struck alongside c6, c7 and c8",
         "scope": "thread",
         "refs": [
           "c14"
         ]
       },
       {
-        "text": "Sandbox settings do not go live from the project file — the sandbox binds from global settings at session start, so changing it needs a global edit and a restart; the old ledger note claiming otherwise was false and cost a detour",
-        "scope": "thread",
-        "refs": [
-          "~/.claude/settings.json"
-        ]
-      },
-      {
-        "text": "Spawning a subagent can destroy six promoted entries in the live config — hooks, rules, skills, agents, workflows and CLAUDE.md vanish and every gate then fails open silently; the cause is outside this repo and still unidentified",
+        "text": "Spawning a subagent can still destroy the promoted entries — the cause is unidentified, but recovery is now one ln -sfn loop because they are plain symlinks rather than copied trees",
         "scope": "thread",
         "refs": [
           "~/.claude/hooks"
         ]
       },
       {
-        "text": "Retest whether an agent can sign a commit now that the sandbox is gone — signing failed only because ssh-agent was unreachable inside it, so do not assume --no-gpg-sign is still required",
+        "text": "Drop the no-gpg-sign flag on the next real commit and confirm signing works — ssh-agent is reachable now that the sandbox is gone, and an unreachable ssh-agent was the only reason signing ever failed",
         "scope": "thread",
         "refs": [
           "~/.ssh/id_ed25519"
         ]
       },
       {
-        "text": "Never read a piped exit code as a verification receipt — a command run through tail reports tail's status, which once showed 0 while the real command was exiting 1",
-        "scope": "thread",
-        "refs": []
-      },
-      {
-        "text": "Never use git stash while sibling agents run — the stack is shared across all worktrees, and one agent popped another's entry mid-session",
+        "text": "Fix or retire scripts/install_config.sh before anyone runs it by reflex — running it would undo c17 and move the live global settings.json into a backup dir, replacing it with a repo symlink",
         "scope": "thread",
         "refs": [
-          "git stash"
+          "scripts/install_config.sh:127",
+          "scripts/install_config.sh:159",
+          "0410"
         ]
       },
       {
@@ -211,6 +186,22 @@
         "scope": "thread",
         "refs": [
           "npm test"
+        ]
+      },
+      {
+        "text": "Prune the gate tokens that guard the deleted release tree — guardname still lists releases, current, local, LIVE, CUTOVER and .cutover, which now match nothing, and 0398 gates the change on direct user confirmation",
+        "scope": "c9",
+        "refs": [
+          ".claude/hooks/block-destructive-bash.sh:17",
+          ".claude/hooks/tests/block-destructive-bash.test.mjs:461-473",
+          "0398"
+        ]
+      },
+      {
+        "text": "Delete the nested ~/.claude/.claude/settings.local.json — it still allows protect-claude-config.sh, deleted in c8a1b9a, from a path Claude Code does not read as a settings surface",
+        "scope": "c9",
+        "refs": [
+          "~/.claude/.claude/settings.local.json"
         ]
       }
     ],
@@ -257,5 +248,5 @@
     ]
   },
   "created_at": "2026-08-13T18:14:42.072Z",
-  "updated_at": "2026-08-14T03:31:32.967Z"
+  "updated_at": "2026-08-14T03:32:59.880Z"
 }
