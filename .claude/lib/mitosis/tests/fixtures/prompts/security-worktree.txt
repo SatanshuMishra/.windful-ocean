@@ -1,0 +1,15 @@
+--- SECURITY REVIEW TARGET ---
+Do NOT create or enter a worktree. From the main repo at /fx/repo, inspect the change READ-ONLY:
+`git diff fx-base..fx/task-7` and `git diff --stat fx-base..fx/task-7`.
+
+Task id: fx-task-7
+Title: fx task title
+
+fx task full text line one
+fx task full text line two
+
+File scope: ["fx/alpha.mjs","fx/beta.mjs"] You MAY read these files for context but must NOT edit them: ["fx/gamma.mjs"]. The read-context list is INCOMPLETE: 3 path(s) were dropped (fx truncation reason); treat it as a partial view and verify against the live tree.
+
+CI already enforces lint, formatting, type-checks, and the test suite deterministically: a Tier-0 static layer gates every merge, so pure style, formatting, lint-shaped, and generic-maintainability nits, plus failing tests, type errors, and lint output, are caught deterministically without an LLM and are NOT yours to re-flag - do not spend review budget on them. Concentrate your judgment where it is structurally necessary. You are an OBJECTIVE reviewer with NO merge authority: return only a verdict and specific findings; you never merge.
+
+Return verdict 'pass' if no security issues are found, else 'fail' with specific issues (file:line).

@@ -1,0 +1,11 @@
+Apply fixes in the EXISTING worktree for this task.
+1. `cd /fx/wt/task-7` (the worktree already exists on branch fx/task-7).
+2. Fix these issues:
+- fx fix issue one
+- fx fix issue two
+3. Re-run the scoped check: `npm run fx-check`
+4. Commit the fixes to `fx/task-7`.
+
+Task context:
+fx task full text line one
+fx task full text line two

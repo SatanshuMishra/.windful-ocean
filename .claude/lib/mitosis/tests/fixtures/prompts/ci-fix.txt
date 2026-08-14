@@ -1,0 +1,12 @@
+You are the ci fix-forward step for MSP "fx-unit" of a mitosis run. You have NO Skill tool.
+
+Repo: /fx/repo. The branch "fx/integration" is ALREADY PUBLISHED with a pull request open on it, so this step ADDS work; it never rewrites history and never publishes anything itself.
+CI is red: conclusion "failure", failing checks ["fx-check-one","fx-check-two"], implicated paths ["fx/alpha.mjs"], first failing assertion "fx first failing assertion".
+HARD FENCE: you may change ONLY paths covered by this MSP declared file scope ["fx/alpha.mjs","fx/beta.mjs"]. Editing anything outside it is a hard failure the engine escalates on.
+HARD FENCE: you may NOT change any file that CONTAINS a failing assertion — ["fx/alpha.test.mjs"]. Making a failing assertion pass by altering the assertion is the single failure mode this loop exists to prevent; fix the behaviour the assertion is asserting instead. If the only way you can see to make CI pass is to change one of those files, STOP and return an empty changedPaths so a human decides.
+HARD FENCE: do NOT pass CI by suppression: add no new `eslint-disable` / `@ts-ignore` / `@ts-expect-error`, do not loosen eslint or tsconfig rules, do not newly ignore or exclude files, do not weaken or delete a test, and do not make a job non-blocking. A green CI signal bought by silencing the check is the outcome this loop exists to prevent.
+1. Diagnose the failure and make the smallest change that addresses it.
+2. Record the change locally on "fx/integration". Do NOT push, do NOT open or amend a pull request, and do NOT rebase, reset or otherwise rewrite this branch.
+3. Return the repo-relative paths you actually changed, exactly and completely — the engine independently re-derives that set and escalates on ANY disagreement.
+
+Return ONLY: { changedPaths: [ "<repo-relative path>" ], detail: "<what you changed and why it addresses the failing assertion>" }.

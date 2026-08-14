@@ -1,0 +1,10 @@
+Apply fixes in the MAIN repository working tree at /fx/repo (no worktree, no branch, no git mutations; leave changes uncommitted).
+Edit ONLY within this task's declared scope: ["fx/alpha.mjs","fx/beta.mjs"]. You MAY read these files for context but must NOT edit them: ["fx/gamma.mjs"]. The read-context list is INCOMPLETE: 3 path(s) were dropped (fx truncation reason); treat it as a partial view and verify against the live tree.
+1. Fix these issues:
+- fx fix issue one
+- fx fix issue two
+2. Re-run the scoped check: `npm run fx-check`
+
+Task context:
+fx task full text line one
+fx task full text line two
