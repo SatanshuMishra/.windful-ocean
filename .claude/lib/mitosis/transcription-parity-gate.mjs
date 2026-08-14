@@ -17,7 +17,7 @@ import {
   transcriptionCensus,
 } from './transcription-census.mjs';
 import { GIT_COMMAND_FIXTURES } from './git-command-fixtures.mjs';
-import { GIT_SITE_COMMANDS } from './git-commands.mjs';
+import { END_OF_OPTIONS, GIT_SITE_COMMANDS } from './git-commands.mjs';
 import {
   CONVERTED_TRANSCRIPTION_SITES,
   DEFAULT_CONVERSION_REGISTRY,
@@ -53,6 +53,7 @@ export const TRANSCRIPTION_PARITY_ATTESTS = Object.freeze([
   'every anchor identifies exactly one incumbent command: an anchor the engine source spells more than once halts, so a fixture cannot stay pinned to a sibling command that survives the deletion of its own',
   'every command builder carries exactly one fixture and every fixture names a declared builder, in both directions, so a builder can be neither dropped from the pinning nor pinned twice',
   'a fixture repaired against the builder rather than against the incumbent halts, and that halt is exercised here on mutated copies of the shipped fixtures every time this verb runs, each control asserting the fixture it mutates is present before its result is trusted',
+  'every guard this substrate carries is falsifiable at this verb rather than only in the suite: each was severed one at a time and this verb was measured turning red for each, so a guard that goes inert is caught by the verb that reports on it',
   'every transcribed site names a parser and every registered parser names a site a declared command builder or a declared non-spawn step accounts for, in both directions, so a site cannot be counted converted while nothing reads what its commands print, and a parser registered under a name this substrate cannot place halts rather than being filtered out of every count',
   'a replacement registered for a site whose kind the declaration counts unconverted, and a replacement registered under a name no declared kind reaches, each halt; both halts are exercised here on the shipped declaration every time this verb runs',
   'every site parser is run here against the output it is declared to read and against the same output relabelled as a run that never completed, so a parser that has gone blind and a parser that reads a fact out of an interrupted run are both caught by this verb rather than only by the suite',
@@ -127,9 +128,21 @@ function fixtureFor(site, step) {
 const CONVERSION_CONTROLS = Object.freeze([
   Object.freeze({
     name: 'an argument the incumbent never spelled halts',
-    expect: 'was transcribed from',
+    expect: 'appears nowhere in the incumbent command it was transcribed from',
     anchoredOn: Object.freeze({ site: 'checkpoint-push', step: 'push' }),
-    mutate: (fixture) => ({ ...fixture, argv: Object.freeze(['-C', '<repoRoot>', 'push', '--force', 'origin', '<integrationBranch>:<durableCheckpointRef>']) }),
+    mutate: (fixture) => ({ ...fixture, argv: Object.freeze(['-C', '<repoRoot>', 'push', '--force', 'origin', END_OF_OPTIONS, '<integrationBranch>:<durableCheckpointRef>']) }),
+  }),
+  Object.freeze({
+    name: 'a derivation the argument vector does not carry halts',
+    expect: 'derivation nothing uses',
+    anchoredOn: Object.freeze({ site: 'integrate', step: 'checkout' }),
+    mutate: (fixture) => ({ ...fixture, derived: Object.freeze({ ...fixture.derived, '--force': 'a derivation for an argument this vector never carried' }) }),
+  }),
+  Object.freeze({
+    name: 'bytes composed against an anchor the incumbent no longer spells halt',
+    expect: 'composes bytes against an anchor',
+    anchoredOn: Object.freeze({ site: 'manifest-publish', step: 'mktree' }),
+    mutate: (fixture) => ({ ...fixture, anchor: 'TREE=$(printf | git -C ${repoRoot} mktree-something-else)' }),
   }),
   Object.freeze({
     name: 'an argument that departs from the incumbent with no stated reason halts',
@@ -198,6 +211,8 @@ const CONVERSION_CONTROLS = Object.freeze([
 
 const UNDECLARED_SITE = 'fence-extra';
 const UNCONVERTED_KIND_SITE = 'ship-verify';
+const REPEATED_INCUMBENT_COMMAND = '\\`git -C ${repoRoot} fetch origin ${baseBranch}\\`';
+const SINGLE_INCUMBENT_COMMAND = 'Read the local integration tip: \\`git -C ${repoRoot} rev-parse ${integrationBranch}\\`';
 
 const REGISTRY_CONTROLS = Object.freeze([
   Object.freeze({
@@ -208,6 +223,48 @@ const REGISTRY_CONTROLS = Object.freeze([
     perturb: (registry) => ({
       ...registry,
       nonSpawn: [{ ...registry.nonSpawn[0], anchor: 'a command the engine never carried' }, ...registry.nonSpawn.slice(1)],
+    }),
+  }),
+  Object.freeze({
+    name: 'a site that replaces no spawn and carries an anchor the incumbent spells more than once halts',
+    expect: 'identifies no single step',
+    present: (registry) => registry.nonSpawn.length > 0,
+    missing: 'the non-spawn site list is empty, so nothing was perturbed',
+    perturb: (registry) => ({
+      ...registry,
+      nonSpawn: [{ ...registry.nonSpawn[0], anchor: REPEATED_INCUMBENT_COMMAND }, ...registry.nonSpawn.slice(1)],
+    }),
+  }),
+  Object.freeze({
+    name: 'a site that says it cannot spawn a binary the policy now allows halts',
+    expect: 'the spawn policy now allows it',
+    present: (registry) => registry.nonSpawn.some((entry) => entry.refusedBinary !== undefined),
+    missing: 'no non-spawn site records a refused binary, so nothing was perturbed',
+    perturb: (registry) => ({
+      ...registry,
+      nonSpawn: registry.nonSpawn.map((entry) => (entry.refusedBinary === undefined
+        ? entry
+        : { ...entry, anchor: SINGLE_INCUMBENT_COMMAND, refusedBinary: 'git' })),
+    }),
+  }),
+  Object.freeze({
+    name: 'bytes composed for a step that carries no fixture halt',
+    expect: 'composes bytes for a step that carries no fixture',
+    present: (registry) => registry.compositions.length > 0,
+    missing: 'the stdin composition list is empty, so nothing was perturbed',
+    perturb: (registry) => ({
+      ...registry,
+      compositions: [{ ...registry.compositions[0], step: 'harvest' }, ...registry.compositions.slice(1)],
+    }),
+  }),
+  Object.freeze({
+    name: 'bytes composed for a step whose fixture records none halt',
+    expect: 'does not record that the step receives any',
+    present: (registry) => registry.compositions.length > 0,
+    missing: 'the stdin composition list is empty, so nothing was perturbed',
+    perturb: (registry) => ({
+      ...registry,
+      compositions: [{ ...registry.compositions[0], step: 'git-dir' }, ...registry.compositions.slice(1)],
     }),
   }),
   Object.freeze({
@@ -258,15 +315,27 @@ export function registryControlProbes(source) {
   }));
 }
 
-export function conversionControlProbes(source) {
-  const dropped = censusGitCommandFixtures(GIT_COMMAND_FIXTURES.filter((entry) => entry.step !== 'status'), source);
-  const unpinned = Object.freeze({
-    name: 'a command builder carrying no fixture halts',
-    halted: dropped.ok !== true,
-    named: dropped.ok !== true && typeof dropped.error === 'string' && dropped.error.includes('fence/status'),
+function fixtureListProbe(name, expect, fixtures, source) {
+  const measured = censusGitCommandFixtures(fixtures, source);
+  return Object.freeze({
+    name,
+    halted: measured.ok !== true,
+    named: measured.ok !== true && typeof measured.error === 'string' && measured.error.includes(expect),
     anchorPresent: true,
-    detail: dropped.ok === true ? 'the census accepted it' : dropped.error,
+    detail: measured.ok === true ? 'the census accepted it' : measured.error,
   });
+}
+
+export function conversionControlProbes(source) {
+  const seed = fixtureFor('fence', 'status');
+  const listed = seed === undefined ? [] : [
+    fixtureListProbe('a command builder carrying no fixture halts', 'fence/status', GIT_COMMAND_FIXTURES.filter((entry) => entry.step !== 'status'), source),
+    fixtureListProbe('one builder carrying two fixtures halts', 'more than one fixture', [...GIT_COMMAND_FIXTURES, seed], source),
+    fixtureListProbe('a fixture naming a builder no site declares halts', 'measures nothing', [...GIT_COMMAND_FIXTURES, { ...seed, step: 'harvest' }], source),
+  ];
+  const unpinned = seed === undefined
+    ? Object.freeze({ name: 'a command builder carrying no fixture halts', halted: false, named: false, anchorPresent: false, detail: 'the fence/status fixture these controls perturb is absent, so they perturbed nothing' })
+    : null;
   const mutated = CONVERSION_CONTROLS.map((control) => {
     const anchored = fixtureFor(control.anchoredOn.site, control.anchoredOn.step);
     if (anchored === undefined) {
@@ -287,7 +356,7 @@ export function conversionControlProbes(source) {
       detail: measured.ok === true ? 'the census accepted it' : measured.error,
     });
   });
-  return Object.freeze([unpinned, ...mutated]);
+  return Object.freeze(unpinned === null ? [...listed, ...mutated] : [unpinned, ...mutated]);
 }
 
 const CONVERSION_STATE_CONTROLS = Object.freeze([
@@ -416,6 +485,16 @@ const SEPARATION_CONTROLS = Object.freeze([
     }),
   }),
   Object.freeze({
+    name: 'a caller value the census cannot find in the command it built halts',
+    expect: 'appears nowhere in the command this builder produced',
+    present: () => true,
+    missing: 'the fixture list is empty, so nothing was perturbed',
+    perturb: (exceptions) => exceptions,
+    fixtures: (fixtures) => fixtures.map((entry) => (entry.site === 'fence' && entry.step === 'status'
+      ? { ...entry, placeholders: { ...entry.placeholders, '<absent>': { incumbent: 'git status', field: 'nowhereBound', value: 'a-value-no-builder-emits' } } }
+      : entry)),
+  }),
+  Object.freeze({
     name: 'a separation exception naming a step no builder declares halts',
     expect: 'name a step no builder declares',
     present: () => !Object.hasOwn(SEPARATION_EXCEPTIONS, 'harvest/notes'),
@@ -429,7 +508,8 @@ export function separationControlProbes() {
     if (!control.present()) {
       return Object.freeze({ name: control.name, halted: false, named: false, anchorPresent: false, detail: control.missing });
     }
-    const measured = censusPositionalSeparation(GIT_COMMAND_FIXTURES, control.perturb(SEPARATION_EXCEPTIONS));
+    const fixtures = typeof control.fixtures === 'function' ? control.fixtures(GIT_COMMAND_FIXTURES) : GIT_COMMAND_FIXTURES;
+    const measured = censusPositionalSeparation(fixtures, control.perturb(SEPARATION_EXCEPTIONS));
     return Object.freeze({
       name: control.name,
       halted: measured.ok !== true,

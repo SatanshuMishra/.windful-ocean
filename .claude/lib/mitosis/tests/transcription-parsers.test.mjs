@@ -222,7 +222,7 @@ test('the fence parse reads what real git actually prints, not what this test im
 
 test('every reader of a git path reports the identity real git reported for a path git had to quote', () => {
   const root = mkdtempSync(join(tmpdir(), 'mitosis-c4b-quoted-'));
-  const quoted = 'src/café.txt';
+  const quoted = 'src/caf\u00e9.txt';
   try {
     const git = (...argv) => execFileSync('git', ['-C', root, '-c', 'user.name=mitosis', '-c', 'user.email=mitosis@localhost', ...argv], { encoding: 'utf8' });
     git('init', '-q', '-b', 'main');
