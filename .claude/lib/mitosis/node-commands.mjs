@@ -103,11 +103,8 @@ function refIn(where, field, value) {
 function prValueIn(where, field, value, cap = PR_VALUE_CAP) {
   textIn(where, field, value);
   const inert = inertValue(value, cap);
-  if (inert === null) {
-    refuse(where, `was handed a ${field} the pull-request tool refuses as a body value: ${JSON.stringify(value)}; that tool caps the value at ${cap} characters and rejects an at-prefixed value, a byte outside printable ascii, a tag or block opener, a setext underline and a reserved field or structure prefix, and it rejects the whole invocation rather than the one field, so the bound is applied here against that same reader rather than restated as a second, narrower copy of it`);
-  }
   if (inert !== value) {
-    refuse(where, `was handed a ${field} the pull-request tool would rewrite before using: ${JSON.stringify(value)} becomes ${JSON.stringify(inert)}; a value that is not already inert would reach the body in a spelling the caller never composed`);
+    refuse(where, `was handed a ${field} the pull-request tool refuses as a body value or would rewrite before using it: ${JSON.stringify(value)} reads back as ${JSON.stringify(inert)}; that tool caps the value at ${cap} characters and rejects an at-prefixed value, a byte outside printable ascii, a tag or block opener, a setext underline and a reserved field or structure prefix, and it rejects the whole invocation rather than the one field, so the bound is applied here against that same reader rather than restated as a second, narrower copy of it`);
   }
   return inert;
 }
