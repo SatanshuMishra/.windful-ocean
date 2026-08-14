@@ -54,8 +54,9 @@ function recursiveHeights(ids, dependents) {
 
 function recursionThrowsAt(depth) {
   const ids = chainIds(depth);
+  const dependents = dependentsOf(ids, chainEdges(ids));
   try {
-    recursiveHeights(ids, dependentsOf(ids, chainEdges(ids)));
+    recursiveHeights(ids, dependents);
     return false;
   } catch (error) {
     if (error instanceof RangeError) return true;

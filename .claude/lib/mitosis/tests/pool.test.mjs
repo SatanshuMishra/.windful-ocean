@@ -13,6 +13,7 @@ const STACK_PROBE = fileURLToPath(new URL('./pool-stack-probe.mjs', import.meta.
 const STACK_PROBE_KB = 150;
 const STACK_PROBE_FLAG = `--stack-size=${STACK_PROBE_KB}`;
 const STACK_PROBE_BUDGET_MS = 30000;
+const STACK_PROBE_ENV = Object.freeze({});
 const NOOP_DISPATCH = async () => ({ ok: true, outcome: 'success' });
 const PENDING = Symbol('pending');
 const ESCAPE = String.fromCharCode(27);
@@ -34,17 +35,24 @@ function scratch() {
   return dir;
 }
 
-function runNode(args, options = {}) {
-  return new Promise((resolve) => {
-    execFile(process.execPath, args, options, (error, stdout, stderr) => {
+function startNode(args, options = {}) {
+  let child = null;
+  const done = new Promise((resolve) => {
+    child = execFile(process.execPath, args, options, (error, stdout, stderr) => {
       resolve({
         code: error === null ? 0 : error.code,
+        signal: error === null ? null : error.signal ?? null,
         killed: error !== null && error.killed === true,
         stdout,
         stderr,
       });
     });
   });
+  return { child, done };
+}
+
+function runNode(args, options = {}) {
+  return startNode(args, options).done;
 }
 
 function runCli(args, env, options = {}) {
@@ -55,7 +63,7 @@ function probeReport(stdout) {
   try {
     return JSON.parse(stdout);
   } catch (error) {
-    return assert.fail(`the depth probe must print exactly one JSON line for the assertions below to read, and this run printed ${JSON.stringify(stdout)} instead, so a probe that died before it measured anything would otherwise pass as a silent success: ${error.message}`);
+    assert.fail(`the depth probe must print exactly one JSON line for the assertions below to read, and this run printed ${JSON.stringify(stdout)} instead, so a probe that died before it measured anything would otherwise pass as a silent success: ${error.message}`);
   }
 }
 
@@ -386,7 +394,9 @@ test('the ordering pass reads only the edges and writes nothing onto the nodes i
 
 test('a chain at the depth a recursive longest-path walk fails on is ordered and dispatched in full', async () => {
   const startedAt = Date.now();
-  const probe = await runNode([STACK_PROBE_FLAG, STACK_PROBE], { timeout: STACK_PROBE_BUDGET_MS });
+  const started = startNode([STACK_PROBE_FLAG, STACK_PROBE], { env: STACK_PROBE_ENV, timeout: STACK_PROBE_BUDGET_MS });
+  strayPids.push(started.child.pid);
+  const probe = await started.done;
   assert.equal(
     probe.killed,
     false,
@@ -395,7 +405,7 @@ test('a chain at the depth a recursive longest-path walk fails on is ordered and
   assert.equal(
     probe.code,
     0,
-    `the depth probe exited ${probe.code} instead of reporting a measurement, so nothing below was checked against anything: ${probe.stderr}`,
+    `the depth probe exited ${probe.code} on signal ${probe.signal} instead of reporting a measurement, so nothing below was checked against anything: a signal here is a crash the probe never chose, and Node reports killed false for it because it was not the killer: ${probe.stderr}`,
   );
   const measured = probeReport(probe.stdout);
   assert.equal(
