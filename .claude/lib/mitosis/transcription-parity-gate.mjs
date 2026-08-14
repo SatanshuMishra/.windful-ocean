@@ -15,6 +15,11 @@ import {
   transcriptionCensus,
 } from './transcription-census.mjs';
 import { GIT_SITE_COMMANDS } from './git-commands.mjs';
+import { GH_SITE_FIXTURE_PARENT_SHA } from './gh-site-fixtures.mjs';
+import { ghSpawnRequest } from './gh-commands.mjs';
+import { ciFactProbes } from './ci-facts.mjs';
+import { specHashProbes } from './spec-hash.mjs';
+import { supersedeSummaryProbes } from './supersede-summary.mjs';
 import {
   NON_SPAWN_SITES,
   TRANSCRIBED_COMMAND_FIXTURES,
@@ -119,6 +124,35 @@ export function probeTranscriptionSubstrate() {
       ? Object.freeze([...conversionStateProbes(engine.sources), ...registeredSiteProbes(engine.sources)])
       : Object.freeze([]),
     argvInertness: argvInertnessProbe(),
+    ciFacts: ciFactProbes(),
+    specHash: specHashProbes(),
+    supersedeSummary: supersedeSummaryProbes(),
+    ghShimRouting: ghShimRoutingProbe(),
+    ghFixtureParentSha: GH_SITE_FIXTURE_PARENT_SHA,
+  });
+}
+
+const SHIM_PROBE_VALUES = Object.freeze({ repoSlug: 'acme/widgets', integrationBranch: 'mitosis/probe' });
+const SHIM_BASENAME = 'gh-merge-shim.mjs';
+const SHIM_MERGE_ARGV = Object.freeze(['pr', 'merge', '7']);
+
+function ghShimRoutingProbe() {
+  let routed;
+  try {
+    routed = ghSpawnRequest('ship-verify', 'pr-state', SHIM_PROBE_VALUES);
+  } catch (error) {
+    return Object.freeze({ routed: false, refusedMerge: false, detail: `an ordinary gh read was refused: ${error && error.message ? error.message : 'unknown refusal'}` });
+  }
+  let refusedMerge = false;
+  try {
+    ghSpawnRequest('ship-verify', 'pr-state', SHIM_PROBE_VALUES, undefined, SHIM_MERGE_ARGV);
+  } catch {
+    refusedMerge = true;
+  }
+  return Object.freeze({
+    routed: routed.command === 'node' && routed.args.length > 0 && routed.args[0].endsWith(SHIM_BASENAME),
+    refusedMerge,
+    detail: `${routed.command} ${JSON.stringify([...routed.args])}`,
   });
 }
 
@@ -167,6 +201,27 @@ function pollFailures(substrate) {
   const outcomes = substrate.outcomes;
   if (outcomes.mismatched.length > 0 || outcomes.unreached.length > 0 || outcomes.undeclared.length > 0) {
     failures.push(`the declared outcome set is not a closed census: mismatched ${JSON.stringify([...outcomes.mismatched])}, declared but unreachable ${JSON.stringify([...outcomes.unreached])}, produced but undeclared ${JSON.stringify([...outcomes.undeclared])}`);
+  }
+  return failures;
+}
+
+function derivedFactFailures(substrate) {
+  const failures = [];
+  for (const [name, probes] of [['ci fact', substrate.ciFacts], ['spec fingerprint', substrate.specHash], ['supersede summary', substrate.supersedeSummary]]) {
+    const broken = probes.filter((probe) => probe.ok !== true);
+    if (broken.length > 0) {
+      failures.push(`these ${name} probes no longer hold: ${broken.map((probe) => `${probe.name} (${probe.detail})`).join('; ')}`);
+    }
+  }
+  const shim = substrate.ghShimRouting;
+  if (!shim.routed) {
+    failures.push(`a transcribed gh command no longer resolves through the merge shim (${shim.detail}); a gh argv that reaches the binary without the shim is one no layer classifies`);
+  }
+  if (!shim.refusedMerge) {
+    failures.push('a merge-shaped gh argv routed through the same resolution was NOT refused, so the shim is in the path without being in force');
+  }
+  if (substrate.ghFixtureParentSha !== substrate.conversions.parentSha) {
+    failures.push(`the fixtures pin to two different parent commits (${substrate.conversions.parentSha} and ${substrate.ghFixtureParentSha}); one incumbent is the incumbent, and two would let a fixture be repaired against whichever commit still spells it`);
   }
   return failures;
 }
@@ -310,6 +365,7 @@ export function transcriptionParityFailures(substrate) {
     ...manifestPublishFailures(substrate),
     ...conversionStateFailures(substrate),
     ...argvInertnessFailures(substrate),
+    ...derivedFactFailures(substrate),
   ];
 }
 
@@ -357,6 +413,8 @@ function censusPayload(census) {
     convertedSiteCount: census.convertedSiteCount,
     convertedSites: census.convertedSites.map((site) => `${site.name} ${site.path}:${site.line}`),
     unconvertedSites: census.unconvertedSites.map((site) => `${site.name} ${site.path}:${site.line}`),
+    pendingJudgmentKinds: [...census.pendingJudgmentKinds],
+    modelInvocationsRemaining: census.conversionTargetSiteCount,
     twinSites: census.twinSites.map((site) => `${site.name} ${site.path}:${site.line}`),
     inertSources: [...census.inertSources],
   });
@@ -367,6 +425,14 @@ function substratePayload(substrate) {
     censusControls: substrate.censusControls.map((control) => `${control.name}: ${control.halted && control.named ? 'halted and named' : 'INERT'}`),
     conversionStateControls: substrate.conversionStateControls.map((control) => `${control.name}: ${control.anchorPresent && control.halted && control.named ? 'halted and named' : 'INERT'}`),
     commandFixtureParentSha: substrate.conversions.parentSha,
+    commandFixtureBinaries: [...substrate.conversions.binaries],
+    commandFixturesByBinary: [...substrate.conversions.fixturesByBinary],
+    sharedCommandSteps: [...substrate.conversions.sharedSteps],
+    derivedCommandSteps: [...substrate.conversions.derivedCommands],
+    ciFactProbes: substrate.ciFacts.map((probe) => `${probe.name}: ${probe.ok ? 'holds' : 'INERT'}`),
+    specHashProbes: substrate.specHash.map((probe) => `${probe.name}: ${probe.ok ? 'holds' : 'INERT'}`),
+    supersedeSummaryProbes: substrate.supersedeSummary.map((probe) => `${probe.name}: ${probe.ok ? 'holds' : 'INERT'}`),
+    ghShimRouting: `${substrate.ghShimRouting.routed ? 'routed through the merge shim' : 'NOT ROUTED'}, ${substrate.ghShimRouting.refusedMerge ? 'merge argv refused' : 'MERGE ADMITTED'}`,
     commandFixtureBinary: substrate.conversions.binary,
     commandFixtureCount: substrate.conversions.fixtureCount,
     commandFixtureSiteCount: substrate.conversions.siteCount,

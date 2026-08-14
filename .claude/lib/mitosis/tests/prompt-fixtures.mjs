@@ -289,6 +289,15 @@ export const PROMPT_FIXTURE_CASES = Object.freeze([
     triedSet: Object.freeze(['fx:tried-one', 'fx:rejected-mechanism']),
     rejectedMechanism: 'fx:rejected-mechanism',
   }),
+  freezeCase('ci-fact-extract', 'ci-fact-extract', {
+    unitId: UNIT_ID,
+    repoRoot: REPO_ROOT,
+    integrationBranch: 'fx/integration',
+    ciConclusion: 'failure',
+    failedChecks: Object.freeze(['fx-unit']),
+    declaredScope: Object.freeze(['fx/one.mjs']),
+    logExcerpt: 'fx failing job output',
+  }),
   freezeCase('redispatch', 'redispatch', {
     unitId: UNIT_ID,
     stage: 'fx-stage',

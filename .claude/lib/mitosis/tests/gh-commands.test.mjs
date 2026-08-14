@@ -149,5 +149,5 @@ test('the ship pull request omits the depends flag when no parent id is declared
 
 test('the fold-run-log invocation names the deterministic cli and the journal it reads', () => {
   const argv = [...buildNodeCommand('reconcile', 'fold-run-log', { libDir: '/lib', repoRoot: '/repo' })];
-  assert.deepEqual(argv, ['/lib/fold-run-log.mjs', '/repo/.mitosis/run.json']);
+  assert.deepEqual(argv, ['--', '/lib/fold-run-log.mjs', '/repo/.mitosis/run.json']);
 });
