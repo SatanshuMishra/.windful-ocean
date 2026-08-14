@@ -1,5 +1,5 @@
 import { GH_COMMAND_BINARY } from './gh-commands.mjs';
-import { NODE_COMMAND_BINARY } from './node-commands.mjs';
+import { NODE_COMMAND_BINARY, RUN_JOURNAL_PATH } from './node-commands.mjs';
 import { GIT_COMMAND_BINARY } from './git-commands.mjs';
 import { EXEC_TIMEOUT_EXPIRED } from './exec-run.mjs';
 import { SPEC_HASH_INCUMBENT_COMMAND } from './spec-hash.mjs';
@@ -193,8 +193,8 @@ const RECONCILE_REMOTE = [
     binary: NODE_COMMAND_BINARY,
     site: 'reconcile',
     step: 'fold-run-log',
-    anchor: 'run \\`node ${LIB_DIR}/fold-run-log.mjs ${repoRoot}/.mitosis/run.json\\`',
-    argv: ['--', '<libDir>/fold-run-log.mjs', '<repoRoot>/.mitosis/run.json'],
+    anchor: `run \\\`node \${LIB_DIR}/fold-run-log.mjs \${repoRoot}/${RUN_JOURNAL_PATH}\\\``,
+    argv: ['--', '<libDir>/fold-run-log.mjs', `<repoRoot>/${RUN_JOURNAL_PATH}`],
     derived: DERIVED_NODE_SEPARATOR,
     placeholders: {
       '<libDir>': Object.freeze({ incumbent: '${LIB_DIR}', ...LIB_DIR }),
