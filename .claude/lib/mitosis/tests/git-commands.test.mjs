@@ -1,6 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { GIT_COMMAND_BINARY, GIT_SITES, GIT_SITE_COMMANDS, buildGitCommand } from '../git-commands.mjs';
+import { censusPositionalSeparation, refusedValueProbes } from '../git-command-separation.mjs';
 
 const REPO = '/repo';
 const BASE = 'main';
@@ -45,12 +46,47 @@ test('a builder rebuilds rather than returning a shared array', () => {
   assert.notEqual(first, second, 'two builds returned the same object, so one caller could observe another caller through it');
 });
 
-test('a value carrying shell metacharacters arrives as exactly one argv element', () => {
-  const hostile = 'refs/heads/$(touch /tmp/pwn); rm -rf ~ && echo `id`';
-  const argv = buildGitCommand('restore', 'fetch-checkpoint', { repoRoot: REPO, builtRef: hostile });
-  assert.deepEqual([...argv], ['-C', REPO, 'fetch', 'origin', hostile]);
+test('a path value carrying shell metacharacters arrives as exactly one argv element', () => {
+  const hostile = '/wt/$(touch /tmp/pwn); rm -rf ~ && echo `id`';
+  const argv = buildGitCommand('integrate', 'worktree-remove', { repoRoot: REPO, worktreePath: hostile });
+  assert.deepEqual([...argv], ['-C', REPO, 'worktree', 'remove', '--force', '--end-of-options', hostile]);
   assert.equal(argv.filter((token) => token === hostile).length, 1);
-  assert.equal(argv.length, 5, 'the hostile value was split, so something is treating argv as a command line');
+  assert.equal(argv.length, 7, 'the hostile value was split, so something is treating argv as a command line');
+});
+
+test('a ref-shaped value carrying shell metacharacters is refused rather than carried inertly', () => {
+  assert.throws(
+    () => buildGitCommand('restore', 'fetch-checkpoint', { repoRoot: REPO, builtRef: 'refs/heads/$(touch /tmp/pwn)' }),
+    /well-formed ref token/,
+  );
+});
+
+test('a caller value beginning with a dash is refused at every builder that carries one', () => {
+  const cases = [
+    ['divergence-check', 'fetch-base', { repoRoot: REPO, baseBranch: '--upload-pack=touch /tmp/pwn;true' }],
+    ['divergence-check', 'fetch-checkpoint', { repoRoot: REPO, ref: '--upload-pack=touch /tmp/pwn;true' }],
+    ['prepare-probe', 'fetch-base', { repoRoot: REPO, baseBranch: '--upload-pack=touch /tmp/pwn;true' }],
+    ['restore', 'fetch-checkpoint', { repoRoot: REPO, builtRef: '--upload-pack=touch /tmp/pwn;true' }],
+    ['branch-compose', 'fetch-base', { repoRoot: REPO, baseBranch: '--upload-pack=touch /tmp/pwn;true' }],
+    ['branch-compose', 'fetch-parent', { repoRoot: REPO, ref: '--upload-pack=touch /tmp/pwn;true' }],
+    ['branch-prep', 'fetch-base', { repoRoot: REPO, baseBranch: '--upload-pack=touch /tmp/pwn;true' }],
+    ['integrate', 'worktree-remove', { repoRoot: REPO, worktreePath: '--upload-pack=touch /tmp/pwn;true' }],
+    ['integrate', 'worktree-add', { repoRoot: '-C/etc', integrationWt: '/wt', baseBranch: BASE }],
+  ];
+  for (const [site, step, values] of cases) {
+    assert.throws(
+      () => buildGitCommand(site, step, values),
+      /beginning with "-"/,
+      `${site}/${step} accepted a value git would read as an option rather than as the value it was passed as`,
+    );
+  }
+});
+
+test('a ref carrying a parent traversal is refused, because git reads it as a range endpoint', () => {
+  assert.throws(
+    () => buildGitCommand('branch-compose', 'fetch-parent', { repoRoot: REPO, ref: 'refs/../../etc/passwd' }),
+    /well-formed ref token/,
+  );
 });
 
 test('a value that is not a non-empty string is refused rather than coerced', () => {
@@ -102,14 +138,19 @@ test('an empty file scope is refused, because a scoped diff with no scope is an 
 test('the scoped diff puts both endpoints after --end-of-options and the scope after --', () => {
   const argv = buildGitCommand('divergence-check', 'scoped-diff', {
     repoRoot: REPO,
-    builtSha: '-aaaa111',
-    mergedSha: '-bbbb222',
+    builtSha: 'aaaa111',
+    mergedSha: 'bbbb222',
     fileScope: ['src/a.ts', 'src/b.ts'],
   });
   assert.deepEqual([...argv], [
-    '-C', REPO, 'diff', '--name-only', '--end-of-options', '-aaaa111', '-bbbb222', '--', 'src/a.ts', 'src/b.ts',
+    '-C', REPO, 'diff', '--name-only', '--end-of-options', 'aaaa111', 'bbbb222', '--', 'src/a.ts', 'src/b.ts',
   ]);
-  assert.ok(argv.indexOf('--end-of-options') < argv.indexOf('-aaaa111'), 'a leading-dash endpoint sits before --end-of-options and git would read it as a flag');
+  assert.ok(argv.indexOf('--end-of-options') < argv.indexOf('aaaa111'), 'an endpoint sits before --end-of-options and git would read a dash-led one as a flag');
+  assert.throws(
+    () => buildGitCommand('divergence-check', 'scoped-diff', { repoRoot: REPO, builtSha: '-aaaa111', mergedSha: 'bbbb222', fileScope: ['src/a.ts'] }),
+    /beginning with "-"/,
+    'a leading-dash endpoint was carried rather than refused, so the separator is the only thing standing between it and git option parser',
+  );
 });
 
 test('the binary every builder is spelled against is git and nothing else', () => {
@@ -138,7 +179,7 @@ test('the manifest publish push carries no force spelling at all', () => {
 
 test('the merge integrate step is the no-fast-forward spelling the incumbent names', () => {
   const argv = buildGitCommand('integrate', 'merge', { integrationWt: '/wt', branch: 'mitosis/task-1' });
-  assert.deepEqual([...argv], ['-C', '/wt', 'merge', '--no-ff', 'mitosis/task-1']);
+  assert.deepEqual([...argv], ['-C', '/wt', 'merge', '--no-ff', '--end-of-options', 'mitosis/task-1']);
 });
 
 test('every site builds against the same base value set without leaking a sibling value', () => {
@@ -147,5 +188,27 @@ test('every site builds against the same base value set without leaking a siblin
     integrationBranch: 'mitosis/c4b',
     baseBranch: BASE,
   });
-  assert.deepEqual([...argv], ['-C', REPO, 'branch', '-f', 'mitosis/c4b', `origin/${BASE}`]);
+  assert.deepEqual([...argv], ['-C', REPO, 'branch', '-f', '--end-of-options', 'mitosis/c4b', `origin/${BASE}`]);
+});
+
+test('every step passing a caller value positionally separates it from the option parser or records why it cannot', () => {
+  const measured = censusPositionalSeparation();
+  assert.equal(measured.ok, true, measured.ok === true ? '' : measured.error);
+  assert.equal(
+    measured.valueCount,
+    measured.separatedCount + measured.flagValueCount + measured.prefixedCount + measured.exceptions.length,
+    'the separation census classified fewer values than it measured, so a caller value reached none of its four classes',
+  );
+  assert.deepEqual([...measured.exceptions], [
+    'branch-compose/resolve-parent ref',
+    'checkpoint-push/resolve-tip integrationBranch',
+    'manifest-publish/commit-tree tree',
+  ]);
+});
+
+test('every hostile caller value offered to a builder is refused rather than carried', () => {
+  const probes = refusedValueProbes();
+  assert.ok(probes.length > 0, 'no builder was offered a hostile value, so this proves nothing');
+  const admitted = probes.filter((probe) => !probe.refused);
+  assert.deepEqual(admitted.map((probe) => probe.name), [], admitted.map((probe) => `${probe.name}: ${probe.detail}`).join('\n'));
 });
