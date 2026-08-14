@@ -11,20 +11,20 @@ export const TRANSCRIPTION_KINDS = Object.freeze([
   Object.freeze({ name: 'fence', converted: true }),
   Object.freeze({ name: 'integrate', converted: true }),
   Object.freeze({ name: 'divergence-check', converted: true }),
-  Object.freeze({ name: 'reconcile', converted: false }),
+  Object.freeze({ name: 'reconcile', converted: true }),
   Object.freeze({ name: 'manifest-publish', converted: true }),
   Object.freeze({ name: 'prepare-probe', converted: true }),
-  Object.freeze({ name: 'supersede', converted: false }),
+  Object.freeze({ name: 'supersede', converted: true }),
   Object.freeze({ name: 'restore', converted: true }),
   Object.freeze({ name: 'plan-probe', converted: true }),
   Object.freeze({ name: 'branch', converted: true }),
   Object.freeze({ name: 'checkpoint-push', converted: true }),
-  Object.freeze({ name: 'ship-verify', converted: false }),
-  Object.freeze({ name: 'ci-probe', converted: false }),
+  Object.freeze({ name: 'ship-verify', converted: true }),
+  Object.freeze({ name: 'ci-probe', converted: true }),
   Object.freeze({ name: 'ci-diff', converted: true }),
-  Object.freeze({ name: 'ci-publish', converted: false }),
+  Object.freeze({ name: 'ci-publish', converted: true }),
   Object.freeze({ name: 'ci-publish-verify', converted: true }),
-  Object.freeze({ name: 'ship', converted: false }),
+  Object.freeze({ name: 'ship', converted: true }),
 ]);
 
 export const JOURNAL_LABEL_KINDS = Object.freeze({
@@ -368,6 +368,29 @@ export function conversionSitesOf(name) {
   return Object.hasOwn(CONVERSION_SITE_NAMES, name) ? CONVERSION_SITE_NAMES[name] : Object.freeze([name]);
 }
 
+export const PENDING_JUDGMENT_KINDS = Object.freeze([
+  Object.freeze({
+    name: 'ci-fact-extract',
+    reason: 'the ci report splits into four fields the engine derives from what gh and git printed and two path lists no runner this engine deploys emits in a machine-readable form; this kind carries only those two, and no dispatch reaches it until C7 wires the engine onto the converted substrate, because the incumbent still asks one agent for all six at once',
+  }),
+]);
+
+function pendingJudgmentFailure(reached) {
+  const undeclared = PENDING_JUDGMENT_KINDS.filter((pending) => !PROMPT_KINDS.includes(pending.name));
+  if (undeclared.length > 0) {
+    return `transcription-census: these kinds are declared as awaiting a dispatch yet the prompt authority names none of them: ${undeclared.map((pending) => pending.name).join(', ')}; a pending declaration that matches no registered kind excuses a dispatch nothing would have looked for`;
+  }
+  const arrived = PENDING_JUDGMENT_KINDS.filter((pending) => reached.includes(pending.name));
+  if (arrived.length > 0) {
+    return `transcription-census: these kinds are declared as awaiting a dispatch yet a measured dispatch label already reaches them: ${arrived.map((pending) => pending.name).join(', ')}; the declaration outlived the wiring it was waiting for and now excuses a kind this census can already see`;
+  }
+  const unreasoned = PENDING_JUDGMENT_KINDS.filter((pending) => typeof pending.reason !== 'string' || pending.reason.length === 0);
+  if (unreasoned.length > 0) {
+    return `transcription-census: these kinds are declared as awaiting a dispatch with no stated reason: ${unreasoned.map((pending) => pending.name).join(', ')}`;
+  }
+  return null;
+}
+
 function conversionStateFailure(declared, registered) {
   const declaredNames = new Set(declared.map((kind) => kind.name));
   const staleAlias = Object.keys(CONVERSION_SITE_NAMES).filter((name) => !declaredNames.has(name));
@@ -483,7 +506,11 @@ export function censusTranscriptionSources(sources, declared = TRANSCRIPTION_KIN
   const unconvertedSites = conversionTargetSites.filter((site) => !convertedKindNames.has(site.name));
 
   const judgmentKindsReached = reachedIncludingParameterized(allSites).filter((kind) => PROMPT_KINDS.includes(kind));
-  const unreachedJudgment = PROMPT_KINDS.filter((kind) => !judgmentKindsReached.includes(kind));
+  const pendingHalt = pendingJudgmentFailure(judgmentKindsReached);
+  if (pendingHalt !== null) return halt(pendingHalt);
+  const unreachedJudgment = PROMPT_KINDS
+    .filter((kind) => !judgmentKindsReached.includes(kind))
+    .filter((kind) => !PENDING_JUDGMENT_KINDS.some((pending) => pending.name === kind));
   if (unreachedJudgment.length > 0) {
     return halt(`transcription-census: these judgment kinds the prompt authority declares are reached by no measured dispatch label: ${unreachedJudgment.join(', ')}`);
   }
@@ -526,6 +553,7 @@ export function censusTranscriptionSources(sources, declared = TRANSCRIPTION_KIN
     programSiteCount: sites.filter((site) => site.category === PROGRAM).length,
     parameterizedSiteCount: sites.filter((site) => site.category === null).length,
     judgmentKindsReached: Object.freeze(judgmentKindsReached.sort()),
+    pendingJudgmentKinds: Object.freeze(PENDING_JUDGMENT_KINDS.map((pending) => `${pending.name}: ${pending.reason}`)),
     journalKindsReached: Object.freeze(journalKindsReached.sort()),
     programKindsReached: Object.freeze(programKindsReached.sort()),
     declaredNames: Object.freeze([...table.keys()]),

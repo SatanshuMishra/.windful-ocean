@@ -31,6 +31,10 @@ const DERIVED_SEPARATOR = Object.freeze({
   '--end-of-options': 'the incumbent hands this command a caller value positionally with nothing marking the end of its options, and git permutes its argument vector, so a value beginning with a dash is read as an option rather than as the value it was passed as; --upload-pack= alone runs an arbitrary command while the command it rides on reports an ordinary failure',
 });
 
+const DERIVED_NODE_SEPARATOR = Object.freeze({
+  '--': 'the incumbent hands node the script path positionally with nothing marking the end of node own options; node honours the double dash as the end of its own flags, measured against node v26.4.0, so a script path that begins with a dash stays a path rather than becoming a node option',
+});
+
 const DERIVED_GH_SEPARATOR = Object.freeze({
   '--': 'the incumbent hands gh this path positionally with nothing marking the end of its options; gh honours the double dash as the end of its own flags, measured against gh 2.97.0, so the separator keeps a value that begins with a dash a value rather than a flag',
 });
@@ -190,7 +194,8 @@ const RECONCILE_REMOTE = [
     site: 'reconcile',
     step: 'fold-run-log',
     anchor: 'run \\`node ${LIB_DIR}/fold-run-log.mjs ${repoRoot}/.mitosis/run.json\\`',
-    argv: ['<libDir>/fold-run-log.mjs', '<repoRoot>/.mitosis/run.json'],
+    argv: ['--', '<libDir>/fold-run-log.mjs', '<repoRoot>/.mitosis/run.json'],
+    derived: DERIVED_NODE_SEPARATOR,
     placeholders: {
       '<libDir>': Object.freeze({ incumbent: '${LIB_DIR}', ...LIB_DIR }),
       ...REPO_PLACEHOLDER,
@@ -250,7 +255,7 @@ const NODE_PR_FIXTURES = [
     step: 'open-pr',
     anchor: 'changing NOTHING except the quoted summary placeholder and chaining nothing onto it: \\`node ${GIT_LIB_DIR}/pr.mjs pr-create --repo ${repoSlug} --head ${supersedeBranch} --base ${baseBranch} --title ${JSON.stringify(supersedePrTitleFor(msp))} --origin machine --provenance ${JSON.stringify(prProvenanceFor(`supersede:${msp.id}`, null))} --why ${JSON.stringify(PR_SUPERSEDE_WHY)} --why ${JSON.stringify(msp.rationale)} --what ${JSON.stringify(msp.title)} --what "<your one-line interdiff summary from step 2>" --not-verified ${JSON.stringify(PR_NOT_VERIFIED_SUPERSEDE_CI)} --supersedes ${JSON.stringify(canonicalPriorPrUrl)}\\`',
     argv: [
-      '<gitLibDir>/pr.mjs', 'pr-create',
+      '--', '<gitLibDir>/pr.mjs', 'pr-create',
       '--repo', '<repoSlug>',
       '--head', '<supersedeBranch>',
       '--base', '<baseBranch>',
@@ -264,6 +269,7 @@ const NODE_PR_FIXTURES = [
       '--not-verified', '<notVerified>',
       '--supersedes', '<supersedes>',
     ],
+    derived: DERIVED_NODE_SEPARATOR,
     placeholders: {
       '<gitLibDir>': Object.freeze({ incumbent: '${GIT_LIB_DIR}', ...GIT_LIB_DIR }),
       ...SLUG_PLACEHOLDER,
@@ -285,7 +291,7 @@ const NODE_PR_FIXTURES = [
     step: 'open-pr',
     anchor: 'substituting ONLY the digits for <N>: \\`node ${GIT_LIB_DIR}/pr.mjs pr-create --repo ${repoSlug} --head ${integrationBranch} --base ${baseBranch} --title ${JSON.stringify(prTitleFor(msp))} --origin machine --provenance ${JSON.stringify(prProvenanceFor(`ship:${msp.id}`, shipModel))} --why ${JSON.stringify(msp.rationale)} --what ${JSON.stringify(msp.title)} --not-verified ${JSON.stringify(PR_NOT_VERIFIED_OPEN_CI)}${prDependsFlag(msp.dependsOn)} --changed-lines <N>\\`',
     argv: [
-      '<gitLibDir>/pr.mjs', 'pr-create',
+      '--', '<gitLibDir>/pr.mjs', 'pr-create',
       '--repo', '<repoSlug>',
       '--head', '<integrationBranch>',
       '--base', '<baseBranch>',
@@ -297,6 +303,7 @@ const NODE_PR_FIXTURES = [
       '--not-verified', '<notVerified>',
       '--changed-lines', '<changedLines>',
     ],
+    derived: DERIVED_NODE_SEPARATOR,
     placeholders: {
       '<gitLibDir>': Object.freeze({ incumbent: '${GIT_LIB_DIR}', ...GIT_LIB_DIR }),
       ...SLUG_PLACEHOLDER,

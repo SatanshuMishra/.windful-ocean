@@ -1,8 +1,13 @@
-import { GIT_COMMAND_FIXTURES } from './git-command-fixtures.mjs';
+
 import { END_OF_OPTIONS } from './git-commands.mjs';
 import { SEPARATION_EXCEPTIONS, censusPositionalSeparation } from './git-command-separation.mjs';
 import { TRANSCRIPTION_KINDS, censusTranscriptionSources } from './transcription-census.mjs';
-import { CONVERTED_TRANSCRIPTION_SITES, DEFAULT_CONVERSION_REGISTRY, censusGitCommandFixtures } from './transcription-conversions.mjs';
+import {
+  CONVERTED_TRANSCRIPTION_SITES,
+  DEFAULT_CONVERSION_REGISTRY,
+  TRANSCRIBED_COMMAND_FIXTURES as GIT_COMMAND_FIXTURES,
+  censusGitCommandFixtures,
+} from './transcription-conversions.mjs';
 const CONVERSION_TARGET = '/engine/.claude/workflows/mitosis.js';
 
 const CENSUS_CONTROLS = Object.freeze([
@@ -127,7 +132,7 @@ const CONVERSION_CONTROLS = Object.freeze([
 ]);
 
 const UNDECLARED_SITE = 'fence-extra';
-const UNCONVERTED_KIND_SITE = 'ship-verify';
+const WITHDRAWN_REPLACEMENT_SITE = 'ship-verify';
 const REPEATED_INCUMBENT_COMMAND = '\\`git -C ${repoRoot} fetch origin ${baseBranch}\\`';
 const SINGLE_INCUMBENT_COMMAND = 'Read the local integration tip: \\`git -C ${repoRoot} rev-parse ${integrationBranch}\\`';
 
@@ -278,27 +283,23 @@ export function conversionControlProbes(source) {
 
 const CONVERSION_STATE_CONTROLS = Object.freeze([
   Object.freeze({
-    name: 'a kind declared converted with no registered replacement halts',
-    kind: 'reconcile',
-    was: false,
-    becomes: true,
-    expect: 'needs reconcile',
-  }),
-  Object.freeze({
     name: 'a kind whose replacement is registered but declared unconverted halts',
     kind: 'fence',
     was: true,
     becomes: false,
     expect: 'is served by fence',
   }),
+  Object.freeze({
+    name: 'a kind declared converted whose registered replacement is withdrawn halts',
+    kind: 'ship-verify',
+    was: true,
+    becomes: true,
+    withdraw: WITHDRAWN_REPLACEMENT_SITE,
+    expect: 'needs ship-verify',
+  }),
 ]);
 
 const REGISTERED_SITE_CONTROLS = Object.freeze([
-  Object.freeze({
-    name: 'a replacement registered for a site whose kind the declaration counts unconverted halts',
-    site: UNCONVERTED_KIND_SITE,
-    expect: `is served by ${UNCONVERTED_KIND_SITE}`,
-  }),
   Object.freeze({
     name: 'a replacement registered under a name no declared kind reaches halts',
     site: UNDECLARED_SITE,
@@ -347,7 +348,19 @@ export function conversionStateProbes(sources) {
     const declared = TRANSCRIPTION_KINDS.map((kind) => (
       kind.name === control.kind ? Object.freeze({ ...kind, converted: control.becomes }) : kind
     ));
-    const measured = censusTranscriptionSources(sources.map((entry) => ({ ...entry })), declared);
+    const registered = control.withdraw === undefined
+      ? CONVERTED_TRANSCRIPTION_SITES
+      : CONVERTED_TRANSCRIPTION_SITES.filter((site) => site !== control.withdraw);
+    if (control.withdraw !== undefined && registered.length === CONVERTED_TRANSCRIPTION_SITES.length) {
+      return Object.freeze({
+        name: control.name,
+        halted: false,
+        named: false,
+        anchorPresent: false,
+        detail: `${control.withdraw} carries no registered replacement to withdraw, so this control withdrew nothing and proves nothing`,
+      });
+    }
+    const measured = censusTranscriptionSources(sources.map((entry) => ({ ...entry })), declared, registered);
     return Object.freeze({
       name: control.name,
       halted: measured.ok !== true,

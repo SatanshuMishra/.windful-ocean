@@ -173,6 +173,15 @@ export const PROMPT_PROBE_CASES = Object.freeze([
     triedSet: Object.freeze(['pb:tried', 'pb:rejected']),
     rejectedMechanism: 'pb:rejected',
   }, DIAGNOSE_CHANGED),
+  probeCase('ci-fact-extract', 'ci-fact-extract', {
+    unitId: 'pb-unit',
+    repoRoot: '/pb/repo',
+    integrationBranch: 'pb/integration',
+    ciConclusion: 'failure',
+    failedChecks: ['unit'],
+    declaredScope: ['pb/one.mjs'],
+    logExcerpt: 'pb failing job output',
+  }, ['unitId', 'repoRoot', 'integrationBranch', 'ciConclusion', 'failedChecks', 'declaredScope', 'logExcerpt']),
   probeCase('redispatch', 'redispatch', {
     ...PB_DIAGNOSE,
     correctedTask: 'pb corrected task',
