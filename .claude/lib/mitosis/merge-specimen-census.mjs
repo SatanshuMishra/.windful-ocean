@@ -64,14 +64,15 @@ export function shimRefusalKinds(source) {
     return halt(`merge-specimen-census: the shim source could not be scanned, so the refusal reasons it can emit could not be read: ${scan.error}`);
   }
   const kinds = [];
-  for (const site of callSites(scan.masked)) {
+  const sites = callSites(scan.masked);
+  for (const site of sites) {
     const literal = literalAt(source, scan.masked, site);
     if (literal.error !== undefined) {
       return halt(`merge-specimen-census: the refusal built at line ${lineOf(source, site)} names its kind as ${literal.error}; a reason kind this census cannot read is a refusal it could never require a specimen for`);
     }
     if (!kinds.includes(literal.value)) kinds.push(literal.value);
   }
-  return Object.freeze({ ok: true, kinds: Object.freeze(kinds.sort()) });
+  return Object.freeze({ ok: true, kinds: Object.freeze(kinds.sort()), callSiteCount: sites.length });
 }
 
 function innermostBrace(source, index) {
@@ -131,6 +132,13 @@ export function censusMergeSpecimens(specimens = MERGE_REFUSAL_SPECIMENS, source
   }
   const routed = refusalReturnAudit(source);
   if (!routed.ok) return routed;
+  const absent = measured.kinds.filter((kind) => !source.includes(`'${kind}'`) && !source.includes(`"${kind}"`));
+  if (absent.length > 0) {
+    return halt(`merge-specimen-census: these reason kinds are reported but appear nowhere in the classifier source: ${absent.join(', ')}; a reported kind the source does not spell is a remembered list rather than an extraction, and it would keep reading as covered after the branch that emitted it was removed`);
+  }
+  if (routed.refusalCount !== measured.callSiteCount) {
+    return halt(`merge-specimen-census: the classifier returns ${routed.refusalCount} refusal(s) but routes ${measured.callSiteCount} of them through the reason builder; the two independent reads of the same source disagree, so neither the reason set nor the specimen coverage measured against it can be trusted`);
+  }
   if (!Array.isArray(specimens) || specimens.length === 0) {
     return halt('merge-specimen-census: the specimen set is empty, so no merge argv is probed and the refusal it guards is unmeasured');
   }
@@ -155,6 +163,7 @@ export function censusMergeSpecimens(specimens = MERGE_REFUSAL_SPECIMENS, source
     ok: true,
     reasonKinds: measured.kinds,
     refusalReturnCount: routed.refusalCount,
+    reasonCallSiteCount: measured.callSiteCount,
     specimenKinds: Object.freeze(specimenKinds),
     reasonKindCount: measured.kinds.length,
     specimenKindCount: specimenKinds.length,
