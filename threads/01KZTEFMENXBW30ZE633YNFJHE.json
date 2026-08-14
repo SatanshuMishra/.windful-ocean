@@ -119,9 +119,9 @@
   "abandoned_reason": null,
   "closure_statement": null,
   "spine": {
-    "active_goal": "Ship the remaining MSPs as stacked PRs on feat/mitosis-os-process, driven by a dedicated orchestrator subagent per the user's instruction.",
-    "next_step": "Run 4 is live and mid-C4a. Do not touch .claude/worktrees/c4-transcription while it runs. When it returns, re-verify its claims against git (PR bases, local==origin, each head an ancestor of the next) before reporting. Remaining after C4a: C4b, C4c, C5, C6, the porting MSP, C7, D1, D2, D3. Merging is human-gated and stays the user's; the ReDoS draft comes back as text, unfiled.",
-    "last_session": "Dispatched a dedicated orchestrator; four runs so far. B3, C1, C2 and C3 shipped as PRs #100-#103, chain verified linear by the main thread. User ruled C4 splits into three and a porting MSP precedes C7. Run 4 in flight on C4a.",
+    "active_goal": "Ship the remaining MSPs as stacked PRs on feat/mitosis-os-process via a dedicated orchestrator subagent that fans out to workers.",
+    "next_step": "START HERE IN A FRESH SESSION. Dispatch ONE dedicated orchestrator subagent (general-purpose, opus, backgrounded) at ORCHESTRATOR-BRIEF.md + STACK-STATE.md in the handoff dir; never drive workers from the main thread, never use the mitosis skill. Resume at C4c: cut from 6acc7171, branch feat/c4c-gh-sites, PR base feat/c4b-git-sites, tasks T15-T21. Then C5 and C6 as parallel lanes, then PORT as a hard barrier. Re-verify every orchestrator claim against git before reporting.",
+    "last_session": "Dispatched five successive orchestrators; shipped B3, C1, C2, C3, C4a and C4b as PRs #100-#103, #105 and #107, chain verified linear end to end. Run 1 died to a host process exit. Stopped at C4b on the user's instruction to hand off.",
     "open_risks": [
       {
         "text": "Build A4's red case through the claude -p CLI path and assert the SILENT failure — the Workflow agent path auto-grants StructuredOutput, so a red case dispatched through it passes unconditionally and is a guarantee that cannot fail",
@@ -218,11 +218,41 @@
         ]
       },
       {
-        "text": "Verify every SPEC claim against a running command before planning against it — the SPEC is four-for-four on false premises, including claiming the engine could be rewired when mitosis.js has zero imports",
+        "text": "Mutate at the gate, not only at the suite — a guard whose removal reddens the suite but leaves its verb at exit 0 means the verb overclaims, and the verb's receipt is what C7 will trust",
         "scope": "c3",
         "refs": [
-          "SPEC C1-C4",
+          "C4a-SHIPPED.md",
+          "C4b-SHIPPED.md"
+        ]
+      },
+      {
+        "text": "Re-verify every SPEC and banked-plan claim against a running command before planning against it — six SPEC premises and five claims inside an already-verified plan have collapsed so far",
+        "scope": "c3",
+        "refs": [
+          "0428",
           "ORCHESTRATOR-BRIEF.md"
+        ]
+      },
+      {
+        "text": "Rule on whether git option injection gets its own MSP — it is live arbitrary code execution, C4b closed it only at its own builders, and exec-policy still classifies argv for gh alone while five child_process sites bypass the chokepoint",
+        "scope": "c3",
+        "refs": [
+          "C4b-SHIPPED.md"
+        ]
+      },
+      {
+        "text": "Treat the rebase of C6 onto C5 as the highest-risk step of that run — a stacked merge here has already silently reverted one line while keeping its siblings, hidden by a clean auto-merge and a MERGED status",
+        "scope": "c3",
+        "refs": [
+          "0388",
+          "0416"
+        ]
+      },
+      {
+        "text": "Commit before running any mutation round — a worker ran git checkout on a file holding uncommitted hardening and destroyed it, caught only by chance",
+        "scope": "c3",
+        "refs": [
+          "C4a residual 7"
         ]
       },
       {
@@ -234,25 +264,17 @@
         ]
       },
       {
-        "text": "Mutate every new guard before trusting it — two C3 guards shipped inert and were indistinguishable from their absence until mutation, having already passed review",
+        "text": "Leave the remaining mitosis-gate.mjs extraction alone — it stands over the 800-line cap but almost all of that is pre-existing, and a pure move of a verb this stack did not author is how defects enter on unnamed paths",
         "scope": "c3",
         "refs": [
-          "C3-SHIPPED.md"
+          ".claude/lib/mitosis/mitosis-gate.mjs"
         ]
       },
       {
-        "text": "Commit before running any mutation round — a worker ran git checkout on a file holding uncommitted hardening and destroyed it, caught only by chance",
+        "text": "Read the upstream ReDoS draft before it is filed — filing a public issue on a repo the user does not own is their decision, and the draft's own citation of decision 0415 could not be located in the repo",
         "scope": "c3",
         "refs": [
-          "C4a residual 7"
-        ]
-      },
-      {
-        "text": "Leave the remaining mitosis-gate.mjs extraction alone — it stands at 945 lines against the 800 cap but 901 is pre-existing, and a pure move of a verb this stack did not author is how defects enter on unnamed paths",
-        "scope": "c3",
-        "refs": [
-          ".claude/lib/mitosis/mitosis-gate.mjs",
-          "C4a residual 2"
+          "UPSTREAM-REDOS-REPORT-DRAFT.md"
         ]
       }
     ],
@@ -412,5 +434,5 @@
     ]
   },
   "created_at": "2026-08-12T07:37:41.077Z",
-  "updated_at": "2026-08-14T20:41:12.120Z"
+  "updated_at": "2026-08-14T20:41:59.008Z"
 }
