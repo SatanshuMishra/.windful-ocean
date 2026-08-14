@@ -77,8 +77,39 @@ const composed = new Map(PROMPT_KINDS.map((kind) => [
   PROMPT_FIXTURE_CASES.filter((fixture) => fixture.kind === kind).map((fixture) => composePrompt(fixture.kind, fixture.input)),
 ]));
 
+const UNTWINNED_KINDS = Object.freeze([
+  Object.freeze({
+    kind: 'ci-fact-extract',
+    reason: 'this kind has no copy in either engine source to diverge from: it was added by the transcription work, which leaves both engines byte-identical, so there is no second spelling for an anchor to hold together until C7 wires the engine onto the registry',
+  }),
+]);
+
+test('a kind declared untwinned is one the engines really do not spell, in both directions', () => {
+  const stray = UNTWINNED_KINDS.filter((entry) => !PROMPT_KINDS.includes(entry.kind)).map((entry) => entry.kind);
+  assert.deepEqual(stray, [], `these untwinned declarations name a kind the authority does not: ${stray.join(', ')}`);
+  const unreasoned = UNTWINNED_KINDS.filter((entry) => typeof entry.reason !== 'string' || entry.reason.length === 0);
+  assert.deepEqual(unreasoned, [], 'an untwinned kind is admitted only by a stated reason');
+  for (const entry of UNTWINNED_KINDS) {
+    const composedTexts = composed.get(entry.kind) || [];
+    assert.ok(composedTexts.length > 0, `${entry.kind} is declared untwinned yet composes no pinned fixture, so nothing measures its prose at all`);
+    for (const source of [ENGINE, RUN_ENGINE]) {
+      const raw = source === ENGINE ? readFileSync(ENGINE_PATH, 'utf8') : readFileSync(join(LIB_DIR, RUN_ENGINE), 'utf8');
+      for (const text of composedTexts) {
+        const span = text.slice(0, 80);
+        assert.equal(
+          occurrences(raw, span),
+          0,
+          `${entry.kind} is declared untwinned yet ${source} already spells its prose; the declaration outlived the wiring it was waiting for and must be replaced by a divergence anchor`,
+        );
+      }
+    }
+  }
+});
+
 test('every prompt kind carries at least one prose anchor, so no body is left unguarded', () => {
-  const unanchored = PROMPT_KINDS.filter((kind) => !ANCHORS.some((anchor) => anchor.kind === kind));
+  const unanchored = PROMPT_KINDS
+    .filter((kind) => !ANCHORS.some((anchor) => anchor.kind === kind))
+    .filter((kind) => !UNTWINNED_KINDS.some((entry) => entry.kind === kind));
   assert.deepEqual(unanchored, [], `these prompt kinds have no divergence anchor, so their prose could be edited on one side alone: ${unanchored.join(', ')}`);
   const stray = ANCHORS.filter((anchor) => !PROMPT_KINDS.includes(anchor.kind)).map((anchor) => anchor.kind);
   assert.deepEqual(stray, [], `these anchors name a kind the authority does not: ${stray.join(', ')}`);
@@ -134,9 +165,12 @@ test('the anchor guard does not contradict the mirror guard: fragments are share
     [],
     `these prose modules are classified standalone by the mirror guard yet their whole normalized body appears inside mitosis.js: ${inlined.join(', ')}`,
   );
+  const untwinnedModules = UNTWINNED_KINDS
+    .map((entry) => proseModules.find((name) => occurrences(sources.get(name), `'${entry.kind}'`) > 0))
+    .filter((name) => name !== undefined);
   assert.deepEqual(
     [...shared].sort(),
-    [...proseModules].sort(),
-    'every prose module must carry at least one anchor that mitosis.js also carries; the two guards measure different granularities - prose sentences here, whole parameterised export bodies there - and both must hold at once',
+    proseModules.filter((name) => !untwinnedModules.includes(name)).sort(),
+    'every prose module must carry at least one anchor that mitosis.js also carries, unless every kind it composes is declared untwinned; the two guards measure different granularities - prose sentences here, whole parameterised export bodies there - and both must hold at once',
   );
 });

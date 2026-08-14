@@ -4,9 +4,9 @@ import { parseNameOnlyPaths, parseSha } from './transcription-parsers.mjs';
 
 const MODULE = 'ci-facts';
 
-export const CI_TIMEOUT_CONCLUSION = EXEC_TIMEOUT_EXPIRED;
 export const CI_FACT_FIELDS = Object.freeze(['ciConclusion', 'failedChecks', 'conflictPaths', 'publishedHeadSha']);
 export const CI_MODEL_FIELDS = Object.freeze(['implicatedPaths', 'failingAssertionFiles']);
+export const CI_TIMEOUT_CONCLUSION = EXEC_TIMEOUT_EXPIRED;
 export const CI_SUCCESS_CONCLUSION = 'success';
 
 function failed(error) {

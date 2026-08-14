@@ -62,11 +62,6 @@ export function buildTranscribedCommand(binary, site, step, values) {
   return table.build(site, step, values);
 }
 
-export function declaredSitesOf(binary) {
-  const table = builderFor(binary);
-  return table === undefined ? [] : table.sites;
-}
-
 export function everyDeclaredSite() {
   return [...new Set(TRANSCRIBED_BINARIES.flatMap((binary) => [...COMMAND_BINARIES[binary].sites]))].sort();
 }

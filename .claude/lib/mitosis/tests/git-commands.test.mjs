@@ -1,7 +1,8 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { GIT_COMMAND_BINARY, GIT_SITES, GIT_SITE_COMMANDS, buildGitCommand } from '../git-commands.mjs';
-import { censusPositionalSeparation, refusedValueProbes } from '../git-command-separation.mjs';
+import { FETCH_VALUE_SITES, censusPositionalSeparation, refusedValueProbes } from '../git-command-separation.mjs';
+import { TRANSCRIBED_COMMAND_FIXTURES } from '../transcription-conversions.mjs';
 
 const REPO = '/repo';
 const BASE = 'main';
@@ -17,19 +18,24 @@ test('every declared site names at least one command builder', () => {
   }
 });
 
-test('the eleven declared git sites are named here, so one added or dropped is stated rather than counted', () => {
+test('the sixteen declared git sites are named here, so one added or dropped is stated rather than counted', () => {
   assert.deepEqual([...GIT_SITES].sort(), [
     'branch-compose',
     'branch-prep',
     'checkpoint-push',
     'ci-diff',
+    'ci-probe',
+    'ci-publish',
     'ci-publish-verify',
     'divergence-check',
     'fence',
     'integrate',
     'manifest-publish',
     'prepare-probe',
+    'reconcile',
     'restore',
+    'ship',
+    'supersede',
   ].sort());
 });
 
@@ -192,7 +198,7 @@ test('every site builds against the same base value set without leaking a siblin
 });
 
 test('every step passing a caller value positionally separates it from the option parser or records why it cannot', () => {
-  const measured = censusPositionalSeparation();
+  const measured = censusPositionalSeparation(TRANSCRIBED_COMMAND_FIXTURES);
   assert.equal(measured.ok, true, measured.ok === true ? '' : measured.error);
   assert.equal(
     measured.valueCount,
@@ -202,12 +208,19 @@ test('every step passing a caller value positionally separates it from the optio
   assert.deepEqual([...measured.exceptions], [
     'branch-compose/resolve-parent ref',
     'checkpoint-push/resolve-tip integrationBranch',
+    'gh ci-probe/read-conclusion runId',
+    'gh ci-probe/rerun runId',
+    'gh ci-probe/watch-status runId',
+    'gh ship-verify/pr-state integrationBranch',
+    'gh ship/done-oracle integrationBranch',
     'manifest-publish/commit-tree tree',
+    'ship/published-head integrationBranch',
+    'ship/resolve-tip integrationBranch',
   ]);
 });
 
 test('every hostile caller value offered to a builder is refused rather than carried', () => {
-  const probes = refusedValueProbes();
+  const probes = refusedValueProbes(FETCH_VALUE_SITES, TRANSCRIBED_COMMAND_FIXTURES);
   assert.ok(probes.length > 0, 'no builder was offered a hostile value, so this proves nothing');
   const admitted = probes.filter((probe) => !probe.refused);
   assert.deepEqual(admitted.map((probe) => probe.name), [], admitted.map((probe) => `${probe.name}: ${probe.detail}`).join('\n'));
