@@ -90,6 +90,7 @@ const MIRROR_CENSUS = Object.freeze({
   'transcription-census.mjs': STANDALONE,
   'transcription-conversions.mjs': STANDALONE,
   'transcription-parity-gate.mjs': STANDALONE,
+  'transcription-parsers.mjs': STANDALONE,
   'route-planner.mjs': STANDALONE,
   'workflow-sandbox.mjs': STANDALONE,
 });
