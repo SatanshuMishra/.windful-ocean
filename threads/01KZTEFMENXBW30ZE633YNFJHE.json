@@ -426,6 +426,11 @@
         "ref": "0422-long-pole-test-stays-at-the-discriminating-assertion",
         "title": "B3's long-pole test stays at the discriminating assertion rather than a full-sequence one",
         "scope": "c3"
+      },
+      {
+        "ref": "0423-c4-splits-into-three-on-the-capability-seam",
+        "title": "C4 splits into C4a, C4b and C4c on the capability seam",
+        "scope": "c3"
       }
     ],
     "out_of_scope": [
@@ -437,5 +442,5 @@
     ]
   },
   "created_at": "2026-08-12T07:37:41.077Z",
-  "updated_at": "2026-08-14T09:01:34.665Z"
+  "updated_at": "2026-08-14T16:22:37.358Z"
 }
