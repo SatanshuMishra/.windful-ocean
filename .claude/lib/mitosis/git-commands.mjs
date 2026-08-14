@@ -133,6 +133,56 @@ const MANIFEST_PUBLISH = Object.freeze({
   'read-back': (v, t) => ['-C', t.text('repoRoot', v.repoRoot), 'cat-file', '-p', END_OF_OPTIONS, `${t.ref('manifestRef', v.manifestRef)}:manifest.json`],
 });
 
+const CHECKPOINT_REF_PATTERN = 'refs/mitosis/*';
+const MANIFEST_ENTRY = 'manifest.json';
+const HEAD = 'HEAD';
+const UNMERGED_FILTER = '--diff-filter=U';
+
+const RECONCILE = Object.freeze({
+  'base-history': (v, t) => ['-C', t.text('repoRoot', v.repoRoot), 'log', END_OF_OPTIONS, originOf(t, v)],
+  'checkpoint-refs': (v, t) => ['-C', t.text('repoRoot', v.repoRoot), 'ls-remote', ORIGIN, END_OF_OPTIONS, CHECKPOINT_REF_PATTERN],
+  'manifest-remote': (v, t) => ['-C', t.text('repoRoot', v.repoRoot), 'ls-remote', ORIGIN, END_OF_OPTIONS, t.ref('manifestRef', v.manifestRef)],
+  'manifest-fetch': (v, t) => ['-C', t.text('repoRoot', v.repoRoot), 'fetch', '--no-tags', ORIGIN, END_OF_OPTIONS, `+${t.ref('manifestRef', v.manifestRef)}:${t.ref('manifestRef', v.manifestRef)}`],
+  'manifest-read': (v, t) => ['-C', t.text('repoRoot', v.repoRoot), 'cat-file', '-p', END_OF_OPTIONS, `${t.ref('manifestRef', v.manifestRef)}:${MANIFEST_ENTRY}`],
+});
+
+const SUPERSEDE = Object.freeze({
+  'publish-branch': (v, t) => ['-C', t.text('repoRoot', v.repoRoot), 'push', '-u', ORIGIN, END_OF_OPTIONS, `${t.ref('integrationBranch', v.integrationBranch)}:${t.ref('supersedeBranch', v.supersedeBranch)}`],
+  interdiff: (v, t) => [
+    '-C', t.text('repoRoot', v.repoRoot), 'diff', '--numstat', END_OF_OPTIONS,
+    `${ORIGIN}/${t.ref('integrationBranch', v.integrationBranch)}...${ORIGIN}/${t.ref('supersedeBranch', v.supersedeBranch)}`,
+  ],
+});
+
+const CI_PROBE = Object.freeze({
+  'published-head': (v, t) => ['-C', t.text('repoRoot', v.repoRoot), 'rev-parse', '--verify', END_OF_OPTIONS, t.ref('integrationBranch', v.integrationBranch)],
+});
+
+const CI_PUBLISH = Object.freeze({
+  'fetch-base': (v, t) => ['-C', t.text('repoRoot', v.repoRoot), 'fetch', ORIGIN, END_OF_OPTIONS, t.ref('baseBranch', v.baseBranch)],
+  'switch-branch': (v, t) => ['-C', t.text('repoRoot', v.repoRoot), 'switch', END_OF_OPTIONS, t.ref('integrationBranch', v.integrationBranch)],
+  'confirm-head': (v, t) => ['-C', t.text('repoRoot', v.repoRoot), 'rev-parse', '--abbrev-ref', HEAD],
+  'forward-merge': (v, t) => ['-C', t.text('repoRoot', v.repoRoot), 'merge', '--no-edit', END_OF_OPTIONS, originOf(t, v)],
+  'merge-abort': (v, t) => ['-C', t.text('repoRoot', v.repoRoot), 'merge', '--abort'],
+  'conflict-paths': (v, t) => ['-C', t.text('repoRoot', v.repoRoot), 'diff', '--name-only', UNMERGED_FILTER],
+  push: (v, t) => ['-C', t.text('repoRoot', v.repoRoot), 'push', ORIGIN, END_OF_OPTIONS, t.ref('integrationBranch', v.integrationBranch)],
+  'published-head': (v, t) => ['-C', t.text('repoRoot', v.repoRoot), 'rev-parse', '--verify', END_OF_OPTIONS, t.ref('integrationBranch', v.integrationBranch)],
+});
+
+const SHIP = Object.freeze({
+  'fetch-base': (v, t) => ['-C', t.text('repoRoot', v.repoRoot), 'fetch', ORIGIN, END_OF_OPTIONS, t.ref('baseBranch', v.baseBranch)],
+  'base-contained': (v, t) => ['-C', t.text('repoRoot', v.repoRoot), 'merge-base', '--is-ancestor', END_OF_OPTIONS, originOf(t, v), t.ref('integrationBranch', v.integrationBranch)],
+  rebase: (v, t) => ['-C', t.text('repoRoot', v.repoRoot), 'rebase', END_OF_OPTIONS, originOf(t, v), t.ref('integrationBranch', v.integrationBranch)],
+  'rebase-abort': (v, t) => ['-C', t.text('repoRoot', v.repoRoot), 'rebase', '--abort'],
+  'read-remote': (v, t) => ['-C', t.text('repoRoot', v.repoRoot), 'ls-remote', '--heads', ORIGIN, END_OF_OPTIONS, t.ref('integrationBranch', v.integrationBranch)],
+  'resolve-tip': (v, t) => ['-C', t.text('repoRoot', v.repoRoot), 'rev-parse', t.ref('integrationBranch', v.integrationBranch)],
+  publish: (v, t) => ['-C', t.text('repoRoot', v.repoRoot), 'push', '-u', ORIGIN, END_OF_OPTIONS, t.ref('integrationBranch', v.integrationBranch)],
+  'force-retry': (v, t) => ['-C', t.text('repoRoot', v.repoRoot), 'push', '--force-with-lease', '-u', ORIGIN, END_OF_OPTIONS, t.ref('integrationBranch', v.integrationBranch)],
+  'conflict-paths': (v, t) => ['-C', t.text('repoRoot', v.repoRoot), 'diff', '--name-only', UNMERGED_FILTER],
+  'changed-lines': (v, t) => ['-C', t.text('repoRoot', v.repoRoot), 'diff', '--shortstat', END_OF_OPTIONS, `${originOf(t, v)}...${t.ref('integrationBranch', v.integrationBranch)}`],
+  'published-head': (v, t) => ['-C', t.text('repoRoot', v.repoRoot), 'rev-parse', t.ref('integrationBranch', v.integrationBranch)],
+});
+
 export const GIT_SITE_COMMANDS = Object.freeze({
   fence: FENCE,
   integrate: INTEGRATE,
@@ -145,6 +195,11 @@ export const GIT_SITE_COMMANDS = Object.freeze({
   'ci-diff': CI_DIFF,
   'ci-publish-verify': CI_PUBLISH_VERIFY,
   'manifest-publish': MANIFEST_PUBLISH,
+  reconcile: RECONCILE,
+  supersede: SUPERSEDE,
+  'ci-probe': CI_PROBE,
+  'ci-publish': CI_PUBLISH,
+  ship: SHIP,
 });
 
 export const GIT_SITES = Object.freeze(Object.keys(GIT_SITE_COMMANDS));

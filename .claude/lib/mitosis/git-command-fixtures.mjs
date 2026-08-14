@@ -93,7 +93,7 @@ function fixture(entry) {
 export function builderInputs(fixture) {
   return Object.values(fixture.placeholders).reduce(
     (carried, binding) => ({ ...carried, [binding.field]: binding.value }),
-    {},
+    { ...(fixture.bound || {}) },
   );
 }
 
