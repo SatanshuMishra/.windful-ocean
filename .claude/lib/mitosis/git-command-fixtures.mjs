@@ -34,6 +34,44 @@ const DERIVED_REPO_SCOPE = Object.freeze({
   '<repoRoot>': 'the same restored repository prefix; the stage prose names the main repo as the tree every command in it operates against',
 });
 
+const OMITTED_SHELL_TREE_ENTRY = Object.freeze({
+  cd: 'the incumbent enters the tree with a shell cd before invoking git; the transcription reaches the same tree through git own -C, so the cd word corresponds to no argument vector element',
+  '&&': 'the incumbent joins the cd and the git invocation with a shell operator, which sequences two commands rather than naming an argument of either',
+});
+
+const OMITTED_BLOB_CAPTURE = Object.freeze({
+  'BLOB=$(git': 'the incumbent captures the object name in a shell variable through a command substitution; the transcription reads the same name from the child stdout, so the assignment and the substitution are shell constructions rather than arguments',
+  '<': 'the incumbent feeds the payload in with a shell redirect, which no argument vector element can carry; the bytes reach the child on stdin instead, as this fixture stdin declaration records',
+  '${repoRoot}/.mitosis/published-manifest.json)': 'the file the incumbent redirect opens; the transcription hands its bytes to the child directly, so the path is never an argument of this command',
+});
+
+const OMITTED_TREE_COMPOSITION = Object.freeze({
+  'TREE=$(printf': 'the incumbent composes the tree line with printf inside a command substitution; printf is a shell builtin rather than a spawnable binary, so the bytes are composed in process and the capture is a shell construction',
+  "'100644": 'part of the printf format the incumbent composes the one-entry tree line from; the same bytes are composed in process and handed to the child on stdin, so no argument of this command carries them',
+  blob: 'part of that same printf format, composed in process rather than spelled as an argument',
+  "%s\\\\tmanifest.json\\\\n'": 'the remainder of that printf format, composed in process rather than spelled as an argument',
+  '"$BLOB"': 'the object name the incumbent interpolates into that format; the transcription substitutes it into the composed bytes rather than into an argument',
+  '|': 'the incumbent pipes the composed bytes into the child, and a pipe is a shell construction rather than an argument vector element',
+  ')': 'the closing parenthesis of the shell command substitution the incumbent captures the tree name with',
+});
+
+const OMITTED_COMMIT_CAPTURE = Object.freeze({
+  'COMMIT=$(git': 'the incumbent captures the commit name in a shell variable through a command substitution; the transcription reads the same name from the child stdout',
+  '"': 'the shell quote the incumbent wraps the message in; quoting is how a shell keeps one word together, and an argument vector element already is one',
+  '")': 'the closing quote and the closing parenthesis of that same shell command substitution',
+});
+
+const PROSE_ALTERNATIVE = 'the incumbent offers a second way to perform the same restack after the command this fixture transcribes; the alternative is another command, never a further argument of this one';
+
+const OMITTED_PROSE_SPELLING = Object.freeze({
+  '(': 'the incumbent spells this one command inside a parenthesis in running prose rather than inside a backticked command, so the parenthesis is sentence punctuation rather than an argument',
+  ',': PROSE_ALTERNATIVE,
+  or: PROSE_ALTERNATIVE,
+  an: PROSE_ALTERNATIVE,
+  equivalent: PROSE_ALTERNATIVE,
+  'cherry-pick': PROSE_ALTERNATIVE,
+});
+
 function fixture(entry) {
   return Object.freeze({
     site: entry.site,
@@ -42,6 +80,7 @@ function fixture(entry) {
     argv: Object.freeze([...entry.argv]),
     placeholders: Object.freeze({ ...(entry.placeholders || {}) }),
     derived: Object.freeze({ ...(entry.derived || {}) }),
+    omitted: Object.freeze({ ...(entry.omitted || {}) }),
     cwd: entry.cwd === undefined ? null : entry.cwd,
     stdin: entry.stdin === undefined ? null : entry.stdin,
   });
@@ -70,6 +109,7 @@ export const GIT_COMMAND_FIXTURES = Object.freeze([
     argv: ['-C', '<integrationWt>', 'checkout', '<baseBranch>'],
     placeholders: { ...WT_PLACEHOLDER, ...BASE_PLACEHOLDER },
     derived: DERIVED_C,
+    omitted: OMITTED_SHELL_TREE_ENTRY,
   }),
   fixture({
     site: 'integrate',
@@ -103,7 +143,7 @@ export const GIT_COMMAND_FIXTURES = Object.freeze([
   fixture({
     site: 'divergence-check',
     step: 'fetch-base',
-    anchor: '\\`git -C ${repoRoot} fetch origin ${baseBranch}\\`.\\n',
+    anchor: 'Fetch the base branch once so the merged commits resolve locally: \\`git -C ${repoRoot} fetch origin ${baseBranch}\\`.\\n',
     argv: ['-C', '<repoRoot>', 'fetch', 'origin', '<baseBranch>'],
     placeholders: { ...REPO_PLACEHOLDER, ...BASE_PLACEHOLDER },
   }),
@@ -209,7 +249,7 @@ export const GIT_COMMAND_FIXTURES = Object.freeze([
   fixture({
     site: 'branch-compose',
     step: 'move-branch',
-    anchor: '\\`git -C ${repoRoot} branch -f ${integrationBranch} origin/${baseBranch}\\` (this ref is local and never-pushed here, so a destructive branch move is safe forward compensation).\\n',
+    anchor: 'Move the integration ref FRESH onto the pushed base: \\`git -C ${repoRoot} branch -f ${integrationBranch} origin/${baseBranch}\\` (this ref is local and never-pushed here, so a destructive branch move is safe forward compensation).\\n',
     argv: ['-C', '<repoRoot>', 'branch', '-f', '<integrationBranch>', 'origin/<baseBranch>'],
     placeholders: { ...REPO_PLACEHOLDER, ...IB_PLACEHOLDER, ...BASE_PLACEHOLDER },
   }),
@@ -234,6 +274,7 @@ export const GIT_COMMAND_FIXTURES = Object.freeze([
     argv: ['-C', '<repoRoot>', 'rebase', '--onto', '<integrationBranch>', 'origin/<baseBranch>', '<parentTip>'],
     placeholders: { ...IB_PLACEHOLDER, ...BASE_PLACEHOLDER, '<parentTip>': { incumbent: '<parent tip>', ...PARENT_TIP }, ...REPO_PLACEHOLDER },
     derived: DERIVED_REPO_SCOPE,
+    omitted: OMITTED_PROSE_SPELLING,
   }),
   fixture({
     site: 'branch-compose',
@@ -282,7 +323,7 @@ export const GIT_COMMAND_FIXTURES = Object.freeze([
   fixture({
     site: 'checkpoint-push',
     step: 'resolve-tip',
-    anchor: '\\`git -C ${repoRoot} rev-parse ${integrationBranch}\\`',
+    anchor: 'Read the local integration tip: \\`git -C ${repoRoot} rev-parse ${integrationBranch}\\`',
     argv: ['-C', '<repoRoot>', 'rev-parse', '<integrationBranch>'],
     placeholders: { ...REPO_PLACEHOLDER, ...IB_PLACEHOLDER },
   }),
@@ -364,6 +405,7 @@ export const GIT_COMMAND_FIXTURES = Object.freeze([
     argv: ['-C', '<repoRoot>', 'hash-object', '-w', '--stdin'],
     placeholders: { ...REPO_PLACEHOLDER },
     stdin: 'the bytes of the manifest file written in step 3; the incumbent redirects that file into the child, and a redirect is a shell construction rather than an argument vector element',
+    omitted: OMITTED_BLOB_CAPTURE,
   }),
   fixture({
     site: 'manifest-publish',
@@ -372,6 +414,7 @@ export const GIT_COMMAND_FIXTURES = Object.freeze([
     argv: ['-C', '<repoRoot>', 'mktree'],
     placeholders: { ...REPO_PLACEHOLDER },
     stdin: 'the one-entry tree line the incumbent composes with printf and pipes in; printf is a shell builtin rather than a spawnable binary, so the bytes are composed in process and handed to the child as stdin',
+    omitted: OMITTED_TREE_COMPOSITION,
   }),
   fixture({
     site: 'manifest-publish',
@@ -383,6 +426,7 @@ export const GIT_COMMAND_FIXTURES = Object.freeze([
       '<tree>': { incumbent: '"$TREE"', ...TREE },
       '<logicalRunId>': { incumbent: '${logicalRunId}', ...RUN_ID },
     },
+    omitted: OMITTED_COMMIT_CAPTURE,
   }),
   fixture({
     site: 'manifest-publish',

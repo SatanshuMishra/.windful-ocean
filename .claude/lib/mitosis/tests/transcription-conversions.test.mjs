@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { GIT_SITES, GIT_SITE_COMMANDS } from '../git-commands.mjs';
 import { GIT_COMMAND_FIXTURES, MANIFEST_WRITE_FIXTURE, PLAN_PROBE_FIXTURE } from '../git-command-fixtures.mjs';
-import { NON_SPAWN_SITES, argvInertnessProbe, censusGitCommandFixtures, expandedArgv, gitCommandFixtureCensus, nonSpawnFailures } from '../transcription-conversions.mjs';
+import { NON_SPAWN_SITES, anchorOccurrences, argvInertnessProbe, censusGitCommandFixtures, expandedArgv, gitCommandFixtureCensus, nonSpawnFailures } from '../transcription-conversions.mjs';
 
 const INCUMBENT = readFileSync(new URL('../../../workflows/mitosis.js', import.meta.url), 'utf8');
 
@@ -15,6 +15,7 @@ function rebuild(entry) {
     argv: Object.freeze([...entry.argv]),
     placeholders: Object.freeze({ ...entry.placeholders }),
     derived: Object.freeze({ ...entry.derived }),
+    omitted: Object.freeze({ ...entry.omitted }),
     cwd: entry.cwd,
     stdin: entry.stdin,
   });
@@ -159,6 +160,77 @@ test('a fixture whose transcribed vector disagrees with its builder halts', () =
   const measured = censusGitCommandFixtures(withEvery(shuffled), INCUMBENT);
   assert.equal(measured.ok, false);
   assert.match(measured.error, /have diverged/);
+});
+
+test('dropping an argument from the builder and its fixture together halts on the incumbent word it left behind', () => {
+  const hollowed = rebuild({
+    ...only('integrate', 'merge'),
+    argv: ['-C', '<integrationWt>', 'merge', '<branch>'],
+  });
+  const measured = censusGitCommandFixtures(withEvery(hollowed), INCUMBENT);
+  assert.equal(measured.ok, false);
+  assert.match(measured.error, /carries no transcribed argument for/);
+  assert.match(measured.error, /--no-ff/);
+});
+
+test('dropping the end-of-options separator from both ci sites halts even though every remaining argument is contained', () => {
+  const sites = [['ci-diff', 'changed-paths'], ['ci-publish-verify', 'changed-paths']];
+  let fixtures = GIT_COMMAND_FIXTURES;
+  for (const [site, step] of sites) {
+    const stripped = rebuild({
+      ...only(site, step),
+      argv: only(site, step).argv.filter((token) => token !== '--end-of-options'),
+    });
+    fixtures = fixtures.map((entry) => (entry.site === site && entry.step === step ? stripped : entry));
+  }
+  const measured = censusGitCommandFixtures(fixtures, INCUMBENT);
+  assert.equal(measured.ok, false);
+  assert.match(measured.error, /--end-of-options/);
+  assert.match(measured.error, /carries no transcribed argument for/);
+});
+
+test('an anchor the incumbent spells more than once halts rather than pinning to whichever copy survives', () => {
+  const shared = rebuild({
+    ...only('checkpoint-push', 'resolve-tip'),
+    anchor: '\\`git -C ${repoRoot} rev-parse ${integrationBranch}\\`',
+  });
+  assert.ok(INCUMBENT.split(shared.anchor).length - 1 > 1, 'the incumbent no longer spells that command more than once, so this mutation proves nothing');
+  const measured = censusGitCommandFixtures(withEvery(shared), INCUMBENT);
+  assert.equal(measured.ok, false);
+  assert.match(measured.error, /identifies no single command/);
+});
+
+test('every shipped anchor identifies exactly one incumbent command', () => {
+  for (const entry of [...GIT_COMMAND_FIXTURES, ...NON_SPAWN_SITES]) {
+    assert.equal(
+      anchorOccurrences(INCUMBENT, entry.anchor),
+      1,
+      `${entry.site}/${entry.step} is pinned to text the incumbent spells ${anchorOccurrences(INCUMBENT, entry.anchor)} time(s)`,
+    );
+  }
+});
+
+test('an omission nothing left over, or one with no reason, halts', () => {
+  const stale = rebuild({
+    ...only('integrate', 'checkout'),
+    omitted: { ...only('integrate', 'checkout').omitted, '--force': 'a word the incumbent never left over' },
+  });
+  assert.match(censusGitCommandFixtures(withEvery(stale), INCUMBENT).error, /omission nothing matches/);
+  const unexplained = rebuild({
+    ...only('integrate', 'checkout'),
+    omitted: { ...only('integrate', 'checkout').omitted, cd: '' },
+  });
+  assert.match(censusGitCommandFixtures(withEvery(unexplained), INCUMBENT).error, /omitted word "cd" with no reason/);
+});
+
+test('an argument the incumbent spells only before one the vector already consumed halts on the order', () => {
+  const reordered = rebuild({
+    ...only('integrate', 'merge-base'),
+    argv: ['-C', '<integrationWt>', 'merge-base', '--is-ancestor', 'HEAD', '<branch>'],
+  });
+  const measured = censusGitCommandFixtures(withEvery(reordered), INCUMBENT);
+  assert.equal(measured.ok, false);
+  assert.match(measured.error, /no longer read in the same order/);
 });
 
 test('the scoped diff fixture expands its file scope into one argument per path', () => {
