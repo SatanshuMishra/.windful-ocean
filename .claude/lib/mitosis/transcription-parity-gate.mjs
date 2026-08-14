@@ -63,7 +63,7 @@ function separationExceptionCount(prefix) {
 
 export const TRANSCRIPTION_PARITY_ATTESTS = Object.freeze([
   `every transcribed command is built for one of the ${TRANSCRIBED_BINARIES.length} declared binaries - ${TRANSCRIBED_BINARIES.join(', ')} - and a fixture naming any other binary halts, so a command reaching a process through a builder this census cannot place is refused rather than counted`,
-  'a step one site is declared to share with another is BUILT on both sides and the two argument vectors compared, so a sharing claim that is not an equivalence halts rather than borrowing a pin it does not satisfy',
+  'a step one site is declared to share with another is BUILT at the sharing site and compared against the frozen fixture the OTHER site carries, never against that other site builder, so a sharing claim that is not an equivalence halts rather than borrowing a pin it does not satisfy; a builder drifted at both sites is measured here failing that comparison, so the claim cannot be reduced to a function compared with itself',
   'a command the incumbent demands a fact from but spells no command for is admitted only as an enumerated derived command carrying the incumbent clause that demands the fact, that clause spelled exactly once, and a stated reason',
   'a judgment kind the prompt authority declares that no dispatch reaches is admitted only as an enumerated pending kind with a stated reason, and a dispatch that later reaches one halts rather than being excused',
   `every one of the ${ghCommandStepCount()} gh commands this substrate builds resolves through the merge shim, and the classifier own refusal specimen routed through that same resolution is refused, so the shim is both in the path and in force`,
