@@ -4924,7 +4924,7 @@ async function runUnit(unit) {
       if (builtRef === null || parseCheckpointRef(builtRef, logicalRunId) !== msp.id) {
         return { ready: false, parkOutcome: await parkUnit(msp, 'ship', NeedsHuman({ kind: 'approve-decision', what: `built-resume for ${msp.id} carries no valid durable checkpoint ref to restore from`, remediation: null, resumePoint: { branch: integrationBranch, ref: baseBranch, stage: 'ship' } }), integrationBranch, compensationStack) };
       }
-      log(`mitosis[${msp.id}]: built-resume — skipping Plan/Parallelize/Branch/Execute; restoring ${integrationBranch} from durable checkpoint ${clean(builtRef)} and shipping straight`);
+      log(`mitosis[${msp.id}]: built-resume — skipping plan/parallelize/branch/execute; restoring ${integrationBranch} from durable checkpoint ${clean(builtRef)} and shipping straight`);
       const restoreOutcome = await supervisedDispatch(
         (attemptNo, preamble) => agent(
           `You are the built-restore stage for MSP "${msp.id}" of a mitosis run. You have NO Skill tool.\n\n` +
@@ -4980,7 +4980,7 @@ async function runUnit(unit) {
       const planProbeOutcome = await supervisedDispatch(
         (attemptNo, preamble) => agent(
           `You are the plan-artifact probe for MSP \"${msp.id}\" of a resumed mitosis run. You have NO Skill tool.\n\n` +
-          `This stage is STRICTLY READ-ONLY: it verifies that the locally persisted plan artifact survived into this workspace before the resumed run skips the Plan stage. It makes NO commits and mutates NO files whatsoever.\n\n` +
+          `This stage is STRICTLY READ-ONLY: it verifies that the locally persisted plan artifact survived into this workspace before the resumed run skips the plan stage. It makes NO commits and mutates NO files whatsoever.\n\n` +
           `Check the plan artifact: \`test -f ${planned.planPath} && test -s ${planned.planPath}\`. Set planFound=true ONLY if the file exists and is non-empty; otherwise set planFound=false.\n\n` +
           `Return ONLY: { planFound: <bool> }.`,
           { agentType: 'implementer', schema: PLAN_PROBE_SCHEMA, label: `plan-probe:${msp.id}`, phase: 'Prep', model: 'sonnet' }
@@ -4990,9 +4990,9 @@ async function runUnit(unit) {
       if (planProbeOutcome.tag !== 'Done') return parkUnit(msp, resume.stage, planProbeOutcome, integrationBranch, compensationStack);
       const planProbe = planProbeOutcome.value;
       if (!planProbe || planProbe.planFound !== true) {
-        return parkUnit(msp, resume.stage, NeedsHuman({ kind: 'approve-decision', what: `resume of ${msp.id} at ${resume.stage} requires the plan artifact at ${planned.planPath}, but it is missing or empty — .mitosis/ is local-only (gitignored) and does not survive a fresh clone, new worktree, or CI workspace; restore the artifact at that exact path, or set the unit's resumePoint.stage to plan in ${repoRoot}/.mitosis/run.json to re-run from Plan`, remediation: null, resumePoint: { branch: integrationBranch, ref: baseBranch, stage: resume.stage } }), integrationBranch, compensationStack);
+        return parkUnit(msp, resume.stage, NeedsHuman({ kind: 'approve-decision', what: `resume of ${msp.id} at ${resume.stage} requires the plan artifact at ${planned.planPath}, but it is missing or empty — .mitosis/ is local-only (gitignored) and does not survive a fresh clone, new worktree, or CI workspace; restore the artifact at that exact path, or set the unit's resumePoint.stage to plan in ${repoRoot}/.mitosis/run.json to re-run from plan`, remediation: null, resumePoint: { branch: integrationBranch, ref: baseBranch, stage: resume.stage } }), integrationBranch, compensationStack);
       }
-      log(`mitosis[${msp.id}]: resuming at ${clean(resume.stage)} (skipping Plan) — plan artifact verified present at ${planned.planPath}`);
+      log(`mitosis[${msp.id}]: resuming at ${clean(resume.stage)} (skipping plan) — plan artifact verified present at ${planned.planPath}`);
     } else {
       phase('Prep');
       if (!mspTierModel.ok) {
@@ -5059,7 +5059,7 @@ async function runUnit(unit) {
         log(`mitosis[${msp.id}]: plan revised after review iteration ${reviewIter} -> ${planned.planPath}`);
       }
       if (!planReviewApproved) {
-        return parkUnit(msp, 'plan-review', NeedsHuman({ kind: 'approve-decision', what: `plan review did not converge for ${msp.id} after ${MAX_PLAN_REVIEW_ITERATIONS} iterations; edit the plan at ${planned.planPath} to address the adversarial review findings, then relaunch to re-review before it proceeds to Parallelize`, remediation: null, resumePoint: { branch: integrationBranch, ref: baseBranch, stage: 'plan-review' } }), integrationBranch, compensationStack);
+        return parkUnit(msp, 'plan-review', NeedsHuman({ kind: 'approve-decision', what: `plan review did not converge for ${msp.id} after ${MAX_PLAN_REVIEW_ITERATIONS} iterations; edit the plan at ${planned.planPath} to address the adversarial review findings, then relaunch to re-review before it proceeds to parallelize`, remediation: null, resumePoint: { branch: integrationBranch, ref: baseBranch, stage: 'plan-review' } }), integrationBranch, compensationStack);
       }
     }
 
@@ -5357,7 +5357,7 @@ async function runUnit(unit) {
         const fromSha = report.publishedHeadSha;
         const proposal = await agent(
           `You are the ci fix-forward step for MSP "${msp.id}" of a mitosis run. You have NO Skill tool.\n\n` +
-          `Repo: ${repoRoot}. Branch ${JSON.stringify(integrationBranch)} is ALREADY PUBLISHED with a pull request open on it, so this step ADDS work; it never rewrites history and never publishes anything itself.\n` +
+          `Repo: ${repoRoot}. The branch ${JSON.stringify(integrationBranch)} is ALREADY PUBLISHED with a pull request open on it, so this step ADDS work; it never rewrites history and never publishes anything itself.\n` +
           `CI is red: conclusion ${JSON.stringify(String(report.ciConclusion))}, failing checks ${JSON.stringify(report.failedChecks)}, implicated paths ${JSON.stringify(report.implicatedPaths)}, first failing assertion ${JSON.stringify(String(report.detail))}.\n` +
           `HARD FENCE: you may change ONLY paths covered by this MSP declared file scope ${JSON.stringify(declaredScope)}. Editing anything outside it is a hard failure the engine escalates on.\n` +
           `HARD FENCE: you may NOT change any file that CONTAINS a failing assertion — ${JSON.stringify(failingAssertionFiles)}. Making a failing assertion pass by altering the assertion is the single failure mode this loop exists to prevent; fix the behaviour the assertion is asserting instead. If the only way you can see to make CI pass is to change one of those files, STOP and return an empty changedPaths so a human decides.\n` +
@@ -5403,7 +5403,7 @@ async function runUnit(unit) {
         }
         const published = await agent(
           `You are the ci publish step for MSP "${msp.id}" of a mitosis run. You have NO Skill tool.\n\n` +
-          `Repo: ${repoRoot}. Branch ${JSON.stringify(integrationBranch)} is ALREADY PUBLISHED and has an open pull request on it that a human may already be reading. It is therefore APPEND-ONLY: you may only ADD commits to it. Never rewrite, replay, reorder, squash, amend or drop anything already on it, and never pass --force or --force-with-lease to any command.\n` +
+          `Repo: ${repoRoot}. The branch ${JSON.stringify(integrationBranch)} is ALREADY PUBLISHED and has an open pull request on it that a human may already be reading. It is therefore APPEND-ONLY: you may only ADD commits to it. Never rewrite, replay, reorder, squash, amend or drop anything already on it, and never pass --force or --force-with-lease to any command.\n` +
           `ABORT CLAUSE: if what you are about to publish would carry a change to any of ${JSON.stringify(failingAssertionFiles)}, STOP and report merged=false with that in detail rather than publishing it.\n` +
           `1. Refresh the base: \`git -C ${repoRoot} fetch origin ${baseBranch}\`.\n` +
           `2. This repository is SHARED with sibling units, so never act on whatever branch it happens to have checked out: make ${JSON.stringify(integrationBranch)} the checked-out branch with \`git -C ${repoRoot} switch ${integrationBranch}\`, then confirm it with \`git -C ${repoRoot} rev-parse --abbrev-ref HEAD\` and STOP, publishing nothing, if that prints anything else.\n` +
@@ -5511,7 +5511,7 @@ async function runUnit(unit) {
       const ship = await agent(
         `You are the ship stage for MSP "${msp.id}" of a mitosis run. You have NO Skill tool.\n\n` +
         `Repo: ${repoRoot}. The engine has already integrated this MSP's work onto the LOCAL branch ${JSON.stringify(integrationBranch)} (boundary-validated, merged, never pushed). Sibling clusters merge into ${JSON.stringify(baseBranch)} concurrently, so you MUST revalidate on the FRESH combined base ${revalidateClause}.\n` +
-        `Branch contract is PRE-RESOLVED: head = ${JSON.stringify(integrationBranch)}, base/target = ${JSON.stringify(baseBranch)}. Do NOT derive a base from the platform default; use exactly this base.\n\n` +
+        `The branch contract is PRE-RESOLVED: head = ${JSON.stringify(integrationBranch)}, base/target = ${JSON.stringify(baseBranch)}. Do NOT derive a base from the platform default; use exactly this base.\n\n` +
         `Every git side effect below is OBSERVE-THEN-CONVERGE: check the durable oracle (PR state / remote ref) BEFORE acting so a whole-agent replay after a crash is idempotent (${idempotencyScope}). Compensation is forward-only on shared refs: never rewrite history on a pushed ref; the only permitted force is the documented \`--force-with-lease\` retry after your OWN in-attempt rebase.\n\n` +
         `1. DONE-ORACLE FIRST (idempotent replay guard): before anything else, ask whether this MSP's PR is already merged: \`gh pr view -R ${repoSlug} ${integrationBranch} --json state,mergedAt,url\`. If it reports state MERGED (mergedAt is non-null), this MSP already shipped on a prior attempt; do NOT rebase, push, open, or merge anything (re-running would produce a garbled second PR). Immediately return { merged: true, prUrl: "<the url it reported>", receiptsPass: true, d6Pass: true, detail: "already merged (done-oracle skip)" } and STOP.\n` +
         `2. Refresh the base: \`git -C ${repoRoot} fetch origin ${baseBranch}\`.\n` +

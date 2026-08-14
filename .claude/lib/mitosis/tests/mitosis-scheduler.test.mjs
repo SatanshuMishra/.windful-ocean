@@ -3859,7 +3859,7 @@ test('SECURITY HIGH-2 deny: a fresh Decompose returning an injection / non-kebab
   assert.ok(!prompts.some((p) => p.includes(injectionId)), 'the injection id is never woven into a branch/execute/ship prompt');
 });
 
-test('PLAN-REVIEW convergence: a first-pass needs-changes drives one adversarial re-plan then a fresh reviewer approves, and the unit proceeds through Parallelize to ship', async () => {
+test('PLAN-REVIEW convergence: a first-pass needs-changes drives one adversarial re-plan then a fresh reviewer approves, and the unit proceeds through the parallelize stage to ship', async () => {
   const msps = [mspSpec('solo', { fileScope: pack(['scope/solo/**']) })];
   let reviewCalls = 0;
   const base = createFakeAgent({

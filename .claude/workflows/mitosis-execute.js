@@ -2,9 +2,8 @@ export const meta = {
   name: 'mitosis-execute',
   description: 'Execute an annotated plan: parallel waves with worktree or scope-fence isolation, risk-scaled spec+quality review, model-tiered agents, conflict-checked merge or deterministic fence verification, single boundary validation + final review.',
   phases: [
-    { title: 'Waves' },
+    { title: 'Execute' },
     { title: 'Integrate' },
-    { title: 'Boundary' },
     { title: 'Final review' },
   ],
 };
