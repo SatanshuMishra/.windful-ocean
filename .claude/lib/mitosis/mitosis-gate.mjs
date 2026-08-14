@@ -17,7 +17,7 @@ import { EXEC_ALLOWLIST, assertSpawnAllowed, resolveSpawn } from './exec-policy.
 import { MERGE_REFUSAL_SPECIMENS } from './gh-merge-shim.mjs';
 import { REQUIRED_TOOL, agentDefinitionDir, censusAgentSchemaCapability } from './agent-schema-lint.mjs';
 import { PHASE_TITLES } from './phases.mjs';
-import { PROMPT_PROBE_CASES, censusPromptRegistry } from './prompt-registry.mjs';
+import { PROMPT_C7_OBLIGATIONS, PROMPT_PROBE_CASES, censusPromptRegistry } from './prompt-registry.mjs';
 
 export const GATE_CLEAN_EXIT = 0;
 export const GATE_USAGE_EXIT = 40;
@@ -785,6 +785,7 @@ function runPromptRegistryGate(_target, out) {
     fieldCount: result.fieldCount,
     attests: [...PROMPT_REGISTRY_ATTESTS],
     notAttested: [...PROMPT_REGISTRY_NOT_ATTESTED],
+    c7Obligations: [...PROMPT_C7_OBLIGATIONS],
   })}\n`);
   return promptRegistryExitCode(result);
 }

@@ -7,6 +7,7 @@ import { perturbPromptField, promptPerturbations } from '../prompt-perturb.mjs';
 import {
   CHANGED,
   INERT,
+  PROMPT_C7_OBLIGATIONS,
   PROMPT_COMPOSERS,
   PROMPT_PROBE_CASES,
   REFUSED,
@@ -251,4 +252,13 @@ test('composing an unknown kind throws rather than returning an empty or guessed
   assert.throws(() => composePrompt('summarise', {}), TypeError);
   assert.throws(() => composePrompt('summarise', {}), /summarise/);
   assert.throws(() => composePrompt(undefined, {}), TypeError);
+});
+
+test('every recorded C7 obligation names its identifier and a remediation, so none is left unclosed and unrecorded', () => {
+  assert.ok(PROMPT_C7_OBLIGATIONS.length > 0, 'a rendering-side remediation deferred to C7 must be recorded, never merely known');
+  assert.equal(Object.isFrozen(PROMPT_C7_OBLIGATIONS), true);
+  const malformed = PROMPT_C7_OBLIGATIONS.filter((entry) => !/^C7-R\d+ \S/.test(entry) || entry.length < 80);
+  assert.deepEqual(malformed, [], `these obligations carry no C7-R<n> identifier or no remediation text: ${malformed.join('\n')}`);
+  const identifiers = PROMPT_C7_OBLIGATIONS.map((entry) => entry.split(' ')[0]);
+  assert.equal(new Set(identifiers).size, identifiers.length, 'two obligations share one identifier, so one would be closed in the name of the other');
 });

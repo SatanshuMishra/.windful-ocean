@@ -26,6 +26,16 @@ export const CHANGED = 'changed';
 export const REFUSED = 'refused';
 export const INERT = 'inert';
 
+export const PROMPT_C7_OBLIGATIONS = Object.freeze([
+  'C7-R1 fence the data blocks: render gateOutput, taskFullText, priorIssues, issues and correctedTask inside an explicitly delimited data block that the surrounding prose tells the model is data and not instruction. Rejecting the heading shape at the contract stops a forged heading; it does not stop prose that reads as instruction without one.',
+  'C7-R2 restate the fence last: after any block carrying model-produced or tool-produced text, re-emit the scope fence and the return contract so the last substantive instruction the model reads is the engine\'s, not the block\'s. Today the escalation block and the gate output both land after the fence.',
+  'C7-R3 shell-quote every interpolated value that reaches a command position - repoRoot, worktree, branch, baseBranch, launchCommit, libDir, writingPlansGlob, integrationWorktree - so correctness stops depending on the character class the contract admits. The narrow classes shipped in C2 are a deny gate, not quoting.',
+  'C7-R4 quote the pathspec list in composeReviewPrompt: prompt-execute.mjs renders fileScope.edit through join(" ") into two git pathspec positions and through JSON.stringify twelve lines later, and one file must not carry both spellings of one list.',
+  'C7-R5 give scopedCheckCmd an argv form. It is irreducibly a shell command, so no character class can narrow it; the engine should pass an argv array and the prompt should render it quoted rather than pasting a command string the model runs verbatim.',
+  'C7-R6 decide the fate of the read-context clause on the review path once the engine can emit fileScope.truncated.list: C2 makes an edit-list truncation throw for review and security, and C7 must either keep that halt or give the reviewer a prompt that names the omission instead of the do-not-flag-missing instruction.',
+  'C7-R7 delete the inline twin. Once mitosis.js and run-engine.mjs compose through the registry, retire the prose-anchor divergence guard with them; it exists only while two copies do.',
+]);
+
 export const PROMPT_COMPOSERS = Object.freeze({
   decompose: composeDecomposePrompt,
   plan: composePlanPrompt,
