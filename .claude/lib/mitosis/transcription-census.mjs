@@ -3,26 +3,27 @@ import { lineOf, scanJsStructure } from './js-scan.mjs';
 import { engineSourceFiles, engineSourceRoots, realSourceIo } from './determinism-lint.mjs';
 import { PROMPT_KINDS } from './prompt-contract.mjs';
 import { JOURNAL_KINDS } from './journal-store.mjs';
+import { CONVERTED_TRANSCRIPTION_SITES } from './transcription-conversions.mjs';
 
 export const CONVERSION_TARGET_SUFFIX = 'workflows/mitosis.js';
 
 export const TRANSCRIPTION_KINDS = Object.freeze([
-  Object.freeze({ name: 'fence', converted: false }),
-  Object.freeze({ name: 'integrate', converted: false }),
-  Object.freeze({ name: 'divergence-check', converted: false }),
+  Object.freeze({ name: 'fence', converted: true }),
+  Object.freeze({ name: 'integrate', converted: true }),
+  Object.freeze({ name: 'divergence-check', converted: true }),
   Object.freeze({ name: 'reconcile', converted: false }),
-  Object.freeze({ name: 'manifest-publish', converted: false }),
-  Object.freeze({ name: 'prepare-probe', converted: false }),
+  Object.freeze({ name: 'manifest-publish', converted: true }),
+  Object.freeze({ name: 'prepare-probe', converted: true }),
   Object.freeze({ name: 'supersede', converted: false }),
-  Object.freeze({ name: 'restore', converted: false }),
-  Object.freeze({ name: 'plan-probe', converted: false }),
-  Object.freeze({ name: 'branch', converted: false }),
-  Object.freeze({ name: 'checkpoint-push', converted: false }),
+  Object.freeze({ name: 'restore', converted: true }),
+  Object.freeze({ name: 'plan-probe', converted: true }),
+  Object.freeze({ name: 'branch', converted: true }),
+  Object.freeze({ name: 'checkpoint-push', converted: true }),
   Object.freeze({ name: 'ship-verify', converted: false }),
   Object.freeze({ name: 'ci-probe', converted: false }),
-  Object.freeze({ name: 'ci-diff', converted: false }),
+  Object.freeze({ name: 'ci-diff', converted: true }),
   Object.freeze({ name: 'ci-publish', converted: false }),
-  Object.freeze({ name: 'ci-publish-verify', converted: false }),
+  Object.freeze({ name: 'ci-publish-verify', converted: true }),
   Object.freeze({ name: 'ship', converted: false }),
 ]);
 
@@ -93,6 +94,7 @@ export const TRANSCRIPTION_C7_OBLIGATIONS = Object.freeze([
   'C7-T1 re-sync run-engine.mjs with mitosis.js when the wiring lands. Its fence and integrate dispatches are live twins of two of the eighteen: mitosis-execute.js imports run-engine.mjs, so converting mitosis.js alone converts code the live path never runs. C4 leaves both twins untouched on purpose - editing the live twin before C7 owns the wiring is what broke C1 - and this census names them so the divergence is measured rather than assumed.',
   'C7-T2 resolve divergence.mjs, a THIRD twin the C4 plan did not record. It carries its own divergence-check dispatch and nothing in .claude/lib or .claude/workflows imports it, so it is a dead copy of the mitosis.js block. C7 either deletes it or wires it up; leaving an unimported twin means a future reader converts one copy and ships the other.',
   'C7-T3 keep the label the site name. This census resolves every dispatch through its label, so a conversion that removes a dispatch must remove its label with it; a converted site that keeps a label would be counted as still dispatching, and a dispatch that loses its label halts the census rather than passing unseen.',
+  'C7-T4 remove the dispatch of every converted site when the wiring lands, and tighten this census with it. Converted here means a deterministic replacement exists and is pinned to the incumbent command, NOT that the site stopped dispatching: every one of the eighteen still reaches a model, because C4 leaves mitosis.js byte-identical to its parent. When C7 replaces a dispatch with a call into the substrate, the vanished-kind halt must become a per-kind expectation - a converted kind dispatches nowhere, an unconverted kind still does - so the two states stay distinguishable rather than collapsing into one.',
 ]);
 
 const DISPATCH_CALLEES = Object.freeze(['agent', 'guard.dispatch']);
@@ -358,6 +360,42 @@ function censusOneSource(entry, table) {
   });
 }
 
+export const CONVERSION_SITE_NAMES = Object.freeze({
+  branch: Object.freeze(['branch-compose', 'branch-prep']),
+});
+
+export function conversionSitesOf(name) {
+  return Object.hasOwn(CONVERSION_SITE_NAMES, name) ? CONVERSION_SITE_NAMES[name] : Object.freeze([name]);
+}
+
+function conversionStateFailure(declared) {
+  const declaredNames = new Set(declared.map((kind) => kind.name));
+  const staleAlias = Object.keys(CONVERSION_SITE_NAMES).filter((name) => !declaredNames.has(name));
+  if (staleAlias.length > 0) {
+    return `transcription-census: these kinds are given a conversion site list but are declared nowhere: ${staleAlias.join(', ')}; a list nothing matches keeps a spelling admitted after the kind that justified it is gone`;
+  }
+  const claimed = declared
+    .filter((kind) => kind.converted)
+    .flatMap((kind) => conversionSitesOf(kind.name).map((site) => ({ kind: kind.name, site })))
+    .filter((entry) => !CONVERTED_TRANSCRIPTION_SITES.includes(entry.site));
+  if (claimed.length > 0) {
+    return `transcription-census: these kinds are declared converted yet no deterministic replacement is registered for them: ${claimed.map((entry) => `${entry.kind} needs ${entry.site}`).join(', ')}; a declaration that runs ahead of the code it names is the overclaim this census exists to stop`;
+  }
+  const unclaimed = declared
+    .filter((kind) => !kind.converted)
+    .flatMap((kind) => conversionSitesOf(kind.name).map((site) => ({ kind: kind.name, site })))
+    .filter((entry) => CONVERTED_TRANSCRIPTION_SITES.includes(entry.site));
+  if (unclaimed.length > 0) {
+    return `transcription-census: these kinds are declared unconverted yet a deterministic replacement is registered for them: ${unclaimed.map((entry) => `${entry.kind} is served by ${entry.site}`).join(', ')}; a conversion the declaration does not count is a conversion this census reports as still outstanding`;
+  }
+  const reachable = new Set(declared.flatMap((kind) => conversionSitesOf(kind.name)));
+  const orphaned = CONVERTED_TRANSCRIPTION_SITES.filter((site) => !reachable.has(site));
+  if (orphaned.length > 0) {
+    return `transcription-census: these deterministic replacements serve no declared kind: ${orphaned.join(', ')}; a replacement no site name reaches is one this census can neither count nor hold to the incumbent it was transcribed from`;
+  }
+  return null;
+}
+
 function reachedFrom(sites, category) {
   return [...new Set(sites.filter((site) => site.category === category).flatMap((site) => [...site.kinds]))];
 }
@@ -434,14 +472,15 @@ export function censusTranscriptionSources(sources, declared = TRANSCRIPTION_KIN
   const twinSites = transcriptionSites.filter((site) => !site.path.endsWith(CONVERSION_TARGET_SUFFIX));
   const observedNames = new Set(transcriptionSites.map((site) => site.name));
 
-  const wronglyConverted = declared.filter((kind) => kind.converted && observedNames.has(kind.name));
-  if (wronglyConverted.length > 0) {
-    return halt(`transcription-census: these kinds are declared converted yet still dispatch a model: ${wronglyConverted.map((kind) => kind.name).join(', ')}; a converted site keeps no dispatch, so either the conversion did not land or the declaration ran ahead of it`);
-  }
-  const vanished = declared.filter((kind) => !kind.converted && !observedNames.has(kind.name));
+  const vanished = declared.filter((kind) => !observedNames.has(kind.name));
   if (vanished.length > 0) {
-    return halt(`transcription-census: these kinds are declared unconverted yet dispatch nowhere: ${vanished.map((kind) => kind.name).join(', ')}; a site that vanished is either already converted, in which case declare it converted, or lost, in which case the engine no longer performs it at all`);
+    return halt(`transcription-census: these kinds are declared yet dispatch nowhere: ${vanished.map((kind) => kind.name).join(', ')}; every declared kind still dispatches until C7 wires the engine onto the converted substrate, so a site that vanished was removed without its wiring landing and the engine no longer performs it at all`);
   }
+  const conversionStateHalt = conversionStateFailure(declared);
+  if (conversionStateHalt !== null) return halt(conversionStateHalt);
+  const convertedKindNames = new Set(declared.filter((kind) => kind.converted).map((kind) => kind.name));
+  const convertedSites = conversionTargetSites.filter((site) => convertedKindNames.has(site.name));
+  const unconvertedSites = conversionTargetSites.filter((site) => !convertedKindNames.has(site.name));
 
   const judgmentKindsReached = reachedIncludingParameterized(allSites).filter((kind) => PROMPT_KINDS.includes(kind));
   const unreachedJudgment = PROMPT_KINDS.filter((kind) => !judgmentKindsReached.includes(kind));
@@ -470,7 +509,8 @@ export function censusTranscriptionSources(sources, declared = TRANSCRIPTION_KIN
     siteCount: sites.length,
     transcriptionSiteCount: transcriptionSites.length,
     conversionTargetSiteCount: conversionTargetSites.length,
-    unconvertedSiteCount: conversionTargetSites.length,
+    convertedSiteCount: convertedSites.length,
+    unconvertedSiteCount: unconvertedSites.length,
     inertLabelCount,
     observedTranscriptionNames: Object.freeze([...observedNames].sort()),
     observedTranscriptionNameCount: observedNames.size,
@@ -479,6 +519,8 @@ export function censusTranscriptionSources(sources, declared = TRANSCRIPTION_KIN
     convertedKinds: Object.freeze(declared.filter((kind) => kind.converted).map((kind) => kind.name)),
     twinSites: Object.freeze(twinSites),
     conversionTargetSites: Object.freeze(conversionTargetSites),
+    convertedSites: Object.freeze(convertedSites),
+    unconvertedSites: Object.freeze(unconvertedSites),
     judgmentSiteCount: sites.filter((site) => site.category === JUDGMENT).length,
     journalSiteCount: allSites.filter((site) => site.category === JOURNAL).length,
     programSiteCount: sites.filter((site) => site.category === PROGRAM).length,

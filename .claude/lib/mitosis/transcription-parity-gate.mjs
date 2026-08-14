@@ -10,8 +10,10 @@ import {
 import { MANIFEST_REF_NOT_ATTESTED, manifestRefPolicyProbes } from './manifest-ref-policy.mjs';
 import {
   TRANSCRIPTION_C7_OBLIGATIONS,
+  TRANSCRIPTION_KINDS,
   censusTranscriptionSources,
   readConversionTargetSource,
+  readEngineSources,
   transcriptionCensus,
 } from './transcription-census.mjs';
 import { GIT_COMMAND_FIXTURES } from './git-command-fixtures.mjs';
@@ -26,7 +28,8 @@ export const TRANSCRIPTION_PARITY_ATTESTS = Object.freeze([
   'the resolved dispatch labels are cross-checked, per source, against the independently paired dispatch call nodes, so an extractor reading a subset halts rather than reporting the rest converted',
   'every label token counted across the scanned sources is accounted for as a dispatch label, a helper argument or an enumerated inert label, so a label reaching none of the three halts rather than going uncounted',
   'those two halts are exercised here on synthetic sources every time this verb runs, so a classification or cross-check that stops halting is caught by this verb rather than only by the suite',
-  'every kind declared unconverted has a measured site and every kind declared converted has none, so a site that vanished and a declaration that ran ahead of its conversion both halt',
+  'every declared kind, converted or not, has a measured dispatch site, so a site that vanished before its wiring landed halts rather than being read as progress',
+  'a kind counted converted has a deterministic replacement registered for every site its name covers, and a kind counted unconverted has none, in both directions, and every registered replacement is reachable from a declared name; those two halts are exercised here on flipped copies of the declaration every time this verb runs, each asserting the declaration it flips is present before its result counts',
   'the site counts are counted from the measured sites; the kind counts are the lengths of the declaration, each cross-checked against the measured sites in both directions rather than counted from them',
   'every transcription site outside the declared conversion target is named as a twin, so the live-path divergence is measured rather than assumed',
   'exec-run refuses an unlisted binary, every merge argv the classifier declares, every push the manifest ref policy refuses, an argv spelled as a command string and a non-string argv element, and starts no child process while doing so',
@@ -156,6 +159,49 @@ export function conversionControlProbes(source) {
   return Object.freeze([unpinned, ...mutated]);
 }
 
+const CONVERSION_STATE_CONTROLS = Object.freeze([
+  Object.freeze({
+    name: 'a kind declared converted with no registered replacement halts',
+    kind: 'reconcile',
+    was: false,
+    becomes: true,
+    expect: 'reconcile',
+  }),
+  Object.freeze({
+    name: 'a kind whose replacement is registered but declared unconverted halts',
+    kind: 'fence',
+    was: true,
+    becomes: false,
+    expect: 'fence',
+  }),
+]);
+
+export function conversionStateProbes(sources) {
+  return Object.freeze(CONVERSION_STATE_CONTROLS.map((control) => {
+    const anchored = TRANSCRIPTION_KINDS.find((kind) => kind.name === control.kind && kind.converted === control.was);
+    if (anchored === undefined) {
+      return Object.freeze({
+        name: control.name,
+        halted: false,
+        named: false,
+        anchorPresent: false,
+        detail: `the declaration this control flips, ${control.kind} declared converted=${control.was}, is not there, so nothing was flipped and the control proves nothing`,
+      });
+    }
+    const declared = TRANSCRIPTION_KINDS.map((kind) => (
+      kind.name === control.kind ? Object.freeze({ ...kind, converted: control.becomes }) : kind
+    ));
+    const measured = censusTranscriptionSources(sources.map((entry) => ({ ...entry })), declared);
+    return Object.freeze({
+      name: control.name,
+      halted: measured.ok !== true,
+      named: measured.ok !== true && typeof measured.error === 'string' && measured.error.includes(control.expect),
+      anchorPresent: true,
+      detail: measured.ok === true ? 'the census accepted it' : measured.error,
+    });
+  }));
+}
+
 export function transcriptionCensusProbes() {
   return Object.freeze(CENSUS_CONTROLS.map((control) => {
     let measured;
@@ -177,6 +223,12 @@ export function transcriptionCensusProbes() {
 export function probeTranscriptionSubstrate() {
   const target = readConversionTargetSource();
   const source = target.error === undefined ? target.source : '';
+  let engine;
+  try {
+    engine = readEngineSources();
+  } catch (error) {
+    engine = { error: error && error.message ? error.message : 'unknown read failure' };
+  }
   return Object.freeze({
     refusals: execRunRefusalProbes(),
     allowances: execRunAllowProbes(),
@@ -189,6 +241,7 @@ export function probeTranscriptionSubstrate() {
     conversionControls: target.error === undefined ? conversionControlProbes(source) : Object.freeze([]),
     parsers: parserProbes(),
     manifestPublish: manifestPublishProbe(),
+    conversionStateControls: engine.error === undefined ? conversionStateProbes(engine.sources) : Object.freeze([]),
   });
 }
 
@@ -284,6 +337,17 @@ export function transcriptionParityFailures(substrate) {
   if (!manifest.replayAlreadyPresent || manifest.replaySpawnCount !== 2 || manifest.replayWriteCount !== 0) {
     failures.push(`a replay against an already published identity ran ${manifest.replaySpawnCount} spawn(s) and ${manifest.replayWriteCount} write(s) and reported alreadyPresent=${manifest.replayAlreadyPresent}; write once and forward only means the second attempt observes the ref and stops, writing nothing and pushing nothing`);
   }
+  const unflipped = substrate.conversionStateControls.filter((control) => !control.anchorPresent);
+  if (unflipped.length > 0) {
+    failures.push(`these conversion state controls flip a declaration that is not there, so they flipped nothing and their result is meaningless: ${unflipped.map((control) => `${control.name} (${control.detail})`).join('; ')}`);
+  }
+  const inertStateControls = substrate.conversionStateControls.filter((control) => control.anchorPresent && (!control.halted || !control.named));
+  if (inertStateControls.length > 0) {
+    failures.push(`these conversion state controls no longer halt on the thing they name, so a conversion count could drift from the code it counts: ${inertStateControls.map((control) => `${control.name} (${control.detail})`).join('; ')}`);
+  }
+  if (substrate.conversionStateControls.length === 0) {
+    failures.push('the conversion count ran no negative control at all, so nothing here would notice the count drifting from the replacements it counts');
+  }
   return failures;
 }
 
@@ -322,10 +386,13 @@ export function transcriptionParityVerdict() {
       journalSiteCount: census.journalSiteCount,
       programSiteCount: census.programSiteCount,
       parameterizedSiteCount: census.parameterizedSiteCount,
-      unconvertedSites: census.conversionTargetSites.map((site) => `${site.name} ${site.path}:${site.line}`),
+      convertedSiteCount: census.convertedSiteCount,
+      convertedSites: census.convertedSites.map((site) => `${site.name} ${site.path}:${site.line}`),
+      unconvertedSites: census.unconvertedSites.map((site) => `${site.name} ${site.path}:${site.line}`),
       twinSites: census.twinSites.map((site) => `${site.name} ${site.path}:${site.line}`),
       inertSources: [...census.inertSources],
       censusControls: substrate.censusControls.map((control) => `${control.name}: ${control.halted && control.named ? 'halted and named' : 'INERT'}`),
+      conversionStateControls: substrate.conversionStateControls.map((control) => `${control.name}: ${control.anchorPresent && control.halted && control.named ? 'halted and named' : 'INERT'}`),
       commandFixtureParentSha: substrate.conversions.parentSha,
       commandFixtureBinary: substrate.conversions.binary,
       commandFixtureCount: substrate.conversions.fixtureCount,
