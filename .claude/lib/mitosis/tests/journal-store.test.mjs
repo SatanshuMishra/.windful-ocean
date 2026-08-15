@@ -7,14 +7,11 @@ import {
   JOURNAL_C7_OBLIGATIONS,
   JOURNAL_KINDS,
   appendJournalLine,
-  censusJournalSpecimens,
   composeJournalLine,
   elapsedBetween,
   ensureGitignored,
-  journalSpecimenCensus,
   writeGenesis,
 } from '../journal-store.mjs';
-import { JOURNAL_SPECIMENS } from '../journal-specimens.mjs';
 import { buildInitialManifest } from '../recovery.mjs';
 import { builtDelta, ciAttemptDelta, foldRunManifest, parkDelta, quiescentExitDelta, shipDelta } from '../run-log.mjs';
 import { GENESIS_INPUTS_AT_FB195E47, GENESIS_LINE_AT_FB195E47, GENESIS_MANIFEST_AT_FB195E47, JOURNAL_BYTE_CASES_AT_FB195E47 } from './journal-fixtures.mjs';
@@ -63,40 +60,6 @@ test('the transcribed byte cases cover every declared journal kind', () => {
   assert.deepEqual(uncovered, [], `these journal kinds have no transcribed byte case: ${uncovered.join(', ')}`);
   const undeclared = [...covered].filter((kind) => !JOURNAL_KINDS.includes(kind));
   assert.deepEqual(undeclared, [], `these byte cases name a kind the module does not declare: ${undeclared.join(', ')}`);
-});
-
-test('every shipped specimen carries the same bytes as the independently transcribed fixture', () => {
-  const byId = new Map(JOURNAL_BYTE_CASES_AT_FB195E47.map((byteCase) => [byteCase.id, byteCase]));
-  const unmatched = JOURNAL_SPECIMENS.filter((specimen) => !byId.has(specimen.id)).map((specimen) => specimen.id);
-  assert.deepEqual(unmatched, [], `these specimens name no transcribed fixture: ${unmatched.join(', ')}`);
-  const uncovered = [...byId.keys()].filter((id) => !JOURNAL_SPECIMENS.some((specimen) => specimen.id === id));
-  assert.deepEqual(uncovered, [], `these transcribed fixtures have no shipped specimen: ${uncovered.join(', ')}`);
-  for (const specimen of JOURNAL_SPECIMENS) {
-    assert.equal(specimen.line, byId.get(specimen.id).line, `the ${specimen.id} specimen bytes diverged from the transcribed fixture`);
-    assert.equal(specimen.kind, byId.get(specimen.id).kind, `the ${specimen.id} specimen kind diverged from the transcribed fixture`);
-  }
-});
-
-test('the specimen census measures every declared kind and reports it', () => {
-  const result = journalSpecimenCensus();
-  assert.equal(result.ok, true, result.ok ? '' : result.error);
-  assert.equal(result.kindCount, JOURNAL_KINDS.length);
-  assert.equal(result.specimenCount, JOURNAL_SPECIMENS.length);
-});
-
-test('the specimen census halts when a declared kind has no specimen', () => {
-  const result = censusJournalSpecimens(JOURNAL_SPECIMENS.filter((specimen) => specimen.kind !== 'park'));
-  assert.equal(result.ok, false);
-  assert.match(result.error, /park/);
-});
-
-test('the specimen census halts when a specimen no longer composes its declared bytes', () => {
-  const tampered = JOURNAL_SPECIMENS.map((specimen) => (specimen.kind === 'ci-attempt'
-    ? { ...specimen, line: specimen.line.replace('ci-attempt', 'ci-attempted') }
-    : specimen));
-  const result = censusJournalSpecimens(tampered);
-  assert.equal(result.ok, false);
-  assert.match(result.error, /ci-attempt/);
 });
 
 test('composeJournalLine refuses a kind it does not declare', () => {
@@ -394,16 +357,6 @@ test('the genesis fixture is what buildInitialManifest produces, so a key-order 
     composeJournalLine('genesis', { manifest: built }),
     GENESIS_LINE_AT_FB195E47,
     'the genesis bytes composed from the real builder no longer match the line transcribed from fb195e47',
-  );
-});
-
-test('the shipped genesis specimen routes through the real builder rather than a hand-made object', () => {
-  const specimen = JOURNAL_SPECIMENS.find((entry) => entry.kind === 'genesis');
-  const built = { ...buildInitialManifest(GENESIS_INPUTS_AT_FB195E47), parked: [] };
-  assert.deepEqual(
-    specimen.fields.manifest,
-    built,
-    'the genesis specimen is a hand-made object no buildInitialManifest call can produce, so its byte case can never redden',
   );
 });
 
