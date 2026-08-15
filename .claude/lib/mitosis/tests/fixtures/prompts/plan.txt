@@ -1,6 +1,6 @@
 You are the planning stage for MSP "fx-unit" (fx unit title) of a mitosis run. You have NO Skill tool.
 
-Locate the superpowers writing-plans skill WITHOUT hardcoding its version: run `node /fx/lib/mitosis/superpowers-prompts.mjs` if it prints a skillsDir, otherwise glob `/fx/home/.claude/plugins/cache/fx-plugins/superpowers/*/skills/writing-plans/SKILL.md`. Read that SKILL.md and follow it exactly.
+Locate the superpowers writing-plans skill WITHOUT hardcoding its version: run `node '/fx/lib/mitosis/superpowers-prompts.mjs'` if it prints a skillsDir, otherwise match this glob pattern with your file-matching tool: /fx/home/.claude/plugins/cache/fx-plugins/superpowers/*/skills/writing-plans/SKILL.md. Read that SKILL.md and follow it exactly.
 
 Scope: produce an implementation plan for ONLY this MSP: fx rationale sentence
 Target repo: /fx/repo. Earlier MSPs in this cluster's chain (already planned/merged) you may depend on: fx-dep-one, fx-dep-two.

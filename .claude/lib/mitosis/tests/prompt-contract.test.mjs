@@ -46,7 +46,16 @@ const REJECTED_TEXT = Object.freeze([
 const REJECTED_BY_TYPE = Object.freeze({
   text: REJECTED_TEXT,
   optionalText: Object.freeze(REJECTED_TEXT.filter((value) => value !== null)),
-  command: Object.freeze([...REJECTED_TEXT.filter((value) => value !== FORGED_HEADING_BLOCK), 'npm run check\nrm -rf /', 'npm run check\rrm -rf /']),
+  argv: Object.freeze([
+    ...REJECTED_TEXT,
+    'npm run fx-check',
+    ['npm', ''],
+    ['npm', 42],
+    [`carries a ${NUL_BYTE} byte`],
+    ['npm run check\nrm -rf /'],
+    ['npm run check\rrm -rf /'],
+    [FORGED_HEADING],
+  ]),
   path: Object.freeze([
     ...REJECTED_TEXT,
     '/fx/repo; rm -rf /',
