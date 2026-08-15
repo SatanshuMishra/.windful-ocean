@@ -1,6 +1,9 @@
 import { scopesOverlap } from './wave-planner.mjs';
 import { emptyFileScopePack, requireFileScopePack } from './msp-file-scope.mjs';
-import { assertVerdictsCoverPairs, reviewCoupling } from './coupling-review.mjs';
+import { COUPLING_DECISIONS, COUPLING_OBLIGATIONS, COUPLING_RESOLUTION_SOURCES, assertVerdictsCoverPairs, resolveCoupling, reviewCoupling } from './coupling-review.mjs';
+
+const COUPLING_SERIALIZE_REASON = 'coupling-serialize';
+const SERIALIZE = 'serialize';
 
 function indexTasks(graph) {
   if (!graph || !Array.isArray(graph.tasks)) throw new Error('graph.tasks must be an array');
@@ -132,7 +135,26 @@ function fileScopeOverlapAssertions(byId, ids) {
   return assertions;
 }
 
-export function deriveEdges(graph, discoveredEdges = []) {
+function couplingSerializeAssertions(resolution) {
+  const assertions = [];
+  for (const record of resolution) {
+    if (!COUPLING_DECISIONS.includes(record.decision)) {
+      throw new Error(`derive-edges: coupling pair ${record.pair.join('/')} resolved to the decision ${JSON.stringify(record.decision)}, which is neither ${COUPLING_DECISIONS.join(' nor ')}; an unclassified decision would fall through this pass as co-schedulable and ship the pair in one wave under a name nobody reads as parallel`);
+    }
+    if (!COUPLING_RESOLUTION_SOURCES.includes(record.source)) {
+      throw new Error(`derive-edges: coupling pair ${record.pair.join('/')} resolved through the source ${JSON.stringify(record.source)}, which is neither ${COUPLING_RESOLUTION_SOURCES.join(' nor ')}; a resolution whose provenance cannot be named cannot be audited back to the verdict or the default that produced it`);
+    }
+    if (record.decision !== SERIALIZE) continue;
+    assertions.push({ from: record.pair[1], to: record.pair[0], reason: COUPLING_SERIALIZE_REASON });
+  }
+  return assertions;
+}
+
+function resolutionSourceCounts(resolution) {
+  return Object.fromEntries(COUPLING_RESOLUTION_SOURCES.map((source) => [source, resolution.filter((record) => record.source === source).length]));
+}
+
+export function deriveEdges(graph, discoveredEdges = [], verdicts = []) {
   const byId = indexTasks(graph);
   const { deps, declaredEdgeCount } = declaredDependenciesOf(byId);
 
@@ -156,11 +178,16 @@ export function deriveEdges(graph, discoveredEdges = []) {
     if (have(e.from, e.to) || have(e.to, e.from)) continue;
     addEdge(e.from, e.to, e.reason);
   }
+
+  const orderedBeforeCoupling = transitiveDependentsOf(byId, directDependentsOf(byId, deps));
+  const coupling = reviewCoupling(couplingCandidates(byId, ids, orderedBeforeCoupling), graph.couplingContext);
+  const couplingResolution = resolveCoupling(coupling, verdicts);
+  for (const e of couplingSerializeAssertions(couplingResolution)) addEdge(e.from, e.to, e.reason);
+
   detectCycle(byId, deps);
 
   const transitiveDependents = transitiveDependentsOf(byId, directDependentsOf(byId, deps));
   const edgeReasonsById = edgeReasonsOf(byId, presentReasonAssertions(discoveredEdges, overlapAssertions, have));
-  const coupling = reviewCoupling(couplingCandidates(byId, ids, transitiveDependents), graph.couplingContext);
 
   const tasks = graph.tasks.map((t) => ({
     ...t,
@@ -170,14 +197,19 @@ export function deriveEdges(graph, discoveredEdges = []) {
   }));
 
   return {
-    graph: { ...graph, tasks, coupling },
+    graph: { ...graph, tasks, coupling, couplingResolution },
     added,
     coupling,
+    couplingResolution,
     audit: {
       declaredEdgeCount,
       addedEdgeCount: added.length,
       added: added.map((e) => ({ ...e })),
       coupling,
+      couplingResolution,
+      serializedPairCount: couplingResolution.filter((record) => record.decision === SERIALIZE).length,
+      couplingResolutionSourceCounts: resolutionSourceCounts(couplingResolution),
+      obligations: [...COUPLING_OBLIGATIONS],
     },
   };
 }
@@ -220,13 +252,20 @@ function cli(argv) {
   }
   const graph = JSON.parse(_read(declaredPath, 'utf8'));
   const discovered = discoveredPath ? JSON.parse(_read(discoveredPath, 'utf8')) : [];
-  const result = deriveEdges(graph, discovered);
-  if (opts.verdicts !== null) assertVerdictsCoverPairs(result.coupling, JSON.parse(_read(opts.verdicts, 'utf8')));
+  const verdicts = opts.verdicts !== null ? JSON.parse(_read(opts.verdicts, 'utf8')) : [];
+  const result = deriveEdges(graph, discovered, verdicts);
+  if (opts.verdicts !== null) assertVerdictsCoverPairs(result.coupling, verdicts);
   const outPath = opts.out || declaredPath.replace(/\.graph\.json$/, '.hardened.graph.json');
   const auditPath = opts.audit || declaredPath.replace(/\.graph\.json$/, '.edges-audit.json');
   _write(outPath, JSON.stringify(result.graph, null, 2) + '\n');
   _write(auditPath, JSON.stringify({ ...result.audit, at: opts.at }, null, 2) + '\n');
-  process.stdout.write(JSON.stringify({ outPath, auditPath, addedEdgeCount: result.audit.addedEdgeCount, couplingPairCount: result.coupling.length }) + '\n');
+  process.stdout.write(JSON.stringify({
+    outPath,
+    auditPath,
+    addedEdgeCount: result.audit.addedEdgeCount,
+    couplingPairCount: result.coupling.length,
+    serializedPairCount: result.audit.serializedPairCount,
+  }) + '\n');
 }
 
 if (process.argv[1] && _toPath(import.meta.url) === _realpath(process.argv[1])) {
