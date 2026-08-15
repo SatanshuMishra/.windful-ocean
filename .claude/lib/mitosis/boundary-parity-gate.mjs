@@ -119,10 +119,12 @@ function identityProbe() {
 function comparatorProbe() {
   const unchanged = compareCensuses({ eslint: { a: 2 } }, { eslint: { a: 2 } });
   const fixed = compareCensuses({ eslint: { a: 3 } }, { eslint: {} });
+  const partlyFixed = compareCensuses({ eslint: { a: 3 } }, { eslint: { a: 1 } });
   const second = compareCensuses({ eslint: { a: 1 } }, { eslint: { a: 2 } });
   return Object.freeze({
     unchangedPasses: unchanged.pass === true,
     fixedPasses: fixed.pass === true,
+    partlyFixedPasses: partlyFixed.pass === true,
     surplusBlocks: second.pass === false && second.blocking.length === 1 && second.blocking[0].surplus === 1,
   });
 }
@@ -327,6 +329,7 @@ function evasionProbe() {
   const inherited = compareSuppressions({ '@ts-ignore': 3 }, { '@ts-ignore': 3 });
   const added = compareSuppressions({ '@ts-ignore': 1 }, { '@ts-ignore': 2 });
   const removed = compareSuppressions({ '@ts-ignore': 3 }, {});
+  const partlyRemoved = compareSuppressions({ '@ts-ignore': 3 }, { '@ts-ignore': 1 });
   const downgrade = compareRuleSeverity({ rules: { 'no-eq': 2 } }, { rules: { 'no-eq': 1 } });
   const vanished = compareRuleSeverity({ rules: { 'no-eq': 2 } }, { rules: {} });
   const raise = compareRuleSeverity({ rules: { 'no-eq': 1 } }, { rules: { 'no-eq': 2 } });
@@ -342,6 +345,7 @@ function evasionProbe() {
     longestSpellingWins: counted['eslint-disable-next-line'] === 1 && counted['eslint-disable'] === 1 && counted['@ts-expect-error'] === 1,
     directiveCount: SUPPRESSION_DIRECTIVES.length,
     inheritedPasses: inherited.pass === true,
+    partlyRemovedPasses: partlyRemoved.pass === true,
     addedBlocks: added.pass === false && added.blocking.length === 1 && added.blocking[0].surplus === 1,
     removedPasses: removed.pass === true,
     downgradeBlocks: downgrade.pass === false,
@@ -396,6 +400,9 @@ export function boundaryParityFailures(substrate) {
   }
   if (!comparator.fixedPasses) {
     failures.push('a fixed pre-existing finding now blocks, so the comparison reads any change as suspicious rather than counting the surplus');
+  }
+  if (!comparator.partlyFixedPasses) {
+    failures.push('a pre-existing finding still present at a LOWER count now blocks, so the comparison has become a difference rather than a surplus; a finding that vanished entirely is never visited by the comparison, so only a count that decreased while staying present can tell the two apart');
   }
   if (!comparator.surplusBlocks) {
     failures.push('a second instance of a class already present at base no longer blocks, so the comparison has collapsed from a multiset to a set');
@@ -463,6 +470,9 @@ export function boundaryParityFailures(substrate) {
   const evasion = substrate.evasion;
   if (!evasion.longestSpellingWins) {
     failures.push('the suppression scan no longer counts the longest declared directive over the prefix it contains, so an eslint-disable-next-line would be counted as an eslint-disable and the two would be indistinguishable');
+  }
+  if (!evasion.partlyRemovedPasses) {
+    failures.push('a suppression still present at a LOWER count now blocks, so the suppression scan has become a difference rather than a surplus; a directive removed entirely is never visited, so only a count that decreased while staying present can tell the two apart');
   }
   if (!evasion.inheritedPasses || !evasion.removedPasses) {
     failures.push('a suppression this MSP inherited now blocks, so the scan has become a presence rule rather than a surplus rule; the gate blocks what this MSP added, not what the tree already carried');
