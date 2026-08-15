@@ -2,22 +2,17 @@
 set -eu
 
 VERDICT_NONE="no-opinion"
-VERDICT_ALLOW="allow"
-VERDICT_ASK="ask"
 VERDICT_DENY="deny"
 FAULT_FALLBACK="the gate could not classify this command"
-ALLOW_REASON="The bash gate names no guard for this command."
 
 verdict=""
 reason_text=""
 fault_detail="no verdict was formed"
-cmd="" low="" reason="" matcher_fault=""
+cmd="" low="" matcher_fault=""
 seg_verdict="" seg_reason=""
 best_verdict="" best_reason=""
 
 ghwrap='(sudo|env|command|nohup|time|xargs|(ba|z|k)?sh[[:space:]]+-c|[a-z_][a-z0-9_]*=[^[:space:]]*)'
-guardname='(settings(\.local)?\.json|CLAUDE\.md|keybindings\.json|(hooks|rules|lib|workflows)(/|[^[:alnum:]_./-]|$))'
-guardpath="(\.claude/${guardname}|\.claude/?([^[:alnum:]_./-]|\$))"
 
 note_fault() {
   fault_detail="$1"
@@ -39,20 +34,14 @@ emit_verdict() {
     "$VERDICT_NONE")
       exit 0
       ;;
-    "$VERDICT_ALLOW")
-      payload="$(json_string "$reason_text" '"The bash gate names no guard for this command."')"
-      ;;
-    "$VERDICT_ASK")
-      payload="$(json_string "$reason_text" '"Destructive command - confirm before running."')"
-      ;;
     "$VERDICT_DENY")
       payload="$(json_string "$reason_text" '"This command is denied - it is human-gated."')"
       ;;
     *)
       detail="${fault_detail//[\"\\]/}"
       [ -n "$detail" ] || detail="$FAULT_FALLBACK"
-      verdict="$VERDICT_ASK"
-      payload="\"Bash gate internal fault (${detail}) - the gate is asking instead of allowing. Confirm before running.\""
+      verdict="$VERDICT_DENY"
+      payload="\"Bash gate internal fault (${detail}) - the gate is denying rather than allowing. A repeat means the gate is broken and needs a human.\""
       ;;
   esac
   printf '{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"%s","permissionDecisionReason":%s}}\n' "$verdict" "$payload"
@@ -97,7 +86,6 @@ set_deny() { seg_verdict="$VERDICT_DENY"; seg_reason="$1"; }
 take_verdict() {
   case "$best_verdict" in
     "$VERDICT_DENY") return 0 ;;
-    "$VERDICT_ASK") [ "$1" = "$VERDICT_DENY" ] || return 0 ;;
   esac
   best_verdict="$1"; best_reason="$2"
 }
@@ -105,7 +93,6 @@ take_verdict() {
 classify_segment() {
   cmd="$1"
   low="$(printf '%s' "$cmd" | tr '[:upper:]' '[:lower:]')"
-  reason=""
 
   local ghopt='(-[a-z][[:space:]]*[^[:space:]]+|--[a-z-]+[[:space:]=][^[:space:]]+)'
   local ghpos='(^[[:space:]]*|\$\(|`)'
@@ -149,31 +136,11 @@ classify_segment() {
     return 0
   fi
 
-  if has '(^|[^a-z])dd([[:space:]]|$)' && has 'of=/dev/'; then
-    reason="dd to device"
-  elif has '(^|[^a-z])mkfs'; then
-    reason="mkfs filesystem format"
-  elif has '>[[:space:]]*/dev/(sd|disk|nvme|hd)'; then
-    reason="redirect to raw device"
-  elif has '(^|[^a-z])sudo[[:space:]]+rm'; then
-    reason="sudo rm"
-  fi
-
-  if [ -n "$reason" ]; then
-    seg_verdict="$VERDICT_ASK"
-    seg_reason="Destructive command (${reason}) - confirm before running."
-  fi
   return 0
 }
 
 classify() {
   local input="" extracted="" segments="" segment=""
-  local forkbomb=':[[:space:]]*\([[:space:]]*\)[[:space:]]*\{[[:space:]]*:[[:space:]]*\|[[:space:]]*:'
-  local secretpath='(\.ssh/|\.aws/credentials|\.netrc|\.git-credentials|id_rsa|id_ed25519|\.npmrc|\.pgpass|\.kube/config|\.docker/config\.json|\.gnupg/|/etc/(passwd|shadow)|\.env(rc|\.local)?([^.[:alnum:]_-]|$))'
-  local netpos='(^|[;&|]|\$\(|`)[[:space:]]*'
-  local netbin="${netpos}(${ghwrap}[[:space:]]+[\"']?[[:space:]]*)*([[:alnum:]_./-]*/)?(curl|wget|nc|ncat|netcat|scp|rsync|sftp|ftp|telnet|openssl|http|httpie|xh)([[:space:]]|$)"
-  local netreach='((https?|ftp)://|@[~/.$])'
-  local atguard="@[^[:space:]]*${guardpath}"
 
   if ! input="$(cat)"; then
     note_fault "the hook payload could not be read"
@@ -200,16 +167,7 @@ classify() {
     return 0
   fi
 
-  low="$(printf '%s' "$cmd" | tr '[:upper:]' '[:lower:]')"
   segments="$(printf '%s' "$cmd" | tr ';&|' '\n\n\n')"
-
-  if has "$forkbomb"; then
-    take_verdict "$VERDICT_ASK" "Destructive command (fork bomb) - confirm before running."
-  fi
-
-  if { has "$secretpath" && { has "$netbin" || has "$netreach"; }; } || has_cs "$atguard"; then
-    take_verdict "$VERDICT_ASK" "Destructive command (possible credential or guardrail-file exfiltration) - confirm before running."
-  fi
 
   while IFS= read -r segment; do
     [ -n "$segment" ] || continue
@@ -230,8 +188,7 @@ classify() {
     return 0
   fi
 
-  verdict="$VERDICT_ALLOW"
-  reason_text="$ALLOW_REASON"
+  verdict="$VERDICT_NONE"
   return 0
 }
 

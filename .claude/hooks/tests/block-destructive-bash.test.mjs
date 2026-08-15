@@ -52,12 +52,10 @@ const CREATION_DENY_REASON =
 const SUPABASE_DENY_REASON =
   'connecting to a hosted Supabase project is human-gated: the agent authors migration SQL and a human applies it in the dashboard, which keeps the audit trail and the approval in human hands. Local disposable containers (supabase start, supabase db reset, supabase test db) are unrestricted. Rule: .claude/rules/common/no-direct-db-access.md';
 
-const GATE_ALLOW_REASON = 'The bash gate names no guard for this command.';
-
-function assertAllows(r, command) {
+function assertAbstains(r, command) {
   assert.equal(r.status, 0);
-  assert.equal(decisionOf(r), 'allow', `the gate did not allow: ${command}`);
-  assert.equal(reasonOf(r), GATE_ALLOW_REASON);
+  assert.equal(r.stdout, '', `the gate formed an opinion it should have left to the permission system: ${command}`);
+  assert.equal(decisionOf(r), null, `the gate did not abstain: ${command}`);
 }
 
 const corporaByGoal = {
@@ -233,7 +231,7 @@ const g1ReadOnlyGhCommands = [
 
 for (const command of g1ReadOnlyGhCommands) {
   test(`${goalsFor('g1ReadOnlyGhCommands')}: allows a read-only gh form carrying a pre-subcommand flag: ${command}`, () => {
-    assertAllows(runHook(command), command);
+    assertAbstains(runHook(command), command);
   });
 }
 
@@ -274,7 +272,7 @@ const allowCommands = [
 
 for (const command of allowCommands) {
   test(`${goalsFor('allowCommands')}: allows a sibling command the pull-request denies must not reach: ${command}`, () => {
-    assertAllows(runHook(command), command);
+    assertAbstains(runHook(command), command);
   });
 }
 
@@ -337,7 +335,7 @@ const segmentedQuotedPhraseCommands = [
 
 for (const command of segmentedQuotedPhraseCommands) {
   test(`${goalsFor('segmentedQuotedPhraseCommands')}: a phrase quoted inside another command is not a command, and a conjunction is not satisfied across sub-commands: ${command}`, () => {
-    assertAllows(runHook(command), command);
+    assertAbstains(runHook(command), command);
   });
 }
 
@@ -353,11 +351,10 @@ const askCommands = [
 ];
 
 for (const [command, label] of askCommands) {
-  test(`outside the goal set: asks before an unrecoverable device or privileged-delete command: ${command}`, () => {
+  test(`outside the goal set: retired, now abstains: unrecoverable device or privileged-delete command: ${command}`, () => {
     const r = runHook(command);
     assert.equal(r.status, 0);
-    assert.equal(decisionOf(r), 'ask');
-    assert.equal(reasonOf(r), `Destructive command (${label}) - confirm before running.`);
+    assert.equal(r.stdout, '', 'retired control must abstain to the permission system');
   });
 }
 
@@ -396,7 +393,7 @@ const supabaseLocalCommands = [
 
 for (const command of supabaseLocalCommands) {
   test(`${goalsFor('supabaseLocalCommands')}: allows the local disposable-container carve-out: ${command}`, () => {
-    assertAllows(runHook(command), command);
+    assertAbstains(runHook(command), command);
   });
 }
 
@@ -413,7 +410,7 @@ const guardrailWriteCommands = [
 
 for (const command of guardrailWriteCommands) {
   test(`${goalsFor('guardrailWriteCommands')}: allows a redirect, an in-place edit, or a copy that overwrites a guardrail file: ${command}`, () => {
-    assertAllows(runHook(command), command);
+    assertAbstains(runHook(command), command);
   });
 }
 
@@ -434,7 +431,7 @@ const g4GuardrailWriteCommands = [
 
 for (const command of g4GuardrailWriteCommands) {
   test(`${goalsFor('g4GuardrailWriteCommands')}: allows a restore, an in-place patch, or a directory-destination write that reaches a guardrail path: ${command}`, () => {
-    assertAllows(runHook(command), command);
+    assertAbstains(runHook(command), command);
   });
 }
 
@@ -448,7 +445,7 @@ const g4ImmutableFlagCommands = [
 
 for (const command of g4ImmutableFlagCommands) {
   test(`${goalsFor('g4ImmutableFlagCommands')}: allows immutable-flag protection to be cleared: ${command}`, () => {
-    assertAllows(runHook(command), command);
+    assertAbstains(runHook(command), command);
   });
 }
 
@@ -463,7 +460,7 @@ const g4SubdirectoryCommands = [
 
 for (const command of g4SubdirectoryCommands) {
   test(`${goalsFor('g4SubdirectoryCommands')}: allows a write to a guardrail subdirectory named without a trailing slash: ${command}`, () => {
-    assertAllows(runHook(command), command);
+    assertAbstains(runHook(command), command);
   });
 }
 
@@ -471,7 +468,7 @@ const g4RecursiveRemoveCommands = ['rm -rf .claude', 'rm -rf /tmp/x', 'RM -rf /t
 
 for (const command of g4RecursiveRemoveCommands) {
   test(`${goalsFor('g4RecursiveRemoveCommands')}: allows a recursive force remove, including of a bare guardrail directory: ${command}`, () => {
-    assertAllows(runHook(command), command);
+    assertAbstains(runHook(command), command);
   });
 }
 
@@ -483,7 +480,7 @@ const g4CreationVerbCommands = [
 
 for (const command of g4CreationVerbCommands) {
   test(`${goalsFor('g4CreationVerbCommands')}: allows a link or a directory created over a guardrail path: ${command}`, () => {
-    assertAllows(runHook(command), command);
+    assertAbstains(runHook(command), command);
   });
 }
 
@@ -510,7 +507,7 @@ const g4NonGuardrailCommands = [
 
 for (const command of g4NonGuardrailCommands) {
   test(`${goalsFor('g4NonGuardrailCommands')}: allows a read or a non-guardrail write: ${command}`, () => {
-    assertAllows(runHook(command), command);
+    assertAbstains(runHook(command), command);
   });
 }
 
@@ -550,11 +547,10 @@ const g5CredentialExfiltrationCommands = [
 ];
 
 for (const command of g5CredentialExfiltrationCommands) {
-  test(`${goalsFor('g5CredentialExfiltrationCommands')}: asks before a credential path reaches a network-shaped command: ${command}`, () => {
+  test(`${goalsFor('g5CredentialExfiltrationCommands')}: retired, now abstains: credential path reaching a network-shaped command: ${command}`, () => {
     const r = runHook(command);
     assert.equal(r.status, 0);
-    assert.equal(decisionOf(r), 'ask');
-    assert.equal(reasonOf(r), G5_EXFILTRATION_ASK_REASON);
+    assert.equal(r.stdout, '', 'retired control must abstain to the permission system');
   });
 }
 
@@ -571,11 +567,10 @@ const g5GuardrailExfiltrationCommands = [
 ];
 
 for (const command of g5GuardrailExfiltrationCommands) {
-  test(`${goalsFor('g5GuardrailExfiltrationCommands')}: asks before a guardrail file is passed as an at-prefixed file reference: ${command}`, () => {
+  test(`${goalsFor('g5GuardrailExfiltrationCommands')}: retired, now abstains: guardrail file as an at-prefixed file reference: ${command}`, () => {
     const r = runHook(command);
     assert.equal(r.status, 0);
-    assert.equal(decisionOf(r), 'ask');
-    assert.equal(reasonOf(r), G5_EXFILTRATION_ASK_REASON);
+    assert.equal(r.stdout, '', 'retired control must abstain to the permission system');
   });
 }
 
@@ -601,7 +596,7 @@ const g5NoNetworkCredentialCommands = [
 
 for (const command of g5NoNetworkCredentialCommands) {
   test(`${goalsFor('g5NoNetworkCredentialCommands')}: allows a credential read with no network reach, or a network call with no credential: ${command}`, () => {
-    assertAllows(runHook(command), command);
+    assertAbstains(runHook(command), command);
   });
 }
 
@@ -701,7 +696,7 @@ test('the verdict does not depend on which payload fields the caller sends', () 
   }
 });
 
-test('a fork bomb carrying none of the retired prefilter substrings is still classified', () => {
+test('a fork bomb carrying none of the retired prefilter substrings is retired and now abstains', () => {
   const command = ': ( ) { : | : ; } ; :';
   const retiredPrefilterSubstrings = ['rm', 'git', 'gh', 'dd', 'mkfs', ':|:', '/dev/', '.claude'];
   for (const substring of retiredPrefilterSubstrings) {
@@ -709,8 +704,7 @@ test('a fork bomb carrying none of the retired prefilter substrings is still cla
   }
   for (const r of [runHook(command), runHookMinimalPayload(command)]) {
     assert.equal(r.status, 0);
-    assert.equal(decisionOf(r), 'ask');
-    assert.equal(reasonOf(r), 'Destructive command (fork bomb) - confirm before running.');
+    assert.equal(r.stdout, '', 'retired control must abstain to the permission system');
   }
 });
 
@@ -725,10 +719,10 @@ const faultInputs = [
 ];
 
 for (const [label, stdin] of faultInputs) {
-  test(`an internal fault asks rather than allowing: ${label}`, () => {
+  test(`an internal fault denies rather than allowing: ${label}`, () => {
     const r = runStdin(stdin);
     assert.equal(r.status, 0);
-    assert.equal(decisionOf(r), 'ask', 'a swallowed fault must never read as a silent allow');
+    assert.equal(decisionOf(r), 'deny', 'a swallowed fault must never read as a silent allow');
     assert.match(reasonOf(r), /^Bash gate internal fault \(/);
     assert.doesNotMatch(r.stdout, /"permissionDecision":"allow"/);
   });
@@ -753,7 +747,7 @@ function toolPath(name) {
   return candidates.find((candidate) => existsSync(candidate)) ?? null;
 }
 
-test('a missing python3 asks rather than allowing', () => {
+test('a missing python3 denies rather than allowing', () => {
   const required = ['bash', 'cat', 'tr', 'grep'].map((name) => {
     const resolved = toolPath(name);
     assert.ok(resolved, `test precondition failed: ${name} not found in any standard location`);
@@ -770,10 +764,10 @@ test('a missing python3 asks rather than allowing', () => {
     for (const command of ['ls -la', 'rm -rf /tmp/x', 'gh pr create --fill']) {
       const r = runStdin(realisticPayload(command), { env: { PATH: binDir } });
       assert.equal(r.status, 0);
-      assert.equal(decisionOf(r), 'ask', `python3 was unavailable and the gate allowed: ${command}`);
+      assert.equal(decisionOf(r), 'deny', `python3 was unavailable and the gate allowed: ${command}`);
       assert.equal(
         reasonOf(r),
-        'Bash gate internal fault (the payload parser could not be run) - the gate is asking instead of allowing. Confirm before running.',
+        'Bash gate internal fault (the payload parser could not be run) - the gate is denying rather than allowing. A repeat means the gate is broken and needs a human.',
       );
     }
   } finally {
@@ -781,7 +775,7 @@ test('a missing python3 asks rather than allowing', () => {
   }
 });
 
-test('a broken command matcher asks rather than allowing', () => {
+test('a broken command matcher denies rather than allowing', () => {
   const required = ['bash', 'cat', 'tr', 'python3'].map((name) => {
     const resolved = toolPath(name);
     assert.ok(resolved, `test precondition failed: ${name} not found in any standard location`);
@@ -798,10 +792,10 @@ test('a broken command matcher asks rather than allowing', () => {
     for (const command of ['ls -la', 'rm -rf /tmp/x']) {
       const r = runStdin(realisticPayload(command), { env: { PATH: binDir }, stdio: 'pipe' });
       assert.equal(r.status, 0);
-      assert.equal(decisionOf(r), 'ask', `the matchers could not run and the gate allowed: ${command}`);
+      assert.equal(decisionOf(r), 'deny', `the matchers could not run and the gate allowed: ${command}`);
       assert.equal(
         reasonOf(r),
-        'Bash gate internal fault (a command matcher could not be evaluated) - the gate is asking instead of allowing. Confirm before running.',
+        'Bash gate internal fault (a command matcher could not be evaluated) - the gate is denying rather than allowing. A repeat means the gate is broken and needs a human.',
       );
     }
   } finally {
@@ -809,7 +803,7 @@ test('a broken command matcher asks rather than allowing', () => {
   }
 });
 
-test('every emission is one of the three decisions the gate is allowed to reach', () => {
+test('every emission is one of the two decisions the gate can still reach: deny or abstention', () => {
   const emissions = [
     ...corpusEmissions.flatMap(({ rich, bare }) => [rich, bare]),
     ...faultInputs.map(([, stdin]) => runStdin(stdin)),
@@ -818,7 +812,7 @@ test('every emission is one of the three decisions the gate is allowed to reach'
   for (const r of emissions) {
     if (r.stdout === '') continue;
     assert.ok(
-      ['allow', 'ask', 'deny'].includes(decisionOf(r)),
+      [null, 'deny'].includes(decisionOf(r)),
       `the gate emitted an unexpected decision: ${r.stdout}`,
     );
   }
@@ -828,13 +822,13 @@ test('a fault never reaches allow, so a broken gate cannot open the surface it g
   for (const [, stdin] of faultInputs) {
     const r = runStdin(stdin);
     assert.doesNotMatch(r.stdout, /"permissionDecision":"allow"/);
-    assert.equal(decisionOf(r), 'ask');
+    assert.equal(decisionOf(r), 'deny');
   }
 });
 
-test('a command the gate does not name reaches allow rather than falling through silently', () => {
+test('a command the gate does not name abstains, handing the decision to the classifier', () => {
   for (const command of ['ls -la', 'npm test', 'curl https://example.com', 'python3 -c "print(1)"']) {
-    assertAllows(runHook(command), command);
+    assertAbstains(runHook(command), command);
   }
 });
 
