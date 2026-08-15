@@ -271,12 +271,11 @@
         ]
       },
       {
-        "text": "record_decision rejects its options parameter as absent on every call after 0449, in both array and bare-string form, while every sibling parameter arrives — do not spend more than one retry on it, write the decision into a committed document instead",
+        "text": "Do not file a bug against record_decision — its validator is sound and separates an absent parameter from an empty one, so a missing_parameter on options means the call never carried it; re-emit once unchanged, then write the decision into a committed document",
         "scope": "c3",
         "refs": [
-          "mcp record_decision",
-          "0449",
-          ".claude/docs/specs/2026-08-15-cp-disposition-record.md"
+          "src/tools/record-decision.mjs:46-54",
+          "0449"
         ]
       },
       {
@@ -491,5 +490,5 @@
     ]
   },
   "created_at": "2026-08-12T07:37:41.077Z",
-  "updated_at": "2026-08-15T23:55:43.385Z"
+  "updated_at": "2026-08-15T23:57:01.465Z"
 }
