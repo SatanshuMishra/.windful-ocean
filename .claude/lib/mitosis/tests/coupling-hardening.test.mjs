@@ -418,38 +418,60 @@ test('I4: the coupling edge and the fileScope-overlap edge take the same directi
   );
 });
 
-function collidingEmission() {
+const SEPARATOR_CENSUS = Object.freeze([
+  [' ', 'a plain space'],
+  ['/', 'a forward slash'],
+  [',', 'a comma'],
+  [':', 'a colon'],
+  ['-', 'a hyphen'],
+  ['', 'the empty string'],
+]);
+
+function collidingEmission(separator) {
   return reviewCoupling([
-    { a: { id: 'a', fileScope: pack(['srv/auth/a.ts']) }, b: { id: 'b c', fileScope: pack(['web/auth/b.tsx']) } },
-    { a: { id: 'a b', fileScope: pack(['srv/crypto/c.ts']) }, b: { id: 'c', fileScope: pack(['web/crypto/d.tsx']) } },
+    { a: { id: 'a', fileScope: pack(['srv/auth/a.ts']) }, b: { id: `b${separator}c`, fileScope: pack(['web/auth/b.tsx']) } },
+    { a: { id: `a${separator}b`, fileScope: pack(['srv/crypto/c.ts']) }, b: { id: 'c', fileScope: pack(['web/crypto/d.tsx']) } },
   ]);
 }
 
-test('I5: two distinct pairs whose ids span the separator are both emitted rather than read as one repeated pair', () => {
-  assert.deepEqual(
-    collidingEmission().map((e) => e.pair),
-    [['a', 'b c'], ['a b', 'c']],
-    'these two pairs join to the same string; a separator-joined key reads the second as a repeat of the first and refuses the whole emission',
-  );
+test('I5: two distinct pairs whose ids span the separator are both emitted rather than read as one repeated pair', async (t) => {
+  for (const [separator, label] of SEPARATOR_CENSUS) {
+    await t.test(label, () => {
+      assert.deepEqual(
+        collidingEmission(separator).map((e) => e.pair),
+        [['a', `b${separator}c`], [`a${separator}b`, 'c']],
+        `these two pairs join to the same string under ${label}; a separator-joined key reads the second as a repeat of the first and refuses the whole emission`,
+      );
+    });
+  }
 });
 
-test('I5b: a verdict answering one of two separator-colliding pairs leaves the other unanswered', () => {
-  assert.throws(
-    () => resolveCoupling(collidingEmission(), [{ pair: ['a b', 'c'], decision: COUPLING_SERIALIZE, rationale: null }]),
-    /a\/b c was emitted for review and no verdict answers it/,
-    'one verdict answered two distinct pairs by colliding on their key, so the pair it never named was recorded as covered',
-  );
+test('I5b: a verdict answering one of two separator-colliding pairs leaves the other unanswered', async (t) => {
+  for (const [separator, label] of SEPARATOR_CENSUS) {
+    await t.test(label, () => {
+      const emitted = collidingEmission(separator);
+      assert.throws(
+        () => resolveCoupling(emitted, [{ pair: [`a${separator}b`, 'c'], decision: COUPLING_SERIALIZE, rationale: null }]),
+        (err) => err.message.includes(`a/b${separator}c was emitted for review and no verdict answers it`),
+        `one verdict answered two distinct pairs by colliding on their key under ${label}, so the pair it never named was recorded as covered`,
+      );
+    });
+  }
 });
 
-test('I5c: a verdict naming ids that exist nowhere in the emission cannot answer a real pair', () => {
-  const emitted = reviewCoupling([
-    { a: { id: 'a', fileScope: pack(['srv/auth/a.ts']) }, b: { id: 'b c', fileScope: pack(['web/auth/b.tsx']) } },
-  ]);
-  assert.throws(
-    () => resolveCoupling(emitted, [{ pair: ['a b', 'c'], decision: COUPLING_PARALLEL, rationale: null }]),
-    /appear in no emitted pair at all/,
-    'a verdict naming two ids the graph does not contain relaxed a real pair by colliding on its key',
-  );
+test('I5c: a verdict naming ids that exist nowhere in the emission cannot answer a real pair', async (t) => {
+  for (const [separator, label] of SEPARATOR_CENSUS) {
+    await t.test(label, () => {
+      const emitted = reviewCoupling([
+        { a: { id: 'a', fileScope: pack(['srv/auth/a.ts']) }, b: { id: `b${separator}c`, fileScope: pack(['web/auth/b.tsx']) } },
+      ]);
+      assert.throws(
+        () => resolveCoupling(emitted, [{ pair: [`a${separator}b`, 'c'], decision: COUPLING_PARALLEL, rationale: null }]),
+        (err) => err.message.includes('appear in no emitted pair at all'),
+        `a verdict naming two ids the graph does not contain relaxed a real pair by colliding on its key under ${label}`,
+      );
+    });
+  }
 });
 
 test('I6: a supplied riskMarkers list EXTENDS the default set rather than replacing it', () => {
