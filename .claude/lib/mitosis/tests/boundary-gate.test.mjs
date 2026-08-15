@@ -124,6 +124,17 @@ test('an eslint run that scanned zero files fails closed rather than reading as 
   assert.match(parsed.error, /zero files/i);
 });
 
+test('a tsc run that type-checked zero files fails closed rather than reading as clean', () => {
+  const io = fixtureIo({
+    readFile: () => JSON.stringify({ devDependencies: { typescript: '5.0.0' } }),
+    exists: (path) => String(path).includes('tsconfig.json') || String(path).endsWith('package.json'),
+    run: () => ({ outcome: 'completed', status: 0, stdout: '', stderr: '' }),
+  });
+  const verdict = evaluate({ repoRoot: ROOT, gateBase: 'abc123', basePath: BASE, cachedBaseCensus: null }, io);
+  assert.equal(verdict.pass, false);
+  assert.match(verdict.output, /type-checked zero files/);
+});
+
 test('NOT-EXPECTED requires positive observation of both sides', () => {
   const observed = (config, dependency) => ({ configPresent: config, dependencyDeclared: dependency, observed: true });
   assert.equal(toolExpectation(observed(false, false), observed(false, false)).expected, false);

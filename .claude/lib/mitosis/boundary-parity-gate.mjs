@@ -129,16 +129,26 @@ function comparatorProbe() {
   });
 }
 
+function tscZeroFilesIo() {
+  return probeIo({
+    exists: (path) => String(path).includes('tsconfig.json') || String(path).endsWith('package.json'),
+    readFile: () => JSON.stringify({ devDependencies: { typescript: '5.0.0' } }),
+    run: () => ({ outcome: 'completed', status: 0, stdout: '', stderr: '' }),
+  });
+}
+
 function failClosedProbe() {
   const malformed = censusTscLines('Found 3 errors in 2 files.');
   const wellFormed = censusTscLines('src/a.ts(3,9): error TS2345: Argument bad');
   const emptyReport = parseEslintReport('[]');
   const notAnArray = parseEslintReport('{}');
   const notJson = parseEslintReport('not json');
+  const zeroTypeChecked = evaluate({ repoRoot: PROBE_ROOT, gateBase: PROBE_GATE_BASE, basePath: PROBE_BASE, cachedBaseCensus: null }, tscZeroFilesIo());
   return Object.freeze({
     malformedTscLineHalts: malformed.ok === false && malformed.error.includes('Found 3 errors in 2 files.'),
     wellFormedTscLineParses: wellFormed.ok === true && wellFormed.diagnostics.length === 1,
     zeroFilesRefused: emptyReport.ok === false && /zero files/i.test(emptyReport.error),
+    zeroTypeCheckedFilesRefused: zeroTypeChecked.pass === false && /type-checked zero files/.test(zeroTypeChecked.output),
     shapeRefused: notAnArray.ok === false && notJson.ok === false,
   });
 }
@@ -416,6 +426,9 @@ export function boundaryParityFailures(substrate) {
   }
   if (!failClosed.zeroFilesRefused) {
     failures.push('a run that scanned zero files now reads as a clean result, which is the silent wrong success the fail-closed rule exists to prevent');
+  }
+  if (!failClosed.zeroTypeCheckedFilesRefused) {
+    failures.push('a tsc run that type-checked zero files now reads as a clean result, so the type dimension could be emptied without the gate noticing; the zero-file refusal covers both collected tools rather than eslint alone');
   }
   if (!failClosed.shapeRefused) {
     failures.push('an eslint report that is not an array of file entries is now accepted, so an unparseable collection would be read as no findings');
