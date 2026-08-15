@@ -32,6 +32,7 @@ const MIRROR_CENSUS = Object.freeze({
   'boundary-evasion.mjs': STANDALONE,
   'boundary-gate.mjs': STANDALONE,
   'boundary-parity-gate.mjs': STANDALONE,
+  'boundary-scan-scope.mjs': STANDALONE,
   'boundary.mjs': WHOLE,
   'checkpoint.mjs': WHOLE,
   'ci-escalation.mjs': WHOLE,
