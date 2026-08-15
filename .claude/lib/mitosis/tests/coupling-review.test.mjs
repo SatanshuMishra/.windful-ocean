@@ -7,6 +7,7 @@ import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import {
   COUPLING_DECISIONS,
+  COUPLING_OBLIGATIONS,
   COUPLING_RESOLUTION_SOURCES,
   assertVerdictsCoverPairs,
   resolveCoupling,
@@ -511,4 +512,14 @@ test('T29i: a whitespace-only rationale is refused through deriveEdges too, not 
     () => assertVerdictsCoverPairs(serializeDefaultEmission(), [{ pair: ['t1', 't2'], decision: 'parallel', rationale: '  ' }]),
     /t1\/t2 defaults to serialize and is overridden to parallel with no rationale/,
   );
+});
+
+test('T29j: every deferral this enforcement leaves open is recorded in code, and each one is identified', () => {
+  const ids = COUPLING_OBLIGATIONS.map((entry) => entry.split(' ')[0]);
+  assert.deepEqual(ids, ['C5-O1', 'C5-O2', 'C5-O3', 'C5-O4'], 'an obligation dropped from the list is a deferral that stops being tracked');
+  assert.equal(new Set(ids).size, ids.length, 'two obligations sharing an id cannot be discharged independently');
+  for (const entry of COUPLING_OBLIGATIONS) {
+    assert.ok(entry.length > 120, `${entry.split(' ')[0]} is too short to say what is deferred and why; a bare title is prose-free but also information-free`);
+  }
+  assert.ok(Object.isFrozen(COUPLING_OBLIGATIONS));
 });
