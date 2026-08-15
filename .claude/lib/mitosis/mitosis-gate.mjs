@@ -12,6 +12,7 @@ import {
   scanJsStructure,
   wordEndingAt,
 } from './js-scan.mjs';
+import { couplingParityVerdict } from './coupling-parity-gate.mjs';
 import { censusEngineDeterminism, engineSourceRoots, realSourceIo } from './determinism-lint.mjs';
 import { EXEC_ALLOWLIST, assertSpawnAllowed, resolveSpawn } from './exec-policy.mjs';
 import { MERGE_REFUSAL_SPECIMENS } from './gh-merge-shim.mjs';
@@ -36,7 +37,7 @@ export const GATE_UNRESOLVABLE_EXIT = 42;
 export const GATE_READ_EXIT = 43;
 export const GATE_COMPILE_EXIT = 44;
 
-export const MITOSIS_GATE_VERBS = Object.freeze(['determinism', 'dispatchable-agent-schema-capable', 'exec-allowlist', 'journal-parity', 'phase-parity', 'prompt-registry', 'transcription-parity']);
+export const MITOSIS_GATE_VERBS = Object.freeze(['coupling-parity', 'determinism', 'dispatchable-agent-schema-capable', 'exec-allowlist', 'journal-parity', 'phase-parity', 'prompt-registry', 'transcription-parity']);
 
 export const DEFAULT_PHASE_PARITY_TARGET = fileURLToPath(new URL('../../workflows/mitosis.js', import.meta.url));
 export const DEFAULT_DETERMINISM_TARGET = fileURLToPath(new URL('./', import.meta.url));
@@ -109,9 +110,10 @@ const JOURNAL_PARITY_NOT_ATTESTED = Object.freeze([
   'the genesis store migration: .mitosis/run.json remains the fold base, and openRun still writes a disjoint attempt directory that no reader consults',
 ]);
 
-const TARGETLESS_VERBS = Object.freeze(new Set(['exec-allowlist', 'journal-parity', 'prompt-registry', 'transcription-parity']));
+const TARGETLESS_VERBS = Object.freeze(new Set(['coupling-parity', 'exec-allowlist', 'journal-parity', 'prompt-registry', 'transcription-parity']));
 
 const VERB_DEFAULT_TARGETS = Object.freeze({
+  'coupling-parity': null,
   determinism: DEFAULT_DETERMINISM_TARGET,
   'dispatchable-agent-schema-capable': DEFAULT_AGENT_TREE_TARGET,
   'exec-allowlist': null,
@@ -908,7 +910,22 @@ function runTranscriptionParityGate(_target, out) {
   return GATE_CLEAN_EXIT;
 }
 
+function runCouplingParityGate(_target, out) {
+  const verdict = couplingParityVerdict();
+  if (verdict.kind === 'halt') {
+    out.err(`mitosis-gate: coupling-parity ${verdict.error}\n`);
+    return GATE_UNRESOLVABLE_EXIT;
+  }
+  if (verdict.kind === 'violation') {
+    for (const failure of verdict.failures) out.err(`mitosis-gate: coupling-parity ${failure}\n`);
+    return GATE_VIOLATION_EXIT;
+  }
+  out.log(`${JSON.stringify(verdict.payload)}\n`);
+  return GATE_CLEAN_EXIT;
+}
+
 const VERB_RUNNERS = Object.freeze({
+  'coupling-parity': runCouplingParityGate,
   determinism: runDeterminismGate,
   'dispatchable-agent-schema-capable': runAgentSchemaGate,
   'exec-allowlist': runExecAllowlistGate,

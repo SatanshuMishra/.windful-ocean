@@ -54,6 +54,7 @@ const MIRROR_CENSUS = Object.freeze({
   'wave-planner.mjs': Object.freeze(['canonicalPath', 'globPrefix', 'pathsOverlap', 'scopesOverlap']),
   'agent-schema-lint.mjs': STANDALONE,
   'branch-contract.mjs': STANDALONE,
+  'coupling-parity-gate.mjs': STANDALONE,
   'coupling-review.mjs': STANDALONE,
   'derive-edges.mjs': STANDALONE,
   'determinism-lint.mjs': STANDALONE,

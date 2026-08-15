@@ -22,6 +22,19 @@ export const COUPLING_SERIALIZE = 'serialize';
 export const COUPLING_RATIONALE_CAP = 200;
 export const COUPLING_RESOLUTION_SOURCES = Object.freeze([SOURCE_DEFAULT, SOURCE_VERDICT]);
 
+const SIGNAL_DETAIL_SEPARATOR = ':';
+const SIGNAL_CLASS_DETAIL = Object.freeze({
+  'import-adjacent': false,
+  'regression-history': false,
+  'same-migration-dir': true,
+  'shared-risk-marker': true,
+});
+
+export const COUPLING_SIGNAL_CLASSES = Object.freeze(Object.keys(SIGNAL_CLASS_DETAIL).sort(byCodeUnit));
+export const COUPLING_SIGNAL_DETAIL_SEPARATOR = SIGNAL_DETAIL_SEPARATOR;
+export const COUPLING_DETAILED_SIGNAL_CLASSES = Object.freeze(COUPLING_SIGNAL_CLASSES.filter((name) => SIGNAL_CLASS_DETAIL[name]));
+export const COUPLING_BARE_SIGNAL_CLASSES = Object.freeze(COUPLING_SIGNAL_CLASSES.filter((name) => !SIGNAL_CLASS_DETAIL[name]));
+
 export const COUPLING_OBLIGATIONS = Object.freeze([
   'C5-O1 two of the four signal classes are structurally dead in production. import-adjacent needs context.importAdjacency and regression-history needs context.regressions, and nothing outside a test writes graph.couplingContext, so requireContext defaults both to empty and neither detector can fire on a real graph. Every production emission is therefore serialize-defaulted, and SPEC B1 acceptance "signals detected per the four signal classes" is true of the tests and false of any real run. Supplying an import map and a run history is real work with its own data sources and is deliberately NOT done here, because introducing new signal sources while enforcement is introduced would change two variables at once and make the wave-count change unattributable.',
   'C5-O2 enforcement over-serializes, deliberately and user-visibly. Any two unordered tasks sharing a path segment starting with one of auth, security, secret, payment, crypto, migrations, infra or deploy now take a real edge and land in different waves, where before C5a they were co-scheduled. The relaxation mechanism is --verdicts with a rationale, but no live caller renders verdicts, so on a security-heavy repository the serialization is unconditional and can serialize most of a wave. This is accepted rather than mitigated: over-serialization is a throughput cost, never a correctness cost, and it is the safe side to fail on.',
@@ -309,8 +322,60 @@ function intersects(left, right) {
   return false;
 }
 
+export function couplingSignalClassRegistryProblems(classes, separator) {
+  if (!Array.isArray(classes)) {
+    return [`the signal-class registry must be an array of class names, because a registry with no members classifies every signal into nothing and the census over it would report full coverage of an empty vocabulary; received ${describe(classes)}`];
+  }
+  if (typeof separator !== 'string' || separator.length === 0) {
+    return [`the signal detail separator must be a non-empty string, because a class name and its detail are told apart by the first occurrence of it and an empty one splits every token at position zero; received ${describe(separator)}`];
+  }
+  const problems = [];
+  if (classes.length === 0) problems.push('the signal-class registry is empty, so every signal a detector emits classifies into nothing and a census over the registry covers no class at all');
+  for (const name of classes) {
+    if (typeof name !== 'string' || name.length === 0) {
+      problems.push(`the signal class ${describe(name)} is not a non-empty string, so no emitted token can match it and the class would sit in the registry permanently uncoverable`);
+      continue;
+    }
+    if (name.includes(separator)) {
+      problems.push(`the signal class ${describe(name)} carries the detail separator ${describe(separator)}; a class name spelled with the separator is split at its own first occurrence, so the token it builds classifies under a shorter name that may itself be registered, and the two classes become indistinguishable`);
+    }
+  }
+  return problems;
+}
+
+function signalToken(className, detail) {
+  if (!Object.prototype.hasOwnProperty.call(SIGNAL_CLASS_DETAIL, className)) {
+    throw new TypeError(`coupling-review: the signal ${describe(className)} names no class in ${COUPLING_SIGNAL_CLASSES.join(', ')}; every signal a detector emits is built from that registry, because a detector minting its own class name produces a token no census can classify and the coupling it found is scored under a name nothing reads back`);
+  }
+  const detailed = SIGNAL_CLASS_DETAIL[className];
+  if (detailed !== (detail !== undefined)) {
+    throw new TypeError(`coupling-review: the signal class ${describe(className)} ${detailed ? 'names the thing the pair shares and was built with no detail' : 'names no detail and was built with one'}; the arity is what tells a reader whether the text after ${describe(SIGNAL_DETAIL_SEPARATOR)} is a shared marker or part of the class name, so a token built against the wrong one is classified into the wrong half of the census`);
+  }
+  return detailed ? `${className}${SIGNAL_DETAIL_SEPARATOR}${detail}` : className;
+}
+
+export function couplingSignalClass(signal) {
+  if (typeof signal !== 'string' || signal.length === 0) {
+    return Object.freeze({ ok: false, error: `coupling-review: the signal ${describe(signal)} is not a non-empty string, so it names no class and counting it into no bucket at all drops it from a census that is read as covering every signal emitted` });
+  }
+  const at = signal.indexOf(SIGNAL_DETAIL_SEPARATOR);
+  const className = at === -1 ? signal : signal.slice(0, at);
+  const detail = at === -1 ? null : signal.slice(at + 1);
+  if (!Object.prototype.hasOwnProperty.call(SIGNAL_CLASS_DETAIL, className)) {
+    return Object.freeze({ ok: false, error: `coupling-review: the signal ${describe(signal)} classifies under ${describe(className)}, which is none of ${COUPLING_SIGNAL_CLASSES.join(', ')}; an unclassifiable signal halts here rather than falling into a catch-all bucket, because a detector that mints a class name would otherwise widen the emission with a signal no reader of the census ever sees named` });
+  }
+  const detailed = SIGNAL_CLASS_DETAIL[className];
+  if (detailed !== (detail !== null)) {
+    return Object.freeze({ ok: false, error: `coupling-review: the signal ${describe(signal)} classifies under ${describe(className)}, which ${detailed ? 'names the thing the pair shares and carries no detail here' : 'names no detail and carries one here'}; a token whose shape disagrees with its declared arity is not the signal that class emits, and reading it as one would report a shared marker the detectors never found` });
+  }
+  if (detailed && detail.length === 0) {
+    return Object.freeze({ ok: false, error: `coupling-review: the signal ${describe(signal)} classifies under ${describe(className)} with an empty detail; the detail names the marker or directory the pair shares, and an empty one reports a shared thing that cannot be named back to any file the pair touches` });
+  }
+  return Object.freeze({ ok: true, className, detail });
+}
+
 function importAdjacentSignals(a, b) {
-  return intersects(a.neighbours, b.editSet) || intersects(b.neighbours, a.editSet) ? ['import-adjacent'] : [];
+  return intersects(a.neighbours, b.editSet) || intersects(b.neighbours, a.editSet) ? [signalToken('import-adjacent')] : [];
 }
 
 function sharedRiskMarkerSignals(a, b) {
@@ -318,11 +383,11 @@ function sharedRiskMarkerSignals(a, b) {
   for (const marker of a.markers) {
     if (b.markers.has(marker)) shared.push(marker);
   }
-  return shared.sort().map((marker) => `shared-risk-marker:${marker}`);
+  return shared.sort().map((marker) => signalToken('shared-risk-marker', marker));
 }
 
 function regressionHistorySignals(a, b, regressionKeys) {
-  return regressionKeys.includes(pairKey(canonicalPair(a.id, b.id))) ? ['regression-history'] : [];
+  return regressionKeys.includes(pairKey(canonicalPair(a.id, b.id))) ? [signalToken('regression-history')] : [];
 }
 
 function sameMigrationDirSignals(a, b) {
@@ -330,7 +395,7 @@ function sameMigrationDirSignals(a, b) {
   for (const dir of a.migrationDirs) {
     if (b.migrationDirs.has(dir)) shared.push(dir);
   }
-  return [...new Set(shared.sort().map((dir) => `same-migration-dir:${inertMigrationDir(dir)}`))];
+  return [...new Set(shared.sort().map((dir) => signalToken('same-migration-dir', inertMigrationDir(dir))))];
 }
 
 export function reviewCoupling(pairs, context) {
