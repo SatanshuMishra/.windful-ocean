@@ -17,7 +17,7 @@
     {
       "id": "c6",
       "text": "Restore the auto-mode classifier as the layer behind the bash gate, and remove every ask verdict from the gate so no path through it can stop an unattended session",
-      "done": false,
+      "done": true,
       "kind": "detour",
       "struck_by": null
     },
@@ -57,8 +57,8 @@
   "closure_statement": null,
   "spine": {
     "active_goal": "Close the two unverified controls left by the permission rebuild, and rule on the self-modification exposure it deliberately created.",
-    "next_step": "c1 ANSWERED: PROSE ONLY, and the precondition is also UNMET - no layer 0 sandbox key, no layer 4 heartbeat, layer 1 exists only as a mitosis-run-scoped checkpoint. So bypassPermissions sits outside the ratified design today, not merely ungated. AWAIT the user's ruling on c2's route. Before proposing any probe, read the SPEC's M14 and M15 records: if either was measured under bypassPermissions, line 274 verifies from evidence already held and no new run is needed.",
-    "last_session": "Opened as the successor to max-autonomy-permission-build, carrying the three risks the owner selected at its close. No work done on it yet.",
+    "next_step": "c6 is closed and committed as b4371098 on branch feat/gate-terminal-abstain, NOT pushed and no PR opened - decide whether to push and open one through pr.mjs before anything else. Then return to c2, whose question is unchanged: read the SPEC's M14 and M15 records FIRST, because if either was measured under bypassPermissions then line 274 verifies from evidence already held and no new probe is needed.",
+    "last_session": "Answered the auto-mode question, then found M24 meant the gate was suppressing the classifier for all Bash. Reversed the terminal verdict to no-opinion, retired G5 and the destructive branches, moved faults to deny, removed ask from the gate entirely. 267 tests pass.",
     "open_risks": [
       {
         "text": "Measure whether a deny rule survives bypassPermissions before trusting any unattended run — deny is the only control left on the PR-creation, PR-merge and hosted-Supabase surfaces, and no experiment has ever covered that mode",
@@ -86,6 +86,30 @@
           "0417",
           "0418"
         ]
+      },
+      {
+        "text": "Watch for auto mode pausing into prompts over the next few sessions — every non-allowlisted shell command now takes a classifier round-trip, and three consecutive classifier denials restore prompting for the rest of the session",
+        "scope": "c6",
+        "refs": [
+          "b4371098",
+          ".claude/hooks/block-destructive-bash.sh"
+        ]
+      },
+      {
+        "text": "Manual and acceptEdits sessions now have no exfiltration check at all — G5 is retired and the classifier replacing it runs only in auto mode, while permissions.allow still carries a bare Bash entry that approves every shell command",
+        "scope": "c6",
+        "refs": [
+          "docs/security/bash-gate-threat-model.md",
+          "0434",
+          "~/.claude/settings.json"
+        ]
+      },
+      {
+        "text": "Make config edits of this class one atomic write, never a sequence — the classifier decides per edit, so a multi-edit change can land half-applied, and this gate is symlinked into ~/.claude so a half-applied state is the live guard immediately",
+        "scope": "c6",
+        "refs": [
+          ".claude/hooks/block-destructive-bash.sh"
+        ]
       }
     ],
     "key_decisions": [
@@ -106,5 +130,5 @@
     ]
   },
   "created_at": "2026-08-14T06:04:49.198Z",
-  "updated_at": "2026-08-15T01:14:16.359Z"
+  "updated_at": "2026-08-15T01:14:42.305Z"
 }
