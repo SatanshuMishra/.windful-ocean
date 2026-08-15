@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import {
   BOUNDARY_TOOLS,
   NORMALIZATION_STEPS,
+  REAL_BOUNDARY_IO,
   censusTscLines,
   collectBase,
   compareCensuses,
@@ -193,6 +194,14 @@ test('the program never requests a binary outside the allowlist', () => {
     const binary = command.split(' ')[0];
     assert.ok(['git', 'node'].includes(binary), `the program requested ${JSON.stringify(binary)}, which is outside what the spawn policy allows`);
   }
+});
+
+test('the exec seam the program ships with refuses an unlisted binary rather than spawning it', () => {
+  assert.throws(
+    () => REAL_BOUNDARY_IO.run('npx', ['--version'], {}),
+    /"npx" is not spawnable/,
+    'the shipped seam admitted an unlisted binary, so it no longer routes through the shared chokepoint',
+  );
 });
 
 test('first pass and recheck produce identical verdicts when the supplied census is the one collection would produce', () => {
