@@ -5119,3 +5119,37 @@ test('CI-WRITEAHEAD-PER-ATTEMPT: the durability guard covers EVERY attempt, not 
   assert.equal(result.parked[0].request.kind, 'ci-red-exhausted');
   assert.match(result.parked[0].request.what, /durably record a ci attempt/, 'the park names the per-attempt durability failure, distinctly from the loop-entry one');
 });
+
+test('CI-WRITEAHEAD-ASYMMETRY: a ci-attempt checkpoint that resolves with NO written flag still stops the loop, because site 2 guards on written !== true rather than written === false', async () => {
+  const base = createFakeAgent({
+    msps: ciMsps(),
+    shipResult: () => ciRedShip(),
+    ciLoop: { checkpoint: () => ({ detail: 'the append was attempted and its outcome was never reported' }) },
+  });
+  const { agent, labels } = ciCapture(base);
+  const { resultPromise } = invokeMitosis(buildInput(), agent);
+  const result = await resultPromise;
+
+  assert.deepEqual(ciLoopLabels(labels), [], 'a result carrying no written flag was read as a successful record, so the loop spent an attempt on a write that never claimed to land');
+  assert.equal(result.parked[0].request.kind, 'ci-red-exhausted');
+  assert.match(result.parked[0].request.what, /durably record/, 'the park names the durability failure that stopped it');
+});
+
+test('CI-WRITEAHEAD-ASYMMETRY: the same flagless result at the built-checkpoint site is tolerated and never logged as a lost write, because the other five guard on written === false', async () => {
+  const msps = twoIndependentMsps();
+  const base = createFakeAgent({ msps });
+  const agent = async (prompt, opts = {}) => (
+    (opts.label || '').startsWith('built-checkpoint:')
+      ? { detail: 'the append was attempted and its outcome was never reported' }
+      : base(prompt, opts)
+  );
+  const { resultPromise, logLines } = invokeMitosis(buildInput(), agent);
+  const result = await resultPromise;
+
+  assert.equal(result.overallStatus, 'all-shipped', 'a flagless built-checkpoint result stopped a run the asymmetry says it must not');
+  assert.deepEqual(
+    logLines.filter((line) => /durable built checkpoint write did not persist/.test(line)),
+    [],
+    'the built site audited a lost write on a result it is supposed to tolerate, which is the ci-attempt guard leaking into the other five',
+  );
+});

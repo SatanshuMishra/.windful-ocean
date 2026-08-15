@@ -360,13 +360,59 @@ test('the genesis fixture is what buildInitialManifest produces, so a key-order 
   );
 });
 
-test('the module names its C7 obligations, including the three the SPEC never carried', () => {
-  assert.ok(JOURNAL_C7_OBLIGATIONS.length >= 6);
+test('the genesis write ensures the journal directory is gitignored, so the run state a caller never asked to ignore is still never committable', () => {
+  const dir = scratch('journal-ignore-genesis-');
+  const journal = join(dir, '.mitosis', 'run.json');
+  writeGenesis({ repoRoot: dir, path: journal, manifest: GENESIS_MANIFEST_AT_FB195E47 });
+  assert.equal(readFileSync(join(dir, '.gitignore'), 'utf8'), '.mitosis/\n', 'the genesis write left the journal directory committable');
+});
+
+test('a second write does not repeat the entry, so a run that appends many deltas leaves one line rather than one per write', () => {
+  const dir = scratch('journal-ignore-idempotent-');
+  const journal = join(dir, '.mitosis', 'run.json');
+  writeGenesis({ repoRoot: dir, path: journal, manifest: GENESIS_MANIFEST_AT_FB195E47 });
+  appendJournalLine({ repoRoot: dir, path: journal, line: composeJournalLine('ci-attempt', { unitId: 'fx-unit', fingerprint: 'ci-fix:fx000001' }) });
+  appendJournalLine({ repoRoot: dir, path: journal, line: composeJournalLine('ci-attempt', { unitId: 'fx-unit', fingerprint: 'ci-fix:fx000002' }) });
+  assert.equal(readFileSync(join(dir, '.gitignore'), 'utf8'), '.mitosis/\n');
+});
+
+test('an append with no genesis before it ensures the entry too, and preserves the ignore lines already in the file', () => {
+  const dir = scratch('journal-ignore-append-');
+  const journal = join(dir, '.mitosis', 'run.json');
+  writeFileSync(join(dir, '.gitignore'), 'node_modules\n');
+  appendJournalLine({ repoRoot: dir, path: journal, line: composeJournalLine('ci-attempt', { unitId: 'fx-unit', fingerprint: 'ci-fix:fx000001' }) });
+  assert.equal(readFileSync(join(dir, '.gitignore'), 'utf8'), 'node_modules\n.mitosis/\n');
+});
+
+test('a record the writer refuses leaves no ignore entry behind, because the record is validated before either file is opened', () => {
+  const dir = scratch('journal-ignore-refused-');
+  const journal = join(dir, '.mitosis', 'run.json');
+  assert.throws(
+    () => writeGenesis({ repoRoot: dir, path: journal, manifest: { logicalRunId: '', clusters: [], msps: [] } }),
+    /journal-store/,
+  );
+  assert.equal(existsSync(join(dir, '.gitignore')), false, 'a refused genesis wrote an ignore entry for a journal it never created');
+});
+
+test('a ci-attempt fingerprint the fold discards is written rather than refused at write time, so the writer accepts exactly what run-log admits', () => {
+  const dir = scratch('journal-ci-fingerprint-');
+  const journal = join(dir, '.mitosis', 'run.json');
+  writeGenesis({ repoRoot: dir, path: journal, manifest: GENESIS_MANIFEST_AT_FB195E47 });
+  for (const fingerprint of ['fx-fingerprint-one', null, 'ci-fix:fx000001']) {
+    appendJournalLine({ repoRoot: dir, path: journal, line: composeJournalLine('ci-attempt', { unitId: 'fx-unit', fingerprint }) });
+  }
+  const folded = foldRunManifest(readFileSync(journal, 'utf8'));
+  const unit = folded.msps.find((m) => m.id === 'fx-unit');
+  assert.deepEqual(unit.ciAttempts, ['ci-fix:fx000001'], 'the writer and the fold no longer agree on which fingerprints reach the manifest');
+});
+
+test('the module names the C7 obligations that are still owed, and no longer names the three CP decided', () => {
   const text = JOURNAL_C7_OBLIGATIONS.join('\n');
-  for (const anchor of ['C7-J1', 'C7-J2', 'C7-J3', 'C7-J4', 'C7-J5', 'C7-J6']) {
-    assert.match(text, new RegExp(anchor), `the obligations no longer name ${anchor}`);
+  for (const anchor of ['C7-J1', 'C7-J2', 'C7-J3', 'C7-J6']) {
+    assert.match(text, new RegExp(anchor), `the obligations no longer name ${anchor}, which is still owed`);
+  }
+  for (const drained of ['C7-J4', 'C7-J5', 'C7-J7']) {
+    assert.doesNotMatch(text, new RegExp(drained), `${drained} was decided and drained, so naming it again re-opens a closed decision`);
   }
   assert.match(text, /written !== true/);
-  assert.match(text, /foldRunManifest|fold-run-log/);
-  assert.match(text, /gitignore/);
 });
