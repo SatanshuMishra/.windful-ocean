@@ -316,7 +316,7 @@ export function censusDeterminism(source, scan) {
   if (derived.halt !== undefined) return halt(derived.halt);
   const seen = new Set();
   const surfaces = [...BANNED_SURFACES, ...derived.surfaces].filter((surface) => {
-    const key = `${surface.identifier} ${surface.member}`;
+    const key = `${surface.identifier}\u0000${surface.member}`;
     if (seen.has(key)) return false;
     seen.add(key);
     return true;

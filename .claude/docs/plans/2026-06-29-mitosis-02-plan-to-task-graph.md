@@ -173,7 +173,7 @@ function indexTasks(graph) {
 }
 
 function edgeKey(from, to) {
-  return `${from} ${to}`;
+  return `${from}\u0000${to}`;
 }
 
 function assertKnown(byId, id, label) {
