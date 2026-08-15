@@ -162,8 +162,8 @@
   "closure_statement": null,
   "spine": {
     "active_goal": "Land the remaining MSPs on feat/mitosis-os-process — re-land C6 first, then the porting MSP, C7 and the D-series — under receipts/gates@1.1.",
-    "next_step": "START HERE: re-land C6 — it is NOT on the trunk. PR #122 reported MERGED but went into feat/c5b-coupling-parity, which was never deleted, so GitHub never retargeted it and the base has no boundary-gate.mjs. Open a fresh PR from feat/c6-boundary-program (82a8d2fe) onto feat/mitosis-os-process; C5b's tip is already an ancestor, so it replays exactly C6's twenty commits. Confirm by file presence on the base, never by MERGED status. Then cut the porting MSP 0424 inserted before C7.",
-    "last_session": "Restacked C5b (collapsed to 1 commit) and C6 (20 replayed); PRs #121 and #122 opened, both 13/13 green. #121 landed; #122 merged into its undeleted parent and never reached the trunk. Retired distrust of subagent results via PR #123. Recorded 0443 through 0446.",
+    "next_step": "START HERE: work the porting MSP (CP). Its scope is on the base at .claude/docs/specs/2026-08-15-mitosis-porting-msp-scope.md - 24 obligations to drain, verbatim text for the 17 that survive only in git history. C6 landed via PR #124 (content-verified). Ratify Q1, Q3, Q4 in section 6 before starting; Q2 is closed by 0448. Then C7 = tick loop + redispatch.",
+    "last_session": "Re-landed C6 as PR #124 after #122 merged into an undeleted parent; content-verified on base, 13/13 CI. Recovered 17 of C7's 26 obligations, deleted as census collateral, into a scope doc (PR #125, merged). Deleted c5b and c6 branches, refs confirmed gone. Recorded 0447, 0448.",
     "open_risks": [
       {
         "text": "Build A4's red case through the claude -p CLI path and assert the SILENT failure — the Workflow agent path auto-grants StructuredOutput, so a red case dispatched through it passes unconditionally and is a guarantee that cannot fail",
@@ -497,5 +497,5 @@
     ]
   },
   "created_at": "2026-08-12T07:37:41.077Z",
-  "updated_at": "2026-08-15T21:02:48.032Z"
+  "updated_at": "2026-08-15T21:04:12.059Z"
 }
