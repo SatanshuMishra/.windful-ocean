@@ -2,6 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
   mkdtempSync,
+  mkdirSync,
   rmSync,
   writeFileSync,
   symlinkSync,
@@ -9,6 +10,8 @@ import {
   fstatSync,
   readSync,
   closeSync,
+  realpathSync,
+  truncateSync,
   constants as fsConstants,
 } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -25,7 +28,7 @@ test('a real regular file on disk fingerprints to the digest the incumbent shasu
     const specPath = join(dir, 'SPEC.md');
     const bytes = Buffer.from('mitosis spec fixture\nfor the reconcile content fingerprint\n', 'utf8');
     writeFileSync(specPath, bytes);
-    const read = specHash.readSpecContentHash(specPath, createSpecReader());
+    const read = specHash.readSpecContentHash(specPath, createSpecReader({ containmentRoot: dir }));
     assert.equal(read.ok, true, JSON.stringify(read));
     assert.equal(read.specContentHash, '3295bb9e0b1fa6a1e422b62b1ee6a53b973082ddf74843f53a05888be778a7f8');
   } finally {
@@ -38,7 +41,7 @@ test('a directory handed where a spec was expected is refused rather than finger
   assert.equal(typeof createSpecReader, 'function', NO_READER_MESSAGE);
   const dir = mkdtempSync(join(tmpdir(), 'cp-spec-reader-'));
   try {
-    const read = specHash.readSpecContentHash(dir, createSpecReader());
+    const read = specHash.readSpecContentHash(dir, createSpecReader({ containmentRoot: dir }));
     assert.equal(read.ok, false);
     assert.equal(read.specContentHash, null);
   } finally {
@@ -51,7 +54,7 @@ test('a spec larger than the bound is refused rather than read into memory', () 
   assert.equal(typeof createSpecReader, 'function', NO_READER_MESSAGE);
   const dir = mkdtempSync(join(tmpdir(), 'cp-spec-reader-'));
   try {
-    const reader = createSpecReader({ maxBytes: 64 });
+    const reader = createSpecReader({ maxBytes: 64, containmentRoot: dir });
     const specPath = join(dir, 'SPEC.md');
     writeFileSync(specPath, Buffer.alloc(65, 'a'));
     const read = specHash.readSpecContentHash(specPath, reader);
@@ -67,7 +70,7 @@ test('a spec exactly at the bound is still read', () => {
   assert.equal(typeof createSpecReader, 'function', NO_READER_MESSAGE);
   const dir = mkdtempSync(join(tmpdir(), 'cp-spec-reader-'));
   try {
-    const reader = createSpecReader({ maxBytes: 64 });
+    const reader = createSpecReader({ maxBytes: 64, containmentRoot: dir });
     const specPath = join(dir, 'SPEC.md');
     const bytes = Buffer.alloc(64, 'b');
     writeFileSync(specPath, bytes);
@@ -90,7 +93,7 @@ test('a symbolic link is refused even when it points at a readable regular file'
     const linkPath = join(dir, 'SPEC-link.md');
     writeFileSync(targetPath, Buffer.from('real spec content behind a symlink\n', 'utf8'));
     symlinkSync(targetPath, linkPath);
-    const read = specHash.readSpecContentHash(linkPath, createSpecReader());
+    const read = specHash.readSpecContentHash(linkPath, createSpecReader({ containmentRoot: dir }));
     assert.equal(read.ok, false);
     assert.equal(read.specContentHash, null);
   } finally {
@@ -117,9 +120,10 @@ test('the bytes fingerprinted come from the descriptor that was stat-ed, so repl
       fstatSync,
       readSync,
       closeSync,
+      realpathSync,
       constants: fsConstants,
     });
-    const reader = createSpecReader({ fs: swappingFs });
+    const reader = createSpecReader({ fs: swappingFs, containmentRoot: dir });
     const read = specHash.readSpecContentHash(specPath, reader);
     const originalDigest = specHash.specContentHash(originalBytes);
     const replacementDigest = specHash.specContentHash(replacementBytes);
@@ -136,11 +140,16 @@ test('the bytes fingerprinted come from the descriptor that was stat-ed, so repl
 test('a path that is not a usable string is refused', () => {
   const createSpecReader = specHash.createSpecReader;
   assert.equal(typeof createSpecReader, 'function', NO_READER_MESSAGE);
-  const reader = createSpecReader();
-  for (const value of [null, undefined, '', 7, {}]) {
-    const read = specHash.readSpecContentHash(value, reader);
-    assert.equal(read.ok, false, `${JSON.stringify(value)} was accepted as a spec path`);
-    assert.equal(read.specContentHash, null);
+  const dir = mkdtempSync(join(tmpdir(), 'cp-spec-reader-'));
+  try {
+    const reader = createSpecReader({ containmentRoot: dir });
+    for (const value of [null, undefined, '', 7, {}]) {
+      const read = specHash.readSpecContentHash(value, reader);
+      assert.equal(read.ok, false, `${JSON.stringify(value)} was accepted as a spec path`);
+      assert.equal(read.specContentHash, null);
+    }
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
   }
 });
 
@@ -150,6 +159,7 @@ function createCountingSpecFs() {
     openSync,
     fstatSync,
     closeSync,
+    realpathSync,
     constants: fsConstants,
     readSync: (fd, buffer, offset, length, position) => {
       state.readSyncCalls += 1;
@@ -167,7 +177,7 @@ test('a spec past the bound is refused before a single byte is read, not after r
     const { fs, state } = createCountingSpecFs();
     const specPath = join(dir, 'SPEC.md');
     writeFileSync(specPath, Buffer.alloc(4096, 'a'));
-    const reader = createSpecReader({ maxBytes: 64, fs });
+    const reader = createSpecReader({ maxBytes: 64, fs, containmentRoot: dir });
     const read = specHash.readSpecContentHash(specPath, reader);
     assert.equal(read.ok, false, JSON.stringify(read));
     assert.equal(read.specContentHash, null);
@@ -187,7 +197,7 @@ test('a directory is refused at the stat, never handed to the read loop', () => 
   const dir = mkdtempSync(join(tmpdir(), 'cp-spec-reader-'));
   try {
     const { fs, state } = createCountingSpecFs();
-    const reader = createSpecReader({ fs });
+    const reader = createSpecReader({ fs, containmentRoot: dir });
     const read = specHash.readSpecContentHash(dir, reader);
     assert.equal(read.ok, false, JSON.stringify(read));
     assert.equal(read.specContentHash, null);
@@ -198,5 +208,105 @@ test('a directory is refused at the stat, never handed to the read loop', () => 
     );
   } finally {
     rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('a symlinked intermediate directory cannot redirect the fingerprint outside the containment root', () => {
+  const createSpecReader = specHash.createSpecReader;
+  assert.equal(typeof createSpecReader, 'function', NO_READER_MESSAGE);
+  const rootDir = mkdtempSync(join(tmpdir(), 'cp-spec-reader-root-'));
+  const outsideDir = mkdtempSync(join(tmpdir(), 'cp-spec-reader-outside-'));
+  try {
+    const outsideSpecPath = join(outsideDir, 'SPEC.md');
+    writeFileSync(outsideSpecPath, Buffer.from('spec content that must never be fingerprinted through a symlinked directory\n', 'utf8'));
+    symlinkSync(outsideDir, join(rootDir, 'docs'), 'dir');
+    const read = specHash.readSpecContentHash(
+      join(rootDir, 'docs', 'SPEC.md'),
+      createSpecReader({ containmentRoot: rootDir }),
+    );
+    assert.equal(read.ok, false, JSON.stringify(read));
+    assert.equal(read.specContentHash, null);
+  } finally {
+    rmSync(rootDir, { recursive: true, force: true });
+    rmSync(outsideDir, { recursive: true, force: true });
+  }
+});
+
+test('a reader with no declared containment root refuses every spec', () => {
+  const createSpecReader = specHash.createSpecReader;
+  assert.equal(typeof createSpecReader, 'function', NO_READER_MESSAGE);
+  const dir = mkdtempSync(join(tmpdir(), 'cp-spec-reader-'));
+  try {
+    const specPath = join(dir, 'SPEC.md');
+    writeFileSync(specPath, Buffer.from('a real spec that a missing containment root must still refuse\n', 'utf8'));
+    const read = specHash.readSpecContentHash(specPath, createSpecReader({}));
+    assert.equal(read.ok, false, JSON.stringify(read));
+    assert.equal(read.specContentHash, null);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('a spec truncated after the stat is refused rather than fingerprinted short', () => {
+  const createSpecReader = specHash.createSpecReader;
+  assert.equal(typeof createSpecReader, 'function', NO_READER_MESSAGE);
+  const dir = mkdtempSync(join(tmpdir(), 'cp-spec-reader-'));
+  try {
+    const specPath = join(dir, 'SPEC.md');
+    writeFileSync(specPath, Buffer.alloc(4096, 'a'));
+    const fs = Object.freeze({
+      openSync,
+      fstatSync: (fd) => {
+        const stat = fstatSync(fd);
+        truncateSync(specPath, 10);
+        return stat;
+      },
+      readSync,
+      closeSync,
+      realpathSync,
+      constants: fsConstants,
+    });
+    const reader = createSpecReader({ fs, containmentRoot: dir });
+    const read = specHash.readSpecContentHash(specPath, reader);
+    assert.equal(read.ok, false, JSON.stringify(read));
+    assert.equal(read.specContentHash, null, 'a truncated read was fingerprinted as the whole spec');
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('a maxBytes that is not a safe positive integer within the ceiling is refused', () => {
+  const createSpecReader = specHash.createSpecReader;
+  assert.equal(typeof createSpecReader, 'function', NO_READER_MESSAGE);
+  const dir = mkdtempSync(join(tmpdir(), 'cp-spec-reader-'));
+  try {
+    const specPath = join(dir, 'SPEC.md');
+    writeFileSync(specPath, Buffer.from('a real spec used to probe maxBytes validation\n', 'utf8'));
+    for (const value of [-1, 0, NaN, Infinity, 2 ** 40, 1.5, '64']) {
+      const reader = createSpecReader({ containmentRoot: dir, maxBytes: value });
+      const read = specHash.readSpecContentHash(specPath, reader);
+      assert.equal(read.ok, false, `${JSON.stringify(value)} was accepted as maxBytes`);
+      assert.equal(read.specContentHash, null);
+    }
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('a containment root that is a string prefix of a sibling directory does not admit that sibling', () => {
+  const createSpecReader = specHash.createSpecReader;
+  assert.equal(typeof createSpecReader, 'function', NO_READER_MESSAGE);
+  const rootDir = mkdtempSync(join(tmpdir(), 'cp-spec-reader-'));
+  const siblingDir = `${rootDir}-evil`;
+  mkdirSync(siblingDir);
+  try {
+    const siblingSpecPath = join(siblingDir, 'SPEC.md');
+    writeFileSync(siblingSpecPath, Buffer.from('spec content in a sibling directory that only shares a string prefix\n', 'utf8'));
+    const read = specHash.readSpecContentHash(siblingSpecPath, createSpecReader({ containmentRoot: rootDir }));
+    assert.equal(read.ok, false, JSON.stringify(read));
+    assert.equal(read.specContentHash, null);
+  } finally {
+    rmSync(rootDir, { recursive: true, force: true });
+    rmSync(siblingDir, { recursive: true, force: true });
   }
 });
