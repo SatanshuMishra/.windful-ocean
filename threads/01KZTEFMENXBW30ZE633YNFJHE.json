@@ -438,6 +438,11 @@
         "ref": "0432-c5-splits-and-ships-the-eighth-verb",
         "title": "C5 splits and ships the eighth verb; C6 takes no verb and skills byte-cleanliness holds to D1",
         "scope": "c3"
+      },
+      {
+        "ref": "0435-verification-anchors-are-re-measured-not-pinned",
+        "title": "A verification anchor is re-measured at the head it guards, never pinned from an earlier measurement",
+        "scope": "c3"
       }
     ],
     "out_of_scope": [
@@ -449,5 +454,5 @@
     ]
   },
   "created_at": "2026-08-12T07:37:41.077Z",
-  "updated_at": "2026-08-14T23:59:05.495Z"
+  "updated_at": "2026-08-15T01:36:11.695Z"
 }
