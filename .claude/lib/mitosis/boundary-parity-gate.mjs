@@ -203,21 +203,24 @@ function packageManagerProbe() {
 
 function equivalenceProbe() {
   const request = { repoRoot: PROBE_ROOT, gateBase: PROBE_GATE_BASE, basePath: PROBE_BASE, cachedBaseCensus: null };
-  const firstPass = evaluate(request, eslintOnlyIo(1, 2));
+  const firstPassIo = eslintOnlyIo(1, 2);
+  const firstPass = evaluate(request, firstPassIo);
   const collected = collectBase(request, eslintOnlyIo(1, 2));
   if (!collected.ok) {
-    return Object.freeze({ agree: false, collected: false, blocked: false, fallbackCollects: false, detail: collected.error });
+    return Object.freeze({ agree: false, collected: false, blocked: false, absentCollects: false, fallbackCollects: false, detail: collected.error });
   }
   const recheck = evaluate({ ...request, cachedBaseCensus: collected.census }, eslintOnlyIo(1, 2));
   const malformedIo = eslintOnlyIo(1, 2);
   const fallback = evaluate({ ...request, cachedBaseCensus: { nonsense: true } }, malformedIo);
   const foreignIo = eslintOnlyIo(1, 2);
-  const foreign = evaluate({ ...request, cachedBaseCensus: { gateBase: 'another', tools: {}, notExpected: [], surface: {} } }, foreignIo);
+  const foreignCensus = { ...collected.census, gateBase: `${collected.census.gateBase}-foreign` };
+  const foreign = evaluate({ ...request, cachedBaseCensus: foreignCensus }, foreignIo);
   return Object.freeze({
     agree: firstPass.pass === recheck.pass && JSON.stringify(firstPass.blocking) === JSON.stringify(recheck.blocking),
     collected: true,
     blocked: firstPass.pass === false,
     reusedCache: recheck.usedCachedCensus === true,
+    absentCollects: firstPass.usedCachedCensus === false && firstPassIo.spawned.some((command) => command.includes('worktree add')),
     fallbackCollects: fallback.usedCachedCensus === false
       && malformedIo.spawned.some((command) => command.includes('worktree add'))
       && foreign.usedCachedCensus === false
@@ -325,6 +328,15 @@ const CENSUS_CONTROLS = Object.freeze([
     sources: () => [
       syntheticSource(SYNTHETIC_TARGET, `${syntheticTree(SYNTHETIC_TARGET).source}const chosen = pick(${QUOTE}boundary${QUOTE});\n`),
       syntheticTree(SYNTHETIC_TWIN),
+      SYNTHETIC_INERT_SOURCE,
+    ],
+  }),
+  Object.freeze({
+    name: 'a declared name the conversion target dispatches but a sibling engine tree does not',
+    expect: 'dispatches no site for these declared names',
+    sources: () => [
+      syntheticTree(SYNTHETIC_TARGET),
+      syntheticSource(SYNTHETIC_TWIN, Object.keys(BOUNDARY_DISPATCH_NAMES).slice(0, -1).map(syntheticDispatch).join('')),
       SYNTHETIC_INERT_SOURCE,
     ],
   }),
@@ -488,6 +500,9 @@ export function boundaryParityFailures(substrate) {
   }
   if (equivalence.collected && !equivalence.reusedCache) {
     failures.push('the recheck no longer reuses the census it was handed, so the equivalence it reports is two collections agreeing rather than a supplied census reproducing a collected one');
+  }
+  if (equivalence.collected && !equivalence.absentCollects) {
+    failures.push('a first pass handed no cached census at all no longer collects the base to compare against, so an absent cache would leave HEAD compared against nothing rather than a freshly gathered base');
   }
   if (!equivalence.fallbackCollects) {
     failures.push('a cached census that is malformed or keyed to another base is no longer refused and re-collected, so the recheck would treat an unvalidated base as authoritative');

@@ -27,6 +27,10 @@ function dispatchSource(path) {
   ].join('\n'));
 }
 
+function partialDispatchSource(path, names) {
+  return source(path, names.map((name) => `await guard.dispatch(p, { label: '${name}', phase: 'Integrate' });\n`).join(''));
+}
+
 const INERT_SOURCE = source(INERT, "export const COMPOSERS = { 'boundary-fix': composeBoundaryFixPrompt };\n");
 
 const FIXTURE = Object.freeze({
@@ -109,6 +113,15 @@ test('a declared name that no site dispatches halts, so a site that vanished is 
   const census = censusBoundarySources([thinned, dispatchSource(ENGINE), INERT_SOURCE], FIXTURE);
   assert.equal(census.ok, false);
   assert.match(census.error, /boundary-fix|boundary-recheck/);
+});
+
+test('a declared name the conversion target dispatches but a sibling engine tree does not halts, naming that tree and the missing name', () => {
+  const thinnedEngine = partialDispatchSource(ENGINE, ['boundary', 'boundary-fix']);
+  const census = censusBoundarySources([dispatchSource(TARGET), thinnedEngine, INERT_SOURCE], FIXTURE);
+  assert.equal(census.ok, false);
+  assert.match(census.error, new RegExp(ENGINE.replace(/[.]/g, '\\.')));
+  assert.match(census.error, /boundary-recheck/);
+  assert.match(census.error, /dispatches no site for these declared names/);
 });
 
 test('a declared dispatch source missing from the scanned trees halts, so the twin cannot go unnamed', () => {

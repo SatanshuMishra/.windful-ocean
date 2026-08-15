@@ -55,6 +55,16 @@ function fixtureIo(overrides) {
   return merged;
 }
 
+function collectibleEslintIo() {
+  return fixtureIo({
+    exists: (path) => String(path).includes('eslint.config') || String(path).includes('package.json'),
+    readFile: () => JSON.stringify({ devDependencies: { eslint: '9.0.0' } }),
+    run: (binary, argv) => (argv.some((value) => String(value).includes('eslint'))
+      ? { outcome: 'completed', status: 0, stdout: eslintReport([['a.ts', []]]), stderr: '' }
+      : { outcome: 'completed', status: 0, stdout: '', stderr: '' }),
+  });
+}
+
 test('a pure line shift does not change the structural identity', () => {
   const a = structuralIdentity({ file: 'src/a.ts', code: 'TS2345', message: 'Argument at 12:4 is wrong' });
   const b = structuralIdentity({ file: 'src/a.ts', code: 'TS2345', message: 'Argument at 90:7 is wrong' });
@@ -241,6 +251,16 @@ test('first pass and recheck produce identical verdicts when the supplied census
   assert.deepEqual(recheck.blocking, firstPass.blocking);
 });
 
+test('an absent cached census collects the base rather than comparing against nothing', () => {
+  const io = fixtureIo({ readFile: () => JSON.stringify({ devDependencies: { typescript: '5.0.0' } }) });
+  const verdict = evaluate({ repoRoot: ROOT, gateBase: 'abc123', basePath: BASE, cachedBaseCensus: null }, io);
+  assert.equal(verdict.usedCachedCensus, false);
+  assert.ok(
+    io.spawned.some((command) => command.includes('worktree add')),
+    `an absent cached census did not trigger a fresh base collection: ${JSON.stringify(io.spawned)}`,
+  );
+});
+
 test('a malformed cached census falls back to collecting the base rather than trusting it', () => {
   const io = fixtureIo({ readFile: () => JSON.stringify({ devDependencies: { typescript: '5.0.0' } }) });
   const verdict = evaluate({ repoRoot: ROOT, gateBase: 'abc123', basePath: BASE, cachedBaseCensus: { nonsense: true } }, io);
@@ -248,13 +268,17 @@ test('a malformed cached census falls back to collecting the base rather than tr
   assert.equal(verdict.usedCachedCensus, false);
 });
 
-test('a cached census keyed to another base is refused rather than reused', () => {
-  const io = fixtureIo({ readFile: () => JSON.stringify({ devDependencies: { typescript: '5.0.0' } }) });
-  const verdict = evaluate(
-    { repoRoot: ROOT, gateBase: 'abc123', basePath: BASE, cachedBaseCensus: { gateBase: 'other', tools: {}, notExpected: [], surface: {} } },
-    io,
-  );
+test('a cached census keyed to another base is refused and the base is re-collected rather than the census reused', () => {
+  const collected = collectBase({ repoRoot: ROOT, gateBase: 'abc123', basePath: BASE }, collectibleEslintIo());
+  assert.equal(collected.ok, true, collected.error);
+  const foreignCensus = { ...collected.census, gateBase: `${collected.census.gateBase}-foreign` };
+  const io = collectibleEslintIo();
+  const verdict = evaluate({ repoRoot: ROOT, gateBase: 'abc123', basePath: BASE, cachedBaseCensus: foreignCensus }, io);
   assert.equal(verdict.usedCachedCensus, false);
+  assert.ok(
+    io.spawned.some((command) => command.includes('worktree add')),
+    `a well-formed census keyed to a foreign base was reused rather than triggering a fresh collection: ${JSON.stringify(io.spawned)}`,
+  );
 });
 
 test('identical input yields identical output across runs', () => {
