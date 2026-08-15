@@ -17,7 +17,7 @@ const GIT_TIMEOUT_MS = 10000;
 export const ENGINE_ARG_NAMES = [
   'tasks', 'waves', 'branchPrefix', 'baseBranch', 'worktreeRoot', 'repoRoot',
   'scopedCheckCmd', 'fullValidationCmd', 'prompts', 'fixLoopMax', 'isolation',
-  'launchCommit', 'runArtifacts', 'models',
+  'launchCommit', 'runArtifacts', 'models', 'couplingResolution',
 ];
 
 export function buildRunScript(engineSource, values) {
@@ -159,6 +159,7 @@ function run() {
     launchCommit,
     runArtifacts,
     models,
+    couplingResolution: graph.couplingResolution || [],
   };
 
   const script = buildRunScript(readFileSync(ENGINE_PATH, 'utf8'), values);

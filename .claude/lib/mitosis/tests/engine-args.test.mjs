@@ -19,6 +19,7 @@ function fullInput() {
     launchCommit: 'abc123',
     models: { reconciler: 'sonnet' },
     fixLoopMax: 3,
+    couplingResolution: [],
   };
 }
 
