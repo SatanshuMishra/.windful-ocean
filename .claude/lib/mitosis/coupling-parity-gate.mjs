@@ -19,6 +19,7 @@ import {
   COUPLING_SPECIMENS,
   MARKER_ONLY_SPECIMEN,
   MARKER_PREFIX_SPECIMEN,
+  MARKER_SPECIMEN_SEGMENTS,
   censusRegistryReaders,
   couplingCoverageCensus,
   declaredDecisionSourceCells,
@@ -43,7 +44,6 @@ const CYCLE_NAME_ANCHOR = 'dependency cycle detected among: ';
 const CYCLE_NAME_TERMINATOR = ';';
 const RATIONALE_REFUSAL = 'the skeptical default stays';
 const UNANSWERED_REFUSAL = 'no verdict answers it';
-const SEPARATOR_REFUSAL = 'carries the detail separator';
 const CYCLE_CAUSE = 'added by the coupling pass';
 const CYCLE_REMEDY = '--verdicts';
 const SYNTHETIC_CELL = 'coupling-parity-synthetic-cell at nothing';
@@ -101,11 +101,13 @@ export const COUPLING_PARITY_ATTESTS = Object.freeze([
   Object.freeze({ id: 'A50', fact: 'cycleNamesRemedy', text: 'the cycle halt names a verdicts file as the remedy rather than an edit to dependsOn' }),
   Object.freeze({ id: 'A51', fact: 'markerForcesSerialize', text: 'a pair sharing a risk marker and nothing else resolves to serialize, so the marker term of the skeptical rule is load-bearing on its own' }),
   Object.freeze({ id: 'A52', fact: 'markerPrefixMatches', text: 'a risk marker that is only a prefix of a longer path segment still fires, so narrowing the match to whole-segment equality is measured' }),
+  Object.freeze({ id: 'A54', fact: 'markerSpecimensExerciseTheirMarker', text: 'every marker specimen still emits the marker it was written for, so a marker dropped from the live vocabulary is caught at the specimen that named it rather than vanishing from both sides of a union' }),
+  Object.freeze({ id: 'A55', fact: 'markerVocabularyCensused', text: 'the markers the specimens declare and the markers the live vocabulary carries agree exactly in both directions, so narrowing the vocabulary leaves a specimen naming a marker no registry carries' }),
   Object.freeze({ id: 'A53', fact: 'regressionForcesSerialize', text: 'a pair carrying regression history and nothing else resolves to serialize, so the regression term of the skeptical rule is load-bearing on its own' }),
 ]);
 
 export const COUPLING_PARITY_NOT_ATTESTED = Object.freeze([
-  'that a fact whose computation is hardcoded true would be seen: every attest here reads one boolean the substrate computed, and the census closes over which facts exist rather than over how each is derived; that each fact goes false when the producer construct behind it is rewritten is established by mutation testing performed against this branch and recorded in this change request, not by anything this program can check about itself',
+  'that every fact resists being emptied: the facts derived from the specimen observations are each recomputed against a deliberately corrupted copy of those same observations and must find on the corrupted copy what they found nothing of on the real one, so a predicate emptied to nothing halts; the facts derived from a single production call - the relaxation, signal, direction, tightening, re-run and cycle families - carry no such discrimination, so one rewritten to report success unconditionally is caught by review and by mutation testing against this branch rather than by anything this program checks about itself',
   'that the migrations term of the skeptical rule is independently load-bearing: every path carrying a migrations directory also carries the migrations risk marker, so no graph can make that term the sole cause of a serialize default and no specimen here can isolate it; the term is redundant with the marker term rather than measured',
   'that a coverage axis is closed per specimen rather than in union: a token one specimen exercises licenses every other specimen to stop exercising it, so the census proves the specimen set as a whole covers each registry and not that any individual specimen still covers what it was written for',
   'that a registry vocabulary added later would be censused: the registry axis of the classifier scan is a declared list of identifier names, so a new frozen vocabulary in either production module is unclassified until it is named there; only the classifier axis is derived from source',
@@ -122,9 +124,46 @@ function fact(ok, detail) {
   return Object.freeze({ ok: ok === true, detail: ok === true ? '' : ` (${detail})` });
 }
 
-function across(observations, name, offenders) {
+function across(observations, name, offenders, corrupt) {
   const found = observations.flatMap(offenders);
-  return fact(found.length === 0, `${name}: ${inert(found.slice(0, 3))}`);
+  if (found.length > 0) return fact(false, `${name}: ${inert(found.slice(0, 3))}`);
+  const discriminated = observations.map(corrupt).flatMap(offenders);
+  return fact(discriminated.length > 0, `the check for ${name} found nothing on a deliberately corrupted copy of the same observations, so it discriminates nothing and would stay silent whatever the producer does`);
+}
+
+function collapsedWaves(o) {
+  return { ...o, waveOf: new Map([...o.waveOf.keys()].map((id) => [id, 0])) };
+}
+
+function splitWaves(o) {
+  return { ...o, waveOf: new Map([...o.waveOf.keys()].map((id, index) => [id, index])) };
+}
+
+function severedDependencies(o) {
+  return { ...o, dependsOnById: new Map([...o.dependsOnById.keys()].map((id) => [id, []])) };
+}
+
+function unnamedReasons(o) {
+  return { ...o, edgeReasonsById: new Map([...o.edgeReasonsById].map(([id, reasons]) => [id, reasons.filter((r) => r !== SERIALIZE_REASON)])) };
+}
+
+function everyPairClaimed(o) {
+  const ids = [...o.dependsOnById.keys()];
+  const pairs = [];
+  for (let i = 0; i < ids.length; i += 1) for (let j = i + 1; j < ids.length; j += 1) pairs.push(pairKey([ids[i], ids[j]]));
+  return { ...o, placedPairs: new Set(pairs) };
+}
+
+function droppedResolution(o) {
+  return { ...o, result: { ...o.result, couplingResolution: o.result.couplingResolution.slice(1) } };
+}
+
+function forgedSignal(o) {
+  return { ...o, unclassifiable: [`${o.name} emitted a signal the classifier refuses`] };
+}
+
+function forgottenMarker(o) {
+  return { ...o, markers: [] };
 }
 
 function serializeRecords(observation) {
@@ -143,25 +182,29 @@ function specimenFacts(observations) {
   return {
     serializeSeparated: across(observations, 'co-scheduled serialize pairs', (o) => serializeRecords(o)
       .filter((r) => o.waveOf.get(r.pair[0]) === o.waveOf.get(r.pair[1]))
-      .map((r) => `${o.name}: ${r.pair.join(' and ')}`)),
+      .map((r) => `${o.name}: ${r.pair.join(' and ')}`), collapsedWaves),
     serializeOrdered: across(observations, 'unordered serialize pairs', (o) => serializeRecords(o)
       .filter((r) => unordered(o, r))
-      .map((r) => `${o.name}: ${r.pair.join(' and ')}`)),
+      .map((r) => `${o.name}: ${r.pair.join(' and ')}`), severedDependencies),
     edgeCauseNamed: across(observations, 'claimed edges whose endpoint omits the cause', (o) => o.result.couplingEdges
       .flatMap((e) => [e.from, e.to])
       .filter((endpoint) => !o.edgeReasonsById.get(endpoint).includes(SERIALIZE_REASON))
-      .map((endpoint) => `${o.name}: ${endpoint} carries ${inert(o.edgeReasonsById.get(endpoint))}`)),
+      .map((endpoint) => `${o.name}: ${endpoint} carries ${inert(o.edgeReasonsById.get(endpoint))}`), unnamedReasons),
     parallelUnclaimed: across(observations, 'parallel pairs still claiming an edge', (o) => parallelRecords(o)
       .filter((r) => o.placedPairs.has(pairKey(r.pair)))
-      .map((r) => `${o.name}: ${r.pair.join(' and ')}`)),
+      .map((r) => `${o.name}: ${r.pair.join(' and ')}`), everyPairClaimed),
     parallelCoScheduled: across(observations, 'parallel pairs split across waves with nothing else ordering them', (o) => parallelRecords(o)
       .filter((r) => unordered(o, r) && o.waveOf.get(r.pair[0]) !== o.waveOf.get(r.pair[1]))
-      .map((r) => `${o.name}: ${r.pair.join(' and ')}`)),
+      .map((r) => `${o.name}: ${r.pair.join(' and ')}`), splitWaves),
     resolutionCoversEmission: across(observations, 'specimens whose resolution does not cover the emission exactly once', (o) => (
       o.result.coupling.map((r) => pairKey(r.pair)).sort().join('') === o.result.couplingResolution.map((r) => pairKey(r.pair)).sort().join('')
         ? []
-        : [`${o.name}: emitted ${o.result.coupling.length}, resolved ${o.result.couplingResolution.length}`])),
-    signalsClassifiable: across(observations, 'signals the classifier refuses', (o) => [...o.unclassifiable]),
+        : [`${o.name}: emitted ${o.result.coupling.length}, resolved ${o.result.couplingResolution.length}`]), droppedResolution),
+    markerSpecimensExerciseTheirMarker: across(observations, 'marker specimens whose declared marker the emission did not produce', (o) => (
+      o.expectMarker === null || o.markers.includes(o.expectMarker)
+        ? []
+        : [`${o.name}: declared ${o.expectMarker}, observed ${inert(o.markers)}`]), forgottenMarker),
+    signalsClassifiable: across(observations, 'signals the classifier refuses', (o) => [...o.unclassifiable], forgedSignal),
   };
 }
 
@@ -244,13 +287,28 @@ function alreadyOrderedFacts(observations) {
   };
 }
 
+function markerVocabularyCensus() {
+  const declared = new Set(MARKER_SPECIMEN_SEGMENTS);
+  const live = new Set(COUPLING_RISK_MARKERS);
+  const problems = [];
+  for (const marker of MARKER_SPECIMEN_SEGMENTS) {
+    if (!live.has(marker)) problems.push(`the specimen set exercises the risk marker ${inert(marker)}, which the live vocabulary no longer carries; a marker dropped from the producer leaves the specimen that named it measuring nothing`);
+  }
+  for (const marker of COUPLING_RISK_MARKERS) {
+    if (!declared.has(marker)) problems.push(`the live vocabulary carries the risk marker ${inert(marker)}, which no specimen exercises; a marker nobody exercises is one whose match nothing here would notice going inert`);
+  }
+  return problems;
+}
+
 function markerFacts(observations) {
   const markerOnly = namedObservation(observations, MARKER_ONLY_SPECIMEN);
   const prefix = namedObservation(observations, MARKER_PREFIX_SPECIMEN);
   const regression = namedObservation(observations, REGRESSION_SPECIMEN);
   const allSerialize = (observation) => observation.result.couplingResolution.length > 0
     && observation.result.couplingResolution.every((r) => r.decision === COUPLING_SERIALIZE);
+  const vocabulary = markerVocabularyCensus();
   return {
+    markerVocabularyCensused: fact(vocabulary.length === 0, vocabulary.join('; ')),
     markerForcesSerialize: fact(allSerialize(markerOnly) && markerOnly.markers.length > 0 && !markerOnly.signalClasses.includes('same-migration-dir'), `resolution ${inert(markerOnly.result.couplingResolution.map((r) => r.decision))}`),
     markerPrefixMatches: fact(prefix.markers.length > 0 && allSerialize(prefix), `markers ${inert(prefix.markers)}`),
     regressionForcesSerialize: fact(allSerialize(regression) && regression.signalClasses.includes('regression-history') && regression.markers.length === 0, `signals ${inert(regression.signalClasses)}`),

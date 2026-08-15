@@ -150,13 +150,16 @@ export const COUPLING_RISK_MARKERS = couplingContextFacts(null).riskMarkers;
 
 export const MARKER_PREFIX_SPECIMEN = `a pair sharing a path segment that only begins with the risk marker ${MARKER_PREFIX_SEGMENT}`;
 
-const MARKER_SPECIMENS = Object.freeze(COUPLING_RISK_MARKERS.map((marker) => Object.freeze({
+export const MARKER_SPECIMEN_SEGMENTS = Object.freeze(['auth', 'crypto', 'deploy', 'infra', 'migrations', 'payment', 'secret', 'security']);
+
+const MARKER_SPECIMENS = Object.freeze(MARKER_SPECIMEN_SEGMENTS.map((marker) => Object.freeze({
   name: `a pair sharing the risk marker ${marker}`,
   graph: markerGraph(marker),
   verdicts: null,
+  expectMarker: marker,
 })));
 
-export const MARKER_ONLY_SPECIMEN = MARKER_SPECIMENS[0].name;
+export const MARKER_ONLY_SPECIMEN = 'a pair sharing the risk marker auth';
 
 export const COUPLING_SPECIMENS = Object.freeze([
   ...MARKER_SPECIMENS,
@@ -236,6 +239,7 @@ export function observeSpecimen(specimen) {
   for (const entry of result.graph.tasks) for (const reason of entry.edgeReasons) reasons.add(reason);
   return Object.freeze({
     name: specimen.name,
+    expectMarker: specimen.expectMarker === undefined ? null : specimen.expectMarker,
     result,
     waveOf: wavesOf(result.graph),
     edgeReasonsById: new Map(result.graph.tasks.map((entry) => [entry.id, entry.edgeReasons])),
