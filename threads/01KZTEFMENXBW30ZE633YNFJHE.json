@@ -509,6 +509,11 @@
         "ref": "0448-redispatch-stays-in-c7-rather-than-draining-into-the-porting-msp",
         "title": "The redispatch classification stays in C7 rather than draining into the porting MSP",
         "scope": "c5"
+      },
+      {
+        "ref": "0449-cp-open-questions-ratified",
+        "title": "CP's three open questions are ratified before the unit is worked",
+        "scope": "c3"
       }
     ],
     "out_of_scope": [
@@ -520,5 +525,5 @@
     ]
   },
   "created_at": "2026-08-12T07:37:41.077Z",
-  "updated_at": "2026-08-15T21:17:14.530Z"
+  "updated_at": "2026-08-15T21:37:35.573Z"
 }
