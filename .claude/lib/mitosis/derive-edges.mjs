@@ -11,22 +11,14 @@ import {
   reviewCoupling,
 } from './coupling-review.mjs';
 
-const COUPLING_SERIALIZE_REASON = 'coupling-serialize';
-const FILE_SCOPE_OVERLAP_REASON = 'fileScope-overlap';
+export const DERIVED_EDGE_REASONS = Object.freeze(['coupling-serialize', 'fileScope-overlap']);
 
-export const DERIVED_EDGE_REASONS = Object.freeze([COUPLING_SERIALIZE_REASON, FILE_SCOPE_OVERLAP_REASON]);
+const [COUPLING_SERIALIZE_REASON, FILE_SCOPE_OVERLAP_REASON] = DERIVED_EDGE_REASONS;
 
 const COUPLING_EDGE_RULE = Object.freeze({
   [COUPLING_PARALLEL]: false,
   [COUPLING_SERIALIZE]: true,
 });
-
-function requireDerivedReason(reason, rule) {
-  if (!DERIVED_EDGE_REASONS.includes(reason)) {
-    throw new Error(`derive-edges: the ${rule} rule attaches the reason ${JSON.stringify(reason)}, which is not registered in DERIVED_EDGE_REASONS; an unregistered reason token escapes the census that keeps a derived reason from matching the engine's opus-escalation regex, so it could silently retier every task carrying it`);
-  }
-  return reason;
-}
 
 function indexTasks(graph) {
   if (!graph || !Array.isArray(graph.tasks)) throw new Error('graph.tasks must be an array');
@@ -165,7 +157,7 @@ function fileScopeOverlapAssertions(byId, ids, positionOf) {
       const b = byId.get(ids[j]);
       if (!scopesOverlap(a.fileScope.edit, b.fileScope.edit)) continue;
       const edge = declarationOrderEdge(a.id, b.id, positionOf, `the fileScope-overlap pair ${a.id}/${b.id}`);
-      assertions.push({ ...edge, reason: requireDerivedReason(FILE_SCOPE_OVERLAP_REASON, 'fileScope-overlap') });
+      assertions.push({ ...edge, reason: FILE_SCOPE_OVERLAP_REASON });
     }
   }
   return assertions;
@@ -183,7 +175,7 @@ export function couplingSerializeAssertions(resolution, positionOf) {
     }
     if (!COUPLING_EDGE_RULE[record.decision]) continue;
     const edge = declarationOrderEdge(record.pair[0], record.pair[1], positionOf, `the coupling pair ${label}`);
-    assertions.push({ ...edge, reason: requireDerivedReason(COUPLING_SERIALIZE_REASON, 'coupling-serialize') });
+    assertions.push({ ...edge, reason: COUPLING_SERIALIZE_REASON });
   }
   return assertions;
 }

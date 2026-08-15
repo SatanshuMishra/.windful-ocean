@@ -121,17 +121,27 @@ test('I2: a coupling-serialized edge names coupling as its cause in edgeReasons'
   assert.deepEqual(byId.t1.edgeReasons, ['coupling-serialize']);
 });
 
-test('I2b: every edge-adding rule in derive-edges contributes a registered reason token', () => {
+test('I2b: every edge-adding rule in derive-edges attaches a reason drawn from the registry', () => {
   const source = readFileSync(DERIVE_EDGES_SOURCE, 'utf8');
-  const literals = new Set([
-    ...[...source.matchAll(/_REASON\s*=\s*'([^']+)'/g)].map((m) => m[1]),
+  const registry = source.match(/DERIVED_EDGE_REASONS = Object\.freeze\(\[([^\]]*)\]\)/);
+  assert.ok(registry, 'the reason registry could not be located, so this census cannot enumerate what the module attaches');
+  const declared = registry[1].split(',').map((entry) => entry.trim().replace(/^'|'$/g, '')).filter((entry) => entry.length > 0);
+  assert.deepEqual([...declared].sort(), [...DERIVED_EDGE_REASONS].sort());
+
+  const attached = [
     ...[...source.matchAll(/reason:\s*'([^']+)'/g)].map((m) => m[1]),
-  ]);
+    ...[...source.matchAll(/_REASON\s*=\s*'([^']+)'/g)].map((m) => m[1]),
+  ];
+  const unregistered = [...new Set(attached)].filter((reason) => !DERIVED_EDGE_REASONS.includes(reason));
   assert.deepEqual(
-    [...literals].sort(),
-    [...DERIVED_EDGE_REASONS].sort(),
-    'every reason literal this module can attach must be registered in DERIVED_EDGE_REASONS; an unregistered token escapes the escalation census below',
+    unregistered,
+    [],
+    'a reason literal written straight into an edge escapes the registry, and with it the escalation census below; draw the token from DERIVED_EDGE_REASONS instead',
   );
+
+  const rules = [...source.matchAll(/assertions\.push\(\{ \.\.\.edge, reason: ([A-Z_]+) \}\)/g)].map((m) => m[1]);
+  assert.equal(rules.length, DERIVED_EDGE_REASONS.length, 'every registered reason belongs to exactly one edge-adding rule, and every edge-adding rule names one');
+  assert.equal(new Set(rules).size, rules.length, 'two rules sharing one reason token make an edge unattributable to the rule that added it');
 });
 
 test('I2c: no reason token derive-edges attaches matches the live opus-escalation regex in mitosis.js', () => {
@@ -196,24 +206,37 @@ test('I4: the coupling edge and the fileScope-overlap edge take the same directi
   );
 });
 
-test('I5: two distinct pairs whose ids contain the separator do not collide on one key', () => {
-  const emitted = reviewCoupling([
+function collidingEmission() {
+  return reviewCoupling([
     { a: { id: 'a', fileScope: pack(['srv/auth/a.ts']) }, b: { id: 'b c', fileScope: pack(['web/auth/b.tsx']) } },
+    { a: { id: 'a b', fileScope: pack(['srv/crypto/c.ts']) }, b: { id: 'c', fileScope: pack(['web/crypto/d.tsx']) } },
   ]);
-  assert.deepEqual(emitted.map((e) => e.pair), [['a', 'b c']]);
-  assert.throws(
-    () => resolveCoupling(emitted, [{ pair: ['a b', 'c'], decision: 'parallel', rationale: null }]),
-    /a b|never emitted/,
-    'a verdict naming two ids that exist nowhere in the graph relaxed a real pair by colliding on its key',
+}
+
+test('I5: two distinct pairs whose ids span the separator are both emitted rather than read as one repeated pair', () => {
+  assert.deepEqual(
+    collidingEmission().map((e) => e.pair),
+    [['a', 'b c'], ['a b', 'c']],
+    'these two pairs join to the same string; a separator-joined key reads the second as a repeat of the first and refuses the whole emission',
   );
 });
 
-test('I5b: a verdict naming an id absent from the emission is refused even when its key matches', () => {
-  const emitted = serializeEmission();
+test('I5b: a verdict answering one of two separator-colliding pairs leaves the other unanswered', () => {
   assert.throws(
-    () => resolveCoupling(emitted, [{ pair: ['t1', 'ghost'], decision: COUPLING_SERIALIZE, rationale: null }]),
-    /ghost/,
-    'the coverage check must read the two ids, not a joined key; trusting the key is what the collision defeats',
+    () => resolveCoupling(collidingEmission(), [{ pair: ['a b', 'c'], decision: COUPLING_SERIALIZE, rationale: null }]),
+    /a\/b c was emitted for review and no verdict answers it/,
+    'one verdict answered two distinct pairs by colliding on their key, so the pair it never named was recorded as covered',
+  );
+});
+
+test('I5c: a verdict naming ids that exist nowhere in the emission cannot answer a real pair', () => {
+  const emitted = reviewCoupling([
+    { a: { id: 'a', fileScope: pack(['srv/auth/a.ts']) }, b: { id: 'b c', fileScope: pack(['web/auth/b.tsx']) } },
+  ]);
+  assert.throws(
+    () => resolveCoupling(emitted, [{ pair: ['a b', 'c'], decision: COUPLING_PARALLEL, rationale: null }]),
+    /appear in no emitted pair at all/,
+    'a verdict naming two ids the graph does not contain relaxed a real pair by colliding on its key',
   );
 });
 

@@ -341,13 +341,11 @@ function coverageProblems(records, rendered) {
     else if (count > 1) problems.push(`${record.label} carries ${count} verdicts; every emitted pair belongs in exactly one verdict bucket`);
   }
   for (const verdict of rendered) {
-    const strangers = verdict.pair.filter((id) => !emittedIds.has(id));
-    if (strangers.length > 0) {
-      problems.push(`${verdict.label} names ${strangers.map(describe).join(' and ')}, which no emitted pair carries; a verdict is matched by its two ids and never by a joined key alone, because a key collision would otherwise let a verdict naming ids the graph does not contain answer a real pair`);
-    }
     const record = byKey.get(verdict.key);
     if (record === undefined) {
-      problems.push(`${verdict.label} carries a verdict but was never emitted for review; a verdict on an unemitted pair means the plan was rendered against a different graph`);
+      const strangers = verdict.pair.filter((id) => !emittedIds.has(id));
+      const detail = strangers.length === 0 ? '' : ` (${strangers.map(describe).join(' and ')} appear in no emitted pair at all)`;
+      problems.push(`${verdict.label} carries a verdict but was never emitted for review${detail}; a verdict on an unemitted pair means the plan was rendered against a different graph`);
       continue;
     }
     if (decisionStrictness(verdict.decision) < decisionStrictness(record.fallback) && verdict.rationale === null) {
