@@ -16,6 +16,16 @@ import {
   structuralIdentity,
   toolExpectation,
 } from './boundary-gate.mjs';
+import {
+  SUPPRESSION_DIRECTIVES,
+  TSCONFIG_STRICTNESS_FLAGS,
+  compareCheckedFiles,
+  compareRuleSeverity,
+  compareSuppressions,
+  compareTsconfigFlags,
+  countSuppressions,
+  evasionVerdict,
+} from './boundary-evasion.mjs';
 import { run as execRun } from './exec-run.mjs';
 
 const PROBE_ROOT = '/probe/head';
@@ -37,6 +47,10 @@ export const BOUNDARY_PARITY_ATTESTS = Object.freeze([
   'the first pass and the recheck produce identical verdicts when the supplied census is the one collection would have produced, measured here on every invocation by collecting the base and then replaying it as a cached census through the same entry point',
   'a cached base census that is absent, malformed, or keyed to another base is refused and the base is collected instead, so the fallback is a call to the collector rather than prose that re-describes it and cannot lose the node_modules strategy or the teardown the way the incumbent recheck does',
   'the program reaches processes only through the shared chokepoint and requests only allowlisted binaries: an unlisted binary is refused before any child starts, measured here on every invocation with the spawn seam counting the children it was asked to start',
+  'the added-suppression scan counts HEAD source against base source per declared directive and blocks the surplus alone, so a suppression this MSP added blocks and one it inherited does not; both are measured here on every invocation, and the longest directive spelling is counted over the prefix it contains',
+  'a rule severity downgrade blocks against the resolved rule map rather than the written config, so resolution through extends and shared presets is done by eslint; a rule that vanished from the resolved map is read as a downgrade to off rather than as absent, and a raise does not block',
+  'a declared tsconfig strictness flag moved away from its safe value blocks, and a changed compiler option the declared table does not name HALTS with the key named rather than being bucketed as not strictness-relevant; that halt is exercised here on an unnamed option every time this verb runs',
+  'the checked-scope comparison compares resolved file lists restricted to files present on both sides rather than glob semantics, so a narrowed include or a widened ignore blocks while a legitimately added or deleted source file does not; all three are measured here on every invocation',
 ]);
 
 export const BOUNDARY_PARITY_NOT_ATTESTED = Object.freeze([
@@ -46,7 +60,8 @@ export const BOUNDARY_PARITY_NOT_ATTESTED = Object.freeze([
   'that the base install reaches a real package manager: the install step invokes the package manager JS entry through bare node, and no probe here runs it, so a lockfile-divergent base is exercised only through the injected seam',
   'that a boundary dispatch outside the two declared engine trees would be seen: the census reads .claude/lib/mitosis and .claude/workflows, so one added under .claude/hooks, or anywhere else in the repository, is unscanned',
   'that a boundary label composed rather than spelled would be seen: the census classifies a plain string literal at a label key, so a label built by interpolation or read from configuration is outside what it measures',
-  'the added-suppression scan and the resolved-config strictness comparison, which the evasion half of this program measures and which this list names so the gap is declared rather than hidden',
+  'that the added-suppression scan reads the same domain the incumbent prose reads: the first pass scans the source diff and the recheck scans HEAD source against a cached surface, and this program narrows both to HEAD-vs-base source counts, which is well defined without a diff and is what lets the two passes share one code path',
+  'that a suppression spelled other than as one of the declared directives would be counted: the scan counts declared spellings in source text, so a directive introduced by a plugin under another name, or one composed at run time, is outside what it measures',
 ]);
 
 function probeIo(overrides) {
@@ -294,8 +309,50 @@ function censusControlProbes() {
   }));
 }
 
+const SUPPRESSION_PROBE_FILES = Object.freeze([
+  Object.freeze({ path: 'probe/a.ts', source: '// eslint-disable-next-line no-eq\n// eslint-disable no-eq\n' }),
+  Object.freeze({ path: 'probe/b.ts', source: '// @ts-expect-error\n' }),
+]);
+
+function evasionProbe() {
+  const counted = countSuppressions(SUPPRESSION_PROBE_FILES);
+  const inherited = compareSuppressions({ '@ts-ignore': 3 }, { '@ts-ignore': 3 });
+  const added = compareSuppressions({ '@ts-ignore': 1 }, { '@ts-ignore': 2 });
+  const removed = compareSuppressions({ '@ts-ignore': 3 }, {});
+  const downgrade = compareRuleSeverity({ rules: { 'no-eq': 2 } }, { rules: { 'no-eq': 1 } });
+  const vanished = compareRuleSeverity({ rules: { 'no-eq': 2 } }, { rules: {} });
+  const raise = compareRuleSeverity({ rules: { 'no-eq': 1 } }, { rules: { 'no-eq': 2 } });
+  const loosened = compareTsconfigFlags({ strict: true }, { strict: false });
+  const tightened = compareTsconfigFlags({ strict: false }, { strict: true });
+  const unnamed = compareTsconfigFlags({ jsx: 'react' }, { jsx: 'preserve' });
+  const unchangedUnnamed = compareTsconfigFlags({ jsx: 'react' }, { jsx: 'react' });
+  const narrowed = compareCheckedFiles(['a.ts', 'b.ts'], ['a.ts'], ['a.ts', 'b.ts']);
+  const deleted = compareCheckedFiles(['a.ts', 'b.ts'], ['a.ts'], ['a.ts']);
+  const surface = { eslintConfig: { rules: { r: 2 } }, tsconfigOptions: { strict: true }, checkedFiles: ['a.ts'], commonFiles: ['a.ts'], suppressions: { '@ts-ignore': 1 } };
+  const aggregated = evasionVerdict(surface, surface);
+  return Object.freeze({
+    longestSpellingWins: counted['eslint-disable-next-line'] === 1 && counted['eslint-disable'] === 1 && counted['@ts-expect-error'] === 1,
+    directiveCount: SUPPRESSION_DIRECTIVES.length,
+    inheritedPasses: inherited.pass === true,
+    addedBlocks: added.pass === false && added.blocking.length === 1 && added.blocking[0].surplus === 1,
+    removedPasses: removed.pass === true,
+    downgradeBlocks: downgrade.pass === false,
+    vanishedRuleBlocks: vanished.pass === false,
+    raisePasses: raise.pass === true,
+    loosenedFlagBlocks: loosened.pass === false,
+    tightenedFlagPasses: tightened.pass === true,
+    unnamedOptionHalts: unnamed.halted === true && unnamed.error.includes('jsx'),
+    unchangedUnnamedOptionPasses: unchangedUnnamed.halted === false && unchangedUnnamed.pass === true,
+    narrowingBlocks: narrowed.pass === false,
+    deletionPasses: deleted.pass === true,
+    aggregatePasses: aggregated.pass === true && aggregated.halted === false,
+    flagCount: Object.keys(TSCONFIG_STRICTNESS_FLAGS).length,
+  });
+}
+
 export function probeBoundarySubstrate() {
   return Object.freeze({
+    evasion: evasionProbe(),
     census: boundaryCensus(),
     controls: censusControlProbes(),
     identity: identityProbe(),
@@ -392,6 +449,43 @@ export function boundaryParityFailures(substrate) {
   if (!exec.allowedNode) {
     failures.push('the chokepoint refused bare node, which is how this program reaches eslint and tsc without widening the allowlist; a guard that refuses it is over-broad');
   }
+  const evasion = substrate.evasion;
+  if (!evasion.longestSpellingWins) {
+    failures.push('the suppression scan no longer counts the longest declared directive over the prefix it contains, so an eslint-disable-next-line would be counted as an eslint-disable and the two would be indistinguishable');
+  }
+  if (!evasion.inheritedPasses || !evasion.removedPasses) {
+    failures.push('a suppression this MSP inherited now blocks, so the scan has become a presence rule rather than a surplus rule; the gate blocks what this MSP added, not what the tree already carried');
+  }
+  if (!evasion.addedBlocks) {
+    failures.push('an added suppression no longer blocks, so the gate could be passed by suppressing a finding rather than by fixing it, which is the whole evasion the scan exists to catch');
+  }
+  if (!evasion.downgradeBlocks || !evasion.vanishedRuleBlocks) {
+    failures.push('a rule severity downgrade in the resolved rule map no longer blocks, so the gate could be passed by lowering a rule to warn or off, or by dropping it from the resolved config entirely');
+  }
+  if (!evasion.raisePasses) {
+    failures.push('raising a rule severity now blocks, so the comparison reads any severity change as an evasion rather than a decrease in the total order');
+  }
+  if (!evasion.loosenedFlagBlocks) {
+    failures.push('a declared tsconfig strictness flag moved away from its safe value no longer blocks, so the gate could be passed by loosening the type checker');
+  }
+  if (!evasion.tightenedFlagPasses) {
+    failures.push('tightening a declared strictness flag now blocks, so the comparison reads any flag change as a loosening rather than a move away from the declared safe value');
+  }
+  if (!evasion.unnamedOptionHalts) {
+    failures.push('a changed compiler option the declared strictness table does not name is now accepted rather than halting with the key named; that is the catch-all-by-another-name failure, and a strictness-reducing option outside the table would pass silently');
+  }
+  if (!evasion.unchangedUnnamedOptionPasses) {
+    failures.push('an unchanged compiler option outside the declared table now halts, so the refusal fires on config that did not change and the gate could never pass');
+  }
+  if (!evasion.narrowingBlocks) {
+    failures.push('a narrowed checked-file set no longer blocks, so the gate could be passed by excluding or ignoring the files that carry the findings');
+  }
+  if (!evasion.deletionPasses) {
+    failures.push('a legitimately deleted source file is now read as a narrowed scope, so deleting a file would block; the comparison is restricted to files present on both sides precisely to avoid that');
+  }
+  if (!evasion.aggregatePasses) {
+    failures.push('the aggregated evasion verdict no longer passes on two identical surfaces, so it reports an evasion where nothing changed');
+  }
   const outside = exec.requestedBinaries.filter((binary) => binary !== 'git' && binary !== 'node');
   if (outside.length > 0) {
     failures.push(`the program requested these binaries beyond git and node: ${outside.join(', ')}; the collection commands the incumbent prose names are reached as node with a resolved path in argv rather than by widening the allowlist`);
@@ -434,6 +528,9 @@ function boundaryPayload(substrate) {
     toolCount: BOUNDARY_TOOLS.length,
     tools: BOUNDARY_TOOLS.map((tool) => tool.name),
     normalizationSteps: NORMALIZATION_STEPS.map((step) => step.name),
+    suppressionDirectives: [...SUPPRESSION_DIRECTIVES],
+    strictnessFlagCount: substrate.evasion.flagCount,
+    evasionClassifiers: ['added-suppression', 'rule-severity', 'tsconfig-strictness', 'checked-scope'],
     censusControls: substrate.controls.map((control) => `${control.name}: ${control.anchorPresent && control.halted && control.named ? 'halted and named' : 'INERT'}`),
     requestedBinaries: [...substrate.exec.requestedBinaries],
     modelInvocationsRemaining: census.siteCount,
