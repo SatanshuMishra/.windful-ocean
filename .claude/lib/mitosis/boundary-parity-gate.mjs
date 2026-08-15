@@ -8,6 +8,7 @@ import {
 import {
   BOUNDARY_TOOLS,
   NORMALIZATION_STEPS,
+  REAL_BOUNDARY_IO,
   censusTscLines,
   collectBase,
   compareCensuses,
@@ -211,11 +212,18 @@ function execProbe() {
   } catch {
     allowedNode = false;
   }
+  let realIoRefusesUnlisted = false;
+  try {
+    REAL_BOUNDARY_IO.run(UNLISTED_PROBE_BINARY, ['--version'], {});
+  } catch {
+    realIoRefusesUnlisted = true;
+  }
   const declaredIo = probeIo({});
   evaluate({ repoRoot: PROBE_ROOT, gateBase: PROBE_GATE_BASE, basePath: PROBE_BASE, cachedBaseCensus: null }, declaredIo);
   const requested = [...new Set(declaredIo.spawned.map((command) => command.split(' ')[0]))].sort();
   return Object.freeze({
     refusedUnlisted,
+    realIoRefusesUnlisted,
     childrenStarted: refusedUnlisted ? started - (allowedNode ? 1 : 0) : started,
     allowedNode,
     requestedBinaries: Object.freeze(requested),
@@ -445,6 +453,9 @@ export function boundaryParityFailures(substrate) {
   }
   if (exec.childrenStarted !== 0) {
     failures.push(`the chokepoint started ${exec.childrenStarted} child process(es) while refusing an unlisted binary; the guarantee is that the policy runs BEFORE the spawn, which a refusal thrown afterwards does not give`);
+  }
+  if (!exec.realIoRefusesUnlisted) {
+    failures.push(`the exec seam this program ships with admitted ${JSON.stringify(UNLISTED_PROBE_BINARY)}, so it no longer routes through the shared chokepoint; a second spawn layer inherits none of the refusals the chokepoint enforces`);
   }
   if (!exec.allowedNode) {
     failures.push('the chokepoint refused bare node, which is how this program reaches eslint and tsc without widening the allowlist; a guard that refuses it is over-broad');
