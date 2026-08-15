@@ -50,6 +50,12 @@ export function describe(value) {
 }
 
 export function shellQuote(value) {
+  if (typeof value !== 'string') {
+    throw new TypeError(`prompt-contract: a shell-quoted value must be a string, received ${describe(value)}`);
+  }
+  if (LINE_BREAK.test(value) || value.includes(NUL)) {
+    throw new TypeError(`prompt-contract: a shell-quoted value must not contain a line break or a NUL byte, received ${JSON.stringify(value)}; single quotes make it one shell word but not one prompt line, and the code span it is rendered into ends at the break`);
+  }
   return `'${value.split("'").join("'\\''")}'`;
 }
 
@@ -149,7 +155,7 @@ export function requirePromptArgv(value, field) {
   if (value.length === 0) {
     throw new TypeError(`prompt-contract: ${field} must name at least one argv element, received an empty array`);
   }
-  return Object.freeze(value.map((entry, index) => {
+  return Object.freeze(Array.from(value).map((entry, index) => {
     const text = requirePromptText(entry, `${field}[${index}]`);
     if (LINE_BREAK.test(text)) {
       throw new TypeError(`prompt-contract: ${field}[${index}] must not contain a line break, received ${JSON.stringify(text)}; a line break ends the command the prompt shows and starts prose the receiving model reads as instruction`);

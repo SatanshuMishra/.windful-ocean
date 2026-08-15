@@ -3,6 +3,10 @@ import { shellQuote, shellQuoteList } from './prompt-values.mjs';
 
 const SCOPE_FENCE = 'scope-fence';
 
+function declaredScope(paths) {
+  return paths.length > 0 ? shellQuoteList(paths) : '(none declared)';
+}
+
 const CI_ENFORCED_SCOPING = `CI already enforces lint, formatting, type-checks, and the test suite deterministically: a Tier-0 static layer gates every merge, so pure style, formatting, lint-shaped, and generic-maintainability nits, plus failing tests, type errors, and lint output, are caught deterministically without an LLM and are NOT yours to re-flag - do not spend review budget on them. Concentrate your judgment where it is structurally necessary. You are an OBJECTIVE reviewer with NO merge authority: return only a verdict and specific findings; you never merge.`;
 
 function readListClause(read) {
@@ -45,7 +49,7 @@ export function composeImplementPrompt(input) {
   if (isolation === SCOPE_FENCE) {
     return `${implementerPreamble}\n\n${promptSection('thisTask')}\n${escalationContext(priorIssues)}` +
       `Work directly in the main repository working tree at ${repoRoot}. Do NOT create a worktree or a branch.\n` +
-      `1. Edit ONLY files within this task's declared scope: ${shellQuoteList(fileScope.edit)}. Creating or editing anything outside this scope is a hard failure.${readContextClause(fileScope)}\n` +
+      `1. Edit ONLY files within this task's declared scope: ${declaredScope(fileScope.edit)}. Creating or editing anything outside this scope is a hard failure.${readContextClause(fileScope)}\n` +
       `2. Do NOT run any git mutation (no add, no commit, no branch, no checkout, no stash). Leave all changes uncommitted.\n` +
       `3. Follow TDD as the instructions above require.\n` +
       `4. For verification run ONLY the scoped check, never a full build/suite: \`${shellQuoteList(scopedCheckCmd)}\`\n\n` +
@@ -69,7 +73,7 @@ export function composeReviewPrompt(input) {
   const { specReviewerPreamble, qualityReviewerPreamble, fileScope, taskFullText } = validated;
   return `${specReviewerPreamble}\n\n${qualityReviewerPreamble}\n\n${promptSection('whatToReview')}\n${reviewTarget(validated)}\n\n` +
     `Spec for this task:\n${taskFullText}\n\n` +
-    `File scope for THIS task: ${shellQuoteList(fileScope.edit)}${readContextClause(fileScope)}\n` +
+    `File scope for THIS task: ${declaredScope(fileScope.edit)}${readContextClause(fileScope)}\n` +
     `Judge ONLY the files in this task's fileScope. Files outside it belong to SIBLING TASKS in the same MSP that are built in other waves and are correctly absent from this branch - do NOT flag them as missing or incomplete. Do NOT open .mitosis/*.plan.md or *.graph.json to assess completeness; the task body above is the complete and authoritative scope for THIS task.\n\n` +
     `${CI_ENFORCED_SCOPING}\n\n` +
     `${promptSection('tier1SecurityChecklist')}\n` +
@@ -82,7 +86,7 @@ export function composeSecurityPrompt(input) {
   const { taskId, taskTitle, taskFullText, fileScope } = validated;
   return `${promptSection('securityReviewTarget')}\n${reviewTarget(validated)}\n\n` +
     `Task id: ${taskId}\nTitle: ${taskTitle}\n\n${taskFullText}\n\n` +
-    `File scope: ${shellQuoteList(fileScope.edit)}${readContextClause(fileScope)}\n\n` +
+    `File scope: ${declaredScope(fileScope.edit)}${readContextClause(fileScope)}\n\n` +
     `${CI_ENFORCED_SCOPING}\n\n` +
     `Return verdict 'pass' if no security issues are found, else 'fail' with specific issues (file:line).`;
 }
@@ -92,7 +96,7 @@ export function composeFixPrompt(input) {
   const { isolation, repoRoot, fileScope, issues, scopedCheckCmd, taskFullText, worktree, branch } = validated;
   if (isolation === SCOPE_FENCE) {
     return `Apply fixes in the MAIN repository working tree at ${repoRoot} (no worktree, no branch, no git mutations; leave changes uncommitted).\n` +
-      `Edit ONLY within this task's declared scope: ${shellQuoteList(fileScope.edit)}.${readContextClause(fileScope)}\n` +
+      `Edit ONLY within this task's declared scope: ${declaredScope(fileScope.edit)}.${readContextClause(fileScope)}\n` +
       `1. Fix these issues:\n- ${issues.join('\n- ')}\n` +
       `2. Re-run the scoped check: \`${shellQuoteList(scopedCheckCmd)}\`\n\nTask context:\n${taskFullText}`;
   }

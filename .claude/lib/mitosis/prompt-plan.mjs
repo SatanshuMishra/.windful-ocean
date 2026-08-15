@@ -30,7 +30,7 @@ export function composePlanPrompt(input) {
   const validated = validatePromptInput('plan', input);
   const { unitId, title, libDir, writingPlansGlob, rationale, repoRoot, dependsList, specPath, fileScope } = validated;
   return `You are the planning stage for MSP "${unitId}" (${title}) of a mitosis run. You have NO Skill tool.\n\n` +
-    `Locate the superpowers writing-plans skill WITHOUT hardcoding its version: run \`node ${shellQuote(`${libDir}/superpowers-prompts.mjs`)}\` if it prints a skillsDir, otherwise glob \`${shellQuote(writingPlansGlob)}\`. Read that SKILL.md and follow it exactly.\n\n` +
+    `Locate the superpowers writing-plans skill WITHOUT hardcoding its version: run \`node ${shellQuote(`${libDir}/superpowers-prompts.mjs`)}\` if it prints a skillsDir, otherwise match this glob pattern with your file-matching tool: ${writingPlansGlob}. Read that SKILL.md and follow it exactly.\n\n` +
     `Scope: produce an implementation plan for ONLY this MSP: ${rationale}\n` +
     `Target repo: ${repoRoot}. Earlier MSPs in this cluster's chain (already planned/merged) you may depend on: ${dependsList}.\n\n` +
     `${groundTruthSeed(unitId, specPath, fileScope)}\n\n` +
