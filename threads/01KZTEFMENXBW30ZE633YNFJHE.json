@@ -126,9 +126,9 @@
   "abandoned_reason": null,
   "closure_statement": null,
   "spine": {
-    "active_goal": "Resolve the orphaned-ancestry breakage so the stack can merge through to the end, then ship C5a, C5b and C6.",
-    "next_step": "START HERE. PR #108 conflicts on ancestry, not content: c4b was force-pushed e78a5ced -> 7dfd0757 before merging, both carrying tree 247c5314, and c4c still descends from the orphaned SHA. Rebase c4c --onto origin/feat/mitosis-os-process e78a5ced, replaying only its own commits, verifying tree equality against a target re-measured at the head being rebased. Then rebase feat/c5a-coupling-enforcement and feat/c6-boundary-program onto the new c4c head; both inherit the same orphaning.",
-    "last_session": "Shipped C4c as PR #108 and restacked the C4 chain onto the merged base; corrected the review-size rule as PR #109, merged. Ended blocked: the user merged #105 and #107, force-pushing c4b first, which orphaned c4c's ancestry and left #108 conflicting.",
+    "active_goal": "Ship the remaining MSPs under receipts/gates@1.1, with the home-grown mandate apparatus removed.",
+    "next_step": "Verify the layer-4 apparatus removal landed green on the base, C5b and C6. Then set claim.require_receipt_for any-source-change and gates.G14.mode block in receipts.config.json so the gates bind on MSP PRs - the enforcer has run on every PR so far and never once asked for a receipt. C5b and C6 then ship under G0 with their SPEC acceptance list as the receipt and the ladder for anything unprovable; no further review rounds. Restack C6 off the orphaned 3ff7c990 with an explicit --onto.",
+    "last_session": "Diagnosed the three-week stall to decision 0380 making acceptance a floor. Adopted receipts/gates@1.1 globally (4f5e88f7), recorded 0438 superseding seven method decisions, and dispatched removal of the executable apparatus from the base, C5b and C6.",
     "open_risks": [
       {
         "text": "Build A4's red case through the claude -p CLI path and assert the SILENT failure — the Workflow agent path auto-grants StructuredOutput, so a red case dispatched through it passes unconditionally and is a guarantee that cannot fail",
@@ -145,66 +145,18 @@
         ]
       },
       {
-        "text": "Mutate by simulating the plausible unsafe rewrite, never by deleting a guard — generic deletion passed A0's two depth fixes while proving nothing, whereas the rewrite simulation reddened exactly the right tests and nothing else",
+        "text": "Work in a worktree under .claude/worktrees/ rather than switching the primary checkout — ~/.claude/rules, CLAUDE.md and skills are symlinks into its working tree, so a checkout there silently changes the live global config",
         "scope": "thread",
         "refs": [
-          "0380"
-        ]
-      },
-      {
-        "text": "Every new lib module needs a MIRROR_CENSUS row and a live caller per 0386 — parallel MSPs adding rows always conflict on that one literal, and the resolution is to keep both rows in sorted order, never to drop one",
-        "scope": "thread",
-        "refs": [
-          "0386",
-          ".claude/lib/mitosis/tests/mirror-guard.test.mjs",
-          ".claude/lib/mitosis/tests/dead-export-lint.test.mjs"
-        ]
-      },
-      {
-        "text": "Mirror any change to a twinned lib module into the workflows copy in the same commit — mirror-guard compares normalized source text and reddens on a one-sided edit",
-        "scope": "thread",
-        "refs": [
-          ".claude/lib/mitosis/tests/mirror-guard.test.mjs:214",
-          ".claude/workflows/mitosis.js"
-        ]
-      },
-      {
-        "text": "Recompute D2's test-count acceptance figure and state the counting unit before D2 is cut — the SPEC claims 35, but the files carry 51 test declarations and 175 runtime cases, so no convention yields 35",
-        "scope": "thread",
-        "refs": [
-          "SPEC D2"
+          "~/.claude/rules",
+          "~/.claude/CLAUDE.md"
         ]
       },
       {
         "text": "Cite mitosis.js for behaviour, never lib/mitosis/*.mjs — mitosis.js has zero imports and calls its own inlined twins, so a lib citation describes a mirror rather than the path that executes",
         "scope": "thread",
         "refs": [
-          ".claude/workflows/mitosis.js:5040",
-          ".claude/lib/mitosis/tests/mirror-guard.test.mjs:26"
-        ]
-      },
-      {
-        "text": "Pair every cost hypothesis with a fixed quality assertion — the instrument counts tokens and cannot see whether a re-architected Decompose cuts worse, so a token win carrying a quality regression will read as a success",
-        "scope": "thread",
-        "refs": [
-          "SPEC residual 5",
-          "0358"
-        ]
-      },
-      {
-        "text": "Re-cut any MSP that cannot be proven by its own tests — eighteen PRs where nothing runs end to end until C7 is a big-bang in disguise unless each one is genuinely green alone",
-        "scope": "thread",
-        "refs": [
-          "SPEC 4.1",
-          "SPEC residual 2"
-        ]
-      },
-      {
-        "text": "Expect C7 to exceed the review-size target and budget for it — the tick loop is one unit and cannot be split; this is a named exception in the SPEC, not an oversight to be fixed by splitting it anyway",
-        "scope": "thread",
-        "refs": [
-          "SPEC C7",
-          "SPEC residual 1"
+          ".claude/workflows/mitosis.js:5040"
         ]
       },
       {
@@ -216,12 +168,11 @@
         ]
       },
       {
-        "text": "Work in a worktree under .claude/worktrees/ rather than switching the primary checkout — live config entries resolve into the release rather than the working tree; read other branches with git show",
+        "text": "Pair every D3 cost hypothesis with a fixed quality assertion — the instrument counts tokens and cannot see whether a re-architected Decompose cuts worse, so a token win carrying a quality regression reads as a success",
         "scope": "thread",
         "refs": [
-          "~/.claude/CUTOVER",
-          "~/.claude/LIVE",
-          ".claude/worktrees/"
+          "SPEC residual 5",
+          "0358"
         ]
       },
       {
@@ -230,29 +181,19 @@
         "refs": [
           "e78a5ced",
           "7dfd0757",
-          "tree 247c5314",
           "PR #108"
         ]
       },
       {
-        "text": "Mutate at the gate, not only at the suite, and assert the file bytes actually changed — anchor-presence alone passed a perl substitution that silently failed to match, returning exit 0 and reading exactly like a surviving guard",
+        "text": "feat/c6-boundary-program is still parented on the orphaned 3ff7c990 — restack with an explicit git rebase --onto and never a bare rebase, which replays 59 commits instead of its own 9",
         "scope": "c3",
         "refs": [
-          "C4a-SHIPPED.md",
-          "C4b-SHIPPED.md",
-          "C4c-SHIPPED.md"
+          "3ff7c990",
+          "719583cd"
         ]
       },
       {
-        "text": "Re-verify every SPEC and banked-plan claim against a running command before planning against it — six SPEC premises and fourteen claims inside already-verified plans have collapsed so far",
-        "scope": "c3",
-        "refs": [
-          "0428",
-          "ORCHESTRATOR-BRIEF.md"
-        ]
-      },
-      {
-        "text": "Rule on whether git option injection gets its own MSP — it is live arbitrary code execution, and exec-policy still classifies argv for gh alone while five child_process sites bypass the chokepoint entirely",
+        "text": "The git and node argv injection MSP is an open user decision — exec-policy classifies argv for gh alone while five direct child_process sites bypass the chokepoint entirely",
         "scope": "c3",
         "refs": [
           "C4b-SHIPPED.md",
@@ -260,49 +201,24 @@
         ]
       },
       {
-        "text": "Rebase C6 onto C5b by tree-SHA equality with the target re-measured at the head being rebased — a stacked merge here has already silently reverted one line while keeping its siblings, hidden by a clean auto-merge and a MERGED status",
+        "text": "A live raw U+0000 at determinism-lint.mjs:319 makes git classify that module as binary — no diff lines and no grep hits, so it shipped through review unreadable, and it still has no home",
         "scope": "c3",
         "refs": [
-          "0388",
-          "0416",
-          "0435"
+          ".claude/lib/mitosis/determinism-lint.mjs:319"
         ]
       },
       {
-        "text": "Commit before running any mutation round — a worker ran git checkout on a file holding uncommitted hardening and destroyed it, caught only by chance",
+        "text": "~/.claude/skills is a symlink into the primary checkout and mitosis.js:17 hardcodes its absolute path — the Parallelize dispatch reads whatever branch that checkout has out, never the MSP's branch; D1 owns it",
         "scope": "c3",
         "refs": [
-          "C4a residual 7"
+          "mitosis.js:17"
         ]
       },
       {
-        "text": "Never read a deadline expiry as proof the work stopped — spawnSync signals only the immediate child and cannot kill a process group, so a grandchild keeps running while the substrate reports completion",
-        "scope": "c3",
-        "refs": [
-          "EXEC_RUN_NOT_ATTESTED",
-          "C4a residual 1"
-        ]
-      },
-      {
-        "text": "Leave the remaining mitosis-gate.mjs extraction alone — it stands over the 800-line cap but almost all of that is pre-existing, and a pure move of a verb this stack did not author is how defects enter on unnamed paths",
-        "scope": "c3",
-        "refs": [
-          ".claude/lib/mitosis/mitosis-gate.mjs"
-        ]
-      },
-      {
-        "text": "Read the upstream ReDoS draft before it is filed — filing a public issue on a repo the user does not own is their decision, and the draft's own citation of decision 0415 could not be located in the repo",
+        "text": "The upstream ReDoS report is drafted and NOT filed — filing a public issue on a repo the user does not own is their decision alone",
         "scope": "c3",
         "refs": [
           "UPSTREAM-REDOS-REPORT-DRAFT.md"
-        ]
-      },
-      {
-        "text": "Splitting an MSP multiplies review cost rather than dividing it — review is a flat cost measured at about 42 minutes per MSP across all seven shipped, so split for quality and never for speed",
-        "scope": "c3",
-        "refs": [
-          "0431",
-          "0437"
         ]
       }
     ],
@@ -487,5 +403,5 @@
     ]
   },
   "created_at": "2026-08-12T07:37:41.077Z",
-  "updated_at": "2026-08-15T17:11:02.049Z"
+  "updated_at": "2026-08-15T17:12:06.014Z"
 }
