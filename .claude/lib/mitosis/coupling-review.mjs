@@ -3,38 +3,69 @@ import { pathToFileURL } from 'node:url';
 import { makeFileScopePack, requireFileScopePack } from './msp-file-scope.mjs';
 
 const DECISIONS = Object.freeze(['parallel', 'serialize']);
+const DECISION_STRICTNESS = Object.freeze({ parallel: 0, serialize: 1 });
 const SOURCE_DEFAULT = 'default';
 const SOURCE_VERDICT = 'verdict';
 const DEFAULT_RISK_MARKERS = Object.freeze(['auth', 'security', 'secret', 'payment', 'crypto', 'migrations', 'infra', 'deploy']);
+const RISK_MARKER_CAP = 64;
+const DESCRIBE_CAP = 200;
+const CONTROL_RE = /[\u0000-\u001F\u007F-\u009F]/g;
+const IGNORABLE_RE = /[\u00AD\u061C\u180E\u200B-\u200F\u2060-\u2064\u2066-\u206F\uFEFF]/g;
+const WHITESPACE_RUN_RE = /\s+/g;
 
 export const COUPLING_DECISIONS = DECISIONS;
+export const COUPLING_PARALLEL = 'parallel';
+export const COUPLING_SERIALIZE = 'serialize';
+export const COUPLING_RATIONALE_CAP = 200;
 export const COUPLING_RESOLUTION_SOURCES = Object.freeze([SOURCE_DEFAULT, SOURCE_VERDICT]);
 
 export const COUPLING_OBLIGATIONS = Object.freeze([
   'C5-O1 two of the four signal classes are structurally dead in production. import-adjacent needs context.importAdjacency and regression-history needs context.regressions, and nothing outside a test writes graph.couplingContext, so requireContext defaults both to empty and neither detector can fire on a real graph. Every production emission is therefore serialize-defaulted, and SPEC B1 acceptance "signals detected per the four signal classes" is true of the tests and false of any real run. Supplying an import map and a run history is real work with its own data sources and is deliberately NOT done here, because introducing new signal sources while enforcement is introduced would change two variables at once and make the wave-count change unattributable.',
   'C5-O2 enforcement over-serializes, deliberately and user-visibly. Any two unordered tasks sharing a path segment starting with one of auth, security, secret, payment, crypto, migrations, infra or deploy now take a real edge and land in different waves, where before C5a they were co-scheduled. The relaxation mechanism is --verdicts with a rationale, but no live caller renders verdicts, so on a security-heavy repository the serialization is unconditional and can serialize most of a wave. This is accepted rather than mitigated: over-serialization is a throughput cost, never a correctness cost, and it is the safe side to fail on.',
   'C5-O3 the plan-to-task-graph skill still tells its reader a dependency cycle is the ONLY halt. That sentence was already false before C5a (a missing verdict throws whenever --verdicts is supplied) and C5a makes it more false, because a coupling-induced cycle is a newly reachable halt on graphs that previously hardened cleanly. The skill is NOT corrected here: .claude/skills stays byte-clean through C5 and C6, and D1 is the designed write point where that skill starts invoking the CLI directly. Whoever lands D1 owns naming all three halts.',
-  'C5-O4 a coupling decision reaches no consumer that reads the graph rather than its edges. couplingResolution is written onto the hardened graph and the audit, and the serialize half is enforced through dependsOn, so every consumer is safe. But the engine task map is still built by a model from nine named fields and coupling is not one of them, so nothing downstream can distinguish a pair serialized by coupling from a pair serialized by a file overlap. C7 owns carrying the resolution through as a belt-and-braces check once the task map is computed rather than reported.',
+  'C5-O4 a coupling decision reaches no consumer that reads the graph rather than its edges. couplingResolution is written onto the hardened graph and the audit, and the serialize half is enforced through dependsOn and named in edgeReasons as coupling-serialize, so a consumer reading the hardened graph can tell a coupling edge from a fileScope overlap. But the engine task map is built by a model from nine named fields and neither coupling nor couplingResolution is one of them, so the resolution itself does NOT survive into engineArgs.tasks and no engine-side consumer can read the decision or its rationale. C7 owns carrying the resolution through as a belt-and-braces check once the task map is computed rather than reported.',
 ]);
 const MIGRATION_SEGMENT = 'migrations/';
 const SEGMENT_SEPARATOR = '/';
 const ASCII_LIMIT = 128;
 const ROOT_MIGRATION_DIR = '<root>';
-const PAIR_KEY_SEPARATOR = ' ';
 const USAGE = 'usage: coupling-review.mjs <candidates.json> [--verdicts <verdicts.json>]';
+
+function describe(value) {
+  const rendered = (() => {
+    try {
+      return JSON.stringify(value);
+    } catch {
+      return String(value);
+    }
+  })();
+  const text = rendered === undefined ? String(value) : rendered;
+  return text.length <= DESCRIBE_CAP ? text : `${text.slice(0, DESCRIBE_CAP)}... (${text.length} characters, truncated)`;
+}
+
+export function decisionStrictness(decision) {
+  if (typeof decision !== 'string' || !Object.prototype.hasOwnProperty.call(DECISION_STRICTNESS, decision)) {
+    throw new TypeError(`coupling-review: the decision ${describe(decision)} carries no strictness rank, so whether an override relaxes or tightens the skeptical default cannot be decided; every decision in the vocabulary owes a rank, because bucketing an unranked one with the relaxed arm makes a newly-added token silently co-schedulable`);
+  }
+  return DECISION_STRICTNESS[decision];
+}
 
 function requireNonEmptyString(value, field) {
   if (typeof value !== 'string' || value.trim().length === 0) {
-    throw new TypeError(`coupling-review: ${field} must be a non-empty string, because a blank identifier cannot be matched back to a task and its pair would vanish from the emission instead of being reviewed; received ${JSON.stringify(value)}`);
+    throw new TypeError(`coupling-review: ${field} must be a non-empty string, because a blank identifier cannot be matched back to a task and its pair would vanish from the emission instead of being reviewed; received ${describe(value)}`);
   }
   return value;
 }
 
 function requireStringArray(value, field) {
   if (!Array.isArray(value)) {
-    throw new TypeError(`coupling-review: ${field} must be an array of non-empty strings, because a bare string would be iterated character by character and every signal would be scored against fragments rather than paths; received ${JSON.stringify(value)}`);
+    throw new TypeError(`coupling-review: ${field} must be an array of non-empty strings, because a bare string would be iterated character by character and every signal would be scored against fragments rather than paths; received ${describe(value)}`);
   }
   return value.map((entry, index) => requireNonEmptyString(entry, `${field}[${index}]`));
+}
+
+function sanitizeFreeText(value) {
+  return value.replace(CONTROL_RE, ' ').replace(IGNORABLE_RE, '').replace(WHITESPACE_RUN_RE, ' ').trim();
 }
 
 function normalizeFilePath(path) {
@@ -59,12 +90,12 @@ function canonicalPair(a, b) {
 }
 
 function pairKey(pair) {
-  return pair.join(PAIR_KEY_SEPARATOR);
+  return pair.map((id) => `${id.length}:${id}`).join('');
 }
 
 function requireSide(value, field) {
   if (value === null || typeof value !== 'object' || Array.isArray(value)) {
-    throw new TypeError(`coupling-review: ${field} must be an object carrying { id, fileScope }, because every signal detector reads both and a missing side scores as a pair with no files, which reports real coupling as absent; received ${JSON.stringify(value)}`);
+    throw new TypeError(`coupling-review: ${field} must be an object carrying { id, fileScope }, because every signal detector reads both and a missing side scores as a pair with no files, which reports real coupling as absent; received ${describe(value)}`);
   }
   return Object.freeze({
     id: requireNonEmptyString(value.id, `${field}.id`),
@@ -74,12 +105,12 @@ function requireSide(value, field) {
 
 function requireCandidates(pairs) {
   if (!Array.isArray(pairs)) {
-    throw new TypeError(`coupling-review: pairs must be an array of { a, b } candidates, because anything else carries no pair to review and would return an empty emission that reads as "no coupling found"; received ${JSON.stringify(pairs)}`);
+    throw new TypeError(`coupling-review: pairs must be an array of { a, b } candidates, because anything else carries no pair to review and would return an empty emission that reads as "no coupling found"; received ${describe(pairs)}`);
   }
   const seen = new Set();
   return pairs.map((entry, index) => {
     if (entry === null || typeof entry !== 'object' || Array.isArray(entry)) {
-      throw new TypeError(`coupling-review: pairs[${index}] must be an object carrying { a, b }, because a candidate with no sides cannot be scored and would drop out of the emission unreviewed; received ${JSON.stringify(entry)}`);
+      throw new TypeError(`coupling-review: pairs[${index}] must be an object carrying { a, b }, because a candidate with no sides cannot be scored and would drop out of the emission unreviewed; received ${describe(entry)}`);
     }
     const a = requireSide(entry.a, `pairs[${index}].a`);
     const b = requireSide(entry.b, `pairs[${index}].b`);
@@ -98,7 +129,7 @@ function requireCandidates(pairs) {
 function requireAdjacency(value) {
   if (value === undefined || value === null) return Object.freeze({});
   if (typeof value !== 'object' || Array.isArray(value)) {
-    throw new TypeError(`coupling-review: context.importAdjacency must be an object mapping a file path to its one-hop neighbours, because anything else silently scores every pair as unlinked and reports real import coupling as absent; received ${JSON.stringify(value)}`);
+    throw new TypeError(`coupling-review: context.importAdjacency must be an object mapping a file path to its one-hop neighbours, because anything else silently scores every pair as unlinked and reports real import coupling as absent; received ${describe(value)}`);
   }
   return Object.freeze(Object.fromEntries(Object.entries(value).map(([file, neighbours]) => [
     normalizeFilePath(requireNonEmptyString(file, 'a context.importAdjacency key')),
@@ -109,11 +140,11 @@ function requireAdjacency(value) {
 function requireRegressionKeys(value) {
   if (value === undefined || value === null) return Object.freeze([]);
   if (!Array.isArray(value)) {
-    throw new TypeError(`coupling-review: context.regressions must be an array of { pair: [idA, idB] } records, because anything else cannot be matched to a candidate and would quietly stop every historically-broken pair defaulting to serialize; received ${JSON.stringify(value)}`);
+    throw new TypeError(`coupling-review: context.regressions must be an array of { pair: [idA, idB] } records, because anything else cannot be matched to a candidate and would quietly stop every historically-broken pair defaulting to serialize; received ${describe(value)}`);
   }
   return Object.freeze(value.map((entry, index) => {
     if (entry === null || typeof entry !== 'object' || !Array.isArray(entry.pair) || entry.pair.length !== 2) {
-      throw new TypeError(`coupling-review: context.regressions[${index}].pair must be a two-element array of task ids, because a record naming anything else cannot be matched to a candidate and would quietly stop that pair defaulting to serialize; received ${JSON.stringify(entry)}`);
+      throw new TypeError(`coupling-review: context.regressions[${index}].pair must be a two-element array of task ids, because a record naming anything else cannot be matched to a candidate and would quietly stop that pair defaulting to serialize; received ${describe(entry)}`);
     }
     return pairKey(canonicalPair(
       requireNonEmptyString(entry.pair[0], `context.regressions[${index}].pair[0]`),
@@ -122,18 +153,47 @@ function requireRegressionKeys(value) {
   }));
 }
 
+function requireRiskMarkerToken(value, field) {
+  const marker = requireNonEmptyString(value, field);
+  if (marker.length > RISK_MARKER_CAP) {
+    throw new TypeError(`coupling-review: ${field} is ${marker.length} characters long, over the ${RISK_MARKER_CAP}-character cap; a marker that long is not a path segment and is written verbatim into the hardened graph and the audit that agents read back`);
+  }
+  if (sanitizeFreeText(marker) !== marker) {
+    throw new TypeError(`coupling-review: ${field} carries a control or default-ignorable code point, so it renders as a real marker and matches no path segment; a marker that silently matches nothing narrows the coupling pass while reading as a widening; received ${describe(marker)}`);
+  }
+  return marker;
+}
+
+function requireRiskMarkers(value, field) {
+  if (value === undefined || value === null) {
+    return Object.freeze({ riskMarkers: DEFAULT_RISK_MARKERS, riskMarkersOverridden: false });
+  }
+  const supplied = requireStringArray(value, field).map((marker, index) => requireRiskMarkerToken(marker, `${field}[${index}]`));
+  const merged = [...new Set([...DEFAULT_RISK_MARKERS, ...supplied])].sort(byCodeUnit);
+  return Object.freeze({ riskMarkers: Object.freeze(merged), riskMarkersOverridden: true });
+}
+
 function requireContext(value) {
   if (value !== undefined && value !== null && (typeof value !== 'object' || Array.isArray(value))) {
-    throw new TypeError(`coupling-review: context must be an object carrying { importAdjacency, riskMarkers, regressions }, because a malformed context disables detectors silently and every pair would then look signal-free; received ${JSON.stringify(value)}`);
+    throw new TypeError(`coupling-review: context must be an object carrying { importAdjacency, riskMarkers, regressions }, because a malformed context disables detectors silently and every pair would then look signal-free; received ${describe(value)}`);
   }
   const supplied = value === undefined || value === null ? {} : value;
-  const markers = supplied.riskMarkers === undefined || supplied.riskMarkers === null
-    ? DEFAULT_RISK_MARKERS
-    : Object.freeze(requireStringArray(supplied.riskMarkers, 'context.riskMarkers'));
+  const markers = requireRiskMarkers(supplied.riskMarkers, 'context.riskMarkers');
   return Object.freeze({
     importAdjacency: requireAdjacency(supplied.importAdjacency),
-    riskMarkers: markers,
+    riskMarkers: markers.riskMarkers,
+    riskMarkersOverridden: markers.riskMarkersOverridden,
     regressionKeys: requireRegressionKeys(supplied.regressions),
+  });
+}
+
+export function couplingContextFacts(context) {
+  const settings = requireContext(context);
+  return Object.freeze({
+    riskMarkers: settings.riskMarkers,
+    riskMarkersOverridden: settings.riskMarkersOverridden,
+    importAdjacencyFileCount: Object.keys(settings.importAdjacency).length,
+    regressionPairCount: settings.regressionKeys.length,
   });
 }
 
@@ -217,22 +277,22 @@ export function reviewCoupling(pairs, context) {
 
 function requirePairKey(pair, field) {
   if (!Array.isArray(pair) || pair.length !== 2) {
-    throw new TypeError(`coupling-review: ${field} must carry a two-element pair array, because a record that cannot be keyed would be skipped by the coverage check and its pair would ship with no verdict at all; received ${JSON.stringify(pair)}`);
+    throw new TypeError(`coupling-review: ${field} must carry a two-element pair array, because a record that cannot be keyed would be skipped by the coverage check and its pair would ship with no verdict at all; received ${describe(pair)}`);
   }
   return canonicalPair(requireNonEmptyString(pair[0], `${field}[0]`), requireNonEmptyString(pair[1], `${field}[1]`));
 }
 
 function requireEmission(emitted) {
   if (!Array.isArray(emitted)) {
-    throw new TypeError(`coupling-review: emitted must be the array reviewCoupling returned, because the coverage check has nothing to measure the verdicts against otherwise and would report full coverage of nothing; received ${JSON.stringify(emitted)}`);
+    throw new TypeError(`coupling-review: emitted must be the array reviewCoupling returned, because the coverage check has nothing to measure the verdicts against otherwise and would report full coverage of nothing; received ${describe(emitted)}`);
   }
   const seen = new Set();
   return emitted.map((record, index) => {
     if (record === null || typeof record !== 'object' || Array.isArray(record)) {
-      throw new TypeError(`coupling-review: emitted[${index}] must be a { pair, signals, default } record, because a record with no shape cannot be matched to a verdict and would drop out of the coverage check unnoticed; received ${JSON.stringify(record)}`);
+      throw new TypeError(`coupling-review: emitted[${index}] must be a { pair, signals, default } record, because a record with no shape cannot be matched to a verdict and would drop out of the coverage check unnoticed; received ${describe(record)}`);
     }
     if (!DECISIONS.includes(record.default)) {
-      throw new TypeError(`coupling-review: emitted[${index}].default must be one of ${DECISIONS.join(', ')}, because the skeptical-default rule cannot decide whether an override owes a rationale otherwise; received ${JSON.stringify(record.default)}`);
+      throw new TypeError(`coupling-review: emitted[${index}].default must be one of ${DECISIONS.join(', ')}, because the skeptical-default rule cannot decide whether an override owes a rationale otherwise; received ${describe(record.default)}`);
     }
     const signals = requireStringArray(record.signals, `emitted[${index}].signals`);
     const pair = requirePairKey(record.pair, `emitted[${index}].pair`);
@@ -247,26 +307,31 @@ function requireEmission(emitted) {
 
 function requireVerdicts(verdicts) {
   if (!Array.isArray(verdicts)) {
-    throw new TypeError(`coupling-review: verdicts must be an array of { pair, decision, rationale } records, because a plan carrying no verdicts array has rendered no coupling decision at all and must not read as a covered plan; received ${JSON.stringify(verdicts)}`);
+    throw new TypeError(`coupling-review: verdicts must be an array of { pair, decision, rationale } records, because a plan carrying no verdicts array has rendered no coupling decision at all and must not read as a covered plan; received ${describe(verdicts)}`);
   }
   return verdicts.map((verdict, index) => {
     if (verdict === null || typeof verdict !== 'object' || Array.isArray(verdict)) {
-      throw new TypeError(`coupling-review: verdicts[${index}] must be a { pair, decision, rationale } record, because a shapeless entry answers no emitted pair and would leave that pair silently uncovered; received ${JSON.stringify(verdict)}`);
+      throw new TypeError(`coupling-review: verdicts[${index}] must be a { pair, decision, rationale } record, because a shapeless entry answers no emitted pair and would leave that pair silently uncovered; received ${describe(verdict)}`);
     }
     if (!DECISIONS.includes(verdict.decision)) {
-      throw new TypeError(`coupling-review: verdicts[${index}].decision must be one of ${DECISIONS.join(', ')}, because an unrecognised decision cannot be compared against the emitted default and would pass review meaning nothing; received ${JSON.stringify(verdict.decision)}`);
+      throw new TypeError(`coupling-review: verdicts[${index}].decision must be one of ${DECISIONS.join(', ')}, because an unrecognised decision cannot be compared against the emitted default and would pass review meaning nothing; received ${describe(verdict.decision)}`);
     }
     if (verdict.rationale !== undefined && verdict.rationale !== null && typeof verdict.rationale !== 'string') {
-      throw new TypeError(`coupling-review: verdicts[${index}].rationale must be a string, null or absent, because a non-string rationale would satisfy the skeptical-default override check while carrying no reason a reviewer can read; received ${JSON.stringify(verdict.rationale)}`);
+      throw new TypeError(`coupling-review: verdicts[${index}].rationale must be a string, null or absent, because a non-string rationale would satisfy the skeptical-default override check while carrying no reason a reviewer can read; received ${describe(verdict.rationale)}`);
+    }
+    if (typeof verdict.rationale === 'string' && verdict.rationale.length > COUPLING_RATIONALE_CAP) {
+      throw new TypeError(`coupling-review: verdicts[${index}].rationale is ${verdict.rationale.length} characters long, over the ${COUPLING_RATIONALE_CAP}-character cap this repository applies to every free-text field; the rationale is written verbatim into the hardened graph and the edges audit, both of which the flow and its agents read back, so an unbounded one is a lower-trust artifact stored without a bound`);
     }
     const pair = requirePairKey(verdict.pair, `verdicts[${index}].pair`);
-    const rationale = typeof verdict.rationale === 'string' && verdict.rationale.trim().length > 0 ? verdict.rationale : null;
-    return { key: pairKey(pair), label: pair.join('/'), decision: verdict.decision, rationale };
+    const sanitized = typeof verdict.rationale === 'string' ? sanitizeFreeText(verdict.rationale) : '';
+    const rationale = sanitized.length > 0 ? sanitized : null;
+    return { key: pairKey(pair), pair, label: pair.join('/'), decision: verdict.decision, rationale };
   });
 }
 
 function coverageProblems(records, rendered) {
   const byKey = new Map(records.map((record) => [record.key, record]));
+  const emittedIds = new Set(records.flatMap((record) => record.pair));
   const counts = new Map();
   for (const verdict of rendered) counts.set(verdict.key, (counts.get(verdict.key) || 0) + 1);
   const problems = [];
@@ -276,13 +341,17 @@ function coverageProblems(records, rendered) {
     else if (count > 1) problems.push(`${record.label} carries ${count} verdicts; every emitted pair belongs in exactly one verdict bucket`);
   }
   for (const verdict of rendered) {
+    const strangers = verdict.pair.filter((id) => !emittedIds.has(id));
+    if (strangers.length > 0) {
+      problems.push(`${verdict.label} names ${strangers.map(describe).join(' and ')}, which no emitted pair carries; a verdict is matched by its two ids and never by a joined key alone, because a key collision would otherwise let a verdict naming ids the graph does not contain answer a real pair`);
+    }
     const record = byKey.get(verdict.key);
     if (record === undefined) {
       problems.push(`${verdict.label} carries a verdict but was never emitted for review; a verdict on an unemitted pair means the plan was rendered against a different graph`);
       continue;
     }
-    if (record.fallback === 'serialize' && verdict.decision === 'parallel' && verdict.rationale === null) {
-      problems.push(`${verdict.label} defaults to serialize and is overridden to parallel with no rationale; the skeptical default stays serialized unless an explicit rationale is supplied`);
+    if (decisionStrictness(verdict.decision) < decisionStrictness(record.fallback) && verdict.rationale === null) {
+      problems.push(`${verdict.label} defaults to ${record.fallback} and is overridden to ${verdict.decision} with no rationale; the skeptical default stays ${record.fallback} unless an explicit rationale is supplied, because a caller may tighten a coupling decision for free and may relax one only against a reason a reviewer can read`);
     }
   }
   return problems;
@@ -301,8 +370,9 @@ export function assertVerdictsCoverPairs(emitted, verdicts) {
 
 export function resolveCoupling(emitted, verdicts) {
   const records = requireEmission(emitted);
-  const rendered = requireVerdicts(verdicts === undefined || verdicts === null ? [] : verdicts);
-  if (rendered.length > 0) {
+  const supplied = verdicts !== undefined && verdicts !== null;
+  const rendered = supplied ? requireVerdicts(verdicts) : [];
+  if (supplied) {
     const error = coverageErrorOrNull(records, rendered);
     if (error !== null) throw error;
   }

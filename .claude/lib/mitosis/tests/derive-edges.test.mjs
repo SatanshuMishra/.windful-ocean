@@ -324,24 +324,29 @@ test('T19: a file-disjoint pair carrying a signal is emitted for coupling review
   assert.deepEqual(graph.coupling, coupling);
 });
 
-test('T20: a pair whose fileScope overlaps is not emitted, because the added edge already serializes it', () => {
+test('T20: a pair whose fileScope overlaps is still emitted, and coupling adds no SECOND edge for it', () => {
   const g = graphOf(
     { id: 't1', fileScope: pack(['srv/auth/login.ts']) },
     { id: 't2', fileScope: pack(['srv/auth/login.ts']) },
   );
   const { added, coupling } = deriveEdges(g, []);
-  assert.equal(added.length, 1);
-  assert.deepEqual(coupling, []);
+  assert.deepEqual(added, [{ from: 't2', to: 't1', reason: 'fileScope-overlap' }], 'the overlap rule already ordered the pair, so coupling owes it no further edge');
+  assert.deepEqual(
+    coupling.map((c) => c.pair),
+    [['t1', 't2']],
+    'the emission answers whether the pair is coupled, not whether it happened to be unordered this run; omitting an ordered pair made the record self-erase when the pass re-read its own output',
+  );
 });
 
-test('T21: a pair already ordered through an intermediate dependency is not emitted', () => {
+test('T21: a pair already ordered through an intermediate dependency is emitted and takes no additional edge', () => {
   const g = graphOf(
     { id: 't1', fileScope: pack(['srv/auth/login.ts']) },
     { id: 't2', fileScope: pack(['lib/mid.ts']), dependsOn: ['t1'] },
     { id: 't3', fileScope: pack(['web/auth/form.tsx']), dependsOn: ['t2'] },
   );
-  const { coupling } = deriveEdges(g, []);
-  assert.deepEqual(coupling, [], 't1 and t3 are already ordered transitively through t2');
+  const { added, coupling } = deriveEdges(g, []);
+  assert.deepEqual(coupling.map((c) => c.pair), [['t1', 't3']], 't1 and t3 are coupled whether or not t2 already orders them');
+  assert.deepEqual(added, [], 't1 and t3 are already ordered transitively through t2, so no direct edge is owed');
 });
 
 test('T19b: coupling context supplied on the graph reaches the detectors', () => {
@@ -356,7 +361,7 @@ test('T19b: coupling context supplied on the graph reaches the detectors', () =>
   assert.deepEqual(coupling, [{ pair: ['t1', 't2'], signals: ['import-adjacent'], default: 'parallel' }]);
 });
 
-test('T19c: the CLI carries the coupling emission into the hardened graph without disturbing edgeReasons', () => {
+test('T19c: the CLI names the coupling cause in edgeReasons without leaking a coupling SIGNAL into it', () => {
   const dir = mkdtempSync(join(tmpdir(), 'derive-cli-coupling-'));
   const declared = join(dir, 'plan.graph.json');
   writeFileSync(declared, JSON.stringify({
@@ -371,10 +376,15 @@ test('T19c: the CLI carries the coupling emission into the hardened graph withou
   assert.deepEqual(out.coupling, [{ pair: ['t1', 't2'], signals: ['shared-risk-marker:auth'], default: 'serialize' }]);
   const audit = JSON.parse(readFileSync(join(dir, 'plan.edges-audit.json'), 'utf8'));
   assert.deepEqual(audit.coupling, out.coupling);
+  const signalTokens = out.coupling.flatMap((c) => c.signals);
+  assert.ok(signalTokens.length > 0, 'a coupling emission with no signals cannot demonstrate that signals stay out of edgeReasons');
   for (const task of out.tasks) {
-    assert.ok(Number.isInteger(task.dependentCount), `task ${task.id} lost dependentCount; mitosis.js:4959 parks the unit`);
-    assert.ok(Array.isArray(task.edgeReasons), `task ${task.id} lost edgeReasons; mitosis.js:4962 parks the unit`);
-    assert.deepEqual(task.edgeReasons, [], 'coupling signals must never leak into edgeReasons, which mitosis.js:1130 regex-matches for opus escalation');
+    assert.ok(Number.isInteger(task.dependentCount), `task ${task.id} lost dependentCount; mitosis.js parks the unit`);
+    assert.ok(Array.isArray(task.edgeReasons), `task ${task.id} lost edgeReasons; mitosis.js parks the unit`);
+    assert.deepEqual(task.edgeReasons, ['coupling-serialize'], 'a coupling edge must name its own cause, or it is indistinguishable from one the planner declared');
+    for (const signal of signalTokens) {
+      assert.equal(task.edgeReasons.includes(signal), false, 'a coupling SIGNAL carries caller-controlled path text and must never reach edgeReasons, which mitosis.js regex-matches for opus escalation; only the fixed cause token may');
+    }
   }
 });
 
@@ -661,9 +671,10 @@ test('T31b: the same three tasks harden cleanly once verdicts relax the coupling
   );
   const { added } = deriveEdges(g, [], [
     { pair: ['a', 'b'], decision: 'parallel', rationale: 'a and b touch disjoint auth surfaces' },
+    { pair: ['a', 'c'], decision: 'serialize', rationale: null },
     { pair: ['b', 'c'], decision: 'parallel', rationale: 'b and c touch disjoint auth surfaces' },
   ]);
-  assert.deepEqual(added, []);
+  assert.deepEqual(added, [], 'a and c are already ordered by the declared graph, so the serialize verdict on that pair owes no further edge');
 });
 
 test('T32: a rendered serialize verdict has a mechanical effect on the file the CLI writes', () => {

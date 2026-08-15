@@ -1,9 +1,32 @@
 import { scopesOverlap } from './wave-planner.mjs';
 import { emptyFileScopePack, requireFileScopePack } from './msp-file-scope.mjs';
-import { COUPLING_DECISIONS, COUPLING_OBLIGATIONS, COUPLING_RESOLUTION_SOURCES, assertVerdictsCoverPairs, resolveCoupling, reviewCoupling } from './coupling-review.mjs';
+import {
+  COUPLING_DECISIONS,
+  COUPLING_OBLIGATIONS,
+  COUPLING_PARALLEL,
+  COUPLING_RESOLUTION_SOURCES,
+  COUPLING_SERIALIZE,
+  couplingContextFacts,
+  resolveCoupling,
+  reviewCoupling,
+} from './coupling-review.mjs';
 
 const COUPLING_SERIALIZE_REASON = 'coupling-serialize';
-const SERIALIZE = 'serialize';
+const FILE_SCOPE_OVERLAP_REASON = 'fileScope-overlap';
+
+export const DERIVED_EDGE_REASONS = Object.freeze([COUPLING_SERIALIZE_REASON, FILE_SCOPE_OVERLAP_REASON]);
+
+const COUPLING_EDGE_RULE = Object.freeze({
+  [COUPLING_PARALLEL]: false,
+  [COUPLING_SERIALIZE]: true,
+});
+
+function requireDerivedReason(reason, rule) {
+  if (!DERIVED_EDGE_REASONS.includes(reason)) {
+    throw new Error(`derive-edges: the ${rule} rule attaches the reason ${JSON.stringify(reason)}, which is not registered in DERIVED_EDGE_REASONS; an unregistered reason token escapes the census that keeps a derived reason from matching the engine's opus-escalation regex, so it could silently retier every task carrying it`);
+  }
+  return reason;
+}
 
 function indexTasks(graph) {
   if (!graph || !Array.isArray(graph.tasks)) throw new Error('graph.tasks must be an array');
@@ -19,15 +42,19 @@ function indexTasks(graph) {
   return byId;
 }
 
-function edgeKey(from, to) {
-  return `${from} ${to}`;
-}
-
 function assertKnown(byId, id, label) {
   if (!byId.has(id)) throw new Error(`${label} references unknown task: ${id}`);
 }
 
-function detectCycle(byId, deps) {
+function cycleCauseSuffix(remaining, couplingAdded) {
+  const inCycle = new Set(remaining);
+  const implicated = couplingAdded.filter((e) => inCycle.has(e.from) && inCycle.has(e.to));
+  if (implicated.length === 0) return '';
+  const named = implicated.map((e) => `${e.from} -> ${e.to}`).sort().join(', ');
+  return `; ${implicated.length} of the edges closing this cycle were added by the coupling pass rather than declared by the operator (${named}), so the declared graph alone does not explain it and the remedy is a rationale-bearing parallel verdict on one of those pairs rather than an edit to dependsOn`;
+}
+
+function detectCycle(byId, deps, couplingAdded) {
   const indeg = new Map();
   for (const id of byId.keys()) indeg.set(id, 0);
   for (const id of byId.keys()) for (const dep of deps.get(id)) indeg.set(id, indeg.get(id) + 1);
@@ -45,7 +72,7 @@ function detectCycle(byId, deps) {
   }
   if (visited !== byId.size) {
     const remaining = [...byId.keys()].filter((id) => indeg.get(id) > 0).sort();
-    throw new Error(`dependency cycle detected among: ${remaining.join(', ')}`);
+    throw new Error(`dependency cycle detected among: ${remaining.join(', ')}${cycleCauseSuffix(remaining, couplingAdded)}`);
   }
 }
 
@@ -90,13 +117,12 @@ function presentReasonAssertions(discoveredEdges, overlapAssertions, have) {
   ];
 }
 
-function couplingCandidates(byId, ids, ordered) {
+function couplingCandidates(byId, ids) {
   const candidates = [];
   for (let i = 0; i < ids.length; i++) {
     for (let j = i + 1; j < ids.length; j++) {
       const a = byId.get(ids[i]);
       const b = byId.get(ids[j]);
-      if (ordered.get(a.id).has(b.id) || ordered.get(b.id).has(a.id)) continue;
       candidates.push({
         a: { id: a.id, fileScope: a.fileScope },
         b: { id: b.id, fileScope: b.fileScope },
@@ -122,39 +148,66 @@ function declaredDependenciesOf(byId) {
   return { deps, declaredEdgeCount };
 }
 
-function fileScopeOverlapAssertions(byId, ids) {
+function declarationOrderEdge(x, y, positionOf, label) {
+  const px = positionOf.get(x);
+  const py = positionOf.get(y);
+  if (px === undefined || py === undefined) {
+    throw new Error(`derive-edges: ${label} names ${JSON.stringify(px === undefined ? x : y)}, which the graph does not declare; an edge whose direction cannot be read off the declaration order would be pointed by an id sort instead, and on ids that sort against their declaration order that is the opposite edge`);
+  }
+  return px > py ? { from: x, to: y } : { from: y, to: x };
+}
+
+function fileScopeOverlapAssertions(byId, ids, positionOf) {
   const assertions = [];
   for (let i = 0; i < ids.length; i++) {
     for (let j = i + 1; j < ids.length; j++) {
       const a = byId.get(ids[i]);
       const b = byId.get(ids[j]);
       if (!scopesOverlap(a.fileScope.edit, b.fileScope.edit)) continue;
-      assertions.push({ from: b.id, to: a.id, reason: 'fileScope-overlap' });
+      const edge = declarationOrderEdge(a.id, b.id, positionOf, `the fileScope-overlap pair ${a.id}/${b.id}`);
+      assertions.push({ ...edge, reason: requireDerivedReason(FILE_SCOPE_OVERLAP_REASON, 'fileScope-overlap') });
     }
   }
   return assertions;
 }
 
-function couplingSerializeAssertions(resolution) {
+export function couplingSerializeAssertions(resolution, positionOf) {
   const assertions = [];
   for (const record of resolution) {
-    if (!COUPLING_DECISIONS.includes(record.decision)) {
-      throw new Error(`derive-edges: coupling pair ${record.pair.join('/')} resolved to the decision ${JSON.stringify(record.decision)}, which is neither ${COUPLING_DECISIONS.join(' nor ')}; an unclassified decision would fall through this pass as co-schedulable and ship the pair in one wave under a name nobody reads as parallel`);
-    }
+    const label = record.pair.join('/');
     if (!COUPLING_RESOLUTION_SOURCES.includes(record.source)) {
-      throw new Error(`derive-edges: coupling pair ${record.pair.join('/')} resolved through the source ${JSON.stringify(record.source)}, which is neither ${COUPLING_RESOLUTION_SOURCES.join(' nor ')}; a resolution whose provenance cannot be named cannot be audited back to the verdict or the default that produced it`);
+      throw new Error(`derive-edges: coupling pair ${label} resolved through the source "${record.source}", which is none of ${COUPLING_RESOLUTION_SOURCES.join(', ')}; a resolution whose provenance cannot be named cannot be audited back to the verdict or the default that produced it`);
     }
-    if (record.decision !== SERIALIZE) continue;
-    assertions.push({ from: record.pair[1], to: record.pair[0], reason: COUPLING_SERIALIZE_REASON });
+    if (!Object.prototype.hasOwnProperty.call(COUPLING_EDGE_RULE, record.decision)) {
+      throw new Error(`derive-edges: coupling pair ${label} resolved to the decision "${record.decision}", which this pass carries no arm for; the vocabulary is ${COUPLING_DECISIONS.join(', ')} and a decision outside it must halt here, because skipping it ships the pair co-scheduled in one wave under a name nobody reads as parallel`);
+    }
+    if (!COUPLING_EDGE_RULE[record.decision]) continue;
+    const edge = declarationOrderEdge(record.pair[0], record.pair[1], positionOf, `the coupling pair ${label}`);
+    assertions.push({ ...edge, reason: requireDerivedReason(COUPLING_SERIALIZE_REASON, 'coupling-serialize') });
   }
   return assertions;
 }
 
-function resolutionSourceCounts(resolution) {
-  return Object.fromEntries(COUPLING_RESOLUTION_SOURCES.map((source) => [source, resolution.filter((record) => record.source === source).length]));
+function countBy(resolution, field, vocabulary) {
+  const counts = Object.fromEntries(vocabulary.map((value) => [value, 0]));
+  for (const record of resolution) {
+    const value = record[field];
+    if (!Object.prototype.hasOwnProperty.call(counts, value)) {
+      throw new Error(`derive-edges: coupling pair ${record.pair.join('/')} carries the ${field} "${value}", which is none of ${vocabulary.join(', ')}; counting it into no bucket at all drops it from a summary that is read as covering every record`);
+    }
+    counts[value] += 1;
+  }
+  return Object.freeze(counts);
 }
 
-export function deriveEdges(graph, discoveredEdges = [], verdicts = []) {
+export function couplingResolutionCounts(resolution) {
+  return Object.freeze({
+    bySource: countBy(resolution, 'source', COUPLING_RESOLUTION_SOURCES),
+    byDecision: countBy(resolution, 'decision', COUPLING_DECISIONS),
+  });
+}
+
+export function deriveEdges(graph, discoveredEdges = [], verdicts = null) {
   const byId = indexTasks(graph);
   const { deps, declaredEdgeCount } = declaredDependenciesOf(byId);
 
@@ -173,21 +226,28 @@ export function deriveEdges(graph, discoveredEdges = [], verdicts = []) {
   }
 
   const ids = [...byId.keys()];
-  const overlapAssertions = fileScopeOverlapAssertions(byId, ids);
+  const positionOf = new Map(ids.map((id, index) => [id, index]));
+  const overlapAssertions = fileScopeOverlapAssertions(byId, ids, positionOf);
   for (const e of overlapAssertions) {
     if (have(e.from, e.to) || have(e.to, e.from)) continue;
     addEdge(e.from, e.to, e.reason);
   }
 
-  const orderedBeforeCoupling = transitiveDependentsOf(byId, directDependentsOf(byId, deps));
-  const coupling = reviewCoupling(couplingCandidates(byId, ids, orderedBeforeCoupling), graph.couplingContext);
+  const coupling = reviewCoupling(couplingCandidates(byId, ids), graph.couplingContext);
   const couplingResolution = resolveCoupling(coupling, verdicts);
-  for (const e of couplingSerializeAssertions(couplingResolution)) addEdge(e.from, e.to, e.reason);
+  const couplingAssertions = couplingSerializeAssertions(couplingResolution, positionOf);
+  const orderedBeforeCoupling = transitiveDependentsOf(byId, directDependentsOf(byId, deps));
+  const couplingAdded = [];
+  for (const e of couplingAssertions) {
+    if (orderedBeforeCoupling.get(e.from).has(e.to) || orderedBeforeCoupling.get(e.to).has(e.from)) continue;
+    addEdge(e.from, e.to, e.reason);
+    couplingAdded.push(e);
+  }
 
-  detectCycle(byId, deps);
+  detectCycle(byId, deps, couplingAdded);
 
   const transitiveDependents = transitiveDependentsOf(byId, directDependentsOf(byId, deps));
-  const edgeReasonsById = edgeReasonsOf(byId, presentReasonAssertions(discoveredEdges, overlapAssertions, have));
+  const edgeReasonsById = edgeReasonsOf(byId, presentReasonAssertions(discoveredEdges, [...overlapAssertions, ...couplingAssertions], have));
 
   const tasks = graph.tasks.map((t) => ({
     ...t,
@@ -195,6 +255,8 @@ export function deriveEdges(graph, discoveredEdges = [], verdicts = []) {
     dependentCount: transitiveDependents.get(t.id).size,
     edgeReasons: [...edgeReasonsById.get(t.id)].sort(),
   }));
+
+  const counts = couplingResolutionCounts(couplingResolution);
 
   return {
     graph: { ...graph, tasks, coupling, couplingResolution },
@@ -207,8 +269,10 @@ export function deriveEdges(graph, discoveredEdges = [], verdicts = []) {
       added: added.map((e) => ({ ...e })),
       coupling,
       couplingResolution,
-      serializedPairCount: couplingResolution.filter((record) => record.decision === SERIALIZE).length,
-      couplingResolutionSourceCounts: resolutionSourceCounts(couplingResolution),
+      serializedPairCount: counts.byDecision[COUPLING_SERIALIZE],
+      couplingResolutionSourceCounts: counts.bySource,
+      couplingDecisionCounts: counts.byDecision,
+      couplingContext: couplingContextFacts(graph.couplingContext),
       obligations: [...COUPLING_OBLIGATIONS],
     },
   };
@@ -252,9 +316,8 @@ function cli(argv) {
   }
   const graph = JSON.parse(_read(declaredPath, 'utf8'));
   const discovered = discoveredPath ? JSON.parse(_read(discoveredPath, 'utf8')) : [];
-  const verdicts = opts.verdicts !== null ? JSON.parse(_read(opts.verdicts, 'utf8')) : [];
+  const verdicts = opts.verdicts !== null ? JSON.parse(_read(opts.verdicts, 'utf8')) : null;
   const result = deriveEdges(graph, discovered, verdicts);
-  if (opts.verdicts !== null) assertVerdictsCoverPairs(result.coupling, verdicts);
   const outPath = opts.out || declaredPath.replace(/\.graph\.json$/, '.hardened.graph.json');
   const auditPath = opts.audit || declaredPath.replace(/\.graph\.json$/, '.edges-audit.json');
   _write(outPath, JSON.stringify(result.graph, null, 2) + '\n');

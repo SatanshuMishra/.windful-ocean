@@ -8,8 +8,11 @@ import { fileURLToPath } from 'node:url';
 import {
   COUPLING_DECISIONS,
   COUPLING_OBLIGATIONS,
+  COUPLING_RATIONALE_CAP,
   COUPLING_RESOLUTION_SOURCES,
   assertVerdictsCoverPairs,
+  couplingContextFacts,
+  decisionStrictness,
   resolveCoupling,
   reviewCoupling,
 } from '../coupling-review.mjs';
@@ -86,10 +89,13 @@ test('T2b: a risk marker matches at a path-segment start only, case-insensitivel
     [candidate(side('t1', 'src/auth/a.ts'), side('t2', 'pkg/src/auth/b.ts'))],
     { riskMarkers: ['src/auth'] },
   );
-  assert.deepEqual(
-    multiSegment[0].signals,
-    ['shared-risk-marker:src/auth'],
+  assert.ok(
+    multiSegment[0].signals.includes('shared-risk-marker:src/auth'),
     'a marker spanning a slash matches across the segment it names',
+  );
+  assert.ok(
+    multiSegment[0].signals.includes('shared-risk-marker:auth'),
+    'a supplied marker list extends the default set rather than replacing it, so the default auth marker still fires on these paths',
   );
 });
 
@@ -417,10 +423,10 @@ function parallelDefaultEmission() {
   );
 }
 
-test('T29: a serialize-defaulted pair with no verdict at all resolves serialize and names the default as its source', () => {
+test('T29: a serialize-defaulted pair with ABSENT verdicts resolves serialize and names the default as its source', () => {
   const emitted = serializeDefaultEmission();
   assert.equal(emitted[0].default, 'serialize');
-  assert.deepEqual([...resolveCoupling(emitted, [])], [{
+  assert.deepEqual([...resolveCoupling(emitted, null)], [{
     pair: ['t1', 't2'],
     signals: ['shared-risk-marker:auth'],
     default: 'serialize',
@@ -485,12 +491,57 @@ test('T29f: every emitted pair is resolved exactly once, and every resolution na
     assert.ok(COUPLING_DECISIONS.includes(record.decision), `${record.pair.join('/')} resolved to the unknown decision ${JSON.stringify(record.decision)}`);
     assert.ok(COUPLING_RESOLUTION_SOURCES.includes(record.source), `${record.pair.join('/')} resolved through the unknown source ${JSON.stringify(record.source)}`);
   }
-  assert.deepEqual([...COUPLING_DECISIONS].sort(), ['parallel', 'serialize']);
-  assert.deepEqual([...COUPLING_RESOLUTION_SOURCES].sort(), ['default', 'verdict']);
+});
+
+test('T29k: every decision in the vocabulary carries a strictness rank, so widening the vocabulary halts rather than defaulting', () => {
+  const ranked = COUPLING_DECISIONS.map((decision) => [decision, decisionStrictness(decision)]);
+  assert.equal(new Set(ranked.map(([, rank]) => rank)).size, ranked.length, 'two decisions sharing a strictness rank make "this override relaxes" undecidable, so neither can be made to owe a rationale');
+  for (const [decision, rank] of ranked) {
+    assert.ok(Number.isInteger(rank) && rank >= 0, `${decision} ranks ${JSON.stringify(rank)}, which cannot be ordered against another decision`);
+  }
+  assert.throws(
+    () => decisionStrictness('advisory'),
+    /decision "advisory" carries no strictness rank/,
+    'an unranked decision must halt; bucketing it with the relaxed arm makes a new vocabulary token silently co-schedulable',
+  );
+});
+
+test('T29l: adding a third decision to the vocabulary without ranking it is caught by the census rather than bucketed', () => {
+  const unranked = [...COUPLING_DECISIONS, 'advisory'].filter((decision) => {
+    try {
+      decisionStrictness(decision);
+      return false;
+    } catch {
+      return true;
+    }
+  });
+  assert.deepEqual(unranked, ['advisory'], 'the census must name exactly the decisions it cannot rank; a census that ranks everything is a catch-all wearing a census costume');
+});
+
+test('T29m: an override that RELAXES owes a rationale and an override that TIGHTENS does not, across the whole decision matrix', () => {
+  const owed = [];
+  for (const fallback of COUPLING_DECISIONS) {
+    for (const decision of COUPLING_DECISIONS) {
+      const emitted = [{ pair: ['t1', 't2'], signals: ['shared-risk-marker:auth'], default: fallback }];
+      let refused = false;
+      try {
+        resolveCoupling(emitted, [{ pair: ['t1', 't2'], decision, rationale: null }]);
+      } catch {
+        refused = true;
+      }
+      if (refused) owed.push(`${fallback}->${decision}`);
+      assert.equal(
+        refused,
+        decisionStrictness(decision) < decisionStrictness(fallback),
+        `${fallback}->${decision} must owe a rationale exactly when it relaxes; a hardcoded serialize/parallel pair leaves every other combination unguarded`,
+      );
+    }
+  }
+  assert.ok(owed.length > 0, 'if no combination owes a rationale the relaxation gate is inert');
 });
 
 test('T29g: the resolution is frozen, so no consumer can retighten or relax a decision after the fact', () => {
-  const resolved = resolveCoupling(serializeDefaultEmission(), []);
+  const resolved = resolveCoupling(serializeDefaultEmission(), null);
   assert.ok(Object.isFrozen(resolved));
   assert.ok(Object.isFrozen(resolved[0]));
   assert.throws(() => { resolved[0].decision = 'parallel'; }, TypeError);
