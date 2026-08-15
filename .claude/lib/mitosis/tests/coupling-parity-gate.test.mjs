@@ -2,12 +2,13 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
   COUPLING_PARITY_ATTESTS,
-  attestCoverageCensus,
   couplingParityFailures,
+  factAttestCensus,
   probeCouplingSubstrate,
 } from '../coupling-parity-gate.mjs';
 import {
   COUPLING_GRID_PROBES,
+  COUPLING_RISK_MARKERS,
   censusRegistryReaders,
   couplingCoverageCensus,
   gridShapeCensus,
@@ -35,11 +36,63 @@ function capture() {
   };
 }
 
+function cleanFactsFor(attests) {
+  return Object.freeze(Object.fromEntries(attests.map((attest) => [attest.fact, Object.freeze({ ok: true, detail: '' })])));
+}
+
+test('factAttestCensus refuses in all four directions, each named in the returned problem', () => {
+  const facts = Object.freeze({
+    cleanFact: Object.freeze({ ok: true, detail: '' }),
+    orphanFact: Object.freeze({ ok: true, detail: '' }),
+    contestedFact: Object.freeze({ ok: true, detail: '' }),
+    repeatA: Object.freeze({ ok: true, detail: '' }),
+    repeatB: Object.freeze({ ok: true, detail: '' }),
+  });
+  const attests = Object.freeze([
+    Object.freeze({ id: 'soleClaimant', fact: 'cleanFact', text: 'claims cleanFact cleanly' }),
+    Object.freeze({ id: 'firstClaimant', fact: 'contestedFact', text: 'claims contestedFact first' }),
+    Object.freeze({ id: 'secondClaimant', fact: 'contestedFact', text: 'claims contestedFact second' }),
+    Object.freeze({ id: 'phantomClaimant', fact: 'ghostFact', text: 'names a fact nobody computes' }),
+    Object.freeze({ id: 'duplicateId', fact: 'repeatA', text: 'claims repeatA under a repeated id' }),
+    Object.freeze({ id: 'duplicateId', fact: 'repeatB', text: 'claims repeatB under the same repeated id' }),
+  ]);
+  const problems = factAttestCensus(facts, attests);
+  assert.ok(problems.some((p) => p.includes('orphanFact')), problems.join(' | '));
+  assert.ok(problems.some((p) => p.includes('phantomClaimant') && p.includes('ghostFact')), problems.join(' | '));
+  assert.ok(problems.some((p) => p.includes('firstClaimant') && p.includes('secondClaimant') && p.includes('contestedFact')), problems.join(' | '));
+  assert.ok(problems.some((p) => p.includes('duplicateId')), problems.join(' | '));
+});
+
+test('factAttestCensus returns no problems for the live attests paired with the live substrate facts, so the four refusals above are not vacuous', () => {
+  const substrate = probeCouplingSubstrate();
+  const problems = factAttestCensus(substrate.facts, COUPLING_PARITY_ATTESTS);
+  assert.deepEqual(problems, []);
+});
+
+test('couplingParityFailures on a synthetic substrate whose one fact fails returns exactly one failure naming that attest id and its detail', () => {
+  const target = COUPLING_PARITY_ATTESTS[0];
+  const facts = Object.freeze({
+    ...cleanFactsFor(COUPLING_PARITY_ATTESTS),
+    [target.fact]: Object.freeze({ ok: false, detail: ' (a synthetic failure detail)' }),
+  });
+  const failures = couplingParityFailures({ facts });
+  assert.equal(failures.length, 1, failures.join(' | '));
+  assert.ok(failures[0].includes(target.id), failures[0]);
+  assert.ok(failures[0].includes('a synthetic failure detail'), failures[0]);
+});
+
+test('couplingParityFailures on a synthetic substrate where every live attest fact holds returns no failures', () => {
+  const facts = cleanFactsFor(COUPLING_PARITY_ATTESTS);
+  const failures = couplingParityFailures({ facts });
+  assert.deepEqual(failures, []);
+});
+
 test('couplingCoverageCensus refuses an observation carrying a cell, a signal class and a derived edge reason no live registry declares, naming each', () => {
   const observation = Object.freeze({
     cells: Object.freeze([UNREGISTERED_CELL]),
     signalClasses: Object.freeze([UNREGISTERED_SIGNAL_CLASS]),
     reasons: Object.freeze([UNREGISTERED_REASON]),
+    markers: Object.freeze([]),
   });
   const result = couplingCoverageCensus([observation]);
   assert.equal(result.ok, false);
@@ -48,10 +101,11 @@ test('couplingCoverageCensus refuses an observation carrying a cell, a signal cl
   assert.ok(result.error.includes(UNREGISTERED_REASON));
 });
 
-test('couplingCoverageCensus refuses an empty observation list, naming an uncovered registry token', () => {
+test('couplingCoverageCensus refuses an empty observation list, naming an uncovered registry token and an uncovered risk marker', () => {
   const result = couplingCoverageCensus([]);
   assert.equal(result.ok, false);
   assert.ok(result.error.includes(COUPLING_SIGNAL_CLASSES[0]), result.error);
+  assert.ok(result.error.includes(COUPLING_RISK_MARKERS[0]), result.error);
 });
 
 test('gridShapeCensus reports a derived classifier cell the probe set does not carry, naming that cell', () => {
@@ -74,97 +128,6 @@ test('gridShapeCensus reports a probe cell the derived classifier scan does not 
   const problems = gridShapeCensus(narrowedDerived, COUPLING_GRID_PROBES);
   assert.equal(problems.length, 1, problems.join(' | '));
   assert.ok(problems[0].includes(droppedCell), problems[0]);
-});
-
-test('attestCoverageCensus refuses a control claiming an attest id the attest list does not carry, naming that id', () => {
-  const attests = Object.freeze([Object.freeze({ id: 'coupling-parity-gate-test-attest', text: 'irrelevant to this probe' })]);
-  const rogueId = 'coupling-parity-gate-test-rogue-attest';
-  const controls = Object.freeze([
-    Object.freeze({ name: 'covers the declared attest', attests: Object.freeze([attests[0].id]) }),
-    Object.freeze({ name: 'claims an attest nobody declared', attests: Object.freeze([rogueId]) }),
-  ]);
-  const problems = attestCoverageCensus(attests, controls);
-  assert.equal(problems.length, 1);
-  assert.ok(problems[0].includes(rogueId), problems[0]);
-});
-
-test('attestCoverageCensus returns no problems when a synthetic control set claims every live attest id', () => {
-  const controls = COUPLING_PARITY_ATTESTS.map((attest) => ({ name: `probe for ${attest.id}`, attests: [attest.id] }));
-  const problems = attestCoverageCensus(COUPLING_PARITY_ATTESTS, controls);
-  assert.deepEqual(problems, []);
-});
-
-test('couplingParityFailures returns a failure for a probe carrying a non-null liveFailure, naming it', () => {
-  const probe = Object.freeze({
-    id: 'coupling-parity-gate-test-control',
-    name: 'a synthetic control failing on the live substrate',
-    attests: Object.freeze(['coupling-parity-gate-test-attest']),
-    liveFailure: 'a synthetic live failure only this probe would produce',
-    firesWhenDegraded: true,
-    threw: null,
-  });
-  const failures = couplingParityFailures([probe]);
-  assert.equal(failures.length, 1, failures.join(' | '));
-  assert.equal(failures[0], probe.liveFailure);
-});
-
-test('couplingParityFailures returns a failure for a probe whose firesWhenDegraded is false, naming the control id and the attests it claims', () => {
-  const probe = Object.freeze({
-    id: 'coupling-parity-gate-test-control',
-    name: 'a synthetic control that stopped firing on its own degradation',
-    attests: Object.freeze(['coupling-parity-gate-test-attest-one', 'coupling-parity-gate-test-attest-two']),
-    liveFailure: null,
-    firesWhenDegraded: false,
-    threw: null,
-  });
-  const failures = couplingParityFailures([probe]);
-  assert.equal(failures.length, 1, failures.join(' | '));
-  assert.ok(failures[0].includes(probe.id), failures[0]);
-  assert.ok(failures[0].includes('coupling-parity-gate-test-attest-one'), failures[0]);
-  assert.ok(failures[0].includes('coupling-parity-gate-test-attest-two'), failures[0]);
-});
-
-test('couplingParityFailures returns a failure for a probe whose threw is non-null, naming the control id and the thrown message', () => {
-  const probe = Object.freeze({
-    id: 'coupling-parity-gate-test-control',
-    name: 'a synthetic control whose degradation blew up',
-    attests: Object.freeze(['coupling-parity-gate-test-attest']),
-    liveFailure: null,
-    firesWhenDegraded: true,
-    threw: 'a synthetic detector failure',
-  });
-  const failures = couplingParityFailures([probe]);
-  assert.equal(failures.length, 1, failures.join(' | '));
-  assert.ok(failures[0].includes(probe.id), failures[0]);
-  assert.ok(failures[0].includes(probe.threw), failures[0]);
-});
-
-test('couplingParityFailures returns a failure for an empty probe array', () => {
-  const failures = couplingParityFailures([]);
-  assert.equal(failures.length, 1, failures.join(' | '));
-  assert.match(failures[0], /no control/);
-});
-
-test('couplingParityFailures returns no failures for a probe array where every entry is clean, proving the failure cases above are not vacuous', () => {
-  const probes = Object.freeze([
-    Object.freeze({
-      id: 'coupling-parity-gate-test-control-one',
-      name: 'a synthetic clean control',
-      attests: Object.freeze(['coupling-parity-gate-test-attest-one']),
-      liveFailure: null,
-      firesWhenDegraded: true,
-      threw: null,
-    }),
-    Object.freeze({
-      id: 'coupling-parity-gate-test-control-two',
-      name: 'another synthetic clean control',
-      attests: Object.freeze(['coupling-parity-gate-test-attest-two']),
-      liveFailure: null,
-      firesWhenDegraded: true,
-      threw: null,
-    }),
-  ]);
-  assert.deepEqual(couplingParityFailures(probes), []);
 });
 
 test('couplingSignalClass splits only on the first detail separator, so a detail carrying the separator round-trips whole', () => {
@@ -195,7 +158,7 @@ test('couplingSignalClassRegistryProblems refuses an empty-string separator, nam
 
 test('probeCouplingSubstrate on the real production source yields a grid shape with no problems and every grid probe refused and named', () => {
   const substrate = probeCouplingSubstrate();
-  assert.deepEqual(substrate.gridShape, []);
+  assert.equal(substrate.facts.gridShapeAgrees.ok, true, substrate.facts.gridShapeAgrees.detail);
   assert.ok(substrate.gridProbes.length > 0);
   for (const probe of substrate.gridProbes) {
     assert.ok(probe.refused, `${probe.cell} did not refuse the unregistered token`);

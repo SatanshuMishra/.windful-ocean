@@ -8,6 +8,7 @@ import {
   COUPLING_SERIALIZE,
   COUPLING_SIGNAL_CLASSES,
   COUPLING_SIGNAL_DETAIL_SEPARATOR,
+  couplingContextFacts,
   couplingSignalClass,
   couplingSignalClassRegistryProblems,
   decisionStrictness,
@@ -137,7 +138,29 @@ const PARTIAL_RELAX_VERDICT = Object.freeze([
   Object.freeze({ pair: Object.freeze(['t2', 't3']), decision: COUPLING_SERIALIZE }),
 ]);
 
+const SHARED_RISK_MARKER_CLASS = 'shared-risk-marker';
+const SEPARATOR_PROBLEM = 'carries the detail separator';
+const MARKER_PREFIX_SEGMENT = 'authentication';
+
+function markerGraph(segment) {
+  return Object.freeze({ tasks: [task('t1', [`src/${segment}/a.ts`]), task('t2', [`src/${segment}/b.ts`])] });
+}
+
+export const COUPLING_RISK_MARKERS = couplingContextFacts(null).riskMarkers;
+
+export const MARKER_PREFIX_SPECIMEN = `a pair sharing a path segment that only begins with the risk marker ${MARKER_PREFIX_SEGMENT}`;
+
+const MARKER_SPECIMENS = Object.freeze(COUPLING_RISK_MARKERS.map((marker) => Object.freeze({
+  name: `a pair sharing the risk marker ${marker}`,
+  graph: markerGraph(marker),
+  verdicts: null,
+})));
+
+export const MARKER_ONLY_SPECIMEN = MARKER_SPECIMENS[0].name;
+
 export const COUPLING_SPECIMENS = Object.freeze([
+  ...MARKER_SPECIMENS,
+  Object.freeze({ name: MARKER_PREFIX_SPECIMEN, graph: markerGraph(MARKER_PREFIX_SEGMENT), verdicts: null }),
   Object.freeze({ name: 'two migration tasks with no verdicts rendered', graph: MIGRATION_GRAPH, verdicts: null }),
   Object.freeze({ name: 'two migration tasks relaxed to parallel by a verdict carrying a rationale', graph: MIGRATION_GRAPH, verdicts: RELAX_VERDICT }),
   Object.freeze({ name: 'an import-adjacent pair defaulting to parallel', graph: ADJACENT_GRAPH, verdicts: null }),
@@ -195,12 +218,17 @@ export function observeSpecimen(specimen) {
   const result = deriveEdges(specimen.graph, [], specimen.verdicts);
   const cells = new Set();
   const signalClasses = new Set();
+  const markers = new Set();
   const unclassifiable = [];
   for (const record of result.coupling) {
     for (const signal of record.signals) {
       const classified = couplingSignalClass(signal);
-      if (classified.ok) signalClasses.add(classified.className);
-      else unclassifiable.push(`${specimen.name} emitted the signal ${inert(signal)} which the classifier refuses: ${classified.error}`);
+      if (!classified.ok) {
+        unclassifiable.push(`${specimen.name} emitted the signal ${inert(signal)} which the classifier refuses: ${classified.error}`);
+        continue;
+      }
+      signalClasses.add(classified.className);
+      if (classified.className === SHARED_RISK_MARKER_CLASS) markers.add(classified.detail);
     }
   }
   for (const record of result.couplingResolution) cells.add(decisionSourceCell(record.decision, record.source));
@@ -215,6 +243,7 @@ export function observeSpecimen(specimen) {
     placedPairs: new Set(result.couplingEdges.map((edge) => pairKey([edge.from, edge.to]))),
     unclassifiable: Object.freeze(unclassifiable),
     cells: Object.freeze([...cells].sort()),
+    markers: Object.freeze([...markers].sort()),
     signalClasses: Object.freeze([...signalClasses].sort()),
     reasons: Object.freeze([...reasons].sort()),
   });
@@ -227,6 +256,7 @@ export function couplingCoverageCensus(observations) {
     { name: 'decision and resolution source', declared: declaredDecisionSourceCells(), observed: observations.flatMap((entry) => entry.cells) },
     { name: 'signal class', declared: [...COUPLING_SIGNAL_CLASSES], observed: observations.flatMap((entry) => entry.signalClasses) },
     { name: 'derived edge reason', declared: [...DERIVED_EDGE_REASONS], observed: observations.flatMap((entry) => entry.reasons) },
+    { name: 'risk marker', declared: [...COUPLING_RISK_MARKERS], observed: observations.flatMap((entry) => entry.markers) },
   ];
   for (const axis of axes) {
     const seen = new Set(axis.observed);
@@ -571,7 +601,8 @@ export function signalRegistryProbe() {
   });
   return Object.freeze({
     liveRegistryClean: clean.length === 0,
-    separatorRefused: separatorAdmitted.length > 0 && separatorAdmitted.some((problem) => problem.includes('separator')),
+    separatorRefused: separatorAdmitted.length > 0,
+    separatorNamed: separatorAdmitted.some((problem) => problem.includes(forged) && problem.includes(SEPARATOR_PROBLEM)),
     bareArityRefused: bareWithDetail.length > 0 && bareWithDetail.every((entry) => entry.ok === false),
     detailedArityRefused: detailedWithout.length > 0 && detailedWithout.every((entry) => entry.ok === false),
     emptyDetailRefused: detailedEmpty.length > 0 && detailedEmpty.every((entry) => entry.ok === false),
