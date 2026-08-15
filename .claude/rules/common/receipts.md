@@ -53,6 +53,24 @@ Settings that must be explicit, because their defaults leave real gaps:
 
 `build.sha_source` and `build.platform` stay `none` for a library or CLI with no deploy; that correctly disables G3.
 
+## A MERGED status is not evidence the content landed
+
+G3's mandate generalizes past deploys: never infer an outcome from an upstream step that reported success. For a stacked pull request the specific trap is that GitHub retargets a child onto the trunk ONLY when its base branch is DELETED. Merge a child while its already-merged parent branch still exists and the child merges into a dead branch, reports MERGED, and its content never reaches the trunk.
+
+The sequence is therefore: merge the parent, DELETE the parent branch, CONFIRM the ref is actually gone, and only then merge the child. `gh` refuses to delete a worktree-held branch and the local delete can fail silently while the remote survives, so remove the worktree first and re-check.
+
+After any merge that matters, assert the content arrived rather than trusting the status:
+
+    git merge-base --is-ancestor <merged-head> origin/<intended-target>
+
+This is the same instrument G8 uses for base freshness, pointed at the other end of the merge.
+
+## Global rules land on the default branch immediately
+
+`~/.claude/CLAUDE.md`, `~/.claude/rules` and `~/.claude/skills` are symlinks into the PRIMARY CHECKOUT's working tree. A rule committed to a feature branch is in force only while that branch happens to be checked out, and silently disappears the moment the checkout moves — which it does whenever a worktree is cut for the next unit of work.
+
+So a change to global configuration is merged to the default branch as its own change, before the work that depends on it starts. It is never left sitting on a feature branch, and never carried inside an unrelated pull request.
+
 ## Precedence
 
 This rule governs verification. It supersedes any project-local verification mandate, decision record, orchestrator brief, or ruling that predates it, including any that declares an acceptance list a floor. `testing.md` continues to govern which tests are admitted; this file governs what proves a change works.
