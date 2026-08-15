@@ -122,7 +122,7 @@
     {
       "id": "c22",
       "text": "The C7 obligation inventory is recovered into a base-resident spec, with the seventeen deleted as census collateral reproduced verbatim, and the porting MSP cut against it.",
-      "done": false,
+      "done": true,
       "kind": "detour",
       "struck_by": null
     },
@@ -168,72 +168,15 @@
   "abandoned_reason": null,
   "closure_statement": null,
   "spine": {
-    "active_goal": "Land the remaining MSPs on feat/mitosis-os-process — re-land C6 first, then the porting MSP, C7 and the D-series — under receipts/gates@1.1.",
-    "next_step": "START HERE: work the porting MSP (CP). Its scope is on the base at .claude/docs/specs/2026-08-15-mitosis-porting-msp-scope.md - 24 obligations to drain, verbatim text for the 17 that survive only in git history. C6 landed via PR #124 (content-verified). Ratify Q1, Q3, Q4 in section 6 before starting; Q2 is closed by 0448. Then C7 = tick loop + redispatch.",
-    "last_session": "Re-landed C6 as PR #124 after #122 merged into an undeleted parent; content-verified on base, 13/13 CI. Recovered 17 of C7's 26 obligations, deleted as census collateral, into a scope doc (PR #125, merged). Deleted c5b and c6 branches, refs confirmed gone. Recorded 0447, 0448.",
+    "active_goal": "Land the remaining MSPs on feat/mitosis-os-process — the porting MSP, C7 and the D-series — under receipts/gates@1.1, with nothing merged to main until D3 clears its falsifier.",
+    "next_step": "START HERE: work CP, the porting MSP, branching off the base at 1ac4af96 (green, no open PRs). Scope is base-resident at .claude/docs/specs/2026-08-15-mitosis-porting-msp-scope.md: 24 obligations in five clusters - prompt R1-R7, transcription T1-T6, boundary B1-B3, journal J1-J7, coupling C5-O4. Ratify Q1, Q3 and Q4 in section 6 first. Expect CP to split per cluster to stay near the review-size target. Then C7 (tick loop + redispatch), then D1, D2, D3.",
+    "last_session": "Re-landed C6 via PR #124 after #122 merged into an undeleted parent, content-verified on the base. Recovered 17 of C7's 26 obligations, deleted as census collateral, into a base-resident spec (#125, #126). Deleted the c5b and c6 branches, refs confirmed gone. Recorded 0447 and 0448.",
     "open_risks": [
       {
         "text": "Build A4's red case through the claude -p CLI path and assert the SILENT failure — the Workflow agent path auto-grants StructuredOutput, so a red case dispatched through it passes unconditionally and is a guarantee that cannot fail",
         "scope": "c4",
         "refs": [
           "0379"
-        ]
-      },
-      {
-        "text": "Delete the parent branch and confirm the ref is gone BETWEEN a parent merge and a child merge — merging a stack in one sitting defeats GitHub's retarget, which is exactly how C6 reported MERGED and never landed",
-        "scope": "c3",
-        "refs": [
-          "PR #122",
-          "fdf3817b",
-          "0445"
-        ]
-      },
-      {
-        "text": "A MERGED status is not evidence the content landed — assert the expected FILE is present on the intended target, because ancestry alone also lies after a squash merge",
-        "scope": "c3",
-        "refs": [
-          "PR #113",
-          "PR #122",
-          "0445"
-        ]
-      },
-      {
-        "text": "Never rewrite a stacked branch without restacking every branch above it — a force-push gives the parent new SHAs, and children still pointing at the old ones conflict on ancestry even when the trees are byte-identical",
-        "scope": "c3",
-        "refs": [
-          "e78a5ced",
-          "7dfd0757",
-          "PR #108"
-        ]
-      },
-      {
-        "text": "Run the tests on any branch that predates a vocabulary retirement — git AUTOMERGES a reference to a deleted binding with no conflict and no marker, so the diff reads clean and the file throws only when something loads it",
-        "scope": "c3",
-        "refs": [
-          "0444",
-          "mirror-guard.test.mjs"
-        ]
-      },
-      {
-        "text": "Grep for a prose correction after any conflict resolution that spans a large file move — a one-line attestation fix inside an 805-line move is dropped silently by a wholesale resolution, and no test turns red because the assertion matches a substring both texts share",
-        "scope": "c3",
-        "refs": [
-          "0441",
-          "mitosis-gate-core.mjs:47"
-        ]
-      },
-      {
-        "text": "~/.claude/skills is a symlink into the primary checkout and mitosis.js:17 hardcodes its absolute path — the Parallelize dispatch reads whatever branch that checkout has out, never the MSP's branch; D1 owns it",
-        "scope": "c3",
-        "refs": [
-          "mitosis.js:17"
-        ]
-      },
-      {
-        "text": "The upstream ReDoS report is drafted and NOT filed — filing a public issue on a repo the user does not own is their decision alone",
-        "scope": "c3",
-        "refs": [
-          "UPSTREAM-REDOS-REPORT-DRAFT.md"
         ]
       },
       {
@@ -310,6 +253,79 @@
         "refs": [
           "SPEC residual 5",
           "0358"
+        ]
+      },
+      {
+        "text": "Check for an obligation array before retiring an apparatus module — the census retirement deleted seventeen C7 obligations along with their host modules, and not one of them had been discharged",
+        "scope": "c3",
+        "refs": [
+          "0447",
+          "2087dd51",
+          "82a8d2fe"
+        ]
+      },
+      {
+        "text": "Never read a piped npm test as a green — the exit code reported is the last command in the pipe, so a failing suite piped into tail reports success while the failure sits in the captured text",
+        "scope": "c3",
+        "refs": [
+          "npm test | tail"
+        ]
+      },
+      {
+        "text": "Delete the parent branch and confirm the ref is gone BETWEEN a parent merge and a child merge — merging a stack in one sitting defeats GitHub's retarget, which is exactly how C6 reported MERGED and never landed",
+        "scope": "c3",
+        "refs": [
+          "PR #122",
+          "fdf3817b",
+          "0445"
+        ]
+      },
+      {
+        "text": "A MERGED status is not evidence the content landed — assert the expected FILE is present on the intended target, because ancestry alone also lies after a squash merge",
+        "scope": "c3",
+        "refs": [
+          "PR #113",
+          "PR #122",
+          "0445"
+        ]
+      },
+      {
+        "text": "Never rewrite a stacked branch without restacking every branch above it — a force-push gives the parent new SHAs, and children still pointing at the old ones conflict on ancestry even when the trees are byte-identical",
+        "scope": "c3",
+        "refs": [
+          "e78a5ced",
+          "7dfd0757",
+          "PR #108"
+        ]
+      },
+      {
+        "text": "Run the tests on any branch that predates a vocabulary retirement — git AUTOMERGES a reference to a deleted binding with no conflict and no marker, so the diff reads clean and the file throws only when something loads it",
+        "scope": "c3",
+        "refs": [
+          "0444",
+          "mirror-guard.test.mjs"
+        ]
+      },
+      {
+        "text": "Grep for a prose correction after any conflict resolution that spans a large file move — a one-line attestation fix inside an 805-line move is dropped silently by a wholesale resolution, and no test turns red because the assertion matches a substring both texts share",
+        "scope": "c3",
+        "refs": [
+          "0441",
+          "mitosis-gate-core.mjs:47"
+        ]
+      },
+      {
+        "text": "~/.claude/skills is a symlink into the primary checkout and mitosis.js:17 hardcodes its absolute path — the Parallelize dispatch reads whatever branch that checkout has out, never the MSP's branch; D1 owns it",
+        "scope": "c3",
+        "refs": [
+          "mitosis.js:17"
+        ]
+      },
+      {
+        "text": "The upstream ReDoS report is drafted and NOT filed — filing a public issue on a repo the user does not own is their decision alone",
+        "scope": "c3",
+        "refs": [
+          "UPSTREAM-REDOS-REPORT-DRAFT.md"
         ]
       }
     ],
@@ -504,5 +520,5 @@
     ]
   },
   "created_at": "2026-08-12T07:37:41.077Z",
-  "updated_at": "2026-08-15T21:16:37.997Z"
+  "updated_at": "2026-08-15T21:17:14.530Z"
 }
