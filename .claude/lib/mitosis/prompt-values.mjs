@@ -49,6 +49,14 @@ export function describe(value) {
   return `${kind} ${JSON.stringify(value)}`;
 }
 
+export function shellQuote(value) {
+  return `'${value.split("'").join("'\\''")}'`;
+}
+
+export function shellQuoteList(values) {
+  return values.map(shellQuote).join(' ');
+}
+
 export function requirePromptText(value, field) {
   if (typeof value !== 'string') {
     throw new TypeError(`prompt-contract: ${field} must be a string, received ${describe(value)}`);
@@ -127,19 +135,27 @@ export function requirePromptSlug(value, field) {
   return requireClassedText(value, field, SLUG_CLASS, 'a lowercase kebab-case slug', 'into a filesystem path the receiving model writes');
 }
 
-export function requirePromptCommand(value, field) {
-  const text = requirePromptText(value, field);
-  if (LINE_BREAK.test(text)) {
-    throw new TypeError(`prompt-contract: ${field} must be a single-line command, received ${JSON.stringify(text)}; a line break ends the command the prompt shows and starts prose the receiving model reads as instruction`);
-  }
-  return text;
-}
-
 export function requirePromptCount(value, field) {
   if (typeof value !== 'number' || !Number.isInteger(value) || value <= 0) {
     throw new TypeError(`prompt-contract: ${field} must be a positive integer, received ${describe(value)}`);
   }
   return value;
+}
+
+export function requirePromptArgv(value, field) {
+  if (!Array.isArray(value)) {
+    throw new TypeError(`prompt-contract: ${field} must be an argv array of strings, received ${describe(value)}; a single command string is pasted into the prompt for the receiving model to run verbatim, and no character class can narrow a shell command`);
+  }
+  if (value.length === 0) {
+    throw new TypeError(`prompt-contract: ${field} must name at least one argv element, received an empty array`);
+  }
+  return Object.freeze(value.map((entry, index) => {
+    const text = requirePromptText(entry, `${field}[${index}]`);
+    if (LINE_BREAK.test(text)) {
+      throw new TypeError(`prompt-contract: ${field}[${index}] must not contain a line break, received ${JSON.stringify(text)}; a line break ends the command the prompt shows and starts prose the receiving model reads as instruction`);
+    }
+    return text;
+  }));
 }
 
 export function requireNonNegativePromptCount(value, field) {

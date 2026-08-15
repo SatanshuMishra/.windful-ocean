@@ -1,5 +1,5 @@
 import { cleanPromptValue, validatePromptInput } from './prompt-contract.mjs';
-import { ownValue } from './prompt-values.mjs';
+import { ownValue, shellQuote } from './prompt-values.mjs';
 
 const SCOPE_FENCE = 'scope-fence';
 
@@ -7,7 +7,7 @@ function boundaryFixWhere({ isolation, repoRoot, baseBranch, integrationWorktree
   if (isolation === SCOPE_FENCE) {
     return `in the main repo working tree at ${repoRoot}; stay within the union of the declared task scopes and leave changes uncommitted`;
   }
-  return `on \`${baseBranch}\` inside the integration worktree at ${integrationWorktree} so it passes, then commit`;
+  return `on \`${shellQuote(baseBranch)}\` inside the integration worktree at \`${shellQuote(integrationWorktree)}\` so it passes, then commit`;
 }
 
 export function composeBoundaryFixPrompt(input) {

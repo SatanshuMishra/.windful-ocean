@@ -8,10 +8,10 @@ A prior attempt on this task was rejected at review. Its work is already committ
 - fx prior issue two
 
 Work directly in the main repository working tree at /fx/repo. Do NOT create a worktree or a branch.
-1. Edit ONLY files within this task's declared scope: ["fx/alpha.mjs","fx/beta.mjs"]. Creating or editing anything outside this scope is a hard failure. You MAY read these files for context but must NOT edit them: ["fx/gamma.mjs"]. The read-context list is INCOMPLETE: 3 path(s) were dropped (fx truncation reason); treat it as a partial view and verify against the live tree.
+1. Edit ONLY files within this task's declared scope: 'fx/alpha.mjs' 'fx/beta.mjs'. Creating or editing anything outside this scope is a hard failure. You MAY read these files for context but must NOT edit them: ["fx/gamma.mjs"]. The read-context list is INCOMPLETE: 3 path(s) were dropped (fx truncation reason); treat it as a partial view and verify against the live tree.
 2. Do NOT run any git mutation (no add, no commit, no branch, no checkout, no stash). Leave all changes uncommitted.
 3. Follow TDD as the instructions above require.
-4. For verification run ONLY the scoped check, never a full build/suite: `npm run fx-check`
+4. For verification run ONLY the scoped check, never a full build/suite: `'npm' 'run' 'fx-check'`
 
 Task: fx task title
 
