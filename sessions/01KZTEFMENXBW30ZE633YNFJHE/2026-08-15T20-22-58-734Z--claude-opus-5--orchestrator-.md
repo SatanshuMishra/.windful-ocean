@@ -1,0 +1,15 @@
+Restacked C5b and C6 onto the cleaned base, then a working-mode correction consumed the rest of the session.
+
+SHIPPED. C5a needed nothing - already an ancestor of the base. C5b collapsed from 11 commits to 1 (15993c20) carrying its 3-file net diff, byte-identical at 143 lines, 185 tests green; its 11 commits built the coupling-parity verb and retired it inside the branch, so only 68 lines survive. C6 replayed all 20 commits granularly (82a8d2fe) with author, date and subject preserved, 11 boundary files byte-identical at 3803 diff lines, 230 tests green. PR #121 and #122 opened, both 13/13 CI green. Decisions 0443, 0444, 0445 recorded.
+
+FAILED, and this is the headline. PR #122 reports MERGED but its content never reached the trunk. #121 merged to feat/mitosis-os-process at 20:04:33; #122 merged eleven seconds later into feat/c5b-coupling-parity, which was never deleted, so GitHub never retargeted it. The base lacks boundary-gate.mjs. This is the identical trap already recorded against PR #113 and written into receipts.md - the guidance existed and was still defeated, because the delete-and-confirm step sits BETWEEN the two merges and both were done in one sitting. Nothing is lost: feat/c6-boundary-program still holds the full restack at 82a8d2fe. See 0445.
+
+A defect was found by the implementer, not by review: the base had retired the STANDALONE vocabulary, and git AUTO-MERGED C6's seven rows referencing it with no conflict, producing a file that threw ReferenceError at load. No marker, nothing to review. Stripped from all 20 commits per 0439 semantics; C6's net went 12 files to 11.
+
+WORKING-MODE CORRECTION (user-directed). The orchestrator re-ran checks the implementer had already run. That round found zero defects across seven checks and INTRODUCED one - a false pass on the single load-bearing criterion, in the exact zsh word-splitting trap the implementer had already caught in itself and warned about in writing. Root cause was not distrust as a trait: the dispatch shipped prose criteria and accepted prose back, so nothing existed to read but assertions. Audit found the user's memory already clean of any re-verify mandate; the real asymmetry was that delegation-discipline.md had NO entry in the CLAUDE.md invariant index, so it never loaded while the harness default always did. Fixed in PR #123, merged to main: a "Trust the result" section with four closed exceptions, plus the missing invariant entry and explicit precedence over the harness default. The rule goes live only once main is checked out in the primary checkout, which is still on chore/receipts-global-standard.
+
+PARKED by explicit instruction, NOT queued: the vacuity guard (a check over empty input passes and looks like success). Memory note written. It likely needs no new gate - G14 would catch it if the check were committed rather than typed into a transcript, which is the handoff change already ratified.
+
+Preflight's reconcile failed all session with "spawn git ENOENT" - the ledger server cannot find git on its PATH, so branch drift was never folded. Still unfixed.
+
+No background work left running.
