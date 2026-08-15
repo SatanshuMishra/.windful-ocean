@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync, readdirSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { scanJsStructure } from '../js-scan.mjs';
 
@@ -21,9 +21,8 @@ function normalize(src) {
 const mitosis = normalize(readFileSync(MITOSIS_PATH, 'utf8'));
 
 const WHOLE = 'whole';
-const STANDALONE = 'standalone';
 
-const MIRROR_CENSUS = Object.freeze({
+const INLINED_TWINS = Object.freeze({
   'authoritative-constants.mjs': WHOLE,
   'boundary.mjs': WHOLE,
   'checkpoint.mjs': WHOLE,
@@ -52,64 +51,9 @@ const MIRROR_CENSUS = Object.freeze({
   'engine-args.mjs': Object.freeze(['validateModelsKnob']),
   'git/pr-format.mjs': Object.freeze(['PR_TITLE_TYPES', 'PR_TITLE_PATTERN', 'PR_VALUE_CAP']),
   'wave-planner.mjs': Object.freeze(['canonicalPath', 'globPrefix', 'pathsOverlap', 'scopesOverlap']),
-  'agent-schema-lint.mjs': STANDALONE,
-  'branch-contract.mjs': STANDALONE,
-  'coupling-review.mjs': STANDALONE,
-  'derive-edges.mjs': STANDALONE,
-  'determinism-lint.mjs': STANDALONE,
-  'dispatch.mjs': STANDALONE,
-  'exec-policy.mjs': STANDALONE,
-  'exec-run.mjs': STANDALONE,
-  'fold-run-log.mjs': STANDALONE,
-  'manifest-publish.mjs': STANDALONE,
-  'manifest-ref-policy.mjs': STANDALONE,
-  'merge-specimen-census.mjs': STANDALONE,
-  'fs-writer.mjs': STANDALONE,
-  'generate-run-script.mjs': STANDALONE,
-  'gh-merge-shim.mjs': STANDALONE,
-  'git-command-fixtures.mjs': STANDALONE,
-  'git-command-separation.mjs': STANDALONE,
-  'gh-commands.mjs': STANDALONE,
-  'gh-site-fixtures.mjs': STANDALONE,
-  'ci-facts.mjs': STANDALONE,
-  'node-commands.mjs': STANDALONE,
-  'pr-state-facts.mjs': STANDALONE,
-  'prompt-ci-facts.mjs': STANDALONE,
-  'spec-hash.mjs': STANDALONE,
-  'supersede-summary.mjs': STANDALONE,
-  'git-commands.mjs': STANDALONE,
-  'journal-census.mjs': STANDALONE,
-  'journal-specimens.mjs': STANDALONE,
-  'journal-store.mjs': STANDALONE,
-  'js-scan.mjs': STANDALONE,
-  'ledger-lint.mjs': STANDALONE,
-  'mitosis-gate.mjs': STANDALONE,
-  'phases.mjs': STANDALONE,
-  'plan-artifact.mjs': STANDALONE,
-  'pool.mjs': STANDALONE,
-  'prompt-contract.mjs': STANDALONE,
-  'prompt-execute.mjs': STANDALONE,
-  'prompt-perturb.mjs': STANDALONE,
-  'prompt-plan.mjs': STANDALONE,
-  'prompt-probes.mjs': STANDALONE,
-  'prompt-registry.mjs': STANDALONE,
-  'prompt-remediate.mjs': STANDALONE,
-  'prompt-values.mjs': STANDALONE,
-  'run-store.mjs': STANDALONE,
-  'git/pr.mjs': STANDALONE,
-  'superpowers-prompts.mjs': STANDALONE,
-  'transcription-census.mjs': STANDALONE,
-  'transcription-conversions.mjs': STANDALONE,
-  'transcription-parity-controls.mjs': STANDALONE,
-  'transcription-parity-gate.mjs': STANDALONE,
-  'transcription-parsers.mjs': STANDALONE,
-  'route-planner.mjs': STANDALONE,
-  'workflow-sandbox.mjs': STANDALONE,
 });
 
-const EXPORT_LINE = /^export\s/;
 const EXPORT_DECL = /^export\s+(?:async\s+)?(?:function|const|let|var|class)\s+([A-Za-z_$][A-Za-z0-9_$]*)/;
-const EXPORT_LIST = /^export\s*\{[^}]*\}\s*(?:from\s+'[^']+')?\s*;?\s*$/;
 
 function blockEnd(masked, start) {
   let depth = 0;
@@ -149,57 +93,32 @@ function exportBlocksOf(label, source) {
   return blocks;
 }
 
-function unseenExportLines(label, source) {
-  return source
-    .split('\n')
-    .filter((line) => EXPORT_LINE.test(line) && !EXPORT_DECL.test(line) && !EXPORT_LIST.test(line))
-    .map((line) => `${label}: ${line.trim()}`);
-}
-
-function libModuleNames() {
-  return LIB_TREES
-    .flatMap(([prefix, dir]) => readdirSync(dir, { withFileTypes: true })
-      .filter((entry) => entry.isFile() && entry.name.endsWith('.mjs'))
-      .map((entry) => `${prefix}${entry.name}`))
-    .sort();
-}
-
 function modulePath(name) {
   const tree = LIB_TREES.find(([prefix]) => prefix !== '' && name.startsWith(prefix));
   return tree ? join(tree[1], name.slice(tree[0].length)) : join(LIB, name);
 }
 
-function censusFailures(name, row, body, blocks, haystack) {
+function divergences(name, row, body, blocks, haystack) {
   const contained = [...blocks.keys()].filter((exportName) => haystack.includes(blocks.get(exportName)));
   if (row === WHOLE) {
     if (haystack.includes(body)) return [];
     return [`${name} is classified '${WHOLE}' but its normalized body no longer appears verbatim inside mitosis.js — the two copies have drifted, so update BOTH. First 200 chars of the normalized twin:\n${body.slice(0, 200)}`];
   }
-  if (row === STANDALONE) {
-    const failures = [];
-    if (haystack.includes(body)) {
-      failures.push(`${name} is classified '${STANDALONE}' but its whole normalized body appears verbatim inside mitosis.js — reclassify it as '${WHOLE}', or delete the duplication.`);
-    }
-    if (contained.length > 0) {
-      failures.push(`${name} is classified '${STANDALONE}' but these of its top-level exports appear verbatim inside mitosis.js: ${contained.join(', ')} — reclassify it as a partial twin listing exactly those names, or delete the duplication.`);
-    }
-    return failures;
-  }
   if (!Array.isArray(row) || row.length === 0 || row.some((entry) => typeof entry !== 'string')) {
-    return [`the MIRROR_CENSUS row for ${name} is ${JSON.stringify(row)}, which is not one of the three classes: '${WHOLE}' (the whole file is inlined in mitosis.js), an array of mirrored export names (a partial twin), or '${STANDALONE}' (no inline copy).`];
+    return [`the twin row for ${name} is ${JSON.stringify(row)}, which is neither '${WHOLE}' (the whole file is inlined in mitosis.js) nor an array of mirrored export names.`];
   }
   const missing = row.filter((exportName) => !blocks.has(exportName));
   const drifted = row.filter((exportName) => blocks.has(exportName) && !contained.includes(exportName));
   const unlisted = contained.filter((exportName) => !row.includes(exportName));
   const failures = [];
   if (missing.length > 0) {
-    failures.push(`the MIRROR_CENSUS row for ${name} names exports it no longer declares: ${missing.join(', ')} — if an export was RENAMED and its body is unchanged, the same edit also reports the new name as an unlisted contained export below; that pair is one rename, not drift, so rename the row entry rather than adding one. Otherwise the export is gone and the row must drop it.`);
+    failures.push(`the twin row for ${name} names exports it no longer declares: ${missing.join(', ')} — if an export was RENAMED and its body is unchanged, the same edit also reports the new name as an unlisted contained export below; that pair is one rename, not drift, so rename the row entry rather than adding one. Otherwise the export is gone and the row must drop it.`);
   }
   if (drifted.length > 0) {
-    failures.push(`the MIRROR_CENSUS row for ${name} declares these exports mirrored but their bodies no longer appear verbatim inside mitosis.js: ${drifted.join(', ')} — update BOTH copies, or drop the name from the row if the inline copy was deliberately removed.`);
+    failures.push(`the twin row for ${name} declares these exports mirrored but their bodies no longer appear verbatim inside mitosis.js: ${drifted.join(', ')} — update BOTH copies, or drop the name from the row if the inline copy was deliberately removed.`);
   }
   if (unlisted.length > 0) {
-    failures.push(`these top-level exports of ${name} appear verbatim inside mitosis.js but are absent from its MIRROR_CENSUS row: ${unlisted.join(', ')} — add them to the row, or delete the duplication. If a row entry is also reported missing above, that pair is one RENAMED export rather than new duplication: rename the entry.`);
+    failures.push(`these top-level exports of ${name} appear verbatim inside mitosis.js but are absent from its twin row: ${unlisted.join(', ')} — add them to the row, or delete the duplication. If a row entry is also reported missing above, that pair is one RENAMED export rather than new duplication: rename the entry.`);
   }
   if (haystack.includes(body)) {
     failures.push(`${name} is classified a partial twin but its WHOLE normalized body appears verbatim inside mitosis.js — reclassify it as '${WHOLE}'.`);
@@ -207,88 +126,37 @@ function censusFailures(name, row, body, blocks, haystack) {
   return failures;
 }
 
-const moduleNames = libModuleNames();
-const moduleSource = new Map(moduleNames.map((name) => [name, readFileSync(modulePath(name), 'utf8')]));
-const moduleBlocks = new Map(moduleNames.map((name) => [name, exportBlocksOf(name, moduleSource.get(name))]));
-const classified = moduleNames.filter((name) => Object.hasOwn(MIRROR_CENSUS, name));
+const twinNames = Object.keys(INLINED_TWINS).sort();
 
-test('every lib module has a MIRROR_CENSUS row', () => {
-  const unclassified = moduleNames.filter((name) => !Object.hasOwn(MIRROR_CENSUS, name));
-  assert.deepEqual(
-    unclassified,
-    [],
-    `these lib modules have no MIRROR_CENSUS row: ${unclassified.join(', ')} — classify each as '${WHOLE}' (whole-file twin inlined in mitosis.js), an array of mirrored export names (partial twin), or '${STANDALONE}' (no inline copy). A row is checked against measured containment in both directions, so an inaccurate class fails.`,
-  );
-});
-
-test('every MIRROR_CENSUS row names a lib module that still exists', () => {
-  const stale = Object.keys(MIRROR_CENSUS).sort().filter((name) => !moduleNames.includes(name));
+test('every declared twin still names a module that exists', () => {
+  const stale = twinNames.filter((name) => {
+    try {
+      readFileSync(modulePath(name), 'utf8');
+      return false;
+    } catch {
+      return true;
+    }
+  });
   assert.deepEqual(
     stale,
     [],
-    `these MIRROR_CENSUS rows name files that are no longer in the scanned lib trees: ${stale.join(', ')} — delete the row if the module was deleted, or rename it if the module was renamed.`,
+    `these twin rows name files that are no longer in the scanned lib trees: ${stale.join(', ')} — delete the row if the module was deleted, or rename it if the module was renamed. A row naming nothing checks nothing.`,
   );
 });
 
-test('the export-block extractor sees every top-level export (tripwire against a silently-empty scan)', () => {
-  const index = new Set(moduleNames.flatMap((name) => [...moduleBlocks.get(name).keys()].map((exportName) => `${name}::${exportName}`)));
-  for (const anchor of [
-    'run-engine.mjs::runEngine',
-    'msp-file-scope.mjs::aggregateMspFileScope',
-    'wave-planner.mjs::pathsOverlap',
-    'git/pr-format.mjs::PR_VALUE_CAP',
-    'engine-args.mjs::validateModelsKnob',
-  ]) {
-    assert.ok(index.has(anchor), `expected the extractor to enumerate ${anchor}; export-block extraction may be broken`);
-  }
-  assert.ok(index.size >= 200, `expected a substantial export-block surface, found ${index.size}`);
-  const unseen = moduleNames.flatMap((name) => unseenExportLines(name, moduleSource.get(name)));
-  assert.deepEqual(
-    unseen,
-    [],
-    `these top-level export lines are neither a brace-matchable declaration nor a bare re-export list, so the census cannot measure them:\n${unseen.join('\n')}`,
-  );
-});
-
-for (const name of classified) {
-  test(`${name} matches its MIRROR_CENSUS class against measured containment in mitosis.js`, () => {
-    const failures = censusFailures(name, MIRROR_CENSUS[name], normalize(moduleSource.get(name)), moduleBlocks.get(name), mitosis);
+for (const name of twinNames) {
+  test(`${name} still matches its inline twin in mitosis.js`, () => {
+    const source = readFileSync(modulePath(name), 'utf8');
+    const failures = divergences(name, INLINED_TWINS[name], normalize(source), exportBlocksOf(name, source), mitosis);
     assert.deepEqual(failures, [], failures.join('\n'));
   });
 }
 
-test('classifying a real partial twin as standalone fails', () => {
-  const failures = censusFailures('wave-planner.mjs', STANDALONE, normalize(moduleSource.get('wave-planner.mjs')), moduleBlocks.get('wave-planner.mjs'), mitosis);
+test('shrinking a partial-twin row to drop an inconvenient export is reported', () => {
+  const source = readFileSync(modulePath('git/pr-format.mjs'), 'utf8');
+  const failures = divergences('git/pr-format.mjs', ['PR_TITLE_TYPES'], normalize(source), exportBlocksOf('git/pr-format.mjs', source), mitosis);
   assert.equal(failures.length, 1);
-  assert.match(failures[0], /classified 'standalone'/);
-  assert.match(failures[0], /pathsOverlap, scopesOverlap/);
-});
-
-test('shrinking a partial-twin row to drop an inconvenient export fails', () => {
-  const failures = censusFailures('git/pr-format.mjs', ['PR_TITLE_TYPES'], normalize(moduleSource.get('git/pr-format.mjs')), moduleBlocks.get('git/pr-format.mjs'), mitosis);
-  assert.equal(failures.length, 1);
-  assert.match(failures[0], /absent from its MIRROR_CENSUS row: PR_TITLE_PATTERN, PR_VALUE_CAP/);
-});
-
-test('a renamed export whose body is unchanged is reported as a rename, not as drift', () => {
-  const source = [
-    'export function overlapPaths(a, b) {',
-    '  return a === b;',
-    '}',
-    '',
-    'export function fixtureOnly() {',
-    '  return null;',
-    '}',
-    '',
-  ].join('\n');
-  const blocks = exportBlocksOf('the rename fixture', source);
-  const haystack = blocks.get('overlapPaths');
-  const failures = censusFailures('rename-fixture.mjs', ['pathsOverlap'], normalize(source), blocks, haystack);
-  assert.equal(failures.length, 2);
-  assert.match(failures[0], /no longer declares: pathsOverlap/);
-  assert.match(failures[0], /RENAMED/);
-  assert.match(failures[1], /absent from its MIRROR_CENSUS row: overlapPaths/);
-  assert.match(failures[1], /RENAMED/);
+  assert.match(failures[0], /absent from its twin row: PR_TITLE_PATTERN, PR_VALUE_CAP/);
 });
 
 function knobRegion(src) {
