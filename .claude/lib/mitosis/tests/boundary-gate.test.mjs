@@ -63,9 +63,12 @@ function collectibleEslintIo() {
   return fixtureIo({
     exists: (path) => String(path).includes('eslint.config') || String(path).includes('package.json'),
     readFile: () => JSON.stringify({ devDependencies: { eslint: '9.0.0' } }),
-    run: (binary, argv) => (argv.some((value) => String(value).includes('eslint'))
-      ? { outcome: 'completed', status: 0, stdout: eslintReport([['a.ts', []]]), stderr: '' }
-      : { outcome: 'completed', status: 0, stdout: '', stderr: '' }),
+    run: (binary, argv) => {
+      if (argv.includes('--print-config')) return { outcome: 'completed', status: 0, stdout: JSON.stringify({ rules: {} }), stderr: '' };
+      return argv.some((value) => String(value).includes('eslint'))
+        ? { outcome: 'completed', status: 0, stdout: eslintReport([['a.ts', []]]), stderr: '' }
+        : { outcome: 'completed', status: 0, stdout: '', stderr: '' };
+    },
   });
 }
 
@@ -251,6 +254,7 @@ test('first pass and recheck produce identical verdicts when the supplied census
     readFile: () => JSON.stringify({ devDependencies: { eslint: '9.0.0' } }),
     exists: (path) => String(path).includes('eslint.config') || String(path).includes('package.json'),
     run: (binary, argv) => {
+      if (argv.includes('--print-config')) return { outcome: 'completed', status: 0, stdout: JSON.stringify({ rules: {} }), stderr: '' };
       if (argv.some((value) => value.includes('eslint'))) {
         const side = argv.some((value) => String(value).startsWith(BASE)) ? 1 : 2;
         return { outcome: 'completed', status: 1, stdout: withErrors(side), stderr: '' };
@@ -350,9 +354,11 @@ test('the tsc leg spawns the executable the typescript package installs, not the
   const io = fixtureIo({
     exists: (path) => String(path).includes('tsconfig.json') || String(path).endsWith('package.json'),
     readFile: () => JSON.stringify({ devDependencies: { typescript: '5.0.0' } }),
-    run: (binary, argv) => (argv.includes('--listFiles')
-      ? { outcome: 'completed', status: 0, stdout: 'src/a.ts\n', stderr: '' }
-      : { outcome: 'completed', status: 0, stdout: '', stderr: '' }),
+    run: (binary, argv) => {
+      if (argv.includes('--listFiles')) return { outcome: 'completed', status: 0, stdout: 'src/a.ts\n', stderr: '' };
+      if (argv.includes('--showConfig')) return { outcome: 'completed', status: 0, stdout: JSON.stringify({ compilerOptions: {} }), stderr: '' };
+      return { outcome: 'completed', status: 0, stdout: '', stderr: '' };
+    },
   });
   evaluate({ repoRoot: ROOT, gateBase: 'abc123', basePath: BASE, cachedBaseCensus: null }, io);
   const typeRuns = io.spawned.filter((command) => command.includes('--noEmit'));
@@ -379,6 +385,7 @@ test('a finding fixed in one directory and reintroduced in another blocks rather
     exists: (path) => String(path).includes('eslint.config') || String(path).endsWith('package.json'),
     readFile: () => JSON.stringify({ devDependencies: { eslint: '9.0.0' } }),
     run: (binary, argv) => {
+      if (argv.includes('--print-config')) return { outcome: 'completed', status: 0, stdout: JSON.stringify({ rules: {} }), stderr: '' };
       if (!argv.some((value) => String(value).includes('eslint'))) return { outcome: 'completed', status: 0, stdout: '', stderr: '' };
       const onBase = argv.some((value) => String(value).startsWith(BASE));
       return {
@@ -554,4 +561,64 @@ test('a divergent package-lock.json composes the install argv from the resolved 
     io.spawned.includes('node /pm/npm-cli.js install --no-audit --no-fund'),
     `the install argv was not composed from the resolved entry and declared flags: ${JSON.stringify(io.spawned)}; verdict=${JSON.stringify(verdict)}`,
   );
+});
+
+function tscSuppressionIo({ baseSuppressed, headSuppressed, baseStrict = true, headStrict = true }) {
+  return fixtureIo({
+    exists: (path) => String(path).endsWith('tsconfig.json') || String(path).endsWith('package.json'),
+    readFile: (path) => {
+      const text = String(path);
+      if (text.endsWith('package.json')) return JSON.stringify({ devDependencies: { typescript: '5.0.0' } });
+      if (text.endsWith('a.ts')) {
+        const suppressed = text.startsWith(BASE) ? baseSuppressed : headSuppressed;
+        return `${suppressed ? '// @ts-ignore\n' : ''}export const a = 1;\n`;
+      }
+      return '{}';
+    },
+    run: (binary, argv) => {
+      if (argv.includes('--listFiles')) {
+        const root = argv[argv.length - 1];
+        return { outcome: 'completed', status: 0, stdout: `${root}/a.ts\n`, stderr: '' };
+      }
+      if (argv.includes('--showConfig')) {
+        const root = argv[argv.length - 1];
+        const strict = root === BASE ? baseStrict : headStrict;
+        return { outcome: 'completed', status: 0, stdout: JSON.stringify({ compilerOptions: { strict } }), stderr: '' };
+      }
+      return { outcome: 'completed', status: 0, stdout: '', stderr: '' };
+    },
+  });
+}
+
+test('a suppression added at HEAD and absent at base makes evaluate block with classifier added-suppression', () => {
+  const io = tscSuppressionIo({ baseSuppressed: false, headSuppressed: true });
+  const verdict = evaluate({ repoRoot: ROOT, gateBase: 'abc123', basePath: BASE, cachedBaseCensus: null }, io);
+  assert.equal(verdict.pass, false, verdict.output);
+  const blocked = verdict.blocking.find((entry) => entry.classifier === 'added-suppression');
+  assert.ok(blocked, `no added-suppression entry in blocking: ${JSON.stringify(verdict.blocking)}`);
+  assert.equal(blocked.path, 'a.ts');
+  assert.equal(blocked.directive, '@ts-ignore');
+});
+
+test('an inherited suppression present on both sides does not block', () => {
+  const io = tscSuppressionIo({ baseSuppressed: true, headSuppressed: true });
+  const verdict = evaluate({ repoRoot: ROOT, gateBase: 'abc123', basePath: BASE, cachedBaseCensus: null }, io);
+  assert.equal(verdict.pass, true, verdict.output);
+  assert.deepEqual([...verdict.blocking], []);
+});
+
+test('a strictness downgrade in resolved tsconfig makes evaluate block with classifier tsconfig-strictness', () => {
+  const io = tscSuppressionIo({ baseSuppressed: false, headSuppressed: false, baseStrict: true, headStrict: false });
+  const verdict = evaluate({ repoRoot: ROOT, gateBase: 'abc123', basePath: BASE, cachedBaseCensus: null }, io);
+  assert.equal(verdict.pass, false, verdict.output);
+  const blocked = verdict.blocking.find((entry) => entry.classifier === 'tsconfig-strictness');
+  assert.ok(blocked, `no tsconfig-strictness entry in blocking: ${JSON.stringify(verdict.blocking)}`);
+  assert.equal(blocked.flag, 'strict');
+});
+
+test('an unchanged resolved tsconfig does not block', () => {
+  const io = tscSuppressionIo({ baseSuppressed: false, headSuppressed: false, baseStrict: true, headStrict: true });
+  const verdict = evaluate({ repoRoot: ROOT, gateBase: 'abc123', basePath: BASE, cachedBaseCensus: null }, io);
+  assert.equal(verdict.pass, true, verdict.output);
+  assert.deepEqual([...verdict.blocking], []);
 });

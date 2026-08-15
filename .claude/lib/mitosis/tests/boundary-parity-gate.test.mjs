@@ -30,25 +30,26 @@ test('every attest is a sentence long enough to state what was measured', () => 
   }
 });
 
-test('the payload does not advertise the evasion classifiers as in force, because the verdict never consults them', () => {
+test('the payload advertises the evasion classifiers as in force, because the verdict now consults them', () => {
   const verdict = boundaryParityVerdict();
   assert.equal(verdict.kind, 'clean', JSON.stringify(verdict, null, 1));
   assert.equal(
-    Object.hasOwn(verdict.payload, 'evasionClassifiers'),
+    Object.hasOwn(verdict.payload, 'declaredButUnwiredEvasionClassifiers'),
     false,
-    'the payload still carries a key a receipt reader takes as the classifiers being in force',
+    'the payload still carries the key a receipt reader took as the classifiers being unwired',
   );
   assert.deepEqual(
-    [...verdict.payload.declaredButUnwiredEvasionClassifiers],
+    [...verdict.payload.evasionClassifiers],
     ['added-suppression', 'rule-severity', 'tsconfig-strictness', 'checked-scope'],
   );
 });
 
-test('the verdict states plainly that the evasion scans are not wired into the gate verdict', () => {
+test('the verdict no longer claims the evasion scans are unwired, and narrows the gap to a real tool run', () => {
   const verdict = boundaryParityVerdict();
   assert.equal(verdict.kind, 'clean');
   const stated = [...verdict.payload.notAttested].join(' ');
-  assert.match(stated, /not wired/i, `the gap between the declared classifiers and the verdict is unstated: ${stated}`);
+  assert.doesNotMatch(stated, /NOT wired/, `the payload still claims the evasion scans are unwired, which is no longer true: ${stated}`);
+  assert.match(stated, /real eslint or a real tsc/i, `the narrowed gap about a real tool run is unstated: ${stated}`);
 });
 
 test('the verdict states plainly that both mechanical dispatches are still live', () => {
@@ -104,4 +105,30 @@ test('an unlisted binary that stopped being refused before any child started is 
 test('a census that stopped resolving the real engine trees is a halt rather than a pass', () => {
   const substrate = probeBoundarySubstrate();
   assert.equal(substrate.census.ok, true, substrate.census.error);
+});
+
+test('an added suppression that stopped reaching the verdict through evaluate is a failure', () => {
+  const substrate = probeBoundarySubstrate();
+  assert.equal(substrate.evasionWiring.addedSuppressionBlocks, true, 'the substrate itself no longer reaches the added-suppression classifier through evaluate');
+  const failures = boundaryParityFailures({ ...substrate, evasionWiring: { ...substrate.evasionWiring, addedSuppressionBlocks: false } });
+  assert.ok(failures.some((failure) => /added-suppression.*declared but not reached/i.test(failure)), failures.join(' | '));
+});
+
+test('a resolved-config strictness downgrade that stopped reaching the verdict through evaluate is a failure', () => {
+  const substrate = probeBoundarySubstrate();
+  assert.equal(substrate.evasionWiring.strictnessDowngradeBlocks, true, 'the substrate itself no longer reaches the tsconfig-strictness classifier through evaluate');
+  const failures = boundaryParityFailures({ ...substrate, evasionWiring: { ...substrate.evasionWiring, strictnessDowngradeBlocks: false } });
+  assert.ok(failures.some((failure) => /tsconfig-strictness.*declared but not reached/i.test(failure)), failures.join(' | '));
+});
+
+test('an inherited suppression or an unchanged resolved config that started blocking through evaluate is a failure', () => {
+  const substrate = probeBoundarySubstrate();
+  assert.equal(substrate.evasionWiring.inheritedSuppressionPasses, true);
+  assert.equal(substrate.evasionWiring.unchangedConfigPasses, true);
+  const failures = boundaryParityFailures({
+    ...substrate,
+    evasionWiring: { ...substrate.evasionWiring, inheritedSuppressionPasses: false, unchangedConfigPasses: false },
+  });
+  assert.ok(failures.some((failure) => /presence rule/i.test(failure)), failures.join(' | '));
+  assert.ok(failures.some((failure) => /config never changed/i.test(failure)), failures.join(' | '));
 });

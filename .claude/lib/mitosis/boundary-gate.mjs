@@ -1,5 +1,7 @@
 import { existsSync, mkdirSync, readFileSync, realpathSync, rmSync, symlinkSync } from 'node:fs';
 import { dirname, isAbsolute, join as pathJoin, relative, resolve as pathResolve, sep } from 'node:path';
+import { collectEslintConfig, collectTsconfigOptions } from './boundary-config-surface.mjs';
+import { countSuppressions, evasionVerdict } from './boundary-evasion.mjs';
 import { run as execRun } from './exec-run.mjs';
 
 export const IDENTITY_SEPARATOR = '\u0000';
@@ -244,7 +246,8 @@ export function parseEslintReport(stdout) {
       }));
     }
   }
-  return { ok: true, diagnostics: Object.freeze(diagnostics), fileCount: parsed.length };
+  const files = Object.freeze([...new Set(parsed.map((entry) => entry.filePath))].sort());
+  return { ok: true, diagnostics: Object.freeze(diagnostics), fileCount: parsed.length, files };
 }
 
 export function observeSide(root, tool, io) {
@@ -326,17 +329,20 @@ function toolBinary(root, tool, io) {
   return { ok: true, path: resolved.path };
 }
 
-function listedFileCount(stdout) {
+function listedFiles(stdout) {
   return stdout
     .split('\n')
     .map((line) => line.replace(/\r$/, ''))
     .filter((line) => line.trim().length > 0
       && !TSC_DIAGNOSTIC_FORMS.some((form) => form.pattern.test(line))
-      && !TSC_CONTINUATION_FORM.pattern.test(line))
-    .length;
+      && !TSC_CONTINUATION_FORM.pattern.test(line));
 }
 
-function collectTool(root, tool, io) {
+function listedFileCount(stdout) {
+  return listedFiles(stdout).length;
+}
+
+function collectTool(root, tool, io, side) {
   const binary = toolBinary(root, tool, io);
   if (!binary.ok) return binary;
   const bin = binary.path;
@@ -351,7 +357,16 @@ function collectTool(root, tool, io) {
   if (tool.name === 'eslint') {
     const parsed = parseEslintReport(result.stdout);
     if (!parsed.ok) return { ok: false, error: `${tool.name} on ${root}: ${parsed.error}` };
-    return { ok: true, diagnostics: parsed.diagnostics, fileCount: parsed.fileCount };
+    const config = collectEslintConfig(root, bin, io, parsed.files, side);
+    if (!config.ok) return { ok: false, error: `${tool.name} on ${root}: ${config.error}` };
+    return {
+      ok: true,
+      diagnostics: parsed.diagnostics,
+      fileCount: parsed.fileCount,
+      files: parsed.files,
+      eslintConfig: config.eslintConfig,
+      eslintConfigFile: config.eslintConfigFile,
+    };
   }
   const census = censusTscLines(result.stdout);
   if (!census.ok) return { ok: false, error: `${tool.name} on ${root}: ${census.error}` };
@@ -367,7 +382,10 @@ function collectTool(root, tool, io) {
   if (fileCount === 0) {
     return { ok: false, error: `${tool.name} on ${root} type-checked zero files, so the run is refused rather than read as a clean result` };
   }
-  return { ok: true, diagnostics: census.diagnostics, fileCount };
+  const files = Object.freeze([...listedFiles(listed.stdout)].sort());
+  const config = collectTsconfigOptions(root, bin, io, side);
+  if (!config.ok) return { ok: false, error: `${tool.name} on ${root}: ${config.error}` };
+  return { ok: true, diagnostics: census.diagnostics, fileCount, files, tsconfigOptions: config.tsconfigOptions };
 }
 
 function identitiesOf(diagnostics, root) {
@@ -379,20 +397,60 @@ function identitiesOf(diagnostics, root) {
   return counts;
 }
 
-export function collectCensus(root, expectations, io, gateBase) {
+const NEUTRAL_ESLINT_CONFIG = Object.freeze({ rules: Object.freeze({}) });
+
+export function collectCensus(root, expectations, io, gateBase, side = 'a side') {
   const tools = {};
   const notExpected = [];
+  let checkedFiles = Object.freeze([]);
+  let tsconfigOptions = Object.freeze({});
+  let eslintConfig = NEUTRAL_ESLINT_CONFIG;
+  let eslintConfigFile = null;
   for (const tool of BOUNDARY_TOOLS) {
     const expectation = expectations[tool.name];
     if (!expectation.expected) {
       notExpected.push(tool.name);
       continue;
     }
-    const collected = collectTool(root, tool, io);
+    const collected = collectTool(root, tool, io, side);
     if (!collected.ok) return { ok: false, error: collected.error };
     tools[tool.name] = Object.freeze({ identities: identitiesOf(collected.diagnostics, root), fileCount: collected.fileCount });
+    if (tool.name === 'tsc') {
+      checkedFiles = collected.files;
+      tsconfigOptions = Object.freeze({ ...collected.tsconfigOptions });
+    } else {
+      eslintConfig = collected.eslintConfig;
+      eslintConfigFile = collected.eslintConfigFile;
+    }
   }
-  return { ok: true, census: Object.freeze({ gateBase, tools: Object.freeze(tools), notExpected: Object.freeze(notExpected), surface: Object.freeze({ root }) }) };
+  const surface = Object.freeze({ root, checkedFiles, tsconfigOptions, eslintConfig, eslintConfigFile });
+  return { ok: true, census: Object.freeze({ gateBase, tools: Object.freeze(tools), notExpected: Object.freeze(notExpected), surface }) };
+}
+
+function intersectRootRelative(baseFiles, baseRoot, headFiles, headRoot) {
+  const baseSet = new Set(baseFiles.map((file) => sideRelativeFile(file, baseRoot)));
+  const common = new Set();
+  for (const file of headFiles) {
+    const rel = sideRelativeFile(file, headRoot);
+    if (baseSet.has(rel)) common.add(rel);
+  }
+  return Object.freeze([...common].sort());
+}
+
+function collectSuppressionSurface(root, files, io, side) {
+  const entries = [];
+  for (const file of files) {
+    const relPath = sideRelativeFile(file, root);
+    const absPath = isAbsolute(file) ? file : pathJoin(root, file);
+    let source;
+    try {
+      source = io.readFile(absPath);
+    } catch (error) {
+      return { ok: false, error: `the suppression scan on ${side} (${root}) could not read ${absPath}: ${failureText(error, 'unknown read failure')}` };
+    }
+    entries.push(Object.freeze({ path: relPath, source }));
+  }
+  return { ok: true, suppressions: countSuppressions(entries) };
 }
 
 function lockfileDivergence(headRoot, baseRoot, io) {
@@ -521,9 +579,15 @@ function gatherBase(repoRoot, basePath, gateBase, io) {
   if (!provisioned.ok) return { ok: false, error: provisioned.error };
   const expectations = expectationsFor(repoRoot, basePath, io);
   if (!expectations.ok) return { ok: false, error: expectations.error };
-  const collected = collectCensus(basePath, expectations.byTool, io, gateBase);
+  const collected = collectCensus(basePath, expectations.byTool, io, gateBase, 'base');
   if (!collected.ok) return { ok: false, error: collected.error };
-  return { ok: true, census: collected.census, strategy: provisioned.strategy, expectations: expectations.byTool };
+  const suppressions = collectSuppressionSurface(basePath, collected.census.surface.checkedFiles, io, 'base');
+  if (!suppressions.ok) return { ok: false, error: suppressions.error };
+  const census = Object.freeze({
+    ...collected.census,
+    surface: Object.freeze({ ...collected.census.surface, suppressions: suppressions.suppressions }),
+  });
+  return { ok: true, census, strategy: provisioned.strategy, expectations: expectations.byTool };
 }
 
 export function collectBase(request, io) {
@@ -622,6 +686,12 @@ function refused(output, context) {
   });
 }
 
+function evasionOutput(evasion) {
+  if (evasion.halted) return `the evasion scan halted: ${evasion.error}`;
+  if (evasion.pass) return 'no evasion detected';
+  return `${evasion.blocking.length} evasion finding(s): ${evasion.blocking.map((entry) => `${entry.classifier}: ${entry.detail}`).join('; ')}`;
+}
+
 export function evaluate(request, io = REAL_BOUNDARY_IO) {
   if (request === null || typeof request !== 'object') {
     throw new TypeError('boundary-gate: evaluate expects a request object carrying repoRoot, gateBase and basePath');
@@ -635,6 +705,7 @@ export function evaluate(request, io = REAL_BOUNDARY_IO) {
   let usedCachedCensus = false;
   let context = { leaked: null, cacheRefusal: null };
   let head;
+  let evasion;
   try {
     const cached = usableCachedBase(request, io);
     context = { ...context, cacheRefusal: cached.refusal };
@@ -649,22 +720,37 @@ export function evaluate(request, io = REAL_BOUNDARY_IO) {
       baseCensus = collected.census;
       expectations = collected.expectations;
     }
-    head = collectCensus(request.repoRoot, expectations, io, request.gateBase);
+    head = collectCensus(request.repoRoot, expectations, io, request.gateBase, 'HEAD');
+    if (!head.ok) return refused(head.error, context);
+    const commonFiles = intersectRootRelative(
+      baseCensus.surface.checkedFiles,
+      baseCensus.surface.root,
+      head.census.surface.checkedFiles,
+      head.census.surface.root,
+    );
+    const headSuppressions = collectSuppressionSurface(request.repoRoot, commonFiles, io, 'HEAD');
+    if (!headSuppressions.ok) return refused(headSuppressions.error, context);
+    const headSurface = Object.freeze({ ...head.census.surface, suppressions: headSuppressions.suppressions, commonFiles });
+    evasion = evasionVerdict(baseCensus.surface, headSurface);
   } catch (error) {
     return refused(`the boundary gate could not complete: ${failureText(error, 'unknown failure')}`, context);
   }
-  if (!head.ok) return refused(head.error, context);
   const verdict = compareCensuses(
     Object.fromEntries(Object.entries(baseCensus.tools).map(([name, entry]) => [name, entry.identities])),
     Object.fromEntries(Object.entries(head.census.tools).map(([name, entry]) => [name, entry.identities])),
   );
   const notExpected = Object.freeze(BOUNDARY_TOOLS.filter((tool) => !expectations[tool.name].expected).map((tool) => tool.name));
+  const blocking = Object.freeze([
+    ...verdict.blocking.map((entry) => Object.freeze({ classifier: 'new-finding', ...entry })),
+    ...evasion.blocking,
+  ]);
+  const findingsText = verdict.pass
+    ? `no new finding: ${notExpected.length === BOUNDARY_TOOLS.length ? 'every tool is NOT-EXPECTED, so the lint and type dimension is legitimately empty' : `${Object.keys(head.census.tools).sort().join(', ')} collected cleanly on both sides`}`
+    : `${verdict.blocking.length} new finding(s) this MSP introduced: ${verdict.blocking.map((entry) => `${entry.tool} ${JSON.stringify(entry.identity)} base ${entry.baseCount} head ${entry.headCount}`).join('; ')}`;
   return Object.freeze({
-    pass: verdict.pass,
-    output: withNotes(verdict.pass
-      ? `no new finding: ${notExpected.length === BOUNDARY_TOOLS.length ? 'every tool is NOT-EXPECTED, so the lint and type dimension is legitimately empty' : `${Object.keys(head.census.tools).sort().join(', ')} collected cleanly on both sides`}`
-      : `${verdict.blocking.length} new finding(s) this MSP introduced: ${verdict.blocking.map((entry) => `${entry.tool} ${JSON.stringify(entry.identity)} base ${entry.baseCount} head ${entry.headCount}`).join('; ')}`, [context.cacheRefusal, context.leaked]),
-    blocking: verdict.blocking,
+    pass: verdict.pass && evasion.pass,
+    output: withNotes(`${findingsText}; ${evasionOutput(evasion)}`, [context.cacheRefusal, context.leaked]),
+    blocking,
     notExpected,
     usedCachedCensus,
     baseCensus,

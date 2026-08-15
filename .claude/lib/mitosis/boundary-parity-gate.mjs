@@ -10,11 +10,9 @@ import {
   IDENTITY_COMPONENTS,
   NORMALIZATION_STEPS,
   REAL_BOUNDARY_IO,
-  censusTscLines,
   collectBase,
   compareCensuses,
   evaluate,
-  parseEslintReport,
   structuralIdentity,
   toolExpectation,
 } from './boundary-gate.mjs';
@@ -29,17 +27,21 @@ import {
   evasionVerdict,
   suppressionKey,
 } from './boundary-evasion.mjs';
+import {
+  failClosedProbe,
+  materializationProbe,
+  packageManagerProbe,
+  teardownProbe,
+  toolResolutionProbe,
+} from './boundary-collection-failure-probe.mjs';
+import { evasionWiringProbe } from './boundary-evasion-wiring-probe.mjs';
 import { run as execRun } from './exec-run.mjs';
 
 const PROBE_ROOT = '/probe/head';
 const PROBE_BASE = '/probe/base';
-const PROBE_ABSENT_ROOT = '/probe/no-such-root';
 const PROBE_GATE_BASE = 'probebase';
 const UNLISTED_PROBE_BINARY = 'npx';
 const PROBE_SCOPE_ROOTS = Object.freeze({ base: PROBE_BASE, head: PROBE_ROOT });
-const CHAIN_HEAD = "src/index.ts(5,9): error TS2322: Type 'X' is not assignable to type 'Y'.";
-const CHAIN_TAIL = "  Types of parameters 's' and 'n' are incompatible.";
-const OTHER_CHAIN_TAIL = "  Types of parameters 'a' and 'b' are incompatible.";
 
 export const BOUNDARY_PARITY_ATTESTS = Object.freeze([
   'every boundary label spelled in either declared engine tree is resolved to exactly one declared name, and a label none of them covers halts with its site named rather than being absorbed by a name it merely extends',
@@ -68,10 +70,11 @@ export const BOUNDARY_PARITY_ATTESTS = Object.freeze([
   'a declared tsconfig strictness flag moved away from its safe value blocks, and a changed compiler option the declared table does not name HALTS with the key named rather than being bucketed as not strictness-relevant; that halt is exercised here on an unnamed option every time this verb runs',
   'the checked-scope comparison compares resolved file lists restricted to files present on both sides rather than glob semantics, so a narrowed include or a widened ignore blocks while a legitimately added or deleted source file does not; all three are measured here on every invocation',
   'the package-manager resolver yields a real, existing JS entry distinct from the node binary rather than a bare path that cannot execute, and a lockfile whose declared manager carries no install support refuses before any install child spawns, both measured here on every invocation',
+  'an added suppression and a resolved-config strictness downgrade each reach the gate verdict end to end through evaluate itself, carrying the added-suppression or tsconfig-strictness classifier in its blocking array, and an inherited suppression or an unchanged resolved config still passes; all four are measured here on every invocation by driving evaluate rather than the classifier functions alone',
 ]);
 
 export const BOUNDARY_PARITY_NOT_ATTESTED = Object.freeze([
-  'that the four evasion classifiers are in force: they are declared and exercised here against their own functions, and the gate verdict is NOT wired to them at all — evaluate calls none of them, so no repository surface is ever built and no evasion this MSP performed reaches the verdict; building that surface (eslint --print-config, tsc --showConfig, the source text of both sides) is C7 work and the payload names them as declared-but-unwired rather than as classifiers in force',
+  'that the evasion classifiers behave as declared against a real eslint or a real tsc: every probe here injects its own exec and filesystem seams for --print-config, --showConfig and the suppression source reads, so what a real eslint prints for a large resolved config, or what a real tsc prints for --showConfig against a config reached through extends, remains untested until a probe runs them against a real repository',
   'that either mechanical dispatch has been converted: both still dispatch a language model in both engine trees until C7 ports them onto this substrate, and this verb measures the conversion list rather than the conversion',
   'that this program produces the verdict the incumbent prose produced: the prose is executed by a model and no probe here runs both and compares them, so the two are pinned by their declared parts rather than by an end-to-end equivalence',
   'that the collection commands behave as declared against a real repository: every probe here injects its own exec and filesystem seams, so what a real eslint or a real tsc prints for a large tree, a symbolic link, or a config resolved from a parent directory is untested until C7 supplies those seams',
@@ -115,6 +118,7 @@ function eslintOnlyIo(baseFiles, headFiles) {
   return probeIo({
     exists: (path) => String(path).includes('eslint.config') || String(path).endsWith('package.json'),
     run: (binary, argv) => {
+      if (argv.includes('--print-config')) return { outcome: 'completed', status: 0, stdout: JSON.stringify({ rules: {} }), stderr: '' };
       if (!argv.some((value) => String(value).includes('eslint'))) return CLEAN_CHILD;
       const onBase = argv.some((value) => String(value).startsWith(PROBE_BASE));
       return { outcome: 'completed', status: 1, stdout: eslintStdout(onBase ? baseFiles : headFiles), stderr: '' };
@@ -142,24 +146,6 @@ function identityProbe() {
   });
 }
 
-function toolResolutionProbe() {
-  const absent = REAL_BOUNDARY_IO.resolveTool('typescript', PROBE_ABSENT_ROOT);
-  const declaredIo = typescriptDeclaredIo({
-    run: (binary, argv) => (argv.includes('--listFiles') ? { outcome: 'completed', status: 0, stdout: 'src/a.ts\n', stderr: '' } : CLEAN_CHILD),
-  });
-  probeEvaluate(declaredIo);
-  const typeRuns = declaredIo.spawned.filter((command) => command.includes('--noEmit'));
-  const unresolvableIo = typescriptDeclaredIo({
-    resolveTool: (name, root) => ({ ok: false, error: `no executable exists at ${root}/node_modules/.bin/${name}` }),
-  });
-  const unresolvable = probeEvaluate(unresolvableIo);
-  return Object.freeze({
-    absentToolRefused: absent.ok === false && absent.error.includes(`${PROBE_ABSENT_ROOT}/node_modules/.bin/typescript`),
-    executablesNamed: typeRuns.length > 0 && typeRuns.every((command) => command.split(' ')[1].split('/').pop() === 'tsc'),
-    unresolvableRefused: unresolvable.pass === false && /node_modules\/\.bin\/tsc/.test(unresolvable.output),
-  });
-}
-
 function comparatorProbe() {
   const unchanged = compareCensuses({ eslint: { a: 2 } }, { eslint: { a: 2 } });
   const fixed = compareCensuses({ eslint: { a: 3 } }, { eslint: {} });
@@ -175,56 +161,8 @@ function comparatorProbe() {
 
 const CLEAN_CHILD = Object.freeze({ outcome: 'completed', status: 0, stdout: '', stderr: '' });
 
-function typescriptDeclaredIo(overrides) {
-  return probeIo({
-    exists: (path) => String(path).includes('tsconfig.json') || String(path).endsWith('package.json'),
-    readFile: () => JSON.stringify({ devDependencies: { typescript: '5.0.0' } }),
-    ...overrides,
-  });
-}
-
-function tscZeroFilesIo() {
-  return typescriptDeclaredIo({ run: () => CLEAN_CHILD });
-}
-
 function probeEvaluate(io, cachedBaseCensus = null) {
   return evaluate({ repoRoot: PROBE_ROOT, gateBase: PROBE_GATE_BASE, basePath: PROBE_BASE, cachedBaseCensus }, io);
-}
-
-function crashedRunIo() {
-  return typescriptDeclaredIo({
-    run: (binary, argv) => {
-      if (argv.includes('--listFiles')) return { outcome: 'completed', status: 0, stdout: 'src/a.ts\n', stderr: '' };
-      if (argv.includes('--noEmit')) return { outcome: 'completed', status: 3, stdout: '', stderr: 'Debug Failure. False expression.' };
-      return CLEAN_CHILD;
-    },
-  });
-}
-
-function failClosedProbe() {
-  const malformed = censusTscLines('Found 3 errors in 2 files.');
-  const wellFormed = censusTscLines('src/a.ts(3,9): error TS2345: Argument bad');
-  const emptyReport = parseEslintReport('[]');
-  const notAnArray = parseEslintReport('{}');
-  const notJson = parseEslintReport('not json');
-  const zeroTypeChecked = probeEvaluate(tscZeroFilesIo());
-  const chained = censusTscLines([CHAIN_HEAD, CHAIN_TAIL].join('\n'));
-  const otherChain = censusTscLines([CHAIN_HEAD, OTHER_CHAIN_TAIL].join('\n'));
-  const orphan = censusTscLines(CHAIN_TAIL);
-  const trailingSummary = censusTscLines([CHAIN_HEAD, 'Found 3 errors in 2 files.'].join('\n'));
-  const crashed = probeEvaluate(crashedRunIo());
-  return Object.freeze({
-    malformedTscLineHalts: malformed.ok === false && malformed.error.includes('Found 3 errors in 2 files.'),
-    wellFormedTscLineParses: wellFormed.ok === true && wellFormed.diagnostics.length === 1,
-    zeroFilesRefused: emptyReport.ok === false && /zero files/i.test(emptyReport.error),
-    zeroTypeCheckedFilesRefused: zeroTypeChecked.pass === false && /type-checked zero files/.test(zeroTypeChecked.output),
-    shapeRefused: notAnArray.ok === false && notJson.ok === false,
-    chainFolded: chained.ok === true && chained.diagnostics.length === 1 && chained.diagnostics[0].message.includes(CHAIN_TAIL.trim()),
-    chainTailsDistinct: chained.ok === true && otherChain.ok === true && structuralIdentity(chained.diagnostics[0], PROBE_ROOT) !== structuralIdentity(otherChain.diagnostics[0], PROBE_ROOT),
-    orphanContinuationHalts: orphan.ok === false && orphan.error.includes(CHAIN_TAIL),
-    trailingUnclassifiableLineHalts: trailingSummary.ok === false && trailingSummary.error.includes('Found 3 errors in 2 files.'),
-    crashedRunRefused: crashed.pass === false && /exited 3/.test(crashed.output),
-  });
 }
 
 function expectationProbe() {
@@ -236,54 +174,6 @@ function expectationProbe() {
     headOnlyStaysExpected: toolExpectation(seen(false, false), seen(true, false)).expected === true,
     unobservableIsNeverNotExpected: toolExpectation(unseen, seen(false, false)).expected === true,
   });
-}
-
-function failedRemovalIo(removePath) {
-  return probeIo({
-    run: (binary, argv) => (argv.includes('remove')
-      ? { outcome: 'completed', status: 1, stdout: '', stderr: 'fatal: is not a working tree' }
-      : CLEAN_CHILD),
-    removePath,
-  });
-}
-
-function teardownProbe() {
-  const io = probeIo({ resolveTool: () => { throw new Error('the tool could not be resolved'); } });
-  const verdict = probeEvaluate(io);
-  const removals = [];
-  probeEvaluate(failedRemovalIo((path) => { removals.push(path); }));
-  const leaked = probeEvaluate(failedRemovalIo(() => { throw new Error('EACCES: permission denied'); }));
-  return Object.freeze({
-    tornDownOnThrow: io.spawned.some((command) => command.includes('worktree remove')),
-    failedClosed: verdict.pass === false,
-    failedRemovalFallsBack: removals.includes(PROBE_BASE),
-    leakSurfaced: /left behind/.test(leaked.output) && leaked.output.includes(PROBE_BASE),
-  });
-}
-
-function materializationProbe() {
-  const io = probeIo({
-    run: (binary, argv) => (argv.includes('add') ? { outcome: 'completed', status: 128, stdout: '', stderr: 'fatal: invalid reference' } : CLEAN_CHILD),
-  });
-  const verdict = probeEvaluate(io);
-  return Object.freeze({ failedClosed: verdict.pass === false && /base worktree/i.test(verdict.output) });
-}
-
-function unserviceableLockfileIo() {
-  return probeIo({
-    exists: (path) => String(path).endsWith('yarn.lock'),
-    readFile: (path) => (String(path).startsWith(PROBE_BASE) ? 'base-yarn-bytes' : 'head-yarn-bytes'),
-  });
-}
-
-function packageManagerProbe() {
-  const resolved = REAL_BOUNDARY_IO.resolvePackageManager('npm');
-  const npmEntryResolved = resolved.ok === true && resolved.entry !== process.execPath && resolved.entry.endsWith('.js');
-  const io = unserviceableLockfileIo();
-  const verdict = probeEvaluate(io);
-  const unserviceableLockfileRefused = verdict.pass === false && /yarn\.lock/.test(verdict.output) && /yarn/.test(verdict.output);
-  const noInstallSpawned = !io.spawned.some((command) => /^node .*install/.test(command));
-  return Object.freeze({ npmEntryResolved, unserviceableLockfileRefused, noInstallSpawned });
 }
 
 function equivalenceProbe() {
@@ -534,6 +424,7 @@ function evasionProbe() {
 export function probeBoundarySubstrate() {
   return Object.freeze({
     evasion: evasionProbe(),
+    evasionWiring: evasionWiringProbe(),
     census: boundaryCensus(),
     controls: censusControlProbes(),
     identity: identityProbe(),
@@ -743,6 +634,19 @@ export function boundaryParityFailures(substrate) {
   if (!evasion.aggregatePasses) {
     failures.push('the aggregated evasion verdict no longer passes on two identical surfaces, so it reports an evasion where nothing changed');
   }
+  const evasionWiring = substrate.evasionWiring;
+  if (!evasionWiring.addedSuppressionBlocks) {
+    failures.push('a suppression added at HEAD and absent at base no longer makes evaluate itself block with classifier added-suppression, so the evasion scan is declared but not reached from the gate verdict');
+  }
+  if (!evasionWiring.inheritedSuppressionPasses) {
+    failures.push('a suppression present on both sides now makes evaluate block, so the end-to-end wiring has become a presence rule rather than a surplus rule');
+  }
+  if (!evasionWiring.strictnessDowngradeBlocks) {
+    failures.push('a strictness downgrade in resolved tsconfig no longer makes evaluate itself block with classifier tsconfig-strictness, so the resolved-config comparison is declared but not reached from the gate verdict');
+  }
+  if (!evasionWiring.unchangedConfigPasses) {
+    failures.push('an unchanged resolved tsconfig now makes evaluate block, so the end-to-end wiring reports an evasion where the config never changed');
+  }
   const outside = exec.requestedBinaries.filter((binary) => binary !== 'git' && binary !== 'node');
   if (outside.length > 0) {
     failures.push(`the program requested these binaries beyond git and node: ${outside.join(', ')}; the collection commands the incumbent prose names are reached as node with a resolved path in argv rather than by widening the allowlist`);
@@ -788,7 +692,7 @@ function boundaryPayload(substrate) {
     identityComponents: IDENTITY_COMPONENTS.map((component) => `${component.name}: ${component.steps.length === 0 ? 'verbatim' : component.steps.map((step) => step.name).join(', ')}`),
     suppressionDirectives: [...SUPPRESSION_DIRECTIVES],
     strictnessFlagCount: substrate.evasion.flagCount,
-    declaredButUnwiredEvasionClassifiers: ['added-suppression', 'rule-severity', 'tsconfig-strictness', 'checked-scope'],
+    evasionClassifiers: ['added-suppression', 'rule-severity', 'tsconfig-strictness', 'checked-scope'],
     censusControls: substrate.controls.map((control) => `${control.name}: ${control.anchorPresent && control.halted && control.named ? 'halted and named' : 'INERT'}`),
     requestedBinaries: [...substrate.exec.requestedBinaries],
     modelInvocationsRemaining: census.siteCount,
