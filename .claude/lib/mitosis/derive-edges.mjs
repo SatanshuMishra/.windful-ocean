@@ -443,11 +443,22 @@ function cli(argv) {
   }) + '\n');
 }
 
-if (process.argv[1] && _toPath(import.meta.url) === _realpath(process.argv[1])) {
+function isDirectInvocation() {
+  try {
+    if (!process.argv[1]) return false;
+    return _toPath(import.meta.url) === _realpath(process.argv[1]);
+  } catch (error) {
+    if (error && (error.code === 'ENOENT' || error.code === 'ENOTDIR')) return false;
+    throw error;
+  }
+}
+
+if (isDirectInvocation()) {
   try {
     cli(process.argv.slice(2));
   } catch (err) {
-    process.stderr.write(`derive-edges error: ${err.message}\n`);
+    const message = err && err.message ? err.message : `a non-Error value was thrown: ${inertValue(err)}`;
+    process.stderr.write(`derive-edges error: ${message}\n`);
     process.exit(1);
   }
 }
