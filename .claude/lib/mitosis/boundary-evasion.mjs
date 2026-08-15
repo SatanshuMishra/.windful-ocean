@@ -19,17 +19,6 @@ export const ESLINT_INERT_DIRECTIVES = Object.freeze({
   'eslint-env': 'it declares which environment globals are defined rather than silencing a finding',
 });
 
-export const SUPPRESSION_MECHANISMS = Object.freeze([...SUPPRESSION_DIRECTIVES, ESLINT_CONFIG_DIRECTIVE]);
-
-export const EVASION_CLASSIFIERS = Object.freeze({
-  addedSuppression: 'added-suppression',
-  ruleSeverity: 'rule-severity',
-  tsconfigStrictness: 'tsconfig-strictness',
-  checkedScope: 'checked-scope',
-});
-
-export const EVASION_CLASSIFIER_NAMES = Object.freeze([...Object.values(EVASION_CLASSIFIERS)].sort());
-
 export const SEVERITY_ORDER = Object.freeze({ off: 0, warn: 1, error: 2, 0: 0, 1: 1, 2: 2 });
 
 export const SUPPRESSION_KEY_SEPARATOR = '\u0000';

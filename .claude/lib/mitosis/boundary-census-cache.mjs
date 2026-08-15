@@ -95,10 +95,6 @@ export function censusIdentity(census) {
   return createHash(CENSUS_IDENTITY_ALGORITHM).update(canonicalText(identityInput(census))).digest('hex');
 }
 
-export function identifiedCensus(census) {
-  return Object.freeze({ ...census, identity: censusIdentity(census) });
-}
-
 function toolCountProblems(cached) {
   const problems = [];
   for (const [name, entry] of Object.entries(cached.tools)) {

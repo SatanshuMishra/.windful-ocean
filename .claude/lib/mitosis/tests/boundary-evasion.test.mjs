@@ -3,8 +3,6 @@ import assert from 'node:assert/strict';
 import {
   ESLINT_CONFIG_DIRECTIVE,
   ESLINT_INERT_DIRECTIVES,
-  SUPPRESSION_DIRECTIVES,
-  SUPPRESSION_MECHANISMS,
   TSCONFIG_DEFAULT_FOLLOWS_STRICT,
   TSCONFIG_STRICTNESS_FLAGS,
   compareCheckedFiles,
@@ -38,11 +36,6 @@ test('every declared suppression directive is counted per file, and the longest 
   assert.equal(counts[suppressionKey('b.ts', '@ts-expect-error')], 1);
   assert.equal(counts[suppressionKey('b.ts', '@ts-ignore')], 1);
   assert.equal(counts[suppressionKey('a.ts', '@ts-ignore')], undefined);
-  assert.deepEqual(
-    SUPPRESSION_MECHANISMS.filter((mechanism) => !SUPPRESSION_DIRECTIVES.includes(mechanism)),
-    [ESLINT_CONFIG_DIRECTIVE],
-    'the declared mechanisms are no longer the declared token directives plus the rule configuration form',
-  );
 });
 
 test('an inline eslint configuration comment counts as a suppression, keyed by the rule it silences', () => {

@@ -4,7 +4,7 @@ import { readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { censusIdentity } from '../boundary-census-cache.mjs';
 import { suppressionKey } from '../boundary-evasion.mjs';
-import { collectBase, evaluate } from '../boundary-gate.mjs';
+import { evaluate } from '../boundary-gate.mjs';
 import { MAX_SCANNED_FILES, MAX_SCANNED_FILE_BYTES, MAX_SCANNED_TOTAL_BYTES, measureScannedFiles } from '../boundary-scan-scope.mjs';
 
 const ROOT = '/repo';
@@ -71,9 +71,9 @@ function tscIo(plan) {
 }
 
 function collectedBaseCensus() {
-  const collected = collectBase(REQUEST, tscIo({ baseChecked: ['a.ts'], headChecked: ['a.ts'] }));
-  assert.equal(collected.ok, true, `the base census the cache tests tamper with could not be collected: ${collected.error}`);
-  return collected.census;
+  const verdict = evaluate(REQUEST, tscIo({ baseChecked: ['a.ts'], headChecked: ['a.ts'] }));
+  assert.ok(verdict.baseCensus, `the base census the cache tests tamper with could not be collected: ${verdict.output}`);
+  return refingerprinted(verdict.baseCensus);
 }
 
 function withSuppressionCount(census, count) {

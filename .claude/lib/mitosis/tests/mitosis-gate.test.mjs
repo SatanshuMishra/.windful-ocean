@@ -533,8 +533,7 @@ test('the argv parser accepts every verb and defaults each to its own target', (
   assert.deepEqual(parseMitosisGateArgv(['journal-parity']), { ok: true, verb: 'journal-parity', target: null });
   assert.deepEqual(parseMitosisGateArgv(['dispatchable-agent-schema-capable']), { ok: true, verb: 'dispatchable-agent-schema-capable', target: DEFAULT_AGENT_TREE_TARGET });
   assert.deepEqual(parseMitosisGateArgv(['transcription-parity']), { ok: true, verb: 'transcription-parity', target: null });
-  assert.deepEqual(parseMitosisGateArgv(['boundary-parity']), { ok: true, verb: 'boundary-parity', target: null });
-  assert.deepEqual([...MITOSIS_GATE_VERBS], ['boundary-parity', 'determinism', 'dispatchable-agent-schema-capable', 'exec-allowlist', 'journal-parity', 'phase-parity', 'prompt-registry', 'transcription-parity']);
+  assert.deepEqual([...MITOSIS_GATE_VERBS], ['determinism', 'dispatchable-agent-schema-capable', 'exec-allowlist', 'journal-parity', 'phase-parity', 'prompt-registry', 'transcription-parity']);
   assert.notEqual(DEFAULT_DETERMINISM_TARGET, DEFAULT_PHASE_PARITY_TARGET);
 });
 
@@ -811,38 +810,6 @@ test('the transcription-parity verdict states plainly that every one of the eigh
   assert.ok(Array.isArray(verdict.c7Obligations) && verdict.c7Obligations.length > 0);
   assert.ok(verdict.c7Obligations.some((claim) => /run-engine\.mjs/.test(claim)));
   assert.ok(verdict.c7Obligations.some((claim) => /divergence\.mjs/.test(claim)));
-});
-
-test('the boundary-parity verb exits clean over the real engine and reports what it measured', () => {
-  const { out, stdout } = capture();
-  const code = runMitosisGate(['boundary-parity'], out, () => '');
-  assert.equal(code, GATE_CLEAN_EXIT, stdout.join(''));
-  const verdict = JSON.parse(stdout.join(''));
-  assert.equal(verdict.verb, 'boundary-parity');
-  assert.equal(verdict.siteCount, 6);
-  assert.equal(verdict.twinSiteCount, 3);
-  assert.equal(verdict.mechanicalSiteCount, 4);
-  assert.equal(verdict.judgmentSiteCount, 2);
-  assert.deepEqual(verdict.declaredNames, ['boundary', 'boundary-fix', 'boundary-recheck']);
-  assert.deepEqual([...verdict.requestedBinaries].sort(), ['git', 'node']);
-});
-
-test('the boundary-parity verdict states plainly that both mechanical dispatches are still live', () => {
-  const { out, stdout } = capture();
-  runMitosisGate(['boundary-parity'], out, () => '');
-  const verdict = JSON.parse(stdout.join(''));
-  assert.equal(verdict.modelInvocationsRemaining, 6);
-  assert.match(verdict.notAttested.join(' '), /still dispatch a language model/i);
-  assert.ok(verdict.censusControls.every((control) => /halted and named as [A-Za-z]+$/.test(control)), verdict.censusControls.join(' | '));
-});
-
-test('the boundary-parity verb rejects a target, because it censuses the engine trees it enumerates itself', () => {
-  const parsed = parseMitosisGateArgv(['boundary-parity', '--target', '/etc/passwd']);
-  assert.equal(parsed.ok, false);
-  assert.match(parsed.error, /boundary-parity/);
-  const { out, stderr } = capture();
-  assert.equal(runMitosisGate(['boundary-parity', '--target', '/etc/passwd'], out, () => ''), GATE_USAGE_EXIT);
-  assert.match(stderr.join(''), /boundary-parity/);
 });
 
 test('the transcription-parity verb rejects a target, because it censuses the engine trees it enumerates itself', () => {
