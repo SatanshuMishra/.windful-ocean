@@ -371,7 +371,7 @@ export function couplingSignalClass(signal) {
   if (detailed !== (detail !== null)) {
     return Object.freeze({ ok: false, error: `coupling-review: the signal ${describe(signal)} classifies under ${describe(className)}, which ${detailed ? 'names the thing the pair shares and carries no detail here' : 'names no detail and carries one here'}; a token whose shape disagrees with its declared arity is not the signal that class emits, and reading it as one would report a shared marker the detectors never found` });
   }
-  if (detailed && detail.length === 0) {
+  if (detailed && (detail === null || detail.length === 0)) {
     return Object.freeze({ ok: false, error: `coupling-review: the signal ${describe(signal)} classifies under ${describe(className)} with an empty detail; the detail names the marker or directory the pair shares, and an empty one reports a shared thing that cannot be named back to any file the pair touches` });
   }
   return Object.freeze({ ok: true, className, detail });
