@@ -169,8 +169,8 @@
   "closure_statement": null,
   "spine": {
     "active_goal": "Land the remaining MSPs on feat/mitosis-os-process - C7, then D1, D2 and D3 - under receipts/gates@1.1, with nothing merged to main until D3 clears its falsifier.",
-    "next_step": "START HERE: merge PRs 131, 132 and 133 into feat/mitosis-os-process, deleting each branch and confirming the ref is gone between merges, then assert each by file on the base. Then cut C7 off the new base: the tick loop and redispatch, plus the nine obligations CP re-filed to it. Read .claude/docs/specs/2026-08-15-cp-disposition-record.md FIRST - it carries the nine call sites and the fifteen findings filed above the ceiling. Then D1, D2, D3.",
-    "last_session": "Shipped CP as six PRs via five fenced parallel lanes. All 24 obligations disposed: nine discharged with receipts, six already satisfied, nine re-filed to C7, one retired by 0449. PRs 127-130 merged and content-asserted on the base by file; 131, 132 and 133 remain open and clean.",
+    "next_step": "START HERE: cut C7 off base 995616e6 - the tick loop and redispatch, plus the nine obligations CP re-filed to it. Read .claude/docs/specs/2026-08-15-cp-disposition-record.md FIRST for those nine call sites and the fifteen findings above the ceiling. Then D1, D2, D3. Two filed items are carried as risks and are deliberately NOT criteria: settle-and-record the engine coupling consumer question, and keep the nine-field twin in sync until D2 dissolves it.",
+    "last_session": "Shipped CP as six PRs from five fenced parallel lanes; all 24 obligations disposed. All six merged into the base at 995616e6 with content asserted by file. Ruled that two new above-ceiling items are carried as risks, not thread criteria, because the acceptance list is a ceiling and not a floor.",
     "open_risks": [
       {
         "text": "Build A4's red case through the claude -p CLI path and assert the SILENT failure — the Workflow agent path auto-grants StructuredOutput, so a red case dispatched through it passes unconditionally and is a guarantee that cannot fail",
@@ -256,19 +256,36 @@
         ]
       },
       {
-        "text": "Merge PRs 131, 132 and 133 and delete each branch before cutting C7 — all three touch files the tick loop also edits, so a stale base forces the restack that already cost this stack a session",
+        "text": "Read the disposition record before cutting C7 — it holds the nine re-filed obligations with their call sites, and losing that inventory once already cost seventeen undischarged obligations",
         "scope": "c3",
         "refs": [
-          "PR #131",
-          "PR #132",
-          "PR #133"
+          "2026-08-15-cp-disposition-record.md",
+          "0447"
+        ]
+      },
+      {
+        "text": "Settle whether the engine should read a coupling decision beyond the integrity halt, and RECORD the answer either way — the halt is the only reader, and no-further-consumer is a legitimate answer that must not be left open by default",
+        "scope": "c3",
+        "refs": [
+          "run-engine.mjs:11",
+          "run-engine.mjs:386",
+          "PR #131"
+        ]
+      },
+      {
+        "text": "Touch both copies of the nine engine task fields in the same commit until D2 — they are hand-maintained twins with no test binding them, and D2 deletes the second copy along with the workflow script",
+        "scope": "c3",
+        "refs": [
+          "generate-run-script.mjs:48-49",
+          "mitosis.js:5117",
+          "design.md:550"
         ]
       },
       {
         "text": "Re-check T2 and drop the mirrored coupling copy when D2 lands — both rest on mirror-guard, and D2 deletes it along with the workflow script and the sandbox module",
         "scope": "c3",
         "refs": [
-          ".claude/docs/specs/2026-08-15-cp-disposition-record.md",
+          "2026-08-15-cp-disposition-record.md",
           "design.md:550"
         ]
       },
@@ -280,19 +297,11 @@
         ]
       },
       {
-        "text": "record_decision refuses every call with missing_parameter on options and outcome — the CP outcome decision is not in the ledger and survives only in this session log and the disposition record",
+        "text": "record_decision refuses every call with missing_parameter on options and outcome — two rulings from this session live only in the session log and the disposition record, not as numbered decisions",
         "scope": "c3",
         "refs": [
           "mcp record_decision",
           "PR #133"
-        ]
-      },
-      {
-        "text": "Read the disposition record before cutting C7 — it holds the nine re-filed obligations with their call sites, and losing that inventory once already cost seventeen undischarged obligations",
-        "scope": "c3",
-        "refs": [
-          "PR #133",
-          "0447"
         ]
       }
     ],
@@ -492,5 +501,5 @@
     ]
   },
   "created_at": "2026-08-12T07:37:41.077Z",
-  "updated_at": "2026-08-15T23:31:59.399Z"
+  "updated_at": "2026-08-15T23:48:21.491Z"
 }
