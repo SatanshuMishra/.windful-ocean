@@ -122,15 +122,16 @@ test('the journal gitignore action appends the entry once and reports the second
 test('importing run-store from a process with no script argument runs no CLI', () => {
   const source = `const loaded = await import(${JSON.stringify(pathToFileURL(CLI).href)}); process.stdout.write(Object.keys(loaded).sort().join(','));`;
   const stdout = execFileSync('node', ['--input-type=module', '-e', source], { encoding: 'utf8', stdio: 'pipe' });
-  assert.equal(stdout, 'computeRunKey,openRun,retire');
+  assert.equal(stdout, 'computeRunKey,execAllowed,openRun,retire');
 });
 
-test('importing run-store as a module runs no CLI and exposes exactly three exports', async () => {
+test('importing run-store as a module runs no CLI and exposes exactly four exports', async () => {
   const imported = await import('../run-store.mjs');
   assert.equal(typeof imported.computeRunKey, 'function');
+  assert.equal(typeof imported.execAllowed, 'function');
   assert.equal(typeof imported.openRun, 'function');
   assert.equal(typeof imported.retire, 'function');
-  assert.deepEqual(Object.keys(imported).sort(), ['computeRunKey', 'openRun', 'retire']);
+  assert.deepEqual(Object.keys(imported).sort(), ['computeRunKey', 'execAllowed', 'openRun', 'retire']);
 });
 
 after(cleanupScratch);

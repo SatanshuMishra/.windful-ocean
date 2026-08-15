@@ -3,6 +3,7 @@ import { execFileSync } from 'node:child_process';
 import { join, dirname, basename, relative, resolve } from 'node:path';
 import { homedir, tmpdir } from 'node:os';
 import { pathToFileURL } from 'node:url';
+import { assertSpawnAllowed } from './exec-policy.mjs';
 import { planWaves } from './wave-planner.mjs';
 import { requireFileScopePack } from './msp-file-scope.mjs';
 import { resolveAll } from './superpowers-prompts.mjs';
@@ -10,6 +11,8 @@ import { resolveBranch } from './branch-contract.mjs';
 
 const ENGINE_PATH = join(homedir(), '.claude/workflows/mitosis-execute.js');
 const ARG_LINE = /^const (\w+) = args\.\w+.*;$/;
+const GIT_BINARY = 'git';
+const GIT_TIMEOUT_MS = 10000;
 
 export const ENGINE_ARG_NAMES = [
   'tasks', 'waves', 'branchPrefix', 'baseBranch', 'worktreeRoot', 'repoRoot',
@@ -82,12 +85,18 @@ function parseArgs(argv) {
   return { graphPath, flags };
 }
 
+export function execAllowed(binary, argv, cwd) {
+  assertSpawnAllowed(binary, argv);
+  return execFileSync(binary, argv, { encoding: 'utf8', timeout: GIT_TIMEOUT_MS, cwd }).trim();
+}
+
 function git(cmdArgs) {
-  return execFileSync('git', cmdArgs, { encoding: 'utf8', timeout: 10000 }).trim();
+  return execAllowed(GIT_BINARY, cmdArgs, undefined);
 }
 
 function gitIn(cwd, cmdArgs) {
-  try { return execFileSync('git', cmdArgs, { encoding: 'utf8', timeout: 10000, cwd }).trim(); } catch { return null; }
+  assertSpawnAllowed(GIT_BINARY, cmdArgs);
+  try { return execAllowed(GIT_BINARY, cmdArgs, cwd); } catch { return null; }
 }
 
 function run() {

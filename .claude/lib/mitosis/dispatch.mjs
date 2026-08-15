@@ -2,6 +2,7 @@ import { spawn as nodeSpawn } from 'node:child_process';
 import { constants } from 'node:os';
 import { isAbsolute } from 'node:path';
 import { StringDecoder } from 'node:string_decoder';
+import { assertSpawnAllowed } from './exec-policy.mjs';
 
 const CLI_COMMAND = 'claude';
 const ARG_TERMINATOR = '--';
@@ -294,15 +295,20 @@ function newRunState() {
   };
 }
 
+export function spawnAllowed(binary, argv, options, spawn) {
+  assertSpawnAllowed(binary, argv);
+  return spawn(binary, argv, options);
+}
+
 function spawnChild(argv, request, settings) {
   try {
-    const child = settings.spawn(CLI_COMMAND, argv, {
+    const child = spawnAllowed(CLI_COMMAND, argv, {
       cwd: request.cwd,
       env: settings.env,
       shell: false,
       detached: true,
       stdio: ['ignore', 'pipe', 'pipe'],
-    });
+    }, settings.spawn);
     return { child, spawnError: null };
   } catch (error) {
     return { child: null, spawnError: describeError(error) };

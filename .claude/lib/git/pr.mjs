@@ -1,6 +1,8 @@
 import { spawnSync } from 'node:child_process';
 import { realpathSync, accessSync, statSync, constants } from 'node:fs';
+import { isAbsolute } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { assertSpawnAllowed } from '../mitosis/exec-policy.mjs';
 import { classifyGhMerge, resolveRealGh, DEFAULT_FALLBACKS, MERGE_DENY_EXIT, REAL_GH_MISSING_EXIT } from '../mitosis/gh-merge-shim.mjs';
 import { validateRefToken } from '../mitosis/checkpoint.mjs';
 import { validateRepoIdentity, parsePrRef } from '../mitosis/merge-watch.mjs';
@@ -30,6 +32,7 @@ export const MITOSIS_GIT_GH_MISSING_EXIT = REAL_GH_MISSING_EXIT;
 export const MITOSIS_GIT_VERBS = Object.freeze(['pr-create', 'pr-close', 'compare']);
 
 const NO_INDIRECT_IO = Object.freeze({ readFile: () => null, readStdin: () => null });
+const GH_BINARY = 'gh';
 
 export const FLAG_SPEC = Object.freeze({
   'pr-create': Object.freeze({
@@ -344,7 +347,7 @@ export function execGh(ghBin, argv) {
   if (!gate.allow) {
     return Object.freeze({ refused: true, reason: gate.reason, status: null, stdout: '', stderr: '' });
   }
-  const result = spawnSync(ghBin, argv, { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] });
+  const result = spawnAllowed(GH_BINARY, argv, { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] }, ghBin);
   if (result.error) {
     return Object.freeze({ refused: false, reason: '', status: null, stdout: '', stderr: `mitosis-git: failed to execute gh (${result.error.message})\n` });
   }
@@ -355,6 +358,14 @@ export function execGh(ghBin, argv) {
     stdout: result.stdout || '',
     stderr: result.stderr || '',
   });
+}
+
+export function spawnAllowed(binary, argv, options, executable) {
+  assertSpawnAllowed(binary, argv, NO_INDIRECT_IO);
+  if (typeof executable !== 'string' || !isAbsolute(executable)) {
+    throw new Error(`mitosis-git: refusing to spawn ${JSON.stringify(binary)} through ${JSON.stringify(executable)}; the resolved executable must be an absolute path so that no PATH lookup decides which file runs`);
+  }
+  return spawnSync(executable, argv, options);
 }
 
 function readPrEntry(entry, repo) {

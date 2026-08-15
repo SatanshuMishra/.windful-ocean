@@ -4,6 +4,7 @@ import { closeSync, constants, existsSync, lstatSync, mkdirSync, openSync, readd
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { CHECKPOINT_REF_PREFIX, MANIFEST_REF_PREFIX, validateRefToken } from './checkpoint.mjs';
+import { assertSpawnAllowed } from './exec-policy.mjs';
 import { appendJournalLine, composeJournalLine, elapsedBetween, ensureGitignored, writeGenesis } from './journal-store.mjs';
 import { isPlainObject, requireGuardedPath } from './fs-writer.mjs';
 import { isIsoInstant } from './run-log.mjs';
@@ -16,6 +17,7 @@ const RUNS_SEGMENTS = Object.freeze(['.mitosis', 'runs']);
 const JSON_ERROR_POSITION = /position (\d+)/;
 const MAX_ATTEMPT_COLLISIONS = 64;
 const RUN_ID_PATTERN = /^[a-f0-9]{8}$/;
+const GIT_BINARY = 'git';
 const GIT_TIMEOUT_MS = 10000;
 const GIT_MAX_BUFFER_BYTES = 64 * 1024 * 1024;
 const GIT_REDIRECTING_VARIABLES = Object.freeze([
@@ -339,14 +341,19 @@ function gitEnvironment() {
   return Object.fromEntries(Object.entries(process.env).filter(([name]) => !GIT_REDIRECTING_VARIABLES.includes(name)));
 }
 
-function defaultExec(argv, cwd) {
-  return execFileSync('git', argv, {
+export function execAllowed(binary, argv, cwd) {
+  assertSpawnAllowed(binary, argv);
+  return execFileSync(binary, argv, {
     encoding: 'utf8',
     timeout: GIT_TIMEOUT_MS,
     maxBuffer: GIT_MAX_BUFFER_BYTES,
     cwd,
     env: gitEnvironment(),
   });
+}
+
+function defaultExec(argv, cwd) {
+  return execAllowed(GIT_BINARY, argv, cwd);
 }
 
 function requireRepositoryRoot(repoRoot, exec) {
