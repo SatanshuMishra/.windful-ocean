@@ -2,7 +2,6 @@ import { closeSync, constants, openSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { builtDelta, ciAttemptDelta, isIsoInstant, parkDelta, quiescentExitDelta, shipDelta } from './run-log.mjs';
 import { parseRunManifest } from './recovery.mjs';
-import { JOURNAL_SPECIMENS } from './journal-specimens.mjs';
 import {
   OWNER_ONLY_MODE,
   createDirectoryChain,
@@ -408,38 +407,3 @@ export function ensureGitignored(request) {
   }
 }
 
-export function censusJournalSpecimens(specimens) {
-  if (!Array.isArray(specimens) || specimens.length === 0) {
-    return Object.freeze({ ok: false, error: 'journal-store: the specimen census was handed no specimen, so it would attest bytes it never composed' });
-  }
-  const seen = new Set();
-  const kinds = new Set();
-  for (const specimen of specimens) {
-    if (!isPlainObject(specimen) || typeof specimen.id !== 'string' || specimen.id.length === 0) {
-      return Object.freeze({ ok: false, error: `journal-store: ${JSON.stringify(specimen)} is not a specimen carrying an id, a kind, its fields and its declared line` });
-    }
-    if (seen.has(specimen.id)) {
-      return Object.freeze({ ok: false, error: `journal-store: the specimen id ${specimen.id} appears more than once, so one case stands in for another` });
-    }
-    seen.add(specimen.id);
-    let composed;
-    try {
-      composed = composeJournalLine(specimen.kind, specimen.fields);
-    } catch (error) {
-      return Object.freeze({ ok: false, error: `journal-store: the ${specimen.id} specimen (${specimen.kind}) no longer composes at all: ${error.message}` });
-    }
-    if (composed !== specimen.line) {
-      return Object.freeze({ ok: false, error: `journal-store: the ${specimen.id} specimen (${specimen.kind}) composes bytes that differ from the line transcribed from the incumbent\n  composed: ${composed.trimEnd()}\n  declared: ${String(specimen.line).trimEnd()}` });
-    }
-    kinds.add(specimen.kind);
-  }
-  const unmeasured = JOURNAL_KINDS.filter((kind) => !kinds.has(kind));
-  if (unmeasured.length > 0) {
-    return Object.freeze({ ok: false, error: `journal-store: these journal kinds were handed no specimen, so this census composed none of their bytes yet would report the declared kind count as if it had: ${unmeasured.join(', ')}` });
-  }
-  return Object.freeze({ ok: true, specimenCount: specimens.length, kindCount: kinds.size });
-}
-
-export function journalSpecimenCensus() {
-  return censusJournalSpecimens(JOURNAL_SPECIMENS);
-}

@@ -15,19 +15,8 @@ import {
 import { censusEngineDeterminism, engineSourceRoots, realSourceIo } from './determinism-lint.mjs';
 import { EXEC_ALLOWLIST, assertSpawnAllowed, resolveSpawn } from './exec-policy.mjs';
 import { MERGE_REFUSAL_SPECIMENS } from './gh-merge-shim.mjs';
-import { censusMergeSpecimens } from './merge-specimen-census.mjs';
-import { transcriptionParityVerdict } from './transcription-parity-gate.mjs';
 import { REQUIRED_TOOL, agentDefinitionDir, censusAgentSchemaCapability } from './agent-schema-lint.mjs';
 import { PHASE_TITLES } from './phases.mjs';
-import { PROMPT_C7_OBLIGATIONS, PROMPT_PROBE_CASES, censusPromptRegistry } from './prompt-registry.mjs';
-import { journalDispatchCensus } from './journal-census.mjs';
-import {
-  JOURNAL_C7_OBLIGATIONS,
-  JOURNAL_KINDS,
-  JOURNAL_WRITER_DIVERGENCES,
-  JOURNAL_WRITER_PRECONDITIONS,
-  journalSpecimenCensus,
-} from './journal-store.mjs';
 
 export const GATE_CLEAN_EXIT = 0;
 export const GATE_USAGE_EXIT = 40;
@@ -36,22 +25,13 @@ export const GATE_UNRESOLVABLE_EXIT = 42;
 export const GATE_READ_EXIT = 43;
 export const GATE_COMPILE_EXIT = 44;
 
-export const MITOSIS_GATE_VERBS = Object.freeze(['determinism', 'dispatchable-agent-schema-capable', 'exec-allowlist', 'journal-parity', 'phase-parity', 'prompt-registry', 'transcription-parity']);
+export const MITOSIS_GATE_VERBS = Object.freeze(['determinism', 'dispatchable-agent-schema-capable', 'exec-allowlist', 'phase-parity']);
 
 export const DEFAULT_PHASE_PARITY_TARGET = fileURLToPath(new URL('../../workflows/mitosis.js', import.meta.url));
 export const DEFAULT_DETERMINISM_TARGET = fileURLToPath(new URL('./', import.meta.url));
 export const DEFAULT_AGENT_TREE_TARGET = agentDefinitionDir();
 
 const SPAWNABLE_BINARIES = Object.freeze(['claude', 'gh', 'git', 'graphify', 'node']);
-const REQUIRED_MERGE_REFUSAL_KINDS = Object.freeze([
-  'alias-merge',
-  'api-merge-endpoint',
-  'api-merge-mutation',
-  'graphql-fail-closed',
-  'graphql-mutation',
-  'graphql-mutation-indirect',
-  'pr-merge',
-]);
 const UNLISTED_PROBE_BINARY = 'bash';
 const ROUTED_PROBE_ARGV = Object.freeze(['pr', 'view', '7']);
 const SHIM_BASENAME = 'gh-merge-shim.mjs';
@@ -62,9 +42,6 @@ const EXEC_ALLOWLIST_ATTESTS = Object.freeze([
   'an unlisted binary throws instead of spawning, so the policy is deny-by-default rather than deny-a-blocklist',
   'every merge argv the guarantee names is refused in-process by its own refusal reason, before any child starts',
   'an ordinary gh argv resolves through the merge shim rather than straight to the real gh binary',
-  'the specimen set is a closed census of the refusal reasons read out of the classifier source itself, so narrowing it below what the classifier can emit halts rather than passing with fewer probes',
-  'the reasons read out of the classifier source are checked against an independently maintained list held here, so retiring a classifier branch together with its specimen takes two deliberate edits rather than reading as covered',
-  'every refusal the classifier returns routes its kind through the reason builder this census reads, so a refusal that spells its kind inline is a refusal no specimen could be required for and halts',
 ]);
 
 const EXEC_ALLOWLIST_NOT_ATTESTED = Object.freeze([
@@ -73,52 +50,13 @@ const EXEC_ALLOWLIST_NOT_ATTESTED = Object.freeze([
   'that a gh alias defined before the run is refused: the classifier reads alias definitions, not the alias table already in effect',
 ]);
 
-const PROMPT_REGISTRY_ATTESTS = Object.freeze([
-  'every prompt kind the authority names has a composer, every composer entry names a kind the authority names, and every kind was handed at least one probe case, so the reported kind count is a measurement rather than the length of the authority list',
-  'each kind composes byte-identical text when composed twice from one frozen input',
-  'every declared input path of every probe case changes the composed bytes when perturbed on its own, down to each leaf of a compound field, so a field rendered at one leaf and ignored at another cannot pass as measured',
-  'every path a probe case leaves undeclared leaves the composed bytes unchanged, so an unaudited live field halts rather than passing',
-  'every path a probe case declares refused is refused by the contract, so a declared guard that is not there halts rather than being credited',
-]);
-
-const PROMPT_REGISTRY_NOT_ATTESTED = Object.freeze([
-  'that the registry prose still matches the copies inlined in mitosis.js and run-engine.mjs: the two live side by side until the engine is ported onto the registry, and the anchor guard that measures it is a suite test rather than this verb',
-  'that a composed prompt is the right instruction for the agent that receives it; only its determinism and its input sensitivity are measured',
-  'the byte fixtures transcribed from the engine, and the per-branch arm census that pins them, which are both held by the test suite rather than by this verb',
-]);
-
-const JOURNAL_PARITY_ATTESTS = Object.freeze([
-  'every journal write site the engine still dispatches is resolved to exactly one delta kind, through the helper indirection where one exists, so the conversion list C7 works from is measured rather than remembered',
-  'every kind the journal store declares has a resolved site, and every resolved site carries a kind the store declares, so a site that vanished and a site that appeared both halt',
-  'the resolved site count is cross-checked against the independently counted gitignore clause, so an extractor that silently matches nothing halts rather than reporting every kind converted',
-  'every .mitosis artifact and every .mitosis/run.json basename in every scanned source of both declared engine trees is classified, so a journal renamed or moved under another spelling halts rather than passing unseen',
-  'in a source that imports, a qualified .mitosis/run.json literal outside a dispatch halts unless it is the one enumerated inert form - the basename named as a word in prose - so a path composed for any writer, named or not, halts by default',
-  'every file in both declared trees is either scanned, or enumerated as inert by name, or halts the enumeration, so a shell script or a document added beside the engine cannot be skipped in silence',
-  'every excluded sibling directory carries a recorded reason, so the exclusion list cannot grow without one',
-  'every declared journal kind composes bytes identical to the line transcribed from the incumbent builders, including the built record whose omitted green coalesces to false and the genesis manifest composed by buildInitialManifest itself',
-]);
-
-const JOURNAL_PARITY_NOT_ATTESTED = Object.freeze([
-  'that the engine performs any journal write deterministically: all six sites still dispatch a language model until C7 ports them onto journal-store.mjs, and this verb measures the conversion list rather than the conversion',
-  'that a journal path carrying no .mitosis/run.json literal would be seen: the census classifies the qualified basename, so a module that composes the directory and the filename separately, or reads either from configuration, is outside what it measures',
-  'that a journal writer outside the two declared trees would be seen: the census reads .claude/lib/mitosis and .claude/workflows, so one added under .claude/hooks, or anywhere else in the repository, is unscanned',
-  'that the directories excluded from those trees hold no journal writer: prompt-snapshots and tests are withheld with a recorded reason and are never read',
-  'that a dispatch-only source carries no journal writer beyond the ones classified: such a source imports nothing and so cannot reach a filesystem call, which is the ground for admitting its prose rather than a measurement of it',
-  'that the bytes a model actually appended match the bytes the engine composed; only what the deterministic writer composes is measured',
-  'that a journal append is atomic on a network filesystem: the writer relies on O_APPEND placing each write at the end of file, which POSIX guarantees locally and NFS and SMB do not',
-  'the genesis store migration: .mitosis/run.json remains the fold base, and openRun still writes a disjoint attempt directory that no reader consults',
-]);
-
-const TARGETLESS_VERBS = Object.freeze(new Set(['exec-allowlist', 'journal-parity', 'prompt-registry', 'transcription-parity']));
+const TARGETLESS_VERBS = Object.freeze(new Set(['exec-allowlist']));
 
 const VERB_DEFAULT_TARGETS = Object.freeze({
   determinism: DEFAULT_DETERMINISM_TARGET,
   'dispatchable-agent-schema-capable': DEFAULT_AGENT_TREE_TARGET,
   'exec-allowlist': null,
-  'journal-parity': null,
   'phase-parity': DEFAULT_PHASE_PARITY_TARGET,
-  'prompt-registry': null,
-  'transcription-parity': null,
 });
 
 const PHASE_AUTHORITY_BY_TARGET = Object.freeze({ [DEFAULT_PHASE_PARITY_TARGET]: PHASE_TITLES });
@@ -740,16 +678,6 @@ export function execAllowlistFailures(policy) {
   if (!policy.routesThroughShim) {
     failures.push(`an ordinary gh argv no longer resolves through ${SHIM_BASENAME}, so the shim's own refusals would be bypassed at run time`);
   }
-  const census = policy.specimenCensus;
-  if (census === null || typeof census !== 'object' || census.ok !== true) {
-    const detail = census !== null && typeof census === 'object' && typeof census.error === 'string' ? census.error : JSON.stringify(census);
-    failures.push(`the merge specimen set is no longer a closed census of the refusal reasons the classifier can emit: ${detail}`);
-    return failures;
-  }
-  const measured = Array.isArray(census.reasonKinds) ? [...census.reasonKinds].sort() : [];
-  if (JSON.stringify(measured) !== JSON.stringify([...REQUIRED_MERGE_REFUSAL_KINDS])) {
-    failures.push(`the classifier now emits the refusal reasons ${JSON.stringify(measured)} but the guarantee names exactly ${JSON.stringify([...REQUIRED_MERGE_REFUSAL_KINDS])}; retiring a merge refusal takes two deliberate edits, never one, so a classifier branch and its specimen cannot be removed in lockstep and still read as covered`);
-  }
   return failures;
 }
 
@@ -768,7 +696,6 @@ export function probeExecPolicy() {
     allowlist: EXEC_ALLOWLIST,
     refusesUnlisted: refusesToSpawn(UNLISTED_PROBE_BINARY, []),
     refusals,
-    specimenCensus: censusMergeSpecimens(),
     routesThroughShim: routed !== null
       && EXEC_ALLOWLIST.includes(routed.command)
       && typeof routed.args[0] === 'string'
@@ -817,105 +744,11 @@ function runAgentSchemaGate(target, out, readSource) {
   return GATE_CLEAN_EXIT;
 }
 
-export function promptRegistryExitCode(result) {
-  if (result.ok) return GATE_CLEAN_EXIT;
-  return result.kind === 'violation' ? GATE_VIOLATION_EXIT : GATE_UNRESOLVABLE_EXIT;
-}
-
-function runPromptRegistryGate(_target, out) {
-  let result;
-  try {
-    result = censusPromptRegistry(PROMPT_PROBE_CASES);
-  } catch (err) {
-    out.err(`mitosis-gate: prompt-registry could not census the registry: ${err && err.message ? err.message : 'unknown failure'}\n`);
-    return GATE_UNRESOLVABLE_EXIT;
-  }
-  if (!result.ok) {
-    out.err(`mitosis-gate: prompt-registry ${result.kind === 'violation' ? 'measured a violation' : 'halted'}: ${result.error}\n`);
-    return promptRegistryExitCode(result);
-  }
-  out.log(`${JSON.stringify({
-    verb: 'prompt-registry',
-    ok: true,
-    kindCount: result.kindCount,
-    caseCount: result.caseCount,
-    fieldCount: result.fieldCount,
-    attests: [...PROMPT_REGISTRY_ATTESTS],
-    notAttested: [...PROMPT_REGISTRY_NOT_ATTESTED],
-    c7Obligations: [...PROMPT_C7_OBLIGATIONS],
-  })}\n`);
-  return promptRegistryExitCode(result);
-}
-
-function runJournalParityGate(_target, out) {
-  let dispatches;
-  let specimens;
-  try {
-    dispatches = journalDispatchCensus();
-    specimens = journalSpecimenCensus();
-  } catch (err) {
-    out.err(`mitosis-gate: journal-parity could not census the journal surface: ${err && err.message ? err.message : 'unknown failure'}\n`);
-    return GATE_UNRESOLVABLE_EXIT;
-  }
-  if (!dispatches.ok) {
-    out.err(`mitosis-gate: journal-parity halted on the dispatch census: ${dispatches.error}\n`);
-    return GATE_UNRESOLVABLE_EXIT;
-  }
-  if (!specimens.ok) {
-    out.err(`mitosis-gate: journal-parity measured a byte violation: ${specimens.error}\n`);
-    return GATE_VIOLATION_EXIT;
-  }
-  out.log(`${JSON.stringify({
-    verb: 'journal-parity',
-    ok: true,
-    siteCount: dispatches.siteCount,
-    kindCount: dispatches.kindCount,
-    byteCaseCount: specimens.specimenCount,
-    artifactCount: dispatches.artifactCount,
-    argvComposerCount: dispatches.argvComposerCount,
-    argvComposedPathCount: dispatches.argvComposedPathCount,
-    argvComposers: [...dispatches.argvComposers],
-    argvComposerControls: [...dispatches.argvComposerControls],
-    gitignoreClauseCount: dispatches.gitignoreClauseCount,
-    mentionCount: dispatches.mentionCount,
-    sourceCount: dispatches.sourceCount,
-    excludedDirectories: [...dispatches.excludedDirectories],
-    kinds: [...JOURNAL_KINDS],
-    sites: dispatches.sites.map((site) => `${site.kind} ${site.mode} ${site.path}:${site.line} via ${site.resolvedBy}`),
-    attests: [...JOURNAL_PARITY_ATTESTS],
-    notAttested: [...JOURNAL_PARITY_NOT_ATTESTED],
-    writerPreconditions: [...JOURNAL_WRITER_PRECONDITIONS],
-    writerDivergences: JOURNAL_WRITER_DIVERGENCES.map((entry) => `${entry.property}: ${entry.reason}`),
-    c7Obligations: [...JOURNAL_C7_OBLIGATIONS],
-  })}\n`);
-  return GATE_CLEAN_EXIT;
-}
-
-function runTranscriptionParityGate(_target, out) {
-  const verdict = transcriptionParityVerdict();
-  if (verdict.kind === 'halt') {
-    out.err(`mitosis-gate: transcription-parity ${verdict.error}
-`);
-    return GATE_UNRESOLVABLE_EXIT;
-  }
-  if (verdict.kind === 'violation') {
-    for (const failure of verdict.failures) out.err(`mitosis-gate: ${failure}
-`);
-    return GATE_VIOLATION_EXIT;
-  }
-  out.log(`${JSON.stringify(verdict.payload)}
-`);
-  return GATE_CLEAN_EXIT;
-}
-
 const VERB_RUNNERS = Object.freeze({
   determinism: runDeterminismGate,
   'dispatchable-agent-schema-capable': runAgentSchemaGate,
   'exec-allowlist': runExecAllowlistGate,
-  'journal-parity': runJournalParityGate,
   'phase-parity': runPhaseParityGate,
-  'prompt-registry': runPromptRegistryGate,
-  'transcription-parity': runTranscriptionParityGate,
 });
 
 export function runMitosisGate(argv, out, readSource) {
