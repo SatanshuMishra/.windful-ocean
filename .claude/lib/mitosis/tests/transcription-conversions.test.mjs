@@ -2,7 +2,14 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { GIT_SITES, GIT_SITE_COMMANDS } from '../git-commands.mjs';
-import { GIT_COMMAND_FIXTURES, MANIFEST_WRITE_FIXTURE, PLAN_PROBE_FIXTURE } from '../git-command-fixtures.mjs';
+import { MANIFEST_WRITE_FIXTURE, PLAN_PROBE_FIXTURE } from '../git-command-fixtures.mjs';
+import {
+  COMMAND_BINARIES,
+  TRANSCRIBED_BINARIES,
+  TRANSCRIBED_COMMAND_FIXTURES as GIT_COMMAND_FIXTURES,
+  binaryOf,
+  everyDeclaredSite,
+} from '../transcription-conversions.mjs';
 import {
   CONVERTED_TRANSCRIPTION_SITES,
   DEFAULT_CONVERSION_REGISTRY,
@@ -47,16 +54,17 @@ test('the shipped fixtures census cleanly against the incumbent engine source', 
   const measured = gitCommandFixtureCensus(INCUMBENT);
   assert.equal(measured.ok, true, measured.ok === true ? '' : measured.error);
   assert.equal(measured.fixtureCount, GIT_COMMAND_FIXTURES.length);
-  assert.deepEqual([...measured.sites], [...new Set([...GIT_SITES, ...NON_SPAWN_SITES.map((entry) => entry.site)])].sort());
+  assert.deepEqual([...measured.sites], [...new Set([...everyDeclaredSite(), ...NON_SPAWN_SITES.map((entry) => entry.site)])].sort());
   assert.equal(measured.parentSha, '4656b8ad');
   assert.equal(measured.binary, 'git');
 });
 
-test('the sites this msp converts are the eleven git sites plus the plan artifact probe, named rather than counted', () => {
+test('the sites the transcription converts are the eighteen, named rather than counted', () => {
   const measured = gitCommandFixtureCensus(INCUMBENT);
   assert.deepEqual([...measured.sites], [
-    'branch-compose', 'branch-prep', 'checkpoint-push', 'ci-diff', 'ci-publish-verify', 'divergence-check',
-    'fence', 'integrate', 'manifest-publish', 'plan-probe', 'prepare-probe', 'restore',
+    'branch-compose', 'branch-prep', 'checkpoint-push', 'ci-diff', 'ci-probe', 'ci-publish', 'ci-publish-verify',
+    'divergence-check', 'fence', 'integrate', 'manifest-publish', 'plan-probe', 'prepare-probe', 'reconcile',
+    'restore', 'ship', 'ship-verify', 'supersede',
   ]);
   assert.equal(measured.siteCount, measured.sites.length);
 });
@@ -75,10 +83,17 @@ test('the plan artifact probe refuses a binary the spawn policy genuinely does n
   assert.ok(probe.reason.length > 0);
 });
 
-test('every declared builder is pinned by exactly one fixture, in both directions', () => {
-  const declared = GIT_SITES.flatMap((site) => Object.keys(GIT_SITE_COMMANDS[site]).map((step) => `${site}/${step}`)).sort();
-  const fixtured = GIT_COMMAND_FIXTURES.map((entry) => `${entry.site}/${entry.step}`).sort();
-  assert.deepEqual(fixtured, declared);
+test('every declared builder is pinned by exactly one fixture or one declared sharing, in both directions', () => {
+  const declared = TRANSCRIBED_BINARIES
+    .flatMap((binary) => COMMAND_BINARIES[binary].sites
+      .flatMap((site) => Object.keys(COMMAND_BINARIES[binary].steps[site]).map((step) => `${binary} ${site}/${step}`)))
+    .sort();
+  const accounted = [
+    ...GIT_COMMAND_FIXTURES.map((entry) => `${binaryOf(entry)} ${entry.site}/${entry.step}`),
+    ...DEFAULT_CONVERSION_REGISTRY.shared.map((entry) => `${entry.binary} ${entry.site}/${entry.step}`),
+    ...DEFAULT_CONVERSION_REGISTRY.derivedCommands.map((entry) => `${entry.binary} ${entry.site}/${entry.step}`),
+  ].sort();
+  assert.deepEqual(accounted, declared);
 });
 
 test('a builder with no fixture halts rather than going unpinned', () => {
@@ -283,7 +298,7 @@ test('a parser registered under a site no builder and no non-spawn step declares
 });
 
 test('every registered parser site is a declared builder site or a declared non-spawn site', () => {
-  const declared = new Set([...GIT_SITES, ...NON_SPAWN_SITES.map((entry) => entry.site)]);
+  const declared = new Set([...everyDeclaredSite(), ...NON_SPAWN_SITES.map((entry) => entry.site)]);
   for (const site of Object.keys(DEFAULT_CONVERSION_REGISTRY.parsers)) {
     assert.ok(declared.has(site), `${site} registers a parser that no builder and no non-spawn step accounts for`);
   }

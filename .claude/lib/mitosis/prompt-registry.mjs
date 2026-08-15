@@ -18,6 +18,7 @@ import {
   composeDiagnosePrompt,
   composeRedispatchPrompt,
 } from './prompt-remediate.mjs';
+import { composeCiFactExtractPrompt } from './prompt-ci-facts.mjs';
 
 export { PROMPT_KINDS } from './prompt-contract.mjs';
 export { PROMPT_PROBE_CASES } from './prompt-probes.mjs';
@@ -49,6 +50,7 @@ export const PROMPT_COMPOSERS = Object.freeze({
   'ci-fix': composeCiFixPrompt,
   diagnose: composeDiagnosePrompt,
   redispatch: composeRedispatchPrompt,
+  'ci-fact-extract': composeCiFactExtractPrompt,
 });
 
 export function composePrompt(kind, input) {

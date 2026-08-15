@@ -11,20 +11,20 @@ export const TRANSCRIPTION_KINDS = Object.freeze([
   Object.freeze({ name: 'fence', converted: true }),
   Object.freeze({ name: 'integrate', converted: true }),
   Object.freeze({ name: 'divergence-check', converted: true }),
-  Object.freeze({ name: 'reconcile', converted: false }),
+  Object.freeze({ name: 'reconcile', converted: true }),
   Object.freeze({ name: 'manifest-publish', converted: true }),
   Object.freeze({ name: 'prepare-probe', converted: true }),
-  Object.freeze({ name: 'supersede', converted: false }),
+  Object.freeze({ name: 'supersede', converted: true }),
   Object.freeze({ name: 'restore', converted: true }),
   Object.freeze({ name: 'plan-probe', converted: true }),
   Object.freeze({ name: 'branch', converted: true }),
   Object.freeze({ name: 'checkpoint-push', converted: true }),
-  Object.freeze({ name: 'ship-verify', converted: false }),
-  Object.freeze({ name: 'ci-probe', converted: false }),
+  Object.freeze({ name: 'ship-verify', converted: true }),
+  Object.freeze({ name: 'ci-probe', converted: true }),
   Object.freeze({ name: 'ci-diff', converted: true }),
-  Object.freeze({ name: 'ci-publish', converted: false }),
+  Object.freeze({ name: 'ci-publish', converted: true }),
   Object.freeze({ name: 'ci-publish-verify', converted: true }),
-  Object.freeze({ name: 'ship', converted: false }),
+  Object.freeze({ name: 'ship', converted: true }),
 ]);
 
 export const JOURNAL_LABEL_KINDS = Object.freeze({
@@ -94,6 +94,8 @@ export const TRANSCRIPTION_C7_OBLIGATIONS = Object.freeze([
   'C7-T1 re-sync run-engine.mjs with mitosis.js when the wiring lands. Its fence and integrate dispatches are live twins of two of the eighteen: mitosis-execute.js imports run-engine.mjs, so converting mitosis.js alone converts code the live path never runs. C4 leaves both twins untouched on purpose - editing the live twin before C7 owns the wiring is what broke C1 - and this census names them so the divergence is measured rather than assumed.',
   'C7-T2 resolve divergence.mjs, a THIRD twin the C4 plan did not record. It carries its own divergence-check dispatch and nothing in .claude/lib or .claude/workflows imports it, so it is a dead copy of the mitosis.js block. C7 either deletes it or wires it up; leaving an unimported twin means a future reader converts one copy and ships the other.',
   'C7-T3 keep the label the site name. This census resolves every dispatch through its label, so a conversion that removes a dispatch must remove its label with it; a converted site that keeps a label would be counted as still dispatching, and a dispatch that loses its label halts the census rather than passing unseen.',
+  'C7-T6 supply and bound the spec fingerprint reader. readSpecContentHash injects readFileBytes, and no probe pins what a real reader does with a large file, a directory, a symbolic link or a file replaced between the stat and the read; the reader C7 supplies is the first one that meets a real filesystem, and it needs a size bound and a refusal for anything that is not a regular file.',
+  'C7-T5 dispatch ci-fact-extract, or retire it. It is registered with the prompt authority and carries the only two ci report fields no runner this engine deploys emits in a machine-readable form, but no dispatch reaches it: the incumbent still asks one agent for all six fields at once. When C7 wires the ci loop onto this substrate it must dispatch this kind for the two path lists and read the other four from gh and git, then delete the pending declaration that excuses it here. If instead the two fields are dropped, the ci-to-green loop escalates on every red run and that capability regression is chosen deliberately rather than by default.',
   'C7-T4 remove the dispatch of every converted site when the wiring lands, and tighten this census with it. Converted here means a deterministic replacement exists and is pinned to the incumbent command, NOT that the site stopped dispatching: every one of the eighteen still reaches a model, because C4 leaves mitosis.js byte-identical to its parent. When C7 replaces a dispatch with a call into the substrate, the vanished-kind halt must become a per-kind expectation - a converted kind dispatches nowhere, an unconverted kind still does - so the two states stay distinguishable rather than collapsing into one.',
 ]);
 
@@ -368,6 +370,29 @@ export function conversionSitesOf(name) {
   return Object.hasOwn(CONVERSION_SITE_NAMES, name) ? CONVERSION_SITE_NAMES[name] : Object.freeze([name]);
 }
 
+export const PENDING_JUDGMENT_KINDS = Object.freeze([
+  Object.freeze({
+    name: 'ci-fact-extract',
+    reason: 'the ci report splits into four fields the engine derives from what gh and git printed and two path lists no runner this engine deploys emits in a machine-readable form; this kind carries only those two, and no dispatch reaches it until C7 wires the engine onto the converted substrate, because the incumbent still asks one agent for all six at once',
+  }),
+]);
+
+function pendingJudgmentFailure(reached, pending) {
+  const undeclared = pending.filter((entry) => !PROMPT_KINDS.includes(entry.name));
+  if (undeclared.length > 0) {
+    return `transcription-census: these kinds are declared as awaiting a dispatch yet the prompt authority names none of them: ${undeclared.map((entry) => entry.name).join(', ')}; a pending declaration that matches no registered kind excuses a dispatch nothing would have looked for`;
+  }
+  const arrived = pending.filter((entry) => reached.includes(entry.name));
+  if (arrived.length > 0) {
+    return `transcription-census: these kinds are declared as awaiting a dispatch yet a measured dispatch label already reaches them: ${arrived.map((entry) => entry.name).join(', ')}; the declaration outlived the wiring it was waiting for and now excuses a kind this census can already see`;
+  }
+  const unreasoned = pending.filter((entry) => typeof entry.reason !== 'string' || entry.reason.length === 0);
+  if (unreasoned.length > 0) {
+    return `transcription-census: these kinds are declared as awaiting a dispatch with no stated reason: ${unreasoned.map((entry) => entry.name).join(', ')}`;
+  }
+  return null;
+}
+
 function conversionStateFailure(declared, registered) {
   const declaredNames = new Set(declared.map((kind) => kind.name));
   const staleAlias = Object.keys(CONVERSION_SITE_NAMES).filter((name) => !declaredNames.has(name));
@@ -405,7 +430,7 @@ function reachedIncludingParameterized(sites) {
   return [...named];
 }
 
-export function censusTranscriptionSources(sources, declared = TRANSCRIPTION_KINDS, registered = CONVERTED_TRANSCRIPTION_SITES) {
+export function censusTranscriptionSources(sources, declared = TRANSCRIPTION_KINDS, registered = CONVERTED_TRANSCRIPTION_SITES, pending = PENDING_JUDGMENT_KINDS) {
   if (!Array.isArray(sources) || sources.length === 0) {
     return halt('transcription-census: the census was handed no source, so it would attest a conversion list it never measured');
   }
@@ -483,7 +508,11 @@ export function censusTranscriptionSources(sources, declared = TRANSCRIPTION_KIN
   const unconvertedSites = conversionTargetSites.filter((site) => !convertedKindNames.has(site.name));
 
   const judgmentKindsReached = reachedIncludingParameterized(allSites).filter((kind) => PROMPT_KINDS.includes(kind));
-  const unreachedJudgment = PROMPT_KINDS.filter((kind) => !judgmentKindsReached.includes(kind));
+  const pendingHalt = pendingJudgmentFailure(judgmentKindsReached, pending);
+  if (pendingHalt !== null) return halt(pendingHalt);
+  const unreachedJudgment = PROMPT_KINDS
+    .filter((kind) => !judgmentKindsReached.includes(kind))
+    .filter((kind) => !pending.some((entry) => entry.name === kind));
   if (unreachedJudgment.length > 0) {
     return halt(`transcription-census: these judgment kinds the prompt authority declares are reached by no measured dispatch label: ${unreachedJudgment.join(', ')}`);
   }
@@ -526,6 +555,7 @@ export function censusTranscriptionSources(sources, declared = TRANSCRIPTION_KIN
     programSiteCount: sites.filter((site) => site.category === PROGRAM).length,
     parameterizedSiteCount: sites.filter((site) => site.category === null).length,
     judgmentKindsReached: Object.freeze(judgmentKindsReached.sort()),
+    pendingJudgmentKinds: Object.freeze(pending.map((entry) => `${entry.name}: ${entry.reason}`)),
     journalKindsReached: Object.freeze(journalKindsReached.sort()),
     programKindsReached: Object.freeze(programKindsReached.sort()),
     declaredNames: Object.freeze([...table.keys()]),

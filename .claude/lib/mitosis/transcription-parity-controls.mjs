@@ -1,8 +1,15 @@
-import { GIT_COMMAND_FIXTURES } from './git-command-fixtures.mjs';
+
 import { END_OF_OPTIONS } from './git-commands.mjs';
 import { SEPARATION_EXCEPTIONS, censusPositionalSeparation } from './git-command-separation.mjs';
-import { TRANSCRIPTION_KINDS, censusTranscriptionSources } from './transcription-census.mjs';
-import { CONVERTED_TRANSCRIPTION_SITES, DEFAULT_CONVERSION_REGISTRY, censusGitCommandFixtures } from './transcription-conversions.mjs';
+import { PENDING_JUDGMENT_KINDS, TRANSCRIPTION_KINDS, censusTranscriptionSources } from './transcription-census.mjs';
+import {
+  COMMAND_BINARIES,
+  CONVERTED_TRANSCRIPTION_SITES,
+  DEFAULT_CONVERSION_REGISTRY,
+  TRANSCRIBED_COMMAND_FIXTURES as GIT_COMMAND_FIXTURES,
+  binaryOf,
+  censusGitCommandFixtures,
+} from './transcription-conversions.mjs';
 const CONVERSION_TARGET = '/engine/.claude/workflows/mitosis.js';
 
 const CENSUS_CONTROLS = Object.freeze([
@@ -127,7 +134,7 @@ const CONVERSION_CONTROLS = Object.freeze([
 ]);
 
 const UNDECLARED_SITE = 'fence-extra';
-const UNCONVERTED_KIND_SITE = 'ship-verify';
+const WITHDRAWN_REPLACEMENT_SITE = 'ship-verify';
 const REPEATED_INCUMBENT_COMMAND = '\\`git -C ${repoRoot} fetch origin ${baseBranch}\\`';
 const SINGLE_INCUMBENT_COMMAND = 'Read the local integration tip: \\`git -C ${repoRoot} rev-parse ${integrationBranch}\\`';
 
@@ -150,6 +157,30 @@ const REGISTRY_CONTROLS = Object.freeze([
     perturb: (registry) => ({
       ...registry,
       nonSpawn: [{ ...registry.nonSpawn[0], anchor: REPEATED_INCUMBENT_COMMAND }, ...registry.nonSpawn.slice(1)],
+    }),
+  }),
+  Object.freeze({
+    name: 'a site declaring a refused binary its incumbent command never spells halts',
+    expect: 'the incumbent command does not spell it',
+    present: (registry) => registry.nonSpawn.some((entry) => entry.refusedBinary !== undefined),
+    missing: 'no non-spawn site records a refused binary, so nothing was perturbed',
+    perturb: (registry) => ({
+      ...registry,
+      nonSpawn: registry.nonSpawn.map((entry) => (entry.refusedBinary === undefined
+        ? entry
+        : { ...entry, refusedBinary: 'awk', alsoRefusedBinaries: [], reason: `${entry.reason} awk` })),
+    }),
+  }),
+  Object.freeze({
+    name: 'a site whose stated reason never names a binary it declares refused halts',
+    expect: 'its stated reason never mentions it',
+    present: (registry) => registry.nonSpawn.some((entry) => entry.refusedBinary !== undefined),
+    missing: 'no non-spawn site records a refused binary, so nothing was perturbed',
+    perturb: (registry) => ({
+      ...registry,
+      nonSpawn: registry.nonSpawn.map((entry) => (entry.refusedBinary === undefined
+        ? entry
+        : { ...entry, reason: entry.reason.split(entry.refusedBinary).join('the wrapper') })),
     }),
   }),
   Object.freeze({
@@ -216,6 +247,151 @@ const REGISTRY_CONTROLS = Object.freeze([
   }),
 ]);
 
+const DRIFTED_TOKEN = '--drifted';
+
+const SHARED_STEP_CONTROLS = Object.freeze([
+  Object.freeze({
+    name: 'a shared step that does not build the transcribed command halts',
+    expect: 'a sharing claim is compared against the frozen fixture',
+    present: (registry) => registry.shared.length > 0,
+    missing: 'no step is declared as sharing a command, so nothing was perturbed',
+    perturb: (registry) => {
+      const entry = registry.shared[0];
+      const table = COMMAND_BINARIES[entry.binary];
+      const drifted = {
+        ...table,
+        build: (site, step, values) => {
+          const built = [...table.build(site, step, values)];
+          if (site !== entry.site || step !== entry.step) return Object.freeze(built);
+          return Object.freeze(built.map((token, index) => (index === built.length - 1 ? DRIFTED_TOKEN : token)));
+        },
+      };
+      return { ...registry, binaries: { ...COMMAND_BINARIES, [entry.binary]: drifted } };
+    },
+  }),
+  Object.freeze({
+    name: 'a shared step whose builder drifts at both sites halts against the frozen fixture',
+    expect: 'a sharing claim is compared against the frozen fixture',
+    present: (registry) => registry.shared.length > 0 && GIT_COMMAND_FIXTURES.some((fixture) => (
+      fixture.site === registry.shared[0].sharesWith
+      && fixture.step === registry.shared[0].step
+      && binaryOf(fixture) === registry.shared[0].binary
+    )),
+    missing: 'no step is declared as sharing a command whose twin site carries a fixture, so a builder drifted at both sites would have no frozen vector to disagree with and the perturbation would prove nothing',
+    perturb: (registry) => {
+      const entry = registry.shared[0];
+      const table = COMMAND_BINARIES[entry.binary];
+      const drifted = {
+        ...table,
+        build: (site, step, values) => {
+          const built = [...table.build(site, step, values)];
+          if (step !== entry.step) return Object.freeze(built);
+          return Object.freeze(built.map((token, index) => (index === built.length - 1 ? DRIFTED_TOKEN : token)));
+        },
+      };
+      return { ...registry, binaries: { ...COMMAND_BINARIES, [entry.binary]: drifted } };
+    },
+  }),
+  Object.freeze({
+    name: 'a shared step whose own incumbent clause vanished halts',
+    expect: 'its own incumbent clause is the only thing tying this site to the command',
+    present: (registry) => registry.shared.length > 0,
+    missing: 'no step is declared as sharing a command, so nothing was perturbed',
+    perturb: (registry) => ({
+      ...registry,
+      shared: registry.shared.map((entry, index) => (index === 0 ? { ...entry, anchor: `${entry.anchor} ${DRIFTED_TOKEN}` } : entry)),
+    }),
+  }),
+  Object.freeze({
+    name: 'a derived command whose builder drifts from the vector it freezes halts',
+    expect: 'the frozen vector is its whole pin',
+    present: (registry) => registry.derivedCommands.length > 0,
+    missing: 'no command is declared derived, so nothing was perturbed',
+    perturb: (registry) => ({
+      ...registry,
+      derivedCommands: registry.derivedCommands.map((entry, index) => (index === 0
+        ? { ...entry, argv: entry.argv.map((token, at) => (at === entry.argv.length - 1 ? DRIFTED_TOKEN : token)) }
+        : entry)),
+    }),
+  }),
+  Object.freeze({
+    name: 'a derived command declaring no frozen vector halts',
+    expect: 'declares no transcribed argument vector',
+    present: (registry) => registry.derivedCommands.length > 0,
+    missing: 'no command is declared derived, so nothing was perturbed',
+    perturb: (registry) => ({
+      ...registry,
+      derivedCommands: registry.derivedCommands.map((entry, index) => (index === 0 ? { ...entry, argv: [] } : entry)),
+    }),
+  }),
+  Object.freeze({
+    name: 'a shared step naming a site that declares no such step halts',
+    expect: 'no builder declares it',
+    present: (registry) => registry.shared.length > 0,
+    missing: 'no step is declared as sharing a command, so nothing was perturbed',
+    perturb: (registry) => ({
+      ...registry,
+      shared: [...registry.shared, { ...registry.shared[0], site: 'reconcile', step: 'watch-status' }],
+    }),
+  }),
+  Object.freeze({
+    name: 'a shared step declared with no stated reason halts',
+    expect: 'declares no reason for sharing a fixture',
+    present: (registry) => registry.shared.length > 0,
+    missing: 'no step is declared as sharing a command, so nothing was perturbed',
+    perturb: (registry) => ({
+      ...registry,
+      shared: registry.shared.map((entry, index) => (index === 0 ? { ...entry, reason: '' } : entry)),
+    }),
+  }),
+  Object.freeze({
+    name: 'a derived command anchored to text the incumbent no longer spells halts',
+    expect: 'a derived command is admitted only against the one incumbent clause',
+    present: (registry) => registry.derivedCommands.length > 0,
+    missing: 'no command is declared derived, so nothing was perturbed',
+    perturb: (registry) => ({
+      ...registry,
+      derivedCommands: registry.derivedCommands.map((entry, index) => (index === 0 ? { ...entry, anchor: 'conflictPaths' } : entry)),
+    }),
+  }),
+  Object.freeze({
+    name: 'a derived command whose anchor never names the field it produces halts',
+    expect: 'never names',
+    present: (registry) => registry.derivedCommands.length > 0,
+    missing: 'no command is declared derived, so nothing was perturbed',
+    perturb: (registry) => ({
+      ...registry,
+      derivedCommands: registry.derivedCommands.map((entry, index) => (index === 0 ? { ...entry, field: 'unmergedPaths' } : entry)),
+    }),
+  }),
+  Object.freeze({
+    name: 'a derived command declared with no stated reason halts',
+    expect: 'states no reason for departing from the incumbent',
+    present: (registry) => registry.derivedCommands.length > 0,
+    missing: 'no command is declared derived, so nothing was perturbed',
+    perturb: (registry) => ({
+      ...registry,
+      derivedCommands: registry.derivedCommands.map((entry, index) => (index === 0 ? { ...entry, reason: '' } : entry)),
+    }),
+  }),
+]);
+
+export function sharedStepControlProbes(source) {
+  return Object.freeze(SHARED_STEP_CONTROLS.map((control) => {
+    if (!control.present(DEFAULT_CONVERSION_REGISTRY)) {
+      return Object.freeze({ name: control.name, halted: false, named: false, anchorPresent: false, detail: control.missing });
+    }
+    const measured = censusGitCommandFixtures(GIT_COMMAND_FIXTURES, source, control.perturb(DEFAULT_CONVERSION_REGISTRY));
+    return Object.freeze({
+      name: control.name,
+      halted: measured.ok !== true,
+      named: measured.ok !== true && typeof measured.error === 'string' && measured.error.includes(control.expect),
+      anchorPresent: true,
+      detail: measured.ok === true ? 'the census accepted it' : measured.error,
+    });
+  }));
+}
+
 export function registryControlProbes(source) {
   return Object.freeze(REGISTRY_CONTROLS.map((control) => {
     if (!control.present(DEFAULT_CONVERSION_REGISTRY)) {
@@ -249,6 +425,12 @@ export function conversionControlProbes(source) {
     fixtureListProbe('a command builder carrying no fixture halts', 'fence/status', GIT_COMMAND_FIXTURES.filter((entry) => entry.step !== 'status'), source),
     fixtureListProbe('one builder carrying two fixtures halts', 'more than one fixture', [...GIT_COMMAND_FIXTURES, seed], source),
     fixtureListProbe('a fixture naming a builder no site declares halts', 'measures nothing', [...GIT_COMMAND_FIXTURES, { ...seed, step: 'harvest' }], source),
+    fixtureListProbe(
+      'a fixture naming a binary no builder is declared for halts',
+      'for which no builder is declared',
+      GIT_COMMAND_FIXTURES.map((entry) => (entry.site === seed.site && entry.step === seed.step ? { ...entry, binary: 'awk' } : entry)),
+      source,
+    ),
   ];
   const unpinned = seed === undefined
     ? Object.freeze({ name: 'a command builder carrying no fixture halts', halted: false, named: false, anchorPresent: false, detail: 'the fence/status fixture these controls perturb is absent, so they perturbed nothing' })
@@ -278,33 +460,96 @@ export function conversionControlProbes(source) {
 
 const CONVERSION_STATE_CONTROLS = Object.freeze([
   Object.freeze({
-    name: 'a kind declared converted with no registered replacement halts',
-    kind: 'reconcile',
-    was: false,
-    becomes: true,
-    expect: 'needs reconcile',
-  }),
-  Object.freeze({
     name: 'a kind whose replacement is registered but declared unconverted halts',
     kind: 'fence',
     was: true,
     becomes: false,
     expect: 'is served by fence',
   }),
+  Object.freeze({
+    name: 'a kind declared converted whose registered replacement is withdrawn halts',
+    kind: 'ship-verify',
+    was: true,
+    becomes: true,
+    withdraw: WITHDRAWN_REPLACEMENT_SITE,
+    expect: 'needs ship-verify',
+  }),
 ]);
 
 const REGISTERED_SITE_CONTROLS = Object.freeze([
-  Object.freeze({
-    name: 'a replacement registered for a site whose kind the declaration counts unconverted halts',
-    site: UNCONVERTED_KIND_SITE,
-    expect: `is served by ${UNCONVERTED_KIND_SITE}`,
-  }),
   Object.freeze({
     name: 'a replacement registered under a name no declared kind reaches halts',
     site: UNDECLARED_SITE,
     expect: 'serve no declared kind',
   }),
 ]);
+
+const UNDECLARED_PENDING_KIND = 'ci-fact-extract-extra';
+
+function pendingProbe(name, expect, sources, pending) {
+  const measured = censusTranscriptionSources(
+    sources.map((entry) => ({ ...entry })),
+    TRANSCRIPTION_KINDS,
+    CONVERTED_TRANSCRIPTION_SITES,
+    pending,
+  );
+  return Object.freeze({
+    name,
+    halted: measured.ok !== true,
+    named: measured.ok !== true && typeof measured.error === 'string' && measured.error.includes(expect),
+    anchorPresent: true,
+    detail: measured.ok === true ? 'the census accepted it' : measured.error,
+  });
+}
+
+export function pendingJudgmentProbes(sources) {
+  const baseline = censusTranscriptionSources(sources.map((entry) => ({ ...entry })));
+  if (baseline.ok !== true) {
+    return Object.freeze([Object.freeze({
+      name: 'the pending-kind controls',
+      halted: false,
+      named: false,
+      anchorPresent: false,
+      detail: `the unperturbed census already halts, so no pending-kind perturbation proves anything: ${baseline.error}`,
+    })]);
+  }
+  const reachedNow = new Set(baseline.judgmentKindsReached);
+  return Object.freeze(PENDING_JUDGMENT_KINDS.flatMap((pending) => {
+    if (reachedNow.has(pending.name)) {
+      return [Object.freeze({
+        name: `the pending kind ${pending.name} controls`,
+        halted: false,
+        named: false,
+        anchorPresent: false,
+        detail: `${pending.name} is already reached by a measured dispatch, so declaring it pending perturbs nothing`,
+      })];
+    }
+    const dispatched = [
+      ...sources,
+      { path: CONVERSION_TARGET, source: `await agent(prompt, { agentType: 'implementer', label: '${pending.name}', phase: 'Ship' });` },
+    ];
+    return [
+      pendingProbe(
+        `a dispatch that reaches the pending kind ${pending.name} halts rather than being excused`,
+        'the declaration outlived the wiring it was waiting for',
+        dispatched,
+        PENDING_JUDGMENT_KINDS,
+      ),
+      pendingProbe(
+        `a pending kind the prompt authority does not name halts`,
+        'the prompt authority names none of them',
+        sources,
+        [...PENDING_JUDGMENT_KINDS, { name: UNDECLARED_PENDING_KIND, reason: pending.reason }],
+      ),
+      pendingProbe(
+        `a pending kind parked with no stated reason halts`,
+        'awaiting a dispatch with no stated reason',
+        sources,
+        PENDING_JUDGMENT_KINDS.map((entry) => ({ ...entry, reason: '' })),
+      ),
+    ];
+  }));
+}
 
 export function registeredSiteProbes(sources) {
   return Object.freeze(REGISTERED_SITE_CONTROLS.map((control) => {
@@ -347,7 +592,19 @@ export function conversionStateProbes(sources) {
     const declared = TRANSCRIPTION_KINDS.map((kind) => (
       kind.name === control.kind ? Object.freeze({ ...kind, converted: control.becomes }) : kind
     ));
-    const measured = censusTranscriptionSources(sources.map((entry) => ({ ...entry })), declared);
+    const registered = control.withdraw === undefined
+      ? CONVERTED_TRANSCRIPTION_SITES
+      : CONVERTED_TRANSCRIPTION_SITES.filter((site) => site !== control.withdraw);
+    if (control.withdraw !== undefined && registered.length === CONVERTED_TRANSCRIPTION_SITES.length) {
+      return Object.freeze({
+        name: control.name,
+        halted: false,
+        named: false,
+        anchorPresent: false,
+        detail: `${control.withdraw} carries no registered replacement to withdraw, so this control withdrew nothing and proves nothing`,
+      });
+    }
+    const measured = censusTranscriptionSources(sources.map((entry) => ({ ...entry })), declared, registered);
     return Object.freeze({
       name: control.name,
       halted: measured.ok !== true,

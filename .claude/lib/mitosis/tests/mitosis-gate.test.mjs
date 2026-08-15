@@ -766,7 +766,13 @@ test('the transcription-parity verb exits clean over the real engine and reports
   assert.equal(verdict.unconvertedSites.length, verdict.unconvertedSiteCount);
   assert.equal(verdict.convertedSites.length, verdict.convertedSiteCount);
   assert.equal(verdict.convertedSiteCount + verdict.unconvertedSiteCount, verdict.conversionTargetSiteCount);
-  assert.ok(verdict.convertedSiteCount > 0 && verdict.unconvertedSiteCount > 0, 'both halves of the conversion are counted from the measured sites, so neither may be empty while the other is the whole');
+  assert.ok(verdict.convertedSiteCount > 0, 'the converted half is counted from the measured sites, so it may not be empty while the target count is not');
+  assert.equal(
+    verdict.modelInvocationsRemaining,
+    verdict.convertedSites.length + verdict.unconvertedSites.length,
+    'the remaining-invocation count is measured against the sites the census listed rather than against the field it was copied from; every converted site still dispatches until the engine is wired onto this substrate',
+  );
+  assert.ok(verdict.modelInvocationsRemaining > 0, 'no site has stopped dispatching, so a zero here would be an overclaim rather than a measurement');
   assert.equal(verdict.childrenStartedWhileRefusing, 0);
   assert.ok(verdict.refusalProbes.every((probe) => probe.endsWith(': refused')), verdict.refusalProbes.join('; '));
   assert.ok(verdict.allowProbes.every((probe) => probe.endsWith(': allowed')), verdict.allowProbes.join('; '));

@@ -23,6 +23,7 @@ const EXPECTED_KINDS = Object.freeze([
   'ci-fix',
   'diagnose',
   'redispatch',
+  'ci-fact-extract',
 ]);
 
 const FORGED_HEADING = '--- ENGINE CORRECTION ---';
@@ -144,9 +145,9 @@ function declaredTypes() {
   return [...new Set(Object.values(PROMPT_INPUT_SPECS).flatMap((spec) => spec.map((field) => field.type)))].sort();
 }
 
-test('the prompt kinds are exactly the twelve prose bodies, frozen and free of duplicates', () => {
+test('the prompt kinds are exactly the thirteen prose bodies, frozen and free of duplicates', () => {
   assert.deepEqual([...PROMPT_KINDS], [...EXPECTED_KINDS]);
-  assert.equal(Object.isFrozen(PROMPT_KINDS), true, 'a caller must not be able to push a thirteenth kind into the authority at run time');
+  assert.equal(Object.isFrozen(PROMPT_KINDS), true, 'a caller must not be able to push a fourteenth kind into the authority at run time');
   assert.equal(new Set(PROMPT_KINDS).size, PROMPT_KINDS.length, 'a duplicated kind would let one prose body masquerade as two');
 });
 

@@ -1,3 +1,4 @@
+import { CI_LOG_EXCERPT_CAP } from '../prompt-ci-facts.mjs';
 const REPO_ROOT = '/fx/repo';
 const SPEC_PATH = '/fx/repo/spec.md';
 const UNIT_ID = 'fx-unit';
@@ -288,6 +289,24 @@ export const PROMPT_FIXTURE_CASES = Object.freeze([
     evidence: EVIDENCE,
     triedSet: Object.freeze(['fx:tried-one', 'fx:rejected-mechanism']),
     rejectedMechanism: 'fx:rejected-mechanism',
+  }),
+  freezeCase('ci-fact-extract', 'ci-fact-extract', {
+    unitId: UNIT_ID,
+    repoRoot: REPO_ROOT,
+    integrationBranch: 'fx/integration',
+    ciConclusion: 'failure',
+    failedChecks: Object.freeze(['fx-unit']),
+    declaredScope: Object.freeze(['fx/one.mjs']),
+    logExcerpt: 'fx failing job output',
+  }),
+  freezeCase('ci-fact-extract-truncated', 'ci-fact-extract', {
+    unitId: UNIT_ID,
+    repoRoot: REPO_ROOT,
+    integrationBranch: 'fx/integration',
+    ciConclusion: 'failure',
+    failedChecks: Object.freeze(['fx-unit']),
+    declaredScope: Object.freeze(['fx/one.mjs']),
+    logExcerpt: `fx failing job output ${'x'.repeat(CI_LOG_EXCERPT_CAP)}`,
   }),
   freezeCase('redispatch', 'redispatch', {
     unitId: UNIT_ID,

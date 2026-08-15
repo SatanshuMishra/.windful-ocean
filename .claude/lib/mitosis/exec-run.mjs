@@ -22,6 +22,7 @@ export const POLL_ITERATION_SLACK = 4;
 
 export const EXEC_RUN_NOT_ATTESTED = Object.freeze([
   'argv-level containment for claude, git, node and graphify: an allowlisted binary still reaches arbitrary work through its own argv, and git in particular executes a shell alias supplied as -c alias.name=!command, which no layer here inspects',
+  'that a spawned child reads no ambient configuration: this chokepoint sets no env, so the environment it inherits steers the binary it starts. For gh that is GH_HOST, GH_CONFIG_DIR, GH_TOKEN and GH_ENTERPRISE_TOKEN, any of which redirects a transcribed read to another host and sends the credential there; for git it is GIT_DIR, GIT_CONFIG_GLOBAL, GIT_SSH_COMMAND and GIT_CONFIG_COUNT. The allowlist names a binary, never the configuration that binary obeys, and PATH is not the only ambient lever',
   'that a timed-out child leaves nothing running: the spawn bound signals the immediate child only, and a gh call is rewritten to run the merge shim, so a shim that has already handed the request to the real gh binary leaves that request in flight while this substrate reports that the work never completed',
   'that stdout is captured faithfully for a child emitting bytes that are not valid utf8: stdout and stderr are decoded as text, while stdin is handed to the child unchanged',
   'that a child which overflows the capture buffer produced usable output: the overflow is reported as its own outcome rather than as a completed run, and the partial capture is not returned',

@@ -72,6 +72,10 @@ function unquote(token) {
   return { error: 'opens a quoted path that never closes' };
 }
 
+export function readQuotedPath(token, what) {
+  return quotedPathLine(token, what);
+}
+
 function quotedPathLine(line, what) {
   const read = unquote(line);
   if (read.error !== undefined) return { error: `the ${what} ${JSON.stringify(line)} ${read.error}` };

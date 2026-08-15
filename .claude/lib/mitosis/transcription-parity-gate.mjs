@@ -15,18 +15,31 @@ import {
   transcriptionCensus,
 } from './transcription-census.mjs';
 import { GIT_SITE_COMMANDS } from './git-commands.mjs';
+import { GH_SITE_FIXTURE_PARENT_SHA } from './gh-site-fixtures.mjs';
+import { ghSpawnRequest } from './gh-commands.mjs';
+import { MERGE_REFUSAL_SPECIMENS } from './gh-merge-shim.mjs';
+import { GH_SITE_COMMANDS } from './gh-commands.mjs';
+import { PENDING_JUDGMENT_KINDS } from './transcription-census.mjs';
+import { classifyCiReport } from './ci-escalation.mjs';
+import { CI_FACT_FIELDS, CI_MODEL_FIELDS, ciEscalationProbes, ciFactProbes } from './ci-facts.mjs';
+import { specHashProbes } from './spec-hash.mjs';
+import { supersedeSummaryProbes } from './supersede-summary.mjs';
 import {
   NON_SPAWN_SITES,
+  TRANSCRIBED_BINARIES,
+  TRANSCRIBED_COMMAND_FIXTURES,
   argvInertnessProbe,
   gitCommandFixtureCensus,
   parserProbes,
 } from './transcription-conversions.mjs';
-import { censusPositionalSeparation, refusedValueProbes } from './git-command-separation.mjs';
+import { FETCH_VALUE_SITES, SEPARATION_EXCEPTIONS, censusPositionalSeparation, refusedValueProbes } from './git-command-separation.mjs';
 import {
   conversionControlProbes,
   conversionStateProbes,
+  pendingJudgmentProbes,
   registeredSiteProbes,
   registryControlProbes,
+  sharedStepControlProbes,
   separationControlProbes,
   transcriptionCensusProbes,
 } from './transcription-parity-controls.mjs';
@@ -36,7 +49,28 @@ const MANIFEST_PUBLISH_SITE = 'manifest-publish';
 const MANIFEST_PUBLISH_SPAWNS = Object.keys(GIT_SITE_COMMANDS[MANIFEST_PUBLISH_SITE]).length;
 const MANIFEST_PUBLISH_WRITES = NON_SPAWN_SITES.filter((entry) => entry.site === MANIFEST_PUBLISH_SITE).length;
 
+function ghCommandStepStrings() {
+  return Object.keys(GH_SITE_COMMANDS).flatMap((site) => Object.keys(GH_SITE_COMMANDS[site]).map((step) => `${site}/${step}`));
+}
+
+function ghCommandStepCount() {
+  return ghCommandStepStrings().length;
+}
+
+function separationExceptionCount(prefix) {
+  return Object.keys(SEPARATION_EXCEPTIONS).filter((key) => key.startsWith(prefix)).length;
+}
+
 export const TRANSCRIPTION_PARITY_ATTESTS = Object.freeze([
+  `every transcribed command is built for one of the ${TRANSCRIBED_BINARIES.length} declared binaries - ${TRANSCRIBED_BINARIES.join(', ')} - and a fixture naming any other binary halts, so a command reaching a process through a builder this census cannot place is refused rather than counted`,
+  'a step one site is declared to share with another is BUILT at the sharing site and compared against the frozen fixture the OTHER site carries, never against that other site builder, so a sharing claim that is not an equivalence halts rather than borrowing a pin it does not satisfy; a builder drifted at both sites is measured here failing that comparison, so the claim cannot be reduced to a function compared with itself',
+  'a command the incumbent demands a fact from but spells no command for is admitted only as an enumerated derived command carrying the incumbent clause that demands the fact, that clause spelled exactly once, and a stated reason',
+  'a judgment kind the prompt authority declares that no dispatch reaches is admitted only as an enumerated pending kind with a stated reason, and a dispatch that later reaches one halts rather than being excused',
+  `every one of the ${ghCommandStepCount()} gh commands this substrate builds resolves through the merge shim, and the classifier own refusal specimen routed through that same resolution is refused, so the shim is both in the path and in force`,
+  `the ${CI_FACT_FIELDS.length} ci report fields the engine derives are read from what gh and git printed, are disjoint from the ${CI_MODEL_FIELDS.length} a model reports, and a run that did not complete is reported as its own conclusion token rather than folded into a failure`,
+  'the spec fingerprint matches digests transcribed from the same binary the incumbent invokes, and it reports no fingerprint at all for a spec it could not read',
+  'the superseding pull-request summary is composed from a machine-readable interdiff and cut to the value cap pull-request creation enforces, at this composer rather than at its caller',
+  'both fixture modules pin to one parent commit, so no fixture can be repaired against whichever commit still spells it',
   'every dispatch call node in both declared engine trees is resolved to exactly one declared name - transcription, judgment, journal or program-in-English - by exact identity or by an enumerated prefix alias, so a label none of them covers halts with its site named rather than being absorbed by a name it merely extends',
   'the resolved dispatch labels are cross-checked, per source, against the independently paired dispatch call nodes, so an extractor reading a subset halts rather than reporting the rest converted',
   'every label token counted across the scanned sources is accounted for as a dispatch label, a helper argument or an enumerated inert label, so a label reaching none of the three halts rather than going uncounted',
@@ -70,9 +104,15 @@ export const TRANSCRIPTION_PARITY_ATTESTS = Object.freeze([
 ]);
 
 export const TRANSCRIPTION_PARITY_NOT_ATTESTED = Object.freeze([
+  'that the two path lists the ci report still asks a model for could be derived instead: the runner this engine deploys emits no structured test report, so implicatedPaths and failingAssertionFiles remain a judgment dispatch and this verb measures only that the dispatch is registered and that an empty extraction escalates',
+  `that gh honours the option separator at the sites that carry no separator: the ${separationExceptionCount('gh ')} gh reads and the ${Object.keys(SEPARATION_EXCEPTIONS).length - separationExceptionCount('gh ')} git reads that hand a value positionally are bounded by the builder validators alone, each recorded as a separation exception with the measured reason it cannot carry one`,
+  'that the transcribed gh reads return what a live GitHub returns: every gh probe here is offered captured output, and no probe in this verb reaches a network',
+  'that the spec fingerprint reader behaves as declared against a real file: readSpecContentHash takes its reader as an argument and every probe here injects one, so what a real filesystem reader returns for a large file, a directory, a symbolic link or a file that changes under it is untested until C7 supplies that reader',
+  'that the ci-fact-extract prose is pinned to an incumbent: the kind is new, no engine source spells it, and its byte fixture is therefore composed from the registry rather than transcribed - the untwinned declaration in the suite asserts that neither engine spells it, in both directions',
   'that any of the eighteen sites has stopped dispatching a language model: all eighteen still dispatch until C7 wires the engine onto this substrate, so a converted site here means a deterministic replacement exists and is pinned to the incumbent command, never that the incumbent dispatch is gone',
   'that a transcribed command produces the effect the incumbent produced: the pinning compares argument vectors against the command text, and no probe in this verb runs any of them against a repository',
   'that the incumbent command text a fixture is pinned to is itself correct: the anchors are transcribed from the engine source at the parent commit, so a command the engine has always spelled wrongly is transcribed just as wrongly',
+  'that a vector or constant this verb compares against another is SPELLED independently of it: a derived command frozen vector computed at module load from the builder it pins, and a gh fixture parent sha aliased to the git one, each agree by construction, and no comparison made at run time can tell either from an independent spelling; the controls here drift every seam a comparison reads at run time, and this residual is held by review instead',
   'that the engine reaches processes only through exec-run: five live spawn sites still import node:child_process directly, and no verb censuses those call sites',
   'that a dispatch outside the two declared engine trees would be seen: the census reads .claude/lib/mitosis and .claude/workflows/mitosis.js, so a dispatch added under .claude/hooks, or anywhere else in the repository, is unscanned',
   'that a dispatch composed without a label property would be seen: the census resolves a site through its label, so a call that names its site some other way is enumerated by its argument shape or halts',
@@ -82,8 +122,8 @@ export const TRANSCRIPTION_PARITY_NOT_ATTESTED = Object.freeze([
   'that the merge reader resolves a quoted path: git prints the conflicting path raw in the CONFLICT line rather than C-quoted, which the suite pins against real git, so that reader deliberately does not unquote and a path whose own name begins with a quote would be reported with it',
   'that a path carrying a byte sequence that is not valid utf-8 is recovered: both path readers refuse such a line rather than reporting a repaired spelling, so a run against a repository holding one halts instead of naming the wrong file',
   'that the plan artifact observation resolves a symbolic link the way the incumbent does: it inspects the path without following a link, so a plan reached through a symlink is reported as not a regular file where the incumbent test -f would have followed it and found one; the deviation fails closed, towards planning again rather than skipping it',
-  'that a path-shaped caller value is confined: repoRoot, integrationWt and worktreePath are refused only when empty, when carrying a NUL byte or when beginning with a dash, so a path carrying a parent traversal or shell metacharacters is still carried, inertly, as exactly one argument',
-  'that the three steps carrying a separation exception are safe for a reason other than the ref token bound: git rev-parse without --verify echoes the separator into its own output and git commit-tree refuses it outright, so those three caller values are held by the builder validation alone and by no argument vector separator',
+  'that every path-shaped caller value is confined: the git builders refuse repoRoot, integrationWt and worktreePath only when empty, when carrying a NUL byte or when beginning with a dash, so a path carrying a parent traversal or shell metacharacters is still carried, inertly, as exactly one argument of a git command. That inertness argument does NOT extend to a value that names a program rather than data: the three node steps compose libDir and gitLibDir into the script path node executes, and those two are confined to the directory this substrate resolves the tool from rather than merely being carried whole',
+  `that the ${Object.keys(SEPARATION_EXCEPTIONS).length} steps carrying a separation exception are safe for a reason other than the ref token bound: git rev-parse without --verify echoes the separator into its own output and git commit-tree refuses it outright, so those caller values are held by the builder validation alone and by no argument vector separator`,
   ...EXEC_RUN_NOT_ATTESTED,
   ...MANIFEST_REF_NOT_ATTESTED,
 ]);
@@ -107,17 +147,58 @@ export function probeTranscriptionSubstrate() {
     conversionTargetError: target.error === undefined ? null : target.error,
     conversions: target.error === undefined ? gitCommandFixtureCensus(source) : { ok: false, error: target.error },
     conversionControls: target.error === undefined
-      ? Object.freeze([...conversionControlProbes(source), ...registryControlProbes(source)])
+      ? Object.freeze([...conversionControlProbes(source), ...registryControlProbes(source), ...sharedStepControlProbes(source)])
       : Object.freeze([]),
     parsers: parserProbes(),
-    separation: censusPositionalSeparation(),
+    separation: censusPositionalSeparation(TRANSCRIBED_COMMAND_FIXTURES),
     separationControls: separationControlProbes(),
-    valueRefusals: refusedValueProbes(),
+    valueRefusals: refusedValueProbes(FETCH_VALUE_SITES, TRANSCRIBED_COMMAND_FIXTURES),
     manifestPublish: manifestPublishProbe(),
     conversionStateControls: engine.error === undefined
-      ? Object.freeze([...conversionStateProbes(engine.sources), ...registeredSiteProbes(engine.sources)])
+      ? Object.freeze([...conversionStateProbes(engine.sources), ...registeredSiteProbes(engine.sources), ...pendingJudgmentProbes(engine.sources)])
       : Object.freeze([]),
     argvInertness: argvInertnessProbe(),
+    ciFacts: ciFactProbes(),
+    ciEscalation: ciEscalationProbes(),
+    specHash: specHashProbes(),
+    supersedeSummary: supersedeSummaryProbes(),
+    ghShimRouting: ghShimRoutingProbe(),
+    ghFixtureParentSha: GH_SITE_FIXTURE_PARENT_SHA,
+  });
+}
+
+const SHIM_PROBE_VALUES = Object.freeze({ repoSlug: 'acme/widgets', ownerRepo: 'acme/widgets', integrationBranch: 'mitosis/probe', baseBranch: 'main', runId: '77' });
+const SHIM_BASENAME = 'gh-merge-shim.mjs';
+const SHIM_REFUSED_SPECIMEN = MERGE_REFUSAL_SPECIMENS[0];
+
+function ghShimRoutingProbe() {
+  const unrouted = [];
+  for (const at of ghCommandStepStrings()) {
+    const [site, step] = at.split('/');
+    let resolved;
+    try {
+      resolved = ghSpawnRequest(site, step, SHIM_PROBE_VALUES);
+    } catch (error) {
+      unrouted.push(`${at} was refused before a request existed: ${error && error.message ? error.message : 'unknown refusal'}`);
+      continue;
+    }
+    if (resolved.command !== 'node' || resolved.args.length === 0 || !resolved.args[0].endsWith(SHIM_BASENAME)) {
+      unrouted.push(`${at} resolved to ${resolved.command} ${JSON.stringify([...resolved.args].slice(0, 2))}`);
+    }
+  }
+  let refusedMerge = false;
+  try {
+    ghSpawnRequest('ship-verify', 'pr-state', SHIM_PROBE_VALUES, SHIM_REFUSED_SPECIMEN.io, [...SHIM_REFUSED_SPECIMEN.argv]);
+  } catch {
+    refusedMerge = true;
+  }
+  return Object.freeze({
+    routed: unrouted.length === 0,
+    routedCount: ghCommandStepCount() - unrouted.length,
+    refusedMerge,
+    detail: unrouted.length === 0
+      ? `all ${ghCommandStepCount()} gh commands resolve through ${SHIM_BASENAME}`
+      : unrouted.join('; '),
   });
 }
 
@@ -166,6 +247,108 @@ function pollFailures(substrate) {
   const outcomes = substrate.outcomes;
   if (outcomes.mismatched.length > 0 || outcomes.unreached.length > 0 || outcomes.undeclared.length > 0) {
     failures.push(`the declared outcome set is not a closed census: mismatched ${JSON.stringify([...outcomes.mismatched])}, declared but unreachable ${JSON.stringify([...outcomes.unreached])}, produced but undeclared ${JSON.stringify([...outcomes.undeclared])}`);
+  }
+  return failures;
+}
+
+const DERIVED_FACT_CONTROLS = Object.freeze([
+  Object.freeze({
+    name: 'an empty extraction that stopped escalating is reported',
+    expect: 'ci escalation probes no longer hold',
+    present: (substrate) => substrate.ciEscalation.length > 0 && substrate.ciEscalation.every((probe) => probe.ok === true),
+    missing: 'the ci escalation probes are empty or already failing, so flipping one perturbs nothing',
+    perturb: (substrate) => ({ ...substrate, ciEscalation: substrate.ciEscalation.map((probe, index) => (index === 1 ? { ...probe, ok: false } : probe)) }),
+  }),
+  Object.freeze({
+    name: 'a derived ci fact that stopped holding is reported',
+    expect: 'ci fact probes no longer hold',
+    present: (substrate) => substrate.ciFacts.length > 0 && substrate.ciFacts.every((probe) => probe.ok === true),
+    missing: 'the ci fact probes are empty or already failing, so flipping one perturbs nothing',
+    perturb: (substrate) => ({ ...substrate, ciFacts: substrate.ciFacts.map((probe, index) => (index === 0 ? { ...probe, ok: false } : probe)) }),
+  }),
+  Object.freeze({
+    name: 'a spec fingerprint that stopped matching its transcribed digest is reported',
+    expect: 'spec fingerprint probes no longer hold',
+    present: (substrate) => substrate.specHash.length > 0 && substrate.specHash.every((probe) => probe.ok === true),
+    missing: 'the spec fingerprint probes are empty or already failing, so flipping one perturbs nothing',
+    perturb: (substrate) => ({ ...substrate, specHash: substrate.specHash.map((probe, index) => (index === 0 ? { ...probe, ok: false } : probe)) }),
+  }),
+  Object.freeze({
+    name: 'a supersede summary that stopped holding its bound is reported',
+    expect: 'supersede summary probes no longer hold',
+    present: (substrate) => substrate.supersedeSummary.length > 0 && substrate.supersedeSummary.every((probe) => probe.ok === true),
+    missing: 'the supersede summary probes are empty or already failing, so flipping one perturbs nothing',
+    perturb: (substrate) => ({ ...substrate, supersedeSummary: substrate.supersedeSummary.map((probe, index) => (index === 0 ? { ...probe, ok: false } : probe)) }),
+  }),
+  Object.freeze({
+    name: 'a gh command that stopped resolving through the merge shim is reported',
+    expect: 'no longer resolves through the merge shim',
+    present: (substrate) => substrate.ghShimRouting.routed === true,
+    missing: 'the shim routing probe already reports unrouted, so clearing it perturbs nothing',
+    perturb: (substrate) => ({ ...substrate, ghShimRouting: { ...substrate.ghShimRouting, routed: false } }),
+  }),
+  Object.freeze({
+    name: 'a merge specimen the same resolution stopped refusing is reported',
+    expect: 'was NOT refused',
+    present: (substrate) => substrate.ghShimRouting.refusedMerge === true,
+    missing: 'the shim routing probe already reports the specimen admitted, so clearing it perturbs nothing',
+    perturb: (substrate) => ({ ...substrate, ghShimRouting: { ...substrate.ghShimRouting, refusedMerge: false } }),
+  }),
+  Object.freeze({
+    name: 'two fixture modules pinning to two different parent commits is reported',
+    expect: 'two different parent commits',
+    present: (substrate) => substrate.ghFixtureParentSha === substrate.conversions.parentSha,
+    missing: 'the two fixture modules already pin to different commits, so drifting one perturbs nothing',
+    perturb: (substrate) => ({ ...substrate, ghFixtureParentSha: 'deadbeef' }),
+  }),
+  Object.freeze({
+    name: 'a ci report field claimed as both derived and model-read is reported',
+    expect: 'claimed as both derived and model-read',
+    present: () => CI_FACT_FIELDS.every((field) => !CI_MODEL_FIELDS.includes(field)),
+    missing: 'the two field lists already overlap, so claiming an overlap perturbs nothing',
+    perturb: (substrate) => ({ ...substrate, ciReportFieldOverlap: [...CI_MODEL_FIELDS] }),
+  }),
+]);
+
+export function derivedFactControlProbes(substrate) {
+  return Object.freeze(DERIVED_FACT_CONTROLS.map((control) => {
+    if (!control.present(substrate)) {
+      return Object.freeze({ name: control.name, halted: false, named: false, anchorPresent: false, detail: control.missing });
+    }
+    const measured = derivedFactFailures(control.perturb(substrate));
+    const named = measured.some((failure) => failure.includes(control.expect));
+    return Object.freeze({
+      name: control.name,
+      halted: measured.length > 0,
+      named,
+      anchorPresent: true,
+      detail: measured.length === 0 ? 'the aggregation accepted it' : measured.join(' | '),
+    });
+  }));
+}
+
+function derivedFactFailures(substrate) {
+  const failures = [];
+  for (const [name, probes] of [['ci fact', substrate.ciFacts], ['ci escalation', substrate.ciEscalation], ['spec fingerprint', substrate.specHash], ['supersede summary', substrate.supersedeSummary]]) {
+    const broken = probes.filter((probe) => probe.ok !== true);
+    if (broken.length > 0) {
+      failures.push(`these ${name} probes no longer hold: ${broken.map((probe) => `${probe.name} (${probe.detail})`).join('; ')}`);
+    }
+  }
+  const shim = substrate.ghShimRouting;
+  if (!shim.routed) {
+    failures.push(`a transcribed gh command no longer resolves through the merge shim (${shim.detail}); a gh argv that reaches the binary without the shim is one no layer classifies`);
+  }
+  if (!shim.refusedMerge) {
+    failures.push(`the classifier own specimen ${SHIM_REFUSED_SPECIMEN.label} routed through the same resolution was NOT refused, so the shim is in the path without being in force`);
+  }
+  const claimed = substrate.ciReportFieldOverlap === undefined ? CI_FACT_FIELDS : substrate.ciReportFieldOverlap;
+  const overlap = claimed.filter((field) => CI_MODEL_FIELDS.includes(field));
+  if (overlap.length > 0) {
+    failures.push(`these ci report fields are claimed as both derived and model-read: ${overlap.join(', ')}; a field on both lists would be reported twice and compared against itself`);
+  }
+  if (substrate.ghFixtureParentSha !== substrate.conversions.parentSha) {
+    failures.push(`the fixtures pin to two different parent commits (${substrate.conversions.parentSha} and ${substrate.ghFixtureParentSha}); one incumbent is the incumbent, and two would let a fixture be repaired against whichever commit still spells it`);
   }
   return failures;
 }
@@ -309,7 +492,15 @@ export function transcriptionParityFailures(substrate) {
     ...manifestPublishFailures(substrate),
     ...conversionStateFailures(substrate),
     ...argvInertnessFailures(substrate),
+    ...derivedFactFailures(substrate),
+    ...inertControlFailures('derived fact', derivedFactControlProbes(substrate)),
   ];
+}
+
+function inertControlFailures(what, controls) {
+  const inert = controls.filter((control) => !(control.anchorPresent && control.halted && control.named));
+  if (inert.length === 0) return [];
+  return [`these ${what} controls no longer report the thing they name, so the verb would stay green while the check it attests was gone: ${inert.map((control) => `${control.name} (${control.detail})`).join('; ')}`];
 }
 
 export function transcriptionParityVerdict() {
@@ -356,6 +547,8 @@ function censusPayload(census) {
     convertedSiteCount: census.convertedSiteCount,
     convertedSites: census.convertedSites.map((site) => `${site.name} ${site.path}:${site.line}`),
     unconvertedSites: census.unconvertedSites.map((site) => `${site.name} ${site.path}:${site.line}`),
+    pendingJudgmentKinds: [...census.pendingJudgmentKinds],
+    modelInvocationsRemaining: census.conversionTargetSiteCount,
     twinSites: census.twinSites.map((site) => `${site.name} ${site.path}:${site.line}`),
     inertSources: [...census.inertSources],
   });
@@ -366,6 +559,18 @@ function substratePayload(substrate) {
     censusControls: substrate.censusControls.map((control) => `${control.name}: ${control.halted && control.named ? 'halted and named' : 'INERT'}`),
     conversionStateControls: substrate.conversionStateControls.map((control) => `${control.name}: ${control.anchorPresent && control.halted && control.named ? 'halted and named' : 'INERT'}`),
     commandFixtureParentSha: substrate.conversions.parentSha,
+    commandFixtureBinaries: [...substrate.conversions.binaries],
+    commandFixturesByBinary: [...substrate.conversions.fixturesByBinary],
+    sharedCommandSteps: [...substrate.conversions.sharedSteps],
+    derivedCommandSteps: [...substrate.conversions.derivedCommands],
+    ciFactProbes: substrate.ciFacts.map((probe) => `${probe.name}: ${probe.ok ? 'holds' : 'INERT'}`),
+    ciEscalationProbes: substrate.ciEscalation.map((probe) => `${probe.name}: ${probe.ok ? 'holds' : 'INERT'}`),
+    specHashProbes: substrate.specHash.map((probe) => `${probe.name}: ${probe.ok ? 'holds' : 'INERT'}`),
+    supersedeSummaryProbes: substrate.supersedeSummary.map((probe) => `${probe.name}: ${probe.ok ? 'holds' : 'INERT'}`),
+    ghShimRouting: `${substrate.ghShimRouting.routed ? 'routed through the merge shim' : 'NOT ROUTED'}, ${substrate.ghShimRouting.refusedMerge ? 'the classifier own specimen refused' : 'SPECIMEN ADMITTED'}`,
+    derivedFactControls: derivedFactControlProbes(substrate).map((control) => `${control.name}: ${control.halted && control.named ? 'halted and named' : 'INERT'}`),
+    ciDerivedFields: [...CI_FACT_FIELDS],
+    ciModelReadFields: [...CI_MODEL_FIELDS],
     commandFixtureBinary: substrate.conversions.binary,
     commandFixtureCount: substrate.conversions.fixtureCount,
     commandFixtureSiteCount: substrate.conversions.siteCount,
