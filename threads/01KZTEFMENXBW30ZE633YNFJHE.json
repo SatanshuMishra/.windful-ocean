@@ -224,6 +224,21 @@
     ],
     "key_decisions": [
       {
+        "ref": "0376-unclassifiable-dispatches-get-a-forced-home",
+        "title": "The two unclassifiable dispatch sites are forced to a decision in their own MSP",
+        "scope": "c5"
+      },
+      {
+        "ref": "0379-c2-workflow-autogrants-cli-stays-silent",
+        "title": "c2 settled by probe: Workflow auto-grants, so A4 defends a migration hazard not a live defect",
+        "scope": "c2"
+      },
+      {
+        "ref": "0382-pathsoverlap-over-reports-never-under-reports",
+        "title": "pathsOverlap may over-report overlap and must never under-report",
+        "scope": "c8"
+      },
+      {
         "ref": "0374-approved-msp-stack-a0-through-d3",
         "title": "The approved MSP stack, A0 through D3",
         "scope": "thread"
@@ -234,34 +249,9 @@
         "scope": "thread"
       },
       {
-        "ref": "0376-unclassifiable-dispatches-get-a-forced-home",
-        "title": "The two unclassifiable dispatch sites are forced to a decision in their own MSP",
-        "scope": "c5"
-      },
-      {
         "ref": "0378-mitosis-may-not-implement-its-own-replacement",
         "title": "Mitosis is prohibited as the engine of its own replacement; the stack ships by plain subagent dispatch",
         "scope": "thread"
-      },
-      {
-        "ref": "0379-c2-workflow-autogrants-cli-stays-silent",
-        "title": "c2 settled by probe: Workflow auto-grants, so A4 defends a migration hazard not a live defect",
-        "scope": "c2"
-      },
-      {
-        "ref": "0380-acceptance-is-a-floor-mutate-the-unsafe-rewrite",
-        "title": "SPEC acceptance lists are a floor, and inertness mutations simulate the unsafe rewrite",
-        "scope": "thread"
-      },
-      {
-        "ref": "0381-scalar-filescope-fail-open-fixed-on-main",
-        "title": "Scalar fileScope fail-open is fixed on main as a standalone PR, not inserted into the stack",
-        "scope": "thread"
-      },
-      {
-        "ref": "0382-pathsoverlap-over-reports-never-under-reports",
-        "title": "pathsOverlap may over-report overlap and must never under-report",
-        "scope": "c8"
       },
       {
         "ref": "0383-g11-ack-erasure-accepted-recorded-filed",
@@ -271,6 +261,11 @@
       {
         "ref": "0431-review-size-rule-corrected-against-its-sources",
         "title": "The 200-400 review-size rule is tightened and one of its three citations retired",
+        "scope": "thread"
+      },
+      {
+        "ref": "0438-receipts-gates-supersede-all-home-grown-mandates",
+        "title": "Receipts gates@1.1 becomes the sole verification standard and every home-grown mandate is retired",
         "scope": "thread"
       },
       {
@@ -284,11 +279,6 @@
         "scope": "c3"
       },
       {
-        "ref": "0386-new-standalone-lib-modules-earn-liveness-by-real-cli",
-        "title": "A new standalone lib module earns dead-export liveness by a real CLI in its own file, never by a wider surface",
-        "scope": "c3"
-      },
-      {
         "ref": "0387-dispatch-suite-guards-only-escalation",
         "title": "A1's dispatch suite guards only the escalation flag, so the refactor ships on other evidence",
         "scope": "c3"
@@ -296,16 +286,6 @@
       {
         "ref": "0388-stacked-merge-verifies-by-content",
         "title": "A stacked merge is verified by content, and its base worktree is removed before the merge",
-        "scope": "c3"
-      },
-      {
-        "ref": "0393-determinism-census-covers-the-shared-libs",
-        "title": "The determinism census covers the shared libs, so their entropy was removed rather than the boundary drawn around it",
-        "scope": "c3"
-      },
-      {
-        "ref": "0394-exec-allowlist-attests-only-what-it-measures",
-        "title": "exec-allowlist declines the child_process census and names in the verdict what it does not attest",
         "scope": "c3"
       },
       {
@@ -364,34 +344,14 @@
         "scope": "c3"
       },
       {
-        "ref": "0428-a-verified-plans-claims-are-still-claims",
-        "title": "A verified plan's claims are still claims and get re-checked at implementation",
-        "scope": "c3"
-      },
-      {
         "ref": "0429-c4b-redefines-converted-and-widens-the-vanished-kind-halt",
         "title": "C4b redefines converted and widens the vanished-kind halt, filing C7-T4 in place of the impossible T13",
-        "scope": "c3"
-      },
-      {
-        "ref": "0430-restack-c4-chain-onto-the-merged-base",
-        "title": "The C4 chain is restacked onto the merged base rather than conflict-resolved at merge",
         "scope": "c3"
       },
       {
         "ref": "0432-c5-splits-and-ships-the-eighth-verb",
         "title": "C5 splits and ships the eighth verb; C6 takes no verb and skills byte-cleanliness holds to D1",
         "scope": "c3"
-      },
-      {
-        "ref": "0435-verification-anchors-are-re-measured-not-pinned",
-        "title": "A verification anchor is re-measured at the head it guards, never pinned from an earlier measurement",
-        "scope": "c3"
-      },
-      {
-        "ref": "0438-receipts-gates-supersede-all-home-grown-mandates",
-        "title": "Receipts gates@1.1 becomes the sole verification standard and every home-grown mandate is retired",
-        "scope": "thread"
       }
     ],
     "out_of_scope": [
@@ -403,5 +363,5 @@
     ]
   },
   "created_at": "2026-08-12T07:37:41.077Z",
-  "updated_at": "2026-08-15T17:12:06.014Z"
+  "updated_at": "2026-08-15T17:12:45.170Z"
 }
