@@ -433,6 +433,11 @@
         "ref": "0442-nul-defect-stands-on-grep-not-diff-evidence",
         "title": "The raw control byte defect stands on the grep symptom, because git's binary sniff only reads the first 8000 bytes",
         "scope": "c3"
+      },
+      {
+        "ref": "0443-c5b-collapses-to-net-while-c6-replays-granularly",
+        "title": "C5b collapses to its net diff while C6 replays granularly",
+        "scope": "c3"
       }
     ],
     "out_of_scope": [
@@ -444,5 +449,5 @@
     ]
   },
   "created_at": "2026-08-12T07:37:41.077Z",
-  "updated_at": "2026-08-15T19:22:02.774Z"
+  "updated_at": "2026-08-15T20:02:52.982Z"
 }
