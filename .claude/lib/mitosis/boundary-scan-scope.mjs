@@ -31,9 +31,15 @@ function isDependencyPath(relativePath) {
   return relativePath.split('/').includes(NODE_MODULES);
 }
 
+function sortedPaths(resolvedByRelative) {
+  return Object.freeze([...resolvedByRelative.keys()].sort().map((relativePath) => resolvedByRelative.get(relativePath)));
+}
+
 export function checkedFileUniverse(root, listsByTool) {
   const resolvedByRelative = new Map();
+  const byTool = {};
   for (const tool of Object.keys(listsByTool).sort()) {
+    const resolvedForTool = new Map();
     for (const file of listsByTool[tool]) {
       const relativePath = sideRelativeFile(file, root);
       if (relativePath.length === 0) {
@@ -44,15 +50,29 @@ export function checkedFileUniverse(root, listsByTool) {
       if (resolved.escapes) {
         return { ok: false, error: `the file list ${tool} reported on ${root} names ${JSON.stringify(file)}, which resolves to ${resolved.path}, outside the worktree root; refusing to read a file this side does not own` };
       }
+      if (!resolvedForTool.has(relativePath)) resolvedForTool.set(relativePath, resolved.path);
       if (!resolvedByRelative.has(relativePath)) resolvedByRelative.set(relativePath, resolved.path);
     }
+    byTool[tool] = sortedPaths(resolvedForTool);
   }
-  const relatives = [...resolvedByRelative.keys()].sort();
-  return { ok: true, files: Object.freeze(relatives.map((relativePath) => resolvedByRelative.get(relativePath))) };
+  return { ok: true, files: sortedPaths(resolvedByRelative), byTool: Object.freeze(byTool) };
+}
+
+function unusableSurface(surface) {
+  return surface === null || typeof surface !== 'object'
+    || typeof surface.root !== 'string' || surface.root.length === 0
+    || !Array.isArray(surface.checkedFiles);
 }
 
 export function commonTreeFiles(baseSurface, headSurface, io) {
-  if (!Array.isArray(baseSurface.checkedFiles) || !Array.isArray(headSurface.checkedFiles)) return Object.freeze([]);
+  for (const [side, surface] of [['base', baseSurface], ['HEAD', headSurface]]) {
+    if (unusableSurface(surface)) {
+      return {
+        ok: false,
+        error: `the common-file list could not be built: the ${side} surface carries ${JSON.stringify(surface === null || surface === undefined ? null : surface.checkedFiles)} as its checked-file list under root ${JSON.stringify(surface === null || surface === undefined ? null : surface.root)} rather than a list of files under a named root; an empty common set makes every checked-scope comparison vacuous, so it refuses rather than defaulting`,
+      };
+    }
+  }
   const baseRelatives = new Set(baseSurface.checkedFiles.map((file) => sideRelativeFile(file, baseSurface.root)));
   const headRelatives = new Set(headSurface.checkedFiles.map((file) => sideRelativeFile(file, headSurface.root)));
   const candidates = [...new Set([...baseRelatives, ...headRelatives])].filter((relativePath) => relativePath.length > 0).sort();
@@ -60,7 +80,7 @@ export function commonTreeFiles(baseSurface, headSurface, io) {
     const onBase = baseRelatives.has(relativePath) || io.exists(pathJoin(baseSurface.root, relativePath));
     return onBase && io.exists(pathJoin(headSurface.root, relativePath));
   });
-  return Object.freeze(common);
+  return { ok: true, files: Object.freeze(common) };
 }
 
 export function collectSuppressionSurface(root, files, io, side) {

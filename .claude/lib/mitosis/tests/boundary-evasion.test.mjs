@@ -4,8 +4,10 @@ import {
   SUPPRESSION_DIRECTIVES,
   TSCONFIG_STRICTNESS_FLAGS,
   compareCheckedFiles,
+  compareCheckedFilesByTool,
   compareResolvedConfig,
   compareRuleSeverity,
+  compareRuleSeverityByFile,
   compareSuppressions,
   compareTsconfigFlags,
   countSuppressions,
@@ -182,30 +184,30 @@ test('a checked-file comparison given no roots halts rather than comparing raw p
 
 test('the resolved-config comparison aggregates the three classifiers and halts on the residue', () => {
   const base = {
-    eslintConfig: { rules: { 'no-eq': 2 } },
+    eslintConfigByFile: { 'a.ts': { rules: { 'no-eq': 2 } } },
     tsconfigOptions: { strict: true },
-    checkedFiles: ['a.ts'],
+    checkedByTool: { eslint: ['a.ts'] },
     commonFiles: ['a.ts'],
     root: ROOTS.base,
   };
   const head = { ...base, root: ROOTS.head };
   assert.equal(compareResolvedConfig(base, head).pass, true);
-  const downgraded = compareResolvedConfig(base, { ...head, eslintConfig: { rules: { 'no-eq': 1 } } });
+  const downgraded = compareResolvedConfig(base, { ...head, eslintConfigByFile: { 'a.ts': { rules: { 'no-eq': 1 } } } });
   assert.equal(downgraded.pass, false);
   const residue = compareResolvedConfig(base, { ...head, tsconfigOptions: { strict: true, jsx: 'react' } });
   assert.equal(residue.halted, true);
   assert.match(residue.error, /jsx/);
 });
 
-test('a surface carrying no checked-file list halts rather than defaulting to an empty one', () => {
-  const surface = { eslintConfig: { rules: {} }, tsconfigOptions: {}, root: ROOTS.head };
+test('a surface carrying no per-tool checked-file map halts rather than defaulting to an empty one', () => {
+  const surface = { eslintConfigByFile: {}, tsconfigOptions: {}, root: ROOTS.head };
   const verdict = compareResolvedConfig({ ...surface, root: ROOTS.base }, surface);
-  assert.equal(verdict.halted, true, 'a missing checked-file list defaulted to empty, which passes for every input');
-  assert.match(verdict.error, /checkedFiles/);
+  assert.equal(verdict.halted, true, 'a missing per-tool checked-file map defaulted to empty, which passes for every input');
+  assert.match(verdict.error, /checkedByTool/);
 });
 
 test('a surface carrying no common-file list halts rather than defaulting to an empty one', () => {
-  const surface = { eslintConfig: { rules: {} }, tsconfigOptions: {}, checkedFiles: ['a.ts'], root: ROOTS.head };
+  const surface = { eslintConfigByFile: {}, tsconfigOptions: {}, checkedByTool: { eslint: ['a.ts'] }, root: ROOTS.head };
   const verdict = compareResolvedConfig({ ...surface, root: ROOTS.base }, surface);
   assert.equal(verdict.halted, true);
   assert.match(verdict.error, /commonFiles/);
@@ -213,13 +215,61 @@ test('a surface carrying no common-file list halts rather than defaulting to an 
 
 test('a surface carrying no suppression counts halts rather than defaulting to none', () => {
   const surface = {
-    eslintConfig: { rules: {} },
+    eslintConfigByFile: {},
     tsconfigOptions: {},
-    checkedFiles: ['a.ts'],
+    checkedByTool: { eslint: ['a.ts'] },
     commonFiles: ['a.ts'],
     root: ROOTS.head,
   };
   const verdict = evasionVerdict({ ...surface, root: ROOTS.base }, surface);
   assert.equal(verdict.halted, true, 'a missing suppression count defaulted to none, which reports no added suppression for every input');
   assert.match(verdict.error, /suppressions/);
+});
+
+test('a per-tool checked-file comparison names the tool that narrowed rather than folding the tools into a union', () => {
+  const narrowed = compareCheckedFilesByTool(
+    { eslint: ['a.ts', 'b.ts'], tsc: ['a.ts', 'b.ts'] },
+    { eslint: ['a.ts'], tsc: ['a.ts', 'b.ts'] },
+    ['a.ts', 'b.ts'],
+    ROOTS,
+  );
+  assert.equal(narrowed.pass, false, 'a file that left one tool list stayed masked by the tool that still covers it');
+  assert.equal(narrowed.blocking.length, 1);
+  assert.equal(narrowed.blocking[0].tool, 'eslint');
+  assert.deepEqual([...narrowed.blocking[0].droppedFiles], ['b.ts']);
+});
+
+test('a tool listed on one side and absent on the other halts rather than being read as a scope change', () => {
+  const verdict = compareCheckedFilesByTool({ eslint: ['a.ts'], tsc: ['a.ts'] }, { tsc: ['a.ts'] }, ['a.ts'], ROOTS);
+  assert.equal(verdict.halted, true);
+  assert.match(verdict.error, /eslint/);
+  assert.equal(compareCheckedFilesByTool({}, {}, ['a.ts'], ROOTS).halted, true, 'an empty per-tool map compared nothing and passed while files were present in both trees');
+  assert.equal(compareCheckedFilesByTool(['a.ts'], ['a.ts'], ['a.ts'], ROOTS).halted, true, 'a bare union list was accepted in place of the per-tool map');
+  const noToolRepository = compareCheckedFilesByTool({}, {}, [], ROOTS);
+  assert.equal(noToolRepository.pass, true, 'a repository where every tool is NOT-EXPECTED now halts rather than passing on a legitimately empty dimension');
+  assert.equal(noToolRepository.halted, false);
+});
+
+test('the rule-severity comparison covers every file both sides resolved, not one anchor', () => {
+  const downgraded = compareRuleSeverityByFile(
+    { 'a.ts': { rules: { 'no-eq': 2 } }, 'b.ts': { rules: { 'no-eq': 2 } } },
+    { 'a.ts': { rules: { 'no-eq': 2 } }, 'b.ts': { rules: { 'no-eq': 0 } } },
+  );
+  assert.equal(downgraded.pass, false, 'a downgrade behind an unchanged first file went unmeasured');
+  assert.equal(downgraded.blocking.length, 1);
+  assert.equal(downgraded.blocking[0].file, 'b.ts');
+  assert.equal(downgraded.blocking[0].rule, 'no-eq');
+  const unchanged = compareRuleSeverityByFile({ 'a.ts': { rules: { 'no-eq': 2 } } }, { 'a.ts': { rules: { 'no-eq': 2 } } });
+  assert.equal(unchanged.pass, true);
+});
+
+test('two sides that resolved the eslint config for no file in common halt rather than comparing nothing', () => {
+  const disjoint = compareRuleSeverityByFile({ 'a.ts': { rules: { 'no-eq': 2 } } }, { 'b.ts': { rules: { 'no-eq': 2 } } });
+  assert.equal(disjoint.halted, true);
+  const single = compareRuleSeverityByFile({ rules: { 'no-eq': 2 } }, { rules: { 'no-eq': 0 } });
+  assert.equal(single.halted, true, 'a single resolved config was accepted in place of the per-file map');
+  const absent = compareRuleSeverityByFile({ 'a.ts': { rules: {} } }, undefined);
+  assert.equal(absent.halted, true);
+  const neitherSideLints = compareRuleSeverityByFile({}, {});
+  assert.equal(neitherSideLints.pass, true, 'a repository where eslint is NOT-EXPECTED on both sides now halts rather than passing');
 });

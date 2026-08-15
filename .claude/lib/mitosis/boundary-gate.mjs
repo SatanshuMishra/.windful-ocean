@@ -1,6 +1,6 @@
 import { existsSync, mkdirSync, readFileSync, realpathSync, rmSync, symlinkSync } from 'node:fs';
 import { dirname, isAbsolute, join as pathJoin } from 'node:path';
-import { choosingAnchor, collectEslintConfig, collectTsconfigOptions, fixedAnchor } from './boundary-config-surface.mjs';
+import { choosingScope, collectEslintConfig, collectTsconfigOptions, fixedScope } from './boundary-config-surface.mjs';
 import { evasionVerdict } from './boundary-evasion.mjs';
 import {
   NODE_MODULES,
@@ -10,6 +10,7 @@ import {
   sideRelativeFile,
   within,
 } from './boundary-scan-scope.mjs';
+import { censusListedFiles, censusTscLines } from './boundary-tsc-lines.mjs';
 import { run as execRun } from './exec-run.mjs';
 
 export const IDENTITY_SEPARATOR = '\u0000';
@@ -79,22 +80,6 @@ function resolveToolPath(executable, root) {
   return { ok: true, path };
 }
 
-export const TSC_DIAGNOSTIC_FORMS = Object.freeze([
-  Object.freeze({
-    name: 'file-qualified diagnostic',
-    pattern: /^(?<file>[^(]+)\((?<line>\d+),(?<column>\d+)\): (?<severity>error|warning) (?<code>TS\d+): (?<message>.*)$/,
-  }),
-  Object.freeze({
-    name: 'global diagnostic',
-    pattern: /^(?<severity>error|warning) (?<code>TS\d+): (?<message>.*)$/,
-  }),
-]);
-
-export const TSC_CONTINUATION_FORM = Object.freeze({
-  name: 'chained message continuation',
-  pattern: /^\s+\S/,
-});
-
 export const NORMALIZATION_STEPS = Object.freeze([
   Object.freeze({
     name: 'strip code frames',
@@ -162,46 +147,6 @@ export function structuralIdentity(diagnostic, root) {
   return IDENTITY_COMPONENTS
     .map((component) => component.steps.reduce((text, step) => step.apply(text, root), diagnostic[component.field] ?? ''))
     .join(IDENTITY_SEPARATOR);
-}
-
-export function censusTscLines(stdout) {
-  if (typeof stdout !== 'string') {
-    return { ok: false, error: `the tsc output was ${JSON.stringify(stdout)} rather than text, so no line could be classified` };
-  }
-  const collected = [];
-  const lines = stdout.split('\n');
-  for (let index = 0; index < lines.length; index += 1) {
-    const line = lines[index].replace(/\r$/, '');
-    if (line.trim().length === 0) continue;
-    const form = TSC_DIAGNOSTIC_FORMS.find((candidate) => candidate.pattern.test(line));
-    if (form !== undefined) {
-      const matched = form.pattern.exec(line).groups;
-      collected.push(Object.freeze({
-        file: matched.file === undefined ? '' : matched.file,
-        code: matched.code,
-        severity: matched.severity,
-        message: matched.message,
-        continuations: Object.freeze([]),
-      }));
-      continue;
-    }
-    if (TSC_CONTINUATION_FORM.pattern.test(line) && collected.length > 0) {
-      const previous = collected[collected.length - 1];
-      collected[collected.length - 1] = Object.freeze({ ...previous, continuations: Object.freeze([...previous.continuations, line]) });
-      continue;
-    }
-    return {
-      ok: false,
-      error: `tsc line ${index + 1} is neither blank, one of the ${TSC_DIAGNOSTIC_FORMS.length} declared diagnostic forms (${TSC_DIAGNOSTIC_FORMS.map((candidate) => candidate.name).join(', ')}), nor an indented ${TSC_CONTINUATION_FORM.name} of a diagnostic already named: ${JSON.stringify(line)}; refusing to classify it rather than skipping it into a bucket`,
-    };
-  }
-  const diagnostics = collected.map((entry) => Object.freeze({
-    file: entry.file,
-    code: entry.code,
-    severity: entry.severity,
-    message: [entry.message, ...entry.continuations].join('\n'),
-  }));
-  return { ok: true, diagnostics: Object.freeze(diagnostics) };
 }
 
 export function parseEslintReport(stdout) {
@@ -316,20 +261,7 @@ function toolBinary(root, tool, io) {
   return { ok: true, path: resolved.path };
 }
 
-function listedFiles(stdout) {
-  return stdout
-    .split('\n')
-    .map((line) => line.replace(/\r$/, ''))
-    .filter((line) => line.trim().length > 0
-      && !TSC_DIAGNOSTIC_FORMS.some((form) => form.pattern.test(line))
-      && !TSC_CONTINUATION_FORM.pattern.test(line));
-}
-
-function listedFileCount(stdout) {
-  return listedFiles(stdout).length;
-}
-
-function collectTool(root, tool, io, side, anchor) {
+function collectTool(root, tool, io, side, scope) {
   const binary = toolBinary(root, tool, io);
   if (!binary.ok) return binary;
   const bin = binary.path;
@@ -344,15 +276,15 @@ function collectTool(root, tool, io, side, anchor) {
   if (tool.name === 'eslint') {
     const parsed = parseEslintReport(result.stdout);
     if (!parsed.ok) return { ok: false, error: `${tool.name} on ${root}: ${parsed.error}` };
-    const config = collectEslintConfig(root, bin, io, parsed.files, side, anchor);
+    const config = collectEslintConfig(root, bin, io, parsed.files, side, scope);
     if (!config.ok) return { ok: false, error: `${tool.name} on ${root}: ${config.error}` };
     return {
       ok: true,
       diagnostics: parsed.diagnostics,
       fileCount: parsed.fileCount,
       files: parsed.files,
-      eslintConfig: config.eslintConfig,
-      eslintConfigFile: config.eslintConfigFile,
+      eslintConfigByFile: config.eslintConfigByFile,
+      eslintConfigFiles: config.eslintConfigFiles,
     };
   }
   const census = censusTscLines(result.stdout);
@@ -365,11 +297,13 @@ function collectTool(root, tool, io, side, anchor) {
   }
   const acceptedList = acceptedRun(tool, listed, root, 'the type-checked file list');
   if (!acceptedList.ok) return acceptedList;
-  const fileCount = listedFileCount(listed.stdout);
+  const listedCensus = censusListedFiles(listed.stdout);
+  if (!listedCensus.ok) return { ok: false, error: `${tool.name} on ${root}: ${listedCensus.error}` };
+  const fileCount = listedCensus.files.length;
   if (fileCount === 0) {
     return { ok: false, error: `${tool.name} on ${root} type-checked zero files, so the run is refused rather than read as a clean result` };
   }
-  const files = Object.freeze([...listedFiles(listed.stdout)].sort());
+  const files = Object.freeze([...listedCensus.files].sort());
   const config = collectTsconfigOptions(root, bin, io, side);
   if (!config.ok) return { ok: false, error: `${tool.name} on ${root}: ${config.error}` };
   return { ok: true, diagnostics: census.diagnostics, fileCount, files, tsconfigOptions: config.tsconfigOptions };
@@ -384,30 +318,30 @@ function identitiesOf(diagnostics, root) {
   return counts;
 }
 
-const NEUTRAL_ESLINT_CONFIG = Object.freeze({ rules: Object.freeze({}) });
+const NEUTRAL_ESLINT_CONFIGS = Object.freeze({});
 
-export function collectCensus(root, expectations, io, gateBase, side = 'a side', anchor = null) {
+export function collectCensus(root, expectations, io, gateBase, side = 'a side', scope = null) {
   const tools = {};
   const notExpected = [];
   const listsByTool = {};
   let tsconfigOptions = Object.freeze({});
-  let eslintConfig = NEUTRAL_ESLINT_CONFIG;
-  let eslintConfigFile = null;
+  let eslintConfigByFile = NEUTRAL_ESLINT_CONFIGS;
+  let eslintConfigFiles = Object.freeze([]);
   for (const tool of BOUNDARY_TOOLS) {
     const expectation = expectations[tool.name];
     if (!expectation.expected) {
       notExpected.push(tool.name);
       continue;
     }
-    const collected = collectTool(root, tool, io, side, anchor);
+    const collected = collectTool(root, tool, io, side, scope);
     if (!collected.ok) return { ok: false, error: collected.error };
     tools[tool.name] = Object.freeze({ identities: identitiesOf(collected.diagnostics, root), fileCount: collected.fileCount });
     listsByTool[tool.name] = collected.files;
     if (tool.name === 'tsc') {
       tsconfigOptions = Object.freeze({ ...collected.tsconfigOptions });
     } else {
-      eslintConfig = collected.eslintConfig;
-      eslintConfigFile = collected.eslintConfigFile;
+      eslintConfigByFile = collected.eslintConfigByFile;
+      eslintConfigFiles = collected.eslintConfigFiles;
     }
   }
   const universe = checkedFileUniverse(root, listsByTool);
@@ -419,7 +353,14 @@ export function collectCensus(root, expectations, io, gateBase, side = 'a side',
       error: `${side} (${root}) carries no repository source among the files ${collectedTools.join(', ')} reported, so the suppression and checked-scope scans would read nothing; a scanned universe of zero files is refused rather than read as a clean result`,
     };
   }
-  const surface = Object.freeze({ root, checkedFiles: universe.files, tsconfigOptions, eslintConfig, eslintConfigFile });
+  const surface = Object.freeze({
+    root,
+    checkedFiles: universe.files,
+    checkedByTool: universe.byTool,
+    tsconfigOptions,
+    eslintConfigByFile,
+    eslintConfigFiles,
+  });
   return { ok: true, census: Object.freeze({ gateBase, tools: Object.freeze(tools), notExpected: Object.freeze(notExpected), surface }) };
 }
 
@@ -559,9 +500,9 @@ function gatherSides(repoRoot, basePath, gateBase, io) {
   if (!provisioned.ok) return { ok: false, error: provisioned.error };
   const expectations = expectationsFor(repoRoot, basePath, io);
   if (!expectations.ok) return { ok: false, error: expectations.error };
-  const head = collectCensus(repoRoot, expectations.byTool, io, gateBase, 'HEAD', choosingAnchor(basePath));
+  const head = collectCensus(repoRoot, expectations.byTool, io, gateBase, 'HEAD', choosingScope(basePath));
   if (!head.ok) return { ok: false, error: head.error };
-  const base = collectCensus(basePath, expectations.byTool, io, gateBase, 'base', fixedAnchor(head.census.surface.eslintConfigFile));
+  const base = collectCensus(basePath, expectations.byTool, io, gateBase, 'base', choosingScope(repoRoot));
   if (!base.ok) return { ok: false, error: base.error };
   const scannedHead = scannedSide(repoRoot, head.census, io, 'HEAD');
   if (!scannedHead.ok) return scannedHead;
@@ -619,9 +560,11 @@ function isPlainObject(value) {
 export const CACHED_SURFACE_FIELDS = Object.freeze([
   Object.freeze({ name: 'root', accepts: (value) => typeof value === 'string' && value.length > 0 }),
   Object.freeze({ name: 'checkedFiles', accepts: (value) => Array.isArray(value) }),
+  Object.freeze({ name: 'checkedByTool', accepts: (value) => isPlainObject(value) && Object.values(value).every((list) => Array.isArray(list)) }),
   Object.freeze({ name: 'suppressions', accepts: isPlainObject }),
   Object.freeze({ name: 'tsconfigOptions', accepts: isPlainObject }),
-  Object.freeze({ name: 'eslintConfig', accepts: (value) => isPlainObject(value) && isPlainObject(value.rules) }),
+  Object.freeze({ name: 'eslintConfigByFile', accepts: (value) => isPlainObject(value) && Object.values(value).every((entry) => isPlainObject(entry) && isPlainObject(entry.rules)) }),
+  Object.freeze({ name: 'eslintConfigFiles', accepts: (value) => Array.isArray(value) && value.every((entry) => typeof entry === 'string' && entry.length > 0) }),
 ]);
 
 export function isUsableCachedCensus(cached, gateBase) {
@@ -730,7 +673,7 @@ export function evaluate(request, io = REAL_BOUNDARY_IO) {
     const cached = usableCachedBase(request, io);
     context = { ...context, cacheRefusal: cached.refusal };
     if (cached.ok) {
-      const head = collectCensus(request.repoRoot, cached.expectations, io, request.gateBase, 'HEAD', fixedAnchor(cached.census.surface.eslintConfigFile));
+      const head = collectCensus(request.repoRoot, cached.expectations, io, request.gateBase, 'HEAD', fixedScope(cached.census.surface.eslintConfigFiles));
       if (!head.ok) return refused(head.error, context);
       const scanned = scannedSide(request.repoRoot, head.census, io, 'HEAD');
       if (!scanned.ok) return refused(scanned.error, context);
@@ -746,8 +689,9 @@ export function evaluate(request, io = REAL_BOUNDARY_IO) {
       headCensus = collected.headCensus;
       expectations = collected.expectations;
     }
-    const commonFiles = commonTreeFiles(baseCensus.surface, headCensus.surface, io);
-    evasion = evasionVerdict(baseCensus.surface, Object.freeze({ ...headCensus.surface, commonFiles }));
+    const common = commonTreeFiles(baseCensus.surface, headCensus.surface, io);
+    if (!common.ok) return refused(common.error, context);
+    evasion = evasionVerdict(baseCensus.surface, Object.freeze({ ...headCensus.surface, commonFiles: common.files }));
   } catch (error) {
     return refused(`the boundary gate could not complete: ${failureText(error, 'unknown failure')}`, context);
   }

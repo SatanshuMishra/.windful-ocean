@@ -126,6 +126,47 @@ function eslintEvasionIo(plan) {
   });
 }
 
+const BOTH_TOOLS_MANIFEST = JSON.stringify({ devDependencies: { typescript: '5.8.3', eslint: '9.0.0' } });
+
+function bothToolsEvasionIo(plan) {
+  const tree = { base: plan.baseTree ?? plan.baseTypeChecked, head: plan.headTree ?? plan.headTypeChecked };
+  const typeChecked = { base: plan.baseTypeChecked, head: plan.headTypeChecked };
+  const linted = { base: plan.baseLinted, head: plan.headLinted };
+  const rules = plan.rulesFor ?? (() => ({ 'no-eq': 2 }));
+  return probeIo({
+    exists: (path) => {
+      const text = String(path);
+      if (text.endsWith('tsconfig.json') || text.endsWith('package.json') || text.includes('eslint.config')) return true;
+      return tree[sideOf(text)].includes(relativeOf(text));
+    },
+    readFile: (path) => (String(path).endsWith('package.json') ? BOTH_TOOLS_MANIFEST : CLEAN_SOURCE),
+    run: (binary, argv) => {
+      if (argv.includes('--print-config')) {
+        const printed = argv[argv.length - 1];
+        return { outcome: 'completed', status: 0, stdout: JSON.stringify({ rules: rules(sideOf(printed), relativeOf(printed)) }), stderr: '' };
+      }
+      if (argv.includes('--listFiles')) {
+        const root = argv[argv.length - 1];
+        return { outcome: 'completed', status: 0, stdout: `${typeChecked[sideOf(root)].map((file) => `${root}/${file}`).join('\n')}\n`, stderr: '' };
+      }
+      if (argv.includes('--showConfig')) {
+        const root = argv[argv.length - 1];
+        return { outcome: 'completed', status: 0, stdout: JSON.stringify({ compilerOptions: CAPTURED_TSC_STRICT_SHOWCONFIG }), stderr: '' };
+      }
+      if (String(argv[0]).endsWith('/eslint')) {
+        const root = String(argv[1]);
+        return {
+          outcome: 'completed',
+          status: 0,
+          stdout: JSON.stringify(linted[sideOf(root)].map((file) => ({ filePath: `${root}/${file}`, messages: [] }))),
+          stderr: '',
+        };
+      }
+      return CLEAN_CHILD;
+    },
+  });
+}
+
 function probeEvaluate(io) {
   return evaluate({ repoRoot: PROBE_ROOT, gateBase: PROBE_GATE_BASE, basePath: PROBE_BASE, cachedBaseCensus: null }, io);
 }
@@ -166,6 +207,33 @@ export function evasionWiringProbe() {
     headOptions: CAPTURED_TSC_LOOSE_SHOWCONFIG,
   }));
   const unchangedConfig = probeEvaluate(tscEvasionIo({ baseChecked: ONE_FILE, headChecked: ONE_FILE }));
+  const widenedIgnore = probeEvaluate(bothToolsEvasionIo({
+    baseTypeChecked: TWO_FILES,
+    headTypeChecked: TWO_FILES,
+    baseLinted: TWO_FILES,
+    headLinted: ONE_FILE,
+  }));
+  const unchangedToolScopes = probeEvaluate(bothToolsEvasionIo({
+    baseTypeChecked: TWO_FILES,
+    headTypeChecked: TWO_FILES,
+    baseLinted: TWO_FILES,
+    headLinted: TWO_FILES,
+  }));
+  const perGlobDowngrade = probeEvaluate(bothToolsEvasionIo({
+    baseTypeChecked: TWO_FILES,
+    headTypeChecked: TWO_FILES,
+    baseLinted: TWO_FILES,
+    headLinted: TWO_FILES,
+    rulesFor: (side, file) => (side === 'head' && file === 'b.ts' ? { 'no-eq': 0 } : { 'no-eq': 2 }),
+  }));
+  const perFileConfigIo = bothToolsEvasionIo({
+    baseTypeChecked: TWO_FILES,
+    headTypeChecked: TWO_FILES,
+    baseLinted: TWO_FILES,
+    headLinted: TWO_FILES,
+  });
+  probeEvaluate(perFileConfigIo);
+  const configPrints = perFileConfigIo.spawned.filter((command) => command.includes('--print-config'));
   return Object.freeze({
     addedSuppressionBlocks: blocksWith(addedSuppression, 'added-suppression'),
     inheritedSuppressionPasses: inheritedSuppression.pass === true,
@@ -181,6 +249,13 @@ export function evasionWiringProbe() {
     strictnessDowngradeBlocks: blocksWith(strictnessDowngrade, 'tsconfig-strictness')
       && strictnessDowngrade.blocking.some((entry) => entry.flag === 'strictBuiltinIteratorReturn'),
     unchangedConfigPasses: unchangedConfig.pass === true,
+    widenedIgnoreBlocksPerTool: blocksWith(widenedIgnore, 'checked-scope')
+      && widenedIgnore.blocking.some((entry) => entry.tool === 'eslint' && Array.isArray(entry.droppedFiles) && entry.droppedFiles.includes('b.ts')),
+    unchangedToolScopesPass: unchangedToolScopes.pass === true,
+    perGlobDowngradeBlocks: blocksWith(perGlobDowngrade, 'rule-severity')
+      && perGlobDowngrade.blocking.some((entry) => entry.file === 'b.ts' && entry.rule === 'no-eq'),
+    everyComparedFileResolved: TWO_FILES.every((file) => [PROBE_ROOT, PROBE_BASE]
+      .every((root) => configPrints.some((command) => command.endsWith(`--print-config ${root}/${file}`)))),
     expandedStrictFlagCount: Object.keys(CAPTURED_TSC_STRICT_SHOWCONFIG).length,
     everyFailingVerdictNamesACause: [
       addedSuppression,
@@ -188,6 +263,8 @@ export function evasionWiringProbe() {
       eslintOnlySuppression,
       narrowedScope,
       strictnessDowngrade,
+      widenedIgnore,
+      perGlobDowngrade,
     ].every((verdict) => verdict.pass === false && verdict.blocking.length > 0),
   });
 }
