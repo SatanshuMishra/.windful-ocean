@@ -61,7 +61,7 @@ function fixtureIo(overrides) {
 
 function collectibleEslintIo() {
   return fixtureIo({
-    exists: (path) => String(path).includes('eslint.config') || String(path).includes('package.json'),
+    exists: (path) => String(path).includes('eslint.config') || String(path).includes('package.json') || String(path).endsWith('/a.ts'),
     readFile: () => JSON.stringify({ devDependencies: { eslint: '9.0.0' } }),
     run: (binary, argv) => {
       if (argv.includes('--print-config')) return { outcome: 'completed', status: 0, stdout: JSON.stringify({ rules: {} }), stderr: '' };
@@ -252,7 +252,7 @@ test('first pass and recheck produce identical verdicts when the supplied census
   })));
   const build = () => fixtureIo({
     readFile: () => JSON.stringify({ devDependencies: { eslint: '9.0.0' } }),
-    exists: (path) => String(path).includes('eslint.config') || String(path).includes('package.json'),
+    exists: (path) => String(path).includes('eslint.config') || String(path).includes('package.json') || /\/src\/a\d+\.ts$/.test(String(path)),
     run: (binary, argv) => {
       if (argv.includes('--print-config')) return { outcome: 'completed', status: 0, stdout: JSON.stringify({ rules: {} }), stderr: '' };
       if (argv.some((value) => value.includes('eslint'))) {
@@ -382,16 +382,17 @@ test('a tool whose executable cannot be resolved refuses naming the path tried r
 
 test('a finding fixed in one directory and reintroduced in another blocks rather than netting out', () => {
   const io = fixtureIo({
-    exists: (path) => String(path).includes('eslint.config') || String(path).endsWith('package.json'),
+    exists: (path) => String(path).includes('eslint.config') || String(path).endsWith('package.json') || String(path).endsWith('/a.ts'),
     readFile: () => JSON.stringify({ devDependencies: { eslint: '9.0.0' } }),
     run: (binary, argv) => {
       if (argv.includes('--print-config')) return { outcome: 'completed', status: 0, stdout: JSON.stringify({ rules: {} }), stderr: '' };
       if (!argv.some((value) => String(value).includes('eslint'))) return { outcome: 'completed', status: 0, stdout: '', stderr: '' };
-      const onBase = argv.some((value) => String(value).startsWith(BASE));
+      const root = argv.some((value) => String(value).startsWith(BASE)) ? BASE : ROOT;
+      const findings = root === BASE ? [['no-eq', 'bad', 1, 1]] : [];
       return {
         outcome: 'completed',
         status: 1,
-        stdout: eslintReport([[onBase ? `${BASE}/src/a.ts` : `${ROOT}/lib/a.ts`, [['no-eq', 'bad', 1, 1]]]]),
+        stdout: eslintReport([[`${root}/src/a.ts`, findings], [`${root}/lib/a.ts`, root === BASE ? [] : [['no-eq', 'bad', 1, 1]]]]),
         stderr: '',
       };
     },
@@ -468,7 +469,12 @@ test('a basePath that is not absolute is refused rather than resolved against an
 
 test('a cached census whose NOT-EXPECTED disagrees with the trees is refused and the base re-collected', () => {
   const io = collectibleEslintIo();
-  const cached = { gateBase: 'abc123', tools: {}, notExpected: ['eslint', 'tsc'], surface: { root: BASE } };
+  const cached = {
+    gateBase: 'abc123',
+    tools: {},
+    notExpected: ['eslint', 'tsc'],
+    surface: { root: BASE, checkedFiles: [], suppressions: {}, tsconfigOptions: {}, eslintConfig: { rules: {} } },
+  };
   const verdict = evaluate({ repoRoot: ROOT, gateBase: 'abc123', basePath: BASE, cachedBaseCensus: cached }, io);
   assert.equal(verdict.usedCachedCensus, false, 'a supplied census decided that every tool was NOT-EXPECTED, which disables the gate with no child spawned');
   assert.ok(
@@ -565,7 +571,7 @@ test('a divergent package-lock.json composes the install argv from the resolved 
 
 function tscSuppressionIo({ baseSuppressed, headSuppressed, baseStrict = true, headStrict = true }) {
   return fixtureIo({
-    exists: (path) => String(path).endsWith('tsconfig.json') || String(path).endsWith('package.json'),
+    exists: (path) => String(path).endsWith('tsconfig.json') || String(path).endsWith('package.json') || String(path).endsWith('/a.ts'),
     readFile: (path) => {
       const text = String(path);
       if (text.endsWith('package.json')) return JSON.stringify({ devDependencies: { typescript: '5.0.0' } });

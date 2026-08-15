@@ -1,12 +1,18 @@
 import { existsSync, mkdirSync, readFileSync, realpathSync, rmSync, symlinkSync } from 'node:fs';
-import { dirname, isAbsolute, join as pathJoin, relative, resolve as pathResolve, sep } from 'node:path';
-import { collectEslintConfig, collectTsconfigOptions } from './boundary-config-surface.mjs';
-import { countSuppressions, evasionVerdict } from './boundary-evasion.mjs';
+import { dirname, isAbsolute, join as pathJoin } from 'node:path';
+import { choosingAnchor, collectEslintConfig, collectTsconfigOptions, fixedAnchor } from './boundary-config-surface.mjs';
+import { evasionVerdict } from './boundary-evasion.mjs';
+import {
+  NODE_MODULES,
+  checkedFileUniverse,
+  collectSuppressionSurface,
+  commonTreeFiles,
+  sideRelativeFile,
+  within,
+} from './boundary-scan-scope.mjs';
 import { run as execRun } from './exec-run.mjs';
 
 export const IDENTITY_SEPARATOR = '\u0000';
-export const NODE_MODULES = 'node_modules';
-
 const NPM_ENTRY_CANDIDATES = Object.freeze([
   (execPath) => pathJoin(dirname(execPath), '..', 'lib', 'node_modules', 'npm', 'bin', 'npm-cli.js'),
   (execPath) => pathJoin(dirname(execPath), 'npm'),
@@ -107,18 +113,6 @@ export const NORMALIZATION_STEPS = Object.freeze([
   }),
 ]);
 
-function posixPath(value) {
-  return sep === '/' ? value : value.split(sep).join('/');
-}
-
-function sideRelativeFile(file, root) {
-  if (typeof file !== 'string' || file.length === 0) return '';
-  if (typeof root !== 'string' || root.length === 0 || !isAbsolute(file)) {
-    return posixPath(file).replace(/^\.\//, '');
-  }
-  return posixPath(relative(root, file));
-}
-
 const FILE_NORMALIZATION_STEPS = Object.freeze([
   Object.freeze({ name: 'relative to the side root', apply: (text, root) => sideRelativeFile(text, root) }),
 ]);
@@ -162,13 +156,6 @@ export const REAL_BOUNDARY_IO = Object.freeze({
 
 function join(root, name) {
   return pathJoin(root, name);
-}
-
-function within(root, name) {
-  const path = pathResolve(root, name);
-  const inside = relative(root, path);
-  const escapes = inside.length === 0 || inside === '..' || inside.startsWith(`..${sep}`) || isAbsolute(inside);
-  return { path, escapes };
 }
 
 export function structuralIdentity(diagnostic, root) {
@@ -342,7 +329,7 @@ function listedFileCount(stdout) {
   return listedFiles(stdout).length;
 }
 
-function collectTool(root, tool, io, side) {
+function collectTool(root, tool, io, side, anchor) {
   const binary = toolBinary(root, tool, io);
   if (!binary.ok) return binary;
   const bin = binary.path;
@@ -357,7 +344,7 @@ function collectTool(root, tool, io, side) {
   if (tool.name === 'eslint') {
     const parsed = parseEslintReport(result.stdout);
     if (!parsed.ok) return { ok: false, error: `${tool.name} on ${root}: ${parsed.error}` };
-    const config = collectEslintConfig(root, bin, io, parsed.files, side);
+    const config = collectEslintConfig(root, bin, io, parsed.files, side, anchor);
     if (!config.ok) return { ok: false, error: `${tool.name} on ${root}: ${config.error}` };
     return {
       ok: true,
@@ -399,10 +386,10 @@ function identitiesOf(diagnostics, root) {
 
 const NEUTRAL_ESLINT_CONFIG = Object.freeze({ rules: Object.freeze({}) });
 
-export function collectCensus(root, expectations, io, gateBase, side = 'a side') {
+export function collectCensus(root, expectations, io, gateBase, side = 'a side', anchor = null) {
   const tools = {};
   const notExpected = [];
-  let checkedFiles = Object.freeze([]);
+  const listsByTool = {};
   let tsconfigOptions = Object.freeze({});
   let eslintConfig = NEUTRAL_ESLINT_CONFIG;
   let eslintConfigFile = null;
@@ -412,45 +399,28 @@ export function collectCensus(root, expectations, io, gateBase, side = 'a side')
       notExpected.push(tool.name);
       continue;
     }
-    const collected = collectTool(root, tool, io, side);
+    const collected = collectTool(root, tool, io, side, anchor);
     if (!collected.ok) return { ok: false, error: collected.error };
     tools[tool.name] = Object.freeze({ identities: identitiesOf(collected.diagnostics, root), fileCount: collected.fileCount });
+    listsByTool[tool.name] = collected.files;
     if (tool.name === 'tsc') {
-      checkedFiles = collected.files;
       tsconfigOptions = Object.freeze({ ...collected.tsconfigOptions });
     } else {
       eslintConfig = collected.eslintConfig;
       eslintConfigFile = collected.eslintConfigFile;
     }
   }
-  const surface = Object.freeze({ root, checkedFiles, tsconfigOptions, eslintConfig, eslintConfigFile });
+  const universe = checkedFileUniverse(root, listsByTool);
+  if (!universe.ok) return { ok: false, error: universe.error };
+  const collectedTools = Object.keys(listsByTool).sort();
+  if (collectedTools.length > 0 && universe.files.length === 0) {
+    return {
+      ok: false,
+      error: `${side} (${root}) carries no repository source among the files ${collectedTools.join(', ')} reported, so the suppression and checked-scope scans would read nothing; a scanned universe of zero files is refused rather than read as a clean result`,
+    };
+  }
+  const surface = Object.freeze({ root, checkedFiles: universe.files, tsconfigOptions, eslintConfig, eslintConfigFile });
   return { ok: true, census: Object.freeze({ gateBase, tools: Object.freeze(tools), notExpected: Object.freeze(notExpected), surface }) };
-}
-
-function intersectRootRelative(baseFiles, baseRoot, headFiles, headRoot) {
-  const baseSet = new Set(baseFiles.map((file) => sideRelativeFile(file, baseRoot)));
-  const common = new Set();
-  for (const file of headFiles) {
-    const rel = sideRelativeFile(file, headRoot);
-    if (baseSet.has(rel)) common.add(rel);
-  }
-  return Object.freeze([...common].sort());
-}
-
-function collectSuppressionSurface(root, files, io, side) {
-  const entries = [];
-  for (const file of files) {
-    const relPath = sideRelativeFile(file, root);
-    const absPath = isAbsolute(file) ? file : pathJoin(root, file);
-    let source;
-    try {
-      source = io.readFile(absPath);
-    } catch (error) {
-      return { ok: false, error: `the suppression scan on ${side} (${root}) could not read ${absPath}: ${failureText(error, 'unknown read failure')}` };
-    }
-    entries.push(Object.freeze({ path: relPath, source }));
-  }
-  return { ok: true, suppressions: countSuppressions(entries) };
 }
 
 function lockfileDivergence(headRoot, baseRoot, io) {
@@ -574,27 +544,39 @@ function teardown(repoRoot, basePath, io) {
   }
 }
 
-function gatherBase(repoRoot, basePath, gateBase, io) {
+function withSuppressions(census, suppressions) {
+  return Object.freeze({ ...census, surface: Object.freeze({ ...census.surface, suppressions }) });
+}
+
+function scannedSide(root, census, io, side) {
+  const suppressions = collectSuppressionSurface(root, census.surface.checkedFiles, io, side);
+  if (!suppressions.ok) return { ok: false, error: suppressions.error };
+  return { ok: true, census: withSuppressions(census, suppressions.suppressions) };
+}
+
+function gatherSides(repoRoot, basePath, gateBase, io) {
   const provisioned = provisionModules(repoRoot, basePath, io);
   if (!provisioned.ok) return { ok: false, error: provisioned.error };
   const expectations = expectationsFor(repoRoot, basePath, io);
   if (!expectations.ok) return { ok: false, error: expectations.error };
-  const collected = collectCensus(basePath, expectations.byTool, io, gateBase, 'base');
-  if (!collected.ok) return { ok: false, error: collected.error };
-  const suppressions = collectSuppressionSurface(basePath, collected.census.surface.checkedFiles, io, 'base');
-  if (!suppressions.ok) return { ok: false, error: suppressions.error };
-  const census = Object.freeze({
-    ...collected.census,
-    surface: Object.freeze({ ...collected.census.surface, suppressions: suppressions.suppressions }),
-  });
-  return { ok: true, census, strategy: provisioned.strategy, expectations: expectations.byTool };
+  const head = collectCensus(repoRoot, expectations.byTool, io, gateBase, 'HEAD', choosingAnchor(basePath));
+  if (!head.ok) return { ok: false, error: head.error };
+  const base = collectCensus(basePath, expectations.byTool, io, gateBase, 'base', fixedAnchor(head.census.surface.eslintConfigFile));
+  if (!base.ok) return { ok: false, error: base.error };
+  const scannedHead = scannedSide(repoRoot, head.census, io, 'HEAD');
+  if (!scannedHead.ok) return scannedHead;
+  const scannedBase = scannedSide(basePath, base.census, io, 'base');
+  if (!scannedBase.ok) return scannedBase;
+  return {
+    ok: true,
+    headCensus: scannedHead.census,
+    baseCensus: scannedBase.census,
+    strategy: provisioned.strategy,
+    expectations: expectations.byTool,
+  };
 }
 
-export function collectBase(request, io) {
-  const problems = requestProblems(request);
-  if (problems.length > 0) {
-    return Object.freeze({ ok: false, error: `the base worktree could not be materialized: ${problems.join('; ')}`, leaked: null });
-  }
+function collectSides(request, io) {
   const { repoRoot, gateBase, basePath } = request;
   let added;
   try {
@@ -607,19 +589,48 @@ export function collectBase(request, io) {
   }
   let gathered;
   try {
-    gathered = gatherBase(repoRoot, basePath, gateBase, io);
+    gathered = gatherSides(repoRoot, basePath, gateBase, io);
   } catch (error) {
     gathered = { ok: false, error: `the base could not be collected at ${basePath}: ${failureText(error, 'unknown failure')}` };
   }
   return Object.freeze({ ...gathered, leaked: teardown(repoRoot, basePath, io) });
 }
 
+export function collectBase(request, io) {
+  const problems = requestProblems(request);
+  if (problems.length > 0) {
+    return Object.freeze({ ok: false, error: `the base worktree could not be materialized: ${problems.join('; ')}`, leaked: null });
+  }
+  const collected = collectSides(request, io);
+  if (!collected.ok) return Object.freeze({ ok: false, error: collected.error, leaked: collected.leaked });
+  return Object.freeze({
+    ok: true,
+    census: collected.baseCensus,
+    strategy: collected.strategy,
+    expectations: collected.expectations,
+    leaked: collected.leaked,
+  });
+}
+
+function isPlainObject(value) {
+  return value !== null && typeof value === 'object' && !Array.isArray(value);
+}
+
+export const CACHED_SURFACE_FIELDS = Object.freeze([
+  Object.freeze({ name: 'root', accepts: (value) => typeof value === 'string' && value.length > 0 }),
+  Object.freeze({ name: 'checkedFiles', accepts: (value) => Array.isArray(value) }),
+  Object.freeze({ name: 'suppressions', accepts: isPlainObject }),
+  Object.freeze({ name: 'tsconfigOptions', accepts: isPlainObject }),
+  Object.freeze({ name: 'eslintConfig', accepts: (value) => isPlainObject(value) && isPlainObject(value.rules) }),
+]);
+
 export function isUsableCachedCensus(cached, gateBase) {
   if (cached === null || typeof cached !== 'object' || Array.isArray(cached)) return false;
   if (cached.gateBase !== gateBase) return false;
   if (cached.tools === null || typeof cached.tools !== 'object' || Array.isArray(cached.tools)) return false;
   if (!Array.isArray(cached.notExpected)) return false;
-  if (cached.surface === null || typeof cached.surface !== 'object') return false;
+  if (!isPlainObject(cached.surface)) return false;
+  if (CACHED_SURFACE_FIELDS.some((field) => !field.accepts(cached.surface[field.name]))) return false;
   const named = [...Object.keys(cached.tools), ...cached.notExpected].sort();
   if (JSON.stringify(named) !== JSON.stringify(BOUNDARY_TOOLS.map((tool) => tool.name).sort())) return false;
   for (const entry of Object.values(cached.tools)) {
@@ -674,11 +685,15 @@ function withNotes(output, notes) {
   return [output, ...notes.filter((note) => typeof note === 'string' && note.length > 0)].join('; ');
 }
 
+export const REFUSAL_CLASSIFIER = 'collection-refused';
+export const EVASION_HALT_CLASSIFIER = 'evasion-halted';
+
 function refused(output, context) {
+  const detail = withNotes(output, [context.cacheRefusal, context.leaked]);
   return Object.freeze({
     pass: false,
-    output: withNotes(output, [context.cacheRefusal, context.leaked]),
-    blocking: Object.freeze([]),
+    output: detail,
+    blocking: Object.freeze([Object.freeze({ classifier: REFUSAL_CLASSIFIER, detail })]),
     notExpected: Object.freeze([]),
     usedCachedCensus: false,
     baseCensus: null,
@@ -692,6 +707,11 @@ function evasionOutput(evasion) {
   return `${evasion.blocking.length} evasion finding(s): ${evasion.blocking.map((entry) => `${entry.classifier}: ${entry.detail}`).join('; ')}`;
 }
 
+function evasionBlocking(evasion) {
+  if (!evasion.halted) return evasion.blocking;
+  return Object.freeze([Object.freeze({ classifier: EVASION_HALT_CLASSIFIER, detail: evasion.error })]);
+}
+
 export function evaluate(request, io = REAL_BOUNDARY_IO) {
   if (request === null || typeof request !== 'object') {
     throw new TypeError('boundary-gate: evaluate expects a request object carrying repoRoot, gateBase and basePath');
@@ -701,51 +721,47 @@ export function evaluate(request, io = REAL_BOUNDARY_IO) {
     throw new TypeError(`boundary-gate: evaluate refuses this request: ${problems.join('; ')}`);
   }
   let baseCensus;
+  let headCensus;
   let expectations;
   let usedCachedCensus = false;
   let context = { leaked: null, cacheRefusal: null };
-  let head;
   let evasion;
   try {
     const cached = usableCachedBase(request, io);
     context = { ...context, cacheRefusal: cached.refusal };
     if (cached.ok) {
+      const head = collectCensus(request.repoRoot, cached.expectations, io, request.gateBase, 'HEAD', fixedAnchor(cached.census.surface.eslintConfigFile));
+      if (!head.ok) return refused(head.error, context);
+      const scanned = scannedSide(request.repoRoot, head.census, io, 'HEAD');
+      if (!scanned.ok) return refused(scanned.error, context);
       baseCensus = cached.census;
+      headCensus = scanned.census;
       expectations = cached.expectations;
       usedCachedCensus = true;
     } else {
-      const collected = collectBase(request, io);
+      const collected = collectSides(request, io);
       context = { ...context, leaked: collected.leaked };
       if (!collected.ok) return refused(collected.error, context);
-      baseCensus = collected.census;
+      baseCensus = collected.baseCensus;
+      headCensus = collected.headCensus;
       expectations = collected.expectations;
     }
-    head = collectCensus(request.repoRoot, expectations, io, request.gateBase, 'HEAD');
-    if (!head.ok) return refused(head.error, context);
-    const commonFiles = intersectRootRelative(
-      baseCensus.surface.checkedFiles,
-      baseCensus.surface.root,
-      head.census.surface.checkedFiles,
-      head.census.surface.root,
-    );
-    const headSuppressions = collectSuppressionSurface(request.repoRoot, commonFiles, io, 'HEAD');
-    if (!headSuppressions.ok) return refused(headSuppressions.error, context);
-    const headSurface = Object.freeze({ ...head.census.surface, suppressions: headSuppressions.suppressions, commonFiles });
-    evasion = evasionVerdict(baseCensus.surface, headSurface);
+    const commonFiles = commonTreeFiles(baseCensus.surface, headCensus.surface, io);
+    evasion = evasionVerdict(baseCensus.surface, Object.freeze({ ...headCensus.surface, commonFiles }));
   } catch (error) {
     return refused(`the boundary gate could not complete: ${failureText(error, 'unknown failure')}`, context);
   }
   const verdict = compareCensuses(
     Object.fromEntries(Object.entries(baseCensus.tools).map(([name, entry]) => [name, entry.identities])),
-    Object.fromEntries(Object.entries(head.census.tools).map(([name, entry]) => [name, entry.identities])),
+    Object.fromEntries(Object.entries(headCensus.tools).map(([name, entry]) => [name, entry.identities])),
   );
   const notExpected = Object.freeze(BOUNDARY_TOOLS.filter((tool) => !expectations[tool.name].expected).map((tool) => tool.name));
   const blocking = Object.freeze([
     ...verdict.blocking.map((entry) => Object.freeze({ classifier: 'new-finding', ...entry })),
-    ...evasion.blocking,
+    ...evasionBlocking(evasion),
   ]);
   const findingsText = verdict.pass
-    ? `no new finding: ${notExpected.length === BOUNDARY_TOOLS.length ? 'every tool is NOT-EXPECTED, so the lint and type dimension is legitimately empty' : `${Object.keys(head.census.tools).sort().join(', ')} collected cleanly on both sides`}`
+    ? `no new finding: ${notExpected.length === BOUNDARY_TOOLS.length ? 'every tool is NOT-EXPECTED, so the lint and type dimension is legitimately empty' : `${Object.keys(headCensus.tools).sort().join(', ')} collected cleanly on both sides`}`
     : `${verdict.blocking.length} new finding(s) this MSP introduced: ${verdict.blocking.map((entry) => `${entry.tool} ${JSON.stringify(entry.identity)} base ${entry.baseCount} head ${entry.headCount}`).join('; ')}`;
   return Object.freeze({
     pass: verdict.pass && evasion.pass,

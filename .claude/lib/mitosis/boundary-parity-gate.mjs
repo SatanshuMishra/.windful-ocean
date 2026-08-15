@@ -71,10 +71,19 @@ export const BOUNDARY_PARITY_ATTESTS = Object.freeze([
   'the checked-scope comparison compares resolved file lists restricted to files present on both sides rather than glob semantics, so a narrowed include or a widened ignore blocks while a legitimately added or deleted source file does not; all three are measured here on every invocation',
   'the package-manager resolver yields a real, existing JS entry distinct from the node binary rather than a bare path that cannot execute, and a lockfile whose declared manager carries no install support refuses before any install child spawns, both measured here on every invocation',
   'an added suppression and a resolved-config strictness downgrade each reach the gate verdict end to end through evaluate itself, carrying the added-suppression or tsconfig-strictness classifier in its blocking array, and an inherited suppression or an unchanged resolved config still passes; all four are measured here on every invocation by driving evaluate rather than the classifier functions alone',
+  'the HEAD suppression scan reads HEAD OWN whole checked universe rather than the base-HEAD intersection, so a suppression in a file this MSP ADDS blocks while an added file carrying none still passes; both are measured here on every invocation by driving evaluate over a file present only at HEAD',
+  'the scanned universe is the union of every EXPECTED tool file list rather than the type-checked list alone, so a suppression added in a repository where tsc is NOT-EXPECTED blocks and an eslint-only repository that added none still passes; both are measured here on every invocation, and a universe empty of repository sources while a tool was collected is refused',
+  'the common-file list the checked-scope comparison restricts to comes from TREE MEMBERSHIP rather than from the two checked lists, because a common list derived from those lists makes both restricted sets equal it and the dropped set identically empty; a file present in both trees and checked only at base blocks and a file deleted at HEAD passes, both measured here on every invocation through evaluate',
+  'both sides print the resolved eslint config for ONE anchor, chosen root-relative from the files present on both sides, so a file that sorts first only at HEAD neither hides a real downgrade nor fabricates one; the HEAD census is collected before the base so the anchor exists when the base is asked for it, and a base that cannot print the anchor refuses naming it',
+  'the strictness comparison is fed a REAL captured tsc --showConfig payload in which strict:true is already expanded into its whole strict family, so a family member the declared table fails to name halts here rather than in production; the payload carries at least ten compiler options and a single-key synthetic is refused',
+  'a verdict that does not pass always names at least one blocking entry, whether it blocked, halted mid-scan, or refused the collection, so a consumer rendering the cause from the blocking array never reports an empty reason; measured here on every invocation across every failing verdict the wiring probe drives',
+  'the scanned universe carries repository sources alone: a path under node_modules is dropped so a dependency or compiler bump cannot surface as an added suppression, and a listed path that escapes its worktree root refuses naming the path rather than being read',
+  'a supplied base census is refused unless its surface carries every field the comparison reads: a non-empty root, a checked-file list, a suppression map, resolved compiler options and a resolved eslint rule map; a stale-shaped census is re-collected rather than silently disabling the classifiers that read those fields',
 ]);
 
 export const BOUNDARY_PARITY_NOT_ATTESTED = Object.freeze([
-  'that the evasion classifiers behave as declared against a real eslint or a real tsc: every probe here injects its own exec and filesystem seams for --print-config, --showConfig and the suppression source reads, so what a real eslint prints for a large resolved config, or what a real tsc prints for --showConfig against a config reached through extends, remains untested until a probe runs them against a real repository',
+  'that the evasion classifiers behave as declared against a real eslint or a real tsc: every probe here injects its own exec and filesystem seams, and the only real capture replayed is one tsc 5.8.3 --showConfig payload for strict:true, so what a real eslint prints for a large resolved config, and what a real tsc prints for a config reached through extends or under another version, remains untested until a probe runs them against a real repository',
+  'that the byte cap and the node_modules exclusion carry the right thresholds for a real tree: both are measured here against injected seams, so the cap is exercised but never against a real generated source, and the measured size of a real node_modules and lib.d.ts universe is not re-measured on each run',
   'that either mechanical dispatch has been converted: both still dispatch a language model in both engine trees until C7 ports them onto this substrate, and this verb measures the conversion list rather than the conversion',
   'that this program produces the verdict the incumbent prose produced: the prose is executed by a model and no probe here runs both and compares them, so the two are pinned by their declared parts rather than by an end-to-end equivalence',
   'that the collection commands behave as declared against a real repository: every probe here injects its own exec and filesystem seams, so what a real eslint or a real tsc prints for a large tree, a symbolic link, or a config resolved from a parent directory is untested until C7 supplies those seams',
@@ -116,7 +125,7 @@ function eslintStdout(fileCount) {
 
 function eslintOnlyIo(baseFiles, headFiles) {
   return probeIo({
-    exists: (path) => String(path).includes('eslint.config') || String(path).endsWith('package.json'),
+    exists: (path) => String(path).includes('eslint.config') || String(path).endsWith('package.json') || /\/src\/a\d+\.ts$/.test(String(path)),
     run: (binary, argv) => {
       if (argv.includes('--print-config')) return { outcome: 'completed', status: 0, stdout: JSON.stringify({ rules: {} }), stderr: '' };
       if (!argv.some((value) => String(value).includes('eslint'))) return CLEAN_CHILD;
@@ -191,7 +200,12 @@ function equivalenceProbe() {
   const foreignCensus = { ...collected.census, gateBase: `${collected.census.gateBase}-foreign` };
   const foreign = evaluate({ ...request, cachedBaseCensus: foreignCensus }, foreignIo);
   const disagreeingIo = eslintOnlyIo(1, 2);
-  const disagreeingCensus = { gateBase: PROBE_GATE_BASE, tools: {}, notExpected: BOUNDARY_TOOLS.map((tool) => tool.name), surface: { root: PROBE_BASE } };
+  const disagreeingCensus = {
+    gateBase: PROBE_GATE_BASE,
+    tools: {},
+    notExpected: BOUNDARY_TOOLS.map((tool) => tool.name),
+    surface: { root: PROBE_BASE, checkedFiles: [], suppressions: {}, tsconfigOptions: {}, eslintConfig: { rules: {} } },
+  };
   const disagreeing = evaluate({ ...request, cachedBaseCensus: disagreeingCensus }, disagreeingIo);
   return Object.freeze({
     disagreeingCacheRecollects: disagreeing.usedCachedCensus === false
@@ -646,6 +660,30 @@ export function boundaryParityFailures(substrate) {
   }
   if (!evasionWiring.unchangedConfigPasses) {
     failures.push('an unchanged resolved tsconfig now makes evaluate block, so the end-to-end wiring reports an evasion where the config never changed');
+  }
+  if (!evasionWiring.headOnlyFileSuppressionBlocks) {
+    failures.push('a suppression in a file present only at HEAD no longer makes evaluate block, so the HEAD scan reads the base-HEAD intersection rather than HEADs own checked universe and a suppression in a file this MSP ADDS is never read at all');
+  }
+  if (!evasionWiring.headOnlyFileWithoutSuppressionPasses) {
+    failures.push('a file this MSP adds that carries no suppression now blocks, so scanning HEADs whole checked universe has become a presence rule over added files rather than a surplus rule over directives');
+  }
+  if (!evasionWiring.eslintOnlyRepositorySuppressionBlocks) {
+    failures.push('a suppression added in a repository where tsc is NOT-EXPECTED no longer blocks, so the scanned universe is the type-checked file list alone and every eslint-only repository, and every .js file eslint lints that tsc does not, is unscanned');
+  }
+  if (!evasionWiring.eslintOnlyRepositoryCleanPasses) {
+    failures.push('an eslint-only repository that added no suppression now blocks, so the widened scanned universe reports an evasion where the sources never changed');
+  }
+  if (!evasionWiring.narrowedCheckedScopeBlocks) {
+    failures.push('a file present in both trees and checked only at base no longer makes evaluate block with classifier checked-scope; the common-file list must come from tree membership, because deriving it from the two checked lists makes both restricted sets equal it and the dropped set identically empty');
+  }
+  if (!evasionWiring.deletedFilePasses) {
+    failures.push('a file legitimately deleted at HEAD now reads as a narrowed checked scope through evaluate, so the common-file list is no longer restricted to files present in both trees');
+  }
+  if (evasionWiring.expandedStrictFlagCount < 10) {
+    failures.push(`the captured tsc --showConfig payload the wiring probe replays carries only ${evasionWiring.expandedStrictFlagCount} compiler option(s); a real tsc expands strict:true into its whole strict family, and a single-key synthetic payload is what let an unnamed family member halt the gate unmeasured`);
+  }
+  if (!evasionWiring.everyFailingVerdictNamesACause) {
+    failures.push('a failing verdict now carries an empty blocking array, so a consumer rendering the cause from blocking reports no reason at all; pass false must always imply at least one named blocking entry');
   }
   const outside = exec.requestedBinaries.filter((binary) => binary !== 'git' && binary !== 'node');
   if (outside.length > 0) {

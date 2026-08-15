@@ -37,6 +37,7 @@ export const TSCONFIG_STRICTNESS_FLAGS = Object.freeze({
   strictFunctionTypes: strictFamilyFlag(),
   strictBindCallApply: strictFamilyFlag(),
   strictPropertyInitialization: strictFamilyFlag(),
+  strictBuiltinIteratorReturn: strictFamilyFlag(),
   noImplicitThis: strictFamilyFlag(),
   useUnknownInCatchVariables: strictFamilyFlag(),
   alwaysStrict: strictFamilyFlag(),
