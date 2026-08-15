@@ -8,6 +8,7 @@ import { fileURLToPath } from 'node:url';
 import { foldFile } from '../fold-run-log.mjs';
 import { buildInitialManifest, parseRunManifest } from '../recovery.mjs';
 import { shipDelta } from '../run-log.mjs';
+import { appendJournalLine, composeJournalLine, writeGenesis } from '../journal-store.mjs';
 
 const SCRIPT = fileURLToPath(new URL('../fold-run-log.mjs', import.meta.url));
 const SPEC_CONTENT_HASH = 'a'.repeat(64);
@@ -22,8 +23,8 @@ function genesis() {
     sourcePrefix: 'mit',
     clusters: [['a', 'b']],
     msps: [
-      { id: 'a', title: 'Alpha', rationale: 'alpha rationale', dependsOn: [], fileScope: ['a/**'] },
-      { id: 'b', title: 'Bravo', rationale: 'bravo rationale', dependsOn: ['a'], fileScope: ['b/**'] },
+      { id: 'a', title: 'Alpha', rationale: 'alpha rationale', changeType: 'feat', scope: 'alpha', dependsOn: [], fileScope: ['a/**'] },
+      { id: 'b', title: 'Bravo', rationale: 'bravo rationale', changeType: 'feat', scope: 'bravo', dependsOn: ['a'], fileScope: ['b/**'] },
     ],
     specContentHash: SPEC_CONTENT_HASH,
   });
@@ -54,6 +55,25 @@ test('foldFile deterministically folds a genesis+ship journal on disk into a man
     const revalidated = parseRunManifest(JSON.stringify(folded));
     assert.deepEqual(revalidated, folded, 'the folded output survives the engine parseRunManifest re-validation gate');
   });
+});
+
+test('the fold base is the file the genesis writer writes: a journal produced by writeGenesis and appendJournalLine folds through foldFile at .mitosis/run.json', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'fold-run-log-writer-'));
+  const journal = join(dir, '.mitosis', 'run.json');
+  try {
+    writeGenesis({ repoRoot: dir, path: journal, manifest: genesis() });
+    appendJournalLine({
+      repoRoot: dir,
+      path: journal,
+      line: composeJournalLine('ship', { mspId: 'a', prUrl: 'https://x/pr/a', mergedAt: '2026-07-15T00:00:00Z', title: 'Alpha', rationale: 'alpha rationale' }),
+    });
+    const folded = foldFile(journal);
+    assert.ok(folded, 'the journal the writer produced does not fold at the path the reader is pointed at, so the writer and the reader no longer name one fold base');
+    assert.equal(folded.msps.find((m) => m.id === 'a').status, 'shipped', 'a delta appended by the writer was not applied by the reader');
+    assert.deepEqual(parseRunManifest(JSON.stringify(folded)), folded, 'the writer-produced journal folds to a manifest the engine re-validation gate rejects');
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
 });
 
 test('foldFile fail-closes to null on a malformed run-log so the engine falls back to a fresh decompose', () => {
