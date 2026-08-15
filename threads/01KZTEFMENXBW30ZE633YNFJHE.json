@@ -108,7 +108,7 @@
     {
       "id": "c20",
       "text": "A module load failure in the gate closure is framed with the verb and the module that did not load, while runMitosisGate stays synchronous and no existing test block changes signature.",
-      "done": false,
+      "done": true,
       "kind": "detour",
       "struck_by": null
     },
@@ -154,68 +154,15 @@
   "abandoned_reason": null,
   "closure_statement": null,
   "spine": {
-    "active_goal": "Clear the three filed defects, then restack and ship the remaining MSPs under receipts/gates@1.1.",
-    "next_step": "START HERE with the three filed defects, worst first: the raw U+0000 at determinism-lint.mjs:319 that makes git treat the module as binary; the git and node argv injection; and the ERR_MODULE_NOT_FOUND four verbs raise when an export is renamed. Each is its own MSP under G0, its acceptance list declared up front as the receipt. THEN restack C5b onto the cleaned base and C6 onto C5b, explicit --onto only, since C6 is still parented on the orphaned 3ff7c990.",
-    "last_session": "Retired every home-grown verification mandate across all four layers and installed receipts/gates@1.1 on main as the sole standard with the enforcer bound. Merged PRs #111 through #117, a net -9,365 lines of apparatus. Recorded 0438 and 0439.",
+    "active_goal": "Restack C5b onto the cleaned base and C6 onto C5b, then ship the remaining MSPs under receipts/gates@1.1.",
+    "next_step": "START HERE with the restack, before anything else. C5a needs NO verification round: every commit on origin/feat/c5a-coupling-enforcement is already an ancestor of the base (ahead=0), so it landed. C5b is 12 commits unlanded, C6 is 71. Restack C5b onto aec7d253 first, then C6 onto the moved C5b, explicit git rebase --onto only, never a bare rebase. Then concisely explain the remaining next steps to the user before doing more.",
+    "last_session": "Cleared all three filed defects as sibling MSPs off the base. PRs #118, #119 and #120 all merged; base moved ed5ccbb9 -> aec7d253. Two of the three filings were materially wrong and were corrected in 0440 and 0442. The one merge conflict was foreseen and resolved by merge order. Recorded 0441.",
     "open_risks": [
       {
         "text": "Build A4's red case through the claude -p CLI path and assert the SILENT failure — the Workflow agent path auto-grants StructuredOutput, so a red case dispatched through it passes unconditionally and is a guarantee that cannot fail",
         "scope": "c4",
         "refs": [
           "0379"
-        ]
-      },
-      {
-        "text": "Dispatch every child with run_in_background false and re-verify against git when it returns — a background child returns only an id, so a dispatching agent ends its turn narrating that it is holding while nothing ran",
-        "scope": "thread",
-        "refs": [
-          "memory: dispatching-agents-return-believing-they-wait"
-        ]
-      },
-      {
-        "text": "Work in a worktree rather than switching the primary checkout — ~/.claude/rules, CLAUDE.md and skills are symlinks into its working tree, so a checkout there silently changes the live global config, receipts.md included",
-        "scope": "thread",
-        "refs": [
-          "~/.claude/rules",
-          ".claude/rules/common/receipts.md"
-        ]
-      },
-      {
-        "text": "A module newly inlined into mitosis.js now gets no mirror row automatically — the census mandate is retired, so only EXISTING twins are checked and genuinely new duplication can drift silently",
-        "scope": "thread",
-        "refs": [
-          "0439",
-          "PR #112"
-        ]
-      },
-      {
-        "text": "workflow-sandbox-census.test.mjs carries a hand-rolled maskLiterals duplicating the masker in js-scan.mjs — a live divergence hazard left unfixed because consolidating it is a behaviour change, not a removal",
-        "scope": "thread",
-        "refs": [
-          "0439"
-        ]
-      },
-      {
-        "text": "Cite mitosis.js for behaviour, never lib/mitosis/*.mjs — mitosis.js has zero imports and calls its own inlined twins, so a lib citation describes a mirror rather than the path that executes",
-        "scope": "thread",
-        "refs": [
-          ".claude/workflows/mitosis.js:5040"
-        ]
-      },
-      {
-        "text": "Copy no fanout source into this repo — it is PolyForm Noncommercial, so the architecture may be adopted and cited as prior art but a verbatim lift is a licensing decision, not a coding one",
-        "scope": "thread",
-        "refs": [
-          "0373",
-          "SPEC 3.6"
-        ]
-      },
-      {
-        "text": "Pair every D3 cost hypothesis with a fixed quality assertion — the instrument counts tokens and cannot see whether a re-architected Decompose cuts worse, so a token win carrying a quality regression reads as a success",
-        "scope": "thread",
-        "refs": [
-          "SPEC residual 5",
-          "0358"
         ]
       },
       {
@@ -237,7 +184,7 @@
         ]
       },
       {
-        "text": "feat/c6-boundary-program is still parented on the orphaned 3ff7c990 — restack with an explicit git rebase --onto and never a bare rebase, which replays 59 commits instead of its own 9",
+        "text": "feat/c6-boundary-program is still parented on the orphaned 3ff7c990 — restack with an explicit git rebase --onto and never a bare rebase, which replays dozens of commits instead of its own nine",
         "scope": "c3",
         "refs": [
           "3ff7c990",
@@ -245,33 +192,20 @@
         ]
       },
       {
-        "text": "A live raw U+0000 at determinism-lint.mjs:319 makes git classify that module as binary — no diff lines and no grep hits, so it shipped through review unreadable; second occurrence of this defect class",
+        "text": "C5a needs no verification round — every commit on origin/feat/c5a-coupling-enforcement is already an ancestor of the base, so its content landed; C5b is the first branch with real unlanded work at 12 commits, and C6 at 71",
         "scope": "c3",
         "refs": [
-          ".claude/lib/mitosis/determinism-lint.mjs:319"
+          "aec7d253",
+          "6b72e7ab",
+          "62200593"
         ]
       },
       {
-        "text": "exec-policy classifies argv for gh alone while five direct child_process sites bypass the chokepoint — live arbitrary code execution, and the user has not yet ruled on whether it gets its own MSP",
+        "text": "Grep for a prose correction after any conflict resolution that spans a large file move — a one-line attestation fix inside an 805-line move is dropped silently by a wholesale resolution, and no test turns red because the assertion matches a substring both texts share",
         "scope": "c3",
         "refs": [
-          "C4b-SHIPPED.md",
-          "C4c-SHIPPED.md"
-        ]
-      },
-      {
-        "text": "Renaming an export in journal-store.mjs raises a raw ERR_MODULE_NOT_FOUND from four verbs — pre-existing across a chain of twelve modules, and closing it makes runMitosisGate async, rewriting about 35 existing test rows",
-        "scope": "c3",
-        "refs": [
-          "journal-store.mjs"
-        ]
-      },
-      {
-        "text": "The receipts enforcer has never run under the bound config — the next PR opened is the first real test of claim.require_receipt_for any-source-change and G14 block",
-        "scope": "c3",
-        "refs": [
-          "receipts.config.json",
-          "PR #116"
+          "0441",
+          "mitosis-gate-core.mjs:47"
         ]
       },
       {
@@ -286,6 +220,66 @@
         "scope": "c3",
         "refs": [
           "UPSTREAM-REDOS-REPORT-DRAFT.md"
+        ]
+      },
+      {
+        "text": "Dispatch every child with run_in_background false and re-verify against git when it returns — a background child returns only an id, so a dispatching agent ends its turn narrating that it is holding while nothing ran",
+        "scope": "thread",
+        "refs": [
+          "memory: dispatching-agents-return-believing-they-wait"
+        ]
+      },
+      {
+        "text": "Work in a worktree rather than switching the primary checkout — ~/.claude/rules, CLAUDE.md and skills are symlinks into its working tree, so a checkout there silently changes the live global config, receipts.md included",
+        "scope": "thread",
+        "refs": [
+          "~/.claude/rules",
+          ".claude/rules/common/receipts.md"
+        ]
+      },
+      {
+        "text": "Read the INLINED_TWINS list before citing mitosis.js as the executing path — it inlines 25 whole and 3 partial twins, but exec-policy, dispatch, run-store, journal-store, mitosis-gate and determinism-lint are NOT among them, so for those the lib module IS what runs",
+        "scope": "thread",
+        "refs": [
+          "tests/mirror-guard.test.mjs:25-54"
+        ]
+      },
+      {
+        "text": "Build any raw control byte fix through a byte-deterministic path and verify with od or perl — the agent Write path turns a typed escape into a raw control byte, which is the likely recurrence mechanism for this whole defect class",
+        "scope": "thread",
+        "refs": [
+          "0442"
+        ]
+      },
+      {
+        "text": "A module newly inlined into mitosis.js now gets no mirror row automatically — the census mandate is retired, so only EXISTING twins are checked and genuinely new duplication can drift silently",
+        "scope": "thread",
+        "refs": [
+          "0439",
+          "PR #112"
+        ]
+      },
+      {
+        "text": "workflow-sandbox-census.test.mjs carries a hand-rolled maskLiterals duplicating the masker in js-scan.mjs — a live divergence hazard left unfixed because consolidating it is a behaviour change, not a removal",
+        "scope": "thread",
+        "refs": [
+          "0439"
+        ]
+      },
+      {
+        "text": "Copy no fanout source into this repo — it is PolyForm Noncommercial, so the architecture may be adopted and cited as prior art but a verbatim lift is a licensing decision, not a coding one",
+        "scope": "thread",
+        "refs": [
+          "0373",
+          "SPEC 3.6"
+        ]
+      },
+      {
+        "text": "Pair every D3 cost hypothesis with a fixed quality assertion — the instrument counts tokens and cannot see whether a re-architected Decompose cuts worse, so a token win carrying a quality regression reads as a success",
+        "scope": "thread",
+        "refs": [
+          "SPEC residual 5",
+          "0358"
         ]
       }
     ],
@@ -450,5 +444,5 @@
     ]
   },
   "created_at": "2026-08-12T07:37:41.077Z",
-  "updated_at": "2026-08-15T19:21:08.740Z"
+  "updated_at": "2026-08-15T19:22:02.774Z"
 }
