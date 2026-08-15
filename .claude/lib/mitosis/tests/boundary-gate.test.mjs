@@ -95,6 +95,12 @@ test('a fixed pre-existing error does not block and the count does not underflow
   assert.deepEqual(verdict.blocking, []);
 });
 
+test('a partly fixed pre-existing error still present at a lower count does not block', () => {
+  const verdict = compareCensuses({ eslint: { 'a::no-eq::x': 3 } }, { eslint: { 'a::no-eq::x': 1 } });
+  assert.equal(verdict.pass, true);
+  assert.deepEqual(verdict.blocking, []);
+});
+
 test('the tsc line census classifies the declared diagnostic form and halts on anything else', () => {
   const clean = censusTscLines([tscLine('src/a.ts', 3, 9, 'TS2345', 'Argument bad'), '', 'error TS5083: Cannot read file'].join('\n'));
   assert.equal(clean.ok, true, clean.error);

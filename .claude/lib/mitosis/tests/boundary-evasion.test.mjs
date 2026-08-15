@@ -44,6 +44,12 @@ test('a removed suppression does not block and the count does not underflow', ()
   assert.equal(verdict.pass, true);
 });
 
+test('a suppression still present at a lower count does not block', () => {
+  const verdict = compareSuppressions({ '@ts-ignore': 3 }, { '@ts-ignore': 1 });
+  assert.equal(verdict.pass, true);
+  assert.deepEqual(verdict.blocking, []);
+});
+
 test('a rule severity downgrade blocks in the resolved rule map, and a raise does not', () => {
   assert.equal(compareRuleSeverity({ rules: { 'no-eq': 2 } }, { rules: { 'no-eq': 1 } }).pass, false);
   assert.equal(compareRuleSeverity({ rules: { 'no-eq': 1 } }, { rules: { 'no-eq': 0 } }).pass, false);
