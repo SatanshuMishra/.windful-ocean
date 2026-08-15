@@ -448,6 +448,11 @@
         "ref": "0445-c6-merged-into-a-live-parent-and-never-reached-the-trunk",
         "title": "C6 merged into a live parent branch and never reached the trunk",
         "scope": "c3"
+      },
+      {
+        "ref": "0446-distrust-of-subagent-results-is-retired-as-a-working-mode",
+        "title": "Distrust of subagent results is retired as a working mode",
+        "scope": "c3"
       }
     ],
     "out_of_scope": [
@@ -459,5 +464,5 @@
     ]
   },
   "created_at": "2026-08-12T07:37:41.077Z",
-  "updated_at": "2026-08-15T20:22:08.118Z"
+  "updated_at": "2026-08-15T20:23:08.447Z"
 }
