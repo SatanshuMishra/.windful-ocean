@@ -298,6 +298,50 @@ test('I1i: no enforcement figure in the audit reports a pair unserialized while 
   }
 });
 
+const NON_RENDERING_ID_CENSUS = Object.freeze([
+  [0x0000, 'U+0000 NUL, a C0 control'],
+  [0x202E, 'U+202E RIGHT-TO-LEFT OVERRIDE, a bidi override'],
+  [0x200B, 'U+200B ZERO WIDTH SPACE'],
+  [0xE0041, 'U+E0041 TAG LATIN CAPITAL A, from the tag block'],
+  [0x3164, 'U+3164 HANGUL FILLER, default-ignorable but category Lo'],
+]);
+
+function withHiddenCodePoint(id, code) {
+  return `${id[0]}${String.fromCodePoint(code)}${id.slice(1)}`;
+}
+
+function hardenedMigrationClaim(claimedFrom) {
+  return {
+    tasks: [
+      taskOf('t1', ['db/migrations/001_accounts.sql']),
+      taskOf('t2', ['db/migrations/002_ledger.sql'], { dependsOn: ['t1'] }),
+    ],
+    couplingEdges: [{ from: claimedFrom, to: 't1' }],
+  };
+}
+
+const MIGRATION_RELAX_VERDICT = [{ pair: ['t1', 't2'], decision: 'parallel', rationale: 'the two migrations touch disjoint tables' }];
+
+test('I1j: a claimed id that sanitizes down to a real task id is refused on its raw form rather than accepted on the sanitized one', () => {
+  for (const [code, label] of NON_RENDERING_ID_CENSUS) {
+    const dirty = withHiddenCodePoint('t2', code);
+    assert.throws(
+      () => deriveEdges(hardenedMigrationClaim(dirty), [], MIGRATION_RELAX_VERDICT),
+      (err) => err.message.includes('graph.couplingEdges[0].from names') && err.message.includes('which the graph does not declare'),
+      `a claim carrying ${label} spliced into t2 was accepted; stripped of it the id reads as the real task t2, and honouring that lets a corrupted or hand-edited record withdraw the edge t2 -> t1 the operator actually declared`,
+    );
+  }
+
+  const accepted = deriveEdges(hardenedMigrationClaim('t2'), [], MIGRATION_RELAX_VERDICT);
+  assert.deepEqual(
+    dependsOnOf(accepted.graph, 't2'),
+    [],
+    'the census must still accept the genuine, unmodified claim and act on it, or every refusal above would prove only that every claim is refused',
+  );
+  assert.deepEqual(accepted.graph.couplingEdges, []);
+  assert.deepEqual(accepted.audit.withdrawn, [{ from: 't2', to: 't1', reason: 'coupling-serialize' }]);
+});
+
 test('I1d: a transitively ordered pair takes no coupling edge, so a chain declared against declaration order is not closed into a cycle', () => {
   const { added, coupling } = deriveEdges(graphOf(
     taskOf('t1', ['srv/auth/a.ts'], { dependsOn: ['t2'] }),
