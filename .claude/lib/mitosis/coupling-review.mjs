@@ -3,7 +3,19 @@ import { pathToFileURL } from 'node:url';
 import { makeFileScopePack, requireFileScopePack } from './msp-file-scope.mjs';
 
 const DECISIONS = Object.freeze(['parallel', 'serialize']);
+const SOURCE_DEFAULT = 'default';
+const SOURCE_VERDICT = 'verdict';
 const DEFAULT_RISK_MARKERS = Object.freeze(['auth', 'security', 'secret', 'payment', 'crypto', 'migrations', 'infra', 'deploy']);
+
+export const COUPLING_DECISIONS = DECISIONS;
+export const COUPLING_RESOLUTION_SOURCES = Object.freeze([SOURCE_DEFAULT, SOURCE_VERDICT]);
+
+export const COUPLING_OBLIGATIONS = Object.freeze([
+  'C5-O1 two of the four signal classes are structurally dead in production. import-adjacent needs context.importAdjacency and regression-history needs context.regressions, and nothing outside a test writes graph.couplingContext, so requireContext defaults both to empty and neither detector can fire on a real graph. Every production emission is therefore serialize-defaulted, and SPEC B1 acceptance "signals detected per the four signal classes" is true of the tests and false of any real run. Supplying an import map and a run history is real work with its own data sources and is deliberately NOT done here, because introducing new signal sources while enforcement is introduced would change two variables at once and make the wave-count change unattributable.',
+  'C5-O2 enforcement over-serializes, deliberately and user-visibly. Any two unordered tasks sharing a path segment starting with one of auth, security, secret, payment, crypto, migrations, infra or deploy now take a real edge and land in different waves, where before C5a they were co-scheduled. The relaxation mechanism is --verdicts with a rationale, but no live caller renders verdicts, so on a security-heavy repository the serialization is unconditional and can serialize most of a wave. This is accepted rather than mitigated: over-serialization is a throughput cost, never a correctness cost, and it is the safe side to fail on.',
+  'C5-O3 the plan-to-task-graph skill still tells its reader a dependency cycle is the ONLY halt. That sentence was already false before C5a (a missing verdict throws whenever --verdicts is supplied) and C5a makes it more false, because a coupling-induced cycle is a newly reachable halt on graphs that previously hardened cleanly. The skill is NOT corrected here: .claude/skills stays byte-clean through C5 and C6, and D1 is the designed write point where that skill starts invoking the CLI directly. Whoever lands D1 owns naming all three halts.',
+  'C5-O4 a coupling decision reaches no consumer that reads the graph rather than its edges. couplingResolution is written onto the hardened graph and the audit, and the serialize half is enforced through dependsOn, so every consumer is safe. But the engine task map is still built by a model from nine named fields and coupling is not one of them, so nothing downstream can distinguish a pair serialized by coupling from a pair serialized by a file overlap. C7 owns carrying the resolution through as a belt-and-braces check once the task map is computed rather than reported.',
+]);
 const MIGRATION_SEGMENT = 'migrations/';
 const SEGMENT_SEPARATOR = '/';
 const ASCII_LIMIT = 128;
@@ -222,14 +234,14 @@ function requireEmission(emitted) {
     if (!DECISIONS.includes(record.default)) {
       throw new TypeError(`coupling-review: emitted[${index}].default must be one of ${DECISIONS.join(', ')}, because the skeptical-default rule cannot decide whether an override owes a rationale otherwise; received ${JSON.stringify(record.default)}`);
     }
-    requireStringArray(record.signals, `emitted[${index}].signals`);
+    const signals = requireStringArray(record.signals, `emitted[${index}].signals`);
     const pair = requirePairKey(record.pair, `emitted[${index}].pair`);
     const key = pairKey(pair);
     if (seen.has(key)) {
       throw new Error(`coupling-review: emitted[${index}] repeats the emitted pair ${pair.join('/')}; two records for one pair make the verdict-coverage check ambiguous about which record a verdict answers, so a skeptical serialize default could be overridden by a verdict answering the other record`);
     }
     seen.add(key);
-    return { key, label: pair.join('/'), fallback: record.default };
+    return { key, pair, signals, label: pair.join('/'), fallback: record.default };
   });
 }
 
@@ -276,10 +288,37 @@ function coverageProblems(records, rendered) {
   return problems;
 }
 
+function coverageErrorOrNull(records, rendered) {
+  const problems = coverageProblems(records, rendered);
+  if (problems.length === 0) return null;
+  return new Error(`coupling-review: the plan does not render every coupling decision (${problems.length} problem(s)); an unanswered or unanswerable verdict is a hard stop rather than a warning:\n- ${problems.join('\n- ')}`);
+}
+
 export function assertVerdictsCoverPairs(emitted, verdicts) {
-  const problems = coverageProblems(requireEmission(emitted), requireVerdicts(verdicts));
-  if (problems.length === 0) return;
-  throw new Error(`coupling-review: the plan does not render every coupling decision (${problems.length} problem(s)); an unanswered or unanswerable verdict is a hard stop rather than a warning:\n- ${problems.join('\n- ')}`);
+  const error = coverageErrorOrNull(requireEmission(emitted), requireVerdicts(verdicts));
+  if (error !== null) throw error;
+}
+
+export function resolveCoupling(emitted, verdicts) {
+  const records = requireEmission(emitted);
+  const rendered = requireVerdicts(verdicts === undefined || verdicts === null ? [] : verdicts);
+  if (rendered.length > 0) {
+    const error = coverageErrorOrNull(records, rendered);
+    if (error !== null) throw error;
+  }
+  const byKey = new Map(rendered.map((verdict) => [verdict.key, verdict]));
+  return Object.freeze(records.map((record) => {
+    const verdict = byKey.get(record.key);
+    const answered = verdict !== undefined;
+    return Object.freeze({
+      pair: Object.freeze([...record.pair]),
+      signals: Object.freeze([...record.signals]),
+      default: record.fallback,
+      decision: answered ? verdict.decision : record.fallback,
+      source: answered ? SOURCE_VERDICT : SOURCE_DEFAULT,
+      rationale: answered ? verdict.rationale : null,
+    });
+  }));
 }
 
 function usageExit(problem) {

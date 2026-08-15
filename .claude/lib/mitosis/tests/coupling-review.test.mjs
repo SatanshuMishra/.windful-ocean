@@ -5,7 +5,13 @@ import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { assertVerdictsCoverPairs, reviewCoupling } from '../coupling-review.mjs';
+import {
+  COUPLING_DECISIONS,
+  COUPLING_RESOLUTION_SOURCES,
+  assertVerdictsCoverPairs,
+  resolveCoupling,
+  reviewCoupling,
+} from '../coupling-review.mjs';
 import { pack } from './file-scope-fixtures.mjs';
 
 const scratchDirs = [];
@@ -395,4 +401,96 @@ test('T18b: the CLI rejects a --verdicts flag with no path and exits 2', () => {
     assert.match(String(err.stderr), /--verdicts needs a path/);
   }
   assert.ok(failed, 'a --verdicts flag with no path must not fall through to an unvalidated run');
+});
+
+function serializeDefaultEmission() {
+  return reviewCoupling([
+    { a: { id: 't1', fileScope: pack(['srv/auth/a.ts']) }, b: { id: 't2', fileScope: pack(['web/auth/b.tsx']) } },
+  ]);
+}
+
+function parallelDefaultEmission() {
+  return reviewCoupling(
+    [{ a: { id: 't1', fileScope: pack(['lib/a.js']) }, b: { id: 't2', fileScope: pack(['lib/b.js']) } }],
+    { importAdjacency: { 'lib/a.js': ['lib/b.js'] } },
+  );
+}
+
+test('T29: a serialize-defaulted pair with no verdict at all resolves serialize and names the default as its source', () => {
+  const emitted = serializeDefaultEmission();
+  assert.equal(emitted[0].default, 'serialize');
+  assert.deepEqual([...resolveCoupling(emitted, [])], [{
+    pair: ['t1', 't2'],
+    signals: ['shared-risk-marker:auth'],
+    default: 'serialize',
+    decision: 'serialize',
+    source: 'default',
+    rationale: null,
+  }]);
+});
+
+test('T29b: a serialize default overridden to parallel WITH a rationale is honoured and names the verdict as its source', () => {
+  const emitted = serializeDefaultEmission();
+  const resolved = resolveCoupling(emitted, [
+    { pair: ['t1', 't2'], decision: 'parallel', rationale: 'the two files share no symbol and sit either side of the auth boundary' },
+  ]);
+  assert.equal(resolved.length, 1);
+  assert.equal(resolved[0].decision, 'parallel');
+  assert.equal(resolved[0].source, 'verdict');
+  assert.equal(resolved[0].rationale, 'the two files share no symbol and sit either side of the auth boundary');
+});
+
+test('T29c: a serialize default overridden to parallel with NO rationale is refused rather than resolved', () => {
+  const emitted = serializeDefaultEmission();
+  assert.throws(
+    () => resolveCoupling(emitted, [{ pair: ['t1', 't2'], decision: 'parallel', rationale: null }]),
+    /t1\/t2 defaults to serialize and is overridden to parallel with no rationale/,
+  );
+});
+
+test('T29d: a parallel default tightened to serialize needs no rationale, because tightening is always free', () => {
+  const emitted = parallelDefaultEmission();
+  assert.equal(emitted[0].default, 'parallel');
+  const resolved = resolveCoupling(emitted, [{ pair: ['t1', 't2'], decision: 'serialize', rationale: null }]);
+  assert.equal(resolved[0].decision, 'serialize');
+  assert.equal(resolved[0].source, 'verdict');
+  assert.equal(resolved[0].rationale, null);
+});
+
+test('T29e: a verdict that leaves an emitted pair unanswered is refused rather than resolved from the default', () => {
+  const emitted = reviewCoupling([
+    { a: { id: 't1', fileScope: pack(['srv/auth/a.ts']) }, b: { id: 't2', fileScope: pack(['web/auth/b.tsx']) } },
+    { a: { id: 't3', fileScope: pack(['srv/crypto/c.ts']) }, b: { id: 't4', fileScope: pack(['web/crypto/d.tsx']) } },
+  ]);
+  assert.equal(emitted.length, 2);
+  assert.throws(
+    () => resolveCoupling(emitted, [{ pair: ['t1', 't2'], decision: 'serialize', rationale: null }]),
+    /t3\/t4 was emitted for review and no verdict answers it/,
+  );
+});
+
+test('T29f: every emitted pair is resolved exactly once, and every resolution names a known decision and a known source', () => {
+  const emitted = reviewCoupling([
+    { a: { id: 't1', fileScope: pack(['srv/auth/a.ts']) }, b: { id: 't2', fileScope: pack(['web/auth/b.tsx']) } },
+    { a: { id: 't3', fileScope: pack(['srv/crypto/c.ts']) }, b: { id: 't4', fileScope: pack(['web/crypto/d.tsx']) } },
+  ]);
+  const resolved = resolveCoupling(emitted, [
+    { pair: ['t1', 't2'], decision: 'parallel', rationale: 'disjoint symbols either side of the auth boundary' },
+    { pair: ['t3', 't4'], decision: 'serialize', rationale: null },
+  ]);
+  assert.deepEqual(resolved.map((r) => r.pair), emitted.map((e) => e.pair));
+  assert.equal(new Set(resolved.map((r) => r.pair.join('/'))).size, emitted.length);
+  for (const record of resolved) {
+    assert.ok(COUPLING_DECISIONS.includes(record.decision), `${record.pair.join('/')} resolved to the unknown decision ${JSON.stringify(record.decision)}`);
+    assert.ok(COUPLING_RESOLUTION_SOURCES.includes(record.source), `${record.pair.join('/')} resolved through the unknown source ${JSON.stringify(record.source)}`);
+  }
+  assert.deepEqual([...COUPLING_DECISIONS].sort(), ['parallel', 'serialize']);
+  assert.deepEqual([...COUPLING_RESOLUTION_SOURCES].sort(), ['default', 'verdict']);
+});
+
+test('T29g: the resolution is frozen, so no consumer can retighten or relax a decision after the fact', () => {
+  const resolved = resolveCoupling(serializeDefaultEmission(), []);
+  assert.ok(Object.isFrozen(resolved));
+  assert.ok(Object.isFrozen(resolved[0]));
+  assert.throws(() => { resolved[0].decision = 'parallel'; }, TypeError);
 });
