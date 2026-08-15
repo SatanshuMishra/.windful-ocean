@@ -80,7 +80,7 @@
     {
       "id": "c16",
       "text": "The C4 chain is restacked onto the merged base with only each branch's own commits replayed, every tree byte-equal to its pre-rebase value, and PR #105 returned to mergeable.",
-      "done": false,
+      "done": true,
       "kind": "detour",
       "struck_by": null
     },
@@ -126,9 +126,9 @@
   "abandoned_reason": null,
   "closure_statement": null,
   "spine": {
-    "active_goal": "Ship the remaining MSPs as stacked PRs on feat/mitosis-os-process via a dedicated orchestrator subagent that fans out to workers.",
-    "next_step": "START HERE. C5 and C6 need three user rulings before either lane is cut: whether C5 adds an eighth gate verb, whether C6 extends the CI verb matrix, and whether .claude/skills/ loses the byte-cleanliness held from C1 through C4c. The SPEC says no, no, and hold to D1, with C5's verb as C5b the one departure worth making. Then cut both lanes from the RESTACKED C4c head 3ff7c990, never from a pre-restack head.",
-    "last_session": "Run 6 shipped C4c as PR #108 and restacked the C4 chain onto the merged base after the user merged #100-#103 mid-run; #105 flipped to MERGEABLE. Review-size rule corrected as PR #109.",
+    "active_goal": "Resolve the orphaned-ancestry breakage so the stack can merge through to the end, then ship C5a, C5b and C6.",
+    "next_step": "START HERE. PR #108 conflicts on ancestry, not content: c4b was force-pushed e78a5ced -> 7dfd0757 before merging, both carrying tree 247c5314, and c4c still descends from the orphaned SHA. Rebase c4c --onto origin/feat/mitosis-os-process e78a5ced, replaying only its own commits, verifying tree equality against a target re-measured at the head being rebased. Then rebase feat/c5a-coupling-enforcement and feat/c6-boundary-program onto the new c4c head; both inherit the same orphaning.",
+    "last_session": "Shipped C4c as PR #108 and restacked the C4 chain onto the merged base; corrected the review-size rule as PR #109, merged. Ended blocked: the user merged #105 and #107, force-pushing c4b first, which orphaned c4c's ancestry and left #108 conflicting.",
     "open_risks": [
       {
         "text": "Build A4's red case through the claude -p CLI path and assert the SILENT failure — the Workflow agent path auto-grants StructuredOutput, so a red case dispatched through it passes unconditionally and is a guarantee that cannot fail",
@@ -225,15 +225,26 @@
         ]
       },
       {
-        "text": "Mutate at the gate, not only at the suite — a guard whose removal reddens the suite but leaves its verb at exit 0 means the verb overclaims, and the verb's receipt is what C7 will trust",
+        "text": "Never rewrite a stacked branch without restacking every branch above it — a force-push or squash gives the parent new SHAs, and children still pointing at the old ones conflict on ancestry even when the trees are byte-identical",
         "scope": "c3",
         "refs": [
-          "C4a-SHIPPED.md",
-          "C4b-SHIPPED.md"
+          "e78a5ced",
+          "7dfd0757",
+          "tree 247c5314",
+          "PR #108"
         ]
       },
       {
-        "text": "Re-verify every SPEC and banked-plan claim against a running command before planning against it — six SPEC premises and five claims inside an already-verified plan have collapsed so far",
+        "text": "Mutate at the gate, not only at the suite, and assert the file bytes actually changed — anchor-presence alone passed a perl substitution that silently failed to match, returning exit 0 and reading exactly like a surviving guard",
+        "scope": "c3",
+        "refs": [
+          "C4a-SHIPPED.md",
+          "C4b-SHIPPED.md",
+          "C4c-SHIPPED.md"
+        ]
+      },
+      {
+        "text": "Re-verify every SPEC and banked-plan claim against a running command before planning against it — six SPEC premises and fourteen claims inside already-verified plans have collapsed so far",
         "scope": "c3",
         "refs": [
           "0428",
@@ -241,18 +252,20 @@
         ]
       },
       {
-        "text": "Rule on whether git option injection gets its own MSP — it is live arbitrary code execution, C4b closed it only at its own builders, and exec-policy still classifies argv for gh alone while five child_process sites bypass the chokepoint",
+        "text": "Rule on whether git option injection gets its own MSP — it is live arbitrary code execution, and exec-policy still classifies argv for gh alone while five child_process sites bypass the chokepoint entirely",
         "scope": "c3",
         "refs": [
-          "C4b-SHIPPED.md"
+          "C4b-SHIPPED.md",
+          "C4c-SHIPPED.md"
         ]
       },
       {
-        "text": "Treat the rebase of C6 onto C5 as the highest-risk step of that run — a stacked merge here has already silently reverted one line while keeping its siblings, hidden by a clean auto-merge and a MERGED status",
+        "text": "Rebase C6 onto C5b by tree-SHA equality with the target re-measured at the head being rebased — a stacked merge here has already silently reverted one line while keeping its siblings, hidden by a clean auto-merge and a MERGED status",
         "scope": "c3",
         "refs": [
           "0388",
-          "0416"
+          "0416",
+          "0435"
         ]
       },
       {
@@ -282,6 +295,14 @@
         "scope": "c3",
         "refs": [
           "UPSTREAM-REDOS-REPORT-DRAFT.md"
+        ]
+      },
+      {
+        "text": "Splitting an MSP multiplies review cost rather than dividing it — review is a flat cost measured at about 42 minutes per MSP across all seven shipped, so split for quality and never for speed",
+        "scope": "c3",
+        "refs": [
+          "0431",
+          "0437"
         ]
       }
     ],
@@ -329,6 +350,11 @@
       {
         "ref": "0383-g11-ack-erasure-accepted-recorded-filed",
         "title": "The G11 ack erasure is accepted, recorded in two places, and filed upstream",
+        "scope": "thread"
+      },
+      {
+        "ref": "0431-review-size-rule-corrected-against-its-sources",
+        "title": "The 200-400 review-size rule is tightened and one of its three citations retired",
         "scope": "thread"
       },
       {
@@ -437,11 +463,6 @@
         "scope": "c3"
       },
       {
-        "ref": "0431-review-size-rule-corrected-against-its-sources",
-        "title": "The 200-400 review-size rule is tightened and one of its three citations retired",
-        "scope": "thread"
-      },
-      {
         "ref": "0432-c5-splits-and-ships-the-eighth-verb",
         "title": "C5 splits and ships the eighth verb; C6 takes no verb and skills byte-cleanliness holds to D1",
         "scope": "c3"
@@ -449,16 +470,6 @@
       {
         "ref": "0435-verification-anchors-are-re-measured-not-pinned",
         "title": "A verification anchor is re-measured at the head it guards, never pinned from an earlier measurement",
-        "scope": "c3"
-      },
-      {
-        "ref": "0436-c5-c6-lane-rulings",
-        "title": "C5 splits and ships the eighth verb, C6 does not extend the CI matrix, and skills byte-cleanliness holds to D1",
-        "scope": "c3"
-      },
-      {
-        "ref": "0437-review-size-rule-citations-corrected",
-        "title": "The 200-400 LOC review-size rule is restated against its real sources and one citation is retired",
         "scope": "c3"
       }
     ],
@@ -471,5 +482,5 @@
     ]
   },
   "created_at": "2026-08-12T07:37:41.077Z",
-  "updated_at": "2026-08-15T01:36:52.919Z"
+  "updated_at": "2026-08-15T01:38:51.776Z"
 }
