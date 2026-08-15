@@ -93,6 +93,11 @@
         "ref": "0433-gate-terminal-verdict-abstains",
         "title": "Reverse the bash gate's terminal verdict to no-opinion so the classifier judges Bash again",
         "scope": "thread"
+      },
+      {
+        "ref": "0434-retire-g5-by-deletion-not-by-deny",
+        "title": "Retire G5 by deleting it rather than converting its ask branches to deny",
+        "scope": "thread"
       }
     ],
     "out_of_scope": [
@@ -101,5 +106,5 @@
     ]
   },
   "created_at": "2026-08-14T06:04:49.198Z",
-  "updated_at": "2026-08-15T01:13:57.645Z"
+  "updated_at": "2026-08-15T01:14:16.359Z"
 }
