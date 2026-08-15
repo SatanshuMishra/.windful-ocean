@@ -94,7 +94,7 @@
     {
       "id": "c18",
       "text": "The raw control byte at determinism-lint.mjs:319 is escaped, and a closed census over every tracked non-binary file proves zero raw C0 bytes remain, red on the parent commit.",
-      "done": false,
+      "done": true,
       "kind": "detour",
       "struck_by": null
     },
@@ -436,5 +436,5 @@
     ]
   },
   "created_at": "2026-08-12T07:37:41.077Z",
-  "updated_at": "2026-08-15T19:20:46.599Z"
+  "updated_at": "2026-08-15T19:20:55.512Z"
 }
