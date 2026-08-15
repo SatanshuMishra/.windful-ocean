@@ -52,13 +52,14 @@ export const BOUNDARY_PARITY_ATTESTS = Object.freeze([
   'a rule severity downgrade blocks against the resolved rule map rather than the written config, so resolution through extends and shared presets is done by eslint; a rule that vanished from the resolved map is read as a downgrade to off rather than as absent, and a raise does not block',
   'a declared tsconfig strictness flag moved away from its safe value blocks, and a changed compiler option the declared table does not name HALTS with the key named rather than being bucketed as not strictness-relevant; that halt is exercised here on an unnamed option every time this verb runs',
   'the checked-scope comparison compares resolved file lists restricted to files present on both sides rather than glob semantics, so a narrowed include or a widened ignore blocks while a legitimately added or deleted source file does not; all three are measured here on every invocation',
+  'the package-manager resolver yields a real, existing JS entry distinct from the node binary rather than a bare path that cannot execute, and a lockfile whose declared manager carries no install support refuses before any install child spawns, both measured here on every invocation',
 ]);
 
 export const BOUNDARY_PARITY_NOT_ATTESTED = Object.freeze([
   'that either mechanical dispatch has been converted: both still dispatch a language model in both engine trees until C7 ports them onto this substrate, and this verb measures the conversion list rather than the conversion',
   'that this program produces the verdict the incumbent prose produced: the prose is executed by a model and no probe here runs both and compares them, so the two are pinned by their declared parts rather than by an end-to-end equivalence',
   'that the collection commands behave as declared against a real repository: every probe here injects its own exec and filesystem seams, so what a real eslint or a real tsc prints for a large tree, a symbolic link, or a config resolved from a parent directory is untested until C7 supplies those seams',
-  'that the base install reaches a real package manager: the install step invokes the package manager JS entry through bare node, and no probe here runs it, so a lockfile-divergent base is exercised only through the injected seam',
+  'that a real npm install SUCCEEDS end to end: the resolver is measured here to yield a real, existing JS entry and an unserviceable lockfile is measured here to refuse, but no probe spawns the install child to completion, so its exit code and its effect on node_modules remain unmeasured',
   'that a boundary dispatch outside the two declared engine trees would be seen: the census reads .claude/lib/mitosis and .claude/workflows, so one added under .claude/hooks, or anywhere else in the repository, is unscanned',
   'that a boundary label composed rather than spelled would be seen: the census classifies a plain string literal at a label key, so a label built by interpolation or read from configuration is outside what it measures',
   'that the added-suppression scan reads the same domain the incumbent prose reads: the first pass scans the source diff and the recheck scans HEAD source against a cached surface, and this program narrows both to HEAD-vs-base source counts, which is well defined without a diff and is what lets the two passes share one code path',
@@ -76,7 +77,7 @@ function probeIo(overrides) {
     symlink: () => {},
     removePath: () => {},
     resolveTool: (name, root) => `${root}/node_modules/.bin/${name}`,
-    resolvePackageManager: () => '/probe/pm.js',
+    resolvePackageManager: () => ({ ok: true, entry: '/probe/pm.js' }),
   };
   const merged = { ...base, ...overrides, spawned };
   const inner = merged.run;
@@ -181,6 +182,23 @@ function materializationProbe() {
   });
   const verdict = evaluate({ repoRoot: PROBE_ROOT, gateBase: PROBE_GATE_BASE, basePath: PROBE_BASE, cachedBaseCensus: null }, io);
   return Object.freeze({ failedClosed: verdict.pass === false && /base worktree/i.test(verdict.output) });
+}
+
+function unserviceableLockfileIo() {
+  return probeIo({
+    exists: (path) => String(path).endsWith('yarn.lock'),
+    readFile: (path) => (String(path).startsWith(PROBE_BASE) ? 'base-yarn-bytes' : 'head-yarn-bytes'),
+  });
+}
+
+function packageManagerProbe() {
+  const resolved = REAL_BOUNDARY_IO.resolvePackageManager('npm');
+  const npmEntryResolved = resolved.ok === true && resolved.entry !== process.execPath && resolved.entry.endsWith('.js');
+  const io = unserviceableLockfileIo();
+  const verdict = evaluate({ repoRoot: PROBE_ROOT, gateBase: PROBE_GATE_BASE, basePath: PROBE_BASE, cachedBaseCensus: null }, io);
+  const unserviceableLockfileRefused = verdict.pass === false && /yarn\.lock/.test(verdict.output) && /yarn/.test(verdict.output);
+  const noInstallSpawned = !io.spawned.some((command) => /^node .*install/.test(command));
+  return Object.freeze({ npmEntryResolved, unserviceableLockfileRefused, noInstallSpawned });
 }
 
 function equivalenceProbe() {
@@ -385,6 +403,7 @@ export function probeBoundarySubstrate() {
     expectation: expectationProbe(),
     teardown: teardownProbe(),
     materialization: materializationProbe(),
+    packageManager: packageManagerProbe(),
     equivalence: equivalenceProbe(),
     exec: execProbe(),
   });
@@ -453,6 +472,10 @@ export function boundaryParityFailures(substrate) {
   }
   if (!substrate.materialization.failedClosed) {
     failures.push('a base worktree that fails to materialize no longer fails closed, so the gate would compare HEAD against a base it never collected');
+  }
+  const packageManager = substrate.packageManager;
+  if (!packageManager.npmEntryResolved || !packageManager.unserviceableLockfileRefused || !packageManager.noInstallSpawned) {
+    failures.push('the package-manager resolver no longer yields a real, existing JS entry distinct from the node binary, or a lockfile whose manager declares no install support no longer refuses before any install child spawns; the base install would compose an argv that cannot run');
   }
   const equivalence = substrate.equivalence;
   if (!equivalence.collected) {

@@ -1,9 +1,63 @@
-import { existsSync, mkdirSync, readFileSync, rmSync, symlinkSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, realpathSync, rmSync, symlinkSync } from 'node:fs';
+import { dirname, join as pathJoin } from 'node:path';
 import { run as execRun } from './exec-run.mjs';
 
 export const IDENTITY_SEPARATOR = '\u0000';
-export const LOCKFILE_NAMES = Object.freeze(['package-lock.json', 'npm-shrinkwrap.json', 'yarn.lock', 'pnpm-lock.yaml']);
 export const NODE_MODULES = 'node_modules';
+
+const NPM_ENTRY_CANDIDATES = Object.freeze([
+  (execPath) => pathJoin(dirname(execPath), '..', 'lib', 'node_modules', 'npm', 'bin', 'npm-cli.js'),
+  (execPath) => pathJoin(dirname(execPath), 'npm'),
+]);
+
+const NPM_INSTALL_ARGV = Object.freeze(['install', '--no-audit', '--no-fund']);
+
+function unserviceableManager(name) {
+  return Object.freeze({ name, entryCandidates: Object.freeze([]), installArgv: null });
+}
+
+const NPM_MANAGER = Object.freeze({ name: 'npm', entryCandidates: NPM_ENTRY_CANDIDATES, installArgv: NPM_INSTALL_ARGV });
+const YARN_MANAGER = unserviceableManager('yarn');
+const PNPM_MANAGER = unserviceableManager('pnpm');
+
+export const LOCKFILE_MANAGERS = Object.freeze({
+  'package-lock.json': NPM_MANAGER,
+  'npm-shrinkwrap.json': NPM_MANAGER,
+  'yarn.lock': YARN_MANAGER,
+  'pnpm-lock.yaml': PNPM_MANAGER,
+});
+
+export const LOCKFILE_NAMES = Object.freeze(Object.keys(LOCKFILE_MANAGERS));
+
+const MANAGERS_BY_NAME = Object.freeze({ npm: NPM_MANAGER, yarn: YARN_MANAGER, pnpm: PNPM_MANAGER });
+
+function resolveManagerEntry(descriptor) {
+  if (descriptor.entryCandidates.length === 0) {
+    return { ok: false, error: `the program cannot service the ${descriptor.name} package manager: no entry-resolution candidate is declared for it` };
+  }
+  const tried = [];
+  for (const candidate of descriptor.entryCandidates) {
+    const raw = candidate(process.execPath);
+    tried.push(raw);
+    if (!existsSync(raw)) continue;
+    let real;
+    try {
+      real = realpathSync(raw);
+    } catch {
+      continue;
+    }
+    if (real.endsWith('.js')) return { ok: true, entry: real };
+  }
+  return { ok: false, error: `no ${descriptor.name} entry could be resolved from any declared candidate: ${tried.join(', ')}` };
+}
+
+function resolvePackageManagerEntry(managerName) {
+  const descriptor = MANAGERS_BY_NAME[managerName];
+  if (descriptor === undefined) {
+    return { ok: false, error: `the program cannot service the ${managerName} package manager: it is not one of the declared managers (${Object.keys(MANAGERS_BY_NAME).join(', ')})` };
+  }
+  return resolveManagerEntry(descriptor);
+}
 
 export const TSC_DIAGNOSTIC_FORMS = Object.freeze([
   Object.freeze({
@@ -60,7 +114,7 @@ export const REAL_BOUNDARY_IO = Object.freeze({
   symlink: (target, path) => symlinkSync(target, path, 'dir'),
   removePath: (path) => rmSync(path, { recursive: true, force: true }),
   resolveTool: (dependency, root) => `${root}/${NODE_MODULES}/.bin/${dependency}`,
-  resolvePackageManager: () => process.execPath,
+  resolvePackageManager: (managerName) => resolvePackageManagerEntry(managerName),
 });
 
 function join(root, name) {
@@ -234,23 +288,26 @@ export function collectCensus(root, expectations, io, gateBase) {
   return { ok: true, census: Object.freeze({ gateBase, tools: Object.freeze(tools), notExpected: Object.freeze(notExpected), surface: Object.freeze({ root }) }) };
 }
 
-function lockfilesMatch(headRoot, baseRoot, io) {
+function lockfileDivergence(headRoot, baseRoot, io) {
   for (const name of LOCKFILE_NAMES) {
     const headPath = join(headRoot, name);
     const basePath = join(baseRoot, name);
     if (!io.exists(headPath) || !io.exists(basePath)) continue;
+    let matches;
     try {
-      return io.readFile(headPath) === io.readFile(basePath);
+      matches = io.readFile(headPath) === io.readFile(basePath);
     } catch {
-      return false;
+      matches = false;
     }
+    if (!matches) return { diverged: true, lockfile: name };
   }
-  return true;
+  return { diverged: false };
 }
 
 function provisionModules(headRoot, baseRoot, io) {
   const baseModules = join(baseRoot, NODE_MODULES);
-  if (lockfilesMatch(headRoot, baseRoot, io)) {
+  const divergence = lockfileDivergence(headRoot, baseRoot, io);
+  if (!divergence.diverged) {
     try {
       io.symlink(join(headRoot, NODE_MODULES), baseModules);
     } catch (error) {
@@ -258,6 +315,12 @@ function provisionModules(headRoot, baseRoot, io) {
     }
     return { ok: true, strategy: 'symlink' };
   }
+  const descriptor = LOCKFILE_MANAGERS[divergence.lockfile];
+  if (descriptor.installArgv === null) {
+    return { ok: false, error: `${divergence.lockfile} diverged between ${headRoot} and ${baseRoot}, and the program cannot service its package manager (${descriptor.name}): no install support is declared for it` };
+  }
+  const resolved = io.resolvePackageManager(descriptor.name);
+  if (!resolved.ok) return resolved;
   try {
     io.removePath(baseModules);
     io.makeDir(baseModules);
@@ -266,7 +329,7 @@ function provisionModules(headRoot, baseRoot, io) {
   }
   let installed;
   try {
-    installed = io.run('node', [io.resolvePackageManager(), 'install', '--no-audit', '--no-fund'], { cwd: baseRoot });
+    installed = io.run('node', [resolved.entry, ...descriptor.installArgv], { cwd: baseRoot });
   } catch (error) {
     return { ok: false, error: `the base install could not run: ${error && error.message ? error.message : 'unknown spawn failure'}` };
   }
