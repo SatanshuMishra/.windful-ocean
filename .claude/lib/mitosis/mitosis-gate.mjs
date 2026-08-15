@@ -15,6 +15,8 @@ import {
 import { censusEngineDeterminism, engineSourceRoots, realSourceIo } from './determinism-lint.mjs';
 import { EXEC_ALLOWLIST, assertSpawnAllowed, resolveSpawn } from './exec-policy.mjs';
 import { MERGE_REFUSAL_SPECIMENS } from './gh-merge-shim.mjs';
+import { censusMergeSpecimens } from './merge-specimen-census.mjs';
+import { transcriptionParityVerdict } from './transcription-parity-gate.mjs';
 import { REQUIRED_TOOL, agentDefinitionDir, censusAgentSchemaCapability } from './agent-schema-lint.mjs';
 import { PHASE_TITLES } from './phases.mjs';
 import { PROMPT_C7_OBLIGATIONS, PROMPT_PROBE_CASES, censusPromptRegistry } from './prompt-registry.mjs';
@@ -34,13 +36,22 @@ export const GATE_UNRESOLVABLE_EXIT = 42;
 export const GATE_READ_EXIT = 43;
 export const GATE_COMPILE_EXIT = 44;
 
-export const MITOSIS_GATE_VERBS = Object.freeze(['determinism', 'dispatchable-agent-schema-capable', 'exec-allowlist', 'journal-parity', 'phase-parity', 'prompt-registry']);
+export const MITOSIS_GATE_VERBS = Object.freeze(['determinism', 'dispatchable-agent-schema-capable', 'exec-allowlist', 'journal-parity', 'phase-parity', 'prompt-registry', 'transcription-parity']);
 
 export const DEFAULT_PHASE_PARITY_TARGET = fileURLToPath(new URL('../../workflows/mitosis.js', import.meta.url));
 export const DEFAULT_DETERMINISM_TARGET = fileURLToPath(new URL('./', import.meta.url));
 export const DEFAULT_AGENT_TREE_TARGET = agentDefinitionDir();
 
 const SPAWNABLE_BINARIES = Object.freeze(['claude', 'gh', 'git', 'graphify', 'node']);
+const REQUIRED_MERGE_REFUSAL_KINDS = Object.freeze([
+  'alias-merge',
+  'api-merge-endpoint',
+  'api-merge-mutation',
+  'graphql-fail-closed',
+  'graphql-mutation',
+  'graphql-mutation-indirect',
+  'pr-merge',
+]);
 const UNLISTED_PROBE_BINARY = 'bash';
 const ROUTED_PROBE_ARGV = Object.freeze(['pr', 'view', '7']);
 const SHIM_BASENAME = 'gh-merge-shim.mjs';
@@ -51,6 +62,9 @@ const EXEC_ALLOWLIST_ATTESTS = Object.freeze([
   'an unlisted binary throws instead of spawning, so the policy is deny-by-default rather than deny-a-blocklist',
   'every merge argv the guarantee names is refused in-process by its own refusal reason, before any child starts',
   'an ordinary gh argv resolves through the merge shim rather than straight to the real gh binary',
+  'the specimen set is a closed census of the refusal reasons read out of the classifier source itself, so narrowing it below what the classifier can emit halts rather than passing with fewer probes',
+  'the reasons read out of the classifier source are checked against an independently maintained list held here, so retiring a classifier branch together with its specimen takes two deliberate edits rather than reading as covered',
+  'every refusal the classifier returns routes its kind through the reason builder this census reads, so a refusal that spells its kind inline is a refusal no specimen could be required for and halts',
 ]);
 
 const EXEC_ALLOWLIST_NOT_ATTESTED = Object.freeze([
@@ -95,7 +109,7 @@ const JOURNAL_PARITY_NOT_ATTESTED = Object.freeze([
   'the genesis store migration: .mitosis/run.json remains the fold base, and openRun still writes a disjoint attempt directory that no reader consults',
 ]);
 
-const TARGETLESS_VERBS = Object.freeze(new Set(['exec-allowlist', 'journal-parity', 'prompt-registry']));
+const TARGETLESS_VERBS = Object.freeze(new Set(['exec-allowlist', 'journal-parity', 'prompt-registry', 'transcription-parity']));
 
 const VERB_DEFAULT_TARGETS = Object.freeze({
   determinism: DEFAULT_DETERMINISM_TARGET,
@@ -104,6 +118,7 @@ const VERB_DEFAULT_TARGETS = Object.freeze({
   'journal-parity': null,
   'phase-parity': DEFAULT_PHASE_PARITY_TARGET,
   'prompt-registry': null,
+  'transcription-parity': null,
 });
 
 const PHASE_AUTHORITY_BY_TARGET = Object.freeze({ [DEFAULT_PHASE_PARITY_TARGET]: PHASE_TITLES });
@@ -690,9 +705,9 @@ function refusesToSpawn(binary, argv) {
   return false;
 }
 
-function refusalKind(binary, argv) {
+function refusalKind(binary, argv, io) {
   try {
-    assertSpawnAllowed(binary, argv);
+    assertSpawnAllowed(binary, argv, io);
   } catch (error) {
     const message = error && error.message ? error.message : 'unknown failure';
     const matched = REFUSAL_KIND_RE.exec(message);
@@ -725,6 +740,16 @@ export function execAllowlistFailures(policy) {
   if (!policy.routesThroughShim) {
     failures.push(`an ordinary gh argv no longer resolves through ${SHIM_BASENAME}, so the shim's own refusals would be bypassed at run time`);
   }
+  const census = policy.specimenCensus;
+  if (census === null || typeof census !== 'object' || census.ok !== true) {
+    const detail = census !== null && typeof census === 'object' && typeof census.error === 'string' ? census.error : JSON.stringify(census);
+    failures.push(`the merge specimen set is no longer a closed census of the refusal reasons the classifier can emit: ${detail}`);
+    return failures;
+  }
+  const measured = Array.isArray(census.reasonKinds) ? [...census.reasonKinds].sort() : [];
+  if (JSON.stringify(measured) !== JSON.stringify([...REQUIRED_MERGE_REFUSAL_KINDS])) {
+    failures.push(`the classifier now emits the refusal reasons ${JSON.stringify(measured)} but the guarantee names exactly ${JSON.stringify([...REQUIRED_MERGE_REFUSAL_KINDS])}; retiring a merge refusal takes two deliberate edits, never one, so a classifier branch and its specimen cannot be removed in lockstep and still read as covered`);
+  }
   return failures;
 }
 
@@ -737,12 +762,13 @@ export function probeExecPolicy() {
   }
   const refusals = {};
   for (const probe of MERGE_REFUSAL_SPECIMENS) {
-    refusals[probe.label] = refusalKind('gh', [...probe.argv]);
+    refusals[probe.label] = refusalKind('gh', [...probe.argv], probe.io);
   }
   return {
     allowlist: EXEC_ALLOWLIST,
     refusesUnlisted: refusesToSpawn(UNLISTED_PROBE_BINARY, []),
     refusals,
+    specimenCensus: censusMergeSpecimens(),
     routesThroughShim: routed !== null
       && EXEC_ALLOWLIST.includes(routed.command)
       && typeof routed.args[0] === 'string'
@@ -861,6 +887,23 @@ function runJournalParityGate(_target, out) {
   return GATE_CLEAN_EXIT;
 }
 
+function runTranscriptionParityGate(_target, out) {
+  const verdict = transcriptionParityVerdict();
+  if (verdict.kind === 'halt') {
+    out.err(`mitosis-gate: transcription-parity ${verdict.error}
+`);
+    return GATE_UNRESOLVABLE_EXIT;
+  }
+  if (verdict.kind === 'violation') {
+    for (const failure of verdict.failures) out.err(`mitosis-gate: ${failure}
+`);
+    return GATE_VIOLATION_EXIT;
+  }
+  out.log(`${JSON.stringify(verdict.payload)}
+`);
+  return GATE_CLEAN_EXIT;
+}
+
 const VERB_RUNNERS = Object.freeze({
   determinism: runDeterminismGate,
   'dispatchable-agent-schema-capable': runAgentSchemaGate,
@@ -868,6 +911,7 @@ const VERB_RUNNERS = Object.freeze({
   'journal-parity': runJournalParityGate,
   'phase-parity': runPhaseParityGate,
   'prompt-registry': runPromptRegistryGate,
+  'transcription-parity': runTranscriptionParityGate,
 });
 
 export function runMitosisGate(argv, out, readSource) {

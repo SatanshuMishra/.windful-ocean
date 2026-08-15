@@ -212,6 +212,17 @@ export const MERGE_REFUSAL_SPECIMENS = Object.freeze([
   Object.freeze({ label: 'api /graphql mergePullRequest', kind: 'graphql-mutation', argv: Object.freeze(['api', '/graphql', '-f', 'query=mutation { mergePullRequest(input: {pullRequestId: "PR_x"}) { clientMutationId } }']) }),
   Object.freeze({ label: 'api PUT pulls/N/merge', kind: 'api-merge-endpoint', argv: Object.freeze(['api', '-X', 'PUT', 'repos/acme/widgets/pulls/412/merge']) }),
   Object.freeze({ label: 'api graphql unreadable body', kind: 'graphql-fail-closed', argv: Object.freeze(['api', 'graphql', '--input', '-']) }),
+  Object.freeze({ label: 'alias set defining a pr merge alias', kind: 'alias-merge', argv: Object.freeze(['alias', 'set', 'shipit', 'pr merge --squash']) }),
+  Object.freeze({
+    label: 'api graphql body read from a file',
+    kind: 'graphql-mutation-indirect',
+    argv: Object.freeze(['api', 'graphql', '--input', 'merge-body.graphql']),
+    io: Object.freeze({
+      readFile: () => 'mutation { mergePullRequest(input: {pullRequestId: "PR_x"}) { clientMutationId } }',
+      readStdin: () => null,
+    }),
+  }),
+  Object.freeze({ label: 'api merge mutation to an unrecognised endpoint', kind: 'api-merge-mutation', argv: Object.freeze(['api', 'repos/acme/widgets/merges', '-f', 'query=mutation { mergePullRequest(input: {pullRequestId: "PR_x"}) { clientMutationId } }']) }),
 ]);
 
 export function isGraphqlEndpoint(token) {
