@@ -7,14 +7,13 @@ import {
   BOUNDARY_TOOLS,
   NORMALIZATION_STEPS,
   REAL_BOUNDARY_IO,
-  collectBase,
-  compareCensuses,
-  evaluate,
   observeSide,
   parseEslintReport,
   structuralIdentity,
   toolExpectation,
-} from '../boundary-gate.mjs';
+} from '../boundary-collect.mjs';
+import { censusIdentity } from '../boundary-census-cache.mjs';
+import { collectBase, compareCensuses, evaluate } from '../boundary-gate.mjs';
 import { censusTscLines } from '../boundary-tsc-lines.mjs';
 
 const ROOT = '/repo';
@@ -30,6 +29,19 @@ function eslintReport(entries) {
     filePath,
     messages: messages.map(([ruleId, message, line, column]) => ({ ruleId, message, line, column, severity: 2 })),
   })));
+}
+
+function describedBy(readFile) {
+  return (path) => {
+    const source = readFile(path);
+    return Object.freeze({
+      ok: true,
+      path: String(path),
+      kind: 'a regular file',
+      regular: true,
+      size: typeof source === 'string' ? Buffer.byteLength(source, 'utf8') : 0,
+    });
+  };
 }
 
 function fixtureIo(overrides) {
@@ -56,6 +68,7 @@ function fixtureIo(overrides) {
     spawned.push(`${binary} ${argv.join(' ')}`);
     return inner(binary, argv, options);
   };
+  if (typeof merged.describePath !== 'function') merged.describePath = describedBy(merged.readFile);
   return merged;
 }
 
@@ -469,7 +482,7 @@ test('a basePath that is not absolute is refused rather than resolved against an
 
 test('a cached census whose NOT-EXPECTED disagrees with the trees is refused and the base re-collected', () => {
   const io = collectibleEslintIo();
-  const cached = {
+  const shape = {
     gateBase: 'abc123',
     tools: {},
     notExpected: ['eslint', 'tsc'],
@@ -483,6 +496,7 @@ test('a cached census whose NOT-EXPECTED disagrees with the trees is refused and
       eslintConfigFiles: [],
     },
   };
+  const cached = { ...shape, identity: censusIdentity(shape) };
   const verdict = evaluate({ repoRoot: ROOT, gateBase: 'abc123', basePath: BASE, cachedBaseCensus: cached }, io);
   assert.equal(verdict.usedCachedCensus, false, 'a supplied census decided that every tool was NOT-EXPECTED, which disables the gate with no child spawned');
   assert.ok(

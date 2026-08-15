@@ -130,7 +130,7 @@ export function compareSuppressions(baseCounts, headCounts) {
   return passed(blocking);
 }
 
-function severityOf(value) {
+export function severityOf(value) {
   const raw = Array.isArray(value) ? value[0] : value;
   if (typeof raw === 'number' && Object.hasOwn(SEVERITY_ORDER, raw)) return SEVERITY_ORDER[raw];
   if (typeof raw === 'string' && Object.hasOwn(SEVERITY_ORDER, raw)) return SEVERITY_ORDER[raw];
