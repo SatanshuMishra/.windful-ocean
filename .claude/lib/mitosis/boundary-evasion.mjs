@@ -12,6 +12,24 @@ export const SUPPRESSION_DIRECTIVES = Object.freeze([
   'prettier-ignore',
 ]);
 
+export const ESLINT_CONFIG_DIRECTIVE = 'eslint-rule-config';
+
+export const ESLINT_INERT_DIRECTIVES = Object.freeze({
+  'eslint-enable': 'it restores the severity a disable comment lowered rather than lowering one',
+  'eslint-env': 'it declares which environment globals are defined rather than silencing a finding',
+});
+
+export const SUPPRESSION_MECHANISMS = Object.freeze([...SUPPRESSION_DIRECTIVES, ESLINT_CONFIG_DIRECTIVE]);
+
+export const EVASION_CLASSIFIERS = Object.freeze({
+  addedSuppression: 'added-suppression',
+  ruleSeverity: 'rule-severity',
+  tsconfigStrictness: 'tsconfig-strictness',
+  checkedScope: 'checked-scope',
+});
+
+export const EVASION_CLASSIFIER_NAMES = Object.freeze([...Object.values(EVASION_CLASSIFIERS)].sort());
+
 export const SEVERITY_ORDER = Object.freeze({ off: 0, warn: 1, error: 2, 0: 0, 1: 1, 2: 2 });
 
 export const SUPPRESSION_KEY_SEPARATOR = '\u0000';
@@ -77,23 +95,109 @@ export function suppressionKey(path, directive) {
   return `${path}${SUPPRESSION_KEY_SEPARATOR}${directive}`;
 }
 
+const BLOCK_COMMENT_PATTERN = /\/\*([\s\S]*?)\*\//g;
+const DIRECTIVE_WORD_PATTERN = /^[^\s:]+/;
+const SEVERITY_TOKEN_PATTERN = /^\s*(?:"([^"]*)"|'([^']*)'|([\w-]+))/;
+const OPENING = Object.freeze(['[', '{', '(']);
+const CLOSING = Object.freeze([']', '}', ')']);
+
+function topLevelSegments(text) {
+  const segments = [];
+  let depth = 0;
+  let quote = null;
+  let start = 0;
+  for (let index = 0; index < text.length; index += 1) {
+    const character = text[index];
+    if (quote !== null) {
+      if (character === '\\') index += 1;
+      else if (character === quote) quote = null;
+      continue;
+    }
+    if (character === '"' || character === "'") quote = character;
+    else if (OPENING.includes(character)) depth += 1;
+    else if (CLOSING.includes(character)) {
+      depth -= 1;
+      if (depth < 0) return null;
+    } else if (character === ',' && depth === 0) {
+      segments.push(text.slice(start, index));
+      start = index + 1;
+    }
+  }
+  if (depth !== 0 || quote !== null) return null;
+  return [...segments, text.slice(start)].filter((segment) => segment.trim().length > 0);
+}
+
+function severityOfToken(text) {
+  const matched = SEVERITY_TOKEN_PATTERN.exec(text.startsWith('[') ? text.slice(1) : text);
+  if (matched === null) return null;
+  const raw = matched[1] ?? matched[2] ?? matched[3];
+  return severityOf(/^\d+$/.test(raw) ? Number(raw) : raw);
+}
+
+function silencedRules(text) {
+  const segments = topLevelSegments(text);
+  if (segments === null) {
+    return { ok: false, error: 'its rule list carries an unbalanced bracket, brace or quote, so which rules it configures cannot be read' };
+  }
+  if (segments.length === 0) {
+    return { ok: false, error: 'it maps no rule to a severity at all, which eslint reads as a configuration comment it cannot parse rather than as a comment' };
+  }
+  const silenced = [];
+  for (const segment of segments) {
+    const colon = segment.indexOf(':');
+    const rule = colon === -1 ? '' : segment.slice(0, colon).trim();
+    const severity = colon === -1 ? null : severityOfToken(segment.slice(colon + 1).trim());
+    if (rule.length === 0 || severity === null) {
+      return { ok: false, error: `the entry ${JSON.stringify(segment.trim())} maps no rule to one of the severities eslint resolves to; refusing to guess whether it silences a finding` };
+    }
+    if (severity < SEVERITY_ORDER.error) silenced.push(rule);
+  }
+  return { ok: true, silenced };
+}
+
+function classifyEslintComments(path, source) {
+  const silenced = [];
+  BLOCK_COMMENT_PATTERN.lastIndex = 0;
+  for (let comment = BLOCK_COMMENT_PATTERN.exec(source); comment !== null; comment = BLOCK_COMMENT_PATTERN.exec(source)) {
+    const body = comment[1].trim();
+    const matchedWord = DIRECTIVE_WORD_PATTERN.exec(body);
+    const word = matchedWord === null ? '' : matchedWord[0];
+    if (!word.startsWith('eslint')) continue;
+    if (SUPPRESSION_DIRECTIVES.includes(word) || Object.hasOwn(ESLINT_INERT_DIRECTIVES, word)) continue;
+    if (word !== 'eslint') {
+      return {
+        ok: false,
+        error: `${path} carries the eslint comment directive /* ${body} */, which is none of the declared suppression directives (${SUPPRESSION_DIRECTIVES.join(', ')}), none of the declared inert directives (${Object.keys(ESLINT_INERT_DIRECTIVES).join(', ')}) and not a rule configuration comment; an eslint directive this census cannot classify halts rather than being dropped from the count`,
+      };
+    }
+    const rules = silencedRules(body.slice(word.length));
+    if (!rules.ok) {
+      return { ok: false, error: `${path} carries the eslint configuration comment /* ${body} */ and ${rules.error}` };
+    }
+    silenced.push(...rules.silenced);
+  }
+  return { ok: true, silenced };
+}
+
 export function countSuppressions(files) {
   if (!Array.isArray(files)) {
     throw new TypeError('boundary-evasion: the scanned side must be an array of { path, source } entries');
   }
   const counts = {};
+  const add = (path, directive) => {
+    const key = suppressionKey(path, directive);
+    counts[key] = (counts[key] ?? 0) + 1;
+  };
   for (const entry of files) {
     if (entry === null || typeof entry !== 'object' || typeof entry.source !== 'string' || typeof entry.path !== 'string' || entry.path.length === 0) {
       throw new TypeError(`boundary-evasion: every scanned file must carry a non-empty string path and a string source, not ${JSON.stringify(entry)}`);
     }
-    const matches = entry.source.match(DIRECTIVE_PATTERN);
-    if (matches === null) continue;
-    for (const match of matches) {
-      const key = suppressionKey(entry.path, match);
-      counts[key] = (counts[key] ?? 0) + 1;
-    }
+    for (const match of entry.source.match(DIRECTIVE_PATTERN) ?? []) add(entry.path, match);
+    const configured = classifyEslintComments(entry.path, entry.source);
+    if (!configured.ok) return Object.freeze({ ok: false, error: configured.error, counts: null });
+    for (const rule of configured.silenced) add(entry.path, `${ESLINT_CONFIG_DIRECTIVE} ${rule}`);
   }
-  return counts;
+  return Object.freeze({ ok: true, error: null, counts });
 }
 
 function splitSuppressionKey(key) {

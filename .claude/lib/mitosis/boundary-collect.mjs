@@ -14,6 +14,7 @@ import { censusListedFiles, censusTscLines } from './boundary-tsc-lines.mjs';
 import { run as execRun } from './exec-run.mjs';
 
 export const IDENTITY_SEPARATOR = '\u0000';
+export const BOUNDARY_BINARIES = Object.freeze(['git', 'node']);
 export const TOOL_RUN_DEADLINE_MS = 900000;
 export const INSTALL_DEADLINE_MS = 900000;
 export const WORKTREE_DEADLINE_MS = 300000;

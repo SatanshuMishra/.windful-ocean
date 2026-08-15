@@ -1,6 +1,4 @@
 import {
-  SUPPRESSION_DIRECTIVES,
-  TSCONFIG_STRICTNESS_FLAGS,
   compareCheckedFiles,
   compareCheckedFilesByTool,
   compareRuleSeverity,
@@ -21,8 +19,13 @@ const SUPPRESSION_PROBE_FILES = Object.freeze([
   Object.freeze({ path: 'probe/b.ts', source: '// @ts-expect-error\n' }),
 ]);
 
+function classified(files) {
+  const census = countSuppressions(files);
+  return census.ok ? census.counts : {};
+}
+
 function ignoredIn(path, count) {
-  return countSuppressions([Object.freeze({ path, source: '// @ts-ignore\n'.repeat(count) })]);
+  return classified([Object.freeze({ path, source: '// @ts-ignore\n'.repeat(count) })]);
 }
 
 function probeSurface(root) {
@@ -39,10 +42,10 @@ function probeSurface(root) {
 }
 
 export function evasionProbe() {
-  const counted = countSuppressions(SUPPRESSION_PROBE_FILES);
+  const counted = classified(SUPPRESSION_PROBE_FILES);
   const inherited = compareSuppressions(ignoredIn('a.ts', 3), ignoredIn('a.ts', 3));
   const added = compareSuppressions(ignoredIn('a.ts', 1), ignoredIn('a.ts', 2));
-  const removed = compareSuppressions(ignoredIn('a.ts', 3), countSuppressions([]));
+  const removed = compareSuppressions(ignoredIn('a.ts', 3), classified([]));
   const partlyRemoved = compareSuppressions(ignoredIn('a.ts', 3), ignoredIn('a.ts', 1));
   const moved = compareSuppressions(ignoredIn('old.ts', 1), ignoredIn('new.ts', 1));
   const unkeyed = compareSuppressions({}, { '@ts-ignore': 1 });
@@ -95,11 +98,11 @@ export function evasionProbe() {
   const withoutSuppressions = evasionVerdict({ ...baseSurface, suppressions: undefined }, { ...headSurface, suppressions: undefined });
   const withoutCheckedFiles = evasionVerdict({ ...baseSurface, checkedByTool: undefined }, { ...headSurface, checkedByTool: undefined });
   const withoutFileConfigs = evasionVerdict({ ...baseSurface, eslintConfigByFile: undefined }, { ...headSurface, eslintConfigByFile: undefined });
+  const withoutCommonFiles = evasionVerdict(baseSurface, { ...headSurface, commonFiles: undefined });
   return Object.freeze({
     longestSpellingWins: counted[suppressionKey('probe/a.ts', 'eslint-disable-next-line')] === 1
       && counted[suppressionKey('probe/a.ts', 'eslint-disable')] === 1
       && counted[suppressionKey('probe/b.ts', '@ts-expect-error')] === 1,
-    directiveCount: SUPPRESSION_DIRECTIVES.length,
     inheritedPasses: inherited.pass === true,
     partlyRemovedPasses: partlyRemoved.pass === true,
     addedBlocks: added.pass === false && added.blocking.length === 1 && added.blocking[0].surplus === 1,
@@ -132,8 +135,10 @@ export function evasionProbe() {
       && perFileDowngrade.blocking[0].file === 'b.ts',
     perFileUnchangedPasses: perFileUnchanged.pass === true && perFileUnchanged.halted === false,
     perFileVacuousHalts: perFileDisjoint.halted === true && perFileAbsent.halted === true && perFileSingleConfig.halted === true,
-    absentSurfaceHalts: withoutSuppressions.halted === true && withoutCheckedFiles.halted === true && withoutFileConfigs.halted === true,
+    absentSurfaceHalts: withoutSuppressions.halted === true
+      && withoutCheckedFiles.halted === true
+      && withoutFileConfigs.halted === true
+      && withoutCommonFiles.halted === true,
     aggregatePasses: aggregated.pass === true && aggregated.halted === false,
-    flagCount: Object.keys(TSCONFIG_STRICTNESS_FLAGS).length,
   });
 }

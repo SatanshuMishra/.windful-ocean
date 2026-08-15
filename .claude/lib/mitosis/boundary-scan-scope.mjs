@@ -105,10 +105,7 @@ export function commonTreeFiles(baseSurface, headSurface, io) {
   const baseRelatives = new Set(baseSurface.checkedFiles.map((file) => sideRelativeFile(file, baseSurface.root)));
   const headRelatives = new Set(headSurface.checkedFiles.map((file) => sideRelativeFile(file, headSurface.root)));
   const candidates = [...new Set([...baseRelatives, ...headRelatives])].filter((relativePath) => relativePath.length > 0).sort();
-  const common = candidates.filter((relativePath) => {
-    const onBase = baseRelatives.has(relativePath) || io.exists(pathJoin(baseSurface.root, relativePath));
-    return onBase && io.exists(pathJoin(headSurface.root, relativePath));
-  });
+  const common = candidates.filter((relativePath) => baseRelatives.has(relativePath) && io.exists(pathJoin(headSurface.root, relativePath)));
   return { ok: true, files: Object.freeze(common) };
 }
 
@@ -195,7 +192,11 @@ export function collectSuppressionSurface(root, files, io, side) {
     if (typeof source !== 'string') {
       return { ok: false, error: `the suppression scan on ${side} (${root}) read ${JSON.stringify(source)} rather than text from ${entry.path}, so no directive could be counted in it` };
     }
-    for (const [key, count] of Object.entries(countSuppressions([Object.freeze({ path: entry.relativePath, source })]))) {
+    const census = countSuppressions([Object.freeze({ path: entry.relativePath, source })]);
+    if (!census.ok) {
+      return { ok: false, error: `the suppression scan on ${side} (${root}) halted: ${census.error}` };
+    }
+    for (const [key, count] of Object.entries(census.counts)) {
       counts[key] = (counts[key] ?? 0) + count;
     }
   }

@@ -157,6 +157,9 @@ function bothToolsEvasionIo(plan) {
     run: (binary, argv) => {
       if (argv.includes('--print-config')) {
         const printed = argv[argv.length - 1];
+        if (relativeOf(printed) === plan.unprintableConfigFor) {
+          return { outcome: 'completed', status: 1, stdout: '', stderr: `Oops! Something went wrong printing the config for ${printed}` };
+        }
         return { outcome: 'completed', status: 0, stdout: JSON.stringify({ rules: rules(sideOf(printed), relativeOf(printed)) }), stderr: '' };
       }
       if (argv.includes('--listFiles')) {
@@ -248,7 +251,41 @@ export function evasionWiringProbe() {
   });
   probeEvaluate(perFileConfigIo);
   const configPrints = perFileConfigIo.spawned.filter((command) => command.includes('--print-config'));
+  const unprintableConfig = probeEvaluate(bothToolsEvasionIo({
+    baseTypeChecked: TWO_FILES,
+    headTypeChecked: TWO_FILES,
+    baseLinted: TWO_FILES,
+    headLinted: TWO_FILES,
+    unprintableConfigFor: 'b.ts',
+  }));
+  const refusedCollection = probeEvaluate(probeIo({
+    resolveTool: (name, root) => ({ ok: false, error: `nothing is installed at ${root}/node_modules/.bin/${name}` }),
+  }));
+  const haltedEvasion = probeEvaluate(tscEvasionIo({
+    baseChecked: ONE_FILE,
+    headChecked: ONE_FILE,
+    headOptions: Object.freeze({ ...CAPTURED_TSC_STRICT_SHOWCONFIG, jsx: 'react' }),
+  }));
+  const driven = [
+    refusedCollection,
+    haltedEvasion,
+    unprintableConfig,
+    addedSuppression,
+    inheritedSuppression,
+    headOnlySuppression,
+    headOnlyClean,
+    eslintOnlySuppression,
+    eslintOnlyClean,
+    narrowedScope,
+    deletedFile,
+    strictnessDowngrade,
+    unchangedConfig,
+    widenedIgnore,
+    unchangedToolScopes,
+    perGlobDowngrade,
+  ];
   return Object.freeze({
+    observedClassifiers: Object.freeze([...new Set(driven.flatMap((verdict) => verdict.blocking.map((entry) => entry.classifier)))].sort()),
     addedSuppressionBlocks: blocksWith(addedSuppression, 'added-suppression'),
     inheritedSuppressionPasses: inheritedSuppression.pass === true,
     headOnlyFileSuppressionBlocks: blocksWith(headOnlySuppression, 'added-suppression')
@@ -270,15 +307,15 @@ export function evasionWiringProbe() {
       && perGlobDowngrade.blocking.some((entry) => entry.file === 'b.ts' && entry.rule === 'no-eq'),
     everyComparedFileResolved: TWO_FILES.every((file) => [PROBE_ROOT, PROBE_BASE]
       .every((root) => configPrints.some((command) => command.endsWith(`--print-config ${root}/${file}`)))),
-    expandedStrictFlagCount: Object.keys(CAPTURED_TSC_STRICT_SHOWCONFIG).length,
-    everyFailingVerdictNamesACause: [
-      addedSuppression,
-      headOnlySuppression,
-      eslintOnlySuppression,
-      narrowedScope,
-      strictnessDowngrade,
-      widenedIgnore,
-      perGlobDowngrade,
-    ].every((verdict) => verdict.pass === false && verdict.blocking.length > 0),
+    capturedStrictOptions: Object.freeze([...Object.keys(CAPTURED_TSC_STRICT_SHOWCONFIG)].sort()),
+    unprintableFileConfigRefuses: unprintableConfig.pass === false
+      && unprintableConfig.output.includes('--print-config b.ts')
+      && blocksWith(unprintableConfig, 'collection-refused'),
+    collectionRefusalNamesACause: blocksWith(refusedCollection, 'collection-refused'),
+    evasionHaltNamesACause: blocksWith(haltedEvasion, 'evasion-halted') && haltedEvasion.output.includes('jsx'),
+    everyFailingVerdictNamesACause: driven
+      .filter((verdict) => verdict.pass === false)
+      .every((verdict) => verdict.blocking.length > 0)
+      && driven.filter((verdict) => verdict.pass === false).length >= 3,
   });
 }

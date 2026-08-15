@@ -674,7 +674,7 @@ test('the boundary-parity verdict states plainly that both mechanical dispatches
   const verdict = JSON.parse(stdout.join(''));
   assert.equal(verdict.modelInvocationsRemaining, 6);
   assert.match(verdict.notAttested.join(' '), /still dispatch a language model/i);
-  assert.ok(verdict.censusControls.every((control) => control.endsWith('halted and named')), verdict.censusControls.join(' | '));
+  assert.ok(verdict.censusControls.every((control) => /halted and named as [A-Za-z]+$/.test(control)), verdict.censusControls.join(' | '));
 });
 
 test('the boundary-parity verb rejects a target, because it censuses the engine trees it enumerates itself', () => {

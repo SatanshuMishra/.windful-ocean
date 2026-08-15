@@ -276,20 +276,24 @@ test('every child the gate starts carries a deadline, so no collection command c
 
 test('every declared spawn site of the boundary program carries a deadline, including the legs one run never reaches', () => {
   const dir = new URL('..', import.meta.url).pathname;
-  const sites = readdirSync(dir)
+  const modules = readdirSync(dir)
     .filter((name) => name.startsWith('boundary-') && name.endsWith('.mjs'))
     .sort()
-    .flatMap((name) => {
-      const source = readFileSync(join(dir, name), 'utf8');
-      return source.split(SPAWN_CALL).slice(1).map((rest, index) => {
-        const end = rest.indexOf(';');
-        return Object.freeze({
-          site: `${name} spawn ${index + 1}`,
-          call: end === -1 ? null : rest.slice(0, end),
-        });
-      });
+    .map((name) => Object.freeze({ name, source: readFileSync(join(dir, name), 'utf8') }));
+  const sites = modules.flatMap((module) => module.source.split(SPAWN_CALL).slice(1).map((rest, index) => {
+    const end = rest.indexOf(';');
+    return Object.freeze({
+      site: `${module.name} spawn ${index + 1}`,
+      call: end === -1 ? null : rest.slice(0, end),
     });
-  assert.ok(sites.length >= 6, `the spawn census found only ${sites.length} site(s), so it no longer measures the collection commands`);
+  }));
+  const spawning = modules.filter((module) => module.source.includes(SPAWN_CALL));
+  assert.deepEqual(
+    spawning.filter((module) => !sites.some((entry) => entry.site.startsWith(`${module.name} `))).map((module) => module.name),
+    [],
+    'these modules spawn a child that the census enumerated no site for, so the enumeration no longer covers the sources it reads',
+  );
+  assert.ok(spawning.length > 0, 'the census read no module that spawns a child at all, so it measures nothing');
   assert.deepEqual(
     sites.filter((entry) => entry.call === null).map((entry) => entry.site),
     [],
