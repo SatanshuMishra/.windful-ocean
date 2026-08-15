@@ -476,6 +476,11 @@
         "ref": "0446-distrust-of-subagent-results-is-retired-as-a-working-mode",
         "title": "Distrust of subagent results is retired as a working mode",
         "scope": "c3"
+      },
+      {
+        "ref": "0447-c7-obligations-recovered-to-a-spec-not-restored-as-code",
+        "title": "The deleted C7 obligation arrays are recovered into a spec, not restored as census code",
+        "scope": "c3"
       }
     ],
     "out_of_scope": [
@@ -487,5 +492,5 @@
     ]
   },
   "created_at": "2026-08-12T07:37:41.077Z",
-  "updated_at": "2026-08-15T20:24:19.816Z"
+  "updated_at": "2026-08-15T20:56:56.883Z"
 }
