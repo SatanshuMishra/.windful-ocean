@@ -183,6 +183,23 @@ function wavesOf(graph) {
   return waveOf;
 }
 
+function reaches(dependsOnById, from, to) {
+  const seen = new Set();
+  const stack = [from];
+  while (stack.length > 0) {
+    const current = stack.pop();
+    if (current === to) return true;
+    if (seen.has(current)) continue;
+    seen.add(current);
+    for (const next of dependsOnById.get(current) || []) stack.push(next);
+  }
+  return false;
+}
+
+function transitivelyOrdered(dependsOnById, left, right) {
+  return reaches(dependsOnById, left, right) || reaches(dependsOnById, right, left);
+}
+
 function cell(decision, source) {
   return `${decision}${CELL_SEPARATOR}${source}`;
 }
@@ -230,9 +247,8 @@ function observeSpecimen(specimen) {
       if (waveOf.get(left) === waveOf.get(right)) {
         problems.push(`${specimen.name} resolved ${inert(key)} to serialize and the wave plan still schedules both in wave ${waveOf.get(left)}; a serialize resolution that reaches no wave separation is the decorative verdict this enforcement exists to end`);
       }
-      const ordered = dependsOnById.get(left).includes(right) || dependsOnById.get(right).includes(left) || placed.has(key);
-      if (!ordered && waveOf.get(left) === waveOf.get(right)) {
-        problems.push(`${specimen.name} resolved ${inert(key)} to serialize and neither task depends on the other`);
+      if (!dependsOnById.get(left).includes(right) && !dependsOnById.get(right).includes(left) && !transitivelyOrdered(dependsOnById, left, right)) {
+        problems.push(`${specimen.name} resolved ${inert(key)} to serialize and neither task reaches the other through dependsOn; the wave plan may still separate them for an unrelated reason, so an ordering the resolution never produced would read as enforcement`);
       }
     }
     if (record.decision === COUPLING_PARALLEL && placed.has(key)) {
