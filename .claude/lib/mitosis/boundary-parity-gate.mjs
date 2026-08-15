@@ -349,6 +349,7 @@ function evasionProbe() {
   const unchangedUnnamed = compareTsconfigFlags({ jsx: 'react' }, { jsx: 'react' });
   const narrowed = compareCheckedFiles(['a.ts', 'b.ts'], ['a.ts'], ['a.ts', 'b.ts']);
   const deleted = compareCheckedFiles(['a.ts', 'b.ts'], ['a.ts'], ['a.ts']);
+  const addedFile = compareCheckedFiles(['a.ts'], ['a.ts', 'b.ts'], ['a.ts', 'b.ts']);
   const surface = { eslintConfig: { rules: { r: 2 } }, tsconfigOptions: { strict: true }, checkedFiles: ['a.ts'], commonFiles: ['a.ts'], suppressions: { '@ts-ignore': 1 } };
   const aggregated = evasionVerdict(surface, surface);
   return Object.freeze({
@@ -367,6 +368,7 @@ function evasionProbe() {
     unchangedUnnamedOptionPasses: unchangedUnnamed.halted === false && unchangedUnnamed.pass === true,
     narrowingBlocks: narrowed.pass === false,
     deletionPasses: deleted.pass === true,
+    additionPasses: addedFile.pass === true,
     aggregatePasses: aggregated.pass === true && aggregated.halted === false,
     flagCount: Object.keys(TSCONFIG_STRICTNESS_FLAGS).length,
   });
@@ -516,6 +518,9 @@ export function boundaryParityFailures(substrate) {
   }
   if (!evasion.deletionPasses) {
     failures.push('a legitimately deleted source file is now read as a narrowed scope, so deleting a file would block; the comparison is restricted to files present on both sides precisely to avoid that');
+  }
+  if (!evasion.additionPasses) {
+    failures.push('a legitimately added source file is now read as a narrowed scope, so adding a file would block; the comparison names the files checked at base and not at HEAD rather than every difference between the two sets');
   }
   if (!evasion.aggregatePasses) {
     failures.push('the aggregated evasion verdict no longer passes on two identical surfaces, so it reports an evasion where nothing changed');
