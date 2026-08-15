@@ -176,12 +176,11 @@ const SPECIMENS = Object.freeze([
 ]);
 
 function wavesOf(graph) {
-  const plan = planWaves(graph);
   const waveOf = new Map();
-  plan.waves.forEach((wave, index) => {
+  planWaves(graph).waves.forEach((wave, index) => {
     for (const id of wave) waveOf.set(id, index);
   });
-  return { plan, waveOf };
+  return waveOf;
 }
 
 function cell(decision, source) {
@@ -196,7 +195,7 @@ function declaredCells() {
 
 function observeSpecimen(specimen) {
   const result = deriveEdges(specimen.graph, [], specimen.verdicts);
-  const { plan, waveOf } = wavesOf(result.graph);
+  const waveOf = wavesOf(result.graph);
   const reasonsById = new Map(result.graph.tasks.map((entry) => [entry.id, entry.edgeReasons]));
   const dependsOnById = new Map(result.graph.tasks.map((entry) => [entry.id, entry.dependsOn]));
   const placed = new Set(result.couplingEdges.map((edge) => [edge.from, edge.to].sort().join(CELL_SEPARATOR)));
@@ -252,7 +251,6 @@ function observeSpecimen(specimen) {
   return Object.freeze({
     name: specimen.name,
     result,
-    plan,
     waveOf,
     problems: Object.freeze(problems),
     cells: Object.freeze([...cells].sort()),
@@ -418,7 +416,6 @@ function directionProbe() {
   return Object.freeze({
     placedCount: result.couplingEdges.length,
     dependentIsLaterDeclared: byId.get(laterDeclared).includes(first.id),
-    dependentIsNotIdSorted: !byId.get(idSorted[1]).includes(idSorted[0]) || laterDeclared === idSorted[1],
     idSortWouldDiffer: idSorted[1] !== laterDeclared,
   });
 }
