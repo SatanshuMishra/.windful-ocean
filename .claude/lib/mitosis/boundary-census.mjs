@@ -136,7 +136,7 @@ export function censusBoundarySources(sources, declarations = BOUNDARY_DECLARATI
       if (isDispatchSource && !(literal.key !== null && Object.hasOwn(inertKeys, literal.key))) {
         return halt(`${path}:${literal.where} spells the boundary label ${JSON.stringify(literal.raw)} at a ${literal.key === null ? 'position carrying no object key' : `${JSON.stringify(literal.key)} key`}, which is neither a dispatch label nor one of the declared inert forms (${Object.keys(inertKeys).sort().join(', ')}); refusing to guess whether it reaches a model`);
       }
-      inert.push(Object.freeze({ label: literal.raw, path, line: literal.where, key: literal.key }));
+      inert.push(Object.freeze({ spelling: literal.raw, path, line: literal.where, key: literal.key }));
     }
   }
 

@@ -25,6 +25,9 @@ const STANDALONE = 'standalone';
 
 const MIRROR_CENSUS = Object.freeze({
   'authoritative-constants.mjs': WHOLE,
+  'boundary-census.mjs': STANDALONE,
+  'boundary-gate.mjs': STANDALONE,
+  'boundary-parity-gate.mjs': STANDALONE,
   'boundary.mjs': WHOLE,
   'checkpoint.mjs': WHOLE,
   'ci-escalation.mjs': WHOLE,
