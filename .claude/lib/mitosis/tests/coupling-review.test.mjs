@@ -566,12 +566,20 @@ test('T29i: a whitespace-only rationale is refused through deriveEdges too, not 
 });
 
 test('T29j: every deferral this enforcement leaves open is recorded in code, and each one is identified', () => {
-  const ids = COUPLING_OBLIGATIONS.map((entry) => entry.split(' ')[0]);
-  assert.deepEqual(ids, ['C5-O1', 'C5-O2', 'C5-O3', 'C5-O4'], 'an obligation dropped from the list is a deferral that stops being tracked');
-  assert.equal(new Set(ids).size, ids.length, 'two obligations sharing an id cannot be discharged independently');
-  for (const entry of COUPLING_OBLIGATIONS) {
-    assert.ok(entry.length > 120, `${entry.split(' ')[0]} is too short to say what is deferred and why; a bare title is prose-free but also information-free`);
-  }
+  const numbered = COUPLING_OBLIGATIONS.map((entry, index) => {
+    assert.equal(typeof entry, 'string', `COUPLING_OBLIGATIONS[${index}] is not a string, so it names no deferral a reader can act on`);
+    const match = /^C5-O([1-9][0-9]*) \S/.exec(entry);
+    assert.ok(
+      match,
+      `COUPLING_OBLIGATIONS[${index}] does not open with a C5-O<n> id followed by what is deferred; an entry nobody can cite by id cannot be discharged or closed out, and it received ${JSON.stringify(entry.slice(0, 40))}`,
+    );
+    return Number(match[1]);
+  });
+  assert.deepEqual(
+    numbered,
+    numbered.map((_, index) => index + 1),
+    `the obligation ids must run contiguously from C5-O1 in list order; they read ${JSON.stringify(numbered)}, and a gap or a repeat means an obligation was dropped or two of them answer to one id`,
+  );
   assert.ok(Object.isFrozen(COUPLING_OBLIGATIONS));
 });
 
