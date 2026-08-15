@@ -1,6 +1,6 @@
 # The porting MSP (CP): scope, obligation inventory, and recovery record
 
-Status: proposed
+Status: the CP/C7 split is ratified by decision 0448; questions Q1, Q3 and Q4 in section 6 remain open
 Date: 2026-08-15
 Authority: decision 0424, "An incremental porting MSP is inserted before C7 to drain its accumulated obligations"
 Parent SPEC: `.claude/docs/specs/2026-08-12-mitosis-os-process-rearchitecture-design.md`
@@ -99,7 +99,7 @@ No obligation in this inventory describes tick-loop work. None touches the sched
 
 **C7 keeps:** the tick loop, and the `redispatch` classification.
 
-`redispatch` stays with C7 because thread criterion c5 assigns it there in terms: "redispatch given a determinate home in C7". It is drainable by CP on the technical merits, and moving it would tighten C7 further, but a pinned acceptance criterion names C7 and reassignment is a decision to be taken explicitly, not folded in silently. Section 6 records it as an open question.
+`redispatch` stays with C7. Thread criterion c5 assigns it there in terms — "redispatch given a determinate home in C7" — and decision 0448 ratified that placement on 2026-08-15 rather than amending the criterion. It is drainable by CP on the technical merits, and moving it would have left C7 as the tick loop alone, but a pinned acceptance criterion is not rewritten to absorb a convenience.
 
 ## 5. Sequencing and merge risk
 
@@ -122,6 +122,6 @@ Pinned before work starts, per G0. This list is a ceiling: anything discovered a
 Open questions for ratification before CP is worked:
 
 - **Q1.** Which two of C7-R1 through R7 are the deferred security HIGHs. Not recoverable from any artifact; R3 and R5 are the grounded guess. If the answer matters for sequencing, it must be re-derived from the code rather than recalled.
-- **Q2.** Does `redispatch` stay in C7 (per criterion c5) or move to CP? Moving it requires amending c5.
+- ~~**Q2.** Does `redispatch` stay in C7 (per criterion c5) or move to CP?~~ **Closed by decision 0448 on 2026-08-15: it stays in C7.** Criterion c5 stands unamended.
 - **Q3.** Is C7-T3 formally retired, given the census it constrains was deleted by `2087dd51`?
 - **Q4.** Is `CP` the right name, or should the unit take a letter in the 0374 sequence?
