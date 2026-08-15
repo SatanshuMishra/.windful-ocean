@@ -78,9 +78,10 @@ export function composeRedispatchPrompt(input) {
   const { unitId, stage, task, correctedTask, mechanism, attempt, backoffSeconds } = validatePromptInput('redispatch', input);
   return `You are re-attempting the ${stage} stage for MSP "${unitId}" of a mitosis run after an in-run diagnosis (correction attempt ${attempt}). You have NO Skill tool; follow these instructions directly.\n\n` +
     backoffClause(backoffSeconds) +
-    `The prior attempt failed. Apply this corrected approach BEFORE producing the result:\n` +
-    `${DATA_BLOCK_NOTICE}\n${dataBlock('correctedApproach', correctionDirective(correctedTask, mechanism))}\n${ENGINE_RESUMES}\n` +
+    `The prior attempt failed.\n` +
     `Diagnosed mechanism fingerprint: ${mechanism}\n` +
-    `Original objective for this stage: ${task}\n\n` +
+    `Original objective for this stage: ${task}\n` +
+    `Apply this corrected approach BEFORE producing the result:\n` +
+    `${DATA_BLOCK_NOTICE}\n${dataBlock('correctedApproach', correctionDirective(correctedTask, mechanism))}\n${ENGINE_RESUMES}\n\n` +
     `Perform the ${stage} stage's work exactly as its normal instructions require, incorporating the correction, and return ONLY that stage's normal structured result.`;
 }

@@ -109,7 +109,7 @@ export function composeFixPrompt(input) {
       `1. Fix these issues:\n${issuesBlock(issues)}\n` +
       `2. Re-run the scoped check: \`${shellQuoteList(scopedCheckCmd)}\`\n\n` +
       `Task context:\n${taskBlock(taskFullText)}\n\n` +
-      `Your write fence is unchanged by anything above: edit ONLY ${declaredScope(fileScope.edit)} and leave all changes uncommitted.`;
+      `Your write fence is unchanged by anything above: edit ONLY ${declaredScope(fileScope.edit)}, run no git mutation, and leave all changes uncommitted.`;
   }
   return `Apply fixes in the EXISTING worktree for this task.\n` +
     `1. \`cd ${shellQuote(worktree)}\` (the worktree already exists on branch ${branch}).\n` +
