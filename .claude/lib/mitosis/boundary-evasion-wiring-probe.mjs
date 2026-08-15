@@ -36,6 +36,19 @@ function relativeOf(path) {
   return text.slice(rootOf(sideOf(text)).length + 1);
 }
 
+function describedBy(readFile) {
+  return (path) => {
+    const source = readFile(path);
+    return Object.freeze({
+      ok: true,
+      path: String(path),
+      kind: 'a regular file',
+      regular: true,
+      size: typeof source === 'string' ? Buffer.byteLength(source, 'utf8') : 0,
+    });
+  };
+}
+
 function probeIo(overrides) {
   const spawned = [];
   const base = {
@@ -51,6 +64,7 @@ function probeIo(overrides) {
   const merged = { ...base, ...overrides };
   const inner = merged.run;
   return Object.freeze({
+    describePath: describedBy(merged.readFile),
     ...merged,
     spawned,
     run: (binary, argv, options) => {

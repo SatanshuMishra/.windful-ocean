@@ -1,7 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { MAX_SCANNED_FILE_BYTES, commonTreeFiles } from '../boundary-scan-scope.mjs';
-import { CACHED_SURFACE_FIELDS, evaluate } from '../boundary-gate.mjs';
+import { CACHED_SURFACE_FIELDS, censusIdentity } from '../boundary-census-cache.mjs';
+import { evaluate } from '../boundary-gate.mjs';
 
 const ROOT = '/repo';
 const BASE = '/tmp/base-wt';
@@ -39,10 +40,24 @@ function relativeOf(path) {
   return text.slice(rootOf(sideOf(text)).length + 1);
 }
 
+function describedBy(readFile) {
+  return (path) => {
+    const source = readFile(path);
+    return Object.freeze({
+      ok: true,
+      path: String(path),
+      kind: 'a regular file',
+      regular: true,
+      size: typeof source === 'string' ? Buffer.byteLength(source, 'utf8') : 0,
+    });
+  };
+}
+
 function spy(io) {
   const spawned = [];
   const inner = io.run;
   return Object.freeze({
+    describePath: describedBy(io.readFile),
     ...io,
     spawned,
     run: (binary, argv, options) => {
@@ -183,6 +198,10 @@ function bothToolsIo(plan) {
   });
 }
 
+function identified(census) {
+  return { ...census, identity: censusIdentity(census) };
+}
+
 const TWO_SOURCES = Object.freeze(['src/a.ts', 'src/b.ts']);
 
 function blockedBy(verdict, classifier) {
@@ -216,7 +235,7 @@ test('a checked scope unchanged on every tool passes, so the per-tool comparison
 
 test('a tool that reported a file list on one side and none on the other halts rather than being compared', () => {
   const io = tscIo({ baseChecked: ['a.ts'], headChecked: ['a.ts'] });
-  const cached = {
+  const cached = identified({
     gateBase: 'abc123',
     tools: { tsc: { identities: {}, fileCount: 1 } },
     notExpected: ['eslint'],
@@ -229,7 +248,7 @@ test('a tool that reported a file list on one side and none on the other halts r
       eslintConfigByFile: {},
       eslintConfigFiles: [],
     },
-  };
+  });
   const verdict = evaluate({ ...REQUEST, cachedBaseCensus: cached }, io);
   assert.equal(verdict.usedCachedCensus, true, `the cached census was refused for its shape, so the per-tool halt was never reached: ${verdict.output}`);
   assert.equal(verdict.pass, false);
@@ -552,7 +571,7 @@ const COMPLETE_CACHED_SURFACE = Object.freeze({
 });
 
 function cachedCensusOf(surface) {
-  return { gateBase: 'abc123', tools: { tsc: { identities: {}, fileCount: 1 } }, notExpected: ['eslint'], surface };
+  return identified({ gateBase: 'abc123', tools: { tsc: { identities: {}, fileCount: 1 } }, notExpected: ['eslint'], surface });
 }
 
 function evaluatedWithCache(surface) {

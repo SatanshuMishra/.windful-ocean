@@ -10,12 +10,11 @@ import {
   IDENTITY_COMPONENTS,
   NORMALIZATION_STEPS,
   REAL_BOUNDARY_IO,
-  collectBase,
-  compareCensuses,
-  evaluate,
   structuralIdentity,
   toolExpectation,
-} from './boundary-gate.mjs';
+} from './boundary-collect.mjs';
+import { censusIdentity } from './boundary-census-cache.mjs';
+import { collectBase, compareCensuses, evaluate } from './boundary-gate.mjs';
 import { SUPPRESSION_DIRECTIVES } from './boundary-evasion.mjs';
 import {
   failClosedProbe,
@@ -86,6 +85,19 @@ export const BOUNDARY_PARITY_NOT_ATTESTED = Object.freeze([
   'what resolving the eslint config per file costs on a real repository: covering the surface takes one --print-config child per linted file per side, and every probe here injects its exec seam, so the wall-clock cost of that on a tree of thousands of files is unmeasured until C7 runs it against a real repository',
 ]);
 
+function describedBy(readFile) {
+  return (path) => {
+    const source = readFile(path);
+    return Object.freeze({
+      ok: true,
+      path: String(path),
+      kind: 'a regular file',
+      regular: true,
+      size: typeof source === 'string' ? Buffer.byteLength(source, 'utf8') : 0,
+    });
+  };
+}
+
 function probeIo(overrides) {
   const spawned = [];
   const base = {
@@ -105,6 +117,7 @@ function probeIo(overrides) {
     spawned.push(`${binary} ${argv.join(' ')}`);
     return inner(binary, argv, options);
   };
+  if (typeof merged.describePath !== 'function') merged.describePath = describedBy(merged.readFile);
   return merged;
 }
 
@@ -192,7 +205,7 @@ function equivalenceProbe() {
   const foreignCensus = { ...collected.census, gateBase: `${collected.census.gateBase}-foreign` };
   const foreign = evaluate({ ...request, cachedBaseCensus: foreignCensus }, foreignIo);
   const disagreeingIo = eslintOnlyIo(1, 2);
-  const disagreeingCensus = {
+  const disagreeingShape = {
     gateBase: PROBE_GATE_BASE,
     tools: {},
     notExpected: BOUNDARY_TOOLS.map((tool) => tool.name),
@@ -206,6 +219,7 @@ function equivalenceProbe() {
       eslintConfigFiles: [],
     },
   };
+  const disagreeingCensus = { ...disagreeingShape, identity: censusIdentity(disagreeingShape) };
   const disagreeing = evaluate({ ...request, cachedBaseCensus: disagreeingCensus }, disagreeingIo);
   return Object.freeze({
     disagreeingCacheRecollects: disagreeing.usedCachedCensus === false

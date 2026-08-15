@@ -1,4 +1,5 @@
-import { REAL_BOUNDARY_IO, evaluate, parseEslintReport, structuralIdentity } from './boundary-gate.mjs';
+import { REAL_BOUNDARY_IO, parseEslintReport, structuralIdentity } from './boundary-collect.mjs';
+import { evaluate } from './boundary-gate.mjs';
 import { censusListedFiles, censusTscLines } from './boundary-tsc-lines.mjs';
 
 const PROBE_ROOT = '/probe/collection/head';
@@ -9,6 +10,19 @@ const CLEAN_CHILD = Object.freeze({ outcome: 'completed', status: 0, stdout: '',
 const CHAIN_HEAD = "src/index.ts(5,9): error TS2322: Type 'X' is not assignable to type 'Y'.";
 const CHAIN_TAIL = "  Types of parameters 's' and 'n' are incompatible.";
 const OTHER_CHAIN_TAIL = "  Types of parameters 'a' and 'b' are incompatible.";
+
+function describedBy(readFile) {
+  return (path) => {
+    const source = readFile(path);
+    return Object.freeze({
+      ok: true,
+      path: String(path),
+      kind: 'a regular file',
+      regular: true,
+      size: typeof source === 'string' ? Buffer.byteLength(source, 'utf8') : 0,
+    });
+  };
+}
 
 function probeIo(overrides) {
   const spawned = [];
@@ -29,6 +43,7 @@ function probeIo(overrides) {
     spawned.push(`${binary} ${argv.join(' ')}`);
     return inner(binary, argv, options);
   };
+  if (typeof merged.describePath !== 'function') merged.describePath = describedBy(merged.readFile);
   return merged;
 }
 

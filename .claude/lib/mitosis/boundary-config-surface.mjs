@@ -3,6 +3,7 @@ import { sideRelativeFile, within } from './boundary-scan-scope.mjs';
 
 export const SCOPE_CHOOSE = 'choose';
 export const SCOPE_FIXED = 'fixed';
+export const CONFIG_RUN_DEADLINE_MS = 120000;
 
 export function choosingScope(otherRoot) {
   return Object.freeze({ kind: SCOPE_CHOOSE, otherRoot });
@@ -31,7 +32,7 @@ function isPlainObject(value) {
 function collectResolvedConfigJson(root, argv, io, side, label) {
   let result;
   try {
-    result = io.run('node', argv, { cwd: root });
+    result = io.run('node', argv, { cwd: root, deadlineMs: CONFIG_RUN_DEADLINE_MS });
   } catch (error) {
     return { ok: false, error: `${label} could not be collected on ${side} (${root}): ${failureText(error, 'unknown spawn failure')}` };
   }
