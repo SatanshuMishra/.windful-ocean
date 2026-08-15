@@ -7,6 +7,7 @@ import {
 } from './boundary-census.mjs';
 import {
   BOUNDARY_TOOLS,
+  IDENTITY_COMPONENTS,
   NORMALIZATION_STEPS,
   REAL_BOUNDARY_IO,
   censusTscLines,
@@ -26,13 +27,19 @@ import {
   compareTsconfigFlags,
   countSuppressions,
   evasionVerdict,
+  suppressionKey,
 } from './boundary-evasion.mjs';
 import { run as execRun } from './exec-run.mjs';
 
 const PROBE_ROOT = '/probe/head';
 const PROBE_BASE = '/probe/base';
+const PROBE_ABSENT_ROOT = '/probe/no-such-root';
 const PROBE_GATE_BASE = 'probebase';
 const UNLISTED_PROBE_BINARY = 'npx';
+const PROBE_SCOPE_ROOTS = Object.freeze({ base: PROBE_BASE, head: PROBE_ROOT });
+const CHAIN_HEAD = "src/index.ts(5,9): error TS2322: Type 'X' is not assignable to type 'Y'.";
+const CHAIN_TAIL = "  Types of parameters 's' and 'n' are incompatible.";
+const OTHER_CHAIN_TAIL = "  Types of parameters 'a' and 'b' are incompatible.";
 
 export const BOUNDARY_PARITY_ATTESTS = Object.freeze([
   'every boundary label spelled in either declared engine tree is resolved to exactly one declared name, and a label none of them covers halts with its site named rather than being absorbed by a name it merely extends',
@@ -40,6 +47,14 @@ export const BOUNDARY_PARITY_ATTESTS = Object.freeze([
   'every source spelling a boundary label is either a declared dispatch source or a declared non-dispatch source carrying a reason, in both directions, so a source that appeared and a source that vanished from the scan both halt rather than letting a site go uncounted',
   'a declared non-dispatch source that starts dispatching a boundary label halts rather than staying inert on a reason written when it did not, and that halt is exercised here on a synthetic source every time this verb runs',
   'the structural identity keeps the diagnostic code verbatim while ignoring line and column pairs, so a pure line shift does not block and two distinct codes carrying the same message do not collapse to one identity; both are measured here on every invocation rather than assumed of the transform list',
+  'the structural identity is normalized per field rather than over the joined tuple: the file component becomes a path relative to its own side root, so two findings differing only in their directory stay distinct while one file observed under the two worktree roots is one identity, and both are measured here on every invocation',
+  'a chained tsc diagnostic folds its indented continuation lines into the diagnostic above it and the folded text joins the identity, so a base commit carrying a chained type error does not halt the gate and two chains sharing a head with different tails stay distinct; an indented line with no diagnostic above it still halts with the line quoted, and all three are measured here on every invocation',
+  'the tool executable is resolved separately from the package that installs it, and a resolved path that does not exist refuses naming the path tried rather than being handed back to a spawn that fails as a module-not-found; the type-check leg is measured here on every invocation to name the executable npm installs under node_modules/.bin',
+  'what each tool is expected to report is recomputed from the trees on every pass, and a supplied base census whose NOT-EXPECTED set disagrees with that recomputation is refused and the base re-collected, so a cached census carries base identity counts and never decides whether a tool runs at all; measured here on every invocation with a census naming every tool NOT-EXPECTED',
+  'the base worktree teardown checks the result of the removal rather than only catching a throw, falls back to removing the path when the removal exits non-zero, and names the leaked path in the verdict when even that fails; all three are measured here on every invocation',
+  'the added-suppression scan keys its counts by file and directive, so a suppression removed in one file cannot pay for one added in another, and a count key naming no file halts rather than being compared; both are measured here on every invocation',
+  'each declared strictness flag carries both its safe value and the compiler default an absent value takes, so a flag absent at base and written to its unsafe value at HEAD blocks and a strict-family flag switched off under strict blocks; both are measured here on every invocation',
+  'the checked-scope comparison halts rather than defaulting when a file list, a common-file list or the two side roots are absent, and halts when the two lists share no file at all rather than reporting a clean narrowing; every one of those refusals is measured here on every invocation',
   'the comparison is a multiset surplus rather than a difference or a presence test: an unchanged pre-existing finding and a fixed pre-existing finding each pass, and a second instance of a class already present at base blocks, each measured here on every invocation',
   'a tsc line that is neither blank nor one of the declared diagnostic forms halts with the line quoted rather than being skipped, and that halt is exercised here on a synthetic line every time this verb runs',
   'a run that scanned zero files is refused on both tools rather than read as a clean result, and an eslint report that is not an array of file entries is refused, each measured here on every invocation',
@@ -56,6 +71,7 @@ export const BOUNDARY_PARITY_ATTESTS = Object.freeze([
 ]);
 
 export const BOUNDARY_PARITY_NOT_ATTESTED = Object.freeze([
+  'that the four evasion classifiers are in force: they are declared and exercised here against their own functions, and the gate verdict is NOT wired to them at all — evaluate calls none of them, so no repository surface is ever built and no evasion this MSP performed reaches the verdict; building that surface (eslint --print-config, tsc --showConfig, the source text of both sides) is C7 work and the payload names them as declared-but-unwired rather than as classifiers in force',
   'that either mechanical dispatch has been converted: both still dispatch a language model in both engine trees until C7 ports them onto this substrate, and this verb measures the conversion list rather than the conversion',
   'that this program produces the verdict the incumbent prose produced: the prose is executed by a model and no probe here runs both and compares them, so the two are pinned by their declared parts rather than by an end-to-end equivalence',
   'that the collection commands behave as declared against a real repository: every probe here injects its own exec and filesystem seams, so what a real eslint or a real tsc prints for a large tree, a symbolic link, or a config resolved from a parent directory is untested until C7 supplies those seams',
@@ -76,7 +92,7 @@ function probeIo(overrides) {
     makeDir: () => {},
     symlink: () => {},
     removePath: () => {},
-    resolveTool: (name, root) => `${root}/node_modules/.bin/${name}`,
+    resolveTool: (name, root) => ({ ok: true, path: `${root}/node_modules/.bin/${name}` }),
     resolvePackageManager: () => ({ ok: true, entry: '/probe/pm.js' }),
   };
   const merged = { ...base, ...overrides, spawned };
@@ -99,9 +115,7 @@ function eslintOnlyIo(baseFiles, headFiles) {
   return probeIo({
     exists: (path) => String(path).includes('eslint.config') || String(path).endsWith('package.json'),
     run: (binary, argv) => {
-      if (!argv.some((value) => String(value).includes('eslint'))) {
-        return { outcome: 'completed', status: 0, stdout: '', stderr: '' };
-      }
+      if (!argv.some((value) => String(value).includes('eslint'))) return CLEAN_CHILD;
       const onBase = argv.some((value) => String(value).startsWith(PROBE_BASE));
       return { outcome: 'completed', status: 1, stdout: eslintStdout(onBase ? baseFiles : headFiles), stderr: '' };
     },
@@ -109,12 +123,41 @@ function eslintOnlyIo(baseFiles, headFiles) {
 }
 
 function identityProbe() {
-  const shifted = structuralIdentity({ file: 'src/a.ts', code: 'TS2345', message: 'Argument at 12:4 is wrong' })
-    === structuralIdentity({ file: 'src/a.ts', code: 'TS2345', message: 'Argument at 90:7 is wrong' });
-  const codesDistinct = structuralIdentity({ file: 'src/a.ts', code: 'TS2345', message: 'Type is wrong' })
-    !== structuralIdentity({ file: 'src/a.ts', code: 'TS2339', message: 'Type is wrong' });
-  const codeKept = structuralIdentity({ file: 'src/a.ts', code: 'TS2345', message: 'Type is wrong' }).includes('TS2345');
-  return Object.freeze({ lineShiftIgnored: shifted, codesDistinct, codeKept, stepCount: NORMALIZATION_STEPS.length });
+  const shifted = structuralIdentity({ file: 'src/a.ts', code: 'TS2345', message: 'Argument at 12:4 is wrong' }, PROBE_ROOT)
+    === structuralIdentity({ file: 'src/a.ts', code: 'TS2345', message: 'Argument at 90:7 is wrong' }, PROBE_ROOT);
+  const codesDistinct = structuralIdentity({ file: 'src/a.ts', code: 'TS2345', message: 'Type is wrong' }, PROBE_ROOT)
+    !== structuralIdentity({ file: 'src/a.ts', code: 'TS2339', message: 'Type is wrong' }, PROBE_ROOT);
+  const codeKept = structuralIdentity({ file: 'src/a.ts', code: 'TS2345', message: 'Type is wrong' }, PROBE_ROOT).includes('TS2345');
+  const directoriesDistinct = structuralIdentity({ file: `${PROBE_ROOT}/src/a.ts`, code: 'no-eq', message: 'bad' }, PROBE_ROOT)
+    !== structuralIdentity({ file: `${PROBE_ROOT}/lib/a.ts`, code: 'no-eq', message: 'bad' }, PROBE_ROOT);
+  const rootsAgree = structuralIdentity({ file: `${PROBE_ROOT}/src/a.ts`, code: 'no-eq', message: 'bad' }, PROBE_ROOT)
+    === structuralIdentity({ file: `${PROBE_BASE}/src/a.ts`, code: 'no-eq', message: 'bad' }, PROBE_BASE);
+  return Object.freeze({
+    lineShiftIgnored: shifted,
+    codesDistinct,
+    codeKept,
+    directoriesDistinct,
+    rootsAgree,
+    stepCount: NORMALIZATION_STEPS.length,
+  });
+}
+
+function toolResolutionProbe() {
+  const absent = REAL_BOUNDARY_IO.resolveTool('typescript', PROBE_ABSENT_ROOT);
+  const declaredIo = typescriptDeclaredIo({
+    run: (binary, argv) => (argv.includes('--listFiles') ? { outcome: 'completed', status: 0, stdout: 'src/a.ts\n', stderr: '' } : CLEAN_CHILD),
+  });
+  probeEvaluate(declaredIo);
+  const typeRuns = declaredIo.spawned.filter((command) => command.includes('--noEmit'));
+  const unresolvableIo = typescriptDeclaredIo({
+    resolveTool: (name, root) => ({ ok: false, error: `no executable exists at ${root}/node_modules/.bin/${name}` }),
+  });
+  const unresolvable = probeEvaluate(unresolvableIo);
+  return Object.freeze({
+    absentToolRefused: absent.ok === false && absent.error.includes(`${PROBE_ABSENT_ROOT}/node_modules/.bin/typescript`),
+    executablesNamed: typeRuns.length > 0 && typeRuns.every((command) => command.split(' ')[1].split('/').pop() === 'tsc'),
+    unresolvableRefused: unresolvable.pass === false && /node_modules\/\.bin\/tsc/.test(unresolvable.output),
+  });
 }
 
 function comparatorProbe() {
@@ -130,11 +173,31 @@ function comparatorProbe() {
   });
 }
 
-function tscZeroFilesIo() {
+const CLEAN_CHILD = Object.freeze({ outcome: 'completed', status: 0, stdout: '', stderr: '' });
+
+function typescriptDeclaredIo(overrides) {
   return probeIo({
     exists: (path) => String(path).includes('tsconfig.json') || String(path).endsWith('package.json'),
     readFile: () => JSON.stringify({ devDependencies: { typescript: '5.0.0' } }),
-    run: () => ({ outcome: 'completed', status: 0, stdout: '', stderr: '' }),
+    ...overrides,
+  });
+}
+
+function tscZeroFilesIo() {
+  return typescriptDeclaredIo({ run: () => CLEAN_CHILD });
+}
+
+function probeEvaluate(io, cachedBaseCensus = null) {
+  return evaluate({ repoRoot: PROBE_ROOT, gateBase: PROBE_GATE_BASE, basePath: PROBE_BASE, cachedBaseCensus }, io);
+}
+
+function crashedRunIo() {
+  return typescriptDeclaredIo({
+    run: (binary, argv) => {
+      if (argv.includes('--listFiles')) return { outcome: 'completed', status: 0, stdout: 'src/a.ts\n', stderr: '' };
+      if (argv.includes('--noEmit')) return { outcome: 'completed', status: 3, stdout: '', stderr: 'Debug Failure. False expression.' };
+      return CLEAN_CHILD;
+    },
   });
 }
 
@@ -144,13 +207,22 @@ function failClosedProbe() {
   const emptyReport = parseEslintReport('[]');
   const notAnArray = parseEslintReport('{}');
   const notJson = parseEslintReport('not json');
-  const zeroTypeChecked = evaluate({ repoRoot: PROBE_ROOT, gateBase: PROBE_GATE_BASE, basePath: PROBE_BASE, cachedBaseCensus: null }, tscZeroFilesIo());
+  const zeroTypeChecked = probeEvaluate(tscZeroFilesIo());
+  const chained = censusTscLines([CHAIN_HEAD, CHAIN_TAIL].join('\n'));
+  const otherChain = censusTscLines([CHAIN_HEAD, OTHER_CHAIN_TAIL].join('\n'));
+  const orphan = censusTscLines(CHAIN_TAIL);
+  const crashed = probeEvaluate(crashedRunIo());
   return Object.freeze({
     malformedTscLineHalts: malformed.ok === false && malformed.error.includes('Found 3 errors in 2 files.'),
     wellFormedTscLineParses: wellFormed.ok === true && wellFormed.diagnostics.length === 1,
     zeroFilesRefused: emptyReport.ok === false && /zero files/i.test(emptyReport.error),
     zeroTypeCheckedFilesRefused: zeroTypeChecked.pass === false && /type-checked zero files/.test(zeroTypeChecked.output),
     shapeRefused: notAnArray.ok === false && notJson.ok === false,
+    chainFolded: chained.ok === true && chained.diagnostics.length === 1 && chained.diagnostics[0].message.includes(CHAIN_TAIL.trim()),
+    chainTailsDistinct: chained.ok === true && otherChain.ok === true
+      && structuralIdentity(chained.diagnostics[0], PROBE_ROOT) !== structuralIdentity(otherChain.diagnostics[0], PROBE_ROOT),
+    orphanContinuationHalts: orphan.ok === false && orphan.error.includes(CHAIN_TAIL),
+    crashedRunRefused: crashed.pass === false && /exited 3/.test(crashed.output),
   });
 }
 
@@ -165,22 +237,34 @@ function expectationProbe() {
   });
 }
 
+function failedRemovalIo(removePath) {
+  return probeIo({
+    run: (binary, argv) => (argv.includes('remove')
+      ? { outcome: 'completed', status: 1, stdout: '', stderr: 'fatal: is not a working tree' }
+      : CLEAN_CHILD),
+    removePath,
+  });
+}
+
 function teardownProbe() {
   const io = probeIo({ resolveTool: () => { throw new Error('the tool could not be resolved'); } });
-  const verdict = evaluate({ repoRoot: PROBE_ROOT, gateBase: PROBE_GATE_BASE, basePath: PROBE_BASE, cachedBaseCensus: null }, io);
+  const verdict = probeEvaluate(io);
+  const removals = [];
+  probeEvaluate(failedRemovalIo((path) => { removals.push(path); }));
+  const leaked = probeEvaluate(failedRemovalIo(() => { throw new Error('EACCES: permission denied'); }));
   return Object.freeze({
     tornDownOnThrow: io.spawned.some((command) => command.includes('worktree remove')),
     failedClosed: verdict.pass === false,
+    failedRemovalFallsBack: removals.includes(PROBE_BASE),
+    leakSurfaced: /left behind/.test(leaked.output) && leaked.output.includes(PROBE_BASE),
   });
 }
 
 function materializationProbe() {
   const io = probeIo({
-    run: (binary, argv) => (argv.includes('add')
-      ? { outcome: 'completed', status: 128, stdout: '', stderr: 'fatal: invalid reference' }
-      : { outcome: 'completed', status: 0, stdout: '', stderr: '' }),
+    run: (binary, argv) => (argv.includes('add') ? { outcome: 'completed', status: 128, stdout: '', stderr: 'fatal: invalid reference' } : CLEAN_CHILD),
   });
-  const verdict = evaluate({ repoRoot: PROBE_ROOT, gateBase: PROBE_GATE_BASE, basePath: PROBE_BASE, cachedBaseCensus: null }, io);
+  const verdict = probeEvaluate(io);
   return Object.freeze({ failedClosed: verdict.pass === false && /base worktree/i.test(verdict.output) });
 }
 
@@ -195,7 +279,7 @@ function packageManagerProbe() {
   const resolved = REAL_BOUNDARY_IO.resolvePackageManager('npm');
   const npmEntryResolved = resolved.ok === true && resolved.entry !== process.execPath && resolved.entry.endsWith('.js');
   const io = unserviceableLockfileIo();
-  const verdict = evaluate({ repoRoot: PROBE_ROOT, gateBase: PROBE_GATE_BASE, basePath: PROBE_BASE, cachedBaseCensus: null }, io);
+  const verdict = probeEvaluate(io);
   const unserviceableLockfileRefused = verdict.pass === false && /yarn\.lock/.test(verdict.output) && /yarn/.test(verdict.output);
   const noInstallSpawned = !io.spawned.some((command) => /^node .*install/.test(command));
   return Object.freeze({ npmEntryResolved, unserviceableLockfileRefused, noInstallSpawned });
@@ -207,7 +291,7 @@ function equivalenceProbe() {
   const firstPass = evaluate(request, firstPassIo);
   const collected = collectBase(request, eslintOnlyIo(1, 2));
   if (!collected.ok) {
-    return Object.freeze({ agree: false, collected: false, blocked: false, absentCollects: false, fallbackCollects: false, detail: collected.error });
+    return Object.freeze({ agree: false, collected: false, blocked: false, absentCollects: false, fallbackCollects: false, disagreeingCacheRecollects: false, detail: collected.error });
   }
   const recheck = evaluate({ ...request, cachedBaseCensus: collected.census }, eslintOnlyIo(1, 2));
   const malformedIo = eslintOnlyIo(1, 2);
@@ -215,7 +299,12 @@ function equivalenceProbe() {
   const foreignIo = eslintOnlyIo(1, 2);
   const foreignCensus = { ...collected.census, gateBase: `${collected.census.gateBase}-foreign` };
   const foreign = evaluate({ ...request, cachedBaseCensus: foreignCensus }, foreignIo);
+  const disagreeingIo = eslintOnlyIo(1, 2);
+  const disagreeingCensus = { gateBase: PROBE_GATE_BASE, tools: {}, notExpected: BOUNDARY_TOOLS.map((tool) => tool.name), surface: { root: PROBE_BASE } };
+  const disagreeing = evaluate({ ...request, cachedBaseCensus: disagreeingCensus }, disagreeingIo);
   return Object.freeze({
+    disagreeingCacheRecollects: disagreeing.usedCachedCensus === false
+      && disagreeingIo.spawned.some((command) => command.includes('worktree add')),
     agree: firstPass.pass === recheck.pass && JSON.stringify(firstPass.blocking) === JSON.stringify(recheck.blocking),
     collected: true,
     blocked: firstPass.pass === false,
@@ -252,7 +341,7 @@ function execProbe() {
     realIoRefusesUnlisted = true;
   }
   const declaredIo = probeIo({});
-  evaluate({ repoRoot: PROBE_ROOT, gateBase: PROBE_GATE_BASE, basePath: PROBE_BASE, cachedBaseCensus: null }, declaredIo);
+  probeEvaluate(declaredIo);
   const requested = [...new Set(declaredIo.spawned.map((command) => command.split(' ')[0]))].sort();
   return Object.freeze({
     refusedUnlisted,
@@ -364,41 +453,78 @@ const SUPPRESSION_PROBE_FILES = Object.freeze([
   Object.freeze({ path: 'probe/b.ts', source: '// @ts-expect-error\n' }),
 ]);
 
+function ignoredIn(path, count) {
+  return countSuppressions([Object.freeze({ path, source: '// @ts-ignore\n'.repeat(count) })]);
+}
+
+function probeSurface(root) {
+  return {
+    root,
+    eslintConfig: { rules: { r: 2 } },
+    tsconfigOptions: { strict: true },
+    checkedFiles: [`${root}/a.ts`],
+    commonFiles: ['a.ts'],
+    suppressions: ignoredIn('a.ts', 1),
+  };
+}
+
 function evasionProbe() {
   const counted = countSuppressions(SUPPRESSION_PROBE_FILES);
-  const inherited = compareSuppressions({ '@ts-ignore': 3 }, { '@ts-ignore': 3 });
-  const added = compareSuppressions({ '@ts-ignore': 1 }, { '@ts-ignore': 2 });
-  const removed = compareSuppressions({ '@ts-ignore': 3 }, {});
-  const partlyRemoved = compareSuppressions({ '@ts-ignore': 3 }, { '@ts-ignore': 1 });
+  const inherited = compareSuppressions(ignoredIn('a.ts', 3), ignoredIn('a.ts', 3));
+  const added = compareSuppressions(ignoredIn('a.ts', 1), ignoredIn('a.ts', 2));
+  const removed = compareSuppressions(ignoredIn('a.ts', 3), countSuppressions([]));
+  const partlyRemoved = compareSuppressions(ignoredIn('a.ts', 3), ignoredIn('a.ts', 1));
+  const moved = compareSuppressions(ignoredIn('old.ts', 1), ignoredIn('new.ts', 1));
+  const unkeyed = compareSuppressions({}, { '@ts-ignore': 1 });
   const downgrade = compareRuleSeverity({ rules: { 'no-eq': 2 } }, { rules: { 'no-eq': 1 } });
   const vanished = compareRuleSeverity({ rules: { 'no-eq': 2 } }, { rules: {} });
   const raise = compareRuleSeverity({ rules: { 'no-eq': 1 } }, { rules: { 'no-eq': 2 } });
   const loosened = compareTsconfigFlags({ strict: true }, { strict: false });
   const tightened = compareTsconfigFlags({ strict: false }, { strict: true });
+  const writtenUnsafe = compareTsconfigFlags({}, { skipLibCheck: true });
+  const strictFamilyOff = compareTsconfigFlags({ strict: true }, { strict: true, noImplicitAny: false });
   const unnamed = compareTsconfigFlags({ jsx: 'react' }, { jsx: 'preserve' });
   const unchangedUnnamed = compareTsconfigFlags({ jsx: 'react' }, { jsx: 'react' });
-  const narrowed = compareCheckedFiles(['a.ts', 'b.ts'], ['a.ts'], ['a.ts', 'b.ts']);
-  const deleted = compareCheckedFiles(['a.ts', 'b.ts'], ['a.ts'], ['a.ts']);
-  const addedFile = compareCheckedFiles(['a.ts'], ['a.ts', 'b.ts'], ['a.ts', 'b.ts']);
-  const surface = { eslintConfig: { rules: { r: 2 } }, tsconfigOptions: { strict: true }, checkedFiles: ['a.ts'], commonFiles: ['a.ts'], suppressions: { '@ts-ignore': 1 } };
-  const aggregated = evasionVerdict(surface, surface);
+  const narrowed = compareCheckedFiles(['a.ts', 'b.ts'], ['a.ts'], ['a.ts', 'b.ts'], PROBE_SCOPE_ROOTS);
+  const deleted = compareCheckedFiles(['a.ts', 'b.ts'], ['a.ts'], ['a.ts'], PROBE_SCOPE_ROOTS);
+  const addedFile = compareCheckedFiles(['a.ts'], ['a.ts', 'b.ts'], ['a.ts', 'b.ts'], PROBE_SCOPE_ROOTS);
+  const acrossRoots = compareCheckedFiles(
+    [`${PROBE_BASE}/a.ts`, `${PROBE_BASE}/b.ts`],
+    [`${PROBE_ROOT}/a.ts`],
+    [`${PROBE_ROOT}/a.ts`, `${PROBE_ROOT}/b.ts`],
+    PROBE_SCOPE_ROOTS,
+  );
+  const disjoint = compareCheckedFiles(['/elsewhere/a.ts'], [`${PROBE_ROOT}/a.ts`], [`${PROBE_ROOT}/a.ts`], PROBE_SCOPE_ROOTS);
+  const rootless = compareCheckedFiles(['a.ts'], ['a.ts'], ['a.ts'], null);
+  const baseSurface = probeSurface(PROBE_BASE);
+  const headSurface = probeSurface(PROBE_ROOT);
+  const aggregated = evasionVerdict(baseSurface, headSurface);
+  const withoutSuppressions = evasionVerdict({ ...baseSurface, suppressions: undefined }, { ...headSurface, suppressions: undefined });
+  const withoutCheckedFiles = evasionVerdict({ ...baseSurface, checkedFiles: undefined }, { ...headSurface, checkedFiles: undefined });
   return Object.freeze({
-    longestSpellingWins: counted['eslint-disable-next-line'] === 1 && counted['eslint-disable'] === 1 && counted['@ts-expect-error'] === 1,
+    longestSpellingWins: counted[suppressionKey('probe/a.ts', 'eslint-disable-next-line')] === 1
+      && counted[suppressionKey('probe/a.ts', 'eslint-disable')] === 1
+      && counted[suppressionKey('probe/b.ts', '@ts-expect-error')] === 1,
     directiveCount: SUPPRESSION_DIRECTIVES.length,
     inheritedPasses: inherited.pass === true,
     partlyRemovedPasses: partlyRemoved.pass === true,
     addedBlocks: added.pass === false && added.blocking.length === 1 && added.blocking[0].surplus === 1,
     removedPasses: removed.pass === true,
+    movedSuppressionBlocks: moved.pass === false && moved.blocking.length === 1 && moved.blocking[0].path === 'new.ts',
+    unkeyedCountHalts: unkeyed.halted === true && unkeyed.error.includes('@ts-ignore'),
     downgradeBlocks: downgrade.pass === false,
     vanishedRuleBlocks: vanished.pass === false,
     raisePasses: raise.pass === true,
     loosenedFlagBlocks: loosened.pass === false,
     tightenedFlagPasses: tightened.pass === true,
+    absentThenUnsafeBlocks: writtenUnsafe.pass === false && strictFamilyOff.pass === false,
     unnamedOptionHalts: unnamed.halted === true && unnamed.error.includes('jsx'),
     unchangedUnnamedOptionPasses: unchangedUnnamed.halted === false && unchangedUnnamed.pass === true,
-    narrowingBlocks: narrowed.pass === false,
+    narrowingBlocks: narrowed.pass === false && acrossRoots.pass === false,
     deletionPasses: deleted.pass === true,
     additionPasses: addedFile.pass === true,
+    vacuousScopeHalts: disjoint.halted === true && rootless.halted === true,
+    absentSurfaceHalts: withoutSuppressions.halted === true && withoutCheckedFiles.halted === true,
     aggregatePasses: aggregated.pass === true && aggregated.halted === false,
     flagCount: Object.keys(TSCONFIG_STRICTNESS_FLAGS).length,
   });
@@ -416,6 +542,7 @@ export function probeBoundarySubstrate() {
     teardown: teardownProbe(),
     materialization: materializationProbe(),
     packageManager: packageManagerProbe(),
+    toolResolution: toolResolutionProbe(),
     equivalence: equivalenceProbe(),
     exec: execProbe(),
   });
@@ -436,6 +563,12 @@ export function boundaryParityFailures(substrate) {
   }
   if (!identity.codesDistinct || !identity.codeKept) {
     failures.push('two distinct diagnostic codes carrying the same message now collapse to one identity, so a new error class hidden behind an existing message would not block; the normalization must keep the code verbatim rather than stripping every digit');
+  }
+  if (!identity.directoriesDistinct) {
+    failures.push('two findings that differ only in their directory now collapse to one identity, so a finding fixed in one directory pays for the identical finding introduced in another and a real new error ships; the file component is normalized per field to a path relative to its side root rather than reduced to a basename');
+  }
+  if (!identity.rootsAgree) {
+    failures.push('one file observed under the two worktree roots no longer normalizes to one identity, so every finding on the head side reads as new and the gate blocks whatever this MSP touched');
   }
   const comparator = substrate.comparator;
   if (!comparator.unchangedPasses) {
@@ -466,6 +599,18 @@ export function boundaryParityFailures(substrate) {
   if (!failClosed.shapeRefused) {
     failures.push('an eslint report that is not an array of file entries is now accepted, so an unparseable collection would be read as no findings');
   }
+  if (!failClosed.chainFolded) {
+    failures.push('a chained tsc diagnostic no longer folds its indented continuation into the diagnostic above it, so any base commit carrying one chained type error halts the census and the gate can never pass');
+  }
+  if (!failClosed.chainTailsDistinct) {
+    failures.push('two chains sharing a head and differing in the tail now collapse to one identity, so the folded text never reached the identity and a second, different error hides behind the first');
+  }
+  if (!failClosed.orphanContinuationHalts) {
+    failures.push('an indented line with no diagnostic above it is now folded into nothing rather than halting with the line quoted, which is the catch-all bucket the census exists to refuse');
+  }
+  if (!failClosed.crashedRunRefused) {
+    failures.push('a collection child that exited outside the statuses its tool exits with when it ran is now read as a side carrying no findings, so a crashed type-check would pass as clean');
+  }
   const expectation = substrate.expectation;
   if (!expectation.bothSidesBareIsNotExpected) {
     failures.push('a tool absent from both sides is no longer reported NOT-EXPECTED, so the legitimately empty lint and type dimension would block');
@@ -481,6 +626,22 @@ export function boundaryParityFailures(substrate) {
   }
   if (!substrate.teardown.failedClosed) {
     failures.push('a throw mid-collection no longer fails closed, so a collection that never completed would be reported as a verdict');
+  }
+  if (!substrate.teardown.failedRemovalFallsBack) {
+    failures.push('a worktree remove that exited non-zero no longer reaches the fallback path removal; the removal returns a result on a non-zero exit rather than throwing, so a teardown that only catches a throw leaves the base worktree behind');
+  }
+  if (!substrate.teardown.leakSurfaced) {
+    failures.push('a base worktree that could not be removed at all is no longer named in the verdict, so the leak is swallowed by the teardown rather than reported to the reader of the receipt');
+  }
+  const toolResolution = substrate.toolResolution;
+  if (!toolResolution.absentToolRefused) {
+    failures.push('the tool resolver no longer refuses a path that does not exist, so it hands back an unexecutable path and the spawn fails as a module-not-found whose empty output is read as a clean side');
+  }
+  if (!toolResolution.executablesNamed) {
+    failures.push('the type-check leg no longer names the executable its package installs under node_modules/.bin, so the child would be spawned on a path npm never creates');
+  }
+  if (!toolResolution.unresolvableRefused) {
+    failures.push('a tool the resolver refused is no longer surfaced as a refusal naming the path tried, so the run is blamed on the repository config rather than on the missing executable');
   }
   if (!substrate.materialization.failedClosed) {
     failures.push('a base worktree that fails to materialize no longer fails closed, so the gate would compare HEAD against a base it never collected');
@@ -507,6 +668,9 @@ export function boundaryParityFailures(substrate) {
   if (!equivalence.fallbackCollects) {
     failures.push('a cached census that is malformed or keyed to another base is no longer refused and re-collected, so the recheck would treat an unvalidated base as authoritative');
   }
+  if (!equivalence.disagreeingCacheRecollects) {
+    failures.push('a well-formed cached census that names every tool NOT-EXPECTED is no longer refused against the trees, so a supplied census decides what is expected and the whole gate passes having spawned no child at all');
+  }
   const exec = substrate.exec;
   if (!exec.refusedUnlisted) {
     failures.push(`${JSON.stringify(UNLISTED_PROBE_BINARY)} is not on the spawn allowlist yet the chokepoint let it through; every collection command this program names must be reached through an allowlisted binary`);
@@ -532,6 +696,21 @@ export function boundaryParityFailures(substrate) {
   }
   if (!evasion.addedBlocks) {
     failures.push('an added suppression no longer blocks, so the gate could be passed by suppressing a finding rather than by fixing it, which is the whole evasion the scan exists to catch');
+  }
+  if (!evasion.movedSuppressionBlocks) {
+    failures.push('a suppression removed in one file and added in another no longer blocks, so the counts are kept per directive across every file and a removal pays for an addition that silences a brand-new finding');
+  }
+  if (!evasion.unkeyedCountHalts) {
+    failures.push('a suppression count key that names no file is now compared rather than halting, so a per-directive total slips back in through the comparison the per-file keying exists to prevent');
+  }
+  if (!evasion.absentThenUnsafeBlocks) {
+    failures.push('a strictness flag absent at base and written to its unsafe value at HEAD no longer blocks, so the common real shape of the evasion passes; an absent value takes the compiler default the declared table names rather than the negation of the safe value');
+  }
+  if (!evasion.vacuousScopeHalts) {
+    failures.push('a checked-scope comparison whose two file lists share nothing, or which was given no roots to normalize against, now passes rather than halting; that is the permanently vacuous pass the real wiring produces, since each side lists its own absolute paths');
+  }
+  if (!evasion.absentSurfaceHalts) {
+    failures.push('a surface missing its suppression counts or its checked-file list now defaults to empty rather than halting, and an empty default reports no evasion for every input');
   }
   if (!evasion.downgradeBlocks || !evasion.vanishedRuleBlocks) {
     failures.push('a rule severity downgrade in the resolved rule map no longer blocks, so the gate could be passed by lowering a rule to warn or off, or by dropping it from the resolved config entirely');
@@ -605,9 +784,10 @@ function boundaryPayload(substrate) {
     toolCount: BOUNDARY_TOOLS.length,
     tools: BOUNDARY_TOOLS.map((tool) => tool.name),
     normalizationSteps: NORMALIZATION_STEPS.map((step) => step.name),
+    identityComponents: IDENTITY_COMPONENTS.map((component) => `${component.name}: ${component.steps.length === 0 ? 'verbatim' : component.steps.map((step) => step.name).join(', ')}`),
     suppressionDirectives: [...SUPPRESSION_DIRECTIVES],
     strictnessFlagCount: substrate.evasion.flagCount,
-    evasionClassifiers: ['added-suppression', 'rule-severity', 'tsconfig-strictness', 'checked-scope'],
+    declaredButUnwiredEvasionClassifiers: ['added-suppression', 'rule-severity', 'tsconfig-strictness', 'checked-scope'],
     censusControls: substrate.controls.map((control) => `${control.name}: ${control.anchorPresent && control.halted && control.named ? 'halted and named' : 'INERT'}`),
     requestedBinaries: [...substrate.exec.requestedBinaries],
     modelInvocationsRemaining: census.siteCount,

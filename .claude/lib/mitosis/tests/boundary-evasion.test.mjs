@@ -9,45 +9,79 @@ import {
   compareSuppressions,
   compareTsconfigFlags,
   countSuppressions,
+  evasionVerdict,
+  suppressionKey,
 } from '../boundary-evasion.mjs';
 
 const file = (path, source) => Object.freeze({ path, source });
+const ROOTS = Object.freeze({ base: '/base-wt', head: '/repo' });
 
-test('every declared suppression directive is counted, and the longest spelling wins over its prefix', () => {
+test('every declared suppression directive is counted per file, and the longest spelling wins over its prefix', () => {
   const counts = countSuppressions([
     file('a.ts', '// eslint-disable-next-line no-eq\n// eslint-disable no-eq\n'),
     file('b.ts', '// @ts-expect-error\n// @ts-ignore\n'),
   ]);
-  assert.equal(counts['eslint-disable-next-line'], 1);
-  assert.equal(counts['eslint-disable'], 1);
-  assert.equal(counts['@ts-expect-error'], 1);
-  assert.equal(counts['@ts-ignore'], 1);
+  assert.equal(counts[suppressionKey('a.ts', 'eslint-disable-next-line')], 1);
+  assert.equal(counts[suppressionKey('a.ts', 'eslint-disable')], 1);
+  assert.equal(counts[suppressionKey('b.ts', '@ts-expect-error')], 1);
+  assert.equal(counts[suppressionKey('b.ts', '@ts-ignore')], 1);
+  assert.equal(counts[suppressionKey('a.ts', '@ts-ignore')], undefined);
   assert.ok(SUPPRESSION_DIRECTIVES.length >= 5);
 });
 
+const ignored = (count) => '// @ts-ignore\n'.repeat(count);
+
 test('a pre-existing suppression does not block, because the rule counts the surplus rather than presence', () => {
-  const verdict = compareSuppressions({ '@ts-ignore': 3 }, { '@ts-ignore': 3 });
+  const verdict = compareSuppressions(
+    countSuppressions([file('a.ts', ignored(3))]),
+    countSuppressions([file('a.ts', ignored(3))]),
+  );
   assert.equal(verdict.pass, true);
   assert.deepEqual(verdict.blocking, []);
 });
 
-test('an added suppression blocks, naming the directive and the surplus', () => {
-  const verdict = compareSuppressions({ '@ts-ignore': 1 }, { '@ts-ignore': 2 });
+test('an added suppression blocks, naming the file, the directive and the surplus', () => {
+  const verdict = compareSuppressions(
+    countSuppressions([file('a.ts', ignored(1))]),
+    countSuppressions([file('a.ts', ignored(2))]),
+  );
   assert.equal(verdict.pass, false);
   assert.equal(verdict.blocking.length, 1);
+  assert.equal(verdict.blocking[0].path, 'a.ts');
   assert.equal(verdict.blocking[0].directive, '@ts-ignore');
   assert.equal(verdict.blocking[0].surplus, 1);
 });
 
 test('a removed suppression does not block and the count does not underflow', () => {
-  const verdict = compareSuppressions({ '@ts-ignore': 3 }, {});
+  const verdict = compareSuppressions(countSuppressions([file('a.ts', ignored(3))]), countSuppressions([]));
   assert.equal(verdict.pass, true);
 });
 
 test('a suppression still present at a lower count does not block', () => {
-  const verdict = compareSuppressions({ '@ts-ignore': 3 }, { '@ts-ignore': 1 });
+  const verdict = compareSuppressions(
+    countSuppressions([file('a.ts', ignored(3))]),
+    countSuppressions([file('a.ts', ignored(1))]),
+  );
   assert.equal(verdict.pass, true);
   assert.deepEqual(verdict.blocking, []);
+});
+
+test('a suppression removed in one file and added in another blocks rather than netting out', () => {
+  const verdict = compareSuppressions(
+    countSuppressions([file('old.ts', ignored(1))]),
+    countSuppressions([file('new.ts', ignored(1))]),
+  );
+  assert.equal(verdict.pass, false, 'the counts are kept per directive across every file, so a removal paid for an addition');
+  assert.equal(verdict.blocking.length, 1);
+  assert.equal(verdict.blocking[0].path, 'new.ts');
+  assert.equal(verdict.blocking[0].directive, '@ts-ignore');
+});
+
+test('a suppression count key that names no file halts rather than being read as one file', () => {
+  const verdict = compareSuppressions({}, { '@ts-ignore': 1 });
+  assert.equal(verdict.halted, true);
+  assert.equal(verdict.pass, false);
+  assert.match(verdict.error, /@ts-ignore/);
 });
 
 test('a rule severity downgrade blocks in the resolved rule map, and a raise does not', () => {
@@ -76,6 +110,24 @@ test('a declared strictness flag moved away from its safe value blocks', () => {
   assert.ok(Object.keys(TSCONFIG_STRICTNESS_FLAGS).length >= 10);
 });
 
+test('a false-safe flag absent at base and switched on at HEAD blocks, because absent is the safe compiler default', () => {
+  assert.equal(compareTsconfigFlags({}, { skipLibCheck: true }).pass, false, 'an absent flag was read as already unsafe, so writing it for the first time never blocks');
+  assert.equal(compareTsconfigFlags({}, { suppressExcessPropertyErrors: true }).pass, false);
+  assert.equal(compareTsconfigFlags({}, { skipDefaultLibCheck: true }).pass, false);
+  assert.equal(compareTsconfigFlags({}, { allowUnreachableCode: true }).pass, false);
+});
+
+test('a true-safe flag absent on both sides is not read as a loosening, because absent is its compiler default', () => {
+  assert.equal(compareTsconfigFlags({}, { strict: true }).pass, true);
+  assert.equal(compareTsconfigFlags({ strict: true }, { strict: true, skipLibCheck: false }).pass, true);
+});
+
+test('a strict-family flag switched off under strict blocks, because strict is its compiler default', () => {
+  const verdict = compareTsconfigFlags({ strict: true }, { strict: true, noImplicitAny: false });
+  assert.equal(verdict.pass, false, 'the strict family took a false default under strict:true, so switching one off never blocks');
+  assert.equal(verdict.blocking[0].flag, 'noImplicitAny');
+});
+
 test('a changed compiler option outside the declared table halts with the key named, never bucketed', () => {
   const verdict = compareTsconfigFlags({ target: 'ES2020' }, { target: 'ES5' });
   assert.equal(verdict.halted, true);
@@ -90,19 +142,42 @@ test('an unchanged compiler option outside the declared table does not halt', ()
 });
 
 test('a narrowed checked-file set blocks, restricted to files present on both sides', () => {
-  const narrowed = compareCheckedFiles(['a.ts', 'b.ts'], ['a.ts'], ['a.ts', 'b.ts']);
+  const narrowed = compareCheckedFiles(['a.ts', 'b.ts'], ['a.ts'], ['a.ts', 'b.ts'], ROOTS);
   assert.equal(narrowed.pass, false);
   assert.match(narrowed.blocking[0].detail, /b\.ts/);
 });
 
 test('a legitimately deleted source file is not read as narrowing', () => {
-  const deleted = compareCheckedFiles(['a.ts', 'b.ts'], ['a.ts'], ['a.ts']);
+  const deleted = compareCheckedFiles(['a.ts', 'b.ts'], ['a.ts'], ['a.ts'], ROOTS);
   assert.equal(deleted.pass, true);
 });
 
 test('a legitimately added source file is not read as narrowing', () => {
-  const added = compareCheckedFiles(['a.ts'], ['a.ts', 'c.ts'], ['a.ts', 'c.ts']);
+  const added = compareCheckedFiles(['a.ts'], ['a.ts', 'c.ts'], ['a.ts', 'c.ts'], ROOTS);
   assert.equal(added.pass, true);
+});
+
+test('the two sides are compared repo-relative, so one file listed under two worktree roots is one file', () => {
+  const narrowed = compareCheckedFiles(
+    [`${ROOTS.base}/a.ts`, `${ROOTS.base}/b.ts`],
+    [`${ROOTS.head}/a.ts`],
+    [`${ROOTS.head}/a.ts`, `${ROOTS.head}/b.ts`],
+    ROOTS,
+  );
+  assert.equal(narrowed.pass, false, 'two absolute file lists under different roots never intersected, so the narrowing was invisible');
+  assert.match(narrowed.blocking[0].detail, /b\.ts/);
+});
+
+test('two file lists that share no file at all halt rather than passing vacuously', () => {
+  const vacuous = compareCheckedFiles(['/elsewhere/a.ts'], [`${ROOTS.head}/a.ts`], [`${ROOTS.head}/a.ts`], ROOTS);
+  assert.equal(vacuous.halted, true, 'an empty intersection was read as a clean result rather than as a path-form mismatch');
+  assert.equal(vacuous.pass, false);
+});
+
+test('a checked-file comparison given no roots halts rather than comparing raw path text', () => {
+  const verdict = compareCheckedFiles(['a.ts'], ['a.ts'], ['a.ts'], null);
+  assert.equal(verdict.halted, true);
+  assert.equal(verdict.pass, false);
 });
 
 test('the resolved-config comparison aggregates the three classifiers and halts on the residue', () => {
@@ -111,11 +186,40 @@ test('the resolved-config comparison aggregates the three classifiers and halts 
     tsconfigOptions: { strict: true },
     checkedFiles: ['a.ts'],
     commonFiles: ['a.ts'],
+    root: ROOTS.base,
   };
-  assert.equal(compareResolvedConfig(base, base).pass, true);
-  const downgraded = compareResolvedConfig(base, { ...base, eslintConfig: { rules: { 'no-eq': 1 } } });
+  const head = { ...base, root: ROOTS.head };
+  assert.equal(compareResolvedConfig(base, head).pass, true);
+  const downgraded = compareResolvedConfig(base, { ...head, eslintConfig: { rules: { 'no-eq': 1 } } });
   assert.equal(downgraded.pass, false);
-  const residue = compareResolvedConfig(base, { ...base, tsconfigOptions: { strict: true, jsx: 'react' } });
+  const residue = compareResolvedConfig(base, { ...head, tsconfigOptions: { strict: true, jsx: 'react' } });
   assert.equal(residue.halted, true);
   assert.match(residue.error, /jsx/);
+});
+
+test('a surface carrying no checked-file list halts rather than defaulting to an empty one', () => {
+  const surface = { eslintConfig: { rules: {} }, tsconfigOptions: {}, root: ROOTS.head };
+  const verdict = compareResolvedConfig({ ...surface, root: ROOTS.base }, surface);
+  assert.equal(verdict.halted, true, 'a missing checked-file list defaulted to empty, which passes for every input');
+  assert.match(verdict.error, /checkedFiles/);
+});
+
+test('a surface carrying no common-file list halts rather than defaulting to an empty one', () => {
+  const surface = { eslintConfig: { rules: {} }, tsconfigOptions: {}, checkedFiles: ['a.ts'], root: ROOTS.head };
+  const verdict = compareResolvedConfig({ ...surface, root: ROOTS.base }, surface);
+  assert.equal(verdict.halted, true);
+  assert.match(verdict.error, /commonFiles/);
+});
+
+test('a surface carrying no suppression counts halts rather than defaulting to none', () => {
+  const surface = {
+    eslintConfig: { rules: {} },
+    tsconfigOptions: {},
+    checkedFiles: ['a.ts'],
+    commonFiles: ['a.ts'],
+    root: ROOTS.head,
+  };
+  const verdict = evasionVerdict({ ...surface, root: ROOTS.base }, surface);
+  assert.equal(verdict.halted, true, 'a missing suppression count defaulted to none, which reports no added suppression for every input');
+  assert.match(verdict.error, /suppressions/);
 });

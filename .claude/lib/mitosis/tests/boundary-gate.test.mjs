@@ -1,6 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { existsSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import {
   BOUNDARY_TOOLS,
   NORMALIZATION_STEPS,
@@ -9,6 +11,7 @@ import {
   collectBase,
   compareCensuses,
   evaluate,
+  observeSide,
   parseEslintReport,
   structuralIdentity,
   toolExpectation,
@@ -16,6 +19,7 @@ import {
 
 const ROOT = '/repo';
 const BASE = '/tmp/base-wt';
+const ABSENT_ROOT = '/no-such-root-for-the-boundary-gate-probe';
 
 function tscLine(file, line, col, code, message) {
   return `${file}(${line},${col}): error ${code}: ${message}`;
@@ -43,7 +47,7 @@ function fixtureIo(overrides) {
     makeDir: () => {},
     symlink: () => {},
     removePath: (path) => { removed.push(path); },
-    resolveTool: (name, root) => `${root}/node_modules/${name}/bin/${name}.js`,
+    resolveTool: (name, root) => ({ ok: true, path: `${root}/node_modules/.bin/${name}` }),
     resolvePackageManager: () => ({ ok: true, entry: '/pm/npm-cli.js' }),
   };
   const merged = { ...base, ...overrides, spawned, removed };
@@ -75,6 +79,18 @@ test('two distinct TS codes with the same message do not collapse to one identit
   const a = structuralIdentity({ file: 'src/a.ts', code: 'TS2345', message: 'Type is wrong' });
   const b = structuralIdentity({ file: 'src/a.ts', code: 'TS2339', message: 'Type is wrong' });
   assert.notEqual(a, b);
+});
+
+test('two findings that differ only in their directory do not collapse to one identity', () => {
+  const inSource = structuralIdentity({ file: `${ROOT}/src/a.ts`, code: 'no-eq', message: 'bad' }, ROOT);
+  const inLib = structuralIdentity({ file: `${ROOT}/lib/a.ts`, code: 'no-eq', message: 'bad' }, ROOT);
+  assert.notEqual(inSource, inLib, 'the file component collapsed to its basename, so a finding moved between directories reads as the same finding');
+});
+
+test('one finding observed under two worktree roots normalizes to one identity', () => {
+  const head = structuralIdentity({ file: `${ROOT}/src/a.ts`, code: 'no-eq', message: 'bad' }, ROOT);
+  const base = structuralIdentity({ file: '/tmp/base wt/src/a.ts', code: 'no-eq', message: 'bad' }, '/tmp/base wt');
+  assert.equal(head, base, 'the same file under two roots normalized differently, so every finding would read as new');
 });
 
 test('the normalization steps are a declared ordered list, not a blanket digit strip', () => {
@@ -308,6 +324,214 @@ test('a divergent yarn.lock refuses the gate before any install child spawns, na
   assert.ok(
     !io.spawned.some((command) => /^node .*install/.test(command)),
     `an install child was spawned for an unserviceable lockfile: ${JSON.stringify(io.spawned)}`,
+  );
+});
+
+test('the shipped resolveTool refuses a path that does not exist, naming the path it tried', () => {
+  const refused = REAL_BOUNDARY_IO.resolveTool('typescript', ABSENT_ROOT);
+  assert.equal(refused.ok, false, `the resolver handed back ${JSON.stringify(refused)} for a path nothing installs, so the spawn would fail as a module-not-found rather than as a refusal`);
+  assert.match(refused.error, /node_modules\/\.bin\/typescript/);
+});
+
+test('the shipped resolveTool resolves an executable a package really installed under .bin', () => {
+  const root = mkdtempSync(join(tmpdir(), 'boundary-resolve-tool-'));
+  try {
+    mkdirSync(join(root, 'node_modules', '.bin'), { recursive: true });
+    writeFileSync(join(root, 'node_modules', '.bin', 'tsc'), '');
+    const resolved = REAL_BOUNDARY_IO.resolveTool('tsc', root);
+    assert.equal(resolved.ok, true, `the resolver refused an executable that exists: ${JSON.stringify(resolved)}`);
+    assert.equal(resolved.path, join(root, 'node_modules', '.bin', 'tsc'));
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('the tsc leg spawns the executable the typescript package installs, not the package name', () => {
+  const io = fixtureIo({
+    exists: (path) => String(path).includes('tsconfig.json') || String(path).endsWith('package.json'),
+    readFile: () => JSON.stringify({ devDependencies: { typescript: '5.0.0' } }),
+    run: (binary, argv) => (argv.includes('--listFiles')
+      ? { outcome: 'completed', status: 0, stdout: 'src/a.ts\n', stderr: '' }
+      : { outcome: 'completed', status: 0, stdout: '', stderr: '' }),
+  });
+  evaluate({ repoRoot: ROOT, gateBase: 'abc123', basePath: BASE, cachedBaseCensus: null }, io);
+  const typeRuns = io.spawned.filter((command) => command.includes('--noEmit'));
+  assert.ok(typeRuns.length > 0, `no type-check child was requested at all: ${JSON.stringify(io.spawned)}`);
+  for (const command of typeRuns) {
+    const requested = command.split(' ')[1];
+    assert.equal(requested.split('/').pop(), 'tsc', `the program named ${JSON.stringify(requested)}, and npm installs no executable under that name`);
+  }
+});
+
+test('a tool whose executable cannot be resolved refuses naming the path tried rather than spawning it', () => {
+  const io = fixtureIo({
+    exists: (path) => String(path).includes('tsconfig.json') || String(path).endsWith('package.json'),
+    readFile: () => JSON.stringify({ devDependencies: { typescript: '5.0.0' } }),
+    resolveTool: (name, root) => ({ ok: false, error: `no executable exists at ${root}/node_modules/.bin/${name}` }),
+  });
+  const verdict = evaluate({ repoRoot: ROOT, gateBase: 'abc123', basePath: BASE, cachedBaseCensus: null }, io);
+  assert.equal(verdict.pass, false);
+  assert.match(verdict.output, /node_modules\/\.bin\/tsc/);
+});
+
+test('a finding fixed in one directory and reintroduced in another blocks rather than netting out', () => {
+  const io = fixtureIo({
+    exists: (path) => String(path).includes('eslint.config') || String(path).endsWith('package.json'),
+    readFile: () => JSON.stringify({ devDependencies: { eslint: '9.0.0' } }),
+    run: (binary, argv) => {
+      if (!argv.some((value) => String(value).includes('eslint'))) return { outcome: 'completed', status: 0, stdout: '', stderr: '' };
+      const onBase = argv.some((value) => String(value).startsWith(BASE));
+      return {
+        outcome: 'completed',
+        status: 1,
+        stdout: eslintReport([[onBase ? `${BASE}/src/a.ts` : `${ROOT}/lib/a.ts`, [['no-eq', 'bad', 1, 1]]]]),
+        stderr: '',
+      };
+    },
+  });
+  const verdict = evaluate({ repoRoot: ROOT, gateBase: 'abc123', basePath: BASE, cachedBaseCensus: null }, io);
+  assert.equal(verdict.pass, false, `an error introduced in a second directory did not block: ${verdict.output}`);
+  assert.match(verdict.blocking[0].identity, /lib\/a\.ts/);
+});
+
+test('a chained tsc diagnostic folds its continuation lines into the message rather than halting the census', () => {
+  const census = censusTscLines([
+    "src/index.ts(5,9): error TS2322: Type 'X' is not assignable to type 'Y'.",
+    "  Types of parameters 's' and 'n' are incompatible.",
+    "    Type 'string' is not assignable to type 'number'.",
+  ].join('\n'));
+  assert.equal(census.ok, true, census.error);
+  assert.equal(census.diagnostics.length, 1);
+  assert.match(census.diagnostics[0].message, /Types of parameters/);
+  assert.match(census.diagnostics[0].message, /not assignable to type 'number'/);
+});
+
+test('two chains sharing a head and differing in the tail do not collapse to one identity', () => {
+  const head = "src/index.ts(5,9): error TS2322: Type 'X' is not assignable to type 'Y'.";
+  const one = censusTscLines([head, "  Types of parameters 's' and 'n' are incompatible."].join('\n'));
+  const two = censusTscLines([head, "  Types of parameters 'a' and 'b' are incompatible."].join('\n'));
+  assert.equal(one.ok, true, one.error);
+  assert.equal(two.ok, true, two.error);
+  assert.notEqual(
+    structuralIdentity(one.diagnostics[0], ROOT),
+    structuralIdentity(two.diagnostics[0], ROOT),
+    'the folded chain never reached the identity, so two different errors share one',
+  );
+});
+
+test('an indented line with no preceding diagnostic halts with the line quoted rather than folding into nothing', () => {
+  const halted = censusTscLines("  Types of parameters 's' and 'n' are incompatible.");
+  assert.equal(halted.ok, false);
+  assert.match(halted.error, /Types of parameters/);
+});
+
+test('the base worktree argv terminates its options before the positionals', () => {
+  const io = fixtureIo({ readFile: () => JSON.stringify({ devDependencies: { typescript: '5.0.0' } }) });
+  evaluate({ repoRoot: ROOT, gateBase: 'abc123', basePath: BASE, cachedBaseCensus: null }, io);
+  const added = io.spawned.find((command) => command.includes('worktree add'));
+  assert.ok(added !== undefined, `no worktree add was requested: ${JSON.stringify(io.spawned)}`);
+  assert.match(added, /worktree add --detach -- /, 'the positionals are not terminated, so a gateBase spelled like an option would be parsed as one');
+});
+
+test('a gateBase that is not a ref or sha shape is refused rather than silently detaching at HEAD', () => {
+  const io = fixtureIo({ readFile: () => JSON.stringify({ devDependencies: { typescript: '5.0.0' } }) });
+  assert.throws(
+    () => evaluate({ repoRoot: ROOT, gateBase: '--force', basePath: BASE, cachedBaseCensus: null }, io),
+    /gateBase/,
+    'a gateBase spelled like an option was accepted, and git would detach at HEAD and report a passing verdict',
+  );
+});
+
+test('a basePath that is not absolute is refused rather than resolved against an unknown working directory', () => {
+  const io = fixtureIo({ readFile: () => JSON.stringify({ devDependencies: { typescript: '5.0.0' } }) });
+  assert.throws(
+    () => evaluate({ repoRoot: ROOT, gateBase: 'abc123', basePath: 'relative/base', cachedBaseCensus: null }, io),
+    /basePath/,
+  );
+});
+
+test('a cached census whose NOT-EXPECTED disagrees with the trees is refused and the base re-collected', () => {
+  const io = collectibleEslintIo();
+  const cached = { gateBase: 'abc123', tools: {}, notExpected: ['eslint', 'tsc'], surface: { root: BASE } };
+  const verdict = evaluate({ repoRoot: ROOT, gateBase: 'abc123', basePath: BASE, cachedBaseCensus: cached }, io);
+  assert.equal(verdict.usedCachedCensus, false, 'a supplied census decided that every tool was NOT-EXPECTED, which disables the gate with no child spawned');
+  assert.ok(
+    io.spawned.some((command) => command.includes('worktree add')),
+    `the base was not re-collected against the real trees: ${JSON.stringify(io.spawned)}`,
+  );
+});
+
+test('a worktree remove that exits non-zero falls back to removing the base path', () => {
+  const io = fixtureIo({
+    readFile: () => JSON.stringify({ devDependencies: { typescript: '5.0.0' } }),
+    run: (binary, argv) => (argv.includes('remove')
+      ? { outcome: 'completed', status: 1, stdout: '', stderr: 'fatal: is not a working tree' }
+      : { outcome: 'completed', status: 0, stdout: '', stderr: '' }),
+  });
+  evaluate({ repoRoot: ROOT, gateBase: 'abc123', basePath: BASE, cachedBaseCensus: null }, io);
+  assert.ok(io.removed.includes(BASE), `a failed worktree remove never reached the fallback removal: ${JSON.stringify(io.removed)}`);
+});
+
+test('a base worktree that could not be removed at all names the leaked path in the verdict', () => {
+  const io = fixtureIo({
+    readFile: () => JSON.stringify({ devDependencies: { typescript: '5.0.0' } }),
+    run: (binary, argv) => (argv.includes('remove')
+      ? { outcome: 'completed', status: 1, stdout: '', stderr: 'fatal: is not a working tree' }
+      : { outcome: 'completed', status: 0, stdout: '', stderr: '' }),
+    removePath: () => { throw new Error('EACCES: permission denied'); },
+  });
+  const verdict = evaluate({ repoRoot: ROOT, gateBase: 'abc123', basePath: BASE, cachedBaseCensus: null }, io);
+  assert.match(verdict.output, /left behind/, `a leaked base worktree was not surfaced: ${verdict.output}`);
+  assert.match(verdict.output, /base-wt/);
+});
+
+test('a config name that escapes the worktree root is not positively observed', () => {
+  const observation = observeSide(
+    ROOT,
+    Object.freeze({ name: 'probe', dependencies: Object.freeze([]), configNames: Object.freeze(['../outside/eslint.config.js']) }),
+    { exists: () => true, readFile: () => '{}' },
+  );
+  assert.equal(observation.observed, false, 'a config path that resolves outside the root was read as a positive observation of the side');
+  assert.match(observation.reason, /outside the worktree root/);
+});
+
+test('a tsc diagnostic run that crashed with empty stdout is refused rather than read as no findings', () => {
+  const io = fixtureIo({
+    exists: (path) => String(path).includes('tsconfig.json') || String(path).endsWith('package.json'),
+    readFile: () => JSON.stringify({ devDependencies: { typescript: '5.0.0' } }),
+    run: (binary, argv) => {
+      if (argv.includes('--listFiles')) return { outcome: 'completed', status: 0, stdout: 'src/a.ts\n', stderr: '' };
+      if (argv.includes('--noEmit')) return { outcome: 'completed', status: 3, stdout: '', stderr: 'Debug Failure. False expression.' };
+      return { outcome: 'completed', status: 0, stdout: '', stderr: '' };
+    },
+  });
+  const verdict = evaluate({ repoRoot: ROOT, gateBase: 'abc123', basePath: BASE, cachedBaseCensus: null }, io);
+  assert.equal(verdict.pass, false, 'a crashed type-check run was read as a side carrying no findings');
+  assert.match(verdict.output, /exited 3/);
+});
+
+test('an eslint run that exits outside the statuses it exits with when it ran is refused naming the status', () => {
+  const io = fixtureIo({
+    exists: (path) => String(path).includes('eslint.config') || String(path).endsWith('package.json'),
+    readFile: () => JSON.stringify({ devDependencies: { eslint: '9.0.0' } }),
+    run: (binary, argv) => (argv.some((value) => String(value).includes('eslint'))
+      ? { outcome: 'completed', status: 2, stdout: '', stderr: 'Cannot read config file: eslint.config.js' }
+      : { outcome: 'completed', status: 0, stdout: '', stderr: '' }),
+  });
+  const verdict = evaluate({ repoRoot: ROOT, gateBase: 'abc123', basePath: BASE, cachedBaseCensus: null }, io);
+  assert.equal(verdict.pass, false);
+  assert.match(verdict.output, /exited 2/);
+});
+
+test('a lockfile present on one side only is a divergence rather than a shared node_modules link', () => {
+  const io = fixtureIo({
+    exists: (path) => String(path) !== `${BASE}/package-lock.json`,
+    readFile: () => '{}',
+  });
+  const verdict = evaluate({ repoRoot: ROOT, gateBase: 'abc123', basePath: BASE, cachedBaseCensus: null }, io);
+  assert.ok(
+    io.spawned.includes('node /pm/npm-cli.js install --no-audit --no-fund'),
+    `a lockfile present on one side only took the shared-link path: ${JSON.stringify(io.spawned)}; verdict=${verdict.output}`,
   );
 });
 

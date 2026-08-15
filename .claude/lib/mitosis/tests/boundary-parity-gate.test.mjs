@@ -30,6 +30,27 @@ test('every attest is a sentence long enough to state what was measured', () => 
   }
 });
 
+test('the payload does not advertise the evasion classifiers as in force, because the verdict never consults them', () => {
+  const verdict = boundaryParityVerdict();
+  assert.equal(verdict.kind, 'clean', JSON.stringify(verdict, null, 1));
+  assert.equal(
+    Object.hasOwn(verdict.payload, 'evasionClassifiers'),
+    false,
+    'the payload still carries a key a receipt reader takes as the classifiers being in force',
+  );
+  assert.deepEqual(
+    [...verdict.payload.declaredButUnwiredEvasionClassifiers],
+    ['added-suppression', 'rule-severity', 'tsconfig-strictness', 'checked-scope'],
+  );
+});
+
+test('the verdict states plainly that the evasion scans are not wired into the gate verdict', () => {
+  const verdict = boundaryParityVerdict();
+  assert.equal(verdict.kind, 'clean');
+  const stated = [...verdict.payload.notAttested].join(' ');
+  assert.match(stated, /not wired/i, `the gap between the declared classifiers and the verdict is unstated: ${stated}`);
+});
+
 test('the verdict states plainly that both mechanical dispatches are still live', () => {
   const verdict = boundaryParityVerdict();
   assert.equal(verdict.kind, 'clean');
