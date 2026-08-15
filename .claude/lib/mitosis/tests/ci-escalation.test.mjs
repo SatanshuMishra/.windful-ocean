@@ -265,7 +265,7 @@ test('classifyCiReport: an agent-supplied path list reaches the escalation reaso
   const verdict = classifyCiReport(report({ implicatedPaths: [hostile] }), SCOPE);
   assert.equal(verdict.escalate, true);
   assert.ok(verdict.reason.length < CI_REASON_LIST_CAP + 400, `the reason is capped rather than an unbounded copy of agent text (was ${verdict.reason.length})`);
-  assert.ok(!/\p{Cc}/u.test(classifyCiReport(report({ implicatedPaths: ['src/pay/ab.ts'] }), SCOPE).reason),
+  assert.ok(!/\p{Cc}/u.test(classifyCiReport(report({ implicatedPaths: ['src/pay/a\u0007b.ts'] }), SCOPE).reason),
     'control characters never reach the durable park note');
 });
 
