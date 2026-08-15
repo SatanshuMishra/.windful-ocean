@@ -413,6 +413,11 @@
         "ref": "0441-sibling-msps-and-the-foreseen-conflict",
         "title": "The three defects ship as sibling MSPs off one base, with the single conflict foreseen and resolved by merge order",
         "scope": "c3"
+      },
+      {
+        "ref": "0442-nul-defect-stands-on-grep-not-diff-evidence",
+        "title": "The raw control byte defect stands on the grep symptom, because git's binary sniff only reads the first 8000 bytes",
+        "scope": "c3"
       }
     ],
     "out_of_scope": [
@@ -424,5 +429,5 @@
     ]
   },
   "created_at": "2026-08-12T07:37:41.077Z",
-  "updated_at": "2026-08-15T19:20:08.142Z"
+  "updated_at": "2026-08-15T19:20:22.083Z"
 }
