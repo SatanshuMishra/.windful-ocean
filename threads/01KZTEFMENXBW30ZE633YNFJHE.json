@@ -115,7 +115,7 @@
     {
       "id": "c21",
       "text": "The distrust-of-subagent-results working mode is retired at every editable layer - memory, the delegation rule, and the always-loaded invariant index - with the harness default explicitly outranked.",
-      "done": false,
+      "done": true,
       "kind": "detour",
       "struck_by": null
     },
@@ -161,9 +161,9 @@
   "abandoned_reason": null,
   "closure_statement": null,
   "spine": {
-    "active_goal": "Restack C5b onto the cleaned base and C6 onto C5b, then ship the remaining MSPs under receipts/gates@1.1.",
-    "next_step": "START HERE with the restack, before anything else. C5a needs NO verification round: every commit on origin/feat/c5a-coupling-enforcement is already an ancestor of the base (ahead=0), so it landed. C5b is 12 commits unlanded, C6 is 71. Restack C5b onto aec7d253 first, then C6 onto the moved C5b, explicit git rebase --onto only, never a bare rebase. Then concisely explain the remaining next steps to the user before doing more.",
-    "last_session": "Cleared all three filed defects as sibling MSPs off the base. PRs #118, #119 and #120 all merged; base moved ed5ccbb9 -> aec7d253. Two of the three filings were materially wrong and were corrected in 0440 and 0442. The one merge conflict was foreseen and resolved by merge order. Recorded 0441.",
+    "active_goal": "Land the remaining MSPs on feat/mitosis-os-process — re-land C6 first, then the porting MSP, C7 and the D-series — under receipts/gates@1.1.",
+    "next_step": "START HERE: re-land C6 — it is NOT on the trunk. PR #122 reported MERGED but went into feat/c5b-coupling-parity, which was never deleted, so GitHub never retargeted it and the base has no boundary-gate.mjs. Open a fresh PR from feat/c6-boundary-program (82a8d2fe) onto feat/mitosis-os-process; C5b's tip is already an ancestor, so it replays exactly C6's twenty commits. Confirm by file presence on the base, never by MERGED status. Then cut the porting MSP 0424 inserted before C7.",
+    "last_session": "Restacked C5b (collapsed to 1 commit) and C6 (20 replayed); PRs #121 and #122 opened, both 13/13 green. #121 landed; #122 merged into its undeleted parent and never reached the trunk. Retired distrust of subagent results via PR #123. Recorded 0443 through 0446.",
     "open_risks": [
       {
         "text": "Build A4's red case through the claude -p CLI path and assert the SILENT failure — the Workflow agent path auto-grants StructuredOutput, so a red case dispatched through it passes unconditionally and is a guarantee that cannot fail",
@@ -173,12 +173,21 @@
         ]
       },
       {
-        "text": "A MERGED status is not evidence the content landed — confirm by git merge-base --is-ancestor against the intended target, because a child merged before its parent branch is DELETED lands in a dead branch, exactly as PR #113 did",
+        "text": "Delete the parent branch and confirm the ref is gone BETWEEN a parent merge and a child merge — merging a stack in one sitting defeats GitHub's retarget, which is exactly how C6 reported MERGED and never landed",
+        "scope": "c3",
+        "refs": [
+          "PR #122",
+          "fdf3817b",
+          "0445"
+        ]
+      },
+      {
+        "text": "A MERGED status is not evidence the content landed — assert the expected FILE is present on the intended target, because ancestry alone also lies after a squash merge",
         "scope": "c3",
         "refs": [
           "PR #113",
-          "PR #117",
-          "0438"
+          "PR #122",
+          "0445"
         ]
       },
       {
@@ -191,20 +200,11 @@
         ]
       },
       {
-        "text": "feat/c6-boundary-program is still parented on the orphaned 3ff7c990 — restack with an explicit git rebase --onto and never a bare rebase, which replays dozens of commits instead of its own nine",
+        "text": "Run the tests on any branch that predates a vocabulary retirement — git AUTOMERGES a reference to a deleted binding with no conflict and no marker, so the diff reads clean and the file throws only when something loads it",
         "scope": "c3",
         "refs": [
-          "3ff7c990",
-          "7d98a98a"
-        ]
-      },
-      {
-        "text": "C5a needs no verification round — every commit on origin/feat/c5a-coupling-enforcement is already an ancestor of the base, so its content landed; C5b is the first branch with real unlanded work at 12 commits, and C6 at 71",
-        "scope": "c3",
-        "refs": [
-          "aec7d253",
-          "6b72e7ab",
-          "62200593"
+          "0444",
+          "mirror-guard.test.mjs"
         ]
       },
       {
@@ -230,10 +230,26 @@
         ]
       },
       {
-        "text": "Dispatch every child with run_in_background false and re-verify against git when it returns — a background child returns only an id, so a dispatching agent ends its turn narrating that it is holding while nothing ran",
+        "text": "Dispatch every child with run_in_background false — a background child returns only an id, so a dispatching agent ends its turn narrating that it is holding while nothing ran; what it returns when it DOES finish is trusted, never re-run",
         "scope": "thread",
         "refs": [
+          "0446",
           "memory: dispatching-agents-return-believing-they-wait"
+        ]
+      },
+      {
+        "text": "The trust-the-result rule is live only while main is checked out in the primary checkout — that checkout is still on chore/receipts-global-standard, and ~/.claude/rules symlinks into its working tree",
+        "scope": "thread",
+        "refs": [
+          "PR #123",
+          "0446"
+        ]
+      },
+      {
+        "text": "Preflight's reconcile has failed all session with spawn git ENOENT — the ledger server cannot find git on its PATH, so branch and binding drift is never folded and the roster can quietly misreport",
+        "scope": "thread",
+        "refs": [
+          "mcp reconcile"
         ]
       },
       {
@@ -471,5 +487,5 @@
     ]
   },
   "created_at": "2026-08-12T07:37:41.077Z",
-  "updated_at": "2026-08-15T20:23:18.690Z"
+  "updated_at": "2026-08-15T20:24:19.816Z"
 }
