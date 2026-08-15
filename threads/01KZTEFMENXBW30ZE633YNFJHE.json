@@ -85,6 +85,13 @@
       "struck_by": null
     },
     {
+      "id": "c17",
+      "text": "Every home-grown verification mandate is retired across all four layers, receipts/gates@1.1 is on main as the sole standard, and the enforcer is bound to demand a receipt on MSP PRs.",
+      "done": false,
+      "kind": "detour",
+      "struck_by": null
+    },
+    {
       "id": "c3",
       "text": "All twenty-one MSPs land as stacked PRs on base feat/mitosis-os-process, each independently green (node --test, lints, every gate verb at that commit), with nothing merged to main.",
       "done": false,
@@ -368,5 +375,5 @@
     ]
   },
   "created_at": "2026-08-12T07:37:41.077Z",
-  "updated_at": "2026-08-15T17:55:36.906Z"
+  "updated_at": "2026-08-15T17:55:46.543Z"
 }
