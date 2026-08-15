@@ -425,6 +425,15 @@ test('an indented line with no preceding diagnostic halts with the line quoted r
   assert.match(halted.error, /Types of parameters/);
 });
 
+test('an unclassifiable line that follows a diagnostic halts rather than being absorbed as its continuation', () => {
+  const halted = censusTscLines([
+    "src/index.ts(5,9): error TS2322: Type 'X' is not assignable to type 'Y'.",
+    'Found 3 errors in 2 files.',
+  ].join('\n'));
+  assert.equal(halted.ok, false);
+  assert.match(halted.error, /Found 3 errors in 2 files\./);
+});
+
 test('the base worktree argv terminates its options before the positionals', () => {
   const io = fixtureIo({ readFile: () => JSON.stringify({ devDependencies: { typescript: '5.0.0' } }) });
   evaluate({ repoRoot: ROOT, gateBase: 'abc123', basePath: BASE, cachedBaseCensus: null }, io);

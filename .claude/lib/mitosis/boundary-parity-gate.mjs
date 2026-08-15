@@ -211,6 +211,7 @@ function failClosedProbe() {
   const chained = censusTscLines([CHAIN_HEAD, CHAIN_TAIL].join('\n'));
   const otherChain = censusTscLines([CHAIN_HEAD, OTHER_CHAIN_TAIL].join('\n'));
   const orphan = censusTscLines(CHAIN_TAIL);
+  const trailingSummary = censusTscLines([CHAIN_HEAD, 'Found 3 errors in 2 files.'].join('\n'));
   const crashed = probeEvaluate(crashedRunIo());
   return Object.freeze({
     malformedTscLineHalts: malformed.ok === false && malformed.error.includes('Found 3 errors in 2 files.'),
@@ -219,9 +220,9 @@ function failClosedProbe() {
     zeroTypeCheckedFilesRefused: zeroTypeChecked.pass === false && /type-checked zero files/.test(zeroTypeChecked.output),
     shapeRefused: notAnArray.ok === false && notJson.ok === false,
     chainFolded: chained.ok === true && chained.diagnostics.length === 1 && chained.diagnostics[0].message.includes(CHAIN_TAIL.trim()),
-    chainTailsDistinct: chained.ok === true && otherChain.ok === true
-      && structuralIdentity(chained.diagnostics[0], PROBE_ROOT) !== structuralIdentity(otherChain.diagnostics[0], PROBE_ROOT),
+    chainTailsDistinct: chained.ok === true && otherChain.ok === true && structuralIdentity(chained.diagnostics[0], PROBE_ROOT) !== structuralIdentity(otherChain.diagnostics[0], PROBE_ROOT),
     orphanContinuationHalts: orphan.ok === false && orphan.error.includes(CHAIN_TAIL),
+    trailingUnclassifiableLineHalts: trailingSummary.ok === false && trailingSummary.error.includes('Found 3 errors in 2 files.'),
     crashedRunRefused: crashed.pass === false && /exited 3/.test(crashed.output),
   });
 }
@@ -584,8 +585,8 @@ export function boundaryParityFailures(substrate) {
     failures.push('a second instance of a class already present at base no longer blocks, so the comparison has collapsed from a multiset to a set');
   }
   const failClosed = substrate.failClosed;
-  if (!failClosed.malformedTscLineHalts) {
-    failures.push('a tsc line that matches no declared diagnostic form is now accepted rather than halting with the line quoted, so an unrecognised line would be skipped into a bucket and the run would report clean');
+  if (!failClosed.malformedTscLineHalts || !failClosed.trailingUnclassifiableLineHalts) {
+    failures.push('a tsc line that matches no declared diagnostic form is now accepted rather than halting with the line quoted, whether it is the first line seen or one that follows a diagnostic already collected, so an unrecognised line would be skipped into a bucket, or folded silently into the diagnostic above it, and the run would report clean');
   }
   if (!failClosed.wellFormedTscLineParses) {
     failures.push('a well-formed tsc diagnostic no longer parses, so the census halts on everything and measures nothing');
