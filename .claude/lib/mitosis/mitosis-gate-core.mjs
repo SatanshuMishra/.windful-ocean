@@ -44,7 +44,7 @@ const EXEC_ALLOWLIST_ATTESTS = Object.freeze([
 ]);
 
 const EXEC_ALLOWLIST_NOT_ATTESTED = Object.freeze([
-  'that engine source reaches processes only through this policy: every live spawn site imports node:child_process directly, and no verb censuses those call sites',
+  'that engine source reaches processes only through this policy: the caller-facing spawn sites assert it before any child starts and the merge shim re-reads the argv with filesystem access, but no verb of this gate censuses those call sites',
   'argv-level containment for claude, git, node and graphify: an allowlisted binary still reaches arbitrary work through its own argv, which no layer inspects',
   'that a gh alias defined before the run is refused: the classifier reads alias definitions, not the alias table already in effect',
 ]);

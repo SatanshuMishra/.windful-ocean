@@ -636,7 +636,7 @@ test('the exec-allowlist verdict declares what it attests and refuses to imply t
   assert.ok(Array.isArray(verdict.notAttested) && verdict.notAttested.length > 0);
   assert.ok(
     verdict.notAttested.some((claim) => /spawn site/.test(claim)),
-    'every live spawn site still calls child_process directly, so the verdict must not read as process containment',
+    'no verb of this gate censuses the spawn sites, so the verdict must not read as process containment',
   );
   assert.ok(
     verdict.notAttested.some((claim) => /argv/.test(claim)),

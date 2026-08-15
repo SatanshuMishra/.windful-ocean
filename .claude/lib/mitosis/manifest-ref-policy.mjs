@@ -280,5 +280,5 @@ export function manifestRefPolicyProbes() {
 export const MANIFEST_REF_NOT_ATTESTED = Object.freeze([
   'that a push refspec the argument vector never spells is seen: this policy reads the argument vector, so a remote.*.push refspec already written into the repository or user git configuration reaches the namespace unexamined',
   'that a destination this policy reads as unqualified resolves the way git would resolve it: git consults the refs that already exist on the remote, and this policy instead treats every unqualified destination as if it could resolve under refs/, which refuses a wider set than git would actually rewrite',
-  'that the engine reaches git only through this policy: exec-run consults it on every spawn, but the five live spawn sites that import node:child_process directly do not',
+  'that the engine reaches git only through this policy: exec-run consults it on every spawn, but the spawn sites that call node:child_process directly assert only the exec policy and never reach this one',
 ]);
