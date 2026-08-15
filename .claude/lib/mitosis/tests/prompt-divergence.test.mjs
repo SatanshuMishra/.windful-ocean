@@ -5,7 +5,7 @@ import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { PROMPT_KINDS } from '../prompt-contract.mjs';
 import { composePrompt } from '../prompt-registry.mjs';
-import { proseModulesOf } from './prompt-branch-census.mjs';
+import { proseModulesOf } from './prompt-prose-modules.mjs';
 import { PROMPT_FIXTURE_CASES } from './prompt-fixtures.mjs';
 
 const LIB_DIR = fileURLToPath(new URL('../', import.meta.url));
