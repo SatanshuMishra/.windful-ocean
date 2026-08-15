@@ -87,7 +87,7 @@
     {
       "id": "c17",
       "text": "Every home-grown verification mandate is retired across all four layers, receipts/gates@1.1 is on main as the sole standard, and the enforcer is bound to demand a receipt on MSP PRs.",
-      "done": false,
+      "done": true,
       "kind": "detour",
       "struck_by": null
     },
@@ -133,9 +133,9 @@
   "abandoned_reason": null,
   "closure_statement": null,
   "spine": {
-    "active_goal": "Ship the remaining MSPs under receipts/gates@1.1, with the home-grown mandate apparatus removed.",
-    "next_step": "Verify the layer-4 apparatus removal landed green on the base, C5b and C6. Then set claim.require_receipt_for any-source-change and gates.G14.mode block in receipts.config.json so the gates bind on MSP PRs - the enforcer has run on every PR so far and never once asked for a receipt. C5b and C6 then ship under G0 with their SPEC acceptance list as the receipt and the ladder for anything unprovable; no further review rounds. Restack C6 off the orphaned 3ff7c990 with an explicit --onto.",
-    "last_session": "Diagnosed the three-week stall to decision 0380 making acceptance a floor. Adopted receipts/gates@1.1 globally (4f5e88f7), recorded 0438 superseding seven method decisions, and dispatched removal of the executable apparatus from the base, C5b and C6.",
+    "active_goal": "Clear the three filed defects, then restack and ship the remaining MSPs under receipts/gates@1.1.",
+    "next_step": "START HERE with the three filed defects, worst first: the raw U+0000 at determinism-lint.mjs:319 that makes git treat the module as binary; the git and node argv injection; and the ERR_MODULE_NOT_FOUND four verbs raise when an export is renamed. Each is its own MSP under G0, its acceptance list declared up front as the receipt. THEN restack C5b onto the cleaned base and C6 onto C5b, explicit --onto only, since C6 is still parented on the orphaned 3ff7c990.",
+    "last_session": "Retired every home-grown verification mandate across all four layers and installed receipts/gates@1.1 on main as the sole standard with the enforcer bound. Merged PRs #111 through #117, a net -9,365 lines of apparatus. Recorded 0438 and 0439.",
     "open_risks": [
       {
         "text": "Build A4's red case through the claude -p CLI path and assert the SILENT failure — the Workflow agent path auto-grants StructuredOutput, so a red case dispatched through it passes unconditionally and is a guarantee that cannot fail",
@@ -152,11 +152,26 @@
         ]
       },
       {
-        "text": "Work in a worktree under .claude/worktrees/ rather than switching the primary checkout — ~/.claude/rules, CLAUDE.md and skills are symlinks into its working tree, so a checkout there silently changes the live global config",
+        "text": "Work in a worktree rather than switching the primary checkout — ~/.claude/rules, CLAUDE.md and skills are symlinks into its working tree, so a checkout there silently changes the live global config, receipts.md included",
         "scope": "thread",
         "refs": [
           "~/.claude/rules",
-          "~/.claude/CLAUDE.md"
+          ".claude/rules/common/receipts.md"
+        ]
+      },
+      {
+        "text": "A module newly inlined into mitosis.js now gets no mirror row automatically — the census mandate is retired, so only EXISTING twins are checked and genuinely new duplication can drift silently",
+        "scope": "thread",
+        "refs": [
+          "0439",
+          "PR #112"
+        ]
+      },
+      {
+        "text": "workflow-sandbox-census.test.mjs carries a hand-rolled maskLiterals duplicating the masker in js-scan.mjs — a live divergence hazard left unfixed because consolidating it is a behaviour change, not a removal",
+        "scope": "thread",
+        "refs": [
+          "0439"
         ]
       },
       {
@@ -183,7 +198,16 @@
         ]
       },
       {
-        "text": "Never rewrite a stacked branch without restacking every branch above it — a force-push or squash gives the parent new SHAs, and children still pointing at the old ones conflict on ancestry even when the trees are byte-identical",
+        "text": "A MERGED status is not evidence the content landed — confirm by git merge-base --is-ancestor against the intended target, because a child merged before its parent branch is DELETED lands in a dead branch, exactly as PR #113 did",
+        "scope": "c3",
+        "refs": [
+          "PR #113",
+          "PR #117",
+          "0438"
+        ]
+      },
+      {
+        "text": "Never rewrite a stacked branch without restacking every branch above it — a force-push gives the parent new SHAs, and children still pointing at the old ones conflict on ancestry even when the trees are byte-identical",
         "scope": "c3",
         "refs": [
           "e78a5ced",
@@ -196,11 +220,18 @@
         "scope": "c3",
         "refs": [
           "3ff7c990",
-          "719583cd"
+          "7d98a98a"
         ]
       },
       {
-        "text": "The git and node argv injection MSP is an open user decision — exec-policy classifies argv for gh alone while five direct child_process sites bypass the chokepoint entirely",
+        "text": "A live raw U+0000 at determinism-lint.mjs:319 makes git classify that module as binary — no diff lines and no grep hits, so it shipped through review unreadable; second occurrence of this defect class",
+        "scope": "c3",
+        "refs": [
+          ".claude/lib/mitosis/determinism-lint.mjs:319"
+        ]
+      },
+      {
+        "text": "exec-policy classifies argv for gh alone while five direct child_process sites bypass the chokepoint — live arbitrary code execution, and the user has not yet ruled on whether it gets its own MSP",
         "scope": "c3",
         "refs": [
           "C4b-SHIPPED.md",
@@ -208,10 +239,18 @@
         ]
       },
       {
-        "text": "A live raw U+0000 at determinism-lint.mjs:319 makes git classify that module as binary — no diff lines and no grep hits, so it shipped through review unreadable, and it still has no home",
+        "text": "Renaming an export in journal-store.mjs raises a raw ERR_MODULE_NOT_FOUND from four verbs — pre-existing across a chain of twelve modules, and closing it makes runMitosisGate async, rewriting about 35 existing test rows",
         "scope": "c3",
         "refs": [
-          ".claude/lib/mitosis/determinism-lint.mjs:319"
+          "journal-store.mjs"
+        ]
+      },
+      {
+        "text": "The receipts enforcer has never run under the bound config — the next PR opened is the first real test of claim.require_receipt_for any-source-change and G14 block",
+        "scope": "c3",
+        "refs": [
+          "receipts.config.json",
+          "PR #116"
         ]
       },
       {
@@ -375,5 +414,5 @@
     ]
   },
   "created_at": "2026-08-12T07:37:41.077Z",
-  "updated_at": "2026-08-15T17:55:46.543Z"
+  "updated_at": "2026-08-15T17:56:29.037Z"
 }
