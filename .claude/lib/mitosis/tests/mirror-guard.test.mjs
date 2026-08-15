@@ -56,6 +56,7 @@ const MIRROR_CENSUS = Object.freeze({
   'branch-contract.mjs': STANDALONE,
   'coupling-parity-gate.mjs': STANDALONE,
   'coupling-review.mjs': STANDALONE,
+  'coupling-specimens.mjs': STANDALONE,
   'derive-edges.mjs': STANDALONE,
   'determinism-lint.mjs': STANDALONE,
   'dispatch.mjs': STANDALONE,

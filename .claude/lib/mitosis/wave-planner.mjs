@@ -84,4 +84,13 @@ function main() {
   }
 }
 
-if (process.argv[1] && import.meta.url === pathToFileURL(realpathSync(process.argv[1])).href) main();
+function isDirectInvocation() {
+  try {
+    if (!process.argv[1]) return false;
+    return import.meta.url === pathToFileURL(realpathSync(process.argv[1])).href;
+  } catch {
+    return false;
+  }
+}
+
+if (isDirectInvocation()) main();

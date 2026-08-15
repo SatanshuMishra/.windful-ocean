@@ -3,11 +3,16 @@ import assert from 'node:assert/strict';
 import {
   COUPLING_PARITY_ATTESTS,
   attestCoverageCensus,
-  couplingCoverageCensus,
   couplingParityFailures,
   probeCouplingSubstrate,
-  registryClassifierGridCensus,
 } from '../coupling-parity-gate.mjs';
+import {
+  COUPLING_GRID_PROBES,
+  censusRegistryReaders,
+  couplingCoverageCensus,
+  gridShapeCensus,
+  readClassifierSources,
+} from '../coupling-specimens.mjs';
 import {
   COUPLING_SIGNAL_CLASSES,
   COUPLING_SIGNAL_DETAIL_SEPARATOR,
@@ -20,8 +25,6 @@ const UNREGISTERED_CELL = 'coupling-parity-gate-test-unregistered-cell';
 const UNREGISTERED_SIGNAL_CLASS = 'coupling-parity-gate-test-unregistered-signal-class';
 const UNREGISTERED_REASON = 'coupling-parity-gate-test-unregistered-edge-reason';
 
-const SUBSTRATE = probeCouplingSubstrate();
-
 function capture() {
   const stdout = [];
   const stderr = [];
@@ -30,22 +33,6 @@ function capture() {
     stderr,
     out: Object.freeze({ log: (text) => stdout.push(text), err: (text) => stderr.push(text) }),
   };
-}
-
-function liveRegistries() {
-  return [...new Set(SUBSTRATE.gridProbes.map((probe) => probe.registry))];
-}
-
-function liveClassifiersFor(registry) {
-  return SUBSTRATE.gridProbes.filter((probe) => probe.registry === registry).map((probe) => probe.classifier);
-}
-
-function placeholderRow(classifiers) {
-  return Object.fromEntries(classifiers.map((classifier) => [classifier, true]));
-}
-
-function fullSyntheticGrid(registries) {
-  return Object.fromEntries(registries.map((registry) => [registry, placeholderRow(liveClassifiersFor(registry))]));
 }
 
 test('couplingCoverageCensus refuses an observation carrying a cell, a signal class and a derived edge reason no live registry declares, naming each', () => {
@@ -67,27 +54,26 @@ test('couplingCoverageCensus refuses an empty observation list, naming an uncove
   assert.ok(result.error.includes(COUPLING_SIGNAL_CLASSES[0]), result.error);
 });
 
-test('registryClassifierGridCensus refuses a grid missing a whole registry row, naming the missing registry', () => {
-  const registries = liveRegistries();
-  assert.ok(registries.length > 1, 'the live grid carries only one registry, so dropping one cannot be exercised in isolation');
-  const [droppedRegistry, ...remainingRegistries] = registries;
-  const problems = registryClassifierGridCensus(fullSyntheticGrid(remainingRegistries));
-  assert.equal(problems.length, 1);
-  assert.ok(problems[0].includes(droppedRegistry), problems[0]);
+test('gridShapeCensus reports a derived classifier cell the probe set does not carry, naming that cell', () => {
+  const derivedCells = censusRegistryReaders(readClassifierSources());
+  const probeKeys = Object.keys(COUPLING_GRID_PROBES);
+  const droppedCell = derivedCells[0];
+  assert.ok(probeKeys.includes(droppedCell), 'the live probe set does not carry the first derived cell, so dropping it from the probes cannot be exercised as a probe-side gap');
+  const narrowedProbes = Object.fromEntries(probeKeys.filter((cell) => cell !== droppedCell).map((cell) => [cell, () => {}]));
+  const problems = gridShapeCensus(derivedCells, narrowedProbes);
+  assert.equal(problems.length, 1, problems.join(' | '));
+  assert.ok(problems[0].includes(droppedCell), problems[0]);
 });
 
-test('registryClassifierGridCensus refuses a grid whose one row is missing a classifier cell, naming the registry and the missing classifier', () => {
-  const registries = liveRegistries();
-  const targetRegistry = registries[0];
-  const classifiers = liveClassifiersFor(targetRegistry);
-  assert.ok(classifiers.length > 1, 'the target registry carries only one classifier, so dropping one cannot be exercised in isolation');
-  const [droppedClassifier, ...remainingClassifiers] = classifiers;
-  const grid = fullSyntheticGrid(registries);
-  grid[targetRegistry] = placeholderRow(remainingClassifiers);
-  const problems = registryClassifierGridCensus(grid);
-  assert.equal(problems.length, 1);
-  assert.ok(problems[0].includes(targetRegistry), problems[0]);
-  assert.ok(problems[0].includes(droppedClassifier), problems[0]);
+test('gridShapeCensus reports a probe cell the derived classifier scan does not carry, naming that cell', () => {
+  const derivedCells = censusRegistryReaders(readClassifierSources());
+  const probeKeys = Object.keys(COUPLING_GRID_PROBES);
+  const droppedCell = probeKeys[0];
+  assert.ok(derivedCells.includes(droppedCell), 'the live derived classifier scan does not carry the first probe cell, so dropping it from the scan cannot be exercised as a derived-side gap');
+  const narrowedDerived = derivedCells.filter((cell) => cell !== droppedCell);
+  const problems = gridShapeCensus(narrowedDerived, COUPLING_GRID_PROBES);
+  assert.equal(problems.length, 1, problems.join(' | '));
+  assert.ok(problems[0].includes(droppedCell), problems[0]);
 });
 
 test('attestCoverageCensus refuses a control claiming an attest id the attest list does not carry, naming that id', () => {
@@ -108,28 +94,77 @@ test('attestCoverageCensus returns no problems when a synthetic control set clai
   assert.deepEqual(problems, []);
 });
 
-test('couplingParityFailures reddens when the relaxation probe stops finding a rationale-carrying override honoured', () => {
-  assert.deepEqual(couplingParityFailures(SUBSTRATE), [], 'the live substrate is not clean, so the degradation below proves nothing');
-  const degraded = { ...SUBSTRATE, relaxation: { ...SUBSTRATE.relaxation, honoured: false } };
-  const failures = couplingParityFailures(degraded);
+test('couplingParityFailures returns a failure for a probe carrying a non-null liveFailure, naming it', () => {
+  const probe = Object.freeze({
+    id: 'coupling-parity-gate-test-control',
+    name: 'a synthetic control failing on the live substrate',
+    attests: Object.freeze(['coupling-parity-gate-test-attest']),
+    liveFailure: 'a synthetic live failure only this probe would produce',
+    firesWhenDegraded: true,
+    threw: null,
+  });
+  const failures = couplingParityFailures([probe]);
   assert.equal(failures.length, 1, failures.join(' | '));
-  assert.match(failures[0], /honoured/);
+  assert.equal(failures[0], probe.liveFailure);
 });
 
-test('couplingParityFailures reddens when the rerun probe stops finding an already-settled pair left alone', () => {
-  assert.deepEqual(couplingParityFailures(SUBSTRATE), [], 'the live substrate is not clean, so the degradation below proves nothing');
-  const degraded = { ...SUBSTRATE, rerun: { ...SUBSTRATE.rerun, nothingWithdrawn: false } };
-  const failures = couplingParityFailures(degraded);
+test('couplingParityFailures returns a failure for a probe whose firesWhenDegraded is false, naming the control id and the attests it claims', () => {
+  const probe = Object.freeze({
+    id: 'coupling-parity-gate-test-control',
+    name: 'a synthetic control that stopped firing on its own degradation',
+    attests: Object.freeze(['coupling-parity-gate-test-attest-one', 'coupling-parity-gate-test-attest-two']),
+    liveFailure: null,
+    firesWhenDegraded: false,
+    threw: null,
+  });
+  const failures = couplingParityFailures([probe]);
   assert.equal(failures.length, 1, failures.join(' | '));
-  assert.match(failures[0], /oscillates/);
+  assert.ok(failures[0].includes(probe.id), failures[0]);
+  assert.ok(failures[0].includes('coupling-parity-gate-test-attest-one'), failures[0]);
+  assert.ok(failures[0].includes('coupling-parity-gate-test-attest-two'), failures[0]);
 });
 
-test('couplingParityFailures reddens when the cycle probe stops finding a coupling-induced cycle halted', () => {
-  assert.deepEqual(couplingParityFailures(SUBSTRATE), [], 'the live substrate is not clean, so the degradation below proves nothing');
-  const degraded = { ...SUBSTRATE, cycle: { ...SUBSTRATE.cycle, refused: false } };
-  const failures = couplingParityFailures(degraded);
+test('couplingParityFailures returns a failure for a probe whose threw is non-null, naming the control id and the thrown message', () => {
+  const probe = Object.freeze({
+    id: 'coupling-parity-gate-test-control',
+    name: 'a synthetic control whose degradation blew up',
+    attests: Object.freeze(['coupling-parity-gate-test-attest']),
+    liveFailure: null,
+    firesWhenDegraded: true,
+    threw: 'a synthetic detector failure',
+  });
+  const failures = couplingParityFailures([probe]);
   assert.equal(failures.length, 1, failures.join(' | '));
-  assert.match(failures[0], /deadlocks/);
+  assert.ok(failures[0].includes(probe.id), failures[0]);
+  assert.ok(failures[0].includes(probe.threw), failures[0]);
+});
+
+test('couplingParityFailures returns a failure for an empty probe array', () => {
+  const failures = couplingParityFailures([]);
+  assert.equal(failures.length, 1, failures.join(' | '));
+  assert.match(failures[0], /no control/);
+});
+
+test('couplingParityFailures returns no failures for a probe array where every entry is clean, proving the failure cases above are not vacuous', () => {
+  const probes = Object.freeze([
+    Object.freeze({
+      id: 'coupling-parity-gate-test-control-one',
+      name: 'a synthetic clean control',
+      attests: Object.freeze(['coupling-parity-gate-test-attest-one']),
+      liveFailure: null,
+      firesWhenDegraded: true,
+      threw: null,
+    }),
+    Object.freeze({
+      id: 'coupling-parity-gate-test-control-two',
+      name: 'another synthetic clean control',
+      attests: Object.freeze(['coupling-parity-gate-test-attest-two']),
+      liveFailure: null,
+      firesWhenDegraded: true,
+      threw: null,
+    }),
+  ]);
+  assert.deepEqual(couplingParityFailures(probes), []);
 });
 
 test('couplingSignalClass splits only on the first detail separator, so a detail carrying the separator round-trips whole', () => {
@@ -156,6 +191,16 @@ test('couplingSignalClassRegistryProblems refuses an empty-string separator, nam
   const problems = couplingSignalClassRegistryProblems(COUPLING_SIGNAL_CLASSES, '');
   assert.equal(problems.length, 1);
   assert.ok(problems[0].includes('received ""'), problems[0]);
+});
+
+test('probeCouplingSubstrate on the real production source yields a grid shape with no problems and every grid probe refused and named', () => {
+  const substrate = probeCouplingSubstrate();
+  assert.deepEqual(substrate.gridShape, []);
+  assert.ok(substrate.gridProbes.length > 0);
+  for (const probe of substrate.gridProbes) {
+    assert.ok(probe.refused, `${probe.cell} did not refuse the unregistered token`);
+    assert.ok(probe.named, `${probe.cell} refused but did not name the unregistered token`);
+  }
 });
 
 test('the coupling-parity verb exits clean over the real substrate and reports its own verb name', () => {

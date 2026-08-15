@@ -443,7 +443,16 @@ function cli(argv) {
   }) + '\n');
 }
 
-if (process.argv[1] && _toPath(import.meta.url) === _realpath(process.argv[1])) {
+function isDirectInvocation() {
+  try {
+    if (!process.argv[1]) return false;
+    return _toPath(import.meta.url) === _realpath(process.argv[1]);
+  } catch {
+    return false;
+  }
+}
+
+if (isDirectInvocation()) {
   try {
     cli(process.argv.slice(2));
   } catch (err) {

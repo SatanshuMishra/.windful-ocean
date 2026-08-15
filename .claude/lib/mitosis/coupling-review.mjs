@@ -343,13 +343,16 @@ export function couplingSignalClassRegistryProblems(classes, separator) {
   return problems;
 }
 
-function signalToken(className, detail) {
+export function signalToken(className, detail) {
   if (!Object.prototype.hasOwnProperty.call(SIGNAL_CLASS_DETAIL, className)) {
     throw new TypeError(`coupling-review: the signal ${describe(className)} names no class in ${COUPLING_SIGNAL_CLASSES.join(', ')}; every signal a detector emits is built from that registry, because a detector minting its own class name produces a token no census can classify and the coupling it found is scored under a name nothing reads back`);
   }
   const detailed = SIGNAL_CLASS_DETAIL[className];
   if (detailed !== (detail !== undefined)) {
     throw new TypeError(`coupling-review: the signal class ${describe(className)} ${detailed ? 'names the thing the pair shares and was built with no detail' : 'names no detail and was built with one'}; the arity is what tells a reader whether the text after ${describe(SIGNAL_DETAIL_SEPARATOR)} is a shared marker or part of the class name, so a token built against the wrong one is classified into the wrong half of the census`);
+  }
+  if (detailed && typeof detail === 'string' && detail.length === 0) {
+    throw new TypeError(`coupling-review: the signal class ${describe(className)} was built with an empty-string detail; the detail names the marker or directory the pair shares, and an empty one would emit a token that reports a shared thing no file the pair touches can be named back to, which is exactly the token couplingSignalClass already refuses on the way back in`);
   }
   return detailed ? `${className}${SIGNAL_DETAIL_SEPARATOR}${detail}` : className;
 }
@@ -576,4 +579,13 @@ function main() {
   }
 }
 
-if (process.argv[1] && import.meta.url === pathToFileURL(realpathSync(process.argv[1])).href) main();
+function isDirectInvocation() {
+  try {
+    if (!process.argv[1]) return false;
+    return import.meta.url === pathToFileURL(realpathSync(process.argv[1])).href;
+  } catch {
+    return false;
+  }
+}
+
+if (isDirectInvocation()) main();
