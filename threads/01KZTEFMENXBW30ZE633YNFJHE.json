@@ -471,6 +471,11 @@
         "ref": "0435-verification-anchors-are-re-measured-not-pinned",
         "title": "A verification anchor is re-measured at the head it guards, never pinned from an earlier measurement",
         "scope": "c3"
+      },
+      {
+        "ref": "0438-receipts-gates-supersede-all-home-grown-mandates",
+        "title": "Receipts gates@1.1 becomes the sole verification standard and every home-grown mandate is retired",
+        "scope": "thread"
       }
     ],
     "out_of_scope": [
@@ -482,5 +487,5 @@
     ]
   },
   "created_at": "2026-08-12T07:37:41.077Z",
-  "updated_at": "2026-08-15T01:38:51.776Z"
+  "updated_at": "2026-08-15T17:11:02.049Z"
 }
