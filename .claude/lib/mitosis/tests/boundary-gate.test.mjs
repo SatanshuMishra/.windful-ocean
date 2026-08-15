@@ -7,7 +7,6 @@ import {
   BOUNDARY_TOOLS,
   NORMALIZATION_STEPS,
   REAL_BOUNDARY_IO,
-  censusTscLines,
   collectBase,
   compareCensuses,
   evaluate,
@@ -16,6 +15,7 @@ import {
   structuralIdentity,
   toolExpectation,
 } from '../boundary-gate.mjs';
+import { censusTscLines } from '../boundary-tsc-lines.mjs';
 
 const ROOT = '/repo';
 const BASE = '/tmp/base-wt';
@@ -355,7 +355,7 @@ test('the tsc leg spawns the executable the typescript package installs, not the
     exists: (path) => String(path).includes('tsconfig.json') || String(path).endsWith('package.json'),
     readFile: () => JSON.stringify({ devDependencies: { typescript: '5.0.0' } }),
     run: (binary, argv) => {
-      if (argv.includes('--listFiles')) return { outcome: 'completed', status: 0, stdout: 'src/a.ts\n', stderr: '' };
+      if (argv.includes('--listFiles')) return { outcome: 'completed', status: 0, stdout: `${argv[argv.length - 1]}/src/a.ts\n`, stderr: '' };
       if (argv.includes('--showConfig')) return { outcome: 'completed', status: 0, stdout: JSON.stringify({ compilerOptions: {} }), stderr: '' };
       return { outcome: 'completed', status: 0, stdout: '', stderr: '' };
     },
@@ -473,7 +473,15 @@ test('a cached census whose NOT-EXPECTED disagrees with the trees is refused and
     gateBase: 'abc123',
     tools: {},
     notExpected: ['eslint', 'tsc'],
-    surface: { root: BASE, checkedFiles: [], suppressions: {}, tsconfigOptions: {}, eslintConfig: { rules: {} } },
+    surface: {
+      root: BASE,
+      checkedFiles: [],
+      checkedByTool: {},
+      suppressions: {},
+      tsconfigOptions: {},
+      eslintConfigByFile: {},
+      eslintConfigFiles: [],
+    },
   };
   const verdict = evaluate({ repoRoot: ROOT, gateBase: 'abc123', basePath: BASE, cachedBaseCensus: cached }, io);
   assert.equal(verdict.usedCachedCensus, false, 'a supplied census decided that every tool was NOT-EXPECTED, which disables the gate with no child spawned');
@@ -522,7 +530,7 @@ test('a tsc diagnostic run that crashed with empty stdout is refused rather than
     exists: (path) => String(path).includes('tsconfig.json') || String(path).endsWith('package.json'),
     readFile: () => JSON.stringify({ devDependencies: { typescript: '5.0.0' } }),
     run: (binary, argv) => {
-      if (argv.includes('--listFiles')) return { outcome: 'completed', status: 0, stdout: 'src/a.ts\n', stderr: '' };
+      if (argv.includes('--listFiles')) return { outcome: 'completed', status: 0, stdout: `${argv[argv.length - 1]}/src/a.ts\n`, stderr: '' };
       if (argv.includes('--noEmit')) return { outcome: 'completed', status: 3, stdout: '', stderr: 'Debug Failure. False expression.' };
       return { outcome: 'completed', status: 0, stdout: '', stderr: '' };
     },

@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { MAX_SCANNED_FILE_BYTES } from '../boundary-scan-scope.mjs';
-import { evaluate } from '../boundary-gate.mjs';
+import { MAX_SCANNED_FILE_BYTES, commonTreeFiles } from '../boundary-scan-scope.mjs';
+import { CACHED_SURFACE_FIELDS, evaluate } from '../boundary-gate.mjs';
 
 const ROOT = '/repo';
 const BASE = '/tmp/base-wt';
@@ -131,9 +131,210 @@ function eslintIo(plan) {
   });
 }
 
+const BOTH_TOOLS_MANIFEST = JSON.stringify({ devDependencies: { typescript: '5.8.3', eslint: '9.0.0' } });
+
+function bothToolsIo(plan) {
+  const tree = { base: plan.baseTree ?? plan.baseTsc, head: plan.headTree ?? plan.headTsc };
+  const typeChecked = { base: plan.baseTsc, head: plan.headTsc };
+  const linted = { base: plan.baseLint, head: plan.headLint };
+  const rules = plan.rulesFor ?? (() => ({ 'no-eq': 2 }));
+  const read = [];
+  return spy({
+    read,
+    exists: (path) => {
+      const text = String(path);
+      if (text.endsWith('tsconfig.json') || text.endsWith('package.json') || text.includes('eslint.config')) return true;
+      return tree[sideOf(text)].includes(relativeOf(text));
+    },
+    readFile: (path) => {
+      const text = String(path);
+      read.push(text);
+      if (text.endsWith('package.json')) return BOTH_TOOLS_MANIFEST;
+      return CLEAN_SOURCE;
+    },
+    run: (binary, argv) => {
+      if (argv.includes('--print-config')) {
+        const printed = argv[argv.length - 1];
+        return { outcome: 'completed', status: 0, stdout: JSON.stringify({ rules: rules(sideOf(printed), relativeOf(printed)) }), stderr: '' };
+      }
+      if (argv.includes('--listFiles')) {
+        const root = argv[argv.length - 1];
+        return { outcome: 'completed', status: 0, stdout: `${typeChecked[sideOf(root)].map((file) => `${root}/${file}`).join('\n')}\n`, stderr: '' };
+      }
+      if (argv.includes('--showConfig')) {
+        return { outcome: 'completed', status: 0, stdout: JSON.stringify({ compilerOptions: STRICT_EXPANDED }), stderr: '' };
+      }
+      if (String(argv[0]).endsWith('/eslint')) {
+        const root = argv[1];
+        return {
+          outcome: 'completed',
+          status: 0,
+          stdout: JSON.stringify(linted[sideOf(root)].map((file) => ({ filePath: `${root}/${file}`, messages: [] }))),
+          stderr: '',
+        };
+      }
+      return CLEAN_CHILD;
+    },
+    makeDir: () => {},
+    symlink: () => {},
+    removePath: () => {},
+    resolveTool: (name, root) => ({ ok: true, path: `${root}/node_modules/.bin/${name}` }),
+    resolvePackageManager: () => ({ ok: true, entry: '/pm/npm-cli.js' }),
+  });
+}
+
+const TWO_SOURCES = Object.freeze(['src/a.ts', 'src/b.ts']);
+
 function blockedBy(verdict, classifier) {
   return verdict.blocking.find((entry) => entry.classifier === classifier);
 }
+
+test('an eslint ignore widened at HEAD blocks with classifier checked-scope while tsc still covers the file', () => {
+  const verdict = evaluate(REQUEST, bothToolsIo({
+    baseTsc: TWO_SOURCES,
+    headTsc: TWO_SOURCES,
+    baseLint: TWO_SOURCES,
+    headLint: ['src/a.ts'],
+  }));
+  assert.equal(verdict.pass, false, `eslint stopped linting src/b.ts and the union with tsc masked it: ${verdict.output}`);
+  const blocked = blockedBy(verdict, 'checked-scope');
+  assert.ok(blocked, `no checked-scope entry in blocking: ${JSON.stringify(verdict.blocking)}`);
+  assert.equal(blocked.tool, 'eslint', `the narrowing was not attributed to the tool that narrowed: ${JSON.stringify(blocked)}`);
+  assert.deepEqual([...blocked.droppedFiles], ['src/b.ts']);
+});
+
+test('a checked scope unchanged on every tool passes, so the per-tool comparison is not a presence rule', () => {
+  const verdict = evaluate(REQUEST, bothToolsIo({
+    baseTsc: TWO_SOURCES,
+    headTsc: TWO_SOURCES,
+    baseLint: TWO_SOURCES,
+    headLint: TWO_SOURCES,
+  }));
+  assert.equal(verdict.pass, true, verdict.output);
+  assert.deepEqual([...verdict.blocking], []);
+});
+
+test('a tool that reported a file list on one side and none on the other halts rather than being compared', () => {
+  const io = tscIo({ baseChecked: ['a.ts'], headChecked: ['a.ts'] });
+  const cached = {
+    gateBase: 'abc123',
+    tools: { tsc: { identities: {}, fileCount: 1 } },
+    notExpected: ['eslint'],
+    surface: {
+      root: BASE,
+      checkedFiles: [`${BASE}/a.ts`],
+      checkedByTool: {},
+      suppressions: {},
+      tsconfigOptions: STRICT_EXPANDED,
+      eslintConfigByFile: {},
+      eslintConfigFiles: [],
+    },
+  };
+  const verdict = evaluate({ ...REQUEST, cachedBaseCensus: cached }, io);
+  assert.equal(verdict.usedCachedCensus, true, `the cached census was refused for its shape, so the per-tool halt was never reached: ${verdict.output}`);
+  assert.equal(verdict.pass, false);
+  const halted = blockedBy(verdict, 'evasion-halted');
+  assert.ok(halted, `a side missing a whole tool file list did not halt: ${JSON.stringify(verdict.blocking)}`);
+  assert.match(halted.detail, /tsc/);
+});
+
+test('a per-glob rule downgrade that leaves the first-sorting file untouched blocks with classifier rule-severity', () => {
+  const verdict = evaluate(REQUEST, bothToolsIo({
+    baseTsc: TWO_SOURCES,
+    headTsc: TWO_SOURCES,
+    baseLint: TWO_SOURCES,
+    headLint: TWO_SOURCES,
+    rulesFor: (side, file) => (side === 'head' && file === 'src/b.ts' ? { 'no-eq': 0 } : { 'no-eq': 2 }),
+  }));
+  assert.equal(verdict.pass, false, `a downgrade behind a file the anchor never sampled went undetected: ${verdict.output}`);
+  const blocked = blockedBy(verdict, 'rule-severity');
+  assert.ok(blocked, `no rule-severity entry in blocking: ${JSON.stringify(verdict.blocking)}`);
+  assert.equal(blocked.rule, 'no-eq');
+  assert.equal(blocked.file, 'src/b.ts', `the downgrade was not attributed to the file it was resolved for: ${JSON.stringify(blocked)}`);
+});
+
+test('a resolved config unchanged on every compared file passes, so the per-file comparison is not a presence rule', () => {
+  const verdict = evaluate(REQUEST, bothToolsIo({
+    baseTsc: TWO_SOURCES,
+    headTsc: TWO_SOURCES,
+    baseLint: TWO_SOURCES,
+    headLint: TWO_SOURCES,
+    rulesFor: () => ({ 'no-eq': 2 }),
+  }));
+  assert.equal(verdict.pass, true, verdict.output);
+  assert.deepEqual([...verdict.blocking], []);
+});
+
+test('every file both sides lint has its resolved config printed, not one anchor', () => {
+  const io = bothToolsIo({
+    baseTsc: TWO_SOURCES,
+    headTsc: TWO_SOURCES,
+    baseLint: TWO_SOURCES,
+    headLint: TWO_SOURCES,
+  });
+  evaluate(REQUEST, io);
+  for (const root of [ROOT, BASE]) {
+    for (const file of TWO_SOURCES) {
+      assert.ok(
+        io.spawned.some((command) => command.endsWith(`--print-config ${root}/${file}`)),
+        `no resolved config was printed for ${root}/${file}: ${JSON.stringify(io.spawned)}`,
+      );
+    }
+  }
+});
+
+test('a --listFiles line that names no file refuses, quoting the line, rather than being read as a path', () => {
+  const io = tscIo({ baseChecked: ['a.ts'], headChecked: ['a.ts'] });
+  const read = [];
+  const noisy = Object.freeze({
+    ...io,
+    readFile: (path) => { read.push(String(path)); return io.readFile(path); },
+    run: (binary, argv, options) => {
+      if (argv.includes('--listFiles') && !String(argv[argv.length - 1]).startsWith(BASE)) {
+        return { outcome: 'completed', status: 0, stdout: `${ROOT}/a.ts\nVersion 5.8.3\n`, stderr: '' };
+      }
+      return io.run(binary, argv, options);
+    },
+  });
+  const verdict = evaluate(REQUEST, noisy);
+  assert.equal(verdict.pass, false, `an unclassifiable file-list line was bucketed as a checked file: ${verdict.output}`);
+  assert.match(verdict.output, /Version 5\.8\.3/);
+  assert.ok(
+    !read.some((path) => path.includes('Version 5.8.3')),
+    `the unclassifiable line was resolved to a path and read: ${JSON.stringify(read)}`,
+  );
+});
+
+test('a file list carrying the diagnostics tsc prints alongside it still parses, so the census is not a refusal for every input', () => {
+  const io = tscIo({ baseChecked: ['a.ts'], headChecked: ['a.ts'] });
+  const diagnosed = Object.freeze({
+    ...io,
+    run: (binary, argv, options) => {
+      if (argv.includes('--listFiles')) {
+        const root = argv[argv.length - 1];
+        return {
+          outcome: 'completed',
+          status: 0,
+          stdout: [`${root}/a.ts`, `${root}/a.ts(3,9): error TS2345: Argument bad`, "  Types of parameters 's' and 'n' are incompatible.", ''].join('\n'),
+          stderr: '',
+        };
+      }
+      return io.run(binary, argv, options);
+    },
+  });
+  const verdict = evaluate(REQUEST, diagnosed);
+  assert.equal(verdict.pass, true, `a well-formed file list carrying diagnostics was refused: ${verdict.output}`);
+});
+
+test('the common-file list refuses a surface carrying no checked-file list rather than returning an empty set', () => {
+  const io = { exists: () => true };
+  const refused = commonTreeFiles({ root: BASE }, { root: ROOT, checkedFiles: [`${ROOT}/a.ts`] }, io);
+  assert.equal(refused.ok, false, 'a malformed surface produced an empty common set, which makes every checked-scope comparison vacuous');
+  assert.match(refused.error, /base/);
+  const built = commonTreeFiles({ root: BASE, checkedFiles: [`${BASE}/a.ts`] }, { root: ROOT, checkedFiles: [`${ROOT}/a.ts`] }, io);
+  assert.equal(built.ok, true, built.error);
+  assert.deepEqual([...built.files], ['a.ts']);
+});
 
 test('a suppression in a file the MSP ADDS blocks, because the HEAD scan reads HEADs whole checked universe', () => {
   const verdict = evaluate(REQUEST, tscIo({
@@ -340,21 +541,46 @@ test('a scanned source above the byte cap refuses rather than being held whole i
   assert.match(verdict.output, /above the .* cap/);
 });
 
-test('a cached census whose surface lost a load-bearing field is refused and the base re-collected', () => {
-  for (const surface of [
-    { root: BASE, suppressions: {}, tsconfigOptions: {}, eslintConfig: { rules: {} } },
-    { root: BASE, checkedFiles: [], tsconfigOptions: {}, eslintConfig: { rules: {} } },
-    { root: BASE, checkedFiles: [], suppressions: {}, eslintConfig: { rules: {} } },
-    { root: BASE, checkedFiles: [], suppressions: {}, tsconfigOptions: {} },
-    { root: '', checkedFiles: [], suppressions: {}, tsconfigOptions: {}, eslintConfig: { rules: {} } },
-  ]) {
-    const io = tscIo({ baseChecked: ['a.ts'], headChecked: ['a.ts'] });
-    const cached = { gateBase: 'abc123', tools: { tsc: { identities: {}, fileCount: 1 } }, notExpected: ['eslint'], surface };
-    const verdict = evaluate({ ...REQUEST, cachedBaseCensus: cached }, io);
-    assert.equal(verdict.usedCachedCensus, false, `a stale-shaped surface was trusted: ${JSON.stringify(surface)}`);
+const COMPLETE_CACHED_SURFACE = Object.freeze({
+  root: BASE,
+  checkedFiles: [`${BASE}/a.ts`],
+  checkedByTool: { tsc: [`${BASE}/a.ts`] },
+  suppressions: {},
+  tsconfigOptions: STRICT_EXPANDED,
+  eslintConfigByFile: {},
+  eslintConfigFiles: [],
+});
+
+function cachedCensusOf(surface) {
+  return { gateBase: 'abc123', tools: { tsc: { identities: {}, fileCount: 1 } }, notExpected: ['eslint'], surface };
+}
+
+function evaluatedWithCache(surface) {
+  const io = tscIo({ baseChecked: ['a.ts'], headChecked: ['a.ts'] });
+  return { io, verdict: evaluate({ ...REQUEST, cachedBaseCensus: cachedCensusOf(surface) }, io) };
+}
+
+test('a cached census whose surface lost any field the comparison reads is refused and the base re-collected', () => {
+  assert.deepEqual(
+    Object.keys(COMPLETE_CACHED_SURFACE).sort(),
+    CACHED_SURFACE_FIELDS.map((field) => field.name).sort(),
+    'the fixture surface and the declared cached-surface fields disagree, so a field the comparison reads would go unexercised here',
+  );
+  for (const field of CACHED_SURFACE_FIELDS) {
+    const surface = Object.fromEntries(Object.entries(COMPLETE_CACHED_SURFACE).filter(([name]) => name !== field.name));
+    const { io, verdict } = evaluatedWithCache(surface);
+    assert.equal(verdict.usedCachedCensus, false, `a surface carrying no ${field.name} was trusted`);
     assert.ok(
       io.spawned.some((command) => command.includes('worktree add')),
-      `the base was not re-collected for ${JSON.stringify(surface)}: ${JSON.stringify(io.spawned)}`,
+      `the base was not re-collected for a surface carrying no ${field.name}: ${JSON.stringify(io.spawned)}`,
     );
   }
+  const emptyRoot = evaluatedWithCache({ ...COMPLETE_CACHED_SURFACE, root: '' });
+  assert.equal(emptyRoot.verdict.usedCachedCensus, false, 'a surface naming no root was trusted');
+  const complete = evaluatedWithCache(COMPLETE_CACHED_SURFACE);
+  assert.equal(
+    complete.verdict.usedCachedCensus,
+    true,
+    `a complete cached surface was refused too, so the refusals above are not about the field each one dropped: ${complete.verdict.output}`,
+  );
 });

@@ -1,15 +1,15 @@
 import { join as pathJoin } from 'node:path';
 import { sideRelativeFile, within } from './boundary-scan-scope.mjs';
 
-export const ANCHOR_CHOOSE = 'choose';
-export const ANCHOR_FIXED = 'fixed';
+export const SCOPE_CHOOSE = 'choose';
+export const SCOPE_FIXED = 'fixed';
 
-export function choosingAnchor(otherRoot) {
-  return Object.freeze({ kind: ANCHOR_CHOOSE, otherRoot });
+export function choosingScope(otherRoot) {
+  return Object.freeze({ kind: SCOPE_CHOOSE, otherRoot });
 }
 
-export function fixedAnchor(relativePath) {
-  return Object.freeze({ kind: ANCHOR_FIXED, relative: relativePath });
+export function fixedScope(relativePaths) {
+  return Object.freeze({ kind: SCOPE_FIXED, relatives: Object.freeze([...relativePaths]) });
 }
 
 function failureText(error, fallback) {
@@ -59,43 +59,53 @@ export function collectTsconfigOptions(root, bin, io, side) {
   return { ok: true, tsconfigOptions: parsed.compilerOptions };
 }
 
-export function resolveEslintAnchor(files, root, anchor, io, side) {
-  if (anchor === null || typeof anchor !== 'object') {
-    return { ok: false, error: `eslint's resolved config could not be anchored on ${side} (${root}): it was handed ${JSON.stringify(anchor)} rather than an anchor policy, and each side picking its own first file lets the two print the config for different files` };
+export function resolveEslintScope(files, root, scope, io, side) {
+  if (scope === null || typeof scope !== 'object') {
+    return { ok: false, error: `eslint's resolved config could not be scoped on ${side} (${root}): it was handed ${JSON.stringify(scope)} rather than a scope policy, and each side picking its own file set lets the two resolve the config for different files` };
   }
-  if (anchor.kind === ANCHOR_FIXED) {
-    if (typeof anchor.relative !== 'string' || anchor.relative.length === 0) {
-      return { ok: false, error: `eslint's resolved config could not be anchored on ${side} (${root}): the anchor it was told to print is ${JSON.stringify(anchor.relative)} rather than a root-relative path` };
+  const linted = [...new Set(files.map((file) => sideRelativeFile(file, root)))]
+    .filter((relativePath) => relativePath.length > 0 && !within(root, relativePath).escapes)
+    .sort();
+  if (scope.kind === SCOPE_FIXED) {
+    if (!Array.isArray(scope.relatives) || scope.relatives.some((relativePath) => typeof relativePath !== 'string' || relativePath.length === 0)) {
+      return { ok: false, error: `eslint's resolved config could not be scoped on ${side} (${root}): the file set it was told to resolve is ${JSON.stringify(scope.relatives)} rather than a list of root-relative paths` };
     }
-    return { ok: true, relative: anchor.relative };
+    const chosen = [...new Set(scope.relatives)].filter((relativePath) => linted.includes(relativePath)).sort();
+    if (chosen.length === 0) {
+      return { ok: false, error: `eslint's resolved config could not be scoped on ${side} (${root}): none of the ${scope.relatives.length} file(s) the other side resolved the config for is among the ${linted.length} file(s) eslint lints here, so the two sides would resolve the config for different files` };
+    }
+    return { ok: true, relatives: Object.freeze(chosen) };
   }
-  if (anchor.kind !== ANCHOR_CHOOSE || typeof anchor.otherRoot !== 'string' || anchor.otherRoot.length === 0) {
-    return { ok: false, error: `eslint's resolved config could not be anchored on ${side} (${root}): the anchor policy ${JSON.stringify(anchor)} is neither ${ANCHOR_FIXED} nor ${ANCHOR_CHOOSE} against a named other root` };
+  if (scope.kind !== SCOPE_CHOOSE || typeof scope.otherRoot !== 'string' || scope.otherRoot.length === 0) {
+    return { ok: false, error: `eslint's resolved config could not be scoped on ${side} (${root}): the scope policy ${JSON.stringify(scope)} is neither ${SCOPE_FIXED} nor ${SCOPE_CHOOSE} against a named other root` };
   }
-  const candidates = [...new Set(files.map((file) => sideRelativeFile(file, root)))].filter((relativePath) => relativePath.length > 0).sort();
-  const chosen = candidates.find((relativePath) => !within(root, relativePath).escapes && io.exists(pathJoin(anchor.otherRoot, relativePath)));
-  if (chosen === undefined) {
-    return { ok: false, error: `eslint's resolved config could not be anchored on ${side} (${root}): none of the ${candidates.length} file(s) eslint linted here is present under ${anchor.otherRoot}, so the two sides would print the config for different files` };
+  const chosen = linted.filter((relativePath) => io.exists(pathJoin(scope.otherRoot, relativePath)));
+  if (chosen.length === 0) {
+    return { ok: false, error: `eslint's resolved config could not be scoped on ${side} (${root}): none of the ${linted.length} file(s) eslint linted here is present under ${scope.otherRoot}, so the two sides would resolve the config for different files` };
   }
-  return { ok: true, relative: chosen };
+  return { ok: true, relatives: Object.freeze(chosen) };
 }
 
-export function collectEslintConfig(root, bin, io, files, side, anchor) {
+export function collectEslintConfig(root, bin, io, files, side, scope) {
   if (files.length === 0) {
     return { ok: false, error: `eslint's resolved config could not be collected on ${side} (${root}): eslint reported zero files, so there is no candidate file to print the config for` };
   }
-  const resolved = resolveEslintAnchor(files, root, anchor, io, side);
+  const resolved = resolveEslintScope(files, root, scope, io, side);
   if (!resolved.ok) return resolved;
-  const contained = within(root, resolved.relative);
-  if (contained.escapes) {
-    return { ok: false, error: `eslint's resolved config could not be collected on ${side} (${root}): the anchor ${JSON.stringify(resolved.relative)} resolves to ${contained.path}, outside the worktree root` };
+  const byFile = {};
+  for (const relativePath of resolved.relatives) {
+    const contained = within(root, relativePath);
+    if (contained.escapes) {
+      return { ok: false, error: `eslint's resolved config could not be collected on ${side} (${root}): the file ${JSON.stringify(relativePath)} resolves to ${contained.path}, outside the worktree root` };
+    }
+    const label = `eslint's resolved config (--print-config ${relativePath})`;
+    const collected = collectResolvedConfigJson(root, [bin, '--print-config', contained.path], io, side, label);
+    if (!collected.ok) return collected;
+    const { parsed } = collected;
+    if (!isPlainObject(parsed) || !isPlainObject(parsed.rules)) {
+      return { ok: false, error: `${label} on ${side} (${root}) could not be collected: it printed ${JSON.stringify(parsed)}, which carries no rules object` };
+    }
+    byFile[relativePath] = Object.freeze({ rules: parsed.rules });
   }
-  const label = `eslint's resolved config (--print-config ${resolved.relative})`;
-  const collected = collectResolvedConfigJson(root, [bin, '--print-config', contained.path], io, side, label);
-  if (!collected.ok) return collected;
-  const { parsed } = collected;
-  if (!isPlainObject(parsed) || !isPlainObject(parsed.rules)) {
-    return { ok: false, error: `${label} on ${side} (${root}) could not be collected: it printed ${JSON.stringify(parsed)}, which carries no rules object` };
-  }
-  return { ok: true, eslintConfig: Object.freeze({ rules: parsed.rules }), eslintConfigFile: resolved.relative };
+  return { ok: true, eslintConfigByFile: Object.freeze(byFile), eslintConfigFiles: Object.freeze([...resolved.relatives]) };
 }

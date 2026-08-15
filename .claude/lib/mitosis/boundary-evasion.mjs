@@ -165,6 +165,33 @@ export function compareRuleSeverity(baseConfig, headConfig) {
   return passed(blocking);
 }
 
+function fileKeyedMap(value) {
+  return value !== null && typeof value === 'object' && !Array.isArray(value);
+}
+
+export function compareRuleSeverityByFile(baseByFile, headByFile) {
+  for (const [side, value] of [['base', baseByFile], ['HEAD', headByFile]]) {
+    if (!fileKeyedMap(value)) {
+      return halted(`the ${side} surface carries ${JSON.stringify(value)} rather than a resolved eslint rule map keyed by the file it was resolved for; eslint resolves its config per glob, so one config sampled for one anchor file cannot stand for the rest and the comparison halts rather than reporting no downgrade`);
+    }
+  }
+  const shared = Object.keys(baseByFile).filter((file) => Object.hasOwn(headByFile, file)).sort();
+  const baseFiles = Object.keys(baseByFile).length;
+  const headFiles = Object.keys(headByFile).length;
+  if (shared.length === 0 && (baseFiles > 0 || headFiles > 0)) {
+    return halted(`the two sides resolved the eslint config for no file in common (base resolved ${baseFiles}, HEAD resolved ${headFiles}); no file could be compared, so a severity downgrade could not be measured and the gate refuses rather than reporting none`);
+  }
+  const blocking = [];
+  for (const file of shared) {
+    const verdict = compareRuleSeverity(baseByFile[file], headByFile[file]);
+    if (verdict.halted) return halted(`the resolved eslint config for ${file}: ${verdict.error}`);
+    for (const entry of verdict.blocking) {
+      blocking.push(Object.freeze({ ...entry, file, detail: `${file}: ${entry.detail}` }));
+    }
+  }
+  return passed(blocking);
+}
+
 function strictlyEnabled(options) {
   return options.strict === true;
 }
@@ -238,22 +265,47 @@ export function compareCheckedFiles(baseChecked, headChecked, commonFiles, roots
   })]);
 }
 
+export function compareCheckedFilesByTool(baseByTool, headByTool, commonFiles, roots) {
+  for (const [name, value] of [['baseCheckedByTool', baseByTool], ['headCheckedByTool', headByTool]]) {
+    if (!fileKeyedMap(value)) {
+      return halted(`the checked-scope comparison needs ${name} as a map of tool name to that tool's file list, not ${JSON.stringify(value)}; folding every tool into one union compares only what left EVERY tool's list, so a file one tool stopped checking stays masked by another tool that still checks it`);
+    }
+  }
+  const tools = [...new Set([...Object.keys(baseByTool), ...Object.keys(headByTool)])].sort();
+  if (tools.length === 0 && Array.isArray(commonFiles) && commonFiles.length > 0) {
+    return halted(`the checked-scope comparison was handed no tool file list on either side while ${commonFiles.length} file(s) are present in both trees; an empty per-tool map compares nothing and passes for every input, so it halts rather than reporting a clean scope over files no tool claims to check`);
+  }
+  const blocking = [];
+  for (const tool of tools) {
+    const onBase = Object.hasOwn(baseByTool, tool);
+    if (onBase !== Object.hasOwn(headByTool, tool)) {
+      return halted(`${tool} reported a checked-file list on ${onBase ? 'base' : 'HEAD'} and none on ${onBase ? 'HEAD' : 'base'}; the two sides collected different tools, which is a shape change the comparison cannot read as either a narrowed scope or a clean one`);
+    }
+    const verdict = compareCheckedFiles(baseByTool[tool], headByTool[tool], commonFiles, roots);
+    if (verdict.halted) return halted(`the checked scope of ${tool}: ${verdict.error}`);
+    for (const entry of verdict.blocking) {
+      blocking.push(Object.freeze({ ...entry, tool, detail: `${tool}: ${entry.detail}` }));
+    }
+  }
+  return passed(blocking);
+}
+
 function surfaceRoots(baseSurface, headSurface) {
   return { base: baseSurface.root, head: headSurface.root };
 }
 
 export function compareResolvedConfig(baseSurface, headSurface) {
   for (const [side, surface] of [['base', baseSurface], ['HEAD', headSurface]]) {
-    for (const field of ['checkedFiles', 'commonFiles']) {
-      if (field === 'commonFiles' && side === 'base') continue;
-      if (!Array.isArray(surface[field])) {
-        return halted(`the ${side} surface carries no ${field}, and a missing list defaulted to empty reports no narrowing for every input; the checked-scope comparison halts rather than passing on a surface it was never given`);
-      }
+    if (!fileKeyedMap(surface.checkedByTool)) {
+      return halted(`the ${side} surface carries no checkedByTool map, and a missing map defaulted to empty reports no narrowing for every input; the checked-scope comparison halts rather than passing on a surface it was never given`);
+    }
+    if (side === 'HEAD' && !Array.isArray(surface.commonFiles)) {
+      return halted('the HEAD surface carries no commonFiles, and a missing list defaulted to empty reports no narrowing for every input; the checked-scope comparison halts rather than passing on a surface it was never given');
     }
   }
-  const severity = compareRuleSeverity(baseSurface.eslintConfig, headSurface.eslintConfig);
+  const severity = compareRuleSeverityByFile(baseSurface.eslintConfigByFile, headSurface.eslintConfigByFile);
   const flags = compareTsconfigFlags(baseSurface.tsconfigOptions, headSurface.tsconfigOptions);
-  const scope = compareCheckedFiles(baseSurface.checkedFiles, headSurface.checkedFiles, headSurface.commonFiles, surfaceRoots(baseSurface, headSurface));
+  const scope = compareCheckedFilesByTool(baseSurface.checkedByTool, headSurface.checkedByTool, headSurface.commonFiles, surfaceRoots(baseSurface, headSurface));
   const stopped = [severity, flags, scope].find((verdict) => verdict.halted);
   if (stopped !== undefined) return halted(stopped.error);
   return passed([

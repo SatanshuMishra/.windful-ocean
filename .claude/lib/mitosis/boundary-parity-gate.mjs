@@ -16,17 +16,7 @@ import {
   structuralIdentity,
   toolExpectation,
 } from './boundary-gate.mjs';
-import {
-  SUPPRESSION_DIRECTIVES,
-  TSCONFIG_STRICTNESS_FLAGS,
-  compareCheckedFiles,
-  compareRuleSeverity,
-  compareSuppressions,
-  compareTsconfigFlags,
-  countSuppressions,
-  evasionVerdict,
-  suppressionKey,
-} from './boundary-evasion.mjs';
+import { SUPPRESSION_DIRECTIVES } from './boundary-evasion.mjs';
 import {
   failClosedProbe,
   materializationProbe,
@@ -34,6 +24,7 @@ import {
   teardownProbe,
   toolResolutionProbe,
 } from './boundary-collection-failure-probe.mjs';
+import { evasionProbe } from './boundary-evasion-probe.mjs';
 import { evasionWiringProbe } from './boundary-evasion-wiring-probe.mjs';
 import { run as execRun } from './exec-run.mjs';
 
@@ -41,7 +32,6 @@ const PROBE_ROOT = '/probe/head';
 const PROBE_BASE = '/probe/base';
 const PROBE_GATE_BASE = 'probebase';
 const UNLISTED_PROBE_BINARY = 'npx';
-const PROBE_SCOPE_ROOTS = Object.freeze({ base: PROBE_BASE, head: PROBE_ROOT });
 
 export const BOUNDARY_PARITY_ATTESTS = Object.freeze([
   'every boundary label spelled in either declared engine tree is resolved to exactly one declared name, and a label none of them covers halts with its site named rather than being absorbed by a name it merely extends',
@@ -59,6 +49,7 @@ export const BOUNDARY_PARITY_ATTESTS = Object.freeze([
   'the checked-scope comparison halts rather than defaulting when a file list, a common-file list or the two side roots are absent, and halts when the two lists share no file at all rather than reporting a clean narrowing; every one of those refusals is measured here on every invocation',
   'the comparison is a multiset surplus rather than a difference or a presence test: an unchanged pre-existing finding and a fixed pre-existing finding each pass, and a second instance of a class already present at base blocks, each measured here on every invocation',
   'a tsc line that is neither blank nor one of the declared diagnostic forms halts with the line quoted rather than being skipped, and that halt is exercised here on a synthetic line every time this verb runs',
+  'the type-checked file list is a closed census too: a line matching neither a declared diagnostic form, an indented continuation, nor the declared absolute-file-path form HALTS with the line quoted rather than being read as a checked file path and handed to the file reader; a well-formed list carrying the diagnostics tsc prints beside it still parses, and both are measured here on every invocation',
   'a run that scanned zero files is refused on both tools rather than read as a clean result, and an eslint report that is not an array of file entries is refused, each measured here on every invocation',
   'NOT-EXPECTED requires positive observation of BOTH sides: a config present on either side alone still expects the tool, and a side that cannot be positively observed is never reported NOT-EXPECTED, both measured here on every invocation',
   'the base worktree teardown runs on the throw path and not only on success, measured here on every invocation against an injected seam that throws mid-collection',
@@ -68,17 +59,17 @@ export const BOUNDARY_PARITY_ATTESTS = Object.freeze([
   'the added-suppression scan counts HEAD source against base source per declared directive and blocks the surplus alone, so a suppression this MSP added blocks and one it inherited does not; both are measured here on every invocation, and the longest directive spelling is counted over the prefix it contains',
   'a rule severity downgrade blocks against the resolved rule map rather than the written config, so resolution through extends and shared presets is done by eslint; a rule that vanished from the resolved map is read as a downgrade to off rather than as absent, and a raise does not block',
   'a declared tsconfig strictness flag moved away from its safe value blocks, and a changed compiler option the declared table does not name HALTS with the key named rather than being bucketed as not strictness-relevant; that halt is exercised here on an unnamed option every time this verb runs',
-  'the checked-scope comparison compares resolved file lists restricted to files present on both sides rather than glob semantics, so a narrowed include or a widened ignore blocks while a legitimately added or deleted source file does not; all three are measured here on every invocation',
+  'the checked-scope comparison is made PER TOOL against the same tool file list on the other side rather than over one union of every tool, so a file eslint stopped linting blocks even while tsc still checks it, and a tool that reported a list on one side and none on the other HALTS rather than being read as a narrowed or a clean scope; a narrowed include or a widened ignore blocks while a legitimately added or deleted source file does not, and all of it is measured here on every invocation',
   'the package-manager resolver yields a real, existing JS entry distinct from the node binary rather than a bare path that cannot execute, and a lockfile whose declared manager carries no install support refuses before any install child spawns, both measured here on every invocation',
   'an added suppression and a resolved-config strictness downgrade each reach the gate verdict end to end through evaluate itself, carrying the added-suppression or tsconfig-strictness classifier in its blocking array, and an inherited suppression or an unchanged resolved config still passes; all four are measured here on every invocation by driving evaluate rather than the classifier functions alone',
   'the HEAD suppression scan reads HEAD OWN whole checked universe rather than the base-HEAD intersection, so a suppression in a file this MSP ADDS blocks while an added file carrying none still passes; both are measured here on every invocation by driving evaluate over a file present only at HEAD',
   'the scanned universe is the union of every EXPECTED tool file list rather than the type-checked list alone, so a suppression added in a repository where tsc is NOT-EXPECTED blocks and an eslint-only repository that added none still passes; both are measured here on every invocation, and a universe empty of repository sources while a tool was collected is refused',
-  'the common-file list the checked-scope comparison restricts to comes from TREE MEMBERSHIP rather than from the two checked lists, because a common list derived from those lists makes both restricted sets equal it and the dropped set identically empty; a file present in both trees and checked only at base blocks and a file deleted at HEAD passes, both measured here on every invocation through evaluate',
-  'both sides print the resolved eslint config for ONE anchor, chosen root-relative from the files present on both sides, so a file that sorts first only at HEAD neither hides a real downgrade nor fabricates one; the HEAD census is collected before the base so the anchor exists when the base is asked for it, and a base that cannot print the anchor refuses naming it',
+  'the common-file list the checked-scope comparison restricts to comes from TREE MEMBERSHIP rather than from the two checked lists, because a common list derived from those lists makes both restricted sets equal it and the dropped set identically empty; a surface it cannot read that list from REFUSES rather than yielding an empty common set, and a file present in both trees and checked only at base blocks while a file deleted at HEAD passes, all measured here on every invocation through evaluate',
+  'each side prints the resolved eslint config PER FILE for every file it lints that is present in the other tree, and the severity comparison covers exactly the files BOTH sides resolved, so a per-glob downgrade that leaves the first-sorting file untouched blocks and a file that only one side lints neither hides a downgrade nor fabricates one; two sides that resolved no file in common HALT, and a side that cannot print a file config refuses naming that file. A file only one side lints is covered by the per-tool checked-scope comparison rather than here, and nothing beyond the files both sides lint is claimed',
   'the strictness comparison is fed a REAL captured tsc --showConfig payload in which strict:true is already expanded into its whole strict family, so a family member the declared table fails to name halts here rather than in production; the payload carries at least ten compiler options and a single-key synthetic is refused',
   'a verdict that does not pass always names at least one blocking entry, whether it blocked, halted mid-scan, or refused the collection, so a consumer rendering the cause from the blocking array never reports an empty reason; measured here on every invocation across every failing verdict the wiring probe drives',
   'the scanned universe carries repository sources alone: a path under node_modules is dropped so a dependency or compiler bump cannot surface as an added suppression, and a listed path that escapes its worktree root refuses naming the path rather than being read',
-  'a supplied base census is refused unless its surface carries every field the comparison reads: a non-empty root, a checked-file list, a suppression map, resolved compiler options and a resolved eslint rule map; a stale-shaped census is re-collected rather than silently disabling the classifiers that read those fields',
+  'a supplied base census is refused unless its surface carries every field the comparison reads: a non-empty root, a checked-file list, a per-tool checked-file map, a suppression map, resolved compiler options, the per-file resolved eslint rule maps and the file list they were resolved for; a stale-shaped census is re-collected rather than silently disabling the classifiers that read those fields',
 ]);
 
 export const BOUNDARY_PARITY_NOT_ATTESTED = Object.freeze([
@@ -92,6 +83,7 @@ export const BOUNDARY_PARITY_NOT_ATTESTED = Object.freeze([
   'that a boundary label composed rather than spelled would be seen: the census classifies a plain string literal at a label key, so a label built by interpolation or read from configuration is outside what it measures',
   'that the added-suppression scan reads the same domain the incumbent prose reads: the first pass scans the source diff and the recheck scans HEAD source against a cached surface, and this program narrows both to HEAD-vs-base source counts, which is well defined without a diff and is what lets the two passes share one code path',
   'that a suppression spelled other than as one of the declared directives would be counted: the scan counts declared spellings in source text, so a directive introduced by a plugin under another name, or one composed at run time, is outside what it measures',
+  'what resolving the eslint config per file costs on a real repository: covering the surface takes one --print-config child per linted file per side, and every probe here injects its exec seam, so the wall-clock cost of that on a tree of thousands of files is unmeasured until C7 runs it against a real repository',
 ]);
 
 function probeIo(overrides) {
@@ -204,7 +196,15 @@ function equivalenceProbe() {
     gateBase: PROBE_GATE_BASE,
     tools: {},
     notExpected: BOUNDARY_TOOLS.map((tool) => tool.name),
-    surface: { root: PROBE_BASE, checkedFiles: [], suppressions: {}, tsconfigOptions: {}, eslintConfig: { rules: {} } },
+    surface: {
+      root: PROBE_BASE,
+      checkedFiles: [],
+      checkedByTool: {},
+      suppressions: {},
+      tsconfigOptions: {},
+      eslintConfigByFile: {},
+      eslintConfigFiles: [],
+    },
   };
   const disagreeing = evaluate({ ...request, cachedBaseCensus: disagreeingCensus }, disagreeingIo);
   return Object.freeze({
@@ -353,87 +353,6 @@ function censusControlProbes() {
   }));
 }
 
-const SUPPRESSION_PROBE_FILES = Object.freeze([
-  Object.freeze({ path: 'probe/a.ts', source: '// eslint-disable-next-line no-eq\n// eslint-disable no-eq\n' }),
-  Object.freeze({ path: 'probe/b.ts', source: '// @ts-expect-error\n' }),
-]);
-
-function ignoredIn(path, count) {
-  return countSuppressions([Object.freeze({ path, source: '// @ts-ignore\n'.repeat(count) })]);
-}
-
-function probeSurface(root) {
-  return {
-    root,
-    eslintConfig: { rules: { r: 2 } },
-    tsconfigOptions: { strict: true },
-    checkedFiles: [`${root}/a.ts`],
-    commonFiles: ['a.ts'],
-    suppressions: ignoredIn('a.ts', 1),
-  };
-}
-
-function evasionProbe() {
-  const counted = countSuppressions(SUPPRESSION_PROBE_FILES);
-  const inherited = compareSuppressions(ignoredIn('a.ts', 3), ignoredIn('a.ts', 3));
-  const added = compareSuppressions(ignoredIn('a.ts', 1), ignoredIn('a.ts', 2));
-  const removed = compareSuppressions(ignoredIn('a.ts', 3), countSuppressions([]));
-  const partlyRemoved = compareSuppressions(ignoredIn('a.ts', 3), ignoredIn('a.ts', 1));
-  const moved = compareSuppressions(ignoredIn('old.ts', 1), ignoredIn('new.ts', 1));
-  const unkeyed = compareSuppressions({}, { '@ts-ignore': 1 });
-  const downgrade = compareRuleSeverity({ rules: { 'no-eq': 2 } }, { rules: { 'no-eq': 1 } });
-  const vanished = compareRuleSeverity({ rules: { 'no-eq': 2 } }, { rules: {} });
-  const raise = compareRuleSeverity({ rules: { 'no-eq': 1 } }, { rules: { 'no-eq': 2 } });
-  const loosened = compareTsconfigFlags({ strict: true }, { strict: false });
-  const tightened = compareTsconfigFlags({ strict: false }, { strict: true });
-  const writtenUnsafe = compareTsconfigFlags({}, { skipLibCheck: true });
-  const strictFamilyOff = compareTsconfigFlags({ strict: true }, { strict: true, noImplicitAny: false });
-  const unnamed = compareTsconfigFlags({ jsx: 'react' }, { jsx: 'preserve' });
-  const unchangedUnnamed = compareTsconfigFlags({ jsx: 'react' }, { jsx: 'react' });
-  const narrowed = compareCheckedFiles(['a.ts', 'b.ts'], ['a.ts'], ['a.ts', 'b.ts'], PROBE_SCOPE_ROOTS);
-  const deleted = compareCheckedFiles(['a.ts', 'b.ts'], ['a.ts'], ['a.ts'], PROBE_SCOPE_ROOTS);
-  const addedFile = compareCheckedFiles(['a.ts'], ['a.ts', 'b.ts'], ['a.ts', 'b.ts'], PROBE_SCOPE_ROOTS);
-  const acrossRoots = compareCheckedFiles(
-    [`${PROBE_BASE}/a.ts`, `${PROBE_BASE}/b.ts`],
-    [`${PROBE_ROOT}/a.ts`],
-    [`${PROBE_ROOT}/a.ts`, `${PROBE_ROOT}/b.ts`],
-    PROBE_SCOPE_ROOTS,
-  );
-  const disjoint = compareCheckedFiles(['/elsewhere/a.ts'], [`${PROBE_ROOT}/a.ts`], [`${PROBE_ROOT}/a.ts`], PROBE_SCOPE_ROOTS);
-  const rootless = compareCheckedFiles(['a.ts'], ['a.ts'], ['a.ts'], null);
-  const baseSurface = probeSurface(PROBE_BASE);
-  const headSurface = probeSurface(PROBE_ROOT);
-  const aggregated = evasionVerdict(baseSurface, headSurface);
-  const withoutSuppressions = evasionVerdict({ ...baseSurface, suppressions: undefined }, { ...headSurface, suppressions: undefined });
-  const withoutCheckedFiles = evasionVerdict({ ...baseSurface, checkedFiles: undefined }, { ...headSurface, checkedFiles: undefined });
-  return Object.freeze({
-    longestSpellingWins: counted[suppressionKey('probe/a.ts', 'eslint-disable-next-line')] === 1
-      && counted[suppressionKey('probe/a.ts', 'eslint-disable')] === 1
-      && counted[suppressionKey('probe/b.ts', '@ts-expect-error')] === 1,
-    directiveCount: SUPPRESSION_DIRECTIVES.length,
-    inheritedPasses: inherited.pass === true,
-    partlyRemovedPasses: partlyRemoved.pass === true,
-    addedBlocks: added.pass === false && added.blocking.length === 1 && added.blocking[0].surplus === 1,
-    removedPasses: removed.pass === true,
-    movedSuppressionBlocks: moved.pass === false && moved.blocking.length === 1 && moved.blocking[0].path === 'new.ts',
-    unkeyedCountHalts: unkeyed.halted === true && unkeyed.error.includes('@ts-ignore'),
-    downgradeBlocks: downgrade.pass === false,
-    vanishedRuleBlocks: vanished.pass === false,
-    raisePasses: raise.pass === true,
-    loosenedFlagBlocks: loosened.pass === false,
-    tightenedFlagPasses: tightened.pass === true,
-    absentThenUnsafeBlocks: writtenUnsafe.pass === false && strictFamilyOff.pass === false,
-    unnamedOptionHalts: unnamed.halted === true && unnamed.error.includes('jsx'),
-    unchangedUnnamedOptionPasses: unchangedUnnamed.halted === false && unchangedUnnamed.pass === true,
-    narrowingBlocks: narrowed.pass === false && acrossRoots.pass === false,
-    deletionPasses: deleted.pass === true,
-    additionPasses: addedFile.pass === true,
-    vacuousScopeHalts: disjoint.halted === true && rootless.halted === true,
-    absentSurfaceHalts: withoutSuppressions.halted === true && withoutCheckedFiles.halted === true,
-    aggregatePasses: aggregated.pass === true && aggregated.halted === false,
-    flagCount: Object.keys(TSCONFIG_STRICTNESS_FLAGS).length,
-  });
-}
 
 export function probeBoundarySubstrate() {
   return Object.freeze({
@@ -495,6 +414,12 @@ export function boundaryParityFailures(substrate) {
   }
   if (!failClosed.wellFormedTscLineParses) {
     failures.push('a well-formed tsc diagnostic no longer parses, so the census halts on everything and measures nothing');
+  }
+  if (!failClosed.unclassifiableListedLineHalts) {
+    failures.push('a --listFiles line matching no declared diagnostic, continuation or absolute-file-path form is now read as a checked file path and handed to the file reader rather than halting with the line quoted; that is the catch-all bucket the sibling diagnostic census refuses by name, and it drives real file reads');
+  }
+  if (!failClosed.wellFormedListedFileParses) {
+    failures.push('a well-formed file list carrying the diagnostics tsc prints beside it no longer parses to the paths it names, so the file-list census refuses every input rather than classifying it');
   }
   if (!failClosed.zeroFilesRefused) {
     failures.push('a run that scanned zero files now reads as a clean result, which is the silent wrong success the fail-closed rule exists to prevent');
@@ -616,7 +541,25 @@ export function boundaryParityFailures(substrate) {
     failures.push('a checked-scope comparison whose two file lists share nothing, or which was given no roots to normalize against, now passes rather than halting; that is the permanently vacuous pass the real wiring produces, since each side lists its own absolute paths');
   }
   if (!evasion.absentSurfaceHalts) {
-    failures.push('a surface missing its suppression counts or its checked-file list now defaults to empty rather than halting, and an empty default reports no evasion for every input');
+    failures.push('a surface missing its suppression counts, its per-tool checked-file map or its per-file resolved eslint configs now defaults to empty rather than halting, and an empty default reports no evasion for every input');
+  }
+  if (!evasion.perToolNarrowingBlocks) {
+    failures.push('a file that left ONE tool file list while another tool still covers it no longer blocks, so the comparison folded the per-tool lists back into a union; a union compares only what left EVERY tool, which masks every widened ignore in a repository where a second tool covers the same file');
+  }
+  if (!evasion.perToolUnchangedPasses) {
+    failures.push('two identical per-tool checked-file maps now block, so the per-tool comparison has become a presence rule rather than a narrowing rule and no MSP could pass');
+  }
+  if (!evasion.perToolShapeChangeHalts) {
+    failures.push('a tool that reported a checked-file list on one side and none on the other, an empty per-tool map, or a bare union list handed in place of the map, is now compared rather than halting; each of those is a shape change that reads as a clean scope for every input');
+  }
+  if (!evasion.perFileDowngradeBlocks) {
+    failures.push('a severity downgrade resolved for one file no longer blocks when another compared file kept its severity, so the comparison is back to one sampled anchor and every per-glob downgrade behind that anchor passes');
+  }
+  if (!evasion.perFileUnchangedPasses) {
+    failures.push('two identical per-file resolved configs now block, so the per-file comparison reports a downgrade where the config never changed');
+  }
+  if (!evasion.perFileVacuousHalts) {
+    failures.push('two sides that resolved the eslint config for no file in common, a side handed no per-file map at all, or a single resolved config handed in place of the map, now compare vacuously rather than halting; each reports no downgrade for every input');
   }
   if (!evasion.downgradeBlocks || !evasion.vanishedRuleBlocks) {
     failures.push('a rule severity downgrade in the resolved rule map no longer blocks, so the gate could be passed by lowering a rule to warn or off, or by dropping it from the resolved config entirely');
@@ -678,6 +621,18 @@ export function boundaryParityFailures(substrate) {
   }
   if (!evasionWiring.deletedFilePasses) {
     failures.push('a file legitimately deleted at HEAD now reads as a narrowed checked scope through evaluate, so the common-file list is no longer restricted to files present in both trees');
+  }
+  if (!evasionWiring.widenedIgnoreBlocksPerTool) {
+    failures.push('an eslint ignore widened at HEAD no longer makes evaluate block with classifier checked-scope naming eslint while tsc still checks the file, so the per-tool lists are folded into a union before the comparison and every ignore widening in a repository both tools cover is masked');
+  }
+  if (!evasionWiring.unchangedToolScopesPass) {
+    failures.push('a repository whose tools check the same files on both sides now blocks through evaluate, so the per-tool comparison reports a narrowing where no scope changed');
+  }
+  if (!evasionWiring.perGlobDowngradeBlocks) {
+    failures.push('a per-glob rule downgrade that leaves the first-sorting file untouched no longer makes evaluate block with classifier rule-severity naming the file, so the resolved config is sampled at one anchor again and the anchor is trivially targetable');
+  }
+  if (!evasionWiring.everyComparedFileResolved) {
+    failures.push('the sides no longer print the resolved eslint config for every file they lint that the other tree carries, so the compared surface is narrower than the attest claims');
   }
   if (evasionWiring.expandedStrictFlagCount < 10) {
     failures.push(`the captured tsc --showConfig payload the wiring probe replays carries only ${evasionWiring.expandedStrictFlagCount} compiler option(s); a real tsc expands strict:true into its whole strict family, and a single-key synthetic payload is what let an unnamed family member halt the gate unmeasured`);

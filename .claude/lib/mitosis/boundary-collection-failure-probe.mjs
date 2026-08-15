@@ -1,4 +1,5 @@
-import { REAL_BOUNDARY_IO, censusTscLines, evaluate, parseEslintReport, structuralIdentity } from './boundary-gate.mjs';
+import { REAL_BOUNDARY_IO, evaluate, parseEslintReport, structuralIdentity } from './boundary-gate.mjs';
+import { censusListedFiles, censusTscLines } from './boundary-tsc-lines.mjs';
 
 const PROBE_ROOT = '/probe/collection/head';
 const PROBE_BASE = '/probe/collection/base';
@@ -47,10 +48,14 @@ function tscZeroFilesIo() {
   return typescriptDeclaredIo({ run: () => CLEAN_CHILD });
 }
 
+function listedFileStdout(argv) {
+  return { outcome: 'completed', status: 0, stdout: `${argv[argv.length - 1]}/src/a.ts\n`, stderr: '' };
+}
+
 function crashedRunIo() {
   return typescriptDeclaredIo({
     run: (binary, argv) => {
-      if (argv.includes('--listFiles')) return { outcome: 'completed', status: 0, stdout: 'src/a.ts\n', stderr: '' };
+      if (argv.includes('--listFiles')) return listedFileStdout(argv);
       if (argv.includes('--noEmit')) return { outcome: 'completed', status: 3, stdout: '', stderr: 'Debug Failure. False expression.' };
       return CLEAN_CHILD;
     },
@@ -60,7 +65,7 @@ function crashedRunIo() {
 export function toolResolutionProbe() {
   const absent = REAL_BOUNDARY_IO.resolveTool('typescript', PROBE_ABSENT_ROOT);
   const declaredIo = typescriptDeclaredIo({
-    run: (binary, argv) => (argv.includes('--listFiles') ? { outcome: 'completed', status: 0, stdout: 'src/a.ts\n', stderr: '' } : CLEAN_CHILD),
+    run: (binary, argv) => (argv.includes('--listFiles') ? listedFileStdout(argv) : CLEAN_CHILD),
   });
   probeEvaluate(declaredIo);
   const typeRuns = declaredIo.spawned.filter((command) => command.includes('--noEmit'));
@@ -87,6 +92,9 @@ export function failClosedProbe() {
   const orphan = censusTscLines(CHAIN_TAIL);
   const trailingSummary = censusTscLines([CHAIN_HEAD, 'Found 3 errors in 2 files.'].join('\n'));
   const crashed = probeEvaluate(crashedRunIo());
+  const unclassifiableListed = censusListedFiles([`${PROBE_ROOT}/src/a.ts`, 'Version 5.8.3'].join('\n'));
+  const relativeListed = censusListedFiles('src/a.ts');
+  const wellFormedListed = censusListedFiles([`${PROBE_ROOT}/src/a.ts`, CHAIN_HEAD, CHAIN_TAIL, ''].join('\n'));
   return Object.freeze({
     malformedTscLineHalts: malformed.ok === false && malformed.error.includes('Found 3 errors in 2 files.'),
     wellFormedTscLineParses: wellFormed.ok === true && wellFormed.diagnostics.length === 1,
@@ -98,6 +106,13 @@ export function failClosedProbe() {
     orphanContinuationHalts: orphan.ok === false && orphan.error.includes(CHAIN_TAIL),
     trailingUnclassifiableLineHalts: trailingSummary.ok === false && trailingSummary.error.includes('Found 3 errors in 2 files.'),
     crashedRunRefused: crashed.pass === false && /exited 3/.test(crashed.output),
+    unclassifiableListedLineHalts: unclassifiableListed.ok === false
+      && unclassifiableListed.error.includes('Version 5.8.3')
+      && relativeListed.ok === false
+      && relativeListed.error.includes('src/a.ts'),
+    wellFormedListedFileParses: wellFormedListed.ok === true
+      && wellFormedListed.files.length === 1
+      && wellFormedListed.files[0] === `${PROBE_ROOT}/src/a.ts`,
   });
 }
 
