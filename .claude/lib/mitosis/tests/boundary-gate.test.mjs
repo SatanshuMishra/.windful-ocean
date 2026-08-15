@@ -13,12 +13,16 @@ import {
   toolExpectation,
 } from '../boundary-collect.mjs';
 import { censusIdentity } from '../boundary-census-cache.mjs';
-import { collectBase, compareCensuses, evaluate } from '../boundary-gate.mjs';
+import { compareCensuses, evaluate } from '../boundary-gate.mjs';
 import { censusTscLines } from '../boundary-tsc-lines.mjs';
 
 const ROOT = '/repo';
 const BASE = '/tmp/base-wt';
 const ABSENT_ROOT = '/no-such-root-for-the-boundary-gate-probe';
+
+function refingerprinted(census) {
+  return { ...census, identity: censusIdentity(census) };
+}
 
 function tscLine(file, line, col, code, message) {
   return `${file}(${line},${col}): error ${code}: ${message}`;
@@ -277,9 +281,8 @@ test('first pass and recheck produce identical verdicts when the supplied census
   });
   const request = { repoRoot: ROOT, gateBase: 'abc123', basePath: BASE, cachedBaseCensus: null };
   const firstPass = evaluate(request, build());
-  const collected = collectBase(request, build());
-  assert.equal(collected.ok, true, collected.error);
-  const recheck = evaluate({ ...request, cachedBaseCensus: collected.census }, build());
+  assert.ok(firstPass.baseCensus, `the base census the recheck reuses could not be collected: ${firstPass.output}`);
+  const recheck = evaluate({ ...request, cachedBaseCensus: refingerprinted(firstPass.baseCensus) }, build());
   assert.equal(recheck.pass, firstPass.pass);
   assert.deepEqual(recheck.blocking, firstPass.blocking);
 });
@@ -302,9 +305,10 @@ test('a malformed cached census falls back to collecting the base rather than tr
 });
 
 test('a cached census keyed to another base is refused and the base is re-collected rather than the census reused', () => {
-  const collected = collectBase({ repoRoot: ROOT, gateBase: 'abc123', basePath: BASE }, collectibleEslintIo());
-  assert.equal(collected.ok, true, collected.error);
-  const foreignCensus = { ...collected.census, gateBase: `${collected.census.gateBase}-foreign` };
+  const baseline = evaluate({ repoRoot: ROOT, gateBase: 'abc123', basePath: BASE, cachedBaseCensus: null }, collectibleEslintIo());
+  assert.ok(baseline.baseCensus, `the base census this test keys to a foreign base could not be collected: ${baseline.output}`);
+  const collectedCensus = refingerprinted(baseline.baseCensus);
+  const foreignCensus = { ...collectedCensus, gateBase: `${collectedCensus.gateBase}-foreign` };
   const io = collectibleEslintIo();
   const verdict = evaluate({ repoRoot: ROOT, gateBase: 'abc123', basePath: BASE, cachedBaseCensus: foreignCensus }, io);
   assert.equal(verdict.usedCachedCensus, false);

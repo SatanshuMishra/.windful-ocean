@@ -11,7 +11,6 @@ import {
   scanJsStructure,
   wordEndingAt,
 } from './js-scan.mjs';
-import { boundaryParityVerdict } from './boundary-parity-gate.mjs';
 import { censusEngineDeterminism, engineSourceRoots, realSourceIo } from './determinism-lint.mjs';
 import { EXEC_ALLOWLIST, assertSpawnAllowed, resolveSpawn } from './exec-policy.mjs';
 import { MERGE_REFUSAL_SPECIMENS } from './gh-merge-shim.mjs';
@@ -25,7 +24,7 @@ export const GATE_UNRESOLVABLE_EXIT = 42;
 export const GATE_READ_EXIT = 43;
 export const GATE_COMPILE_EXIT = 44;
 
-export const MITOSIS_GATE_VERBS = Object.freeze(['boundary-parity', 'determinism', 'dispatchable-agent-schema-capable', 'exec-allowlist', 'phase-parity']);
+export const MITOSIS_GATE_VERBS = Object.freeze(['determinism', 'dispatchable-agent-schema-capable', 'exec-allowlist', 'phase-parity']);
 
 export const DEFAULT_PHASE_PARITY_TARGET = fileURLToPath(new URL('../../workflows/mitosis.js', import.meta.url));
 export const DEFAULT_DETERMINISM_TARGET = fileURLToPath(new URL('./', import.meta.url));
@@ -50,10 +49,9 @@ const EXEC_ALLOWLIST_NOT_ATTESTED = Object.freeze([
   'that a gh alias defined before the run is refused: the classifier reads alias definitions, not the alias table already in effect',
 ]);
 
-const TARGETLESS_VERBS = Object.freeze(new Set(['boundary-parity', 'exec-allowlist']));
+const TARGETLESS_VERBS = Object.freeze(new Set(['exec-allowlist']));
 
 const VERB_DEFAULT_TARGETS = Object.freeze({
-  'boundary-parity': null,
   determinism: DEFAULT_DETERMINISM_TARGET,
   'dispatchable-agent-schema-capable': DEFAULT_AGENT_TREE_TARGET,
   'exec-allowlist': null,
@@ -745,22 +743,7 @@ function runAgentSchemaGate(target, out, readSource) {
   return GATE_CLEAN_EXIT;
 }
 
-function runBoundaryParityGate(_target, out) {
-  const verdict = boundaryParityVerdict();
-  if (verdict.kind === 'halt') {
-    out.err(`mitosis-gate: boundary-parity ${verdict.error}\n`);
-    return GATE_UNRESOLVABLE_EXIT;
-  }
-  if (verdict.kind === 'violation') {
-    for (const failure of verdict.failures) out.err(`mitosis-gate: ${failure}\n`);
-    return GATE_VIOLATION_EXIT;
-  }
-  out.log(`${JSON.stringify(verdict.payload)}\n`);
-  return GATE_CLEAN_EXIT;
-}
-
 const VERB_RUNNERS = Object.freeze({
-  'boundary-parity': runBoundaryParityGate,
   determinism: runDeterminismGate,
   'dispatchable-agent-schema-capable': runAgentSchemaGate,
   'exec-allowlist': runExecAllowlistGate,

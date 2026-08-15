@@ -1,5 +1,5 @@
 import { isAbsolute, resolve as pathResolve } from 'node:path';
-import { identifiedCensus, usableCachedBase } from './boundary-census-cache.mjs';
+import { usableCachedBase } from './boundary-census-cache.mjs';
 import {
   BOUNDARY_TOOLS,
   HEAD_SIDE,
@@ -56,22 +56,6 @@ function requestProblems(request) {
     problems.push(`basePath ${JSON.stringify(request.basePath)} names the same tree as repoRoot, so the base would be the tree under test and every finding would be compared against itself`);
   }
   return problems;
-}
-
-export function collectBase(request, io) {
-  const problems = requestProblems(request);
-  if (problems.length > 0) {
-    return Object.freeze({ ok: false, error: `the base worktree could not be materialized: ${problems.join('; ')}`, leaked: null });
-  }
-  const collected = collectSides(request, io);
-  if (!collected.ok) return Object.freeze({ ok: false, error: collected.error, leaked: collected.leaked });
-  return Object.freeze({
-    ok: true,
-    census: identifiedCensus(collected.baseCensus),
-    strategy: collected.strategy,
-    expectations: collected.expectations,
-    leaked: collected.leaked,
-  });
 }
 
 export function compareCensuses(baseIdentitiesByTool, headIdentitiesByTool) {
