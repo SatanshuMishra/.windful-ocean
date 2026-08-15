@@ -309,35 +309,44 @@ test('T23: the CLI hardened graph carries dependentCount and edgeReasons on ever
   assert.deepEqual(out.tasks.find((t) => t.id === 't2').edgeReasons, []);
 });
 
-test('T19: a file-disjoint pair carrying a signal is emitted for coupling review', () => {
+test('T19: a file-disjoint pair carrying a signal is emitted for coupling review AND serialized by an added edge', () => {
   const g = graphOf(
     { id: 't1', fileScope: pack(['srv/auth/login.ts']) },
     { id: 't2', fileScope: pack(['web/auth/form.tsx']) },
   );
   const { graph, added, coupling } = deriveEdges(g, []);
-  assert.equal(added.length, 0, 'a file-disjoint pair is still not serialized by an added edge');
+  assert.deepEqual(
+    added,
+    [{ from: 't2', to: 't1', reason: 'coupling-serialize' }],
+    'a serialize-defaulted pair is serialized by a real edge; emitting the decision without applying it left the pair co-scheduled',
+  );
   assert.deepEqual(coupling, [{ pair: ['t1', 't2'], signals: ['shared-risk-marker:auth'], default: 'serialize' }]);
   assert.deepEqual(graph.coupling, coupling);
 });
 
-test('T20: a pair whose fileScope overlaps is not emitted, because the added edge already serializes it', () => {
+test('T20: a pair whose fileScope overlaps is still emitted, and coupling adds no SECOND edge for it', () => {
   const g = graphOf(
     { id: 't1', fileScope: pack(['srv/auth/login.ts']) },
     { id: 't2', fileScope: pack(['srv/auth/login.ts']) },
   );
   const { added, coupling } = deriveEdges(g, []);
-  assert.equal(added.length, 1);
-  assert.deepEqual(coupling, []);
+  assert.deepEqual(added, [{ from: 't2', to: 't1', reason: 'fileScope-overlap' }], 'the overlap rule already ordered the pair, so coupling owes it no further edge');
+  assert.deepEqual(
+    coupling.map((c) => c.pair),
+    [['t1', 't2']],
+    'the emission answers whether the pair is coupled, not whether it happened to be unordered this run; omitting an ordered pair made the record self-erase when the pass re-read its own output',
+  );
 });
 
-test('T21: a pair already ordered through an intermediate dependency is not emitted', () => {
+test('T21: a pair already ordered through an intermediate dependency is emitted and takes no additional edge', () => {
   const g = graphOf(
     { id: 't1', fileScope: pack(['srv/auth/login.ts']) },
     { id: 't2', fileScope: pack(['lib/mid.ts']), dependsOn: ['t1'] },
     { id: 't3', fileScope: pack(['web/auth/form.tsx']), dependsOn: ['t2'] },
   );
-  const { coupling } = deriveEdges(g, []);
-  assert.deepEqual(coupling, [], 't1 and t3 are already ordered transitively through t2');
+  const { added, coupling } = deriveEdges(g, []);
+  assert.deepEqual(coupling.map((c) => c.pair), [['t1', 't3']], 't1 and t3 are coupled whether or not t2 already orders them');
+  assert.deepEqual(added, [], 't1 and t3 are already ordered transitively through t2, so no direct edge is owed');
 });
 
 test('T19b: coupling context supplied on the graph reaches the detectors', () => {
@@ -352,7 +361,7 @@ test('T19b: coupling context supplied on the graph reaches the detectors', () =>
   assert.deepEqual(coupling, [{ pair: ['t1', 't2'], signals: ['import-adjacent'], default: 'parallel' }]);
 });
 
-test('T19c: the CLI carries the coupling emission into the hardened graph without disturbing edgeReasons', () => {
+test('T19c: the CLI names the coupling cause in edgeReasons without leaking a coupling SIGNAL into it', () => {
   const dir = mkdtempSync(join(tmpdir(), 'derive-cli-coupling-'));
   const declared = join(dir, 'plan.graph.json');
   writeFileSync(declared, JSON.stringify({
@@ -367,10 +376,15 @@ test('T19c: the CLI carries the coupling emission into the hardened graph withou
   assert.deepEqual(out.coupling, [{ pair: ['t1', 't2'], signals: ['shared-risk-marker:auth'], default: 'serialize' }]);
   const audit = JSON.parse(readFileSync(join(dir, 'plan.edges-audit.json'), 'utf8'));
   assert.deepEqual(audit.coupling, out.coupling);
+  const signalTokens = out.coupling.flatMap((c) => c.signals);
+  assert.ok(signalTokens.length > 0, 'a coupling emission with no signals cannot demonstrate that signals stay out of edgeReasons');
   for (const task of out.tasks) {
-    assert.ok(Number.isInteger(task.dependentCount), `task ${task.id} lost dependentCount; mitosis.js:4959 parks the unit`);
-    assert.ok(Array.isArray(task.edgeReasons), `task ${task.id} lost edgeReasons; mitosis.js:4962 parks the unit`);
-    assert.deepEqual(task.edgeReasons, [], 'coupling signals must never leak into edgeReasons, which mitosis.js:1130 regex-matches for opus escalation');
+    assert.ok(Number.isInteger(task.dependentCount), `task ${task.id} lost dependentCount; mitosis.js parks the unit`);
+    assert.ok(Array.isArray(task.edgeReasons), `task ${task.id} lost edgeReasons; mitosis.js parks the unit`);
+    assert.deepEqual(task.edgeReasons, ['coupling-serialize'], 'a coupling edge must name its own cause, or it is indistinguishable from one the planner declared');
+    for (const signal of signalTokens) {
+      assert.equal(task.edgeReasons.includes(signal), false, 'a coupling SIGNAL carries caller-controlled path text and must never reach edgeReasons, which mitosis.js regex-matches for opus escalation; only the fixed cause token may');
+    }
   }
 });
 
@@ -458,13 +472,21 @@ test('T24g: the CLI refuses a repeated --verdicts flag rather than honouring onl
   assert.equal(existsSync(join(dir, 'plan.hardened.graph.json')), false);
 });
 
-test('T24h: a graph with no --verdicts hardens exactly as before, so an existing plan stays green', () => {
+test('T24h: a graph with no --verdicts hardens MORE serialized, because absent verdicts is the safe case rather than the unenforced one', () => {
   const dir = mkdtempSync(join(tmpdir(), 'derive-cli-verdict-absent-'));
   const declared = couplingGraphFile(dir);
   const stdout = JSON.parse(runCli([declared], dir));
   assert.equal(stdout.couplingPairCount, 2);
+  assert.equal(stdout.serializedPairCount, 2, 'with nothing rendered, every emitted pair takes the skeptical default');
+  assert.equal(stdout.addedEdgeCount, 2, 'each serialize resolution owes a real edge; an unenforced default leaves the pair co-schedulable');
   const out = JSON.parse(readFileSync(join(dir, 'plan.hardened.graph.json'), 'utf8'));
   assert.equal(out.tasks.length, 4);
+  const byId = Object.fromEntries(out.tasks.map((t) => [t.id, t]));
+  assert.deepEqual(byId.t2.dependsOn, ['t1']);
+  assert.deepEqual(byId.t4.dependsOn, ['t3']);
+  assert.deepEqual(byId.t1.dependsOn, []);
+  assert.deepEqual(byId.t3.dependsOn, []);
+  assert.deepEqual(out.couplingResolution.map((r) => r.source), ['default', 'default']);
 });
 
 function inPlaceRun(dir, tasks, discoveredEdges) {
@@ -557,4 +579,137 @@ test('T28c: a reason whose discovered edge is withdrawn does not survive the nex
     );
   }
   assert.deepEqual(after.tasks.find((t) => t.id === 't2').dependsOn, ['t1'], 'the serializing edge itself stays, because dependsOn is monotonic');
+});
+
+import { planWaves } from '../wave-planner.mjs';
+
+function migrationPairGraph() {
+  return graphOf(
+    { id: 't1', fileScope: pack(['db/migrations/001_add_accounts.sql']) },
+    { id: 't2', fileScope: pack(['db/migrations/002_add_ledger.sql']) },
+  );
+}
+
+test('T30: two file-disjoint tasks in one migrations directory take a real edge and land in SEPARATE waves', () => {
+  const { graph, added, coupling } = deriveEdges(migrationPairGraph(), []);
+  assert.deepEqual(coupling.map((c) => c.default), ['serialize']);
+  assert.deepEqual(
+    added,
+    [{ from: 't2', to: 't1', reason: 'coupling-serialize' }],
+    'a serialize resolution must add exactly one edge, and it must name the pair it serializes',
+  );
+  const byId = Object.fromEntries(graph.tasks.map((t) => [t.id, t]));
+  assert.deepEqual(byId.t2.dependsOn, ['t1'], 't2 must depend on t1; an edge pointing the other way still splits the waves and still ships the wrong order');
+  assert.deepEqual(byId.t1.dependsOn, [], 't1 must depend on nothing; a mutual edge would be a cycle wearing a serialization costume');
+  assert.deepEqual(planWaves(graph).waves, [['t1'], ['t2']]);
+});
+
+test('T30b: the same pair relaxed by a rationale-bearing parallel verdict stays co-scheduled in ONE wave', () => {
+  const verdicts = [{ pair: ['t1', 't2'], decision: 'parallel', rationale: 'the two migrations touch disjoint tables and the runner applies them in filename order regardless' }];
+  const { graph, added } = deriveEdges(migrationPairGraph(), [], verdicts);
+  assert.deepEqual(added, [], 'a rendered parallel verdict must relax the skeptical default, or --verdicts is decorative');
+  const byId = Object.fromEntries(graph.tasks.map((t) => [t.id, t]));
+  assert.deepEqual(byId.t2.dependsOn, []);
+  assert.deepEqual(planWaves(graph).waves, [['t1', 't2']]);
+});
+
+test('T30c: a parallel verdict with no rationale cannot relax a serialize default through deriveEdges', () => {
+  assert.throws(
+    () => deriveEdges(migrationPairGraph(), [], [{ pair: ['t1', 't2'], decision: 'parallel', rationale: null }]),
+    /t1\/t2 defaults to serialize and is overridden to parallel with no rationale/,
+  );
+});
+
+test('T30d: couplingResolution covers every emitted pair exactly once and names the source of each decision', () => {
+  const g = graphOf(
+    { id: 't1', fileScope: pack(['srv/auth/login.ts']) },
+    { id: 't2', fileScope: pack(['web/auth/form.tsx']) },
+    { id: 't3', fileScope: pack(['srv/crypto/seal.ts']) },
+    { id: 't4', fileScope: pack(['web/crypto/open.tsx']) },
+  );
+  const { graph, coupling, audit } = deriveEdges(g, [], [
+    { pair: ['t1', 't2'], decision: 'serialize', rationale: null },
+    { pair: ['t3', 't4'], decision: 'parallel', rationale: 'the two crypto files share no symbol and sit either side of the boundary' },
+  ]);
+  assert.deepEqual(
+    graph.couplingResolution.map((r) => [r.pair.join('/'), r.decision, r.source]),
+    [['t1/t2', 'serialize', 'verdict'], ['t3/t4', 'parallel', 'verdict']],
+  );
+  assert.equal(graph.couplingResolution.length, coupling.length, 'a resolution is owed for every emitted pair, not only for the pairs a verdict answered');
+  assert.deepEqual(audit.couplingResolution, graph.couplingResolution);
+  const byId = Object.fromEntries(graph.tasks.map((t) => [t.id, t]));
+  assert.deepEqual(byId.t2.dependsOn, ['t1']);
+  assert.deepEqual(byId.t4.dependsOn, []);
+});
+
+test('T30e: with no verdicts at all every emitted pair still resolves, and every resolution names the default as its source', () => {
+  const { graph, coupling } = deriveEdges(migrationPairGraph(), []);
+  assert.equal(graph.couplingResolution.length, coupling.length);
+  assert.deepEqual(graph.couplingResolution.map((r) => r.source), ['default']);
+  assert.deepEqual(graph.couplingResolution.map((r) => r.decision), ['serialize']);
+  assert.deepEqual(graph.couplingResolution.map((r) => r.rationale), [null]);
+});
+
+test('T31: coupling edges that close a cycle are caught by the existing halt rather than shipped', () => {
+  const g = graphOf(
+    { id: 'a', fileScope: pack(['srv/auth/a.ts']), dependsOn: ['c'] },
+    { id: 'b', fileScope: pack(['srv/auth/b.ts']) },
+    { id: 'c', fileScope: pack(['srv/auth/c.ts']) },
+  );
+  assert.throws(
+    () => deriveEdges(g, []),
+    /dependency cycle detected among: a, b, c/,
+    'a coupling edge can close a cycle that did not exist before it; resolving after the cycle check would ship that graph silently',
+  );
+});
+
+test('T31b: the same three tasks harden cleanly once verdicts relax the coupling that closed the cycle', () => {
+  const g = graphOf(
+    { id: 'a', fileScope: pack(['srv/auth/a.ts']), dependsOn: ['c'] },
+    { id: 'b', fileScope: pack(['srv/auth/b.ts']) },
+    { id: 'c', fileScope: pack(['srv/auth/c.ts']) },
+  );
+  const { added } = deriveEdges(g, [], [
+    { pair: ['a', 'b'], decision: 'parallel', rationale: 'a and b touch disjoint auth surfaces' },
+    { pair: ['a', 'c'], decision: 'serialize', rationale: null },
+    { pair: ['b', 'c'], decision: 'parallel', rationale: 'b and c touch disjoint auth surfaces' },
+  ]);
+  assert.deepEqual(added, [], 'a and c are already ordered by the declared graph, so the serialize verdict on that pair owes no further edge');
+});
+
+test('T32: a rendered serialize verdict has a mechanical effect on the file the CLI writes', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'derive-cli-serialize-effect-'));
+  const declared = join(dir, 'plan.graph.json');
+  writeFileSync(declared, JSON.stringify({
+    tasks: [
+      { id: 't1', title: 'a', fullText: 'A', fileScope: pack(['db/migrations/001_a.sql']), dependsOn: [], risk: 'low', validation: 'scoped' },
+      { id: 't2', title: 'b', fullText: 'B', fileScope: pack(['db/migrations/002_b.sql']), dependsOn: [], risk: 'low', validation: 'scoped' },
+    ],
+  }));
+  const verdicts = join(dir, 'verdicts.json');
+  writeFileSync(verdicts, JSON.stringify([{ pair: ['t1', 't2'], decision: 'serialize', rationale: 'same migration dir' }]));
+  const stdout = JSON.parse(runCli([declared, '--verdicts', verdicts], dir));
+  assert.equal(stdout.addedEdgeCount, 1, 'a serialize verdict that adds no edge is decorative');
+  assert.equal(stdout.serializedPairCount, 1);
+  const out = JSON.parse(readFileSync(join(dir, 'plan.hardened.graph.json'), 'utf8'));
+  assert.deepEqual(out.tasks.find((t) => t.id === 't2').dependsOn, ['t1']);
+  assert.deepEqual(planWaves(out).waves, [['t1'], ['t2']]);
+  const audit = JSON.parse(readFileSync(join(dir, 'plan.edges-audit.json'), 'utf8'));
+  assert.deepEqual(audit.added, [{ from: 't2', to: 't1', reason: 'coupling-serialize' }]);
+  assert.deepEqual(audit.couplingResolutionSourceCounts, { default: 0, verdict: 1 });
+  assert.ok(audit.obligations.length > 0, 'the audit carries the deferrals this enforcement knowingly leaves open');
+});
+
+test('T32b: an empty --verdicts path is refused rather than silently treated as no verdicts at all', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'derive-cli-verdict-empty-path-'));
+  const declared = couplingGraphFile(dir);
+  let failed = false;
+  try {
+    execFileSync('node', [CLI, declared, '--verdicts', '', '--at', CLI_AT], { cwd: dir, encoding: 'utf8', stdio: 'pipe' });
+  } catch (err) {
+    failed = true;
+    assert.match(String(err.stderr), /derive-edges error:/);
+  }
+  assert.ok(failed, 'an unreadable verdicts path must halt; skipping it would harden the graph against verdicts nobody read');
+  assert.equal(existsSync(join(dir, 'plan.hardened.graph.json')), false);
 });
