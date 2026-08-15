@@ -22,10 +22,7 @@ export const JOURNAL_C7_OBLIGATIONS = Object.freeze([
   'C7-J1 delete appendRunJournal at mitosis.js:5574 together with the six journal dispatches it and the five persist*Checkpoint functions raise. The helper is removed, never left wrapping a deterministic append, because a helper that still composes a prompt keeps a language model on the write path.',
   'C7-J2 move the clock read to the process boundary: pass at into composeJournalLine as a validated argument and delete QUIESCENT_EXIT_AT_PLACEHOLDER, QUIESCENT_EXIT_SCHEMA and the model-reported elapsedSincePriorExit, replacing the reported duration with elapsedBetween over two ISO strings. The engine cannot read a clock; the caller that can must supply the instant.',
   'C7-J3 preserve site 2\'s escalation asymmetry: persistCiAttemptCheckpoint guards on written !== true while the other five guard on written === false, so a missing or garbage flag escalates there and is tolerated everywhere else. The converted ci-attempt path must still stop the ci-to-green loop from spending an attempt it could not record, which a throwing append satisfies only if the caller does not swallow it.',
-  'C7-J4 decide the genesis store migration WITH its reader: either keep .mitosis/run.json as the fold base, or move genesis into A3\'s attempt directory and repoint foldRunManifest and fold-run-log.mjs in the same change. openRun never touches .mitosis/run.json today, so stopping the genesis write without moving the reader makes foldRunManifest return null and breaks recovery. It may not be left half-migrated.',
-  'C7-J5 decide the fate of the .gitignore side effect that all six prompts carry as step 2 and the directory creation they carry as step 1. Both are file writes the SPEC never mentions. ensureGitignored exposes the first as an explicit idempotent operation and the writers perform the second; C7 either keeps them on the write path or moves them to the installer, but never drops them silently.',
   'C7-J6 keep ship-checkpoint cut on the fresh path. persistShipCheckpoint fires only from the reconcile branch, and mitosis-scheduler.test.mjs asserts that no ship-checkpoint write fires on a fresh run; a conversion that reintroduces a fresh-path ship write reddens that test rather than restoring a delta anyone wanted.',
-  'C7-J7 decide whether a ci-attempt fingerprint that isValidFingerprint rejects should be refused at write time. applyCiAttemptTransition discards such a record at fold exactly as an invalid at is discarded, and site 2 exists to stop the loop spending an attempt it could not record. Every fingerprint the engine passes today is colon-shaped, so C3 refuses none rather than adding a refusal on a shape the incumbent accepts.',
 ]);
 
 const DELTA_BUILDERS = Object.freeze({
@@ -98,6 +95,10 @@ function requireJournalTarget(request) {
     throw new TypeError(`journal-store: path must name a file rather than a directory, received ${JSON.stringify(request.path)}`);
   }
   return Object.freeze({ repoRoot, path: confined.value, below: confined.below });
+}
+
+function ignoreEntryFor(target) {
+  return target.below.length > 1 ? `${target.below[0]}/` : target.below[0];
 }
 
 function unencodable(value, path, seen, found, poisoned) {
@@ -233,6 +234,7 @@ export function writeGenesis(request) {
   }
   const target = requireJournalTarget(request);
   const line = composeJournalLine(GENESIS_KIND, { manifest: request.manifest });
+  ensureGitignored({ repoRoot: target.repoRoot, entry: ignoreEntryFor(target) });
   const action = 'replace the run journal at';
   ensureDirectory(target, action);
   try {
@@ -252,6 +254,7 @@ export function appendJournalLine(request) {
   if (typeof line !== 'string' || line.length < 2 || !line.endsWith('\n') || line.slice(0, -1).includes('\n')) {
     throw new TypeError(`journal-store: line must be exactly one non-empty record terminated by a single newline, because the journal is newline-delimited and a line carrying none or several breaks the record framing, received ${JSON.stringify(line)}`);
   }
+  ensureGitignored({ repoRoot: target.repoRoot, entry: ignoreEntryFor(target) });
   return appendLine(target, line, 'append one record to the run journal at');
 }
 
