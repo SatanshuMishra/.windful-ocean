@@ -355,6 +355,32 @@ test('the common-file list refuses a surface carrying no checked-file list rathe
   assert.deepEqual([...built.files], ['a.ts']);
 });
 
+test('the common-file list asks the head tree alone, because the base worktree is torn down before the comparison runs', () => {
+  const asked = [];
+  const io = {
+    exists: (path) => {
+      asked.push(String(path));
+      return !String(path).startsWith(BASE);
+    },
+  };
+  const built = commonTreeFiles(
+    { root: BASE, checkedFiles: [`${BASE}/a.ts`, `${BASE}/b.ts`] },
+    { root: ROOT, checkedFiles: [`${ROOT}/a.ts`, `${ROOT}/added.ts`] },
+    io,
+  );
+  assert.equal(built.ok, true, built.error);
+  assert.deepEqual(
+    [...built.files],
+    ['a.ts', 'b.ts'],
+    'a file the base checked stopped being common once the base worktree was removed, so every narrowing behind it goes unseen',
+  );
+  assert.deepEqual(
+    asked.filter((path) => path.startsWith(BASE)),
+    [],
+    'the common-file list asked whether a path exists under the removed base worktree, and that question can only be answered no',
+  );
+});
+
 test('a suppression in a file the MSP ADDS blocks, because the HEAD scan reads HEADs whole checked universe', () => {
   const verdict = evaluate(REQUEST, tscIo({
     baseChecked: ['a.ts'],

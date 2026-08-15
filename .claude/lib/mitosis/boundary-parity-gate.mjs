@@ -3,7 +3,6 @@ import {
   BOUNDARY_DECLARATIONS,
   BOUNDARY_DISPATCH_NAMES,
   boundaryCensus,
-  censusBoundarySources,
 } from './boundary-census.mjs';
 import {
   BOUNDARY_TOOLS,
@@ -15,16 +14,19 @@ import {
 } from './boundary-collect.mjs';
 import { censusIdentity } from './boundary-census-cache.mjs';
 import { collectBase, compareCensuses, evaluate } from './boundary-gate.mjs';
-import { SUPPRESSION_DIRECTIVES } from './boundary-evasion.mjs';
+import { EVASION_CLASSIFIER_NAMES, SUPPRESSION_MECHANISMS } from './boundary-evasion.mjs';
+import { censusControlProbes } from './boundary-census-control-probe.mjs';
 import {
   failClosedProbe,
   materializationProbe,
   packageManagerProbe,
+  scanBoundsProbe,
   teardownProbe,
   toolResolutionProbe,
 } from './boundary-collection-failure-probe.mjs';
 import { evasionProbe } from './boundary-evasion-probe.mjs';
 import { evasionWiringProbe } from './boundary-evasion-wiring-probe.mjs';
+import { boundaryVocabularyAnchors, boundaryVocabularyCensuses } from './boundary-vocabulary-census.mjs';
 import { run as execRun } from './exec-run.mjs';
 
 const PROBE_ROOT = '/probe/head';
@@ -44,7 +46,7 @@ export const BOUNDARY_PARITY_ATTESTS = Object.freeze([
   'what each tool is expected to report is recomputed from the trees on every pass, and a supplied base census whose NOT-EXPECTED set disagrees with that recomputation is refused and the base re-collected, so a cached census carries base identity counts and never decides whether a tool runs at all; measured here on every invocation with a census naming every tool NOT-EXPECTED',
   'the base worktree teardown checks the result of the removal rather than only catching a throw, falls back to removing the path when the removal exits non-zero, and names the leaked path in the verdict when even that fails; all three are measured here on every invocation',
   'the added-suppression scan keys its counts by file and directive, so a suppression removed in one file cannot pay for one added in another, and a count key naming no file halts rather than being compared; both are measured here on every invocation',
-  'each declared strictness flag carries both its safe value and the compiler default an absent value takes, so a flag absent at base and written to its unsafe value at HEAD blocks and a strict-family flag switched off under strict blocks; both are measured here on every invocation',
+  'each declared strictness flag carries both its safe value and the compiler default an absent value takes, and EVERY one of them is exercised here on every invocation by a specimen that moves that flag alone away from its safe value and must block naming it, so inverting a declared safe value or a declared compiler default reddens this verb rather than leaving a flag that blocks nothing',
   'the checked-scope comparison halts rather than defaulting when a file list, a common-file list or the two side roots are absent, and halts when the two lists share no file at all rather than reporting a clean narrowing; every one of those refusals is measured here on every invocation',
   'the comparison is a multiset surplus rather than a difference or a presence test: an unchanged pre-existing finding and a fixed pre-existing finding each pass, and a second instance of a class already present at base blocks, each measured here on every invocation',
   'a tsc line that is neither blank nor one of the declared diagnostic forms halts with the line quoted rather than being skipped, and that halt is exercised here on a synthetic line every time this verb runs',
@@ -55,7 +57,8 @@ export const BOUNDARY_PARITY_ATTESTS = Object.freeze([
   'the first pass and the recheck produce identical verdicts when the supplied census is the one collection would have produced, measured here on every invocation by collecting the base and then replaying it as a cached census through the same entry point',
   'a cached base census that is absent, malformed, or keyed to another base is refused and the base is collected instead, so the fallback is a call to the collector rather than prose that re-describes it and cannot lose the node_modules strategy or the teardown the way the incumbent recheck does',
   'the program reaches processes only through the shared chokepoint and requests only allowlisted binaries: an unlisted binary is refused before any child starts, measured here on every invocation with the spawn seam counting the children it was asked to start',
-  'the added-suppression scan counts HEAD source against base source per declared directive and blocks the surplus alone, so a suppression this MSP added blocks and one it inherited does not; both are measured here on every invocation, and the longest directive spelling is counted over the prefix it contains',
+  'the added-suppression scan counts HEAD source against base source per declared mechanism and blocks the surplus alone, so a suppression this MSP added blocks and one it inherited does not; both are measured here on every invocation, the longest directive spelling is counted over the prefix it contains, and EVERY declared mechanism is exercised here by a specimen that must count as exactly that mechanism, so dropping one from the declared list reddens this verb',
+  'the suppression census covers every in-file mechanism eslint honors, including the rule CONFIGURATION comment form that carries a rule-to-severity mapping and that no --print-config reports, counted once per rule it lowers below error and not at all for a rule it raises; an eslint block-comment directive it cannot classify HALTS with the directive and its file quoted rather than being dropped from the count, and both are measured here on every invocation',
   'a rule severity downgrade blocks against the resolved rule map rather than the written config, so resolution through extends and shared presets is done by eslint; a rule that vanished from the resolved map is read as a downgrade to off rather than as absent, and a raise does not block',
   'a declared tsconfig strictness flag moved away from its safe value blocks, and a changed compiler option the declared table does not name HALTS with the key named rather than being bucketed as not strictness-relevant; that halt is exercised here on an unnamed option every time this verb runs',
   'the checked-scope comparison is made PER TOOL against the same tool file list on the other side rather than over one union of every tool, so a file eslint stopped linting blocks even while tsc still checks it, and a tool that reported a list on one side and none on the other HALTS rather than being read as a narrowed or a clean scope; a narrowed include or a widened ignore blocks while a legitimately added or deleted source file does not, and all of it is measured here on every invocation',
@@ -63,12 +66,17 @@ export const BOUNDARY_PARITY_ATTESTS = Object.freeze([
   'an added suppression and a resolved-config strictness downgrade each reach the gate verdict end to end through evaluate itself, carrying the added-suppression or tsconfig-strictness classifier in its blocking array, and an inherited suppression or an unchanged resolved config still passes; all four are measured here on every invocation by driving evaluate rather than the classifier functions alone',
   'the HEAD suppression scan reads HEAD OWN whole checked universe rather than the base-HEAD intersection, so a suppression in a file this MSP ADDS blocks while an added file carrying none still passes; both are measured here on every invocation by driving evaluate over a file present only at HEAD',
   'the scanned universe is the union of every EXPECTED tool file list rather than the type-checked list alone, so a suppression added in a repository where tsc is NOT-EXPECTED blocks and an eslint-only repository that added none still passes; both are measured here on every invocation, and a universe empty of repository sources while a tool was collected is refused',
-  'the common-file list the checked-scope comparison restricts to comes from TREE MEMBERSHIP rather than from the two checked lists, because a common list derived from those lists makes both restricted sets equal it and the dropped set identically empty; a surface it cannot read that list from REFUSES rather than yielding an empty common set, and a file present in both trees and checked only at base blocks while a file deleted at HEAD passes, all measured here on every invocation through evaluate',
+  'the common-file list the checked-scope comparison restricts to is decided on the HEAD side by MEMBERSHIP OF THE HEAD TREE rather than by HEAD checked list, which is what keeps the dropped set from being identically empty the way a list derived from the two checked lists would be; its base side is the base CHECKED list, because the base worktree is torn down before the comparison runs and no membership can be read from it, and the list asks nothing of the base root at all; a surface it cannot read that list from REFUSES rather than yielding an empty common set, and a file present in both trees and checked only at base blocks while a file deleted at HEAD passes, all measured here on every invocation through evaluate',
   'each side prints the resolved eslint config PER FILE for every file it lints that is present in the other tree, and the severity comparison covers exactly the files BOTH sides resolved, so a per-glob downgrade that leaves the first-sorting file untouched blocks and a file that only one side lints neither hides a downgrade nor fabricates one; two sides that resolved no file in common HALT, and a side that cannot print a file config refuses naming that file. A file only one side lints is covered by the per-tool checked-scope comparison rather than here, and nothing beyond the files both sides lint is claimed',
-  'the strictness comparison is fed a REAL captured tsc --showConfig payload in which strict:true is already expanded into its whole strict family, so a family member the declared table fails to name halts here rather than in production; the payload carries at least ten compiler options and a single-key synthetic is refused',
+  'the strictness comparison is fed a REAL captured tsc --showConfig payload in which strict:true is already expanded into its whole strict family, so a family member the declared table fails to name halts here rather than in production; the payload and the declared family are censused against each other on every invocation, so a family flag the payload does not name and a payload key the declared family does not carry each redden this verb rather than being counted against a threshold',
   'a verdict that does not pass always names at least one blocking entry, whether it blocked, halted mid-scan, or refused the collection, so a consumer rendering the cause from the blocking array never reports an empty reason; measured here on every invocation across every failing verdict the wiring probe drives',
-  'the scanned universe carries repository sources alone: a path under node_modules is dropped so a dependency or compiler bump cannot surface as an added suppression, and a listed path that escapes its worktree root refuses naming the path rather than being read',
-  'a supplied base census is refused unless its surface carries every field the comparison reads: a non-empty root, a checked-file list, a per-tool checked-file map, a suppression map, resolved compiler options, the per-file resolved eslint rule maps and the file list they were resolved for; a stale-shaped census is re-collected rather than silently disabling the classifiers that read those fields',
+  'the scanned universe carries repository sources alone: a path under node_modules is dropped so a dependency or compiler bump cannot surface as an added suppression, the base worktree materialized inside the repository is excluded from the HEAD scan while a base worktree outside it excludes no subtree at all, and a side whose tools report only dependency paths is refused rather than scanned as an empty universe; all of it is measured here on every invocation against injected seams',
+  'a supplied base census is refused unless its surface carries every field the comparison reads, and EVERY one of those declared fields is exercised here on every invocation by a supplied census whose value for that field alone is unusable, so dropping a field from the validated list reddens this verb; a well-formed census of the same shape is still accepted, which is what keeps the refusal from being one that refuses every input',
+  'a scanned source is bounded BEFORE it is consumed: the per-file byte cap, the file-count budget and the aggregate byte budget are each decided from the described size before any file is read, and a source inside every budget is still read and counted; all four are measured here on every invocation against an injected path describer that never reads',
+  'a checked path is resolved to its REAL path before it is read, and one whose real path leaves the worktree root or that is not a regular file is refused unread, so a committed link out of the tree is never read through and a pipe or a device is never opened; both refusals and the evidence that neither was read are measured here on every invocation',
+  'every child this program starts under these probes carries a positive deadline, so no collection command can leave the run with neither a verdict nor a timeout; measured here on every invocation by the spawn seam recording the options each child was started with, over a run that starts children rather than one that starts none',
+  'every declared vocabulary this verb CLASSIFIES against is a closed census in BOTH directions: each declared entry is exercised by a specimen that classifies to it, and each specimen classifies to a declared entry, so an entry dropped from a declared list and an entry no specimen exercises each redden this verb rather than being counted; the suppression mechanisms, the tsconfig strictness flags, the identity components and the normalization steps they apply, the boundary tools, the cached-census surface fields, the census refusal kinds, the evasion classifiers, the binaries the collection requests and the captured strict family are each censused here on every invocation',
+  'the census refusal kinds are censused against BOTH the negative controls and the census source: every declared kind is reached by a control that halts as that kind, and every refusal site the census source spells names a declared kind, so a halt added without a control and a control that no longer reaches its halt each redden this verb',
 ]);
 
 export const BOUNDARY_PARITY_NOT_ATTESTED = Object.freeze([
@@ -81,7 +89,10 @@ export const BOUNDARY_PARITY_NOT_ATTESTED = Object.freeze([
   'that a boundary dispatch outside the two declared engine trees would be seen: the census reads .claude/lib/mitosis and .claude/workflows, so one added under .claude/hooks, or anywhere else in the repository, is unscanned',
   'that a boundary label composed rather than spelled would be seen: the census classifies a plain string literal at a label key, so a label built by interpolation or read from configuration is outside what it measures',
   'that the added-suppression scan reads the same domain the incumbent prose reads: the first pass scans the source diff and the recheck scans HEAD source against a cached surface, and this program narrows both to HEAD-vs-base source counts, which is well defined without a diff and is what lets the two passes share one code path',
-  'that a suppression spelled other than as one of the declared directives would be counted: the scan counts declared spellings in source text, so a directive introduced by a plugin under another name, or one composed at run time, is outside what it measures',
+  'that a suppression spelled other than as a declared mechanism would be counted: an eslint block-comment directive the census cannot classify HALTS, but a directive another tool honors under a name the declared list does not carry, one written in a line comment eslint itself ignores, or one composed at run time, is outside what it measures',
+  'that the declared eslint comment-directive vocabulary is the one the installed eslint honors: the suppression, inert and rule-configuration forms are declared from the published eslint directive documentation rather than read from a running eslint, so a form a later version adds is met by the halt that refuses to classify it rather than by a rule that counts it',
+  'that a spawn site no invocation reaches carries a deadline: this verb measures the children its probes actually start, and the census over every declared spawn site in the program source, including the legs one run never reaches, runs in the tests rather than here',
+  'that the prose lists this verb renders are censused the way its vocabularies are: the C7 obligations, these attests and these gaps are sentences a reader judges, not tokens a specimen classifies, so they carry no closed census and a stale one is caught by review rather than by this verb',
   'what resolving the eslint config per file costs on a real repository: covering the surface takes one --print-config child per linted file per side, and every probe here injects its exec seam, so the wall-clock cost of that on a tree of thousands of files is unmeasured until C7 runs it against a real repository',
 ]);
 
@@ -271,109 +282,15 @@ function execProbe() {
   });
 }
 
-const SYNTHETIC_TARGET = BOUNDARY_DECLARATIONS.conversionTarget;
-const SYNTHETIC_TWIN = 'lib/mitosis/run-engine.mjs';
-const SYNTHETIC_INERT = 'lib/mitosis/prompt-registry.mjs';
-const LABEL_KEY = 'label';
-const QUOTE = "'";
-
-function syntheticDispatch(name) {
-  return `  { ${LABEL_KEY}: ${QUOTE}${name}${QUOTE}, phase: ${QUOTE}Integrate${QUOTE} },\n`;
-}
-
-function syntheticSource(path, body) {
-  return Object.freeze({ path: `/repo/.claude/${path}`, source: body });
-}
-
-function syntheticTree(path) {
-  return syntheticSource(path, Object.keys(BOUNDARY_DISPATCH_NAMES).map(syntheticDispatch).join(''));
-}
-
-const SYNTHETIC_INERT_SOURCE = syntheticSource(SYNTHETIC_INERT, `export const KIND = ${QUOTE}boundary-fix${QUOTE};\n`);
-
-const SYNTHETIC_DECLARATIONS = Object.freeze({
-  names: BOUNDARY_DISPATCH_NAMES,
-  inertKeys: BOUNDARY_DECLARATIONS.inertKeys,
-  dispatchSources: Object.freeze({
-    [SYNTHETIC_TARGET]: 'the synthetic conversion target this control builds so the census halt is exercised on every invocation',
-    [SYNTHETIC_TWIN]: 'the synthetic twin this control builds so the twin naming halt is exercised on every invocation',
-  }),
-  nonDispatchSources: Object.freeze({
-    [SYNTHETIC_INERT]: 'the synthetic inert source this control builds so the started-dispatching halt is exercised on every invocation',
-  }),
-  conversionTarget: SYNTHETIC_TARGET,
-});
-
-const CENSUS_CONTROLS = Object.freeze([
-  Object.freeze({
-    name: 'a dispatch label no declared name covers',
-    expect: 'no declared name covers',
-    sources: () => [syntheticSource(SYNTHETIC_TARGET, syntheticDispatch('boundary-verify')), syntheticTree(SYNTHETIC_TWIN), SYNTHETIC_INERT_SOURCE],
-  }),
-  Object.freeze({
-    name: 'a declared dispatch source dropped from the scanned trees',
-    expect: 'spell no boundary label in the scanned trees',
-    sources: () => [syntheticTree(SYNTHETIC_TARGET), SYNTHETIC_INERT_SOURCE],
-  }),
-  Object.freeze({
-    name: 'a declared non-dispatch source that started dispatching',
-    expect: 'now dispatches',
-    sources: () => [syntheticTree(SYNTHETIC_TARGET), syntheticTree(SYNTHETIC_TWIN), syntheticSource(SYNTHETIC_INERT, syntheticDispatch('boundary'))],
-  }),
-  Object.freeze({
-    name: 'a boundary label in a source no declaration covers',
-    expect: 'no declaration covers that source',
-    sources: () => [syntheticTree(SYNTHETIC_TARGET), syntheticTree(SYNTHETIC_TWIN), SYNTHETIC_INERT_SOURCE, syntheticSource('lib/mitosis/newcomer.mjs', `export const kind = ${QUOTE}boundary-recheck${QUOTE};\n`)],
-  }),
-  Object.freeze({
-    name: 'a declared name that reaches no dispatch site',
-    expect: 'reach no dispatch site',
-    sources: () => [syntheticSource(SYNTHETIC_TARGET, syntheticDispatch('boundary')), syntheticSource(SYNTHETIC_TWIN, syntheticDispatch('boundary')), SYNTHETIC_INERT_SOURCE],
-  }),
-  Object.freeze({
-    name: 'a boundary literal at neither a label key nor a declared inert form',
-    expect: 'refusing to guess',
-    sources: () => [
-      syntheticSource(SYNTHETIC_TARGET, `${syntheticTree(SYNTHETIC_TARGET).source}const chosen = pick(${QUOTE}boundary${QUOTE});\n`),
-      syntheticTree(SYNTHETIC_TWIN),
-      SYNTHETIC_INERT_SOURCE,
-    ],
-  }),
-  Object.freeze({
-    name: 'a declared name the conversion target dispatches but a sibling engine tree does not',
-    expect: 'dispatches no site for these declared names',
-    sources: () => [
-      syntheticTree(SYNTHETIC_TARGET),
-      syntheticSource(SYNTHETIC_TWIN, Object.keys(BOUNDARY_DISPATCH_NAMES).slice(0, -1).map(syntheticDispatch).join('')),
-      SYNTHETIC_INERT_SOURCE,
-    ],
-  }),
-]);
-
-function censusControlProbes() {
-  const clean = censusBoundarySources([syntheticTree(SYNTHETIC_TARGET), syntheticTree(SYNTHETIC_TWIN), SYNTHETIC_INERT_SOURCE], SYNTHETIC_DECLARATIONS);
-  return Object.freeze(CENSUS_CONTROLS.map((control) => {
-    if (clean.ok !== true) {
-      return Object.freeze({ name: control.name, anchorPresent: false, halted: false, named: false, detail: `the unmutated synthetic tree already halts: ${clean.error}` });
-    }
-    const measured = censusBoundarySources(control.sources(), SYNTHETIC_DECLARATIONS);
-    return Object.freeze({
-      name: control.name,
-      anchorPresent: true,
-      halted: measured.ok === false,
-      named: measured.ok === false && measured.error.includes(control.expect),
-      detail: measured.ok === true ? 'the census accepted it' : measured.error,
-    });
-  }));
-}
-
-
 export function probeBoundarySubstrate() {
+  const controls = censusControlProbes();
+  const evasionWiring = evasionWiringProbe();
+  const exec = execProbe();
   return Object.freeze({
     evasion: evasionProbe(),
-    evasionWiring: evasionWiringProbe(),
+    evasionWiring,
     census: boundaryCensus(),
-    controls: censusControlProbes(),
+    controls,
     identity: identityProbe(),
     comparator: comparatorProbe(),
     failClosed: failClosedProbe(),
@@ -382,8 +299,16 @@ export function probeBoundarySubstrate() {
     materialization: materializationProbe(),
     packageManager: packageManagerProbe(),
     toolResolution: toolResolutionProbe(),
+    bounds: scanBoundsProbe(),
     equivalence: equivalenceProbe(),
-    exec: execProbe(),
+    exec,
+    anchors: boundaryVocabularyAnchors(),
+    vocabularies: boundaryVocabularyCensuses(Object.freeze({
+      controls,
+      classifiers: evasionWiring.observedClassifiers,
+      requestedBinaries: exec.requestedBinaries,
+      capturedStrictOptions: evasionWiring.capturedStrictOptions,
+    })),
   });
 }
 
@@ -393,8 +318,47 @@ export function boundaryParityFailures(substrate) {
   if (inert.length > 0) {
     failures.push(`these census controls no longer halt on the thing they name, so the census would classify it silently: ${inert.map((control) => `${control.name} (${control.detail})`).join('; ')}`);
   }
-  if (substrate.controls.length === 0) {
-    failures.push('the census ran no negative control at all, so nothing here would notice it going inert');
+  for (const vocabulary of substrate.vocabularies) {
+    if (vocabulary.declared.length === 0) {
+      failures.push(`${vocabulary.name} is an empty declaration, so its census classifies nothing and reports a clean vocabulary for every input`);
+    }
+    if (vocabulary.unexercised.length > 0) {
+      failures.push(`these declared entries of ${vocabulary.name} reach no specimen, so dropping or inverting one would leave this verb green: ${vocabulary.unexercised.join('; ')}`);
+    }
+    if (vocabulary.undeclared.length > 0) {
+      failures.push(`these specimens of ${vocabulary.name} match no declared entry, so the census would classify them nowhere: ${vocabulary.undeclared.join('; ')}`);
+    }
+    if (vocabulary.failing.length > 0) {
+      failures.push(`these declared entries of ${vocabulary.name} no longer behave as their specimen measures them: ${vocabulary.failing.join('; ')}`);
+    }
+  }
+  if (!substrate.census.ok) {
+    failures.push(`the boundary dispatch census over the real engine trees halted rather than resolving: ${substrate.census.error}`);
+  }
+  if (substrate.census.ok) {
+    const target = BOUNDARY_DECLARATIONS.conversionTarget;
+    const misnamed = substrate.census.sites.filter((site) => site.twin !== (site.path !== target));
+    if (misnamed.length > 0) {
+      failures.push(`these dispatch sites are no longer classified by the tree they sit in: ${misnamed.map((site) => `${site.name} at ${site.path}:${site.line} is reported ${site.twin ? 'a twin' : 'the conversion target'}`).join('; ')}; every site outside ${target} is a twin, and the live-path divergence this verb reports is exactly that split`);
+    }
+    const misfiled = substrate.census.twinSites.filter((site) => site.twin !== true || site.path === target);
+    if (misfiled.length > 0) {
+      failures.push(`the twin list this verb renders carries these sites that are not twins of ${target}: ${misfiled.map((site) => `${site.name} at ${site.path}:${site.line}`).join('; ')}`);
+    }
+    if (substrate.census.twinSiteCount !== substrate.census.twinSites.length
+      || substrate.census.twinSiteCount + substrate.census.conversionTargetSiteCount !== substrate.census.siteCount) {
+      failures.push('the twin and conversion-target site counts no longer add up to the sites the census resolved, so the split the payload reports is not the split the census measured');
+    }
+  }
+  const anchors = substrate.anchors;
+  if (!anchors.unclassifiableSuppressionHalts) {
+    failures.push('an eslint comment directive the suppression census cannot classify is now dropped from the count rather than halting with the directive and its file quoted, so a branch author silences a finding with one comment the census never counted');
+  }
+  if (!anchors.wellFormedCachedCensusPasses) {
+    failures.push('a well-formed supplied base census is now refused too, so the per-field validation refuses every input rather than the corrupted field the comparison reads');
+  }
+  if (!anchors.reportedStepsAreCensused) {
+    failures.push('the normalization steps this verb reports are no longer the steps a declared identity component applies, so the payload names a transform no specimen exercises');
   }
   const identity = substrate.identity;
   if (!identity.lineShiftIgnored) {
@@ -490,6 +454,25 @@ export function boundaryParityFailures(substrate) {
   }
   if (!substrate.materialization.failedClosed) {
     failures.push('a base worktree that fails to materialize no longer fails closed, so the gate would compare HEAD against a base it never collected');
+  }
+  const bounds = substrate.bounds;
+  if (!bounds.overCapRefusedUnread || !bounds.overTotalRefusedUnread || !bounds.overCountRefusedUnread) {
+    failures.push('a scanned source above the per-file byte cap, a file list above the file-count budget, or a universe above the aggregate byte budget is no longer refused before any of it is read, so the bytes are materialized first and the bound is decided on what was already consumed');
+  }
+  if (!bounds.withinBudgetScanned) {
+    failures.push('a source inside every declared budget is no longer scanned at all, so the bounds refuse every input rather than the ones above them and the suppression counts would be empty for every tree');
+  }
+  if (!bounds.escapingRealPathRefusedUnread || !bounds.irregularPathRefusedUnread) {
+    failures.push('a checked path whose REAL path leaves the worktree root, or one that is not a regular file, is no longer refused before it is read; containment decided on the path as written reads a link out of the tree, and opening a pipe or a device blocks the run or yields bytes no source carries');
+  }
+  if (!bounds.nestedBaseExcluded || !bounds.separateBaseExcludesNothing) {
+    failures.push('the HEAD scan no longer excludes the base worktree materialized inside the repository and the paths under node_modules, or it excludes a subtree when the base worktree sits outside the repository entirely; HEAD would scan the throwaway base tree as its own source and block the MSP on the base commit');
+  }
+  if (!bounds.dependencyOnlyUniverseRefused) {
+    failures.push('a side whose tools report only paths under node_modules is no longer refused, so the scanned universe would be empty of repository sources while a tool was collected and every evasion scan would read nothing');
+  }
+  if (bounds.childrenStarted === 0 || bounds.undeadlinedChildren.length > 0) {
+    failures.push(`the gate started ${bounds.childrenStarted} child process(es) and ${bounds.undeadlinedChildren.length} of them carried no positive deadline (${bounds.undeadlinedChildren.join('; ') || 'none named'}); a collection child that never exits leaves the run with no verdict and no timeout`);
   }
   const packageManager = substrate.packageManager;
   if (!packageManager.npmEntryResolved || !packageManager.unserviceableLockfileRefused || !packageManager.noInstallSpawned) {
@@ -648,15 +631,14 @@ export function boundaryParityFailures(substrate) {
   if (!evasionWiring.everyComparedFileResolved) {
     failures.push('the sides no longer print the resolved eslint config for every file they lint that the other tree carries, so the compared surface is narrower than the attest claims');
   }
-  if (evasionWiring.expandedStrictFlagCount < 10) {
-    failures.push(`the captured tsc --showConfig payload the wiring probe replays carries only ${evasionWiring.expandedStrictFlagCount} compiler option(s); a real tsc expands strict:true into its whole strict family, and a single-key synthetic payload is what let an unnamed family member halt the gate unmeasured`);
+  if (!evasionWiring.unprintableFileConfigRefuses) {
+    failures.push('a side that cannot print the resolved eslint config for one of its linted files no longer refuses naming that file, so the file drops out of the compared surface and a downgrade resolved behind it passes');
+  }
+  if (!evasionWiring.collectionRefusalNamesACause || !evasionWiring.evasionHaltNamesACause) {
+    failures.push('a verdict that refused the collection, or one that halted mid-scan on an option the declared table does not name, no longer carries the classifier that produced it, so the three shapes a failing verdict takes are no longer distinguishable from its blocking array');
   }
   if (!evasionWiring.everyFailingVerdictNamesACause) {
-    failures.push('a failing verdict now carries an empty blocking array, so a consumer rendering the cause from blocking reports no reason at all; pass false must always imply at least one named blocking entry');
-  }
-  const outside = exec.requestedBinaries.filter((binary) => binary !== 'git' && binary !== 'node');
-  if (outside.length > 0) {
-    failures.push(`the program requested these binaries beyond git and node: ${outside.join(', ')}; the collection commands the incumbent prose names are reached as node with a resolved path in argv rather than by widening the allowlist`);
+    failures.push('a failing verdict now carries an empty blocking array, or fewer than the blocked, halted and refused shapes are driven at all, so a consumer rendering the cause from blocking reports no reason at all; pass false must always imply at least one named blocking entry');
   }
   return failures;
 }
@@ -697,10 +679,10 @@ function boundaryPayload(substrate) {
     tools: BOUNDARY_TOOLS.map((tool) => tool.name),
     normalizationSteps: NORMALIZATION_STEPS.map((step) => step.name),
     identityComponents: IDENTITY_COMPONENTS.map((component) => `${component.name}: ${component.steps.length === 0 ? 'verbatim' : component.steps.map((step) => step.name).join(', ')}`),
-    suppressionDirectives: [...SUPPRESSION_DIRECTIVES],
-    strictnessFlagCount: substrate.evasion.flagCount,
-    evasionClassifiers: ['added-suppression', 'rule-severity', 'tsconfig-strictness', 'checked-scope'],
-    censusControls: substrate.controls.map((control) => `${control.name}: ${control.anchorPresent && control.halted && control.named ? 'halted and named' : 'INERT'}`),
+    suppressionMechanisms: [...SUPPRESSION_MECHANISMS],
+    evasionClassifiers: [...EVASION_CLASSIFIER_NAMES],
+    vocabularies: substrate.vocabularies.map((vocabulary) => `${vocabulary.name}: ${vocabulary.declared.length} declared, each exercised by a specimen and no specimen unclassified`),
+    censusControls: substrate.controls.map((control) => `${control.name}: ${control.anchorPresent && control.halted && control.named ? `halted and named as ${control.refusal}` : 'INERT'}`),
     requestedBinaries: [...substrate.exec.requestedBinaries],
     modelInvocationsRemaining: census.siteCount,
     attests: [...BOUNDARY_PARITY_ATTESTS],

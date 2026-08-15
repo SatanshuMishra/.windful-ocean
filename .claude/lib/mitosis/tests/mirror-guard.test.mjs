@@ -26,6 +26,7 @@ const STANDALONE = 'standalone';
 const MIRROR_CENSUS = Object.freeze({
   'authoritative-constants.mjs': WHOLE,
   'boundary-census-cache.mjs': STANDALONE,
+  'boundary-census-control-probe.mjs': STANDALONE,
   'boundary-census.mjs': STANDALONE,
   'boundary-collect.mjs': STANDALONE,
   'boundary-collection-failure-probe.mjs': STANDALONE,
@@ -36,7 +37,9 @@ const MIRROR_CENSUS = Object.freeze({
   'boundary-gate.mjs': STANDALONE,
   'boundary-parity-gate.mjs': STANDALONE,
   'boundary-scan-scope.mjs': STANDALONE,
+  'boundary-tool-probe.mjs': STANDALONE,
   'boundary-tsc-lines.mjs': STANDALONE,
+  'boundary-vocabulary-census.mjs': STANDALONE,
   'boundary.mjs': WHOLE,
   'checkpoint.mjs': WHOLE,
   'ci-escalation.mjs': WHOLE,

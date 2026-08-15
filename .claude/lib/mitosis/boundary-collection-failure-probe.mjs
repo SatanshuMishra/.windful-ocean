@@ -1,5 +1,13 @@
-import { REAL_BOUNDARY_IO, parseEslintReport, structuralIdentity } from './boundary-collect.mjs';
+import { REAL_BOUNDARY_IO, excludedSubtreesFor, parseEslintReport, structuralIdentity } from './boundary-collect.mjs';
 import { evaluate } from './boundary-gate.mjs';
+import {
+  MAX_SCANNED_FILES,
+  MAX_SCANNED_FILE_BYTES,
+  MAX_SCANNED_TOTAL_BYTES,
+  NODE_MODULES,
+  collectSuppressionSurface,
+  ownedFiles,
+} from './boundary-scan-scope.mjs';
 import { censusListedFiles, censusTscLines } from './boundary-tsc-lines.mjs';
 
 const PROBE_ROOT = '/probe/collection/head';
@@ -26,8 +34,10 @@ function describedBy(readFile) {
 
 function probeIo(overrides) {
   const spawned = [];
+  const started = [];
   const base = {
     spawned,
+    started,
     run: (binary, argv) => ({ outcome: 'completed', status: 0, stdout: '', stderr: '', binary, argv }),
     exists: () => true,
     readFile: () => JSON.stringify({ devDependencies: { eslint: '9.0.0' } }),
@@ -37,10 +47,11 @@ function probeIo(overrides) {
     resolveTool: (name, root) => ({ ok: true, path: `${root}/node_modules/.bin/${name}` }),
     resolvePackageManager: () => ({ ok: true, entry: '/probe/pm.js' }),
   };
-  const merged = { ...base, ...overrides, spawned };
+  const merged = { ...base, ...overrides, spawned, started };
   const inner = merged.run;
   merged.run = (binary, argv, options) => {
     spawned.push(`${binary} ${argv.join(' ')}`);
+    started.push(Object.freeze({ binary, argv: Object.freeze([...argv]), options }));
     return inner(binary, argv, options);
   };
   if (typeof merged.describePath !== 'function') merged.describePath = describedBy(merged.readFile);
@@ -166,6 +177,94 @@ function unserviceableLockfileIo() {
   return probeIo({
     exists: (path) => String(path).endsWith('yarn.lock'),
     readFile: (path) => (String(path).startsWith(PROBE_BASE) ? 'base-yarn-bytes' : 'head-yarn-bytes'),
+  });
+}
+
+const PROBE_SOURCE = 'export const a = 1;\n';
+const PROBE_SOURCE_BYTES = Buffer.byteLength(PROBE_SOURCE, 'utf8');
+const NESTED_BASE = `${PROBE_ROOT}/.claude/worktrees/msp`;
+const OUTSIDE_BASE = '/probe/collection/elsewhere';
+
+function scanIo(describeFile) {
+  const read = [];
+  return Object.freeze({
+    read,
+    readFile: (path) => {
+      read.push(String(path));
+      return PROBE_SOURCE;
+    },
+    describePath: (path) => (String(path) === PROBE_ROOT
+      ? Object.freeze({ ok: true, path: PROBE_ROOT, kind: 'a directory', regular: false, size: 0 })
+      : describeFile(String(path))),
+  });
+}
+
+function regularFile(path, size) {
+  return Object.freeze({ ok: true, path, kind: 'a regular file', regular: true, size });
+}
+
+function scannedWith(files, describeFile) {
+  const io = scanIo(describeFile);
+  return Object.freeze({ verdict: collectSuppressionSurface(PROBE_ROOT, files, io, 'HEAD'), read: io.read });
+}
+
+function refusedUnread(files, describeFile, phrase) {
+  const scanned = scannedWith(files, describeFile);
+  return scanned.verdict.ok === false && scanned.verdict.error.includes(phrase) && scanned.read.length === 0;
+}
+
+export function scanBoundsProbe() {
+  const one = [`${PROBE_ROOT}/a.ts`];
+  const within = scannedWith(one, (path) => regularFile(path, PROBE_SOURCE_BYTES));
+  const overCap = refusedUnread(one, (path) => regularFile(path, MAX_SCANNED_FILE_BYTES + 1), `above the ${MAX_SCANNED_FILE_BYTES}-byte cap`);
+  const overTotal = refusedUnread(
+    Array.from({ length: 200 }, (unused, index) => `${PROBE_ROOT}/src/a${index}.ts`),
+    (path) => regularFile(path, 1000000),
+    `above the ${MAX_SCANNED_TOTAL_BYTES}-byte budget`,
+  );
+  const overCount = refusedUnread(
+    Array.from({ length: MAX_SCANNED_FILES + 1 }, (unused, index) => `${PROBE_ROOT}/src/a${index}.ts`),
+    (path) => regularFile(path, PROBE_SOURCE_BYTES),
+    `above the ${MAX_SCANNED_FILES}-file budget`,
+  );
+  const escaping = refusedUnread(one, () => regularFile('/etc/hosts', 12), 'outside the worktree root');
+  const irregular = refusedUnread(one, (path) => Object.freeze({ ok: true, path, kind: 'a named pipe', regular: false, size: 0 }), 'rather than a regular file');
+  const nested = excludedSubtreesFor(PROBE_ROOT, NESTED_BASE);
+  const owned = ownedFiles(PROBE_ROOT, [
+    `${PROBE_ROOT}/a.ts`,
+    `${NESTED_BASE}/a.ts`,
+    `${PROBE_ROOT}/node_modules/pkg/a.ts`,
+  ], nested);
+  const deadlineIo = typescriptDeclaredIo({
+    run: (binary, argv) => (argv.includes('--listFiles') ? listedFileStdout(argv) : CLEAN_CHILD),
+  });
+  probeEvaluate(deadlineIo);
+  const dependencyOnly = probeEvaluate(typescriptDeclaredIo({
+    run: (binary, argv) => {
+      if (argv.includes('--listFiles')) {
+        return { outcome: 'completed', status: 0, stdout: `${argv[argv.length - 1]}/${NODE_MODULES}/typescript/lib/lib.d.ts\n`, stderr: '' };
+      }
+      if (argv.includes('--showConfig')) return { outcome: 'completed', status: 0, stdout: JSON.stringify({ compilerOptions: { strict: true } }), stderr: '' };
+      return CLEAN_CHILD;
+    },
+  }));
+  return Object.freeze({
+    dependencyOnlyUniverseRefused: dependencyOnly.pass === false && /carries no repository source/.test(dependencyOnly.output),
+    withinBudgetScanned: within.verdict.ok === true && within.read.includes(`${PROBE_ROOT}/a.ts`),
+    overCapRefusedUnread: overCap,
+    overTotalRefusedUnread: overTotal,
+    overCountRefusedUnread: overCount,
+    escapingRealPathRefusedUnread: escaping,
+    irregularPathRefusedUnread: irregular,
+    nestedBaseExcluded: nested.length === 1
+      && nested[0] === '.claude/worktrees/msp'
+      && owned.length === 1
+      && owned[0] === `${PROBE_ROOT}/a.ts`,
+    separateBaseExcludesNothing: excludedSubtreesFor(PROBE_ROOT, OUTSIDE_BASE).length === 0,
+    childrenStarted: deadlineIo.started.length,
+    undeadlinedChildren: Object.freeze(deadlineIo.started
+      .filter((child) => !Number.isInteger(child.options?.deadlineMs) || child.options.deadlineMs <= 0)
+      .map((child) => `${child.binary} ${child.argv.join(' ')}`)),
   });
 }
 

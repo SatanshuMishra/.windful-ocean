@@ -1,7 +1,11 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
+  ESLINT_CONFIG_DIRECTIVE,
+  ESLINT_INERT_DIRECTIVES,
   SUPPRESSION_DIRECTIVES,
+  SUPPRESSION_MECHANISMS,
+  TSCONFIG_DEFAULT_FOLLOWS_STRICT,
   TSCONFIG_STRICTNESS_FLAGS,
   compareCheckedFiles,
   compareCheckedFilesByTool,
@@ -18,8 +22,14 @@ import {
 const file = (path, source) => Object.freeze({ path, source });
 const ROOTS = Object.freeze({ base: '/base-wt', head: '/repo' });
 
+function counted(files) {
+  const census = countSuppressions(files);
+  assert.equal(census.ok, true, `the suppression census refused a specimen it must classify: ${census.error}`);
+  return census.counts;
+}
+
 test('every declared suppression directive is counted per file, and the longest spelling wins over its prefix', () => {
-  const counts = countSuppressions([
+  const counts = counted([
     file('a.ts', '// eslint-disable-next-line no-eq\n// eslint-disable no-eq\n'),
     file('b.ts', '// @ts-expect-error\n// @ts-ignore\n'),
   ]);
@@ -28,15 +38,68 @@ test('every declared suppression directive is counted per file, and the longest 
   assert.equal(counts[suppressionKey('b.ts', '@ts-expect-error')], 1);
   assert.equal(counts[suppressionKey('b.ts', '@ts-ignore')], 1);
   assert.equal(counts[suppressionKey('a.ts', '@ts-ignore')], undefined);
-  assert.ok(SUPPRESSION_DIRECTIVES.length >= 5);
+  assert.deepEqual(
+    SUPPRESSION_MECHANISMS.filter((mechanism) => !SUPPRESSION_DIRECTIVES.includes(mechanism)),
+    [ESLINT_CONFIG_DIRECTIVE],
+    'the declared mechanisms are no longer the declared token directives plus the rule configuration form',
+  );
+});
+
+test('an inline eslint configuration comment counts as a suppression, keyed by the rule it silences', () => {
+  const counts = counted([file('a.ts', '/* eslint no-explicit-any: "off" */\nexport const a = 1;\n')]);
+  assert.equal(
+    counts[suppressionKey('a.ts', `${ESLINT_CONFIG_DIRECTIVE} no-explicit-any`)],
+    1,
+    `the configuration-comment form eslint honors counted as zero suppressions: ${JSON.stringify(counts)}`,
+  );
+});
+
+test('a configuration comment silencing several rules is counted once per rule, and a tightened rule is not counted', () => {
+  const counts = counted([file('a.ts', '/* eslint eqeqeq: 0, curly: ["warn", "all"], no-eq: "error" */\n')]);
+  assert.equal(counts[suppressionKey('a.ts', `${ESLINT_CONFIG_DIRECTIVE} eqeqeq`)], 1);
+  assert.equal(counts[suppressionKey('a.ts', `${ESLINT_CONFIG_DIRECTIVE} curly`)], 1);
+  assert.equal(
+    counts[suppressionKey('a.ts', `${ESLINT_CONFIG_DIRECTIVE} no-eq`)],
+    undefined,
+    'a rule raised to error was counted as a suppression, so tightening a rule inline would block',
+  );
+});
+
+test('a rule option object inside a configuration comment is not read as a second rule mapping', () => {
+  const counts = counted([file('a.ts', '/* eslint camelcase: ["error", { properties: "never" }], no-eq: "off" */\n')]);
+  assert.equal(counts[suppressionKey('a.ts', `${ESLINT_CONFIG_DIRECTIVE} no-eq`)], 1);
+  assert.equal(counts[suppressionKey('a.ts', `${ESLINT_CONFIG_DIRECTIVE} properties`)], undefined);
+  assert.equal(counts[suppressionKey('a.ts', `${ESLINT_CONFIG_DIRECTIVE} camelcase`)], undefined);
+});
+
+test('an eslint comment directive the census cannot classify halts with the directive quoted', () => {
+  const census = countSuppressions([file('a.ts', '/* eslint-silence-everything */\nexport const a = 1;\n')]);
+  assert.equal(census.ok, false, 'an unknown eslint comment directive was dropped rather than halting');
+  assert.match(census.error, /eslint-silence-everything/);
+  assert.match(census.error, /a\.ts/);
+});
+
+test('a configuration comment whose severity cannot be read halts rather than being counted as nothing', () => {
+  const unreadable = countSuppressions([file('a.ts', '/* eslint no-eq: whenever */\n')]);
+  assert.equal(unreadable.ok, false);
+  assert.match(unreadable.error, /no-eq/);
+  const mappingless = countSuppressions([file('a.ts', '/* eslint */\n')]);
+  assert.equal(mappingless.ok, false, 'an eslint configuration comment naming no rule mapping was accepted');
+});
+
+test('the declared inert eslint directives are classified rather than halting, and are not counted', () => {
+  for (const directive of Object.keys(ESLINT_INERT_DIRECTIVES)) {
+    const counts = counted([file('a.ts', `/* ${directive} node */\n`)]);
+    assert.deepEqual(counts, {}, `${directive} was counted as a suppression rather than classified inert`);
+  }
 });
 
 const ignored = (count) => '// @ts-ignore\n'.repeat(count);
 
 test('a pre-existing suppression does not block, because the rule counts the surplus rather than presence', () => {
   const verdict = compareSuppressions(
-    countSuppressions([file('a.ts', ignored(3))]),
-    countSuppressions([file('a.ts', ignored(3))]),
+    counted([file('a.ts', ignored(3))]),
+    counted([file('a.ts', ignored(3))]),
   );
   assert.equal(verdict.pass, true);
   assert.deepEqual(verdict.blocking, []);
@@ -44,8 +107,8 @@ test('a pre-existing suppression does not block, because the rule counts the sur
 
 test('an added suppression blocks, naming the file, the directive and the surplus', () => {
   const verdict = compareSuppressions(
-    countSuppressions([file('a.ts', ignored(1))]),
-    countSuppressions([file('a.ts', ignored(2))]),
+    counted([file('a.ts', ignored(1))]),
+    counted([file('a.ts', ignored(2))]),
   );
   assert.equal(verdict.pass, false);
   assert.equal(verdict.blocking.length, 1);
@@ -55,14 +118,14 @@ test('an added suppression blocks, naming the file, the directive and the surplu
 });
 
 test('a removed suppression does not block and the count does not underflow', () => {
-  const verdict = compareSuppressions(countSuppressions([file('a.ts', ignored(3))]), countSuppressions([]));
+  const verdict = compareSuppressions(counted([file('a.ts', ignored(3))]), counted([]));
   assert.equal(verdict.pass, true);
 });
 
 test('a suppression still present at a lower count does not block', () => {
   const verdict = compareSuppressions(
-    countSuppressions([file('a.ts', ignored(3))]),
-    countSuppressions([file('a.ts', ignored(1))]),
+    counted([file('a.ts', ignored(3))]),
+    counted([file('a.ts', ignored(1))]),
   );
   assert.equal(verdict.pass, true);
   assert.deepEqual(verdict.blocking, []);
@@ -70,8 +133,8 @@ test('a suppression still present at a lower count does not block', () => {
 
 test('a suppression removed in one file and added in another blocks rather than netting out', () => {
   const verdict = compareSuppressions(
-    countSuppressions([file('old.ts', ignored(1))]),
-    countSuppressions([file('new.ts', ignored(1))]),
+    counted([file('old.ts', ignored(1))]),
+    counted([file('new.ts', ignored(1))]),
   );
   assert.equal(verdict.pass, false, 'the counts are kept per directive across every file, so a removal paid for an addition');
   assert.equal(verdict.blocking.length, 1);
@@ -109,7 +172,9 @@ test('a declared strictness flag moved away from its safe value blocks', () => {
   assert.equal(compareTsconfigFlags({ strict: true }, { strict: false }).pass, false);
   assert.equal(compareTsconfigFlags({ strict: false }, { strict: true }).pass, true);
   assert.equal(compareTsconfigFlags({ skipLibCheck: false }, { skipLibCheck: true }).pass, false);
-  assert.ok(Object.keys(TSCONFIG_STRICTNESS_FLAGS).length >= 10);
+  const unshaped = Object.entries(TSCONFIG_STRICTNESS_FLAGS)
+    .filter(([, flag]) => typeof flag.safe !== 'boolean' || (typeof flag.compilerDefault !== 'boolean' && flag.compilerDefault !== TSCONFIG_DEFAULT_FOLLOWS_STRICT));
+  assert.deepEqual(unshaped.map(([name]) => name), [], 'these declared flags carry neither a boolean safe value nor a compiler default the comparison can read');
 });
 
 test('a false-safe flag absent at base and switched on at HEAD blocks, because absent is the safe compiler default', () => {

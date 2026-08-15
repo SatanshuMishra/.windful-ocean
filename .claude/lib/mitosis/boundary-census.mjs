@@ -28,6 +28,7 @@ export const NON_DISPATCH_BOUNDARY_SOURCES = Object.freeze({
   'lib/mitosis/transcription-census.mjs': 'it names both mechanical labels as programs written in English that C6 owns, and it reaches no model: the source carries no boundary dispatch at all, which this census asserts rather than assumes',
   'lib/mitosis/boundary-census.mjs': 'it is this census: it names every declared label as data so it can classify them, and it reaches no model, which it asserts of itself rather than exempting itself',
   'lib/mitosis/boundary-parity-gate.mjs': 'it names the verb that reports on this census and reaches no model: the source carries no boundary dispatch at all, which this census asserts rather than assumes',
+  'lib/mitosis/boundary-census-control-probe.mjs': 'it builds the synthetic trees the negative controls mutate, so it spells the declared labels as data for this census to classify, and it reaches no model',
   'lib/mitosis/mitosis-gate.mjs': 'it registers the verb name, which shares the label family spelling without being a label, and it reaches no model: the source carries no boundary dispatch at all, which this census asserts rather than assumes',
 });
 
@@ -45,6 +46,26 @@ export const BOUNDARY_C7_OBLIGATIONS = Object.freeze([
   'C7-B3 delete the model-produced base census when the mechanical dispatches go. The recheck today embeds a baseCensus a model returned under a schema that constrains nothing, and treats it as the authoritative base side; this substrate computes that census in process, so the trust boundary disappears with the dispatch rather than needing a validator.',
   'C7-B4 leave the judgment dispatch alone. boundary-fix asks a model to fix code and is a registered judgment kind; it is named here so the conversion list distinguishes it from the two mechanical sites rather than sweeping all three together.',
 ]);
+
+export const BOUNDARY_CENSUS_REFUSALS = Object.freeze({
+  unscannable: 'a scanned source the JS structure scanner could not read at all',
+  undeclaredSource: 'a boundary label in a source no declaration covers',
+  inertSourceDispatching: 'a declared non-dispatch source that started dispatching',
+  undeclaredName: 'a dispatch label no declared name covers',
+  ambiguousLiteral: 'a boundary literal at neither a label key nor a declared inert form',
+  vanishedSource: 'a declared source that spells no boundary label in the scanned trees',
+  undispatchedName: 'a declared name that reaches no dispatch site',
+  divergentTree: 'a declared name one engine tree dispatches and a sibling tree does not',
+});
+
+export const BOUNDARY_CENSUS_REFUSAL_KINDS = Object.freeze(Object.keys(BOUNDARY_CENSUS_REFUSALS).sort());
+
+function refuse(kind, error) {
+  if (!Object.hasOwn(BOUNDARY_CENSUS_REFUSALS, kind)) {
+    throw new TypeError(`boundary-census: ${JSON.stringify(kind)} is not one of the declared refusal kinds (${BOUNDARY_CENSUS_REFUSAL_KINDS.join(', ')}), so this halt would reach no negative control`);
+  }
+  return Object.freeze({ ...halt(error), refusal: kind });
+}
 
 function repoRelative(path) {
   const marker = '.claude/';
@@ -113,28 +134,28 @@ export function censusBoundarySources(sources, declarations = BOUNDARY_DECLARATI
   for (const entry of sources) {
     const path = repoRelative(entry.path);
     const scan = scanJsStructure(entry.source);
-    if (!scan.ok) return halt(`${path} could not be scanned: ${scan.error}`);
+    if (!scan.ok) return refuse('unscannable', `${path} could not be scanned: ${scan.error}`);
     const literals = boundaryLiterals(entry.source, scan);
     if (literals.length === 0) continue;
     carrying.add(path);
     const isDispatchSource = Object.hasOwn(dispatchSources, path);
     const isNonDispatchSource = Object.hasOwn(nonDispatchSources, path);
     if (!isDispatchSource && !isNonDispatchSource) {
-      return halt(`${path}:${literals[0].where} spells the boundary label ${JSON.stringify(literals[0].raw)} but no declaration covers that source; classify it as a dispatch source or as a non-dispatch source carrying a reason rather than letting a boundary label go uncounted`);
+      return refuse('undeclaredSource', `${path}:${literals[0].where} spells the boundary label ${JSON.stringify(literals[0].raw)} but no declaration covers that source; classify it as a dispatch source or as a non-dispatch source carrying a reason rather than letting a boundary label go uncounted`);
     }
     for (const literal of literals) {
       if (literal.key === BOUNDARY_LABEL_KEY) {
         if (isNonDispatchSource) {
-          return halt(`${path}:${literal.where} now dispatches ${JSON.stringify(literal.raw)}, but that source is declared to carry no boundary dispatch at all; a source that started dispatching halts rather than staying inert on a reason written when it did not`);
+          return refuse('inertSourceDispatching', `${path}:${literal.where} now dispatches ${JSON.stringify(literal.raw)}, but that source is declared to carry no boundary dispatch at all; a source that started dispatching halts rather than staying inert on a reason written when it did not`);
         }
         if (!Object.hasOwn(names, literal.raw)) {
-          return halt(`${path}:${literal.where} dispatches ${JSON.stringify(literal.raw)}, which no declared name covers; the declared names are ${Object.keys(names).sort().join(', ')}, and a label none of them covers halts with its site named rather than being absorbed by a name it merely extends`);
+          return refuse('undeclaredName', `${path}:${literal.where} dispatches ${JSON.stringify(literal.raw)}, which no declared name covers; the declared names are ${Object.keys(names).sort().join(', ')}, and a label none of them covers halts with its site named rather than being absorbed by a name it merely extends`);
         }
         sites.push(Object.freeze({ name: literal.raw, kind: names[literal.raw], path, line: literal.where, twin: path !== conversionTarget }));
         continue;
       }
       if (isDispatchSource && !(literal.key !== null && Object.hasOwn(inertKeys, literal.key))) {
-        return halt(`${path}:${literal.where} spells the boundary label ${JSON.stringify(literal.raw)} at a ${literal.key === null ? 'position carrying no object key' : `${JSON.stringify(literal.key)} key`}, which is neither a dispatch label nor one of the declared inert forms (${Object.keys(inertKeys).sort().join(', ')}); refusing to guess whether it reaches a model`);
+        return refuse('ambiguousLiteral', `${path}:${literal.where} spells the boundary label ${JSON.stringify(literal.raw)} at a ${literal.key === null ? 'position carrying no object key' : `${JSON.stringify(literal.key)} key`}, which is neither a dispatch label nor one of the declared inert forms (${Object.keys(inertKeys).sort().join(', ')}); refusing to guess whether it reaches a model`);
       }
       inert.push(Object.freeze({ spelling: literal.raw, path, line: literal.where, key: literal.key }));
     }
@@ -144,16 +165,16 @@ export function censusBoundarySources(sources, declarations = BOUNDARY_DECLARATI
   const scanned = [...carrying].sort();
   const missing = declaredPaths.filter((path) => !carrying.has(path));
   if (missing.length > 0) {
-    return halt(`these declared sources spell no boundary label in the scanned trees: ${missing.join(', ')}; a declared source that vanished from the scan halts rather than letting its sites go unnamed, which is what would happen if a tree were dropped from the enumeration`);
+    return refuse('vanishedSource', `these declared sources spell no boundary label in the scanned trees: ${missing.join(', ')}; a declared source that vanished from the scan halts rather than letting its sites go unnamed, which is what would happen if a tree were dropped from the enumeration`);
   }
   const undispatched = Object.keys(names).sort().filter((name) => !sites.some((site) => site.name === name));
   if (undispatched.length > 0) {
-    return halt(`these declared names reach no dispatch site: ${undispatched.join(', ')}; a name with no site behind it halts rather than being read as a conversion that already happened`);
+    return refuse('undispatchedName', `these declared names reach no dispatch site: ${undispatched.join(', ')}; a name with no site behind it halts rather than being read as a conversion that already happened`);
   }
   for (const path of Object.keys(dispatchSources)) {
     const covered = Object.keys(names).sort().filter((name) => !sites.some((site) => site.path === path && site.name === name));
     if (covered.length > 0) {
-      return halt(`${path} dispatches no site for these declared names: ${covered.join(', ')}; both engine trees carry the same dispatch block, so a name present in one and absent from the other is a divergence rather than a shape this census may report as covered`);
+      return refuse('divergentTree', `${path} dispatches no site for these declared names: ${covered.join(', ')}; both engine trees carry the same dispatch block, so a name present in one and absent from the other is a divergence rather than a shape this census may report as covered`);
     }
   }
 
