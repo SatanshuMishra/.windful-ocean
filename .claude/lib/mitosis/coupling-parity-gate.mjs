@@ -569,6 +569,14 @@ export function runCouplingControls(substrate, controls) {
   }));
 }
 
+export function exercisedAttestCensus(probes) {
+  const problems = [...attestCoverageCensus(COUPLING_PARITY_ATTESTS, probes)];
+  if (attestCoverageCensus(COUPLING_PARITY_ATTESTS, controlsAbandoning(probes, COUPLING_PARITY_ATTESTS[0].id)).length === 0) {
+    problems.push('the attest-coverage census over the controls that actually ran accepted a set from which every control claiming one attest was removed, so it measures a declared list rather than what this invocation exercised');
+  }
+  return Object.freeze(problems);
+}
+
 export function couplingParityFailures(probes) {
   const failures = [];
   for (const probe of probes) {
@@ -594,7 +602,7 @@ export function couplingParityVerdict() {
   try {
     substrate = probeCouplingSubstrate();
     probes = runCouplingControls(substrate, CONTROLS);
-    failures = couplingParityFailures(probes);
+    failures = [...exercisedAttestCensus(probes), ...couplingParityFailures(probes)];
   } catch (error) {
     return Object.freeze({ kind: 'halt', error: `could not probe the coupling substrate: ${error && error.message ? error.message : 'unknown failure'}` });
   }

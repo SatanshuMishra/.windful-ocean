@@ -347,7 +347,7 @@ export function signalToken(className, detail) {
   if (!Object.prototype.hasOwnProperty.call(SIGNAL_CLASS_DETAIL, className)) {
     throw new TypeError(`coupling-review: the signal ${describe(className)} names no class in ${COUPLING_SIGNAL_CLASSES.join(', ')}; every signal a detector emits is built from that registry, because a detector minting its own class name produces a token no census can classify and the coupling it found is scored under a name nothing reads back`);
   }
-  const detailed = SIGNAL_CLASS_DETAIL[className];
+  const detailed = SIGNAL_CLASS_DETAIL[className] === true;
   if (detailed !== (detail !== undefined)) {
     throw new TypeError(`coupling-review: the signal class ${describe(className)} ${detailed ? 'names the thing the pair shares and was built with no detail' : 'names no detail and was built with one'}; the arity is what tells a reader whether the text after ${describe(SIGNAL_DETAIL_SEPARATOR)} is a shared marker or part of the class name, so a token built against the wrong one is classified into the wrong half of the census`);
   }
@@ -367,7 +367,7 @@ export function couplingSignalClass(signal) {
   if (!Object.prototype.hasOwnProperty.call(SIGNAL_CLASS_DETAIL, className)) {
     return Object.freeze({ ok: false, error: `coupling-review: the signal ${describe(signal)} classifies under ${describe(className)}, which is none of ${COUPLING_SIGNAL_CLASSES.join(', ')}; an unclassifiable signal halts here rather than falling into a catch-all bucket, because a detector that mints a class name would otherwise widen the emission with a signal no reader of the census ever sees named` });
   }
-  const detailed = SIGNAL_CLASS_DETAIL[className];
+  const detailed = SIGNAL_CLASS_DETAIL[className] === true;
   if (detailed !== (detail !== null)) {
     return Object.freeze({ ok: false, error: `coupling-review: the signal ${describe(signal)} classifies under ${describe(className)}, which ${detailed ? 'names the thing the pair shares and carries no detail here' : 'names no detail and carries one here'}; a token whose shape disagrees with its declared arity is not the signal that class emits, and reading it as one would report a shared marker the detectors never found` });
   }
