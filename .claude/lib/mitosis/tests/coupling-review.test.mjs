@@ -494,3 +494,21 @@ test('T29g: the resolution is frozen, so no consumer can retighten or relax a de
   assert.ok(Object.isFrozen(resolved[0]));
   assert.throws(() => { resolved[0].decision = 'parallel'; }, TypeError);
 });
+
+test('T29h: a whitespace-only rationale does not buy a parallel override, because a blank reason is no reason', () => {
+  const emitted = serializeDefaultEmission();
+  for (const blank of ['   ', '\t', '\n', ' \t\n ']) {
+    assert.throws(
+      () => resolveCoupling(emitted, [{ pair: ['t1', 't2'], decision: 'parallel', rationale: blank }]),
+      /t1\/t2 defaults to serialize and is overridden to parallel with no rationale/,
+      `a rationale of ${JSON.stringify(blank)} relaxed the skeptical default; the override check must read the normalized rationale, not the raw string`,
+    );
+  }
+});
+
+test('T29i: a whitespace-only rationale is refused through deriveEdges too, not only through the review entrypoint', () => {
+  assert.throws(
+    () => assertVerdictsCoverPairs(serializeDefaultEmission(), [{ pair: ['t1', 't2'], decision: 'parallel', rationale: '  ' }]),
+    /t1\/t2 defaults to serialize and is overridden to parallel with no rationale/,
+  );
+});
