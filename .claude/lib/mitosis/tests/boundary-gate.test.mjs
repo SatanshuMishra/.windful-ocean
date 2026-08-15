@@ -1,0 +1,238 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import {
+  BOUNDARY_TOOLS,
+  NORMALIZATION_STEPS,
+  censusTscLines,
+  collectBase,
+  compareCensuses,
+  evaluate,
+  parseEslintReport,
+  structuralIdentity,
+  toolExpectation,
+} from '../boundary-gate.mjs';
+
+const ROOT = '/repo';
+const BASE = '/tmp/base-wt';
+
+function tscLine(file, line, col, code, message) {
+  return `${file}(${line},${col}): error ${code}: ${message}`;
+}
+
+function eslintReport(entries) {
+  return JSON.stringify(entries.map(([filePath, messages]) => ({
+    filePath,
+    messages: messages.map(([ruleId, message, line, column]) => ({ ruleId, message, line, column, severity: 2 })),
+  })));
+}
+
+function fixtureIo(overrides) {
+  const spawned = [];
+  const removed = [];
+  const base = {
+    spawned,
+    removed,
+    run: (binary, argv) => {
+      spawned.push(`${binary} ${argv.join(' ')}`);
+      return { outcome: 'completed', status: 0, stdout: '', stderr: '', binary, argv };
+    },
+    exists: () => true,
+    readFile: () => '{}',
+    makeDir: () => {},
+    symlink: () => {},
+    removePath: (path) => { removed.push(path); },
+    resolveTool: (name, root) => `${root}/node_modules/${name}/bin/${name}.js`,
+    resolvePackageManager: () => '/pm/npm-cli.js',
+  };
+  const merged = { ...base, ...overrides, spawned, removed };
+  const inner = merged.run;
+  merged.run = (binary, argv, options) => {
+    spawned.push(`${binary} ${argv.join(' ')}`);
+    return inner(binary, argv, options);
+  };
+  return merged;
+}
+
+test('a pure line shift does not change the structural identity', () => {
+  const a = structuralIdentity({ file: 'src/a.ts', code: 'TS2345', message: 'Argument at 12:4 is wrong' });
+  const b = structuralIdentity({ file: 'src/a.ts', code: 'TS2345', message: 'Argument at 90:7 is wrong' });
+  assert.equal(a, b);
+});
+
+test('two distinct TS codes with the same message do not collapse to one identity', () => {
+  const a = structuralIdentity({ file: 'src/a.ts', code: 'TS2345', message: 'Type is wrong' });
+  const b = structuralIdentity({ file: 'src/a.ts', code: 'TS2339', message: 'Type is wrong' });
+  assert.notEqual(a, b);
+});
+
+test('the normalization steps are a declared ordered list, not a blanket digit strip', () => {
+  assert.ok(NORMALIZATION_STEPS.length >= 3);
+  for (const step of NORMALIZATION_STEPS) {
+    assert.equal(typeof step.name, 'string');
+    assert.equal(typeof step.apply, 'function');
+  }
+  assert.equal(structuralIdentity({ file: 'a.ts', code: 'TS1', message: 'x' }).includes('TS1'), true);
+});
+
+test('a second instance of an error class already present at base blocks', () => {
+  const base = { eslint: { 'a::no-eq::x': 1 } };
+  const head = { eslint: { 'a::no-eq::x': 2 } };
+  const verdict = compareCensuses(base, head);
+  assert.equal(verdict.pass, false);
+  assert.equal(verdict.blocking.length, 1);
+  assert.equal(verdict.blocking[0].surplus, 1);
+});
+
+test('an unchanged pre-existing error does not block', () => {
+  const verdict = compareCensuses({ eslint: { 'a::no-eq::x': 2 } }, { eslint: { 'a::no-eq::x': 2 } });
+  assert.equal(verdict.pass, true);
+  assert.deepEqual(verdict.blocking, []);
+});
+
+test('a fixed pre-existing error does not block and the count does not underflow', () => {
+  const verdict = compareCensuses({ eslint: { 'a::no-eq::x': 3 } }, { eslint: {} });
+  assert.equal(verdict.pass, true);
+  assert.deepEqual(verdict.blocking, []);
+});
+
+test('the tsc line census classifies the declared diagnostic form and halts on anything else', () => {
+  const clean = censusTscLines([tscLine('src/a.ts', 3, 9, 'TS2345', 'Argument bad'), '', 'error TS5083: Cannot read file'].join('\n'));
+  assert.equal(clean.ok, true, clean.error);
+  assert.equal(clean.diagnostics.length, 2);
+  const halted = censusTscLines(['Found 3 errors in 2 files.'].join('\n'));
+  assert.equal(halted.ok, false);
+  assert.match(halted.error, /Found 3 errors in 2 files\./);
+});
+
+test('an eslint report that is not an array of file entries fails closed', () => {
+  assert.equal(parseEslintReport('{}').ok, false);
+  assert.equal(parseEslintReport('not json').ok, false);
+  assert.equal(parseEslintReport(JSON.stringify([{ filePath: 'a.ts' }])).ok, false);
+  assert.equal(parseEslintReport(eslintReport([['a.ts', []]])).ok, true);
+});
+
+test('an eslint run that scanned zero files fails closed rather than reading as clean', () => {
+  const parsed = parseEslintReport('[]');
+  assert.equal(parsed.ok, false);
+  assert.match(parsed.error, /zero files/i);
+});
+
+test('NOT-EXPECTED requires positive observation of both sides', () => {
+  const observed = (config, dependency) => ({ configPresent: config, dependencyDeclared: dependency, observed: true });
+  assert.equal(toolExpectation(observed(false, false), observed(false, false)).expected, false);
+  assert.equal(toolExpectation(observed(true, false), observed(false, false)).expected, true);
+  assert.equal(toolExpectation(observed(false, false), observed(true, false)).expected, true);
+});
+
+test('a side that cannot be positively observed is never NOT-EXPECTED', () => {
+  const unobserved = { configPresent: false, dependencyDeclared: false, observed: false, reason: 'the config resolved outside the worktree root' };
+  const expectation = toolExpectation(unobserved, { configPresent: false, dependencyDeclared: false, observed: true });
+  assert.equal(expectation.expected, true);
+  assert.equal(expectation.unobservable, true);
+});
+
+test('a config removed at HEAD for a tool expected at base stays expected', () => {
+  const expectation = toolExpectation(
+    { configPresent: true, dependencyDeclared: false, observed: true },
+    { configPresent: false, dependencyDeclared: false, observed: true },
+  );
+  assert.equal(expectation.expected, true);
+});
+
+test('every tool NOT-EXPECTED yields a pass, because the lint and type dimension is legitimately empty', () => {
+  const io = fixtureIo({ exists: () => false, readFile: () => JSON.stringify({}) });
+  const verdict = evaluate({ repoRoot: ROOT, gateBase: 'abc123', basePath: BASE, cachedBaseCensus: null }, io);
+  assert.equal(verdict.pass, true, verdict.output);
+  assert.deepEqual([...verdict.notExpected].sort(), [...BOUNDARY_TOOLS].map((tool) => tool.name).sort());
+});
+
+test('the base worktree is torn down on the throw path, not only on success', () => {
+  const io = fixtureIo({
+    resolveTool: () => { throw new Error('the tool could not be resolved'); },
+    readFile: () => JSON.stringify({ devDependencies: { typescript: '5.0.0' } }),
+  });
+  const verdict = evaluate({ repoRoot: ROOT, gateBase: 'abc123', basePath: BASE, cachedBaseCensus: null }, io);
+  assert.equal(verdict.pass, false);
+  assert.ok(io.spawned.some((command) => command.includes('worktree remove')), `teardown never ran: ${JSON.stringify(io.spawned)}`);
+});
+
+test('a base worktree that fails to materialize fails closed', () => {
+  const io = fixtureIo({
+    run: (binary, argv) => (argv.includes('add')
+      ? { outcome: 'completed', status: 128, stdout: '', stderr: 'fatal: invalid reference' }
+      : { outcome: 'completed', status: 0, stdout: '', stderr: '' }),
+    readFile: () => JSON.stringify({ devDependencies: { typescript: '5.0.0' } }),
+  });
+  const verdict = evaluate({ repoRoot: ROOT, gateBase: 'abc123', basePath: BASE, cachedBaseCensus: null }, io);
+  assert.equal(verdict.pass, false);
+  assert.match(verdict.output, /base worktree/i);
+});
+
+test('an unclean collection fails closed rather than reporting a clean side', () => {
+  const io = fixtureIo({
+    run: (binary, argv) => (argv.includes('--noEmit')
+      ? { outcome: 'spawn-failed', status: null, stdout: '', stderr: 'tsc not found' }
+      : { outcome: 'completed', status: 0, stdout: '', stderr: '' }),
+    readFile: () => JSON.stringify({ devDependencies: { typescript: '5.0.0' } }),
+  });
+  const verdict = evaluate({ repoRoot: ROOT, gateBase: 'abc123', basePath: BASE, cachedBaseCensus: null }, io);
+  assert.equal(verdict.pass, false);
+  assert.match(verdict.output, /collect/i);
+});
+
+test('the program never requests a binary outside the allowlist', () => {
+  const io = fixtureIo({ readFile: () => JSON.stringify({ devDependencies: { typescript: '5.0.0', eslint: '9.0.0' } }) });
+  evaluate({ repoRoot: ROOT, gateBase: 'abc123', basePath: BASE, cachedBaseCensus: null }, io);
+  for (const command of io.spawned) {
+    const binary = command.split(' ')[0];
+    assert.ok(['git', 'node'].includes(binary), `the program requested ${JSON.stringify(binary)}, which is outside what the spawn policy allows`);
+  }
+});
+
+test('first pass and recheck produce identical verdicts when the supplied census is the one collection would produce', () => {
+  const withErrors = (count) => JSON.stringify(Array.from({ length: count }, (_, index) => ({
+    filePath: `src/a${index}.ts`,
+    messages: [{ ruleId: 'no-eq', message: 'bad', line: 1, column: 1, severity: 2 }],
+  })));
+  const build = () => fixtureIo({
+    readFile: () => JSON.stringify({ devDependencies: { eslint: '9.0.0' } }),
+    exists: (path) => String(path).includes('eslint.config') || String(path).includes('package.json'),
+    run: (binary, argv) => {
+      if (argv.some((value) => value.includes('eslint'))) {
+        const side = argv.some((value) => String(value).startsWith(BASE)) ? 1 : 2;
+        return { outcome: 'completed', status: 1, stdout: withErrors(side), stderr: '' };
+      }
+      return { outcome: 'completed', status: 0, stdout: '', stderr: '' };
+    },
+  });
+  const request = { repoRoot: ROOT, gateBase: 'abc123', basePath: BASE, cachedBaseCensus: null };
+  const firstPass = evaluate(request, build());
+  const collected = collectBase(request, build());
+  assert.equal(collected.ok, true, collected.error);
+  const recheck = evaluate({ ...request, cachedBaseCensus: collected.census }, build());
+  assert.equal(recheck.pass, firstPass.pass);
+  assert.deepEqual(recheck.blocking, firstPass.blocking);
+});
+
+test('a malformed cached census falls back to collecting the base rather than trusting it', () => {
+  const io = fixtureIo({ readFile: () => JSON.stringify({ devDependencies: { typescript: '5.0.0' } }) });
+  const verdict = evaluate({ repoRoot: ROOT, gateBase: 'abc123', basePath: BASE, cachedBaseCensus: { nonsense: true } }, io);
+  assert.ok(io.spawned.some((command) => command.includes('worktree add')), 'the fallback did not materialize the base');
+  assert.equal(verdict.usedCachedCensus, false);
+});
+
+test('a cached census keyed to another base is refused rather than reused', () => {
+  const io = fixtureIo({ readFile: () => JSON.stringify({ devDependencies: { typescript: '5.0.0' } }) });
+  const verdict = evaluate(
+    { repoRoot: ROOT, gateBase: 'abc123', basePath: BASE, cachedBaseCensus: { gateBase: 'other', tools: {}, notExpected: [], surface: {} } },
+    io,
+  );
+  assert.equal(verdict.usedCachedCensus, false);
+});
+
+test('identical input yields identical output across runs', () => {
+  const request = { repoRoot: ROOT, gateBase: 'abc123', basePath: BASE, cachedBaseCensus: null };
+  const one = evaluate(request, fixtureIo({ readFile: () => JSON.stringify({ devDependencies: { typescript: '5.0.0' } }) }));
+  const two = evaluate(request, fixtureIo({ readFile: () => JSON.stringify({ devDependencies: { typescript: '5.0.0' } }) }));
+  assert.deepEqual(one, two);
+});
