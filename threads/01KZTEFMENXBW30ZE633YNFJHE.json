@@ -168,9 +168,9 @@
   "abandoned_reason": null,
   "closure_statement": null,
   "spine": {
-    "active_goal": "Land the remaining MSPs on feat/mitosis-os-process — the porting MSP, C7 and the D-series — under receipts/gates@1.1, with nothing merged to main until D3 clears its falsifier.",
-    "next_step": "START HERE: work CP, the porting MSP, branching off the base at 1ac4af96 (green, no open PRs). Scope is base-resident at .claude/docs/specs/2026-08-15-mitosis-porting-msp-scope.md: 24 obligations in five clusters - prompt R1-R7, transcription T1-T6, boundary B1-B3, journal J1-J7, coupling C5-O4. Ratify Q1, Q3 and Q4 in section 6 first. Expect CP to split per cluster to stay near the review-size target. Then C7 (tick loop + redispatch), then D1, D2, D3.",
-    "last_session": "Re-landed C6 via PR #124 after #122 merged into an undeleted parent, content-verified on the base. Recovered 17 of C7's 26 obligations, deleted as census collateral, into a base-resident spec (#125, #126). Deleted the c5b and c6 branches, refs confirmed gone. Recorded 0447 and 0448.",
+    "active_goal": "Land the remaining MSPs on feat/mitosis-os-process - C7, then D1, D2 and D3 - under receipts/gates@1.1, with nothing merged to main until D3 clears its falsifier.",
+    "next_step": "START HERE: merge PRs 131, 132 and 133 into feat/mitosis-os-process, deleting each branch and confirming the ref is gone between merges, then assert each by file on the base. Then cut C7 off the new base: the tick loop and redispatch, plus the nine obligations CP re-filed to it. Read .claude/docs/specs/2026-08-15-cp-disposition-record.md FIRST - it carries the nine call sites and the fifteen findings filed above the ceiling. Then D1, D2, D3.",
+    "last_session": "Shipped CP as six PRs via five fenced parallel lanes. All 24 obligations disposed: nine discharged with receipts, six already satisfied, nine re-filed to C7, one retired by 0449. PRs 127-130 merged and content-asserted on the base by file; 131, 132 and 133 remain open and clean.",
     "open_risks": [
       {
         "text": "Build A4's red case through the claude -p CLI path and assert the SILENT failure — the Workflow agent path auto-grants StructuredOutput, so a red case dispatched through it passes unconditionally and is a guarantee that cannot fail",
@@ -256,76 +256,43 @@
         ]
       },
       {
-        "text": "Check for an obligation array before retiring an apparatus module — the census retirement deleted seventeen C7 obligations along with their host modules, and not one of them had been discharged",
+        "text": "Merge PRs 131, 132 and 133 and delete each branch before cutting C7 — all three touch files the tick loop also edits, so a stale base forces the restack that already cost this stack a session",
         "scope": "c3",
         "refs": [
-          "0447",
-          "2087dd51",
-          "82a8d2fe"
+          "PR #131",
+          "PR #132",
+          "PR #133"
         ]
       },
       {
-        "text": "Never read a piped npm test as a green — the exit code reported is the last command in the pipe, so a failing suite piped into tail reports success while the failure sits in the captured text",
+        "text": "Re-check T2 and drop the mirrored coupling copy when D2 lands — both rest on mirror-guard, and D2 deletes it along with the workflow script and the sandbox module",
         "scope": "c3",
         "refs": [
-          "npm test | tail"
+          ".claude/docs/specs/2026-08-15-cp-disposition-record.md",
+          "design.md:550"
         ]
       },
       {
-        "text": "Delete the parent branch and confirm the ref is gone BETWEEN a parent merge and a child merge — merging a stack in one sitting defeats GitHub's retarget, which is exactly how C6 reported MERGED and never landed",
+        "text": "A missing coupling resolution still defaults to an empty list on the CLI path, silently disabling the integrity check — the third fail-open of one class in this thread, filed rather than folded into CP",
         "scope": "c3",
         "refs": [
-          "PR #122",
-          "fdf3817b",
-          "0445"
+          "generate-run-script.mjs"
         ]
       },
       {
-        "text": "A MERGED status is not evidence the content landed — assert the expected FILE is present on the intended target, because ancestry alone also lies after a squash merge",
+        "text": "record_decision refuses every call with missing_parameter on options and outcome — the CP outcome decision is not in the ledger and survives only in this session log and the disposition record",
         "scope": "c3",
         "refs": [
-          "PR #113",
-          "PR #122",
-          "0445"
+          "mcp record_decision",
+          "PR #133"
         ]
       },
       {
-        "text": "Never rewrite a stacked branch without restacking every branch above it — a force-push gives the parent new SHAs, and children still pointing at the old ones conflict on ancestry even when the trees are byte-identical",
+        "text": "Read the disposition record before cutting C7 — it holds the nine re-filed obligations with their call sites, and losing that inventory once already cost seventeen undischarged obligations",
         "scope": "c3",
         "refs": [
-          "e78a5ced",
-          "7dfd0757",
-          "PR #108"
-        ]
-      },
-      {
-        "text": "Run the tests on any branch that predates a vocabulary retirement — git AUTOMERGES a reference to a deleted binding with no conflict and no marker, so the diff reads clean and the file throws only when something loads it",
-        "scope": "c3",
-        "refs": [
-          "0444",
-          "mirror-guard.test.mjs"
-        ]
-      },
-      {
-        "text": "Grep for a prose correction after any conflict resolution that spans a large file move — a one-line attestation fix inside an 805-line move is dropped silently by a wholesale resolution, and no test turns red because the assertion matches a substring both texts share",
-        "scope": "c3",
-        "refs": [
-          "0441",
-          "mitosis-gate-core.mjs:47"
-        ]
-      },
-      {
-        "text": "~/.claude/skills is a symlink into the primary checkout and mitosis.js:17 hardcodes its absolute path — the Parallelize dispatch reads whatever branch that checkout has out, never the MSP's branch; D1 owns it",
-        "scope": "c3",
-        "refs": [
-          "mitosis.js:17"
-        ]
-      },
-      {
-        "text": "The upstream ReDoS report is drafted and NOT filed — filing a public issue on a repo the user does not own is their decision alone",
-        "scope": "c3",
-        "refs": [
-          "UPSTREAM-REDOS-REPORT-DRAFT.md"
+          "PR #133",
+          "0447"
         ]
       }
     ],
@@ -525,5 +492,5 @@
     ]
   },
   "created_at": "2026-08-12T07:37:41.077Z",
-  "updated_at": "2026-08-15T21:37:35.573Z"
+  "updated_at": "2026-08-15T23:31:59.399Z"
 }
