@@ -1,5 +1,5 @@
 import { isAbsolute, resolve as pathResolve } from 'node:path';
-import { usableCachedBase } from './boundary-census-cache.mjs';
+import { censusIdentity, usableCachedBase } from './boundary-census-cache.mjs';
 import {
   BOUNDARY_TOOLS,
   HEAD_SIDE,
@@ -150,6 +150,10 @@ function findingsText(verdict, notExpected, headCensus) {
   return `no new finding: ${Object.keys(headCensus.tools).sort().join(', ')} collected cleanly on both sides`;
 }
 
+function published(census) {
+  return Object.freeze({ ...census, identity: censusIdentity(census) });
+}
+
 function verdictOf(sides, evasion) {
   const verdict = compareCensuses(identitiesByTool(sides.baseCensus), identitiesByTool(sides.headCensus));
   const notExpected = Object.freeze(BOUNDARY_TOOLS.filter((tool) => !sides.expectations[tool.name].expected).map((tool) => tool.name));
@@ -162,7 +166,7 @@ function verdictOf(sides, evasion) {
     ]),
     notExpected,
     usedCachedCensus: sides.usedCachedCensus,
-    baseCensus: sides.baseCensus,
+    baseCensus: published(sides.baseCensus),
     leaked: sides.leaked,
   });
 }

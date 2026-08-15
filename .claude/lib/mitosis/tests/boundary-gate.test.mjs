@@ -282,9 +282,37 @@ test('first pass and recheck produce identical verdicts when the supplied census
   const request = { repoRoot: ROOT, gateBase: 'abc123', basePath: BASE, cachedBaseCensus: null };
   const firstPass = evaluate(request, build());
   assert.ok(firstPass.baseCensus, `the base census the recheck reuses could not be collected: ${firstPass.output}`);
-  const recheck = evaluate({ ...request, cachedBaseCensus: refingerprinted(firstPass.baseCensus) }, build());
+  const recheck = evaluate({ ...request, cachedBaseCensus: firstPass.baseCensus }, build());
   assert.equal(recheck.pass, firstPass.pass);
   assert.deepEqual(recheck.blocking, firstPass.blocking);
+});
+
+test('the base census a first pass publishes is reused by the recheck without the caller restamping it', () => {
+  const build = () => fixtureIo({
+    readFile: () => JSON.stringify({ devDependencies: { eslint: '9.0.0' } }),
+    exists: (path) => String(path).includes('eslint.config') || String(path).includes('package.json') || String(path).endsWith('/a.ts'),
+    run: (binary, argv) => {
+      if (argv.includes('--print-config')) return { outcome: 'completed', status: 0, stdout: JSON.stringify({ rules: {} }), stderr: '' };
+      if (argv.some((value) => String(value).includes('eslint'))) {
+        return { outcome: 'completed', status: 0, stdout: eslintReport([['a.ts', []]]), stderr: '' };
+      }
+      return { outcome: 'completed', status: 0, stdout: '', stderr: '' };
+    },
+  });
+  const request = { repoRoot: ROOT, gateBase: 'abc123', basePath: BASE, cachedBaseCensus: null };
+  const firstPass = evaluate(request, build());
+  assert.ok(firstPass.baseCensus, `the first pass published no base census: ${firstPass.output}`);
+  const io = build();
+  const recheck = evaluate({ ...request, cachedBaseCensus: firstPass.baseCensus }, io);
+  assert.equal(
+    recheck.usedCachedCensus,
+    true,
+    `the recheck refused the census the first pass published, so the base side is only ever reusable from a producer outside this program: ${recheck.output}`,
+  );
+  assert.ok(
+    !io.spawned.some((command) => command.includes('worktree add')),
+    `the recheck re-materialized the base instead of reusing the published census: ${JSON.stringify(io.spawned)}`,
+  );
 });
 
 test('an absent cached census collects the base rather than comparing against nothing', () => {
