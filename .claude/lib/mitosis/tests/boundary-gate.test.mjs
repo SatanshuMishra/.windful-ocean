@@ -1,5 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { existsSync } from 'node:fs';
 import {
   BOUNDARY_TOOLS,
   NORMALIZATION_STEPS,
@@ -43,7 +44,7 @@ function fixtureIo(overrides) {
     symlink: () => {},
     removePath: (path) => { removed.push(path); },
     resolveTool: (name, root) => `${root}/node_modules/${name}/bin/${name}.js`,
-    resolvePackageManager: () => '/pm/npm-cli.js',
+    resolvePackageManager: () => ({ ok: true, entry: '/pm/npm-cli.js' }),
   };
   const merged = { ...base, ...overrides, spawned, removed };
   const inner = merged.run;
@@ -261,4 +262,39 @@ test('identical input yields identical output across runs', () => {
   const one = evaluate(request, fixtureIo({ readFile: () => JSON.stringify({ devDependencies: { typescript: '5.0.0' } }) }));
   const two = evaluate(request, fixtureIo({ readFile: () => JSON.stringify({ devDependencies: { typescript: '5.0.0' } }) }));
   assert.deepEqual(one, two);
+});
+
+test('the shipped resolvePackageManager seam resolves a real npm JS entry, not the node binary', () => {
+  const resolved = REAL_BOUNDARY_IO.resolvePackageManager('npm');
+  assert.equal(resolved.ok, true, `resolvePackageManager('npm') did not resolve: ${JSON.stringify(resolved)}`);
+  assert.notEqual(resolved.entry, process.execPath);
+  assert.ok(resolved.entry.endsWith('.js'), `the resolved entry ${resolved.entry} does not end in .js`);
+  assert.ok(existsSync(resolved.entry), `the resolved entry ${resolved.entry} does not exist on disk`);
+});
+
+test('a divergent yarn.lock refuses the gate before any install child spawns, naming yarn.lock and yarn', () => {
+  const io = fixtureIo({
+    exists: (path) => String(path).endsWith('yarn.lock'),
+    readFile: (path) => (String(path).startsWith(BASE) ? 'base-yarn-bytes' : 'head-yarn-bytes'),
+  });
+  const verdict = evaluate({ repoRoot: ROOT, gateBase: 'abc123', basePath: BASE, cachedBaseCensus: null }, io);
+  assert.equal(verdict.pass, false, verdict.output);
+  assert.match(verdict.output, /yarn\.lock/);
+  assert.match(verdict.output, /yarn/);
+  assert.ok(
+    !io.spawned.some((command) => /^node .*install/.test(command)),
+    `an install child was spawned for an unserviceable lockfile: ${JSON.stringify(io.spawned)}`,
+  );
+});
+
+test('a divergent package-lock.json composes the install argv from the resolved entry and the declared install flags', () => {
+  const io = fixtureIo({
+    exists: (path) => String(path).endsWith('package-lock.json'),
+    readFile: (path) => (String(path).startsWith(BASE) ? 'base-lock-bytes' : 'head-lock-bytes'),
+  });
+  const verdict = evaluate({ repoRoot: ROOT, gateBase: 'abc123', basePath: BASE, cachedBaseCensus: null }, io);
+  assert.ok(
+    io.spawned.includes('node /pm/npm-cli.js install --no-audit --no-fund'),
+    `the install argv was not composed from the resolved entry and declared flags: ${JSON.stringify(io.spawned)}; verdict=${JSON.stringify(verdict)}`,
+  );
 });
