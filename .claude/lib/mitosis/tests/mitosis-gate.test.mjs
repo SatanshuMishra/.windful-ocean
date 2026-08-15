@@ -533,8 +533,7 @@ test('the argv parser accepts every verb and defaults each to its own target', (
   assert.deepEqual(parseMitosisGateArgv(['journal-parity']), { ok: true, verb: 'journal-parity', target: null });
   assert.deepEqual(parseMitosisGateArgv(['dispatchable-agent-schema-capable']), { ok: true, verb: 'dispatchable-agent-schema-capable', target: DEFAULT_AGENT_TREE_TARGET });
   assert.deepEqual(parseMitosisGateArgv(['transcription-parity']), { ok: true, verb: 'transcription-parity', target: null });
-  assert.deepEqual(parseMitosisGateArgv(['coupling-parity']), { ok: true, verb: 'coupling-parity', target: null });
-  assert.deepEqual([...MITOSIS_GATE_VERBS], ['coupling-parity', 'determinism', 'dispatchable-agent-schema-capable', 'exec-allowlist', 'journal-parity', 'phase-parity', 'prompt-registry', 'transcription-parity']);
+  assert.deepEqual([...MITOSIS_GATE_VERBS], ['determinism', 'dispatchable-agent-schema-capable', 'exec-allowlist', 'journal-parity', 'phase-parity', 'prompt-registry', 'transcription-parity']);
   assert.notEqual(DEFAULT_DETERMINISM_TARGET, DEFAULT_PHASE_PARITY_TARGET);
 });
 
@@ -648,15 +647,6 @@ test('the exec-allowlist verb rejects a target, because it probes an imported mo
   const { out, stderr } = capture();
   assert.equal(runMitosisGate(['exec-allowlist', '--target', '/etc/passwd'], out, () => ''), GATE_USAGE_EXIT);
   assert.match(stderr.join(''), /exec-allowlist/);
-});
-
-test('the coupling-parity verb rejects a target, because it probes an imported module and opens no path', () => {
-  const parsed = parseMitosisGateArgv(['coupling-parity', '--target', '/etc/passwd']);
-  assert.equal(parsed.ok, false);
-  assert.match(parsed.error, /coupling-parity/);
-  const { out, stderr } = capture();
-  assert.equal(runMitosisGate(['coupling-parity', '--target', '/etc/passwd'], out, () => ''), GATE_USAGE_EXIT);
-  assert.match(stderr.join(''), /coupling-parity/);
 });
 
 test('the prompt-registry verb exits clean over the real registry and reports what it measured', () => {
