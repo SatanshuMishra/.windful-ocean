@@ -22,11 +22,12 @@ const isolation = args.isolation || 'worktree';
 const launchCommit = args.launchCommit || null;
 const runArtifacts = args.runArtifacts;
 const models = args.models || {};
+const couplingResolution = args.couplingResolution;
 
 const { homedir } = await import('node:os');
 const { runEngine } = await import(`file://${homedir()}/.claude/lib/mitosis/run-engine.mjs`);
 
 return runEngine(
-  { tasks, waves, branchPrefix, baseBranch, worktreeRoot, repoRoot, scopedCheckCmd, fullValidationCmd, prompts, fixLoopMax, isolation, launchCommit, runArtifacts, models },
+  { tasks, waves, branchPrefix, baseBranch, worktreeRoot, repoRoot, scopedCheckCmd, fullValidationCmd, prompts, fixLoopMax, isolation, launchCommit, runArtifacts, models, couplingResolution },
   { agent, parallel, log, phase },
 );

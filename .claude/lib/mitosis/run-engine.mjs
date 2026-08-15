@@ -6,6 +6,37 @@ const BOUNDARY_SCHEMA = { type: 'object', properties: { pass: { type: 'boolean' 
 const FENCE_SCHEMA = { type: 'object', properties: { paths: { type: 'array', items: { type: 'string' } } }, required: ['paths'] };
 const EXEC_AGENT_TYPES = new Set(['implementer', 'test-engineer', 'general-purpose']);
 
+const COUPLING_SERIALIZE_DECISION = 'serialize';
+export const COUPLING_DECISION_VOCABULARY = Object.freeze(['parallel', COUPLING_SERIALIZE_DECISION]);
+export function couplingSerializeViolations(couplingResolution, waves) {
+  if (couplingResolution === undefined || couplingResolution === null) return [];
+  if (!Array.isArray(couplingResolution)) throw new TypeError('runEngine: engineArgs.couplingResolution must be an array of resolved coupling records; a malformed value carries no decision to check and would pass a wave plan that silently contradicts a serialize decision');
+  if (!Array.isArray(waves)) throw new TypeError('runEngine: engineArgs.waves must be an array of wave arrays before a carried coupling decision can be checked against it');
+  const waveOf = new Map();
+  for (let index = 0; index < waves.length; index += 1) for (const id of waves[index]) waveOf.set(id, index);
+  const violations = [];
+  for (const record of couplingResolution) {
+    if (record === null || typeof record !== 'object' || !Array.isArray(record.pair) || record.pair.length !== 2) {
+      violations.push('a coupling record carries no two-element pair, so the decision it renders cannot be checked against the wave plan');
+      continue;
+    }
+    const label = `${record.pair[0]}/${record.pair[1]}`;
+    if (!COUPLING_DECISION_VOCABULARY.includes(record.decision)) {
+      violations.push(`${label} carries the decision ${JSON.stringify(record.decision)}, which is none of ${COUPLING_DECISION_VOCABULARY.join(', ')}; an unclassifiable decision is not bucketed with the relaxed arm`);
+      continue;
+    }
+    if (record.decision !== COUPLING_SERIALIZE_DECISION) continue;
+    const left = waveOf.get(record.pair[0]);
+    const right = waveOf.get(record.pair[1]);
+    if (left === undefined || right === undefined) {
+      violations.push(`${label} was resolved serialize but names a task the wave plan does not schedule; the resolution was rendered against a different graph`);
+      continue;
+    }
+    if (left === right) violations.push(`${label} was resolved serialize but both tasks sit in wave ${left}; the wave plan contradicts the coupling decision that was carried`);
+  }
+  return violations;
+}
+
 export function normalizePath(p) { return p.replace(/^\.\//, '').replace(/\/+$/, ''); }
 export const GLOB_MAX_LENGTH = 1024;
 export const GLOB_MAX_WILDCARDS = 8;
@@ -352,6 +383,8 @@ export async function runEngine(engineArgs, ctx) {
   log(routing.line);
   if (routing.warning) log(routing.warning);
   const waves = engineArgs.waves;
+  const couplingViolations = couplingSerializeViolations(engineArgs.couplingResolution, waves);
+  if (couplingViolations.length > 0) throw new Error(`runEngine: the wave plan contradicts ${couplingViolations.length} carried coupling decision(s); a serialize decision whose pair is co-scheduled is that decision being silently lost rather than a throughput cost:\n- ${couplingViolations.join('\n- ')}`);
   const branchPrefix = engineArgs.branchPrefix;
   const baseBranch = engineArgs.baseBranch;
   const worktreeRoot = engineArgs.worktreeRoot;

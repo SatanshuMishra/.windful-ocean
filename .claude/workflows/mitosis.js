@@ -1090,6 +1090,37 @@ const BOUNDARY_SCHEMA = { type: 'object', properties: { pass: { type: 'boolean' 
 const FENCE_SCHEMA = { type: 'object', properties: { paths: { type: 'array', items: { type: 'string' } } }, required: ['paths'] };
 const EXEC_AGENT_TYPES = new Set(['implementer', 'test-engineer', 'general-purpose']);
 
+const COUPLING_SERIALIZE_DECISION = 'serialize';
+const COUPLING_DECISION_VOCABULARY = Object.freeze(['parallel', COUPLING_SERIALIZE_DECISION]);
+function couplingSerializeViolations(couplingResolution, waves) {
+  if (couplingResolution === undefined || couplingResolution === null) return [];
+  if (!Array.isArray(couplingResolution)) throw new TypeError('runEngine: engineArgs.couplingResolution must be an array of resolved coupling records; a malformed value carries no decision to check and would pass a wave plan that silently contradicts a serialize decision');
+  if (!Array.isArray(waves)) throw new TypeError('runEngine: engineArgs.waves must be an array of wave arrays before a carried coupling decision can be checked against it');
+  const waveOf = new Map();
+  for (let index = 0; index < waves.length; index += 1) for (const id of waves[index]) waveOf.set(id, index);
+  const violations = [];
+  for (const record of couplingResolution) {
+    if (record === null || typeof record !== 'object' || !Array.isArray(record.pair) || record.pair.length !== 2) {
+      violations.push('a coupling record carries no two-element pair, so the decision it renders cannot be checked against the wave plan');
+      continue;
+    }
+    const label = `${record.pair[0]}/${record.pair[1]}`;
+    if (!COUPLING_DECISION_VOCABULARY.includes(record.decision)) {
+      violations.push(`${label} carries the decision ${JSON.stringify(record.decision)}, which is none of ${COUPLING_DECISION_VOCABULARY.join(', ')}; an unclassifiable decision is not bucketed with the relaxed arm`);
+      continue;
+    }
+    if (record.decision !== COUPLING_SERIALIZE_DECISION) continue;
+    const left = waveOf.get(record.pair[0]);
+    const right = waveOf.get(record.pair[1]);
+    if (left === undefined || right === undefined) {
+      violations.push(`${label} was resolved serialize but names a task the wave plan does not schedule; the resolution was rendered against a different graph`);
+      continue;
+    }
+    if (left === right) violations.push(`${label} was resolved serialize but both tasks sit in wave ${left}; the wave plan contradicts the coupling decision that was carried`);
+  }
+  return violations;
+}
+
 function normalizePath(p) { return p.replace(/^\.\//, '').replace(/\/+$/, ''); }
 const GLOB_MAX_LENGTH = 1024;
 const GLOB_MAX_WILDCARDS = 8;
@@ -1436,6 +1467,8 @@ async function runEngine(engineArgs, ctx) {
   log(routing.line);
   if (routing.warning) log(routing.warning);
   const waves = engineArgs.waves;
+  const couplingViolations = couplingSerializeViolations(engineArgs.couplingResolution, waves);
+  if (couplingViolations.length > 0) throw new Error(`runEngine: the wave plan contradicts ${couplingViolations.length} carried coupling decision(s); a serialize decision whose pair is co-scheduled is that decision being silently lost rather than a throughput cost:\n- ${couplingViolations.join('\n- ')}`);
   const branchPrefix = engineArgs.branchPrefix;
   const baseBranch = engineArgs.baseBranch;
   const worktreeRoot = engineArgs.worktreeRoot;
@@ -1900,7 +1933,7 @@ const PARALLELIZE_SCHEMA = {
       required: [
         'tasks', 'waves', 'branchPrefix', 'baseBranch', 'worktreeRoot', 'repoRoot',
         'scopedCheckCmd', 'fullValidationCmd', 'prompts', 'fixLoopMax', 'isolation',
-        'launchCommit', 'runArtifacts', 'models',
+        'launchCommit', 'runArtifacts', 'models', 'couplingResolution',
       ],
     },
     route: {
@@ -5080,10 +5113,10 @@ async function runUnit(unit) {
         `   - import { planRoute } from '${LIB_DIR}/route-planner.mjs'; gather the runtime signals from the repo at ${repoRoot} (T = task count, W = wave count, D = max wave width, S = total file scopes, GIT = is the repo a git repo, WF = workflows enabled, cleanTree = git status clean, plus exploratory/consentRecorded/wallClockOver30m/topTierSession as false unless you can determine otherwise) and call planRoute to get { rule, lane, isolation, N, notes }.\n` +
         `   - import { resolveAll } from '${LIB_DIR}/superpowers-prompts.mjs' and call it to get resolved.prompts, an object shaped { key: { text, source, path } }. Flatten it to a plain string map BEFORE passing it anywhere: prompts = Object.fromEntries(Object.entries(resolved.prompts).map(([k, v]) => [k, v.text])). Do NOT pass resolved.prompts itself.\n` +
         `   - Determine runArtifacts: read ${ENGINE_PATH}, find every use of \`runArtifacts\`, and construct an object that satisfies those reads (include the plan path ${planned.planPath} and the graph path).\n\n` +
-        `3. Assemble the engine args with the pure helper, passing the orchestration context so all 14 keys are present:\n` +
+        `3. Assemble the engine args with the pure helper, passing the orchestration context so all 15 keys are present:\n` +
         `   First build the id-keyed tasks map (the engine indexes tasks by id, NOT by array position): tasks = Object.fromEntries(graph.tasks.map((t) => [t.id, { id: t.id, title: t.title, fullText: t.fullText, fileScope: t.fileScope, risk: t.risk, agentType: t.agentType || 'implementer', validation: t.validation, dependentCount: t.dependentCount, edgeReasons: t.edgeReasons }])). The dependentCount AND edgeReasons pair is derived by derive-edges.mjs and MUST be carried through together - they drive the engine model policy; dropping either one fails the parallelize invariant below. Do NOT pass the raw graph.tasks array as tasks. Each t.fileScope is a context pack { edit, read, truncated }: carry all three keys through unchanged, because the engine refuses a task whose fileScope is a bare path list or whose truncated key is absent.\n` +
-        `   import { buildEngineArgs } from '${LIB_DIR}/engine-args.mjs' and call buildEngineArgs({ tasks, waves, branchPrefix: ${JSON.stringify(branchPrefix)}, baseBranch: ${JSON.stringify(integrationBranch)}, worktreeRoot: ${JSON.stringify(worktreeRoot)}, repoRoot: ${JSON.stringify(repoRoot)}, scopedCheckCmd: ${JSON.stringify(verify.scopedCheckCmd || '')}, fullValidationCmd: ${JSON.stringify(verify.fullValidationCmd || '')}, prompts, fixLoopMax: ${fixLoopMax}, isolation: 'worktree', launchCommit: null, runArtifacts, models: ${JSON.stringify(models)} }). It throws if any required key is missing.\n\n` +
-        `Return ONLY: { engineArgs: <the 14-key object>, route: { rule, lane, isolation, N, notes } }.`,
+        `   import { buildEngineArgs } from '${LIB_DIR}/engine-args.mjs' and call buildEngineArgs({ tasks, waves, branchPrefix: ${JSON.stringify(branchPrefix)}, baseBranch: ${JSON.stringify(integrationBranch)}, worktreeRoot: ${JSON.stringify(worktreeRoot)}, repoRoot: ${JSON.stringify(repoRoot)}, scopedCheckCmd: ${JSON.stringify(verify.scopedCheckCmd || '')}, fullValidationCmd: ${JSON.stringify(verify.fullValidationCmd || '')}, prompts, fixLoopMax: ${fixLoopMax}, isolation: 'worktree', launchCommit: null, runArtifacts, models: ${JSON.stringify(models)}, couplingResolution: graph.couplingResolution || [] }). It throws if any required key is missing.\n\n` +
+        `Return ONLY: { engineArgs: <the 15-key object>, route: { rule, lane, isolation, N, notes } }.`,
         { agentType: 'implementer', schema: PARALLELIZE_SCHEMA, label: `parallelize:${msp.id}`, phase: 'Prep' }
       ),
       { unitId: msp.id, stage: 'parallelize', resetRef: baseBranch, worktree: null, task: `parallelize and route ${msp.id}`, triedSet: parallelizeTriedSeed, ...makeRemediation({ unitId: msp.id, stage: 'parallelize', task: `parallelize and route ${msp.id}`, schema: PARALLELIZE_SCHEMA, agentType: 'implementer', phase: 'Prep' }), runBudget: retryState },
