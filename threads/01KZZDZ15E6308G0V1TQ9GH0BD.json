@@ -57,7 +57,7 @@
   "closure_statement": null,
   "spine": {
     "active_goal": "Close the two unverified controls left by the permission rebuild, and rule on the self-modification exposure it deliberately created.",
-    "next_step": "c6 is closed and committed as b4371098 on branch feat/gate-terminal-abstain, NOT pushed and no PR opened - decide whether to push and open one through pr.mjs before anything else. Then return to c2, whose question is unchanged: read the SPEC's M14 and M15 records FIRST, because if either was measured under bypassPermissions then line 274 verifies from evidence already held and no new probe is needed.",
+    "next_step": "c6 is shipped: PR #110 is open against main and awaits a HUMAN merge - never merge it from a session. Next work is c2, whose question is unchanged: read the SPEC's M14 and M15 records FIRST, because if either was measured under bypassPermissions then line 274 verifies from evidence already held and no new probe is needed.",
     "last_session": "Answered the auto-mode question, then found M24 meant the gate was suppressing the classifier for all Bash. Reversed the terminal verdict to no-opinion, retired G5 and the destructive branches, moved faults to deny, removed ask from the gate entirely. 267 tests pass.",
     "open_risks": [
       {
@@ -130,5 +130,5 @@
     ]
   },
   "created_at": "2026-08-14T06:04:49.198Z",
-  "updated_at": "2026-08-15T01:14:42.305Z"
+  "updated_at": "2026-08-15T01:24:50.128Z"
 }
