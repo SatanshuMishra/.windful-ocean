@@ -1,4 +1,6 @@
 import { createHash } from 'node:crypto';
+import { constants as fsConstants, openSync, fstatSync, readSync, closeSync, realpathSync } from 'node:fs';
+import { dirname, join, sep, basename } from 'node:path';
 
 const MODULE = 'spec-hash';
 
@@ -95,4 +97,114 @@ export function specHashProbes() {
       detail: coerced.ok === false ? coerced.error : 'text was fingerprinted as if it were the file bytes',
     }),
   ]);
+}
+
+const DEFAULT_SPEC_FS = Object.freeze({
+  openSync,
+  fstatSync,
+  readSync,
+  closeSync,
+  realpathSync,
+  constants: fsConstants,
+});
+
+export const SPEC_MAX_BYTES = 8 * 1024 * 1024;
+
+function assertContainmentRoot(containmentRoot) {
+  if (typeof containmentRoot !== 'string' || containmentRoot.length === 0) {
+    throw new Error('no containment root was declared, so the reader cannot prove the spec lives inside the repository');
+  }
+}
+
+function assertSpecOpenFlags(fs) {
+  if (typeof fs.constants.O_NOFOLLOW !== 'number') {
+    throw new Error('fs.constants.O_NOFOLLOW is not a number, so a symlinked spec path could not be refused at open');
+  }
+  if (typeof fs.constants.O_NONBLOCK !== 'number') {
+    throw new Error('fs.constants.O_NONBLOCK is not a number, so a FIFO spec path could block open indefinitely');
+  }
+}
+
+function resolveContainedSpecPath(specPath, containmentRoot, fs) {
+  const resolvedRoot = fs.realpathSync(containmentRoot);
+  const resolvedDir = fs.realpathSync(dirname(specPath));
+  const resolvedPath = join(resolvedDir, basename(specPath));
+  const isContained = resolvedPath === resolvedRoot || resolvedPath.startsWith(`${resolvedRoot}${sep}`);
+  if (!isContained) {
+    throw new Error(`the spec resolved to ${JSON.stringify(resolvedPath)}, which is outside the containment root ${JSON.stringify(resolvedRoot)}`);
+  }
+  return resolvedPath;
+}
+
+function resolveMaxBytes(maxBytes) {
+  if (maxBytes === undefined) {
+    return SPEC_MAX_BYTES;
+  }
+  const isValid = Number.isSafeInteger(maxBytes) && maxBytes > 0 && maxBytes <= SPEC_MAX_BYTES;
+  if (!isValid) {
+    throw new Error(`maxBytes ${String(maxBytes)} (typeof ${typeof maxBytes}) is not a safe positive integer within the ${SPEC_MAX_BYTES} byte ceiling`);
+  }
+  return maxBytes;
+}
+
+function openSpecDescriptor(specPath, containmentRoot, fs) {
+  if (typeof specPath !== 'string' || specPath.length === 0) {
+    throw new Error(`the spec path ${JSON.stringify(specPath)} was not a usable path`);
+  }
+  assertSpecOpenFlags(fs);
+  const resolvedPath = resolveContainedSpecPath(specPath, containmentRoot, fs);
+  const flags = fs.constants.O_RDONLY | fs.constants.O_NOFOLLOW | fs.constants.O_NONBLOCK;
+  return fs.openSync(resolvedPath, flags);
+}
+
+function statSpecDescriptor(fs, fd, maxBytes) {
+  const stat = fs.fstatSync(fd);
+  if (!stat.isFile()) {
+    throw new Error('the spec path is not a regular file');
+  }
+  if (stat.size > maxBytes) {
+    throw new Error(`the spec is ${stat.size} bytes, past the ${maxBytes} byte bound`);
+  }
+  return stat;
+}
+
+function readSpecDescriptorBytes(fs, fd, stat) {
+  const buffer = Buffer.alloc(stat.size + 1);
+  let total = 0;
+  while (total < buffer.length) {
+    const read = fs.readSync(fd, buffer, total, buffer.length - total, null);
+    if (read === 0) {
+      break;
+    }
+    total += read;
+  }
+  if (total !== stat.size) {
+    throw new Error(`the spec changed size while it was being read: the stat reported ${stat.size} bytes but the read produced ${total} bytes`);
+  }
+  return Buffer.from(buffer.subarray(0, total));
+}
+
+function closeSpecDescriptor(fs, fd) {
+  try {
+    fs.closeSync(fd);
+  } catch {
+  }
+}
+
+export function createSpecReader(options) {
+  const settings = options && typeof options === 'object' ? options : {};
+  const containmentRoot = settings.containmentRoot;
+  const fs = settings.fs && typeof settings.fs === 'object' ? settings.fs : DEFAULT_SPEC_FS;
+  function readFileBytes(specPath) {
+    assertContainmentRoot(containmentRoot);
+    const maxBytes = resolveMaxBytes(settings.maxBytes);
+    const fd = openSpecDescriptor(specPath, containmentRoot, fs);
+    try {
+      const stat = statSpecDescriptor(fs, fd, maxBytes);
+      return readSpecDescriptorBytes(fs, fd, stat);
+    } finally {
+      closeSpecDescriptor(fs, fd);
+    }
+  }
+  return Object.freeze({ readFileBytes });
 }
