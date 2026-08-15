@@ -1,4 +1,5 @@
 import { createHash } from 'node:crypto';
+import { constants as fsConstants, openSync, fstatSync, readSync, closeSync } from 'node:fs';
 
 const MODULE = 'spec-hash';
 
@@ -95,4 +96,64 @@ export function specHashProbes() {
       detail: coerced.ok === false ? coerced.error : 'text was fingerprinted as if it were the file bytes',
     }),
   ]);
+}
+
+const DEFAULT_SPEC_FS = Object.freeze({
+  openSync,
+  fstatSync,
+  readSync,
+  closeSync,
+  constants: fsConstants,
+});
+
+export const SPEC_MAX_BYTES = 8 * 1024 * 1024;
+
+function openSpecDescriptor(specPath, fs) {
+  if (typeof specPath !== 'string' || specPath.length === 0) {
+    throw new Error(`the spec path ${JSON.stringify(specPath)} was not a usable path`);
+  }
+  return fs.openSync(specPath, fs.constants.O_RDONLY | fs.constants.O_NOFOLLOW);
+}
+
+function statSpecDescriptor(fs, fd, maxBytes) {
+  const stat = fs.fstatSync(fd);
+  if (!stat.isFile()) {
+    throw new Error('the spec path is not a regular file');
+  }
+  if (stat.size > maxBytes) {
+    throw new Error(`the spec is ${stat.size} bytes, past the ${maxBytes} byte bound`);
+  }
+  return stat;
+}
+
+function readSpecDescriptorBytes(fs, fd, maxBytes) {
+  const buffer = Buffer.alloc(maxBytes + 1);
+  let total = 0;
+  while (total < buffer.length) {
+    const read = fs.readSync(fd, buffer, total, buffer.length - total, null);
+    if (read === 0) {
+      break;
+    }
+    total += read;
+  }
+  if (total > maxBytes) {
+    throw new Error(`the spec grew past the ${maxBytes} byte bound while it was being read`);
+  }
+  return Buffer.from(buffer.subarray(0, total));
+}
+
+export function createSpecReader(options) {
+  const settings = options && typeof options === 'object' ? options : {};
+  const maxBytes = typeof settings.maxBytes === 'number' ? settings.maxBytes : SPEC_MAX_BYTES;
+  const fs = settings.fs && typeof settings.fs === 'object' ? settings.fs : DEFAULT_SPEC_FS;
+  function readFileBytes(specPath) {
+    const fd = openSpecDescriptor(specPath, fs);
+    try {
+      statSpecDescriptor(fs, fd, maxBytes);
+      return readSpecDescriptorBytes(fs, fd, maxBytes);
+    } finally {
+      fs.closeSync(fd);
+    }
+  }
+  return Object.freeze({ readFileBytes });
 }
