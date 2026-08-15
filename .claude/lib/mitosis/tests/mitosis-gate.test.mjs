@@ -1,7 +1,10 @@
-import { test } from 'node:test';
+import { after, test } from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
-import { relative } from 'node:path';
+import { execFileSync } from 'node:child_process';
+import { copyFileSync, mkdtempSync, readFileSync, readdirSync, realpathSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join, relative } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import {
   GATE_CLEAN_EXIT,
   GATE_USAGE_EXIT,
@@ -144,6 +147,33 @@ function capture() {
     out: Object.freeze({ log: (text) => stdout.push(text), err: (text) => stderr.push(text) }),
   };
 }
+
+const GATE_SOURCE_DIR = fileURLToPath(new URL('../', import.meta.url));
+const gateTrees = [];
+
+function gateTreeWithout(absentModule) {
+  const dir = realpathSync(mkdtempSync(join(tmpdir(), 'mitosis-gate-load-')));
+  gateTrees.push(dir);
+  for (const entry of readdirSync(GATE_SOURCE_DIR, { withFileTypes: true })) {
+    if (!entry.isFile() || !entry.name.endsWith('.mjs') || entry.name === absentModule) continue;
+    copyFileSync(join(GATE_SOURCE_DIR, entry.name), join(dir, entry.name));
+  }
+  return dir;
+}
+
+function runGateEntry(dir, argv) {
+  try {
+    const stdout = execFileSync('node', [join(dir, 'mitosis-gate.mjs'), ...argv], { encoding: 'utf8', stdio: 'pipe' });
+    return { status: 0, stdout, stderr: '' };
+  } catch (error) {
+    return { status: error.status, stdout: error.stdout, stderr: error.stderr };
+  }
+}
+
+after(() => {
+  for (const dir of gateTrees) rmSync(dir, { recursive: true, force: true });
+  gateTrees.length = 0;
+});
 
 test('the pure checker flags a phase that is declared but never reached at all', () => {
   const verdict = checkPhaseParity({ ...BALANCED, declared: [...BALANCED.declared, 'Final review'] });
@@ -814,4 +844,36 @@ test('the cli exits on the compile code when the target does not compile under t
   );
   assert.equal(code, GATE_COMPILE_EXIT);
   assert.ok(stderr.join('').includes(`${DEFAULT_PHASE_PARITY_TARGET} does not compile under the workflow sandbox`));
+});
+
+test('a module in the gate closure that does not resolve halts under the gate frame, naming the verb that never ran and the module that did not load', () => {
+  const dir = gateTreeWithout('phases.mjs');
+  const absent = join(dir, 'phases.mjs');
+  const run = runGateEntry(dir, ['determinism']);
+  assert.equal(
+    run.status,
+    GATE_UNRESOLVABLE_EXIT,
+    'linking finishes before the verb table or any framed refusal exists, so without a boundary the operator reads a resolver stack on the generic failure code instead of this gate halting on a module it cannot resolve',
+  );
+  assert.equal(run.stdout, '', 'a gate that never ran prints no receipt');
+  assert.equal(
+    run.stderr,
+    `mitosis-gate: ${absent} did not load, so the "determinism" verb never ran: Cannot find module '${absent}' imported from ${join(dir, 'mitosis-gate-core.mjs')}\n`,
+  );
+});
+
+test('a gate module the entry cannot resolve at all is framed the same way, naming the requested verb or reporting that none was requested', () => {
+  const dir = gateTreeWithout('mitosis-gate-core.mjs');
+  const absent = join(dir, 'mitosis-gate-core.mjs');
+  const named = runGateEntry(dir, ['phase-parity']);
+  assert.equal(named.status, GATE_UNRESOLVABLE_EXIT);
+  assert.equal(named.stdout, '');
+  assert.equal(
+    named.stderr,
+    `mitosis-gate: ${absent} did not load, so the "phase-parity" verb never ran: Cannot find module './mitosis-gate-core.mjs'\n`,
+    'the failure carries no url of its own, so the frame names the module the entry asked for rather than dropping the module from the diagnosis',
+  );
+  const bare = runGateEntry(dir, []);
+  assert.equal(bare.status, GATE_UNRESOLVABLE_EXIT);
+  assert.equal(bare.stderr, `mitosis-gate: ${absent} did not load, so no verb ran: Cannot find module './mitosis-gate-core.mjs'\n`);
 });
