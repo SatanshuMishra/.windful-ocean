@@ -99,6 +99,13 @@
       "struck_by": null
     },
     {
+      "id": "c19",
+      "text": "The four caller-facing spawn sites assert the exec policy before any child starts, a closed census guards against a new unrouted site, and the stale attestation is corrected in the same commit.",
+      "done": false,
+      "kind": "detour",
+      "struck_by": null
+    },
+    {
       "id": "c3",
       "text": "All twenty-one MSPs land as stacked PRs on base feat/mitosis-os-process, each independently green (node --test, lints, every gate verb at that commit), with nothing merged to main.",
       "done": false,
@@ -436,5 +443,5 @@
     ]
   },
   "created_at": "2026-08-12T07:37:41.077Z",
-  "updated_at": "2026-08-15T19:20:55.512Z"
+  "updated_at": "2026-08-15T19:21:00.697Z"
 }
