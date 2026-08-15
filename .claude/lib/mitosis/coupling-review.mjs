@@ -351,6 +351,9 @@ export function signalToken(className, detail) {
   if (detailed !== (detail !== undefined)) {
     throw new TypeError(`coupling-review: the signal class ${describe(className)} ${detailed ? 'names the thing the pair shares and was built with no detail' : 'names no detail and was built with one'}; the arity is what tells a reader whether the text after ${describe(SIGNAL_DETAIL_SEPARATOR)} is a shared marker or part of the class name, so a token built against the wrong one is classified into the wrong half of the census`);
   }
+  if (detailed && typeof detail !== 'string') {
+    throw new TypeError(`coupling-review: the signal class ${describe(className)} was built with a detail of type ${typeof detail} (${describe(detail)}) rather than a string; the detail is interpolated straight into the token text, so a non-string value would report a shared marker whose text is that value's coerced form, and couplingSignalClass would read that coerced text back on the way in as a real shared marker no file the pair touches was ever matched against`);
+  }
   if (detailed && typeof detail === 'string' && detail.length === 0) {
     throw new TypeError(`coupling-review: the signal class ${describe(className)} was built with an empty-string detail; the detail names the marker or directory the pair shares, and an empty one would emit a token that reports a shared thing no file the pair touches can be named back to, which is exactly the token couplingSignalClass already refuses on the way back in`);
   }
@@ -574,7 +577,8 @@ function main() {
     if (verdictsPath !== null) assertVerdictsCoverPairs(emitted, JSON.parse(readFileSync(verdictsPath, 'utf8')));
     process.stdout.write(JSON.stringify(emitted) + '\n');
   } catch (error) {
-    process.stderr.write(`coupling-review error: ${error.message}\n`);
+    const message = error && error.message ? error.message : `a non-Error value was thrown: ${describe(error)}`;
+    process.stderr.write(`coupling-review error: ${message}\n`);
     process.exit(1);
   }
 }
@@ -583,8 +587,9 @@ function isDirectInvocation() {
   try {
     if (!process.argv[1]) return false;
     return import.meta.url === pathToFileURL(realpathSync(process.argv[1])).href;
-  } catch {
-    return false;
+  } catch (error) {
+    if (error && (error.code === 'ENOENT' || error.code === 'ENOTDIR')) return false;
+    throw error;
   }
 }
 

@@ -88,8 +88,9 @@ function isDirectInvocation() {
   try {
     if (!process.argv[1]) return false;
     return import.meta.url === pathToFileURL(realpathSync(process.argv[1])).href;
-  } catch {
-    return false;
+  } catch (error) {
+    if (error && (error.code === 'ENOENT' || error.code === 'ENOTDIR')) return false;
+    throw error;
   }
 }
 

@@ -21,6 +21,15 @@ import {
   deriveEdges,
   derivedEdge,
 } from './derive-edges.mjs';
+import {
+  IDENT_PART,
+  halt,
+  lineOf,
+  nextCodeIndex,
+  previousCodeIndex,
+  scanJsStructure,
+  wordEndingAt,
+} from './js-scan.mjs';
 import { planWaves } from './wave-planner.mjs';
 
 const [COUPLING_SERIALIZE_REASON, FILE_SCOPE_OVERLAP_REASON] = DERIVED_EDGE_REASONS;
@@ -31,8 +40,11 @@ const DETAIL_PROBE = 'probe-detail';
 const INERT_CAP = 160;
 const TRUNCATION_MARK = '...';
 const NON_RENDERING_RE = /[\p{C}\p{Default_Ignorable_Code_Point}]/gu;
-const FUNCTION_HEADER_RE = /^(?:export )?function ([A-Za-z_$][\w$]*)\s*\(/gm;
-const IDENTIFIER_BOUNDARY = /[\w$]/;
+const CONTROL_FLOW_KEYWORDS = Object.freeze(new Set(['if', 'for', 'while', 'switch', 'catch']));
+const DECLARATOR_KEYWORDS = Object.freeze(new Set(['const', 'let', 'var']));
+const METHOD_MODIFIER_KEYWORDS = Object.freeze(new Set(['async', 'static', 'get', 'set']));
+const MEMBER_CONTEXT_CHARS = Object.freeze(new Set(['{', ',', ';', '}']));
+const NON_ASSIGNMENT_EQUALS_NEIGHBORS = Object.freeze(new Set(['=', '!', '<', '>', '+', '-', '*', '/', '%', '&', '|', '^']));
 
 export const COUPLING_CLASSIFIER_MODULES = Object.freeze(['coupling-review.mjs', 'derive-edges.mjs']);
 
@@ -230,21 +242,236 @@ export function couplingCoverageCensus(observations) {
   return Object.freeze({ ok: false, error: [...missing, ...unregistered].join('; ') });
 }
 
-function functionBodies(source) {
-  const headers = [...source.matchAll(FUNCTION_HEADER_RE)];
-  return headers.map((header, index) => Object.freeze({
-    name: header[1],
-    body: source.slice(header.index, index + 1 < headers.length ? headers[index + 1].index : source.length),
-  }));
+function matchingParenOpen(masked) {
+  const stack = [];
+  const openFor = new Map();
+  for (let index = 0; index < masked.length; index += 1) {
+    const ch = masked[index];
+    if (ch === '(') stack.push(index);
+    else if (ch === ')') {
+      const open = stack.pop();
+      if (open !== undefined) openFor.set(index, open);
+    }
+  }
+  return openFor;
 }
 
-function mentionsIdentifier(body, identifier) {
-  for (let at = body.indexOf(identifier); at !== -1; at = body.indexOf(identifier, at + 1)) {
-    const before = at === 0 ? '' : body[at - 1];
-    const after = body[at + identifier.length] === undefined ? '' : body[at + identifier.length];
-    if (!IDENTIFIER_BOUNDARY.test(before) && !IDENTIFIER_BOUNDARY.test(after)) return true;
+function enclosingBraces(bracePairs, position) {
+  return bracePairs
+    .filter((pair) => pair.open < position && position < pair.close)
+    .sort((a, b) => b.open - a.open);
+}
+
+function resolveAnonymousBinding(ctx, regionStart) {
+  const { masked } = ctx;
+  let idx = previousCodeIndex(masked, regionStart - 1);
+  let word = wordEndingAt(masked, idx);
+  if (word === 'async') {
+    idx = previousCodeIndex(masked, idx - word.length);
+    word = wordEndingAt(masked, idx);
+  }
+  if (idx >= 0 && masked[idx] === '=' && !(idx > 0 && NON_ASSIGNMENT_EQUALS_NEIGHBORS.has(masked[idx - 1]))) {
+    const nameEnd = previousCodeIndex(masked, idx - 1);
+    const name = wordEndingAt(masked, nameEnd);
+    if (name.length > 0) {
+      const keywordEnd = previousCodeIndex(masked, nameEnd - name.length);
+      const keyword = wordEndingAt(masked, keywordEnd);
+      if (DECLARATOR_KEYWORDS.has(keyword)) return { kind: 'named', name };
+    }
+  }
+  if (word === 'default') {
+    const exportEnd = previousCodeIndex(masked, idx - word.length);
+    if (wordEndingAt(masked, exportEnd) === 'export') return { kind: 'export-default-anonymous' };
+  }
+  return { kind: 'anonymous' };
+}
+
+function arrowParamsStart(ctx, gtIndex) {
+  const { masked } = ctx;
+  const beforeArrow = previousCodeIndex(masked, gtIndex - 2);
+  if (masked[beforeArrow] === ')') {
+    const parenOpen = ctx.openParenOf.get(beforeArrow);
+    return parenOpen === undefined ? null : parenOpen;
+  }
+  const bareParam = wordEndingAt(masked, beforeArrow);
+  return bareParam.length === 0 ? null : beforeArrow - bareParam.length + 1;
+}
+
+function isImmediatelyInvoked(ctx, closeIndex) {
+  const { masked } = ctx;
+  const after1 = nextCodeIndex(masked, closeIndex + 1);
+  if (masked[after1] === '(') return true;
+  if (masked[after1] === ')') {
+    const after2 = nextCodeIndex(masked, after1 + 1);
+    return masked[after2] === '(';
   }
   return false;
+}
+
+function memberContextOk(ctx, identStart) {
+  const { masked } = ctx;
+  let idx = previousCodeIndex(masked, identStart - 1);
+  if (idx >= 0 && masked[idx] === '*') idx = previousCodeIndex(masked, idx - 1);
+  for (let guard = 0; guard < 4; guard += 1) {
+    const word = wordEndingAt(masked, idx);
+    if (!METHOD_MODIFIER_KEYWORDS.has(word)) break;
+    idx = previousCodeIndex(masked, idx - word.length);
+  }
+  return idx >= 0 && MEMBER_CONTEXT_CHARS.has(masked[idx]);
+}
+
+function classifyAnonymousOrNamed(ctx, pair, regionStart) {
+  const resolved = resolveAnonymousBinding(ctx, regionStart);
+  if (resolved.kind === 'named') return { kind: 'named', name: resolved.name };
+  if (resolved.kind === 'export-default-anonymous') {
+    return { kind: 'unattributable', description: 'an anonymous default export with no name to attribute its reads to' };
+  }
+  if (isImmediatelyInvoked(ctx, pair.close)) {
+    return { kind: 'unattributable', description: 'an immediately invoked anonymous function expression with no name to attribute its reads to' };
+  }
+  return { kind: 'transparent' };
+}
+
+function computeBraceClassification(ctx, pair) {
+  const { masked } = ctx;
+  const prevIdx = previousCodeIndex(masked, pair.open - 1);
+  if (prevIdx < 0) return { kind: 'other' };
+  if (masked[prevIdx] === '>' && masked[prevIdx - 1] === '=') {
+    const paramsStart = arrowParamsStart(ctx, prevIdx);
+    if (paramsStart === null) {
+      return { kind: 'unattributable', description: 'an arrow function whose parameter list could not be resolved backward from its => token' };
+    }
+    return classifyAnonymousOrNamed(ctx, pair, paramsStart);
+  }
+  if (masked[prevIdx] !== ')') return { kind: 'other' };
+  const parenOpen = ctx.openParenOf.get(prevIdx);
+  if (parenOpen === undefined) return { kind: 'other' };
+  const beforeParenIdx = previousCodeIndex(masked, parenOpen - 1);
+  const beforeParenWord = wordEndingAt(masked, beforeParenIdx);
+  if (CONTROL_FLOW_KEYWORDS.has(beforeParenWord)) return { kind: 'other' };
+  if (beforeParenWord === 'function') return classifyAnonymousOrNamed(ctx, pair, parenOpen);
+  if (beforeParenWord.length > 0) {
+    const identStart = beforeParenIdx - beforeParenWord.length + 1;
+    const beforeIdentWord = wordEndingAt(masked, previousCodeIndex(masked, identStart - 1));
+    if (beforeIdentWord === 'function') return { kind: 'named', name: beforeParenWord };
+    if (memberContextOk(ctx, identStart)) return { kind: 'named', name: beforeParenWord };
+    return {
+      kind: 'unattributable',
+      description: `an identifier (${beforeParenWord}) directly followed by a parameter list and a block body, preceded by neither a function declaration keyword nor a recognizable object-literal or class-body member position`,
+    };
+  }
+  return {
+    kind: 'unattributable',
+    description: 'a parameter list and a block body preceded by no identifier or keyword this scanner can classify as a function, method or callback boundary',
+  };
+}
+
+function classifyBrace(ctx, pair) {
+  const cached = ctx.braceClassifications.get(pair.open);
+  if (cached !== undefined) return cached;
+  const classification = computeBraceClassification(ctx, pair);
+  ctx.braceClassifications.set(pair.open, classification);
+  return classification;
+}
+
+function conciseBodyEnd(masked, start) {
+  let depth = 0;
+  for (let index = start; index < masked.length; index += 1) {
+    const ch = masked[index];
+    if (ch === '(' || ch === '[' || ch === '{') { depth += 1; continue; }
+    if (ch === ')' || ch === ']' || ch === '}') {
+      if (depth === 0) return index;
+      depth -= 1;
+      continue;
+    }
+    if (depth === 0 && (ch === ';' || ch === ',')) return index;
+  }
+  return masked.length;
+}
+
+function findConciseArrowRegions(ctx) {
+  const { source, masked, label } = ctx;
+  const regions = [];
+  let searchFrom = 0;
+  for (;;) {
+    const arrowIndex = masked.indexOf('=>', searchFrom);
+    if (arrowIndex === -1) break;
+    searchFrom = arrowIndex + 2;
+    const bodyStart = nextCodeIndex(masked, arrowIndex + 2);
+    if (masked[bodyStart] === '{') continue;
+    const paramsStart = arrowParamsStart(ctx, arrowIndex + 1);
+    if (paramsStart === null) continue;
+    const resolved = resolveAnonymousBinding(ctx, paramsStart);
+    if (resolved.kind === 'export-default-anonymous') {
+      return {
+        halt: `${label}:${lineOf(source, arrowIndex)} declares an anonymous default-exported arrow function with a concise (brace-less) body; it binds to no name, so a registry read anywhere in its body could never be attributed to a classifier cell and would silently vanish from the census instead of halting it`,
+      };
+    }
+    if (resolved.kind !== 'named') continue;
+    regions.push({ name: resolved.name, start: bodyStart, end: conciseBodyEnd(masked, bodyStart) });
+  }
+  return { regions };
+}
+
+function identifierOccurrences(masked, identifier) {
+  const positions = [];
+  let cursor = masked.indexOf(identifier);
+  while (cursor !== -1) {
+    const before = cursor === 0 ? '' : masked[cursor - 1];
+    const after = masked[cursor + identifier.length] === undefined ? '' : masked[cursor + identifier.length];
+    if (!IDENT_PART.test(before) && !IDENT_PART.test(after)) positions.push(cursor);
+    cursor = masked.indexOf(identifier, cursor + 1);
+  }
+  return positions;
+}
+
+function attributeMention(ctx, conciseRegions, position, identifier) {
+  const concise = conciseRegions.find((region) => region.start <= position && position < region.end);
+  if (concise !== undefined) return { attributed: true, name: concise.name };
+  const chain = enclosingBraces(ctx.bracePairs, position);
+  for (const pair of chain) {
+    const classification = classifyBrace(ctx, pair);
+    if (classification.kind === 'named') return { attributed: true, name: classification.name };
+    if (classification.kind === 'unattributable') {
+      return {
+        attributed: false,
+        halt: `${ctx.label}:${lineOf(ctx.source, position)} reads the registry identifier ${identifier} from inside ${classification.description}, a block that opens at ${ctx.label}:${lineOf(ctx.source, pair.open)}; a registry read this scanner cannot attribute to a named classifier cell is exactly the kind of hidden classifier this scan exists to catch, so it halts here instead of silently omitting the cell`,
+      };
+    }
+  }
+  return { attributed: false };
+}
+
+function buildScanContext(label, source, scan) {
+  return {
+    label,
+    source,
+    masked: scan.masked,
+    bracePairs: scan.bracePairs,
+    openParenOf: matchingParenOpen(scan.masked),
+    braceClassifications: new Map(),
+  };
+}
+
+function scanRegistrySource(label, source) {
+  const scan = scanJsStructure(source);
+  if (!scan.ok) {
+    return halt(`${label} could not be scanned into a structural map, so none of its callable bindings could be attributed to a classifier cell: ${scan.error}`);
+  }
+  const ctx = buildScanContext(label, source, scan);
+  const concise = findConciseArrowRegions(ctx);
+  if (concise.halt !== undefined) return halt(concise.halt);
+  const cells = new Set();
+  for (const [registry, identifiers] of Object.entries(COUPLING_REGISTRY_IDENTIFIERS)) {
+    for (const identifier of identifiers) {
+      for (const position of identifierOccurrences(ctx.masked, identifier)) {
+        const attribution = attributeMention(ctx, concise.regions, position, identifier);
+        if (attribution.halt !== undefined) return halt(attribution.halt);
+        if (attribution.attributed) cells.add(gridCell(registry, attribution.name));
+      }
+    }
+  }
+  return { ok: true, cells: [...cells].sort() };
 }
 
 export function gridCell(registry, classifier) {
@@ -253,19 +480,19 @@ export function gridCell(registry, classifier) {
 
 export function censusRegistryReaders(sources) {
   const cells = new Set();
-  for (const source of sources) {
-    for (const declared of functionBodies(source)) {
-      for (const registry of Object.keys(COUPLING_REGISTRY_IDENTIFIERS).sort()) {
-        const identifiers = COUPLING_REGISTRY_IDENTIFIERS[registry];
-        if (identifiers.some((identifier) => mentionsIdentifier(declared.body, identifier))) cells.add(gridCell(registry, declared.name));
-      }
-    }
+  for (const { name, source } of sources) {
+    const scanned = scanRegistrySource(name, source);
+    if (!scanned.ok) throw new Error(scanned.error);
+    for (const cell of scanned.cells) cells.add(cell);
   }
   return Object.freeze([...cells].sort());
 }
 
 export function readClassifierSources() {
-  return COUPLING_CLASSIFIER_MODULES.map((name) => readFileSync(new URL(`./${name}`, import.meta.url), 'utf8'));
+  return COUPLING_CLASSIFIER_MODULES.map((name) => ({
+    name,
+    source: readFileSync(new URL(`./${name}`, import.meta.url), 'utf8'),
+  }));
 }
 
 function positions() {
