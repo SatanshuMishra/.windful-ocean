@@ -49,36 +49,15 @@
   "abandoned_reason": null,
   "closure_statement": null,
   "spine": {
-    "active_goal": "Rebuild the agent configuration from the ground up - the 13-agent roster and the observer that watches it - with the target architecture approved before any file is touched.",
-    "next_step": "WAIT for the user's specific instructions on the report and next steps. Do NOT edit any agent, rule, hook or skill file. Round-2 report is delivered at ~/.agent/diagrams/agent-roster-rebuild-recommendations.html: 13 agents in four bands, closed-question termination, and an append-only observer. Six scope questions are settled in 0471. Three items stay open in report section 14: which duplicate skill wins, what fills the three skill gaps, and the unmeasured per-dispatch context cost.",
-    "last_session": "Designed the 13-agent roster and the observer, delivered in one updated HTML explainer. Rewrote loop termination after the user's critique that it guarded the effect. Probed the binary to settle the frontmatter schema, and ran a live test proving agents do receive rules - on an advisory channel.",
+    "active_goal": "Get the target architecture to explicit user approval so c3 can close, then execute the teardown and rebuild at c4.",
+    "next_step": "WAIT for the user's SPECIFIC instructions. Do NOT auto-proceed, and do NOT edit any agent, rule, hook or skill file. The round-3/3b report is delivered at ~/.agent/diagrams/agent-roster-rebuild-recommendations.html (248 KB): 15 decisions settled in section 13, 6 items open in section 14, and 3 of the report's own claims corrected in place in section 09. The validator that gated edits to that file lived in this session's scratchpad and is gone - rebuild it before splicing that file again.",
+    "last_session": "Amended the report through rounds 3 and 3b: seven investigations, seventeen fragments spliced, three of the report's own claims corrected, two unclearable gates fixed. Validator passed at exit 0.",
     "open_risks": [
       {
         "text": "Never read `emitter` in the events log as a measurement — it is a hardcoded constant on every row, and treating it as signal already produced one wrong conclusion",
         "scope": "thread",
         "refs": [
           "~/.claude/hooks/agent-ledger/agent-run-analyzer.mjs:27"
-        ]
-      },
-      {
-        "text": "Declare StructuredOutput in tools: on all 13 agents — the new engine fails a census gate if any dispatchable agent omits it, and all 15 current agents omit it today",
-        "scope": "c3",
-        "refs": [
-          ".claude/lib/mitosis/agent-schema-lint.mjs"
-        ]
-      },
-      {
-        "text": "Settle the claude-security overlap before wiring security-reviewer — that plugin skill is a complete competing pipeline with five sub-agents, so running both yields two unreconciled verdicts on one diff",
-        "scope": "c3",
-        "refs": [
-          "~/.claude/plugins/marketplaces/claude-plugins-official/plugins/claude-security/skills/claude-security/SKILL.md:13"
-        ]
-      },
-      {
-        "text": "Decide whether this thread supersedes the paused thread agent-roster-gap-resolution — it covers overlapping ground against an older SPEC and was not touched here",
-        "scope": "c3",
-        "refs": [
-          "01KYERC4Y2XFVQ5GFQRRV0BKTS"
         ]
       },
       {
@@ -102,6 +81,39 @@
         "refs": [
           "01KZTEFMENXBW30ZE633YNFJHE"
         ]
+      },
+      {
+        "text": "Declare StructuredOutput in tools: on all 13 agents before the rebuild lands — the engine's census gate fails if any dispatchable agent omits it, all 15 current agents omit it today, and the lint that would catch it is NOT on the main branch",
+        "scope": "c3",
+        "refs": [
+          ".claude/lib/mitosis/agent-schema-lint.mjs (unmerged feature worktrees only)"
+        ]
+      },
+      {
+        "text": "Decide whether this thread supersedes the paused thread agent-roster-gap-resolution — it covers overlapping ground against an older SPEC and was not touched in rounds 2 or 3",
+        "scope": "c3",
+        "refs": [
+          "01KYERC4Y2XFVQ5GFQRRV0BKTS"
+        ]
+      },
+      {
+        "text": "Ask the user which telemetry figure measures what before citing either — the report uses 15,301 and 15,573 for the same corpus, and round 3 propagated 15,573 more widely, so the inconsistency is now more visible",
+        "scope": "c3",
+        "refs": [
+          "~/.agent/diagrams/agent-roster-rebuild-recommendations.html"
+        ]
+      },
+      {
+        "text": "Define what a browser-based reproduction must RETURN before the rebuild grants investigator browser tools — a screenshot is an observation, not a re-runnable receipt, and the report grants the tools without settling this",
+        "scope": "c3",
+        "refs": [
+          "report section 14, open item 6"
+        ]
+      },
+      {
+        "text": "Choose the replacement name for release-engineer — decision 15 settles THAT it is renamed, not what to; candidates so far are branch-steward and integration-engineer",
+        "scope": "c3",
+        "refs": []
       }
     ],
     "key_decisions": [
@@ -162,9 +174,11 @@
       }
     ],
     "out_of_scope": [
-      "Mutating any agent, rule, hook or skill file until the target architecture at c3 is approved."
+      "Mutating any agent, rule, hook or skill file until the target architecture at c3 is approved.",
+      "Restoring the bash gate's ask verdict so that 'destructive operations require explicit confirmation' becomes enforceable - that is a decision about the gate, not about agents, and it is filed in report section 14.",
+      "Cutting the ~13,300-token standing instruction load carried on every dispatch - a cut changes behaviour and nothing yet measures which rules are load-bearing."
     ]
   },
   "created_at": "2026-08-16T05:43:25.829Z",
-  "updated_at": "2026-08-16T20:59:19.744Z"
+  "updated_at": "2026-08-16T21:00:06.289Z"
 }
