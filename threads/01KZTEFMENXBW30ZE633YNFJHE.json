@@ -561,6 +561,11 @@
         "ref": "0455-a-decompose-and-emit-msp-is-inserted-before-d2",
         "title": "A decompose-and-emit MSP is inserted before D2 so the decomposer never dies without a replacement",
         "scope": "c3"
+      },
+      {
+        "ref": "0456-the-inserted-decompose-and-emit-msp-splits-in-two-and-a-unit-is-one-msp",
+        "title": "The inserted decompose-and-emit MSP splits in two, and one specs[] entry is one MSP",
+        "scope": "c3"
       }
     ],
     "out_of_scope": [
@@ -572,5 +577,5 @@
     ]
   },
   "created_at": "2026-08-12T07:37:41.077Z",
-  "updated_at": "2026-08-16T04:21:04.083Z"
+  "updated_at": "2026-08-16T04:44:49.127Z"
 }
