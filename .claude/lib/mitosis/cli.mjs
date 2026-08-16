@@ -1,7 +1,7 @@
 import { readFileSync, realpathSync } from 'node:fs';
 import { pathToFileURL } from 'node:url';
 import { Done, NeedsHuman } from './boundary.mjs';
-import { dispatch } from './dispatch.mjs';
+import { dispatch, normalizeEnvelope } from './dispatch.mjs';
 import { runEngine } from './engine.mjs';
 import { run } from './exec-run.mjs';
 import { GH_COMMAND_BINARY } from './gh-commands.mjs';
@@ -187,7 +187,7 @@ export function realPorts(config, deps = {}) {
           detail: verdict === null ? null : verdict.error,
         }, []);
       }
-      return Done({ sha: shaOfVerdict(verdict), green: true });
+      return Done({ sha: shaOfVerdict(verdict), green: true, envelope: normalizeEnvelope(verdict.envelope) });
     },
     writeGenesis: (request) => writeGenesisFn(request),
     appendJournal: (request) => appendJournalFn(request),

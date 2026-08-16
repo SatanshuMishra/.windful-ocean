@@ -592,6 +592,22 @@ function captureEnvelope(raw, cap) {
   };
 }
 
+export function normalizeEnvelope(value) {
+  if (value === null || typeof value !== 'object' || Array.isArray(value)) return null;
+  const source = value.usage !== null && typeof value.usage === 'object' && !Array.isArray(value.usage) ? value.usage : {};
+  return Object.freeze({
+    ...value,
+    usage: Object.freeze({
+      input_tokens: finiteOrNull(source.input_tokens),
+      output_tokens: finiteOrNull(source.output_tokens),
+      cache_creation_input_tokens: finiteOrNull(source.cache_creation_input_tokens),
+      cache_read_input_tokens: finiteOrNull(source.cache_read_input_tokens),
+    }),
+    total_cost_usd: finiteOrNull(value.total_cost_usd),
+    num_turns: finiteOrNull(value.num_turns),
+  });
+}
+
 function boundPayload(payload, cap) {
   const serialized = JSON.stringify(payload);
   if (typeof serialized !== 'string') return EMPTY_PAYLOAD;

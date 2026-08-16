@@ -140,7 +140,7 @@ test('REAL PORTS: a successful dispatch verdict becomes Done carrying the child-
     { dispatch: async () => ({ ok: true, structured: { sha: 'abc123' } }) },
   );
   const okOutcome = await okPorts.runUnit({ id: 'alpha' }, { signal: null });
-  assert.deepEqual(okOutcome, Done({ sha: 'abc123', green: true }));
+  assert.deepEqual(okOutcome, Done({ sha: 'abc123', green: true, envelope: null }));
 
   const failPorts = realPorts(
     { repoRoot: '/repo', requestsById: new Map([['alpha', { prompt: 'p' }]]) },
