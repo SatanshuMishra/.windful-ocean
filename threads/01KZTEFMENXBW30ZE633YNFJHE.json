@@ -164,7 +164,7 @@
     {
       "id": "c24",
       "text": "The D3 instrument wires end to end: tickDispatcher keeps the envelope, the engine path calls recordUsage, and a run writes a durable per-attempt dispatch record, red on the parent commit.",
-      "done": false,
+      "done": true,
       "kind": "detour",
       "struck_by": null
     },
@@ -600,5 +600,5 @@
     ]
   },
   "created_at": "2026-08-12T07:37:41.077Z",
-  "updated_at": "2026-08-16T18:43:20.640Z"
+  "updated_at": "2026-08-16T18:43:26.581Z"
 }
