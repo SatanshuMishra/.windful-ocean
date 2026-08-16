@@ -280,11 +280,11 @@
         ]
       },
       {
-        "text": "chore/receipts-global-standard is six commits ahead of main with no open PR — receipts.md is live only because the primary checkout happens to sit on that branch, which is exactly what receipts.md's own rule forbids",
+        "text": "Compare branch state against origin/main, never the local main ref — local main ran 9 commits stale this session and made an already-merged receipts branch look like six unmerged commits carrying the live global rules",
         "scope": "c3",
         "refs": [
-          "main",
-          "~/.claude/rules/common/receipts.md"
+          "origin/main",
+          "chore/receipts-global-standard"
         ]
       }
     ],
@@ -504,5 +504,5 @@
     ]
   },
   "created_at": "2026-08-12T07:37:41.077Z",
-  "updated_at": "2026-08-16T03:09:09.654Z"
+  "updated_at": "2026-08-16T03:45:48.038Z"
 }
