@@ -36,12 +36,23 @@ function tickGraph(units) {
   return { nodes: units.map((unit) => ({ id: unit.id })), readyAfter: {} };
 }
 
+function carriedEnvelope(source) {
+  if (source === null || source === undefined || typeof source !== 'object' || Array.isArray(source)) return null;
+  const envelope = source.envelope;
+  return envelope !== null && envelope !== undefined && typeof envelope === 'object' && !Array.isArray(envelope) ? envelope : null;
+}
+
+function envelopeOf(outcome) {
+  const fromPayload = carriedEnvelope(payloadOf(outcome));
+  return fromPayload === null ? carriedEnvelope(outcome) : fromPayload;
+}
+
 function tickDispatcher(unitsById, runUnit, outcomes) {
   return async (node, context) => {
     const outcome = await runUnit(unitsById.get(node.id), context);
     outcomes.set(node.id, outcome === undefined ? null : outcome);
     const disposition = dispositionOf(outcome);
-    return { ok: disposition !== PARKED, outcome: disposition };
+    return { ok: disposition !== PARKED, outcome: disposition, envelope: envelopeOf(outcome) };
   };
 }
 
