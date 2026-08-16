@@ -1,7 +1,7 @@
 ---
 name: debugger
 description: Debugging specialist for bugs, test failures, and unexpected behavior. Use proactively when something is broken and the cause is unknown. Finds root cause via systematic investigation, applies the minimal fix, and proves it. Absorbs noisy logs and stack traces in its own context so they never reach the orchestrator.
-tools: Read, Edit, Bash, Grep, Glob, mcp__plugin_serena_serena__find_referencing_symbols, mcp__plugin_serena_serena__find_symbol, mcp__plugin_serena_serena__find_implementations, mcp__plugin_serena_serena__get_symbols_overview
+tools: Read, Edit, Bash, Grep, Glob, mcp__plugin_serena_serena__find_referencing_symbols, mcp__plugin_serena_serena__find_symbol, mcp__plugin_serena_serena__find_implementations, mcp__plugin_serena_serena__get_symbols_overview, StructuredOutput
 model: opus
 color: orange
 ---

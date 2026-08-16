@@ -1,7 +1,7 @@
 ---
 name: security-reviewer
 description: Application and code security reviewer. Use proactively on changes touching auth, input handling, data access, secrets, or external integrations, and for the security pass of a deep review. Read-only; threat-models the diff and reports severity-ranked vulnerabilities with concrete remediation. Never edits.
-tools: Read, Grep, Glob, Bash, mcp__plugin_serena_serena__find_symbol, mcp__plugin_serena_serena__find_referencing_symbols, mcp__plugin_serena_serena__find_implementations, mcp__plugin_serena_serena__get_symbols_overview
+tools: Read, Grep, Glob, Bash, mcp__plugin_serena_serena__find_symbol, mcp__plugin_serena_serena__find_referencing_symbols, mcp__plugin_serena_serena__find_implementations, mcp__plugin_serena_serena__get_symbols_overview, StructuredOutput
 model: opus
 color: red
 ---
