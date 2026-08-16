@@ -1,6 +1,6 @@
 import { readFileSync, realpathSync } from 'node:fs';
 import { pathToFileURL } from 'node:url';
-import { dispatch } from './dispatch.mjs';
+import { dispatch, normalizeEnvelope } from './dispatch.mjs';
 import { BUILD_AHEAD_CAP } from './window.mjs';
 
 const NODE_ID_PATTERN = /^[a-z0-9][a-z0-9-]*$/;
@@ -199,10 +199,10 @@ function makeLedger(plan, onRecord, onEmitFailure) {
     records,
     start(id) {
       states.set(id, STATE_RUNNING);
-      emit(Object.freeze({ id, state: STATE_RUNNING, sequence: sequence++, outcome: null, blockedBy: NO_IDS, reason: null }));
+      emit(Object.freeze({ id, state: STATE_RUNNING, sequence: sequence++, outcome: null, blockedBy: NO_IDS, reason: null, envelope: null }));
     },
-    settle(id, state, outcome, blockedBy, reason) {
-      const record = Object.freeze({ id, state, outcome, blockedBy: Object.freeze([...blockedBy]), reason });
+    settle(id, state, outcome, blockedBy, reason, envelope = null) {
+      const record = Object.freeze({ id, state, outcome, blockedBy: Object.freeze([...blockedBy]), reason, envelope: normalizeEnvelope(envelope) });
       states.set(id, state);
       records.set(id, record);
       emit(Object.freeze({ ...record, sequence: sequence++ }));
@@ -263,14 +263,15 @@ function propagateBlock(plan, ledger, causeId, causeState) {
   }
 }
 
-function finish(plan, ledger, aborted, id, ok, outcome, reason) {
+function finish(plan, ledger, aborted, id, settlement) {
+  const { ok, outcome, reason, envelope } = settlement;
   if (ok) {
-    ledger.settle(id, STATE_OK, outcome, NO_IDS, null);
+    ledger.settle(id, STATE_OK, outcome, NO_IDS, null, envelope);
     return;
   }
   const cancelled = outcome === OUTCOME_ABORTED;
   const state = cancelled ? STATE_CANCELLED : STATE_FAILED;
-  ledger.settle(id, state, outcome, NO_IDS, cancelled ? REASON_ABORTED_IN_FLIGHT : reason);
+  ledger.settle(id, state, outcome, NO_IDS, cancelled ? REASON_ABORTED_IN_FLIGHT : reason, envelope);
   if (aborted) return;
   propagateBlock(plan, ledger, id, state);
 }
@@ -280,14 +281,24 @@ async function invoke(plan, ledger, signal, dispatchFn, id) {
   try {
     verdict = await dispatchFn(plan.byId.get(id), { signal });
   } catch (error) {
-    finish(plan, ledger, signal.aborted, id, false, OUTCOME_THREW, note(describeError(error)));
+    finish(plan, ledger, signal.aborted, id, { ok: false, outcome: OUTCOME_THREW, reason: note(describeError(error)), envelope: null });
     return;
   }
   if (!isVerdict(verdict)) {
-    finish(plan, ledger, signal.aborted, id, false, OUTCOME_CONTRACT_VIOLATION, `pool: dispatchFn returned ${verdict === null ? 'null' : typeof verdict} for node ${JSON.stringify(id)} rather than a verdict carrying a boolean ok, so the node's success can neither be believed nor propagated to its dependents`);
+    finish(plan, ledger, signal.aborted, id, {
+      ok: false,
+      outcome: OUTCOME_CONTRACT_VIOLATION,
+      reason: `pool: dispatchFn returned ${verdict === null ? 'null' : typeof verdict} for node ${JSON.stringify(id)} rather than a verdict carrying a boolean ok, so the node's success can neither be believed nor propagated to its dependents`,
+      envelope: null,
+    });
     return;
   }
-  finish(plan, ledger, signal.aborted, id, verdict.ok, typeof verdict.outcome === 'string' ? verdict.outcome : null, null);
+  finish(plan, ledger, signal.aborted, id, {
+    ok: verdict.ok,
+    outcome: typeof verdict.outcome === 'string' ? verdict.outcome : null,
+    reason: null,
+    envelope: verdict.envelope,
+  });
 }
 
 async function drive(plan, ledger, settings, signal, dispatchFn) {

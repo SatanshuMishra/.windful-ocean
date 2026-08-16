@@ -184,6 +184,30 @@ function writeAtomic(path, text) {
   return path;
 }
 
+function appendLine(path, text) {
+  const descriptor = openSync(path, constants.O_WRONLY | constants.O_APPEND | constants.O_CREAT | constants.O_NOFOLLOW, 0o600);
+  try {
+    writeFileSync(descriptor, text);
+  } finally {
+    closeSync(descriptor);
+  }
+  return path;
+}
+
+function requireUsageRequest(value) {
+  if (!isPlainObject(value)) {
+    throw new TypeError(`run-store: usage must be a plain object carrying observedAt and envelope, received ${value === null ? 'null' : Array.isArray(value) ? 'an array' : typeof value}`);
+  }
+  return value;
+}
+
+function requireObservedAt(value) {
+  if (!isIsoInstant(value)) {
+    throw new TypeError(`run-store: observedAt must be an ISO 8601 instant supplied by the caller, because this module reads no clock and every time value must enter through its arguments, received ${JSON.stringify(value)}`);
+  }
+  return value;
+}
+
 function requireRecord(value, field) {
   if (!isPlainObject(value)) {
     throw new TypeError(`run-store: ${field} must be a plain object, because it is serialized verbatim into the run's durable record, received ${value === null ? 'null' : Array.isArray(value) ? 'an array' : typeof value}`);
@@ -232,11 +256,15 @@ function releaseLock(lockPath, lockRecord) {
   unlinkSync(lockPath);
 }
 
-function unitOutputPath(context, unitId, operation) {
+function requireKnownUnit(context, unitId, operation) {
   if (!context.unitIds.includes(unitId)) {
     throw new Error(`run-store: ${operation} names the unit ${JSON.stringify(unitId)}, which is not one of the unit ids this run was opened for (${context.unitIds.join(', ')}); a unit outside that list has no output file here, and composing one from an unvetted id is how a path escapes the items directory`);
   }
-  return join(context.dir, 'items', `${unitId}.out`);
+  return unitId;
+}
+
+function unitOutputPath(context, unitId, operation) {
+  return join(context.dir, 'items', `${requireKnownUnit(context, unitId, operation)}.out`);
 }
 
 function attemptWriters(context, requireOpen) {
@@ -267,7 +295,16 @@ function attemptWriters(context, requireOpen) {
     requireRecord(state, 'state');
     return writeAtomic(join(context.dir, 'state.json'), `${JSON.stringify(state)}\n`);
   };
-  return { recordStart, recordOutput, commitState };
+  const recordUsage = (unitId, usage) => {
+    requireOpen('recordUsage');
+    requireKnownUnit(context, unitId, 'recordUsage');
+    const request = requireUsageRequest(usage);
+    const observedAt = requireObservedAt(request.observedAt);
+    const captured = requireRecord(request.envelope, 'envelope');
+    const line = { unitId, attempt: context.attempt, observedAt, envelope: captured };
+    return appendLine(join(context.dir, 'usage.jsonl'), `${JSON.stringify(line)}\n`);
+  };
+  return { recordStart, recordOutput, commitState, recordUsage };
 }
 
 function attemptHandle(context) {

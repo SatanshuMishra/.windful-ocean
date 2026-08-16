@@ -3,7 +3,7 @@ import { pathToFileURL } from 'node:url';
 import { lintCoarseScope } from './coarse-scope-lint.mjs';
 import { DECOMPOSE_CHANGE_TYPES, DECOMPOSE_SCHEMA, validateDecomposition } from './decompose-schema.mjs';
 import { deriveClusters } from './derive-clusters.mjs';
-import { dispatch } from './dispatch.mjs';
+import { dispatch, normalizeEnvelope } from './dispatch.mjs';
 import { OWNER_ONLY_MODE, replaceFileAtomically, requireGuardedPath } from './fs-writer.mjs';
 import { ISOLATION_MODES } from './prompt-contract.mjs';
 import { composePrompt } from './prompt-registry.mjs';
@@ -231,7 +231,7 @@ async function runDecomposer(args, deps) {
   if (validated.ok !== true) {
     return failure(EXIT_DECOMPOSE, `the decompose child returned a decomposition the schema refuses: ${validated.failures.join('; ')}`);
   }
-  return Object.freeze({ ok: true, msps: validated.decomposition.msps });
+  return Object.freeze({ ok: true, msps: validated.decomposition.msps, envelope: normalizeEnvelope(verdict.envelope) });
 }
 
 function coarseScopeFlagLine(unitId, flag) {
@@ -349,7 +349,9 @@ export async function emitRunDocument(args, deps = {}) {
   reportCoarseScope(decomposed.msps, warn);
   const composed = composeDocument(args, inputs, decomposed.msps);
   if (composed.ok !== true) return composed;
-  return writeRunDocument(args.out, composed.document);
+  const written = writeRunDocument(args.out, composed.document);
+  if (written.ok !== true) return written;
+  return Object.freeze({ ...written, envelope: decomposed.envelope });
 }
 
 function summaryOf(result) {
@@ -357,6 +359,7 @@ function summaryOf(result) {
     outPath: result.outPath,
     units: result.document.specs.map((unit) => unit.id),
     clusters: result.document.manifest.clusters,
+    envelope: result.envelope,
   };
 }
 
