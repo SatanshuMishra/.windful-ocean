@@ -107,6 +107,40 @@ test('the observer sees the envelope on the settle record it is handed', async (
   assert.equal(running[0].envelope, null);
 });
 
+test('a dispatch that throws is settled as failed and carries a null envelope rather than a stale one', async () => {
+  const result = await runGraph(graphOf(['alpha', 'beta'], { beta: ['alpha'] }), async (node) => {
+    if (node.id === 'alpha') throw new Error('the adapter exploded after billing tokens');
+    return verdict();
+  });
+  const record = recordFor(result, 'alpha');
+  assert.equal(record.state, 'failed', 'a thrown dispatch was recorded as a success');
+  assert.equal(record.outcome, 'dispatch-threw');
+  assert.match(record.reason, /the adapter exploded after billing tokens/);
+  assert.ok(Object.hasOwn(record, 'envelope'), 'a thrown dispatch omits the envelope field entirely');
+  assert.equal(record.envelope, null);
+  const dependent = recordFor(result, 'beta');
+  assert.equal(dependent.state, 'blocked', 'a dependent ran on the strength of a dispatch that threw');
+  assert.equal(dependent.reason, 'dependency-failed');
+});
+
+test('a dispatch that returns a non-verdict is settled as a failed contract violation and its envelope is refused with it', async () => {
+  for (const returned of [undefined, null, 'ok', ['ok'], { outcome: 'success', envelope: sampleEnvelope() }]) {
+    const label = JSON.stringify(returned) ?? 'undefined';
+    const result = await runGraph(graphOf(['alpha', 'beta'], { beta: ['alpha'] }), async (node) => {
+      if (node.id === 'alpha') return returned;
+      return verdict();
+    });
+    const record = recordFor(result, 'alpha');
+    assert.equal(record.state, 'failed', `the pool believed ${label} as a verdict`);
+    assert.equal(record.outcome, 'dispatch-contract-violation');
+    assert.match(record.reason, /rather than a verdict carrying a boolean ok/);
+    assert.equal(record.envelope, null, `the pool carried an envelope off ${label}, which it never established as a verdict`);
+    const dependent = recordFor(result, 'beta');
+    assert.equal(dependent.state, 'blocked', `a dependent ran on the strength of ${label}`);
+    assert.equal(dependent.reason, 'dependency-failed');
+  }
+});
+
 test('the cli unit port retains the envelope alongside the sha it already reads', async () => {
   const config = { repoRoot: '/repo', requestsById: new Map([['alpha', { prompt: 'do alpha' }]]) };
   const ports = realPorts(config, { dispatch: async () => verdict() });
