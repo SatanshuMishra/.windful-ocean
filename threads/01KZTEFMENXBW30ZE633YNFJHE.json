@@ -175,9 +175,9 @@
   "abandoned_reason": null,
   "closure_statement": null,
   "spine": {
-    "active_goal": "Land the remaining MSPs on feat/mitosis-os-process - D2 and D3 - under receipts/gates@1.1, with nothing merged to main until D3 clears its falsifier.",
-    "next_step": "Cut D2, the deletion MSP, on a worktree off origin/feat/mitosis-os-process (tip c067cfce). Settle two things FIRST: the PR-composability halt and coarse-scope lint that D2 removes with mitosis.js, which nothing on the base carries; and whether to write dead-export-lint or amend D2's acceptance line, which names a lint absent from this tree. Put semgrep in D2's ceiling alongside the four gate verbs.",
-    "last_session": "Shipped the whole decompose-and-emit pair. PR #136 (D1b1) and PR #137 (D1b2) both merged and asserted on the base by ancestry; all three modules confirmed present at c067cfce. A blocking sast ReDoS was fixed with a frozen literal table. Ruled 0456, 0457, 0458.",
+    "active_goal": "Merge the six-PR OS-process stack onto feat/mitosis-os-process, then rule on a release gate whose falsifier cannot be evaluated.",
+    "next_step": "MERGE THE STACK, then rule on the release gate. Six green stacked PRs await a human merge, bottom-up: #138, #139, #140, #141, #142, #143. DELETE each parent branch and confirm the ref is gone before merging its child, per 0445. Remove the six worktrees under .claude/worktrees/ first or gh refuses the deletion. Runbook is in the session scratchpad. Then rule c7: the 10-dispatch falsifier is UNEVALUABLE, neither cleared nor falsified, because no engine run has ever existed.",
+    "last_session": "Shipped all six remaining MSPs overnight as one linear stack, every one green on CI including the receipts enforcer. The legacy engine is deleted and origin/main is folded in. Ruled 0460 through 0466.",
     "open_risks": [
       {
         "text": "Build A4's red case through the claude -p CLI path and assert the SILENT failure — the Workflow agent path auto-grants StructuredOutput, so a red case dispatched through it passes unconditionally and is a guarantee that cannot fail",
@@ -663,5 +663,5 @@
     ]
   },
   "created_at": "2026-08-12T07:37:41.077Z",
-  "updated_at": "2026-08-16T08:01:06.272Z"
+  "updated_at": "2026-08-16T08:01:28.695Z"
 }
