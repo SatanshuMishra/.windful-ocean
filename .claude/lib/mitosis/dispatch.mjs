@@ -3,6 +3,7 @@ import { constants } from 'node:os';
 import { isAbsolute } from 'node:path';
 import { StringDecoder } from 'node:string_decoder';
 import { assertSpawnAllowed } from './exec-policy.mjs';
+import { realAgentCapability } from './agent-capability.mjs';
 
 const CLI_COMMAND = 'claude';
 const ARG_TERMINATOR = '--';
@@ -216,6 +217,9 @@ function resolveDeps(deps) {
   if (ingestCapChars <= largestPresentation) {
     throw new TypeError(`dispatch: deps.ingestCapChars must exceed every presentation cap (${largestPresentation}), received ${ingestCapChars}`);
   }
+  if (deps.agentCapability !== undefined && typeof deps.agentCapability !== 'function') {
+    throw new TypeError('dispatch: deps.agentCapability must be a function');
+  }
   return {
     spawn: spawnFn,
     env: deps.env === undefined ? process.env : requirePlainObject(deps.env, 'deps.env'),
@@ -227,7 +231,20 @@ function resolveDeps(deps) {
     stderrTailCapChars,
     envelopeFieldCapChars,
     ingestCapChars,
+    agentCapability: deps.agentCapability === undefined ? realAgentCapability : deps.agentCapability,
   };
+}
+
+function assertSchemaCapable(validated, settings) {
+  if (validated.schemaText === null) return;
+  if (validated.agentType === undefined) return;
+  const projectDir = validated.cwd === undefined ? process.cwd() : validated.cwd;
+  const capability = settings.agentCapability(validated.agentType, projectDir);
+  if (capability !== null && typeof capability === 'object' && capability.ok === true) return;
+  if (capability !== null && typeof capability === 'object' && typeof capability.error === 'string' && capability.error.length > 0) {
+    throw new TypeError(capability.error);
+  }
+  throw new TypeError(`dispatch: deps.agentCapability returned no verdict for agent "${validated.agentType}", so its StructuredOutput capability cannot be established; refusing to spawn`);
 }
 
 function composeArgv(request, redact) {
@@ -700,6 +717,7 @@ function abortedBeforeSpawn() {
 export async function dispatch(request, deps = {}) {
   const validated = validateRequest(request);
   const settings = resolveDeps(deps);
+  assertSchemaCapable(validated, settings);
 
   if (validated.signal !== null && validated.signal.aborted) {
     return abortedBeforeSpawn();
