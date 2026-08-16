@@ -10,7 +10,36 @@ You are the orchestrator's THIN entry point. Mitosis runs as an OS process; your
 ## Preconditions
 
 1. There must be an APPROVED spec or batch of work. If not approved, route to brainstorming/spec first.
-2. There must be a RUN DOCUMENT — the JSON file `--spec` points at, holding an already-decomposed unit table. The approved markdown spec is NOT that document, and no step on this base turns one into the other. If the user cannot name a run document, STOP and say so. Do NOT hand-decompose the spec here and do NOT fabricate a unit table: this entry point stays thin, and a table invented in main is a decomposition no reviewer approved.
+2. There must be a RUN DOCUMENT — the JSON file `--spec` points at, holding an already-decomposed unit table. The approved markdown spec is NOT that document. One step turns one into the other: `.claude/lib/mitosis/decompose-emit.mjs`, described below. If the user cannot name a run document, run that emitter to produce one; do NOT hand-decompose the spec here and do NOT fabricate a unit table, because this entry point stays thin and a table invented in main is a decomposition no reviewer approved.
+
+## Produce the run document (only when the user cannot name one)
+
+`.claude/lib/mitosis/decompose-emit.mjs` dispatches the decompose child against the approved markdown spec, validates its structured answer against the decompose schema, composes the `{manifest, specs}` document, and writes it atomically. It parses and shape-checks every flag before any child is spawned.
+
+    node .claude/lib/mitosis/decompose-emit.mjs \
+      --spec /abs/path/to/SPEC.md \
+      --repo-root /abs/path/to/repo \
+      --base-branch main \
+      --source-prefix feat \
+      --branch-prefix feat \
+      --worktree-root /abs/path/to/repo/.worktrees \
+      --scoped-check '["npm","test"]' \
+      --isolation worktree \
+      --run-id run-thing-0001 \
+      --out /abs/path/to/repo/.mitosis/run-document.json
+
+`--spec` must sit inside `--repo-root` (it is fingerprinted through a containment-checked reader). `--scoped-check` is ONE JSON array of argv strings. `--isolation` is `worktree` or `scope-fence`. `--base-branch` and `--source-prefix` come from the branch contract resolved below, and `--branch-prefix` composes each unit's branch. Optional: `--harness-run-id`, `--decomposer-model` (defaults to `opus`), `--decomposer-timeout-ms`, and `--unit-agent-type` / `--unit-model` / `--unit-effort` / `--unit-timeout-ms`, which become the dispatch defaults inside every emitted `specs[].request`.
+
+| Exit | Meaning |
+|---|---|
+| 0 | the run document was written; stdout names its path, its units and its clusters |
+| 2 | the arguments were rejected; nothing ran |
+| 3 | an input could not be resolved (the spec could not be fingerprinted, or the implementer preamble did not resolve) |
+| 4 | the decompose child returned no conforming decomposition |
+| 5 | the decomposition composed no run document |
+| 6 | the run document could not be written |
+
+Every non-zero exit names its cause on stderr and writes no partial document. Hand the emitted path to `--spec` below.
 
 ## Collect inputs (in MAIN, before dispatch)
 
@@ -37,7 +66,8 @@ Each was collected for the retired workflow and has no flag on the CLI. Do not g
 
 | Former input | Where it lives now |
 |---|---|
-| `verify.scopedCheckCmd`, `verify.fullValidationCmd`, `models`, `worktreeRoot`, `fixLoopMax` | consumed only by `run-engine.mjs` and `engine-args.mjs`, which are outside `cli.mjs`'s import closure. Per-unit equivalents travel inside each `specs[].request` (`prompt`, `agentType`, `model`, `effort`, `worktree`, `cwd`) in the run document |
+| `verify.scopedCheckCmd`, `worktreeRoot`, `models` | collected by `decompose-emit.mjs` above (`--scoped-check`, `--worktree-root`, `--unit-model`) when the run document is produced, never by `cli.mjs`. Per-unit equivalents then travel inside each `specs[].request` (`prompt`, `agentType`, `model`, `effort`, `worktree`, `cwd`) in the run document |
+| `verify.fullValidationCmd`, `fixLoopMax` | consumed only by `run-engine.mjs` and `engine-args.mjs`, which are outside `cli.mjs`'s import closure |
 | `build` (test_command, suite_command, integration_branch, sha_source) | receipts-enforcer config keys read by CI, never by mitosis code. They belong in the target repository's `receipts.config.json` — seed from `.claude/skills/mitosis/templates/receipts.config.json` |
 
 ## Resolve the branch contract (MUST happen here — a process cannot ASK)
