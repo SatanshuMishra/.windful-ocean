@@ -94,6 +94,11 @@
         "ref": "0467-thirteen-agent-roster-in-four-bands",
         "title": "Replace all 56 agents with 13 in four bands, with the dispatch tool held only by the Opus leads",
         "scope": "c3"
+      },
+      {
+        "ref": "0468-termination-by-closed-question-not-round-caps",
+        "title": "Terminate review loops by closing the reviewer's question, not by capping rounds or turns",
+        "scope": "c3"
       }
     ],
     "out_of_scope": [
@@ -101,5 +106,5 @@
     ]
   },
   "created_at": "2026-08-16T05:43:25.829Z",
-  "updated_at": "2026-08-16T17:37:16.880Z"
+  "updated_at": "2026-08-16T17:37:30.972Z"
 }
