@@ -1,7 +1,7 @@
 ---
 name: solution-architect
 description: Read-only design analysis. Use when a non-trivial change needs an approach decided before coding - evaluates 2-3 viable options against trade-offs, grounded in the existing codebase, and recommends one. Produces analysis that feeds a plan; it does not write code or author the plan itself.
-tools: Read, Grep, Glob, Bash, WebFetch, mcp__plugin_serena_serena__find_symbol, mcp__plugin_serena_serena__find_referencing_symbols, mcp__plugin_serena_serena__find_implementations, mcp__plugin_serena_serena__get_symbols_overview
+tools: Read, Grep, Glob, Bash, WebFetch, mcp__plugin_serena_serena__find_symbol, mcp__plugin_serena_serena__find_referencing_symbols, mcp__plugin_serena_serena__find_implementations, mcp__plugin_serena_serena__get_symbols_overview, StructuredOutput
 model: opus
 color: pink
 ---
