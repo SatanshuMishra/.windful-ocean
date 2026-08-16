@@ -637,6 +637,11 @@
         "ref": "0463-the-remaining-msps-ship-as-one-linear-stack-with-the-main-fold-below-d3",
         "title": "The remaining MSPs ship as one linear stack, with the main fold placed below D3",
         "scope": "c3"
+      },
+      {
+        "ref": "0464-d3-measures-the-falsifier-from-shipped-journals-and-downgrades-the-rest",
+        "title": "D3 measures the binding falsifier from shipped journals and downgrades the cost claims honestly",
+        "scope": "c6"
       }
     ],
     "out_of_scope": [
@@ -648,5 +653,5 @@
     ]
   },
   "created_at": "2026-08-12T07:37:41.077Z",
-  "updated_at": "2026-08-16T06:47:09.279Z"
+  "updated_at": "2026-08-16T06:47:19.071Z"
 }
