@@ -169,6 +169,13 @@
       "struck_by": null
     },
     {
+      "id": "c25",
+      "text": "The evidence-integrity set clears: a billed dispatch never records as unbilled, no observer can lose a line, the summary names runKey and attempt, and usage.jsonl carries one envelope schema.",
+      "done": false,
+      "kind": "detour",
+      "struck_by": null
+    },
+    {
       "id": "c7",
       "text": "The release gate resolves explicitly: base merges to main only if D3 clears the 10-dispatch-per-shipped-MSP falsifier; a failure is recorded as falsified, never quietly merged.",
       "done": false,
@@ -600,5 +607,5 @@
     ]
   },
   "created_at": "2026-08-12T07:37:41.077Z",
-  "updated_at": "2026-08-16T18:43:26.581Z"
+  "updated_at": "2026-08-16T18:43:32.845Z"
 }
