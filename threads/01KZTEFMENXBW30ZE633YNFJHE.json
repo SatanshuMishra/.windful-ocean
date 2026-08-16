@@ -566,6 +566,11 @@
         "ref": "0456-the-inserted-decompose-and-emit-msp-splits-in-two-and-a-unit-is-one-msp",
         "title": "The inserted decompose-and-emit MSP splits in two, and one specs[] entry is one MSP",
         "scope": "c3"
+      },
+      {
+        "ref": "0457-the-malformed-request-silent-park-is-filed-not-folded-and-the-emitter-self-validates",
+        "title": "The malformed-request silent park is filed as its own MSP, and the emitter validates its own output",
+        "scope": "c3"
       }
     ],
     "out_of_scope": [
@@ -577,5 +582,5 @@
     ]
   },
   "created_at": "2026-08-12T07:37:41.077Z",
-  "updated_at": "2026-08-16T04:44:49.127Z"
+  "updated_at": "2026-08-16T04:45:12.918Z"
 }
