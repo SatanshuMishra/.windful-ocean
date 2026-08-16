@@ -1,7 +1,7 @@
 import { realpathSync } from 'node:fs';
 import { pathToFileURL } from 'node:url';
 import { lintCoarseScope } from './coarse-scope-lint.mjs';
-import { DECOMPOSE_CHANGE_TYPES, DECOMPOSE_SCHEMA, validateDecomposition } from './decompose-schema.mjs';
+import { DECOMPOSE_CHANGE_TYPES, DECOMPOSE_SCHEMA, UNIT_VERDICT_SCHEMA, validateDecomposition } from './decompose-schema.mjs';
 import { deriveClusters } from './derive-clusters.mjs';
 import { dispatch, normalizeEnvelope } from './dispatch.mjs';
 import { OWNER_ONLY_MODE, replaceFileAtomically, requireGuardedPath } from './fs-writer.mjs';
@@ -16,6 +16,7 @@ const MODULE = 'decompose-emit';
 const DECOMPOSER_AGENT = 'codebase-analyst';
 const DEFAULT_DECOMPOSER_MODEL = 'opus';
 const IDENTIFIER_MAX_CHARS = 64;
+const WORKTREE_ISOLATION = 'worktree';
 
 export const EXIT_CLEAN = 0;
 export const EXIT_UNCLASSIFIED = 1;
@@ -277,6 +278,7 @@ function unitDefaults(args) {
     if (args[entry.field] === undefined) continue;
     defaults[entry.key] = args[entry.field];
   }
+  if (args.isolation === WORKTREE_ISOLATION) defaults.schema = UNIT_VERDICT_SCHEMA;
   return defaults;
 }
 

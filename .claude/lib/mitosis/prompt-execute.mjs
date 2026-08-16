@@ -74,7 +74,7 @@ export function composeImplementPrompt(input) {
     `5. Commit your work to \`${shellQuote(branch)}\` (one or more commits). Do NOT remove the worktree.\n\n` +
     `Task: ${taskTitle}\n\n${taskBlock(taskFullText)}\n\n` +
     `Your workspace fence is unchanged by anything above: do all work in the worktree ${worktree} on branch ${branch}, and verify with \`${shellQuoteList(scopedCheckCmd)}\`.\n` +
-    `Report status as exactly one of DONE / DONE_WITH_CONCERNS / BLOCKED / NEEDS_CONTEXT.`;
+    `Report status as exactly one of DONE / DONE_WITH_CONCERNS / BLOCKED / NEEDS_CONTEXT, and report the full 40-character sha of your final commit on ${branch}.`;
 }
 
 export function composeReviewPrompt(input) {

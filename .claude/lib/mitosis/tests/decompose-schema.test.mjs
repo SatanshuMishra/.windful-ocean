@@ -5,9 +5,12 @@ import {
   DECOMPOSE_SCHEMA,
   DecomposeSchemaError,
   SCHEMA_PATTERN_LITERALS,
+  UNIT_VERDICT_SCHEMA,
   validateAgainstSchema,
   validateDecomposition,
 } from '../decompose-schema.mjs';
+
+const SCHEMAS_THE_TABLE_SERVES = Object.freeze([DECOMPOSE_SCHEMA, UNIT_VERDICT_SCHEMA]);
 
 const CONFORMING = Object.freeze({
   msps: [
@@ -119,6 +122,17 @@ test('a decomposition that is not an object at all is refused rather than coerce
   }
 });
 
+test('a unit verdict carrying a key beyond sha is refused rather than carried, the same guarantee the decomposition schema makes', () => {
+  const verdict = validateAgainstSchema(
+    UNIT_VERDICT_SCHEMA,
+    { sha: '0123456789abcdef0123456789abcdef01234567', note: 'a field nobody declared' },
+    'the verdict',
+  );
+  assert.equal(verdict.ok, false);
+  assert.equal(verdict.decomposition, null);
+  assert.deepEqual(verdict.failures, ['the verdict declares "note", which the schema does not allow']);
+});
+
 test('the change-type list the decompose prompt is given is the schema enum itself, not a second copy', () => {
   assert.equal(DECOMPOSE_CHANGE_TYPES, DECOMPOSE_SCHEMA.properties.msps.items.properties.changeType.enum);
   assert.deepEqual([...DECOMPOSE_CHANGE_TYPES], ['feat', 'fix', 'refactor', 'docs', 'test', 'chore', 'perf', 'ci']);
@@ -155,8 +169,8 @@ function patternedNodes(node, path, found) {
   return found;
 }
 
-function patternCensus(schema, literals) {
-  const nodes = patternedNodes(schema, 'schema', []);
+function patternCensus(schemas, literals) {
+  const nodes = schemas.flatMap((schema) => patternedNodes(schema, 'schema', []));
   const unenforced = nodes
     .filter((node) => !literals.some((literal) => literal.source === node.pattern))
     .map((node) => `${node.path} declares the pattern ${node.pattern}, which no literal in the table enforces`);
@@ -167,18 +181,18 @@ function patternCensus(schema, literals) {
 }
 
 test('every patterned schema node has a literal and every literal has a node, walked as a closed census', () => {
-  const problems = patternCensus(DECOMPOSE_SCHEMA, SCHEMA_PATTERN_LITERALS);
+  const problems = patternCensus(SCHEMAS_THE_TABLE_SERVES, SCHEMA_PATTERN_LITERALS);
   assert.deepEqual(problems, [], problems.join('; '));
 });
 
 test('the census halts on a patterned node the literal table does not enforce', () => {
   const drifted = { ...DECOMPOSE_SCHEMA, properties: { ...DECOMPOSE_SCHEMA.properties, probe: { type: 'string', pattern: '^a-pattern-nobody-holds$' } } };
-  const problems = patternCensus(drifted, SCHEMA_PATTERN_LITERALS);
+  const problems = patternCensus([drifted, UNIT_VERDICT_SCHEMA], SCHEMA_PATTERN_LITERALS);
   assert.deepEqual(problems, ['schema.properties.probe declares the pattern ^a-pattern-nobody-holds$, which no literal in the table enforces']);
 });
 
 test('the census halts on a literal in the table that no patterned node claims', () => {
-  const problems = patternCensus(DECOMPOSE_SCHEMA, [...SCHEMA_PATTERN_LITERALS, /^a-literal-nobody-declares$/]);
+  const problems = patternCensus(SCHEMAS_THE_TABLE_SERVES, [...SCHEMA_PATTERN_LITERALS, /^a-literal-nobody-declares$/]);
   assert.deepEqual(problems, ['the literal /^a-literal-nobody-declares$/ enforces no patterned node in the schema']);
 });
 
