@@ -134,6 +134,11 @@
         "ref": "0471-six-rebuild-scope-questions-answered",
         "title": "User rulings on the six open rebuild questions, and the addition of the observer to this thread",
         "scope": "c3"
+      },
+      {
+        "ref": "0479-reproduce-before-diagnose-and-test-for-cause",
+        "title": "Always reproduce a bug before diagnosing it, and test the fix for cause rather than effect",
+        "scope": "c3"
       }
     ],
     "out_of_scope": [
@@ -141,5 +146,5 @@
     ]
   },
   "created_at": "2026-08-16T05:43:25.829Z",
-  "updated_at": "2026-08-16T17:39:29.309Z"
+  "updated_at": "2026-08-16T20:58:30.354Z"
 }
