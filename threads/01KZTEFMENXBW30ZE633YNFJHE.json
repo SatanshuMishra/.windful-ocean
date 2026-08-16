@@ -494,6 +494,11 @@
         "ref": "0452-the-nine-obligations-land-after-the-process-substrate",
         "title": "C7 builds the process substrate first and converts the nine obligations onto it afterwards",
         "scope": "c3"
+      },
+      {
+        "ref": "0453-prompt-contract-mismatches-resolve-without-breaking-the-verify-surface",
+        "title": "The three prompt-contract mismatches resolve without breaking the verify.scopedCheckCmd surface",
+        "scope": "c3"
       }
     ],
     "out_of_scope": [
@@ -505,5 +510,5 @@
     ]
   },
   "created_at": "2026-08-12T07:37:41.077Z",
-  "updated_at": "2026-08-16T01:38:59.384Z"
+  "updated_at": "2026-08-16T02:18:30.906Z"
 }
