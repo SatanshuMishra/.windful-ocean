@@ -136,7 +136,7 @@
     {
       "id": "c23",
       "text": "The silent park filed in 0457 ships as its own MSP: a run document the engine cannot dispatch reports its cause instead of parking indistinguishably, red on the parent commit.",
-      "done": false,
+      "done": true,
       "kind": "planned",
       "struck_by": null
     },
@@ -658,5 +658,5 @@
     ]
   },
   "created_at": "2026-08-12T07:37:41.077Z",
-  "updated_at": "2026-08-16T06:57:46.916Z"
+  "updated_at": "2026-08-16T07:22:12.787Z"
 }
