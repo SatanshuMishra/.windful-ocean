@@ -61,6 +61,13 @@ export const DECOMPOSE_SCHEMA = deepFreeze({
 
 export const DECOMPOSE_CHANGE_TYPES = DECOMPOSE_SCHEMA.properties.msps.items.properties.changeType.enum;
 
+export const SCHEMA_PATTERN_LITERALS = deepFreeze([
+  /^[a-z0-9][a-z0-9-]{0,29}$/,
+  /^[a-z][\x20-\x7E]{0,38}[\x21-\x2D\x2F-\x7E]$/,
+  /^[A-Za-z0-9(][\x20-\x7E]{0,198}[\x21-\x7E]$/,
+  /^[a-z0-9][a-z0-9-]{0,15}$/,
+]);
+
 function kindOf(value) {
   if (value === null) return 'null';
   if (Array.isArray(value)) return 'array';
@@ -86,9 +93,18 @@ function checkEnum(node, value, path, failures) {
   failures.push(`${path} is ${JSON.stringify(value)}, which is not one of ${node.enum.join(', ')}`);
 }
 
-function checkPattern(node, value, path, failures) {
-  if (node.pattern === undefined || new RegExp(node.pattern).test(value)) return;
-  failures.push(`${path} is ${JSON.stringify(value)}, which does not match ${node.pattern}`);
+function patternLiteralFor(node, path) {
+  if (node.pattern === undefined) return undefined;
+  const literal = SCHEMA_PATTERN_LITERALS.find((candidate) => candidate.source === node.pattern);
+  if (literal === undefined) {
+    throw new DecomposeSchemaError(`${MODULE}: the schema node at ${path} declares the pattern ${node.pattern}, which this validator holds no literal for; compiling a pattern out of schema text would build a regular expression from a variable, so this validator enforces only the patterns it ships as literals and refuses to pretend it checked the rest`);
+  }
+  return literal;
+}
+
+function checkPattern(literal, pattern, value, path, failures) {
+  if (literal === undefined || literal.test(value)) return;
+  failures.push(`${path} is ${JSON.stringify(value)}, which does not match ${pattern}`);
 }
 
 function checkArray(node, value, path, failures) {
@@ -127,13 +143,14 @@ function checkObject(node, value, path, failures) {
 
 function checkNode(node, value, path, failures) {
   requireSupportedKeywords(node, path);
+  const literal = patternLiteralFor(node, path);
   const kind = kindOf(value);
   if (!declaredKinds(node).includes(kind)) {
     failures.push(`${path} is ${kind} rather than ${declaredKinds(node).join(' or ')}`);
     return;
   }
   checkEnum(node, value, path, failures);
-  if (kind === 'string') checkPattern(node, value, path, failures);
+  if (kind === 'string') checkPattern(literal, node.pattern, value, path, failures);
   if (kind === 'array') checkArray(node, value, path, failures);
   if (kind === 'object') checkObject(node, value, path, failures);
 }

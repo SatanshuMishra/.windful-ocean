@@ -4,6 +4,7 @@ import {
   DECOMPOSE_CHANGE_TYPES,
   DECOMPOSE_SCHEMA,
   DecomposeSchemaError,
+  SCHEMA_PATTERN_LITERALS,
   validateAgainstSchema,
   validateDecomposition,
 } from '../decompose-schema.mjs';
@@ -140,5 +141,67 @@ test('a schema node that is not an object halts rather than enforcing nothing in
   assert.throws(
     () => validateAgainstSchema(null, 'anything', 'the probe'),
     (error) => error instanceof DecomposeSchemaError && /the probe/.test(error.message),
+  );
+});
+
+function patternedNodes(node, path, found) {
+  if (node === null || typeof node !== 'object') return found;
+  if (Array.isArray(node)) {
+    node.forEach((entry, index) => patternedNodes(entry, `${path}[${index}]`, found));
+    return found;
+  }
+  if (typeof node.pattern === 'string') found.push({ path, pattern: node.pattern });
+  for (const [key, child] of Object.entries(node)) patternedNodes(child, `${path}.${key}`, found);
+  return found;
+}
+
+function patternCensus(schema, literals) {
+  const nodes = patternedNodes(schema, 'schema', []);
+  const unenforced = nodes
+    .filter((node) => !literals.some((literal) => literal.source === node.pattern))
+    .map((node) => `${node.path} declares the pattern ${node.pattern}, which no literal in the table enforces`);
+  const orphaned = literals
+    .filter((literal) => !nodes.some((node) => node.pattern === literal.source))
+    .map((literal) => `the literal /${literal.source}/ enforces no patterned node in the schema`);
+  return [...unenforced, ...orphaned];
+}
+
+test('every patterned schema node has a literal and every literal has a node, walked as a closed census', () => {
+  const problems = patternCensus(DECOMPOSE_SCHEMA, SCHEMA_PATTERN_LITERALS);
+  assert.deepEqual(problems, [], problems.join('; '));
+});
+
+test('the census halts on a patterned node the literal table does not enforce', () => {
+  const drifted = { ...DECOMPOSE_SCHEMA, properties: { ...DECOMPOSE_SCHEMA.properties, probe: { type: 'string', pattern: '^a-pattern-nobody-holds$' } } };
+  const problems = patternCensus(drifted, SCHEMA_PATTERN_LITERALS);
+  assert.deepEqual(problems, ['schema.properties.probe declares the pattern ^a-pattern-nobody-holds$, which no literal in the table enforces']);
+});
+
+test('the census halts on a literal in the table that no patterned node claims', () => {
+  const problems = patternCensus(DECOMPOSE_SCHEMA, [...SCHEMA_PATTERN_LITERALS, /^a-literal-nobody-declares$/]);
+  assert.deepEqual(problems, ['the literal /^a-literal-nobody-declares$/ enforces no patterned node in the schema']);
+});
+
+test('the literal table is frozen, and each literal is anchored and free of the global flag', () => {
+  assert.equal(Object.isFrozen(SCHEMA_PATTERN_LITERALS), true);
+  for (const literal of SCHEMA_PATTERN_LITERALS) {
+    assert.equal(Object.isFrozen(literal), true, `${literal.source} is not frozen`);
+    assert.equal(literal.flags, '', `${literal.source} carries flags`);
+  }
+});
+
+test('a pattern the literal table does not hold halts rather than skipping the check in silence', () => {
+  assert.throws(
+    () => validateAgainstSchema({ type: 'string', pattern: '^a-pattern-nobody-holds$' }, 'any value', 'the probe'),
+    (error) => error instanceof DecomposeSchemaError
+      && /the probe/.test(error.message)
+      && /\^a-pattern-nobody-holds\$/.test(error.message),
+  );
+});
+
+test('a pattern the table does not hold halts even where the value could never reach the string check', () => {
+  assert.throws(
+    () => validateAgainstSchema({ type: 'string', pattern: '^a-pattern-nobody-holds$' }, 7, 'the probe'),
+    (error) => error instanceof DecomposeSchemaError && /\^a-pattern-nobody-holds\$/.test(error.message),
   );
 });
