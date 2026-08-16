@@ -507,6 +507,11 @@
         "ref": "0454-d1-widens-to-close-the-cli-argument-contract-gap",
         "title": "D1 widens past its SPEC acceptance to close the cli.mjs argument contract gap",
         "scope": "c3"
+      },
+      {
+        "ref": "0455-a-decompose-and-emit-msp-is-inserted-before-d2",
+        "title": "A decompose-and-emit MSP is inserted before D2 so the decomposer never dies without a replacement",
+        "scope": "c3"
       }
     ],
     "out_of_scope": [
@@ -518,5 +523,5 @@
     ]
   },
   "created_at": "2026-08-12T07:37:41.077Z",
-  "updated_at": "2026-08-16T03:57:08.581Z"
+  "updated_at": "2026-08-16T04:18:15.543Z"
 }
