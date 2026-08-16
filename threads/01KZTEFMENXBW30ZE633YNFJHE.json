@@ -489,6 +489,11 @@
         "ref": "0451-engine-keeps-the-tick-loop-and-composes-the-pool-per-tick",
         "title": "C7 keeps the tick and epoch loop and runs each tick's dispatchable set through the pool",
         "scope": "c3"
+      },
+      {
+        "ref": "0452-the-nine-obligations-land-after-the-process-substrate",
+        "title": "C7 builds the process substrate first and converts the nine obligations onto it afterwards",
+        "scope": "c3"
       }
     ],
     "out_of_scope": [
@@ -500,5 +505,5 @@
     ]
   },
   "created_at": "2026-08-12T07:37:41.077Z",
-  "updated_at": "2026-08-16T00:39:42.667Z"
+  "updated_at": "2026-08-16T01:38:59.384Z"
 }
