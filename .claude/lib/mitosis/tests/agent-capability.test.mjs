@@ -102,6 +102,48 @@ test('io.readSource throwing fails closed with the thrown message included', () 
   );
 });
 
+test('io.readSource throwing a value with no message is described as unknown failure rather than crashing', () => {
+  const projectPath = join(PROJECT_DIR, '.claude', 'agents', 'reviewer.md');
+  const io = {
+    exists: (path) => path === projectPath,
+    readSource: () => { throw {}; },
+  };
+  const result = agentSchemaCapability('reviewer', PROJECT_DIR, HOME_DIR, io);
+  assert.equal(result.ok, false);
+  assert.equal(
+    result.error,
+    `dispatch: a schema was requested for agent "reviewer" whose definition at ${projectPath} could not be read: unknown failure, so its StructuredOutput capability cannot be established; refusing to spawn`,
+  );
+});
+
+test('io.readSource throwing an Error with an empty message is described as unknown failure rather than a blank detail', () => {
+  const projectPath = join(PROJECT_DIR, '.claude', 'agents', 'reviewer.md');
+  const io = {
+    exists: (path) => path === projectPath,
+    readSource: () => { throw new Error(''); },
+  };
+  const result = agentSchemaCapability('reviewer', PROJECT_DIR, HOME_DIR, io);
+  assert.equal(result.ok, false);
+  assert.equal(
+    result.error,
+    `dispatch: a schema was requested for agent "reviewer" whose definition at ${projectPath} could not be read: unknown failure, so its StructuredOutput capability cannot be established; refusing to spawn`,
+  );
+});
+
+test('io.readSource throwing an Error with a single-character message keeps that message rather than falling back', () => {
+  const projectPath = join(PROJECT_DIR, '.claude', 'agents', 'reviewer.md');
+  const io = {
+    exists: (path) => path === projectPath,
+    readSource: () => { throw new Error('x'); },
+  };
+  const result = agentSchemaCapability('reviewer', PROJECT_DIR, HOME_DIR, io);
+  assert.equal(result.ok, false);
+  assert.equal(
+    result.error,
+    `dispatch: a schema was requested for agent "reviewer" whose definition at ${projectPath} could not be read: x, so its StructuredOutput capability cannot be established; refusing to spawn`,
+  );
+});
+
 test('a definition with no opening --- fence fails closed', () => {
   const projectPath = join(PROJECT_DIR, '.claude', 'agents', 'reviewer.md');
   const io = fakeIo({ [projectPath]: 'not a fence\ntools: Read\n---\n' });
