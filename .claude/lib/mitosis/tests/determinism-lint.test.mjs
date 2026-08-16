@@ -30,13 +30,12 @@ function violationsOf(source) {
 
 test('the engine-source root is the lib directory alone, never a written module list', () => {
   const roots = engineSourceRoots();
-  assert.deepEqual(roots.map((root) => root.kind), ['directory']);
-  assert.equal(roots[0].path, LIB_DIR);
-  assert.equal(
-    roots.some((root) => root.kind === 'file' && root.path.endsWith('mitosis.js')),
-    false,
-    'the legacy workflow is no longer a census root; a root naming it would keep the census bound to a file the OS-process engine does not run',
+  assert.deepEqual(
+    roots.map((root) => root.kind),
+    ['directory'],
+    'a file root would bind the census to one written module rather than to the engine directory the OS-process engine actually runs',
   );
+  assert.equal(roots[0].path, LIB_DIR);
 });
 
 test('the enumerated file set equals an independent directory read of the same roots', () => {
@@ -103,13 +102,13 @@ test('a directory entry that is neither a file nor a directory halts rather than
 });
 
 test('an engine file root that no longer exists halts rather than censusing a narrower scope', () => {
-  const io = { readDir: () => [], exists: (path) => path !== '/gone/mitosis.js', readSource: () => '' };
+  const io = { readDir: () => [], exists: (path) => path !== '/gone/engine-root.mjs', readSource: () => '' };
   const enumerated = engineSourceFiles(
-    [{ kind: 'directory', path: '/fixture' }, { kind: 'file', path: '/gone/mitosis.js' }],
+    [{ kind: 'directory', path: '/fixture' }, { kind: 'file', path: '/gone/engine-root.mjs' }],
     io,
   );
   assert.equal(enumerated.ok, false, 'a declared root that vanished silently narrows both censuses that share this enumeration');
-  assert.match(enumerated.error, /\/gone\/mitosis\.js/);
+  assert.match(enumerated.error, /\/gone\/engine-root\.mjs/);
 });
 
 test('a directory root that cannot be read halts rather than reporting an empty census', () => {

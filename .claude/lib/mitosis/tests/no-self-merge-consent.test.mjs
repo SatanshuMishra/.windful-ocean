@@ -2,10 +2,9 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync, readdirSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
-import { basename, join } from 'node:path';
+import { join } from 'node:path';
 import { MITOSIS_GIT_VERBS, buildGhArgv } from '../../git/pr.mjs';
 
-const MITOSIS_PATH = fileURLToPath(new URL('../../../workflows/mitosis.js', import.meta.url));
 const SETTINGS_PATH = fileURLToPath(new URL('../../../settings.json', import.meta.url));
 const SETTINGS_LABEL = '.claude/settings.json (the tracked repo copy)';
 const LIB_DIR = fileURLToPath(new URL('../', import.meta.url));
@@ -13,14 +12,6 @@ const GIT_LIB_DIR = fileURLToPath(new URL('../../git/', import.meta.url));
 const LIB_TREES = Object.freeze([['', LIB_DIR], ['git/', GIT_LIB_DIR]]);
 const DENY_CLASSIFIER_SHIM = 'gh-merge-shim.mjs';
 const SCAN_ANCHOR = 'git/pr.mjs';
-const ENGINE_BASENAME = 'mitosis.js';
-const ENGINE_NAME = basename(MITOSIS_PATH);
-
-test('the engine never re-introduces self-authored merge consent (shipMergeAuthorization)', () => {
-  const src = readFileSync(MITOSIS_PATH, 'utf8');
-  const hits = src.split('shipMergeAuthorization').length - 1;
-  assert.equal(hits, 0, `${ENGINE_NAME} at ${MITOSIS_PATH} must contain zero shipMergeAuthorization references; found ${hits}`);
-});
 
 function libTopLevelModuleNames() {
   return LIB_TREES
@@ -31,11 +22,10 @@ function libTopLevelModuleNames() {
 }
 
 function mergeScanTargets() {
-  const libModules = LIB_TREES
+  return LIB_TREES
     .flatMap(([prefix, dir]) => readdirSync(dir, { withFileTypes: true })
       .filter((entry) => entry.isFile() && entry.name.endsWith('.mjs') && `${prefix}${entry.name}` !== DENY_CLASSIFIER_SHIM)
       .map((entry) => [`${prefix}${entry.name}`, join(dir, entry.name)]));
-  return [[ENGINE_NAME, MITOSIS_PATH], ...libModules];
 }
 
 const MERGE_INVOCATION_PATTERNS = [
@@ -56,12 +46,10 @@ const MERGE_PATTERN_SPECIMENS = [
   ["a ['pr', 'merge'] argv literal", "return ['pr', 'merge', '-R', opts.repo, opts.pr];"],
 ];
 
-test('the merge scan reads every engine and lib top-level source, never a test fixture, and never the deny classifier', () => {
+test('the merge scan reads every lib top-level source, never a test fixture, and never the deny classifier', () => {
   const targets = mergeScanTargets();
   const names = targets.map(([name]) => name);
   assert.equal(new Set(names).size, names.length, `the merge scan set carries a duplicate entry: ${names.join(', ')}`);
-  assert.equal(ENGINE_NAME, ENGINE_BASENAME, `the merge scan labels its engine target with the basename of the path it actually resolved, ${MITOSIS_PATH}; that basename is ${JSON.stringify(ENGINE_NAME)} rather than ${JSON.stringify(ENGINE_BASENAME)}, so the scan is reading some file other than the engine and every engine claim below would be made about the wrong source`);
-  assert.ok(names.includes(ENGINE_NAME), 'the merge scan must always read the engine itself');
   assert.ok(!names.includes(DENY_CLASSIFIER_SHIM), `${DENY_CLASSIFIER_SHIM} must stay exempt: it is the deny classifier, so it carries every merge pattern by design, and its refusals are asserted in tests/gh-merge-shim.test.mjs. Every key here is tree-qualified (${LIB_TREES.map(([prefix]) => JSON.stringify(prefix)).join(', ')}), so this exemption names exactly the ${LIB_DIR} copy; a file of the same basename in any other scanned tree carries a different key and is scanned like any other source`);
   for (const [name, path] of targets) {
     assert.ok(!path.includes('/tests/'), `the merge scan must not recurse into tests/: ${name} at ${path} would make fixture strings, including this file's own MERGE_INVOCATION_PATTERNS, read as violations`);
@@ -69,7 +57,7 @@ test('the merge scan reads every engine and lib top-level source, never a test f
   const present = libTopLevelModuleNames();
   assert.ok(present.includes(DENY_CLASSIFIER_SHIM), `the scanned lib trees carry ${present.length} top-level .mjs file(s) and none of them keys as ${DENY_CLASSIFIER_SHIM}, the tree-qualified key that names the ${LIB_DIR} copy specifically, so that directory is not lib/mitosis; every coverage claim below would be measured against the wrong surface`);
   const expected = present.filter((name) => name !== DENY_CLASSIFIER_SHIM);
-  const scanned = names.filter((name) => name !== ENGINE_NAME).sort();
+  const scanned = [...names].sort();
   assert.ok(scanned.includes(SCAN_ANCHOR), `the merge scan does not cover ${SCAN_ANCHOR}, the module this file imports buildGhArgv and MITOSIS_GIT_VERBS from; a scan that drops the one lib module whose argv builder it also enumerates is not reading the lib surface at all`);
   const missing = expected.filter((name) => !scanned.includes(name));
   const unexpected = scanned.filter((name) => !expected.includes(name));
@@ -87,7 +75,7 @@ test('every merge pattern in this guard can still match the real command it exis
 });
 
 for (const [label, pattern] of MERGE_INVOCATION_PATTERNS) {
-  test(`no engine or lib top-level source carries ${label} on any surface`, () => {
+  test(`no lib top-level source carries ${label} on any surface`, () => {
     for (const [name, path] of mergeScanTargets()) {
       const src = readFileSync(path, 'utf8');
       assert.equal(pattern.test(src), false, `${name} contains ${label}; a scanned source must be free of that literal string on every surface, because this scan cannot tell an executed invocation from prose that merely names the command — so a prohibition is written generically ("never merge a PR", as the existing ones are), never by quoting the command. Merging stays human-gated; ${DENY_CLASSIFIER_SHIM} is the only exempt source, being the deny classifier itself`);

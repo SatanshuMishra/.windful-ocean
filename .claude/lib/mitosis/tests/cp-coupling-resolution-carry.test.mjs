@@ -80,5 +80,5 @@ test('C5-O4: the engine-side decision vocabulary still matches the coupling-revi
   const mod = await import('../run-engine.mjs');
   const vocabulary = mod.COUPLING_DECISION_VOCABULARY;
   assert.ok(Array.isArray(vocabulary), 'run-engine.mjs must export COUPLING_DECISION_VOCABULARY as an array so it can be compared against the coupling-review vocabulary it mirrors');
-  assert.deepEqual([...vocabulary].sort(), [...COUPLING_DECISIONS].sort(), 'run-engine cannot import coupling-review because it is inlined into mitosis.js, so the duplicated vocabulary is bound by this assertion instead');
+  assert.deepEqual([...vocabulary].sort(), [...COUPLING_DECISIONS].sort(), 'run-engine carries its own copy of this vocabulary rather than importing coupling-review, so the duplication is bound by this assertion instead');
 });

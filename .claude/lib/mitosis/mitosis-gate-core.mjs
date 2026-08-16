@@ -1,7 +1,5 @@
-import { compileWorkflow } from './workflow-sandbox.mjs';
 import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { halt } from './js-scan.mjs';
 import {
   extractAssignedPhases,
   extractAuthorityTitles,
@@ -64,18 +62,8 @@ const PHASE_AUTHORITY_KEY = 'the phase authority';
 const PHASE_PARITY_CALLER = 'checkPhaseParity';
 const PHASE_USE_CALLER = 'checkPhaseUse';
 const PHASE_AUTHORITY_CALLER = 'checkPhaseAuthority';
-const ESM_EXPORT_PREFIX = /^export /gm;
 
 export { extractAssignedPhases, extractAuthorityTitles, extractCalledPhases, extractDeclaredPhases, extractPhaseSurfaces };
-
-export function compileUnderSandbox(source) {
-  try {
-    compileWorkflow(source.replace(ESM_EXPORT_PREFIX, ''));
-    return Object.freeze({ ok: true });
-  } catch (error) {
-    return halt(error && error.message ? error.message : 'an unknown failure');
-  }
-}
 
 function requireTitleArray(value, key, caller) {
   if (!Array.isArray(value)) throw new TypeError(`${caller} expects ${key} to be an array of phase titles`);
