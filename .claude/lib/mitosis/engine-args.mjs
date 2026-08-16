@@ -33,6 +33,30 @@ export function validateModelsKnob(models) {
   return { ok: true, reason: null };
 }
 
+const SCOPED_CHECK_SHELL = Object.freeze(['sh', '-c']);
+const SCOPED_CHECK_BREAK = /[\n\r\u2028\u2029\0]/;
+
+export function scopedCheckArgv(value) {
+  if (Array.isArray(value)) {
+    return Object.freeze(value.map((entry, index) => {
+      if (typeof entry !== 'string' || entry.trim() === '') {
+        throw new TypeError(`scopedCheckArgv: element ${index} of the scoped check argv must be a non-empty string, received ${JSON.stringify(entry)}`);
+      }
+      if (SCOPED_CHECK_BREAK.test(entry)) {
+        throw new TypeError(`scopedCheckArgv: element ${index} of the scoped check argv carries a line break or a NUL byte, received ${JSON.stringify(entry)}; the element is rendered into a single-line code span in a composed prompt, so a break ends that span and turns everything after it into prose the receiving model reads as the engine's own instruction`);
+      }
+      return entry;
+    }));
+  }
+  if (typeof value !== 'string' || value.trim() === '') {
+    throw new TypeError(`scopedCheckArgv: the scoped check command must be a non-empty string or an argv array of non-empty strings, received ${value === null ? 'null' : typeof value}`);
+  }
+  if (SCOPED_CHECK_BREAK.test(value)) {
+    throw new TypeError(`scopedCheckArgv: the scoped check command carries a line break or a NUL byte, received ${JSON.stringify(value)}; it is rendered into a single-line code span in a composed prompt, so a break ends that span and turns everything after it into prose the receiving model reads as the engine's own instruction`);
+  }
+  return Object.freeze([...SCOPED_CHECK_SHELL, value]);
+}
+
 export function buildEngineArgs(input) {
   if (input === null || typeof input !== 'object' || Array.isArray(input)) {
     throw new TypeError('buildEngineArgs: input must be a plain object');
@@ -57,6 +81,7 @@ export function buildEngineArgs(input) {
   if (missing.length > 0) {
     throw new Error(`buildEngineArgs: missing required engine args: ${missing.join(', ')}`);
   }
+  out.scopedCheckCmd = scopedCheckArgv(out.scopedCheckCmd);
   const unsafeRefs = ['baseBranch', 'branchPrefix'].filter((name) => !validateRefToken(out[name]));
   if (unsafeRefs.length > 0) {
     throw new Error(`buildEngineArgs: ${unsafeRefs.join(' and ')} did not validate as a conservative git ref token; the engine interpolates them unquoted into git worktree add, branch and push command strings, so a value bearing whitespace, a shell metacharacter, a leading -, a .. sequence, or a .lock/. component is refused here rather than reaching a shell`);

@@ -1083,6 +1083,47 @@ function deriveClusters(msps, discoveredEdges = []) {
   };
 }
 
+const SCOPED_CHECK_SHELL = Object.freeze(['sh', '-c']);
+const SCOPED_CHECK_BREAK = /[\n\r\u2028\u2029\0]/;
+
+function scopedCheckArgv(value) {
+  if (Array.isArray(value)) {
+    return Object.freeze(value.map((entry, index) => {
+      if (typeof entry !== 'string' || entry.trim() === '') {
+        throw new TypeError(`scopedCheckArgv: element ${index} of the scoped check argv must be a non-empty string, received ${JSON.stringify(entry)}`);
+      }
+      if (SCOPED_CHECK_BREAK.test(entry)) {
+        throw new TypeError(`scopedCheckArgv: element ${index} of the scoped check argv carries a line break or a NUL byte, received ${JSON.stringify(entry)}; the element is rendered into a single-line code span in a composed prompt, so a break ends that span and turns everything after it into prose the receiving model reads as the engine's own instruction`);
+      }
+      return entry;
+    }));
+  }
+  if (typeof value !== 'string' || value.trim() === '') {
+    throw new TypeError(`scopedCheckArgv: the scoped check command must be a non-empty string or an argv array of non-empty strings, received ${value === null ? 'null' : typeof value}`);
+  }
+  if (SCOPED_CHECK_BREAK.test(value)) {
+    throw new TypeError(`scopedCheckArgv: the scoped check command carries a line break or a NUL byte, received ${JSON.stringify(value)}; it is rendered into a single-line code span in a composed prompt, so a break ends that span and turns everything after it into prose the receiving model reads as the engine's own instruction`);
+  }
+  return Object.freeze([...SCOPED_CHECK_SHELL, value]);
+}
+
+const SHELL_QUOTE_NUL = String.fromCharCode(0);
+const SHELL_QUOTE_LINE_BREAK = /[\n\r]/;
+
+function shellQuote(value) {
+  if (typeof value !== 'string') {
+    throw new TypeError(`prompt-contract: a shell-quoted value must be a string, received ${typeof value}`);
+  }
+  if (SHELL_QUOTE_LINE_BREAK.test(value) || value.includes(SHELL_QUOTE_NUL)) {
+    throw new TypeError(`prompt-contract: a shell-quoted value must not contain a line break or a NUL byte, received ${JSON.stringify(value)}; single quotes make it one shell word but not one prompt line, and the code span it is rendered into ends at the break`);
+  }
+  return `'${value.split("'").join("'\\''")}'`;
+}
+
+function shellQuoteList(values) {
+  return values.map(shellQuote).join(' ');
+}
+
 const STATUS_SCHEMA = { type: 'object', properties: { status: { enum: ['DONE', 'DONE_WITH_CONCERNS', 'BLOCKED', 'NEEDS_CONTEXT'] }, summary: { type: 'string' } }, required: ['status'] };
 const REVIEW_SCHEMA = { type: 'object', properties: { verdict: { enum: ['pass', 'fail'] }, issues: { type: 'array', items: { type: 'string' } } }, required: ['verdict'] };
 const MERGE_SCHEMA = { type: 'object', properties: { merged: { type: 'array', items: { type: 'string' } }, conflict: { type: 'boolean' }, conflictDetail: { type: 'string' } }, required: ['merged', 'conflict'] };
@@ -1473,7 +1514,7 @@ async function runEngine(engineArgs, ctx) {
   const baseBranch = engineArgs.baseBranch;
   const worktreeRoot = engineArgs.worktreeRoot;
   const repoRoot = engineArgs.repoRoot;
-  const scopedCheckCmd = engineArgs.scopedCheckCmd;
+  const scopedCheckCmd = scopedCheckArgv(engineArgs.scopedCheckCmd);
   const fullValidationCmd = engineArgs.fullValidationCmd;
   const prompts = engineArgs.prompts;
   const fixLoopMax = Number.isInteger(engineArgs.fixLoopMax) && engineArgs.fixLoopMax >= 0 ? engineArgs.fixLoopMax : 2;
@@ -1501,7 +1542,7 @@ async function runEngine(engineArgs, ctx) {
         `1. Edit ONLY files within this task's declared scope: ${JSON.stringify(task.fileScope.edit)}. Creating or editing anything outside this scope is a hard failure.${readContextClause(task.fileScope)}\n` +
         `2. Do NOT run any git mutation (no add, no commit, no branch, no checkout, no stash). Leave all changes uncommitted.\n` +
         `3. Follow TDD as the instructions above require.\n` +
-        `4. For verification run ONLY the scoped check, never a full build/suite: \`${scopedCheckCmd}\`\n\n` +
+        `4. For verification run ONLY the scoped check, never a full build/suite: \`${shellQuoteList(scopedCheckCmd)}\`\n\n` +
         `Task: ${task.title}\n\n${task.fullText}\n\n` +
         `Report status as exactly one of DONE / DONE_WITH_CONCERNS / BLOCKED / NEEDS_CONTEXT.`;
     }
@@ -1511,7 +1552,7 @@ async function runEngine(engineArgs, ctx) {
       `   \`git -C ${repoRoot} worktree add -b ${branch} ${wt} ${baseBranch}\`\n` +
       `2. \`cd ${wt}\` and do ALL work there. Follow TDD as the instructions above require.\n` +
       `3. Bootstrap dependencies before any check (idempotent): \`ln -sfn ${repoRoot}/node_modules node_modules\`\n` +
-      `4. For verification run ONLY the scoped check, never a full build/suite: \`${scopedCheckCmd}\`\n` +
+      `4. For verification run ONLY the scoped check, never a full build/suite: \`${shellQuoteList(scopedCheckCmd)}\`\n` +
       `5. Commit your work to \`${branch}\` (one or more commits). Do NOT remove the worktree.\n\n` +
       `Task: ${task.title}\n\n${task.fullText}\n\n` +
       `Report status as exactly one of DONE / DONE_WITH_CONCERNS / BLOCKED / NEEDS_CONTEXT.`;
@@ -1549,12 +1590,12 @@ async function runEngine(engineArgs, ctx) {
       return `Apply fixes in the MAIN repository working tree at ${repoRoot} (no worktree, no branch, no git mutations; leave changes uncommitted).\n` +
         `Edit ONLY within this task's declared scope: ${JSON.stringify(task.fileScope.edit)}.${readContextClause(task.fileScope)}\n` +
         `1. Fix these issues:\n- ${(issues || []).join('\n- ')}\n` +
-        `2. Re-run the scoped check: \`${scopedCheckCmd}\`\n\nTask context:\n${task.fullText}`;
+        `2. Re-run the scoped check: \`${shellQuoteList(scopedCheckCmd)}\`\n\nTask context:\n${task.fullText}`;
     }
     return `Apply fixes in the EXISTING worktree for this task.\n` +
       `1. \`cd ${wt}\` (the worktree already exists on branch ${branch}).\n` +
       `2. Fix these issues:\n- ${(issues || []).join('\n- ')}\n` +
-      `3. Re-run the scoped check: \`${scopedCheckCmd}\`\n` +
+      `3. Re-run the scoped check: \`${shellQuoteList(scopedCheckCmd)}\`\n` +
       `4. Commit the fixes to \`${branch}\`.\n\nTask context:\n${task.fullText}`;
   }
 
