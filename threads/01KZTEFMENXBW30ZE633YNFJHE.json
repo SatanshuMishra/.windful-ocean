@@ -178,7 +178,7 @@
     {
       "id": "c26",
       "text": "The confirmed secret-scanner gap reaches main: sk-ant, sk-proj and github_pat all detected, tests red on the parent commit, and the branch pushed and opened as a pull request rather than left parked.",
-      "done": false,
+      "done": true,
       "kind": "detour",
       "struck_by": null
     },
@@ -196,9 +196,9 @@
   "abandoned_reason": null,
   "closure_statement": null,
   "spine": {
-    "active_goal": "Measure dispatch volume on the first real engine run, then rule the release gate and decide whether the OS-process base merges to main.",
-    "next_step": "START HERE. Explain the next steps BRIEFLY, then STOP and wait - do not start the run, do not push, do not open a pull request. Two branches are local only: feat/d3-instrument-wiring (c24+c25) and fix/secret-scanner-anthropic-keys (ac4ba5ff, c26, a security fix awaiting a PR decision the user never answered). The run is designed but unauthorised, its run document does not exist yet, and every request.prompt in it goes to the user before anything executes.",
-    "last_session": "Found the D3 instrument unwired end to end, so no run happened. Shipped c24 and c25, both red-on-parent with inertness mutations. Confirmed and fixed a live secret-scanner gap that also missed sk-proj and github_pat (c26, unpushed). Ruled 0473-0478. Nothing pushed, no PR, no engine run.",
+    "active_goal": "Run the bounded n=1 measurement against the wired instrument, then rule the c7 release gate on real usage.jsonl lines.",
+    "next_step": "START HERE. The StructuredOutput grant is now IN FORCE - the primary checkout was fast-forwarded to origin/main, so ~/.claude/agents carries it and a schema dispatch can finally succeed. Re-run stage one, decompose-emit, against scratchpad/n1-substrate; it failed before only because the grant was merged but not pulled. Then take every emitted request.prompt to the user for approval stop two BEFORE invoking cli.mjs. PR #150 is open on feat/mitosis-os-process with a G14 fix dispatched.",
+    "last_session": "Shipped and merged #145-#148. Opened #150, the dispatch-time schema-capability assert, retargeted off a merged-but-undeleted base. Found the real blocker: --json-schema is silently dropped unless the agent admits StructuredOutput. Ruled 0484-0488.",
     "open_risks": [
       {
         "text": "Prove a merge arrived by asserting its CONTENT is on the base, never by SHA ancestry — a squash or stack merge rewrites commits, so a pre-merge SHA correctly fails an ancestry check on a merge that lost nothing",
@@ -682,5 +682,5 @@
     ]
   },
   "created_at": "2026-08-12T07:37:41.077Z",
-  "updated_at": "2026-08-16T22:47:08.164Z"
+  "updated_at": "2026-08-16T23:22:27.581Z"
 }
