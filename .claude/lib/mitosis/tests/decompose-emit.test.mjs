@@ -362,3 +362,46 @@ test('the emitter never mutates the decomposition the child returned', async (t)
   assert.equal(result.ok, true, result.error);
   assert.equal(JSON.stringify(msps), before);
 });
+
+function captureStderr(t) {
+  const written = [];
+  const original = process.stderr.write;
+  process.stderr.write = (chunk, ...rest) => {
+    written.push(typeof chunk === 'string' ? chunk : String(chunk));
+    return original.call(process.stderr, chunk, ...rest);
+  };
+  t.after(() => { process.stderr.write = original; });
+  return written;
+}
+
+const COARSE_MSPS = Object.freeze([
+  {
+    id: 'alpha-core',
+    title: 'add the alpha core module',
+    rationale: 'The alpha core module is the seam every later unit imports, so it lands first.',
+    changeType: 'feat',
+    scope: 'alpha',
+    dependsOn: [],
+    fileScope: { edit: ['src'], read: [], truncated: null },
+  },
+]);
+
+test('the fresh-decompose path runs the coarse-scope lint and surfaces its flags on stderr without halting', async (t) => {
+  const place = scratch(t);
+  const written = captureStderr(t);
+  const result = await emit(place, {}, clone(COARSE_MSPS));
+  assert.equal(result.ok, true, `the coarse-scope lint is warn-only, so a coarse scope must still emit a run document: ${result.error}`);
+  assert.equal(result.exitCode, EXIT_CLEAN);
+  const stderr = written.join('');
+  assert.match(stderr, /alpha-core/, `the coarse-scope lint never named the unit it flagged; stderr carried ${JSON.stringify(stderr)}`);
+  assert.match(stderr, /bare-top-level-dir/, `the coarse-scope lint never reported the reason it flagged; stderr carried ${JSON.stringify(stderr)}`);
+  assert.match(stderr, /"src"/, `the coarse-scope lint never named the coarse scope it flagged; stderr carried ${JSON.stringify(stderr)}`);
+});
+
+test('the fresh-decompose path stays silent when every declared scope names specific files', async (t) => {
+  const place = scratch(t);
+  const written = captureStderr(t);
+  const result = await emit(place);
+  assert.equal(result.ok, true, result.error);
+  assert.equal(written.join(''), '', 'a decomposition whose scopes are specific files must produce no coarse-scope warning at all');
+});
