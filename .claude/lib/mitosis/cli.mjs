@@ -2,7 +2,7 @@ import { readFileSync, realpathSync } from 'node:fs';
 import { pathToFileURL } from 'node:url';
 import { Done, NeedsHuman } from './boundary.mjs';
 import { dispatch, normalizeEnvelope } from './dispatch.mjs';
-import { runEngine } from './engine.mjs';
+import { POST_DISPATCH_RECORD_FAILED, runEngine } from './engine.mjs';
 import { run } from './exec-run.mjs';
 import { GH_COMMAND_BINARY } from './gh-commands.mjs';
 import { appendJournalLine, writeGenesis } from './journal-store.mjs';
@@ -18,8 +18,20 @@ const EXIT_INCOMPLETE = 3;
 const WINDOW_TOKEN_PATTERN = /^[1-9][0-9]*$/;
 const NODE_FAILED = 'failed';
 const NODE_RUNNING = 'running';
-const DISPATCH_FAILURE_OUTCOMES = Object.freeze(['dispatch-threw', 'dispatch-contract-violation']);
-const UNBILLED_ENVELOPE = normalizeEnvelope({});
+const DISPATCH_FAILURE_PHRASES = Object.freeze({
+  'dispatch-threw': 'was never dispatched',
+  'dispatch-contract-violation': 'was never dispatched',
+  [POST_DISPATCH_RECORD_FAILED]: 'was dispatched and billed, but the record of what it produced was not written',
+});
+const UNBILLED_ENVELOPE = normalizeEnvelope({
+  usage: {},
+  total_cost_usd: null,
+  modelUsage: null,
+  session_id: null,
+  num_turns: null,
+  permission_denials: null,
+  api_error_status: null,
+});
 
 const REQUIRED_FLAGS = Object.freeze({
   '--spec': 'spec',
@@ -129,7 +141,18 @@ function usageRecorder(handle, observedAt) {
 
 function observeAll(observers) {
   return (record) => {
-    for (const observer of observers) observer(record);
+    const failures = [];
+    for (const observer of observers) {
+      try {
+        observer(record);
+      } catch (error) {
+        failures.push(error);
+      }
+    }
+    if (failures.length === 1) throw failures[0];
+    if (failures.length > 1) {
+      throw new AggregateError(failures, `${MODULE}: ${failures.length} run observers threw over one dispatch record; every observer was still offered the record, so none was starved by a failure in another`);
+    }
   };
 }
 
@@ -144,9 +167,10 @@ function releaseRun(handle, io) {
 
 function dispatchFailureLine(record) {
   if (record === null || typeof record !== 'object' || Array.isArray(record)) return null;
-  if (record.state !== NODE_FAILED || !DISPATCH_FAILURE_OUTCOMES.includes(record.outcome)) return null;
+  if (record.state !== NODE_FAILED || typeof record.outcome !== 'string') return null;
+  if (!Object.hasOwn(DISPATCH_FAILURE_PHRASES, record.outcome)) return null;
   if (typeof record.reason !== 'string' || record.reason.length === 0) return null;
-  return `${MODULE}: unit ${JSON.stringify(record.id)} was never dispatched (${record.outcome}): ${record.reason}`;
+  return `${MODULE}: unit ${JSON.stringify(record.id)} ${DISPATCH_FAILURE_PHRASES[record.outcome]} (${record.outcome}): ${record.reason}`;
 }
 
 function dispatchFailureReporter(io) {
@@ -172,8 +196,10 @@ function engineRequest(args, spec, onRecord) {
   };
 }
 
-function summaryOf(result) {
+function summaryOf(result, handle) {
   return {
+    runKey: handle.runKey,
+    attempt: handle.attempt,
     quiescent: result.quiescent,
     aborted: result.aborted,
     ticks: result.ticks,
@@ -194,9 +220,9 @@ export async function runCli(argv, io, makePorts, deps = {}) {
     const spec = io.readSpec(parsed.value.spec);
     handle = openRunFn(runStoreRequest(parsed.value, spec));
     const ports = makePorts({ repoRoot: parsed.value.repoRoot, requestsById: requestsById(spec) });
-    const onRecord = observeAll([dispatchFailureReporter(io), usageRecorder(handle, parsed.value.at)]);
+    const onRecord = observeAll([usageRecorder(handle, parsed.value.at), dispatchFailureReporter(io)]);
     const result = await runEngine(engineRequest(parsed.value, spec, onRecord), ports);
-    io.log(`${JSON.stringify(summaryOf(result), null, 2)}\n`);
+    io.log(`${JSON.stringify(summaryOf(result, handle), null, 2)}\n`);
     if (!result.quiescent) return EXIT_INCOMPLETE;
     return result.units.every((unit) => unit.state === 'done') ? EXIT_CLEAN : EXIT_INCOMPLETE;
   } catch (error) {

@@ -117,6 +117,18 @@ function linesFor(lines, unitId) {
   return lines.filter((line) => line.unitId === unitId);
 }
 
+function readUsageIfAny(path) {
+  if (!existsSync(path)) return [];
+  return readFileSync(path, 'utf8').split('\n').filter((line) => line !== '').map((line) => JSON.parse(line));
+}
+
+function soloSpecDocument() {
+  return {
+    manifest: { logicalRunId: 'r1', clusters: [], msps: [{ id: 'm1' }] },
+    specs: [{ id: 'alpha', fileScope: pack(['alpha.mjs']), request: { prompt: 'do alpha' } }],
+  };
+}
+
 test('a completed engine run leaves one usage line per dispatch at the run store attempt path', async (t) => {
   const root = tempRoot(t);
   const spec = specDocument();
@@ -192,4 +204,93 @@ test('a failed dispatch is counted with the envelope the child already billed', 
   assert.ok(alpha, 'the failed dispatch left no usage line');
   assert.deepEqual(alpha.envelope.usage, { ...ALPHA_USAGE });
   assert.equal(alpha.envelope.total_cost_usd, 0.4213);
+});
+
+test('a checkpoint write that fails after the child was billed still records what the child cost', async (t) => {
+  const root = tempRoot(t);
+  const spec = specDocument();
+  const io = stubIo(spec);
+  const dispatch = dispatchByPrompt(new Map([
+    ['do alpha', () => ({ ok: true, outcome: 'success', envelope: envelopeOf(ALPHA_USAGE, 0.4213) })],
+    ['do beta', () => ({ ok: true, outcome: 'success', structured: { sha: 'b'.repeat(40) }, envelope: envelopeOf(BETA_USAGE, 0.0091) })],
+  ]));
+
+  const code = await runCli(argvFor(root), io, (config) => realPorts(config, inertDeps(dispatch)));
+  assert.equal(code, 3, 'a unit whose checkpoint never landed was reported complete');
+
+  const lines = readUsage(usagePath(root, spec));
+  const [alpha] = linesFor(lines, 'alpha');
+  assert.ok(alpha, 'the dispatch whose checkpoint write threw left no usage line');
+  assert.deepEqual(
+    alpha.envelope.usage,
+    { ...ALPHA_USAGE },
+    'the tokens the child actually spent were recorded as unbilled because a port threw after the dispatch returned',
+  );
+  assert.equal(alpha.envelope.total_cost_usd, 0.4213, 'money that was spent reads as null in the durable record');
+
+  const stderr = io.errOut.join('');
+  assert.doesNotMatch(stderr, /was never dispatched/, 'a unit that was dispatched and billed was reported as never dispatched');
+  assert.match(stderr, /the checkpoint ref/, 'the port failure that stopped the checkpoint was swallowed');
+});
+
+test('a run observer that throws cannot starve the durable usage writer', async (t) => {
+  const root = tempRoot(t);
+  const spec = soloSpecDocument();
+  const io = { ...stubIo(spec), err: () => { throw new Error('EPIPE: the stderr stream is gone'); } };
+  const dispatch = dispatchByPrompt(new Map([
+    ['do alpha', () => { throw new Error('the adapter exploded'); }],
+  ]));
+
+  await assert.rejects(runCli(argvFor(root), io, (config) => realPorts(config, inertDeps(dispatch))));
+
+  const lines = readUsageIfAny(usagePath(root, spec));
+  assert.equal(
+    linesFor(lines, 'alpha').length,
+    1,
+    'a best-effort log observer that threw prevented the durable usage line from ever being written',
+  );
+});
+
+test('the run summary names the run key and attempt the evidence was written under', async (t) => {
+  const root = tempRoot(t);
+  const spec = specDocument();
+  const io = stubIo(spec);
+  const dispatch = dispatchByPrompt(new Map([
+    ['do alpha', () => ({ ok: true, outcome: 'success', structured: { sha: 'a'.repeat(40) }, envelope: envelopeOf(ALPHA_USAGE, 0.4213) })],
+    ['do beta', () => ({ ok: true, outcome: 'success', structured: { sha: 'b'.repeat(40) }, envelope: envelopeOf(BETA_USAGE, 0.0091) })],
+  ]));
+
+  const code = await runCli(argvFor(root), io, (config) => realPorts(config, inertDeps(dispatch)));
+  assert.equal(code, 0, io.errOut.join(''));
+
+  const summary = JSON.parse(io.out.join(''));
+  assert.equal(summary.runKey, computeRunKey(spec), 'the summary does not say which run key holds this run evidence');
+  assert.equal(summary.attempt, 1, 'the summary does not say which attempt holds this run evidence');
+});
+
+test('a billed and an unbilled usage line carry the same envelope key set', async (t) => {
+  const root = tempRoot(t);
+  const spec = specDocument();
+  const io = stubIo(spec);
+  const dispatch = dispatchByPrompt(new Map([
+    ['do alpha', () => { throw new Error('the adapter exploded before it billed anything'); }],
+    ['do beta', () => ({ ok: true, outcome: 'success', structured: { sha: 'b'.repeat(40) }, envelope: envelopeOf(BETA_USAGE, 0.0091) })],
+  ]));
+
+  const code = await runCli(argvFor(root), io, (config) => realPorts(config, inertDeps(dispatch)));
+  assert.equal(code, 3, io.errOut.join(''));
+
+  const lines = readUsage(usagePath(root, spec));
+  const [unbilled] = linesFor(lines, 'alpha');
+  const [billed] = linesFor(lines, 'beta');
+  assert.ok(unbilled, 'the dispatch that threw left no usage line');
+  assert.ok(billed, 'the dispatch that succeeded left no usage line');
+  assert.deepEqual(
+    Object.keys(unbilled.envelope).sort(),
+    Object.keys(billed.envelope).sort(),
+    'a consumer reading usage.jsonl as one closed shape meets two different envelope schemas',
+  );
+  assert.deepEqual(Object.keys(unbilled.envelope.usage).sort(), Object.keys(billed.envelope.usage).sort());
+  assert.equal(unbilled.envelope.total_cost_usd, null);
+  assert.equal(unbilled.envelope.session_id, null);
 });
