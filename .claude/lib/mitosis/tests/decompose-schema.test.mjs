@@ -122,6 +122,17 @@ test('a decomposition that is not an object at all is refused rather than coerce
   }
 });
 
+test('a unit verdict carrying a key beyond sha is refused rather than carried, the same guarantee the decomposition schema makes', () => {
+  const verdict = validateAgainstSchema(
+    UNIT_VERDICT_SCHEMA,
+    { sha: '0123456789abcdef0123456789abcdef01234567', note: 'a field nobody declared' },
+    'the verdict',
+  );
+  assert.equal(verdict.ok, false);
+  assert.equal(verdict.decomposition, null);
+  assert.deepEqual(verdict.failures, ['the verdict declares "note", which the schema does not allow']);
+});
+
 test('the change-type list the decompose prompt is given is the schema enum itself, not a second copy', () => {
   assert.equal(DECOMPOSE_CHANGE_TYPES, DECOMPOSE_SCHEMA.properties.msps.items.properties.changeType.enum);
   assert.deepEqual([...DECOMPOSE_CHANGE_TYPES], ['feat', 'fix', 'refactor', 'docs', 'test', 'chore', 'perf', 'ci']);
