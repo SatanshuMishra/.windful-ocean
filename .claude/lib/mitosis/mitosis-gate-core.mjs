@@ -617,7 +617,7 @@ function runPhaseParityGate(target, out, readSource) {
 }
 
 function runDeterminismGate(target, out, readSource) {
-  const roots = [{ kind: 'directory', path: target }, engineSourceRoots()[1]];
+  const roots = [{ kind: 'directory', path: target }];
   const result = censusEngineDeterminism(roots, { ...realSourceIo, readSource });
   if (!result.ok) {
     out.err(`mitosis-gate: determinism ${result.kind === 'read' ? 'could not read' : 'halted on'} its engine source: ${result.error}\n`);

@@ -43,7 +43,7 @@ function literalsOf(source) {
   return extracted.literals;
 }
 
-test('the derived dispatchable set over the real trees is exactly the seven agents the SPEC names', () => {
+test('the derived dispatchable set over the real trees is exactly the agents the engine source names', () => {
   const engine = collectEngineLiterals(REAL_ROOTS, realSourceIo);
   assert.equal(engine.ok, true, engine.error);
   const tree = readAgentDefinitions(agentDefinitionDir(), realSourceIo);
@@ -51,12 +51,10 @@ test('the derived dispatchable set over the real trees is exactly the seven agen
   assert.deepEqual(dispatchableAgents(tree.definitions, engine.literals), [
     'code-reviewer',
     'codebase-analyst',
-    'debugger',
     'implementer',
     'security-reviewer',
-    'solution-architect',
     'test-engineer',
-  ]);
+  ], 'the census root is the lib engine source alone; debugger and solution-architect were named only by the legacy workflow file, which is no longer a root');
 });
 
 test('an agent is dispatchable exactly when engine source names it, over every definition in the tree', () => {

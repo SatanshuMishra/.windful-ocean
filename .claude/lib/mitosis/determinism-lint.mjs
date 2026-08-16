@@ -59,7 +59,6 @@ export const realSourceIo = Object.freeze({
 export function engineSourceRoots() {
   return Object.freeze([
     Object.freeze({ kind: 'directory', path: fileURLToPath(new URL('./', import.meta.url)) }),
-    Object.freeze({ kind: 'file', path: fileURLToPath(new URL('../../workflows/mitosis.js', import.meta.url)) }),
   ]);
 }
 
