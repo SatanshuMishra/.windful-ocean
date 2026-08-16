@@ -89,6 +89,9 @@ D2b depends on D2a. Neither may merge to main; both target `feat/mitosis-os-proc
 6. `.claude/skills/mitosis/SKILL.md` carries no instruction that resolves to a deleted file.
 7. The suite is green, and the count of removed tests is REPORTED as measured, not asserted against the SPEC's 35.
 8. `.claude/workflows/mitosis-execute.js`, `run-engine.mjs`, `engine-args.mjs` and `ci-escalation.mjs` are NOT touched. They are section 5 item F1.
+9. `mitosis-gate-core.mjs:1` imports `compileWorkflow` from `workflow-sandbox.mjs`, which criterion 3.2.1 deletes. `compileUnderSandbox` has zero production callers after D2a and only two test callers. Both the import and `compileUnderSandbox` are removed in the same commit that deletes `workflow-sandbox.mjs`, and the two test callers are resolved rather than suppressed.
+
+Criterion 9 is an amendment pinned before D2b started, on a gap D2a surfaced after this document was written. Deleting the module without it leaves the gate importing a file that no longer exists, so every gate verb would fail at module load.
 
 ## 4. Verification ceiling
 
