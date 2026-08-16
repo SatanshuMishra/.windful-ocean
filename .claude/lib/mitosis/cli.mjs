@@ -16,6 +16,8 @@ const EXIT_ERROR = 1;
 const EXIT_USAGE = 2;
 const EXIT_INCOMPLETE = 3;
 const WINDOW_TOKEN_PATTERN = /^[1-9][0-9]*$/;
+const NODE_FAILED = 'failed';
+const DISPATCH_FAILURE_OUTCOMES = Object.freeze(['dispatch-threw', 'dispatch-contract-violation']);
 
 const REQUIRED_FLAGS = Object.freeze({
   '--spec': 'spec',
@@ -85,7 +87,21 @@ function requestsById(spec) {
     .map((unit) => [unit.id, unit.request]));
 }
 
-function engineRequest(args, spec) {
+function dispatchFailureLine(record) {
+  if (record === null || typeof record !== 'object' || Array.isArray(record)) return null;
+  if (record.state !== NODE_FAILED || !DISPATCH_FAILURE_OUTCOMES.includes(record.outcome)) return null;
+  if (typeof record.reason !== 'string' || record.reason.length === 0) return null;
+  return `${MODULE}: unit ${JSON.stringify(record.id)} was never dispatched (${record.outcome}): ${record.reason}`;
+}
+
+function dispatchFailureReporter(io) {
+  return (record) => {
+    const line = dispatchFailureLine(record);
+    if (line !== null) io.err(`${line}\n`);
+  };
+}
+
+function engineRequest(args, spec, onRecord) {
   const document = documentOf(spec);
   return {
     specs: document.specs,
@@ -97,6 +113,7 @@ function engineRequest(args, spec) {
     repoSlug: args.repoSlug,
     integrationBranch: args.integrationBranch,
     window: args.window,
+    onRecord,
   };
 }
 
@@ -119,7 +136,7 @@ export async function runCli(argv, io, makePorts) {
   try {
     const spec = io.readSpec(parsed.value.spec);
     const ports = makePorts({ repoRoot: parsed.value.repoRoot, requestsById: requestsById(spec) });
-    const result = await runEngine(engineRequest(parsed.value, spec), ports);
+    const result = await runEngine(engineRequest(parsed.value, spec, dispatchFailureReporter(io)), ports);
     io.log(`${JSON.stringify(summaryOf(result), null, 2)}\n`);
     if (!result.quiescent) return EXIT_INCOMPLETE;
     return result.units.every((unit) => unit.state === 'done') ? EXIT_CLEAN : EXIT_INCOMPLETE;
