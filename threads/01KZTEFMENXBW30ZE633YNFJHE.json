@@ -642,6 +642,11 @@
         "ref": "0464-d3-measures-the-falsifier-from-shipped-journals-and-downgrades-the-rest",
         "title": "D3 measures the binding falsifier from shipped journals and downgrades the cost claims honestly",
         "scope": "c6"
+      },
+      {
+        "ref": "0465-d3-ships-plumbing-and-a-labelled-proxy-because-no-run-has-ever-existed",
+        "title": "D3 ships the plumbing and a labelled proxy, because no engine run has ever existed to measure",
+        "scope": "c6"
       }
     ],
     "out_of_scope": [
@@ -653,5 +658,5 @@
     ]
   },
   "created_at": "2026-08-12T07:37:41.077Z",
-  "updated_at": "2026-08-16T06:49:20.911Z"
+  "updated_at": "2026-08-16T06:57:46.916Z"
 }
