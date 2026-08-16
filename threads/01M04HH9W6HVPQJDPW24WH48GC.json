@@ -49,9 +49,9 @@
   "abandoned_reason": null,
   "closure_statement": null,
   "spine": {
-    "active_goal": "Rebuild the agent configuration from the ground up, both the roster and the system that observes it, starting from the completed current-state audit.",
-    "next_step": "WAIT for the user's specific instructions. Do NOT begin design and do NOT edit any agent, rule, hook or skill file. The audit is delivered: open ~/.agent/diagrams/agent-architecture-audit.html for the 25 gaps, the four structural facts and the coupling map. If asked to start designing, note first that gaps.json does not name the real gap categories; the free-text fallback reasons do.",
-    "last_session": "Audited the agent architecture end to end: 55 agents, 46 days of telemetry, all 15 definitions, all 8 ledger scripts. Found 25 gaps in three layers, reduced to four structural facts. Shipped an inline report and a verified HTML explainer. No recommendations, by instruction.",
+    "active_goal": "Rebuild the agent configuration from the ground up - the 13-agent roster and the observer that watches it - with the target architecture approved before any file is touched.",
+    "next_step": "WAIT for the user's specific instructions on the report and next steps. Do NOT edit any agent, rule, hook or skill file. Round-2 report is delivered at ~/.agent/diagrams/agent-roster-rebuild-recommendations.html: 13 agents in four bands, closed-question termination, and an append-only observer. Six scope questions are settled in 0471. Three items stay open in report section 14: which duplicate skill wins, what fills the three skill gaps, and the unmeasured per-dispatch context cost.",
+    "last_session": "Designed the 13-agent roster and the observer, delivered in one updated HTML explainer. Rewrote loop termination after the user's critique that it guarded the effect. Probed the binary to settle the frontmatter schema, and ran a live test proving agents do receive rules - on an advisory channel.",
     "open_risks": [
       {
         "text": "Never read `emitter` in the events log as a measurement — it is a hardcoded constant on every row, and treating it as signal already produced one wrong conclusion",
@@ -61,11 +61,17 @@
         ]
       },
       {
-        "text": "Do not design from gaps.json — its 18-word classifier names none of the five real unowned categories, which had to be recovered by hand from the free-text fallback reasons",
+        "text": "Declare StructuredOutput in tools: on all 13 agents — the new engine fails a census gate if any dispatchable agent omits it, and all 15 current agents omit it today",
         "scope": "c3",
         "refs": [
-          "~/.claude/agent-ledger/index/gaps.json",
-          "~/.claude/agent-ledger/events/"
+          ".claude/lib/mitosis/agent-schema-lint.mjs"
+        ]
+      },
+      {
+        "text": "Settle the claude-security overlap before wiring security-reviewer — that plugin skill is a complete competing pipeline with five sub-agents, so running both yields two unreconciled verdicts on one diff",
+        "scope": "c3",
+        "refs": [
+          "~/.claude/plugins/marketplaces/claude-plugins-official/plugins/claude-security/skills/claude-security/SKILL.md:13"
         ]
       },
       {
@@ -76,11 +82,25 @@
         ]
       },
       {
-        "text": "Plan the coupling surface before touching any agent definition — the engine hardcodes three permitted agent names and four snapshot files pin agent prompt text exactly",
+        "text": "Archive the events log before any teardown step — 8.7 MB across 46 days is the only artifact here that cannot be regenerated, and it is the baseline a new roster gets measured against",
         "scope": "c4",
         "refs": [
-          "~/.claude/lib/mitosis/run-engine.mjs:6",
-          "~/.claude/lib/mitosis/prompt-snapshots/"
+          "~/.claude/agent-ledger/events/"
+        ]
+      },
+      {
+        "text": "Repoint the five skills that name deleted agents — verification-discipline and report break outright, since every branch of their logic invokes verification-strategist and report-writer by name",
+        "scope": "c4",
+        "refs": [
+          ".claude/skills/verification-discipline/SKILL.md:13",
+          ".claude/skills/report/SKILL.md:16"
+        ]
+      },
+      {
+        "text": "Land the new mitosis engine before starting the rebuild — this work targets that engine, whose dispatch table comes from engine source literals rather than a static allowlist",
+        "scope": "c4",
+        "refs": [
+          "01KZTEFMENXBW30ZE633YNFJHE"
         ]
       }
     ],
@@ -121,5 +141,5 @@
     ]
   },
   "created_at": "2026-08-16T05:43:25.829Z",
-  "updated_at": "2026-08-16T17:38:28.984Z"
+  "updated_at": "2026-08-16T17:39:29.309Z"
 }
