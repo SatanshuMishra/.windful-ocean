@@ -139,6 +139,11 @@
         "ref": "0479-reproduce-before-diagnose-and-test-for-cause",
         "title": "Always reproduce a bug before diagnosing it, and test the fix for cause rather than effect",
         "scope": "c3"
+      },
+      {
+        "ref": "0480-skills-cannot-be-relied-on-to-reach-agents",
+        "title": "Skills reach agents only by preload, and the dispatch tool goes to Leads only",
+        "scope": "c3"
       }
     ],
     "out_of_scope": [
@@ -146,5 +151,5 @@
     ]
   },
   "created_at": "2026-08-16T05:43:25.829Z",
-  "updated_at": "2026-08-16T20:58:30.354Z"
+  "updated_at": "2026-08-16T20:58:46.384Z"
 }
