@@ -104,6 +104,11 @@
         "ref": "0469-observer-records-only-nothing-at-write-time",
         "title": "Rebuild the observer to append one line per run and do everything else at audit time",
         "scope": "c3"
+      },
+      {
+        "ref": "0470-binding-rules-live-in-agent-bodies-generated",
+        "title": "Put load-bearing rules in agent bodies, generated from shared fragments with a drift check",
+        "scope": "c3"
       }
     ],
     "out_of_scope": [
@@ -111,5 +116,5 @@
     ]
   },
   "created_at": "2026-08-16T05:43:25.829Z",
-  "updated_at": "2026-08-16T17:37:46.787Z"
+  "updated_at": "2026-08-16T17:38:03.850Z"
 }
