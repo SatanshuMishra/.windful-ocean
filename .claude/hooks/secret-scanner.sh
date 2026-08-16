@@ -9,14 +9,20 @@ ti = data.get("tool_input", {})
 content = ti.get("new_string", "") or ti.get("content", "") or ti.get("file_text", "") or ""
 
 patterns = {
+    "anthropic_key": r"sk-ant-[a-zA-Z0-9_-]{24,}",
+    "openai_project_key": r"sk-proj-[a-zA-Z0-9_-]{24,}",
     "openai_key": r"sk-[a-zA-Z0-9]{32,}",
     "github_pat": r"ghp_[a-zA-Z0-9]{36}",
     "github_oauth": r"gho_[a-zA-Z0-9]{36}",
     "github_server": r"ghs_[a-zA-Z0-9]{36}",
+    "github_fine_grained": r"github_pat_[a-zA-Z0-9_]{40,}",
     "slack_bot": r"xoxb-[a-zA-Z0-9-]{40,}",
+    "slack_user": r"xoxp-[a-zA-Z0-9-]{40,}",
     "aws_key": r"AKIA[0-9A-Z]{16}",
     "google_api": r"AIza[0-9A-Za-z_-]{35}",
     "jwt_like": r"eyJhbGciOi[A-Za-z0-9._-]{40,}",
+    "npm_token": r"npm_[a-zA-Z0-9]{36}",
+    "stripe_secret": r"sk_live_[0-9a-zA-Z]{24,}",
     "private_key": r"-----BEGIN (RSA |EC |OPENSSH )?PRIVATE KEY-----",
 }
 
