@@ -162,6 +162,13 @@
       "struck_by": null
     },
     {
+      "id": "c24",
+      "text": "The D3 instrument wires end to end: tickDispatcher keeps the envelope, the engine path calls recordUsage, and a run writes a durable per-attempt dispatch record, red on the parent commit.",
+      "done": false,
+      "kind": "detour",
+      "struck_by": null
+    },
+    {
       "id": "c7",
       "text": "The release gate resolves explicitly: base merges to main only if D3 clears the 10-dispatch-per-shipped-MSP falsifier; a failure is recorded as falsified, never quietly merged.",
       "done": false,
@@ -583,5 +590,5 @@
     ]
   },
   "created_at": "2026-08-12T07:37:41.077Z",
-  "updated_at": "2026-08-16T18:14:05.136Z"
+  "updated_at": "2026-08-16T18:14:19.098Z"
 }
