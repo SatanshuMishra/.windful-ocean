@@ -175,46 +175,60 @@
   "abandoned_reason": null,
   "closure_statement": null,
   "spine": {
-    "active_goal": "Merge the six-PR OS-process stack onto feat/mitosis-os-process, then rule on a release gate whose falsifier cannot be evaluated.",
-    "next_step": "MERGE THE STACK, then rule on the release gate. Six green stacked PRs await a human merge, bottom-up: #138, #139, #140, #141, #142, #143. DELETE each parent branch and confirm the ref is gone before merging its child, per 0445. Remove the six worktrees under .claude/worktrees/ first or gh refuses the deletion. Runbook is in the session scratchpad. Then rule c7: the 10-dispatch falsifier is UNEVALUABLE, neither cleared nor falsified, because no engine run has ever existed.",
-    "last_session": "Shipped all six remaining MSPs overnight as one linear stack, every one green on CI including the receipts enforcer. The legacy engine is deleted and origin/main is folded in. Ruled 0460 through 0466.",
+    "active_goal": "Rule the release gate on an unevaluable falsifier, then decide whether the OS-process base merges to main.",
+    "next_step": "Read .claude/docs/2026-08-16-d3-dispatch-measurement.md on the merged base, then rule c7. The 10-dispatch falsifier is UNEVALUABLE - no engine run has ever existed, so the ratio has no denominator - and the gate's text covers cleared and falsified but not this. Either rule that unevaluable permits the merge to main, or commission one real engine run against the now-wired envelope, which is also what would make c6 genuinely closable.",
+    "last_session": "Shipped the final six MSPs as one linear stack; the human merged all six and arrival was verified by content, not SHA, because the stack merge rewrote commits. Legacy engine deleted, main folded in, branches cleaned. Ruled 0460-0466 and 0472.",
     "open_risks": [
       {
-        "text": "Build A4's red case through the claude -p CLI path and assert the SILENT failure — the Workflow agent path auto-grants StructuredOutput, so a red case dispatched through it passes unconditionally and is a guarantee that cannot fail",
-        "scope": "c4",
+        "text": "Prove a merge arrived by asserting its CONTENT is on the base, never by SHA ancestry — a squash or stack merge rewrites commits, so a pre-merge SHA correctly fails an ancestry check on a merge that lost nothing",
+        "scope": "thread",
         "refs": [
-          "0379"
+          "0472",
+          "0445"
         ]
       },
       {
-        "text": "Dispatch every child with run_in_background false — a background child returns only an id, so a dispatching agent ends its turn narrating that it is holding while nothing ran, and what it returns when it DOES finish is trusted, never re-run",
+        "text": "Read the receipts BLOCK verdict line itself, never a warning printed next to it — emit() concatenates warnings onto the verdict, so an unknown-key warning sits beside exit code 1 and looks like the cause",
         "scope": "thread",
         "refs": [
-          "0446",
-          "memory: dispatching-agents-return-believing-they-wait"
+          "memory: receipts-warnings-render-inside-the-block-line"
+        ]
+      },
+      {
+        "text": "Treat an unknown receipts config key as enforcer-pin drift before treating it as a typo — the pinned action SHA can predate a valid newer key, and deleting it discards a correct forward-compatible setting",
+        "scope": "thread",
+        "refs": [
+          "gates.G17.downgrade_threshold",
+          ".github/workflows/receipts.yml"
+        ]
+      },
+      {
+        "text": "Derive a deletion exposure set by comparing TREES, never by a two-dot range diff — a file deleted before the base is invisible to the range while the other branch still carries it, so it returns through automerge",
+        "scope": "thread",
+        "refs": [
+          "0444",
+          "dead-export-lint.test.mjs"
+        ]
+      },
+      {
+        "text": "Expect a grep-derived census to miss a COMPOSED path — a target built with join and template interpolation is invisible to a static text sweep, and breaks at test scope rather than module load",
+        "scope": "thread",
+        "refs": [
+          "phase-model.test.mjs"
+        ]
+      },
+      {
+        "text": "Dispatch every child with run_in_background false — a background child returns only an id, so a dispatching agent ends its turn narrating that it is holding while nothing ran; what it returns when it DOES finish is trusted, never re-run",
+        "scope": "thread",
+        "refs": [
+          "0446"
         ]
       },
       {
         "text": "Work in a worktree rather than switching the primary checkout — ~/.claude/rules, CLAUDE.md and skills are symlinks into its working tree, so a checkout there silently changes the live global config",
         "scope": "thread",
         "refs": [
-          "~/.claude/rules",
-          ".claude/rules/common/receipts.md"
-        ]
-      },
-      {
-        "text": "Read the INLINED_TWINS list before citing mitosis.js as the executing path — it inlines 25 whole and 3 partial twins, but exec-policy, dispatch, run-store, journal-store, mitosis-gate and determinism-lint are NOT among them",
-        "scope": "thread",
-        "refs": [
-          "tests/mirror-guard.test.mjs:25-54"
-        ]
-      },
-      {
-        "text": "Add no mirror row for a genuinely new lib module — INLINED_TWINS is a whitelist, not a census, so a row for a module never pasted into mitosis.js FAILS the test, while real new duplication drifts silently",
-        "scope": "thread",
-        "refs": [
-          "0439",
-          "tests/mirror-guard.test.mjs"
+          "~/.claude/rules"
         ]
       },
       {
@@ -225,165 +239,56 @@
         ]
       },
       {
-        "text": "Treat workflow-sandbox-census.test.mjs's hand-rolled maskLiterals as a live divergence hazard — it duplicates the masker in js-scan.mjs and consolidating it is a behaviour change, not a removal",
-        "scope": "thread",
-        "refs": [
-          "0439"
-        ]
-      },
-      {
         "text": "Expect no ESLint and no tsconfig anywhere in this repo — the function, file and nesting caps are advisory with no enforcing check, and the lint hook skips every path under .claude",
         "scope": "thread",
         "refs": [
-          ".claude/hooks/lint-on-edit.sh:30-32",
           ".claude/rules/common/coding-style.md"
         ]
       },
       {
-        "text": "Assume a new top-level .mjs under lib/mitosis needs no registration — every census there is directory-derived, but a new subdirectory or a non-.mjs file halts the determinism verb at exit 42",
+        "text": "Assume a new top-level .mjs under lib/mitosis needs no registration, but a new SUBDIRECTORY or non-.mjs file halts the determinism verb — and any clock or randomness read reddens it, so take timestamps as validated arguments",
         "scope": "thread",
         "refs": [
-          "determinism-lint.mjs:96-111"
+          "determinism-lint.mjs"
         ]
       },
       {
         "text": "Copy no fanout source into this repo — it is PolyForm Noncommercial, so the architecture may be adopted and cited as prior art but a verbatim lift is a licensing decision, not a coding one",
         "scope": "thread",
         "refs": [
-          "0373",
-          "SPEC 3.6"
+          "0373"
         ]
       },
       {
-        "text": "Pair every D3 cost hypothesis with a fixed quality assertion — the instrument counts tokens and cannot see whether a re-architected decomposition cuts worse, so a token win carrying a quality regression reads as a success",
+        "text": "Rehome ci-escalation's exports before deleting it — ci-facts.mjs consumes them and ci-escalation consumes run-engine's, so the three legacy modules need a prior extraction MSP, not a direct deletion",
         "scope": "thread",
         "refs": [
-          "SPEC residual 5",
-          "0358"
-        ]
-      },
-      {
-        "text": "Carry or consciously drop the two post-decompose checks before D2 — mitosis.js halts a run when an MSP cannot compose a valid pull request title, and lints suspiciously broad file scopes, and nothing on the base does either",
-        "scope": "c3",
-        "refs": [
-          "mitosis.js:4456",
-          "decompose-emit.mjs"
-        ]
-      },
-      {
-        "text": "Put semgrep in every acceptance ceiling from here — sast blocked D1b2 on a rule none of the four gate verbs cover, and it is installed locally so it never needed to wait for CI",
-        "scope": "c3",
-        "refs": [
-          "0458",
-          "semgrep scan --config p/default"
-        ]
-      },
-      {
-        "text": "Read the authoritative SPEC in the repo, not the handoff artifacts — both handoff SPEC files govern the earlier core-rebuild and carry no D-cluster at all",
-        "scope": "c3",
-        "refs": [
-          ".claude/docs/specs/2026-08-12-mitosis-os-process-rearchitecture-design.md"
-        ]
-      },
-      {
-        "text": "Write dead-export-lint or amend D2's acceptance line — the lint exists nowhere in this tree, so D2 cannot simply run it as its acceptance text assumes",
-        "scope": "c3",
-        "refs": [
-          "2026-08-12-mitosis-os-process-rearchitecture-design.md:555"
-        ]
-      },
-      {
-        "text": "Give the resolved base branch a way into a run — baseBranch has no CLI flag and the one gh step the engine reaches passes only repoSlug and integrationBranch, so the merge-target commands are unreachable",
-        "scope": "c3",
-        "refs": [
-          "engine.mjs:204",
-          "gh-commands.mjs:70,75,84"
-        ]
-      },
-      {
-        "text": "Validate run-id, repo-slug and integration-branch at parse time — today they fail at a checkpoint or at quiescence, so a typo discards the whole run's summary",
-        "scope": "c3",
-        "refs": [
-          "cli.mjs parseCliArgv",
-          "engine.mjs:204"
-        ]
-      },
-      {
-        "text": "Expect the manifest and the unit prompts to disagree on long text — buildInitialManifest truncates title and rationale while the request prompt carries them whole, and one file now holds both",
-        "scope": "c3",
-        "refs": [
-          "recovery.mjs:119-124"
-        ]
-      },
-      {
-        "text": "Treat every run this emitter produces as local-only — it writes a file and never publishes a manifest ref, so the run-identity mechanism the skill documents stays unreachable",
-        "scope": "c3",
-        "refs": [
-          "manifest-publish.mjs",
-          "SKILL.md run identity section"
-        ]
-      },
-      {
-        "text": "Treat declare-or-pass-or-ASK as unenforced on the OS-process path — branch-contract.mjs sits outside cli.mjs's import closure, so the contract is skill-side prose only",
-        "scope": "c3",
-        "refs": [
-          "branch-contract.mjs"
-        ]
-      },
-      {
-        "text": "Settle run-engine.mjs and engine-args.mjs at the D2 boundary — they hold the only consumers of verify, models, worktreeRoot and fixLoopMax and are dead relative to the OS-process path",
-        "scope": "c3",
-        "refs": [
+          "ceiling doc item F1",
           "run-engine.mjs",
-          "engine-args.mjs",
-          "ci-escalation.mjs"
+          "engine-args.mjs"
         ]
       },
       {
-        "text": "Expect seven of nine C7 obligations to stay gated until D2 deletes mitosis.js — mirror-guard binds run-engine.mjs as a whole inline twin of a sandbox with no require, process or clock",
-        "scope": "c3",
+        "text": "Pair every cost claim with a fixed quality assertion — the instrument counts tokens and cannot see whether a re-architected decomposition cuts worse, so a token win carrying a quality regression reads as a success",
+        "scope": "c6",
         "refs": [
-          "mirror-guard.test.mjs",
-          "0452"
+          "0358",
+          "SPEC residual 5"
         ]
       },
       {
-        "text": "Route both scopedCheckCmd seams through one normalizer — generate-run-script.mjs:154 is a second un-normalized seam that 0453 did not name",
-        "scope": "c3",
+        "text": "One real engine run is what makes the falsifier evaluable — the envelope now survives the pool seam and run-store can write per-attempt usage, but nothing has ever produced a journal to measure",
+        "scope": "c6",
         "refs": [
-          "generate-run-script.mjs:154",
-          "0453"
+          "0466",
+          "run-store.mjs recordUsage"
         ]
       },
       {
-        "text": "Budget J1 for five more deletions than it states — mitosis.js calls appendRunJournal once and the other five journal-append prompts are hand-duplicated blocks that never call the helper",
-        "scope": "c3",
+        "text": "Filter the agent ledger to this project before rendering anything from it — thousands of rows carry a confidential cross-project codename, and an unfiltered count or cwd histogram leaks it into a tracked artifact",
+        "scope": "c6",
         "refs": [
-          "mitosis.js:5689"
-        ]
-      },
-      {
-        "text": "Compare branch state against origin/main and never the local main ref — a stale local main made an already-merged branch look like six unmerged commits carrying the live global rules",
-        "scope": "c3",
-        "refs": [
-          "origin/main"
-        ]
-      },
-      {
-        "text": "Decide at the D2 boundary whether to fold origin/main into the stack base — the base is 265 ahead and 56 behind, and the gap only widens through D2 to D3 before the release gate",
-        "scope": "c3",
-        "refs": [
-          "origin/feat/mitosis-os-process",
-          "origin/main"
-        ]
-      },
-      {
-        "text": "Clear the accumulated merged remote branches with a human or a permission rule — the bash classifier blocks push --delete, so they persist until a later stack reuses those names",
-        "scope": "c3",
-        "refs": [
-          "feat/d1b1-run-document",
-          "feat/d1b2-decompose-emit",
-          "feat/c7-loop"
+          "~/.claude/agent-ledger/events/"
         ]
       }
     ],
@@ -668,5 +573,5 @@
     ]
   },
   "created_at": "2026-08-12T07:37:41.077Z",
-  "updated_at": "2026-08-16T17:38:28.883Z"
+  "updated_at": "2026-08-16T17:39:13.951Z"
 }
