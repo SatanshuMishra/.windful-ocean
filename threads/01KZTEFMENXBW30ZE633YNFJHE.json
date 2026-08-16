@@ -196,9 +196,9 @@
   "abandoned_reason": null,
   "closure_statement": null,
   "spine": {
-    "active_goal": "Run the bounded n=1 measurement against the wired instrument, then rule the c7 release gate on real usage.jsonl lines.",
-    "next_step": "START HERE. The StructuredOutput grant is now IN FORCE - the primary checkout was fast-forwarded to origin/main, so ~/.claude/agents carries it and a schema dispatch can finally succeed. Re-run stage one, decompose-emit, against scratchpad/n1-substrate; it failed before only because the grant was merged but not pulled. Then take every emitted request.prompt to the user for approval stop two BEFORE invoking cli.mjs. PR #150 is open on feat/mitosis-os-process with a G14 fix dispatched.",
-    "last_session": "Shipped and merged #145-#148. Opened #150, the dispatch-time schema-capability assert, retargeted off a merged-but-undeleted base. Found the real blocker: --json-schema is silently dropped unless the agent admits StructuredOutput. Ruled 0484-0488.",
+    "active_goal": "Land #150 and #151, then merge the OS-process base to main now that the release gate has cleared.",
+    "next_step": "Merge in order: #150 (dispatch-time schema assert) then #151 (D3 measurement) into feat/mitosis-os-process, then open and merge feat/mitosis-os-process to main - c7 CLEARED at n=1 permits it under 0489. Mark c6 and c7 done once #151 lands. Then clear the merged worktrees and branches. Filed and unfixed: usage.jsonl omits the decompose child and understates run cost by 22.8 percent; run artifacts are ephemeral and outside version control; engine build identity is not recorded in them.",
+    "last_session": "The engine ran for the first time ever. Both units done, quiescent, 2 billed usage lines, ratio 1.0 against a ceiling of 10 - c7 CLEARED at n=1 with the vacuity caveat (0489). Shipped #150 and #151. Root-caused the StructuredOutput symlink trap (0488).",
     "open_risks": [
       {
         "text": "Prove a merge arrived by asserting its CONTENT is on the base, never by SHA ancestry — a squash or stack merge rewrites commits, so a pre-merge SHA correctly fails an ancestry check on a merge that lost nothing",
@@ -687,5 +687,5 @@
     ]
   },
   "created_at": "2026-08-12T07:37:41.077Z",
-  "updated_at": "2026-08-16T23:34:49.320Z"
+  "updated_at": "2026-08-16T23:55:06.188Z"
 }
