@@ -808,3 +808,24 @@ test('prompt composition reports a truncated pack rather than hiding the drop', 
   assert.match(impl.prompt, /4/, 'the dropped count must reach the agent');
   assert.match(impl.prompt, /read set exceeded the cap/, 'the truncation reason must reach the agent');
 });
+
+test('a fail verdict carrying no issues halts instead of dispatching a fix agent told to fix nothing', async () => {
+  const calls = [];
+  const agent = async (prompt, opts) => {
+    calls.push({ prompt, opts });
+    const label = opts && opts.label ? opts.label : '';
+    if (label.startsWith('impl:') || label.startsWith('escalate:')) return { status: 'DONE' };
+    if (label.startsWith('review:') || label.startsWith('sec:')) return { verdict: 'fail' };
+    if (label.startsWith('integrate:')) return { merged: ['b'], conflict: false };
+    if (label === 'boundary' || label === 'boundary-recheck') return { pass: true, output: 'ok' };
+    return {};
+  };
+  const result = await runEngine(baseArgs(), ctxWith(agent));
+  assert.equal(result.halted, true);
+  const fixLabels = calls
+    .map((c) => (c.opts && typeof c.opts.label === 'string' ? c.opts.label : ''))
+    .filter((label) => label.startsWith('fix-'));
+  assert.deepEqual(fixLabels, [], 'a fix agent was dispatched for a fail verdict that named no issue to fix');
+  const emptyIssueList = calls.filter((c) => typeof c.prompt === 'string' && /Fix these issues:\n- *\n/.test(c.prompt));
+  assert.deepEqual(emptyIssueList, [], 'a fix prompt was composed whose issue list is empty');
+});

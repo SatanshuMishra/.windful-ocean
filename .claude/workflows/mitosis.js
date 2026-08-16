@@ -1566,13 +1566,15 @@ async function runEngine(engineArgs, ctx) {
       const r = await guard.dispatch(makePrompt(task, branch), opts, { kind: 'review', task });
       if (guard.getHalt()) return { ok: false, reason: 'model-policy' };
       if (r && r.verdict === 'pass') return { ok: true };
+      const named = r && Array.isArray(r.issues) ? r.issues.filter((issue) => typeof issue === 'string' && issue.trim() !== '') : [];
+      if (named.length === 0) return { ok: false, reason: `${label}-no-issues`, issues: [] };
       loops++;
-      if (loops > fixLoopMax) return { ok: false, reason: `${label}-exhausted`, issues: r && r.issues };
+      if (loops > fixLoopMax) return { ok: false, reason: `${label}-exhausted`, issues: named };
       const budget = retry && retry.state;
       const budgeted = budget && Number.isInteger(budget.max) && budget.max > 0 && Number.isInteger(budget.used);
-      if (budgeted && loops > 1 && budget.used >= budget.max) return { ok: false, reason: `${label}-budget-exhausted`, issues: r && r.issues };
+      if (budgeted && loops > 1 && budget.used >= budget.max) return { ok: false, reason: `${label}-budget-exhausted`, issues: named };
       if (budgeted) budget.used += 1;
-      await guard.dispatch(fixPrompt(task, branch, wt, r && r.issues), { label: `fix-${label}:${task.id}`, phase: 'Execute' }, { kind: 'fix', task });
+      await guard.dispatch(fixPrompt(task, branch, wt, named), { label: `fix-${label}:${task.id}`, phase: 'Execute' }, { kind: 'fix', task });
       if (guard.getHalt()) return { ok: false, reason: 'model-policy' };
     }
   }
