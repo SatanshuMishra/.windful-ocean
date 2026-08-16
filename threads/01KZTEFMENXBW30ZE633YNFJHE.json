@@ -168,9 +168,9 @@
   "abandoned_reason": null,
   "closure_statement": null,
   "spine": {
-    "active_goal": "Land the remaining MSPs on feat/mitosis-os-process - D1, D2 and D3 - under receipts/gates@1.1, with nothing merged to main until D3 clears its falsifier.",
-    "next_step": "START HERE: D1, the entry point. SKILL.md invokes node .claude/lib/mitosis/cli.mjs instead of Workflow, and block-inline-engine.mjs must additionally refuse a Workflow call naming mitosis.js while still permitting the CLI. All three files are confirmed present on the base. C7 is MERGED and verified there by ancestry. Two hygiene items need a human go-ahead first: move the primary checkout to main, and remove the merged feat/c7-loop worktree and branch.",
-    "last_session": "Shipped C7 as PR #134; user merged it and arrival was asserted by ancestry, not by the MERGED status. Corrected a wrong flag: chore/receipts-global-standard is already on origin/main and needs no PR; local main was nine commits stale. D1 preconditions confirmed.",
+    "active_goal": "Land the remaining MSPs on feat/mitosis-os-process - D1, a new decompose-and-emit MSP, D2 and D3 - under receipts/gates@1.1, with nothing merged to main until D3 clears its falsifier.",
+    "next_step": "WAIT for a human merge of PR #135 (D1, base feat/mitosis-os-process), then assert arrival by ancestry rather than the MERGED status. Next unit is NOT D2: cut the decompose-and-emit MSP that 0455 inserted ahead of it, producing the {specs, manifest} run document cli.mjs reads. It is an authoring job against cli.mjs's reader, not a lift - the in-file decomposer names dependencies dependsOn, carries no request, and never serializes. D2 stays blocked until that MSP lands.",
+    "last_session": "Shipped D1 as PR #135: true parent-commit red (4 hook legs on fd84e889, 26/26 after), suite exit 0. Criterion 4 landed unverified-reasoned - no producer of the run document exists. Ruled 0454 and 0455. Moved the primary checkout to main; removed the c7-loop worktree and branch.",
     "open_risks": [
       {
         "text": "Build A4's red case through the claude -p CLI path and assert the SILENT failure — the Workflow agent path auto-grants StructuredOutput, so a red case dispatched through it passes unconditionally and is a guarantee that cannot fail",
@@ -180,7 +180,65 @@
         ]
       },
       {
-        "text": "Seven of nine C7 obligations are gated on D2 deleting mitosis.js — mirror-guard binds run-engine.mjs as a WHOLE inline twin of a sandbox with no require, process or clock, so any conversion needing fs or spawn cannot land while both engines coexist",
+        "text": "Land the decompose-and-emit MSP before D2 — D2 deletes the file holding the only decomposer, so the reverse order leaves the base with an entry point and nothing to feed it",
+        "scope": "c3",
+        "refs": [
+          "0455",
+          "mitosis.js:4409-4466",
+          "mitosis.js:1786-1818",
+          "recovery.mjs:108-130"
+        ]
+      },
+      {
+        "text": "Write dead-export-lint or amend D2's acceptance line — the lint exists nowhere in this tree, so D2 cannot simply run it as its acceptance text assumes",
+        "scope": "c3",
+        "refs": [
+          "SPEC:555"
+        ]
+      },
+      {
+        "text": "Decide whether the CLI restores identity reporting or the skill section moves — SKILL.md documents identity, shipped and overallStatus, and runEngine emits none of them",
+        "scope": "c3",
+        "refs": [
+          "SKILL.md run identity section",
+          "engine.mjs"
+        ]
+      },
+      {
+        "text": "Give the resolved base branch a way into a run — baseBranch has no CLI flag and the one gh step the engine reaches passes only repoSlug and integrationBranch, so the merge-target commands are unreachable",
+        "scope": "c3",
+        "refs": [
+          "engine.mjs:204",
+          "gh-commands.mjs:70,75,84"
+        ]
+      },
+      {
+        "text": "Treat declare-or-pass-or-ASK as unenforced on the OS-process path — branch-contract.mjs sits outside cli.mjs's import closure, so the contract is skill-side prose only",
+        "scope": "c3",
+        "refs": [
+          "branch-contract.mjs",
+          "generate-run-script.mjs"
+        ]
+      },
+      {
+        "text": "Validate run-id, repo-slug and integration-branch at parse time — today they fail at a checkpoint or at quiescence, so a typo discards the whole run's summary",
+        "scope": "c3",
+        "refs": [
+          "engine.mjs:204",
+          "cli.mjs parseCliArgv"
+        ]
+      },
+      {
+        "text": "Settle run-engine.mjs and engine-args.mjs at the D2 boundary — they hold the only consumers of verify, models, worktreeRoot and fixLoopMax and are dead relative to the OS-process path",
+        "scope": "c3",
+        "refs": [
+          "run-engine.mjs",
+          "engine-args.mjs",
+          "ci-escalation.mjs"
+        ]
+      },
+      {
+        "text": "Expect seven of nine C7 obligations to stay gated until D2 deletes mitosis.js — mirror-guard binds run-engine.mjs as a WHOLE inline twin of a sandbox with no require, process or clock, so any conversion needing fs or spawn cannot land while both engines coexist",
         "scope": "c3",
         "refs": [
           "mirror-guard.test.mjs",
@@ -189,7 +247,7 @@
         ]
       },
       {
-        "text": "generate-run-script.mjs:154 is a second un-normalized seam for scopedCheckCmd — 0453 named only the engine-args seam, and the mitigation routes both paths through one normalizer rather than fixing the second seam at its source",
+        "text": "Route both scopedCheckCmd seams through one normalizer — generate-run-script.mjs:154 is a second un-normalized seam that 0453 did not name",
         "scope": "c3",
         "refs": [
           "generate-run-script.mjs:154",
@@ -197,22 +255,21 @@
         ]
       },
       {
-        "text": "J1's stated scope understates the work by five deletions — mitosis.js has one appendRunJournal call site at :5689, and the other five journal-append prompts are independent hand-duplicated blocks that never call the helper",
+        "text": "Budget J1 for five more deletions than it states — mitosis.js calls appendRunJournal once at :5689 and the other five journal-append prompts are hand-duplicated blocks that never call the helper",
         "scope": "c3",
         "refs": [
           "mitosis.js:5689"
         ]
       },
       {
-        "text": "Compare branch state against origin/main, never the local main ref — local main ran nine commits stale this session and made an already-merged branch look like six unmerged commits carrying the live global rules",
+        "text": "Compare branch state against origin/main and never the local main ref — a stale local main made an already-merged branch look like six unmerged commits carrying the live global rules",
         "scope": "c3",
         "refs": [
-          "origin/main",
-          "chore/receipts-global-standard"
+          "origin/main"
         ]
       },
       {
-        "text": "Decide at the D2 boundary whether to fold origin/main into the stack base — the base is 257 commits ahead and 56 behind, and that gap only widens through D1 to D3 before the whole stack meets the release gate",
+        "text": "Decide at the D2 boundary whether to fold origin/main into the stack base — the base is 257 commits ahead and 56 behind, and that gap only widens through D2 to D3 before the stack meets the release gate",
         "scope": "c3",
         "refs": [
           "origin/feat/mitosis-os-process",
@@ -220,7 +277,7 @@
         ]
       },
       {
-        "text": "Merged branches keep accumulating on the remote — the bash classifier blocks push --delete, so the seven cp branches plus feat/c7-loop need a human or a permission rule before a later stack reuses those names",
+        "text": "Clear the accumulated merged remote branches with a human or a permission rule — the bash classifier blocks push --delete, so the seven cp branches plus feat/c7-loop persist until a later stack reuses those names",
         "scope": "c3",
         "refs": [
           "git push origin --delete",
@@ -228,19 +285,11 @@
         ]
       },
       {
-        "text": "Dispatch every child with run_in_background false — a background child returns only an id, so a dispatching agent ends its turn narrating that it is holding while nothing ran; what it returns when it DOES finish is trusted, never re-run",
+        "text": "Dispatch every child with run_in_background false — a background child returns only an id, so a dispatching agent ends its turn narrating that it is holding while nothing ran, and what it returns when it DOES finish is trusted, never re-run",
         "scope": "thread",
         "refs": [
           "0446",
           "memory: dispatching-agents-return-believing-they-wait"
-        ]
-      },
-      {
-        "text": "Move the primary checkout to main before the next unit of work — it sits on chore/receipts-global-standard, three commits behind origin/main, and ~/.claude/rules, CLAUDE.md and skills symlink into that working tree, so the live global config is stale by those three",
-        "scope": "thread",
-        "refs": [
-          "origin/main",
-          "~/.claude/rules"
         ]
       },
       {
@@ -266,7 +315,7 @@
         ]
       },
       {
-        "text": "A module newly inlined into mitosis.js now gets no mirror row automatically — the census mandate is retired, so only EXISTING twins are checked and genuinely new duplication can drift silently",
+        "text": "Add a mirror row by hand for any module newly inlined into mitosis.js — the census mandate is retired, so only EXISTING twins are checked and genuinely new duplication drifts silently",
         "scope": "thread",
         "refs": [
           "0439",
@@ -274,7 +323,7 @@
         ]
       },
       {
-        "text": "workflow-sandbox-census.test.mjs carries a hand-rolled maskLiterals duplicating the masker in js-scan.mjs — a live divergence hazard left unfixed because consolidating it is a behaviour change, not a removal",
+        "text": "Treat workflow-sandbox-census.test.mjs's hand-rolled maskLiterals as a live divergence hazard — it duplicates the masker in js-scan.mjs and was left unfixed because consolidating it is a behaviour change, not a removal",
         "scope": "thread",
         "refs": [
           "0439"
@@ -523,5 +572,5 @@
     ]
   },
   "created_at": "2026-08-12T07:37:41.077Z",
-  "updated_at": "2026-08-16T04:18:58.013Z"
+  "updated_at": "2026-08-16T04:21:00.935Z"
 }
