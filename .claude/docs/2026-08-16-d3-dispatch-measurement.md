@@ -1,45 +1,216 @@
 # D3 measurement: what a dispatch costs, and what we still cannot say
 
-Date: 2026-08-16. Repository state: branch `feat/d3-measure`, parent commit `624c2d5a`.
+Date: 2026-08-16. Repository state: branch `docs/d3-n1-measurement`, parent commit `2ed345e3`.
+
+Supersedes the pre-run revision of this file, which reported the falsifier as UNEVALUABLE because no engine
+run had ever existed. One run now exists. This revision reports it, and is at least as careful about what it
+does not establish as the revision it replaces.
 
 ## Answer first
 
 The binding falsifier the SPEC sets for this unit -- "a run exceeding 10 dispatches per shipped MSP fails"
-(`.claude/docs/specs/2026-08-12-mitosis-os-process-rearchitecture-design.md:567`) -- is **UNEVALUABLE**. It is
-not cleared and it is not falsified. The engine has never run: there is no `.mitosis/` run directory anywhere
-in this repository or in any of its worktrees, so there is not one engine dispatch to divide by one shipped
-MSP. A ratio with no denominator cannot pass or fail. The human decides what follows from that.
+(`.claude/docs/specs/2026-08-12-mitosis-os-process-rearchitecture-design.md:567`) -- resolves **CLEARED at
+n=1**. Two billed dispatches produced two units in state `done`: a ratio of **1.0** against a ceiling of 10.
+Counting the decompose child, which the run's own usage ledger does not record, the ratio is **1.5**. Both
+readings sit under the ceiling.
 
-Everything this report does publish about dispatch volume is a **proxy**, and it is a proxy for a *different
-population* than the one the falsifier names. The proxy is the agent-ledger event log
-(`~/.claude/agent-ledger/events/*.jsonl`), which records **human-orchestrated agent dispatches made from a
-Claude Code session**. The falsifier counts **engine dispatches inside one mitosis run**. These are not the
-same thing, they are not sampled the same way, and no number below may be compared to the 10-dispatch ceiling.
-Doing so would be a category error. The proxy's further limits -- a token field that is a session-cumulative
-watermark rather than a per-dispatch cost, no cache split, no cost field, 64.3 percent of rows carrying an
-unknown agent type, and no MSP key at all -- are set out in full in the Limitations section, and each one is
-load-bearing.
+**That clearance is vacuous as a throughput result, and the reason is structural rather than statistical, so
+no larger sample would repair it.** The engine has exactly one `claude`-spawning site per unit -- `runUnit`
+calls `dispatch` once (`.claude/lib/mitosis/cli.mjs:182`), which reaches a single `spawn`
+(`.claude/lib/mitosis/dispatch.mjs:300`) -- and its import closure contains no plan, review, security, fix or
+redispatch stage. **1.0 is therefore the floor the architecture cannot go below, not a figure the engine
+earned.** A one-dispatch-per-unit engine with no retry path cannot exceed 1.0 unless a unit fails and is
+redispatched; neither unit failed. The 10-dispatch ceiling was written for a richer engine that has those
+stages, so clearing it here demonstrates that the stages are absent, not that dispatch thrash is controlled.
+**Nothing in this run may be read as a throughput win, an efficiency gain, or evidence about behavior under
+load.** What the run does establish is that the ratio is now *observable* -- it has a denominator for the
+first time -- and that at the one point sampled, the engine did not thrash.
 
-## What changed in the code
+n=1 is n=1. Decision 0358 binds a baseline to at least three runs at pinned repository state reporting
+variance. This is one run, and it is not a baseline.
 
-The instrument existed but was wired to nothing. `captureEnvelope` (`.claude/lib/mitosis/dispatch.mjs:570`)
-already read input tokens, output tokens, cache-creation tokens, cache-read tokens and `total_cost_usd` off
-the child's envelope and put them on the verdict. Every production consumer then dropped them on the floor.
+## Where the run happened, and what that bounds
 
-| Seam | Before | After |
+This matters more than any single number below, so it precedes them.
+
+| Property | Value |
+|---|---|
+| Venue | A disposable synthetic substrate repository (`n1-substrate`), seeded for the run, with no git remote |
+| Journal `repoSlug` | `SatanshuMishra/n1-substrate` -- no such GitHub repository exists |
+| Units | Two trivial string/formatting tasks: `slugify-collapse-separators`, `format-duration-minutes` |
+| Run id | `7c1a9f0e` (journal `logicalRunId`: `n1-c7-run`) |
+| Terminal state | Both units `done`; `quiescent: true`, `aborted: false`; journal closes `{"kind":"quiescent-exit","at":"2026-08-16T23:29:53Z","outstanding":false}` |
+| Checkpoint integrity | `refs/mitosis/7c1a9f0e/slugify-collapse-separators` = `ef8839cc`, `refs/mitosis/7c1a9f0e/format-duration-minutes` = `fab3b6a5`; both match the branch tips and the journal's `built` shas exactly |
+
+The run therefore measures **the engine's own overhead on trivial work in a clean room**. It does not measure
+the cost of a real MSP against this repository's code, and no figure below should be extrapolated to one. Two
+trivial units in an empty substrate is close to the cheapest work the engine can be given; a unit that must
+read an existing codebase, hold more context, or iterate against a failing check will cost more, by an amount
+this run does not bound.
+
+The run directory lives in an **ephemeral scratchpad outside this repository and is not preserved in version
+control**. The figures below were transcribed from it while it existed; a future reader cannot re-derive them
+from the repository alone. This is recorded as a downgrade rather than glossed over.
+
+## The measurement
+
+Every cost figure below is paired with the quality assertion in the next section. They are one claim, not two.
+
+### Per dispatch
+
+| Dispatch | Model | Turns | Input | Output | Cold `cache_creation` | Warm `cache_read` | Cost USD |
+|---|---|---|---|---|---|---|---|
+| `slugify-collapse-separators` | claude-sonnet-5 | 17 | 30 | 4,886 | 85,853 | 1,151,513 | 0.9339519 |
+| `format-duration-minutes` | claude-sonnet-5 | 18 | 34 | 4,598 | 87,587 | 1,328,844 | 0.9932472 |
+| decompose child | claude-opus-5 | 6 | 8 | 2,502 | 44,386 | 126,668 | 0.5697840 |
+
+Both unit records carry `permission_denials: []` and `api_error_status: null`.
+
+### Totals
+
+| Slice | Dispatches | Input | Output | Cold | Warm | Cost USD |
+|---|---|---|---|---|---|---|
+| Recorded in `usage.jsonl` (the two units) | 2 | 64 | 9,484 | 173,440 | 2,480,357 | 1.9271991 |
+| Decompose child (not recorded) | 1 | 8 | 2,502 | 44,386 | 126,668 | 0.5697840 |
+| **Whole run** | **3** | **72** | **11,986** | **217,826** | **2,607,025** | **2.4969831** |
+
+Roughly **2.50 USD, or about 1.25 USD per trivial unit shipped**, decompose included.
+
+### Cold versus warm
+
+The SPEC requires this split and requires the caching caveat to appear with it (`:571`): prompt caching is
+content-keyed rather than session-keyed, so a benchmark reusing a fixed payload silently under-reports
+creation cost. **This run does not have that defect** -- the two units carry distinct prompts, so each cold
+figure is a genuine first-write rather than a warm read misread as cold.
+
+| Dispatch | Warm : cold |
+|---|---|
+| `slugify-collapse-separators` | 13.4 : 1 |
+| `format-duration-minutes` | 15.2 : 1 |
+| decompose child | 2.9 : 1 |
+
+**Cache traffic is 99.6 percent of all token volume in this run.** Input and output tokens together are 12,058
+of 2,836,909. The practical consequences are two, and both are easy to get wrong:
+
+- A bare "total tokens" figure for this engine is **not proportional to cost** and must not be used as a cost
+  proxy. The two unit dispatches differ by 15.4 percent in warm tokens but only 6.3 percent in cost, so across
+  two samples of the same shape the quantities do not even track each other.
+- Any estimate built from input and output tokens alone would miss more than 99 percent of what is billed.
+
+The decompose child is the outlier on every axis -- the lowest warm:cold ratio, the fewest turns, the highest
+cost per turn (0.095 USD against 0.055 for both units), because it alone runs on claude-opus-5. It accounts
+for **22.8 percent of the run's total spend across 14.6 percent of its turns**.
+
+## The quality assertion
+
+Cost claims are meaningless without a quality floor: an instrument that counts tokens cannot see whether a
+cheaper decomposition also cuts worse. Two assertions apply, and they are distinct.
+
+**For this run, the assertion that holds is:** both units' scoped check ran **green** in the journal's `built`
+entries -- each carries `"green":true` alongside its checkpoint ref and sha -- and both children made real
+commits carrying tests that assert the spec's literal examples. The 2.4969831 USD above bought two units that
+are `done` and green, not two units that merely terminated. This is the pairing for every cost figure in this
+document, and it is the reason those figures may be quoted at all.
+
+**The pre-declared assertion, unchanged from before this run,** is the per-MSP CI check matrix with post-merge
+rework count secondary. It does not apply to this run and was not claimed for it: the synthetic substrate has
+no remote, no CI and no pull requests. It remains the standing assertion for MSP work in this repository, and
+is reproduced below as the record.
+
+Method: for each merged pull request, every check in the status rollup is grouped by name and the run with the
+latest completion time is taken, so a red run superseded by a green re-run does not count against the pull
+request. 131 merged pull requests were examined (all except the two pre-2024 repository-setup ones).
+
+| Population | Pull requests | All checks green | Not all green |
+|---|---|---|---|
+| All merged | 131 | 115 | 16 |
+| Receipts-enforcer era | 79 | 71 | 8 |
+| Pre-enforcer | 52 | 44 | 8 |
+| Ran the three mitosis gate checks | 36 | 35 | 1 |
+
+The 16 that are not all green break down as: 11 merged with a final `test` failure, 2 with a final `sast`
+failure, 1 with a final `invariant-coverage` failure, 1 with a cancelled `receipts` run, and 1 that ran no
+checks at all.
+
+Secondary -- rework: 30 of the 131 merged pull requests (22.9 percent) carry the Conventional Commit type
+`fix`. This is an **upper bound** on post-merge rework, not a measurement of it: a `fix` pull request may
+address code that never shipped through an MSP.
+
+## How the run became measurable
+
+The instrument existed before this branch but was wired to nothing. `captureEnvelope`
+(`.claude/lib/mitosis/dispatch.mjs:570`) already read input, output, cache-creation and cache-read tokens and
+`total_cost_usd` off the child's envelope; every production consumer then dropped them. Two commits closed
+that gap on this branch: `d31c2cb7` added the `recordUsage` writer (`.claude/lib/mitosis/run-store.mjs:298`,
+appending to `usage.jsonl` at `:305`), and the `feat/d3-instrument-wiring` work added the production caller
+(`.claude/lib/mitosis/cli.mjs:135`). One normalizer (`.claude/lib/mitosis/dispatch.mjs:595`) guards the seam,
+so a token count that is not a finite number becomes `null` rather than a fabricated figure.
+
+The two-line `usage.jsonl` this report draws on has exactly the shape that writer emits: a per-attempt record
+of `unitId`, `attempt`, `observedAt` and the frozen `envelope`.
+
+**What is not established: which engine build produced the run.** The run artifacts record the substrate's
+`repoRoot`, `baseBranch`, `repoSlug` and the invoking `pid`, but no engine source path, no commit sha of the
+engine code and no package version. The wiring described above is present on this branch, and the artifact
+shape matches it, but the identity of the binary that ran is an inference, not a record. It is downgraded
+below and filed as a gap.
+
+## What this run does not support
+
+Stated plainly, because each is a reading the numbers invite and do not carry.
+
+| Not supported | Why |
+|---|---|
+| "The engine is efficient at 1.0 dispatches per MSP." | 1.0 is the structural floor of a one-dispatch-per-unit engine with no redispatch path, not an achieved result. |
+| "Dispatch thrash is under control." | The stages that would produce thrash -- plan, review, security, fix, redispatch -- are absent from the import closure. The ceiling was written for an engine that has them. |
+| "An MSP costs about 1.25 USD." | Two trivial units in an empty synthetic substrate. Real MSP work reads an existing codebase and may iterate; this run does not bound that. |
+| "These figures are a baseline." | n=1, no variance, unpinned against decision 0358's three-run requirement. |
+| "Cost scales with token volume." | Cache traffic is 99.6 percent of volume; across the two units, volume and cost move by 15.4 and 6.3 percent respectively. |
+| "The run cost 1.93 USD." | That is the `usage.jsonl` total. It omits the decompose child and understates the run by 22.8 percent. |
+| "The measurement is reproducible from this repository." | The run directory was ephemeral and outside version control. |
+
+## Status ledger
+
+Under the receipts honesty ladder. The pre-run revision of this file carried eight `unverified-reasoned`
+rows; seven are now measured, one is struck as unsatisfiable, and the remainder are joined by the new items
+this run put in view.
+
+### Moved to measured by this run
+
+| Item | Status | Evidence |
 |---|---|---|
-| Pool terminal record | `settle` narrowed the verdict to `ok` and `outcome` | `settle` carries the envelope into the frozen record (`.claude/lib/mitosis/pool.mjs:204`, `:266`) |
-| CLI unit port | `Done({ sha, green })` | `Done({ sha, green, envelope })` (`.claude/lib/mitosis/cli.mjs:190`) |
-| Decompose emit | result carried only the MSP list | result and CLI summary carry the envelope (`.claude/lib/mitosis/decompose-emit.mjs:234`, `:354`, `:362`) |
-| Run store | no usage writer | `recordUsage` appends one per-attempt line to `usage.jsonl` (`.claude/lib/mitosis/run-store.mjs:298`) |
+| The 10-dispatch-per-MSP falsifier | `measured` -- CLEARED at n=1, vacuously | 2 billed dispatches / 2 units `done` = 1.0; 3/2 = 1.5 counting decompose. Vacuity is stated in the verdict, not here. |
+| Input tokens per dispatch | `measured` | 30 / 34 / 8 |
+| Output tokens per dispatch | `measured` | 4,886 / 4,598 / 2,502 |
+| Cache-creation (cold) tokens per dispatch | `measured` | 85,853 / 87,587 / 44,386 |
+| Cache-read (warm) tokens per dispatch | `measured` | 1,151,513 / 1,328,844 / 126,668 |
+| `total_cost_usd` per dispatch | `measured` | 0.9339519 / 0.9932472 / 0.5697840 |
+| Cold-versus-warm split required at SPEC `:571` | `measured` | Split reported per dispatch above, with distinct payloads, so cold figures are genuine first-writes. |
 
-One normalizer (`.claude/lib/mitosis/dispatch.mjs:595`) guards all three seams. A token count that is not a
-finite number becomes `null` rather than a fabricated figure, and the whole record is frozen. `recordUsage`
-takes its timestamp as a validated ISO-8601 argument and reads no clock, so a run remains reproducible.
+### Struck, not met
 
-This makes the *next* run measurable. It measures nothing about runs that never happened.
+| Item | Status | Reason |
+|---|---|---|
+| Measured comparison against the pre-move baseline (c6 sub-clause) | **`struck` -- unsatisfiable** | Per decision 0485. `origin/main:.claude/workflows/mitosis.js` contains zero occurrences of `total_cost_usd`, `cache_read_input_tokens` or `cache_creation_input_tokens`. The pre-move engine never recorded cost or cache figures at all, so there is nothing on the other side of the comparison and **no merge order recovers it**. This is not a check that was skipped or deferred; the comparison cannot be constructed. It is struck rather than downgraded, and must never be recorded as met. |
 
-## The proxy, and what it actually shows
+### Still downgraded
+
+| Item | Status | Reason |
+|---|---|---|
+| A binding cost baseline | `unverified-reasoned` | Decision 0358 requires at least three runs at pinned repository state reporting variance. There is one run, on a synthetic substrate. Tracked as a separate item, not filed by this report. |
+| Variance across runs | `unverified-reasoned` | One sample yields no variance. The 6.3 percent cost spread between two units of the same shape is a within-run observation, not a variance estimate. |
+| Dispatch behavior under load or on failure | `unverified-reasoned` | Neither unit failed, so the redispatch path was never entered. Whether the ratio holds when a unit fails is untested. |
+| Cost of a non-trivial unit | `unverified-reasoned` | Both units were trivial and the substrate was empty. |
+| Identity of the engine build that produced the run | `unverified-reasoned` | The run artifacts record no engine source path, commit sha or version. |
+| Reproducibility of these figures from the repository | `unverified-reasoned` | The run directory was ephemeral, outside version control, and is not preserved. |
+| The agent-ledger proxy's per-dispatch figures | `unverified-reasoned` | Unchanged and now moot for the falsifier. The proxy's limitations are retained below. |
+
+## The proxy, retained as the pre-run record
+
+This section is kept because it documents why the question was unanswerable before today. **It is no longer
+the basis for any claim in this report**, and none of its figures may be compared to the 10-dispatch ceiling:
+it counts human-orchestrated agent dispatches from Claude Code sessions, a different population from engine
+dispatches inside one mitosis run.
 
 Source: a pinned snapshot of `~/.claude/agent-ledger/events/*.jsonl` taken 2026-08-16, 46 files, 16142 rows.
 The log is live-appending, so it was snapshotted before any figure was computed.
@@ -95,35 +266,10 @@ and it covers under a fifteenth of the data.
 | test-engineer | 52 |
 | all remaining types combined | 133 |
 
-## The quality assertion
+### Limitations of the proxy
 
-Cost claims are meaningless without a quality floor: an instrument that counts tokens cannot see whether a
-cheaper decomposition also cuts worse. The fixed quality assertion, declared before this work started, is the
-**per-MSP CI check matrix**, with **post-merge rework count** secondary. Both are already recorded for every
-merged pull request, and both can genuinely go red -- as the table shows, they do.
-
-Method: for each merged pull request, every check in the status rollup is grouped by name and the run with the
-latest completion time is taken, so a red run superseded by a green re-run does not count against the pull
-request. 131 merged pull requests were examined (all except the two pre-2024 repository-setup ones).
-
-| Population | Pull requests | All checks green | Not all green |
-|---|---|---|---|
-| All merged | 131 | 115 | 16 |
-| Receipts-enforcer era | 79 | 71 | 8 |
-| Pre-enforcer | 52 | 44 | 8 |
-| Ran the three mitosis gate checks | 36 | 35 | 1 |
-
-The 16 that are not all green break down as: 11 merged with a final `test` failure, 2 with a final `sast`
-failure, 1 with a final `invariant-coverage` failure, 1 with a cancelled `receipts` run, and 1 that ran no
-checks at all.
-
-Secondary -- rework: 30 of the 131 merged pull requests (22.9 percent) carry the Conventional Commit type
-`fix`. This is an **upper bound** on post-merge rework, not a measurement of it: a `fix` pull request may
-address code that never shipped through an MSP.
-
-## Limitations
-
-Every one of these is a reason a number in this report cannot be pushed further than it is pushed.
+Every one of these is a reason a proxy number cannot be pushed further than it is pushed. They are unchanged
+by this run.
 
 | Limitation | Evidence |
 |---|---|
@@ -138,34 +284,37 @@ Every one of these is a reason a number in this report cannot be pushed further 
 | **`transcript_ptr` identifies the session, not the run.** A row cannot be traced to an individual dispatch. | 8493 rows resolve to 333 distinct pointers, exactly one per session. |
 | Consequently, **it cannot be established from the log alone whether one `agent_run` row is one subagent dispatch or one main-thread turn.** | Follows from the constant `emitter`, the unknown agent type on most rows, and the session-scoped transcript pointer. |
 
-## Downgrades
-
-These are recorded as `unverified-reasoned` under the receipts honesty ladder. Each is a thing this unit was
-asked to publish and could not.
-
-| Item | Status | Reason |
-|---|---|---|
-| The 10-dispatch-per-MSP falsifier | `unverified-reasoned` | Unevaluable. No engine run has ever occurred, so the ratio has no denominator. |
-| Input tokens per dispatch | `unverified-reasoned` | The only available field is a session-cumulative watermark; no per-dispatch value exists. |
-| Output tokens per dispatch | `unverified-reasoned` | Same watermark; the log does not separate input from output at all. |
-| Cache-creation tokens | `unverified-reasoned` | No cache field exists in the log. |
-| Cache-read tokens | `unverified-reasoned` | No cache field exists in the log. |
-| `total_cost_usd` | `unverified-reasoned` | No cost field exists in the log. |
-| Cold-versus-warm cache split required at SPEC `:571` | `unverified-reasoned` | Requires the cache split above, which the log does not carry. Prompt caching is content-keyed, so a benchmark reusing a fixed payload would under-report creation cost; no such benchmark was run. |
-| Comparison against the 2026-07-17 baseline | `unverified-reasoned` | That baseline is a code-read cost model by its own confidence legend, not a billing export, and it describes a file that no longer exists in that form. Decision 0358 binds a baseline to at least three runs at pinned repository state reporting variance; there are zero runs. |
-
 ## Corrections to the SPEC
 
-Two statements in the D3 section of the SPEC are false as written and should not be relied on.
+Three statements in the D3 section of the SPEC are false or superseded as written and should not be relied on.
 
 | SPEC claim | Reality |
 |---|---|
 | `:573` "`.claude/reports/` is git-tracked." | It is ignored at `.gitignore:11` (`/.claude/reports/`), and git tracks zero files under it. A report written there is invisible to the enforcer, to the pull request and to a fresh clone. This report is therefore under `.claude/docs/`, which is tracked. |
-| `:563` "a measurement report under `.claude/reports/`, plus the aggregation in `run-store`." | The report location is corrected as above. The `run-store` aggregation could not be built against real data, because no run data exists; what shipped is the per-attempt writer that will record it on the first run. |
+| `:563` "a measurement report under `.claude/reports/`, plus the aggregation in `run-store`." | The report location is corrected as above. The aggregation remains a per-attempt writer rather than a roll-up; with one run there is nothing to aggregate across. |
+| The predicted non-zero exit on a failing terminal action | **It did not occur.** The terminal `gh pr view` failed -- the substrate's `repoSlug` names no existing GitHub repository -- and the CLI surfaced that as a structured `prState.status: 1` while the process itself exited **0**. |
 
-## What would make the falsifier evaluable
+That last row is the one worth carrying forward. A zero exit code did not mean the terminal action succeeded,
+which is precisely the inference receipts forbids. The engine did the right thing by putting the failure in a
+structured field, but any consumer reading only the exit code would have recorded this run as wholly clean.
 
-One engine run, at a pinned repository state, producing a `.mitosis/runs/<key>/attempt-N/usage.jsonl`. The
-plumbing shipped here is what writes that file. Decision 0358 asks for three such runs before a baseline is
-binding. Until then, dispatch cost in this repository is an estimate, and this report declines to dress one up
-as a measurement.
+## Filed as new items, not folded into this unit
+
+Acceptance is a ceiling. These were discovered above the criterion this unit was given, and are recorded here
+rather than fixed in flight.
+
+1. **`usage.jsonl` omits the decompose child**, because decompose runs before `openRun`. Any consumer that
+   sums the file and calls the result "run cost" is low by the decompose dispatch -- 22.8 percent on this run,
+   and proportionally more on a run with fewer or cheaper units.
+2. **Run artifacts record no engine build identity** -- no engine source path, commit sha or version -- so a
+   run cannot be attributed to the code that produced it.
+3. **Run artifacts are not preserved.** The run directory is ephemeral and outside version control, so a
+   published figure cannot later be re-derived from its source.
+4. **A three-run pinned-state baseline** per decision 0358 remains unfiled and unstarted.
+
+## What would make the falsifier non-vacuous
+
+Not more runs of this engine. A run of an engine that *has* a plan, review, security, fix or redispatch stage,
+or a run in which a unit fails and is redispatched. Until one of those exists, the ratio is bounded below by
+the architecture at 1.0, and any measurement of it will clear a ceiling of 10 without carrying information.
+Adding runs raises n; it does not make a structurally floored number mean more than it means.
