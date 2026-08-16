@@ -4168,7 +4168,7 @@ try {
       `Return ONLY the structured object: { manifestFound, manifestRaw, manifestRawPages: [ "<chunk>" ], mergedPRs: [ { headRefName, url, mergedAt, mergedSha } ], mergedPRsAuthoritative, specContentHash, checkpointRefPages: [ [ "<sha>\\t<ref>" ] ], publishedManifestFound, publishedManifestProbeFailed, publishedManifestRefProbed, publishedManifestRawPages: [ "<chunk>" ], openPRs: [ { headRefName, reviewDecision, url, isCrossRepository, headRepositoryOwner, headRepository } ], ownerRepo, repoHost }.`,
       { agentType: 'implementer', schema: RECONCILE_SCHEMA, label: 'reconcile', phase: 'Probe', model: models.reconciler || models.shipper || 'sonnet' }
     ),
-    { unitId: 'reconcile', stage: 'reconcile', resetRef: null, worktree: null, task: 'inspect durable run state and the already-merged set', ...makeRemediation({ unitId: 'reconcile', stage: 'reconcile', task: 'inspect durable run state and the already-merged set', schema: RECONCILE_SCHEMA, agentType: 'implementer', phase: 'Probe' }) },
+    { unitId: 'reconcile', stage: 'reconcile', resetRef: null, worktree: null, task: 'inspect durable run state and the already-merged set' },
   );
   recon = reconOutcome.tag === 'Done' ? reconOutcome.value : null;
   if (reconOutcome.tag !== 'Done') {
@@ -4787,7 +4787,7 @@ async function supersedeOpenPr(msp, { priorPrUrl, integrationBranch, diagnosis }
       `Return ONLY: { opened: <bool>, prUrl: "<the new superseding PR url, or empty string if not opened>", detail: "<what happened>" }.`,
       { agentType: 'implementer', schema: SUPERSEDE_PR_SCHEMA, label: `supersede:${msp.id}`, phase: 'Ship' }
     ),
-    { unitId: msp.id, stage: 'ship', resetRef: baseBranch, worktree: null, task: `supersede the open PR for ${msp.id} after a divergent invalidation`, ...makeRemediation({ unitId: msp.id, stage: 'ship', task: `supersede the open PR for ${msp.id} after a divergent invalidation`, schema: SUPERSEDE_PR_SCHEMA, agentType: 'implementer', phase: 'Ship' }), runBudget: retryState, compensate: makeCompensate(null, baseBranch) },
+    { unitId: msp.id, stage: 'ship', resetRef: baseBranch, worktree: null, task: `supersede the open PR for ${msp.id} after a divergent invalidation`, runBudget: retryState, compensate: makeCompensate(null, baseBranch) },
   );
   if (outcome.tag !== 'Done' || !outcome.value || outcome.value.opened !== true) {
     const failDetail = outcome.tag === 'Done' && outcome.value && typeof outcome.value.detail === 'string' ? outcome.value.detail : null;
@@ -4959,7 +4959,7 @@ async function runUnit(unit) {
           `Return ONLY: { restored: <bool>, sha: "<the tip sha read in step 1, or empty string if not restored>", detail: "<what happened>" }.`,
           { agentType: 'implementer', schema: RESTORE_SCHEMA, label: `restore:${msp.id}`, phase: 'Ship' }
         ),
-        { unitId: msp.id, stage: 'ship', resetRef: baseBranch, worktree: null, task: `restore ${msp.id} from durable checkpoint ${builtRef}`, ...makeRemediation({ unitId: msp.id, stage: 'ship', task: `restore ${msp.id} from durable checkpoint ${builtRef}`, schema: RESTORE_SCHEMA, agentType: 'implementer', phase: 'Ship' }), runBudget: retryState },
+        { unitId: msp.id, stage: 'ship', resetRef: baseBranch, worktree: null, task: `restore ${msp.id} from durable checkpoint ${builtRef}`, runBudget: retryState },
       );
       if (restoreOutcome.tag !== 'Done') return { ready: false, parkOutcome: await parkUnit(msp, 'ship', restoreOutcome, integrationBranch, compensationStack) };
       const restored = restoreOutcome.value;
@@ -5106,7 +5106,7 @@ async function runUnit(unit) {
         `Return ONLY: { engineArgs: <the 15-key object>, route: { rule, lane, isolation, N, notes } }.`,
         { agentType: 'implementer', schema: PARALLELIZE_SCHEMA, label: `parallelize:${msp.id}`, phase: 'Prep' }
       ),
-      { unitId: msp.id, stage: 'parallelize', resetRef: baseBranch, worktree: null, task: `parallelize and route ${msp.id}`, triedSet: parallelizeTriedSeed, ...makeRemediation({ unitId: msp.id, stage: 'parallelize', task: `parallelize and route ${msp.id}`, schema: PARALLELIZE_SCHEMA, agentType: 'implementer', phase: 'Prep' }), runBudget: retryState },
+      { unitId: msp.id, stage: 'parallelize', resetRef: baseBranch, worktree: null, task: `parallelize and route ${msp.id}`, triedSet: parallelizeTriedSeed, runBudget: retryState },
     );
     if (parallelizeOutcome.tag !== 'Done') return parkUnit(msp, 'parallelize', parallelizeOutcome, integrationBranch, compensationStack);
     const parallelized = parallelizeOutcome.value;
@@ -5203,7 +5203,7 @@ async function runUnit(unit) {
           `Return ONLY: { ready: <bool>, conflict: <bool>, builtAgainst: { "<parent unitId>": "<that parent's tip sha>" }, detail: "<what happened>" }.`,
           { agentType: 'implementer', schema: FRONTIER_BRANCH_SCHEMA, label: `branch:${msp.id}`, phase: 'Prep', model: 'opus' }
         ),
-        { unitId: msp.id, stage: 'branch', resetRef: baseBranch, worktree: null, task: `frontier-compose ${msp.id} on parents ${parentIds.join(', ')}`, ...makeRemediation({ unitId: msp.id, stage: 'branch', task: `frontier-compose ${msp.id} on parents ${parentIds.join(', ')}`, schema: FRONTIER_BRANCH_SCHEMA, agentType: 'implementer', phase: 'Prep' }), runBudget: retryState, compensate: makeCompensate(null, baseBranch) },
+        { unitId: msp.id, stage: 'branch', resetRef: baseBranch, worktree: null, task: `frontier-compose ${msp.id} on parents ${parentIds.join(', ')}`, runBudget: retryState, compensate: makeCompensate(null, baseBranch) },
       );
       if (composeOutcome.tag !== 'Done') return parkUnit(msp, 'branch', composeOutcome, integrationBranch, compensationStack);
       const composed = composeOutcome.value;
@@ -5230,7 +5230,7 @@ async function runUnit(unit) {
           `Return ONLY: { ready: <bool>, detail: "<what happened>" }.`,
           { agentType: 'implementer', schema: BRANCH_SCHEMA, label: `branch:${msp.id}`, phase: 'Prep', model: 'opus' }
         ),
-        { unitId: msp.id, stage: 'branch', resetRef: baseBranch, worktree: null, task: `branch-prep ${msp.id} onto ${baseBranch}`, ...makeRemediation({ unitId: msp.id, stage: 'branch', task: `branch-prep ${msp.id} onto ${baseBranch}`, schema: BRANCH_SCHEMA, agentType: 'implementer', phase: 'Prep' }), runBudget: retryState, compensate: makeCompensate(null, baseBranch) },
+        { unitId: msp.id, stage: 'branch', resetRef: baseBranch, worktree: null, task: `branch-prep ${msp.id} onto ${baseBranch}`, runBudget: retryState, compensate: makeCompensate(null, baseBranch) },
       );
       if (branchOutcome.tag !== 'Done') return parkUnit(msp, 'branch', branchOutcome, integrationBranch, compensationStack);
       const branched = branchOutcome.value;

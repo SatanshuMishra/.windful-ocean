@@ -5153,3 +5153,62 @@ test('CI-WRITEAHEAD-ASYMMETRY: the same flagless result at the built-checkpoint 
     'the built site audited a lost write on a result it is supposed to tolerate, which is the ci-attempt guard leaking into the other five',
   );
 });
+
+test('decision 0450: the six mechanical stages carry no in-run diagnostician, while the judgment stages still do', async () => {
+  {
+    const msps = [mspSpec('solo', { fileScope: pack(['scope/solo/**']) })];
+    const base = createFakeAgent({ msps });
+    const diagnoseLabels = [];
+    let redispatchCalls = 0;
+    const agent = async (prompt, opts = {}) => {
+      const label = opts.label || '';
+      const prefix = label.split(':')[0];
+      if (label === 'plan:solo') {
+        return {
+          planPath: '/tmp/mitosis-scheduler-test/solo.plan.md',
+          summary: '',
+          fault: { kind: 'approach-fixable', mechanism: 'stale-worktree', diagnosis: 'a previous attempt left the plan worktree dirty' },
+        };
+      }
+      if (prefix === 'diagnose') {
+        diagnoseLabels.push(label);
+        return { mechanism: 'reset-worktree', diagnosis: 'clean the worktree before replanning', correctedTask: 'replan solo after resetting the worktree' };
+      }
+      if (prefix === 'redispatch') {
+        redispatchCalls += 1;
+        return { planPath: '/tmp/mitosis-scheduler-test/solo.plan.md', summary: '' };
+      }
+      return base(prompt, opts);
+    };
+    const { resultPromise } = invokeMitosis(buildInput(), agent);
+    const result = await resultPromise;
+
+    assert.equal(result.overallStatus, 'all-shipped', 'the plan stage keeps its in-run diagnostician: a correctable fault still ships');
+    assert.ok(redispatchCalls > 0, 'the plan-stage remediation loop actually redispatched the corrected task');
+    assert.ok(diagnoseLabels.some((l) => /^diagnose:.*:plan$/.test(l)), 'the judgment stage plan must dispatch an in-run diagnostician');
+  }
+  {
+    const msps = [mspSpec('solo', { fileScope: pack(['scope/solo/**']) })];
+    const allLabels = [];
+    const agent = async (prompt, opts = {}) => {
+      const label = opts.label || '';
+      allLabels.push(label);
+      if (label === 'reconcile') {
+        return { fault: { kind: 'approach-fixable', mechanism: 'reconcile-fault', diagnosis: 'stuck reconciling durable state' } };
+      }
+      if (label.startsWith('diagnose:')) {
+        return { verdict: 'needs-human', request: { kind: 'approve-decision', what: 'reconcile stuck', remediation: null, resumePoint: null } };
+      }
+      throw new Error(`decision 0450 DENY case: unexpected dispatch for a mechanical stage: ${label}`);
+    };
+    const { resultPromise } = invokeMitosis(buildInput(), agent);
+    const result = await resultPromise;
+
+    assert.equal(result.overallStatus, 'failed', 'the mechanical reconcile stage halts on an approach-fixable fault instead of self-correcting');
+    assert.equal(result.stage, 'reconcile');
+    assert.ok(
+      !allLabels.some((l) => /^diagnose:/.test(l) || /^redispatch:/.test(l)),
+      'the mechanical reconcile stage must not dispatch an in-run diagnostician or a redispatch',
+    );
+  }
+});
