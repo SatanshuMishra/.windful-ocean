@@ -197,8 +197,8 @@
   "closure_statement": null,
   "spine": {
     "active_goal": "Measure dispatch volume on the first real engine run, then rule the release gate and decide whether the OS-process base merges to main.",
-    "next_step": "START HERE. Author the run document for the flat triad D, E and F, and show every request.prompt to the user before anything executes - that text is the whole blast radius. Clone into the scratchpad as --repo-root, never the primary checkout. Then run cli.mjs to quiescence, read usage.jsonl, and rule c7. First check whether the in-flight scanner fix committed on fix/secret-scanner-anthropic-keys.",
-    "last_session": "Found the D3 instrument unwired end to end, so no run happened. Shipped c24 (wiring) and c25 (evidence integrity), both red-on-parent with inertness mutations, neither pushed. Ruled 0473-0478. Confirmed a live secret-scanner gap and dispatched its fix separately.",
+    "next_step": "START HERE. Explain the next steps BRIEFLY, then STOP and wait - do not start the run, do not push, do not open a pull request. Two branches are local only: feat/d3-instrument-wiring (c24+c25) and fix/secret-scanner-anthropic-keys (ac4ba5ff, c26, a security fix awaiting a PR decision the user never answered). The run is designed but unauthorised, its run document does not exist yet, and every request.prompt in it goes to the user before anything executes.",
+    "last_session": "Found the D3 instrument unwired end to end, so no run happened. Shipped c24 and c25, both red-on-parent with inertness mutations. Confirmed and fixed a live secret-scanner gap that also missed sk-proj and github_pat (c26, unpushed). Ruled 0473-0478. Nothing pushed, no PR, no engine run.",
     "open_risks": [
       {
         "text": "Prove a merge arrived by asserting its CONTENT is on the base, never by SHA ancestry — a squash or stack merge rewrites commits, so a pre-merge SHA correctly fails an ancestry check on a merge that lost nothing",
@@ -662,5 +662,5 @@
     ]
   },
   "created_at": "2026-08-12T07:37:41.077Z",
-  "updated_at": "2026-08-16T20:46:27.891Z"
+  "updated_at": "2026-08-16T20:46:42.472Z"
 }
