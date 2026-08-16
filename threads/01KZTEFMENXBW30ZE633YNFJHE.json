@@ -169,14 +169,62 @@
   "closure_statement": null,
   "spine": {
     "active_goal": "Land the remaining MSPs on feat/mitosis-os-process - D1, D2 and D3 - under receipts/gates@1.1, with nothing merged to main until D3 clears its falsifier.",
-    "next_step": "START HERE: D1, the entry point. SKILL.md invokes node .claude/lib/mitosis/cli.mjs instead of Workflow, and block-inline-engine.mjs must additionally refuse a Workflow call naming mitosis.js while still permitting the CLI. PR #134 (C7) is open and awaits a HUMAN merge - never merge it from a session. Read sections 4 and 5 of the C7 ceiling doc first; seven of the nine C7 obligations are re-filed to D2 and become free edits once mitosis.js is deleted.",
-    "last_session": "Shipped C7 as PR #134 across three dispatched phases. engine.mjs and cli.mjs created; the tick loop composes the A2 pool per 0451; abort and quiescent exit land. Two live prompt defects fixed. Seven of nine obligations re-filed to D2. Suite 3265 green, four gate verbs exit 0.",
+    "next_step": "START HERE: D1, the entry point. SKILL.md invokes node .claude/lib/mitosis/cli.mjs instead of Workflow, and block-inline-engine.mjs must additionally refuse a Workflow call naming mitosis.js while still permitting the CLI. All three files are confirmed present on the base. C7 is MERGED and verified there by ancestry. Two hygiene items need a human go-ahead first: move the primary checkout to main, and remove the merged feat/c7-loop worktree and branch.",
+    "last_session": "Shipped C7 as PR #134; user merged it and arrival was asserted by ancestry, not by the MERGED status. Corrected a wrong flag: chore/receipts-global-standard is already on origin/main and needs no PR; local main was nine commits stale. D1 preconditions confirmed.",
     "open_risks": [
       {
         "text": "Build A4's red case through the claude -p CLI path and assert the SILENT failure — the Workflow agent path auto-grants StructuredOutput, so a red case dispatched through it passes unconditionally and is a guarantee that cannot fail",
         "scope": "c4",
         "refs": [
           "0379"
+        ]
+      },
+      {
+        "text": "Seven of nine C7 obligations are gated on D2 deleting mitosis.js — mirror-guard binds run-engine.mjs as a WHOLE inline twin of a sandbox with no require, process or clock, so any conversion needing fs or spawn cannot land while both engines coexist",
+        "scope": "c3",
+        "refs": [
+          "mirror-guard.test.mjs",
+          "PR #134",
+          "0452"
+        ]
+      },
+      {
+        "text": "generate-run-script.mjs:154 is a second un-normalized seam for scopedCheckCmd — 0453 named only the engine-args seam, and the mitigation routes both paths through one normalizer rather than fixing the second seam at its source",
+        "scope": "c3",
+        "refs": [
+          "generate-run-script.mjs:154",
+          "0453"
+        ]
+      },
+      {
+        "text": "J1's stated scope understates the work by five deletions — mitosis.js has one appendRunJournal call site at :5689, and the other five journal-append prompts are independent hand-duplicated blocks that never call the helper",
+        "scope": "c3",
+        "refs": [
+          "mitosis.js:5689"
+        ]
+      },
+      {
+        "text": "Compare branch state against origin/main, never the local main ref — local main ran nine commits stale this session and made an already-merged branch look like six unmerged commits carrying the live global rules",
+        "scope": "c3",
+        "refs": [
+          "origin/main",
+          "chore/receipts-global-standard"
+        ]
+      },
+      {
+        "text": "Decide at the D2 boundary whether to fold origin/main into the stack base — the base is 257 commits ahead and 56 behind, and that gap only widens through D1 to D3 before the whole stack meets the release gate",
+        "scope": "c3",
+        "refs": [
+          "origin/feat/mitosis-os-process",
+          "origin/main"
+        ]
+      },
+      {
+        "text": "Merged branches keep accumulating on the remote — the bash classifier blocks push --delete, so the seven cp branches plus feat/c7-loop need a human or a permission rule before a later stack reuses those names",
+        "scope": "c3",
+        "refs": [
+          "git push origin --delete",
+          "feat/c7-loop"
         ]
       },
       {
@@ -188,18 +236,11 @@
         ]
       },
       {
-        "text": "The trust-the-result rule is live only while main is checked out in the primary checkout — that checkout is still on chore/receipts-global-standard, and ~/.claude/rules symlinks into its working tree",
+        "text": "Move the primary checkout to main before the next unit of work — it sits on chore/receipts-global-standard, three commits behind origin/main, and ~/.claude/rules, CLAUDE.md and skills symlink into that working tree, so the live global config is stale by those three",
         "scope": "thread",
         "refs": [
-          "PR #123",
-          "0446"
-        ]
-      },
-      {
-        "text": "Preflight's reconcile has failed all session with spawn git ENOENT — the ledger server cannot find git on its PATH, so branch and binding drift is never folded and the roster can quietly misreport",
-        "scope": "thread",
-        "refs": [
-          "mcp reconcile"
+          "origin/main",
+          "~/.claude/rules"
         ]
       },
       {
@@ -253,38 +294,6 @@
         "refs": [
           "SPEC residual 5",
           "0358"
-        ]
-      },
-      {
-        "text": "Seven of nine C7 obligations are gated on D2 deleting mitosis.js — mirror-guard binds run-engine.mjs as a WHOLE inline twin of a sandbox with no require, process or clock, so any conversion needing fs or spawn cannot land while both engines coexist",
-        "scope": "c3",
-        "refs": [
-          "mirror-guard.test.mjs",
-          "PR #134",
-          "0452"
-        ]
-      },
-      {
-        "text": "generate-run-script.mjs:154 is a second un-normalized seam for scopedCheckCmd — 0453 named only the engine-args seam, and the mitigation routes both paths through one normalizer rather than fixing the second seam at its source",
-        "scope": "c3",
-        "refs": [
-          "generate-run-script.mjs:154",
-          "0453"
-        ]
-      },
-      {
-        "text": "J1's stated scope understates the work by five deletions — mitosis.js has one appendRunJournal call site at :5689, and the other five journal-append prompts are independent hand-duplicated blocks that never call the helper",
-        "scope": "c3",
-        "refs": [
-          "mitosis.js:5689"
-        ]
-      },
-      {
-        "text": "Compare branch state against origin/main, never the local main ref — local main ran 9 commits stale this session and made an already-merged receipts branch look like six unmerged commits carrying the live global rules",
-        "scope": "c3",
-        "refs": [
-          "origin/main",
-          "chore/receipts-global-standard"
         ]
       }
     ],
@@ -504,5 +513,5 @@
     ]
   },
   "created_at": "2026-08-12T07:37:41.077Z",
-  "updated_at": "2026-08-16T03:45:48.038Z"
+  "updated_at": "2026-08-16T03:49:42.694Z"
 }
