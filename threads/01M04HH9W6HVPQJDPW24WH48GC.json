@@ -30,7 +30,7 @@
     },
     {
       "id": "c4",
-      "text": "Teardown and rebuild executed without breaking the coupling surface - the mitosis engine allowlist, the prompt snapshots, and the rules and skills that name agents by string.",
+      "text": "Agent and observer teardown and rebuild executed without breaking the live coupling surface: rules and skills naming agents by string, 405 worktree copies, four backup profiles, derived residuals.",
       "done": false,
       "kind": "planned",
       "struck_by": null
@@ -121,5 +121,5 @@
     ]
   },
   "created_at": "2026-08-16T05:43:25.829Z",
-  "updated_at": "2026-08-16T17:38:16.431Z"
+  "updated_at": "2026-08-16T17:38:28.984Z"
 }
