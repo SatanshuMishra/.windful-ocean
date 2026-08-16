@@ -61,11 +61,21 @@ export const DECOMPOSE_SCHEMA = deepFreeze({
 
 export const DECOMPOSE_CHANGE_TYPES = DECOMPOSE_SCHEMA.properties.msps.items.properties.changeType.enum;
 
+export const UNIT_VERDICT_SCHEMA = deepFreeze({
+  type: 'object',
+  required: ['sha'],
+  additionalProperties: false,
+  properties: {
+    sha: { type: 'string', pattern: '^[0-9a-f]{40}$' },
+  },
+});
+
 export const SCHEMA_PATTERN_LITERALS = deepFreeze([
   /^[a-z0-9][a-z0-9-]{0,29}$/,
   /^[a-z][\x20-\x7E]{0,38}[\x21-\x2D\x2F-\x7E]$/,
   /^[A-Za-z0-9(][\x20-\x7E]{0,198}[\x21-\x7E]$/,
   /^[a-z0-9][a-z0-9-]{0,15}$/,
+  /^[0-9a-f]{40}$/,
 ]);
 
 function kindOf(value) {
