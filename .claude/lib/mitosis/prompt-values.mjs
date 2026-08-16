@@ -156,6 +156,10 @@ export function requirePromptRef(value, field) {
   return text;
 }
 
+export function requireOptionalPromptRef(value, field) {
+  return value === null ? null : requirePromptRef(value, field);
+}
+
 export function requirePromptSlug(value, field) {
   return requireClassedText(value, field, SLUG_CLASS, 'a lowercase kebab-case slug', 'into a filesystem path the receiving model writes');
 }

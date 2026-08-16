@@ -8,6 +8,8 @@ import {
 } from '../prompt-contract.mjs';
 import { PROMPT_FIXTURE_CASES } from './prompt-fixtures.mjs';
 
+const promptCase = (id) => PROMPT_FIXTURE_CASES.find((c) => c.id === id);
+
 const NUL_BYTE = String.fromCharCode(0);
 
 const EXPECTED_KINDS = Object.freeze([
@@ -82,6 +84,17 @@ const REJECTED_BY_TYPE = Object.freeze({
   ]),
   ref: Object.freeze([
     ...REJECTED_TEXT,
+    'fx-base; id',
+    'fx-base | sh',
+    'fx/`id`',
+    'fx base',
+    'fx..base',
+    '-fx-base',
+    '.fx-base',
+    'fx*base',
+  ]),
+  optionalRef: Object.freeze([
+    ...REJECTED_TEXT.filter((value) => value !== null),
     'fx-base; id',
     'fx-base | sh',
     'fx/`id`',
@@ -241,4 +254,23 @@ test('validation refuses an unknown kind and a non-object input rather than comp
 test('the isolation modes are exactly the two the engine branches on', () => {
   assert.deepEqual([...ISOLATION_MODES], ['worktree', 'scope-fence']);
   assert.equal(Object.isFrozen(ISOLATION_MODES), true);
+});
+
+test('a review target composed from launchCommit is required under scope-fence and refused under worktree', () => {
+  const worktreeInput = { ...promptCase('review-worktree').input, launchCommit: null };
+  assert.equal(validatePromptInput('review', worktreeInput).launchCommit, null);
+  const securityWorktree = { ...promptCase('security-worktree').input, launchCommit: null };
+  assert.equal(validatePromptInput('security', securityWorktree).launchCommit, null);
+  assert.throws(
+    () => validatePromptInput('review', { ...promptCase('review-scope-fence').input, launchCommit: null }),
+    /launchCommit/,
+  );
+  assert.throws(
+    () => validatePromptInput('review', { ...promptCase('review-worktree').input, launchCommit: 'abc123' }),
+    /launchCommit/,
+  );
+  assert.throws(
+    () => validatePromptInput('security', { ...promptCase('security-worktree').input, launchCommit: 'abc123' }),
+    /launchCommit/,
+  );
 });

@@ -6,6 +6,7 @@ import {
   ownValue,
   requireNonNegativePromptCount,
   requireOptionalPromptText,
+  requireOptionalPromptRef,
   requireOptionalPromptTextList,
   requirePromptArgv,
   requirePromptCount,
@@ -111,6 +112,7 @@ const FIELD_VALIDATORS = Object.freeze({
   path: requirePromptPath,
   glob: requirePromptGlob,
   ref: requirePromptRef,
+  optionalRef: requireOptionalPromptRef,
   slug: requirePromptSlug,
   argv: requirePromptArgv,
   isolation: requireIsolationMode,
@@ -171,7 +173,7 @@ export const PROMPT_INPUT_SPECS = Object.freeze({
     repoRoot: 'path',
     baseBranch: 'ref',
     branch: 'ref',
-    launchCommit: 'ref',
+    launchCommit: 'optionalRef',
     taskFullText: 'text',
     isolation: 'isolation',
     fileScope: 'fileScope',
@@ -180,7 +182,7 @@ export const PROMPT_INPUT_SPECS = Object.freeze({
     repoRoot: 'path',
     baseBranch: 'ref',
     branch: 'ref',
-    launchCommit: 'ref',
+    launchCommit: 'optionalRef',
     taskId: 'text',
     taskTitle: 'text',
     taskFullText: 'text',
@@ -250,6 +252,16 @@ function refuseTruncatedReviewTarget(kind, validated) {
   throw new TypeError(`prompt-contract: the ${kind} input declares fileScope.truncated.list "edit", so the edit list this dispatch reviews is a strict subset of what was written; a review composed over a knowingly-partial target returns a verdict on code it never saw, and the prompt also tells the reviewer not to flag files outside the scope as missing, so the omission would be invisible in the verdict as well as in the diff`);
 }
 
+function refuseLaunchCommitMismatch(kind, validated) {
+  if (!REVIEW_KINDS.includes(kind)) return;
+  if (validated.isolation === 'scope-fence' && validated.launchCommit === null) {
+    throw new TypeError(`prompt-contract: the ${kind} input declares scope-fence isolation with a null launchCommit; the composed review target is a diff taken from that commit, so a null there names no revision at all and the reviewer would be pointed at a range git cannot resolve`);
+  }
+  if (validated.isolation === 'worktree' && validated.launchCommit !== null) {
+    throw new TypeError(`prompt-contract: the ${kind} input declares worktree isolation with a launchCommit of ${JSON.stringify(validated.launchCommit)}; the composed review target under worktree isolation is the branch range alone and never reads launchCommit, so a supplied ref is silently discarded and the caller's declared review target is not the one the reviewer receives`);
+  }
+}
+
 export function validatePromptInput(kind, input) {
   if (!Object.hasOwn(PROMPT_INPUT_SPECS, kind)) {
     throw new TypeError(`prompt-contract: ${JSON.stringify(kind)} is not a prompt kind; the kinds are ${PROMPT_KINDS.join(', ')}`);
@@ -265,5 +277,6 @@ export function validatePromptInput(kind, input) {
     validated[declared.name] = FIELD_VALIDATORS[declared.type](ownValue(input, declared.name), declared.name);
   }
   refuseTruncatedReviewTarget(kind, validated);
+  refuseLaunchCommitMismatch(kind, validated);
   return Object.freeze(validated);
 }
