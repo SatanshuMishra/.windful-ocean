@@ -89,6 +89,11 @@
         "ref": "0459-audit-produces-no-recommendations",
         "title": "The audit pass characterises the current state and recommends nothing",
         "scope": "c1"
+      },
+      {
+        "ref": "0467-thirteen-agent-roster-in-four-bands",
+        "title": "Replace all 56 agents with 13 in four bands, with the dispatch tool held only by the Opus leads",
+        "scope": "c3"
       }
     ],
     "out_of_scope": [
@@ -96,5 +101,5 @@
     ]
   },
   "created_at": "2026-08-16T05:43:25.829Z",
-  "updated_at": "2026-08-16T05:44:54.029Z"
+  "updated_at": "2026-08-16T17:37:16.880Z"
 }
