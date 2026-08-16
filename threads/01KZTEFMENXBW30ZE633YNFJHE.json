@@ -562,6 +562,11 @@
         "ref": "0472-a-stack-merge-rewrites-shas-so-arrival-is-proven-by-content",
         "title": "A GitHub stack merge rewrites commits, so arrival is proven by content rather than by SHA ancestry",
         "scope": "c3"
+      },
+      {
+        "ref": "0473-one-real-engine-run-precedes-the-c7-ruling",
+        "title": "One real engine run precedes the c7 ruling, rather than ruling the merge on an unevaluable falsifier",
+        "scope": "c7"
       }
     ],
     "out_of_scope": [
@@ -573,5 +578,5 @@
     ]
   },
   "created_at": "2026-08-12T07:37:41.077Z",
-  "updated_at": "2026-08-16T17:39:13.951Z"
+  "updated_at": "2026-08-16T17:59:07.160Z"
 }
