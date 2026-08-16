@@ -49,7 +49,6 @@ export const {
   DEFAULT_PHASE_PARITY_TARGET,
   DEFAULT_DETERMINISM_TARGET,
   DEFAULT_AGENT_TREE_TARGET,
-  compileUnderSandbox,
   extractAuthorityTitles,
   extractDeclaredPhases,
   extractCalledPhases,

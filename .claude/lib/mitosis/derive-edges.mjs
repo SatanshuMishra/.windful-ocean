@@ -40,7 +40,7 @@ function inertValue(value) {
 
 export function derivedEdge(from, to, reason) {
   if (!DERIVED_EDGE_REASONS.includes(reason)) {
-    throw new Error(`derive-edges: the edge ${inertValue(from)} -> ${inertValue(to)} was built with the reason ${inertValue(reason)}, which is none of ${DERIVED_EDGE_REASONS.join(', ')}; every reason this module attaches is drawn from that registry and measured against the opus-escalation rule in mitosis.js, so a rule that mints its own token ships an edge nobody has checked against the routing it triggers`);
+    throw new Error(`derive-edges: the edge ${inertValue(from)} -> ${inertValue(to)} was built with the reason ${inertValue(reason)}, which is none of ${DERIVED_EDGE_REASONS.join(', ')}; every reason this module attaches is drawn from that registry and measured against the opus-escalation rule in run-engine.mjs, so a rule that mints its own token ships an edge nobody has checked against the routing it triggers`);
   }
   return Object.freeze({ from, to, reason });
 }

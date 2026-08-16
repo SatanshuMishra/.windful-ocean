@@ -297,11 +297,11 @@ test('T23: the CLI hardened graph carries dependentCount and edgeReasons on ever
   for (const task of out.tasks) {
     assert.ok(
       Number.isInteger(task.dependentCount) && task.dependentCount >= 0,
-      `task ${task.id} lost dependentCount; mitosis.js:4959 parks the unit when this field is not a non-negative integer`,
+      `task ${task.id} lost dependentCount; run-engine.mjs:152 parks the unit when this field is not a non-negative integer`,
     );
     assert.ok(
       Array.isArray(task.edgeReasons),
-      `task ${task.id} lost edgeReasons; mitosis.js:4962 parks the unit when this field is not an array`,
+      `task ${task.id} lost edgeReasons; run-engine.mjs:153 parks the unit when this field is not an array`,
     );
     for (const reason of task.edgeReasons) assert.equal(typeof reason, 'string');
   }
@@ -379,11 +379,11 @@ test('T19c: the CLI names the coupling cause in edgeReasons without leaking a co
   const signalTokens = out.coupling.flatMap((c) => c.signals);
   assert.ok(signalTokens.length > 0, 'a coupling emission with no signals cannot demonstrate that signals stay out of edgeReasons');
   for (const task of out.tasks) {
-    assert.ok(Number.isInteger(task.dependentCount), `task ${task.id} lost dependentCount; mitosis.js parks the unit`);
-    assert.ok(Array.isArray(task.edgeReasons), `task ${task.id} lost edgeReasons; mitosis.js parks the unit`);
+    assert.ok(Number.isInteger(task.dependentCount), `task ${task.id} lost dependentCount; run-engine.mjs parks the unit`);
+    assert.ok(Array.isArray(task.edgeReasons), `task ${task.id} lost edgeReasons; run-engine.mjs parks the unit`);
     assert.deepEqual(task.edgeReasons, ['coupling-serialize'], 'a coupling edge must name its own cause, or it is indistinguishable from one the planner declared');
     for (const signal of signalTokens) {
-      assert.equal(task.edgeReasons.includes(signal), false, 'a coupling SIGNAL carries caller-controlled path text and must never reach edgeReasons, which mitosis.js regex-matches for opus escalation; only the fixed cause token may');
+      assert.equal(task.edgeReasons.includes(signal), false, 'a coupling SIGNAL carries caller-controlled path text and must never reach edgeReasons, which run-engine.mjs regex-matches for opus escalation; only the fixed cause token may');
     }
   }
 });
@@ -525,10 +525,10 @@ test('T28: re-running the CLI over the graph it rewrote in place keeps the disco
     assert.deepEqual(
       reasonsOf(second, id),
       ['api-contract'],
-      `the second in-place run erased ${id}.edgeReasons; mitosis.js:1130 regex-matches this list to force opus on a contract-breaking task, so an emptied list silently downgrades the task on every replan`,
+      `the second in-place run erased ${id}.edgeReasons; run-engine.mjs:124 regex-matches this list to force opus on a contract-breaking task, so an emptied list silently downgrades the task on every replan`,
     );
   }
-  assert.deepEqual(second, first, 'derive-edges is run with --out equal to its input at mitosis.js:4906, so a re-run must be a fixed point');
+  assert.deepEqual(second, first, 'derive-edges is run with --out equal to its input at .claude/skills/plan-to-task-graph/SKILL.md:33, so a re-run must be a fixed point');
 });
 
 test('T28b: re-running the CLI in place keeps the fileScope-overlap reason on the pair it serialized', () => {
@@ -550,7 +550,7 @@ test('T28b: re-running the CLI in place keeps the fileScope-overlap reason on th
       `the second in-place run erased ${id}.edgeReasons; the overlap edge it justifies is still present in dependsOn, so the reason must survive with it`,
     );
   }
-  assert.deepEqual(second, first, 'derive-edges is run with --out equal to its input at mitosis.js:4906, so a re-run must be a fixed point');
+  assert.deepEqual(second, first, 'derive-edges is run with --out equal to its input at .claude/skills/plan-to-task-graph/SKILL.md:33, so a re-run must be a fixed point');
 });
 
 test('T28c: a reason whose discovered edge is withdrawn does not survive the next run', () => {
