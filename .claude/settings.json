@@ -37,43 +37,56 @@
       "Bash(gh pr list:*)",
       "Bash(gh repo view:*)",
       "Bash(gh run view:*)",
-      "Bash(gh run list:*)"
+      "Bash(gh run list:*)",
+      "Bash",
+      "Read",
+      "Edit",
+      "Write",
+      "NotebookEdit",
+      "WebFetch",
+      "WebSearch",
+      "Glob",
+      "Grep",
+      "mcp__context7__*",
+      "mcp__github__*",
+      "mcp__playwright__*",
+      "mcp__serena__*",
+      "mcp__railway-mcp-server__*",
+      "mcp__plugin_serena_serena__*",
+      "mcp__plugin_context7_context7__*",
+      "mcp__plugin_logbook_ledger__*",
+      "mcp__plugin_receipts_trajectory-kb__*",
+      "mcp__plugin_github_github__*",
+      "mcp__Claude_Browser__*",
+      "mcp__claude-in-chrome__*",
+      "mcp__Claude_Code_iOS_Simulator__*",
+      "mcp__ccd_session__*",
+      "mcp__ccd_session_mgmt__*",
+      "mcp__ccd_directory__*",
+      "mcp__mcp-registry__*",
+      "mcp__scheduled-tasks__*",
+      "mcp__terminal__*",
+      "mcp__visualize__*",
+      "Bash(node:*)"
     ],
     "deny": [
-      "Bash(git --config-env:*)",
-      "Bash(git -c:*)",
-      "Bash(git push origin main:*)",
-      "Bash(git push origin master:*)",
-      "Bash(git push origin development:*)",
-      "Bash(gh pr review:*)",
       "Bash(supabase db push:*)",
       "Bash(supabase db pull:*)",
-      "Bash(supabase db reset:*)",
       "Bash(supabase migration up:*)",
       "Bash(supabase functions deploy:*)",
       "Bash(supabase link:*)",
-      "Bash(git push --force:*)",
-      "Bash(git push -f:*)",
-      "Bash(git reset --hard:*)",
       "Bash(gh pr merge:*)",
       "Bash(gh pr create:*)",
       "mcp__github__create_pull_request",
       "mcp__plugin_github_github__create_pull_request",
       "mcp__github__create_pull_request_with_copilot",
       "mcp__plugin_github_github__create_pull_request_with_copilot",
-      "mcp__github__assign_copilot_to_issue",
-      "mcp__plugin_github_github__assign_copilot_to_issue",
       "mcp__github__update_pull_request",
       "mcp__plugin_github_github__update_pull_request",
       "mcp__github__merge_pull_request",
       "mcp__plugin_github_github__merge_pull_request",
       "Read(./**/*.pem)",
       "Read(./**/*.key)",
-      "Bash(curl:*)",
-      "Bash(wget:*)",
-      "Bash(nc:*)",
-      "Bash(http:*)",
-      "Bash(xh:*)",
       "Read(./**/.env)",
       "Read(./**/.env.*)",
       "Read(~/.ssh/**)",
@@ -104,11 +117,6 @@
             "type": "command",
             "command": "$HOME/.claude/hooks/graphify-refresh.sh",
             "timeout": 10
-          },
-          {
-            "type": "command",
-            "command": "node $HOME/.claude/local/converge.mjs --event Stop",
-            "timeout": 30
           }
         ]
       }
@@ -163,11 +171,6 @@
             "type": "command",
             "command": "python3 $HOME/.claude/hooks/agent-ledger/roster-index-gen.py",
             "timeout": 10
-          },
-          {
-            "type": "command",
-            "command": "node $HOME/.claude/local/converge.mjs --event SessionStart",
-            "timeout": 30
           }
         ]
       }
@@ -190,16 +193,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "$HOME/.claude/hooks/block-env-edits.sh"
-          },
-          {
-            "type": "command",
             "command": "$HOME/.claude/hooks/secret-scanner.sh",
-            "timeout": 5
-          },
-          {
-            "type": "command",
-            "command": "$HOME/.claude/hooks/protect-claude-config.sh",
             "timeout": 5
           }
         ]
@@ -211,11 +205,6 @@
             "type": "command",
             "command": "$HOME/.claude/hooks/block-destructive-bash.sh",
             "timeout": 5
-          },
-          {
-            "type": "command",
-            "command": "$HOME/.claude/hooks/pre-commit-scoped-verify.sh",
-            "timeout": 60
           }
         ]
       },
@@ -248,6 +237,16 @@
             "timeout": 10
           }
         ]
+      },
+      {
+        "matcher": "Edit|Write|NotebookEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "$HOME/.claude/hooks/allow-write-tools.sh",
+            "timeout": 5
+          }
+        ]
       }
     ],
     "PostToolUse": [
@@ -258,11 +257,6 @@
             "type": "command",
             "command": "$HOME/.claude/hooks/lint-on-edit.sh",
             "async": true
-          },
-          {
-            "type": "command",
-            "command": "$HOME/.claude/hooks/ui-ux-audit-on-edit.sh",
-            "timeout": 5
           }
         ]
       }
@@ -312,7 +306,6 @@
     "visual-explainer@visual-explainer-marketplace": true,
     "receipts@receipts": true,
     "warp@claude-code-warp": true,
-    "logbook@continuity-ledger": true,
     "logbook@logbook": true
   },
   "extraKnownMarketplaces": {
@@ -338,12 +331,6 @@
       "source": {
         "source": "github",
         "repo": "warpdotdev/claude-code-warp"
-      }
-    },
-    "continuity-ledger": {
-      "source": {
-        "source": "github",
-        "repo": "SatanshuMishra/continuity-ledger-plugin"
       }
     }
   },

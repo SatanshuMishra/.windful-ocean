@@ -6,6 +6,34 @@
   },
   "verify": {
     "test_command": "node --test {test}",
-    "suite_command": "npm test"
+    "suite_command": "npm test",
+    "on_load_error_red": false,
+    "receipt_runs": 1
+  },
+  "claim": {
+    "require_receipt_for": "any-source-change",
+    "downgrade_tags": [
+      "unverified-reasoned",
+      "speculative",
+      "reverted"
+    ]
+  },
+  "gates": {
+    "G11": {
+      "mode": "block"
+    },
+    "G14": {
+      "mode": "block",
+      "max_mutants": 12
+    },
+    "G12": {
+      "mode": "warn"
+    },
+    "G6": {
+      "mode": "warn"
+    },
+    "G17": {
+      "downgrade_threshold": 3
+    }
   }
 }
