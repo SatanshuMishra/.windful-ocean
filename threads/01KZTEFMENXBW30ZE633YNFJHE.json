@@ -578,6 +578,11 @@
         "ref": "0457-the-malformed-request-silent-park-is-filed-not-folded-and-the-emitter-self-validates",
         "title": "The malformed-request silent park is filed as its own MSP, and the emitter validates its own output",
         "scope": "c3"
+      },
+      {
+        "ref": "0458-the-sast-redos-finding-is-fixed-by-a-literal-table-not-suppressed-by-a-pragma",
+        "title": "The sast ReDoS finding is fixed by a frozen literal table, and semgrep joins every acceptance ceiling",
+        "scope": "c3"
       }
     ],
     "out_of_scope": [
@@ -589,5 +594,5 @@
     ]
   },
   "created_at": "2026-08-12T07:37:41.077Z",
-  "updated_at": "2026-08-16T04:45:22.988Z"
+  "updated_at": "2026-08-16T05:39:58.852Z"
 }
