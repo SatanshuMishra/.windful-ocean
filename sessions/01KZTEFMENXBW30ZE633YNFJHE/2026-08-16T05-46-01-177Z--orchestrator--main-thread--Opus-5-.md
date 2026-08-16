@@ -1,0 +1,7 @@
+PR #137 (D1b2) merged by the user. Arrival asserted by ancestry rather than the MERGED status: head 644fe670 IS an ancestor of origin/feat/mitosis-os-process, the head-versus-base diff is empty, and all three artifacts are confirmed present on the base by git cat-file - run-document.mjs, decompose-schema.mjs, decompose-emit.mjs. Base tip is now c067cfce, 265 ahead of origin/main and 56 behind.
+
+The decompose-and-emit MSP that 0455 inserted is therefore COMPLETE on the stack, in both halves. D2 is unblocked: the file it deletes no longer holds the only decomposer, so the green-branch invariant that motivated 0455 now holds across the deletion.
+
+Retired the risk "do not cut D2 until PR #137 is merged and asserted" - satisfied. Everything else in c3 carries forward unchanged.
+
+Two remote branches accumulated this session and were deliberately not deleted, since push --delete is blocked by the bash classifier and branch deletion is destructive: feat/d1b1-run-document and feat/d1b2-decompose-emit, plus their worktrees at .claude/worktrees/d1b-decompose-emit and .claude/worktrees/d1b2-decompose-emit. Neither gates anything - both PRs merged with merge commits, so each head is a genuine ancestor of the base.
