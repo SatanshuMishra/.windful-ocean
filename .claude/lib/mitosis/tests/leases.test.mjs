@@ -12,8 +12,8 @@ import {
   acquire,
   dispositionOf,
   planTick,
-  runSchedule,
 } from '../leases.mjs';
+import { runSchedule } from '../engine.mjs';
 
 function alwaysDone() {
   return async () => Done({ ok: true });
