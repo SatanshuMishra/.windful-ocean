@@ -189,9 +189,9 @@
   "abandoned_reason": null,
   "closure_statement": null,
   "spine": {
-    "active_goal": "Rule the release gate on an unevaluable falsifier, then decide whether the OS-process base merges to main.",
-    "next_step": "Read .claude/docs/2026-08-16-d3-dispatch-measurement.md on the merged base, then rule c7. The 10-dispatch falsifier is UNEVALUABLE - no engine run has ever existed, so the ratio has no denominator - and the gate's text covers cleared and falsified but not this. Either rule that unevaluable permits the merge to main, or commission one real engine run against the now-wired envelope, which is also what would make c6 genuinely closable.",
-    "last_session": "Shipped the final six MSPs as one linear stack; the human merged all six and arrival was verified by content, not SHA, because the stack merge rewrote commits. Legacy engine deleted, main folded in, branches cleaned. Ruled 0460-0466 and 0472.",
+    "active_goal": "Measure dispatch volume on the first real engine run, then rule the release gate and decide whether the OS-process base merges to main.",
+    "next_step": "START HERE. Author the run document for the flat triad D, E and F, and show every request.prompt to the user before anything executes - that text is the whole blast radius. Clone into the scratchpad as --repo-root, never the primary checkout. Then run cli.mjs to quiescence, read usage.jsonl, and rule c7. First check whether the in-flight scanner fix committed on fix/secret-scanner-anthropic-keys.",
+    "last_session": "Found the D3 instrument unwired end to end, so no run happened. Shipped c24 (wiring) and c25 (evidence integrity), both red-on-parent with inertness mutations, neither pushed. Ruled 0473-0478. Confirmed a live secret-scanner gap and dispatched its fix separately.",
     "open_risks": [
       {
         "text": "Prove a merge arrived by asserting its CONTENT is on the base, never by SHA ancestry — a squash or stack merge rewrites commits, so a pre-merge SHA correctly fails an ancestry check on a merge that lost nothing",
@@ -291,18 +291,56 @@
         ]
       },
       {
-        "text": "One real engine run is what makes the falsifier evaluable — the envelope now survives the pool seam and run-store can write per-attempt usage, but nothing has ever produced a journal to measure",
-        "scope": "c6",
-        "refs": [
-          "0466",
-          "run-store.mjs recordUsage"
-        ]
-      },
-      {
         "text": "Filter the agent ledger to this project before rendering anything from it — thousands of rows carry a confidential cross-project codename, and an unfiltered count or cwd histogram leaks it into a tracked artifact",
         "scope": "c6",
         "refs": [
           "~/.claude/agent-ledger/events/"
+        ]
+      },
+      {
+        "text": "Discard and redo any run that does not reach quiescence cleanly — a dispatch whose start was recorded but whose finish never arrived leaves no usage line at all, so a torn-down run silently undercounts the denominator instead of failing loudly",
+        "scope": "c7",
+        "refs": [
+          "c25 filed item 2",
+          "usageRecorder"
+        ]
+      },
+      {
+        "text": "Read every request.prompt in the run document before executing it — the engine composes no prompt of its own and hands that text verbatim to a real child holding its own Bash tool, so the document is the entire blast radius",
+        "scope": "c7",
+        "refs": [
+          "0478",
+          "cli.mjs specs[].request.prompt"
+        ]
+      },
+      {
+        "text": "Expect the engine itself to reach the network exactly once, read-only — SHIP, CI_PUBLISH, BRANCH_COMPOSE and open-pr all sit outside cli.mjs's import closure, so no engine code pushes or opens a pull request",
+        "scope": "c7",
+        "refs": [
+          "0475",
+          "engine.mjs:204"
+        ]
+      },
+      {
+        "text": "Clear a poisoned lock with the run-store retire verb — a killed run never breaks its own lock, so the next run on the same spec refuses until an operator intervenes",
+        "scope": "c7",
+        "refs": [
+          "run-store.mjs",
+          "c24 filed item 2"
+        ]
+      },
+      {
+        "text": "Expect a ratio near 1.0 and report it as the benign case — dispatches per unit reduces to one plus retry amplification, so a clean triad clears a ceiling of ten tenfold while proving nothing about thrash under load",
+        "scope": "c7",
+        "refs": [
+          "0477"
+        ]
+      },
+      {
+        "text": "Expect the quiescence probe to find no pull request — that gh call is unconditional and its behavior when no pull request exists was never verified, so it could halt the run at its final step",
+        "scope": "c7",
+        "refs": [
+          "engine.mjs:204"
         ]
       }
     ],
@@ -578,26 +616,6 @@
         "scope": "c3"
       },
       {
-        "ref": "0473-one-real-engine-run-precedes-the-c7-ruling",
-        "title": "One real engine run precedes the c7 ruling, rather than ruling the merge on an unevaluable falsifier",
-        "scope": "c7"
-      },
-      {
-        "ref": "0474-the-d3-instrument-is-unwired-and-is-wired-before-the-run",
-        "title": "The D3 instrument is unwired end to end, and is wired as its own MSP before any engine run",
-        "scope": "c7"
-      },
-      {
-        "ref": "0475-shipped-means-checkpointed-and-green-for-this-builds-falsifier",
-        "title": "Shipped means checkpointed and green, because this build's engine cannot reach Ship",
-        "scope": "c7"
-      },
-      {
-        "ref": "0476-the-review-high-is-filed-as-a-new-item-not-folded-into-c24",
-        "title": "The review's HIGH is filed as a new item rather than reopening c24, and is fixed before the run",
-        "scope": "c7"
-      },
-      {
         "ref": "0477-the-measurement-run-is-three-real-units-with-natural-outcomes",
         "title": "The measurement run is three real units with one dependency edge and natural outcomes",
         "scope": "c7"
@@ -617,5 +635,5 @@
     ]
   },
   "created_at": "2026-08-12T07:37:41.077Z",
-  "updated_at": "2026-08-16T20:00:59.375Z"
+  "updated_at": "2026-08-16T20:02:10.813Z"
 }
