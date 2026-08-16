@@ -616,6 +616,26 @@
         "scope": "c3"
       },
       {
+        "ref": "0473-one-real-engine-run-precedes-the-c7-ruling",
+        "title": "One real engine run precedes the c7 ruling, rather than ruling the merge on an unevaluable falsifier",
+        "scope": "c7"
+      },
+      {
+        "ref": "0474-the-d3-instrument-is-unwired-and-is-wired-before-the-run",
+        "title": "The D3 instrument is unwired end to end, and is wired as its own MSP before any engine run",
+        "scope": "c7"
+      },
+      {
+        "ref": "0475-shipped-means-checkpointed-and-green-for-this-builds-falsifier",
+        "title": "Shipped means checkpointed and green, because this build's engine cannot reach Ship",
+        "scope": "c7"
+      },
+      {
+        "ref": "0476-the-review-high-is-filed-as-a-new-item-not-folded-into-c24",
+        "title": "The review's HIGH is filed as a new item rather than reopening c24, and is fixed before the run",
+        "scope": "c7"
+      },
+      {
         "ref": "0477-the-measurement-run-is-three-real-units-with-natural-outcomes",
         "title": "The measurement run is three real units with one dependency edge and natural outcomes",
         "scope": "c7"
@@ -635,5 +655,5 @@
     ]
   },
   "created_at": "2026-08-12T07:37:41.077Z",
-  "updated_at": "2026-08-16T20:02:10.813Z"
+  "updated_at": "2026-08-16T20:02:24.148Z"
 }
