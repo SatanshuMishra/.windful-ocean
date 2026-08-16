@@ -671,6 +671,11 @@
         "ref": "0488-structuredoutput-grant-must-land-on-main",
         "title": "The StructuredOutput grant lands on main as its own change because ~/.claude/agents is a symlink",
         "scope": "thread"
+      },
+      {
+        "ref": "0489-n1-run-clears-the-falsifier-at-1-0",
+        "title": "The n=1 run clears the falsifier at 1.0 dispatches per unit, with the vacuity caveat in the verdict",
+        "scope": "c7"
       }
     ],
     "out_of_scope": [
@@ -682,5 +687,5 @@
     ]
   },
   "created_at": "2026-08-12T07:37:41.077Z",
-  "updated_at": "2026-08-16T23:22:27.581Z"
+  "updated_at": "2026-08-16T23:34:49.320Z"
 }
