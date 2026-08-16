@@ -4,10 +4,12 @@ import { fileURLToPath } from 'node:url';
 import { halt } from './js-scan.mjs';
 import {
   extractAssignedPhases,
+  extractAuthorityTitles,
   extractCalledPhases,
   extractDeclaredPhases,
   extractPhaseSurfaces,
 } from './phase-scan.mjs';
+import { censusEnginePhaseUse } from './phase-use-census.mjs';
 import { censusEngineDeterminism, engineSourceRoots, realSourceIo } from './determinism-lint.mjs';
 import { EXEC_ALLOWLIST, assertSpawnAllowed, resolveSpawn } from './exec-policy.mjs';
 import { MERGE_REFUSAL_SPECIMENS } from './gh-merge-shim.mjs';
@@ -23,7 +25,7 @@ export const GATE_COMPILE_EXIT = 44;
 
 export const MITOSIS_GATE_VERBS = Object.freeze(['determinism', 'dispatchable-agent-schema-capable', 'exec-allowlist', 'phase-parity']);
 
-export const DEFAULT_PHASE_PARITY_TARGET = fileURLToPath(new URL('../../workflows/mitosis.js', import.meta.url));
+export const DEFAULT_PHASE_PARITY_TARGET = fileURLToPath(new URL('./phases.mjs', import.meta.url));
 export const DEFAULT_DETERMINISM_TARGET = fileURLToPath(new URL('./', import.meta.url));
 export const DEFAULT_AGENT_TREE_TARGET = agentDefinitionDir();
 
@@ -60,10 +62,11 @@ const PHASE_AUTHORITY_TARGETS = Object.freeze(Object.keys(PHASE_AUTHORITY_BY_TAR
 
 const PHASE_AUTHORITY_KEY = 'the phase authority';
 const PHASE_PARITY_CALLER = 'checkPhaseParity';
+const PHASE_USE_CALLER = 'checkPhaseUse';
 const PHASE_AUTHORITY_CALLER = 'checkPhaseAuthority';
 const ESM_EXPORT_PREFIX = /^export /gm;
 
-export { extractAssignedPhases, extractCalledPhases, extractDeclaredPhases, extractPhaseSurfaces };
+export { extractAssignedPhases, extractAuthorityTitles, extractCalledPhases, extractDeclaredPhases, extractPhaseSurfaces };
 
 export function compileUnderSandbox(source) {
   try {
@@ -118,6 +121,28 @@ export function checkPhaseParity(surfaces) {
     declared: Object.freeze([...declaredSet].sort()),
     called: Object.freeze([...calledSet].sort()),
     assigned: Object.freeze([...new Set(assigned)].sort()),
+  });
+}
+
+export function checkPhaseUse(census, declared) {
+  if (census === null || typeof census !== 'object' || !Array.isArray(census.called) || !Array.isArray(census.assigned)) {
+    throw new TypeError(`${PHASE_USE_CALLER} expects a census carrying called and assigned title arrays; a malformed census carries no use surface and would report parity it never measured`);
+  }
+  const declaredSet = requireTitleSet(declared, 'declared', PHASE_USE_CALLER);
+  const used = [...census.called, ...census.assigned];
+  for (const title of used) {
+    if (typeof title !== 'string' || title.trim().length === 0) {
+      throw new TypeError(`${PHASE_USE_CALLER} expects every censused phase title to be a non-empty string, and one entry is ${JSON.stringify(title)}`);
+    }
+  }
+  const usedSet = new Set(used);
+  const usedNeverDeclared = [...usedSet].filter((title) => !declaredSet.has(title)).sort();
+  return Object.freeze({
+    ok: usedNeverDeclared.length === 0,
+    usedNeverDeclared: Object.freeze(usedNeverDeclared),
+    declared: Object.freeze([...declaredSet].sort()),
+    used: Object.freeze([...usedSet].sort()),
+    declaredNeverUsed: Object.freeze([...declaredSet].filter((title) => !usedSet.has(title)).sort()),
   });
 }
 
@@ -185,31 +210,32 @@ function runPhaseParityGate(target, out, readSource) {
     out.err(`mitosis-gate: ${target} carried no readable source\n`);
     return GATE_READ_EXIT;
   }
-  const compiled = compileUnderSandbox(source);
-  if (!compiled.ok) {
-    out.err(`mitosis-gate: ${target} does not compile under the workflow sandbox: ${compiled.error}\n`);
-    return GATE_COMPILE_EXIT;
-  }
-  const extracted = extractPhaseSurfaces(source);
-  if (!extracted.ok) {
-    out.err(`mitosis-gate: phase-parity halted on ${target}: ${extracted.error}\n`);
+  const declared = extractAuthorityTitles(source);
+  if (!declared.ok) {
+    out.err(`mitosis-gate: phase-parity halted on ${target}: ${declared.error}\n`);
     return GATE_UNRESOLVABLE_EXIT;
+  }
+  const census = censusEnginePhaseUse(engineSourceRoots(), { ...realSourceIo, readSource });
+  if (!census.ok) {
+    out.err(`mitosis-gate: phase-parity ${census.kind === 'read' ? 'could not read' : 'halted on'} its engine source: ${census.error}\n`);
+    return census.kind === 'read' ? GATE_READ_EXIT : GATE_UNRESOLVABLE_EXIT;
   }
   let verdict;
   let agreement;
   try {
-    verdict = checkPhaseParity(extracted.surfaces);
-    agreement = checkPhaseAuthority(extracted.surfaces.declared, authority);
+    verdict = checkPhaseUse(census, declared.phases);
+    agreement = checkPhaseAuthority(declared.phases, authority);
   } catch (err) {
     out.err(`mitosis-gate: phase-parity could not evaluate ${target}: ${err && err.message ? err.message : 'unknown failure'}\n`);
     return GATE_UNRESOLVABLE_EXIT;
   }
+  if (verdict.used.length === 0) {
+    out.err(`mitosis-gate: phase-parity found no phase surface at all across ${census.files.length} engine source file(s); a parity verdict over an empty use set reports agreement it never measured, so it halts\n`);
+    return GATE_UNRESOLVABLE_EXIT;
+  }
   if (!verdict.ok || !agreement.ok) {
-    if (verdict.declaredNeverCalled.length > 0) {
-      out.err(`mitosis-gate: ${target} declares phases that are never called: ${verdict.declaredNeverCalled.join(', ')}\n`);
-    }
     if (verdict.usedNeverDeclared.length > 0) {
-      out.err(`mitosis-gate: ${target} uses phases that are never declared: ${verdict.usedNeverDeclared.join(', ')}\n`);
+      out.err(`mitosis-gate: engine source enters phases ${target} never declares: ${verdict.usedNeverDeclared.join(', ')}\n`);
     }
     if (agreement.declaredNotInAuthority.length > 0) {
       out.err(`mitosis-gate: ${target} declares phases the phase authority does not name: ${agreement.declaredNotInAuthority.join(', ')}\n`);
@@ -219,7 +245,15 @@ function runPhaseParityGate(target, out, readSource) {
     }
     return GATE_VIOLATION_EXIT;
   }
-  out.log(`${JSON.stringify({ verb: 'phase-parity', target, ok: true, phases: verdict.declared, counts: extracted.counts })}\n`);
+  out.log(`${JSON.stringify({
+    verb: 'phase-parity',
+    target,
+    ok: true,
+    phases: verdict.declared,
+    used: verdict.used,
+    declaredNeverEntered: verdict.declaredNeverUsed,
+    counts: { files: census.files.length, called: census.called.length, assigned: census.assigned.length },
+  })}\n`);
   return GATE_CLEAN_EXIT;
 }
 

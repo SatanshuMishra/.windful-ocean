@@ -10,6 +10,7 @@ import {
 } from './js-scan.mjs';
 
 const PHASE_TOKEN_TEXT = 'phase';
+export const AUTHORITY_BINDING = 'PHASE_TITLES';
 const FUNCTION_NAME_PATTERN = /^[A-Za-z_$][\w$]*$/;
 const NON_NAME_WORDS = Object.freeze(new Set(['function', 'if', 'for', 'while', 'switch', 'catch', 'return', 'typeof', 'await', 'new']));
 const KEY_PREFIX_CHARS = Object.freeze(new Set(['{', ',']));
@@ -240,7 +241,6 @@ function calledFromScan(source, scan) {
     }
     phases.push(value);
   }
-  if (phases.length === 0) return halt('no phase() call sites were found in the target');
   return Object.freeze({ ok: true, phases: Object.freeze(phases), counts: Object.freeze(censusCounts(census)) });
 }
 
@@ -303,6 +303,25 @@ function resolveCallSitePhases(source, scan, functionName, occurrences) {
   return Object.freeze({ ok: true, phases: Object.freeze(phases) });
 }
 
+function functionValueAt(scan, index) {
+  const { masked } = scan;
+  const word = readIdentifier(masked, index);
+  if (word === 'function' || word === 'async') return true;
+  if (masked[index] !== '(') return false;
+  let depth = 0;
+  for (let k = index; k < masked.length; k += 1) {
+    if (masked[k] === '(') depth += 1;
+    else if (masked[k] === ')') {
+      depth -= 1;
+      if (depth === 0) {
+        const after = nextCodeIndex(masked, k + 1);
+        return masked[after] === '=' && masked[after + 1] === '>';
+      }
+    }
+  }
+  return false;
+}
+
 function assignedFromScan(source, scan) {
   const census = censusPhaseTokens(source, scan);
   if (!census.ok) return census;
@@ -313,6 +332,7 @@ function assignedFromScan(source, scan) {
   const forwards = [];
   let literal = 0;
   let dead = 0;
+  let hooks = 0;
 
   for (const occurrence of occurrences) {
     if (occurrence.enclosing === null) {
@@ -332,9 +352,13 @@ function assignedFromScan(source, scan) {
       phases.push(value);
       continue;
     }
+    if (functionValueAt(scan, occurrence.valueStart)) {
+      hooks += 1;
+      continue;
+    }
     const identifier = readIdentifier(masked, occurrence.valueStart);
     if (identifier === null) {
-      return halt(`the phase: value at ${at(source, occurrence.colon)} is neither a plain string literal nor an identifier; refusing to guess`);
+      return halt(`the phase: value at ${at(source, occurrence.colon)} is neither a plain string literal, an identifier nor a function; refusing to guess`);
     }
     const parameter = describeParameterPattern(scan, occurrence.enclosing);
     if (parameter !== null) {
@@ -356,7 +380,6 @@ function assignedFromScan(source, scan) {
     phases.push(...resolved.phases);
   }
 
-  if (phases.length === 0) return halt('no reachable phase: assignments were found in the target');
   return Object.freeze({
     ok: true,
     phases: Object.freeze(phases),
@@ -365,6 +388,7 @@ function assignedFromScan(source, scan) {
       literal,
       dead,
       destructuring: bindings.length,
+      hooks,
       forwarded: forwards.length,
     }),
   });
@@ -379,12 +403,66 @@ export function extractDeclaredPhases(source) {
   return scanned(source, declaredFromScan);
 }
 
+function authorityFromScan(source, scan) {
+  const { masked, stringSpans } = scan;
+  const declarations = [...masked.matchAll(new RegExp(`(^|[^\\w$.])${AUTHORITY_BINDING}\\s*=`, 'g'))];
+  if (declarations.length === 0) return halt(`no ${AUTHORITY_BINDING} assignment was found in the target`);
+  if (declarations.length > 1) {
+    return halt(`the target carries ${declarations.length} ${AUTHORITY_BINDING} assignments; refusing to guess which one is the authority`);
+  }
+  const openBracket = masked.indexOf('[', declarations[0].index);
+  if (openBracket === -1) return halt(`the ${AUTHORITY_BINDING} assignment opens no array literal; refusing to guess where the titles are`);
+  const closeBracket = matchBracket(masked, openBracket);
+  if (closeBracket === -1) return halt(`the ${AUTHORITY_BINDING} array opened at ${at(source, openBracket)} is never closed`);
+  const titles = [];
+  let index = nextCodeIndex(masked, openBracket + 1);
+  while (index < closeBracket) {
+    if (masked[index] === ',') {
+      index = nextCodeIndex(masked, index + 1);
+      continue;
+    }
+    const close = stringSpans.get(index);
+    if (close === undefined) {
+      return halt(`the ${AUTHORITY_BINDING} entry at ${at(source, index)} is not a plain string literal; refusing to guess which title it names`);
+    }
+    const value = readStringLiteral(source, stringSpans, index);
+    if (value === null) {
+      return halt(`the ${AUTHORITY_BINDING} entry at ${at(source, index)} is an escaped or blank string; refusing to guess which title it names`);
+    }
+    titles.push(value);
+    index = nextCodeIndex(masked, close + 1);
+  }
+  if (titles.length === 0) return halt(`the ${AUTHORITY_BINDING} array declares no phase titles`);
+  return Object.freeze({ ok: true, phases: Object.freeze(titles) });
+}
+
+export function extractAuthorityTitles(source) {
+  return scanned(source, authorityFromScan);
+}
+
 export function extractCalledPhases(source) {
-  return scanned(source, calledFromScan);
+  const result = scanned(source, calledFromScan);
+  if (result.ok && result.phases.length === 0) return halt('no phase() call sites were found in the target');
+  return result;
 }
 
 export function extractAssignedPhases(source) {
-  return scanned(source, assignedFromScan);
+  const result = scanned(source, assignedFromScan);
+  if (result.ok && result.phases.length === 0) return halt('no reachable phase: assignments were found in the target');
+  return result;
+}
+
+export function extractUsedPhases(source) {
+  const called = scanned(source, calledFromScan);
+  if (!called.ok) return called;
+  const assigned = scanned(source, assignedFromScan);
+  if (!assigned.ok) return assigned;
+  return Object.freeze({
+    ok: true,
+    called: called.phases,
+    assigned: assigned.phases,
+    counts: assigned.counts,
+  });
 }
 
 export function extractPhaseSurfaces(source) {
