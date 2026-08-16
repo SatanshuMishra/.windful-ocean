@@ -296,7 +296,7 @@ async function invoke(plan, ledger, signal, dispatchFn, id) {
   finish(plan, ledger, signal.aborted, id, {
     ok: verdict.ok,
     outcome: typeof verdict.outcome === 'string' ? verdict.outcome : null,
-    reason: null,
+    reason: typeof verdict.reason === 'string' && verdict.reason.length > 0 ? note(verdict.reason) : null,
     envelope: verdict.envelope,
   });
 }

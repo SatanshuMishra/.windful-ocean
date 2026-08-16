@@ -18,6 +18,26 @@ export {
 } from './leases.mjs';
 
 const PARKED = 'parked';
+const RECORD_FAILURE_TAG = 'PostDispatchRecordFailure';
+
+export const POST_DISPATCH_RECORD_FAILED = 'post-dispatch-record-failed';
+
+function describeError(error) {
+  if (error === null || error === undefined) return 'unknown failure';
+  return typeof error.message === 'string' && error.message !== '' ? error.message : String(error);
+}
+
+function recordFailure(envelope, error) {
+  return Object.freeze({
+    tag: RECORD_FAILURE_TAG,
+    envelope,
+    reason: `${ENGINE}: the unit was dispatched and its cost is already billed, but the checkpoint or journal write that follows it failed: ${describeError(error)}`,
+  });
+}
+
+function isRecordFailure(value) {
+  return value !== null && typeof value === 'object' && !Array.isArray(value) && value.tag === RECORD_FAILURE_TAG;
+}
 
 function markDispatched(units, dispatchIds) {
   const set = new Set(dispatchIds);
@@ -36,12 +56,26 @@ function tickGraph(units) {
   return { nodes: units.map((unit) => ({ id: unit.id })), readyAfter: {} };
 }
 
+function carriedEnvelope(source) {
+  if (source === null || source === undefined || typeof source !== 'object' || Array.isArray(source)) return null;
+  const envelope = source.envelope;
+  return envelope !== null && envelope !== undefined && typeof envelope === 'object' && !Array.isArray(envelope) ? envelope : null;
+}
+
+function envelopeOf(outcome) {
+  const fromPayload = carriedEnvelope(payloadOf(outcome));
+  return fromPayload === null ? carriedEnvelope(outcome) : fromPayload;
+}
+
 function tickDispatcher(unitsById, runUnit, outcomes) {
   return async (node, context) => {
     const outcome = await runUnit(unitsById.get(node.id), context);
+    if (isRecordFailure(outcome)) {
+      return { ok: false, outcome: POST_DISPATCH_RECORD_FAILED, reason: outcome.reason, envelope: outcome.envelope };
+    }
     outcomes.set(node.id, outcome === undefined ? null : outcome);
     const disposition = dispositionOf(outcome);
-    return { ok: disposition !== PARKED, outcome: disposition };
+    return { ok: disposition !== PARKED, outcome: disposition, envelope: envelopeOf(outcome) };
   };
 }
 
@@ -186,7 +220,12 @@ export async function runEngine(request, ports) {
   const record = journalRecorder(request, ports);
   const runUnit = async (unit, context) => {
     const outcome = await ports.runUnit(unit, context);
-    await record(unit.id, outcome);
+    const envelope = envelopeOf(outcome);
+    try {
+      await record(unit.id, outcome);
+    } catch (error) {
+      return recordFailure(envelope, error);
+    }
     return outcome;
   };
   const result = await runSchedule(request.specs, runUnit, {

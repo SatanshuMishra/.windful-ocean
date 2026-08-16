@@ -940,6 +940,22 @@ test('the CLI never writes a control byte read from the graph file to the operat
   );
 });
 
+test('a failed verdict reason is dropped when empty and kept once it holds even a single character', async () => {
+  const dispatchFn = async (node) => ({
+    ok: false,
+    outcome: 'engine-error',
+    reason: node.id === 'empty-reason' ? '' : 'x',
+  });
+  const result = await runGraph(
+    { nodes: [{ id: 'empty-reason' }, { id: 'short-reason' }], readyAfter: {} },
+    dispatchFn,
+    {},
+  );
+  const records = byId(result.records);
+  assert.equal(records.get('empty-reason').reason, null, 'an empty reason string must not survive as a truthy note');
+  assert.equal(records.get('short-reason').reason, 'x', 'a one-character reason must still be carried onto the record');
+});
+
 test('a dispatcher failure message is stripped and bounded before it becomes a record', async () => {
   const dispatchFn = async () => { throw new Error(`start${BELL}${'x'.repeat(8192)}`); };
   const result = await runGraph({ nodes: [{ id: 'one' }], readyAfter: {} }, dispatchFn, {});

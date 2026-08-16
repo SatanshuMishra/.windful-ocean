@@ -1,20 +1,29 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import { mkdtempSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { pack } from './file-scope-fixtures.mjs';
 import { CLI_USAGE, parseCliArgv, realPorts, runCli } from '../cli.mjs';
 import { Done, NeedsHuman } from '../boundary.mjs';
 
-function fullArgv(extra = []) {
+function fullArgv(extra = [], root = '/repo') {
   return [
     '--spec', '/spec.json',
     '--run-id', '0a1b2c3d',
     '--at', '2026-08-15T12:00:00Z',
-    '--repo-root', '/repo',
+    '--repo-root', root,
     '--journal', '.mitosis/run.jsonl',
     '--repo-slug', 'acme/widgets',
     '--integration-branch', 'integration',
     ...extra,
   ];
+}
+
+function tempArgv(t) {
+  const root = mkdtempSync(join(tmpdir(), 'mitosis-cli-'));
+  t.after(() => rmSync(root, { recursive: true, force: true }));
+  return fullArgv([], root);
 }
 
 function withoutFlag(argv, flag) {
@@ -108,10 +117,10 @@ test('USAGE EXIT: a parse failure writes the usage line and exits 2 without read
   assert.deepEqual(io.out, []);
 });
 
-test('THE INSTANT ARRIVES AS ARGV: the --at value is the at the engine writes into the quiescent-exit record', async () => {
+test('THE INSTANT ARRIVES AS ARGV: the --at value is the at the engine writes into the quiescent-exit record', async (t) => {
   const io = stubIo(specDocument());
   const stub = stubPorts(async () => Done({ sha: 'sha-alpha', green: true }));
-  const code = await runCli(fullArgv(), io, () => stub.ports);
+  const code = await runCli(tempArgv(t), io, () => stub.ports);
   const appendCalls = stub.calls.filter((call) => call.port === 'appendJournal');
   const lastRecord = JSON.parse(appendCalls[appendCalls.length - 1].value.line);
   assert.equal(lastRecord.kind, 'quiescent-exit');
@@ -119,19 +128,28 @@ test('THE INSTANT ARRIVES AS ARGV: the --at value is the at the engine writes in
   assert.equal(code, 0);
 });
 
-test('EXIT 3: a run that reaches quiescence with a unit short of done reports incomplete', async () => {
+test('EXIT 3: a run that reaches quiescence with a unit short of done reports incomplete', async (t) => {
   const io = stubIo(specDocument());
   const stub = stubPorts(async () => NeedsHuman({ kind: 'ask' }, []));
-  const code = await runCli(fullArgv(), io, () => stub.ports);
+  const code = await runCli(tempArgv(t), io, () => stub.ports);
   assert.equal(code, 3);
   assert.match(io.out.join(''), /"state": "parked"/);
 });
 
-test('EXIT 1: a throw from the engine is reported on stderr rather than crashing the process', async () => {
-  const io = stubIo({});
-  const code = await runCli(fullArgv(), io, () => ({}));
+test('EXIT 1: a throw from the engine is reported on stderr rather than crashing the process', async (t) => {
+  const io = stubIo(specDocument());
+  const code = await runCli(tempArgv(t), io, () => ({}));
   assert.equal(code, 1);
   assert.match(io.errOut.join(''), /mitosis-cli:/);
+  assert.match(io.errOut.join(''), /runUnit/);
+});
+
+test('EXIT 1: a thrown value with no message property is stringified rather than read as undefined', async (t) => {
+  const io = stubIo(specDocument());
+  io.readSpec = () => { throw { code: 'EACCES' }; };
+  const code = await runCli(tempArgv(t), io, () => ({}));
+  assert.equal(code, 1);
+  assert.equal(io.errOut.join(''), 'mitosis-cli: [object Object]\n');
 });
 
 test('REAL PORTS: a successful dispatch verdict becomes Done carrying the child-reported sha, and a failed one becomes a parked NeedsHuman', async () => {
