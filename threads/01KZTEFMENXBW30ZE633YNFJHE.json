@@ -175,9 +175,9 @@
   "abandoned_reason": null,
   "closure_statement": null,
   "spine": {
-    "active_goal": "Land the remaining MSPs on feat/mitosis-os-process - the decompose-and-emit pair, D2 and D3 - under receipts/gates@1.1, with nothing merged to main until D3 clears its falsifier.",
-    "next_step": "WAIT for a human merge of PR #137 (D1b2, base feat/mitosis-os-process), then assert arrival by ancestry rather than the MERGED status. Before cutting D2, settle the two post-decompose checks it deletes with mitosis.js: the PR-composability halt and the coarse-scope lint. Nothing on the base carries either, and D2 is a pure deletion that would drop both silently. Add semgrep to D2's acceptance ceiling alongside the four gate verbs.",
-    "last_session": "Shipped the decompose-and-emit pair. D1b1 merged as PR #136 and asserted on the base; D1b2 open as PR #137, green on all 13 checks after a blocking sast ReDoS finding was fixed with a frozen literal table and a bidirectional census. Ruled 0456, 0457, 0458.",
+    "active_goal": "Land the remaining MSPs on feat/mitosis-os-process - D2 and D3 - under receipts/gates@1.1, with nothing merged to main until D3 clears its falsifier.",
+    "next_step": "Cut D2, the deletion MSP, on a worktree off origin/feat/mitosis-os-process (tip c067cfce). Settle two things FIRST: the PR-composability halt and coarse-scope lint that D2 removes with mitosis.js, which nothing on the base carries; and whether to write dead-export-lint or amend D2's acceptance line, which names a lint absent from this tree. Put semgrep in D2's ceiling alongside the four gate verbs.",
+    "last_session": "Shipped the whole decompose-and-emit pair. PR #136 (D1b1) and PR #137 (D1b2) both merged and asserted on the base by ancestry; all three modules confirmed present at c067cfce. A blocking sast ReDoS was fixed with a frozen literal table. Ruled 0456, 0457, 0458.",
     "open_risks": [
       {
         "text": "Build A4's red case through the claude -p CLI path and assert the SILENT failure — the Workflow agent path auto-grants StructuredOutput, so a red case dispatched through it passes unconditionally and is a guarantee that cannot fail",
@@ -187,11 +187,79 @@
         ]
       },
       {
-        "text": "Do not cut D2 until PR #137 is merged and asserted — D2 deletes the only decomposer, and its replacement is not on the base until that merge lands",
-        "scope": "c3",
+        "text": "Dispatch every child with run_in_background false — a background child returns only an id, so a dispatching agent ends its turn narrating that it is holding while nothing ran, and what it returns when it DOES finish is trusted, never re-run",
+        "scope": "thread",
         "refs": [
-          "PR #137",
-          "0455"
+          "0446",
+          "memory: dispatching-agents-return-believing-they-wait"
+        ]
+      },
+      {
+        "text": "Work in a worktree rather than switching the primary checkout — ~/.claude/rules, CLAUDE.md and skills are symlinks into its working tree, so a checkout there silently changes the live global config",
+        "scope": "thread",
+        "refs": [
+          "~/.claude/rules",
+          ".claude/rules/common/receipts.md"
+        ]
+      },
+      {
+        "text": "Read the INLINED_TWINS list before citing mitosis.js as the executing path — it inlines 25 whole and 3 partial twins, but exec-policy, dispatch, run-store, journal-store, mitosis-gate and determinism-lint are NOT among them",
+        "scope": "thread",
+        "refs": [
+          "tests/mirror-guard.test.mjs:25-54"
+        ]
+      },
+      {
+        "text": "Add no mirror row for a genuinely new lib module — INLINED_TWINS is a whitelist, not a census, so a row for a module never pasted into mitosis.js FAILS the test, while real new duplication drifts silently",
+        "scope": "thread",
+        "refs": [
+          "0439",
+          "tests/mirror-guard.test.mjs"
+        ]
+      },
+      {
+        "text": "Build any raw control byte fix through a byte-deterministic path and verify with od or perl — the agent Write path turns a typed escape into a raw control byte",
+        "scope": "thread",
+        "refs": [
+          "0442"
+        ]
+      },
+      {
+        "text": "Treat workflow-sandbox-census.test.mjs's hand-rolled maskLiterals as a live divergence hazard — it duplicates the masker in js-scan.mjs and consolidating it is a behaviour change, not a removal",
+        "scope": "thread",
+        "refs": [
+          "0439"
+        ]
+      },
+      {
+        "text": "Expect no ESLint and no tsconfig anywhere in this repo — the function, file and nesting caps are advisory with no enforcing check, and the lint hook skips every path under .claude",
+        "scope": "thread",
+        "refs": [
+          ".claude/hooks/lint-on-edit.sh:30-32",
+          ".claude/rules/common/coding-style.md"
+        ]
+      },
+      {
+        "text": "Assume a new top-level .mjs under lib/mitosis needs no registration — every census there is directory-derived, but a new subdirectory or a non-.mjs file halts the determinism verb at exit 42",
+        "scope": "thread",
+        "refs": [
+          "determinism-lint.mjs:96-111"
+        ]
+      },
+      {
+        "text": "Copy no fanout source into this repo — it is PolyForm Noncommercial, so the architecture may be adopted and cited as prior art but a verbatim lift is a licensing decision, not a coding one",
+        "scope": "thread",
+        "refs": [
+          "0373",
+          "SPEC 3.6"
+        ]
+      },
+      {
+        "text": "Pair every D3 cost hypothesis with a fixed quality assertion — the instrument counts tokens and cannot see whether a re-architected decomposition cuts worse, so a token win carrying a quality regression reads as a success",
+        "scope": "thread",
+        "refs": [
+          "SPEC residual 5",
+          "0358"
         ]
       },
       {
@@ -302,7 +370,7 @@
         ]
       },
       {
-        "text": "Decide at the D2 boundary whether to fold origin/main into the stack base — the gap only widens through D2 to D3 before the stack meets the release gate",
+        "text": "Decide at the D2 boundary whether to fold origin/main into the stack base — the base is 265 ahead and 56 behind, and the gap only widens through D2 to D3 before the release gate",
         "scope": "c3",
         "refs": [
           "origin/feat/mitosis-os-process",
@@ -313,85 +381,9 @@
         "text": "Clear the accumulated merged remote branches with a human or a permission rule — the bash classifier blocks push --delete, so they persist until a later stack reuses those names",
         "scope": "c3",
         "refs": [
-          "git push origin --delete",
           "feat/d1b1-run-document",
+          "feat/d1b2-decompose-emit",
           "feat/c7-loop"
-        ]
-      },
-      {
-        "text": "Dispatch every child with run_in_background false — a background child returns only an id, so a dispatching agent ends its turn narrating that it is holding while nothing ran, and what it returns when it DOES finish is trusted, never re-run",
-        "scope": "thread",
-        "refs": [
-          "0446",
-          "memory: dispatching-agents-return-believing-they-wait"
-        ]
-      },
-      {
-        "text": "Work in a worktree rather than switching the primary checkout — ~/.claude/rules, CLAUDE.md and skills are symlinks into its working tree, so a checkout there silently changes the live global config",
-        "scope": "thread",
-        "refs": [
-          "~/.claude/rules",
-          ".claude/rules/common/receipts.md"
-        ]
-      },
-      {
-        "text": "Read the INLINED_TWINS list before citing mitosis.js as the executing path — it inlines 25 whole and 3 partial twins, but exec-policy, dispatch, run-store, journal-store, mitosis-gate and determinism-lint are NOT among them",
-        "scope": "thread",
-        "refs": [
-          "tests/mirror-guard.test.mjs:25-54"
-        ]
-      },
-      {
-        "text": "Add no mirror row for a genuinely new lib module — INLINED_TWINS is a whitelist, not a census, so a row for a module never pasted into mitosis.js FAILS the test, while real new duplication drifts silently",
-        "scope": "thread",
-        "refs": [
-          "0439",
-          "tests/mirror-guard.test.mjs"
-        ]
-      },
-      {
-        "text": "Build any raw control byte fix through a byte-deterministic path and verify with od or perl — the agent Write path turns a typed escape into a raw control byte",
-        "scope": "thread",
-        "refs": [
-          "0442"
-        ]
-      },
-      {
-        "text": "Treat workflow-sandbox-census.test.mjs's hand-rolled maskLiterals as a live divergence hazard — it duplicates the masker in js-scan.mjs and consolidating it is a behaviour change, not a removal",
-        "scope": "thread",
-        "refs": [
-          "0439"
-        ]
-      },
-      {
-        "text": "Expect no ESLint and no tsconfig anywhere in this repo — the function, file and nesting caps are advisory with no enforcing check, and the lint hook skips every path under .claude",
-        "scope": "thread",
-        "refs": [
-          ".claude/hooks/lint-on-edit.sh:30-32",
-          ".claude/rules/common/coding-style.md"
-        ]
-      },
-      {
-        "text": "Assume a new top-level .mjs under lib/mitosis needs no registration — every census there is directory-derived, but a new subdirectory or a non-.mjs file halts the determinism verb at exit 42",
-        "scope": "thread",
-        "refs": [
-          "determinism-lint.mjs:96-111"
-        ]
-      },
-      {
-        "text": "Copy no fanout source into this repo — it is PolyForm Noncommercial, so the architecture may be adopted and cited as prior art but a verbatim lift is a licensing decision, not a coding one",
-        "scope": "thread",
-        "refs": [
-          "0373",
-          "SPEC 3.6"
-        ]
-      },
-      {
-        "text": "Pair every D3 cost hypothesis with a fixed quality assertion — the instrument counts tokens and cannot see whether a re-architected decomposition cuts worse, so a token win carrying a quality regression reads as a success",
-        "scope": "thread",
-        "refs": [
-          "SPEC residual 5",
-          "0358"
         ]
       }
     ],
@@ -636,5 +628,5 @@
     ]
   },
   "created_at": "2026-08-12T07:37:41.077Z",
-  "updated_at": "2026-08-16T05:40:58.190Z"
+  "updated_at": "2026-08-16T05:46:25.035Z"
 }
