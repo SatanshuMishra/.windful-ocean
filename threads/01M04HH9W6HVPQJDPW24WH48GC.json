@@ -144,6 +144,11 @@
         "ref": "0480-skills-cannot-be-relied-on-to-reach-agents",
         "title": "Skills reach agents only by preload, and the dispatch tool goes to Leads only",
         "scope": "c3"
+      },
+      {
+        "ref": "0481-report-skill-withdrawn-output-contract-in-bodies",
+        "title": "Withdraw the report skill and put the answer-format standard in every agent body",
+        "scope": "c3"
       }
     ],
     "out_of_scope": [
@@ -151,5 +156,5 @@
     ]
   },
   "created_at": "2026-08-16T05:43:25.829Z",
-  "updated_at": "2026-08-16T20:58:46.384Z"
+  "updated_at": "2026-08-16T20:58:55.068Z"
 }
