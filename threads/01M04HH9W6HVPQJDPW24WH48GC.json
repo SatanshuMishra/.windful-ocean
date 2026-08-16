@@ -10,14 +10,14 @@
     {
       "id": "c1",
       "text": "Current-state audit complete: every gap in the roster, the agent definitions and the observation machinery identified with measured evidence from the ledger and the definition files.",
-      "done": false,
+      "done": true,
       "kind": "planned",
       "struck_by": null
     },
     {
       "id": "c2",
       "text": "Audit delivered in a form the user can read and navigate - a self-contained HTML explainer with diagrams, written for a reader with no prior domain knowledge.",
-      "done": false,
+      "done": true,
       "kind": "planned",
       "struck_by": null
     },
@@ -49,10 +49,41 @@
   "abandoned_reason": null,
   "closure_statement": null,
   "spine": {
-    "active_goal": "",
-    "next_step": "",
-    "last_session": "",
-    "open_risks": [],
+    "active_goal": "Rebuild the agent configuration from the ground up, both the roster and the system that observes it, starting from the completed current-state audit.",
+    "next_step": "WAIT for the user's specific instructions. Do NOT begin design and do NOT edit any agent, rule, hook or skill file. The audit is delivered: open ~/.agent/diagrams/agent-architecture-audit.html for the 25 gaps, the four structural facts and the coupling map. If asked to start designing, note first that gaps.json does not name the real gap categories; the free-text fallback reasons do.",
+    "last_session": "Audited the agent architecture end to end: 55 agents, 46 days of telemetry, all 15 definitions, all 8 ledger scripts. Found 25 gaps in three layers, reduced to four structural facts. Shipped an inline report and a verified HTML explainer. No recommendations, by instruction.",
+    "open_risks": [
+      {
+        "text": "Never read `emitter` in the events log as a measurement — it is a hardcoded constant on every row, and treating it as signal already produced one wrong conclusion",
+        "scope": "thread",
+        "refs": [
+          "~/.claude/hooks/agent-ledger/agent-run-analyzer.mjs:27"
+        ]
+      },
+      {
+        "text": "Do not design from gaps.json — its 18-word classifier names none of the five real unowned categories, which had to be recovered by hand from the free-text fallback reasons",
+        "scope": "c3",
+        "refs": [
+          "~/.claude/agent-ledger/index/gaps.json",
+          "~/.claude/agent-ledger/events/"
+        ]
+      },
+      {
+        "text": "Decide whether this thread supersedes the paused thread agent-roster-gap-resolution — it covers overlapping ground against an older SPEC and was not touched here",
+        "scope": "c3",
+        "refs": [
+          "01KYERC4Y2XFVQ5GFQRRV0BKTS"
+        ]
+      },
+      {
+        "text": "Plan the coupling surface before touching any agent definition — the engine hardcodes three permitted agent names and four snapshot files pin agent prompt text exactly",
+        "scope": "c4",
+        "refs": [
+          "~/.claude/lib/mitosis/run-engine.mjs:6",
+          "~/.claude/lib/mitosis/prompt-snapshots/"
+        ]
+      }
+    ],
     "key_decisions": [
       {
         "ref": "0459-audit-produces-no-recommendations",
@@ -60,8 +91,10 @@
         "scope": "c1"
       }
     ],
-    "out_of_scope": []
+    "out_of_scope": [
+      "Mutating any agent, rule, hook or skill file until the target architecture at c3 is approved."
+    ]
   },
   "created_at": "2026-08-16T05:43:25.829Z",
-  "updated_at": "2026-08-16T05:44:00.677Z"
+  "updated_at": "2026-08-16T05:44:49.320Z"
 }
