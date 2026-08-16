@@ -502,6 +502,11 @@
         "ref": "0453-prompt-contract-mismatches-resolve-without-breaking-the-verify-surface",
         "title": "The three prompt-contract mismatches resolve without breaking the verify.scopedCheckCmd surface",
         "scope": "c3"
+      },
+      {
+        "ref": "0454-d1-widens-to-close-the-cli-argument-contract-gap",
+        "title": "D1 widens past its SPEC acceptance to close the cli.mjs argument contract gap",
+        "scope": "c3"
       }
     ],
     "out_of_scope": [
@@ -513,5 +518,5 @@
     ]
   },
   "created_at": "2026-08-12T07:37:41.077Z",
-  "updated_at": "2026-08-16T03:56:54.794Z"
+  "updated_at": "2026-08-16T03:57:08.581Z"
 }
