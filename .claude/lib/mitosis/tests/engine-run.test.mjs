@@ -160,6 +160,36 @@ test('A MISSING PORT IS REFUSED BEFORE ANY WORK STARTS', async () => {
   }
 });
 
+test('a checkpoint write that throws a bare Error records its own message rather than the stringified error', async () => {
+  const runUnit = async () => Done({ sha: 'sha-x', green: true });
+  const h = harness(runUnit);
+  const records = [];
+  const ports = { ...h.ports, writeRef: async () => { throw new Error('ENOENT: no such ref'); } };
+  const request = baseRequest({ onRecord: (record) => records.push(record) });
+  await runEngine(request, ports);
+  const failure = records.find((r) => r.id === 'alpha' && r.outcome === 'post-dispatch-record-failed');
+  assert.ok(failure, 'no post-dispatch-record-failed record was observed for alpha');
+  assert.equal(
+    failure.reason,
+    'engine: the unit was dispatched and its cost is already billed, but the checkpoint or journal write that follows it failed: ENOENT: no such ref',
+  );
+});
+
+test('a checkpoint write that throws a valueless failure is described as unknown rather than losing the record', async () => {
+  const runUnit = async () => Done({ sha: 'sha-x', green: true });
+  const h = harness(runUnit);
+  const records = [];
+  const ports = { ...h.ports, writeRef: async () => { throw undefined; } };
+  const request = baseRequest({ onRecord: (record) => records.push(record) });
+  await runEngine(request, ports);
+  const failure = records.find((r) => r.id === 'alpha' && r.outcome === 'post-dispatch-record-failed');
+  assert.ok(failure, 'no post-dispatch-record-failed record was observed for alpha');
+  assert.equal(
+    failure.reason,
+    'engine: the unit was dispatched and its cost is already billed, but the checkpoint or journal write that follows it failed: unknown failure',
+  );
+});
+
 test('A MALFORMED RUN REQUEST IS REFUSED: specs must be an array and runId, repoRoot, journalPath, repoSlug and integrationBranch must be non-empty strings', async () => {
   const h = harness(async () => Done({ sha: 'x' }));
   await assert.rejects(

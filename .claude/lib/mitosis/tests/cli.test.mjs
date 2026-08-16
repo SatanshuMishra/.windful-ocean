@@ -144,6 +144,14 @@ test('EXIT 1: a throw from the engine is reported on stderr rather than crashing
   assert.match(io.errOut.join(''), /runUnit/);
 });
 
+test('EXIT 1: a thrown value with no message property is stringified rather than read as undefined', async (t) => {
+  const io = stubIo(specDocument());
+  io.readSpec = () => { throw { code: 'EACCES' }; };
+  const code = await runCli(tempArgv(t), io, () => ({}));
+  assert.equal(code, 1);
+  assert.equal(io.errOut.join(''), 'mitosis-cli: [object Object]\n');
+});
+
 test('REAL PORTS: a successful dispatch verdict becomes Done carrying the child-reported sha, and a failed one becomes a parked NeedsHuman', async () => {
   const okPorts = realPorts(
     { repoRoot: '/repo', requestsById: new Map([['alpha', { prompt: 'p' }]]) },
