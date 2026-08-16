@@ -632,6 +632,11 @@
         "ref": "0462-d2-splits-in-two-and-its-reference-clause-is-scoped-to-executables",
         "title": "D2 splits into un-wire and delete, and its reference clause is scoped to executable references",
         "scope": "c3"
+      },
+      {
+        "ref": "0463-the-remaining-msps-ship-as-one-linear-stack-with-the-main-fold-below-d3",
+        "title": "The remaining MSPs ship as one linear stack, with the main fold placed below D3",
+        "scope": "c3"
       }
     ],
     "out_of_scope": [
@@ -643,5 +648,5 @@
     ]
   },
   "created_at": "2026-08-12T07:37:41.077Z",
-  "updated_at": "2026-08-16T06:23:52.002Z"
+  "updated_at": "2026-08-16T06:47:09.279Z"
 }
