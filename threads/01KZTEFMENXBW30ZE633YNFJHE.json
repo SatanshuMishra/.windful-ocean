@@ -150,7 +150,7 @@
     {
       "id": "c5",
       "text": "The two deferred classifications close in their named MSPs: redispatch given a determinate home in C7, the three hybrid b2 sites decided per-site in C4, each recorded in its PR body.",
-      "done": false,
+      "done": true,
       "kind": "planned",
       "struck_by": null
     },
@@ -653,5 +653,5 @@
     ]
   },
   "created_at": "2026-08-12T07:37:41.077Z",
-  "updated_at": "2026-08-16T06:47:19.071Z"
+  "updated_at": "2026-08-16T06:49:20.911Z"
 }
