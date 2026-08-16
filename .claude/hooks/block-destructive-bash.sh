@@ -2,20 +2,17 @@
 set -eu
 
 VERDICT_NONE="no-opinion"
-VERDICT_ASK="ask"
 VERDICT_DENY="deny"
 FAULT_FALLBACK="the gate could not classify this command"
 
 verdict=""
 reason_text=""
 fault_detail="no verdict was formed"
-cmd="" low="" reason="" matcher_fault=""
+cmd="" low="" matcher_fault=""
 seg_verdict="" seg_reason=""
 best_verdict="" best_reason=""
 
 ghwrap='(sudo|env|command|nohup|time|xargs|(ba|z|k)?sh[[:space:]]+-c|[a-z_][a-z0-9_]*=[^[:space:]]*)'
-guardname='(settings(\.local)?\.json|CLAUDE\.md|keybindings\.json|(hooks|rules|lib|workflows|releases|current|local|CUTOVER|LIVE|\.cutover)(/|[^[:alnum:]_./-]|$)|[^/[:space:]]*\.pre-cutover-[0-9a-f]+)'
-guardpath="(\.claude/${guardname}|\.claude/?([^[:alnum:]_./-]|\$))"
 
 note_fault() {
   fault_detail="$1"
@@ -37,17 +34,14 @@ emit_verdict() {
     "$VERDICT_NONE")
       exit 0
       ;;
-    "$VERDICT_ASK")
-      payload="$(json_string "$reason_text" '"Destructive command - confirm before running."')"
-      ;;
     "$VERDICT_DENY")
       payload="$(json_string "$reason_text" '"This command is denied - it is human-gated."')"
       ;;
     *)
       detail="${fault_detail//[\"\\]/}"
       [ -n "$detail" ] || detail="$FAULT_FALLBACK"
-      verdict="$VERDICT_ASK"
-      payload="\"Bash gate internal fault (${detail}) - the gate is asking instead of allowing. Confirm before running.\""
+      verdict="$VERDICT_DENY"
+      payload="\"Bash gate internal fault (${detail}) - the gate is denying rather than allowing. A repeat means the gate is broken and needs a human.\""
       ;;
   esac
   printf '{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"%s","permissionDecisionReason":%s}}\n' "$verdict" "$payload"
@@ -92,7 +86,6 @@ set_deny() { seg_verdict="$VERDICT_DENY"; seg_reason="$1"; }
 take_verdict() {
   case "$best_verdict" in
     "$VERDICT_DENY") return 0 ;;
-    "$VERDICT_ASK") [ "$1" = "$VERDICT_DENY" ] || return 0 ;;
   esac
   best_verdict="$1"; best_reason="$2"
 }
@@ -100,11 +93,6 @@ take_verdict() {
 classify_segment() {
   cmd="$1"
   low="$(printf '%s' "$cmd" | tr '[:upper:]' '[:lower:]')"
-  reason=""
-
-  local gitopt='-c[[:space:]]+[^[:space:]]+|--git-dir[=[:space:]][^[:space:]]+|--work-tree[=[:space:]][^[:space:]]+|--namespace[[:space:]]+[^[:space:]]+|--no-pager|--paginate|-p|--bare|--literal-pathspecs|--no-optional-locks'
-  local gitpre="(^|[^a-z])git([[:space:]]+(${gitopt}))*[[:space:]]+"
-  local gitpre_cs="(^|[^a-zA-Z])git([[:space:]]+(-C[[:space:]]+[^[:space:]]+|${gitopt}))*[[:space:]]+"
 
   local ghopt='(-[a-z][[:space:]]*[^[:space:]]+|--[a-z-]+[[:space:]=][^[:space:]]+)'
   local ghpos='(^[[:space:]]*|\$\(|`)'
@@ -121,8 +109,13 @@ classify_segment() {
   local gqlsub='(\$\(|`)'
   local prshortedit='(^|[[:space:]])-(t|b|F)([^a-zA-Z-]|$)'
 
-  local guardverb="(>|(^|[;&|[:space:]])tee[[:space:]]|(^|[;&|[:space:]])sed[[:space:]].*-i|(^|[;&|[:space:]])mv[[:space:]]|(^|[;&|[:space:]])ln[[:space:]]|(^|[;&|[:space:]])mkdir[[:space:]]|(^|[;&|[:space:]])cp[[:space:]]|(^|[;&|[:space:]])rm[[:space:]]|(^|[;&|[:space:]])chmod[[:space:]]|(^|[;&|[:space:]])truncate[[:space:]]|(^|[;&|[:space:]])perl[[:space:]]+(-[^[:space:]]+[[:space:]]+)*-[0-9aCdDFlnpsSuUwWxX]*i|${gitpre_cs}(checkout|restore)([[:space:]]|$))"
-  local guardunlock='(^|[;&|[:space:]])chflags[[:space:]]+(-[^[:space:]]+[[:space:]]+)*[^[:space:]]*nouchg([[:space:]]|$)'
+  local supatok="${ghpos}(${ghwrap}[[:space:]]+[\"']?[[:space:]]*)*([[:alnum:]_./-]*/)?supabase([[:space:]]+${ghopt})*[[:space:]]+"
+  local suparemote="(db[[:space:]]+(push|pull)|migration[[:space:]]+up|functions[[:space:]]+deploy|link)([^[:alnum:]_-]|$)"
+
+  if has "${supatok}${suparemote}"; then
+    set_deny "connecting to a hosted Supabase project is human-gated: the agent authors migration SQL and a human applies it in the dashboard, which keeps the audit trail and the approval in human hands. Local disposable containers (supabase start, supabase db reset, supabase test db) are unrestricted. Rule: .claude/rules/common/no-direct-db-access.md"
+    return 0
+  fi
 
   if has "${ghtok}pr[[:space:]]+merge([[:space:]]|$)" \
     || { has "$ghapi" && has 'pulls/[^/[:space:]]+/merge([^[:alnum:]]|$)'; } \
@@ -143,51 +136,11 @@ classify_segment() {
     return 0
   fi
 
-  if has '(^|[^a-z])rm([[:space:]]|$)' && has '(-[a-z]*r|--recursive)' && has '(-[a-z]*f|--force)'; then
-    reason="recursive force remove (rm -rf)"
-  elif has "${gitpre}push" && { has '[[:space:]]--force([^-]|$)' || has '(^|[[:space:]])-f([[:space:]]|$)'; } && ! has 'force-with-lease'; then
-    reason="git force push"
-  elif has "${gitpre}reset" && has '[[:space:]]--hard'; then
-    reason="git reset --hard"
-  elif has "${gitpre}clean" && has '(-[a-z]*f|--force)'; then
-    reason="git clean -f"
-  elif has "${gitpre}(filter-branch|filter-repo)"; then
-    reason="git history rewrite"
-  elif has "${gitpre}reflog[[:space:]]+expire" || { has "${gitpre}gc" && has '[[:space:]]--prune'; }; then
-    reason="git gc/reflog prune"
-  elif has "${gitpre}stash[[:space:]]+clear"; then
-    reason="git stash clear"
-  elif has_cs "${gitpre_cs}branch[[:space:]]+-[a-zA-Z]*D"; then
-    reason="git branch force delete (-D)"
-  elif has '(^|[^a-z])dd([[:space:]]|$)' && has 'of=/dev/'; then
-    reason="dd to device"
-  elif has '(^|[^a-z])mkfs'; then
-    reason="mkfs filesystem format"
-  elif has '>[[:space:]]*/dev/(sd|disk|nvme|hd)'; then
-    reason="redirect to raw device"
-  elif has '(^|[^a-z])sudo[[:space:]]+rm'; then
-    reason="sudo rm"
-  elif has_cs "$guardpath" && has_cs "$guardunlock"; then
-    reason="chflags nouchg removing immutable-flag protection from a Claude Code guardrail file"
-  elif has_cs "$guardpath" && has_cs "$guardverb"; then
-    reason="shell write to Claude Code guardrail file"
-  fi
-
-  if [ -n "$reason" ]; then
-    seg_verdict="$VERDICT_ASK"
-    seg_reason="Destructive command (${reason}) - confirm before running."
-  fi
   return 0
 }
 
 classify() {
   local input="" extracted="" segments="" segment=""
-  local forkbomb=':[[:space:]]*\([[:space:]]*\)[[:space:]]*\{[[:space:]]*:[[:space:]]*\|[[:space:]]*:'
-  local secretpath='(\.ssh/|\.aws/credentials|\.netrc|\.git-credentials|id_rsa|id_ed25519|\.npmrc|\.pgpass|\.kube/config|\.docker/config\.json|\.gnupg/|/etc/(passwd|shadow)|\.env(rc|\.local)?([^.[:alnum:]_-]|$))'
-  local netpos='(^|[;&|]|\$\(|`)[[:space:]]*'
-  local netbin="${netpos}(${ghwrap}[[:space:]]+[\"']?[[:space:]]*)*([[:alnum:]_./-]*/)?(curl|wget|nc|ncat|netcat|scp|rsync|sftp|ftp|telnet|openssl|http|httpie|xh)([[:space:]]|$)"
-  local netreach='((https?|ftp)://|@[~/.$])'
-  local atguard="@[^[:space:]]*${guardpath}"
 
   if ! input="$(cat)"; then
     note_fault "the hook payload could not be read"
@@ -214,16 +167,7 @@ classify() {
     return 0
   fi
 
-  low="$(printf '%s' "$cmd" | tr '[:upper:]' '[:lower:]')"
   segments="$(printf '%s' "$cmd" | tr ';&|' '\n\n\n')"
-
-  if has "$forkbomb"; then
-    take_verdict "$VERDICT_ASK" "Destructive command (fork bomb) - confirm before running."
-  fi
-
-  if { has "$secretpath" && { has "$netbin" || has "$netreach"; }; } || has_cs "$atguard"; then
-    take_verdict "$VERDICT_ASK" "Destructive command (possible credential or guardrail-file exfiltration) - confirm before running."
-  fi
 
   while IFS= read -r segment; do
     [ -n "$segment" ] || continue

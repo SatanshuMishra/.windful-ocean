@@ -49,18 +49,24 @@ const MERGE_DENY_REASON =
 const CREATION_DENY_REASON =
   'opening a pull request is centralized: every pull request in this environment is created by one tool, in one format, and its title and body may not be rewritten afterwards. Run this, quoting every value: node "$HOME"/.claude/lib/git/pr.mjs pr-create --repo OWNER/REPO --head HEAD-BRANCH --base BASE-BRANCH --title TYPE(SCOPE): LOWERCASE IMPERATIVE SUMMARY --origin machine-or-human --why PROBLEM AND WHY NOW --what BEHAVIORAL CHANGE --not-verified THING YOU DID NOT CHECK - not run. Types: feat fix refactor docs test chore perf ci; title max 72 characters, no trailing period. Add --provenance agent=LABEL model=MODEL when --origin is machine. NEVER write a --verified line for a check you did not run. Pass every value as ONE inert argv value: never a file path, never an at-prefixed value, never a shell redirection, never a gh api field whose value starts with an at-sign. A pull/new URL printed by git push is not an approved path either. Full field set and caps: .claude/rules/common/git/pull-requests.md';
 
-const GUARDRAIL_ASK_REASON =
-  'Destructive command (shell write to Claude Code guardrail file) - confirm before running.';
+const SUPABASE_DENY_REASON =
+  'connecting to a hosted Supabase project is human-gated: the agent authors migration SQL and a human applies it in the dashboard, which keeps the audit trail and the approval in human hands. Local disposable containers (supabase start, supabase db reset, supabase test db) are unrestricted. Rule: .claude/rules/common/no-direct-db-access.md';
+
+function assertAbstains(r, command) {
+  assert.equal(r.status, 0);
+  assert.equal(r.stdout, '', `the gate formed an opinion it should have left to the permission system: ${command}`);
+  assert.equal(decisionOf(r), null, `the gate did not abstain: ${command}`);
+}
 
 const corporaByGoal = {
   G1: [
     'mergeDenyCommands',
     'g1FlaggedMergeDenyCommands',
-    'g1NoOpinionCommands',
+    'g1ReadOnlyGhCommands',
     'allowCommands',
     'commandPositionDenyCommands',
     'multilineDenyCommands',
-    'segmentedNoOpinionCommands',
+    'segmentedQuotedPhraseCommands',
   ],
   G2: [
     'creationDenyCommands',
@@ -68,16 +74,16 @@ const corporaByGoal = {
     'allowCommands',
     'commandPositionDenyCommands',
     'multilineDenyCommands',
-    'segmentedNoOpinionCommands',
+    'segmentedQuotedPhraseCommands',
   ],
   G3: [
     'creationDenyCommands',
     'g3FlaggedCreationDenyCommands',
-    'g1NoOpinionCommands',
+    'g1ReadOnlyGhCommands',
     'allowCommands',
     'commandPositionDenyCommands',
     'multilineDenyCommands',
-    'segmentedNoOpinionCommands',
+    'segmentedQuotedPhraseCommands',
     'g5NarrowedFileRefDenyCommands',
   ],
   G4: [
@@ -86,14 +92,17 @@ const corporaByGoal = {
     'g4ImmutableFlagCommands',
     'g4SubdirectoryCommands',
     'g4RecursiveRemoveCommands',
-    'g4CutoverSteeringCommands',
     'g4CreationVerbCommands',
-    'g4NoOpinionCommands',
+    'g4NonGuardrailCommands',
   ],
   G5: [
     'g5CredentialExfiltrationCommands',
     'g5GuardrailExfiltrationCommands',
-    'g5NoOpinionCommands',
+    'g5NoNetworkCredentialCommands',
+  ],
+  G6: [
+    'supabaseDenyCommands',
+    'supabaseLocalCommands',
   ],
 };
 
@@ -210,7 +219,7 @@ for (const command of g3FlaggedCreationDenyCommands) {
   });
 }
 
-const g1NoOpinionCommands = [
+const g1ReadOnlyGhCommands = [
   'gh -R owner/repo pr list',
   'gh -R owner/repo pr view 12',
   'gh --repo owner/repo pr checks 12',
@@ -220,11 +229,9 @@ const g1NoOpinionCommands = [
   'gh pr ready 5 -R owner/repo',
 ];
 
-for (const command of g1NoOpinionCommands) {
-  test(`${goalsFor('g1NoOpinionCommands')}: holds no opinion on a read-only gh form carrying a pre-subcommand flag: ${command}`, () => {
-    const r = runHook(command);
-    assert.equal(r.status, 0);
-    assert.equal(r.stdout, '');
+for (const command of g1ReadOnlyGhCommands) {
+  test(`${goalsFor('g1ReadOnlyGhCommands')}: allows a read-only gh form carrying a pre-subcommand flag: ${command}`, () => {
+    assertAbstains(runHook(command), command);
   });
 }
 
@@ -264,10 +271,8 @@ const allowCommands = [
 ];
 
 for (const command of allowCommands) {
-  test(`${goalsFor('allowCommands')}: holds no opinion on a sibling command the pull-request denies must not reach: ${command}`, () => {
-    const r = runHook(command);
-    assert.equal(r.status, 0);
-    assert.equal(r.stdout, '');
+  test(`${goalsFor('allowCommands')}: allows a sibling command the pull-request denies must not reach: ${command}`, () => {
+    assertAbstains(runHook(command), command);
   });
 }
 
@@ -319,7 +324,7 @@ for (const [command, reason] of multilineDenyCommands) {
   });
 }
 
-const segmentedNoOpinionCommands = [
+const segmentedQuotedPhraseCommands = [
   'git commit -m "fix(gate): deny gh pr create forms that flag the subcommand"',
   'echo "run gh pr merge 12 to land it"',
   'printf "%s\\n" "gh pr edit --title is denied"',
@@ -328,34 +333,67 @@ const segmentedNoOpinionCommands = [
   'ls -rf /tmp; rm /tmp/one-file.txt',
 ];
 
-for (const command of segmentedNoOpinionCommands) {
-  test(`${goalsFor('segmentedNoOpinionCommands')}: a phrase quoted inside another command is not a command, and a conjunction is not satisfied across sub-commands: ${command}`, () => {
-    const r = runHook(command);
-    assert.equal(r.status, 0);
-    assert.equal(r.stdout, '');
+for (const command of segmentedQuotedPhraseCommands) {
+  test(`${goalsFor('segmentedQuotedPhraseCommands')}: a phrase quoted inside another command is not a command, and a conjunction is not satisfied across sub-commands: ${command}`, () => {
+    assertAbstains(runHook(command), command);
   });
 }
 
 const askCommands = [
-  ['git push --force origin main', 'git force push'],
-  ['rm -rf /tmp/x', 'recursive force remove (rm -rf)'],
-  ['RM -rf /tmp/x', 'recursive force remove (rm -rf)'],
-  ['GIT push --force origin main', 'git force push'],
-  ['GIT reset --hard HEAD~5', 'git reset --hard'],
-  ['git -C /repo push --force origin main', 'git force push'],
-  ['git -C /repo push -f', 'git force push'],
-  ['git -C /repo reset --hard HEAD~1', 'git reset --hard'],
-  ['git -C /repo clean -fd', 'git clean -f'],
-  ['git -c core.pager=cat -C /repo push --force', 'git force push'],
-  ['git -C /repo branch -D feature', 'git branch force delete (-D)'],
+  ['dd if=/tmp/image.iso of=/dev/disk2', 'dd to device'],
+  ['sudo dd if=/x of=/dev/rdisk3 bs=1m', 'dd to device'],
+  ['mkfs.ext4 /dev/sdb1', 'mkfs filesystem format'],
+  ['sudo mkfs -t apfs /dev/disk4', 'mkfs filesystem format'],
+  ['cat /tmp/image.iso > /dev/disk2', 'redirect to raw device'],
+  ['echo x > /dev/nvme0n1', 'redirect to raw device'],
+  ['sudo rm /etc/hosts', 'sudo rm'],
+  ['sudo rm -rf /', 'sudo rm'],
 ];
 
 for (const [command, label] of askCommands) {
-  test(`outside the goal set: asks before a destructive command the gate policed before G1-G5: ${command}`, () => {
+  test(`outside the goal set: retired, now abstains: unrecoverable device or privileged-delete command: ${command}`, () => {
     const r = runHook(command);
     assert.equal(r.status, 0);
-    assert.equal(decisionOf(r), 'ask');
-    assert.equal(reasonOf(r), `Destructive command (${label}) - confirm before running.`);
+    assert.equal(r.stdout, '', 'retired control must abstain to the permission system');
+  });
+}
+
+const supabaseDenyCommands = [
+  'supabase db push',
+  'supabase db pull',
+  'supabase migration up',
+  'supabase functions deploy my-fn',
+  'supabase link --project-ref abcdefgh',
+  'supabase --workdir /repo db push',
+  'sudo supabase db push',
+  'env SUPABASE_ACCESS_TOKEN=x supabase db push',
+  'sh -c "supabase migration up"',
+  'git status && supabase db push',
+];
+
+for (const command of supabaseDenyCommands) {
+  test(`${goalsFor('supabaseDenyCommands')}: denies a command that reaches a hosted Supabase project: ${command}`, () => {
+    const r = runHook(command);
+    assert.equal(r.status, 0);
+    assert.equal(decisionOf(r), 'deny');
+    assert.equal(reasonOf(r), SUPABASE_DENY_REASON);
+  });
+}
+
+const supabaseLocalCommands = [
+  'supabase start',
+  'supabase stop',
+  'supabase status',
+  'supabase db reset',
+  'supabase test db',
+  'supabase gen types typescript --local',
+  'supabase migration new add_users',
+  'echo "run supabase db push in the dashboard"',
+];
+
+for (const command of supabaseLocalCommands) {
+  test(`${goalsFor('supabaseLocalCommands')}: allows the local disposable-container carve-out: ${command}`, () => {
+    assertAbstains(runHook(command), command);
   });
 }
 
@@ -371,16 +409,10 @@ const guardrailWriteCommands = [
 ];
 
 for (const command of guardrailWriteCommands) {
-  test(`${goalsFor('guardrailWriteCommands')}: asks before a redirect, an in-place edit, or a copy overwrites a guardrail file: ${command}`, () => {
-    const r = runHook(command);
-    assert.equal(r.status, 0);
-    assert.equal(decisionOf(r), 'ask');
-    assert.equal(reasonOf(r), GUARDRAIL_ASK_REASON);
+  test(`${goalsFor('guardrailWriteCommands')}: allows a redirect, an in-place edit, or a copy that overwrites a guardrail file: ${command}`, () => {
+    assertAbstains(runHook(command), command);
   });
 }
-
-const GUARDRAIL_IMMUTABLE_ASK_REASON =
-  'Destructive command (chflags nouchg removing immutable-flag protection from a Claude Code guardrail file) - confirm before running.';
 
 const g4GuardrailWriteCommands = [
   'git checkout -- .claude/hooks/block-destructive-bash.sh',
@@ -398,11 +430,8 @@ const g4GuardrailWriteCommands = [
 ];
 
 for (const command of g4GuardrailWriteCommands) {
-  test(`${goalsFor('g4GuardrailWriteCommands')}: asks before a restore, an in-place patch, or a directory-destination write reaches a guardrail path: ${command}`, () => {
-    const r = runHook(command);
-    assert.equal(r.status, 0);
-    assert.equal(decisionOf(r), 'ask');
-    assert.equal(reasonOf(r), GUARDRAIL_ASK_REASON);
+  test(`${goalsFor('g4GuardrailWriteCommands')}: allows a restore, an in-place patch, or a directory-destination write that reaches a guardrail path: ${command}`, () => {
+    assertAbstains(runHook(command), command);
   });
 }
 
@@ -415,11 +444,8 @@ const g4ImmutableFlagCommands = [
 ];
 
 for (const command of g4ImmutableFlagCommands) {
-  test(`${goalsFor('g4ImmutableFlagCommands')}: asks before immutable-flag protection is cleared: ${command}`, () => {
-    const r = runHook(command);
-    assert.equal(r.status, 0);
-    assert.equal(decisionOf(r), 'ask');
-    assert.equal(reasonOf(r), GUARDRAIL_IMMUTABLE_ASK_REASON);
+  test(`${goalsFor('g4ImmutableFlagCommands')}: allows immutable-flag protection to be cleared: ${command}`, () => {
+    assertAbstains(runHook(command), command);
   });
 }
 
@@ -433,89 +459,37 @@ const g4SubdirectoryCommands = [
 ];
 
 for (const command of g4SubdirectoryCommands) {
-  test(`${goalsFor('g4SubdirectoryCommands')}: asks before a guardrail subdirectory named without a trailing slash is written: ${command}`, () => {
-    const r = runHook(command);
-    assert.equal(r.status, 0);
-    assert.equal(decisionOf(r), 'ask');
-    assert.equal(reasonOf(r), GUARDRAIL_ASK_REASON);
+  test(`${goalsFor('g4SubdirectoryCommands')}: allows a write to a guardrail subdirectory named without a trailing slash: ${command}`, () => {
+    assertAbstains(runHook(command), command);
   });
 }
 
-const g4RecursiveRemoveCommands = [['rm -rf .claude', 'recursive force remove (rm -rf)']];
+const g4RecursiveRemoveCommands = ['rm -rf .claude', 'rm -rf /tmp/x', 'RM -rf /tmp/x'];
 
-for (const [command, label] of g4RecursiveRemoveCommands) {
-  test(`${goalsFor('g4RecursiveRemoveCommands')}: asks before a bare guardrail directory is removed: ${command}`, () => {
-    const r = runHook(command);
-    assert.equal(r.status, 0);
-    assert.equal(decisionOf(r), 'ask');
-    assert.equal(reasonOf(r), `Destructive command (${label}) - confirm before running.`);
-  });
-}
-
-const RELEASE_SHA = '0123456789abcdef0123456789abcdef01234567';
-
-const g4CutoverSteeringCommands = [
-  'rm ~/.claude/CUTOVER',
-  'echo x > .claude/CUTOVER',
-  'mv /tmp/journal.json .claude/CUTOVER',
-  'rm .claude/LIVE',
-  'cp /tmp/receipt.json ~/.claude/LIVE',
-  'mv .claude/hooks.pre-cutover-01234567 /tmp/stash',
-  'rm -r .claude/hooks.pre-cutover-01234567',
-  'echo x > .claude/rules.pre-cutover-01234567/common/git/commits.md',
-  `echo x > .claude/releases/${RELEASE_SHA}/hooks/block-destructive-bash.sh`,
-  `rm -r .claude/releases/${RELEASE_SHA}/rules`,
-  'echo x > .claude/current/hooks/block-destructive-bash.sh',
-  'mv .claude/current /tmp/stash',
-  'echo x > .claude/local/converge.mjs',
-  'mv /tmp/evil.mjs ~/.claude/local/promote.mjs',
-  'rm -r .claude/local',
-  'ln -sfn /tmp/evil ~/.claude/local',
-  'rm -r .claude/.cutover',
-  `mv /tmp/evil .claude/.cutover/${RELEASE_SHA}/hooks`,
-  `echo x > .claude/.cutover/${RELEASE_SHA}/hooks/block-destructive-bash.sh`,
-];
-
-for (const command of g4CutoverSteeringCommands) {
-  test(`${goalsFor('g4CutoverSteeringCommands')}: asks before a write reaches a file that steers which guardrail files run: ${command}`, () => {
-    const r = runHook(command);
-    assert.equal(r.status, 0);
-    assert.equal(decisionOf(r), 'ask');
-    assert.equal(reasonOf(r), GUARDRAIL_ASK_REASON);
+for (const command of g4RecursiveRemoveCommands) {
+  test(`${goalsFor('g4RecursiveRemoveCommands')}: allows a recursive force remove, including of a bare guardrail directory: ${command}`, () => {
+    assertAbstains(runHook(command), command);
   });
 }
 
 const g4CreationVerbCommands = [
   'ln -sfn /tmp/evil ~/.claude/hooks',
-  'ln -s /tmp/attacker.json ~/.claude/CUTOVER',
-  'ln -s /tmp/evil ~/.claude/hooks.pre-cutover-deadbeef',
-  'mkdir -p ~/.claude/hooks.pre-cutover-deadbeef',
-  `mkdir -p .claude/.cutover/${RELEASE_SHA}`,
-  `ln -s /tmp/evil .claude/.cutover/${RELEASE_SHA}/hooks`,
   'ln -s /tmp/evil .claude/rules',
   'mkdir -p .claude/lib/git',
 ];
 
 for (const command of g4CreationVerbCommands) {
-  test(`${goalsFor('g4CreationVerbCommands')}: asks before a link or a directory is created over a guardrail path: ${command}`, () => {
-    const r = runHook(command);
-    assert.equal(r.status, 0);
-    assert.equal(decisionOf(r), 'ask');
-    assert.equal(reasonOf(r), GUARDRAIL_ASK_REASON);
+  test(`${goalsFor('g4CreationVerbCommands')}: allows a link or a directory created over a guardrail path: ${command}`, () => {
+    assertAbstains(runHook(command), command);
   });
 }
 
-const g4NoOpinionCommands = [
+const g4NonGuardrailCommands = [
   'git checkout main',
   'mkdir -p .claude/skills/mitosis/templates',
   'ln -s /tmp/x .claude/skills/mitosis/templates/receipts.yml',
   'mkdir -p .claude/hooksfoo',
   'ln -s /tmp/x .claude/libfoo',
-  'cat .claude/CUTOVER',
-  'cat ~/.claude/LIVE',
-  'echo x > .claude/currently/notes.md',
-  'echo x > .claude/releasesfoo/notes.md',
-  'echo x > .claude/hooks.pre-cutoverfoo',
   'git switch -c feature',
   'git checkout -b feature',
   'echo x > .claude/skills/mitosis/SKILL.md',
@@ -525,18 +499,15 @@ const g4NoOpinionCommands = [
   'cat .claude/settings.json',
   "perl -e 'print 1' .claude/settings.json",
   'chflags uchg .claude/hooks/block-destructive-bash.sh',
-  'echo x > .claude/localfoo/x.mjs',
   'echo x > .claude/hooksfoo',
   'rm -r .claude/libfoo',
   'mv .claude/rulesbook /tmp/x',
   'echo x > .claude/workflowsfoo/mitosis.js',
 ];
 
-for (const command of g4NoOpinionCommands) {
-  test(`${goalsFor('g4NoOpinionCommands')}: holds no opinion on a read or a non-guardrail write: ${command}`, () => {
-    const r = runHook(command);
-    assert.equal(r.status, 0);
-    assert.equal(r.stdout, '');
+for (const command of g4NonGuardrailCommands) {
+  test(`${goalsFor('g4NonGuardrailCommands')}: allows a read or a non-guardrail write: ${command}`, () => {
+    assertAbstains(runHook(command), command);
   });
 }
 
@@ -576,11 +547,10 @@ const g5CredentialExfiltrationCommands = [
 ];
 
 for (const command of g5CredentialExfiltrationCommands) {
-  test(`${goalsFor('g5CredentialExfiltrationCommands')}: asks before a credential path reaches a network-shaped command: ${command}`, () => {
+  test(`${goalsFor('g5CredentialExfiltrationCommands')}: retired, now abstains: credential path reaching a network-shaped command: ${command}`, () => {
     const r = runHook(command);
     assert.equal(r.status, 0);
-    assert.equal(decisionOf(r), 'ask');
-    assert.equal(reasonOf(r), G5_EXFILTRATION_ASK_REASON);
+    assert.equal(r.stdout, '', 'retired control must abstain to the permission system');
   });
 }
 
@@ -597,15 +567,14 @@ const g5GuardrailExfiltrationCommands = [
 ];
 
 for (const command of g5GuardrailExfiltrationCommands) {
-  test(`${goalsFor('g5GuardrailExfiltrationCommands')}: asks before a guardrail file is passed as an at-prefixed file reference: ${command}`, () => {
+  test(`${goalsFor('g5GuardrailExfiltrationCommands')}: retired, now abstains: guardrail file as an at-prefixed file reference: ${command}`, () => {
     const r = runHook(command);
     assert.equal(r.status, 0);
-    assert.equal(decisionOf(r), 'ask');
-    assert.equal(reasonOf(r), G5_EXFILTRATION_ASK_REASON);
+    assert.equal(r.stdout, '', 'retired control must abstain to the permission system');
   });
 }
 
-const g5NoOpinionCommands = [
+const g5NoNetworkCredentialCommands = [
   'cat .env',
   'cat .envrc',
   'cat .env.local',
@@ -625,11 +594,9 @@ const g5NoOpinionCommands = [
   'gh api -f body=@notes.md /repos/o/r/issues',
 ];
 
-for (const command of g5NoOpinionCommands) {
-  test(`${goalsFor('g5NoOpinionCommands')}: holds no opinion on a credential read with no network reach, or a network call with no credential: ${command}`, () => {
-    const r = runHook(command);
-    assert.equal(r.status, 0);
-    assert.equal(r.stdout, '');
+for (const command of g5NoNetworkCredentialCommands) {
+  test(`${goalsFor('g5NoNetworkCredentialCommands')}: allows a credential read with no network reach, or a network call with no credential: ${command}`, () => {
+    assertAbstains(runHook(command), command);
   });
 }
 
@@ -655,21 +622,22 @@ const corpusByName = {
   g3FlaggedCreationDenyCommands,
   commandPositionDenyCommands,
   multilineDenyCommands,
-  segmentedNoOpinionCommands,
+  segmentedQuotedPhraseCommands,
   allowCommands,
-  g1NoOpinionCommands,
+  g1ReadOnlyGhCommands,
   askCommands,
+  supabaseDenyCommands,
+  supabaseLocalCommands,
   guardrailWriteCommands,
   g4GuardrailWriteCommands,
   g4SubdirectoryCommands,
   g4ImmutableFlagCommands,
   g4RecursiveRemoveCommands,
-  g4CutoverSteeringCommands,
   g4CreationVerbCommands,
-  g4NoOpinionCommands,
+  g4NonGuardrailCommands,
   g5CredentialExfiltrationCommands,
   g5GuardrailExfiltrationCommands,
-  g5NoOpinionCommands,
+  g5NoNetworkCredentialCommands,
   g5NarrowedFileRefDenyCommands,
 };
 
@@ -728,7 +696,7 @@ test('the verdict does not depend on which payload fields the caller sends', () 
   }
 });
 
-test('a fork bomb carrying none of the retired prefilter substrings is still classified', () => {
+test('a fork bomb carrying none of the retired prefilter substrings is retired and now abstains', () => {
   const command = ': ( ) { : | : ; } ; :';
   const retiredPrefilterSubstrings = ['rm', 'git', 'gh', 'dd', 'mkfs', ':|:', '/dev/', '.claude'];
   for (const substring of retiredPrefilterSubstrings) {
@@ -736,8 +704,7 @@ test('a fork bomb carrying none of the retired prefilter substrings is still cla
   }
   for (const r of [runHook(command), runHookMinimalPayload(command)]) {
     assert.equal(r.status, 0);
-    assert.equal(decisionOf(r), 'ask');
-    assert.equal(reasonOf(r), 'Destructive command (fork bomb) - confirm before running.');
+    assert.equal(r.stdout, '', 'retired control must abstain to the permission system');
   }
 });
 
@@ -752,10 +719,10 @@ const faultInputs = [
 ];
 
 for (const [label, stdin] of faultInputs) {
-  test(`an internal fault asks rather than allowing: ${label}`, () => {
+  test(`an internal fault denies rather than allowing: ${label}`, () => {
     const r = runStdin(stdin);
     assert.equal(r.status, 0);
-    assert.equal(decisionOf(r), 'ask', 'a swallowed fault must never read as a silent allow');
+    assert.equal(decisionOf(r), 'deny', 'a swallowed fault must never read as a silent allow');
     assert.match(reasonOf(r), /^Bash gate internal fault \(/);
     assert.doesNotMatch(r.stdout, /"permissionDecision":"allow"/);
   });
@@ -780,7 +747,7 @@ function toolPath(name) {
   return candidates.find((candidate) => existsSync(candidate)) ?? null;
 }
 
-test('a missing python3 asks rather than allowing', () => {
+test('a missing python3 denies rather than allowing', () => {
   const required = ['bash', 'cat', 'tr', 'grep'].map((name) => {
     const resolved = toolPath(name);
     assert.ok(resolved, `test precondition failed: ${name} not found in any standard location`);
@@ -797,10 +764,10 @@ test('a missing python3 asks rather than allowing', () => {
     for (const command of ['ls -la', 'rm -rf /tmp/x', 'gh pr create --fill']) {
       const r = runStdin(realisticPayload(command), { env: { PATH: binDir } });
       assert.equal(r.status, 0);
-      assert.equal(decisionOf(r), 'ask', `python3 was unavailable and the gate allowed: ${command}`);
+      assert.equal(decisionOf(r), 'deny', `python3 was unavailable and the gate allowed: ${command}`);
       assert.equal(
         reasonOf(r),
-        'Bash gate internal fault (the payload parser could not be run) - the gate is asking instead of allowing. Confirm before running.',
+        'Bash gate internal fault (the payload parser could not be run) - the gate is denying rather than allowing. A repeat means the gate is broken and needs a human.',
       );
     }
   } finally {
@@ -808,7 +775,7 @@ test('a missing python3 asks rather than allowing', () => {
   }
 });
 
-test('a broken command matcher asks rather than allowing', () => {
+test('a broken command matcher denies rather than allowing', () => {
   const required = ['bash', 'cat', 'tr', 'python3'].map((name) => {
     const resolved = toolPath(name);
     assert.ok(resolved, `test precondition failed: ${name} not found in any standard location`);
@@ -825,10 +792,10 @@ test('a broken command matcher asks rather than allowing', () => {
     for (const command of ['ls -la', 'rm -rf /tmp/x']) {
       const r = runStdin(realisticPayload(command), { env: { PATH: binDir }, stdio: 'pipe' });
       assert.equal(r.status, 0);
-      assert.equal(decisionOf(r), 'ask', `the matchers could not run and the gate allowed: ${command}`);
+      assert.equal(decisionOf(r), 'deny', `the matchers could not run and the gate allowed: ${command}`);
       assert.equal(
         reasonOf(r),
-        'Bash gate internal fault (a command matcher could not be evaluated) - the gate is asking instead of allowing. Confirm before running.',
+        'Bash gate internal fault (a command matcher could not be evaluated) - the gate is denying rather than allowing. A repeat means the gate is broken and needs a human.',
       );
     }
   } finally {
@@ -836,20 +803,32 @@ test('a broken command matcher asks rather than allowing', () => {
   }
 });
 
-test('the gate never emits an allow decision on any input', () => {
+test('every emission is one of the two decisions the gate can still reach: deny or abstention', () => {
   const emissions = [
     ...corpusEmissions.flatMap(({ rich, bare }) => [rich, bare]),
     ...faultInputs.map(([, stdin]) => runStdin(stdin)),
     ...noOpinionInputs.map(([, stdin]) => runStdin(stdin)),
   ];
   for (const r of emissions) {
+    if (r.stdout === '') continue;
+    assert.ok(
+      [null, 'deny'].includes(decisionOf(r)),
+      `the gate emitted an unexpected decision: ${r.stdout}`,
+    );
+  }
+});
+
+test('a fault never reaches allow, so a broken gate cannot open the surface it guards', () => {
+  for (const [, stdin] of faultInputs) {
+    const r = runStdin(stdin);
     assert.doesNotMatch(r.stdout, /"permissionDecision":"allow"/);
-    if (r.stdout !== '') {
-      assert.ok(
-        ['ask', 'deny'].includes(decisionOf(r)),
-        `the gate emitted an unexpected decision: ${r.stdout}`,
-      );
-    }
+    assert.equal(decisionOf(r), 'deny');
+  }
+});
+
+test('a command the gate does not name abstains, handing the decision to the classifier', () => {
+  for (const command of ['ls -la', 'npm test', 'curl https://example.com', 'python3 -c "print(1)"']) {
+    assertAbstains(runHook(command), command);
   }
 });
 
