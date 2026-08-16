@@ -1,5 +1,6 @@
 import { realpathSync } from 'node:fs';
 import { pathToFileURL } from 'node:url';
+import { lintCoarseScope } from './coarse-scope-lint.mjs';
 import { DECOMPOSE_CHANGE_TYPES, DECOMPOSE_SCHEMA, validateDecomposition } from './decompose-schema.mjs';
 import { deriveClusters } from './derive-clusters.mjs';
 import { dispatch } from './dispatch.mjs';
@@ -233,6 +234,43 @@ async function runDecomposer(args, deps) {
   return Object.freeze({ ok: true, msps: validated.decomposition.msps });
 }
 
+function coarseScopeFlagLine(unitId, flag) {
+  const covered = Array.isArray(flag.covered) && flag.covered.length > 0
+    ? ` covering ${flag.covered.map((path) => JSON.stringify(path)).join(', ')}`
+    : '';
+  return `${MODULE}: unit ${JSON.stringify(unitId)} declares the coarse edit scope ${JSON.stringify(flag.scope)} [${flag.reason}]${covered}; narrow it to the files the unit actually writes, or confirm the unit genuinely owns the whole slice. This is a warning and does not halt the run.`;
+}
+
+export function coarseScopeWarnings(msps) {
+  if (!Array.isArray(msps)) {
+    throw new TypeError(`${MODULE}: coarseScopeWarnings expects the validated msp array; a non-array carries no unit to lint and would report a clean sweep it never measured`);
+  }
+  const lines = [];
+  for (const msp of msps) {
+    let verdict;
+    try {
+      verdict = lintCoarseScope(msp);
+    } catch (error) {
+      lines.push(`${MODULE}: the coarse-scope lint could not classify unit ${JSON.stringify(msp && msp.id ? msp.id : null)}: ${reasonOf(error)}. Its scope is unreviewed rather than clean.`);
+      continue;
+    }
+    const unitId = verdict.id === null ? (msp && msp.id ? msp.id : null) : verdict.id;
+    for (const flag of verdict.flags) lines.push(coarseScopeFlagLine(unitId, flag));
+  }
+  return Object.freeze(lines);
+}
+
+function reportCoarseScope(msps, write) {
+  let lines;
+  try {
+    lines = coarseScopeWarnings(msps);
+  } catch (error) {
+    write(`${MODULE}: the coarse-scope lint did not run: ${reasonOf(error)}\n`);
+    return;
+  }
+  for (const line of lines) write(`${line}\n`);
+}
+
 function unitDefaults(args) {
   const defaults = {};
   for (const entry of UNIT_DEFAULT_FIELDS) {
@@ -294,11 +332,21 @@ function writeRunDocument(outPath, document) {
   return Object.freeze({ ok: true, exitCode: EXIT_CLEAN, error: null, outPath, document });
 }
 
+function warnWriterOf(deps) {
+  if (deps.warn === undefined) return (text) => process.stderr.write(text);
+  if (typeof deps.warn !== 'function') {
+    throw new TypeError(`${MODULE}: deps.warn must be a function that receives one warning line, so a caller cannot silence the coarse-scope lint by passing a value that swallows it`);
+  }
+  return deps.warn;
+}
+
 export async function emitRunDocument(args, deps = {}) {
+  const warn = warnWriterOf(deps);
   const inputs = resolveInputs(args, deps);
   if (inputs.ok !== true) return inputs;
   const decomposed = await runDecomposer(args, deps);
   if (decomposed.ok !== true) return decomposed;
+  reportCoarseScope(decomposed.msps, warn);
   const composed = composeDocument(args, inputs, decomposed.msps);
   if (composed.ok !== true) return composed;
   return writeRunDocument(args.out, composed.document);

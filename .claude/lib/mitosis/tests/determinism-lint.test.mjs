@@ -15,7 +15,6 @@ import {
 } from '../determinism-lint.mjs';
 
 const LIB_DIR = fileURLToPath(new URL('../', import.meta.url));
-const ENGINE_PATH = fileURLToPath(new URL('../../../workflows/mitosis.js', import.meta.url));
 
 function census(source) {
   const scan = scanJsStructure(source);
@@ -29,11 +28,15 @@ function violationsOf(source) {
   return result.violations;
 }
 
-test('the engine-source roots are the lib directory and the engine file, never a written module list', () => {
+test('the engine-source root is the lib directory alone, never a written module list', () => {
   const roots = engineSourceRoots();
-  assert.deepEqual(roots.map((root) => root.kind), ['directory', 'file']);
+  assert.deepEqual(roots.map((root) => root.kind), ['directory']);
   assert.equal(roots[0].path, LIB_DIR);
-  assert.equal(roots[1].path, ENGINE_PATH);
+  assert.equal(
+    roots.some((root) => root.kind === 'file' && root.path.endsWith('mitosis.js')),
+    false,
+    'the legacy workflow is no longer a census root; a root naming it would keep the census bound to a file the OS-process engine does not run',
+  );
 });
 
 test('the enumerated file set equals an independent directory read of the same roots', () => {
@@ -42,8 +45,7 @@ test('the enumerated file set equals an independent directory read of the same r
   const independent = readdirSync(LIB_DIR, { withFileTypes: true })
     .filter((entry) => entry.isFile() && entry.name.endsWith('.mjs'))
     .map((entry) => join(LIB_DIR, entry.name))
-    .sort()
-    .concat([ENGINE_PATH]);
+    .sort();
   assert.deepEqual(enumerated.files, independent);
   assert.ok(enumerated.files.length > 30, `expected the whole engine directory, found ${enumerated.files.length}`);
 });

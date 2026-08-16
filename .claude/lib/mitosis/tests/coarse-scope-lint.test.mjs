@@ -7,7 +7,7 @@ import {
   scopeIsSpecificFile,
   namedFilesInText,
   COARSE_SCOPE_FILE_THRESHOLD,
-} from '../run-engine.mjs';
+} from '../coarse-scope-lint.mjs';
 
 test('COARSE_SCOPE_FILE_THRESHOLD is the documented conservative default (3)', () => {
   assert.equal(COARSE_SCOPE_FILE_THRESHOLD, 3);

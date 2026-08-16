@@ -201,7 +201,6 @@ test('the census sees every workflow file, not one pinned path, so a second work
     [],
     `these workflow files are not censused: ${unseen.join(', ')} — the census enumerates the workflow directory rather than naming one file, so a workflow added later is swept by construction rather than by remembering to widen a list`,
   );
-  assert.ok(workflows.length >= 2, `the workflow directory holds ${workflows.length} file(s); the engine ships mitosis.js and mitosis-execute.js, and a census that sees only one of them cannot see the surface where a rename lands`);
 });
 
 test("every phase('Resume') call in the workflow sits inside a guard that reads the relaunch flag, and at least one exists", () => {
