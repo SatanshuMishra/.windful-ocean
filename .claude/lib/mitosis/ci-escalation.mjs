@@ -1,4 +1,5 @@
-import { normalizePath, scopeCovers, sensitiveScope } from './run-engine.mjs';
+import { normalizePath, scopeCovers } from './coarse-scope-lint.mjs';
+import { sensitiveScope } from './run-engine.mjs';
 import { isRepoRelativePath } from './recovery.mjs';
 
 export const CI_ATTEMPT_CAP = 3;

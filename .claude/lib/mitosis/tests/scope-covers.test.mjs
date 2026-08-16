@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { scopeCovers, globMatches, GLOB_MAX_LENGTH, GLOB_MAX_WILDCARDS } from '../run-engine.mjs';
+import { scopeCovers, globMatches, GLOB_MAX_LENGTH, GLOB_MAX_WILDCARDS } from '../coarse-scope-lint.mjs';
 
 test('scopeCovers: exact paths and directory prefixes', () => {
   assert.equal(scopeCovers('lib/a.js', 'lib/a.js'), true);
