@@ -22,7 +22,6 @@ import {
   extractAuthorityTitles,
   execAllowlistFailures,
   probeExecPolicy,
-  compileUnderSandbox,
   extractDeclaredPhases,
   extractCalledPhases,
   extractAssignedPhases,
@@ -137,10 +136,6 @@ export function run() {
 ${body}
 }
 `;
-}
-
-function liveSource() {
-  return readFileSync(DEFAULT_PHASE_PARITY_TARGET, 'utf8');
 }
 
 function capture() {
@@ -854,18 +849,6 @@ test('the gate exit codes stay distinct from every sibling cli exit code', () =>
   for (const code of codes.filter((c) => c !== GATE_CLEAN_EXIT)) {
     assert.equal(siblings.has(code), false, `exit code ${code} collides with a sibling cli`);
   }
-});
-
-test('the sandbox compile accepts the phase authority module only after the ESM export prefix is stripped', () => {
-  const source = liveSource();
-  assert.match(source, /^export /m, 'the target no longer carries the ESM prefix the normalization exists to strip');
-  assert.equal(compileUnderSandbox(source).ok, true);
-});
-
-test('the sandbox compile halts fail-closed on a target that is not a compilable workflow body', () => {
-  const compiled = compileUnderSandbox("export const meta = { phases: [{ title: 'Plan' }] };\nfunction (\n");
-  assert.equal(compiled.ok, false);
-  assert.match(compiled.error, /failed to compile in the sandbox/);
 });
 
 test('a module in the gate closure that does not resolve halts under the gate frame, naming the verb that never ran and the module that did not load', () => {

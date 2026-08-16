@@ -20,7 +20,7 @@ import { pack } from './file-scope-fixtures.mjs';
 
 const CLI = fileURLToPath(new URL('../derive-edges.mjs', import.meta.url));
 const CLI_AT = '2026-01-01T00:00:00.000Z';
-const MITOSIS_SOURCE = fileURLToPath(new URL('../../../workflows/mitosis.js', import.meta.url));
+const ESCALATION_SOURCE = fileURLToPath(new URL('../run-engine.mjs', import.meta.url));
 const RUN_ENGINE_SOURCE = fileURLToPath(new URL('../run-engine.mjs', import.meta.url));
 
 function scratch(prefix) {
@@ -400,10 +400,10 @@ test('I2b: the one constructor every edge-adding rule goes through refuses a rea
   }
 });
 
-test('I2c: no reason token derive-edges attaches matches the live opus-escalation regex in mitosis.js', () => {
-  const source = readFileSync(MITOSIS_SOURCE, 'utf8');
+test('I2c: no reason token derive-edges attaches matches the opus-escalation regex in run-engine.mjs', () => {
+  const source = readFileSync(ESCALATION_SOURCE, 'utf8');
   const declaration = source.match(/const CONTRACT_EDGE_RE = (\/.+\/[a-z]*);/);
-  assert.ok(declaration, 'CONTRACT_EDGE_RE could not be located in mitosis.js, so this census cannot measure the live escalation rule');
+  assert.ok(declaration, `CONTRACT_EDGE_RE could not be located in ${ESCALATION_SOURCE}, so this census cannot measure the escalation rule it exists to bound`);
   const body = declaration[1].slice(1, declaration[1].lastIndexOf('/'));
   const flags = declaration[1].slice(declaration[1].lastIndexOf('/') + 1);
   const escalation = new RegExp(body, flags);

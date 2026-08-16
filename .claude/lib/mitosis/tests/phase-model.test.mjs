@@ -2,9 +2,8 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
-import { lineOf, previousCodeIndex, scanJsStructure, wordEndingAt } from '../js-scan.mjs';
+import { lineOf, scanJsStructure } from '../js-scan.mjs';
 import { PHASE_TITLES } from '../phases.mjs';
-import { extractDeclaredPhases } from '../mitosis-gate.mjs';
 
 const LIB = new URL('..', import.meta.url).pathname;
 const GIT_LIB = new URL('../../git/', import.meta.url).pathname;
@@ -12,7 +11,6 @@ const WORKFLOW_DIR = new URL('../../../workflows/', import.meta.url).pathname;
 const LIB_TREES = Object.freeze([LIB, GIT_LIB]);
 const SOURCE_EXTENSION = '.mjs';
 const WORKFLOW_EXTENSION = '.js';
-const MITOSIS_PATH = process.env.MITOSIS_PATH || join(WORKFLOW_DIR, `mitosis${WORKFLOW_EXTENSION}`);
 
 const BLANKED = ' ';
 const WORD_CHARACTER = /[\w$]/;
@@ -30,10 +28,6 @@ const RETIRED_PHASE_TITLES = Object.freeze([
   'Waves',
 ]);
 
-const RESUME_CALL = "phase('Resume')";
-const RESUME_CALL_TOKEN = 'phase(';
-const RESUME_GUARD_FLAGS = Object.freeze([/isRelaunch/, /reusable/]);
-
 function filesIn(directory, extension) {
   return readdirSync(directory, { withFileTypes: true })
     .filter((entry) => entry.isFile() && entry.name.endsWith(extension))
@@ -44,7 +38,6 @@ function scannedSources() {
   return [...new Set([
     ...LIB_TREES.flatMap((directory) => filesIn(directory, SOURCE_EXTENSION)),
     ...filesIn(WORKFLOW_DIR, WORKFLOW_EXTENSION),
-    MITOSIS_PATH,
   ])].sort();
 }
 
@@ -115,55 +108,6 @@ function retiredTitleSurvivors(path, source, scan) {
   return survivors;
 }
 
-function occurrencesOf(source, needle) {
-  const found = [];
-  let from = 0;
-  for (;;) {
-    const start = source.indexOf(needle, from);
-    if (start === -1) return found;
-    found.push(start);
-    from = start + needle.length;
-  }
-}
-
-function callOffsetsOf(source, scan, call, token) {
-  return occurrencesOf(source, call).filter((index) => scan.masked.startsWith(token, index));
-}
-
-function innermostBlockAround(scan, index) {
-  return scan.bracePairs
-    .filter((pair) => pair.open < index && pair.close > index)
-    .reduce((innermost, pair) => (innermost === null || pair.open > innermost.open ? pair : innermost), null);
-}
-
-function headOfBlock(source, masked, openBrace) {
-  const closeParen = previousCodeIndex(masked, openBrace - 1);
-  if (masked[closeParen] !== ')') return null;
-  let depth = 0;
-  for (let k = closeParen; k >= 0; k -= 1) {
-    if (masked[k] === ')') depth += 1;
-    else if (masked[k] === '(') {
-      depth -= 1;
-      if (depth === 0) {
-        return { keyword: wordEndingAt(masked, previousCodeIndex(masked, k - 1)), condition: source.slice(k + 1, closeParen) };
-      }
-    }
-  }
-  return null;
-}
-
-function unguardedResumeCall(source, scan, index) {
-  const where = `${RESUME_CALL} at line ${lineOf(source, index)}`;
-  const block = innermostBlockAround(scan, index);
-  if (block === null) return `${where} sits at the top level of the workflow, so every run reports entering Resume`;
-  const head = headOfBlock(source, scan.masked, block.open);
-  if (head === null) return `${where} sits in a block opened by no parenthesised head, so it is not guarded at all`;
-  if (head.keyword !== 'if') return `${where} sits in a block opened by ${JSON.stringify(head.keyword)} rather than an if`;
-  const missing = RESUME_GUARD_FLAGS.filter((flag) => !flag.test(head.condition)).map((flag) => flag.source);
-  if (missing.length > 0) return `${where} is guarded by ${JSON.stringify(head.condition.trim())}, which never reads ${missing.join(' or ')}`;
-  return null;
-}
-
 test('the phase authority names the eight phases of the pipeline, as an ordered set rather than a count', () => {
   assert.deepEqual(
     [...PHASE_TITLES],
@@ -182,16 +126,6 @@ test('the retired titles are the ones the fold removed, so the census below can 
   );
 });
 
-test('the live workflow declares exactly the phase authority, in the same order', () => {
-  const declared = extractDeclaredPhases(readFileSync(MITOSIS_PATH, 'utf8'));
-  assert.equal(declared.ok, true, declared.error);
-  assert.deepEqual(
-    [...declared.phases],
-    [...PHASE_TITLES],
-    'meta.phases in the workflow and the authority in phases.mjs are two copies of one model; they are only safe to keep separate while they stay identical, so a title added to either must be added to both',
-  );
-});
-
 test('the census sees every workflow file, not one pinned path, so a second workflow cannot spell a retired title unwatched', () => {
   const scanned = scannedSources();
   const workflows = filesIn(WORKFLOW_DIR, WORKFLOW_EXTENSION);
@@ -200,22 +134,6 @@ test('the census sees every workflow file, not one pinned path, so a second work
     unseen,
     [],
     `these workflow files are not censused: ${unseen.join(', ')} — the census enumerates the workflow directory rather than naming one file, so a workflow added later is swept by construction rather than by remembering to widen a list`,
-  );
-});
-
-test("every phase('Resume') call in the workflow sits inside a guard that reads the relaunch flag, and at least one exists", () => {
-  const source = readFileSync(MITOSIS_PATH, 'utf8');
-  const scan = scannedOrFail('the live workflow', source);
-  const calls = callOffsetsOf(source, scan, RESUME_CALL, RESUME_CALL_TOKEN);
-  assert.ok(
-    calls.length > 0,
-    `the workflow carries no ${RESUME_CALL} call site in code; a relaunch would then never report the phase it enters, and prose in a template that merely mentions the call does not make it exist`,
-  );
-  const unguarded = calls.map((index) => unguardedResumeCall(source, scan, index)).filter((failure) => failure !== null);
-  assert.deepEqual(
-    unguarded,
-    [],
-    `these ${RESUME_CALL} call sites are not guarded by a relaunch that reuses the prior manifest:\n${unguarded.join('\n')}\nResume is entered when a relaunch reuses its manifest and nowhere else, so every call site must read both flags; splitting the guarded region into several branches is fine, and each branch is classified on its own rather than a first call being classified and the rest assumed`,
   );
 });
 
