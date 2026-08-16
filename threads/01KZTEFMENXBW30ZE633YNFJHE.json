@@ -601,6 +601,11 @@
         "ref": "0477-the-measurement-run-is-three-real-units-with-natural-outcomes",
         "title": "The measurement run is three real units with one dependency edge and natural outcomes",
         "scope": "c7"
+      },
+      {
+        "ref": "0478-the-scanner-gap-leaves-the-run-and-the-triad-goes-flat",
+        "title": "The secret-scanner gap is fixed as ordinary work, and the measurement run becomes a flat independent triad",
+        "scope": "c7"
       }
     ],
     "out_of_scope": [
@@ -612,5 +617,5 @@
     ]
   },
   "created_at": "2026-08-12T07:37:41.077Z",
-  "updated_at": "2026-08-16T19:51:47.306Z"
+  "updated_at": "2026-08-16T20:00:59.375Z"
 }
