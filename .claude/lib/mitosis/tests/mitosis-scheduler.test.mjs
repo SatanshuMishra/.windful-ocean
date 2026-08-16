@@ -4,6 +4,7 @@ import { readFileSync } from 'node:fs';
 import { pack } from './file-scope-fixtures.mjs';
 import { computeLogicalRunId, buildInitialManifest, applyShipTransition, parseRunManifest } from '../recovery.mjs';
 import { foldRunManifest, parkDelta } from '../run-log.mjs';
+import { JOURNAL_KINDS } from '../journal-store.mjs';
 import { park, LEGAL_STAGES } from '../parking.mjs';
 import { runEngine } from '../run-engine.mjs';
 import { parseMitosisGitArgv, renderPrCreateBody } from '../../git/pr.mjs';
@@ -664,7 +665,7 @@ test('F2a: a Prepare crash (agent returns null) is a crashed fatal report naming
 
 test('E1t delta-append: an n-MSP run dispatches no per-checkpoint read-agent, cuts the redundant ship-journal write, and under the frontier default fires exactly one built-checkpoint per unit — the durable record is the checkpoint ref (git) + merged PRs (gh) + the built-journal provenance (builtSha/builtAgainst) git cannot reconstruct', async () => {
   const msps = independentMsps();
-  const base = createFakeAgent({ msps });
+  const { agent: base, fileMap, runJsonPath } = makeDurableFakeAgent({ msps, repoRoot: TEST_REPO_ROOT });
   const dispatches = [];
   const agent = async (prompt, opts = {}) => {
     dispatches.push({ label: (opts && opts.label) || '', prompt });
@@ -680,7 +681,13 @@ test('E1t delta-append: an n-MSP run dispatches no per-checkpoint read-agent, cu
     .filter((label) => /^(park-read|built-read|ship-read)(:|$)/.test(label));
   assert.deepEqual(readLabels, [], 'the checkpoint read-agent is removed: the manifest is held in memory and read once at launch, never re-read per checkpoint');
 
-  assert.deepEqual(dispatches.filter((d) => d.label.startsWith('ship-checkpoint:')).map((d) => d.label), [], 'the redundant per-ship journal delta-append is cut — no ship-checkpoint write fires on a fresh run');
+  const journalRecords = (fileMap.get(runJsonPath) || '')
+    .split('\n')
+    .filter((line) => line.length > 0)
+    .map((line) => JSON.parse(line))
+    .filter((record) => JOURNAL_KINDS.includes(record.kind));
+  assert.ok(journalRecords.some((record) => record.kind === 'built'), 'the run journal the run itself wrote is live and non-empty — at least one built record landed, so an empty or unread journal cannot pass this assertion vacuously');
+  assert.deepEqual(journalRecords.filter((record) => record.kind === 'ship'), [], 'the redundant per-ship journal delta-append is cut — the journal the run actually wrote carries no ship record');
   assert.deepEqual(dispatches.filter((d) => d.label.startsWith('built-checkpoint:')).map((d) => d.label).sort(), msps.map((m) => `built-checkpoint:${m.id}`).sort(), 'under the frontier default the built-checkpoint delta-append fires exactly once per built unit — it records the builtSha/builtAgainst provenance the checkpoint ref alone cannot reconstruct');
 
   const pushes = dispatches.filter((d) => d.label.startsWith('checkpoint-push:')).map((d) => d.label).sort();
@@ -691,7 +698,7 @@ test('MSP-1d WS-1.5: the redundant ship-checkpoint delta-append stays CUT while 
   const input = buildInput();
   const msps = twoIndependentMsps();
   const labels = [];
-  const base = createFakeAgent({ msps });
+  const { agent: base, fileMap, runJsonPath } = makeDurableFakeAgent({ msps, repoRoot: input.repoRoot });
   const agent = async (prompt, opts = {}) => {
     labels.push(opts.label || '');
     return base(prompt, opts);
@@ -710,10 +717,17 @@ test('MSP-1d WS-1.5: the redundant ship-checkpoint delta-append stays CUT while 
     ['built-checkpoint:a', 'built-checkpoint:b'],
     'under the frontier default the built-checkpoint delta-append is KEPT — exactly one per unit records the builtSha/builtAgainst provenance that divergence-scoped invalidation reads on relaunch',
   );
+
+  const journalRecords = (fileMap.get(runJsonPath) || '')
+    .split('\n')
+    .filter((line) => line.length > 0)
+    .map((line) => JSON.parse(line))
+    .filter((record) => JOURNAL_KINDS.includes(record.kind));
+  assert.ok(journalRecords.some((record) => record.kind === 'built'), 'the run journal the run itself wrote is live and non-empty — at least one built record landed, so an empty or unread journal cannot pass this assertion vacuously');
   assert.deepEqual(
-    labels.filter((l) => l.startsWith('ship-checkpoint:')),
+    journalRecords.filter((record) => record.kind === 'ship'),
     [],
-    'the redundant ship-checkpoint delta-append stays CUT on a fresh run — shipped state is reconciled from gh merged PRs on relaunch, never the journal',
+    'the redundant ship-checkpoint delta-append stays CUT on a fresh run — the journal the run actually wrote carries no ship record; shipped state is reconciled from gh merged PRs on relaunch, never the journal',
   );
 });
 
@@ -5152,4 +5166,63 @@ test('CI-WRITEAHEAD-ASYMMETRY: the same flagless result at the built-checkpoint 
     [],
     'the built site audited a lost write on a result it is supposed to tolerate, which is the ci-attempt guard leaking into the other five',
   );
+});
+
+test('decision 0450: the six mechanical stages carry no in-run diagnostician, while the judgment stages still do', async () => {
+  {
+    const msps = [mspSpec('solo', { fileScope: pack(['scope/solo/**']) })];
+    const base = createFakeAgent({ msps });
+    const diagnoseLabels = [];
+    let redispatchCalls = 0;
+    const agent = async (prompt, opts = {}) => {
+      const label = opts.label || '';
+      const prefix = label.split(':')[0];
+      if (label === 'plan:solo') {
+        return {
+          planPath: '/tmp/mitosis-scheduler-test/solo.plan.md',
+          summary: '',
+          fault: { kind: 'approach-fixable', mechanism: 'stale-worktree', diagnosis: 'a previous attempt left the plan worktree dirty' },
+        };
+      }
+      if (prefix === 'diagnose') {
+        diagnoseLabels.push(label);
+        return { mechanism: 'reset-worktree', diagnosis: 'clean the worktree before replanning', correctedTask: 'replan solo after resetting the worktree' };
+      }
+      if (prefix === 'redispatch') {
+        redispatchCalls += 1;
+        return { planPath: '/tmp/mitosis-scheduler-test/solo.plan.md', summary: '' };
+      }
+      return base(prompt, opts);
+    };
+    const { resultPromise } = invokeMitosis(buildInput(), agent);
+    const result = await resultPromise;
+
+    assert.equal(result.overallStatus, 'all-shipped', 'the plan stage keeps its in-run diagnostician: a correctable fault still ships');
+    assert.ok(redispatchCalls > 0, 'the plan-stage remediation loop actually redispatched the corrected task');
+    assert.ok(diagnoseLabels.some((l) => /^diagnose:.*:plan$/.test(l)), 'the judgment stage plan must dispatch an in-run diagnostician');
+  }
+  {
+    const msps = [mspSpec('solo', { fileScope: pack(['scope/solo/**']) })];
+    const allLabels = [];
+    const agent = async (prompt, opts = {}) => {
+      const label = opts.label || '';
+      allLabels.push(label);
+      if (label === 'reconcile') {
+        return { fault: { kind: 'approach-fixable', mechanism: 'reconcile-fault', diagnosis: 'stuck reconciling durable state' } };
+      }
+      if (label.startsWith('diagnose:')) {
+        return { verdict: 'needs-human', request: { kind: 'approve-decision', what: 'reconcile stuck', remediation: null, resumePoint: null } };
+      }
+      throw new Error(`decision 0450 DENY case: unexpected dispatch for a mechanical stage: ${label}`);
+    };
+    const { resultPromise } = invokeMitosis(buildInput(), agent);
+    const result = await resultPromise;
+
+    assert.equal(result.overallStatus, 'failed', 'the mechanical reconcile stage halts on an approach-fixable fault instead of self-correcting');
+    assert.equal(result.stage, 'reconcile');
+    assert.ok(
+      !allLabels.some((l) => /^diagnose:/.test(l) || /^redispatch:/.test(l)),
+      'the mechanical reconcile stage must not dispatch an in-run diagnostician or a redispatch',
+    );
+  }
 });

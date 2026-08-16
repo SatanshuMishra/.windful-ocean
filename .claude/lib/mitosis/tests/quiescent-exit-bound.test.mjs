@@ -1,7 +1,8 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { Built } from '../boundary.mjs';
-import { indexUnits, runSchedule } from '../leases.mjs';
+import { indexUnits } from '../leases.mjs';
+import { runSchedule } from '../engine.mjs';
 import { pack } from './file-scope-fixtures.mjs';
 
 test('QUIESCENT EXIT TERMINATES THE EPOCH-EXHAUSTED LOOP: a unit whose raw planTick dispatch never empties still returns once its every (unit, state) epoch is spent, so the live window accessor is resolved a bounded number of times', async () => {

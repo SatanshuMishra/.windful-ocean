@@ -48,7 +48,7 @@ const INLINED_TWINS = Object.freeze({
   'status-facts.mjs': WHOLE,
   'supervisor.mjs': WHOLE,
   'window.mjs': WHOLE,
-  'engine-args.mjs': Object.freeze(['validateModelsKnob']),
+  'engine-args.mjs': Object.freeze(['scopedCheckArgv', 'validateModelsKnob']),
   'git/pr-format.mjs': Object.freeze(['PR_TITLE_TYPES', 'PR_TITLE_PATTERN', 'PR_VALUE_CAP']),
   'wave-planner.mjs': Object.freeze(['canonicalPath', 'globPrefix', 'pathsOverlap', 'scopesOverlap']),
 });

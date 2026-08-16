@@ -1083,10 +1083,51 @@ function deriveClusters(msps, discoveredEdges = []) {
   };
 }
 
+const SCOPED_CHECK_SHELL = Object.freeze(['sh', '-c']);
+const SCOPED_CHECK_BREAK = /[\n\r\u2028\u2029\0]/;
+
+function scopedCheckArgv(value) {
+  if (Array.isArray(value)) {
+    return Object.freeze(value.map((entry, index) => {
+      if (typeof entry !== 'string' || entry.trim() === '') {
+        throw new TypeError(`scopedCheckArgv: element ${index} of the scoped check argv must be a non-empty string, received ${JSON.stringify(entry)}`);
+      }
+      if (SCOPED_CHECK_BREAK.test(entry)) {
+        throw new TypeError(`scopedCheckArgv: element ${index} of the scoped check argv carries a line break or a NUL byte, received ${JSON.stringify(entry)}; the element is rendered into a single-line code span in a composed prompt, so a break ends that span and turns everything after it into prose the receiving model reads as the engine's own instruction`);
+      }
+      return entry;
+    }));
+  }
+  if (typeof value !== 'string' || value.trim() === '') {
+    throw new TypeError(`scopedCheckArgv: the scoped check command must be a non-empty string or an argv array of non-empty strings, received ${value === null ? 'null' : typeof value}`);
+  }
+  if (SCOPED_CHECK_BREAK.test(value)) {
+    throw new TypeError(`scopedCheckArgv: the scoped check command carries a line break or a NUL byte, received ${JSON.stringify(value)}; it is rendered into a single-line code span in a composed prompt, so a break ends that span and turns everything after it into prose the receiving model reads as the engine's own instruction`);
+  }
+  return Object.freeze([...SCOPED_CHECK_SHELL, value]);
+}
+
+const SHELL_QUOTE_NUL = String.fromCharCode(0);
+const SHELL_QUOTE_LINE_BREAK = /[\n\r]/;
+
+function shellQuote(value) {
+  if (typeof value !== 'string') {
+    throw new TypeError(`prompt-contract: a shell-quoted value must be a string, received ${typeof value}`);
+  }
+  if (SHELL_QUOTE_LINE_BREAK.test(value) || value.includes(SHELL_QUOTE_NUL)) {
+    throw new TypeError(`prompt-contract: a shell-quoted value must not contain a line break or a NUL byte, received ${JSON.stringify(value)}; single quotes make it one shell word but not one prompt line, and the code span it is rendered into ends at the break`);
+  }
+  return `'${value.split("'").join("'\\''")}'`;
+}
+
+function shellQuoteList(values) {
+  return values.map(shellQuote).join(' ');
+}
+
 const STATUS_SCHEMA = { type: 'object', properties: { status: { enum: ['DONE', 'DONE_WITH_CONCERNS', 'BLOCKED', 'NEEDS_CONTEXT'] }, summary: { type: 'string' } }, required: ['status'] };
 const REVIEW_SCHEMA = { type: 'object', properties: { verdict: { enum: ['pass', 'fail'] }, issues: { type: 'array', items: { type: 'string' } } }, required: ['verdict'] };
 const MERGE_SCHEMA = { type: 'object', properties: { merged: { type: 'array', items: { type: 'string' } }, conflict: { type: 'boolean' }, conflictDetail: { type: 'string' } }, required: ['merged', 'conflict'] };
-const BOUNDARY_SCHEMA = { type: 'object', properties: { pass: { type: 'boolean' }, output: { type: 'string' }, baseCensus: { type: 'object' } }, required: ['pass'] };
+const BOUNDARY_SCHEMA = { type: 'object', properties: { pass: { type: 'boolean' }, output: { type: 'string' } }, required: ['pass'] };
 const FENCE_SCHEMA = { type: 'object', properties: { paths: { type: 'array', items: { type: 'string' } } }, required: ['paths'] };
 const EXEC_AGENT_TYPES = new Set(['implementer', 'test-engineer', 'general-purpose']);
 
@@ -1473,7 +1514,7 @@ async function runEngine(engineArgs, ctx) {
   const baseBranch = engineArgs.baseBranch;
   const worktreeRoot = engineArgs.worktreeRoot;
   const repoRoot = engineArgs.repoRoot;
-  const scopedCheckCmd = engineArgs.scopedCheckCmd;
+  const scopedCheckCmd = scopedCheckArgv(engineArgs.scopedCheckCmd);
   const fullValidationCmd = engineArgs.fullValidationCmd;
   const prompts = engineArgs.prompts;
   const fixLoopMax = Number.isInteger(engineArgs.fixLoopMax) && engineArgs.fixLoopMax >= 0 ? engineArgs.fixLoopMax : 2;
@@ -1501,7 +1542,7 @@ async function runEngine(engineArgs, ctx) {
         `1. Edit ONLY files within this task's declared scope: ${JSON.stringify(task.fileScope.edit)}. Creating or editing anything outside this scope is a hard failure.${readContextClause(task.fileScope)}\n` +
         `2. Do NOT run any git mutation (no add, no commit, no branch, no checkout, no stash). Leave all changes uncommitted.\n` +
         `3. Follow TDD as the instructions above require.\n` +
-        `4. For verification run ONLY the scoped check, never a full build/suite: \`${scopedCheckCmd}\`\n\n` +
+        `4. For verification run ONLY the scoped check, never a full build/suite: \`${shellQuoteList(scopedCheckCmd)}\`\n\n` +
         `Task: ${task.title}\n\n${task.fullText}\n\n` +
         `Report status as exactly one of DONE / DONE_WITH_CONCERNS / BLOCKED / NEEDS_CONTEXT.`;
     }
@@ -1511,7 +1552,7 @@ async function runEngine(engineArgs, ctx) {
       `   \`git -C ${repoRoot} worktree add -b ${branch} ${wt} ${baseBranch}\`\n` +
       `2. \`cd ${wt}\` and do ALL work there. Follow TDD as the instructions above require.\n` +
       `3. Bootstrap dependencies before any check (idempotent): \`ln -sfn ${repoRoot}/node_modules node_modules\`\n` +
-      `4. For verification run ONLY the scoped check, never a full build/suite: \`${scopedCheckCmd}\`\n` +
+      `4. For verification run ONLY the scoped check, never a full build/suite: \`${shellQuoteList(scopedCheckCmd)}\`\n` +
       `5. Commit your work to \`${branch}\` (one or more commits). Do NOT remove the worktree.\n\n` +
       `Task: ${task.title}\n\n${task.fullText}\n\n` +
       `Report status as exactly one of DONE / DONE_WITH_CONCERNS / BLOCKED / NEEDS_CONTEXT.`;
@@ -1549,12 +1590,12 @@ async function runEngine(engineArgs, ctx) {
       return `Apply fixes in the MAIN repository working tree at ${repoRoot} (no worktree, no branch, no git mutations; leave changes uncommitted).\n` +
         `Edit ONLY within this task's declared scope: ${JSON.stringify(task.fileScope.edit)}.${readContextClause(task.fileScope)}\n` +
         `1. Fix these issues:\n- ${(issues || []).join('\n- ')}\n` +
-        `2. Re-run the scoped check: \`${scopedCheckCmd}\`\n\nTask context:\n${task.fullText}`;
+        `2. Re-run the scoped check: \`${shellQuoteList(scopedCheckCmd)}\`\n\nTask context:\n${task.fullText}`;
     }
     return `Apply fixes in the EXISTING worktree for this task.\n` +
       `1. \`cd ${wt}\` (the worktree already exists on branch ${branch}).\n` +
       `2. Fix these issues:\n- ${(issues || []).join('\n- ')}\n` +
-      `3. Re-run the scoped check: \`${scopedCheckCmd}\`\n` +
+      `3. Re-run the scoped check: \`${shellQuoteList(scopedCheckCmd)}\`\n` +
       `4. Commit the fixes to \`${branch}\`.\n\nTask context:\n${task.fullText}`;
   }
 
@@ -1566,13 +1607,15 @@ async function runEngine(engineArgs, ctx) {
       const r = await guard.dispatch(makePrompt(task, branch), opts, { kind: 'review', task });
       if (guard.getHalt()) return { ok: false, reason: 'model-policy' };
       if (r && r.verdict === 'pass') return { ok: true };
+      const named = r && Array.isArray(r.issues) ? r.issues.filter((issue) => typeof issue === 'string' && issue.trim() !== '') : [];
+      if (named.length === 0) return { ok: false, reason: `${label}-no-issues`, issues: [] };
       loops++;
-      if (loops > fixLoopMax) return { ok: false, reason: `${label}-exhausted`, issues: r && r.issues };
+      if (loops > fixLoopMax) return { ok: false, reason: `${label}-exhausted`, issues: named };
       const budget = retry && retry.state;
       const budgeted = budget && Number.isInteger(budget.max) && budget.max > 0 && Number.isInteger(budget.used);
-      if (budgeted && loops > 1 && budget.used >= budget.max) return { ok: false, reason: `${label}-budget-exhausted`, issues: r && r.issues };
+      if (budgeted && loops > 1 && budget.used >= budget.max) return { ok: false, reason: `${label}-budget-exhausted`, issues: named };
       if (budgeted) budget.used += 1;
-      await guard.dispatch(fixPrompt(task, branch, wt, r && r.issues), { label: `fix-${label}:${task.id}`, phase: 'Execute' }, { kind: 'fix', task });
+      await guard.dispatch(fixPrompt(task, branch, wt, named), { label: `fix-${label}:${task.id}`, phase: 'Execute' }, { kind: 'fix', task });
       if (guard.getHalt()) return { ok: false, reason: 'model-policy' };
     }
   }
@@ -1710,23 +1753,10 @@ async function runEngine(engineArgs, ctx) {
       `4. Reduce every error to a STRUCTURAL IDENTITY tuple { file (repo-relative), ruleId or TS error code, normalized message } where the normalized message has ALL line:col numbers, code frames, and absolute paths stripped. NEVER key the identity on line:col - a pure line shift must NOT count as a new error.\n` +
       `5. COUNT occurrences of each identity on BOTH sides (a multiset, not a set). An identity BLOCKS iff its HEAD count EXCEEDS its BASE count - block the surplus (HEAD count minus BASE count) occurrences; equal or lower counts (pre-existing or fixed) do NOT block. Because the identity ignores line:col this stays tolerant of pure line shifts while still catching a 2ND instance of an error class already present at base. The following two additional scans apply ONLY to tools judged EXPECTED (a NOT-EXPECTED tool contributes no suppressions or configuration to compare). ALSO scan the HEAD-vs-base SOURCE diff for ADDED inline suppression directives (\`eslint-disable\` / \`eslint-disable-next-line\` / \`@ts-ignore\` / \`@ts-expect-error\`) and apply the SAME count-aware rule - if a directive's HEAD count exceeds its BASE count, the surplus BLOCKS; a suppression is not a fix. ALSO diff the lint/type CONFIGURATION surface, comparing the fully-RESOLVED effective config on both sides (not only the named config files, so a loosening pulled in through an \`extends\`-ed or shared eslint/tsconfig preset - including a version bump of that shared preset package - is still caught): treat any HEAD-vs-base change to an eslint config (\`.eslintrc*\` / \`eslint.config.*\` / \`package.json\` eslintConfig), a TypeScript config (\`tsconfig*.json\`), an extended/shared preset, or an ignore surface (\`.eslintignore\` / \`ignorePatterns\` / tsconfig \`exclude\`/\`include\` / \`overrides\`) that REDUCES strictness or narrows what is checked (a rule turned off or downgraded, \`strict\` or \`noImplicitAny\` weakened, \`skipLibCheck\` added, a path newly ignored or excluded) as a BLOCKING change - loosening the checker is itself a way to hide a new error; a strictness-INCREASING or check-widening change does NOT block.\n` +
       `6. Tear down the throwaway base worktree: \`git -C ${repoRoot} worktree remove --force ${baseGateWt}\`.\n` +
-      `Report pass=true iff BOTH: the blocking set is empty across all EXPECTED tools, AND every EXPECTED tool was collected cleanly on both sides. If EVERY tool is NOT-EXPECTED (the repo has no lint/type toolchain on either side), the lint/type dimension is legitimately empty and pass=true - the full test suite remains gated separately at ship (G9). List the blocking identities (or a short summary), and note any tool judged NOT-EXPECTED, in output.\n` +
-      `7. ALSO RETURN the BASE census you just collected as \`baseCensus\`: an object carrying, per EXPECTED tool, that tool's base structural-identity multiset (step 4/5 identities with their base counts), plus the base config/suppression surface used for the strictness and added-suppression comparison, plus the list of tools judged NOT-EXPECTED - all keyed to the IMMUTABLE base ${gateBase}. This census cannot change mid-run (the base commit is fixed), so a later recheck can reuse it WITHOUT re-materializing the base worktree.`;
-    const recheckGate = (cachedBaseCensus) =>
-      `${where}, re-run the DIFF-SCOPED gate ONCE reusing the CACHED base census below: block only NEW lint/type errors this MSP introduced, never pre-existing ones. Lint + types only; the full test suite is gated separately at ship (G9).\n` +
-      `1. The base ${gateBase} is IMMUTABLE for this run, so its census CANNOT have changed since the first pass: do NOT re-materialize or re-collect the base worktree ${baseGateWt}; recollect ONLY the HEAD census this pass and compare it against the cached base. CACHED BASE CENSUS (the authoritative base side, keyed to the immutable base ${gateBase}): ${JSON.stringify(cachedBaseCensus)}. If this cached census is absent, empty, malformed, or missing its per-tool base structural-identity multiset or its base config/suppression surface, FALL BACK to a full two-sided recollection - materialize the base at ${gateBase} and collect both sides exactly as a first pass would - and NEVER pass on an unusable cached base.\n` +
-      `2. Determine TOOLCHAIN EXPECTATION per tool (eslint, tsc) from the CACHED base surface and the HEAD tree ${validationDir}. A tool is EXPECTED if ANY holds on EITHER side: (a) a resolvable config is present - eslint: a .eslintrc* file, an eslint.config.* file, or an eslintConfig key in package.json; tsc: any tsconfig*.json; (b) the tool is a declared dependency in package.json dependencies or devDependencies - eslint for eslint, typescript for tsc. A tool is NOT-EXPECTED ONLY when BOTH (a) and (b) are FALSE on BOTH the cached base surface and HEAD. A tool present in the cached base surface but absent at HEAD (or vice versa) remains EXPECTED, and its one-sided disappearance MUST stay blocked (this is the config/dependency-removal case). Emitting a NOT-EXPECTED verdict requires the HEAD tree ${validationDir} to be positively observed as a non-empty tree with its package.json and config surface readable; if HEAD cannot be positively observed, report pass=false. NEVER infer absence from an unobservable or undecidable side.\n` +
-      `3. Collect the error list ONLY for EXPECTED tools on the HEAD side using the repo's OWN toolchain, as machine-readable output; the BASE side is taken verbatim from the cached census and is NOT recollected:\n` +
-      `   - HEAD: \`cd ${validationDir} && npx eslint . -f json\` and \`cd ${validationDir} && npx tsc --noEmit --pretty false\`\n` +
-      `   - FAIL CLOSED: report pass=false with the reason if the HEAD side cannot be collected cleanly - a worktree or install failure, a tool that crashes, output that cannot be parsed into the expected diagnostic list (a clean lint result is a NON-EMPTY eslint JSON array whose every element's messages list is empty; empty tsc output is clean ONLY after confirming a non-zero number of files was type-checked; a top-level EMPTY eslint array [] or a tsc run that type-checked ZERO files is a scanned-zero-files result that FAILS CLOSED), a missing config for an EXPECTED tool, a tsc run that did not reach terminal completion, a run that scanned ZERO files, or a base-vs-HEAD mismatch in the resolved lint/type SCOPE - the include / exclude / ignore globs that decide WHICH files are checked - but NOT a mismatch that is merely the individual source files an MSP legitimately added, removed, or renamed. NEVER treat an errored, crashed, hollow, or partial HEAD collection as an empty or complete error set.\n` +
-      `4. Reduce every HEAD error to the SAME STRUCTURAL IDENTITY tuple { file (repo-relative), ruleId or TS error code, normalized message } with ALL line:col numbers, code frames, and absolute paths stripped, so it is directly comparable to the cached base identities. NEVER key the identity on line:col - a pure line shift must NOT count as a new error.\n` +
-      `5. COUNT occurrences of each HEAD identity as a multiset. An identity BLOCKS iff its HEAD count EXCEEDS its CACHED BASE count - block the surplus (HEAD count minus cached base count); equal or lower counts do NOT block. The following two scans apply ONLY to EXPECTED tools. ALSO scan the HEAD source for inline suppression directives (\`eslint-disable\` / \`eslint-disable-next-line\` / \`@ts-ignore\` / \`@ts-expect-error\`) and apply the SAME count-aware rule against the cached base suppression surface - if a directive's HEAD count exceeds its cached BASE count, the surplus BLOCKS; a suppression is not a fix. ALSO diff the lint/type CONFIGURATION surface, comparing the HEAD fully-RESOLVED effective config against the CACHED BASE config surface (including \`extends\`-ed or shared eslint/tsconfig presets and preset version bumps): treat any HEAD-vs-cached-base change to an eslint config (\`.eslintrc*\` / \`eslint.config.*\` / \`package.json\` eslintConfig), a TypeScript config (\`tsconfig*.json\`), an extended/shared preset, or an ignore surface (\`.eslintignore\` / \`ignorePatterns\` / tsconfig \`exclude\`/\`include\` / \`overrides\`) that REDUCES strictness or narrows what is checked (a rule turned off or downgraded, \`strict\` or \`noImplicitAny\` weakened, \`skipLibCheck\` added, a path newly ignored or excluded) as a BLOCKING change - loosening the checker is itself a way to hide a new error; a strictness-INCREASING or check-widening change does NOT block.\n` +
-      `Report pass=true iff BOTH: the blocking set is empty across all EXPECTED tools, AND the HEAD side was collected cleanly. If EVERY tool is NOT-EXPECTED, the lint/type dimension is legitimately empty and pass=true - the full test suite remains gated separately at ship (G9). Echo the unchanged cached census back as \`baseCensus\`, and list the blocking identities (or a short summary) plus any tool judged NOT-EXPECTED in output.`;
-    const gatePrompt = (rerun, cachedBaseCensus) =>
-      cachedBaseCensus ? recheckGate(cachedBaseCensus) : firstPassGate(rerun);
+      `Report pass=true iff BOTH: the blocking set is empty across all EXPECTED tools, AND every EXPECTED tool was collected cleanly on both sides. If EVERY tool is NOT-EXPECTED (the repo has no lint/type toolchain on either side), the lint/type dimension is legitimately empty and pass=true - the full test suite remains gated separately at ship (G9). List the blocking identities (or a short summary), and note any tool judged NOT-EXPECTED, in output.`;
     phase('Integrate');
     let boundary = await guard.dispatch(
-      gatePrompt(false, null),
+      firstPassGate(false),
       { label: 'boundary', phase: 'Integrate', schema: BOUNDARY_SCHEMA }, { kind: 'engine', task: null });
     if (boundary && !boundary.pass) {
       const fixWhere = isolation === 'scope-fence'
@@ -1736,7 +1766,7 @@ async function runEngine(engineArgs, ctx) {
         `The diff-scoped gate found NEW lint/type errors this MSP introduced. Fix the integrated code ${fixWhere} by CORRECTING the root cause - do NOT pass the gate by suppression: add no new \`eslint-disable\` / \`@ts-ignore\` / \`@ts-expect-error\`, and do not loosen eslint or tsconfig rules or newly ignore or exclude files; new suppression directives and strictness-reducing config changes are themselves blocked by the gate. Failing output:\n${boundary.output}`,
         { label: 'boundary-fix', phase: 'Integrate' }, { kind: 'engine', task: null });
       boundary = await guard.dispatch(
-        gatePrompt(true, boundary.baseCensus || null),
+        firstPassGate(true),
         { label: 'boundary-recheck', phase: 'Integrate', schema: BOUNDARY_SCHEMA }, { kind: 'engine', task: null });
     }
     result.boundary = boundary;
@@ -4181,7 +4211,7 @@ try {
       `Return ONLY the structured object: { manifestFound, manifestRaw, manifestRawPages: [ "<chunk>" ], mergedPRs: [ { headRefName, url, mergedAt, mergedSha } ], mergedPRsAuthoritative, specContentHash, checkpointRefPages: [ [ "<sha>\\t<ref>" ] ], publishedManifestFound, publishedManifestProbeFailed, publishedManifestRefProbed, publishedManifestRawPages: [ "<chunk>" ], openPRs: [ { headRefName, reviewDecision, url, isCrossRepository, headRepositoryOwner, headRepository } ], ownerRepo, repoHost }.`,
       { agentType: 'implementer', schema: RECONCILE_SCHEMA, label: 'reconcile', phase: 'Probe', model: models.reconciler || models.shipper || 'sonnet' }
     ),
-    { unitId: 'reconcile', stage: 'reconcile', resetRef: null, worktree: null, task: 'inspect durable run state and the already-merged set', ...makeRemediation({ unitId: 'reconcile', stage: 'reconcile', task: 'inspect durable run state and the already-merged set', schema: RECONCILE_SCHEMA, agentType: 'implementer', phase: 'Probe' }) },
+    { unitId: 'reconcile', stage: 'reconcile', resetRef: null, worktree: null, task: 'inspect durable run state and the already-merged set' },
   );
   recon = reconOutcome.tag === 'Done' ? reconOutcome.value : null;
   if (reconOutcome.tag !== 'Done') {
@@ -4800,7 +4830,7 @@ async function supersedeOpenPr(msp, { priorPrUrl, integrationBranch, diagnosis }
       `Return ONLY: { opened: <bool>, prUrl: "<the new superseding PR url, or empty string if not opened>", detail: "<what happened>" }.`,
       { agentType: 'implementer', schema: SUPERSEDE_PR_SCHEMA, label: `supersede:${msp.id}`, phase: 'Ship' }
     ),
-    { unitId: msp.id, stage: 'ship', resetRef: baseBranch, worktree: null, task: `supersede the open PR for ${msp.id} after a divergent invalidation`, ...makeRemediation({ unitId: msp.id, stage: 'ship', task: `supersede the open PR for ${msp.id} after a divergent invalidation`, schema: SUPERSEDE_PR_SCHEMA, agentType: 'implementer', phase: 'Ship' }), runBudget: retryState, compensate: makeCompensate(null, baseBranch) },
+    { unitId: msp.id, stage: 'ship', resetRef: baseBranch, worktree: null, task: `supersede the open PR for ${msp.id} after a divergent invalidation`, runBudget: retryState, compensate: makeCompensate(null, baseBranch) },
   );
   if (outcome.tag !== 'Done' || !outcome.value || outcome.value.opened !== true) {
     const failDetail = outcome.tag === 'Done' && outcome.value && typeof outcome.value.detail === 'string' ? outcome.value.detail : null;
@@ -4972,7 +5002,7 @@ async function runUnit(unit) {
           `Return ONLY: { restored: <bool>, sha: "<the tip sha read in step 1, or empty string if not restored>", detail: "<what happened>" }.`,
           { agentType: 'implementer', schema: RESTORE_SCHEMA, label: `restore:${msp.id}`, phase: 'Ship' }
         ),
-        { unitId: msp.id, stage: 'ship', resetRef: baseBranch, worktree: null, task: `restore ${msp.id} from durable checkpoint ${builtRef}`, ...makeRemediation({ unitId: msp.id, stage: 'ship', task: `restore ${msp.id} from durable checkpoint ${builtRef}`, schema: RESTORE_SCHEMA, agentType: 'implementer', phase: 'Ship' }), runBudget: retryState },
+        { unitId: msp.id, stage: 'ship', resetRef: baseBranch, worktree: null, task: `restore ${msp.id} from durable checkpoint ${builtRef}`, runBudget: retryState },
       );
       if (restoreOutcome.tag !== 'Done') return { ready: false, parkOutcome: await parkUnit(msp, 'ship', restoreOutcome, integrationBranch, compensationStack) };
       const restored = restoreOutcome.value;
@@ -5119,7 +5149,7 @@ async function runUnit(unit) {
         `Return ONLY: { engineArgs: <the 15-key object>, route: { rule, lane, isolation, N, notes } }.`,
         { agentType: 'implementer', schema: PARALLELIZE_SCHEMA, label: `parallelize:${msp.id}`, phase: 'Prep' }
       ),
-      { unitId: msp.id, stage: 'parallelize', resetRef: baseBranch, worktree: null, task: `parallelize and route ${msp.id}`, triedSet: parallelizeTriedSeed, ...makeRemediation({ unitId: msp.id, stage: 'parallelize', task: `parallelize and route ${msp.id}`, schema: PARALLELIZE_SCHEMA, agentType: 'implementer', phase: 'Prep' }), runBudget: retryState },
+      { unitId: msp.id, stage: 'parallelize', resetRef: baseBranch, worktree: null, task: `parallelize and route ${msp.id}`, triedSet: parallelizeTriedSeed, runBudget: retryState },
     );
     if (parallelizeOutcome.tag !== 'Done') return parkUnit(msp, 'parallelize', parallelizeOutcome, integrationBranch, compensationStack);
     const parallelized = parallelizeOutcome.value;
@@ -5216,7 +5246,7 @@ async function runUnit(unit) {
           `Return ONLY: { ready: <bool>, conflict: <bool>, builtAgainst: { "<parent unitId>": "<that parent's tip sha>" }, detail: "<what happened>" }.`,
           { agentType: 'implementer', schema: FRONTIER_BRANCH_SCHEMA, label: `branch:${msp.id}`, phase: 'Prep', model: 'opus' }
         ),
-        { unitId: msp.id, stage: 'branch', resetRef: baseBranch, worktree: null, task: `frontier-compose ${msp.id} on parents ${parentIds.join(', ')}`, ...makeRemediation({ unitId: msp.id, stage: 'branch', task: `frontier-compose ${msp.id} on parents ${parentIds.join(', ')}`, schema: FRONTIER_BRANCH_SCHEMA, agentType: 'implementer', phase: 'Prep' }), runBudget: retryState, compensate: makeCompensate(null, baseBranch) },
+        { unitId: msp.id, stage: 'branch', resetRef: baseBranch, worktree: null, task: `frontier-compose ${msp.id} on parents ${parentIds.join(', ')}`, runBudget: retryState, compensate: makeCompensate(null, baseBranch) },
       );
       if (composeOutcome.tag !== 'Done') return parkUnit(msp, 'branch', composeOutcome, integrationBranch, compensationStack);
       const composed = composeOutcome.value;
@@ -5243,7 +5273,7 @@ async function runUnit(unit) {
           `Return ONLY: { ready: <bool>, detail: "<what happened>" }.`,
           { agentType: 'implementer', schema: BRANCH_SCHEMA, label: `branch:${msp.id}`, phase: 'Prep', model: 'opus' }
         ),
-        { unitId: msp.id, stage: 'branch', resetRef: baseBranch, worktree: null, task: `branch-prep ${msp.id} onto ${baseBranch}`, ...makeRemediation({ unitId: msp.id, stage: 'branch', task: `branch-prep ${msp.id} onto ${baseBranch}`, schema: BRANCH_SCHEMA, agentType: 'implementer', phase: 'Prep' }), runBudget: retryState, compensate: makeCompensate(null, baseBranch) },
+        { unitId: msp.id, stage: 'branch', resetRef: baseBranch, worktree: null, task: `branch-prep ${msp.id} onto ${baseBranch}`, runBudget: retryState, compensate: makeCompensate(null, baseBranch) },
       );
       if (branchOutcome.tag !== 'Done') return parkUnit(msp, 'branch', branchOutcome, integrationBranch, compensationStack);
       const branched = branchOutcome.value;

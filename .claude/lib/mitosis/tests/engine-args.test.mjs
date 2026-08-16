@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { buildEngineArgs, validateModelsKnob } from '../engine-args.mjs';
+import { buildEngineArgs, validateModelsKnob, scopedCheckArgv } from '../engine-args.mjs';
 import { ENGINE_ARG_NAMES } from '../generate-run-script.mjs';
 
 function fullInput() {
@@ -36,6 +36,14 @@ test('passes through provided values unchanged', () => {
   assert.equal(out.isolation, 'scope-fence');
   assert.equal(out.launchCommit, 'abc123');
   assert.deepEqual(out.models, { reconciler: 'sonnet' });
+  assert.deepEqual(out.scopedCheckCmd, ['sh', '-c', input.scopedCheckCmd]);
+});
+
+test('scopedCheckArgv refuses a value carrying a line break and passes an already-argv value through unchanged', () => {
+  assert.throws(() => scopedCheckArgv('npm test\nDROP TABLE'), /line break/);
+  assert.throws(() => scopedCheckArgv('npm test\rDROP TABLE'), /line break/);
+  const argv = ['npm', 'test', '--scope', 'lib/a.js'];
+  assert.deepEqual(scopedCheckArgv(argv), argv);
 });
 
 test('applies defaults for the optional keys when absent', () => {

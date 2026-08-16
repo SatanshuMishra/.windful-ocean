@@ -38,10 +38,10 @@ Four of the six already-satisfied obligations were unpinned decisions and now ca
 | T4 | re-filed C7 | removing a converted site's dispatch edits `mitosis.js:4279` and `run-engine.mjs` |
 | T5 | re-filed C7 | `ci-fact-extract` registered at `prompt-registry.mjs:37` and `prompt-contract.mjs:226`; dispatching it needs sandbox-external wiring |
 | T6 | discharged | bounded fail-closed spec reader; `tests/cp-transcription-spec-reader.test.mjs` |
-| B1 | re-filed C7 | mechanical dispatches at `mitosis.js:1695` and `:1705-1707`; the verdict must be injected through a hook |
+| B1 | re-filed C7 | mechanical dispatches at `mitosis.js:1758-1760` and `:1768-1770`; the verdict must be injected through a hook |
 | B2 | re-filed C7 | `run-engine.mjs:576-636` is the verbatim twin; nothing to re-sync until B1 lands |
-| B3 | discharged in part, remainder re-filed C7 | identity stamped on publish at `boundary-gate.mjs`; the remainder deletes the model census at `mitosis.js:1706` |
-| B4 | marker | `boundary-fix` unchanged at `mitosis.js:1704`, registered judgment kind at `prompt-contract.mjs:33`, `:200` |
+| B3 | discharged in part, remainder re-filed C7 | identity stamped on publish at `boundary-gate.mjs`; the remainder deletes the model census at `mitosis.js:1768-1770` |
+| B4 | marker | `boundary-fix` unchanged at `mitosis.js:1765-1767`, registered judgment kind at `prompt-contract.mjs:33`, `:200` |
 | J1 | re-filed C7 | the six dispatches have no write capability to convert to inside the sandbox |
 | J2 | re-filed C7 | the module half is done at `journal-store.mjs:169-172`, `:323-336`; the caller wiring is C7's |
 | J3 | already satisfied | asymmetry preserved at `mitosis.js:4708` against `:4733/:4792/:4814/:5596`, now pinned |
