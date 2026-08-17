@@ -57,7 +57,7 @@
   "closure_statement": null,
   "spine": {
     "active_goal": "Land wave 3's two open pull requests, apply the global settings edit no pull request can carry, then start waves 4 to 7.",
-    "next_step": "MERGE ORDER MATTERS. (1) Merge PR 201 first - main is red on G9 without its duckdb install. (2) Apply the global ~/.claude/settings.json edit from PR 200's report BEFORE OR WITH merging PR 200; that PR deletes the analyzer the global hook still names, and observation stops machine-wide otherwise. (3) Merge PR 200. (4) Fresh session, dispatch any subagent, confirm a SubagentStart row lands. Waves 4 to 7 are UNBLOCKED per 0531.",
+    "next_step": "MERGE ORDER. THREE PRs open. (1) Merge 198 and 201 first, either order - both independent and green; 201 installs duckdb so main stops failing G9, 198 fixes a skill test that dies on any manifest-less host. (2) Apply the global ~/.claude/settings.json edit from PR 200's report BEFORE OR WITH merging 200 - that PR deletes the analyzer the global hook still names, else observation stops machine-wide. (3) Merge 200. (4) Fresh session, dispatch a subagent, confirm a SubagentStart row lands.",
     "last_session": "Shipped all of wave 3 by fan-out: U3.2, U3.3b, U3.3 and U3.4, plus an unplanned wave 0-2 repair MSP and a receipts CI fix. Six pull requests; four merged by the user, PR 200 and PR 201 open. Ruled the engine gate lifted. Fourteen decisions recorded, 0530 to 0543.",
     "open_risks": [
       {
@@ -336,5 +336,5 @@
     ]
   },
   "created_at": "2026-08-16T05:43:25.829Z",
-  "updated_at": "2026-08-17T19:25:22.695Z"
+  "updated_at": "2026-08-17T19:29:58.716Z"
 }
