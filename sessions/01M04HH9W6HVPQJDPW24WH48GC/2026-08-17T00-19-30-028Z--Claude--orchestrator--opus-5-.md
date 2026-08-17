@@ -1,0 +1,27 @@
+Round 4. The user raised three areas as the FINAL scope increase to this thread; later sessions resolve ambiguity in existing decisions only. Eight agents dispatched: two per area (audit plus external research), one to rebuild the lost report validator, one to settle a telemetry discrepancy. A ninth later settled the CAPABILITY-BLOCKED question, and three more executed the report amendment.
+
+WHAT SHIPPED
+
+The report at ~/.agent/diagrams/agent-roster-rebuild-recommendations.html was amended in place across four editing passes, 4,281 to 4,761 lines, ending gate-clean. A rebuilt validator (tag balance, anchor integrity, duplicate ids, theme tokens, emoji, encoding, self-containment, leak scan) was proven against 16 fixtures, each failing only its intended check, plus a negative control carrying every legal edge case. Baseline and final failure sets are identical: only self-containment (Google Fonts, Mermaid CDN) and leak-scan (chinook), both ratified out of scope by the user.
+
+(a) release-engineer. The rename premise was FALSE and the report contradicted itself two rows apart - line 684 names four duties, section 4g claims one action. Four duties exist in shipped code: PR opening, CI/merge-watching (merge-watch.mjs), merge-order and stacked-PR reconciliation (reconcile.mjs, divergence.mjs, leases.mjs, recovery.mjs), and receipts gate G8. Version tagging, changelog and plugin publishing genuinely do not exist. Recommended design: one release-management skill, lean router SKILL.md, one side file per duty read on demand via ordinary Read. Side files are NOT gated by the Skill tool - the 23-row router at .claude/skills/impeccable/SKILL.md:122-160 already proves the pattern at scale. Also found: Decision 10 presents a false binary, since Skill takes name-scoped permissions usable in subagent tool lists.
+
+(b) instruction load. Reframed from cut-versus-keep to cut-versus-RE-SCOPE. Path-scoped rules exist and are documented, and the five TypeScript rules ALREADY use them - the report's claim that they load on every project regardless is contradicted by direct observation. The ~13,300 figure is a words x 1.3 estimate; chars/4 gives 17,463. Caching does not wash the cost out: a subagent never reads the parent's cache and always gets the 5-minute TTL, so most dispatches pay the 1.25x write premium. 31 obligation families censused, 23 with no mechanism at all.
+
+(c) three skills. Two of three should not be skills. Platform authoring restates what the model already knows; the constraint already lives correctly in a rule plus two agent bodies. Conformance checking must be executable, not prose - every established instance is. Only the sandboxed-experiment pattern is a genuine fit, and it splits: constraint stays a rule, workflow becomes a skill. Its return contract (a captured re-runnable procedure, not an observation) also answers Open 6.
+
+THE HEADLINE REVERSAL
+
+The report's strongest local measurement was an instrumentation artifact. It claimed the CAPABILITY-BLOCKED obligation was emitted zero times across the telemetry, and used that as proof that obligations on the advisory channel produce zero compliance. At least 32 genuine emissions exist in transcripts spanning 2026-07-10 to 2026-08-16 across three or more projects, while the event ledger holds zero for all history. Zero of 15 agent bodies carry the obligation, so every one of those emissions came from the channel the report called dead. Three stacked detector defects: the SubagentStop hook reads the parent's flat transcript rather than the dedicated subagents/agent-ID.jsonl (dominant, explains all 32 alone); queued dispatch relays content as a plain string, tripping an Array.isArray guard; and the regex breaks on any multi-word tool description, which would still lose 9 of 32. The thesis survives on Anthropic's documentation, which is independent, but its local proof is withdrawn and the confidence drops. The compliance RATE remains unknown - the silent-non-compliance population was never established - so the report states compliance is non-zero and never that the advisory channel works well.
+
+WHAT FAILED, AND WHY
+
+I dispatched technical-writer for the first amendment pass, then required it to run a Bash-gated validator. That agent has no Bash. My error in agent selection, not the agent's. It refused to fabricate a pass and emitted CAPABILITY-BLOCKED correctly - which is how the reversal above was discovered. I ran the gate myself, which is the sanctioned response to a child reporting itself capability-blocked.
+
+A mechanical Round 3 to Round 4 label swap silently converted a true summary into a false one in the document's most-read paragraph, and the same stale text was found in pre-mortem risk R9. Both fixed. The lesson generalises: every occurrence was locally correct and the composition was globally wrong - the same failure shape as the observer bug, and one a drift-check generator would not catch.
+
+An editor reported decision 0490 missing; it had looked in the repo's empty legacy .claude/ledger/. The live ledger is under the logbook plugin's data path. Citations were correct.
+
+NOT DONE, DELIBERATELY
+
+agent-run-analyzer.mjs is a live three-defect bug mis-recording every capability block right now. Filed as report Open 8, NOT fixed, because this cycle bars editing any agent, rule, hook or skill file. The report was not converted to inline SVG and the chinook occurrences were not redacted - both ruled out of scope by the user.
