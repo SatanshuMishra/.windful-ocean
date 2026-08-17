@@ -60,6 +60,47 @@ export const REMEDIATION_MARKERS = Object.freeze({
   redispatch: REDISPATCH_MARKER,
 });
 
+const MARKER_FILE_SCOPE = Object.freeze({ edit: Object.freeze([]), read: Object.freeze([]), truncated: null });
+
+export const PLAN_MARKER = lastLineOf(composePrompt('plan', {
+  unitId: 'marker',
+  title: 'marker title',
+  libDir: '/marker/lib',
+  writingPlansGlob: '/marker/*/skills/writing-plans/SKILL.md',
+  rationale: 'marker rationale',
+  repoRoot: '/marker',
+  dependsList: 'marker deps',
+  specPath: '/marker/spec.md',
+  planPath: '/marker/plan.md',
+  fileScope: MARKER_FILE_SCOPE,
+}));
+
+export const PLAN_REVIEW_MARKER = lastLineOf(composePrompt('plan-review', {
+  unitId: 'marker',
+  title: 'marker title',
+  planPath: '/marker/plan.md',
+  rationale: 'marker rationale',
+  dependsList: 'marker deps',
+  iteration: 1,
+}));
+
+export const REPLAN_MARKER = lastLineOf(composePrompt('replan', {
+  unitId: 'marker',
+  title: 'marker title',
+  planPath: '/marker/plan.md',
+  rationale: 'marker rationale',
+  dependsList: 'marker deps',
+  findings: [],
+}));
+
+export const PLANNING_MARKERS = Object.freeze({
+  plan: PLAN_MARKER,
+  'plan-review': PLAN_REVIEW_MARKER,
+  replan: REPLAN_MARKER,
+});
+
+export const PLAN_ARTIFACT_SEGMENTS = Object.freeze(['.mitosis', 'plans']);
+
 export const SPEC_DOCUMENT_NAME = 'spec.md';
 export const SPEC_DOCUMENT_BODY = 'mitosis end-to-end fixture spec\n';
 export const SUPERPOWERS_VERSION = '1.0.0';
@@ -312,6 +353,24 @@ function requireDiagnosisPlan(entry, index) {
   });
 }
 
+const PLAN_REVIEW_VERDICTS = Object.freeze(['approve', 'needs-changes']);
+
+function requirePlanningPlan(entry, index) {
+  const declared = entry.planning;
+  if (declared === undefined) return null;
+  if (declared === null || typeof declared !== 'object' || Array.isArray(declared)) {
+    throw new TypeError(`e2e-substrate: unit plan ${index} declares a planning record that is not an object, so the run document would carry prep facts nobody wrote`);
+  }
+  if (!Array.isArray(declared.reviews) || declared.reviews.length === 0) {
+    throw new TypeError(`e2e-substrate: unit plan ${index} declares a planning record with no non-empty reviews array, and a stub that answers a plan review with a verdict nobody planned would settle the planning loop by a default nobody wrote`);
+  }
+  for (const verdict of declared.reviews) {
+    if (PLAN_REVIEW_VERDICTS.includes(verdict)) continue;
+    throw new TypeError(`e2e-substrate: unit plan ${index} declares the plan-review verdict ${JSON.stringify(verdict)}, which is neither ${PLAN_REVIEW_VERDICTS.join(' nor ')}`);
+  }
+  return Object.freeze({ reviews: Object.freeze([...declared.reviews]) });
+}
+
 function requireUnitPlan(entry, index) {
   if (entry === null || typeof entry !== 'object' || Array.isArray(entry)) {
     throw new TypeError(`e2e-substrate: unit plan ${index} must be an object carrying an id and a behaviour`);
@@ -334,6 +393,7 @@ function requireUnitPlan(entry, index) {
     reason: entry.reason,
     judgment: requireJudgmentPlan(entry, index),
     diagnosis: requireDiagnosisPlan(entry, index),
+    planning: requirePlanningPlan(entry, index),
     boundaryViolation: entry.boundaryViolation === true,
   });
 }
@@ -358,7 +418,7 @@ function createCommit(sandbox, unit, index) {
   return sha;
 }
 
-function claudePlanEntry(unit, sha) {
+function claudePlanEntry(sandbox, unit, sha) {
   const judgment = unit.judgment === null ? {} : unit.judgment;
   return {
     behaviour: unit.behaviour,
@@ -368,6 +428,10 @@ function claudePlanEntry(unit, sha) {
     ...(judgment.reviewVerdict === undefined ? {} : { reviewVerdict: judgment.reviewVerdict }),
     ...(judgment.securityVerdict === undefined ? {} : { securityVerdict: judgment.securityVerdict }),
     ...(unit.diagnosis === null ? {} : { diagnosis: unit.diagnosis }),
+    ...(unit.planning === null ? {} : {
+      planReviews: [...unit.planning.reviews],
+      planPath: planArtifactPathOf(sandbox, unit.id),
+    }),
     stderr: unit.stderr,
     exitCode: unit.exitCode,
     failExitCode: unit.failExitCode,
@@ -406,6 +470,20 @@ export function integrationBranchOf(unitId) {
   return `${BRANCH_PREFIX}/${unitId}-integration`;
 }
 
+export function planArtifactPathOf(sandbox, unitId, runId = FIXED_RUN_ID) {
+  return join(sandbox.repo, ...PLAN_ARTIFACT_SEGMENTS, runId, `${unitId}.md`);
+}
+
+function prepFacts(sandbox, unit) {
+  return {
+    title: `unit ${unit.id}`,
+    rationale: unitPrompt(unit.id),
+    dependsList: unit.prereqs.length === 0 ? '(none)' : unit.prereqs.join(', '),
+    specPath: sandbox.specDocument,
+    fileScope: { edit: [`${unit.id}.txt`], read: [], truncated: null },
+  };
+}
+
 export function rationaleOf(unitId) {
   return `fixture rationale for unit ${unitId}`;
 }
@@ -437,6 +515,7 @@ function runDocument(sandbox, units, overrides) {
       task: unitPrompt(unit.id),
       ...(unit.isolation === undefined ? {} : { isolation: unit.isolation }),
       ...(unit.judgment === null ? {} : { judgment: judgmentFacts(sandbox, unit) }),
+      ...(unit.planning === null ? {} : { prep: prepFacts(sandbox, unit) }),
       request: unitRequest(unit),
     })),
   };
@@ -465,7 +544,7 @@ export function planRun(sandbox, unitPlans, overrides = {}) {
   units.forEach((unit, index) => {
     const sha = SHA_BEARING.includes(unit.behaviour) ? createCommit(sandbox, unit, index) : null;
     if (sha !== null) shaOf[unit.id] = sha;
-    planned[unit.id] = claudePlanEntry(unit, sha);
+    planned[unit.id] = claudePlanEntry(sandbox, unit, sha);
   });
   const document = runDocument(sandbox, units, overrides);
   const boundaryFix = boundaryFixPlan(sandbox, units, overrides.boundaryFix);
@@ -473,6 +552,7 @@ export function planRun(sandbox, unitPlans, overrides = {}) {
     units: planned,
     judgmentMarkers: JUDGMENT_MARKERS,
     diagnoseMarker: DIAGNOSE_MARKER,
+    planningMarkers: PLANNING_MARKERS,
     ...(boundaryFix === undefined ? {} : { boundaryFix }),
   })}\n`);
   writeFileSync(sandbox.specPath, `${JSON.stringify(document)}\n`);
@@ -624,7 +704,7 @@ export function claudeArgvsFor(sandbox, unitId) {
 
 const BAKED_IMPLEMENT = 'baked-implement';
 
-const COMPOSED_MARKERS = Object.freeze({ ...JUDGMENT_MARKERS, ...REMEDIATION_MARKERS });
+const COMPOSED_MARKERS = Object.freeze({ ...JUDGMENT_MARKERS, ...REMEDIATION_MARKERS, ...PLANNING_MARKERS });
 
 function composedKindOf(prompt, unitId) {
   if (prompt === unitPrompt(unitId)) return BAKED_IMPLEMENT;
@@ -638,6 +718,11 @@ export function composedKindsFor(sandbox, unitId) {
   return claudeArgvsFor(sandbox, unitId)
     .map((argv) => composedKindOf(argv[argv.length - 1], unitId))
     .filter((kind) => kind !== BAKED_IMPLEMENT);
+}
+
+export function implementArgvsFor(sandbox, unitId) {
+  return claudeArgvsFor(sandbox, unitId)
+    .filter((argv) => composedKindOf(argv[argv.length - 1], unitId) === BAKED_IMPLEMENT);
 }
 
 export function boundaryFixArgvs(sandbox) {

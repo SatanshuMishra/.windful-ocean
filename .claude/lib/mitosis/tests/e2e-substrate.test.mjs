@@ -14,6 +14,8 @@ import {
   composedKindsFor,
   ghArgvs,
   ghArgvsMatching,
+  implementArgvsFor,
+  planArtifactPathOf,
   planRun,
   readJournal,
   runMitosisCli,
@@ -94,6 +96,50 @@ test('a real cli.mjs child drives a two-unit fixture to done through the sandbox
     assert.equal(claudeArgvs(sandbox).length, 2);
     assert.equal(ghArgvs(sandbox).length, 1);
     assert.deepEqual(ghArgvs(sandbox)[0], DONE_ORACLE_ARGV);
+  });
+});
+
+test('a planned run composes plan then plan-review, and one bounded replan for the unit whose plan is revised', () => {
+  withSandbox({}, (sandbox) => {
+    planRun(sandbox, [
+      { id: 'alpha', behaviour: CLAUDE_BEHAVIOURS.succeed, planning: { reviews: ['approve'] } },
+      { id: 'beta', behaviour: CLAUDE_BEHAVIOURS.succeed, planning: { reviews: ['needs-changes', 'approve'] } },
+    ]);
+
+    const run = runMitosisCli(sandbox);
+
+    assert.equal(run.status, 0, run.stderr);
+    assert.deepEqual(run.summary.units, [
+      { id: 'alpha', state: 'done' },
+      { id: 'beta', state: 'done' },
+    ]);
+    assert.deepEqual(composedKindsFor(sandbox, 'alpha'), ['plan', 'plan-review']);
+    assert.deepEqual(composedKindsFor(sandbox, 'beta'), ['plan', 'plan-review', 'replan', 'plan-review']);
+    assert.equal(implementArgvsFor(sandbox, 'alpha').length, 1);
+    assert.equal(implementArgvsFor(sandbox, 'beta').length, 1);
+    assert.equal(claudeArgvs(sandbox).length, 8);
+    assert.equal(existsSync(planArtifactPathOf(sandbox, 'beta')), true);
+  });
+});
+
+test('a unit whose plan is still unapproved after its one replan parks with no implement dispatch', () => {
+  withSandbox({}, (sandbox) => {
+    planRun(sandbox, [
+      { id: 'alpha', behaviour: CLAUDE_BEHAVIOURS.succeed, planning: { reviews: ['approve'] } },
+      { id: 'gamma', behaviour: CLAUDE_BEHAVIOURS.succeed, planning: { reviews: ['needs-changes', 'needs-changes'] } },
+    ]);
+
+    const run = runMitosisCli(sandbox);
+
+    assert.equal(run.status, 3, run.stderr);
+    assert.deepEqual(run.summary.units, [
+      { id: 'alpha', state: 'done' },
+      { id: 'gamma', state: 'parked' },
+    ]);
+    assert.deepEqual(composedKindsFor(sandbox, 'gamma'), ['plan', 'plan-review', 'replan', 'plan-review']);
+    assert.equal(implementArgvsFor(sandbox, 'gamma').length, 0);
+    assert.equal(claudeArgvsFor(sandbox, 'gamma').length, 4);
+    assert.equal(readJournal(sandbox).filter((record) => record.kind === 'park').length, 1);
   });
 });
 
