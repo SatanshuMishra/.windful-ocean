@@ -83,12 +83,12 @@
         ]
       },
       {
-        "text": "Decide whether the three-defect observer bug is fixed now or waits for the rebuild — it is mis-recording every capability block right now, and was filed rather than fixed only because this cycle bars editing hooks",
+        "text": "Merge PR 153, then PULL the primary checkout and grep the live analyzer to confirm the fix is in force — ~/.claude/hooks symlinks into the working tree, so a MERGED label alone does not activate it",
         "scope": "c3",
         "refs": [
-          "~/.claude/hooks/agent-ledger/agent-run-analyzer.mjs:60",
-          "~/.claude/hooks/agent-ledger/agent-run-analyzer.mjs:63",
-          "report section 14, OPEN 8"
+          "https://github.com/SatanshuMishra/.windful-ocean/pull/153",
+          ".claude/hooks/agent-ledger/agent-run-analyzer.mjs",
+          "decision 0493"
         ]
       },
       {
@@ -98,6 +98,15 @@
           "~/.claude/projects/-Users-satanshumishra-Documents-DevLabs--windful-ocean/handoff-2026-08-16-agent-roster-round4/artifacts/validate-report.mjs",
           "same directory: run-fixture-suite.mjs, README.md, round4-findings.md, round4-addendum.md",
           "decision 0491 defines the ratified baseline"
+        ]
+      },
+      {
+        "text": "Sharpen report section 11a from the observer reads the wrong file to the observer was verified by a probe that could not fail — that is the transferable lesson for the rebuild, and it is a live instance of the report's own risk R5",
+        "scope": "c3",
+        "refs": [
+          ".claude/docs/specs/2026-07-02-agent-evolution-ledger-design.md:236",
+          "decision 0493",
+          "report section 15, R5"
         ]
       },
       {
@@ -227,5 +236,5 @@
     ]
   },
   "created_at": "2026-08-16T05:43:25.829Z",
-  "updated_at": "2026-08-17T01:46:32.533Z"
+  "updated_at": "2026-08-17T01:46:49.878Z"
 }
