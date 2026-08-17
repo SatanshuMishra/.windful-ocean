@@ -124,6 +124,11 @@ export function ghPlanSteps(overrides = {}) {
       exitCode: 0,
     },
     {
+      argvPrefix: ['pr', 'list', '-R', REPO_SLUG, '--state', 'merged'],
+      stdout: `${JSON.stringify(overrides.mergedPullRequests === undefined ? [] : overrides.mergedPullRequests)}\n`,
+      exitCode: 0,
+    },
+    {
       argvPrefix: ['pr', 'list'],
       stdout: `${JSON.stringify(overrides.openPullRequests === undefined ? [] : overrides.openPullRequests)}\n`,
       exitCode: 0,

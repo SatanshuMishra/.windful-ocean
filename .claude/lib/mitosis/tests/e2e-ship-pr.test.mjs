@@ -17,6 +17,7 @@ import {
   BASE_BRANCH,
   CLAUDE_BEHAVIOURS,
   OPENED_PR_URL,
+  REPO_SLUG,
   claudeArgvs,
   ghArgvsMatching,
   ghPlanSteps,
@@ -30,10 +31,17 @@ import {
 const PR_CREATE_PREFIX = Object.freeze(['pr', 'create']);
 const REFUSING_IO = Object.freeze({ readFile: () => null, readStdin: () => null });
 
-const TWO_UNITS = Object.freeze([
+const THREE_UNITS = Object.freeze([
   Object.freeze({ id: 'alpha', behaviour: CLAUDE_BEHAVIOURS.succeed }),
   Object.freeze({ id: 'beta', behaviour: CLAUDE_BEHAVIOURS.succeed, prereqs: ['alpha'] }),
+  Object.freeze({ id: 'gamma', behaviour: CLAUDE_BEHAVIOURS.succeed }),
 ]);
+
+const MERGED_ALPHA = Object.freeze([Object.freeze({
+  headRefName: integrationBranchOf('alpha'),
+  url: `https://github.com/${REPO_SLUG}/pull/3`,
+  mergedAt: '2026-01-02T00:00:00Z',
+})]);
 
 const ONE_UNIT = Object.freeze([
   Object.freeze({ id: 'alpha', behaviour: CLAUDE_BEHAVIOURS.succeed }),
@@ -75,33 +83,52 @@ function buildThenShip(sandbox, unitPlans) {
   return ship;
 }
 
-test('Ship opens one pull request per integrated msp through the centralized tool, against the manifest base branch', () => {
+test('Ship opens a pull request for every msp the merge gate clears, and parks the dependent whose prerequisite is not merged', () => {
   withSandbox({ boundaryToolchain: true }, (sandbox) => {
-    const ship = buildThenShip(sandbox, TWO_UNITS);
+    const ship = buildThenShip(sandbox, THREE_UNITS);
 
-    assert.deepEqual(ship.summary.integrate.integrated, ['alpha', 'beta'], 'both units must reach integrated or Ship has nothing to walk');
+    assert.deepEqual(ship.summary.integrate.integrated, ['alpha', 'gamma', 'beta'], 'all three units must reach integrated or Ship has nothing to walk');
     const created = ghArgvsMatching(sandbox, PR_CREATE_PREFIX);
-    assert.equal(created.length, 2, 'the fake gh recorder holds one pr create per integrated msp; an empty recorder would mean the real gh binary ran instead');
+    assert.equal(created.length, 2, 'alpha and gamma clear the gate and beta does not; an empty recorder would mean the real gh binary ran instead');
     assert.deepEqual(created.map((argv) => flagValue(argv, '--base')), [BASE_BRANCH, BASE_BRANCH]);
-    assert.deepEqual(created.map((argv) => flagValue(argv, '--head')), [integrationBranchOf('alpha'), integrationBranchOf('beta')]);
-    assert.deepEqual(created.map((argv) => flagValue(argv, '--title')), ['feat(alpha): unit alpha', 'feat(beta): unit beta']);
+    assert.deepEqual(created.map((argv) => flagValue(argv, '--head')), [integrationBranchOf('alpha'), integrationBranchOf('gamma')]);
+    assert.deepEqual(created.map((argv) => flagValue(argv, '--title')), ['feat(alpha): unit alpha', 'feat(gamma): unit gamma']);
     assert.deepEqual(created.map((argv) => flagValue(argv, '--changed-lines')), [null, null], 'the integration branches this fixture never pushes cannot be measured, and a size nobody measured is left out rather than estimated');
-    assert.deepEqual(ship.summary.ship.opened, ['alpha', 'beta']);
-    assert.deepEqual(ship.summary.ship.parked, []);
+    assert.equal(ship.summary.ship.status, 'awaiting-approval');
+    assert.deepEqual(ship.summary.ship.opened, ['alpha', 'gamma']);
+    assert.deepEqual(ship.summary.ship.parked, ['beta']);
+    assert.deepEqual(ship.summary.ship.blocked, [{ id: 'beta', kind: 'blocked-pending-approval', held: ['alpha'], dependents: [] }]);
+    assert.deepEqual(ship.summary.ship.awaiting, [{ id: 'beta', prUrl: OPENED_PR_URL }]);
     assert.deepEqual(ship.summary.ship.outcomes, [
       { id: 'alpha', state: 'shipped', action: 'created' },
-      { id: 'beta', state: 'shipped', action: 'created' },
+      { id: 'gamma', state: 'shipped', action: 'created' },
+      { id: 'beta', state: 'parked', action: null },
     ]);
     assert.deepEqual(shipRecords(sandbox).map((record) => [record.mspId, record.prUrl, record.mergedAt]), [
       ['alpha', OPENED_PR_URL, null],
-      ['beta', OPENED_PR_URL, null],
+      ['gamma', OPENED_PR_URL, null],
     ]);
+  });
+});
+
+test('the dependent ships in the same walk once the merged-pull-request probe reports its prerequisite merged', () => {
+  withSandbox({ boundaryToolchain: true, ghPlan: { steps: ghPlanSteps({ mergedPullRequests: MERGED_ALPHA }) } }, (sandbox) => {
+    const ship = buildThenShip(sandbox, THREE_UNITS);
+
+    const created = ghArgvsMatching(sandbox, PR_CREATE_PREFIX);
+    assert.equal(created.length, 3, 'a merged prerequisite clears the gate, so the dependent joins the two units that never needed it');
+    assert.deepEqual(created.map((argv) => flagValue(argv, '--head')), [integrationBranchOf('alpha'), integrationBranchOf('gamma'), integrationBranchOf('beta')]);
+    assert.equal(ship.summary.ship.status, 'all-shipped');
+    assert.deepEqual(ship.summary.ship.opened, ['alpha', 'gamma', 'beta']);
+    assert.deepEqual(ship.summary.ship.parked, []);
+    assert.deepEqual(ship.summary.ship.blocked, []);
+    assert.deepEqual(ship.summary.ship.awaiting, []);
   });
 });
 
 test('every opened pull request declares the receipts enforcer unverified, and claims it verified nowhere', () => {
   withSandbox({ boundaryToolchain: true }, (sandbox) => {
-    buildThenShip(sandbox, TWO_UNITS);
+    buildThenShip(sandbox, THREE_UNITS);
 
     const bodies = ghArgvsMatching(sandbox, PR_CREATE_PREFIX).map((argv) => flagValue(argv, '--body'));
     assert.equal(bodies.length, 2);
@@ -182,8 +209,14 @@ test('the changed-line count is read from a shortstat or left unstated, never in
   assert.equal(changedLinesOf(' 9 files changed, 9999999 insertions(+), 1 deletions(-)\n'), null, 'a total the tool would reject as more than seven digits is left out rather than sent to a usage rejection');
 });
 
-const SHIP_PORTS = Object.freeze({ openPullRequest: () => ({ status: 0, stdout: '' }), appendJournal: () => {}, diffStat: () => ({ status: 1, stdout: '' }) });
+const SHIP_PORTS = Object.freeze({ openPullRequest: () => ({ status: 0, stdout: '' }), appendJournal: () => {}, diffStat: () => ({ status: 1, stdout: '' }), reconcile: () => [] });
 const SHIP_CONFIG = Object.freeze({ integrated: [], manifest: {}, repoRoot: '/repo', repoSlug: 'acme/widgets', journalPath: '.mitosis/run.jsonl' });
+
+const MERGED_ALPHA_PR = Object.freeze([Object.freeze({
+  headRefName: 'mitosis/alpha-integration',
+  url: 'https://github.com/acme/widgets/pull/2',
+  mergedAt: '2026-01-01T00:00:00Z',
+})]);
 
 const BETA_MSP = Object.freeze({
   id: 'beta',
@@ -202,7 +235,7 @@ function shippingConfig(extra = {}) {
   return {
     ...SHIP_CONFIG,
     integrated: [{ unitId: 'beta', state: 'integrated', resumePoint: { branch: null, ref: null, stage: 'ship' } }],
-    manifest: { baseBranch: 'main', msps: [BETA_MSP] },
+    manifest: { baseBranch: 'main', sourcePrefix: 'mitosis', msps: [BETA_MSP] },
     ...extra,
   };
 }
@@ -210,13 +243,16 @@ function shippingConfig(extra = {}) {
 function shippingPorts(extra = {}) {
   const spawned = [];
   const written = [];
+  const probed = [];
   return {
     spawned,
     written,
+    probed,
     ports: {
       openPullRequest: (request) => { spawned.push(request.argv); return { status: 0, stdout: CREATED_LINE, stderr: '' }; },
       appendJournal: (request) => { written.push(JSON.parse(request.line)); },
       diffStat: () => ({ status: 1, stdout: '', stderr: 'no such ref' }),
+      reconcile: (values) => { probed.push(values); return MERGED_ALPHA_PR; },
       ...extra,
     },
   };
@@ -240,7 +276,7 @@ test('a shortstat the diff read answers becomes the changed-line flag, and its a
 test('the diff read is skipped entirely when the branches it would compare are not both known', async () => {
   const probed = [];
   const ports = shippingPorts({ diffStat: (request) => { probed.push(request); return { status: 1, stdout: '' }; } });
-  const plan = await shipIntegrated(shippingConfig({ manifest: { msps: [BETA_MSP] } }), ports.ports);
+  const plan = await shipIntegrated(shippingConfig({ manifest: { msps: [{ ...BETA_MSP, dependsOn: [] }] } }), ports.ports);
   assert.deepEqual(probed, [], 'a shortstat between a base nobody declared and a head is a comparison against an arbitrary tree');
   assert.deepEqual(plan.parked.map((entry) => entry.unitId), ['beta']);
   assert.deepEqual(ports.spawned, []);
@@ -308,7 +344,99 @@ test('the ship summary names the units, their actions and the pull requests they
     parked: [],
     prUrls: { beta: 'https://github.com/acme/widgets/pull/5' },
     outcomes: [{ id: 'beta', state: 'shipped', action: 'created' }],
+    status: 'all-shipped',
+    awaiting: [],
+    blocked: [],
   });
+  assert.deepEqual(ports.probed, [{ ownerRepo: 'acme/widgets', baseBranch: 'main', sourcePrefix: 'mitosis', repoHost: null }]);
+});
+
+const GAMMA_MSP = Object.freeze({
+  id: 'gamma',
+  title: 'unit gamma',
+  rationale: 'fixture rationale for unit gamma',
+  changeType: 'feat',
+  scope: 'gamma',
+  integrationBranch: 'mitosis/gamma-integration',
+  green: true,
+  dependsOn: ['beta'],
+});
+
+function chainConfig(extra = {}) {
+  return shippingConfig({
+    integrated: [
+      { unitId: 'beta', state: 'integrated', resumePoint: { branch: null, ref: null, stage: 'ship' } },
+      { unitId: 'gamma', state: 'integrated', resumePoint: { branch: null, ref: null, stage: 'ship' } },
+    ],
+    manifest: { baseBranch: 'main', sourcePrefix: 'mitosis', msps: [BETA_MSP, GAMMA_MSP] },
+    ...extra,
+  });
+}
+
+test('a prerequisite the merged set does not name parks its dependent under the awaiting-upstream kind, and opens no pull request for it', async () => {
+  const ports = shippingPorts({ reconcile: () => [] });
+  const plan = await shipIntegrated(shippingConfig(), ports.ports);
+
+  assert.deepEqual(ports.spawned, [], 'a dependent whose prerequisite is unmerged never reaches the pull-request tool');
+  assert.deepEqual(ports.written, [], 'nothing shipped, so no ship record claims one did');
+  assert.equal(plan.status, 'awaiting-approval');
+  assert.deepEqual(plan.outcomes.map((entry) => [entry.unitId, entry.state, entry.action, entry.stage, entry.diagnosis]), [
+    ['beta', 'parked', null, 'ship', 'approve + merge the prerequisite PR, then relaunch mitosis to continue'],
+  ]);
+  assert.deepEqual([...plan.awaiting], [{ kind: 'awaiting-approval', mspId: 'beta', prUrl: null, receiptsPass: null, d6Pass: null }]);
+  assert.equal(plan.blocked.length, 1);
+  assert.deepEqual(plan.blocked[0].record.request, { kind: 'blocked-pending-approval', what: 'alpha', detail: null });
+  assert.deepEqual(plan.blocked[0].record.resumePoint, { branch: null, ref: null, stage: 'ship' });
+  assert.deepEqual([...plan.blocked[0].held], ['alpha']);
+});
+
+test('one park covers the whole downstream chain, and the unit it already parked is never parked a second time', async () => {
+  const ports = shippingPorts({ reconcile: () => [] });
+  const plan = await shipIntegrated(chainConfig(), ports.ports);
+
+  assert.deepEqual(ports.spawned, []);
+  assert.deepEqual(plan.outcomes.map((entry) => [entry.unitId, entry.state]), [['beta', 'parked'], ['gamma', 'parked']]);
+  assert.equal(plan.blocked.length, 1, 'the park that names beta already carries gamma as a dependent, so a second record would double-count the same block');
+  assert.deepEqual([...plan.blocked[0].record.dependents], ['gamma']);
+  assert.deepEqual(plan.awaiting.map((entry) => entry.mspId), ['beta']);
+  assert.equal(plan.status, 'awaiting-approval');
+});
+
+test('the pull request this run just opened for a prerequisite is what the awaiting record names as the one to merge', async () => {
+  const ports = shippingPorts({ reconcile: () => [] });
+  const plan = await shipIntegrated(chainConfig({
+    manifest: { baseBranch: 'main', sourcePrefix: 'mitosis', msps: [{ ...BETA_MSP, dependsOn: [] }, GAMMA_MSP] },
+  }), ports.ports);
+
+  assert.deepEqual(plan.opened.map((entry) => entry.unitId), ['beta']);
+  assert.deepEqual([...plan.awaiting], [{
+    kind: 'awaiting-approval',
+    mspId: 'gamma',
+    prUrl: 'https://github.com/acme/widgets/pull/5',
+    receiptsPass: null,
+    d6Pass: null,
+  }]);
+  assert.equal(plan.status, 'awaiting-approval');
+});
+
+test('the merged-pull-request probe is skipped when no integrated unit declares a prerequisite at all', async () => {
+  const ports = shippingPorts();
+  const plan = await shipIntegrated(shippingConfig({ manifest: { baseBranch: 'main', sourcePrefix: 'mitosis', msps: [{ ...BETA_MSP, dependsOn: [] }] } }), ports.ports);
+  assert.deepEqual(ports.probed, [], 'a run with nothing to serialize behind spends no forge read');
+  assert.deepEqual(plan.opened.map((entry) => entry.unitId), ['beta']);
+});
+
+test('a merged set the run cannot read holds the dependent back rather than shipping it on an unchecked prerequisite', async () => {
+  const unprefixed = shippingPorts();
+  const onHalfNamedManifest = await shipIntegrated(shippingConfig({ manifest: { baseBranch: 'main', msps: [BETA_MSP] } }), unprefixed.ports);
+  assert.deepEqual(unprefixed.probed, [], 'a manifest naming no source prefix cannot be turned into a branch-to-unit mapping, so no probe is spawned rather than one that would be read wrongly');
+  assert.deepEqual(onHalfNamedManifest.parked.map((entry) => entry.unitId), ['beta']);
+  assert.equal(onHalfNamedManifest.status, 'awaiting-approval');
+
+  const shapeless = shippingPorts({ reconcile: () => null });
+  const onShapelessReply = await shipIntegrated(shippingConfig(), shapeless.ports);
+  assert.deepEqual(shapeless.spawned, []);
+  assert.deepEqual(onShapelessReply.awaiting.map((entry) => entry.mspId), ['beta']);
 });
 
 test('only the last action line the tool prints is read, and a line naming no action is passed over', () => {
@@ -340,7 +468,7 @@ test('the ship config is refused at the boundary, and the refusal names what arr
   await assert.rejects(() => shipIntegrated({ ...SHIP_CONFIG, journalPath: undefined }, SHIP_PORTS), /non-empty journalPath.*received undefined$/);
   assert.deepEqual(
     await shipIntegrated({ ...SHIP_CONFIG, journalPath: 'j' }, SHIP_PORTS),
-    { opened: [], parked: [], outcomes: [] },
+    { opened: [], parked: [], outcomes: [], awaiting: [], blocked: [], status: 'partial' },
     'a one-character path is a path; the boundary refuses what is empty, never what is short',
   );
 });
@@ -354,7 +482,7 @@ test('an integrated entry with no unit id is refused rather than shipped under a
 });
 
 test('a ship port that is not a function is refused before any pull request is opened', async () => {
-  for (const missing of ['openPullRequest', 'appendJournal', 'diffStat']) {
+  for (const missing of ['openPullRequest', 'appendJournal', 'diffStat', 'reconcile']) {
     await assert.rejects(
       () => shipIntegrated(SHIP_CONFIG, { ...SHIP_PORTS, [missing]: null }),
       new RegExp(`need a ${missing} function.*received null$`),

@@ -1,7 +1,14 @@
 import { fileURLToPath } from 'node:url';
 import { INTEGRATED } from './integrate-plan.mjs';
 import { composeJournalLine } from './journal-store.mjs';
-import { LEGAL_STAGES } from './parking.mjs';
+import {
+  AWAITING_UPSTREAM_KIND,
+  BLOCKED_PENDING_APPROVAL_DIAGNOSIS,
+  awaitingApprovalOutcome,
+  computeMergePolicyStatus,
+} from './merge-policy.mjs';
+import { LEGAL_STAGES, park } from './parking.mjs';
+import { reconcileShippedSet } from './recovery.mjs';
 import { inertValue, PR_CHANGED_LINES_PATTERN, PR_PROVENANCE_PATTERN, PR_TITLE_PATTERN, PR_VALUE_CAP } from '../git/pr-format.mjs';
 
 const MODULE = 'ship-plan';
@@ -26,7 +33,7 @@ export const PR_ACTION_REUSED = 'reused';
 export const PR_ACTION_REUSED_UNVERIFIED = 'reused-unverified';
 export const PR_ACTIONS = Object.freeze([PR_ACTION_CREATED, PR_ACTION_REUSED, PR_ACTION_REUSED_UNVERIFIED]);
 
-const REQUIRED_PORTS = Object.freeze(['openPullRequest', 'appendJournal', 'diffStat']);
+const REQUIRED_PORTS = Object.freeze(['openPullRequest', 'appendJournal', 'diffStat', 'reconcile']);
 const SHIP_KIND = 'ship';
 const EMPTY = Object.freeze([]);
 const NO_RESUME_POINT = Object.freeze({ branch: null, ref: null, stage: null });
@@ -304,24 +311,109 @@ async function settleShip(entry, msp, read, settings, ports) {
   return outcome(entry, SHIPPED, read.action, read.url, null);
 }
 
-function produced(outcomes) {
+export function declaredPrereqs(manifest, unitId) {
+  const msp = mspOf(manifest, unitId);
+  if (msp === null || !Array.isArray(msp.dependsOn)) return EMPTY;
+  return msp.dependsOn.filter((id) => nonEmptyText(id) !== null);
+}
+
+function probeValues(settings) {
+  const baseBranch = nonEmptyText(settings.manifest.baseBranch);
+  const sourcePrefix = nonEmptyText(settings.manifest.sourcePrefix);
+  if (baseBranch === null || sourcePrefix === null) return null;
+  return Object.freeze({
+    ownerRepo: settings.repoSlug,
+    baseBranch,
+    sourcePrefix,
+    repoHost: nonEmptyText(settings.manifest.repoHost),
+  });
+}
+
+async function mergedPrerequisites(settings, ports) {
+  const gated = settings.integrated.some((entry) => declaredPrereqs(settings.manifest, entry.unitId).length > 0);
+  if (!gated) return new Map();
+  const probe = probeValues(settings);
+  if (probe === null) return new Map();
+  const merged = await ports.reconcile(probe);
+  if (!Array.isArray(merged)) return new Map();
+  return reconcileShippedSet(merged, probe.sourcePrefix, probe.ownerRepo, probe.repoHost);
+}
+
+function heldPrereqs(manifest, unitId, merged) {
+  return declaredPrereqs(manifest, unitId).filter((id) => !merged.has(id));
+}
+
+function parkBlocked(manifest, entry, held) {
+  const parked = park(manifest, {
+    unitId: entry.unitId,
+    stage: parkStage(),
+    diagnosis: BLOCKED_PENDING_APPROVAL_DIAGNOSIS,
+    request: { kind: AWAITING_UPSTREAM_KIND, what: held.join(', ') },
+    resumePoint: entry.resumePoint,
+  });
+  return Object.freeze({
+    manifest: parked,
+    blocked: Object.freeze({ record: parked.parked[parked.parked.length - 1], held: Object.freeze([...held]) }),
+  });
+}
+
+function blockedOutcome(entry) {
+  return outcome(entry, PARKED, null, null, BLOCKED_PENDING_APPROVAL_DIAGNOSIS);
+}
+
+function produced(outcomes, awaiting, blocked) {
   const ordered = Object.freeze(outcomes);
   const withState = (state) => Object.freeze(ordered.filter((entry) => entry.state === state));
+  const opened = withState(SHIPPED);
+  const parked = withState(PARKED);
+  const awaitingApproval = parked.filter((entry) => entry.diagnosis === BLOCKED_PENDING_APPROVAL_DIAGNOSIS);
   return Object.freeze({
-    opened: withState(SHIPPED),
-    parked: withState(PARKED),
+    opened,
+    parked,
     outcomes: ordered,
+    awaiting: Object.freeze(awaiting),
+    blocked: Object.freeze(blocked),
+    status: computeMergePolicyStatus({
+      shippedCount: opened.length,
+      awaitingApprovalCount: awaiting.length,
+      blockedPendingApprovalCount: awaitingApproval.length - awaiting.length,
+      genuineParkedCount: parked.length - awaitingApproval.length,
+      total: ordered.length,
+    }),
   });
 }
 
 export async function shipIntegrated(config, ports) {
   const settings = requireConfig(config);
   const wired = requirePorts(ports);
+  const merged = await mergedPrerequisites(settings, wired);
+  const blockedIds = new Set();
+  const urlById = new Map();
+  const blocked = [];
+  const awaiting = [];
   const outcomes = [];
+  let manifest = settings.manifest;
   for (const entry of settings.integrated) {
-    outcomes.push(await shipUnit(entry, settings, wired));
+    if (blockedIds.has(entry.unitId)) {
+      outcomes.push(blockedOutcome(entry));
+      continue;
+    }
+    const held = heldPrereqs(manifest, entry.unitId, merged);
+    if (held.length > 0) {
+      const parked = parkBlocked(manifest, entry, held);
+      manifest = parked.manifest;
+      blocked.push(parked.blocked);
+      blockedIds.add(entry.unitId);
+      for (const id of parked.blocked.record.dependents) blockedIds.add(id);
+      awaiting.push(awaitingApprovalOutcome(entry.unitId, { prUrl: urlById.get(held[0]) ?? null, receiptsPass: null, d6Pass: null }));
+      outcomes.push(blockedOutcome(entry));
+      continue;
+    }
+    const settled = await shipUnit(entry, settings, wired);
+    if (settled.prUrl !== null) urlById.set(entry.unitId, settled.prUrl);
+    outcomes.push(settled);
   }
-  return produced(outcomes);
+  return produced(outcomes, awaiting, blocked);
 }
 
 export function shipSummary(plan) {
@@ -330,5 +422,13 @@ export function shipSummary(plan) {
     parked: plan.parked.map((entry) => entry.unitId),
     prUrls: Object.fromEntries(plan.outcomes.filter((entry) => entry.prUrl !== null).map((entry) => [entry.unitId, entry.prUrl])),
     outcomes: plan.outcomes.map((entry) => ({ id: entry.unitId, state: entry.state, action: entry.action })),
+    status: plan.status,
+    awaiting: plan.awaiting.map((entry) => ({ id: entry.mspId, prUrl: entry.prUrl })),
+    blocked: plan.blocked.map((entry) => ({
+      id: entry.record.unitId,
+      kind: entry.record.request.kind,
+      held: [...entry.held],
+      dependents: [...entry.record.dependents],
+    })),
   };
 }

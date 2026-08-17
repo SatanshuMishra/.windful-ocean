@@ -227,6 +227,7 @@ async function shipPhase(completed, request, ports) {
     openPullRequest: (spawned) => ports.openPullRequest(spawned),
     appendJournal: (write) => ports.appendJournal(write),
     diffStat: (probe) => ports.diffStat(probe),
+    reconcile: (values) => ports.reconcile(values),
   }));
 }
 
