@@ -6,7 +6,7 @@ import { IDENT_PART, halt, lineOf, previousCodeIndex, scanJsStructure, wordEndin
 import { realResolverIo, resolveCanonicalConfigDir } from './canonical-config-dir.mjs';
 import { MANIFEST_RELATIVE_PATH, resolveSkillPointer } from './agent-skill-pointers.mjs';
 
-export const PLATFORM_AGENT_TYPES = Object.freeze(['general-purpose']);
+export const PLATFORM_AGENT_TYPES = Object.freeze(['claude', 'general-purpose']);
 
 export const CENSUS_NOT_ATTESTED = Object.freeze([
   'that a role name reached through prose alone is covered: the markdown grammar reads a code span whose very next word is the role noun, so "`claude` built-in agent" carries a word between the two and is not censused',

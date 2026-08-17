@@ -54,7 +54,8 @@ jobs:
         run: |
           node scripts/repo/skill-router-lint.mjs \
             .claude/skills/platform-engineer \
-            .claude/skills/conformance-auditor
+            .claude/skills/conformance-auditor \
+            .claude/skills/agent-audit
       - name: archive manifest consistency (byte correspondence is host-only)
         run: node scripts/repo/agent-ledger-archive-verify.mjs --manifest-only
       - name: agent body drift
