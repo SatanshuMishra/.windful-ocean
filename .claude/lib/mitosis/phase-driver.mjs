@@ -3,6 +3,7 @@ import { integrateBuilt } from './integrate-plan.mjs';
 import { PHASE_TITLES } from './phases.mjs';
 import { planResume } from './resume-plan.mjs';
 import { computeRunKey } from './run-store.mjs';
+import { shipIntegrated } from './ship-plan.mjs';
 
 const DRIVER = 'phase-driver';
 const NO_PHASES = Object.freeze({});
@@ -27,6 +28,9 @@ const REQUIRED_PORTS = Object.freeze([
   'reconcile',
   'boundaryGate',
   'dispatchPrompt',
+  'openPullRequest',
+  'appendJournal',
+  'diffStat',
 ]);
 
 function describe(value) {
@@ -105,6 +109,18 @@ function judgmentById(spec) {
 
 function isolationById(spec) {
   return new Map(unitsOf(spec).filter((unit) => typeof unit.isolation === 'string').map((unit) => [unit.id, unit.isolation]));
+}
+
+function declaredModel(unit) {
+  const request = unit.request;
+  if (request === null || typeof request !== 'object' || Array.isArray(request)) return null;
+  return typeof request.model === 'string' && request.model.length > 0 ? request.model : null;
+}
+
+function modelById(spec) {
+  return new Map(unitsOf(spec)
+    .filter((unit) => declaredModel(unit) !== null)
+    .map((unit) => [unit.id, declaredModel(unit)]));
 }
 
 function runIdentityOf(manifest, runId) {
@@ -206,7 +222,20 @@ async function integratePhase(completed, request, ports) {
 
 async function shipPhase(completed, request, ports) {
   const title = phase('Ship');
-  return entered(title, { opened: EMPTY_LIST, parked: EMPTY_LIST });
+  const resumed = requirePreceding(completed, 'Resume');
+  const integrated = requirePreceding(completed, 'Integrate');
+  return entered(title, await shipIntegrated({
+    integrated: integrated.integrated,
+    manifest: resumed.manifest,
+    repoRoot: request.repoRoot,
+    repoSlug: request.repoSlug,
+    journalPath: request.journalPath,
+    modelById: modelById(request.spec),
+  }, {
+    openPullRequest: (spawned) => ports.openPullRequest(spawned),
+    appendJournal: (write) => ports.appendJournal(write),
+    diffStat: (probe) => ports.diffStat(probe),
+  }));
 }
 
 async function remediatePhase(completed, request, ports) {

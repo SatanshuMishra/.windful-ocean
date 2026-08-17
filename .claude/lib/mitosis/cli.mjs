@@ -13,11 +13,15 @@ import { appendJournalLine, writeGenesis } from './journal-store.mjs';
 import { runPhases } from './phase-driver.mjs';
 import { resumeSummary } from './resume-plan.mjs';
 import { execAllowed, openRun } from './run-store.mjs';
+import { shipSummary } from './ship-plan.mjs';
 import { readJudgment, runJudgment } from './unit-judgment.mjs';
 
 const MODULE = 'mitosis-cli';
 const GIT_BINARY = 'git';
+const NODE_BINARY = 'node';
 const GH_DEADLINE_MS = 120000;
+const PR_DEADLINE_MS = 120000;
+const GIT_DEADLINE_MS = 60000;
 const EXIT_CLEAN = 0;
 const EXIT_ERROR = 1;
 const EXIT_USAGE = 2;
@@ -243,18 +247,30 @@ function reconcilePort(io, runFn, repoRoot) {
   );
 }
 
+function diffStatPort(runFn) {
+  return (request) => runFn(
+    GIT_BINARY,
+    ['diff', '--shortstat', `${request.base}...${request.head}`],
+    { cwd: request.repoRoot, deadlineMs: GIT_DEADLINE_MS },
+  );
+}
+
 function driverPorts(io, makePorts, deps, repoRoot) {
   const openRunFn = deps.openRun === undefined ? openRun : deps.openRun;
   const foldJournalFn = deps.foldJournal === undefined ? foldFile : deps.foldJournal;
   const runFn = deps.run === undefined ? run : deps.run;
   const boundaryGateFn = deps.boundaryGate === undefined ? evaluate : deps.boundaryGate;
   const dispatchFn = deps.dispatch === undefined ? dispatch : deps.dispatch;
+  const appendJournalFn = deps.appendJournalLine === undefined ? appendJournalLine : deps.appendJournalLine;
   return Object.freeze({
     openRun: (request) => openRunFn(request),
     readJournal: (request) => foldJournalFn(journalLocation(request)),
     reconcile: reconcilePort(io, runFn, repoRoot),
     boundaryGate: (request) => boundaryGateFn(request),
     dispatchPrompt: (request) => dispatchFn(request),
+    openPullRequest: (request) => runFn(NODE_BINARY, request.argv, { cwd: request.cwd, deadlineMs: PR_DEADLINE_MS }),
+    appendJournal: (request) => appendJournalFn(request),
+    diffStat: diffStatPort(runFn),
     release: (handle) => releaseRun(handle, io),
     makeObserver: (config) => observeAll([
       unitRecorder(config.handle, config.at),
@@ -278,6 +294,7 @@ function summaryOf(driven) {
     units: result.units.map((unit) => ({ id: unit.id, state: unit.state })),
     resume: resumeSummary(driven.phases.Resume),
     integrate: integrateSummary(driven.phases.Integrate),
+    ship: shipSummary(driven.phases.Ship),
     prState: result.prState === undefined ? null : result.prState,
   };
 }
