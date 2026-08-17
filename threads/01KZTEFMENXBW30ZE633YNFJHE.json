@@ -246,8 +246,8 @@
   "closure_statement": null,
   "spine": {
     "active_goal": "Get /mitosis running end to end, with every phase, the pull-request and merge path, and failure handling all thoroughly tested.",
-    "next_step": "Continue the linear stack from its tip. FIRST check for in-flight work: the worktree .claude/worktrees/m4-durable-records held M3c and M4 at session end - read the PR list and its git log before redispatching. Then M5 resume, M6 reconcile, M7 compose-at-dispatch, M8 integrate, M9 pr-create, M10 serialize ship, M11 park, M12 redispatch, M13 e2e, M14 retire fix, M15 ci-to-green. Rebuild the implementer brief from 0497, 0499, 0502, 0504 and PRs #158, #159.",
-    "last_session": "Scoped the c27-c33 gap against the SPEC, designed a 16-MSP linear stack, and shipped M1-M3b as stacked PRs #156-#159: scope-fence sha, run-engine prompt twins, the eight-phase driver, and the disposable end-to-end substrate. M3c+M4 were in flight at session end. Nothing merged.",
+    "next_step": "Continue the linear stack from its tip. FIRST check in-flight work: worktree .claude/worktrees/m5-resume held M5 (journal fold and resume) and M6 (reconcile outranks the journal) at session end - read the PR list and its git log before redispatching. Then M7 compose-at-dispatch, M8 integrate, M9 pr-create, M10 serialize ship, M11 park, M12 bounded redispatch, M13 e2e, M14 retire fix, M15 ci-to-green. Rebuild the implementer brief from 0497, 0499, 0502, 0504 and PRs #158, #159, #162.",
+    "last_session": "Shipped M1-M4 as stacked PRs #156-#160 and #162: scope-fence sha, prompt twins, the eight-phase driver, the e2e substrate, the g11 tripwire disable, durable dispatch-start records. C7 items J1 and J2 proved PHANTOM - appendRunJournal exists nowhere. M5+M6 in flight. Nothing merged.",
     "open_risks": [
       {
         "text": "Prove a merge arrived by asserting its CONTENT is on the base, never by SHA ancestry — a squash or stack merge rewrites commits, so a pre-merge SHA correctly fails an ancestry check on a merge that lost nothing",
@@ -821,5 +821,5 @@
     ]
   },
   "created_at": "2026-08-12T07:37:41.077Z",
-  "updated_at": "2026-08-17T05:42:28.028Z"
+  "updated_at": "2026-08-17T06:01:28.217Z"
 }
