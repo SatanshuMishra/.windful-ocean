@@ -216,6 +216,11 @@
         "ref": "0493-detector-reads-subagent-output-never-the-parent",
         "title": "Read the capability marker from the subagent's own output; scanning the parent transcript over-counts 52x",
         "scope": "c3"
+      },
+      {
+        "ref": "0495-delete-the-confirmation-rule-the-deny-list-is-the-control",
+        "title": "Delete the destructive-operation confirmation rule; the deny list is the whole control",
+        "scope": "c3"
       }
     ],
     "out_of_scope": [
@@ -226,5 +231,5 @@
     ]
   },
   "created_at": "2026-08-16T05:43:25.829Z",
-  "updated_at": "2026-08-17T03:44:09.294Z"
+  "updated_at": "2026-08-17T04:18:21.248Z"
 }
