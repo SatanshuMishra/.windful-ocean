@@ -2,11 +2,12 @@ import { readFileSync, realpathSync } from 'node:fs';
 import { pathToFileURL } from 'node:url';
 import { Done, NeedsHuman } from './boundary.mjs';
 import { dispatch, normalizeEnvelope } from './dispatch.mjs';
-import { POST_DISPATCH_RECORD_FAILED, runEngine } from './engine.mjs';
+import { POST_DISPATCH_RECORD_FAILED } from './engine.mjs';
 import { run } from './exec-run.mjs';
 import { GH_COMMAND_BINARY } from './gh-commands.mjs';
 import { appendJournalLine, writeGenesis } from './journal-store.mjs';
-import { computeRunKey, execAllowed, openRun } from './run-store.mjs';
+import { runPhases } from './phase-driver.mjs';
+import { execAllowed, openRun } from './run-store.mjs';
 
 const MODULE = 'mitosis-cli';
 const GIT_BINARY = 'git';
@@ -97,32 +98,6 @@ function documentOf(spec) {
   return spec === null || typeof spec !== 'object' || Array.isArray(spec) ? {} : spec;
 }
 
-function unitsOf(spec) {
-  const document = documentOf(spec);
-  const units = Array.isArray(document.specs) ? document.specs : [];
-  return units.filter((unit) => unit !== null && typeof unit === 'object' && !Array.isArray(unit));
-}
-
-function requestsById(spec) {
-  return new Map(unitsOf(spec).map((unit) => [unit.id, unit.request]));
-}
-
-function runStoreRequest(args, spec) {
-  return {
-    root: args.repoRoot,
-    runKey: computeRunKey(documentOf(spec)),
-    unitIds: unitsOf(spec).map((unit) => unit.id),
-    plan: {
-      runId: args.runId,
-      at: args.at,
-      journalPath: args.journalPath,
-      repoSlug: args.repoSlug,
-      integrationBranch: args.integrationBranch,
-    },
-    startedAt: args.at,
-  };
-}
-
 function usageRecorder(handle, observedAt) {
   const dispatched = new Set();
   return (record) => {
@@ -180,11 +155,10 @@ function dispatchFailureReporter(io) {
   };
 }
 
-function engineRequest(args, spec, onRecord) {
-  const document = documentOf(spec);
+function driverRequest(args, spec) {
   return {
-    specs: document.specs,
-    manifest: document.manifest,
+    specPath: args.spec,
+    spec,
     runId: args.runId,
     at: args.at,
     repoRoot: args.repoRoot,
@@ -192,8 +166,17 @@ function engineRequest(args, spec, onRecord) {
     repoSlug: args.repoSlug,
     integrationBranch: args.integrationBranch,
     window: args.window,
-    onRecord,
   };
+}
+
+function driverPorts(io, makePorts, deps) {
+  const openRunFn = deps.openRun === undefined ? openRun : deps.openRun;
+  return Object.freeze({
+    openRun: (request) => openRunFn(request),
+    release: (handle) => releaseRun(handle, io),
+    makeObserver: (config) => observeAll([usageRecorder(config.handle, config.at), dispatchFailureReporter(io)]),
+    makePorts: (config) => makePorts(config),
+  });
 }
 
 function summaryOf(result, handle) {
@@ -214,22 +197,16 @@ export async function runCli(argv, io, makePorts, deps = {}) {
     io.err(`${parsed.error}\n${CLI_USAGE}\n`);
     return EXIT_USAGE;
   }
-  const openRunFn = deps.openRun === undefined ? openRun : deps.openRun;
-  let handle = null;
   try {
-    const spec = io.readSpec(parsed.value.spec);
-    handle = openRunFn(runStoreRequest(parsed.value, spec));
-    const ports = makePorts({ repoRoot: parsed.value.repoRoot, requestsById: requestsById(spec) });
-    const onRecord = observeAll([usageRecorder(handle, parsed.value.at), dispatchFailureReporter(io)]);
-    const result = await runEngine(engineRequest(parsed.value, spec, onRecord), ports);
-    io.log(`${JSON.stringify(summaryOf(result, handle), null, 2)}\n`);
+    const spec = documentOf(io.readSpec(parsed.value.spec));
+    const driven = await runPhases(driverRequest(parsed.value, spec), driverPorts(io, makePorts, deps));
+    const result = driven.phases.Execute.result;
+    io.log(`${JSON.stringify(summaryOf(result, driven.phases.Probe.handle), null, 2)}\n`);
     if (!result.quiescent) return EXIT_INCOMPLETE;
     return result.units.every((unit) => unit.state === 'done') ? EXIT_CLEAN : EXIT_INCOMPLETE;
   } catch (error) {
     io.err(`${MODULE}: ${messageOf(error)}\n`);
     return EXIT_ERROR;
-  } finally {
-    releaseRun(handle, io);
   }
 }
 
