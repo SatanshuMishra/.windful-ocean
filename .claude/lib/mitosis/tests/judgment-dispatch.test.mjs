@@ -3,6 +3,7 @@ import test from 'node:test';
 import { composePrompt } from '../prompt-registry.mjs';
 import {
   JUDGMENT_KINDS,
+  JUDGMENT_VERDICT_SCHEMA,
   composeJudgmentPrompt,
   judgmentKindsFor,
   judgmentRequest,
@@ -163,6 +164,22 @@ test('a judgment record that does not say whether the security lens is required 
   assert.throws(() => readJudgment('alpha', ['not', 'a', 'record']), TypeError);
 });
 
+function refusalOf(value) {
+  try {
+    readJudgment('alpha', value);
+  } catch (error) {
+    return error.message;
+  }
+  throw new Error(`judgment-dispatch: reading ${JSON.stringify(value)} was expected to refuse and returned instead, so the refusal wording this test pins would never be reached`);
+}
+
+test('the refusal names the unreadable value by its own kind, so a number, an array and a null are never reported as each other', () => {
+  assert.equal(refusalOf(5).includes('declares a judgment record that is number rather than an object'), true);
+  assert.equal(refusalOf(['not', 'a', 'record']).includes('declares a judgment record that is an array rather than an object'), true);
+  assert.equal(refusalOf({ ...JUDGMENT_FACTS, securityReviewRequired: null }).includes('securityReviewRequired boolean, received null;'), true);
+  assert.equal(refusalOf({ ...JUDGMENT_FACTS, securityReviewRequired: undefined }).includes('securityReviewRequired boolean, received undefined;'), true);
+});
+
 test('the judgment prompt is the registry composition for its kind, and a scope-fence unit is refused rather than composed against no launch commit', () => {
   assert.equal(
     composeJudgmentPrompt('review', JUDGMENT_FACTS),
@@ -182,6 +199,9 @@ test('a judgment request carries the composed prompt, the verdict schema and the
   assert.equal(request.timeoutMs, 1234);
   assert.deepEqual(request.schema.required, ['verdict']);
   assert.deepEqual(request.schema.properties.verdict.enum, ['pass', 'fail']);
+  assert.equal(request.schema, JUDGMENT_VERDICT_SCHEMA);
+  assert.equal(JUDGMENT_VERDICT_SCHEMA.additionalProperties, false);
+  assert.deepEqual(Object.keys(JUDGMENT_VERDICT_SCHEMA).sort(), ['additionalProperties', 'properties', 'required', 'type']);
   assert.deepEqual(Object.keys(judgmentRequest('review', JUDGMENT_FACTS, { prompt: 'implement' })).sort(), ['prompt', 'schema']);
 });
 

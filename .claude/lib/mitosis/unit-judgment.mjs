@@ -24,7 +24,6 @@ export const JUDGMENT_VERDICT_SCHEMA = Object.freeze({
 
 function describe(value) {
   if (value === null) return 'null';
-  if (value === undefined) return 'undefined';
   return Array.isArray(value) ? 'an array' : typeof value;
 }
 

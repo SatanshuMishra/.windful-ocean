@@ -320,10 +320,7 @@ function shaOfVerdict(verdict) {
 }
 
 function declaredJudgment(config, unit) {
-  const declared = config.judgmentById === undefined || config.judgmentById === null
-    ? undefined
-    : config.judgmentById.get(unit.id);
-  return readJudgment(unit.id, declared);
+  return readJudgment(unit.id, config.judgmentById?.get(unit.id));
 }
 
 function judgmentPark(judged, envelope) {
