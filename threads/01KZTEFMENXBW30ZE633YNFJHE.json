@@ -213,7 +213,7 @@
     {
       "id": "c36",
       "text": "The engine is audited on live runs against disposable repos, each failure traced to root cause and classed bug or architecture, with a live-usability verdict and minimum change set recorded durably.",
-      "done": false,
+      "done": true,
       "kind": "detour",
       "struck_by": null
     },
@@ -268,7 +268,7 @@
   "spine": {
     "active_goal": "Report the live e2e audit of the shipped engine: what holds, what only looks green, and whether mitosis is usable today.",
     "next_step": "START HERE. Make NO fixes and start no work. FIRST action: read handoff-2026-08-17-mitosis-e2e-audit/FINDINGS.md under this project's ~/.claude/projects dir, then outline its findings and recommended solutions to the user and STOP for specific instructions. Verdict: mitosis cannot open a pull request. Fix the hardcoded green at cli.mjs:534 BEFORE wiring the ship publish step, or the engine starts fabricating Verified lines on real pull requests.",
-    "last_session": "Ran the live e2e audit end to end. Confirmed the engine structurally cannot ship, found sixteen defects plus a fabricated Verified claim, measured cost and concurrency, and preserved 343 evidence files outside the repo. No fixes made, by instruction.",
+    "last_session": "Completed the live e2e audit. Verdict: the engine structurally cannot open a pull request. Seventeen findings classified bug or architecture, root-caused and recorded in FINDINGS.md with 420 evidence files preserved outside the repo. No fixes made, by instruction.",
     "open_risks": [
       {
         "text": "Prove a merge arrived by asserting its CONTENT is on the base, never by SHA ancestry — a squash or stack merge rewrites commits, so a pre-merge SHA correctly fails an ancestry check on a merge that lost nothing",
@@ -966,5 +966,5 @@
     ]
   },
   "created_at": "2026-08-12T07:37:41.077Z",
-  "updated_at": "2026-08-17T18:50:22.121Z"
+  "updated_at": "2026-08-17T18:50:30.382Z"
 }
