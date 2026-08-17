@@ -212,6 +212,11 @@
         "ref": "0491-report-artifact-sits-outside-repo-leak-scope",
         "title": "The report artifact is outside repo scope, so its codename and CDN findings are ratified, not defects",
         "scope": "c3"
+      },
+      {
+        "ref": "0493-detector-reads-subagent-output-never-the-parent",
+        "title": "Read the capability marker from the subagent's own output; scanning the parent transcript over-counts 52x",
+        "scope": "c3"
       }
     ],
     "out_of_scope": [
@@ -222,5 +227,5 @@
     ]
   },
   "created_at": "2026-08-16T05:43:25.829Z",
-  "updated_at": "2026-08-17T00:38:13.833Z"
+  "updated_at": "2026-08-17T01:46:32.533Z"
 }
