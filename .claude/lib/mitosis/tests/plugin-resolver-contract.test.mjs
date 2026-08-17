@@ -1,6 +1,8 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { homedir } from 'node:os';
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { resolveSkillsDir, semverCompare } from '../superpowers-prompts.mjs';
 
 const SUPERPOWERS_KEY = 'superpowers@claude-plugins-official';
@@ -85,12 +87,15 @@ test('resolveSkillsDir returns null when neither the manifest nor the cache reso
   assert.equal(result, null);
 });
 
-test('resolveSkillsDir resolves the live superpowers skills directory on this machine', () => {
-  const home = homedir();
-  const result = resolveSkillsDir({
-    manifestPath: `${home}/.claude/plugins/installed_plugins.json`,
-    cacheGlobBase: `${home}/.claude/plugins/cache/claude-plugins-official/superpowers`,
-  });
-  assert.notEqual(result, null);
-  assert.match(result.skillsDir, /\/superpowers\/[0-9]+\.[0-9]+\.[0-9]+\/skills$/);
+test('resolveSkillsDir reads a real manifest off disk without injected dependencies', (t) => {
+  const home = mkdtempSync(join(tmpdir(), 'plugin-resolver-'));
+  t.after(() => rmSync(home, { recursive: true, force: true }));
+  const installPath = join(home, 'cache', 'claude-plugins-official', 'superpowers', '6.3.0');
+  mkdirSync(join(installPath, 'skills', 'writing-plans'), { recursive: true });
+  writeFileSync(join(installPath, 'skills', 'writing-plans', 'SKILL.md'), '# writing-plans\n');
+  const manifestPath = join(home, 'installed_plugins.json');
+  writeFileSync(manifestPath, JSON.stringify({ version: 2, plugins: { [SUPERPOWERS_KEY]: [{ scope: 'user', installPath }] } }));
+
+  const result = resolveSkillsDir({ manifestPath, cacheGlobBase: join(home, 'no-cache') });
+  assert.deepEqual(result, { skillsDir: join(installPath, 'skills'), version: '6.3.0', source: 'manifest' });
 });
