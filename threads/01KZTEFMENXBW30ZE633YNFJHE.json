@@ -908,6 +908,11 @@
         "ref": "0526-two-confirmed-engine-defects-block-dependency-chains-and-fake-ci-green",
         "title": "Two confirmed engine defects are filed: dependency chains never resume, and an unread CI reports all-shipped",
         "scope": "c28"
+      },
+      {
+        "ref": "0529-the-decompose-boundary-cannot-represent-an-empty-decomposition",
+        "title": "The decompose boundary cannot represent no-work, so a junk spec yields a fabricated dispatchable unit",
+        "scope": "c28"
       }
     ],
     "out_of_scope": [
@@ -919,5 +924,5 @@
     ]
   },
   "created_at": "2026-08-12T07:37:41.077Z",
-  "updated_at": "2026-08-17T16:19:03.288Z"
+  "updated_at": "2026-08-17T16:35:30.943Z"
 }
