@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { copyFileSync, mkdirSync, mkdtempSync, rmSync } from 'node:fs';
-import { join } from 'node:path';
+import { join, sep } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { scanJsStructure } from '../js-scan.mjs';
 import { engineSourceRoots, realSourceIo } from '../determinism-lint.mjs';
@@ -13,6 +13,7 @@ import {
   dispatchableAgents,
   engineStringLiterals,
   readAgentDefinitions,
+  resolveAgentDefinitionDir,
 } from '../agent-schema-lint.mjs';
 
 const REAL_ROOTS = engineSourceRoots();
@@ -28,6 +29,27 @@ async function loadResolverFromNestedCopy() {
   }
   const loaded = await import(pathToFileURL(join(nested, 'agent-schema-lint.mjs')).href);
   return Object.freeze({ root, resolveDir: loaded.agentDefinitionDir });
+}
+
+function canonicalAgentDir() {
+  const resolved = agentDefinitionDir();
+  assert.equal(resolved.ok, true, resolved.error);
+  return resolved.dir;
+}
+
+function resolverIo(entries, home) {
+  return {
+    pathKind: (path) => (Object.hasOwn(entries, path) ? entries[path].kind : null),
+    readText: (path) => {
+      if (!Object.hasOwn(entries, path)) throw new Error(`ENOENT ${path}`);
+      return entries[path].text;
+    },
+    realPath: (path) => {
+      if (!Object.hasOwn(entries, path)) throw new Error(`ENOENT ${path}`);
+      return entries[path].real ?? path;
+    },
+    homeDir: () => home,
+  };
 }
 
 function fixtureIo(files) {
@@ -72,10 +94,38 @@ test('the resolver names the canonical roster from a module relocated into a nes
   }
 });
 
+test('a module inside a linked worktree names the primary checkout roster, never the worktree copy', () => {
+  const io = resolverIo({
+    '/primary/.claude/worktrees/one/.git': { kind: 'file', text: 'gitdir: /primary/.git/worktrees/one\n' },
+    '/primary/.git/worktrees/one/commondir': { kind: 'file', text: '../..\n' },
+  }, '/home/nobody');
+  const resolved = resolveAgentDefinitionDir('/primary/.claude/worktrees/one/.claude/lib/mitosis/', io);
+  assert.equal(resolved.ok, true, resolved.error);
+  assert.equal(resolved.dir, `${join('/primary', '.claude', 'agents')}${sep}`, 'the common git directory of a linked worktree names the primary checkout, whose roster is the one dispatches are served from');
+});
+
+test('a live configuration naming a different roster than the checkout halts rather than picking one', () => {
+  const io = resolverIo({
+    '/primary/.git': { kind: 'directory' },
+    '/home/dev/.claude/agents': { kind: 'directory', real: '/primary/.claude/worktrees/one/.claude/agents' },
+    '/primary/.claude/worktrees/one/.claude/agents': { kind: 'directory' },
+  }, '/home/dev');
+  const resolved = resolveAgentDefinitionDir('/primary/.claude/lib/mitosis/', io);
+  assert.equal(resolved.ok, false);
+  assert.match(resolved.error, /disagree/);
+  assert.match(resolved.error, /\/primary\/\.claude\/worktrees\/one\/\.claude\/agents/);
+});
+
+test('a module with no enclosing checkout and no live configuration halts instead of naming a roster', () => {
+  const resolved = resolveAgentDefinitionDir('/elsewhere/nested/deeper/', resolverIo({}, '/home/dev'));
+  assert.equal(resolved.ok, false);
+  assert.match(resolved.error, /refusing to fall back to a directory relative to this module/);
+});
+
 test('the derived dispatchable set over the real trees is exactly the agents the engine source names', () => {
   const engine = collectEngineLiterals(REAL_ROOTS, realSourceIo);
   assert.equal(engine.ok, true, engine.error);
-  const tree = readAgentDefinitions(agentDefinitionDir(), realSourceIo);
+  const tree = readAgentDefinitions(canonicalAgentDir(), realSourceIo);
   assert.equal(tree.ok, true, tree.error);
   assert.deepEqual(dispatchableAgents(tree.definitions, engine.literals), [
     'code-reviewer',
@@ -89,7 +139,7 @@ test('the derived dispatchable set over the real trees is exactly the agents the
 test('an agent is dispatchable exactly when engine source names it, over every definition in the tree', () => {
   const engine = collectEngineLiterals(REAL_ROOTS, realSourceIo);
   assert.equal(engine.ok, true, engine.error);
-  const tree = readAgentDefinitions(agentDefinitionDir(), realSourceIo);
+  const tree = readAgentDefinitions(canonicalAgentDir(), realSourceIo);
   assert.equal(tree.ok, true, tree.error);
   const dispatchable = new Set(dispatchableAgents(tree.definitions, engine.literals));
   const disagreements = tree.definitions
@@ -101,13 +151,13 @@ test('an agent is dispatchable exactly when engine source names it, over every d
 
 test('an agent type named in engine source with no definition file carries no frontmatter obligation', () => {
   const engine = collectEngineLiterals(REAL_ROOTS, realSourceIo);
-  const tree = readAgentDefinitions(agentDefinitionDir(), realSourceIo);
+  const tree = readAgentDefinitions(canonicalAgentDir(), realSourceIo);
   assert.equal(engine.literals.has('general-purpose'), true, 'the builtin is dispatched by engine source');
   assert.equal(tree.definitions.some((d) => d.name === 'general-purpose'), false, 'the builtin has no repo definition to lint');
 });
 
 test('the census over the real trees is clean', () => {
-  const result = censusAgentSchemaCapability(REAL_ROOTS, agentDefinitionDir(), realSourceIo);
+  const result = censusAgentSchemaCapability(REAL_ROOTS, canonicalAgentDir(), realSourceIo);
   assert.equal(result.ok, true, result.error);
   const named = result.violations.map((v) => `${v.name} (${v.path})`);
   assert.deepEqual(named, [], `these dispatchable agents omit ${REQUIRED_TOOL} from tools:\n${named.join('\n')}`);

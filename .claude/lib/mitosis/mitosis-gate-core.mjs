@@ -25,7 +25,8 @@ export const MITOSIS_GATE_VERBS = Object.freeze(['determinism', 'dispatchable-ag
 
 export const DEFAULT_PHASE_PARITY_TARGET = fileURLToPath(new URL('./phases.mjs', import.meta.url));
 export const DEFAULT_DETERMINISM_TARGET = fileURLToPath(new URL('./', import.meta.url));
-export const DEFAULT_AGENT_TREE_TARGET = agentDefinitionDir();
+const AGENT_TREE_DEFAULT = agentDefinitionDir();
+export const DEFAULT_AGENT_TREE_TARGET = AGENT_TREE_DEFAULT.ok ? AGENT_TREE_DEFAULT.dir : null;
 
 const SPAWNABLE_BINARIES = Object.freeze(['claude', 'gh', 'git', 'graphify', 'node']);
 const UNLISTED_PROBE_BINARY = 'bash';
@@ -357,6 +358,10 @@ function runExecAllowlistGate(_target, out) {
 }
 
 function runAgentSchemaGate(target, out, readSource) {
+  if (target === null) {
+    out.err(`mitosis-gate: dispatchable-agent-schema-capable holds no agent tree to census: ${AGENT_TREE_DEFAULT.error}\n`);
+    return GATE_UNRESOLVABLE_EXIT;
+  }
   const result = censusAgentSchemaCapability(engineSourceRoots(), target, { ...realSourceIo, readSource });
   if (!result.ok) {
     out.err(`mitosis-gate: dispatchable-agent-schema-capable ${result.kind === 'read' ? 'could not read' : 'halted on'} its census: ${result.error}\n`);
