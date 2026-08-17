@@ -12,6 +12,15 @@ import {
   scanJsStructure,
   wordEndingAt,
 } from './js-scan.mjs';
+import { realResolverIo, resolveCanonicalConfigDir } from './canonical-config-dir.mjs';
+
+const ENGINE_SEGMENTS = Object.freeze(['lib', 'mitosis']);
+const ENGINE_SUBJECT = Object.freeze({
+  canonical: 'the canonical engine source',
+  bare: 'engine source tree',
+  served: 'the engine that serves dispatches is loaded from',
+});
+const MODULE_ANCHOR = fileURLToPath(new URL('./', import.meta.url));
 
 const CRYPTO_ENTROPY_MEMBERS = Object.freeze([
   'randomUUID',
@@ -56,10 +65,17 @@ export const realSourceIo = Object.freeze({
   exists: (path) => existsSync(path),
 });
 
+export function resolveEngineSourceRoots(anchorDir, io) {
+  const resolved = resolveCanonicalConfigDir(anchorDir, ENGINE_SEGMENTS, ENGINE_SUBJECT, io);
+  if (!resolved.ok) return Object.freeze({ ok: false, kind: 'halt', error: resolved.error });
+  return Object.freeze({
+    ok: true,
+    roots: Object.freeze([Object.freeze({ kind: 'directory', path: resolved.dir })]),
+  });
+}
+
 export function engineSourceRoots() {
-  return Object.freeze([
-    Object.freeze({ kind: 'directory', path: fileURLToPath(new URL('./', import.meta.url)) }),
-  ]);
+  return resolveEngineSourceRoots(MODULE_ANCHOR, realResolverIo);
 }
 
 function enumerationFailure(kind, message) {

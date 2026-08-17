@@ -25,6 +25,7 @@ export const MITOSIS_GATE_VERBS = Object.freeze(['determinism', 'dispatchable-ag
 
 export const DEFAULT_PHASE_PARITY_TARGET = fileURLToPath(new URL('./phases.mjs', import.meta.url));
 export const DEFAULT_DETERMINISM_TARGET = fileURLToPath(new URL('./', import.meta.url));
+const PHASE_USE_ROOTS = Object.freeze([Object.freeze({ kind: 'directory', path: DEFAULT_DETERMINISM_TARGET })]);
 const AGENT_TREE_DEFAULT = agentDefinitionDir();
 export const DEFAULT_AGENT_TREE_TARGET = AGENT_TREE_DEFAULT.ok ? AGENT_TREE_DEFAULT.dir : null;
 
@@ -204,7 +205,7 @@ function runPhaseParityGate(target, out, readSource) {
     out.err(`mitosis-gate: phase-parity halted on ${target}: ${declared.error}\n`);
     return GATE_UNRESOLVABLE_EXIT;
   }
-  const census = censusEnginePhaseUse(engineSourceRoots(), { ...realSourceIo, readSource });
+  const census = censusEnginePhaseUse(PHASE_USE_ROOTS, { ...realSourceIo, readSource });
   if (!census.ok) {
     out.err(`mitosis-gate: phase-parity ${census.kind === 'read' ? 'could not read' : 'halted on'} its engine source: ${census.error}\n`);
     return census.kind === 'read' ? GATE_READ_EXIT : GATE_UNRESOLVABLE_EXIT;
@@ -362,7 +363,12 @@ function runAgentSchemaGate(target, out, readSource) {
     out.err(`mitosis-gate: dispatchable-agent-schema-capable holds no agent tree to census: ${AGENT_TREE_DEFAULT.error}\n`);
     return GATE_UNRESOLVABLE_EXIT;
   }
-  const result = censusAgentSchemaCapability(engineSourceRoots(), target, { ...realSourceIo, readSource });
+  const roots = engineSourceRoots();
+  if (!roots.ok) {
+    out.err(`mitosis-gate: dispatchable-agent-schema-capable holds no engine source to census: ${roots.error}\n`);
+    return GATE_UNRESOLVABLE_EXIT;
+  }
+  const result = censusAgentSchemaCapability(roots.roots, target, { ...realSourceIo, readSource });
   if (!result.ok) {
     out.err(`mitosis-gate: dispatchable-agent-schema-capable ${result.kind === 'read' ? 'could not read' : 'halted on'} its census: ${result.error}\n`);
     return result.kind === 'read' ? GATE_READ_EXIT : GATE_UNRESOLVABLE_EXIT;
