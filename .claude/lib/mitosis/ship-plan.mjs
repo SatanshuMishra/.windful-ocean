@@ -126,19 +126,16 @@ export function changedLinesOf(text) {
   return PR_CHANGED_LINES_PATTERN.test(String(total)) ? total : null;
 }
 
-function parsedLine(line) {
-  try {
-    return JSON.parse(line);
-  } catch {
-    return null;
-  }
-}
-
 export function readPrAction(stdout) {
   if (typeof stdout !== 'string') return null;
   let read = null;
   for (const line of stdout.split('\n')) {
-    const parsed = parsedLine(line.trim());
+    let parsed = null;
+    try {
+      parsed = JSON.parse(line.trim());
+    } catch {
+      continue;
+    }
     if (!isRecord(parsed)) continue;
     if (!PR_ACTIONS.includes(parsed.action)) continue;
     if (nonEmptyText(parsed.url) === null) continue;

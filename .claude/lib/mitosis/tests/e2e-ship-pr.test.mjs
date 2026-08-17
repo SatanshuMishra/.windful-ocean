@@ -230,6 +230,11 @@ test('a shortstat the diff read answers becomes the changed-line flag, and its a
   const unmeasured = shippingPorts();
   await shipIntegrated(shippingConfig(), unmeasured.ports);
   assert.equal(unmeasured.spawned[0].includes('--changed-lines'), false);
+
+  const shapeless = shippingPorts({ diffStat: () => null });
+  const plan = await shipIntegrated(shippingConfig(), shapeless.ports);
+  assert.equal(shapeless.spawned[0].includes('--changed-lines'), false, 'a diff read that answers with no result at all leaves the size unstated rather than throwing');
+  assert.deepEqual(plan.opened.map((entry) => entry.unitId), ['beta']);
 });
 
 test('the diff read is skipped entirely when the branches it would compare are not both known', async () => {
@@ -282,7 +287,17 @@ test('a pull request the tool reused is a clean ship, and a ship record that wil
   const unwritable = shippingPorts({ appendJournal: () => { throw new Error('the journal is read only'); } });
   const onFailedWrite = await shipIntegrated(shippingConfig(), unwritable.ports);
   assert.deepEqual(onFailedWrite.parked.map((entry) => [entry.unitId, entry.action]), [['beta', 'created']]);
-  assert.match(onFailedWrite.outcomes[0].diagnosis, /the journal is read only$/);
+  assert.equal(
+    onFailedWrite.outcomes[0].diagnosis,
+    'the pull request at https://github.com/acme/widgets/pull/5 was opened but the ship record that would let a later run find it was not written: the journal is read only',
+  );
+
+  const threwNothing = shippingPorts({ appendJournal: () => { throw null; } });
+  const onNothing = await shipIntegrated(shippingConfig(), threwNothing.ports);
+  assert.equal(
+    onNothing.outcomes[0].diagnosis,
+    'the pull request at https://github.com/acme/widgets/pull/5 was opened but the ship record that would let a later run find it was not written: null',
+  );
 });
 
 test('the ship summary names the units, their actions and the pull requests they reached', async () => {
@@ -323,6 +338,11 @@ test('the ship config is refused at the boundary, and the refusal names what arr
   await assert.rejects(() => shipIntegrated({ ...SHIP_CONFIG, manifest: [] }, SHIP_PORTS), /needs the run manifest.*received an array$/);
   await assert.rejects(() => shipIntegrated({ ...SHIP_CONFIG, repoRoot: '' }, SHIP_PORTS), /non-empty repoRoot.*received string$/);
   await assert.rejects(() => shipIntegrated({ ...SHIP_CONFIG, journalPath: undefined }, SHIP_PORTS), /non-empty journalPath.*received undefined$/);
+  assert.deepEqual(
+    await shipIntegrated({ ...SHIP_CONFIG, journalPath: 'j' }, SHIP_PORTS),
+    { opened: [], parked: [], outcomes: [] },
+    'a one-character path is a path; the boundary refuses what is empty, never what is short',
+  );
 });
 
 test('an integrated entry with no unit id is refused rather than shipped under a name nobody wrote', async () => {
