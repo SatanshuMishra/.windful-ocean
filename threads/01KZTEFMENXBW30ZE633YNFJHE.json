@@ -192,7 +192,7 @@
     {
       "id": "c34",
       "text": "The receipts gates blocking the shipped stack clear or downgrade honestly: six G14 blocks fixed and verified green in real CI, and the three with no compliant remedy recorded as tracked downgrades.",
-      "done": false,
+      "done": true,
       "kind": "detour",
       "struck_by": null
     },
@@ -253,8 +253,8 @@
   "closure_statement": null,
   "spine": {
     "active_goal": "Get /mitosis running end to end, with every phase, the pull-request and merge path, and failure handling all thoroughly tested.",
-    "next_step": "Merge the stack bottom-up from #172, deleting each branch AS PART OF its own merge - a manual deletion closes children instead of retargeting them. Then mark c27-c31 done. Three stay red by ruling: #172 has one non-equivalent G14 survivor (fix: assert the journal built record's green field), #181 needs a receipt-cmd line in an immutable body, #183 hits the G11 test-removal wall. Those two plus 0514 are one gap worth raising against receipts/gates@1.1.",
-    "last_session": "Shipped all remaining MSPs as a 15-PR stack. c27 CLOSED: all 12 prompt kinds reachable on a real run, fix retired. c28-c31 have receipts on the stack. 13 of 15 PRs fully green after six G14 gate fixes; #172, #181 and #183 are honest ladder downgrades.",
+    "next_step": "WAIT for the user's SPECIFIC instructions. Do not auto-merge and do not auto-resume the stack. When instructed: merge #172 through #187 bottom-up, deleting each branch AS PART OF its own merge, because a manual deletion closes children rather than retargeting them. Then flip c27 through c31, whose work is satisfied at the stack tip and which close when the engine reaches main. Three pull requests stay red by ruling per 0516: #172, #181 and #183.",
+    "last_session": "Shipped every remaining MSP as a 15-PR stack, #172 to #187, on top of 7 merged earlier. c27's work is complete at the stack tip: all 12 prompt kinds reachable on a real run, fix retired. Six G14 gates cleared on first push; three stay red as tracked downgrades under 0516.",
     "open_risks": [
       {
         "text": "Prove a merge arrived by asserting its CONTENT is on the base, never by SHA ancestry — a squash or stack merge rewrites commits, so a pre-merge SHA correctly fails an ancestry check on a merge that lost nothing",
@@ -265,7 +265,7 @@
         ]
       },
       {
-        "text": "A merged pull request is not an in-force config change — ~/.claude/agents, rules, skills and lib all symlink into the primary checkout's working tree, so fast-forward it and grep the live file rather than trusting a MERGED label",
+        "text": "A merged pull request is not an in-force config change — the global agents, rules, skills and lib all symlink into the primary checkout's working tree, so fast-forward it and grep the live file rather than trusting a MERGED label",
         "scope": "thread",
         "refs": [
           "0488",
@@ -273,21 +273,40 @@
         ]
       },
       {
-        "text": "Expect receipts G14 to block any pull request adding production lines — three in a row survived mutation until a test pinned an exact value instead of asserting not-the-old-value; write those assertions up front, not after CI rejects you",
+        "text": "Run the local G14 replica before pushing rather than after — the enforcer draws its mutation sample only once the pull request exists, so an implementer that finishes at creation never sees its own gate and a one-attempt policy silently never fires",
         "scope": "thread",
         "refs": [
-          "gates.G14.mode block",
-          "#146",
-          "#147",
-          "#150"
+          "0516",
+          "scratchpad g14-replica.js"
         ]
       },
       {
-        "text": "pr-create has no --test-removal flag, so any pull request retiring a subsystem's tests hits a G11 wall it cannot clear — a body is immutable after creation, so the acknowledgement has to exist at creation time or not at all",
+        "text": "Re-run a stacked pull request's CI only when you must — the enforcer diffs two-dot from base.sha, so a green child can turn red after its parent branch moves, through no fault of its own",
         "scope": "thread",
         "refs": [
-          "0492",
-          ".claude/lib/git/pr.mjs"
+          "enforcer/verify.js:912"
+        ]
+      },
+      {
+        "text": "Stub dispatch explicitly in any test that drives runCli in process — without a dispatch dependency it falls through to the real dispatcher and spawns the REAL claude binary",
+        "scope": "thread",
+        "refs": [
+          "unit-verdict-sha.test.mjs"
+        ]
+      },
+      {
+        "text": "Write G14 assertions that pin an exact value before you push — three pull requests in a row survived mutation until a test pinned an exact count instead of asserting not-the-old-value",
+        "scope": "thread",
+        "refs": [
+          "gates.G14.mode block",
+          "0516"
+        ]
+      },
+      {
+        "text": "Prefer deleting an unassertable line over pinning it — a line no test can distinguish usually carries no behaviour, and deletion shrinks the mutable surface permanently",
+        "scope": "thread",
+        "refs": [
+          "0516"
         ]
       },
       {
@@ -314,13 +333,6 @@
         ]
       },
       {
-        "text": "Expect a grep-derived census to miss a COMPOSED path — a target built with join and template interpolation is invisible to a static text sweep, and breaks at test scope rather than module load",
-        "scope": "thread",
-        "refs": [
-          "phase-model.test.mjs"
-        ]
-      },
-      {
         "text": "Dispatch every child with run_in_background false — a background child returns only an id, so a dispatching agent ends its turn narrating that it is holding while nothing ran; what it returns when it DOES finish is trusted, never re-run",
         "scope": "thread",
         "refs": [
@@ -328,14 +340,14 @@
         ]
       },
       {
-        "text": "Work in a worktree rather than switching the primary checkout — ~/.claude/rules, CLAUDE.md, skills and agents are symlinks into its working tree, so a checkout there silently changes the live global config",
+        "text": "Work in a worktree rather than switching the primary checkout — the global rules, CLAUDE.md, skills and agents are symlinks into its working tree, so a checkout there silently changes the live global config",
         "scope": "thread",
         "refs": [
           "~/.claude/rules"
         ]
       },
       {
-        "text": "Read every request.prompt in a run document before executing it — the engine composes no prompt of its own and hands that text verbatim to a real child holding its own Bash tool, so the document is the entire blast radius",
+        "text": "Read every request.prompt in a run document before executing it — the engine hands that text verbatim to a real child holding its own Bash tool, so the document is the entire blast radius",
         "scope": "thread",
         "refs": [
           "0478",
@@ -355,23 +367,7 @@
         "scope": "thread",
         "refs": [
           "run-store.mjs",
-          "c24 filed item 2"
-        ]
-      },
-      {
-        "text": "The engine today touches the network exactly once, read-only, at the done-oracle — so c28 must add pull-request creation without turning that quiescence probe into a write path",
-        "scope": "thread",
-        "refs": [
-          "0475",
-          "engine.mjs:243",
-          "gh-merge-shim.mjs"
-        ]
-      },
-      {
-        "text": "Build any raw control byte fix through a byte-deterministic path and verify with od or perl — the agent Write path turns a typed escape into a raw control byte",
-        "scope": "thread",
-        "refs": [
-          "0442"
+          "PR 179 lock scope"
         ]
       },
       {
@@ -421,32 +417,10 @@
         ]
       },
       {
-        "text": "Ship a gh stub in every test fakebin and assert its recorder was written — DEFAULT_FALLBACKS hardcodes /opt/homebrew/bin/gh, so PATH alone does not stop a run reaching the live network",
+        "text": "Ship a gh stub in every test fakebin and assert its recorder was written — DEFAULT_FALLBACKS hardcodes an absolute path to gh, so PATH alone does not stop a run reaching the live network",
         "scope": "c27",
         "refs": [
           "gh-merge-shim.mjs:9"
-        ]
-      },
-      {
-        "text": "Add a real needs-human verdict channel before relying on parking — runUnit maps every successful dispatch to Done, so today the only route to a park is a dispatch-level failure",
-        "scope": "c27",
-        "refs": [
-          "cli.mjs:246-255"
-        ]
-      },
-      {
-        "text": "Change the dispatchedEpochs key before building bounded re-dispatch — it keys on id-at-state and a parked unit is not dispatchable, so a retry can never fire as the engine stands",
-        "scope": "c27",
-        "refs": [
-          "engine.mjs:114"
-        ]
-      },
-      {
-        "text": "Reorder PHASE_TITLES so Resume precedes Prep, updating phase-model.test.mjs in the same commit — declaring Resume after Ship is incoherent for a phase that recovers an interrupted run",
-        "scope": "c27",
-        "refs": [
-          "phases.mjs",
-          "phase-model.test.mjs:18"
         ]
       },
       {
@@ -848,5 +822,5 @@
     ]
   },
   "created_at": "2026-08-12T07:37:41.077Z",
-  "updated_at": "2026-08-17T13:30:19.859Z"
+  "updated_at": "2026-08-17T13:32:00.071Z"
 }
