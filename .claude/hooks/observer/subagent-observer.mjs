@@ -1,6 +1,13 @@
 #!/usr/bin/env node
 import fs from "node:fs";
-import { buildRow, appendRow } from "./_observer.mjs";
+import {
+  buildRow,
+  buildCapabilityRow,
+  appendRows,
+  detectCapabilityBlocked,
+  nowIso,
+  readSidecar,
+} from "./_observer.mjs";
 
 function readStdin() {
   try {
@@ -19,7 +26,12 @@ function main() {
   }
   if (!payload || typeof payload !== "object") return;
   try {
-    appendRow(buildRow(payload));
+    const ts = nowIso();
+    const sidecar = readSidecar(payload.transcript_path, payload.agent_id);
+    const detection = detectCapabilityBlocked(payload);
+    const rows = [buildRow(payload, ts, sidecar)];
+    if (detection) rows.push(buildCapabilityRow(payload, detection, ts, sidecar));
+    appendRows(rows);
   } catch {
     return;
   }
