@@ -181,6 +181,23 @@ test('the delta constructors emit discriminated, single-unit records with no who
   assert.deepEqual(pd.triedSet, []);
 });
 
+test('parkDelta carries blockedBy only for a named blocker, so a blank or absent one never becomes a durable edge to nothing', () => {
+  const base = { unitId: 'beta', stage: null, diagnosis: 'blocked-by-parked-prerequisite', request: null, remediation: null, resumePoint: null, triedSet: [] };
+  const record = { kind: 'park', ...base };
+  assert.deepStrictEqual(
+    parkDelta({ ...base, blockedBy: 'a' }),
+    { ...record, blockedBy: 'a' },
+    'a one-character blocker id is a named blocker and is carried verbatim',
+  );
+  assert.deepStrictEqual(
+    parkDelta({ ...base, blockedBy: 'alpha' }),
+    { ...record, blockedBy: 'alpha' },
+  );
+  assert.deepStrictEqual(parkDelta({ ...base, blockedBy: '' }), record);
+  assert.deepStrictEqual(parkDelta({ ...base, blockedBy: undefined }), record);
+  assert.deepStrictEqual(Object.keys(parkDelta({ ...base, blockedBy: '' })), Object.keys(record));
+});
+
 test('foldRunManifest round-trips an engine-produced park delta identically to a live park() call', () => {
   const manifest = genesisManifest(TWO);
   const args = {

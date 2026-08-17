@@ -65,6 +65,26 @@ test('ADAPTER BOOLEAN: a Built outcome is recorded ok by the pool and a parked o
   assert.equal(leases.indexUnits(units).get('parker').state, 'parked', 'the unit table itself lands the parked disposition, not built or done');
 });
 
+test('BLOCKED DEPENDENT HOLDS NO LEASE: a unit the recorder reports blocked lands parked with its lease released, so the window it never opened is not counted against the next tick', async () => {
+  const { units, quiescent } = await runSchedule(
+    [{ id: 'alpha', fileScope: pack(['a.mjs']) }, { id: 'beta', prereqs: ['alpha'], fileScope: pack(['b.mjs']) }],
+    async () => NeedsHuman({ kind: 'ask' }),
+    { blocked: () => ['beta'] },
+  );
+  const beta = leases.indexUnits(units).get('beta');
+  assert.equal(quiescent, true, 'a schedule whose only remaining unit is blocked reaches quiescence rather than spinning');
+  assert.deepStrictEqual(
+    { state: beta.state, leaseHeld: beta.leaseHeld },
+    { state: 'parked', leaseHeld: false },
+    'the blocked dependent is parked AND holds no lease',
+  );
+  assert.deepStrictEqual(
+    leases.indexUnits(units).get('alpha').state,
+    'parked',
+    'the prerequisite that reported needs-human is itself parked',
+  );
+});
+
 test('THROW LANDS WHERE AN ALLSETTLED REJECTION LANDED: a runUnit that throws parks its unit rather than propagating out of the schedule', async () => {
   const records = [];
   const { units } = await runSchedule(
