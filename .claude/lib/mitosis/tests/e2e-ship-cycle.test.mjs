@@ -5,6 +5,7 @@ import {
   CLAUDE_BEHAVIOURS,
   DECOMPOSE_MARKER,
   FIXED_RUN_ID,
+  JUDGMENT_MARKERS,
   OPENED_PR_URL,
   claudeArgvs,
   decompositionMsp,
@@ -16,6 +17,7 @@ import {
   readRunDocument,
   runDecomposeEmit,
   runMitosisCli,
+  unitTokenOf,
   withSandbox,
 } from './e2e-substrate.mjs';
 
@@ -26,11 +28,39 @@ const TWO_UNITS = Object.freeze([
   Object.freeze({ id: 'beta', behaviour: CLAUDE_BEHAVIOURS.succeed }),
 ]);
 
-const TWO_MSPS = Object.freeze([decompositionMsp('alpha'), decompositionMsp('beta')]);
+const TWO_MSPS = Object.freeze([
+  decompositionMsp('alpha', { securityReviewRequired: true }),
+  decompositionMsp('beta', { securityReviewRequired: false }),
+]);
 
 function flagValue(argv, flag) {
   const index = argv.indexOf(flag);
   return index === -1 || index + 1 >= argv.length ? null : argv[index + 1];
+}
+
+function promptOf(argv) {
+  return Array.isArray(argv) && argv.length > 0 && typeof argv[argv.length - 1] === 'string' ? argv[argv.length - 1] : '';
+}
+
+function kindOfArgv(argv) {
+  const prompt = promptOf(argv);
+  if (prompt.includes(DECOMPOSE_MARKER)) return 'decompose';
+  if (prompt.includes(JUDGMENT_MARKERS.security)) return 'security';
+  if (prompt.includes(JUDGMENT_MARKERS.review)) return 'review';
+  return 'implement';
+}
+
+function dispatchCensus(sandbox) {
+  const census = { decompose: 0, implement: 0, review: 0, security: 0 };
+  for (const argv of claudeArgvs(sandbox)) census[kindOfArgv(argv)] += 1;
+  return census;
+}
+
+function unitsDispatchedFor(sandbox, kind) {
+  return claudeArgvs(sandbox)
+    .filter((argv) => kindOfArgv(argv) === kind)
+    .map((argv) => TWO_MSPS.map((msp) => msp.id).find((id) => promptOf(argv).includes(unitTokenOf(id))))
+    .sort();
 }
 
 function decomposeArgvs(sandbox) {
@@ -54,13 +84,21 @@ test('one cycle carries a spec from the real decomposer through execute and inte
 
     const document = readRunDocument(sandbox);
     assert.deepEqual(document.specs.map((unit) => unit.id), ['alpha', 'beta'], 'the spec the engine runs is the emitter output, not a document the test hand-wrote');
+    assert.deepEqual(
+      document.specs.map((unit) => unit.judgment.securityReviewRequired),
+      [true, false],
+      'the emitter carries each MSP declared security answer into the judgment record the dispatch reads',
+    );
     assert.equal(document.manifest.logicalRunId, FIXED_RUN_ID);
     assert.deepEqual(document.manifest.msps.map((msp) => msp.integrationBranch), [integrationBranchOf('alpha'), integrationBranchOf('beta')]);
 
     const build = runMitosisCli(sandbox);
     assert.equal(build.status, 0, `the build run must reach a clean exit on the emitted document: ${build.stderr}`);
     assert.deepEqual(build.summary.units, [{ id: 'alpha', state: 'done' }, { id: 'beta', state: 'done' }]);
-    assert.equal(claudeArgvs(sandbox).length, 3, 'one decompose child and one implement child per unit; a larger count would mean a lens nobody declared also ran');
+    assert.equal(claudeArgvs(sandbox).length, 6, 'one decompose child, one implement and one review child per unit, and one security child for the only unit that declares the lens required');
+    assert.deepEqual(dispatchCensus(sandbox), { decompose: 1, implement: 2, review: 2, security: 1 });
+    assert.deepEqual(unitsDispatchedFor(sandbox, 'review'), ['alpha', 'beta'], 'every unit from the real emitter gets its review lens');
+    assert.deepEqual(unitsDispatchedFor(sandbox, 'security'), ['alpha'], 'the security lens runs over exactly the unit whose MSP declared it required');
 
     const ship = runMitosisCli(sandbox);
     assert.equal(ship.summary === null, false, `the ship run printed no summary to read: ${ship.stderr}`);

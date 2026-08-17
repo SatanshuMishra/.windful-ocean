@@ -4,11 +4,19 @@ import { buildInitialManifest } from './recovery.mjs';
 
 const MODULE = 'run-document';
 const IMPLEMENT_KIND = 'implement';
+const WORKTREE_ISOLATION = 'worktree';
 const NUL = String.fromCharCode(0);
 const UNIT_ID_PATTERN = /^[a-z0-9][a-z0-9-]*$/;
 const REQUEST_OPTIONAL_KEYS = Object.freeze(['agentType', 'model', 'effort', 'schema', 'timeoutMs']);
 const RUN_TEXT_KEYS = Object.freeze(['logicalRunId', 'spec', 'repoRoot', 'baseBranch', 'sourcePrefix']);
-const PROMPT_TEXT_KEYS = Object.freeze(['implementerPreamble', 'isolation', 'branchPrefix', 'worktreeRoot']);
+const PROMPT_TEXT_KEYS = Object.freeze([
+  'implementerPreamble',
+  'specReviewerPreamble',
+  'qualityReviewerPreamble',
+  'isolation',
+  'branchPrefix',
+  'worktreeRoot',
+]);
 
 export class RunDocumentError extends Error {
   constructor(message) {
@@ -143,11 +151,40 @@ function composeUnitPrompt(compose, id, input) {
   return requireUnitPrompt(text, id);
 }
 
+function requireSecurityReviewRequired(msp) {
+  if (typeof msp.securityReviewRequired !== 'boolean') {
+    refuseUnit(msp.id, `declares securityReviewRequired as ${JSON.stringify(msp.securityReviewRequired)} rather than a boolean; the judgment record this composer emits carries that answer to the dispatch that decides whether the security lens runs, and a record that does not say would settle the question by a default nobody wrote — the default that silently skips a security review is the one no reader would find`);
+  }
+  return msp.securityReviewRequired;
+}
+
+function branchFor(msp, prompt) {
+  return `${prompt.branchPrefix}/${msp.id}`;
+}
+
+function judgmentFor(msp, fileScope, run, prompt) {
+  const securityReviewRequired = requireSecurityReviewRequired(msp);
+  if (prompt.isolation !== WORKTREE_ISOLATION) return null;
+  return Object.freeze({
+    securityReviewRequired,
+    specReviewerPreamble: prompt.specReviewerPreamble,
+    qualityReviewerPreamble: prompt.qualityReviewerPreamble,
+    repoRoot: run.repoRoot,
+    baseBranch: run.baseBranch,
+    branch: branchFor(msp, prompt),
+    taskId: msp.id,
+    taskTitle: msp.title,
+    taskFullText: msp.rationale,
+    isolation: prompt.isolation,
+    fileScope,
+  });
+}
+
 function promptInputFor(msp, fileScope, run, prompt) {
   return {
     implementerPreamble: prompt.implementerPreamble,
     repoRoot: run.repoRoot,
-    branch: `${prompt.branchPrefix}/${msp.id}`,
+    branch: branchFor(msp, prompt),
     worktree: `${prompt.worktreeRoot}/${msp.id}`,
     baseBranch: run.baseBranch,
     scopedCheckCmd: prompt.scopedCheckCmd,
@@ -170,11 +207,13 @@ function buildRequest(promptText, defaults) {
 
 function buildUnitSpec({ msp, prereqs, fileScope, run, prompt, defaults, compose }) {
   const promptText = composeUnitPrompt(compose, msp.id, promptInputFor(msp, fileScope, run, prompt));
+  const judgment = judgmentFor(msp, fileScope, run, prompt);
   return Object.freeze({
     id: msp.id,
     prereqs,
     fileScope,
     isolation: prompt.isolation,
+    ...(judgment === null ? {} : { judgment }),
     request: buildRequest(promptText, defaults),
   });
 }

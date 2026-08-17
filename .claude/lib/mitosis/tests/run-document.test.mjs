@@ -15,6 +15,7 @@ const MSPS = Object.freeze([
     rationale: 'The alpha core module is the seam every later unit imports, so it lands before them.',
     changeType: 'feat',
     scope: 'alpha',
+    securityReviewRequired: false,
     dependsOn: [],
     fileScope: { edit: ['src/alpha.mjs'], read: ['src/shared.mjs'], truncated: null },
   },
@@ -24,6 +25,7 @@ const MSPS = Object.freeze([
     rationale: 'Beta consumes the alpha core and cannot be written before that module exists.',
     changeType: 'feat',
     scope: 'beta',
+    securityReviewRequired: true,
     dependsOn: ['alpha-core'],
     fileScope: {
       edit: ['src/beta.mjs'],
@@ -46,6 +48,8 @@ const RUN = Object.freeze({
 
 const PROMPT = Object.freeze({
   implementerPreamble: 'You own one unit end to end and return the commit sha you produced.',
+  specReviewerPreamble: 'You review the unit against its spec and return a verdict.',
+  qualityReviewerPreamble: 'You review the unit for code quality and return a verdict.',
   scopedCheckCmd: ['node', '--test', 'tests/alpha.test.mjs'],
   isolation: 'worktree',
   branchPrefix: 'mitosis',

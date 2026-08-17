@@ -447,6 +447,7 @@ export function decompositionMsp(unitId, overrides = {}) {
     rationale: rationaleOf(unitId),
     changeType: 'feat',
     scope: unitId,
+    securityReviewRequired: overrides.securityReviewRequired === true,
     dependsOn: overrides.dependsOn === undefined ? [] : [...overrides.dependsOn],
     fileScope: { edit: [`${unitId}.txt`], read: [], truncated: null },
   };
