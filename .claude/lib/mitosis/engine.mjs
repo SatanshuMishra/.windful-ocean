@@ -2,6 +2,7 @@ import { checkpointRef } from './checkpoint.mjs';
 import { buildGhCommand } from './gh-commands.mjs';
 import { composeJournalLine } from './journal-store.mjs';
 import { SCOPE_FENCE_ISOLATION, buildUnitTable, dispositionOf, indexUnits, planTick } from './leases.mjs';
+import { park } from './parking.mjs';
 import { runGraph } from './pool.mjs';
 import { isIsoInstant } from './run-log.mjs';
 
@@ -19,6 +20,7 @@ export {
 
 const PARKED = 'parked';
 const RECORD_FAILURE_TAG = 'PostDispatchRecordFailure';
+const BLOCKED_DIAGNOSIS = 'blocked-by-parked-prerequisite';
 
 export const POST_DISPATCH_RECORD_FAILED = 'post-dispatch-record-failed';
 
@@ -50,6 +52,11 @@ function applyOutcomes(units, outcomes) {
 
 function markAwaitingMerge(units) {
   return Object.freeze(units.map((u) => (u.state === 'awaiting' ? Object.freeze({ ...u, state: 'awaiting-merge' }) : u)));
+}
+
+function markBlockedParked(units, blockedIds) {
+  const blocked = new Set(blockedIds);
+  return Object.freeze(units.map((u) => (blocked.has(u.id) ? Object.freeze({ ...u, state: PARKED, leaseHeld: false }) : u)));
 }
 
 function tickGraph(units) {
@@ -101,6 +108,7 @@ export async function runScheduleTick(specs, runUnit, windowSize, options = {}) 
   let units = buildUnitTable(specs);
   const ticks = [];
   const dispatchedEpochs = new Set();
+  const blockedIds = typeof options.blocked === 'function' ? options.blocked : null;
   for (;;) {
     if (aborted(options.signal)) return Object.freeze({ units, ticks, quiescent: false, aborted: true });
     const w = typeof windowSize === 'function' ? windowSize() : windowSize;
@@ -117,6 +125,7 @@ export async function runScheduleTick(specs, runUnit, windowSize, options = {}) 
     const byId = indexUnits(units);
     const results = await joinTick(dispatch.map((id) => byId.get(id)), runUnit, options);
     units = applyOutcomes(units, new Map(dispatch.map((id, index) => [id, results[index]])));
+    if (blockedIds !== null) units = markBlockedParked(units, blockedIds());
   }
 }
 
@@ -126,6 +135,7 @@ export async function runSchedule(specs, runUnit, opts, ...rest) {
   return runScheduleTick(specs, runUnit, windowSize, {
     signal: opts && opts.signal !== undefined ? opts.signal : null,
     onRecord: opts && typeof opts.onRecord === 'function' ? opts.onRecord : undefined,
+    blocked: opts && typeof opts.blocked === 'function' ? opts.blocked : undefined,
   });
 }
 
@@ -199,35 +209,59 @@ function checkpointRefFor(unit, runId) {
   return unit.isolation === SCOPE_FENCE_ISOLATION ? null : checkpointRef(runId, unit.id);
 }
 
+function scheduleManifest(specs) {
+  return {
+    msps: specs.map((spec) => ({ id: spec.id, dependsOn: Array.isArray(spec.prereqs) ? [...spec.prereqs] : [] })),
+  };
+}
+
+function blockedParkFields(unitId, blockedBy) {
+  return { unitId, stage: null, diagnosis: BLOCKED_DIAGNOSIS, request: null, remediation: null, resumePoint: null, triedSet: [], blockedBy };
+}
+
 function journalRecorder(request, ports) {
   const written = new Map();
-  return async (unit, outcome) => {
-    const unitId = unit.id;
-    const disposition = dispositionOf(outcome);
-    let line = null;
-    if (CHECKPOINTED.includes(disposition)) {
-      const ref = checkpointRefFor(unit, request.runId);
-      if (ref !== null) await ports.writeRef({ ref, unitId, sha: shaOf(outcome) });
-      line = composeJournalLine('built', { unitId, checkpointRef: ref, sha: shaOf(outcome), green: greenOf(outcome), builtAgainst: {} });
-    } else if (disposition === PARKED) {
-      line = composeJournalLine('park', parkFields(unitId, outcome));
-    }
-    if (line === null || written.get(unitId) === line) return;
+  const blocked = new Set();
+  const append = async (unitId, line) => {
+    if (written.get(unitId) === line) return;
     written.set(unitId, line);
     await ports.appendJournal({ repoRoot: request.repoRoot, path: request.journalPath, line });
   };
+  const recordBuilt = async (unit, outcome) => {
+    const ref = checkpointRefFor(unit, request.runId);
+    if (ref !== null) await ports.writeRef({ ref, unitId: unit.id, sha: shaOf(outcome) });
+    await append(unit.id, composeJournalLine('built', { unitId: unit.id, checkpointRef: ref, sha: shaOf(outcome), green: greenOf(outcome), builtAgainst: {} }));
+  };
+  const recordPark = async (unit, outcome) => {
+    const fields = parkFields(unit.id, outcome);
+    const parked = park(scheduleManifest(request.specs), fields);
+    const record = parked.parked[parked.parked.length - 1];
+    await append(unit.id, composeJournalLine('park', fields));
+    for (const dependentId of record.dependents) {
+      if (blocked.has(dependentId)) continue;
+      blocked.add(dependentId);
+      await append(dependentId, composeJournalLine('park', blockedParkFields(dependentId, unit.id)));
+    }
+  };
+  const record = async (unit, outcome) => {
+    const disposition = dispositionOf(outcome);
+    if (CHECKPOINTED.includes(disposition)) return recordBuilt(unit, outcome);
+    if (disposition === PARKED) return recordPark(unit, outcome);
+    return undefined;
+  };
+  return Object.freeze({ record, blocked: () => Object.freeze([...blocked]) });
 }
 
 export async function runEngine(request, ports) {
   requireRequest(request);
   requirePorts(ports);
   await ports.writeGenesis({ repoRoot: request.repoRoot, path: request.journalPath, manifest: request.manifest });
-  const record = journalRecorder(request, ports);
+  const recorder = journalRecorder(request, ports);
   const runUnit = async (unit, context) => {
     const outcome = await ports.runUnit(unit, context);
     const envelope = envelopeOf(outcome);
     try {
-      await record(unit, outcome);
+      await recorder.record(unit, outcome);
     } catch (error) {
       return recordFailure(envelope, error);
     }
@@ -237,6 +271,7 @@ export async function runEngine(request, ports) {
     window: request.window,
     signal: request.signal === undefined ? null : request.signal,
     onRecord: request.onRecord,
+    blocked: recorder.blocked,
   });
   if (!result.quiescent) return Object.freeze({ ...result, prState: null });
   const outstanding = result.units.some((unit) => unit.state !== 'done');

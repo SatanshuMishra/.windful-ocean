@@ -66,7 +66,9 @@ export const UNIT_VERDICT_SCHEMA = deepFreeze({
   required: ['sha'],
   additionalProperties: false,
   properties: {
-    sha: { type: 'string', pattern: '^[0-9a-f]{40}$' },
+    sha: { type: ['string', 'null'], pattern: '^[0-9a-f]{40}$' },
+    needsHuman: { type: 'boolean' },
+    needsHumanReason: { type: 'string', pattern: '^[A-Za-z0-9(][\\x20-\\x7E]{0,198}[\\x21-\\x7E]$' },
   },
 });
 
