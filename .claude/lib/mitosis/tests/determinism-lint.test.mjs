@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync, readdirSync } from 'node:fs';
+import { readFileSync, readdirSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { scanJsStructure } from '../js-scan.mjs';
@@ -13,8 +13,15 @@ import {
   engineSourceRoots,
   realSourceIo,
 } from '../determinism-lint.mjs';
+import { canonicalEngineDir, importRelocated, relocateEngineLib } from './engine-relocation-fixtures.mjs';
 
 const LIB_DIR = fileURLToPath(new URL('../', import.meta.url));
+const LIB_ROOTS = Object.freeze([Object.freeze({ kind: 'directory', path: LIB_DIR })]);
+
+function rootPaths(resolved) {
+  assert.equal(resolved.ok, true, `the engine-source roots did not resolve: ${JSON.stringify(resolved)}`);
+  return resolved.roots.map((root) => root.path);
+}
 
 function census(source) {
   const scan = scanJsStructure(source);
@@ -28,18 +35,42 @@ function violationsOf(source) {
   return result.violations;
 }
 
-test('the engine-source root is the lib directory alone, never a written module list', () => {
-  const roots = engineSourceRoots();
+test('the engine-source root is one directory alone, never a written module list', () => {
+  const resolved = engineSourceRoots();
+  assert.equal(resolved.ok, true, `the engine-source roots did not resolve: ${JSON.stringify(resolved)}`);
   assert.deepEqual(
-    roots.map((root) => root.kind),
+    resolved.roots.map((root) => root.kind),
     ['directory'],
     'a file root would bind the census to one written module rather than to the engine directory the OS-process engine actually runs',
   );
-  assert.equal(roots[0].path, LIB_DIR);
+});
+
+test('the engine-source root is the canonical engine directory of the checkout that owns this module', () => {
+  assert.deepEqual(
+    rootPaths(engineSourceRoots()),
+    [canonicalEngineDir()],
+    'the census must name the engine the live configuration serves dispatches from, which git names independently of where this module physically sits',
+  );
+});
+
+test('the engine-source roots survive relocation of the module into a nested directory', async () => {
+  const relocated = relocateEngineLib();
+  try {
+    const loaded = await importRelocated(relocated, 'determinism-lint.mjs');
+    const paths = rootPaths(loaded.engineSourceRoots());
+    assert.deepEqual(
+      paths.filter((path) => path.startsWith(relocated.root)),
+      [],
+      `a copy of this module two directories deeper censused its own tree at ${relocated.dir}; resolving the roots relative to the module path is what makes every worktree census its own frozen engine source`,
+    );
+    assert.deepEqual(paths, rootPaths(engineSourceRoots()), 'the relocated copy and the in-tree module must name one canonical engine source');
+  } finally {
+    rmSync(relocated.root, { recursive: true, force: true });
+  }
 });
 
 test('the enumerated file set equals an independent directory read of the same roots', () => {
-  const enumerated = engineSourceFiles(engineSourceRoots(), realSourceIo);
+  const enumerated = engineSourceFiles(LIB_ROOTS, realSourceIo);
   assert.equal(enumerated.ok, true, enumerated.error);
   const independent = readdirSync(LIB_DIR, { withFileTypes: true })
     .filter((entry) => entry.isFile() && entry.name.endsWith('.mjs'))
@@ -62,7 +93,7 @@ function enumerateFixture(entries) {
 }
 
 test('the declared excluded subdirectories are not descended', () => {
-  const enumerated = engineSourceFiles(engineSourceRoots(), realSourceIo);
+  const enumerated = engineSourceFiles(LIB_ROOTS, realSourceIo);
   assert.equal(enumerated.ok, true, enumerated.error);
   const descended = enumerated.files.filter((path) => path.includes('/tests/') || path.includes('/prompt-snapshots/'));
   assert.deepEqual(descended, [], `the census descended into a subdirectory: ${descended.join(', ')}`);
@@ -274,7 +305,7 @@ test('an entropy receiver this census cannot read halts rather than being classi
 });
 
 test('the census over the real engine-source roots reports zero violations', () => {
-  const result = censusEngineDeterminism(engineSourceRoots(), realSourceIo);
+  const result = censusEngineDeterminism(LIB_ROOTS, realSourceIo);
   assert.equal(result.ok, true, result.error);
   const named = result.violations.map((v) => `${v.path}:${v.line} ${v.identifier} (${v.surface})`);
   assert.deepEqual(named, [], `engine source reads banned entropy surfaces:\n${named.join('\n')}`);
@@ -311,7 +342,7 @@ test('a violation carries the file it was found in', () => {
 });
 
 test('the real engine directory is scanned through the same reader the gate uses', () => {
-  const enumerated = engineSourceFiles(engineSourceRoots(), realSourceIo);
+  const enumerated = engineSourceFiles(LIB_ROOTS, realSourceIo);
   assert.equal(enumerated.ok, true, enumerated.error);
   for (const path of enumerated.files) {
     assert.equal(realSourceIo.readSource(path), readFileSync(path, 'utf8'));

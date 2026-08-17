@@ -1,10 +1,11 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { copyFileSync, mkdirSync, mkdtempSync, rmSync } from 'node:fs';
+import { rmSync } from 'node:fs';
 import { join, sep } from 'node:path';
-import { fileURLToPath, pathToFileURL } from 'node:url';
+import { fileURLToPath } from 'node:url';
 import { scanJsStructure } from '../js-scan.mjs';
-import { engineSourceRoots, realSourceIo } from '../determinism-lint.mjs';
+import { realSourceIo } from '../determinism-lint.mjs';
+import { importRelocated, relocateEngineLib } from './engine-relocation-fixtures.mjs';
 import {
   REQUIRED_TOOL,
   agentDefinitionDir,
@@ -16,19 +17,13 @@ import {
   resolveAgentDefinitionDir,
 } from '../agent-schema-lint.mjs';
 
-const REAL_ROOTS = engineSourceRoots();
-const REPO_ROOT = fileURLToPath(new URL('../../../../', import.meta.url));
-const RELOCATED_MODULES = Object.freeze(['agent-schema-lint.mjs', 'determinism-lint.mjs', 'js-scan.mjs']);
+const LIB_DIR = fileURLToPath(new URL('../', import.meta.url));
+const REAL_ROOTS = Object.freeze([Object.freeze({ kind: 'directory', path: LIB_DIR })]);
 
 async function loadResolverFromNestedCopy() {
-  const root = mkdtempSync(join(REPO_ROOT, '.claude-tmp-relocated-resolver-'));
-  const nested = join(root, 'nested', 'deeper');
-  mkdirSync(nested, { recursive: true });
-  for (const name of RELOCATED_MODULES) {
-    copyFileSync(fileURLToPath(new URL(`../${name}`, import.meta.url)), join(nested, name));
-  }
-  const loaded = await import(pathToFileURL(join(nested, 'agent-schema-lint.mjs')).href);
-  return Object.freeze({ root, resolveDir: loaded.agentDefinitionDir });
+  const relocated = relocateEngineLib();
+  const loaded = await importRelocated(relocated, 'agent-schema-lint.mjs');
+  return Object.freeze({ root: relocated.root, resolveDir: loaded.agentDefinitionDir });
 }
 
 function canonicalAgentDir() {

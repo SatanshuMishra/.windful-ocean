@@ -31,6 +31,7 @@ import {
 } from '../mitosis-gate.mjs';
 import { MERGE_REFUSAL_SPECIMENS } from '../gh-merge-shim.mjs';
 import { PHASE_TITLES } from '../phases.mjs';
+import { canonicalEngineDir, importRelocated, relocateEngineLib } from './engine-relocation-fixtures.mjs';
 import {
   MITOSIS_GIT_USAGE_EXIT,
   MITOSIS_GIT_TRIPWIRE_EXIT,
@@ -532,6 +533,33 @@ test('the schema verb exits clean over the real agent tree and names the derived
   assert.deepEqual(verdict.dispatchable, [
     'code-reviewer', 'codebase-analyst', 'implementer', 'security-reviewer', 'test-engineer',
   ], 'the census root is the lib engine source alone; debugger and solution-architect were named only by the legacy workflow file, which is no longer a root');
+});
+
+test('the schema verb censuses the canonical engine source, never the tree the gate module sits in', async () => {
+  const relocated = relocateEngineLib();
+  try {
+    const gate = await importRelocated(relocated, 'mitosis-gate-core.mjs');
+    const read = [];
+    const { out, stderr } = capture();
+    const code = gate.runMitosisGate(['dispatchable-agent-schema-capable'], out, (path) => {
+      read.push(path);
+      return readFileSync(path, 'utf8');
+    });
+    assert.deepEqual(stderr, []);
+    assert.equal(code, gate.GATE_CLEAN_EXIT);
+    assert.deepEqual(
+      read.filter((path) => path.startsWith(relocated.root)),
+      [],
+      `the gate derived its dispatch table from the ${relocated.copied} engine module(s) relocated under ${relocated.dir}; the dispatchable set must come from the engine the live configuration actually dispatches through`,
+    );
+    const canonical = canonicalEngineDir();
+    assert.ok(
+      read.some((path) => path.startsWith(canonical)),
+      `the gate read no engine source at all out of ${canonical}, so an empty census would report agreement it never measured`,
+    );
+  } finally {
+    rmSync(relocated.root, { recursive: true, force: true });
+  }
 });
 
 test('the schema verb exits on the read code when the agent tree cannot be read', () => {

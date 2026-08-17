@@ -1,9 +1,8 @@
-import { readFileSync, realpathSync, statSync } from 'node:fs';
-import { homedir } from 'node:os';
-import { basename, dirname, isAbsolute, join, resolve, sep } from 'node:path';
+import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { halt, scanJsStructure } from './js-scan.mjs';
 import { engineSourceFiles } from './determinism-lint.mjs';
+import { realResolverIo, resolveCanonicalConfigDir } from './canonical-config-dir.mjs';
 
 export const REQUIRED_TOOL = 'StructuredOutput';
 
@@ -13,128 +12,19 @@ const TOOL_TOKEN = /^[A-Za-z_][A-Za-z0-9_-]*$/;
 const NAME_LINE = /^name:\s*(\S.*?)\s*$/;
 const TOOLS_LINE = /^tools:\s*(\S.*?)\s*$/;
 
-const GIT_ENTRY = '.git';
-const GIT_LINK_LINE = /^gitdir:\s*(\S.*?)\s*$/m;
-const GIT_COMMON_POINTER = 'commondir';
-const CONFIG_DIRECTORY = '.claude';
-const AGENT_DIRECTORY = 'agents';
-const UNAVAILABLE = Object.freeze({ ok: false, absent: true });
-const RESOLVER_IO_MEMBERS = Object.freeze(['pathKind', 'readText', 'realPath', 'homeDir']);
+const AGENT_SEGMENTS = Object.freeze(['agents']);
+const AGENT_SUBJECT = Object.freeze({
+  canonical: 'the canonical agent roster',
+  bare: 'agent roster',
+  served: 'dispatches are served from',
+});
 
 const MODULE_ANCHOR = fileURLToPath(new URL('./', import.meta.url));
 
-export const realResolverIo = Object.freeze({
-  pathKind: (path) => {
-    let entry;
-    try {
-      entry = statSync(path);
-    } catch {
-      return null;
-    }
-    if (entry.isDirectory()) return 'directory';
-    if (entry.isFile()) return 'file';
-    return 'other';
-  },
-  readText: (path) => readFileSync(path, 'utf8'),
-  realPath: (path) => realpathSync(path),
-  homeDir: () => homedir(),
-});
-
-function failureText(error) {
-  return error && error.message ? error.message : 'unknown failure';
-}
-
-function withTrailingSeparator(dir) {
-  return dir.endsWith(sep) ? dir : `${dir}${sep}`;
-}
-
-function rosterUnder(root) {
-  return withTrailingSeparator(join(root, CONFIG_DIRECTORY, AGENT_DIRECTORY));
-}
-
-function workTreeRootOf(commonDir, source) {
-  if (basename(commonDir) !== GIT_ENTRY) {
-    return halt(`${source} names the common git directory ${commonDir}, whose final segment is not ${GIT_ENTRY}, so the working tree that holds the canonical agent roster cannot be derived from it; refusing to guess`);
-  }
-  return Object.freeze({ ok: true, root: dirname(commonDir) });
-}
-
-function commonRootFromLink(linkPath, linkDir, io) {
-  let link;
-  try {
-    link = io.readText(linkPath);
-  } catch (error) {
-    return halt(`${linkPath} marks a linked worktree but could not be read: ${failureText(error)}; the checkout that owns it names the canonical agent roster; refusing to guess`);
-  }
-  const matched = GIT_LINK_LINE.exec(link);
-  if (matched === null) {
-    return halt(`${linkPath} carries no gitdir: line this resolver can read, so the checkout that owns this worktree cannot be named; refusing to guess`);
-  }
-  const gitDir = isAbsolute(matched[1]) ? matched[1] : resolve(linkDir, matched[1]);
-  const pointer = join(gitDir, GIT_COMMON_POINTER);
-  let commonText;
-  try {
-    commonText = io.readText(pointer);
-  } catch (error) {
-    return halt(`${pointer} could not be read: ${failureText(error)}; a linked worktree names its common git directory there and without it the primary checkout cannot be derived; refusing to guess`);
-  }
-  return workTreeRootOf(resolve(gitDir, commonText.trim()), pointer);
-}
-
-function gitCommonRoot(anchorDir, io) {
-  let dir = anchorDir;
-  for (;;) {
-    const entry = join(dir, GIT_ENTRY);
-    const kind = io.pathKind(entry);
-    if (kind === 'directory') return Object.freeze({ ok: true, root: dir });
-    if (kind === 'file') return commonRootFromLink(entry, dir, io);
-    if (kind === 'other') {
-      return halt(`${entry} is neither a git directory nor a linked-worktree file, so this resolver cannot tell a checkout from an unrelated entry of the same name; refusing to guess`);
-    }
-    const parent = dirname(dir);
-    if (parent === dir) return UNAVAILABLE;
-    dir = parent;
-  }
-}
-
-function liveConfigurationRoster(io) {
-  const declared = join(io.homeDir(), CONFIG_DIRECTORY, AGENT_DIRECTORY);
-  if (io.pathKind(declared) === null) return UNAVAILABLE;
-  let real;
-  try {
-    real = io.realPath(declared);
-  } catch (error) {
-    return halt(`${declared} is present but its real path could not be resolved: ${failureText(error)}; it is the directory dispatches are served from, so a roster census cannot step past it; refusing to guess`);
-  }
-  const kind = io.pathKind(real);
-  if (kind !== 'directory') {
-    return halt(`${declared} resolves to ${real}, which is ${kind === null ? 'not readable' : `a ${kind}`} rather than a directory, so the live agent roster it is supposed to name cannot be read; refusing to guess`);
-  }
-  return Object.freeze({ ok: true, dir: withTrailingSeparator(real) });
-}
+export { realResolverIo };
 
 export function resolveAgentDefinitionDir(anchorDir, io) {
-  if (typeof anchorDir !== 'string' || anchorDir.length === 0) {
-    return halt('resolving the canonical agent roster needs a non-empty directory to anchor checkout discovery on');
-  }
-  if (!io || RESOLVER_IO_MEMBERS.some((member) => typeof io[member] !== 'function')) {
-    return halt(`resolving the canonical agent roster needs an io surface carrying ${RESOLVER_IO_MEMBERS.join(', ')}`);
-  }
-  const checkout = gitCommonRoot(anchorDir, io);
-  if (!checkout.ok && checkout.absent !== true) return checkout;
-  const live = liveConfigurationRoster(io);
-  if (!live.ok && live.absent !== true) return live;
-  const derived = [];
-  if (checkout.ok) derived.push({ source: 'the checkout that owns this module', dir: rosterUnder(checkout.root) });
-  if (live.ok) derived.push({ source: `the live configuration at ${join(io.homeDir(), CONFIG_DIRECTORY, AGENT_DIRECTORY)}`, dir: live.dir });
-  if (derived.length === 0) {
-    return halt(`neither a git checkout above ${anchorDir} nor a live ${join(CONFIG_DIRECTORY, AGENT_DIRECTORY)} under the home directory names a canonical agent roster, so this census has no roster to read; refusing to fall back to a directory relative to this module, which is a different roster in every worktree`);
-  }
-  const disagreeing = derived.filter((candidate) => candidate.dir !== derived[0].dir);
-  if (disagreeing.length > 0) {
-    return halt(`the canonical agent roster is derived two ways and they disagree: ${derived.map((candidate) => `${candidate.source} names ${candidate.dir}`).join(', and ')}; one of the two is a roster that is not in force and this resolver cannot tell which; refusing to guess`);
-  }
-  return Object.freeze({ ok: true, dir: derived[0].dir });
+  return resolveCanonicalConfigDir(anchorDir, AGENT_SEGMENTS, AGENT_SUBJECT, io);
 }
 
 export function agentDefinitionDir() {
