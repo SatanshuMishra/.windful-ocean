@@ -80,8 +80,6 @@ No gitignore entry is needed for the new location: `~/.claude/state` is a real d
 4. PR through the centralized `pr-create` tool; merge to `origin/main`.
 5. Must be on `origin/main` before step 4 runs. The migration script asserts this mechanically.
 
-The file removal is confirmation-class in this environment and requires explicit human confirmation before running.
-
 Residual: between merge and cutover the old hook may write newer state to the old path. Re-run the step-2 copy immediately before migrating. Skipping it costs at most one spurious drift line.
 
 ## Step 2 - SessionStart freshness check
