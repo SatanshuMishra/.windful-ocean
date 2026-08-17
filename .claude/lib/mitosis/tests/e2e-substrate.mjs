@@ -39,6 +39,27 @@ export const DECOMPOSE_MARKER = composePrompt('decompose', {
   changeTypes: [...DECOMPOSE_CHANGE_TYPES],
 }).split('\n')[0];
 
+function lastLineOf(text) {
+  const lines = text.split('\n');
+  return lines[lines.length - 1];
+}
+
+export const DIAGNOSE_MARKER = lastLineOf(composePrompt('diagnose', {
+  unitId: 'marker',
+  stage: 'marker',
+  task: 'marker task',
+  evidence: {},
+  triedSet: [],
+  rejectedMechanism: null,
+}));
+
+export const REDISPATCH_MARKER = promptSection('correctedApproach');
+
+export const REMEDIATION_MARKERS = Object.freeze({
+  diagnose: DIAGNOSE_MARKER,
+  redispatch: REDISPATCH_MARKER,
+});
+
 export const SPEC_DOCUMENT_NAME = 'spec.md';
 export const SPEC_DOCUMENT_BODY = 'mitosis end-to-end fixture spec\n';
 export const SUPERPOWERS_VERSION = '1.0.0';
@@ -273,6 +294,24 @@ function requireJudgmentPlan(entry, index) {
   });
 }
 
+const DIAGNOSIS_VERDICTS = Object.freeze(['remediable', 'needs-human']);
+
+function requireDiagnosisPlan(entry, index) {
+  const declared = entry.diagnosis;
+  if (declared === undefined) return null;
+  if (declared === null || typeof declared !== 'object' || Array.isArray(declared)) {
+    throw new TypeError(`e2e-substrate: unit plan ${index} declares a diagnosis that is not an object, so the stub would answer a diagnose dispatch with facts nobody wrote`);
+  }
+  if (declared.verdict !== undefined && !DIAGNOSIS_VERDICTS.includes(declared.verdict)) {
+    throw new TypeError(`e2e-substrate: unit plan ${index} declares the diagnosis verdict ${JSON.stringify(declared.verdict)}, which is neither ${DIAGNOSIS_VERDICTS.join(' nor ')}`);
+  }
+  return Object.freeze({
+    verdict: declared.verdict,
+    mechanism: declared.mechanism,
+    correctedTask: declared.correctedTask,
+  });
+}
+
 function requireUnitPlan(entry, index) {
   if (entry === null || typeof entry !== 'object' || Array.isArray(entry)) {
     throw new TypeError(`e2e-substrate: unit plan ${index} must be an object carrying an id and a behaviour`);
@@ -294,6 +333,7 @@ function requireUnitPlan(entry, index) {
     result: entry.result,
     reason: entry.reason,
     judgment: requireJudgmentPlan(entry, index),
+    diagnosis: requireDiagnosisPlan(entry, index),
     boundaryViolation: entry.boundaryViolation === true,
   });
 }
@@ -327,6 +367,7 @@ function claudePlanEntry(unit, sha) {
     ...(unit.reason === undefined ? {} : { reason: unit.reason }),
     ...(judgment.reviewVerdict === undefined ? {} : { reviewVerdict: judgment.reviewVerdict }),
     ...(judgment.securityVerdict === undefined ? {} : { securityVerdict: judgment.securityVerdict }),
+    ...(unit.diagnosis === null ? {} : { diagnosis: unit.diagnosis }),
     stderr: unit.stderr,
     exitCode: unit.exitCode,
     failExitCode: unit.failExitCode,
@@ -393,6 +434,7 @@ function runDocument(sandbox, units, overrides) {
     specs: units.map((unit) => ({
       id: unit.id,
       prereqs: [...unit.prereqs],
+      task: unitPrompt(unit.id),
       ...(unit.isolation === undefined ? {} : { isolation: unit.isolation }),
       ...(unit.judgment === null ? {} : { judgment: judgmentFacts(sandbox, unit) }),
       request: unitRequest(unit),
@@ -430,6 +472,7 @@ export function planRun(sandbox, unitPlans, overrides = {}) {
   writeFileSync(sandbox.claudePlan, `${JSON.stringify({
     units: planned,
     judgmentMarkers: JUDGMENT_MARKERS,
+    diagnoseMarker: DIAGNOSE_MARKER,
     ...(boundaryFix === undefined ? {} : { boundaryFix }),
   })}\n`);
   writeFileSync(sandbox.specPath, `${JSON.stringify(document)}\n`);
@@ -577,6 +620,24 @@ export function claudeArgvs(sandbox) {
 
 export function claudeArgvsFor(sandbox, unitId) {
   return claudeArgvs(sandbox).filter((argv) => unitIdOfArgv(argv) === unitId);
+}
+
+const BAKED_IMPLEMENT = 'baked-implement';
+
+const COMPOSED_MARKERS = Object.freeze({ ...JUDGMENT_MARKERS, ...REMEDIATION_MARKERS });
+
+function composedKindOf(prompt, unitId) {
+  if (prompt === unitPrompt(unitId)) return BAKED_IMPLEMENT;
+  for (const [kind, marker] of Object.entries(COMPOSED_MARKERS)) {
+    if (typeof prompt === 'string' && prompt.includes(marker)) return kind;
+  }
+  throw new Error(`e2e-substrate: the prompt dispatched for unit ${JSON.stringify(unitId)} is neither the baked implement prompt nor carries the section marker of any composed kind, so the kinds this run composed cannot be established: ${JSON.stringify(prompt)}`);
+}
+
+export function composedKindsFor(sandbox, unitId) {
+  return claudeArgvsFor(sandbox, unitId)
+    .map((argv) => composedKindOf(argv[argv.length - 1], unitId))
+    .filter((kind) => kind !== BAKED_IMPLEMENT);
 }
 
 export function boundaryFixArgvs(sandbox) {

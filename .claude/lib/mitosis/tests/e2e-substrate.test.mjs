@@ -11,6 +11,7 @@ import {
   REPO_SLUG,
   claudeArgvs,
   claudeArgvsFor,
+  composedKindsFor,
   ghArgvs,
   ghArgvsMatching,
   planRun,
@@ -112,7 +113,7 @@ test('the sandbox PATH makes the real claude and the real gh unreachable', () =>
   });
 });
 
-test('a unit the plan fails is redispatched exactly once, parks on the second failure, and writes one park record', () => {
+test('a unit the plan fails is diagnosed, redispatched exactly once, and parks on the second failure without a fourth dispatch', () => {
   withSandbox({}, (sandbox) => {
     planRun(sandbox, [
       { id: 'alpha', behaviour: CLAUDE_BEHAVIOURS.succeed },
@@ -126,15 +127,16 @@ test('a unit the plan fails is redispatched exactly once, parks on the second fa
       { id: 'alpha', state: 'done' },
       { id: 'beta', state: 'parked' },
     ]);
-    assert.equal(claudeArgvsFor(sandbox, 'beta').length, 2);
+    assert.deepEqual(composedKindsFor(sandbox, 'beta'), ['diagnose', 'redispatch']);
+    assert.equal(claudeArgvsFor(sandbox, 'beta').length, 3);
     assert.equal(claudeArgvsFor(sandbox, 'alpha').length, 1);
-    assert.equal(claudeArgvs(sandbox).length, 3);
+    assert.equal(claudeArgvs(sandbox).length, 4);
     assert.equal(readJournal(sandbox).filter((record) => record.kind === 'park').length, 1);
     assert.equal(ghArgvsMatching(sandbox, ['pr', 'view']).length, 1);
   });
 });
 
-test('a unit whose first attempt fails and whose second succeeds is redispatched exactly once and reaches done unparked', () => {
+test('a unit whose first attempt fails and whose second succeeds is rediagnosed once and reaches done on three dispatches', () => {
   withSandbox({}, (sandbox) => {
     planRun(sandbox, [{ id: 'alpha', behaviour: CLAUDE_BEHAVIOURS.failThenSucceed }]);
 
@@ -142,7 +144,8 @@ test('a unit whose first attempt fails and whose second succeeds is redispatched
 
     assert.equal(run.status, 0, run.stderr);
     assert.deepEqual(run.summary.units, [{ id: 'alpha', state: 'done' }]);
-    assert.equal(claudeArgvsFor(sandbox, 'alpha').length, 2);
+    assert.deepEqual(composedKindsFor(sandbox, 'alpha'), ['diagnose', 'redispatch']);
+    assert.equal(claudeArgvsFor(sandbox, 'alpha').length, 3);
     assert.equal(readJournal(sandbox).filter((record) => record.kind === 'park').length, 0);
     assert.equal(readJournal(sandbox).filter((record) => record.kind === 'built').length, 1);
   });
@@ -251,14 +254,15 @@ test('a second attempt resumes the unit the first left parked and leaves the fir
     assert.equal(second.summary.attempt, 2);
     assert.equal(
       dispatched.length,
-      2,
-      `the second run dispatched ${dispatched.length} units (${dispatched.join(', ')}); a run that restarted from the spec would drive alpha as well, and only a run that read the first run's journal drives the parked unit alone across its two attempts`,
+      3,
+      `the second run dispatched ${dispatched.length} children (${dispatched.join(', ')}); a run that restarted from the spec would drive alpha as well, and only a run that read the first run's journal drives the parked unit alone across its attempt, its diagnosis and its corrected re-attempt`,
     );
     assert.deepEqual(
       dispatched,
-      ['beta', 'beta'],
-      'the one unit the second run drives must be the parked beta by name, twice under the redispatch budget, or a restart that happened to dispatch two children would pass this test',
+      ['beta', 'beta', 'beta'],
+      'the one unit the second run drives must be the parked beta by name, three times under the redispatch budget - one attempt, one diagnosis and one corrected re-attempt - or a restart that happened to dispatch three children would pass this test',
     );
+    assert.deepEqual(composedKindsFor(sandbox, 'beta'), ['diagnose', 'redispatch', 'diagnose', 'redispatch']);
     assert.deepEqual(second.summary.units, [{ id: 'beta', state: 'parked' }]);
     assert.equal(second.summary.resume.restarted, false);
     assert.deepEqual(second.summary.resume.pending, ['beta']);

@@ -195,6 +195,30 @@ function succeed() {
   emit(envelope({ structured_output: { sha: unit.sha } }));
 }
 
+const DIAGNOSIS_VERDICTS = ['remediable', 'needs-human'];
+
+function diagnoseMarked() {
+  const marker = plan.diagnoseMarker;
+  if (typeof marker !== 'string' || marker === '') return false;
+  return typeof PROMPT === 'string' && PROMPT.includes(marker);
+}
+
+if (diagnoseMarked()) {
+  const declared = unit.diagnosis === null || typeof unit.diagnosis !== 'object' || Array.isArray(unit.diagnosis) ? {} : unit.diagnosis;
+  const verdict = declared.verdict === undefined ? 'remediable' : declared.verdict;
+  if (!DIAGNOSIS_VERDICTS.includes(verdict)) {
+    refuse(82, 'unit ' + unitId + ' plans the diagnosis verdict ' + JSON.stringify(verdict) + ', which is neither ' + DIAGNOSIS_VERDICTS.join(' nor '));
+  }
+  if (verdict === 'needs-human') emit(envelope({ structured_output: { verdict: verdict } }));
+  emit(envelope({
+    structured_output: {
+      verdict: verdict,
+      mechanism: typeof declared.mechanism === 'string' ? declared.mechanism : 'fixture:redispatch',
+      correctedTask: typeof declared.correctedTask === 'string' ? declared.correctedTask : 'fixture corrected approach for unit ' + unitId,
+    },
+  }));
+}
+
 const judged = markerKind();
 if (judged !== null) {
   const declared = unit[judged + 'Verdict'];
