@@ -1,5 +1,5 @@
 import { selectResumeBuilt, selectResumeUnits } from './parking.mjs';
-import { resolveResumeTarget } from './recovery.mjs';
+import { reconcileShippedSet, resolveResumeTarget } from './recovery.mjs';
 
 const MODULE = 'resume-plan';
 const SHIPPED = 'shipped';
@@ -60,12 +60,26 @@ function shippedByStatus(manifest) {
     .map((msp) => msp.id));
 }
 
-function shippedIds(manifest, reconciled) {
-  if (reconciled === undefined) return shippedByStatus(manifest);
-  if (reconciled instanceof Set) return new Set(reconciled);
-  if (reconciled instanceof Map) return new Set(reconciled.keys());
-  if (Array.isArray(reconciled)) return new Set(reconciled);
-  throw new TypeError(`${MODULE}: the reconciled shipped set must be a Set, a Map or an array of unit ids when it is supplied at all, because an unrecognised shape would silently reconcile nothing and re-drive work that already merged, received ${describe(reconciled)}`);
+function nonEmptyText(value) {
+  return typeof value === 'string' && value.length > 0 ? value : null;
+}
+
+function probeValues(manifest, repoSlug) {
+  const ownerRepo = nonEmptyText(repoSlug);
+  const baseBranch = nonEmptyText(manifest.baseBranch);
+  const sourcePrefix = nonEmptyText(manifest.sourcePrefix);
+  if (ownerRepo === null || baseBranch === null || sourcePrefix === null) return null;
+  return Object.freeze({ ownerRepo, baseBranch, sourcePrefix, repoHost: nonEmptyText(manifest.repoHost) });
+}
+
+async function shippedIds(manifest, plannedIds, request) {
+  const claimed = [...shippedByStatus(manifest)].filter((id) => plannedIds.has(id));
+  if (claimed.length === 0) return new Set();
+  const probe = probeValues(manifest, request.repoSlug);
+  if (probe === null) return new Set();
+  const merged = await request.reconcile(probe);
+  if (!Array.isArray(merged)) return new Set();
+  return new Set(reconcileShippedSet(merged, probe.sourcePrefix, probe.ownerRepo, probe.repoHost).keys());
 }
 
 function resumePointOf(source) {
@@ -98,15 +112,23 @@ function entriesWithin(entries, planned) {
   return entries.filter((entry) => planned.has(entry.unitId)).map((entry) => resumeEntry(entry.unitId, entry));
 }
 
-export function planResume(request) {
+function requireReconcile(value) {
+  if (typeof value !== 'function') {
+    throw new TypeError(`${MODULE}: the resume request needs a reconcile function, because a manifest claiming a unit shipped is a local claim and only the merged set observed from the forge may retire that unit work, received ${describe(value)}`);
+  }
+  return value;
+}
+
+export async function planResume(request) {
   requirePlainObject(request, 'the resume request');
   const planned = requireUnitSpecs(request.specs);
   const runId = requireRunId(request.runId);
+  requireReconcile(request.reconcile);
   const declared = requirePlainObject(request.manifest, 'the planned run manifest');
   const recovered = recoveredManifest(request.journal, runIdentity(declared, runId));
   const manifest = recovered === null ? declared : recovered;
   const plannedIds = new Set(planned.map((spec) => spec.id));
-  const shipped = shippedIds(manifest, request.reconciledShipped);
+  const shipped = await shippedIds(manifest, plannedIds, request);
   const built = entriesWithin(selectResumeBuilt(manifest, shipped, null), plannedIds);
   const parked = entriesWithin(selectResumeUnits(manifest, shipped), plannedIds);
   const parkedById = new Map(parked.map((entry) => [entry.unitId, entry]));
