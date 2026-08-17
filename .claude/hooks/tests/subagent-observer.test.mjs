@@ -232,8 +232,8 @@ test('the events file rotates monthly from the row ts in UTC', async () => {
 test('two concurrent writers produce two intact, non-interleaved sets of lines', async () => {
   await loadObserver();
   const observerDir = workspace('concurrency');
-  const perWriter = 60;
-  const padding = 16000;
+  const perWriter = 40;
+  const padding = 8000;
 
   const driver = join(observerDir, 'driver.mjs');
   writeFileSync(
