@@ -227,14 +227,14 @@
     {
       "id": "c32",
       "text": "DEFERRED: a scope-fence unit reaches a settled successful state, by conditional checkpointing or by never checkpointing, with an acceptance test red before the fix. Never by tolerating a null sha.",
-      "done": false,
+      "done": true,
       "kind": "planned",
       "struck_by": null
     },
     {
       "id": "c33",
       "text": "DEFERRED: the run-engine.mjs duplicate implement prompt composers at :324 and :335 are removed as dead code inside a live module, leaving prompt-execute.mjs as the single composer.",
-      "done": false,
+      "done": true,
       "kind": "planned",
       "struck_by": null
     }
@@ -246,8 +246,8 @@
   "closure_statement": null,
   "spine": {
     "active_goal": "Get /mitosis running end to end, with every phase, the pull-request and merge path, and failure handling all thoroughly tested.",
-    "next_step": "Continue the linear stack from its tip. FIRST check in-flight work: worktree .claude/worktrees/m5-resume held M5 (journal fold and resume) and M6 (reconcile outranks the journal) at session end - read the PR list and its git log before redispatching. Then M7 compose-at-dispatch, M8 integrate, M9 pr-create, M10 serialize ship, M11 park, M12 bounded redispatch, M13 e2e, M14 retire fix, M15 ci-to-green. Rebuild the implementer brief from 0497, 0499, 0502, 0504 and PRs #158, #159, #162.",
-    "last_session": "Shipped M1-M4 as stacked PRs #156-#160 and #162: scope-fence sha, prompt twins, the eight-phase driver, the e2e substrate, the g11 tripwire disable, durable dispatch-start records. C7 items J1 and J2 proved PHANTOM - appendRunJournal exists nowhere. M5+M6 in flight. Nothing merged.",
+    "next_step": "M7 (compose prompts at dispatch) was building in .claude/worktrees/m7-compose off the now-MERGED feat/mitosis-reconcile-resume, so its PR targets a dead base - restack onto main by cherry-picking only its own commit, retarget or reopen against main, then delete that branch. Cut every later MSP off CURRENT main targeting main. Remaining: M8 integrate, M9 pr-create, M10 serialize, M11 park, M12 redispatch, M13 e2e, M14 retire fix, M15 ci-to-green, plus an UNOWNED MSP for plan/plan-review/replan.",
+    "last_session": "Shipped and MERGED M1-M6 (PRs #156-#160, #167, #165, #168): scope-fence sha, prompt twins, the eight-phase driver, the e2e substrate, the g11 tripwire disable, durable dispatch-start records, journal resume, and reconcile-outranks-journal. c32 and c33 close. M7 in flight.",
     "open_risks": [
       {
         "text": "Prove a merge arrived by asserting its CONTENT is on the base, never by SHA ancestry — a squash or stack merge rewrites commits, so a pre-merge SHA correctly fails an ancestry check on a merge that lost nothing",
@@ -821,5 +821,5 @@
     ]
   },
   "created_at": "2026-08-12T07:37:41.077Z",
-  "updated_at": "2026-08-17T06:01:28.217Z"
+  "updated_at": "2026-08-17T06:35:13.827Z"
 }
