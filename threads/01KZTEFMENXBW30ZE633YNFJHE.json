@@ -955,6 +955,11 @@
         "ref": "0542-the-model-catches-hidden-coupling-the-plumbing-cannot",
         "title": "The model caught an undeclared dependency the plumbing cannot see, and review caught the hazard it then created",
         "scope": "c28"
+      },
+      {
+        "ref": "0545-audit-fix-directives-no-doubles-stacked-prs",
+        "title": "The six audit fixes proceed under four user directives: no constants, no doubles, ordered ship, stacked by default",
+        "scope": "c28"
       }
     ],
     "out_of_scope": [
@@ -966,5 +971,5 @@
     ]
   },
   "created_at": "2026-08-12T07:37:41.077Z",
-  "updated_at": "2026-08-17T18:50:30.382Z"
+  "updated_at": "2026-08-17T23:29:51.241Z"
 }
