@@ -198,6 +198,7 @@ test('a main-thread dispatch has a null parent and the payload agent type surviv
   const transcriptPath = plantSidecar(dir, sessionId, agentId, { agentType: 'implementer', spawnDepth: 1 });
 
   const attributed = buildRow(stopPayload({ transcript_path: transcriptPath, agent_id: agentId }));
+  assertFieldTypes(attributed);
   assert.equal(attributed.parent_agent_id, null);
   assert.equal(attributed.depth, 1);
   assert.equal(attributed.agent_type, 'implementer');
@@ -211,10 +212,13 @@ test('a main-thread dispatch has a null parent and the payload agent type surviv
   assert.equal(orphan.depth, null);
 });
 
-test('a traversal-shaped agent id never becomes a sidecar read path', async () => {
+test('neither half of the sidecar path may be traversal-shaped', async () => {
   const { sidecarPath } = await loadObserver();
-  assert.equal(sidecarPath('/tmp/session.jsonl', '../../../../etc/passwd'), null);
   assert.equal(sidecarPath('/tmp/session.jsonl', 'ok_id-1'), '/tmp/session/subagents/agent-ok_id-1.meta.json');
+  assert.equal(sidecarPath('/tmp/session.jsonl', '../../../../etc/passwd'), null);
+  assert.equal(sidecarPath('/tmp/a/../../../etc/session.jsonl', 'ok_id-1'), null);
+  assert.equal(sidecarPath('/tmp/./session.jsonl', 'ok_id-1'), null);
+  assert.equal(sidecarPath('relative/session.jsonl', 'ok_id-1'), null);
   assert.equal(sidecarPath('/tmp/session.txt', 'ok_id-1'), null);
 });
 

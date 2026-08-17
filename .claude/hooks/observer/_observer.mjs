@@ -24,6 +24,7 @@ export function eventsFile(ts) {
 
 export function sidecarPath(transcriptPath, agentId) {
   if (typeof transcriptPath !== "string" || !transcriptPath.endsWith(".jsonl")) return null;
+  if (!path.isAbsolute(transcriptPath) || path.normalize(transcriptPath) !== transcriptPath) return null;
   if (typeof agentId !== "string" || !AGENT_ID_PATTERN.test(agentId)) return null;
   const base = transcriptPath.slice(0, -".jsonl".length);
   return path.join(base, "subagents", `agent-${agentId}.meta.json`);
