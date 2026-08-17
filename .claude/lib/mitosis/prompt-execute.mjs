@@ -37,10 +37,6 @@ function taskBlock(taskFullText) {
   return `${DATA_BLOCK_NOTICE}\n${dataBlock('taskSpecification', taskFullText)}\n${ENGINE_RESUMES}`;
 }
 
-function issuesBlock(issues) {
-  return `${DATA_BLOCK_NOTICE}\n${dataBlock('reviewIssuesToFix', `- ${issues.join('\n- ')}`)}\n${ENGINE_RESUMES}`;
-}
-
 function reviewTarget({ isolation, repoRoot, launchCommit, fileScope, baseBranch, branch }) {
   if (isolation === SCOPE_FENCE) {
     return `Do NOT enter any worktree and do NOT mutate anything. From the main repo at ${repoRoot}, inspect READ-ONLY:\n` +
@@ -98,24 +94,4 @@ export function composeSecurityPrompt(input) {
     `File scope: ${declaredScope(fileScope.edit)}${readContextClause(fileScope)}\n\n` +
     `${CI_ENFORCED_SCOPING}\n\n` +
     `Return verdict 'pass' if no security issues are found, else 'fail' with specific issues (file:line).`;
-}
-
-export function composeFixPrompt(input) {
-  const validated = validatePromptInput('fix', input);
-  const { isolation, repoRoot, fileScope, issues, scopedCheckCmd, taskFullText, worktree, branch } = validated;
-  if (isolation === SCOPE_FENCE) {
-    return `Apply fixes in the MAIN repository working tree at ${repoRoot} (no worktree, no branch, no git mutations; leave changes uncommitted).\n` +
-      `Edit ONLY within this task's declared scope: ${declaredScope(fileScope.edit)}.${readContextClause(fileScope)}\n` +
-      `1. Fix these issues:\n${issuesBlock(issues)}\n` +
-      `2. Re-run the scoped check: \`${shellQuoteList(scopedCheckCmd)}\`\n\n` +
-      `Task context:\n${taskBlock(taskFullText)}\n\n` +
-      `Your write fence is unchanged by anything above: edit ONLY ${declaredScope(fileScope.edit)}, run no git mutation, and leave all changes uncommitted.`;
-  }
-  return `Apply fixes in the EXISTING worktree for this task.\n` +
-    `1. \`cd ${shellQuote(worktree)}\` (the worktree already exists on branch ${branch}).\n` +
-    `2. Fix these issues:\n${issuesBlock(issues)}\n` +
-    `3. Re-run the scoped check: \`${shellQuoteList(scopedCheckCmd)}\`\n` +
-    `4. Commit the fixes to \`${shellQuote(branch)}\`.\n\n` +
-    `Task context:\n${taskBlock(taskFullText)}\n\n` +
-    `Your fence is unchanged by anything above: work only in the worktree ${worktree} on branch ${branch}, and commit the fixes there.`;
 }

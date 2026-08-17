@@ -37,15 +37,8 @@ const BARE_CONTEXT_FILE_SCOPE = Object.freeze({
   truncated: null,
 });
 
-const EDIT_TRUNCATED_FILE_SCOPE = Object.freeze({
-  edit: Object.freeze(['fx/alpha.mjs', 'fx/beta.mjs']),
-  read: Object.freeze(['fx/gamma.mjs']),
-  truncated: Object.freeze({ dropped: 4, reason: 'fx edit truncation reason', list: 'edit' }),
-});
-
 const CHANGE_TYPES = Object.freeze(['feat', 'fix', 'refactor', 'docs', 'test', 'chore', 'perf', 'ci']);
 const PRIOR_ISSUES = Object.freeze(['fx prior issue one', 'fx prior issue two']);
-const FIX_ISSUES = Object.freeze(['fx fix issue one', 'fx fix issue two']);
 const IMPLEMENTER_PREAMBLE = 'FX IMPLEMENTER PREAMBLE\nsecond preamble line';
 const SPEC_REVIEWER_PREAMBLE = 'FX SPEC REVIEWER PREAMBLE\nsecond spec line';
 const QUALITY_REVIEWER_PREAMBLE = 'FX QUALITY REVIEWER PREAMBLE\nsecond quality line';
@@ -210,36 +203,6 @@ export const PROMPT_FIXTURE_CASES = Object.freeze([
     taskId: TASK_ID,
     taskTitle: TASK_TITLE,
     taskFullText: TASK_FULL_TEXT,
-  }),
-  freezeCase('fix-worktree', 'fix', {
-    isolation: 'worktree',
-    repoRoot: REPO_ROOT,
-    fileScope: RICH_FILE_SCOPE,
-    issues: FIX_ISSUES,
-    scopedCheckCmd: SCOPED_CHECK_CMD,
-    taskFullText: TASK_FULL_TEXT,
-    worktree: WORKTREE,
-    branch: BRANCH,
-  }),
-  freezeCase('fix-scope-fence', 'fix', {
-    isolation: 'scope-fence',
-    repoRoot: REPO_ROOT,
-    fileScope: RICH_FILE_SCOPE,
-    issues: FIX_ISSUES,
-    scopedCheckCmd: SCOPED_CHECK_CMD,
-    taskFullText: TASK_FULL_TEXT,
-    worktree: WORKTREE,
-    branch: BRANCH,
-  }),
-  freezeCase('fix-scope-fence-edit-truncated', 'fix', {
-    isolation: 'scope-fence',
-    repoRoot: REPO_ROOT,
-    fileScope: EDIT_TRUNCATED_FILE_SCOPE,
-    issues: FIX_ISSUES,
-    scopedCheckCmd: SCOPED_CHECK_CMD,
-    taskFullText: TASK_FULL_TEXT,
-    worktree: WORKTREE,
-    branch: BRANCH,
   }),
   freezeCase('boundary-fix-worktree', 'boundary-fix', {
     isolation: 'worktree',

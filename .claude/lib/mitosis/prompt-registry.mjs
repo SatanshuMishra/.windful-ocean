@@ -6,7 +6,6 @@ import {
   composeReplanPrompt,
 } from './prompt-plan.mjs';
 import {
-  composeFixPrompt,
   composeImplementPrompt,
   composeReviewPrompt,
   composeSecurityPrompt,
@@ -29,7 +28,6 @@ export const PROMPT_COMPOSERS = Object.freeze({
   implement: composeImplementPrompt,
   review: composeReviewPrompt,
   security: composeSecurityPrompt,
-  fix: composeFixPrompt,
   'boundary-fix': composeBoundaryFixPrompt,
   'ci-fix': composeCiFixPrompt,
   diagnose: composeDiagnosePrompt,
