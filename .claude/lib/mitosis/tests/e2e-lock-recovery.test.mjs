@@ -94,6 +94,37 @@ test('a lock-scoped retire over a run with no lock and over a run that never exi
   });
 });
 
+test('an unscoped retire removes the whole run directory and reports the removal, with lockCleared tracking whether a lock went with it', () => {
+  withSandbox({}, (sandbox) => {
+    planRun(sandbox, ONE_UNIT);
+    assert.equal(runMitosisCli(sandbox).status, 0);
+    const runKey = runKeyOf(sandbox);
+    const runDir = runDirOf(sandbox, runKey);
+
+    assert.deepStrictEqual(retire({ root: sandbox.repo, runKey }), {
+      runDir: { path: runDir, removed: true, lockWasHeld: false, lockCleared: false },
+      deletedRefs: [],
+    });
+    assert.equal(existsSync(runDir), false, 'the unscoped retire actually removed the directory it reported removing');
+  });
+});
+
+test('an unscoped forced retire over a held lock removes the directory and reports the lock cleared with it', () => {
+  withSandbox({}, (sandbox) => {
+    planRun(sandbox, ONE_UNIT);
+    assert.equal(runMitosisCli(sandbox).status, 0);
+    const runKey = runKeyOf(sandbox);
+    const runDir = runDirOf(sandbox, runKey);
+    plantLock(runDir, runKey);
+
+    assert.deepStrictEqual(retire({ root: sandbox.repo, runKey, force: true }), {
+      runDir: { path: runDir, removed: true, lockWasHeld: true, lockCleared: true },
+      deletedRefs: [],
+    });
+    assert.equal(existsSync(runDir), false, 'the forced unscoped retire removed the whole directory, lock included');
+  });
+});
+
 test('the lock scope needs a run directory to scope to, and is refused when only refs were named', () => {
   assert.throws(
     () => retire({ repoRoot: '/repo', runId: 'a1b2c3d4', lock: true, force: true }),
