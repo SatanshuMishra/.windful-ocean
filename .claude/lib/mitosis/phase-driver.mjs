@@ -108,7 +108,7 @@ function isolationById(spec) {
 }
 
 function runIdentityOf(manifest, runId) {
-  const declared = manifest === null || typeof manifest !== 'object' ? undefined : manifest.logicalRunId;
+  const declared = manifest?.logicalRunId;
   return typeof declared === 'string' && declared.length > 0 ? declared : runId;
 }
 

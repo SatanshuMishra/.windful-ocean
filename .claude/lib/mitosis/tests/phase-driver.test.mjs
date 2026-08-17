@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { pack } from './file-scope-fixtures.mjs';
 import { Done } from '../boundary.mjs';
 import { runPhases } from '../phase-driver.mjs';
+import { composePrompt } from '../prompt-registry.mjs';
 
 function runRequest() {
   return {
@@ -118,6 +119,74 @@ test('a built unit is gated once against the declared base branch, and integrate
     stage: null,
     resumePoint: { branch: null, ref: null, stage: 'ship' },
   }]);
+});
+
+function digitLedRequest() {
+  return {
+    ...runRequest(),
+    spec: {
+      manifest: { logicalRunId: '9f0', clusters: [], msps: [{ id: '9delta' }] },
+      specs: [{ id: '9delta', fileScope: pack(['delta.mjs']), request: { prompt: 'do delta' }, isolation: 'scope-fence' }],
+    },
+  };
+}
+
+const DIGIT_LED_JOURNAL = Object.freeze({
+  logicalRunId: '9f0',
+  baseBranch: '0main',
+  clusters: [],
+  msps: [{ id: '9delta', status: 'built' }],
+});
+
+test('a run, a unit and a base branch a digit opens are keyed into the gate exactly as written', async () => {
+  const stub = stubbedPorts({ readJournal: () => DIGIT_LED_JOURNAL });
+  const driven = await runPhases(digitLedRequest(), stub.ports);
+  assert.deepEqual(stub.gated, [{
+    repoRoot: '/repo',
+    gateBase: '0main',
+    basePath: '/repo/.mitosis/boundary/9f0/9delta',
+  }]);
+  assert.deepEqual(driven.phases.Integrate.integrated.map((entry) => entry.unitId), ['9delta']);
+  assert.deepEqual(driven.phases.Integrate.parked, []);
+});
+
+const EMPTY_INTEGRATE = Object.freeze({
+  integrated: [],
+  parked: [],
+  diverged: [],
+  divergedParents: [],
+  outcomes: [],
+});
+
+test('a manifest whose declared run identity is empty keys the gate path on the harness run id, which Integrate accepts as a run id', async () => {
+  const request = digitLedRequest();
+  const spec = { ...request.spec, manifest: { ...request.spec.manifest, logicalRunId: '' } };
+  const stub = stubbedPorts();
+  const driven = await runPhases({ ...request, spec }, stub.ports);
+  assert.deepEqual(driven.phases.Integrate, EMPTY_INTEGRATE);
+  assert.deepEqual(stub.gated, []);
+});
+
+test('the boundary-fix prompt carries the isolation the unit declared, not the mode a missing entry would default to', async () => {
+  const outputs = ['the boundary finding', 'no new finding'];
+  const stub = stubbedPorts({
+    readJournal: () => DIGIT_LED_JOURNAL,
+    boundaryGate: (request) => {
+      stub.gated.push(request);
+      const output = outputs[stub.gated.length - 1];
+      return { pass: output === 'no new finding', output, blocking: [], baseCensus: null };
+    },
+  });
+  const driven = await runPhases(digitLedRequest(), stub.ports);
+  assert.deepEqual(stub.dispatched.map((request) => request.cwd), ['/repo']);
+  assert.equal(stub.dispatched[0].prompt, composePrompt('boundary-fix', {
+    repoRoot: '/repo',
+    baseBranch: '0main',
+    integrationWorktree: '/repo',
+    gateOutput: 'the boundary finding',
+    isolation: 'scope-fence',
+  }));
+  assert.deepEqual(driven.phases.Integrate.outcomes.map((entry) => [entry.unitId, entry.state, entry.boundaryFixes]), [['9delta', 'integrated', 1]]);
 });
 
 test('Resume plans the whole spec when no journal names this run, and hands Execute that plan rather than the spec', async () => {
