@@ -815,6 +815,11 @@
         "ref": "0512-overnight-autonomy-grants-for-the-remaining-stack",
         "title": "Overnight autonomy: one CI fix attempt, and scoped destructive repair",
         "scope": "thread"
+      },
+      {
+        "ref": "0514-g14-equivalent-mutant-has-no-compliant-channel",
+        "title": "G14's equivalent-mutant declaration has no compliant channel, and is proposed as a gap",
+        "scope": "c28"
       }
     ],
     "out_of_scope": [
@@ -826,5 +831,5 @@
     ]
   },
   "created_at": "2026-08-12T07:37:41.077Z",
-  "updated_at": "2026-08-17T06:39:51.307Z"
+  "updated_at": "2026-08-17T08:17:21.296Z"
 }
