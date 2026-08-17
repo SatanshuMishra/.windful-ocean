@@ -6,7 +6,7 @@ The orchestrating workflow. Detail lives in the spokes — read the relevant one
 - Branching: `rules/common/git/branching.md`
 
 Attribution is disabled globally via `~/.claude/settings.json`; never add AI co-author attribution.
-Commits and pushes are autonomous: commit frequently and atomically as work lands, never waiting to be asked. Destructive git operations require explicit confirmation.
+Commits and pushes are autonomous: commit frequently and atomically as work lands, never waiting to be asked.
 
 ## Feature Implementation Workflow
 
