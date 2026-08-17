@@ -11,6 +11,62 @@ function readStdin() {
   }
 }
 
+const MARKER_PATTERN = /CAPABILITY-BLOCKED:[^\S\n]*needed=(.+?)[^\S\n]+task=([^\n]*)/;
+const PLACEHOLDER_PATTERN = /^<[^>]*>$/;
+
+function markerFrom(text) {
+  if (typeof text !== "string" || !text) return null;
+  const m = text.match(MARKER_PATTERN);
+  if (!m) return null;
+  const needed = m[1].trim();
+  const task = m[2].trim();
+  if (!needed || PLACEHOLDER_PATTERN.test(needed)) return null;
+  return { needed: needed.slice(0, 300), task: task.slice(0, 300) };
+}
+
+function textBlocks(content) {
+  if (typeof content === "string") return content;
+  if (!Array.isArray(content)) return "";
+  return content
+    .filter((b) => b && b.type === "text" && typeof b.text === "string")
+    .map((b) => b.text)
+    .join("\n");
+}
+
+function finalAssistantText(file) {
+  if (typeof file !== "string" || !file) return "";
+  let raw;
+  try {
+    raw = fs.readFileSync(file, "utf-8");
+  } catch {
+    return "";
+  }
+  const lines = raw.split("\n");
+  for (let i = lines.length - 1; i >= 0; i--) {
+    if (!lines[i].trim()) continue;
+    let msg;
+    try {
+      msg = JSON.parse(lines[i]);
+    } catch {
+      continue;
+    }
+    if (!msg || typeof msg !== "object") continue;
+    const role = (msg.message && msg.message.role) || msg.role;
+    if (role !== "assistant") continue;
+    const text = textBlocks((msg.message && msg.message.content) || msg.content);
+    if (text.trim()) return text;
+  }
+  return "";
+}
+
+function detectCapabilityBlocked(d) {
+  try {
+    return markerFrom(d.last_assistant_message) || markerFrom(finalAssistantText(d.agent_transcript_path));
+  } catch {
+    return null;
+  }
+}
+
 function main() {
   if (process.env.AGENT_LEDGER_SUPPRESS) return;
   let d;
@@ -39,8 +95,8 @@ function main() {
     redundantReads = 0,
     tokens = 0,
     sawTokens = false,
-    capBlocked = null,
     prevHash = null;
+  const capBlocked = detectCapabilityBlocked(d);
   const seen = new Map();
   const reads = new Map();
   for (const ln of lines) {
@@ -59,10 +115,6 @@ function main() {
     }
     if (!Array.isArray(content)) continue;
     for (const b of content) {
-      if (b && b.type === "text" && typeof b.text === "string") {
-        const m = b.text.match(/CAPABILITY-BLOCKED:\s*needed=(\S+)\s+task=(.*)/);
-        if (m) capBlocked = { needed: m[1], task: m[2].slice(0, 300) };
-      }
       if (b && b.type === "tool_use") {
         toolCalls++;
         const h = b.name + ":" + JSON.stringify(b.input || {});
