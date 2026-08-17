@@ -252,6 +252,11 @@
         "ref": "0505-claude-in-chrome-reproduces-the-artifact-is-an-obligation",
         "title": "Claude in Chrome reproduces; the re-runnable artifact is the investigator's obligation, not the tool's",
         "scope": "c3"
+      },
+      {
+        "ref": "0506-update-plugins-then-clean-accept-the-pinned-remainder",
+        "title": "Update plugins first then clean; reclaim 110 MB and accept 27 MB pinned by a dead worktree",
+        "scope": "thread"
       }
     ],
     "out_of_scope": [
@@ -261,5 +266,5 @@
     ]
   },
   "created_at": "2026-08-16T05:43:25.829Z",
-  "updated_at": "2026-08-17T05:34:29.509Z"
+  "updated_at": "2026-08-17T05:34:41.065Z"
 }
