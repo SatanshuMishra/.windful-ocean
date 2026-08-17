@@ -165,3 +165,48 @@ test('a side file the routing table does not name is still censused for bare ref
   assertRed(result, 'SKILL_REFERENCE_BARE');
   assert.ok(result.stderr.includes('unrouted.md'), `expected the unrouted file to be named in ${result.stderr}`);
 });
+
+const SHIPPED_AUDITOR = fileURLToPath(new URL('../../../.claude/skills/conformance-auditor', import.meta.url));
+
+function lintAll(roots) {
+  const result = spawnSync(process.execPath, [LINT, ...roots], { encoding: 'utf8' });
+  if (result.error) assert.fail(`the lint could not be spawned: ${result.error.message}`);
+  return Object.freeze({ status: result.status, stdout: result.stdout, stderr: result.stderr });
+}
+
+test('the shipped conformance-auditor skill passes the same lint as platform-engineer', () => {
+  const result = lint(SHIPPED_AUDITOR);
+  assert.equal(result.status, 0, `the shipped conformance-auditor failed the lint: ${result.stderr}`);
+  assert.match(result.stdout, /4 routed side files present/);
+});
+
+test('both shipped router skills are covered by one invocation, and the count is reported', () => {
+  const result = lintAll([SHIPPED_SKILL, SHIPPED_AUDITOR]);
+  assert.equal(result.status, 0, result.stderr);
+  assert.ok(result.stdout.includes(SHIPPED_SKILL), `expected platform-engineer in ${result.stdout}`);
+  assert.ok(result.stdout.includes(SHIPPED_AUDITOR), `expected conformance-auditor in ${result.stdout}`);
+  assert.match(result.stdout, /OK 2 skill router\(s\) linted/);
+});
+
+test('one bad root fails the whole run while the good root is still reported', (t) => {
+  const broken = buildFixture({ omitSideFile: true });
+  t.after(() => rmSync(broken.base, { recursive: true, force: true }));
+
+  const result = lintAll([SHIPPED_SKILL, broken.root]);
+  assert.equal(result.status, 1, `a failing root must fail the run: ${result.stdout}`);
+  assert.ok(result.stderr.includes('ROUTING_SIDE_FILE_MISSING'), result.stderr);
+  assert.ok(result.stdout.includes(SHIPPED_SKILL), `the passing root must still be reported: ${result.stdout}`);
+  assert.doesNotMatch(result.stdout, /skill router\(s\) linted/);
+});
+
+test('naming the same skill twice is refused rather than double-counted', () => {
+  const result = lintAll([SHIPPED_SKILL, SHIPPED_SKILL]);
+  assert.equal(result.status, 2);
+  assert.match(result.stderr, /named more than once, so the census would count them twice/);
+});
+
+test('an invocation with no skill directory at all is a usage failure, not an empty pass', () => {
+  const result = lintAll([]);
+  assert.equal(result.status, 2, `linting nothing must not report success: ${result.stdout}`);
+  assert.match(result.stderr, /at least one skill directory is required/);
+});

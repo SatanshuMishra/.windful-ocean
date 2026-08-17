@@ -5,7 +5,7 @@ import { parseSkillReference } from '../../.claude/lib/mitosis/agent-skill-point
 
 const MAX_SKILL_BYTES = 4096;
 const SKILL_FILE = 'SKILL.md';
-const USAGE = 'usage: skill-router-lint.mjs <skill-directory>';
+const USAGE = 'usage: skill-router-lint.mjs <skill-directory> [<skill-directory> ...]';
 const DELIMITER = '---';
 const REQUIRED_FIELDS = Object.freeze(['name', 'description']);
 const ROUTING_HEADER = Object.freeze(['Duty', 'Procedure']);
@@ -225,18 +225,25 @@ function lintSkillRouter(root) {
 }
 
 function main(argv) {
-  if (argv.length !== 1 || argv[0].startsWith('-')) {
-    throw new UsageError(`exactly one skill directory is required. ${USAGE}`);
+  if (argv.length === 0 || argv.some((value) => value.startsWith('-'))) {
+    throw new UsageError(`at least one skill directory is required, and no argument may be a flag. ${USAGE}`);
   }
-  const root = resolve(argv[0]);
-  const result = lintSkillRouter(root);
-  if (result.problems.length > 0) {
-    process.stderr.write(`${result.problems.length} problem(s) linting the skill router at ${root}:\n`);
-    for (const problem of result.problems) process.stderr.write(`  ${problem}\n`);
-    return 1;
+  const roots = argv.map((value) => resolve(value));
+  const repeated = roots.filter((root, index) => roots.indexOf(root) !== index).sort();
+  if (repeated.length > 0) {
+    throw new UsageError(`these skill directories were named more than once, so the census would count them twice: ${[...new Set(repeated)].join(', ')}`);
   }
-  const { bytes, files, rows, references } = result.summary;
-  process.stdout.write(`OK ${root}: ${SKILL_FILE} ${bytes} bytes (limit ${MAX_SKILL_BYTES}), ${rows} routed side files present, ${references} qualified skill reference(s) across ${files} markdown file(s)\n`);
+  const audited = roots.map((root) => Object.freeze({ root, result: lintSkillRouter(root) }));
+  for (const entry of audited.filter((item) => item.result.problems.length > 0)) {
+    process.stderr.write(`${entry.result.problems.length} problem(s) linting the skill router at ${entry.root}:\n`);
+    for (const problem of entry.result.problems) process.stderr.write(`  ${problem}\n`);
+  }
+  for (const entry of audited.filter((item) => item.result.problems.length === 0)) {
+    const { bytes, files, rows, references } = entry.result.summary;
+    process.stdout.write(`OK ${entry.root}: ${SKILL_FILE} ${bytes} bytes (limit ${MAX_SKILL_BYTES}), ${rows} routed side files present, ${references} qualified skill reference(s) across ${files} markdown file(s)\n`);
+  }
+  if (audited.some((entry) => entry.result.problems.length > 0)) return 1;
+  process.stdout.write(`OK ${audited.length} skill router(s) linted\n`);
   return 0;
 }
 
