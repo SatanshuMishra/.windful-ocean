@@ -56,9 +56,9 @@
   "abandoned_reason": null,
   "closure_statement": null,
   "spine": {
-    "active_goal": "Execute the SPEC's 17 units: waves 0 to 3 now, waves 4 to 7 once the mitosis engine lands on main.",
-    "next_step": "START HERE. Implement SPEC waves 0 to 3 in wave order, one pull request per unit, human-merged: U0.1 archive the telemetry; U1.1 fix the agent-directory resolver BEFORE U1.2 and U1.3; U2.1 and U2.2 author the two missing skills; U3.1 through U3.4 rebuild the observer, U3.4 last because it is the only non-additive unit. Do NOT start waves 4 to 7 until the mitosis engine is on main. SPEC: .claude/docs/specs/2026-08-17-agent-roster-rebuild.md",
-    "last_session": "Architecture approved, c3 closed, SPEC written: 17 units in 8 waves. PRs 153, 154 and 155 merged and verified in force. Eight decisions recorded (0495 to 0507). A sweep of all 18 records found 5 moved premises, including two of my own.",
+    "active_goal": "Ship SPEC waves 0 to 3 as one human-merged pull request per unit, dispatched per unit rather than through the mitosis engine.",
+    "next_step": "WAIT for the user's specific instructions. Do NOT auto-resume and do NOT pick up the next unit. Wave 1 is fully built but unmerged: PRs 164, 170, 171 and 173 are open, and 163 and 166 are merged and in force. If told to continue: merge 173 before 171, and 170 is what unblocks U1.2, the last wave-1 unit. Wave 2 needs all of wave 1 merged. Before U3.1 is briefed the observer record contract needs a decision, because seven of its 22 fields cannot be read from a hook.",
+    "last_session": "Built wave 0 and all of wave 1 plus two units the SPEC lacked. PRs 163 and 166 merged and verified in force; 164, 170, 171 and 173 open. Five decisions recorded. Found U3.2's premise false and seven observer fields unreachable from a hook.",
     "open_risks": [
       {
         "text": "Never read `emitter` in the events log as a measurement — it is a hardcoded constant on every row, and treating it as signal already produced one wrong conclusion",
@@ -106,7 +106,46 @@
         ]
       },
       {
-        "text": "Waves 4 to 7 are blocked until the mitosis engine is merged to main — the rebuild targets that engine, not the one being deleted, so a roster built first is wasted work; verify by ancestry, never by a MERGED label",
+        "text": "Decide the observer record contract before briefing U3.1 — seven of its 22 fields cannot be read from a hook, and U3.2's acceptance names a parent field that SubagentStart does not carry, so that unit cannot pass as written",
+        "scope": "c4",
+        "refs": [
+          "SPEC units U3.1 and U3.2",
+          "decision 0510"
+        ]
+      },
+      {
+        "text": "Merge PR 173 before PR 171 — 173 moves the canonical resolver into a new module while 171 imports from it, so the other order makes the second one rebase onto a refactor it has never seen",
+        "scope": "c4",
+        "refs": [
+          "PR 173",
+          "PR 171"
+        ]
+      },
+      {
+        "text": "Merge origin/main into every branch before opening its pull request — the receipts G11 gate diffs the current main tip against the head, so files main gained after the branch point read as deletions and it blocks naming files the branch never touched",
+        "scope": "c4",
+        "refs": [
+          "observed on PR 164 and PR 173"
+        ]
+      },
+      {
+        "text": "PR 164 cannot go green as it stands — its honest ladder downgrade has nowhere to live, because the enforcer reads the tag from the pull request body, a label does not satisfy it, bodies cannot be edited after creation, and pr-create has no flag for it",
+        "scope": "c4",
+        "refs": [
+          "PR 164",
+          "background chip filed for the tooling gap"
+        ]
+      },
+      {
+        "text": "U3.4 has a component no pull request can deliver — the observer's hook is registered in two settings files and the global one is a real file outside version control, so retiring the old observer needs a hand edit there",
+        "scope": "c4",
+        "refs": [
+          "the user-level settings.json",
+          "SPEC unit U3.4"
+        ]
+      },
+      {
+        "text": "Waves 4 to 7 stay blocked until the mitosis engine is on main — engine work is landing steadily now, so check by ancestry rather than by a MERGED label or by the SPEC's snapshot, which is already out of date",
         "scope": "c4",
         "refs": [
           "SPEC section 5a",
@@ -114,15 +153,15 @@
         ]
       },
       {
-        "text": "Ship U1.1 before any census unit — agentDefinitionDir resolves the roster relative to its own module path and all 18 worktrees carry independent copies, so until it is fixed a census can silently pass against a stale roster",
+        "text": "The drift check U1.3 shipped never runs against this machine's real plugin manifest — CI has no plugins installed so every test is hermetic, which proves the mechanism but would still let a real plugin upgrade break pointers silently",
         "scope": "c4",
         "refs": [
-          ".claude/lib/mitosis/agent-schema-lint.mjs:14",
-          "SPEC unit U1.1"
+          "PR 171",
+          "needed before wave 4 puts real pointers in real bodies"
         ]
       },
       {
-        "text": "R13 applies to the Lead band only and its mitigation is detection, not prevention — a Lead can complete work without reading the procedure its duty names, and that is visible only once U3.3 lands",
+        "text": "R13 applies to the Lead band only and its mitigation is detection, not prevention — a Lead can finish work without reading the procedure its duty names, and that only becomes visible once U3.3 lands",
         "scope": "c4",
         "refs": [
           "SPEC section 6b",
@@ -133,9 +172,8 @@
         "text": "Read decisions 0500, 0501 and 0503 together before citing any other record — three records repeat a disproven statistic, 0488 pins five schema-capable agents as seven, and 0503 supersedes 0501's preload assignments",
         "scope": "c4",
         "refs": [
-          "decision 0501 is the approved definition",
-          "decision 0500 carries the corrections",
-          "decision 0503 changes delivery"
+          "0501 is the approved definition",
+          "0500 carries the corrections"
         ]
       }
     ],
@@ -292,5 +330,5 @@
     ]
   },
   "created_at": "2026-08-16T05:43:25.829Z",
-  "updated_at": "2026-08-17T13:31:07.095Z"
+  "updated_at": "2026-08-17T13:32:41.568Z"
 }
