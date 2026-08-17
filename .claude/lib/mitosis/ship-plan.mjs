@@ -35,7 +35,6 @@ const DELETIONS = /(\d+) deletions?\(-\)/;
 
 function describe(value) {
   if (value === null) return 'null';
-  if (value === undefined) return 'undefined';
   return Array.isArray(value) ? 'an array' : typeof value;
 }
 
