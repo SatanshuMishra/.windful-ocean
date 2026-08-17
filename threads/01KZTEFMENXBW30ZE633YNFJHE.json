@@ -886,6 +886,11 @@
         "ref": "0520-semgrep-drift-red-is-cdn-variance-not-a-ruleset-change",
         "title": "The semgrep p/default drift red is CDN variance; the pin stays unvendored",
         "scope": "thread"
+      },
+      {
+        "ref": "0521-e2e-proof-runs-live-not-on-the-fakebin-substrate",
+        "title": "The e2e proof runs live against a disposable GitHub repo, not on the fakebin substrate",
+        "scope": "c28"
       }
     ],
     "out_of_scope": [
@@ -897,5 +902,5 @@
     ]
   },
   "created_at": "2026-08-12T07:37:41.077Z",
-  "updated_at": "2026-08-17T14:54:35.948Z"
+  "updated_at": "2026-08-17T15:23:46.406Z"
 }
