@@ -209,30 +209,54 @@ test('the bounded transcript tail is used when last_assistant_message is absent'
   assert.equal(blocked[0].detected_from, 'agent_transcript_path');
 });
 
-test('a marker beyond the one mebibyte tail is not found, while the same shape inside it is', () => {
-  const marker = `${MARKER} needed=Bash task=run the probe`;
+const TAIL_BYTES = 1024 * 1024;
 
-  const near = workspace('within-tail');
-  const nearFile = writeLines(near, 'agent-a1b2c3d4e5f60718.jsonl', [
-    userLine('start'),
-    assistantLine(marker),
-    userLine('x'.repeat(1024)),
-  ]);
-  const control = runHook({
+function tailProbe(label, distanceFromEnd) {
+  const dir = workspace(label);
+  const lead = userLine('s'.repeat(4096));
+  const marker = assistantLine('P'.repeat(2000) + ` ${MARKER} needed=Bash task=run the probe`);
+  const overhead = Buffer.byteLength(userLine(''));
+  const padBytes = distanceFromEnd - Buffer.byteLength(marker) - 3;
+  assert.ok(padBytes > overhead, `distance ${distanceFromEnd} too small to pad`);
+  const trail = userLine('u'.repeat(padBytes - overhead));
+
+  const file = join(dir, 'agent-a1b2c3d4e5f60718.jsonl');
+  const body = `${lead}\n${marker}\n${trail}\n`;
+  writeFileSync(file, body);
+
+  const size = Buffer.byteLength(body);
+  assert.equal(
+    size - Buffer.byteLength(lead),
+    distanceFromEnd,
+    'fixture must place the marker line exactly the requested distance from end of file',
+  );
+
+  return runHook({
     hook_event_name: 'SubagentStop',
     session_id: 's',
     cwd: '/repo',
     agent_id: 'a1b2c3d4e5f60718',
     transcript_path: '/nonexistent/projects/slug/parent.jsonl',
-    agent_transcript_path: nearFile,
+    agent_transcript_path: file,
   });
-  assert.equal(control.blocked.length, 1, 'control: a marker inside the tail window must be found');
-  assert.equal(control.blocked[0].detected_from, 'agent_transcript_path');
+}
 
-  const far = workspace('beyond-tail');
-  const farFile = writeLines(far, 'agent-a1b2c3d4e5f60718.jsonl', [
+test('the tail window is exactly one mebibyte, measured at both of its edges', () => {
+  const inside = tailProbe('tail-inside', TAIL_BYTES);
+  assert.equal(inside.blocked.length, 1, 'a marker line ending exactly at the window edge must be found');
+  assert.equal(inside.blocked[0].detected_from, 'agent_transcript_path');
+  assert.equal(inside.blocked[0].needed, 'Bash');
+
+  const outside = tailProbe('tail-outside', TAIL_BYTES + 512);
+  assert.equal(outside.blocked.length, 0, 'a marker line 512 bytes past the window edge must not be found');
+  assert.equal(outside.stops.length, 1, 'the stop row is still written');
+});
+
+test('a marker far beyond the tail window is not found', () => {
+  const dir = workspace('beyond-tail');
+  const farFile = writeLines(dir, 'agent-a1b2c3d4e5f60718.jsonl', [
     userLine('start'),
-    assistantLine(marker),
+    assistantLine(`${MARKER} needed=Bash task=run the probe`),
     userLine('x'.repeat(1536 * 1024)),
   ]);
   const bounded = runHook({
@@ -245,6 +269,17 @@ test('a marker beyond the one mebibyte tail is not found, while the same shape i
   });
   assert.equal(bounded.blocked.length, 0, 'a marker pushed past the tail window must not be found');
   assert.equal(bounded.stops.length, 1, 'the stop row is still written');
+});
+
+test('needed and task are truncated to exactly three hundred characters', () => {
+  const dir = workspace('truncation');
+  const finalText = `${MARKER} needed=${'N'.repeat(400)} task=${'T'.repeat(400)}`;
+  const { blocked } = runHook(stopPayload(dir, { finalText }));
+  assert.equal(blocked.length, 1);
+  assert.equal(blocked[0].needed.length, 300, 'needed must be capped at exactly 300 characters');
+  assert.equal(blocked[0].task.length, 300, 'task must be capped at exactly 300 characters');
+  assert.equal(blocked[0].needed, 'N'.repeat(300));
+  assert.equal(blocked[0].task, 'T'.repeat(300));
 });
 
 test('quoting the marker convention verbatim records nothing', () => {
@@ -303,6 +338,7 @@ test('the replay script agrees with the hook detector over a directory of transc
   ]);
   writeLines(corpus, 'relay-outside-assistant.jsonl', [userLine(genuine), assistantLine('all done')]);
   writeLines(corpus, 'clean.jsonl', [userLine('go'), assistantLine('all done')]);
+  writeFileSync(join(corpus, 'notes.txt'), `${MARKER} needed=Bash task=not a transcript\n`);
   mkdirSync(join(corpus, 'subagents'), { recursive: true });
   writeLines(join(corpus, 'subagents'), 'nested-genuine.jsonl', [
     userLine('go'),
@@ -311,7 +347,7 @@ test('the replay script agrees with the hook detector over a directory of transc
 
   const { scanned, detected } = replay(corpus);
   assert.ok(scanned > 0, 'a replay over zero transcripts proves nothing');
-  assert.equal(scanned, 5, `expected five transcripts scanned, got ${scanned}`);
+  assert.equal(scanned, 5, `only .jsonl transcripts count; expected five scanned, got ${scanned}`);
   assert.equal(detected.length, 2, `expected two genuine markers, got ${JSON.stringify(detected)}`);
 
   const byNeeded = detected.map((d) => d.needed).sort();
@@ -331,4 +367,16 @@ test('the replay script agrees with the hook detector over a directory of transc
     assert.equal(viaHook.blocked[0].needed, hit.needed, `hook and replay disagree on needed for ${hit.file}`);
     assert.equal(viaHook.blocked[0].task, hit.task, `hook and replay disagree on task for ${hit.file}`);
   }
+});
+
+test('the replay script rejects a missing directory argument with a usage exit code', () => {
+  assert.ok(existsSync(replayPath), `replay script missing at ${replayPath}`);
+  const bare = spawnSync(process.execPath, [replayPath], { encoding: 'utf8' });
+  assert.equal(bare.status, 2, `expected usage exit code 2, got ${bare.status}`);
+  assert.match(bare.stderr, /usage: capability-replay\.mjs/);
+  assert.equal(bare.stdout, '', 'a usage rejection must not emit a result document');
+
+  const ok = spawnSync(process.execPath, [replayPath, workspace('cli-empty')], { encoding: 'utf8' });
+  assert.equal(ok.status, 0, `expected exit code 0 on a real directory, got ${ok.status}`);
+  assert.deepEqual(JSON.parse(ok.stdout), { scanned: 0, detected: [] });
 });
