@@ -238,6 +238,11 @@
         "ref": "0500-re-ground-the-decision-set-after-the-reality-sweep",
         "title": "Re-ground the decision set: preload confirmed, three citations stale, two records narrate unexecuted state",
         "scope": "c3"
+      },
+      {
+        "ref": "0501-the-approved-target-architecture",
+        "title": "The approved target architecture: 13 agents in four bands, with dispatch and skill invocation held by the Leads",
+        "scope": "c3"
       }
     ],
     "out_of_scope": [
@@ -248,5 +253,5 @@
     ]
   },
   "created_at": "2026-08-16T05:43:25.829Z",
-  "updated_at": "2026-08-17T04:48:13.765Z"
+  "updated_at": "2026-08-17T04:54:55.423Z"
 }
