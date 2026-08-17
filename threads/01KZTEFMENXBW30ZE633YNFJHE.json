@@ -259,9 +259,9 @@
   "abandoned_reason": null,
   "closure_statement": null,
   "spine": {
-    "active_goal": "Prove the merged mitosis engine end to end on real runs: c28-c31 remain, and each needs an actual /mitosis execution rather than the unit coverage that shipped with them.",
-    "next_step": "START HERE. The full stack is MERGED - main is at 425b06fb, trunk green, zero open pull requests. What remains is PROOF, not code: c28-c31 each demand a REAL engine run, which merging their implementations does not provide. Drive /mitosis end to end on a disposable substrate, then flip c28 (one PR per MSP + serialized merge), c29 (Integrate and Resume after a mid-run teardown), c30 (dependency edge, induced failure, retry, park, poisoned-lock recovery), c31 (the automated CI end-to-end test).",
-    "last_session": "Landed every remaining pull request: 184-187 restacked onto main (17 stale twins dropped, zero conflicts) plus 170, 171 and 173. Main advanced 43 commits to 425b06fb, trunk green, open set empty. Recovered 184 after an out-of-band base-branch deletion closed it.",
+    "active_goal": "Prove the shipped engine end to end on real runs against a disposable GitHub repo, and report what actually holds versus what only looks green.",
+    "next_step": "Read the two live-run results: the decomposition probe and the centerpiece full-engine run on SatanshuMishra/mitosis-e2e-substrate. Then run the remaining live probes on their own clones, SEQUENTIALLY so concurrency measurement stays clean: spec-dependency (expect the mergedShas defect to reproduce live) and spec-overlap (lease serialization). Then decide with the user whether the two confirmed defects become fix MSPs. Never merge a substrate PR.",
+    "last_session": "Built the whole e2e apparatus outside the repo: disposable GitHub substrate, three SPECs with pinned expectations, a cost/integrity reporter and a passthrough timing shim. Confirmed two engine defects and three attestation gaps before the live run. Worked around a mid-session GitHub outage.",
     "open_risks": [
       {
         "text": "Prove a merge arrived by asserting its CONTENT is on the base, never by SHA ancestry — a squash or stack merge rewrites commits, so a pre-merge SHA correctly fails an ancestry check on a merge that lost nothing",
@@ -438,53 +438,50 @@
         ]
       },
       {
-        "text": "Never let the engine merge a pull request — merge is refused at four independent layers by design, so c28 means serialized ship order plus a blocked-pending-approval handoff",
+        "text": "A dependency chain ships exactly one unit — integratePhase never passes mergedShas, so divergedParents always fires and the engine's own remedy of merge-then-relaunch never resumes the dependent",
         "scope": "c28",
         "refs": [
-          "0497",
-          "gh-merge-shim.mjs",
-          "settings.json:78-87"
+          "0526",
+          "phase-driver.mjs:251-275",
+          "divergence.mjs:25-50"
         ]
       },
       {
-        "text": "Ship a gh stub in every test fakebin and assert its recorder was written — DEFAULT_FALLBACKS hardcodes an absolute path to gh, so PATH alone does not stop a run reaching the live network",
+        "text": "An unread CI reports all-shipped — a failed run-id read yields ci-unwatched and merge-policy counts only ciRedExhaustedCount, and the tracked test pins this false green as expected",
         "scope": "c28",
         "refs": [
-          "gh-merge-shim.mjs:9"
+          "0526",
+          "ci-green-loop.mjs:251-255",
+          "e2e-ci-green.test.mjs:112-126"
         ]
       },
       {
-        "text": "Read the exit code from phase-parity rather than its wording — it HALTS at 42 on an empty phase use-set, and a halt is a failure that reads like a pass",
+        "text": "A green exec-allowlist does not mean the shim refuses — the gate probes a mocked io while the runtime readFileSync(0) returns an empty buffer, so the stdin fail-closed path is unreachable in production",
         "scope": "c28",
         "refs": [
-          "mitosis-gate-core.mjs:220"
+          "0525",
+          "gh-merge-shim.mjs:318-341"
         ]
       },
       {
-        "text": "Merge a stacked pull request through the async REST endpoint rather than gh pr merge — GitHub refuses the GraphQL mutation outright for any pull request that is part of a stack",
+        "text": "Gate exits 41 and 42 are byte-identical on stdout, both empty — only the numeric exit code separates a real violation from an unjudgeable halt, so any coarse zero-nonzero check misreads a non-run as a finding",
         "scope": "c28",
         "refs": [
-          "0518",
-          "PUT /repos/{owner}/{repo}/pulls/{n}/merge-async"
+          "0525",
+          "mitosis-gate-core.mjs:17-22"
         ]
       },
       {
-        "text": "Retarget a child explicitly and delete no branch that an open pull request still names as base — the deletion CLOSES that pull request instead of moving it, and reopening needs the deleted ref pushed back first",
+        "text": "The engine cannot measure its own speed or concurrency — one --at constant stamps every record and recordOutput destroys the only start marker, so every timing claim must come from the external shim",
         "scope": "c28",
         "refs": [
-          "0519"
+          "0523",
+          "phase-driver.mjs:219",
+          "run-store.mjs:288-296"
         ]
       },
       {
-        "text": "Re-run a red sast drift check before touching the pin — the runner and a local fetch compute different canonical hashes for the same upstream ruleset, so re-vendoring adopts a hash upstream does not reliably serve",
-        "scope": "c28",
-        "refs": [
-          "0520",
-          ".semgrep/p-default.sha256"
-        ]
-      },
-      {
-        "text": "Write helper shell for this machine's real environment — grep resolves to ripgrep with an unrecognised flag so exit-code checks error out instead of matching, and a double-quoted !! triggers zsh history expansion",
+        "text": "A GitHub status page can report major_outage while every endpoint returns 200 — verify a forge empirically with the engine's own argv, never by the status indicator",
         "scope": "c28",
         "refs": [
           "session log 2026-08-17"
@@ -922,5 +919,5 @@
     ]
   },
   "created_at": "2026-08-12T07:37:41.077Z",
-  "updated_at": "2026-08-17T16:13:54.747Z"
+  "updated_at": "2026-08-17T16:19:03.288Z"
 }
