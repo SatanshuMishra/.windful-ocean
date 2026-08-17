@@ -233,11 +233,20 @@ Over-narrow proposals (the "WebGL 3.0 implementer" antipattern) fail test 1 or 2
 Each is confirmed by a quick hook-input dump before the dependent code is finalized:
 
 1. `PreToolUse(Agent)` exposes `subagent_type` in `tool_input`. If not, use `SubagentStart` matcher `general-purpose` (logging only). [VERIFIED live probe 2026-07-02: `fallback_used` captured `subagent_type=general-purpose`]
-2. `SubagentStop` input carries the subagent's own `transcript_path`. [VERIFIED live probe 2026-07-02: `agent_run.tokens` non-null across real dispatches]
+2. ~~`SubagentStop` input carries the subagent's own `transcript_path`. [VERIFIED live probe 2026-07-02: `agent_run.tokens` non-null across real dispatches]~~
+
+   [CORRECTED 2026-08-16 — the claim is FALSE, and the 2026-07-02 verification was a proxy that could not fail]
+
+   - `transcript_path` is always the PARENT's flat session file. Measured across 16,014 recorded pointers: parent 16,014, subagent 0.
+   - The probe asserted `agent_run.tokens` non-null. A parent transcript satisfies that exactly as well as a subagent transcript would, so the probe passed under both outcomes and discriminated nothing. A check that cannot fail is not a verification: pin the claim itself, never a downstream symptom of it.
+   - The subagent's own output IS addressable. `SubagentStop` delivers `agent_id`, `agent_type`, `agent_transcript_path` and `last_assistant_message` unconditionally, confirmed against the shipped binary's payload construction (Claude Code 2.1.233).
+   - Cost of the error: the capability-blocked detector scanned the parent transcript and recorded zero events in six weeks while at least 33 genuine emissions sat in the subagent output. Fixed 2026-08-16 in `.claude/hooks/agent-ledger/agent-run-analyzer.mjs`.
 3. A subagent's missing-tool truly fires no `PermissionDenied` (hence Path B self-report). [CONFIRMED AND EXPANDED, live probe 2026-07-02: `PermissionDenied` fires ONLY for auto-mode classifier denials; static deny-rules and interactive denials also fire no hook — see 6.2 Path A limitation]
 4. Transcript JSONL carries per-message `usage` tokens. If absent, `tokens=null`. [VERIFIED live probe 2026-07-02: tokens non-null]
 5. Hooks fire inside subagents in this installation and carry `agent_type`. [VERIFIED live probe 2026-07-02: `agent-baselines.json` attributes runs per `agent_type`, e.g. general-purpose/implementer/codebase-analyst]
-6. Async `SubagentStop` completes its transcript read before the transcript can be reclaimed.
+6. Async `SubagentStop` completes its transcript read before the transcript can be reclaimed. [UNVERIFIED — never probed; no measurement of reclamation timing exists. Not known to be false, and not to be relied on as established.]
+
+   The adjacent ordering hazard that WAS measured runs the other way: the parent relay of a subagent's final message lands roughly two seconds AFTER `SubagentStop` fires, so a hook reading the parent transcript reads it too early rather than too late (2026-08-16, `agent-run-analyzer.mjs`). That bears on write ordering, not on reclamation, which remains unprobed.
 
 ## 11. Failure modes and edge cases
 
