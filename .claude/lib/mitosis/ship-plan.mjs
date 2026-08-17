@@ -2,7 +2,7 @@ import { fileURLToPath } from 'node:url';
 import { INTEGRATED } from './integrate-plan.mjs';
 import { composeJournalLine } from './journal-store.mjs';
 import { LEGAL_STAGES } from './parking.mjs';
-import { inertValue, PR_PROVENANCE_PATTERN, PR_TITLE_PATTERN, PR_VALUE_CAP } from '../git/pr-format.mjs';
+import { inertValue, PR_CHANGED_LINES_PATTERN, PR_PROVENANCE_PATTERN, PR_TITLE_PATTERN, PR_VALUE_CAP } from '../git/pr-format.mjs';
 
 const MODULE = 'ship-plan';
 
@@ -32,7 +32,6 @@ const EMPTY = Object.freeze([]);
 const NO_RESUME_POINT = Object.freeze({ branch: null, ref: null, stage: null });
 const INSERTIONS = /(\d+) insertions?\(\+\)/;
 const DELETIONS = /(\d+) deletions?\(-\)/;
-const MAX_CHANGED_LINES = 9999999;
 
 function describe(value) {
   if (value === null) return 'null';
@@ -124,25 +123,28 @@ export function changedLinesOf(text) {
   const deletions = DELETIONS.exec(text);
   if (insertions === null && deletions === null) return null;
   const total = (insertions === null ? 0 : Number(insertions[1])) + (deletions === null ? 0 : Number(deletions[1]));
-  if (!Number.isSafeInteger(total) || total < 0 || total > MAX_CHANGED_LINES) return null;
-  return total;
+  return PR_CHANGED_LINES_PATTERN.test(String(total)) ? total : null;
+}
+
+function parsedLine(line) {
+  try {
+    return JSON.parse(line);
+  } catch {
+    return null;
+  }
 }
 
 export function readPrAction(stdout) {
   if (typeof stdout !== 'string') return null;
-  const lines = stdout.split('\n').map((line) => line.trim()).filter((line) => line.length > 0);
-  for (let index = lines.length - 1; index >= 0; index -= 1) {
-    let parsed = null;
-    try {
-      parsed = JSON.parse(lines[index]);
-    } catch {
-      parsed = null;
-    }
-    if (!isRecord(parsed) || !PR_ACTIONS.includes(parsed.action)) continue;
+  let read = null;
+  for (const line of stdout.split('\n')) {
+    const parsed = parsedLine(line.trim());
+    if (!isRecord(parsed)) continue;
+    if (!PR_ACTIONS.includes(parsed.action)) continue;
     if (nonEmptyText(parsed.url) === null) continue;
-    return Object.freeze({ action: parsed.action, url: parsed.url });
+    read = Object.freeze({ action: parsed.action, url: parsed.url });
   }
-  return null;
+  return read;
 }
 
 export function prTitleOf(msp) {
@@ -155,8 +157,8 @@ export function prTitleOf(msp) {
 }
 
 export function provenanceOf(declared) {
-  const model = nonEmptyText(declared) ?? PR_MODEL_UNSPECIFIED;
-  const composed = `agent=${PR_AGENT_LABEL} model=${model}`;
+  const named = nonEmptyText(declared);
+  const composed = `agent=${PR_AGENT_LABEL} model=${named === null ? PR_MODEL_UNSPECIFIED : named}`;
   return PR_PROVENANCE_PATTERN.test(composed) ? composed : null;
 }
 
@@ -216,14 +218,20 @@ export function composePrCreateArgv(facts, changedLines) {
 
 function mspOf(manifest, unitId) {
   const msps = Array.isArray(manifest.msps) ? manifest.msps.filter(isRecord) : [];
-  return msps.find((msp) => msp.id === unitId) ?? null;
+  const found = msps.find((msp) => msp.id === unitId);
+  return found === undefined ? null : found;
+}
+
+function headBranch(entry, msp) {
+  const resumed = nonEmptyText(entry.resumePoint.branch);
+  return resumed === null ? nonEmptyText(msp.integrationBranch) : resumed;
 }
 
 function factsOf(entry, msp, settings) {
   return Object.freeze({
     repo: settings.repoSlug,
     base: nonEmptyText(settings.manifest.baseBranch),
-    head: nonEmptyText(entry.resumePoint.branch) ?? nonEmptyText(msp.integrationBranch),
+    head: headBranch(entry, msp),
     title: prTitleOf(msp),
     provenance: provenanceOf(settings.modelById.get(entry.unitId)),
     why: msp.rationale,
@@ -255,10 +263,16 @@ async function recordShip(entry, msp, read, settings, ports) {
   });
 }
 
+function messageOf(error) {
+  const carried = error === null || error === undefined ? null : nonEmptyText(error.message);
+  return carried === null ? String(error) : carried;
+}
+
 function spawnFailure(spawned) {
   if (!isRecord(spawned)) return `the pull-request tool returned ${describe(spawned)} rather than a spawn result`;
   const stderr = nonEmptyText(spawned.stderr);
-  return `the pull-request tool exited ${JSON.stringify(spawned.status)}: ${stderr === null ? 'it wrote nothing to stderr' : stderr.split('\n')[0]}`;
+  const reason = stderr === null ? 'it wrote nothing to stderr' : stderr.split('\n')[0];
+  return `the pull-request tool exited ${JSON.stringify(spawned.status)}: ${reason}`;
 }
 
 async function shipUnit(entry, settings, ports) {
@@ -286,7 +300,7 @@ async function settleShip(entry, msp, read, settings, ports) {
   try {
     await recordShip(entry, msp, read, settings, ports);
   } catch (error) {
-    return outcome(entry, PARKED, read.action, read.url, `the pull request at ${read.url} was opened but the ship record that would let a later run find it was not written: ${error && error.message ? error.message : String(error)}`);
+    return outcome(entry, PARKED, read.action, read.url, `the pull request at ${read.url} was opened but the ship record that would let a later run find it was not written: ${messageOf(error)}`);
   }
   if (read.action === PR_ACTION_REUSED_UNVERIFIED) {
     return outcome(entry, PARKED, read.action, read.url, `the pull request already open on this head (${read.url}) was composed by something other than the centralized tool, so its title and body are unasserted and this run does not report it as a clean ship`);

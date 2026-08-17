@@ -20,8 +20,6 @@ const MODULE = 'mitosis-cli';
 const GIT_BINARY = 'git';
 const NODE_BINARY = 'node';
 const GH_DEADLINE_MS = 120000;
-const PR_DEADLINE_MS = 120000;
-const GIT_DEADLINE_MS = 60000;
 const EXIT_CLEAN = 0;
 const EXIT_ERROR = 1;
 const EXIT_USAGE = 2;
@@ -251,7 +249,7 @@ function diffStatPort(runFn) {
   return (request) => runFn(
     GIT_BINARY,
     ['diff', '--shortstat', `${request.base}...${request.head}`],
-    { cwd: request.repoRoot, deadlineMs: GIT_DEADLINE_MS },
+    { cwd: request.repoRoot, deadlineMs: GH_DEADLINE_MS },
   );
 }
 
@@ -268,7 +266,7 @@ function driverPorts(io, makePorts, deps, repoRoot) {
     reconcile: reconcilePort(io, runFn, repoRoot),
     boundaryGate: (request) => boundaryGateFn(request),
     dispatchPrompt: (request) => dispatchFn(request),
-    openPullRequest: (request) => runFn(NODE_BINARY, request.argv, { cwd: request.cwd, deadlineMs: PR_DEADLINE_MS }),
+    openPullRequest: (request) => runFn(NODE_BINARY, request.argv, { cwd: request.cwd, deadlineMs: GH_DEADLINE_MS }),
     appendJournal: (request) => appendJournalFn(request),
     diffStat: diffStatPort(runFn),
     release: (handle) => releaseRun(handle, io),

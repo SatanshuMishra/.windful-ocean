@@ -8,6 +8,10 @@ import {
   RECEIPTS_NOT_VERIFIED,
   changedLinesOf,
   composePrCreateArgv,
+  prTitleOf,
+  readPrAction,
+  shipIntegrated,
+  shipSummary,
 } from '../ship-plan.mjs';
 import {
   BASE_BRANCH,
@@ -175,6 +179,168 @@ test('the changed-line count is read from a shortstat or left unstated, never in
   assert.equal(changedLinesOf(' 1 file changed, 2 deletions(-)\n'), 2);
   assert.equal(changedLinesOf(''), null);
   assert.equal(changedLinesOf(' 2 files changed\n'), null);
+  assert.equal(changedLinesOf(' 9 files changed, 9999999 insertions(+), 1 deletions(-)\n'), null, 'a total the tool would reject as more than seven digits is left out rather than sent to a usage rejection');
+});
+
+const SHIP_PORTS = Object.freeze({ openPullRequest: () => ({ status: 0, stdout: '' }), appendJournal: () => {}, diffStat: () => ({ status: 1, stdout: '' }) });
+const SHIP_CONFIG = Object.freeze({ integrated: [], manifest: {}, repoRoot: '/repo', repoSlug: 'acme/widgets', journalPath: '.mitosis/run.jsonl' });
+
+const BETA_MSP = Object.freeze({
+  id: 'beta',
+  title: 'unit beta',
+  rationale: 'fixture rationale for unit beta',
+  changeType: 'feat',
+  scope: 'beta',
+  integrationBranch: 'mitosis/beta-integration',
+  green: true,
+  dependsOn: ['alpha'],
+});
+
+const CREATED_LINE = `${JSON.stringify({ action: 'created', url: 'https://github.com/acme/widgets/pull/5', number: 5 })}\n`;
+
+function shippingConfig(extra = {}) {
+  return {
+    ...SHIP_CONFIG,
+    integrated: [{ unitId: 'beta', state: 'integrated', resumePoint: { branch: null, ref: null, stage: 'ship' } }],
+    manifest: { baseBranch: 'main', msps: [BETA_MSP] },
+    ...extra,
+  };
+}
+
+function shippingPorts(extra = {}) {
+  const spawned = [];
+  const written = [];
+  return {
+    spawned,
+    written,
+    ports: {
+      openPullRequest: (request) => { spawned.push(request.argv); return { status: 0, stdout: CREATED_LINE, stderr: '' }; },
+      appendJournal: (request) => { written.push(JSON.parse(request.line)); },
+      diffStat: () => ({ status: 1, stdout: '', stderr: 'no such ref' }),
+      ...extra,
+    },
+  };
+}
+
+test('a shortstat the diff read answers becomes the changed-line flag, and its absence removes the flag', async () => {
+  const measured = shippingPorts({ diffStat: () => ({ status: 0, stdout: ' 2 files changed, 5 insertions(+), 3 deletions(-)\n' }) });
+  await shipIntegrated(shippingConfig(), measured.ports);
+  assert.equal(measured.spawned[0][measured.spawned[0].indexOf('--changed-lines') + 1], '8');
+
+  const unmeasured = shippingPorts();
+  await shipIntegrated(shippingConfig(), unmeasured.ports);
+  assert.equal(unmeasured.spawned[0].includes('--changed-lines'), false);
+});
+
+test('the diff read is skipped entirely when the branches it would compare are not both known', async () => {
+  const probed = [];
+  const ports = shippingPorts({ diffStat: (request) => { probed.push(request); return { status: 1, stdout: '' }; } });
+  const plan = await shipIntegrated(shippingConfig({ manifest: { msps: [BETA_MSP] } }), ports.ports);
+  assert.deepEqual(probed, [], 'a shortstat between a base nobody declared and a head is a comparison against an arbitrary tree');
+  assert.deepEqual(plan.parked.map((entry) => entry.unitId), ['beta']);
+  assert.deepEqual(ports.spawned, []);
+});
+
+test('the head is the resume point branch when the resume plan carried one, and the msp integration branch otherwise', async () => {
+  const resumed = shippingPorts();
+  await shipIntegrated(shippingConfig({ integrated: [{ unitId: 'beta', state: 'integrated', resumePoint: { branch: 'mitosis/beta-resumed', ref: null, stage: 'ship' } }] }), resumed.ports);
+  assert.equal(resumed.spawned[0][resumed.spawned[0].indexOf('--head') + 1], 'mitosis/beta-resumed');
+
+  const planned = shippingPorts();
+  await shipIntegrated(shippingConfig(), planned.ports);
+  assert.equal(planned.spawned[0][planned.spawned[0].indexOf('--head') + 1], 'mitosis/beta-integration');
+});
+
+test('a pull-request tool that fails, answers nothing readable, or names no msp parks the unit and records nothing', async () => {
+  const failed = shippingPorts({ openPullRequest: () => ({ status: 21, stdout: '', stderr: 'the create call exited 1\nsecond line' }) });
+  const onFailure = await shipIntegrated(shippingConfig(), failed.ports);
+  assert.deepEqual(onFailure.outcomes.map((entry) => [entry.unitId, entry.state, entry.action]), [['beta', 'parked', null]]);
+  assert.equal(onFailure.outcomes[0].diagnosis, 'the pull-request tool exited 21: the create call exited 1');
+  assert.deepEqual(failed.written, []);
+
+  const mute = shippingPorts({ openPullRequest: () => ({ status: 0, stdout: '{"action":"invented","url":"https://github.com/acme/widgets/pull/5"}\n', stderr: '' }) });
+  const onSilence = await shipIntegrated(shippingConfig(), mute.ports);
+  assert.deepEqual(onSilence.parked.map((entry) => entry.unitId), ['beta']);
+  assert.deepEqual(mute.written, []);
+
+  const unnamed = shippingPorts();
+  const onUnknown = await shipIntegrated(shippingConfig({ manifest: { baseBranch: 'main', msps: [] } }), unnamed.ports);
+  assert.deepEqual(onUnknown.outcomes.map((entry) => [entry.unitId, entry.state, entry.stage]), [['beta', 'parked', 'ship']]);
+  assert.deepEqual(unnamed.spawned, []);
+
+  const shapeless = shippingPorts({ openPullRequest: () => null });
+  const onShapeless = await shipIntegrated(shippingConfig(), shapeless.ports);
+  assert.equal(onShapeless.outcomes[0].diagnosis, 'the pull-request tool returned null rather than a spawn result');
+});
+
+test('a pull request the tool reused is a clean ship, and a ship record that will not write parks the unit it names', async () => {
+  const reused = shippingPorts({ openPullRequest: () => ({ status: 0, stdout: `${JSON.stringify({ action: 'reused', url: 'https://github.com/acme/widgets/pull/6' })}\n`, stderr: '' }) });
+  const onReuse = await shipIntegrated(shippingConfig(), reused.ports);
+  assert.deepEqual(onReuse.opened.map((entry) => [entry.unitId, entry.action, entry.prUrl]), [['beta', 'reused', 'https://github.com/acme/widgets/pull/6']]);
+  assert.deepEqual(reused.written.map((record) => [record.kind, record.mspId, record.title, record.rationale]), [['ship', 'beta', 'unit beta', 'fixture rationale for unit beta']]);
+
+  const unwritable = shippingPorts({ appendJournal: () => { throw new Error('the journal is read only'); } });
+  const onFailedWrite = await shipIntegrated(shippingConfig(), unwritable.ports);
+  assert.deepEqual(onFailedWrite.parked.map((entry) => [entry.unitId, entry.action]), [['beta', 'created']]);
+  assert.match(onFailedWrite.outcomes[0].diagnosis, /the journal is read only$/);
+});
+
+test('the ship summary names the units, their actions and the pull requests they reached', async () => {
+  const ports = shippingPorts();
+  const plan = await shipIntegrated(shippingConfig(), ports.ports);
+  assert.deepEqual(shipSummary(plan), {
+    opened: ['beta'],
+    parked: [],
+    prUrls: { beta: 'https://github.com/acme/widgets/pull/5' },
+    outcomes: [{ id: 'beta', state: 'shipped', action: 'created' }],
+  });
+});
+
+test('only the last action line the tool prints is read, and a line naming no action is passed over', () => {
+  assert.deepEqual(readPrAction(`noise\n{"action":"reused","url":"https://github.com/acme/widgets/pull/1"}\n${CREATED_LINE}`), { action: 'created', url: 'https://github.com/acme/widgets/pull/5' });
+  assert.equal(readPrAction('{"action":"created"}\n'), null);
+  assert.equal(readPrAction('{"action":"merged","url":"https://github.com/acme/widgets/pull/5"}\n'), null);
+  assert.equal(readPrAction(''), null);
+});
+
+test('a title the msp cannot compose is refused field by field, never mangled into the pattern', () => {
+  for (const missing of ['changeType', 'scope', 'title']) {
+    assert.equal(prTitleOf({ ...BETA_MSP, [missing]: null }), null, `${missing} is mandatory and is never invented`);
+  }
+  assert.equal(prTitleOf(BETA_MSP), 'feat(beta): unit beta');
+  assert.equal(prTitleOf({ ...BETA_MSP, changeType: 'sneak' }), null, 'a type outside the conventional-commits list would be rejected by the tool, so it is refused here');
+  assert.equal(composePrCreateArgv({ ...BETA_FACTS, title: null }, null).ok, false, 'one unusable field is enough to refuse the whole argv');
+});
+
+function refusal(config, ports) {
+  return assert.rejects(() => shipIntegrated(config, ports), (error) => error instanceof TypeError);
+}
+
+test('the ship config is refused at the boundary, and the refusal names what arrived instead', async () => {
+  await assert.rejects(() => shipIntegrated(null, SHIP_PORTS), /ship config must be a non-null, non-array object, received null$/);
+  await assert.rejects(() => shipIntegrated([], SHIP_PORTS), /ship config must be a non-null, non-array object, received an array$/);
+  await assert.rejects(() => shipIntegrated({ ...SHIP_CONFIG, integrated: 'alpha' }, SHIP_PORTS), /integrated array Integrate froze.*received string$/);
+  await assert.rejects(() => shipIntegrated({ ...SHIP_CONFIG, manifest: [] }, SHIP_PORTS), /needs the run manifest.*received an array$/);
+  await assert.rejects(() => shipIntegrated({ ...SHIP_CONFIG, repoRoot: '' }, SHIP_PORTS), /non-empty repoRoot.*received string$/);
+  await assert.rejects(() => shipIntegrated({ ...SHIP_CONFIG, journalPath: undefined }, SHIP_PORTS), /non-empty journalPath.*received undefined$/);
+});
+
+test('an integrated entry with no unit id is refused rather than shipped under a name nobody wrote', async () => {
+  await refusal({ ...SHIP_CONFIG, integrated: [{ unitId: '', state: 'integrated' }] }, SHIP_PORTS);
+  await assert.rejects(
+    () => shipIntegrated({ ...SHIP_CONFIG, integrated: [null] }, SHIP_PORTS),
+    /integrated entry 0 must be an object carrying a unitId and the state Integrate settled it at, received null$/,
+  );
+});
+
+test('a ship port that is not a function is refused before any pull request is opened', async () => {
+  for (const missing of ['openPullRequest', 'appendJournal', 'diffStat']) {
+    await assert.rejects(
+      () => shipIntegrated(SHIP_CONFIG, { ...SHIP_PORTS, [missing]: null }),
+      new RegExp(`need a ${missing} function.*received null$`),
+    );
+  }
+  await assert.rejects(() => shipIntegrated(SHIP_CONFIG, null), /ship ports must be a non-null, non-array object, received null$/);
 });
 
 test('a msp whose mandated pull-request fields cannot be read composes no argv rather than a placeholder', () => {

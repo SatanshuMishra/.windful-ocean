@@ -111,16 +111,8 @@ function isolationById(spec) {
   return new Map(unitsOf(spec).filter((unit) => typeof unit.isolation === 'string').map((unit) => [unit.id, unit.isolation]));
 }
 
-function declaredModel(unit) {
-  const request = unit.request;
-  if (request === null || typeof request !== 'object' || Array.isArray(request)) return null;
-  return typeof request.model === 'string' && request.model.length > 0 ? request.model : null;
-}
-
 function modelById(spec) {
-  return new Map(unitsOf(spec)
-    .filter((unit) => declaredModel(unit) !== null)
-    .map((unit) => [unit.id, declaredModel(unit)]));
+  return new Map(unitsOf(spec).map((unit) => [unit.id, unit.request?.model]));
 }
 
 function runIdentityOf(manifest, runId) {

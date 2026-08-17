@@ -82,6 +82,43 @@ test('every phase a later change fills in returns its own empty result, so a bod
   assert.deepEqual(driven.phases.Remediate, { remediated: [], parked: [] });
 });
 
+function shippableJournal() {
+  return {
+    logicalRunId: 'r1',
+    baseBranch: 'main',
+    sourcePrefix: 'mitosis',
+    clusters: [],
+    msps: [{
+      id: 'alpha',
+      status: 'built',
+      title: 'unit alpha',
+      rationale: 'because the run needs alpha',
+      changeType: 'feat',
+      scope: 'alpha',
+      integrationBranch: 'mitosis/alpha-integration',
+      green: true,
+      dependsOn: [],
+    }],
+  };
+}
+
+function requestWithModel(model) {
+  const base = runRequest();
+  return { ...base, spec: { ...base.spec, specs: [{ id: 'alpha', fileScope: pack(['alpha.mjs']), request: { prompt: 'do alpha', ...(model === null ? {} : { model }) } }] } };
+}
+
+test('the provenance names the model the unit request declares, and says unspecified when it declares none', async () => {
+  const declared = stubbedPorts({ readJournal: shippableJournal });
+  await runPhases(requestWithModel('claude-opus-5'), declared.ports);
+  assert.deepEqual(declared.opened.map((request) => request.argv[request.argv.indexOf('--provenance') + 1]), ['agent=mitosis-engine model=claude-opus-5']);
+
+  const undeclared = stubbedPorts({ readJournal: shippableJournal });
+  const driven = await runPhases(requestWithModel(null), undeclared.ports);
+  assert.deepEqual(undeclared.opened.map((request) => request.argv[request.argv.indexOf('--provenance') + 1]), ['agent=mitosis-engine model=unspecified']);
+  assert.deepEqual(driven.phases.Ship.opened.map((entry) => [entry.unitId, entry.action, entry.prUrl]), [['alpha', 'created', 'https://github.com/acme/widgets/pull/3']]);
+  assert.deepEqual(undeclared.journalled.map((write) => JSON.parse(write.line).kind), ['ship']);
+});
+
 test('an integrated unit whose manifest names no change type parks rather than guessing a pull-request title', async () => {
   const journal = { logicalRunId: 'r1', baseBranch: 'main', clusters: [], msps: [{ id: 'alpha', status: 'built' }] };
   const stub = stubbedPorts({ readJournal: () => journal });
