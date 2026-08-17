@@ -27,6 +27,8 @@ function stubbedPorts(overrides = {}) {
   const released = [];
   const gated = [];
   const dispatched = [];
+  const opened = [];
+  const journalled = [];
   const enginePorts = {
     runUnit: async () => Done({ sha: 'sha-alpha', green: true }),
     writeGenesis: async () => {},
@@ -39,6 +41,8 @@ function stubbedPorts(overrides = {}) {
     released,
     gated,
     dispatched,
+    opened,
+    journalled,
     ports: Object.freeze({
       openRun: () => handle,
       readJournal: () => null,
@@ -48,6 +52,12 @@ function stubbedPorts(overrides = {}) {
       makePorts: () => enginePorts,
       boundaryGate: (request) => { gated.push(request); return { pass: true, output: 'no new finding', blocking: [], baseCensus: null }; },
       dispatchPrompt: (request) => { dispatched.push(request); return { ok: true, outcome: 'success' }; },
+      openPullRequest: (request) => {
+        opened.push(request);
+        return { status: 0, stdout: `${JSON.stringify({ action: 'created', url: 'https://github.com/acme/widgets/pull/3', number: 3 })}\n`, stderr: '' };
+      },
+      appendJournal: (request) => { journalled.push(request); },
+      diffStat: () => ({ status: 1, stdout: '', stderr: 'no such ref' }),
       ...overrides,
     }),
   };
@@ -68,8 +78,56 @@ test('the driver advances one run through every declared phase, in the order the
 test('every phase a later change fills in returns its own empty result, so a body attaches without reshaping the driver', async () => {
   const driven = await runPhases(runRequest(), stubbedPorts().ports);
   assert.deepEqual(driven.phases.Decompose, { units: [] });
-  assert.deepEqual(driven.phases.Ship, { opened: [], parked: [] });
+  assert.deepEqual(driven.phases.Ship, { opened: [], parked: [], outcomes: [] });
   assert.deepEqual(driven.phases.Remediate, { remediated: [], parked: [] });
+});
+
+function shippableJournal() {
+  return {
+    logicalRunId: 'r1',
+    baseBranch: 'main',
+    sourcePrefix: 'mitosis',
+    clusters: [],
+    msps: [{
+      id: 'alpha',
+      status: 'built',
+      title: 'unit alpha',
+      rationale: 'because the run needs alpha',
+      changeType: 'feat',
+      scope: 'alpha',
+      integrationBranch: 'mitosis/alpha-integration',
+      green: true,
+      dependsOn: [],
+    }],
+  };
+}
+
+function requestWithModel(model) {
+  const base = runRequest();
+  return { ...base, spec: { ...base.spec, specs: [{ id: 'alpha', fileScope: pack(['alpha.mjs']), request: { prompt: 'do alpha', ...(model === null ? {} : { model }) } }] } };
+}
+
+test('the provenance names the model the unit request declares, and says unspecified when it declares none', async () => {
+  const declared = stubbedPorts({ readJournal: shippableJournal });
+  await runPhases(requestWithModel('claude-opus-5'), declared.ports);
+  assert.deepEqual(declared.opened.map((request) => request.argv[request.argv.indexOf('--provenance') + 1]), ['agent=mitosis-engine model=claude-opus-5']);
+
+  const undeclared = stubbedPorts({ readJournal: shippableJournal });
+  const driven = await runPhases(requestWithModel(null), undeclared.ports);
+  assert.deepEqual(undeclared.opened.map((request) => request.argv[request.argv.indexOf('--provenance') + 1]), ['agent=mitosis-engine model=unspecified']);
+  assert.deepEqual(driven.phases.Ship.opened.map((entry) => [entry.unitId, entry.action, entry.prUrl]), [['alpha', 'created', 'https://github.com/acme/widgets/pull/3']]);
+  assert.deepEqual(undeclared.journalled.map((write) => JSON.parse(write.line).kind), ['ship']);
+});
+
+test('an integrated unit whose manifest names no change type parks rather than guessing a pull-request title', async () => {
+  const journal = { logicalRunId: 'r1', baseBranch: 'main', clusters: [], msps: [{ id: 'alpha', status: 'built' }] };
+  const stub = stubbedPorts({ readJournal: () => journal });
+  const driven = await runPhases(runRequest(), stub.ports);
+  assert.deepEqual(driven.phases.Integrate.integrated.map((entry) => entry.unitId), ['alpha']);
+  assert.deepEqual(driven.phases.Ship.opened, []);
+  assert.deepEqual(driven.phases.Ship.outcomes.map((entry) => [entry.unitId, entry.state, entry.action, entry.stage]), [['alpha', 'parked', null, 'ship']]);
+  assert.deepEqual(stub.opened, [], 'a msp missing a mandated field never reaches the pull-request tool, so no usage rejection is spent and no placeholder is composed');
+  assert.deepEqual(stub.journalled, [], 'nothing shipped, so no ship record claims one did');
 });
 
 test('Integrate gates nothing on a run whose journal names no built unit, and never spawns a gate for one', async () => {

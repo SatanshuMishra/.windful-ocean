@@ -114,14 +114,30 @@ function initRepositories(sandbox, boundaryToolchain) {
   gitIn(sandbox, ['push', '--set-upstream', 'origin', 'main'], sandbox.repo);
 }
 
-function defaultGhPlan() {
-  return {
-    steps: [{
+export const OPENED_PR_URL = `https://github.com/${REPO_SLUG}/pull/9`;
+
+export function ghPlanSteps(overrides = {}) {
+  return [
+    {
       argvPrefix: ['pr', 'view'],
       stdout: `${JSON.stringify({ state: 'OPEN', mergedAt: null, url: `https://github.com/${REPO_SLUG}/pull/1` })}\n`,
       exitCode: 0,
-    }],
-  };
+    },
+    {
+      argvPrefix: ['pr', 'list'],
+      stdout: `${JSON.stringify(overrides.openPullRequests === undefined ? [] : overrides.openPullRequests)}\n`,
+      exitCode: 0,
+    },
+    {
+      argvPrefix: ['pr', 'create'],
+      stdout: `${OPENED_PR_URL}\n`,
+      exitCode: 0,
+    },
+  ];
+}
+
+function defaultGhPlan() {
+  return { steps: ghPlanSteps() };
 }
 
 export function makeSandbox(options = {}) {
@@ -291,13 +307,34 @@ function judgmentFacts(sandbox, unit) {
   };
 }
 
+export function integrationBranchOf(unitId) {
+  return `${BRANCH_PREFIX}/${unitId}-integration`;
+}
+
+export function rationaleOf(unitId) {
+  return `fixture rationale for unit ${unitId}`;
+}
+
+function manifestMsp(unit) {
+  return {
+    id: unit.id,
+    title: `unit ${unit.id}`,
+    rationale: rationaleOf(unit.id),
+    changeType: 'feat',
+    scope: unit.id,
+    integrationBranch: integrationBranchOf(unit.id),
+    dependsOn: [...unit.prereqs],
+  };
+}
+
 function runDocument(sandbox, units, overrides) {
   return {
     manifest: overrides.manifest === undefined ? {
       logicalRunId: FIXED_RUN_ID,
       baseBranch: BASE_BRANCH,
+      sourcePrefix: BRANCH_PREFIX,
       clusters: [],
-      msps: units.map((unit) => ({ id: unit.id, title: `unit ${unit.id}`, dependsOn: [...unit.prereqs] })),
+      msps: units.map(manifestMsp),
     } : overrides.manifest,
     specs: units.map((unit) => ({
       id: unit.id,
