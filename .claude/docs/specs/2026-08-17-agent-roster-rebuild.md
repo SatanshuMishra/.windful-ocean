@@ -234,7 +234,7 @@ Dependencies are stated as unit ids, not as prose.
 | 0 | U0.1 | nothing |
 | 1 | U1.1, U1.2, U1.3 | nothing; U1.2 and U1.3 need U1.1 |
 | 2 | U2.1, U2.2 | wave 1 |
-| 3 | U3.1 → U3.2 → U3.3 → U3.4 | wave 1 |
+| 3 | U3.1 → U3.2 → U3.3b → U3.3 → U3.4 | wave 1 |
 | 4 | U4.1, U4.2 | **the mitosis engine on `main`** (§5a), wave 1, wave 2 |
 | 5 | U5.1, U5.2 | wave 4 |
 | 6 | U6.1, U6.2 | wave 5 |
@@ -354,7 +354,7 @@ supersedes the 22-field record this paragraph previously declared.
 |---|---|---|
 | `ts` | string, RFC3339 UTC with milliseconds | observer clock at append, not the payload |
 | `subject` | string, `agent` | constant namespace discriminator |
-| `event` | string, `SubagentStart` or `SubagentStop` | payload `hook_event_name`, copied raw |
+| `event` | string | row-type discriminator: a HOOK row copies payload `hook_event_name` raw (`SubagentStart`, `SubagentStop`); a DERIVED row carries a literal from a closed set (`capability_blocked`, per U3.3b) |
 | `session_id` | string | payload `session_id` |
 | `cwd` | string, absolute | payload `cwd` |
 | `agent_id` | string | payload `agent_id` |
@@ -377,9 +377,12 @@ worktrees. `source` is dropped as a constant on every row. `duration_ms`, `token
 `denial` become separate event types, since denials are 0..N per run and a scalar would be
 lossy. `subject` is constant by construction and must never be read as a measurement.
 **Mechanism:** POSIX `O_APPEND` line write, no lock. Monthly rotation. No write-time
-computation, with one bounded exception: a single best-effort read of the platform sidecar at
-a path that is a pure function of payload fields, failing to null. No transcript reading, no
-classification, no aggregation, no cached state.
+computation, with two bounded exceptions — both best-effort, both failing to null, both at a
+path that is a pure function of payload fields. First, a single read of the platform sidecar.
+Second, per U3.3b and decision 0533, a single 1 MiB positional tail read of the subagent
+transcript, taken only when the payload's own `last_assistant_message` yields no marker. A
+constant cap keeps that read O(1), so it applies decision 0524's rule rather than amending it.
+No unbounded transcript reading, no classification, no aggregation, no cached state.
 **Must not touch:** the existing analyzer, its output path, or its hook registration.
 **Acceptance:** a synthetic payload produces exactly one line with every declared field at
 its declared type; two concurrent writers produce two intact lines. Inertness: remove the
@@ -400,12 +403,76 @@ on start rows is MEASURED and recorded, not assumed. Inertness: drop the start b
 pairing and duration both fail; stub the sidecar read to `{}` and the depth-2 assertion fails.
 **Green on merge:** adds rows to the new log only.
 
+### U3.3b — Give `capability_blocked` its own event type
+
+**Deliverable:** the observer emits a second row type, `capability_blocked`, paired with the
+stop row it belongs to; plus a replay script that answers the same question over a directory
+of retained transcripts through the SAME exported detector the hook calls.
+**Depends on:** U3.2.
+**Why before U3.3:** the query skill's own "what was blocked" question would otherwise be
+answered against the ledger about to be deleted, or against a fixture with no such rows —
+the vacuous pass the closed-census rule forbids — and U3.3b would have to reach back into the
+skill. File scope permits either order; semantics do not. Fixed by decision 0533, which
+supersedes 0530's ordering.
+**Record:** the ten shared fields above, unchanged, plus three. `event` is the literal
+`capability_blocked`.
+
+| Field | Type | Source |
+|---|---|---|
+| `needed` | string, non-empty, <=300 chars | marker capture, lazy to the first `task=` so multi-word capabilities parse whole |
+| `task` | string <=300 chars, or null | marker capture, remainder of the marker line |
+| `detected_from` | string, `last_assistant_message` or `agent_transcript_path` | which channel hit |
+
+`detected_from` is the retirement path for the fallback: it turns "the payload field is
+always present" from an assumption 0493 named as unmeasured into a scheduled measurement.
+
+**Detection:** `SubagentStop` only. Payload `last_assistant_message` first — an O(1) field
+read with no I/O. If that yields nothing, a bounded 1 MiB positional tail read of
+`agent_transcript_path`, whose first line is discarded unconditionally as partial, walked
+backwards to the first assistant message carrying non-empty text. Both channels fail to
+nothing and never throw. The placeholder guard and the assistant-role filter are carried over
+from the retiring analyzer: of 1748 retained transcripts, 112 contain the raw marker string
+and only 28 are genuine — 42 quote the convention verbatim out of
+`.claude/rules/common/agent-roster.md`, and 2 carry it only outside assistant text, which is
+the relay path that once over-counted 52x. A detector missing either guard manufactures a
+false verdict.
+
+At-most-one-per-run holds BY CONSTRUCTION, never by deduplication, on four structural facts:
+the event gate, a non-global pattern so `.match` returns one, a short-circuit that never
+consults the second channel once the first hits, and a tail scan that returns on first hit.
+
+**Pairing:** one `nowIso()`, one sidecar read and one `appendFileSync` produce both the stop
+row and the capability row, so the pair cannot tear across a month boundary and cannot
+disagree about the timestamp.
+**Must not touch:** the existing analyzer, `.claude/settings.json`, or the U3.1/U3.2 tests.
+Hook registration does not change — detection rides U3.2's existing `SubagentStop` entry, and
+zero change to registration is a first-class property of this unit, asserted by diff.
+**Acceptance:** a genuine emission yields exactly one row carrying all thirteen keys at
+declared types, while the stop row it pairs with still carries exactly ten and both share one
+`ts`; multi-word and parenthesised `needed` are captured whole and stop at the first `task=`;
+a marker relayed into a parent transcript, a verbatim quote of the convention, an unblocked
+run, a `SubagentStart` payload carrying a marker, and a marker beyond the 1 MiB tail each
+record nothing; malformed, missing and directory-shaped inputs never throw and record
+nothing; the transcript fallback is used when the payload field is absent; the replay script
+agrees with the hook detector and asserts `scanned > 0` before asserting any count. RED on the
+parent commit.
+
+Inertness, three, each with a named expected red set: delete the capability append and every
+emission case turns red while the ten-field stop cases stay green; widen the `needed` capture
+from lazy to greedy and the multi-word and first-`task=` cases turn red while the simple case
+stays green; stub the tail read to the empty string and the fallback case turns red while the
+payload case stays green.
+**Residual:** the 33 historical emissions are NOT backfilled — a reconstructed record wearing
+a measured record's shape. The replay script answers that question on demand instead, and is
+the only instrument that can distinguish a blind detector from a genuine absence.
+**Green on merge:** additive. It adds a row type to the new log and changes no existing row.
+
 ### U3.3 — Audit-time query skill
 
 **Deliverable:** a skill that answers the standing questions over the new log with DuckDB:
 which agents ran and at what cost, which dispatches fell back and why, what was blocked, what
 failed, which agents are unused, which downgrade reasons recur.
-**Depends on:** U3.2.
+**Depends on:** U3.3b.
 **Acceptance:** each standing question returns a result against a fixture log with known
 answers. Inertness: corrupt one fixture row, the affected query's answer changes.
 **Green on merge:** additive.
@@ -417,6 +484,10 @@ becomes sole writer.
 **Depends on:** U3.3, U0.1.
 **Acceptance:** the new log receives rows and the old path receives none, asserted after a
 real dispatch. Inertness: re-register the old hook, the assertion fails.
+Plus one line filed by U3.3b: re-run the U0.1 archive IMMEDIATELY before removing the
+analyzer and assert the archived line count equals live, because every `capability_blocked`
+row the analyzer has written since U0.1 ran is currently unarchived and this unit deletes
+the writer.
 **Green on merge:** observation continues without a gap. This is the only unit in wave 3 that
 is not additive, which is why it is last.
 
