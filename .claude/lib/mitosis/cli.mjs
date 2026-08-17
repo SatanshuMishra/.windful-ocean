@@ -27,6 +27,9 @@ const EXIT_INCOMPLETE = 3;
 const WINDOW_TOKEN_PATTERN = /^[1-9][0-9]*$/;
 const NODE_FAILED = 'failed';
 const NODE_RUNNING = 'running';
+const NEEDS_HUMAN_KIND = 'unit';
+const NEEDS_HUMAN_WHAT = 'the unit reported that only a human can settle it';
+const NEEDS_HUMAN_UNEXPLAINED = 'the unit reported that only a human can settle it and named no reason';
 const DISPATCH_FAILURE_PHRASES = Object.freeze({
   'dispatch-threw': 'was never dispatched',
   'dispatch-contract-violation': 'was never dispatched',
@@ -341,6 +344,19 @@ function shaOfVerdict(verdict) {
   return structured !== null && typeof structured.sha === 'string' ? structured.sha : null;
 }
 
+function needsHumanReasonOf(verdict) {
+  const shaped = verdictShape(verdict);
+  const structured = shaped === null ? null : verdictShape(shaped.structured);
+  if (structured === null || structured.needsHuman !== true) return null;
+  const reason = structured.needsHumanReason;
+  return typeof reason === 'string' && reason.length > 0 ? reason : NEEDS_HUMAN_UNEXPLAINED;
+}
+
+function needsHumanPark(reason, envelope) {
+  const parked = NeedsHuman({ kind: NEEDS_HUMAN_KIND, what: NEEDS_HUMAN_WHAT, detail: reason }, []);
+  return Object.freeze({ ...parked, envelope });
+}
+
 function declaredJudgment(config, unit) {
   return readJudgment(unit.id, config.judgmentById?.get(unit.id));
 }
@@ -375,6 +391,8 @@ export function realPorts(config, deps = {}) {
         return Object.freeze({ ...parked, envelope: verdict === null ? null : normalizeEnvelope(verdict.envelope) });
       }
       const envelope = normalizeEnvelope(verdict.envelope);
+      const needsHuman = needsHumanReasonOf(verdict);
+      if (needsHuman !== null) return needsHumanPark(needsHuman, envelope);
       if (judgment !== null) {
         const judged = await runJudgment(
           judgment,

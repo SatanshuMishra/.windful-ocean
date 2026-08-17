@@ -10,7 +10,7 @@ export function builtDelta({ unitId, checkpointRef, sha, green, builtAgainst }) 
   return { kind: 'built', unitId, checkpointRef: checkpointRef ?? null, sha: sha ?? null, green: green ?? false, builtAgainst: builtAgainst ?? {} };
 }
 
-export function parkDelta({ unitId, stage, diagnosis, request, remediation, resumePoint, triedSet }) {
+export function parkDelta({ unitId, stage, diagnosis, request, remediation, resumePoint, triedSet, blockedBy }) {
   return {
     kind: 'park',
     unitId,
@@ -20,6 +20,7 @@ export function parkDelta({ unitId, stage, diagnosis, request, remediation, resu
     remediation: remediation ?? null,
     resumePoint: resumePoint ?? null,
     triedSet: Array.isArray(triedSet) ? [...triedSet] : [],
+    ...(typeof blockedBy === 'string' && blockedBy.length > 0 ? { blockedBy } : {}),
   };
 }
 

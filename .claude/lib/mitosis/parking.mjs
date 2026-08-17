@@ -8,13 +8,14 @@ function sanitizeStage(stage) {
   return typeof stage === 'string' && LEGAL_STAGES.includes(stage) ? stage : null;
 }
 
-export function ParkRecord({ unitId, stage, diagnosis, request, remediation, resumePoint, triedSet, dependents }) {
+export function ParkRecord({ unitId, stage, diagnosis, request, remediation, resumePoint, triedSet, dependents, blockedBy }) {
   const req = request && typeof request === 'object' ? request : {};
   const rp = resumePoint && typeof resumePoint === 'object' ? resumePoint : {};
   return Object.freeze({
     unitId,
     stage: stage ?? null,
     diagnosis: diagnosis ?? null,
+    blockedBy: blockedBy ?? null,
     request: Object.freeze({
       kind: req.kind ?? null,
       what: req.what ?? null,
@@ -49,7 +50,7 @@ export function transitiveDependents(msps, unitId) {
   return msps.map((msp) => msp.id).filter((id) => id !== unitId && blocked.has(id));
 }
 
-export function park(manifest, { unitId, stage, diagnosis, request, remediation, resumePoint, triedSet }) {
+export function park(manifest, { unitId, stage, diagnosis, request, remediation, resumePoint, triedSet, blockedBy }) {
   if (!manifest || typeof manifest !== 'object' || !Array.isArray(manifest.msps)) {
     throw new Error('park: manifest must be an object with an msps array');
   }
@@ -60,7 +61,7 @@ export function park(manifest, { unitId, stage, diagnosis, request, remediation,
     throw new Error(`park: unit not found in manifest: ${unitId}`);
   }
   const dependents = transitiveDependents(manifest.msps, unitId);
-  const record = ParkRecord({ unitId, stage, diagnosis, request, remediation, resumePoint, triedSet, dependents });
+  const record = ParkRecord({ unitId, stage, diagnosis, request, remediation, resumePoint, triedSet, dependents, blockedBy });
   const parkedIds = new Set([unitId, ...dependents]);
   const msps = manifest.msps.map((msp) => {
     if (!parkedIds.has(msp.id)) return msp;

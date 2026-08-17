@@ -184,9 +184,11 @@ if (unit.behaviour === 'succeed-without-structured-output') {
 
 if (unit.behaviour === 'needs-human') {
   emit(envelope({
-    is_error: true,
-    subtype: 'error_during_execution',
-    result: typeof unit.reason === 'string' ? unit.reason : 'NEEDS_HUMAN',
+    structured_output: {
+      sha: null,
+      needsHuman: true,
+      needsHumanReason: typeof unit.reason === 'string' ? unit.reason : 'NEEDS_HUMAN',
+    },
   }));
 }
 

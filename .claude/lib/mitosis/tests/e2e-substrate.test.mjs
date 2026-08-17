@@ -22,6 +22,8 @@ import {
   withSandbox,
 } from './e2e-substrate.mjs';
 
+const NEEDS_HUMAN_REASON = 'fixture needs a human for unit beta';
+
 const SHIPPED_CLAIM_MANIFEST = Object.freeze({
   logicalRunId: FIXED_RUN_ID,
   clusters: [],
@@ -129,21 +131,38 @@ test('a unit the plan fails parks the run and never reaches the done oracle', ()
   });
 });
 
-test('a needs-human verdict parks its unit and leaves the other done', () => {
+test('a needs-human verdict parks its unit and its transitive dependents, names the cause, and leaves the independent unit done', () => {
   withSandbox({}, (sandbox) => {
     planRun(sandbox, [
-      { id: 'alpha', behaviour: CLAUDE_BEHAVIOURS.needsHuman },
-      { id: 'beta', behaviour: CLAUDE_BEHAVIOURS.succeed },
+      { id: 'beta', behaviour: CLAUDE_BEHAVIOURS.needsHuman, reason: NEEDS_HUMAN_REASON },
+      { id: 'gamma', behaviour: CLAUDE_BEHAVIOURS.succeed, prereqs: ['beta'] },
+      { id: 'delta', behaviour: CLAUDE_BEHAVIOURS.succeed },
     ]);
 
     const run = runMitosisCli(sandbox);
+    const parks = readJournal(sandbox).filter((record) => record.kind === 'park');
 
     assert.equal(run.status, 3, run.stderr);
+    assert.equal(parks.length, 2);
+    assert.deepEqual(parks.map((record) => record.unitId), ['beta', 'gamma']);
+    assert.equal(parks[1].blockedBy, 'beta');
+    assert.equal(parks[1].diagnosis, 'blocked-by-parked-prerequisite');
+    assert.equal(parks[1].request, null);
+    assert.equal(Object.hasOwn(parks[0], 'blockedBy'), false);
+    assert.equal(parks[0].diagnosis, 'NeedsHuman');
+    assert.deepEqual(parks[0].request, {
+      kind: 'unit',
+      what: 'the unit reported that only a human can settle it',
+      detail: NEEDS_HUMAN_REASON,
+    });
     assert.deepEqual(run.summary.units, [
-      { id: 'alpha', state: 'parked' },
-      { id: 'beta', state: 'done' },
+      { id: 'beta', state: 'parked' },
+      { id: 'gamma', state: 'parked' },
+      { id: 'delta', state: 'done' },
     ]);
-    assert.equal(claudeArgvsFor(sandbox, 'alpha').length, 1);
+    assert.equal(claudeArgvsFor(sandbox, 'beta').length, 1);
+    assert.equal(claudeArgvsFor(sandbox, 'gamma').length, 0);
+    assert.equal(claudeArgvsFor(sandbox, 'delta').length, 1);
   });
 });
 
