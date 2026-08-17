@@ -402,6 +402,11 @@
         "ref": "0533-capability-blocked-ships-as-a-thirteen-field-derived-row",
         "title": "capability_blocked ships as a thirteen-field derived row with a bounded tail fallback, and moves ahead of U3.3",
         "scope": "c4"
+      },
+      {
+        "ref": "0534-the-cutover-must-register-the-new-observer-globally",
+        "title": "U3.4 must register the new observer in the global settings, not merely delete the old analyzer from it",
+        "scope": "c4"
       }
     ],
     "out_of_scope": [
@@ -410,5 +415,5 @@
     ]
   },
   "created_at": "2026-08-16T05:43:25.829Z",
-  "updated_at": "2026-08-17T16:59:11.530Z"
+  "updated_at": "2026-08-17T17:09:40.231Z"
 }
