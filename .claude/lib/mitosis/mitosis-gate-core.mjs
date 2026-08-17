@@ -12,6 +12,7 @@ import { censusEngineDeterminism, engineSourceRoots, realSourceIo } from './dete
 import { EXEC_ALLOWLIST, assertSpawnAllowed, resolveSpawn } from './exec-policy.mjs';
 import { MERGE_REFUSAL_SPECIMENS } from './gh-merge-shim.mjs';
 import { REQUIRED_TOOL, agentDefinitionDir, censusAgentSchemaCapability } from './agent-schema-lint.mjs';
+import { CENSUS_NOT_ATTESTED, censusNameIntegrity, censusScope, realCensusIo } from './name-integrity-census.mjs';
 import { PHASE_TITLES } from './phases.mjs';
 
 export const GATE_CLEAN_EXIT = 0;
@@ -21,7 +22,7 @@ export const GATE_UNRESOLVABLE_EXIT = 42;
 export const GATE_READ_EXIT = 43;
 export const GATE_COMPILE_EXIT = 44;
 
-export const MITOSIS_GATE_VERBS = Object.freeze(['determinism', 'dispatchable-agent-schema-capable', 'exec-allowlist', 'phase-parity']);
+export const MITOSIS_GATE_VERBS = Object.freeze(['determinism', 'dispatchable-agent-schema-capable', 'exec-allowlist', 'name-integrity', 'phase-parity']);
 
 export const DEFAULT_PHASE_PARITY_TARGET = fileURLToPath(new URL('./phases.mjs', import.meta.url));
 export const DEFAULT_DETERMINISM_TARGET = fileURLToPath(new URL('./', import.meta.url));
@@ -48,12 +49,13 @@ const EXEC_ALLOWLIST_NOT_ATTESTED = Object.freeze([
   'that a gh alias defined before the run is refused: the classifier reads alias definitions, not the alias table already in effect',
 ]);
 
-const TARGETLESS_VERBS = Object.freeze(new Set(['exec-allowlist']));
+const TARGETLESS_VERBS = Object.freeze(new Set(['exec-allowlist', 'name-integrity']));
 
 const VERB_DEFAULT_TARGETS = Object.freeze({
   determinism: DEFAULT_DETERMINISM_TARGET,
   'dispatchable-agent-schema-capable': DEFAULT_AGENT_TREE_TARGET,
   'exec-allowlist': null,
+  'name-integrity': null,
   'phase-parity': DEFAULT_PHASE_PARITY_TARGET,
 });
 
@@ -383,10 +385,49 @@ function runAgentSchemaGate(target, out, readSource) {
   return GATE_CLEAN_EXIT;
 }
 
+function runNameIntegrityGate(_target, out, readSource) {
+  const scope = censusScope();
+  if (!scope.ok) {
+    out.err(`mitosis-gate: name-integrity holds no configuration tree to census: ${scope.error}\n`);
+    return GATE_UNRESOLVABLE_EXIT;
+  }
+  const result = censusNameIntegrity(scope.dirs, { ...realCensusIo, readSource });
+  if (!result.ok && result.kind !== undefined) {
+    out.err(`mitosis-gate: name-integrity ${result.kind === 'read' ? 'could not read' : 'halted on'} its census: ${result.error}\n`);
+    return result.kind === 'read' ? GATE_READ_EXIT : GATE_UNRESOLVABLE_EXIT;
+  }
+  if (result.dangling.length > 0) {
+    for (const violation of result.dangling) {
+      out.err(`mitosis-gate: ${violation.path}:${violation.line} names ${violation.role} ${JSON.stringify(violation.token)} as a dispatch target but ${violation.reason}\n`);
+    }
+    return GATE_VIOLATION_EXIT;
+  }
+  out.log(`${JSON.stringify({
+    verb: 'name-integrity',
+    ok: true,
+    counts: {
+      files: result.fileCount,
+      unreadFiles: result.unreadCount,
+      resolved: result.resolved.length,
+      foreign: result.foreign.length,
+      dynamic: result.dynamic.length,
+      pluginManifestAbsent: result.pluginManifestAbsent.length,
+      agents: result.agentCount,
+      skills: result.skillCount,
+    },
+    perTree: result.perTree,
+    foreign: result.foreign.map((entry) => `${entry.path}:${entry.line} ${entry.token}`),
+    dynamic: result.dynamic.map((entry) => `${entry.path}:${entry.line} ${entry.declarator}`),
+    notAttested: [...CENSUS_NOT_ATTESTED],
+  })}\n`);
+  return GATE_CLEAN_EXIT;
+}
+
 const VERB_RUNNERS = Object.freeze({
   determinism: runDeterminismGate,
   'dispatchable-agent-schema-capable': runAgentSchemaGate,
   'exec-allowlist': runExecAllowlistGate,
+  'name-integrity': runNameIntegrityGate,
   'phase-parity': runPhaseParityGate,
 });
 
