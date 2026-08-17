@@ -328,6 +328,11 @@
         "ref": "0543-wave-3-closes-with-three-downgrades-of-one-shape",
         "title": "Wave 3 closes; its three ladder downgrades share one shape and name a real capability gap",
         "scope": "c4"
+      },
+      {
+        "ref": "0544-nine-shell-tests-have-no-runner-and-will-block-the-enforcer",
+        "title": "Nine shell tests have no runner at all, and the enforcer will select and die on them the moment source changes alongside",
+        "scope": "c5"
       }
     ],
     "out_of_scope": [
@@ -336,5 +341,5 @@
     ]
   },
   "created_at": "2026-08-16T05:43:25.829Z",
-  "updated_at": "2026-08-17T19:29:58.716Z"
+  "updated_at": "2026-08-17T20:01:05.509Z"
 }
