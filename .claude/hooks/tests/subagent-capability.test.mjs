@@ -96,6 +96,13 @@ function userLine(text) {
   return JSON.stringify({ type: 'user', message: { role: 'user', content: text } });
 }
 
+function toolResultLine(text) {
+  return JSON.stringify({
+    type: 'user',
+    message: { role: 'user', content: [{ type: 'tool_result', content: [{ type: 'text', text }] }] },
+  });
+}
+
 function writeLines(dir, name, lines) {
   const file = join(dir, name);
   writeFileSync(file, lines.join('\n') + '\n');
@@ -178,7 +185,12 @@ test('a marker relayed into the parent transcript is never read', () => {
   const quiet = runHook(
     stopPayload(unblocked, {
       finalText: 'I completed the task with no blockers.',
-      parentLines: [assistantLine('dispatching'), userLine(relayed), assistantLine(relayed)],
+      parentLines: [
+        assistantLine('dispatching'),
+        userLine(relayed),
+        toolResultLine(relayed),
+        assistantLine(relayed),
+      ],
     }),
   );
   assert.equal(quiet.blocked.length, 0, 'the parent transcript must never be a detection source');
@@ -186,9 +198,13 @@ test('a marker relayed into the parent transcript is never read', () => {
 
   const blockedDir = workspace('relay-plus');
   const both = runHook(
-    stopPayload(blockedDir, { finalText: relayed, parentLines: [assistantLine('dispatching'), userLine(relayed)] }),
+    stopPayload(blockedDir, {
+      finalText: relayed,
+      parentLines: [assistantLine('dispatching'), userLine(relayed), toolResultLine(relayed)],
+    }),
   );
   assert.equal(both.blocked.length, 1, 'a relay must not add a second row');
+  assert.equal(both.stops.length, 1);
 });
 
 test('an unblocked run records the stop row and nothing else', () => {
@@ -318,10 +334,16 @@ test('malformed, missing and directory-shaped inputs never throw and record no c
     {},
   ];
   for (const payload of cases) {
-    const { result, blocked } = runHook(payload);
+    const { result, rows, blocked } = runHook(payload);
     assert.equal(result.status, 0, `payload crashed: ${JSON.stringify(payload)}`);
     assert.equal(result.stderr, '', `payload wrote stderr: ${JSON.stringify(payload)}`);
     assert.equal(blocked.length, 0, `payload emitted a row: ${JSON.stringify(payload)}`);
+    assert.equal(rows.length, 1, `payload lost its stop row: ${JSON.stringify(payload)}`);
+    assert.equal(
+      rows[0].event,
+      typeof payload.hook_event_name === 'string' ? payload.hook_event_name : '',
+      `payload mislabelled its surviving row: ${JSON.stringify(payload)}`,
+    );
   }
 });
 
