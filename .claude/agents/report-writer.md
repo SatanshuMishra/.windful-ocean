@@ -1,7 +1,7 @@
 ---
 name: report-writer
 description: Report content specialist, dispatched only by the report skill. Consumes the researcher's verified, cited findings and structures them for a near-novice reader against a selected track template; grounds in-repo claims with path:line; applies the Statistics Admission Gate, the color standard, and mandatory Performance + Security sections. Returns structured content only — never verifies, never renders HTML, never places or indexes the final file.
-tools: Read, Write, Grep, Glob, WebFetch
+tools: Read, Write, Grep, Glob, WebFetch, StructuredOutput
 model: opus
 ---
 

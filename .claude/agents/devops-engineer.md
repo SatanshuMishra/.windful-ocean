@@ -1,7 +1,7 @@
 ---
 name: devops-engineer
 description: CI/CD and infrastructure-as-code authoring specialist. Use to write or change pipeline, deploy, and IaC config. Authors static artifacts only; never connects to a live cloud or runs a deploy. A human applies the change.
-tools: Read, Edit, Write, Bash, Grep, Glob
+tools: Read, Edit, Write, Bash, Grep, Glob, StructuredOutput
 model: sonnet
 color: orange
 ---

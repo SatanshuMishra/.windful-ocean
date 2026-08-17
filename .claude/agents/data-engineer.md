@@ -1,7 +1,7 @@
 ---
 name: data-engineer
 description: Schema and migration authoring specialist. Use to design schemas and write migration SQL (and paired rollbacks). Authors .sql files only; never connects to or queries a live database. A human runs the SQL in the dashboard.
-tools: Read, Edit, Write, Grep, Glob, mcp__plugin_serena_serena__find_symbol, mcp__plugin_serena_serena__get_symbols_overview
+tools: Read, Edit, Write, Grep, Glob, mcp__plugin_serena_serena__find_symbol, mcp__plugin_serena_serena__get_symbols_overview, StructuredOutput
 model: opus
 color: magenta
 ---
