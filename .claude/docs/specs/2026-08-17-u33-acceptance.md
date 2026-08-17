@@ -104,4 +104,21 @@ step is added to CI, because a check that runs on one laptop is not a re-runnabl
 - **U3.3d** — a source for downgrade-reason recurrence. No field, no event type, not in this
   log; the candidate corpora are pull request bodies and the enforcer run.
 - **U3.3e** — registering the skill in a `repo-checks` CI job. Conditional on PR 193 merging;
-  that job does not exist in this branch's ancestry.
+  that job did not exist in this branch's ancestry when this criterion was pinned.
+  DISCHARGED mid-run: PR 193 merged, the stack was rebased onto it, and the job now exists in
+  the ancestry, so the skill is registered in it rather than left as a follow-up. Recording a
+  filed item as done is not a new criterion; nothing above was added or relaxed.
+
+## 9. Deviations discovered after the criterion was pinned
+
+Neither was anticipated, and both sit outside the no-collateral set rather than inside it.
+
+- The repository runs a deny-by-default spawn census over `.claude/lib`. The new DuckDB
+  runner is a spawn site, so it is registered there as a declared exception with a written
+  reason. Routing it instead would have required widening the allowlist that governs every
+  `gh` and `git` spawn in the engine AND defeating its path-qualified guard.
+- The name-integrity census reads a binding whose name ends in `agentType(s)` as declaring
+  dispatch targets, and its platform list named only `general-purpose`. The fallback pair this
+  unit must count is `general-purpose` and `claude`, which `.claude/rules/common/agent-roster.md`
+  names together as the two built-ins. `claude` is added to that list and to its pinning
+  assertion, which stays closed: an unknown type is still red.
