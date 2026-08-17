@@ -1,12 +1,14 @@
 import { readFileSync, realpathSync } from 'node:fs';
 import { isAbsolute, join } from 'node:path';
 import { pathToFileURL } from 'node:url';
+import { evaluate } from './boundary-gate.mjs';
 import { Done, NeedsHuman } from './boundary.mjs';
 import { dispatch, normalizeEnvelope } from './dispatch.mjs';
 import { POST_DISPATCH_RECORD_FAILED } from './engine.mjs';
 import { run } from './exec-run.mjs';
 import { foldFile } from './fold-run-log.mjs';
 import { GH_COMMAND_BINARY, buildGhCommand } from './gh-commands.mjs';
+import { integrateSummary } from './integrate-plan.mjs';
 import { appendJournalLine, writeGenesis } from './journal-store.mjs';
 import { runPhases } from './phase-driver.mjs';
 import { resumeSummary } from './resume-plan.mjs';
@@ -245,10 +247,14 @@ function driverPorts(io, makePorts, deps, repoRoot) {
   const openRunFn = deps.openRun === undefined ? openRun : deps.openRun;
   const foldJournalFn = deps.foldJournal === undefined ? foldFile : deps.foldJournal;
   const runFn = deps.run === undefined ? run : deps.run;
+  const boundaryGateFn = deps.boundaryGate === undefined ? evaluate : deps.boundaryGate;
+  const dispatchFn = deps.dispatch === undefined ? dispatch : deps.dispatch;
   return Object.freeze({
     openRun: (request) => openRunFn(request),
     readJournal: (request) => foldJournalFn(journalLocation(request)),
     reconcile: reconcilePort(io, runFn, repoRoot),
+    boundaryGate: (request) => boundaryGateFn(request),
+    dispatchPrompt: (request) => dispatchFn(request),
     release: (handle) => releaseRun(handle, io),
     makeObserver: (config) => observeAll([
       unitRecorder(config.handle, config.at),
@@ -271,6 +277,7 @@ function summaryOf(driven) {
     ticks: result.ticks,
     units: result.units.map((unit) => ({ id: unit.id, state: unit.state })),
     resume: resumeSummary(driven.phases.Resume),
+    integrate: integrateSummary(driven.phases.Integrate),
     prState: result.prState === undefined ? null : result.prState,
   };
 }

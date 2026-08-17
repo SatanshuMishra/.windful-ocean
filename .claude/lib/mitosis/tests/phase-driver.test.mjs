@@ -24,6 +24,8 @@ function runRequest() {
 function stubbedPorts(overrides = {}) {
   const handle = Object.freeze({ runKey: 'a1b2c3d4e5f60718', attempt: 1 });
   const released = [];
+  const gated = [];
+  const dispatched = [];
   const enginePorts = {
     runUnit: async () => Done({ sha: 'sha-alpha', green: true }),
     writeGenesis: async () => {},
@@ -34,6 +36,8 @@ function stubbedPorts(overrides = {}) {
   return {
     handle,
     released,
+    gated,
+    dispatched,
     ports: Object.freeze({
       openRun: () => handle,
       readJournal: () => null,
@@ -41,6 +45,8 @@ function stubbedPorts(overrides = {}) {
       release: (given) => { released.push(given); },
       makeObserver: () => () => {},
       makePorts: () => enginePorts,
+      boundaryGate: (request) => { gated.push(request); return { pass: true, output: 'no new finding', blocking: [], baseCensus: null }; },
+      dispatchPrompt: (request) => { dispatched.push(request); return { ok: true, outcome: 'success' }; },
       ...overrides,
     }),
   };
@@ -61,9 +67,57 @@ test('the driver advances one run through every declared phase, in the order the
 test('every phase a later change fills in returns its own empty result, so a body attaches without reshaping the driver', async () => {
   const driven = await runPhases(runRequest(), stubbedPorts().ports);
   assert.deepEqual(driven.phases.Decompose, { units: [] });
-  assert.deepEqual(driven.phases.Integrate, { integrated: [], parked: [] });
   assert.deepEqual(driven.phases.Ship, { opened: [], parked: [] });
   assert.deepEqual(driven.phases.Remediate, { remediated: [], parked: [] });
+});
+
+test('Integrate gates nothing on a run whose journal names no built unit, and never spawns a gate for one', async () => {
+  const stub = stubbedPorts();
+  const driven = await runPhases(runRequest(), stub.ports);
+  assert.deepEqual(driven.phases.Integrate, {
+    integrated: [],
+    parked: [],
+    diverged: [],
+    divergedParents: [],
+    outcomes: [],
+  });
+  assert.deepEqual(stub.gated, [], 'the boundary gate materializes a base worktree, so a run with nothing built must not reach it at all');
+});
+
+test('a built unit whose run declares no base branch parks rather than gating against a base nobody wrote', async () => {
+  const journal = { logicalRunId: 'r1', clusters: [], msps: [{ id: 'alpha', status: 'built' }] };
+  const stub = stubbedPorts({ readJournal: () => journal });
+  const driven = await runPhases(runRequest(), stub.ports);
+  assert.deepEqual(driven.phases.Integrate.outcomes, [{
+    unitId: 'alpha',
+    state: 'parked',
+    boundaryFixes: 0,
+    diagnosis: driven.phases.Integrate.outcomes[0].diagnosis,
+    stage: 'execute',
+    resumePoint: { branch: null, ref: null, stage: 'ship' },
+  }]);
+  assert.match(driven.phases.Integrate.outcomes[0].diagnosis, /declares no base branch/);
+  assert.deepEqual(stub.gated, [], 'without a declared base branch there is no pre-MSP tree to collect, so no gate runs');
+});
+
+test('a built unit is gated once against the declared base branch, and integrates when the gate is clean', async () => {
+  const journal = { logicalRunId: 'r1', baseBranch: 'main', clusters: [], msps: [{ id: 'alpha', status: 'built' }] };
+  const stub = stubbedPorts({ readJournal: () => journal });
+  const driven = await runPhases(runRequest(), stub.ports);
+  assert.deepEqual(stub.gated, [{
+    repoRoot: '/repo',
+    gateBase: 'main',
+    basePath: '/repo/.mitosis/boundary/r1/alpha',
+  }]);
+  assert.deepEqual(stub.dispatched, [], 'a clean gate composes no boundary-fix prompt');
+  assert.deepEqual(driven.phases.Integrate.outcomes, [{
+    unitId: 'alpha',
+    state: 'integrated',
+    boundaryFixes: 0,
+    diagnosis: null,
+    stage: null,
+    resumePoint: { branch: null, ref: null, stage: 'ship' },
+  }]);
 });
 
 test('Resume plans the whole spec when no journal names this run, and hands Execute that plan rather than the spec', async () => {

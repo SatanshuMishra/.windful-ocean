@@ -6,15 +6,27 @@ import { fileURLToPath } from 'node:url';
 import { UNIT_VERDICT_SCHEMA } from '../decompose-schema.mjs';
 import { promptSection } from '../prompt-contract.mjs';
 import {
+  BOUNDARY_REPAIRS,
+  BOUNDARY_VIOLATION_TOKEN,
   CLAUDE_BEHAVIOURS,
   CLAUDE_BEHAVIOUR_NAMES,
   FAKE_ENV_KEYS,
   UNIT_MARKER_PREFIX,
   unitIdOfArgv,
   writeFakeBin,
+  writeFixtureLinter,
 } from './e2e-fake-bin.mjs';
 
-export { CLAUDE_BEHAVIOURS, CLAUDE_BEHAVIOUR_NAMES, UNIT_MARKER_PREFIX, unitIdOfArgv };
+export {
+  BOUNDARY_REPAIRS,
+  BOUNDARY_VIOLATION_TOKEN,
+  CLAUDE_BEHAVIOURS,
+  CLAUDE_BEHAVIOUR_NAMES,
+  UNIT_MARKER_PREFIX,
+  unitIdOfArgv,
+};
+
+export const BOUNDARY_FIX_MARKER = promptSection('gateFailingOutput');
 
 export const CLI_PATH = fileURLToPath(new URL('../cli.mjs', import.meta.url));
 
@@ -84,11 +96,20 @@ function gitIn(sandbox, argv, cwd, extraEnv = {}) {
   return result.stdout;
 }
 
-function initRepositories(sandbox) {
+function installBoundaryToolchain(sandbox) {
+  const manifest = { name: 'mitosis-e2e-fixture', private: true, devDependencies: { eslint: '9.0.0' } };
+  writeFileSync(join(sandbox.repo, 'package.json'), `${JSON.stringify(manifest)}\n`);
+  writeFileSync(join(sandbox.repo, '.gitignore'), 'node_modules\n');
+  writeFixtureLinter(join(sandbox.repo, 'node_modules'));
+  return ['package.json', '.gitignore'];
+}
+
+function initRepositories(sandbox, boundaryToolchain) {
   gitIn(sandbox, ['init', '--bare', '--initial-branch', 'main', sandbox.remote], sandbox.root);
   gitIn(sandbox, ['clone', sandbox.remote, sandbox.repo], sandbox.root);
   writeFileSync(join(sandbox.repo, 'README'), 'mitosis end-to-end fixture\n');
-  gitIn(sandbox, ['add', 'README'], sandbox.repo);
+  const seeded = ['README', ...(boundaryToolchain ? installBoundaryToolchain(sandbox) : [])];
+  gitIn(sandbox, ['add', ...seeded], sandbox.repo);
   gitIn(sandbox, ['commit', '-m', 'seed'], sandbox.repo, commitEnv(0));
   gitIn(sandbox, ['push', '--set-upstream', 'origin', 'main'], sandbox.repo);
 }
@@ -127,7 +148,7 @@ export function makeSandbox(options = {}) {
   writeFileSync(sandbox.claudePlan, `${JSON.stringify({ units: {} })}\n`);
   writeFileSync(sandbox.ghPlan, `${JSON.stringify(options.ghPlan === undefined ? defaultGhPlan() : options.ghPlan)}\n`);
   writeFakeBin(sandbox.fakeBin, { node: process.execPath, git: resolveOnAmbientPath('git') });
-  initRepositories(sandbox);
+  initRepositories(sandbox, options.boundaryToolchain === true);
   return sandbox;
 }
 
@@ -203,11 +224,21 @@ function requireUnitPlan(entry, index) {
     result: entry.result,
     reason: entry.reason,
     judgment: requireJudgmentPlan(entry, index),
+    boundaryViolation: entry.boundaryViolation === true,
   });
 }
 
-function createCommit(sandbox, unitId, index) {
-  writeFileSync(join(sandbox.repo, `${unitId}.txt`), `${unitId}\n`);
+function unitFile(sandbox, unitId) {
+  return join(sandbox.repo, `${unitId}.txt`);
+}
+
+function unitFileBody(unit) {
+  return unit.boundaryViolation ? `${unit.id}\n${BOUNDARY_VIOLATION_TOKEN}\n` : `${unit.id}\n`;
+}
+
+function createCommit(sandbox, unit, index) {
+  const unitId = unit.id;
+  writeFileSync(unitFile(sandbox, unitId), unitFileBody(unit));
   gitIn(sandbox, ['add', `${unitId}.txt`], sandbox.repo);
   gitIn(sandbox, ['commit', '-m', `unit ${unitId}`], sandbox.repo, commitEnv(index + 1));
   const sha = gitIn(sandbox, ['rev-parse', 'HEAD'], sandbox.repo).trim();
@@ -264,6 +295,7 @@ function runDocument(sandbox, units, overrides) {
   return {
     manifest: overrides.manifest === undefined ? {
       logicalRunId: FIXED_RUN_ID,
+      baseBranch: BASE_BRANCH,
       clusters: [],
       msps: units.map((unit) => ({ id: unit.id, title: `unit ${unit.id}`, dependsOn: [...unit.prereqs] })),
     } : overrides.manifest,
@@ -277,6 +309,19 @@ function runDocument(sandbox, units, overrides) {
   };
 }
 
+function boundaryFixPlan(sandbox, units, declared) {
+  if (declared === undefined) return undefined;
+  if (!BOUNDARY_REPAIRS.includes(declared)) {
+    throw new TypeError(`e2e-substrate: the boundaryFix override is ${JSON.stringify(declared)}, which is neither ${BOUNDARY_REPAIRS.join(' nor ')}; the stub refuses a repair mode nobody wrote rather than silently doing nothing`);
+  }
+  return {
+    marker: BOUNDARY_FIX_MARKER,
+    token: BOUNDARY_VIOLATION_TOKEN,
+    repair: declared,
+    files: units.filter((unit) => unit.boundaryViolation).map((unit) => unitFile(sandbox, unit.id)),
+  };
+}
+
 export function planRun(sandbox, unitPlans, overrides = {}) {
   if (!Array.isArray(unitPlans) || unitPlans.length === 0) {
     throw new TypeError('e2e-substrate: planRun needs a non-empty array of unit plans, because a run with no unit proves nothing about the engine');
@@ -285,12 +330,17 @@ export function planRun(sandbox, unitPlans, overrides = {}) {
   const shaOf = {};
   const planned = {};
   units.forEach((unit, index) => {
-    const sha = SHA_BEARING.includes(unit.behaviour) ? createCommit(sandbox, unit.id, index) : null;
+    const sha = SHA_BEARING.includes(unit.behaviour) ? createCommit(sandbox, unit, index) : null;
     if (sha !== null) shaOf[unit.id] = sha;
     planned[unit.id] = claudePlanEntry(unit, sha);
   });
   const document = runDocument(sandbox, units, overrides);
-  writeFileSync(sandbox.claudePlan, `${JSON.stringify({ units: planned, judgmentMarkers: JUDGMENT_MARKERS })}\n`);
+  const boundaryFix = boundaryFixPlan(sandbox, units, overrides.boundaryFix);
+  writeFileSync(sandbox.claudePlan, `${JSON.stringify({
+    units: planned,
+    judgmentMarkers: JUDGMENT_MARKERS,
+    ...(boundaryFix === undefined ? {} : { boundaryFix }),
+  })}\n`);
   writeFileSync(sandbox.specPath, `${JSON.stringify(document)}\n`);
   return Object.freeze({
     document,
@@ -371,6 +421,13 @@ export function claudeArgvs(sandbox) {
 
 export function claudeArgvsFor(sandbox, unitId) {
   return claudeArgvs(sandbox).filter((argv) => unitIdOfArgv(argv) === unitId);
+}
+
+export function boundaryFixArgvs(sandbox) {
+  return claudeArgvs(sandbox).filter((argv) => Array.isArray(argv)
+    && argv.length > 0
+    && typeof argv[argv.length - 1] === 'string'
+    && argv[argv.length - 1].includes(BOUNDARY_FIX_MARKER));
 }
 
 export function ghArgvs(sandbox) {
