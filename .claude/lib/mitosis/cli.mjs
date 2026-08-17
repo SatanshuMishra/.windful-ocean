@@ -11,6 +11,7 @@ import { appendJournalLine, writeGenesis } from './journal-store.mjs';
 import { runPhases } from './phase-driver.mjs';
 import { resumeSummary } from './resume-plan.mjs';
 import { execAllowed, openRun } from './run-store.mjs';
+import { readJudgment, runJudgment } from './unit-judgment.mjs';
 
 const MODULE = 'mitosis-cli';
 const GIT_BINARY = 'git';
@@ -318,6 +319,20 @@ function shaOfVerdict(verdict) {
   return structured !== null && typeof structured.sha === 'string' ? structured.sha : null;
 }
 
+function declaredJudgment(config, unit) {
+  return readJudgment(unit.id, config.judgmentById?.get(unit.id));
+}
+
+function judgmentPark(judged, envelope) {
+  const parked = NeedsHuman({
+    kind: 'judgment',
+    what: judged.what,
+    detail: judged.detail,
+    issues: [...judged.issues],
+  }, []);
+  return Object.freeze({ ...parked, envelope });
+}
+
 export function realPorts(config, deps = {}) {
   const dispatchFn = deps.dispatch === undefined ? dispatch : deps.dispatch;
   const writeGenesisFn = deps.writeGenesis === undefined ? writeGenesis : deps.writeGenesis;
@@ -326,7 +341,9 @@ export function realPorts(config, deps = {}) {
   const runFn = deps.run === undefined ? run : deps.run;
   return Object.freeze({
     runUnit: async (unit, context) => {
-      const verdict = verdictShape(await dispatchFn({ ...requireUnitRequest(config, unit), signal: context.signal }));
+      const request = requireUnitRequest(config, unit);
+      const judgment = declaredJudgment(config, unit);
+      const verdict = verdictShape(await dispatchFn({ ...request, signal: context.signal }));
       if (verdict === null || verdict.ok !== true) {
         const parked = NeedsHuman({
           kind: 'dispatch',
@@ -335,7 +352,16 @@ export function realPorts(config, deps = {}) {
         }, []);
         return Object.freeze({ ...parked, envelope: verdict === null ? null : normalizeEnvelope(verdict.envelope) });
       }
-      return Done({ sha: shaOfVerdict(verdict), green: true, envelope: normalizeEnvelope(verdict.envelope) });
+      const envelope = normalizeEnvelope(verdict.envelope);
+      if (judgment !== null) {
+        const judged = await runJudgment(
+          judgment,
+          (judgmentRequest) => dispatchFn({ ...judgmentRequest, signal: context.signal }),
+          request,
+        );
+        if (!judged.ok) return judgmentPark(judged, envelope);
+      }
+      return Done({ sha: shaOfVerdict(verdict), green: true, envelope });
     },
     writeGenesis: (request) => writeGenesisFn(request),
     appendJournal: (request) => appendJournalFn(request),

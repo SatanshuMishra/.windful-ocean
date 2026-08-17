@@ -4,6 +4,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { UNIT_VERDICT_SCHEMA } from '../decompose-schema.mjs';
+import { promptSection } from '../prompt-contract.mjs';
 import {
   CLAUDE_BEHAVIOURS,
   CLAUDE_BEHAVIOUR_NAMES,
@@ -28,6 +29,17 @@ export const DONE_ORACLE_ARGV = Object.freeze([
   'pr', 'view', '-R', REPO_SLUG, INTEGRATION_BRANCH, '--json', 'state,mergedAt,url',
 ]);
 
+export const BASE_BRANCH = 'main';
+export const BRANCH_PREFIX = 'mitosis';
+
+export const JUDGMENT_MARKERS = Object.freeze({
+  review: promptSection('whatToReview'),
+  security: promptSection('securityReviewTarget'),
+});
+
+const JUDGMENT_VERDICTS = Object.freeze(['pass', 'fail']);
+const JUDGMENT_VERDICT_KEYS = Object.freeze(['reviewVerdict', 'securityVerdict']);
+const WORKTREE_ISOLATION = 'worktree';
 const SHA_BEARING = Object.freeze([CLAUDE_BEHAVIOURS.succeed, CLAUDE_BEHAVIOURS.failThenSucceed]);
 const SCHEMALESS = Object.freeze([CLAUDE_BEHAVIOURS.succeedWithoutStructuredOutput]);
 const UNIT_ID_PATTERN = /^[a-z0-9][a-z0-9-]*$/;
@@ -150,6 +162,26 @@ export function sandboxEnv(sandbox) {
   });
 }
 
+function requireJudgmentPlan(entry, index) {
+  const declared = entry.judgment;
+  if (declared === undefined) return null;
+  if (declared === null || typeof declared !== 'object' || Array.isArray(declared)) {
+    throw new TypeError(`e2e-substrate: unit plan ${index} declares a judgment that is not an object, so the run document would carry judgment facts nobody wrote`);
+  }
+  if (typeof declared.securityReviewRequired !== 'boolean') {
+    throw new TypeError(`e2e-substrate: unit plan ${index} declares a judgment with no securityReviewRequired boolean, and the engine refuses a judgment record that does not say whether the security lens is required`);
+  }
+  for (const key of JUDGMENT_VERDICT_KEYS) {
+    if (declared[key] === undefined || JUDGMENT_VERDICTS.includes(declared[key])) continue;
+    throw new TypeError(`e2e-substrate: unit plan ${index} declares ${key} ${JSON.stringify(declared[key])}, which is neither ${JUDGMENT_VERDICTS.join(' nor ')}`);
+  }
+  return Object.freeze({
+    securityReviewRequired: declared.securityReviewRequired,
+    reviewVerdict: declared.reviewVerdict,
+    securityVerdict: declared.securityVerdict,
+  });
+}
+
 function requireUnitPlan(entry, index) {
   if (entry === null || typeof entry !== 'object' || Array.isArray(entry)) {
     throw new TypeError(`e2e-substrate: unit plan ${index} must be an object carrying an id and a behaviour`);
@@ -170,6 +202,7 @@ function requireUnitPlan(entry, index) {
     failExitCode: entry.failExitCode === undefined ? 9 : entry.failExitCode,
     result: entry.result,
     reason: entry.reason,
+    judgment: requireJudgmentPlan(entry, index),
   });
 }
 
@@ -185,11 +218,14 @@ function createCommit(sandbox, unitId, index) {
 }
 
 function claudePlanEntry(unit, sha) {
+  const judgment = unit.judgment === null ? {} : unit.judgment;
   return {
     behaviour: unit.behaviour,
     ...(sha === null ? {} : { sha }),
     ...(unit.result === undefined ? {} : { result: unit.result }),
     ...(unit.reason === undefined ? {} : { reason: unit.reason }),
+    ...(judgment.reviewVerdict === undefined ? {} : { reviewVerdict: judgment.reviewVerdict }),
+    ...(judgment.securityVerdict === undefined ? {} : { securityVerdict: judgment.securityVerdict }),
     stderr: unit.stderr,
     exitCode: unit.exitCode,
     failExitCode: unit.failExitCode,
@@ -208,7 +244,23 @@ function unitRequest(unit) {
   };
 }
 
-function runDocument(units, overrides) {
+function judgmentFacts(sandbox, unit) {
+  return {
+    specReviewerPreamble: `fixture spec reviewer preamble for unit ${unit.id}`,
+    qualityReviewerPreamble: `fixture quality reviewer preamble for unit ${unit.id}`,
+    repoRoot: sandbox.repo,
+    baseBranch: BASE_BRANCH,
+    branch: `${BRANCH_PREFIX}/${unit.id}`,
+    taskId: unit.id,
+    taskTitle: `unit ${unit.id}`,
+    taskFullText: unitPrompt(unit.id),
+    isolation: unit.isolation === undefined ? WORKTREE_ISOLATION : unit.isolation,
+    fileScope: { edit: [`${unit.id}.txt`], read: [], truncated: null },
+    securityReviewRequired: unit.judgment.securityReviewRequired,
+  };
+}
+
+function runDocument(sandbox, units, overrides) {
   return {
     manifest: overrides.manifest === undefined ? {
       logicalRunId: FIXED_RUN_ID,
@@ -219,6 +271,7 @@ function runDocument(units, overrides) {
       id: unit.id,
       prereqs: [...unit.prereqs],
       ...(unit.isolation === undefined ? {} : { isolation: unit.isolation }),
+      ...(unit.judgment === null ? {} : { judgment: judgmentFacts(sandbox, unit) }),
       request: unitRequest(unit),
     })),
   };
@@ -236,8 +289,8 @@ export function planRun(sandbox, unitPlans, overrides = {}) {
     if (sha !== null) shaOf[unit.id] = sha;
     planned[unit.id] = claudePlanEntry(unit, sha);
   });
-  const document = runDocument(units, overrides);
-  writeFileSync(sandbox.claudePlan, `${JSON.stringify({ units: planned })}\n`);
+  const document = runDocument(sandbox, units, overrides);
+  writeFileSync(sandbox.claudePlan, `${JSON.stringify({ units: planned, judgmentMarkers: JUDGMENT_MARKERS })}\n`);
   writeFileSync(sandbox.specPath, `${JSON.stringify(document)}\n`);
   return Object.freeze({
     document,

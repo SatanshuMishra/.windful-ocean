@@ -89,6 +89,10 @@ function requestsById(spec) {
   return new Map(unitsOf(spec).map((unit) => [unit.id, unit.request]));
 }
 
+function judgmentById(spec) {
+  return new Map(unitsOf(spec).map((unit) => [unit.id, unit.judgment]));
+}
+
 function runStoreRequest(request) {
   return {
     root: request.repoRoot,
@@ -145,7 +149,11 @@ async function resumePhase(completed, request, ports) {
 async function prepPhase(completed, request, ports) {
   const title = phase('Prep');
   return entered(title, {
-    enginePorts: ports.makePorts({ repoRoot: request.repoRoot, requestsById: requestsById(request.spec) }),
+    enginePorts: ports.makePorts({
+      repoRoot: request.repoRoot,
+      requestsById: requestsById(request.spec),
+      judgmentById: judgmentById(request.spec),
+    }),
     onRecord: ports.makeObserver({ handle: heldHandle(completed), at: request.at }),
   });
 }
