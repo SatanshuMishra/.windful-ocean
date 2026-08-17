@@ -199,14 +199,14 @@
     {
       "id": "c35",
       "text": "Every remaining pull request reaches main: 184-187 restacked with 17 stale twins dropped, 184 recovered after a base-branch deletion closed it, 170, 171 and 173 merged, and the trunk green.",
-      "done": false,
+      "done": true,
       "kind": "detour",
       "struck_by": null
     },
     {
       "id": "c27",
       "text": "Every prompt kind the mitosis flow needs is reachable from the engine entry point on a real run, or is explicitly retired with a recorded reason; no kind stays registered-but-dead.",
-      "done": false,
+      "done": true,
       "kind": "planned",
       "struck_by": null
     },
@@ -259,9 +259,9 @@
   "abandoned_reason": null,
   "closure_statement": null,
   "spine": {
-    "active_goal": "Get /mitosis running end to end, with every phase, the pull-request and merge path, and failure handling all thoroughly tested.",
-    "next_step": "WAIT for the user's SPECIFIC instructions. Do not auto-merge and do not auto-resume. Merging is under way and working: #172, #174, #175, #176 and #177 are on main, each branch deleted as part of its own merge, and #178 correctly retargeted to main. Ten remain, #178 through #187, still stacked. Local branch refs are STALE twins of rewritten commits - re-fetch and compare by content, never by SHA. When the last lands, flip c27 through c31. #181 and #183 stay red per 0516.",
-    "last_session": "Shipped every remaining MSP as a 15-PR stack, #172 to #187, on top of 7 merged earlier. c27's work is complete at the stack tip: all 12 prompt kinds reachable on a real run, fix retired. Six G14 gates cleared on first push; three stay red as tracked downgrades under 0516.",
+    "active_goal": "Prove the merged mitosis engine end to end on real runs: c28-c31 remain, and each needs an actual /mitosis execution rather than the unit coverage that shipped with them.",
+    "next_step": "START HERE. The full stack is MERGED - main is at 425b06fb, trunk green, zero open pull requests. What remains is PROOF, not code: c28-c31 each demand a REAL engine run, which merging their implementations does not provide. Drive /mitosis end to end on a disposable substrate, then flip c28 (one PR per MSP + serialized merge), c29 (Integrate and Resume after a mid-run teardown), c30 (dependency edge, induced failure, retry, park, poisoned-lock recovery), c31 (the automated CI end-to-end test).",
+    "last_session": "Landed every remaining pull request: 184-187 restacked onto main (17 stale twins dropped, zero conflicts) plus 170, 171 and 173. Main advanced 43 commits to 425b06fb, trunk green, open set empty. Recovered 184 after an out-of-band base-branch deletion closed it.",
     "open_risks": [
       {
         "text": "Prove a merge arrived by asserting its CONTENT is on the base, never by SHA ancestry — a squash or stack merge rewrites commits, so a pre-merge SHA correctly fails an ancestry check on a merge that lost nothing",
@@ -435,6 +435,59 @@
         "scope": "c27",
         "refs": [
           "mitosis-gate-core.mjs:220"
+        ]
+      },
+      {
+        "text": "Never let the engine merge a pull request — merge is refused at four independent layers by design, so c28 means serialized ship order plus a blocked-pending-approval handoff",
+        "scope": "c28",
+        "refs": [
+          "0497",
+          "gh-merge-shim.mjs",
+          "settings.json:78-87"
+        ]
+      },
+      {
+        "text": "Ship a gh stub in every test fakebin and assert its recorder was written — DEFAULT_FALLBACKS hardcodes an absolute path to gh, so PATH alone does not stop a run reaching the live network",
+        "scope": "c28",
+        "refs": [
+          "gh-merge-shim.mjs:9"
+        ]
+      },
+      {
+        "text": "Read the exit code from phase-parity rather than its wording — it HALTS at 42 on an empty phase use-set, and a halt is a failure that reads like a pass",
+        "scope": "c28",
+        "refs": [
+          "mitosis-gate-core.mjs:220"
+        ]
+      },
+      {
+        "text": "Merge a stacked pull request through the async REST endpoint rather than gh pr merge — GitHub refuses the GraphQL mutation outright for any pull request that is part of a stack",
+        "scope": "c28",
+        "refs": [
+          "0518",
+          "PUT /repos/{owner}/{repo}/pulls/{n}/merge-async"
+        ]
+      },
+      {
+        "text": "Retarget a child explicitly and delete no branch that an open pull request still names as base — the deletion CLOSES that pull request instead of moving it, and reopening needs the deleted ref pushed back first",
+        "scope": "c28",
+        "refs": [
+          "0519"
+        ]
+      },
+      {
+        "text": "Re-run a red sast drift check before touching the pin — the runner and a local fetch compute different canonical hashes for the same upstream ruleset, so re-vendoring adopts a hash upstream does not reliably serve",
+        "scope": "c28",
+        "refs": [
+          "0520",
+          ".semgrep/p-default.sha256"
+        ]
+      },
+      {
+        "text": "Write helper shell for this machine's real environment — grep resolves to ripgrep with an unrecognised flag so exit-code checks error out instead of matching, and a double-quoted !! triggers zsh history expansion",
+        "scope": "c28",
+        "refs": [
+          "session log 2026-08-17"
         ]
       }
     ],
@@ -844,5 +897,5 @@
     ]
   },
   "created_at": "2026-08-12T07:37:41.077Z",
-  "updated_at": "2026-08-17T14:53:58.952Z"
+  "updated_at": "2026-08-17T14:54:35.948Z"
 }
