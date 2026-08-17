@@ -906,6 +906,11 @@
         "ref": "0525-exec-allowlist-gate-attests-a-mock-not-the-shim",
         "title": "The exec-allowlist gate attests a stdin refusal the real shim does not perform, and is filed rather than fixed in flight",
         "scope": "c28"
+      },
+      {
+        "ref": "0526-two-confirmed-engine-defects-block-dependency-chains-and-fake-ci-green",
+        "title": "Two confirmed engine defects are filed: dependency chains never resume, and an unread CI reports all-shipped",
+        "scope": "c28"
       }
     ],
     "out_of_scope": [
@@ -917,5 +922,5 @@
     ]
   },
   "created_at": "2026-08-12T07:37:41.077Z",
-  "updated_at": "2026-08-17T15:53:29.310Z"
+  "updated_at": "2026-08-17T16:13:54.747Z"
 }
