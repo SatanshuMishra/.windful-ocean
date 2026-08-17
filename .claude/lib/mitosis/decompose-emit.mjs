@@ -175,7 +175,7 @@ function failure(exitCode, error) {
 }
 
 function preambleText(prompts, key) {
-  const entry = prompts === null || typeof prompts !== 'object' ? null : prompts[key];
+  const entry = prompts?.[key];
   const text = entry === undefined || entry === null ? null : entry.text;
   if (typeof text !== 'string' || text.trim() === '') {
     throw new Error(`the resolved superpowers prompt set carries no ${key} text`);
