@@ -933,6 +933,11 @@
         "ref": "0540-the-ship-git-site-is-unwired-so-the-engine-cannot-open-a-pull-request",
         "title": "The ship git site is unreachable, so the engine structurally cannot open a pull request",
         "scope": "c28"
+      },
+      {
+        "ref": "0541-green-is-a-hardcoded-literal-that-becomes-a-verified-pr-line",
+        "title": "The unit green flag is a hardcoded literal that is rendered as a Verified line in the pull request body",
+        "scope": "c28"
       }
     ],
     "out_of_scope": [
@@ -944,5 +949,5 @@
     ]
   },
   "created_at": "2026-08-12T07:37:41.077Z",
-  "updated_at": "2026-08-17T17:37:05.403Z"
+  "updated_at": "2026-08-17T17:44:50.432Z"
 }
