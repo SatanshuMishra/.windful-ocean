@@ -7,6 +7,7 @@ import {
   FIXED_RUN_ID,
   JUDGMENT_MARKERS,
   OPENED_PR_URL,
+  PLANNING_MARKERS,
   claudeArgvs,
   decompositionMsp,
   ghArgvsMatching,
@@ -23,9 +24,11 @@ import {
 
 const PR_CREATE_PREFIX = Object.freeze(['pr', 'create']);
 
+const APPROVED_PLAN = Object.freeze({ reviews: Object.freeze(['approve']) });
+
 const TWO_UNITS = Object.freeze([
-  Object.freeze({ id: 'alpha', behaviour: CLAUDE_BEHAVIOURS.succeed }),
-  Object.freeze({ id: 'beta', behaviour: CLAUDE_BEHAVIOURS.succeed }),
+  Object.freeze({ id: 'alpha', behaviour: CLAUDE_BEHAVIOURS.succeed, planning: APPROVED_PLAN }),
+  Object.freeze({ id: 'beta', behaviour: CLAUDE_BEHAVIOURS.succeed, planning: APPROVED_PLAN }),
 ]);
 
 const TWO_MSPS = Object.freeze([
@@ -45,13 +48,16 @@ function promptOf(argv) {
 function kindOfArgv(argv) {
   const prompt = promptOf(argv);
   if (prompt.includes(DECOMPOSE_MARKER)) return 'decompose';
+  if (prompt.includes(PLANNING_MARKERS.replan)) return 'replan';
+  if (prompt.includes(PLANNING_MARKERS['plan-review'])) return 'plan-review';
+  if (prompt.includes(PLANNING_MARKERS.plan)) return 'plan';
   if (prompt.includes(JUDGMENT_MARKERS.security)) return 'security';
   if (prompt.includes(JUDGMENT_MARKERS.review)) return 'review';
   return 'implement';
 }
 
 function dispatchCensus(sandbox) {
-  const census = { decompose: 0, implement: 0, review: 0, security: 0 };
+  const census = { decompose: 0, plan: 0, 'plan-review': 0, replan: 0, implement: 0, review: 0, security: 0 };
   for (const argv of claudeArgvs(sandbox)) census[kindOfArgv(argv)] += 1;
   return census;
 }
@@ -91,12 +97,27 @@ test('one cycle carries a spec from the real decomposer through execute and inte
     );
     assert.equal(document.manifest.logicalRunId, FIXED_RUN_ID);
     assert.deepEqual(document.manifest.msps.map((msp) => msp.integrationBranch), [integrationBranchOf('alpha'), integrationBranchOf('beta')]);
+    assert.deepEqual(
+      document.specs.map((unit) => Object.hasOwn(unit, 'prep')),
+      [true, true],
+      'the emitter declares a prep record on every unit, and a unit without one reaches implement with no plan the review stage ever read',
+    );
+    assert.deepEqual(document.specs.map((unit) => Object.keys(unit.prep).sort()), [
+      ['dependsList', 'fileScope', 'rationale', 'specPath', 'title'],
+      ['dependsList', 'fileScope', 'rationale', 'specPath', 'title'],
+    ]);
+    assert.deepEqual(document.specs.map((unit) => unit.prep.title), ['unit alpha', 'unit beta']);
+    assert.deepEqual(document.specs.map((unit) => unit.prep.dependsList), ['(none)', '(none)']);
 
     const build = runMitosisCli(sandbox);
     assert.equal(build.status, 0, `the build run must reach a clean exit on the emitted document: ${build.stderr}`);
     assert.deepEqual(build.summary.units, [{ id: 'alpha', state: 'done' }, { id: 'beta', state: 'done' }]);
-    assert.equal(claudeArgvs(sandbox).length, 6, 'one decompose child, one implement and one review child per unit, and one security child for the only unit that declares the lens required');
-    assert.deepEqual(dispatchCensus(sandbox), { decompose: 1, implement: 2, review: 2, security: 1 });
+    assert.deepEqual(build.summary.prep, [
+      { id: 'alpha', approved: true, iterations: 1, what: null },
+      { id: 'beta', approved: true, iterations: 1, what: null },
+    ]);
+    assert.equal(claudeArgvs(sandbox).length, 10, 'one decompose child, one plan and one plan-review child per unit, one implement and one review child per unit, and one security child for the only unit that declares the lens required');
+    assert.deepEqual(dispatchCensus(sandbox), { decompose: 1, plan: 2, 'plan-review': 2, replan: 0, implement: 2, review: 2, security: 1 });
     assert.deepEqual(unitsDispatchedFor(sandbox, 'review'), ['alpha', 'beta'], 'every unit from the real emitter gets its review lens');
     assert.deepEqual(unitsDispatchedFor(sandbox, 'security'), ['alpha'], 'the security lens runs over exactly the unit whose MSP declared it required');
 
