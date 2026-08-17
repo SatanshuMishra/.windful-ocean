@@ -60,6 +60,10 @@ function stubbedPorts(overrides = {}) {
       },
       appendJournal: (request) => { journalled.push(request); },
       diffStat: () => ({ status: 1, stdout: '', stderr: 'no such ref' }),
+      ciRead: () => ({ outcome: 'completed', status: 1, stdout: '', stderr: 'no run', signal: null, error: null }),
+      switchBranch: () => ({ outcome: 'completed', status: 1, stdout: '', stderr: 'no branch', signal: null, error: null }),
+      recordFix: () => ({ outcome: 'completed', status: 1, stdout: '', stderr: 'nothing staged', signal: null, error: null }),
+      pushFix: () => ({ outcome: 'completed', status: 1, stdout: '', stderr: 'no upstream', signal: null, error: null }),
       ...overrides,
     }),
   };
@@ -80,7 +84,15 @@ test('the driver advances one run through every declared phase, in the order the
 test('every phase a later change fills in returns its own empty result, so a body attaches without reshaping the driver', async () => {
   const driven = await runPhases(runRequest(), stubbedPorts().ports);
   assert.deepEqual(driven.phases.Decompose, { units: [] });
-  assert.deepEqual(driven.phases.Ship, { opened: [], parked: [], outcomes: [], awaiting: [], blocked: [], status: 'partial' });
+  assert.deepEqual(driven.phases.Ship, {
+    opened: [],
+    parked: [],
+    outcomes: [],
+    awaiting: [],
+    blocked: [],
+    ci: { outcomes: [], green: [], unwatched: [], exhausted: [] },
+    status: 'partial',
+  });
   assert.deepEqual(driven.phases.Remediate, { remediated: [], parked: [] });
 });
 

@@ -30,6 +30,7 @@ import {
 
 const PR_CREATE_PREFIX = Object.freeze(['pr', 'create']);
 const REFUSING_IO = Object.freeze({ readFile: () => null, readStdin: () => null });
+const EMPTY_CI = Object.freeze([]);
 
 const THREE_UNITS = Object.freeze([
   Object.freeze({ id: 'alpha', behaviour: CLAUDE_BEHAVIOURS.succeed }),
@@ -209,7 +210,8 @@ test('the changed-line count is read from a shortstat or left unstated, never in
   assert.equal(changedLinesOf(' 9 files changed, 9999999 insertions(+), 1 deletions(-)\n'), null, 'a total the tool would reject as more than seven digits is left out rather than sent to a usage rejection');
 });
 
-const SHIP_PORTS = Object.freeze({ openPullRequest: () => ({ status: 0, stdout: '' }), appendJournal: () => {}, diffStat: () => ({ status: 1, stdout: '' }), reconcile: () => [] });
+const NO_CI_WATCH = Object.freeze({ outcomes: EMPTY_CI, green: EMPTY_CI, unwatched: EMPTY_CI, exhausted: EMPTY_CI });
+const SHIP_PORTS = Object.freeze({ openPullRequest: () => ({ status: 0, stdout: '' }), appendJournal: () => {}, diffStat: () => ({ status: 1, stdout: '' }), reconcile: () => [], watchCi: () => NO_CI_WATCH });
 const SHIP_CONFIG = Object.freeze({ integrated: [], manifest: {}, repoRoot: '/repo', repoSlug: 'acme/widgets', journalPath: '.mitosis/run.jsonl' });
 
 const MERGED_ALPHA_PR = Object.freeze([Object.freeze({
@@ -244,15 +246,18 @@ function shippingPorts(extra = {}) {
   const spawned = [];
   const written = [];
   const probed = [];
+  const watched = [];
   return {
     spawned,
     written,
     probed,
+    watched,
     ports: {
       openPullRequest: (request) => { spawned.push(request.argv); return { status: 0, stdout: CREATED_LINE, stderr: '' }; },
       appendJournal: (request) => { written.push(JSON.parse(request.line)); },
       diffStat: () => ({ status: 1, stdout: '', stderr: 'no such ref' }),
       reconcile: (values) => { probed.push(values); return MERGED_ALPHA_PR; },
+      watchCi: (request) => { watched.push(request); return NO_CI_WATCH; },
       ...extra,
     },
   };
@@ -345,10 +350,16 @@ test('the ship summary names the units, their actions and the pull requests they
     prUrls: { beta: 'https://github.com/acme/widgets/pull/5' },
     outcomes: [{ id: 'beta', state: 'shipped', action: 'created' }],
     status: 'all-shipped',
+    ci: [],
     awaiting: [],
     blocked: [],
   });
   assert.deepEqual(ports.probed, [{ ownerRepo: 'acme/widgets', baseBranch: 'main', sourcePrefix: 'mitosis', repoHost: null }]);
+  assert.deepEqual(ports.watched, [{
+    opened: [{ unitId: 'beta', head: 'mitosis/beta-integration', prUrl: 'https://github.com/acme/widgets/pull/5', declaredScope: [] }],
+    repoRoot: '/repo',
+    repoSlug: 'acme/widgets',
+  }], 'the loop is handed exactly the heads this walk opened a pull request on, never one it parked');
 });
 
 const GAMMA_MSP = Object.freeze({
@@ -468,7 +479,7 @@ test('the ship config is refused at the boundary, and the refusal names what arr
   await assert.rejects(() => shipIntegrated({ ...SHIP_CONFIG, journalPath: undefined }, SHIP_PORTS), /non-empty journalPath.*received undefined$/);
   assert.deepEqual(
     await shipIntegrated({ ...SHIP_CONFIG, journalPath: 'j' }, SHIP_PORTS),
-    { opened: [], parked: [], outcomes: [], awaiting: [], blocked: [], status: 'partial' },
+    { opened: [], parked: [], outcomes: [], awaiting: [], blocked: [], ci: NO_CI_WATCH, status: 'partial' },
     'a one-character path is a path; the boundary refuses what is empty, never what is short',
   );
 });
@@ -482,7 +493,7 @@ test('an integrated entry with no unit id is refused rather than shipped under a
 });
 
 test('a ship port that is not a function is refused before any pull request is opened', async () => {
-  for (const missing of ['openPullRequest', 'appendJournal', 'diffStat', 'reconcile']) {
+  for (const missing of ['openPullRequest', 'appendJournal', 'diffStat', 'reconcile', 'watchCi']) {
     await assert.rejects(
       () => shipIntegrated(SHIP_CONFIG, { ...SHIP_PORTS, [missing]: null }),
       new RegExp(`need a ${missing} function.*received null$`),

@@ -55,6 +55,25 @@ export const DIAGNOSE_MARKER = lastLineOf(composePrompt('diagnose', {
 
 export const REDISPATCH_MARKER = promptSection('correctedApproach');
 
+export const CI_FACT_EXTRACT_MARKER = promptSection('ciFailingJobOutput');
+
+export const CI_FIX_MARKER = lastLineOf(composePrompt('ci-fix', {
+  unitId: 'marker',
+  repoRoot: '/marker',
+  integrationBranch: 'marker',
+  ciConclusion: 'marker',
+  detail: 'marker detail',
+  failedChecks: [],
+  implicatedPaths: [],
+  declaredScope: [],
+  failingAssertionFiles: [],
+}));
+
+export const CI_MARKERS = Object.freeze({
+  'ci-fact-extract': CI_FACT_EXTRACT_MARKER,
+  'ci-fix': CI_FIX_MARKER,
+});
+
 export const REMEDIATION_MARKERS = Object.freeze({
   diagnose: DIAGNOSE_MARKER,
   redispatch: REDISPATCH_MARKER,
@@ -223,8 +242,46 @@ function initRepositories(sandbox, boundaryToolchain) {
 
 export const OPENED_PR_URL = `https://github.com/${REPO_SLUG}/pull/9`;
 
+export const CI_RUN_ID = '4242';
+export const CI_FAILING_JOB = 'unit';
+export const CI_PASSING_JOB = 'receipts';
+
+function ciJobsBody(failing) {
+  return JSON.stringify({
+    jobs: [
+      { name: CI_PASSING_JOB, conclusion: 'success' },
+      { name: CI_FAILING_JOB, conclusion: failing },
+    ],
+  });
+}
+
+export function ciPlanSteps(declared) {
+  if (declared === undefined) return [];
+  if (!Array.isArray(declared.conclusions) || declared.conclusions.length === 0) {
+    throw new TypeError('e2e-substrate: a ci plan needs a non-empty conclusions array, because a watch with no planned conclusion would read a run nobody wrote');
+  }
+  return [
+    {
+      argvPrefix: ['run', 'list', '-R', REPO_SLUG],
+      stdout: declared.runId === undefined ? `${CI_RUN_ID}\n` : declared.runId,
+      exitCode: declared.resolveExitCode === undefined ? 0 : declared.resolveExitCode,
+    },
+    {
+      argvPrefix: ['run', 'view', CI_RUN_ID, '-R', REPO_SLUG, '--json', 'jobs'],
+      stdout: `${ciJobsBody(declared.failingConclusion === undefined ? 'failure' : declared.failingConclusion)}\n`,
+      exitCode: 0,
+    },
+    {
+      argvPrefix: ['run', 'view', CI_RUN_ID, '-R', REPO_SLUG, '--json', 'conclusion'],
+      stdouts: declared.conclusions.map((conclusion) => `${conclusion}\n`),
+      exitCode: 0,
+    },
+  ];
+}
+
 export function ghPlanSteps(overrides = {}) {
   return [
+    ...ciPlanSteps(overrides.ci),
     {
       argvPrefix: ['pr', 'view'],
       stdout: `${JSON.stringify({ state: 'OPEN', mergedAt: null, url: `https://github.com/${REPO_SLUG}/pull/1` })}\n`,
@@ -353,6 +410,26 @@ function requireDiagnosisPlan(entry, index) {
   });
 }
 
+function requireCiPlan(entry, index) {
+  const declared = entry.ci;
+  if (declared === undefined) return null;
+  if (declared === null || typeof declared !== 'object' || Array.isArray(declared)) {
+    throw new TypeError(`e2e-substrate: unit plan ${index} declares a ci record that is not an object, so the stub would answer a ci dispatch with facts nobody wrote`);
+  }
+  for (const key of ['implicatedPaths', 'failingAssertionFiles']) {
+    if (declared[key] === undefined || Array.isArray(declared[key])) continue;
+    throw new TypeError(`e2e-substrate: unit plan ${index} declares ${key} that is not an array, and a fact extraction the fixture did not write would be read as one the child reported`);
+  }
+  return Object.freeze({
+    implicatedPaths: declared.implicatedPaths,
+    failingAssertionFiles: declared.failingAssertionFiles,
+  });
+}
+
+export function ciFixFileOf(unitId) {
+  return `${unitId}.cifix.txt`;
+}
+
 const PLAN_REVIEW_VERDICTS = Object.freeze(['approve', 'needs-changes']);
 
 function requirePlanningPlan(entry, index) {
@@ -394,6 +471,7 @@ function requireUnitPlan(entry, index) {
     judgment: requireJudgmentPlan(entry, index),
     diagnosis: requireDiagnosisPlan(entry, index),
     planning: requirePlanningPlan(entry, index),
+    ci: requireCiPlan(entry, index),
     boundaryViolation: entry.boundaryViolation === true,
   });
 }
@@ -428,6 +506,13 @@ function claudePlanEntry(sandbox, unit, sha) {
     ...(judgment.reviewVerdict === undefined ? {} : { reviewVerdict: judgment.reviewVerdict }),
     ...(judgment.securityVerdict === undefined ? {} : { securityVerdict: judgment.securityVerdict }),
     ...(unit.diagnosis === null ? {} : { diagnosis: unit.diagnosis }),
+    ...(unit.ci === null ? {} : {
+      ci: {
+        ...unit.ci,
+        fixPath: join(sandbox.repo, ciFixFileOf(unit.id)),
+        changedPath: ciFixFileOf(unit.id),
+      },
+    }),
     ...(unit.planning === null ? {} : {
       planReviews: [...unit.planning.reviews],
       planPath: planArtifactPathOf(sandbox, unit.id),
@@ -548,12 +633,17 @@ export function planRun(sandbox, unitPlans, overrides = {}) {
   });
   const document = runDocument(sandbox, units, overrides);
   const boundaryFix = boundaryFixPlan(sandbox, units, overrides.boundaryFix);
+  const watched = units.filter((unit) => unit.ci !== null);
   writeFileSync(sandbox.claudePlan, `${JSON.stringify({
     units: planned,
     judgmentMarkers: JUDGMENT_MARKERS,
     diagnoseMarker: DIAGNOSE_MARKER,
     planningMarkers: PLANNING_MARKERS,
     ...(boundaryFix === undefined ? {} : { boundaryFix }),
+    ...(watched.length === 0 ? {} : {
+      ciMarkers: CI_MARKERS,
+      unitTokens: Object.fromEntries(watched.map((unit) => [unit.id, [mspTokenOf(unit.id)]])),
+    }),
   })}\n`);
   writeFileSync(sandbox.specPath, `${JSON.stringify(document)}\n`);
   return Object.freeze({
@@ -712,7 +802,36 @@ export function claudeArgvsFor(sandbox, unitId) {
 
 const BAKED_IMPLEMENT = 'baked-implement';
 
-const COMPOSED_MARKERS = Object.freeze({ ...JUDGMENT_MARKERS, ...REMEDIATION_MARKERS, ...PLANNING_MARKERS });
+const COMPOSED_MARKERS = Object.freeze({ ...JUDGMENT_MARKERS, ...REMEDIATION_MARKERS, ...PLANNING_MARKERS, ...CI_MARKERS });
+
+function markedKindOf(prompt) {
+  for (const [kind, marker] of Object.entries(COMPOSED_MARKERS)) {
+    if (prompt.includes(marker)) return kind;
+  }
+  throw new Error(`e2e-substrate: a recorded prompt carries the token asked for but the section marker of no composed kind, so the kind this run composed cannot be established: ${JSON.stringify(prompt)}`);
+}
+
+export function composedKindsMatching(sandbox, token) {
+  return claudeArgvs(sandbox)
+    .map((argv) => (Array.isArray(argv) && argv.length > 0 ? argv[argv.length - 1] : null))
+    .filter((prompt) => typeof prompt === 'string' && prompt.includes(token))
+    .map((prompt) => markedKindOf(prompt));
+}
+
+export function publishIntegrationBranch(sandbox, unitId) {
+  const branch = integrationBranchOf(unitId);
+  gitIn(sandbox, ['branch', branch], sandbox.repo);
+  gitIn(sandbox, ['push', 'origin', `${branch}:${branch}`], sandbox.repo);
+  return branch;
+}
+
+export function remoteCommitCount(sandbox, branch) {
+  return Number(gitIn(sandbox, ['rev-list', '--count', branch], sandbox.remote).trim());
+}
+
+export function remoteSubjectOf(sandbox, branch) {
+  return gitIn(sandbox, ['log', '-1', '--format=%s', branch], sandbox.remote).trim();
+}
 
 function composedKindOf(prompt, unitId) {
   if (prompt === unitPrompt(unitId)) return BAKED_IMPLEMENT;
