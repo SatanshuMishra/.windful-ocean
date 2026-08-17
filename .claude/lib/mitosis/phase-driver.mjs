@@ -17,7 +17,7 @@ const REQUIRED_TEXT_FIELDS = Object.freeze([
   'integrationBranch',
 ]);
 
-const REQUIRED_PORTS = Object.freeze(['openRun', 'release', 'makeObserver', 'makePorts', 'readJournal']);
+const REQUIRED_PORTS = Object.freeze(['openRun', 'release', 'makeObserver', 'makePorts', 'readJournal', 'reconcile']);
 
 function describe(value) {
   if (value === null) return 'null';
@@ -132,11 +132,13 @@ async function decomposePhase(completed, request, ports) {
 
 async function resumePhase(completed, request, ports) {
   const title = phase('Resume');
-  return entered(title, planResume({
+  return entered(title, await planResume({
     manifest: request.spec.manifest,
     specs: unitsOf(request.spec),
     runId: request.runId,
+    repoSlug: request.repoSlug,
     journal: ports.readJournal({ repoRoot: request.repoRoot, path: request.journalPath }),
+    reconcile: (values) => ports.reconcile(values),
   }));
 }
 
