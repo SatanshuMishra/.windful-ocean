@@ -288,6 +288,45 @@ if (planning !== null) {
   }));
 }
 
+const CI_MARKERS = plan.ciMarkers === null || typeof plan.ciMarkers !== 'object' ? {} : plan.ciMarkers;
+const CI_KINDS = ['ci-fact-extract', 'ci-fix'];
+
+function ciKind() {
+  if (typeof PROMPT !== 'string') return null;
+  for (const kind of CI_KINDS) {
+    const marker = CI_MARKERS[kind];
+    if (typeof marker === 'string' && marker !== '' && PROMPT.includes(marker)) return kind;
+  }
+  return null;
+}
+
+const ciAsked = ciKind();
+if (ciAsked !== null) {
+  const declared = unit.ci === null || typeof unit.ci !== 'object' || Array.isArray(unit.ci) ? {} : unit.ci;
+  if (ciAsked === 'ci-fact-extract') {
+    emit(envelope({
+      structured_output: {
+        implicatedPaths: Array.isArray(declared.implicatedPaths) ? declared.implicatedPaths : [unitId + '.txt'],
+        failingAssertionFiles: Array.isArray(declared.failingAssertionFiles) ? declared.failingAssertionFiles : [unitId + '.test.txt'],
+      },
+    }));
+  }
+  if (typeof declared.fixPath !== 'string' || declared.fixPath === '') {
+    refuse(85, 'unit ' + unitId + ' was asked for a ci fix but the plan names no path for it to write, so the engine would commit a tree the child never changed');
+  }
+  try {
+    fs.writeFileSync(declared.fixPath, 'fixture ci fix for unit ' + unitId + '\n');
+  } catch (error) {
+    refuse(85, 'the ci fix at ' + declared.fixPath + ' could not be written: ' + error.message);
+  }
+  emit(envelope({
+    structured_output: {
+      changedPaths: [declared.changedPath],
+      detail: 'fixture ci fix for unit ' + unitId,
+    },
+  }));
+}
+
 const judged = markerKind();
 if (judged !== null) {
   const declared = unit[judged + 'Verdict'];
@@ -369,17 +408,40 @@ if (plan === null || typeof plan !== 'object' || !Array.isArray(plan.steps)) {
   refuse(71, 'the plan at ' + PLAN + ' carries no steps array');
 }
 
-const step = plan.steps.find((candidate) => candidate !== null
+const matched = plan.steps.findIndex((candidate) => candidate !== null
   && typeof candidate === 'object'
   && Array.isArray(candidate.argvPrefix)
   && candidate.argvPrefix.length <= argv.length
   && candidate.argvPrefix.every((token, index) => token === argv[index]));
 
-if (step === undefined) {
+if (matched === -1) {
   refuse(77, 'no planned step matches the argv ' + JSON.stringify(argv) + '; the fake refuses rather than replying with a reply nobody planned');
 }
 
-if (typeof step.stdout === 'string' && step.stdout.length > 0) fs.writeSync(1, step.stdout);
+const step = plan.steps[matched];
+
+function sequencedStdout() {
+  if (!Array.isArray(step.stdouts)) return step.stdout;
+  if (step.stdouts.length === 0) {
+    refuse(78, 'step ' + matched + ' declares an empty stdouts array, so the reply for this call was never written');
+  }
+  const counter = PLAN + '.count.' + matched;
+  let seen = 0;
+  try {
+    seen = Number.parseInt(fs.readFileSync(counter, 'utf8'), 10);
+  } catch (error) {
+    seen = 0;
+  }
+  if (!Number.isInteger(seen) || seen < 0) {
+    refuse(78, 'the reply counter at ' + counter + ' does not hold a whole number of prior calls');
+  }
+  fs.writeFileSync(counter, String(seen + 1));
+  return step.stdouts[seen < step.stdouts.length ? seen : step.stdouts.length - 1];
+}
+
+const printed = sequencedStdout();
+
+if (typeof printed === 'string' && printed.length > 0) fs.writeSync(1, printed);
 if (typeof step.stderr === 'string' && step.stderr.length > 0) fs.writeSync(2, step.stderr);
 process.exit(Number.isInteger(step.exitCode) ? step.exitCode : 0);
 `;
