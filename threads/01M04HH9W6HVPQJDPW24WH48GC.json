@@ -37,7 +37,7 @@
     },
     {
       "id": "c4",
-      "text": "Agent and observer teardown and rebuild executed without breaking the live coupling surface: rules and skills naming agents by string, 405 worktree copies, four backup profiles, derived residuals.",
+      "text": "Agent and observer teardown and rebuild executed without breaking the live coupling surface: rules and skills naming agents by string, 18 worktrees carrying roster copies, derived residuals.",
       "done": false,
       "kind": "planned",
       "struck_by": null
@@ -275,5 +275,5 @@
     ]
   },
   "created_at": "2026-08-16T05:43:25.829Z",
-  "updated_at": "2026-08-17T05:42:31.456Z"
+  "updated_at": "2026-08-17T05:42:35.993Z"
 }
