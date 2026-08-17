@@ -279,6 +279,11 @@
         "ref": "0513-canonicalise-by-subpath-and-never-half-a-comparison",
         "title": "Parameterise the canonical resolver by subpath, and never canonicalise one side of a comparison",
         "scope": "c4"
+      },
+      {
+        "ref": "0517-repoint-the-continuity-rule-fully-not-just-its-names",
+        "title": "Repoint the continuity ledger rule fully rather than only fixing the two names that dangle",
+        "scope": "c4"
       }
     ],
     "out_of_scope": [
@@ -287,5 +292,5 @@
     ]
   },
   "created_at": "2026-08-16T05:43:25.829Z",
-  "updated_at": "2026-08-17T06:56:04.424Z"
+  "updated_at": "2026-08-17T13:31:07.095Z"
 }
