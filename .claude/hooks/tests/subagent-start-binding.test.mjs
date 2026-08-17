@@ -195,11 +195,10 @@ test('a start row carries every one of the ten fields with an explicitly null ag
   assert.equal(rows[0].subject, 'agent');
 });
 
-test('the retiring analyzer keeps its SubagentStop registration and is not bound to SubagentStart', () => {
+test('the observer is the only command bound to either subagent event', () => {
   const hooks = readSettings().hooks;
-  const stopCommands = hooks.SubagentStop.flatMap((b) => b.hooks).map((h) => h.command);
-  assert.ok(stopCommands.some((c) => c.endsWith('agent-ledger/agent-run-analyzer.mjs')));
-  assert.ok(stopCommands.some((c) => c.endsWith('observer/subagent-observer.mjs')));
-  const startCommands = hooks.SubagentStart.flatMap((b) => b.hooks).map((h) => h.command);
-  assert.ok(startCommands.every((c) => !c.includes('agent-run-analyzer')));
+  for (const event of ['SubagentStart', 'SubagentStop']) {
+    const commands = hooks[event].flatMap((b) => b.hooks).map((h) => h.command);
+    assert.deepEqual(commands, ['node $HOME/.claude/hooks/observer/subagent-observer.mjs'], `${event} bindings`);
+  }
 });
