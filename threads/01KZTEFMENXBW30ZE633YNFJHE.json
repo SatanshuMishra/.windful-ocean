@@ -928,6 +928,11 @@
         "ref": "0539-stop-line-is-root-cause-depth-not-phase-attribution",
         "title": "The e2e stops at root-cause depth and a live-usability verdict, not at phase-level failure attribution",
         "scope": "c28"
+      },
+      {
+        "ref": "0540-the-ship-git-site-is-unwired-so-the-engine-cannot-open-a-pull-request",
+        "title": "The ship git site is unreachable, so the engine structurally cannot open a pull request",
+        "scope": "c28"
       }
     ],
     "out_of_scope": [
@@ -939,5 +944,5 @@
     ]
   },
   "created_at": "2026-08-12T07:37:41.077Z",
-  "updated_at": "2026-08-17T17:36:22.413Z"
+  "updated_at": "2026-08-17T17:37:05.403Z"
 }
