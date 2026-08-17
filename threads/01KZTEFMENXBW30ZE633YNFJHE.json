@@ -750,6 +750,11 @@
         "ref": "0498-ci-fix-is-kept-and-wired-not-retired",
         "title": "ci-fix is kept and wired, which makes ci-fact-extract a needed kind",
         "scope": "c27"
+      },
+      {
+        "ref": "0499-phase-driver-owns-the-sequence-with-hybrid-prompt-composition",
+        "title": "A phase-driver module owns the eight-phase sequence, with hybrid prompt composition",
+        "scope": "c27"
       }
     ],
     "out_of_scope": [
@@ -761,5 +766,5 @@
     ]
   },
   "created_at": "2026-08-12T07:37:41.077Z",
-  "updated_at": "2026-08-17T04:34:52.608Z"
+  "updated_at": "2026-08-17T04:35:07.495Z"
 }
