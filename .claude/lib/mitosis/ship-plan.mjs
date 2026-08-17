@@ -1,4 +1,5 @@
 import { fileURLToPath } from 'node:url';
+import { ciSummary } from './ci-green-loop.mjs';
 import { INTEGRATED } from './integrate-plan.mjs';
 import { composeJournalLine } from './journal-store.mjs';
 import {
@@ -33,7 +34,7 @@ export const PR_ACTION_REUSED = 'reused';
 export const PR_ACTION_REUSED_UNVERIFIED = 'reused-unverified';
 export const PR_ACTIONS = Object.freeze([PR_ACTION_CREATED, PR_ACTION_REUSED, PR_ACTION_REUSED_UNVERIFIED]);
 
-const REQUIRED_PORTS = Object.freeze(['openPullRequest', 'appendJournal', 'diffStat', 'reconcile']);
+const REQUIRED_PORTS = Object.freeze(['openPullRequest', 'appendJournal', 'diffStat', 'reconcile', 'watchCi']);
 const SHIP_KIND = 'ship';
 const EMPTY = Object.freeze([]);
 const NO_RESUME_POINT = Object.freeze({ branch: null, ref: null, stage: null });
@@ -111,13 +112,15 @@ function parkStage() {
   return SHIP_PARK_STAGE;
 }
 
-function outcome(entry, state, action, prUrl, diagnosis) {
+function outcome(entry, state, action, prUrl, diagnosis, msp = null) {
   return Object.freeze({
     unitId: entry.unitId,
     state,
     action,
     prUrl,
     diagnosis,
+    head: msp === null ? null : headBranch(entry, msp),
+    declaredScope: msp === null ? EMPTY : scopeOf(msp),
     stage: state === PARKED ? parkStage() : null,
     resumePoint: entry.resumePoint,
   });
@@ -308,7 +311,7 @@ async function settleShip(entry, msp, read, settings, ports) {
   if (read.action === PR_ACTION_REUSED_UNVERIFIED) {
     return outcome(entry, PARKED, read.action, read.url, `the pull request already open on this head (${read.url}) was composed by something other than the centralized tool, so its title and body are unasserted and this run does not report it as a clean ship`);
   }
-  return outcome(entry, SHIPPED, read.action, read.url, null);
+  return outcome(entry, SHIPPED, read.action, read.url, null, msp);
 }
 
 export function declaredPrereqs(manifest, unitId) {
@@ -361,7 +364,32 @@ function blockedOutcome(entry) {
   return outcome(entry, PARKED, null, null, BLOCKED_PENDING_APPROVAL_DIAGNOSIS);
 }
 
-function produced(outcomes, awaiting, blocked) {
+function scopeOf(msp) {
+  const declared = isRecord(msp.fileScope) && Array.isArray(msp.fileScope.edit) ? msp.fileScope.edit : EMPTY;
+  return Object.freeze(declared.filter((pathspec) => nonEmptyText(pathspec) !== null));
+}
+
+function watchRequest(settled, settings, urlById) {
+  const opened = settled
+    .filter((entry) => entry.state === SHIPPED)
+    .map((entry) => Object.freeze({
+      unitId: entry.unitId,
+      head: entry.head,
+      prUrl: urlById.get(entry.unitId) ?? null,
+      declaredScope: entry.declaredScope,
+    }))
+    .filter((entry) => nonEmptyText(entry.head) !== null);
+  return Object.freeze({ opened: Object.freeze(opened), repoRoot: settings.repoRoot, repoSlug: settings.repoSlug });
+}
+
+function requireWatched(watched) {
+  if (!isRecord(watched) || !Array.isArray(watched.outcomes) || !Array.isArray(watched.exhausted)) {
+    throw new TypeError(`${MODULE}: the ci watch returned ${describe(watched)} rather than a plan carrying the outcomes it read and the ones it exhausted; a watch nobody can read would report every published check as green`);
+  }
+  return watched;
+}
+
+function produced(outcomes, awaiting, blocked, watched) {
   const ordered = Object.freeze(outcomes);
   const withState = (state) => Object.freeze(ordered.filter((entry) => entry.state === state));
   const opened = withState(SHIPPED);
@@ -373,11 +401,13 @@ function produced(outcomes, awaiting, blocked) {
     outcomes: ordered,
     awaiting: Object.freeze(awaiting),
     blocked: Object.freeze(blocked),
+    ci: watched,
     status: computeMergePolicyStatus({
       shippedCount: opened.length,
       awaitingApprovalCount: awaiting.length,
       blockedPendingApprovalCount: awaitingApproval.length - awaiting.length,
       genuineParkedCount: parked.length - awaitingApproval.length,
+      ciRedExhaustedCount: watched.exhausted.length,
       total: ordered.length,
     }),
   });
@@ -413,7 +443,8 @@ export async function shipIntegrated(config, ports) {
     if (settled.prUrl !== null) urlById.set(entry.unitId, settled.prUrl);
     outcomes.push(settled);
   }
-  return produced(outcomes, awaiting, blocked);
+  const watched = requireWatched(await wired.watchCi(watchRequest(outcomes, settings, urlById)));
+  return produced(outcomes, awaiting, blocked, watched);
 }
 
 export function shipSummary(plan) {
@@ -423,6 +454,7 @@ export function shipSummary(plan) {
     prUrls: Object.fromEntries(plan.outcomes.filter((entry) => entry.prUrl !== null).map((entry) => [entry.unitId, entry.prUrl])),
     outcomes: plan.outcomes.map((entry) => ({ id: entry.unitId, state: entry.state, action: entry.action })),
     status: plan.status,
+    ci: ciSummary(plan.ci),
     awaiting: plan.awaiting.map((entry) => ({ id: entry.mspId, prUrl: entry.prUrl })),
     blocked: plan.blocked.map((entry) => ({
       id: entry.record.unitId,

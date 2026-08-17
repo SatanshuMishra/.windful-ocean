@@ -1,3 +1,4 @@
+import { driveCiToGreen } from './ci-green-loop.mjs';
 import { runEngine } from './engine.mjs';
 import { integrateBuilt } from './integrate-plan.mjs';
 import { PHASE_TITLES } from './phases.mjs';
@@ -34,6 +35,10 @@ const REQUIRED_PORTS = Object.freeze([
   'diffStat',
   'skillPointers',
   'observePlan',
+  'ciRead',
+  'switchBranch',
+  'recordFix',
+  'pushFix',
 ]);
 
 function describe(value) {
@@ -259,6 +264,13 @@ async function shipPhase(completed, request, ports) {
     appendJournal: (write) => ports.appendJournal(write),
     diffStat: (probe) => ports.diffStat(probe),
     reconcile: (values) => ports.reconcile(values),
+    watchCi: (watch) => driveCiToGreen(watch, {
+      ciRead: (read) => ports.ciRead(read),
+      dispatchPrompt: (dispatched) => ports.dispatchPrompt(dispatched),
+      switchBranch: (checkout) => ports.switchBranch(checkout),
+      recordFix: (record) => ports.recordFix(record),
+      pushFix: (publish) => ports.pushFix(publish),
+    }),
   }));
 }
 

@@ -7,7 +7,9 @@ import { dispatch, normalizeEnvelope } from './dispatch.mjs';
 import { POST_DISPATCH_RECORD_FAILED } from './engine.mjs';
 import { run } from './exec-run.mjs';
 import { foldFile } from './fold-run-log.mjs';
+import { READ_JOBS_STEP, ciFixMessage } from './ci-green-loop.mjs';
 import { GH_COMMAND_BINARY, buildGhCommand } from './gh-commands.mjs';
+import { buildGitCommand } from './git-commands.mjs';
 import { integrateSummary } from './integrate-plan.mjs';
 import { appendJournalLine, writeGenesis } from './journal-store.mjs';
 import { runPhases } from './phase-driver.mjs';
@@ -260,6 +262,39 @@ function diffStatPort(runFn) {
   );
 }
 
+const CI_SITE = 'ship';
+const CI_GIT_SITE = 'ci-publish';
+const CI_FIX_IDENTITY = Object.freeze(['-c', 'user.name=mitosis', '-c', 'user.email=mitosis@localhost']);
+
+function ciReadArgv(read) {
+  if (read.step !== READ_JOBS_STEP) return buildGhCommand(CI_SITE, read.step, read.values);
+  return ['run', 'view', read.values.runId, '-R', read.values.repoSlug, '--json', 'jobs'];
+}
+
+function ciReadPort(runFn, repoRoot) {
+  return (read) => runFn(GH_COMMAND_BINARY, ciReadArgv(read), { cwd: repoRoot, deadlineMs: GH_DEADLINE_MS });
+}
+
+function gitCiPort(runFn, step) {
+  return (request) => runFn(
+    GIT_BINARY,
+    buildGitCommand(CI_GIT_SITE, step, { repoRoot: request.repoRoot, integrationBranch: request.branch }),
+    { cwd: request.repoRoot, deadlineMs: GH_DEADLINE_MS },
+  );
+}
+
+function recordFixPort(runFn) {
+  return async (request) => {
+    const staged = await runFn(GIT_BINARY, ['-C', request.repoRoot, 'add', '--all'], { cwd: request.repoRoot, deadlineMs: GH_DEADLINE_MS });
+    if (staged === null || typeof staged !== 'object' || staged.status !== 0) return staged;
+    return await runFn(
+      GIT_BINARY,
+      ['-C', request.repoRoot, ...CI_FIX_IDENTITY, 'commit', '-m', ciFixMessage(request.unitId)],
+      { cwd: request.repoRoot, deadlineMs: GH_DEADLINE_MS },
+    );
+  };
+}
+
 function defaultSkillPointers() {
   let resolved;
   try {
@@ -294,6 +329,10 @@ function driverPorts(io, makePorts, deps, repoRoot) {
     openPullRequest: (request) => runFn(NODE_BINARY, request.argv, { cwd: request.cwd, deadlineMs: GH_DEADLINE_MS }),
     appendJournal: (request) => appendJournalFn(request),
     diffStat: diffStatPort(runFn),
+    ciRead: ciReadPort(runFn, repoRoot),
+    switchBranch: gitCiPort(runFn, 'switch-branch'),
+    recordFix: recordFixPort(runFn),
+    pushFix: gitCiPort(runFn, 'push'),
     release: (handle) => releaseRun(handle, io),
     makeObserver: (config) => observeAll([
       unitRecorder(config.handle, config.at),
