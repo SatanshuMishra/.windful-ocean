@@ -181,6 +181,11 @@
         "ref": "0490-advisory-channel-thesis-loses-its-local-proof",
         "title": "The zero-compliance measurement was an instrumentation artifact; re-ground the channel thesis on documentation",
         "scope": "c3"
+      },
+      {
+        "ref": "0491-report-artifact-sits-outside-repo-leak-scope",
+        "title": "The report artifact is outside repo scope, so its codename and CDN findings are ratified, not defects",
+        "scope": "c3"
       }
     ],
     "out_of_scope": [
@@ -190,5 +195,5 @@
     ]
   },
   "created_at": "2026-08-16T05:43:25.829Z",
-  "updated_at": "2026-08-16T23:50:16.590Z"
+  "updated_at": "2026-08-17T00:20:23.174Z"
 }
