@@ -28,24 +28,24 @@ const MSPS = Object.freeze([
   }),
 ]);
 
-function payloadForSchema(schemaText) {
+function payloadForSchema(schemaText, unitReportsSha) {
   const schema = JSON.parse(schemaText);
   const properties = schema.properties === null || typeof schema.properties !== 'object' ? {} : schema.properties;
   if (Object.hasOwn(properties, 'msps')) return { msps: MSPS };
-  if (Object.hasOwn(properties, 'sha')) return { sha: UNIT_SHA };
+  if (Object.hasOwn(properties, 'sha')) return unitReportsSha ? { sha: UNIT_SHA } : {};
   throw new Error(`the fake child was handed a schema it cannot answer: ${schemaText}`);
 }
 
-function envelopeFor(argv) {
+function envelopeFor(argv, unitReportsSha) {
   const at = argv.indexOf('--json-schema');
   if (at === -1) return envelopeText({});
-  return envelopeText({ structured_output: payloadForSchema(argv[at + 1]) });
+  return envelopeText({ structured_output: payloadForSchema(argv[at + 1], unitReportsSha) });
 }
 
-function fakeSpawn(calls) {
+function fakeSpawn(calls, unitReportsSha) {
   return (binary, argv) => {
     calls.push({ binary, argv: [...argv] });
-    const text = envelopeFor(argv);
+    const text = envelopeFor(argv, unitReportsSha);
     const child = fakeChild(undefined);
     setImmediate(() => {
       child.stdout.end(text);
@@ -64,7 +64,7 @@ function scratch(t) {
   return { root, spec, out: join(root, 'run-document.json') };
 }
 
-function emitArgs(place) {
+function emitArgs(place, isolation) {
   return {
     spec: place.spec,
     repoRoot: place.root,
@@ -73,7 +73,7 @@ function emitArgs(place) {
     branchPrefix: 'mitosis',
     worktreeRoot: join(place.root, 'worktrees'),
     scopedCheckCmd: ['node', '--test'],
-    isolation: 'worktree',
+    isolation,
     logicalRunId: 'run-alpha',
     out: place.out,
   };
@@ -131,11 +131,13 @@ function sideEffects() {
   };
 }
 
-async function emitThenRun(t) {
+async function emitThenRun(t, options = {}) {
+  const isolation = options.isolation === undefined ? 'worktree' : options.isolation;
+  const unitReportsSha = options.unitReportsSha === undefined ? true : options.unitReportsSha;
   const place = scratch(t);
   const calls = [];
-  const spawn = fakeSpawn(calls);
-  const emitted = await emitRunDocument(emitArgs(place), { spawn, loadImplementerPreamble: () => PREAMBLE });
+  const spawn = fakeSpawn(calls, unitReportsSha);
+  const emitted = await emitRunDocument(emitArgs(place, isolation), { spawn, loadImplementerPreamble: () => PREAMBLE });
   assert.equal(emitted.ok, true, emitted.error);
   const document = JSON.parse(readFileSync(place.out, 'utf8'));
   const io = stubIo(document);
@@ -151,6 +153,15 @@ async function emitThenRun(t) {
 function summaryOf(io) {
   assert.equal(io.out.length, 1, `the run printed no single summary; stderr carried ${JSON.stringify(io.errOut.join(''))}`);
   return JSON.parse(io.out[0]);
+}
+
+function stateOf(io, unitId) {
+  const unit = summaryOf(io).units.find((entry) => entry.id === unitId);
+  return unit === undefined ? null : unit.state;
+}
+
+function updateRefCalls(effects) {
+  return effects.exec.filter((call) => call.binary === 'git' && call.argv[0] === 'update-ref');
 }
 
 test('a unit dispatched from an emitted run document settles done carrying the sha its child reported', async (t) => {
@@ -169,6 +180,25 @@ test('a unit dispatched from an emitted run document settles done carrying the s
   assert.equal(typeof sha, 'string');
   assert.notEqual(sha, '');
   assert.equal(sha, UNIT_SHA);
+});
+
+test('a scope-fence unit settles done and asks for no checkpoint ref, because it is told to leave every change uncommitted', async (t) => {
+  const { effects, io, exitCode } = await emitThenRun(t, { isolation: 'scope-fence' });
+  assert.equal(
+    stateOf(io, 'alpha-core'),
+    'done',
+    `the scope-fence unit did not reach done; stderr carried ${JSON.stringify(io.errOut.join(''))}`,
+  );
+  assert.equal(exitCode, 0, `stderr carried ${JSON.stringify(io.errOut.join(''))}`);
+  assert.deepEqual(updateRefCalls(effects), [], 'a scope-fence unit owns no commit, so no ref may be written for it');
+});
+
+test('a worktree unit whose child reports no sha is still refused rather than checkpointed to nothing', async (t) => {
+  const { effects, io, exitCode } = await emitThenRun(t, { unitReportsSha: false });
+  assert.equal(stateOf(io, 'alpha-core'), 'parked');
+  assert.equal(exitCode, 3);
+  assert.deepEqual(updateRefCalls(effects), [], 'the guard refuses before git is reached, so no ref is written to nothing');
+  assert.match(io.errOut.join(''), /post-dispatch-record-failed/);
 });
 
 test('the unit child is asked for its verdict against a schema, which is what makes its sha available', async (t) => {

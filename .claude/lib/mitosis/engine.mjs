@@ -1,7 +1,7 @@
 import { checkpointRef } from './checkpoint.mjs';
 import { buildGhCommand } from './gh-commands.mjs';
 import { composeJournalLine } from './journal-store.mjs';
-import { buildUnitTable, dispositionOf, indexUnits, planTick } from './leases.mjs';
+import { SCOPE_FENCE_ISOLATION, buildUnitTable, dispositionOf, indexUnits, planTick } from './leases.mjs';
 import { runGraph } from './pool.mjs';
 import { isIsoInstant } from './run-log.mjs';
 
@@ -195,14 +195,19 @@ function parkFields(unitId, outcome) {
   };
 }
 
+function checkpointRefFor(unit, runId) {
+  return unit.isolation === SCOPE_FENCE_ISOLATION ? null : checkpointRef(runId, unit.id);
+}
+
 function journalRecorder(request, ports) {
   const written = new Map();
-  return async (unitId, outcome) => {
+  return async (unit, outcome) => {
+    const unitId = unit.id;
     const disposition = dispositionOf(outcome);
     let line = null;
     if (CHECKPOINTED.includes(disposition)) {
-      const ref = checkpointRef(request.runId, unitId);
-      await ports.writeRef({ ref, unitId, sha: shaOf(outcome) });
+      const ref = checkpointRefFor(unit, request.runId);
+      if (ref !== null) await ports.writeRef({ ref, unitId, sha: shaOf(outcome) });
       line = composeJournalLine('built', { unitId, checkpointRef: ref, sha: shaOf(outcome), green: greenOf(outcome), builtAgainst: {} });
     } else if (disposition === PARKED) {
       line = composeJournalLine('park', parkFields(unitId, outcome));
@@ -222,7 +227,7 @@ export async function runEngine(request, ports) {
     const outcome = await ports.runUnit(unit, context);
     const envelope = envelopeOf(outcome);
     try {
-      await record(unit.id, outcome);
+      await record(unit, outcome);
     } catch (error) {
       return recordFailure(envelope, error);
     }

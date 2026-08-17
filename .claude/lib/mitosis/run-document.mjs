@@ -174,6 +174,7 @@ function buildUnitSpec({ msp, prereqs, fileScope, run, prompt, defaults, compose
     id: msp.id,
     prereqs,
     fileScope,
+    isolation: prompt.isolation,
     request: buildRequest(promptText, defaults),
   });
 }

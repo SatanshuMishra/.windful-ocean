@@ -19,12 +19,18 @@ function alwaysDone() {
   return async () => Done({ ok: true });
 }
 
-test('makeUnit produces a frozen unit with defaulted state, empty prereqs/fileScope, and leaseHeld false', () => {
+test('makeUnit produces a frozen unit with defaulted state, empty prereqs/fileScope, worktree isolation and leaseHeld false', () => {
   const u = makeUnit({ id: 'a' });
-  assert.deepEqual({ ...u }, { id: 'a', state: 'planned', prereqs: [], fileScope: pack([]), leaseHeld: false });
+  assert.deepEqual({ ...u }, { id: 'a', state: 'planned', prereqs: [], fileScope: pack([]), isolation: 'worktree', leaseHeld: false });
   assert.ok(Object.isFrozen(u));
   assert.ok(Object.isFrozen(u.prereqs));
   assert.ok(Object.isFrozen(u.fileScope));
+});
+
+test('makeUnit carries the declared isolation mode, because the checkpoint decision reads it rather than the nullness of a sha', () => {
+  assert.equal(makeUnit({ id: 'a', isolation: 'scope-fence' }).isolation, 'scope-fence');
+  assert.equal(makeUnit({ id: 'a', isolation: 'worktree' }).isolation, 'worktree');
+  assert.equal(makeUnit({ id: 'a', isolation: null }).isolation, 'worktree');
 });
 
 test('makeUnit rejects malformed specs at the boundary', () => {
@@ -32,6 +38,7 @@ test('makeUnit rejects malformed specs at the boundary', () => {
   assert.throws(() => makeUnit({}), /id/);
   assert.throws(() => makeUnit({ id: 'a', prereqs: 'x' }), /prereqs/);
   assert.throws(() => makeUnit({ id: 'a', fileScope: 'x' }), /fileScope/);
+  assert.throws(() => makeUnit({ id: 'a', isolation: 'worktre' }), /isolation/);
 });
 
 test('buildUnitTable validates array-ness, unique ids, and known prereqs', () => {

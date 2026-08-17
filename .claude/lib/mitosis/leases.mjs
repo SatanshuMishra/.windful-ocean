@@ -2,6 +2,18 @@ import { scopesOverlap } from './wave-planner.mjs';
 import { emptyFileScopePack, requireFileScopePack } from './msp-file-scope.mjs';
 import { BUILD_AHEAD_CAP } from './window.mjs';
 
+const WORKTREE_ISOLATION = 'worktree';
+export const SCOPE_FENCE_ISOLATION = 'scope-fence';
+const UNIT_ISOLATION_MODES = Object.freeze([WORKTREE_ISOLATION, SCOPE_FENCE_ISOLATION]);
+
+function requireIsolation(spec) {
+  if (spec.isolation === undefined || spec.isolation === null) return WORKTREE_ISOLATION;
+  if (!UNIT_ISOLATION_MODES.includes(spec.isolation)) {
+    throw new Error(`unit ${spec.id} declares the isolation mode ${JSON.stringify(spec.isolation)}, which is not one of ${UNIT_ISOLATION_MODES.join(', ')}; the checkpoint decision reads this field, so an unrecognized mode would either be checkpointed against a worktree the unit never owned or skip a checkpoint the run needs to relaunch from`);
+  }
+  return spec.isolation;
+}
+
 export function makeUnit(spec) {
   if (!spec || typeof spec !== 'object') throw new Error('unit spec must be an object');
   if (!spec.id || typeof spec.id !== 'string') throw new Error('unit spec missing string id');
@@ -15,6 +27,7 @@ export function makeUnit(spec) {
     state: spec.state || 'planned',
     prereqs: Object.freeze([...prereqs]),
     fileScope,
+    isolation: requireIsolation(spec),
     leaseHeld: false,
   });
 }
