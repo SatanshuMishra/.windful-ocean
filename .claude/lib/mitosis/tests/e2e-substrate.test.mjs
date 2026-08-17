@@ -112,7 +112,7 @@ test('the sandbox PATH makes the real claude and the real gh unreachable', () =>
   });
 });
 
-test('a unit the plan fails parks the run and never reaches the done oracle', () => {
+test('a unit the plan fails is redispatched exactly once, parks on the second failure, and writes one park record', () => {
   withSandbox({}, (sandbox) => {
     planRun(sandbox, [
       { id: 'alpha', behaviour: CLAUDE_BEHAVIOURS.succeed },
@@ -126,8 +126,25 @@ test('a unit the plan fails parks the run and never reaches the done oracle', ()
       { id: 'alpha', state: 'done' },
       { id: 'beta', state: 'parked' },
     ]);
-    assert.equal(claudeArgvs(sandbox).length, 2);
+    assert.equal(claudeArgvsFor(sandbox, 'beta').length, 2);
+    assert.equal(claudeArgvsFor(sandbox, 'alpha').length, 1);
+    assert.equal(claudeArgvs(sandbox).length, 3);
+    assert.equal(readJournal(sandbox).filter((record) => record.kind === 'park').length, 1);
     assert.equal(ghArgvsMatching(sandbox, ['pr', 'view']).length, 1);
+  });
+});
+
+test('a unit whose first attempt fails and whose second succeeds is redispatched exactly once and reaches done unparked', () => {
+  withSandbox({}, (sandbox) => {
+    planRun(sandbox, [{ id: 'alpha', behaviour: CLAUDE_BEHAVIOURS.failThenSucceed }]);
+
+    const run = runMitosisCli(sandbox);
+
+    assert.equal(run.status, 0, run.stderr);
+    assert.deepEqual(run.summary.units, [{ id: 'alpha', state: 'done' }]);
+    assert.equal(claudeArgvsFor(sandbox, 'alpha').length, 2);
+    assert.equal(readJournal(sandbox).filter((record) => record.kind === 'park').length, 0);
+    assert.equal(readJournal(sandbox).filter((record) => record.kind === 'built').length, 1);
   });
 });
 
