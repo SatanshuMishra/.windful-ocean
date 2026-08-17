@@ -891,6 +891,11 @@
         "ref": "0521-e2e-proof-runs-live-not-on-the-fakebin-substrate",
         "title": "The e2e proof runs live against a disposable GitHub repo, not on the fakebin substrate",
         "scope": "c28"
+      },
+      {
+        "ref": "0522-fixed-is-excluded-from-downgrade-tags-as-a-bypass-token",
+        "title": "The fixed tag is excluded from downgrade_tags because the enforcer treats it as a body-wide bypass token",
+        "scope": "c28"
       }
     ],
     "out_of_scope": [
@@ -902,5 +907,5 @@
     ]
   },
   "created_at": "2026-08-12T07:37:41.077Z",
-  "updated_at": "2026-08-17T15:23:46.406Z"
+  "updated_at": "2026-08-17T15:34:30.472Z"
 }
