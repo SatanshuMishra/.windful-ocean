@@ -745,6 +745,11 @@
         "ref": "0497-engine-serializes-ship-order-because-it-may-never-merge",
         "title": "The engine serializes ship order and hands off; it never merges",
         "scope": "c28"
+      },
+      {
+        "ref": "0498-ci-fix-is-kept-and-wired-not-retired",
+        "title": "ci-fix is kept and wired, which makes ci-fact-extract a needed kind",
+        "scope": "c27"
       }
     ],
     "out_of_scope": [
@@ -756,5 +761,5 @@
     ]
   },
   "created_at": "2026-08-12T07:37:41.077Z",
-  "updated_at": "2026-08-17T04:34:43.769Z"
+  "updated_at": "2026-08-17T04:34:52.608Z"
 }
