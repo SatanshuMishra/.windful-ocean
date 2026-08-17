@@ -1,5 +1,6 @@
 import { emptyFileScopePack, requireFileScopePack } from './msp-file-scope.mjs';
 import { scopedCheckArgv } from './engine-args.mjs';
+import { composeImplementPrompt } from './prompt-execute.mjs';
 import { shellQuoteList } from './prompt-values.mjs';
 import { fileScopeEdit, isFileScopePack, normalizePath, scopeCovers, scopeIsSpecificFile } from './coarse-scope-lint.mjs';
 const STATUS_SCHEMA = { type: 'object', properties: { status: { enum: ['DONE', 'DONE_WITH_CONCERNS', 'BLOCKED', 'NEEDS_CONTEXT'] }, summary: { type: 'string' } }, required: ['status'] };
@@ -308,31 +309,20 @@ export async function runEngine(engineArgs, ctx) {
   function branchOf(id) { return `${branchPrefix}/task-${id}`; }
   function worktreeOf(id) { return engineWorktreePath(worktreeRoot, branchPrefix, id); }
 
-  function implementerPrompt(task, branch, wt, priorIssues) {
-    const escalationContext = priorIssues && priorIssues.length
-      ? `--- PRIOR ATTEMPT REVIEW ISSUES (gate-triggered escalation; do NOT re-derive them or restart the pipeline) ---\n` +
-        `A prior attempt on this task was rejected at review. Its work is already committed on the existing branch/worktree; continue from there and address each specific issue below directly:\n- ${priorIssues.join('\n- ')}\n\n`
-      : '';
-    if (isolation === 'scope-fence') {
-      return `${prompts.implementer}\n\n--- THIS TASK ---\n${escalationContext}` +
-        `Work directly in the main repository working tree at ${repoRoot}. Do NOT create a worktree or a branch.\n` +
-        `1. Edit ONLY files within this task's declared scope: ${JSON.stringify(task.fileScope.edit)}. Creating or editing anything outside this scope is a hard failure.${readContextClause(task.fileScope)}\n` +
-        `2. Do NOT run any git mutation (no add, no commit, no branch, no checkout, no stash). Leave all changes uncommitted.\n` +
-        `3. Follow TDD as the instructions above require.\n` +
-        `4. For verification run ONLY the scoped check, never a full build/suite: \`${shellQuoteList(scopedCheckCmd)}\`\n\n` +
-        `Task: ${task.title}\n\n${task.fullText}\n\n` +
-        `Report status as exactly one of DONE / DONE_WITH_CONCERNS / BLOCKED / NEEDS_CONTEXT.`;
-    }
-    return `${prompts.implementer}\n\n--- THIS TASK ---\n${escalationContext}` +
-      `Set up an isolated workspace, then implement.\n` +
-      `1. Create a dedicated worktree (observe-then-converge; idempotent under replay). FIRST check whether it already exists: \`git -C ${repoRoot} worktree list --porcelain\` and \`git -C ${repoRoot} rev-parse --verify --quiet ${branch}\`. If a worktree at ${wt} is already checked out on ${branch}, REUSE it (skip the add). If ${branch} exists but no worktree is attached, attach without -b: \`git -C ${repoRoot} worktree add ${wt} ${branch}\`. Otherwise create it fresh (retry once if git reports a lock):\n` +
-      `   \`git -C ${repoRoot} worktree add -b ${branch} ${wt} ${baseBranch}\`\n` +
-      `2. \`cd ${wt}\` and do ALL work there. Follow TDD as the instructions above require.\n` +
-      `3. Bootstrap dependencies before any check (idempotent): \`ln -sfn ${repoRoot}/node_modules node_modules\`\n` +
-      `4. For verification run ONLY the scoped check, never a full build/suite: \`${shellQuoteList(scopedCheckCmd)}\`\n` +
-      `5. Commit your work to \`${branch}\` (one or more commits). Do NOT remove the worktree.\n\n` +
-      `Task: ${task.title}\n\n${task.fullText}\n\n` +
-      `Report status as exactly one of DONE / DONE_WITH_CONCERNS / BLOCKED / NEEDS_CONTEXT.`;
+  function implementInput(task, branch, wt, priorIssues) {
+    return {
+      implementerPreamble: prompts.implementer,
+      repoRoot,
+      branch,
+      worktree: wt,
+      baseBranch,
+      scopedCheckCmd,
+      taskTitle: task.title,
+      taskFullText: task.fullText,
+      priorIssues: priorIssues === undefined ? null : priorIssues,
+      isolation,
+      fileScope: task.fileScope,
+    };
   }
 
   const ciEnforcedScoping = `CI already enforces lint, formatting, type-checks, and the test suite deterministically: a Tier-0 static layer gates every merge, so pure style, formatting, lint-shaped, and generic-maintainability nits, plus failing tests, type errors, and lint output, are caught deterministically without an LLM and are NOT yours to re-flag - do not spend review budget on them. Concentrate your judgment where it is structurally necessary. You are an OBJECTIVE reviewer with NO merge authority: return only a verdict and specific findings; you never merge.`;
@@ -409,7 +399,7 @@ export async function runEngine(engineArgs, ctx) {
       const remediationModel = escalated ? 'opus' : task.model;
       const escalationIssues = escalated ? priorIssues : null;
       const status = await ctx.dispatchWithRetry(
-        (attemptNo, preamble) => guard.dispatch(preamble + implementerPrompt(task, branch, wt, escalationIssues), { label: implLabel, phase: 'Execute', schema: STATUS_SCHEMA, agentType: resolvedAgentType }, { kind: dispatchKind, task }),
+        (attemptNo, preamble) => guard.dispatch(preamble + composeImplementPrompt(implementInput(task, branch, wt, escalationIssues)), { label: implLabel, phase: 'Execute', schema: STATUS_SCHEMA, agentType: resolvedAgentType }, { kind: dispatchKind, task }),
         { state: retry.state, budget: retry.maxAttempts, resetRef: baseBranch, worktree: wt, unitId: taskId, task: task.fullText, ...(typeof ctx.makeRemediation === 'function' ? ctx.makeRemediation({ unitId: taskId, stage: 'execute', task: task.fullText, schema: STATUS_SCHEMA, agentType: resolvedAgentType, phase: 'Execute', model: remediationModel }) : {}) },
       );
       if (guard.getHalt()) return { gate: 'halt' };
