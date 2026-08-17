@@ -114,6 +114,44 @@ function usageRecorder(handle, observedAt) {
   };
 }
 
+function isDispatchRecord(record) {
+  if (record === null || typeof record !== 'object' || Array.isArray(record)) return false;
+  return typeof record.id === 'string' && typeof record.state === 'string';
+}
+
+function orNullField(value) {
+  return value === undefined ? null : value;
+}
+
+function unitRecorder(handle, at) {
+  const started = new Set();
+  return (record) => {
+    if (!isDispatchRecord(record)) return;
+    if (record.state === NODE_RUNNING) {
+      if (started.has(record.id)) return;
+      started.add(record.id);
+      handle.recordStart(record.id, { at, state: NODE_RUNNING, sequence: orNullField(record.sequence) });
+      return;
+    }
+    if (!started.has(record.id)) return;
+    handle.recordOutput(record.id, {
+      at,
+      state: record.state,
+      outcome: orNullField(record.outcome),
+      reason: orNullField(record.reason),
+    });
+  };
+}
+
+function stateRecorder(handle, at) {
+  let units = Object.freeze({});
+  return (record) => {
+    if (!isDispatchRecord(record)) return;
+    units = Object.freeze({ ...units, [record.id]: record.state });
+    handle.commitState({ at, units });
+  };
+}
+
 function observeAll(observers) {
   return (record) => {
     const failures = [];
@@ -174,7 +212,12 @@ function driverPorts(io, makePorts, deps) {
   return Object.freeze({
     openRun: (request) => openRunFn(request),
     release: (handle) => releaseRun(handle, io),
-    makeObserver: (config) => observeAll([usageRecorder(config.handle, config.at), dispatchFailureReporter(io)]),
+    makeObserver: (config) => observeAll([
+      unitRecorder(config.handle, config.at),
+      stateRecorder(config.handle, config.at),
+      usageRecorder(config.handle, config.at),
+      dispatchFailureReporter(io),
+    ]),
     makePorts: (config) => makePorts(config),
   });
 }

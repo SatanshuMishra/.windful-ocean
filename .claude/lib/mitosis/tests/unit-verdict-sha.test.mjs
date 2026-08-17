@@ -107,6 +107,9 @@ function stubHandle() {
   return {
     runKey: 'a-run-key',
     attempt: 1,
+    recordStart: () => {},
+    recordOutput: () => {},
+    commitState: () => {},
     recordUsage: () => {},
     release: () => {},
   };
