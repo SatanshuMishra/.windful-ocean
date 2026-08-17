@@ -257,6 +257,11 @@
         "ref": "0506-update-plugins-then-clean-accept-the-pinned-remainder",
         "title": "Update plugins first then clean; reclaim 110 MB and accept 27 MB pinned by a dead worktree",
         "scope": "thread"
+      },
+      {
+        "ref": "0507-execute-waves-0-to-3-now-hold-4-to-7-for-the-engine",
+        "title": "Execute waves 0 through 3 next session; hold waves 4 through 7 until the mitosis engine lands",
+        "scope": "c4"
       }
     ],
     "out_of_scope": [
@@ -266,5 +271,5 @@
     ]
   },
   "created_at": "2026-08-16T05:43:25.829Z",
-  "updated_at": "2026-08-17T05:34:41.065Z"
+  "updated_at": "2026-08-17T05:35:12.321Z"
 }
