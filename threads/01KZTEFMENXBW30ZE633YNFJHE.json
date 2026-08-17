@@ -821,6 +821,11 @@
         "ref": "0519-branch-deletion-closes-children-it-does-not-retarget-them",
         "title": "Retarget a stacked child explicitly; branch deletion closes it rather than moving it",
         "scope": "thread"
+      },
+      {
+        "ref": "0520-semgrep-drift-red-is-cdn-variance-not-a-ruleset-change",
+        "title": "The semgrep p/default drift red is CDN variance; the pin stays unvendored",
+        "scope": "thread"
       }
     ],
     "out_of_scope": [
@@ -832,5 +837,5 @@
     ]
   },
   "created_at": "2026-08-12T07:37:41.077Z",
-  "updated_at": "2026-08-17T14:53:38.565Z"
+  "updated_at": "2026-08-17T14:53:52.263Z"
 }
