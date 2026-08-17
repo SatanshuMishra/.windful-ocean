@@ -8,7 +8,11 @@ import { emitRunDocument } from '../decompose-emit.mjs';
 import { dispatch } from '../dispatch.mjs';
 import { envelopeText, fakeChild } from './dispatch-fixtures.mjs';
 
-const PREAMBLE = 'You own one unit end to end and return the commit sha you produced.';
+const PREAMBLES = Object.freeze({
+  implementer: 'You own one unit end to end and return the commit sha you produced.',
+  specReviewer: 'You review the unit against its spec and return a verdict.',
+  qualityReviewer: 'You review the unit for code quality and return a verdict.',
+});
 const UNIT_SHA = '0123456789abcdef0123456789abcdef01234567';
 const RUN_ID = '0a1b2c3d';
 const AT = '2026-08-16T12:00:00Z';
@@ -23,6 +27,7 @@ const MSPS = Object.freeze([
     rationale: 'The alpha core module is the seam every later unit imports, so it lands first.',
     changeType: 'feat',
     scope: 'alpha',
+    securityReviewRequired: true,
     dependsOn: [],
     fileScope: Object.freeze({ edit: ['src/alpha.mjs'], read: ['src/shared.mjs'], truncated: null }),
   }),
@@ -33,6 +38,7 @@ function payloadForSchema(schemaText, unitReportsSha) {
   const properties = schema.properties === null || typeof schema.properties !== 'object' ? {} : schema.properties;
   if (Object.hasOwn(properties, 'msps')) return { msps: MSPS };
   if (Object.hasOwn(properties, 'sha')) return unitReportsSha ? { sha: UNIT_SHA } : {};
+  if (Object.hasOwn(properties, 'verdict')) return { verdict: 'pass' };
   throw new Error(`the fake child was handed a schema it cannot answer: ${schemaText}`);
 }
 
@@ -140,7 +146,7 @@ async function emitThenRun(t, options = {}) {
   const place = scratch(t);
   const calls = [];
   const spawn = fakeSpawn(calls, unitReportsSha);
-  const emitted = await emitRunDocument(emitArgs(place, isolation), { spawn, loadImplementerPreamble: () => PREAMBLE });
+  const emitted = await emitRunDocument(emitArgs(place, isolation), { spawn, loadPreambles: () => PREAMBLES });
   assert.equal(emitted.ok, true, emitted.error);
   const document = JSON.parse(readFileSync(place.out, 'utf8'));
   const io = stubIo(document);
@@ -206,7 +212,7 @@ test('a worktree unit whose child reports no sha is still refused rather than ch
 
 test('the unit child is asked for its verdict against a schema, which is what makes its sha available', async (t) => {
   const { calls } = await emitThenRun(t);
-  assert.equal(calls.length, 2, 'the run did not spawn exactly one decompose child and one unit child');
+  assert.equal(calls.length, 4, 'the run did not spawn exactly one decompose child, one unit child, one review child and one security child');
   const unitArgv = calls[1].argv;
   const at = unitArgv.indexOf('--json-schema');
   assert.notEqual(at, -1, 'the unit child was dispatched with no --json-schema, so its envelope carries no structured_output at all');

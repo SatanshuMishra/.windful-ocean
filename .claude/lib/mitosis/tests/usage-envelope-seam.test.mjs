@@ -167,10 +167,17 @@ const MSPS = Object.freeze([
     rationale: 'The alpha core module is the seam every later unit imports, so it lands first.',
     changeType: 'feat',
     scope: 'alpha',
+    securityReviewRequired: false,
     dependsOn: [],
     fileScope: { edit: ['src/alpha.mjs'], read: ['src/shared.mjs'], truncated: null },
   },
 ]);
+
+const PREAMBLES = Object.freeze({
+  implementer: 'You own one unit end to end and return the commit sha you produced.',
+  specReviewer: 'You review the unit against its spec and return a verdict.',
+  qualityReviewer: 'You review the unit for code quality and return a verdict.',
+});
 
 function decomposePlace(t) {
   const root = mkdtempSync(join(tmpdir(), 'mitosis-usage-seam-'));
@@ -204,7 +211,7 @@ test('decompose-emit retains the decomposer envelope alongside the document it w
       total_cost_usd: 0.4213,
       num_turns: 7,
     }),
-    loadImplementerPreamble: () => 'You own one unit end to end and return the commit sha you produced.',
+    loadPreambles: () => PREAMBLES,
   };
   const result = await emitRunDocument(decomposeArgs(place), deps);
   assert.equal(result.ok, true, result.error);

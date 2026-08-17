@@ -34,7 +34,7 @@ export const DECOMPOSE_SCHEMA = deepFreeze({
       minItems: 1,
       items: {
         type: 'object',
-        required: ['id', 'title', 'rationale', 'changeType', 'scope', 'dependsOn', 'fileScope'],
+        required: ['id', 'title', 'rationale', 'changeType', 'scope', 'securityReviewRequired', 'dependsOn', 'fileScope'],
         additionalProperties: false,
         properties: {
           id: { type: 'string', pattern: '^[a-z0-9][a-z0-9-]{0,29}$' },
@@ -42,6 +42,7 @@ export const DECOMPOSE_SCHEMA = deepFreeze({
           rationale: { type: 'string', pattern: '^[A-Za-z0-9(][\\x20-\\x7E]{0,198}[\\x21-\\x7E]$' },
           changeType: { type: 'string', enum: ['feat', 'fix', 'refactor', 'docs', 'test', 'chore', 'perf', 'ci'] },
           scope: { type: 'string', pattern: '^[a-z0-9][a-z0-9-]{0,15}$' },
+          securityReviewRequired: { type: 'boolean' },
           dependsOn: { type: 'array', items: { type: 'string' } },
           fileScope: {
             type: 'object',

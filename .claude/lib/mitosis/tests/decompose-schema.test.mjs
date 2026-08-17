@@ -20,6 +20,7 @@ const CONFORMING = Object.freeze({
       rationale: 'The alpha core module is the seam every later unit imports, so it lands first.',
       changeType: 'feat',
       scope: 'alpha',
+      securityReviewRequired: false,
       dependsOn: [],
       fileScope: { edit: ['src/alpha.mjs'], read: ['src/shared.mjs'], truncated: null },
     },
@@ -29,6 +30,7 @@ const CONFORMING = Object.freeze({
       rationale: 'Beta consumes the alpha core and cannot be written before that module exists.',
       changeType: 'refactor',
       scope: 'beta',
+      securityReviewRequired: true,
       dependsOn: ['alpha-core'],
       fileScope: {
         edit: ['src/beta.mjs'],
@@ -70,7 +72,7 @@ test('an id outside the kebab-case pattern is refused', () => {
 });
 
 test('a missing required key is refused, one case per required key of an MSP', () => {
-  for (const key of ['id', 'title', 'rationale', 'changeType', 'scope', 'dependsOn', 'fileScope']) {
+  for (const key of ['id', 'title', 'rationale', 'changeType', 'scope', 'securityReviewRequired', 'dependsOn', 'fileScope']) {
     const reported = refusedBy(mutated((decomposition) => { delete decomposition.msps[1][key]; }));
     assert.match(reported, new RegExp(`msps\\[1\\] omits the required key "${key}"`));
   }
@@ -94,6 +96,13 @@ test('an empty msps array is refused, because a document naming no unit schedule
 test('a changeType outside the conventional-commits set is refused', () => {
   const reported = refusedBy(mutated((decomposition) => { decomposition.msps[0].changeType = 'feature'; }));
   assert.match(reported, /msps\[0\]\.changeType is "feature"/);
+});
+
+test('a securityReviewRequired that is anything but a boolean is refused rather than coerced to a skipped review', () => {
+  for (const declared of ['true', 'false', 1, 0, null, []]) {
+    const reported = refusedBy(mutated((decomposition) => { decomposition.msps[0].securityReviewRequired = declared; }));
+    assert.match(reported, /msps\[0\]\.securityReviewRequired is .* rather than boolean/);
+  }
 });
 
 test('a title that is uppercase-initial, over length, or period-terminated is refused', () => {

@@ -21,6 +21,14 @@ import { parseRunManifest } from '../recovery.mjs';
 import { emitsEnvelope, fakeChild } from './dispatch-fixtures.mjs';
 
 const PREAMBLE = 'You own one unit end to end and return the commit sha you produced.';
+const SPEC_REVIEWER_PREAMBLE = 'You review the unit against its spec and return a verdict.';
+const QUALITY_REVIEWER_PREAMBLE = 'You review the unit for code quality and return a verdict.';
+
+const PREAMBLES = Object.freeze({
+  implementer: PREAMBLE,
+  specReviewer: SPEC_REVIEWER_PREAMBLE,
+  qualityReviewer: QUALITY_REVIEWER_PREAMBLE,
+});
 
 const MSPS = Object.freeze([
   {
@@ -29,6 +37,7 @@ const MSPS = Object.freeze([
     rationale: 'The alpha core module is the seam every later unit imports, so it lands first.',
     changeType: 'feat',
     scope: 'alpha',
+    securityReviewRequired: false,
     dependsOn: [],
     fileScope: { edit: ['src/alpha.mjs'], read: ['src/shared.mjs'], truncated: null },
   },
@@ -38,6 +47,7 @@ const MSPS = Object.freeze([
     rationale: 'Beta consumes the alpha core and cannot be written before that module exists.',
     changeType: 'feat',
     scope: 'beta',
+    securityReviewRequired: true,
     dependsOn: ['alpha-core'],
     fileScope: { edit: ['src/beta.mjs'], read: ['src/alpha.mjs'], truncated: null },
   },
@@ -92,7 +102,7 @@ function rawSpawn(stdout) {
 }
 
 function depsFor(structured, calls = []) {
-  return { spawn: recordingSpawn(structured, calls), loadImplementerPreamble: () => PREAMBLE };
+  return { spawn: recordingSpawn(structured, calls), loadPreambles: () => PREAMBLES };
 }
 
 async function emit(place, overrides = {}, msps = clone(MSPS), calls = []) {
@@ -269,7 +279,7 @@ test('a child whose stdout is not JSON is reported on the decompose stage and wr
   const place = scratch(t);
   const result = await emitRunDocument(argsFor(place), {
     spawn: rawSpawn('not json at all {'),
-    loadImplementerPreamble: () => PREAMBLE,
+    loadPreambles: () => PREAMBLES,
   });
   assert.equal(result.ok, false);
   assert.equal(result.exitCode, EXIT_DECOMPOSE);
@@ -343,15 +353,78 @@ test('a spec that cannot be fingerprinted is reported on the input stage before 
   assert.equal(existsSync(place.out), false);
 });
 
-test('an implementer preamble that cannot be resolved is reported rather than composed around', async (t) => {
+test('a preamble set that cannot be resolved is reported rather than composed around', async (t) => {
   const place = scratch(t);
   const result = await emitRunDocument(argsFor(place), {
     spawn: recordingSpawn({ msps: clone(MSPS) }, []),
-    loadImplementerPreamble: () => { throw new Error('superpowers not found via manifest or cache'); },
+    loadPreambles: () => { throw new Error('superpowers not found via manifest or cache'); },
   });
   assert.equal(result.ok, false);
   assert.equal(result.exitCode, EXIT_INPUTS);
-  assert.match(result.error, /implementer preamble could not be resolved/);
+  assert.match(result.error, /implementer and reviewer preambles could not be resolved/);
+});
+
+test('a preamble loader that returns something other than a record is refused by shape, naming what it returned', async (t) => {
+  const place = scratch(t);
+  const reasonOf = (error) => error.slice(error.indexOf('(') + 1, error.indexOf(');'));
+  const keyed = 'rather than a record keyed by implementer, specReviewer, qualityReviewer';
+  for (const [loaded, named] of [[null, 'null'], ['a preamble', 'string'], [['a preamble'], 'object'], [7, 'number']]) {
+    const result = await emitRunDocument(argsFor(place), {
+      spawn: recordingSpawn({ msps: clone(MSPS) }, []),
+      loadPreambles: () => loaded,
+    });
+    assert.equal(result.ok, false, `a ${named} preamble set was accepted`);
+    assert.equal(result.exitCode, EXIT_INPUTS);
+    assert.equal(reasonOf(result.error), `the preamble loader returned ${named} ${keyed}`);
+  }
+});
+
+test('a preamble set missing any one of the three texts is refused rather than composed around', async (t) => {
+  const place = scratch(t);
+  for (const key of ['implementer', 'specReviewer', 'qualityReviewer']) {
+    const result = await emitRunDocument(argsFor(place), {
+      spawn: recordingSpawn({ msps: clone(MSPS) }, []),
+      loadPreambles: () => ({ ...PREAMBLES, [key]: '' }),
+    });
+    assert.equal(result.ok, false, `a preamble set with no ${key} text was accepted`);
+    assert.equal(result.exitCode, EXIT_INPUTS);
+    assert.match(result.error, new RegExp(`returned no text for ${key}`));
+  }
+});
+
+test('every emitted unit carries the judgment record the dispatch reads, with the MSP declared security answer', async (t) => {
+  const place = scratch(t);
+  const result = await emit(place);
+  assert.equal(result.ok, true, result.error);
+  assert.deepEqual(result.document.specs.map((unit) => unit.judgment.securityReviewRequired), [false, true]);
+  assert.deepEqual(Object.keys(result.document.specs[0].judgment).sort(), [
+    'baseBranch',
+    'branch',
+    'fileScope',
+    'isolation',
+    'qualityReviewerPreamble',
+    'repoRoot',
+    'securityReviewRequired',
+    'specReviewerPreamble',
+    'taskFullText',
+    'taskId',
+    'taskTitle',
+  ]);
+  assert.equal(result.document.specs[0].judgment.specReviewerPreamble, SPEC_REVIEWER_PREAMBLE);
+  assert.equal(result.document.specs[0].judgment.qualityReviewerPreamble, QUALITY_REVIEWER_PREAMBLE);
+  assert.equal(result.document.specs[0].judgment.branch, 'mitosis/alpha-core');
+  assert.equal(result.document.specs[0].judgment.taskId, 'alpha-core');
+});
+
+test('a scope-fence run composes no judgment record and says so on stderr rather than skipping review in silence', async (t) => {
+  const place = scratch(t);
+  const written = captureStderr(t);
+  const result = await emit(place, { isolation: 'scope-fence' });
+  assert.equal(result.ok, true, result.error);
+  assert.deepEqual(result.document.specs.map((unit) => Object.hasOwn(unit, 'judgment')), [false, false]);
+  const stderr = written.join('');
+  assert.match(stderr, /composes no judgment record for "alpha-core", "beta-wiring"/);
+  assert.match(stderr, /no review or security lens runs/);
 });
 
 test('the emitter never mutates the decomposition the child returned', async (t) => {
@@ -381,6 +454,7 @@ const COARSE_MSPS = Object.freeze([
     rationale: 'The alpha core module is the seam every later unit imports, so it lands first.',
     changeType: 'feat',
     scope: 'alpha',
+    securityReviewRequired: false,
     dependsOn: [],
     fileScope: { edit: ['src'], read: [], truncated: null },
   },

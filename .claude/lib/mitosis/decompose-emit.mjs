@@ -17,6 +17,7 @@ const DECOMPOSER_AGENT = 'codebase-analyst';
 const DEFAULT_DECOMPOSER_MODEL = 'opus';
 const IDENTIFIER_MAX_CHARS = 64;
 const WORKTREE_ISOLATION = 'worktree';
+const PREAMBLE_KEYS = Object.freeze(['implementer', 'specReviewer', 'qualityReviewer']);
 
 export const EXIT_CLEAN = 0;
 export const EXIT_UNCLASSIFIED = 1;
@@ -173,23 +174,38 @@ function failure(exitCode, error) {
   return Object.freeze({ ok: false, exitCode, error: `${MODULE}: ${error}`, outPath: null, document: null });
 }
 
-function defaultImplementerPreamble() {
-  const resolved = resolveAll();
-  const entry = resolved.prompts.implementer;
+function preambleText(prompts, key) {
+  const entry = prompts?.[key];
   const text = entry === undefined || entry === null ? null : entry.text;
   if (typeof text !== 'string' || text.trim() === '') {
-    throw new Error('the resolved superpowers prompt set carries no implementer text');
+    throw new Error(`the resolved superpowers prompt set carries no ${key} text`);
   }
   return text;
 }
 
+function defaultPreambles() {
+  const resolved = resolveAll();
+  return Object.fromEntries(PREAMBLE_KEYS.map((key) => [key, preambleText(resolved.prompts, key)]));
+}
+
+function requirePreambles(loaded) {
+  if (loaded === null || typeof loaded !== 'object' || Array.isArray(loaded)) {
+    throw new TypeError(`the preamble loader returned ${loaded === null ? 'null' : typeof loaded} rather than a record keyed by ${PREAMBLE_KEYS.join(', ')}`);
+  }
+  const missing = PREAMBLE_KEYS.filter((key) => typeof loaded[key] !== 'string' || loaded[key].trim() === '');
+  if (missing.length > 0) {
+    throw new TypeError(`the preamble loader returned no text for ${missing.join(', ')}`);
+  }
+  return Object.freeze(Object.fromEntries(PREAMBLE_KEYS.map((key) => [key, loaded[key]])));
+}
+
 function resolveInputs(args, deps) {
-  const load = deps.loadImplementerPreamble === undefined ? defaultImplementerPreamble : deps.loadImplementerPreamble;
-  let implementerPreamble;
+  const load = deps.loadPreambles === undefined ? defaultPreambles : deps.loadPreambles;
+  let preambles;
   try {
-    implementerPreamble = load();
+    preambles = requirePreambles(load());
   } catch (error) {
-    return failure(EXIT_INPUTS, `the implementer preamble could not be resolved (${reasonOf(error)}); every emitted unit prompt opens with it, so a document composed without it would dispatch children with no working agreement`);
+    return failure(EXIT_INPUTS, `the implementer and reviewer preambles could not be resolved (${reasonOf(error)}); every emitted unit prompt opens with the implementer text and every emitted judgment record carries the two reviewer texts, so a document composed without them would dispatch children with no working agreement`);
   }
   let hash;
   try {
@@ -198,7 +214,7 @@ function resolveInputs(args, deps) {
     return failure(EXIT_INPUTS, `the spec at ${args.spec} could not be fingerprinted: ${reasonOf(error)}`);
   }
   if (hash.ok !== true) return failure(EXIT_INPUTS, hash.error);
-  return Object.freeze({ ok: true, implementerPreamble, specContentHash: hash.specContentHash });
+  return Object.freeze({ ok: true, preambles, specContentHash: hash.specContentHash });
 }
 
 function decomposeRequest(args) {
@@ -272,6 +288,11 @@ function reportCoarseScope(msps, write) {
   for (const line of lines) write(`${line}\n`);
 }
 
+function reportJudgmentOmission(args, msps, write) {
+  if (args.isolation === WORKTREE_ISOLATION) return;
+  write(`${MODULE}: --isolation ${JSON.stringify(args.isolation)} composes no judgment record for ${msps.map((msp) => JSON.stringify(msp.id)).join(', ')}, so no review or security lens runs over ${msps.length === 1 ? 'that unit' : 'those units'}; the review target under this mode is a diff taken from the commit the implementer launched at, and the dispatch path reads no git revision to take it from. Re-run with --isolation ${JSON.stringify(WORKTREE_ISOLATION)} to have every unit reviewed. This is a warning and does not halt the run.\n`);
+}
+
 function unitDefaults(args) {
   const defaults = {};
   for (const entry of UNIT_DEFAULT_FIELDS) {
@@ -296,7 +317,9 @@ function documentInput(args, inputs, msps, clusters) {
       specContentHash: inputs.specContentHash,
     },
     prompt: {
-      implementerPreamble: inputs.implementerPreamble,
+      implementerPreamble: inputs.preambles.implementer,
+      specReviewerPreamble: inputs.preambles.specReviewer,
+      qualityReviewerPreamble: inputs.preambles.qualityReviewer,
       scopedCheckCmd: args.scopedCheckCmd,
       isolation: args.isolation,
       branchPrefix: args.branchPrefix,
@@ -349,6 +372,7 @@ export async function emitRunDocument(args, deps = {}) {
   const decomposed = await runDecomposer(args, deps);
   if (decomposed.ok !== true) return decomposed;
   reportCoarseScope(decomposed.msps, warn);
+  reportJudgmentOmission(args, decomposed.msps, warn);
   const composed = composeDocument(args, inputs, decomposed.msps);
   if (composed.ok !== true) return composed;
   const written = writeRunDocument(args.out, composed.document);
