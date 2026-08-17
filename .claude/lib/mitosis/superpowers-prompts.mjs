@@ -2,7 +2,7 @@ import { readFileSync, existsSync, readdirSync, statSync, realpathSync } from 'n
 import { join } from 'node:path';
 import { homedir } from 'node:os';
 import { createHash } from 'node:crypto';
-import { pathToFileURL } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 
 export const PROMPT_FILES = {
   implementer: 'subagent-driven-development/implementer-prompt.md',
@@ -78,13 +78,33 @@ const MANIFEST = join(HOME, '.claude/plugins/installed_plugins.json');
 const CACHE = join(HOME, '.claude/plugins/cache/claude-plugins-official/superpowers');
 const SNAPSHOT = join(HOME, '.claude/lib/mitosis/prompt-snapshots');
 
+export const WRITING_PLANS_SKILL = 'writing-plans/SKILL.md';
+
+export function libDirectory() {
+  const directory = fileURLToPath(new URL('.', import.meta.url));
+  return directory.endsWith('/') ? directory.slice(0, -1) : directory;
+}
+
+export function writingPlansGlob() {
+  return join(CACHE, '*', 'skills', WRITING_PLANS_SKILL);
+}
+
 export function resolveAll() {
   const r = resolveSkillsDir({ manifestPath: MANIFEST, cacheGlobBase: CACHE });
   if (!r) throw new Error('superpowers not found via manifest or cache');
   const prompts = loadPrompts(r.skillsDir, { snapshotDir: SNAPSHOT });
   const warnings = sanityWarnings(prompts);
   const hashes = Object.fromEntries(Object.entries(prompts).map(([k, v]) => [k, hashText(v.text)]));
-  return { version: r.version, skillsDir: r.skillsDir, source: r.source, prompts, hashes, warnings };
+  return {
+    version: r.version,
+    skillsDir: r.skillsDir,
+    source: r.source,
+    prompts,
+    hashes,
+    warnings,
+    libDir: libDirectory(),
+    writingPlansGlob: writingPlansGlob(),
+  };
 }
 
 function main() {

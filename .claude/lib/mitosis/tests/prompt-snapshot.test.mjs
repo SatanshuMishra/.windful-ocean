@@ -1,8 +1,9 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { join } from 'node:path';
-import { loadPrompts, sanityWarnings, PROMPT_FILES } from '../superpowers-prompts.mjs';
+import { isAbsolute, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { loadPrompts, sanityWarnings, libDirectory, writingPlansGlob, PROMPT_FILES, WRITING_PLANS_SKILL } from '../superpowers-prompts.mjs';
 
 const SNAPSHOT_DIR = new URL('../prompt-snapshots', import.meta.url).pathname;
 
@@ -54,6 +55,20 @@ test('distilled quality reviewer snapshot preserves the single-responsibility cr
   const text = snapshotText('qualityReviewer');
   assert.match(text, /one clear responsibility/);
   assert.match(text, /Strengths/);
+});
+
+test('the lib directory handed to a plan child is the absolute mitosis root, resolvable from any working directory', () => {
+  const expected = join(fileURLToPath(new URL('.', import.meta.url)), '..');
+  assert.equal(libDirectory(), expected);
+  assert.equal(isAbsolute(libDirectory()), true);
+  assert.equal(libDirectory().endsWith('/'), false);
+  assert.equal(readFileSync(join(libDirectory(), 'superpowers-prompts.mjs'), 'utf8').includes('export function libDirectory()'), true);
+});
+
+test('the writing-plans glob handed to a plan child is the absolute cache pattern for that one skill file', () => {
+  assert.equal(isAbsolute(writingPlansGlob()), true);
+  assert.equal(writingPlansGlob().endsWith(join('*', 'skills', WRITING_PLANS_SKILL)), true);
+  assert.equal(WRITING_PLANS_SKILL, 'writing-plans/SKILL.md');
 });
 
 test('sanityWarnings is empty for the distilled snapshot set', () => {

@@ -4,6 +4,7 @@ import { PHASE_TITLES } from './phases.mjs';
 import { planResume } from './resume-plan.mjs';
 import { computeRunKey } from './run-store.mjs';
 import { shipIntegrated } from './ship-plan.mjs';
+import { planUnits } from './unit-planning.mjs';
 
 const DRIVER = 'phase-driver';
 const NO_PHASES = Object.freeze({});
@@ -31,6 +32,8 @@ const REQUIRED_PORTS = Object.freeze([
   'openPullRequest',
   'appendJournal',
   'diffStat',
+  'skillPointers',
+  'observePlan',
 ]);
 
 function describe(value) {
@@ -107,6 +110,10 @@ function judgmentById(spec) {
   return new Map(unitsOf(spec).map((unit) => [unit.id, unit.judgment]));
 }
 
+function prepById(spec) {
+  return new Map(unitsOf(spec).map((unit) => [unit.id, unit.prep]));
+}
+
 function taskById(spec) {
   return new Map(unitsOf(spec).map((unit) => [unit.id, unit.task]));
 }
@@ -177,16 +184,35 @@ async function resumePhase(completed, request, ports) {
   }));
 }
 
+function planningConfig(request, resumed) {
+  return {
+    specs: resumed.specs,
+    prepById: prepById(request.spec),
+    repoRoot: request.repoRoot,
+    runId: runIdentityOf(resumed.manifest, request.runId),
+  };
+}
+
 async function prepPhase(completed, request, ports) {
   const title = phase('Prep');
+  const resumed = requirePreceding(completed, 'Resume');
+  const planned = await planUnits({
+    ...planningConfig(request, resumed),
+    pointers: () => ports.skillPointers(),
+  }, {
+    dispatchPrompt: (dispatched) => ports.dispatchPrompt(dispatched),
+    observePlan: (probe) => ports.observePlan(probe),
+  });
   return entered(title, {
     enginePorts: ports.makePorts({
       repoRoot: request.repoRoot,
       requestsById: requestsById(request.spec),
       judgmentById: judgmentById(request.spec),
       taskById: taskById(request.spec),
+      planById: planned.byId,
     }),
     onRecord: ports.makeObserver({ handle: heldHandle(completed), at: request.at }),
+    planned: planned.outcomes,
   });
 }
 

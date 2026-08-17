@@ -219,6 +219,70 @@ if (diagnoseMarked()) {
   }));
 }
 
+const PLANNING_MARKERS = plan.planningMarkers === null || typeof plan.planningMarkers !== 'object' ? {} : plan.planningMarkers;
+const PLANNING_KINDS = ['replan', 'plan-review', 'plan'];
+
+function planningKind() {
+  if (typeof PROMPT !== 'string') return null;
+  for (const kind of PLANNING_KINDS) {
+    const marker = PLANNING_MARKERS[kind];
+    if (typeof marker === 'string' && marker !== '' && PROMPT.includes(marker)) return kind;
+  }
+  return null;
+}
+
+function writePlanArtifact() {
+  if (typeof unit.planPath !== 'string' || unit.planPath === '') {
+    refuse(83, 'unit ' + unitId + ' was asked to plan but the plan names no artifact path, so the child would answer with a path nobody wrote');
+  }
+  try {
+    fs.mkdirSync(path.dirname(unit.planPath), { recursive: true });
+    fs.writeFileSync(unit.planPath, 'fixture plan for unit ' + unitId + '\n');
+  } catch (error) {
+    refuse(83, 'the plan artifact at ' + unit.planPath + ' could not be written: ' + error.message);
+  }
+  return unit.planPath;
+}
+
+function nextPlanReview() {
+  const reviews = Array.isArray(unit.planReviews) ? unit.planReviews : [];
+  const counter = path.join(STATE, unitId + '.plan-review.count');
+  let seen = 0;
+  try {
+    seen = Number.parseInt(fs.readFileSync(counter, 'utf8'), 10);
+  } catch (error) {
+    seen = 0;
+  }
+  if (!Number.isInteger(seen) || seen < 0) {
+    refuse(84, 'the plan-review counter at ' + counter + ' does not hold a whole number of prior reviews');
+  }
+  if (seen >= reviews.length) {
+    refuse(84, 'unit ' + unitId + ' was asked for plan review ' + (seen + 1) + ' but the plan declares only ' + reviews.length + ', so the planning loop ran past the bound the fixture wrote');
+  }
+  fs.writeFileSync(counter, String(seen + 1));
+  return reviews[seen];
+}
+
+const planning = planningKind();
+if (planning !== null) {
+  if (planning === 'plan-review') {
+    const verdict = nextPlanReview();
+    emit(envelope({
+      structured_output: {
+        verdict: verdict,
+        findings: verdict === 'approve' ? [] : [{ axis: 'necessity', severity: 'high', detail: 'fixture plan finding for unit ' + unitId }],
+        pillarsAlignment: 'fixture pillars alignment for unit ' + unitId,
+      },
+    }));
+  }
+  emit(envelope({
+    structured_output: {
+      planPath: writePlanArtifact(),
+      summary: 'fixture ' + planning + ' summary for unit ' + unitId,
+    },
+  }));
+}
+
 const judged = markerKind();
 if (judged !== null) {
   const declared = unit[judged + 'Verdict'];

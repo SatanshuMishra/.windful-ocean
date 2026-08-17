@@ -135,6 +135,7 @@ export const PROMPT_INPUT_SPECS = Object.freeze({
     repoRoot: 'path',
     dependsList: 'text',
     specPath: 'path',
+    planPath: 'path',
     fileScope: 'fileScope',
   }),
   'plan-review': spec({

@@ -71,6 +71,7 @@ export const PROMPT_FIXTURE_CASES = Object.freeze([
     repoRoot: REPO_ROOT,
     dependsList: DEPENDS_LIST,
     specPath: SPEC_PATH,
+    planPath: PLAN_PATH,
     fileScope: RICH_FILE_SCOPE,
   }),
   freezeCase('plan-bare-scope', 'plan', {
@@ -82,6 +83,7 @@ export const PROMPT_FIXTURE_CASES = Object.freeze([
     repoRoot: REPO_ROOT,
     dependsList: DEPENDS_LIST,
     specPath: SPEC_PATH,
+    planPath: PLAN_PATH,
     fileScope: BARE_FILE_SCOPE,
   }),
   freezeCase('plan-review', 'plan-review', {
