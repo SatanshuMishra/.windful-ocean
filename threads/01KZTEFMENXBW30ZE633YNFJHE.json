@@ -253,7 +253,7 @@
   "closure_statement": null,
   "spine": {
     "active_goal": "Get /mitosis running end to end, with every phase, the pull-request and merge path, and failure handling all thoroughly tested.",
-    "next_step": "WAIT for the user's SPECIFIC instructions. Do not auto-merge and do not auto-resume the stack. When instructed: merge #172 through #187 bottom-up, deleting each branch AS PART OF its own merge, because a manual deletion closes children rather than retargeting them. Then flip c27 through c31, whose work is satisfied at the stack tip and which close when the engine reaches main. Three pull requests stay red by ruling per 0516: #172, #181 and #183.",
+    "next_step": "WAIT for the user's SPECIFIC instructions. Do not auto-merge and do not auto-resume. Merging is under way and working: #172, #174, #175, #176 and #177 are on main, each branch deleted as part of its own merge, and #178 correctly retargeted to main. Ten remain, #178 through #187, still stacked. Local branch refs are STALE twins of rewritten commits - re-fetch and compare by content, never by SHA. When the last lands, flip c27 through c31. #181 and #183 stay red per 0516.",
     "last_session": "Shipped every remaining MSP as a 15-PR stack, #172 to #187, on top of 7 merged earlier. c27's work is complete at the stack tip: all 12 prompt kinds reachable on a real run, fix retired. Six G14 gates cleared on first push; three stay red as tracked downgrades under 0516.",
     "open_risks": [
       {
@@ -822,5 +822,5 @@
     ]
   },
   "created_at": "2026-08-12T07:37:41.077Z",
-  "updated_at": "2026-08-17T13:32:00.071Z"
+  "updated_at": "2026-08-17T13:33:35.668Z"
 }
