@@ -56,9 +56,9 @@
   "abandoned_reason": null,
   "closure_statement": null,
   "spine": {
-    "active_goal": "Ship SPEC wave 3 as one stacked human-merged pull request per unit, after merging the three open wave 1 and wave 2 pull requests.",
-    "next_step": "Three PRs open, all green, all based on main, worktrees freed: 191 (U1.2 census, completes wave 1), 190 (U2.1 platform-engineer skill), 189 (U2.2 conformance-auditor skill). Merge in THAT order, so the census is live before it validates the two new skills. U3.1 is still building on feat/observer-write-path; U3.2 to U3.4 stack on it per decision 0521 - never merge a child until its parent branch is deleted and confirmed gone.",
-    "last_session": "Shipped wave 1's missing unit and all of wave 2 by parallel Opus dispatch: PRs 191, 190 and 189, every check green. Decided the observer record contract as decision 0524 - ten fields not 22, with parent and depth from a platform sidecar. U3.1 in flight.",
+    "active_goal": "Ship SPEC wave 3 as one stacked human-merged pull request per unit. Waves 0, 1 and 2 are merged and verified.",
+    "next_step": "Waves 0, 1 and 2 are MERGED and verified by ancestry; main is at 23603b16, green, census passing on the real tree. Only wave 3 remains. U3.1 is still building on feat/observer-write-path (pushed at b2859e2f, worktree locked). Do NOT branch U3.2 off it until U3.1 reports FINISHED - a child stacked on an in-progress parent inherits a stale base. Then chain U3.2, U3.3 and U3.4 per decision 0521, and give capability_blocked a home before U3.4 cuts over.",
+    "last_session": "Merged PRs 191, 190 and 189 and verified all three landed by ancestry with their branches deleted. Pulled main so the merged config is actually in force locally. The census passes on the merged tree: 31 resolved, 0 dangling, both new skills present.",
     "open_risks": [
       {
         "text": "Never read `emitter` in the events log as a measurement — it is a hardcoded constant on every row, and treating it as signal already produced one wrong conclusion",
@@ -349,5 +349,5 @@
     ]
   },
   "created_at": "2026-08-16T05:43:25.829Z",
-  "updated_at": "2026-08-17T16:01:49.638Z"
+  "updated_at": "2026-08-17T16:06:07.219Z"
 }
