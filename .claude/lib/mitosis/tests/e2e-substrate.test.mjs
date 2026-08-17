@@ -1,5 +1,7 @@
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
+import { existsSync, readFileSync, readdirSync } from 'node:fs';
+import { join } from 'node:path';
 import test from 'node:test';
 import {
   CLAUDE_BEHAVIOURS,
@@ -14,6 +16,22 @@ import {
   sandboxPath,
   withSandbox,
 } from './e2e-substrate.mjs';
+
+function attemptDirectory(sandbox, summary) {
+  return join(sandbox.repo, '.mitosis', 'runs', summary.runKey, `attempt-${summary.attempt}`);
+}
+
+function unitRecordNames(attemptDir) {
+  return readdirSync(join(attemptDir, 'items')).sort();
+}
+
+function unitRecord(attemptDir, unitId) {
+  return JSON.parse(readFileSync(join(attemptDir, 'items', `${unitId}.out`), 'utf8'));
+}
+
+function committedState(attemptDir) {
+  return JSON.parse(readFileSync(join(attemptDir, 'state.json'), 'utf8'));
+}
 
 test('a real cli.mjs child drives a two-unit fixture to done through the sandbox PATH', () => {
   withSandbox({}, (sandbox) => {
@@ -113,6 +131,53 @@ test('the fail-then-succeed behaviour fails the first invocation and succeeds th
     assert.equal(second.status, 0);
     assert.deepEqual(JSON.parse(second.stdout).structured_output, { sha: planned.shaOf.alpha });
     assert.equal(claudeArgvsFor(sandbox, 'alpha').length, 2);
+  });
+});
+
+test('a real two-unit run leaves one durable start record per unit and a committed state', () => {
+  withSandbox({}, (sandbox) => {
+    planRun(sandbox, [
+      { id: 'alpha', behaviour: CLAUDE_BEHAVIOURS.succeed },
+      { id: 'beta', behaviour: CLAUDE_BEHAVIOURS.succeed },
+    ]);
+
+    const run = runMitosisCli(sandbox);
+
+    assert.equal(run.status, 0, run.stderr);
+    const attemptDir = attemptDirectory(sandbox, run.summary);
+    const startRecords = unitRecordNames(attemptDir);
+
+    assert.equal(startRecords.length, 2);
+    assert.deepEqual(startRecords, ['alpha.out', 'beta.out']);
+    assert.equal(existsSync(join(attemptDir, 'state.json')), true);
+    assert.deepEqual(committedState(attemptDir).units, { alpha: 'ok', beta: 'ok' });
+    assert.equal(unitRecord(attemptDir, 'alpha').unitId, 'alpha');
+    assert.equal(unitRecord(attemptDir, 'alpha').attempt, 1);
+  });
+});
+
+test('a second attempt records into its own directory and leaves the first attempt intact', () => {
+  withSandbox({}, (sandbox) => {
+    planRun(sandbox, [
+      { id: 'alpha', behaviour: CLAUDE_BEHAVIOURS.succeed },
+      { id: 'beta', behaviour: CLAUDE_BEHAVIOURS.succeed },
+    ]);
+
+    const first = runMitosisCli(sandbox);
+    const second = runMitosisCli(sandbox);
+
+    assert.equal(first.status, 0, first.stderr);
+    assert.equal(second.status, 0, second.stderr);
+    assert.equal(first.summary.attempt, 1);
+    assert.equal(second.summary.attempt, 2);
+
+    const firstDir = attemptDirectory(sandbox, first.summary);
+    const secondDir = attemptDirectory(sandbox, second.summary);
+
+    assert.deepEqual(unitRecordNames(firstDir), ['alpha.out', 'beta.out']);
+    assert.deepEqual(unitRecordNames(secondDir), ['alpha.out', 'beta.out']);
+    assert.equal(unitRecord(firstDir, 'alpha').attempt, 1);
+    assert.equal(unitRecord(secondDir, 'alpha').attempt, 2);
   });
 });
 
