@@ -36,14 +36,21 @@ const DEFAULTS = Object.freeze({
   extraFileName: null,
   extraFileText: '',
   sibling: null,
+  skillIsDirectory: false,
 });
+
+function skillOfExactly(bytes) {
+  const base = `${VALID_SKILL}\n`;
+  return base + 'x'.repeat(bytes - Buffer.byteLength(base, 'utf8'));
+}
 
 function buildFixture(overrides) {
   const options = { ...DEFAULTS, ...overrides };
   const base = mkdtempSync(join(tmpdir(), 'skill-router-lint-'));
   const root = join(base, 'skills', options.dirName);
   mkdirSync(join(root, 'procedures'), { recursive: true });
-  writeFileSync(join(root, 'SKILL.md'), options.skill);
+  if (options.skillIsDirectory) mkdirSync(join(root, 'SKILL.md'), { recursive: true });
+  else writeFileSync(join(root, 'SKILL.md'), options.skill);
   if (!options.omitSideFile) writeFileSync(join(root, SIDE_FILE), options.sideFile);
   if (options.extraFileName !== null) writeFileSync(join(root, options.extraFileName), options.extraFileText);
   if (options.sibling !== null) mkdirSync(join(base, 'skills', options.sibling), { recursive: true });
@@ -86,11 +93,28 @@ test('an absent SKILL.md is reported rather than skipped', (t) => {
   assertRed(result, 'SKILL_MD_MISSING');
 });
 
-test('a SKILL.md over the preload limit is reported with its measured size', (t) => {
-  const oversize = `${VALID_SKILL}\n${'x'.repeat(4200)}\n`;
-  const result = lintFixture(t, { skill: oversize });
+test('a SKILL.md of exactly 4096 bytes is at the limit and passes', (t) => {
+  const skill = skillOfExactly(4096);
+  assert.equal(Buffer.byteLength(skill, 'utf8'), 4096);
+  const result = lintFixture(t, { skill });
+  assert.equal(result.status, 0, `4096 bytes is at the limit and must pass: ${result.stderr}`);
+  assert.ok(result.stdout.includes('4096 bytes'), `expected the measured size in ${result.stdout}`);
+});
+
+test('a SKILL.md of exactly 4097 bytes is over the limit and is reported with its measured size', (t) => {
+  const skill = skillOfExactly(4097);
+  assert.equal(Buffer.byteLength(skill, 'utf8'), 4097);
+  const result = lintFixture(t, { skill });
   assertRed(result, 'SKILL_MD_OVERSIZE');
-  assert.ok(result.stderr.includes(`${Buffer.byteLength(oversize, 'utf8')} bytes`), `expected the measured size in ${result.stderr}`);
+  assert.ok(result.stderr.includes('4097 bytes'), `expected the measured size in ${result.stderr}`);
+});
+
+test('a SKILL.md that is a directory rather than a regular file is reported, not crashed on', (t) => {
+  assertRed(lintFixture(t, { skillIsDirectory: true }), 'SKILL_MD_MISSING');
+});
+
+test('a separator row with too few dashes is malformed rather than accepted', (t) => {
+  assertRed(lintFixture(t, { skill: VALID_SKILL.replace('|---|---|', '|--|--|') }), 'ROUTING_TABLE_MALFORMED');
 });
 
 test('frontmatter that does not parse halts the census', (t) => {

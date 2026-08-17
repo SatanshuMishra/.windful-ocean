@@ -15,7 +15,6 @@ const FENCE = /^[ \t]*(?:```|~~~)/;
 const INLINE_CODE = /`([^`\n]+)`/g;
 const SEPARATOR_CELL = /^:?-{3,}:?$/;
 const QUALIFIED_SHAPE = /^[^\s`/]+:[^\s`/]+$/;
-const BARE_SHAPE = /^[a-z0-9][a-z0-9-]*$/;
 
 class UsageError extends Error {}
 
@@ -28,7 +27,7 @@ function readTextOrNull(path) {
   }
 }
 
-function markdownFiles(root, prefix) {
+function collectMarkdown(root, prefix) {
   const dir = prefix === '' ? root : join(root, prefix);
   let entries;
   try {
@@ -36,13 +35,16 @@ function markdownFiles(root, prefix) {
   } catch (error) {
     throw new UsageError(`the skill directory ${dir} could not be listed, so its files cannot be censused: ${error.message}`);
   }
-  const ordered = [...entries].sort((left, right) => (left.name < right.name ? -1 : left.name > right.name ? 1 : 0));
-  return ordered.flatMap((entry) => {
+  return entries.flatMap((entry) => {
     const relativePath = prefix === '' ? entry.name : `${prefix}/${entry.name}`;
-    if (entry.isDirectory()) return markdownFiles(root, relativePath);
+    if (entry.isDirectory()) return collectMarkdown(root, relativePath);
     if (entry.isFile() && entry.name.endsWith('.md')) return [relativePath];
     return [];
   });
+}
+
+function markdownFiles(root) {
+  return Object.freeze([...collectMarkdown(root, '')].sort());
 }
 
 function siblingSkillNames(root) {
@@ -176,7 +178,7 @@ function referenceProblems(spans, ownName, siblings) {
     [...siblings, ...qualified.flatMap((entry) => [entry.reference.plugin, entry.reference.skill])].filter((name) => name !== ownName),
   );
   const bareProblems = spans
-    .filter((span) => BARE_SHAPE.test(span.value) && known.has(span.value))
+    .filter((span) => known.has(span.value))
     .map((span) => `SKILL_REFERENCE_BARE: ${span.file}:${span.line} names the skill ${JSON.stringify(span.value)} without a plugin prefix; bare names fall back to suffix matching and resolve arbitrarily, so plugin:skill is required`);
   const absent = qualified.length === 0
     ? [`SKILL_REFERENCE_ABSENT: no fully qualified plugin:skill reference appears anywhere under this skill, so the qualification census would pass over an empty set`]
@@ -201,7 +203,7 @@ function lintSkillRouter(root) {
     : [];
   const routing = routingRows(lines, SKILL_FILE);
   const sideFileProblems = routing.rows.flatMap((row) => rowProblems(row, root, SKILL_FILE));
-  const files = markdownFiles(root, '');
+  const files = markdownFiles(root);
   const spans = files.flatMap((file) => {
     const body = readTextOrNull(join(root, file));
     if (body === null) throw new UsageError(`${join(root, file)} was listed but could not be read, so the census cannot close`);
