@@ -923,6 +923,11 @@
         "ref": "0538-one-cli-invocation-advances-exactly-one-stage",
         "title": "One cli.mjs invocation advances exactly one stage, contradicting the skill's single-dispatch contract",
         "scope": "c28"
+      },
+      {
+        "ref": "0539-stop-line-is-root-cause-depth-not-phase-attribution",
+        "title": "The e2e stops at root-cause depth and a live-usability verdict, not at phase-level failure attribution",
+        "scope": "c28"
       }
     ],
     "out_of_scope": [
@@ -934,5 +939,5 @@
     ]
   },
   "created_at": "2026-08-12T07:37:41.077Z",
-  "updated_at": "2026-08-17T17:28:02.627Z"
+  "updated_at": "2026-08-17T17:36:22.413Z"
 }
