@@ -50,6 +50,8 @@ function stubbedPorts(overrides = {}) {
       release: (given) => { released.push(given); },
       makeObserver: () => () => {},
       makePorts: () => enginePorts,
+      skillPointers: () => ({ libDir: '/lib/mitosis', writingPlansGlob: '/plugins/*/skills/writing-plans/SKILL.md' }),
+      observePlan: () => ({ exists: true, isFile: true, size: 1, detail: 'stubbed observation' }),
       boundaryGate: (request) => { gated.push(request); return { pass: true, output: 'no new finding', blocking: [], baseCensus: null }; },
       dispatchPrompt: (request) => { dispatched.push(request); return { ok: true, outcome: 'success' }; },
       openPullRequest: (request) => {

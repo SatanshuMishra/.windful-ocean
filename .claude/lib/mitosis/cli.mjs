@@ -11,10 +11,13 @@ import { GH_COMMAND_BINARY, buildGhCommand } from './gh-commands.mjs';
 import { integrateSummary } from './integrate-plan.mjs';
 import { appendJournalLine, writeGenesis } from './journal-store.mjs';
 import { runPhases } from './phase-driver.mjs';
+import { observePlanArtifact } from './plan-artifact.mjs';
 import { resumeSummary } from './resume-plan.mjs';
 import { execAllowed, openRun } from './run-store.mjs';
 import { shipSummary } from './ship-plan.mjs';
+import { resolveAll } from './superpowers-prompts.mjs';
 import { readJudgment, runJudgment } from './unit-judgment.mjs';
+import { planningSummary } from './unit-planning.mjs';
 import { IMPLEMENT_STAGE, planRemediatedAttempt } from './unit-remediation.mjs';
 
 const MODULE = 'mitosis-cli';
@@ -257,6 +260,20 @@ function diffStatPort(runFn) {
   );
 }
 
+function defaultSkillPointers() {
+  let resolved;
+  try {
+    resolved = resolveAll();
+  } catch (error) {
+    throw new Error(`${MODULE}: the superpowers install could not be resolved, and every plan prompt this run composes points the planning child at the writing-plans skill it carries: ${messageOf(error)}`, { cause: error });
+  }
+  return Object.freeze({ libDir: resolved.libDir, writingPlansGlob: resolved.writingPlansGlob });
+}
+
+function defaultObservePlan(probe) {
+  return observePlanArtifact(probe.repoRoot, probe.planPath);
+}
+
 function driverPorts(io, makePorts, deps, repoRoot) {
   const openRunFn = deps.openRun === undefined ? openRun : deps.openRun;
   const foldJournalFn = deps.foldJournal === undefined ? foldFile : deps.foldJournal;
@@ -264,8 +281,12 @@ function driverPorts(io, makePorts, deps, repoRoot) {
   const boundaryGateFn = deps.boundaryGate === undefined ? evaluate : deps.boundaryGate;
   const dispatchFn = deps.dispatch === undefined ? dispatch : deps.dispatch;
   const appendJournalFn = deps.appendJournalLine === undefined ? appendJournalLine : deps.appendJournalLine;
+  const skillPointersFn = deps.skillPointers === undefined ? defaultSkillPointers : deps.skillPointers;
+  const observePlanFn = deps.observePlan === undefined ? defaultObservePlan : deps.observePlan;
   return Object.freeze({
     openRun: (request) => openRunFn(request),
+    skillPointers: () => skillPointersFn(),
+    observePlan: (probe) => observePlanFn(probe),
     readJournal: (request) => foldJournalFn(journalLocation(request)),
     reconcile: reconcilePort(io, runFn, repoRoot),
     boundaryGate: (request) => boundaryGateFn(request),
@@ -294,6 +315,7 @@ function summaryOf(driven) {
     aborted: result.aborted,
     ticks: result.ticks,
     units: result.units.map((unit) => ({ id: unit.id, state: unit.state })),
+    prep: planningSummary(driven.phases.Prep.planned),
     resume: resumeSummary(driven.phases.Resume),
     integrate: integrateSummary(driven.phases.Integrate),
     ship: shipSummary(driven.phases.Ship),
@@ -360,6 +382,23 @@ function needsHumanPark(reason, envelope) {
 
 function declaredJudgment(config, unit) {
   return readJudgment(unit.id, config.judgmentById?.get(unit.id));
+}
+
+function plannedOutcome(config, unit) {
+  const planned = config.planById;
+  if (planned === undefined || planned === null || typeof planned.get !== 'function') return null;
+  const outcome = planned.get(unit.id);
+  return outcome === undefined ? null : outcome;
+}
+
+function planPark(planned) {
+  const parked = NeedsHuman({
+    kind: 'plan',
+    what: planned.what,
+    detail: planned.detail,
+    issues: planned.findings.map((finding) => `[${finding.axis} / ${finding.severity}] ${finding.detail}`),
+  }, []);
+  return Object.freeze({ ...parked, envelope: null });
 }
 
 function judgmentPark(judged, envelope) {
@@ -429,6 +468,8 @@ export function realPorts(config, deps = {}) {
   const runFn = deps.run === undefined ? run : deps.run;
   return Object.freeze({
     runUnit: async (unit, context) => {
+      const planned = plannedOutcome(config, unit);
+      if (planned !== null && planned.approved !== true) return planPark(planned);
       const request = requireUnitRequest(config, unit);
       const judgment = declaredJudgment(config, unit);
       const dispatchOne = (payload) => dispatchFn({ ...payload, signal: context.signal });
