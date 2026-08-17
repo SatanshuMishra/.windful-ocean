@@ -246,8 +246,8 @@
   "closure_statement": null,
   "spine": {
     "active_goal": "Get /mitosis running end to end, with every phase, the pull-request and merge path, and failure handling all thoroughly tested.",
-    "next_step": "M7 (compose prompts at dispatch) was building in .claude/worktrees/m7-compose off the now-MERGED feat/mitosis-reconcile-resume, so its PR targets a dead base - restack onto main by cherry-picking only its own commit, retarget or reopen against main, then delete that branch. Cut every later MSP off CURRENT main targeting main. Remaining: M8 integrate, M9 pr-create, M10 serialize, M11 park, M12 redispatch, M13 e2e, M14 retire fix, M15 ci-to-green, plus an UNOWNED MSP for plan/plan-review/replan.",
-    "last_session": "Shipped and MERGED M1-M6 (PRs #156-#160, #167, #165, #168): scope-fence sha, prompt twins, the eight-phase driver, the e2e substrate, the g11 tripwire disable, durable dispatch-start records, journal resume, and reconcile-outranks-journal. c32 and c33 close. M7 in flight.",
+    "next_step": "Continue the linear stack from its tip. Open chain merges bottom-up: #172, #174, #175, #176, then whatever M11 (park dependents) and M12 (bounded redispatch) landed in .claude/worktrees/m11-park - read the PR list and that worktree's git log before redispatching. Then: the end-to-end decompose-to-pull-request test for c31, the judgment record decompose-emit still does not emit, the unowned Prep-kinds MSP, retire the fix kind, the ci-to-green loop, and add phase-parity to the CI gate matrix.",
+    "last_session": "M1-M6 merged. M7-M10 open as a stacked chain: PRs #172 compose-at-dispatch, #174 integrate+boundary gate, #175 engine opens pull requests (G14 red, unverified-reasoned, provably equivalent mutant), #176 serialized ship order (all 13 CI checks green). c28 substantively closes. M11+M12 in flight.",
     "open_risks": [
       {
         "text": "Prove a merge arrived by asserting its CONTENT is on the base, never by SHA ancestry — a squash or stack merge rewrites commits, so a pre-merge SHA correctly fails an ancestry check on a merge that lost nothing",
@@ -831,5 +831,5 @@
     ]
   },
   "created_at": "2026-08-12T07:37:41.077Z",
-  "updated_at": "2026-08-17T08:17:21.296Z"
+  "updated_at": "2026-08-17T08:36:29.819Z"
 }
