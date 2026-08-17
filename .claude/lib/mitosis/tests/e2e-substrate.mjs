@@ -3,8 +3,9 @@ import { existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync,
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { UNIT_VERDICT_SCHEMA } from '../decompose-schema.mjs';
+import { DECOMPOSE_CHANGE_TYPES, UNIT_VERDICT_SCHEMA } from '../decompose-schema.mjs';
 import { promptSection } from '../prompt-contract.mjs';
+import { composePrompt } from '../prompt-registry.mjs';
 import {
   BOUNDARY_REPAIRS,
   BOUNDARY_VIOLATION_TOKEN,
@@ -29,6 +30,20 @@ export {
 export const BOUNDARY_FIX_MARKER = promptSection('gateFailingOutput');
 
 export const CLI_PATH = fileURLToPath(new URL('../cli.mjs', import.meta.url));
+
+export const DECOMPOSE_EMIT_PATH = fileURLToPath(new URL('../decompose-emit.mjs', import.meta.url));
+
+export const DECOMPOSE_MARKER = composePrompt('decompose', {
+  specPath: '/marker/spec.md',
+  repoRoot: '/marker',
+  changeTypes: [...DECOMPOSE_CHANGE_TYPES],
+}).split('\n')[0];
+
+export const SPEC_DOCUMENT_NAME = 'spec.md';
+export const SPEC_DOCUMENT_BODY = 'mitosis end-to-end fixture spec\n';
+export const SUPERPOWERS_VERSION = '1.0.0';
+export const SUPERPOWERS_PROMPT_KEYS = Object.freeze(['implementer', 'specReviewer', 'qualityReviewer', 'finalReviewer']);
+const SUPERPOWERS_PROMPT_BODY = 'fixture implementer preamble; report DONE, BLOCKED or NEEDS_CONTEXT\n';
 
 export const FIXED_AT = '2026-01-01T00:00:00Z';
 export const FIXED_RUN_ID = 'a1b2c3d4';
@@ -104,11 +119,41 @@ function installBoundaryToolchain(sandbox) {
   return ['package.json', '.gitignore'];
 }
 
+export const DECOMPOSER_AGENT_NAME = 'codebase-analyst';
+const AGENT_DEFINITION_DIRECTORY = join('.claude', 'agents');
+
+function seedDispatchableAgent(sandbox, agentName) {
+  const directory = join(sandbox.repo, AGENT_DEFINITION_DIRECTORY);
+  mkdirSync(directory, { recursive: true });
+  const relative = join(AGENT_DEFINITION_DIRECTORY, `${agentName}.md`);
+  writeFileSync(
+    join(sandbox.repo, relative),
+    `---\nname: ${agentName}\ndescription: fixture agent for the end-to-end substrate\ntools: Read, Grep, StructuredOutput\nmodel: sonnet\n---\n\nA fixture agent definition whose only job is to establish the StructuredOutput capability.\n`,
+  );
+  return relative;
+}
+
+function seedSuperpowersPrompts(sandbox) {
+  mkdirSync(join(sandbox.root, '.claude', 'plugins', 'cache', 'claude-plugins-official', 'superpowers', SUPERPOWERS_VERSION, 'skills'), { recursive: true });
+  const snapshots = join(sandbox.root, '.claude', 'lib', 'mitosis', 'prompt-snapshots');
+  mkdirSync(snapshots, { recursive: true });
+  for (const key of SUPERPOWERS_PROMPT_KEYS) {
+    writeFileSync(join(snapshots, `${key}.md`), SUPERPOWERS_PROMPT_BODY);
+  }
+  return snapshots;
+}
+
 function initRepositories(sandbox, boundaryToolchain) {
   gitIn(sandbox, ['init', '--bare', '--initial-branch', 'main', sandbox.remote], sandbox.root);
   gitIn(sandbox, ['clone', sandbox.remote, sandbox.repo], sandbox.root);
   writeFileSync(join(sandbox.repo, 'README'), 'mitosis end-to-end fixture\n');
-  const seeded = ['README', ...(boundaryToolchain ? installBoundaryToolchain(sandbox) : [])];
+  writeFileSync(sandbox.specDocument, SPEC_DOCUMENT_BODY);
+  const seeded = [
+    'README',
+    SPEC_DOCUMENT_NAME,
+    seedDispatchableAgent(sandbox, DECOMPOSER_AGENT_NAME),
+    ...(boundaryToolchain ? installBoundaryToolchain(sandbox) : []),
+  ];
   gitIn(sandbox, ['add', ...seeded], sandbox.repo);
   gitIn(sandbox, ['commit', '-m', 'seed'], sandbox.repo, commitEnv(0));
   gitIn(sandbox, ['push', '--set-upstream', 'origin', 'main'], sandbox.repo);
@@ -159,9 +204,13 @@ export function makeSandbox(options = {}) {
     ghRecord: join(root, 'gh-argv.jsonl'),
     ghPlan: join(root, 'gh-plan.json'),
     specPath: join(root, 'spec.json'),
+    specDocument: join(root, 'repo', SPEC_DOCUMENT_NAME),
+    worktreeRoot: join(root, 'worktrees'),
     journalPath: join(root, 'repo', '.mitosis', 'journal.jsonl'),
   });
   mkdirSync(sandbox.fakeBin);
+  mkdirSync(sandbox.worktreeRoot);
+  seedSuperpowersPrompts(sandbox);
   mkdirSync(sandbox.claudeState);
   writeFileSync(sandbox.gitConfig, '');
   writeFileSync(sandbox.claudeRecord, '');
@@ -389,6 +438,70 @@ export function planRun(sandbox, unitPlans, overrides = {}) {
     units: Object.freeze(planned),
     shaOf: Object.freeze(shaOf),
   });
+}
+
+export function decompositionMsp(unitId, overrides = {}) {
+  return {
+    id: unitId,
+    title: `unit ${unitId}`,
+    rationale: rationaleOf(unitId),
+    changeType: 'feat',
+    scope: unitId,
+    dependsOn: overrides.dependsOn === undefined ? [] : [...overrides.dependsOn],
+    fileScope: { edit: [`${unitId}.txt`], read: [], truncated: null },
+  };
+}
+
+export function unitTokenOf(unitId) {
+  return `${BRANCH_PREFIX}/${unitId}`;
+}
+
+export function planDecomposition(sandbox, msps) {
+  if (!Array.isArray(msps) || msps.length === 0) {
+    throw new TypeError('e2e-substrate: planDecomposition needs a non-empty array of msps, because an empty decomposition composes no run document');
+  }
+  const unitTokens = Object.fromEntries(msps.map((msp) => [msp.id, unitTokenOf(msp.id)]));
+  const plan = JSON.parse(readFileSync(sandbox.claudePlan, 'utf8'));
+  writeFileSync(sandbox.claudePlan, `${JSON.stringify({ ...plan, decompose: { marker: DECOMPOSE_MARKER, msps }, unitTokens })}\n`);
+  return Object.freeze({ marker: DECOMPOSE_MARKER, msps: Object.freeze([...msps]), unitTokens: Object.freeze(unitTokens) });
+}
+
+export function decomposeArgs(sandbox, overrides = {}) {
+  return Object.freeze([
+    '--spec', overrides.spec === undefined ? sandbox.specDocument : overrides.spec,
+    '--repo-root', overrides.repoRoot === undefined ? sandbox.repo : overrides.repoRoot,
+    '--base-branch', overrides.baseBranch === undefined ? BASE_BRANCH : overrides.baseBranch,
+    '--source-prefix', BRANCH_PREFIX,
+    '--branch-prefix', BRANCH_PREFIX,
+    '--worktree-root', sandbox.worktreeRoot,
+    '--scoped-check', JSON.stringify(['npm', 'test']),
+    '--isolation', overrides.isolation === undefined ? WORKTREE_ISOLATION : overrides.isolation,
+    '--run-id', overrides.runId === undefined ? FIXED_RUN_ID : overrides.runId,
+    '--out', overrides.out === undefined ? sandbox.specPath : overrides.out,
+  ]);
+}
+
+export function runDecomposeEmit(sandbox, overrides = {}) {
+  const args = decomposeArgs(sandbox, overrides);
+  const result = spawnSync(join(sandbox.fakeBin, 'node'), [DECOMPOSE_EMIT_PATH, ...args], {
+    cwd: sandbox.repo,
+    encoding: 'utf8',
+    env: sandboxEnv(sandbox),
+  });
+  if (result.error) {
+    throw new Error(`e2e-substrate: the decompose-emit child could not be started: ${result.error.message}`);
+  }
+  return Object.freeze({
+    status: result.status,
+    stdout: result.stdout,
+    stderr: result.stderr,
+    args,
+    summary: parseSummary(result.stdout),
+  });
+}
+
+export function readRunDocument(sandbox) {
+  return JSON.parse(readFileSync(sandbox.specPath, 'utf8'));
 }
 
 export function cliArgs(sandbox, overrides = {}) {

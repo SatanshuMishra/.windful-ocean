@@ -99,6 +99,22 @@ if (boundary !== null) {
   emit(envelope({ result: 'boundary-fix repair ' + boundary.repair }));
 }
 
+function decomposePlan() {
+  const declared = plan.decompose;
+  if (declared === null || typeof declared !== 'object' || Array.isArray(declared)) return null;
+  if (typeof declared.marker !== 'string' || declared.marker === '') return null;
+  if (typeof PROMPT !== 'string' || !PROMPT.includes(declared.marker)) return null;
+  return declared;
+}
+
+const decomposed = decomposePlan();
+if (decomposed !== null) {
+  if (!Array.isArray(decomposed.msps) || decomposed.msps.length === 0) {
+    refuse(80, 'the decompose plan names no msps, so the emitter would compose a run document from an empty decomposition');
+  }
+  emit(envelope({ structured_output: { msps: decomposed.msps } }));
+}
+
 let unitId = null;
 for (const value of argv) {
   const found = MARKER.exec(value);
@@ -107,8 +123,22 @@ for (const value of argv) {
     break;
   }
 }
+function tokenUnitId() {
+  const tokens = plan.unitTokens;
+  if (tokens === null || typeof tokens !== 'object' || Array.isArray(tokens)) return null;
+  if (typeof PROMPT !== 'string') return null;
+  const matched = Object.keys(tokens).filter((id) => typeof tokens[id] === 'string' && tokens[id] !== '' && PROMPT.indexOf(tokens[id]) !== -1);
+  if (matched.length > 1) {
+    refuse(81, 'the prompt carries the tokens of ' + matched.join(' and ') + ', so the planned behaviour is ambiguous and the stub refuses rather than picking one');
+  }
+  return matched.length === 1 ? matched[0] : null;
+}
+
 if (unitId === null) {
-  refuse(72, 'no argv value carries a unit marker, so the planned behaviour is unknown');
+  unitId = tokenUnitId();
+}
+if (unitId === null) {
+  refuse(72, 'no argv value carries a unit marker and no planned unit token appears in the prompt, so the planned behaviour is unknown');
 }
 if (!Object.hasOwn(plan.units, unitId)) {
   refuse(73, 'the plan carries no entry for unit ' + JSON.stringify(unitId));
