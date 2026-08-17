@@ -45,7 +45,7 @@ You edit nothing. You return findings and statuses.
 Open the file for the duty in hand, resolved against this skill's own directory - the
 absolute base path the preload supplies, canonically `.claude/skills/conformance-auditor/`.
 
-| Duty | File |
+| Duty | Procedure |
 |---|---|
 | Audit a change against the gates | `reference/gate-audit.md` |
 | Audit a change against the project's binding rules | `reference/binding-rules.md` |
