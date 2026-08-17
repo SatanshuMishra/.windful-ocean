@@ -392,6 +392,11 @@
         "ref": "0531-the-engine-gate-on-waves-4-to-7-is-satisfied-and-lifted",
         "title": "The engine gate on waves 4 to 7 is satisfied and lifted; the SPEC section 6 table wins over section 5a",
         "scope": "c4"
+      },
+      {
+        "ref": "0532-wave-0-2-audit-three-defects-repaired-one-filed",
+        "title": "Waves 0 to 2 audit: three gaps become one flat remediation MSP, the census grammar gap is filed against U6.2",
+        "scope": "c4"
       }
     ],
     "out_of_scope": [
@@ -400,5 +405,5 @@
     ]
   },
   "created_at": "2026-08-16T05:43:25.829Z",
-  "updated_at": "2026-08-17T16:52:40.681Z"
+  "updated_at": "2026-08-17T16:55:15.794Z"
 }
