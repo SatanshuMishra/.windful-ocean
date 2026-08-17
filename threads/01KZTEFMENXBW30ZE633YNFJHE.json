@@ -246,8 +246,8 @@
   "closure_statement": null,
   "spine": {
     "active_goal": "Get /mitosis running end to end, with every phase, the pull-request and merge path, and failure handling all thoroughly tested.",
-    "next_step": "Continue the linear stack from its tip. Open chain merges bottom-up: #172, #174, #175, #176, then whatever M11 (park dependents) and M12 (bounded redispatch) landed in .claude/worktrees/m11-park - read the PR list and that worktree's git log before redispatching. Then: the end-to-end decompose-to-pull-request test for c31, the judgment record decompose-emit still does not emit, the unowned Prep-kinds MSP, retire the fix kind, the ci-to-green loop, and add phase-parity to the CI gate matrix.",
-    "last_session": "M1-M6 merged. M7-M10 open as a stacked chain: PRs #172 compose-at-dispatch, #174 integrate+boundary gate, #175 engine opens pull requests (G14 red, unverified-reasoned, provably equivalent mutant), #176 serialized ship order (all 13 CI checks green). c28 substantively closes. M11+M12 in flight.",
+    "next_step": "Merge the stack bottom-up from #172, deleting each branch AS PART OF its own merge - a manual deletion closes children instead of retargeting them. Then mark c27-c31 done. Three stay red by ruling: #172 has one non-equivalent G14 survivor (fix: assert the journal built record's green field), #181 needs a receipt-cmd line in an immutable body, #183 hits the G11 test-removal wall. Those two plus 0514 are one gap worth raising against receipts/gates@1.1.",
+    "last_session": "Shipped all remaining MSPs as a 15-PR stack. c27 CLOSED: all 12 prompt kinds reachable on a real run, fix retired. c28-c31 have receipts on the stack. 13 of 15 PRs fully green after six G14 gate fixes; #172, #181 and #183 are honest ladder downgrades.",
     "open_risks": [
       {
         "text": "Prove a merge arrived by asserting its CONTENT is on the base, never by SHA ancestry — a squash or stack merge rewrites commits, so a pre-merge SHA correctly fails an ancestry check on a merge that lost nothing",
@@ -836,5 +836,5 @@
     ]
   },
   "created_at": "2026-08-12T07:37:41.077Z",
-  "updated_at": "2026-08-17T09:31:04.866Z"
+  "updated_at": "2026-08-17T12:51:38.886Z"
 }
