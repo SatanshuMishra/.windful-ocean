@@ -269,6 +269,11 @@
         "ref": "0510-cost-and-permission-denials-are-a-platform-ceiling",
         "title": "Cost and permission_denials are unreachable from hooks, so the prose is wrong and they are not fields",
         "scope": "c4"
+      },
+      {
+        "ref": "0511-canonical-roster-needs-two-agreeing-derivations",
+        "title": "Resolve the canonical roster by requiring two independent derivations to agree, and halt when they do not",
+        "scope": "c4"
       }
     ],
     "out_of_scope": [
@@ -277,5 +282,5 @@
     ]
   },
   "created_at": "2026-08-16T05:43:25.829Z",
-  "updated_at": "2026-08-17T06:18:15.835Z"
+  "updated_at": "2026-08-17T06:25:38.931Z"
 }
