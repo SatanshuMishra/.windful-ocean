@@ -17,6 +17,7 @@ import {
   BASE_BRANCH,
   CLAUDE_BEHAVIOURS,
   OPENED_PR_URL,
+  REPO_SLUG,
   claudeArgvs,
   ghArgvsMatching,
   ghPlanSteps,
@@ -30,10 +31,17 @@ import {
 const PR_CREATE_PREFIX = Object.freeze(['pr', 'create']);
 const REFUSING_IO = Object.freeze({ readFile: () => null, readStdin: () => null });
 
-const TWO_UNITS = Object.freeze([
+const THREE_UNITS = Object.freeze([
   Object.freeze({ id: 'alpha', behaviour: CLAUDE_BEHAVIOURS.succeed }),
   Object.freeze({ id: 'beta', behaviour: CLAUDE_BEHAVIOURS.succeed, prereqs: ['alpha'] }),
+  Object.freeze({ id: 'gamma', behaviour: CLAUDE_BEHAVIOURS.succeed }),
 ]);
+
+const MERGED_ALPHA = Object.freeze([Object.freeze({
+  headRefName: integrationBranchOf('alpha'),
+  url: `https://github.com/${REPO_SLUG}/pull/3`,
+  mergedAt: '2026-01-02T00:00:00Z',
+})]);
 
 const ONE_UNIT = Object.freeze([
   Object.freeze({ id: 'alpha', behaviour: CLAUDE_BEHAVIOURS.succeed }),
@@ -75,33 +83,52 @@ function buildThenShip(sandbox, unitPlans) {
   return ship;
 }
 
-test('Ship opens one pull request per integrated msp through the centralized tool, against the manifest base branch', () => {
+test('Ship opens a pull request for every msp the merge gate clears, and parks the dependent whose prerequisite is not merged', () => {
   withSandbox({ boundaryToolchain: true }, (sandbox) => {
-    const ship = buildThenShip(sandbox, TWO_UNITS);
+    const ship = buildThenShip(sandbox, THREE_UNITS);
 
-    assert.deepEqual(ship.summary.integrate.integrated, ['alpha', 'beta'], 'both units must reach integrated or Ship has nothing to walk');
+    assert.deepEqual(ship.summary.integrate.integrated, ['alpha', 'gamma', 'beta'], 'all three units must reach integrated or Ship has nothing to walk');
     const created = ghArgvsMatching(sandbox, PR_CREATE_PREFIX);
-    assert.equal(created.length, 2, 'the fake gh recorder holds one pr create per integrated msp; an empty recorder would mean the real gh binary ran instead');
+    assert.equal(created.length, 2, 'alpha and gamma clear the gate and beta does not; an empty recorder would mean the real gh binary ran instead');
     assert.deepEqual(created.map((argv) => flagValue(argv, '--base')), [BASE_BRANCH, BASE_BRANCH]);
-    assert.deepEqual(created.map((argv) => flagValue(argv, '--head')), [integrationBranchOf('alpha'), integrationBranchOf('beta')]);
-    assert.deepEqual(created.map((argv) => flagValue(argv, '--title')), ['feat(alpha): unit alpha', 'feat(beta): unit beta']);
+    assert.deepEqual(created.map((argv) => flagValue(argv, '--head')), [integrationBranchOf('alpha'), integrationBranchOf('gamma')]);
+    assert.deepEqual(created.map((argv) => flagValue(argv, '--title')), ['feat(alpha): unit alpha', 'feat(gamma): unit gamma']);
     assert.deepEqual(created.map((argv) => flagValue(argv, '--changed-lines')), [null, null], 'the integration branches this fixture never pushes cannot be measured, and a size nobody measured is left out rather than estimated');
-    assert.deepEqual(ship.summary.ship.opened, ['alpha', 'beta']);
-    assert.deepEqual(ship.summary.ship.parked, []);
+    assert.equal(ship.summary.ship.status, 'awaiting-approval');
+    assert.deepEqual(ship.summary.ship.opened, ['alpha', 'gamma']);
+    assert.deepEqual(ship.summary.ship.parked, ['beta']);
+    assert.deepEqual(ship.summary.ship.blocked, [{ id: 'beta', kind: 'blocked-pending-approval', held: ['alpha'], dependents: [] }]);
+    assert.deepEqual(ship.summary.ship.awaiting, [{ id: 'beta', prUrl: OPENED_PR_URL }]);
     assert.deepEqual(ship.summary.ship.outcomes, [
       { id: 'alpha', state: 'shipped', action: 'created' },
-      { id: 'beta', state: 'shipped', action: 'created' },
+      { id: 'gamma', state: 'shipped', action: 'created' },
+      { id: 'beta', state: 'parked', action: null },
     ]);
     assert.deepEqual(shipRecords(sandbox).map((record) => [record.mspId, record.prUrl, record.mergedAt]), [
       ['alpha', OPENED_PR_URL, null],
-      ['beta', OPENED_PR_URL, null],
+      ['gamma', OPENED_PR_URL, null],
     ]);
+  });
+});
+
+test('the dependent ships in the same walk once the merged-pull-request probe reports its prerequisite merged', () => {
+  withSandbox({ boundaryToolchain: true, ghPlan: { steps: ghPlanSteps({ mergedPullRequests: MERGED_ALPHA }) } }, (sandbox) => {
+    const ship = buildThenShip(sandbox, THREE_UNITS);
+
+    const created = ghArgvsMatching(sandbox, PR_CREATE_PREFIX);
+    assert.equal(created.length, 3, 'a merged prerequisite clears the gate, so the dependent joins the two units that never needed it');
+    assert.deepEqual(created.map((argv) => flagValue(argv, '--head')), [integrationBranchOf('alpha'), integrationBranchOf('gamma'), integrationBranchOf('beta')]);
+    assert.equal(ship.summary.ship.status, 'all-shipped');
+    assert.deepEqual(ship.summary.ship.opened, ['alpha', 'gamma', 'beta']);
+    assert.deepEqual(ship.summary.ship.parked, []);
+    assert.deepEqual(ship.summary.ship.blocked, []);
+    assert.deepEqual(ship.summary.ship.awaiting, []);
   });
 });
 
 test('every opened pull request declares the receipts enforcer unverified, and claims it verified nowhere', () => {
   withSandbox({ boundaryToolchain: true }, (sandbox) => {
-    buildThenShip(sandbox, TWO_UNITS);
+    buildThenShip(sandbox, THREE_UNITS);
 
     const bodies = ghArgvsMatching(sandbox, PR_CREATE_PREFIX).map((argv) => flagValue(argv, '--body'));
     assert.equal(bodies.length, 2);
