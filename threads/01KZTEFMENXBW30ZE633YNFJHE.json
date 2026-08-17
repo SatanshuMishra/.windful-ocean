@@ -246,8 +246,8 @@
   "closure_statement": null,
   "spine": {
     "active_goal": "Get /mitosis running end to end, with every phase, the pull-request and merge path, and failure handling all thoroughly tested.",
-    "next_step": "START HERE IN A FRESH SESSION. The thread FAILED its real goal: the engine reaches only checkpointed-and-green. Read 0494 first, then c27 through c31. Establish the gap precisely before building: which of the thirteen registered prompt kinds the flow actually needs, what Ship must do, and why cli.mjs's import closure excludes all of it. Do NOT start coding from this brief - scope the work against the SPEC and the skill's described flow first. c32 and c33 are DEFERRED behind that work.",
-    "last_session": "Shipped and merged #145-#148 and #150-#152; the stack is on main and in force. Ran the first real engine run: two units done, ratio 1.0. Then established the engine cannot reach Ship, and the user ruled the thread failed on its real goal (0494).",
+    "next_step": "Continue the linear stack from its tip. FIRST check for in-flight work: the worktree .claude/worktrees/m4-durable-records held M3c and M4 at session end - read the PR list and its git log before redispatching. Then M5 resume, M6 reconcile, M7 compose-at-dispatch, M8 integrate, M9 pr-create, M10 serialize ship, M11 park, M12 redispatch, M13 e2e, M14 retire fix, M15 ci-to-green. Rebuild the implementer brief from 0497, 0499, 0502, 0504 and PRs #158, #159.",
+    "last_session": "Scoped the c27-c33 gap against the SPEC, designed a 16-MSP linear stack, and shipped M1-M3b as stacked PRs #156-#159: scope-fence sha, run-engine prompt twins, the eight-phase driver, and the disposable end-to-end substrate. M3c+M4 were in flight at session end. Nothing merged.",
     "open_risks": [
       {
         "text": "Prove a merge arrived by asserting its CONTENT is on the base, never by SHA ancestry — a squash or stack merge rewrites commits, so a pre-merge SHA correctly fails an ancestry check on a merge that lost nothing",
@@ -402,6 +402,51 @@
         "scope": "thread",
         "refs": [
           "0373"
+        ]
+      },
+      {
+        "text": "Never let the engine merge a pull request — merge is refused at four independent layers by design, so c28 means serialized ship order plus a blocked-pending-approval handoff",
+        "scope": "c27",
+        "refs": [
+          "0497",
+          "gh-merge-shim.mjs",
+          "settings.json:78-87"
+        ]
+      },
+      {
+        "text": "Ship a gh stub in every test fakebin and assert its recorder was written — DEFAULT_FALLBACKS hardcodes /opt/homebrew/bin/gh, so PATH alone does not stop a run reaching the live network",
+        "scope": "c27",
+        "refs": [
+          "gh-merge-shim.mjs:9"
+        ]
+      },
+      {
+        "text": "Add a real needs-human verdict channel before relying on parking — runUnit maps every successful dispatch to Done, so today the only route to a park is a dispatch-level failure",
+        "scope": "c27",
+        "refs": [
+          "cli.mjs:246-255"
+        ]
+      },
+      {
+        "text": "Change the dispatchedEpochs key before building bounded re-dispatch — it keys on id-at-state and a parked unit is not dispatchable, so a retry can never fire as the engine stands",
+        "scope": "c27",
+        "refs": [
+          "engine.mjs:114"
+        ]
+      },
+      {
+        "text": "Reorder PHASE_TITLES so Resume precedes Prep, updating phase-model.test.mjs in the same commit — declaring Resume after Ship is incoherent for a phase that recovers an interrupted run",
+        "scope": "c27",
+        "refs": [
+          "phases.mjs",
+          "phase-model.test.mjs:18"
+        ]
+      },
+      {
+        "text": "Read the exit code from phase-parity rather than its wording — it HALTS at 42 on an empty phase use-set, and a halt is a failure that reads like a pass",
+        "scope": "c27",
+        "refs": [
+          "mitosis-gate-core.mjs:220"
         ]
       }
     ],
@@ -776,5 +821,5 @@
     ]
   },
   "created_at": "2026-08-12T07:37:41.077Z",
-  "updated_at": "2026-08-17T05:32:46.120Z"
+  "updated_at": "2026-08-17T05:42:28.028Z"
 }
