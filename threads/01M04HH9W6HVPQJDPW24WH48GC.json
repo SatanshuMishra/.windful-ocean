@@ -56,9 +56,9 @@
   "abandoned_reason": null,
   "closure_statement": null,
   "spine": {
-    "active_goal": "Ship SPEC wave 3 as one stacked human-merged pull request per unit. Waves 0, 1 and 2 are merged and verified.",
-    "next_step": "Waves 0, 1 and 2 are MERGED and verified by ancestry; main is at 23603b16, green, census passing on the real tree. Only wave 3 remains. U3.1 is still building on feat/observer-write-path (pushed at b2859e2f, worktree locked). Do NOT branch U3.2 off it until U3.1 reports FINISHED - a child stacked on an in-progress parent inherits a stale base. Then chain U3.2, U3.3 and U3.4 per decision 0521, and give capability_blocked a home before U3.4 cuts over.",
-    "last_session": "Merged PRs 191, 190 and 189 and verified all three landed by ancestry with their branches deleted. Pulled main so the merged config is actually in force locally. The census passes on the merged tree: 31 resolved, 0 dangling, both new skills present.",
+    "active_goal": "Ship SPEC wave 3 as one stacked pull request per unit, then rule on the engine gate that holds waves 4 to 7.",
+    "next_step": "SAY GO. Decision 0527 carries the user's verbatim standing order, and a bare Approved or Go executes it with no further confirmation. Only wave 3 remains. U3.1 is PR 192: open, base-current, 14 of 15 checks green with only receipts still running - READ that pull request, because its lead was stopped before it reported. Then stack U3.2, U3.3 and U3.4 off feat/observer-write-path per 0521. Build against 0524 and never re-derive it.",
+    "last_session": "Shipped waves 1 and 2 complete: PRs 191, 190 and 189 merged and verified landed by ancestry. Decided the observer record contract (0524), the stacking protocol (0521) and the fresh-session standing order (0527). U3.1 left as PR 192 with its lead stopped mid-CI.",
     "open_risks": [
       {
         "text": "Never read `emitter` in the events log as a measurement — it is a hardcoded constant on every row, and treating it as signal already produced one wrong conclusion",
@@ -106,11 +106,35 @@
         ]
       },
       {
+        "text": "U3.1's lead was stopped mid-CI and never delivered its report — PR 192 is open and base-current at 14 of 15 green, but its acceptance results, its ladder downgrades and whether the new observer hook was registered anywhere are all unknown, so read the pull request rather than assuming",
+        "scope": "c4",
+        "refs": [
+          "PR 192",
+          "branch feat/observer-write-path at 424924b2"
+        ]
+      },
+      {
+        "text": "The receipts gate on PR 192 had not finished when the session ended — that same gate blocked PR 190's first head on G14 with 5 of 12 mutants surviving, so a green result there is not yet established and the unit may still need receipt strengthening",
+        "scope": "c4",
+        "refs": [
+          "PR 192",
+          "PR 190's G14 block"
+        ]
+      },
+      {
         "text": "Never merge a stacked child before its parent branch is deleted and confirmed gone with git ls-remote — GitHub retargets a child onto main only on base deletion, so merging early makes it merge into a dead branch, report MERGED, and never reach main",
         "scope": "c4",
         "refs": [
           "decision 0521",
           "PR 162 was closed and reopened as 167 over exactly this"
+        ]
+      },
+      {
+        "text": "Never search the Claude Code binary unbounded — it is 293 MB of Bun-compiled executable, and naive grep or regex over it consumed over 130 GB and had to be killed by hand; use strings piped to a match-capped fixed-string grep, one attempt, then an honest downgrade",
+        "scope": "c4",
+        "refs": [
+          "memory: searching-the-claude-binary-exhausts-memory",
+          "decision 0524 already carries the findings"
         ]
       },
       {
@@ -123,7 +147,7 @@
         ]
       },
       {
-        "text": "The SPEC contradicts itself on the engine boundary — section 5a blocks wave 3 and later on the engine, while the section 6 table gates only wave 4 and says waves 0 to 3 may proceed now; two statements to one favour wave 4, but this needs a ruling",
+        "text": "The SPEC contradicts itself on the engine boundary — section 5a blocks wave 3 and later on the engine, while the section 6 table gates only wave 4 and says waves 0 to 3 may proceed now; two statements to one favour wave 4, but this needs a ruling before waves 4 to 7 start",
         "scope": "c4",
         "refs": [
           "SPEC 5a line 160",
@@ -146,6 +170,13 @@
         ]
       },
       {
+        "text": "Pull the primary checkout after any merge before testing live behaviour — the global rules, skills and lib symlink into this working tree, so merged config is not in force until the pull and a check run against the stale tree reports a phantom failure",
+        "scope": "c4",
+        "refs": [
+          "observed on the name-integrity census after PRs 191, 190 and 189 merged"
+        ]
+      },
+      {
         "text": "U3.4 has a component no pull request can deliver — the observer's hook is registered in two settings files and the global one is a real file outside version control, so retiring the old observer needs a hand edit there",
         "scope": "c4",
         "refs": [
@@ -154,7 +185,7 @@
         ]
       },
       {
-        "text": "Re-check the waves 4 to 7 gate rather than assuming it still blocks — engine PRs 172 to 187 are now all on main by ancestry, but the engine thread stands at 11 of 15 and its own spine records it failed its stated goal",
+        "text": "Re-check the waves 4 to 7 gate rather than assuming it still blocks — engine PRs 172 to 187 are all on main by ancestry, but the engine thread stands at 11 of 15 and its own spine records it failed its stated goal",
         "scope": "c4",
         "refs": [
           "SPEC section 5a",
@@ -359,5 +390,5 @@
     ]
   },
   "created_at": "2026-08-16T05:43:25.829Z",
-  "updated_at": "2026-08-17T16:23:56.278Z"
+  "updated_at": "2026-08-17T16:24:37.629Z"
 }
