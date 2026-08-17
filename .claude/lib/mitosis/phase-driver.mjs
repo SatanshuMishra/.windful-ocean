@@ -107,6 +107,10 @@ function judgmentById(spec) {
   return new Map(unitsOf(spec).map((unit) => [unit.id, unit.judgment]));
 }
 
+function taskById(spec) {
+  return new Map(unitsOf(spec).map((unit) => [unit.id, unit.task]));
+}
+
 function isolationById(spec) {
   return new Map(unitsOf(spec).filter((unit) => typeof unit.isolation === 'string').map((unit) => [unit.id, unit.isolation]));
 }
@@ -180,6 +184,7 @@ async function prepPhase(completed, request, ports) {
       repoRoot: request.repoRoot,
       requestsById: requestsById(request.spec),
       judgmentById: judgmentById(request.spec),
+      taskById: taskById(request.spec),
     }),
     onRecord: ports.makeObserver({ handle: heldHandle(completed), at: request.at }),
   });

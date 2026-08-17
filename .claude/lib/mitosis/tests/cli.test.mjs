@@ -169,6 +169,68 @@ test('REAL PORTS: a successful dispatch verdict becomes Done carrying the child-
   assert.equal(failOutcome.request.what, 'exit-nonzero');
 });
 
+test('REAL PORTS: a retry of a unit the spec declares no task for is refused by name rather than diagnosed against nothing', async () => {
+  const noTaskMap = realPorts(
+    { repoRoot: '/repo', requestsById: new Map([['alpha', { prompt: 'p' }]]) },
+    { dispatch: async () => ({ ok: false, outcome: 'exit-nonzero', error: 'child exited 1' }) },
+  );
+  assert.equal((await noTaskMap.runUnit({ id: 'alpha' }, { signal: null })).tag, 'NeedsHuman');
+  await assert.rejects(noTaskMap.runUnit({ id: 'alpha' }, { signal: null }), {
+    name: 'TypeError',
+    message: 'mitosis-cli: unit "alpha" failed an attempt the run may still retry, but the spec declares no task text for it, so the diagnosis that informs the retry would name no objective and the corrected re-attempt would be composed from nothing',
+  });
+
+  const nullTaskMap = realPorts(
+    { repoRoot: '/repo', requestsById: new Map([['alpha', { prompt: 'p' }]]), taskById: null },
+    { dispatch: async () => ({ ok: false, outcome: 'exit-nonzero', error: 'child exited 1' }) },
+  );
+  assert.equal((await nullTaskMap.runUnit({ id: 'alpha' }, { signal: null })).tag, 'NeedsHuman');
+  await assert.rejects(nullTaskMap.runUnit({ id: 'alpha' }, { signal: null }), {
+    name: 'TypeError',
+    message: 'mitosis-cli: unit "alpha" failed an attempt the run may still retry, but the spec declares no task text for it, so the diagnosis that informs the retry would name no objective and the corrected re-attempt would be composed from nothing',
+  });
+
+  const blankTaskMap = realPorts(
+    { repoRoot: '/repo', requestsById: new Map([['alpha', { prompt: 'p' }]]), taskById: new Map([['alpha', '   ']]) },
+    { dispatch: async () => ({ ok: false, outcome: 'exit-nonzero', error: 'child exited 1' }) },
+  );
+  assert.equal((await blankTaskMap.runUnit({ id: 'alpha' }, { signal: null })).tag, 'NeedsHuman');
+  await assert.rejects(blankTaskMap.runUnit({ id: 'alpha' }, { signal: null }), {
+    name: 'TypeError',
+    message: 'mitosis-cli: unit "alpha" failed an attempt the run may still retry, but the spec declares no task text for it, so the diagnosis that informs the retry would name no objective and the corrected re-attempt would be composed from nothing',
+  });
+});
+
+test('REAL PORTS: a retry of a unit the spec declares a task for spends one diagnosis and re-attempts with the corrected prompt', async () => {
+  const prompts = [];
+  const ports = realPorts(
+    {
+      repoRoot: '/repo',
+      requestsById: new Map([['alpha', { prompt: 'the implement prompt' }]]),
+      taskById: new Map([['alpha', 'add the ship phase']]),
+    },
+    {
+      dispatch: async (request) => {
+        prompts.push(request.prompt);
+        if (prompts.length === 1) return { ok: false, outcome: 'exit-nonzero', error: 'child exited 1' };
+        if (prompts.length === 2) {
+          return { ok: true, structured: { verdict: 'remediable', mechanism: 'worktree:reset-clean', correctedTask: 'reset first' } };
+        }
+        return { ok: true, structured: { sha: 'def456' } };
+      },
+    },
+  );
+  assert.equal((await ports.runUnit({ id: 'alpha' }, { signal: null })).tag, 'NeedsHuman');
+  assert.deepEqual(await ports.runUnit({ id: 'alpha' }, { signal: null }), Done({ sha: 'def456', green: true, envelope: null }));
+  assert.equal(prompts.length, 3);
+  assert.equal(prompts[0], 'the implement prompt');
+  assert.equal(prompts[1].includes('You are the in-run diagnostician for MSP "alpha"'), true);
+  assert.equal(prompts[1].includes('Original objective for this stage: add the ship phase'), true);
+  assert.equal(prompts[2].includes('correction attempt 1'), true);
+  assert.equal(prompts[2].includes('Diagnosed mechanism fingerprint: worktree:reset-clean'), true);
+  assert.equal(prompts[2].includes('reset first'), true);
+});
+
 test('REAL PORTS: a unit with no request in the spec is refused rather than reported settled', async () => {
   const ports = realPorts({ repoRoot: '/repo', requestsById: new Map() }, { dispatch: async () => ({ ok: true }) });
   await assert.rejects(

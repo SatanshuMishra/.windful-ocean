@@ -212,6 +212,7 @@ function buildUnitSpec({ msp, prereqs, fileScope, run, prompt, defaults, compose
     id: msp.id,
     prereqs,
     fileScope,
+    task: msp.rationale,
     isolation: prompt.isolation,
     ...(judgment === null ? {} : { judgment }),
     request: buildRequest(promptText, defaults),
