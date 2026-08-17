@@ -36,6 +36,13 @@
       "struck_by": null
     },
     {
+      "id": "c7",
+      "text": "Verification machinery the observer work rests on repaired and re-runnable: archive verifier, one routing-table contract, three repo checks in CI, duckdb in the receipts workflow.",
+      "done": false,
+      "kind": "detour",
+      "struck_by": null
+    },
+    {
       "id": "c4",
       "text": "Agent and observer teardown and rebuild executed without breaking the live coupling surface: rules and skills naming agents by string, 18 worktrees carrying roster copies, derived residuals.",
       "done": false,
@@ -341,5 +348,5 @@
     ]
   },
   "created_at": "2026-08-16T05:43:25.829Z",
-  "updated_at": "2026-08-17T20:01:25.727Z"
+  "updated_at": "2026-08-17T23:56:53.637Z"
 }
