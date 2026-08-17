@@ -259,9 +259,9 @@
   "abandoned_reason": null,
   "closure_statement": null,
   "spine": {
-    "active_goal": "Prove the shipped engine end to end on real runs against a disposable GitHub repo, and report what actually holds versus what only looks green.",
-    "next_step": "Read the two live-run results: the decomposition probe and the centerpiece full-engine run on SatanshuMishra/mitosis-e2e-substrate. Then run the remaining live probes on their own clones, SEQUENTIALLY so concurrency measurement stays clean: spec-dependency (expect the mergedShas defect to reproduce live) and spec-overlap (lease serialization). Then decide with the user whether the two confirmed defects become fix MSPs. Never merge a substrate PR.",
-    "last_session": "Built the whole e2e apparatus outside the repo: disposable GitHub substrate, three SPECs with pinned expectations, a cost/integrity reporter and a passthrough timing shim. Confirmed two engine defects and three attestation gaps before the live run. Worked around a mid-session GitHub outage.",
+    "active_goal": "Report the live e2e audit of the shipped engine: what holds, what only looks green, and whether mitosis is usable today.",
+    "next_step": "START HERE. Make NO fixes and start no work. FIRST action: read handoff-2026-08-17-mitosis-e2e-audit/FINDINGS.md under this project's ~/.claude/projects dir, then outline its findings and recommended solutions to the user and STOP for specific instructions. Verdict: mitosis cannot open a pull request. Fix the hardcoded green at cli.mjs:534 BEFORE wiring the ship publish step, or the engine starts fabricating Verified lines on real pull requests.",
+    "last_session": "Ran the live e2e audit end to end. Confirmed the engine structurally cannot ship, found sixteen defects plus a fabricated Verified claim, measured cost and concurrency, and preserved 343 evidence files outside the repo. No fixes made, by instruction.",
     "open_risks": [
       {
         "text": "Prove a merge arrived by asserting its CONTENT is on the base, never by SHA ancestry — a squash or stack merge rewrites commits, so a pre-merge SHA correctly fails an ancestry check on a merge that lost nothing",
@@ -438,53 +438,58 @@
         ]
       },
       {
-        "text": "A dependency chain ships exactly one unit — integratePhase never passes mergedShas, so divergedParents always fires and the engine's own remedy of merge-then-relaunch never resumes the dependent",
+        "text": "The engine cannot open a pull request — the ship git site carrying publish has no caller and shipPhase wires no git port, so the composed head branch never exists and every unit parks while the run exits 0",
         "scope": "c28",
         "refs": [
-          "0526",
-          "phase-driver.mjs:251-275",
-          "divergence.mjs:25-50"
+          "0540",
+          "FINDINGS.md D1",
+          "phase-driver.mjs:251-275"
         ]
       },
       {
-        "text": "An unread CI reports all-shipped — a failed run-id read yields ci-unwatched and merge-policy counts only ciRedExhaustedCount, and the tracked test pins this false green as expected",
+        "text": "green is a hardcoded literal that becomes a verified PR line — fix it BEFORE wiring ship, or the engine converts from opening no pull requests into opening ones carrying fabricated verification claims",
         "scope": "c28",
         "refs": [
-          "0526",
-          "ci-green-loop.mjs:251-255",
-          "e2e-ci-green.test.mjs:112-126"
+          "0541",
+          "cli.mjs:534",
+          "ship-plan.mjs:247"
         ]
       },
       {
-        "text": "A green exec-allowlist does not mean the shim refuses — the gate probes a mocked io while the runtime readFileSync(0) returns an empty buffer, so the stdin fail-closed path is unreachable in production",
+        "text": "Seven success signals are computed over a narrower domain than they appear to claim — exit code, all-shipped, exec-allowlist, both verified lines, gate 41 versus 42, and minItems one; treat every green as unproven until its derivation is read",
         "scope": "c28",
         "refs": [
-          "0525",
-          "gh-merge-shim.mjs:318-341"
+          "FINDINGS.md section 3"
         ]
       },
       {
-        "text": "Gate exits 41 and 42 are byte-identical on stdout, both empty — only the numeric exit code separates a real violation from an unjudgeable halt, so any coarse zero-nonzero check misreads a non-run as a finding",
+        "text": "Thirty-six percent of modules and fifty-five percent of exports are unreachable from cli.mjs — the defect class is defined-but-unwired code and no gate detects it, so a connectivity census outranks any individual fix",
         "scope": "c28",
         "refs": [
-          "0525",
-          "mitosis-gate-core.mjs:17-22"
+          "FINDINGS.md section 4"
         ]
       },
       {
-        "text": "The engine cannot measure its own speed or concurrency — one --at constant stamps every record and recordOutput destroys the only start marker, so every timing claim must come from the external shim",
+        "text": "One cli.mjs invocation advances only one stage while SKILL.md prescribes exactly one call — Integrate consumes the Resume snapshot taken before Execute ran, so the documented flow builds everything and ships nothing",
         "scope": "c28",
         "refs": [
-          "0523",
-          "phase-driver.mjs:219",
-          "run-store.mjs:288-296"
+          "0538",
+          "phase-driver.mjs:233-249"
         ]
       },
       {
-        "text": "A GitHub status page can report major_outage while every endpoint returns 200 — verify a forge empirically with the engine's own argv, never by the status indicator",
+        "text": "Planning is strictly serial at about four minutes per unit and dominates wall clock — Execute parallelizes genuinely but mean concurrency measured 1.14x, so fileScope independence buys nothing during Prep",
         "scope": "c28",
         "refs": [
-          "session log 2026-08-17"
+          "unit-planning.mjs:301",
+          "FINDINGS.md section 6"
+        ]
+      },
+      {
+        "text": "The audit left c31 unstarted and the scale, refactor and bugfix probes unrun — do not read the findings as covering throughput at scale or cross-cutting refactor capability",
+        "scope": "c28",
+        "refs": [
+          "FINDINGS.md section 7"
         ]
       }
     ],
@@ -949,5 +954,5 @@
     ]
   },
   "created_at": "2026-08-12T07:37:41.077Z",
-  "updated_at": "2026-08-17T17:44:50.432Z"
+  "updated_at": "2026-08-17T18:15:11.381Z"
 }
