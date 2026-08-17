@@ -56,9 +56,9 @@
   "abandoned_reason": null,
   "closure_statement": null,
   "spine": {
-    "active_goal": "Ship SPEC waves 2 and 3 as one human-merged pull request per unit, dispatched per unit rather than through the mitosis engine.",
-    "next_step": "Wave 1 is INCOMPLETE: U1.2, the name-integrity census, was never built - no census module exists, no gate registers it, and nothing under .claude/lib censuses names across rules and skills. Build U1.2 first; it is unblocked because PR 170 removed the dangling names it would have caught. Wave 2 (U2.1, U2.2) is unstarted: neither the platform-engineer nor conformance-auditor skill exists. Wave 3 is unstarted, and U3.1 still needs the observer record contract decided.",
-    "last_session": "Verified every merged PR landed on main by ancestry; main is green at 425b06fb with zero open pull requests. Then audited waves 0 to 3 against the SPEC and found U1.2 was never built, correcting this thread's earlier claim that wave 1 was complete.",
+    "active_goal": "Ship SPEC wave 3 as one stacked human-merged pull request per unit, after merging the three open wave 1 and wave 2 pull requests.",
+    "next_step": "Three PRs open, all green, all based on main, worktrees freed: 191 (U1.2 census, completes wave 1), 190 (U2.1 platform-engineer skill), 189 (U2.2 conformance-auditor skill). Merge in THAT order, so the census is live before it validates the two new skills. U3.1 is still building on feat/observer-write-path; U3.2 to U3.4 stack on it per decision 0521 - never merge a child until its parent branch is deleted and confirmed gone.",
+    "last_session": "Shipped wave 1's missing unit and all of wave 2 by parallel Opus dispatch: PRs 191, 190 and 189, every check green. Decided the observer record contract as decision 0524 - ten fields not 22, with parent and depth from a platform sidecar. U3.1 in flight.",
     "open_risks": [
       {
         "text": "Never read `emitter` in the events log as a measurement — it is a hardcoded constant on every row, and treating it as signal already produced one wrong conclusion",
@@ -106,6 +106,23 @@
         ]
       },
       {
+        "text": "Never merge a stacked child before its parent branch is deleted and confirmed gone with git ls-remote — GitHub retargets a child onto main only on base deletion, so merging early makes it merge into a dead branch, report MERGED, and never reach main",
+        "scope": "c4",
+        "refs": [
+          "decision 0521",
+          "PR 162 was closed and reopened as 167 over exactly this"
+        ]
+      },
+      {
+        "text": "U3.4 would silently destroy decision 0493's work — the old observer is the only emitter of capability_blocked and the ten-field record has no home for it, so the new log needs its own event type before the cutover",
+        "scope": "c4",
+        "refs": [
+          "decision 0493",
+          "decision 0524",
+          "filed as a background task chip"
+        ]
+      },
+      {
         "text": "The SPEC contradicts itself on the engine boundary — section 5a blocks wave 3 and later on the engine, while the section 6 table gates only wave 4 and says waves 0 to 3 may proceed now; two statements to one favour wave 4, but this needs a ruling",
         "scope": "c4",
         "refs": [
@@ -119,14 +136,6 @@
         "refs": [
           "U1.2 in SPEC section 6",
           "PRs 166, 170, 171, 173"
-        ]
-      },
-      {
-        "text": "Decide the observer record contract before briefing U3.1 — seven of its 22 fields cannot be read from a hook, and U3.2's acceptance names a parent field that SubagentStart does not carry, so that unit cannot pass as written",
-        "scope": "c4",
-        "refs": [
-          "SPEC units U3.1 and U3.2",
-          "decision 0510"
         ]
       },
       {
@@ -145,7 +154,7 @@
         ]
       },
       {
-        "text": "Re-check the waves 4 to 7 gate rather than assuming it still blocks — engine PRs 172 to 187 are now all on main by ancestry, but the engine thread stands at 10 of 15 and its own spine records it failed its stated goal",
+        "text": "Re-check the waves 4 to 7 gate rather than assuming it still blocks — engine PRs 172 to 187 are now all on main by ancestry, but the engine thread stands at 11 of 15 and its own spine records it failed its stated goal",
         "scope": "c4",
         "refs": [
           "SPEC section 5a",
@@ -340,5 +349,5 @@
     ]
   },
   "created_at": "2026-08-16T05:43:25.829Z",
-  "updated_at": "2026-08-17T15:41:03.217Z"
+  "updated_at": "2026-08-17T16:01:49.638Z"
 }
