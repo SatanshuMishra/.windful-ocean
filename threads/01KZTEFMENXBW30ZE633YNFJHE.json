@@ -943,6 +943,11 @@
         "ref": "0541-green-is-a-hardcoded-literal-that-becomes-a-verified-pr-line",
         "title": "The unit green flag is a hardcoded literal that is rendered as a Verified line in the pull request body",
         "scope": "c28"
+      },
+      {
+        "ref": "0542-the-model-catches-hidden-coupling-the-plumbing-cannot",
+        "title": "The model caught an undeclared dependency the plumbing cannot see, and review caught the hazard it then created",
+        "scope": "c28"
       }
     ],
     "out_of_scope": [
@@ -954,5 +959,5 @@
     ]
   },
   "created_at": "2026-08-12T07:37:41.077Z",
-  "updated_at": "2026-08-17T18:15:11.381Z"
+  "updated_at": "2026-08-17T18:48:43.426Z"
 }
