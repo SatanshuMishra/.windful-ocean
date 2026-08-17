@@ -388,7 +388,7 @@ export function realPorts(config, deps = {}) {
           what: verdict === null ? 'no verdict' : verdict.outcome,
           detail: verdict === null ? null : verdict.error,
         }, []);
-        return Object.freeze({ ...parked, envelope: verdict === null ? null : normalizeEnvelope(verdict.envelope) });
+        return Object.freeze({ ...parked, envelope: verdict === null ? null : normalizeEnvelope(verdict.envelope), retryable: true });
       }
       const envelope = normalizeEnvelope(verdict.envelope);
       const needsHuman = needsHumanReasonOf(verdict);
