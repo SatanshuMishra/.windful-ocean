@@ -22,6 +22,23 @@ const CI_FIX_COMMIT_SUBJECT = `mitosis ci fix ${UNIT_ID}`;
 const RESOLVE_RUN_PREFIX = Object.freeze(['run', 'list']);
 const READ_JOBS_PREFIX = Object.freeze(['run', 'view', CI_RUN_ID, '-R', 'acme/widgets', '--json', 'jobs']);
 const PR_CREATE_PREFIX = Object.freeze(['pr', 'create']);
+const SCHEMA_FLAG = '--json-schema';
+
+const TEXT_LIST = Object.freeze({ type: 'array', items: Object.freeze({ type: 'string' }) });
+
+const CI_FACT_SCHEMA_SENT = Object.freeze({
+  type: 'object',
+  required: Object.freeze(['implicatedPaths', 'failingAssertionFiles']),
+  additionalProperties: false,
+  properties: Object.freeze({ implicatedPaths: TEXT_LIST, failingAssertionFiles: TEXT_LIST }),
+});
+
+const CI_FIX_SCHEMA_SENT = Object.freeze({
+  type: 'object',
+  required: Object.freeze(['changedPaths']),
+  additionalProperties: false,
+  properties: Object.freeze({ changedPaths: TEXT_LIST, detail: Object.freeze({ type: 'string' }) }),
+});
 
 const WATCHED_UNIT = Object.freeze([Object.freeze({
   id: UNIT_ID,
@@ -34,6 +51,19 @@ const WATCHED_UNIT = Object.freeze([Object.freeze({
 
 function ghPlanFor(conclusions) {
   return { steps: ghPlanSteps({ ci: { conclusions } }) };
+}
+
+function ciArgvsMatching(sandbox, token) {
+  return claudeArgvs(sandbox).filter((argv) => Array.isArray(argv)
+    && argv.length > 0
+    && typeof argv[argv.length - 1] === 'string'
+    && argv[argv.length - 1].includes(token));
+}
+
+function schemaSentBy(argv) {
+  const at = argv.indexOf(SCHEMA_FLAG);
+  assert.notEqual(at, -1, `a ci dispatch carried no ${SCHEMA_FLAG}, so the child was never held to a structured reply: ${JSON.stringify(argv)}`);
+  return JSON.parse(argv[at + 1]);
 }
 
 function buildThenWatch(sandbox) {
@@ -54,6 +84,12 @@ test('a red check on the pull request Ship just opened composes ci-fact-extract 
     const watched = buildThenWatch(sandbox);
 
     assert.deepEqual(composedKindsMatching(sandbox, mspTokenOf(UNIT_ID)), ['ci-fact-extract', 'ci-fix']);
+
+    const dispatched = ciArgvsMatching(sandbox, mspTokenOf(UNIT_ID));
+    assert.equal(dispatched.length, 2);
+    assert.deepStrictEqual(schemaSentBy(dispatched[0]), CI_FACT_SCHEMA_SENT);
+    assert.deepStrictEqual(schemaSentBy(dispatched[1]), CI_FIX_SCHEMA_SENT);
+
     assert.equal(remoteCommitCount(sandbox, watched.branch) - watched.before, 1);
     assert.equal(remoteSubjectOf(sandbox, watched.branch), CI_FIX_COMMIT_SUBJECT);
     assert.deepEqual(watched.ship.summary.ship.ci, [{ id: UNIT_ID, state: 'ci-green', fixes: 1 }]);
