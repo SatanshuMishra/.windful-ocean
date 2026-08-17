@@ -364,6 +364,21 @@ test('a preamble set that cannot be resolved is reported rather than composed ar
   assert.match(result.error, /implementer and reviewer preambles could not be resolved/);
 });
 
+test('a preamble loader that returns something other than a record is refused by shape, naming what it returned', async (t) => {
+  const place = scratch(t);
+  const reasonOf = (error) => error.slice(error.indexOf('(') + 1, error.indexOf(');'));
+  const keyed = 'rather than a record keyed by implementer, specReviewer, qualityReviewer';
+  for (const [loaded, named] of [[null, 'null'], ['a preamble', 'string'], [['a preamble'], 'object'], [7, 'number']]) {
+    const result = await emitRunDocument(argsFor(place), {
+      spawn: recordingSpawn({ msps: clone(MSPS) }, []),
+      loadPreambles: () => loaded,
+    });
+    assert.equal(result.ok, false, `a ${named} preamble set was accepted`);
+    assert.equal(result.exitCode, EXIT_INPUTS);
+    assert.equal(reasonOf(result.error), `the preamble loader returned ${named} ${keyed}`);
+  }
+});
+
 test('a preamble set missing any one of the three texts is refused rather than composed around', async (t) => {
   const place = scratch(t);
   for (const key of ['implementer', 'specReviewer', 'qualityReviewer']) {
