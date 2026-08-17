@@ -7,6 +7,8 @@ import {
   CLAUDE_BEHAVIOURS,
   DONE_ORACLE_ARGV,
   FIXED_AT,
+  FIXED_RUN_ID,
+  REPO_SLUG,
   claudeArgvs,
   claudeArgvsFor,
   ghArgvs,
@@ -19,6 +21,27 @@ import {
   unitIdOfArgv,
   withSandbox,
 } from './e2e-substrate.mjs';
+
+const SHIPPED_CLAIM_MANIFEST = Object.freeze({
+  logicalRunId: FIXED_RUN_ID,
+  clusters: [],
+  baseBranch: 'main',
+  sourcePrefix: 'mitosis',
+  msps: [{ id: 'alpha', title: 'unit alpha', dependsOn: [], status: 'shipped' }],
+});
+
+function ghPlanReporting(mergedPRs) {
+  return {
+    steps: [
+      { argvPrefix: ['pr', 'list'], stdout: `${JSON.stringify(mergedPRs)}\n`, exitCode: 0 },
+      {
+        argvPrefix: ['pr', 'view'],
+        stdout: `${JSON.stringify({ state: 'OPEN', mergedAt: null, url: `https://github.com/${REPO_SLUG}/pull/1` })}\n`,
+        exitCode: 0,
+      },
+    ],
+  };
+}
 
 function attemptDirectory(sandbox, summary) {
   return join(sandbox.repo, '.mitosis', 'runs', summary.runKey, `attempt-${summary.attempt}`);
@@ -248,6 +271,54 @@ test('a unit whose durable record still says running is re-driven after a mid-ru
     assert.deepEqual(unitRecordNames(attemptDirectory(sandbox, second.summary)), ['beta.out']);
     assert.deepEqual(second.summary.units, [{ id: 'beta', state: 'done' }]);
     assert.equal(second.summary.resume.restarted, false);
+  });
+});
+
+test('a manifest claiming a unit shipped is overruled when the forge reports no merged pull request', () => {
+  withSandbox({ ghPlan: ghPlanReporting([]) }, (sandbox) => {
+    planRun(sandbox, [{ id: 'alpha', behaviour: CLAUDE_BEHAVIOURS.succeed }], { manifest: SHIPPED_CLAIM_MANIFEST });
+
+    const run = runMitosisCli(sandbox);
+    const dispatched = claudeArgvs(sandbox).map(unitIdOfArgv);
+
+    assert.equal(run.status, 0, run.stderr);
+    assert.equal(
+      dispatched.length,
+      1,
+      `the run dispatched ${dispatched.length} units; a manifest claiming alpha shipped is a local claim, and only the merged set observed from the forge can retire the work`,
+    );
+    assert.deepEqual(dispatched, ['alpha']);
+    assert.deepEqual(run.summary.resume.shipped, []);
+    assert.deepEqual(run.summary.resume.pending, ['alpha']);
+    assert.equal(
+      ghArgvsMatching(sandbox, ['pr', 'list']).length,
+      1,
+      'the reconcile probe must appear in the sandbox recorder; an empty recorder means the shim reached a real gh through its hardcoded fallback paths rather than the fake on PATH',
+    );
+  });
+});
+
+test('a unit the forge reports merged is retired without being dispatched again', () => {
+  const merged = [{
+    headRefName: 'mitosis/alpha-integration',
+    url: `https://github.com/${REPO_SLUG}/pull/7`,
+    mergedAt: '2026-01-01T00:00:00Z',
+  }];
+  withSandbox({ ghPlan: ghPlanReporting(merged) }, (sandbox) => {
+    planRun(sandbox, [{ id: 'alpha', behaviour: CLAUDE_BEHAVIOURS.succeed }], { manifest: SHIPPED_CLAIM_MANIFEST });
+
+    const run = runMitosisCli(sandbox);
+
+    assert.equal(run.status, 0, run.stderr);
+    assert.equal(
+      claudeArgvs(sandbox).length,
+      0,
+      'the reconciled set is read rather than ignored, so a merged pull request retires its unit and no child is dispatched',
+    );
+    assert.deepEqual(run.summary.resume.shipped, ['alpha']);
+    assert.deepEqual(run.summary.resume.pending, []);
+    assert.deepEqual(run.summary.units, []);
+    assert.equal(ghArgvsMatching(sandbox, ['pr', 'list']).length, 1);
   });
 });
 

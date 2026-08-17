@@ -6,7 +6,7 @@ import { dispatch, normalizeEnvelope } from './dispatch.mjs';
 import { POST_DISPATCH_RECORD_FAILED } from './engine.mjs';
 import { run } from './exec-run.mjs';
 import { foldFile } from './fold-run-log.mjs';
-import { GH_COMMAND_BINARY } from './gh-commands.mjs';
+import { GH_COMMAND_BINARY, buildGhCommand } from './gh-commands.mjs';
 import { appendJournalLine, writeGenesis } from './journal-store.mjs';
 import { runPhases } from './phase-driver.mjs';
 import { resumeSummary } from './resume-plan.mjs';
@@ -214,12 +214,40 @@ function journalLocation(request) {
   return isAbsolute(request.path) ? request.path : join(request.repoRoot, request.path);
 }
 
-function driverPorts(io, makePorts, deps) {
+function mergedPullRequests(result, io) {
+  if (result === null || typeof result !== 'object' || result.status !== 0) {
+    io.err(`${MODULE}: the read-only merged-pull-request probe did not run to a definite answer, so no unit is retired on a manifest claim alone and every claimed unit is driven again\n`);
+    return null;
+  }
+  let parsed;
+  try {
+    parsed = JSON.parse(result.stdout);
+  } catch (error) {
+    io.err(`${MODULE}: the merged-pull-request probe replied with text this run could not parse, so no unit is retired on a manifest claim alone: ${messageOf(error)}\n`);
+    return null;
+  }
+  if (!Array.isArray(parsed)) {
+    io.err(`${MODULE}: the merged-pull-request probe replied with ${typeof parsed} rather than a list of pull requests, so no unit is retired on a manifest claim alone\n`);
+    return null;
+  }
+  return parsed;
+}
+
+function reconcilePort(io, runFn, repoRoot) {
+  return (values) => mergedPullRequests(
+    runFn(GH_COMMAND_BINARY, buildGhCommand('reconcile', 'merged-prs', values), { cwd: repoRoot, deadlineMs: GH_DEADLINE_MS }),
+    io,
+  );
+}
+
+function driverPorts(io, makePorts, deps, repoRoot) {
   const openRunFn = deps.openRun === undefined ? openRun : deps.openRun;
   const foldJournalFn = deps.foldJournal === undefined ? foldFile : deps.foldJournal;
+  const runFn = deps.run === undefined ? run : deps.run;
   return Object.freeze({
     openRun: (request) => openRunFn(request),
     readJournal: (request) => foldJournalFn(journalLocation(request)),
+    reconcile: reconcilePort(io, runFn, repoRoot),
     release: (handle) => releaseRun(handle, io),
     makeObserver: (config) => observeAll([
       unitRecorder(config.handle, config.at),
@@ -254,7 +282,7 @@ export async function runCli(argv, io, makePorts, deps = {}) {
   }
   try {
     const spec = documentOf(io.readSpec(parsed.value.spec));
-    const driven = await runPhases(driverRequest(parsed.value, spec), driverPorts(io, makePorts, deps));
+    const driven = await runPhases(driverRequest(parsed.value, spec), driverPorts(io, makePorts, deps, parsed.value.repoRoot));
     const result = driven.phases.Execute.result;
     io.log(`${JSON.stringify(summaryOf(driven), null, 2)}\n`);
     if (!result.quiescent) return EXIT_INCOMPLETE;

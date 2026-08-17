@@ -37,6 +37,7 @@ function stubbedPorts(overrides = {}) {
     ports: Object.freeze({
       openRun: () => handle,
       readJournal: () => null,
+      reconcile: () => [],
       release: (given) => { released.push(given); },
       makeObserver: () => () => {},
       makePorts: () => enginePorts,
@@ -100,16 +101,44 @@ test('Resume drops a unit the recovered journal already settled, and prunes the 
   assert.deepEqual(driven.phases.Resume.parked.map((entry) => entry.unitId), ['beta']);
 });
 
-test('Resume treats a unit the recovered journal calls shipped as settled and schedules nothing for it', async () => {
-  const journal = {
-    logicalRunId: 'r1',
-    clusters: [],
-    msps: [{ id: 'alpha', status: 'shipped' }],
-  };
-  const driven = await runPhases(runRequest(), stubbedPorts({ readJournal: () => journal }).ports);
-  assert.deepEqual(driven.phases.Resume.specs, []);
+function shippedClaim(extra = {}) {
+  return { logicalRunId: 'r1', clusters: [], msps: [{ id: 'alpha', status: 'shipped' }], ...extra };
+}
+
+test('a journal claiming a unit shipped does not retire it when the forge reports no merged pull request', async () => {
+  const probed = [];
+  const ports = stubbedPorts({
+    readJournal: () => shippedClaim({ baseBranch: 'main', sourcePrefix: 'mitosis' }),
+    reconcile: (values) => { probed.push(values); return []; },
+  }).ports;
+  const driven = await runPhases(runRequest(), ports);
+  assert.deepEqual(driven.phases.Resume.shipped, [], 'the merged set observed from the forge is the authority, and it names nothing');
+  assert.deepEqual(driven.phases.Resume.specs.map((spec) => spec.id), ['alpha']);
+  assert.deepEqual(probed, [{ ownerRepo: 'acme/widgets', baseBranch: 'main', sourcePrefix: 'mitosis', repoHost: null }]);
+});
+
+test('a unit the forge reports merged is the one case a shipped claim retires work', async () => {
+  const merged = [{ headRefName: 'mitosis/alpha-integration', url: 'https://github.com/acme/widgets/pull/7', mergedAt: '2026-08-01T00:00:00Z' }];
+  const ports = stubbedPorts({
+    readJournal: () => shippedClaim({ baseBranch: 'main', sourcePrefix: 'mitosis' }),
+    reconcile: () => merged,
+  }).ports;
+  const driven = await runPhases(runRequest(), ports);
   assert.deepEqual(driven.phases.Resume.shipped, ['alpha']);
+  assert.deepEqual(driven.phases.Resume.specs, []);
   assert.deepEqual(driven.phases.Execute.result.units, []);
+});
+
+test('a shipped claim the run cannot probe retires nothing, and the probe is never built from a half-named manifest', async () => {
+  const probed = [];
+  const ports = stubbedPorts({
+    readJournal: () => shippedClaim({ baseBranch: 'main' }),
+    reconcile: (values) => { probed.push(values); return []; },
+  }).ports;
+  const driven = await runPhases(runRequest(), ports);
+  assert.deepEqual(probed, [], 'a manifest naming no source prefix cannot be turned into a branch-to-unit mapping, so no probe is spawned rather than one that would be read wrongly');
+  assert.deepEqual(driven.phases.Resume.shipped, []);
+  assert.deepEqual(driven.phases.Resume.specs.map((spec) => spec.id), ['alpha']);
 });
 
 test('a journal naming a different run is not this run evidence, so the whole spec is planned again', async () => {
