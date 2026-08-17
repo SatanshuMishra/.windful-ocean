@@ -32,7 +32,7 @@ const GIT_REDIRECTING_VARIABLES = Object.freeze([
 const USAGE = [
   'usage: run-store.mjs key <spec.json>',
   '       run-store.mjs open <spec.json> --root <dir> --started-at <iso8601> --unit <id> [--unit <id> ...] [--pid <n>] [--run-id <8 hex>]',
-  '       run-store.mjs retire [--root <dir> --run-key <64 hex>] [--repo <dir> --run-id <8 hex>] [--force]',
+  '       run-store.mjs retire [--root <dir> --run-key <64 hex>] [--repo <dir> --run-id <8 hex>] [--lock] [--force]',
   '       run-store.mjs journal genesis --repo-root <dir> --path <journal> --manifest <manifest.json>',
   '       run-store.mjs journal append --repo-root <dir> --path <journal> --kind <kind> --record <record.json>',
   '       run-store.mjs journal gitignore --repo-root <dir> --entry <line>',
@@ -226,14 +226,18 @@ function describeLockHolder(lockPath) {
   return `pid ${JSON.stringify(held.pid)}, started at ${JSON.stringify(held.startedAt)}`;
 }
 
-function acquireLock(runDir, lockRecord) {
+function lockRemedy(root, runKey) {
+  return `run-store.mjs retire --root ${root} --run-key ${runKey} --lock --force`;
+}
+
+function acquireLock(runDir, lockRecord, remedy) {
   const lockPath = join(runDir, 'lock');
   let descriptor = null;
   try {
     descriptor = openSync(lockPath, 'wx', 0o600);
   } catch (error) {
     if (error.code !== 'EEXIST') throw error;
-    throw new Error(`run-store: the run lock at ${lockPath} is already held (${describeLockHolder(lockPath)}); a second run on the same key would interleave its writes with the first and lose updates, so this run refuses. The lock is never broken automatically, not even when the recorded process is gone - retire the run deliberately once you know the holder is dead`);
+    throw new Error(`run-store: the run lock at ${lockPath} is already held (${describeLockHolder(lockPath)}); a second run on the same key would interleave its writes with the first and lose updates, so this run refuses. The lock is never broken automatically, not even when the recorded process is gone - once you know the holder is dead, clear it deliberately with: ${remedy}`);
   }
   try {
     writeFileSync(descriptor, `${JSON.stringify(lockRecord)}\n`);
@@ -357,7 +361,7 @@ export function openRun(request) {
 
   const runDir = prepareRunDirectory(root, runKey);
   const lockRecord = Object.freeze({ pid, startedAt, runKey });
-  const lockPath = acquireLock(runDir, lockRecord);
+  const lockPath = acquireLock(runDir, lockRecord, lockRemedy(root, runKey));
   let allocated = null;
   try {
     allocated = allocateAttempt(runDir);
@@ -473,7 +477,17 @@ function retireRefs(repoRoot, runId, exec) {
   return Object.freeze(deleteRefs(selected, repoRoot, runId, exec));
 }
 
-function retireDirectory(root, runKey, force) {
+function retireLock(path, force) {
+  const lockPath = join(path, 'lock');
+  if (!existsSync(lockPath)) return Object.freeze({ path, removed: false, lockWasHeld: false, lockCleared: false });
+  if (!force) {
+    throw new Error(`run-store: refusing to clear the lock at ${lockPath} because it is still held (${describeLockHolder(lockPath)}); the run that holds it may still be writing into ${path}, and clearing it would let a second run take this key and interleave its writes with that one. Clear it with force once you know the holder is dead`);
+  }
+  unlinkSync(lockPath);
+  return Object.freeze({ path, removed: false, lockWasHeld: true, lockCleared: true });
+}
+
+function retireDirectory(root, runKey, force, lockOnly) {
   const path = runDirectoryPath(root, runKey);
   let present = false;
   try {
@@ -482,20 +496,29 @@ function retireDirectory(root, runKey, force) {
   } catch (error) {
     if (error.code !== 'ENOENT') throw error;
   }
-  if (!present) return Object.freeze({ path, removed: false, lockWasHeld: false });
+  if (!present) return Object.freeze({ path, removed: false, lockWasHeld: false, lockCleared: false });
+  if (lockOnly) return retireLock(path, force);
   const lockPath = join(path, 'lock');
   const lockWasHeld = existsSync(lockPath);
   if (lockWasHeld && !force) {
     throw new Error(`run-store: refusing to retire ${path} because its lock is still held (${describeLockHolder(lockPath)}); removing it would let a second run take this key and interleave its writes with the run that holds it now, whose next write would then fail with a raw filesystem error. Retire it with force once you know the holder is dead`);
   }
   rmSync(path, { recursive: true });
-  return Object.freeze({ path, removed: true, lockWasHeld });
+  return Object.freeze({ path, removed: true, lockWasHeld, lockCleared: lockWasHeld });
 }
 
 function requireForce(value) {
   if (value === undefined) return false;
   if (typeof value !== 'boolean') {
     throw new TypeError(`run-store: force must be a boolean, because it is the deliberate act of destroying a run another process still holds and no other value can express that intent unambiguously, received ${JSON.stringify(value)}`);
+  }
+  return value;
+}
+
+function requireLockScope(value) {
+  if (value === undefined) return false;
+  if (typeof value !== 'boolean') {
+    throw new TypeError(`run-store: lock must be a boolean, because it narrows a retirement to the lock file alone and no other value can express that scope unambiguously, received ${JSON.stringify(value)}`);
   }
   return value;
 }
@@ -522,8 +545,12 @@ export function retire(target) {
   const directory = wantsDirectory ? { root: requireAbsoluteDir(target.root, 'root'), runKey: requireRunKey(target.runKey) } : null;
   const namespaces = wantsRefs ? { repoRoot: requireAbsoluteDir(target.repoRoot, 'repoRoot'), runId: requireRunId(target.runId) } : null;
   const force = requireForce(target.force);
+  const lockOnly = requireLockScope(target.lock);
+  if (lockOnly && directory === null) {
+    throw new TypeError('run-store: the lock scope narrows a run directory retirement to its lock file alone, so it needs root and runKey; a ref namespace carries no lock, and clearing one that was never named is how a retirement touches a run nobody asked about');
+  }
 
-  const runDir = directory === null ? null : retireDirectory(directory.root, directory.runKey, force);
+  const runDir = directory === null ? null : retireDirectory(directory.root, directory.runKey, force, lockOnly);
   let deletedRefs = Object.freeze([]);
   try {
     if (namespaces !== null) deletedRefs = retireRefs(namespaces.repoRoot, namespaces.runId, exec);
@@ -608,7 +635,7 @@ function requirePair(flags, present, absent, purpose) {
 }
 
 function retireVerb(rest) {
-  const { flags } = parseFlags(rest, [], ['force']);
+  const { flags } = parseFlags(rest, [], ['force', 'lock']);
   const wantsDirectory = Object.hasOwn(flags, 'root') || Object.hasOwn(flags, 'run-key');
   const wantsRefs = Object.hasOwn(flags, 'repo') || Object.hasOwn(flags, 'run-id');
   if (!wantsDirectory && !wantsRefs) {
@@ -624,6 +651,7 @@ function retireVerb(rest) {
   }
   return retire({
     force: Object.hasOwn(flags, 'force'),
+    lock: Object.hasOwn(flags, 'lock'),
     ...(wantsDirectory ? { root: flags.root, runKey: flags['run-key'] } : {}),
     ...(wantsRefs ? { repoRoot: flags.repo, runId: flags['run-id'] } : {}),
   });
