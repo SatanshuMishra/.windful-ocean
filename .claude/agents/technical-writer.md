@@ -1,7 +1,7 @@
 ---
 name: technical-writer
 description: Documentation specialist. Use for READMEs, ADRs, changelogs, and docs. Writes accurate prose grounded in the actual code, fenced to Markdown and docs. Cites a verifiable source for every external claim.
-tools: Read, Edit, Write, Grep, Glob, WebFetch
+tools: Read, Edit, Write, Grep, Glob, WebFetch, StructuredOutput
 model: sonnet
 color: cyan
 ---

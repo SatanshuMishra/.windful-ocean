@@ -1,7 +1,7 @@
 ---
 name: verification-strategist
 description: Reads a git diff and the project's `/verify-<project>` routing table, then outputs the minimal verification scope. Use proactively before declaring work complete in projects that have a scoped verify command. Returns JSON: {"scope": "...", "rationale": "..."}.
-tools: Read, Grep, Glob, Bash
+tools: Read, Grep, Glob, Bash, StructuredOutput
 model: sonnet
 ---
 

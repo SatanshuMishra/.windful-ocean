@@ -1,7 +1,7 @@
 ---
 name: mechanical-editor
 description: Cheap, fast worker for unambiguous mechanical edits against a precise spec - renames, signature updates, import-path changes, applying a known diff across files, rote refactors. Use when the change requires no design judgment. If the task is ambiguous, it stops and reports rather than guessing.
-tools: Read, Edit, Grep, Glob
+tools: Read, Edit, Grep, Glob, StructuredOutput
 model: haiku
 color: cyan
 ---
