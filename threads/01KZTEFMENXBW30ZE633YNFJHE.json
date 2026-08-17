@@ -901,6 +901,11 @@
         "ref": "0523-speed-is-measured-by-an-external-shim-because-the-engine-is-time-blind",
         "title": "Speed and concurrency are measured by an external PATH shim, because the engine records no per-event time",
         "scope": "c28"
+      },
+      {
+        "ref": "0525-exec-allowlist-gate-attests-a-mock-not-the-shim",
+        "title": "The exec-allowlist gate attests a stdin refusal the real shim does not perform, and is filed rather than fixed in flight",
+        "scope": "c28"
       }
     ],
     "out_of_scope": [
@@ -912,5 +917,5 @@
     ]
   },
   "created_at": "2026-08-12T07:37:41.077Z",
-  "updated_at": "2026-08-17T15:39:47.775Z"
+  "updated_at": "2026-08-17T15:53:29.310Z"
 }
