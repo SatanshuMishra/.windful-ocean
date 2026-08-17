@@ -198,7 +198,8 @@ test('a failed dispatch is counted with the envelope the child already billed', 
   assert.equal(code, 3, io.errOut.join(''));
 
   const lines = readUsage(usagePath(root, spec));
-  assert.equal(lines.length, 2, 'a failed dispatch went uncounted');
+  assert.equal(lines.length, 3, 'a failed dispatch went uncounted');
+  assert.equal(linesFor(lines, 'alpha').length, 2, 'the redispatch of the failed unit was billed but not counted');
 
   const [alpha] = linesFor(lines, 'alpha');
   assert.ok(alpha, 'the failed dispatch left no usage line');

@@ -19,8 +19,28 @@ export {
 } from './leases.mjs';
 
 const PARKED = 'parked';
+const PLANNED = 'planned';
 const RECORD_FAILURE_TAG = 'PostDispatchRecordFailure';
 const BLOCKED_DIAGNOSIS = 'blocked-by-parked-prerequisite';
+const REDISPATCH_BUDGET = 1;
+const MAX_ATTEMPTS = 1 + REDISPATCH_BUDGET;
+
+function attemptLedger() {
+  const spent = new Map();
+  return Object.freeze({
+    spend: (id) => spent.set(id, (spent.get(id) ?? 0) + 1),
+    ordinalOf: (id) => Math.min(spent.get(id) ?? 0, MAX_ATTEMPTS),
+    exhausted: (id) => (spent.get(id) ?? 0) >= MAX_ATTEMPTS,
+  });
+}
+
+function isRetryable(outcome) {
+  return outcome !== null && outcome !== undefined && typeof outcome === 'object' && outcome.retryable === true;
+}
+
+function willRetry(outcome, unitId, attempts) {
+  return isRetryable(outcome) && !attempts.exhausted(unitId);
+}
 
 export const POST_DISPATCH_RECORD_FAILED = 'post-dispatch-record-failed';
 
@@ -52,6 +72,12 @@ function applyOutcomes(units, outcomes) {
 
 function markAwaitingMerge(units) {
   return Object.freeze(units.map((u) => (u.state === 'awaiting' ? Object.freeze({ ...u, state: 'awaiting-merge' }) : u)));
+}
+
+function markRetryable(units, outcomes, attempts) {
+  return Object.freeze(units.map((u) => (u.state === PARKED && willRetry(outcomes.get(u.id), u.id, attempts)
+    ? Object.freeze({ ...u, state: PLANNED, leaseHeld: false })
+    : u)));
 }
 
 function markBlockedParked(units, blockedIds) {
@@ -109,22 +135,27 @@ export async function runScheduleTick(specs, runUnit, windowSize, options = {}) 
   const ticks = [];
   const dispatchedEpochs = new Set();
   const blockedIds = typeof options.blocked === 'function' ? options.blocked : null;
+  const attempts = options.attempts === undefined ? attemptLedger() : options.attempts;
   for (;;) {
     if (aborted(options.signal)) return Object.freeze({ units, ticks, quiescent: false, aborted: true });
     const w = typeof windowSize === 'function' ? windowSize() : windowSize;
     const stateOf = new Map(units.map((u) => [u.id, u.state]));
-    const epochOf = (id) => `${id}@${stateOf.get(id)}`;
+    const epochOf = (id) => `${id}@${stateOf.get(id)}#${attempts.ordinalOf(id)}`;
     const dispatch = planTick(units, w).dispatch.filter((id) => !dispatchedEpochs.has(epochOf(id)));
     if (dispatch.length === 0) {
       units = markAwaitingMerge(units);
       return Object.freeze({ units, ticks, quiescent: true, aborted: false });
     }
-    for (const id of dispatch) dispatchedEpochs.add(epochOf(id));
+    for (const id of dispatch) {
+      dispatchedEpochs.add(epochOf(id));
+      attempts.spend(id);
+    }
     ticks.push(dispatch);
     units = markDispatched(units, dispatch);
     const byId = indexUnits(units);
     const results = await joinTick(dispatch.map((id) => byId.get(id)), runUnit, options);
-    units = applyOutcomes(units, new Map(dispatch.map((id, index) => [id, results[index]])));
+    const outcomes = new Map(dispatch.map((id, index) => [id, results[index]]));
+    units = markRetryable(applyOutcomes(units, outcomes), outcomes, attempts);
     if (blockedIds !== null) units = markBlockedParked(units, blockedIds());
   }
 }
@@ -136,6 +167,7 @@ export async function runSchedule(specs, runUnit, opts, ...rest) {
     signal: opts && opts.signal !== undefined ? opts.signal : null,
     onRecord: opts && typeof opts.onRecord === 'function' ? opts.onRecord : undefined,
     blocked: opts && typeof opts.blocked === 'function' ? opts.blocked : undefined,
+    attempts: opts === null || opts === undefined ? undefined : opts.attempts,
   });
 }
 
@@ -219,7 +251,7 @@ function blockedParkFields(unitId, blockedBy) {
   return { unitId, stage: null, diagnosis: BLOCKED_DIAGNOSIS, request: null, remediation: null, resumePoint: null, triedSet: [], blockedBy };
 }
 
-function journalRecorder(request, ports) {
+function journalRecorder(request, ports, attempts) {
   const written = new Map();
   const blocked = new Set();
   const append = async (unitId, line) => {
@@ -246,8 +278,8 @@ function journalRecorder(request, ports) {
   const record = async (unit, outcome) => {
     const disposition = dispositionOf(outcome);
     if (CHECKPOINTED.includes(disposition)) return recordBuilt(unit, outcome);
-    if (disposition === PARKED) return recordPark(unit, outcome);
-    return undefined;
+    if (disposition !== PARKED || willRetry(outcome, unit.id, attempts)) return undefined;
+    return recordPark(unit, outcome);
   };
   return Object.freeze({ record, blocked: () => Object.freeze([...blocked]) });
 }
@@ -256,7 +288,8 @@ export async function runEngine(request, ports) {
   requireRequest(request);
   requirePorts(ports);
   await ports.writeGenesis({ repoRoot: request.repoRoot, path: request.journalPath, manifest: request.manifest });
-  const recorder = journalRecorder(request, ports);
+  const attempts = attemptLedger();
+  const recorder = journalRecorder(request, ports, attempts);
   const runUnit = async (unit, context) => {
     const outcome = await ports.runUnit(unit, context);
     const envelope = envelopeOf(outcome);
@@ -272,6 +305,7 @@ export async function runEngine(request, ports) {
     signal: request.signal === undefined ? null : request.signal,
     onRecord: request.onRecord,
     blocked: recorder.blocked,
+    attempts,
   });
   if (!result.quiescent) return Object.freeze({ ...result, prState: null });
   const outstanding = result.units.some((unit) => unit.state !== 'done');

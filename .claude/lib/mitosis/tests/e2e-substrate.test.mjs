@@ -251,13 +251,13 @@ test('a second attempt resumes the unit the first left parked and leaves the fir
     assert.equal(second.summary.attempt, 2);
     assert.equal(
       dispatched.length,
-      1,
-      `the second run dispatched ${dispatched.length} units (${dispatched.join(', ')}); a run that restarted from the spec would dispatch both, and only a run that read the first run's journal dispatches one`,
+      2,
+      `the second run dispatched ${dispatched.length} units (${dispatched.join(', ')}); a run that restarted from the spec would drive alpha as well, and only a run that read the first run's journal drives the parked unit alone across its two attempts`,
     );
     assert.deepEqual(
       dispatched,
-      ['beta'],
-      'the one unit the second run drives must be the parked beta by name, or a restart that happened to dispatch a single unit would pass this test',
+      ['beta', 'beta'],
+      'the one unit the second run drives must be the parked beta by name, twice under the redispatch budget, or a restart that happened to dispatch two children would pass this test',
     );
     assert.deepEqual(second.summary.units, [{ id: 'beta', state: 'parked' }]);
     assert.equal(second.summary.resume.restarted, false);
