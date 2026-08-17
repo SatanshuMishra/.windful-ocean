@@ -31,7 +31,7 @@
     {
       "id": "c6",
       "text": "Instruction-layer correctness fixes shipped ahead of the rebuild: two dead agent references repointed, StructuredOutput granted to all 15 agents, and the unenforceable confirmation claim deleted.",
-      "done": false,
+      "done": true,
       "kind": "detour",
       "struck_by": null
     },
@@ -56,9 +56,9 @@
   "abandoned_reason": null,
   "closure_statement": null,
   "spine": {
-    "active_goal": "Get the target architecture to explicit user approval so c3 can close, then execute the teardown and rebuild at c4.",
-    "next_step": "c3 is CLOSED - the architecture is approved and frozen in decision 0501. Next is the SPEC. Read 0501 for the approved definition and 0500 for the corrections, TOGETHER, before writing a line: three records repeat a disproven statistic and 0488 pins five schema-capable agents as seven. R13 is the last untested mechanism, now Lead-band only - a named risk in the SPEC, not a blocker. The no-mutation bar expired with c3's approval.",
-    "last_session": "Architecture APPROVED by the user; c3 CLOSED. PRs 154 and 155 merged and verified in force. Four audits landed: skills preload and R14 confirmed, model/effort dropped, the confirmation rule deleted. 0500 re-grounds the decision set; 0501 freezes the approved architecture.",
+    "active_goal": "Execute the SPEC's 17 units: waves 0 to 3 now, waves 4 to 7 once the mitosis engine lands on main.",
+    "next_step": "START HERE. Implement SPEC waves 0 to 3 in wave order, one pull request per unit, human-merged: U0.1 archive the telemetry; U1.1 fix the agent-directory resolver BEFORE U1.2 and U1.3; U2.1 and U2.2 author the two missing skills; U3.1 through U3.4 rebuild the observer, U3.4 last because it is the only non-additive unit. Do NOT start waves 4 to 7 until the mitosis engine is on main. SPEC: .claude/docs/specs/2026-08-17-agent-roster-rebuild.md",
+    "last_session": "Architecture approved, c3 closed, SPEC written: 17 units in 8 waves. PRs 153, 154 and 155 merged and verified in force. Eight decisions recorded (0495 to 0507). A sweep of all 18 records found 5 moved premises, including two of my own.",
     "open_risks": [
       {
         "text": "Never read `emitter` in the events log as a measurement — it is a hardcoded constant on every row, and treating it as signal already produced one wrong conclusion",
@@ -68,7 +68,7 @@
         ]
       },
       {
-        "text": "Prefer the logbook-inline ledger store — the sibling logbook-logbook store is missing decisions 0495 and 0496, so the wrong path now returns a plausible near-complete answer instead of an obvious nothing",
+        "text": "Prefer the logbook-inline ledger store — the sibling logbook-logbook store is missing decisions, so the wrong path returns a plausible near-complete answer instead of an obvious nothing",
         "scope": "thread",
         "refs": [
           "~/.claude/plugins/data/logbook-inline/-Users-satanshumishra-Documents-DevLabs--windful-ocean/ledger-worktree/decisions/"
@@ -82,7 +82,7 @@
         ]
       },
       {
-        "text": "Superseding thread agent-roster-gap-resolution is BLOCKED by a schema defect, not merely pending — two malformed decision refs make transition_thread and archive_thread both refuse, so that thread cannot be closed by any tool",
+        "text": "Superseding thread agent-roster-gap-resolution is BLOCKED by a schema defect, not merely pending — two malformed decision refs make transition_thread and archive_thread both refuse, so no tool can close it",
         "scope": "thread",
         "refs": [
           "01KYERC4Y2XFVQ5GFQRRV0BKTS",
@@ -98,59 +98,52 @@
         ]
       },
       {
-        "text": "Archive the events log before any teardown step — 8.7 MB across 46 days is the only artifact here that cannot be regenerated, and it is the baseline a new roster gets measured against",
-        "scope": "c4",
-        "refs": [
-          "~/.claude/agent-ledger/events/"
-        ]
-      },
-      {
-        "text": "Repoint the five skills that name deleted agents — verification-discipline and report break outright, since every branch of their logic invokes verification-strategist and report-writer by name",
-        "scope": "c4",
-        "refs": [
-          ".claude/skills/verification-discipline/SKILL.md:13",
-          ".claude/skills/report/SKILL.md:16"
-        ]
-      },
-      {
-        "text": "Land the new mitosis engine before starting the rebuild — this work targets that engine, whose dispatch table comes from engine source literals rather than a static allowlist",
-        "scope": "c4",
-        "refs": [
-          "01KZTEFMENXBW30ZE633YNFJHE"
-        ]
-      },
-      {
-        "text": "Read decisions 0500 and 0501 together before citing any other record — three records repeat a disproven statistic and 0488 pins five schema-capable agents as seven, so a SPEC built on the originals inherits all of it",
-        "scope": "c4",
-        "refs": [
-          "decision 0501 is the approved definition",
-          "decision 0500 carries the corrections",
-          "decision 0479 line 33"
-        ]
-      },
-      {
-        "text": "R13 is the last untested mechanism and now applies to the Lead band ONLY — trigger reliability matters only where an agent chooses to invoke, and the nine executing agents receive skill bodies unconditionally by preload",
-        "scope": "c4",
-        "refs": [
-          "report risk R13",
-          "decision 0501 names the recommended mitigation"
-        ]
-      },
-      {
-        "text": "Run the preserved validator before AND after every edit to the report — its ratified baseline is exactly two failing checks, so a third failing check means that session introduced a regression rather than hitting a known one",
-        "scope": "c4",
+        "text": "Run the preserved validator before AND after any edit to the round-4 report — its ratified baseline is exactly two failing checks, so a third means that session introduced a regression rather than hitting a known one",
+        "scope": "thread",
         "refs": [
           "~/.claude/projects/-Users-satanshumishra-Documents-DevLabs--windful-ocean/handoff-2026-08-16-agent-roster-round4/artifacts/validate-report.mjs",
           "decision 0491 defines the ratified baseline"
         ]
       },
       {
-        "text": "Sharpen report section 11a from the observer reads the wrong file to the observer was verified by a probe that could not fail — that is the transferable lesson for the rebuild, and a live instance of the report's own risk R5",
+        "text": "Waves 4 to 7 are blocked until the mitosis engine is merged to main — the rebuild targets that engine, not the one being deleted, so a roster built first is wasted work; verify by ancestry, never by a MERGED label",
         "scope": "c4",
         "refs": [
-          ".claude/docs/specs/2026-07-02-agent-evolution-ledger-design.md:236",
-          "decision 0493",
-          "report section 15, R5"
+          "SPEC section 5a",
+          "thread 01KZTEFMENXBW30ZE633YNFJHE"
+        ]
+      },
+      {
+        "text": "Ship U1.1 before any census unit — agentDefinitionDir resolves the roster relative to its own module path and all 18 worktrees carry independent copies, so until it is fixed a census can silently pass against a stale roster",
+        "scope": "c4",
+        "refs": [
+          ".claude/lib/mitosis/agent-schema-lint.mjs:14",
+          "SPEC unit U1.1"
+        ]
+      },
+      {
+        "text": "Four backup profiles named in criterion c4 cannot be identified from any surviving artifact — an unidentifiable criterion item can be neither satisfied nor refuted, so it needs a definition or striking before wave 4",
+        "scope": "c4",
+        "refs": [
+          "criterion c4 text",
+          "405 worktree copies is also stale: measured 18 worktrees, 270 copies"
+        ]
+      },
+      {
+        "text": "R13 applies to the Lead band only and its mitigation is detection, not prevention — a Lead can complete work without reading the procedure its duty names, and that is visible only once U3.3 lands",
+        "scope": "c4",
+        "refs": [
+          "SPEC section 6b",
+          "decision 0503"
+        ]
+      },
+      {
+        "text": "Read decisions 0500, 0501 and 0503 together before citing any other record — three records repeat a disproven statistic, 0488 pins five schema-capable agents as seven, and 0503 supersedes 0501's preload assignments",
+        "scope": "c4",
+        "refs": [
+          "decision 0501 is the approved definition",
+          "decision 0500 carries the corrections",
+          "decision 0503 changes delivery"
         ]
       }
     ],
@@ -272,11 +265,10 @@
       }
     ],
     "out_of_scope": [
-      "Restoring the bash gate's ask verdict - rejected outright in decision 0495. The deny list is the whole control and the residual is an accepted risk by explicit user ruling.",
-      "Cutting the standing instruction load for volume alone - the question is re-scoping with path globs, not cutting, and the binary trace confirmed rules are the eager per-dispatch cost while skills are lazy.",
-      "Converting the report's nine Mermaid diagrams to inline SVG, and redacting the codename it carries - both ruled out of scope by the user and ratified as the validator's known baseline."
+      "Cutting the standing instruction load for volume alone - the question is re-scoping with path globs, and the binary trace confirmed rules are the eager per-dispatch cost while skills are lazy.",
+      "Migrating the retired project-local agents' domain knowledge into skills and rules - the report places this as a SEPARATE task after the agent and observer rework, not inside it."
     ]
   },
   "created_at": "2026-08-16T05:43:25.829Z",
-  "updated_at": "2026-08-17T05:36:24.306Z"
+  "updated_at": "2026-08-17T05:37:11.995Z"
 }
