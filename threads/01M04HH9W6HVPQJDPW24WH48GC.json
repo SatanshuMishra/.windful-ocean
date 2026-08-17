@@ -221,6 +221,11 @@
         "ref": "0495-delete-the-confirmation-rule-the-deny-list-is-the-control",
         "title": "Delete the destructive-operation confirmation rule; the deny list is the whole control",
         "scope": "c3"
+      },
+      {
+        "ref": "0496-drop-model-and-effort-from-the-observer-record",
+        "title": "Drop model and effort from the observer record; the payload never carries them",
+        "scope": "c3"
       }
     ],
     "out_of_scope": [
@@ -231,5 +236,5 @@
     ]
   },
   "created_at": "2026-08-16T05:43:25.829Z",
-  "updated_at": "2026-08-17T04:18:21.248Z"
+  "updated_at": "2026-08-17T04:18:41.893Z"
 }
