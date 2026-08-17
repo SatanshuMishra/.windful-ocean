@@ -412,6 +412,11 @@
         "ref": "0536-u33-answers-four-of-six-questions-and-refuses-two",
         "title": "U3.3 answers four standing questions, refuses two loudly, and reports coverage rather than claiming disuse",
         "scope": "c4"
+      },
+      {
+        "ref": "0537-artifact-less-internal-subagents-dominate-the-log",
+        "title": "Artifact-less internal subagents are most of the log, so every audit rate must separate them from real dispatches",
+        "scope": "c4"
       }
     ],
     "out_of_scope": [
@@ -420,5 +425,5 @@
     ]
   },
   "created_at": "2026-08-16T05:43:25.829Z",
-  "updated_at": "2026-08-17T17:15:12.559Z"
+  "updated_at": "2026-08-17T17:19:47.979Z"
 }
