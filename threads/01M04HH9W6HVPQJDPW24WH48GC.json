@@ -274,6 +274,11 @@
         "ref": "0511-canonical-roster-needs-two-agreeing-derivations",
         "title": "Resolve the canonical roster by requiring two independent derivations to agree, and halt when they do not",
         "scope": "c4"
+      },
+      {
+        "ref": "0513-canonicalise-by-subpath-and-never-half-a-comparison",
+        "title": "Parameterise the canonical resolver by subpath, and never canonicalise one side of a comparison",
+        "scope": "c4"
       }
     ],
     "out_of_scope": [
@@ -282,5 +287,5 @@
     ]
   },
   "created_at": "2026-08-16T05:43:25.829Z",
-  "updated_at": "2026-08-17T06:25:38.931Z"
+  "updated_at": "2026-08-17T06:56:04.424Z"
 }
