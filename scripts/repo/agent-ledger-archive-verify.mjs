@@ -9,7 +9,7 @@ const SCHEMA = 'agent-ledger-archive-manifest/1';
 const DEFAULT_MANIFEST = fileURLToPath(new URL('./agent-ledger-archive-manifest.json', import.meta.url));
 const SHA256 = /^[0-9a-f]{64}$/;
 const TILDE_PREFIX = /^~(?=\/|$)/;
-const USAGE = 'usage: agent-ledger-archive-verify.mjs [--manifest <path>] [--archive <dir>]';
+const USAGE = 'usage: agent-ledger-archive-verify.mjs [--manifest <path>] [--archive <dir>] [--manifest-only]';
 
 class UsageError extends Error {}
 
@@ -18,19 +18,28 @@ function expandTilde(value) {
 }
 
 function parseArgs(argv) {
-  const options = { manifest: DEFAULT_MANIFEST, archive: null };
-  for (let index = 0; index < argv.length; index += 2) {
-    const flag = argv[index];
-    const value = argv[index + 1];
-    if (flag !== '--manifest' && flag !== '--archive') {
-      throw new UsageError(`unknown argument ${JSON.stringify(flag)}. ${USAGE}`);
+  const parsed = argv.reduce((state, token) => {
+    if (state.pending !== null) {
+      if (token.length === 0) {
+        throw new UsageError(`--${state.pending} requires a non-empty value. ${USAGE}`);
+      }
+      return { options: { ...state.options, [state.pending]: token }, pending: null };
     }
-    if (typeof value !== 'string' || value.length === 0) {
-      throw new UsageError(`${flag} requires a non-empty value. ${USAGE}`);
+    if (token === '--manifest-only') {
+      return { options: { ...state.options, manifestOnly: true }, pending: null };
     }
-    options[flag.slice(2)] = value;
+    if (token === '--manifest' || token === '--archive') {
+      return { options: state.options, pending: token.slice(2) };
+    }
+    throw new UsageError(`unknown argument ${JSON.stringify(token)}. ${USAGE}`);
+  }, { options: { manifest: DEFAULT_MANIFEST, archive: null, manifestOnly: false }, pending: null });
+  if (parsed.pending !== null) {
+    throw new UsageError(`--${parsed.pending} requires a non-empty value. ${USAGE}`);
   }
-  return options;
+  if (parsed.options.manifestOnly && parsed.options.archive !== null) {
+    throw new UsageError(`--manifest-only and --archive contradict each other: one declines to read any archive and the other names one to read. ${USAGE}`);
+  }
+  return Object.freeze(parsed.options);
 }
 
 function readManifest(path) {
@@ -91,6 +100,9 @@ function validateManifest(manifest, path) {
     throw new UsageError(`the manifest at ${path} has no files array, so the archive cannot be verified`);
   }
   const files = manifest.files.map((entry, index) => validateEntry(entry, index, path));
+  if (files.length === 0) {
+    throw new UsageError(`the manifest at ${path} pins no files at all, so any verdict against it would pass over nothing`);
+  }
   const names = files.map((file) => file.name);
   const duplicates = names.filter((name, index) => names.indexOf(name) !== index).sort();
   if (duplicates.length > 0) {
@@ -195,6 +207,11 @@ function main() {
   const options = parseArgs(process.argv.slice(2));
   const manifestPath = expandTilde(options.manifest);
   const manifest = validateManifest(readManifest(manifestPath), manifestPath);
+  if (options.manifestOnly) {
+    process.stdout.write(`OK ${manifestPath} is internally consistent: ${manifest.fileCount} files, ${manifest.totalBytes} bytes, aggregate ${manifest.aggregate}\n`);
+    process.stdout.write(`NOT CHECKED: ${manifest.archiveDir} was never read, so the byte-for-byte correspondence between this manifest and the archived files is UNVERIFIED here. That half is host-only; run this verifier without --manifest-only on the host holding the archive.\n`);
+    return 0;
+  }
   const archiveDir = expandTilde(options.archive ?? manifest.archiveDir);
   const failures = censusFailures(manifest, archiveDir);
   if (failures.length > 0) {
