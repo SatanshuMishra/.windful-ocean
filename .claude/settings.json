@@ -283,6 +283,16 @@
             "async": true
           }
         ]
+      },
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node $HOME/.claude/hooks/observer/subagent-observer.mjs",
+            "async": true
+          }
+        ]
       }
     ]
   },
