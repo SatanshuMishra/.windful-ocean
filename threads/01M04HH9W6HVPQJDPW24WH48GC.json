@@ -50,8 +50,8 @@
   "closure_statement": null,
   "spine": {
     "active_goal": "Get the target architecture to explicit user approval so c3 can close, then execute the teardown and rebuild at c4.",
-    "next_step": "WAIT for the user's SPECIFIC instructions. Do NOT auto-proceed, and do NOT edit any agent, rule, hook or skill file. The round-3/3b report is delivered at ~/.agent/diagrams/agent-roster-rebuild-recommendations.html (248 KB): 15 decisions settled in section 13, 6 items open in section 14, and 3 of the report's own claims corrected in place in section 09. The validator that gated edits to that file lived in this session's scratchpad and is gone - rebuild it before splicing that file again.",
-    "last_session": "Amended the report through rounds 3 and 3b: seven investigations, seventeen fragments spliced, three of the report's own claims corrected, two unclearable gates fixed. Validator passed at exit 0.",
+    "next_step": "WAIT for the user's SPECIFIC instructions. Do NOT auto-proceed, and do NOT edit any agent, rule, hook or skill file. The round-4 report at ~/.agent/diagrams/agent-roster-rebuild-recommendations.html is amended, gate-clean and awaits the user's MANUAL REVIEW. Read section 2e first: this round reversed the report's own strongest measurement. Every round-4 recommendation is marked awaiting-ruling; only records 0487, 0490 and 0491 are settled.",
+    "last_session": "Round 4: eight agents across three areas, report amended in four passes to 4,761 lines and gate-clean. Reversed the report's own headline measurement: the zero-compliance finding was an instrumentation artifact hiding at least 32 real emissions.",
     "open_risks": [
       {
         "text": "Never read `emitter` in the events log as a measurement — it is a hardcoded constant on every row, and treating it as signal already produced one wrong conclusion",
@@ -83,37 +83,63 @@
         ]
       },
       {
-        "text": "Declare StructuredOutput in tools: on all 13 agents before the rebuild lands — the engine's census gate fails if any dispatchable agent omits it, all 15 current agents omit it today, and the lint that would catch it is NOT on the main branch",
+        "text": "Decide whether the three-defect observer bug is fixed now or waits for the rebuild — it is mis-recording every capability block right now, and was filed rather than fixed only because this cycle bars editing hooks",
+        "scope": "c3",
+        "refs": [
+          "~/.claude/hooks/agent-ledger/agent-run-analyzer.mjs:60",
+          "~/.claude/hooks/agent-ledger/agent-run-analyzer.mjs:63",
+          "report section 14, OPEN 8"
+        ]
+      },
+      {
+        "text": "Rebuild the report validator before splicing the report again — it and the round-4 evidence files sat in a session-scoped scratchpad that is deleted with the session, which is exactly how the round-3 validator was already lost once",
+        "scope": "c3",
+        "refs": [
+          "validate-report.mjs plus 16 fixtures, previously under the session scratchpad",
+          "round4-findings.md",
+          "round4-addendum.md"
+        ]
+      },
+      {
+        "text": "Fix the false destructive-operation confirmation claim in all four files before any volume work on the instruction layer — the gate's ask verdict was removed from source, so the claim is false, and a correctness defect outranks a token cost",
+        "scope": "c3",
+        "refs": [
+          ".claude/CLAUDE.md:11",
+          ".claude/rules/common/git-workflow.md:9",
+          ".claude/rules/common/git/commits.md:20",
+          ".claude/rules/common/git/branching.md:6",
+          "docs/security/bash-gate-threat-model.md:10"
+        ]
+      },
+      {
+        "text": "Add StructuredOutput to each agent's explicit tools list rather than deleting the lists — all 15 current agents declare explicit allowlists, and although an absent tools line inherits the full tool set, deleting a list would widen permissions far past the fix",
         "scope": "c3",
         "refs": [
           ".claude/lib/mitosis/agent-schema-lint.mjs (unmerged feature worktrees only)"
         ]
       },
       {
-        "text": "Decide whether this thread supersedes the paused thread agent-roster-gap-resolution — it covers overlapping ground against an older SPEC and was not touched in rounds 2 or 3",
+        "text": "Delete the two confirmed dead agent references before they mislead a future reader — both name agents that exist nowhere on disk or in any installed plugin",
+        "scope": "c3",
+        "refs": [
+          ".claude/rules/common/performance.md:52 names build-error-resolver",
+          ".claude/rules/typescript/testing.md:18 names e2e-runner"
+        ]
+      },
+      {
+        "text": "Choose which browser tooling is standard for reproducing a user-interface bug — what a reproduction must RETURN is now settled as a re-runnable command plus inputs rather than a screenshot, so only the tool choice remains open",
+        "scope": "c3",
+        "refs": [
+          "report section 14, OPEN 6",
+          "report section 9e return contract"
+        ]
+      },
+      {
+        "text": "Decide whether this thread supersedes the paused thread agent-roster-gap-resolution — it covers overlapping ground against an older SPEC and was not touched in rounds 2, 3 or 4",
         "scope": "c3",
         "refs": [
           "01KYERC4Y2XFVQ5GFQRRV0BKTS"
         ]
-      },
-      {
-        "text": "Ask the user which telemetry figure measures what before citing either — the report uses 15,301 and 15,573 for the same corpus, and round 3 propagated 15,573 more widely, so the inconsistency is now more visible",
-        "scope": "c3",
-        "refs": [
-          "~/.agent/diagrams/agent-roster-rebuild-recommendations.html"
-        ]
-      },
-      {
-        "text": "Define what a browser-based reproduction must RETURN before the rebuild grants investigator browser tools — a screenshot is an observation, not a re-runnable receipt, and the report grants the tools without settling this",
-        "scope": "c3",
-        "refs": [
-          "report section 14, open item 6"
-        ]
-      },
-      {
-        "text": "Choose the replacement name for release-engineer — decision 15 settles THAT it is renamed, not what to; candidates so far are branch-steward and integration-engineer",
-        "scope": "c3",
-        "refs": []
       }
     ],
     "key_decisions": [
@@ -189,11 +215,12 @@
       }
     ],
     "out_of_scope": [
-      "Mutating any agent, rule, hook or skill file until the target architecture at c3 is approved.",
-      "Restoring the bash gate's ask verdict so that 'destructive operations require explicit confirmation' becomes enforceable - that is a decision about the gate, not about agents, and it is filed in report section 14.",
-      "Cutting the ~13,300-token standing instruction load carried on every dispatch - a cut changes behaviour and nothing yet measures which rules are load-bearing."
+      "Mutating any agent, rule, hook or skill file until the target architecture at c3 is approved. This is what makes the observer bug filed rather than fixed.",
+      "Restoring the bash gate's ask verdict so that destructive-operation confirmation becomes enforceable - that is a decision about the gate, not about agents, and it is filed in report section 14.",
+      "Cutting the standing instruction load for volume alone - round 4 reframed the question as re-scoping with path globs rather than cutting, and the false-claim fix and dead-reference deletions come first on correctness grounds.",
+      "Converting the report's nine Mermaid diagrams to inline SVG, and redacting the codename it carries - both ruled out of scope by the user and ratified as the validator's known baseline."
     ]
   },
   "created_at": "2026-08-16T05:43:25.829Z",
-  "updated_at": "2026-08-17T00:20:23.174Z"
+  "updated_at": "2026-08-17T00:21:11.657Z"
 }
