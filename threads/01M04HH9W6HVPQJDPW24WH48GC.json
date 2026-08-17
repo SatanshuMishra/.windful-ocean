@@ -50,8 +50,8 @@
   "closure_statement": null,
   "spine": {
     "active_goal": "Get the target architecture to explicit user approval so c3 can close, then execute the teardown and rebuild at c4.",
-    "next_step": "WAIT for the user's SPECIFIC instructions. Do NOT auto-proceed, and do NOT edit any agent, rule, hook or skill file. The round-4 report at ~/.agent/diagrams/agent-roster-rebuild-recommendations.html is amended, gate-clean and awaits the user's MANUAL REVIEW. Read section 2e first: this round reversed the report's own strongest measurement. Every round-4 recommendation is awaiting-ruling; records 0487, 0490 and 0491 are settled, and 0493 is now shipped and verified live on main.",
-    "last_session": "PR 153 merged to main (b306a44f) and confirmed IN FORCE, not just merged: the live analyzer is byte-identical to origin/main, local main fast-forwarded off the pre-fix blob, and the branch deleted locally and on origin with all three refs verified gone. No agent, rule, hook or skill file edited.",
+    "next_step": "The finalized architecture is presented and AWAITS the user's explicit approval to close c3 - a merge notification is not approval. Read decision 0500 FIRST: it re-grounds five moved premises, confirms the skills-preload mechanism, and names the ledger store divergence. Do NOT write the SPEC until c3 is approved. After approval, R13 is the last untested mechanism and is now narrowed to the Lead band only.",
+    "last_session": "PRs 154 and 155 both merged and verified in force: dead refs repointed, StructuredOutput on all 15 agents, and the four confirmation claims deleted with surviving prose intact. Four audits landed; 0500 re-grounds the decision set. Architecture presented for approval; c3 NOT yet approved.",
     "open_risks": [
       {
         "text": "Never read `emitter` in the events log as a measurement — it is a hardcoded constant on every row, and treating it as signal already produced one wrong conclusion",
@@ -83,11 +83,27 @@
         ]
       },
       {
+        "text": "Read decision 0500 before citing any other record — three records repeat a disproven statistic, 0488 pins 5 schema-capable agents as 7, and a SPEC sizing work against the originals inherits all of it",
+        "scope": "c3",
+        "refs": [
+          "decision 0500",
+          "decision 0479 line 33",
+          "decision 0488 belongs to thread 01KZTEFMENXBW30ZE633YNFJHE"
+        ]
+      },
+      {
+        "text": "Prefer the logbook-inline ledger store — the sibling logbook-logbook store is missing decisions 0495 and 0496, so the wrong path now returns a plausible near-complete answer instead of an obvious nothing",
+        "scope": "c3",
+        "refs": [
+          "~/.claude/plugins/data/logbook-inline/-Users-satanshumishra-Documents-DevLabs--windful-ocean/ledger-worktree/decisions/"
+        ]
+      },
+      {
         "text": "Run the preserved validator before AND after every edit to the report — its ratified baseline is exactly two failing checks, so a third failing check means that session introduced a regression rather than hitting a known one",
         "scope": "c3",
         "refs": [
           "~/.claude/projects/-Users-satanshumishra-Documents-DevLabs--windful-ocean/handoff-2026-08-16-agent-roster-round4/artifacts/validate-report.mjs",
-          "same directory: run-fixture-suite.mjs, README.md, round4-findings.md, round4-addendum.md, decision 0491 defines the ratified baseline"
+          "decision 0491 defines the ratified baseline"
         ]
       },
       {
@@ -100,44 +116,35 @@
         ]
       },
       {
-        "text": "Fix the false destructive-operation confirmation claim in all four files before any volume work on the instruction layer — the gate's ask verdict was removed from source, so the claim is false, and a correctness defect outranks a token cost",
+        "text": "R13 is the last untested mechanism and now applies to the Lead band ONLY — trigger reliability matters only where an agent chooses to invoke, and the nine non-Lead agents receive skill bodies unconditionally by preload",
         "scope": "c3",
         "refs": [
-          ".claude/CLAUDE.md:11",
-          ".claude/rules/common/git-workflow.md:9",
-          ".claude/rules/common/git/commits.md:20",
-          ".claude/rules/common/git/branching.md:6",
-          "docs/security/bash-gate-threat-model.md:10"
+          "report risk R13",
+          "decision 0480",
+          "decision 0500 item 1"
         ]
       },
       {
-        "text": "Add StructuredOutput to each agent's explicit tools list rather than deleting the lists — all 15 current agents declare explicit allowlists, and although an absent tools line inherits the full tool set, deleting a list would widen permissions far past the fix",
+        "text": "The b6 spec asserts a hook that no longer exists — protect-claude-config.sh was deleted in c8a1b9a7, so this is a SECOND removed control in the self-modification domain and belongs to the thread already open on that exposure",
         "scope": "c3",
         "refs": [
-          ".claude/lib/mitosis/agent-schema-lint.mjs (unmerged feature worktrees only)"
+          "docs/superpowers/specs/2026-07-31-b6-harness-liveness-implementation.md:850",
+          "thread 01KZZDZ15E6308G0V1TQ9GH0BD"
         ]
       },
       {
-        "text": "Delete the two confirmed dead agent references before they mislead a future reader — both name agents that exist nowhere on disk or in any installed plugin",
+        "text": "Branch worktree-agent-a7014b3f8b04d580d is NOT merged into main and predates this session — it was deliberately held back during cleanup and needs a disposition before it is assumed disposable",
         "scope": "c3",
         "refs": [
-          ".claude/rules/common/performance.md:52 names build-error-resolver",
-          ".claude/rules/typescript/testing.md:18 names e2e-runner"
+          "git branch --list 'worktree-agent-*'"
         ]
       },
       {
-        "text": "Choose which browser tooling is standard for reproducing a user-interface bug — what a reproduction must RETURN is now settled as a re-runnable command plus inputs rather than a screenshot, so only the tool choice remains open",
+        "text": "Superseding thread agent-roster-gap-resolution is BLOCKED by a schema defect, not pending — two malformed decision refs make transition_thread and archive_thread both refuse, so that thread cannot be closed by any tool",
         "scope": "c3",
         "refs": [
-          "report section 14, OPEN 6",
-          "report section 9e return contract"
-        ]
-      },
-      {
-        "text": "Decide whether this thread supersedes the paused thread agent-roster-gap-resolution — it covers overlapping ground against an older SPEC and was not touched in rounds 2, 3 or 4",
-        "scope": "c3",
-        "refs": [
-          "01KYERC4Y2XFVQ5GFQRRV0BKTS"
+          "01KYERC4Y2XFVQ5GFQRRV0BKTS",
+          "memory: legacy-key-decisions-block-update-thread"
         ]
       }
     ],
@@ -241,5 +248,5 @@
     ]
   },
   "created_at": "2026-08-16T05:43:25.829Z",
-  "updated_at": "2026-08-17T04:38:20.075Z"
+  "updated_at": "2026-08-17T04:48:13.765Z"
 }
