@@ -755,6 +755,11 @@
         "ref": "0499-phase-driver-owns-the-sequence-with-hybrid-prompt-composition",
         "title": "A phase-driver module owns the eight-phase sequence, with hybrid prompt composition",
         "scope": "c27"
+      },
+      {
+        "ref": "0502-e2e-substrate-is-built-early-so-later-msps-prove-on-real-runs",
+        "title": "The end-to-end substrate is built early, not last",
+        "scope": "c31"
       }
     ],
     "out_of_scope": [
@@ -766,5 +771,5 @@
     ]
   },
   "created_at": "2026-08-12T07:37:41.077Z",
-  "updated_at": "2026-08-17T04:35:07.495Z"
+  "updated_at": "2026-08-17T05:05:36.528Z"
 }
