@@ -1,8 +1,8 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
 import { realPorts, runCli } from '../cli.mjs';
 import { emitRunDocument } from '../decompose-emit.mjs';
 import { dispatch } from '../dispatch.mjs';
@@ -14,6 +14,13 @@ const PREAMBLES = Object.freeze({
   qualityReviewer: 'You review the unit for code quality and return a verdict.',
 });
 const UNIT_SHA = '0123456789abcdef0123456789abcdef01234567';
+const LOGICAL_RUN_ID = 'run-alpha';
+const UNIT_ID = 'alpha-core';
+const PLAN_ARTIFACT_SEGMENTS = Object.freeze(['.mitosis', 'plans']);
+const SKILL_POINTERS = Object.freeze({
+  libDir: '/opt/mitosis/lib',
+  writingPlansGlob: '/opt/superpowers/*/skills/writing-plans/SKILL.md',
+});
 const RUN_ID = '0a1b2c3d';
 const AT = '2026-08-16T12:00:00Z';
 const JOURNAL_PATH = '.mitosis/run.jsonl';
@@ -33,25 +40,33 @@ const MSPS = Object.freeze([
   }),
 ]);
 
-function payloadForSchema(schemaText, unitReportsSha) {
+function writePlanArtifact(planPath) {
+  mkdirSync(dirname(planPath), { recursive: true });
+  writeFileSync(planPath, `a fixture plan for ${UNIT_ID}\n`);
+  return planPath;
+}
+
+function payloadForSchema(schemaText, unitReportsSha, planPath) {
   const schema = JSON.parse(schemaText);
   const properties = schema.properties === null || typeof schema.properties !== 'object' ? {} : schema.properties;
   if (Object.hasOwn(properties, 'msps')) return { msps: MSPS };
+  if (Object.hasOwn(properties, 'planPath')) return { planPath: writePlanArtifact(planPath) };
+  if (Object.hasOwn(properties, 'pillarsAlignment')) return { verdict: 'approve' };
   if (Object.hasOwn(properties, 'sha')) return unitReportsSha ? { sha: UNIT_SHA } : {};
   if (Object.hasOwn(properties, 'verdict')) return { verdict: 'pass' };
   throw new Error(`the fake child was handed a schema it cannot answer: ${schemaText}`);
 }
 
-function envelopeFor(argv, unitReportsSha) {
+function envelopeFor(argv, unitReportsSha, planPath) {
   const at = argv.indexOf('--json-schema');
   if (at === -1) return envelopeText({});
-  return envelopeText({ structured_output: payloadForSchema(argv[at + 1], unitReportsSha) });
+  return envelopeText({ structured_output: payloadForSchema(argv[at + 1], unitReportsSha, planPath) });
 }
 
-function fakeSpawn(calls, unitReportsSha) {
+function fakeSpawn(calls, unitReportsSha, planPath) {
   return (binary, argv) => {
     calls.push({ binary, argv: [...argv] });
-    const text = envelopeFor(argv, unitReportsSha);
+    const text = envelopeFor(argv, unitReportsSha, planPath);
     const child = fakeChild(undefined);
     setImmediate(() => {
       child.stdout.end(text);
@@ -80,9 +95,13 @@ function emitArgs(place, isolation) {
     worktreeRoot: join(place.root, 'worktrees'),
     scopedCheckCmd: ['node', '--test'],
     isolation,
-    logicalRunId: 'run-alpha',
+    logicalRunId: LOGICAL_RUN_ID,
     out: place.out,
   };
+}
+
+function planArtifactPath(place) {
+  return join(place.root, ...PLAN_ARTIFACT_SEGMENTS, LOGICAL_RUN_ID, `${UNIT_ID}.md`);
 }
 
 function cliArgv(place) {
@@ -145,7 +164,7 @@ async function emitThenRun(t, options = {}) {
   const unitReportsSha = options.unitReportsSha === undefined ? true : options.unitReportsSha;
   const place = scratch(t);
   const calls = [];
-  const spawn = fakeSpawn(calls, unitReportsSha);
+  const spawn = fakeSpawn(calls, unitReportsSha, planArtifactPath(place));
   const emitted = await emitRunDocument(emitArgs(place, isolation), { spawn, loadPreambles: () => PREAMBLES });
   assert.equal(emitted.ok, true, emitted.error);
   const document = JSON.parse(readFileSync(place.out, 'utf8'));
@@ -155,7 +174,11 @@ async function emitThenRun(t, options = {}) {
     ...effects.deps,
     dispatch: (request) => dispatch(request, { spawn }),
   });
-  const exitCode = await runCli(cliArgv(place), io, makePorts, { openRun: () => stubHandle() });
+  const exitCode = await runCli(cliArgv(place), io, makePorts, {
+    openRun: () => stubHandle(),
+    dispatch: (request) => dispatch(request, { spawn }),
+    skillPointers: () => SKILL_POINTERS,
+  });
   return { calls, document, effects, io, exitCode };
 }
 
@@ -212,8 +235,8 @@ test('a worktree unit whose child reports no sha is still refused rather than ch
 
 test('the unit child is asked for its verdict against a schema, which is what makes its sha available', async (t) => {
   const { calls } = await emitThenRun(t);
-  assert.equal(calls.length, 4, 'the run did not spawn exactly one decompose child, one unit child, one review child and one security child');
-  const unitArgv = calls[1].argv;
+  assert.equal(calls.length, 6, 'the run did not spawn exactly one decompose child, one plan child, one plan-review child, one unit child, one review child and one security child');
+  const unitArgv = calls[3].argv;
   const at = unitArgv.indexOf('--json-schema');
   assert.notEqual(at, -1, 'the unit child was dispatched with no --json-schema, so its envelope carries no structured_output at all');
   const schema = JSON.parse(unitArgv[at + 1]);

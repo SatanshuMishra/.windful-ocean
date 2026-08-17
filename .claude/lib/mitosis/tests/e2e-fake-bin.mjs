@@ -123,11 +123,16 @@ for (const value of argv) {
     break;
   }
 }
+function tokenListOf(declared) {
+  const candidates = Array.isArray(declared) ? declared : [declared];
+  return candidates.filter((token) => typeof token === 'string' && token !== '');
+}
+
 function tokenUnitId() {
   const tokens = plan.unitTokens;
   if (tokens === null || typeof tokens !== 'object' || Array.isArray(tokens)) return null;
   if (typeof PROMPT !== 'string') return null;
-  const matched = Object.keys(tokens).filter((id) => typeof tokens[id] === 'string' && tokens[id] !== '' && PROMPT.indexOf(tokens[id]) !== -1);
+  const matched = Object.keys(tokens).filter((id) => tokenListOf(tokens[id]).some((token) => PROMPT.indexOf(token) !== -1));
   if (matched.length > 1) {
     refuse(81, 'the prompt carries the tokens of ' + matched.join(' and ') + ', so the planned behaviour is ambiguous and the stub refuses rather than picking one');
   }

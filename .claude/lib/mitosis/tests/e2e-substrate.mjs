@@ -580,11 +580,19 @@ export function unitTokenOf(unitId) {
   return `${BRANCH_PREFIX}/${unitId}`;
 }
 
+export function mspTokenOf(unitId) {
+  return `MSP ${JSON.stringify(unitId)}`;
+}
+
+export function unitTokensOf(unitId) {
+  return Object.freeze([unitTokenOf(unitId), mspTokenOf(unitId)]);
+}
+
 export function planDecomposition(sandbox, msps) {
   if (!Array.isArray(msps) || msps.length === 0) {
     throw new TypeError('e2e-substrate: planDecomposition needs a non-empty array of msps, because an empty decomposition composes no run document');
   }
-  const unitTokens = Object.fromEntries(msps.map((msp) => [msp.id, unitTokenOf(msp.id)]));
+  const unitTokens = Object.fromEntries(msps.map((msp) => [msp.id, [...unitTokensOf(msp.id)]]));
   const plan = JSON.parse(readFileSync(sandbox.claudePlan, 'utf8'));
   writeFileSync(sandbox.claudePlan, `${JSON.stringify({ ...plan, decompose: { marker: DECOMPOSE_MARKER, msps }, unitTokens })}\n`);
   return Object.freeze({ marker: DECOMPOSE_MARKER, msps: Object.freeze([...msps]), unitTokens: Object.freeze(unitTokens) });
