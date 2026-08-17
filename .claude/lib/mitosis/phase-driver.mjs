@@ -1,5 +1,6 @@
 import { runEngine } from './engine.mjs';
 import { PHASE_TITLES } from './phases.mjs';
+import { planResume } from './resume-plan.mjs';
 import { computeRunKey } from './run-store.mjs';
 
 const DRIVER = 'phase-driver';
@@ -16,7 +17,7 @@ const REQUIRED_TEXT_FIELDS = Object.freeze([
   'integrationBranch',
 ]);
 
-const REQUIRED_PORTS = Object.freeze(['openRun', 'release', 'makeObserver', 'makePorts']);
+const REQUIRED_PORTS = Object.freeze(['openRun', 'release', 'makeObserver', 'makePorts', 'readJournal']);
 
 function describe(value) {
   if (value === null) return 'null';
@@ -104,10 +105,10 @@ function runStoreRequest(request) {
   };
 }
 
-function engineRequest(request, onRecord) {
+function engineRequest(request, resumePlan, onRecord) {
   return {
-    specs: request.spec.specs,
-    manifest: request.spec.manifest,
+    specs: resumePlan.specs,
+    manifest: resumePlan.manifest,
     runId: request.runId,
     at: request.at,
     repoRoot: request.repoRoot,
@@ -129,6 +130,16 @@ async function decomposePhase(completed, request, ports) {
   return entered(title, { units: EMPTY_LIST });
 }
 
+async function resumePhase(completed, request, ports) {
+  const title = phase('Resume');
+  return entered(title, planResume({
+    manifest: request.spec.manifest,
+    specs: unitsOf(request.spec),
+    runId: request.runId,
+    journal: ports.readJournal({ repoRoot: request.repoRoot, path: request.journalPath }),
+  }));
+}
+
 async function prepPhase(completed, request, ports) {
   const title = phase('Prep');
   return entered(title, {
@@ -139,9 +150,10 @@ async function prepPhase(completed, request, ports) {
 
 async function executePhase(completed, request, ports) {
   const title = phase('Execute');
+  const resumed = requirePreceding(completed, 'Resume');
   const prepared = requirePreceding(completed, 'Prep');
   return entered(title, {
-    result: await runEngine(engineRequest(request, prepared.onRecord), prepared.enginePorts),
+    result: await runEngine(engineRequest(request, resumed, prepared.onRecord), prepared.enginePorts),
   });
 }
 
@@ -155,11 +167,6 @@ async function shipPhase(completed, request, ports) {
   return entered(title, { opened: EMPTY_LIST, parked: EMPTY_LIST });
 }
 
-async function resumePhase(completed, request, ports) {
-  const title = phase('Resume');
-  return entered(title, { resumed: EMPTY_LIST, parked: EMPTY_LIST });
-}
-
 async function remediatePhase(completed, request, ports) {
   const title = phase('Remediate');
   return entered(title, { remediated: EMPTY_LIST, parked: EMPTY_LIST });
@@ -168,11 +175,11 @@ async function remediatePhase(completed, request, ports) {
 const PHASE_BODIES = Object.freeze([
   probePhase,
   decomposePhase,
+  resumePhase,
   prepPhase,
   executePhase,
   integratePhase,
   shipPhase,
-  resumePhase,
   remediatePhase,
 ]);
 

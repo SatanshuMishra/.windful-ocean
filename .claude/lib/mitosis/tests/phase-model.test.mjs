@@ -15,7 +15,7 @@ const WORKFLOW_EXTENSION = '.js';
 const BLANKED = ' ';
 const WORD_CHARACTER = /[\w$]/;
 
-const PIPELINE = Object.freeze(['Probe', 'Decompose', 'Prep', 'Execute', 'Integrate', 'Ship', 'Resume', 'Remediate']);
+const PIPELINE = Object.freeze(['Probe', 'Decompose', 'Resume', 'Prep', 'Execute', 'Integrate', 'Ship', 'Remediate']);
 
 const RETIRED_PHASE_TITLES = Object.freeze([
   'Boundary',
@@ -112,7 +112,7 @@ test('the phase authority names the eight phases of the pipeline, as an ordered 
   assert.deepEqual(
     [...PHASE_TITLES],
     [...PIPELINE],
-    'the authority must name exactly Probe, Decompose, Prep, Execute, Integrate, Ship, Resume, Remediate in pipeline order; a length assertion would let Prep be swapped for Plan and still pass',
+    'the authority must name exactly Probe, Decompose, Resume, Prep, Execute, Integrate, Ship, Remediate in pipeline order; Resume recovers an interrupted run and so precedes the phases that act on what it recovers, and a length assertion would let Prep be swapped for Plan and still pass',
   );
   assert.equal(Object.isFrozen(PHASE_TITLES), true, 'the authority is the single source of truth for the phase model, so a caller must not be able to push a ninth title into it at run time');
 });
