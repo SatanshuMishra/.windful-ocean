@@ -387,6 +387,11 @@
         "ref": "0530-wave-3-is-a-four-link-stack-with-capability-blocked-inserted",
         "title": "Wave 3 executes as a four-link linear stack, with capability_blocked inserted as U3.3b before the cutover",
         "scope": "c4"
+      },
+      {
+        "ref": "0531-the-engine-gate-on-waves-4-to-7-is-satisfied-and-lifted",
+        "title": "The engine gate on waves 4 to 7 is satisfied and lifted; the SPEC section 6 table wins over section 5a",
+        "scope": "c4"
       }
     ],
     "out_of_scope": [
@@ -395,5 +400,5 @@
     ]
   },
   "created_at": "2026-08-16T05:43:25.829Z",
-  "updated_at": "2026-08-17T16:47:10.904Z"
+  "updated_at": "2026-08-17T16:52:40.681Z"
 }
