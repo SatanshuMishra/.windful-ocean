@@ -247,6 +247,11 @@
         "ref": "0503-preload-only-small-skills-larger-procedures-are-body-pointers",
         "title": "Preload only skills at or under 4KB; larger procedures become body-carried pointers resolved at generation time",
         "scope": "c4"
+      },
+      {
+        "ref": "0505-claude-in-chrome-reproduces-the-artifact-is-an-obligation",
+        "title": "Claude in Chrome reproduces; the re-runnable artifact is the investigator's obligation, not the tool's",
+        "scope": "c3"
       }
     ],
     "out_of_scope": [
@@ -256,5 +261,5 @@
     ]
   },
   "created_at": "2026-08-16T05:43:25.829Z",
-  "updated_at": "2026-08-17T05:29:44.128Z"
+  "updated_at": "2026-08-17T05:34:29.509Z"
 }
