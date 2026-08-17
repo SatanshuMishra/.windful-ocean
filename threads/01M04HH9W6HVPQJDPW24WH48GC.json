@@ -341,6 +341,11 @@
         "ref": "0524-observer-record-is-ten-fields-with-a-sidecar-read",
         "title": "The observer record is ten fields, with parent, depth and agent type read from the platform sidecar",
         "scope": "c4"
+      },
+      {
+        "ref": "0527-standing-order-execute-wave-3-on-approved-or-go",
+        "title": "Standing order: a bare Approved or Go in a fresh session executes wave 3 by fan-out dispatch, no further confirmation",
+        "scope": "c4"
       }
     ],
     "out_of_scope": [
@@ -349,5 +354,5 @@
     ]
   },
   "created_at": "2026-08-16T05:43:25.829Z",
-  "updated_at": "2026-08-17T16:06:07.219Z"
+  "updated_at": "2026-08-17T16:22:08.920Z"
 }
