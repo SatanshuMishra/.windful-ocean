@@ -327,6 +327,11 @@
         "ref": "0521-stacked-prs-for-blocked-msp-chains",
         "title": "Stack pull requests for blocked MSP chains, with mandatory parent-branch deletion before each child merge",
         "scope": "c4"
+      },
+      {
+        "ref": "0524-observer-record-is-ten-fields-with-a-sidecar-read",
+        "title": "The observer record is ten fields, with parent, depth and agent type read from the platform sidecar",
+        "scope": "c4"
       }
     ],
     "out_of_scope": [
@@ -335,5 +340,5 @@
     ]
   },
   "created_at": "2026-08-16T05:43:25.829Z",
-  "updated_at": "2026-08-17T15:24:21.583Z"
+  "updated_at": "2026-08-17T15:41:03.217Z"
 }
