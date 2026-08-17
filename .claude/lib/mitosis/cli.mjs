@@ -15,6 +15,7 @@ import { resumeSummary } from './resume-plan.mjs';
 import { execAllowed, openRun } from './run-store.mjs';
 import { shipSummary } from './ship-plan.mjs';
 import { readJudgment, runJudgment } from './unit-judgment.mjs';
+import { IMPLEMENT_STAGE, planRemediatedAttempt } from './unit-remediation.mjs';
 
 const MODULE = 'mitosis-cli';
 const GIT_BINARY = 'git';
@@ -371,7 +372,56 @@ function judgmentPark(judged, envelope) {
   return Object.freeze({ ...parked, envelope });
 }
 
+function requireRemediationTask(config, unit) {
+  const declared = config.taskById === undefined || config.taskById === null
+    ? undefined
+    : config.taskById.get(unit.id);
+  if (typeof declared !== 'string' || declared.trim() === '') {
+    throw new TypeError(`${MODULE}: unit ${JSON.stringify(unit.id)} failed an attempt the run may still retry, but the spec declares no task text for it, so the diagnosis that informs the retry would name no objective and the corrected re-attempt would be composed from nothing`);
+  }
+  return declared;
+}
+
+function failureLedger() {
+  const failures = new Map();
+  const corrections = new Map();
+  return Object.freeze({
+    record: (id, evidence) => { failures.set(id, evidence); },
+    evidenceOf: (id) => (failures.has(id) ? failures.get(id) : null),
+    correctionOrdinalOf: (id) => (corrections.get(id) ?? 0) + 1,
+    spendCorrection: (id) => { corrections.set(id, (corrections.get(id) ?? 0) + 1); },
+  });
+}
+
+function failureEvidence(verdict) {
+  return {
+    outcome: verdict === null ? null : orNullField(verdict.outcome),
+    error: verdict === null ? null : orNullField(verdict.error),
+  };
+}
+
+function remediationPark(planned) {
+  const parked = NeedsHuman({ kind: planned.kind, what: planned.what, detail: planned.detail }, []);
+  const envelope = planned.envelope === null || planned.envelope === undefined ? null : normalizeEnvelope(planned.envelope);
+  return Object.freeze({ ...parked, envelope });
+}
+
+async function attemptRequest(ledger, config, unit, request, dispatchOne) {
+  const evidence = ledger.evidenceOf(unit.id);
+  if (evidence === null) return Object.freeze({ ok: true, request });
+  const planned = await planRemediatedAttempt({
+    unitId: unit.id,
+    stage: IMPLEMENT_STAGE,
+    task: requireRemediationTask(config, unit),
+    evidence,
+    attempt: ledger.correctionOrdinalOf(unit.id),
+  }, request, dispatchOne);
+  if (planned.ok) ledger.spendCorrection(unit.id);
+  return planned;
+}
+
 export function realPorts(config, deps = {}) {
+  const ledger = failureLedger();
   const dispatchFn = deps.dispatch === undefined ? dispatch : deps.dispatch;
   const writeGenesisFn = deps.writeGenesis === undefined ? writeGenesis : deps.writeGenesis;
   const appendJournalFn = deps.appendJournalLine === undefined ? appendJournalLine : deps.appendJournalLine;
@@ -381,8 +431,12 @@ export function realPorts(config, deps = {}) {
     runUnit: async (unit, context) => {
       const request = requireUnitRequest(config, unit);
       const judgment = declaredJudgment(config, unit);
-      const verdict = verdictShape(await dispatchFn({ ...request, signal: context.signal }));
+      const dispatchOne = (payload) => dispatchFn({ ...payload, signal: context.signal });
+      const attempt = await attemptRequest(ledger, config, unit, request, dispatchOne);
+      if (!attempt.ok) return remediationPark(attempt);
+      const verdict = verdictShape(await dispatchOne(attempt.request));
       if (verdict === null || verdict.ok !== true) {
+        ledger.record(unit.id, failureEvidence(verdict));
         const parked = NeedsHuman({
           kind: 'dispatch',
           what: verdict === null ? 'no verdict' : verdict.outcome,
@@ -394,11 +448,7 @@ export function realPorts(config, deps = {}) {
       const needsHuman = needsHumanReasonOf(verdict);
       if (needsHuman !== null) return needsHumanPark(needsHuman, envelope);
       if (judgment !== null) {
-        const judged = await runJudgment(
-          judgment,
-          (judgmentRequest) => dispatchFn({ ...judgmentRequest, signal: context.signal }),
-          request,
-        );
+        const judged = await runJudgment(judgment, dispatchOne, request);
         if (!judged.ok) return judgmentPark(judged, envelope);
       }
       return Done({ sha: shaOfVerdict(verdict), green: true, envelope });
