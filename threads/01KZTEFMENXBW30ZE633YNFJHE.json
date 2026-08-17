@@ -918,6 +918,11 @@
         "ref": "0535-no-machine-derived-dependency-truth-on-the-engine-path",
         "title": "An engine run carries no machine-derived dependency truth, so parallel-safety rests on the model's dependsOn",
         "scope": "c28"
+      },
+      {
+        "ref": "0538-one-cli-invocation-advances-exactly-one-stage",
+        "title": "One cli.mjs invocation advances exactly one stage, contradicting the skill's single-dispatch contract",
+        "scope": "c28"
       }
     ],
     "out_of_scope": [
@@ -929,5 +934,5 @@
     ]
   },
   "created_at": "2026-08-12T07:37:41.077Z",
-  "updated_at": "2026-08-17T17:13:16.778Z"
+  "updated_at": "2026-08-17T17:28:02.627Z"
 }
