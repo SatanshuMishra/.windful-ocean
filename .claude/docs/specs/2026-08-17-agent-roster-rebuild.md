@@ -42,7 +42,8 @@ Every unit below inherits this section. Values are exact.
 | Agent definitions | `.claude/agents/*.md`, symlinked live from `~/.claude/agents` |
 | Rules | `.claude/rules/**`, symlinked live from `~/.claude/rules` |
 | Skills | `.claude/skills/**`, symlinked live from `~/.claude/skills` |
-| Observer output | `~/.claude/agent-ledger/events/YYYY-MM-DD.jsonl` |
+| Observer output (retiring, until U3.4) | `~/.claude/agent-ledger/events/YYYY-MM-DD.jsonl` |
+| Observer output (rebuilt) | `~/.claude/observer/events/YYYY-MM.jsonl`, root overridable by `CLAUDE_OBSERVER_DIR` |
 | Dispatch tool grant | `Agent` tool: the four Leads only |
 | Skill tool grant | `Skill` tool: the four Leads only |
 | Skill reach, non-Leads | `skills:` frontmatter only |
@@ -344,14 +345,41 @@ check names it.
 **Deliverable:** the rebuilt observer writing one append per run to a new path in the new
 format, running alongside the current `agent-run-analyzer.mjs`, which stays authoritative.
 **Depends on:** wave 1.
-**Record:** `ts`, `subject`, `event`, `session_id`, `project`, `agent_id`,
-`agent_transcript_path`, `agent_type`, `parent_agent`, `depth`, `duration_ms`, `tokens_in`,
-`tokens_out`, `cache_read`, `cache_creation`, `tool_calls`, `num_turns`, `outcome`,
-`receipt_verdict`, `fallback_reason`, `denial`, `source`. `model` and `effort` are excluded
-per decision 0496. Every field carries a declared type — the report declares none, so this
-unit fixes them and they become the contract.
+**Record:** ten fields, one JSON object per line, every field present on every row. An unknown
+value is an explicit `null`, never an omitted key — DuckDB infers column types from early
+rows, and an omitted key makes that inference unstable. Fixed by decision 0524, which
+supersedes the 22-field record this paragraph previously declared.
+
+| Field | Type | Source |
+|---|---|---|
+| `ts` | string, RFC3339 UTC with milliseconds | observer clock at append, not the payload |
+| `subject` | string, `agent` | constant namespace discriminator |
+| `event` | string, `SubagentStart` or `SubagentStop` | payload `hook_event_name`, copied raw |
+| `session_id` | string | payload `session_id` |
+| `cwd` | string, absolute | payload `cwd` |
+| `agent_id` | string | payload `agent_id` |
+| `agent_type` | string or null | sidecar `agentType`, then payload `agent_type`, then null |
+| `agent_transcript_path` | string or null | payload `agent_transcript_path`, stop only, null on start |
+| `parent_agent_id` | string or null | sidecar `parentAgentId`; null means the main thread dispatched it |
+| `depth` | integer or null | sidecar `spawnDepth` |
+
+The sidecar is the platform-written file at `<transcript_path with the trailing .jsonl
+removed>/subagents/agent-<agent_id>.meta.json`, a path that is a pure function of two payload
+fields. It is the only source of parent and depth, and sidecar `agentType` is read before the
+payload's because payload `agent_type` is the literal string `unknown` on 56.7% of historical
+rows while the sidecar is populated on 100%.
+
+`model` and `effort` are excluded per decision 0496; `cost` and `permission_denials` per
+decision 0510. `project` is replaced by raw `cwd`, because a basename collapses distinct
+worktrees. `source` is dropped as a constant on every row. `duration_ms`, `tokens_in`,
+`tokens_out`, `cache_read`, `cache_creation`, `tool_calls`, `num_turns`, `outcome` and
+`receipt_verdict` are NOT fields — they are derived at audit time. `fallback_reason` and
+`denial` become separate event types, since denials are 0..N per run and a scalar would be
+lossy. `subject` is constant by construction and must never be read as a measurement.
 **Mechanism:** POSIX `O_APPEND` line write, no lock. Monthly rotation. No write-time
-computation of any kind.
+computation, with one bounded exception: a single best-effort read of the platform sidecar at
+a path that is a pure function of payload fields, failing to null. No transcript reading, no
+classification, no aggregation, no cached state.
 **Must not touch:** the existing analyzer, its output path, or its hook registration.
 **Acceptance:** a synthetic payload produces exactly one line with every declared field at
 its declared type; two concurrent writers produce two intact lines. Inertness: remove the
@@ -360,12 +388,16 @@ its declared type; two concurrent writers produce two intact lines. Inertness: r
 
 ### U3.2 — Bind SubagentStart
 
-**Deliverable:** the observer also fires on `SubagentStart`, which is the only event carrying
-the parent for the `parent_agent` join.
+**Deliverable:** the observer also fires on `SubagentStart`, which supplies the start
+timestamp that makes duration derivable and records dispatches that never produce a stop. NO
+hook event carries a parent; attribution comes from the sidecar per decision 0524.
 **Depends on:** U3.1.
-**Acceptance:** a dispatch produces a start row and a stop row sharing one `agent_id`, and
-the start row's `parent_agent` names the dispatcher. Inertness: drop the start binding, the
-join is empty.
+**Acceptance:** one dispatch yields exactly one start row and one stop row sharing one
+`agent_id`, with `start.ts` at or before `stop.ts`; on a fixture containing a nested dispatch
+the child's `parent_agent_id` equals the dispatcher's `agent_id` and `depth` is 2, while a
+main-thread dispatch has `parent_agent_id` null and `depth` 1; the empty-rate of `agent_type`
+on start rows is MEASURED and recorded, not assumed. Inertness: drop the start binding and
+pairing and duration both fail; stub the sidecar read to `{}` and the depth-2 assertion fails.
 **Green on merge:** adds rows to the new log only.
 
 ### U3.3 — Audit-time query skill
