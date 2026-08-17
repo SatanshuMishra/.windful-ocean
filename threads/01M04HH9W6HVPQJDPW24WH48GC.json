@@ -322,6 +322,11 @@
         "ref": "0517-repoint-the-continuity-rule-fully-not-just-its-names",
         "title": "Repoint the continuity ledger rule fully rather than only fixing the two names that dangle",
         "scope": "c4"
+      },
+      {
+        "ref": "0521-stacked-prs-for-blocked-msp-chains",
+        "title": "Stack pull requests for blocked MSP chains, with mandatory parent-branch deletion before each child merge",
+        "scope": "c4"
       }
     ],
     "out_of_scope": [
@@ -330,5 +335,5 @@
     ]
   },
   "created_at": "2026-08-16T05:43:25.829Z",
-  "updated_at": "2026-08-17T15:10:34.611Z"
+  "updated_at": "2026-08-17T15:24:21.583Z"
 }
