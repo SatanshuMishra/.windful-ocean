@@ -346,6 +346,11 @@
         "ref": "0527-standing-order-execute-wave-3-on-approved-or-go",
         "title": "Standing order: a bare Approved or Go in a fresh session executes wave 3 by fan-out dispatch, no further confirmation",
         "scope": "c4"
+      },
+      {
+        "ref": "0528-unit-leads-are-general-purpose-not-roster-specialists",
+        "title": "Unit leads are general-purpose agents, because no roster specialist holds the Agent tool needed to fan out",
+        "scope": "c4"
       }
     ],
     "out_of_scope": [
@@ -354,5 +359,5 @@
     ]
   },
   "created_at": "2026-08-16T05:43:25.829Z",
-  "updated_at": "2026-08-17T16:22:08.920Z"
+  "updated_at": "2026-08-17T16:23:56.278Z"
 }
