@@ -820,6 +820,11 @@
         "ref": "0514-g14-equivalent-mutant-has-no-compliant-channel",
         "title": "G14's equivalent-mutant declaration has no compliant channel, and is proposed as a gap",
         "scope": "c28"
+      },
+      {
+        "ref": "0515-the-decomposer-declares-security-review-required",
+        "title": "The decomposer declares securityReviewRequired; it is never defaulted",
+        "scope": "c27"
       }
     ],
     "out_of_scope": [
@@ -831,5 +836,5 @@
     ]
   },
   "created_at": "2026-08-12T07:37:41.077Z",
-  "updated_at": "2026-08-17T08:36:29.819Z"
+  "updated_at": "2026-08-17T09:31:04.866Z"
 }
