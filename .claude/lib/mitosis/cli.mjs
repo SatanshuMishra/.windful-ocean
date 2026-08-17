@@ -1,12 +1,15 @@
 import { readFileSync, realpathSync } from 'node:fs';
+import { isAbsolute, join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { Done, NeedsHuman } from './boundary.mjs';
 import { dispatch, normalizeEnvelope } from './dispatch.mjs';
 import { POST_DISPATCH_RECORD_FAILED } from './engine.mjs';
 import { run } from './exec-run.mjs';
+import { foldFile } from './fold-run-log.mjs';
 import { GH_COMMAND_BINARY } from './gh-commands.mjs';
 import { appendJournalLine, writeGenesis } from './journal-store.mjs';
 import { runPhases } from './phase-driver.mjs';
+import { resumeSummary } from './resume-plan.mjs';
 import { execAllowed, openRun } from './run-store.mjs';
 
 const MODULE = 'mitosis-cli';
@@ -207,10 +210,16 @@ function driverRequest(args, spec) {
   };
 }
 
+function journalLocation(request) {
+  return isAbsolute(request.path) ? request.path : join(request.repoRoot, request.path);
+}
+
 function driverPorts(io, makePorts, deps) {
   const openRunFn = deps.openRun === undefined ? openRun : deps.openRun;
+  const foldJournalFn = deps.foldJournal === undefined ? foldFile : deps.foldJournal;
   return Object.freeze({
     openRun: (request) => openRunFn(request),
+    readJournal: (request) => foldJournalFn(journalLocation(request)),
     release: (handle) => releaseRun(handle, io),
     makeObserver: (config) => observeAll([
       unitRecorder(config.handle, config.at),
@@ -222,7 +231,9 @@ function driverPorts(io, makePorts, deps) {
   });
 }
 
-function summaryOf(result, handle) {
+function summaryOf(driven) {
+  const result = driven.phases.Execute.result;
+  const handle = driven.phases.Probe.handle;
   return {
     runKey: handle.runKey,
     attempt: handle.attempt,
@@ -230,6 +241,7 @@ function summaryOf(result, handle) {
     aborted: result.aborted,
     ticks: result.ticks,
     units: result.units.map((unit) => ({ id: unit.id, state: unit.state })),
+    resume: resumeSummary(driven.phases.Resume),
     prState: result.prState === undefined ? null : result.prState,
   };
 }
@@ -244,7 +256,7 @@ export async function runCli(argv, io, makePorts, deps = {}) {
     const spec = documentOf(io.readSpec(parsed.value.spec));
     const driven = await runPhases(driverRequest(parsed.value, spec), driverPorts(io, makePorts, deps));
     const result = driven.phases.Execute.result;
-    io.log(`${JSON.stringify(summaryOf(result, driven.phases.Probe.handle), null, 2)}\n`);
+    io.log(`${JSON.stringify(summaryOf(driven), null, 2)}\n`);
     if (!result.quiescent) return EXIT_INCOMPLETE;
     return result.units.every((unit) => unit.state === 'done') ? EXIT_CLEAN : EXIT_INCOMPLETE;
   } catch (error) {
