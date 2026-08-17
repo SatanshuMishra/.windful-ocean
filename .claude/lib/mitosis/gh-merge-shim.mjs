@@ -14,8 +14,10 @@ export const DEFAULT_FALLBACKS = Object.freeze([
 ]);
 
 const POLICY = 'mitosis merge-deny policy — PR merges are human-gated; the mitosis workflow never merges a PR itself, a human merges after review';
-const MERGE_MUTATION_RE = /mergePullRequest|enablePullRequestAutoMerge/;
+const MERGE_MUTATION_RE = /mergePullRequest|enablePullRequestAutoMerge|enqueuePullRequest/i;
 const MERGE_ENDPOINT_RE = /pulls\/[^/]+\/merge(?:[/?#]|$)/i;
+const GRAPHQL_ENDPOINT = 'graphql';
+const SCHEME_PREFIX_RE = /^[a-z][a-z0-9+.-]*:\/\/[^/]*/i;
 const QUERY_FIELD_FLAGS = Object.freeze(['-f', '--field', '-F', '--raw-field']);
 
 const GH_VALUE_FLAGS = Object.freeze(new Set([
@@ -202,6 +204,36 @@ function classifyGraphql(argv, io) {
   return { refuse: false, reason: '', stdin: stdinBuffer };
 }
 
+export const MERGE_REFUSAL_SPECIMENS = Object.freeze([
+  Object.freeze({ label: 'pr merge', kind: 'pr-merge', argv: Object.freeze(['pr', 'merge', '7']) }),
+  Object.freeze({ label: 'api graphql mergePullRequest', kind: 'graphql-mutation', argv: Object.freeze(['api', 'graphql', '-f', 'query=mutation { mergePullRequest(input: {pullRequestId: "PR_x"}) { clientMutationId } }']) }),
+  Object.freeze({ label: 'api graphql enablePullRequestAutoMerge', kind: 'graphql-mutation', argv: Object.freeze(['api', 'graphql', '-f', 'query=mutation { enablePullRequestAutoMerge(input: {pullRequestId: "PR_x"}) { clientMutationId } }']) }),
+  Object.freeze({ label: 'api graphql enqueuePullRequest', kind: 'graphql-mutation', argv: Object.freeze(['api', 'graphql', '-f', 'query=mutation { enqueuePullRequest(input: {pullRequestId: "PR_x"}) { clientMutationId } }']) }),
+  Object.freeze({ label: 'api /graphql mergePullRequest', kind: 'graphql-mutation', argv: Object.freeze(['api', '/graphql', '-f', 'query=mutation { mergePullRequest(input: {pullRequestId: "PR_x"}) { clientMutationId } }']) }),
+  Object.freeze({ label: 'api PUT pulls/N/merge', kind: 'api-merge-endpoint', argv: Object.freeze(['api', '-X', 'PUT', 'repos/acme/widgets/pulls/412/merge']) }),
+  Object.freeze({ label: 'api graphql unreadable body', kind: 'graphql-fail-closed', argv: Object.freeze(['api', 'graphql', '--input', '-']) }),
+  Object.freeze({ label: 'alias set defining a pr merge alias', kind: 'alias-merge', argv: Object.freeze(['alias', 'set', 'shipit', 'pr merge --squash']) }),
+  Object.freeze({
+    label: 'api graphql body read from a file',
+    kind: 'graphql-mutation-indirect',
+    argv: Object.freeze(['api', 'graphql', '--input', 'merge-body.graphql']),
+    io: Object.freeze({
+      readFile: () => 'mutation { mergePullRequest(input: {pullRequestId: "PR_x"}) { clientMutationId } }',
+      readStdin: () => null,
+    }),
+  }),
+  Object.freeze({ label: 'api merge mutation to an unrecognised endpoint', kind: 'api-merge-mutation', argv: Object.freeze(['api', 'repos/acme/widgets/merges', '-f', 'query=mutation { mergePullRequest(input: {pullRequestId: "PR_x"}) { clientMutationId } }']) }),
+]);
+
+export function isGraphqlEndpoint(token) {
+  if (typeof token !== 'string') return false;
+  let value = token.trim().replace(SCHEME_PREFIX_RE, '');
+  const cut = value.search(/[?#]/);
+  if (cut !== -1) value = value.slice(0, cut);
+  value = value.replace(/^\/+/, '').replace(/\/+$/, '');
+  return value.toLowerCase() === GRAPHQL_ENDPOINT;
+}
+
 function aliasBodyCarriesMerge(pos) {
   if (pos[0] !== 'alias') return false;
   if (pos[1] !== 'set' && pos[1] !== 'import') return false;
@@ -225,13 +257,16 @@ export function classifyGhMerge(argv, io) {
   }
 
   if (pos[0] === 'api') {
-    if (pos.includes('graphql')) {
+    if (pos.some(isGraphqlEndpoint)) {
       return classifyGraphql(args, io);
     }
     if (args.some((token) => MERGE_ENDPOINT_RE.test(token))) {
       if (hasMethodFlag(args) || hasBodyFlag(args)) {
         return { refuse: true, reason: reason('api-merge-endpoint', "'gh api' to a pulls/*/merge REST endpoint that is not a bare GET read"), stdin: null };
       }
+    }
+    if (MERGE_MUTATION_RE.test(args.join('\n'))) {
+      return { refuse: true, reason: reason('api-merge-mutation', "'gh api' carrying a merge mutation to an endpoint spelling this classifier does not recognise"), stdin: null };
     }
   }
 

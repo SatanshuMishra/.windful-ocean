@@ -1,4 +1,5 @@
 import { scopesOverlap } from './wave-planner.mjs';
+import { emptyFileScopePack, requireFileScopePack } from './msp-file-scope.mjs';
 import { BUILD_AHEAD_CAP } from './window.mjs';
 
 export function makeUnit(spec) {
@@ -6,13 +7,14 @@ export function makeUnit(spec) {
   if (!spec.id || typeof spec.id !== 'string') throw new Error('unit spec missing string id');
   const prereqs = spec.prereqs === undefined ? [] : spec.prereqs;
   if (!Array.isArray(prereqs)) throw new Error(`unit ${spec.id} prereqs must be an array`);
-  const fileScope = spec.fileScope === undefined ? [] : spec.fileScope;
-  if (!Array.isArray(fileScope)) throw new Error(`unit ${spec.id} fileScope must be an array`);
+  const fileScope = spec.fileScope === undefined || spec.fileScope === null
+    ? emptyFileScopePack()
+    : requireFileScopePack(spec.fileScope, `unit ${spec.id} fileScope`);
   return Object.freeze({
     id: spec.id,
     state: spec.state || 'planned',
     prereqs: Object.freeze([...prereqs]),
-    fileScope: Object.freeze([...fileScope]),
+    fileScope,
     leaseHeld: false,
   });
 }
@@ -51,7 +53,7 @@ export function isDispatchable(unit, unitsById, leases) {
     const prereq = unitsById.get(pid);
     if (!prereq || prereq.state !== 'done') return false;
   }
-  return overlapHolder(leases, unit.fileScope, unit.id) === null;
+  return overlapHolder(leases, unit.fileScope.edit, unit.id) === null;
 }
 
 export function isBuildable(unit, unitsById, leases, window) {
@@ -60,7 +62,7 @@ export function isBuildable(unit, unitsById, leases, window) {
     const prereq = unitsById.get(pid);
     if (!prereq || (prereq.state !== 'built' && prereq.state !== 'awaiting' && prereq.state !== 'done')) return false;
   }
-  if (overlapHolder(leases, unit.fileScope, unit.id) !== null) return false;
+  if (overlapHolder(leases, unit.fileScope.edit, unit.id) !== null) return false;
   if (!window || !Number.isInteger(window.size)) return false;
   if (!Number.isInteger(window.builtUnmergedCount)) return false;
   return window.builtUnmergedCount < window.size;
@@ -68,7 +70,7 @@ export function isBuildable(unit, unitsById, leases, window) {
 
 export function acquire(leases, unit) {
   const next = new Map(leases);
-  for (const path of unit.fileScope) next.set(path, unit.id);
+  for (const path of unit.fileScope.edit) next.set(path, unit.id);
   return next;
 }
 
@@ -126,52 +128,4 @@ export function planTick(units, windowSize) {
     }
   }
   return { dispatch, leases };
-}
-
-function markDispatched(units, dispatchIds) {
-  const set = new Set(dispatchIds);
-  return Object.freeze(units.map((u) => (set.has(u.id) ? Object.freeze({ ...u, state: 'dispatched', leaseHeld: true }) : u)));
-}
-
-function applyOutcomes(units, outcomes) {
-  return Object.freeze(units.map((u) => (outcomes.has(u.id) ? Object.freeze({ ...u, state: dispositionOf(outcomes.get(u.id)), leaseHeld: false }) : u)));
-}
-
-async function joinTick(units, runUnit) {
-  const settled = await Promise.allSettled(units.map((u) => runUnit(u)));
-  return settled.map((r) => (r.status === 'fulfilled' ? r.value : null));
-}
-
-function markAwaitingMerge(units) {
-  return Object.freeze(units.map((u) => (u.state === 'awaiting' ? Object.freeze({ ...u, state: 'awaiting-merge' }) : u)));
-}
-
-async function runScheduleTick(specs, runUnit, windowSize) {
-  let units = buildUnitTable(specs);
-  const ticks = [];
-  const dispatchedEpochs = new Set();
-  for (;;) {
-    const w = typeof windowSize === 'function' ? windowSize() : windowSize;
-    const stateOf = new Map(units.map((u) => [u.id, u.state]));
-    const epochOf = (id) => `${id}@${stateOf.get(id)}`;
-    const dispatch = planTick(units, w).dispatch.filter((id) => !dispatchedEpochs.has(epochOf(id)));
-    if (dispatch.length === 0) {
-      units = markAwaitingMerge(units);
-      return { units, ticks, quiescent: true };
-    }
-    for (const id of dispatch) dispatchedEpochs.add(epochOf(id));
-    ticks.push(dispatch);
-    units = markDispatched(units, dispatch);
-    const byId = indexUnits(units);
-    const dispatchUnits = dispatch.map((id) => byId.get(id));
-    const results = await joinTick(dispatchUnits, runUnit);
-    const outcomes = new Map(dispatch.map((id, i) => [id, results[i]]));
-    units = applyOutcomes(units, outcomes);
-  }
-}
-
-export async function runSchedule(specs, runUnit, opts, ...rest) {
-  if (rest.length > 0) throw new Error('runSchedule: the bounded merge poll was deleted, so the third argument is now opts; a 4-argument call would bind undefined to opts and silently degrade the build-ahead window to its default cap');
-  const windowSize = opts && (Number.isInteger(opts.window) || typeof opts.window === 'function') ? opts.window : undefined;
-  return runScheduleTick(specs, runUnit, windowSize);
 }

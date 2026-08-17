@@ -1,5 +1,8 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
+import { MITOSIS_GATE_VERBS } from '../mitosis-gate.mjs';
 import {
   CI_ATTEMPT_CAP,
   CI_PUBLISHED_TOKEN,
@@ -34,6 +37,39 @@ function report(overrides = {}) {
   };
 }
 
+const WORKFLOW_PATHS = Object.freeze([
+  fileURLToPath(new URL('../../../../.github/workflows/receipts.yml', import.meta.url)),
+  fileURLToPath(new URL('../../../skills/mitosis/templates/receipts.yml', import.meta.url)),
+]);
+
+function gateLegs(workflow, label) {
+  const jobs = [...workflow.matchAll(/^ {2}([A-Za-z0-9_-]+):$/gm)];
+  assert.ok(jobs.length > 0, `${label} declares no jobs, so no gate leg can report a check name`);
+  const legs = [];
+  for (let i = 0; i < jobs.length; i += 1) {
+    const block = workflow.slice(jobs[i].index, i + 1 < jobs.length ? jobs[i + 1].index : workflow.length);
+    const matrix = /^ +verb: \[([^\]]*)\]$/m.exec(block);
+    if (matrix === null) continue;
+    const verbs = matrix[1].split(',').map((verb) => verb.trim()).filter((verb) => verb.length > 0);
+    assert.ok(verbs.length > 0, `${label} declares a gate matrix with no verb in it`);
+    legs.push({ job: jobs[i][1], verbs });
+  }
+  assert.equal(legs.length, 1, `${label} must declare exactly one gate matrix job; found ${legs.length}`);
+  return legs[0];
+}
+
+function gateLegCheckNames() {
+  const names = [];
+  for (const path of WORKFLOW_PATHS) {
+    const leg = gateLegs(readFileSync(path, 'utf8'), path);
+    const unknown = leg.verbs.filter((verb) => !MITOSIS_GATE_VERBS.includes(verb));
+    assert.deepEqual(unknown, [], `${path} runs gate verbs the gate does not declare: ${unknown.join(', ')}`);
+    for (const verb of leg.verbs) names.push(`${leg.job} (${verb})`);
+  }
+  assert.ok(names.length > 0, 'no gate leg check name could be derived from the workflows, so this classification asserts nothing');
+  return names;
+}
+
 test('classifyCiReport: a complete, classifiable report matching NO escalation class is the only state from which a fix attempt may proceed', () => {
   assert.deepEqual(classifyCiReport(report(), SCOPE), { escalate: false });
 });
@@ -59,6 +95,13 @@ test('classifyCiReport CLASS 3 deny-case: a red receipts or D6 enforcer, by flag
   assert.equal(classifyCiReport(report({ failedChecks: ['receipts'] }), SCOPE).class, 3);
   assert.equal(classifyCiReport(report({ failedChecks: ['D6 cluster-boundary interaction tests'] }), SCOPE).class, 3);
   assert.equal(classifyCiReport(report({ failedChecks: ['pr-title-lint'] }), SCOPE).class, 3);
+  for (const name of gateLegCheckNames()) {
+    assert.equal(
+      classifyCiReport(report({ failedChecks: [name] }), SCOPE).class,
+      3,
+      `a red gate leg reporting as ${JSON.stringify(name)} is enforcer configuration, not a defect inside this msp; the enforcer token census must carry a token that check name contains`,
+    );
+  }
 });
 
 test('classifyCiReport CLASS 4 deny-case: a security-classed failing check, or a security-sensitive declared scope, parks', () => {
@@ -222,7 +265,7 @@ test('classifyCiReport: an agent-supplied path list reaches the escalation reaso
   const verdict = classifyCiReport(report({ implicatedPaths: [hostile] }), SCOPE);
   assert.equal(verdict.escalate, true);
   assert.ok(verdict.reason.length < CI_REASON_LIST_CAP + 400, `the reason is capped rather than an unbounded copy of agent text (was ${verdict.reason.length})`);
-  assert.ok(!/\p{Cc}/u.test(classifyCiReport(report({ implicatedPaths: ['src/pay/ab.ts'] }), SCOPE).reason),
+  assert.ok(!/\p{Cc}/u.test(classifyCiReport(report({ implicatedPaths: ['src/pay/a\u0007b.ts'] }), SCOPE).reason),
     'control characters never reach the durable park note');
 });
 

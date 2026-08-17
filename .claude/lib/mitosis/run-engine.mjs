@@ -1,96 +1,75 @@
+import { emptyFileScopePack, requireFileScopePack } from './msp-file-scope.mjs';
+import { scopedCheckArgv } from './engine-args.mjs';
+import { shellQuoteList } from './prompt-values.mjs';
+import { fileScopeEdit, isFileScopePack, normalizePath, scopeCovers, scopeIsSpecificFile } from './coarse-scope-lint.mjs';
 const STATUS_SCHEMA = { type: 'object', properties: { status: { enum: ['DONE', 'DONE_WITH_CONCERNS', 'BLOCKED', 'NEEDS_CONTEXT'] }, summary: { type: 'string' } }, required: ['status'] };
 const REVIEW_SCHEMA = { type: 'object', properties: { verdict: { enum: ['pass', 'fail'] }, issues: { type: 'array', items: { type: 'string' } } }, required: ['verdict'] };
 const MERGE_SCHEMA = { type: 'object', properties: { merged: { type: 'array', items: { type: 'string' } }, conflict: { type: 'boolean' }, conflictDetail: { type: 'string' } }, required: ['merged', 'conflict'] };
-const BOUNDARY_SCHEMA = { type: 'object', properties: { pass: { type: 'boolean' }, output: { type: 'string' }, baseCensus: { type: 'object' } }, required: ['pass'] };
+const BOUNDARY_SCHEMA = { type: 'object', properties: { pass: { type: 'boolean' }, output: { type: 'string' } }, required: ['pass'] };
 const FENCE_SCHEMA = { type: 'object', properties: { paths: { type: 'array', items: { type: 'string' } } }, required: ['paths'] };
 const EXEC_AGENT_TYPES = new Set(['implementer', 'test-engineer', 'general-purpose']);
 
-export function normalizePath(p) { return p.replace(/^\.\//, '').replace(/\/+$/, ''); }
-export const GLOB_MAX_LENGTH = 1024;
-export const GLOB_MAX_WILDCARDS = 8;
-function tokenizeGlob(glob) {
-  const tokens = [];
-  let index = 0;
-  while (index < glob.length) {
-    const char = glob[index];
-    if (char === '*' && glob[index + 1] === '*') { tokens.push({ kind: 'globstar' }); index += 2; continue; }
-    if (char === '*') { tokens.push({ kind: 'star' }); index += 1; continue; }
-    if (char === '?') { tokens.push({ kind: 'anyChar' }); index += 1; continue; }
-    tokens.push({ kind: 'literal', char }); index += 1;
-  }
-  return tokens;
-}
-function matchGlobTokens(tokens, text) {
-  const end = text.length;
-  let suffixMatches = Array.from({ length: end + 1 }, (_, at) => at === end);
-  for (let token = tokens.length - 1; token >= 0; token -= 1) {
-    const { kind, char } = tokens[token];
-    const row = new Array(end + 1);
-    for (let at = end; at >= 0; at -= 1) {
-      if (kind === 'star') row[at] = suffixMatches[at] || (at < end && text[at] !== '/' && row[at + 1]);
-      else if (kind === 'globstar') row[at] = suffixMatches[at] || (at < end && row[at + 1]);
-      else if (kind === 'anyChar') row[at] = at < end && text[at] !== '/' && suffixMatches[at + 1];
-      else row[at] = at < end && text[at] === char && suffixMatches[at + 1];
+const COUPLING_SERIALIZE_DECISION = 'serialize';
+export const COUPLING_DECISION_VOCABULARY = Object.freeze(['parallel', COUPLING_SERIALIZE_DECISION]);
+export function couplingSerializeViolations(couplingResolution, waves) {
+  if (couplingResolution === undefined || couplingResolution === null) return [];
+  if (!Array.isArray(couplingResolution)) throw new TypeError('runEngine: engineArgs.couplingResolution must be an array of resolved coupling records; a malformed value carries no decision to check and would pass a wave plan that silently contradicts a serialize decision');
+  if (!Array.isArray(waves)) throw new TypeError('runEngine: engineArgs.waves must be an array of wave arrays before a carried coupling decision can be checked against it');
+  const waveOf = new Map();
+  for (let index = 0; index < waves.length; index += 1) for (const id of waves[index]) waveOf.set(id, index);
+  const violations = [];
+  for (const record of couplingResolution) {
+    if (record === null || typeof record !== 'object' || !Array.isArray(record.pair) || record.pair.length !== 2) {
+      violations.push('a coupling record carries no two-element pair, so the decision it renders cannot be checked against the wave plan');
+      continue;
     }
-    suffixMatches = row;
+    const label = `${record.pair[0]}/${record.pair[1]}`;
+    if (!COUPLING_DECISION_VOCABULARY.includes(record.decision)) {
+      violations.push(`${label} carries the decision ${JSON.stringify(record.decision)}, which is none of ${COUPLING_DECISION_VOCABULARY.join(', ')}; an unclassifiable decision is not bucketed with the relaxed arm`);
+      continue;
+    }
+    if (record.decision !== COUPLING_SERIALIZE_DECISION) continue;
+    const left = waveOf.get(record.pair[0]);
+    const right = waveOf.get(record.pair[1]);
+    if (left === undefined || right === undefined) {
+      violations.push(`${label} was resolved serialize but names a task the wave plan does not schedule; the resolution was rendered against a different graph`);
+      continue;
+    }
+    if (left === right) violations.push(`${label} was resolved serialize but both tasks sit in wave ${left}; the wave plan contradicts the coupling decision that was carried`);
   }
-  return suffixMatches[0];
-}
-export function globMatches(glob, path) {
-  if (typeof glob !== 'string') throw new TypeError(`glob must be a string, got ${typeof glob}`);
-  if (glob.length > GLOB_MAX_LENGTH) throw new RangeError(`glob length ${glob.length} exceeds the maximum of ${GLOB_MAX_LENGTH}`);
-  const wildcardCount = (glob.match(/[*?]/g) || []).length;
-  if (wildcardCount > GLOB_MAX_WILDCARDS) throw new RangeError(`glob wildcard count ${wildcardCount} exceeds the maximum of ${GLOB_MAX_WILDCARDS}`);
-  if (typeof path !== 'string') throw new TypeError(`path must be a string, got ${typeof path}`);
-  return matchGlobTokens(tokenizeGlob(glob), path);
-}
-export function scopeCovers(scope, path) {
-  const ns = normalizePath(scope);
-  const np = normalizePath(path);
-  if (/[*?]/.test(ns)) return globMatches(ns, np);
-  return ns === np || np.startsWith(ns + '/');
+  return violations;
 }
 
-export const COARSE_SCOPE_FILE_THRESHOLD = 3;
-const SCOPE_NAMED_FILE_RE = /[\w][\w./-]*\.[A-Za-z][A-Za-z0-9]{0,5}/g;
-export function scopeDirPrefix(scope) {
-  const star = scope.search(/[*?]/);
-  return normalizePath(star === -1 ? scope : scope.slice(0, star));
+function readContextClause(fileScope) {
+  if (!isFileScopePack(fileScope)) return '';
+  const context = fileScope.read.length > 0
+    ? ` You MAY read these files for context but must NOT edit them: ${JSON.stringify(fileScope.read)}.`
+    : '';
+  const marker = fileScope.truncated;
+  const dropped = marker === null || marker === undefined
+    ? ''
+    : ` The read-context list is INCOMPLETE: ${marker.dropped} path(s) were dropped (${marker.reason}); treat it as a partial view and verify against the live tree.`;
+  return `${context}${dropped}`;
 }
-export function scopeIsSpecificFile(scope) {
-  if (typeof scope !== 'string' || /[*?]/.test(scope)) return false;
-  const base = normalizePath(scope).split('/').pop();
-  return /\.[A-Za-z][A-Za-z0-9]{0,5}$/.test(base);
-}
-export function scopeIsBareTopLevelDir(scope) {
-  if (typeof scope !== 'string' || scopeIsSpecificFile(scope)) return false;
-  const prefix = scopeDirPrefix(scope);
-  return prefix !== '' && !prefix.includes('/');
-}
-export function namedFilesInText(text) {
-  if (typeof text !== 'string') return [];
-  const out = new Set();
-  for (const raw of text.match(SCOPE_NAMED_FILE_RE) || []) {
-    const t = normalizePath(raw);
-    const base = t.split('/').pop();
-    if (base.lastIndexOf('.') >= 2 || t.includes('/')) out.add(t);
-  }
-  return [...out];
-}
-export function lintCoarseScope(task, opts) {
-  const threshold = opts && Number.isInteger(opts.fileThreshold) ? opts.fileThreshold : COARSE_SCOPE_FILE_THRESHOLD;
-  const fileScope = task && Array.isArray(task.fileScope) ? task.fileScope : [];
-  const named = namedFilesInText([task && task.fullText, task && task.title, task && task.rationale].filter((t) => typeof t === 'string').join('\n'));
-  const flags = [];
-  for (const raw of fileScope) {
-    if (typeof raw !== 'string') continue;
-    if (scopeIsBareTopLevelDir(raw)) { flags.push({ scope: raw, reason: 'bare-top-level-dir' }); continue; }
-    if (!scopeIsSpecificFile(raw) && named.length > 0) {
-      const covered = named.filter((f) => scopeCovers(raw, f));
-      if (covered.length > threshold) flags.push({ scope: raw, reason: 'covers-named-files', covered });
+
+export function ingestTaskFileScopes(tasks) {
+  if (!tasks || typeof tasks !== 'object' || Array.isArray(tasks)) return { tasks, error: null };
+  const out = {};
+  for (const [id, task] of Object.entries(tasks)) {
+    if (!task || typeof task !== 'object' || Array.isArray(task)) { out[id] = task; continue; }
+    const declared = task.fileScope;
+    try {
+      out[id] = {
+        ...task,
+        fileScope: declared === undefined || declared === null
+          ? emptyFileScopePack()
+          : requireFileScopePack(declared, `task ${id} fileScope`),
+      };
+    } catch (err) {
+      return { tasks, error: err.message };
     }
   }
-  return { id: task && task.id ? task.id : null, flags };
+  return { tasks: out, error: null };
 }
 
 export function engineWorktreePath(worktreeRoot, branchPrefix, taskId) {
@@ -156,8 +135,8 @@ export function securityReviewRequired(task, k) {
   return (
     policySignalAmbiguous(task) ||
     task.risk === 'high' ||
-    sensitiveScope(task.fileScope) ||
-    irreversible(task.fileScope, task.fullText) ||
+    sensitiveScope(fileScopeEdit(task.fileScope)) ||
+    irreversible(fileScopeEdit(task.fileScope), task.fullText) ||
     blastRadius(task) >= threshold
   );
 }
@@ -167,7 +146,7 @@ function isImplementationRole(task) {
 }
 
 function policySignalAmbiguous(task) {
-  if (!Array.isArray(task.fileScope) || task.fileScope.some((p) => typeof p !== 'string')) return true;
+  if (!isFileScopePack(task.fileScope)) return true;
   if (typeof task.fullText !== 'string') return true;
   if (task.risk !== undefined && task.risk !== null && !POLICY_VALID_RISK.has(task.risk)) return true;
   if (!Number.isInteger(task.dependentCount) || task.dependentCount < 0) return true;
@@ -181,8 +160,8 @@ export function policyModelFor(task, opts) {
   if (!isImplementationRole(task)) return 'opus';
   if (policySignalAmbiguous(task)) return 'opus';
   if (
-    sensitiveScope(task.fileScope) ||
-    irreversible(task.fileScope, task.fullText) ||
+    sensitiveScope(fileScopeEdit(task.fileScope)) ||
+    irreversible(fileScopeEdit(task.fileScope), task.fullText) ||
     breakingContract(task) ||
     blastRadius(task) >= BLAST_RADIUS_K ||
     task.risk === 'high'
@@ -194,8 +173,8 @@ export function policyModelFor(task, opts) {
 export function planReviewModelFor(msp, opts) {
   const layer3Sonnet = opts && typeof opts.layer3Sonnet === 'boolean' ? opts.layer3Sonnet : LAYER3_SONNET_ENABLED;
   if (!msp || typeof msp !== 'object') return 'opus';
-  const fileScope = msp.fileScope;
-  if (!Array.isArray(fileScope) || fileScope.some((p) => typeof p !== 'string')) return 'opus';
+  if (!isFileScopePack(msp.fileScope)) return 'opus';
+  const fileScope = msp.fileScope.edit;
   if (fileScope.length !== 1 || !scopeIsSpecificFile(fileScope[0])) return 'opus';
   if (sensitiveScope(fileScope)) return 'opus';
   if (irreversible(fileScope, typeof msp.rationale === 'string' ? msp.rationale : '')) return 'opus';
@@ -225,9 +204,11 @@ export function resolvePlanReview(review, opts) {
 }
 
 export function planGroundTruthSeed({ specPath, fileScope, unitId }) {
-  const scope = Array.isArray(fileScope) ? fileScope.filter((p) => typeof p === 'string') : [];
+  const scope = fileScopeEdit(fileScope);
+  const readScope = isFileScopePack(fileScope) ? fileScope.read : [];
+  const readList = readScope.length > 0 ? readScope.map((p) => JSON.stringify(p)).join(", ") : "(none declared)";
   const scopeList = scope.length > 0 ? scope.map((p) => JSON.stringify(p)).join(', ') : '(none declared)';
-  return `Ground truth for MSP "${unitId}" (a hint to VERIFY against the live code, NOT a trust boundary): the approved spec lives at ${specPath} — read it to confirm this MSP's decomposition still holds against the current tree. This MSP's declared fileScope is [${scopeList}]; keep the plan STRICTLY within that slice. Do NOT expand into sibling-MSP territory or files outside this fileScope: sibling MSPs own their own slices and run in other waves, and an over-reaching plan collides on shared files (a collision surfaces as a merge conflict / CI failure / park, never a silent bad merge). If reading the spec reveals the decomposition itself is wrong (this MSP's slice is mis-cut), STOP and report that this MSP must be re-decomposed rather than planning around it.`;
+  return `Ground truth for MSP "${unitId}" (a hint to VERIFY against the live code, NOT a trust boundary): the approved spec lives at ${specPath} — read it to confirm this MSP's decomposition still holds against the current tree. This MSP's declared fileScope is [${scopeList}]; keep the plan STRICTLY within that slice. Do NOT expand into sibling-MSP territory or files outside this fileScope: sibling MSPs own their own slices and run in other waves, and an over-reaching plan collides on shared files (a collision surfaces as a merge conflict / CI failure / park, never a silent bad merge). If reading the spec reveals the decomposition itself is wrong (this MSP's slice is mis-cut), STOP and report that this MSP must be re-decomposed rather than planning around it. Read-only context for this MSP is [${readList}]: read those files to understand the seam, but do NOT plan edits to them - they belong to sibling MSPs.`;
 }
 
 export function authorTaskModels(tasks, opts) {
@@ -298,16 +279,19 @@ export async function runEngine(engineArgs, ctx) {
 
   const modelPolicyOpts = { layer3Sonnet: engineArgs.layer3Sonnet };
   const reviewBlastRadiusK = Number.isInteger(engineArgs.reviewBlastRadiusK) && engineArgs.reviewBlastRadiusK > 0 ? engineArgs.reviewBlastRadiusK : BLAST_RADIUS_K;
-  const tasks = authorTaskModels(engineArgs.tasks, modelPolicyOpts);
+  const scopeIngest = ingestTaskFileScopes(engineArgs.tasks);
+  const tasks = authorTaskModels(scopeIngest.tasks, modelPolicyOpts);
   const routing = routingTelemetry(tasks, modelPolicyOpts);
   log(routing.line);
   if (routing.warning) log(routing.warning);
   const waves = engineArgs.waves;
+  const couplingViolations = couplingSerializeViolations(engineArgs.couplingResolution, waves);
+  if (couplingViolations.length > 0) throw new Error(`runEngine: the wave plan contradicts ${couplingViolations.length} carried coupling decision(s); a serialize decision whose pair is co-scheduled is that decision being silently lost rather than a throughput cost:\n- ${couplingViolations.join('\n- ')}`);
   const branchPrefix = engineArgs.branchPrefix;
   const baseBranch = engineArgs.baseBranch;
   const worktreeRoot = engineArgs.worktreeRoot;
   const repoRoot = engineArgs.repoRoot;
-  const scopedCheckCmd = engineArgs.scopedCheckCmd;
+  const scopedCheckCmd = scopedCheckArgv(engineArgs.scopedCheckCmd);
   const fullValidationCmd = engineArgs.fullValidationCmd;
   const prompts = engineArgs.prompts;
   const fixLoopMax = Number.isInteger(engineArgs.fixLoopMax) && engineArgs.fixLoopMax >= 0 ? engineArgs.fixLoopMax : 2;
@@ -332,10 +316,10 @@ export async function runEngine(engineArgs, ctx) {
     if (isolation === 'scope-fence') {
       return `${prompts.implementer}\n\n--- THIS TASK ---\n${escalationContext}` +
         `Work directly in the main repository working tree at ${repoRoot}. Do NOT create a worktree or a branch.\n` +
-        `1. Edit ONLY files within this task's declared scope: ${JSON.stringify(task.fileScope)}. Creating or editing anything outside this scope is a hard failure.\n` +
+        `1. Edit ONLY files within this task's declared scope: ${JSON.stringify(task.fileScope.edit)}. Creating or editing anything outside this scope is a hard failure.${readContextClause(task.fileScope)}\n` +
         `2. Do NOT run any git mutation (no add, no commit, no branch, no checkout, no stash). Leave all changes uncommitted.\n` +
         `3. Follow TDD as the instructions above require.\n` +
-        `4. For verification run ONLY the scoped check, never a full build/suite: \`${scopedCheckCmd}\`\n\n` +
+        `4. For verification run ONLY the scoped check, never a full build/suite: \`${shellQuoteList(scopedCheckCmd)}\`\n\n` +
         `Task: ${task.title}\n\n${task.fullText}\n\n` +
         `Report status as exactly one of DONE / DONE_WITH_CONCERNS / BLOCKED / NEEDS_CONTEXT.`;
     }
@@ -345,7 +329,7 @@ export async function runEngine(engineArgs, ctx) {
       `   \`git -C ${repoRoot} worktree add -b ${branch} ${wt} ${baseBranch}\`\n` +
       `2. \`cd ${wt}\` and do ALL work there. Follow TDD as the instructions above require.\n` +
       `3. Bootstrap dependencies before any check (idempotent): \`ln -sfn ${repoRoot}/node_modules node_modules\`\n` +
-      `4. For verification run ONLY the scoped check, never a full build/suite: \`${scopedCheckCmd}\`\n` +
+      `4. For verification run ONLY the scoped check, never a full build/suite: \`${shellQuoteList(scopedCheckCmd)}\`\n` +
       `5. Commit your work to \`${branch}\` (one or more commits). Do NOT remove the worktree.\n\n` +
       `Task: ${task.title}\n\n${task.fullText}\n\n` +
       `Report status as exactly one of DONE / DONE_WITH_CONCERNS / BLOCKED / NEEDS_CONTEXT.`;
@@ -355,7 +339,7 @@ export async function runEngine(engineArgs, ctx) {
   function reviewTarget(task, branch) {
     if (isolation === 'scope-fence') {
       return `Do NOT enter any worktree and do NOT mutate anything. From the main repo at ${repoRoot}, inspect READ-ONLY:\n` +
-        `\`git diff ${launchCommit} -- ${task.fileScope.join(' ')}\` plus \`git status --porcelain -- ${task.fileScope.join(' ')}\`; read any untracked files the latter lists.`;
+        `\`git diff ${launchCommit} -- ${task.fileScope.edit.join(' ')}\` plus \`git status --porcelain -- ${task.fileScope.edit.join(' ')}\`; read any untracked files the latter lists.`;
     }
     return `Do NOT create or enter a worktree. From the main repo at ${repoRoot}, inspect the change READ-ONLY:\n` +
       `\`git diff ${baseBranch}..${branch}\` and \`git diff --stat ${baseBranch}..${branch}\`.`;
@@ -364,7 +348,7 @@ export async function runEngine(engineArgs, ctx) {
   function mergedReviewPrompt(task, branch) {
     return `${prompts.specReviewer}\n\n${prompts.qualityReviewer}\n\n--- WHAT TO REVIEW ---\n${reviewTarget(task, branch)}\n\n` +
       `Spec for this task:\n${task.fullText}\n\n` +
-      `File scope for THIS task: ${JSON.stringify(task.fileScope)}\n` +
+      `File scope for THIS task: ${JSON.stringify(task.fileScope.edit)}${readContextClause(task.fileScope)}\n` +
       `Judge ONLY the files in this task's fileScope. Files outside it belong to SIBLING TASKS in the same MSP that are built in other waves and are correctly absent from this branch - do NOT flag them as missing or incomplete. Do NOT open .mitosis/*.plan.md or *.graph.json to assess completeness; the task body above is the complete and authoritative scope for THIS task.\n\n` +
       `${ciEnforcedScoping}\n\n` +
       `--- TIER-1 SECURITY CHECKLIST (lightweight, every task) ---\n` +
@@ -374,39 +358,41 @@ export async function runEngine(engineArgs, ctx) {
   function securityReviewPrompt(task, branch) {
     return `--- SECURITY REVIEW TARGET ---\n${reviewTarget(task, branch)}\n\n` +
       `Task id: ${task.id}\nTitle: ${task.title}\n\n${task.fullText}\n\n` +
-      `File scope: ${JSON.stringify(task.fileScope)}\n\n` +
+      `File scope: ${JSON.stringify(task.fileScope.edit)}${readContextClause(task.fileScope)}\n\n` +
       `${ciEnforcedScoping}\n\n` +
       `Return verdict 'pass' if no security issues are found, else 'fail' with specific issues (file:line).`;
   }
   function fixPrompt(task, branch, wt, issues) {
     if (isolation === 'scope-fence') {
       return `Apply fixes in the MAIN repository working tree at ${repoRoot} (no worktree, no branch, no git mutations; leave changes uncommitted).\n` +
-        `Edit ONLY within this task's declared scope: ${JSON.stringify(task.fileScope)}.\n` +
+        `Edit ONLY within this task's declared scope: ${JSON.stringify(task.fileScope.edit)}.${readContextClause(task.fileScope)}\n` +
         `1. Fix these issues:\n- ${(issues || []).join('\n- ')}\n` +
-        `2. Re-run the scoped check: \`${scopedCheckCmd}\`\n\nTask context:\n${task.fullText}`;
+        `2. Re-run the scoped check: \`${shellQuoteList(scopedCheckCmd)}\`\n\nTask context:\n${task.fullText}`;
     }
     return `Apply fixes in the EXISTING worktree for this task.\n` +
       `1. \`cd ${wt}\` (the worktree already exists on branch ${branch}).\n` +
       `2. Fix these issues:\n- ${(issues || []).join('\n- ')}\n` +
-      `3. Re-run the scoped check: \`${scopedCheckCmd}\`\n` +
+      `3. Re-run the scoped check: \`${shellQuoteList(scopedCheckCmd)}\`\n` +
       `4. Commit the fixes to \`${branch}\`.\n\nTask context:\n${task.fullText}`;
   }
 
   async function reviewLoop(task, branch, wt, makePrompt, label, agentType) {
     let loops = 0;
     while (true) {
-      const base = { label: `${label}:${task.id}`, phase: 'Waves', schema: REVIEW_SCHEMA, model: 'opus' };
+      const base = { label: `${label}:${task.id}`, phase: 'Execute', schema: REVIEW_SCHEMA, model: 'opus' };
       const opts = agentType ? { ...base, agentType } : base;
       const r = await guard.dispatch(makePrompt(task, branch), opts, { kind: 'review', task });
       if (guard.getHalt()) return { ok: false, reason: 'model-policy' };
       if (r && r.verdict === 'pass') return { ok: true };
+      const named = r && Array.isArray(r.issues) ? r.issues.filter((issue) => typeof issue === 'string' && issue.trim() !== '') : [];
+      if (named.length === 0) return { ok: false, reason: `${label}-no-issues`, issues: [] };
       loops++;
-      if (loops > fixLoopMax) return { ok: false, reason: `${label}-exhausted`, issues: r && r.issues };
+      if (loops > fixLoopMax) return { ok: false, reason: `${label}-exhausted`, issues: named };
       const budget = retry && retry.state;
       const budgeted = budget && Number.isInteger(budget.max) && budget.max > 0 && Number.isInteger(budget.used);
-      if (budgeted && loops > 1 && budget.used >= budget.max) return { ok: false, reason: `${label}-budget-exhausted`, issues: r && r.issues };
+      if (budgeted && loops > 1 && budget.used >= budget.max) return { ok: false, reason: `${label}-budget-exhausted`, issues: named };
       if (budgeted) budget.used += 1;
-      await guard.dispatch(fixPrompt(task, branch, wt, r && r.issues), { label: `fix-${label}:${task.id}`, phase: 'Waves' }, { kind: 'fix', task });
+      await guard.dispatch(fixPrompt(task, branch, wt, named), { label: `fix-${label}:${task.id}`, phase: 'Execute' }, { kind: 'fix', task });
       if (guard.getHalt()) return { ok: false, reason: 'model-policy' };
     }
   }
@@ -423,8 +409,8 @@ export async function runEngine(engineArgs, ctx) {
       const remediationModel = escalated ? 'opus' : task.model;
       const escalationIssues = escalated ? priorIssues : null;
       const status = await ctx.dispatchWithRetry(
-        (attemptNo, preamble) => guard.dispatch(preamble + implementerPrompt(task, branch, wt, escalationIssues), { label: implLabel, phase: 'Waves', schema: STATUS_SCHEMA, agentType: resolvedAgentType }, { kind: dispatchKind, task }),
-        { state: retry.state, budget: retry.maxAttempts, resetRef: baseBranch, worktree: wt, unitId: taskId, task: task.fullText, ...(typeof ctx.makeRemediation === 'function' ? ctx.makeRemediation({ unitId: taskId, stage: 'execute', task: task.fullText, schema: STATUS_SCHEMA, agentType: resolvedAgentType, phase: 'Waves', model: remediationModel }) : {}) },
+        (attemptNo, preamble) => guard.dispatch(preamble + implementerPrompt(task, branch, wt, escalationIssues), { label: implLabel, phase: 'Execute', schema: STATUS_SCHEMA, agentType: resolvedAgentType }, { kind: dispatchKind, task }),
+        { state: retry.state, budget: retry.maxAttempts, resetRef: baseBranch, worktree: wt, unitId: taskId, task: task.fullText, ...(typeof ctx.makeRemediation === 'function' ? ctx.makeRemediation({ unitId: taskId, stage: 'execute', task: task.fullText, schema: STATUS_SCHEMA, agentType: resolvedAgentType, phase: 'Execute', model: remediationModel }) : {}) },
       );
       if (guard.getHalt()) return { gate: 'halt' };
       if (status && status.__quarantined) {
@@ -465,11 +451,15 @@ export async function runEngine(engineArgs, ctx) {
     result.halted = true;
     result.haltReason = { stage: 'config', detail: 'scope-fence isolation requires launchCommit' };
   }
+  if (!result.halted && scopeIngest.error !== null) {
+    result.halted = true;
+    result.haltReason = { stage: 'config', detail: scopeIngest.error };
+  }
 
   for (let w = 0; w < waves.length && !result.halted; w++) {
     const waveIds = waves[w];
     log(`Wave ${w + 1}/${waves.length}: ${waveIds.length} task(s) [${waveIds.join(', ')}] [${isolation}]`);
-    phase('Waves');
+    phase('Execute');
     const outcomes = await parallel(waveIds.map((id) => () => runTask(id)));
     if (guard.getHalt()) { result.halted = true; result.haltReason = guard.getHalt(); break; }
     const failed = outcomes.filter((o) => !o || !o.ok);
@@ -484,7 +474,7 @@ export async function runEngine(engineArgs, ctx) {
       const fence = await guard.dispatch(
         `From the main repo at ${repoRoot}, run \`git status --porcelain=v1 -uall\` and return EVERY path it reports as a JSON array of repo-relative paths. For rename lines include both the old and the new path. Do not mutate anything.`,
         { label: `fence:wave-${w}`, phase: 'Integrate', schema: FENCE_SCHEMA }, { kind: 'engine', task: null });
-      const declared = waveIds.flatMap((id) => tasks[id].fileScope);
+      const declared = waveIds.flatMap((id) => tasks[id].fileScope.edit);
       const exempt = runArtifacts || [];
       const undeclared = ((fence && fence.paths) || []).filter((p) => !exempt.includes(normalizePath(p)) && !declared.some((s) => scopeCovers(s, p)));
       result.waves.push({ wave: w, outcomes, fence: { paths: (fence && fence.paths) || [], undeclared } });
@@ -540,34 +530,21 @@ export async function runEngine(engineArgs, ctx) {
       `4. Reduce every error to a STRUCTURAL IDENTITY tuple { file (repo-relative), ruleId or TS error code, normalized message } where the normalized message has ALL line:col numbers, code frames, and absolute paths stripped. NEVER key the identity on line:col - a pure line shift must NOT count as a new error.\n` +
       `5. COUNT occurrences of each identity on BOTH sides (a multiset, not a set). An identity BLOCKS iff its HEAD count EXCEEDS its BASE count - block the surplus (HEAD count minus BASE count) occurrences; equal or lower counts (pre-existing or fixed) do NOT block. Because the identity ignores line:col this stays tolerant of pure line shifts while still catching a 2ND instance of an error class already present at base. The following two additional scans apply ONLY to tools judged EXPECTED (a NOT-EXPECTED tool contributes no suppressions or configuration to compare). ALSO scan the HEAD-vs-base SOURCE diff for ADDED inline suppression directives (\`eslint-disable\` / \`eslint-disable-next-line\` / \`@ts-ignore\` / \`@ts-expect-error\`) and apply the SAME count-aware rule - if a directive's HEAD count exceeds its BASE count, the surplus BLOCKS; a suppression is not a fix. ALSO diff the lint/type CONFIGURATION surface, comparing the fully-RESOLVED effective config on both sides (not only the named config files, so a loosening pulled in through an \`extends\`-ed or shared eslint/tsconfig preset - including a version bump of that shared preset package - is still caught): treat any HEAD-vs-base change to an eslint config (\`.eslintrc*\` / \`eslint.config.*\` / \`package.json\` eslintConfig), a TypeScript config (\`tsconfig*.json\`), an extended/shared preset, or an ignore surface (\`.eslintignore\` / \`ignorePatterns\` / tsconfig \`exclude\`/\`include\` / \`overrides\`) that REDUCES strictness or narrows what is checked (a rule turned off or downgraded, \`strict\` or \`noImplicitAny\` weakened, \`skipLibCheck\` added, a path newly ignored or excluded) as a BLOCKING change - loosening the checker is itself a way to hide a new error; a strictness-INCREASING or check-widening change does NOT block.\n` +
       `6. Tear down the throwaway base worktree: \`git -C ${repoRoot} worktree remove --force ${baseGateWt}\`.\n` +
-      `Report pass=true iff BOTH: the blocking set is empty across all EXPECTED tools, AND every EXPECTED tool was collected cleanly on both sides. If EVERY tool is NOT-EXPECTED (the repo has no lint/type toolchain on either side), the lint/type dimension is legitimately empty and pass=true - the full test suite remains gated separately at ship (G9). List the blocking identities (or a short summary), and note any tool judged NOT-EXPECTED, in output.\n` +
-      `7. ALSO RETURN the BASE census you just collected as \`baseCensus\`: an object carrying, per EXPECTED tool, that tool's base structural-identity multiset (step 4/5 identities with their base counts), plus the base config/suppression surface used for the strictness and added-suppression comparison, plus the list of tools judged NOT-EXPECTED - all keyed to the IMMUTABLE base ${gateBase}. This census cannot change mid-run (the base commit is fixed), so a later recheck can reuse it WITHOUT re-materializing the base worktree.`;
-    const recheckGate = (cachedBaseCensus) =>
-      `${where}, re-run the DIFF-SCOPED gate ONCE reusing the CACHED base census below: block only NEW lint/type errors this MSP introduced, never pre-existing ones. Lint + types only; the full test suite is gated separately at ship (G9).\n` +
-      `1. The base ${gateBase} is IMMUTABLE for this run, so its census CANNOT have changed since the first pass: do NOT re-materialize or re-collect the base worktree ${baseGateWt}; recollect ONLY the HEAD census this pass and compare it against the cached base. CACHED BASE CENSUS (the authoritative base side, keyed to the immutable base ${gateBase}): ${JSON.stringify(cachedBaseCensus)}. If this cached census is absent, empty, malformed, or missing its per-tool base structural-identity multiset or its base config/suppression surface, FALL BACK to a full two-sided recollection - materialize the base at ${gateBase} and collect both sides exactly as a first pass would - and NEVER pass on an unusable cached base.\n` +
-      `2. Determine TOOLCHAIN EXPECTATION per tool (eslint, tsc) from the CACHED base surface and the HEAD tree ${validationDir}. A tool is EXPECTED if ANY holds on EITHER side: (a) a resolvable config is present - eslint: a .eslintrc* file, an eslint.config.* file, or an eslintConfig key in package.json; tsc: any tsconfig*.json; (b) the tool is a declared dependency in package.json dependencies or devDependencies - eslint for eslint, typescript for tsc. A tool is NOT-EXPECTED ONLY when BOTH (a) and (b) are FALSE on BOTH the cached base surface and HEAD. A tool present in the cached base surface but absent at HEAD (or vice versa) remains EXPECTED, and its one-sided disappearance MUST stay blocked (this is the config/dependency-removal case). Emitting a NOT-EXPECTED verdict requires the HEAD tree ${validationDir} to be positively observed as a non-empty tree with its package.json and config surface readable; if HEAD cannot be positively observed, report pass=false. NEVER infer absence from an unobservable or undecidable side.\n` +
-      `3. Collect the error list ONLY for EXPECTED tools on the HEAD side using the repo's OWN toolchain, as machine-readable output; the BASE side is taken verbatim from the cached census and is NOT recollected:\n` +
-      `   - HEAD: \`cd ${validationDir} && npx eslint . -f json\` and \`cd ${validationDir} && npx tsc --noEmit --pretty false\`\n` +
-      `   - FAIL CLOSED: report pass=false with the reason if the HEAD side cannot be collected cleanly - a worktree or install failure, a tool that crashes, output that cannot be parsed into the expected diagnostic list (a clean lint result is a NON-EMPTY eslint JSON array whose every element's messages list is empty; empty tsc output is clean ONLY after confirming a non-zero number of files was type-checked; a top-level EMPTY eslint array [] or a tsc run that type-checked ZERO files is a scanned-zero-files result that FAILS CLOSED), a missing config for an EXPECTED tool, a tsc run that did not reach terminal completion, a run that scanned ZERO files, or a base-vs-HEAD mismatch in the resolved lint/type SCOPE - the include / exclude / ignore globs that decide WHICH files are checked - but NOT a mismatch that is merely the individual source files an MSP legitimately added, removed, or renamed. NEVER treat an errored, crashed, hollow, or partial HEAD collection as an empty or complete error set.\n` +
-      `4. Reduce every HEAD error to the SAME STRUCTURAL IDENTITY tuple { file (repo-relative), ruleId or TS error code, normalized message } with ALL line:col numbers, code frames, and absolute paths stripped, so it is directly comparable to the cached base identities. NEVER key the identity on line:col - a pure line shift must NOT count as a new error.\n` +
-      `5. COUNT occurrences of each HEAD identity as a multiset. An identity BLOCKS iff its HEAD count EXCEEDS its CACHED BASE count - block the surplus (HEAD count minus cached base count); equal or lower counts do NOT block. The following two scans apply ONLY to EXPECTED tools. ALSO scan the HEAD source for inline suppression directives (\`eslint-disable\` / \`eslint-disable-next-line\` / \`@ts-ignore\` / \`@ts-expect-error\`) and apply the SAME count-aware rule against the cached base suppression surface - if a directive's HEAD count exceeds its cached BASE count, the surplus BLOCKS; a suppression is not a fix. ALSO diff the lint/type CONFIGURATION surface, comparing the HEAD fully-RESOLVED effective config against the CACHED BASE config surface (including \`extends\`-ed or shared eslint/tsconfig presets and preset version bumps): treat any HEAD-vs-cached-base change to an eslint config (\`.eslintrc*\` / \`eslint.config.*\` / \`package.json\` eslintConfig), a TypeScript config (\`tsconfig*.json\`), an extended/shared preset, or an ignore surface (\`.eslintignore\` / \`ignorePatterns\` / tsconfig \`exclude\`/\`include\` / \`overrides\`) that REDUCES strictness or narrows what is checked (a rule turned off or downgraded, \`strict\` or \`noImplicitAny\` weakened, \`skipLibCheck\` added, a path newly ignored or excluded) as a BLOCKING change - loosening the checker is itself a way to hide a new error; a strictness-INCREASING or check-widening change does NOT block.\n` +
-      `Report pass=true iff BOTH: the blocking set is empty across all EXPECTED tools, AND the HEAD side was collected cleanly. If EVERY tool is NOT-EXPECTED, the lint/type dimension is legitimately empty and pass=true - the full test suite remains gated separately at ship (G9). Echo the unchanged cached census back as \`baseCensus\`, and list the blocking identities (or a short summary) plus any tool judged NOT-EXPECTED in output.`;
-    const gatePrompt = (rerun, cachedBaseCensus) =>
-      cachedBaseCensus ? recheckGate(cachedBaseCensus) : firstPassGate(rerun);
-    phase('Boundary');
+      `Report pass=true iff BOTH: the blocking set is empty across all EXPECTED tools, AND every EXPECTED tool was collected cleanly on both sides. If EVERY tool is NOT-EXPECTED (the repo has no lint/type toolchain on either side), the lint/type dimension is legitimately empty and pass=true - the full test suite remains gated separately at ship (G9). List the blocking identities (or a short summary), and note any tool judged NOT-EXPECTED, in output.`;
+    phase('Integrate');
     let boundary = await guard.dispatch(
-      gatePrompt(false, null),
-      { label: 'boundary', phase: 'Boundary', schema: BOUNDARY_SCHEMA }, { kind: 'engine', task: null });
+      firstPassGate(false),
+      { label: 'boundary', phase: 'Integrate', schema: BOUNDARY_SCHEMA }, { kind: 'engine', task: null });
     if (boundary && !boundary.pass) {
       const fixWhere = isolation === 'scope-fence'
         ? `in the main repo working tree at ${repoRoot}; stay within the union of the declared task scopes and leave changes uncommitted`
         : `on \`${baseBranch}\` inside the integration worktree at ${integrationWt} so it passes, then commit`;
       await guard.dispatch(
         `The diff-scoped gate found NEW lint/type errors this MSP introduced. Fix the integrated code ${fixWhere} by CORRECTING the root cause - do NOT pass the gate by suppression: add no new \`eslint-disable\` / \`@ts-ignore\` / \`@ts-expect-error\`, and do not loosen eslint or tsconfig rules or newly ignore or exclude files; new suppression directives and strictness-reducing config changes are themselves blocked by the gate. Failing output:\n${boundary.output}`,
-        { label: 'boundary-fix', phase: 'Boundary' }, { kind: 'engine', task: null });
+        { label: 'boundary-fix', phase: 'Integrate' }, { kind: 'engine', task: null });
       boundary = await guard.dispatch(
-        gatePrompt(true, boundary.baseCensus || null),
-        { label: 'boundary-recheck', phase: 'Boundary', schema: BOUNDARY_SCHEMA }, { kind: 'engine', task: null });
+        firstPassGate(true),
+        { label: 'boundary-recheck', phase: 'Integrate', schema: BOUNDARY_SCHEMA }, { kind: 'engine', task: null });
     }
     result.boundary = boundary;
     if (!boundary || !boundary.pass) {

@@ -5,44 +5,114 @@ description: Use when implementing or executing an APPROVED spec or batch of wor
 
 # Mitosis (orchestrator dispatcher)
 
-You are the orchestrator's THIN entry point. Mitosis runs as a top-level Dynamic Workflow; your only job is to gather inputs that require user interaction, then dispatch ONCE. You do NOT decompose, plan, route, or merge here — the workflow owns all of that.
+You are the orchestrator's THIN entry point. Mitosis runs as an OS process; your only job is to gather the arguments that require user interaction, resolve the branch contract, then invoke the CLI ONCE through Bash. You do NOT decompose, plan, route, or merge here — the engine owns all of that.
 
 ## Preconditions
 
-1. Workflows must be enabled. If `CLAUDE_CODE_DISABLE_WORKFLOWS=1` (or workflows are otherwise disabled), STOP and tell the user: mitosis requires the Workflow engine; re-enable it and retry. Do NOT fall back to running the loop inline.
-2. There must be an APPROVED spec or batch of work. If not approved, route to brainstorming/spec first.
+1. There must be an APPROVED spec or batch of work. If not approved, route to brainstorming/spec first.
+2. There must be a RUN DOCUMENT — the JSON file `--spec` points at, holding an already-decomposed unit table. The approved markdown spec is NOT that document. One step turns one into the other: `.claude/lib/mitosis/decompose-emit.mjs`, described below. If the user cannot name a run document, run that emitter to produce one; do NOT hand-decompose the spec here and do NOT fabricate a unit table, because this entry point stays thin and a table invented in main is a decomposition no reviewer approved.
+
+## Produce the run document (only when the user cannot name one)
+
+`.claude/lib/mitosis/decompose-emit.mjs` dispatches the decompose child against the approved markdown spec, validates its structured answer against the decompose schema, composes the `{manifest, specs}` document, and writes it atomically. It parses and shape-checks every flag before any child is spawned.
+
+    node .claude/lib/mitosis/decompose-emit.mjs \
+      --spec /abs/path/to/SPEC.md \
+      --repo-root /abs/path/to/repo \
+      --base-branch main \
+      --source-prefix feat \
+      --branch-prefix feat \
+      --worktree-root /abs/path/to/repo/.worktrees \
+      --scoped-check '["npm","test"]' \
+      --isolation worktree \
+      --run-id run-thing-0001 \
+      --out /abs/path/to/repo/.mitosis/run-document.json
+
+`--spec` must sit inside `--repo-root` (it is fingerprinted through a containment-checked reader). `--scoped-check` is ONE JSON array of argv strings. `--isolation` is `worktree` or `scope-fence`. `--base-branch` and `--source-prefix` come from the branch contract resolved below, and `--branch-prefix` composes each unit's branch. Optional: `--harness-run-id`, `--decomposer-model` (defaults to `opus`), `--decomposer-timeout-ms`, and `--unit-agent-type` / `--unit-model` / `--unit-effort` / `--unit-timeout-ms`, which become the dispatch defaults inside every emitted `specs[].request`.
+
+| Exit | Meaning |
+|---|---|
+| 0 | the run document was written; stdout names its path, its units and its clusters |
+| 2 | the arguments were rejected; nothing ran |
+| 3 | an input could not be resolved (the spec could not be fingerprinted, or the implementer preamble did not resolve) |
+| 4 | the decompose child returned no conforming decomposition |
+| 5 | the decomposition composed no run document |
+| 6 | the run document could not be written |
+
+Every non-zero exit names its cause on stderr and writes no partial document. Hand the emitted path to `--spec` below.
 
 ## Collect inputs (in MAIN, before dispatch)
 
-- `spec`: absolute path to the approved spec/batch document. If the user gave inline text, write it to a file and use that path.
-- `repoRoot`: absolute path to the target repository.
-- `verify`: `{ scopedCheckCmd, fullValidationCmd }` — detect from the repo (e.g. package.json scripts) or ask the user.
-- `build`: receipts config seeds (test_command, suite_command, integration_branch, sha_source) — detect or ask.
-- `models`: optional model-tiering map; default `{}`.
-- `worktreeRoot`: absolute path for worktrees; default a temp dir outside the repo.
-- `fixLoopMax`: default `2`.
+`.claude/lib/mitosis/cli.mjs` reads exactly the flags below and rejects any argument that is not one of them. Collect these and nothing else — an input the CLI does not read has no path to the engine.
 
-## Resolve the branch contract (MUST happen here — workflows cannot ASK)
+| Flag | Required | Where the value comes from | Shape enforced downstream |
+|---|---|---|---|
+| `--spec` | yes | absolute path to the run document from precondition 2 | JSON `{manifest, specs}`, shape below |
+| `--run-id` | yes | a new run: 8 random lowercase hex characters. A resumed run: the id the earlier run used, or its checkpoint refs are unreachable | `^[a-f0-9]{8}$` |
+| `--at` | yes | the current instant | ISO 8601 with seconds AND an offset, e.g. `2026-08-15T12:00:00Z`; epoch milliseconds are rejected |
+| `--repo-root` | yes | absolute path to the target repository | must already exist |
+| `--journal` | yes | ask, or use `.mitosis/run.jsonl` | RELATIVE to `--repo-root` and confined below it; created if absent, and its top path segment is added to `.gitignore` |
+| `--repo-slug` | yes | the target repository's GitHub slug | literal `owner/repo` |
+| `--integration-branch` | yes | composed from the branch contract below | a git ref token |
+| `--window` | no | omit unless the user asks to widen or narrow build-ahead | positive integer; defaults to 8 |
+
+Three of these are shape-checked only AFTER work has started: a bad `--run-id` fails at the first checkpoint, and a bad `--repo-slug` or `--integration-branch` fails at quiescence, discarding the whole run's summary. Read them back to the user before dispatching.
+
+The run document is `{manifest, specs}`. `manifest` becomes the journal's genesis line and needs `logicalRunId`, `clusters` and a NON-EMPTY `msps`. Each entry in `specs` needs a unique `id` matching `^[a-z0-9][a-z0-9-]*$` and a `request` object whose only required field is a non-empty `prompt`; `prereqs` defaults to `[]` and every entry must name another unit's id; `fileScope`, when present, must carry all three of `edit`, `read` and `truncated`. The worked example is `.claude/lib/mitosis/tests/cli.test.mjs:25-30`.
+
+### Inputs this entry point no longer collects
+
+Each was collected for the retired workflow and has no flag on the CLI. Do not gather them here; their homes are named so nothing is silently dropped.
+
+| Former input | Where it lives now |
+|---|---|
+| `verify.scopedCheckCmd`, `worktreeRoot`, `models` | collected by `decompose-emit.mjs` above (`--scoped-check`, `--worktree-root`, `--unit-model`) when the run document is produced, never by `cli.mjs`. Per-unit equivalents then travel inside each `specs[].request` (`prompt`, `agentType`, `model`, `effort`, `worktree`, `cwd`) in the run document |
+| `verify.fullValidationCmd`, `fixLoopMax` | consumed only by `run-engine.mjs` and `engine-args.mjs`, which are outside `cli.mjs`'s import closure |
+| `build` (test_command, suite_command, integration_branch, sha_source) | receipts-enforcer config keys read by CI, never by mitosis code. They belong in the target repository's `receipts.config.json` — seed from `.claude/skills/mitosis/templates/receipts.config.json` |
+
+## Resolve the branch contract (MUST happen here — a process cannot ASK)
 
 For BOTH source/head AND base/target, apply declare-or-pass-or-ASK, NEVER default:
 explicit pass -> declared machine-readable config -> STOP AND ASK the user.
 NEVER derive the base from the platform default branch; NEVER assume the source.
 Set `baseBranch` (resolved base) and `sourcePrefix` (resolved source-branch prefix) from this.
 
+Both are resolved here, though only one reaches the CLI:
+
+- `sourcePrefix` composes `--integration-branch`. That flag names the branch whose pull request the run probes at quiescence — a branch under the resolved source prefix, NOT the merge target. It is shape-checked only at the end of the run, so a wrong value costs the whole run.
+- `baseBranch` has no flag. The CLI reaches no step that takes a merge target, so the resolved base must already be reflected in the run document's `request` prompts and in the target repository's `receipts.config.json`. Resolve it anyway and state it to the user: the children that open pull requests need it, checking it against the run document is the only verification available before dispatch, and a base nobody resolved is exactly the defaulting this rule exists to prevent.
+
 ## Dispatch notice, then dispatch ONCE
 
-Print a one-line notice: mitosis will run as a background workflow that may spawn many agents (multi-agent ~15x chat tokens; engine capped 16 concurrent / 1000 total). Then make exactly ONE call:
+Print a one-line notice: mitosis will run as an OS process that spawns a `claude -p` child per unit (multi-agent costs roughly 15x chat tokens; at most 8 built-but-unmerged units run ahead of the merge point unless `--window` says otherwise). Then make exactly ONE Bash call, from `--repo-root`:
 
-    Workflow({
-      scriptPath: "/Users/satanshumishra/.claude/workflows/mitosis.js",
-      args: { spec, repoRoot, baseBranch, sourcePrefix, verify, build, models, worktreeRoot, fixLoopMax }
-    })
+    node .claude/lib/mitosis/cli.mjs \
+      --spec /abs/path/to/run-document.json \
+      --run-id 0a1b2c3d \
+      --at 2026-08-15T12:00:00Z \
+      --repo-root /abs/path/to/repo \
+      --journal .mitosis/run.jsonl \
+      --repo-slug acme/widgets \
+      --integration-branch feat/thing-integration
 
-Do nothing else until it returns.
+Every value above is an example of the required shape, not a default: substitute the values collected above, and append `--window N` only if the user asked for it. Do nothing else until it returns.
 
 ## Relay the report
 
-When the workflow returns, relay its result to the user: the shipped MSPs (id + PR url) from `shipped`, the run's `identity` (present on every report, including failed ones), and if `overallStatus !== 'all-shipped'`, the failing stage/MSP and reason (from the top-level `stage`/`mspId`/`detail` and the `crashed`/`halted` arrays). Do not re-run or "continue" the loop in main.
+The CLI prints one JSON object to stdout and sets an exit code. Relay both.
+
+The object carries `quiescent`, `aborted`, `ticks`, `units` (each an `id` and a `state`), and `prState` — the done-oracle's `gh pr view` result, or `null` when the run never reached quiescence.
+
+| Exit | Meaning |
+|---|---|
+| 0 | quiescent, and every unit reached `done` |
+| 3 | the run stopped short: not quiescent, or quiescent with at least one unit not `done` |
+| 2 | the arguments were rejected; nothing ran |
+| 1 | the run threw; the message names the field or the step |
+
+Name the units that are not `done` and the state each stopped in. Do not re-run or "continue" the loop in main.
+
+The `identity` reporting described below has no counterpart in the CLI's summary on this base: it documents the run-identity mechanism, not a field this entry point receives.
 
 ## Run identity and portability
 

@@ -2,9 +2,8 @@ export const meta = {
   name: 'mitosis-execute',
   description: 'Execute an annotated plan: parallel waves with worktree or scope-fence isolation, risk-scaled spec+quality review, model-tiered agents, conflict-checked merge or deterministic fence verification, single boundary validation + final review.',
   phases: [
-    { title: 'Waves' },
+    { title: 'Execute' },
     { title: 'Integrate' },
-    { title: 'Boundary' },
     { title: 'Final review' },
   ],
 };
@@ -23,11 +22,12 @@ const isolation = args.isolation || 'worktree';
 const launchCommit = args.launchCommit || null;
 const runArtifacts = args.runArtifacts;
 const models = args.models || {};
+const couplingResolution = args.couplingResolution;
 
 const { homedir } = await import('node:os');
 const { runEngine } = await import(`file://${homedir()}/.claude/lib/mitosis/run-engine.mjs`);
 
 return runEngine(
-  { tasks, waves, branchPrefix, baseBranch, worktreeRoot, repoRoot, scopedCheckCmd, fullValidationCmd, prompts, fixLoopMax, isolation, launchCommit, runArtifacts, models },
+  { tasks, waves, branchPrefix, baseBranch, worktreeRoot, repoRoot, scopedCheckCmd, fullValidationCmd, prompts, fixLoopMax, isolation, launchCommit, runArtifacts, models, couplingResolution },
   { agent, parallel, log, phase },
 );

@@ -1,5 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import { pack } from './file-scope-fixtures.mjs';
 import { deriveEdges } from '../derive-edges.mjs';
 import { buildEngineTasks } from '../generate-run-script.mjs';
 import {
@@ -15,13 +16,13 @@ const GREEN = (where) => `GREEN: implement the behavior in ${where} and cover it
 function activationGraph() {
   return {
     tasks: [
-      { id: 'clear', title: 'add slugify helper', fullText: GREEN('src/slugify.mjs'), fileScope: ['src/slugify.mjs'], risk: 'low' },
-      { id: 'api', title: 'reshape response envelope', fullText: GREEN('src/api/envelope.mjs'), fileScope: ['src/api/envelope.mjs'], risk: 'low' },
-      { id: 'apiConsumer', title: 'consume the new envelope', fullText: GREEN('src/client.mjs'), fileScope: ['src/client.mjs'], risk: 'low' },
-      { id: 'hub', title: 'shared formatter', fullText: GREEN('src/format.mjs'), fileScope: ['src/format.mjs'], risk: 'low' },
-      { id: 'd1', title: 'consumer one', fullText: GREEN('src/one.mjs'), fileScope: ['src/one.mjs'], risk: 'low', dependsOn: ['hub'] },
-      { id: 'd2', title: 'consumer two', fullText: GREEN('src/two.mjs'), fileScope: ['src/two.mjs'], risk: 'low', dependsOn: ['hub'] },
-      { id: 'd3', title: 'consumer three', fullText: GREEN('src/three.mjs'), fileScope: ['src/three.mjs'], risk: 'low', dependsOn: ['hub'] },
+      { id: 'clear', title: 'add slugify helper', fullText: GREEN('src/slugify.mjs'), fileScope: pack(['src/slugify.mjs']), risk: 'low' },
+      { id: 'api', title: 'reshape response envelope', fullText: GREEN('src/api/envelope.mjs'), fileScope: pack(['src/api/envelope.mjs']), risk: 'low' },
+      { id: 'apiConsumer', title: 'consume the new envelope', fullText: GREEN('src/client.mjs'), fileScope: pack(['src/client.mjs']), risk: 'low' },
+      { id: 'hub', title: 'shared formatter', fullText: GREEN('src/format.mjs'), fileScope: pack(['src/format.mjs']), risk: 'low' },
+      { id: 'd1', title: 'consumer one', fullText: GREEN('src/one.mjs'), fileScope: pack(['src/one.mjs']), risk: 'low', dependsOn: ['hub'] },
+      { id: 'd2', title: 'consumer two', fullText: GREEN('src/two.mjs'), fileScope: pack(['src/two.mjs']), risk: 'low', dependsOn: ['hub'] },
+      { id: 'd3', title: 'consumer three', fullText: GREEN('src/three.mjs'), fileScope: pack(['src/three.mjs']), risk: 'low', dependsOn: ['hub'] },
     ],
   };
 }
@@ -93,8 +94,8 @@ test('telemetry: a mixed run emits the routing line with opus/sonnet/ambiguous c
 
 test('telemetry: a 100%-ambiguous run fires the loud fail-closed warning', () => {
   const tornTasks = {
-    a: { id: 'a', title: 'a', fullText: 'GREEN: a', fileScope: ['src/a.mjs'], risk: 'low', agentType: 'implementer' },
-    b: { id: 'b', title: 'b', fullText: 'GREEN: b', fileScope: ['src/b.mjs'], risk: 'low', agentType: 'implementer' },
+    a: { id: 'a', title: 'a', fullText: 'GREEN: a', fileScope: pack(['src/a.mjs']), risk: 'low', agentType: 'implementer' },
+    b: { id: 'b', title: 'b', fullText: 'GREEN: b', fileScope: pack(['src/b.mjs']), risk: 'low', agentType: 'implementer' },
   };
   const telemetry = routingTelemetry(tornTasks, { layer3Sonnet: true });
   assert.equal(telemetry.ambiguous, 2);

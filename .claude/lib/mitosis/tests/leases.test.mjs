@@ -1,5 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import { pack } from './file-scope-fixtures.mjs';
 import { Done, NeedsHuman, Unknown, Transient, ApproachFixable, AwaitingApproval, Built } from '../boundary.mjs';
 import {
   makeUnit,
@@ -11,8 +12,8 @@ import {
   acquire,
   dispositionOf,
   planTick,
-  runSchedule,
 } from '../leases.mjs';
+import { runSchedule } from '../engine.mjs';
 
 function alwaysDone() {
   return async () => Done({ ok: true });
@@ -20,7 +21,7 @@ function alwaysDone() {
 
 test('makeUnit produces a frozen unit with defaulted state, empty prereqs/fileScope, and leaseHeld false', () => {
   const u = makeUnit({ id: 'a' });
-  assert.deepEqual({ ...u }, { id: 'a', state: 'planned', prereqs: [], fileScope: [], leaseHeld: false });
+  assert.deepEqual({ ...u }, { id: 'a', state: 'planned', prereqs: [], fileScope: pack([]), leaseHeld: false });
   assert.ok(Object.isFrozen(u));
   assert.ok(Object.isFrozen(u.prereqs));
   assert.ok(Object.isFrozen(u.fileScope));
@@ -43,7 +44,7 @@ test('buildUnitTable validates array-ness, unique ids, and known prereqs', () =>
 });
 
 test('buildUnitTable does not mutate its input specs', () => {
-  const specs = [{ id: 'a', fileScope: ['x'] }];
+  const specs = [{ id: 'a', fileScope: pack(['x']) }];
   const before = JSON.stringify(specs);
   buildUnitTable(specs);
   assert.equal(JSON.stringify(specs), before);
@@ -58,26 +59,26 @@ test('overlapHolder reuses the scope-overlap logic and reports the holding unit 
 
 test('READINESS: isDispatchable admits a unit only when all prereqs are done AND no held lease overlaps its fileScope', () => {
   const units = buildUnitTable([
-    { id: 'a', state: 'done', fileScope: ['a.mjs'] },
-    { id: 'b', state: 'planned', prereqs: ['a'], fileScope: ['b.mjs'] },
-    { id: 'c', state: 'planned', prereqs: ['pending'], fileScope: ['c.mjs'] },
-    { id: 'pending', state: 'planned', fileScope: ['p.mjs'] },
+    { id: 'a', state: 'done', fileScope: pack(['a.mjs']) },
+    { id: 'b', state: 'planned', prereqs: ['a'], fileScope: pack(['b.mjs']) },
+    { id: 'c', state: 'planned', prereqs: ['pending'], fileScope: pack(['c.mjs']) },
+    { id: 'pending', state: 'planned', fileScope: pack(['p.mjs']) },
   ]);
   const byId = indexUnits(units);
   const b = byId.get('b');
   const c = byId.get('c');
   assert.equal(isDispatchable(b, byId, new Map()), true);
   assert.equal(isDispatchable(c, byId, new Map()), false);
-  const contended = acquire(new Map(), { id: 'x', fileScope: ['b.mjs'] });
+  const contended = acquire(new Map(), { id: 'x', fileScope: pack(['b.mjs']) });
   assert.equal(isDispatchable(b, byId, contended), false);
 });
 
 test('READINESS: isBuildable admits a unit when every prereq is green-built (built|awaiting|done), no held lease overlaps, and built-unmerged is under the window', () => {
   const units = buildUnitTable([
-    { id: 'a', state: 'built', fileScope: ['a.mjs'] },
-    { id: 'b', state: 'planned', prereqs: ['a'], fileScope: ['b.mjs'] },
-    { id: 'c', state: 'planned', prereqs: ['pending'], fileScope: ['c.mjs'] },
-    { id: 'pending', state: 'planned', fileScope: ['p.mjs'] },
+    { id: 'a', state: 'built', fileScope: pack(['a.mjs']) },
+    { id: 'b', state: 'planned', prereqs: ['a'], fileScope: pack(['b.mjs']) },
+    { id: 'c', state: 'planned', prereqs: ['pending'], fileScope: pack(['c.mjs']) },
+    { id: 'pending', state: 'planned', fileScope: pack(['p.mjs']) },
   ]);
   const byId = indexUnits(units);
   const b = byId.get('b');
@@ -85,7 +86,7 @@ test('READINESS: isBuildable admits a unit when every prereq is green-built (bui
   const open = { builtUnmergedCount: 0, size: 3 };
   assert.equal(isBuildable(b, byId, new Map(), open), true, 'b builds: prereq a is green-built, lease free, window open');
   assert.equal(isBuildable(c, byId, new Map(), open), false, 'c blocked: prereq pending is not green-built');
-  const contended = acquire(new Map(), { id: 'x', fileScope: ['b.mjs'] });
+  const contended = acquire(new Map(), { id: 'x', fileScope: pack(['b.mjs']) });
   assert.equal(isBuildable(b, byId, contended, open), false, 'b blocked: fileScope lease overlaps a running unit');
   assert.equal(isBuildable(b, byId, new Map(), { builtUnmergedCount: 3, size: 3 }), false, 'b blocked: build-ahead window saturated (built-unmerged >= W)');
   assert.equal(isBuildable(b, byId, new Map(), undefined), false, 'no window => fail closed (never build blind)');
@@ -107,8 +108,8 @@ test('isDispatchable is false for units already in a terminal, awaiting, or disp
 
 test('TIE-BREAK: planTick dispatches the lower-index unit and makes the overlapping contender wait this tick', () => {
   const units = buildUnitTable([
-    { id: 'a', fileScope: ['shared.mjs'] },
-    { id: 'b', fileScope: ['shared.mjs'] },
+    { id: 'a', fileScope: pack(['shared.mjs']) },
+    { id: 'b', fileScope: pack(['shared.mjs']) },
   ]);
   const { dispatch, leases } = planTick(units);
   assert.deepEqual(dispatch, ['a']);
@@ -117,10 +118,10 @@ test('TIE-BREAK: planTick dispatches the lower-index unit and makes the overlapp
 
 test('planTick: a windowSize that is not an integer falls back to the fixed build-ahead cap, not to a narrower floor', () => {
   const units = buildUnitTable([
-    { id: 'b1', state: 'built', fileScope: ['b1.mjs'] },
-    { id: 'b2', state: 'built', fileScope: ['b2.mjs'] },
-    { id: 'b3', state: 'built', fileScope: ['b3.mjs'] },
-    { id: 'c', state: 'planned', prereqs: ['b1'], fileScope: ['c.mjs'] },
+    { id: 'b1', state: 'built', fileScope: pack(['b1.mjs']) },
+    { id: 'b2', state: 'built', fileScope: pack(['b2.mjs']) },
+    { id: 'b3', state: 'built', fileScope: pack(['b3.mjs']) },
+    { id: 'c', state: 'planned', prereqs: ['b1'], fileScope: pack(['c.mjs']) },
   ]);
   assert.ok(planTick(units, undefined).dispatch.includes('c'), 'with 3 built-unmerged units the fallback width must still admit a build-ahead dispatch — a floor of 3 would withhold c and leave two authorities for one width');
   assert.ok(!planTick(units, 3).dispatch.includes('c'), 'an explicit width of 3 still saturates at 3 built-unmerged, so the fallback is what changed, not the admission rule');
@@ -128,8 +129,8 @@ test('planTick: a windowSize that is not an integer falls back to the fixed buil
 
 test('planTick dispatches all non-overlapping ready units together in one tick', () => {
   const units = buildUnitTable([
-    { id: 'a', fileScope: ['a.mjs'] },
-    { id: 'b', fileScope: ['b.mjs'] },
+    { id: 'a', fileScope: pack(['a.mjs']) },
+    { id: 'b', fileScope: pack(['b.mjs']) },
   ]);
   assert.deepEqual(planTick(units).dispatch, ['a', 'b']);
 });
@@ -154,8 +155,8 @@ test('DISPOSITION: a Built outcome maps to the built state (green, PR deferred)'
 test('SERIALIZE: two overlapping-lease units serialize across ticks but both reach Done', async () => {
   const { units, ticks } = await runSchedule(
     [
-      { id: 'a', fileScope: ['shared.mjs'] },
-      { id: 'b', fileScope: ['shared.mjs'] },
+      { id: 'a', fileScope: pack(['shared.mjs']) },
+      { id: 'b', fileScope: pack(['shared.mjs']) },
     ],
     alwaysDone(),
   );
@@ -169,8 +170,8 @@ test('PARK RELEASES LEASE: a parked unit frees its lease so an unrelated overlap
   const runUnit = async (u) => (u.id === 'a' ? NeedsHuman({ kind: 'grant', what: 'creds' }) : Done({ ok: true }));
   const { units, ticks } = await runSchedule(
     [
-      { id: 'a', fileScope: ['shared.mjs'] },
-      { id: 'c', fileScope: ['shared.mjs'] },
+      { id: 'a', fileScope: pack(['shared.mjs']) },
+      { id: 'c', fileScope: pack(['shared.mjs']) },
     ],
     runUnit,
   );
@@ -190,9 +191,9 @@ test("BUILD-AHEAD DEFAULT: a unit that settles AwaitingApproval lands the termin
   };
   const { units, ticks } = await runSchedule(
     [
-      { id: 'root', fileScope: ['root.mjs'] },
-      { id: 'dep', prereqs: ['root'], fileScope: ['dep.mjs'] },
-      { id: 'free', fileScope: ['free.mjs'] },
+      { id: 'root', fileScope: pack(['root.mjs']) },
+      { id: 'dep', prereqs: ['root'], fileScope: pack(['dep.mjs']) },
+      { id: 'free', fileScope: pack(['free.mjs']) },
     ],
     runUnit,
   );
@@ -217,9 +218,9 @@ test('OR-SEMANTICS: a crashed thunk (null via allSettled) parks only that unit a
   };
   const { units, ticks } = await runSchedule(
     [
-      { id: 'crash', fileScope: ['x.mjs'] },
-      { id: 'sib1', fileScope: ['y.mjs'] },
-      { id: 'sib2', fileScope: ['z.mjs'] },
+      { id: 'crash', fileScope: pack(['x.mjs']) },
+      { id: 'sib1', fileScope: pack(['y.mjs']) },
+      { id: 'sib2', fileScope: pack(['z.mjs']) },
     ],
     runUnit,
   );
@@ -235,9 +236,9 @@ test('DEPENDENTS BLOCKED BY PREREQ, NOT LEASE: a dependent of a parked unit stay
   const runUnit = async (u) => (u.id === 'root' ? NeedsHuman({ kind: 'grant', what: 'x' }) : Done({ ok: true }));
   const { units, ticks } = await runSchedule(
     [
-      { id: 'root', fileScope: ['root.mjs'] },
-      { id: 'dep', prereqs: ['root'], fileScope: ['dep.mjs'] },
-      { id: 'free', fileScope: ['free.mjs'] },
+      { id: 'root', fileScope: pack(['root.mjs']) },
+      { id: 'dep', prereqs: ['root'], fileScope: pack(['dep.mjs']) },
+      { id: 'free', fileScope: pack(['free.mjs']) },
     ],
     runUnit,
   );
@@ -251,7 +252,7 @@ test('DEPENDENTS BLOCKED BY PREREQ, NOT LEASE: a dependent of a parked unit stay
 });
 
 test('runSchedule leaves the caller-supplied specs unmutated', async () => {
-  const specs = [{ id: 'a', fileScope: ['a.mjs'] }];
+  const specs = [{ id: 'a', fileScope: pack(['a.mjs']) }];
   const before = JSON.stringify(specs);
   await runSchedule(specs, alwaysDone());
   assert.equal(JSON.stringify(specs), before);
@@ -260,8 +261,8 @@ test('runSchedule leaves the caller-supplied specs unmutated', async () => {
 test('runSchedule terminates (no unbounded loop) even when every dispatched unit parks', async () => {
   const { units, ticks } = await runSchedule(
     [
-      { id: 'a', fileScope: ['a.mjs'] },
-      { id: 'b', fileScope: ['b.mjs'] },
+      { id: 'a', fileScope: pack(['a.mjs']) },
+      { id: 'b', fileScope: pack(['b.mjs']) },
     ],
     async () => NeedsHuman({ kind: 'grant', what: 'x' }),
   );
@@ -279,7 +280,7 @@ test('runSchedule terminates unconditionally: a dispatchable unit that keeps set
     if (calls > RESELECTION_BOUND) throw new Error(`runSchedule re-dispatched a settled unit ${calls} times`);
     return Built({ mspId: 'a' });
   };
-  const { units, ticks } = await runSchedule([{ id: 'a', fileScope: ['a.mjs'] }], runUnit);
+  const { units, ticks } = await runSchedule([{ id: 'a', fileScope: pack(['a.mjs']) }], runUnit);
   const byId = indexUnits(units);
   assert.ok(calls <= RESELECTION_BOUND, `the loop settled after ${calls} dispatch(es) rather than spinning; without a step bound it never yields, so no timeout can kill it and the process dies on heap exhaustion instead of failing`);
   assert.equal(byId.get('a').state, 'built', 'the unit ends in the state its outcome names — a run that tripped the guard would end parked, because the thrown guard is delivered as a crashed dispatch');
@@ -293,7 +294,7 @@ test('FRONTIER REDISPATCH SURVIVES THE QUIESCENT EXIT: a unit that settles Built
     if (calls > 64) throw new Error(`runSchedule re-dispatched a settled unit ${calls} times`);
     return calls === 1 ? Built({ mspId: 'a' }) : Done({ ok: true });
   };
-  const { units } = await runSchedule([{ id: 'a', fileScope: ['a.mjs'] }], runUnit);
+  const { units } = await runSchedule([{ id: 'a', fileScope: pack(['a.mjs']) }], runUnit);
   assert.equal(indexUnits(units).get('a').state, 'done', 'the built unit is redispatched on its NEW state epoch and settles done; a termination fix that excluded built from dispatch would strand it at built');
   assert.equal(calls, 2, 'exactly two dispatches — one per state epoch (planned, then built) — so the redispatch happened once and did not spin');
 });
@@ -302,7 +303,7 @@ function deepChainSpecs(chainLength) {
   return Array.from({ length: chainLength }, (_, i) => ({
     id: `u${i}`,
     prereqs: i > 0 ? [`u${i - 1}`] : [],
-    fileScope: [`u${i}.mjs`],
+    fileScope: pack([`u${i}.mjs`]),
   }));
 }
 
@@ -320,9 +321,9 @@ test('BUILD-AHEAD DRAIN (tick): a deep dependency chain drains in a single run v
 
 function stalledPollSpecs() {
   return [
-    { id: 'r0', fileScope: ['r0.mjs'] },
-    { id: 'r1', fileScope: ['r1.mjs'] },
-    { id: 'd0', prereqs: ['r0', 'r1'], fileScope: ['d0.mjs'] },
+    { id: 'r0', fileScope: pack(['r0.mjs']) },
+    { id: 'r1', fileScope: pack(['r1.mjs']) },
+    { id: 'd0', prereqs: ['r0', 'r1'], fileScope: pack(['d0.mjs']) },
   ];
 }
 
@@ -339,9 +340,9 @@ test('BUILD-AHEAD DRAINS THE JOIN (tick): a diamond dependent builds ahead on bo
 });
 
 function buildFrontierSpecs(builtParentCount) {
-  const specs = [{ id: 'blocker', fileScope: ['blocker.mjs'] }];
-  for (let i = 0; i < builtParentCount; i += 1) specs.push({ id: `p${i}`, state: 'built', prereqs: ['blocker'], fileScope: [`p${i}.mjs`] });
-  specs.push({ id: 'child', prereqs: ['p0'], fileScope: ['child.mjs'] });
+  const specs = [{ id: 'blocker', fileScope: pack(['blocker.mjs']) }];
+  for (let i = 0; i < builtParentCount; i += 1) specs.push({ id: `p${i}`, state: 'built', prereqs: ['blocker'], fileScope: pack([`p${i}.mjs`]) });
+  specs.push({ id: 'child', prereqs: ['p0'], fileScope: pack(['child.mjs']) });
   return specs;
 }
 
@@ -402,13 +403,13 @@ function gatedRunner() {
 
 test('CRITICAL-PATH READY-SET ORDER: within a tick the ready-set dispatches the highest downstream-dependent-count unit first (test-unlocking value), and the lease guard still serializes an overlapping-scope contender out of that tick (isolation untouched)', async () => {
   const specs = [
-    { id: 'rival', fileScope: ['shared.mjs'] },
-    { id: 'solo', fileScope: ['solo.mjs'] },
-    { id: 'hub', fileScope: ['shared.mjs'] },
-    { id: 'h1', prereqs: ['hub'], fileScope: ['h1.mjs'] },
-    { id: 'h2', prereqs: ['hub'], fileScope: ['h2.mjs'] },
-    { id: 'h3', prereqs: ['h1'], fileScope: ['h3.mjs'] },
-    { id: 's1', prereqs: ['solo'], fileScope: ['s1.mjs'] },
+    { id: 'rival', fileScope: pack(['shared.mjs']) },
+    { id: 'solo', fileScope: pack(['solo.mjs']) },
+    { id: 'hub', fileScope: pack(['shared.mjs']) },
+    { id: 'h1', prereqs: ['hub'], fileScope: pack(['h1.mjs']) },
+    { id: 'h2', prereqs: ['hub'], fileScope: pack(['h2.mjs']) },
+    { id: 'h3', prereqs: ['h1'], fileScope: pack(['h3.mjs']) },
+    { id: 's1', prereqs: ['solo'], fileScope: pack(['s1.mjs']) },
   ];
   const { units, ticks } = await runSchedule(specs, alwaysDone());
 
@@ -431,9 +432,9 @@ test('TICK BARRIER: a dependent cannot launch while a co-dispatched straggler in
   const r = gatedRunner();
   const done = runSchedule(
     [
-      { id: 'a', fileScope: ['a.mjs'] },
-      { id: 'c', fileScope: ['c.mjs'] },
-      { id: 'd', prereqs: ['c'], fileScope: ['d.mjs'] },
+      { id: 'a', fileScope: pack(['a.mjs']) },
+      { id: 'c', fileScope: pack(['c.mjs']) },
+      { id: 'd', prereqs: ['c'], fileScope: pack(['d.mjs']) },
     ],
     r.runUnit,
   );
@@ -452,4 +453,22 @@ test('TICK BARRIER: a dependent cannot launch while a co-dispatched straggler in
   const { units } = await done;
   const byId = indexUnits(units);
   for (const id of ['a', 'c', 'd']) assert.equal(byId.get(id).state, 'done');
+});
+
+test('a lease is taken on the edit set only, so a read-only path never blocks a sibling unit', () => {
+  const writer = makeUnit({ id: 'writer', fileScope: pack(['src/writer.js'], ['src/shared.js']) });
+  const sibling = makeUnit({ id: 'sibling', fileScope: pack(['src/sibling.js'], ['src/shared.js']) });
+  const byId = indexUnits([writer, sibling]);
+  const held = acquire(new Map(), writer);
+  assert.deepEqual([...held.keys()], ['src/writer.js'], 'only the edit set may be leased; leasing a read path serializes units that never collide');
+  assert.equal(overlapHolder(held, ['src/shared.js'], null), null, 'a path the writer only reads must be held by nobody');
+  assert.equal(isDispatchable(sibling, byId, held), true);
+});
+
+test('two units whose edit sets overlap still serialize through the lease', () => {
+  const writer = makeUnit({ id: 'writer', fileScope: pack(['src/shared.js'], []) });
+  const rival = makeUnit({ id: 'rival', fileScope: pack(['src/shared.js'], []) });
+  const byId = indexUnits([writer, rival]);
+  const held = acquire(new Map(), writer);
+  assert.equal(isDispatchable(rival, byId, held), false);
 });

@@ -47,11 +47,11 @@ The consequence is measurable. The dispatch surface is 38 construction sites: 30
 
 | Class | Count | What the model is actually asked to do |
 |---|---|---|
-| b1 — journal I/O | 6 | `mkdir`, append one line to `.gitignore`, append one JSON line **the engine already holds and interpolates into the prompt** (`mitosis.js:4269`). Sites: `:4263`, `:4520`, `:4545`, `:4604`, `:4626`, and `:5402` via the `appendRunJournal` helper (`:5390-5411`) |
+| b1 — journal I/O | 6 | `mkdir`, append one line to `.gitignore`, append one JSON line **the engine already holds and interpolates into the prompt** (`mitosis.js:4269`). Sites: `:4263`, `:4520`, `:4545`, `:4604`, `:4626`, and `:5689` via the `appendRunJournal` helper (`:5637-5668`) |
 | b2 — shell-out-and-transcribe | 18 | Run a fixed command, return stdout through a schema. `manifest-publish` is a ten-step git recipe in prose (`:4297-4312`). Sites: `reconcile`, `manifest-publish`, `prepare-probe` (`:4357`), `fence`, `integrate`, `checkpoint-push`, `ship-verify` (`:5103`), `ci-probe`, `ci-diff` (`:5192`), `ci-publish-verify` (`:5235`), `divergence-check`, `plan-probe`, `restore`, `supersede` (`:4580`), `branch-compose` (`:4989`), `branch-prep` (`:5020`), `ci-publish` (`:5222`), `ship` (`:5329`) |
 | b3 — programs written in English | 3 | `parallelize` (`:4892-4908`) tells a model to write a script making seven library calls and to reverse-engineer a data shape by reading `mitosis-execute.js` (`:4903`); `boundary` (`:1508-1530`) specifies a diff-scoped lint gate as a 23-line algorithm including multiset comparison, and is dispatched twice against that same prose program — first pass (`:1534`) and recheck (`:1544`) |
 
-The other 11 sites are ten judgment dispatch sites realizing the nine kinds of section 2.3 — `decompose` (`:4171`), `plan` (`:4826`), `plan-review` (`:4854`), `replan` (`:4875`), `review` (`:1376`), `fix` (`:1385`), `implement` (`:1402`), `boundary-fix` (`:1541`), `ci-fix` (`:5176`), `diagnose` (`:3556`) — plus `redispatch` (`:3569`), which resists classification at the call site and is governed by residual 7. Kinds and sites are not one-to-one: `fix` and `boundary-fix` are one kind at two sites.
+The other 11 sites are ten judgment dispatch sites realizing the nine kinds of section 2.3 — `decompose` (`:4171`), `plan` (`:4826`), `plan-review` (`:4854`), `replan` (`:4875`), `review` (`:1376`), `fix` (`:1385`), `implement` (`:1402`), `boundary-fix` (`:1541`), `ci-fix` (`:5176`), `diagnose` (`:3796`) — plus `redispatch` (`:3809`), which dispatches with the triggering stage's agentType, schema and model rather than the diagnostician's debugger/opus pinning, resists classification at the call site, and is governed by residual 7. Kinds and sites are not one-to-one: `fix` and `boundary-fix` are one kind at two sites.
 
 Four of the b2 dispatches exist explicitly so the engine never takes another agent's word for what a change touched: `ci-diff` (`:5192`), `ci-publish-verify` (`:5235`), `ship-verify` (`:5103`) and `prepare-probe` (`:4357`). They are a **subset of the 18, never an addition to it** — the arithmetic trap that produced this section's earlier 24/63% figure. In a process they are `spawnSync` calls, and the trust problem they solve disappears with them.
 
@@ -138,7 +138,8 @@ These survive unchanged. They are the only places a model is invoked.
 | review | code-reviewer | opus |
 | security | security-reviewer | opus (conditional) |
 | fix / boundary-fix | task-declared | tiered |
-| diagnose / redispatch | debugger | opus |
+| diagnose | debugger | opus |
+| redispatch | the triggering stage's agentType | sonnet when the triggering stage is sonnet, else opus |
 
 Risk-scaled review is unchanged: `BLAST_RADIUS_K = 3` (`mitosis.js:1093`), `securityReviewRequired` (`:1129-1131`), two-lens mode selection (`:1395`), opus escalation at `dependentCount >= K` (`:1180`), sonnet-to-opus escalation on gate failure (`:1420-1421`). These are pure arithmetic over the task record and port without change.
 
@@ -268,7 +269,7 @@ Eighteen MSPs in four clusters, in dependency order.
 
 #### A1 — dispatch adapter
 
-**Files.** `.claude/lib/mitosis/dispatch.mjs`, `tests/dispatch.test.mjs`.
+**Files.** `.claude/lib/mitosis/dispatch.mjs`, `.claude/lib/mitosis/tests/dispatch-boundary.test.mjs`, `.claude/lib/mitosis/tests/dispatch-invocation.test.mjs`, `.claude/lib/mitosis/tests/dispatch-outcome.test.mjs`, `.claude/lib/mitosis/tests/dispatch-payload.test.mjs`, `.claude/lib/mitosis/tests/dispatch-termination.test.mjs`, `.claude/lib/mitosis/tests/dispatch-fixtures.mjs`.
 
 **Surface.** `dispatch(request, deps) -> DispatchResult`, where `request` is `{prompt, agentType, model, effort, schema, worktree, cwd, timeoutMs, signal}`.
 
@@ -299,7 +300,7 @@ A `subtype: "success"` carrying no `structured_output` after a schema request is
 
 #### A2 — DAG pool
 
-**Files.** `.claude/lib/mitosis/pool.mjs`, `tests/pool.test.mjs`.
+**Files.** `.claude/lib/mitosis/pool.mjs`, `.claude/lib/mitosis/tests/pool.test.mjs`.
 
 **Surface.** `runGraph({nodes, readyAfter}, dispatchFn, {concurrency, signal})`.
 
@@ -325,7 +326,7 @@ A `subtype: "success"` carrying no `structured_output` after a schema request is
 
 #### A3 — run store
 
-**Files.** `.claude/lib/mitosis/run-store.mjs`, `tests/run-store.test.mjs`.
+**Files.** `.claude/lib/mitosis/run-store.mjs`, `.claude/lib/mitosis/tests/run-store.test.mjs`.
 
 **Run key.** `sha256` over the canonicalized spec, MSP table **and task prose**. Task prose is included deliberately: fanout's `plan_id` omits it (`fanout.py:599-618`), so rewriting every task while keeping names and files identical yields the same key and `--resume` reports unrun work as done.
 
@@ -449,7 +450,7 @@ A `subtype: "success"` carrying no `structured_output` after a schema request is
 
 #### C3 — convert the six journal dispatches
 
-**Files.** engine call sites for `checkpoint-init`, `ci-attempt-checkpoint`, `park-checkpoint`, `built-checkpoint`, `ship-checkpoint` (`mitosis.js:4263`, `:4520`, `:4545`, `:4604`, `:4626`), and `quiescent-exit-checkpoint` (`:5402`, reached through the `appendRunJournal` helper at `:5390-5411`), now calling `run-store` directly.
+**Files.** engine call sites for `checkpoint-init`, `ci-attempt-checkpoint`, `park-checkpoint`, `built-checkpoint`, `ship-checkpoint` (`mitosis.js:4263`, `:4520`, `:4545`, `:4604`, `:4626`), and `quiescent-exit-checkpoint` (`:5689`, reached through the `appendRunJournal` helper at `:5637-5668`), now calling `run-store` directly.
 
 **Change.** Six dispatches become `appendFile`. These are the purest case in the census: the engine already holds the exact bytes and interpolates them into the prompt (`mitosis.js:4269`), so the model returns no information at all.
 
@@ -517,7 +518,7 @@ A `subtype: "success"` carrying no `structured_output` after a schema request is
 
 **Files.** `.claude/lib/mitosis/engine.mjs`, `.claude/lib/mitosis/cli.mjs`, integration tests.
 
-**Change.** `runSchedule`, `runScheduleTick`, `joinTick` and `runEngine` port onto A2's pool. The `Promise.allSettled` tick loop (`mitosis.js:2544`, `:2552-2574`) is replaced by DAG scheduling. Quiescent exit is preserved (`:2563`).
+**Change.** `runSchedule` (`mitosis.js:2813-2817`), `runScheduleTick`, `joinTick` (`:2780-2783`) and `runEngine` port onto A2's pool. The `Promise.allSettled` tick loop (`:2789-2811`) is replaced by DAG scheduling. Quiescent exit is preserved (`:2800`).
 
 **End-to-end capability returns here.** Every MSP before this one is green without it, by design (section 4.1).
 
@@ -547,7 +548,7 @@ A `subtype: "success"` carrying no `structured_output` after a schema request is
 
 #### D2 — deletion
 
-**Files removed.** `.claude/workflows/mitosis.js` (5,515 lines, of which 2,932 are twins); `.claude/lib/mitosis/workflow-sandbox.mjs`; `tests/workflow-sandbox.test.mjs`, `workflow-sandbox-census.test.mjs`, `workflow-sandbox-traps.test.mjs`, `workflow-sandbox-policy.test.mjs` (28 tests); `tests/mirror-guard.test.mjs` (7 tests).
+**Files removed.** `.claude/workflows/mitosis.js` (5,515 lines, of which 2,932 are twins); `.claude/lib/mitosis/workflow-sandbox.mjs`; `.claude/lib/mitosis/tests/workflow-sandbox.test.mjs`, `.claude/lib/mitosis/tests/workflow-sandbox-census.test.mjs`, `.claude/lib/mitosis/tests/workflow-sandbox-traps.test.mjs`, `.claude/lib/mitosis/tests/workflow-sandbox-policy.test.mjs` (28 tests); `.claude/lib/mitosis/tests/mirror-guard.test.mjs` (7 tests).
 
 **Change.** This is Part III (section 4.3). The twins die with the file.
 

@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { deriveEdges } from '../derive-edges.mjs';
 
 function graphOf(...tasks) {
-  return { tasks: tasks.map((t) => ({ dependsOn: [], fileScope: [], ...t })) };
+  return { tasks: tasks.map((t) => ({ dependsOn: [], fileScope: pack([]), ...t })) };
 }
 
 function deriveOutcome(graph) {
@@ -16,8 +16,8 @@ function deriveOutcome(graph) {
 
 test('clean graph: all dependencies declared, nothing added', () => {
   const g = graphOf(
-    { id: 't1', fileScope: ['lib/a.js'] },
-    { id: 't2', fileScope: ['lib/b.js'], dependsOn: ['t1'] },
+    { id: 't1', fileScope: pack(['lib/a.js']) },
+    { id: 't2', fileScope: pack(['lib/b.js']), dependsOn: ['t1'] },
   );
   const { graph, added, audit } = deriveEdges(g, []);
   assert.equal(added.length, 0);
@@ -27,8 +27,8 @@ test('clean graph: all dependencies declared, nothing added', () => {
 
 test('fileScope overlap with no declared edge is auto-added later->earlier', () => {
   const g = graphOf(
-    { id: 't1', fileScope: ['lib/shared.js'] },
-    { id: 't2', fileScope: ['lib/shared.js'] },
+    { id: 't1', fileScope: pack(['lib/shared.js']) },
+    { id: 't2', fileScope: pack(['lib/shared.js']) },
   );
   const { graph, added, audit } = deriveEdges(g, []);
   assert.equal(added.length, 1);
@@ -39,13 +39,13 @@ test('fileScope overlap with no declared edge is auto-added later->earlier', () 
 
 test('fileScope overlap already serialized either direction adds no edge', () => {
   const forward = graphOf(
-    { id: 't1', fileScope: ['lib/shared.js'] },
-    { id: 't2', fileScope: ['lib/shared.js'], dependsOn: ['t1'] },
+    { id: 't1', fileScope: pack(['lib/shared.js']) },
+    { id: 't2', fileScope: pack(['lib/shared.js']), dependsOn: ['t1'] },
   );
   assert.equal(deriveEdges(forward, []).added.length, 0);
   const reverse = graphOf(
-    { id: 't1', fileScope: ['lib/shared.js'], dependsOn: ['t2'] },
-    { id: 't2', fileScope: ['lib/shared.js'] },
+    { id: 't1', fileScope: pack(['lib/shared.js']), dependsOn: ['t2'] },
+    { id: 't2', fileScope: pack(['lib/shared.js']) },
   );
   assert.equal(deriveEdges(reverse, []).added.length, 0);
 });
@@ -53,34 +53,34 @@ test('fileScope overlap already serialized either direction adds no edge', () =>
 test('a scalar fileScope is refused instead of silently skipping the serializing overlap edge', () => {
   const outcome = deriveOutcome(graphOf(
     { id: 't1', fileScope: 'lib/shared.js' },
-    { id: 't2', fileScope: ['lib/shared.js'] },
+    { id: 't2', fileScope: pack(['lib/shared.js']) },
   ));
   assert.equal(outcome.refused, true, `expected a refusal; instead the two overlapping tasks were hardened with added edges ${JSON.stringify(outcome.added)}`);
-  assert.match(outcome.message, /fileScope must be an array/);
+  assert.match(outcome.message, /fileScope must be a context pack object/);
 });
 
 test('a non-string fileScope entry is refused instead of being narrowed away into a scope that serializes nothing', () => {
   const outcome = deriveOutcome(graphOf(
-    { id: 't1', fileScope: [123] },
-    { id: 't2', fileScope: ['lib/shared.js'] },
+    { id: 't1', fileScope: pack([123]) },
+    { id: 't2', fileScope: pack(['lib/shared.js']) },
   ));
   assert.equal(outcome.refused, true, `expected a refusal; instead the graph was hardened with added edges ${JSON.stringify(outcome.added)}`);
-  assert.match(outcome.message, /fileScope entries must be non-empty strings/);
+  assert.match(outcome.message, /fileScope.edit entries must be non-empty strings/);
 });
 
 test('an empty-string fileScope entry is refused instead of standing as an entry that overlaps nothing', () => {
   const outcome = deriveOutcome(graphOf(
-    { id: 't1', fileScope: [''] },
-    { id: 't2', fileScope: ['lib/shared.js'] },
+    { id: 't1', fileScope: pack(['']) },
+    { id: 't2', fileScope: pack(['lib/shared.js']) },
   ));
   assert.equal(outcome.refused, true, `expected a refusal; instead the graph was hardened with added edges ${JSON.stringify(outcome.added)}`);
-  assert.match(outcome.message, /fileScope entries must be non-empty strings/);
+  assert.match(outcome.message, /fileScope.edit entries must be non-empty strings/);
 });
 
 test('discovered semantic edge not declared is auto-added with its reason', () => {
   const g = graphOf(
-    { id: 't1', fileScope: ['lib/a.js'] },
-    { id: 't2', fileScope: ['lib/b.js'] },
+    { id: 't1', fileScope: pack(['lib/a.js']) },
+    { id: 't2', fileScope: pack(['lib/b.js']) },
   );
   const { graph, added } = deriveEdges(g, [{ from: 't2', to: 't1', reason: 'lsp-call' }]);
   assert.deepEqual(added, [{ from: 't2', to: 't1', reason: 'lsp-call' }]);
@@ -89,8 +89,8 @@ test('discovered semantic edge not declared is auto-added with its reason', () =
 
 test('monotonic: a declared edge is never removed', () => {
   const g = graphOf(
-    { id: 't1', fileScope: ['lib/a.js'] },
-    { id: 't2', fileScope: ['lib/b.js'], dependsOn: ['t1'] },
+    { id: 't1', fileScope: pack(['lib/a.js']) },
+    { id: 't2', fileScope: pack(['lib/b.js']), dependsOn: ['t1'] },
   );
   const { graph } = deriveEdges(g, []);
   assert.ok(graph.tasks.find((t) => t.id === 't2').dependsOn.includes('t1'));
@@ -98,8 +98,8 @@ test('monotonic: a declared edge is never removed', () => {
 
 test('discovered edge contradicting a declared edge halts with the wave-planner cycle string', () => {
   const g = graphOf(
-    { id: 't1', fileScope: ['lib/a.js'], dependsOn: ['t2'] },
-    { id: 't2', fileScope: ['lib/b.js'] },
+    { id: 't1', fileScope: pack(['lib/a.js']), dependsOn: ['t2'] },
+    { id: 't2', fileScope: pack(['lib/b.js']) },
   );
   assert.throws(
     () => deriveEdges(g, [{ from: 't2', to: 't1', reason: 'lsp-call' }]),
@@ -108,7 +108,7 @@ test('discovered edge contradicting a declared edge halts with the wave-planner 
 });
 
 test('discovered edge to an unknown task throws', () => {
-  const g = graphOf({ id: 't1', fileScope: ['lib/a.js'] });
+  const g = graphOf({ id: 't1', fileScope: pack(['lib/a.js']) });
   assert.throws(
     () => deriveEdges(g, [{ from: 't1', to: 'tX', reason: 'lsp-call' }]),
     /unknown task/,
@@ -116,23 +116,23 @@ test('discovered edge to an unknown task throws', () => {
 });
 
 test('declared dependency on an unknown task throws (mirrors wave-planner)', () => {
-  const g = graphOf({ id: 't1', fileScope: ['lib/a.js'], dependsOn: ['tZ'] });
+  const g = graphOf({ id: 't1', fileScope: pack(['lib/a.js']), dependsOn: ['tZ'] });
   assert.throws(() => deriveEdges(g, []), /unknown task/);
 });
 
 test('duplicate task id throws', () => {
   const g = graphOf(
-    { id: 't1', fileScope: ['lib/a.js'] },
-    { id: 't1', fileScope: ['lib/b.js'] },
+    { id: 't1', fileScope: pack(['lib/a.js']) },
+    { id: 't1', fileScope: pack(['lib/b.js']) },
   );
   assert.throws(() => deriveEdges(g, []), /duplicate task id/);
 });
 
 test('hardened dependsOn is sorted and deduplicated', () => {
   const g = graphOf(
-    { id: 't1', fileScope: ['lib/a.js'] },
-    { id: 't2', fileScope: ['lib/a.js'] },
-    { id: 't3', fileScope: ['lib/a.js'], dependsOn: ['t2', 't1', 't2'] },
+    { id: 't1', fileScope: pack(['lib/a.js']) },
+    { id: 't2', fileScope: pack(['lib/a.js']) },
+    { id: 't3', fileScope: pack(['lib/a.js']), dependsOn: ['t2', 't1', 't2'] },
   );
   const { graph } = deriveEdges(g, []);
   assert.deepEqual(graph.tasks.find((t) => t.id === 't3').dependsOn, ['t1', 't2']);
@@ -140,10 +140,10 @@ test('hardened dependsOn is sorted and deduplicated', () => {
 
 test('exposes reverse-transitive-dependent counts on each hardened task', () => {
   const g = graphOf(
-    { id: 't1', fileScope: ['lib/a.js'] },
-    { id: 't2', fileScope: ['lib/b.js'], dependsOn: ['t1'] },
-    { id: 't3', fileScope: ['lib/c.js'], dependsOn: ['t2'] },
-    { id: 't4', fileScope: ['lib/d.js'], dependsOn: ['t2'] },
+    { id: 't1', fileScope: pack(['lib/a.js']) },
+    { id: 't2', fileScope: pack(['lib/b.js']), dependsOn: ['t1'] },
+    { id: 't3', fileScope: pack(['lib/c.js']), dependsOn: ['t2'] },
+    { id: 't4', fileScope: pack(['lib/d.js']), dependsOn: ['t2'] },
   );
   const { graph } = deriveEdges(g, []);
   const byId = Object.fromEntries(graph.tasks.map((t) => [t.id, t]));
@@ -155,8 +155,8 @@ test('exposes reverse-transitive-dependent counts on each hardened task', () => 
 
 test('reverse-transitive-dependent count includes auto-added overlap edges', () => {
   const g = graphOf(
-    { id: 't1', fileScope: ['lib/shared.js'] },
-    { id: 't2', fileScope: ['lib/shared.js'] },
+    { id: 't1', fileScope: pack(['lib/shared.js']) },
+    { id: 't2', fileScope: pack(['lib/shared.js']) },
   );
   const { graph } = deriveEdges(g, []);
   const byId = Object.fromEntries(graph.tasks.map((t) => [t.id, t]));
@@ -166,8 +166,8 @@ test('reverse-transitive-dependent count includes auto-added overlap edges', () 
 
 test('exposes edgeReasons for tasks participating in derived edges', () => {
   const g = graphOf(
-    { id: 't1', fileScope: ['lib/a.js'] },
-    { id: 't2', fileScope: ['lib/b.js'] },
+    { id: 't1', fileScope: pack(['lib/a.js']) },
+    { id: 't2', fileScope: pack(['lib/b.js']) },
   );
   const { graph } = deriveEdges(g, [{ from: 't2', to: 't1', reason: 'api-contract' }]);
   const byId = Object.fromEntries(graph.tasks.map((t) => [t.id, t]));
@@ -177,8 +177,8 @@ test('exposes edgeReasons for tasks participating in derived edges', () => {
 
 test('tasks with no derived edges expose an empty edgeReasons array', () => {
   const g = graphOf(
-    { id: 't1', fileScope: ['lib/a.js'] },
-    { id: 't2', fileScope: ['lib/b.js'], dependsOn: ['t1'] },
+    { id: 't1', fileScope: pack(['lib/a.js']) },
+    { id: 't2', fileScope: pack(['lib/b.js']), dependsOn: ['t1'] },
   );
   const { graph } = deriveEdges(g, []);
   const byId = Object.fromEntries(graph.tasks.map((t) => [t.id, t]));
@@ -191,11 +191,14 @@ import { mkdtempSync, writeFileSync, readFileSync, existsSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { pack } from './file-scope-fixtures.mjs';
 
 const CLI = fileURLToPath(new URL('../derive-edges.mjs', import.meta.url));
 
+const CLI_AT = '2026-08-12T09:30:00.000Z';
+
 function runCli(args, cwd) {
-  return execFileSync('node', [CLI, ...args], { cwd, encoding: 'utf8' });
+  return execFileSync('node', [CLI, ...args, '--at', CLI_AT], { cwd, encoding: 'utf8' });
 }
 
 test('CLI writes a hardened graph and an audit file with a timestamp', () => {
@@ -204,8 +207,8 @@ test('CLI writes a hardened graph and an audit file with a timestamp', () => {
   const discovered = join(dir, 'edges.json');
   writeFileSync(declared, JSON.stringify({
     tasks: [
-      { id: 't1', title: 'a', fullText: 'A', fileScope: ['lib/shared.js'], dependsOn: [], risk: 'low', validation: 'scoped' },
-      { id: 't2', title: 'b', fullText: 'B', fileScope: ['lib/shared.js'], dependsOn: [], risk: 'low', validation: 'scoped' },
+      { id: 't1', title: 'a', fullText: 'A', fileScope: pack(['lib/shared.js']), dependsOn: [], risk: 'low', validation: 'scoped' },
+      { id: 't2', title: 'b', fullText: 'B', fileScope: pack(['lib/shared.js']), dependsOn: [], risk: 'low', validation: 'scoped' },
     ],
   }));
   writeFileSync(discovered, JSON.stringify([]));
@@ -214,7 +217,28 @@ test('CLI writes a hardened graph and an audit file with a timestamp', () => {
   assert.deepEqual(out.tasks.find((t) => t.id === 't2').dependsOn, ['t1']);
   const audit = JSON.parse(readFileSync(join(dir, 'plan.edges-audit.json'), 'utf8'));
   assert.equal(audit.addedEdgeCount, 1);
-  assert.match(audit.at, /^\d{4}-\d{2}-\d{2}T/);
+  assert.equal(audit.at, CLI_AT);
+});
+
+test('CLI refuses to mint the audit timestamp itself when --at is absent', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'derive-cli-at-'));
+  const declared = join(dir, 'plan.graph.json');
+  writeFileSync(declared, JSON.stringify({
+    tasks: [
+      { id: 't1', title: 'a', fullText: 'A', fileScope: pack(['lib/shared.js']), dependsOn: [], risk: 'low', validation: 'scoped' },
+    ],
+  }));
+  let stderr = '';
+  let status = 0;
+  try {
+    execFileSync('node', [CLI, declared], { cwd: dir, encoding: 'utf8', stdio: 'pipe' });
+  } catch (err) {
+    status = err.status;
+    stderr = String(err.stderr);
+  }
+  assert.notEqual(status, 0);
+  assert.match(stderr, /--at/);
+  assert.equal(existsSync(join(dir, 'plan.edges-audit.json')), false);
 });
 
 test('CLI exits non-zero and prints derive-edges error on a cycle', () => {
@@ -223,18 +247,469 @@ test('CLI exits non-zero and prints derive-edges error on a cycle', () => {
   const discovered = join(dir, 'edges.json');
   writeFileSync(declared, JSON.stringify({
     tasks: [
-      { id: 't1', title: 'a', fullText: 'A', fileScope: ['lib/a.js'], dependsOn: ['t2'], risk: 'low', validation: 'scoped' },
-      { id: 't2', title: 'b', fullText: 'B', fileScope: ['lib/b.js'], dependsOn: [], risk: 'low', validation: 'scoped' },
+      { id: 't1', title: 'a', fullText: 'A', fileScope: pack(['lib/a.js']), dependsOn: ['t2'], risk: 'low', validation: 'scoped' },
+      { id: 't2', title: 'b', fullText: 'B', fileScope: pack(['lib/b.js']), dependsOn: [], risk: 'low', validation: 'scoped' },
     ],
   }));
   writeFileSync(discovered, JSON.stringify([{ from: 't2', to: 't1', reason: 'lsp-call' }]));
   let failed = false;
   try {
-    execFileSync('node', [CLI, declared, discovered], { cwd: dir, encoding: 'utf8', stdio: 'pipe' });
+    execFileSync('node', [CLI, declared, discovered, '--at', CLI_AT], { cwd: dir, encoding: 'utf8', stdio: 'pipe' });
   } catch (err) {
     failed = true;
     assert.match(String(err.stderr), /derive-edges error: dependency cycle detected among:/);
   }
   assert.ok(failed, 'CLI should exit non-zero on a cycle');
+  assert.equal(existsSync(join(dir, 'plan.hardened.graph.json')), false);
+});
+
+test('T22: a discovered edge lands in dependentCount and in edgeReasons on both endpoints', () => {
+  const g = graphOf(
+    { id: 't1', fileScope: pack(['lib/a.js']) },
+    { id: 't2', fileScope: pack(['lib/b.js']), dependsOn: ['t1'] },
+    { id: 't3', fileScope: pack(['lib/c.js']), dependsOn: ['t2'] },
+    { id: 't4', fileScope: pack(['lib/d.js']) },
+  );
+  const { graph } = deriveEdges(g, [{ from: 't4', to: 't1', reason: 'api-contract' }]);
+  const byId = Object.fromEntries(graph.tasks.map((t) => [t.id, t]));
+  assert.equal(byId.t1.dependentCount, 3);
+  assert.equal(byId.t2.dependentCount, 1);
+  assert.equal(byId.t3.dependentCount, 0);
+  assert.equal(byId.t4.dependentCount, 0);
+  assert.deepEqual(byId.t1.edgeReasons, ['api-contract']);
+  assert.deepEqual(byId.t4.edgeReasons, ['api-contract']);
+  assert.deepEqual(byId.t2.edgeReasons, []);
+  assert.deepEqual(byId.t3.edgeReasons, []);
+});
+
+test('T23: the CLI hardened graph carries dependentCount and edgeReasons on every task', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'derive-cli-contract-'));
+  const declared = join(dir, 'plan.graph.json');
+  writeFileSync(declared, JSON.stringify({
+    tasks: [
+      { id: 't1', title: 'a', fullText: 'A', fileScope: pack(['lib/a.js']), dependsOn: [], risk: 'low', validation: 'scoped' },
+      { id: 't2', title: 'b', fullText: 'B', fileScope: pack(['lib/b.js']), dependsOn: ['t1'], risk: 'low', validation: 'scoped' },
+    ],
+  }));
+  const stdout = runCli([declared], dir);
+  assert.match(stdout, /"outPath"/);
+  const out = JSON.parse(readFileSync(join(dir, 'plan.hardened.graph.json'), 'utf8'));
+  for (const task of out.tasks) {
+    assert.ok(
+      Number.isInteger(task.dependentCount) && task.dependentCount >= 0,
+      `task ${task.id} lost dependentCount; run-engine.mjs:152 parks the unit when this field is not a non-negative integer`,
+    );
+    assert.ok(
+      Array.isArray(task.edgeReasons),
+      `task ${task.id} lost edgeReasons; run-engine.mjs:153 parks the unit when this field is not an array`,
+    );
+    for (const reason of task.edgeReasons) assert.equal(typeof reason, 'string');
+  }
+  assert.equal(out.tasks.find((t) => t.id === 't1').dependentCount, 1);
+  assert.deepEqual(out.tasks.find((t) => t.id === 't2').edgeReasons, []);
+});
+
+test('T19: a file-disjoint pair carrying a signal is emitted for coupling review AND serialized by an added edge', () => {
+  const g = graphOf(
+    { id: 't1', fileScope: pack(['srv/auth/login.ts']) },
+    { id: 't2', fileScope: pack(['web/auth/form.tsx']) },
+  );
+  const { graph, added, coupling } = deriveEdges(g, []);
+  assert.deepEqual(
+    added,
+    [{ from: 't2', to: 't1', reason: 'coupling-serialize' }],
+    'a serialize-defaulted pair is serialized by a real edge; emitting the decision without applying it left the pair co-scheduled',
+  );
+  assert.deepEqual(coupling, [{ pair: ['t1', 't2'], signals: ['shared-risk-marker:auth'], default: 'serialize' }]);
+  assert.deepEqual(graph.coupling, coupling);
+});
+
+test('T20: a pair whose fileScope overlaps is still emitted, and coupling adds no SECOND edge for it', () => {
+  const g = graphOf(
+    { id: 't1', fileScope: pack(['srv/auth/login.ts']) },
+    { id: 't2', fileScope: pack(['srv/auth/login.ts']) },
+  );
+  const { added, coupling } = deriveEdges(g, []);
+  assert.deepEqual(added, [{ from: 't2', to: 't1', reason: 'fileScope-overlap' }], 'the overlap rule already ordered the pair, so coupling owes it no further edge');
+  assert.deepEqual(
+    coupling.map((c) => c.pair),
+    [['t1', 't2']],
+    'the emission answers whether the pair is coupled, not whether it happened to be unordered this run; omitting an ordered pair made the record self-erase when the pass re-read its own output',
+  );
+});
+
+test('T21: a pair already ordered through an intermediate dependency is emitted and takes no additional edge', () => {
+  const g = graphOf(
+    { id: 't1', fileScope: pack(['srv/auth/login.ts']) },
+    { id: 't2', fileScope: pack(['lib/mid.ts']), dependsOn: ['t1'] },
+    { id: 't3', fileScope: pack(['web/auth/form.tsx']), dependsOn: ['t2'] },
+  );
+  const { added, coupling } = deriveEdges(g, []);
+  assert.deepEqual(coupling.map((c) => c.pair), [['t1', 't3']], 't1 and t3 are coupled whether or not t2 already orders them');
+  assert.deepEqual(added, [], 't1 and t3 are already ordered transitively through t2, so no direct edge is owed');
+});
+
+test('T19b: coupling context supplied on the graph reaches the detectors', () => {
+  const g = {
+    tasks: [
+      { id: 't1', fileScope: pack(['lib/a.js']), dependsOn: [] },
+      { id: 't2', fileScope: pack(['lib/b.js']), dependsOn: [] },
+    ],
+    couplingContext: { importAdjacency: { 'lib/a.js': ['lib/b.js'] } },
+  };
+  const { coupling } = deriveEdges(g, []);
+  assert.deepEqual(coupling, [{ pair: ['t1', 't2'], signals: ['import-adjacent'], default: 'parallel' }]);
+});
+
+test('T19c: the CLI names the coupling cause in edgeReasons without leaking a coupling SIGNAL into it', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'derive-cli-coupling-'));
+  const declared = join(dir, 'plan.graph.json');
+  writeFileSync(declared, JSON.stringify({
+    tasks: [
+      { id: 't1', title: 'a', fullText: 'A', fileScope: pack(['srv/auth/login.ts']), dependsOn: [], risk: 'low', validation: 'scoped' },
+      { id: 't2', title: 'b', fullText: 'B', fileScope: pack(['web/auth/form.tsx']), dependsOn: [], risk: 'low', validation: 'scoped' },
+    ],
+  }));
+  const stdout = JSON.parse(runCli([declared], dir));
+  assert.equal(stdout.couplingPairCount, 1);
+  const out = JSON.parse(readFileSync(join(dir, 'plan.hardened.graph.json'), 'utf8'));
+  assert.deepEqual(out.coupling, [{ pair: ['t1', 't2'], signals: ['shared-risk-marker:auth'], default: 'serialize' }]);
+  const audit = JSON.parse(readFileSync(join(dir, 'plan.edges-audit.json'), 'utf8'));
+  assert.deepEqual(audit.coupling, out.coupling);
+  const signalTokens = out.coupling.flatMap((c) => c.signals);
+  assert.ok(signalTokens.length > 0, 'a coupling emission with no signals cannot demonstrate that signals stay out of edgeReasons');
+  for (const task of out.tasks) {
+    assert.ok(Number.isInteger(task.dependentCount), `task ${task.id} lost dependentCount; run-engine.mjs parks the unit`);
+    assert.ok(Array.isArray(task.edgeReasons), `task ${task.id} lost edgeReasons; run-engine.mjs parks the unit`);
+    assert.deepEqual(task.edgeReasons, ['coupling-serialize'], 'a coupling edge must name its own cause, or it is indistinguishable from one the planner declared');
+    for (const signal of signalTokens) {
+      assert.equal(task.edgeReasons.includes(signal), false, 'a coupling SIGNAL carries caller-controlled path text and must never reach edgeReasons, which run-engine.mjs regex-matches for opus escalation; only the fixed cause token may');
+    }
+  }
+});
+
+function couplingGraphFile(dir) {
+  const declared = join(dir, 'plan.graph.json');
+  writeFileSync(declared, JSON.stringify({
+    tasks: [
+      { id: 't1', title: 'a', fullText: 'A', fileScope: pack(['srv/auth/login.ts']), dependsOn: [], risk: 'low', validation: 'scoped' },
+      { id: 't2', title: 'b', fullText: 'B', fileScope: pack(['web/auth/form.tsx']), dependsOn: [], risk: 'low', validation: 'scoped' },
+      { id: 't3', title: 'c', fullText: 'C', fileScope: pack(['srv/crypto/seal.ts']), dependsOn: [], risk: 'low', validation: 'scoped' },
+      { id: 't4', title: 'd', fullText: 'D', fileScope: pack(['web/crypto/open.tsx']), dependsOn: [], risk: 'low', validation: 'scoped' },
+    ],
+  }));
+  return declared;
+}
+
+test('T24d: the CLI refuses to harden a graph whose verdicts miss an emitted pair, and writes nothing', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'derive-cli-verdict-gap-'));
+  const declared = couplingGraphFile(dir);
+  const verdicts = join(dir, 'verdicts.json');
+  writeFileSync(verdicts, JSON.stringify([{ pair: ['t1', 't2'], decision: 'serialize', rationale: null }]));
+  let failed = false;
+  try {
+    execFileSync('node', [CLI, declared, '--verdicts', verdicts, '--at', CLI_AT], { cwd: dir, encoding: 'utf8', stdio: 'pipe' });
+  } catch (err) {
+    failed = true;
+    assert.equal(err.status, 1, `expected the validation exit code 1, received ${err.status}`);
+    assert.match(String(err.stderr), /derive-edges error: [\s\S]*t3\/t4 was emitted for review and no verdict answers it/);
+  }
+  assert.ok(failed, 'a hardened graph must not be produced from a plan that leaves an emitted pair unreviewed');
+  assert.equal(existsSync(join(dir, 'plan.hardened.graph.json')), false);
+  assert.equal(existsSync(join(dir, 'plan.edges-audit.json')), false);
+});
+
+test('T24e: the CLI refuses a serialize default overridden to parallel with no rationale', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'derive-cli-verdict-override-'));
+  const declared = couplingGraphFile(dir);
+  const verdicts = join(dir, 'verdicts.json');
+  writeFileSync(verdicts, JSON.stringify([
+    { pair: ['t1', 't2'], decision: 'parallel', rationale: null },
+    { pair: ['t3', 't4'], decision: 'serialize', rationale: null },
+  ]));
+  let failed = false;
+  try {
+    execFileSync('node', [CLI, declared, '--verdicts', verdicts, '--at', CLI_AT], { cwd: dir, encoding: 'utf8', stdio: 'pipe' });
+  } catch (err) {
+    failed = true;
+    assert.match(String(err.stderr), /t1\/t2 defaults to serialize and is overridden to parallel with no rationale/);
+  }
+  assert.ok(failed, 'the skeptical default must survive the derive-edges entrypoint, not only the coupling-review one');
+});
+
+test('T24f: the CLI hardens the graph when every emitted pair carries a verdict', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'derive-cli-verdict-ok-'));
+  const declared = couplingGraphFile(dir);
+  const verdicts = join(dir, 'verdicts.json');
+  writeFileSync(verdicts, JSON.stringify([
+    { pair: ['t1', 't2'], decision: 'serialize', rationale: null },
+    { pair: ['t4', 't3'], decision: 'parallel', rationale: 'the two crypto files share no symbol and sit either side of the boundary' },
+  ]));
+  const stdout = JSON.parse(runCli([declared, '--verdicts', verdicts], dir));
+  assert.equal(stdout.couplingPairCount, 2);
+  const out = JSON.parse(readFileSync(join(dir, 'plan.hardened.graph.json'), 'utf8'));
+  assert.deepEqual(out.coupling.map((c) => c.pair), [['t1', 't2'], ['t3', 't4']]);
+});
+
+test('T24g: the CLI refuses a repeated --verdicts flag rather than honouring only the last one', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'derive-cli-verdict-twice-'));
+  const declared = couplingGraphFile(dir);
+  const first = join(dir, 'first.json');
+  const second = join(dir, 'second.json');
+  writeFileSync(first, JSON.stringify([]));
+  writeFileSync(second, JSON.stringify([
+    { pair: ['t1', 't2'], decision: 'serialize', rationale: null },
+    { pair: ['t3', 't4'], decision: 'serialize', rationale: null },
+  ]));
+  let failed = false;
+  try {
+    execFileSync('node', [CLI, declared, '--verdicts', first, '--verdicts', second, '--at', CLI_AT], { cwd: dir, encoding: 'utf8', stdio: 'pipe' });
+  } catch (err) {
+    failed = true;
+    assert.match(String(err.stderr), /derive-edges error: --verdicts was supplied twice/);
+  }
+  assert.ok(failed, 'a second --verdicts must not silently discard the first path');
+  assert.equal(existsSync(join(dir, 'plan.hardened.graph.json')), false);
+});
+
+test('T24h: a graph with no --verdicts hardens MORE serialized, because absent verdicts is the safe case rather than the unenforced one', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'derive-cli-verdict-absent-'));
+  const declared = couplingGraphFile(dir);
+  const stdout = JSON.parse(runCli([declared], dir));
+  assert.equal(stdout.couplingPairCount, 2);
+  assert.equal(stdout.serializedPairCount, 2, 'with nothing rendered, every emitted pair takes the skeptical default');
+  assert.equal(stdout.addedEdgeCount, 2, 'each serialize resolution owes a real edge; an unenforced default leaves the pair co-schedulable');
+  const out = JSON.parse(readFileSync(join(dir, 'plan.hardened.graph.json'), 'utf8'));
+  assert.equal(out.tasks.length, 4);
+  const byId = Object.fromEntries(out.tasks.map((t) => [t.id, t]));
+  assert.deepEqual(byId.t2.dependsOn, ['t1']);
+  assert.deepEqual(byId.t4.dependsOn, ['t3']);
+  assert.deepEqual(byId.t1.dependsOn, []);
+  assert.deepEqual(byId.t3.dependsOn, []);
+  assert.deepEqual(out.couplingResolution.map((r) => r.source), ['default', 'default']);
+});
+
+function inPlaceRun(dir, tasks, discoveredEdges) {
+  const declared = join(dir, 'plan.graph.json');
+  const audit = join(dir, 'plan.edges-audit.json');
+  writeFileSync(declared, JSON.stringify({ tasks }));
+  const args = [declared, '--out', declared, '--audit', audit];
+  if (discoveredEdges !== null) {
+    const discovered = join(dir, 'plan.discovered-edges.json');
+    writeFileSync(discovered, JSON.stringify(discoveredEdges));
+    args.splice(1, 0, discovered);
+  }
+  runCli(args, dir);
+  const first = JSON.parse(readFileSync(declared, 'utf8'));
+  runCli(args, dir);
+  return { first, second: JSON.parse(readFileSync(declared, 'utf8')) };
+}
+
+function reasonsOf(graph, id) {
+  return graph.tasks.find((t) => t.id === id).edgeReasons;
+}
+
+test('T28: re-running the CLI over the graph it rewrote in place keeps the discovered edge reason', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'derive-cli-rerun-discovered-'));
+  const { first, second } = inPlaceRun(
+    dir,
+    [
+      { id: 't1', title: 'a', fullText: 'A', fileScope: pack(['lib/a.js']), dependsOn: [], risk: 'low', validation: 'scoped' },
+      { id: 't2', title: 'b', fullText: 'B', fileScope: pack(['lib/b.js']), dependsOn: [], risk: 'low', validation: 'scoped' },
+    ],
+    [{ from: 't2', to: 't1', reason: 'api-contract' }],
+  );
+  assert.deepEqual(reasonsOf(first, 't1'), ['api-contract']);
+  assert.deepEqual(reasonsOf(first, 't2'), ['api-contract']);
+  for (const id of ['t1', 't2']) {
+    assert.deepEqual(
+      reasonsOf(second, id),
+      ['api-contract'],
+      `the second in-place run erased ${id}.edgeReasons; run-engine.mjs:124 regex-matches this list to force opus on a contract-breaking task, so an emptied list silently downgrades the task on every replan`,
+    );
+  }
+  assert.deepEqual(second, first, 'derive-edges is run with --out equal to its input at .claude/skills/plan-to-task-graph/SKILL.md:33, so a re-run must be a fixed point');
+});
+
+test('T28b: re-running the CLI in place keeps the fileScope-overlap reason on the pair it serialized', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'derive-cli-rerun-overlap-'));
+  const { first, second } = inPlaceRun(
+    dir,
+    [
+      { id: 't1', title: 'a', fullText: 'A', fileScope: pack(['lib/shared.js']), dependsOn: [], risk: 'low', validation: 'scoped' },
+      { id: 't2', title: 'b', fullText: 'B', fileScope: pack(['lib/shared.js']), dependsOn: [], risk: 'low', validation: 'scoped' },
+    ],
+    null,
+  );
+  assert.deepEqual(reasonsOf(first, 't1'), ['fileScope-overlap']);
+  assert.deepEqual(reasonsOf(first, 't2'), ['fileScope-overlap']);
+  for (const id of ['t1', 't2']) {
+    assert.deepEqual(
+      reasonsOf(second, id),
+      ['fileScope-overlap'],
+      `the second in-place run erased ${id}.edgeReasons; the overlap edge it justifies is still present in dependsOn, so the reason must survive with it`,
+    );
+  }
+  assert.deepEqual(second, first, 'derive-edges is run with --out equal to its input at .claude/skills/plan-to-task-graph/SKILL.md:33, so a re-run must be a fixed point');
+});
+
+test('T28c: a reason whose discovered edge is withdrawn does not survive the next run', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'derive-cli-rerun-stale-'));
+  const declared = join(dir, 'plan.graph.json');
+  const discovered = join(dir, 'plan.discovered-edges.json');
+  const audit = join(dir, 'plan.edges-audit.json');
+  writeFileSync(declared, JSON.stringify({
+    tasks: [
+      { id: 't1', title: 'a', fullText: 'A', fileScope: pack(['lib/a.js']), dependsOn: [], risk: 'low', validation: 'scoped' },
+      { id: 't2', title: 'b', fullText: 'B', fileScope: pack(['lib/b.js']), dependsOn: [], risk: 'low', validation: 'scoped' },
+    ],
+  }));
+  writeFileSync(discovered, JSON.stringify([{ from: 't2', to: 't1', reason: 'api-contract' }]));
+  const args = [declared, discovered, '--out', declared, '--audit', audit];
+  runCli(args, dir);
+  assert.deepEqual(reasonsOf(JSON.parse(readFileSync(declared, 'utf8')), 't1'), ['api-contract']);
+  writeFileSync(discovered, JSON.stringify([]));
+  runCli(args, dir);
+  const after = JSON.parse(readFileSync(declared, 'utf8'));
+  for (const id of ['t1', 't2']) {
+    assert.deepEqual(
+      reasonsOf(after, id),
+      [],
+      `${id} kept a reason after the discovery pass withdrew it; reasons are a function of the asserted edges, so carrying one forward unconditionally would pin the task to opus forever`,
+    );
+  }
+  assert.deepEqual(after.tasks.find((t) => t.id === 't2').dependsOn, ['t1'], 'the serializing edge itself stays, because dependsOn is monotonic');
+});
+
+import { planWaves } from '../wave-planner.mjs';
+
+function migrationPairGraph() {
+  return graphOf(
+    { id: 't1', fileScope: pack(['db/migrations/001_add_accounts.sql']) },
+    { id: 't2', fileScope: pack(['db/migrations/002_add_ledger.sql']) },
+  );
+}
+
+test('T30: two file-disjoint tasks in one migrations directory take a real edge and land in SEPARATE waves', () => {
+  const { graph, added, coupling } = deriveEdges(migrationPairGraph(), []);
+  assert.deepEqual(coupling.map((c) => c.default), ['serialize']);
+  assert.deepEqual(
+    added,
+    [{ from: 't2', to: 't1', reason: 'coupling-serialize' }],
+    'a serialize resolution must add exactly one edge, and it must name the pair it serializes',
+  );
+  const byId = Object.fromEntries(graph.tasks.map((t) => [t.id, t]));
+  assert.deepEqual(byId.t2.dependsOn, ['t1'], 't2 must depend on t1; an edge pointing the other way still splits the waves and still ships the wrong order');
+  assert.deepEqual(byId.t1.dependsOn, [], 't1 must depend on nothing; a mutual edge would be a cycle wearing a serialization costume');
+  assert.deepEqual(planWaves(graph).waves, [['t1'], ['t2']]);
+});
+
+test('T30b: the same pair relaxed by a rationale-bearing parallel verdict stays co-scheduled in ONE wave', () => {
+  const verdicts = [{ pair: ['t1', 't2'], decision: 'parallel', rationale: 'the two migrations touch disjoint tables and the runner applies them in filename order regardless' }];
+  const { graph, added } = deriveEdges(migrationPairGraph(), [], verdicts);
+  assert.deepEqual(added, [], 'a rendered parallel verdict must relax the skeptical default, or --verdicts is decorative');
+  const byId = Object.fromEntries(graph.tasks.map((t) => [t.id, t]));
+  assert.deepEqual(byId.t2.dependsOn, []);
+  assert.deepEqual(planWaves(graph).waves, [['t1', 't2']]);
+});
+
+test('T30c: a parallel verdict with no rationale cannot relax a serialize default through deriveEdges', () => {
+  assert.throws(
+    () => deriveEdges(migrationPairGraph(), [], [{ pair: ['t1', 't2'], decision: 'parallel', rationale: null }]),
+    /t1\/t2 defaults to serialize and is overridden to parallel with no rationale/,
+  );
+});
+
+test('T30d: couplingResolution covers every emitted pair exactly once and names the source of each decision', () => {
+  const g = graphOf(
+    { id: 't1', fileScope: pack(['srv/auth/login.ts']) },
+    { id: 't2', fileScope: pack(['web/auth/form.tsx']) },
+    { id: 't3', fileScope: pack(['srv/crypto/seal.ts']) },
+    { id: 't4', fileScope: pack(['web/crypto/open.tsx']) },
+  );
+  const { graph, coupling, audit } = deriveEdges(g, [], [
+    { pair: ['t1', 't2'], decision: 'serialize', rationale: null },
+    { pair: ['t3', 't4'], decision: 'parallel', rationale: 'the two crypto files share no symbol and sit either side of the boundary' },
+  ]);
+  assert.deepEqual(
+    graph.couplingResolution.map((r) => [r.pair.join('/'), r.decision, r.source]),
+    [['t1/t2', 'serialize', 'verdict'], ['t3/t4', 'parallel', 'verdict']],
+  );
+  assert.equal(graph.couplingResolution.length, coupling.length, 'a resolution is owed for every emitted pair, not only for the pairs a verdict answered');
+  assert.deepEqual(audit.couplingResolution, graph.couplingResolution);
+  const byId = Object.fromEntries(graph.tasks.map((t) => [t.id, t]));
+  assert.deepEqual(byId.t2.dependsOn, ['t1']);
+  assert.deepEqual(byId.t4.dependsOn, []);
+});
+
+test('T30e: with no verdicts at all every emitted pair still resolves, and every resolution names the default as its source', () => {
+  const { graph, coupling } = deriveEdges(migrationPairGraph(), []);
+  assert.equal(graph.couplingResolution.length, coupling.length);
+  assert.deepEqual(graph.couplingResolution.map((r) => r.source), ['default']);
+  assert.deepEqual(graph.couplingResolution.map((r) => r.decision), ['serialize']);
+  assert.deepEqual(graph.couplingResolution.map((r) => r.rationale), [null]);
+});
+
+test('T31: coupling edges that close a cycle are caught by the existing halt rather than shipped', () => {
+  const g = graphOf(
+    { id: 'a', fileScope: pack(['srv/auth/a.ts']), dependsOn: ['c'] },
+    { id: 'b', fileScope: pack(['srv/auth/b.ts']) },
+    { id: 'c', fileScope: pack(['srv/auth/c.ts']) },
+  );
+  assert.throws(
+    () => deriveEdges(g, []),
+    /dependency cycle detected among: a, b, c/,
+    'a coupling edge can close a cycle that did not exist before it; resolving after the cycle check would ship that graph silently',
+  );
+});
+
+test('T31b: the same three tasks harden cleanly once verdicts relax the coupling that closed the cycle', () => {
+  const g = graphOf(
+    { id: 'a', fileScope: pack(['srv/auth/a.ts']), dependsOn: ['c'] },
+    { id: 'b', fileScope: pack(['srv/auth/b.ts']) },
+    { id: 'c', fileScope: pack(['srv/auth/c.ts']) },
+  );
+  const { added } = deriveEdges(g, [], [
+    { pair: ['a', 'b'], decision: 'parallel', rationale: 'a and b touch disjoint auth surfaces' },
+    { pair: ['a', 'c'], decision: 'serialize', rationale: null },
+    { pair: ['b', 'c'], decision: 'parallel', rationale: 'b and c touch disjoint auth surfaces' },
+  ]);
+  assert.deepEqual(added, [], 'a and c are already ordered by the declared graph, so the serialize verdict on that pair owes no further edge');
+});
+
+test('T32: a rendered serialize verdict has a mechanical effect on the file the CLI writes', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'derive-cli-serialize-effect-'));
+  const declared = join(dir, 'plan.graph.json');
+  writeFileSync(declared, JSON.stringify({
+    tasks: [
+      { id: 't1', title: 'a', fullText: 'A', fileScope: pack(['db/migrations/001_a.sql']), dependsOn: [], risk: 'low', validation: 'scoped' },
+      { id: 't2', title: 'b', fullText: 'B', fileScope: pack(['db/migrations/002_b.sql']), dependsOn: [], risk: 'low', validation: 'scoped' },
+    ],
+  }));
+  const verdicts = join(dir, 'verdicts.json');
+  writeFileSync(verdicts, JSON.stringify([{ pair: ['t1', 't2'], decision: 'serialize', rationale: 'same migration dir' }]));
+  const stdout = JSON.parse(runCli([declared, '--verdicts', verdicts], dir));
+  assert.equal(stdout.addedEdgeCount, 1, 'a serialize verdict that adds no edge is decorative');
+  assert.equal(stdout.serializedPairCount, 1);
+  const out = JSON.parse(readFileSync(join(dir, 'plan.hardened.graph.json'), 'utf8'));
+  assert.deepEqual(out.tasks.find((t) => t.id === 't2').dependsOn, ['t1']);
+  assert.deepEqual(planWaves(out).waves, [['t1'], ['t2']]);
+  const audit = JSON.parse(readFileSync(join(dir, 'plan.edges-audit.json'), 'utf8'));
+  assert.deepEqual(audit.added, [{ from: 't2', to: 't1', reason: 'coupling-serialize' }]);
+  assert.deepEqual(audit.couplingResolutionSourceCounts, { default: 0, verdict: 1 });
+  assert.ok(audit.obligations.length > 0, 'the audit carries the deferrals this enforcement knowingly leaves open');
+});
+
+test('T32b: an empty --verdicts path is refused rather than silently treated as no verdicts at all', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'derive-cli-verdict-empty-path-'));
+  const declared = couplingGraphFile(dir);
+  let failed = false;
+  try {
+    execFileSync('node', [CLI, declared, '--verdicts', '', '--at', CLI_AT], { cwd: dir, encoding: 'utf8', stdio: 'pipe' });
+  } catch (err) {
+    failed = true;
+    assert.match(String(err.stderr), /derive-edges error:/);
+  }
+  assert.ok(failed, 'an unreadable verdicts path must halt; skipping it would harden the graph against verdicts nobody read');
   assert.equal(existsSync(join(dir, 'plan.hardened.graph.json')), false);
 });

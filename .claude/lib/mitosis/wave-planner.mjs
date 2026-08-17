@@ -1,5 +1,6 @@
 import { readFileSync, realpathSync } from 'node:fs';
 import { pathToFileURL } from 'node:url';
+import { emptyFileScopePack, requireFileScopePack } from './msp-file-scope.mjs';
 
 export function canonicalPath(p) {
   return p
@@ -44,11 +45,10 @@ export function planWaves(spec) {
   for (const t of tasks) {
     if (!t.id) throw new Error('task missing id');
     if (byId.has(t.id)) throw new Error(`duplicate task id: ${t.id}`);
-    if (t.fileScope !== undefined && t.fileScope !== null && !Array.isArray(t.fileScope))
-      throw new Error(`task ${t.id} fileScope must be an array`);
-    for (const p of t.fileScope || [])
-      if (typeof p !== 'string' || p.length === 0) throw new Error(`task ${t.id} fileScope entries must be non-empty strings`);
-    byId.set(t.id, { id: t.id, dependsOn: t.dependsOn || [], fileScope: t.fileScope || [] });
+    const scope = t.fileScope === undefined || t.fileScope === null
+      ? emptyFileScopePack()
+      : requireFileScopePack(t.fileScope, `task ${t.id} fileScope`);
+    byId.set(t.id, { id: t.id, dependsOn: t.dependsOn || [], fileScope: scope });
   }
   for (const t of byId.values())
     for (const dep of t.dependsOn)
@@ -62,7 +62,7 @@ export function planWaves(spec) {
       throw new Error(`dependency cycle detected among: ${[...remaining.keys()].join(', ')}`);
     for (let i = 0; i < ready.length; i++)
       for (let j = i + 1; j < ready.length; j++)
-        if (scopesOverlap(byId.get(ready[i]).fileScope, byId.get(ready[j]).fileScope))
+        if (scopesOverlap(byId.get(ready[i]).fileScope.edit, byId.get(ready[j]).fileScope.edit))
           throw new Error(`fileScope overlap in same wave between ${ready[i]} and ${ready[j]}; annotation should have serialized these`);
     waves.push(ready);
     for (const id of ready) remaining.delete(id);
@@ -84,4 +84,14 @@ function main() {
   }
 }
 
-if (process.argv[1] && import.meta.url === pathToFileURL(realpathSync(process.argv[1])).href) main();
+function isDirectInvocation() {
+  try {
+    if (!process.argv[1]) return false;
+    return import.meta.url === pathToFileURL(realpathSync(process.argv[1])).href;
+  } catch (error) {
+    if (error && (error.code === 'ENOENT' || error.code === 'ENOTDIR')) return false;
+    throw error;
+  }
+}
+
+if (isDirectInvocation()) main();

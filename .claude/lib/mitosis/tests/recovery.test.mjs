@@ -19,6 +19,7 @@ import {
   PUBLISHED_MSP_FIELDS,
 } from '../recovery.mjs';
 import { park } from '../parking.mjs';
+import { pack } from './file-scope-fixtures.mjs';
 
 test('computeLogicalRunId: deterministic for identical inputs', () => {
   assert.equal(
@@ -191,7 +192,7 @@ test('parseRunManifest: malformed, legacy-NDJSON, or field-incomplete input yiel
 });
 
 test('buildInitialManifest: planned msps, derived integration branch, title/rationale/changeType/scope persisted verbatim, immutable inputs', () => {
-  const msps = [{ id: 'a', title: 'Alpha title', rationale: 'Alpha rationale', changeType: 'feat', scope: 'alpha', dependsOn: [], fileScope: ['src/a/**'] }];
+  const msps = [{ id: 'a', title: 'Alpha title', rationale: 'Alpha rationale', changeType: 'feat', scope: 'alpha', dependsOn: [], fileScope: pack(['src/a/**']) }];
   const manifest = buildInitialManifest({
     logicalRunId: 'deadbeef', harnessRunId: undefined, spec: '/s.md', repoRoot: '/r',
     baseBranch: 'main', sourcePrefix: 'mitosis', clusters: [['a']], msps,
@@ -200,13 +201,13 @@ test('buildInitialManifest: planned msps, derived integration branch, title/rati
   assert.equal(manifest.phase, 'Decompose');
   assert.deepEqual(manifest.msps[0], {
     id: 'a', title: 'Alpha title', rationale: 'Alpha rationale', changeType: 'feat', scope: 'alpha', status: 'planned', integrationBranch: 'mitosis/a-integration',
-    prUrl: null, mergedAt: null, dependsOn: [], fileScope: ['src/a/**'], contentHash: mspContentHash(msps[0]),
+    prUrl: null, mergedAt: null, dependsOn: [], fileScope: pack(['src/a/**']), contentHash: mspContentHash(msps[0]),
   });
-  assert.deepEqual(msps[0], { id: 'a', title: 'Alpha title', rationale: 'Alpha rationale', changeType: 'feat', scope: 'alpha', dependsOn: [], fileScope: ['src/a/**'] });
+  assert.deepEqual(msps[0], { id: 'a', title: 'Alpha title', rationale: 'Alpha rationale', changeType: 'feat', scope: 'alpha', dependsOn: [], fileScope: pack(['src/a/**']) });
 });
 
 test('mspContentHash: the declared changeType and scope are inside the canonical tuple, so a re-declared change type is a content change', () => {
-  const base = { id: 'a', title: 'alpha title', rationale: 'Alpha rationale', changeType: 'feat', scope: 'alpha', dependsOn: [], fileScope: ['src/a/**'] };
+  const base = { id: 'a', title: 'alpha title', rationale: 'Alpha rationale', changeType: 'feat', scope: 'alpha', dependsOn: [], fileScope: pack(['src/a/**']) };
   assert.notEqual(mspContentHash(base), mspContentHash({ ...base, changeType: 'fix' }), 'a changed changeType must change the hash, or a stale pre-migration manifest would be replay-forward-skipped under a title it cannot compose');
   assert.notEqual(mspContentHash(base), mspContentHash({ ...base, scope: 'beta' }), 'a changed scope must change the hash for the same reason');
 });
@@ -215,7 +216,7 @@ test('applyShipTransition: marks the msp shipped and does not mutate the input',
   const before = buildInitialManifest({
     logicalRunId: 'x', harnessRunId: null, spec: '/s', repoRoot: '/r',
     baseBranch: 'main', sourcePrefix: 'mitosis', clusters: [['a', 'b']],
-    msps: [{ id: 'a', dependsOn: [], fileScope: [] }, { id: 'b', dependsOn: [], fileScope: [] }],
+    msps: [{ id: 'a', dependsOn: [], fileScope: pack([]) }, { id: 'b', dependsOn: [], fileScope: pack([]) }],
   });
   const after = applyShipTransition(before, { mspId: 'a', prUrl: 'http://pr/1', mergedAt: '2026-07-08T00:00:00Z' });
   assert.equal(after.msps.find((m) => m.id === 'a').status, 'shipped');
@@ -228,14 +229,14 @@ test('applyShipTransition: appends a full defensive shipped entry carrying the p
   const before = buildInitialManifest({
     logicalRunId: 'x', harnessRunId: null, spec: '/s', repoRoot: '/r',
     baseBranch: 'main', sourcePrefix: 'mitosis', clusters: [['a', 'b']],
-    msps: [{ id: 'a', title: 'A', rationale: 'ra', dependsOn: [], fileScope: [] }, { id: 'b', title: 'B', rationale: 'rb', dependsOn: [], fileScope: [] }],
+    msps: [{ id: 'a', title: 'A', rationale: 'ra', dependsOn: [], fileScope: pack([]) }, { id: 'b', title: 'B', rationale: 'rb', dependsOn: [], fileScope: pack([]) }],
   });
   const snapshot = structuredClone(before);
   const after = applyShipTransition(before, { mspId: 'c', prUrl: 'http://pr/c', mergedAt: '2026-07-08T00:00:00Z', title: 'C title', rationale: 'C rationale', changeType: 'chore', scope: 'c' });
   assert.equal(after.msps.length, before.msps.length + 1);
   assert.deepEqual(after.msps.find((m) => m.id === 'c'), {
     id: 'c', title: 'C title', rationale: 'C rationale', changeType: 'chore', scope: 'c', status: 'shipped', integrationBranch: 'mitosis/c-integration',
-    prUrl: 'http://pr/c', mergedAt: '2026-07-08T00:00:00Z', dependsOn: [], fileScope: [],
+    prUrl: 'http://pr/c', mergedAt: '2026-07-08T00:00:00Z', dependsOn: [], fileScope: pack([]),
   });
   assert.deepEqual(after.msps[0], snapshot.msps[0]);
   assert.deepEqual(after.msps[1], snapshot.msps[1]);
@@ -246,7 +247,7 @@ function builtBase() {
   return buildInitialManifest({
     logicalRunId: 'x', harnessRunId: null, spec: '/s', repoRoot: '/r',
     baseBranch: 'main', sourcePrefix: 'mitosis', clusters: [['a', 'b']],
-    msps: [{ id: 'a', title: 'A', rationale: 'ra', dependsOn: [], fileScope: [] }, { id: 'b', title: 'B', rationale: 'rb', dependsOn: [], fileScope: [] }],
+    msps: [{ id: 'a', title: 'A', rationale: 'ra', dependsOn: [], fileScope: pack([]) }, { id: 'b', title: 'B', rationale: 'rb', dependsOn: [], fileScope: pack([]) }],
   });
 }
 
@@ -309,8 +310,8 @@ test('applyBuiltTransition: clears the resumePoint, so a rebuilt unit re-parked 
     logicalRunId: 'x', harnessRunId: null, spec: '/s', repoRoot: '/r',
     baseBranch: 'main', sourcePrefix: 'mitosis', clusters: [['a', 'b']],
     msps: [
-      { id: 'a', title: 'A', rationale: 'ra', dependsOn: [], fileScope: [] },
-      { id: 'b', title: 'B', rationale: 'rb', dependsOn: ['a'], fileScope: [] },
+      { id: 'a', title: 'A', rationale: 'ra', dependsOn: [], fileScope: pack([]) },
+      { id: 'b', title: 'B', rationale: 'rb', dependsOn: ['a'], fileScope: pack([]) },
     ],
   });
   const parkedAtPlan = park(base, {
@@ -361,9 +362,9 @@ test('buildInitialManifest: truncates an over-long title and rationale at the wr
     logicalRunId: 'x', harnessRunId: null, spec: '/s', repoRoot: '/r',
     baseBranch: 'main', sourcePrefix: 'mitosis', clusters: [['a'], ['b'], ['c']],
     msps: [
-      { id: 'a', title: longTitle, rationale: longRationale, dependsOn: [], fileScope: [] },
-      { id: 'b', title: 'short title', rationale: 'short rationale', dependsOn: [], fileScope: [] },
-      { id: 'c', dependsOn: [], fileScope: [] },
+      { id: 'a', title: longTitle, rationale: longRationale, dependsOn: [], fileScope: pack([]) },
+      { id: 'b', title: 'short title', rationale: 'short rationale', dependsOn: [], fileScope: pack([]) },
+      { id: 'c', dependsOn: [], fileScope: pack([]) },
     ],
     specContentHash: null,
   });
@@ -378,33 +379,33 @@ test('buildInitialManifest: truncates an over-long title and rationale at the wr
 });
 
 test('mspContentHash: deterministic 8-hex fingerprint, stable for byte-identical MSP content', () => {
-  const msp = { id: 'a', title: 'A', rationale: 'r', dependsOn: ['x'], fileScope: ['src/a.ts'] };
-  const copy = { id: 'a', title: 'A', rationale: 'r', dependsOn: ['x'], fileScope: ['src/a.ts'] };
+  const msp = { id: 'a', title: 'A', rationale: 'r', dependsOn: ['x'], fileScope: pack(['src/a.ts']) };
+  const copy = { id: 'a', title: 'A', rationale: 'r', dependsOn: ['x'], fileScope: pack(['src/a.ts']) };
   const h = mspContentHash(msp);
   assert.match(h, /^[a-f0-9]{8}$/, 'the per-MSP hash is a lowercase 8-char hex string');
   assert.equal(mspContentHash(copy), h, 'identical MSP content yields an identical hash');
 });
 
 test('mspContentHash: sensitive to each stable field (id, title, rationale, dependsOn, fileScope) independently', () => {
-  const base = { id: 'a', title: 'A', rationale: 'r', dependsOn: ['x'], fileScope: ['src/a.ts'] };
+  const base = { id: 'a', title: 'A', rationale: 'r', dependsOn: ['x'], fileScope: pack(['src/a.ts']) };
   const h = mspContentHash(base);
   assert.notEqual(mspContentHash({ ...base, id: 'b' }), h);
   assert.notEqual(mspContentHash({ ...base, title: 'A2' }), h);
   assert.notEqual(mspContentHash({ ...base, rationale: 'r2' }), h);
   assert.notEqual(mspContentHash({ ...base, dependsOn: ['y'] }), h);
-  assert.notEqual(mspContentHash({ ...base, fileScope: ['src/b.ts'] }), h);
+  assert.notEqual(mspContentHash({ ...base, fileScope: pack(['src/b.ts']) }), h);
 });
 
 test('mspContentHash: ignores non-stable fields (status, prUrl, checkpointRef) so a rebuilt-but-content-identical MSP hashes the same', () => {
-  const base = { id: 'a', title: 'A', rationale: 'r', dependsOn: [], fileScope: ['src/a.ts'] };
+  const base = { id: 'a', title: 'A', rationale: 'r', dependsOn: [], fileScope: pack(['src/a.ts']) };
   const decorated = { ...base, status: 'built', prUrl: 'https://x', checkpointRef: 'refs/mitosis/x/a', integrationBranch: 'mitosis/a-integration' };
   assert.equal(mspContentHash(decorated), mspContentHash(base));
 });
 
 test('mspContentHash: field-boundary safe (tuple positions prevent id/title/rationale run-together collisions)', () => {
   assert.notEqual(
-    mspContentHash({ id: 'ab', title: '', rationale: '', dependsOn: [], fileScope: [] }),
-    mspContentHash({ id: 'a', title: 'b', rationale: '', dependsOn: [], fileScope: [] }),
+    mspContentHash({ id: 'ab', title: '', rationale: '', dependsOn: [], fileScope: pack([]) }),
+    mspContentHash({ id: 'a', title: 'b', rationale: '', dependsOn: [], fileScope: pack([]) }),
   );
 });
 
@@ -418,8 +419,8 @@ test('mspContentHash: degrades gracefully on malformed input (null, array, numbe
 test('buildInitialManifest: authors a per-MSP contentHash on every entry, computed from the raw (untruncated) decomposer content', () => {
   const longTitle = 'T'.repeat(500);
   const rawMsps = [
-    { id: 'a', title: 'A', rationale: 'r', dependsOn: [], fileScope: ['src/a.ts'] },
-    { id: 'b', title: longTitle, rationale: 'r', dependsOn: ['a'], fileScope: ['src/b.ts'] },
+    { id: 'a', title: 'A', rationale: 'r', dependsOn: [], fileScope: pack(['src/a.ts']) },
+    { id: 'b', title: longTitle, rationale: 'r', dependsOn: ['a'], fileScope: pack(['src/b.ts']) },
   ];
   const manifest = buildInitialManifest({
     logicalRunId: 'x', harnessRunId: null, spec: '/s', repoRoot: '/r',
@@ -442,14 +443,14 @@ test('buildInitialManifest: persists the observed specContentHash as a top-level
   const withHash = buildInitialManifest({
     logicalRunId: 'x', harnessRunId: null, spec: '/s', repoRoot: '/r',
     baseBranch: 'main', sourcePrefix: 'mitosis', clusters: [['a']],
-    msps: [{ id: 'a', title: 'A', rationale: 'r', dependsOn: [], fileScope: [] }],
+    msps: [{ id: 'a', title: 'A', rationale: 'r', dependsOn: [], fileScope: pack([]) }],
     specContentHash: hash,
   });
   assert.equal(withHash.specContentHash, hash);
   const withNull = buildInitialManifest({
     logicalRunId: 'x', harnessRunId: null, spec: '/s', repoRoot: '/r',
     baseBranch: 'main', sourcePrefix: 'mitosis', clusters: [['a']],
-    msps: [{ id: 'a', title: 'A', rationale: 'r', dependsOn: [], fileScope: [] }],
+    msps: [{ id: 'a', title: 'A', rationale: 'r', dependsOn: [], fileScope: pack([]) }],
     specContentHash: null,
   });
   assert.ok('specContentHash' in withNull, 'the top-level field is present even when null');
@@ -459,7 +460,7 @@ test('buildInitialManifest: persists the observed specContentHash as a top-level
 const IDENTITY_SPEC_HASH = 'a'.repeat(64);
 
 function identityMsp(overrides = {}) {
-  return { id: 'a', dependsOn: [], fileScope: ['src/a/**'], changeType: 'feat', scope: 'alpha', title: 'alpha title', rationale: 'Alpha rationale', ...overrides };
+  return { id: 'a', dependsOn: [], fileScope: pack(['src/a/**']), changeType: 'feat', scope: 'alpha', title: 'alpha title', rationale: 'Alpha rationale', ...overrides };
 }
 
 const IDENTITY_REPO_ROOT = '/r';
@@ -511,13 +512,13 @@ function localJournalFixture(overrides = {}) {
       {
         id: 'a', title: 'alpha title', rationale: 'Alpha rationale', changeType: 'feat', scope: 'alpha',
         status: 'built', integrationBranch: 'mitosis/a-integration', prUrl: null, mergedAt: null,
-        dependsOn: [], fileScope: ['old/**'], checkpointRef: 'refs/mitosis/deadbeef/a',
+        dependsOn: [], fileScope: pack(['old/**']), checkpointRef: 'refs/mitosis/deadbeef/a',
         builtSha: 'a'.repeat(40), green: true, builtAgainst: {},
       },
       {
         id: 'z', title: 'zeta title', rationale: 'Zeta rationale', changeType: 'chore', scope: 'zeta',
         status: 'planned', integrationBranch: 'mitosis/z-integration', prUrl: null, mergedAt: null,
-        dependsOn: [], fileScope: ['z/**'],
+        dependsOn: [], fileScope: pack(['z/**']),
       },
     ],
     ...overrides,
@@ -540,7 +541,7 @@ test('I1 write side: buildPublishedManifest is a WHITELIST projection, so no run
   const genesis = buildInitialManifest({
     logicalRunId: 'deadbeef', harnessRunId: 'harness-before', spec: IDENTITY_SPEC_ABS, repoRoot: IDENTITY_REPO_ROOT,
     baseBranch: 'main', sourcePrefix: 'mitosis', clusters: [['a']],
-    msps: [{ id: 'a', title: 'alpha title', rationale: 'Alpha rationale', changeType: 'feat', scope: 'alpha', dependsOn: [], fileScope: ['src/a/**'] }],
+    msps: [{ id: 'a', title: 'alpha title', rationale: 'Alpha rationale', changeType: 'feat', scope: 'alpha', dependsOn: [], fileScope: pack(['src/a/**']) }],
     specContentHash: IDENTITY_SPEC_HASH,
   });
   const decorated = {
@@ -568,7 +569,7 @@ test('I1 write side: buildPublishedManifest is a WHITELIST projection, so no run
   assert.equal(payload.schemaVersion, 1);
   assert.equal(payload.logicalRunId, 'deadbeef');
   assert.equal(payload.specContentHash, IDENTITY_SPEC_HASH);
-  assert.deepEqual(payload.msps[0].fileScope, ['src/a/**']);
+  assert.deepEqual(payload.msps[0].fileScope, pack(['src/a/**']));
   assert.equal(Object.prototype.hasOwnProperty.call(payload, 'repoRoot'), false, 'repoRoot is a machine-local absolute path and is precisely the non-portable field the durable ref must not carry');
   assert.equal(Object.prototype.hasOwnProperty.call(payload, 'harnessRunId'), false, 'harnessRunId is per-invocation, not identity');
   assert.equal(payload.spec, IDENTITY_SPEC_REL, 'spec is carried repo-RELATIVE: the payload is pushed to a shared remote, and the absolute form leaks the originating machine home directory to every other clone');
@@ -627,12 +628,12 @@ test('I1 read side: parsePublishedManifest is a CLOSED census that halts on the 
 test('I3 precedence: the published identity table WINS a disagreement with the local journal, the journal-only id is dropped, and run state is still carried', () => {
   const lines = [];
   const local = localJournalFixture();
-  const published = publishedPayloadObject({ msps: [identityMsp({ fileScope: ['new/**'] })] });
+  const published = publishedPayloadObject({ msps: [identityMsp({ fileScope: pack(['new/**']) })] });
   const resolved = resolveRunIdentity(published, local, identityCtx({ log: (line) => lines.push(line) }));
 
   assert.equal(resolved.identity, 'published');
   assert.deepEqual(resolved.manifest.msps.map((m) => m.id), ['a'], 'the id present only in the local journal is DROPPED — the published table is the identity authority');
-  assert.deepEqual(resolved.manifest.msps[0].fileScope, ['new/**'], 'the published fileScope wins over the local journal copy');
+  assert.deepEqual(resolved.manifest.msps[0].fileScope, pack(['new/**']), 'the published fileScope wins over the local journal copy');
   assert.equal(resolved.manifest.msps[0].status, 'built', 'status is run state, not identity, and is carried from the local journal');
   assert.equal(resolved.manifest.msps[0].builtSha, 'a'.repeat(40), 'the durable build provenance the journal owns survives the overlay');
   assert.equal(resolved.manifest.msps[0].checkpointRef, 'refs/mitosis/deadbeef/a');
@@ -644,8 +645,8 @@ test('I3 precedence: the published identity table WINS a disagreement with the l
   assert.match(disagreement[0], /ids present only in the local journal and dropped: z/, 'the same line names the dropped journal-only id');
   assert.match(disagreement[0], /published copy WINS/i, 'the line states which copy won');
 
-  assert.equal(local.msps[0].fileScope[0], 'old/**', 'the local journal is never mutated');
-  assert.deepEqual(published.msps[0].fileScope, ['new/**'], 'the published payload is never mutated');
+  assert.equal(local.msps[0].fileScope.edit[0], 'old/**', 'the local journal is never mutated');
+  assert.deepEqual(published.msps[0].fileScope, pack(['new/**']), 'the published payload is never mutated');
 });
 
 test('I3 continuity: the ci attempt record survives the published-identity overlay, so a relaunch that reads a published manifest still refuses to re-ship an already-published head', () => {

@@ -1,4 +1,5 @@
 import { scopesOverlap } from './wave-planner.mjs';
+import { emptyFileScopePack, requireFileScopePack } from './msp-file-scope.mjs';
 
 function indexMsps(msps) {
   if (!Array.isArray(msps)) throw new Error('msps must be an array');
@@ -6,7 +7,10 @@ function indexMsps(msps) {
   msps.forEach((m, index) => {
     if (!m.id) throw new Error('msp missing id');
     if (byId.has(m.id)) throw new Error(`duplicate task id: ${m.id}`);
-    byId.set(m.id, { id: m.id, dependsOn: m.dependsOn || [], fileScope: m.fileScope || [], index });
+    const fileScope = m.fileScope === undefined || m.fileScope === null
+      ? emptyFileScopePack()
+      : requireFileScopePack(m.fileScope, `msp ${m.id} fileScope`);
+    byId.set(m.id, { id: m.id, dependsOn: m.dependsOn || [], fileScope, index });
   });
   return byId;
 }
@@ -97,7 +101,7 @@ export function deriveClusters(msps, discoveredEdges = []) {
     for (let j = i + 1; j < ids.length; j++) {
       const a = byId.get(ids[i]);
       const b = byId.get(ids[j]);
-      if (!scopesOverlap(a.fileScope, b.fileScope)) continue;
+      if (!scopesOverlap(a.fileScope.edit, b.fileScope.edit)) continue;
       if (connectedDirect(a.id, b.id)) continue;
       link(b.id, a.id);
       added.push({ from: b.id, to: a.id, reason: 'fileScope-overlap' });

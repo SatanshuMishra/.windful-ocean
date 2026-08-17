@@ -1,10 +1,11 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import { pack } from './file-scope-fixtures.mjs';
 import { runEngine } from '../run-engine.mjs';
 
 function baseArgs(overrides = {}) {
   return {
-    tasks: { t1: { id: 't1', title: 'T1', fullText: 'do t1', fileScope: ['lib/a.js'], risk: 'low', agentType: 'implementer', validation: 'scoped', dependentCount: 0, edgeReasons: [] } },
+    tasks: { t1: { id: 't1', title: 'T1', fullText: 'do t1', fileScope: pack(['lib/a.js']), risk: 'low', agentType: 'implementer', validation: 'scoped', dependentCount: 0, edgeReasons: [] } },
     waves: [['t1']],
     branchPrefix: 'wf-test',
     baseBranch: 'main',
@@ -45,12 +46,12 @@ function ctxWith(agent) {
 }
 
 function taskWith(props) {
-  return { id: 't1', title: 'T1', fullText: 'do t1', fileScope: ['lib/a.js'], risk: 'low', agentType: 'implementer', validation: 'scoped', dependentCount: 0, edgeReasons: [], ...props };
+  return { id: 't1', title: 'T1', fullText: 'do t1', fileScope: pack(['lib/a.js']), risk: 'low', agentType: 'implementer', validation: 'scoped', dependentCount: 0, edgeReasons: [], ...props };
 }
 
 test('low-risk task touching auth/ routes to the security-inclusive review, not a no-security review', async () => {
   const calls = [];
-  const result = await runEngine(baseArgs({ tasks: { t1: taskWith({ fileScope: ['auth/login.js'] }) } }), ctxWith(scriptedAgent(calls)));
+  const result = await runEngine(baseArgs({ tasks: { t1: taskWith({ fileScope: pack(['auth/login.js']) }) } }), ctxWith(scriptedAgent(calls)));
   assert.equal(result.halted, false);
   const secCall = calls.find((c) => c.opts && c.opts.label === 'sec:t1');
   assert.ok(secCall, 'security-reviewer must run for a low-risk auth/ task');
@@ -60,7 +61,7 @@ test('low-risk task touching auth/ routes to the security-inclusive review, not 
 
 test('low-risk task touching payment/ routes to the security-inclusive review', async () => {
   const calls = [];
-  const result = await runEngine(baseArgs({ tasks: { t1: taskWith({ fileScope: ['payment/charge.js'] }) } }), ctxWith(scriptedAgent(calls)));
+  const result = await runEngine(baseArgs({ tasks: { t1: taskWith({ fileScope: pack(['payment/charge.js']) }) } }), ctxWith(scriptedAgent(calls)));
   assert.equal(result.halted, false);
   assert.ok(calls.some((c) => c.opts && c.opts.label === 'sec:t1'), 'security-reviewer must run for a low-risk payment/ task');
   assert.equal(result.waves[0].outcomes[0].reviewMode, 'two-lens');
@@ -68,7 +69,7 @@ test('low-risk task touching payment/ routes to the security-inclusive review', 
 
 test('low-risk task with an irreversible (migrations) scope escalates to security-inclusive review', async () => {
   const calls = [];
-  const result = await runEngine(baseArgs({ tasks: { t1: taskWith({ fileScope: ['migrations/001_init.sql'] }) } }), ctxWith(scriptedAgent(calls)));
+  const result = await runEngine(baseArgs({ tasks: { t1: taskWith({ fileScope: pack(['migrations/001_init.sql']) }) } }), ctxWith(scriptedAgent(calls)));
   assert.equal(result.halted, false);
   assert.ok(calls.some((c) => c.opts && c.opts.label === 'sec:t1'), 'security-reviewer must run for an irreversible-scope task');
 });
@@ -94,12 +95,24 @@ test('blast-radius threshold K is operator-configurable and defaulted', async ()
   assert.equal(tunedResult.waves[0].outcomes[0].reviewMode, 'two-lens');
 });
 
-test('a sensitive scope with a malformed (non-array) fileScope still routes to the security-inclusive review', async () => {
+test('a malformed fileScope is refused at config and dispatches nothing, rather than running behind an unusable fence', async () => {
   const calls = [];
   const result = await runEngine(baseArgs({ tasks: { t1: taskWith({ fileScope: 'auth/login.js' }) } }), ctxWith(scriptedAgent(calls)));
-  assert.equal(result.halted, false);
-  assert.ok(calls.some((c) => c.opts && c.opts.label === 'sec:t1'), 'security-reviewer must run when signals are malformed (fail closed)');
-  assert.equal(result.waves[0].outcomes[0].reviewMode, 'two-lens');
+  assert.equal(result.halted, true, 'a scope the engine cannot read is a fence it cannot enforce');
+  assert.equal(result.haltReason.stage, 'config');
+  assert.match(result.haltReason.detail, /task t1 fileScope must be a context pack object/);
+  assert.equal(calls.some((c) => c.opts && c.opts.label === 'impl:t1'), false, 'no implementer may be dispatched behind an unreadable fence');
+});
+
+test('a task pack that omits the truncated key is refused at config, never defaulted to null', async () => {
+  const calls = [];
+  const result = await runEngine(
+    baseArgs({ tasks: { t1: taskWith({ fileScope: { edit: ['auth/login.js'], read: [] } }) } }),
+    ctxWith(scriptedAgent(calls)),
+  );
+  assert.equal(result.halted, true);
+  assert.equal(result.haltReason.stage, 'config');
+  assert.match(result.haltReason.detail, /task t1 fileScope omits the required truncated key/);
 });
 
 test('an ambiguous non-integer dependentCount fails closed to the security-inclusive review', async () => {

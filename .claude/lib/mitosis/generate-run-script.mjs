@@ -3,17 +3,21 @@ import { execFileSync } from 'node:child_process';
 import { join, dirname, basename, relative, resolve } from 'node:path';
 import { homedir, tmpdir } from 'node:os';
 import { pathToFileURL } from 'node:url';
+import { assertSpawnAllowed } from './exec-policy.mjs';
 import { planWaves } from './wave-planner.mjs';
+import { requireFileScopePack } from './msp-file-scope.mjs';
 import { resolveAll } from './superpowers-prompts.mjs';
 import { resolveBranch } from './branch-contract.mjs';
 
 const ENGINE_PATH = join(homedir(), '.claude/workflows/mitosis-execute.js');
 const ARG_LINE = /^const (\w+) = args\.\w+.*;$/;
+const GIT_BINARY = 'git';
+const GIT_TIMEOUT_MS = 10000;
 
 export const ENGINE_ARG_NAMES = [
   'tasks', 'waves', 'branchPrefix', 'baseBranch', 'worktreeRoot', 'repoRoot',
   'scopedCheckCmd', 'fullValidationCmd', 'prompts', 'fixLoopMax', 'isolation',
-  'launchCommit', 'runArtifacts', 'models',
+  'launchCommit', 'runArtifacts', 'models', 'couplingResolution',
 ];
 
 export function buildRunScript(engineSource, values) {
@@ -52,7 +56,8 @@ export function validateGraph(graph) {
     if (!t.id) throw new Error('task missing id');
     if (!t.title) throw new Error(`task ${t.id} missing title`);
     if (!t.fullText) throw new Error(`task ${t.id} missing fullText`);
-    if (!Array.isArray(t.fileScope) || t.fileScope.length === 0) throw new Error(`task ${t.id} missing or empty fileScope`);
+    const declaredScope = requireFileScopePack(t.fileScope, `task ${t.id} fileScope`);
+    if (declaredScope.edit.length === 0) throw new Error(`task ${t.id} missing or empty fileScope edit set`);
     if (t.risk !== 'low' && t.risk !== 'high') throw new Error(`task ${t.id} risk must be 'low' or 'high'`);
   }
   return planWaves(graph);
@@ -60,7 +65,7 @@ export function validateGraph(graph) {
 
 function parseArgs(argv) {
   const [graphPath, ...rest] = argv;
-  if (!graphPath) throw new Error('usage: generate-run-script.mjs <plan>.graph.json --base-branch <b> --scoped-check <cmd> --full-validation <cmd> [--isolation worktree|scope-fence] [--fix-loop-max 3] [--models <json>]');
+  if (!graphPath) throw new Error('usage: generate-run-script.mjs <plan>.graph.json --base-branch <b> --scoped-check <cmd> --full-validation <cmd> --branch-prefix <p> [--isolation worktree|scope-fence] [--fix-loop-max 3] [--models <json>]');
   const BOOLEAN_FLAGS = new Set(['allow-platform-default']);
   const flags = {};
   for (let i = 0; i < rest.length;) {
@@ -80,12 +85,18 @@ function parseArgs(argv) {
   return { graphPath, flags };
 }
 
+export function execAllowed(binary, argv, cwd) {
+  assertSpawnAllowed(binary, argv);
+  return execFileSync(binary, argv, { encoding: 'utf8', timeout: GIT_TIMEOUT_MS, cwd }).trim();
+}
+
 function git(cmdArgs) {
-  return execFileSync('git', cmdArgs, { encoding: 'utf8', timeout: 10000 }).trim();
+  return execAllowed(GIT_BINARY, cmdArgs, undefined);
 }
 
 function gitIn(cwd, cmdArgs) {
-  try { return execFileSync('git', cmdArgs, { encoding: 'utf8', timeout: 10000, cwd }).trim(); } catch { return null; }
+  assertSpawnAllowed(GIT_BINARY, cmdArgs);
+  try { return execAllowed(GIT_BINARY, cmdArgs, cwd); } catch { return null; }
 }
 
 function run() {
@@ -105,6 +116,9 @@ function run() {
   const models = flags.models ? JSON.parse(flags.models) : {};
   const badModelKeys = Object.keys(models).filter((k) => k !== 'reviewer' && k !== 'fixer');
   if (badModelKeys.length > 0) throw new Error(`--models keys must be reviewer or fixer; got: ${badModelKeys.join(', ')}`);
+  if (!flags['branch-prefix']) {
+    throw new Error('missing required flag --branch-prefix; the prefix is entropy and enters through args only, and minting one from the wall clock here would give two runs of the same graph two different branch namespaces');
+  }
   const outPath = graphPath.replace(/\.graph\.json$/, '.run.js');
   if (outPath === graphPath) throw new Error('graph path must end in .graph.json');
 
@@ -133,7 +147,7 @@ function run() {
   const values = {
     tasks: buildEngineTasks(graph.tasks),
     waves,
-    branchPrefix: `wf-${new Date().toISOString().replace(/\D/g, '').slice(0, 14)}`,
+    branchPrefix: flags['branch-prefix'],
     baseBranch,
     worktreeRoot: mkdtempSync(join(tmpdir(), 'sp-wt-')),
     repoRoot,
@@ -145,6 +159,7 @@ function run() {
     launchCommit,
     runArtifacts,
     models,
+    couplingResolution: graph.couplingResolution || [],
   };
 
   const script = buildRunScript(readFileSync(ENGINE_PATH, 'utf8'), values);

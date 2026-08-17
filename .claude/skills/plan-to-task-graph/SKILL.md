@@ -14,7 +14,7 @@ For each plan task emit one task object with the v2 contract fields:
 - `id` — stable, derived from the plan task number/name.
 - `title` — the task title.
 - `fullText` — the ENTIRE task body verbatim (steps + code). Never summarize.
-- `fileScope` — every file the task creates or modifies. Exhaustive; prefer exact paths over globs.
+- `fileScope` — a context pack `{ edit, read, truncated }`. `edit` is every file the task creates or modifies and is the collision fence: exhaustive, exact paths over globs, and two tasks whose `edit` sets overlap are never co-scheduled. `read` is every file the task must read for context but must never write; it is context only and serializes nothing, and a path in `edit` is never repeated in `read`. `truncated` is REQUIRED and nullable: `null` when nothing was dropped, otherwise `{ dropped, reason }`. Emitting a bare path list, or omitting `truncated`, is refused by every consumer.
 - `dependsOn` — the ids this task declares it needs. An edge `{from,to}` means `from` depends on `to`.
 - `risk` — `high` for contract pairs, auth, migrations, concurrency, or public API shape; else `low`. Drives review scaling.
 - `agentType` — omit or `implementer` for features/fixes/refactors; `test-engineer` for test-only tasks. Fold rote single-file edits into an `implementer` task; never emit `mechanical-editor` (engine tasks require a worktree, tests, and a commit, which that agent type cannot perform).
@@ -28,14 +28,15 @@ This layer is authored by the AI from full plan context. There is no human revie
 
 The decomposer is fallible: AI judgment over a large plan can drop a real dependency edge. The structure layer is a MONOTONIC, add-only safety net that can only make the graph SAFER (more serialized), never less.
 
-1. Semantic discovery (you run this): for each task's `fileScope` symbols, query the native LSP call hierarchy (the dependency ORACLE per rules/common/tool-routing.md) for caller/callee edges that cross task boundaries; query the Graphify map for file / import / inheritance edges. Corroborate the seams the oracle cannot see (dynamic dispatch, DI, FFI, SQL, codegen) with targeted reads. Emit each cross-task edge as `{ "from": "<dependent task id>", "to": "<prerequisite task id>", "reason": "lsp-call" | "graphify-import" | "contract-pair" }` into a discovered-edges JSON array.
+1. Semantic discovery (you run this): for each task's `fileScope.edit` symbols, query the native LSP call hierarchy (the dependency ORACLE per rules/common/tool-routing.md) for caller/callee edges that cross task boundaries; query the Graphify map for file / import / inheritance edges. Corroborate the seams the oracle cannot see (dynamic dispatch, DI, FFI, SQL, codegen) with targeted reads. Emit each cross-task edge as `{ "from": "<dependent task id>", "to": "<prerequisite task id>", "reason": "lsp-call" | "graphify-import" | "contract-pair" }` into a discovered-edges JSON array.
 2. Hardening (deterministic, automated, no human): run
-   `node ~/.claude/lib/mitosis/derive-edges.mjs <plan>.graph.json <plan>.discovered-edges.json --out <plan>.graph.json --audit <plan>.edges-audit.json`
-   `derive-edges` unions the declared edges with the discovered edges AND with pure fileScope-overlap edges it computes itself. It ADDS any edge you missed (logged to the audit file) and NEVER removes a declared edge.
+   `node ~/.claude/lib/mitosis/derive-edges.mjs <plan>.graph.json <plan>.discovered-edges.json --out <plan>.graph.json --audit <plan>.edges-audit.json --at <iso>`
+   `--at` is REQUIRED and takes an ISO-8601 UTC timestamp you supply for the audit record; the tool reads no clock of its own, so omitting it is a hard error rather than a silently omitted field.
+   `derive-edges` unions the declared edges with the discovered edges AND with pure `fileScope.edit`-overlap edges it computes itself. It ADDS any edge you missed (logged to the audit file) and NEVER removes a declared edge.
 3. The ONLY halt is a contradiction the monotonic add cannot resolve — a newly-implied dependency cycle, meaning the decomposition itself is wrong. `derive-edges` throws `dependency cycle detected among: ...` and exits non-zero, mirroring the wave planner. Fix the plan's task boundaries and re-run. No human approves the lint; the run proceeds automatically on the safer graph whenever no cycle exists.
 
 ## Output and preview
 
 Write the hardened graph to `<plan>.graph.json` (in place, v2 contract) and the audit to `<plan>.edges-audit.json`. Preview the wave layout with:
 `node ~/.claude/lib/mitosis/wave-planner.mjs <plan>.graph.json`
-A clean run proves the graph is acyclic and that no two fileScope-overlapping tasks share a wave. Return the hardened graph path and the audit to the calling mitosis flow.
+A clean run proves the graph is acyclic and that no two tasks whose `fileScope.edit` sets overlap share a wave. Return the hardened graph path and the audit to the calling mitosis flow.

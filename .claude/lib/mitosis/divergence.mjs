@@ -34,7 +34,8 @@ export async function divergedParents(manifest, mergedIds, mergedShas, ctx) {
     const parent = byId.get(parentId);
     const builtSha = parent && typeof parent.builtSha === 'string' && SHA_HEX_PATTERN.test(parent.builtSha) ? parent.builtSha : null;
     const mergedSha = typeof shas[parentId] === 'string' && SHA_HEX_PATTERN.test(shas[parentId]) ? shas[parentId] : null;
-    const fileScope = parent && Array.isArray(parent.fileScope) ? parent.fileScope.filter((p) => typeof p === 'string' && p.length > 0) : [];
+    const declared = parent && parent.fileScope && Array.isArray(parent.fileScope.edit) ? parent.fileScope.edit : [];
+    const fileScope = declared.filter((p) => typeof p === 'string' && p.length > 0);
     const fileScopeSafe = fileScope.length > 0 && fileScope.every((p) => !p.startsWith(':'));
     if (builtSha === null || mergedSha === null || !fileScopeSafe) { diverged.add(parentId); continue; }
     let ref;

@@ -1,6 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { needKeyedParents, divergedParents } from '../divergence.mjs';
+import { pack } from './file-scope-fixtures.mjs';
 
 const LOGICAL_RUN_ID = 'a1b2c3d4';
 const BUILT_SHA = 'abc1234';
@@ -35,7 +36,7 @@ function makeCtx(agentResult) {
 
 function gatingParent(id, overrides = {}) {
   return [
-    { id, status: 'shipped', builtSha: BUILT_SHA, fileScope: [`scope/${id}/**`], dependsOn: [], ...overrides },
+    { id, status: 'shipped', builtSha: BUILT_SHA, fileScope: pack([`scope/${id}/**`]), dependsOn: [], ...overrides },
     { id: `${id}-child`, status: 'built', dependsOn: [id] },
   ];
 }
@@ -57,9 +58,9 @@ function confirmedClean(...ids) {
 
 test('needKeyedParents: only a merged parent that still gates built work is keyed, in mergedIds order, deduplicated', () => {
   const manifest = { msps: [
-    { id: 'gates-built', status: 'shipped', builtSha: BUILT_SHA, fileScope: ['scope/g/**'], dependsOn: [] },
+    { id: 'gates-built', status: 'shipped', builtSha: BUILT_SHA, fileScope: pack(['scope/g/**']), dependsOn: [] },
     { id: 'child', status: 'built', dependsOn: ['gates-built'] },
-    { id: 'no-built-dep', status: 'shipped', builtSha: BUILT_SHA, fileScope: ['scope/n/**'], dependsOn: [] },
+    { id: 'no-built-dep', status: 'shipped', builtSha: BUILT_SHA, fileScope: pack(['scope/n/**']), dependsOn: [] },
     { id: 'done-child', status: 'shipped', dependsOn: ['no-built-dep'] },
   ] };
 
@@ -108,7 +109,7 @@ test('divergedParents: ZERO dispatches when every need-keyed parent fails a pre-
   const { calls, ctx } = makeCtx(confirmedClean('a', 'b'));
   const manifest = { msps: [
     ...gatingParent('a', { builtSha: 'not-hex-at-all' }),
-    ...gatingParent('b', { fileScope: [] }),
+    ...gatingParent('b', { fileScope: pack([]) }),
   ] };
 
   const diverged = await divergedParents(manifest, ['a', 'b'], { a: MERGED_SHA, b: MERGED_SHA }, ctx);
@@ -129,7 +130,7 @@ test('divergedParents: never returns an id outside needKeyedParents', async () =
   const { ctx } = makeCtx({ results: [{ parentId: 'quiet', changedPaths: ['x'], error: null }] });
   const manifest = { msps: [
     ...gatingParent('a'),
-    { id: 'quiet', status: 'shipped', builtSha: BUILT_SHA, fileScope: ['scope/q/**'], dependsOn: [] },
+    { id: 'quiet', status: 'shipped', builtSha: BUILT_SHA, fileScope: pack(['scope/q/**']), dependsOn: [] },
     { id: 'quiet-child', status: 'shipped', dependsOn: ['quiet'] },
   ] };
 
@@ -142,7 +143,7 @@ test('divergedParents: a bad-token parent is never enumerated in the dispatched 
   const { calls, ctx } = makeCtx(confirmedClean('safe'));
   const manifest = { msps: [
     ...gatingParent('dash', { builtSha: '--flagpwn' }),
-    ...gatingParent('magic', { fileScope: [':(exclude)*'] }),
+    ...gatingParent('magic', { fileScope: pack([':(exclude)*']) }),
     ...gatingParent('safe'),
   ] };
 
@@ -181,8 +182,8 @@ test('divergedParents: FAIL-CLOSED matrix — every case in which the engine can
     { label: 'empty mergedSha', shas: { a: '' }, agent: confirmedClean('a'), dispatches: 0 },
     { label: 'non-hex mergedSha', shas: { a: 'zzzzzzz' }, agent: confirmedClean('a'), dispatches: 0 },
     { label: 'absent fileScope', parent: { fileScope: undefined }, agent: confirmedClean('a'), dispatches: 0 },
-    { label: 'fileScope empty after filtering', parent: { fileScope: ['', 7] }, agent: confirmedClean('a'), dispatches: 0 },
-    { label: 'pathspec-magic fileScope entry', parent: { fileScope: ['scope/a/**', ':(exclude)*'] }, agent: confirmedClean('a'), dispatches: 0 },
+    { label: 'fileScope empty after filtering', parent: { fileScope: pack(['', 7]) }, agent: confirmedClean('a'), dispatches: 0 },
+    { label: 'pathspec-magic fileScope entry', parent: { fileScope: pack(['scope/a/**', ':(exclude)*']) }, agent: confirmedClean('a'), dispatches: 0 },
     { label: 'agent throws an Error', agent: () => { throw new Error('boom'); }, dispatches: 1 },
     { label: 'agent throws a non-Error', agent: () => { throw { nonError: true }; }, dispatches: 1 },
     { label: 'agent returns null', agent: null, dispatches: 1 },
@@ -222,7 +223,7 @@ test('divergedParents: a parent absent from the manifest, and one whose id canno
   const { calls, ctx, logLines } = makeCtx(confirmedClean('ghost', 'a/../evil'));
   const manifest = { msps: [
     { id: 'orphan-child', status: 'built', dependsOn: ['ghost'] },
-    { id: 'a/../evil', status: 'shipped', builtSha: BUILT_SHA, fileScope: ['scope/e/**'], dependsOn: [] },
+    { id: 'a/../evil', status: 'shipped', builtSha: BUILT_SHA, fileScope: pack(['scope/e/**']), dependsOn: [] },
     { id: 'evil-child', status: 'built', dependsOn: ['a/../evil'] },
   ] };
 
