@@ -6,6 +6,7 @@ const MODULE = 'run-document';
 const IMPLEMENT_KIND = 'implement';
 const WORKTREE_ISOLATION = 'worktree';
 const NUL = String.fromCharCode(0);
+const NO_DEPENDENCIES = '(none)';
 const UNIT_ID_PATTERN = /^[a-z0-9][a-z0-9-]*$/;
 const REQUEST_OPTIONAL_KEYS = Object.freeze(['agentType', 'model', 'effort', 'schema', 'timeoutMs']);
 const RUN_TEXT_KEYS = Object.freeze(['logicalRunId', 'spec', 'repoRoot', 'baseBranch', 'sourcePrefix']);
@@ -180,6 +181,20 @@ function judgmentFor(msp, fileScope, run, prompt) {
   });
 }
 
+function dependsListFor(prereqs) {
+  return prereqs.length === 0 ? NO_DEPENDENCIES : prereqs.join(', ');
+}
+
+function prepFor(msp, prereqs, fileScope, run) {
+  return Object.freeze({
+    title: msp.title,
+    rationale: msp.rationale,
+    dependsList: dependsListFor(prereqs),
+    specPath: run.spec,
+    fileScope,
+  });
+}
+
 function promptInputFor(msp, fileScope, run, prompt) {
   return {
     implementerPreamble: prompt.implementerPreamble,
@@ -214,6 +229,7 @@ function buildUnitSpec({ msp, prereqs, fileScope, run, prompt, defaults, compose
     fileScope,
     task: msp.rationale,
     isolation: prompt.isolation,
+    prep: prepFor(msp, prereqs, fileScope, run),
     ...(judgment === null ? {} : { judgment }),
     request: buildRequest(promptText, defaults),
   });
