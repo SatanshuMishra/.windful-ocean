@@ -676,6 +676,11 @@
         "ref": "0489-n1-run-clears-the-falsifier-at-1-0",
         "title": "The n=1 run clears the falsifier at 1.0 dispatches per unit, with the vacuity caveat in the verdict",
         "scope": "c7"
+      },
+      {
+        "ref": "0492-culminating-merge-bypasses-g11",
+        "title": "The culminating merge bypasses G11 rather than acknowledging eleven test retirements",
+        "scope": "c7"
       }
     ],
     "out_of_scope": [
@@ -687,5 +692,5 @@
     ]
   },
   "created_at": "2026-08-12T07:37:41.077Z",
-  "updated_at": "2026-08-16T23:55:06.188Z"
+  "updated_at": "2026-08-17T00:33:34.645Z"
 }
