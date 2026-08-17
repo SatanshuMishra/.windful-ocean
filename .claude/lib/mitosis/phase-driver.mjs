@@ -1,4 +1,5 @@
 import { runEngine } from './engine.mjs';
+import { integrateBuilt } from './integrate-plan.mjs';
 import { PHASE_TITLES } from './phases.mjs';
 import { planResume } from './resume-plan.mjs';
 import { computeRunKey } from './run-store.mjs';
@@ -17,7 +18,16 @@ const REQUIRED_TEXT_FIELDS = Object.freeze([
   'integrationBranch',
 ]);
 
-const REQUIRED_PORTS = Object.freeze(['openRun', 'release', 'makeObserver', 'makePorts', 'readJournal', 'reconcile']);
+const REQUIRED_PORTS = Object.freeze([
+  'openRun',
+  'release',
+  'makeObserver',
+  'makePorts',
+  'readJournal',
+  'reconcile',
+  'boundaryGate',
+  'dispatchPrompt',
+]);
 
 function describe(value) {
   if (value === null) return 'null';
@@ -91,6 +101,15 @@ function requestsById(spec) {
 
 function judgmentById(spec) {
   return new Map(unitsOf(spec).map((unit) => [unit.id, unit.judgment]));
+}
+
+function isolationById(spec) {
+  return new Map(unitsOf(spec).filter((unit) => typeof unit.isolation === 'string').map((unit) => [unit.id, unit.isolation]));
+}
+
+function runIdentityOf(manifest, runId) {
+  const declared = manifest?.logicalRunId;
+  return typeof declared === 'string' && declared.length > 0 ? declared : runId;
 }
 
 function runStoreRequest(request) {
@@ -169,7 +188,20 @@ async function executePhase(completed, request, ports) {
 
 async function integratePhase(completed, request, ports) {
   const title = phase('Integrate');
-  return entered(title, { integrated: EMPTY_LIST, parked: EMPTY_LIST });
+  const resumed = requirePreceding(completed, 'Resume');
+  const executed = requirePreceding(completed, 'Execute');
+  return entered(title, await integrateBuilt({
+    built: resumed.built,
+    manifest: resumed.manifest,
+    shipped: resumed.shipped,
+    quiescent: executed.result.quiescent === true,
+    repoRoot: request.repoRoot,
+    runId: runIdentityOf(resumed.manifest, request.runId),
+    isolationById: isolationById(request.spec),
+  }, {
+    boundaryGate: (gate) => ports.boundaryGate(gate),
+    dispatchPrompt: (dispatched) => ports.dispatchPrompt(dispatched),
+  }));
 }
 
 async function shipPhase(completed, request, ports) {

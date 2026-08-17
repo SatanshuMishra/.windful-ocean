@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { pack } from './file-scope-fixtures.mjs';
 import { Done } from '../boundary.mjs';
 import { runPhases } from '../phase-driver.mjs';
+import { composePrompt } from '../prompt-registry.mjs';
 
 function runRequest() {
   return {
@@ -24,6 +25,8 @@ function runRequest() {
 function stubbedPorts(overrides = {}) {
   const handle = Object.freeze({ runKey: 'a1b2c3d4e5f60718', attempt: 1 });
   const released = [];
+  const gated = [];
+  const dispatched = [];
   const enginePorts = {
     runUnit: async () => Done({ sha: 'sha-alpha', green: true }),
     writeGenesis: async () => {},
@@ -34,6 +37,8 @@ function stubbedPorts(overrides = {}) {
   return {
     handle,
     released,
+    gated,
+    dispatched,
     ports: Object.freeze({
       openRun: () => handle,
       readJournal: () => null,
@@ -41,6 +46,8 @@ function stubbedPorts(overrides = {}) {
       release: (given) => { released.push(given); },
       makeObserver: () => () => {},
       makePorts: () => enginePorts,
+      boundaryGate: (request) => { gated.push(request); return { pass: true, output: 'no new finding', blocking: [], baseCensus: null }; },
+      dispatchPrompt: (request) => { dispatched.push(request); return { ok: true, outcome: 'success' }; },
       ...overrides,
     }),
   };
@@ -61,9 +68,125 @@ test('the driver advances one run through every declared phase, in the order the
 test('every phase a later change fills in returns its own empty result, so a body attaches without reshaping the driver', async () => {
   const driven = await runPhases(runRequest(), stubbedPorts().ports);
   assert.deepEqual(driven.phases.Decompose, { units: [] });
-  assert.deepEqual(driven.phases.Integrate, { integrated: [], parked: [] });
   assert.deepEqual(driven.phases.Ship, { opened: [], parked: [] });
   assert.deepEqual(driven.phases.Remediate, { remediated: [], parked: [] });
+});
+
+test('Integrate gates nothing on a run whose journal names no built unit, and never spawns a gate for one', async () => {
+  const stub = stubbedPorts();
+  const driven = await runPhases(runRequest(), stub.ports);
+  assert.deepEqual(driven.phases.Integrate, {
+    integrated: [],
+    parked: [],
+    diverged: [],
+    divergedParents: [],
+    outcomes: [],
+  });
+  assert.deepEqual(stub.gated, [], 'the boundary gate materializes a base worktree, so a run with nothing built must not reach it at all');
+});
+
+test('a built unit whose run declares no base branch parks rather than gating against a base nobody wrote', async () => {
+  const journal = { logicalRunId: 'r1', clusters: [], msps: [{ id: 'alpha', status: 'built' }] };
+  const stub = stubbedPorts({ readJournal: () => journal });
+  const driven = await runPhases(runRequest(), stub.ports);
+  assert.deepEqual(driven.phases.Integrate.outcomes, [{
+    unitId: 'alpha',
+    state: 'parked',
+    boundaryFixes: 0,
+    diagnosis: driven.phases.Integrate.outcomes[0].diagnosis,
+    stage: 'execute',
+    resumePoint: { branch: null, ref: null, stage: 'ship' },
+  }]);
+  assert.match(driven.phases.Integrate.outcomes[0].diagnosis, /declares no base branch/);
+  assert.deepEqual(stub.gated, [], 'without a declared base branch there is no pre-MSP tree to collect, so no gate runs');
+});
+
+test('a built unit is gated once against the declared base branch, and integrates when the gate is clean', async () => {
+  const journal = { logicalRunId: 'r1', baseBranch: 'main', clusters: [], msps: [{ id: 'alpha', status: 'built' }] };
+  const stub = stubbedPorts({ readJournal: () => journal });
+  const driven = await runPhases(runRequest(), stub.ports);
+  assert.deepEqual(stub.gated, [{
+    repoRoot: '/repo',
+    gateBase: 'main',
+    basePath: '/repo/.mitosis/boundary/r1/alpha',
+  }]);
+  assert.deepEqual(stub.dispatched, [], 'a clean gate composes no boundary-fix prompt');
+  assert.deepEqual(driven.phases.Integrate.outcomes, [{
+    unitId: 'alpha',
+    state: 'integrated',
+    boundaryFixes: 0,
+    diagnosis: null,
+    stage: null,
+    resumePoint: { branch: null, ref: null, stage: 'ship' },
+  }]);
+});
+
+function digitLedRequest() {
+  return {
+    ...runRequest(),
+    spec: {
+      manifest: { logicalRunId: '9f0', clusters: [], msps: [{ id: '9delta' }] },
+      specs: [{ id: '9delta', fileScope: pack(['delta.mjs']), request: { prompt: 'do delta' }, isolation: 'scope-fence' }],
+    },
+  };
+}
+
+const DIGIT_LED_JOURNAL = Object.freeze({
+  logicalRunId: '9f0',
+  baseBranch: '0main',
+  clusters: [],
+  msps: [{ id: '9delta', status: 'built' }],
+});
+
+test('a run, a unit and a base branch a digit opens are keyed into the gate exactly as written', async () => {
+  const stub = stubbedPorts({ readJournal: () => DIGIT_LED_JOURNAL });
+  const driven = await runPhases(digitLedRequest(), stub.ports);
+  assert.deepEqual(stub.gated, [{
+    repoRoot: '/repo',
+    gateBase: '0main',
+    basePath: '/repo/.mitosis/boundary/9f0/9delta',
+  }]);
+  assert.deepEqual(driven.phases.Integrate.integrated.map((entry) => entry.unitId), ['9delta']);
+  assert.deepEqual(driven.phases.Integrate.parked, []);
+});
+
+const EMPTY_INTEGRATE = Object.freeze({
+  integrated: [],
+  parked: [],
+  diverged: [],
+  divergedParents: [],
+  outcomes: [],
+});
+
+test('a manifest whose declared run identity is empty keys the gate path on the harness run id, which Integrate accepts as a run id', async () => {
+  const request = digitLedRequest();
+  const spec = { ...request.spec, manifest: { ...request.spec.manifest, logicalRunId: '' } };
+  const stub = stubbedPorts();
+  const driven = await runPhases({ ...request, spec }, stub.ports);
+  assert.deepEqual(driven.phases.Integrate, EMPTY_INTEGRATE);
+  assert.deepEqual(stub.gated, []);
+});
+
+test('the boundary-fix prompt carries the isolation the unit declared, not the mode a missing entry would default to', async () => {
+  const outputs = ['the boundary finding', 'no new finding'];
+  const stub = stubbedPorts({
+    readJournal: () => DIGIT_LED_JOURNAL,
+    boundaryGate: (request) => {
+      stub.gated.push(request);
+      const output = outputs[stub.gated.length - 1];
+      return { pass: output === 'no new finding', output, blocking: [], baseCensus: null };
+    },
+  });
+  const driven = await runPhases(digitLedRequest(), stub.ports);
+  assert.deepEqual(stub.dispatched.map((request) => request.cwd), ['/repo']);
+  assert.equal(stub.dispatched[0].prompt, composePrompt('boundary-fix', {
+    repoRoot: '/repo',
+    baseBranch: '0main',
+    integrationWorktree: '/repo',
+    gateOutput: 'the boundary finding',
+    isolation: 'scope-fence',
+  }));
+  assert.deepEqual(driven.phases.Integrate.outcomes.map((entry) => [entry.unitId, entry.state, entry.boundaryFixes]), [['9delta', 'integrated', 1]]);
 });
 
 test('Resume plans the whole spec when no journal names this run, and hands Execute that plan rather than the spec', async () => {

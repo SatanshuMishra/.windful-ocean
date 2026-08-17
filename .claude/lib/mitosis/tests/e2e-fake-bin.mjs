@@ -1,7 +1,15 @@
-import { chmodSync, symlinkSync, writeFileSync } from 'node:fs';
+import { chmodSync, mkdirSync, symlinkSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 
 export const UNIT_MARKER_PREFIX = 'mitosis-unit:';
+
+export const BOUNDARY_VIOLATION_TOKEN = 'BOUNDARY_VIOLATION';
+
+export const BOUNDARY_REPAIRS = Object.freeze(['clear', 'none']);
+
+export const FIXTURE_LINT_RULE = 'fixture/no-boundary-violation';
+
+export const FIXTURE_LINT_MESSAGE = 'fixture boundary violation';
 
 export const FAKE_ENV_KEYS = Object.freeze({
   claudeRecord: 'MITOSIS_FAKE_CLAUDE_RECORD',
@@ -55,6 +63,42 @@ if (plan === null || typeof plan !== 'object' || plan.units === null || typeof p
   refuse(71, 'the plan at ' + PLAN + ' carries no units object');
 }
 
+const PROMPT = argv.length === 0 ? '' : argv[argv.length - 1];
+
+function boundaryFixPlan() {
+  const declared = plan.boundaryFix;
+  if (declared === null || typeof declared !== 'object' || Array.isArray(declared)) return null;
+  if (typeof declared.marker !== 'string' || declared.marker === '') return null;
+  if (typeof PROMPT !== 'string' || !PROMPT.includes(declared.marker)) return null;
+  return declared;
+}
+
+function clearViolations(boundary) {
+  if (!Array.isArray(boundary.files) || typeof boundary.token !== 'string' || boundary.token === '') {
+    refuse(79, 'the boundary-fix plan asks for a repair but names no files and token to clear, so the repair would silently do nothing');
+  }
+  for (const file of boundary.files) {
+    let source = null;
+    try {
+      source = fs.readFileSync(file, 'utf8');
+    } catch (error) {
+      refuse(79, 'the boundary-fix repair could not read ' + file + ': ' + error.message);
+    }
+    fs.writeFileSync(file, source.split('\n').filter((line) => !line.includes(boundary.token)).join('\n'));
+  }
+}
+
+const REPAIRS = ${JSON.stringify(BOUNDARY_REPAIRS)};
+
+const boundary = boundaryFixPlan();
+if (boundary !== null) {
+  if (!REPAIRS.includes(boundary.repair)) {
+    refuse(79, 'the boundary-fix plan names the repair ' + JSON.stringify(boundary.repair) + ', which is neither ' + REPAIRS.join(' nor '));
+  }
+  if (boundary.repair === 'clear') clearViolations(boundary);
+  emit(envelope({ result: 'boundary-fix repair ' + boundary.repair }));
+}
+
 let unitId = null;
 for (const value of argv) {
   const found = MARKER.exec(value);
@@ -73,7 +117,6 @@ if (!Object.hasOwn(plan.units, unitId)) {
 const unit = plan.units[unitId];
 
 const MARKERS = plan.judgmentMarkers === null || typeof plan.judgmentMarkers !== 'object' ? {} : plan.judgmentMarkers;
-const PROMPT = argv.length === 0 ? '' : argv[argv.length - 1];
 const VERDICTS = ['pass', 'fail'];
 
 function markerKind() {
@@ -215,6 +258,65 @@ if (typeof step.stdout === 'string' && step.stdout.length > 0) fs.writeSync(1, s
 if (typeof step.stderr === 'string' && step.stderr.length > 0) fs.writeSync(2, step.stderr);
 process.exit(Number.isInteger(step.exitCode) ? step.exitCode : 0);
 `;
+
+const ESLINT_SOURCE = String.raw`
+const fs = require('node:fs');
+const path = require('node:path');
+
+const TOKEN = ${JSON.stringify(BOUNDARY_VIOLATION_TOKEN)};
+const RULE = ${JSON.stringify(FIXTURE_LINT_RULE)};
+const MESSAGE = ${JSON.stringify(FIXTURE_LINT_MESSAGE)};
+const argv = process.argv.slice(2);
+
+function refuse(code, message) {
+  fs.writeSync(2, 'fixture-eslint: ' + message + '\n');
+  process.exit(code);
+}
+
+function walk(directory, found) {
+  for (const entry of fs.readdirSync(directory, { withFileTypes: true })) {
+    if (entry.name.startsWith('.') || entry.name === 'node_modules') continue;
+    const full = path.join(directory, entry.name);
+    if (entry.isDirectory()) {
+      walk(full, found);
+      continue;
+    }
+    if (entry.isFile()) found.push(full);
+  }
+  return found;
+}
+
+if (argv[0] === '--print-config') {
+  fs.writeSync(1, JSON.stringify({ rules: { [RULE]: 'error' } }));
+  process.exit(0);
+}
+
+const root = argv[0];
+if (typeof root !== 'string' || root.length === 0 || !fs.existsSync(root)) {
+  refuse(2, 'the first argument must name a directory to lint, received ' + JSON.stringify(root));
+}
+
+const report = walk(root, []).sort().map((filePath) => {
+  const messages = [];
+  fs.readFileSync(filePath, 'utf8').split('\n').forEach((line, index) => {
+    if (line.includes(TOKEN)) messages.push({ ruleId: RULE, message: MESSAGE, line: index + 1, column: 1, severity: 2 });
+  });
+  return { filePath: filePath, messages: messages };
+});
+
+fs.writeSync(1, JSON.stringify(report));
+process.exit(report.some((entry) => entry.messages.length > 0) ? 1 : 0);
+`;
+
+export function writeFixtureLinter(nodeModules) {
+  const binDirectory = join(nodeModules, '.bin');
+  mkdirSync(binDirectory, { recursive: true });
+  writeFileSync(join(binDirectory, 'package.json'), '{"type":"commonjs"}\n');
+  const target = join(binDirectory, 'eslint');
+  writeFileSync(target, ESLINT_SOURCE);
+  chmodSync(target, EXECUTABLE_MODE);
+  return target;
+}
 
 function writeExecutable(directory, name, nodePath, source) {
   const target = join(directory, name);
