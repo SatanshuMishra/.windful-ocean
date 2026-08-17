@@ -1,12 +1,14 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
+import { basename, dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { PROMPT_KINDS, PROMPT_SECTIONS, promptSection } from '../prompt-contract.mjs';
 import { PROMPT_COMPOSERS, composePrompt } from '../prompt-registry.mjs';
 import { PROMPT_FIXTURE_CASES, PROMPT_FIXTURE_DIR } from './prompt-fixtures.mjs';
 
 const SECTION_LINE = /^--- .* ---$/;
+const RELATIVE_IMPORT = /from\s+'(\.\/[A-Za-z0-9._-]+\.mjs)'/g;
 
 function fixtureBytes(name) {
   return readFileSync(fileURLToPath(new URL(name, PROMPT_FIXTURE_DIR)), 'utf8');
@@ -61,4 +63,31 @@ test('composing an unknown kind throws rather than returning an empty or guessed
   assert.throws(() => composePrompt('summarise', {}), TypeError);
   assert.throws(() => composePrompt('summarise', {}), /summarise/);
   assert.throws(() => composePrompt(undefined, {}), TypeError);
+});
+
+function importClosure(entryPath) {
+  const seen = new Set();
+  const pending = [resolve(entryPath)];
+  while (pending.length > 0) {
+    const file = pending.pop();
+    if (seen.has(file)) continue;
+    seen.add(file);
+    for (const match of readFileSync(file, 'utf8').matchAll(RELATIVE_IMPORT)) {
+      pending.push(resolve(dirname(file), match[1]));
+    }
+  }
+  return [...seen].map((file) => basename(file)).sort();
+}
+
+test('the prompt system is reachable from the engine entry point rather than registered and dead', () => {
+  const reached = importClosure(fileURLToPath(new URL('../cli.mjs', import.meta.url)));
+  assert.deepEqual(reached.filter((name) => name.startsWith('prompt-')), [
+    'prompt-ci-facts.mjs',
+    'prompt-contract.mjs',
+    'prompt-execute.mjs',
+    'prompt-plan.mjs',
+    'prompt-registry.mjs',
+    'prompt-remediate.mjs',
+    'prompt-values.mjs',
+  ]);
 });

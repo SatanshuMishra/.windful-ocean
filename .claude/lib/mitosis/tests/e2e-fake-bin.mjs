@@ -72,6 +72,17 @@ if (!Object.hasOwn(plan.units, unitId)) {
 
 const unit = plan.units[unitId];
 
+const MARKERS = plan.judgmentMarkers === null || typeof plan.judgmentMarkers !== 'object' ? {} : plan.judgmentMarkers;
+const PROMPT = argv.length === 0 ? '' : argv[argv.length - 1];
+const VERDICTS = ['pass', 'fail'];
+
+function markerKind() {
+  if (typeof PROMPT !== 'string') return null;
+  if (typeof MARKERS.security === 'string' && MARKERS.security !== '' && PROMPT.includes(MARKERS.security)) return 'security';
+  if (typeof MARKERS.review === 'string' && MARKERS.review !== '' && PROMPT.includes(MARKERS.review)) return 'review';
+  return null;
+}
+
 function envelope(extra) {
   return JSON.stringify({
     type: 'result',
@@ -109,6 +120,17 @@ function succeed() {
     refuse(74, 'unit ' + unitId + ' is planned to succeed but its sha ' + JSON.stringify(unit.sha) + ' is not a 40-character hexadecimal commit id');
   }
   emit(envelope({ structured_output: { sha: unit.sha } }));
+}
+
+const judged = markerKind();
+if (judged !== null) {
+  const declared = unit[judged + 'Verdict'];
+  if (declared !== undefined && !VERDICTS.includes(declared)) {
+    refuse(78, 'unit ' + unitId + ' plans the ' + judged + ' verdict ' + JSON.stringify(declared) + ', which is neither pass nor fail');
+  }
+  const verdict = declared === undefined ? 'pass' : declared;
+  const issues = verdict === 'fail' ? ['fixture ' + judged + ' issue for unit ' + unitId] : [];
+  emit(envelope({ structured_output: verdict === 'fail' ? { verdict: verdict, issues: issues } : { verdict: verdict } }));
 }
 
 if (unit.behaviour === 'succeed') succeed();
