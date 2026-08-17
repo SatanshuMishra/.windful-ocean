@@ -35,5 +35,10 @@
     "G17": {
       "downgrade_threshold": 3
     }
+  },
+  "agent": {
+    "tripwires": {
+      "g11_live": "off"
+    }
   }
 }
