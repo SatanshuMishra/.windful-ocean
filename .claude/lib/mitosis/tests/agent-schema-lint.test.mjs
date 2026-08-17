@@ -1,5 +1,8 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import { copyFileSync, mkdirSync, mkdtempSync, rmSync } from 'node:fs';
+import { join } from 'node:path';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import { scanJsStructure } from '../js-scan.mjs';
 import { engineSourceRoots, realSourceIo } from '../determinism-lint.mjs';
 import {
@@ -13,6 +16,19 @@ import {
 } from '../agent-schema-lint.mjs';
 
 const REAL_ROOTS = engineSourceRoots();
+const REPO_ROOT = fileURLToPath(new URL('../../../../', import.meta.url));
+const RELOCATED_MODULES = Object.freeze(['agent-schema-lint.mjs', 'determinism-lint.mjs', 'js-scan.mjs']);
+
+async function loadResolverFromNestedCopy() {
+  const root = mkdtempSync(join(REPO_ROOT, '.claude-tmp-relocated-resolver-'));
+  const nested = join(root, 'nested', 'deeper');
+  mkdirSync(nested, { recursive: true });
+  for (const name of RELOCATED_MODULES) {
+    copyFileSync(fileURLToPath(new URL(`../${name}`, import.meta.url)), join(nested, name));
+  }
+  const loaded = await import(pathToFileURL(join(nested, 'agent-schema-lint.mjs')).href);
+  return Object.freeze({ root, resolveDir: loaded.agentDefinitionDir });
+}
 
 function fixtureIo(files) {
   return {
@@ -42,6 +58,19 @@ function literalsOf(source) {
   assert.equal(extracted.ok, true, extracted.error);
   return extracted.literals;
 }
+
+test('the resolver names the canonical roster from a module relocated into a nested directory', async () => {
+  const relocated = await loadResolverFromNestedCopy();
+  try {
+    assert.deepEqual(
+      relocated.resolveDir(),
+      agentDefinitionDir(),
+      'a copy of this module two directories deeper must name the same roster as the module in the tree; resolving it relative to the module path is what makes every worktree census its own frozen copy',
+    );
+  } finally {
+    rmSync(relocated.root, { recursive: true, force: true });
+  }
+});
 
 test('the derived dispatchable set over the real trees is exactly the agents the engine source names', () => {
   const engine = collectEngineLiterals(REAL_ROOTS, realSourceIo);
