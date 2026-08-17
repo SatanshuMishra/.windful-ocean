@@ -122,14 +122,6 @@
         ]
       },
       {
-        "text": "Four backup profiles named in criterion c4 cannot be identified from any surviving artifact — an unidentifiable criterion item can be neither satisfied nor refuted, so it needs a definition or striking before wave 4",
-        "scope": "c4",
-        "refs": [
-          "criterion c4 text",
-          "405 worktree copies is also stale: measured 18 worktrees, 270 copies"
-        ]
-      },
-      {
         "text": "R13 applies to the Lead band only and its mitigation is detection, not prevention — a Lead can complete work without reading the procedure its duty names, and that is visible only once U3.3 lands",
         "scope": "c4",
         "refs": [
@@ -275,5 +267,5 @@
     ]
   },
   "created_at": "2026-08-16T05:43:25.829Z",
-  "updated_at": "2026-08-17T05:42:35.993Z"
+  "updated_at": "2026-08-17T05:42:57.877Z"
 }
