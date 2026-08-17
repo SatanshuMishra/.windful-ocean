@@ -38,7 +38,7 @@
     {
       "id": "c7",
       "text": "Verification machinery the observer work rests on repaired and re-runnable: archive verifier, one routing-table contract, three repo checks in CI, duckdb in the receipts workflow.",
-      "done": false,
+      "done": true,
       "kind": "detour",
       "struck_by": null
     },
@@ -63,29 +63,36 @@
   "abandoned_reason": null,
   "closure_statement": null,
   "spine": {
-    "active_goal": "Close wave 3's last verification, then start waves 4 to 7 - the roster rebuild itself.",
-    "next_step": "(1) Merge PR 202, which fixes the settings-wired assertion the cutover left red; 16/16 green. (2) START A FRESH SESSION, dispatch any subagent, then grep the observer log for a SubagentStart row. Non-zero closes wave 3's last criterion, duration being derivable. (3) Then waves 4 to 7, UNBLOCKED per 0531. Rewrite U6.2's acceptance BEFORE that wave starts - as written it is already green with every retiring reference in place, so it cannot detect itself being skipped.",
-    "last_session": "Shipped all of wave 3 by fan-out plus two unplanned repair MSPs. Eight pull requests, seven merged, PR 202 open. The global settings edit is APPLIED and verified: 21 hook files referenced, 0 missing. Engine gate ruled lifted. Sixteen decisions, 0530 to 0544.",
+    "active_goal": "Start waves 4 to 7 - the roster rebuild itself: thirteen agents replacing fifty-six, and every rule and skill naming a retired one.",
+    "next_step": "Wave 3 is COMPLETE and verified in production; nothing from it is outstanding. Start waves 4 to 7, unblocked per 0531 - U4 adds the seven new agents, U5 modifies the six collisions, U6 repoints the engine literals and the rules and skills, U7 deletes the nine retired definitions. FIRST, before any of it: rewrite U6.2's acceptance, which is already green today with every retiring reference in place and therefore cannot detect itself being skipped.",
+    "last_session": "Shipped ALL of wave 3 by fan-out plus two unplanned repair MSPs. Eight pull requests, all merged; main at 54fd9d20. The global settings edit is applied. Production verification closed the last open criterion: 92 start rows, 61 paired, zero ordering violations, agent_type null on 0 of 92.",
     "open_risks": [
       {
-        "text": "Apply the global settings edit before or with merging PR 200 — the global file registers only the analyzer that pull request deletes, and no pull request can carry that file",
+        "text": "Rewrite U6.2's acceptance before wave 6 starts — it is already green today with every retiring reference in place, so it cannot detect itself being skipped and U7 would then delete definitions leaving dangling routing",
         "scope": "c4",
         "refs": [
-          "decision 0534",
-          "decision 0543",
-          "PR 200"
+          "SPEC U6.2 lines 487-505",
+          "decision 0532"
         ]
       },
       {
-        "text": "Prove a SubagentStart row appears from one fresh session — all 202 live rows are stops because hooks snapshot at session start, so duration stays underivable until then",
+        "text": "Route shell tests to bash in the enforcer's test command — nine .sh tests match its runnable extensions while the command is node --test, so any pull request touching source alongside one will block",
         "scope": "c5",
         "refs": [
-          "U3.2 unverified-reasoned residual",
-          "~/.claude/observer/events/2026-08.jsonl"
+          "decision 0544",
+          "PR 202 filed item 1"
         ]
       },
       {
-        "text": "Treat PR 201's green receipts check as a skip, not a pass — the enforcer classifies a workflow-only diff as config-only and short-circuits without running the suite",
+        "text": "Give the nine shell tests a runner — the npm glob covers only .test.mjs in the tests root, so they execute only when a human types bash and that is why the settings assertion rotted unnoticed",
+        "scope": "c5",
+        "refs": [
+          "decision 0544",
+          "PR 202 filed item 2"
+        ]
+      },
+      {
+        "text": "Treat the duckdb install in the receipts workflow as unexercised — the enforcer short-circuits a config-only diff, so the next pull request touching production source is its first real test",
         "scope": "c4",
         "refs": [
           "PR 201",
@@ -100,19 +107,25 @@
         ]
       },
       {
-        "text": "Change settings-wired.test.sh in the same act as the machine file — it asserts the analyzer in the global settings and node --test dies parsing the .sh as JavaScript if touched alone",
-        "scope": "c5",
-        "refs": [
-          "settings-wired.test.sh:7",
-          "U3.4 filed item 3"
-        ]
-      },
-      {
         "text": "Set G13's coverage_command in receipts.config.json — it is unset, so the coverage gate never runs at all",
         "scope": "c4",
         "refs": [
           "receipts.config.json",
           "PR 201 filed item 3"
+        ]
+      },
+      {
+        "text": "Repoint agent-gap-audit off the old ledger index — the analyzer is retired but the fallback and permission hooks still write there, so the corpus is neither live nor dead",
+        "scope": "c4",
+        "refs": [
+          "U3.4 filed item 1"
+        ]
+      },
+      {
+        "text": "Separate artifact-less internal rows from real dispatches in any audit answer — 1062 groups against 61 paired means a rate over all rows measures internal noise",
+        "scope": "c5",
+        "refs": [
+          "decision 0537"
         ]
       },
       {
@@ -123,10 +136,10 @@
         ]
       },
       {
-        "text": "Repoint agent-gap-audit off the old ledger index — the analyzer is retired but the fallback and permission hooks still write there, so it is neither live nor dead",
-        "scope": "c4",
+        "text": "Capture a command's exit status directly rather than through a pipe — piping npm test to tail reports tail's status and renders a failing suite as exit 0, which happened twice this session",
+        "scope": "thread",
         "refs": [
-          "U3.4 filed item 1"
+          "memory: piping-a-verification-command-masks-its-exit-code"
         ]
       }
     ],
@@ -348,5 +361,5 @@
     ]
   },
   "created_at": "2026-08-16T05:43:25.829Z",
-  "updated_at": "2026-08-17T23:56:53.637Z"
+  "updated_at": "2026-08-17T23:57:30.725Z"
 }
