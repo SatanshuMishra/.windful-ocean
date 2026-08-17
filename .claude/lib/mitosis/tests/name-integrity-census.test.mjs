@@ -150,7 +150,7 @@ test('a platform agent type resolves without a roster file', () => {
 });
 
 test('the platform authority names only the built-in types this configuration dispatches, so a new one is red rather than assumed', () => {
-  assert.deepEqual([...PLATFORM_AGENT_TYPES], ['general-purpose']);
+  assert.deepEqual([...PLATFORM_AGENT_TYPES], ['claude', 'general-purpose']);
   const result = censusOver({ [`${ROOT}/lib/engine.mjs`]: "const DEFAULT_AGENT = 'Explore';\n" });
   assert.equal(result.ok, false);
   assert.deepEqual(result.dangling.map((entry) => entry.token), ['Explore']);
