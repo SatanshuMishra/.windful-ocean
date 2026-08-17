@@ -245,9 +245,9 @@
   "abandoned_reason": null,
   "closure_statement": null,
   "spine": {
-    "active_goal": "Close the thread: the stack is merged and the release gate resolved; only filed residuals remain.",
-    "next_step": "The stack is ON MAIN, verified: engine present, legacy .claude/workflows/mitosis.js retired, neither #145's scanner fix nor #148's grant reverted. The primary checkout is fast-forwarded so it is all in force. c6 and c7 are done, so the thread needs a closure statement or a successor for the residuals. Filed: pr-create lacks a --test-removal flag (G11 wall on any subsystem retirement); usage.jsonl omits the decompose child, understating cost 22.8 percent; scope-fence units cannot checkpoint.",
-    "last_session": "PR #152 merged: the eighteen-MSP OS-process stack is on main, content-verified with zero reversions, legacy engine retired. c7 CLEARED at n=1 (0489); G11 bypassed by admin override with the acknowledgement recorded in 0492 instead.",
+    "active_goal": "Get /mitosis running end to end, with every phase, the pull-request and merge path, and failure handling all thoroughly tested.",
+    "next_step": "START HERE IN A FRESH SESSION. The thread FAILED its real goal: the engine reaches only checkpointed-and-green. Read 0494 first, then c27 through c31. Establish the gap precisely before building: which of the thirteen registered prompt kinds the flow actually needs, what Ship must do, and why cli.mjs's import closure excludes all of it. Do NOT start coding from this brief - scope the work against the SPEC and the skill's described flow first. c32 and c33 are DEFERRED behind that work.",
+    "last_session": "Shipped and merged #145-#148 and #150-#152; the stack is on main and in force. Ran the first real engine run: two units done, ratio 1.0. Then established the engine cannot reach Ship, and the user ruled the thread failed on its real goal (0494).",
     "open_risks": [
       {
         "text": "Prove a merge arrived by asserting its CONTENT is on the base, never by SHA ancestry — a squash or stack merge rewrites commits, so a pre-merge SHA correctly fails an ancestry check on a merge that lost nothing",
@@ -255,6 +255,32 @@
         "refs": [
           "0472",
           "0445"
+        ]
+      },
+      {
+        "text": "A merged pull request is not an in-force config change — ~/.claude/agents, rules, skills and lib all symlink into the primary checkout's working tree, so fast-forward it and grep the live file rather than trusting a MERGED label",
+        "scope": "thread",
+        "refs": [
+          "0488",
+          "memory: merged-config-is-not-in-force-until-pull"
+        ]
+      },
+      {
+        "text": "Expect receipts G14 to block any pull request adding production lines — three in a row survived mutation until a test pinned an exact value instead of asserting not-the-old-value; write those assertions up front, not after CI rejects you",
+        "scope": "thread",
+        "refs": [
+          "gates.G14.mode block",
+          "#146",
+          "#147",
+          "#150"
+        ]
+      },
+      {
+        "text": "pr-create has no --test-removal flag, so any pull request retiring a subsystem's tests hits a G11 wall it cannot clear — a body is immutable after creation, so the acknowledgement has to exist at creation time or not at all",
+        "scope": "thread",
+        "refs": [
+          "0492",
+          ".claude/lib/git/pr.mjs"
         ]
       },
       {
@@ -295,10 +321,43 @@
         ]
       },
       {
-        "text": "Work in a worktree rather than switching the primary checkout — ~/.claude/rules, CLAUDE.md and skills are symlinks into its working tree, so a checkout there silently changes the live global config",
+        "text": "Work in a worktree rather than switching the primary checkout — ~/.claude/rules, CLAUDE.md, skills and agents are symlinks into its working tree, so a checkout there silently changes the live global config",
         "scope": "thread",
         "refs": [
           "~/.claude/rules"
+        ]
+      },
+      {
+        "text": "Read every request.prompt in a run document before executing it — the engine composes no prompt of its own and hands that text verbatim to a real child holding its own Bash tool, so the document is the entire blast radius",
+        "scope": "thread",
+        "refs": [
+          "0478",
+          "cli.mjs specs[].request.prompt"
+        ]
+      },
+      {
+        "text": "Discard and redo any run that does not reach quiescence cleanly — a dispatch whose start was recorded but whose finish never arrived leaves no usage line at all, so a torn-down run silently undercounts instead of failing loudly",
+        "scope": "thread",
+        "refs": [
+          "c25 filed item 2",
+          "usageRecorder"
+        ]
+      },
+      {
+        "text": "Clear a poisoned lock with the run-store retire verb — a killed run never breaks its own lock, so the next run on the same spec refuses until an operator intervenes",
+        "scope": "thread",
+        "refs": [
+          "run-store.mjs",
+          "c24 filed item 2"
+        ]
+      },
+      {
+        "text": "The engine today touches the network exactly once, read-only, at the done-oracle — so c28 must add pull-request creation without turning that quiescence probe into a write path",
+        "scope": "thread",
+        "refs": [
+          "0475",
+          "engine.mjs:243",
+          "gh-merge-shim.mjs"
         ]
       },
       {
@@ -323,14 +382,7 @@
         ]
       },
       {
-        "text": "Copy no fanout source into this repo — it is PolyForm Noncommercial, so the architecture may be adopted and cited as prior art but a verbatim lift is a licensing decision, not a coding one",
-        "scope": "thread",
-        "refs": [
-          "0373"
-        ]
-      },
-      {
-        "text": "Rehome ci-escalation's exports before deleting it — ci-facts.mjs consumes them and ci-escalation consumes run-engine's, so the three legacy modules need a prior extraction MSP, not a direct deletion",
+        "text": "Rehome ci-escalation's exports before deleting run-engine.mjs — ci-facts.mjs consumes them and ci-escalation consumes run-engine's, so the three legacy modules need a prior extraction MSP, not a direct deletion",
         "scope": "thread",
         "refs": [
           "ceiling doc item F1",
@@ -339,64 +391,17 @@
         ]
       },
       {
-        "text": "Pair every cost claim with a fixed quality assertion — the instrument counts tokens and cannot see whether a re-architected decomposition cuts worse, so a token win carrying a quality regression reads as a success",
-        "scope": "c6",
-        "refs": [
-          "0358",
-          "SPEC residual 5"
-        ]
-      },
-      {
         "text": "Filter the agent ledger to this project before rendering anything from it — thousands of rows carry a confidential cross-project codename, and an unfiltered count or cwd histogram leaks it into a tracked artifact",
-        "scope": "c6",
+        "scope": "thread",
         "refs": [
           "~/.claude/agent-ledger/events/"
         ]
       },
       {
-        "text": "Discard and redo any run that does not reach quiescence cleanly — a dispatch whose start was recorded but whose finish never arrived leaves no usage line at all, so a torn-down run silently undercounts the denominator instead of failing loudly",
-        "scope": "c7",
+        "text": "Copy no fanout source into this repo — it is PolyForm Noncommercial, so the architecture may be adopted and cited as prior art but a verbatim lift is a licensing decision, not a coding one",
+        "scope": "thread",
         "refs": [
-          "c25 filed item 2",
-          "usageRecorder"
-        ]
-      },
-      {
-        "text": "Read every request.prompt in the run document before executing it — the engine composes no prompt of its own and hands that text verbatim to a real child holding its own Bash tool, so the document is the entire blast radius",
-        "scope": "c7",
-        "refs": [
-          "0478",
-          "cli.mjs specs[].request.prompt"
-        ]
-      },
-      {
-        "text": "Expect the engine itself to reach the network exactly once, read-only — SHIP, CI_PUBLISH, BRANCH_COMPOSE and open-pr all sit outside cli.mjs's import closure, so no engine code pushes or opens a pull request",
-        "scope": "c7",
-        "refs": [
-          "0475",
-          "engine.mjs:204"
-        ]
-      },
-      {
-        "text": "Clear a poisoned lock with the run-store retire verb — a killed run never breaks its own lock, so the next run on the same spec refuses until an operator intervenes",
-        "scope": "c7",
-        "refs": [
-          "run-store.mjs",
-          "c24 filed item 2"
-        ]
-      },
-      {
-        "text": "Expect a ratio near 1.0 and report it as the benign case — dispatches per unit reduces to one plus retry amplification, so a clean triad clears a ceiling of ten tenfold while proving nothing about thrash under load",
-        "scope": "c7",
-        "refs": [
-          "0477"
-        ]
-      },
-      {
-        "text": "Expect the quiescence probe to find no pull request — that gh call is unconditional and its behavior when no pull request exists was never verified, so it could halt the run at its final step",
-        "scope": "c7",
-        "refs": [
-          "engine.mjs:204"
+          "0373"
         ]
       }
     ],
@@ -740,11 +745,11 @@
     "out_of_scope": [
       "Re-litigating the SPEC's design, which the predecessor thread locked; requirements come from the SPEC and its decision records",
       "SPEC A and the config staging and promotion machinery it shipped",
-      "The fix pipeline, excluded by the user from both SPECs",
+      "The fix pipeline, excluded by the user from both SPECs - so the fix prompt kind counts as explicitly retired for c27",
       "pillars.md, which stays a guiding-principles document carrying no measurements",
       "The deferred supervisor, rotation and spawn-cost research, which returns only after the engine update"
     ]
   },
   "created_at": "2026-08-12T07:37:41.077Z",
-  "updated_at": "2026-08-17T03:54:30.399Z"
+  "updated_at": "2026-08-17T03:57:11.158Z"
 }
