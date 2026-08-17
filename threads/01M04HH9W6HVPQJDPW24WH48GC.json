@@ -397,6 +397,11 @@
         "ref": "0532-wave-0-2-audit-three-defects-repaired-one-filed",
         "title": "Waves 0 to 2 audit: three gaps become one flat remediation MSP, the census grammar gap is filed against U6.2",
         "scope": "c4"
+      },
+      {
+        "ref": "0533-capability-blocked-ships-as-a-thirteen-field-derived-row",
+        "title": "capability_blocked ships as a thirteen-field derived row with a bounded tail fallback, and moves ahead of U3.3",
+        "scope": "c4"
       }
     ],
     "out_of_scope": [
@@ -405,5 +410,5 @@
     ]
   },
   "created_at": "2026-08-16T05:43:25.829Z",
-  "updated_at": "2026-08-17T16:55:15.794Z"
+  "updated_at": "2026-08-17T16:59:11.530Z"
 }
