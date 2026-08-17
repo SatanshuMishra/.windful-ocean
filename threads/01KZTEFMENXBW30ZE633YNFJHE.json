@@ -197,6 +197,13 @@
       "struck_by": null
     },
     {
+      "id": "c35",
+      "text": "Every remaining pull request reaches main: 184-187 restacked with 17 stale twins dropped, 184 recovered after a base-branch deletion closed it, 170, 171 and 173 merged, and the trunk green.",
+      "done": false,
+      "kind": "detour",
+      "struck_by": null
+    },
+    {
       "id": "c27",
       "text": "Every prompt kind the mitosis flow needs is reachable from the engine entry point on a real run, or is explicitly retired with a recorded reason; no kind stays registered-but-dead.",
       "done": false,
@@ -837,5 +844,5 @@
     ]
   },
   "created_at": "2026-08-12T07:37:41.077Z",
-  "updated_at": "2026-08-17T14:53:52.263Z"
+  "updated_at": "2026-08-17T14:53:58.952Z"
 }
