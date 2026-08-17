@@ -21,6 +21,7 @@ const HARNESS_SEGMENT = 'tests';
 
 const SPAWN_EXCEPTIONS = Object.freeze({
   'mitosis/gh-merge-shim.mjs': 'the merge shim is the enforcement backstop exec-policy routes every gh call through: it re-reads the argv with real filesystem access and spawns the resolved real gh binary itself, so routing it back through the policy would make the second layer depend on the first one it exists to backstop',
+  'observer-audit/duckdb.mjs': 'the audit runner spawns a pinned read-only analytics binary an operator points at by absolute path, so routing it would need BOTH a wider deny-by-default allowlist governing every gh and git spawn in the engine AND the defeat of the path-qualified guard that allowlist depends on; an isolated declared site is the smaller erosion, and the binary reads event logs and writes nothing',
 });
 
 const REFUSALS = Object.freeze([
