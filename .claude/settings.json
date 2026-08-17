@@ -273,6 +273,18 @@
         ]
       }
     ],
+    "SubagentStart": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node $HOME/.claude/hooks/observer/subagent-observer.mjs",
+            "async": true
+          }
+        ]
+      }
+    ],
     "SubagentStop": [
       {
         "matcher": "",
