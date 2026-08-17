@@ -78,7 +78,7 @@ test('the driver advances one run through every declared phase, in the order the
 test('every phase a later change fills in returns its own empty result, so a body attaches without reshaping the driver', async () => {
   const driven = await runPhases(runRequest(), stubbedPorts().ports);
   assert.deepEqual(driven.phases.Decompose, { units: [] });
-  assert.deepEqual(driven.phases.Ship, { opened: [], parked: [], outcomes: [] });
+  assert.deepEqual(driven.phases.Ship, { opened: [], parked: [], outcomes: [], awaiting: [], blocked: [], status: 'partial' });
   assert.deepEqual(driven.phases.Remediate, { remediated: [], parked: [] });
 });
 
