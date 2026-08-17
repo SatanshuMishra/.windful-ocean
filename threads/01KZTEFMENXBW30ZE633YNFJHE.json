@@ -740,6 +740,11 @@
         "ref": "0494-end-to-end-mitosis-is-the-goal-not-checkpointed-and-green",
         "title": "End-to-end /mitosis is this thread's goal, and checkpointed-and-green does not satisfy it",
         "scope": "thread"
+      },
+      {
+        "ref": "0497-engine-serializes-ship-order-because-it-may-never-merge",
+        "title": "The engine serializes ship order and hands off; it never merges",
+        "scope": "c28"
       }
     ],
     "out_of_scope": [
@@ -751,5 +756,5 @@
     ]
   },
   "created_at": "2026-08-12T07:37:41.077Z",
-  "updated_at": "2026-08-17T03:57:11.158Z"
+  "updated_at": "2026-08-17T04:34:43.769Z"
 }
