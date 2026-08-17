@@ -264,6 +264,11 @@
         "ref": "0509-execute-waves-0-3-by-direct-dispatch-not-mitosis",
         "title": "Execute waves 0 to 3 by direct per-unit dispatch, not through the mitosis skill",
         "scope": "c4"
+      },
+      {
+        "ref": "0510-cost-and-permission-denials-are-a-platform-ceiling",
+        "title": "Cost and permission_denials are unreachable from hooks, so the prose is wrong and they are not fields",
+        "scope": "c4"
       }
     ],
     "out_of_scope": [
@@ -272,5 +277,5 @@
     ]
   },
   "created_at": "2026-08-16T05:43:25.829Z",
-  "updated_at": "2026-08-17T06:00:22.337Z"
+  "updated_at": "2026-08-17T06:18:15.835Z"
 }
