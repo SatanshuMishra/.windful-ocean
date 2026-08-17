@@ -39,6 +39,27 @@ jobs:
             || { echo "the gate module is missing from the repository that owns it; a ${{ matrix.verb }} census that cannot find its own enforcement code fails rather than skipping"; exit 1; }
           node .claude/lib/mitosis/mitosis-gate.mjs ${{ matrix.verb }}
 
+  repo-checks:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: '26.x'
+      - name: skill router lint (every router-form skill)
+        run: |
+          node scripts/repo/skill-router-lint.mjs \
+            .claude/skills/platform-engineer \
+            .claude/skills/conformance-auditor
+      - name: archive manifest consistency (byte correspondence is host-only)
+        run: node scripts/repo/agent-ledger-archive-verify.mjs --manifest-only
+      - name: agent body drift
+        run: node --test .claude/lib/mitosis/tests/agent-body-composition.test.mjs
+
   pr-title-lint:
     runs-on: ubuntu-latest
     steps:
