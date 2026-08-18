@@ -1118,6 +1118,11 @@
         "ref": "0596-m7-splits-and-the-ship-with-downgrade-rule-has-a-boundary",
         "title": "M7 ships its visibility half and the ship-with-downgrade rule stops at the green-branch invariant",
         "scope": "c28"
+      },
+      {
+        "ref": "0597-provenance-widens-one-class-because-the-bracket-ban-was-never-a-control",
+        "title": "The provenance pattern widens by two codepoints, because the bracket ban was never an injection control",
+        "scope": "c28"
       }
     ],
     "out_of_scope": [
@@ -1129,5 +1134,5 @@
     ]
   },
   "created_at": "2026-08-12T07:37:41.077Z",
-  "updated_at": "2026-08-18T22:40:03.451Z"
+  "updated_at": "2026-08-18T23:02:10.484Z"
 }
