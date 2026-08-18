@@ -64,37 +64,35 @@
   "closure_statement": null,
   "spine": {
     "active_goal": "Land waves 4 and 5 through the human merge round, then execute waves 6 and 7: repoint every reference and delete the nine retired agents.",
-    "next_step": "START HERE. Waves 4 and 5 are five open PRs; never merge from a session. FIRST confirm PRs 205 and 206 are green - commits f4699710 and a0d112bd are on the remote but GitHub had not registered them, so CI never ran them; close/reopen or push an empty commit if stuck. THEN follow artifacts/2026-08-18-waves-4-5-merge-runbook.md exactly. Waves 6 and 7 start only after wave 5 is on main.",
-    "last_session": "Applied decision 0551 across the stack: specs are JSON, PR 204 went fully green including G14, and waves 4 and 5 opened as PRs 205-208 stacked on the substrate. Four distinct false-green classes surfaced and were closed.",
+    "next_step": "START HERE. PRs 204-208 report MERGED but only 204 reached main; the four children merged into the live base branch. Recovery is PR 210 (substrate -> main) carrying all four units plus the two pointer fixes 205/206 merged without. Merge 210, ASSERT with git merge-base --is-ancestor a92ec533 origin/main, delete all five branches, then pull the primary checkout - that pull is what makes the roster live. Then U6.1, U6.2, U7.1, then c5. Runbook: artifacts/2026-08-18-waves-4-5-merge-runbook.md.",
+    "last_session": "Applied decision 0551, opened and landed waves 4 and 5 as PRs 205-208, then recovered them as PR 210 after all four merged into a live base branch and never reached main.",
     "open_risks": [
       {
-        "text": "PR 204 must land as a MERGE COMMIT, never a squash — all four children carry its commits as real ancestors, and squashing rewrites them into one new SHA git must reconcile against branches whose history still holds the originals",
+        "text": "Assert content with git merge-base --is-ancestor after merging PR 210 — a MERGED status is not evidence, and that is exactly how four pull requests reported success while reaching nothing",
         "scope": "c4",
         "refs": [
-          "decision 0556"
+          "decision 0560"
         ]
       },
       {
-        "text": "Delete the substrate branch and confirm the ref is gone before merging any child — delete_branch_on_merge is false, gh refuses while the worktree exists, and a child merged into a dead branch reports MERGED without reaching the trunk",
+        "text": "Do not delete feat/u41-executing-agents or feat/u42-leads until PR 210 is confirmed on main — they were the only place the pointer fixes f4699710 and a0d112bd existed before 210 merged them in",
         "scope": "c4",
         "refs": [
-          "decision 0556",
-          "memory: stacked-pr-merges-into-a-live-base-branch"
+          "decision 0560"
         ]
       },
       {
-        "text": "Merge order 205, 206, 207, 208 is a green-branch-invariant obligation, not a file-conflict one — U4.2's Leads route to U4.1's executing agents, so out of order lands references to agents that do not exist",
+        "text": "Pull the primary checkout after PR 210 lands — ~/.claude agents, rules, skills, lib and CLAUDE.md are symlinks into its working tree, so nothing is live for any session until then",
         "scope": "c4",
         "refs": [
-          "SPEC U4.2",
-          "SPEC U5.1"
+          "memory: merged-config-is-not-in-force-until-pull"
         ]
       },
       {
-        "text": "Do not merge PR 205 or 206 on a local green — their last CI run predates the pointer-scoping fix, and the local evidence came from a simulated missing-manifest HOME, which is a reproduction and not the enforcer",
-        "scope": "c4",
+        "text": "Run the retirement census from the PRIMARY checkout, never a worktree — it resolves through git commondir and will census the primary checkout while appearing to measure your branch, the same hazard that makes three gate verbs worktree-blind",
+        "scope": "c5",
         "refs": [
-          "runbook step 0"
+          "decision 0560"
         ]
       },
       {
@@ -105,11 +103,11 @@
         ]
       },
       {
-        "text": "The retirement census does not block wave 6 — it reads its target roster from SPEC section 5b prose, not from .claude/agents/, so the seven new agents cause no halt; the blocker is the green-branch invariant, since U6.1 repoints the decomposer to investigator",
+        "text": "Four of U6.2's seventeen sites sit in .claude/skills/report/ — decision 0481 withdrew that skill, so deleting the directory discharges all four while retaining it obliges repointing all four; the census proves either path",
         "scope": "c5",
         "refs": [
-          "retirement-set.mjs:109",
-          "decompose-emit.mjs:16"
+          "SPEC U6.2",
+          "decision 0481"
         ]
       },
       {
@@ -395,5 +393,5 @@
     ]
   },
   "created_at": "2026-08-16T05:43:25.829Z",
-  "updated_at": "2026-08-18T04:59:39.480Z"
+  "updated_at": "2026-08-18T05:00:46.894Z"
 }
