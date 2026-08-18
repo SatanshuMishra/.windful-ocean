@@ -51,7 +51,7 @@
     },
     {
       "id": "c5",
-      "text": "New configuration verified in real use: dispatch routes to the intended agents, and the observation system attributes every run and records an outcome.",
+      "text": "Verified in real use, in a window opening only after U7.1 ships: the observer attributes every run and records an outcome, and the Lead share of dispatches is measured against a pre-pinned threshold.",
       "done": false,
       "kind": "planned",
       "struck_by": null
@@ -398,5 +398,5 @@
     ]
   },
   "created_at": "2026-08-16T05:43:25.829Z",
-  "updated_at": "2026-08-18T05:15:49.971Z"
+  "updated_at": "2026-08-18T05:15:58.580Z"
 }
