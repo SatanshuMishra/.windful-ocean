@@ -184,6 +184,7 @@ const SHIP = Object.freeze({
   'open-pr': (v, t) => {
     const depends = t.depends('dependsIds', v.dependsIds);
     const changedLines = t.changedLines('changedLines', v.changedLines);
+    const verified = v.verified === null || v.verified === undefined ? null : t.prValue('verified', v.verified);
     return [
       NODE_END_OF_OPTIONS,
       `${t.script('gitLibDir', v.gitLibDir, PR_TOOL_PATH)}${PATH_SEPARATOR}${basenameOf(PR_TOOL_PATH)}`, PR_CREATE,
@@ -195,6 +196,7 @@ const SHIP = Object.freeze({
       '--provenance', t.prProvenance('provenance', v.provenance),
       '--why', t.prValue('why', v.why),
       '--what', t.prValue('what', v.what),
+      ...(verified === null ? [] : ['--verified', verified]),
       '--not-verified', t.prValue('notVerified', v.notVerified),
       ...(depends.length === 0 ? [] : ['--depends', depends.join(DEPENDS_SEPARATOR)]),
       ...(changedLines === null ? [] : ['--changed-lines', changedLines]),

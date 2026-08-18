@@ -32,6 +32,9 @@ function stubbedPorts(overrides = {}) {
   const genesis = [];
   const refs = [];
   const ran = [];
+  const published = [];
+  const contained = [];
+  const retired = [];
   const enginePorts = {
     runUnit: async (unit) => { ran.push(unit.id); return Done({ sha: `sha-${unit.id}`, green: true }); },
     writeGenesis: async (request) => { genesis.push(request); },
@@ -49,6 +52,9 @@ function stubbedPorts(overrides = {}) {
     genesis,
     refs,
     ran,
+    published,
+    contained,
+    retired,
     ports: Object.freeze({
       openRun: () => handle,
       readJournal: () => null,
@@ -65,7 +71,23 @@ function stubbedPorts(overrides = {}) {
         return { status: 0, stdout: `${JSON.stringify({ action: 'created', url: 'https://github.com/acme/widgets/pull/3', number: 3 })}\n`, stderr: '' };
       },
       appendJournal: (request) => { journalled.push(request); },
-      diffStat: () => ({ status: 1, stdout: '', stderr: 'no such ref' }),
+      publishHead: (request) => {
+        published.push(request);
+        return {
+          alreadyMerged: false,
+          prUrl: null,
+          published: true,
+          action: 'published',
+          head: request.integrationBranch,
+          base: request.baseBranch,
+          tip: `tip-of-${request.integrationBranch}`,
+          changedLines: null,
+          conflictPaths: [],
+          detail: 'the stub publish left the head standing on the remote',
+        };
+      },
+      mergedIntoBase: (probe) => { contained.push(probe); return false; },
+      retireHead: (request) => { retired.push(request); return false; },
       ciRead: () => ({ outcome: 'completed', status: 1, stdout: '', stderr: 'no run', signal: null, error: null }),
       switchBranch: () => ({ outcome: 'completed', status: 1, stdout: '', stderr: 'no branch', signal: null, error: null }),
       recordFix: () => ({ outcome: 'completed', status: 1, stdout: '', stderr: 'nothing staged', signal: null, error: null }),
@@ -96,6 +118,7 @@ test('every phase a later change fills in returns its own empty result, so a bod
     outcomes: [],
     awaiting: [],
     blocked: [],
+    retired: [],
     ci: { outcomes: [], green: [], unwatched: [], exhausted: [] },
     status: 'partial',
   });
@@ -116,6 +139,8 @@ function shippableJournal() {
       changeType: 'feat',
       scope: 'alpha',
       integrationBranch: 'mitosis/alpha-integration',
+      checkpointRef: 'refs/mitosis/0a1b2c3d/alpha',
+      builtSha: '9f8e7d6c5b4a39281706f5e4d3c2b1a098765432',
       green: true,
       dependsOn: [],
     }],

@@ -33,13 +33,15 @@ const REQUIRED_PORTS = Object.freeze([
   'dispatchPrompt',
   'openPullRequest',
   'appendJournal',
-  'diffStat',
   'skillPointers',
   'observePlan',
   'ciRead',
   'switchBranch',
   'recordFix',
   'pushFix',
+  'publishHead',
+  'mergedIntoBase',
+  'retireHead',
 ]);
 
 function describe(value) {
@@ -269,7 +271,9 @@ async function shipPhase(completed, request, ports) {
   }, {
     openPullRequest: (spawned) => ports.openPullRequest(spawned),
     appendJournal: (write) => ports.appendJournal(write),
-    diffStat: (probe) => ports.diffStat(probe),
+    publishHead: (request) => ports.publishHead(request),
+    mergedIntoBase: (probe) => ports.mergedIntoBase(probe),
+    retireHead: (request) => ports.retireHead(request),
     reconcile: (values) => ports.reconcile(values),
     watchCi: (watch) => driveCiToGreen(watch, {
       ciRead: (read) => ports.ciRead(read),
