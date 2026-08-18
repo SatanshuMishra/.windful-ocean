@@ -227,7 +227,7 @@
     {
       "id": "c38",
       "text": "Both reviewers blocking findings clear before shipping: deletion bound to run ownership and tip containment, shas validated on the destructive path, and the workflow credential exposure closed",
-      "done": false,
+      "done": true,
       "kind": "detour",
       "struck_by": null
     },
@@ -280,9 +280,9 @@
   "abandoned_reason": null,
   "closure_statement": null,
   "spine": {
-    "active_goal": "Land the ship stack: pull request 209 is open and awaits a human merge, then a live end-to-end run must prove the engine reaches Ship on a real repo.",
-    "next_step": "START HERE. Pull request 209 is OPEN against main and awaits a HUMAN merge - never merge it from a session. FIRST: read the receipts enforcer and CI verdicts on 209 and address only what the enforcer blocks on. Expect retirement-census red; it is red on pristine main too, same 19 sites, none in this diff. Do NOT create MITOSIS_LIVE_GH_TOKEN until 209 merges. After merge, the next real work is a live end-to-end run driving the engine to a real pull request.",
-    "last_session": "Landed all six audit fixes, then ran both reviewers, which independently returned BLOCK on the new branch-deletion power. Fixed four real defects plus a credential exposure against named invariants, freshened onto main, verified, and opened pull request 209.",
+    "active_goal": "Prove mitosis works end to end: the ship stack is merged, so the next milestone is the first live run that reaches a real pull request.",
+    "next_step": "START HERE. PR 209 is MERGED, verified by content on origin/main. FIRST: fast-forward the primary checkout - it is 28 commits behind and global lib, rules, skills and agents symlink into its working tree, so the merged engine is NOT the running engine. THEN the first live end-to-end run: drive the engine against a disposable repo until it opens a real pull request. Keep the graph edge-free; the divergence probe is unimplemented so chains cannot resume.",
+    "last_session": "Cleared both reviewers blocking findings on the branch-deletion power and a workflow credential exposure, opened PR 209, and the user merged it. Verified the content landed on origin/main by reading it, not by trusting the merged label.",
     "open_risks": [
       {
         "text": "Prove a merge arrived by asserting its CONTENT is on the base, never by SHA ancestry — a squash or stack merge rewrites commits, so a pre-merge SHA correctly fails an ancestry check on a merge that lost nothing",
@@ -459,27 +459,20 @@
         ]
       },
       {
-        "text": "Never merge pull request 209 from a session — merge is human-gated at four independent layers by design, and the engine itself never merges",
+        "text": "Fast-forward the primary checkout before trusting any mitosis behaviour — global lib, rules, skills and agents symlink into its working tree, so a merged engine is not the running engine until that checkout moves",
         "scope": "c28",
         "refs": [
-          "209",
-          "0497"
+          "origin/main",
+          "28 commits behind at hand-off",
+          "memory: merged-config-is-not-in-force-until-pull"
         ]
       },
       {
-        "text": "Do not read retirement-census red as caused by this branch — it exits 41 on pristine origin/main with the identical nineteen sites, all of them agent names inside rules files, none in this diff",
-        "scope": "c28",
-        "refs": [
-          "mitosis-gate.mjs retirement-census",
-          "origin/main"
-        ]
-      },
-      {
-        "text": "Do not create the live GitHub token until 209 merges — the workflow on main still carries the pull_request trigger that hands a repo-scoped credential to code authored in a same-repo pull request",
+        "text": "The live GitHub token is now safe to create and needs repo scope only — the workflow fix that closed the credential exposure is on main, and the harness resets one reusable repository in place rather than deleting it",
         "scope": "c28",
         "refs": [
           "MITOSIS_LIVE_GH_TOKEN",
-          ".github/workflows/live-github-substrate.yml"
+          "SatanshuMishra/mitosis-live-pr-harness"
         ]
       },
       {
@@ -497,6 +490,21 @@
         "refs": [
           "tests/live-github-harness.test.mjs",
           "c31"
+        ]
+      },
+      {
+        "text": "Do not read retirement-census red as caused by this work — it exits 41 on pristine main with nineteen sites, all of them agent names inside rules files, none from the ship stack",
+        "scope": "c28",
+        "refs": [
+          "mitosis-gate.mjs retirement-census"
+        ]
+      },
+      {
+        "text": "Seven worktrees and six branches from the ship stack are merged and can be removed — ship-base, ship-green, ship-resume, ship-publish, ship-wire, ship-livetest and ship-harden",
+        "scope": "c28",
+        "refs": [
+          ".claude/worktrees",
+          "feat/mitosis-ship-live"
         ]
       },
       {
@@ -1029,5 +1037,5 @@
     ]
   },
   "created_at": "2026-08-12T07:37:41.077Z",
-  "updated_at": "2026-08-18T04:50:11.222Z"
+  "updated_at": "2026-08-18T04:50:44.756Z"
 }
