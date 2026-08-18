@@ -131,6 +131,44 @@ test('park: marks the blocked unit and its transitive dependents parked, writes 
   assert.deepEqual(rec.resumePoint, { branch: 'mitosis/core-integration', ref: 'sha0', stage: 'plan' });
 });
 
+test('park: writes the exact disposition object for both the primary parked unit and a cascaded dependent, not just a non-null placeholder', () => {
+  const before = manifestWith([
+    { id: 'core' },
+    { id: 'auth', dependsOn: ['core'] },
+  ]);
+  const after = park(before, {
+    unitId: 'core',
+    stage: 'plan',
+    diagnosis: 'human decision required',
+    resumePoint: { branch: 'mitosis/core-integration', ref: 'sha0', stage: 'plan' },
+    triedSet: ['import-path:relative'],
+  });
+  const core = after.msps.find((m) => m.id === 'core');
+  const auth = after.msps.find((m) => m.id === 'auth');
+  assert.deepStrictEqual(core.disposition, {
+    class: 'Unknown',
+    diagnosis: 'human decision required',
+    stage: 'plan',
+    resumePoint: { branch: 'mitosis/core-integration', ref: 'sha0', stage: 'plan' },
+    triedSet: ['import-path:relative'],
+    remediation: null,
+  }, 'the primary parked unit with no blockedBy carries the honest negative class Unknown, its own diagnosis, stage, resumePoint and triedSet');
+  assert.deepStrictEqual(auth.disposition, {
+    class: 'BlockedByPrereq',
+    diagnosis: null,
+    stage: null,
+    resumePoint: { branch: null, ref: null, stage: null },
+    triedSet: [],
+    remediation: null,
+  }, 'a transitively blocked dependent always carries class BlockedByPrereq with no diagnosis or stage of its own');
+});
+
+test('park: a primary parked unit whose delta carries a blockedBy string is classed BlockedByPrereq rather than Unknown', () => {
+  const before = manifestWith([{ id: 'a' }]);
+  const after = park(before, { unitId: 'a', stage: 'execute', diagnosis: 'waiting on an upstream unit', blockedBy: 'b', triedSet: [] });
+  assert.strictEqual(after.msps.find((m) => m.id === 'a').disposition.class, 'BlockedByPrereq');
+});
+
 test('park: records triedSet and resumePoint on the blocked unit; dependents carry an empty triedSet', () => {
   const before = manifestWith([
     { id: 'core' },
