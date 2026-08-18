@@ -273,9 +273,9 @@
   "abandoned_reason": null,
   "closure_statement": null,
   "spine": {
-    "active_goal": "Make the engine open pull requests on a real run: the six audit fixes are in, next is review and then a live end-to-end run against a disposable repo.",
-    "next_step": "START HERE. The six fixes are committed on feat/mitosis-ship-live (12 commits, unpushed, suite exit 0). Nothing is running. FIRST: dispatch code-reviewer and security-reviewer in parallel over main..feat/mitosis-ship-live, since no review has run. THEN open the pull request through pr.mjs pr-create. Before opening: the diff is ~3400 added lines across 59 files, far past the 400-line ceiling, so decide with the user whether to open one PR or restack the five branches it was built from.",
-    "last_session": "Implemented all six audit fixes with nine subagents across four waves. Wave 1 overturned three of the audit's own conclusions. Merged composition verified green rather than assumed. Fake gh binary retired. No review, no push, no pull request.",
+    "active_goal": "Land the ship stack: pull request 209 is open and awaits a human merge, then a live end-to-end run must prove the engine reaches Ship on a real repo.",
+    "next_step": "START HERE. Pull request 209 is OPEN against main and awaits a HUMAN merge - never merge it from a session. FIRST: read the receipts enforcer and CI verdicts on 209 and address only what the enforcer blocks on. Expect retirement-census red; it is red on pristine main too, same 19 sites, none in this diff. Do NOT create MITOSIS_LIVE_GH_TOKEN until 209 merges. After merge, the next real work is a live end-to-end run driving the engine to a real pull request.",
+    "last_session": "Landed all six audit fixes, then ran both reviewers, which independently returned BLOCK on the new branch-deletion power. Fixed four real defects plus a credential exposure against named invariants, freshened onto main, verified, and opened pull request 209.",
     "open_risks": [
       {
         "text": "Prove a merge arrived by asserting its CONTENT is on the base, never by SHA ancestry — a squash or stack merge rewrites commits, so a pre-merge SHA correctly fails an ancestry check on a merge that lost nothing",
@@ -452,20 +452,36 @@
         ]
       },
       {
-        "text": "Do not expect a dependency chain to resume — divergence.mjs reads three things from its context that exist nowhere in the tree, so every keyed parent throws, is caught, and folds closed; wiring the merged commit map provably changes nothing while the probe stays unwired",
+        "text": "Never merge pull request 209 from a session — merge is human-gated at four independent layers by design, and the engine itself never merges",
+        "scope": "c28",
+        "refs": [
+          "209",
+          "0497"
+        ]
+      },
+      {
+        "text": "Do not read retirement-census red as caused by this branch — it exits 41 on pristine origin/main with the identical nineteen sites, all of them agent names inside rules files, none in this diff",
+        "scope": "c28",
+        "refs": [
+          "mitosis-gate.mjs retirement-census",
+          "origin/main"
+        ]
+      },
+      {
+        "text": "Do not create the live GitHub token until 209 merges — the workflow on main still carries the pull_request trigger that hands a repo-scoped credential to code authored in a same-repo pull request",
+        "scope": "c28",
+        "refs": [
+          "MITOSIS_LIVE_GH_TOKEN",
+          ".github/workflows/live-github-substrate.yml"
+        ]
+      },
+      {
+        "text": "Do not expect a dependency chain to resume — divergence.mjs reads three things from its context that exist nowhere in the tree, so every keyed parent throws, is caught, and folds closed",
         "scope": "c28",
         "refs": [
           "0552",
           "divergence.mjs:26",
           "divergence.mjs:55"
-        ]
-      },
-      {
-        "text": "Treat the stack as unreviewed and unshipped — twelve commits sit on feat/mitosis-ship-live locally with no push, no review pass and no pull request, so none of it has met the project's own review or enforcer gates",
-        "scope": "c28",
-        "refs": [
-          "feat/mitosis-ship-live",
-          "d2e304b6"
         ]
       },
       {
@@ -481,23 +497,16 @@
         "scope": "c28",
         "refs": [
           "0555",
-          "gh-merge-shim.mjs resolveRealGh",
-          "pr.mjs resolveGhBinary"
+          "gh-merge-shim.mjs resolveRealGh"
         ]
       },
       {
-        "text": "Grant delete_repo before moving to per-run throwaway repositories — the current token carries repo but not delete_repo, so the harness resets one reusable repository in place instead of destroying it",
+        "text": "Validate a sha as a sha on any destructive path — a ref token check accepts origin/main, which turned an ancestry gate into a comparison of a ref with itself and passed",
         "scope": "c28",
         "refs": [
-          "gh auth refresh -h github.com -s delete_repo",
-          "SatanshuMishra/mitosis-live-pr-harness"
-        ]
-      },
-      {
-        "text": "Read every green signal's derivation before trusting it — the audit found seven success signals computed over a narrower domain than they claim, and only the exit code and the two verified lines have been corrected so far",
-        "scope": "c28",
-        "refs": [
-          "FINDINGS.md section 3"
+          "0558",
+          "SHA_HEX_PATTERN",
+          "resume-plan.mjs:92"
         ]
       },
       {
@@ -509,18 +518,11 @@
         ]
       },
       {
-        "text": "Planning is strictly serial at about four minutes per unit and dominates wall clock — Execute parallelizes genuinely but mean concurrency measured 1.14x, so fileScope independence buys nothing during Prep",
+        "text": "Planning is strictly serial at about four minutes per unit and dominates wall clock — Execute parallelizes genuinely but mean concurrency measured 1.14x",
         "scope": "c28",
         "refs": [
           "unit-planning.mjs:301",
           "FINDINGS.md section 6"
-        ]
-      },
-      {
-        "text": "The audit left c31 unstarted and the scale, refactor and bugfix probes unrun — do not read its findings as covering throughput at scale or cross-cutting refactor capability",
-        "scope": "c28",
-        "refs": [
-          "FINDINGS.md section 7"
         ]
       }
     ],
@@ -1020,5 +1022,5 @@
     ]
   },
   "created_at": "2026-08-12T07:37:41.077Z",
-  "updated_at": "2026-08-18T02:35:05.694Z"
+  "updated_at": "2026-08-18T02:35:40.897Z"
 }
