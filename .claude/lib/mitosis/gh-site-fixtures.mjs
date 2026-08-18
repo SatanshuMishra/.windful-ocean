@@ -245,8 +245,14 @@ const SHIP_PR_VALUES = Object.freeze({
   provenance: 'agent=ship model=opus',
   why: 'the unit is built and its parents are merged',
   what: 'open one pull request on the rebased integration head',
+  verified: 'boundary gate - clean',
   notVerified: 'ci on the fresh head - not run',
   changedLines: '120',
+});
+
+const DERIVED_SHIP_VERIFIED = Object.freeze({
+  '--verified': 'the incumbent spells only the not-verified flag for this stage and states no verification the host measured; the boundary gate runs in the host rather than in the child, so the one check this engine watches to a verdict is reported as the verified line the incumbent leaves it no place for, and it is emitted only when that gate cleared rather than always',
+  '<verified>': 'the same emitted verification; the value is the boundary gate verdict the host read for this unit rather than a line the incumbent spells, and no other check reaches the body as verified',
 });
 
 const OMITTED_DEPENDS = Object.freeze({
@@ -305,10 +311,11 @@ const NODE_PR_FIXTURES = [
       '--provenance', '<provenance>',
       '--why', '<why>',
       '--what', '<what>',
+      '--verified', '<verified>',
       '--not-verified', '<notVerified>',
       '--changed-lines', '<changedLines>',
     ],
-    derived: DERIVED_NODE_SEPARATOR,
+    derived: { ...DERIVED_NODE_SEPARATOR, ...DERIVED_SHIP_VERIFIED },
     placeholders: {
       '<gitLibDir>': Object.freeze({ incumbent: '${GIT_LIB_DIR}', ...GIT_LIB_DIR }),
       ...SLUG_PLACEHOLDER,
@@ -318,6 +325,7 @@ const NODE_PR_FIXTURES = [
       '<provenance>': Object.freeze({ incumbent: '${JSON.stringify(prProvenanceFor(`ship:${msp.id}`, shipModel))}', field: 'provenance', value: SHIP_PR_VALUES.provenance }),
       '<why>': Object.freeze({ incumbent: '${JSON.stringify(msp.rationale)}', field: 'why', value: SHIP_PR_VALUES.why }),
       '<what>': Object.freeze({ incumbent: '${JSON.stringify(msp.title)}', field: 'what', value: SHIP_PR_VALUES.what }),
+      '<verified>': Object.freeze({ field: 'verified', value: SHIP_PR_VALUES.verified }),
       '<notVerified>': Object.freeze({ incumbent: '${JSON.stringify(PR_NOT_VERIFIED_OPEN_CI)}', field: 'notVerified', value: SHIP_PR_VALUES.notVerified }),
       '<changedLines>': Object.freeze({ incumbent: '<N>', field: 'changedLines', value: SHIP_PR_VALUES.changedLines }),
     },

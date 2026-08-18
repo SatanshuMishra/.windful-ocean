@@ -9,6 +9,7 @@ const NUL = String.fromCharCode(0);
 const ORIGIN = 'origin';
 const FETCH_HEAD = 'FETCH_HEAD';
 const OPTION_LEAD = '-';
+const HEADS_NAMESPACE = 'refs/heads/';
 
 function refuse(where, message) {
   throw new TypeError(`${MODULE}: ${where} ${message}`);
@@ -170,6 +171,7 @@ const CI_PUBLISH = Object.freeze({
 });
 
 const SHIP = Object.freeze({
+  'compose-head': (v, t) => ['-C', t.text('repoRoot', v.repoRoot), 'branch', '-f', END_OF_OPTIONS, t.ref('integrationBranch', v.integrationBranch), t.ref('builtRef', v.builtRef)],
   'fetch-base': (v, t) => ['-C', t.text('repoRoot', v.repoRoot), 'fetch', ORIGIN, END_OF_OPTIONS, t.ref('baseBranch', v.baseBranch)],
   'base-contained': (v, t) => ['-C', t.text('repoRoot', v.repoRoot), 'merge-base', '--is-ancestor', END_OF_OPTIONS, originOf(t, v), t.ref('integrationBranch', v.integrationBranch)],
   rebase: (v, t) => ['-C', t.text('repoRoot', v.repoRoot), 'rebase', END_OF_OPTIONS, originOf(t, v), t.ref('integrationBranch', v.integrationBranch)],
@@ -181,6 +183,7 @@ const SHIP = Object.freeze({
   'conflict-paths': (v, t) => ['-C', t.text('repoRoot', v.repoRoot), 'diff', '--name-only', UNMERGED_FILTER],
   'changed-lines': (v, t) => ['-C', t.text('repoRoot', v.repoRoot), 'diff', '--shortstat', END_OF_OPTIONS, `${originOf(t, v)}...${t.ref('integrationBranch', v.integrationBranch)}`],
   'published-head': (v, t) => ['-C', t.text('repoRoot', v.repoRoot), 'rev-parse', t.ref('integrationBranch', v.integrationBranch)],
+  'retire-head': (v, t) => ['-C', t.text('repoRoot', v.repoRoot), 'push', '--delete', ORIGIN, END_OF_OPTIONS, `${HEADS_NAMESPACE}${t.ref('integrationBranch', v.integrationBranch)}`],
 });
 
 export const GIT_SITE_COMMANDS = Object.freeze({

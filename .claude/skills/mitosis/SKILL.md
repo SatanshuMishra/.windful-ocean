@@ -101,16 +101,20 @@ Every value above is an example of the required shape, not a default: substitute
 
 The CLI prints one JSON object to stdout and sets an exit code. Relay both.
 
-The object carries `quiescent`, `aborted`, `ticks`, `units` (each an `id` and a `state`), and `prState` — the done-oracle's `gh pr view` result, or `null` when the run never reached quiescence.
+The object carries `quiescent`, `aborted`, `ticks`, `units` (each an `id` and a `state`), `ship` (`status`, `opened`, `prUrls`, `parked`, `awaiting`, `ci`, `mergeOrder`), and `prState` — the done-oracle's `gh pr view` result, or `null` when the run never reached quiescence.
+
+The exit code reads the build AND the shipping. Building every unit is not a successful run; opening the pull requests is.
 
 | Exit | Meaning |
 |---|---|
-| 0 | quiescent, and every unit reached `done` |
-| 3 | the run stopped short: not quiescent, or quiescent with at least one unit not `done` |
+| 0 | quiescent, every unit reached `done`, and shipping handed off: `ship.status` is `all-shipped` or `awaiting-approval` — or the run had nothing to hand off at all, nothing reaching either Integrate or Ship |
+| 3 | the run stopped short: not quiescent, or a unit short of `done`, or work was pending and shipping did not hand it off — `ship.status` `blocked`, `ci-red-exhausted`, or `partial` over units that reached Integrate or Ship |
 | 2 | the arguments were rejected; nothing ran |
 | 1 | the run threw; the message names the field or the step |
 
-Name the units that are not `done` and the state each stopped in. Do not re-run or "continue" the loop in main.
+0 never means merged. This engine opens pull requests and never merges, so `awaiting-approval` — pull requests open, waiting on a human — is the healthy terminal state and exits 0. A run that built every unit and opened no pull request exits 3, because there is nothing for the human to merge.
+
+Name the units that are not `done` and the state each stopped in, and name `ship.status` with the pull requests in `ship.prUrls`. Do not re-run or "continue" the loop in main.
 
 The `identity` reporting described below has no counterpart in the CLI's summary on this base: it documents the run-identity mechanism, not a field this entry point receives.
 

@@ -8,7 +8,7 @@ const VALUE_FLAGS = Object.freeze([
   '-C', '-c', '-m', '--onto',
   '-R', '-q', '--json', '--base', '--branch', '--limit', '--state',
   '--repo', '--head', '--title', '--origin', '--provenance', '--why', '--what',
-  '--not-verified', '--supersedes', '--depends', '--changed-lines',
+  '--verified', '--not-verified', '--supersedes', '--depends', '--changed-lines',
 ]);
 
 export const SEPARATED = 'separated';

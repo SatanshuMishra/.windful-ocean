@@ -379,73 +379,6 @@ if (unit.behaviour === 'fail-then-succeed') {
 refuse(76, 'the plan names the behaviour ' + JSON.stringify(unit.behaviour) + ', which this stub does not implement');
 `;
 
-const GH_SOURCE = String.raw`
-const fs = require('node:fs');
-
-const RECORD = process.env.MITOSIS_FAKE_GH_RECORD;
-const PLAN = process.env.MITOSIS_FAKE_GH_PLAN;
-
-function refuse(code, message) {
-  fs.writeSync(2, 'fake-gh: ' + message + '\n');
-  process.exit(code);
-}
-
-const argv = process.argv.slice(2);
-
-if (!RECORD || !PLAN) {
-  refuse(70, 'the environment names no recorder and plan path, so no planned reply can be selected');
-}
-
-fs.appendFileSync(RECORD, JSON.stringify(argv) + '\n');
-
-let plan = null;
-try {
-  plan = JSON.parse(fs.readFileSync(PLAN, 'utf8'));
-} catch (error) {
-  refuse(71, 'the plan at ' + PLAN + ' did not parse: ' + error.message);
-}
-if (plan === null || typeof plan !== 'object' || !Array.isArray(plan.steps)) {
-  refuse(71, 'the plan at ' + PLAN + ' carries no steps array');
-}
-
-const matched = plan.steps.findIndex((candidate) => candidate !== null
-  && typeof candidate === 'object'
-  && Array.isArray(candidate.argvPrefix)
-  && candidate.argvPrefix.length <= argv.length
-  && candidate.argvPrefix.every((token, index) => token === argv[index]));
-
-if (matched === -1) {
-  refuse(77, 'no planned step matches the argv ' + JSON.stringify(argv) + '; the fake refuses rather than replying with a reply nobody planned');
-}
-
-const step = plan.steps[matched];
-
-function sequencedStdout() {
-  if (!Array.isArray(step.stdouts)) return step.stdout;
-  if (step.stdouts.length === 0) {
-    refuse(78, 'step ' + matched + ' declares an empty stdouts array, so the reply for this call was never written');
-  }
-  const counter = PLAN + '.count.' + matched;
-  let seen = 0;
-  try {
-    seen = Number.parseInt(fs.readFileSync(counter, 'utf8'), 10);
-  } catch (error) {
-    seen = 0;
-  }
-  if (!Number.isInteger(seen) || seen < 0) {
-    refuse(78, 'the reply counter at ' + counter + ' does not hold a whole number of prior calls');
-  }
-  fs.writeFileSync(counter, String(seen + 1));
-  return step.stdouts[seen < step.stdouts.length ? seen : step.stdouts.length - 1];
-}
-
-const printed = sequencedStdout();
-
-if (typeof printed === 'string' && printed.length > 0) fs.writeSync(1, printed);
-if (typeof step.stderr === 'string' && step.stderr.length > 0) fs.writeSync(2, step.stderr);
-process.exit(Number.isInteger(step.exitCode) ? step.exitCode : 0);
-`;
-
 const ESLINT_SOURCE = String.raw`
 const fs = require('node:fs');
 const path = require('node:path');
@@ -521,10 +454,9 @@ export function writeFakeBin(directory, binaries) {
   }
   writeFileSync(join(directory, 'package.json'), '{"type":"commonjs"}\n');
   const claude = writeExecutable(directory, 'claude', binaries.node, CLAUDE_SOURCE);
-  const gh = writeExecutable(directory, 'gh', binaries.node, GH_SOURCE);
   symlinkSync(binaries.node, join(directory, 'node'));
   symlinkSync(binaries.git, join(directory, 'git'));
-  return Object.freeze({ claude, gh, node: join(directory, 'node'), git: join(directory, 'git') });
+  return Object.freeze({ claude, node: join(directory, 'node'), git: join(directory, 'git') });
 }
 
 export function unitIdOfArgv(argv) {

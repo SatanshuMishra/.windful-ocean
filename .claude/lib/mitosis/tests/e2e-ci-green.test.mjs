@@ -66,14 +66,12 @@ function schemaSentBy(argv) {
   return JSON.parse(argv[at + 1]);
 }
 
-function buildThenWatch(sandbox) {
+function buildAndWatch(sandbox) {
   planRun(sandbox, WATCHED_UNIT);
-  const build = runMitosisCli(sandbox);
-  assert.equal(build.status, 0, `the build run must reach a clean exit before Ship has anything to open: ${build.stderr}`);
   const branch = publishIntegrationBranch(sandbox, UNIT_ID);
   const before = remoteCommitCount(sandbox, branch);
   const ship = runMitosisCli(sandbox);
-  assert.equal(ship.summary === null, false, `the ship run printed no summary to read: ${ship.stderr}`);
+  assert.equal(ship.summary === null, false, `the run printed no summary to read: ${ship.stderr}`);
   assert.notEqual(ghArgvs(sandbox).length, 0, 'an empty gh recorder is the signature of the real gh binary having run instead of the sandbox stub');
   assert.equal(ghArgvsMatching(sandbox, PR_CREATE_PREFIX).length, 1, 'the loop watches the pull request this run just opened, so exactly one must have been opened');
   return Object.freeze({ ship, branch, before });
@@ -81,7 +79,7 @@ function buildThenWatch(sandbox) {
 
 test('a red check on the pull request Ship just opened composes ci-fact-extract then ci-fix, and pushes exactly one fix commit', () => {
   withSandbox({ boundaryToolchain: true, ghPlan: ghPlanFor(['failure', 'success']) }, (sandbox) => {
-    const watched = buildThenWatch(sandbox);
+    const watched = buildAndWatch(sandbox);
 
     assert.deepEqual(composedKindsMatching(sandbox, mspTokenOf(UNIT_ID)), ['ci-fact-extract', 'ci-fix']);
 
@@ -94,16 +92,18 @@ test('a red check on the pull request Ship just opened composes ci-fact-extract 
     assert.equal(remoteSubjectOf(sandbox, watched.branch), CI_FIX_COMMIT_SUBJECT);
     assert.deepEqual(watched.ship.summary.ship.ci, [{ id: UNIT_ID, state: 'ci-green', fixes: 1 }]);
     assert.equal(watched.ship.summary.ship.status, 'all-shipped');
+    assert.equal(watched.ship.status, 0, 'the pull request is open and green and the merge is the human\'s; that hand-off is what a healthy run ends in, so it exits clean');
     assert.equal(ghArgvsMatching(sandbox, READ_JOBS_PREFIX).length, 1, 'the job listing is read once, to compose the one fact extraction');
   });
 });
 
 test('a check still red after the one bounded fix reports ci-red-exhausted and composes no second pair of ci kinds', () => {
   withSandbox({ boundaryToolchain: true, ghPlan: ghPlanFor(['failure', 'failure']) }, (sandbox) => {
-    const watched = buildThenWatch(sandbox);
+    const watched = buildAndWatch(sandbox);
 
     assert.deepEqual(composedKindsMatching(sandbox, mspTokenOf(UNIT_ID)), ['ci-fact-extract', 'ci-fix']);
     assert.equal(watched.ship.summary.ship.status, 'ci-red-exhausted');
+    assert.equal(watched.ship.status, 3, 'the pull request is open on a branch whose checks never went green, so the run is not one an operator may read as finished');
     assert.deepEqual(watched.ship.summary.ship.ci, [{ id: UNIT_ID, state: 'ci-red-exhausted', fixes: 1 }]);
     assert.equal(remoteCommitCount(sandbox, watched.branch) - watched.before, 1, 'the bound is one fix attempt, so a second red buys no second commit');
   });
@@ -112,15 +112,14 @@ test('a check still red after the one bounded fix reports ci-red-exhausted and c
 test('a run id the forge does not resolve leaves the msp unwatched, opens no fix and parks nothing', () => {
   withSandbox({ boundaryToolchain: true }, (sandbox) => {
     planRun(sandbox, WATCHED_UNIT);
-    const build = runMitosisCli(sandbox);
-    assert.equal(build.status, 0, `the build run must reach a clean exit: ${build.stderr}`);
-    const dispatchedBefore = claudeArgvs(sandbox).length;
     const ship = runMitosisCli(sandbox);
+    assert.equal(ship.summary === null, false, `the run printed no summary to read: ${ship.stderr}`);
 
     assert.equal(ghArgvsMatching(sandbox, RESOLVE_RUN_PREFIX).length, 1, 'the run id is asked for once and the fake refuses it, because this fixture plans no run-list reply');
-    assert.equal(claudeArgvs(sandbox).length, dispatchedBefore, 'an unwatchable run composes no ci prompt at all');
+    assert.deepEqual(composedKindsMatching(sandbox, mspTokenOf(UNIT_ID)), [], 'an unwatchable run composes no ci prompt at all');
     assert.deepEqual(ship.summary.ship.ci, [{ id: UNIT_ID, state: 'ci-unwatched', fixes: 0 }]);
     assert.equal(ship.summary.ship.status, 'all-shipped');
+    assert.equal(ship.status, 0, 'the pull request was opened and handed to the human; an unwatchable check run does not retract that');
     assert.deepEqual(ship.summary.ship.parked, []);
   });
 });

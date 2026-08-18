@@ -94,8 +94,8 @@ test('a real cli.mjs child drives a two-unit fixture to done through the sandbox
       { id: 'beta', state: 'done' },
     ]);
     assert.equal(claudeArgvs(sandbox).length, 2);
-    assert.equal(ghArgvs(sandbox).length, 1);
-    assert.deepEqual(ghArgvs(sandbox)[0], DONE_ORACLE_ARGV);
+    assert.deepEqual(ghArgvs(sandbox)[0], DONE_ORACLE_ARGV, 'the engine probes the done oracle when it reaches quiescence, before Ship walks anything');
+    assert.equal(ghArgvsMatching(sandbox, ['pr', 'create']).length, 2, 'one invocation carries both units from build to an open pull request, so the recorder holds one create per unit');
   });
 });
 
@@ -143,19 +143,18 @@ test('a unit whose plan is still unapproved after its one replan parks with no i
   });
 });
 
-test('the sandbox PATH makes the real claude and the real gh unreachable', () => {
+test('the sandbox PATH makes the real claude unreachable and carries no gh at all', () => {
   withSandbox({}, (sandbox) => {
     const probe = spawnSync('/bin/sh', ['-c', 'command -v claude; command -v gh; command -v git; command -v node'], {
       env: { PATH: sandboxPath(sandbox) },
       encoding: 'utf8',
     });
 
-    assert.deepEqual(probe.stdout.split('\n').filter(Boolean), [
-      `${sandbox.fakeBin}/claude`,
-      `${sandbox.fakeBin}/gh`,
-      `${sandbox.fakeBin}/git`,
-      `${sandbox.fakeBin}/node`,
-    ]);
+    assert.deepEqual(
+      probe.stdout.split('\n').filter(Boolean),
+      [`${sandbox.fakeBin}/claude`, `${sandbox.fakeBin}/git`, `${sandbox.fakeBin}/node`],
+      'gh must resolve nowhere on the sandbox PATH; the cli runner intercepts every gh-bound and pr-create-bound call in process before a real gh binary could ever be spawned, and a resolvable gh here would only be reached by a real subprocess falling through to whatever gh the host machine happens to have installed',
+    );
   });
 });
 
@@ -178,7 +177,7 @@ test('a unit the plan fails is diagnosed, redispatched exactly once, and parks o
     assert.equal(claudeArgvsFor(sandbox, 'alpha').length, 1);
     assert.equal(claudeArgvs(sandbox).length, 4);
     assert.equal(readJournal(sandbox).filter((record) => record.kind === 'park').length, 1);
-    assert.equal(ghArgvsMatching(sandbox, ['pr', 'view']).length, 1);
+    assert.equal(ghArgvsMatching(sandbox, ['pr', 'view']).length, 2, 'one read settles whether the run branch already carries a pull request, and Ship reads the done oracle once for the unit it reaches');
   });
 });
 
@@ -240,8 +239,9 @@ test('a scope-fence unit reaches done with no structured output and no commit of
 
     const run = runMitosisCli(sandbox);
 
-    assert.equal(run.status, 0, run.stderr);
+    assert.equal(run.status, 3, run.stderr);
     assert.deepEqual(run.summary.units, [{ id: 'alpha', state: 'done' }]);
+    assert.deepEqual(run.summary.ship.opened, [], 'the unit is built but no pull request is opened, which is what keeps the run off exit 0');
     assert.equal(claudeArgvs(sandbox).length, 1);
   });
 });
@@ -282,8 +282,14 @@ test('a real two-unit run leaves one durable start record per unit and a committ
   });
 });
 
+const MERGED_ALPHA = Object.freeze([Object.freeze({
+  headRefName: 'mitosis/alpha-integration',
+  url: `https://github.com/${REPO_SLUG}/pull/7`,
+  mergedAt: '2026-01-01T00:00:00Z',
+})]);
+
 test('a second attempt resumes the unit the first left parked and leaves the first attempt intact', () => {
-  withSandbox({}, (sandbox) => {
+  withSandbox({ ghPlan: ghPlanReporting(MERGED_ALPHA) }, (sandbox) => {
     planRun(sandbox, [
       { id: 'alpha', behaviour: CLAUDE_BEHAVIOURS.succeed },
       { id: 'beta', behaviour: CLAUDE_BEHAVIOURS.fail },
@@ -312,7 +318,7 @@ test('a second attempt resumes the unit the first left parked and leaves the fir
     assert.deepEqual(second.summary.units, [{ id: 'beta', state: 'parked' }]);
     assert.equal(second.summary.resume.restarted, false);
     assert.deepEqual(second.summary.resume.pending, ['beta']);
-    assert.deepEqual(second.summary.resume.built, ['alpha']);
+    assert.deepEqual(second.summary.resume.shipped, ['alpha'], 'the first invocation opened the pull request for alpha and the forge reports it merged, so the second invocation owes it no work at all');
 
     const firstDir = attemptDirectory(sandbox, first.summary);
     const secondDir = attemptDirectory(sandbox, second.summary);
@@ -379,7 +385,7 @@ test('a manifest claiming a unit shipped is overruled when the forge reports no 
     assert.equal(
       ghArgvsMatching(sandbox, ['pr', 'list']).length,
       1,
-      'the reconcile probe must appear in the sandbox recorder; an empty recorder means the shim reached a real gh through its hardcoded fallback paths rather than the fake on PATH',
+      'the reconcile probe must appear in the sandbox recorder; an empty recorder means the call bypassed the in-process gh interceptor entirely rather than being recorded by it',
     );
   });
 });

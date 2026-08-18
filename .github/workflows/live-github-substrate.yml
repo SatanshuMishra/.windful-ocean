@@ -1,0 +1,65 @@
+name: live-github-substrate
+
+on:
+  schedule:
+    - cron: '17 5 * * 1'
+  push:
+    branches: [main]
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+concurrency:
+  group: live-github-substrate
+  cancel-in-progress: false
+
+jobs:
+  live-substrate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5  # v4.3.1
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020  # v4.4.0
+        with:
+          node-version: '26.x'
+
+      - name: resolve the live-credential policy for this run
+        id: policy
+        env:
+          HAS_TOKEN: ${{ secrets.MITOSIS_LIVE_GH_TOKEN != '' }}
+          EVENT_NAME: ${{ github.event_name }}
+          IS_FORK: ${{ github.event.pull_request.head.repo.fork }}
+        run: |
+          set -euo pipefail
+          if [ "$EVENT_NAME" = "pull_request" ] && [ "$IS_FORK" = "true" ]; then
+            echo "mode=downgrade" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          if [ "$HAS_TOKEN" = "true" ]; then
+            echo "mode=live" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          echo "::error::live GitHub credential MITOSIS_LIVE_GH_TOKEN is absent on a '$EVENT_NAME' run outside a fork pull request; this context is required to carry the secret, and a silent skip here is not acceptable"
+          exit 1
+
+      - name: record the tagged downgrade
+        if: steps.policy.outputs.mode == 'downgrade'
+        run: |
+          set -euo pipefail
+          echo "DOWNGRADE-TAG: unverified-reasoned - live GitHub substrate not run: this is a fork pull request, and GitHub Actions structurally withholds repository secrets from fork pull request runs" | tee -a "$GITHUB_STEP_SUMMARY"
+
+      - name: authenticate git as the live-credential gh identity
+        if: steps.policy.outputs.mode == 'live'
+        env:
+          GH_TOKEN: ${{ secrets.MITOSIS_LIVE_GH_TOKEN }}
+        run: gh auth setup-git
+
+      - name: run the live github pr harness
+        if: steps.policy.outputs.mode == 'live'
+        env:
+          GH_TOKEN: ${{ secrets.MITOSIS_LIVE_GH_TOKEN }}
+          MITOSIS_LIVE_GH_E2E: '1'
+        run: node --test .claude/lib/mitosis/tests/live-github-harness.test.mjs

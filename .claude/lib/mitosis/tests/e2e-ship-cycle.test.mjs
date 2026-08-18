@@ -109,10 +109,10 @@ test('one cycle carries a spec from the real decomposer through execute and inte
     assert.deepEqual(document.specs.map((unit) => unit.prep.title), ['unit alpha', 'unit beta']);
     assert.deepEqual(document.specs.map((unit) => unit.prep.dependsList), ['(none)', '(none)']);
 
-    const build = runMitosisCli(sandbox);
-    assert.equal(build.status, 0, `the build run must reach a clean exit on the emitted document: ${build.stderr}`);
-    assert.deepEqual(build.summary.units, [{ id: 'alpha', state: 'done' }, { id: 'beta', state: 'done' }]);
-    assert.deepEqual(build.summary.prep, [
+    const cycle = runMitosisCli(sandbox);
+    assert.equal(cycle.status, 0, `the cycle must reach a clean exit on the emitted document: ${cycle.stderr}`);
+    assert.deepEqual(cycle.summary.units, [{ id: 'alpha', state: 'done' }, { id: 'beta', state: 'done' }]);
+    assert.deepEqual(cycle.summary.prep, [
       { id: 'alpha', approved: true, iterations: 1, what: null },
       { id: 'beta', approved: true, iterations: 1, what: null },
     ]);
@@ -121,8 +121,8 @@ test('one cycle carries a spec from the real decomposer through execute and inte
     assert.deepEqual(unitsDispatchedFor(sandbox, 'review'), ['alpha', 'beta'], 'every unit from the real emitter gets its review lens');
     assert.deepEqual(unitsDispatchedFor(sandbox, 'security'), ['alpha'], 'the security lens runs over exactly the unit whose MSP declared it required');
 
-    const ship = runMitosisCli(sandbox);
-    assert.equal(ship.summary === null, false, `the ship run printed no summary to read: ${ship.stderr}`);
+    const ship = cycle;
+    assert.deepEqual(ship.summary.resume.built, [], 'nothing was built when this invocation planned, so the units Integrate gates can only have come from the Execute it just ran');
     assert.deepEqual(ship.summary.integrate.integrated, ['alpha', 'beta']);
 
     const created = ghArgvsMatching(sandbox, PR_CREATE_PREFIX);

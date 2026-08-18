@@ -204,7 +204,7 @@ test('a unit dispatched from an emitted run document settles done carrying the s
     [{ id: 'alpha-core', state: 'done' }],
     `the unit did not reach done; stderr carried ${JSON.stringify(io.errOut.join(''))}`,
   );
-  assert.equal(exitCode, 0, `stderr carried ${JSON.stringify(io.errOut.join(''))}`);
+  assert.equal(exitCode, 3, `this run builds alpha-core and opens no pull request, so it hands nothing off; stderr carried ${JSON.stringify(io.errOut.join(''))}`);
 
   const updateRef = effects.exec.find((call) => call.binary === 'git' && call.argv[0] === 'update-ref');
   assert.notEqual(updateRef, undefined, 'no checkpoint ref was written, so no sha ever reached the ref writer');
@@ -221,7 +221,7 @@ test('a scope-fence unit settles done and asks for no checkpoint ref, because it
     'done',
     `the scope-fence unit did not reach done; stderr carried ${JSON.stringify(io.errOut.join(''))}`,
   );
-  assert.equal(exitCode, 0, `stderr carried ${JSON.stringify(io.errOut.join(''))}`);
+  assert.equal(exitCode, 3, `this run builds alpha-core and opens no pull request, so it hands nothing off; stderr carried ${JSON.stringify(io.errOut.join(''))}`);
   assert.deepEqual(updateRefCalls(effects), [], 'a scope-fence unit owns no commit, so no ref may be written for it');
 });
 
@@ -235,7 +235,7 @@ test('a worktree unit whose child reports no sha is still refused rather than ch
 
 test('the unit child is asked for its verdict against a schema, which is what makes its sha available', async (t) => {
   const { calls } = await emitThenRun(t);
-  assert.equal(calls.length, 6, 'the run did not spawn exactly one decompose child, one plan child, one plan-review child, one unit child, one review child and one security child');
+  assert.equal(calls.length, 7, 'the run did not spawn exactly one decompose child, one plan child, one plan-review child, one unit child, one review child, one security child and the one bounded boundary fix Integrate composes for the unit this same invocation built');
   const unitArgv = calls[3].argv;
   const at = unitArgv.indexOf('--json-schema');
   assert.notEqual(at, -1, 'the unit child was dispatched with no --json-schema, so its envelope carries no structured_output at all');

@@ -60,11 +60,21 @@ test('branchToMspId: rejects wrong prefix, wrong suffix, empty id, and foreign b
 
 test('reconcileShippedSet: maps matching PRs by mspId, ignores foreign branches', () => {
   const m = reconcileShippedSet([
-    { headRefName: 'mitosis/a-integration', url: 'https://github.com/me/target/pull/1', mergedAt: '2026-07-08T00:00:00Z' },
+    { headRefName: 'mitosis/a-integration', url: 'https://github.com/me/target/pull/1', mergedAt: '2026-07-08T00:00:00Z', mergeCommit: { oid: '1a2b3c4d5e6f70819203a4b5c6d7e8f901234567' } },
     { headRefName: 'feature/unrelated', url: 'https://github.com/me/target/pull/2', mergedAt: '2026-07-08T01:00:00Z' },
   ], 'mitosis', 'me/target');
   assert.deepEqual([...m.keys()], ['a']);
-  assert.deepEqual(m.get('a'), { prUrl: 'https://github.com/me/target/pull/1', mergedAt: '2026-07-08T00:00:00Z' });
+  assert.deepEqual(m.get('a'), { prUrl: 'https://github.com/me/target/pull/1', mergedAt: '2026-07-08T00:00:00Z', mergeCommit: '1a2b3c4d5e6f70819203a4b5c6d7e8f901234567' });
+});
+
+test('reconcileShippedSet: a merge naming no commit carries no merge commit rather than an invented one', () => {
+  const shapes = [undefined, null, {}, { oid: '' }, { oid: 7 }, 'deadbeef'];
+  for (const mergeCommit of shapes) {
+    const m = reconcileShippedSet([
+      { headRefName: 'mitosis/a-integration', url: 'https://github.com/me/target/pull/1', mergedAt: '2026-07-08T00:00:00Z', mergeCommit },
+    ], 'mitosis', 'me/target');
+    assert.equal(m.get('a').mergeCommit, null, `${JSON.stringify(mergeCommit)} was read as a merge commit a branch could be deleted on`);
+  }
 });
 
 test('reconcileShippedSet: empty or nullish input yields an empty map', () => {
@@ -101,7 +111,7 @@ test('reconcileShippedSet defense-in-depth: a wrong-repo merged PR is NEVER adde
   ];
   const m = reconcileShippedSet(merged, 'mitosis', 'me/target');
   assert.deepEqual([...m.keys()], ['foo'], 'only the target-repo PR maps to an mspId; the wrong-repo PR is rejected');
-  assert.deepEqual(m.get('foo'), { prUrl: 'https://github.com/me/target/pull/2', mergedAt: '2026-07-14T00:00:00Z' });
+  assert.deepEqual(m.get('foo'), { prUrl: 'https://github.com/me/target/pull/2', mergedAt: '2026-07-14T00:00:00Z', mergeCommit: null });
   assert.equal(m.has('bar'), false);
 });
 

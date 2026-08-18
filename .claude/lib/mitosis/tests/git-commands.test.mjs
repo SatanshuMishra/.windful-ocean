@@ -183,6 +183,15 @@ test('the manifest publish push carries no force spelling at all', () => {
   }
 });
 
+test('the retire-head step names the branch fully qualified under refs/heads, so a tag of that name is never what the remote deletes', () => {
+  const argv = buildGitCommand('ship', 'retire-head', { repoRoot: REPO, integrationBranch: 'mitosis/c4b-integration' });
+  assert.deepEqual(
+    [...argv],
+    ['-C', REPO, 'push', '--delete', 'origin', '--end-of-options', 'refs/heads/mitosis/c4b-integration'],
+    'git resolves a bare name against every remote ref, so where no branch matches but a tag of that name does, the bare spelling deletes the tag instead',
+  );
+});
+
 test('the merge integrate step is the no-fast-forward spelling the incumbent names', () => {
   const argv = buildGitCommand('integrate', 'merge', { integrationWt: '/wt', branch: 'mitosis/task-1' });
   assert.deepEqual([...argv], ['-C', '/wt', 'merge', '--no-ff', '--end-of-options', 'mitosis/task-1']);

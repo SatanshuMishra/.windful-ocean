@@ -6,6 +6,8 @@ import {
   GIT_COMMAND_FIXTURES,
   MANIFEST_WRITE_FIXTURE,
   PLAN_PROBE_FIXTURE,
+  SHIP_COMPOSE_HEAD_COMMAND,
+  SHIP_RETIRE_HEAD_COMMAND,
   builderInputs,
 } from './git-command-fixtures.mjs';
 import { EXEC_ALLOWLIST } from './exec-policy.mjs';
@@ -428,7 +430,7 @@ export const DEFAULT_CONVERSION_REGISTRY = Object.freeze({
   compositions: STDIN_COMPOSITIONS,
   parsers: SITE_PARSERS,
   shared: SHARED_COMMAND_STEPS,
-  derivedCommands: DERIVED_COMMAND_SITES,
+  derivedCommands: Object.freeze([...DERIVED_COMMAND_SITES, SHIP_COMPOSE_HEAD_COMMAND, SHIP_RETIRE_HEAD_COMMAND]),
 });
 
 function registryFailure(registry) {
