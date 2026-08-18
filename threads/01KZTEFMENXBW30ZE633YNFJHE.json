@@ -1065,6 +1065,11 @@
         "ref": "0576-audit-answers-0573-with-thirteen-root-causes",
         "title": "The 0573 audit is complete and both families reduce to thirteen named root causes",
         "scope": "c28"
+      },
+      {
+        "ref": "0577-dispatch-with-an-explicit-model-override-during-a-tier-incident",
+        "title": "Every specialist agent pins a model, so a tier incident kills all delegation while the main thread survives",
+        "scope": "c28"
       }
     ],
     "out_of_scope": [
@@ -1076,5 +1081,5 @@
     ]
   },
   "created_at": "2026-08-12T07:37:41.077Z",
-  "updated_at": "2026-08-18T17:57:17.553Z"
+  "updated_at": "2026-08-18T17:57:29.513Z"
 }
