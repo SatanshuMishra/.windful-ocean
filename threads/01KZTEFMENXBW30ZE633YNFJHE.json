@@ -281,8 +281,8 @@
   "closure_statement": null,
   "spine": {
     "active_goal": "Prove mitosis end to end on live runs: one real pull request per MSP through pr-create, with the merge order serialized and handed off.",
-    "next_step": "START HERE. The engine opened real pull request 2, but the second unit parked, so c28's per-MSP and serialization halves stay unproven. FIRST re-run cli.mjs with the SAME run document and run-id, to test whether a NeedsHuman park redispatches through remediation - that also exercises Resume for c29. If it refuses to redispatch, put the real requirements into the unit task text, accept the new run key, and run again for a second live pull request.",
-    "last_session": "Fast-forwarded the checkout to 94eaf17f, staged the disposable substrate, and drove the first live run: pull request 2 opened and verified from GitHub, the second unit parked on a correct review failure, five engine defects filed.",
+    "next_step": "START HERE. Resume is BROKEN and blocks c29: a re-run truncates the journal, loses the shipped state, and reports restarted false while listing every unit pending (0571). Fix that first - the journal must append across invocations rather than be rewritten at start, and restarted must reflect the state printed beside it. Only then retry the second live pull request. Do NOT merge pull request 2 until two exist and they can be merged in the emitted order.",
+    "last_session": "Drove two live runs. Run 1 opened real pull request 2, verified from GitHub, with one unit parked on a correct review failure. Run 2, same run-id, proved resume broken: journal rewritten, shipped state lost, both units parked, nothing opened.",
     "open_risks": [
       {
         "text": "Prove a merge arrived by asserting its CONTENT is on the base, never by SHA ancestry — a squash or stack merge rewrites commits, so a pre-merge SHA correctly fails an ancestry check on a merge that lost nothing",
@@ -508,6 +508,35 @@
         "scope": "c28",
         "refs": [
           "SatanshuMishra/mitosis-live-pr-harness"
+        ]
+      },
+      {
+        "text": "Never trust the restarted flag — it read false on a run that listed every unit pending and nothing shipped, including a unit that had really shipped a pull request",
+        "scope": "c29",
+        "refs": [
+          "0571"
+        ]
+      },
+      {
+        "text": "Copy the journal aside before any re-run on the same run document — the engine rewrites it at start, so the prior run's deltas are destroyed rather than appended to",
+        "scope": "c29",
+        "refs": [
+          "0571",
+          ".mitosis/run.jsonl"
+        ]
+      },
+      {
+        "text": "Expect a shipped unit to come back parked on a re-run — the done-oracle still prevents a duplicate pull request, so the risk is lost state rather than a second pull request",
+        "scope": "c29",
+        "refs": [
+          "0571"
+        ]
+      },
+      {
+        "text": "A NeedsHuman park does not redispatch through remediation on a plain re-run — tested directly, so remediation needs its own trigger before c30 can be attempted",
+        "scope": "c29",
+        "refs": [
+          "0571"
         ]
       }
     ],
@@ -1037,5 +1066,5 @@
     ]
   },
   "created_at": "2026-08-12T07:37:41.077Z",
-  "updated_at": "2026-08-18T06:31:18.507Z"
+  "updated_at": "2026-08-18T06:31:29.171Z"
 }
