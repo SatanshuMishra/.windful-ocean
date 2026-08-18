@@ -1113,6 +1113,11 @@
         "ref": "0595-stack-frozen-at-twenty-four-units-and-the-architect-is-retired",
         "title": "The stack is frozen at twenty-four units and the architect is retired",
         "scope": "c28"
+      },
+      {
+        "ref": "0596-m7-splits-and-the-ship-with-downgrade-rule-has-a-boundary",
+        "title": "M7 ships its visibility half and the ship-with-downgrade rule stops at the green-branch invariant",
+        "scope": "c28"
       }
     ],
     "out_of_scope": [
@@ -1124,5 +1129,5 @@
     ]
   },
   "created_at": "2026-08-12T07:37:41.077Z",
-  "updated_at": "2026-08-18T22:23:05.524Z"
+  "updated_at": "2026-08-18T22:40:03.451Z"
 }
