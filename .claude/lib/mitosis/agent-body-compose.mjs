@@ -1,4 +1,4 @@
-import { renderFragment } from './agent-body-fragments.mjs';
+import { fragmentNames, renderFragment } from './agent-body-fragments.mjs';
 import { resolveSkillPointers } from './agent-skill-pointers.mjs';
 
 export const PROCEDURE_HEADING = 'Procedures (read before you start)';
@@ -34,6 +34,12 @@ export function validateAgentSpec(spec) {
     throw new Error(`agent ${label}: tools must name at least one tool because the field is a strict allowlist`);
   }
   requireArrayOfStrings(spec.fragments || [], 'fragments', label);
+  const declaredFragments = fragmentNames();
+  for (const fragment of spec.fragments || []) {
+    if (!declaredFragments.includes(fragment)) {
+      throw new Error(`agent ${label}: fragment ${JSON.stringify(fragment)} does not exist; the declared fragments are ${declaredFragments.join(', ')}`);
+    }
+  }
   requireArrayOfStrings(spec.skills || [], 'skills', label);
   requireArrayOfStrings(spec.procedures || [], 'procedures', label);
   requireArrayOfStrings(spec.mcpServers || [], 'mcpServers', label);
