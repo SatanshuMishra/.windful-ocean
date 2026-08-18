@@ -1046,6 +1046,11 @@
         "ref": "0567-journal-path-rejected-late-as-unclassified-throw",
         "title": "The journal flag must be absolute and is rejected only after the planning phase has run",
         "scope": "c28"
+      },
+      {
+        "ref": "0569-boundary-gate-passed-without-scanning-the-diff",
+        "title": "The boundary gate reported clean while producing no per-unit census",
+        "scope": "c28"
       }
     ],
     "out_of_scope": [
@@ -1057,5 +1062,5 @@
     ]
   },
   "created_at": "2026-08-12T07:37:41.077Z",
-  "updated_at": "2026-08-18T05:55:41.494Z"
+  "updated_at": "2026-08-18T05:57:19.586Z"
 }
