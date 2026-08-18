@@ -368,6 +368,11 @@
         "ref": "0548-researcher-owns-its-own-fan-out",
         "title": "The main thread dispatches one researcher; the researcher owns the fan-out inside its question",
         "scope": "c4"
+      },
+      {
+        "ref": "0549-four-substrate-gaps-found-executing-waves-4-and-5",
+        "title": "Waves 4 and 5 found four substrate gaps; three are fixed, the effort dial is a SPEC defect",
+        "scope": "c4"
       }
     ],
     "out_of_scope": [
@@ -376,5 +381,5 @@
     ]
   },
   "created_at": "2026-08-16T05:43:25.829Z",
-  "updated_at": "2026-08-18T01:19:14.735Z"
+  "updated_at": "2026-08-18T01:19:29.421Z"
 }
