@@ -21,7 +21,7 @@ import { pack } from './file-scope-fixtures.mjs';
 const CLI = fileURLToPath(new URL('../derive-edges.mjs', import.meta.url));
 const CLI_AT = '2026-01-01T00:00:00.000Z';
 const ESCALATION_SOURCE = fileURLToPath(new URL('../run-engine.mjs', import.meta.url));
-const RUN_ENGINE_SOURCE = fileURLToPath(new URL('../run-engine.mjs', import.meta.url));
+const SENSITIVE_SCOPE_SOURCE = fileURLToPath(new URL('../coarse-scope-lint.mjs', import.meta.url));
 
 function scratch(prefix) {
   return mkdtempSync(join(tmpdir(), prefix));
@@ -766,9 +766,9 @@ test('I8d: a cycle in the declared graph alone is not attributed to coupling', (
 });
 
 test('the coupling marker set and the engine model-routing keyword set are one vocabulary', () => {
-  const source = readFileSync(RUN_ENGINE_SOURCE, 'utf8');
+  const source = readFileSync(SENSITIVE_SCOPE_SOURCE, 'utf8');
   const declaration = source.match(/const SENSITIVE_SCOPE_KEYWORDS = \[([^\]]*)\];/);
-  assert.ok(declaration, 'SENSITIVE_SCOPE_KEYWORDS could not be located in run-engine.mjs, so this census cannot measure the live routing vocabulary');
+  assert.ok(declaration, `SENSITIVE_SCOPE_KEYWORDS could not be located in ${SENSITIVE_SCOPE_SOURCE}, so this census cannot measure the live routing vocabulary`);
   const routing = declaration[1].split(',').map((entry) => entry.trim().replace(/^'|'$/g, '')).filter((entry) => entry.length > 0);
   assert.deepEqual(
     [...couplingContextFacts(undefined).riskMarkers].sort(),

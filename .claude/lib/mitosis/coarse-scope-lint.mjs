@@ -83,6 +83,20 @@ export function fileScopeEdit(fileScope) {
   return isFileScopePack(fileScope) ? fileScope.edit : [];
 }
 
+const SENSITIVE_SCOPE_GLOBS = ['*.sql', '**/*.sql', '.github/workflows'];
+const SENSITIVE_SCOPE_KEYWORDS = ['auth', 'security', 'secret', 'payment', 'crypto', 'migrations', 'infra', 'deploy'];
+const SENSITIVE_SCOPE_KEYWORD_RE = new RegExp('(^|/)(?:' + SENSITIVE_SCOPE_KEYWORDS.join('|') + ')', 'i');
+
+export function sensitiveScope(fileScope) {
+  if (!Array.isArray(fileScope)) return false;
+  return fileScope.some((raw) => {
+    if (typeof raw !== 'string') return false;
+    const p = normalizePath(raw);
+    if (SENSITIVE_SCOPE_GLOBS.some((g) => scopeCovers(g, p))) return true;
+    return SENSITIVE_SCOPE_KEYWORD_RE.test(p);
+  });
+}
+
 export function lintCoarseScope(task, opts) {
   const threshold = opts && Number.isInteger(opts.fileThreshold) ? opts.fileThreshold : COARSE_SCOPE_FILE_THRESHOLD;
   const fileScope = fileScopeEdit(task && task.fileScope);

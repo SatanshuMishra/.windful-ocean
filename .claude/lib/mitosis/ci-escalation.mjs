@@ -1,5 +1,4 @@
-import { normalizePath, scopeCovers } from './coarse-scope-lint.mjs';
-import { sensitiveScope } from './run-engine.mjs';
+import { normalizePath, scopeCovers, sensitiveScope } from './coarse-scope-lint.mjs';
 import { isRepoRelativePath } from './recovery.mjs';
 import { MITOSIS_GATE_VERBS } from './mitosis-gate.mjs';
 

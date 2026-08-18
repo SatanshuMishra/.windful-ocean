@@ -1,7 +1,8 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
+import { readFileSync, readdirSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
+import { join, relative, sep } from 'node:path';
 import { MITOSIS_GATE_VERBS } from '../mitosis-gate.mjs';
 import {
   CI_ATTEMPT_CAP,
@@ -296,4 +297,113 @@ test('sensitivePathsTouched: a candidate fix that reaches a security-sensitive p
   assert.equal(sensitivePathsTouched(['src/pay/charge.ts', 'db/migrations/001.sql']), true);
   assert.equal(sensitivePathsTouched(['src/auth/session.ts']), true);
   assert.equal(sensitivePathsTouched(['/abs/src/pay/charge.ts']), true, 'an unreadable path is treated as sensitive, never as safe');
+});
+
+const LIB_ROOT = fileURLToPath(new URL('../../', import.meta.url));
+const RUN_ENGINE_PATH = fileURLToPath(new URL('../run-engine.mjs', import.meta.url));
+
+const KNOWN_NON_IMPORT_OCCURRENCES = Object.freeze([
+  Object.freeze({
+    relativePath: 'mitosis/derive-edges.mjs',
+    textIncludes: 'opus-escalation rule in run-engine.mjs',
+    reason: 'a throw new Error template literal that mentions run-engine.mjs in prose, not an import',
+  }),
+]);
+
+const IMPORT_REFERENCE_MARKERS = Object.freeze(['import ', 'import{', 'await import(', 'new URL(', 'readFileSync(', 'require(']);
+
+const ACCEPTED_LIB_EXTENSIONS_RE = /\.(mjs|js)$/;
+const CODE_LIKE_EXTENSIONS_RE = /\.(mjs|js|cjs|mts|cts|jsx|tsx|ts)$/;
+
+function classifyLibFile(relativePath) {
+  if (typeof relativePath !== 'string' || relativePath.length === 0) {
+    throw new Error(`census cannot classify an empty or non-string path: ${JSON.stringify(relativePath)}`);
+  }
+  return relativePath.split(sep).includes('tests') ? 'test' : 'production';
+}
+
+function walkLibFiles(dir) {
+  const entries = readdirSync(dir, { withFileTypes: true });
+  return entries.flatMap((entry) => {
+    const fullPath = join(dir, entry.name);
+    if (entry.isDirectory()) return walkLibFiles(fullPath);
+    if (entry.isFile()) {
+      if (ACCEPTED_LIB_EXTENSIONS_RE.test(entry.name)) return [fullPath];
+      if (CODE_LIKE_EXTENSIONS_RE.test(entry.name)) {
+        throw new Error(`walkLibFiles: ${fullPath} carries a code-like extension the census does not classify; widen ACCEPTED_LIB_EXTENSIONS_RE or CODE_LIKE_EXTENSIONS_RE rather than silently skipping it`);
+      }
+      return [];
+    }
+    throw new Error(`walkLibFiles: ${fullPath} is neither a directory nor a regular file, so the census cannot classify it`);
+  });
+}
+
+function runEngineOccurrencesIn(filePath, relativePath) {
+  const lines = readFileSync(filePath, 'utf8').split('\n');
+  return lines.reduce((occurrences, line, index) => {
+    if (!line.includes('run-engine')) return occurrences;
+    return [...occurrences, { relativePath, lineNumber: index + 1, text: line.trim() }];
+  }, []);
+}
+
+function isImportReference(text) {
+  return IMPORT_REFERENCE_MARKERS.some((marker) => text.includes(marker));
+}
+
+test('census: run-engine.mjs has zero production importers anywhere under .claude/lib', () => {
+  const allLibFiles = walkLibFiles(LIB_ROOT);
+  assert.ok(allLibFiles.length > 0, 'walkLibFiles returned no files under .claude/lib, so every assertion below would pass vacuously on an empty walk');
+
+  const productionFiles = allLibFiles
+    .filter((path) => path !== RUN_ENGINE_PATH)
+    .filter((path) => classifyLibFile(relative(LIB_ROOT, path)) === 'production');
+
+  assert.ok(productionFiles.length > 0, 'no production files remained after excluding run-engine.mjs and test files, so the census below would pass vacuously on an empty set');
+
+  const seenExclusionCounts = new Map();
+  const importers = [];
+  const unclassified = [];
+
+  for (const filePath of productionFiles) {
+    const relativePath = relative(LIB_ROOT, filePath);
+    for (const occurrence of runEngineOccurrencesIn(filePath, relativePath)) {
+      const exclusion = KNOWN_NON_IMPORT_OCCURRENCES.find(
+        (entry) => entry.relativePath === occurrence.relativePath && occurrence.text.includes(entry.textIncludes),
+      );
+      if (exclusion !== undefined) {
+        const key = `${exclusion.relativePath}::${exclusion.textIncludes}`;
+        seenExclusionCounts.set(key, (seenExclusionCounts.get(key) ?? 0) + 1);
+        continue;
+      }
+      if (isImportReference(occurrence.text)) {
+        importers.push(`${occurrence.relativePath}:${occurrence.lineNumber}`);
+        continue;
+      }
+      unclassified.push(`${occurrence.relativePath}:${occurrence.lineNumber} ${JSON.stringify(occurrence.text)}`);
+    }
+  }
+
+  for (const entry of KNOWN_NON_IMPORT_OCCURRENCES) {
+    const key = `${entry.relativePath}::${entry.textIncludes}`;
+    const count = seenExclusionCounts.get(key) ?? 0;
+    assert.equal(
+      count,
+      1,
+      count === 0
+        ? `the named exclusion at ${entry.relativePath} for the text "${entry.textIncludes}" was not found in the current source, so it is stale and must be removed rather than trusted`
+        : `the named exclusion at ${entry.relativePath} for the text "${entry.textIncludes}" matched ${count} occurrences, so a duplicated line could hide a second, unreviewed occurrence behind one excuse`,
+    );
+  }
+
+  assert.deepEqual(
+    unclassified,
+    [],
+    `an occurrence of "run-engine" in a production file could be classified as neither an import reference nor a named known non-import, so the census halts instead of silently passing it: ${unclassified.join('; ')}`,
+  );
+
+  assert.deepEqual(
+    importers,
+    [],
+    `run-engine.mjs must have zero production importers anywhere under .claude/lib; found: ${importers.join(', ')}`,
+  );
 });
