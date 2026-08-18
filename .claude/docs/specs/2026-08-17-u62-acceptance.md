@@ -51,10 +51,21 @@ roster itself:
 | # | Derivation |
 |---|---|
 | A | the canonical agent directory per U1.1, minus the thirteen of SPEC section 5b |
-| B | on-disk agents carrying no generator spec, or whose body lacks the shared generated fragments |
+| B | the nine named explicitly at SPEC section 5b, "Deleted in the contract wave" |
 
 If A and B do not yield the same nine names, the census exits non-zero naming the symmetric
 difference. It never proceeds on one derivation alone.
+
+A third assertion closes the classification: every agent on disk belongs to exactly one of
+the thirteen or the nine, and every one of the nine is on disk. An agent in neither set, or
+in both, HALTS. This holds at every point in the wave sequence and is what lets the census
+run before wave 4 as well as after it — 6 + 9 = 15 today, 13 + 9 = 22 after wave 5, 13 + 0
+after U7.1.
+
+Derivation B is deliberately NOT "agents lacking a generator spec". That reads as the more
+independent test, but it is unrunnable before wave 5 regenerates the thirteen: on `main` no
+agent has a generator spec, so it would yield all fifteen, disagree with A, and halt the
+census at exactly the moment it is most needed.
 
 **The bar is ZERO occurrences**, not "zero routing occurrences." There is no
 descriptive-versus-routing classification, deliberately: a classification step is a place to
