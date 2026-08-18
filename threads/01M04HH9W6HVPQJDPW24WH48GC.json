@@ -407,6 +407,11 @@
         "ref": "0563-wave-6-lands-as-one-pull-request-carrying-two-atomic-commits",
         "title": "Wave 6 lands as one pull request carrying U6.1 and U6.2 as atomic commits, wave 7 as its own",
         "scope": "c4"
+      },
+      {
+        "ref": "0568-ground-agent-capability-claims-in-the-agent-file-not-decision-0481",
+        "title": "Ground every claim about an agent capability in the agent file on disk, never in decision 0481",
+        "scope": "c4"
       }
     ],
     "out_of_scope": [
@@ -415,5 +420,5 @@
     ]
   },
   "created_at": "2026-08-16T05:43:25.829Z",
-  "updated_at": "2026-08-18T05:27:39.191Z"
+  "updated_at": "2026-08-18T05:57:09.099Z"
 }
