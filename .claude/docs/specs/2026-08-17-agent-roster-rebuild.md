@@ -551,29 +551,49 @@ literal. `run-engine.mjs`'s literals (`implementer`, `test-engineer`, `code-revi
 `security-reviewer`) are all collision names that survive, so they need no change — verify
 this rather than assume it.
 **Acceptance:** `agent-schema-lint.test.mjs`'s asserted derived set updates to match, and the
-gate is green. Inertness: revert the literal, the census reports `codebase-analyst` as
-referenced-but-absent once U7.1 lands.
+gate is green. Inertness: revert the literal, the retirement census
+(`2026-08-17-u62-acceptance.md` section 2) reports `decompose-emit.mjs:16` as a live
+occurrence of a retiring name. AMENDED: the earlier wording conditioned this inertness on
+"once U7.1 lands", two waves downstream, so it could not be run at this unit's own time and
+the unit shipped with no runnable mutation. The retirement census makes it immediate.
 **Green on merge:** the decomposer dispatches an agent that exists, because wave 4 added it.
 
 ### U6.2 — Repoint the rules and skills
 
-**Deliverable:** every breaking reference updated. Exactly:
-`.claude/rules/common/tool-routing.md:30` (`debugger`, `codebase-analyst`), `:32`
+**Deliverable:** every breaking reference updated. Seventeen sites, verified live on `main`
+at `54fd9d20`. The eight the earlier revision listed, all confirmed still at their stated
+lines: `.claude/rules/common/tool-routing.md:30` (`debugger`, `codebase-analyst`), `:32`
 (`codebase-analyst`); `.claude/rules/common/performance.md:52` (`debugger`);
 `.claude/rules/common/git-workflow.md:13` (`solution-architect`);
 `.claude/rules/common/delegation-discipline.md:33` (the `report-writer.md` citation);
 `.claude/skills/verification-discipline/SKILL.md:13,14,23` and
 `.claude/skills/verify-setup/SKILL.md:8,38` (`verification-strategist`);
 `.claude/skills/plan-to-task-graph/SKILL.md:20` (`mechanical-editor`);
-`.claude/skills/report/SKILL.md:16` (`report-writer`).
+`.claude/skills/report/SKILL.md:16` (`report-writer`). Plus five that revision MISSED:
+`.claude/skills/report/SKILL.md:3,8,24` (`report-writer`) and
+`.claude/skills/explain-my-config/references/pipeline-narrative.md:21` (`mechanical-editor`),
+`:28` (`verification-strategist`) — a file the earlier list did not name at all, whose two
+sites would have survived this unit and been deleted out from under by U7.1.
+**The census is the authority, not this list.** A divergence between them is resolved by
+re-running the census, never by trusting the prose.
 **Depends on:** U6.1.
-**Note on the `report` skill:** decision 0481 withdraws it. If it is deleted in this unit its
-reference is moot; if it is retained, the reference must be repointed. Decide explicitly —
-leaving a withdrawn skill in place with a dangling dispatch is the worst of both.
-**Must not touch:** `.claude/docs/` except this SPEC.
-**Acceptance:** the census from U1.2 is green with the nine retiring names still present on
-disk. That is the point: references are gone before definitions are.
-**Green on merge:** nothing references a name that is about to disappear.
+**Note on the `report` skill — DECIDED, not open.** The earlier revision said "decide
+explicitly". Decision 0481 already withdrew the skill from the architecture: its references
+"stop mattering rather than needing to be repointed". Four of the seventeen sites sit inside
+`.claude/skills/report/`; deleting the directory discharges all four, retaining it obliges
+repointing all four. The census proves either path.
+**Must not touch:** `.claude/docs/` except this SPEC and the acceptance file below;
+`.claude/agents/**` byte-identical to the parent; `decompose-emit.mjs` (U6.1 owns it).
+**Acceptance:** WITHDRAWN and REPLACED — see
+`.claude/docs/specs/2026-08-17-u62-acceptance.md`. The withdrawn line read "the census from
+U1.2 is green with the nine retiring names still present on disk". It has no failing state:
+that census resolves references against definitions PRESENT ON DISK, and at this unit's
+parent all nine still are, so it is green before the unit and after it. Compounding that,
+its grammar detects 5 of 19 real reference sites (26%), which decision 0532 filed here. The
+replacement is a grammar-free retirement census resolving against the TARGET roster, RED at
+the parent naming every site, GREEN only at zero occurrences.
+**Green on merge:** nothing references a name that is about to disappear, proven by a check
+that can fail.
 
 ### U7.1 — Delete the nine retired agents
 
@@ -581,9 +601,14 @@ disk. That is the point: references are gone before definitions are.
 `mechanical-editor`, `performance-engineer`, `report-writer`, `solution-architect`,
 `verification-strategist`.
 **Depends on:** U6.2.
-**Acceptance:** the census is green with all nine absent, and `git grep` for each name
-returns only `.claude/docs/` historical hits and test fixtures. Inertness: restore one
-reference, the census turns RED.
+**Acceptance:** the RETIREMENT census (`2026-08-17-u62-acceptance.md` section 2) is green
+with all nine absent, AND the canonical roster is exactly the thirteen of section 5b, AND
+`git grep` for each name returns only `.claude/docs/` historical hits and test fixtures.
+Inertness: restore one reference, the census turns RED naming its file and line; delete a
+tenth agent, the roster assertion turns RED. AMENDED: the earlier wording named the U1.2
+census, whose grammar sees 5 of 19 reference sites, so it would have gone green with
+thirteen live references still in place. `git grep` alone is prose-graded, not a re-runnable
+check, and cannot carry the unit by itself.
 **Green on merge:** every reference was removed in the previous wave, proven by a check that
 ran before the files went.
 
