@@ -76,6 +76,21 @@ test('the fold base is the file the genesis writer writes: a journal produced by
   }
 });
 
+test('foldFile folds a journal carrying two genesis lines from the LAST one, so an append-only journal reflects the resumed state rather than the stale first genesis', () => {
+  const firstManifest = genesis();
+  const secondManifest = {
+    ...firstManifest,
+    msps: firstManifest.msps.map((msp) => (msp.id === 'a' ? { ...msp, status: 'built' } : msp)),
+  };
+  const journal = [JSON.stringify(firstManifest), JSON.stringify(secondManifest)].join('\n');
+  withTemp(journal, (path) => {
+    const folded = foldFile(path);
+    assert.ok(folded, 'a journal with two genesis lines must still fold to a manifest');
+    assert.equal(folded.msps.find((m) => m.id === 'a').status, 'built', 'the fold used the first genesis line rather than the last');
+    assert.equal(folded.msps.find((m) => m.id === 'b').status, 'planned', 'a sibling untouched by the second genesis keeps the state the last genesis line carries for it');
+  });
+});
+
 test('foldFile fail-closes to null on a malformed run-log so the engine falls back to a fresh decompose', () => {
   withTemp('{not valid json', (path) => {
     assert.equal(foldFile(path), null);

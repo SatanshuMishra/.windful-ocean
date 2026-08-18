@@ -102,6 +102,14 @@ function withFoldRefusals(manifest, refusals) {
   return { ...manifest, foldRefusals: Object.freeze([...refusals]) };
 }
 
+function lastGenesisIndex(lines) {
+  let last = 0;
+  for (let i = 1; i < lines.length; i += 1) {
+    if (parseRunManifest(lines[i]) !== null) last = i;
+  }
+  return last;
+}
+
 export function foldRunManifest(raw) {
   const whole = parseRunManifest(raw);
   if (whole) return withFoldRefusals(whole, []);
@@ -109,14 +117,16 @@ export function foldRunManifest(raw) {
   const lines = raw.split('\n').map((line) => line.trim()).filter((line) => line.length > 0);
   const rawBase = lines.length > 0 ? parseRunManifest(lines[0]) : null;
   if (!rawBase) return null;
+  const genesisIndex = lastGenesisIndex(lines);
+  const rawGenesis = genesisIndex === 0 ? rawBase : parseRunManifest(lines[genesisIndex]);
   let manifest;
   try {
-    manifest = normalizeBaseProgress(rawBase);
+    manifest = normalizeBaseProgress(rawGenesis);
   } catch {
     return null;
   }
   const refusals = [];
-  for (let i = 1; i < lines.length; i += 1) {
+  for (let i = genesisIndex + 1; i < lines.length; i += 1) {
     let record;
     try {
       record = JSON.parse(lines[i]);

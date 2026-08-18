@@ -124,13 +124,31 @@ test('writeGenesis truncates to exactly one line, so a second genesis never appe
   assert.equal(body.split('\n').filter((line) => line.length > 0).length, 1);
 });
 
-test('writeGenesis truncates a longer prior journal rather than leaving stale deltas behind it', () => {
-  const dir = scratch('journal-genesis-truncate-');
+test('writeGenesis appends a longer prior journal rather than destroying the deltas already recorded, and the fold of the two-invocation journal equals folding the first then applying the second invocation deltas', () => {
+  const dir = scratch('journal-genesis-append-');
   const path = join(dir, '.mitosis', 'run.json');
   writeGenesis({ repoRoot: dir, path, manifest: GENESIS_MANIFEST_AT_FB195E47 });
-  appendJournalLine({ repoRoot: dir, path, line: composeJournalLine('ci-attempt', { unitId: 'fx-unit', fingerprint: 'fx-fingerprint-one' }) });
-  writeGenesis({ repoRoot: dir, path, manifest: GENESIS_MANIFEST_AT_FB195E47 });
-  assert.equal(readFileSync(path, 'utf8').split('\n').filter((line) => line.length > 0).length, 1);
+  const firstDelta = composeJournalLine('ci-attempt', { unitId: 'fx-unit', fingerprint: 'fx-fingerprint-one' });
+  appendJournalLine({ repoRoot: dir, path, line: firstDelta });
+  const afterFirstInvocation = readFileSync(path, 'utf8');
+  const secondManifest = foldRunManifest(afterFirstInvocation);
+  writeGenesis({ repoRoot: dir, path, manifest: secondManifest });
+  const secondDelta = composeJournalLine('ci-attempt', { unitId: 'fx-unit', fingerprint: 'fx-fingerprint-two' });
+  appendJournalLine({ repoRoot: dir, path, line: secondDelta });
+  const wholeJournal = readFileSync(path, 'utf8');
+  assert.ok(
+    wholeJournal.startsWith(afterFirstInvocation),
+    'every line written by the first invocation must still be present after the second one appended its own genesis and deltas',
+  );
+  const lines = wholeJournal.split('\n').filter((line) => line.length > 0);
+  assert.equal(lines.length, 4, 'the first genesis, the first delta, the second genesis and the second delta must all survive as four lines');
+  const firstFoldedThenSecondDeltaApplied = foldRunManifest(`${afterFirstInvocation}${secondDelta}`);
+  const wholeFolded = foldRunManifest(wholeJournal);
+  assert.deepEqual(
+    wholeFolded,
+    firstFoldedThenSecondDeltaApplied,
+    'the fold of the two-invocation journal must equal folding the first invocation then applying the second invocation deltas',
+  );
 });
 
 test('a genesis line followed by appended deltas folds back through the incumbent reader', () => {

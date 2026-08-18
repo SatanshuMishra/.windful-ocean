@@ -178,21 +178,21 @@ test('a manifest the fold reader would reject is refused before the journal is o
   assert.equal(readFileSync(journal, 'utf8'), before, 'a refused genesis truncated the journal it could not replace');
 });
 
-test('a genesis replacement that cannot be staged leaves the prior journal whole and foldable rather than emptying it in place', () => {
-  const dir = scratch('journal-staged-replace-');
+test('a genesis append that cannot land leaves the prior journal whole and foldable rather than corrupting it', () => {
+  const dir = scratch('journal-append-blocked-');
   const holder = join(dir, '.mitosis');
   const journal = join(holder, 'run.json');
   writeGenesis({ repoRoot: dir, path: journal, manifest: GENESIS_MANIFEST_AT_FB195E47 });
   appendJournalLine({ repoRoot: dir, path: journal, line: LINE });
   const before = readFileSync(journal, 'utf8');
-  chmodSync(holder, 0o500);
+  chmodSync(journal, 0o400);
   try {
     assert.throws(
       () => writeGenesis({ repoRoot: dir, path: journal, manifest: { ...GENESIS_MANIFEST_AT_FB195E47, logicalRunId: 'fx02run8' } }),
       /journal-store/,
-      'the replacement went into the journal itself rather than beside it, so the only thing standing between an interrupted write and an unrecoverable run is the write finishing',
+      'the append went into the journal in a way that corrupted it rather than leaving it exactly as it was before the failed write',
     );
-    assert.equal(readFileSync(journal, 'utf8'), before, 'a replacement that never landed took the journal down with it');
+    assert.equal(readFileSync(journal, 'utf8'), before, 'a genesis append that never landed took the journal down with it');
     const recovered = foldRunManifest(readFileSync(journal, 'utf8'));
     assert.equal(
       recovered === null ? null : recovered.logicalRunId,
@@ -200,7 +200,7 @@ test('a genesis replacement that cannot be staged leaves the prior journal whole
       'the journal no longer folds back to the run it recorded, which is every relaunch unable to recover that run',
     );
   } finally {
-    chmodSync(holder, 0o700);
+    chmodSync(journal, 0o600);
   }
 });
 

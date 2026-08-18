@@ -9,7 +9,6 @@ import {
   isPlainObject,
   readCappedFile,
   releaseExclusiveLock,
-  replaceFileAtomically,
   requireConfinedPath,
   requireExistingDirectory,
   requireGuardedPath,
@@ -70,6 +69,7 @@ const MODULE = 'journal-store';
 const GITIGNORE_BASENAME = '.gitignore';
 const MAX_IGNORE_ENTRY_LENGTH = 200;
 const MAX_IGNORE_FILE_BYTES = 1024 * 1024;
+const MAX_JOURNAL_PEEK_BYTES = 64 * 1024 * 1024;
 const IGNORE_LOCK_SUFFIX = '.journal-lock';
 const IGNORE_LOCK_ATTEMPTS = 50;
 const IGNORE_LOCK_WAIT_MS = 20;
@@ -228,6 +228,15 @@ function appendLine(target, line, action) {
   return Object.freeze({ path, line });
 }
 
+function lastNonEmptyLine(text) {
+  if (text === null) return null;
+  const lines = text.split('\n');
+  for (let i = lines.length - 1; i >= 0; i -= 1) {
+    if (lines[i].length > 0) return lines[i];
+  }
+  return null;
+}
+
 export function writeGenesis(request) {
   if (!isPlainObject(request)) {
     throw new TypeError(`journal-store: writeGenesis takes one plain object carrying repoRoot, path and manifest, received ${request === null ? 'null' : typeof request}`);
@@ -235,14 +244,12 @@ export function writeGenesis(request) {
   const target = requireJournalTarget(request);
   const line = composeJournalLine(GENESIS_KIND, { manifest: request.manifest });
   ensureGitignored({ repoRoot: target.repoRoot, entry: ignoreEntryFor(target) });
-  const action = 'replace the run journal at';
-  ensureDirectory(target, action);
-  try {
-    replaceFileAtomically(MODULE, target.path, line, OWNER_ONLY_MODE);
-  } catch (error) {
-    throw writeFailure(action, target.path, error);
+  const action = 'append the genesis record to';
+  const existing = readCappedFile(MODULE, target.path, MAX_JOURNAL_PEEK_BYTES);
+  if (lastNonEmptyLine(existing) === line.slice(0, -1)) {
+    return Object.freeze({ path: target.path, line });
   }
-  return Object.freeze({ path: target.path, line });
+  return appendLine(target, line, action);
 }
 
 export function appendJournalLine(request) {
