@@ -1,0 +1,68 @@
+{
+  "version": 1,
+  "claim": {
+    "issue_link": "closes #(\\d+)",
+    "require_receipt_for": "any-source-change",
+    "downgrade_tags": [
+      "unverified-reasoned",
+      "speculative",
+      "reverted"
+    ]
+  },
+  "build": {
+    "sha_source": "none",
+    "platform": "none"
+  },
+  "verify": {
+    "test_command": "npm test",
+    "suite_command": "npm test",
+    "require_fresh_base": "warn",
+    "on_load_error_red": "block",
+    "receipt_runs": 1,
+    "live_drive": null
+  },
+  "degrade": {
+    "on_no_receipt": "require-downgrade-tag",
+    "on_unreachable_build": "sha-bind-only"
+  },
+  "gates": {
+    "medium": "library",
+    "enabled": "all",
+    "G6": {
+      "mode": "warn"
+    },
+    "G8": {
+      "integration_branch": "main"
+    },
+    "G10": {
+      "mode": "warn"
+    },
+    "G11": {
+      "mode": "block"
+    },
+    "G12": {
+      "mode": "warn"
+    },
+    "G13": {
+      "coverage_command": "npm run coverage",
+      "lcov_path": "coverage/lcov.info",
+      "mode": "warn"
+    },
+    "G14": {
+      "mode": "block",
+      "max_mutants": 12
+    },
+    "G17": {
+      "downgrade_threshold": 3
+    }
+  },
+  "agent": {
+    "loop_skills": [
+      "gates"
+    ],
+    "repo_name": "mitosis-e2e-substrate",
+    "tripwires": {
+      "g11_live": "off"
+    }
+  }
+}
