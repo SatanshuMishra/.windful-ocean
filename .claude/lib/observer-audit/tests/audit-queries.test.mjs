@@ -164,10 +164,11 @@ test('ran-and-duration separates populations, buckets null depth, and omits ever
   assert.equal(nested.depth_bucket, '2');
   assert.equal(nested.max_duration_ms, 5500);
 
-  const depthNull = rowFor(answer.rows, (row) => row.population === 'dispatch' && row.agent_type === 'claude');
+  const depthNull = rowFor(answer.rows, (row) => row.population === 'internal' && row.agent_type === 'claude');
   assert.equal(depthNull.depth_bucket, 'null', 'a null depth is its own bucket, never folded into 1');
+  assert.equal(depthNull.started, 1, 'a-fb-2 carries no sidecar depth on either row, so it resolves to internal, never dispatch');
 
-  const internal = rowFor(answer.rows, (row) => row.population === 'internal');
+  const internal = rowFor(answer.rows, (row) => row.population === 'internal' && row.agent_type === '(unattributed)');
   assert.equal(internal.started, 1);
 
   const fields = new Set(answer.rows.flatMap((row) => Object.keys(row)));
@@ -180,9 +181,9 @@ test('fell-back counts the which over the dispatch denominator and ships no why'
   const answer = answered('fell-back');
   const row = rowFor(answer.rows, () => true);
   assert.equal(row.population, 'dispatch');
-  assert.equal(row.dispatch_starts, 9, 'the denominator is dispatch starts, never all 21 rows');
-  assert.equal(row.fell_back, 2);
-  assert.equal(row.fell_back_claude, 1);
+  assert.equal(row.dispatch_starts, 8, 'the denominator is dispatch starts, never all 21 rows');
+  assert.equal(row.fell_back, 1);
+  assert.equal(row.fell_back_claude, 0);
   assert.equal(row.fell_back_general_purpose, 1);
   assert.ok(!Object.keys(row).some((key) => key.includes('why') || key.includes('reason')));
   assert.match(answer.why_not_answered, /U3\.3c/);
@@ -223,9 +224,9 @@ test('the roster question labels a zero-dispatch agent never-observed, never unu
   assert.deepEqual(missing.sort(), ['debugger', 'security-reviewer']);
   for (const row of answer.rows.filter((entry) => entry.status === NEVER_OBSERVED_LABEL)) {
     assert.equal(row.status, 'never-observed');
-    assert.equal(row.dispatch_coverage_pct, 90.48);
+    assert.equal(row.dispatch_coverage_pct, 80.95);
   }
-  assert.equal(answer.coverage.dispatch_rows, 19);
+  assert.equal(answer.coverage.dispatch_rows, 17);
   assert.equal(answer.coverage.total_rows, 21);
   assert.ok(
     !JSON.stringify(answer).includes('unused'),
@@ -233,7 +234,7 @@ test('the roster question labels a zero-dispatch agent never-observed, never unu
   );
 });
 
-test('a single dispatch resolves to one population, never a different label on its start row than its stop row', () => {
+test('a group resolves to one shared population, never a different label on its start row than its stop row', () => {
   const binary = requireBinary();
   const sql = `WITH ${eventsCte(FIXTURES)} SELECT event, population FROM ev WHERE session_id = 's1' AND agent_id = 'a-fb-2' ORDER BY event`;
   const rows = query(binary, sql);
@@ -242,13 +243,98 @@ test('a single dispatch resolves to one population, never a different label on i
   assert.equal(
     populations.size,
     1,
-    `a-fb-2's own dispatch was split across two populations by event phase, one per row: ${JSON.stringify(rows)}`,
+    `a-fb-2's own group was split across two populations by event phase, one per row: ${JSON.stringify(rows)}`,
   );
   assert.deepEqual(
     [...populations],
-    ['dispatch'],
-    'a-fb-2 ran and left a stop-time transcript, so the single population both its rows share must be dispatch, never internal',
+    ['internal'],
+    'a-fb-2 carries no sidecar-backed depth on either row, only a stop-phase transcript path, so the single population both its rows share must be internal, never dispatch',
   );
+});
+
+test('a stop-only row carrying a transcript path but no depth and no parent resolves to internal, never dispatch', () => {
+  const binary = requireBinary();
+  const dir = scratch('stop-only-transcript');
+  mkdirSync(join(dir, 'events'), { recursive: true });
+  const row = JSON.stringify({
+    ts: '2026-09-15T00:00:05.000Z',
+    subject: 'agent',
+    event: 'SubagentStop',
+    session_id: 'artifact-less',
+    cwd: '/w',
+    agent_id: 'a-artifact-only',
+    agent_type: null,
+    agent_transcript_path: '/t/artifact-less.jsonl',
+    parent_agent_id: null,
+    depth: null,
+  });
+  writeFileSync(join(dir, 'events', '2026-09.jsonl'), `${row}\n`);
+  const sql = `WITH ${eventsCte(dir)} SELECT event, population FROM ev WHERE session_id = 'artifact-less' AND agent_id = 'a-artifact-only'`;
+  const rows = query(binary, sql);
+  assert.equal(rows.length, 1, 'the fixture must contribute exactly its one stop row, with no start row in the corpus to pair against');
+  assert.equal(rows[0].event, 'SubagentStop');
+  assert.equal(
+    rows[0].population,
+    'internal',
+    'a lone stop row carrying only the stop-phase transcript-path marker, with depth and parent_agent_id both null, has no sidecar-backed dispatch signal and must resolve to internal, not dispatch',
+  );
+  rmSync(dir, { recursive: true, force: true });
+});
+
+test('a dispatch group with two SubagentStart rows is one dispatch at dispatch grain, not two at row grain', () => {
+  const binary = requireBinary();
+  const dir = scratch('discriminator-grain');
+  mkdirSync(join(dir, 'events'), { recursive: true });
+  const startRow = (ts, agentId, agentType) =>
+    JSON.stringify({
+      ts,
+      subject: 'agent',
+      event: 'SubagentStart',
+      session_id: 's-disc',
+      cwd: '/w',
+      agent_id: agentId,
+      agent_type: agentType,
+      agent_transcript_path: null,
+      parent_agent_id: null,
+      depth: 1,
+    });
+  const rows = [
+    startRow('2026-09-20T10:00:00.000Z', 'a-single', 'implementer'),
+    startRow('2026-09-20T08:00:00.000Z', 'a-double', 'researcher'),
+    startRow('2026-09-20T10:30:00.000Z', 'a-double', 'researcher'),
+  ];
+  writeFileSync(join(dir, 'events', '2026-09.jsonl'), `${rows.join('\n')}\n`);
+
+  const rowGrainSql = `WITH ${eventsCte(dir)} SELECT count(*) AS n FROM ev WHERE event = 'SubagentStart' AND population = 'dispatch'`;
+  const rowGrainCount = Number(query(binary, rowGrainSql)[0].n);
+  assert.equal(
+    rowGrainCount,
+    3,
+    'three SubagentStart rows exist across the two dispatch groups: a-single contributes one, a-double contributes two sharing one (session_id, agent_id)',
+  );
+
+  const answer = answered('fell-back', { logRoot: dir });
+  const row = rowFor(answer.rows, () => true);
+  assert.equal(
+    row.dispatch_starts,
+    2,
+    'a-single and a-double are two (session_id, agent_id) groups; a-double carrying two start rows must still collapse to one group at dispatch grain, never the row-grain 3',
+  );
+
+  const failedAnswer = answered('failed', { logRoot: dir });
+  const dispatch = rowFor(failedAnswer.rows, (entry) => entry.population === 'dispatch');
+  assert.equal(
+    dispatch.in_flight_within_horizon,
+    2,
+    "max(started) picks a-double's 10:30 start, the latest timestamp in the corpus and 0ms from itself, so both a-single (30 minutes before latest) and a-double fall inside the one-hour default horizon",
+  );
+  assert.equal(
+    dispatch.failed_started_no_stop,
+    0,
+    "a-double's earlier 08:00 start is never surfaced once max(started) has already picked the later 10:30 start for the group",
+  );
+
+  rmSync(dir, { recursive: true, force: true });
 });
 
 test('the roster question refuses when given no roster, because the log does not hold one', () => {
@@ -306,7 +392,8 @@ test('MUTATION 2: renaming the fallback agent type turns fell-back red', () => {
   substitute(join(dir, 'events', '2026-08.jsonl'), '"agent_type":"general-purpose"', '"agent_type":"implementer"');
   const answer = answered('fell-back', { logRoot: dir });
   const row = rowFor(answer.rows, () => true);
-  assert.equal(row.fell_back, 1, 'the mutant survived: the fallback count did not move');
+  assert.equal(row.dispatch_starts, 8, 'the denominator must still be non-empty, or a zero fell_back count would be indistinguishable from the population collapsing to nothing');
+  assert.equal(row.fell_back, 0, 'the mutant survived: the fallback count did not move');
   assert.equal(row.fell_back_general_purpose, 0);
   rmSync(dir, { recursive: true, force: true });
 });

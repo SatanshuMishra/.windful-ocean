@@ -19,7 +19,7 @@ import { POPULATION_CASE, depthBucketSql, readerExpression } from './reader.mjs'
 const UNATTRIBUTED = '(unattributed)';
 
 const DISPATCH_NOTE =
-  'computed over the dispatch population only: population is resolved at dispatch grain, per (session_id, agent_id), so every row belonging to a dispatch shares that label whether it is the start row or the stop row. A group is a dispatch when at least one of its rows carries a transcript path, a depth, or a parent agent id; a group with none of those signals on any row is internal. A signal-free unpaired start forms a single-row partition with nothing else in the group to rescue it, so it is reported under internal — that is a limit of what the data can resolve, not a defect in this predicate.';
+  'computed over the dispatch population only: population is resolved at dispatch grain, per (session_id, agent_id), so every row belonging to a dispatch shares that label whether it is the start row or the stop row. A group is a dispatch when at least one of its rows carries a depth, the value the harness sidecar sets only for a genuine Task dispatch; a group with depth null on every row is internal, even when a row in it carries a stop-phase transcript path, because that field is copied verbatim from the hook payload and is not a dispatch signal. Depth null on every row has two indistinguishable causes it cannot tell apart: the group is genuinely internal, or it is a real dispatch whose sidecar write failed and was swallowed by the writer, leaving no depth to record; this predicate reports both the same way, under internal, and that is a known blind spot, filed separately, not fixed by this note. A depth-free unpaired start forms a single-row partition with nothing else in the group to rescue it, so it is reported under internal — that is a limit of what the data can resolve, not a defect in this predicate.';
 
 export function eventsCte(logRoot) {
   return `ev AS (SELECT *, ${POPULATION_CASE} AS population FROM ${readerExpression(logRoot)})`;
@@ -50,7 +50,12 @@ ORDER BY s.population, agent_type, depth_bucket`;
 export function fellBackSql(logRoot) {
   const list = FALLBACK_AGENT_TYPES.map((name) => sqlLiteral(name)).join(', ');
   return `WITH ${eventsCte(logRoot)},
- d AS (SELECT * FROM ev WHERE population = ${sqlLiteral(POPULATION_DISPATCH)} AND event = ${sqlLiteral(START_EVENT)})
+ d AS (
+   SELECT session_id, agent_id, min(agent_type) AS agent_type
+   FROM ev
+   WHERE population = ${sqlLiteral(POPULATION_DISPATCH)} AND event = ${sqlLiteral(START_EVENT)}
+   GROUP BY session_id, agent_id
+ )
 SELECT ${sqlLiteral(POPULATION_DISPATCH)} AS population,
        count(*) AS dispatch_starts,
        count(*) FILTER (WHERE agent_type IN (${list})) AS fell_back,
@@ -74,15 +79,24 @@ ORDER BY 1, 2, 3`;
 export function failedSql(logRoot, horizonMs) {
   return `${pairCtes(logRoot)},
  latest AS (SELECT max(TRY_CAST(ts AS TIMESTAMP)) AS at FROM ev),
- unpaired_starts AS (
+ unpaired_start_rows AS (
    SELECT s.* FROM starts s
    LEFT JOIN stops p ON p.session_id = s.session_id AND p.agent_id = s.agent_id
    WHERE p.agent_id IS NULL
  ),
- unpaired_stops AS (
+ unpaired_stop_rows AS (
    SELECT p.* FROM stops p
    LEFT JOIN starts s ON s.session_id = p.session_id AND s.agent_id = p.agent_id
    WHERE s.agent_id IS NULL
+ ),
+ unpaired_starts AS (
+   SELECT session_id, agent_id, population, max(started) AS started
+   FROM unpaired_start_rows
+   GROUP BY session_id, agent_id, population
+ ),
+ unpaired_stops AS (
+   SELECT DISTINCT session_id, agent_id, population
+   FROM unpaired_stop_rows
  ),
  populations AS (SELECT DISTINCT population FROM ev)
 SELECT g.population,
@@ -171,7 +185,7 @@ const HANDLERS = Object.freeze({
   failed: (context) =>
     Object.freeze({
       population_note:
-        'a failure is a dispatch that started and produced no stop, older than the horizon. A start inside the horizon is in-flight, not a failure. A stop with no start is a coverage fact reported in its own column, never a failure.',
+        'a failure is a dispatch that started and produced no stop, older than the horizon. A start inside the horizon is in-flight, not a failure. A stop with no start is a coverage fact reported in its own column, never a failure. When one (session_id, agent_id) group carries more than one start row, the group is collapsed to its latest start, so a recent start is never misreported as a failure because an older row shares its agent_id. If such a group is really N distinct dispatches rather than one retried dispatch, neither the latest start nor the earliest start is the correct single reading, and this output does not resolve that ambiguity; it is carried forward unsettled, not decided by this choice.',
       horizon_ms: context.horizonMs,
       horizon_basis: 'the latest timestamp in the corpus, so the answer does not depend on the wall clock',
       rows: query(context.binary, failedSql(context.logRoot, context.horizonMs)),
