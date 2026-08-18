@@ -377,11 +377,25 @@ const REJECTED_PROVENANCE = Object.freeze([
   'agent=ship model=opus extra',
   'agent=ship agent=other model=opus',
   `agent=${'a'.repeat(65)} model=opus`,
+  `agent=ship model=${'m'.repeat(65)}`,
 ]);
 
 for (const provenance of REJECTED_PROVENANCE) {
   test(`parse REJECTS the free-form provenance ${JSON.stringify(provenance)}`, () => {
     failParse(prCreateArgvReplacing('--provenance', provenance));
+  });
+}
+
+const ACCEPTED_PROVENANCE_BOUNDS = Object.freeze([
+  ['an agent label of exactly 64 characters', `agent=${'a'.repeat(64)} model=opus`],
+  ['a model id of exactly 64 characters', `agent=ship model=${'m'.repeat(64)}`],
+  ['a single character in both the agent label and the model id', 'agent=a model=m'],
+]);
+
+for (const [label, provenance] of ACCEPTED_PROVENANCE_BOUNDS) {
+  test(`parse ACCEPTS ${label}, pinning both provenance length bounds at 1 to 64`, () => {
+    const parsed = okParse(prCreateArgvReplacing('--provenance', provenance));
+    assert.equal(parsed.opts.provenance, provenance);
   });
 }
 
