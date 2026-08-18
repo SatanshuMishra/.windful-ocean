@@ -378,6 +378,11 @@
         "ref": "0550-spec-store-dynamic-import-halts-determinism-census",
         "title": "The spec store's dynamic import halts the determinism census; register a declared exception",
         "scope": "c4"
+      },
+      {
+        "ref": "0551-agent-specs-become-json-data",
+        "title": "Agent specs become JSON data rather than weakening the determinism census",
+        "scope": "c4"
       }
     ],
     "out_of_scope": [
@@ -386,5 +391,5 @@
     ]
   },
   "created_at": "2026-08-16T05:43:25.829Z",
-  "updated_at": "2026-08-18T01:23:00.312Z"
+  "updated_at": "2026-08-18T01:25:17.688Z"
 }
