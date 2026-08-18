@@ -177,3 +177,49 @@ rather than needing to be repointed".
 Four of the eighteen sites are inside `.claude/skills/report/`. Deleting the skill directory
 discharges all four. If it is retained instead, all four must be repointed. The census proves
 either path; it does not care which is chosen, only that zero occurrences remain.
+
+## 9. Deviations discovered after the criterion was pinned
+
+The instrument shipped as `retirement-census` (`retirement-census.mjs`, `retirement-set.mjs`).
+It measures **20 sites at exit 41 on `main`**, not the 19 recorded in section 3. Nothing above
+was added or relaxed; these are the deltas.
+
+**1. A twentieth site, ruled out of scope.**
+`.claude/lib/observer-audit/fixtures/roster/debugger.md:2` carries `name: debugger`. It is a
+three-line synthetic roster fixture beside five sibling synthetic agent files. The implementer
+correctly refused to invent an exclusion to make the number match, and filed it for decision.
+
+Ruled OUT, on the SPEC's own terms rather than on convenience: U7.1's acceptance already reads
+"`git grep` for each name returns only `.claude/docs/` historical hits **and test fixtures**".
+Fixtures are declared out of scope by the standard, so `fixtures` joins `tests` and
+`prompt-snapshots` in the excluded-directory set, with the exclusion disclosed in the output
+rather than silent, and tested in BOTH directions — inside a `fixtures/` directory it must not
+count, outside one it must.
+
+**2. The third roster shape needed a structural ruling.**
+Section 2 requires derivations A and B to agree. After U7.1 that is impossible by
+construction: A is on-disk minus the thirteen, which is empty once the nine are deleted, while
+B is still the declared nine. Resolved without a phase flag — the ONLY accepted disagreement is
+a COMPLETE retirement (A empty AND none of the nine on disk), which emits a not-attested
+disclosure recording that B alone now carries the set. A PARTIAL retirement, some of the nine
+gone and others present, still halts at 42 naming the symmetric difference. This is stronger
+than the criterion as written, which had no answer for the shape at all.
+
+**3. Three unscanned files in scope carry retiring names.** Status: `unverified-reasoned`.
+The declared scan is `.md` and `.mjs`; two generated graphify manifests and one telemetry
+fixture are `.json`/`.jsonl` and carry retiring names. All three are derived or fixture
+artifacts, none is a routing instruction, and the census discloses them rather than widening
+its own contract. Recorded, not folded in.
+
+**4. Green-on-head is not yet demonstrated.** Status: `unverified-reasoned`. U6.2 has repointed
+nothing, so exit 0 has been observed only against a fully-repointed fixture tree, never against
+the real one. That is the expected state for an instrument shipped ahead of its use.
+
+**5. Handoff obligation for wave 6.** The live smoke test asserts `sites.length > 0` — correct
+today, wrong the moment U6.2 lands. Wave 6 MUST flip it to the green assertion. Its durable
+structural assertions (scope resolves, A equals B, files scanned above zero, verdict consistent
+with the site list) survive the flip unchanged.
+
+**6. Not wired into CI, deliberately.** `retirement-census` is absent from the
+`receipts.yml` gate matrix. It is red on `main` by design; wiring it now turns CI red for every
+unrelated pull request. Wave 6 wires it in the same change that makes it green.
