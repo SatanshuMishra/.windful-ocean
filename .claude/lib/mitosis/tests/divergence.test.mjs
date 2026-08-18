@@ -2,6 +2,8 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { needKeyedParents, divergedParents } from '../divergence.mjs';
 import { pack } from './file-scope-fixtures.mjs';
+import { PROGRESS_ORDER } from '../unit-state.mjs';
+import { censusOfFile, propertyReadCensus, reportLegacyStatusReads } from './property-read-census.mjs';
 
 const LOGICAL_RUN_ID = 'a1b2c3d4';
 const BUILT_SHA = 'abc1234';
@@ -263,4 +265,62 @@ test('divergedParents: a malformed manifest or a missing merged set dispatches n
   assert.deepEqual(await divergedParents({ msps: gatingParent('a') }, null, { a: MERGED_SHA }, ctx), []);
   assert.deepEqual(await divergedParents({ msps: gatingParent('a') }, ['a'], 'garbage', ctx), ['a']);
   assert.equal(calls.length, 0);
+});
+
+test('needKeyedParents: a dependent carrying the authoritative progress lattice and NO legacy status field still keys its merged parent', () => {
+  const manifest = { msps: [
+    { id: 'parent', progress: 'merged', dependsOn: [] },
+    { id: 'child', progress: 'built', dependsOn: ['parent'] },
+  ] };
+
+  assert.deepEqual(
+    needKeyedParents(manifest, ['parent']),
+    ['parent'],
+    'the lattice is authoritative, so a unit that never carried the legacy mirror is still seen as built work the merged parent gates',
+  );
+});
+
+test('needKeyedParents: across the whole progress lattice, exactly one token marks a dependent as built work worth keying', () => {
+  const keyedAt = { planned: [], built: ['parent'], 'pr-open': [], merged: [] };
+
+  for (const token of PROGRESS_ORDER) {
+    const manifest = { msps: [
+      { id: 'parent', progress: 'merged', dependsOn: [] },
+      { id: 'child', progress: token, dependsOn: ['parent'] },
+    ] };
+
+    assert.deepEqual(needKeyedParents(manifest, ['parent']), keyedAt[token], `a dependent at ${token}`);
+  }
+});
+
+test('needKeyedParents: a legacy status mirror with no progress field classifies exactly as it did before the repoint', () => {
+  const keyedAt = { planned: [], built: ['parent'], shipped: [], parked: [], 'not-a-token': [] };
+
+  for (const status of Object.keys(keyedAt)) {
+    const manifest = { msps: [
+      { id: 'parent', status: 'shipped', dependsOn: [] },
+      { id: 'child', status, dependsOn: ['parent'] },
+    ] };
+
+    assert.deepEqual(needKeyedParents(manifest, ['parent']), keyedAt[status], `a dependent whose only field is status=${status}`);
+  }
+});
+
+test('divergence.mjs reads no legacy status field, by a closed property census that halts on what it cannot decide', () => {
+  const census = censusOfFile('divergence.mjs', new URL('../divergence.mjs', import.meta.url));
+  const verdict = reportLegacyStatusReads('divergence.mjs', census);
+
+  assert.equal(verdict.clean, true, verdict.report);
+  assert.ok(census.ok && census.propertyReads.length > 0, verdict.report);
+});
+
+test('the property census is not vacuous: it names a legacy status read and halts on a key it cannot decide', () => {
+  const reader = propertyReadCensus('probe.mjs', "export function f(msp) {\n  return msp.status === 'built';\n}\n");
+  const named = reportLegacyStatusReads('probe.mjs', reader);
+  assert.equal(named.clean, false);
+  assert.match(named.report, /probe\.mjs line 2: property read naming the legacy status field/);
+
+  const halted = propertyReadCensus('probe.mjs', "export function f(msp) {\n  return msp['sta' + 'tus'];\n}\n");
+  assert.equal(halted.ok, false);
+  assert.match(halted.error, /probe\.mjs line 2: a computed member access mixes a string literal into a wider key expression/);
 });
