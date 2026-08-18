@@ -270,13 +270,60 @@ test('no verified line is emitted for a unit the boundary gate did not clear, an
   assert.deepEqual(flagValues(ungated.nodeArgvs[0], '--not-verified'), [RECEIPTS_NOT_VERIFIED]);
 });
 
+const PR_NUMBER_BY_UNIT = Object.freeze({ alpha: 3, gamma: 4, legacy: 5, beta: 6 });
+
 function mergedPr(unitId, mergeCommit, mergedAt = '2026-01-02T00:00:00Z') {
   return {
     headRefName: integrationBranchOf(unitId),
-    url: `https://github.com/${REPO_SLUG}/pull/${unitId === 'alpha' ? 3 : 4}`,
+    url: `https://github.com/${REPO_SLUG}/pull/${PR_NUMBER_BY_UNIT[unitId] ?? 9}`,
     mergedAt,
     mergeCommit: mergeCommit === null ? null : { oid: mergeCommit },
   };
+}
+
+function inAClone(fixture, label, work) {
+  const other = join(fixture.root, `clone-${label}`);
+  git(fixture.root, ['clone', fixture.remote, other]);
+  const produced = work(other);
+  rmSync(other, { recursive: true, force: true });
+  return produced;
+}
+
+function publishForeignHead(fixture, branch, label) {
+  return inAClone(fixture, label, (other) => {
+    git(other, ['checkout', '-B', branch, `origin/${BASE_BRANCH}`]);
+    const sha = commit(other, `${label}.txt`, `${label}\n`, `${label} work`);
+    git(other, ['push', 'origin', branch]);
+    return sha;
+  });
+}
+
+function pushOntoRemoteBranch(fixture, branch, label) {
+  return inAClone(fixture, label, (other) => {
+    git(other, ['checkout', '-B', branch, `origin/${branch}`]);
+    const sha = commit(other, `${label}.txt`, `${label}\n`, `${label} pushed after the merge`);
+    git(other, ['push', 'origin', branch]);
+    return sha;
+  });
+}
+
+function containedInTrunk(fixture, sha) {
+  return gitStatus(fixture.remote, ['merge-base', '--is-ancestor', sha, `refs/heads/${BASE_BRANCH}`]) === 0;
+}
+
+function alreadyMergedPublish(unitId, url) {
+  return () => Object.freeze({
+    alreadyMerged: true,
+    prUrl: url,
+    published: false,
+    action: 'already-merged',
+    head: integrationBranchOf(unitId),
+    base: null,
+    tip: null,
+    changedLines: null,
+    conflictPaths: [],
+    detail: 'already merged',
+  });
 }
 
 function mergeIntoTrunk(fixture, branch) {
@@ -341,6 +388,98 @@ test('a merged head the probe can say nothing about is left standing rather than
   assert.deepEqual(plan.retired, []);
 });
 
+async function publishedAlphaAndBeta(fixture, t) {
+  const alpha = buildUnit(fixture, 'alpha');
+  const published = recorder(fixture);
+  await shipIntegrated(shipConfig(fixture, [mspOf('alpha', alpha)], [integratedEntry('alpha')]), published.ports);
+  assert.notEqual(remoteHead(fixture, integrationBranchOf('alpha')), null, `${t} needs alpha standing on the remote before it can say anything about deleting it`);
+  return alpha;
+}
+
+test('a merged pull request under the source prefix whose unit this run never planned is left standing, while a planned one under the same conditions is retired', async (t) => {
+  const fixture = fixtureRepo(t);
+  const alpha = await publishedAlphaAndBeta(fixture, 'the unplanned-unit case');
+  publishForeignHead(fixture, integrationBranchOf('legacy'), 'legacy');
+  const foreignMerge = mergeIntoTrunk(fixture, integrationBranchOf('legacy'));
+  const alphaMerge = mergeIntoTrunk(fixture, integrationBranchOf('alpha'));
+  assert.equal(containedInTrunk(fixture, remoteHead(fixture, integrationBranchOf('legacy'))), true, 'the unplanned head is not contained in the trunk, so its survival would prove containment rather than manifest membership');
+  const beta = buildUnit(fixture, 'beta');
+  const wired = recorder(fixture, { merged: [mergedPr('alpha', alphaMerge), mergedPr('legacy', foreignMerge)] });
+
+  const plan = await shipIntegrated(
+    shipConfig(fixture, [mspOf('alpha', alpha), mspOf('beta', beta, ['alpha'])], [integratedEntry('beta')]),
+    wired.ports,
+  );
+
+  assert.notEqual(
+    remoteHead(fixture, integrationBranchOf('legacy')),
+    null,
+    'a branch belonging to no unit in this run manifest was deleted, so any merged branch under the source prefix is a deletion candidate',
+  );
+  assert.equal(remoteHead(fixture, integrationBranchOf('alpha')), null, 'the planned head was left standing, so this case proves nothing about the unplanned one');
+  assert.deepEqual(plan.retired.map((entry) => entry.unitId), ['alpha']);
+});
+
+test('a merged head carrying a commit pushed after its merge is left standing, though the merge commit the forge named is on the trunk', async (t) => {
+  const fixture = fixtureRepo(t);
+  const alpha = await publishedAlphaAndBeta(fixture, 'the moved-tip case');
+  const reachable = mergeIntoTrunk(fixture, integrationBranchOf('alpha'));
+  const afterwards = pushOntoRemoteBranch(fixture, integrationBranchOf('alpha'), 'afterwards');
+  assert.equal(containedInTrunk(fixture, reachable), true, 'the merge commit the forge named is not on the trunk, so the merge-commit conjunct would refuse this case on its own');
+  assert.equal(containedInTrunk(fixture, afterwards), false, 'the commit pushed after the merge is already on the trunk, so deleting the branch would lose nothing');
+  const beta = buildUnit(fixture, 'beta');
+  const wired = recorder(fixture, { merged: [mergedPr('alpha', reachable)] });
+
+  const plan = await shipIntegrated(
+    shipConfig(fixture, [mspOf('alpha', alpha), mspOf('beta', beta, ['alpha'])], [integratedEntry('beta')]),
+    wired.ports,
+  );
+
+  assert.equal(
+    remoteHead(fixture, integrationBranchOf('alpha')),
+    afterwards,
+    'a head standing at a commit the trunk never took was deleted, so the work pushed after the merge exists nowhere',
+  );
+  assert.deepEqual(plan.retired.map((entry) => [entry.unitId, entry.deleted]), [['alpha', false]]);
+  assert.match(plan.retired[0].reason, new RegExp(afterwards), `the refusal named no tip: ${plan.retired[0].reason}`);
+});
+
+test('a merged pull request naming a ref rather than an object name as its merge commit is refused rather than answered by a tautological ancestry check', async (t) => {
+  const fixture = fixtureRepo(t);
+  const alpha = await publishedAlphaAndBeta(fixture, 'the ref-shaped merge commit case');
+  mergeIntoTrunk(fixture, integrationBranchOf('alpha'));
+  assert.equal(containedInTrunk(fixture, remoteHead(fixture, integrationBranchOf('alpha'))), true, 'the head is not contained in the trunk, so its survival would prove containment rather than the refusal of a ref-shaped merge commit');
+  const beta = buildUnit(fixture, 'beta');
+  const wired = recorder(fixture, { merged: [mergedPr('alpha', `origin/${BASE_BRANCH}`)] });
+
+  const plan = await shipIntegrated(
+    shipConfig(fixture, [mspOf('alpha', alpha), mspOf('beta', beta, ['alpha'])], [integratedEntry('beta')]),
+    wired.ports,
+  );
+
+  assert.notEqual(
+    remoteHead(fixture, integrationBranchOf('alpha')),
+    null,
+    'a head was deleted on an ancestry check whose two sides are the same ref, which exits zero without ever asking whether the merge landed',
+  );
+  assert.deepEqual(plan.retired, []);
+});
+
+test('a unit whose pull request merged while this run rebuilt it parks naming the sha it built rather than reporting it shipped', async (t) => {
+  const fixture = fixtureRepo(t);
+  const alpha = buildUnit(fixture, 'alpha');
+  const url = `https://github.com/${REPO_SLUG}/pull/12`;
+  assert.equal(containedInTrunk(fixture, alpha), false, 'the sha this run built is already on the trunk, so the oracle claim and the built content do not disagree');
+  const wired = recorder(fixture, { ports: { publishHead: alreadyMergedPublish('alpha', url) } });
+
+  const plan = await shipIntegrated(shipConfig(fixture, [mspOf('alpha', alpha)], [integratedEntry('alpha')]), wired.ports);
+
+  assert.deepEqual(wired.nodeArgvs, [], 'a pull request was opened for a unit the oracle reports merged');
+  assert.deepEqual(plan.outcomes.map((entry) => [entry.unitId, entry.state]), [['alpha', 'parked']], 'a merged forge status was reported as shipped without the content this run built being shown to have landed');
+  assert.match(plan.parked[0].diagnosis, new RegExp(alpha), `the park named no built sha: ${plan.parked[0].diagnosis}`);
+  assert.match(plan.parked[0].diagnosis, /pull\/12/, `the park named no merged pull request: ${plan.parked[0].diagnosis}`);
+});
+
 function replayMergeOrder(fixture, mergeOrder) {
   const retired = new Set();
   for (const entry of mergeOrder) {
@@ -403,26 +542,13 @@ test('the publish outcome is what the ship walk reads, and a ship port that is n
   assert.equal(remoteHead(fixture, integrationBranchOf('alpha')), null, 'a refused port still published a head');
 });
 
-test('a unit whose publish reports it already merged opens no pull request and reports the url the oracle named', async (t) => {
+test('a unit whose publish reports it already merged, and whose built sha the trunk carries, opens no pull request and reports the url the oracle named', async (t) => {
   const fixture = fixtureRepo(t);
-  const alpha = buildUnit(fixture, 'alpha');
+  const alpha = await publishedAlphaAndBeta(fixture, 'the settled already-merged case');
+  mergeIntoTrunk(fixture, integrationBranchOf('alpha'));
+  assert.equal(containedInTrunk(fixture, alpha), true, 'the trunk does not carry the sha this run built, so a shipped verdict here would rest on the forge status alone');
   const url = `https://github.com/${REPO_SLUG}/pull/12`;
-  const wired = recorder(fixture, {
-    ports: {
-      publishHead: () => Object.freeze({
-        alreadyMerged: true,
-        prUrl: url,
-        published: false,
-        action: 'already-merged',
-        head: integrationBranchOf('alpha'),
-        base: null,
-        tip: null,
-        changedLines: null,
-        conflictPaths: [],
-        detail: 'already merged',
-      }),
-    },
-  });
+  const wired = recorder(fixture, { ports: { publishHead: alreadyMergedPublish('alpha', url) } });
 
   const plan = await shipIntegrated(shipConfig(fixture, [mspOf('alpha', alpha)], [integratedEntry('alpha')]), wired.ports);
 

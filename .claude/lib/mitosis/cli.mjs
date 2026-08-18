@@ -5,12 +5,13 @@ import { evaluate } from './boundary-gate.mjs';
 import { Done, NeedsHuman } from './boundary.mjs';
 import { validateRefToken } from './checkpoint.mjs';
 import { dispatch, normalizeEnvelope } from './dispatch.mjs';
+import { SHA_HEX_PATTERN } from './divergence.mjs';
 import { POST_DISPATCH_RECORD_FAILED } from './engine.mjs';
 import { run } from './exec-run.mjs';
 import { foldFile } from './fold-run-log.mjs';
 import { READ_JOBS_STEP, ciFixMessage } from './ci-green-loop.mjs';
 import { GH_COMMAND_BINARY, buildGhCommand } from './gh-commands.mjs';
-import { END_OF_OPTIONS, buildGitCommand } from './git-commands.mjs';
+import { buildGitCommand } from './git-commands.mjs';
 import { integrateSummary } from './integrate-plan.mjs';
 import { appendJournalLine, writeGenesis } from './journal-store.mjs';
 import { runPhases } from './phase-driver.mjs';
@@ -20,6 +21,7 @@ import { execAllowed, openRun } from './run-store.mjs';
 import { shipSummary } from './ship-plan.mjs';
 import { publishShipHead } from './ship-publish.mjs';
 import { resolveAll } from './superpowers-prompts.mjs';
+import { parseLsRemote } from './transcription-parsers.mjs';
 import { readJudgment, runJudgment } from './unit-judgment.mjs';
 import { planningSummary } from './unit-planning.mjs';
 import { IMPLEMENT_STAGE, planRemediatedAttempt } from './unit-remediation.mjs';
@@ -286,42 +288,126 @@ function publishHeadPort(runFn, repoRoot) {
   return (request) => publishShipHead(request, { prState: prStatePort(runFn, repoRoot) });
 }
 
+function refused(reason) {
+  return Object.freeze({ contained: false, reason });
+}
+
+function containmentFailure(repoRoot, baseBranch, sha) {
+  if (typeof repoRoot !== 'string' || repoRoot.length === 0) {
+    return 'the containment probe was handed no repository root, so no tree names the history this question would be asked of';
+  }
+  if (!validateRefToken(baseBranch)) {
+    return `the containment probe was handed ${JSON.stringify(baseBranch)} as the base branch, which is not a well-formed ref token`;
+  }
+  if (typeof sha !== 'string' || !SHA_HEX_PATTERN.test(sha)) {
+    return `the containment probe was handed ${JSON.stringify(sha)} rather than an object name; a ref token stands for whatever it currently points at, so an ancestry probe on one can compare the trunk with itself and exit zero without ever asking whether this commit landed`;
+  }
+  return null;
+}
+
+function containedInBase(runFn, repoRoot, baseBranch, sha) {
+  const failure = containmentFailure(repoRoot, baseBranch, sha);
+  if (failure !== null) return refused(failure);
+  let contained;
+  try {
+    const fetched = runFn(
+      GIT_BINARY,
+      buildGitCommand(SHIP_SITE, 'fetch-base', { repoRoot, baseBranch }),
+      { cwd: repoRoot, deadlineMs: GH_DEADLINE_MS },
+    );
+    if (!ranCleanly(fetched)) {
+      return refused(`the base ${baseBranch} could not be refreshed from ${REMOTE_NAME}, so whether it contains ${sha} is unknown: ${spokenFailure(fetched)}`);
+    }
+    contained = runFn(
+      GIT_BINARY,
+      buildGitCommand('ci-publish-verify', 'append-only', {
+        repoRoot,
+        fromSha: sha,
+        integrationBranch: `${REMOTE_NAME}/${baseBranch}`,
+      }),
+      { cwd: repoRoot, deadlineMs: GH_DEADLINE_MS },
+    );
+  } catch (error) {
+    return refused(`the containment probe stopped rather than answering whether ${REMOTE_NAME}/${baseBranch} contains ${sha}: ${messageOf(error)}`);
+  }
+  return ranCleanly(contained)
+    ? Object.freeze({ contained: true, reason: null })
+    : refused(`${REMOTE_NAME}/${baseBranch} does not contain ${sha}`);
+}
+
+function spokenFailure(result) {
+  if (result === null || typeof result !== 'object' || Array.isArray(result)) return `the step returned ${result === null ? 'null' : typeof result}`;
+  const spoken = `${typeof result.stderr === 'string' ? result.stderr : ''}${typeof result.stdout === 'string' ? result.stdout : ''}`.trim();
+  return spoken.length > 0 ? spoken.split('\n')[0] : `the step exited ${JSON.stringify(result.status)} without speaking`;
+}
+
 export function mergedIntoBasePort(runFn) {
   return (probe) => {
-    let fetched;
-    let contained;
-    try {
-      fetched = runFn(
-        GIT_BINARY,
-        buildGitCommand(SHIP_SITE, 'fetch-base', { repoRoot: probe.repoRoot, baseBranch: probe.baseBranch }),
-        { cwd: probe.repoRoot, deadlineMs: GH_DEADLINE_MS },
-      );
-      if (!ranCleanly(fetched)) return false;
-      contained = runFn(
-        GIT_BINARY,
-        buildGitCommand('ci-publish-verify', 'append-only', {
-          repoRoot: probe.repoRoot,
-          fromSha: probe.mergeCommit,
-          integrationBranch: `${REMOTE_NAME}/${probe.baseBranch}`,
-        }),
-        { cwd: probe.repoRoot, deadlineMs: GH_DEADLINE_MS },
-      );
-    } catch {
-      return false;
-    }
-    return ranCleanly(contained);
+    if (probe === null || typeof probe !== 'object' || Array.isArray(probe)) return false;
+    return containedInBase(runFn, probe.repoRoot, probe.baseBranch, probe.sha).contained === true;
   };
+}
+
+function retirement(deleted, tip, reason) {
+  return Object.freeze({ deleted, tip, reason });
+}
+
+function retireRequestFailure(request) {
+  if (request === null || typeof request !== 'object' || Array.isArray(request)) {
+    return `the retire request is ${request === null ? 'null' : typeof request} rather than an object naming the repository root, the branch to delete and the trunk it must already be contained in`;
+  }
+  if (typeof request.repoRoot !== 'string' || request.repoRoot.length === 0) {
+    return 'the retire request carries no repository root, so no tree names the remote a delete would reach';
+  }
+  if (!validateRefToken(request.branch)) {
+    return `the retire request names ${JSON.stringify(request.branch)} as the branch to delete, which is not a well-formed ref token`;
+  }
+  if (!validateRefToken(request.baseBranch)) {
+    return `the retire request names ${JSON.stringify(request.baseBranch)} as the trunk, and with no trunk to measure against nothing says the branch content survives the delete`;
+  }
+  return null;
+}
+
+function remoteTipOf(runFn, request) {
+  try {
+    return parseLsRemote(runFn(
+      GIT_BINARY,
+      buildGitCommand(SHIP_SITE, 'read-remote', { repoRoot: request.repoRoot, integrationBranch: request.branch }),
+      { cwd: request.repoRoot, deadlineMs: GH_DEADLINE_MS },
+    ));
+  } catch (error) {
+    return Object.freeze({ ok: false, error: messageOf(error) });
+  }
 }
 
 export function retireHeadPort(runFn) {
   return (request) => {
-    if (!validateRefToken(request.branch) || typeof request.repoRoot !== 'string' || request.repoRoot.length === 0) return false;
-    const deleted = runFn(
-      GIT_BINARY,
-      ['-C', request.repoRoot, 'push', '--delete', REMOTE_NAME, END_OF_OPTIONS, request.branch],
-      { cwd: request.repoRoot, deadlineMs: GH_DEADLINE_MS },
-    );
-    return ranCleanly(deleted);
+    const failure = retireRequestFailure(request);
+    if (failure !== null) return retirement(false, null, failure);
+    const read = remoteTipOf(runFn, request);
+    if (read.ok !== true) {
+      return retirement(false, null, `the remote head of ${request.branch} could not be read, and no branch is deleted on an unknown: ${read.error}`);
+    }
+    if (read.present !== true) {
+      return retirement(false, null, `${REMOTE_NAME} carries no head at ${request.branch}, so there is nothing to retire`);
+    }
+    const measured = containedInBase(runFn, request.repoRoot, request.baseBranch, read.sha);
+    if (measured.contained !== true) {
+      return retirement(false, read.sha, `${request.branch} stands at ${read.sha} on ${REMOTE_NAME}, which is not content the trunk provably carries, so deleting it would destroy work no other branch holds: ${measured.reason}`);
+    }
+    let deleted;
+    try {
+      deleted = runFn(
+        GIT_BINARY,
+        buildGitCommand(SHIP_SITE, 'retire-head', { repoRoot: request.repoRoot, integrationBranch: request.branch }),
+        { cwd: request.repoRoot, deadlineMs: GH_DEADLINE_MS },
+      );
+    } catch (error) {
+      return retirement(false, read.sha, `the delete of ${request.branch} stopped rather than completing: ${messageOf(error)}`);
+    }
+    return ranCleanly(deleted)
+      ? retirement(true, read.sha, null)
+      : retirement(false, read.sha, `${REMOTE_NAME} refused the delete of ${request.branch}: ${spokenFailure(deleted)}`);
   };
 }
 

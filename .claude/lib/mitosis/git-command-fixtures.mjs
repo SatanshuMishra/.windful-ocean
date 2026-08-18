@@ -530,6 +530,26 @@ export const SHIP_COMPOSE_HEAD_COMMAND = Object.freeze({
   reason: 'the incumbent demands integrationBranch as the head a pull request is opened against and spells no command that ever creates that branch: the child implementer commits to ${branchPrefix}/${msp.id} and every ship read names ${sourcePrefix}/${msp.id}-integration, so the head is composed here from the recorded built ref rather than transcribed, and the frozen vector is its whole pin',
 });
 
+const SHIP_RETIRE_HEAD_VALUES = Object.freeze({
+  repoRoot: REPO.value,
+  integrationBranch: INTEGRATION_BRANCH.value,
+});
+
+const SHIP_RETIRE_HEAD_ARGV = Object.freeze([
+  '-C', REPO.value, 'push', '--delete', 'origin', '--end-of-options', `refs/heads/${INTEGRATION_BRANCH.value}`,
+]);
+
+export const SHIP_RETIRE_HEAD_COMMAND = Object.freeze({
+  binary: GIT_COMMAND_BINARY,
+  site: 'ship',
+  step: 'retire-head',
+  field: 'headRefName',
+  anchor: '--json headRefName,url,mergedAt,mergeCommit',
+  values: SHIP_RETIRE_HEAD_VALUES,
+  argv: SHIP_RETIRE_HEAD_ARGV,
+  reason: 'the incumbent reads the merged pull requests and the headRefName of each, and spells no command that ever deletes one of those heads, yet a forge retargets a stacked child onto the trunk only once its base branch is gone, so the deletion is derived here rather than transcribed and the frozen vector is its whole pin; the head is named fully qualified under refs/heads/ because git resolves a bare name against every remote ref, and where no branch matches but a tag of that name does, the bare spelling deletes the tag instead',
+});
+
 export const PLAN_PROBE_FIXTURE = Object.freeze({
   site: 'plan-probe',
   step: 'artifact-present',

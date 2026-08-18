@@ -1,4 +1,6 @@
+import { parseCheckpointRef } from './checkpoint.mjs';
 import { ciSummary } from './ci-green-loop.mjs';
+import { SHA_HEX_PATTERN } from './divergence.mjs';
 import { INTEGRATED } from './integrate-plan.mjs';
 import { composeJournalLine } from './journal-store.mjs';
 import {
@@ -262,8 +264,24 @@ function factsOf(entry, msp, settings, published) {
   });
 }
 
-function builtRefOf(entry, msp) {
-  const recorded = [msp.builtSha, msp.checkpointRef, entry.resumePoint.ref].map(nonEmptyText);
+function builtShaOf(msp) {
+  const named = nonEmptyText(msp.builtSha);
+  return named !== null && SHA_HEX_PATTERN.test(named) ? named : null;
+}
+
+function runNamespacedRef(manifest, unitId, ref) {
+  const named = nonEmptyText(ref);
+  const runId = nonEmptyText(manifest.logicalRunId);
+  if (named === null || runId === null) return null;
+  return parseCheckpointRef(named, runId) === unitId ? named : null;
+}
+
+function builtRefOf(entry, msp, manifest) {
+  const recorded = [
+    builtShaOf(msp),
+    runNamespacedRef(manifest, entry.unitId, msp.checkpointRef),
+    runNamespacedRef(manifest, entry.unitId, entry.resumePoint.ref),
+  ];
   return recorded.find((named) => named !== null) ?? null;
 }
 
@@ -301,12 +319,12 @@ function prerequisiteRecords(settings, unitId, mergedIds) {
 
 function publishRequestOf(entry, msp, settings, mergedIds) {
   const head = headBranch(entry, msp);
-  const builtRef = builtRefOf(entry, msp);
+  const builtRef = builtRefOf(entry, msp, settings.manifest);
   const baseBranch = nonEmptyText(settings.manifest.baseBranch);
   if (head === null || builtRef === null || baseBranch === null) {
     const missing = [
       head === null ? 'the integration branch this unit publishes as' : null,
-      builtRef === null ? 'the built sha or checkpoint ref the head is composed from' : null,
+      builtRef === null ? 'a built sha this run recorded as an object name, or a checkpoint ref under this run own namespace, for the head to be composed from' : null,
       baseBranch === null ? 'the trunk the run was decomposed against' : null,
     ].filter((named) => named !== null);
     return { error: `this run names ${missing.join(' and ')} nowhere, and a head composed from a value nobody recorded would publish something other than what this unit built` };
@@ -369,7 +387,7 @@ async function shipUnit(entry, settings, mergedIds, ports) {
     return outcome(entry, PARKED, null, null, `the publish stage answered with ${describe(published)} rather than an outcome naming the head it left on the remote, so whether anything was published is unknown`);
   }
   if (published.alreadyMerged === true) {
-    return outcome(entry, SHIPPED, PR_ACTION_ALREADY_MERGED, nonEmptyText(published.prUrl), null, msp, published);
+    return await settleAlreadyMerged(entry, msp, settings, published, ports);
   }
   if (!headStands(published)) {
     return outcome(entry, PARKED, null, null, `no pull request was opened, because the head this unit would be opened on does not stand on the remote: ${nonEmptyText(published.detail) ?? 'the publish stage stated no reason'}`, msp, published);
@@ -387,6 +405,21 @@ async function shipUnit(entry, settings, mergedIds, ports) {
     return outcome(entry, PARKED, null, null, `the pull-request tool exited cleanly but printed no line naming one of the actions ${PR_ACTIONS.join(', ')} and a pull-request url, so whether a pull request exists is unknown`, msp, published);
   }
   return await settleShip(entry, msp, read, settings, published, ports);
+}
+
+async function settleAlreadyMerged(entry, msp, settings, published, ports) {
+  const url = nonEmptyText(published.prUrl);
+  const at = url === null ? 'a pull request the done oracle named no url for' : url;
+  const builtRef = builtRefOf(entry, msp, settings.manifest);
+  const baseBranch = nonEmptyText(settings.manifest.baseBranch);
+  if (builtRef === null || baseBranch === null) {
+    return outcome(entry, PARKED, PR_ACTION_ALREADY_MERGED, url, `the done oracle reports ${at} merged, and this run names ${builtRef === null ? 'nothing it built for this unit' : 'no trunk to measure against'}, so whether the work this run built is the work that merged cannot be asked and a merged status is never read as the content having landed`, msp, published);
+  }
+  const contained = await ports.mergedIntoBase({ repoRoot: settings.repoRoot, baseBranch, sha: builtRef });
+  if (contained !== true) {
+    return outcome(entry, PARKED, PR_ACTION_ALREADY_MERGED, url, `the done oracle reports ${at} merged, and ${baseBranch} was not shown to contain ${builtRef}, the content this run built for this unit; a merged status is never read as the content having landed, and the built work stands only in this run own checkpoint`, msp, published);
+  }
+  return outcome(entry, SHIPPED, PR_ACTION_ALREADY_MERGED, url, null, msp, published);
 }
 
 async function settleShip(entry, msp, read, settings, published, ports) {
@@ -433,12 +466,38 @@ function heldPrereqs(manifest, unitId, satisfied) {
   return declaredPrereqs(manifest, unitId).filter((id) => !satisfied.has(id));
 }
 
-function retirableHead(settings, unitId, record) {
-  const prefix = nonEmptyText(settings.manifest.sourcePrefix);
-  if (prefix === null || !isRecord(record)) return null;
-  if (nonEmptyText(record.mergedAt) === null || nonEmptyText(record.mergeCommit) === null) return null;
-  const branch = `${prefix}/${unitId}${INTEGRATION_SUFFIX}`;
+function plannedHeadOf(manifest, unitId) {
+  const prefix = nonEmptyText(manifest.sourcePrefix);
+  const msp = mspOf(manifest, unitId);
+  if (prefix === null || msp === null) return null;
+  const branch = nonEmptyText(msp.integrationBranch);
+  if (branch === null || branch !== `${prefix}/${unitId}${INTEGRATION_SUFFIX}`) return null;
   return branchToMspId(branch, prefix) === unitId ? branch : null;
+}
+
+function retirableHead(settings, unitId, record) {
+  if (!isRecord(record) || nonEmptyText(record.mergedAt) === null) return null;
+  const mergeCommit = nonEmptyText(record.mergeCommit);
+  if (mergeCommit === null || !SHA_HEX_PATTERN.test(mergeCommit)) return null;
+  const branch = plannedHeadOf(settings.manifest, unitId);
+  return branch === null ? null : Object.freeze({ branch, mergeCommit });
+}
+
+function retirementRecord(unitId, candidate, answered) {
+  const spoken = isRecord(answered) ? answered : null;
+  const deleted = spoken !== null && spoken.deleted === true;
+  const stated = spoken === null ? null : nonEmptyText(spoken.reason);
+  const unstated = spoken === null
+    ? `the retire port answered with ${describe(answered)} rather than an outcome naming whether the head was deleted and why`
+    : 'the retire port refused the delete and stated no reason';
+  return Object.freeze({
+    unitId,
+    branch: candidate.branch,
+    mergeCommit: candidate.mergeCommit,
+    tip: spoken === null ? null : nonEmptyText(spoken.tip),
+    deleted,
+    reason: deleted ? null : (stated ?? unstated),
+  });
 }
 
 async function retireMergedHeads(settings, merged, ports) {
@@ -446,12 +505,17 @@ async function retireMergedHeads(settings, merged, ports) {
   if (baseBranch === null) return EMPTY;
   const retired = [];
   for (const [unitId, record] of merged) {
-    const branch = retirableHead(settings, unitId, record);
-    if (branch === null) continue;
-    const contained = await ports.mergedIntoBase({ repoRoot: settings.repoRoot, baseBranch, mergeCommit: record.mergeCommit });
+    const candidate = retirableHead(settings, unitId, record);
+    if (candidate === null) continue;
+    const contained = await ports.mergedIntoBase({ repoRoot: settings.repoRoot, baseBranch, sha: candidate.mergeCommit });
     if (contained !== true) continue;
-    const deleted = await ports.retireHead({ repoRoot: settings.repoRoot, repoSlug: settings.repoSlug, branch });
-    retired.push(Object.freeze({ unitId, branch, mergeCommit: record.mergeCommit, deleted: deleted === true }));
+    const answered = await ports.retireHead({
+      repoRoot: settings.repoRoot,
+      repoSlug: settings.repoSlug,
+      branch: candidate.branch,
+      baseBranch,
+    });
+    retired.push(retirementRecord(unitId, candidate, answered));
   }
   return Object.freeze(retired);
 }
@@ -556,7 +620,7 @@ export async function shipIntegrated(config, ports) {
     const settled = await shipUnit(entry, { ...settings, manifest }, mergedIds, wired);
     if (settled.prUrl !== null) urlById.set(entry.unitId, settled.prUrl);
     if (settled.state === SHIPPED) satisfied.add(entry.unitId);
-    if (settled.action === PR_ACTION_ALREADY_MERGED) mergedIds.add(entry.unitId);
+    if (settled.state === SHIPPED && settled.action === PR_ACTION_ALREADY_MERGED) mergedIds.add(entry.unitId);
     outcomes.push(settled);
   }
   const watched = requireWatched(await wired.watchCi(watchRequest(outcomes, settings, urlById)));
@@ -584,7 +648,7 @@ export function shipSummary(plan) {
     status: plan.status,
     ci: ciSummary(plan.ci),
     mergeOrder: mergeOrderOf(plan),
-    retired: plan.retired.map((entry) => ({ id: entry.unitId, branch: entry.branch, deleted: entry.deleted })),
+    retired: plan.retired.map((entry) => ({ id: entry.unitId, branch: entry.branch, deleted: entry.deleted, reason: entry.reason })),
     awaiting: plan.awaiting.map((entry) => ({ id: entry.mspId, prUrl: entry.prUrl })),
     blocked: plan.blocked.map((entry) => ({
       id: entry.record.unitId,
