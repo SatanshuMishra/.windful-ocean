@@ -68,29 +68,6 @@
     "last_session": "Replaced U6.2's acceptance and shipped the retirement census (PR 203, merged). Built the generator substrate (PR 204, open) and completed all four wave 4 and 5 units on pushed branches. Ruled specs to JSON over weakening the determinism census.",
     "open_risks": [
       {
-        "text": "Route shell tests to bash in the enforcer's test command — nine .sh tests match its runnable extensions while the command is node --test, so any pull request touching source alongside one will block",
-        "scope": "c5",
-        "refs": [
-          "decision 0544",
-          "PR 202 filed item 1"
-        ]
-      },
-      {
-        "text": "Give the nine shell tests a runner — the npm glob covers only .test.mjs in the tests root, so they execute only when a human types bash and that is why the settings assertion rotted unnoticed",
-        "scope": "c5",
-        "refs": [
-          "decision 0544",
-          "PR 202 filed item 2"
-        ]
-      },
-      {
-        "text": "Separate artifact-less internal rows from real dispatches in any audit answer — 1062 groups against 61 paired means a rate over all rows measures internal noise",
-        "scope": "c5",
-        "refs": [
-          "decision 0537"
-        ]
-      },
-      {
         "text": "Pull the primary checkout after any merge — the global rules, skills, lib and agents symlink into its working tree, so merged config is not in force until then",
         "scope": "thread",
         "refs": [
@@ -158,7 +135,7 @@
         "scope": "c4",
         "refs": [
           "SPEC section 3",
-          "U4.1 skills entries"
+          "memory: bare-project-skill-names-resolve"
         ]
       },
       {
@@ -169,25 +146,51 @@
         ]
       },
       {
-        "text": "Bump the duckdb pin in test.yml and receipts.yml together — it is duplicated in both and they will silently diverge",
-        "scope": "c4",
+        "text": "Route shell tests to bash in the enforcer's test command — nine .sh tests match its runnable extensions while the command is node --test, so any pull request touching source alongside one will block",
+        "scope": "c5",
         "refs": [
-          "PR 201 filed item 1"
+          "decision 0544",
+          "PR 202 filed item 1"
         ]
       },
       {
-        "text": "Set G13's coverage_command in receipts.config.json — it is unset, so the coverage gate never runs at all",
-        "scope": "c4",
+        "text": "Give the nine shell tests a runner — the npm glob covers only .test.mjs in the tests root, so they execute only when a human types bash and that is why the settings assertion rotted unnoticed",
+        "scope": "c5",
+        "refs": [
+          "decision 0544",
+          "PR 202 filed item 2"
+        ]
+      },
+      {
+        "text": "Separate artifact-less internal rows from real dispatches in any audit answer — 1062 groups against 61 paired means a rate over all rows measures internal noise",
+        "scope": "c5",
+        "refs": [
+          "decision 0537"
+        ]
+      },
+      {
+        "text": "Bump the duckdb pin in test.yml and receipts.yml together — it is duplicated in both and they will silently diverge; re-verified still true on 2026-08-17",
+        "scope": "c5",
+        "refs": [
+          "PR 201 filed item 1",
+          "test.yml:27",
+          "receipts.yml:25"
+        ]
+      },
+      {
+        "text": "Set G13's coverage_command in receipts.config.json — its gate block is literally empty, so the coverage gate never runs at all; re-verified still true on 2026-08-17",
+        "scope": "c5",
         "refs": [
           "receipts.config.json",
           "PR 201 filed item 3"
         ]
       },
       {
-        "text": "Repoint agent-gap-audit off the old ledger index — the analyzer is retired but the fallback and permission hooks still write there, so the corpus is neither live nor dead",
-        "scope": "c4",
+        "text": "Repoint agent-gap-audit off the old ledger index — the analyzer is retired but the skill still reads the old path, so the corpus is neither live nor dead; re-verified still true on 2026-08-17",
+        "scope": "c5",
         "refs": [
-          "U3.4 filed item 1"
+          "U3.4 filed item 1",
+          "agent-gap-audit/SKILL.md:8,15,16,23"
         ]
       }
     ],
@@ -439,5 +442,5 @@
     ]
   },
   "created_at": "2026-08-16T05:43:25.829Z",
-  "updated_at": "2026-08-18T01:26:20.105Z"
+  "updated_at": "2026-08-18T01:28:56.168Z"
 }
