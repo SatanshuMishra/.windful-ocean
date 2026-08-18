@@ -2,7 +2,9 @@ import { emptyFileScopePack, requireFileScopePack } from './msp-file-scope.mjs';
 import { scopedCheckArgv } from './engine-args.mjs';
 import { composeImplementPrompt } from './prompt-execute.mjs';
 import { shellQuoteList } from './prompt-values.mjs';
-import { fileScopeEdit, isFileScopePack, normalizePath, scopeCovers, scopeIsSpecificFile } from './coarse-scope-lint.mjs';
+import { fileScopeEdit, isFileScopePack, normalizePath, scopeCovers, scopeIsSpecificFile, sensitiveScope } from './coarse-scope-lint.mjs';
+
+export { sensitiveScope };
 const STATUS_SCHEMA = { type: 'object', properties: { status: { enum: ['DONE', 'DONE_WITH_CONCERNS', 'BLOCKED', 'NEEDS_CONTEXT'] }, summary: { type: 'string' } }, required: ['status'] };
 const REVIEW_SCHEMA = { type: 'object', properties: { verdict: { enum: ['pass', 'fail'] }, issues: { type: 'array', items: { type: 'string' } } }, required: ['verdict'] };
 const MERGE_SCHEMA = { type: 'object', properties: { merged: { type: 'array', items: { type: 'string' } }, conflict: { type: 'boolean' }, conflictDetail: { type: 'string' } }, required: ['merged', 'conflict'] };
@@ -96,23 +98,10 @@ export function planIncomplete(fullText) {
 
 export const BLAST_RADIUS_K = 3;
 export const LAYER3_SONNET_ENABLED = true;
-const SENSITIVE_SCOPE_GLOBS = ['*.sql', '**/*.sql', '.github/workflows'];
-const SENSITIVE_SCOPE_KEYWORDS = ['auth', 'security', 'secret', 'payment', 'crypto', 'migrations', 'infra', 'deploy'];
-const SENSITIVE_SCOPE_KEYWORD_RE = new RegExp('(^|/)(?:' + SENSITIVE_SCOPE_KEYWORDS.join('|') + ')', 'i');
 const IRREVERSIBLE_SCOPE_RE = /(^|\/)migrations(?:\/|$)|\.sql$/i;
 const DESTRUCTIVE_OP_RE = /\bdrop\s+(?:table|database|schema|index|view|column)\b|\btruncate\b|\bdelete\s+from\b|\brm\s+-rf\b|\bforce[-\s]?push\b|\bgit\s+push\s+(?:--force\b|-f\b)|\breset\s+--hard\b|--force-with-lease\b/i;
 const CONTRACT_EDGE_RE = /\b(?:contract|api|schema)\b/i;
 const POLICY_VALID_RISK = new Set(['low', 'high']);
-
-export function sensitiveScope(fileScope) {
-  if (!Array.isArray(fileScope)) return false;
-  return fileScope.some((raw) => {
-    if (typeof raw !== 'string') return false;
-    const p = normalizePath(raw);
-    if (SENSITIVE_SCOPE_GLOBS.some((g) => scopeCovers(g, p))) return true;
-    return SENSITIVE_SCOPE_KEYWORD_RE.test(p);
-  });
-}
 
 export function irreversible(fileScope, fullText) {
   if (Array.isArray(fileScope) && fileScope.some((p) => typeof p === 'string' && IRREVERSIBLE_SCOPE_RE.test(normalizePath(p)))) return true;
