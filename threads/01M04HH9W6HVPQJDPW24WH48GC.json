@@ -487,6 +487,11 @@
         "ref": "0598-agent-id-reuse-settled-as-re-entry-duplication",
         "title": "Agent-id multi-start groups are re-entry duplication, so dispatch grain stays (session_id, agent_id)",
         "scope": "c5"
+      },
+      {
+        "ref": "0599-timestamp-disjunct-is-a-defeasible-proxy-not-the-headline",
+        "title": "A pre-registered rule's timestamp proxy loses to direct falsification of the headline it proxies for",
+        "scope": "c5"
       }
     ],
     "out_of_scope": [
@@ -496,5 +501,5 @@
     ]
   },
   "created_at": "2026-08-16T05:43:25.829Z",
-  "updated_at": "2026-08-18T23:14:39.054Z"
+  "updated_at": "2026-08-18T23:14:51.931Z"
 }
