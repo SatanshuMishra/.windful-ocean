@@ -399,6 +399,13 @@ for (const [label, provenance] of ACCEPTED_PROVENANCE_BOUNDS) {
   });
 }
 
+const DIGIT_BEARING_PROVENANCE = 'agent=a0123456789 model=m0123456789';
+
+test('parse ACCEPTS every decimal digit in both the agent label and the model id', () => {
+  const parsed = okParse(prCreateArgvReplacing('--provenance', DIGIT_BEARING_PROVENANCE));
+  assert.equal(parsed.opts.provenance, DIGIT_BEARING_PROVENANCE);
+});
+
 const REAL_MODEL_PROVENANCE = 'agent=delivery-lead model=claude-opus-5[1m]';
 
 test('parse ACCEPTS the bracketed model id this machine actually reports, so a machine pull request can name the model that opened it', () => {
