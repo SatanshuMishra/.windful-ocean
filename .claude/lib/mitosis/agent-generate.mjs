@@ -75,7 +75,7 @@ export async function runAgentGenerate(argv, io = {}) {
   const agentsDir = resolvedDir(parsed.agents, () => resolveAgentDefinitionDir(MODULE_ANCHOR, realResolverIo));
   if (!agentsDir.ok) return Object.freeze({ code: EXIT_HALTED, lines: Object.freeze([agentsDir.error]) });
 
-  const loaded = await loadAgentSpecs(storeDir.dir, io);
+  const loaded = loadAgentSpecs(storeDir.dir, io);
   if (!loaded.ok) return Object.freeze({ code: EXIT_HALTED, lines: Object.freeze([loaded.error]) });
 
   const mode = parsed.check ? 'agent-generate --check' : 'agent-generate';
