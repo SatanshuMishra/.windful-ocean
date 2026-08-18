@@ -397,6 +397,11 @@
         "ref": "0561-c5-routing-clause-becomes-a-measured-lead-share",
         "title": "c5's routing clause becomes a measured Lead share, sequenced strictly after wave 7 ships",
         "scope": "c5"
+      },
+      {
+        "ref": "0562-report-skill-directory-deleted-and-its-external-references-repointed",
+        "title": "Delete the report skill directory in U6.2 and repoint the three references the census cannot see",
+        "scope": "c4"
       }
     ],
     "out_of_scope": [
@@ -405,5 +410,5 @@
     ]
   },
   "created_at": "2026-08-16T05:43:25.829Z",
-  "updated_at": "2026-08-18T05:18:26.196Z"
+  "updated_at": "2026-08-18T05:27:28.584Z"
 }
