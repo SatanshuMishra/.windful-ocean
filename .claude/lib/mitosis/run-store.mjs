@@ -239,8 +239,9 @@ function lockRemedy(root, runKey) {
   return `run-store.mjs retire --root ${root} --run-key ${runKey} --lock --force`;
 }
 
-function heldLockRefusal(lockPath, remedy) {
-  return new Error(`run-store: the run lock at ${lockPath} is already held (${describeLockHolder(lockPath)}); a second run on the same key would interleave its writes with the first and lose updates, so this run refuses. The lock is never broken automatically, not even when the recorded process is gone - once you know the holder is dead, clear it deliberately with: ${remedy}`);
+function heldLockRefusal(lockPath, remedy, cause) {
+  const message = `run-store: the run lock at ${lockPath} is already held (${describeLockHolder(lockPath)}); a second run on the same key would interleave its writes with the first and lose updates, so this run refuses. The lock is never broken automatically, not even when the recorded process is gone - once you know the holder is dead, clear it deliberately with: ${remedy}`;
+  return cause === undefined ? new Error(message) : new Error(message, { cause });
 }
 
 function claimLockFile(lockPath, lockRecord) {
@@ -282,11 +283,15 @@ function startPrecedes(startedAt, staleAfter) {
   return gap !== LOCK_BREAK.zeroGap && !gap.startsWith(LOCK_BREAK.negativePrefix);
 }
 
-function lockBreakEvidence(lockPath, staleAfter) {
+function carriesOwnIdentity(pid, lockRecord) {
+  return pid === lockRecord.pid || pid === process.pid;
+}
+
+function lockBreakEvidence(lockPath, staleAfter, lockRecord) {
   if (staleAfter === null) return null;
   const held = readLockHolder(lockPath);
   if (held === null) return null;
-  if (!Number.isInteger(held.pid) || held.pid <= 0 || held.pid === process.pid) return null;
+  if (!Number.isInteger(held.pid) || held.pid <= 0 || carriesOwnIdentity(held.pid, lockRecord)) return null;
   if (!isIsoInstant(held.startedAt) || !startPrecedes(held.startedAt, staleAfter)) return null;
   if (!holderAnswersNoSignal(held.pid)) return null;
   return Object.freeze({ staleAfter, broke: held });
@@ -295,7 +300,12 @@ function lockBreakEvidence(lockPath, staleAfter) {
 function acquireLock(runDir, lockRecord, remedy, staleAfter) {
   const lockPath = join(runDir, 'lock');
   if (claimLockFile(lockPath, lockRecord)) return Object.freeze({ path: lockPath, broke: null });
-  const evidence = lockBreakEvidence(lockPath, staleAfter);
+  let evidence = null;
+  try {
+    evidence = lockBreakEvidence(lockPath, staleAfter, lockRecord);
+  } catch (error) {
+    throw heldLockRefusal(lockPath, remedy, error);
+  }
   if (evidence === null) throw heldLockRefusal(lockPath, remedy);
   try {
     unlinkSync(lockPath);

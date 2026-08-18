@@ -12,6 +12,7 @@ const ABSENT_PID = 2147483647;
 const UNSIGNALLABLE_PID = 1;
 const PLANTED_STARTED_AT = '2020-01-01T00:00:00Z';
 const STALE_AFTER = '2026-08-12T08:00:00Z';
+const IMPOSSIBLE_CIVIL_DAY = '2021-02-30T00:00:00Z';
 
 function runKeyOf(sandbox) {
   return computeRunKey(JSON.parse(readFileSync(sandbox.specPath, 'utf8')));
@@ -238,6 +239,47 @@ test('a lock naming a process this one may not signal is refused, because a perm
   const outcome = openOutcome({ ...args, staleAfter: STALE_AFTER });
   assert.equal(outcome.handle, null, 'a liveness probe that is refused permission proves the holder exists, so the lock must be refused rather than broken on an unreadable answer');
   assert.equal(outcome.error.message, heldLockRefusal(join(runDir, 'lock'), plantedLockRecord(UNSIGNALLABLE_PID), remedyFor(args.root, VALID_KEY)));
+  assert.equal(existsSync(join(runDir, 'attempt-1')), false);
+});
+
+test('a lock whose record carries the pid this run itself declares is refused, even though that pid answers no signal', () => {
+  assert.equal(
+    livenessProbeCode(ABSENT_PID),
+    'ESRCH',
+    'the declared pid must answer no signal here, or the refusal could come from the liveness leg instead of the identity leg this case exists to pin',
+  );
+  const args = openArgs({ pid: ABSENT_PID });
+  const held = plantedLockRecord(ABSENT_PID);
+  const runDir = plantLockRecord(args.root, held);
+
+  const outcome = openOutcome({ ...args, staleAfter: STALE_AFTER });
+  assert.equal(
+    outcome.handle,
+    null,
+    'a lock carrying the identity this run would itself write must never be broken, because the record it would leave behind is indistinguishable from the one it displaced and either handle could then release the other run lock',
+  );
+  assert.equal(outcome.error.message, heldLockRefusal(join(runDir, 'lock'), held, remedyFor(args.root, VALID_KEY)));
+  assert.equal(existsSync(join(runDir, 'attempt-1')), false);
+  assert.deepEqual(jsonFileOrNull(join(runDir, 'lock')), held, 'a refused run leaves the lock exactly as its holder wrote it');
+});
+
+test('a lock whose startedAt is ISO-shaped but names a day the calendar does not carry is refused by run-store itself, not by the module that could not measure it', () => {
+  const args = openArgs();
+  const held = Object.freeze({ pid: ABSENT_PID, startedAt: IMPOSSIBLE_CIVIL_DAY, runKey: VALID_KEY });
+  const runDir = plantLockRecord(args.root, held);
+
+  const outcome = openOutcome({ ...args, staleAfter: STALE_AFTER });
+  assert.equal(
+    outcome.handle,
+    null,
+    'a lock record that cannot be evaluated against every break condition must never be broken, because an unmeasurable start is not evidence the holder is stale',
+  );
+  assert.equal(
+    outcome.error.message.startsWith('run-store: '),
+    true,
+    `an unevaluable lock record is refused by the module that owns the lock, never reported as another module's failure over input a foreign process wrote: ${outcome.error.message}`,
+  );
+  assert.equal(outcome.error.message, heldLockRefusal(join(runDir, 'lock'), held, remedyFor(args.root, VALID_KEY)));
   assert.equal(existsSync(join(runDir, 'attempt-1')), false);
 });
 
