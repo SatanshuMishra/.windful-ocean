@@ -70,7 +70,8 @@ test('foldRunManifest folds a park delta and preserves the persisted triedSet fo
   });
   const folded = foldRunManifest([JSON.stringify(manifest), JSON.stringify(delta)].join('\n'));
   const a = folded.msps.find((m) => m.id === 'a');
-  assert.equal(a.status, 'parked');
+  assert.notStrictEqual(a.disposition, null, 'the park still records a disposition');
+  assert.strictEqual(a.status, unitState.legacyStatusOf(a.progress), 'the legacy status mirror stays exact');
   assert.deepEqual(a.triedSet, ['worktree:reset-one', 'worktree:reset-clean']);
   assert.equal(a.resumePoint.stage, 'plan');
 });
@@ -112,7 +113,8 @@ test('foldRunManifest records every ci attempt in a park-immune field, so a LATE
   ].join('\n');
   const folded = foldRunManifest(log);
   const b = folded.msps.find((m) => m.id === 'b');
-  assert.equal(b.status, 'parked', 'the divergent-invalidation park lands on the unit that already spent ci attempts');
+  assert.notStrictEqual(b.disposition, null, 'the divergent-invalidation park lands on the unit that already spent ci attempts, and it is still recorded as parked');
+  assert.strictEqual(b.status, unitState.legacyStatusOf(b.progress), 'the legacy status mirror stays exact — the earlier built record is not clobbered by the later park');
   assert.deepEqual(b.triedSet, [], 'park owns triedSet and replaces it wholesale, which is why the marker cannot live there alone');
   assert.deepEqual(b.ciAttempts, ['ci-published:pr', 'ci-fix:abcd1234'],
     'the attempt record survives, so a relaunch still sees that this head was published and does not spend a fresh cap on it');
@@ -200,7 +202,7 @@ test('parkDelta carries blockedBy only for a named blocker, so a blank or absent
   assert.deepStrictEqual(Object.keys(parkDelta({ ...base, blockedBy: '' })), Object.keys(record));
 });
 
-test('foldRunManifest round-trips an engine-produced park delta identically to a live park() call', () => {
+test('foldRunManifest round-trips an engine-produced park delta identically to a live park() call, once the legacy-progress floor only the fold pipeline establishes is accounted for', () => {
   const manifest = genesisManifest(TWO);
   const args = {
     unitId: 'a',
@@ -213,11 +215,17 @@ test('foldRunManifest round-trips an engine-produced park delta identically to a
   };
   const live = park(manifest, args);
   const folded = foldRunManifest([JSON.stringify(manifest), JSON.stringify(parkDelta(args))].join('\n'));
+  const liveA = live.msps.find((m) => m.id === 'a');
+  const foldedA = folded.msps.find((m) => m.id === 'a');
+  const { progress: liveProgress, ...liveRest } = liveA;
+  const { progress: foldedProgress, ...foldedRest } = foldedA;
   assert.deepEqual(
-    folded.msps.find((m) => m.id === 'a'),
-    live.msps.find((m) => m.id === 'a'),
-    'replaying the persisted park delta reconstructs the same parked entry the live engine held in memory',
+    foldedRest,
+    liveRest,
+    'apart from the legacy-progress floor, replaying the persisted park delta reconstructs the same parked entry the live engine held in memory',
   );
+  assert.strictEqual(liveProgress, undefined, 'a bare park() call on a raw genesis manifest never establishes a progress floor — park cannot write progress');
+  assert.strictEqual(foldedProgress, 'planned', 'the fold pipeline derives the legacy-progress floor for a unit whose journal never carried one');
 });
 
 test('foldRunManifest carries green + builtAgainst from a built delta onto the msp', () => {
@@ -356,7 +364,7 @@ test('foldRunManifest: a fold with no refusals leaves foldRefusals present and e
   assert.deepStrictEqual(folded.foldRefusals, []);
 });
 
-test('foldRunManifest: folding the risk-1 legacy journal with the new progress/disposition code settles to the identical resume sets and legacy statuses the parent commit produced (the risk-1 falsifier)', () => {
+test('foldRunManifest: folding the risk-1 legacy journal with the new progress/disposition code settles to the identical resume sets the parent commit produced (the risk-1 falsifier, leg 6a)', () => {
   const raw = readFileSync(new URL('./legacy-journal-fixture.ndjson', import.meta.url), 'utf8');
   const snapshot = JSON.parse(readFileSync(new URL('./legacy-journal-fixture-snapshot.json', import.meta.url), 'utf8'));
   const folded = foldRunManifest(raw);
@@ -364,8 +372,30 @@ test('foldRunManifest: folding the risk-1 legacy journal with the new progress/d
   const builtUnits = null;
   const resumeUnits = selectResumeUnits(folded, shippedSet);
   const resumeBuilt = selectResumeBuilt(folded, shippedSet, builtUnits);
-  const statusById = folded.msps.map((m) => ({ id: m.id, status: m.status }));
-  assert.deepStrictEqual(resumeUnits, snapshot.resumeUnits, 'selectResumeUnits must settle to the exact set the parent commit produced');
-  assert.deepStrictEqual(resumeBuilt, snapshot.resumeBuilt, 'selectResumeBuilt must settle to the exact set the parent commit produced');
-  assert.deepStrictEqual(statusById, snapshot.statusById, 'the legacy status mirror must settle identically to the parent commit for every unit');
+  assert.deepStrictEqual(resumeUnits, snapshot.resumeUnits, 'selectResumeUnits must settle to the exact set the parent commit produced — the redesign must not lose or gain a single resumable unit');
+  assert.deepStrictEqual(resumeBuilt, snapshot.resumeBuilt, 'selectResumeBuilt must settle to the exact set the parent commit produced — the redesign must not lose or gain a single resumable unit');
+});
+
+test('foldRunManifest: folding the risk-1 legacy journal, the legacy status mirror changes EXACTLY where the single-axis clobber the parent commit committed is undone, and nowhere else (leg 6b)', () => {
+  const raw = readFileSync(new URL('./legacy-journal-fixture.ndjson', import.meta.url), 'utf8');
+  const snapshot = JSON.parse(readFileSync(new URL('./legacy-journal-fixture-snapshot.json', import.meta.url), 'utf8'));
+  const folded = foldRunManifest(raw);
+  const priorStatusById = new Map(snapshot.statusById.map((m) => [m.id, m.status]));
+  const changed = folded.msps
+    .map((m) => ({ id: m.id, from: priorStatusById.get(m.id), to: m.status }))
+    .filter((entry) => entry.from !== entry.to)
+    .sort((a, b) => (a.id < b.id ? -1 : 1));
+  assert.deepStrictEqual(
+    changed,
+    [
+      { id: 'a', from: 'parked', to: 'shipped' },
+      { id: 'b', from: 'parked', to: 'built' },
+      { id: 'c', from: 'parked', to: 'planned' },
+      { id: 'd', from: 'parked', to: 'planned' },
+    ],
+    'only units the parent commit had clobbered to parked may change, and each must move to exactly what the phased rename recovers, never anywhere else',
+  );
+  for (const msp of folded.msps) {
+    assert.strictEqual(msp.status, unitState.legacyStatusOf(msp.progress), `msp ${msp.id}: status must equal legacyStatusOf(progress) exactly`);
+  }
 });

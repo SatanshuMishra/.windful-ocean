@@ -73,26 +73,29 @@ test('CREATE DISPOSITION: a class outside the closed set throws TypeError', () =
   );
 });
 
-test('CREATE DISPOSITION: the returned disposition is an exact frozen copy that does not alias the caller triedSet', () => {
+test('CREATE DISPOSITION: the returned disposition is an exact frozen copy that does not alias the caller triedSet or resumePoint', () => {
   const tried = ['worktree:reset-clean'];
+  const resumePoint = { branch: 'work/unit-a', ref: 'refs/mitosis/deadbeef/unit-a', stage: 'execute' };
   const disposition = createDisposition({
     class: 'Transient',
     diagnosis: 'the child exited nonzero on a network blip',
-    stage: 'implement',
-    resumePoint: 'retry-implement',
+    stage: 'execute',
+    resumePoint,
     triedSet: tried,
-    remediation: 'reset the worktree and retry',
   });
   tried.push('worktree:force-clean');
+  resumePoint.branch = 'mutated';
   assert.deepStrictEqual(disposition, {
     class: 'Transient',
     diagnosis: 'the child exited nonzero on a network blip',
-    stage: 'implement',
-    resumePoint: 'retry-implement',
+    stage: 'execute',
+    resumePoint: { branch: 'work/unit-a', ref: 'refs/mitosis/deadbeef/unit-a', stage: 'execute' },
     triedSet: ['worktree:reset-clean'],
-    remediation: 'reset the worktree and retry',
+    remediation: null,
   });
   assert.equal(Object.isFrozen(disposition), true);
+  assert.equal(Object.isFrozen(disposition.resumePoint), true);
+  assert.equal(Object.isFrozen(disposition.triedSet), true);
   assert.throws(() => {
     disposition.diagnosis = 'mutated';
   }, { name: 'TypeError' });

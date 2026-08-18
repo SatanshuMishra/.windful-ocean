@@ -113,9 +113,14 @@ test('park: marks the blocked unit and its transitive dependents parked, writes 
   assert.deepEqual(before, snapshot);
 
   const statusOf = (m, id) => m.msps.find((x) => x.id === id).status;
-  assert.equal(statusOf(after, 'core'), 'parked');
-  assert.equal(statusOf(after, 'auth'), 'parked');
-  assert.equal(statusOf(after, 'api'), 'parked');
+  const dispositionOf = (m, id) => m.msps.find((x) => x.id === id).disposition;
+  assert.notStrictEqual(dispositionOf(after, 'core'), null, 'the blocked unit carries a disposition');
+  assert.notStrictEqual(dispositionOf(after, 'auth'), null, 'the transitive dependent carries a disposition');
+  assert.notStrictEqual(dispositionOf(after, 'api'), null, 'the transitive dependent carries a disposition');
+  assert.strictEqual(dispositionOf(after, 'unrelated'), undefined, 'a unit outside the blocked set carries no disposition');
+  assert.equal(statusOf(after, 'core'), 'planned', 'park writes no progress or status; the legacy field the unit already carried is left untouched');
+  assert.equal(statusOf(after, 'auth'), 'planned', 'park writes no progress or status; the legacy field the unit already carried is left untouched');
+  assert.equal(statusOf(after, 'api'), 'planned', 'park writes no progress or status; the legacy field the unit already carried is left untouched');
   assert.equal(statusOf(after, 'unrelated'), 'planned');
 
   assert.equal(after.parked.length, 1);

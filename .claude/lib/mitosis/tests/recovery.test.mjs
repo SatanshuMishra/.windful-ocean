@@ -19,6 +19,7 @@ import {
   PUBLISHED_MSP_FIELDS,
 } from '../recovery.mjs';
 import { park } from '../parking.mjs';
+import { legacyStatusOf } from '../unit-state.mjs';
 import { pack } from './file-scope-fixtures.mjs';
 
 test('computeLogicalRunId: deterministic for identical inputs', () => {
@@ -337,7 +338,9 @@ test('applyBuiltTransition: clears the resumePoint, so a rebuilt unit re-parked 
   const cascaded = park(rebuilt, { unitId: 'a', stage: 'execute', diagnosis: 'ancestor failed', triedSet: [] });
 
   const b = cascaded.msps.find((m) => m.id === 'b');
-  assert.equal(b.status, 'parked', 'the ancestor cascade parks the dependent');
+  assert.notStrictEqual(b.disposition, null, 'the ancestor cascade still records a disposition for the dependent');
+  assert.notStrictEqual(b.disposition, undefined, 'the ancestor cascade still records a disposition for the dependent');
+  assert.strictEqual(b.status, legacyStatusOf(b.progress), 'the legacy status mirror stays exact — the cascade no longer clobbers the built record down to parked');
   assert.notEqual(
     b.resumePoint && b.resumePoint.stage,
     'plan',

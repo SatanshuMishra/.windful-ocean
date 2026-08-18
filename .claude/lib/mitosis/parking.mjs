@@ -1,8 +1,9 @@
 import { isValidFingerprint } from './remediation.mjs';
 import { checkpointRef, validateRefToken } from './checkpoint.mjs';
 import { mspContentHash } from './recovery.mjs';
+import { LEGAL_STAGES, createDisposition, legacyProgress } from './unit-state.mjs';
 
-export const LEGAL_STAGES = Object.freeze(['plan', 'plan-review', 'parallelize', 'branch', 'execute', 'ship']);
+export { LEGAL_STAGES };
 
 function sanitizeStage(stage) {
   return typeof stage === 'string' && LEGAL_STAGES.includes(stage) ? stage : null;
@@ -50,7 +51,13 @@ export function transitiveDependents(msps, unitId) {
   return msps.map((msp) => msp.id).filter((id) => id !== unitId && blocked.has(id));
 }
 
-export function park(manifest, { unitId, stage, diagnosis, request, remediation, resumePoint, triedSet, blockedBy }) {
+function primaryDispositionClass(dispositionClass, blockedBy) {
+  if (typeof dispositionClass === 'string') return dispositionClass;
+  if (typeof blockedBy === 'string' && blockedBy.length > 0) return 'BlockedByPrereq';
+  return 'Unknown';
+}
+
+export function park(manifest, { unitId, stage, diagnosis, request, remediation, resumePoint, triedSet, blockedBy, class: dispositionClass }) {
   if (!manifest || typeof manifest !== 'object' || !Array.isArray(manifest.msps)) {
     throw new Error('park: manifest must be an object with an msps array');
   }
@@ -63,19 +70,33 @@ export function park(manifest, { unitId, stage, diagnosis, request, remediation,
   const dependents = transitiveDependents(manifest.msps, unitId);
   const record = ParkRecord({ unitId, stage, diagnosis, request, remediation, resumePoint, triedSet, dependents, blockedBy });
   const parkedIds = new Set([unitId, ...dependents]);
+  const primaryClass = primaryDispositionClass(dispositionClass, blockedBy);
   const msps = manifest.msps.map((msp) => {
     if (!parkedIds.has(msp.id)) return msp;
     if (msp.id === unitId) {
-      return { ...msp, status: 'parked', triedSet: [...record.triedSet], resumePoint: { ...record.resumePoint } };
+      const unitTriedSet = [...record.triedSet];
+      const unitResumePoint = { ...record.resumePoint };
+      const disposition = createDisposition({
+        class: primaryClass,
+        diagnosis: record.diagnosis,
+        stage: sanitizeStage(stage),
+        resumePoint: unitResumePoint,
+        triedSet: unitTriedSet,
+      });
+      return { ...msp, triedSet: unitTriedSet, resumePoint: unitResumePoint, disposition };
     }
-    return {
-      ...msp,
-      status: 'parked',
-      triedSet: Array.isArray(msp.triedSet) ? [...msp.triedSet] : [],
-      resumePoint: msp.resumePoint && typeof msp.resumePoint === 'object'
-        ? { ...msp.resumePoint }
-        : { branch: null, ref: null, stage: null },
-    };
+    const depTriedSet = Array.isArray(msp.triedSet) ? [...msp.triedSet] : [];
+    const depResumePoint = msp.resumePoint && typeof msp.resumePoint === 'object'
+      ? { ...msp.resumePoint }
+      : { branch: null, ref: null, stage: null };
+    const disposition = createDisposition({
+      class: 'BlockedByPrereq',
+      diagnosis: null,
+      stage: null,
+      resumePoint: depResumePoint,
+      triedSet: depTriedSet,
+    });
+    return { ...msp, triedSet: depTriedSet, resumePoint: depResumePoint, disposition };
   });
   const priorParked = Array.isArray(manifest.parked) ? manifest.parked : [];
   return { ...manifest, msps, parked: [...priorParked, record] };
@@ -89,11 +110,28 @@ export function isShippedUnit(shippedSet, id) {
   return false;
 }
 
+function isParked(msp) {
+  if (msp.disposition !== null && msp.disposition !== undefined) return true;
+  return msp.status === 'parked';
+}
+
+function progressOf(msp) {
+  if (typeof msp.progress === 'string') return msp.progress;
+  if (typeof msp.status === 'string') {
+    try {
+      return legacyProgress(msp.status);
+    } catch {
+      return null;
+    }
+  }
+  return null;
+}
+
 export function selectResumeUnits(manifest, shippedSet) {
   if (!manifest || typeof manifest !== 'object' || !Array.isArray(manifest.msps)) return [];
   const resume = [];
   for (const msp of manifest.msps) {
-    if (msp.status !== 'parked') continue;
+    if (!isParked(msp)) continue;
     if (isShippedUnit(shippedSet, msp.id)) continue;
     const triedSet = (Array.isArray(msp.triedSet) ? msp.triedSet : []).filter((t) => isValidFingerprint(t));
     const resumePoint = msp.resumePoint && typeof msp.resumePoint === 'object'
@@ -111,7 +149,8 @@ export function selectResumeBuilt(manifest, shippedSet, builtUnits) {
   const gate = observed !== null && observed.size > 0 ? observed : null;
   const resume = [];
   for (const msp of manifest.msps) {
-    if (msp.status !== 'built') continue;
+    if (progressOf(msp) !== 'built') continue;
+    if (isParked(msp)) continue;
     if (isShippedUnit(shippedSet, msp.id)) continue;
     let ref = validateRefToken(msp.checkpointRef) ? msp.checkpointRef : null;
     if (ref === null && (gate === null || gate.has(msp.id))) {

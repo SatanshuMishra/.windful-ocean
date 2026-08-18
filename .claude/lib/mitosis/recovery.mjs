@@ -1,4 +1,5 @@
 import { emptyFileScopePack, requireFileScopePack } from './msp-file-scope.mjs';
+import { legacyProgress, legacyStatusOf, mergeProgress } from './unit-state.mjs';
 
 const MAX_TITLE_LEN = 200;
 const MAX_RATIONALE_LEN = 1000;
@@ -138,11 +139,25 @@ export function buildInitialManifest({ logicalRunId, harnessRunId, spec, repoRoo
   };
 }
 
+function startingProgress(msp) {
+  if (typeof msp.progress === 'string') return msp.progress;
+  if (typeof msp.status === 'string') {
+    try {
+      return legacyProgress(msp.status);
+    } catch {
+      return 'planned';
+    }
+  }
+  return 'planned';
+}
+
 export function applyShipTransition(manifest, { mspId, prUrl, mergedAt, title, rationale, changeType, scope }) {
   const exists = manifest.msps.some((msp) => msp.id === mspId);
-  const updated = manifest.msps.map((msp) =>
-    msp.id === mspId ? { ...msp, status: 'shipped', prUrl, mergedAt } : msp,
-  );
+  const updated = manifest.msps.map((msp) => {
+    if (msp.id !== mspId) return msp;
+    const progress = mergeProgress(startingProgress(msp), 'pr-open');
+    return { ...msp, progress, status: legacyStatusOf(progress), prUrl, mergedAt };
+  });
   const msps = exists
     ? updated
     : [
@@ -181,8 +196,8 @@ export function applyBuiltTransition(manifest, { unitId, checkpointRef, sha, gre
   const exists = manifest.msps.some((msp) => msp.id === unitId);
   const updated = manifest.msps.map((msp) => {
     if (msp.id !== unitId) return msp;
-    if (msp.status === 'shipped') return msp;
-    return { ...msp, status: 'built', checkpointRef, builtSha: sha, green: green ?? false, builtAgainst: builtAgainst ?? {}, resumePoint: null };
+    const progress = mergeProgress(startingProgress(msp), 'built');
+    return { ...msp, progress, status: legacyStatusOf(progress), checkpointRef, builtSha: sha, green: green ?? false, builtAgainst: builtAgainst ?? {}, resumePoint: null };
   });
   const msps = exists
     ? updated
