@@ -431,6 +431,11 @@
         "ref": "0572-an-unchanged-file-is-not-an-unrelated-failure",
         "title": "An unchanged file is not an unrelated failure, and the token census derives from the gate verbs",
         "scope": "c4"
+      },
+      {
+        "ref": "0574-ship-wave-7-without-local-inertness-mutations",
+        "title": "Ship wave 7 with the inertness mutations unrun, and G14 did not stand in for them",
+        "scope": "c4"
       }
     ],
     "out_of_scope": [
@@ -442,5 +447,5 @@
     ]
   },
   "created_at": "2026-08-16T05:43:25.829Z",
-  "updated_at": "2026-08-18T16:22:29.763Z"
+  "updated_at": "2026-08-18T17:31:33.057Z"
 }
