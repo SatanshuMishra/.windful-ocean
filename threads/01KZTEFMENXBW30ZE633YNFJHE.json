@@ -287,9 +287,9 @@
   "abandoned_reason": null,
   "closure_statement": null,
   "spine": {
-    "active_goal": "Get mitosis working end to end: with both failure families now root-caused, judge whether the design needs simplifying, settle one whole solution, then implement it once.",
-    "next_step": "START HERE FRESH. The 0573 audit is DONE (0576) - do NOT re-audit and do NOT re-run the engine. Read both reports under ~/.claude/projects/-Users-satanshumishra-Documents-DevLabs--windful-ocean/artifacts-2026-08-18-boundary-audit/. Then dispatch an architect lead for the judgment half of 0573 - fragility, complexity, simplification, best-practice departures - and ONE whole solution covering all thirteen root causes, its acceptance ceiling declared before work starts. Fan out only after that.",
-    "last_session": "Audited both failure families to root cause, read-only on origin/main: two complete reports plus ten worker notes landed in artifacts-2026-08-18-boundary-audit. An Opus 5 incident killed every model-pinned agent for an hour until the leads were re-dispatched with explicit model overrides (0577).",
+    "active_goal": "Implement the approved whole solution: 21 units in 9 waves closing all thirteen boundary root causes.",
+    "next_step": "The authority is Part 7 (A1-A15) of artifacts-2026-08-18-whole-solution/whole-solution.md, NOT this conversation - read it before dispatching. Wave 1 in flight: M1 and M14 shipped as PRs 213 and 214, M10 is PR 216 awaiting its last checks, M0 and M12a resumed after scope rulings. HOLD M7 (committed at b1a34b29, unpushed) until M0's branch lands, then rebase onto it - never discard that commit. M2 is stacked on M1's branch. Waves 2-9 follow the map in Part 7.",
+    "last_session": "Architect settled the whole solution and fifteen amendments. Five of six wave-1 leads reported; three blocked on scope and all three blocked correctly rather than widening or faking a green. Stack grew 16 units to 21.",
     "open_risks": [
       {
         "text": "Prove a merge arrived by asserting its CONTENT is on the base, never by SHA ancestry — a squash or stack merge rewrites commits, so a pre-merge SHA correctly fails an ancestry check on a merge that lost nothing",
@@ -495,64 +495,43 @@
         ]
       },
       {
-        "text": "Treat a green Integrate as evidence the gate ran, not that it scanned the diff — it reported zero fixes and wrote no per-unit census at all",
+        "text": "Run the inertness mutation on every unit without exception — each one is fixing vacuity and can reproduce vacuity inside its own fix",
         "scope": "c28",
         "refs": [
-          "0569",
-          ".mitosis/boundary/c28e0001"
+          "0587",
+          "boundary-gate.test.mjs"
         ]
       },
       {
-        "text": "Never read prState as the answer to whether a pull request exists — the probe runs before Ship and reported none for the very branch whose pull request that same run created",
+        "text": "Derive a unit's file list from every READER of the data it changes — drawing it from what the unit writes blocked three leads and mis-scoped four more",
         "scope": "c28",
         "refs": [
-          "0565"
+          "0585",
+          "0582"
         ]
       },
       {
-        "text": "Trust the exit code over ship.status — the status read all-shipped while a unit sat parked, because it means every integrated unit shipped, not every unit",
+        "text": "Cap G14 confirmation at two attempts and prove mutation locally — the receipts log prints one overall verdict with no per-gate enumeration",
         "scope": "c28",
         "refs": [
-          "0564",
-          "exit 3"
+          "PR 213",
+          "PR 214"
         ]
       },
       {
-        "text": "Pass an absolute path to the journal flag — a relative value, which is what the operator doc suggests, burns the whole planning phase before failing twelve minutes in",
+        "text": "Expect a false model string in every machine PR body — the tool's provenance pattern forbids brackets and bodies cannot be edited after creation",
         "scope": "c28",
         "refs": [
-          "0567"
+          "pr-format.mjs:6",
+          "PR 214"
         ]
       },
       {
-        "text": "Expect a unit to violate its fence whenever its contract matters — the implementer is handed the MSP's one-sentence rationale, never the specification",
+        "text": "Treat boundary-gate coverage as genuinely absent from wave 1 to wave 4 — M0 deletes two tests proven incapable of failing and M8a restores them",
         "scope": "c28",
         "refs": [
-          "0566"
-        ]
-      },
-      {
-        "text": "Editing the run document to make a unit pass changes the run key and starts a fresh run — so weigh remediation through the engine before hand-editing the document",
-        "scope": "c28",
-        "refs": [
-          "run key 643e9346",
-          "0566"
-        ]
-      },
-      {
-        "text": "The disposable harness repo now carries an open pull request 2 and a _ledger branch — the live harness test resets by closing every pull request and deleting every non-main branch",
-        "scope": "c28",
-        "refs": [
-          "SatanshuMishra/mitosis-live-pr-harness"
-        ]
-      },
-      {
-        "text": "Reset the harness journal too, not just its branches — run 2 demoted the shipped unit to parked, so that journal can never reconcile pull request 2 even after it merges",
-        "scope": "c28",
-        "refs": [
-          "0576",
-          ".mitosis/run.jsonl",
-          "parking.mjs:69"
+          "0587",
+          "G11 block mode"
         ]
       }
     ],
@@ -1127,5 +1106,5 @@
     ]
   },
   "created_at": "2026-08-12T07:37:41.077Z",
-  "updated_at": "2026-08-18T19:49:34.132Z"
+  "updated_at": "2026-08-18T19:50:04.669Z"
 }
