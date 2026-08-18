@@ -7,7 +7,7 @@ import { readRosterDeclarations, reconcileRetirementSet } from './retirement-set
 
 const AGENT_EXTENSION = '.md';
 const SCANNED_EXTENSIONS = Object.freeze(['.md', '.mjs']);
-const EXCLUDED_DIRECTORIES = Object.freeze(new Set(['prompt-snapshots', 'tests']));
+export const EXCLUDED_DIRECTORIES = Object.freeze(new Set(['fixtures', 'prompt-snapshots', 'tests']));
 const SPEC_SEGMENTS = Object.freeze(['docs', 'specs']);
 const ROSTER_SPEC_FILE = '2026-08-17-agent-roster-rebuild.md';
 const SPEC_SUBJECT = Object.freeze({
@@ -22,6 +22,7 @@ export const RETIREMENT_NOT_ATTESTED = Object.freeze([
   `that a retiring name reached through a file this census does not open is covered: the scan reads ${SCANNED_EXTENSIONS.join(' and ')} files, so any other extension in scope is counted as unread rather than searched`,
   'that a name is referenced only where it is meant to be: the scan is a raw literal one over a known token set, so a longer identifier containing a retiring name is reported as an occurrence rather than filtered out',
   'that a reference outside the three scanned trees is covered: .claude/docs and every tree beyond rules, skills and lib are out of scope by declaration',
+  `that a retiring name inside a ${[...EXCLUDED_DIRECTORIES].join(', ')} directory is covered: those directories hold test data rather than routing instructions and are skipped at any depth, with the skipped directories counted in this report`,
 ]);
 
 export const RETIREMENT_RETIRED_NOT_ATTESTED = 'that derivation A still corroborates derivation B: the retiring definitions are gone from disk, so derivation A is empty by construction and derivation B alone carries the set';
@@ -57,6 +58,7 @@ export function retirementScope() {
 
 export function enumerateScanTree(root, io) {
   const files = [];
+  const excluded = [];
   const pending = [root];
   let unread = 0;
   while (pending.length > 0) {
@@ -71,7 +73,8 @@ export function enumerateScanTree(root, io) {
     for (const entry of entries) {
       const path = join(dir, entry.name);
       if (entry.isDirectory()) {
-        if (!EXCLUDED_DIRECTORIES.has(entry.name)) pending.push(path);
+        if (EXCLUDED_DIRECTORIES.has(entry.name)) excluded.push(path);
+        else pending.push(path);
         continue;
       }
       if (!entry.isFile()) {
@@ -86,7 +89,8 @@ export function enumerateScanTree(root, io) {
     named.sort();
     files.push(...named);
   }
-  return Object.freeze({ ok: true, files: Object.freeze(files), unread });
+  excluded.sort();
+  return Object.freeze({ ok: true, files: Object.freeze(files), excluded: Object.freeze(excluded), unread });
 }
 
 export function scanSourceForNames(path, source, names) {
@@ -136,6 +140,7 @@ export function censusRetirement(scope, io) {
   if (!derived.ok) return derived;
   const names = derived.names;
   const sites = [];
+  const excluded = [];
   const perTree = {};
   let fileCount = 0;
   let unreadCount = 0;
@@ -158,6 +163,7 @@ export function censusRetirement(scope, io) {
       treeSites += found.length;
     }
     perTree[tree] = treeSites;
+    excluded.push(...enumerated.excluded);
     fileCount += enumerated.files.length;
     unreadCount += enumerated.unread;
   }
@@ -174,6 +180,8 @@ export function censusRetirement(scope, io) {
     perTree: Object.freeze(perTree),
     names: Object.freeze([...names]),
     derivation: derived.derivation,
+    excludedDirectories: Object.freeze(excluded),
+    excludedDirectoryNames: Object.freeze([...EXCLUDED_DIRECTORIES]),
     notAttested: Object.freeze(notAttested),
     fileCount,
     unreadCount,

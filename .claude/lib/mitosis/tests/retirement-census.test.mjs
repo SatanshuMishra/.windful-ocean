@@ -53,6 +53,8 @@ function specSource(retained, retiring) {
   ].join('\n');
 }
 
+const FIXTURE_ROSTER = '---\nname: old-alpha\n---\n';
+
 const RED_TREE = Object.freeze({
   'rules/common/routing.md': [
     'routing rules',
@@ -70,6 +72,7 @@ const RED_TREE = Object.freeze({
   ].join('\n'),
   'skills/reporting/prompt-snapshots/excluded.md': 'old-gamma is named here\n',
   'skills/reporting/asset.html': '<p>old-alpha</p>\n',
+  'lib/observer/fixtures/roster/old-alpha.md': FIXTURE_ROSTER,
   'lib/mitosis/engine.mjs': "const DECOMPOSER_AGENT = 'old-alpha';\nexport const KEEP = 'keeper-two';\n",
 });
 
@@ -90,6 +93,7 @@ const GREEN_TREE = Object.freeze({
   ].join('\n'),
   'skills/reporting/prompt-snapshots/excluded.md': 'old-gamma is named here\n',
   'skills/reporting/asset.html': '<p>old-alpha</p>\n',
+  'lib/observer/fixtures/roster/old-alpha.md': FIXTURE_ROSTER,
   'lib/mitosis/engine.mjs': "const DECOMPOSER_AGENT = 'keeper-one';\nexport const KEEP = 'keeper-two';\n",
 });
 
@@ -183,11 +187,36 @@ test('a tree still naming a retiring agent is red and names every occurrence wit
   assert.match(run.stderr, /engine\.mjs:1 still names retiring agent "old-alpha"/);
 });
 
-test('a directory named tests or prompt-snapshots is out of scope at any depth', () => {
+test('a directory named tests, prompt-snapshots or fixtures is out of scope at any depth', () => {
   const fixture = buildTree(RED_TREE);
   const result = censusRetirement(fixture.scope, realRetirementIo);
+  assert.deepEqual([...result.excludedDirectoryNames], ['fixtures', 'prompt-snapshots', 'tests']);
   assert.equal(result.sites.some((site) => site.path.includes('excluded.md')), false);
+  assert.equal(result.sites.some((site) => site.path.includes('/fixtures/')), false);
+  assert.deepEqual(result.excludedDirectories.map((path) => path.slice(fixture.root.length + 1)), [
+    'rules/tests',
+    'skills/reporting/prompt-snapshots',
+    'lib/observer/fixtures',
+  ]);
   assert.equal(result.unreadCount, 1);
+});
+
+test('the same synthetic roster file is skipped inside a fixtures directory and counted outside one', () => {
+  const inside = buildTree(GREEN_TREE);
+  const outside = buildTree({ ...GREEN_TREE, 'lib/observer/roster/old-alpha.md': FIXTURE_ROSTER });
+  const skipped = censusRetirement(inside.scope, realRetirementIo);
+  const counted = censusRetirement(outside.scope, realRetirementIo);
+  assert.equal(skipped.kind, undefined, skipped.error);
+  assert.equal(counted.kind, undefined, counted.error);
+  assert.equal(readFileSync(join(inside.root, 'lib/observer/fixtures/roster/old-alpha.md'), 'utf8'), FIXTURE_ROSTER);
+  assert.equal(readFileSync(join(outside.root, 'lib/observer/roster/old-alpha.md'), 'utf8'), FIXTURE_ROSTER);
+  assert.equal(skipped.ok, true);
+  assert.deepEqual(skipped.sites, []);
+  assert.equal(counted.ok, false);
+  assert.deepEqual(siteKeys(counted), [`${join(outside.root, 'lib/observer/roster/old-alpha.md')}:2 old-alpha`]);
+  assert.equal(counted.fileCount, skipped.fileCount + 1);
+  assert.equal(runOver(inside.scope).exit, GATE_CLEAN_EXIT);
+  assert.equal(runOver(outside.scope).exit, GATE_VIOLATION_EXIT);
 });
 
 test('a fully repointed tree is clean and still reports every retiring name at zero', () => {

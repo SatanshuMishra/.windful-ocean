@@ -440,11 +440,14 @@ function retirementReport(result) {
     counts: {
       files: result.fileCount,
       unreadFiles: result.unreadCount,
+      excludedDirectories: result.excludedDirectories.length,
       sites: result.sites.length,
       retiring: result.names.length,
     },
     perTree: result.perTree,
     derivation: result.derivation,
+    excludedDirectoryNames: result.excludedDirectoryNames,
+    excludedDirectories: result.excludedDirectories,
     notAttested: result.notAttested,
   })}\n`;
 }
