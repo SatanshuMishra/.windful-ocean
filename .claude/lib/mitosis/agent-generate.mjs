@@ -53,8 +53,16 @@ function readBodyOrNull(path) {
   }
 }
 
+function counted(count, singular, plural) {
+  return `${count} ${count === 1 ? singular : plural}`;
+}
+
 function pluralSpecs(count) {
-  return count === 1 ? '1 agent spec' : `${count} agent specs`;
+  return counted(count, 'agent spec', 'agent specs');
+}
+
+function pluralBodies(count) {
+  return counted(count, 'generated body', 'generated bodies');
 }
 
 export async function runAgentGenerate(argv, io = {}) {
@@ -87,7 +95,7 @@ export async function runAgentGenerate(argv, io = {}) {
       return Object.freeze({
         code: EXIT_DIVERGED,
         lines: Object.freeze([
-          `${mode}: ${pluralSpecs(loaded.entries.length)} found and ${compared.divergences.length} generated body or bodies diverge from source`,
+          `${mode}: ${pluralSpecs(loaded.entries.length)} found and ${pluralBodies(compared.divergences.length)} diverging from source`,
           ...compared.divergences.map((item) => `${item.kind}: ${item.path}\n  ${item.detail}`),
           'regenerate with: node .claude/lib/mitosis/agent-generate.mjs',
         ]),
@@ -95,7 +103,7 @@ export async function runAgentGenerate(argv, io = {}) {
     }
     return Object.freeze({
       code: EXIT_OK,
-      lines: Object.freeze([`${mode}: ${pluralSpecs(loaded.entries.length)} found and all ${planned.bodies.length} generated bodies match their source under ${agentsDir.dir}`]),
+      lines: Object.freeze([`${mode}: ${pluralSpecs(loaded.entries.length)} found and all ${pluralBodies(planned.bodies.length)} matching their source under ${agentsDir.dir}`]),
     });
   }
 
@@ -118,7 +126,7 @@ export async function runAgentGenerate(argv, io = {}) {
   return Object.freeze({
     code: EXIT_OK,
     lines: Object.freeze([
-      `${mode}: ${pluralSpecs(loaded.entries.length)} found and ${written.length} generated bodies written under ${agentsDir.dir}`,
+      `${mode}: ${pluralSpecs(loaded.entries.length)} found and ${pluralBodies(written.length)} written under ${agentsDir.dir}`,
       ...written.map((path) => `wrote: ${path}`),
     ]),
   });

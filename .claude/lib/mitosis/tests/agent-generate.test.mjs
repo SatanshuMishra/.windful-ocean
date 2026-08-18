@@ -78,8 +78,7 @@ test('round trip: a store spec composes, writes a body, and --check reports it c
 
   const checked = run(['--check', '--store', specDir, '--agents', agentDir]);
   assert.equal(checked.code, 0, checked.output);
-  assert.match(checked.output, /1 agent spec/);
-  assert.match(checked.output, /match/);
+  assert.match(checked.output, /1 agent spec found and all .* matching their source/);
 });
 
 test('drift: a hand edit makes --check exit non-zero naming the file and the first differing line', (t) => {
@@ -135,7 +134,7 @@ test('empty store: --check exits 0 and says zero specs rather than reporting a m
   const result = run(['--check', '--store', specDir, '--agents', agentDir]);
   assert.equal(result.code, 0, result.output);
   assert.match(result.output, /zero agent specs/);
-  assert.doesNotMatch(result.output, /all \d+ generated bodies match/);
+  assert.doesNotMatch(result.output, /matching their source/);
 });
 
 test('empty store: the shipped store is empty today and --check is clean over it', (t) => {
