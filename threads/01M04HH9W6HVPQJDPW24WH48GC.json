@@ -45,7 +45,7 @@
     {
       "id": "c4",
       "text": "Agent and observer teardown and rebuild executed without breaking the live coupling surface: rules and skills naming agents by string, 18 worktrees carrying roster copies, derived residuals.",
-      "done": false,
+      "done": true,
       "kind": "planned",
       "struck_by": null
     },
@@ -70,15 +70,23 @@
   "abandoned_reason": null,
   "closure_statement": null,
   "spine": {
-    "active_goal": "Complete wave 7: commit, push and ship the staged deletion of the nine retired agent definitions, leaving the canonical roster at exactly the thirteen.",
-    "next_step": "START HERE. Wave 7 is STAGED, NOT COMMITTED, on chore/wave-7-delete-retired-agents off main ffb6103f: nine agent deletions plus the retirement-census.test.mjs :241 repair, both already measured correct (census exit 0, shape retired, A empty, B nine, sites 0, 13 on disk). OWED: npm test to a zero fail counter, the two inertness mutations, commit, push, then a pull request via pr.mjs pr-create. Do NOT redo the deletion or the :241 rewrite.",
-    "last_session": "Wave 6 shipped and merged as pull request 211; main is ffb6103f, verified by merge-base rather than by label. Wave 6 broke CI twice and both defects were fixed in-wave. Wave 7 executed fully but its agent stalled before committing.",
+    "active_goal": "Close c5 by settling whether agent-id reuse makes the Lead share 60.74 or 29.25 percent, once PR 218 lands the audit repair.",
+    "next_step": "Merge PR 218 - OPEN and human-gated, never from a session - then confirm its content reached origin/main by merge-base rather than by the MERGED label, and delete the merged branch. Then open the agent-id reuse unit: decide whether 19 start rows under one (session_id, agent_id) are one dispatch logged repeatedly or 19 distinct dispatches, since that alone decides which Lead-share reading is real. Attribution and the closed census are already met per 0592 and must NOT be re-derived.",
+    "last_session": "Wave 7 was already merged before this session; the brief was stale. c4 evidenced complete. The audit instrument was found broken exactly where c5 measures, and repaired across PR 217 (merged) and PR 218 (open). The Lead-share sensitivity test inverted, so c5 stays open.",
     "open_risks": [
       {
-        "text": "Pin the Lead-share threshold before the measurement window opens and open it only after U7.1 ships — a log gathered while both rosters are live cannot tell a Lead not chosen from a retired agent still available",
+        "text": "Never quote one Lead-share reading without its twin — 60.74 and 29.25 percent sit on opposite sides of the bar, so either figure alone reads as a settled result when the share is genuinely unknown",
         "scope": "c5",
         "refs": [
-          "decision 0561"
+          "decision 0592"
+        ]
+      },
+      {
+        "text": "Settle agent-id reuse before any regrade of the Lead share — whether 19 start rows under one id are one dispatch or nineteen decides which reading is real, and no amount of re-measuring at the current grain can separate them",
+        "scope": "c5",
+        "refs": [
+          "decision 0591",
+          "decision 0592"
         ]
       },
       {
@@ -86,6 +94,20 @@
         "scope": "c5",
         "refs": [
           "decision 0544"
+        ]
+      },
+      {
+        "text": "Point every observer query at ~/.claude/observer/events and never at ~/.claude/agent-ledger — the retired store has a different schema and answers plausibly, and its fallback count coincidentally matched the live start-row count",
+        "scope": "c8",
+        "refs": [
+          "memory: observer-store-is-not-the-agent-ledger-store"
+        ]
+      },
+      {
+        "text": "Treat a stop-without-start in a windowed corpus as a windowing artifact rather than a dropped start hook — row-level windowing splits four groups that the audit resolves at dispatch grain",
+        "scope": "c8",
+        "refs": [
+          "decision 0592"
         ]
       },
       {
@@ -103,48 +125,10 @@
         ]
       },
       {
-        "text": "Run wave 7 from the primary checkout, never a linked worktree — the census resolves its scan root through git commondir, so from a worktree it reads the primary checkout's intact roster and reports green for a deletion it never saw",
-        "scope": "c4",
+        "text": "Compose a pull request's Verified lines from the receipts subagents return, never by re-running their checks — the PR honesty rule and delegation discipline point opposite ways here, and release-engineer resolved it by re-running unasked",
+        "scope": "thread",
         "refs": [
-          "canonical-config-dir.mjs:72-86",
-          "decision 0560"
-        ]
-      },
-      {
-        "text": "Never grade wave 7 on the census exit code — it is 0 both before and after the deletion, so only the shape flip from present-on-disk to retired and the drop from 22 to 13 definitions prove the deletion happened",
-        "scope": "c4",
-        "refs": [
-          "retirement-census.mjs",
-          "retirement-set.mjs"
-        ]
-      },
-      {
-        "text": "Delete all nine definitions or none — removing eight trips the unclassified-name fault and the census exits 42, so no partial state passes",
-        "scope": "c4",
-        "refs": [
-          "retirement-set.mjs:147-150"
-        ]
-      },
-      {
-        "text": "Point OBSERVER_AUDIT_DUCKDB at a pinned duckdb v1.5.5 binary before trusting npm test locally — without it roughly 21 audit-queries tests fail as an environment gap rather than as defects",
-        "scope": "c4",
-        "refs": [
-          ".github/workflows/test.yml:21-32"
-        ]
-      },
-      {
-        "text": "Delete the merged wave-6 remote branch before anything is ever stacked on it — a child pull request whose base branch still exists merges into a dead branch, reports MERGED, and never reaches the trunk",
-        "scope": "c4",
-        "refs": [
-          "refactor/wave-6-repoint-retiring-agents at 7c40edf3",
-          "decision 0560"
-        ]
-      },
-      {
-        "text": "Treat a subagent's out-of-scope claim as suspect when it rests on the failing file being absent from the diff — a test deriving its expectations from another file inherits that file's changes without being edited",
-        "scope": "c4",
-        "refs": [
-          "decision 0572"
+          "memory: pr-honesty-rule-pushes-agents-to-re-run-child-checks"
         ]
       }
     ],
@@ -503,11 +487,9 @@
     "out_of_scope": [
       "Cutting the standing instruction load for volume alone - the question is re-scoping with path globs, and the binary trace confirmed rules are the eager per-dispatch cost while skills are lazy.",
       "Migrating the retired project-local agents' domain knowledge into skills and rules - the report places this as a SEPARATE task after the agent and observer rework, not inside it.",
-      "Repairing the two CI checks that cannot witness the deletion - agent-generate.mjs --check plans bodies from the 13-entry spec store rather than the directory listing, and the orphan detector that would catch stragglers is only ever called from a fixture test.",
-      "Widening the retirement census to scan .claude/agents/ content or tests directories - both exclusions are declared and self-disclosed, and npm test is the gate for the test tree.",
       "Refreshing technical-writer.md's now-stale claim that the dispatching skill owns rendering and placement - agent bodies belong to the generator substrate, not to waves 6 or 7."
     ]
   },
   "created_at": "2026-08-16T05:43:25.829Z",
-  "updated_at": "2026-08-18T21:27:48.630Z"
+  "updated_at": "2026-08-18T21:28:47.023Z"
 }
