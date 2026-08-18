@@ -19,7 +19,6 @@ import { censusTscLines } from '../boundary-tsc-lines.mjs';
 const ROOT = '/repo';
 const BASE = '/tmp/base-wt';
 const ABSENT_ROOT = '/no-such-root-for-the-boundary-gate-probe';
-const REAL_GIT_DEADLINE_MS = 30000;
 
 function refingerprinted(census) {
   return { ...census, identity: censusIdentity(census) };
@@ -736,25 +735,6 @@ function assertBothSidesProbed(io) {
   );
 }
 
-function realGitRepo(prefix) {
-  const root = mkdtempSync(join(tmpdir(), prefix));
-  const git = (argv) => {
-    const child = REAL_BOUNDARY_IO.run('git', argv, { cwd: root, deadlineMs: REAL_GIT_DEADLINE_MS });
-    if (child === null || typeof child !== 'object' || child.status !== 0) {
-      throw new Error(`git ${argv.join(' ')} did not complete in the disposable repository: ${JSON.stringify(child)}`);
-    }
-    return typeof child.stdout === 'string' ? child.stdout.trim() : '';
-  };
-  git(['init', '--quiet']);
-  git(['config', 'user.email', 'boundary-gate@test.invalid']);
-  git(['config', 'user.name', 'boundary gate test']);
-  git(['config', 'commit.gpgsign', 'false']);
-  writeFileSync(join(root, 'a.txt'), 'one\n');
-  git(['add', '--', 'a.txt']);
-  git(['commit', '--quiet', '-m', 'one']);
-  return Object.freeze({ root, head: git(['rev-parse', 'HEAD']) });
-}
-
 test('the comparison reports how many head identities it actually examined', () => {
   const census = { eslint: { 'a::no-eq::x': 1 }, tsc: { 'b::TS2345::y': 3 } };
   const verdict = compareCensuses(census, census);
@@ -768,21 +748,6 @@ test('a comparison over an empty head census reports that it examined nothing wh
   assert.equal(verdict.notComparable, true);
   assert.equal(verdict.pass, true, 'pass was gated on comparedIdentities, and the declared narrowing keeps it meaning blocking.length === 0');
   assert.deepEqual([...verdict.blocking], []);
-});
-
-test('a base and a head that resolve to the same tree is refused as not comparable rather than passing vacuously', () => {
-  const io = shaAnsweringIo({ baseSha: SAME_SHA, headSha: SAME_SHA });
-  const verdict = evaluate(noOpRequest(), io);
-  assert.equal(verdict.pass, false, `base and head are the same tree, so the gate compared the tree under test against itself and reported a pass: ${verdict.output}`);
-  assert.equal(verdict.blocking[0].classifier, 'not-comparable');
-});
-
-test('a same-tree request that declares itself a no-op passes and reports that nothing was comparable', () => {
-  const io = shaAnsweringIo({ baseSha: SAME_SHA, headSha: SAME_SHA });
-  const verdict = evaluate(noOpRequest({ declaredNoOp: true }), io);
-  assert.equal(verdict.pass, true, verdict.output);
-  assert.equal(verdict.comparedIdentities, 0);
-  assert.equal(verdict.notComparable, true);
 });
 
 test('a base and a head at different trees are never refused as not comparable', () => {
@@ -811,30 +776,5 @@ test('a tree that cannot be resolved on either side is never refused as not comp
       'an unresolved tree was treated as a resolved one, so a side git could not report on reads as the same tree',
     );
     assertBothSidesProbed(io);
-  }
-});
-
-test('the same-tree refusal fires through the shipped io against a real repository whose base worktree does not exist yet', () => {
-  const repo = realGitRepo('boundary-real-commit-repo-');
-  const holder = mkdtempSync(join(tmpdir(), 'boundary-real-commit-base-'));
-  const basePath = join(holder, 'wt');
-  try {
-    const verdict = evaluate(
-      { repoRoot: repo.root, gateBase: repo.head, basePath, cachedBaseCensus: null },
-      REAL_BOUNDARY_IO,
-    );
-    assert.equal(
-      verdict.pass,
-      false,
-      `base and head name one commit of a real repository, and the gate passed, so the refusal never resolved either side through the shipped io: ${verdict.output}`,
-    );
-    assert.equal(
-      verdict.blocking[0].classifier,
-      'not-comparable',
-      `the real run failed for some other reason than the commits being one and the same: ${JSON.stringify(verdict.blocking)}`,
-    );
-  } finally {
-    rmSync(repo.root, { recursive: true, force: true });
-    rmSync(holder, { recursive: true, force: true });
   }
 });

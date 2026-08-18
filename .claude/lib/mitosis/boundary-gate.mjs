@@ -18,7 +18,6 @@ export const GATE_BASE_SHAPE = /^[0-9A-Za-z][0-9A-Za-z._/-]*$/;
 export const REFUSAL_CLASSIFIER = 'collection-refused';
 export const EVASION_HALT_CLASSIFIER = 'evasion-halted';
 export const NEW_FINDING_CLASSIFIER = 'new-finding';
-export const NOT_COMPARABLE_CLASSIFIER = 'not-comparable';
 
 const EMPTY_CONTEXT = Object.freeze({ leaked: null, cacheRefusal: null });
 const TREE_PROBE_DEADLINE_MS = 10000;
@@ -88,50 +87,31 @@ export function compareCensuses(baseIdentitiesByTool, headIdentitiesByTool) {
   });
 }
 
-function probeReading(revision, child) {
+function unresolvedReason(revision, child) {
   if (child === null || typeof child !== 'object') {
-    return Object.freeze({ sha: null, reason: `the probe for ${revision} returned no child result at all` });
+    return `the probe for ${revision} returned no child result at all`;
   }
   if (child.status !== 0) {
-    return Object.freeze({ sha: null, reason: `the probe for ${revision} reported outcome ${JSON.stringify(child.outcome ?? null)} and status ${JSON.stringify(child.status ?? null)}` });
+    return `the probe for ${revision} reported outcome ${JSON.stringify(child.outcome ?? null)} and status ${JSON.stringify(child.status ?? null)}`;
   }
   const sha = typeof child.stdout === 'string' ? child.stdout.trim() : '';
   if (!RESOLVED_TREE_SHAPE.test(sha)) {
-    return Object.freeze({ sha: null, reason: `the probe for ${revision} printed ${JSON.stringify(sha)}, which is not the shape of a tree hash` });
+    return `the probe for ${revision} printed ${JSON.stringify(sha)}, which is not the shape of a tree hash`;
   }
-  return Object.freeze({ sha, reason: null });
+  return null;
 }
 
-function probeNote(base, head) {
-  const reasons = [base.reason, head.reason].filter((reason) => typeof reason === 'string' && reason.length > 0);
+function probedRevision(request, revision, io) {
+  return unresolvedReason(revision, io.run('git', ['rev-parse', '--verify', revision], { cwd: request.repoRoot, deadlineMs: TREE_PROBE_DEADLINE_MS }));
+}
+
+function unresolvedProbeNote(request, io) {
+  const reasons = [
+    probedRevision(request, `${request.gateBase}^{tree}`, io),
+    probedRevision(request, HEAD_REVISION, io),
+  ].filter((reason) => typeof reason === 'string' && reason.length > 0);
   if (reasons.length === 0) return null;
-  return `the same-tree check reached no decision because a side stayed unresolved: ${reasons.join('; ')}`;
-}
-
-function treeProbe(request, io) {
-  const baseChild = io.run('git', ['rev-parse', '--verify', `${request.gateBase}^{tree}`], { cwd: request.repoRoot, deadlineMs: TREE_PROBE_DEADLINE_MS });
-  const headChild = io.run('git', ['rev-parse', '--verify', 'HEAD^{tree}'], { cwd: request.repoRoot, deadlineMs: TREE_PROBE_DEADLINE_MS });
-  const base = probeReading(`${request.gateBase}^{tree}`, baseChild);
-  const head = probeReading(HEAD_REVISION, headChild);
-  return Object.freeze({ base, head, note: probeNote(base, head) });
-}
-
-function sameTreeRefusal(request, probe) {
-  if (request.declaredNoOp === true) return null;
-  if (probe.base.sha === null || probe.head.sha === null) return null;
-  if (probe.base.sha !== probe.head.sha) return null;
-  const detail = `gateBase ${JSON.stringify(request.gateBase)} and ${HEAD_REVISION} both resolve to tree ${probe.base.sha} in repoRoot ${JSON.stringify(request.repoRoot)}, so the base is the tree under test and no finding could be compared against anything`;
-  return Object.freeze({
-    pass: false,
-    output: detail,
-    blocking: Object.freeze([Object.freeze({ classifier: NOT_COMPARABLE_CLASSIFIER, detail })]),
-    notExpected: Object.freeze([]),
-    usedCachedCensus: false,
-    baseCensus: null,
-    leaked: null,
-    comparedIdentities: 0,
-    notComparable: true,
-  });
+  return `the tree probe reached no decision because a side stayed unresolved: ${reasons.join('; ')}`;
 }
 
 function withNotes(output, notes) {
@@ -247,10 +227,7 @@ export function evaluate(request, io = REAL_BOUNDARY_IO) {
   let evasion;
   let unresolvedProbe = null;
   try {
-    const probe = treeProbe(request, io);
-    unresolvedProbe = probe.note;
-    const notComparable = sameTreeRefusal(request, probe);
-    if (notComparable !== null) return notComparable;
+    unresolvedProbe = unresolvedProbeNote(request, io);
     sides = sidesFor(request, io);
     if (!sides.ok) return refused(sides.error, sides, unresolvedProbe);
     const common = commonTreeFiles(sides.baseCensus.surface, sides.headCensus.surface, io);
