@@ -385,6 +385,34 @@ for (const provenance of REJECTED_PROVENANCE) {
   });
 }
 
+const REAL_MODEL_PROVENANCE = 'agent=delivery-lead model=claude-opus-5[1m]';
+
+test('parse ACCEPTS the bracketed model id this machine actually reports, so a machine pull request can name the model that opened it', () => {
+  const parsed = okParse(prCreateArgvReplacing('--provenance', REAL_MODEL_PROVENANCE));
+  assert.equal(parsed.opts.provenance, REAL_MODEL_PROVENANCE);
+});
+
+const BACKTICK = String.fromCharCode(96);
+
+const PROVENANCE_INJECTION = Object.freeze([
+  ['a parenthesis, the closing half of a markdown link', 'agent=x model=a(b)'],
+  ['a backtick, the opener of a code span', `agent=x model=a${BACKTICK}b`],
+  ['an angle bracket, the opener of an html tag', 'agent=x model=a<b'],
+  ['a bang, the opener of markdown image syntax', 'agent=x model=a!b'],
+  ['a hash, a forged heading marker', 'agent=x model=a#b'],
+  ['a pipe, a table structure character', 'agent=x model=a|b'],
+  ['a complete inline link', 'agent=delivery-lead model=[click](https://evil.example)'],
+  ['brackets paired with the parentheses a markdown link still needs', 'agent=x model=a[b](c)'],
+  ["a newline forging one of the tool's own headings", `agent=x model=y${LF}## Verification`],
+]);
+
+for (const [label, provenance] of PROVENANCE_INJECTION) {
+  test(`parse REFUSES the provenance ${JSON.stringify(provenance)} carrying ${label}`, () => {
+    const parsed = failParse(prCreateArgvReplacing('--provenance', provenance));
+    assert.match(parsed.error, /--provenance/, `the refusal must name the provenance field it refused, got: ${parsed.error}`);
+  });
+}
+
 const REJECTED_ORIGINS = Object.freeze(['robot', 'Machine', 'HUMAN', 'machine human', '']);
 
 for (const origin of REJECTED_ORIGINS) {
