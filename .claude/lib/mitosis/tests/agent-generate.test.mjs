@@ -50,11 +50,11 @@ function specSource(name, overrides = {}) {
     sections: [{ heading: 'Lane', body: 'You exist to prove the generator writes and compares a body.' }],
     ...overrides,
   };
-  return `export default ${JSON.stringify(spec, null, 2)};\n`;
+  return `${JSON.stringify(spec, null, 2)}\n`;
 }
 
 function writeSpec(dir, name, overrides) {
-  const path = join(dir, `${name}.spec.mjs`);
+  const path = join(dir, `${name}.spec.json`);
   writeFileSync(path, specSource(name, overrides));
   return path;
 }
@@ -176,29 +176,44 @@ test('invalid spec: the run halts naming the offending file instead of skipping 
 
   const result = run(['--check', '--store', specDir, '--agents', agentDir]);
   assert.notEqual(result.code, 0);
-  assert.match(result.output, /zzz-broken-agent\.spec\.mjs/);
+  assert.match(result.output, /zzz-broken-agent\.spec\.json/);
   assert.match(result.output, /sections must be a non-empty array/);
 });
 
-test('invalid spec: a default export that is not a spec halts rather than composing an empty body', (t) => {
+test('invalid spec: a file that does not parse as JSON halts naming the file and the parse failure', (t) => {
   const specDir = store(t);
   const agentDir = agents(t);
-  writeFileSync(join(specDir, 'exportless-agent.spec.mjs'), 'export const notDefault = 1;\n');
+  writeFileSync(join(specDir, 'unparseable-agent.spec.json'), '{ "name": "unparseable-agent",\n');
 
   const result = run(['--check', '--store', specDir, '--agents', agentDir]);
   assert.notEqual(result.code, 0);
-  assert.match(result.output, /exportless-agent\.spec\.mjs/);
-  assert.match(result.output, /default/);
+  assert.match(result.output, /unparseable-agent\.spec\.json/);
+  assert.match(result.output, /does not parse as JSON/);
+  assert.doesNotMatch(result.output, /zero agent specs/);
+});
+
+test('unreadable spec: a spec file that cannot be read halts rather than skipping it', (t) => {
+  const specDir = store(t);
+  const agentDir = agents(t);
+  const path = writeSpec(specDir, 'unreadable-agent');
+  chmodSync(path, 0o000);
+  const result = run(['--check', '--store', specDir, '--agents', agentDir]);
+  chmodSync(path, 0o600);
+
+  assert.notEqual(result.code, 0);
+  assert.match(result.output, /unreadable-agent\.spec\.json/);
+  assert.match(result.output, /could not be read/);
+  assert.doesNotMatch(result.output, /zero agent specs/);
 });
 
 test('invalid spec: a filename that disagrees with the spec name halts rather than guessing', (t) => {
   const specDir = store(t);
   const agentDir = agents(t);
-  writeFileSync(join(specDir, 'filename-agent.spec.mjs'), specSource('other-name-agent'));
+  writeFileSync(join(specDir, 'filename-agent.spec.json'), specSource('other-name-agent'));
 
   const result = run(['--check', '--store', specDir, '--agents', agentDir]);
   assert.notEqual(result.code, 0);
-  assert.match(result.output, /filename-agent\.spec\.mjs/);
+  assert.match(result.output, /filename-agent\.spec\.json/);
   assert.match(result.output, /other-name-agent/);
 });
 
@@ -210,7 +225,7 @@ test('invalid spec: the write run halts before writing any body', (t) => {
 
   const result = run(['--store', specDir, '--agents', agentDir]);
   assert.notEqual(result.code, 0);
-  assert.match(result.output, /zzz-broken-agent\.spec\.mjs/);
+  assert.match(result.output, /zzz-broken-agent\.spec\.json/);
   assert.match(result.output, /at least one tool/);
   assert.deepEqual(readdirSync(agentDir), []);
 });
@@ -237,13 +252,14 @@ test('enumeration inertness: a second spec file is picked up with no code change
   assert.match(checked.output, /2 agent specs/);
 });
 
-test('enumeration inertness: a file that is not a spec module is not enumerated', (t) => {
+test('enumeration inertness: a file that is not a spec file is not enumerated', (t) => {
   const specDir = store(t);
   const agentDir = agents(t);
   writeSpec(specDir, 'only-agent');
   writeFileSync(join(specDir, '.gitkeep'), '');
   writeFileSync(join(specDir, 'README.md'), 'not a spec\n');
   writeFileSync(join(specDir, 'helper.mjs'), 'export const helper = 1;\n');
+  writeFileSync(join(specDir, 'notes.json'), '{}\n');
 
   const result = run(['--check', '--store', specDir, '--agents', agentDir]);
   assert.match(result.output, /1 agent spec/);
@@ -262,7 +278,7 @@ test('every declared fragment renders non-empty and is reachable by key', () => 
 });
 
 test('a spec naming an unknown fragment key is rejected by validateAgentSpec', () => {
-  const spec = JSON.parse(specSource('key-agent').replace(/^export default /, '').replace(/;\n$/, ''));
+  const spec = JSON.parse(specSource('key-agent'));
   assert.doesNotThrow(() => validateAgentSpec(spec));
   assert.throws(
     () => validateAgentSpec({ ...spec, fragments: ['answer-format', 'does-not-exist'] }),
