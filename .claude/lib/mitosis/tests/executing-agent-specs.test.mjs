@@ -1,10 +1,12 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { existsSync, readFileSync, statSync } from 'node:fs';
+import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { partitionByPointerNeed } from '../agent-generate-plan.mjs';
 import { loadAgentSpecs } from '../agent-spec-store.mjs';
-import { resolveSkillPointer } from '../agent-skill-pointers.mjs';
+import { MANIFEST_RELATIVE_PATH, resolveSkillPointer } from '../agent-skill-pointers.mjs';
 
 const SHIPPED_STORE = fileURLToPath(new URL('../agent-specs/', import.meta.url));
 const AGENT_DIR = fileURLToPath(new URL('../../../agents/', import.meta.url));
@@ -41,6 +43,26 @@ function frontmatterTools(name) {
   const declared = lines.slice(1, end).filter((line) => line.startsWith('tools:'));
   assert.equal(declared.length, 1, `${path} carries ${declared.length} frontmatter tools: lines; exactly one grants the agent its tools`);
   return declared[0].slice('tools:'.length).split(',').map((token) => token.trim()).filter((token) => token.length > 0);
+}
+
+function pluginManifest() {
+  const path = join(homedir(), MANIFEST_RELATIVE_PATH);
+  return Object.freeze({ path, present: existsSync(path) });
+}
+
+function scopedByManifest(entries) {
+  const manifest = pluginManifest();
+  const scoped = partitionByPointerNeed(entries, manifest.present);
+  assert.equal(scoped.ok, true, scoped.error);
+  return Object.freeze({ manifest, composable: scoped.composable, deferred: scoped.deferred });
+}
+
+function deferralNotice(manifestPath, deferred) {
+  const named = deferred
+    .map((entry) => `${entry.spec.name} (${entry.spec.procedures.join(', ')})`)
+    .join('; ');
+  const counted = `${deferred.length} ${deferred.length === 1 ? 'agent spec' : 'agent specs'}`;
+  return `POINTER RESOLUTION UNVERIFIED on this host: the plugin manifest ${manifestPath} does not exist, so ${counted} carrying skill pointers went unchecked: ${named}`;
 }
 
 test('every executing agent declares StructuredOutput in its generated tools line', async () => {
@@ -82,8 +104,12 @@ test('every preloaded skill resolves on disk and stays at or under the preload c
   }
 });
 
-test('every body pointer resolves to a procedure file that exists', async () => {
-  for (const entry of await executingSpecs()) {
+test('every body pointer resolves to a procedure file that exists', async (t) => {
+  const scoped = scopedByManifest(await executingSpecs());
+  if (scoped.deferred.length > 0) {
+    t.diagnostic(deferralNotice(scoped.manifest.path, scoped.deferred));
+  }
+  for (const entry of scoped.composable) {
     for (const reference of entry.spec.procedures || []) {
       const pointer = resolveSkillPointer({ reference });
       assert.ok(
@@ -96,6 +122,32 @@ test('every body pointer resolves to a procedure file that exists', async () => 
       );
     }
   }
+});
+
+test('pointer deferral keys on manifest presence alone and never on whether resolution would succeed', async () => {
+  const entries = await executingSpecs();
+  const carrying = entries.filter((entry) => (entry.spec.procedures || []).length > 0).map((entry) => entry.spec.name);
+  const bare = entries.filter((entry) => (entry.spec.procedures || []).length === 0).map((entry) => entry.spec.name);
+  assert.ok(carrying.length > 0, `no executing agent spec carries a procedure, so ${EXECUTING_AGENTS.join(', ')} give the deferral nothing to be substantive about`);
+
+  const onManifestHost = partitionByPointerNeed(entries, true);
+  assert.equal(onManifestHost.ok, true, onManifestHost.error);
+  assert.deepEqual(onManifestHost.deferred.map((entry) => entry.spec.name), [], 'a host carrying a plugin manifest defers nothing, so every pointer stays asserted there');
+  assert.deepEqual(onManifestHost.composable.map((entry) => entry.spec.name), EXECUTING_AGENTS.slice());
+
+  const withoutManifest = partitionByPointerNeed(entries, false);
+  assert.equal(withoutManifest.ok, true, withoutManifest.error);
+  assert.deepEqual(withoutManifest.deferred.map((entry) => entry.spec.name), carrying, 'only a spec that actually carries a pointer is deferred for want of a manifest');
+  assert.deepEqual(withoutManifest.composable.map((entry) => entry.spec.name), bare, 'a spec carrying no pointer is asserted whether or not this host has a plugin manifest');
+
+  const malformed = [Object.freeze({ spec: Object.freeze({ name: 'malformed-pointer-agent', procedures: Object.freeze(['receipts-gates']) }) })];
+  const stillComposable = partitionByPointerNeed(malformed, true);
+  assert.equal(stillComposable.ok, true, stillComposable.error);
+  assert.deepEqual(stillComposable.deferred.map((entry) => entry.spec.name), [], 'a malformed reference is never routed into the deferral, so it still reaches resolution and still fails');
+  assert.throws(
+    () => resolveSkillPointer({ reference: stillComposable.composable[0].spec.procedures[0] }),
+    /not fully qualified as plugin:skill/,
+  );
 });
 
 test('every executing agent carries the shared standards and boundary fragments', async () => {
