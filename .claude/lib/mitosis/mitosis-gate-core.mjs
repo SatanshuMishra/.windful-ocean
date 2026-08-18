@@ -13,6 +13,7 @@ import { EXEC_ALLOWLIST, assertSpawnAllowed, resolveSpawn } from './exec-policy.
 import { MERGE_REFUSAL_SPECIMENS } from './gh-merge-shim.mjs';
 import { REQUIRED_TOOL, agentDefinitionDir, censusAgentSchemaCapability } from './agent-schema-lint.mjs';
 import { CENSUS_NOT_ATTESTED, censusNameIntegrity, censusScope, realCensusIo } from './name-integrity-census.mjs';
+import { censusRetirement, realRetirementIo, retirementScope } from './retirement-census.mjs';
 import { PHASE_TITLES } from './phases.mjs';
 
 export const GATE_CLEAN_EXIT = 0;
@@ -22,7 +23,7 @@ export const GATE_UNRESOLVABLE_EXIT = 42;
 export const GATE_READ_EXIT = 43;
 export const GATE_COMPILE_EXIT = 44;
 
-export const MITOSIS_GATE_VERBS = Object.freeze(['determinism', 'dispatchable-agent-schema-capable', 'exec-allowlist', 'name-integrity', 'phase-parity']);
+export const MITOSIS_GATE_VERBS = Object.freeze(['determinism', 'dispatchable-agent-schema-capable', 'exec-allowlist', 'name-integrity', 'phase-parity', 'retirement-census']);
 
 export const DEFAULT_PHASE_PARITY_TARGET = fileURLToPath(new URL('./phases.mjs', import.meta.url));
 export const DEFAULT_DETERMINISM_TARGET = fileURLToPath(new URL('./', import.meta.url));
@@ -49,7 +50,13 @@ const EXEC_ALLOWLIST_NOT_ATTESTED = Object.freeze([
   'that a gh alias defined before the run is refused: the classifier reads alias definitions, not the alias table already in effect',
 ]);
 
-const TARGETLESS_VERBS = Object.freeze(new Set(['exec-allowlist', 'name-integrity']));
+const TARGETLESS_VERB_REASONS = Object.freeze({
+  'exec-allowlist': 'it probes the spawn policy module it imports and opens no path of its own',
+  'name-integrity': 'it censuses the canonical configuration trees and opens no path of its own',
+  'retirement-census': 'it censuses the canonical configuration trees and opens no path of its own',
+});
+
+const TARGETLESS_VERBS = Object.freeze(new Set(Object.keys(TARGETLESS_VERB_REASONS)));
 
 const VERB_DEFAULT_TARGETS = Object.freeze({
   determinism: DEFAULT_DETERMINISM_TARGET,
@@ -57,6 +64,7 @@ const VERB_DEFAULT_TARGETS = Object.freeze({
   'exec-allowlist': null,
   'name-integrity': null,
   'phase-parity': DEFAULT_PHASE_PARITY_TARGET,
+  'retirement-census': null,
 });
 
 const PHASE_AUTHORITY_BY_TARGET = Object.freeze({ [DEFAULT_PHASE_PARITY_TARGET]: PHASE_TITLES });
@@ -165,7 +173,7 @@ export function parseMitosisGateArgv(argv) {
       return { ok: false, error: `mitosis-gate: unknown flag ${JSON.stringify(rest[k])}; the only flag is --target` };
     }
     if (TARGETLESS_VERBS.has(verb)) {
-      return { ok: false, error: `mitosis-gate: the ${verb} verb takes no --target; it probes the spawn policy module it imports and opens no path of its own` };
+      return { ok: false, error: `mitosis-gate: the ${verb} verb takes no --target; ${TARGETLESS_VERB_REASONS[verb]}` };
     }
     if (target !== null) {
       return { ok: false, error: 'mitosis-gate: --target was supplied more than once; pass it exactly once' };
@@ -423,12 +431,53 @@ function runNameIntegrityGate(_target, out, readSource) {
   return GATE_CLEAN_EXIT;
 }
 
+function retirementReport(result) {
+  return `${JSON.stringify({
+    verb: 'retirement-census',
+    ok: result.ok,
+    perName: result.perName,
+    sites: result.sites.map((site) => `${site.path}:${site.line} ${site.name} | ${site.text}`),
+    counts: {
+      files: result.fileCount,
+      unreadFiles: result.unreadCount,
+      excludedDirectories: result.excludedDirectories.length,
+      sites: result.sites.length,
+      retiring: result.names.length,
+    },
+    perTree: result.perTree,
+    derivation: result.derivation,
+    excludedDirectoryNames: result.excludedDirectoryNames,
+    excludedDirectories: result.excludedDirectories,
+    notAttested: result.notAttested,
+  })}\n`;
+}
+
+export function runRetirementCensusGate(_target, out, readSource, resolveScope = retirementScope, io = null) {
+  const scope = resolveScope();
+  if (!scope.ok) {
+    out.err(`mitosis-gate: retirement-census holds no configuration tree to census: ${scope.error}\n`);
+    return scope.kind === 'read' ? GATE_READ_EXIT : GATE_UNRESOLVABLE_EXIT;
+  }
+  const result = censusRetirement(scope.scope, io === null ? { ...realRetirementIo, readSource } : io);
+  if (!result.ok && result.kind !== undefined) {
+    out.err(`mitosis-gate: retirement-census ${result.kind === 'read' ? 'could not read' : 'halted on'} its census: ${result.error}\n`);
+    return result.kind === 'read' ? GATE_READ_EXIT : GATE_UNRESOLVABLE_EXIT;
+  }
+  out.log(retirementReport(result));
+  if (result.sites.length === 0) return GATE_CLEAN_EXIT;
+  for (const site of result.sites) {
+    out.err(`mitosis-gate: ${site.path}:${site.line} still names retiring agent ${JSON.stringify(site.name)}: ${site.text}\n`);
+  }
+  return GATE_VIOLATION_EXIT;
+}
+
 const VERB_RUNNERS = Object.freeze({
   determinism: runDeterminismGate,
   'dispatchable-agent-schema-capable': runAgentSchemaGate,
   'exec-allowlist': runExecAllowlistGate,
   'name-integrity': runNameIntegrityGate,
   'phase-parity': runPhaseParityGate,
+  'retirement-census': runRetirementCensusGate,
 });
 
 export function runMitosisGate(argv, out, readSource) {
