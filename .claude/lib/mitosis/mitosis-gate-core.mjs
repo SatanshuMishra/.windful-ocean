@@ -40,7 +40,7 @@ const REFUSAL_KIND_RE = /\[([a-z-]+)\]/;
 const EXEC_ALLOWLIST_ATTESTS = Object.freeze([
   'the spawn allowlist is exactly the five binaries the guarantee names',
   'an unlisted binary throws instead of spawning, so the policy is deny-by-default rather than deny-a-blocklist',
-  'every merge argv the guarantee names is refused in-process by its own refusal reason, before any child starts',
+  'every merge argv the guarantee names is refused in-process by its own refusal reason before any child starts, whether an indirect GraphQL body is read and classified as graphql-mutation-indirect or is unreadable and refused fail-closed as graphql-fail-closed',
   'an ordinary gh argv resolves through the merge shim rather than straight to the real gh binary',
 ]);
 

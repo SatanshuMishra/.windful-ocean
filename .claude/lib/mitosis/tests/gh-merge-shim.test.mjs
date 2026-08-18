@@ -1,6 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { classifyGhMerge, resolveRealGh } from '../gh-merge-shim.mjs';
+import { classifyGhMerge, resolveRealGh, MERGE_REFUSAL_SPECIMENS } from '../gh-merge-shim.mjs';
+import { GATE_CLEAN_EXIT, probeExecPolicy, runMitosisGate } from '../mitosis-gate.mjs';
 
 const noIo = Object.freeze({ readFile: () => null, readStdin: () => null });
 
@@ -371,4 +372,46 @@ test('resolveRealGh falls back to a pinned absolute path when PATH holds only th
 test('resolveRealGh returns null when no real gh exists anywhere (runtime then errors, never self-execs)', () => {
   const got = resolveRealGh({ selfPath: '/shim/bin/gh', pathValue: '/shim/bin', fallbacks: [], realpath: (p) => p, isExecutable: (p) => p === '/shim/bin/gh' });
   assert.equal(got, null);
+});
+
+function capture() {
+  const stdout = [];
+  const stderr = [];
+  return {
+    stdout,
+    stderr,
+    out: Object.freeze({ log: (text) => stdout.push(text), err: (text) => stderr.push(text) }),
+  };
+}
+
+test('MERGE_REFUSAL_SPECIMENS carries the stdin-delivered indirect graphql body specimen', () => {
+  const specimen = MERGE_REFUSAL_SPECIMENS.find((entry) => entry.label === 'api graphql body read from stdin');
+  assert.ok(specimen, 'the stdin specimen must exist in MERGE_REFUSAL_SPECIMENS');
+  assert.equal(specimen.kind, 'graphql-mutation-indirect');
+  assert.deepEqual(specimen.argv, ['api', 'graphql', '--input', '-']);
+  assert.match(specimen.io.readStdin(), /mergePullRequest/);
+  assert.equal(specimen.io.readFile(), null);
+});
+
+test('the exec-allowlist probe classifies the stdin-delivered indirect graphql body as graphql-mutation-indirect', () => {
+  const { refusals } = probeExecPolicy();
+  assert.equal(refusals['api graphql body read from stdin'], 'graphql-mutation-indirect');
+});
+
+test('the exec-allowlist probe still classifies the unreadable indirect graphql body as graphql-fail-closed', () => {
+  const { refusals } = probeExecPolicy();
+  assert.equal(refusals['api graphql unreadable body'], 'graphql-fail-closed');
+});
+
+test('the exec-allowlist attestation for indirect merge argv names both the read-and-classified and the unreadable fail-closed path', () => {
+  const { out, stdout, stderr } = capture();
+  const code = runMitosisGate(['exec-allowlist'], out, () => '');
+  assert.equal(code, GATE_CLEAN_EXIT, 'the exec-allowlist verb must exit clean before its stdout is treated as JSON');
+  assert.deepEqual(stderr, []);
+  const verdict = JSON.parse(stdout.join(''));
+  const expectedAttestation = 'every merge argv the guarantee names is refused in-process by its own refusal reason before any child starts, whether an indirect GraphQL body is read and classified as graphql-mutation-indirect or is unreadable and refused fail-closed as graphql-fail-closed';
+  assert.ok(
+    verdict.attests.includes(expectedAttestation),
+    `expected verdict.attests to include ${JSON.stringify(expectedAttestation)}, got ${JSON.stringify(verdict.attests)}`,
+  );
 });
