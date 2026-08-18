@@ -436,6 +436,11 @@
         "ref": "0574-ship-wave-7-without-local-inertness-mutations",
         "title": "Ship wave 7 with the inertness mutations unrun, and G14 did not stand in for them",
         "scope": "c4"
+      },
+      {
+        "ref": "0575-wave-7-inertness-proven-and-exit-42-note-corrected",
+        "title": "Wave 7 inertness is proven by both mutations, and the exit-42 watch note is wrong on the code",
+        "scope": "c4"
       }
     ],
     "out_of_scope": [
@@ -447,5 +452,5 @@
     ]
   },
   "created_at": "2026-08-16T05:43:25.829Z",
-  "updated_at": "2026-08-18T17:31:33.057Z"
+  "updated_at": "2026-08-18T17:44:50.330Z"
 }
