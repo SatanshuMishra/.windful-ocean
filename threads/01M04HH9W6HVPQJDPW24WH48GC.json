@@ -444,6 +444,11 @@
         "ref": "0557-shipped-store-test-becomes-filesystem-derived",
         "title": "The shipped-store test becomes filesystem-derived and byte-identical across all five branches",
         "scope": "c4"
+      },
+      {
+        "ref": "0559-pointer-resolution-partitions-specs-rather-than-scoping-the-check",
+        "title": "Pointer resolution partitions specs per host rather than scoping the whole check away",
+        "scope": "c4"
       }
     ],
     "out_of_scope": [
@@ -452,5 +457,5 @@
     ]
   },
   "created_at": "2026-08-16T05:43:25.829Z",
-  "updated_at": "2026-08-18T02:16:11.207Z"
+  "updated_at": "2026-08-18T02:46:19.127Z"
 }
