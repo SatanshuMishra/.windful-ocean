@@ -382,6 +382,11 @@
         "ref": "0559-pointer-resolution-partitions-specs-rather-than-scoping-the-check",
         "title": "Pointer resolution partitions specs per host rather than scoping the whole check away",
         "scope": "c4"
+      },
+      {
+        "ref": "0560-waves-4-and-5-recovered-as-one-integration-pr",
+        "title": "Waves 4 and 5 recovered as one integration pull request after four merged into a live base",
+        "scope": "c4"
       }
     ],
     "out_of_scope": [
@@ -390,5 +395,5 @@
     ]
   },
   "created_at": "2026-08-16T05:43:25.829Z",
-  "updated_at": "2026-08-18T03:22:42.652Z"
+  "updated_at": "2026-08-18T04:59:39.480Z"
 }
