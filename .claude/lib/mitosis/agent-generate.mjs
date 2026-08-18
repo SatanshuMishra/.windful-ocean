@@ -1,7 +1,10 @@
-import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { homedir } from 'node:os';
+import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { resolveAgentDefinitionDir } from './agent-schema-lint.mjs';
-import { compareGeneratedBodies, planGeneratedBodies } from './agent-generate-plan.mjs';
+import { MANIFEST_RELATIVE_PATH } from './agent-skill-pointers.mjs';
+import { compareGeneratedBodies, partitionByPointerNeed, planGeneratedBodies } from './agent-generate-plan.mjs';
 import { loadAgentSpecs, realResolverIo, resolveAgentSpecDir } from './agent-spec-store.mjs';
 import { halt } from './js-scan.mjs';
 
@@ -65,6 +68,25 @@ function pluralBodies(count) {
   return counted(count, 'generated body', 'generated bodies');
 }
 
+function pluginManifest(compose) {
+  const home = typeof compose.homeDir === 'string' && compose.homeDir.length > 0 ? compose.homeDir : homedir();
+  const exists = (compose.deps && compose.deps.exists) || existsSync;
+  const path = join(home, MANIFEST_RELATIVE_PATH);
+  return Object.freeze({ path, present: exists(path) === true });
+}
+
+function unverifiedNotice(manifestPath, deferred) {
+  const named = deferred
+    .map((entry) => `${entry.spec.name} (${entry.spec.procedures.join(', ')})`)
+    .join('; ');
+  return `POINTER RESOLUTION UNVERIFIED on this host: the plugin manifest ${manifestPath} does not exist, so ${counted(deferred.length, 'agent spec', 'agent specs')} carrying skill pointers could not be composed and went unchecked: ${named}`;
+}
+
+function scopeClause(deferredCount) {
+  if (deferredCount === 0) return '';
+  return ` (${counted(deferredCount, 'spec', 'specs')} unverified for want of a plugin manifest)`;
+}
+
 export async function runAgentGenerate(argv, io = {}) {
   const parsed = parseArguments(argv);
   if (!parsed.ok) return Object.freeze({ code: EXIT_HALTED, lines: Object.freeze([parsed.error]) });
@@ -86,8 +108,16 @@ export async function runAgentGenerate(argv, io = {}) {
     });
   }
 
-  const planned = planGeneratedBodies(loaded.entries, agentsDir.dir, io.compose || {});
-  if (!planned.ok) return Object.freeze({ code: EXIT_HALTED, lines: Object.freeze([planned.error]) });
+  const compose = io.compose || {};
+  const manifest = pluginManifest(compose);
+  const scoped = partitionByPointerNeed(loaded.entries, manifest.present);
+  if (!scoped.ok) return Object.freeze({ code: EXIT_HALTED, lines: Object.freeze([scoped.error]) });
+  const notice = scoped.deferred.length === 0 ? [] : [unverifiedNotice(manifest.path, scoped.deferred)];
+  const scope = scopeClause(scoped.deferred.length);
+  const found = `${mode}: ${pluralSpecs(loaded.entries.length)} found`;
+
+  const planned = planGeneratedBodies(scoped.composable, agentsDir.dir, compose);
+  if (!planned.ok) return Object.freeze({ code: EXIT_HALTED, lines: Object.freeze([...notice, planned.error]) });
 
   if (parsed.check) {
     const compared = compareGeneratedBodies(planned.bodies, io.readBody || readBodyOrNull);
@@ -95,15 +125,19 @@ export async function runAgentGenerate(argv, io = {}) {
       return Object.freeze({
         code: EXIT_DIVERGED,
         lines: Object.freeze([
-          `${mode}: ${pluralSpecs(loaded.entries.length)} found and ${pluralBodies(compared.divergences.length)} diverging from source`,
+          ...notice,
+          `${found} and ${pluralBodies(compared.divergences.length)} diverging from source${scope}`,
           ...compared.divergences.map((item) => `${item.kind}: ${item.path}\n  ${item.detail}`),
           'regenerate with: node .claude/lib/mitosis/agent-generate.mjs',
         ]),
       });
     }
+    const matched = planned.bodies.length === 0
+      ? 'no generated body could be compared'
+      : `all ${pluralBodies(planned.bodies.length)} matching their source under ${agentsDir.dir}`;
     return Object.freeze({
       code: EXIT_OK,
-      lines: Object.freeze([`${mode}: ${pluralSpecs(loaded.entries.length)} found and all ${pluralBodies(planned.bodies.length)} matching their source under ${agentsDir.dir}`]),
+      lines: Object.freeze([...notice, `${found} and ${matched}${scope}`]),
     });
   }
 
@@ -118,15 +152,19 @@ export async function runAgentGenerate(argv, io = {}) {
     } catch (error) {
       return Object.freeze({
         code: EXIT_HALTED,
-        lines: Object.freeze([`${body.path} could not be written from ${body.source}: ${error && error.message ? error.message : String(error)}`]),
+        lines: Object.freeze([...notice, `${body.path} could not be written from ${body.source}: ${error && error.message ? error.message : String(error)}`]),
       });
     }
     written.push(body.path);
   }
+  const produced = written.length === 0
+    ? 'no generated body could be written'
+    : `${pluralBodies(written.length)} written under ${agentsDir.dir}`;
   return Object.freeze({
     code: EXIT_OK,
     lines: Object.freeze([
-      `${mode}: ${pluralSpecs(loaded.entries.length)} found and ${pluralBodies(written.length)} written under ${agentsDir.dir}`,
+      ...notice,
+      `${found} and ${produced}${scope}`,
       ...written.map((path) => `wrote: ${path}`),
     ]),
   });
