@@ -51,7 +51,7 @@
     },
     {
       "id": "c5",
-      "text": "Verified in real use, in a window opening only after U7.1 ships: the observer attributes every run and records an outcome, and the Lead share of dispatches is measured against a pre-pinned threshold.",
+      "text": "Verified in real use after U7.1: the observer attributes every real dispatch, the audit derives a closed outcome census halting on the unclassifiable, and Lead share clears its pinned bar.",
       "done": false,
       "kind": "planned",
       "struck_by": null
@@ -482,5 +482,5 @@
     ]
   },
   "created_at": "2026-08-16T05:43:25.829Z",
-  "updated_at": "2026-08-18T19:58:23.457Z"
+  "updated_at": "2026-08-18T19:58:29.595Z"
 }
