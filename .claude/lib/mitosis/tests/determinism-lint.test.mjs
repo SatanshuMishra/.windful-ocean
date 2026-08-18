@@ -9,6 +9,7 @@ import {
   ENTROPY_MODULES,
   censusDeterminism,
   censusEngineDeterminism,
+  SCANNED_SUBDIRECTORIES,
   engineSourceFiles,
   engineSourceRoots,
   realSourceIo,
@@ -69,14 +70,23 @@ test('the engine-source roots survive relocation of the module into a nested dir
   }
 });
 
+function independentRead(dir) {
+  const entries = readdirSync(dir, { withFileTypes: true });
+  const here = entries
+    .filter((entry) => entry.isFile() && entry.name.endsWith('.mjs'))
+    .map((entry) => join(dir, entry.name))
+    .sort();
+  const nested = entries
+    .filter((entry) => entry.isDirectory() && SCANNED_SUBDIRECTORIES.has(entry.name))
+    .map((entry) => join(dir, entry.name))
+    .sort();
+  return [...here, ...nested.flatMap((child) => independentRead(child))];
+}
+
 test('the enumerated file set equals an independent directory read of the same roots', () => {
   const enumerated = engineSourceFiles(LIB_ROOTS, realSourceIo);
   assert.equal(enumerated.ok, true, enumerated.error);
-  const independent = readdirSync(LIB_DIR, { withFileTypes: true })
-    .filter((entry) => entry.isFile() && entry.name.endsWith('.mjs'))
-    .map((entry) => join(LIB_DIR, entry.name))
-    .sort();
-  assert.deepEqual(enumerated.files, independent);
+  assert.deepEqual(enumerated.files, independentRead(LIB_DIR));
   assert.ok(enumerated.files.length > 30, `expected the whole engine directory, found ${enumerated.files.length}`);
 });
 
@@ -105,6 +115,34 @@ test('the declared excluded subdirectories are not descended', () => {
   ]);
   assert.equal(fixture.ok, true, fixture.error);
   assert.deepEqual(fixture.files, ['/fixture/top.mjs']);
+});
+
+test('a declared scanned subdirectory is descended rather than halted on or skipped', () => {
+  const byPath = {
+    '/fixture': [entry('top.mjs', 'file'), entry('agent-specs', 'dir')],
+    '/fixture/agent-specs': [entry('one.spec.mjs', 'file'), entry('.gitkeep', 'file')],
+  };
+  const enumerated = engineSourceFiles([{ kind: 'directory', path: '/fixture' }], {
+    readDir: (path) => byPath[path],
+    exists: () => true,
+    readSource: () => '',
+  });
+  assert.equal(enumerated.ok, true, enumerated.error);
+  assert.deepEqual(enumerated.files, ['/fixture/top.mjs', '/fixture/agent-specs/one.spec.mjs']);
+});
+
+test('an unclassified subdirectory inside a scanned subdirectory still halts', () => {
+  const byPath = {
+    '/fixture': [entry('top.mjs', 'file'), entry('agent-specs', 'dir')],
+    '/fixture/agent-specs': [entry('nested', 'dir')],
+  };
+  const enumerated = engineSourceFiles([{ kind: 'directory', path: '/fixture' }], {
+    readDir: (path) => byPath[path],
+    exists: () => true,
+    readSource: () => '',
+  });
+  assert.equal(enumerated.ok, false, 'a subdirectory of the spec store is neither scanned nor ruled out');
+  assert.match(enumerated.error, /nested/);
 });
 
 test('an undeclared subdirectory halts rather than narrowing the census that names the whole engine', () => {
