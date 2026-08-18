@@ -170,6 +170,7 @@ const CI_PUBLISH = Object.freeze({
 });
 
 const SHIP = Object.freeze({
+  'compose-head': (v, t) => ['-C', t.text('repoRoot', v.repoRoot), 'branch', '-f', END_OF_OPTIONS, t.ref('integrationBranch', v.integrationBranch), t.ref('builtRef', v.builtRef)],
   'fetch-base': (v, t) => ['-C', t.text('repoRoot', v.repoRoot), 'fetch', ORIGIN, END_OF_OPTIONS, t.ref('baseBranch', v.baseBranch)],
   'base-contained': (v, t) => ['-C', t.text('repoRoot', v.repoRoot), 'merge-base', '--is-ancestor', END_OF_OPTIONS, originOf(t, v), t.ref('integrationBranch', v.integrationBranch)],
   rebase: (v, t) => ['-C', t.text('repoRoot', v.repoRoot), 'rebase', END_OF_OPTIONS, originOf(t, v), t.ref('integrationBranch', v.integrationBranch)],

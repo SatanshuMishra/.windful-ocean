@@ -1,3 +1,5 @@
+import { GIT_COMMAND_BINARY } from './git-commands.mjs';
+
 export const FIXTURE_PARENT_SHA = '4656b8ad';
 
 const REPO = Object.freeze({ field: 'repoRoot', value: '/repo' });
@@ -505,6 +507,27 @@ export const MANIFEST_WRITE_FIXTURE = Object.freeze({
   anchor: 'Create ${repoRoot}/.mitosis/ if it does not already exist, then write the following to ${repoRoot}/.mitosis/published-manifest.json',
   directory: '.mitosis',
   file: 'published-manifest.json',
+});
+
+const SHIP_COMPOSE_HEAD_VALUES = Object.freeze({
+  repoRoot: REPO.value,
+  integrationBranch: INTEGRATION_BRANCH.value,
+  builtRef: BUILT_REF.value,
+});
+
+const SHIP_COMPOSE_HEAD_ARGV = Object.freeze([
+  '-C', REPO.value, 'branch', '-f', '--end-of-options', INTEGRATION_BRANCH.value, BUILT_REF.value,
+]);
+
+export const SHIP_COMPOSE_HEAD_COMMAND = Object.freeze({
+  binary: GIT_COMMAND_BINARY,
+  site: 'ship',
+  step: 'compose-head',
+  field: 'integrationBranch',
+  anchor: '--head ${integrationBranch} --base ${baseBranch} --title',
+  values: SHIP_COMPOSE_HEAD_VALUES,
+  argv: SHIP_COMPOSE_HEAD_ARGV,
+  reason: 'the incumbent demands integrationBranch as the head a pull request is opened against and spells no command that ever creates that branch: the child implementer commits to ${branchPrefix}/${msp.id} and every ship read names ${sourcePrefix}/${msp.id}-integration, so the head is composed here from the recorded built ref rather than transcribed, and the frozen vector is its whole pin',
 });
 
 export const PLAN_PROBE_FIXTURE = Object.freeze({
