@@ -1,5 +1,5 @@
 import { isValidFingerprint } from './remediation.mjs';
-import { checkpointRef } from './checkpoint.mjs';
+import { checkpointRef, validateRefToken } from './checkpoint.mjs';
 import { mspContentHash } from './recovery.mjs';
 
 export const LEGAL_STAGES = Object.freeze(['plan', 'plan-review', 'parallelize', 'branch', 'execute', 'ship']);
@@ -113,8 +113,8 @@ export function selectResumeBuilt(manifest, shippedSet, builtUnits) {
   for (const msp of manifest.msps) {
     if (msp.status !== 'built') continue;
     if (isShippedUnit(shippedSet, msp.id)) continue;
-    let ref = null;
-    if (gate === null || gate.has(msp.id)) {
+    let ref = validateRefToken(msp.checkpointRef) ? msp.checkpointRef : null;
+    if (ref === null && (gate === null || gate.has(msp.id))) {
       try {
         ref = checkpointRef(runId, msp.id);
       } catch (err) {

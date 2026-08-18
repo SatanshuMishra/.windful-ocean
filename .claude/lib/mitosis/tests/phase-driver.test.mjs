@@ -29,11 +29,14 @@ function stubbedPorts(overrides = {}) {
   const dispatched = [];
   const opened = [];
   const journalled = [];
+  const genesis = [];
+  const refs = [];
+  const ran = [];
   const enginePorts = {
-    runUnit: async () => Done({ sha: 'sha-alpha', green: true }),
-    writeGenesis: async () => {},
+    runUnit: async (unit) => { ran.push(unit.id); return Done({ sha: `sha-${unit.id}`, green: true }); },
+    writeGenesis: async (request) => { genesis.push(request); },
     appendJournal: async () => {},
-    writeRef: async () => {},
+    writeRef: async (request) => { refs.push(request); },
     gh: async () => ({ state: 'OPEN' }),
   };
   return {
@@ -43,6 +46,9 @@ function stubbedPorts(overrides = {}) {
     dispatched,
     opened,
     journalled,
+    genesis,
+    refs,
+    ran,
     ports: Object.freeze({
       openRun: () => handle,
       readJournal: () => null,
@@ -144,17 +150,130 @@ test('an integrated unit whose manifest names no change type parks rather than g
   assert.deepEqual(stub.journalled, [], 'nothing shipped, so no ship record claims one did');
 });
 
-test('Integrate gates nothing on a run whose journal names no built unit, and never spawns a gate for one', async () => {
+test('a unit this invocation built reaches Integrate, and parks when the run declares no base branch', async () => {
   const stub = stubbedPorts();
   const driven = await runPhases(runRequest(), stub.ports);
-  assert.deepEqual(driven.phases.Integrate, {
-    integrated: [],
-    parked: [],
-    diverged: [],
-    divergedParents: [],
-    outcomes: [],
+  assert.deepEqual(driven.phases.Resume.built, [], 'the resume view is taken before Execute builds anything, and it is that staleness the advance repairs');
+  assert.deepEqual(driven.phases.Integrate.outcomes.map((entry) => [entry.unitId, entry.state]), [['alpha', 'parked']]);
+  assert.match(driven.phases.Integrate.outcomes[0].diagnosis, /declares no base branch/);
+  assert.deepEqual(stub.gated, [], 'the boundary gate materializes a base worktree, so a run declaring no base branch must not reach it at all');
+});
+
+const FRESH_JOURNAL_WITH_BASE = Object.freeze({
+  logicalRunId: 'r1',
+  baseBranch: 'main',
+  sourcePrefix: 'mitosis',
+  clusters: [],
+  msps: [{ id: 'alpha', status: 'planned', integrationBranch: 'mitosis/alpha-integration' }],
+});
+
+test('a unit built during this invocation is gated against the base the run declares, carrying the ref Execute wrote', async () => {
+  const stub = stubbedPorts({ readJournal: () => FRESH_JOURNAL_WITH_BASE });
+  const driven = await runPhases(runRequest(), stub.ports);
+  assert.deepEqual(driven.phases.Resume.built, [], 'nothing was built when the resume view was taken, so Integrate seeing alpha can only come from the deltas Execute recorded');
+  assert.deepEqual(driven.phases.Integrate.integrated.map((entry) => entry.unitId), ['alpha']);
+  assert.deepEqual(stub.gated, [{
+    repoRoot: '/repo',
+    gateBase: 'main',
+    basePath: '/repo/.mitosis/boundary/r1/alpha',
+  }]);
+  assert.deepEqual(stub.refs.map((write) => write.ref), ['refs/mitosis/0a1b2c3d/alpha']);
+  assert.deepEqual(
+    driven.phases.Integrate.integrated.map((entry) => entry.resumePoint.ref),
+    stub.refs.map((write) => write.ref),
+    'the ref a built unit carries into Integrate names a ref this run actually wrote, never one re-derived from a run id nothing was keyed on',
+  );
+});
+
+test('one invocation rewrites the journal exactly once, so no second Execute truncates the records the first one wrote', async () => {
+  const stub = stubbedPorts({ readJournal: () => FRESH_JOURNAL_WITH_BASE });
+  await runPhases(runRequest(), stub.ports);
+  assert.equal(stub.genesis.length, 1, 'writeGenesis replaces the whole journal, so a second Execute in one invocation would erase the built records the first one appended');
+  assert.deepEqual(stub.ran, ['alpha'], 'one dispatch per outstanding unit; driving the phases to a fixpoint would re-dispatch an already-built unit at full multi-agent cost');
+});
+
+function priorBuildRequest() {
+  const base = runRequest();
+  return {
+    ...base,
+    spec: {
+      manifest: { logicalRunId: 'deadbeef', clusters: [], msps: [{ id: 'alpha' }, { id: 'beta' }] },
+      specs: [
+        { id: 'alpha', fileScope: pack(['alpha.mjs']), request: { prompt: 'do alpha' } },
+        { id: 'beta', fileScope: pack(['beta.mjs']), request: { prompt: 'do beta' } },
+      ],
+    },
+  };
+}
+
+const PRIOR_BUILD_JOURNAL = Object.freeze({
+  logicalRunId: 'deadbeef',
+  baseBranch: 'main',
+  sourcePrefix: 'mitosis',
+  clusters: [],
+  msps: [
+    { id: 'alpha', status: 'planned', integrationBranch: 'mitosis/alpha-integration' },
+    { id: 'beta', status: 'built', integrationBranch: 'mitosis/beta-integration', checkpointRef: 'refs/mitosis/9e8d7c6b/beta' },
+  ],
+});
+
+test('a unit a prior invocation built is not rebuilt and not dropped, and keeps the ref that run recorded', async () => {
+  const stub = stubbedPorts({ readJournal: () => PRIOR_BUILD_JOURNAL });
+  const driven = await runPhases(priorBuildRequest(), stub.ports);
+  assert.deepEqual(stub.ran, ['alpha'], 'the unit a prior invocation already built is settled, so this invocation dispatches only the outstanding one');
+  assert.deepEqual(driven.phases.Integrate.integrated.map((entry) => [entry.unitId, entry.resumePoint.ref]), [
+    ['alpha', 'refs/mitosis/0a1b2c3d/alpha'],
+    ['beta', 'refs/mitosis/9e8d7c6b/beta'],
+  ], 'both the unit this invocation built and the one a prior invocation built reach Integrate, each under the ref its own run wrote');
+  assert.deepEqual(stub.gated.map((request) => [request.gateBase, request.basePath]), [
+    ['main', '/repo/.mitosis/boundary/deadbeef/alpha'],
+    ['refs/mitosis/0a1b2c3d/alpha', '/repo/.mitosis/boundary/deadbeef/beta'],
+  ]);
+});
+
+function shippedParentRequest() {
+  const base = runRequest();
+  return {
+    ...base,
+    spec: {
+      manifest: { logicalRunId: 'r1', clusters: [], msps: [{ id: 'alpha' }, { id: 'beta' }] },
+      specs: [
+        { id: 'alpha', fileScope: pack(['alpha.mjs']), request: { prompt: 'do alpha' } },
+        { id: 'beta', prereqs: ['alpha'], fileScope: pack(['beta.mjs']), request: { prompt: 'do beta' } },
+      ],
+    },
+  };
+}
+
+const SHIPPED_PARENT_JOURNAL = Object.freeze({
+  logicalRunId: 'r1',
+  baseBranch: 'main',
+  sourcePrefix: 'mitosis',
+  clusters: [],
+  msps: [
+    { id: 'alpha', status: 'shipped', integrationBranch: 'mitosis/alpha-integration' },
+    { id: 'beta', status: 'planned', dependsOn: ['alpha'], integrationBranch: 'mitosis/beta-integration' },
+  ],
+});
+
+const MERGED_ALPHA = Object.freeze([{
+  headRefName: 'mitosis/alpha-integration',
+  url: 'https://github.com/acme/widgets/pull/7',
+  mergedAt: '2026-08-01T00:00:00Z',
+}]);
+
+test('the merged set Integrate reads is the one this invocation probed, so the divergence guard stays live over a unit built after it', async () => {
+  const probed = [];
+  const stub = stubbedPorts({
+    readJournal: () => SHIPPED_PARENT_JOURNAL,
+    reconcile: (values) => { probed.push(values); return probed.length === 1 ? MERGED_ALPHA : []; },
   });
-  assert.deepEqual(stub.gated, [], 'the boundary gate materializes a base worktree, so a run with nothing built must not reach it at all');
+  const driven = await runPhases(shippedParentRequest(), stub.ports);
+  assert.equal(probed.length, 1, 'the forge is probed once per invocation; a second probe may answer smaller and would retire the divergence guard with nothing having changed');
+  assert.deepEqual(driven.phases.Resume.shipped, ['alpha']);
+  assert.deepEqual(driven.phases.Integrate.divergedParents, ['alpha'], 'the guard keys on the merged parent of a unit this invocation marked built, so the shipped set and the built status must both survive into Integrate');
+  assert.deepEqual(driven.phases.Integrate.outcomes.map((entry) => [entry.unitId, entry.state]), [['beta', 'diverged']]);
+  assert.deepEqual(stub.gated, [], 'a unit held behind a diverged parent is never gated against a base that no longer describes it');
 });
 
 test('a built unit whose run declares no base branch parks rather than gating against a base nobody wrote', async () => {
@@ -222,21 +341,17 @@ test('a run, a unit and a base branch a digit opens are keyed into the gate exac
   assert.deepEqual(driven.phases.Integrate.parked, []);
 });
 
-const EMPTY_INTEGRATE = Object.freeze({
-  integrated: [],
-  parked: [],
-  diverged: [],
-  divergedParents: [],
-  outcomes: [],
-});
-
 test('a manifest whose declared run identity is empty keys the gate path on the harness run id, which Integrate accepts as a run id', async () => {
   const request = digitLedRequest();
-  const spec = { ...request.spec, manifest: { ...request.spec.manifest, logicalRunId: '' } };
+  const spec = { ...request.spec, manifest: { ...request.spec.manifest, logicalRunId: '', baseBranch: '0main' } };
   const stub = stubbedPorts();
   const driven = await runPhases({ ...request, spec }, stub.ports);
-  assert.deepEqual(driven.phases.Integrate, EMPTY_INTEGRATE);
-  assert.deepEqual(stub.gated, []);
+  assert.deepEqual(stub.gated, [{
+    repoRoot: '/repo',
+    gateBase: '0main',
+    basePath: '/repo/.mitosis/boundary/0a1b2c3d/9delta',
+  }]);
+  assert.deepEqual(driven.phases.Integrate.integrated.map((entry) => entry.unitId), ['9delta']);
 });
 
 test('the boundary-fix prompt carries the isolation the unit declared, not the mode a missing entry would default to', async () => {

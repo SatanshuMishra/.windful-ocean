@@ -94,8 +94,8 @@ test('a real cli.mjs child drives a two-unit fixture to done through the sandbox
       { id: 'beta', state: 'done' },
     ]);
     assert.equal(claudeArgvs(sandbox).length, 2);
-    assert.equal(ghArgvs(sandbox).length, 1);
-    assert.deepEqual(ghArgvs(sandbox)[0], DONE_ORACLE_ARGV);
+    assert.deepEqual(ghArgvs(sandbox)[0], DONE_ORACLE_ARGV, 'the engine probes the done oracle when it reaches quiescence, before Ship walks anything');
+    assert.equal(ghArgvsMatching(sandbox, ['pr', 'create']).length, 2, 'one invocation carries both units from build to an open pull request, so the recorder holds one create per unit');
   });
 });
 
@@ -282,8 +282,14 @@ test('a real two-unit run leaves one durable start record per unit and a committ
   });
 });
 
+const MERGED_ALPHA = Object.freeze([Object.freeze({
+  headRefName: 'mitosis/alpha-integration',
+  url: `https://github.com/${REPO_SLUG}/pull/7`,
+  mergedAt: '2026-01-01T00:00:00Z',
+})]);
+
 test('a second attempt resumes the unit the first left parked and leaves the first attempt intact', () => {
-  withSandbox({}, (sandbox) => {
+  withSandbox({ ghPlan: ghPlanReporting(MERGED_ALPHA) }, (sandbox) => {
     planRun(sandbox, [
       { id: 'alpha', behaviour: CLAUDE_BEHAVIOURS.succeed },
       { id: 'beta', behaviour: CLAUDE_BEHAVIOURS.fail },
@@ -312,7 +318,7 @@ test('a second attempt resumes the unit the first left parked and leaves the fir
     assert.deepEqual(second.summary.units, [{ id: 'beta', state: 'parked' }]);
     assert.equal(second.summary.resume.restarted, false);
     assert.deepEqual(second.summary.resume.pending, ['beta']);
-    assert.deepEqual(second.summary.resume.built, ['alpha']);
+    assert.deepEqual(second.summary.resume.shipped, ['alpha'], 'the first invocation opened the pull request for alpha and the forge reports it merged, so the second invocation owes it no work at all');
 
     const firstDir = attemptDirectory(sandbox, first.summary);
     const secondDir = attemptDirectory(sandbox, second.summary);

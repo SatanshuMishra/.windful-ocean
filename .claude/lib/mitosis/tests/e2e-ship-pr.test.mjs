@@ -74,19 +74,18 @@ function shipRecords(sandbox) {
   return readJournal(sandbox).filter((record) => record !== null && typeof record === 'object' && record.kind === 'ship');
 }
 
-function buildThenShip(sandbox, unitPlans) {
+function buildAndShip(sandbox, unitPlans) {
   planRun(sandbox, unitPlans);
-  const build = runMitosisCli(sandbox);
-  assert.equal(build.status, 0, `the build run must reach a clean exit before Ship has anything to open: ${build.stderr}`);
-  assert.equal(claudeArgvs(sandbox).length, unitPlans.length, 'the build run dispatches exactly one implement child per unit');
   const ship = runMitosisCli(sandbox);
-  assert.equal(ship.summary === null, false, `the ship run printed no summary to read: ${ship.stderr}`);
+  assert.equal(ship.summary === null, false, `the run printed no summary to read: ${ship.stderr}`);
+  assert.equal(claudeArgvs(sandbox).length, unitPlans.length, 'the run dispatches exactly one implement child per unit, and a clean gate composes no boundary fix');
+  assert.deepEqual(ship.summary.resume.built, [], 'nothing was built when this invocation planned, so everything Ship walks was built by the Execute it just ran');
   return ship;
 }
 
 test('Ship opens a pull request for every msp the merge gate clears, and parks the dependent whose prerequisite is not merged', () => {
   withSandbox({ boundaryToolchain: true }, (sandbox) => {
-    const ship = buildThenShip(sandbox, THREE_UNITS);
+    const ship = buildAndShip(sandbox, THREE_UNITS);
 
     assert.deepEqual(ship.summary.integrate.integrated, ['alpha', 'gamma', 'beta'], 'all three units must reach integrated or Ship has nothing to walk');
     const created = ghArgvsMatching(sandbox, PR_CREATE_PREFIX);
@@ -114,7 +113,7 @@ test('Ship opens a pull request for every msp the merge gate clears, and parks t
 
 test('the dependent ships in the same walk once the merged-pull-request probe reports its prerequisite merged', () => {
   withSandbox({ boundaryToolchain: true, ghPlan: { steps: ghPlanSteps({ mergedPullRequests: MERGED_ALPHA }) } }, (sandbox) => {
-    const ship = buildThenShip(sandbox, THREE_UNITS);
+    const ship = buildAndShip(sandbox, THREE_UNITS);
 
     const created = ghArgvsMatching(sandbox, PR_CREATE_PREFIX);
     assert.equal(created.length, 3, 'a merged prerequisite clears the gate, so the dependent joins the two units that never needed it');
@@ -129,7 +128,7 @@ test('the dependent ships in the same walk once the merged-pull-request probe re
 
 test('every opened pull request declares the receipts enforcer unverified, and claims it verified nowhere', () => {
   withSandbox({ boundaryToolchain: true }, (sandbox) => {
-    buildThenShip(sandbox, THREE_UNITS);
+    buildAndShip(sandbox, THREE_UNITS);
 
     const bodies = ghArgvsMatching(sandbox, PR_CREATE_PREFIX).map((argv) => flagValue(argv, '--body'));
     assert.equal(bodies.length, 2);
@@ -143,7 +142,7 @@ test('every opened pull request declares the receipts enforcer unverified, and c
 test('a pull request the centralized tool did not compose parks the msp, and is still recorded once', () => {
   const openPullRequests = [{ url: 'https://github.com/acme/widgets/pull/4', number: 4, body: 'opened by hand, carrying no tool trailer' }];
   withSandbox({ boundaryToolchain: true, ghPlan: { steps: ghPlanSteps({ openPullRequests }) } }, (sandbox) => {
-    const ship = buildThenShip(sandbox, ONE_UNIT);
+    const ship = buildAndShip(sandbox, ONE_UNIT);
 
     assert.deepEqual(ship.summary.integrate.integrated, ['alpha']);
     assert.equal(ghArgvsMatching(sandbox, PR_CREATE_PREFIX).length, 0, 'an open pull request on the head is reused rather than duplicated, so no create call is made');
