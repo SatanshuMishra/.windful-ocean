@@ -358,6 +358,11 @@
         "ref": "0546-u62-acceptance-replaced-and-two-inheriting-units-repaired",
         "title": "U6.2 gets a grammar-free retirement census; U6.1 and U7.1 are repaired with it",
         "scope": "c4"
+      },
+      {
+        "ref": "0547-wave-4-blocked-on-missing-generator-substrate",
+        "title": "Waves 4 and 5 are blocked on a missing generator substrate, shipped as its own unit first",
+        "scope": "c4"
       }
     ],
     "out_of_scope": [
@@ -366,5 +371,5 @@
     ]
   },
   "created_at": "2026-08-16T05:43:25.829Z",
-  "updated_at": "2026-08-18T00:44:05.291Z"
+  "updated_at": "2026-08-18T00:44:17.856Z"
 }
