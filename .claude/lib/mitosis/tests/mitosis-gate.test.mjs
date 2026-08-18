@@ -521,7 +521,8 @@ test('the argv parser accepts every verb and defaults each to its own target', (
   assert.deepEqual(parseMitosisGateArgv(['exec-allowlist']), { ok: true, verb: 'exec-allowlist', target: null });
   assert.deepEqual(parseMitosisGateArgv(['dispatchable-agent-schema-capable']), { ok: true, verb: 'dispatchable-agent-schema-capable', target: DEFAULT_AGENT_TREE_TARGET });
   assert.deepEqual(parseMitosisGateArgv(['name-integrity']), { ok: true, verb: 'name-integrity', target: null });
-  assert.deepEqual([...MITOSIS_GATE_VERBS], ['determinism', 'dispatchable-agent-schema-capable', 'exec-allowlist', 'name-integrity', 'phase-parity']);
+  assert.deepEqual(parseMitosisGateArgv(['retirement-census']), { ok: true, verb: 'retirement-census', target: null });
+  assert.deepEqual([...MITOSIS_GATE_VERBS], ['determinism', 'dispatchable-agent-schema-capable', 'exec-allowlist', 'name-integrity', 'phase-parity', 'retirement-census']);
   assert.notEqual(DEFAULT_DETERMINISM_TARGET, DEFAULT_PHASE_PARITY_TARGET);
 });
 
