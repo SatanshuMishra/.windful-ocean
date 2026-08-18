@@ -486,6 +486,11 @@
         "ref": "0592-sensitivity-test-fired-lead-share-inverts-so-c5-stays-open",
         "title": "The sensitivity test fired: Lead share inverts on agent-id reuse, so c5 stays open",
         "scope": "c5"
+      },
+      {
+        "ref": "0593-refuted-text-is-folded-in-suspected-stale-text-is-filed",
+        "title": "Fold in text a change makes demonstrably false; file text merely suspected stale",
+        "scope": "thread"
       }
     ],
     "out_of_scope": [
@@ -497,5 +502,5 @@
     ]
   },
   "created_at": "2026-08-16T05:43:25.829Z",
-  "updated_at": "2026-08-18T20:50:14.129Z"
+  "updated_at": "2026-08-18T21:26:57.510Z"
 }
