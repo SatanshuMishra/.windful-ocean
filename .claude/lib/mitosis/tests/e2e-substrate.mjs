@@ -29,7 +29,7 @@ export {
 
 export const BOUNDARY_FIX_MARKER = promptSection('gateFailingOutput');
 
-export const CLI_PATH = fileURLToPath(new URL('../cli.mjs', import.meta.url));
+export const CLI_RUNNER_PATH = fileURLToPath(new URL('./e2e-cli-runner.mjs', import.meta.url));
 
 export const DECOMPOSE_EMIT_PATH = fileURLToPath(new URL('../decompose-emit.mjs', import.meta.url));
 
@@ -751,7 +751,7 @@ function parseSummary(stdout) {
 
 export function runMitosisCli(sandbox, overrides = {}) {
   const args = cliArgs(sandbox, overrides);
-  const result = spawnSync(join(sandbox.fakeBin, 'node'), [CLI_PATH, ...args], {
+  const result = spawnSync(join(sandbox.fakeBin, 'node'), [CLI_RUNNER_PATH, ...args], {
     cwd: sandbox.repo,
     encoding: 'utf8',
     env: sandboxEnv(sandbox),

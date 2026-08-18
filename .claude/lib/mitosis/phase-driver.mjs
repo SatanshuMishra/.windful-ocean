@@ -2,6 +2,7 @@ import { driveCiToGreen } from './ci-green-loop.mjs';
 import { runEngine } from './engine.mjs';
 import { integrateBuilt } from './integrate-plan.mjs';
 import { PHASE_TITLES } from './phases.mjs';
+import { advanceResume } from './resume-advance.mjs';
 import { planResume } from './resume-plan.mjs';
 import { computeRunKey } from './run-store.mjs';
 import { shipIntegrated } from './ship-plan.mjs';
@@ -32,13 +33,15 @@ const REQUIRED_PORTS = Object.freeze([
   'dispatchPrompt',
   'openPullRequest',
   'appendJournal',
-  'diffStat',
   'skillPointers',
   'observePlan',
   'ciRead',
   'switchBranch',
   'recordFix',
   'pushFix',
+  'publishHead',
+  'mergedIntoBase',
+  'retireHead',
 ]);
 
 function describe(value) {
@@ -230,17 +233,25 @@ async function executePhase(completed, request, ports) {
   });
 }
 
-async function integratePhase(completed, request, ports) {
-  const title = phase('Integrate');
+function advancedResume(completed) {
   const resumed = requirePreceding(completed, 'Resume');
   const executed = requirePreceding(completed, 'Execute');
+  return advanceResume(resumed, executed.result.recorded);
+}
+
+async function integratePhase(completed, request, ports) {
+  const title = phase('Integrate');
+  const executed = requirePreceding(completed, 'Execute');
+  const resumed = requirePreceding(completed, 'Resume');
+  const advanced = advancedResume(completed);
   return entered(title, await integrateBuilt({
-    built: resumed.built,
-    manifest: resumed.manifest,
-    shipped: resumed.shipped,
+    built: advanced.built,
+    manifest: advanced.manifest,
+    shipped: advanced.shipped,
+    mergedShas: resumed.mergedShas,
     quiescent: executed.result.quiescent === true,
     repoRoot: request.repoRoot,
-    runId: runIdentityOf(resumed.manifest, request.runId),
+    runId: runIdentityOf(advanced.manifest, request.runId),
     isolationById: isolationById(request.spec),
   }, {
     boundaryGate: (gate) => ports.boundaryGate(gate),
@@ -250,11 +261,11 @@ async function integratePhase(completed, request, ports) {
 
 async function shipPhase(completed, request, ports) {
   const title = phase('Ship');
-  const resumed = requirePreceding(completed, 'Resume');
+  const advanced = advancedResume(completed);
   const integrated = requirePreceding(completed, 'Integrate');
   return entered(title, await shipIntegrated({
     integrated: integrated.integrated,
-    manifest: resumed.manifest,
+    manifest: advanced.manifest,
     repoRoot: request.repoRoot,
     repoSlug: request.repoSlug,
     journalPath: request.journalPath,
@@ -262,7 +273,9 @@ async function shipPhase(completed, request, ports) {
   }, {
     openPullRequest: (spawned) => ports.openPullRequest(spawned),
     appendJournal: (write) => ports.appendJournal(write),
-    diffStat: (probe) => ports.diffStat(probe),
+    publishHead: (request) => ports.publishHead(request),
+    mergedIntoBase: (probe) => ports.mergedIntoBase(probe),
+    retireHead: (request) => ports.retireHead(request),
     reconcile: (values) => ports.reconcile(values),
     watchCi: (watch) => driveCiToGreen(watch, {
       ciRead: (read) => ports.ciRead(read),

@@ -3,7 +3,9 @@ import { isAbsolute, join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { evaluate } from './boundary-gate.mjs';
 import { Done, NeedsHuman } from './boundary.mjs';
+import { validateRefToken } from './checkpoint.mjs';
 import { dispatch, normalizeEnvelope } from './dispatch.mjs';
+import { SHA_HEX_PATTERN } from './divergence.mjs';
 import { POST_DISPATCH_RECORD_FAILED } from './engine.mjs';
 import { run } from './exec-run.mjs';
 import { foldFile } from './fold-run-log.mjs';
@@ -17,7 +19,9 @@ import { observePlanArtifact } from './plan-artifact.mjs';
 import { resumeSummary } from './resume-plan.mjs';
 import { execAllowed, openRun } from './run-store.mjs';
 import { shipSummary } from './ship-plan.mjs';
+import { publishShipHead } from './ship-publish.mjs';
 import { resolveAll } from './superpowers-prompts.mjs';
+import { parseLsRemote } from './transcription-parsers.mjs';
 import { readJudgment, runJudgment } from './unit-judgment.mjs';
 import { planningSummary } from './unit-planning.mjs';
 import { IMPLEMENT_STAGE, planRemediatedAttempt } from './unit-remediation.mjs';
@@ -26,6 +30,10 @@ const MODULE = 'mitosis-cli';
 const GIT_BINARY = 'git';
 const NODE_BINARY = 'node';
 const GH_DEADLINE_MS = 120000;
+const SHIP_SITE = 'ship';
+const DONE_ORACLE_STEP = 'done-oracle';
+const REMOTE_NAME = 'origin';
+const NO_PULL_REQUEST_FOUND = /no pull requests? found/i;
 const EXIT_CLEAN = 0;
 const EXIT_ERROR = 1;
 const EXIT_USAGE = 2;
@@ -254,20 +262,160 @@ function reconcilePort(io, runFn, repoRoot) {
   );
 }
 
-function diffStatPort(runFn) {
-  return (request) => runFn(
-    GIT_BINARY,
-    ['diff', '--shortstat', `${request.base}...${request.head}`],
-    { cwd: request.repoRoot, deadlineMs: GH_DEADLINE_MS },
-  );
+function ranCleanly(result) {
+  return result !== null && typeof result === 'object' && !Array.isArray(result) && result.status === 0;
 }
 
-const CI_SITE = 'ship';
+function prStatePort(runFn, repoRoot) {
+  return (probe) => {
+    const read = runFn(
+      GH_COMMAND_BINARY,
+      buildGhCommand(SHIP_SITE, DONE_ORACLE_STEP, { repoSlug: probe.repoSlug, integrationBranch: probe.integrationBranch }),
+      { cwd: repoRoot, deadlineMs: GH_DEADLINE_MS },
+    );
+    return absentPullRequest(read) ? { absent: true } : read;
+  };
+}
+
+function absentPullRequest(read) {
+  if (read === null || typeof read !== 'object' || Array.isArray(read)) return false;
+  if (read.status === 0) return false;
+  const spoken = `${typeof read.stderr === 'string' ? read.stderr : ''}${typeof read.stdout === 'string' ? read.stdout : ''}`;
+  return NO_PULL_REQUEST_FOUND.test(spoken);
+}
+
+function publishHeadPort(runFn, repoRoot) {
+  return (request) => publishShipHead(request, { prState: prStatePort(runFn, repoRoot) });
+}
+
+function refused(reason) {
+  return Object.freeze({ contained: false, reason });
+}
+
+function containmentFailure(repoRoot, baseBranch, sha) {
+  if (typeof repoRoot !== 'string' || repoRoot.length === 0) {
+    return 'the containment probe was handed no repository root, so no tree names the history this question would be asked of';
+  }
+  if (!validateRefToken(baseBranch)) {
+    return `the containment probe was handed ${JSON.stringify(baseBranch)} as the base branch, which is not a well-formed ref token`;
+  }
+  if (typeof sha !== 'string' || !SHA_HEX_PATTERN.test(sha)) {
+    return `the containment probe was handed ${JSON.stringify(sha)} rather than an object name; a ref token stands for whatever it currently points at, so an ancestry probe on one can compare the trunk with itself and exit zero without ever asking whether this commit landed`;
+  }
+  return null;
+}
+
+function containedInBase(runFn, repoRoot, baseBranch, sha) {
+  const failure = containmentFailure(repoRoot, baseBranch, sha);
+  if (failure !== null) return refused(failure);
+  let contained;
+  try {
+    const fetched = runFn(
+      GIT_BINARY,
+      buildGitCommand(SHIP_SITE, 'fetch-base', { repoRoot, baseBranch }),
+      { cwd: repoRoot, deadlineMs: GH_DEADLINE_MS },
+    );
+    if (!ranCleanly(fetched)) {
+      return refused(`the base ${baseBranch} could not be refreshed from ${REMOTE_NAME}, so whether it contains ${sha} is unknown: ${spokenFailure(fetched)}`);
+    }
+    contained = runFn(
+      GIT_BINARY,
+      buildGitCommand('ci-publish-verify', 'append-only', {
+        repoRoot,
+        fromSha: sha,
+        integrationBranch: `${REMOTE_NAME}/${baseBranch}`,
+      }),
+      { cwd: repoRoot, deadlineMs: GH_DEADLINE_MS },
+    );
+  } catch (error) {
+    return refused(`the containment probe stopped rather than answering whether ${REMOTE_NAME}/${baseBranch} contains ${sha}: ${messageOf(error)}`);
+  }
+  return ranCleanly(contained)
+    ? Object.freeze({ contained: true, reason: null })
+    : refused(`${REMOTE_NAME}/${baseBranch} does not contain ${sha}`);
+}
+
+function spokenFailure(result) {
+  if (result === null || typeof result !== 'object' || Array.isArray(result)) return `the step returned ${result === null ? 'null' : typeof result}`;
+  const spoken = `${typeof result.stderr === 'string' ? result.stderr : ''}${typeof result.stdout === 'string' ? result.stdout : ''}`.trim();
+  return spoken.length > 0 ? spoken.split('\n')[0] : `the step exited ${JSON.stringify(result.status)} without speaking`;
+}
+
+export function mergedIntoBasePort(runFn) {
+  return (probe) => {
+    if (probe === null || typeof probe !== 'object' || Array.isArray(probe)) return false;
+    return containedInBase(runFn, probe.repoRoot, probe.baseBranch, probe.sha).contained === true;
+  };
+}
+
+function retirement(deleted, tip, reason) {
+  return Object.freeze({ deleted, tip, reason });
+}
+
+function retireRequestFailure(request) {
+  if (request === null || typeof request !== 'object' || Array.isArray(request)) {
+    return `the retire request is ${request === null ? 'null' : typeof request} rather than an object naming the repository root, the branch to delete and the trunk it must already be contained in`;
+  }
+  if (typeof request.repoRoot !== 'string' || request.repoRoot.length === 0) {
+    return 'the retire request carries no repository root, so no tree names the remote a delete would reach';
+  }
+  if (!validateRefToken(request.branch)) {
+    return `the retire request names ${JSON.stringify(request.branch)} as the branch to delete, which is not a well-formed ref token`;
+  }
+  if (!validateRefToken(request.baseBranch)) {
+    return `the retire request names ${JSON.stringify(request.baseBranch)} as the trunk, and with no trunk to measure against nothing says the branch content survives the delete`;
+  }
+  return null;
+}
+
+function remoteTipOf(runFn, request) {
+  try {
+    return parseLsRemote(runFn(
+      GIT_BINARY,
+      buildGitCommand(SHIP_SITE, 'read-remote', { repoRoot: request.repoRoot, integrationBranch: request.branch }),
+      { cwd: request.repoRoot, deadlineMs: GH_DEADLINE_MS },
+    ));
+  } catch (error) {
+    return Object.freeze({ ok: false, error: messageOf(error) });
+  }
+}
+
+export function retireHeadPort(runFn) {
+  return (request) => {
+    const failure = retireRequestFailure(request);
+    if (failure !== null) return retirement(false, null, failure);
+    const read = remoteTipOf(runFn, request);
+    if (read.ok !== true) {
+      return retirement(false, null, `the remote head of ${request.branch} could not be read, and no branch is deleted on an unknown: ${read.error}`);
+    }
+    if (read.present !== true) {
+      return retirement(false, null, `${REMOTE_NAME} carries no head at ${request.branch}, so there is nothing to retire`);
+    }
+    const measured = containedInBase(runFn, request.repoRoot, request.baseBranch, read.sha);
+    if (measured.contained !== true) {
+      return retirement(false, read.sha, `${request.branch} stands at ${read.sha} on ${REMOTE_NAME}, which is not content the trunk provably carries, so deleting it would destroy work no other branch holds: ${measured.reason}`);
+    }
+    let deleted;
+    try {
+      deleted = runFn(
+        GIT_BINARY,
+        buildGitCommand(SHIP_SITE, 'retire-head', { repoRoot: request.repoRoot, integrationBranch: request.branch }),
+        { cwd: request.repoRoot, deadlineMs: GH_DEADLINE_MS },
+      );
+    } catch (error) {
+      return retirement(false, read.sha, `the delete of ${request.branch} stopped rather than completing: ${messageOf(error)}`);
+    }
+    return ranCleanly(deleted)
+      ? retirement(true, read.sha, null)
+      : retirement(false, read.sha, `${REMOTE_NAME} refused the delete of ${request.branch}: ${spokenFailure(deleted)}`);
+  };
+}
+
 const CI_GIT_SITE = 'ci-publish';
 const CI_FIX_IDENTITY = Object.freeze(['-c', 'user.name=mitosis', '-c', 'user.email=mitosis@localhost']);
 
 function ciReadArgv(read) {
-  if (read.step !== READ_JOBS_STEP) return buildGhCommand(CI_SITE, read.step, read.values);
+  if (read.step !== READ_JOBS_STEP) return buildGhCommand(SHIP_SITE, read.step, read.values);
   return ['run', 'view', read.values.runId, '-R', read.values.repoSlug, '--json', 'jobs'];
 }
 
@@ -328,7 +476,9 @@ function driverPorts(io, makePorts, deps, repoRoot) {
     dispatchPrompt: (request) => dispatchFn(request),
     openPullRequest: (request) => runFn(NODE_BINARY, request.argv, { cwd: request.cwd, deadlineMs: GH_DEADLINE_MS }),
     appendJournal: (request) => appendJournalFn(request),
-    diffStat: diffStatPort(runFn),
+    publishHead: publishHeadPort(runFn, repoRoot),
+    mergedIntoBase: mergedIntoBasePort(runFn),
+    retireHead: retireHeadPort(runFn),
     ciRead: ciReadPort(runFn, repoRoot),
     switchBranch: gitCiPort(runFn, 'switch-branch'),
     recordFix: recordFixPort(runFn),
@@ -342,6 +492,27 @@ function driverPorts(io, makePorts, deps, repoRoot) {
     ]),
     makePorts: (config) => makePorts(config),
   });
+}
+
+const SHIP_HANDOFF_STATUSES = Object.freeze(['all-shipped', 'awaiting-approval']);
+const SHIP_NOTHING_PENDING_STATUS = 'partial';
+
+function nothingWasPending(driven) {
+  return driven.phases.Integrate.outcomes.length === 0 && driven.phases.Ship.outcomes.length === 0;
+}
+
+function shipExitCode(driven) {
+  const status = driven.phases.Ship.status;
+  if (SHIP_HANDOFF_STATUSES.includes(status)) return EXIT_CLEAN;
+  if (status === SHIP_NOTHING_PENDING_STATUS && nothingWasPending(driven)) return EXIT_CLEAN;
+  return EXIT_INCOMPLETE;
+}
+
+export function exitCodeOf(driven) {
+  const result = driven.phases.Execute.result;
+  if (!result.quiescent) return EXIT_INCOMPLETE;
+  if (!result.units.every((unit) => unit.state === 'done')) return EXIT_INCOMPLETE;
+  return shipExitCode(driven);
 }
 
 function summaryOf(driven) {
@@ -371,10 +542,8 @@ export async function runCli(argv, io, makePorts, deps = {}) {
   try {
     const spec = documentOf(io.readSpec(parsed.value.spec));
     const driven = await runPhases(driverRequest(parsed.value, spec), driverPorts(io, makePorts, deps, parsed.value.repoRoot));
-    const result = driven.phases.Execute.result;
     io.log(`${JSON.stringify(summaryOf(driven), null, 2)}\n`);
-    if (!result.quiescent) return EXIT_INCOMPLETE;
-    return result.units.every((unit) => unit.state === 'done') ? EXIT_CLEAN : EXIT_INCOMPLETE;
+    return exitCodeOf(driven);
   } catch (error) {
     io.err(`${MODULE}: ${messageOf(error)}\n`);
     return EXIT_ERROR;
@@ -531,7 +700,7 @@ export function realPorts(config, deps = {}) {
         const judged = await runJudgment(judgment, dispatchOne, request);
         if (!judged.ok) return judgmentPark(judged, envelope);
       }
-      return Done({ sha: shaOfVerdict(verdict), green: true, envelope });
+      return Done({ sha: shaOfVerdict(verdict), envelope });
     },
     writeGenesis: (request) => writeGenesisFn(request),
     appendJournal: (request) => appendJournalFn(request),
