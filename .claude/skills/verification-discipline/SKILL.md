@@ -10,8 +10,8 @@ Evidence before claims, sized to the change.
 ## Rule
 
 - Trivial change → typecheck + scoped lint on touched files (1–2s).
-- Domain-bounded change → invoke `verification-strategist` subagent → run `/verify-<project> <scope>`.
-- Cross-cutting change → invoke `verification-strategist` → likely returns `scope=full` → run full pipeline.
+- Domain-bounded change → invoke `verifier` subagent → run `/verify-<project> <scope>`.
+- Cross-cutting change → invoke `verifier` → likely returns `scope=full` → run full pipeline.
 - Pre-push (explicit) → run full pipeline.
 
 ## Implementation
@@ -20,8 +20,8 @@ When invoked:
 
 1. Check if the project has a `/verify-<name>` command (look for `<project>/.claude/commands/verify-*.md`).
 2. If yes:
-   - Spawn `verification-strategist` subagent (Sonnet) with the touched-files list (from session memory or `git diff --name-only`).
-   - Strategist returns `{"scope": "<value>"}`.
+   - Spawn `verifier` subagent (Sonnet) with the touched-files list (from session memory or `git diff --name-only`).
+   - It returns `{"scope": "<value>"}`.
    - Run `/verify-<project> <scope>`.
 3. If no:
    - Run `npx tsc --noEmit --incremental` and `npx eslint <changed-files>` directly.

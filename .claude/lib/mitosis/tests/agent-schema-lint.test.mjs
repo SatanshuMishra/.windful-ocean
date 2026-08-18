@@ -124,8 +124,8 @@ test('the derived dispatchable set over the real trees is exactly the agents the
   assert.equal(tree.ok, true, tree.error);
   assert.deepEqual(dispatchableAgents(tree.definitions, engine.literals), [
     'code-reviewer',
-    'codebase-analyst',
     'implementer',
+    'investigator',
     'security-reviewer',
     'test-engineer',
   ], 'the census root is the lib engine source alone; debugger and solution-architect were named only by the legacy workflow file, which is no longer a root');

@@ -38,7 +38,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        verb: [exec-allowlist, determinism, dispatchable-agent-schema-capable, name-integrity, phase-parity]
+        verb: [exec-allowlist, determinism, dispatchable-agent-schema-capable, name-integrity, phase-parity, retirement-census]
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
         with:

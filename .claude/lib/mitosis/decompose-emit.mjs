@@ -13,7 +13,7 @@ import { createSpecReader, readSpecContentHash } from './spec-hash.mjs';
 import { resolveAll } from './superpowers-prompts.mjs';
 
 const MODULE = 'decompose-emit';
-const DECOMPOSER_AGENT = 'codebase-analyst';
+const DECOMPOSER_AGENT = 'investigator';
 const DEFAULT_DECOMPOSER_MODEL = 'opus';
 const IDENTIFIER_MAX_CHARS = 64;
 const WORKTREE_ISOLATION = 'worktree';

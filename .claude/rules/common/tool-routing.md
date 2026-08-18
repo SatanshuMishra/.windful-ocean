@@ -27,9 +27,9 @@ The graph reflects the last build. The Stop-hook refresh shrinks the gap to one 
 
 ## Lookup vs evaluation
 
-"Lookup" (orientation / locate / verify) is exactly this routing, followed by every tool-equipped agent — there is no separate lookup agent. For broad or expensive read-only sweeps, dispatch `codebase-analyst`: it is the primary locator and relational mapper. The built-in `Explore` is a last-resort fan-out only, after `codebase-analyst`. Evaluative agents (`code-reviewer`, `security-reviewer`, `debugger`) and the fact-check skill CONSUME lookup; they are not lookup agents.
+"Lookup" (orientation / locate / verify) is exactly this routing, followed by every tool-equipped agent — there is no separate lookup agent. For broad or expensive read-only sweeps, dispatch `investigator`: it is the primary locator and relational mapper. The built-in `Explore` is a last-resort fan-out only, after `investigator`. Evaluative agents (`code-reviewer`, `security-reviewer`) and the fact-check skill CONSUME lookup; they are not lookup agents.
 
-For research tasks — external best-practices/standards/tech-stack research, or investigating a bug/system to understand and synthesize before acting — dispatch the `researcher` agent (see research.md). `codebase-analyst` remains the primary locator and relational mapper for code; `researcher` consumes that locating and adds web research, objectivity, and synthesis. `general-purpose` and `Explore` stay last-resort.
+For research tasks — external best-practices/standards/tech-stack research, or investigating a bug/system to understand and synthesize before acting — dispatch the `researcher` agent (see research.md). `investigator` remains the primary locator and relational mapper for code; `researcher` consumes that locating and adds web research, objectivity, and synthesis. `general-purpose` and `Explore` stay last-resort.
 
 ## Setup
 

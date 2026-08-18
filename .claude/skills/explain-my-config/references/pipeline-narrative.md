@@ -18,14 +18,14 @@ gap — never assert a piece that no longer exists.
 3. **Plan** — skill: writing-plans. Turns the spec into bite-sized tasks.
 4. **Dispatch** — skills: subagent-driven-development / dispatching-parallel-agents. Rule:
    delegation-discipline (main thread orchestrates; subagents implement).
-5. **Implement** — agent: implementer (or mechanical-editor for rote edits; test-engineer for
+5. **Implement** — agent: implementer (covers rote edits too; test-engineer for
    tests). Rule: testing.md admission gate + scoped TDD; no-comments; coding-style (immutability).
    Hooks (PreToolUse on Edit/Write): block-env-edits, secret-scanner, protect-claude-config.
    Hooks (PostToolUse on Edit/Write): lint-on-edit, ui-ux-audit-on-edit.
 6. **Review** — agents: code-reviewer, plus security-reviewer on security-relevant diffs. Rule:
    address CRITICAL/HIGH before proceeding.
 7. **Verify** — skill: verification-before-completion; project `/verify-<project>` scoped by
-   verification-strategist. Hook (PreToolUse on Bash at commit): pre-commit-scoped-verify.
+   verifier. Hook (PreToolUse on Bash at commit): pre-commit-scoped-verify.
 8. **Commit** — plugin: commit-commands; rules: git/commits (Conventional Commits, atomic),
    git/branching (never commit to default branch). Hook (Bash): block-destructive-bash guards
    dangerous git.

@@ -533,7 +533,7 @@ test('the schema verb exits clean over the real agent tree and names the derived
   assert.equal(code, GATE_CLEAN_EXIT);
   const verdict = JSON.parse(stdout.join(''));
   assert.deepEqual(verdict.dispatchable, [
-    'code-reviewer', 'codebase-analyst', 'implementer', 'security-reviewer', 'test-engineer',
+    'code-reviewer', 'implementer', 'investigator', 'security-reviewer', 'test-engineer',
   ], 'the census root is the lib engine source alone; debugger and solution-architect were named only by the legacy workflow file, which is no longer a root');
 });
 
