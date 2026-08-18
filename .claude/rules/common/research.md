@@ -4,12 +4,12 @@ Research is the context on which critical decisions are made; a complete, object
 
 ## Delegate it
 
-- Per delegation-discipline, the main thread never researches inline. Dispatch the `researcher` agent (the primary research worker). `general-purpose` and `Explore` are last resort only.
-- Scale the number of researchers to question complexity (token budget ladder):
-  - Simple fact-find: 1 researcher, ~3-10 tool calls.
-  - Direct comparison: 2-4 researchers, ~10-15 calls each.
+- Per delegation-discipline, the main thread never researches inline. It dispatches ONE `researcher` agent — the primary research worker, and a Lead that holds the dispatch tool. For the main thread `general-purpose` and `Explore` remain last resort only; inside a researcher run they are its intended read-only fan-out workers.
+- The researcher scales its own fan-out to question complexity, inside that one dispatch (token budget ladder):
+  - Simple fact-find: no fan-out, ~3-10 tool calls.
+  - Direct comparison: 2-4 workers, ~10-15 calls each.
   - Complex / breadth-first: bounded parallel fan-out, HARD-CAPPED (e.g. <=6), and only when the question splits into genuinely independent directions.
-- Fan out only for breadth-first independent directions; a single focused researcher is the default. Multi-agent research costs ~15x the tokens of a single pass — it must clear that bar.
+- Fan out only for breadth-first independent directions; a single focused pass is the default. Multi-agent research costs ~15x the tokens of a single pass — it must clear that bar. The split decision belongs to the researcher because it is produced by the plan step and does not exist before it.
 - NEVER invoke the bundled `deep-research` workflow (it is unbounded, ~97 agents, no cost gate; it caused a 3M-token incident). It is also blocked by a PreToolUse hook. Use the `researcher` agent instead.
 
 ## The loop
