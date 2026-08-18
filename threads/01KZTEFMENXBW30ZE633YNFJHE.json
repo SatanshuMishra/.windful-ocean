@@ -1106,6 +1106,11 @@
         "ref": "0583-disposition-contract-settled-and-m12b-splits-three-ways",
         "title": "The disposition contract throws at construction, and the deletion unit splits three ways",
         "scope": "c28"
+      },
+      {
+        "ref": "0585-status-rename-goes-phased-and-four-more-file-lists-were-wrong",
+        "title": "The status rename goes expand-migrate-contract, and the file lists were drawn from writers not readers",
+        "scope": "c28"
       }
     ],
     "out_of_scope": [
@@ -1117,5 +1122,5 @@
     ]
   },
   "created_at": "2026-08-12T07:37:41.077Z",
-  "updated_at": "2026-08-18T19:20:44.321Z"
+  "updated_at": "2026-08-18T19:28:23.022Z"
 }
