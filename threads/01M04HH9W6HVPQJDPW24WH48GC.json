@@ -353,6 +353,11 @@
         "ref": "0544-nine-shell-tests-have-no-runner-and-will-block-the-enforcer",
         "title": "Nine shell tests have no runner at all, and the enforcer will select and die on them the moment source changes alongside",
         "scope": "c5"
+      },
+      {
+        "ref": "0546-u62-acceptance-replaced-and-two-inheriting-units-repaired",
+        "title": "U6.2 gets a grammar-free retirement census; U6.1 and U7.1 are repaired with it",
+        "scope": "c4"
       }
     ],
     "out_of_scope": [
@@ -361,5 +366,5 @@
     ]
   },
   "created_at": "2026-08-16T05:43:25.829Z",
-  "updated_at": "2026-08-17T23:57:30.725Z"
+  "updated_at": "2026-08-18T00:44:05.291Z"
 }
