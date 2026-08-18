@@ -497,6 +497,11 @@
         "ref": "0600-lead-share-fails-its-pinned-bar-at-dispatch-grain",
         "title": "Lead share fails its pinned 50 percent bar: 38.24 percent ceiling at n of 421 dispatch groups",
         "scope": "c5"
+      },
+      {
+        "ref": "0601-decision-0592-window-is-not-reconstructable",
+        "title": "Decision 0592's window cannot be reconstructed after 6bcce4f4, so only same-predicate comparisons hold",
+        "scope": "c5"
       }
     ],
     "out_of_scope": [
@@ -506,5 +511,5 @@
     ]
   },
   "created_at": "2026-08-16T05:43:25.829Z",
-  "updated_at": "2026-08-18T23:15:03.949Z"
+  "updated_at": "2026-08-18T23:15:12.211Z"
 }
