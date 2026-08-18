@@ -63,55 +63,62 @@
   "abandoned_reason": null,
   "closure_statement": null,
   "spine": {
-    "active_goal": "Land waves 4 and 5 through the human merge round, then execute waves 6 and 7: repoint every reference and delete the nine retired agents.",
-    "next_step": "START HERE. PRs 204-208 report MERGED but only 204 reached main; the four children merged into the live base branch. Recovery is PR 210 (substrate -> main) carrying all four units plus the two pointer fixes 205/206 merged without. Merge 210, ASSERT with git merge-base --is-ancestor a92ec533 origin/main, delete all five branches, then pull the primary checkout - that pull is what makes the roster live. Then U6.1, U6.2, U7.1, then c5. Runbook: artifacts/2026-08-18-waves-4-5-merge-runbook.md.",
-    "last_session": "Applied decision 0551, opened and landed waves 4 and 5 as PRs 205-208, then recovered them as PR 210 after all four merged into a live base branch and never reached main.",
+    "active_goal": "Execute waves 6 and 7: repoint every reference to a retiring agent, delete the nine, then measure the new configuration in real use.",
+    "next_step": "START HERE, FRESH SESSION. Waves 4 and 5 are LIVE on main at c8c4cad0 and verified. Dispatch wave 6 then wave 7, in order, per user instruction. U6.1: repoint DECOMPOSER_AGENT at decompose-emit.mjs:16 to investigator, update agent-schema-lint.test.mjs's derived set. U6.2 (after U6.1): repoint the 17 sites, wire retirement-census into the CI matrix, flip four assertions in retirement-census.test.mjs. U7.1 (after U6.2): delete the nine. Only then c5.",
+    "last_session": "Waves 4 and 5 landed and were verified live on main. The stacked-merge trap fired and was recovered as PR 210. c5 was rewritten to make its routing clause measurable rather than extended with new scope.",
     "open_risks": [
       {
-        "text": "Assert content with git merge-base --is-ancestor after merging PR 210 — a MERGED status is not evidence, and that is exactly how four pull requests reported success while reaching nothing",
+        "text": "Run the retirement census from the PRIMARY checkout, never a worktree — it resolves through git commondir and censuses the primary checkout while appearing to measure your branch",
         "scope": "c4",
         "refs": [
           "decision 0560"
         ]
       },
       {
-        "text": "Do not delete feat/u41-executing-agents or feat/u42-leads until PR 210 is confirmed on main — they were the only place the pointer fixes f4699710 and a0d112bd existed before 210 merged them in",
+        "text": "Wave 6 must flip FOUR assertions in retirement-census.test.mjs, not the one the earlier risk named — :245 dereferences result.sites[0].path and THROWS once U6.2 empties the site list",
         "scope": "c4",
-        "refs": [
-          "decision 0560"
-        ]
-      },
-      {
-        "text": "Pull the primary checkout after PR 210 lands — ~/.claude agents, rules, skills, lib and CLAUDE.md are symlinks into its working tree, so nothing is live for any session until then",
-        "scope": "c4",
-        "refs": [
-          "memory: merged-config-is-not-in-force-until-pull"
-        ]
-      },
-      {
-        "text": "Run the retirement census from the PRIMARY checkout, never a worktree — it resolves through git commondir and will census the primary checkout while appearing to measure your branch, the same hazard that makes three gate verbs worktree-blind",
-        "scope": "c5",
-        "refs": [
-          "decision 0560"
-        ]
-      },
-      {
-        "text": "Wave 6 must flip FOUR assertions in retirement-census.test.mjs, not the one the earlier risk named — :245 dereferences result.sites[0].path and THROWS rather than going stale once the site list is empty",
-        "scope": "c5",
         "refs": [
           "retirement-census.test.mjs:244,245,250,251"
         ]
       },
       {
-        "text": "Four of U6.2's seventeen sites sit in .claude/skills/report/ — decision 0481 withdrew that skill, so deleting the directory discharges all four while retaining it obliges repointing all four; the census proves either path",
-        "scope": "c5",
+        "text": "Decide the .claude/skills/report/ directory before counting U6.2 done — four of its seventeen sites sit there and decision 0481 withdrew the skill, so deleting discharges all four while retaining obliges repointing them",
+        "scope": "c4",
         "refs": [
           "SPEC U6.2",
           "decision 0481"
         ]
       },
       {
-        "text": "Give every concurrently dispatched agent its own mktemp -d scratch namespace — four agents collided in the shared session scratchpad, and the real hazard is one agent reporting a sibling's exit code as its own, not the lost files",
+        "text": "Do not read a dispatchable-agent-schema-capable pass as roster-wide coverage — it inspects only 5 of 22 agents, seeing solely names that appear as engine string literals, and passed U4.1's four by never looking",
+        "scope": "c4",
+        "refs": [
+          "decision 0547"
+        ]
+      },
+      {
+        "text": "Expect 19 name+line pairs across 18 distinct sites as the pre-wave-6 baseline — tool-routing.md:30 names two retiring agents on one line, so the two counts legitimately differ and neither is wrong",
+        "scope": "c4",
+        "refs": [
+          "decision 0546"
+        ]
+      },
+      {
+        "text": "Pin the Lead-share threshold before the measurement window opens and open it only after U7.1 ships — a log gathered while both rosters are live cannot tell a Lead not chosen from a retired agent still available",
+        "scope": "c5",
+        "refs": [
+          "decision 0561"
+        ]
+      },
+      {
+        "text": "Give the nine runnerless shell tests a runner before source changes alongside them — the enforcer selects them and dies, taking the gate with it",
+        "scope": "c5",
+        "refs": [
+          "decision 0544"
+        ]
+      },
+      {
+        "text": "Give every concurrently dispatched agent its own mktemp -d scratch namespace — four agents collided in the shared scratchpad, and one can report a sibling's exit code as its own",
         "scope": "thread",
         "refs": [
           "memory: parallel-agents-collide-in-the-shared-scratchpad"
@@ -398,5 +405,5 @@
     ]
   },
   "created_at": "2026-08-16T05:43:25.829Z",
-  "updated_at": "2026-08-18T05:15:58.580Z"
+  "updated_at": "2026-08-18T05:18:26.196Z"
 }
