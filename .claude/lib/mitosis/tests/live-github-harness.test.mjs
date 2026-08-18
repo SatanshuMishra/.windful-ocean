@@ -1,6 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
+  assertHarnessRepo,
   BASE_BRANCH,
   buildPrCloseArgv,
   buildPrCreateArgv,
@@ -9,6 +10,8 @@ import {
   ensureRepoExists,
   ensureSeeded,
   freshNonce,
+  HARNESS_SENTINEL_DESCRIPTION,
+  hasHarnessSentinel,
   listOpenPrs,
   makeWorkspace,
   openPr,
@@ -21,6 +24,7 @@ import {
   readBackPr,
   removeWorkspace,
   REPO_NAME,
+  repoSlugMatchesHarnessName,
   resetToBaseState,
   resolveGh,
   resolveLiveGate,
@@ -128,6 +132,39 @@ test('parseOpenedPr reads the created pull-request url and number from a pr.mjs 
   assert.equal(parseOpenedPr(''), null);
   assert.equal(parseOpenedPr('not json'), null);
   assert.equal(parseOpenedPr(JSON.stringify({ action: 'created' })), null);
+});
+
+test('repoSlugMatchesHarnessName accepts only an owner/repo slug whose repo name is the harness repository name', () => {
+  assert.equal(repoSlugMatchesHarnessName(`acme/${REPO_NAME}`), true);
+  assert.equal(repoSlugMatchesHarnessName('acme/some-other-repo'), false);
+  assert.equal(repoSlugMatchesHarnessName(`acme/${REPO_NAME}-evil`), false);
+  assert.equal(repoSlugMatchesHarnessName('not-a-slug'), false);
+  assert.equal(repoSlugMatchesHarnessName(null), false);
+});
+
+test('hasHarnessSentinel requires an exact match against the pinned sentinel description', () => {
+  assert.equal(hasHarnessSentinel(HARNESS_SENTINEL_DESCRIPTION), true);
+  assert.equal(hasHarnessSentinel(null), false);
+  assert.equal(hasHarnessSentinel(''), false);
+  assert.equal(hasHarnessSentinel(`${HARNESS_SENTINEL_DESCRIPTION} `), false);
+  assert.equal(hasHarnessSentinel('a real teams repository, please do not delete'), false);
+});
+
+test('assertHarnessRepo refuses a repo whose name or sentinel does not prove harness ownership, offline and without credentials', () => {
+  const repoSlug = `acme/${REPO_NAME}`;
+  assert.doesNotThrow(() => assertHarnessRepo(repoSlug, HARNESS_SENTINEL_DESCRIPTION));
+  assert.throws(
+    () => assertHarnessRepo('acme/some-real-project', HARNESS_SENTINEL_DESCRIPTION),
+    /does not match the harness repository name/,
+  );
+  assert.throws(
+    () => assertHarnessRepo(repoSlug, null),
+    /missing the harness sentinel description/,
+  );
+  assert.throws(
+    () => assertHarnessRepo(repoSlug, 'a real teams repository, please do not delete'),
+    /missing the harness sentinel description/,
+  );
 });
 
 test('live github pr harness: prove a real pull request against a real disposable repository', async (t) => {

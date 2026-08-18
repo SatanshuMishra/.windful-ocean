@@ -5,14 +5,22 @@ on:
     - cron: '17 5 * * 1'
   push:
     branches: [main]
-  pull_request:
   workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+concurrency:
+  group: live-github-substrate
+  cancel-in-progress: false
 
 jobs:
   live-substrate:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5  # v4.3.1
+        with:
+          persist-credentials: false
 
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020  # v4.4.0
         with:
@@ -26,12 +34,12 @@ jobs:
           IS_FORK: ${{ github.event.pull_request.head.repo.fork }}
         run: |
           set -euo pipefail
-          if [ "$HAS_TOKEN" = "true" ]; then
-            echo "mode=live" >> "$GITHUB_OUTPUT"
-            exit 0
-          fi
           if [ "$EVENT_NAME" = "pull_request" ] && [ "$IS_FORK" = "true" ]; then
             echo "mode=downgrade" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          if [ "$HAS_TOKEN" = "true" ]; then
+            echo "mode=live" >> "$GITHUB_OUTPUT"
             exit 0
           fi
           echo "::error::live GitHub credential MITOSIS_LIVE_GH_TOKEN is absent on a '$EVENT_NAME' run outside a fork pull request; this context is required to carry the secret, and a silent skip here is not acceptable"

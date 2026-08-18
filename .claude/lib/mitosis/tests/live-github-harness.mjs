@@ -12,6 +12,8 @@ export const REPO_NAME = 'mitosis-live-pr-harness';
 export const BASE_BRANCH = 'main';
 export const BRANCH_NAMESPACE = 'live-harness';
 export const LIVE_OPT_IN_VAR = 'MITOSIS_LIVE_GH_E2E';
+export const HARNESS_SENTINEL_DESCRIPTION =
+  'mitosis-live-github-harness sentinel v1: disposable, agent-owned substrate; every open pull request and non-default branch is destroyed on each run';
 
 export const FIXTURE_DIR = fileURLToPath(new URL('./fixtures/live-github-substrate/', import.meta.url));
 export const PR_MJS_PATH = fileURLToPath(new URL('../../git/pr.mjs', import.meta.url));
@@ -125,6 +127,24 @@ export function parseOpenedPr(stdout) {
   return Object.freeze({ action: payload.action, url: payload.url, number: payload.number });
 }
 
+export function repoSlugMatchesHarnessName(repoSlug) {
+  if (!validateRepoIdentity(repoSlug)) return false;
+  return repoSlug.split('/')[1] === REPO_NAME;
+}
+
+export function hasHarnessSentinel(description) {
+  return description === HARNESS_SENTINEL_DESCRIPTION;
+}
+
+export function assertHarnessRepo(repoSlug, description) {
+  if (!repoSlugMatchesHarnessName(repoSlug)) {
+    throw new Error(`live-github-harness: refusing to operate on ${JSON.stringify(repoSlug)}; its repository name does not match the harness repository name ${JSON.stringify(REPO_NAME)}`);
+  }
+  if (!hasHarnessSentinel(description)) {
+    throw new Error(`live-github-harness: refusing to operate on ${repoSlug}; it is missing the harness sentinel description, so this may be a real repository the harness does not own`);
+  }
+}
+
 export function resolveGh() {
   const ghBin = resolveGhBinary({ pathValue: process.env.PATH });
   if (!ghBin) {
@@ -158,12 +178,30 @@ export function resolveOwner(ghBin) {
   return owner;
 }
 
+function tryViewRepo(ghBin, repoSlug, fields) {
+  const result = execGh(ghBin, ['repo', 'view', repoSlug, '--json', fields]);
+  if (result.refused || result.status !== 0) return null;
+  try {
+    return JSON.parse(result.stdout.trim());
+  } catch {
+    throw new Error(`live-github-harness: gh repo view ${repoSlug} printed unparseable JSON: ${result.stdout}`);
+  }
+}
+
+export function readRepoDescription(ghBin, repoSlug) {
+  const viewed = tryViewRepo(ghBin, repoSlug, 'description');
+  return viewed === null ? null : viewed.description;
+}
+
 export function ensureRepoExists(ghBin, repoSlug) {
-  const view = execGh(ghBin, ['repo', 'view', repoSlug, '--json', 'name']);
-  if (!view.refused && view.status === 0) return { created: false };
+  const viewed = tryViewRepo(ghBin, repoSlug, 'name,description');
+  if (viewed !== null) {
+    assertHarnessRepo(repoSlug, viewed.description);
+    return { created: false };
+  }
   const create = execGh(ghBin, [
     'repo', 'create', repoSlug, '--private',
-    '--description', 'disposable, reusable substrate for the mitosis live github pr harness',
+    '--description', HARNESS_SENTINEL_DESCRIPTION,
   ]);
   if (create.refused || create.status !== 0) {
     throw new Error(`live-github-harness: could not create ${repoSlug}: ${create.reason || create.stderr}`);
@@ -280,6 +318,7 @@ export function deleteBranch(ghBin, repoSlug, branch) {
 }
 
 export function resetToBaseState(ghBin, repoSlug) {
+  assertHarnessRepo(repoSlug, readRepoDescription(ghBin, repoSlug));
   for (const pr of listOpenPrs(ghBin, repoSlug)) {
     closePr(repoSlug, pr.number);
   }
