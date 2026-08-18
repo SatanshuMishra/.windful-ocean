@@ -1055,6 +1055,11 @@
         "ref": "0571-rerun-truncates-the-journal-and-loses-shipped-state",
         "title": "Re-running the same run document rewrites the journal and forgets that a unit shipped",
         "scope": "c29"
+      },
+      {
+        "ref": "0573-audit-to-root-cause-before-any-fan-out-implementation",
+        "title": "The next phase is a bounded audit to root cause and a whole solution, never another reviewer loop",
+        "scope": "thread"
       }
     ],
     "out_of_scope": [
@@ -1066,5 +1071,5 @@
     ]
   },
   "created_at": "2026-08-12T07:37:41.077Z",
-  "updated_at": "2026-08-18T06:31:29.171Z"
+  "updated_at": "2026-08-18T16:26:43.161Z"
 }
