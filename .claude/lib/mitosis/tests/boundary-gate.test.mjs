@@ -19,6 +19,7 @@ import { censusTscLines } from '../boundary-tsc-lines.mjs';
 const ROOT = '/repo';
 const BASE = '/tmp/base-wt';
 const ABSENT_ROOT = '/no-such-root-for-the-boundary-gate-probe';
+const REAL_GIT_DEADLINE_MS = 30000;
 
 function refingerprinted(census) {
   return { ...census, identity: censusIdentity(census) };
@@ -681,4 +682,159 @@ test('an unchanged resolved tsconfig does not block', () => {
   const verdict = evaluate({ repoRoot: ROOT, gateBase: 'abc123', basePath: BASE, cachedBaseCensus: null }, io);
   assert.equal(verdict.pass, true, verdict.output);
   assert.deepEqual([...verdict.blocking], []);
+});
+
+const NO_OP_GATE_BASE = 'abc123';
+const COMMIT_PROBE_PREFIX = 'git rev-parse --verify ';
+const BASE_SIDE_REVISION = `${NO_OP_GATE_BASE}^{commit}`;
+const HEAD_SIDE_REVISION = 'HEAD^{commit}';
+
+function shaAnsweringIo({ baseSha, headSha, status = 0 }) {
+  const shaFor = (argv) => {
+    const revision = argv[argv.length - 1];
+    if (revision === BASE_SIDE_REVISION) return baseSha;
+    if (revision === HEAD_SIDE_REVISION) return headSha;
+    return null;
+  };
+  return fixtureIo({
+    exists: () => false,
+    readFile: () => JSON.stringify({}),
+    run: (binary, argv) => {
+      if (binary === 'git' && argv[0] === 'rev-parse' && argv[1] === '--verify') {
+        const sha = shaFor(argv);
+        if (sha === null) return { outcome: 'completed', status: 128, stdout: '', stderr: 'fatal: Needed a single revision' };
+        return { outcome: 'completed', status, stdout: `${sha}\n`, stderr: '' };
+      }
+      return { outcome: 'completed', status: 0, stdout: '', stderr: '' };
+    },
+  });
+}
+
+const SAME_SHA = '3f7a1c9d2b4e6a8c0d1f2e3a4b5c6d7e8f901234';
+const OTHER_SHA = 'a1b2c3d4e5f60718293a4b5c6d7e8f9012345678';
+
+function noOpRequest(extra) {
+  return { repoRoot: ROOT, gateBase: NO_OP_GATE_BASE, basePath: BASE, cachedBaseCensus: null, ...extra };
+}
+
+function assertBothSidesProbed(io) {
+  const probes = io.spawned.filter((command) => command.startsWith(COMMIT_PROBE_PREFIX));
+  assert.equal(
+    probes.length,
+    2,
+    `the commit probe did not interrogate both sides, so a verdict carrying no refusal says nothing about what the probe decided: ${JSON.stringify(io.spawned)}`,
+  );
+  assert.equal(
+    probes.filter((command) => command === `${COMMIT_PROBE_PREFIX}${BASE_SIDE_REVISION}`).length,
+    1,
+    `the base side was never resolved from the declared gateBase revision: ${JSON.stringify(probes)}`,
+  );
+  assert.equal(
+    probes.filter((command) => command === `${COMMIT_PROBE_PREFIX}${HEAD_SIDE_REVISION}`).length,
+    1,
+    `the head side was never resolved from HEAD: ${JSON.stringify(probes)}`,
+  );
+}
+
+function realGitRepo(prefix) {
+  const root = mkdtempSync(join(tmpdir(), prefix));
+  const git = (argv) => {
+    const child = REAL_BOUNDARY_IO.run('git', argv, { cwd: root, deadlineMs: REAL_GIT_DEADLINE_MS });
+    if (child === null || typeof child !== 'object' || child.status !== 0) {
+      throw new Error(`git ${argv.join(' ')} did not complete in the disposable repository: ${JSON.stringify(child)}`);
+    }
+    return typeof child.stdout === 'string' ? child.stdout.trim() : '';
+  };
+  git(['init', '--quiet']);
+  git(['config', 'user.email', 'boundary-gate@test.invalid']);
+  git(['config', 'user.name', 'boundary gate test']);
+  git(['config', 'commit.gpgsign', 'false']);
+  writeFileSync(join(root, 'a.txt'), 'one\n');
+  git(['add', '--', 'a.txt']);
+  git(['commit', '--quiet', '-m', 'one']);
+  return Object.freeze({ root, head: git(['rev-parse', 'HEAD']) });
+}
+
+test('the comparison reports how many head identities it actually examined', () => {
+  const census = { eslint: { 'a::no-eq::x': 1 }, tsc: { 'b::TS2345::y': 3 } };
+  const verdict = compareCensuses(census, census);
+  assert.equal(verdict.comparedIdentities, 2, 'the comparison did not report exactly the two (tool, identity) pairs it examined');
+  assert.equal(verdict.notComparable, false);
+});
+
+test('a comparison over an empty head census reports that it examined nothing while still passing', () => {
+  const verdict = compareCensuses({ eslint: { 'a::no-eq::x': 1 } }, {});
+  assert.equal(verdict.comparedIdentities, 0);
+  assert.equal(verdict.notComparable, true);
+  assert.equal(verdict.pass, true, 'pass was gated on comparedIdentities, and the declared narrowing keeps it meaning blocking.length === 0');
+  assert.deepEqual([...verdict.blocking], []);
+});
+
+test('a base and a head that resolve to the same commit is refused as not comparable rather than passing vacuously', () => {
+  const io = shaAnsweringIo({ baseSha: SAME_SHA, headSha: SAME_SHA });
+  const verdict = evaluate(noOpRequest(), io);
+  assert.equal(verdict.pass, false, `base and head are the same commit, so the gate compared the tree under test against itself and reported a pass: ${verdict.output}`);
+  assert.equal(verdict.blocking[0].classifier, 'not-comparable');
+});
+
+test('a same-commit request that declares itself a no-op passes and reports that nothing was comparable', () => {
+  const io = shaAnsweringIo({ baseSha: SAME_SHA, headSha: SAME_SHA });
+  const verdict = evaluate(noOpRequest({ declaredNoOp: true }), io);
+  assert.equal(verdict.pass, true, verdict.output);
+  assert.equal(verdict.comparedIdentities, 0);
+  assert.equal(verdict.notComparable, true);
+});
+
+test('a base and a head at different commits are never refused as not comparable', () => {
+  const io = shaAnsweringIo({ baseSha: SAME_SHA, headSha: OTHER_SHA });
+  const verdict = evaluate(noOpRequest(), io);
+  assert.equal(verdict.pass, true, verdict.output);
+  assert.deepEqual(
+    verdict.blocking.filter((entry) => entry.classifier === 'not-comparable'),
+    [],
+    'two distinct commits were refused as the same commit, so the gate over-refuses every ordinary MSP',
+  );
+  assertBothSidesProbed(io);
+});
+
+test('a commit that cannot be resolved on either side is never refused as not comparable', () => {
+  const unresolvable = [
+    shaAnsweringIo({ baseSha: SAME_SHA, headSha: SAME_SHA, status: 1 }),
+    shaAnsweringIo({ baseSha: '', headSha: '' }),
+  ];
+  for (const io of unresolvable) {
+    const verdict = evaluate(noOpRequest(), io);
+    assert.equal(verdict.pass, true, verdict.output);
+    assert.deepEqual(
+      verdict.blocking.filter((entry) => entry.classifier === 'not-comparable'),
+      [],
+      'an unresolved commit was treated as a resolved one, so a side git could not report on reads as the same commit',
+    );
+    assertBothSidesProbed(io);
+  }
+});
+
+test('the same-commit refusal fires through the shipped io against a real repository whose base worktree does not exist yet', () => {
+  const repo = realGitRepo('boundary-real-commit-repo-');
+  const holder = mkdtempSync(join(tmpdir(), 'boundary-real-commit-base-'));
+  const basePath = join(holder, 'wt');
+  try {
+    const verdict = evaluate(
+      { repoRoot: repo.root, gateBase: repo.head, basePath, cachedBaseCensus: null },
+      REAL_BOUNDARY_IO,
+    );
+    assert.equal(
+      verdict.pass,
+      false,
+      `base and head name one commit of a real repository, and the gate passed, so the refusal never resolved either side through the shipped io: ${verdict.output}`,
+    );
+    assert.equal(
+      verdict.blocking[0].classifier,
+      'not-comparable',
+      `the real run failed for some other reason than the commits being one and the same: ${JSON.stringify(verdict.blocking)}`,
+    );
+  } finally {
+    rmSync(repo.root, { recursive: true, force: true });
+    rmSync(holder, { recursive: true, force: true });
+  }
 });
