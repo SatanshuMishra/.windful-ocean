@@ -331,7 +331,7 @@ export function makeSandbox(options = {}) {
   mkdirSync(sandbox.worktreeRoot);
   seedSuperpowersPrompts(sandbox);
   mkdirSync(sandbox.claudeState);
-  writeFileSync(sandbox.gitConfig, '');
+  writeFileSync(sandbox.gitConfig, `[user]\n\tname = ${GIT_IDENTITY.GIT_AUTHOR_NAME}\n\temail = ${GIT_IDENTITY.GIT_AUTHOR_EMAIL}\n`);
   writeFileSync(sandbox.claudeRecord, '');
   writeFileSync(sandbox.ghRecord, '');
   writeFileSync(sandbox.claudePlan, `${JSON.stringify({ units: {} })}\n`);
