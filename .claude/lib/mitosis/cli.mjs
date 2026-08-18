@@ -3,13 +3,14 @@ import { isAbsolute, join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { evaluate } from './boundary-gate.mjs';
 import { Done, NeedsHuman } from './boundary.mjs';
+import { validateRefToken } from './checkpoint.mjs';
 import { dispatch, normalizeEnvelope } from './dispatch.mjs';
 import { POST_DISPATCH_RECORD_FAILED } from './engine.mjs';
 import { run } from './exec-run.mjs';
 import { foldFile } from './fold-run-log.mjs';
 import { READ_JOBS_STEP, ciFixMessage } from './ci-green-loop.mjs';
 import { GH_COMMAND_BINARY, buildGhCommand } from './gh-commands.mjs';
-import { buildGitCommand } from './git-commands.mjs';
+import { END_OF_OPTIONS, buildGitCommand } from './git-commands.mjs';
 import { integrateSummary } from './integrate-plan.mjs';
 import { appendJournalLine, writeGenesis } from './journal-store.mjs';
 import { runPhases } from './phase-driver.mjs';
@@ -17,6 +18,7 @@ import { observePlanArtifact } from './plan-artifact.mjs';
 import { resumeSummary } from './resume-plan.mjs';
 import { execAllowed, openRun } from './run-store.mjs';
 import { shipSummary } from './ship-plan.mjs';
+import { publishShipHead } from './ship-publish.mjs';
 import { resolveAll } from './superpowers-prompts.mjs';
 import { readJudgment, runJudgment } from './unit-judgment.mjs';
 import { planningSummary } from './unit-planning.mjs';
@@ -26,6 +28,10 @@ const MODULE = 'mitosis-cli';
 const GIT_BINARY = 'git';
 const NODE_BINARY = 'node';
 const GH_DEADLINE_MS = 120000;
+const SHIP_SITE = 'ship';
+const DONE_ORACLE_STEP = 'done-oracle';
+const REMOTE_NAME = 'origin';
+const NO_PULL_REQUEST_FOUND = /no pull requests? found/i;
 const EXIT_CLEAN = 0;
 const EXIT_ERROR = 1;
 const EXIT_USAGE = 2;
@@ -254,20 +260,76 @@ function reconcilePort(io, runFn, repoRoot) {
   );
 }
 
-function diffStatPort(runFn) {
-  return (request) => runFn(
-    GIT_BINARY,
-    ['diff', '--shortstat', `${request.base}...${request.head}`],
-    { cwd: request.repoRoot, deadlineMs: GH_DEADLINE_MS },
-  );
+function ranCleanly(result) {
+  return result !== null && typeof result === 'object' && !Array.isArray(result) && result.status === 0;
 }
 
-const CI_SITE = 'ship';
+function prStatePort(runFn, repoRoot) {
+  return (probe) => {
+    const read = runFn(
+      GH_COMMAND_BINARY,
+      buildGhCommand(SHIP_SITE, DONE_ORACLE_STEP, { repoSlug: probe.repoSlug, integrationBranch: probe.integrationBranch }),
+      { cwd: repoRoot, deadlineMs: GH_DEADLINE_MS },
+    );
+    return absentPullRequest(read) ? { absent: true } : read;
+  };
+}
+
+function absentPullRequest(read) {
+  if (read === null || typeof read !== 'object' || Array.isArray(read)) return false;
+  if (read.status === 0) return false;
+  const spoken = `${typeof read.stderr === 'string' ? read.stderr : ''}${typeof read.stdout === 'string' ? read.stdout : ''}`;
+  return NO_PULL_REQUEST_FOUND.test(spoken);
+}
+
+function publishHeadPort(runFn, repoRoot) {
+  return (request) => publishShipHead(request, { prState: prStatePort(runFn, repoRoot) });
+}
+
+export function mergedIntoBasePort(runFn) {
+  return (probe) => {
+    let fetched;
+    let contained;
+    try {
+      fetched = runFn(
+        GIT_BINARY,
+        buildGitCommand(SHIP_SITE, 'fetch-base', { repoRoot: probe.repoRoot, baseBranch: probe.baseBranch }),
+        { cwd: probe.repoRoot, deadlineMs: GH_DEADLINE_MS },
+      );
+      if (!ranCleanly(fetched)) return false;
+      contained = runFn(
+        GIT_BINARY,
+        buildGitCommand('ci-publish-verify', 'append-only', {
+          repoRoot: probe.repoRoot,
+          fromSha: probe.mergeCommit,
+          integrationBranch: `${REMOTE_NAME}/${probe.baseBranch}`,
+        }),
+        { cwd: probe.repoRoot, deadlineMs: GH_DEADLINE_MS },
+      );
+    } catch {
+      return false;
+    }
+    return ranCleanly(contained);
+  };
+}
+
+export function retireHeadPort(runFn) {
+  return (request) => {
+    if (!validateRefToken(request.branch) || typeof request.repoRoot !== 'string' || request.repoRoot.length === 0) return false;
+    const deleted = runFn(
+      GIT_BINARY,
+      ['-C', request.repoRoot, 'push', '--delete', REMOTE_NAME, END_OF_OPTIONS, request.branch],
+      { cwd: request.repoRoot, deadlineMs: GH_DEADLINE_MS },
+    );
+    return ranCleanly(deleted);
+  };
+}
+
 const CI_GIT_SITE = 'ci-publish';
 const CI_FIX_IDENTITY = Object.freeze(['-c', 'user.name=mitosis', '-c', 'user.email=mitosis@localhost']);
 
 function ciReadArgv(read) {
-  if (read.step !== READ_JOBS_STEP) return buildGhCommand(CI_SITE, read.step, read.values);
+  if (read.step !== READ_JOBS_STEP) return buildGhCommand(SHIP_SITE, read.step, read.values);
   return ['run', 'view', read.values.runId, '-R', read.values.repoSlug, '--json', 'jobs'];
 }
 
@@ -328,7 +390,9 @@ function driverPorts(io, makePorts, deps, repoRoot) {
     dispatchPrompt: (request) => dispatchFn(request),
     openPullRequest: (request) => runFn(NODE_BINARY, request.argv, { cwd: request.cwd, deadlineMs: GH_DEADLINE_MS }),
     appendJournal: (request) => appendJournalFn(request),
-    diffStat: diffStatPort(runFn),
+    publishHead: publishHeadPort(runFn, repoRoot),
+    mergedIntoBase: mergedIntoBasePort(runFn),
+    retireHead: retireHeadPort(runFn),
     ciRead: ciReadPort(runFn, repoRoot),
     switchBranch: gitCiPort(runFn, 'switch-branch'),
     recordFix: recordFixPort(runFn),

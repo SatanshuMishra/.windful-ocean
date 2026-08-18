@@ -178,7 +178,7 @@ test('a unit the plan fails is diagnosed, redispatched exactly once, and parks o
     assert.equal(claudeArgvsFor(sandbox, 'alpha').length, 1);
     assert.equal(claudeArgvs(sandbox).length, 4);
     assert.equal(readJournal(sandbox).filter((record) => record.kind === 'park').length, 1);
-    assert.equal(ghArgvsMatching(sandbox, ['pr', 'view']).length, 1);
+    assert.equal(ghArgvsMatching(sandbox, ['pr', 'view']).length, 2, 'one read settles whether the run branch already carries a pull request, and Ship reads the done oracle once for the unit it reaches');
   });
 });
 

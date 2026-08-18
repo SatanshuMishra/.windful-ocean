@@ -30,6 +30,11 @@ export function prUrlToRepoRef(url) {
   return { host: match[1].toLowerCase(), ownerRepo: `${match[2]}/${match[3]}`.toLowerCase() };
 }
 
+export function mergeCommitOid(mergeCommit) {
+  if (mergeCommit === null || typeof mergeCommit !== 'object' || Array.isArray(mergeCommit)) return null;
+  return typeof mergeCommit.oid === 'string' && mergeCommit.oid.length > 0 ? mergeCommit.oid : null;
+}
+
 export function reconcileShippedSet(mergedPRs, sourcePrefix, targetOwnerRepo, targetRepoHost) {
   const shipped = new Map();
   if (!Array.isArray(mergedPRs)) return shipped;
@@ -44,7 +49,7 @@ export function reconcileShippedSet(mergedPRs, sourcePrefix, targetOwnerRepo, ta
     if (enforceHost && ref.host !== targetHostLower) continue;
     const mspId = branchToMspId(pr.headRefName, sourcePrefix);
     if (mspId === null) continue;
-    shipped.set(mspId, { prUrl: pr.url, mergedAt: pr.mergedAt });
+    shipped.set(mspId, { prUrl: pr.url, mergedAt: pr.mergedAt, mergeCommit: mergeCommitOid(pr.mergeCommit) });
   }
   return shipped;
 }
