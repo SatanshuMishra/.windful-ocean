@@ -5,7 +5,10 @@ import {
   PROGRESS_ORDER,
   createDisposition,
   legacyProgress,
+  legacyStatusOf,
+  legacyParkedDisposition,
   mergeProgress,
+  startingProgressOf,
 } from '../unit-state.mjs';
 
 test('PROGRESS ORDER: the exported lattice is frozen and exactly the four tokens in order', () => {
@@ -153,4 +156,83 @@ test('CREATE DISPOSITION: supplying remediation throws TypeError — the field i
 test('CREATE DISPOSITION: remediation is null on the result when the key is omitted', () => {
   const disposition = createDisposition({ class: 'Transient', triedSet: [] });
   assert.strictEqual(disposition.remediation, null);
+});
+
+test('CREATE DISPOSITION: an invalid diagnosis (non-string, or empty string) throws TypeError', () => {
+  for (const bad of [42, {}, [], true, '']) {
+    assert.throws(
+      () => createDisposition({ class: 'Transient', diagnosis: bad, triedSet: [] }),
+      { name: 'TypeError' },
+      `diagnosis=${JSON.stringify(bad)} must throw`,
+    );
+  }
+});
+
+test('CREATE DISPOSITION: a stage outside LEGAL_STAGES throws TypeError', () => {
+  assert.throws(
+    () => createDisposition({ class: 'Transient', stage: 'not-a-real-stage', triedSet: [] }),
+    { name: 'TypeError', message: /not-a-real-stage/ },
+  );
+});
+
+test('CREATE DISPOSITION: a resumePoint that is not an object (or is an array) throws TypeError', () => {
+  for (const bad of ['a string', 42, true, ['branch', 'ref', 'stage']]) {
+    assert.throws(
+      () => createDisposition({ class: 'Transient', resumePoint: bad, triedSet: [] }),
+      { name: 'TypeError' },
+      `resumePoint=${JSON.stringify(bad)} must throw`,
+    );
+  }
+});
+
+test('LEGACY STATUS OF: pins all four exact mappings', () => {
+  assert.strictEqual(legacyStatusOf('planned'), 'planned');
+  assert.strictEqual(legacyStatusOf('built'), 'built');
+  assert.strictEqual(legacyStatusOf('pr-open'), 'shipped');
+  assert.strictEqual(legacyStatusOf('merged'), 'shipped');
+});
+
+test('LEGACY STATUS OF: a token outside PROGRESS_ORDER throws TypeError', () => {
+  assert.throws(() => legacyStatusOf('parked'), { name: 'TypeError', message: /parked/ });
+  assert.throws(() => legacyStatusOf('shipped'), { name: 'TypeError', message: /shipped/ });
+  assert.throws(() => legacyStatusOf('bogus'), { name: 'TypeError', message: /bogus/ });
+});
+
+test('STARTING PROGRESS OF: a progress field short-circuits status entirely', () => {
+  assert.strictEqual(startingProgressOf({ progress: 'merged', status: 'planned' }), 'merged');
+});
+
+test('STARTING PROGRESS OF: a legacy status of parked floors to planned — parkedness carries no progress information', () => {
+  assert.strictEqual(startingProgressOf({ status: 'parked' }), 'planned');
+});
+
+test('STARTING PROGRESS OF: a known legacy status token passes through legacyProgress unchanged', () => {
+  assert.strictEqual(startingProgressOf({ status: 'built' }), 'built');
+  assert.strictEqual(startingProgressOf({ status: 'shipped' }), 'pr-open');
+});
+
+test('STARTING PROGRESS OF: an msp with neither progress nor status defaults to planned', () => {
+  assert.strictEqual(startingProgressOf({}), 'planned');
+});
+
+test('STARTING PROGRESS OF: an unrecognized legacy status token is not silently defaulted — it throws TypeError, so a corrupted or unclassifiable token cannot be quietly rewritten', () => {
+  assert.throws(() => startingProgressOf({ status: 'some-future-unknown-token' }), { name: 'TypeError', message: /some-future-unknown-token/ });
+});
+
+test('LEGACY PARKED DISPOSITION: carries the legacy msp triedSet and resumePoint through as class Unknown', () => {
+  const disposition = legacyParkedDisposition({
+    triedSet: ['worktree:reset-clean'],
+    resumePoint: { branch: 'mit/p-integration', ref: null, stage: 'execute' },
+  });
+  assert.strictEqual(disposition.class, 'Unknown');
+  assert.deepStrictEqual(disposition.triedSet, ['worktree:reset-clean']);
+  assert.deepStrictEqual(disposition.resumePoint, { branch: 'mit/p-integration', ref: null, stage: 'execute' });
+  assert.strictEqual(disposition.stage, 'execute');
+});
+
+test('LEGACY PARKED DISPOSITION: a missing or malformed triedSet/resumePoint degrades to the createDisposition defaults rather than throwing', () => {
+  const disposition = legacyParkedDisposition({});
+  assert.strictEqual(disposition.class, 'Unknown');
+  assert.deepStrictEqual(disposition.triedSet, []);
+  assert.deepStrictEqual(disposition.resumePoint, { branch: null, ref: null, stage: null });
 });
