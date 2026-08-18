@@ -26,7 +26,6 @@ export const PR_AGENT_LABEL = 'mitosis-engine';
 export const PR_MODEL_UNSPECIFIED = 'unspecified';
 
 export const RECEIPTS_NOT_VERIFIED = 'receipts enforcer - not run';
-export const GREEN_VERIFIED = 'unit verdict - green';
 export const BOUNDARY_VERIFIED = 'boundary gate - clean';
 
 export const PR_ACTION_CREATED = 'created';
@@ -169,10 +168,7 @@ export function provenanceOf(declared) {
 }
 
 function verifiedLines(facts) {
-  return [
-    ...(facts.green === true ? [GREEN_VERIFIED] : []),
-    ...(facts.boundaryClean === true ? [BOUNDARY_VERIFIED] : []),
-  ];
+  return facts.boundaryClean === true ? [BOUNDARY_VERIFIED] : [];
 }
 
 export function unusableFields(facts) {
@@ -243,7 +239,6 @@ function factsOf(entry, msp, settings) {
     why: msp.rationale,
     what: msp.title,
     depends: Array.isArray(msp.dependsOn) ? msp.dependsOn : EMPTY,
-    green: msp.green === true,
     boundaryClean: entry.state === INTEGRATED,
   });
 }

@@ -3,7 +3,6 @@ import assert from 'node:assert/strict';
 import { EXEC_ALLOWLIST, resolveSpawn } from '../exec-policy.mjs';
 import {
   BOUNDARY_VERIFIED,
-  GREEN_VERIFIED,
   PR_TOOL_PATH,
   RECEIPTS_NOT_VERIFIED,
   changedLinesOf,
@@ -31,6 +30,7 @@ import {
 const PR_CREATE_PREFIX = Object.freeze(['pr', 'create']);
 const REFUSING_IO = Object.freeze({ readFile: () => null, readStdin: () => null });
 const EMPTY_CI = Object.freeze([]);
+const UNMEASURED_UNIT_VERDICT = 'unit verdict - green';
 
 const THREE_UNITS = Object.freeze([
   Object.freeze({ id: 'alpha', behaviour: CLAUDE_BEHAVIOURS.succeed }),
@@ -57,7 +57,6 @@ const BETA_FACTS = Object.freeze({
   why: 'fixture rationale for unit beta',
   what: 'unit beta',
   depends: Object.freeze(['alpha']),
-  green: true,
   boundaryClean: true,
 });
 
@@ -127,7 +126,7 @@ test('the dependent ships in the same walk once the merged-pull-request probe re
   });
 });
 
-test('every opened pull request declares the receipts enforcer unverified, and claims it verified nowhere', () => {
+test('every opened pull request claims the boundary gate clean, claims no unit verdict at all, and declares the receipts enforcer unverified', () => {
   withSandbox({ boundaryToolchain: true }, (sandbox) => {
     buildThenShip(sandbox, THREE_UNITS);
 
@@ -135,7 +134,8 @@ test('every opened pull request declares the receipts enforcer unverified, and c
     assert.equal(bodies.length, 2);
     for (const body of bodies) {
       assert.equal(String(body).includes(`Not verified: ${RECEIPTS_NOT_VERIFIED}`), true, 'the enforcer runs only after the pull request exists and the body is immutable, so it is always declared not run');
-      assert.deepEqual(verifiedLinesOf(body), [`Verified: ${GREEN_VERIFIED}`, `Verified: ${BOUNDARY_VERIFIED}`]);
+      assert.equal(String(body).includes(UNMEASURED_UNIT_VERDICT), false, 'no host-side code ever runs the unit check, so a body claiming the unit verdict green claims a check nobody ran');
+      assert.deepEqual(verifiedLinesOf(body), [`Verified: ${BOUNDARY_VERIFIED}`]);
     }
   });
 });
@@ -173,7 +173,6 @@ test('the composed argv carries every mandated field once, in the order the tool
     '--provenance', 'agent=mitosis-engine model=unspecified',
     '--why', 'fixture rationale for unit beta',
     '--what', 'unit beta',
-    '--verified', 'unit verdict - green',
     '--verified', 'boundary gate - clean',
     '--not-verified', 'receipts enforcer - not run',
     '--depends', 'alpha',
@@ -181,24 +180,19 @@ test('the composed argv carries every mandated field once, in the order the tool
   ]);
 });
 
-test('a verdict that was not green and a gate that was not clean each drop their own verified line, never the receipts one', () => {
-  const ungreen = composePrCreateArgv({ ...BETA_FACTS, green: false, depends: [] }, null).argv;
-  assert.deepEqual([...ungreen].slice(ungreen.indexOf('--what')), [
-    '--what', 'unit beta',
-    '--verified', 'boundary gate - clean',
-    '--not-verified', 'receipts enforcer - not run',
-  ]);
+test('a gate that was not clean drops its verified line, and the receipts one still reaches a tool that refuses an empty verification section', () => {
   const ungated = composePrCreateArgv({ ...BETA_FACTS, boundaryClean: false, depends: [] }, null).argv;
   assert.deepEqual([...ungated].slice(ungated.indexOf('--what')), [
     '--what', 'unit beta',
-    '--verified', 'unit verdict - green',
     '--not-verified', 'receipts enforcer - not run',
   ]);
-  const neither = composePrCreateArgv({ ...BETA_FACTS, green: false, boundaryClean: false, depends: [] }, null).argv;
-  assert.deepEqual([...neither].slice(neither.indexOf('--what')), [
+
+  const claimedGreen = composePrCreateArgv({ ...BETA_FACTS, green: true, depends: [] }, null).argv;
+  assert.deepEqual([...claimedGreen].slice(claimedGreen.indexOf('--what')), [
     '--what', 'unit beta',
+    '--verified', 'boundary gate - clean',
     '--not-verified', 'receipts enforcer - not run',
-  ]);
+  ], 'nothing measures a unit verdict, so a fact asserting one is ignored rather than rendered as a verified line');
 });
 
 test('the changed-line count is read from a shortstat or left unstated, never inferred', () => {

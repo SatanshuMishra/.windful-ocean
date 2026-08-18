@@ -147,7 +147,7 @@ test('the cli unit port retains the envelope alongside the sha it already reads'
   const outcome = await ports.runUnit({ id: 'alpha' }, { signal: null });
   assert.equal(outcome.tag, 'Done');
   assert.equal(outcome.value.sha, 'a'.repeat(40));
-  assert.equal(outcome.value.green, true);
+  assert.equal(Object.hasOwn(outcome.value, 'green'), false, 'the port measures no check, so it reports no check result the ship body would render as verified');
   assert.equal(outcome.value.envelope.usage.cache_read_input_tokens, 410000);
   assert.equal(outcome.value.envelope.total_cost_usd, 0.4213);
 });
