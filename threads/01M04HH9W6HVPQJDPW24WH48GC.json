@@ -439,6 +439,11 @@
         "ref": "0556-wave-prs-are-disjoint-siblings-not-a-linear-stack",
         "title": "The four wave PRs are file-disjoint siblings on the substrate, landed after one parent-branch deletion",
         "scope": "c4"
+      },
+      {
+        "ref": "0557-shipped-store-test-becomes-filesystem-derived",
+        "title": "The shipped-store test becomes filesystem-derived and byte-identical across all five branches",
+        "scope": "c4"
       }
     ],
     "out_of_scope": [
@@ -447,5 +452,5 @@
     ]
   },
   "created_at": "2026-08-16T05:43:25.829Z",
-  "updated_at": "2026-08-18T02:01:16.616Z"
+  "updated_at": "2026-08-18T02:16:11.207Z"
 }
