@@ -1091,6 +1091,11 @@
         "ref": "0578-remaining-stack-ships-by-lead-fanout-behind-one-architecture-gate",
         "title": "The remaining stack ships by lead-agent fan-out, gated on one architecture decision",
         "scope": "c28"
+      },
+      {
+        "ref": "0581-whole-solution-approved-with-four-ratifications",
+        "title": "The whole solution is approved: keep the pipeline, five chokepoints, sixteen MSPs",
+        "scope": "c28"
       }
     ],
     "out_of_scope": [
@@ -1102,5 +1107,5 @@
     ]
   },
   "created_at": "2026-08-12T07:37:41.077Z",
-  "updated_at": "2026-08-18T18:26:25.485Z"
+  "updated_at": "2026-08-18T19:03:28.714Z"
 }
