@@ -103,14 +103,7 @@ function normalizeBaseProgress(base) {
 }
 
 function withFoldRefusals(manifest, refusals) {
-  const next = { ...manifest };
-  Object.defineProperty(next, 'foldRefusals', {
-    value: Object.freeze([...refusals]),
-    enumerable: false,
-    writable: false,
-    configurable: false,
-  });
-  return next;
+  return { ...manifest, foldRefusals: Object.freeze([...refusals]) };
 }
 
 export function foldRunManifest(raw) {
