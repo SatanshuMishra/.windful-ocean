@@ -21,7 +21,7 @@ const UNATTRIBUTED = '(unattributed)';
 const DISPATCH_NOTE =
   'computed over the dispatch population only: rows carrying a transcript path. Rows with no transcript path are artifact-less internal subagent firings and are never folded into this denominator.';
 
-function eventsCte(logRoot) {
+export function eventsCte(logRoot) {
   return `ev AS (SELECT *, ${POPULATION_CASE} AS population FROM ${readerExpression(logRoot)})`;
 }
 
