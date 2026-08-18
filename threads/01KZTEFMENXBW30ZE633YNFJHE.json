@@ -220,7 +220,7 @@
     {
       "id": "c37",
       "text": "The six audit fixes land on one base branch, each with an acceptance test red on its parent and a mutation proof, the merged composition verified green and the fake GitHub binary retired",
-      "done": false,
+      "done": true,
       "kind": "detour",
       "struck_by": null
     },
@@ -273,9 +273,9 @@
   "abandoned_reason": null,
   "closure_statement": null,
   "spine": {
-    "active_goal": "Report the live e2e audit of the shipped engine: what holds, what only looks green, and whether mitosis is usable today.",
-    "next_step": "START HERE. Make NO fixes and start no work. FIRST action: read handoff-2026-08-17-mitosis-e2e-audit/FINDINGS.md under this project's ~/.claude/projects dir, then outline its findings and recommended solutions to the user and STOP for specific instructions. Verdict: mitosis cannot open a pull request. Fix the hardcoded green at cli.mjs:534 BEFORE wiring the ship publish step, or the engine starts fabricating Verified lines on real pull requests.",
-    "last_session": "Completed the live e2e audit. Verdict: the engine structurally cannot open a pull request. Seventeen findings classified bug or architecture, root-caused and recorded in FINDINGS.md with 420 evidence files preserved outside the repo. No fixes made, by instruction.",
+    "active_goal": "Make the engine open pull requests on a real run: the six audit fixes are in, next is review and then a live end-to-end run against a disposable repo.",
+    "next_step": "START HERE. The six fixes are committed on feat/mitosis-ship-live (12 commits, unpushed, suite exit 0). Nothing is running. FIRST: dispatch code-reviewer and security-reviewer in parallel over main..feat/mitosis-ship-live, since no review has run. THEN open the pull request through pr.mjs pr-create. Before opening: the diff is ~3400 added lines across 59 files, far past the 400-line ceiling, so decide with the user whether to open one PR or restack the five branches it was built from.",
+    "last_session": "Implemented all six audit fixes with nine subagents across four waves. Wave 1 overturned three of the audit's own conclusions. Merged composition verified green rather than assumed. Fake gh binary retired. No review, no push, no pull request.",
     "open_risks": [
       {
         "text": "Prove a merge arrived by asserting its CONTENT is on the base, never by SHA ancestry — a squash or stack merge rewrites commits, so a pre-merge SHA correctly fails an ancestry check on a merge that lost nothing",
@@ -452,25 +452,49 @@
         ]
       },
       {
-        "text": "The engine cannot open a pull request — the ship git site carrying publish has no caller and shipPhase wires no git port, so the composed head branch never exists and every unit parks while the run exits 0",
+        "text": "Do not expect a dependency chain to resume — divergence.mjs reads three things from its context that exist nowhere in the tree, so every keyed parent throws, is caught, and folds closed; wiring the merged commit map provably changes nothing while the probe stays unwired",
         "scope": "c28",
         "refs": [
-          "0540",
-          "FINDINGS.md D1",
-          "phase-driver.mjs:251-275"
+          "0552",
+          "divergence.mjs:26",
+          "divergence.mjs:55"
         ]
       },
       {
-        "text": "green is a hardcoded literal that becomes a verified PR line — fix it BEFORE wiring ship, or the engine converts from opening no pull requests into opening ones carrying fabricated verification claims",
+        "text": "Treat the stack as unreviewed and unshipped — twelve commits sit on feat/mitosis-ship-live locally with no push, no review pass and no pull request, so none of it has met the project's own review or enforcer gates",
         "scope": "c28",
         "refs": [
-          "0541",
-          "cli.mjs:534",
-          "ship-plan.mjs:247"
+          "feat/mitosis-ship-live",
+          "d2e304b6"
         ]
       },
       {
-        "text": "Seven success signals are computed over a narrower domain than they appear to claim — exit code, all-shipped, exec-allowlist, both verified lines, gate 41 versus 42, and minItems one; treat every green as unproven until its derivation is read",
+        "text": "Do not read the live harness as proof the engine ships — it proves the pull request creation path against real GitHub, not that the engine reaches it; no run has driven decompose through pull request end to end",
+        "scope": "c28",
+        "refs": [
+          "tests/live-github-harness.test.mjs",
+          "c31"
+        ]
+      },
+      {
+        "text": "Never delete a gh double without going in-process first — the merge shim and the pull request tool both fall back to hardcoded absolute paths, so removing the fake makes the suite silently reach the real authenticated gh",
+        "scope": "c28",
+        "refs": [
+          "0555",
+          "gh-merge-shim.mjs resolveRealGh",
+          "pr.mjs resolveGhBinary"
+        ]
+      },
+      {
+        "text": "Grant delete_repo before moving to per-run throwaway repositories — the current token carries repo but not delete_repo, so the harness resets one reusable repository in place instead of destroying it",
+        "scope": "c28",
+        "refs": [
+          "gh auth refresh -h github.com -s delete_repo",
+          "SatanshuMishra/mitosis-live-pr-harness"
+        ]
+      },
+      {
+        "text": "Read every green signal's derivation before trusting it — the audit found seven success signals computed over a narrower domain than they claim, and only the exit code and the two verified lines have been corrected so far",
         "scope": "c28",
         "refs": [
           "FINDINGS.md section 3"
@@ -480,15 +504,8 @@
         "text": "Thirty-six percent of modules and fifty-five percent of exports are unreachable from cli.mjs — the defect class is defined-but-unwired code and no gate detects it, so a connectivity census outranks any individual fix",
         "scope": "c28",
         "refs": [
-          "FINDINGS.md section 4"
-        ]
-      },
-      {
-        "text": "One cli.mjs invocation advances only one stage while SKILL.md prescribes exactly one call — Integrate consumes the Resume snapshot taken before Execute ran, so the documented flow builds everything and ships nothing",
-        "scope": "c28",
-        "refs": [
-          "0538",
-          "phase-driver.mjs:233-249"
+          "FINDINGS.md section 4",
+          "0552"
         ]
       },
       {
@@ -500,7 +517,7 @@
         ]
       },
       {
-        "text": "The audit left c31 unstarted and the scale, refactor and bugfix probes unrun — do not read the findings as covering throughput at scale or cross-cutting refactor capability",
+        "text": "The audit left c31 unstarted and the scale, refactor and bugfix probes unrun — do not read its findings as covering throughput at scale or cross-cutting refactor capability",
         "scope": "c28",
         "refs": [
           "FINDINGS.md section 7"
@@ -998,5 +1015,5 @@
     ]
   },
   "created_at": "2026-08-12T07:37:41.077Z",
-  "updated_at": "2026-08-18T01:54:17.301Z"
+  "updated_at": "2026-08-18T01:55:26.399Z"
 }
