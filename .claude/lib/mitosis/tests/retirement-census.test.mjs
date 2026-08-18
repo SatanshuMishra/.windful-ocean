@@ -233,15 +233,31 @@ test('a fully repointed tree is clean and still reports every retiring name at z
   assert.equal(report.ok, true);
 });
 
-test('the live configuration is scanned end to end and no longer names a retiring agent', () => {
+test('the live configuration is retired end to end and discloses the lost corroboration', () => {
   const scope = retirementScope();
   assert.equal(scope.ok, true, scope.error);
   const result = censusRetirement(scope.scope, realRetirementIo);
   assert.equal(result.kind, undefined, result.error);
-  assert.deepEqual(result.derivation.derivationA, result.derivation.derivationB);
+  assert.equal(result.derivation.shape, 'retired', 'the nine retiring definitions are still on disk, so the live roster has not reached the sanctioned post-deletion shape');
+  assert.deepEqual(result.derivation.derivationA, []);
+  assert.deepEqual(result.derivation.derivationB, [
+    'codebase-analyst',
+    'data-engineer',
+    'debugger',
+    'devops-engineer',
+    'mechanical-editor',
+    'performance-engineer',
+    'report-writer',
+    'solution-architect',
+    'verification-strategist',
+  ]);
+  assert.ok(
+    result.notAttested.some((entry) => /derivation A still corroborates derivation B/.test(entry)),
+    'the retired shape did not disclose that corroboration between derivation A and derivation B is now impossible by construction',
+  );
   assert.ok(result.fileCount > 0, 'the live scan opened no file, so its verdict measured nothing');
   assert.equal(result.ok, result.sites.length === 0);
-  assert.equal(result.sites.length, 0, 'the live configuration still names a retiring agent after U6.2 repointed every reference');
+  assert.equal(result.sites.length, 0, 'the live configuration still names a retiring agent after U6.2 repointed every reference and U7.1 deleted the definitions');
   for (const name of result.derivation.derivationB) {
     assert.equal(typeof result.perName[name], 'number', `${name} is missing from the per-name report`);
   }
