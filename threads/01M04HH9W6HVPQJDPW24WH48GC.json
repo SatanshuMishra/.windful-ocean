@@ -412,6 +412,11 @@
         "ref": "0568-ground-agent-capability-claims-in-the-agent-file-not-decision-0481",
         "title": "Ground every claim about an agent capability in the agent file on disk, never in decision 0481",
         "scope": "c4"
+      },
+      {
+        "ref": "0570-retirement-census-green-is-not-evidence-the-test-tree-is-clean",
+        "title": "A green retirement census is not evidence the test tree is clean, and npm test is the only gate there",
+        "scope": "c4"
       }
     ],
     "out_of_scope": [
@@ -420,5 +425,5 @@
     ]
   },
   "created_at": "2026-08-16T05:43:25.829Z",
-  "updated_at": "2026-08-18T05:57:09.099Z"
+  "updated_at": "2026-08-18T06:12:17.653Z"
 }
