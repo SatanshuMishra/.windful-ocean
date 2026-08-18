@@ -222,6 +222,15 @@ export const MERGE_REFUSAL_SPECIMENS = Object.freeze([
       readStdin: () => null,
     }),
   }),
+  Object.freeze({
+    label: 'api graphql body read from stdin',
+    kind: 'graphql-mutation-indirect',
+    argv: Object.freeze(['api', 'graphql', '--input', '-']),
+    io: Object.freeze({
+      readFile: () => null,
+      readStdin: () => 'mutation { mergePullRequest(input: {pullRequestId: "PR_x"}) { clientMutationId } }',
+    }),
+  }),
   Object.freeze({ label: 'api merge mutation to an unrecognised endpoint', kind: 'api-merge-mutation', argv: Object.freeze(['api', 'repos/acme/widgets/merges', '-f', 'query=mutation { mergePullRequest(input: {pullRequestId: "PR_x"}) { clientMutationId } }']) }),
 ]);
 
