@@ -1,15 +1,17 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { chmodSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
+import { chmodSync, cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { isAbsolute, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { fragmentNames, renderFragment } from '../agent-body-fragments.mjs';
 import { validateAgentSpec } from '../agent-body-compose.mjs';
 
 const DRIVER = fileURLToPath(new URL('../agent-generate.mjs', import.meta.url));
 const SHIPPED_STORE = fileURLToPath(new URL('../agent-specs/', import.meta.url));
+const FIXTURE_PLUGINS = fileURLToPath(new URL('./fixtures/agent-generate-home/', import.meta.url));
+const FIXTURE_PROCEDURE = 'fixture-plugin:fixture-procedure';
 
 const REQUIRED_FRAGMENTS = Object.freeze([
   'answer-format',
@@ -38,6 +40,15 @@ function agents(t) {
   return dir;
 }
 
+function fixtureHome(t) {
+  const home = scratch(t);
+  const plugins = join(home, '.claude', 'plugins');
+  mkdirSync(plugins, { recursive: true });
+  cpSync(join(FIXTURE_PLUGINS, 'installed_plugins.json'), join(plugins, 'installed_plugins.json'));
+  cpSync(join(FIXTURE_PLUGINS, 'plugin-cache'), join(plugins, 'cache'), { recursive: true });
+  return home;
+}
+
 function specSource(name, overrides = {}) {
   const spec = {
     name,
@@ -58,8 +69,9 @@ function writeSpec(dir, name, overrides) {
   return path;
 }
 
-function run(args) {
-  const result = spawnSync(process.execPath, [DRIVER, ...args], { encoding: 'utf8' });
+function run(args, home) {
+  const env = home === undefined ? process.env : { ...process.env, HOME: home };
+  const result = spawnSync(process.execPath, [DRIVER, ...args], { encoding: 'utf8', env });
   if (result.error) throw result.error;
   return Object.freeze({ code: result.status, output: `${result.stdout}${result.stderr}` });
 }
@@ -290,4 +302,85 @@ test('an unknown flag is refused rather than silently ignored', (t) => {
   const result = run(['--check', '--store', specDir, '--unknown-flag']);
   assert.notEqual(result.code, 0);
   assert.match(result.output, /--unknown-flag/);
+});
+
+test('pointer resolution: a procedure-carrying spec resolves against the committed fixture manifest and round trips clean', (t) => {
+  const specDir = store(t);
+  const agentDir = agents(t);
+  const home = fixtureHome(t);
+  writeSpec(specDir, 'fixture-pointer-agent', { procedures: [FIXTURE_PROCEDURE] });
+
+  const written = run(['--store', specDir, '--agents', agentDir], home);
+  assert.equal(written.code, 0, written.output);
+
+  const body = readFileSync(join(agentDir, 'fixture-pointer-agent.md'), 'utf8');
+  const emitted = new RegExp(`^- \`${FIXTURE_PROCEDURE}\` — (.+)$`, 'm').exec(body);
+  assert.notEqual(emitted, null, body);
+  assert.equal(isAbsolute(emitted[1]), true, emitted[1]);
+  assert.equal(existsSync(emitted[1]), true, `the body names ${emitted[1]}, which is not on disk`);
+
+  const checked = run(['--check', '--store', specDir, '--agents', agentDir], home);
+  assert.equal(checked.code, 0, checked.output);
+  assert.match(checked.output, /1 agent spec found and all .* matching their source/);
+  assert.doesNotMatch(checked.output, /UNVERIFIED/);
+});
+
+test('pointer resolution: a reference the fixture manifest does not carry halts rather than being deferred', (t) => {
+  const specDir = store(t);
+  const agentDir = agents(t);
+  writeSpec(specDir, 'absent-plugin-agent', { procedures: ['no-such-plugin:no-such-skill'] });
+
+  const result = run(['--check', '--store', specDir, '--agents', agentDir], fixtureHome(t));
+  assert.notEqual(result.code, 0);
+  assert.match(result.output, /no plugin named no-such-plugin is installed/);
+  assert.doesNotMatch(result.output, /UNVERIFIED/);
+});
+
+test('pointer resolution: a bare skill name halts rather than being deferred', (t) => {
+  const specDir = store(t);
+  const agentDir = agents(t);
+  writeSpec(specDir, 'bare-reference-agent', { procedures: ['fixture-procedure'] });
+
+  const result = run(['--check', '--store', specDir, '--agents', agentDir], fixtureHome(t));
+  assert.notEqual(result.code, 0);
+  assert.match(result.output, /not fully qualified as plugin:skill/);
+  assert.doesNotMatch(result.output, /UNVERIFIED/);
+});
+
+test('missing manifest: a procedure-carrying spec is named as unverified while every other spec is still compared', (t) => {
+  const specDir = store(t);
+  const agentDir = agents(t);
+  const home = scratch(t);
+  writeSpec(specDir, 'plain-agent');
+  writeSpec(specDir, 'pointer-agent', { procedures: [FIXTURE_PROCEDURE] });
+
+  const written = run(['--store', specDir, '--agents', agentDir], home);
+  assert.equal(written.code, 0, written.output);
+  assert.deepEqual(readdirSync(agentDir), ['plain-agent.md']);
+
+  const checked = run(['--check', '--store', specDir, '--agents', agentDir], home);
+  assert.equal(checked.code, 0, checked.output);
+  assert.match(checked.output, /UNVERIFIED/);
+  assert.match(checked.output, /pointer-agent/);
+  assert.match(checked.output, new RegExp(FIXTURE_PROCEDURE));
+  assert.match(checked.output, new RegExp(join(home, '.claude', 'plugins', 'installed_plugins.json')));
+  assert.match(checked.output, /2 agent specs found/);
+  assert.doesNotMatch(checked.output, /zero agent specs/);
+});
+
+test('missing manifest: drift in a spec that needs no pointer is still red', (t) => {
+  const specDir = store(t);
+  const agentDir = agents(t);
+  const home = scratch(t);
+  writeSpec(specDir, 'plain-agent');
+  writeSpec(specDir, 'pointer-agent', { procedures: [FIXTURE_PROCEDURE] });
+  assert.equal(run(['--store', specDir, '--agents', agentDir], home).code, 0);
+
+  const body = join(agentDir, 'plain-agent.md');
+  writeFileSync(body, readFileSync(body, 'utf8').replace('model: sonnet', 'model: opus'));
+
+  const result = run(['--check', '--store', specDir, '--agents', agentDir], home);
+  assert.notEqual(result.code, 0);
+  assert.match(result.output, /plain-agent\.md/);
+  assert.match(result.output, /model: opus/);
 });

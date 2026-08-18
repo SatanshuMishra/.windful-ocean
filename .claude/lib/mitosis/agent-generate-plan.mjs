@@ -79,3 +79,21 @@ export function compareGeneratedBodies(bodies, readBody) {
   }
   return Object.freeze({ ok: divergences.length === 0, divergences: Object.freeze(divergences) });
 }
+
+export function partitionByPointerNeed(entries, manifestPresent) {
+  if (!Array.isArray(entries)) {
+    return halt('partitioning agent specs by pointer need takes the array of loaded spec entries the store returned');
+  }
+  if (typeof manifestPresent !== 'boolean') {
+    return halt('partitioning agent specs by pointer need takes an explicit boolean for whether a plugin manifest is readable; an absent answer is not a negative one');
+  }
+  if (manifestPresent) {
+    return Object.freeze({ ok: true, composable: Object.freeze([...entries]), deferred: Object.freeze([]) });
+  }
+  const needsPointer = (entry) => Array.isArray(entry.spec.procedures) && entry.spec.procedures.length > 0;
+  return Object.freeze({
+    ok: true,
+    composable: Object.freeze(entries.filter((entry) => !needsPointer(entry))),
+    deferred: Object.freeze(entries.filter(needsPointer)),
+  });
+}
