@@ -287,9 +287,9 @@
   "abandoned_reason": null,
   "closure_statement": null,
   "spine": {
-    "active_goal": "Implement the approved whole solution: 21 units in 9 waves closing all thirteen boundary root causes.",
-    "next_step": "The authority is Part 7 (A1-A15) of artifacts-2026-08-18-whole-solution/whole-solution.md, NOT this conversation - read it before dispatching. Wave 1 in flight: M1 and M14 shipped as PRs 213 and 214, M10 is PR 216 awaiting its last checks, M0 and M12a resumed after scope rulings. HOLD M7 (committed at b1a34b29, unpushed) until M0's branch lands, then rebase onto it - never discard that commit. M2 is stacked on M1's branch. Waves 2-9 follow the map in Part 7.",
-    "last_session": "Architect settled the whole solution and fifteen amendments. Five of six wave-1 leads reported; three blocked on scope and all three blocked correctly rather than widening or faking a green. Stack grew 16 units to 21.",
+    "active_goal": "Implement the approved whole solution: 22 units in 9 waves closing all thirteen boundary root causes.",
+    "next_step": "AUTHORITY IS Part 7 (A1-A19) of artifacts-2026-08-18-whole-solution/whole-solution.md, never a conversation. origin/main c29829a2; M1, M10, M12a, M14 MERGED (verified by content). PR 221 open. In flight: M0, M2 (both resumed after a session-limit teardown, both need a rebase onto new main), plus a standalone PR-provenance fix. M7 is HELD at b1a34b29 unpushed - release only after M0 lands, then rebase, never discard. Wave 3 (M3, M4, M4b, M12b-2, M12c) unlocks when M2 lands and 221 merges.",
+    "last_session": "Wave 1 shipped four units and all merged. Three leads blocked on scope and all three blocked correctly. Two tooling defects found that silently disable verification. Stack grew 16 units to 22.",
     "open_risks": [
       {
         "text": "Prove a merge arrived by asserting its CONTENT is on the base, never by SHA ancestry — a squash or stack merge rewrites commits, so a pre-merge SHA correctly fails an ancestry check on a merge that lost nothing",
@@ -495,6 +495,22 @@
         ]
       },
       {
+        "text": "Keep all four ladder tags out of every PR body — the enforcer matches them as text and short-circuits all eight re-run gates, so an honest disclosure suppresses the check that would have caught it",
+        "scope": "c28",
+        "refs": [
+          "PR 215 at 129ms",
+          "PR 221 at 67s"
+        ]
+      },
+      {
+        "text": "Treat any hand-built reference inventory as a hypothesis — three in a row came back short because the search could not see raw-text pins, reader-side references or multi-line imports",
+        "scope": "c28",
+        "refs": [
+          "0585",
+          "A16"
+        ]
+      },
+      {
         "text": "Run the inertness mutation on every unit without exception — each one is fixing vacuity and can reproduce vacuity inside its own fix",
         "scope": "c28",
         "refs": [
@@ -503,27 +519,11 @@
         ]
       },
       {
-        "text": "Derive a unit's file list from every READER of the data it changes — drawing it from what the unit writes blocked three leads and mis-scoped four more",
+        "text": "Rebase a stacked branch with --onto and its old parent — the four merged branches still exist on origin, so a bare rebase replays commits already squashed onto main",
         "scope": "c28",
         "refs": [
-          "0585",
-          "0582"
-        ]
-      },
-      {
-        "text": "Cap G14 confirmation at two attempts and prove mutation locally — the receipts log prints one overall verdict with no per-gate enumeration",
-        "scope": "c28",
-        "refs": [
-          "PR 213",
-          "PR 214"
-        ]
-      },
-      {
-        "text": "Expect a false model string in every machine PR body — the tool's provenance pattern forbids brackets and bodies cannot be edited after creation",
-        "scope": "c28",
-        "refs": [
-          "pr-format.mjs:6",
-          "PR 214"
+          "c29829a2",
+          "M2"
         ]
       },
       {
@@ -532,6 +532,14 @@
         "refs": [
           "0587",
           "G11 block mode"
+        ]
+      },
+      {
+        "text": "Expect a false model string in every machine PR body until the provenance fix lands — the tool's pattern forbids brackets and bodies cannot be edited after creation",
+        "scope": "c28",
+        "refs": [
+          "pr-format.mjs:6",
+          "PR 214"
         ]
       }
     ],
@@ -1106,5 +1114,5 @@
     ]
   },
   "created_at": "2026-08-12T07:37:41.077Z",
-  "updated_at": "2026-08-18T19:50:04.669Z"
+  "updated_at": "2026-08-18T22:15:00.784Z"
 }
