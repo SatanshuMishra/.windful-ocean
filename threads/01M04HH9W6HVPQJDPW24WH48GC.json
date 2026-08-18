@@ -50,6 +50,13 @@
       "struck_by": null
     },
     {
+      "id": "c8",
+      "text": "Observer audit instrument repaired so the c5 measurement means anything: population resolved at dispatch grain on sidecar depth, and the two row-wise questions moved off row grain.",
+      "done": false,
+      "kind": "detour",
+      "struck_by": null
+    },
+    {
       "id": "c5",
       "text": "Verified in real use after U7.1: the observer attributes every real dispatch, the audit derives a closed outcome census halting on the unclassifiable, and Lead share clears its pinned bar.",
       "done": false,
@@ -502,5 +509,5 @@
     ]
   },
   "created_at": "2026-08-16T05:43:25.829Z",
-  "updated_at": "2026-08-18T21:26:57.510Z"
+  "updated_at": "2026-08-18T21:27:48.630Z"
 }
