@@ -446,6 +446,11 @@
         "ref": "0579-c5-lead-share-bar-pinned-before-any-number-is-read",
         "title": "Pin the c5 Lead-share bar at 50 percent of real dispatches over a minimum window of 20",
         "scope": "c5"
+      },
+      {
+        "ref": "0580-audit-population-predicate-resolves-at-dispatch-grain",
+        "title": "Resolve the audit population predicate at dispatch grain, superseding 0537's refuted premise",
+        "scope": "c5"
       }
     ],
     "out_of_scope": [
@@ -457,5 +462,5 @@
     ]
   },
   "created_at": "2026-08-16T05:43:25.829Z",
-  "updated_at": "2026-08-18T18:38:12.132Z"
+  "updated_at": "2026-08-18T18:50:50.725Z"
 }
