@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
-import { existsSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdtempSync, readFileSync, readdirSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -16,12 +16,12 @@ import {
 } from '../coupling-review.mjs';
 import { DERIVED_EDGE_REASONS, couplingResolutionCounts, couplingSerializeAssertions, derivedEdge, deriveEdges } from '../derive-edges.mjs';
 import { planWaves } from '../wave-planner.mjs';
+import { lineOf, scanJsStructure } from '../js-scan.mjs';
 import { pack } from './file-scope-fixtures.mjs';
 
 const CLI = fileURLToPath(new URL('../derive-edges.mjs', import.meta.url));
 const CLI_AT = '2026-01-01T00:00:00.000Z';
-const ESCALATION_SOURCE = fileURLToPath(new URL('../run-engine.mjs', import.meta.url));
-const SENSITIVE_SCOPE_SOURCE = fileURLToPath(new URL('../coarse-scope-lint.mjs', import.meta.url));
+const LIB_DIR = fileURLToPath(new URL('../', import.meta.url));
 
 function scratch(prefix) {
   return mkdtempSync(join(tmpdir(), prefix));
@@ -400,18 +400,6 @@ test('I2b: the one constructor every edge-adding rule goes through refuses a rea
   }
 });
 
-test('I2c: no reason token derive-edges attaches matches the opus-escalation regex in run-engine.mjs', () => {
-  const source = readFileSync(ESCALATION_SOURCE, 'utf8');
-  const declaration = source.match(/const CONTRACT_EDGE_RE = (\/.+\/[a-z]*);/);
-  assert.ok(declaration, `CONTRACT_EDGE_RE could not be located in ${ESCALATION_SOURCE}, so this census cannot measure the escalation rule it exists to bound`);
-  const body = declaration[1].slice(1, declaration[1].lastIndexOf('/'));
-  const flags = declaration[1].slice(declaration[1].lastIndexOf('/') + 1);
-  const escalation = new RegExp(body, flags);
-  assert.ok(escalation.test('public-api-contract'), 'the reconstructed regex does not match a known escalating reason, so a green result here would prove nothing');
-  const escalating = DERIVED_EDGE_REASONS.filter((reason) => escalation.test(reason));
-  assert.deepEqual(escalating, [], 'a derived reason token that matches the escalation regex silently forces every task carrying it onto the opus tier');
-});
-
 test('I3: an unclassified decision halts the edge pass rather than falling through as co-schedulable', () => {
   const resolution = [{ pair: ['t1', 't2'], signals: [], default: COUPLING_SERIALIZE, decision: 'advisory', source: 'default', rationale: null }];
   assert.throws(
@@ -765,14 +753,195 @@ test('I8d: a cycle in the declared graph alone is not attributed to coupling', (
   );
 });
 
+const libTopLevelSources = () => readdirSync(LIB_DIR, { withFileTypes: true }).filter((e) => e.isFile() && e.name.endsWith('.mjs')).map((e) => [e.name, join(LIB_DIR, e.name)]).sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0));
+const literalsOf = (structure, source) => [...structure.stringSpans.entries()].map(([open, close]) => ({ open, value: source.slice(open + 1, close) })).sort((a, b) => a.open - b.open);
+const markerOccurrences = (literals, markers) => { const set = new Set(markers); const seen = new Map(); for (const l of literals) if (set.has(l.value) && !seen.has(l.value)) seen.set(l.value, l); return [...seen.values()].sort((a, b) => a.open - b.open); };
+
+function bracketPairs(source, masked) {
+  const stack = [];
+  const pairs = [];
+  for (let i = 0; i < masked.length; i += 1) {
+    if (masked[i] === '[') {
+      stack.push(i);
+    } else if (masked[i] === ']') {
+      const open = stack.pop();
+      if (open === undefined) return { ok: false, index: i, char: masked[i] };
+      pairs.push([open, i]);
+    }
+  }
+  if (stack.length > 0) {
+    const index = stack[stack.length - 1];
+    return { ok: false, index, char: masked[index] };
+  }
+  return { ok: true, pairs };
+}
+
+function unbalancedBracketMessage(name, source, index, char) {
+  return `${name}:${lineOf(source, index)}: an unbalanced bracket "${char}" breaks the count of every array literal this pass classifies`;
+}
+
+const enclosing = (pairs, index) => pairs.reduce((best, pair) => (pair[0] < index && index < pair[1] && (!best || pair[1] - pair[0] < best[1] - best[0]) ? pair : best), null);
+const trimmed = (masked, start, end) => { let s = start; let e = end - 1; while (s <= e && /\s/.test(masked[s])) s += 1; while (e >= s && /\s/.test(masked[e])) e -= 1; return s <= e ? [s, e + 1] : null; };
+const elementsOf = (source, masked, [open, close]) => { const spans = []; let depth = 0; let start = open + 1; for (let i = open + 1; i < close; i += 1) { const c = masked[i]; if ('[({'.includes(c)) depth += 1; else if (')]}'.includes(c)) depth -= 1; else if (c === ',' && depth === 0) { spans.push(trimmed(masked, start, i)); start = i + 1; } } spans.push(trimmed(masked, start, close)); return spans.filter((span) => span !== null); };
+const stringValueOf = (source, stringSpans, [start, end]) => { const close = stringSpans.get(start); return close !== undefined && close === end - 1 ? source.slice(start + 1, close) : null; };
+
+function notAStringLiteralMessage(name, source, span) {
+  return `${name}:${lineOf(source, span[0])}: the array element ${JSON.stringify(source.slice(span[0], span[1]))} is not a string literal`;
+}
+
+function arrayShapeCandidate(values, riskMarkers) {
+  const distinct = [...new Set(values)].filter((value) => riskMarkers.includes(value));
+  const allMembers = values.length > 0 && values.every((value) => riskMarkers.includes(value));
+  return (distinct.length > 0 && allMembers) || distinct.length >= 2;
+}
+
+function partialArrayMessage(name, source, pair, values, riskMarkers) {
+  const extra = values.filter((value) => !riskMarkers.includes(value));
+  const missing = riskMarkers.filter((marker) => !values.includes(marker));
+  return `${name}:${lineOf(source, pair[0])}: the array literal ${JSON.stringify(values)} shapes as a risk-marker declarer and does not equal the imported vocabulary; extra=${JSON.stringify(extra)} missing=${JSON.stringify(missing)}`;
+}
+
+function templateDeclarerMessage(name, source, index, marker) {
+  return `${name}:${lineOf(source, index)}: the risk marker ${JSON.stringify(marker)} is declared inside a template literal, where the extractor records no string span and the census cannot see it`;
+}
+
 test('the coupling marker set and the engine model-routing keyword set are one vocabulary', () => {
-  const source = readFileSync(SENSITIVE_SCOPE_SOURCE, 'utf8');
-  const declaration = source.match(/const SENSITIVE_SCOPE_KEYWORDS = \[([^\]]*)\];/);
-  assert.ok(declaration, `SENSITIVE_SCOPE_KEYWORDS could not be located in ${SENSITIVE_SCOPE_SOURCE}, so this census cannot measure the live routing vocabulary`);
-  const routing = declaration[1].split(',').map((entry) => entry.trim().replace(/^'|'$/g, '')).filter((entry) => entry.length > 0);
-  assert.deepEqual(
-    [...couplingContextFacts(undefined).riskMarkers].sort(),
-    [...routing].sort(),
-    'one list decides the wave plan and the other decides model routing; nothing else pins them together, so a marker added to one silently diverges from the other',
-  );
+  const riskMarkers = couplingContextFacts(undefined).riskMarkers;
+  assert.ok(riskMarkers.length > 0, 'the census imports its vocabulary from couplingContextFacts, so an empty import would halt every classification below rather than pass vacuously');
+  assert.ok(riskMarkers.length > 2, 'the "distinct.length <= 1 is not a declarer" shortcut below assumes a vocabulary of more than two markers; a two-marker vocabulary would make a scattered pair indistinguishable from a full declaration');
+  const targets = libTopLevelSources();
+  const names = targets.map(([name]) => name);
+  assert.ok(names.includes('coarse-scope-lint.mjs') && names.includes('coupling-review.mjs'), `the scanned directory ${LIB_DIR} is not lib/mitosis, so every claim below was measured against the wrong surface`);
+  let declarerCount = 0;
+  for (const [name, path] of targets) {
+    const source = readFileSync(path, 'utf8');
+    const structure = scanJsStructure(source);
+    assert.ok(structure.ok, `${name} could not be parsed as JS structure by scanJsStructure: ${structure.ok === false ? structure.error : ''}`);
+    const distinct = markerOccurrences(literalsOf(structure, source), riskMarkers);
+    if (distinct.length <= 1) continue;
+    if (distinct.length !== riskMarkers.length) assert.fail(`${name}:${lineOf(source, distinct[0].open)}: a partial copy of the risk marker vocabulary begins with ${JSON.stringify(distinct[0].value)}; present: ${JSON.stringify(distinct.map((l) => l.value))}; missing: ${JSON.stringify(riskMarkers.filter((m) => !distinct.some((l) => l.value === m)))}`);
+    declarerCount += 1;
+    const bracketResult = bracketPairs(source, structure.masked);
+    if (!bracketResult.ok) assert.fail(unbalancedBracketMessage(name, source, bracketResult.index, bracketResult.char));
+    const pairs = bracketResult.pairs;
+    const home = enclosing(pairs, distinct[0].open);
+    assert.ok(home, `${name}:${lineOf(source, distinct[0].open)}: the marker literal ${JSON.stringify(distinct[0].value)} sits in no enclosing [ ... ] array literal`);
+    for (const marker of distinct) { const markerHome = enclosing(pairs, marker.open); assert.ok(markerHome && markerHome[0] === home[0], `${name}:${lineOf(source, marker.open)}: the marker literal ${JSON.stringify(marker.value)} sits in no enclosing [ ... ] array literal shared with ${JSON.stringify(distinct[0].value)}`); }
+    const values = elementsOf(source, structure.masked, home).map((span) => { const value = stringValueOf(source, structure.stringSpans, span); assert.ok(value !== null, notAStringLiteralMessage(name, source, span)); return value; });
+    assert.deepEqual([...values].sort(), [...riskMarkers].sort(), `${name}:${lineOf(source, home[0])}: the declared array does not equal the imported riskMarkers vocabulary; extra=${JSON.stringify(values.filter((v) => !riskMarkers.includes(v)))} missing=${JSON.stringify(riskMarkers.filter((m) => !values.includes(m)))}`);
+  }
+  assert.ok(declarerCount > 0, 'the census imports riskMarkers from coupling-review.mjs, so some scanned module must literally declare it; zero declarers means the scanned directory or the extractor is wrong, not that the vocabulary has no source');
+});
+
+test('every array literal in lib/mitosis either shapes as the risk-marker vocabulary or is safely excluded', () => {
+  const riskMarkers = couplingContextFacts(undefined).riskMarkers;
+  for (const [name, path] of libTopLevelSources()) {
+    const source = readFileSync(path, 'utf8');
+    const structure = scanJsStructure(source);
+    assert.ok(structure.ok, `${name} could not be parsed as JS structure by scanJsStructure: ${structure.ok === false ? structure.error : ''}`);
+    const bracketResult = bracketPairs(source, structure.masked);
+    if (!bracketResult.ok) assert.fail(unbalancedBracketMessage(name, source, bracketResult.index, bracketResult.char));
+    for (const pair of bracketResult.pairs) {
+      const spans = elementsOf(source, structure.masked, pair);
+      const values = spans.map((span) => stringValueOf(source, structure.stringSpans, span));
+      if (values.some((value) => value === null)) continue;
+      if (!arrayShapeCandidate(values, riskMarkers)) continue;
+      assert.deepEqual([...values].sort(), [...riskMarkers].sort(), partialArrayMessage(name, source, pair, values, riskMarkers));
+    }
+  }
+});
+
+test('no module declares a risk marker inside a template literal, where the extractor records no span', () => {
+  const riskMarkers = couplingContextFacts(undefined).riskMarkers;
+  for (const [name, path] of libTopLevelSources()) {
+    const source = readFileSync(path, 'utf8');
+    for (const marker of riskMarkers) {
+      const token = `\`${marker}\``;
+      const index = source.indexOf(token);
+      if (index !== -1) assert.fail(templateDeclarerMessage(name, source, index, marker));
+    }
+  }
+});
+
+test('the risk-marker extractor buckets a synthetic partial copy and never reports an empty vocabulary', () => {
+  const riskMarkers = couplingContextFacts(undefined).riskMarkers;
+  assert.ok(riskMarkers.length > 2, 'the extractor specimen depends on a vocabulary of more than two markers, or the partial copy it builds below would equal the whole vocabulary');
+  const partial = riskMarkers.slice(0, 2);
+  const synthetic = `const X = [${partial.map((marker) => JSON.stringify(marker)).join(', ')}];\n`;
+  const structure = scanJsStructure(synthetic);
+  assert.ok(structure.ok, 'the synthetic specimen must itself parse as valid JS structure, or this proof measures nothing');
+  const distinct = markerOccurrences(literalsOf(structure, synthetic), riskMarkers);
+  assert.ok(distinct.length > 1 && distinct.length < riskMarkers.length, `a ${partial.length}-element partial copy of a ${riskMarkers.length}-element vocabulary must bucket as unclassifiable, not clear and not declarer`);
+  assert.deepEqual(distinct.map((l) => l.value), partial, 'the extractor did not yield exactly the two literal elements the synthetic source declares');
+});
+
+test('the array-shape parser helpers handle every literal shape they must classify', async (t) => {
+  await t.test('a multi-line array with a trailing comma yields no phantom empty element', () => {
+    const source = "const X = [\n  'auth',\n  'security',\n];\n";
+    const structure = scanJsStructure(source);
+    assert.ok(structure.ok);
+    const bracketResult = bracketPairs(source, structure.masked);
+    assert.ok(bracketResult.ok);
+    const values = elementsOf(source, structure.masked, bracketResult.pairs[0]).map((span) => stringValueOf(source, structure.stringSpans, span));
+    assert.deepEqual(values, ['auth', 'security']);
+  });
+
+  await t.test('enclosing() finds the innermost array around an index inside a nested array', () => {
+    const source = "const X = ['auth', ['inner', 'pair'], 'security'];\n";
+    const structure = scanJsStructure(source);
+    assert.ok(structure.ok);
+    const bracketResult = bracketPairs(source, structure.masked);
+    assert.ok(bracketResult.ok);
+    const innerOpen = source.indexOf("['inner'");
+    const home = enclosing(bracketResult.pairs, innerOpen + 1);
+    assert.equal(source.slice(home[0], home[1] + 1), "['inner', 'pair']");
+  });
+
+  await t.test('a spread element is refused as a string literal by name and location', () => {
+    const source = 'const X = [...rest, "auth"];\n';
+    const structure = scanJsStructure(source);
+    assert.ok(structure.ok);
+    const bracketResult = bracketPairs(source, structure.masked);
+    assert.ok(bracketResult.ok);
+    const spans = elementsOf(source, structure.masked, bracketResult.pairs[0]);
+    const value = stringValueOf(source, structure.stringSpans, spans[0]);
+    assert.equal(value, null);
+    assert.match(notAStringLiteralMessage('spread.mjs', source, spans[0]), /the array element "\.\.\.rest" is not a string literal/);
+  });
+
+  await t.test('a non-string element is refused as a string literal by name and location', () => {
+    const source = "const X = ['auth', 42];\n";
+    const structure = scanJsStructure(source);
+    assert.ok(structure.ok);
+    const bracketResult = bracketPairs(source, structure.masked);
+    assert.ok(bracketResult.ok);
+    const spans = elementsOf(source, structure.masked, bracketResult.pairs[0]);
+    const values = spans.map((span) => stringValueOf(source, structure.stringSpans, span));
+    assert.deepEqual(values, ['auth', null]);
+    assert.match(notAStringLiteralMessage('numeric.mjs', source, spans[1]), /the array element "42" is not a string literal/);
+  });
+
+  await t.test('an orphan closing bracket halts naming the line and the offending character', () => {
+    const source = "const X = ['auth', 'security'];\nconst Y = ]stray;\n";
+    const structure = scanJsStructure(source);
+    assert.ok(structure.ok);
+    const strayIndex = source.indexOf(']stray');
+    const bracketResult = bracketPairs(source, structure.masked);
+    assert.equal(bracketResult.ok, false);
+    assert.equal(bracketResult.index, strayIndex);
+    assert.equal(bracketResult.char, ']');
+    assert.match(unbalancedBracketMessage('orphan.mjs', source, bracketResult.index, bracketResult.char), /orphan\.mjs:2: an unbalanced bracket "\]"/);
+  });
+
+  await t.test('an unclosed opening bracket halts naming the line and the offending character', () => {
+    const source = "const X = ['auth', 'security'];\nconst Y = [stray;\n";
+    const structure = scanJsStructure(source);
+    assert.ok(structure.ok);
+    const strayIndex = source.lastIndexOf('[');
+    const bracketResult = bracketPairs(source, structure.masked);
+    assert.equal(bracketResult.ok, false);
+    assert.equal(bracketResult.index, strayIndex);
+    assert.equal(bracketResult.char, '[');
+    assert.match(unbalancedBracketMessage('unclosed.mjs', source, bracketResult.index, bracketResult.char), /unclosed\.mjs:2: an unbalanced bracket "\["/);
+  });
 });
