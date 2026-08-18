@@ -1,12 +1,20 @@
 import { isValidFingerprint } from './remediation.mjs';
 import { checkpointRef, validateRefToken } from './checkpoint.mjs';
 import { mspContentHash } from './recovery.mjs';
-import { LEGAL_STAGES, createDisposition, startingProgressOf } from './unit-state.mjs';
+import { LEGAL_STAGES, createDisposition, startingProgressOf, PROGRESS_ORDER } from './unit-state.mjs';
 
 export { LEGAL_STAGES };
 
+const BUILT_WINDOW_FLOOR = PROGRESS_ORDER.indexOf('built');
+const BUILT_WINDOW_CEILING = PROGRESS_ORDER.indexOf('merged');
+
 function sanitizeStage(stage) {
   return typeof stage === 'string' && LEGAL_STAGES.includes(stage) ? stage : null;
+}
+
+function isWithinBuiltResumeWindow(msp) {
+  const rank = PROGRESS_ORDER.indexOf(startingProgressOf(msp));
+  return rank >= BUILT_WINDOW_FLOOR && rank < BUILT_WINDOW_CEILING;
 }
 
 export function ParkRecord({ unitId, stage, diagnosis, request, remediation, resumePoint, triedSet, dependents, blockedBy }) {
@@ -137,7 +145,7 @@ export function selectResumeBuilt(manifest, shippedSet, builtUnits) {
   const gate = observed !== null && observed.size > 0 ? observed : null;
   const resume = [];
   for (const msp of manifest.msps) {
-    if (startingProgressOf(msp) !== 'built') continue;
+    if (!isWithinBuiltResumeWindow(msp)) continue;
     if (isParked(msp)) continue;
     if (isShippedUnit(shippedSet, msp.id)) continue;
     let ref = validateRefToken(msp.checkpointRef) ? msp.checkpointRef : null;
