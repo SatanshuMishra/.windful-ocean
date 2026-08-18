@@ -1041,6 +1041,11 @@
         "ref": "0566-implementer-is-briefed-with-rationale-not-spec",
         "title": "The implementer receives the MSP rationale as its specification, and review caught the consequence",
         "scope": "c28"
+      },
+      {
+        "ref": "0567-journal-path-rejected-late-as-unclassified-throw",
+        "title": "The journal flag must be absolute and is rejected only after the planning phase has run",
+        "scope": "c28"
       }
     ],
     "out_of_scope": [
@@ -1052,5 +1057,5 @@
     ]
   },
   "created_at": "2026-08-12T07:37:41.077Z",
-  "updated_at": "2026-08-18T05:55:36.452Z"
+  "updated_at": "2026-08-18T05:55:41.494Z"
 }
