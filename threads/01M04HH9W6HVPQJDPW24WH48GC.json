@@ -476,6 +476,11 @@
         "ref": "0590-closing-unit-for-c5-sidecar-population-and-conditional-closure",
         "title": "Pin the closing unit for c5: sidecar-based population, dispatch-grain questions, conditional closure",
         "scope": "c5"
+      },
+      {
+        "ref": "0591-agent-id-reuse-settled-by-a-pre-committed-sensitivity-test",
+        "title": "Settle the agent-id reuse doubt by a sensitivity test pinned before the number is recomputed",
+        "scope": "c5"
       }
     ],
     "out_of_scope": [
@@ -487,5 +492,5 @@
     ]
   },
   "created_at": "2026-08-16T05:43:25.829Z",
-  "updated_at": "2026-08-18T20:14:06.491Z"
+  "updated_at": "2026-08-18T20:30:54.960Z"
 }
