@@ -1,12 +1,17 @@
-import { test } from 'node:test';
+import { test, after } from 'node:test';
 import assert from 'node:assert/strict';
-import { existsSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { computeRunKey, retire } from '../run-store.mjs';
+import { computeRunKey, openRun, retire } from '../run-store.mjs';
 import { CLAUDE_BEHAVIOURS, FIXED_AT, planRun, runMitosisCli, withSandbox } from './e2e-substrate.mjs';
+import { VALID_KEY, cleanupScratch, openArgs } from './run-store-fixtures.mjs';
 
 const ONE_UNIT = Object.freeze([Object.freeze({ id: 'alpha', behaviour: CLAUDE_BEHAVIOURS.succeed })]);
 const DEAD_PID = 4294967295;
+const ABSENT_PID = 2147483647;
+const UNSIGNALLABLE_PID = 1;
+const PLANTED_STARTED_AT = '2020-01-01T00:00:00Z';
+const STALE_AFTER = '2026-08-12T08:00:00Z';
 
 function runKeyOf(sandbox) {
   return computeRunKey(JSON.parse(readFileSync(sandbox.specPath, 'utf8')));
@@ -20,8 +25,45 @@ function plantLock(runDir, runKey) {
   writeFileSync(join(runDir, 'lock'), `${JSON.stringify({ pid: DEAD_PID, startedAt: FIXED_AT, runKey })}\n`);
 }
 
-function remedyFor(sandbox, runKey) {
-  return `run-store.mjs retire --root ${sandbox.repo} --run-key ${runKey} --lock --force`;
+function remedyFor(root, runKey) {
+  return `run-store.mjs retire --root ${root} --run-key ${runKey} --lock --force`;
+}
+
+function plantedLockRecord(pid) {
+  return Object.freeze({ pid, startedAt: PLANTED_STARTED_AT, runKey: VALID_KEY });
+}
+
+function plantLockRecord(root, held) {
+  const runDir = join(root, '.mitosis', 'runs', VALID_KEY);
+  mkdirSync(runDir, { recursive: true });
+  writeFileSync(join(runDir, 'lock'), `${JSON.stringify(held)}\n`, { flag: 'wx' });
+  return runDir;
+}
+
+function openOutcome(request) {
+  try {
+    return Object.freeze({ handle: openRun(request), error: null });
+  } catch (error) {
+    return Object.freeze({ handle: null, error });
+  }
+}
+
+function livenessProbeCode(pid) {
+  try {
+    process.kill(pid, 0);
+    return null;
+  } catch (error) {
+    return error.code;
+  }
+}
+
+function heldLockRefusal(lockPath, held, remedy) {
+  return `run-store: the run lock at ${lockPath} is already held (pid ${JSON.stringify(held.pid)}, started at ${JSON.stringify(held.startedAt)}); a second run on the same key would interleave its writes with the first and lose updates, so this run refuses. The lock is never broken automatically, not even when the recorded process is gone - once you know the holder is dead, clear it deliberately with: ${remedy}`;
+}
+
+function jsonFileOrNull(path) {
+  if (!existsSync(path)) return null;
+  return JSON.parse(readFileSync(path, 'utf8'));
 }
 
 test('a run that meets a held lock refuses with the retire command that clears it, and the cleared run resumes on a fresh attempt', () => {
@@ -40,7 +82,7 @@ test('a run that meets a held lock refuses with the retire command that clears i
     assert.equal(refused.summary, null, 'a refused run prints no summary, because it never opened the run it would summarize');
     assert.equal(refused.stderr.includes('retire'), true, 'the refusal names the verb that clears the lock, so an operator never has to read the source to recover');
     assert.equal(
-      refused.stderr.includes(remedyFor(sandbox, runKey)),
+      refused.stderr.includes(remedyFor(sandbox.repo, runKey)),
       true,
       `the refusal names the whole command, root and run key included: ${refused.stderr}`,
     );
@@ -135,3 +177,68 @@ test('the lock scope needs a run directory to scope to, and is refused when only
     /lock must be a boolean/,
   );
 });
+
+test('a lock whose recorded process is gone and whose start predates the supplied staleAfter is broken, and the run proceeds on a fresh attempt', () => {
+  assert.equal(
+    livenessProbeCode(ABSENT_PID),
+    'ESRCH',
+    'this case only reaches the staleness leg while the planted holder is genuinely absent, so the probe is asserted before the lock is planted',
+  );
+  const args = openArgs();
+  const runDir = plantLockRecord(args.root, plantedLockRecord(ABSENT_PID));
+
+  const outcome = openOutcome({ ...args, staleAfter: STALE_AFTER });
+  assert.equal(
+    outcome.error,
+    null,
+    `a lock whose holder is gone and whose start predates staleAfter must be broken rather than refused, because nothing is left to interleave writes with: ${outcome.error === null ? '' : outcome.error.message}`,
+  );
+  assert.equal(outcome.handle.attempt, 1);
+  assert.equal(outcome.handle.runKey, VALID_KEY);
+  assert.equal(existsSync(join(runDir, 'attempt-1')), true, 'breaking the lock must open the attempt the run then writes into');
+});
+
+test('breaking a stale lock leaves a lock-broken record in the attempt directory naming the holder it displaced and the staleAfter that justified it', () => {
+  assert.equal(livenessProbeCode(ABSENT_PID), 'ESRCH');
+  const args = openArgs();
+  const runDir = plantLockRecord(args.root, plantedLockRecord(ABSENT_PID));
+
+  openOutcome({ ...args, staleAfter: STALE_AFTER });
+  assert.deepEqual(
+    jsonFileOrNull(join(runDir, 'attempt-1', 'lock-broken.json')),
+    { staleAfter: STALE_AFTER, broke: { pid: ABSENT_PID, startedAt: PLANTED_STARTED_AT, runKey: VALID_KEY } },
+    'a broken lock must leave the displaced holder and the evidence it was judged stale on the attempt, because otherwise nothing in the run records that a lock was taken from another process',
+  );
+});
+
+test('a lock naming a process that is still alive is refused even when its start predates the supplied staleAfter', () => {
+  const livePid = process.ppid;
+  assert.notEqual(livePid, process.pid, 'the live holder must be another process, or a refusal could come from the same-pid leg instead of the liveness leg');
+  assert.equal(livenessProbeCode(livePid), null, 'the live holder must answer a liveness probe as alive, or this case never reaches the liveness leg');
+  const args = openArgs();
+  const runDir = plantLockRecord(args.root, plantedLockRecord(livePid));
+
+  const outcome = openOutcome({ ...args, staleAfter: STALE_AFTER });
+  assert.equal(outcome.handle, null, 'a lock whose holder is still running must never be broken, however old its start is, because that holder is still writing into this run');
+  assert.equal(outcome.error.message, heldLockRefusal(join(runDir, 'lock'), plantedLockRecord(livePid), remedyFor(args.root, VALID_KEY)));
+  assert.equal(existsSync(join(runDir, 'attempt-1')), false);
+  assert.deepEqual(jsonFileOrNull(join(runDir, 'lock')), plantedLockRecord(livePid), 'a refused run leaves the lock exactly as its holder wrote it');
+});
+
+test('a lock naming a process this one may not signal is refused, because a permission error means the holder is alive under another user', () => {
+  assert.equal(
+    livenessProbeCode(UNSIGNALLABLE_PID),
+    'EPERM',
+    'this case only exercises the fail-closed leg while a liveness probe of pid 1 is answered with a permission error here',
+  );
+  assert.notEqual(UNSIGNALLABLE_PID, process.pid);
+  const args = openArgs();
+  const runDir = plantLockRecord(args.root, plantedLockRecord(UNSIGNALLABLE_PID));
+
+  const outcome = openOutcome({ ...args, staleAfter: STALE_AFTER });
+  assert.equal(outcome.handle, null, 'a liveness probe that is refused permission proves the holder exists, so the lock must be refused rather than broken on an unreadable answer');
+  assert.equal(outcome.error.message, heldLockRefusal(join(runDir, 'lock'), plantedLockRecord(UNSIGNALLABLE_PID), remedyFor(args.root, VALID_KEY)));
+  assert.equal(existsSync(join(runDir, 'attempt-1')), false);
+});
+
+after(cleanupScratch);

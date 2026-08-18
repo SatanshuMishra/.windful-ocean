@@ -17,6 +17,7 @@ const RUNS_SEGMENTS = Object.freeze(['.mitosis', 'runs']);
 const JSON_ERROR_POSITION = /position (\d+)/;
 const MAX_ATTEMPT_COLLISIONS = 64;
 const RUN_ID_PATTERN = /^[a-f0-9]{8}$/;
+const LOCK_BREAK = Object.freeze({ zeroGap: '0s', negativePrefix: '-', absentCode: 'ESRCH', record: 'lock-broken.json' });
 const GIT_BINARY = 'git';
 const GIT_TIMEOUT_MS = 10000;
 const GIT_MAX_BUFFER_BYTES = 64 * 1024 * 1024;
@@ -139,6 +140,14 @@ function requireStartedAt(value) {
   return value;
 }
 
+function requireStaleAfter(value) {
+  if (value === undefined) return null;
+  if (!isIsoInstant(value)) {
+    throw new TypeError(`run-store: staleAfter must be an ISO 8601 instant supplied by the caller, because this module reads no clock and the instant a held lock is judged stale against must enter through its arguments, received ${JSON.stringify(value)}`);
+  }
+  return value;
+}
+
 function requirePid(value) {
   if (value === undefined) return process.pid;
   if (!Number.isInteger(value) || value <= 0) {
@@ -230,21 +239,71 @@ function lockRemedy(root, runKey) {
   return `run-store.mjs retire --root ${root} --run-key ${runKey} --lock --force`;
 }
 
-function acquireLock(runDir, lockRecord, remedy) {
-  const lockPath = join(runDir, 'lock');
+function heldLockRefusal(lockPath, remedy) {
+  return new Error(`run-store: the run lock at ${lockPath} is already held (${describeLockHolder(lockPath)}); a second run on the same key would interleave its writes with the first and lose updates, so this run refuses. The lock is never broken automatically, not even when the recorded process is gone - once you know the holder is dead, clear it deliberately with: ${remedy}`);
+}
+
+function claimLockFile(lockPath, lockRecord) {
   let descriptor = null;
   try {
     descriptor = openSync(lockPath, 'wx', 0o600);
   } catch (error) {
     if (error.code !== 'EEXIST') throw error;
-    throw new Error(`run-store: the run lock at ${lockPath} is already held (${describeLockHolder(lockPath)}); a second run on the same key would interleave its writes with the first and lose updates, so this run refuses. The lock is never broken automatically, not even when the recorded process is gone - once you know the holder is dead, clear it deliberately with: ${remedy}`);
+    return false;
   }
   try {
     writeFileSync(descriptor, `${JSON.stringify(lockRecord)}\n`);
   } finally {
     closeSync(descriptor);
   }
-  return lockPath;
+  return true;
+}
+
+function readLockHolder(lockPath) {
+  try {
+    const held = JSON.parse(readFileSync(lockPath, 'utf8'));
+    return isPlainObject(held) ? held : null;
+  } catch {
+    return null;
+  }
+}
+
+function holderAnswersNoSignal(pid) {
+  try {
+    process.kill(pid, 0);
+    return false;
+  } catch (error) {
+    return error.code === LOCK_BREAK.absentCode;
+  }
+}
+
+function startPrecedes(startedAt, staleAfter) {
+  const gap = elapsedBetween(startedAt, staleAfter);
+  return gap !== LOCK_BREAK.zeroGap && !gap.startsWith(LOCK_BREAK.negativePrefix);
+}
+
+function lockBreakEvidence(lockPath, staleAfter) {
+  if (staleAfter === null) return null;
+  const held = readLockHolder(lockPath);
+  if (held === null) return null;
+  if (!Number.isInteger(held.pid) || held.pid <= 0 || held.pid === process.pid) return null;
+  if (!isIsoInstant(held.startedAt) || !startPrecedes(held.startedAt, staleAfter)) return null;
+  if (!holderAnswersNoSignal(held.pid)) return null;
+  return Object.freeze({ staleAfter, broke: held });
+}
+
+function acquireLock(runDir, lockRecord, remedy, staleAfter) {
+  const lockPath = join(runDir, 'lock');
+  if (claimLockFile(lockPath, lockRecord)) return Object.freeze({ path: lockPath, broke: null });
+  const evidence = lockBreakEvidence(lockPath, staleAfter);
+  if (evidence === null) throw heldLockRefusal(lockPath, remedy);
+  try {
+    unlinkSync(lockPath);
+  } catch (error) {
+    throw new Error(`run-store: the run lock at ${lockPath} was judged stale - its holder pid ${evidence.broke.pid} answers no signal and it started before ${evidence.staleAfter} - but removing it failed (${error.message}); this run refuses rather than writing beside a lock it could not take, because a lock it does not own cannot keep a second run out of this key`);
+  }
+  if (!claimLockFile(lockPath, lockRecord)) throw heldLockRefusal(lockPath, remedy);
+  return Object.freeze({ path: lockPath, broke: evidence });
 }
 
 function releaseLock(lockPath, lockRecord) {
@@ -349,7 +408,7 @@ function rollbackLock(lockPath, lockRecord, cause) {
 
 export function openRun(request) {
   if (!isPlainObject(request)) {
-    throw new TypeError(`run-store: openRun takes one plain object carrying root, runKey, unitIds, plan, startedAt and an optional pid and runId, received ${request === null ? 'null' : Array.isArray(request) ? 'an array' : typeof request}`);
+    throw new TypeError(`run-store: openRun takes one plain object carrying root, runKey, unitIds, plan, startedAt and an optional pid, runId and staleAfter, received ${request === null ? 'null' : Array.isArray(request) ? 'an array' : typeof request}`);
   }
   const root = requireAbsoluteDir(request.root, 'root');
   const runKey = requireRunKey(request.runKey);
@@ -358,14 +417,17 @@ export function openRun(request) {
   const startedAt = requireStartedAt(request.startedAt);
   const pid = requirePid(request.pid);
   const runId = request.runId === undefined ? null : requireRunId(request.runId);
+  const staleAfter = requireStaleAfter(request.staleAfter);
 
   const runDir = prepareRunDirectory(root, runKey);
   const lockRecord = Object.freeze({ pid, startedAt, runKey });
-  const lockPath = acquireLock(runDir, lockRecord, lockRemedy(root, runKey));
+  const lock = acquireLock(runDir, lockRecord, lockRemedy(root, runKey), staleAfter);
+  const lockPath = lock.path;
   let allocated = null;
   try {
     allocated = allocateAttempt(runDir);
     mkdirSync(join(allocated.dir, 'items'));
+    if (lock.broke !== null) writeFileSync(join(allocated.dir, LOCK_BREAK.record), `${JSON.stringify(lock.broke)}\n`, { flag: 'wx' });
     writeFileSync(
       join(allocated.dir, 'plan.json'),
       `${JSON.stringify({ runKey, runId, attempt: allocated.attempt, startedAt, pid, unitIds: [...unitIds], plan })}\n`,
