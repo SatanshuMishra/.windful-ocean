@@ -181,10 +181,11 @@ either path; it does not care which is chosen, only that zero occurrences remain
 ## 9. Deviations discovered after the criterion was pinned
 
 The instrument shipped as `retirement-census` (`retirement-census.mjs`, `retirement-set.mjs`).
-It measures **20 sites at exit 41 on `main`**, not the 19 recorded in section 3. Nothing above
-was added or relaxed; these are the deltas.
+It measures **19 sites at exit 41 on `main`**, matching section 3's recorded baseline — but
+only after the ruling in item 1 below. Its first measurement was 20. Nothing above was added
+or relaxed; these are the deltas.
 
-**1. A twentieth site, ruled out of scope.**
+**1. A twentieth site, ruled out of scope, taking the total to 19.**
 `.claude/lib/observer-audit/fixtures/roster/debugger.md:2` carries `name: debugger`. It is a
 three-line synthetic roster fixture beside five sibling synthetic agent files. The implementer
 correctly refused to invent an exclusion to make the number match, and filed it for decision.
