@@ -23,7 +23,7 @@ Set `AGENT_LEDGER_SUPPRESS=1` in the environment for every subagent this skill d
    `node ~/.claude/hooks/agent-ledger/agent-roster-gate.mjs '{"recurrenceCount":N,"distinctReasonToChange":BOOL,"clearerRouting":BOOL}'`
    A `create` verdict means propose a new agent; `extend` means modify an existing one; `reject` means leave it. Record a `recommendation_rejected` rationale for rejects.
 
-5. Render the report via the `report` skill: pass the gap evidence, the researcher findings, the baselines, and the per-gap recommended diffs (exact agent-file changes). The report is cited and teaching-oriented.
+5. Dispatch `technical-writer` to write the report content: pass the gap evidence, the researcher findings, the baselines, and the per-gap recommended diffs (exact agent-file changes). Render the returned content with `visual-explainer` for a cited, teaching-oriented report.
 
 6. On the user's per-recommendation approval, dispatch the appropriate specialist subagent to apply the agent-file change, then record it:
    `node ~/.claude/hooks/agent-ledger/agent-ledger-resolve.mjs '{"gap_id":"...","resolution":"modify|create|delete|merge|split","agent_refs":["..."],"change_summary":"...","notes":"..."}'`

@@ -1,6 +1,6 @@
 import { after, test } from 'node:test';
 import assert from 'node:assert/strict';
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import {
@@ -233,7 +233,7 @@ test('a fully repointed tree is clean and still reports every retiring name at z
   assert.equal(report.ok, true);
 });
 
-test('the live configuration is scanned end to end and currently still names retiring agents', () => {
+test('the live configuration is scanned end to end and no longer names a retiring agent', () => {
   const scope = retirementScope();
   assert.equal(scope.ok, true, scope.error);
   const result = censusRetirement(scope.scope, realRetirementIo);
@@ -241,14 +241,16 @@ test('the live configuration is scanned end to end and currently still names ret
   assert.deepEqual(result.derivation.derivationA, result.derivation.derivationB);
   assert.ok(result.fileCount > 0, 'the live scan opened no file, so its verdict measured nothing');
   assert.equal(result.ok, result.sites.length === 0);
-  assert.ok(result.sites.length > 0, 'the live configuration is expected to still carry retiring names before U6.2 repoints them');
-  assert.ok(existsSync(result.sites[0].path), `${result.sites[0].path} is reported as a site but is not a real file`);
+  assert.equal(result.sites.length, 0, 'the live configuration still names a retiring agent after U6.2 repointed every reference');
   for (const name of result.derivation.derivationB) {
     assert.equal(typeof result.perName[name], 'number', `${name} is missing from the per-name report`);
   }
   const sink = capture();
-  assert.equal(runMitosisGate([VERB], sink.out, readSource), GATE_VIOLATION_EXIT);
-  assert.match(sink.err.join(''), /still names retiring agent/);
+  assert.equal(runMitosisGate([VERB], sink.out, readSource), GATE_CLEAN_EXIT);
+  assert.equal(sink.err.join(''), '');
+  const report = JSON.parse(sink.log.join(''));
+  assert.equal(report.ok, true);
+  assert.deepEqual(report.perName, result.perName);
 });
 
 test('restoring one repointed reference in a clean tree turns it red at that exact file and line', () => {

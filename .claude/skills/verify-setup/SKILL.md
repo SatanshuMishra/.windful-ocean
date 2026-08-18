@@ -5,7 +5,7 @@ description: Use when a project has no /verify-<project> command and the user as
 
 # Verify Setup
 
-Generates the project-local scoped verification command that `verification-discipline` and the `verification-strategist` agent expect.
+Generates the project-local scoped verification command that `verification-discipline` and the `verifier` agent expect.
 
 ## Process
 
@@ -35,7 +35,7 @@ Generates the project-local scoped verification command that `verification-disci
 
 ## Output template
 
-The generated file must contain a glob routing table (the `verification-strategist` agent matches touched files against these globs) and a scope command table:
+The generated file must contain a glob routing table (the `verifier` agent matches touched files against these globs) and a scope command table:
 
     ---
     name: verify-<project>

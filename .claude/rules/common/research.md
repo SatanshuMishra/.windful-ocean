@@ -30,9 +30,9 @@ Defer to `research-citations.md` for the core rule (verifiable URL inline or `[u
 
 ## Output contract
 
-- Research returns report-ready findings to the orchestrator; a rendered report is produced only on demand via the `report` skill (`/report`). No raw walls of text in chat.
+- Research returns report-ready findings to the orchestrator; a report is produced only on demand by dispatching `technical-writer` to structure the verified findings into cited content — rendering it via `visual-explainer` and placing the file are the dispatcher's job, not `technical-writer`'s. No raw walls of text in chat.
 - Write for a near-novice reader: define every term in plain words on first use, BLUF (answer first), no walls of text; prose only for nuance, everything comparative/relational/quantitative becomes a table/diagram/callout.
-- Two archetypes seed the report templates: technology-decision and bug/diagnostic (the `report` skill carries the section templates).
+- Two archetypes seed a report's structure: technology-decision and bug/diagnostic.
 - Research findings are returned to the orchestrator; rendering a report is on-demand, never automatic. Research never silently rolls into implementation.
 
 ## See also
