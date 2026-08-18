@@ -10,6 +10,7 @@ import { validateAgentSpec } from '../agent-body-compose.mjs';
 
 const DRIVER = fileURLToPath(new URL('../agent-generate.mjs', import.meta.url));
 const SHIPPED_STORE = fileURLToPath(new URL('../agent-specs/', import.meta.url));
+const SHIPPED_AGENTS = fileURLToPath(new URL('../../../agents/', import.meta.url));
 
 const REQUIRED_FRAGMENTS = Object.freeze([
   'answer-format',
@@ -137,11 +138,11 @@ test('empty store: --check exits 0 and says zero specs rather than reporting a m
   assert.doesNotMatch(result.output, /matching their source/);
 });
 
-test('empty store: the shipped store is empty today and --check is clean over it', (t) => {
-  const agentDir = agents(t);
-  const result = run(['--check', '--store', SHIPPED_STORE, '--agents', agentDir]);
+test('shipped store: every shipped spec composes to the committed body and --check is clean over it', () => {
+  const result = run(['--check', '--store', SHIPPED_STORE, '--agents', SHIPPED_AGENTS]);
   assert.equal(result.code, 0, result.output);
-  assert.match(result.output, /zero agent specs/);
+  assert.match(result.output, /matching their source/);
+  assert.doesNotMatch(result.output, /zero agent specs/);
 });
 
 test('unreadable store: an absent store directory exits non-zero rather than green', (t) => {
