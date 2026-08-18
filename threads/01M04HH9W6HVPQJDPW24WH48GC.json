@@ -456,6 +456,11 @@
         "ref": "0584-c5-measured-lead-share-met-attribution-and-outcome-not",
         "title": "c5 measured: Lead share 85.71 percent clears the bar, attribution and outcome clauses do not",
         "scope": "c5"
+      },
+      {
+        "ref": "0586-contamination-answered-independent-traffic-clears-the-lead-bar",
+        "title": "Contamination answered by measurement: independent out-of-repo traffic clears the Lead bar alone",
+        "scope": "c5"
       }
     ],
     "out_of_scope": [
@@ -467,5 +472,5 @@
     ]
   },
   "created_at": "2026-08-16T05:43:25.829Z",
-  "updated_at": "2026-08-18T19:26:57.993Z"
+  "updated_at": "2026-08-18T19:35:42.369Z"
 }
