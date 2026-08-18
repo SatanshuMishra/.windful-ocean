@@ -254,6 +254,7 @@ function blockedParkFields(unitId, blockedBy) {
 function journalRecorder(request, ports, attempts) {
   const written = new Map();
   const blocked = new Set();
+  const builtDeltas = new Map();
   const append = async (unitId, line) => {
     if (written.get(unitId) === line) return;
     written.set(unitId, line);
@@ -262,7 +263,9 @@ function journalRecorder(request, ports, attempts) {
   const recordBuilt = async (unit, outcome) => {
     const ref = checkpointRefFor(unit, request.runId);
     if (ref !== null) await ports.writeRef({ ref, unitId: unit.id, sha: shaOf(outcome) });
-    await append(unit.id, composeJournalLine('built', { unitId: unit.id, checkpointRef: ref, sha: shaOf(outcome), green: greenOf(outcome), builtAgainst: {} }));
+    const delta = Object.freeze({ unitId: unit.id, checkpointRef: ref, sha: shaOf(outcome), green: greenOf(outcome), builtAgainst: {} });
+    await append(unit.id, composeJournalLine('built', delta));
+    builtDeltas.set(unit.id, delta);
   };
   const recordPark = async (unit, outcome) => {
     const fields = parkFields(unit.id, outcome);
@@ -281,7 +284,11 @@ function journalRecorder(request, ports, attempts) {
     if (disposition !== PARKED || willRetry(outcome, unit.id, attempts)) return undefined;
     return recordPark(unit, outcome);
   };
-  return Object.freeze({ record, blocked: () => Object.freeze([...blocked]) });
+  return Object.freeze({
+    record,
+    blocked: () => Object.freeze([...blocked]),
+    recorded: () => Object.freeze([...builtDeltas.values()]),
+  });
 }
 
 export async function runEngine(request, ports) {
@@ -307,7 +314,7 @@ export async function runEngine(request, ports) {
     blocked: recorder.blocked,
     attempts,
   });
-  if (!result.quiescent) return Object.freeze({ ...result, prState: null });
+  if (!result.quiescent) return Object.freeze({ ...result, prState: null, recorded: recorder.recorded() });
   const outstanding = result.units.some((unit) => unit.state !== 'done');
   await ports.appendJournal({
     repoRoot: request.repoRoot,
@@ -315,5 +322,5 @@ export async function runEngine(request, ports) {
     line: composeJournalLine('quiescent-exit', { at: request.at, outstanding }),
   });
   const prState = await ports.gh(buildGhCommand('ship', 'done-oracle', { repoSlug: request.repoSlug, integrationBranch: request.integrationBranch }));
-  return Object.freeze({ ...result, prState });
+  return Object.freeze({ ...result, prState, recorded: recorder.recorded() });
 }
