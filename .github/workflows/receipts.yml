@@ -73,6 +73,10 @@ jobs:
         run: node scripts/repo/agent-ledger-archive-verify.mjs --manifest-only
       - name: agent body drift
         run: node --test .claude/lib/mitosis/tests/agent-body-composition.test.mjs
+      - name: agent generator substrate
+        run: node --test .claude/lib/mitosis/tests/agent-generate.test.mjs
+      - name: generated agent bodies match the spec store
+        run: node .claude/lib/mitosis/agent-generate.mjs --check
 
   pr-title-lint:
     runs-on: ubuntu-latest

@@ -57,6 +57,7 @@ const GLOBAL_RECEIVERS = Object.freeze(new Set(['global', 'globalThis', 'self', 
 const KEY_PREFIX_CHARS = Object.freeze(new Set(['{', ',']));
 const SOURCE_EXTENSION = '.mjs';
 const EXCLUDED_SUBDIRECTORIES = Object.freeze(new Set(['prompt-snapshots', 'tests']));
+export const SCANNED_SUBDIRECTORIES = Object.freeze(new Set(['agent-specs']));
 const UNSCANNED_SCRIPT_EXTENSIONS = Object.freeze(['.cjs', '.cts', '.js', '.jsx', '.mts', '.ts', '.tsx']);
 
 export const realSourceIo = Object.freeze({
@@ -82,6 +83,46 @@ function enumerationFailure(kind, message) {
   return Object.freeze({ ok: false, kind, error: message });
 }
 
+function collectDirectoryFiles(dirPath, io) {
+  let entries;
+  try {
+    entries = io.readDir(dirPath);
+  } catch (error) {
+    return enumerationFailure('read', `the engine source root ${dirPath} could not be read: ${error && error.message ? error.message : 'unknown failure'}`);
+  }
+  const named = [];
+  const descend = [];
+  for (const entry of entries) {
+    if (entry.isDirectory()) {
+      if (EXCLUDED_SUBDIRECTORIES.has(entry.name)) continue;
+      if (SCANNED_SUBDIRECTORIES.has(entry.name)) {
+        descend.push(join(dirPath, entry.name));
+        continue;
+      }
+      return enumerationFailure('halt', `the engine source root ${dirPath} contains the subdirectory ${entry.name}, which this census neither scans nor rules out; refusing to guess whether engine source moved into it`);
+    }
+    if (!entry.isFile()) {
+      return enumerationFailure('halt', `the engine source root ${dirPath} contains ${entry.name}, which is neither a file nor a directory; refusing to guess what it resolves to`);
+    }
+    if (entry.name.endsWith(SOURCE_EXTENSION)) {
+      named.push(join(dirPath, entry.name));
+      continue;
+    }
+    if (UNSCANNED_SCRIPT_EXTENSIONS.some((extension) => entry.name.endsWith(extension))) {
+      return enumerationFailure('halt', `the engine source root ${dirPath} contains ${entry.name}, which can carry engine source yet is not scanned by a census over ${SOURCE_EXTENSION} files; refusing to guess`);
+    }
+  }
+  named.sort();
+  descend.sort();
+  const collected = [...named];
+  for (const child of descend) {
+    const nested = collectDirectoryFiles(child, io);
+    if (!nested.ok) return nested;
+    collected.push(...nested.files);
+  }
+  return Object.freeze({ ok: true, files: Object.freeze(collected) });
+}
+
 export function engineSourceFiles(roots, io) {
   const files = [];
   for (const root of roots) {
@@ -101,31 +142,9 @@ export function engineSourceFiles(roots, io) {
     if (root.kind !== 'directory') {
       return enumerationFailure('halt', `the engine source root ${JSON.stringify(root)} is neither a directory nor a file; refusing to guess what it enumerates`);
     }
-    let entries;
-    try {
-      entries = io.readDir(root.path);
-    } catch (error) {
-      return enumerationFailure('read', `the engine source root ${root.path} could not be read: ${error && error.message ? error.message : 'unknown failure'}`);
-    }
-    const named = [];
-    for (const entry of entries) {
-      if (entry.isDirectory()) {
-        if (EXCLUDED_SUBDIRECTORIES.has(entry.name)) continue;
-        return enumerationFailure('halt', `the engine source root ${root.path} contains the subdirectory ${entry.name}, which this census neither scans nor rules out; refusing to guess whether engine source moved into it`);
-      }
-      if (!entry.isFile()) {
-        return enumerationFailure('halt', `the engine source root ${root.path} contains ${entry.name}, which is neither a file nor a directory; refusing to guess what it resolves to`);
-      }
-      if (entry.name.endsWith(SOURCE_EXTENSION)) {
-        named.push(join(root.path, entry.name));
-        continue;
-      }
-      if (UNSCANNED_SCRIPT_EXTENSIONS.some((extension) => entry.name.endsWith(extension))) {
-        return enumerationFailure('halt', `the engine source root ${root.path} contains ${entry.name}, which can carry engine source yet is not scanned by a census over ${SOURCE_EXTENSION} files; refusing to guess`);
-      }
-    }
-    named.sort();
-    files.push(...named);
+    const collected = collectDirectoryFiles(root.path, io);
+    if (!collected.ok) return collected;
+    files.push(...collected.files);
   }
   return Object.freeze({ ok: true, files: Object.freeze(files) });
 }
