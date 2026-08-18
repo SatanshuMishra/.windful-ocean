@@ -1060,6 +1060,11 @@
         "ref": "0573-audit-to-root-cause-before-any-fan-out-implementation",
         "title": "The next phase is a bounded audit to root cause and a whole solution, never another reviewer loop",
         "scope": "thread"
+      },
+      {
+        "ref": "0576-audit-answers-0573-with-thirteen-root-causes",
+        "title": "The 0573 audit is complete and both families reduce to thirteen named root causes",
+        "scope": "c28"
       }
     ],
     "out_of_scope": [
@@ -1071,5 +1076,5 @@
     ]
   },
   "created_at": "2026-08-12T07:37:41.077Z",
-  "updated_at": "2026-08-18T16:27:00.385Z"
+  "updated_at": "2026-08-18T17:57:17.553Z"
 }
