@@ -482,6 +482,11 @@
         "ref": "0593-refuted-text-is-folded-in-suspected-stale-text-is-filed",
         "title": "Fold in text a change makes demonstrably false; file text merely suspected stale",
         "scope": "thread"
+      },
+      {
+        "ref": "0598-agent-id-reuse-settled-as-re-entry-duplication",
+        "title": "Agent-id multi-start groups are re-entry duplication, so dispatch grain stays (session_id, agent_id)",
+        "scope": "c5"
       }
     ],
     "out_of_scope": [
@@ -491,5 +496,5 @@
     ]
   },
   "created_at": "2026-08-16T05:43:25.829Z",
-  "updated_at": "2026-08-18T21:28:47.023Z"
+  "updated_at": "2026-08-18T23:14:39.054Z"
 }
