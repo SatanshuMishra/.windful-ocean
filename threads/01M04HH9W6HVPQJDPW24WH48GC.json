@@ -451,6 +451,11 @@
         "ref": "0580-audit-population-predicate-resolves-at-dispatch-grain",
         "title": "Resolve the audit population predicate at dispatch grain, superseding 0537's refuted premise",
         "scope": "c5"
+      },
+      {
+        "ref": "0584-c5-measured-lead-share-met-attribution-and-outcome-not",
+        "title": "c5 measured: Lead share 85.71 percent clears the bar, attribution and outcome clauses do not",
+        "scope": "c5"
       }
     ],
     "out_of_scope": [
@@ -462,5 +467,5 @@
     ]
   },
   "created_at": "2026-08-16T05:43:25.829Z",
-  "updated_at": "2026-08-18T18:50:50.725Z"
+  "updated_at": "2026-08-18T19:26:57.993Z"
 }
