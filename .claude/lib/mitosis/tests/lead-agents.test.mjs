@@ -1,19 +1,27 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { existsSync, readFileSync, statSync } from 'node:fs';
+import { cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, statSync } from 'node:fs';
+import { homedir, tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { resolveSkillPointer } from '../agent-skill-pointers.mjs';
+import { MANIFEST_RELATIVE_PATH, resolveSkillPointer } from '../agent-skill-pointers.mjs';
+import { partitionByPointerNeed } from '../agent-generate-plan.mjs';
 
 const AGENT_DIR = fileURLToPath(new URL('../../../agents/', import.meta.url));
 const SKILL_TREE = fileURLToPath(new URL('../../../skills/', import.meta.url));
 const CONFIG_ROOT = fileURLToPath(new URL('../../../', import.meta.url));
+const FIXTURE_HOME = fileURLToPath(new URL('./fixtures/agent-generate-home/', import.meta.url));
 
 export const LEAD_NAMES = Object.freeze(['architect', 'delivery-lead', 'investigator']);
 
 export const REQUIRED_LEAD_TOOLS = Object.freeze(['StructuredOutput', 'Agent', 'Skill']);
 
 export const SKILL_BYTE_CEILING = 4096;
+
+export const EXPECTED_BODY_POINTERS = Object.freeze([
+  'architect:superpowers:writing-plans',
+  'investigator:superpowers:systematic-debugging',
+]);
 
 const FENCE = '---';
 const QUALIFIED_REFERENCE = /^[a-z0-9][a-z0-9-]*:[a-z0-9][a-z0-9-]*$/;
@@ -64,17 +72,37 @@ export function assertLeadToolGrant(tools, label) {
   assert.deepEqual(missing, [], `${label} omits ${missing.join(', ')} from its tools allowlist; a tool absent from that line does not exist for the agent`);
 }
 
-export function resolveSkillReference(reference, label) {
-  if (QUALIFIED_REFERENCE.test(reference)) {
-    const pointer = resolveSkillPointer({ reference });
-    return Object.freeze({ reference, kind: 'plugin', path: pointer.path });
-  }
-  if (LOCAL_REFERENCE.test(reference)) {
-    const path = join(SKILL_TREE, reference, 'SKILL.md');
-    assert.ok(existsSync(path), `${label} names the project skill ${JSON.stringify(reference)} but ${path} does not exist; an unknown name logs a warning and spawns the agent without it`);
-    return Object.freeze({ reference, kind: 'project', path });
-  }
+export function pluginManifestPath(home = homedir()) {
+  return join(home, MANIFEST_RELATIVE_PATH);
+}
+
+export function classifySkillReference(reference, label) {
+  if (QUALIFIED_REFERENCE.test(reference)) return 'plugin';
+  if (LOCAL_REFERENCE.test(reference)) return 'project';
   assert.fail(`${label} names the skill reference ${JSON.stringify(reference)}, which is neither a plugin-qualified plugin:skill nor a project-local skill name; this census refuses to guess which namespace is meant`);
+}
+
+export function manifestNeedingReferences(pointers, label) {
+  return Object.freeze(pointers
+    .filter((pointer) => classifySkillReference(pointer.reference, label) === 'plugin')
+    .map((pointer) => pointer.reference));
+}
+
+export function pointerDeferralNotice(manifestPath, deferred) {
+  const named = deferred.map((entry) => `${entry.spec.name} (${entry.spec.procedures.join(', ')})`).join('; ');
+  const counted = deferred.length === 1 ? '1 agent spec' : `${deferred.length} agent specs`;
+  return `POINTER RESOLUTION UNVERIFIED on this host: the plugin manifest ${manifestPath} does not exist, so the body pointers of ${counted} could not be resolved and went unchecked: ${named}`;
+}
+
+export function resolveSkillReference(reference, label) {
+  const kind = classifySkillReference(reference, label);
+  if (kind === 'plugin') {
+    const pointer = resolveSkillPointer({ reference });
+    return Object.freeze({ reference, kind, path: pointer.path });
+  }
+  const path = join(SKILL_TREE, reference, 'SKILL.md');
+  assert.ok(existsSync(path), `${label} names the project skill ${JSON.stringify(reference)} but ${path} does not exist; an unknown name logs a warning and spawns the agent without it`);
+  return Object.freeze({ reference, kind, path });
 }
 
 export function pointerLinesOf(body) {
@@ -155,19 +183,90 @@ test('the preload ceiling assertion names an oversized skill rather than passing
   );
 });
 
-test('every generated body pointer resolves to a file that exists', () => {
-  const seen = [];
-  for (const name of LEAD_NAMES) {
+test('every generated body pointer resolves to a file that exists', (t) => {
+  const manifestPath = pluginManifestPath();
+  const entries = LEAD_NAMES.map((name) => {
     const subject = lead(name);
-    for (const pointer of pointerLinesOf(subject.frontmatter.body)) {
-      const resolved = resolveSkillReference(pointer.reference, subject.path);
-      assert.equal(pointer.path, resolved.path, `${subject.path} carries a pointer for ${pointer.reference} that is not the path resolved from the plugin manifest today`);
-      assert.ok(existsSync(pointer.path), `${subject.path} points at ${pointer.path}, which does not exist`);
-      assert.ok(statSync(pointer.path).size > SKILL_BYTE_CEILING, `${subject.path} points at ${pointer.reference}, which is small enough to preload instead`);
-      seen.push(`${name}:${pointer.reference}`);
+    const pointers = pointerLinesOf(subject.frontmatter.body);
+    return Object.freeze({
+      subject,
+      pointers,
+      spec: Object.freeze({ name, procedures: manifestNeedingReferences(pointers, subject.path) }),
+    });
+  });
+
+  const scoped = partitionByPointerNeed(entries, existsSync(manifestPath));
+  assert.equal(scoped.ok, true, scoped.error);
+
+  const seen = [];
+  for (const entry of scoped.composable) {
+    for (const pointer of entry.pointers) {
+      const resolved = resolveSkillReference(pointer.reference, entry.subject.path);
+      assert.equal(pointer.path, resolved.path, `${entry.subject.path} carries a pointer for ${pointer.reference} that is not the path resolved from the plugin manifest today`);
+      assert.ok(existsSync(pointer.path), `${entry.subject.path} points at ${pointer.path}, which does not exist`);
+      assert.ok(statSync(pointer.path).size > SKILL_BYTE_CEILING, `${entry.subject.path} points at ${pointer.reference}, which is small enough to preload instead`);
+      seen.push(`${entry.spec.name}:${pointer.reference}`);
     }
   }
-  assert.deepEqual(seen, ['architect:superpowers:writing-plans', 'investigator:superpowers:systematic-debugging']);
+
+  if (scoped.deferred.length > 0) t.diagnostic(pointerDeferralNotice(manifestPath, scoped.deferred));
+  const unchecked = new Set(scoped.deferred.map((entry) => entry.spec.name));
+  assert.deepEqual(seen, EXPECTED_BODY_POINTERS.filter((entry) => !unchecked.has(entry.slice(0, entry.indexOf(':')))));
+});
+
+test('the pointer deferral defers only the specs whose references need a manifest, and none at all on a manifest host', () => {
+  const entries = Object.freeze([
+    Object.freeze({ spec: Object.freeze({ name: 'pointerless-lead', procedures: Object.freeze([]) }) }),
+    Object.freeze({ spec: Object.freeze({ name: 'pointer-lead', procedures: Object.freeze(['superpowers:writing-plans']) }) }),
+  ]);
+
+  const absent = partitionByPointerNeed(entries, false);
+  assert.equal(absent.ok, true, absent.error);
+  assert.deepEqual(absent.deferred.map((entry) => entry.spec.name), ['pointer-lead']);
+  assert.deepEqual(absent.composable.map((entry) => entry.spec.name), ['pointerless-lead']);
+
+  const present = partitionByPointerNeed(entries, true);
+  assert.equal(present.ok, true, present.error);
+  assert.deepEqual(present.deferred, []);
+  assert.deepEqual(present.composable.map((entry) => entry.spec.name), ['pointerless-lead', 'pointer-lead']);
+});
+
+test('the deferral is not a catch-all: a project-local reference never defers and an unclassifiable one is refused', () => {
+  assert.deepEqual(
+    manifestNeedingReferences([{ reference: 'superpowers:writing-plans' }, { reference: 'verification-discipline' }], 'synthetic-lead'),
+    ['superpowers:writing-plans'],
+  );
+  assert.throws(
+    () => manifestNeedingReferences([{ reference: 'Writing Plans' }], 'synthetic-lead'),
+    /neither a plugin-qualified plugin:skill nor a project-local skill name/,
+  );
+});
+
+test('the deferral is not a catch-all: a plugin absent from a manifest that does exist is still refused', (t) => {
+  const home = mkdtempSync(join(tmpdir(), 'lead-agents-manifest-'));
+  t.after(() => rmSync(home, { recursive: true, force: true }));
+  mkdirSync(join(home, '.claude', 'plugins'), { recursive: true });
+  cpSync(join(FIXTURE_HOME, 'installed_plugins.json'), pluginManifestPath(home));
+  assert.equal(existsSync(pluginManifestPath(home)), true);
+
+  assert.throws(
+    () => resolveSkillPointer({ reference: 'no-such-plugin:no-such-skill', homeDir: home }),
+    /no plugin named no-such-plugin is installed/,
+  );
+});
+
+test('the deferral notice names the manifest it looked for and every spec it did not check', () => {
+  const manifestPath = pluginManifestPath('/synthetic-home');
+  const notice = pointerDeferralNotice(manifestPath, [
+    { spec: { name: 'architect', procedures: ['superpowers:writing-plans'] } },
+    { spec: { name: 'investigator', procedures: ['superpowers:systematic-debugging'] } },
+  ]);
+
+  assert.match(notice, /^POINTER RESOLUTION UNVERIFIED/);
+  assert.ok(notice.includes(manifestPath), notice);
+  assert.ok(notice.includes('architect (superpowers:writing-plans)'), notice);
+  assert.ok(notice.includes('investigator (superpowers:systematic-debugging)'), notice);
+  assert.match(notice, /2 agent specs/);
 });
 
 test('delivery-lead fetches its oversized procedure by instruction and the path it names exists', () => {
