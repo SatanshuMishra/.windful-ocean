@@ -373,6 +373,11 @@
         "ref": "0549-four-substrate-gaps-found-executing-waves-4-and-5",
         "title": "Waves 4 and 5 found four substrate gaps; three are fixed, the effort dial is a SPEC defect",
         "scope": "c4"
+      },
+      {
+        "ref": "0550-spec-store-dynamic-import-halts-determinism-census",
+        "title": "The spec store's dynamic import halts the determinism census; register a declared exception",
+        "scope": "c4"
       }
     ],
     "out_of_scope": [
@@ -381,5 +386,5 @@
     ]
   },
   "created_at": "2026-08-16T05:43:25.829Z",
-  "updated_at": "2026-08-18T01:19:29.421Z"
+  "updated_at": "2026-08-18T01:23:00.312Z"
 }
