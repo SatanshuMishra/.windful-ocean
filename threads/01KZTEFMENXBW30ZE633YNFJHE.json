@@ -294,9 +294,9 @@
   "abandoned_reason": null,
   "closure_statement": null,
   "spine": {
-    "active_goal": "Implement the approved whole solution: 22 units in 9 waves closing all thirteen boundary root causes.",
-    "next_step": "AUTHORITY IS Part 7 (A1-A19) of artifacts-2026-08-18-whole-solution/whole-solution.md, never a conversation. origin/main c29829a2; M1, M10, M12a, M14 MERGED (verified by content). PR 221 open. In flight: M0, M2 (both resumed after a session-limit teardown, both need a rebase onto new main), plus a standalone PR-provenance fix. M7 is HELD at b1a34b29 unpushed - release only after M0 lands, then rebase, never discard. Wave 3 (M3, M4, M4b, M12b-2, M12c) unlocks when M2 lands and 221 merges.",
-    "last_session": "Wave 1 shipped four units and all merged. Three leads blocked on scope and all three blocked correctly. Two tooling defects found that silently disable verification. Stack grew 16 units to 22.",
+    "active_goal": "Ship the frozen 24-unit whole solution, waves 3 through 9, closing all thirteen boundary root causes.",
+    "next_step": "READ artifacts-2026-08-18-whole-solution/RUNBOOK.md FIRST - it carries the four freeze rules, the 24-unit table with files and deps, and a Standing Brief every lead reads instead of a retyped preamble. Stack FROZEN at 24; architect retired; blocks ruled here in ONE exchange; discoveries go to BACKLOG-not-this-stack.md, never into a unit. Six PRs open and green: 219, 220, 221, 222, 223, 224. Merge 221 BEFORE 223. Then fan out wave 3: M3, M4, M4b, M12b-2.",
+    "last_session": "Shipped nine units by lead fan-out - four merged, six PRs open and green. Froze the stack at 24 and retired the architect after diagnosing the growth loop. Wrote RUNBOOK.md and a backlog file so findings stop becoming units.",
     "open_risks": [
       {
         "text": "Prove a merge arrived by asserting its CONTENT is on the base, never by SHA ancestry — a squash or stack merge rewrites commits, so a pre-merge SHA correctly fails an ancestry check on a merge that lost nothing",
@@ -506,7 +506,25 @@
         "scope": "c28",
         "refs": [
           "PR 215 at 129ms",
-          "PR 221 at 67s"
+          "PR 221 at 67s",
+          "0594"
+        ]
+      },
+      {
+        "text": "Merge 221 before 223 and confirm its ref is gone — 223 stacks on it, and a child merged into a live-but-dead base reports MERGED without reaching the trunk",
+        "scope": "c28",
+        "refs": [
+          "PR 221",
+          "PR 223",
+          "0519"
+        ]
+      },
+      {
+        "text": "Never let ship-with-downgrade excuse breaking the target branch — it covers a verification gap only, and no agent can waive a user-level invariant on another agent's word",
+        "scope": "c28",
+        "refs": [
+          "0596",
+          "M7"
         ]
       },
       {
@@ -526,7 +544,16 @@
         ]
       },
       {
-        "text": "Rebase a stacked branch with --onto and its old parent — the four merged branches still exist on origin, so a bare rebase replays commits already squashed onto main",
+        "text": "Give M8a the refusal, its three removed tests and the two vacuous assertions — boundary-gate coverage is genuinely absent from wave 1 until M8a restores it",
+        "scope": "c28",
+        "refs": [
+          "0596",
+          "PR 224",
+          "boundary-gate.test.mjs:207"
+        ]
+      },
+      {
+        "text": "Rebase a stacked branch with --onto and its old parent — merged branches are not deleted here, so a bare rebase replays commits already on main",
         "scope": "c28",
         "refs": [
           "c29829a2",
@@ -534,19 +561,11 @@
         ]
       },
       {
-        "text": "Treat boundary-gate coverage as genuinely absent from wave 1 to wave 4 — M0 deletes two tests proven incapable of failing and M8a restores them",
+        "text": "Reset the live harness before M15 — its journal demoted a shipped unit to parked and can never reconcile its open pull request, so branches alone are not enough",
         "scope": "c28",
         "refs": [
-          "0587",
-          "G11 block mode"
-        ]
-      },
-      {
-        "text": "Expect a false model string in every machine PR body until the provenance fix lands — the tool's pattern forbids brackets and bodies cannot be edited after creation",
-        "scope": "c28",
-        "refs": [
-          "pr-format.mjs:6",
-          "PR 214"
+          "mitosis-live-pr-harness",
+          "0576"
         ]
       }
     ],
@@ -1141,5 +1160,5 @@
     ]
   },
   "created_at": "2026-08-12T07:37:41.077Z",
-  "updated_at": "2026-08-18T23:02:28.849Z"
+  "updated_at": "2026-08-18T23:03:15.477Z"
 }
