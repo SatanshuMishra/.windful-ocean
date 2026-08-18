@@ -1,8 +1,10 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import { foldRunManifest, shipDelta, builtDelta, parkDelta, quiescentExitDelta, isIsoInstant, ciAttemptDelta } from '../run-log.mjs';
 import { buildInitialManifest } from '../recovery.mjs';
-import { park } from '../parking.mjs';
+import { park, selectResumeUnits, selectResumeBuilt } from '../parking.mjs';
+import * as unitState from '../unit-state.mjs';
 
 const SPEC_CONTENT_HASH = 'a'.repeat(64);
 
@@ -278,4 +280,92 @@ test('isIsoInstant admits the instant forms an agent may legitimately report and
   for (const bad of ['2026-08-01', '2026-08-01T12:34Z', '2026-00-01T00:00:00Z', '2026-08-32T00:00:00Z', '2026-08-01T24:00:00Z', ' 2026-08-01T12:34:56Z', 42, null, undefined]) {
     assert.equal(isIsoInstant(bad), false, `${JSON.stringify(bad)} is not an instant the engine may report back as a recorded exit`);
   }
+});
+
+test('foldRunManifest: a unit shipped then parked keeps pr-open progress AND carries a disposition, so the park never destroys the ship record (the reported symptom)', () => {
+  const manifest = genesisManifest(TWO);
+  const log = [
+    JSON.stringify(manifest),
+    JSON.stringify(shipDelta({ mspId: 'a', prUrl: 'https://x/pr/a', mergedAt: null, title: 'Alpha', rationale: 'alpha rationale' })),
+    JSON.stringify(parkDelta({ unitId: 'a', stage: 'ship', diagnosis: 'ci flaked after the pr was opened', request: null, remediation: null, resumePoint: null, triedSet: [] })),
+  ].join('\n');
+  const folded = foldRunManifest(log);
+  const a = folded.msps.find((m) => m.id === 'a');
+  assert.strictEqual(a.progress, 'pr-open', 'the earlier ship progress survives the later park');
+  assert.notStrictEqual(a.disposition, null, 'the later park still records a disposition');
+  assert.notStrictEqual(a.disposition, undefined, 'the later park still records a disposition');
+});
+
+test('foldRunManifest: parking then shipping the same unit reaches the identical settled state as shipping then parking (order independence)', () => {
+  const manifest = genesisManifest(TWO);
+  const shipLine = JSON.stringify(shipDelta({ mspId: 'a', prUrl: 'https://x/pr/a', mergedAt: null, title: 'Alpha', rationale: 'alpha rationale' }));
+  const parkLine = JSON.stringify(parkDelta({ unitId: 'a', stage: 'ship', diagnosis: 'ci flaked after the pr was opened', request: null, remediation: null, resumePoint: null, triedSet: [] }));
+  const shipThenPark = foldRunManifest([JSON.stringify(manifest), shipLine, parkLine].join('\n'));
+  const parkThenShip = foldRunManifest([JSON.stringify(manifest), parkLine, shipLine].join('\n'));
+  const a1 = shipThenPark.msps.find((m) => m.id === 'a');
+  const a2 = parkThenShip.msps.find((m) => m.id === 'a');
+  assert.strictEqual(a1.progress, 'pr-open', 'ship-then-park settles at pr-open');
+  assert.strictEqual(a2.progress, 'pr-open', 'park-then-ship settles at the identical pr-open, regardless of delta order');
+  assert.notStrictEqual(a1.disposition, null);
+  assert.notStrictEqual(a2.disposition, null);
+  assert.deepStrictEqual(a1, a2, 'the two delta orders must fold to the identical msp record');
+});
+
+test('foldRunManifest: after any fold, every msp status is exactly legacyStatusOf(progress) — the legacy mirror never goes stale', () => {
+  const THREE = [
+    { id: 'x', title: 'Xray', rationale: 'x rationale', changeType: 'feat', scope: 'x', dependsOn: [], fileScope: ['x/**'] },
+    { id: 'y', title: 'Yankee', rationale: 'y rationale', changeType: 'feat', scope: 'y', dependsOn: [], fileScope: ['y/**'] },
+    { id: 'z', title: 'Zulu', rationale: 'z rationale', changeType: 'feat', scope: 'z', dependsOn: [], fileScope: ['z/**'] },
+  ];
+  const manifest = genesisManifest(THREE);
+  const log = [
+    JSON.stringify(manifest),
+    JSON.stringify(builtDelta({ unitId: 'x', checkpointRef: 'refs/mitosis/a1b2c3d4/x', sha: 'x'.repeat(7), green: true, builtAgainst: {} })),
+    JSON.stringify(shipDelta({ mspId: 'y', prUrl: 'https://x/pr/y', mergedAt: '2026-07-15T00:00:00Z', title: 'Yankee', rationale: 'y rationale' })),
+    JSON.stringify(parkDelta({ unitId: 'z', stage: 'plan', diagnosis: 'z stalled on a plan decision', request: null, remediation: null, resumePoint: null, triedSet: [] })),
+  ].join('\n');
+  const folded = foldRunManifest(log);
+  assert.strictEqual(folded.msps.length, 3);
+  for (const msp of folded.msps) {
+    assert.strictEqual(msp.status, unitState.legacyStatusOf(msp.progress), `msp ${msp.id}: status must mirror legacyStatusOf(progress) exactly`);
+  }
+});
+
+test('foldRunManifest: a park delta createDisposition rejects is recorded as a visible foldRefusal carrying the line and a reason, never silently dropped', () => {
+  const manifest = genesisManifest(TWO);
+  const badDelta = JSON.stringify({
+    kind: 'park',
+    unitId: 'a',
+    class: 'NotARealDispositionClass',
+    stage: 'plan',
+    diagnosis: 'a bad-class refusal probe',
+    request: null,
+    remediation: null,
+    resumePoint: null,
+    triedSet: [],
+  });
+  const folded = foldRunManifest([JSON.stringify(manifest), badDelta].join('\n'));
+  assert.strictEqual(folded.foldRefusals.length, 1);
+  assert.strictEqual(folded.foldRefusals[0].line, 2);
+  assert.match(folded.foldRefusals[0].reason, /NotARealDispositionClass/);
+});
+
+test('foldRunManifest: a fold with no refusals leaves foldRefusals present and empty, never absent', () => {
+  const manifest = genesisManifest(TWO);
+  const folded = foldRunManifest(JSON.stringify(manifest));
+  assert.deepStrictEqual(folded.foldRefusals, []);
+});
+
+test('foldRunManifest: folding the risk-1 legacy journal with the new progress/disposition code settles to the identical resume sets and legacy statuses the parent commit produced (the risk-1 falsifier)', () => {
+  const raw = readFileSync(new URL('./legacy-journal-fixture.ndjson', import.meta.url), 'utf8');
+  const snapshot = JSON.parse(readFileSync(new URL('./legacy-journal-fixture-snapshot.json', import.meta.url), 'utf8'));
+  const folded = foldRunManifest(raw);
+  const shippedSet = new Map();
+  const builtUnits = null;
+  const resumeUnits = selectResumeUnits(folded, shippedSet);
+  const resumeBuilt = selectResumeBuilt(folded, shippedSet, builtUnits);
+  const statusById = folded.msps.map((m) => ({ id: m.id, status: m.status }));
+  assert.deepStrictEqual(resumeUnits, snapshot.resumeUnits, 'selectResumeUnits must settle to the exact set the parent commit produced');
+  assert.deepStrictEqual(resumeBuilt, snapshot.resumeBuilt, 'selectResumeBuilt must settle to the exact set the parent commit produced');
+  assert.deepStrictEqual(statusById, snapshot.statusById, 'the legacy status mirror must settle identically to the parent commit for every unit');
 });

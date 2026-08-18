@@ -97,3 +97,57 @@ test('CREATE DISPOSITION: the returned disposition is an exact frozen copy that 
     disposition.diagnosis = 'mutated';
   }, { name: 'TypeError' });
 });
+
+test('CREATE DISPOSITION: diagnosis defaults to null when the key is absent', () => {
+  const disposition = createDisposition({ class: 'Transient', triedSet: [] });
+  assert.strictEqual(disposition.diagnosis, null);
+});
+
+test('CREATE DISPOSITION: stage defaults to null when the key is absent', () => {
+  const disposition = createDisposition({ class: 'Transient', triedSet: [] });
+  assert.strictEqual(disposition.stage, null);
+});
+
+test('CREATE DISPOSITION: resumePoint defaults to a frozen {branch:null, ref:null, stage:null} when the key is absent', () => {
+  const disposition = createDisposition({ class: 'Transient', triedSet: [] });
+  assert.deepStrictEqual(disposition.resumePoint, { branch: null, ref: null, stage: null });
+  assert.equal(Object.isFrozen(disposition.resumePoint), true);
+});
+
+test('CREATE DISPOSITION: an empty triedSet is legal and is carried through as a frozen empty array', () => {
+  const disposition = createDisposition({ class: 'Transient', triedSet: [] });
+  assert.deepStrictEqual(disposition.triedSet, []);
+  assert.equal(Object.isFrozen(disposition.triedSet), true);
+});
+
+test('CREATE DISPOSITION: triedSet defaults to a frozen empty array when the key is absent', () => {
+  const disposition = createDisposition({ class: 'Transient' });
+  assert.deepStrictEqual(disposition.triedSet, []);
+  assert.equal(Object.isFrozen(disposition.triedSet), true);
+});
+
+test('CREATE DISPOSITION: a non-array triedSet throws TypeError rather than being silently spread character-by-character', () => {
+  assert.throws(
+    () => createDisposition({ class: 'Transient', triedSet: 'abc' }),
+    { name: 'TypeError' },
+  );
+});
+
+test('CREATE DISPOSITION: a triedSet containing a non-string element throws TypeError', () => {
+  assert.throws(
+    () => createDisposition({ class: 'Transient', triedSet: ['acquisition:raw-http', 42] }),
+    { name: 'TypeError' },
+  );
+});
+
+test('CREATE DISPOSITION: supplying remediation throws TypeError — the field is forbidden on disposition input', () => {
+  assert.throws(
+    () => createDisposition({ class: 'Transient', triedSet: [], remediation: 'reset the worktree and retry' }),
+    { name: 'TypeError' },
+  );
+});
+
+test('CREATE DISPOSITION: remediation is null on the result when the key is omitted', () => {
+  const disposition = createDisposition({ class: 'Transient', triedSet: [] });
+  assert.strictEqual(disposition.remediation, null);
+});
