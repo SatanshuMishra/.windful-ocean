@@ -960,6 +960,11 @@
         "ref": "0545-audit-fix-directives-no-doubles-stacked-prs",
         "title": "The six audit fixes proceed under four user directives: no constants, no doubles, ordered ship, stacked by default",
         "scope": "c28"
+      },
+      {
+        "ref": "0552-ship-stack-successor-backlog",
+        "title": "The chapter 9 recommendations and the findings the fixes surfaced become the successor backlog, worst first",
+        "scope": "c28"
       }
     ],
     "out_of_scope": [
@@ -971,5 +976,5 @@
     ]
   },
   "created_at": "2026-08-12T07:37:41.077Z",
-  "updated_at": "2026-08-17T23:29:51.241Z"
+  "updated_at": "2026-08-18T01:52:40.310Z"
 }
