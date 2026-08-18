@@ -461,6 +461,11 @@
         "ref": "0586-contamination-answered-independent-traffic-clears-the-lead-bar",
         "title": "Contamination answered by measurement: independent out-of-repo traffic clears the Lead bar alone",
         "scope": "c5"
+      },
+      {
+        "ref": "0588-stop-only-rows-are-a-lopsided-mixture-not-a-coverage-gap",
+        "title": "Stop-only rows are a 99-to-1 mixture, so the 88-point attribution gap was a denominator artifact",
+        "scope": "c5"
       }
     ],
     "out_of_scope": [
@@ -472,5 +477,5 @@
     ]
   },
   "created_at": "2026-08-16T05:43:25.829Z",
-  "updated_at": "2026-08-18T19:35:42.369Z"
+  "updated_at": "2026-08-18T19:56:56.365Z"
 }
