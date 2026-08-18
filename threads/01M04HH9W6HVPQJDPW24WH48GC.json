@@ -385,6 +385,11 @@
         "ref": "0560-waves-4-and-5-recovered-as-one-integration-pr",
         "title": "Waves 4 and 5 recovered as one integration pull request after four merged into a live base",
         "scope": "c4"
+      },
+      {
+        "ref": "0561-c5-routing-clause-becomes-a-measured-lead-share",
+        "title": "c5's routing clause becomes a measured Lead share, sequenced strictly after wave 7 ships",
+        "scope": "c5"
       }
     ],
     "out_of_scope": [
@@ -393,5 +398,5 @@
     ]
   },
   "created_at": "2026-08-16T05:43:25.829Z",
-  "updated_at": "2026-08-18T05:00:46.894Z"
+  "updated_at": "2026-08-18T05:15:49.971Z"
 }
