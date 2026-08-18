@@ -119,7 +119,7 @@ test('USAGE EXIT: a parse failure writes the usage line and exits 2 without read
 
 test('THE INSTANT ARRIVES AS ARGV: the --at value is the at the engine writes into the quiescent-exit record', async (t) => {
   const io = stubIo(specDocument());
-  const stub = stubPorts(async () => Done({ sha: 'sha-alpha', green: true }));
+  const stub = stubPorts(async () => Done({ sha: 'sha-alpha' }));
   const code = await runCli(tempArgv(t), io, () => stub.ports);
   const appendCalls = stub.calls.filter((call) => call.port === 'appendJournal');
   const lastRecord = JSON.parse(appendCalls[appendCalls.length - 1].value.line);
@@ -152,13 +152,13 @@ test('EXIT 1: a thrown value with no message property is stringified rather than
   assert.equal(io.errOut.join(''), 'mitosis-cli: [object Object]\n');
 });
 
-test('REAL PORTS: a successful dispatch verdict becomes Done carrying the child-reported sha, and a failed one becomes a parked NeedsHuman', async () => {
+test('REAL PORTS: a successful dispatch verdict becomes Done carrying the child-reported sha and no check result the run never measured, and a failed one becomes a parked NeedsHuman', async () => {
   const okPorts = realPorts(
     { repoRoot: '/repo', requestsById: new Map([['alpha', { prompt: 'p' }]]) },
     { dispatch: async () => ({ ok: true, structured: { sha: 'abc123' } }) },
   );
   const okOutcome = await okPorts.runUnit({ id: 'alpha' }, { signal: null });
-  assert.deepEqual(okOutcome, Done({ sha: 'abc123', green: true, envelope: null }));
+  assert.deepEqual(okOutcome, Done({ sha: 'abc123', envelope: null }));
 
   const failPorts = realPorts(
     { repoRoot: '/repo', requestsById: new Map([['alpha', { prompt: 'p' }]]) },
@@ -221,7 +221,7 @@ test('REAL PORTS: a retry of a unit the spec declares a task for spends one diag
     },
   );
   assert.equal((await ports.runUnit({ id: 'alpha' }, { signal: null })).tag, 'NeedsHuman');
-  assert.deepEqual(await ports.runUnit({ id: 'alpha' }, { signal: null }), Done({ sha: 'def456', green: true, envelope: null }));
+  assert.deepEqual(await ports.runUnit({ id: 'alpha' }, { signal: null }), Done({ sha: 'def456', envelope: null }));
   assert.equal(prompts.length, 3);
   assert.equal(prompts[0], 'the implement prompt');
   assert.equal(prompts[1].includes('You are the in-run diagnostician for MSP "alpha"'), true);

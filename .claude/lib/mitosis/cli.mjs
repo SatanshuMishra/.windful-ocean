@@ -531,7 +531,7 @@ export function realPorts(config, deps = {}) {
         const judged = await runJudgment(judgment, dispatchOne, request);
         if (!judged.ok) return judgmentPark(judged, envelope);
       }
-      return Done({ sha: shaOfVerdict(verdict), green: true, envelope });
+      return Done({ sha: shaOfVerdict(verdict), envelope });
     },
     writeGenesis: (request) => writeGenesisFn(request),
     appendJournal: (request) => appendJournalFn(request),
