@@ -89,3 +89,23 @@ export function createDisposition({ class: dispositionClass, diagnosis, stage, r
     remediation: null,
   });
 }
+
+export function startingProgressOf(msp) {
+  if (msp && typeof msp.progress === 'string') return msp.progress;
+  const status = msp && typeof msp.status === 'string' ? msp.status : null;
+  if (status === null) return 'planned';
+  if (status === 'parked') return 'planned';
+  return legacyProgress(status);
+}
+
+function sanitizeLegacyStage(stage) {
+  return typeof stage === 'string' && LEGAL_STAGES.includes(stage) ? stage : null;
+}
+
+export function legacyParkedDisposition(msp) {
+  const rp = msp && msp.resumePoint && typeof msp.resumePoint === 'object' && !Array.isArray(msp.resumePoint) ? msp.resumePoint : {};
+  const stage = sanitizeLegacyStage(rp.stage);
+  const resumePoint = { branch: rp.branch ?? null, ref: rp.ref ?? null, stage };
+  const triedSet = msp && Array.isArray(msp.triedSet) ? msp.triedSet : [];
+  return createDisposition({ class: 'Unknown', stage, resumePoint, triedSet });
+}

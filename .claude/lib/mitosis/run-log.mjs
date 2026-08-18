@@ -1,7 +1,7 @@
 import { park } from './parking.mjs';
 import { parseRunManifest, applyShipTransition, applyBuiltTransition } from './recovery.mjs';
 import { isValidFingerprint } from './remediation.mjs';
-import { legacyProgress, legacyStatusOf } from './unit-state.mjs';
+import { legacyStatusOf, legacyParkedDisposition, startingProgressOf } from './unit-state.mjs';
 
 export function shipDelta({ mspId, prUrl, mergedAt, title, rationale }) {
   return { kind: 'ship', mspId, prUrl: prUrl ?? null, mergedAt: mergedAt ?? null, title: title ?? null, rationale: rationale ?? null };
@@ -80,16 +80,8 @@ function applyCiAttemptTransition(manifest, record) {
   };
 }
 
-function startingProgressOf(msp) {
-  if (typeof msp.progress === 'string') return msp.progress;
-  if (typeof msp.status === 'string') {
-    try {
-      return legacyProgress(msp.status);
-    } catch {
-      return 'planned';
-    }
-  }
-  return 'planned';
+function hasOwnDisposition(msp) {
+  return msp && Object.prototype.hasOwnProperty.call(msp, 'disposition') && msp.disposition !== null && msp.disposition !== undefined;
 }
 
 function normalizeBaseProgress(base) {
@@ -97,7 +89,11 @@ function normalizeBaseProgress(base) {
     ...base,
     msps: base.msps.map((msp) => {
       const progress = startingProgressOf(msp);
-      return { ...msp, progress, status: legacyStatusOf(progress) };
+      const status = legacyStatusOf(progress);
+      if (msp.status === 'parked' && !hasOwnDisposition(msp)) {
+        return { ...msp, progress, status, disposition: legacyParkedDisposition(msp) };
+      }
+      return { ...msp, progress, status };
     }),
   };
 }

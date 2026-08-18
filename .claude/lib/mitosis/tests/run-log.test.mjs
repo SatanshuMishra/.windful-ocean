@@ -399,3 +399,51 @@ test('foldRunManifest: folding the risk-1 legacy journal, the legacy status mirr
     assert.strictEqual(msp.status, unitState.legacyStatusOf(msp.progress), `msp ${msp.id}: status must equal legacyStatusOf(progress) exactly`);
   }
 });
+
+test('foldRunManifest: a legacy genesis line carrying status "parked" is not clobbered to planned and dropped — it floors progress honestly and synthesizes an Unknown disposition so selectResumeUnits matches origin/main exactly (Task 1, the reported blocker)', () => {
+  const base = {
+    logicalRunId: 'a1b2c3d4',
+    clusters: [['p']],
+    msps: [{
+      id: 'p',
+      status: 'parked',
+      triedSet: ['worktree:reset-clean'],
+      resumePoint: { branch: 'mit/p-integration', ref: null, stage: 'execute' },
+    }],
+  };
+  const nd = [JSON.stringify(base), JSON.stringify({ kind: 'quiescent-exit', at: '2026-07-15T00:00:00Z' })].join('\n');
+  const folded = foldRunManifest(nd);
+  const resumeUnits = selectResumeUnits(folded, new Map());
+  assert.deepStrictEqual(
+    resumeUnits,
+    [{
+      unitId: 'p',
+      stage: 'execute',
+      resumePoint: { branch: 'mit/p-integration', ref: null, stage: 'execute' },
+      triedSet: ['worktree:reset-clean'],
+    }],
+    'selectResumeUnits must recover exactly the one unit origin/main produced for this legacy-parked genesis; the M2 rewrite must not silently drop it',
+  );
+  const p = folded.msps.find((m) => m.id === 'p');
+  assert.strictEqual(p.progress, 'planned', 'a legacy parked token carries no progress information; the honest floor is planned');
+  assert.notStrictEqual(p.disposition, null, 'parkedness must survive onto the disposition axis rather than being discarded with the overwritten status');
+  assert.notStrictEqual(p.disposition, undefined, 'parkedness must survive onto the disposition axis rather than being discarded with the overwritten status');
+  assert.strictEqual(p.disposition.class, 'Unknown', 'a legacy record does not say why it parked, so the class is the honest negative Unknown');
+  assert.deepStrictEqual(p.disposition.triedSet, ['worktree:reset-clean']);
+  assert.deepStrictEqual(p.disposition.resumePoint, { branch: 'mit/p-integration', ref: null, stage: 'execute' });
+});
+
+test('foldRunManifest: folding the legacy-2 fixture, whose genesis carries literal parked/built/shipped status tokens with no deltas at all, settles to the identical resume sets origin/main produced (the risk-1 falsifier, second fixture, closing the all-planned genesis gap)', () => {
+  const raw = readFileSync(new URL('./legacy-journal-fixture-2.ndjson', import.meta.url), 'utf8');
+  const snapshot = JSON.parse(readFileSync(new URL('./legacy-journal-fixture-2-snapshot.json', import.meta.url), 'utf8'));
+  const folded = foldRunManifest(raw);
+  const shippedSet = new Map();
+  const builtUnits = null;
+  const resumeUnits = selectResumeUnits(folded, shippedSet);
+  const resumeBuilt = selectResumeBuilt(folded, shippedSet, builtUnits);
+  assert.deepStrictEqual(resumeUnits, snapshot.resumeUnits, 'selectResumeUnits must settle to the exact set origin/main produced for a genesis whose parked units carry no disposition of their own');
+  assert.deepStrictEqual(resumeBuilt, snapshot.resumeBuilt, 'selectResumeBuilt must settle to the exact set origin/main produced');
+  for (const msp of folded.msps) {
+    assert.strictEqual(msp.status, unitState.legacyStatusOf(msp.progress), `msp ${msp.id}: status must equal legacyStatusOf(progress) exactly`);
+  }
+});

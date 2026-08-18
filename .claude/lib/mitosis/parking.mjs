@@ -1,7 +1,7 @@
 import { isValidFingerprint } from './remediation.mjs';
 import { checkpointRef, validateRefToken } from './checkpoint.mjs';
 import { mspContentHash } from './recovery.mjs';
-import { LEGAL_STAGES, createDisposition, legacyProgress } from './unit-state.mjs';
+import { LEGAL_STAGES, createDisposition, startingProgressOf } from './unit-state.mjs';
 
 export { LEGAL_STAGES };
 
@@ -115,18 +115,6 @@ function isParked(msp) {
   return msp.status === 'parked';
 }
 
-function progressOf(msp) {
-  if (typeof msp.progress === 'string') return msp.progress;
-  if (typeof msp.status === 'string') {
-    try {
-      return legacyProgress(msp.status);
-    } catch {
-      return null;
-    }
-  }
-  return null;
-}
-
 export function selectResumeUnits(manifest, shippedSet) {
   if (!manifest || typeof manifest !== 'object' || !Array.isArray(manifest.msps)) return [];
   const resume = [];
@@ -149,7 +137,7 @@ export function selectResumeBuilt(manifest, shippedSet, builtUnits) {
   const gate = observed !== null && observed.size > 0 ? observed : null;
   const resume = [];
   for (const msp of manifest.msps) {
-    if (progressOf(msp) !== 'built') continue;
+    if (startingProgressOf(msp) !== 'built') continue;
     if (isParked(msp)) continue;
     if (isShippedUnit(shippedSet, msp.id)) continue;
     let ref = validateRefToken(msp.checkpointRef) ? msp.checkpointRef : null;
