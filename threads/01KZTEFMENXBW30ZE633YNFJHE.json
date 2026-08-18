@@ -1096,6 +1096,11 @@
         "ref": "0581-whole-solution-approved-with-four-ratifications",
         "title": "The whole solution is approved: keep the pipeline, five chokepoints, sixteen MSPs",
         "scope": "c28"
+      },
+      {
+        "ref": "0582-source-text-censuses-pin-the-legacy-engine-file-identity",
+        "title": "Three source-text censuses pin the legacy engine to its filename, and M12b's file list is short",
+        "scope": "c28"
       }
     ],
     "out_of_scope": [
@@ -1107,5 +1112,5 @@
     ]
   },
   "created_at": "2026-08-12T07:37:41.077Z",
-  "updated_at": "2026-08-18T19:03:28.714Z"
+  "updated_at": "2026-08-18T19:05:37.698Z"
 }
