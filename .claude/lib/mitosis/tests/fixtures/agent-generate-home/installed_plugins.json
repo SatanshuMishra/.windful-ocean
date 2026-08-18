@@ -1,0 +1,12 @@
+{
+  "version": 2,
+  "plugins": {
+    "fixture-plugin@fixture-marketplace": [
+      {
+        "scope": "user",
+        "installPath": "/fixture/install-path-that-is-absent/fixture-plugin/1.2.0",
+        "version": "1.2.0"
+      }
+    ]
+  }
+}
