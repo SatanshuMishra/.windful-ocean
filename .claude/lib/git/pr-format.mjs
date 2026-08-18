@@ -3,7 +3,7 @@ export const PR_TITLE_PATTERN = /^(?=.{1,72}$)(feat|fix|refactor|docs|test|chore
 export const PR_TITLE_CAP = 72;
 export const PR_VALUE_CAP = 200;
 export const PR_ORIGINS = Object.freeze(['machine', 'human']);
-export const PR_PROVENANCE_PATTERN = /^agent=[A-Za-z0-9:._-]{1,64} model=[A-Za-z0-9:._-]{1,64}$/;
+export const PR_PROVENANCE_PATTERN = /^agent=[A-Za-z0-9:._\[\]-]{1,64} model=[A-Za-z0-9:._\[\]-]{1,64}$/;
 export const PR_CHANGED_LINES_PATTERN = /^(0|[1-9][0-9]{0,6})$/;
 export const PR_SIZE_WARNING_THRESHOLD = 400;
 export const PR_MULTI_LIMITS = Object.freeze({
