@@ -41,7 +41,7 @@ export function statusFoldCases() {
         manifestUnitIds: ['a'],
       }),
       expected: manifestOf([
-        { id: 'a', title: 'msp a', rationale: 'because a', changeType: 'feat', scope: 'lib', status: 'shipped', integrationBranch: 'mitosis/a-integration', prUrl: 'https://example.test/o/r/pull/1', mergedAt: '2026-07-10T00:00:00Z', dependsOn: [], fileScope: pack(['lib/a.mjs']), contentHash: 'hash-a', checkpointRef: 'refs/mitosis/a1b2c3d4/a', builtSha: 'sha-a', green: true, builtAgainst: { main: 'base-1' } },
+        { id: 'a', title: 'msp a', rationale: 'because a', changeType: 'feat', scope: 'lib', status: 'shipped', progress: 'pr-open', integrationBranch: 'mitosis/a-integration', prUrl: 'https://example.test/o/r/pull/1', mergedAt: '2026-07-10T00:00:00Z', dependsOn: [], fileScope: pack(['lib/a.mjs']), contentHash: 'hash-a', checkpointRef: 'refs/mitosis/a1b2c3d4/a', builtSha: 'sha-a', green: true, builtAgainst: { main: 'base-1' } },
       ]),
     },
     {
@@ -55,7 +55,7 @@ export function statusFoldCases() {
         manifestUnitIds: ['b'],
       }),
       expected: manifestOf([
-        { id: 'b', title: 'msp b', rationale: 'because b', changeType: 'fix', scope: 'lib', status: 'shipped', integrationBranch: 'mitosis/b-integration', prUrl: 'https://example.test/o/r/pull/2', mergedAt: '2026-07-11T00:00:00Z', dependsOn: [], fileScope: pack(['lib/b.mjs']), contentHash: 'hash-b' },
+        { id: 'b', title: 'msp b', rationale: 'because b', changeType: 'fix', scope: 'lib', status: 'shipped', progress: 'pr-open', integrationBranch: 'mitosis/b-integration', prUrl: 'https://example.test/o/r/pull/2', mergedAt: '2026-07-11T00:00:00Z', dependsOn: [], fileScope: pack(['lib/b.mjs']), contentHash: 'hash-b' },
       ]),
     },
     {
@@ -65,7 +65,7 @@ export function statusFoldCases() {
       ]),
       observed: observed({ manifestUnitIds: ['c'], builtUnits: ['c'], builtShas: { c: 'sha-c' } }),
       expected: manifestOf([
-        { id: 'c', title: 'msp c', rationale: 'because c', changeType: 'feat', scope: 'lib', status: 'built', integrationBranch: 'mitosis/c-integration', prUrl: null, mergedAt: null, dependsOn: [], fileScope: pack(['lib/c.mjs']), contentHash: 'hash-c', checkpointRef: 'refs/mitosis/a1b2c3d4/c', builtSha: 'sha-c', green: false, builtAgainst: {}, resumePoint: null },
+        { id: 'c', title: 'msp c', rationale: 'because c', changeType: 'feat', scope: 'lib', status: 'built', progress: 'built', integrationBranch: 'mitosis/c-integration', prUrl: null, mergedAt: null, dependsOn: [], fileScope: pack(['lib/c.mjs']), contentHash: 'hash-c', checkpointRef: 'refs/mitosis/a1b2c3d4/c', builtSha: 'sha-c', green: false, builtAgainst: {}, resumePoint: null },
       ]),
     },
     {
@@ -101,7 +101,7 @@ export function statusFoldCases() {
         builtShas: { f: 'sha-f' },
       }),
       expected: manifestOf([
-        { id: 'f', title: 'msp f', rationale: 'because f', changeType: 'feat', scope: 'lib', status: 'shipped', integrationBranch: 'mitosis/f-integration', prUrl: 'https://example.test/o/r/pull/3', mergedAt: '2026-07-12T00:00:00Z', dependsOn: [], fileScope: pack(['lib/f.mjs']), contentHash: 'hash-f', checkpointRef: 'refs/mitosis/a1b2c3d4/f', builtSha: 'sha-f', green: true, builtAgainst: { main: 'base-2' } },
+        { id: 'f', title: 'msp f', rationale: 'because f', changeType: 'feat', scope: 'lib', status: 'shipped', progress: 'pr-open', integrationBranch: 'mitosis/f-integration', prUrl: 'https://example.test/o/r/pull/3', mergedAt: '2026-07-12T00:00:00Z', dependsOn: [], fileScope: pack(['lib/f.mjs']), contentHash: 'hash-f', checkpointRef: 'refs/mitosis/a1b2c3d4/f', builtSha: 'sha-f', green: true, builtAgainst: { main: 'base-2' } },
       ]),
     },
     {
@@ -111,7 +111,7 @@ export function statusFoldCases() {
       ]),
       observed: observed({ mergedIds: ['g'], manifestUnitIds: ['g'] }),
       expected: manifestOf([
-        { id: 'g', title: 'msp g', rationale: 'because g', changeType: 'feat', scope: 'lib', status: 'shipped', integrationBranch: 'mitosis/g-integration', prUrl: null, mergedAt: null, dependsOn: [], fileScope: pack(['lib/g.mjs']), contentHash: 'hash-g' },
+        { id: 'g', title: 'msp g', rationale: 'because g', changeType: 'feat', scope: 'lib', status: 'shipped', progress: 'pr-open', integrationBranch: 'mitosis/g-integration', prUrl: null, mergedAt: null, dependsOn: [], fileScope: pack(['lib/g.mjs']), contentHash: 'hash-g' },
       ]),
     },
   ];

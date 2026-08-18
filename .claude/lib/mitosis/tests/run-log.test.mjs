@@ -31,7 +31,7 @@ test('foldRunManifest accepts a legacy pretty single-object manifest verbatim (b
   const manifest = genesisManifest(TWO);
   const pretty = JSON.stringify(manifest, null, 2);
   const folded = foldRunManifest(pretty);
-  assert.deepEqual(folded, manifest, 'a pre-existing single-object run.json still folds to itself');
+  assert.deepEqual(folded, { ...manifest, foldRefusals: [] }, 'a pre-existing single-object run.json still folds to itself, plus an empty foldRefusals: no deltas ran, so nothing was refused');
 });
 
 test('foldRunManifest accepts a compact genesis-only log (single line, no deltas)', () => {
