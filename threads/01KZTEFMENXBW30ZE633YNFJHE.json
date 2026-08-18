@@ -1111,6 +1111,11 @@
         "ref": "0585-status-rename-goes-phased-and-four-more-file-lists-were-wrong",
         "title": "The status rename goes expand-migrate-contract, and the file lists were drawn from writers not readers",
         "scope": "c28"
+      },
+      {
+        "ref": "0587-m0-is-the-fixture-fix-so-m7-measures-the-fix-not-the-fixture",
+        "title": "M0 is the fixture-topology fix, so M7 sequences after it and measures the fix rather than the fixture",
+        "scope": "c28"
       }
     ],
     "out_of_scope": [
@@ -1122,5 +1127,5 @@
     ]
   },
   "created_at": "2026-08-12T07:37:41.077Z",
-  "updated_at": "2026-08-18T19:28:23.022Z"
+  "updated_at": "2026-08-18T19:49:34.132Z"
 }
