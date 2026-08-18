@@ -24,7 +24,7 @@ export function rawReaderExpression(logRoot) {
   return `read_json_objects(${sqlLiteral(eventsGlob(logRoot))}, format='newline_delimited')`;
 }
 
-export const POPULATION_CASE = `CASE WHEN agent_transcript_path IS NULL THEN '${POPULATION_INTERNAL}' ELSE '${POPULATION_DISPATCH}' END`;
+export const POPULATION_CASE = `CASE WHEN bool_or(agent_transcript_path IS NOT NULL OR depth IS NOT NULL OR parent_agent_id IS NOT NULL) OVER (PARTITION BY session_id, agent_id ROWS BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING) THEN '${POPULATION_DISPATCH}' ELSE '${POPULATION_INTERNAL}' END`;
 
 export function depthBucketSql(column = 'depth') {
   return `CASE WHEN ${column} IS NULL THEN 'null' ELSE CAST(${column} AS VARCHAR) END`;

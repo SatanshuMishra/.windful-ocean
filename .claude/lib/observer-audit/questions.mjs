@@ -19,9 +19,9 @@ import { POPULATION_CASE, depthBucketSql, readerExpression } from './reader.mjs'
 const UNATTRIBUTED = '(unattributed)';
 
 const DISPATCH_NOTE =
-  'computed over the dispatch population only: rows carrying a transcript path. Rows with no transcript path are artifact-less internal subagent firings and are never folded into this denominator.';
+  'computed over the dispatch population only: population is resolved at dispatch grain, per (session_id, agent_id), so every row belonging to a dispatch shares that label whether it is the start row or the stop row. A group is a dispatch when at least one of its rows carries a transcript path, a depth, or a parent agent id; a group with none of those signals on any row is internal. A signal-free unpaired start forms a single-row partition with nothing else in the group to rescue it, so it is reported under internal — that is a limit of what the data can resolve, not a defect in this predicate.';
 
-function eventsCte(logRoot) {
+export function eventsCte(logRoot) {
   return `ev AS (SELECT *, ${POPULATION_CASE} AS population FROM ${readerExpression(logRoot)})`;
 }
 

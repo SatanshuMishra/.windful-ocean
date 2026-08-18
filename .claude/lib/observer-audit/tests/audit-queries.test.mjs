@@ -6,7 +6,8 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { EXIT, NEVER_OBSERVED_LABEL, QUESTION_IDS } from '../contract.mjs';
-import { questionIds } from '../questions.mjs';
+import { eventsCte, questionIds } from '../questions.mjs';
+import { query, requireBinary } from '../duckdb.mjs';
 
 const LIB_DIR = fileURLToPath(new URL('..', import.meta.url));
 const FIXTURES = join(LIB_DIR, 'fixtures');
@@ -84,7 +85,7 @@ function generateOversampled(label, withCapabilityRow) {
       cwd: '/w',
       agent_id: `o-${index}`,
       agent_type: 'implementer',
-      agent_transcript_path: '/t/o.jsonl',
+      agent_transcript_path: null,
       parent_agent_id: null,
       depth: 1,
     });
@@ -229,6 +230,24 @@ test('the roster question labels a zero-dispatch agent never-observed, never unu
   assert.ok(
     !JSON.stringify(answer).includes('unused'),
     'the string unused must appear nowhere in the output; a zero count against partial coverage is not disuse',
+  );
+});
+
+test('a single dispatch resolves to one population, never a different label on its start row than its stop row', () => {
+  const binary = requireBinary();
+  const sql = `WITH ${eventsCte(FIXTURES)} SELECT event, population FROM ev WHERE session_id = 's1' AND agent_id = 'a-fb-2' ORDER BY event`;
+  const rows = query(binary, sql);
+  assert.equal(rows.length, 2, 'a-fb-2 must contribute exactly its one start row and one stop row');
+  const populations = new Set(rows.map((row) => row.population));
+  assert.equal(
+    populations.size,
+    1,
+    `a-fb-2's own dispatch was split across two populations by event phase, one per row: ${JSON.stringify(rows)}`,
+  );
+  assert.deepEqual(
+    [...populations],
+    ['dispatch'],
+    'a-fb-2 ran and left a stop-time transcript, so the single population both its rows share must be dispatch, never internal',
   );
 });
 
