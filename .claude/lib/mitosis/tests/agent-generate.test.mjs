@@ -149,11 +149,32 @@ test('empty store: --check exits 0 and says zero specs rather than reporting a m
   assert.doesNotMatch(result.output, /matching their source/);
 });
 
-test('empty store: the shipped store is empty today and --check is clean over it', (t) => {
+test('shipped store: every spec it holds round trips clean and its count matches the directory', (t) => {
   const agentDir = agents(t);
-  const result = run(['--check', '--store', SHIPPED_STORE, '--agents', agentDir]);
-  assert.equal(result.code, 0, result.output);
-  assert.match(result.output, /zero agent specs/);
+  const shipped = readdirSync(SHIPPED_STORE).filter((name) => name.endsWith('.spec.json')).sort();
+
+  const written = run(['--store', SHIPPED_STORE, '--agents', agentDir]);
+  assert.equal(written.code, 0, written.output);
+
+  const checked = run(['--check', '--store', SHIPPED_STORE, '--agents', agentDir]);
+  assert.equal(checked.code, 0, checked.output);
+
+  if (shipped.length === 0) {
+    assert.match(checked.output, /zero agent specs/);
+    assert.deepEqual(readdirSync(agentDir), []);
+    return;
+  }
+
+  assert.doesNotMatch(checked.output, /zero agent specs/);
+  for (const output of [written.output, checked.output]) {
+    const reported = /(\d+) agent specs? found/.exec(output);
+    assert.notEqual(reported, null, output);
+    assert.equal(
+      Number(reported[1]),
+      shipped.length,
+      `the generator reported ${reported[1]} specs over a store holding ${shipped.length}: ${shipped.join(', ')}`,
+    );
+  }
 });
 
 test('unreadable store: an absent store directory exits non-zero rather than green', (t) => {
