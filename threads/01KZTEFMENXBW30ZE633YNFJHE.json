@@ -280,9 +280,9 @@
   "abandoned_reason": null,
   "closure_statement": null,
   "spine": {
-    "active_goal": "Prove mitosis end to end on live runs: one real pull request per MSP through pr-create, with the merge order serialized and handed off.",
-    "next_step": "START HERE. Resume is BROKEN and blocks c29: a re-run truncates the journal, loses the shipped state, and reports restarted false while listing every unit pending (0571). Fix that first - the journal must append across invocations rather than be rewritten at start, and restarted must reflect the state printed beside it. Only then retry the second live pull request. Do NOT merge pull request 2 until two exist and they can be merged in the emitted order.",
-    "last_session": "Drove two live runs. Run 1 opened real pull request 2, verified from GitHub, with one unit parked on a correct review failure. Run 2, same run-id, proved resume broken: journal rewritten, shipped state lost, both units parked, nothing opened.",
+    "active_goal": "Get mitosis working end to end: root-cause both failure families in one bounded audit, decide whether the design needs simplifying, then implement the whole solution once.",
+    "next_step": "START HERE IN A FRESH SESSION, per user directive 0573. Do NOT implement and do NOT re-run yet. Dispatch thorough censuses and audits over the two failure families: state that dies at a phase or process boundary, and status fields reporting success for non-success. Map every surface, name root causes, judge fragility, complexity, simplification and best-practice departures. Produce the ENTIRE solution for both before any fan-out. Evidence in artifacts-2026-08-18-live-e2e.",
+    "last_session": "Second live run proved resume broken: journal rewritten, shipped state lost, both units parked (0571). User then ruled the next phase is a comprehensive audit to root cause and a whole solution, never another reviewer loop (0573).",
     "open_risks": [
       {
         "text": "Prove a merge arrived by asserting its CONTENT is on the base, never by SHA ancestry — a squash or stack merge rewrites commits, so a pre-merge SHA correctly fails an ancestry check on a merge that lost nothing",
@@ -1071,5 +1071,5 @@
     ]
   },
   "created_at": "2026-08-12T07:37:41.077Z",
-  "updated_at": "2026-08-18T16:26:43.161Z"
+  "updated_at": "2026-08-18T16:27:00.385Z"
 }
