@@ -1,11 +1,11 @@
-import { readdirSync } from 'node:fs';
+import { readFileSync, readdirSync } from 'node:fs';
 import { basename, join } from 'node:path';
-import { fileURLToPath, pathToFileURL } from 'node:url';
+import { fileURLToPath } from 'node:url';
 import { validateAgentSpec } from './agent-body-compose.mjs';
 import { realResolverIo, resolveCanonicalConfigDir } from './canonical-config-dir.mjs';
 import { halt } from './js-scan.mjs';
 
-export const SPEC_SUFFIX = '.spec.mjs';
+export const SPEC_SUFFIX = '.spec.json';
 
 export const SPEC_SEGMENTS = Object.freeze(['lib', 'mitosis', 'agent-specs']);
 
@@ -53,25 +53,30 @@ export function enumerateSpecFiles(dir, deps = {}) {
   return Object.freeze({ ok: true, dir, files: Object.freeze(files) });
 }
 
-function defaultImportModule(path) {
-  return import(pathToFileURL(path).href);
+function defaultReadSpec(path) {
+  return readFileSync(path, 'utf8');
 }
 
-export async function loadAgentSpecs(dir, deps = {}) {
+export function loadAgentSpecs(dir, deps = {}) {
   const enumerated = enumerateSpecFiles(dir, deps);
   if (!enumerated.ok) return enumerated;
-  const importModule = deps.importModule || defaultImportModule;
+  const readSpec = deps.readSpec || defaultReadSpec;
   const entries = [];
   for (const path of enumerated.files) {
-    let module;
+    let contents;
     try {
-      module = await importModule(path);
+      contents = readSpec(path);
     } catch (error) {
-      return halt(`${path} could not be loaded as an agent spec module: ${failureText(error)}`);
+      return halt(`${path} could not be read as an agent spec: ${failureText(error)}; an unreadable spec is not an absent spec, so this loader refuses to skip it`);
     }
-    const spec = module ? module.default : undefined;
-    if (spec === undefined || spec === null) {
-      return halt(`${path} default-exports nothing; every file in the agent spec store default-exports exactly one agent spec`);
+    if (typeof contents !== 'string') {
+      return halt(`${path} could not be read as agent spec text; every file in the agent spec store holds exactly one JSON agent spec`);
+    }
+    let spec;
+    try {
+      spec = JSON.parse(contents);
+    } catch (error) {
+      return halt(`${path} does not parse as JSON: ${failureText(error)}; every file in the agent spec store holds exactly one JSON agent spec`);
     }
     try {
       validateAgentSpec(spec);
