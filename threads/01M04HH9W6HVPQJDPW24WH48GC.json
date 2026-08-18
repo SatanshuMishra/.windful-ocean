@@ -63,18 +63,10 @@
   "abandoned_reason": null,
   "closure_statement": null,
   "spine": {
-    "active_goal": "Start waves 4 to 7 - the roster rebuild itself: thirteen agents replacing fifty-six, and every rule and skill naming a retired one.",
-    "next_step": "Wave 3 is COMPLETE and verified in production; nothing from it is outstanding. Start waves 4 to 7, unblocked per 0531 - U4 adds the seven new agents, U5 modifies the six collisions, U6 repoints the engine literals and the rules and skills, U7 deletes the nine retired definitions. FIRST, before any of it: rewrite U6.2's acceptance, which is already green today with every retiring reference in place and therefore cannot detect itself being skipped.",
-    "last_session": "Shipped ALL of wave 3 by fan-out plus two unplanned repair MSPs. Eight pull requests, all merged; main at 54fd9d20. The global settings edit is applied. Production verification closed the last open criterion: 92 start rows, 61 paired, zero ordering violations, agent_type null on 0 of 92.",
+    "active_goal": "Land waves 4 to 7: convert the specs to JSON, merge the substrate and the four wave branches, then repoint every reference and delete the nine retired agents.",
+    "next_step": "START HERE. Apply decision 0551 on feat/agent-generator-substrate: convert the spec store from dynamic import to readFileSync plus JSON.parse, and confirm the determinism verb reaches exit 0. Then convert the thirteen .spec.mjs files on the four wave branches to .spec.json. Only then open the four wave PRs. Merge order: PR 204 first, DELETE its branch and confirm the ref is gone, then U4.1, U4.2, U5.1, U5.2. Wave 6 and wave 7 follow.",
+    "last_session": "Replaced U6.2's acceptance and shipped the retirement census (PR 203, merged). Built the generator substrate (PR 204, open) and completed all four wave 4 and 5 units on pushed branches. Ruled specs to JSON over weakening the determinism census.",
     "open_risks": [
-      {
-        "text": "Rewrite U6.2's acceptance before wave 6 starts — it is already green today with every retiring reference in place, so it cannot detect itself being skipped and U7 would then delete definitions leaving dangling routing",
-        "scope": "c4",
-        "refs": [
-          "SPEC U6.2 lines 487-505",
-          "decision 0532"
-        ]
-      },
       {
         "text": "Route shell tests to bash in the enforcer's test command — nine .sh tests match its runnable extensions while the command is node --test, so any pull request touching source alongside one will block",
         "scope": "c5",
@@ -92,11 +84,88 @@
         ]
       },
       {
-        "text": "Treat the duckdb install in the receipts workflow as unexercised — the enforcer short-circuits a config-only diff, so the next pull request touching production source is its first real test",
+        "text": "Separate artifact-less internal rows from real dispatches in any audit answer — 1062 groups against 61 paired means a rate over all rows measures internal noise",
+        "scope": "c5",
+        "refs": [
+          "decision 0537"
+        ]
+      },
+      {
+        "text": "Pull the primary checkout after any merge — the global rules, skills, lib and agents symlink into its working tree, so merged config is not in force until then",
+        "scope": "thread",
+        "refs": [
+          "memory: merged-config-is-not-in-force-until-pull"
+        ]
+      },
+      {
+        "text": "Capture a command's exit status directly rather than through a pipe — piping npm test to tail reports tail's status and renders a failing suite as exit 0, which happened twice this session",
+        "scope": "thread",
+        "refs": [
+          "memory: piping-a-verification-command-masks-its-exit-code"
+        ]
+      },
+      {
+        "text": "Convert the spec store off dynamic import before merging anything — the determinism census pins a non-literal import specifier to halt as deliberate policy, and every file in the engine root is censused, so there is no legal placement for one",
         "scope": "c4",
         "refs": [
-          "PR 201",
-          "G9"
+          "decision 0551",
+          "agent-spec-store.mjs:57",
+          "determinism-lint.test.mjs:366"
+        ]
+      },
+      {
+        "text": "Never merge a wave branch ahead of the substrate — from a linked worktree the determinism, phase-parity and schema gates censused the primary checkout on main, so every local green on those four branches is false",
+        "scope": "c4",
+        "refs": [
+          "decision 0549",
+          "PR 204",
+          "feat/u41-executing-agents"
+        ]
+      },
+      {
+        "text": "Delete PR 204's branch and confirm the ref is gone before merging any child — GitHub retargets a stacked child only on parent-branch deletion, else the child merges into a dead branch and reports MERGED without reaching the trunk",
+        "scope": "c4",
+        "refs": [
+          "PR 204",
+          "memory: stacked-pr-merges-into-a-live-base-branch"
+        ]
+      },
+      {
+        "text": "Wave 6 must flip the retirement census smoke test to the green assertion — it asserts sites above zero, which is correct today and wrong the moment U6.2 repoints the references",
+        "scope": "c4",
+        "refs": [
+          "2026-08-17-u62-acceptance.md section 9 item 5"
+        ]
+      },
+      {
+        "text": "Decision 0503's body-pointer channel does not exist for project-local skills over 4KB — resolveSkillPointer requires plugin:skill, so mitosis at 14200 bytes can be neither preloaded nor pointed at and delivery-lead fetches it by body instruction",
+        "scope": "c4",
+        "refs": [
+          "decision 0549",
+          "delivery-lead"
+        ]
+      },
+      {
+        "text": "SPEC section 5b's effort dial is not expressible — no agent definition carries the key and every effort string in the binary is the session dial, so verifier's deliberate low is decorative",
+        "scope": "c4",
+        "refs": [
+          "decision 0549",
+          "agent-body-compose.mjs:60"
+        ]
+      },
+      {
+        "text": "Write the plugin-versus-project skill distinction into SPEC section 3 — bare project-skill names DO resolve, so its blanket forbidding of bare names will make the next reader wrongly fix seven correct agents",
+        "scope": "c4",
+        "refs": [
+          "SPEC section 3",
+          "U4.1 skills entries"
+        ]
+      },
+      {
+        "text": "U4.1's acceptance clause that its four agents pass dispatchable-agent-schema-capable is vacuous — that gate only inspects agents appearing as engine string literals, so it passes them by never looking",
+        "scope": "c4",
+        "refs": [
+          "decision 0547"
         ]
       },
       {
@@ -119,27 +188,6 @@
         "scope": "c4",
         "refs": [
           "U3.4 filed item 1"
-        ]
-      },
-      {
-        "text": "Separate artifact-less internal rows from real dispatches in any audit answer — 1062 groups against 61 paired means a rate over all rows measures internal noise",
-        "scope": "c5",
-        "refs": [
-          "decision 0537"
-        ]
-      },
-      {
-        "text": "Pull the primary checkout after any merge — the global rules, skills, lib and agents symlink into its working tree, so merged config is not in force until then",
-        "scope": "thread",
-        "refs": [
-          "memory: merged-config-is-not-in-force-until-pull"
-        ]
-      },
-      {
-        "text": "Capture a command's exit status directly rather than through a pipe — piping npm test to tail reports tail's status and renders a failing suite as exit 0, which happened twice this session",
-        "scope": "thread",
-        "refs": [
-          "memory: piping-a-verification-command-masks-its-exit-code"
         ]
       }
     ],
@@ -391,5 +439,5 @@
     ]
   },
   "created_at": "2026-08-16T05:43:25.829Z",
-  "updated_at": "2026-08-18T01:25:17.688Z"
+  "updated_at": "2026-08-18T01:26:20.105Z"
 }
