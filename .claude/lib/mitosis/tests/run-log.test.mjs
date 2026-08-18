@@ -136,6 +136,16 @@ test('foldRunManifest ignores a ci-attempt delta that names an unknown unit or a
   assert.equal(folded.msps.length, 2, 'an unknown unit id adds no unit');
 });
 
+test('foldRunManifest ignores a delta line that parses to a non-object JSON value (null, a number, a string, a boolean, or an array), so a corrupt record can never mutate state or crash the fold', () => {
+  const manifest = genesisManifest(TWO);
+  const shipLine = JSON.stringify(shipDelta({ mspId: 'a', prUrl: 'https://x/pr/a', mergedAt: '2026-07-15T00:00:00Z', title: 'Alpha', rationale: 'alpha rationale' }));
+  const cleanFold = foldRunManifest([JSON.stringify(manifest), shipLine].join('\n'));
+  for (const malformed of [null, 42, 'not-a-record', true, ['ship']]) {
+    const folded = foldRunManifest([JSON.stringify(manifest), JSON.stringify(malformed), shipLine].join('\n'));
+    assert.deepEqual(folded, cleanFold, `a delta line of ${JSON.stringify(malformed)} must contribute nothing to the fold, and must not crash it`);
+  }
+});
+
 test('foldRunManifest is fail-safe: a malformed delta line is skipped, well-formed later deltas still apply', () => {
   const manifest = genesisManifest(TWO);
   const log = [
