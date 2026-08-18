@@ -223,7 +223,7 @@ test('the decompose child is dispatched with the registry prompt and the lib-res
   assert.equal(calls.length, 1);
   const argv = calls[0].argv;
   assert.equal(calls[0].binary, 'claude');
-  assert.equal(argv[argv.indexOf('--agent') + 1], 'codebase-analyst');
+  assert.equal(argv[argv.indexOf('--agent') + 1], 'investigator');
   assert.equal(argv[argv.indexOf('--model') + 1], 'opus');
   assert.equal(argv[argv.indexOf('--json-schema') + 1], JSON.stringify(DECOMPOSE_SCHEMA));
   assert.equal(argv[argv.length - 1], composePrompt('decompose', {

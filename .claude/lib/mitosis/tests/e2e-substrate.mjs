@@ -200,7 +200,7 @@ function installBoundaryToolchain(sandbox) {
   return ['package.json', '.gitignore'];
 }
 
-export const DECOMPOSER_AGENT_NAME = 'codebase-analyst';
+export const DECOMPOSER_AGENT_NAME = 'investigator';
 const AGENT_DEFINITION_DIRECTORY = join('.claude', 'agents');
 
 function seedDispatchableAgent(sandbox, agentName) {
