@@ -280,9 +280,9 @@
   "abandoned_reason": null,
   "closure_statement": null,
   "spine": {
-    "active_goal": "Prove mitosis works end to end: the ship stack is merged, so the next milestone is the first live run that reaches a real pull request.",
-    "next_step": "START HERE. PR 209 is MERGED, verified by content on origin/main. FIRST: fast-forward the primary checkout - it is 28 commits behind and global lib, rules, skills and agents symlink into its working tree, so the merged engine is NOT the running engine. THEN the first live end-to-end run: drive the engine against a disposable repo until it opens a real pull request. Keep the graph edge-free; the divergence probe is unimplemented so chains cannot resume.",
-    "last_session": "Cleared both reviewers blocking findings on the branch-deletion power and a workflow credential exposure, opened PR 209, and the user merged it. Verified the content landed on origin/main by reading it, not by trusting the merged label.",
+    "active_goal": "Prove mitosis end to end on live runs: one real pull request per MSP through pr-create, with the merge order serialized and handed off.",
+    "next_step": "START HERE. The engine opened real pull request 2, but the second unit parked, so c28's per-MSP and serialization halves stay unproven. FIRST re-run cli.mjs with the SAME run document and run-id, to test whether a NeedsHuman park redispatches through remediation - that also exercises Resume for c29. If it refuses to redispatch, put the real requirements into the unit task text, accept the new run key, and run again for a second live pull request.",
+    "last_session": "Fast-forwarded the checkout to 94eaf17f, staged the disposable substrate, and drove the first live run: pull request 2 opened and verified from GitHub, the second unit parked on a correct review failure, five engine defects filed.",
     "open_risks": [
       {
         "text": "Prove a merge arrived by asserting its CONTENT is on the base, never by SHA ancestry — a squash or stack merge rewrites commits, so a pre-merge SHA correctly fails an ancestry check on a merge that lost nothing",
@@ -459,85 +459,55 @@
         ]
       },
       {
-        "text": "Fast-forward the primary checkout before trusting any mitosis behaviour — global lib, rules, skills and agents symlink into its working tree, so a merged engine is not the running engine until that checkout moves",
+        "text": "Treat a green Integrate as evidence the gate ran, not that it scanned the diff — it reported zero fixes and wrote no per-unit census at all",
         "scope": "c28",
         "refs": [
-          "origin/main",
-          "28 commits behind at hand-off",
-          "memory: merged-config-is-not-in-force-until-pull"
+          "0569",
+          ".mitosis/boundary/c28e0001"
         ]
       },
       {
-        "text": "The live GitHub token is now safe to create and needs repo scope only — the workflow fix that closed the credential exposure is on main, and the harness resets one reusable repository in place rather than deleting it",
+        "text": "Never read prState as the answer to whether a pull request exists — the probe runs before Ship and reported none for the very branch whose pull request that same run created",
         "scope": "c28",
         "refs": [
-          "MITOSIS_LIVE_GH_TOKEN",
+          "0565"
+        ]
+      },
+      {
+        "text": "Trust the exit code over ship.status — the status read all-shipped while a unit sat parked, because it means every integrated unit shipped, not every unit",
+        "scope": "c28",
+        "refs": [
+          "0564",
+          "exit 3"
+        ]
+      },
+      {
+        "text": "Pass an absolute path to the journal flag — a relative value, which is what the operator doc suggests, burns the whole planning phase before failing twelve minutes in",
+        "scope": "c28",
+        "refs": [
+          "0567"
+        ]
+      },
+      {
+        "text": "Expect a unit to violate its fence whenever its contract matters — the implementer is handed the MSP's one-sentence rationale, never the specification",
+        "scope": "c28",
+        "refs": [
+          "0566"
+        ]
+      },
+      {
+        "text": "Editing the run document to make a unit pass changes the run key and starts a fresh run — so weigh remediation through the engine before hand-editing the document",
+        "scope": "c28",
+        "refs": [
+          "run key 643e9346",
+          "0566"
+        ]
+      },
+      {
+        "text": "The disposable harness repo now carries an open pull request 2 and a _ledger branch — the live harness test resets by closing every pull request and deleting every non-main branch",
+        "scope": "c28",
+        "refs": [
           "SatanshuMishra/mitosis-live-pr-harness"
-        ]
-      },
-      {
-        "text": "Do not expect a dependency chain to resume — divergence.mjs reads three things from its context that exist nowhere in the tree, so every keyed parent throws, is caught, and folds closed",
-        "scope": "c28",
-        "refs": [
-          "0552",
-          "divergence.mjs:26",
-          "divergence.mjs:55"
-        ]
-      },
-      {
-        "text": "Do not read the live harness as proof the engine ships — it proves the pull request creation path against real GitHub, not that the engine reaches it; no run has driven decompose through pull request end to end",
-        "scope": "c28",
-        "refs": [
-          "tests/live-github-harness.test.mjs",
-          "c31"
-        ]
-      },
-      {
-        "text": "Do not read retirement-census red as caused by this work — it exits 41 on pristine main with nineteen sites, all of them agent names inside rules files, none from the ship stack",
-        "scope": "c28",
-        "refs": [
-          "mitosis-gate.mjs retirement-census"
-        ]
-      },
-      {
-        "text": "Seven worktrees and six branches from the ship stack are merged and can be removed — ship-base, ship-green, ship-resume, ship-publish, ship-wire, ship-livetest and ship-harden",
-        "scope": "c28",
-        "refs": [
-          ".claude/worktrees",
-          "feat/mitosis-ship-live"
-        ]
-      },
-      {
-        "text": "Never delete a gh double without going in-process first — the merge shim and the pull request tool both fall back to hardcoded absolute paths, so removing the fake makes the suite silently reach the real authenticated gh",
-        "scope": "c28",
-        "refs": [
-          "0555",
-          "gh-merge-shim.mjs resolveRealGh"
-        ]
-      },
-      {
-        "text": "Validate a sha as a sha on any destructive path — a ref token check accepts origin/main, which turned an ancestry gate into a comparison of a ref with itself and passed",
-        "scope": "c28",
-        "refs": [
-          "0558",
-          "SHA_HEX_PATTERN",
-          "resume-plan.mjs:92"
-        ]
-      },
-      {
-        "text": "Thirty-six percent of modules and fifty-five percent of exports are unreachable from cli.mjs — the defect class is defined-but-unwired code and no gate detects it, so a connectivity census outranks any individual fix",
-        "scope": "c28",
-        "refs": [
-          "FINDINGS.md section 4",
-          "0552"
-        ]
-      },
-      {
-        "text": "Planning is strictly serial at about four minutes per unit and dominates wall clock — Execute parallelizes genuinely but mean concurrency measured 1.14x",
-        "scope": "c28",
-        "refs": [
-          "unit-planning.mjs:301",
-          "FINDINGS.md section 6"
         ]
       }
     ],
@@ -1062,5 +1032,5 @@
     ]
   },
   "created_at": "2026-08-12T07:37:41.077Z",
-  "updated_at": "2026-08-18T05:57:19.586Z"
+  "updated_at": "2026-08-18T05:57:53.710Z"
 }
