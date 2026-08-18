@@ -240,8 +240,9 @@ test('a scope-fence unit reaches done with no structured output and no commit of
 
     const run = runMitosisCli(sandbox);
 
-    assert.equal(run.status, 0, run.stderr);
+    assert.equal(run.status, 3, run.stderr);
     assert.deepEqual(run.summary.units, [{ id: 'alpha', state: 'done' }]);
+    assert.deepEqual(run.summary.ship.opened, [], 'the unit is built but no pull request is opened, which is what keeps the run off exit 0');
     assert.equal(claudeArgvs(sandbox).length, 1);
   });
 });

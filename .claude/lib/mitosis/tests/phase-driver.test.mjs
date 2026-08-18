@@ -287,6 +287,37 @@ const MERGED_ALPHA = Object.freeze([{
   mergedAt: '2026-08-01T00:00:00Z',
 }]);
 
+const MERGE_COMMIT_OID = '9f8e7d6c5b4a39281706f5e4d3c2b1a098765432';
+
+function mergedAlphaAs(mergeCommit) {
+  return [{ ...MERGED_ALPHA[0], mergeCommit }];
+}
+
+test('the commit the forge says a merged prerequisite landed as is the one the divergence guard is keyed on', async () => {
+  const stub = stubbedPorts({
+    readJournal: () => SHIPPED_PARENT_JOURNAL,
+    reconcile: () => mergedAlphaAs({ oid: MERGE_COMMIT_OID }),
+  });
+  const driven = await runPhases(shippedParentRequest(), stub.ports);
+  assert.deepEqual(
+    driven.phases.Resume.mergedShas,
+    { alpha: MERGE_COMMIT_OID },
+    'the guard compares what a parent was built as against what it merged as, and the merged end of that pair can only come from the forge probe; handed no map at all it has no merged sha for any parent and folds every one of them to diverged unprobed',
+  );
+});
+
+test('a forge answer that names no usable merge commit keys nothing, so the guard is never handed a sha nobody reported', async () => {
+  for (const unusable of [undefined, null, {}, { oid: '' }, { oid: 'not-a-sha' }, 'deadbeef']) {
+    const stub = stubbedPorts({
+      readJournal: () => SHIPPED_PARENT_JOURNAL,
+      reconcile: () => mergedAlphaAs(unusable),
+    });
+    const driven = await runPhases(shippedParentRequest(), stub.ports);
+    assert.deepEqual(driven.phases.Resume.mergedShas, {}, `a merge commit of ${JSON.stringify(unusable)} is not a commit this run may key a content comparison to`);
+    assert.deepEqual(driven.phases.Resume.shipped, ['alpha'], 'the unit still merged; only the sha is unusable');
+  }
+});
+
 test('the merged set Integrate reads is the one this invocation probed, so the divergence guard stays live over a unit built after it', async () => {
   const probed = [];
   const stub = stubbedPorts({

@@ -204,7 +204,7 @@ test('a unit dispatched from an emitted run document settles done carrying the s
     [{ id: 'alpha-core', state: 'done' }],
     `the unit did not reach done; stderr carried ${JSON.stringify(io.errOut.join(''))}`,
   );
-  assert.equal(exitCode, 0, `stderr carried ${JSON.stringify(io.errOut.join(''))}`);
+  assert.equal(exitCode, 3, `this run builds alpha-core and opens no pull request, so it hands nothing off; stderr carried ${JSON.stringify(io.errOut.join(''))}`);
 
   const updateRef = effects.exec.find((call) => call.binary === 'git' && call.argv[0] === 'update-ref');
   assert.notEqual(updateRef, undefined, 'no checkpoint ref was written, so no sha ever reached the ref writer');
@@ -221,7 +221,7 @@ test('a scope-fence unit settles done and asks for no checkpoint ref, because it
     'done',
     `the scope-fence unit did not reach done; stderr carried ${JSON.stringify(io.errOut.join(''))}`,
   );
-  assert.equal(exitCode, 0, `stderr carried ${JSON.stringify(io.errOut.join(''))}`);
+  assert.equal(exitCode, 3, `this run builds alpha-core and opens no pull request, so it hands nothing off; stderr carried ${JSON.stringify(io.errOut.join(''))}`);
   assert.deepEqual(updateRefCalls(effects), [], 'a scope-fence unit owns no commit, so no ref may be written for it');
 });
 

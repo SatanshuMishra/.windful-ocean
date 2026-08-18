@@ -242,11 +242,13 @@ function advancedResume(completed) {
 async function integratePhase(completed, request, ports) {
   const title = phase('Integrate');
   const executed = requirePreceding(completed, 'Execute');
+  const resumed = requirePreceding(completed, 'Resume');
   const advanced = advancedResume(completed);
   return entered(title, await integrateBuilt({
     built: advanced.built,
     manifest: advanced.manifest,
     shipped: advanced.shipped,
+    mergedShas: resumed.mergedShas,
     quiescent: executed.result.quiescent === true,
     repoRoot: request.repoRoot,
     runId: runIdentityOf(advanced.manifest, request.runId),

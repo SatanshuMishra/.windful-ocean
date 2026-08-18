@@ -1,3 +1,4 @@
+import { SHA_HEX_PATTERN } from './divergence.mjs';
 import { selectResumeBuilt, selectResumeUnits } from './parking.mjs';
 import { reconcileShippedSet, resolveResumeTarget } from './recovery.mjs';
 
@@ -72,14 +73,25 @@ function probeValues(manifest, repoSlug) {
   return Object.freeze({ ownerRepo, baseBranch, sourcePrefix, repoHost: nonEmptyText(manifest.repoHost) });
 }
 
-async function shippedIds(manifest, plannedIds, request) {
+async function mergedRecords(manifest, plannedIds, request) {
   const claimed = [...shippedByStatus(manifest)].filter((id) => plannedIds.has(id));
-  if (claimed.length === 0) return new Set();
+  if (claimed.length === 0) return new Map();
   const probe = probeValues(manifest, request.repoSlug);
-  if (probe === null) return new Set();
+  if (probe === null) return new Map();
   const merged = await request.reconcile(probe);
-  if (!Array.isArray(merged)) return new Set();
-  return new Set(reconcileShippedSet(merged, probe.sourcePrefix, probe.ownerRepo, probe.repoHost).keys());
+  if (!Array.isArray(merged)) return new Map();
+  return reconcileShippedSet(merged, probe.sourcePrefix, probe.ownerRepo, probe.repoHost);
+}
+
+function mergedShasOf(records, plannedIds) {
+  const keyed = [...records]
+    .filter(([unitId, record]) => plannedIds.has(unitId)
+      && record !== null
+      && typeof record === 'object'
+      && typeof record.mergeCommit === 'string'
+      && SHA_HEX_PATTERN.test(record.mergeCommit))
+    .map(([unitId, record]) => [unitId, record.mergeCommit]);
+  return Object.freeze(Object.fromEntries(keyed));
 }
 
 function resumePointOf(source) {
@@ -128,7 +140,8 @@ export async function planResume(request) {
   const recovered = recoveredManifest(request.journal, runIdentity(declared, runId));
   const manifest = recovered === null ? declared : recovered;
   const plannedIds = new Set(planned.map((spec) => spec.id));
-  const shipped = await shippedIds(manifest, plannedIds, request);
+  const records = await mergedRecords(manifest, plannedIds, request);
+  const shipped = new Set(records.keys());
   const built = entriesWithin(selectResumeBuilt(manifest, shipped, null), plannedIds);
   const parked = entriesWithin(selectResumeUnits(manifest, shipped), plannedIds);
   const parkedById = new Map(parked.map((entry) => [entry.unitId, entry]));
@@ -143,6 +156,7 @@ export async function planResume(request) {
     parked: Object.freeze(parked),
     built: Object.freeze(built),
     shipped: Object.freeze([...plannedIds].filter((id) => shipped.has(id))),
+    mergedShas: mergedShasOf(records, plannedIds),
   });
 }
 
@@ -153,5 +167,6 @@ export function resumeSummary(plan) {
     parked: plan.parked.map((entry) => entry.unitId),
     built: plan.built.map((entry) => entry.unitId),
     shipped: [...plan.shipped],
+    mergedShas: { ...plan.mergedShas },
   };
 }

@@ -139,7 +139,7 @@ test('a completed engine run leaves one usage line per dispatch at the run store
   ]));
 
   const code = await runCli(argvFor(root), io, (config) => realPorts(config, inertDeps(dispatch)));
-  assert.equal(code, 0, io.errOut.join(''));
+  assert.equal(code, 3, `this spec declares no base branch, so both units park at Integrate and no pull request is opened: ${io.errOut.join('')}`);
 
   const lines = readUsage(usagePath(root, spec));
   assert.equal(lines.length, 2, 'the run recorded one usage line per dispatch');
@@ -170,7 +170,7 @@ test('a redispatched unit contributes one usage line per dispatch attempt, so th
   };
 
   const code = await runCli(argvFor(root), io, () => stubPorts(runUnit));
-  assert.equal(code, 0, io.errOut.join(''));
+  assert.equal(code, 3, `this spec declares no base branch, so both units park at Integrate and no pull request is opened: ${io.errOut.join('')}`);
 
   const lines = readUsage(usagePath(root, spec));
   const dispatchCount = lines.length;
@@ -262,7 +262,7 @@ test('the run summary names the run key and attempt the evidence was written und
   ]));
 
   const code = await runCli(argvFor(root), io, (config) => realPorts(config, inertDeps(dispatch)));
-  assert.equal(code, 0, io.errOut.join(''));
+  assert.equal(code, 3, `this spec declares no base branch, so both units park at Integrate and no pull request is opened: ${io.errOut.join('')}`);
 
   const summary = JSON.parse(io.out.join(''));
   assert.equal(summary.runKey, computeRunKey(spec), 'the summary does not say which run key holds this run evidence');

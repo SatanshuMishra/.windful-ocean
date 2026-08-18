@@ -4,7 +4,7 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { pack } from './file-scope-fixtures.mjs';
-import { CLI_USAGE, parseCliArgv, realPorts, runCli } from '../cli.mjs';
+import { CLI_USAGE, exitCodeOf, parseCliArgv, realPorts, runCli } from '../cli.mjs';
 import { Done, NeedsHuman } from '../boundary.mjs';
 
 function fullArgv(extra = [], root = '/repo') {
@@ -125,7 +125,7 @@ test('THE INSTANT ARRIVES AS ARGV: the --at value is the at the engine writes in
   const lastRecord = JSON.parse(appendCalls[appendCalls.length - 1].value.line);
   assert.equal(lastRecord.kind, 'quiescent-exit');
   assert.equal(lastRecord.at, '2026-08-15T12:00:00Z');
-  assert.equal(code, 0);
+  assert.equal(code, 3, 'this spec declares no base branch, so alpha is built and parked at Integrate and no pull request is opened; a run that built and shipped nothing is not a clean run');
 });
 
 test('EXIT 3: a run that reaches quiescence with a unit short of done reports incomplete', async (t) => {
@@ -134,6 +134,57 @@ test('EXIT 3: a run that reaches quiescence with a unit short of done reports in
   const code = await runCli(tempArgv(t), io, () => stub.ports);
   assert.equal(code, 3);
   assert.match(io.out.join(''), /"state": "parked"/);
+});
+
+test('EXIT 3: a run that built every unit and opened no pull request is never reported clean', async (t) => {
+  const io = stubIo(specDocument());
+  const stub = stubPorts(async () => Done({ sha: 'sha-alpha' }));
+  const code = await runCli(tempArgv(t), io, () => stub.ports);
+  const summary = JSON.parse(io.out.join(''));
+  assert.deepEqual(summary.units, [{ id: 'alpha', state: 'done' }], 'every unit reached done, which is all the unit disposition alone can see');
+  assert.deepEqual(summary.ship.opened, [], 'the run opened no pull request at all');
+  assert.equal(code, 3, 'an operator reading 0 here would be told a run that shipped nothing had succeeded');
+});
+
+function drivenRun(ship, integrateOutcomes = [], execute = {}) {
+  return {
+    phases: {
+      Execute: { result: { quiescent: true, units: [{ id: 'alpha', state: 'done' }], ...execute } },
+      Integrate: { outcomes: integrateOutcomes },
+      Ship: ship,
+    },
+  };
+}
+
+const BUILT_UNIT_OUTCOME = Object.freeze([Object.freeze({ unitId: 'alpha', state: 'parked' })]);
+
+test('EXIT MAPPING: shipping decides the code once the build is clean, and a hand-off awaiting a human merge is a success', () => {
+  assert.equal(exitCodeOf(drivenRun({ status: 'all-shipped', outcomes: BUILT_UNIT_OUTCOME }, BUILT_UNIT_OUTCOME)), 0);
+  assert.equal(
+    exitCodeOf(drivenRun({ status: 'awaiting-approval', outcomes: BUILT_UNIT_OUTCOME }, BUILT_UNIT_OUTCOME)),
+    0,
+    'the engine never merges by design, so a run that opened its pull requests and waits on a human is the healthy terminal state; a red code here would train the operator to ignore the code',
+  );
+  assert.equal(
+    exitCodeOf(drivenRun({ status: 'partial', outcomes: [] }, [])),
+    0,
+    'nothing was pending to integrate and nothing was pending to ship, so the unconditional partial a zero total produces is not a failure',
+  );
+
+  assert.equal(
+    exitCodeOf(drivenRun({ status: 'partial', outcomes: [] }, BUILT_UNIT_OUTCOME)),
+    3,
+    'a unit was built and carried into Integrate, and no pull request came out of it',
+  );
+  assert.equal(exitCodeOf(drivenRun({ status: 'partial', outcomes: BUILT_UNIT_OUTCOME }, BUILT_UNIT_OUTCOME)), 3);
+  assert.equal(exitCodeOf(drivenRun({ status: 'blocked', outcomes: BUILT_UNIT_OUTCOME }, BUILT_UNIT_OUTCOME)), 3);
+  assert.equal(exitCodeOf(drivenRun({ status: 'ci-red-exhausted', outcomes: BUILT_UNIT_OUTCOME }, BUILT_UNIT_OUTCOME)), 3);
+});
+
+test('EXIT MAPPING: an unfinished build is still short-circuited before shipping is consulted', () => {
+  const shipped = { status: 'all-shipped', outcomes: BUILT_UNIT_OUTCOME };
+  assert.equal(exitCodeOf(drivenRun(shipped, BUILT_UNIT_OUTCOME, { quiescent: false })), 3);
+  assert.equal(exitCodeOf(drivenRun(shipped, BUILT_UNIT_OUTCOME, { units: [{ id: 'alpha', state: 'parked' }] })), 3);
 });
 
 test('EXIT 1: a throw from the engine is reported on stderr rather than crashing the process', async (t) => {

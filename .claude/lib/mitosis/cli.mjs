@@ -408,6 +408,27 @@ function driverPorts(io, makePorts, deps, repoRoot) {
   });
 }
 
+const SHIP_HANDOFF_STATUSES = Object.freeze(['all-shipped', 'awaiting-approval']);
+const SHIP_NOTHING_PENDING_STATUS = 'partial';
+
+function nothingWasPending(driven) {
+  return driven.phases.Integrate.outcomes.length === 0 && driven.phases.Ship.outcomes.length === 0;
+}
+
+function shipExitCode(driven) {
+  const status = driven.phases.Ship.status;
+  if (SHIP_HANDOFF_STATUSES.includes(status)) return EXIT_CLEAN;
+  if (status === SHIP_NOTHING_PENDING_STATUS && nothingWasPending(driven)) return EXIT_CLEAN;
+  return EXIT_INCOMPLETE;
+}
+
+export function exitCodeOf(driven) {
+  const result = driven.phases.Execute.result;
+  if (!result.quiescent) return EXIT_INCOMPLETE;
+  if (!result.units.every((unit) => unit.state === 'done')) return EXIT_INCOMPLETE;
+  return shipExitCode(driven);
+}
+
 function summaryOf(driven) {
   const result = driven.phases.Execute.result;
   const handle = driven.phases.Probe.handle;
@@ -435,10 +456,8 @@ export async function runCli(argv, io, makePorts, deps = {}) {
   try {
     const spec = documentOf(io.readSpec(parsed.value.spec));
     const driven = await runPhases(driverRequest(parsed.value, spec), driverPorts(io, makePorts, deps, parsed.value.repoRoot));
-    const result = driven.phases.Execute.result;
     io.log(`${JSON.stringify(summaryOf(driven), null, 2)}\n`);
-    if (!result.quiescent) return EXIT_INCOMPLETE;
-    return result.units.every((unit) => unit.state === 'done') ? EXIT_CLEAN : EXIT_INCOMPLETE;
+    return exitCodeOf(driven);
   } catch (error) {
     io.err(`${MODULE}: ${messageOf(error)}\n`);
     return EXIT_ERROR;
