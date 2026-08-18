@@ -685,9 +685,9 @@ test('an unchanged resolved tsconfig does not block', () => {
 });
 
 const NO_OP_GATE_BASE = 'abc123';
-const COMMIT_PROBE_PREFIX = 'git rev-parse --verify ';
-const BASE_SIDE_REVISION = `${NO_OP_GATE_BASE}^{commit}`;
-const HEAD_SIDE_REVISION = 'HEAD^{commit}';
+const TREE_PROBE_PREFIX = 'git rev-parse --verify ';
+const BASE_SIDE_REVISION = `${NO_OP_GATE_BASE}^{tree}`;
+const HEAD_SIDE_REVISION = 'HEAD^{tree}';
 
 function shaAnsweringIo({ baseSha, headSha, status = 0 }) {
   const shaFor = (argv) => {
@@ -718,19 +718,19 @@ function noOpRequest(extra) {
 }
 
 function assertBothSidesProbed(io) {
-  const probes = io.spawned.filter((command) => command.startsWith(COMMIT_PROBE_PREFIX));
+  const probes = io.spawned.filter((command) => command.startsWith(TREE_PROBE_PREFIX));
   assert.equal(
     probes.length,
     2,
-    `the commit probe did not interrogate both sides, so a verdict carrying no refusal says nothing about what the probe decided: ${JSON.stringify(io.spawned)}`,
+    `the tree probe did not interrogate both sides, so a verdict carrying no refusal says nothing about what the probe decided: ${JSON.stringify(io.spawned)}`,
   );
   assert.equal(
-    probes.filter((command) => command === `${COMMIT_PROBE_PREFIX}${BASE_SIDE_REVISION}`).length,
+    probes.filter((command) => command === `${TREE_PROBE_PREFIX}${BASE_SIDE_REVISION}`).length,
     1,
     `the base side was never resolved from the declared gateBase revision: ${JSON.stringify(probes)}`,
   );
   assert.equal(
-    probes.filter((command) => command === `${COMMIT_PROBE_PREFIX}${HEAD_SIDE_REVISION}`).length,
+    probes.filter((command) => command === `${TREE_PROBE_PREFIX}${HEAD_SIDE_REVISION}`).length,
     1,
     `the head side was never resolved from HEAD: ${JSON.stringify(probes)}`,
   );
@@ -770,14 +770,14 @@ test('a comparison over an empty head census reports that it examined nothing wh
   assert.deepEqual([...verdict.blocking], []);
 });
 
-test('a base and a head that resolve to the same commit is refused as not comparable rather than passing vacuously', () => {
+test('a base and a head that resolve to the same tree is refused as not comparable rather than passing vacuously', () => {
   const io = shaAnsweringIo({ baseSha: SAME_SHA, headSha: SAME_SHA });
   const verdict = evaluate(noOpRequest(), io);
-  assert.equal(verdict.pass, false, `base and head are the same commit, so the gate compared the tree under test against itself and reported a pass: ${verdict.output}`);
+  assert.equal(verdict.pass, false, `base and head are the same tree, so the gate compared the tree under test against itself and reported a pass: ${verdict.output}`);
   assert.equal(verdict.blocking[0].classifier, 'not-comparable');
 });
 
-test('a same-commit request that declares itself a no-op passes and reports that nothing was comparable', () => {
+test('a same-tree request that declares itself a no-op passes and reports that nothing was comparable', () => {
   const io = shaAnsweringIo({ baseSha: SAME_SHA, headSha: SAME_SHA });
   const verdict = evaluate(noOpRequest({ declaredNoOp: true }), io);
   assert.equal(verdict.pass, true, verdict.output);
@@ -785,19 +785,19 @@ test('a same-commit request that declares itself a no-op passes and reports that
   assert.equal(verdict.notComparable, true);
 });
 
-test('a base and a head at different commits are never refused as not comparable', () => {
+test('a base and a head at different trees are never refused as not comparable', () => {
   const io = shaAnsweringIo({ baseSha: SAME_SHA, headSha: OTHER_SHA });
   const verdict = evaluate(noOpRequest(), io);
   assert.equal(verdict.pass, true, verdict.output);
   assert.deepEqual(
     verdict.blocking.filter((entry) => entry.classifier === 'not-comparable'),
     [],
-    'two distinct commits were refused as the same commit, so the gate over-refuses every ordinary MSP',
+    'two distinct trees were refused as the same tree, so the gate over-refuses every ordinary MSP',
   );
   assertBothSidesProbed(io);
 });
 
-test('a commit that cannot be resolved on either side is never refused as not comparable', () => {
+test('a tree that cannot be resolved on either side is never refused as not comparable', () => {
   const unresolvable = [
     shaAnsweringIo({ baseSha: SAME_SHA, headSha: SAME_SHA, status: 1 }),
     shaAnsweringIo({ baseSha: '', headSha: '' }),
@@ -808,13 +808,13 @@ test('a commit that cannot be resolved on either side is never refused as not co
     assert.deepEqual(
       verdict.blocking.filter((entry) => entry.classifier === 'not-comparable'),
       [],
-      'an unresolved commit was treated as a resolved one, so a side git could not report on reads as the same commit',
+      'an unresolved tree was treated as a resolved one, so a side git could not report on reads as the same tree',
     );
     assertBothSidesProbed(io);
   }
 });
 
-test('the same-commit refusal fires through the shipped io against a real repository whose base worktree does not exist yet', () => {
+test('the same-tree refusal fires through the shipped io against a real repository whose base worktree does not exist yet', () => {
   const repo = realGitRepo('boundary-real-commit-repo-');
   const holder = mkdtempSync(join(tmpdir(), 'boundary-real-commit-base-'));
   const basePath = join(holder, 'wt');

@@ -21,9 +21,9 @@ export const NEW_FINDING_CLASSIFIER = 'new-finding';
 export const NOT_COMPARABLE_CLASSIFIER = 'not-comparable';
 
 const EMPTY_CONTEXT = Object.freeze({ leaked: null, cacheRefusal: null });
-const COMMIT_PROBE_DEADLINE_MS = 10000;
-const RESOLVED_COMMIT_SHAPE = /^[0-9a-f]{7,64}$/;
-const HEAD_REVISION = 'HEAD^{commit}';
+const TREE_PROBE_DEADLINE_MS = 10000;
+const RESOLVED_TREE_SHAPE = /^[0-9a-f]{7,64}$/;
+const HEAD_REVISION = 'HEAD^{tree}';
 
 const REQUEST_FIELDS = Object.freeze([
   Object.freeze({
@@ -96,8 +96,8 @@ function probeReading(revision, child) {
     return Object.freeze({ sha: null, reason: `the probe for ${revision} reported outcome ${JSON.stringify(child.outcome ?? null)} and status ${JSON.stringify(child.status ?? null)}` });
   }
   const sha = typeof child.stdout === 'string' ? child.stdout.trim() : '';
-  if (!RESOLVED_COMMIT_SHAPE.test(sha)) {
-    return Object.freeze({ sha: null, reason: `the probe for ${revision} printed ${JSON.stringify(sha)}, which is not the shape of a commit sha` });
+  if (!RESOLVED_TREE_SHAPE.test(sha)) {
+    return Object.freeze({ sha: null, reason: `the probe for ${revision} printed ${JSON.stringify(sha)}, which is not the shape of a tree hash` });
   }
   return Object.freeze({ sha, reason: null });
 }
@@ -105,22 +105,22 @@ function probeReading(revision, child) {
 function probeNote(base, head) {
   const reasons = [base.reason, head.reason].filter((reason) => typeof reason === 'string' && reason.length > 0);
   if (reasons.length === 0) return null;
-  return `the same-commit check reached no decision because a side stayed unresolved: ${reasons.join('; ')}`;
+  return `the same-tree check reached no decision because a side stayed unresolved: ${reasons.join('; ')}`;
 }
 
-function commitProbe(request, io) {
-  const baseChild = io.run('git', ['rev-parse', '--verify', `${request.gateBase}^{commit}`], { cwd: request.repoRoot, deadlineMs: COMMIT_PROBE_DEADLINE_MS });
-  const headChild = io.run('git', ['rev-parse', '--verify', 'HEAD^{commit}'], { cwd: request.repoRoot, deadlineMs: COMMIT_PROBE_DEADLINE_MS });
-  const base = probeReading(`${request.gateBase}^{commit}`, baseChild);
+function treeProbe(request, io) {
+  const baseChild = io.run('git', ['rev-parse', '--verify', `${request.gateBase}^{tree}`], { cwd: request.repoRoot, deadlineMs: TREE_PROBE_DEADLINE_MS });
+  const headChild = io.run('git', ['rev-parse', '--verify', 'HEAD^{tree}'], { cwd: request.repoRoot, deadlineMs: TREE_PROBE_DEADLINE_MS });
+  const base = probeReading(`${request.gateBase}^{tree}`, baseChild);
   const head = probeReading(HEAD_REVISION, headChild);
   return Object.freeze({ base, head, note: probeNote(base, head) });
 }
 
-function sameCommitRefusal(request, probe) {
+function sameTreeRefusal(request, probe) {
   if (request.declaredNoOp === true) return null;
   if (probe.base.sha === null || probe.head.sha === null) return null;
   if (probe.base.sha !== probe.head.sha) return null;
-  const detail = `gateBase ${JSON.stringify(request.gateBase)} and ${HEAD_REVISION} both resolve to commit ${probe.base.sha} in repoRoot ${JSON.stringify(request.repoRoot)}, so the base is the tree under test and no finding could be compared against anything`;
+  const detail = `gateBase ${JSON.stringify(request.gateBase)} and ${HEAD_REVISION} both resolve to tree ${probe.base.sha} in repoRoot ${JSON.stringify(request.repoRoot)}, so the base is the tree under test and no finding could be compared against anything`;
   return Object.freeze({
     pass: false,
     output: detail,
@@ -247,9 +247,9 @@ export function evaluate(request, io = REAL_BOUNDARY_IO) {
   let evasion;
   let unresolvedProbe = null;
   try {
-    const probe = commitProbe(request, io);
+    const probe = treeProbe(request, io);
     unresolvedProbe = probe.note;
-    const notComparable = sameCommitRefusal(request, probe);
+    const notComparable = sameTreeRefusal(request, probe);
     if (notComparable !== null) return notComparable;
     sides = sidesFor(request, io);
     if (!sides.ok) return refused(sides.error, sides, unresolvedProbe);
