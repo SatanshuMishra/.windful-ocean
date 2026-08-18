@@ -234,7 +234,7 @@
     {
       "id": "c39",
       "text": "Both failure families are audited to root cause with closed state-surface and status-field censuses, every root cause evidenced at path:line, and the whole-solution design left to the next phase.",
-      "done": false,
+      "done": true,
       "kind": "detour",
       "struck_by": null
     },
@@ -287,9 +287,9 @@
   "abandoned_reason": null,
   "closure_statement": null,
   "spine": {
-    "active_goal": "Get mitosis working end to end: root-cause both failure families in one bounded audit, decide whether the design needs simplifying, then implement the whole solution once.",
-    "next_step": "START HERE IN A FRESH SESSION, per user directive 0573. Do NOT implement and do NOT re-run yet. Dispatch thorough censuses and audits over the two failure families: state that dies at a phase or process boundary, and status fields reporting success for non-success. Map every surface, name root causes, judge fragility, complexity, simplification and best-practice departures. Produce the ENTIRE solution for both before any fan-out. Evidence in artifacts-2026-08-18-live-e2e.",
-    "last_session": "Second live run proved resume broken: journal rewritten, shipped state lost, both units parked (0571). User then ruled the next phase is a comprehensive audit to root cause and a whole solution, never another reviewer loop (0573).",
+    "active_goal": "Get mitosis working end to end: with both failure families now root-caused, judge whether the design needs simplifying, settle one whole solution, then implement it once.",
+    "next_step": "START HERE FRESH. The 0573 audit is DONE (0576) - do NOT re-audit and do NOT re-run the engine. Read both reports under ~/.claude/projects/-Users-satanshumishra-Documents-DevLabs--windful-ocean/artifacts-2026-08-18-boundary-audit/. Then dispatch an architect lead for the judgment half of 0573 - fragility, complexity, simplification, best-practice departures - and ONE whole solution covering all thirteen root causes, its acceptance ceiling declared before work starts. Fan out only after that.",
+    "last_session": "Audited both failure families to root cause, read-only on origin/main: two complete reports plus ten worker notes landed in artifacts-2026-08-18-boundary-audit. An Opus 5 incident killed every model-pinned agent for an hour until the leads were re-dispatched with explicit model overrides (0577).",
     "open_risks": [
       {
         "text": "Prove a merge arrived by asserting its CONTENT is on the base, never by SHA ancestry — a squash or stack merge rewrites commits, so a pre-merge SHA correctly fails an ancestry check on a merge that lost nothing",
@@ -466,6 +466,35 @@
         ]
       },
       {
+        "text": "Never trust the restarted flag — it read false on a run that listed every unit pending and nothing shipped, including a unit that had really shipped a pull request",
+        "scope": "c29",
+        "refs": [
+          "0571"
+        ]
+      },
+      {
+        "text": "Copy the journal aside before any re-run on the same run document — the engine rewrites it at start, so the prior run's deltas are destroyed rather than appended to",
+        "scope": "c29",
+        "refs": [
+          "0571",
+          ".mitosis/run.jsonl"
+        ]
+      },
+      {
+        "text": "Expect a shipped unit to come back parked on a re-run — the done-oracle still prevents a duplicate pull request, so the risk is lost state rather than a second pull request",
+        "scope": "c29",
+        "refs": [
+          "0571"
+        ]
+      },
+      {
+        "text": "A NeedsHuman park does not redispatch through remediation on a plain re-run — tested directly, so remediation needs its own trigger before c30 can be attempted",
+        "scope": "c29",
+        "refs": [
+          "0571"
+        ]
+      },
+      {
         "text": "Treat a green Integrate as evidence the gate ran, not that it scanned the diff — it reported zero fixes and wrote no per-unit census at all",
         "scope": "c28",
         "refs": [
@@ -518,32 +547,12 @@
         ]
       },
       {
-        "text": "Never trust the restarted flag — it read false on a run that listed every unit pending and nothing shipped, including a unit that had really shipped a pull request",
-        "scope": "c29",
+        "text": "Reset the harness journal too, not just its branches — run 2 demoted the shipped unit to parked, so that journal can never reconcile pull request 2 even after it merges",
+        "scope": "c28",
         "refs": [
-          "0571"
-        ]
-      },
-      {
-        "text": "Copy the journal aside before any re-run on the same run document — the engine rewrites it at start, so the prior run's deltas are destroyed rather than appended to",
-        "scope": "c29",
-        "refs": [
-          "0571",
-          ".mitosis/run.jsonl"
-        ]
-      },
-      {
-        "text": "Expect a shipped unit to come back parked on a re-run — the done-oracle still prevents a duplicate pull request, so the risk is lost state rather than a second pull request",
-        "scope": "c29",
-        "refs": [
-          "0571"
-        ]
-      },
-      {
-        "text": "A NeedsHuman park does not redispatch through remediation on a plain re-run — tested directly, so remediation needs its own trigger before c30 can be attempted",
-        "scope": "c29",
-        "refs": [
-          "0571"
+          "0576",
+          ".mitosis/run.jsonl",
+          "parking.mjs:69"
         ]
       }
     ],
@@ -1088,5 +1097,5 @@
     ]
   },
   "created_at": "2026-08-12T07:37:41.077Z",
-  "updated_at": "2026-08-18T17:57:32.117Z"
+  "updated_at": "2026-08-18T17:58:06.303Z"
 }
