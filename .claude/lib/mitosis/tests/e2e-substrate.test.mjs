@@ -143,19 +143,18 @@ test('a unit whose plan is still unapproved after its one replan parks with no i
   });
 });
 
-test('the sandbox PATH makes the real claude and the real gh unreachable', () => {
+test('the sandbox PATH makes the real claude unreachable and carries no gh at all', () => {
   withSandbox({}, (sandbox) => {
     const probe = spawnSync('/bin/sh', ['-c', 'command -v claude; command -v gh; command -v git; command -v node'], {
       env: { PATH: sandboxPath(sandbox) },
       encoding: 'utf8',
     });
 
-    assert.deepEqual(probe.stdout.split('\n').filter(Boolean), [
-      `${sandbox.fakeBin}/claude`,
-      `${sandbox.fakeBin}/gh`,
-      `${sandbox.fakeBin}/git`,
-      `${sandbox.fakeBin}/node`,
-    ]);
+    assert.deepEqual(
+      probe.stdout.split('\n').filter(Boolean),
+      [`${sandbox.fakeBin}/claude`, `${sandbox.fakeBin}/git`, `${sandbox.fakeBin}/node`],
+      'gh must resolve nowhere on the sandbox PATH; the cli runner intercepts every gh-bound and pr-create-bound call in process before a real gh binary could ever be spawned, and a resolvable gh here would only be reached by a real subprocess falling through to whatever gh the host machine happens to have installed',
+    );
   });
 });
 
@@ -386,7 +385,7 @@ test('a manifest claiming a unit shipped is overruled when the forge reports no 
     assert.equal(
       ghArgvsMatching(sandbox, ['pr', 'list']).length,
       1,
-      'the reconcile probe must appear in the sandbox recorder; an empty recorder means the shim reached a real gh through its hardcoded fallback paths rather than the fake on PATH',
+      'the reconcile probe must appear in the sandbox recorder; an empty recorder means the call bypassed the in-process gh interceptor entirely rather than being recorded by it',
     );
   });
 });
