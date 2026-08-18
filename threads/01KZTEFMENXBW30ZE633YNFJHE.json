@@ -1149,6 +1149,11 @@
         "ref": "0597-provenance-widens-one-class-because-the-bracket-ban-was-never-a-control",
         "title": "The provenance pattern widens by two codepoints, because the bracket ban was never an injection control",
         "scope": "c28"
+      },
+      {
+        "ref": "0602-m12b2-two-open-parents-enter-by-merge-commit",
+        "title": "A unit with two open parents carries the sibling parent by merge commit, never waits for a human merge",
+        "scope": "c28"
       }
     ],
     "out_of_scope": [
@@ -1160,5 +1165,5 @@
     ]
   },
   "created_at": "2026-08-12T07:37:41.077Z",
-  "updated_at": "2026-08-18T23:03:15.477Z"
+  "updated_at": "2026-08-18T23:23:32.338Z"
 }
