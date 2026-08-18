@@ -195,7 +195,7 @@ function gitIn(sandbox, argv, cwd, extraEnv = {}) {
 function installBoundaryToolchain(sandbox) {
   const manifest = { name: 'mitosis-e2e-fixture', private: true, devDependencies: { eslint: '9.0.0' } };
   writeFileSync(join(sandbox.repo, 'package.json'), `${JSON.stringify(manifest)}\n`);
-  writeFileSync(join(sandbox.repo, '.gitignore'), 'node_modules\n');
+  writeFileSync(join(sandbox.repo, '.gitignore'), `node_modules\n${PLAN_ARTIFACT_SEGMENTS[0]}/\n`);
   writeFixtureLinter(join(sandbox.repo, 'node_modules'));
   return ['package.json', '.gitignore'];
 }
@@ -484,8 +484,9 @@ function unitFileBody(unit) {
   return unit.boundaryViolation ? `${unit.id}\n${BOUNDARY_VIOLATION_TOKEN}\n` : `${unit.id}\n`;
 }
 
-function createCommit(sandbox, unit, index) {
+function createCommit(sandbox, unit, index, baseTip) {
   const unitId = unit.id;
+  gitIn(sandbox, ['checkout', '-b', unitTokenOf(unitId), baseTip], sandbox.repo);
   writeFileSync(unitFile(sandbox, unitId), unitFileBody(unit));
   gitIn(sandbox, ['add', `${unitId}.txt`], sandbox.repo);
   gitIn(sandbox, ['commit', '-m', `unit ${unitId}`], sandbox.repo, commitEnv(index + 1));
@@ -624,13 +625,15 @@ export function planRun(sandbox, unitPlans, overrides = {}) {
     throw new TypeError('e2e-substrate: planRun needs a non-empty array of unit plans, because a run with no unit proves nothing about the engine');
   }
   const units = unitPlans.map(requireUnitPlan);
+  const baseTip = gitIn(sandbox, ['rev-parse', BASE_BRANCH], sandbox.repo).trim();
   const shaOf = {};
   const planned = {};
   units.forEach((unit, index) => {
-    const sha = SHA_BEARING.includes(unit.behaviour) ? createCommit(sandbox, unit, index) : null;
+    const sha = SHA_BEARING.includes(unit.behaviour) ? createCommit(sandbox, unit, index, baseTip) : null;
     if (sha !== null) shaOf[unit.id] = sha;
     planned[unit.id] = claudePlanEntry(sandbox, unit, sha);
   });
+  gitIn(sandbox, ['checkout', BASE_BRANCH], sandbox.repo);
   const document = runDocument(sandbox, units, overrides);
   const boundaryFix = boundaryFixPlan(sandbox, units, overrides.boundaryFix);
   const watched = units.filter((unit) => unit.ci !== null);
@@ -759,6 +762,7 @@ export function runMitosisCli(sandbox, overrides = {}) {
   if (result.error) {
     throw new Error(`e2e-substrate: the cli child could not be started: ${result.error.message}`);
   }
+  gitIn(sandbox, ['checkout', BASE_BRANCH], sandbox.repo);
   return Object.freeze({
     status: result.status,
     signal: result.signal,
@@ -820,7 +824,7 @@ export function composedKindsMatching(sandbox, token) {
 
 export function publishIntegrationBranch(sandbox, unitId) {
   const branch = integrationBranchOf(unitId);
-  gitIn(sandbox, ['branch', branch], sandbox.repo);
+  gitIn(sandbox, ['branch', branch, unitTokenOf(unitId)], sandbox.repo);
   gitIn(sandbox, ['push', 'origin', `${branch}:${branch}`], sandbox.repo);
   return branch;
 }
