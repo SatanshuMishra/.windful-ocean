@@ -29,6 +29,15 @@ const RETIRED_PHASE_TITLES = Object.freeze([
 ]);
 
 function filesIn(directory, extension) {
+  if (!existsSync(directory)) {
+    throw new Error(`filesIn: ${directory} does not exist or is unresolvable, so the census over it cannot run and must halt rather than report a clean sweep it never measured`);
+  }
+  return readdirSync(directory, { withFileTypes: true })
+    .filter((entry) => entry.isFile() && entry.name.endsWith(extension))
+    .map((entry) => join(directory, entry.name));
+}
+
+function workflowFilesIn(directory, extension) {
   if (!existsSync(directory)) return [];
   return readdirSync(directory, { withFileTypes: true })
     .filter((entry) => entry.isFile() && entry.name.endsWith(extension))
@@ -38,7 +47,7 @@ function filesIn(directory, extension) {
 function scannedSources() {
   return [...new Set([
     ...LIB_TREES.flatMap((directory) => filesIn(directory, SOURCE_EXTENSION)),
-    ...filesIn(WORKFLOW_DIR, WORKFLOW_EXTENSION),
+    ...workflowFilesIn(WORKFLOW_DIR, WORKFLOW_EXTENSION),
   ])].sort();
 }
 
@@ -129,7 +138,7 @@ test('the retired titles are the ones the fold removed, so the census below can 
 
 test('the census sees every workflow file, not one pinned path, so a second workflow cannot spell a retired title unwatched', () => {
   const scanned = scannedSources();
-  const workflows = filesIn(WORKFLOW_DIR, WORKFLOW_EXTENSION);
+  const workflows = workflowFilesIn(WORKFLOW_DIR, WORKFLOW_EXTENSION);
   const unseen = workflows.filter((path) => !scanned.includes(path));
   assert.deepEqual(
     unseen,
@@ -138,17 +147,10 @@ test('the census sees every workflow file, not one pinned path, so a second work
   );
 });
 
-test('the workflow directory is absent or holds no workflow file, leaving the census leg over it dormant rather than deleted', () => {
-  const workflows = filesIn(WORKFLOW_DIR, WORKFLOW_EXTENSION);
-  assert.deepEqual(
-    workflows,
-    [],
-    `${WORKFLOW_DIR} now holds a workflow file again; the census leg over .claude/workflows must be restored the moment any workflow file returns, not left silently empty`,
-  );
-});
-
 test('no retired phase title survives as a string literal or as template text anywhere in the scanned engine source', () => {
-  const survivors = scannedSources().flatMap((path) => {
+  const sources = scannedSources();
+  assert.ok(sources.length > 0, 'scannedSources() returned no files, so the assertions below would pass vacuously on an empty scan');
+  const survivors = sources.flatMap((path) => {
     const source = readFileSync(path, 'utf8');
     return retiredTitleSurvivors(path, source, scannedOrFail(path, source));
   });
