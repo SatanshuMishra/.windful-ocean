@@ -262,6 +262,34 @@ test('planReconcile: a legacy status mirror with no progress field classifies ex
   }
 });
 
+test('planReconcile: a unit whose only field is an unrecognized legacy status token fails closed — it never opens', () => {
+  const manifest = { window: 3, msps: [
+    { id: 'root', progress: 'merged', dependsOn: [] },
+    { id: 'a', status: 'not-a-token', dependsOn: ['root'] },
+  ] };
+
+  const plan = planReconcile(manifest, {});
+
+  assert.deepEqual(plan.toOpen, [], 'an undecidable token is not built work, so the negated site must refuse to open it');
+  assert.deepEqual(plan.toRestack, []);
+  assert.deepEqual(plan.toParkSubtree, []);
+});
+
+test('planReconcile: a failure that is NOT an unrecognized legacy progress token propagates instead of folding to a silent null', () => {
+  const manifest = { window: 3, msps: [
+    { id: 'root', progress: 'merged', dependsOn: [] },
+    { id: 'a', dependsOn: ['root'], get progress() { throw new RangeError('the lattice field blew up'); } },
+  ] };
+
+  assert.throws(
+    () => planReconcile(manifest, {}),
+    (error) => error instanceof Error
+      && /mitosis: reconcile — the progress lattice could not be read for an msp/.test(error.message)
+      && /the lattice field blew up/.test(error.message)
+      && error.cause instanceof RangeError,
+  );
+});
+
 test('reconcile.mjs reads no legacy status field, by a closed property census that halts on what it cannot decide', () => {
   const census = censusOfFile('reconcile.mjs', new URL('../reconcile.mjs', import.meta.url));
   const verdict = reportLegacyStatusReads('reconcile.mjs', census);

@@ -4,11 +4,17 @@ import { startingProgressOf } from './unit-state.mjs';
 
 const DONE_PROGRESS = Object.freeze(['pr-open', 'merged']);
 
+function renderFailure(error) {
+  if (error instanceof Error && typeof error.message === 'string') return error.message;
+  return String(error);
+}
+
 function progressOf(msp) {
   try {
     return startingProgressOf(msp);
-  } catch {
-    return null;
+  } catch (error) {
+    if (error instanceof TypeError) return null;
+    throw new Error(`mitosis: reconcile — the progress lattice could not be read for an msp, and the failure was not an unrecognized legacy progress token: ${renderFailure(error)}`, { cause: error });
   }
 }
 

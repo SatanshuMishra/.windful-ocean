@@ -324,3 +324,47 @@ test('the property census is not vacuous: it names a legacy status read and halt
   assert.equal(halted.ok, false);
   assert.match(halted.error, /probe\.mjs line 2: a computed member access mixes a string literal into a wider key expression/);
 });
+
+test('the property census decides a template-literal key instead of blanking it', () => {
+  const templated = propertyReadCensus('probe.mjs', 'export function f(msp) {\n  return msp[`status`];\n}\n');
+  const verdict = reportLegacyStatusReads('probe.mjs', templated);
+
+  assert.equal(verdict.clean, false, JSON.stringify(templated));
+  assert.match(verdict.report, /probe\.mjs line 2: property read naming the legacy status field/);
+});
+
+test('the property census halts on a computed key built by concatenation it cannot evaluate', () => {
+  const concatenated = propertyReadCensus('probe.mjs', 'export function f(msp, a, b) {\n  return msp[a + b];\n}\n');
+
+  assert.equal(concatenated.ok, false, JSON.stringify(concatenated));
+  assert.match(concatenated.error, /probe\.mjs line 2: a computed member access uses a key expression this census cannot decide/);
+});
+
+test('the property census halts on a template-literal key whose interpolation it cannot evaluate', () => {
+  const interpolated = propertyReadCensus('probe.mjs', 'export function f(msp, x) {\n  return msp[`sta${x}`];\n}\n');
+
+  assert.equal(interpolated.ok, false, JSON.stringify(interpolated));
+  assert.match(interpolated.error, /probe\.mjs line 2: a computed member access is keyed by an interpolated or compound template literal/);
+});
+
+test('the property census halts on a computed key whose name arrives from another module', () => {
+  const imported = propertyReadCensus('probe.mjs', "import { KEY } from './elsewhere.mjs';\n\nexport function f(msp) {\n  return msp[KEY];\n}\n");
+
+  assert.equal(imported.ok, false, JSON.stringify(imported));
+  assert.match(imported.error, /probe\.mjs line 4: a computed member access is keyed by a name this module imports/);
+});
+
+test('needKeyedParents: a failure that is NOT an unrecognized legacy progress token propagates instead of folding to a silent null', () => {
+  const manifest = { msps: [
+    { id: 'parent', progress: 'merged', dependsOn: [] },
+    { id: 'child', dependsOn: ['parent'], get progress() { throw new RangeError('the lattice field blew up'); } },
+  ] };
+
+  assert.throws(
+    () => needKeyedParents(manifest, ['parent']),
+    (error) => error instanceof Error
+      && /mitosis: divergence — the progress lattice could not be read for an msp/.test(error.message)
+      && /the lattice field blew up/.test(error.message)
+      && error.cause instanceof RangeError,
+  );
+});
