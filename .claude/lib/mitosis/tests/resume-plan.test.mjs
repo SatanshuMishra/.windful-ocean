@@ -69,6 +69,21 @@ test('mergedProbe is not-asked when no planned unit claims pr-open or merged, an
   assert.equal(plan.mergedProbeReason, null);
 });
 
+test('an array masquerading as an msp record is not counted as claiming pr-open, so the forge is never asked about it', async () => {
+  const arrayMsp = Object.assign([], {
+    id: 'ghost-unit',
+    progress: 'pr-open',
+    integrationBranch: 'mitosis/ghost-unit-integration',
+    checkpointRef: 'refs/mitosis/a1b2c3d4/ghost-unit',
+  });
+  const plan = await requestFor(
+    baseManifest([arrayMsp]),
+    [spec('ghost-unit')],
+    refusingReconcile('reconcile must not run for an array masquerading as an msp record'),
+  );
+  assert.equal(plan.mergedProbe, MERGED_PROBE_STATE.NOT_ASKED);
+});
+
 test('mergedProbe is failed, naming what failed, when reconcile throws', async () => {
   const msp = {
     id: 'unit-d',
