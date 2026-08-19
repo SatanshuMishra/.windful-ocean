@@ -2,6 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { pack } from './file-scope-fixtures.mjs';
 import { Done } from '../boundary.mjs';
+import { NOT_COMPARABLE_CLASSIFIER } from '../boundary-gate.mjs';
 import { runPhases } from '../phase-driver.mjs';
 import { composePrompt } from '../prompt-registry.mjs';
 
@@ -66,6 +67,7 @@ function stubbedPorts(overrides = {}) {
       observePlan: () => ({ exists: true, isFile: true, size: 1, detail: 'stubbed observation' }),
       boundaryGate: (request) => { gated.push(request); return { pass: true, output: 'no new finding', blocking: [], baseCensus: null }; },
       dispatchPrompt: (request) => { dispatched.push(request); return { ok: true, outcome: 'success' }; },
+      teardownHeadWorktree: () => null,
       openPullRequest: (request) => {
         opened.push(request);
         return { status: 0, stdout: `${JSON.stringify({ action: 'created', url: 'https://github.com/acme/widgets/pull/3', number: 3 })}\n`, stderr: '' };
@@ -165,7 +167,7 @@ test('the provenance names the model the unit request declares, and says unspeci
 });
 
 test('an integrated unit whose manifest names no change type parks rather than guessing a pull-request title', async () => {
-  const journal = { logicalRunId: 'r1', baseBranch: 'main', clusters: [], msps: [{ id: 'alpha', status: 'built' }] };
+  const journal = { logicalRunId: 'r1', baseBranch: 'main', clusters: [], msps: [{ id: 'alpha', status: 'built', checkpointRef: 'refs/mitosis/9e8d7c6b/alpha' }] };
   const stub = stubbedPorts({ readJournal: () => journal });
   const driven = await runPhases(runRequest(), stub.ports);
   assert.deepEqual(driven.phases.Integrate.integrated.map((entry) => entry.unitId), ['alpha']);
@@ -201,6 +203,8 @@ test('a unit built during this invocation is gated against the base the run decl
     repoRoot: '/repo',
     gateBase: 'main',
     basePath: '/repo/.mitosis/boundary/r1/alpha',
+    headRef: 'refs/mitosis/0a1b2c3d/alpha',
+    headPath: '/repo/.mitosis/boundary/r1/alpha.head',
   }]);
   assert.deepEqual(stub.refs.map((write) => write.ref), ['refs/mitosis/0a1b2c3d/alpha']);
   assert.deepEqual(
@@ -252,7 +256,7 @@ test('a unit a prior invocation built is not rebuilt and not dropped, and keeps 
   ], 'both the unit this invocation built and the one a prior invocation built reach Integrate, each under the ref its own run wrote');
   assert.deepEqual(stub.gated.map((request) => [request.gateBase, request.basePath]), [
     ['main', '/repo/.mitosis/boundary/deadbeef/alpha'],
-    ['refs/mitosis/0a1b2c3d/alpha', '/repo/.mitosis/boundary/deadbeef/beta'],
+    ['main', '/repo/.mitosis/boundary/deadbeef/beta'],
   ]);
 });
 
@@ -349,13 +353,15 @@ test('a built unit whose run declares no base branch parks rather than gating ag
 });
 
 test('a built unit is gated once against the declared base branch, and integrates when the gate is clean', async () => {
-  const journal = { logicalRunId: 'r1', baseBranch: 'main', clusters: [], msps: [{ id: 'alpha', status: 'built' }] };
+  const journal = { logicalRunId: 'r1', baseBranch: 'main', clusters: [], msps: [{ id: 'alpha', status: 'built', checkpointRef: 'refs/mitosis/9e8d7c6b/alpha' }] };
   const stub = stubbedPorts({ readJournal: () => journal });
   const driven = await runPhases(runRequest(), stub.ports);
   assert.deepEqual(stub.gated, [{
     repoRoot: '/repo',
     gateBase: 'main',
     basePath: '/repo/.mitosis/boundary/r1/alpha',
+    headRef: 'refs/mitosis/9e8d7c6b/alpha',
+    headPath: '/repo/.mitosis/boundary/r1/alpha.head',
   }]);
   assert.deepEqual(stub.dispatched, [], 'a clean gate composes no boundary-fix prompt');
   assert.deepEqual(driven.phases.Integrate.outcomes, [{
@@ -364,7 +370,73 @@ test('a built unit is gated once against the declared base branch, and integrate
     boundaryFixes: 0,
     diagnosis: null,
     stage: null,
-    resumePoint: { branch: null, ref: null, stage: 'ship' },
+    resumePoint: { branch: null, ref: 'refs/mitosis/9e8d7c6b/alpha', stage: 'ship' },
+  }]);
+});
+
+test('a not-comparable boundary verdict parks with its own diagnosis and dispatches no fix child', async () => {
+  const journal = { logicalRunId: 'r1', baseBranch: 'main', clusters: [], msps: [{ id: 'alpha', status: 'built', checkpointRef: 'refs/mitosis/9e8d7c6b/alpha' }] };
+  const detail = 'gateBase "main" and headRef "refs/mitosis/9e8d7c6b/alpha" both resolve to the same tree, so the base is the tree under test';
+  const stub = stubbedPorts({
+    readJournal: () => journal,
+    boundaryGate: () => ({
+      pass: false,
+      output: detail,
+      blocking: [{ classifier: NOT_COMPARABLE_CLASSIFIER, detail }],
+      baseCensus: null,
+    }),
+  });
+  const driven = await runPhases(runRequest(), stub.ports);
+  const [{ diagnosis, ...rest }] = driven.phases.Integrate.outcomes;
+  assert.deepEqual(rest, {
+    unitId: 'alpha',
+    state: 'parked',
+    boundaryFixes: 0,
+    stage: 'execute',
+    resumePoint: { branch: null, ref: 'refs/mitosis/9e8d7c6b/alpha', stage: 'ship' },
+  });
+  assert.match(
+    diagnosis,
+    /no fix a child could make would change that/,
+    'a not-comparable park must carry the distinct structural diagnosis, not the generic boundary-violation-survived text',
+  );
+  assert.ok(
+    diagnosis.includes(detail),
+    'the diagnosis must carry the gate-supplied detail through, proving it is not a fixed generic string',
+  );
+  assert.deepEqual(
+    stub.dispatched,
+    [],
+    'a not-comparable verdict takes its own terminal branch and spends no boundary-fix child on an unfixable structural refusal',
+  );
+});
+
+test('a failing verdict whose blocking is not an array takes the ordinary boundary-fix path, not the not-comparable park', async () => {
+  const journal = { logicalRunId: 'r1', baseBranch: 'main', clusters: [], msps: [{ id: 'alpha', status: 'built', checkpointRef: 'refs/mitosis/9e8d7c6b/alpha' }] };
+  let gateCalls = 0;
+  const stub = stubbedPorts({
+    readJournal: () => journal,
+    boundaryGate: () => {
+      gateCalls += 1;
+      if (gateCalls === 1) {
+        return { pass: false, output: 'a verdict whose blocking field was never populated', baseCensus: null };
+      }
+      return { pass: true, output: 'no new finding', blocking: [], baseCensus: null };
+    },
+  });
+  const driven = await runPhases(runRequest(), stub.ports);
+  assert.equal(
+    stub.dispatched.length,
+    1,
+    'a malformed blocking field must not be read as a not-comparable refusal, which would spend zero boundary-fix children',
+  );
+  assert.deepEqual(driven.phases.Integrate.outcomes, [{
+    unitId: 'alpha',
+    state: 'integrated',
+    boundaryFixes: 1,
+    diagnosis: null,
+    stage: null,
+    resumePoint: { branch: null, ref: 'refs/mitosis/9e8d7c6b/alpha', stage: 'ship' },
   }]);
 });
 
@@ -382,7 +454,7 @@ const DIGIT_LED_JOURNAL = Object.freeze({
   logicalRunId: '9f0',
   baseBranch: '0main',
   clusters: [],
-  msps: [{ id: '9delta', status: 'built' }],
+  msps: [{ id: '9delta', status: 'built', checkpointRef: 'refs/mitosis/9e8d7c6b/9delta' }],
 });
 
 test('a run, a unit and a base branch a digit opens are keyed into the gate exactly as written', async () => {
@@ -392,6 +464,8 @@ test('a run, a unit and a base branch a digit opens are keyed into the gate exac
     repoRoot: '/repo',
     gateBase: '0main',
     basePath: '/repo/.mitosis/boundary/9f0/9delta',
+    headRef: 'refs/mitosis/9e8d7c6b/9delta',
+    headPath: '/repo/.mitosis/boundary/9f0/9delta.head',
   }]);
   assert.deepEqual(driven.phases.Integrate.integrated.map((entry) => entry.unitId), ['9delta']);
   assert.deepEqual(driven.phases.Integrate.parked, []);
@@ -399,13 +473,18 @@ test('a run, a unit and a base branch a digit opens are keyed into the gate exac
 
 test('a manifest whose declared run identity is empty keys the gate path on the harness run id, which Integrate accepts as a run id', async () => {
   const request = digitLedRequest();
-  const spec = { ...request.spec, manifest: { ...request.spec.manifest, logicalRunId: '', baseBranch: '0main' } };
+  const spec = {
+    manifest: { ...request.spec.manifest, logicalRunId: '', baseBranch: '0main' },
+    specs: request.spec.specs.map((entry) => ({ ...entry, isolation: 'worktree' })),
+  };
   const stub = stubbedPorts();
   const driven = await runPhases({ ...request, spec }, stub.ports);
   assert.deepEqual(stub.gated, [{
     repoRoot: '/repo',
     gateBase: '0main',
     basePath: '/repo/.mitosis/boundary/0a1b2c3d/9delta',
+    headRef: 'refs/mitosis/0a1b2c3d/9delta',
+    headPath: '/repo/.mitosis/boundary/0a1b2c3d/9delta.head',
   }]);
   assert.deepEqual(driven.phases.Integrate.integrated.map((entry) => entry.unitId), ['9delta']);
 });
@@ -421,11 +500,11 @@ test('the boundary-fix prompt carries the isolation the unit declared, not the m
     },
   });
   const driven = await runPhases(digitLedRequest(), stub.ports);
-  assert.deepEqual(stub.dispatched.map((request) => request.cwd), ['/repo']);
+  assert.deepEqual(stub.dispatched.map((request) => request.cwd), ['/repo/.mitosis/boundary/9f0/9delta.head']);
   assert.equal(stub.dispatched[0].prompt, composePrompt('boundary-fix', {
     repoRoot: '/repo',
     baseBranch: '0main',
-    integrationWorktree: '/repo',
+    integrationWorktree: '/repo/.mitosis/boundary/9f0/9delta.head',
     gateOutput: 'the boundary finding',
     isolation: 'scope-fence',
   }));

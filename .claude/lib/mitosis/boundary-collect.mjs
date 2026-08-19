@@ -512,11 +512,11 @@ function provisionModules(headRoot, baseRoot, io) {
   return { ok: true, strategy: 'install' };
 }
 
-function teardown(repoRoot, basePath, io) {
+function teardown(repoRoot, path, io, label = 'base') {
   let removed = null;
   let thrown = null;
   try {
-    removed = io.run('git', ['worktree', 'remove', '--force', '--', basePath], { cwd: repoRoot, deadlineMs: WORKTREE_DEADLINE_MS });
+    removed = io.run('git', ['worktree', 'remove', '--force', '--', path], { cwd: repoRoot, deadlineMs: WORKTREE_DEADLINE_MS });
   } catch (error) {
     thrown = failureText(error, 'unknown spawn failure');
   }
@@ -525,10 +525,10 @@ function teardown(repoRoot, basePath, io) {
     ? `git reported ${JSON.stringify(removed === null || removed === undefined ? null : removed.stderr)}`
     : `the removal could not be spawned (${thrown})`;
   try {
-    io.removePath(basePath);
+    io.removePath(path);
     return null;
   } catch (error) {
-    return `the base worktree at ${basePath} was left behind: ${reported}, and the fallback removal failed (${failureText(error, 'unknown filesystem failure')})`;
+    return `the ${label} worktree at ${path} was left behind: ${reported}, and the fallback removal failed (${failureText(error, 'unknown filesystem failure')})`;
   }
 }
 
@@ -547,18 +547,38 @@ export function excludedSubtreesFor(root, otherRoot) {
   return Object.freeze(nested === null ? [] : [nested]);
 }
 
-function gatherSides(repoRoot, basePath, gateBase, io) {
-  const provisioned = provisionModules(repoRoot, basePath, io);
+export const GATHER_SIDES_FIELDS = Object.freeze(['headPath', 'basePath', 'gateBase']);
+
+function gatherPlanProblems(plan) {
+  if (plan === null || typeof plan !== 'object' || Array.isArray(plan)) {
+    return [`the gather plan must be a non-null, non-array object, received ${JSON.stringify(plan)}`];
+  }
+  const problems = Object.keys(plan)
+    .filter((field) => !GATHER_SIDES_FIELDS.includes(field))
+    .map((field) => `the gather plan carries the field ${JSON.stringify(field)}, which is outside the declared surface ${GATHER_SIDES_FIELDS.join(', ')}; a root that reached the head census through an undeclared field would census a tree the unit never committed`);
+  for (const field of GATHER_SIDES_FIELDS) {
+    if (typeof plan[field] !== 'string' || plan[field].length === 0) {
+      problems.push(`the gather plan needs a non-empty ${field}, received ${JSON.stringify(plan[field])}`);
+    }
+  }
+  return problems;
+}
+
+export function gatherSides(plan, io) {
+  const problems = gatherPlanProblems(plan);
+  if (problems.length > 0) return { ok: false, error: `the two sides could not be gathered: ${problems.join('; ')}` };
+  const { headPath, basePath, gateBase } = plan;
+  const provisioned = provisionModules(headPath, basePath, io);
   if (!provisioned.ok) return { ok: false, error: provisioned.error };
-  const expectations = expectationsFor(repoRoot, basePath, io);
+  const expectations = expectationsFor(headPath, basePath, io);
   if (!expectations.ok) return { ok: false, error: expectations.error };
   const head = collectCensus(Object.freeze({
-    root: repoRoot,
+    root: headPath,
     side: HEAD_SIDE,
     gateBase,
     expectations: expectations.byTool,
     scope: choosingScope(basePath),
-    excludedSubtrees: excludedSubtreesFor(repoRoot, basePath),
+    excludedSubtrees: excludedSubtreesFor(headPath, basePath),
   }), io);
   if (!head.ok) return { ok: false, error: head.error };
   const base = collectCensus(Object.freeze({
@@ -566,11 +586,11 @@ function gatherSides(repoRoot, basePath, gateBase, io) {
     side: BASE_SIDE,
     gateBase,
     expectations: expectations.byTool,
-    scope: choosingScope(repoRoot),
-    excludedSubtrees: excludedSubtreesFor(basePath, repoRoot),
+    scope: choosingScope(headPath),
+    excludedSubtrees: excludedSubtreesFor(basePath, headPath),
   }), io);
   if (!base.ok) return { ok: false, error: base.error };
-  const scannedHead = scannedSide(repoRoot, head.census, io, HEAD_SIDE);
+  const scannedHead = scannedSide(headPath, head.census, io, HEAD_SIDE);
   if (!scannedHead.ok) return scannedHead;
   const scannedBase = scannedSide(basePath, base.census, io, BASE_SIDE);
   if (!scannedBase.ok) return scannedBase;
@@ -583,20 +603,94 @@ function gatherSides(repoRoot, basePath, gateBase, io) {
   };
 }
 
-export function collectSides(request, io) {
-  const { repoRoot, gateBase, basePath } = request;
+function addedWorktree(repoRoot, path, revision, label, io) {
   let added;
   try {
-    added = io.run('git', ['worktree', 'add', '--detach', '--', basePath, gateBase], { cwd: repoRoot, deadlineMs: WORKTREE_DEADLINE_MS });
+    added = io.run('git', ['worktree', 'add', '--detach', '--', path, revision], { cwd: repoRoot, deadlineMs: WORKTREE_DEADLINE_MS });
   } catch (error) {
-    return Object.freeze({ ok: false, error: `the base worktree could not be materialized at ${basePath}: ${failureText(error, 'unknown spawn failure')}`, leaked: null });
+    return { ok: false, error: `the ${label} worktree could not be materialized at ${path}: ${failureText(error, 'unknown spawn failure')}` };
   }
   if (!cleanlyRan(added) || added.status !== 0) {
-    return Object.freeze({ ok: false, error: `the base worktree could not be materialized at ${basePath}: git reported ${JSON.stringify(added === null || added === undefined ? null : added.stderr)}`, leaked: null });
+    return { ok: false, error: `the ${label} worktree could not be materialized at ${path}: git reported ${JSON.stringify(added === null || added === undefined ? null : added.stderr)}` };
   }
+  return { ok: true };
+}
+
+function linkedModules(sourceRoot, targetRoot, io) {
+  const target = join(targetRoot, NODE_MODULES);
+  if (io.exists(target)) return { ok: true };
+  const source = join(sourceRoot, NODE_MODULES);
+  if (!io.exists(source)) return { ok: true };
+  try {
+    io.symlink(source, target);
+  } catch (error) {
+    return { ok: false, error: `the ${NODE_MODULES} link the head census needs could not be made at ${target}: ${failureText(error, 'unknown link failure')}` };
+  }
+  return { ok: true };
+}
+
+const COMMIT_SHA_SHAPE = /^[0-9a-f]{7,64}$/;
+
+function resolvedCommit(root, revision, io) {
+  let result;
+  try {
+    result = io.run('git', ['rev-parse', '--verify', revision], { cwd: root, deadlineMs: WORKTREE_DEADLINE_MS });
+  } catch (error) {
+    return { ok: false, error: failureText(error, 'unknown spawn failure') };
+  }
+  if (!cleanlyRan(result) || result.status !== 0) {
+    return { ok: false, error: `git rev-parse --verify ${revision} in ${root} reported ${JSON.stringify(result === null || result === undefined ? null : result.stderr)}` };
+  }
+  const sha = result.stdout.trim();
+  if (!COMMIT_SHA_SHAPE.test(sha)) {
+    return { ok: false, error: `git rev-parse --verify ${revision} in ${root} printed ${JSON.stringify(sha)}, which is not the shape of a commit hash` };
+  }
+  return { ok: true, sha };
+}
+
+function staleHeadWorktree(repoRoot, headPath, headRef, io) {
+  const requested = resolvedCommit(repoRoot, `${headRef}^{commit}`, io);
+  if (!requested.ok) return { stale: false };
+  const actual = resolvedCommit(headPath, 'HEAD', io);
+  if (!actual.ok) return { stale: false };
+  return { stale: requested.sha !== actual.sha, requestedSha: requested.sha, actualSha: actual.sha };
+}
+
+function collectedAgainstHead(request, io) {
+  const { repoRoot, gateBase, basePath, headPath, headRef } = request;
+  if (io.exists(headPath)) {
+    const state = staleHeadWorktree(repoRoot, headPath, headRef, io);
+    if (state.stale) {
+      const cleared = teardown(repoRoot, headPath, io, 'stale head');
+      if (cleared !== null) {
+        return {
+          ok: false,
+          error: `the head worktree at ${headPath} sits at ${state.actualSha}, not the requested ${headRef} (${state.requestedSha}), and could not be cleared to re-materialize: ${cleared}`,
+        };
+      }
+      const materialized = addedWorktree(repoRoot, headPath, headRef, 'head', io);
+      if (!materialized.ok) return materialized;
+    }
+  } else {
+    const materialized = addedWorktree(repoRoot, headPath, headRef, 'head', io);
+    if (!materialized.ok) return materialized;
+  }
+  const linked = linkedModules(repoRoot, headPath, io);
+  if (!linked.ok) return linked;
+  return gatherSides(Object.freeze({ headPath, basePath, gateBase }), io);
+}
+
+export function removeHeadWorktree(request, io = REAL_BOUNDARY_IO) {
+  return teardown(request.repoRoot, request.headPath, io, 'head');
+}
+
+export function collectSides(request, io) {
+  const { repoRoot, gateBase, basePath } = request;
+  const base = addedWorktree(repoRoot, basePath, gateBase, 'base', io);
+  if (!base.ok) return Object.freeze({ ...base, leaked: null });
   let gathered;
   try {
-    gathered = gatherSides(repoRoot, basePath, gateBase, io);
+    gathered = collectedAgainstHead(request, io);
   } catch (error) {
     gathered = { ok: false, error: `the base could not be collected at ${basePath}: ${failureText(error, 'unknown failure')}` };
   }

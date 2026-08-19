@@ -31,6 +31,7 @@ const REQUIRED_PORTS = Object.freeze([
   'reconcile',
   'boundaryGate',
   'dispatchPrompt',
+  'teardownHeadWorktree',
   'openPullRequest',
   'appendJournal',
   'skillPointers',
@@ -256,6 +257,7 @@ async function integratePhase(completed, request, ports) {
   }, {
     boundaryGate: (gate) => ports.boundaryGate(gate),
     dispatchPrompt: (dispatched) => ports.dispatchPrompt(dispatched),
+    teardownHeadWorktree: (worktree) => ports.teardownHeadWorktree(worktree),
   }));
 }
 

@@ -23,6 +23,7 @@ import {
   sandboxPath,
   unitIdOfArgv,
   withSandbox,
+  writeCheckpointRef,
 } from './e2e-substrate.mjs';
 
 const NEEDS_HUMAN_REASON = 'fixture needs a human for unit beta';
@@ -368,7 +369,8 @@ test('a unit whose durable record still says running is re-driven after a mid-ru
 
 test('a manifest claiming a unit shipped is overruled when the forge reports no merged pull request', () => {
   withSandbox({ ghPlan: ghPlanReporting([]) }, (sandbox) => {
-    planRun(sandbox, [{ id: 'alpha', behaviour: CLAUDE_BEHAVIOURS.succeed }], { manifest: SHIPPED_CLAIM_MANIFEST });
+    const { shaOf } = planRun(sandbox, [{ id: 'alpha', behaviour: CLAUDE_BEHAVIOURS.succeed }], { manifest: SHIPPED_CLAIM_MANIFEST });
+    writeCheckpointRef(sandbox, 'alpha', shaOf.alpha);
 
     const run = runMitosisCli(sandbox);
     const dispatched = claudeArgvs(sandbox).map(unitIdOfArgv);

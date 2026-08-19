@@ -5,8 +5,10 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import {
   BOUNDARY_TOOLS,
+  GATHER_SIDES_FIELDS,
   NORMALIZATION_STEPS,
   REAL_BOUNDARY_IO,
+  gatherSides,
   observeSide,
   parseEslintReport,
   structuralIdentity,
@@ -18,7 +20,10 @@ import { censusTscLines } from '../boundary-tsc-lines.mjs';
 
 const ROOT = '/repo';
 const BASE = '/tmp/base-wt';
+const HEAD_WT = '/tmp/head-wt';
+const HEAD_REF = 'refs/mitosis/a1b2c3d4/alpha';
 const ABSENT_ROOT = '/no-such-root-for-the-boundary-gate-probe';
+const REAL_GIT_DEADLINE_MS = 30000;
 
 function refingerprinted(census) {
   return { ...census, identity: censusIdentity(census) };
@@ -177,7 +182,7 @@ test('a tsc run that type-checked zero files fails closed rather than reading as
     exists: (path) => String(path).includes('tsconfig.json') || String(path).endsWith('package.json'),
     run: () => ({ outcome: 'completed', status: 0, stdout: '', stderr: '' }),
   });
-  const verdict = evaluate({ repoRoot: ROOT, gateBase: 'abc123', basePath: BASE, cachedBaseCensus: null }, io);
+  const verdict = evaluate({ repoRoot: ROOT, gateBase: 'abc123', basePath: BASE, headRef: HEAD_REF, headPath: HEAD_WT, cachedBaseCensus: null }, io);
   assert.equal(verdict.pass, false);
   assert.match(verdict.output, /type-checked zero files/);
 });
@@ -206,7 +211,7 @@ test('a config removed at HEAD for a tool expected at base stays expected', () =
 
 test('every tool NOT-EXPECTED yields a pass, because the lint and type dimension is legitimately empty', () => {
   const io = fixtureIo({ exists: () => false, readFile: () => JSON.stringify({}) });
-  const verdict = evaluate({ repoRoot: ROOT, gateBase: 'abc123', basePath: BASE, cachedBaseCensus: null }, io);
+  const verdict = evaluate({ repoRoot: ROOT, gateBase: 'abc123', basePath: BASE, headRef: HEAD_REF, headPath: HEAD_WT, cachedBaseCensus: null }, io);
   assert.equal(verdict.pass, true, verdict.output);
   assert.deepEqual([...verdict.notExpected].sort(), [...BOUNDARY_TOOLS].map((tool) => tool.name).sort());
 });
@@ -216,7 +221,7 @@ test('the base worktree is torn down on the throw path, not only on success', ()
     resolveTool: () => { throw new Error('the tool could not be resolved'); },
     readFile: () => JSON.stringify({ devDependencies: { typescript: '5.0.0' } }),
   });
-  const verdict = evaluate({ repoRoot: ROOT, gateBase: 'abc123', basePath: BASE, cachedBaseCensus: null }, io);
+  const verdict = evaluate({ repoRoot: ROOT, gateBase: 'abc123', basePath: BASE, headRef: HEAD_REF, headPath: HEAD_WT, cachedBaseCensus: null }, io);
   assert.equal(verdict.pass, false);
   assert.ok(io.spawned.some((command) => command.includes('worktree remove')), `teardown never ran: ${JSON.stringify(io.spawned)}`);
 });
@@ -228,7 +233,7 @@ test('a base worktree that fails to materialize fails closed', () => {
       : { outcome: 'completed', status: 0, stdout: '', stderr: '' }),
     readFile: () => JSON.stringify({ devDependencies: { typescript: '5.0.0' } }),
   });
-  const verdict = evaluate({ repoRoot: ROOT, gateBase: 'abc123', basePath: BASE, cachedBaseCensus: null }, io);
+  const verdict = evaluate({ repoRoot: ROOT, gateBase: 'abc123', basePath: BASE, headRef: HEAD_REF, headPath: HEAD_WT, cachedBaseCensus: null }, io);
   assert.equal(verdict.pass, false);
   assert.match(verdict.output, /base worktree/i);
 });
@@ -240,14 +245,14 @@ test('an unclean collection fails closed rather than reporting a clean side', ()
       : { outcome: 'completed', status: 0, stdout: '', stderr: '' }),
     readFile: () => JSON.stringify({ devDependencies: { typescript: '5.0.0' } }),
   });
-  const verdict = evaluate({ repoRoot: ROOT, gateBase: 'abc123', basePath: BASE, cachedBaseCensus: null }, io);
+  const verdict = evaluate({ repoRoot: ROOT, gateBase: 'abc123', basePath: BASE, headRef: HEAD_REF, headPath: HEAD_WT, cachedBaseCensus: null }, io);
   assert.equal(verdict.pass, false);
   assert.match(verdict.output, /collect/i);
 });
 
 test('the program never requests a binary outside the allowlist', () => {
   const io = fixtureIo({ readFile: () => JSON.stringify({ devDependencies: { typescript: '5.0.0', eslint: '9.0.0' } }) });
-  evaluate({ repoRoot: ROOT, gateBase: 'abc123', basePath: BASE, cachedBaseCensus: null }, io);
+  evaluate({ repoRoot: ROOT, gateBase: 'abc123', basePath: BASE, headRef: HEAD_REF, headPath: HEAD_WT, cachedBaseCensus: null }, io);
   for (const command of io.spawned) {
     const binary = command.split(' ')[0];
     assert.ok(['git', 'node'].includes(binary), `the program requested ${JSON.stringify(binary)}, which is outside what the spawn policy allows`);
@@ -279,7 +284,7 @@ test('first pass and recheck produce identical verdicts when the supplied census
       return { outcome: 'completed', status: 0, stdout: '', stderr: '' };
     },
   });
-  const request = { repoRoot: ROOT, gateBase: 'abc123', basePath: BASE, cachedBaseCensus: null };
+  const request = { repoRoot: ROOT, gateBase: 'abc123', basePath: BASE, headRef: HEAD_REF, headPath: HEAD_WT, cachedBaseCensus: null };
   const firstPass = evaluate(request, build());
   assert.ok(firstPass.baseCensus, `the base census the recheck reuses could not be collected: ${firstPass.output}`);
   const recheck = evaluate({ ...request, cachedBaseCensus: firstPass.baseCensus }, build());
@@ -299,7 +304,7 @@ test('the base census a first pass publishes is reused by the recheck without th
       return { outcome: 'completed', status: 0, stdout: '', stderr: '' };
     },
   });
-  const request = { repoRoot: ROOT, gateBase: 'abc123', basePath: BASE, cachedBaseCensus: null };
+  const request = { repoRoot: ROOT, gateBase: 'abc123', basePath: BASE, headRef: HEAD_REF, headPath: HEAD_WT, cachedBaseCensus: null };
   const firstPass = evaluate(request, build());
   assert.ok(firstPass.baseCensus, `the first pass published no base census: ${firstPass.output}`);
   const io = build();
@@ -317,7 +322,7 @@ test('the base census a first pass publishes is reused by the recheck without th
 
 test('an absent cached census collects the base rather than comparing against nothing', () => {
   const io = fixtureIo({ readFile: () => JSON.stringify({ devDependencies: { typescript: '5.0.0' } }) });
-  const verdict = evaluate({ repoRoot: ROOT, gateBase: 'abc123', basePath: BASE, cachedBaseCensus: null }, io);
+  const verdict = evaluate({ repoRoot: ROOT, gateBase: 'abc123', basePath: BASE, headRef: HEAD_REF, headPath: HEAD_WT, cachedBaseCensus: null }, io);
   assert.equal(verdict.usedCachedCensus, false);
   assert.ok(
     io.spawned.some((command) => command.includes('worktree add')),
@@ -327,18 +332,18 @@ test('an absent cached census collects the base rather than comparing against no
 
 test('a malformed cached census falls back to collecting the base rather than trusting it', () => {
   const io = fixtureIo({ readFile: () => JSON.stringify({ devDependencies: { typescript: '5.0.0' } }) });
-  const verdict = evaluate({ repoRoot: ROOT, gateBase: 'abc123', basePath: BASE, cachedBaseCensus: { nonsense: true } }, io);
+  const verdict = evaluate({ repoRoot: ROOT, gateBase: 'abc123', basePath: BASE, headRef: HEAD_REF, headPath: HEAD_WT, cachedBaseCensus: { nonsense: true } }, io);
   assert.ok(io.spawned.some((command) => command.includes('worktree add')), 'the fallback did not materialize the base');
   assert.equal(verdict.usedCachedCensus, false);
 });
 
 test('a cached census keyed to another base is refused and the base is re-collected rather than the census reused', () => {
-  const baseline = evaluate({ repoRoot: ROOT, gateBase: 'abc123', basePath: BASE, cachedBaseCensus: null }, collectibleEslintIo());
+  const baseline = evaluate({ repoRoot: ROOT, gateBase: 'abc123', basePath: BASE, headRef: HEAD_REF, headPath: HEAD_WT, cachedBaseCensus: null }, collectibleEslintIo());
   assert.ok(baseline.baseCensus, `the base census this test keys to a foreign base could not be collected: ${baseline.output}`);
   const collectedCensus = refingerprinted(baseline.baseCensus);
   const foreignCensus = { ...collectedCensus, gateBase: `${collectedCensus.gateBase}-foreign` };
   const io = collectibleEslintIo();
-  const verdict = evaluate({ repoRoot: ROOT, gateBase: 'abc123', basePath: BASE, cachedBaseCensus: foreignCensus }, io);
+  const verdict = evaluate({ repoRoot: ROOT, gateBase: 'abc123', basePath: BASE, headRef: HEAD_REF, headPath: HEAD_WT, cachedBaseCensus: foreignCensus }, io);
   assert.equal(verdict.usedCachedCensus, false);
   assert.ok(
     io.spawned.some((command) => command.includes('worktree add')),
@@ -347,7 +352,7 @@ test('a cached census keyed to another base is refused and the base is re-collec
 });
 
 test('identical input yields identical output across runs', () => {
-  const request = { repoRoot: ROOT, gateBase: 'abc123', basePath: BASE, cachedBaseCensus: null };
+  const request = { repoRoot: ROOT, gateBase: 'abc123', basePath: BASE, headRef: HEAD_REF, headPath: HEAD_WT, cachedBaseCensus: null };
   const one = evaluate(request, fixtureIo({ readFile: () => JSON.stringify({ devDependencies: { typescript: '5.0.0' } }) }));
   const two = evaluate(request, fixtureIo({ readFile: () => JSON.stringify({ devDependencies: { typescript: '5.0.0' } }) }));
   assert.deepEqual(one, two);
@@ -366,7 +371,7 @@ test('a divergent yarn.lock refuses the gate before any install child spawns, na
     exists: (path) => String(path).endsWith('yarn.lock'),
     readFile: (path) => (String(path).startsWith(BASE) ? 'base-yarn-bytes' : 'head-yarn-bytes'),
   });
-  const verdict = evaluate({ repoRoot: ROOT, gateBase: 'abc123', basePath: BASE, cachedBaseCensus: null }, io);
+  const verdict = evaluate({ repoRoot: ROOT, gateBase: 'abc123', basePath: BASE, headRef: HEAD_REF, headPath: HEAD_WT, cachedBaseCensus: null }, io);
   assert.equal(verdict.pass, false, verdict.output);
   assert.match(verdict.output, /yarn\.lock/);
   assert.match(verdict.output, /yarn/);
@@ -405,7 +410,7 @@ test('the tsc leg spawns the executable the typescript package installs, not the
       return { outcome: 'completed', status: 0, stdout: '', stderr: '' };
     },
   });
-  evaluate({ repoRoot: ROOT, gateBase: 'abc123', basePath: BASE, cachedBaseCensus: null }, io);
+  evaluate({ repoRoot: ROOT, gateBase: 'abc123', basePath: BASE, headRef: HEAD_REF, headPath: HEAD_WT, cachedBaseCensus: null }, io);
   const typeRuns = io.spawned.filter((command) => command.includes('--noEmit'));
   assert.ok(typeRuns.length > 0, `no type-check child was requested at all: ${JSON.stringify(io.spawned)}`);
   for (const command of typeRuns) {
@@ -420,7 +425,7 @@ test('a tool whose executable cannot be resolved refuses naming the path tried r
     readFile: () => JSON.stringify({ devDependencies: { typescript: '5.0.0' } }),
     resolveTool: (name, root) => ({ ok: false, error: `no executable exists at ${root}/node_modules/.bin/${name}` }),
   });
-  const verdict = evaluate({ repoRoot: ROOT, gateBase: 'abc123', basePath: BASE, cachedBaseCensus: null }, io);
+  const verdict = evaluate({ repoRoot: ROOT, gateBase: 'abc123', basePath: BASE, headRef: HEAD_REF, headPath: HEAD_WT, cachedBaseCensus: null }, io);
   assert.equal(verdict.pass, false);
   assert.match(verdict.output, /node_modules\/\.bin\/tsc/);
 });
@@ -432,7 +437,7 @@ test('a finding fixed in one directory and reintroduced in another blocks rather
     run: (binary, argv) => {
       if (argv.includes('--print-config')) return { outcome: 'completed', status: 0, stdout: JSON.stringify({ rules: {} }), stderr: '' };
       if (!argv.some((value) => String(value).includes('eslint'))) return { outcome: 'completed', status: 0, stdout: '', stderr: '' };
-      const root = argv.some((value) => String(value).startsWith(BASE)) ? BASE : ROOT;
+      const root = argv.some((value) => String(value).startsWith(BASE)) ? BASE : HEAD_WT;
       const findings = root === BASE ? [['no-eq', 'bad', 1, 1]] : [];
       return {
         outcome: 'completed',
@@ -442,7 +447,7 @@ test('a finding fixed in one directory and reintroduced in another blocks rather
       };
     },
   });
-  const verdict = evaluate({ repoRoot: ROOT, gateBase: 'abc123', basePath: BASE, cachedBaseCensus: null }, io);
+  const verdict = evaluate({ repoRoot: ROOT, gateBase: 'abc123', basePath: BASE, headRef: HEAD_REF, headPath: HEAD_WT, cachedBaseCensus: null }, io);
   assert.equal(verdict.pass, false, `an error introduced in a second directory did not block: ${verdict.output}`);
   assert.match(verdict.blocking[0].identity, /lib\/a\.ts/);
 });
@@ -489,7 +494,7 @@ test('an unclassifiable line that follows a diagnostic halts rather than being a
 
 test('the base worktree argv terminates its options before the positionals', () => {
   const io = fixtureIo({ readFile: () => JSON.stringify({ devDependencies: { typescript: '5.0.0' } }) });
-  evaluate({ repoRoot: ROOT, gateBase: 'abc123', basePath: BASE, cachedBaseCensus: null }, io);
+  evaluate({ repoRoot: ROOT, gateBase: 'abc123', basePath: BASE, headRef: HEAD_REF, headPath: HEAD_WT, cachedBaseCensus: null }, io);
   const added = io.spawned.find((command) => command.includes('worktree add'));
   assert.ok(added !== undefined, `no worktree add was requested: ${JSON.stringify(io.spawned)}`);
   assert.match(added, /worktree add --detach -- /, 'the positionals are not terminated, so a gateBase spelled like an option would be parsed as one');
@@ -498,7 +503,7 @@ test('the base worktree argv terminates its options before the positionals', () 
 test('a gateBase that is not a ref or sha shape is refused rather than silently detaching at HEAD', () => {
   const io = fixtureIo({ readFile: () => JSON.stringify({ devDependencies: { typescript: '5.0.0' } }) });
   assert.throws(
-    () => evaluate({ repoRoot: ROOT, gateBase: '--force', basePath: BASE, cachedBaseCensus: null }, io),
+    () => evaluate({ repoRoot: ROOT, gateBase: '--force', basePath: BASE, headRef: HEAD_REF, headPath: HEAD_WT, cachedBaseCensus: null }, io),
     /gateBase/,
     'a gateBase spelled like an option was accepted, and git would detach at HEAD and report a passing verdict',
   );
@@ -507,8 +512,44 @@ test('a gateBase that is not a ref or sha shape is refused rather than silently 
 test('a basePath that is not absolute is refused rather than resolved against an unknown working directory', () => {
   const io = fixtureIo({ readFile: () => JSON.stringify({ devDependencies: { typescript: '5.0.0' } }) });
   assert.throws(
-    () => evaluate({ repoRoot: ROOT, gateBase: 'abc123', basePath: 'relative/base', cachedBaseCensus: null }, io),
+    () => evaluate({ repoRoot: ROOT, gateBase: 'abc123', basePath: 'relative/base', headRef: HEAD_REF, headPath: HEAD_WT, cachedBaseCensus: null }, io),
     /basePath/,
+  );
+});
+
+test('a basePath equal to repoRoot is refused rather than comparing the tree under test against itself', () => {
+  const io = fixtureIo({ readFile: () => JSON.stringify({ devDependencies: { typescript: '5.0.0' } }) });
+  assert.throws(
+    () => evaluate({ repoRoot: ROOT, gateBase: 'abc123', basePath: ROOT, headRef: HEAD_REF, headPath: HEAD_WT, cachedBaseCensus: null }, io),
+    /basePath/,
+    'a basePath equal to repoRoot was accepted, so the base would be the tree under test and every finding would be compared against itself',
+  );
+});
+
+test('a headPath equal to repoRoot is refused rather than reading the operator checkout as the head census', () => {
+  const io = fixtureIo({ readFile: () => JSON.stringify({ devDependencies: { typescript: '5.0.0' } }) });
+  assert.throws(
+    () => evaluate({ repoRoot: ROOT, gateBase: 'abc123', basePath: BASE, headRef: HEAD_REF, headPath: ROOT, cachedBaseCensus: null }, io),
+    /headPath/,
+    'a headPath equal to repoRoot was accepted, so the head census would read the operator checkout, which never carries the diff of the unit under test',
+  );
+});
+
+test('a headPath equal to basePath is refused rather than comparing one tree against itself', () => {
+  const io = fixtureIo({ readFile: () => JSON.stringify({ devDependencies: { typescript: '5.0.0' } }) });
+  assert.throws(
+    () => evaluate({ repoRoot: ROOT, gateBase: 'abc123', basePath: BASE, headRef: HEAD_REF, headPath: BASE, cachedBaseCensus: null }, io),
+    /headPath/,
+    'a headPath equal to basePath was accepted, so the head and the base would be one tree and no finding could be attributed to the unit under test',
+  );
+});
+
+test('a headRef that is not a ref or sha shape is refused rather than silently detaching at HEAD', () => {
+  const io = fixtureIo({ readFile: () => JSON.stringify({ devDependencies: { typescript: '5.0.0' } }) });
+  assert.throws(
+    () => evaluate({ repoRoot: ROOT, gateBase: 'abc123', basePath: BASE, headRef: '--force', headPath: HEAD_WT, cachedBaseCensus: null }, io),
+    /headRef/,
+    'a headRef spelled like an option was accepted, and git would detach at HEAD and report a passing verdict',
   );
 });
 
@@ -529,7 +570,7 @@ test('a cached census whose NOT-EXPECTED disagrees with the trees is refused and
     },
   };
   const cached = { ...shape, identity: censusIdentity(shape) };
-  const verdict = evaluate({ repoRoot: ROOT, gateBase: 'abc123', basePath: BASE, cachedBaseCensus: cached }, io);
+  const verdict = evaluate({ repoRoot: ROOT, gateBase: 'abc123', basePath: BASE, headRef: HEAD_REF, headPath: HEAD_WT, cachedBaseCensus: cached }, io);
   assert.equal(verdict.usedCachedCensus, false, 'a supplied census decided that every tool was NOT-EXPECTED, which disables the gate with no child spawned');
   assert.ok(
     io.spawned.some((command) => command.includes('worktree add')),
@@ -544,7 +585,7 @@ test('a worktree remove that exits non-zero falls back to removing the base path
       ? { outcome: 'completed', status: 1, stdout: '', stderr: 'fatal: is not a working tree' }
       : { outcome: 'completed', status: 0, stdout: '', stderr: '' }),
   });
-  evaluate({ repoRoot: ROOT, gateBase: 'abc123', basePath: BASE, cachedBaseCensus: null }, io);
+  evaluate({ repoRoot: ROOT, gateBase: 'abc123', basePath: BASE, headRef: HEAD_REF, headPath: HEAD_WT, cachedBaseCensus: null }, io);
   assert.ok(io.removed.includes(BASE), `a failed worktree remove never reached the fallback removal: ${JSON.stringify(io.removed)}`);
 });
 
@@ -556,7 +597,7 @@ test('a base worktree that could not be removed at all names the leaked path in 
       : { outcome: 'completed', status: 0, stdout: '', stderr: '' }),
     removePath: () => { throw new Error('EACCES: permission denied'); },
   });
-  const verdict = evaluate({ repoRoot: ROOT, gateBase: 'abc123', basePath: BASE, cachedBaseCensus: null }, io);
+  const verdict = evaluate({ repoRoot: ROOT, gateBase: 'abc123', basePath: BASE, headRef: HEAD_REF, headPath: HEAD_WT, cachedBaseCensus: null }, io);
   assert.match(verdict.output, /left behind/, `a leaked base worktree was not surfaced: ${verdict.output}`);
   assert.match(verdict.output, /base-wt/);
 });
@@ -581,7 +622,7 @@ test('a tsc diagnostic run that crashed with empty stdout is refused rather than
       return { outcome: 'completed', status: 0, stdout: '', stderr: '' };
     },
   });
-  const verdict = evaluate({ repoRoot: ROOT, gateBase: 'abc123', basePath: BASE, cachedBaseCensus: null }, io);
+  const verdict = evaluate({ repoRoot: ROOT, gateBase: 'abc123', basePath: BASE, headRef: HEAD_REF, headPath: HEAD_WT, cachedBaseCensus: null }, io);
   assert.equal(verdict.pass, false, 'a crashed type-check run was read as a side carrying no findings');
   assert.match(verdict.output, /exited 3/);
 });
@@ -594,7 +635,7 @@ test('an eslint run that exits outside the statuses it exits with when it ran is
       ? { outcome: 'completed', status: 2, stdout: '', stderr: 'Cannot read config file: eslint.config.js' }
       : { outcome: 'completed', status: 0, stdout: '', stderr: '' }),
   });
-  const verdict = evaluate({ repoRoot: ROOT, gateBase: 'abc123', basePath: BASE, cachedBaseCensus: null }, io);
+  const verdict = evaluate({ repoRoot: ROOT, gateBase: 'abc123', basePath: BASE, headRef: HEAD_REF, headPath: HEAD_WT, cachedBaseCensus: null }, io);
   assert.equal(verdict.pass, false);
   assert.match(verdict.output, /exited 2/);
 });
@@ -604,7 +645,7 @@ test('a lockfile present on one side only is a divergence rather than a shared n
     exists: (path) => String(path) !== `${BASE}/package-lock.json`,
     readFile: () => '{}',
   });
-  const verdict = evaluate({ repoRoot: ROOT, gateBase: 'abc123', basePath: BASE, cachedBaseCensus: null }, io);
+  const verdict = evaluate({ repoRoot: ROOT, gateBase: 'abc123', basePath: BASE, headRef: HEAD_REF, headPath: HEAD_WT, cachedBaseCensus: null }, io);
   assert.ok(
     io.spawned.includes('node /pm/npm-cli.js install --no-audit --no-fund'),
     `a lockfile present on one side only took the shared-link path: ${JSON.stringify(io.spawned)}; verdict=${verdict.output}`,
@@ -616,7 +657,7 @@ test('a divergent package-lock.json composes the install argv from the resolved 
     exists: (path) => String(path).endsWith('package-lock.json'),
     readFile: (path) => (String(path).startsWith(BASE) ? 'base-lock-bytes' : 'head-lock-bytes'),
   });
-  const verdict = evaluate({ repoRoot: ROOT, gateBase: 'abc123', basePath: BASE, cachedBaseCensus: null }, io);
+  const verdict = evaluate({ repoRoot: ROOT, gateBase: 'abc123', basePath: BASE, headRef: HEAD_REF, headPath: HEAD_WT, cachedBaseCensus: null }, io);
   assert.ok(
     io.spawned.includes('node /pm/npm-cli.js install --no-audit --no-fund'),
     `the install argv was not composed from the resolved entry and declared flags: ${JSON.stringify(io.spawned)}; verdict=${JSON.stringify(verdict)}`,
@@ -652,7 +693,7 @@ function tscSuppressionIo({ baseSuppressed, headSuppressed, baseStrict = true, h
 
 test('a suppression added at HEAD and absent at base makes evaluate block with classifier added-suppression', () => {
   const io = tscSuppressionIo({ baseSuppressed: false, headSuppressed: true });
-  const verdict = evaluate({ repoRoot: ROOT, gateBase: 'abc123', basePath: BASE, cachedBaseCensus: null }, io);
+  const verdict = evaluate({ repoRoot: ROOT, gateBase: 'abc123', basePath: BASE, headRef: HEAD_REF, headPath: HEAD_WT, cachedBaseCensus: null }, io);
   assert.equal(verdict.pass, false, verdict.output);
   const blocked = verdict.blocking.find((entry) => entry.classifier === 'added-suppression');
   assert.ok(blocked, `no added-suppression entry in blocking: ${JSON.stringify(verdict.blocking)}`);
@@ -662,14 +703,14 @@ test('a suppression added at HEAD and absent at base makes evaluate block with c
 
 test('an inherited suppression present on both sides does not block', () => {
   const io = tscSuppressionIo({ baseSuppressed: true, headSuppressed: true });
-  const verdict = evaluate({ repoRoot: ROOT, gateBase: 'abc123', basePath: BASE, cachedBaseCensus: null }, io);
+  const verdict = evaluate({ repoRoot: ROOT, gateBase: 'abc123', basePath: BASE, headRef: HEAD_REF, headPath: HEAD_WT, cachedBaseCensus: null }, io);
   assert.equal(verdict.pass, true, verdict.output);
   assert.deepEqual([...verdict.blocking], []);
 });
 
 test('a strictness downgrade in resolved tsconfig makes evaluate block with classifier tsconfig-strictness', () => {
   const io = tscSuppressionIo({ baseSuppressed: false, headSuppressed: false, baseStrict: true, headStrict: false });
-  const verdict = evaluate({ repoRoot: ROOT, gateBase: 'abc123', basePath: BASE, cachedBaseCensus: null }, io);
+  const verdict = evaluate({ repoRoot: ROOT, gateBase: 'abc123', basePath: BASE, headRef: HEAD_REF, headPath: HEAD_WT, cachedBaseCensus: null }, io);
   assert.equal(verdict.pass, false, verdict.output);
   const blocked = verdict.blocking.find((entry) => entry.classifier === 'tsconfig-strictness');
   assert.ok(blocked, `no tsconfig-strictness entry in blocking: ${JSON.stringify(verdict.blocking)}`);
@@ -678,17 +719,18 @@ test('a strictness downgrade in resolved tsconfig makes evaluate block with clas
 
 test('an unchanged resolved tsconfig does not block', () => {
   const io = tscSuppressionIo({ baseSuppressed: false, headSuppressed: false, baseStrict: true, headStrict: true });
-  const verdict = evaluate({ repoRoot: ROOT, gateBase: 'abc123', basePath: BASE, cachedBaseCensus: null }, io);
+  const verdict = evaluate({ repoRoot: ROOT, gateBase: 'abc123', basePath: BASE, headRef: HEAD_REF, headPath: HEAD_WT, cachedBaseCensus: null }, io);
   assert.equal(verdict.pass, true, verdict.output);
   assert.deepEqual([...verdict.blocking], []);
 });
 
 const NO_OP_GATE_BASE = 'abc123';
+const NO_OP_HEAD_REF = 'refs/mitosis/a1b2c3d4/beta';
 const TREE_PROBE_PREFIX = 'git rev-parse --verify ';
 const BASE_SIDE_REVISION = `${NO_OP_GATE_BASE}^{tree}`;
-const HEAD_SIDE_REVISION = 'HEAD^{tree}';
+const HEAD_SIDE_REVISION = `${NO_OP_HEAD_REF}^{tree}`;
 
-function shaAnsweringIo({ baseSha, headSha, status = 0 }) {
+function shaAnsweringIo({ baseSha, headSha, status = 0, worktreeStatus = null }) {
   const shaFor = (argv) => {
     const revision = argv[argv.length - 1];
     if (revision === BASE_SIDE_REVISION) return baseSha;
@@ -696,13 +738,16 @@ function shaAnsweringIo({ baseSha, headSha, status = 0 }) {
     return null;
   };
   return fixtureIo({
-    exists: () => false,
+    exists: (path) => worktreeStatus !== null && String(path) === HEAD_WT,
     readFile: () => JSON.stringify({}),
     run: (binary, argv) => {
       if (binary === 'git' && argv[0] === 'rev-parse' && argv[1] === '--verify') {
         const sha = shaFor(argv);
         if (sha === null) return { outcome: 'completed', status: 128, stdout: '', stderr: 'fatal: Needed a single revision' };
         return { outcome: 'completed', status, stdout: `${sha}\n`, stderr: '' };
+      }
+      if (binary === 'git' && argv[0] === 'status') {
+        return { outcome: 'completed', status: 0, stdout: worktreeStatus ?? '', stderr: '' };
       }
       return { outcome: 'completed', status: 0, stdout: '', stderr: '' };
     },
@@ -713,7 +758,7 @@ const SAME_SHA = '3f7a1c9d2b4e6a8c0d1f2e3a4b5c6d7e8f901234';
 const OTHER_SHA = 'a1b2c3d4e5f60718293a4b5c6d7e8f9012345678';
 
 function noOpRequest(extra) {
-  return { repoRoot: ROOT, gateBase: NO_OP_GATE_BASE, basePath: BASE, cachedBaseCensus: null, ...extra };
+  return { repoRoot: ROOT, gateBase: NO_OP_GATE_BASE, basePath: BASE, headRef: NO_OP_HEAD_REF, headPath: HEAD_WT, cachedBaseCensus: null, ...extra };
 }
 
 function assertBothSidesProbed(io) {
@@ -731,8 +776,27 @@ function assertBothSidesProbed(io) {
   assert.equal(
     probes.filter((command) => command === `${TREE_PROBE_PREFIX}${HEAD_SIDE_REVISION}`).length,
     1,
-    `the head side was never resolved from HEAD: ${JSON.stringify(probes)}`,
+    `the head side was never resolved from the declared checkpoint ref: ${JSON.stringify(probes)}`,
   );
+}
+
+function realGitRepo(prefix) {
+  const root = mkdtempSync(join(tmpdir(), prefix));
+  const git = (argv) => {
+    const child = REAL_BOUNDARY_IO.run('git', argv, { cwd: root, deadlineMs: REAL_GIT_DEADLINE_MS });
+    if (child === null || typeof child !== 'object' || child.status !== 0) {
+      throw new Error(`git ${argv.join(' ')} did not complete in the disposable repository: ${JSON.stringify(child)}`);
+    }
+    return typeof child.stdout === 'string' ? child.stdout.trim() : '';
+  };
+  git(['init', '--quiet']);
+  git(['config', 'user.email', 'boundary-gate@test.invalid']);
+  git(['config', 'user.name', 'boundary gate test']);
+  git(['config', 'commit.gpgsign', 'false']);
+  writeFileSync(join(root, 'a.txt'), 'one\n');
+  git(['add', '--', 'a.txt']);
+  git(['commit', '--quiet', '-m', 'one']);
+  return Object.freeze({ root, head: git(['rev-parse', 'HEAD']) });
 }
 
 test('the comparison reports how many head identities it actually examined', () => {
@@ -748,6 +812,32 @@ test('a comparison over an empty head census reports that it examined nothing wh
   assert.equal(verdict.notComparable, true);
   assert.equal(verdict.pass, true, 'pass was gated on comparedIdentities, and the declared narrowing keeps it meaning blocking.length === 0');
   assert.deepEqual([...verdict.blocking], []);
+});
+
+test('a base and a head that resolve to the same tree is refused as not comparable rather than passing vacuously', () => {
+  const io = shaAnsweringIo({ baseSha: SAME_SHA, headSha: SAME_SHA });
+  const verdict = evaluate(noOpRequest(), io);
+  assert.equal(verdict.pass, false, `base and head are the same tree, so the gate compared the tree under test against itself and reported a pass: ${verdict.output}`);
+  assert.equal(verdict.blocking[0].classifier, 'not-comparable');
+});
+
+test('a same-tree request that declares itself a no-op passes and reports that nothing was comparable', () => {
+  const io = shaAnsweringIo({ baseSha: SAME_SHA, headSha: SAME_SHA });
+  const verdict = evaluate(noOpRequest({ declaredNoOp: true }), io);
+  assert.equal(verdict.pass, true, verdict.output);
+  assert.equal(verdict.comparedIdentities, 0);
+  assert.equal(verdict.notComparable, true);
+});
+
+test('one tree under a head worktree carrying uncommitted work is comparable and is never refused', () => {
+  const io = shaAnsweringIo({ baseSha: SAME_SHA, headSha: SAME_SHA, worktreeStatus: ' M a.ts\n' });
+  const verdict = evaluate(noOpRequest(), io);
+  assert.equal(verdict.pass, true, `a head worktree carrying uncommitted work was refused as the tree under test, so every recheck after a boundary fix would park: ${verdict.output}`);
+  assert.deepEqual(
+    verdict.blocking.filter((entry) => entry.classifier === 'not-comparable'),
+    [],
+    'the refusal measured commit identity rather than what the head worktree actually carries',
+  );
 });
 
 test('a base and a head at different trees are never refused as not comparable', () => {
@@ -777,4 +867,143 @@ test('a tree that cannot be resolved on either side is never refused as not comp
     );
     assertBothSidesProbed(io);
   }
+});
+
+test('the same-tree refusal fires through the shipped io against a real repository whose base worktree does not exist yet', () => {
+  const repo = realGitRepo('boundary-real-commit-repo-');
+  const holder = mkdtempSync(join(tmpdir(), 'boundary-real-commit-base-'));
+  const basePath = join(holder, 'wt');
+  const headPath = join(holder, 'head-wt');
+  try {
+    const verdict = evaluate(
+      { repoRoot: repo.root, gateBase: repo.head, basePath, headRef: repo.head, headPath, cachedBaseCensus: null },
+      REAL_BOUNDARY_IO,
+    );
+    assert.equal(
+      verdict.pass,
+      false,
+      `base and head name one commit of a real repository, and the gate passed, so the refusal never resolved either side through the shipped io: ${verdict.output}`,
+    );
+    assert.equal(
+      verdict.blocking[0].classifier,
+      'not-comparable',
+      `the real run failed for some other reason than the two sides being one and the same tree: ${JSON.stringify(verdict.blocking)}`,
+    );
+  } finally {
+    rmSync(repo.root, { recursive: true, force: true });
+    rmSync(holder, { recursive: true, force: true });
+  }
+});
+
+test('a head worktree already sitting at a different commit than headRef is re-materialized rather than censused as-is', () => {
+  const repo = realGitRepo('boundary-real-stale-head-repo-');
+  const holder = mkdtempSync(join(tmpdir(), 'boundary-real-stale-head-'));
+  const basePath = join(holder, 'base-wt');
+  const headPath = join(holder, 'head-wt');
+  const git = (argv) => {
+    const child = REAL_BOUNDARY_IO.run('git', argv, { cwd: repo.root, deadlineMs: REAL_GIT_DEADLINE_MS });
+    if (child === null || typeof child !== 'object' || child.status !== 0) {
+      throw new Error(`git ${argv.join(' ')} did not complete in the disposable repository: ${JSON.stringify(child)}`);
+    }
+    return typeof child.stdout === 'string' ? child.stdout.trim() : '';
+  };
+  writeFileSync(join(repo.root, 'b.txt'), 'two\n');
+  git(['add', '--', 'b.txt']);
+  git(['commit', '--quiet', '-m', 'two']);
+  const staleSha = git(['rev-parse', 'HEAD']);
+  writeFileSync(join(repo.root, 'c.txt'), 'three\n');
+  git(['add', '--', 'c.txt']);
+  git(['commit', '--quiet', '-m', 'three']);
+  const wantedSha = git(['rev-parse', 'HEAD']);
+  git(['worktree', 'add', '--detach', '--', headPath, staleSha]);
+  try {
+    const staleHeadOnDisk = REAL_BOUNDARY_IO.run('git', ['rev-parse', 'HEAD'], { cwd: headPath, deadlineMs: REAL_GIT_DEADLINE_MS }).stdout.trim();
+    assert.equal(
+      staleHeadOnDisk,
+      staleSha,
+      'the fixture itself did not materialize the pre-existing head worktree at the commit this test needs it parked at',
+    );
+    const verdict = evaluate(
+      { repoRoot: repo.root, gateBase: repo.head, basePath, headRef: wantedSha, headPath, cachedBaseCensus: null },
+      REAL_BOUNDARY_IO,
+    );
+    const actualHead = REAL_BOUNDARY_IO.run('git', ['rev-parse', 'HEAD'], { cwd: headPath, deadlineMs: REAL_GIT_DEADLINE_MS }).stdout.trim();
+    assert.equal(
+      actualHead,
+      wantedSha,
+      `the gate asked for ${wantedSha} and censused ${actualHead} instead, reusing the worktree it found parked at ${staleSha} without checking it sat at the requested headRef: ${verdict.output}`,
+    );
+  } finally {
+    rmSync(repo.root, { recursive: true, force: true });
+    rmSync(holder, { recursive: true, force: true });
+  }
+});
+
+const HEAD_CENSUS_ROOT = 'head census root';
+const BASE_CENSUS_ROOT = 'base census root';
+const BASE_REVISION = 'base revision';
+
+function classifiedGatherField(field) {
+  if (field === 'headPath') return HEAD_CENSUS_ROOT;
+  if (field === 'basePath') return BASE_CENSUS_ROOT;
+  if (field === 'gateBase') return BASE_REVISION;
+  throw new Error(`the gather surface declares the field ${JSON.stringify(field)}, which this census cannot classify as a head census root, a base census root or a base revision, so it cannot say whether repoRoot can reach the head census through it`);
+}
+
+test('gatherSides exposes no parameter through which repoRoot is the head census root', () => {
+  const classified = GATHER_SIDES_FIELDS.map(classifiedGatherField);
+  assert.deepEqual(
+    classified.filter((role) => role === HEAD_CENSUS_ROOT),
+    [HEAD_CENSUS_ROOT],
+    `the gather surface declares ${classified.filter((role) => role === HEAD_CENSUS_ROOT).length} head census roots rather than exactly the one the head worktree supplies`,
+  );
+  const refused = gatherSides({ headPath: HEAD_WT, basePath: BASE, gateBase: 'abc123', repoRoot: ROOT }, fixtureIo({}));
+  assert.equal(refused.ok, false, 'gatherSides accepted a repoRoot field, so the operator checkout can still reach the census through it');
+  assert.match(refused.error, /"repoRoot"/);
+});
+
+test('a gather plan that is null, a bare value, or an array is rejected before any tool census runs', () => {
+  const io = fixtureIo({});
+  const nullRejected = gatherSides(null, io);
+  assert.equal(nullRejected.ok, false, 'a null gather plan reached past the shape guard');
+  assert.equal(
+    nullRejected.error,
+    'the two sides could not be gathered: the gather plan must be a non-null, non-array object, received null',
+  );
+  const stringRejected = gatherSides('not-a-plan', io);
+  assert.equal(stringRejected.ok, false, 'a bare string gather plan reached past the shape guard');
+  assert.equal(
+    stringRejected.error,
+    'the two sides could not be gathered: the gather plan must be a non-null, non-array object, received "not-a-plan"',
+  );
+  const numberRejected = gatherSides(42, io);
+  assert.equal(numberRejected.ok, false, 'a bare number gather plan reached past the shape guard');
+  assert.equal(
+    numberRejected.error,
+    'the two sides could not be gathered: the gather plan must be a non-null, non-array object, received 42',
+  );
+  const arrayRejected = gatherSides([], io);
+  assert.equal(arrayRejected.ok, false, 'an array gather plan reached past the shape guard');
+  assert.equal(
+    arrayRejected.error,
+    'the two sides could not be gathered: the gather plan must be a non-null, non-array object, received []',
+  );
+  assert.equal(io.spawned.length, 0, 'a rejected gather plan must never reach the tool runner');
+});
+
+test('the head census reads the head worktree and never the repository root', () => {
+  const io = collectibleEslintIo();
+  evaluate({ repoRoot: ROOT, gateBase: 'abc123', basePath: BASE, headRef: HEAD_REF, headPath: HEAD_WT, cachedBaseCensus: null }, io);
+  const linted = io.spawned.filter((command) => command.includes('-f json'));
+  assert.equal(linted.length > 0, true, `no lint child ran, so nothing says which tree the head census read: ${JSON.stringify(io.spawned)}`);
+  assert.deepEqual(
+    linted.filter((command) => command.includes(ROOT)),
+    [],
+    `a lint child was pointed at ${ROOT}, which never carries the diff of the unit under test`,
+  );
+  assert.equal(
+    linted.some((command) => command.includes(HEAD_WT)),
+    true,
+    `no lint child was pointed at the head worktree ${HEAD_WT}: ${JSON.stringify(linted)}`,
+  );
 });

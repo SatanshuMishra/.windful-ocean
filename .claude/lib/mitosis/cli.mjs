@@ -1,6 +1,7 @@
 import { readFileSync, realpathSync } from 'node:fs';
 import { isAbsolute, join } from 'node:path';
 import { pathToFileURL } from 'node:url';
+import { removeHeadWorktree } from './boundary-collect.mjs';
 import { evaluate } from './boundary-gate.mjs';
 import { Done, NeedsHuman } from './boundary.mjs';
 import { validateRefToken } from './checkpoint.mjs';
@@ -462,6 +463,7 @@ function driverPorts(io, makePorts, deps, repoRoot) {
   const foldJournalFn = deps.foldJournal === undefined ? foldFile : deps.foldJournal;
   const runFn = deps.run === undefined ? run : deps.run;
   const boundaryGateFn = deps.boundaryGate === undefined ? evaluate : deps.boundaryGate;
+  const teardownHeadWorktreeFn = deps.teardownHeadWorktree === undefined ? removeHeadWorktree : deps.teardownHeadWorktree;
   const dispatchFn = deps.dispatch === undefined ? dispatch : deps.dispatch;
   const appendJournalFn = deps.appendJournalLine === undefined ? appendJournalLine : deps.appendJournalLine;
   const skillPointersFn = deps.skillPointers === undefined ? defaultSkillPointers : deps.skillPointers;
@@ -473,6 +475,7 @@ function driverPorts(io, makePorts, deps, repoRoot) {
     readJournal: (request) => foldJournalFn(journalLocation(request)),
     reconcile: reconcilePort(io, runFn, repoRoot),
     boundaryGate: (request) => boundaryGateFn(request),
+    teardownHeadWorktree: (request) => teardownHeadWorktreeFn(request),
     dispatchPrompt: (request) => dispatchFn(request),
     openPullRequest: (request) => runFn(NODE_BINARY, request.argv, { cwd: request.cwd, deadlineMs: GH_DEADLINE_MS }),
     appendJournal: (request) => appendJournalFn(request),

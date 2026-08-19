@@ -78,13 +78,14 @@ function clearViolations(boundary) {
     refuse(79, 'the boundary-fix plan asks for a repair but names no files and token to clear, so the repair would silently do nothing');
   }
   for (const file of boundary.files) {
+    const resolved = path.resolve(process.cwd(), file);
     let source = null;
     try {
-      source = fs.readFileSync(file, 'utf8');
+      source = fs.readFileSync(resolved, 'utf8');
     } catch (error) {
-      refuse(79, 'the boundary-fix repair could not read ' + file + ': ' + error.message);
+      refuse(79, 'the boundary-fix repair could not read ' + resolved + ': ' + error.message);
     }
-    fs.writeFileSync(file, source.split('\n').filter((line) => !line.includes(boundary.token)).join('\n'));
+    fs.writeFileSync(resolved, source.split('\n').filter((line) => !line.includes(boundary.token)).join('\n'));
   }
 }
 

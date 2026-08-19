@@ -1,4 +1,5 @@
 import { join } from 'node:path';
+import { NOT_COMPARABLE_CLASSIFIER } from './boundary-gate.mjs';
 import { divergedParents } from './divergence.mjs';
 import { LEGAL_STAGES, transitiveDependents } from './parking.mjs';
 import { composePrompt } from './prompt-registry.mjs';
@@ -11,8 +12,9 @@ export const DIVERGED = 'diverged';
 export const INTEGRATE_STATES = Object.freeze([INTEGRATED, PARKED, DIVERGED]);
 export const INTEGRATE_PARK_STAGE = 'execute';
 export const BOUNDARY_BASE_SEGMENTS = Object.freeze(['.mitosis', 'boundary']);
+export const BOUNDARY_HEAD_SUFFIX = '.head';
 
-const REQUIRED_PORTS = Object.freeze(['boundaryGate', 'dispatchPrompt']);
+const REQUIRED_PORTS = Object.freeze(['boundaryGate', 'dispatchPrompt', 'teardownHeadWorktree']);
 const WORKTREE_ISOLATION = 'worktree';
 const RUN_ID_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._-]*$/;
 const UNIT_ID_PATTERN = /^[a-z0-9][a-z0-9-]*$/;
@@ -144,19 +146,29 @@ function requireVerdict(verdict, unitId, which) {
   return verdict;
 }
 
+function boundaryPathOf(settings, unitId, suffix) {
+  return join(settings.repoRoot, ...BOUNDARY_BASE_SEGMENTS, settings.runId, `${unitId}${suffix}`);
+}
+
+function checkpointRefOf(entry) {
+  return safeGateBase(entry.resumePoint.ref);
+}
+
 function gateRequest(entry, gateBase, settings) {
   return Object.freeze({
     repoRoot: settings.repoRoot,
     gateBase,
-    basePath: join(settings.repoRoot, ...BOUNDARY_BASE_SEGMENTS, settings.runId, entry.unitId),
+    basePath: boundaryPathOf(settings, entry.unitId, ''),
+    headRef: checkpointRefOf(entry),
+    headPath: boundaryPathOf(settings, entry.unitId, BOUNDARY_HEAD_SUFFIX),
   });
 }
 
-function boundaryFixInput(entry, settings, gateOutput) {
+function boundaryFixInput(entry, settings, gateOutput, headPath) {
   return {
     repoRoot: settings.repoRoot,
     baseBranch: settings.baseBranch,
-    integrationWorktree: settings.repoRoot,
+    integrationWorktree: headPath,
     gateOutput,
     isolation: settings.isolationById.get(entry.unitId) ?? WORKTREE_ISOLATION,
   };
@@ -167,24 +179,52 @@ function dispatchFailure(verdict) {
   return `the boundary-fix child returned ${JSON.stringify(verdict.outcome ?? null)}: ${verdict.error ?? 'no reason given'}`;
 }
 
-async function gateUnit(entry, gateBase, settings, ports) {
-  const request = gateRequest(entry, gateBase, settings);
+function notComparableRefusal(verdict) {
+  if (!Array.isArray(verdict.blocking)) return null;
+  const found = verdict.blocking.find((item) => isRecord(item) && item.classifier === NOT_COMPARABLE_CLASSIFIER);
+  return found === undefined ? null : (nonEmptyText(found.detail) ?? verdict.output);
+}
+
+async function attemptFix(entry, settings, ports, gateOutput) {
+  const headPath = boundaryPathOf(settings, entry.unitId, BOUNDARY_HEAD_SUFFIX);
+  const dispatched = await ports.dispatchPrompt({
+    prompt: composePrompt('boundary-fix', boundaryFixInput(entry, settings, gateOutput, headPath)),
+    cwd: headPath,
+  });
+  return Object.freeze({
+    dispatches: 1,
+    ran: isRecord(dispatched) && dispatched.ok === true,
+    failure: dispatchFailure(dispatched),
+  });
+}
+
+async function gatedOutcome(entry, request, settings, ports) {
   const first = requireVerdict(await ports.boundaryGate(request), entry.unitId, 'the first pass');
   if (first.pass) return outcome(entry, INTEGRATED, 0, null);
-  const fixed = await ports.dispatchPrompt({
-    prompt: composePrompt('boundary-fix', boundaryFixInput(entry, settings, first.output)),
-    cwd: settings.repoRoot,
-  });
-  if (!isRecord(fixed) || fixed.ok !== true) {
-    return outcome(entry, PARKED, 1, `the one bounded boundary-fix attempt did not run to a verdict, so the gate was never rechecked: ${dispatchFailure(fixed)}`);
+  const structural = notComparableRefusal(first);
+  if (structural !== null) {
+    return outcome(entry, PARKED, 0, `the gate could not compare this unit against a base distinct from its own tree, and no fix a child could make would change that: ${structural}`);
+  }
+  const attempt = await attemptFix(entry, settings, ports, first.output);
+  if (!attempt.ran) {
+    return outcome(entry, PARKED, attempt.dispatches, `the one bounded boundary-fix attempt did not run to a verdict, so the gate was never rechecked: ${attempt.failure}`);
   }
   const recheck = requireVerdict(
     await ports.boundaryGate(Object.freeze({ ...request, cachedBaseCensus: first.baseCensus })),
     entry.unitId,
     'the recheck',
   );
-  if (recheck.pass) return outcome(entry, INTEGRATED, 1, null);
-  return outcome(entry, PARKED, 1, `the boundary violation survived the one bounded fix attempt: ${recheck.output}`);
+  if (recheck.pass) return outcome(entry, INTEGRATED, attempt.dispatches, null);
+  return outcome(entry, PARKED, attempt.dispatches, `the boundary violation survived the one bounded fix attempt: ${recheck.output}`);
+}
+
+async function gateUnit(entry, gateBase, settings, ports) {
+  const request = gateRequest(entry, gateBase, settings);
+  try {
+    return await gatedOutcome(entry, request, settings, ports);
+  } finally {
+    await ports.teardownHeadWorktree({ repoRoot: settings.repoRoot, headPath: request.headPath });
+  }
 }
 
 async function divergedIds(settings) {
@@ -202,8 +242,19 @@ function blockedByDivergence(manifest, parentIds) {
   return blocked;
 }
 
-function nextBase(gateBase, entry) {
-  return safeGateBase(entry.resumePoint.ref) ?? gateBase;
+export function gateBaseChain(ordered, manifest, baseBranch) {
+  const dependsById = new Map(mspsOf(manifest).map((msp) => [msp.id, Array.isArray(msp.dependsOn) ? msp.dependsOn : []]));
+  const checkpointById = new Map();
+  const bases = new Map();
+  for (const entry of ordered) {
+    const declared = dependsById.get(entry.unitId) ?? [];
+    const precursors = [...checkpointById.keys()].filter((id) => declared.includes(id));
+    const precursor = precursors.length === 0 ? null : precursors[precursors.length - 1];
+    bases.set(entry.unitId, precursor === null ? baseBranch : checkpointById.get(precursor));
+    const ref = checkpointRefOf(entry);
+    if (ref !== null) checkpointById.set(entry.unitId, ref);
+  }
+  return bases;
 }
 
 function produced(outcomes, divergedParentIds) {
@@ -226,6 +277,9 @@ function unreachedOutcome(entry, blocked, settings) {
   if (settings.baseBranch === null) {
     return outcome(entry, PARKED, 0, `the run manifest declares no base branch the diff-scoped gate could take as its pre-MSP tree, and a gate run against a base nobody declared would compare this unit's findings with an arbitrary one`);
   }
+  if (checkpointRefOf(entry) === null) {
+    return outcome(entry, PARKED, 0, `this built unit carries no checkpoint ref the gate could materialize as its own tree, and the only head census left would read a tree that never carried this unit's diff, so every finding it introduced would be invisible`);
+  }
   return null;
 }
 
@@ -236,12 +290,11 @@ export async function integrateBuilt(config, ports) {
   const ordered = topologicalOrder(settings.built, settings.manifest);
   const divergedParentIds = await divergedIds(settings);
   const blocked = blockedByDivergence(settings.manifest, divergedParentIds);
+  const bases = gateBaseChain(ordered, settings.manifest, settings.baseBranch);
   const outcomes = [];
-  let gateBase = settings.baseBranch;
   for (const entry of ordered) {
     const unreached = unreachedOutcome(entry, blocked, settings);
-    outcomes.push(unreached === null ? await gateUnit(entry, gateBase, settings, wired) : unreached);
-    gateBase = nextBase(gateBase, entry);
+    outcomes.push(unreached === null ? await gateUnit(entry, bases.get(entry.unitId), settings, wired) : unreached);
   }
   return produced(outcomes, divergedParentIds);
 }

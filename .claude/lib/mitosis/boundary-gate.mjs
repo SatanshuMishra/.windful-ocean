@@ -4,6 +4,7 @@ import {
   BOUNDARY_TOOLS,
   HEAD_SIDE,
   REAL_BOUNDARY_IO,
+  cleanlyRan,
   collectCensus,
   collectSides,
   excludedSubtreesFor,
@@ -18,27 +19,39 @@ export const GATE_BASE_SHAPE = /^[0-9A-Za-z][0-9A-Za-z._/-]*$/;
 export const REFUSAL_CLASSIFIER = 'collection-refused';
 export const EVASION_HALT_CLASSIFIER = 'evasion-halted';
 export const NEW_FINDING_CLASSIFIER = 'new-finding';
+export const NOT_COMPARABLE_CLASSIFIER = 'not-comparable';
 
 const EMPTY_CONTEXT = Object.freeze({ leaked: null, cacheRefusal: null });
 const TREE_PROBE_DEADLINE_MS = 10000;
 const RESOLVED_TREE_SHAPE = /^[0-9a-f]{7,64}$/;
-const HEAD_REVISION = 'HEAD^{tree}';
+const WORKTREE_STATUS_ARGV = Object.freeze(['status', '--porcelain']);
+const REF_SHAPE_REQUIREMENT = 'a ref or sha shape that cannot be read as an option or as a revision range';
+
+const refShaped = (value) => GATE_BASE_SHAPE.test(value) && !value.includes('..');
 
 const REQUEST_FIELDS = Object.freeze([
+  Object.freeze({ name: 'repoRoot', accepts: isAbsolute, requirement: 'an absolute path' }),
+  Object.freeze({ name: 'gateBase', accepts: refShaped, requirement: REF_SHAPE_REQUIREMENT }),
+  Object.freeze({ name: 'basePath', accepts: isAbsolute, requirement: 'an absolute path' }),
+  Object.freeze({ name: 'headRef', accepts: refShaped, requirement: REF_SHAPE_REQUIREMENT }),
+  Object.freeze({ name: 'headPath', accepts: isAbsolute, requirement: 'an absolute path' }),
+]);
+
+const DISTINCT_TREES = Object.freeze([
   Object.freeze({
-    name: 'repoRoot',
-    accepts: (value) => isAbsolute(value),
-    requirement: 'an absolute path',
+    left: 'basePath',
+    right: 'repoRoot',
+    consequence: 'the base would be the tree under test and every finding would be compared against itself',
   }),
   Object.freeze({
-    name: 'gateBase',
-    accepts: (value) => GATE_BASE_SHAPE.test(value) && !value.includes('..'),
-    requirement: 'a ref or sha shape that cannot be read as an option or as a revision range',
+    left: 'headPath',
+    right: 'repoRoot',
+    consequence: 'the head census would read the operator checkout, which never carries the diff of the unit under test',
   }),
   Object.freeze({
-    name: 'basePath',
-    accepts: (value) => isAbsolute(value),
-    requirement: 'an absolute path',
+    left: 'headPath',
+    right: 'basePath',
+    consequence: 'the head and the base would be one tree and no finding could be attributed to the unit under test',
   }),
 ]);
 
@@ -54,12 +67,13 @@ function requestProblems(request) {
       problems.push(`${field.name} must be ${field.requirement}, not ${JSON.stringify(value)}`);
     }
   }
-  if (request.declaredNoOp !== undefined && typeof request.declaredNoOp !== 'boolean') {
+  if (Object.hasOwn(request, 'declaredNoOp') && typeof request.declaredNoOp !== 'boolean') {
     problems.push(`declaredNoOp must be a boolean when it is present, not ${JSON.stringify(request.declaredNoOp)}`);
   }
   if (problems.length > 0) return problems;
-  if (pathResolve(request.basePath) === pathResolve(request.repoRoot)) {
-    problems.push(`basePath ${JSON.stringify(request.basePath)} names the same tree as repoRoot, so the base would be the tree under test and every finding would be compared against itself`);
+  for (const pair of DISTINCT_TREES) {
+    if (pathResolve(request[pair.left]) !== pathResolve(request[pair.right])) continue;
+    problems.push(`${pair.left} ${JSON.stringify(request[pair.left])} names the same tree as ${pair.right}, so ${pair.consequence}`);
   }
   return problems;
 }
@@ -87,31 +101,65 @@ export function compareCensuses(baseIdentitiesByTool, headIdentitiesByTool) {
   });
 }
 
-function unresolvedReason(revision, child) {
+function probeReading(revision, child) {
   if (child === null || typeof child !== 'object') {
-    return `the probe for ${revision} returned no child result at all`;
+    return Object.freeze({ sha: null, reason: `the probe for ${revision} returned no child result at all` });
   }
   if (child.status !== 0) {
-    return `the probe for ${revision} reported outcome ${JSON.stringify(child.outcome ?? null)} and status ${JSON.stringify(child.status ?? null)}`;
+    return Object.freeze({ sha: null, reason: `the probe for ${revision} reported outcome ${JSON.stringify(child.outcome ?? null)} and status ${JSON.stringify(child.status ?? null)}` });
   }
   const sha = typeof child.stdout === 'string' ? child.stdout.trim() : '';
   if (!RESOLVED_TREE_SHAPE.test(sha)) {
-    return `the probe for ${revision} printed ${JSON.stringify(sha)}, which is not the shape of a tree hash`;
+    return Object.freeze({ sha: null, reason: `the probe for ${revision} printed ${JSON.stringify(sha)}, which is not the shape of a tree hash` });
   }
-  return null;
+  return Object.freeze({ sha, reason: null });
 }
 
 function probedRevision(request, revision, io) {
-  return unresolvedReason(revision, io.run('git', ['rev-parse', '--verify', revision], { cwd: request.repoRoot, deadlineMs: TREE_PROBE_DEADLINE_MS }));
+  return probeReading(revision, io.run('git', ['rev-parse', '--verify', revision], { cwd: request.repoRoot, deadlineMs: TREE_PROBE_DEADLINE_MS }));
 }
 
-function unresolvedProbeNote(request, io) {
-  const reasons = [
-    probedRevision(request, `${request.gateBase}^{tree}`, io),
-    probedRevision(request, HEAD_REVISION, io),
-  ].filter((reason) => typeof reason === 'string' && reason.length > 0);
-  if (reasons.length === 0) return null;
-  return `the tree probe reached no decision because a side stayed unresolved: ${reasons.join('; ')}`;
+function headWorktreeState(request, io) {
+  if (!io.exists(request.headPath)) return Object.freeze({ state: 'clean', reason: null });
+  const child = io.run('git', [...WORKTREE_STATUS_ARGV], { cwd: request.headPath, deadlineMs: TREE_PROBE_DEADLINE_MS });
+  if (!cleanlyRan(child) || child.status !== 0) {
+    return Object.freeze({
+      state: 'unknown',
+      reason: `the head worktree at ${JSON.stringify(request.headPath)} could not be asked whether it carries uncommitted work, so its comparability to ${JSON.stringify(request.headRef)} could not be established`,
+    });
+  }
+  return Object.freeze({ state: child.stdout.trim().length > 0 ? 'dirty' : 'clean', reason: null });
+}
+
+function treeProbe(request, io) {
+  const base = probedRevision(request, `${request.gateBase}^{tree}`, io);
+  const head = probedRevision(request, `${request.headRef}^{tree}`, io);
+  const worktree = headWorktreeState(request, io);
+  const reasons = [base.reason, head.reason].filter((reason) => typeof reason === 'string' && reason.length > 0);
+  const unresolved = reasons.length === 0
+    ? null
+    : `the same-tree check reached no decision because a side stayed unresolved: ${reasons.join('; ')}`;
+  const notes = [unresolved, worktree.reason].filter((note) => typeof note === 'string' && note.length > 0);
+  return Object.freeze({ base, head, worktree, note: notes.length === 0 ? null : notes.join('; ') });
+}
+
+function sameTreeRefusal(request, probe) {
+  if (Object.hasOwn(request, 'declaredNoOp') && request.declaredNoOp === true) return null;
+  if (probe.worktree.state !== 'clean') return null;
+  if (probe.base.sha === null || probe.head.sha === null) return null;
+  if (probe.base.sha !== probe.head.sha) return null;
+  const detail = `gateBase ${JSON.stringify(request.gateBase)} and headRef ${JSON.stringify(request.headRef)} both resolve to tree ${probe.base.sha}, and the head worktree at ${JSON.stringify(request.headPath)} carries no uncommitted work, so the base is the tree under test and no finding could be compared against anything`;
+  return Object.freeze({
+    pass: false,
+    output: detail,
+    blocking: Object.freeze([Object.freeze({ classifier: NOT_COMPARABLE_CLASSIFIER, detail })]),
+    notExpected: Object.freeze([]),
+    usedCachedCensus: false,
+    baseCensus: null,
+    leaked: null,
+    comparedIdentities: 0,
+    notComparable: true,
+  });
 }
 
 function withNotes(output, notes) {
@@ -146,15 +194,15 @@ function evasionBlocking(evasion) {
 
 function headSideFor(request, expectations, scope, io) {
   const collected = collectCensus(Object.freeze({
-    root: request.repoRoot,
+    root: request.headPath,
     side: HEAD_SIDE,
     gateBase: request.gateBase,
     expectations,
     scope,
-    excludedSubtrees: excludedSubtreesFor(request.repoRoot, request.basePath),
+    excludedSubtrees: excludedSubtreesFor(request.headPath, request.basePath),
   }), io);
   if (!collected.ok) return collected;
-  return scannedSide(request.repoRoot, collected.census, io, HEAD_SIDE);
+  return scannedSide(request.headPath, collected.census, io, HEAD_SIDE);
 }
 
 function sidesFor(request, io) {
@@ -217,7 +265,7 @@ function verdictOf(sides, evasion, unresolvedProbe) {
 
 export function evaluate(request, io = REAL_BOUNDARY_IO) {
   if (request === null || typeof request !== 'object') {
-    throw new TypeError('boundary-gate: evaluate expects a request object carrying repoRoot, gateBase and basePath');
+    throw new TypeError('boundary-gate: evaluate expects a request object carrying repoRoot, gateBase, basePath, headRef and headPath');
   }
   const problems = requestProblems(request);
   if (problems.length > 0) {
@@ -227,7 +275,13 @@ export function evaluate(request, io = REAL_BOUNDARY_IO) {
   let evasion;
   let unresolvedProbe = null;
   try {
-    unresolvedProbe = unresolvedProbeNote(request, io);
+    const probe = treeProbe(request, io);
+    unresolvedProbe = probe.note;
+    if (probe.worktree.state === 'unknown') {
+      return refused('the boundary gate could not complete: the head worktree state could not be observed', sides, unresolvedProbe);
+    }
+    const notComparable = sameTreeRefusal(request, probe);
+    if (notComparable !== null) return notComparable;
     sides = sidesFor(request, io);
     if (!sides.ok) return refused(sides.error, sides, unresolvedProbe);
     const common = commonTreeFiles(sides.baseCensus.surface, sides.headCensus.surface, io);
