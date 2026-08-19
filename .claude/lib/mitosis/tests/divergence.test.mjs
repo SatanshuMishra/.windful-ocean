@@ -2,6 +2,8 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { needKeyedParents, divergedParents } from '../divergence.mjs';
 import { pack } from './file-scope-fixtures.mjs';
+import { PROGRESS_ORDER } from '../unit-state.mjs';
+import { censusOfFile, propertyReadCensus, reportLegacyStatusReads } from './property-read-census.mjs';
 
 const LOGICAL_RUN_ID = 'a1b2c3d4';
 const BUILT_SHA = 'abc1234';
@@ -263,4 +265,135 @@ test('divergedParents: a malformed manifest or a missing merged set dispatches n
   assert.deepEqual(await divergedParents({ msps: gatingParent('a') }, null, { a: MERGED_SHA }, ctx), []);
   assert.deepEqual(await divergedParents({ msps: gatingParent('a') }, ['a'], 'garbage', ctx), ['a']);
   assert.equal(calls.length, 0);
+});
+
+test('needKeyedParents: a dependent carrying the authoritative progress lattice and NO legacy status field still keys its merged parent', () => {
+  const manifest = { msps: [
+    { id: 'parent', progress: 'merged', dependsOn: [] },
+    { id: 'child', progress: 'built', dependsOn: ['parent'] },
+  ] };
+
+  assert.deepEqual(
+    needKeyedParents(manifest, ['parent']),
+    ['parent'],
+    'the lattice is authoritative, so a unit that never carried the legacy mirror is still seen as built work the merged parent gates',
+  );
+});
+
+test('needKeyedParents: across the whole progress lattice, exactly one token marks a dependent as built work worth keying', () => {
+  const keyedAt = { planned: [], built: ['parent'], 'pr-open': [], merged: [] };
+
+  for (const token of PROGRESS_ORDER) {
+    const manifest = { msps: [
+      { id: 'parent', progress: 'merged', dependsOn: [] },
+      { id: 'child', progress: token, dependsOn: ['parent'] },
+    ] };
+
+    assert.deepEqual(needKeyedParents(manifest, ['parent']), keyedAt[token], `a dependent at ${token}`);
+  }
+});
+
+test('needKeyedParents: a legacy status mirror with no progress field classifies exactly as it did before the repoint', () => {
+  const keyedAt = { planned: [], built: ['parent'], shipped: [], parked: [], 'not-a-token': [] };
+
+  for (const status of Object.keys(keyedAt)) {
+    const manifest = { msps: [
+      { id: 'parent', status: 'shipped', dependsOn: [] },
+      { id: 'child', status, dependsOn: ['parent'] },
+    ] };
+
+    assert.deepEqual(needKeyedParents(manifest, ['parent']), keyedAt[status], `a dependent whose only field is status=${status}`);
+  }
+});
+
+test('divergence.mjs reads no legacy status field, by a closed property census that halts on what it cannot decide', () => {
+  const census = censusOfFile('divergence.mjs', new URL('../divergence.mjs', import.meta.url));
+  const verdict = reportLegacyStatusReads('divergence.mjs', census);
+
+  assert.equal(verdict.clean, true, verdict.report);
+  assert.ok(census.ok && census.propertyReads.length > 0, verdict.report);
+});
+
+test('the property census is not vacuous: it names a legacy status read and halts on a key it cannot decide', () => {
+  const reader = propertyReadCensus('probe.mjs', "export function f(msp) {\n  return msp.status === 'built';\n}\n");
+  const named = reportLegacyStatusReads('probe.mjs', reader);
+  assert.equal(named.clean, false);
+  assert.match(named.report, /probe\.mjs line 2: property read naming the legacy status field/);
+
+  const halted = propertyReadCensus('probe.mjs', "export function f(msp) {\n  return msp['sta' + 'tus'];\n}\n");
+  assert.equal(halted.ok, false);
+  assert.match(halted.error, /probe\.mjs line 2: a computed member access mixes a string literal into a wider key expression/);
+});
+
+test('the property census decides a template-literal key instead of blanking it', () => {
+  const templated = propertyReadCensus('probe.mjs', 'export function f(msp) {\n  return msp[`status`];\n}\n');
+  const verdict = reportLegacyStatusReads('probe.mjs', templated);
+
+  assert.equal(verdict.clean, false, JSON.stringify(templated));
+  assert.match(verdict.report, /probe\.mjs line 2: property read naming the legacy status field/);
+});
+
+test('the property census halts on a computed key built by concatenation it cannot evaluate', () => {
+  const concatenated = propertyReadCensus('probe.mjs', 'export function f(msp, a, b) {\n  return msp[a + b];\n}\n');
+
+  assert.equal(concatenated.ok, false, JSON.stringify(concatenated));
+  assert.match(concatenated.error, /probe\.mjs line 2: a computed member access uses a key expression this census cannot decide/);
+});
+
+test('the property census halts on a template-literal key whose interpolation it cannot evaluate', () => {
+  const interpolated = propertyReadCensus('probe.mjs', 'export function f(msp, x) {\n  return msp[`sta${x}`];\n}\n');
+
+  assert.equal(interpolated.ok, false, JSON.stringify(interpolated));
+  assert.match(interpolated.error, /probe\.mjs line 2: a computed member access is keyed by an interpolated or compound template literal/);
+});
+
+test('the property census halts on a computed key whose name arrives from another module', () => {
+  const imported = propertyReadCensus('probe.mjs', "import { KEY } from './elsewhere.mjs';\n\nexport function f(msp) {\n  return msp[KEY];\n}\n");
+
+  assert.equal(imported.ok, false, JSON.stringify(imported));
+  assert.match(imported.error, /probe\.mjs line 4: a computed member access is keyed by a name this module imports/);
+});
+
+const DIVERGENCE_LATTICE_FAILURE_PREFIX = 'mitosis: divergence — the progress lattice could not be read for an msp, and the failure was not an unrecognized legacy progress token: ';
+
+function latticeThrowingManifest(thrown) {
+  return { msps: [
+    { id: 'parent', progress: 'merged', dependsOn: [] },
+    { id: 'child', dependsOn: ['parent'], get progress() { throw thrown; } },
+  ] };
+}
+
+function captureThrown(run) {
+  try {
+    run();
+  } catch (error) {
+    return { threw: true, error };
+  }
+  return { threw: false, error: null };
+}
+
+test('needKeyedParents: an Error lattice failure that is NOT an unrecognized legacy progress token propagates carrying the thrown Error own message verbatim, never its stringified form', () => {
+  const thrown = new RangeError('the lattice field blew up');
+  const caught = captureThrown(() => needKeyedParents(latticeThrowingManifest(thrown), ['parent']));
+
+  assert.equal(caught.threw, true, 'a non-TypeError lattice failure must propagate, never fold to a silent null');
+  assert.equal(
+    caught.error.message,
+    `${DIVERGENCE_LATTICE_FAILURE_PREFIX}the lattice field blew up`,
+    'the operator reads the thrown Error own message alone; the value \'RangeError: the lattice field blew up\' would mean the render fell through to the stringifying branch instead of trusting a real Error',
+  );
+  assert.equal(caught.error.cause, thrown, 'the original throw is preserved by reference as the cause, so the stack is never lost');
+});
+
+test('needKeyedParents: a non-Error lattice failure propagates rendered as its stringified form, never as an unvalidated message property', () => {
+  const thrown = Object.freeze({ message: 'the lattice field blew up' });
+  const caught = captureThrown(() => needKeyedParents(latticeThrowingManifest(thrown), ['parent']));
+
+  assert.equal(caught.threw, true, 'a thrown non-Error lattice failure must propagate too');
+  assert.equal(
+    caught.error.message,
+    `${DIVERGENCE_LATTICE_FAILURE_PREFIX}[object Object]`,
+    'a bare object carrying a message property is NOT an Error, so the render must stringify the value; \'the lattice field blew up\' here would mean the instanceof guard stopped gating, and \'undefined\' would mean the stringifying branch returned nothing',
+  );
+  assert.equal(caught.error.cause, thrown, 'the original non-Error throw is preserved by reference as the cause');
 });

@@ -1,5 +1,22 @@
 import { parseCheckpointRef } from './checkpoint.mjs';
 import { transitiveDependents } from './parking.mjs';
+import { startingProgressOf } from './unit-state.mjs';
+
+const DONE_PROGRESS = Object.freeze(['pr-open', 'merged']);
+
+function renderFailure(error) {
+  if (error instanceof Error && typeof error.message === 'string') return error.message;
+  return String(error);
+}
+
+function progressOf(msp) {
+  try {
+    return startingProgressOf(msp);
+  } catch (error) {
+    if (error instanceof TypeError) return null;
+    throw new Error(`mitosis: reconcile — the progress lattice could not be read for an msp, and the failure was not an unrecognized legacy progress token: ${renderFailure(error)}`, { cause: error });
+  }
+}
 
 function uniqStrings(list) {
   if (!Array.isArray(list)) return [];
@@ -79,8 +96,8 @@ export function planReconcile(manifest, live = {}) {
   const msps = manifest.msps;
   const mergedLive = new Set(uniqStrings(liveObj.merged));
   const publishedLive = new Set(uniqStrings(liveObj.published));
-  const shippedIds = msps.filter((m) => m && typeof m.id === 'string' && m.status === 'shipped').map((m) => m.id);
-  const doneSet = new Set([...shippedIds, ...mergedLive]);
+  const doneIds = msps.filter((m) => m && typeof m.id === 'string' && DONE_PROGRESS.includes(progressOf(m))).map((m) => m.id);
+  const doneSet = new Set([...doneIds, ...mergedLive]);
   const divergedLive = uniqStrings(liveObj.divergedParents);
   const parkSet = new Set();
   let invalidatingParents = 0;
@@ -96,7 +113,7 @@ export function planReconcile(manifest, live = {}) {
   const toOpen = [];
   for (const msp of msps) {
     if (!msp || typeof msp.id !== 'string') continue;
-    if (msp.status !== 'built') continue;
+    if (progressOf(msp) !== 'built') continue;
     if (doneSet.has(msp.id) || parkSet.has(msp.id) || publishedLive.has(msp.id)) continue;
     const prereqs = Array.isArray(msp.dependsOn) ? msp.dependsOn : [];
     if (prereqs.every((p) => doneSet.has(p))) { toOpen.push(msp.id); continue; }

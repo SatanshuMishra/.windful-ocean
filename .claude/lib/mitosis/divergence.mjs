@@ -1,7 +1,22 @@
 import { checkpointRef } from './checkpoint.mjs';
 import { transitiveDependents } from './parking.mjs';
+import { startingProgressOf } from './unit-state.mjs';
 
 export const SHA_HEX_PATTERN = /^[0-9a-f]{7,64}$/i;
+
+function renderFailure(error) {
+  if (error instanceof Error && typeof error.message === 'string') return error.message;
+  return String(error);
+}
+
+function progressOf(msp) {
+  try {
+    return startingProgressOf(msp);
+  } catch (error) {
+    if (error instanceof TypeError) return null;
+    throw new Error(`mitosis: divergence — the progress lattice could not be read for an msp, and the failure was not an unrecognized legacy progress token: ${renderFailure(error)}`, { cause: error });
+  }
+}
 
 function divergenceToken(value) {
   return JSON.stringify(String(value).slice(0, 128)).replace(/[\p{Cc}\p{Cf}\p{Zl}\p{Zp}]/gu, ' ');
@@ -15,7 +30,7 @@ export function needKeyedParents(manifest, mergedIds) {
   for (const parentId of Array.isArray(mergedIds) ? mergedIds : []) {
     if (typeof parentId !== 'string' || parentId.length === 0 || seen.has(parentId)) continue;
     seen.add(parentId);
-    const gatesBuilt = transitiveDependents(msps, parentId).some((d) => { const m = byId.get(d); return Boolean(m) && m.status === 'built'; });
+    const gatesBuilt = transitiveDependents(msps, parentId).some((d) => { const m = byId.get(d); return Boolean(m) && progressOf(m) === 'built'; });
     if (!gatesBuilt) continue;
     keyed.push(parentId);
   }

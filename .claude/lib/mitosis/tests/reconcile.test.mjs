@@ -1,6 +1,8 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { computeRemaining, reconcileBuiltSet, reconcileBuiltShas, mergePaginated, planReconcile } from '../reconcile.mjs';
+import { PROGRESS_ORDER } from '../unit-state.mjs';
+import { censusOfFile, reportLegacyStatusReads } from './property-read-census.mjs';
 import { publishedManifestRef } from '../checkpoint.mjs';
 
 test('computeRemaining: remaining = planned - (merged U built U parked), keyed by unitId', () => {
@@ -206,3 +208,121 @@ test('planReconcile: a null / array / non-object live is normalized to a safe sn
   assert.deepEqual(planReconcile(manifest, 'garbage'), expected);
 });
 
+
+function latticeManifest(rootProgress, unitProgress) {
+  return { window: 3, msps: [
+    { id: 'root', progress: rootProgress, dependsOn: [] },
+    { id: 'a', progress: unitProgress, dependsOn: ['root'], builtSha: 'a0' },
+  ] };
+}
+
+test('planReconcile: msps carrying the authoritative progress lattice and NO legacy status field are classified — a merged parent is done and its built unit opens', () => {
+  const plan = planReconcile(latticeManifest('merged', 'built'), { merged: [], published: [] });
+
+  assert.deepEqual(plan.toOpen, ['a'], 'the merged parent lands in the done set from the lattice alone, so its built unit is ready to open');
+  assert.deepEqual(plan.toRestack, []);
+  assert.deepEqual(plan.toParkSubtree, []);
+});
+
+test('planReconcile: the done set covers BOTH lattice tokens the legacy shipped mirror stood for, never pr-open alone', () => {
+  assert.deepEqual(planReconcile(latticeManifest('pr-open', 'built'), {}).toOpen, ['a'], 'a parent at pr-open is done');
+  assert.deepEqual(planReconcile(latticeManifest('merged', 'built'), {}).toOpen, ['a'], 'a parent at merged is done — dropping it would strand every unit stacked on a landed parent');
+});
+
+test('planReconcile: across the whole progress lattice, exactly pr-open and merged put a parent in the done set', () => {
+  const opensAt = { planned: [], built: ['root'], 'pr-open': ['a'], merged: ['a'] };
+
+  for (const token of PROGRESS_ORDER) {
+    const plan = planReconcile(latticeManifest(token, 'built'), {});
+    assert.deepEqual(plan.toOpen, opensAt[token], `a parent at ${token}`);
+    assert.deepEqual(plan.toRestack, [], `a parent at ${token} restacks nothing`);
+  }
+});
+
+test('planReconcile: across the whole progress lattice, exactly one token makes a unit advanceable', () => {
+  const opensAt = { planned: [], built: ['a'], 'pr-open': [], merged: [] };
+
+  for (const token of PROGRESS_ORDER) {
+    const plan = planReconcile(latticeManifest('merged', token), {});
+    assert.deepEqual(plan.toOpen, opensAt[token], `a unit at ${token} under a merged parent`);
+    assert.deepEqual(plan.toRestack, [], `a unit at ${token} restacks nothing`);
+  }
+});
+
+test('planReconcile: a legacy status mirror with no progress field classifies exactly as it did before the repoint', () => {
+  const opensAt = { planned: [], built: ['root'], shipped: ['a'], parked: [], 'not-a-token': [] };
+
+  for (const status of Object.keys(opensAt)) {
+    const manifest = { window: 3, msps: [
+      { id: 'root', status, dependsOn: [] },
+      { id: 'a', status: 'built', dependsOn: ['root'], builtSha: 'a0' },
+    ] };
+
+    assert.deepEqual(planReconcile(manifest, {}).toOpen, opensAt[status], `a parent whose only field is status=${status}`);
+  }
+});
+
+test('planReconcile: a unit whose only field is an unrecognized legacy status token fails closed — it never opens', () => {
+  const manifest = { window: 3, msps: [
+    { id: 'root', progress: 'merged', dependsOn: [] },
+    { id: 'a', status: 'not-a-token', dependsOn: ['root'] },
+  ] };
+
+  const plan = planReconcile(manifest, {});
+
+  assert.deepEqual(plan.toOpen, [], 'an undecidable token is not built work, so the negated site must refuse to open it');
+  assert.deepEqual(plan.toRestack, []);
+  assert.deepEqual(plan.toParkSubtree, []);
+});
+
+const RECONCILE_LATTICE_FAILURE_PREFIX = 'mitosis: reconcile — the progress lattice could not be read for an msp, and the failure was not an unrecognized legacy progress token: ';
+
+function latticeThrowingManifest(thrown) {
+  return { window: 3, msps: [
+    { id: 'root', progress: 'merged', dependsOn: [] },
+    { id: 'a', dependsOn: ['root'], get progress() { throw thrown; } },
+  ] };
+}
+
+function captureThrown(run) {
+  try {
+    run();
+  } catch (error) {
+    return { threw: true, error };
+  }
+  return { threw: false, error: null };
+}
+
+test('planReconcile: an Error lattice failure that is NOT an unrecognized legacy progress token propagates carrying the thrown Error own message verbatim, never its stringified form', () => {
+  const thrown = new RangeError('the lattice field blew up');
+  const caught = captureThrown(() => planReconcile(latticeThrowingManifest(thrown), {}));
+
+  assert.equal(caught.threw, true, 'a non-TypeError lattice failure must propagate, never fold to a silent null');
+  assert.equal(
+    caught.error.message,
+    `${RECONCILE_LATTICE_FAILURE_PREFIX}the lattice field blew up`,
+    'the operator reads the thrown Error own message alone; the value \'RangeError: the lattice field blew up\' would mean the render fell through to the stringifying branch instead of trusting a real Error',
+  );
+  assert.equal(caught.error.cause, thrown, 'the original throw is preserved by reference as the cause, so the stack is never lost');
+});
+
+test('planReconcile: a non-Error lattice failure propagates rendered as its stringified form, never as an unvalidated message property', () => {
+  const thrown = Object.freeze({ message: 'the lattice field blew up' });
+  const caught = captureThrown(() => planReconcile(latticeThrowingManifest(thrown), {}));
+
+  assert.equal(caught.threw, true, 'a thrown non-Error lattice failure must propagate too');
+  assert.equal(
+    caught.error.message,
+    `${RECONCILE_LATTICE_FAILURE_PREFIX}[object Object]`,
+    'a bare object carrying a message property is NOT an Error, so the render must stringify the value; \'the lattice field blew up\' here would mean the instanceof guard stopped gating, and \'undefined\' would mean the stringifying branch returned nothing',
+  );
+  assert.equal(caught.error.cause, thrown, 'the original non-Error throw is preserved by reference as the cause');
+});
+
+test('reconcile.mjs reads no legacy status field, by a closed property census that halts on what it cannot decide', () => {
+  const census = censusOfFile('reconcile.mjs', new URL('../reconcile.mjs', import.meta.url));
+  const verdict = reportLegacyStatusReads('reconcile.mjs', census);
+
+  assert.equal(verdict.clean, true, verdict.report);
+  assert.ok(census.ok && census.propertyReads.length > 0, verdict.report);
+});
