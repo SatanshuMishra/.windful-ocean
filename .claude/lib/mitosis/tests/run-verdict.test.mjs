@@ -187,3 +187,38 @@ test('the declared verdict vocabulary is the merge-policy words plus the unwatch
     'ci-unwatched',
   ]);
 });
+
+function renderedShipStatus(status) {
+  try {
+    runVerdictOf(driven({ ship: { status } }));
+  } catch (error) {
+    if (!(error instanceof TypeError)) throw error;
+    const reported = /^mitosis-run-verdict: the Ship phase reports (.+), which is none of the declared merge-policy statuses /.exec(error.message);
+    assert.ok(reported, `the ship-status refusal reported no rendered value: ${error.message}`);
+    return reported[1];
+  }
+  assert.fail('runVerdictOf accepted a ship status outside the declared merge-policy vocabulary');
+}
+
+test('an undeclared string ship status is rendered JSON-quoted, so the refusal names the word the phase reported and not a bare token', () => {
+  assert.equal(renderedShipStatus('shipped'), '"shipped"');
+  assert.equal(renderedShipStatus(''), '""');
+  assert.equal(renderedShipStatus('an array'), '"an array"');
+});
+
+test('an array ship status is rendered as an array, never as the elements joined into something that reads like a status', () => {
+  assert.equal(renderedShipStatus([]), 'an array');
+  assert.equal(renderedShipStatus(['all-integrated-opened']), 'an array');
+});
+
+test('a non-null object ship status is rendered as an object, never as the string a plain coercion produces', () => {
+  assert.equal(renderedShipStatus({}), 'an object');
+  assert.equal(renderedShipStatus({ status: 'all-integrated-opened' }), 'an object');
+});
+
+test('a null ship status is rendered as null and never as an object, because an absent status is what the operator has to see to fix it', () => {
+  assert.equal(renderedShipStatus(null), 'null');
+  assert.equal(renderedShipStatus(undefined), 'undefined');
+  assert.equal(renderedShipStatus(0), '0');
+  assert.equal(renderedShipStatus(false), 'false');
+});
