@@ -21,7 +21,7 @@ function fullArgv(root) {
     '--run-id', '0a1b2c3d',
     '--at', '2026-08-15T12:00:00Z',
     '--repo-root', root,
-    '--journal', '.mitosis/run.jsonl',
+    '--journal', join(root, '.mitosis', 'run.jsonl'),
     '--repo-slug', 'acme/widgets',
     '--integration-branch', 'integration',
   ];

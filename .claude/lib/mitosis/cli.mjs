@@ -1,5 +1,4 @@
 import { readFileSync, realpathSync } from 'node:fs';
-import { isAbsolute, join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { removeHeadWorktree } from './boundary-collect.mjs';
 import { evaluate } from './boundary-gate.mjs';
@@ -10,11 +9,13 @@ import { SHA_HEX_PATTERN } from './divergence.mjs';
 import { POST_DISPATCH_RECORD_FAILED } from './engine.mjs';
 import { run } from './exec-run.mjs';
 import { foldFile } from './fold-run-log.mjs';
+import { requireConfinedPath, requireGuardedPath } from './fs-writer.mjs';
 import { READ_JOBS_STEP, ciFixMessage } from './ci-green-loop.mjs';
 import { GH_COMMAND_BINARY, buildGhCommand } from './gh-commands.mjs';
 import { buildGitCommand } from './git-commands.mjs';
 import { integrateSummary } from './integrate-plan.mjs';
 import { appendJournalLine, writeGenesis } from './journal-store.mjs';
+import { isIsoInstant } from './run-log.mjs';
 import { runPhases } from './phase-driver.mjs';
 import { observePlanArtifact } from './plan-artifact.mjs';
 import { resumeSummary } from './resume-plan.mjs';
@@ -38,6 +39,9 @@ const REMOTE_NAME = 'origin';
 const NO_PULL_REQUEST_FOUND = /no pull requests? found/i;
 const EXIT_ERROR = 1;
 const EXIT_USAGE = 2;
+const MODULE_PREFIX = `${MODULE}: `;
+const REPO_ROOT_NAMES = 'the repository root every path this run reads and writes is confined to';
+const JOURNAL_NAMES = 'the append-only run journal';
 const WINDOW_TOKEN_PATTERN = /^[1-9][0-9]*$/;
 const NODE_FAILED = 'failed';
 const NODE_RUNNING = 'running';
@@ -81,6 +85,20 @@ function messageOf(error) {
   return error && error.message ? error.message : String(error);
 }
 
+function usageFromGuard(error) {
+  const message = messageOf(error);
+  return usageFailure(message.startsWith(MODULE_PREFIX) ? message.slice(MODULE_PREFIX.length) : message);
+}
+
+function resolveJournalLocation(repoRoot, journalPath) {
+  try {
+    const root = requireGuardedPath(MODULE, '--repo-root', repoRoot, REPO_ROOT_NAMES).value;
+    return Object.freeze({ ok: true, value: requireConfinedPath(MODULE, '--journal', root, journalPath, JOURNAL_NAMES).value });
+  } catch (error) {
+    return usageFromGuard(error);
+  }
+}
+
 function fieldOf(flag) {
   if (typeof flag !== 'string') return undefined;
   if (Object.hasOwn(REQUIRED_FLAGS, flag)) return REQUIRED_FLAGS[flag];
@@ -110,10 +128,17 @@ export function parseCliArgv(argv) {
   if (windowToken !== undefined && !WINDOW_TOKEN_PATTERN.test(windowToken)) {
     return usageFailure(`--window needs a positive integer, received ${JSON.stringify(windowToken)}`);
   }
+  const atToken = seen.get('at');
+  if (!isIsoInstant(atToken)) {
+    return usageFailure(`--at needs an ISO instant carrying seconds and either Z or a +HH:MM offset, because every record this run writes is ordered by it, received ${JSON.stringify(atToken)}`);
+  }
+  const journal = resolveJournalLocation(seen.get('repoRoot'), seen.get('journalPath'));
+  if (!journal.ok) return journal;
   return Object.freeze({
     ok: true,
     value: Object.freeze({
       ...Object.fromEntries(seen),
+      journalPath: journal.value,
       window: windowToken === undefined ? undefined : Number(windowToken),
     }),
   });
@@ -230,10 +255,6 @@ function driverRequest(args, spec) {
     integrationBranch: args.integrationBranch,
     window: args.window,
   };
-}
-
-function journalLocation(request) {
-  return isAbsolute(request.path) ? request.path : join(request.repoRoot, request.path);
 }
 
 function mergedPullRequests(result, io) {
@@ -471,7 +492,7 @@ function driverPorts(io, makePorts, deps, repoRoot) {
     openRun: (request) => openRunFn(request),
     skillPointers: () => skillPointersFn(),
     observePlan: (probe) => observePlanFn(probe),
-    readJournal: (request) => foldJournalFn(journalLocation(request)),
+    readJournal: (request) => foldJournalFn(request.path),
     reconcile: reconcilePort(io, runFn, repoRoot),
     boundaryGate: (request) => boundaryGateFn(request),
     teardownHeadWorktree: (request) => teardownHeadWorktreeFn(request),
