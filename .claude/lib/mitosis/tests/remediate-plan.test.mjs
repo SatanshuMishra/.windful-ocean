@@ -169,3 +169,24 @@ test('PARK: a parked unit this run never planned is left alone, because no task 
   assert.deepEqual(plan.parked, [], 'a unit outside this run schedule is not this run park to reopen or to report');
   assert.deepEqual(stub.journalled.map((write) => JSON.parse(write.line).unitId), ['alpha']);
 });
+
+const CONFIG_REFUSAL = 'remediate-plan: the remediation config must be a non-null, non-array object, it carries the manifest the parks were recorded on and the paths a spent attempt is journalled to, received';
+
+test('REFUSAL TEXT: a null config is named null, never by the typeof that would call it an object', async () => {
+  await assert.rejects(
+    planRemediation(null, stubbedPorts().ports),
+    { name: 'TypeError', message: `${CONFIG_REFUSAL} null` },
+    'typeof null is "object", so a refusal that reports an absent config as an object sends the reader hunting a malformed record inside a config that was never supplied at all',
+  );
+});
+
+test('REFUSAL TEXT: a config that is not null is named by its own kind, never as null', async () => {
+  const kinds = [[undefined, 'undefined'], [['alpha'], 'an array'], ['a config', 'string'], [7, 'number']];
+  for (const [supplied, kind] of kinds) {
+    await assert.rejects(
+      planRemediation(supplied, stubbedPorts().ports),
+      { name: 'TypeError', message: `${CONFIG_REFUSAL} ${kind}` },
+      `a refusal that calls every supplied config null hides which kind actually arrived, and ${kind} is the single fact that tells the caller what to correct`,
+    );
+  }
+});
