@@ -7,10 +7,11 @@ import { join, relative, sep } from 'node:path';
 const CLAUDE_ROOT = fileURLToPath(new URL('../../../', import.meta.url));
 const LIB_ROOT = join(CLAUDE_ROOT, 'lib');
 const WORKFLOWS_ROOT = join(CLAUDE_ROOT, 'workflows');
-const RUN_ENGINE_MODULE_PATH = join(LIB_ROOT, 'mitosis/run-engine.mjs');
-const MITOSIS_EXECUTE_WORKFLOW_PATH = join(WORKFLOWS_ROOT, 'mitosis-execute.js');
 
-const DELETED_TOKEN = ['run', 'engine'].join('-');
+const DELETED_TOKEN = 'run-engine';
+
+const RUN_ENGINE_MODULE_PATH = join(LIB_ROOT, 'mitosis', `${DELETED_TOKEN}.mjs`);
+const MITOSIS_EXECUTE_WORKFLOW_PATH = join(WORKFLOWS_ROOT, 'mitosis-execute.js');
 
 const STATIC_IMPORT_SPECIFIER_RE = new RegExp(`from\\s+['"][^'"]*${DELETED_TOKEN}\\.mjs['"]`);
 const DYNAMIC_IMPORT_CALL_RE = /\bimport\s*\(/;
@@ -18,23 +19,83 @@ const DYNAMIC_IMPORT_CALL_RE = /\bimport\s*\(/;
 const KNOWN_NON_IMPORT_OCCURRENCES = Object.freeze([
   Object.freeze({
     relativePath: 'lib/mitosis/derive-edges.mjs',
-    textIncludes: DELETED_TOKEN,
-    reason: `a throw new Error template literal that names the deleted module in prose, not an import; the exclusion M12a established`,
+    textIncludes: `opus-escalation rule in ${DELETED_TOKEN}.mjs`,
+    reason: 'a throw new Error template literal that names the deleted module in prose, not an import; the exclusion M12a established',
   }),
   Object.freeze({
     relativePath: 'lib/mitosis/tests/ci-escalation.test.mjs',
-    textIncludes: DELETED_TOKEN,
-    reason: 'M12a own production-importer census; its path constant and assertion strings name the deleted module by design, never import it',
+    textIncludes: `fileURLToPath(new URL('../${DELETED_TOKEN}.mjs'`,
+    reason: "that census's own path constant built from import.meta.url for the deleted module, not an import statement",
+  }),
+  Object.freeze({
+    relativePath: 'lib/mitosis/tests/ci-escalation.test.mjs',
+    textIncludes: `textIncludes: 'opus-escalation rule in ${DELETED_TOKEN}.mjs'`,
+    reason: "the exclusion-table string literal that census defined for its own derive-edges.mjs occurrence, not an import",
+  }),
+  Object.freeze({
+    relativePath: 'lib/mitosis/tests/ci-escalation.test.mjs',
+    textIncludes: `mentions ${DELETED_TOKEN}.mjs in prose, not an import`,
+    reason: "the exclusion-table reason string describing that census's own derive-edges.mjs occurrence, not an import",
+  }),
+  Object.freeze({
+    relativePath: 'lib/mitosis/tests/ci-escalation.test.mjs',
+    textIncludes: `line.includes('${DELETED_TOKEN}')) return occurrences`,
+    reason: "the token-match guard inside that census's own occurrence scanner, not an import",
+  }),
+  Object.freeze({
+    relativePath: 'lib/mitosis/tests/ci-escalation.test.mjs',
+    textIncludes: `${DELETED_TOKEN}.mjs has zero production importers anywhere under .claude/lib`,
+    reason: "that census's own test title, not an import",
+  }),
+  Object.freeze({
+    relativePath: 'lib/mitosis/tests/ci-escalation.test.mjs',
+    textIncludes: `excluding ${DELETED_TOKEN}.mjs and test files`,
+    reason: "that census's own vacuity-guard message, not an import",
+  }),
+  Object.freeze({
+    relativePath: 'lib/mitosis/tests/ci-escalation.test.mjs',
+    textIncludes: `of "${DELETED_TOKEN}" in a production file could be classified`,
+    reason: "that census's own unclassified-occurrence assertion message, not an import",
+  }),
+  Object.freeze({
+    relativePath: 'lib/mitosis/tests/ci-escalation.test.mjs',
+    textIncludes: `${DELETED_TOKEN}.mjs must have zero production importers anywhere under .claude/lib; found`,
+    reason: "that census's own final assertion message, not an import",
   }),
   Object.freeze({
     relativePath: 'lib/mitosis/tests/derive-edges.test.mjs',
-    textIncludes: DELETED_TOKEN,
-    reason: 'assertion-message prose citing the deleted module by line number for a reader tracing a failure, not an import',
+    textIncludes: `${DELETED_TOKEN}.mjs:152 parks the unit when this field is not a non-negative integer`,
+    reason: 'an assertion message citing the deleted module by line number for a reader tracing a failure, not an import',
   }),
   Object.freeze({
-    relativePath: 'lib/mitosis/tests/run-engine-absence-census.test.mjs',
-    textIncludes: DELETED_TOKEN,
-    reason: 'this census names the deleted module throughout its own constants, test titles and assertion messages without ever importing it',
+    relativePath: 'lib/mitosis/tests/derive-edges.test.mjs',
+    textIncludes: `${DELETED_TOKEN}.mjs:153 parks the unit when this field is not an array`,
+    reason: 'an assertion message citing the deleted module by line number for a reader tracing a failure, not an import',
+  }),
+  Object.freeze({
+    relativePath: 'lib/mitosis/tests/derive-edges.test.mjs',
+    textIncludes: `dependentCount; ${DELETED_TOKEN}.mjs parks the unit`,
+    reason: 'an assertion message naming the deleted module in prose, not an import',
+  }),
+  Object.freeze({
+    relativePath: 'lib/mitosis/tests/derive-edges.test.mjs',
+    textIncludes: `edgeReasons; ${DELETED_TOKEN}.mjs parks the unit`,
+    reason: 'an assertion message naming the deleted module in prose, not an import',
+  }),
+  Object.freeze({
+    relativePath: 'lib/mitosis/tests/derive-edges.test.mjs',
+    textIncludes: `${DELETED_TOKEN}.mjs regex-matches for opus escalation`,
+    reason: 'an assertion message naming the deleted module in prose, not an import',
+  }),
+  Object.freeze({
+    relativePath: 'lib/mitosis/tests/derive-edges.test.mjs',
+    textIncludes: `${DELETED_TOKEN}.mjs:124 regex-matches this list to force opus on a contract-breaking task`,
+    reason: 'an assertion message citing the deleted module by line number for a reader tracing a failure, not an import',
+  }),
+  Object.freeze({
+    relativePath: `lib/mitosis/tests/${DELETED_TOKEN}-absence-census.test.mjs`,
+    textIncludes: `const DELETED_TOKEN = '${DELETED_TOKEN}'`,
+    reason: "this census's own single source of truth for the deleted module's name, not an import",
   }),
 ]);
 
@@ -76,50 +137,65 @@ function findExclusionFor(occurrence) {
   );
 }
 
-test('census: no file under .claude/lib or .claude/workflows imports the deleted run-engine module', () => {
+function exclusionKeyFor(entry) {
+  return `${entry.relativePath}::${entry.textIncludes}`;
+}
+
+function classifyOccurrence(occurrence) {
+  if (isImportReference(occurrence.text)) return { kind: 'importer' };
+  const exclusion = findExclusionFor(occurrence);
+  if (exclusion !== undefined) return { kind: 'excused', exclusion };
+  return { kind: 'unclassified' };
+}
+
+function tallyOccurrences(occurrences) {
+  return occurrences.reduce((tally, occurrence) => {
+    const classification = classifyOccurrence(occurrence);
+    if (classification.kind === 'importer') {
+      return { ...tally, importers: [...tally.importers, `${occurrence.displayPath}:${occurrence.lineNumber}`] };
+    }
+    if (classification.kind === 'excused') {
+      const key = exclusionKeyFor(classification.exclusion);
+      return { ...tally, exclusionHits: { ...tally.exclusionHits, [key]: (tally.exclusionHits[key] ?? 0) + 1 } };
+    }
+    return {
+      ...tally,
+      unclassified: [...tally.unclassified, `${occurrence.displayPath}:${occurrence.lineNumber} ${JSON.stringify(occurrence.text)}`],
+    };
+  }, { importers: [], unclassified: [], exclusionHits: {} });
+}
+
+test(`census: no file under .claude/lib or .claude/workflows imports the deleted ${DELETED_TOKEN} module`, () => {
   const population = collectPopulation();
   assert.ok(population.length > 0, 'collectPopulation returned no files under .claude/lib or .claude/workflows, so every assertion below would pass vacuously on an empty walk');
 
-  const importers = [];
-  const unclassified = [];
-  const exclusionHits = new Map();
-
-  for (const filePath of population) {
-    for (const occurrence of tokenOccurrencesIn(filePath)) {
-      if (isImportReference(occurrence.text)) {
-        importers.push(`${occurrence.displayPath}:${occurrence.lineNumber}`);
-        continue;
-      }
-      const exclusion = findExclusionFor(occurrence);
-      if (exclusion !== undefined) {
-        const key = `${exclusion.relativePath}::${exclusion.textIncludes}`;
-        exclusionHits.set(key, (exclusionHits.get(key) ?? 0) + 1);
-        continue;
-      }
-      unclassified.push(`${occurrence.displayPath}:${occurrence.lineNumber} ${JSON.stringify(occurrence.text)}`);
-    }
-  }
+  const occurrences = population.flatMap((filePath) => tokenOccurrencesIn(filePath));
+  const tally = tallyOccurrences(occurrences);
 
   assert.deepEqual(
-    importers,
+    tally.importers,
     [],
-    `the deleted run-engine module must have zero importers anywhere under .claude/lib or .claude/workflows; found: ${importers.join(', ')}`,
+    `the deleted ${DELETED_TOKEN} module must have zero importers anywhere under .claude/lib or .claude/workflows; found: ${tally.importers.join(', ')}`,
   );
 
   assert.deepEqual(
-    unclassified,
+    tally.unclassified,
     [],
-    `an occurrence of the deleted module's name could be classified as neither an import reference nor a named known non-import, so the census halts instead of silently passing it: ${unclassified.join('; ')}`,
+    `an occurrence of the deleted module's name could be classified as neither an import reference nor a named known non-import, so the census halts instead of silently passing it: ${tally.unclassified.join('; ')}`,
   );
 
-  for (const entry of KNOWN_NON_IMPORT_OCCURRENCES) {
-    const key = `${entry.relativePath}::${entry.textIncludes}`;
-    const count = exclusionHits.get(key) ?? 0;
-    assert.ok(count > 0, `the named exclusion at ${entry.relativePath} matched zero occurrences, so it is stale and must be removed rather than trusted`);
-  }
+  const staleExclusions = KNOWN_NON_IMPORT_OCCURRENCES
+    .map((entry) => ({ entry, count: tally.exclusionHits[exclusionKeyFor(entry)] ?? 0 }))
+    .filter(({ count }) => count !== 1);
+
+  assert.deepEqual(
+    staleExclusions.map(({ entry, count }) => `${entry.relativePath}::${entry.textIncludes} matched ${count} times, expected exactly 1`),
+    [],
+    'every named exclusion must match its occurrence exactly once; zero means it is stale and must be removed, more than one means a duplicated line could hide a second unreviewed occurrence behind one excuse',
+  );
 });
 
-test('the deleted run-engine module and the dead workflow entry point no longer exist on disk', () => {
+test(`the deleted ${DELETED_TOKEN} module and the dead workflow entry point no longer exist on disk`, () => {
   assert.equal(existsSync(RUN_ENGINE_MODULE_PATH), false, `${RUN_ENGINE_MODULE_PATH} must be deleted`);
   assert.equal(existsSync(MITOSIS_EXECUTE_WORKFLOW_PATH), false, `${MITOSIS_EXECUTE_WORKFLOW_PATH} must be deleted`);
 });
