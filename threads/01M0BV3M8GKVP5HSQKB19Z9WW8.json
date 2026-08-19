@@ -56,30 +56,43 @@
   "abandoned_reason": null,
   "closure_statement": null,
   "spine": {
-    "active_goal": "Answered. A share statistic is not diagnostic of routing quality, and the routing fix is agent description text rather than measurement.",
-    "next_step": "TWO ITEMS IN FLIGHT, neither in this thread's scope but recorded here so compaction does not lose them. (1) PR 238 is OPEN - architect stopping condition plus when-NOT-to-use clauses on the four Leads, edited in agent-specs/*.spec.json and regenerated. (2) A delivery-lead is diagnosing the ledger pointer and store question. This thread's own c1 remains a single read of 0579.",
-    "last_session": "Measurement dropped by user ruling; c2, c4, c5 struck. The routing fix shipped as text in PR 238, with a drift-check red-then-green receipt and 97 pass 0 fail. Ledger pointer divergence under investigation.",
+    "active_goal": "Answered and closed out. The share statistic is retired as non-diagnostic, and the routing fix shipped as agent description text rather than as measurement.",
+    "next_step": "MERGE PR 238 FIRST - it is open and human-gated, and its agent definitions are in force only while the checkout sits on fix/lead-agent-stopping-condition. Confirm by merge-base, not the MERGED label, then delete the branch. Only c1 remains here: a single read of decision 0579 stating what the retired bar meant to detect. Do not propose a replacement metric, a dispatch-counting hook, a validator or a Lead budget - 0613 rules them all out.",
+    "last_session": "Measurement dropped by user ruling; c2, c4, c5 struck, c3 and detour c6 met. Routing fix shipped as PR 238 with a drift-check red-then-green receipt. Ledger divergence investigated and REFUTED; three real defects filed upstream instead.",
     "open_risks": [
       {
-        "text": "Never clear the stale logbook pointer by churning the thread through active — the record is already paused and transition refuses paused to paused, so churning is the hack the running investigation exists to replace",
-        "scope": "thread",
-        "refs": [
-          "transition_thread contract: pointer release is best-effort"
-        ]
-      },
-      {
-        "text": "Merge PR 238 to make the new agent definitions durable — they are in force only while the checkout sits on its branch, because ~/.claude/agents symlinks into this working tree",
+        "text": "Merge PR 238 to make the new agent definitions durable — they are in force only while the checkout stays on its branch, because the agents directory symlinks into this working tree",
         "scope": "thread",
         "refs": [
           "memory: merged-config-is-not-in-force-until-pull"
         ]
       },
       {
-        "text": "Never let this thread's conclusion reach back into the struck c5 — re-examining a target after seeing the number that failed it is post-hoc grading",
+        "text": "Cite decision 0521 by slug and never by bare number — two different decisions from two threads share that number, written 35 seconds apart by an unlocked allocator",
         "scope": "thread",
         "refs": [
-          "decision 0610",
-          "decision 0608"
+          "decision 0614"
+        ]
+      },
+      {
+        "text": "Never collapse or merge the twin plugin data roots — convergence is per-project and incidental, and one project on this machine holds 70 decision records in a single root",
+        "scope": "thread",
+        "refs": [
+          "decision 0620"
+        ]
+      },
+      {
+        "text": "Delete the pointer file to clear a stale active-thread, never a status churn — no MCP tool or CLI command clears it, because transition_thread throws before reaching its release line",
+        "scope": "thread",
+        "refs": [
+          "decision 0620"
+        ]
+      },
+      {
+        "text": "Expect a thread id to be rejected as unknown mid-session — a second data root can answer a call, and re-sending the same id usually succeeds once the original store answers again",
+        "scope": "thread",
+        "refs": [
+          "decision 0620"
         ]
       }
     ],
@@ -106,10 +119,11 @@
       }
     ],
     "out_of_scope": [
-      "Re-measuring Lead share at a new grain, a new Lead set or a new corpus in order to obtain a different number - the measurement is settled and the instrument is shipped.",
-      "The filed observer-audit findings - unpaired_stops, the NULL-blind mixed-type halt, the built-ins classification gap that guarantees a halt on any corpus containing one. They are instrument work, not target-design work."
+      "Re-measuring Lead share at any grain, Lead set or corpus - the measurement is settled, the instrument is shipped, and the statistic itself is retired.",
+      "Building routing measurement of any kind, including the three tree-based signals that were specified and then dropped - 0613 rules out hooks, counters, budgets, validators and gates.",
+      "Collapsing, merging or reconciling the twin plugin data roots, and patching the plugin cache, which any plugin update erases."
     ]
   },
   "created_at": "2026-08-19T01:45:24.496Z",
-  "updated_at": "2026-08-19T03:08:08.105Z"
+  "updated_at": "2026-08-19T03:08:38.315Z"
 }
