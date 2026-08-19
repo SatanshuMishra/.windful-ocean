@@ -275,19 +275,48 @@ test('planReconcile: a unit whose only field is an unrecognized legacy status to
   assert.deepEqual(plan.toParkSubtree, []);
 });
 
-test('planReconcile: a failure that is NOT an unrecognized legacy progress token propagates instead of folding to a silent null', () => {
-  const manifest = { window: 3, msps: [
-    { id: 'root', progress: 'merged', dependsOn: [] },
-    { id: 'a', dependsOn: ['root'], get progress() { throw new RangeError('the lattice field blew up'); } },
-  ] };
+const RECONCILE_LATTICE_FAILURE_PREFIX = 'mitosis: reconcile — the progress lattice could not be read for an msp, and the failure was not an unrecognized legacy progress token: ';
 
-  assert.throws(
-    () => planReconcile(manifest, {}),
-    (error) => error instanceof Error
-      && /mitosis: reconcile — the progress lattice could not be read for an msp/.test(error.message)
-      && /the lattice field blew up/.test(error.message)
-      && error.cause instanceof RangeError,
+function latticeThrowingManifest(thrown) {
+  return { window: 3, msps: [
+    { id: 'root', progress: 'merged', dependsOn: [] },
+    { id: 'a', dependsOn: ['root'], get progress() { throw thrown; } },
+  ] };
+}
+
+function captureThrown(run) {
+  try {
+    run();
+  } catch (error) {
+    return { threw: true, error };
+  }
+  return { threw: false, error: null };
+}
+
+test('planReconcile: an Error lattice failure that is NOT an unrecognized legacy progress token propagates carrying the thrown Error own message verbatim, never its stringified form', () => {
+  const thrown = new RangeError('the lattice field blew up');
+  const caught = captureThrown(() => planReconcile(latticeThrowingManifest(thrown), {}));
+
+  assert.equal(caught.threw, true, 'a non-TypeError lattice failure must propagate, never fold to a silent null');
+  assert.equal(
+    caught.error.message,
+    `${RECONCILE_LATTICE_FAILURE_PREFIX}the lattice field blew up`,
+    'the operator reads the thrown Error own message alone; the value \'RangeError: the lattice field blew up\' would mean the render fell through to the stringifying branch instead of trusting a real Error',
   );
+  assert.equal(caught.error.cause, thrown, 'the original throw is preserved by reference as the cause, so the stack is never lost');
+});
+
+test('planReconcile: a non-Error lattice failure propagates rendered as its stringified form, never as an unvalidated message property', () => {
+  const thrown = Object.freeze({ message: 'the lattice field blew up' });
+  const caught = captureThrown(() => planReconcile(latticeThrowingManifest(thrown), {}));
+
+  assert.equal(caught.threw, true, 'a thrown non-Error lattice failure must propagate too');
+  assert.equal(
+    caught.error.message,
+    `${RECONCILE_LATTICE_FAILURE_PREFIX}[object Object]`,
+    'a bare object carrying a message property is NOT an Error, so the render must stringify the value; \'the lattice field blew up\' here would mean the instanceof guard stopped gating, and \'undefined\' would mean the stringifying branch returned nothing',
+  );
+  assert.equal(caught.error.cause, thrown, 'the original non-Error throw is preserved by reference as the cause');
 });
 
 test('reconcile.mjs reads no legacy status field, by a closed property census that halts on what it cannot decide', () => {
