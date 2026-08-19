@@ -52,7 +52,7 @@
     {
       "id": "c8",
       "text": "Observer audit instrument repaired so the c5 measurement means anything: population resolved at dispatch grain on sidecar depth, and the two row-wise questions moved off row grain.",
-      "done": false,
+      "done": true,
       "kind": "detour",
       "struck_by": null
     },
@@ -70,9 +70,9 @@
   "abandoned_reason": null,
   "closure_statement": null,
   "spine": {
-    "active_goal": "Close c5 by settling whether agent-id reuse makes the Lead share 60.74 or 29.25 percent, once PR 218 lands the audit repair.",
-    "next_step": "Merge PR 218 - OPEN and human-gated, never from a session - then confirm its content reached origin/main by merge-base rather than by the MERGED label, and delete the merged branch. Then open the agent-id reuse unit: decide whether 19 start rows under one (session_id, agent_id) are one dispatch logged repeatedly or 19 distinct dispatches, since that alone decides which Lead-share reading is real. Attribution and the closed census are already met per 0592 and must NOT be re-derived.",
-    "last_session": "Wave 7 was already merged before this session; the brief was stale. c4 evidenced complete. The audit instrument was found broken exactly where c5 measures, and repaired across PR 217 (merged) and PR 218 (open). The Lead-share sensitivity test inverted, so c5 stays open.",
+    "active_goal": "Closed: the roster and observer were rebuilt, the audit instrument repaired, and Lead share measured at 24.23-26.60 percent against a 50 percent bar.",
+    "next_step": "Nothing here. The bar question - whether a greater-than-50-percent Lead-share target was ever right - continues on its own successor thread. PR 231 is OPEN and awaits a HUMAN merge; never merge it from a session, and confirm its content reached origin/main by merge-base rather than by the MERGED label.",
+    "last_session": "PR 218 verified on main by merge-base and its branch deleted. Agent-id reuse settled as re-entry duplication. The instrument was repaired and produced Lead share end to end: 24.23-26.60 percent at n of 421. c5 struck.",
     "open_risks": [
       {
         "text": "Never quote one Lead-share reading without its twin — 60.74 and 29.25 percent sit on opposite sides of the bar, so either figure alone reads as a settled result when the share is genuinely unknown",
@@ -536,5 +536,5 @@
     ]
   },
   "created_at": "2026-08-16T05:43:25.829Z",
-  "updated_at": "2026-08-19T01:44:28.812Z"
+  "updated_at": "2026-08-19T01:44:34.945Z"
 }
