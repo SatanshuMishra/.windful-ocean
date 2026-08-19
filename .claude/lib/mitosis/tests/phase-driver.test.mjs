@@ -411,6 +411,35 @@ test('a not-comparable boundary verdict parks with its own diagnosis and dispatc
   );
 });
 
+test('a failing verdict whose blocking is not an array takes the ordinary boundary-fix path, not the not-comparable park', async () => {
+  const journal = { logicalRunId: 'r1', baseBranch: 'main', clusters: [], msps: [{ id: 'alpha', status: 'built', checkpointRef: 'refs/mitosis/9e8d7c6b/alpha' }] };
+  let gateCalls = 0;
+  const stub = stubbedPorts({
+    readJournal: () => journal,
+    boundaryGate: () => {
+      gateCalls += 1;
+      if (gateCalls === 1) {
+        return { pass: false, output: 'a verdict whose blocking field was never populated', baseCensus: null };
+      }
+      return { pass: true, output: 'no new finding', blocking: [], baseCensus: null };
+    },
+  });
+  const driven = await runPhases(runRequest(), stub.ports);
+  assert.equal(
+    stub.dispatched.length,
+    1,
+    'a malformed blocking field must not be read as a not-comparable refusal, which would spend zero boundary-fix children',
+  );
+  assert.deepEqual(driven.phases.Integrate.outcomes, [{
+    unitId: 'alpha',
+    state: 'integrated',
+    boundaryFixes: 1,
+    diagnosis: null,
+    stage: null,
+    resumePoint: { branch: null, ref: 'refs/mitosis/9e8d7c6b/alpha', stage: 'ship' },
+  }]);
+});
+
 function digitLedRequest() {
   return {
     ...runRequest(),

@@ -962,6 +962,35 @@ test('gatherSides exposes no parameter through which repoRoot is the head census
   assert.match(refused.error, /"repoRoot"/);
 });
 
+test('a gather plan that is null, a bare value, or an array is rejected before any tool census runs', () => {
+  const io = fixtureIo({});
+  const nullRejected = gatherSides(null, io);
+  assert.equal(nullRejected.ok, false, 'a null gather plan reached past the shape guard');
+  assert.equal(
+    nullRejected.error,
+    'the two sides could not be gathered: the gather plan must be a non-null, non-array object, received null',
+  );
+  const stringRejected = gatherSides('not-a-plan', io);
+  assert.equal(stringRejected.ok, false, 'a bare string gather plan reached past the shape guard');
+  assert.equal(
+    stringRejected.error,
+    'the two sides could not be gathered: the gather plan must be a non-null, non-array object, received "not-a-plan"',
+  );
+  const numberRejected = gatherSides(42, io);
+  assert.equal(numberRejected.ok, false, 'a bare number gather plan reached past the shape guard');
+  assert.equal(
+    numberRejected.error,
+    'the two sides could not be gathered: the gather plan must be a non-null, non-array object, received 42',
+  );
+  const arrayRejected = gatherSides([], io);
+  assert.equal(arrayRejected.ok, false, 'an array gather plan reached past the shape guard');
+  assert.equal(
+    arrayRejected.error,
+    'the two sides could not be gathered: the gather plan must be a non-null, non-array object, received []',
+  );
+  assert.equal(io.spawned.length, 0, 'a rejected gather plan must never reach the tool runner');
+});
+
 test('the head census reads the head worktree and never the repository root', () => {
   const io = collectibleEslintIo();
   evaluate({ repoRoot: ROOT, gateBase: 'abc123', basePath: BASE, headRef: HEAD_REF, headPath: HEAD_WT, cachedBaseCensus: null }, io);
