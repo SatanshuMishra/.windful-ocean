@@ -5,6 +5,6 @@
   "description": "Deterministic test backstop for the mitosis parallel-execution engine",
   "license": "SEE LICENSE IN LICENSE",
   "scripts": {
-    "test": "node --test .claude/lib/*/tests/*.test.mjs .claude/hooks/tests/*.test.mjs .claude/skills/impeccable/tests/*.test.mjs scripts/repo/tests/*.test.mjs"
+    "test": "node --test .claude/lib/*/tests/*.test.mjs .claude/hooks/tests/*.test.mjs .claude/skills/*/tests/*.test.mjs scripts/repo/tests/*.test.mjs"
   }
 }
