@@ -6,6 +6,10 @@ import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { MANIFEST_RELATIVE_PATH, resolveSkillPointer } from '../agent-skill-pointers.mjs';
 import { partitionByPointerNeed } from '../agent-generate-plan.mjs';
+import {
+  LEAD_AGENT_TYPES,
+  REQUIRED_LEAD_TOOLS as OBSERVER_AUDIT_REQUIRED_LEAD_TOOLS,
+} from '../../observer-audit/agent-classification.mjs';
 
 const AGENT_DIR = fileURLToPath(new URL('../../../agents/', import.meta.url));
 const SKILL_TREE = fileURLToPath(new URL('../../../skills/', import.meta.url));
@@ -296,4 +300,9 @@ test('no Lead is granted a tool that would let it edit the code it routes', () =
       assert.ok(!tools.includes(forbidden), `${subject.path} grants ${forbidden}; a Lead routes work to an executing agent rather than performing it`);
     }
   }
+});
+
+test('the Lead facts this unit generates from never drift from the observer-audit copy that classifies dispatches against them', () => {
+  assert.deepEqual([...LEAD_NAMES], [...LEAD_AGENT_TYPES]);
+  assert.deepEqual([...REQUIRED_LEAD_TOOLS], [...OBSERVER_AUDIT_REQUIRED_LEAD_TOOLS]);
 });

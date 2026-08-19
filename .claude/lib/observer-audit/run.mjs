@@ -7,7 +7,7 @@ import { defaultLogRoot, requireCorpus } from './reader.mjs';
 import { runKeyCensus } from './census.mjs';
 import { answer, needsCorpus } from './questions.mjs';
 
-const USAGE = `usage: run.mjs <question-id> [--log-root PATH] [--roster PATH] [--horizon-ms N]
+const USAGE = `usage: run.mjs <question-id> [--log-root PATH] [--roster PATH] [--horizon-ms N] [--bar-pct N] [--min-n N] [--retired-roster-spec PATH]
 questions: ${QUESTION_IDS.join(', ')}`;
 
 export function parseArgs(argv, env = process.env) {
@@ -36,6 +36,9 @@ export function parseArgs(argv, env = process.env) {
     logRoot: flags['log-root'] || defaultLogRoot(env),
     rosterPath: flags.roster || null,
     horizonMs: horizon,
+    barPct: flags['bar-pct'] === undefined ? null : flags['bar-pct'],
+    minN: flags['min-n'] === undefined ? null : flags['min-n'],
+    retiredRosterSpecPath: flags['retired-roster-spec'] || null,
   });
 }
 

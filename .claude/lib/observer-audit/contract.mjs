@@ -57,6 +57,8 @@ export const QUESTION_IDS = Object.freeze([
   'failed',
   'never-observed',
   'downgrade-recurrence',
+  'agent-type-census',
+  'lead-share',
 ]);
 
 export const EXIT = Object.freeze({
