@@ -11,6 +11,13 @@ import {
   startingProgressOf,
   withRemediation,
 } from '../unit-state.mjs';
+import {
+  CENSUS_CLASSES,
+  MITOSIS_SOURCE_DIR,
+  censusReport,
+  occurrencesOfClass,
+  progressTokenCensus,
+} from './progress-token-census.mjs';
 
 test('PROGRESS ORDER: the exported lattice is frozen and exactly the four tokens in order', () => {
   assert.equal(Object.isFrozen(PROGRESS_ORDER), true);
@@ -280,4 +287,56 @@ test('WITH REMEDIATION: a valid record is carried onto a new frozen disposition 
   assert.equal(Object.isFrozen(filled), true, 'the filled disposition is handed to a caller that folds it into a manifest, and an unfrozen one could be rewritten under that reader');
   assert.equal(Object.isFrozen(filled.remediation), true, 'the remediation is copied and frozen rather than aliased, so a later edit to the caller record cannot rewrite what the park recorded');
   assert.strictEqual(disposition.remediation, null, 'the disposition read from is left exactly as it was, so filling a remediation never mutates the manifest entry the run folded');
+});
+
+test('PROGRESS TOKEN CENSUS: every progress token literal in mitosis production source is recognised by a classification rule, so nothing about the progress vocabulary is decided by a literal no rule can read', () => {
+  const census = progressTokenCensus(MITOSIS_SOURCE_DIR);
+  assert.equal(
+    census.ok,
+    true,
+    `the census halted rather than classifying every progress token literal — ${censusReport(census)}\n${census.error ?? ''}`,
+  );
+});
+
+test('PROGRESS TOKEN CENSUS: no progress token literal is written to or compared against the legacy status mirror', () => {
+  const census = progressTokenCensus(MITOSIS_SOURCE_DIR);
+  const legacy = occurrencesOfClass(census, 'manifest-status-legacy').map((occurrence) => `${occurrence.file} ${occurrence.at} ${occurrence.token}`);
+  assert.deepStrictEqual(
+    legacy,
+    [],
+    `the legacy status mirror is still written or read by a progress token literal — ${censusReport(census)}`,
+  );
+});
+
+test('PROGRESS TOKEN CENSUS: the progress field is named by a token literal in unit-state.mjs alone', () => {
+  const census = progressTokenCensus(MITOSIS_SOURCE_DIR);
+  const elsewhere = occurrencesOfClass(census, 'manifest-progress')
+    .filter((occurrence) => occurrence.file !== 'unit-state.mjs')
+    .map((occurrence) => `${occurrence.file} ${occurrence.at} ${occurrence.token}`);
+  assert.deepStrictEqual(
+    elsewhere,
+    [],
+    `the progress vocabulary is spelled as a literal outside its one home — ${censusReport(census)}`,
+  );
+});
+
+test('PROGRESS TOKEN CENSUS: every class in the closed domain is counted and reported, so no class can be silently exempted from the tally', () => {
+  const census = progressTokenCensus(MITOSIS_SOURCE_DIR);
+  assert.deepStrictEqual(
+    Object.keys(census.counts).sort(),
+    [...CENSUS_CLASSES].sort(),
+    'the census tally must carry one count per class in the closed domain, including the classes whose count is zero',
+  );
+  const tallied = CENSUS_CLASSES.reduce((total, className) => total + census.counts[className], 0);
+  assert.strictEqual(
+    tallied,
+    census.occurrences.length,
+    `every classified literal must land in exactly one counted class — ${censusReport(census)}`,
+  );
+  for (const occurrence of census.occurrences) {
+    assert.ok(
+      CENSUS_CLASSES.includes(occurrence.class),
+      `the census reported the class ${JSON.stringify(occurrence.class)} at ${occurrence.file} ${occurrence.at}, which is outside the closed domain`,
+    );
+  }
 });
