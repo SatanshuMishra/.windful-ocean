@@ -67,6 +67,7 @@ function stubbedPorts(overrides = {}) {
       observePlan: () => ({ exists: true, isFile: true, size: 1, detail: 'stubbed observation' }),
       boundaryGate: (request) => { gated.push(request); return { pass: true, output: 'no new finding', blocking: [], baseCensus: null }; },
       dispatchPrompt: (request) => { dispatched.push(request); return { ok: true, outcome: 'success' }; },
+      teardownHeadWorktree: () => null,
       openPullRequest: (request) => {
         opened.push(request);
         return { status: 0, stdout: `${JSON.stringify({ action: 'created', url: 'https://github.com/acme/widgets/pull/3', number: 3 })}\n`, stderr: '' };
@@ -386,21 +387,21 @@ test('a not-comparable boundary verdict parks with its own diagnosis and dispatc
     }),
   });
   const driven = await runPhases(runRequest(), stub.ports);
-  assert.deepEqual(driven.phases.Integrate.outcomes, [{
+  const [{ diagnosis, ...rest }] = driven.phases.Integrate.outcomes;
+  assert.deepEqual(rest, {
     unitId: 'alpha',
     state: 'parked',
     boundaryFixes: 0,
-    diagnosis: driven.phases.Integrate.outcomes[0].diagnosis,
     stage: 'execute',
     resumePoint: { branch: null, ref: 'refs/mitosis/9e8d7c6b/alpha', stage: 'ship' },
-  }]);
+  });
   assert.match(
-    driven.phases.Integrate.outcomes[0].diagnosis,
+    diagnosis,
     /no fix a child could make would change that/,
     'a not-comparable park must carry the distinct structural diagnosis, not the generic boundary-violation-survived text',
   );
   assert.ok(
-    driven.phases.Integrate.outcomes[0].diagnosis.includes(detail),
+    diagnosis.includes(detail),
     'the diagnosis must carry the gate-supplied detail through, proving it is not a fixed generic string',
   );
   assert.deepEqual(

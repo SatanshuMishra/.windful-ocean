@@ -14,7 +14,7 @@ export const INTEGRATE_PARK_STAGE = 'execute';
 export const BOUNDARY_BASE_SEGMENTS = Object.freeze(['.mitosis', 'boundary']);
 export const BOUNDARY_HEAD_SUFFIX = '.head';
 
-const REQUIRED_PORTS = Object.freeze(['boundaryGate', 'dispatchPrompt']);
+const REQUIRED_PORTS = Object.freeze(['boundaryGate', 'dispatchPrompt', 'teardownHeadWorktree']);
 const WORKTREE_ISOLATION = 'worktree';
 const RUN_ID_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._-]*$/;
 const UNIT_ID_PATTERN = /^[a-z0-9][a-z0-9-]*$/;
@@ -198,8 +198,7 @@ async function attemptFix(entry, settings, ports, gateOutput) {
   });
 }
 
-async function gateUnit(entry, gateBase, settings, ports) {
-  const request = gateRequest(entry, gateBase, settings);
+async function gatedOutcome(entry, request, settings, ports) {
   const first = requireVerdict(await ports.boundaryGate(request), entry.unitId, 'the first pass');
   if (first.pass) return outcome(entry, INTEGRATED, 0, null);
   const structural = notComparableRefusal(first);
@@ -217,6 +216,15 @@ async function gateUnit(entry, gateBase, settings, ports) {
   );
   if (recheck.pass) return outcome(entry, INTEGRATED, attempt.dispatches, null);
   return outcome(entry, PARKED, attempt.dispatches, `the boundary violation survived the one bounded fix attempt: ${recheck.output}`);
+}
+
+async function gateUnit(entry, gateBase, settings, ports) {
+  const request = gateRequest(entry, gateBase, settings);
+  try {
+    return await gatedOutcome(entry, request, settings, ports);
+  } finally {
+    await ports.teardownHeadWorktree({ repoRoot: settings.repoRoot, headPath: request.headPath });
+  }
 }
 
 async function divergedIds(settings) {

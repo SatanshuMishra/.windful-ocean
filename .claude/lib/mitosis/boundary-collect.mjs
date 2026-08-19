@@ -512,11 +512,11 @@ function provisionModules(headRoot, baseRoot, io) {
   return { ok: true, strategy: 'install' };
 }
 
-function teardown(repoRoot, basePath, io) {
+function teardown(repoRoot, path, io, label = 'base') {
   let removed = null;
   let thrown = null;
   try {
-    removed = io.run('git', ['worktree', 'remove', '--force', '--', basePath], { cwd: repoRoot, deadlineMs: WORKTREE_DEADLINE_MS });
+    removed = io.run('git', ['worktree', 'remove', '--force', '--', path], { cwd: repoRoot, deadlineMs: WORKTREE_DEADLINE_MS });
   } catch (error) {
     thrown = failureText(error, 'unknown spawn failure');
   }
@@ -525,10 +525,10 @@ function teardown(repoRoot, basePath, io) {
     ? `git reported ${JSON.stringify(removed === null || removed === undefined ? null : removed.stderr)}`
     : `the removal could not be spawned (${thrown})`;
   try {
-    io.removePath(basePath);
+    io.removePath(path);
     return null;
   } catch (error) {
-    return `the base worktree at ${basePath} was left behind: ${reported}, and the fallback removal failed (${failureText(error, 'unknown filesystem failure')})`;
+    return `the ${label} worktree at ${path} was left behind: ${reported}, and the fallback removal failed (${failureText(error, 'unknown filesystem failure')})`;
   }
 }
 
@@ -629,15 +629,59 @@ function linkedModules(sourceRoot, targetRoot, io) {
   return { ok: true };
 }
 
+const COMMIT_SHA_SHAPE = /^[0-9a-f]{7,64}$/;
+
+function resolvedCommit(root, revision, io) {
+  let result;
+  try {
+    result = io.run('git', ['rev-parse', '--verify', revision], { cwd: root, deadlineMs: WORKTREE_DEADLINE_MS });
+  } catch (error) {
+    return { ok: false, error: failureText(error, 'unknown spawn failure') };
+  }
+  if (!cleanlyRan(result) || result.status !== 0) {
+    return { ok: false, error: `git rev-parse --verify ${revision} in ${root} reported ${JSON.stringify(result === null || result === undefined ? null : result.stderr)}` };
+  }
+  const sha = result.stdout.trim();
+  if (!COMMIT_SHA_SHAPE.test(sha)) {
+    return { ok: false, error: `git rev-parse --verify ${revision} in ${root} printed ${JSON.stringify(sha)}, which is not the shape of a commit hash` };
+  }
+  return { ok: true, sha };
+}
+
+function staleHeadWorktree(repoRoot, headPath, headRef, io) {
+  const requested = resolvedCommit(repoRoot, `${headRef}^{commit}`, io);
+  if (!requested.ok) return { stale: false };
+  const actual = resolvedCommit(headPath, 'HEAD', io);
+  if (!actual.ok) return { stale: false };
+  return { stale: requested.sha !== actual.sha, requestedSha: requested.sha, actualSha: actual.sha };
+}
+
 function collectedAgainstHead(request, io) {
   const { repoRoot, gateBase, basePath, headPath, headRef } = request;
-  if (!io.exists(headPath)) {
+  if (io.exists(headPath)) {
+    const state = staleHeadWorktree(repoRoot, headPath, headRef, io);
+    if (state.stale) {
+      const cleared = teardown(repoRoot, headPath, io, 'stale head');
+      if (cleared !== null) {
+        return {
+          ok: false,
+          error: `the head worktree at ${headPath} sits at ${state.actualSha}, not the requested ${headRef} (${state.requestedSha}), and could not be cleared to re-materialize: ${cleared}`,
+        };
+      }
+      const materialized = addedWorktree(repoRoot, headPath, headRef, 'head', io);
+      if (!materialized.ok) return materialized;
+    }
+  } else {
     const materialized = addedWorktree(repoRoot, headPath, headRef, 'head', io);
     if (!materialized.ok) return materialized;
   }
   const linked = linkedModules(repoRoot, headPath, io);
   if (!linked.ok) return linked;
   return gatherSides(Object.freeze({ headPath, basePath, gateBase }), io);
+}
+
+export function removeHeadWorktree(request, io = REAL_BOUNDARY_IO) {
+  return teardown(request.repoRoot, request.headPath, io, 'head');
 }
 
 export function collectSides(request, io) {

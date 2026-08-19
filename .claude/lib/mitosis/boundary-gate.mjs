@@ -120,15 +120,15 @@ function probedRevision(request, revision, io) {
 }
 
 function headWorktreeState(request, io) {
-  if (!io.exists(request.headPath)) return Object.freeze({ dirty: false, reason: null });
+  if (!io.exists(request.headPath)) return Object.freeze({ state: 'clean', reason: null });
   const child = io.run('git', [...WORKTREE_STATUS_ARGV], { cwd: request.headPath, deadlineMs: TREE_PROBE_DEADLINE_MS });
   if (!cleanlyRan(child) || child.status !== 0) {
     return Object.freeze({
-      dirty: true,
-      reason: `the head worktree at ${JSON.stringify(request.headPath)} could not be asked whether it carries uncommitted work, so it is read as carrying some rather than as identical to ${JSON.stringify(request.headRef)}`,
+      state: 'unknown',
+      reason: `the head worktree at ${JSON.stringify(request.headPath)} could not be asked whether it carries uncommitted work, so its comparability to ${JSON.stringify(request.headRef)} could not be established`,
     });
   }
-  return Object.freeze({ dirty: child.stdout.trim().length > 0, reason: null });
+  return Object.freeze({ state: child.stdout.trim().length > 0 ? 'dirty' : 'clean', reason: null });
 }
 
 function treeProbe(request, io) {
@@ -145,7 +145,7 @@ function treeProbe(request, io) {
 
 function sameTreeRefusal(request, probe) {
   if (Object.hasOwn(request, 'declaredNoOp') && request.declaredNoOp === true) return null;
-  if (probe.worktree.dirty) return null;
+  if (probe.worktree.state !== 'clean') return null;
   if (probe.base.sha === null || probe.head.sha === null) return null;
   if (probe.base.sha !== probe.head.sha) return null;
   const detail = `gateBase ${JSON.stringify(request.gateBase)} and headRef ${JSON.stringify(request.headRef)} both resolve to tree ${probe.base.sha}, and the head worktree at ${JSON.stringify(request.headPath)} carries no uncommitted work, so the base is the tree under test and no finding could be compared against anything`;
@@ -277,6 +277,9 @@ export function evaluate(request, io = REAL_BOUNDARY_IO) {
   try {
     const probe = treeProbe(request, io);
     unresolvedProbe = probe.note;
+    if (probe.worktree.state === 'unknown') {
+      return refused('the boundary gate could not complete: the head worktree state could not be observed', sides, unresolvedProbe);
+    }
     const notComparable = sameTreeRefusal(request, probe);
     if (notComparable !== null) return notComparable;
     sides = sidesFor(request, io);

@@ -517,6 +517,42 @@ test('a basePath that is not absolute is refused rather than resolved against an
   );
 });
 
+test('a basePath equal to repoRoot is refused rather than comparing the tree under test against itself', () => {
+  const io = fixtureIo({ readFile: () => JSON.stringify({ devDependencies: { typescript: '5.0.0' } }) });
+  assert.throws(
+    () => evaluate({ repoRoot: ROOT, gateBase: 'abc123', basePath: ROOT, headRef: HEAD_REF, headPath: HEAD_WT, cachedBaseCensus: null }, io),
+    /basePath/,
+    'a basePath equal to repoRoot was accepted, so the base would be the tree under test and every finding would be compared against itself',
+  );
+});
+
+test('a headPath equal to repoRoot is refused rather than reading the operator checkout as the head census', () => {
+  const io = fixtureIo({ readFile: () => JSON.stringify({ devDependencies: { typescript: '5.0.0' } }) });
+  assert.throws(
+    () => evaluate({ repoRoot: ROOT, gateBase: 'abc123', basePath: BASE, headRef: HEAD_REF, headPath: ROOT, cachedBaseCensus: null }, io),
+    /headPath/,
+    'a headPath equal to repoRoot was accepted, so the head census would read the operator checkout, which never carries the diff of the unit under test',
+  );
+});
+
+test('a headPath equal to basePath is refused rather than comparing one tree against itself', () => {
+  const io = fixtureIo({ readFile: () => JSON.stringify({ devDependencies: { typescript: '5.0.0' } }) });
+  assert.throws(
+    () => evaluate({ repoRoot: ROOT, gateBase: 'abc123', basePath: BASE, headRef: HEAD_REF, headPath: BASE, cachedBaseCensus: null }, io),
+    /headPath/,
+    'a headPath equal to basePath was accepted, so the head and the base would be one tree and no finding could be attributed to the unit under test',
+  );
+});
+
+test('a headRef that is not a ref or sha shape is refused rather than silently detaching at HEAD', () => {
+  const io = fixtureIo({ readFile: () => JSON.stringify({ devDependencies: { typescript: '5.0.0' } }) });
+  assert.throws(
+    () => evaluate({ repoRoot: ROOT, gateBase: 'abc123', basePath: BASE, headRef: '--force', headPath: HEAD_WT, cachedBaseCensus: null }, io),
+    /headRef/,
+    'a headRef spelled like an option was accepted, and git would detach at HEAD and report a passing verdict',
+  );
+});
+
 test('a cached census whose NOT-EXPECTED disagrees with the trees is refused and the base re-collected', () => {
   const io = collectibleEslintIo();
   const shape = {
@@ -852,6 +888,50 @@ test('the same-tree refusal fires through the shipped io against a real reposito
       verdict.blocking[0].classifier,
       'not-comparable',
       `the real run failed for some other reason than the two sides being one and the same tree: ${JSON.stringify(verdict.blocking)}`,
+    );
+  } finally {
+    rmSync(repo.root, { recursive: true, force: true });
+    rmSync(holder, { recursive: true, force: true });
+  }
+});
+
+test('a head worktree already sitting at a different commit than headRef is re-materialized rather than censused as-is', () => {
+  const repo = realGitRepo('boundary-real-stale-head-repo-');
+  const holder = mkdtempSync(join(tmpdir(), 'boundary-real-stale-head-'));
+  const basePath = join(holder, 'base-wt');
+  const headPath = join(holder, 'head-wt');
+  const git = (argv) => {
+    const child = REAL_BOUNDARY_IO.run('git', argv, { cwd: repo.root, deadlineMs: REAL_GIT_DEADLINE_MS });
+    if (child === null || typeof child !== 'object' || child.status !== 0) {
+      throw new Error(`git ${argv.join(' ')} did not complete in the disposable repository: ${JSON.stringify(child)}`);
+    }
+    return typeof child.stdout === 'string' ? child.stdout.trim() : '';
+  };
+  writeFileSync(join(repo.root, 'b.txt'), 'two\n');
+  git(['add', '--', 'b.txt']);
+  git(['commit', '--quiet', '-m', 'two']);
+  const staleSha = git(['rev-parse', 'HEAD']);
+  writeFileSync(join(repo.root, 'c.txt'), 'three\n');
+  git(['add', '--', 'c.txt']);
+  git(['commit', '--quiet', '-m', 'three']);
+  const wantedSha = git(['rev-parse', 'HEAD']);
+  git(['worktree', 'add', '--detach', '--', headPath, staleSha]);
+  try {
+    const staleHeadOnDisk = REAL_BOUNDARY_IO.run('git', ['rev-parse', 'HEAD'], { cwd: headPath, deadlineMs: REAL_GIT_DEADLINE_MS }).stdout.trim();
+    assert.equal(
+      staleHeadOnDisk,
+      staleSha,
+      'the fixture itself did not materialize the pre-existing head worktree at the commit this test needs it parked at',
+    );
+    const verdict = evaluate(
+      { repoRoot: repo.root, gateBase: repo.head, basePath, headRef: wantedSha, headPath, cachedBaseCensus: null },
+      REAL_BOUNDARY_IO,
+    );
+    const actualHead = REAL_BOUNDARY_IO.run('git', ['rev-parse', 'HEAD'], { cwd: headPath, deadlineMs: REAL_GIT_DEADLINE_MS }).stdout.trim();
+    assert.equal(
+      actualHead,
+      wantedSha,
+      `the gate asked for ${wantedSha} and censused ${actualHead} instead, reusing the worktree it found parked at ${staleSha} without checking it sat at the requested headRef: ${verdict.output}`,
     );
   } finally {
     rmSync(repo.root, { recursive: true, force: true });
