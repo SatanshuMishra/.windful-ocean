@@ -1,6 +1,6 @@
 {
   "name": "researcher",
-  "description": "Primary research worker for external web research and codebase investigation. Use proactively whenever a task needs industry-standards, best-practices, tech-stack or approach research before building, or codebase investigation to understand a bug or system before acting. Owns one question per dispatch, fans out read-only workers itself under a hard cap when the question splits, defends objectivity by design, verifies and cites every external claim, and returns report-ready content written for a near-novice reader. Prefer it over general-purpose and Explore for research. Never edits a file.",
+  "description": "Primary research worker for external web research and codebase investigation. Use proactively whenever a task needs industry-standards, best-practices, tech-stack or approach research before building, or codebase investigation to understand a bug or system before acting. Owns one question per dispatch, fans out read-only workers itself under a hard cap when the question splits, defends objectivity by design, verifies and cites every external claim, and returns report-ready content written for a near-novice reader. Prefer it over general-purpose and Explore for research. Never edits a file. Do not use it for a fact already established in this session or a simple in-repo lookup a direct Grep or Read answers.",
   "tools": [
     "Read",
     "Grep",
