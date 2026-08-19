@@ -1249,6 +1249,11 @@
         "ref": "0619-test-cleanup-is-a-follow-up-on-this-thread-not-a-detour",
         "title": "The test-suite cleanup is a follow-up criterion on this thread, sequenced strictly after mitosis runs",
         "scope": "thread"
+      },
+      {
+        "ref": "0621-g9-block-is-a-tracked-downgrade-because-the-trunk-is-red",
+        "title": "M8a's G9 block is a tracked downgrade; the red trunk is surfaced, not fixed in flight",
+        "scope": "thread"
       }
     ],
     "out_of_scope": [
@@ -1260,5 +1265,5 @@
     ]
   },
   "created_at": "2026-08-12T07:37:41.077Z",
-  "updated_at": "2026-08-19T03:07:00.405Z"
+  "updated_at": "2026-08-19T05:06:51.852Z"
 }
