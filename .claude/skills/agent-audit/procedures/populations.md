@@ -96,6 +96,36 @@ latest start nor the earliest start is the single correct reading for it. This d
 resolve that ambiguity, and neither does the audit: it is carried forward unsettled
 (`.claude/lib/observer-audit/questions.mjs:188`).
 
+## start and stop rows count re-entries, not dispatches
+
+A **dispatch** is one time a person or an orchestrator asks the platform to run a subagent,
+through the `Agent` tool. A **re-entry** is that same already-dispatched agent being invoked
+again under its existing `agent_id` - for example, resumed through `SendMessage` - with no new
+dispatch happening.
+
+`SubagentStart` and `SubagentStop` are the two hook events the observer listens on, and both are
+wired to fire on every re-entry, not only on the original dispatch (`.claude/settings.json:276`,
+`.claude/settings.json:288`). Each re-entry produces its own start row and its own stop row.
+**A start-row count or a stop-row count is therefore a re-entry count, not a dispatch count.**
+One dispatched agent re-entered many times produces many start rows and many stop rows, all
+sharing the same `agent_id`.
+
+Only the count of distinct `(session_id, agent_id)` groups - the same grain "dispatch and
+internal" above already sorts rows into - is a dispatch count. That grain is sound: `agent_id`
+is minted once per `Agent` tool call by the harness, and the emitter copies it straight through,
+deriving, hashing, and defaulting nothing - `agent_id: asString(source.agent_id)`
+(`.claude/hooks/observer/_observer.mjs:75`).
+
+Measured against the sidecar data, the mapping from dispatch to `agent_id` is one-to-one: every
+agent sidecar that carries a `toolUseId` traces back to an `Agent` tool call; no `toolUseId` is
+shared by two different `agent_id` values; and no `SendMessage` call mints a new `agent_id` of
+its own - a resumed child re-enters under the `agent_id` it already had.
+
+Worked example, to make the size of the gap concrete: one session held 22 start rows under a
+single `agent_id`, while that whole session contained only 4 `Agent` tool calls. Treating
+start-row or stop-row counts as dispatch counts reads that one re-entered agent alone as more
+dispatches than the entire session actually made.
+
 ## depth is three states, not two
 
 `depth` null is a third state, never a synonym for `1`. 77 of 1747 sidecars carry no depth at
