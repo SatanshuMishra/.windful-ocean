@@ -19,7 +19,7 @@
       "text": "The Lead share the architecture should produce BY DESIGN is derived from the roster's dispatch topology - a Lead that fans out to N makers implies a share - rather than assumed or asserted.",
       "done": false,
       "kind": "planned",
-      "struck_by": null
+      "struck_by": "0613-no-measurement-machinery-fix-routing-with-text"
     },
     {
       "id": "c3",
@@ -33,14 +33,14 @@
       "text": "A replacement target, or the decision to have none, is pinned BEFORE any corpus is re-read, so the conclusion cannot be fitted to the measured 24.23 to 26.60 percent.",
       "done": false,
       "kind": "planned",
-      "struck_by": null
+      "struck_by": "0613-no-measurement-machinery-fix-routing-with-text"
     },
     {
       "id": "c5",
       "text": "The measured 24.23 to 26.60 percent is interpreted against whatever is settled, with the struck c5's negative outcome left standing regardless of what that interpretation concludes.",
       "done": false,
       "kind": "planned",
-      "struck_by": null
+      "struck_by": "0613-no-measurement-machinery-fix-routing-with-text"
     }
   ],
   "vcs_ref": null,
@@ -94,5 +94,5 @@
     ]
   },
   "created_at": "2026-08-19T01:45:24.496Z",
-  "updated_at": "2026-08-19T02:30:06.982Z"
+  "updated_at": "2026-08-19T02:30:10.852Z"
 }
