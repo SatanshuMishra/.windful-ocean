@@ -1,8 +1,13 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { pack } from './file-scope-fixtures.mjs';
 import { Done, NeedsHuman } from '../boundary.mjs';
 import { indexUnits, runEngine } from '../engine.mjs';
+import { appendJournalLine, writeGenesis } from '../journal-store.mjs';
+import { foldRunManifest } from '../run-log.mjs';
 
 function harness(runUnit) {
   const calls = [];
@@ -188,6 +193,69 @@ test('a checkpoint write that throws a valueless failure is described as unknown
     failure.reason,
     'engine: the unit was dispatched and its cost is already billed, but the checkpoint or journal write that follows it failed: unknown failure',
   );
+});
+
+function realJournalPorts(runUnit) {
+  return {
+    runUnit,
+    writeGenesis: async (request) => writeGenesis(request),
+    appendJournal: async (request) => appendJournalLine(request),
+    writeRef: async () => {},
+    gh: async () => ({ state: 'OPEN' }),
+  };
+}
+
+test('APPEND-ONLY JOURNAL: two consecutive runEngine invocations over one journal path keep every line the first one wrote, and the fold of the combined journal equals folding the first invocation then applying the second invocation deltas', async () => {
+  const dir = mkdtempSync(join(tmpdir(), 'engine-journal-append-'));
+  try {
+    const journalPath = join(dir, '.mitosis', 'run.json');
+    const specs = [{ id: 'alpha', fileScope: pack(['alpha.mjs']) }, { id: 'beta', fileScope: pack(['beta.mjs']) }];
+    const genesisManifest = { logicalRunId: 'r1', clusters: [], msps: [{ id: 'alpha' }, { id: 'beta' }] };
+    const request1 = {
+      specs,
+      runId: '0a1b2c3d',
+      at: '2026-08-15T12:00:00Z',
+      repoRoot: dir,
+      journalPath,
+      manifest: genesisManifest,
+      repoSlug: 'acme/widgets',
+      integrationBranch: 'integration',
+    };
+    await runEngine(request1, realJournalPorts(async () => Done({ sha: 'sha-invocation-one', green: true })));
+    const afterFirstInvocation = readFileSync(journalPath, 'utf8');
+    const firstLines = afterFirstInvocation.split('\n').filter((line) => line.length > 0);
+    assert.equal(firstLines.length, 4, 'the first invocation should have written a genesis line, one built delta per unit and a quiescent-exit line');
+
+    const foldedFirst = foldRunManifest(afterFirstInvocation);
+    assert.ok(foldedFirst, 'the first invocation journal must fold to a manifest before it seeds the second invocation');
+    const request2 = { ...request1, at: '2026-08-15T13:00:00Z', manifest: foldedFirst };
+    await runEngine(request2, realJournalPorts(async () => Done({ sha: 'sha-invocation-two', green: true })));
+    const wholeJournal = readFileSync(journalPath, 'utf8');
+    const wholeLines = wholeJournal.split('\n').filter((line) => line.length > 0);
+
+    for (const line of firstLines) {
+      assert.ok(wholeLines.includes(line), `a line the first invocation wrote is missing after the second invocation: ${line}`);
+    }
+
+    const secondGenesisLine = JSON.stringify(foldedFirst);
+    assert.notEqual(wholeLines.indexOf(secondGenesisLine), -1, 'the second invocation genesis line is missing from the whole journal');
+    const secondGenesisIndex = wholeLines.indexOf(secondGenesisLine, firstLines.length);
+    assert.equal(secondGenesisIndex, firstLines.length, 'the second invocation genesis line must sit immediately after every line the first invocation wrote');
+    const secondInvocationDeltaLines = wholeLines.slice(secondGenesisIndex + 1);
+    assert.equal(secondInvocationDeltaLines.length, 3, 'the second invocation must have appended one built delta per unit and a quiescent-exit line');
+
+    const wholeFolded = foldRunManifest(wholeJournal);
+    const firstFoldedThenSecondDeltasApplied = foldRunManifest(
+      `${afterFirstInvocation}${secondInvocationDeltaLines.map((line) => `${line}\n`).join('')}`,
+    );
+    assert.deepEqual(
+      wholeFolded,
+      firstFoldedThenSecondDeltasApplied,
+      'the fold of the two-invocation journal must equal folding the first invocation then applying the second invocation deltas',
+    );
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
 });
 
 test('A MALFORMED RUN REQUEST IS REFUSED: specs must be an array and runId, repoRoot, journalPath, repoSlug and integrationBranch must be non-empty strings', async () => {

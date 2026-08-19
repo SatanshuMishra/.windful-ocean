@@ -14,7 +14,12 @@ import {
 } from '../journal-store.mjs';
 import { buildInitialManifest } from '../recovery.mjs';
 import { builtDelta, ciAttemptDelta, foldRunManifest, parkDelta, quiescentExitDelta, shipDelta } from '../run-log.mjs';
+import { at, halt, previousCodeIndex, scanJsStructure, wordEndingAt } from '../js-scan.mjs';
 import { GENESIS_INPUTS_AT_FB195E47, GENESIS_LINE_AT_FB195E47, GENESIS_MANIFEST_AT_FB195E47, JOURNAL_BYTE_CASES_AT_FB195E47 } from './journal-fixtures.mjs';
+
+const LIB = new URL('..', import.meta.url).pathname;
+const WHOLE_FILE_REPLACE_SYMBOLS = Object.freeze(['replaceFileAtomically']);
+const IMPORT_KEYWORD = 'import';
 
 const scratchDirs = [];
 
@@ -114,23 +119,44 @@ test('every composed line terminates in exactly one newline and carries no inter
   }
 });
 
-test('writeGenesis truncates to exactly one line, so a second genesis never appends a second manifest', () => {
-  const dir = scratch('journal-genesis-');
+test('writeGenesis appends unconditionally, so N identical genesis calls produce exactly N lines', () => {
+  const dir = scratch('journal-genesis-repeat-');
   const path = join(dir, '.mitosis', 'run.json');
-  writeGenesis({ repoRoot: dir, path, manifest: GENESIS_MANIFEST_AT_FB195E47 });
-  writeGenesis({ repoRoot: dir, path, manifest: GENESIS_MANIFEST_AT_FB195E47 });
+  const line = composeJournalLine('genesis', { manifest: GENESIS_MANIFEST_AT_FB195E47 });
+  const calls = 3;
+  for (let i = 0; i < calls; i += 1) {
+    writeGenesis({ repoRoot: dir, path, manifest: GENESIS_MANIFEST_AT_FB195E47 });
+  }
   const body = readFileSync(path, 'utf8');
-  assert.equal(body, composeJournalLine('genesis', { manifest: GENESIS_MANIFEST_AT_FB195E47 }));
-  assert.equal(body.split('\n').filter((line) => line.length > 0).length, 1);
+  assert.equal(body, line.repeat(calls));
+  assert.equal(body.split('\n').filter((entry) => entry.length > 0).length, calls);
 });
 
-test('writeGenesis truncates a longer prior journal rather than leaving stale deltas behind it', () => {
-  const dir = scratch('journal-genesis-truncate-');
+test('writeGenesis appends a longer prior journal rather than destroying the deltas already recorded, and the fold of the two-invocation journal equals folding the first then applying the second invocation deltas', () => {
+  const dir = scratch('journal-genesis-append-');
   const path = join(dir, '.mitosis', 'run.json');
   writeGenesis({ repoRoot: dir, path, manifest: GENESIS_MANIFEST_AT_FB195E47 });
-  appendJournalLine({ repoRoot: dir, path, line: composeJournalLine('ci-attempt', { unitId: 'fx-unit', fingerprint: 'fx-fingerprint-one' }) });
-  writeGenesis({ repoRoot: dir, path, manifest: GENESIS_MANIFEST_AT_FB195E47 });
-  assert.equal(readFileSync(path, 'utf8').split('\n').filter((line) => line.length > 0).length, 1);
+  const firstDelta = composeJournalLine('ci-attempt', { unitId: 'fx-unit', fingerprint: 'fx-fingerprint-one' });
+  appendJournalLine({ repoRoot: dir, path, line: firstDelta });
+  const afterFirstInvocation = readFileSync(path, 'utf8');
+  const secondManifest = foldRunManifest(afterFirstInvocation);
+  writeGenesis({ repoRoot: dir, path, manifest: secondManifest });
+  const secondDelta = composeJournalLine('ci-attempt', { unitId: 'fx-unit', fingerprint: 'fx-fingerprint-two' });
+  appendJournalLine({ repoRoot: dir, path, line: secondDelta });
+  const wholeJournal = readFileSync(path, 'utf8');
+  assert.ok(
+    wholeJournal.startsWith(afterFirstInvocation),
+    'every line written by the first invocation must still be present after the second one appended its own genesis and deltas',
+  );
+  const lines = wholeJournal.split('\n').filter((line) => line.length > 0);
+  assert.equal(lines.length, 4, 'the first genesis, the first delta, the second genesis and the second delta must all survive as four lines');
+  const firstFoldedThenSecondDeltaApplied = foldRunManifest(`${afterFirstInvocation}${secondDelta}`);
+  const wholeFolded = foldRunManifest(wholeJournal);
+  assert.deepEqual(
+    wholeFolded,
+    firstFoldedThenSecondDeltaApplied,
+    'the fold of the two-invocation journal must equal folding the first invocation then applying the second invocation deltas',
+  );
 });
 
 test('a genesis line followed by appended deltas folds back through the incumbent reader', () => {
@@ -415,4 +441,74 @@ test('the module names the C7 obligations that are still owed, and no longer nam
     assert.doesNotMatch(text, new RegExp(drained), `${drained} was decided and drained, so naming it again re-opens a closed decision`);
   }
   assert.match(text, /written !== true/);
+});
+
+function lastImportKeywordIndex(masked, limit) {
+  const pattern = /\bimport\b/g;
+  let found = null;
+  let matched = pattern.exec(masked);
+  while (matched !== null) {
+    if (matched.index >= limit) break;
+    found = matched.index;
+    matched = pattern.exec(masked);
+  }
+  return found;
+}
+
+function namedImportBindings(path, source, open, clauseText) {
+  const text = clauseText.trim();
+  if (text.length === 0) return { ok: true, imported: [] };
+  if (text.startsWith('{') && text.endsWith('}')) {
+    const entries = text.slice(1, -1).split(',').map((entry) => entry.trim()).filter((entry) => entry.length > 0);
+    const imported = [];
+    for (const entry of entries) {
+      const name = entry.split(/\s+as\s+/)[0].trim();
+      if (!/^[A-Za-z_$][\w$]*$/.test(name)) {
+        return halt(`${path} names an import binding ${JSON.stringify(entry)} at ${at(source, open)} this census cannot read as a plain identifier; refusing to guess`);
+      }
+      imported.push(name);
+    }
+    return { ok: true, imported };
+  }
+  const mixed = text.match(/^[A-Za-z_$][\w$]*\s*,\s*\{([\s\S]*)\}$/);
+  if (mixed) return namedImportBindings(path, source, open, `{${mixed[1]}}`);
+  if (/^[A-Za-z_$][\w$]*$/.test(text)) return { ok: true, imported: [] };
+  return halt(`${path} carries an import clause ${JSON.stringify(text)} at ${at(source, open)} this census cannot classify as a named-import list, a default binding or a default-plus-named mix; refusing to guess, because a namespace import in particular could reach any named export through a member access this census cannot see`);
+}
+
+function enumerateImportedSymbols(path, source) {
+  const scan = scanJsStructure(source);
+  if (!scan.ok) return halt(`${path} could not be scanned: ${scan.error}`);
+  const { masked, stringSpans } = scan;
+  const imports = [];
+  for (const [open, close] of [...stringSpans.entries()].sort((a, b) => a[0] - b[0])) {
+    const beforeIndex = previousCodeIndex(masked, open - 1);
+    const word = wordEndingAt(masked, beforeIndex);
+    const specifier = source.slice(open + 1, close);
+    if (word === IMPORT_KEYWORD) {
+      imports.push({ specifier, imported: [] });
+      continue;
+    }
+    if (word !== 'from') continue;
+    const fromStart = beforeIndex - word.length + 1;
+    const importStart = lastImportKeywordIndex(masked, fromStart);
+    if (importStart === null) {
+      return halt(`${path} names the specifier ${JSON.stringify(specifier)} at ${at(source, open)} whose clause carries no import keyword this census can find; refusing to guess`);
+    }
+    const clauseText = source.slice(importStart + IMPORT_KEYWORD.length, fromStart);
+    const bindings = namedImportBindings(path, source, open, clauseText);
+    if (!bindings.ok) return bindings;
+    imports.push({ specifier, imported: bindings.imported });
+  }
+  return { ok: true, imports };
+}
+
+test('journal-store.mjs imports no whole-file-replace symbol, so the append-only ceiling cannot be silently reopened by a restored import on another path', () => {
+  const path = 'journal-store.mjs';
+  const source = readFileSync(join(LIB, path), 'utf8');
+  const census = enumerateImportedSymbols(path, source);
+  assert.equal(census.ok, true, census.ok ? '' : census.error);
+  const symbols = census.imports.flatMap((entry) => entry.imported);
+  const forbidden = symbols.filter((name) => WHOLE_FILE_REPLACE_SYMBOLS.includes(name));
+  assert.deepEqual(forbidden, [], `journal-store.mjs imports whole-file-replace symbol(s) ${forbidden.join(', ')}, which the append-only ceiling forbids`);
 });
