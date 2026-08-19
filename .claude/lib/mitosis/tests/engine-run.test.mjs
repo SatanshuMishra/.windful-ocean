@@ -224,7 +224,7 @@ test('APPEND-ONLY JOURNAL: two consecutive runEngine invocations over one journa
     await runEngine(request1, realJournalPorts(async () => Done({ sha: 'sha-invocation-one', green: true })));
     const afterFirstInvocation = readFileSync(journalPath, 'utf8');
     const firstLines = afterFirstInvocation.split('\n').filter((line) => line.length > 0);
-    assert.ok(firstLines.length >= 3, 'the first invocation should have written a genesis line, at least one built delta and a quiescent-exit line');
+    assert.equal(firstLines.length, 4, 'the first invocation should have written a genesis line, one built delta per unit and a quiescent-exit line');
 
     const foldedFirst = foldRunManifest(afterFirstInvocation);
     assert.ok(foldedFirst, 'the first invocation journal must fold to a manifest before it seeds the second invocation');
@@ -238,10 +238,11 @@ test('APPEND-ONLY JOURNAL: two consecutive runEngine invocations over one journa
     }
 
     const secondGenesisLine = JSON.stringify(foldedFirst);
+    assert.notEqual(wholeLines.indexOf(secondGenesisLine), -1, 'the second invocation genesis line is missing from the whole journal');
     const secondGenesisIndex = wholeLines.indexOf(secondGenesisLine, firstLines.length);
-    assert.ok(secondGenesisIndex >= firstLines.length, 'the second invocation genesis line must sit after every line the first invocation wrote');
+    assert.equal(secondGenesisIndex, firstLines.length, 'the second invocation genesis line must sit immediately after every line the first invocation wrote');
     const secondInvocationDeltaLines = wholeLines.slice(secondGenesisIndex + 1);
-    assert.ok(secondInvocationDeltaLines.length > 0, 'the second invocation must have appended at least one delta line');
+    assert.equal(secondInvocationDeltaLines.length, 3, 'the second invocation must have appended one built delta per unit and a quiescent-exit line');
 
     const wholeFolded = foldRunManifest(wholeJournal);
     const firstFoldedThenSecondDeltasApplied = foldRunManifest(

@@ -69,7 +69,6 @@ const MODULE = 'journal-store';
 const GITIGNORE_BASENAME = '.gitignore';
 const MAX_IGNORE_ENTRY_LENGTH = 200;
 const MAX_IGNORE_FILE_BYTES = 1024 * 1024;
-const MAX_JOURNAL_PEEK_BYTES = 64 * 1024 * 1024;
 const IGNORE_LOCK_SUFFIX = '.journal-lock';
 const IGNORE_LOCK_ATTEMPTS = 50;
 const IGNORE_LOCK_WAIT_MS = 20;
@@ -150,14 +149,14 @@ function serializeRecord(kind, record) {
 
 function genesisRecord(fields) {
   if (!Object.hasOwn(fields, 'manifest') || !isPlainObject(fields.manifest)) {
-    throw new TypeError(`journal-store: the genesis record needs a manifest that is a plain object, because it is written as the entire file body and read back as line one of the run journal, received ${fields.manifest === undefined ? 'nothing' : JSON.stringify(fields.manifest)}`);
+    throw new TypeError(`journal-store: the genesis record needs a manifest that is a plain object, because it is appended as a genesis line and the fold rebuilds the run manifest from the last genesis line that parses, received ${fields.manifest === undefined ? 'nothing' : JSON.stringify(fields.manifest)}`);
   }
   return fields.manifest;
 }
 
 function requireFoldableManifest(text) {
   if (parseRunManifest(text) === null) {
-    throw new TypeError('journal-store: the genesis manifest does not parse back through parseRunManifest, which reads line one of the journal and needs a non-empty logicalRunId, a clusters array and a non-empty msps array; writing it would leave foldRunManifest returning null and every relaunch unable to recover this run');
+    throw new TypeError('journal-store: the genesis manifest does not parse back through parseRunManifest, which the fold applies to the last genesis line in the journal and needs a non-empty logicalRunId, a clusters array and a non-empty msps array; writing it would leave foldRunManifest returning null and every relaunch unable to recover this run');
   }
   return text;
 }
@@ -228,15 +227,6 @@ function appendLine(target, line, action) {
   return Object.freeze({ path, line });
 }
 
-function lastNonEmptyLine(text) {
-  if (text === null) return null;
-  const lines = text.split('\n');
-  for (let i = lines.length - 1; i >= 0; i -= 1) {
-    if (lines[i].length > 0) return lines[i];
-  }
-  return null;
-}
-
 export function writeGenesis(request) {
   if (!isPlainObject(request)) {
     throw new TypeError(`journal-store: writeGenesis takes one plain object carrying repoRoot, path and manifest, received ${request === null ? 'null' : typeof request}`);
@@ -244,12 +234,7 @@ export function writeGenesis(request) {
   const target = requireJournalTarget(request);
   const line = composeJournalLine(GENESIS_KIND, { manifest: request.manifest });
   ensureGitignored({ repoRoot: target.repoRoot, entry: ignoreEntryFor(target) });
-  const action = 'append the genesis record to';
-  const existing = readCappedFile(MODULE, target.path, MAX_JOURNAL_PEEK_BYTES);
-  if (lastNonEmptyLine(existing) === line.slice(0, -1)) {
-    return Object.freeze({ path: target.path, line });
-  }
-  return appendLine(target, line, action);
+  return appendLine(target, line, 'append the genesis record to');
 }
 
 export function appendJournalLine(request) {
