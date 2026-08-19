@@ -517,6 +517,11 @@
         "ref": "0608-c5-third-conjunct-decided-negative-instrument-produced",
         "title": "c5's third conjunct is decided negative: Lead share 24.23 to 26.60 percent at n of 421, instrument-produced",
         "scope": "c5"
+      },
+      {
+        "ref": "0609-the-bar-is-a-required-flag-with-no-default",
+        "title": "The pass bar is a required flag with no default, after an empty value silently made every corpus pass",
+        "scope": "c5"
       }
     ],
     "out_of_scope": [
@@ -526,5 +531,5 @@
     ]
   },
   "created_at": "2026-08-16T05:43:25.829Z",
-  "updated_at": "2026-08-19T01:24:34.092Z"
+  "updated_at": "2026-08-19T01:24:45.951Z"
 }
