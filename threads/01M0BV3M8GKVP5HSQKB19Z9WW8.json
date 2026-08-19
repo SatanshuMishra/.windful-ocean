@@ -10,7 +10,7 @@
     {
       "id": "c6",
       "text": "The routing fix ships as agent description text rather than measurement: a stopping condition on architect and when-NOT-to-use clauses on all four Leads, generated from the spec files.",
-      "done": false,
+      "done": true,
       "kind": "detour",
       "struck_by": null
     },
@@ -111,5 +111,5 @@
     ]
   },
   "created_at": "2026-08-19T01:45:24.496Z",
-  "updated_at": "2026-08-19T03:07:52.164Z"
+  "updated_at": "2026-08-19T03:08:08.105Z"
 }
