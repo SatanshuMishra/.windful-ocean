@@ -507,6 +507,11 @@
         "ref": "0606-dispatch-denominator-is-the-start-bearing-grain",
         "title": "The dispatch denominator is the start-bearing grain, and stop-only groups are reported as a coverage fact",
         "scope": "c5"
+      },
+      {
+        "ref": "0607-capability-governs-over-lineage-for-retired-agents",
+        "title": "A retired agent's Lead status is judged by its tool grant at deletion, never by name lineage",
+        "scope": "c5"
       }
     ],
     "out_of_scope": [
@@ -516,5 +521,5 @@
     ]
   },
   "created_at": "2026-08-16T05:43:25.829Z",
-  "updated_at": "2026-08-19T01:24:10.097Z"
+  "updated_at": "2026-08-19T01:24:20.351Z"
 }
