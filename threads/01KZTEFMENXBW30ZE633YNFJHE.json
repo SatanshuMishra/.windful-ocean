@@ -1169,6 +1169,11 @@
         "ref": "0605-m8a-widens-by-two-fixture-files-to-relativise-the-repair-path",
         "title": "M8a widens by two test-fixture files so the boundary-fix repair path is relative to the head worktree",
         "scope": "c28"
+      },
+      {
+        "ref": "0612-m8a-repins-three-reader-test-files-and-breaches-the-cap-with-reason",
+        "title": "M8a repins the three reader-side test files its mandatory request fields broke; the 400 cap is breached with reason",
+        "scope": "c28"
       }
     ],
     "out_of_scope": [
@@ -1180,5 +1185,5 @@
     ]
   },
   "created_at": "2026-08-12T07:37:41.077Z",
-  "updated_at": "2026-08-19T02:12:17.430Z"
+  "updated_at": "2026-08-19T02:24:29.018Z"
 }
