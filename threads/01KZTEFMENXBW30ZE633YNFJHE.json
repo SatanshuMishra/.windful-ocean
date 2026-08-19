@@ -1264,6 +1264,11 @@
         "ref": "0623-user-authorizes-a-trunk-repair-outside-the-frozen-stack",
         "title": "The user authorizes a trunk repair outside the frozen 24 so G9 stops blocking every remaining unit",
         "scope": "thread"
+      },
+      {
+        "ref": "0624-an-unavailable-inventory-reports-unavailable-never-empty",
+        "title": "The skill census reports itself unavailable rather than empty, and the settings-declared plugin route is rejected",
+        "scope": "thread"
       }
     ],
     "out_of_scope": [
@@ -1275,5 +1280,5 @@
     ]
   },
   "created_at": "2026-08-12T07:37:41.077Z",
-  "updated_at": "2026-08-19T16:04:20.516Z"
+  "updated_at": "2026-08-19T16:49:58.368Z"
 }
