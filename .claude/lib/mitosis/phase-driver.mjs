@@ -2,6 +2,7 @@ import { driveCiToGreen } from './ci-green-loop.mjs';
 import { runEngine } from './engine.mjs';
 import { integrateBuilt } from './integrate-plan.mjs';
 import { PHASE_TITLES } from './phases.mjs';
+import { planRemediation } from './remediate-plan.mjs';
 import { advanceResume } from './resume-advance.mjs';
 import { planResume } from './resume-plan.mjs';
 import { computeRunKey } from './run-store.mjs';
@@ -291,7 +292,18 @@ async function shipPhase(completed, request, ports) {
 
 async function remediatePhase(completed, request, ports) {
   const title = phase('Remediate');
-  return entered(title, { remediated: EMPTY_LIST, parked: EMPTY_LIST });
+  const advanced = advancedResume(completed);
+  return entered(title, await planRemediation({
+    manifest: advanced.manifest,
+    taskById: taskById(request.spec),
+    requestById: requestsById(request.spec),
+    override: request.spec.remediate,
+    repoRoot: request.repoRoot,
+    journalPath: request.journalPath,
+  }, {
+    dispatchPrompt: (dispatched) => ports.dispatchPrompt(dispatched),
+    appendJournal: (write) => ports.appendJournal(write),
+  }));
 }
 
 const PHASE_BODIES = Object.freeze([
