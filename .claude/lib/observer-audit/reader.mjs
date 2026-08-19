@@ -26,8 +26,16 @@ export function rawReaderExpression(logRoot) {
 
 export const POPULATION_CASE = `CASE WHEN bool_or(depth IS NOT NULL) OVER (PARTITION BY session_id, agent_id ROWS BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING) THEN '${POPULATION_DISPATCH}' ELSE '${POPULATION_INTERNAL}' END`;
 
+export function eventsCte(logRoot) {
+  return `ev AS (SELECT *, ${POPULATION_CASE} AS population FROM ${readerExpression(logRoot)})`;
+}
+
 export function depthBucketSql(column = 'depth') {
   return `CASE WHEN ${column} IS NULL THEN 'null' ELSE CAST(${column} AS VARCHAR) END`;
+}
+
+export function orderByDeclaredColumns(prefixExpression) {
+  return [prefixExpression, ...DECLARED_COLUMNS.map(([name]) => name)].join(', ');
 }
 
 export function corpusFiles(logRoot) {
@@ -62,4 +70,30 @@ export function requireCorpus(logRoot) {
     );
   }
   return files;
+}
+
+export function readRoster(rosterPath) {
+  if (typeof rosterPath !== 'string' || rosterPath.length === 0) {
+    throw new AuditError(
+      EXIT.USAGE,
+      'the roster question needs a roster path. The log does not hold the roster, so a roster the log cannot see is not evidence of anything.',
+    );
+  }
+  let entries;
+  try {
+    entries = fs.readdirSync(rosterPath, { withFileTypes: true });
+  } catch (error) {
+    throw new AuditError(EXIT.USAGE, `the roster directory ${rosterPath} could not be listed: ${error.message}`);
+  }
+  const names = entries
+    .filter((entry) => entry.isFile() && entry.name.endsWith('.md'))
+    .map((entry) => path.basename(entry.name, '.md'))
+    .sort();
+  if (names.length === 0) {
+    throw new AuditError(
+      EXIT.EMPTY_CORPUS,
+      `the roster directory ${rosterPath} names no agents. A roster census over an empty roster passes over nothing.`,
+    );
+  }
+  return Object.freeze(names);
 }
