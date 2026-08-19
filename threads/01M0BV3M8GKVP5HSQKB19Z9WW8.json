@@ -24,7 +24,7 @@
     {
       "id": "c3",
       "text": "Whether a share statistic is diagnostic of delegation health at all is settled on evidence; retiring the measure entirely is an allowed and equally valid outcome.",
-      "done": false,
+      "done": true,
       "kind": "planned",
       "struck_by": null
     },
@@ -49,9 +49,9 @@
   "abandoned_reason": null,
   "closure_statement": null,
   "spine": {
-    "active_goal": "Settle whether a Lead-share statistic, and a greater-than-50-percent bar on it, was ever the right target for delegation health.",
-    "next_step": "START AT c1 and do not skip it. Read decision 0579, which pinned the bar, and state in its own words what it was meant to detect - the temptation is to skip straight to arguing the number, which is the post-hoc move this thread exists to avoid. Do NOT re-read any corpus before c4 pins a replacement target or decides there should be none.",
-    "last_session": "Opened as successor to agent-architectural-review, which closed on a decided negative: Lead share 24.23-26.60 percent at n of 421 against a 50 percent bar. No work done here yet.",
+    "active_goal": "Answered. A share statistic is not diagnostic of routing quality, and the routing fix is agent description text rather than measurement.",
+    "next_step": "Only c1 remains and it is a single read: open decision 0579 and state, in its own words, what the retired bar was trying to detect - that concern may still be real even though its instrument was wrong. Do NOT propose a replacement metric, a dispatch-counting hook, a validator or a Lead budget; 0613 rules all of them out.",
+    "last_session": "User stopped the measurement Lead mid-flight and ruled the whole approach out. c2, c4 and c5 struck. An implementer is shipping the actual fix: a stopping condition on architect plus when-NOT-to-use clauses on the Leads.",
     "open_risks": [
       {
         "text": "Never let this thread's conclusion reach back into the struck c5 — re-examining a bar after seeing the number that failed it is post-hoc grading, and c5's negative stands whatever is concluded here",
@@ -94,5 +94,5 @@
     ]
   },
   "created_at": "2026-08-19T01:45:24.496Z",
-  "updated_at": "2026-08-19T02:30:10.852Z"
+  "updated_at": "2026-08-19T02:30:27.389Z"
 }
