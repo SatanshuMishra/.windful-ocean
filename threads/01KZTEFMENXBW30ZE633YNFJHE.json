@@ -1259,6 +1259,11 @@
         "ref": "0622-m9-operator-override-ships-as-data-not-as-a-cli-flag",
         "title": "M9's operator override ships as data on the run spec; the CLI flag belongs to a cli.mjs-owning unit",
         "scope": "thread"
+      },
+      {
+        "ref": "0623-user-authorizes-a-trunk-repair-outside-the-frozen-stack",
+        "title": "The user authorizes a trunk repair outside the frozen 24 so G9 stops blocking every remaining unit",
+        "scope": "thread"
       }
     ],
     "out_of_scope": [
@@ -1270,5 +1275,5 @@
     ]
   },
   "created_at": "2026-08-12T07:37:41.077Z",
-  "updated_at": "2026-08-19T07:05:29.769Z"
+  "updated_at": "2026-08-19T16:04:20.516Z"
 }
