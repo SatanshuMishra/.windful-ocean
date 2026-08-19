@@ -616,7 +616,7 @@ function boundaryFixPlan(sandbox, units, declared) {
     marker: BOUNDARY_FIX_MARKER,
     token: BOUNDARY_VIOLATION_TOKEN,
     repair: declared,
-    files: units.filter((unit) => unit.boundaryViolation).map((unit) => unitFile(sandbox, unit.id)),
+    files: units.filter((unit) => unit.boundaryViolation).map((unit) => `${unit.id}.txt`),
   };
 }
 
