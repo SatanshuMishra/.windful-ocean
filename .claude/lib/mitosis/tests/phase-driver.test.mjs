@@ -479,7 +479,8 @@ test('a journal claiming a unit shipped does not retire it when the forge report
   }).ports;
   const driven = await runPhases(runRequest(), ports);
   assert.deepEqual(driven.phases.Resume.shipped, [], 'the merged set observed from the forge is the authority, and it names nothing');
-  assert.deepEqual(driven.phases.Resume.specs.map((spec) => spec.id), ['alpha']);
+  assert.deepEqual(driven.phases.Resume.specs.map((spec) => spec.id), [], 'a shipped claim the forge does not confirm merged is not replanned from scratch');
+  assert.deepEqual(driven.phases.Resume.built.map((entry) => entry.unitId), ['alpha'], 'the unconfirmed shipped claim resumes at ship via built rather than being treated as merged');
   assert.deepEqual(probed, [{ ownerRepo: 'acme/widgets', baseBranch: 'main', sourcePrefix: 'mitosis', repoHost: null }]);
 });
 
@@ -504,7 +505,8 @@ test('a shipped claim the run cannot probe retires nothing, and the probe is nev
   const driven = await runPhases(runRequest(), ports);
   assert.deepEqual(probed, [], 'a manifest naming no source prefix cannot be turned into a branch-to-unit mapping, so no probe is spawned rather than one that would be read wrongly');
   assert.deepEqual(driven.phases.Resume.shipped, []);
-  assert.deepEqual(driven.phases.Resume.specs.map((spec) => spec.id), ['alpha']);
+  assert.deepEqual(driven.phases.Resume.specs.map((spec) => spec.id), [], 'a shipped claim that could not even be probed is not replanned from scratch');
+  assert.deepEqual(driven.phases.Resume.built.map((entry) => entry.unitId), ['alpha'], 'an unprobed shipped claim resumes at ship via built rather than being treated as merged');
 });
 
 test('a journal naming a different run is not this run evidence, so the whole spec is planned again', async () => {

@@ -373,15 +373,16 @@ test('a manifest claiming a unit shipped is overruled when the forge reports no 
     const run = runMitosisCli(sandbox);
     const dispatched = claudeArgvs(sandbox).map(unitIdOfArgv);
 
-    assert.equal(run.status, 0, run.stderr);
+    assert.equal(run.status, 3, run.stderr);
     assert.equal(
       dispatched.length,
-      1,
-      `the run dispatched ${dispatched.length} units; a manifest claiming alpha shipped is a local claim, and only the merged set observed from the forge can retire the work`,
+      0,
+      `the run dispatched ${dispatched.length} units; a manifest claiming alpha shipped resumes it directly at ship rather than re-driving Claude, because the forge, not the local claim, is the authority on whether the work is still outstanding`,
     );
-    assert.deepEqual(dispatched, ['alpha']);
-    assert.deepEqual(run.summary.resume.shipped, []);
-    assert.deepEqual(run.summary.resume.pending, ['alpha']);
+    assert.deepEqual(run.summary.resume.shipped, [], 'the forge reporting no merged pull request means the shipped claim never retires alpha outright');
+    assert.deepEqual(run.summary.resume.pending, [], 'alpha is not replanned from scratch; it resumes at ship via built');
+    assert.deepEqual(run.summary.resume.built, ['alpha']);
+    assert.deepEqual(run.summary.ship.parked, ['alpha'], 'resuming at ship finds the integration branch still carries its own open, unmerged pull request, so the unit parks rather than being silently marked done');
     assert.equal(
       ghArgvsMatching(sandbox, ['pr', 'list']).length,
       1,
