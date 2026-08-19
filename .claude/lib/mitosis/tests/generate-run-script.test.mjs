@@ -1,11 +1,11 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync, writeFileSync, mkdtempSync, mkdirSync, copyFileSync, cpSync } from 'node:fs';
+import { writeFileSync, mkdtempSync, mkdirSync, cpSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { fileURLToPath } from 'node:url';
-import { buildRunScript, validateGraph, ENGINE_ARG_NAMES } from '../generate-run-script.mjs';
+import { buildRunScript, validateGraph } from '../generate-run-script.mjs';
 import { pack } from './file-scope-fixtures.mjs';
 
 const FAKE_ENGINE = [
@@ -17,7 +17,6 @@ const FAKE_ENGINE = [
 ].join('\n');
 
 const SCRIPT = fileURLToPath(new URL('../generate-run-script.mjs', import.meta.url));
-const ENGINE_PATH = fileURLToPath(new URL('../../../workflows/mitosis-execute.js', import.meta.url));
 const SNAPSHOT_PATH = fileURLToPath(new URL('../prompt-snapshots', import.meta.url));
 
 const FIXTURE_SUPERPOWERS_VERSION = '6.1.1';
@@ -36,9 +35,6 @@ function makeFixtureHome() {
 
   mkdirSync(join(claude, 'lib/mitosis'), { recursive: true });
   cpSync(SNAPSHOT_PATH, join(claude, 'lib/mitosis/prompt-snapshots'), { recursive: true });
-
-  mkdirSync(join(claude, 'workflows'), { recursive: true });
-  copyFileSync(ENGINE_PATH, join(claude, 'workflows/mitosis-execute.js'));
 
   return home;
 }
@@ -116,14 +112,6 @@ test('validateGraph propagates wave-planner cycle errors', () => {
   assert.throws(() => validateGraph(g), /cycle/);
 });
 
-test('the real engine has exactly the expected arg lines and they all replace', () => {
-  const engine = readFileSync(ENGINE_PATH, 'utf8');
-  const values = Object.fromEntries(ENGINE_ARG_NAMES.map((n) => [n, `v-${n}`]));
-  const out = buildRunScript(engine, values);
-  assert.equal(out.match(/\bargs\./g), null);
-  assert.equal(out.split('\n').length, engine.split('\n').length);
-});
-
 test('CLI fails loudly with no run script on a malformed invocation', () => {
   const r1 = (() => { try { execFileSync('node', [SCRIPT], { encoding: 'utf8', env: CLEAN_ENV }); return 0; } catch (e) { return e.status; } })();
   assert.notEqual(r1, 0);
@@ -160,60 +148,6 @@ test('CLI rejects models keys other than reviewer and fixer', () => {
   const r = cliFails(['x.graph.json', '--base-branch', 'b', '--scoped-check', 'y', '--full-validation', 'z', '--models', '{"implementer":"haiku"}']);
   assert.notEqual(r, null);
   assert.match(r.stderr, /models keys/);
-});
-
-function makeGitDir(prefix) {
-  const dir = mkdtempSync(join(tmpdir(), prefix));
-  const sh = (cmd, cmdArgs) => execFileSync(cmd, cmdArgs, { cwd: dir, encoding: 'utf8', env: CLEAN_ENV });
-  sh('git', ['init', '-q', '-b', 'main']);
-  writeFileSync(join(dir, 'README.md'), 'x\n');
-  sh('git', ['add', '-A']);
-  sh('git', ['commit', '-qm', 'init']);
-  return { dir, sh };
-}
-
-test('agentType is preserved when set on a task', () => {
-  const { dir, sh } = makeGitDir('gen-at-set-');
-  const graph = {
-    tasks: [
-      { id: 't1', title: 'one', fullText: 'body1', dependsOn: [], fileScope: pack(['lib/one.js']), risk: 'low', agentType: 'test-engineer', validation: 'scoped' },
-    ],
-  };
-  writeFileSync(join(dir, 'p.graph.json'), JSON.stringify(graph));
-  sh('node', [SCRIPT, 'p.graph.json', '--base-branch', 'integration', '--scoped-check', 'x', '--full-validation', 'y', '--isolation', 'scope-fence', '--branch-prefix', 'wf-fixture']);
-  const run = readFileSync(join(dir, 'p.run.js'), 'utf8');
-  assert.match(run, /"agentType":"test-engineer"/);
-});
-
-test('agentType defaults to implementer when absent from a task', () => {
-  const { dir, sh } = makeGitDir('gen-at-default-');
-  const graph = {
-    tasks: [
-      { id: 't1', title: 'one', fullText: 'body1', dependsOn: [], fileScope: pack(['lib/one.js']), risk: 'low', validation: 'scoped' },
-    ],
-  };
-  writeFileSync(join(dir, 'p.graph.json'), JSON.stringify(graph));
-  sh('node', [SCRIPT, 'p.graph.json', '--base-branch', 'integration', '--scoped-check', 'x', '--full-validation', 'y', '--isolation', 'scope-fence', '--branch-prefix', 'wf-fixture']);
-  const run = readFileSync(join(dir, 'p.run.js'), 'utf8');
-  assert.match(run, /"agentType":"implementer"/);
-});
-
-test('scope-fence generation exempts its own artifacts and still rejects stray files', () => {
-  const dir = mkdtempSync(join(tmpdir(), 'gen-fence-'));
-  const sh = (cmd, cmdArgs) => execFileSync(cmd, cmdArgs, { cwd: dir, encoding: 'utf8', env: CLEAN_ENV });
-  sh('git', ['init', '-q', '-b', 'main']);
-  writeFileSync(join(dir, 'README.md'), 'x\n');
-  sh('git', ['add', '-A']);
-  sh('git', ['commit', '-qm', 'init']);
-  writeFileSync(join(dir, 'p.graph.json'), JSON.stringify(VALID_GRAPH));
-  const cliArgs = [SCRIPT, 'p.graph.json', '--base-branch', 'integration', '--scoped-check', 'x', '--full-validation', 'y', '--isolation', 'scope-fence', '--branch-prefix', 'wf-fixture'];
-  const out = sh('node', cliArgs);
-  assert.match(out, /"isolation": "scope-fence"/);
-  const run = readFileSync(join(dir, 'p.run.js'), 'utf8');
-  assert.match(run, /const branchPrefix = "wf-fixture";/);
-  assert.match(run, /const runArtifacts = \["p","p\.graph\.json","p\.run\.js"\];/);
-  writeFileSync(join(dir, 'stray.txt'), 'x\n');
-  assert.throws(() => sh('node', cliArgs), /clean working tree/);
 });
 
 const GEN_CLI = fileURLToPath(new URL('../generate-run-script.mjs', import.meta.url));

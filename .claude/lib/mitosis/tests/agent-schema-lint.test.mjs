@@ -123,12 +123,9 @@ test('the derived dispatchable set over the real trees is exactly the agents the
   const tree = readAgentDefinitions(canonicalAgentDir(), realSourceIo);
   assert.equal(tree.ok, true, tree.error);
   assert.deepEqual(dispatchableAgents(tree.definitions, engine.literals), [
-    'code-reviewer',
     'implementer',
     'investigator',
-    'security-reviewer',
-    'test-engineer',
-  ], 'the census root is the lib engine source alone; debugger and solution-architect were named only by the legacy workflow file, which is no longer a root');
+  ], 'the census root is the lib engine source alone; code-reviewer, security-reviewer and test-engineer were named only by the now-deleted engine module, which is no longer a root');
 });
 
 test('an agent is dispatchable exactly when engine source names it, over every definition in the tree', () => {

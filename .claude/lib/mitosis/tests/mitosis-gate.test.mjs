@@ -533,8 +533,8 @@ test('the schema verb exits clean over the real agent tree and names the derived
   assert.equal(code, GATE_CLEAN_EXIT);
   const verdict = JSON.parse(stdout.join(''));
   assert.deepEqual(verdict.dispatchable, [
-    'code-reviewer', 'implementer', 'investigator', 'security-reviewer', 'test-engineer',
-  ], 'the census root is the lib engine source alone; debugger and solution-architect were named only by the legacy workflow file, which is no longer a root');
+    'implementer', 'investigator',
+  ], 'the census root is the lib engine source alone; code-reviewer, security-reviewer and test-engineer were named only by the now-deleted engine module, which is no longer a root');
 });
 
 test('the schema verb censuses the canonical engine source, never the tree the gate module sits in', async () => {
