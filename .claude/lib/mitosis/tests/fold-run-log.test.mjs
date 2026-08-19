@@ -7,7 +7,7 @@ import { tmpdir } from 'node:os';
 import { fileURLToPath } from 'node:url';
 import { foldFile } from '../fold-run-log.mjs';
 import { buildInitialManifest, parseRunManifest } from '../recovery.mjs';
-import { shipDelta } from '../run-log.mjs';
+import { shipDelta, builtDelta } from '../run-log.mjs';
 import { appendJournalLine, composeJournalLine, writeGenesis } from '../journal-store.mjs';
 
 const SCRIPT = fileURLToPath(new URL('../fold-run-log.mjs', import.meta.url));
@@ -92,6 +92,31 @@ test('foldFile folds a journal carrying two genesis lines from the LAST one, so 
     assert.ok(folded, 'a journal with two genesis lines must still fold to a manifest');
     assert.equal(folded.msps.find((m) => m.id === 'a').status, 'built', 'the fold used the first genesis line rather than the last');
     assert.equal(folded.msps.find((m) => m.id === 'b').status, 'shipped', 'b is planned under the first genesis line and pr-open under the second, so a fold that used the first genesis line rather than the last would report planned instead of shipped');
+  });
+});
+
+test('foldFile discards deltas that sit before the last genesis line rather than replaying them onto it', () => {
+  const genesis1 = genesis();
+  const deltaA = builtDelta({ unitId: 'a', checkpointRef: 'ref-a1', sha: 'sha-a1', green: true, builtAgainst: {} });
+  const deltaB = builtDelta({ unitId: 'b', checkpointRef: 'ref-b1', sha: 'sha-b1', green: true, builtAgainst: {} });
+  const genesis2 = genesis();
+  const deltaC = builtDelta({ unitId: 'a', checkpointRef: 'ref-a2', sha: 'sha-a2', green: true, builtAgainst: {} });
+  const journal = [
+    JSON.stringify(genesis1),
+    JSON.stringify(deltaA),
+    JSON.stringify(deltaB),
+    JSON.stringify(genesis2),
+    JSON.stringify(deltaC),
+  ].join('\n');
+  withTemp(journal, (path) => {
+    const folded = foldFile(path);
+    assert.ok(folded, 'a journal with pre-genesis deltas must still fold to a manifest');
+    const a = folded.msps.find((m) => m.id === 'a');
+    const b = folded.msps.find((m) => m.id === 'b');
+    assert.equal(a.status, 'built', 'the delta after the last genesis line is applied');
+    assert.equal(a.builtSha, 'sha-a2', 'the applied built delta is the one after the last genesis, not the discarded one before it');
+    assert.equal(b.status, 'planned', 'the delta before the last genesis line must be discarded, not replayed onto the genesis base');
+    assert.equal(b.builtSha, undefined, 'a discarded pre-genesis delta must leave no trace on the folded manifest');
   });
 });
 

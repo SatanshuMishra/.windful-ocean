@@ -104,7 +104,7 @@ function withFoldRefusals(manifest, refusals) {
 
 function lastGenesisIndex(lines) {
   let last = 0;
-  for (let i = 1; i < lines.length; i += 1) {
+  for (let i = 0; i < lines.length; i += 1) {
     if (parseRunManifest(lines[i]) !== null) last = i;
   }
   return last;
@@ -118,7 +118,7 @@ export function foldRunManifest(raw) {
   const rawBase = lines.length > 0 ? parseRunManifest(lines[0]) : null;
   if (!rawBase) return null;
   const genesisIndex = lastGenesisIndex(lines);
-  const rawGenesis = genesisIndex === 0 ? rawBase : parseRunManifest(lines[genesisIndex]);
+  const rawGenesis = parseRunManifest(lines[genesisIndex]);
   let manifest;
   try {
     manifest = normalizeBaseProgress(rawGenesis);
