@@ -1289,6 +1289,11 @@
         "ref": "0628-m15-three-rulings-before-the-live-run",
         "title": "Three rulings before M15's live run: the retry half, the engine pin, and the disarmed sentinel",
         "scope": "c30"
+      },
+      {
+        "ref": "0629-pre-rename-journal-recovery-loss-accepted-as-specified",
+        "title": "M17's pre-rename journal recovery loss is accepted as specified, not treated as a defect",
+        "scope": "thread"
       }
     ],
     "out_of_scope": [
@@ -1300,5 +1305,5 @@
     ]
   },
   "created_at": "2026-08-12T07:37:41.077Z",
-  "updated_at": "2026-08-19T22:28:49.627Z"
+  "updated_at": "2026-08-19T22:28:58.792Z"
 }
