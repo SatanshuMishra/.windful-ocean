@@ -301,9 +301,9 @@
   "abandoned_reason": null,
   "closure_statement": null,
   "spine": {
-    "active_goal": "Ship the frozen 24-unit whole solution, waves 4 through 9, closing all thirteen boundary root causes.",
-    "next_step": "START HERE. Read RUNBOOK.md AMENDMENT 2026-08-19 (A-G) before the Standing Brief; it overrides it. Session 1: merge #237 (MERGEABLE; its G11 BLOCK is the already-ruled downgrade, not a new decision), re-derive M8a from git and retarget it to main, then M8b, then M5 + M9 + M12b-3 in parallel. Every unit branches off origin/main - stacking is retired. Touch no test: cleanup is c41, after M16. The ws-m12b2 worktree hazard is already resolved; ignore it.",
-    "last_session": "2026-08-19: documentation only, no engine code by intent. Rulings 0615-0619 - SPEC is a ceiling, two-tier testing, stacking retired, four user rulings, cleanup as c41. SPEC Part 8 and RUNBOOK amendment A-G written. PR #237 rebased to MERGEABLE; no real conflict existed. Stale worktree removed.",
+    "active_goal": "Ship the frozen 24-unit whole solution, waves 6 through 9, closing all thirteen boundary root causes.",
+    "next_step": "START HERE IN A FRESH SESSION. Merge PR 244 first - it is open, 17/17 green and CLEAN, and until it lands every unit inherits a false G9 block. Then Session 2 per RUNBOOK AMENDMENT F: M6 alone, then M11 and M13 in parallel. Every unit branches off origin/main with --base main; stacking is retired. Read AMENDMENT 2026-08-19 A-G before the Standing Brief. Touch no test as cleanup - that is c41, after M16. M9's --remediate flag is a backlog line for a cli.mjs-owning unit.",
+    "last_session": "2026-08-19: Session 1 complete. M8a, M12b-3, M5, M8b and M9 all shipped and merged (239-243). User authorized a trunk repair outside the frozen 24; PR 244 fixes both causes, is green and awaits merge. Rulings 0621-0624.",
     "open_risks": [
       {
         "text": "Prove a merge arrived by asserting its CONTENT is on the base, never by SHA ancestry — a squash or stack merge rewrites commits, so a pre-merge SHA correctly fails an ancestry check on a merge that lost nothing",
@@ -1280,5 +1280,5 @@
     ]
   },
   "created_at": "2026-08-12T07:37:41.077Z",
-  "updated_at": "2026-08-19T16:49:58.368Z"
+  "updated_at": "2026-08-19T16:52:41.669Z"
 }
