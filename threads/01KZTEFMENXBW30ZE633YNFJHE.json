@@ -295,8 +295,8 @@
   "closure_statement": null,
   "spine": {
     "active_goal": "Ship the frozen 24-unit whole solution, waves 3 through 9, closing all thirteen boundary root causes.",
-    "next_step": "M8a lead running (ws-m8a, feat/mitosis-gate-own-tree, base feat/mitosis-append-only-journal); read its report, rule blocks in one exchange. Then serial: wave 5 M5, M8b, M9 (+parked-not-in-specs per 0603), M12b-3; wave 6 M6; wave 7 M11, M13; wave 8 M17 (isParked non-lattice token) then M15 (harness reset, ask user); wave 9 M16. PRs 219-224, 226-228, 230 open; human merges 221<223, 219<224, 222<226-230, then retarget children to main. Rules 0602, 0604.",
-    "last_session": "2026-08-19: wave 3 shipped by four leads - M4 #226, M3 #227, M4b #228, M12b-2 #230, all stacked on M2's branch; three rulings in one exchange each (0602-0604); G14 downgrades on M3/M4b, G11 on M12b-2. M8a (wave 4) dispatched on M3's branch with three parents merged in.",
+    "next_step": "Read the release-engineer's reopen table (six new PRs vs main from the original head branches) and the M8a lead's report; rule blocks in one exchange. Human then merges the six reopened PRs; DELETE no branch until M8a is retargeted off feat/mitosis-append-only-journal (0519). Then serial: wave 5 M5, M8b, M9 (+parked-not-in-specs per 0603), M12b-3; wave 6 M6; wave 7 M11, M13; wave 8 M17 (isParked non-lattice token) then M15 (harness reset, ask user); wave 9 M16. Rules 0602, 0604.",
+    "last_session": "2026-08-19: wave 3 shipped (#226 M4, #227 M3, #228 M4b, #230 M12b-2); rulings 0602-0605. Human merged all ten PRs but 223, 224, 226-228, 230 merged into DEAD parent branches, content not on main; reopens against main dispatched. M8a in flight, outage interrupted its mutation step, lead resumed.",
     "open_risks": [
       {
         "text": "Prove a merge arrived by asserting its CONTENT is on the base, never by SHA ancestry — a squash or stack merge rewrites commits, so a pre-merge SHA correctly fails an ancestry check on a merge that lost nothing",
@@ -1180,5 +1180,5 @@
     ]
   },
   "created_at": "2026-08-12T07:37:41.077Z",
-  "updated_at": "2026-08-19T01:03:45.936Z"
+  "updated_at": "2026-08-19T02:12:17.430Z"
 }
