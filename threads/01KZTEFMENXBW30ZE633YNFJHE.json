@@ -295,8 +295,8 @@
   "closure_statement": null,
   "spine": {
     "active_goal": "Ship the frozen 24-unit whole solution, waves 3 through 9, closing all thirteen boundary root causes.",
-    "next_step": "READ artifacts-2026-08-18-whole-solution/RUNBOOK.md FIRST - it carries the four freeze rules, the 24-unit table with files and deps, and a Standing Brief every lead reads instead of a retyped preamble. Stack FROZEN at 24; architect retired; blocks ruled here in ONE exchange; discoveries go to BACKLOG-not-this-stack.md, never into a unit. Six PRs open and green: 219, 220, 221, 222, 223, 224. Merge 221 BEFORE 223. Then fan out wave 3: M3, M4, M4b, M12b-2.",
-    "last_session": "Shipped nine units by lead fan-out - four merged, six PRs open and green. Froze the stack at 24 and retired the architect after diagnosing the growth loop. Wrote RUNBOOK.md and a backlog file so findings stop becoming units.",
+    "next_step": "M8a lead running (ws-m8a, feat/mitosis-gate-own-tree, base feat/mitosis-append-only-journal); read its report, rule blocks in one exchange. Then serial: wave 5 M5, M8b, M9 (+parked-not-in-specs per 0603), M12b-3; wave 6 M6; wave 7 M11, M13; wave 8 M17 (isParked non-lattice token) then M15 (harness reset, ask user); wave 9 M16. PRs 219-224, 226-228, 230 open; human merges 221<223, 219<224, 222<226-230, then retarget children to main. Rules 0602, 0604.",
+    "last_session": "2026-08-19: wave 3 shipped by four leads - M4 #226, M3 #227, M4b #228, M12b-2 #230, all stacked on M2's branch; three rulings in one exchange each (0602-0604); G14 downgrades on M3/M4b, G11 on M12b-2. M8a (wave 4) dispatched on M3's branch with three parents merged in.",
     "open_risks": [
       {
         "text": "Prove a merge arrived by asserting its CONTENT is on the base, never by SHA ancestry — a squash or stack merge rewrites commits, so a pre-merge SHA correctly fails an ancestry check on a merge that lost nothing",
@@ -1175,5 +1175,5 @@
     ]
   },
   "created_at": "2026-08-12T07:37:41.077Z",
-  "updated_at": "2026-08-19T00:51:45.926Z"
+  "updated_at": "2026-08-19T00:52:56.819Z"
 }
