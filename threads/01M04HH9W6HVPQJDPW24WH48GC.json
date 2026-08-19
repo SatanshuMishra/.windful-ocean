@@ -3,7 +3,7 @@
   "id": "01M04HH9W6HVPQJDPW24WH48GC",
   "slug": "agent-architectural-review",
   "title": "Agent architectural review and ground-up rebuild",
-  "status": "paused",
+  "status": "done",
   "parent_id": null,
   "predecessor_id": null,
   "completion_criteria": [
@@ -68,7 +68,7 @@
   "external_refs": [],
   "blocked_by": null,
   "abandoned_reason": null,
-  "closure_statement": null,
+  "closure_statement": "Closed on a decided negative, not on a success. The roster and observer were rebuilt across seven waves, the instruction layer and the verification machinery were repaired ahead of them, and the audit instrument was repaired twice - first to resolve population at dispatch grain on sidecar depth, then to pair by ordinal rank after a LEFT JOIN fan-out was found reporting 2872 start rows against a true 667 and emitting a negative minimum duration. Agent-id reuse, which blocked the closing measurement, was settled as re-entry duplication: the emitter copies the harness value verbatim, 2139 of 2139 sidecars with a toolUseId are Agent calls, and no toolUseId is shared by two agent_ids, so the dispatch grain was sound all along. c5 is STRUCK, not met and not rewritten to pass. Two of its three conjuncts are met, the census genuinely so once it hard-halted at exit 6 with no residual bucket. The third failed: Lead share is 24.23 to 26.60 percent at n of 421, produced end to end by the repaired instrument, against a 50 percent bar pinned before any number existed. The pre-registration held under pressure three times - a band check fired and caught the instrument contradicting itself at 444 versus 421 groups, a capability-over-lineage ruling moved 25 groups away from the bar, and a bar flag that coerced an empty value to zero, which would have made every corpus read as passing, was caught and fixed. One thing is outstanding and belongs to a human: PR 231 is OPEN and unmerged. Merge it, then confirm its content reached origin/main by merge-base rather than by the MERGED label, and delete the branch. Whether a greater-than-50-percent Lead-share target was ever the right target is deliberately NOT settled here - it opens as its own thread, because re-examining a bar after seeing the number that failed it is post-hoc grading, and this outcome stands whatever that examination concludes.",
   "spine": {
     "active_goal": "Closed: the roster and observer were rebuilt, the audit instrument repaired, and Lead share measured at 24.23-26.60 percent against a 50 percent bar.",
     "next_step": "Nothing here. The bar question - whether a greater-than-50-percent Lead-share target was ever right - continues on its own successor thread. PR 231 is OPEN and awaits a HUMAN merge; never merge it from a session, and confirm its content reached origin/main by merge-base rather than by the MERGED label.",
@@ -536,5 +536,5 @@
     ]
   },
   "created_at": "2026-08-16T05:43:25.829Z",
-  "updated_at": "2026-08-19T01:44:40.523Z"
+  "updated_at": "2026-08-19T01:45:14.971Z"
 }
