@@ -1269,6 +1269,11 @@
         "ref": "0624-an-unavailable-inventory-reports-unavailable-never-empty",
         "title": "The skill census reports itself unavailable rather than empty, and the settings-declared plugin route is rejected",
         "scope": "thread"
+      },
+      {
+        "ref": "0625-m6-g14-remediation-lands-rather-than-downgrades",
+        "title": "M6's G14 remediation lands as its own pull request rather than a downgrade",
+        "scope": "thread"
       }
     ],
     "out_of_scope": [
@@ -1280,5 +1285,5 @@
     ]
   },
   "created_at": "2026-08-12T07:37:41.077Z",
-  "updated_at": "2026-08-19T17:02:19.589Z"
+  "updated_at": "2026-08-19T19:34:08.165Z"
 }
