@@ -179,3 +179,41 @@ test('a park at a stage the CI loop never runs at cannot spoof the ci-red-exhaus
   assert.notEqual(status, 'ci-red-exhausted');
   assert.equal(status, 'blocked');
 });
+
+function renderedCountValue(bad) {
+  try {
+    computeMergePolicyStatus({ shippedCount: bad, total: 1 });
+  } catch (error) {
+    if (!(error instanceof TypeError)) throw error;
+    const named = /^mitosis-merge-policy: shippedCount must be a non-negative integer, .+, received (.+)$/.exec(error.message);
+    assert.ok(named, `the count refusal named neither shippedCount nor a rendered value: ${error.message}`);
+    return named[1];
+  }
+  assert.fail('computeMergePolicyStatus accepted a shippedCount that is not a non-negative integer');
+}
+
+test('a string count is rendered JSON-quoted in the refusal, so the operator reads "3" and not the integer 3 the string was refused for not being', () => {
+  assert.equal(renderedCountValue('3'), '"3"');
+  assert.equal(renderedCountValue(''), '""');
+  assert.equal(renderedCountValue('an object'), '"an object"');
+});
+
+test('an array count is rendered as an array, never as the elements a reader would mistake for the count itself', () => {
+  assert.equal(renderedCountValue([]), 'an array');
+  assert.equal(renderedCountValue([3]), 'an array');
+});
+
+test('a non-null object count is rendered as an object, never as the string a plain coercion produces', () => {
+  assert.equal(renderedCountValue({}), 'an object');
+  assert.equal(renderedCountValue({ shippedCount: 3 }), 'an object');
+});
+
+test('a null count is rendered as null and never as an object, because the absent count is what the operator has to see to fix it', () => {
+  assert.equal(renderedCountValue(null), 'null');
+  assert.equal(renderedCountValue(undefined), 'undefined');
+  assert.equal(renderedCountValue(-1), '-1');
+  assert.equal(renderedCountValue(1.5), '1.5');
+  assert.equal(renderedCountValue(Number.NaN), 'NaN');
+  assert.equal(renderedCountValue(Infinity), 'Infinity');
+  assert.equal(renderedCountValue(true), 'true');
+});
