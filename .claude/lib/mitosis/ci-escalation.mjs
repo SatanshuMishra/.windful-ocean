@@ -21,10 +21,6 @@ function ciNonEmptyStringList(value) {
   return ciStringList(value) && value.length > 0;
 }
 
-function ciSortedStrings(value) {
-  return Array.isArray(value) ? value.filter((v) => typeof v === 'string').slice().sort() : [];
-}
-
 function ciCheckNameMatches(names, census) {
   return names.some((name) => {
     const lowered = name.toLowerCase();
@@ -62,49 +58,6 @@ function ciPathsOutsideScope(declaredScope, paths) {
   return paths.filter((path) => !declaredScope.some((entry) => scopeCovers(entry, path)));
 }
 
-export function ciScopeViolations(declaredScope, paths) {
-  if (!ciNonEmptyStringList(declaredScope)) return { readable: false, foreign: [] };
-  const canonical = ciCanonicalPaths(paths);
-  if (canonical === null || canonical.length === 0) return { readable: false, foreign: [] };
-  try {
-    return { readable: true, foreign: ciPathsOutsideScope(declaredScope, canonical) };
-  } catch {
-    return { readable: false, foreign: [] };
-  }
-}
-
-export function ciFailureFingerprint(report) {
-  const r = report && typeof report === 'object' && !Array.isArray(report) ? report : {};
-  const canonical = JSON.stringify([
-    typeof r.ciConclusion === 'string' ? r.ciConclusion : '',
-    ciSortedStrings(r.failedChecks),
-    ciSortedStrings(r.implicatedPaths),
-    ciSortedStrings(r.failingAssertionFiles),
-    ciSortedStrings(r.conflictPaths),
-    r.receiptsPass === true,
-    r.d6Pass === true,
-  ]);
-  let h = 0x811c9dc5;
-  for (let i = 0; i < canonical.length; i += 1) {
-    h = (h ^ canonical.charCodeAt(i)) >>> 0;
-    h = Math.imul(h, 0x01000193) >>> 0;
-  }
-  return `${CI_FIX_PREFIX}${h.toString(16).padStart(8, '0')}`;
-}
-
-export function ciAttemptsSpent(triedSet) {
-  if (!Array.isArray(triedSet)) return 0;
-  return triedSet.filter((t) => typeof t === 'string' && (t === CI_PROBE_TOKEN || t.startsWith(CI_FIX_PREFIX))).length;
-}
-
-export function ciHeadPublished(triedSet) {
-  return Array.isArray(triedSet) && triedSet.includes(CI_PUBLISHED_TOKEN);
-}
-
-export function ciProbeConsumed(triedSet) {
-  return Array.isArray(triedSet) && triedSet.includes(CI_PROBE_TOKEN);
-}
-
 export function classifyCiReport(report, declaredScope) {
   const escalate = (cls, reason) => ({ escalate: true, class: cls, reason });
   if (!report || typeof report !== 'object' || Array.isArray(report)) return escalate(0, 'the ci report is not a readable object');
@@ -136,19 +89,4 @@ export function classifyCiReport(report, declaredScope) {
     return escalate(0, 'a declared fileScope entry could not be evaluated as a path pattern, so containment cannot be confirmed');
   }
   return { escalate: false };
-}
-
-export function assertionGuardBlocks(changedPaths, failingAssertionFiles) {
-  const failing = ciCanonicalPaths(failingAssertionFiles);
-  if (failing === null || failing.length === 0) return true;
-  const changed = ciCanonicalPaths(changedPaths);
-  if (changed === null || changed.length === 0) return true;
-  const failingSet = new Set(failing);
-  return changed.some((p) => failingSet.has(p));
-}
-
-export function sensitivePathsTouched(paths) {
-  const canonical = ciCanonicalPaths(paths);
-  if (canonical === null) return true;
-  return canonical.some((p) => sensitiveScope([p]));
 }
