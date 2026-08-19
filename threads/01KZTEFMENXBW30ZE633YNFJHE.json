@@ -302,8 +302,8 @@
   "closure_statement": null,
   "spine": {
     "active_goal": "Ship the frozen 24-unit whole solution, waves 6 through 9, closing all thirteen boundary root causes.",
-    "next_step": "START HERE IN A FRESH SESSION. The trunk is green and G9 is a working gate again, so a G9 block now means a REAL regression, never a reflex downgrade; 0621 is spent. Session 2 per RUNBOOK AMENDMENT F: M6 alone, then M11 and M13 in parallel. Every unit branches off origin/main with --base main; stacking is retired. Read AMENDMENT 2026-08-19 A-G before the Standing Brief. Touch no test as cleanup - that is c41, after M16. M9's --remediate flag is a backlog line for a cli.mjs-owning unit.",
-    "last_session": "2026-08-19: Session 1 complete - M8a, M12b-3, M5, M8b and M9 shipped and merged (239-243). The user-authorized trunk repair merged as 244; main's test job measured completed success at 195ae602 against failure at a8d603c4, so the red trunk is closed. Rulings 0621-0624.",
+    "next_step": "M15's live run is IN FLIGHT under agent a2a2eef81d5f56696 - resume it with SendMessage, do not restart it. When it opens PRs it STOPS and hands over an ordered merge list; the user merges, then it asserts ancestry via headRefOid. Then M16, the only test whose green may be cited as evidence mitosis works. Exit 3 with three PRs open is the DECLARED healthy outcome, never a falsification. The stale harness branch still needs the user to delete it.",
+    "last_session": "2026-08-19: Session 2 shipped and merged M6 (245), its G14 test pins (246), M13 (247) and M11 (248). Session 3: M17 merged (249) after the user moved its ceiling to the read census. M15 phase 1 authored and reviewed; the live run is executing.",
     "open_risks": [
       {
         "text": "Prove a merge arrived by asserting its CONTENT is on the base, never by SHA ancestry — a squash or stack merge rewrites commits, so a pre-merge SHA correctly fails an ancestry check on a merge that lost nothing",
@@ -1305,5 +1305,5 @@
     ]
   },
   "created_at": "2026-08-12T07:37:41.077Z",
-  "updated_at": "2026-08-19T22:28:58.792Z"
+  "updated_at": "2026-08-19T22:31:46.541Z"
 }
