@@ -502,6 +502,11 @@
         "ref": "0601-decision-0592-window-is-not-reconstructable",
         "title": "Decision 0592's window cannot be reconstructed after 6bcce4f4, so only same-predicate comparisons hold",
         "scope": "c5"
+      },
+      {
+        "ref": "0606-dispatch-denominator-is-the-start-bearing-grain",
+        "title": "The dispatch denominator is the start-bearing grain, and stop-only groups are reported as a coverage fact",
+        "scope": "c5"
       }
     ],
     "out_of_scope": [
@@ -511,5 +516,5 @@
     ]
   },
   "created_at": "2026-08-16T05:43:25.829Z",
-  "updated_at": "2026-08-18T23:15:12.211Z"
+  "updated_at": "2026-08-19T01:24:10.097Z"
 }
