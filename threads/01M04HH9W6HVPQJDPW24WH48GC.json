@@ -3,7 +3,7 @@
   "id": "01M04HH9W6HVPQJDPW24WH48GC",
   "slug": "agent-architectural-review",
   "title": "Agent architectural review and ground-up rebuild",
-  "status": "paused",
+  "status": "done",
   "parent_id": null,
   "predecessor_id": null,
   "completion_criteria": [
@@ -52,7 +52,7 @@
     {
       "id": "c8",
       "text": "Observer audit instrument repaired so the c5 measurement means anything: population resolved at dispatch grain on sidecar depth, and the two row-wise questions moved off row grain.",
-      "done": false,
+      "done": true,
       "kind": "detour",
       "struck_by": null
     },
@@ -61,18 +61,18 @@
       "text": "Verified in real use after U7.1: the observer attributes every real dispatch, the audit derives a closed outcome census halting on the unclassifiable, and Lead share clears its pinned bar.",
       "done": false,
       "kind": "planned",
-      "struck_by": null
+      "struck_by": "0610-strike-c5-rather-than-rewrite-it-to-pass"
     }
   ],
   "vcs_ref": null,
   "external_refs": [],
   "blocked_by": null,
   "abandoned_reason": null,
-  "closure_statement": null,
+  "closure_statement": "Closed on a decided negative, not on a success. The roster and observer were rebuilt across seven waves, the instruction layer and the verification machinery were repaired ahead of them, and the audit instrument was repaired twice - first to resolve population at dispatch grain on sidecar depth, then to pair by ordinal rank after a LEFT JOIN fan-out was found reporting 2872 start rows against a true 667 and emitting a negative minimum duration. Agent-id reuse, which blocked the closing measurement, was settled as re-entry duplication: the emitter copies the harness value verbatim, 2139 of 2139 sidecars with a toolUseId are Agent calls, and no toolUseId is shared by two agent_ids, so the dispatch grain was sound all along. c5 is STRUCK, not met and not rewritten to pass. Two of its three conjuncts are met, the census genuinely so once it hard-halted at exit 6 with no residual bucket. The third failed: Lead share is 24.23 to 26.60 percent at n of 421, produced end to end by the repaired instrument, against a 50 percent bar pinned before any number existed. The pre-registration held under pressure three times - a band check fired and caught the instrument contradicting itself at 444 versus 421 groups, a capability-over-lineage ruling moved 25 groups away from the bar, and a bar flag that coerced an empty value to zero, which would have made every corpus read as passing, was caught and fixed. One thing is outstanding and belongs to a human: PR 231 is OPEN and unmerged. Merge it, then confirm its content reached origin/main by merge-base rather than by the MERGED label, and delete the branch. Whether a greater-than-50-percent Lead-share target was ever the right target is deliberately NOT settled here - it opens as its own thread, because re-examining a bar after seeing the number that failed it is post-hoc grading, and this outcome stands whatever that examination concludes.",
   "spine": {
-    "active_goal": "Close c5 by settling whether agent-id reuse makes the Lead share 60.74 or 29.25 percent, once PR 218 lands the audit repair.",
-    "next_step": "Merge PR 218 - OPEN and human-gated, never from a session - then confirm its content reached origin/main by merge-base rather than by the MERGED label, and delete the merged branch. Then open the agent-id reuse unit: decide whether 19 start rows under one (session_id, agent_id) are one dispatch logged repeatedly or 19 distinct dispatches, since that alone decides which Lead-share reading is real. Attribution and the closed census are already met per 0592 and must NOT be re-derived.",
-    "last_session": "Wave 7 was already merged before this session; the brief was stale. c4 evidenced complete. The audit instrument was found broken exactly where c5 measures, and repaired across PR 217 (merged) and PR 218 (open). The Lead-share sensitivity test inverted, so c5 stays open.",
+    "active_goal": "Closed: the roster and observer were rebuilt, the audit instrument repaired, and Lead share measured at 24.23-26.60 percent against a 50 percent bar.",
+    "next_step": "Nothing here. The bar question - whether a greater-than-50-percent Lead-share target was ever right - continues on its own successor thread. PR 231 is OPEN and awaits a HUMAN merge; never merge it from a session, and confirm its content reached origin/main by merge-base rather than by the MERGED label.",
+    "last_session": "PR 218 verified on main by merge-base and its branch deleted. Agent-id reuse settled as re-entry duplication. The instrument was repaired and produced Lead share end to end: 24.23-26.60 percent at n of 421. c5 struck.",
     "open_risks": [
       {
         "text": "Never quote one Lead-share reading without its twin — 60.74 and 29.25 percent sit on opposite sides of the bar, so either figure alone reads as a settled result when the share is genuinely unknown",
@@ -502,6 +502,31 @@
         "ref": "0601-decision-0592-window-is-not-reconstructable",
         "title": "Decision 0592's window cannot be reconstructed after 6bcce4f4, so only same-predicate comparisons hold",
         "scope": "c5"
+      },
+      {
+        "ref": "0606-dispatch-denominator-is-the-start-bearing-grain",
+        "title": "The dispatch denominator is the start-bearing grain, and stop-only groups are reported as a coverage fact",
+        "scope": "c5"
+      },
+      {
+        "ref": "0607-capability-governs-over-lineage-for-retired-agents",
+        "title": "A retired agent's Lead status is judged by its tool grant at deletion, never by name lineage",
+        "scope": "c5"
+      },
+      {
+        "ref": "0608-c5-third-conjunct-decided-negative-instrument-produced",
+        "title": "c5's third conjunct is decided negative: Lead share 24.23 to 26.60 percent at n of 421, instrument-produced",
+        "scope": "c5"
+      },
+      {
+        "ref": "0609-the-bar-is-a-required-flag-with-no-default",
+        "title": "The pass bar is a required flag with no default, after an empty value silently made every corpus pass",
+        "scope": "c5"
+      },
+      {
+        "ref": "0610-strike-c5-rather-than-rewrite-it-to-pass",
+        "title": "Strike c5 rather than rewrite it to pass: the measurement is complete and the bar is failed",
+        "scope": "c5"
       }
     ],
     "out_of_scope": [
@@ -511,5 +536,5 @@
     ]
   },
   "created_at": "2026-08-16T05:43:25.829Z",
-  "updated_at": "2026-08-18T23:15:12.211Z"
+  "updated_at": "2026-08-19T01:45:14.971Z"
 }
