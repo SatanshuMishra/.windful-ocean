@@ -3,6 +3,7 @@ import { existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync,
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { checkpointRef } from '../checkpoint.mjs';
 import { DECOMPOSE_CHANGE_TYPES, UNIT_VERDICT_SCHEMA } from '../decompose-schema.mjs';
 import { promptSection } from '../prompt-contract.mjs';
 import { composePrompt } from '../prompt-registry.mjs';
@@ -654,6 +655,10 @@ export function planRun(sandbox, unitPlans, overrides = {}) {
     units: Object.freeze(planned),
     shaOf: Object.freeze(shaOf),
   });
+}
+
+export function writeCheckpointRef(sandbox, unitId, sha, runId = FIXED_RUN_ID) {
+  gitIn(sandbox, ['update-ref', checkpointRef(runId, unitId), sha], sandbox.repo);
 }
 
 export function decompositionMsp(unitId, overrides = {}) {
