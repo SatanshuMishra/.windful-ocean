@@ -129,10 +129,6 @@ const SITE_PARSERS = Object.freeze({
       reads: (read) => read.paths.length === 3 && read.paths[0] === QUOTED_SPECIMEN_PATH,
     }),
   ]),
-  integrate: Object.freeze([
-    Object.freeze({ name: 'parseMerge', parse: parseMerge, specimen: ran(1, 'CONFLICT (content): Merge conflict in src/a.ts\n'), reads: (read) => read.conflict === true && read.conflictPaths.length === 1 }),
-    Object.freeze({ name: 'parseAncestry', parse: parseAncestry, specimen: ran(1), reads: (read) => read.ancestor === false }),
-  ]),
   'divergence-check': Object.freeze([
     Object.freeze({
       name: 'parseNameOnlyPaths',
@@ -662,8 +658,8 @@ export function gitCommandFixtureCensus(source) {
 }
 
 const HOSTILE_VALUE = '/wt/$(touch /tmp/pwn); rm -rf ~ && echo `id` | sh > /tmp/out';
-const INERTNESS_SITE = 'integrate';
-const INERTNESS_STEP = 'worktree-remove';
+const INERTNESS_SITE = 'branch-compose';
+const INERTNESS_STEP = 'cherry-pick-abort';
 const INERTNESS_ROOT = '/repo';
 
 export function argvInertnessProbe() {
@@ -676,7 +672,7 @@ export function argvInertnessProbe() {
   });
   let argv;
   try {
-    argv = buildGitCommand(INERTNESS_SITE, INERTNESS_STEP, { repoRoot: INERTNESS_ROOT, worktreePath: HOSTILE_VALUE });
+    argv = buildGitCommand(INERTNESS_SITE, INERTNESS_STEP, { repoRoot: HOSTILE_VALUE });
   } catch (error) {
     return Object.freeze({ built: false, detail: error && error.message ? error.message : 'unknown throw', carriedWhole: false, unsplit: false, shellRefused: false });
   }

@@ -18,7 +18,7 @@ test('every declared site names at least one command builder', () => {
   }
 });
 
-test('the sixteen declared git sites are named here, so one added or dropped is stated rather than counted', () => {
+test('the fifteen declared git sites are named here, so one added or dropped is stated rather than counted', () => {
   assert.deepEqual([...GIT_SITES].sort(), [
     'branch-compose',
     'branch-prep',
@@ -29,7 +29,6 @@ test('the sixteen declared git sites are named here, so one added or dropped is 
     'ci-publish-verify',
     'divergence-check',
     'fence',
-    'integrate',
     'manifest-publish',
     'prepare-probe',
     'reconcile',
@@ -52,14 +51,6 @@ test('a builder rebuilds rather than returning a shared array', () => {
   assert.notEqual(first, second, 'two builds returned the same object, so one caller could observe another caller through it');
 });
 
-test('a path value carrying shell metacharacters arrives as exactly one argv element', () => {
-  const hostile = '/wt/$(touch /tmp/pwn); rm -rf ~ && echo `id`';
-  const argv = buildGitCommand('integrate', 'worktree-remove', { repoRoot: REPO, worktreePath: hostile });
-  assert.deepEqual([...argv], ['-C', REPO, 'worktree', 'remove', '--force', '--end-of-options', hostile]);
-  assert.equal(argv.filter((token) => token === hostile).length, 1);
-  assert.equal(argv.length, 7, 'the hostile value was split, so something is treating argv as a command line');
-});
-
 test('a ref-shaped value carrying shell metacharacters is refused rather than carried inertly', () => {
   assert.throws(
     () => buildGitCommand('restore', 'fetch-checkpoint', { repoRoot: REPO, builtRef: 'refs/heads/$(touch /tmp/pwn)' }),
@@ -76,8 +67,7 @@ test('a caller value beginning with a dash is refused at every builder that carr
     ['branch-compose', 'fetch-base', { repoRoot: REPO, baseBranch: '--upload-pack=touch /tmp/pwn;true' }],
     ['branch-compose', 'fetch-parent', { repoRoot: REPO, ref: '--upload-pack=touch /tmp/pwn;true' }],
     ['branch-prep', 'fetch-base', { repoRoot: REPO, baseBranch: '--upload-pack=touch /tmp/pwn;true' }],
-    ['integrate', 'worktree-remove', { repoRoot: REPO, worktreePath: '--upload-pack=touch /tmp/pwn;true' }],
-    ['integrate', 'worktree-add', { repoRoot: '-C/etc', integrationWt: '/wt', baseBranch: BASE }],
+    ['manifest-publish', 'git-dir', { repoRoot: '-C/etc' }],
   ];
   for (const [site, step, values] of cases) {
     assert.throws(
@@ -190,11 +180,6 @@ test('the retire-head step names the branch fully qualified under refs/heads, so
     ['-C', REPO, 'push', '--delete', 'origin', '--end-of-options', 'refs/heads/mitosis/c4b-integration'],
     'git resolves a bare name against every remote ref, so where no branch matches but a tag of that name does, the bare spelling deletes the tag instead',
   );
-});
-
-test('the merge integrate step is the no-fast-forward spelling the incumbent names', () => {
-  const argv = buildGitCommand('integrate', 'merge', { integrationWt: '/wt', branch: 'mitosis/task-1' });
-  assert.deepEqual([...argv], ['-C', '/wt', 'merge', '--no-ff', '--end-of-options', 'mitosis/task-1']);
 });
 
 test('every site builds against the same base value set without leaking a sibling value', () => {

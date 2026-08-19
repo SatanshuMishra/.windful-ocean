@@ -5,9 +5,6 @@ export const FIXTURE_PARENT_SHA = '4656b8ad';
 const REPO = Object.freeze({ field: 'repoRoot', value: '/repo' });
 const BASE = Object.freeze({ field: 'baseBranch', value: 'main' });
 const INTEGRATION_BRANCH = Object.freeze({ field: 'integrationBranch', value: 'mitosis/c4b-git-sites' });
-const INTEGRATION_WT = Object.freeze({ field: 'integrationWt', value: '/wt/c4b' });
-const TASK_BRANCH = Object.freeze({ field: 'branch', value: 'mitosis/c4b-task-1' });
-const WORKTREE_PATH = Object.freeze({ field: 'worktreePath', value: '/wt/task-1' });
 const CHECKPOINT_REF = Object.freeze({ field: 'ref', value: 'refs/mitosis/aaaa1111/c4a' });
 const BUILT_REF = Object.freeze({ field: 'builtRef', value: 'refs/mitosis/aaaa1111/c4b' });
 const DURABLE_REF = Object.freeze({ field: 'durableCheckpointRef', value: 'refs/mitosis/aaaa1111/c4b' });
@@ -23,13 +20,8 @@ const RUN_ID = Object.freeze({ field: 'logicalRunId', value: 'aaaa1111' });
 
 const REPO_PLACEHOLDER = Object.freeze({ '<repoRoot>': Object.freeze({ incumbent: '${repoRoot}', ...REPO }) });
 const BASE_PLACEHOLDER = Object.freeze({ '<baseBranch>': Object.freeze({ incumbent: '${baseBranch}', ...BASE }) });
-const WT_PLACEHOLDER = Object.freeze({ '<integrationWt>': Object.freeze({ incumbent: '${integrationWt}', ...INTEGRATION_WT }) });
 const IB_PLACEHOLDER = Object.freeze({ '<integrationBranch>': Object.freeze({ incumbent: '${integrationBranch}', ...INTEGRATION_BRANCH }) });
 const MANIFEST_PLACEHOLDER = Object.freeze({ '<manifestRef>': Object.freeze({ incumbent: '${manifestRef}', ...MANIFEST_REF }) });
-
-const DERIVED_C = Object.freeze({
-  '-C': 'the incumbent enters the tree with a shell cd, which is not a spawnable binary; -C is git own equivalent and keeps the path an inert argument vector element rather than a word a shell would split',
-});
 
 const DERIVED_SEPARATOR = Object.freeze({
   '--end-of-options': 'the incumbent hands this command a caller value positionally with nothing marking the end of its options, and git permutes its argument vector, so a value beginning with a dash is read as an option rather than as the value it was passed as; --upload-pack= alone runs an arbitrary command while the command it rides on reports an ordinary failure. The separator is added rather than transcribed, and the incumbent already spells it at the three sites that carry it',
@@ -38,11 +30,6 @@ const DERIVED_SEPARATOR = Object.freeze({
 const DERIVED_REPO_SCOPE = Object.freeze({
   '-C': 'the incumbent spells this one command without the repository prefix every other command in the same stage carries, and the stage prose scopes the whole stage to the main repo, so the prefix is restored rather than left to whatever directory the process happens to be in',
   '<repoRoot>': 'the same restored repository prefix; the stage prose names the main repo as the tree every command in it operates against',
-});
-
-const OMITTED_SHELL_TREE_ENTRY = Object.freeze({
-  cd: 'the incumbent enters the tree with a shell cd before invoking git; the transcription reaches the same tree through git own -C, so the cd word corresponds to no argument vector element',
-  '&&': 'the incumbent joins the cd and the git invocation with a shell operator, which sequences two commands rather than naming an argument of either',
 });
 
 const OMITTED_BLOB_CAPTURE = Object.freeze({
@@ -106,55 +93,6 @@ export const GIT_COMMAND_FIXTURES = Object.freeze([
     anchor: 'run \\`git status --porcelain=v1 -uall\\` and return EVERY path it reports',
     argv: ['status', '--porcelain=v1', '-uall'],
     cwd: '<repoRoot>',
-  }),
-
-  fixture({
-    site: 'integrate',
-    step: 'worktree-add',
-    anchor: '\\`git -C ${repoRoot} worktree add ${integrationWt} ${baseBranch}\\`',
-    argv: ['-C', '<repoRoot>', 'worktree', 'add', '--end-of-options', '<integrationWt>', '<baseBranch>'],
-    derived: DERIVED_SEPARATOR,
-    placeholders: { ...REPO_PLACEHOLDER, ...WT_PLACEHOLDER, ...BASE_PLACEHOLDER },
-  }),
-  fixture({
-    site: 'integrate',
-    step: 'checkout',
-    anchor: '\\`cd ${integrationWt} && git checkout ${baseBranch}\\`',
-    argv: ['-C', '<integrationWt>', 'checkout', '--end-of-options', '<baseBranch>'],
-    placeholders: { ...WT_PLACEHOLDER, ...BASE_PLACEHOLDER },
-    derived: { ...DERIVED_C, ...DERIVED_SEPARATOR },
-    omitted: OMITTED_SHELL_TREE_ENTRY,
-  }),
-  fixture({
-    site: 'integrate',
-    step: 'merge-base',
-    anchor: '\\`git -C ${integrationWt} merge-base --is-ancestor <branch> HEAD\\`',
-    argv: ['-C', '<integrationWt>', 'merge-base', '--is-ancestor', '--end-of-options', '<branch>', 'HEAD'],
-    derived: DERIVED_SEPARATOR,
-    placeholders: { ...WT_PLACEHOLDER, '<branch>': { incumbent: '<branch>', ...TASK_BRANCH } },
-  }),
-  fixture({
-    site: 'integrate',
-    step: 'merge',
-    anchor: '\\`git -C ${integrationWt} merge --no-ff <branch>\\`',
-    argv: ['-C', '<integrationWt>', 'merge', '--no-ff', '--end-of-options', '<branch>'],
-    derived: DERIVED_SEPARATOR,
-    placeholders: { ...WT_PLACEHOLDER, '<branch>': { incumbent: '<branch>', ...TASK_BRANCH } },
-  }),
-  fixture({
-    site: 'integrate',
-    step: 'merge-abort',
-    anchor: 'run \\`git -C ${integrationWt} merge --abort\\`',
-    argv: ['-C', '<integrationWt>', 'merge', '--abort'],
-    placeholders: { ...WT_PLACEHOLDER },
-  }),
-  fixture({
-    site: 'integrate',
-    step: 'worktree-remove',
-    anchor: 'run \\`git -C ${repoRoot} worktree remove --force <path>\\`',
-    argv: ['-C', '<repoRoot>', 'worktree', 'remove', '--force', '--end-of-options', '<path>'],
-    derived: DERIVED_SEPARATOR,
-    placeholders: { ...REPO_PLACEHOLDER, '<path>': { incumbent: '<path>', ...WORKTREE_PATH } },
   }),
 
   fixture({
