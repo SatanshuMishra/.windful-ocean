@@ -522,6 +522,11 @@
         "ref": "0609-the-bar-is-a-required-flag-with-no-default",
         "title": "The pass bar is a required flag with no default, after an empty value silently made every corpus pass",
         "scope": "c5"
+      },
+      {
+        "ref": "0610-strike-c5-rather-than-rewrite-it-to-pass",
+        "title": "Strike c5 rather than rewrite it to pass: the measurement is complete and the bar is failed",
+        "scope": "c5"
       }
     ],
     "out_of_scope": [
@@ -531,5 +536,5 @@
     ]
   },
   "created_at": "2026-08-16T05:43:25.829Z",
-  "updated_at": "2026-08-19T01:24:45.951Z"
+  "updated_at": "2026-08-19T01:44:28.812Z"
 }
