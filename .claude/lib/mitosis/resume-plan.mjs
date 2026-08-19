@@ -182,9 +182,8 @@ export async function planResume(request) {
   const built = entriesWithin(selectResumeBuilt(manifest, shipped, null), plannedIds);
   const parked = entriesWithin(selectResumeUnits(manifest, shipped), plannedIds);
   const parkedById = new Map(parked.map((entry) => [entry.unitId, entry]));
-  const parkedIds = new Set(parked.map((entry) => entry.unitId));
   const settled = new Set([...shipped, ...built.map((entry) => entry.unitId), ...settledByProgress(manifest, plannedIds)]);
-  const outstanding = planned.filter((spec) => !settled.has(spec.id) && !parkedIds.has(spec.id));
+  const outstanding = planned.filter((spec) => !settled.has(spec.id));
   const retained = new Set(outstanding.map((spec) => spec.id));
   return Object.freeze({
     restarted: recovered === null,

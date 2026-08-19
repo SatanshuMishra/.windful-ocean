@@ -53,24 +53,6 @@ test('a unit at pr-open with no merged PR reported resumes at ship via built, ca
   assert.equal(plan.mergedProbeReason, null);
 });
 
-test('a parked unit is excluded from Prep: it appears in parked and never in specs, and the forge is never asked about it', async () => {
-  const msp = {
-    id: 'unit-b',
-    status: 'parked',
-    integrationBranch: 'mitosis/unit-b-integration',
-    resumePoint: { branch: 'mitosis/unit-b-integration', ref: null, stage: 'plan' },
-    triedSet: [],
-  };
-  const plan = await requestFor(
-    baseManifest([msp]),
-    [spec('unit-b')],
-    refusingReconcile('reconcile must not run for a unit that never claimed pr-open or merged'),
-  );
-  assert.deepEqual(plan.parked.map((entry) => entry.unitId), ['unit-b']);
-  assert.deepEqual(plan.specs.map((s) => s.id), []);
-  assert.equal(plan.mergedProbe, MERGED_PROBE_STATE.NOT_ASKED);
-});
-
 test('mergedProbe is not-asked when no planned unit claims pr-open or merged, and the forge is never called', async () => {
   const msp = {
     id: 'unit-c',
