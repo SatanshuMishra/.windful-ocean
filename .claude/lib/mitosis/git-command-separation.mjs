@@ -178,7 +178,6 @@ export const FETCH_VALUE_SITES = Object.freeze([
   Object.freeze({ site: 'branch-compose', step: 'fetch-base', field: 'baseBranch', shape: REF_SHAPED }),
   Object.freeze({ site: 'branch-compose', step: 'fetch-parent', field: 'ref', shape: REF_SHAPED }),
   Object.freeze({ site: 'branch-prep', step: 'fetch-base', field: 'baseBranch', shape: REF_SHAPED }),
-  Object.freeze({ site: 'integrate', step: 'worktree-remove', field: 'worktreePath', shape: PATH_SHAPED }),
   Object.freeze({ site: 'manifest-publish', step: 'push', field: 'manifestRef', shape: REF_SHAPED }),
   Object.freeze({ site: 'reconcile', step: 'manifest-fetch', field: 'manifestRef', shape: REF_SHAPED }),
   Object.freeze({ site: 'supersede', step: 'publish-branch', field: 'supersedeBranch', shape: REF_SHAPED }),

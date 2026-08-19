@@ -51,15 +51,6 @@ const FENCE = Object.freeze({
   status: () => ['status', '--porcelain=v1', '-uall'],
 });
 
-const INTEGRATE = Object.freeze({
-  'worktree-add': (v, t) => ['-C', t.text('repoRoot', v.repoRoot), 'worktree', 'add', END_OF_OPTIONS, t.text('integrationWt', v.integrationWt), t.ref('baseBranch', v.baseBranch)],
-  checkout: (v, t) => ['-C', t.text('integrationWt', v.integrationWt), 'checkout', END_OF_OPTIONS, t.ref('baseBranch', v.baseBranch)],
-  'merge-base': (v, t) => ['-C', t.text('integrationWt', v.integrationWt), 'merge-base', '--is-ancestor', END_OF_OPTIONS, t.ref('branch', v.branch), 'HEAD'],
-  merge: (v, t) => ['-C', t.text('integrationWt', v.integrationWt), 'merge', '--no-ff', END_OF_OPTIONS, t.ref('branch', v.branch)],
-  'merge-abort': (v, t) => ['-C', t.text('integrationWt', v.integrationWt), 'merge', '--abort'],
-  'worktree-remove': (v, t) => ['-C', t.text('repoRoot', v.repoRoot), 'worktree', 'remove', '--force', END_OF_OPTIONS, t.text('worktreePath', v.worktreePath)],
-});
-
 const DIVERGENCE_CHECK = Object.freeze({
   'fetch-base': (v, t) => ['-C', t.text('repoRoot', v.repoRoot), 'fetch', ORIGIN, END_OF_OPTIONS, t.ref('baseBranch', v.baseBranch)],
   'fetch-checkpoint': (v, t) => ['-C', t.text('repoRoot', v.repoRoot), 'fetch', ORIGIN, END_OF_OPTIONS, t.ref('ref', v.ref)],
@@ -188,7 +179,6 @@ const SHIP = Object.freeze({
 
 export const GIT_SITE_COMMANDS = Object.freeze({
   fence: FENCE,
-  integrate: INTEGRATE,
   'divergence-check': DIVERGENCE_CHECK,
   'prepare-probe': PREPARE_PROBE,
   restore: RESTORE,
