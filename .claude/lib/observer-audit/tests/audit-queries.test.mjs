@@ -11,11 +11,15 @@ import { query, requireBinary } from '../duckdb.mjs';
 
 const LIB_DIR = fileURLToPath(new URL('..', import.meta.url));
 const FIXTURES = join(LIB_DIR, 'fixtures');
+const MITOSIS_DIR = fileURLToPath(new URL('../../mitosis/', import.meta.url));
+const MITOSIS_SIBLING_FILES = Object.freeze(['retirement-set.mjs', 'js-scan.mjs']);
 const EXPECTED_IDS = Object.freeze([
+  'agent-type-census',
   'blocked',
   'downgrade-recurrence',
   'failed',
   'fell-back',
+  'lead-share',
   'never-observed',
   'ran-and-duration',
 ]);
@@ -32,8 +36,14 @@ function stageFixture(label) {
 
 function stageLib(label) {
   const dir = scratch(label);
-  cpSync(LIB_DIR, dir, { recursive: true });
-  return dir;
+  const observerAuditDir = join(dir, 'observer-audit');
+  cpSync(LIB_DIR, observerAuditDir, { recursive: true });
+  const mitosisDir = join(dir, 'mitosis');
+  mkdirSync(mitosisDir, { recursive: true });
+  for (const name of MITOSIS_SIBLING_FILES) {
+    cpSync(join(MITOSIS_DIR, name), join(mitosisDir, name));
+  }
+  return observerAuditDir;
 }
 
 function substitute(file, from, to) {
@@ -111,7 +121,7 @@ function generateOversampled(label, withCapabilityRow) {
   return dir;
 }
 
-test('the question registry is closed at exactly the six declared ids', () => {
+test('the question registry is closed at exactly the eight declared ids', () => {
   assert.deepEqual(questionIds(), EXPECTED_IDS);
   assert.deepEqual([...QUESTION_IDS].sort(), EXPECTED_IDS);
 });
@@ -156,8 +166,9 @@ test('ran-and-duration separates populations, buckets null depth, and omits ever
   assert.deepEqual(populations, ['dispatch', 'internal']);
 
   const implementer = rowFor(answer.rows, (row) => row.population === 'dispatch' && row.agent_type === 'implementer');
-  assert.equal(implementer.started, 3);
-  assert.equal(implementer.paired, 3);
+  assert.equal(implementer.dispatches, 3, 'a-main-1, a-cap-1 and a-cap-2 are three distinct (session_id, agent_id) groups');
+  assert.equal(implementer.start_rows, 3);
+  assert.equal(implementer.paired_runs, 3);
   assert.equal(implementer.max_duration_ms, 12000);
 
   const nested = rowFor(answer.rows, (row) => row.agent_type === 'code-reviewer');
@@ -166,10 +177,10 @@ test('ran-and-duration separates populations, buckets null depth, and omits ever
 
   const depthNull = rowFor(answer.rows, (row) => row.population === 'internal' && row.agent_type === 'claude');
   assert.equal(depthNull.depth_bucket, 'null', 'a null depth is its own bucket, never folded into 1');
-  assert.equal(depthNull.started, 1, 'a-fb-2 carries no sidecar depth on either row, so it resolves to internal, never dispatch');
+  assert.equal(depthNull.start_rows, 1, 'a-fb-2 carries no sidecar depth on either row, so it resolves to internal, never dispatch');
 
   const internal = rowFor(answer.rows, (row) => row.population === 'internal' && row.agent_type === '(unattributed)');
-  assert.equal(internal.started, 1);
+  assert.equal(internal.start_rows, 1);
 
   const fields = new Set(answer.rows.flatMap((row) => Object.keys(row)));
   for (const forbidden of ['cost', 'total_cost_usd', 'tokens', 'tokens_in', 'tokens_out', 'cache_read', 'num_turns']) {
@@ -383,7 +394,7 @@ test('MUTATION 1: corrupting the paired stop timestamp turns ran-and-duration re
   const answer = answered('ran-and-duration', { logRoot: dir });
   const implementer = rowFor(answer.rows, (row) => row.population === 'dispatch' && row.agent_type === 'implementer');
   assert.notEqual(implementer.max_duration_ms, 12000, 'the mutant survived: duration did not move');
-  assert.equal(implementer.paired, 2);
+  assert.equal(implementer.paired_runs, 2);
   rmSync(dir, { recursive: true, force: true });
 });
 
@@ -469,7 +480,46 @@ test('MUTATION 7: removing the declared column list turns the no-capability corp
   rmSync(corpus, { recursive: true, force: true });
 });
 
-test('MUTATION 8: an empty corpus makes ALL SIX questions exit non-zero', () => {
+test('MUTATION 9: removing the ordinal rank join predicate in pairing.mjs turns ran-and-duration red under re-entry', () => {
+  const dir = stageLib('mutation-pairing-rank');
+  substitute(join(dir, 'pairing.mjs'), 'AND p.rank = s.rank', '');
+  const reentryDir = scratch('mutation-pairing-rank-fixture');
+  mkdirSync(join(reentryDir, 'events'), { recursive: true });
+  const reentryRow = (ts, event) =>
+    JSON.stringify({
+      ts,
+      subject: 'agent',
+      event,
+      session_id: 'reentry-session',
+      cwd: '/w',
+      agent_id: 'reentry-agent',
+      agent_type: 'implementer',
+      agent_transcript_path: event === 'SubagentStop' ? '/t/reentry.jsonl' : null,
+      parent_agent_id: null,
+      depth: 1,
+    });
+  const rows = [
+    reentryRow('2026-09-01T00:00:00.000Z', 'SubagentStart'),
+    reentryRow('2026-09-01T00:05:00.000Z', 'SubagentStart'),
+    reentryRow('2026-09-01T00:10:00.000Z', 'SubagentStart'),
+    reentryRow('2026-09-01T00:00:02.000Z', 'SubagentStop'),
+    reentryRow('2026-09-01T00:04:00.000Z', 'SubagentStop'),
+  ];
+  writeFileSync(join(reentryDir, 'events', '2026-09.jsonl'), `${rows.join('\n')}\n`);
+
+  const answer = answered('ran-and-duration', { logRoot: reentryDir, lib: dir });
+  const row = rowFor(answer.rows, (r) => r.population === 'dispatch' && r.agent_type === 'implementer');
+  assert.notEqual(
+    row.start_rows,
+    3,
+    'the mutant survived: start_rows must inflate once the rank tie-break is removed, since the join then matches every start against every stop in the group',
+  );
+  assert.equal(row.start_rows, 6, 'without the rank join predicate every one of the 3 starts pairs against every one of the 2 stops: 3 x 2 = 6');
+  rmSync(reentryDir, { recursive: true, force: true });
+  rmSync(dir, { recursive: true, force: true });
+});
+
+test('MUTATION 8: an empty corpus makes ALL EIGHT questions exit non-zero', () => {
   const dir = scratch('mutation-vacuity');
   mkdirSync(join(dir, 'events'), { recursive: true });
   const codes = EXPECTED_IDS.map((id) => ({ id, code: ask(id, { logRoot: dir }).code }));

@@ -1,5 +1,3 @@
-import fs from 'node:fs';
-import path from 'node:path';
 import {
   AuditError,
   CAPABILITY_EVENT,
@@ -14,37 +12,19 @@ import {
   STOP_EVENT,
 } from './contract.mjs';
 import { query, sqlLiteral } from './duckdb.mjs';
-import { POPULATION_CASE, depthBucketSql, readerExpression } from './reader.mjs';
+import { agentTypeCensusHandler, leadShareHandler } from './lead-questions.mjs';
+import { ranAndDurationSql } from './pairing.mjs';
+import { eventsCte, readRoster } from './reader.mjs';
 
-const UNATTRIBUTED = '(unattributed)';
+export { eventsCte };
 
 const DISPATCH_NOTE =
   'computed over the dispatch population only: population is resolved at dispatch grain, per (session_id, agent_id), so every row belonging to a dispatch shares that label whether it is the start row or the stop row. A group is a dispatch when at least one of its rows carries a depth, the value the harness sidecar sets only for a genuine Task dispatch; a group with depth null on every row is internal, even when a row in it carries a stop-phase transcript path, because that field is copied verbatim from the hook payload and is not a dispatch signal. Depth null on every row has two indistinguishable causes it cannot tell apart: the group is genuinely internal, or it is a real dispatch whose sidecar write failed and was swallowed by the writer, leaving no depth to record; this predicate reports both the same way, under internal, and that is a known blind spot, filed separately, not fixed by this note. A depth-free unpaired start forms a single-row partition with nothing else in the group to rescue it, so it is reported under internal — that is a limit of what the data can resolve, not a defect in this predicate.';
-
-export function eventsCte(logRoot) {
-  return `ev AS (SELECT *, ${POPULATION_CASE} AS population FROM ${readerExpression(logRoot)})`;
-}
 
 function pairCtes(logRoot) {
   return `WITH ${eventsCte(logRoot)},
  starts AS (SELECT session_id, agent_id, agent_type, depth, population, TRY_CAST(ts AS TIMESTAMP) AS started FROM ev WHERE event = ${sqlLiteral(START_EVENT)}),
  stops AS (SELECT session_id, agent_id, population, TRY_CAST(ts AS TIMESTAMP) AS stopped FROM ev WHERE event = ${sqlLiteral(STOP_EVENT)})`;
-}
-
-export function ranAndDurationSql(logRoot) {
-  return `${pairCtes(logRoot)}
-SELECT s.population,
-       coalesce(s.agent_type, ${sqlLiteral(UNATTRIBUTED)}) AS agent_type,
-       ${depthBucketSql('s.depth')} AS depth_bucket,
-       count(*) AS started,
-       count(p.stopped) AS paired,
-       min(date_diff('millisecond', s.started, p.stopped)) AS min_duration_ms,
-       max(date_diff('millisecond', s.started, p.stopped)) AS max_duration_ms,
-       CAST(round(avg(date_diff('millisecond', s.started, p.stopped))) AS BIGINT) AS mean_duration_ms
-FROM starts s
-LEFT JOIN stops p ON p.session_id = s.session_id AND p.agent_id = s.agent_id
-GROUP BY ALL
-ORDER BY s.population, agent_type, depth_bucket`;
 }
 
 export function fellBackSql(logRoot) {
@@ -128,32 +108,6 @@ SELECT count(*) FILTER (WHERE population = ${sqlLiteral(POPULATION_DISPATCH)}) A
 FROM ev`;
 }
 
-export function readRoster(rosterPath) {
-  if (typeof rosterPath !== 'string' || rosterPath.length === 0) {
-    throw new AuditError(
-      EXIT.USAGE,
-      'the roster question needs a roster path. The log does not hold the roster, so a roster the log cannot see is not evidence of anything.',
-    );
-  }
-  let entries;
-  try {
-    entries = fs.readdirSync(rosterPath, { withFileTypes: true });
-  } catch (error) {
-    throw new AuditError(EXIT.USAGE, `the roster directory ${rosterPath} could not be listed: ${error.message}`);
-  }
-  const names = entries
-    .filter((entry) => entry.isFile() && entry.name.endsWith('.md'))
-    .map((entry) => path.basename(entry.name, '.md'))
-    .sort();
-  if (names.length === 0) {
-    throw new AuditError(
-      EXIT.EMPTY_CORPUS,
-      `the roster directory ${rosterPath} names no agents. A roster census over an empty roster passes over nothing.`,
-    );
-  }
-  return Object.freeze(names);
-}
-
 function percent(part, whole) {
   return whole === 0 ? 0 : Math.round((part / whole) * 10000) / 100;
 }
@@ -228,6 +182,10 @@ const HANDLERS = Object.freeze({
         'Candidate corpora are pull request bodies carrying the ladder tags and the receipts enforcer run. Filed as U3.3d.',
     );
   },
+
+  'agent-type-census': agentTypeCensusHandler,
+
+  'lead-share': leadShareHandler,
 });
 
 export function questionIds() {
