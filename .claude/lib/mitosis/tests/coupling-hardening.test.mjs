@@ -830,7 +830,11 @@ test('the coupling marker set and the engine model-routing keyword set are one v
     const values = elementsOf(source, structure.masked, home).map((span) => { const value = stringValueOf(source, structure.stringSpans, span); assert.ok(value !== null, notAStringLiteralMessage(name, source, span)); return value; });
     assert.deepEqual([...values].sort(), [...riskMarkers].sort(), `${name}:${lineOf(source, home[0])}: the declared array does not equal the imported riskMarkers vocabulary; extra=${JSON.stringify(values.filter((v) => !riskMarkers.includes(v)))} missing=${JSON.stringify(riskMarkers.filter((m) => !values.includes(m)))}`);
   }
-  assert.ok(declarerCount > 0, 'the census imports riskMarkers from coupling-review.mjs, so some scanned module must literally declare it; zero declarers means the scanned directory or the extractor is wrong, not that the vocabulary has no source');
+  assert.equal(
+    declarerCount,
+    1,
+    `${declarerCount} modules in ${LIB_DIR} declare the risk-marker vocabulary literally; the vocabulary must have exactly one declarer, because a second declaration is a second copy that can drift from the first and silently narrow or widen what the coupling pass and the engine's model routing treat as risky`,
+  );
 });
 
 test('every array literal in lib/mitosis either shapes as the risk-marker vocabulary or is safely excluded', () => {

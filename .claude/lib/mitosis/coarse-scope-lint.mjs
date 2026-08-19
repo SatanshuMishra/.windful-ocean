@@ -1,3 +1,5 @@
+import { COUPLING_RISK_MARKERS } from './coupling-review.mjs';
+
 export function normalizePath(p) { return p.replace(/^\.\//, '').replace(/\/+$/, ''); }
 export const GLOB_MAX_LENGTH = 1024;
 export const GLOB_MAX_WILDCARDS = 8;
@@ -84,8 +86,7 @@ export function fileScopeEdit(fileScope) {
 }
 
 const SENSITIVE_SCOPE_GLOBS = ['*.sql', '**/*.sql', '.github/workflows'];
-const SENSITIVE_SCOPE_KEYWORDS = ['auth', 'security', 'secret', 'payment', 'crypto', 'migrations', 'infra', 'deploy'];
-const SENSITIVE_SCOPE_KEYWORD_RE = new RegExp('(^|/)(?:' + SENSITIVE_SCOPE_KEYWORDS.join('|') + ')', 'i');
+const SENSITIVE_SCOPE_KEYWORD_RE = new RegExp('(^|/)(?:' + COUPLING_RISK_MARKERS.join('|') + ')', 'i');
 
 export function sensitiveScope(fileScope) {
   if (!Array.isArray(fileScope)) return false;

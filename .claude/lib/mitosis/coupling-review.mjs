@@ -17,6 +17,7 @@ const NON_RENDERING_PROBE_RE = new RegExp(NON_RENDERING_RE.source, 'u');
 const WHITESPACE_RUN_RE = /\s+/g;
 
 export const COUPLING_DECISIONS = DECISIONS;
+export const COUPLING_RISK_MARKERS = DEFAULT_RISK_MARKERS;
 export const COUPLING_PARALLEL = 'parallel';
 export const COUPLING_SERIALIZE = 'serialize';
 export const COUPLING_RATIONALE_CAP = 200;
