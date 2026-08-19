@@ -32,7 +32,7 @@ const SHIPPED_CLAIM_MANIFEST = Object.freeze({
   clusters: [],
   baseBranch: 'main',
   sourcePrefix: 'mitosis',
-  msps: [{ id: 'alpha', title: 'unit alpha', dependsOn: [], status: 'shipped' }],
+  msps: [{ id: 'alpha', title: 'unit alpha', dependsOn: [], progress: 'pr-open' }],
 });
 
 function ghPlanReporting(mergedPRs) {

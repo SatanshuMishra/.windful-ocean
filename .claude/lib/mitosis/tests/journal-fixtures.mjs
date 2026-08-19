@@ -101,7 +101,6 @@ export const GENESIS_MANIFEST_AT_FB195E47 = Object.freeze({
     rationale: 'fx unit rationale',
     changeType: 'feat',
     scope: 'fx',
-    status: 'planned',
     integrationBranch: 'fx/fx-unit-integration',
     prUrl: null,
     mergedAt: null,
@@ -112,7 +111,7 @@ export const GENESIS_MANIFEST_AT_FB195E47 = Object.freeze({
   parked: Object.freeze([]),
 });
 
-export const GENESIS_LINE_AT_FB195E47 = '{"logicalRunId":"fx01run7","harnessRunId":null,"spec":"/fx/repo/spec.md","repoRoot":"/fx/repo","baseBranch":"fx-base","sourcePrefix":"fx","specContentHash":"fx00spec","phase":"Decompose","clusters":[["fx-unit"]],"msps":[{"id":"fx-unit","title":"fx unit title","rationale":"fx unit rationale","changeType":"feat","scope":"fx","status":"planned","integrationBranch":"fx/fx-unit-integration","prUrl":null,"mergedAt":null,"dependsOn":[],"fileScope":{"edit":["fx/alpha.mjs"],"read":[],"truncated":null},"contentHash":"1d8ede95"}],"parked":[]}\n';
+export const GENESIS_LINE_AT_FB195E47 = '{"logicalRunId":"fx01run7","harnessRunId":null,"spec":"/fx/repo/spec.md","repoRoot":"/fx/repo","baseBranch":"fx-base","sourcePrefix":"fx","specContentHash":"fx00spec","phase":"Decompose","clusters":[["fx-unit"]],"msps":[{"id":"fx-unit","title":"fx unit title","rationale":"fx unit rationale","changeType":"feat","scope":"fx","integrationBranch":"fx/fx-unit-integration","prUrl":null,"mergedAt":null,"dependsOn":[],"fileScope":{"edit":["fx/alpha.mjs"],"read":[],"truncated":null},"contentHash":"1d8ede95"}],"parked":[]}\n';
 
 export const JOURNAL_BYTE_CASES = Object.freeze([
   Object.freeze({ id: 'ship-full', kind: 'ship', fields: SHIP_FIELDS_AT_FB195E47, line: SHIP_LINE_AT_FB195E47 }),

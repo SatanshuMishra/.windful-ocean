@@ -119,8 +119,7 @@ export function isShippedUnit(shippedSet, id) {
 }
 
 function isParked(msp) {
-  if (msp.disposition !== null && msp.disposition !== undefined) return true;
-  return msp.status === 'parked';
+  return msp.disposition !== null && msp.disposition !== undefined;
 }
 
 export function selectResumeUnits(manifest, shippedSet) {

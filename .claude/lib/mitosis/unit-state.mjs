@@ -21,21 +21,6 @@ export function mergeProgress(current, incoming) {
   return currentRank >= incomingRank ? current : incoming;
 }
 
-export function legacyProgress(token) {
-  if (token === 'shipped') {
-    return 'pr-open';
-  }
-  if (PROGRESS_ORDER.includes(token)) {
-    return token;
-  }
-  throw new TypeError(`unrecognized legacy progress token: ${JSON.stringify(token)}`);
-}
-
-export function legacyStatusOf(progress) {
-  assertProgressToken(progress);
-  return progress === 'pr-open' || progress === 'merged' ? 'shipped' : progress;
-}
-
 function requireDiagnosis(diagnosis) {
   if (diagnosis === undefined || diagnosis === null) return null;
   if (typeof diagnosis === 'string' && diagnosis.length > 0) return diagnosis;
@@ -125,10 +110,7 @@ export function withRemediation(disposition, remediation) {
 
 export function startingProgressOf(msp) {
   if (msp && typeof msp.progress === 'string') return msp.progress;
-  const status = msp && typeof msp.status === 'string' ? msp.status : null;
-  if (status === null) return 'planned';
-  if (status === 'parked') return 'planned';
-  return legacyProgress(status);
+  return 'planned';
 }
 
 function sanitizeLegacyStage(stage) {

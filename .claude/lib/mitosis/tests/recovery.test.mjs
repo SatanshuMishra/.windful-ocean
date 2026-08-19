@@ -20,8 +20,9 @@ import {
 } from '../recovery.mjs';
 import * as recovery from '../recovery.mjs';
 import { park } from '../parking.mjs';
-import { legacyStatusOf } from '../unit-state.mjs';
+import { startingProgressOf } from '../unit-state.mjs';
 import { pack } from './file-scope-fixtures.mjs';
+import { censusOfFile, reportLegacyStatusReads } from './property-read-census.mjs';
 
 test('computeLogicalRunId: deterministic for identical inputs', () => {
   assert.equal(
@@ -212,9 +213,10 @@ test('buildInitialManifest: planned msps, derived integration branch, title/rati
   assert.equal(manifest.harnessRunId, null);
   assert.equal(manifest.phase, 'Decompose');
   assert.deepEqual(manifest.msps[0], {
-    id: 'a', title: 'Alpha title', rationale: 'Alpha rationale', changeType: 'feat', scope: 'alpha', status: 'planned', integrationBranch: 'mitosis/a-integration',
+    id: 'a', title: 'Alpha title', rationale: 'Alpha rationale', changeType: 'feat', scope: 'alpha', integrationBranch: 'mitosis/a-integration',
     prUrl: null, mergedAt: null, dependsOn: [], fileScope: pack(['src/a/**']), contentHash: mspContentHash(msps[0]),
   });
+  assert.equal(startingProgressOf(manifest.msps[0]), 'planned', 'a genesis msp carries no progress field of its own, so the planned floor is the one the reader derives');
   assert.deepEqual(msps[0], { id: 'a', title: 'Alpha title', rationale: 'Alpha rationale', changeType: 'feat', scope: 'alpha', dependsOn: [], fileScope: pack(['src/a/**']) });
 });
 
@@ -231,10 +233,10 @@ test('applyShipTransition: marks the msp shipped and does not mutate the input',
     msps: [{ id: 'a', dependsOn: [], fileScope: pack([]) }, { id: 'b', dependsOn: [], fileScope: pack([]) }],
   });
   const after = applyShipTransition(before, { mspId: 'a', prUrl: 'http://pr/1', mergedAt: '2026-07-08T00:00:00Z' });
-  assert.equal(after.msps.find((m) => m.id === 'a').status, 'shipped');
+  assert.equal(after.msps.find((m) => m.id === 'a').progress, 'pr-open');
   assert.equal(after.msps.find((m) => m.id === 'a').prUrl, 'http://pr/1');
-  assert.equal(after.msps.find((m) => m.id === 'b').status, 'planned');
-  assert.equal(before.msps.find((m) => m.id === 'a').status, 'planned');
+  assert.equal(startingProgressOf(after.msps.find((m) => m.id === 'b')), 'planned');
+  assert.equal(startingProgressOf(before.msps.find((m) => m.id === 'a')), 'planned');
 });
 
 test('applyShipTransition: appends a full defensive shipped entry carrying the passed title/rationale/changeType/scope when the mspId is absent', () => {
@@ -247,7 +249,7 @@ test('applyShipTransition: appends a full defensive shipped entry carrying the p
   const after = applyShipTransition(before, { mspId: 'c', prUrl: 'http://pr/c', mergedAt: '2026-07-08T00:00:00Z', title: 'C title', rationale: 'C rationale', changeType: 'chore', scope: 'c' });
   assert.equal(after.msps.length, before.msps.length + 1);
   assert.deepEqual(after.msps.find((m) => m.id === 'c'), {
-    id: 'c', title: 'C title', rationale: 'C rationale', changeType: 'chore', scope: 'c', status: 'shipped', integrationBranch: 'mitosis/c-integration',
+    id: 'c', title: 'C title', rationale: 'C rationale', changeType: 'chore', scope: 'c', progress: 'pr-open', integrationBranch: 'mitosis/c-integration',
     prUrl: 'http://pr/c', mergedAt: '2026-07-08T00:00:00Z', dependsOn: [], fileScope: pack([]),
   });
   assert.deepEqual(after.msps[0], snapshot.msps[0]);
@@ -269,7 +271,7 @@ test('applyBuiltTransition: marks the unit built with checkpointRef/builtSha, re
   const after = applyBuiltTransition(before, { unitId: 'a', checkpointRef: 'refs/mitosis/x/a', sha: 'abc1234' });
   assert.notEqual(after, before);
   const a = after.msps.find((m) => m.id === 'a');
-  assert.equal(a.status, 'built');
+  assert.equal(a.progress, 'built');
   assert.equal(a.checkpointRef, 'refs/mitosis/x/a');
   assert.equal(a.builtSha, 'abc1234');
   assert.deepEqual(a.builtAgainst, {}, 'builtAgainst defaults to an empty map when omitted');
@@ -286,14 +288,14 @@ test('applyBuiltTransition: persists an explicit builtAgainst provenance record'
 
 const BUILT_MSP_KEYS = Object.freeze([
   'builtAgainst', 'builtSha', 'changeType', 'checkpointRef', 'contentHash', 'dependsOn', 'fileScope',
-  'id', 'integrationBranch', 'mergedAt', 'prUrl', 'progress', 'rationale', 'resumePoint', 'scope', 'status', 'title',
+  'id', 'integrationBranch', 'mergedAt', 'prUrl', 'progress', 'rationale', 'resumePoint', 'scope', 'title',
 ]);
 const APPENDED_MSP_KEYS = Object.freeze([
   'builtAgainst', 'builtSha', 'checkpointRef', 'dependsOn', 'fileScope',
-  'id', 'integrationBranch', 'mergedAt', 'prUrl', 'rationale', 'status', 'title',
+  'id', 'integrationBranch', 'mergedAt', 'prUrl', 'progress', 'rationale', 'title',
 ]);
 const IDENTITY_OVERLAY_EXPECTED = Object.freeze([
-  'status', 'prUrl', 'mergedAt', 'checkpointRef', 'builtSha', 'builtAgainst', 'resumePoint', 'triedSet', 'ciAttempts',
+  'progress', 'prUrl', 'mergedAt', 'checkpointRef', 'builtSha', 'builtAgainst', 'resumePoint', 'triedSet', 'ciAttempts',
 ]);
 
 test('applyBuiltTransition writes no green field on the update branch or the append branch, and the identity overlay carries none either', () => {
@@ -333,7 +335,7 @@ test('applyBuiltTransition: terminal-status guard — a shipped unit is NEVER do
 test('applyBuiltTransition: parked/planned units are promoted to built', () => {
   const before = builtBase();
   const after = applyBuiltTransition(before, { unitId: 'a', checkpointRef: 'refs/mitosis/x/a', sha: 'abc1234' });
-  assert.equal(after.msps.find((m) => m.id === 'a').status, 'built');
+  assert.equal(after.msps.find((m) => m.id === 'a').progress, 'built');
 });
 
 test('applyBuiltTransition: appends a defensive built entry with the derived integration branch when the id is absent', () => {
@@ -341,7 +343,7 @@ test('applyBuiltTransition: appends a defensive built entry with the derived int
   const after = applyBuiltTransition(before, { unitId: 'c', checkpointRef: 'refs/mitosis/x/c', sha: 'def5678' });
   assert.equal(after.msps.length, before.msps.length + 1);
   const c = after.msps.find((m) => m.id === 'c');
-  assert.equal(c.status, 'built');
+  assert.equal(c.progress, 'built');
   assert.equal(c.integrationBranch, 'mitosis/c-integration');
   assert.equal(c.checkpointRef, 'refs/mitosis/x/c');
   assert.equal(c.builtSha, 'def5678');
@@ -371,7 +373,7 @@ test('applyBuiltTransition: clears the resumePoint, so a rebuilt unit re-parked 
   const b = cascaded.msps.find((m) => m.id === 'b');
   assert.notStrictEqual(b.disposition, null, 'the ancestor cascade still records a disposition for the dependent');
   assert.notStrictEqual(b.disposition, undefined, 'the ancestor cascade still records a disposition for the dependent');
-  assert.strictEqual(b.status, legacyStatusOf(b.progress), 'the legacy status mirror stays exact — the cascade no longer clobbers the built record down to parked');
+  assert.strictEqual(b.progress, 'built', 'the cascade no longer clobbers the built record down to parked');
   assert.notEqual(
     b.resumePoint && b.resumePoint.stage,
     'plan',
@@ -555,13 +557,13 @@ function localJournalFixture(overrides = {}) {
     msps: [
       {
         id: 'a', title: 'alpha title', rationale: 'Alpha rationale', changeType: 'feat', scope: 'alpha',
-        status: 'built', integrationBranch: 'mitosis/a-integration', prUrl: null, mergedAt: null,
+        progress: 'built', integrationBranch: 'mitosis/a-integration', prUrl: null, mergedAt: null,
         dependsOn: [], fileScope: pack(['old/**']), checkpointRef: 'refs/mitosis/deadbeef/a',
         builtSha: 'a'.repeat(40), green: true, builtAgainst: {},
       },
       {
         id: 'z', title: 'zeta title', rationale: 'Zeta rationale', changeType: 'chore', scope: 'zeta',
-        status: 'planned', integrationBranch: 'mitosis/z-integration', prUrl: null, mergedAt: null,
+        progress: 'planned', integrationBranch: 'mitosis/z-integration', prUrl: null, mergedAt: null,
         dependsOn: [], fileScope: pack(['z/**']),
       },
     ],
@@ -678,7 +680,7 @@ test('I3 precedence: the published identity table WINS a disagreement with the l
   assert.equal(resolved.identity, 'published');
   assert.deepEqual(resolved.manifest.msps.map((m) => m.id), ['a'], 'the id present only in the local journal is DROPPED — the published table is the identity authority');
   assert.deepEqual(resolved.manifest.msps[0].fileScope, pack(['new/**']), 'the published fileScope wins over the local journal copy');
-  assert.equal(resolved.manifest.msps[0].status, 'built', 'status is run state, not identity, and is carried from the local journal');
+  assert.equal(resolved.manifest.msps[0].progress, 'built', 'progress is run state, not identity, and is carried from the local journal');
   assert.equal(resolved.manifest.msps[0].builtSha, 'a'.repeat(40), 'the durable build provenance the journal owns survives the overlay');
   assert.equal(resolved.manifest.msps[0].checkpointRef, 'refs/mitosis/deadbeef/a');
   assert.equal(resolved.manifest.window, undefined, 'a journal-persisted window is NOT carried — the build-ahead width is a fixed engine constant and the manifest is never a second authority for it');
@@ -816,4 +818,12 @@ test('I3 envelope: the spec comparison runs in the REPO-RELATIVE form both sides
   const line = disagreeing.filter((l) => /run-level identity field/.test(l));
   assert.equal(line.length, 1, 'a GENUINE spec disagreement is still reported once the comparison is like-for-like');
   assert.match(line[0], /spec \(published "specs\/other\.md", in effect "specs\/x\.md"\)/, 'both sides of the reported disagreement are shown in the same repo-relative form');
+});
+
+test('recovery.mjs reads no legacy status field, by a closed property census that halts on what it cannot decide', () => {
+  const census = censusOfFile('recovery.mjs', new URL('../recovery.mjs', import.meta.url));
+  const verdict = reportLegacyStatusReads('recovery.mjs', census);
+
+  assert.equal(verdict.clean, true, verdict.report);
+  assert.ok(census.ok && census.propertyReads.length > 0, verdict.report);
 });

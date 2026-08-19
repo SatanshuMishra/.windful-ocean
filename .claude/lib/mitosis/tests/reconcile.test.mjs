@@ -103,9 +103,9 @@ test('mergePaginated: tolerant of empty or non-array pages', () => {
 
 test('planReconcile: opens the next-layer PR for a built-unpublished unit whose parents all merged, and restacks a unit with only some parents merged', () => {
   const manifest = { window: 3, msps: [
-    { id: 'p1', status: 'shipped', dependsOn: [] },
-    { id: 'p2', status: 'built', dependsOn: ['p1'], builtSha: 'p2sha' },
-    { id: 'child', status: 'built', dependsOn: ['p1', 'p2'], builtSha: 'c0' },
+    { id: 'p1', progress: 'pr-open', dependsOn: [] },
+    { id: 'p2', progress: 'built', dependsOn: ['p1'], builtSha: 'p2sha' },
+    { id: 'child', progress: 'built', dependsOn: ['p1', 'p2'], builtSha: 'c0' },
   ] };
   const plan = planReconcile(manifest, { merged: [], published: [] });
   assert.deepEqual(plan.toOpen, ['p2']);
@@ -116,8 +116,8 @@ test('planReconcile: opens the next-layer PR for a built-unpublished unit whose 
 
 test('planReconcile: a built branch that already has an open PR is frozen — never re-opened or restacked', () => {
   const manifest = { window: 3, msps: [
-    { id: 'p1', status: 'shipped', dependsOn: [] },
-    { id: 'pub', status: 'built', dependsOn: ['p1'], builtSha: 'x' },
+    { id: 'p1', progress: 'pr-open', dependsOn: [] },
+    { id: 'pub', progress: 'built', dependsOn: ['p1'], builtSha: 'x' },
   ] };
   const plan = planReconcile(manifest, { merged: [], published: ['pub'] });
   assert.deepEqual(plan.toOpen, []);
@@ -126,9 +126,9 @@ test('planReconcile: a built branch that already has an open PR is frozen — ne
 
 function divergenceManifest(rootOverrides = {}) {
   return { window: 3, msps: [
-    { id: 'root', status: 'shipped', dependsOn: [], builtSha: 'r-built', fileScope: ['scope/root/**'], ...rootOverrides },
-    { id: 'a', status: 'built', dependsOn: ['root'], builtSha: 'a0' },
-    { id: 'b', status: 'built', dependsOn: ['a'], builtSha: 'b0' },
+    { id: 'root', progress: 'pr-open', dependsOn: [], builtSha: 'r-built', fileScope: ['scope/root/**'], ...rootOverrides },
+    { id: 'a', progress: 'built', dependsOn: ['root'], builtSha: 'a0' },
+    { id: 'b', progress: 'built', dependsOn: ['a'], builtSha: 'b0' },
   ] };
 }
 
@@ -144,9 +144,9 @@ test('planReconcile: a diverged parent parks exactly the true descendant subtree
 
 test('planReconcile: a diverged parent NEVER re-parks an already-done descendant — only the still-built part of the subtree is invalidated', () => {
   const manifest = { window: 3, msps: [
-    { id: 'p', status: 'shipped', dependsOn: [], builtSha: 'p-built', fileScope: ['scope/p/**'] },
-    { id: 'c1', status: 'shipped', dependsOn: ['p'], builtSha: 'c1-built' },
-    { id: 'c2', status: 'built', dependsOn: ['p'], builtSha: 'c2-built' },
+    { id: 'p', progress: 'pr-open', dependsOn: [], builtSha: 'p-built', fileScope: ['scope/p/**'] },
+    { id: 'c1', progress: 'pr-open', dependsOn: ['p'], builtSha: 'c1-built' },
+    { id: 'c2', progress: 'built', dependsOn: ['p'], builtSha: 'c2-built' },
   ] };
   const plan = planReconcile(manifest, {
     merged: ['p'],
@@ -189,8 +189,8 @@ test('planReconcile: fails closed on a malformed manifest — empty advance, no 
 
 test('planReconcile: never mutates the input manifest', () => {
   const manifest = { window: 3, msps: [
-    { id: 'root', status: 'shipped', dependsOn: [], builtSha: 'r' },
-    { id: 'a', status: 'built', dependsOn: ['root'], builtSha: 'a0' },
+    { id: 'root', progress: 'pr-open', dependsOn: [], builtSha: 'r' },
+    { id: 'a', progress: 'built', dependsOn: ['root'], builtSha: 'a0' },
   ] };
   const snapshot = JSON.stringify(manifest);
   planReconcile(manifest, { merged: ['root'], mergedShas: { root: 'diverged' } });
@@ -199,8 +199,8 @@ test('planReconcile: never mutates the input manifest', () => {
 
 test('planReconcile: a null / array / non-object live is normalized to a safe snapshot and never dereferenced raw (fail closed, not crash)', () => {
   const manifest = { window: 3, msps: [
-    { id: 'root', status: 'shipped', dependsOn: [] },
-    { id: 'a', status: 'built', dependsOn: ['root'], builtSha: 'a0' },
+    { id: 'root', progress: 'pr-open', dependsOn: [] },
+    { id: 'a', progress: 'built', dependsOn: ['root'], builtSha: 'a0' },
   ] };
   const expected = { toRestack: [], toOpen: ['a'], toParkSubtree: [], buildRunNeeded: false, invalidatingParents: 0 };
   assert.deepEqual(planReconcile(manifest, null), expected);
@@ -246,19 +246,6 @@ test('planReconcile: across the whole progress lattice, exactly one token makes 
     const plan = planReconcile(latticeManifest('merged', token), {});
     assert.deepEqual(plan.toOpen, opensAt[token], `a unit at ${token} under a merged parent`);
     assert.deepEqual(plan.toRestack, [], `a unit at ${token} restacks nothing`);
-  }
-});
-
-test('planReconcile: a legacy status mirror with no progress field classifies exactly as it did before the repoint', () => {
-  const opensAt = { planned: [], built: ['root'], shipped: ['a'], parked: [], 'not-a-token': [] };
-
-  for (const status of Object.keys(opensAt)) {
-    const manifest = { window: 3, msps: [
-      { id: 'root', status, dependsOn: [] },
-      { id: 'a', status: 'built', dependsOn: ['root'], builtSha: 'a0' },
-    ] };
-
-    assert.deepEqual(planReconcile(manifest, {}).toOpen, opensAt[status], `a parent whose only field is status=${status}`);
   }
 });
 

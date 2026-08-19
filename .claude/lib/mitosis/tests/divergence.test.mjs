@@ -38,8 +38,8 @@ function makeCtx(agentResult) {
 
 function gatingParent(id, overrides = {}) {
   return [
-    { id, status: 'shipped', builtSha: BUILT_SHA, fileScope: pack([`scope/${id}/**`]), dependsOn: [], ...overrides },
-    { id: `${id}-child`, status: 'built', dependsOn: [id] },
+    { id, progress: 'pr-open', builtSha: BUILT_SHA, fileScope: pack([`scope/${id}/**`]), dependsOn: [], ...overrides },
+    { id: `${id}-child`, progress: 'built', dependsOn: [id] },
   ];
 }
 
@@ -60,10 +60,10 @@ function confirmedClean(...ids) {
 
 test('needKeyedParents: only a merged parent that still gates built work is keyed, in mergedIds order, deduplicated', () => {
   const manifest = { msps: [
-    { id: 'gates-built', status: 'shipped', builtSha: BUILT_SHA, fileScope: pack(['scope/g/**']), dependsOn: [] },
-    { id: 'child', status: 'built', dependsOn: ['gates-built'] },
-    { id: 'no-built-dep', status: 'shipped', builtSha: BUILT_SHA, fileScope: pack(['scope/n/**']), dependsOn: [] },
-    { id: 'done-child', status: 'shipped', dependsOn: ['no-built-dep'] },
+    { id: 'gates-built', progress: 'pr-open', builtSha: BUILT_SHA, fileScope: pack(['scope/g/**']), dependsOn: [] },
+    { id: 'child', progress: 'built', dependsOn: ['gates-built'] },
+    { id: 'no-built-dep', progress: 'pr-open', builtSha: BUILT_SHA, fileScope: pack(['scope/n/**']), dependsOn: [] },
+    { id: 'done-child', progress: 'pr-open', dependsOn: ['no-built-dep'] },
   ] };
 
   assert.deepEqual(
@@ -74,7 +74,7 @@ test('needKeyedParents: only a merged parent that still gates built work is keye
 });
 
 test('needKeyedParents: a merged parent absent from the manifest that still gates built work IS keyed, so it can never fall out of the fold', () => {
-  const manifest = { msps: [{ id: 'orphan-child', status: 'built', dependsOn: ['ghost'] }] };
+  const manifest = { msps: [{ id: 'orphan-child', progress: 'built', dependsOn: ['ghost'] }] };
 
   assert.deepEqual(needKeyedParents(manifest, ['ghost']), ['ghost']);
 });
@@ -132,8 +132,8 @@ test('divergedParents: never returns an id outside needKeyedParents', async () =
   const { ctx } = makeCtx({ results: [{ parentId: 'quiet', changedPaths: ['x'], error: null }] });
   const manifest = { msps: [
     ...gatingParent('a'),
-    { id: 'quiet', status: 'shipped', builtSha: BUILT_SHA, fileScope: pack(['scope/q/**']), dependsOn: [] },
-    { id: 'quiet-child', status: 'shipped', dependsOn: ['quiet'] },
+    { id: 'quiet', progress: 'pr-open', builtSha: BUILT_SHA, fileScope: pack(['scope/q/**']), dependsOn: [] },
+    { id: 'quiet-child', progress: 'pr-open', dependsOn: ['quiet'] },
   ] };
 
   const diverged = await divergedParents(manifest, ['a', 'quiet'], { a: MERGED_SHA, quiet: MERGED_SHA }, ctx);
@@ -224,9 +224,9 @@ test('divergedParents: FAIL-CLOSED matrix — every case in which the engine can
 test('divergedParents: a parent absent from the manifest, and one whose id cannot compose a safe checkpoint ref, both fold to diverged unprobed', async () => {
   const { calls, ctx, logLines } = makeCtx(confirmedClean('ghost', 'a/../evil'));
   const manifest = { msps: [
-    { id: 'orphan-child', status: 'built', dependsOn: ['ghost'] },
-    { id: 'a/../evil', status: 'shipped', builtSha: BUILT_SHA, fileScope: pack(['scope/e/**']), dependsOn: [] },
-    { id: 'evil-child', status: 'built', dependsOn: ['a/../evil'] },
+    { id: 'orphan-child', progress: 'built', dependsOn: ['ghost'] },
+    { id: 'a/../evil', progress: 'pr-open', builtSha: BUILT_SHA, fileScope: pack(['scope/e/**']), dependsOn: [] },
+    { id: 'evil-child', progress: 'built', dependsOn: ['a/../evil'] },
   ] };
 
   const diverged = await divergedParents(manifest, ['ghost', 'a/../evil'], { ghost: MERGED_SHA, 'a/../evil': MERGED_SHA }, ctx);
@@ -290,19 +290,6 @@ test('needKeyedParents: across the whole progress lattice, exactly one token mar
     ] };
 
     assert.deepEqual(needKeyedParents(manifest, ['parent']), keyedAt[token], `a dependent at ${token}`);
-  }
-});
-
-test('needKeyedParents: a legacy status mirror with no progress field classifies exactly as it did before the repoint', () => {
-  const keyedAt = { planned: [], built: ['parent'], shipped: [], parked: [], 'not-a-token': [] };
-
-  for (const status of Object.keys(keyedAt)) {
-    const manifest = { msps: [
-      { id: 'parent', status: 'shipped', dependsOn: [] },
-      { id: 'child', status, dependsOn: ['parent'] },
-    ] };
-
-    assert.deepEqual(needKeyedParents(manifest, ['parent']), keyedAt[status], `a dependent whose only field is status=${status}`);
   }
 });
 
