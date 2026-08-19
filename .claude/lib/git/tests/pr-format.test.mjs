@@ -174,6 +174,20 @@ test('the machine ship invocation renders the mandated body byte for byte', () =
   assert.equal(renderPrCreateBody(parsed.opts), WORKED_EXAMPLE_A_BODY);
 });
 
+const REAL_MODEL_PROVENANCE = 'agent=delivery-lead model=claude-opus-5[1m]';
+
+test('the composed body carries the real bracketed model id byte for byte on the line under the provenance heading', () => {
+  const body = renderArgv(WORKED_EXAMPLE_A_ARGV.map((token, i, argv) => (argv[i - 1] === '--provenance' ? REAL_MODEL_PROVENANCE : token)));
+  assert.ok(
+    body.includes(REAL_MODEL_PROVENANCE),
+    `the rendered body must carry ${JSON.stringify(REAL_MODEL_PROVENANCE)} verbatim, got: ${JSON.stringify(body)}`,
+  );
+  const lines = body.split(LF);
+  const heading = lines.indexOf('## Provenance');
+  assert.ok(heading >= 0, 'a machine pull request must render a provenance heading');
+  assert.equal(lines[heading + 1], REAL_MODEL_PROVENANCE);
+});
+
 function humanArgv(extra = []) {
   return [
     'pr-create',

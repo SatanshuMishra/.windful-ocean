@@ -377,11 +377,60 @@ const REJECTED_PROVENANCE = Object.freeze([
   'agent=ship model=opus extra',
   'agent=ship agent=other model=opus',
   `agent=${'a'.repeat(65)} model=opus`,
+  `agent=ship model=${'m'.repeat(65)}`,
 ]);
 
 for (const provenance of REJECTED_PROVENANCE) {
   test(`parse REJECTS the free-form provenance ${JSON.stringify(provenance)}`, () => {
     failParse(prCreateArgvReplacing('--provenance', provenance));
+  });
+}
+
+const ACCEPTED_PROVENANCE_BOUNDS = Object.freeze([
+  ['an agent label of exactly 64 characters', `agent=${'a'.repeat(64)} model=opus`],
+  ['a model id of exactly 64 characters', `agent=ship model=${'m'.repeat(64)}`],
+  ['a single character in both the agent label and the model id', 'agent=a model=m'],
+]);
+
+for (const [label, provenance] of ACCEPTED_PROVENANCE_BOUNDS) {
+  test(`parse ACCEPTS ${label}, pinning both provenance length bounds at 1 to 64`, () => {
+    const parsed = okParse(prCreateArgvReplacing('--provenance', provenance));
+    assert.equal(parsed.opts.provenance, provenance);
+  });
+}
+
+const DIGIT_BEARING_PROVENANCE = 'agent=a0123456789 model=m0123456789';
+
+test('parse ACCEPTS every decimal digit in both the agent label and the model id', () => {
+  const parsed = okParse(prCreateArgvReplacing('--provenance', DIGIT_BEARING_PROVENANCE));
+  assert.equal(parsed.opts.provenance, DIGIT_BEARING_PROVENANCE);
+});
+
+const REAL_MODEL_PROVENANCE = 'agent=delivery-lead model=claude-opus-5[1m]';
+
+test('parse ACCEPTS the bracketed model id this machine actually reports, so a machine pull request can name the model that opened it', () => {
+  const parsed = okParse(prCreateArgvReplacing('--provenance', REAL_MODEL_PROVENANCE));
+  assert.equal(parsed.opts.provenance, REAL_MODEL_PROVENANCE);
+});
+
+const BACKTICK = String.fromCharCode(96);
+
+const PROVENANCE_INJECTION = Object.freeze([
+  ['a parenthesis, the closing half of a markdown link', 'agent=x model=a(b)'],
+  ['a backtick, the opener of a code span', `agent=x model=a${BACKTICK}b`],
+  ['an angle bracket, the opener of an html tag', 'agent=x model=a<b'],
+  ['a bang, the opener of markdown image syntax', 'agent=x model=a!b'],
+  ['a hash, a forged heading marker', 'agent=x model=a#b'],
+  ['a pipe, a table structure character', 'agent=x model=a|b'],
+  ['a complete inline link', 'agent=delivery-lead model=[click](https://evil.example)'],
+  ['brackets paired with the parentheses a markdown link still needs', 'agent=x model=a[b](c)'],
+  ["a newline forging one of the tool's own headings", `agent=x model=y${LF}## Verification`],
+]);
+
+for (const [label, provenance] of PROVENANCE_INJECTION) {
+  test(`parse REFUSES the provenance ${JSON.stringify(provenance)} carrying ${label}`, () => {
+    const parsed = failParse(prCreateArgvReplacing('--provenance', provenance));
+    assert.match(parsed.error, /--provenance/, `the refusal must name the provenance field it refused, got: ${parsed.error}`);
   });
 }
 
