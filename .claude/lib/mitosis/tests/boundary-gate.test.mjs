@@ -682,3 +682,99 @@ test('an unchanged resolved tsconfig does not block', () => {
   assert.equal(verdict.pass, true, verdict.output);
   assert.deepEqual([...verdict.blocking], []);
 });
+
+const NO_OP_GATE_BASE = 'abc123';
+const TREE_PROBE_PREFIX = 'git rev-parse --verify ';
+const BASE_SIDE_REVISION = `${NO_OP_GATE_BASE}^{tree}`;
+const HEAD_SIDE_REVISION = 'HEAD^{tree}';
+
+function shaAnsweringIo({ baseSha, headSha, status = 0 }) {
+  const shaFor = (argv) => {
+    const revision = argv[argv.length - 1];
+    if (revision === BASE_SIDE_REVISION) return baseSha;
+    if (revision === HEAD_SIDE_REVISION) return headSha;
+    return null;
+  };
+  return fixtureIo({
+    exists: () => false,
+    readFile: () => JSON.stringify({}),
+    run: (binary, argv) => {
+      if (binary === 'git' && argv[0] === 'rev-parse' && argv[1] === '--verify') {
+        const sha = shaFor(argv);
+        if (sha === null) return { outcome: 'completed', status: 128, stdout: '', stderr: 'fatal: Needed a single revision' };
+        return { outcome: 'completed', status, stdout: `${sha}\n`, stderr: '' };
+      }
+      return { outcome: 'completed', status: 0, stdout: '', stderr: '' };
+    },
+  });
+}
+
+const SAME_SHA = '3f7a1c9d2b4e6a8c0d1f2e3a4b5c6d7e8f901234';
+const OTHER_SHA = 'a1b2c3d4e5f60718293a4b5c6d7e8f9012345678';
+
+function noOpRequest(extra) {
+  return { repoRoot: ROOT, gateBase: NO_OP_GATE_BASE, basePath: BASE, cachedBaseCensus: null, ...extra };
+}
+
+function assertBothSidesProbed(io) {
+  const probes = io.spawned.filter((command) => command.startsWith(TREE_PROBE_PREFIX));
+  assert.equal(
+    probes.length,
+    2,
+    `the tree probe did not interrogate both sides, so a verdict carrying no refusal says nothing about what the probe decided: ${JSON.stringify(io.spawned)}`,
+  );
+  assert.equal(
+    probes.filter((command) => command === `${TREE_PROBE_PREFIX}${BASE_SIDE_REVISION}`).length,
+    1,
+    `the base side was never resolved from the declared gateBase revision: ${JSON.stringify(probes)}`,
+  );
+  assert.equal(
+    probes.filter((command) => command === `${TREE_PROBE_PREFIX}${HEAD_SIDE_REVISION}`).length,
+    1,
+    `the head side was never resolved from HEAD: ${JSON.stringify(probes)}`,
+  );
+}
+
+test('the comparison reports how many head identities it actually examined', () => {
+  const census = { eslint: { 'a::no-eq::x': 1 }, tsc: { 'b::TS2345::y': 3 } };
+  const verdict = compareCensuses(census, census);
+  assert.equal(verdict.comparedIdentities, 2, 'the comparison did not report exactly the two (tool, identity) pairs it examined');
+  assert.equal(verdict.notComparable, false);
+});
+
+test('a comparison over an empty head census reports that it examined nothing while still passing', () => {
+  const verdict = compareCensuses({ eslint: { 'a::no-eq::x': 1 } }, {});
+  assert.equal(verdict.comparedIdentities, 0);
+  assert.equal(verdict.notComparable, true);
+  assert.equal(verdict.pass, true, 'pass was gated on comparedIdentities, and the declared narrowing keeps it meaning blocking.length === 0');
+  assert.deepEqual([...verdict.blocking], []);
+});
+
+test('a base and a head at different trees are never refused as not comparable', () => {
+  const io = shaAnsweringIo({ baseSha: SAME_SHA, headSha: OTHER_SHA });
+  const verdict = evaluate(noOpRequest(), io);
+  assert.equal(verdict.pass, true, verdict.output);
+  assert.deepEqual(
+    verdict.blocking.filter((entry) => entry.classifier === 'not-comparable'),
+    [],
+    'two distinct trees were refused as the same tree, so the gate over-refuses every ordinary MSP',
+  );
+  assertBothSidesProbed(io);
+});
+
+test('a tree that cannot be resolved on either side is never refused as not comparable', () => {
+  const unresolvable = [
+    shaAnsweringIo({ baseSha: SAME_SHA, headSha: SAME_SHA, status: 1 }),
+    shaAnsweringIo({ baseSha: '', headSha: '' }),
+  ];
+  for (const io of unresolvable) {
+    const verdict = evaluate(noOpRequest(), io);
+    assert.equal(verdict.pass, true, verdict.output);
+    assert.deepEqual(
+      verdict.blocking.filter((entry) => entry.classifier === 'not-comparable'),
+      [],
+      'an unresolved tree was treated as a resolved one, so a side git could not report on reads as the same tree',
+    );
+    assertBothSidesProbed(io);
+  }
+});
