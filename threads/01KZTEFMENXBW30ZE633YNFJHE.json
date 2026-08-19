@@ -1232,6 +1232,11 @@
         "ref": "0617-remaining-units-branch-off-main-stacking-is-retired",
         "title": "Every remaining unit branches off main and merges to main; the stacked-PR topology is retired",
         "scope": "thread"
+      },
+      {
+        "ref": "0618-four-user-rulings-closing-the-designs-open-questions",
+        "title": "Four user rulings close the design's open questions; the remaining two are filed, not asked",
+        "scope": "thread"
       }
     ],
     "out_of_scope": [
@@ -1243,5 +1248,5 @@
     ]
   },
   "created_at": "2026-08-12T07:37:41.077Z",
-  "updated_at": "2026-08-19T02:57:28.153Z"
+  "updated_at": "2026-08-19T02:57:42.296Z"
 }
